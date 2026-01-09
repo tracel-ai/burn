@@ -1,11 +1,11 @@
 // TODO:
-// -[ ] move to separate crate e.g. `burn-engine`
 // -[ ] rename `RunnerChannel` -> `RouterChannel`, `RunnerClient` -> `RouterClient`, `Runner` -> `RouterEndpoint`
 
 use burn_backend::Backend;
 use burn_backend::TensorData;
 use burn_backend::{DeviceId, DeviceOps, ExecutionError};
 use burn_ir::BackendIr;
+use burn_ir::TensorHandle;
 use burn_ir::{OperationIr, TensorId, TensorIr};
 use burn_std::future::DynFut;
 use burn_std::{DType, Shape};
@@ -25,7 +25,7 @@ use burn_wgpu::Vulkan;
 #[cfg(feature = "webgpu")]
 use burn_wgpu::WebGpu;
 #[cfg(feature = "wgpu")]
-use burn_wgpu::{Wgpu, WgpuDevice};
+use burn_wgpu::WgpuDevice;
 
 use burn_router::{
     BackendRouter, MultiBackendBridge, RouterTensor, Runner, RunnerChannel, RunnerClient,
@@ -288,7 +288,7 @@ impl burn_std::device::Device for EngineDevice {
             #[cfg(feature = "webgpu")]
             EngineId::WebGpu => WgpuDevice::device_count(backend_type_id),
             #[cfg(feature = "ndarray")]
-            EngineId::NdArray => NdArray::device_count(backend_type_id),
+            EngineId::NdArray => NdArrayDevice::device_count(backend_type_id),
         }
     }
 }
@@ -302,10 +302,15 @@ pub enum EngineHandle {
     /// Cuda handle.
     #[cfg(feature = "cuda")]
     Cuda(<Cuda as BackendIr>::Handle),
-    /// Wgpu handle.
-    // Same for all Wgpu runtimes
-    #[cfg(feature = "wgpu")]
-    Wgpu(<Wgpu as BackendIr>::Handle),
+    /// Metal handle.
+    #[cfg(feature = "metal")]
+    Metal(<Metal as BackendIr>::Handle),
+    /// Vulkan handle.
+    #[cfg(feature = "vulkan")]
+    Vulkan(<Vulkan as BackendIr>::Handle),
+    /// WebGpu handle.
+    #[cfg(feature = "webgpu")]
+    WebGpu(<WebGpu as BackendIr>::Handle),
     /// NdArray handle.
     #[cfg(feature = "ndarray")]
     NdArray(<NdArray as BackendIr>::Handle),
@@ -320,9 +325,15 @@ pub enum EngineClient {
     /// Cuda client.
     #[cfg(feature = "cuda")]
     Cuda(Runner<Cuda>),
-    /// Wgpu client.
-    #[cfg(feature = "wgpu")]
-    Wgpu(Runner<Wgpu>),
+    /// Metal client.
+    #[cfg(feature = "metal")]
+    Metal(Runner<Metal>),
+    /// Vulkan client.
+    #[cfg(feature = "vulkan")]
+    Vulkan(Runner<Vulkan>),
+    /// WebGpu client.
+    #[cfg(feature = "webgpu")]
+    WebGpu(Runner<WebGpu>),
     /// NdArray client.
     #[cfg(feature = "ndarray")]
     NdArray(Runner<NdArray>),
@@ -335,10 +346,16 @@ impl RunnerClient for EngineClient {
         match self {
             #[cfg(feature = "cpu")]
             Self::Cpu(runner) => runner.register_op(op),
-            #[cfg(feature = "wgpu")]
-            Self::Wgpu(runner) => runner.register_op(op),
+            #[cfg(feature = "metal")]
+            Self::Metal(runner) => runner.register_op(op),
+            #[cfg(feature = "vulkan")]
+            Self::Vulkan(runner) => runner.register_op(op),
+            #[cfg(feature = "webgpu")]
+            Self::WebGpu(runner) => runner.register_op(op),
             #[cfg(feature = "cuda")]
             Self::Cuda(runner) => runner.register_op(op),
+            #[cfg(feature = "ndarray")]
+            Self::NdArray(runner) => runner.register_op(op),
         }
     }
 
@@ -346,10 +363,16 @@ impl RunnerClient for EngineClient {
         match self {
             #[cfg(feature = "cpu")]
             Self::Cpu(runner) => runner.read_tensor_async(tensor),
-            #[cfg(feature = "wgpu")]
-            Self::Wgpu(runner) => runner.read_tensor_async(tensor),
+            #[cfg(feature = "metal")]
+            Self::Metal(runner) => runner.read_tensor_async(tensor),
+            #[cfg(feature = "vulkan")]
+            Self::Vulkan(runner) => runner.read_tensor_async(tensor),
+            #[cfg(feature = "webgpu")]
+            Self::WebGpu(runner) => runner.read_tensor_async(tensor),
             #[cfg(feature = "cuda")]
             Self::Cuda(runner) => runner.read_tensor_async(tensor),
+            #[cfg(feature = "ndarray")]
+            Self::NdArray(runner) => runner.read_tensor_async(tensor),
         }
     }
 
@@ -359,8 +382,12 @@ impl RunnerClient for EngineClient {
             EngineClient::Cpu(runner) => runner.sync(),
             #[cfg(feature = "cuda")]
             EngineClient::Cuda(runner) => runner.sync(),
-            #[cfg(feature = "wgpu")]
-            EngineClient::Wgpu(runner) => runner.sync(),
+            #[cfg(feature = "metal")]
+            EngineClient::Metal(runner) => runner.sync(),
+            #[cfg(feature = "vulkan")]
+            EngineClient::Vulkan(runner) => runner.sync(),
+            #[cfg(feature = "webgpu")]
+            EngineClient::WebGpu(runner) => runner.sync(),
             #[cfg(feature = "ndarray")]
             EngineClient::NdArray(runner) => runner.sync(),
         }
@@ -372,8 +399,12 @@ impl RunnerClient for EngineClient {
             EngineClient::Cpu(runner) => runner.create_empty_handle(),
             #[cfg(feature = "cuda")]
             EngineClient::Cuda(runner) => runner.create_empty_handle(),
-            #[cfg(feature = "wgpu")]
-            EngineClient::Wgpu(runner) => runner.create_empty_handle(),
+            #[cfg(feature = "metal")]
+            EngineClient::Metal(runner) => runner.create_empty_handle(),
+            #[cfg(feature = "vulkan")]
+            EngineClient::Vulkan(runner) => runner.create_empty_handle(),
+            #[cfg(feature = "webgpu")]
+            EngineClient::WebGpu(runner) => runner.create_empty_handle(),
             #[cfg(feature = "ndarray")]
             EngineClient::NdArray(runner) => runner.create_empty_handle(),
         }
@@ -391,8 +422,18 @@ impl RunnerClient for EngineClient {
                 let desc = runner.register_tensor_data_desc(data);
                 RouterTensor::new(desc.id, desc.shape, desc.dtype, self.clone())
             }
-            #[cfg(feature = "wgpu")]
-            EngineClient::Wgpu(runner) => {
+            #[cfg(feature = "metal")]
+            EngineClient::Metal(runner) => {
+                let desc = runner.register_tensor_data_desc(data);
+                RouterTensor::new(desc.id, desc.shape, desc.dtype, self.clone())
+            }
+            #[cfg(feature = "vulkan")]
+            EngineClient::Vulkan(runner) => {
+                let desc = runner.register_tensor_data_desc(data);
+                RouterTensor::new(desc.id, desc.shape, desc.dtype, self.clone())
+            }
+            #[cfg(feature = "webgpu")]
+            EngineClient::WebGpu(runner) => {
                 let desc = runner.register_tensor_data_desc(data);
                 RouterTensor::new(desc.id, desc.shape, desc.dtype, self.clone())
             }
@@ -411,11 +452,11 @@ impl RunnerClient for EngineClient {
             #[cfg(feature = "cuda")]
             Self::Cuda(runner) => EngineDevice::Cuda(runner.device()),
             #[cfg(feature = "metal")]
-            Self::Wgpu(runner) => EngineDevice::Metal(runner.device()),
+            Self::Metal(runner) => EngineDevice::Metal(runner.device()),
             #[cfg(feature = "vulkan")]
-            Self::Wgpu(runner) => EngineDevice::Vulkan(runner.device()),
+            Self::Vulkan(runner) => EngineDevice::Vulkan(runner.device()),
             #[cfg(feature = "webgpu")]
-            Self::Wgpu(runner) => EngineDevice::WebGpu(runner.device()),
+            Self::WebGpu(runner) => EngineDevice::WebGpu(runner.device()),
             #[cfg(feature = "ndarray")]
             Self::NdArray(runner) => EngineDevice::NdArray(runner.device()),
         }
@@ -427,8 +468,12 @@ impl RunnerClient for EngineClient {
             EngineClient::Cpu(runner) => runner.seed(seed),
             #[cfg(feature = "cuda")]
             EngineClient::Cuda(runner) => runner.seed(seed),
-            #[cfg(feature = "wgpu")]
-            EngineClient::Wgpu(runner) => runner.seed(seed),
+            #[cfg(feature = "metal")]
+            EngineClient::Metal(runner) => runner.seed(seed),
+            #[cfg(feature = "vulkan")]
+            EngineClient::Vulkan(runner) => runner.seed(seed),
+            #[cfg(feature = "webgpu")]
+            EngineClient::WebGpu(runner) => runner.seed(seed),
             #[cfg(feature = "ndarray")]
             EngineClient::NdArray(runner) => runner.seed(seed),
         }
@@ -440,8 +485,12 @@ impl RunnerClient for EngineClient {
             EngineClient::Cpu(runner) => runner.supports_dtype(dtype),
             #[cfg(feature = "cuda")]
             EngineClient::Cuda(runner) => runner.supports_dtype(dtype),
-            #[cfg(feature = "wgpu")]
-            EngineClient::Wgpu(runner) => runner.supports_dtype(dtype),
+            #[cfg(feature = "metal")]
+            EngineClient::Metal(runner) => runner.supports_dtype(dtype),
+            #[cfg(feature = "vulkan")]
+            EngineClient::Vulkan(runner) => runner.supports_dtype(dtype),
+            #[cfg(feature = "webgpu")]
+            EngineClient::WebGpu(runner) => runner.supports_dtype(dtype),
             #[cfg(feature = "ndarray")]
             EngineClient::NdArray(runner) => runner.supports_dtype(dtype),
         }
@@ -454,7 +503,7 @@ pub struct EngineChannel;
 
 impl RunnerChannel for EngineChannel {
     type Device = EngineDevice;
-    type Bridge = EngineBridge;
+    type Bridge = BackendBridge;
     type FloatElem = f32; // or make configurable
     type IntElem = i32;
     type BoolElem = bool;
@@ -467,11 +516,11 @@ impl RunnerChannel for EngineChannel {
             #[cfg(feature = "cuda")]
             EngineDevice::Cuda(device) => EngineClient::Cuda(Runner::new(device.clone())),
             #[cfg(feature = "metal")]
-            EngineDevice::Metal(device) => EngineClient::Wgpu(Runner::new(device.clone())),
+            EngineDevice::Metal(device) => EngineClient::Metal(Runner::new(device.clone())),
             #[cfg(feature = "vulkan")]
-            EngineDevice::Vulkan(device) => EngineClient::Wgpu(Runner::new(device.clone())),
+            EngineDevice::Vulkan(device) => EngineClient::Vulkan(Runner::new(device.clone())),
             #[cfg(feature = "webgpu")]
-            EngineDevice::WebGpu(device) => EngineClient::Wgpu(Runner::new(device.clone())),
+            EngineDevice::WebGpu(device) => EngineClient::WebGpu(Runner::new(device.clone())),
             #[cfg(feature = "ndarray")]
             EngineDevice::NdArray(device) => EngineClient::NdArray(Runner::new(device.clone())),
         }
@@ -483,8 +532,12 @@ impl RunnerChannel for EngineChannel {
             EngineClient::Cpu(runner) => EngineHandle::Cpu(runner.get_tensor_handle(tensor)),
             #[cfg(feature = "cuda")]
             EngineClient::Cuda(runner) => EngineHandle::Cuda(runner.get_tensor_handle(tensor)),
-            #[cfg(feature = "wgpu")]
-            EngineClient::Wgpu(runner) => EngineHandle::Wgpu(runner.get_tensor_handle(tensor)),
+            #[cfg(feature = "metal")]
+            EngineClient::Metal(runner) => EngineHandle::Metal(runner.get_tensor_handle(tensor)),
+            #[cfg(feature = "vulkan")]
+            EngineClient::Vulkan(runner) => EngineHandle::Vulkan(runner.get_tensor_handle(tensor)),
+            #[cfg(feature = "webgpu")]
+            EngineClient::WebGpu(runner) => EngineHandle::WebGpu(runner.get_tensor_handle(tensor)),
             #[cfg(feature = "ndarray")]
             EngineClient::NdArray(runner) => {
                 EngineHandle::NdArray(runner.get_tensor_handle(tensor))
@@ -507,8 +560,16 @@ impl RunnerChannel for EngineChannel {
             (EngineClient::Cuda(runner), EngineHandle::Cuda(handle)) => {
                 runner.register_tensor(handle, shape, dtype, client.clone())
             }
-            #[cfg(feature = "wgpu")]
-            (EngineClient::Wgpu(runner), EngineHandle::Wgpu(handle)) => {
+            #[cfg(feature = "metal")]
+            (EngineClient::Metal(runner), EngineHandle::Metal(handle)) => {
+                runner.register_tensor(handle, shape, dtype, client.clone())
+            }
+            #[cfg(feature = "vulkan")]
+            (EngineClient::Vulkan(runner), EngineHandle::Vulkan(handle)) => {
+                runner.register_tensor(handle, shape, dtype, client.clone())
+            }
+            #[cfg(feature = "webgpu")]
+            (EngineClient::WebGpu(runner), EngineHandle::WebGpu(handle)) => {
                 runner.register_tensor(handle, shape, dtype, client.clone())
             }
             #[cfg(feature = "ndarray")]
@@ -523,21 +584,53 @@ impl RunnerChannel for EngineChannel {
         let device_name = match device {
             #[cfg(feature = "cpu")]
             EngineDevice::Cpu(device) => <Cpu as Backend>::name(device),
-            #[cfg(feature = "metal")]
-            EngineDevice::Metal(device) => <Metal as Backend>::name(device),
             #[cfg(feature = "cuda")]
             EngineDevice::Cuda(device) => <Cuda as Backend>::name(device),
+            #[cfg(feature = "metal")]
+            EngineDevice::Metal(device) => <Metal as Backend>::name(device),
             #[cfg(feature = "vulkan")]
             EngineDevice::Vulkan(device) => <Vulkan as Backend>::name(device),
+            #[cfg(feature = "webgpu")]
+            EngineDevice::WebGpu(device) => <WebGpu as Backend>::name(device),
+            #[cfg(feature = "ndarray")]
+            EngineDevice::NdArray(device) => <NdArray as Backend>::name(device),
         };
         format!("engine<{device_name}>")
     }
 }
 
-/// Bridge for transferring tensors between backends
-pub struct EngineBridge;
+/// Bridge for transferring tensors between backends.
+pub struct BackendBridge;
 
-impl MultiBackendBridge for EngineBridge {
+/// Move the tensor handle to the given device (on the same backend).
+fn to_device<B1: BackendIr>(handle: B1::Handle, shape: Shape, device: &B1::Device) -> B1::Handle {
+    let tensor = B1::float_tensor(TensorHandle {
+        handle: handle,
+        shape: shape,
+    });
+    let tensor = B1::float_to_device(tensor, device);
+    B1::float_tensor_handle(tensor)
+}
+
+/// Move the tensor handle to the given backend device.
+///
+/// # NOTE
+/// The data transfer is not direct from `B1` -> `B2`. The data is read in-memory, which is not optimal.
+fn to_backend<B1: BackendIr, B2: BackendIr>(
+    handle: B1::Handle,
+    shape: Shape,
+    device: &B2::Device,
+) -> B2::Handle {
+    let tensor = B1::float_tensor(TensorHandle {
+        handle: handle,
+        shape: shape,
+    });
+    let data = burn_backend::try_read_sync(B1::float_into_data(tensor)).unwrap().expect("Failed to read tensor data synchronously. This can happen on platforms that don't support blocking futures like WASM.");
+    let tensor = B2::float_from_data(data, device);
+    B2::float_tensor_handle(tensor)
+}
+
+impl MultiBackendBridge for BackendBridge {
     type TensorHandle = EngineHandle;
     type Device = EngineDevice;
 
@@ -546,7 +639,138 @@ impl MultiBackendBridge for EngineBridge {
         shape: Shape,
         target_device: &Self::Device,
     ) -> Self::TensorHandle {
-        todo!()
+        // NOTE: default backend dtypes are ignored for these, but it might make sense anyway to
+        // have dtype set for a device instead: https://github.com/tracel-ai/burn/issues/3642
+        match (tensor, target_device) {
+            // Change device only
+            #[cfg(feature = "cpu")]
+            (EngineHandle::Cpu(handle), EngineDevice::Cpu(device)) => {
+                EngineHandle::Cpu(to_device::<Cpu>(handle, shape, device))
+            }
+            #[cfg(feature = "cuda")]
+            (EngineHandle::Cuda(handle), EngineDevice::Cuda(device)) => {
+                EngineHandle::Cuda(to_device::<Cuda>(handle, shape, device))
+            }
+            #[cfg(feature = "metal")]
+            (EngineHandle::Metal(handle), EngineDevice::Metal(device)) => {
+                EngineHandle::Metal(to_device::<Metal>(handle, shape, device))
+            }
+            #[cfg(feature = "vulkan")]
+            (EngineHandle::Vulkan(handle), EngineDevice::Vulkan(device)) => {
+                EngineHandle::Vulkan(to_device::<Vulkan>(handle, shape, device))
+            }
+            #[cfg(feature = "webgpu")]
+            (EngineHandle::WebGpu(handle), EngineDevice::WebGpu(device)) => {
+                EngineHandle::WebGpu(to_device::<WebGpu>(handle, shape, device))
+            }
+            #[cfg(feature = "ndarray")]
+            (EngineHandle::NdArray(handle), EngineDevice::NdArray(device)) => {
+                EngineHandle::NdArray(to_device::<NdArray>(handle, shape, device))
+            }
+            // Change backends: Cpu -> Other
+            #[cfg(all(feature = "cpu", feature = "cuda"))]
+            (EngineHandle::Cpu(handle), EngineDevice::Cuda(device)) => {
+                EngineHandle::Cuda(to_backend::<Cpu, Cuda>(handle, shape, device))
+            }
+            #[cfg(all(feature = "cpu", feature = "metal"))]
+            (EngineHandle::Cpu(handle), EngineDevice::Metal(device)) => {
+                EngineHandle::Metal(to_backend::<Cpu, Metal>(handle, shape, device))
+            }
+            #[cfg(all(feature = "cpu", feature = "vulkan"))]
+            (EngineHandle::Cpu(handle), EngineDevice::Vulkan(device)) => {
+                EngineHandle::Vulkan(to_backend::<Cpu, Vulkan>(handle, shape, device))
+            }
+            #[cfg(all(feature = "cpu", feature = "webgpu"))]
+            (EngineHandle::Cpu(handle), EngineDevice::WebGpu(device)) => {
+                EngineHandle::WebGpu(to_backend::<Cpu, WebGpu>(handle, shape, device))
+            }
+            #[cfg(all(feature = "cpu", feature = "ndarray"))]
+            (EngineHandle::Cpu(handle), EngineDevice::NdArray(device)) => {
+                EngineHandle::NdArray(to_backend::<Cpu, NdArray>(handle, shape, device))
+            }
+            // Change backends: Cuda -> Other
+            #[cfg(all(feature = "cuda", feature = "cpu"))]
+            (EngineHandle::Cuda(handle), EngineDevice::Cpu(device)) => {
+                EngineHandle::Cpu(to_backend::<Cuda, Cpu>(handle, shape, device))
+            }
+            #[cfg(all(feature = "cuda", feature = "metal"))]
+            (EngineHandle::Cuda(handle), EngineDevice::Metal(device)) => {
+                EngineHandle::Metal(to_backend::<Cuda, Metal>(handle, shape, device))
+            }
+            #[cfg(all(feature = "cuda", feature = "vulkan"))]
+            (EngineHandle::Cuda(handle), EngineDevice::Vulkan(device)) => {
+                EngineHandle::Vulkan(to_backend::<Cuda, Vulkan>(handle, shape, device))
+            }
+            #[cfg(all(feature = "cuda", feature = "webgpu"))]
+            (EngineHandle::Cuda(handle), EngineDevice::WebGpu(device)) => {
+                EngineHandle::WebGpu(to_backend::<Cuda, WebGpu>(handle, shape, device))
+            }
+            #[cfg(all(feature = "cuda", feature = "ndarray"))]
+            (EngineHandle::Cuda(handle), EngineDevice::NdArray(device)) => {
+                EngineHandle::NdArray(to_backend::<Cuda, NdArray>(handle, shape, device))
+            }
+            // Change backends: Metal -> Other
+            #[cfg(all(feature = "metal", feature = "cpu"))]
+            (EngineHandle::Metal(handle), EngineDevice::Cpu(device)) => {
+                EngineHandle::Cpu(to_backend::<Metal, Cpu>(handle, shape, device))
+            }
+            #[cfg(all(feature = "metal", feature = "cuda"))]
+            (EngineHandle::Metal(handle), EngineDevice::Cuda(device)) => {
+                EngineHandle::Cuda(to_backend::<Metal, Cuda>(handle, shape, device))
+            }
+            #[cfg(all(feature = "metal", feature = "ndarray"))]
+            (EngineHandle::Metal(handle), EngineDevice::NdArray(device)) => {
+                EngineHandle::NdArray(to_backend::<Metal, NdArray>(handle, shape, device))
+            }
+            // Change backends: Vulkan -> Other
+            #[cfg(all(feature = "vulkan", feature = "cpu"))]
+            (EngineHandle::Vulkan(handle), EngineDevice::Cpu(device)) => {
+                EngineHandle::Cpu(to_backend::<Vulkan, Cpu>(handle, shape, device))
+            }
+            #[cfg(all(feature = "vulkan", feature = "cuda"))]
+            (EngineHandle::Vulkan(handle), EngineDevice::Cuda(device)) => {
+                EngineHandle::Cuda(to_backend::<Vulkan, Cuda>(handle, shape, device))
+            }
+            #[cfg(all(feature = "vulkan", feature = "ndarray"))]
+            (EngineHandle::Vulkan(handle), EngineDevice::NdArray(device)) => {
+                EngineHandle::NdArray(to_backend::<Vulkan, NdArray>(handle, shape, device))
+            }
+            // Change backends: WebGpu -> Other
+            #[cfg(all(feature = "webgpu", feature = "cpu"))]
+            (EngineHandle::WebGpu(handle), EngineDevice::Cpu(device)) => {
+                EngineHandle::Cpu(to_backend::<WebGpu, Cpu>(handle, shape, device))
+            }
+            #[cfg(all(feature = "webgpu", feature = "cuda"))]
+            (EngineHandle::WebGpu(handle), EngineDevice::Cuda(device)) => {
+                EngineHandle::Cuda(to_backend::<WebGpu, Cuda>(handle, shape, device))
+            }
+            #[cfg(all(feature = "webgpu", feature = "ndarray"))]
+            (EngineHandle::WebGpu(handle), EngineDevice::NdArray(device)) => {
+                EngineHandle::NdArray(to_backend::<WebGpu, NdArray>(handle, shape, device))
+            }
+            // Change backends: NdArray -> Other
+            #[cfg(all(feature = "ndarray", feature = "cpu"))]
+            (EngineHandle::NdArray(handle), EngineDevice::Cpu(device)) => {
+                EngineHandle::Cpu(to_backend::<NdArray, Cpu>(handle, shape, device))
+            }
+            #[cfg(all(feature = "ndarray", feature = "cuda"))]
+            (EngineHandle::NdArray(handle), EngineDevice::Cuda(device)) => {
+                EngineHandle::Cuda(to_backend::<NdArray, Cuda>(handle, shape, device))
+            }
+            #[cfg(all(feature = "ndarray", feature = "metal"))]
+            (EngineHandle::NdArray(handle), EngineDevice::Metal(device)) => {
+                EngineHandle::Metal(to_backend::<NdArray, Metal>(handle, shape, device))
+            }
+            #[cfg(all(feature = "ndarray", feature = "vulkan"))]
+            (EngineHandle::NdArray(handle), EngineDevice::Vulkan(device)) => {
+                EngineHandle::Vulkan(to_backend::<NdArray, Vulkan>(handle, shape, device))
+            }
+            #[cfg(all(feature = "ndarray", feature = "webgpu"))]
+            (EngineHandle::NdArray(handle), EngineDevice::WebGpu(device)) => {
+                EngineHandle::WebGpu(to_backend::<NdArray, WebGpu>(handle, shape, device))
+            }
+            _ => unreachable!(), // Metal <> Vulkan <> WebGpu
+        }
     }
 
     fn change_backend_int(
