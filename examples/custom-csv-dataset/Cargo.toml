@@ -27,3 +27,7 @@ serde = {workspace = true, features = ["std", "derive"]}
 
 # Dataframe support (optional)
 polars = {workspace = true, optional = true, features = ["csv", "temporal"]}
+
+[[example]]
+name = "dataframe-dataset"
+required-features = ["dataframe"]
