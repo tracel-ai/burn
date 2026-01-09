@@ -10,17 +10,17 @@ functionality.
 | ONNX OP                          | Import Support | Burn Support |
 |----------------------------------|:--------------:|:------------:|
 | [Abs][1]                         | ✅             | ✅           |
-| [Acos][2]                        | ❌             | ❌           |
-| [Acosh][3]                       | ❌             | ❌           |
+| [Acos][2]                        | ❌             | ✅           |
+| [Acosh][3]                       | ❌             | ✅           |
 | [Add][4]                         | ✅             | ✅           |
 | [AffineGrid][195]                | ❌             | ❌           |
 | [And][5]                         | ✅             | ✅           |
 | [ArgMax][6]                      | ✅             | ✅           |
 | [ArgMin][7]                      | ✅             | ✅           |
-| [Asin][8]                        | ❌             | ❌           |
-| [Asinh][9]                       | ❌             | ❌           |
-| [Atan][10]                       | ❌             | ❌           |
-| [Atanh][11]                      | ❌             | ❌           |
+| [Asin][8]                        | ❌             | ✅           |
+| [Asinh][9]                       | ❌             | ✅           |
+| [Atan][10]                       | ❌             | ✅           |
+| [Atanh][11]                      | ❌             | ✅           |
 | [Attention][194]                 | ✅             | ✅           |
 | [AveragePool1d][12]              | ✅             | ✅           |
 | [AveragePool2d][12]              | ✅             | ✅           |
@@ -88,7 +88,7 @@ functionality.
 | [HannWindow][72]                 | ❌             | ❌           |
 | [Hardmax][73]                    | ❌             | ❌           |
 | [HardSigmoid][74]                | ✅             | ✅           |
-| [HardSwish][75]                  | ❌             | ❌           |
+| [HardSwish][75]                  | ✅             | ✅           |
 | [Identity][76]                   | ✅             | ✅           |
 | [If][77]                         | ❌             | ✅           |
 | [Im][78]                         | ❌             | ❌           |

@@ -438,6 +438,47 @@ impl RelativeOps for FloatOperationIr {
                 input: desc.input.to_relative(converter),
                 out: desc.out.to_relative(converter),
             }),
+            FloatOperationIr::Tan(desc) => FloatOperationIr::Tan(UnaryOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            FloatOperationIr::Cosh(desc) => FloatOperationIr::Cosh(UnaryOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            FloatOperationIr::Sinh(desc) => FloatOperationIr::Sinh(UnaryOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            FloatOperationIr::ArcCos(desc) => FloatOperationIr::ArcCos(UnaryOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            FloatOperationIr::ArcCosh(desc) => FloatOperationIr::ArcCosh(UnaryOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            FloatOperationIr::ArcSin(desc) => FloatOperationIr::ArcSin(UnaryOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            FloatOperationIr::ArcSinh(desc) => FloatOperationIr::ArcSinh(UnaryOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            FloatOperationIr::ArcTan(desc) => FloatOperationIr::ArcTan(UnaryOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            FloatOperationIr::ArcTanh(desc) => FloatOperationIr::ArcTanh(UnaryOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            FloatOperationIr::ArcTan2(desc) => FloatOperationIr::ArcTan2(BinaryOpIr {
+                lhs: desc.lhs.to_relative(converter),
+                rhs: desc.rhs.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
             FloatOperationIr::IntoInt(desc) => FloatOperationIr::IntoInt(CastOpIr {
                 input: desc.input.to_relative(converter),
                 out: desc.out.to_relative(converter),
@@ -497,6 +538,14 @@ impl RelativeOps for FloatOperationIr {
                 input: desc.input.to_relative(converter),
                 out: desc.out.to_relative(converter),
             }),
+            FloatOperationIr::GridSample2d(desc) => {
+                FloatOperationIr::GridSample2d(GridSample2dOpIr {
+                    tensor: desc.tensor.to_relative(converter),
+                    grid: desc.grid.to_relative(converter),
+                    options: desc.options.clone(),
+                    out: desc.out.to_relative(converter),
+                })
+            }
         }
     }
 }

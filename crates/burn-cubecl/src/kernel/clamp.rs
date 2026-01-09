@@ -1,4 +1,4 @@
-use cubecl::{prelude::*, std::scalar::InputScalar};
+use cubecl::prelude::*;
 
 use crate::{
     CubeRuntime,

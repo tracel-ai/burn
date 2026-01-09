@@ -13,6 +13,15 @@ version.workspace = true
 [lints]
 workspace = true
 
+[features]
+default = []
+
+tracing = [
+    "burn/tracing",
+    "burn-ndarray/tracing",
+    "burn-store/tracing",
+]
+
 [dependencies]
 
 # ** Please make sure all dependencies support no_std **

@@ -5,7 +5,7 @@ use burn_backend::{
 };
 use burn_backend::{TensorMetadata, ops::unfold::calculate_unfold_shape};
 use burn_std::tensor::{ReshapeAction, contiguous_strides, reshape_action};
-use cubecl::server::CopyDescriptor;
+use cubecl::{ir::LineSize, server::CopyDescriptor};
 use cubecl::{quant::scheme::BlockSize, tensor_line_size_parallel};
 
 pub(crate) fn from_data<R: CubeRuntime>(data: TensorData, device: &R::Device) -> CubeTensor<R> {
@@ -41,7 +41,10 @@ pub fn into_data_sync<R: CubeRuntime>(tensor: CubeTensor<R>) -> TensorData {
     burn_std::future::block_on(into_data(tensor)).unwrap()
 }
 
-#[tracing::instrument(skip(tensor, device))]
+#[cfg_attr(
+    feature = "tracing",
+    tracing::instrument(level = "trace", skip(tensor, device))
+)]
 pub(crate) fn to_device<R: CubeRuntime>(
     tensor: CubeTensor<R>,
     device: &R::Device,
@@ -346,7 +349,7 @@ pub fn q_reshape<R: CubeRuntime>(mut tensor: CubeTensor<R>, shape: Shape) -> Cub
     tensor
 }
 
-pub(crate) fn max_line_size<R: CubeRuntime>(tensor: &CubeTensor<R>) -> u8 {
+pub(crate) fn max_line_size<R: CubeRuntime>(tensor: &CubeTensor<R>) -> LineSize {
     tensor_line_size_parallel(
         tensor
             .client
@@ -357,7 +360,10 @@ pub(crate) fn max_line_size<R: CubeRuntime>(tensor: &CubeTensor<R>) -> u8 {
     )
 }
 
-pub(crate) fn max_line_size_many<R: CubeRuntime>(tensors: &[&CubeTensor<R>], axis: usize) -> u8 {
+pub(crate) fn max_line_size_many<R: CubeRuntime>(
+    tensors: &[&CubeTensor<R>],
+    axis: usize,
+) -> LineSize {
     let vec = tensors
         .iter()
         .map(|tensor| {
