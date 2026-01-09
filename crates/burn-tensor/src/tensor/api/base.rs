@@ -992,7 +992,7 @@ where
     ///     println!("{unsqueezed}");
     /// }
     /// ```
-    pub fn unsqueeze_dims<const D2: usize>(self, axes: &[isize]) -> Tensor<B, D2, K> {
+    pub fn unsqueeze_dims<const D2: usize>(self, axes: &[impl AsIndex]) -> Tensor<B, D2, K> {
         let mut new_dims = [1; D2];
         let old_dims = self.shape().dims;
         //for checking if the dimension is in the acceptable range
@@ -1002,13 +1002,14 @@ where
         let mut dim_indices = axes
             .iter()
             .map(|d| {
+                let d = d.index();
                 // check if the dimension is in the acceptable range
-                check!(TensorCheck::unsqueeze_dims::<{ D2 }>(*d));
-                (if *d < 0 {
+                check!(TensorCheck::unsqueeze_dims::<{ D2 }>(d));
+                (if d < 0 {
                     neg_offset -= 1; // handle multiple negative indices (decrease dim value in reverse)
                     d + neg_offset as isize + 1
                 } else {
-                    *d
+                    d
                 }) as usize
             })
             .collect::<Vec<usize>>();

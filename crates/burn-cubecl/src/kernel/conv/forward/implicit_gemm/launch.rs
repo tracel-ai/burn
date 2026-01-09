@@ -6,7 +6,7 @@ use cubek::{
         components::ConvSetupError, forward,
     },
     matmul::{
-        definition::{MatmulElemType, MatmulElems, MatmulGlobalElems},
+        definition::{MatmulElems, MatmulGlobalElems},
         launch::MatmulInputHandleRef,
     },
 };
@@ -141,18 +141,9 @@ pub fn launch_convolution_forward<R: CubeRuntime, const N: usize>(
 
     let client = input.client.clone();
     let dtypes = MatmulElems::from_globals(&MatmulGlobalElems {
-        lhs: MatmulElemType {
-            dtype: input.dtype.into(),
-            quantized: false,
-        },
-        rhs: MatmulElemType {
-            dtype: weight.dtype.into(),
-            quantized: false,
-        },
-        out: MatmulElemType {
-            dtype: out_dtype.into(),
-            quantized: false,
-        },
+        lhs: input.dtype.into(),
+        rhs: weight.dtype.into(),
+        out: out_dtype.into(),
     });
     let input = MatmulInputHandleRef::new(input.as_handle_ref(), input.dtype.into());
     let weight = MatmulInputHandleRef::new(weight.as_handle_ref(), weight.dtype.into());

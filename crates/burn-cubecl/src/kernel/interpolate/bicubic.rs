@@ -15,7 +15,7 @@ use crate::{
 fn interpolate_bicubic_kernel<F: Float>(
     input: &Tensor<Line<F>>,
     output: &mut Tensor<Line<F>>,
-    shape_out: Sequence<FastDivmod>,
+    shape_out: Sequence<FastDivmod<usize>>,
     out_layout: LinearLayout,
     #[define(F)] _dtype: StorageType,
 ) {
@@ -26,9 +26,9 @@ fn interpolate_bicubic_kernel<F: Float>(
     let line_size = input.line_size();
     let out_idx = out_layout.to_source_pos(ABSOLUTE_POS);
 
-    let (rem, c) = shape_out.index(3).div_mod(ABSOLUTE_POS * line_size);
-    let (rem, x) = shape_out.index(2).div_mod(rem);
-    let (b, y) = shape_out.index(1).div_mod(rem);
+    let (rem, c) = shape_out[3].div_mod(ABSOLUTE_POS * line_size);
+    let (rem, x) = shape_out[2].div_mod(rem);
+    let (b, y) = shape_out[1].div_mod(rem);
 
     let input_height = input.shape(1) - 1;
     let output_height = f32::cast_from(Max::max(output.shape(1) - 1, 1));
@@ -36,7 +36,7 @@ fn interpolate_bicubic_kernel<F: Float>(
 
     let frac = f32::cast_from(numerator / output_height);
     let y_in_f = Floor::floor(frac);
-    let y_in = u32::cast_from(y_in_f);
+    let y_in = usize::cast_from(y_in_f);
     let yw = Line::empty(line_size).fill(F::cast_from(frac - y_in_f));
 
     let y0 = select(y_in != 0, y_in - 1, 0);
@@ -49,7 +49,7 @@ fn interpolate_bicubic_kernel<F: Float>(
     let numerator = f32::cast_from(x * input_width);
     let frac = numerator / output_width;
     let x_in_f = Floor::floor(frac);
-    let x_in = u32::cast_from(x_in_f);
+    let x_in = usize::cast_from(x_in_f);
     let xw = Line::empty(line_size).fill(F::cast_from(frac - x_in_f));
 
     let x0 = select(x_in != 0, x_in - 1, 0);

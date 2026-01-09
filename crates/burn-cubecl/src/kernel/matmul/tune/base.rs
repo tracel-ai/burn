@@ -6,7 +6,7 @@ use crate::{
 use burn_backend::DType;
 use cubecl::tune::{LocalTuner, Tunable, TunableSet, TuneGroup, local_tuner};
 use cubek::matmul::{
-    definition::{MatmulElemType, MatmulKind},
+    definition::MatmulKind,
     launch::{MatmulAutotuneKey, MatmulGlobalScale, Strategy, should_tune_double_buffering},
     routines::{
         BlueprintStrategy, TileSizeSelection, double_buffering::DoubleBufferingArgs,
@@ -400,17 +400,8 @@ fn create_key<R: CubeRuntime>(
         &rhs.shape.dims,
         &lhs.strides,
         &rhs.strides,
-        MatmulElemType {
-            dtype: lhs.dtype.into(),
-            quantized: matches!(lhs.dtype, DType::QFloat(_)),
-        },
-        MatmulElemType {
-            dtype: rhs.dtype.into(),
-            quantized: matches!(rhs.dtype, DType::QFloat(_)),
-        },
-        MatmulElemType {
-            dtype: out.dtype.into(),
-            quantized: matches!(out.dtype, DType::QFloat(_)),
-        },
+        lhs.dtype.into(),
+        rhs.dtype.into(),
+        out.dtype.into(),
     )
 }

@@ -25,7 +25,7 @@ impl NodeCodegen for onnx_ir::unsqueeze::UnsqueezeNode {
                     ArgType::Tensor(_) => {
                         let tensor_name = arg_to_ident(axes_arg);
                         quote! {
-                            #tensor_name.to_data().as_slice::<B::IntElem>().unwrap().iter().map(|&x| x.to_isize()).collect::<Vec<isize>>()
+                            #tensor_name.to_data().convert::<i64>().into_vec::<i64>().unwrap()
                         }
                     }
                     _ => panic!(
@@ -124,15 +124,6 @@ impl NodeCodegen for onnx_ir::unsqueeze::UnsqueezeNode {
                 "UnsqueezeNode received unsupported input/output combination: {:?} -> {:?}",
                 input_arg.ty, output_arg.ty
             ),
-        }
-    }
-
-    fn register_imports(&self, imports: &mut BurnImports) {
-        match &self.config {
-            onnx_ir::unsqueeze::UnsqueezeConfig::Runtime(_) => {
-                imports.register("alloc::vec::Vec");
-            }
-            _ => {}
         }
     }
 }

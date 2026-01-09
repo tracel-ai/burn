@@ -206,7 +206,7 @@ where
     }
 
     /// Return the reference to a tensor argument.
-    pub fn as_tensor_arg<'a>(&'a self, line_size: u8) -> TensorArg<'a, R> {
+    pub fn as_tensor_arg<'a>(&'a self, line_size: LineSize) -> TensorArg<'a, R> {
         let size = self.dtype.size();
         let handle: TensorHandleRef<'a, R> = self.as_handle_ref();
 
@@ -222,12 +222,12 @@ where
     }
 
     /// Return the reference to an array argument.
-    pub fn as_array_arg<E: CubeElement>(&self, vectorisation: u8) -> ArrayArg<'_, R> {
+    pub fn as_array_arg<E: CubeElement>(&self, line_size: LineSize) -> ArrayArg<'_, R> {
         unsafe {
             ArrayArg::from_raw_parts::<E>(
                 &self.handle,
                 self.handle.size() as usize / core::mem::size_of::<E>(),
-                vectorisation,
+                line_size,
             )
         }
     }
