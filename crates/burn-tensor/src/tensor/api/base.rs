@@ -22,7 +22,6 @@ use crate::{
 };
 use crate::{DType, Element};
 use crate::{cast::ToElement, check::TensorCheck};
-use burn_std::tensor::index_conversion::RankedReshapeArgs;
 use serde::{Serialize, Serializer};
 
 /// A tensor with a given backend, shape and data type.
@@ -368,9 +367,12 @@ where
     ///    println!("{reshaped}");
     /// }
     /// ```
-    pub fn reshape<const D2: usize, S: RankedReshapeArgs<D2>>(self, shape: S) -> Tensor<B, D2, K> {
+    pub fn reshape<const D2: usize, I>(self, shape: impl AsRef<[I]> + Debug) -> Tensor<B, D2, K>
+    where
+        I: AsIndex,
+    {
         // Convert reshape args to shape
-        let shape = shape.eval_shape::<D>(self.shape());
+        let shape = self.shape().reshape(shape).expect("invalid reshape");
         Tensor::new(K::reshape(self.primitive, shape))
     }
 

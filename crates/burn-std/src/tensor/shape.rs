@@ -157,7 +157,7 @@ impl Shape {
 
     /// Convert shape dimensions to full covering ranges (0..dim) for each dimension.
     pub fn into_ranges(self) -> Vec<Range<usize>> {
-        self.into_iter().map(|d| 0..d).collect()
+        self.iter().map(|&d| 0..d).collect()
     }
 
     /// Converts slice arguments into an array of slice specifications for the shape.
@@ -459,19 +459,19 @@ impl Shape {
     }
 
     /// Reshape this shape to the target shape.
-    pub fn reshape<T>(&self, args: T) -> Result<Shape, ExpressionError>
+    pub fn reshape<A, T>(&self, args: A) -> Result<Shape, ExpressionError>
     where
-        T: IntoIterator,
-        T::Item: AsIndex,
+        A: AsRef<[T]> + Debug,
+        T: AsIndex,
     {
-        let args: Vec<isize> = args.into_iter().map(|i| i.as_index()).collect();
-
+        let args = args.as_ref();
         let mut infer_index = None;
         let mut dims = Vec::new();
 
         let mut new_size = 1;
 
         for (idx, &s) in args.iter().enumerate() {
+            let s = s.as_index();
             if s > 0 {
                 let s = s as usize;
                 new_size *= s;
@@ -612,15 +612,6 @@ impl FromStr for Shape {
     }
 }
 
-impl IntoIterator for Shape {
-    type Item = usize;
-    type IntoIter = alloc::vec::IntoIter<Self::Item>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.dims.into_iter()
-    }
-}
-
 impl<Idx> Index<Idx> for Shape
 where
     Idx: SliceIndex<[usize]>,
@@ -656,6 +647,15 @@ impl DerefMut for Shape {
         &mut self.dims
     }
 }
+// Allow `shape.reshape(other_shape)`.
+//
+// By implementing `AsRef<[usize]>`, `Shape` behaves like a slice of dimensions,
+// similar to how `Vec<T>` can be passed to functions expecting a slice.
+impl AsRef<[usize]> for Shape {
+    fn as_ref(&self) -> &[usize] {
+        &self.dims
+    }
+}
 
 impl From<Shape> for Vec<usize> {
     fn from(shape: Shape) -> Self {
@@ -663,13 +663,10 @@ impl From<Shape> for Vec<usize> {
     }
 }
 
-/// Marker trait for types that can be converted into a shape.
-pub trait ShapeSource {}
-
-impl<T> From<T> for Shape
+impl<T, I> From<T> for Shape
 where
-    T: ShapeSource + IntoIterator,
-    T::Item: AsSize,
+    T: IntoIterator<Item = I>,
+    I: AsSize,
 {
     fn from(dims: T) -> Self {
         Shape {
@@ -677,12 +674,6 @@ where
         }
     }
 }
-
-impl<I> ShapeSource for &[I] {}
-impl<I> ShapeSource for &Vec<I> {}
-impl<I> ShapeSource for Vec<I> {}
-impl<I, const D: usize> ShapeSource for [I; D] {}
-impl<I, const D: usize> ShapeSource for &[I; D] {}
 
 #[cfg(test)]
 #[allow(clippy::identity_op, reason = "useful for clarity")]
