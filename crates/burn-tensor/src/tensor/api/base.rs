@@ -1002,7 +1002,7 @@ where
         let mut dim_indices = axes
             .iter()
             .map(|d| {
-                let d = d.index();
+                let d = d.as_index();
                 // check if the dimension is in the acceptable range
                 check!(TensorCheck::unsqueeze_dims::<{ D2 }>(d));
                 (if d < 0 {
