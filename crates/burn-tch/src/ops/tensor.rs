@@ -1,6 +1,6 @@
 use super::TchOps;
+use crate::TchFloatElement;
 use crate::{IntoKind, LibTorch, LibTorchDevice, TchShape, TchTensor, element::TchElement};
-use crate::{TchFloatElement, TchIntElement};
 use burn_backend::backend::ExecutionError;
 use burn_backend::tensor::{BoolTensor, FloatTensor, IntTensor};
 use burn_backend::{

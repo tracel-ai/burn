@@ -1,4 +1,4 @@
-use crate::{LibTorch, TchFloatElement, TchIntElement, TchTensor, element::TchElement};
+use crate::{LibTorch, TchFloatElement, TchTensor, element::TchElement};
 use burn_backend::ops::ActivationOps;
 
 impl<E: TchElement, F: TchFloatElement> ActivationOps<Self> for LibTorch<E, F> {

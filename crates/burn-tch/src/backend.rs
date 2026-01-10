@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use crate::{IntoKind, TchFloatElement, TchIntElement};
+use crate::{IntoKind, TchFloatElement};
 
 use super::TchTensor;
 use super::element::TchElement;
