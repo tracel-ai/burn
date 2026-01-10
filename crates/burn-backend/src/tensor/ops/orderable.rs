@@ -11,7 +11,7 @@ use crate::{
 #[cfg_attr(doc, doc = crate::doc_tensor!())]
 #[cfg_attr(not(doc), doc = "`Tensor`")]
 /// struct.
-pub trait Orderable<B: Backend>: Numeric<B>
+pub trait Ordered<B: Backend>: Numeric<B>
 where
     Self::Elem: ElementComparison,
 {

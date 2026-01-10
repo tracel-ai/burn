@@ -9,9 +9,7 @@ use burn_backend::{
 };
 use burn_backend::{bf16, f16};
 
-impl<E: TchElement, F: TchFloatElement, I: TchIntElement> FloatTensorOps<Self>
-    for LibTorch<E, F, I>
-{
+impl<E: TchElement, F: TchFloatElement> FloatTensorOps<Self> for LibTorch<E, F> {
     fn float_from_data(data: TensorData, device: &LibTorchDevice) -> TchTensor {
         match data.dtype {
             DType::F64 => TchTensor::from_data::<f64>(data, (*device).into()),
@@ -103,7 +101,7 @@ impl<E: TchElement, F: TchFloatElement, I: TchIntElement> FloatTensorOps<Self>
 
     fn float_empty(
         shape: Shape,
-        device: &<LibTorch<E, F, I> as Backend>::Device,
+        device: &<LibTorch<E, F> as Backend>::Device,
         dtype: FloatDType,
     ) -> TchTensor {
         let tensor = tch::Tensor::empty(
@@ -471,15 +469,15 @@ impl<E: TchElement, F: TchFloatElement, I: TchIntElement> FloatTensorOps<Self>
 
     fn float_clamp_max(
         tensor: TchTensor,
-        max: <LibTorch<E, F, I> as Backend>::FloatElem,
+        max: <LibTorch<E, F> as Backend>::FloatElem,
     ) -> TchTensor {
         TchOps::clamp_max(tensor, max.elem::<f64>())
     }
 
     fn float_clamp(
         tensor: TchTensor,
-        min: <LibTorch<E, F, I> as Backend>::FloatElem,
-        max: <LibTorch<E, F, I> as Backend>::FloatElem,
+        min: <LibTorch<E, F> as Backend>::FloatElem,
+        max: <LibTorch<E, F> as Backend>::FloatElem,
     ) -> TchTensor {
         TchOps::clamp(tensor, min.elem::<f64>(), max.elem::<f64>())
     }

@@ -7,7 +7,7 @@ use crate::{
     ops::TransactionPrimitive,
     tensor::{
         BasicAutodiffOps, BasicOps, BoolTensor, Device, IndexingUpdateOp, Int, IntTensor, Numeric,
-        Orderable, TensorKind,
+        Ordered, TensorKind,
     },
 };
 
@@ -331,7 +331,7 @@ impl<B: AutodiffBackend> BasicAutodiffOps<B> for Int {
     }
 }
 
-impl<B: Backend> Orderable<B> for Int
+impl<B: Backend> Ordered<B> for Int
 where
     <B as backend::Backend>::IntElem: crate::element::ElementComparison,
 {

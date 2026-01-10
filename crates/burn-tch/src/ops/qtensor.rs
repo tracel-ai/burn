@@ -7,7 +7,7 @@ use burn_backend::{
 
 use crate::{LibTorch, LibTorchDevice, TchElement, TchFloatElement, TchIntElement};
 
-impl<E: TchElement, F: TchFloatElement, I: TchIntElement> QTensorOps<Self> for LibTorch<E, F, I> {
+impl<E: TchElement, F: TchFloatElement> QTensorOps<Self> for LibTorch<E, F> {
     fn q_from_data(_data: TensorData, _device: &LibTorchDevice) -> QuantizedTensor<Self> {
         unimplemented!()
     }

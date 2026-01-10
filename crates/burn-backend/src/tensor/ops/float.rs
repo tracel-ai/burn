@@ -6,7 +6,7 @@ use crate::{
     element::ElementConversion,
     ops::TransactionPrimitive,
     tensor::{
-        BasicAutodiffOps, BasicOps, Device, Float, IndexingUpdateOp, IntTensor, Numeric, Orderable,
+        BasicAutodiffOps, BasicOps, Device, Float, IndexingUpdateOp, IntTensor, Numeric, Ordered,
         TensorKind,
     },
 };
@@ -533,7 +533,7 @@ impl<B: Backend> Numeric<B> for Float {
         }
     }
 }
-impl<B: Backend> Orderable<B> for Float
+impl<B: Backend> Ordered<B> for Float
 where
     <B as crate::backend::Backend>::FloatElem: crate::element::ElementComparison,
 {

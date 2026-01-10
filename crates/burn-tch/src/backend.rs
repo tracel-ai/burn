@@ -107,20 +107,19 @@ impl DeviceOps for LibTorchDevice {}
 ///
 /// Refer to the [tch] crate for more information.
 #[derive(Clone, Copy, Default, Debug)]
-pub struct LibTorch<E, F = f32, I = i64> {
+pub struct LibTorch<E, F = f32> {
     _e: PhantomData<E>,
-    _i: PhantomData<I>,
     _f: PhantomData<F>,
 }
 
-impl<E: TchElement, F: TchFloatElement, I: TchIntElement> Backend for LibTorch<E, F, I> {
+impl<E: TchElement, F: TchFloatElement> Backend for LibTorch<E, F> {
     type Device = LibTorchDevice;
 
     type FloatTensorPrimitive = TchTensor;
     type FloatElem = F;
 
     type IntTensorPrimitive = TchTensor;
-    type IntElem = I;
+    type IntElem = i64;
     type BoolTensorPrimitive = TchTensor;
     type BoolElem = bool;
 

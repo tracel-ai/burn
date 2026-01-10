@@ -5,7 +5,7 @@ use alloc::string::{String, ToString};
 use alloc::vec;
 use alloc::vec::Vec;
 use burn_backend::ElementComparison;
-use burn_backend::tensor::Orderable;
+use burn_backend::tensor::Ordered;
 
 /// The struct should always be used with the [check](crate::check) macro.
 ///
@@ -468,7 +468,7 @@ impl TensorCheck {
         check
     }
 
-    pub(crate) fn one_hot_tensor<B: Backend, const D: usize, K: Orderable<B>>(
+    pub(crate) fn one_hot_tensor<B: Backend, const D: usize, K: Ordered<B>>(
         index_tensor: Tensor<B, D, K>,
         num_classes: usize,
     ) -> Self
