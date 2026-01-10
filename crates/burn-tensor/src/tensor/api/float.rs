@@ -202,6 +202,176 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
         )))
     }
 
+    /// Applies element wise inverse sine operation.
+    ///
+    #[cfg_attr(doc, doc = r#"$y_i = \asin\(x_i\)$"#)]
+    #[cfg_attr(not(doc), doc = "`y_i = asin(x_i)`")]
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::Tensor;
+    ///
+    /// fn example<B: Backend>() {
+    ///     let device = Default::default();
+    ///
+    ///     let tensor = Tensor::<B, 1>::from_data([0.0, -1.0, 1.0], &device);
+    ///     println!("{}", tensor.asin()); // [ 0.0000, -1.5708,  1.5708]
+    /// }
+    /// ```
+    pub fn asin(self) -> Self {
+        Self::new(TensorPrimitive::Float(B::float_asin(
+            self.primitive.tensor(),
+        )))
+    }
+
+    /// Applies element wise inverse hyperbolic sine operation.
+    ///
+    #[cfg_attr(doc, doc = r#"$y_i = \asinh\(x_i\)$"#)]
+    #[cfg_attr(not(doc), doc = "`y_i = asinh(x_i)`")]
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::Tensor;
+    ///
+    /// fn example<B: Backend>() {
+    ///     let device = Default::default();
+    ///
+    ///     let tensor = Tensor::<B, 1>::from_data([0.0, -1.0, 1.0], &device);
+    ///     println!("{}", tensor.asinh()); // [ 0.0000, -0.8814,  0.8814]
+    /// }
+    /// ```
+    pub fn asinh(self) -> Self {
+        Self::new(TensorPrimitive::Float(B::float_asinh(
+            self.primitive.tensor(),
+        )))
+    }
+
+    /// Applies element wise inverse cosine operation.
+    ///
+    #[cfg_attr(doc, doc = r#"$y_i = \acos\(x_i\)$"#)]
+    #[cfg_attr(not(doc), doc = "`y_i = acos(x_i)`")]
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::Tensor;
+    ///
+    /// fn example<B: Backend>() {
+    ///     let device = Default::default();
+    ///
+    ///     let tensor = Tensor::<B, 1>::from_data([0.0, -1.0, 1.0], &device);
+    ///     println!("{}", tensor.acos()); // [1.5708, 3.1416, 0.0]
+    /// }
+    /// ```
+    pub fn acos(self) -> Self {
+        Self::new(TensorPrimitive::Float(B::float_acos(
+            self.primitive.tensor(),
+        )))
+    }
+
+    /// Applies element wise inverse hyperbolic cosine operation.
+    ///
+    #[cfg_attr(doc, doc = r#"$y_i = \acosh\(x_i\)$"#)]
+    #[cfg_attr(not(doc), doc = "`y_i = acosh(x_i)`")]
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::Tensor;
+    ///
+    /// fn example<B: Backend>() {
+    ///     let device = Default::default();
+    ///
+    ///     let tensor = Tensor::<B, 1>::from_data([1.0, 2.0, 3.0], &device);
+    ///     println!("{}", tensor.sinh()); // [0.0000, 1.3170, 1.7627]
+    /// }
+    /// ```
+    pub fn acosh(self) -> Self {
+        Self::new(TensorPrimitive::Float(B::float_acosh(
+            self.primitive.tensor(),
+        )))
+    }
+
+    /// Applies element wise inverse tangent operation.
+    ///
+    #[cfg_attr(doc, doc = r#"$y_i = \atan\(x_i\)$"#)]
+    #[cfg_attr(not(doc), doc = "`y_i = atan(x_i)`")]
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::Tensor;
+    ///
+    /// fn example<B: Backend>() {
+    ///     let device = Default::default();
+    ///
+    ///     let tensor = Tensor::<B, 1>::from_data([0.0, -1.0, 2.0], &device);
+    ///     println!("{}", tensor.sinh()); // [ 0.0, -0.7854,  1.1071]
+    /// }
+    /// ```
+    pub fn atan(self) -> Self {
+        Self::new(TensorPrimitive::Float(B::float_atan(
+            self.primitive.tensor(),
+        )))
+    }
+
+    /// Applies element wise inverse hyperbolic tangent operation.
+    ///
+    #[cfg_attr(doc, doc = r#"$y_i = \atan\(x_i\)$"#)]
+    #[cfg_attr(not(doc), doc = "`y_i = atan(x_i)`")]
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::Tensor;
+    ///
+    /// fn example<B: Backend>() {
+    ///     let device = Default::default();
+    ///
+    ///     let tensor = Tensor::<B, 1>::from_data([0.0, -0.5, 0.5], &device);
+    ///     println!("{}", tensor.sinh()); // [ 0.0, -0.5493,  0.5493]
+    /// }
+    /// ```
+    pub fn atanh(self) -> Self {
+        Self::new(TensorPrimitive::Float(B::float_atanh(
+            self.primitive.tensor(),
+        )))
+    }
+
+    /// Applies element wise inverse tangent operation using the signs of arguments to determine the correct quadrant.
+    ///
+    #[cfg_attr(doc, doc = r#"$z_i = \atan2\(y_i, x_i\)$"#)]
+    #[cfg_attr(not(doc), doc = "`z_i = atan2(y_i, x_i)`")]
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::Tensor;
+    ///
+    /// fn example<B: Backend>() {
+    ///     let device = Default::default();
+    ///
+    ///     let lhs = Tensor::<B, 1>::from_data([-2.0, 2.0, -2.0], &device);
+    ///     let rhs = Tensor::<B, 1>::from_data([1.0, -1.0, -1.0], &device);
+    ///     println!("{}", lhs.atan2(rhs)); // [-1.1071,  2.0344, -2.0344]
+    /// }
+    /// ```
+    pub fn atan2(self, other: Self) -> Self {
+        Self::new(TensorPrimitive::Float(B::float_atan2(
+            self.primitive.tensor(),
+            other.primitive.tensor(),
+        )))
+    }
+
     /// Applies element wise round operation.
     ///
     /// This function implements the [round half to even](https://en.wikipedia.org/wiki/Rounding#Rounding_half_to_even)

@@ -13,7 +13,7 @@ use crate::{FloatNdArrayElement, UnsafeSharedRef, iter_range_par, run_par};
 ///
 /// # Arguments
 ///
-/// * `tensor` - The tensor being sampled from, shape (N, C, H_in, W_in)
+/// * `tensor` - The tensor being sampled from, must be contiguous with shape (N, C, H_in, W_in)
 /// * `grid` - A tensor of locations, with shape (N, H_out, W_out, 2). Values are [-1, 1].
 ///   A [x = -1, y = -1] means top-left, and [x = 1, y = 1] means bottom-right
 /// * `options` - Grid sampling options (mode, padding_mode, align_corners)
@@ -52,8 +52,8 @@ pub(crate) fn grid_sample_2d<E: FloatNdArrayElement>(
         width_out,
     );
 
-    let align_corners = options.align_corners;
-    let padding_mode = options.padding_mode;
+    let align = options.align_corners;
+    let pad_mode = options.padding_mode;
 
     run_par!(|| {
         iter_range_par!(0, sample_count).for_each(|id| {
@@ -68,7 +68,7 @@ pub(crate) fn grid_sample_2d<E: FloatNdArrayElement>(
             let sample_y = grid[(b, y, x, 1)].elem::<f64>();
 
             // Convert normalized grid coordinates [-1, 1] to pixel coordinates
-            let (px, py) = if align_corners {
+            let (px, py) = if align {
                 // align_corners=true: x_pixel = (x_norm + 1) * (width - 1) / 2
                 // Maps -1 to 0 and 1 to width - 1
                 let px = (sample_x + 1.0) * ((width_in - 1) as f64) / 2.0;
@@ -84,7 +84,7 @@ pub(crate) fn grid_sample_2d<E: FloatNdArrayElement>(
 
             // Bilinear interpolation with the specified padding mode
             let val =
-                bilinear_interpolate(&tensor, b, c, px, py, width_in, height_in, padding_mode);
+                bilinear_interpolate(&tensor, b, c, px, py, width_in, height_in, pad_mode, align);
 
             unsafe {
                 let output = unsafe_shared_out.get();
@@ -107,6 +107,7 @@ fn bilinear_interpolate<E, S>(
     width: usize,
     height: usize,
     padding_mode: GridSamplePaddingMode,
+    align_corners: bool,
 ) -> f64
 where
     E: FloatNdArrayElement,
@@ -136,8 +137,8 @@ where
         }
         GridSamplePaddingMode::Reflection => {
             // Reflect coordinates at boundaries
-            let x = reflect_coordinate(x, width as f64);
-            let y = reflect_coordinate(y, height as f64);
+            let x = reflect_coordinate(x, width, align_corners);
+            let y = reflect_coordinate(y, height, align_corners);
             (x, y)
         }
         GridSamplePaddingMode::Zeros => (x, y), // Keep as-is, handle out-of-bounds in read
@@ -188,30 +189,26 @@ where
     v00 * w00 + v01 * w01 + v10 * w10 + v11 * w11
 }
 
-/// Reflect a coordinate at the boundaries.
+/// Reflect a coordinate at the boundaries using a triangle wave pattern.
 ///
-/// Uses the formula for reflection padding where coordinates bounce back at boundaries.
-fn reflect_coordinate(coord: f64, size: f64) -> f64 {
-    if size <= 1.0 {
-        return 0.0;
+/// For align_corners=true: reflects within [0, size-1]
+/// For align_corners=false: reflects within [-0.5, size-0.5]
+fn reflect_coordinate(coord: f64, size: usize, align_corners: bool) -> f64 {
+    let size_f = size as f64;
+    let (min_val, max_val) = if align_corners {
+        (0.0, size_f - 1.0)
+    } else {
+        (-0.5, size_f - 0.5)
+    };
+
+    let span = max_val - min_val;
+    if span <= 0.0 {
+        return min_val;
     }
 
-    // Handle reflection for out-of-bounds coordinates
-    let mut coord = coord;
-
-    // First handle negative values
-    if coord < 0.0 {
-        coord = -coord;
-    }
-
-    // Then handle values >= size by reflecting
-    let max_val = size - 1.0;
-    if coord > max_val {
-        // Reflect: 2*max - coord, then clamp
-        coord = 2.0 * max_val - coord;
-        // If still out of bounds after one reflection, clamp
-        coord = coord.clamp(0.0, max_val);
-    }
-
-    coord
+    // Triangle wave formula: span - |((x mod 2*span) - span)|
+    let period = 2.0 * span;
+    let x = (coord - min_val).abs();
+    let x_mod = x - (x / period).floor() * period;
+    span - (x_mod - span).abs() + min_val
 }

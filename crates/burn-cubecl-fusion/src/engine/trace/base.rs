@@ -169,13 +169,13 @@ pub enum TensorView {
     Reshape {
         reshaped: TensorId,
         original: TensorId,
-        reshape_pos: u32,
+        reshape_pos: usize,
         shape_relative: Vec<usize>,
     },
     SwapDims {
         swapped: TensorId,
         original: TensorId,
-        dims: (u32, u32),
+        dims: (usize, usize),
     },
 }
 
@@ -227,7 +227,7 @@ impl RegisteredTensors {
     }
 
     /// Doesn't return quantized tensor.
-    pub fn get_index(&self, tensor_id: TensorId) -> Option<u32> {
+    pub fn get_index(&self, tensor_id: TensorId) -> Option<usize> {
         self.tensors
             .iter()
             .enumerate()
@@ -236,11 +236,11 @@ impl RegisteredTensors {
                 RegisterTensor::QuantValues(_) => false,
                 RegisterTensor::QuantParams(_) => false,
             })
-            .map(|(pos, _)| pos as u32)
+            .map(|(pos, _)| pos)
     }
 
     /// Get the index of a quantized tensor.
-    pub fn get_index_quant(&self, tensor_id: TensorId) -> Option<u32> {
+    pub fn get_index_quant(&self, tensor_id: TensorId) -> Option<usize> {
         self.tensors
             .iter()
             .enumerate()
@@ -249,7 +249,7 @@ impl RegisteredTensors {
                 RegisterTensor::QuantValues(tensor_ir) => tensor_ir.id == tensor_id,
                 RegisterTensor::QuantParams(_) => false,
             })
-            .map(|(pos, _)| pos as u32)
+            .map(|(pos, _)| pos)
     }
 
     /// Doesn't return quantized tensor.
@@ -273,12 +273,12 @@ impl RegisteredTensors {
     /// Insert a quantized tensor.
     ///
     /// It will return the positions for both the value tensor and param tensor.
-    pub fn insert_quant(&mut self, tensor: TensorIr) -> (u32, u32) {
+    pub fn insert_quant(&mut self, tensor: TensorIr) -> (usize, usize) {
         if let Some(old) = self.tensors.iter().enumerate().find(|(_, val)| match &val {
             RegisterTensor::QuantValues(tensor_ir) => tensor_ir == &tensor,
             _ => false,
         }) {
-            let values = old.0 as u32;
+            let values = old.0;
             let params = values + 1;
             return (values, params);
         }
@@ -291,16 +291,16 @@ impl RegisteredTensors {
         let pos_params = self.len();
         self.tensors.push(params);
 
-        (pos_values as u32, pos_params as u32)
+        (pos_values, pos_params)
     }
 
     /// Insert a normal tensor with the given [precision](FusePrecision) in the current block.
-    pub fn insert(&mut self, precision: FuseType, tensor: TensorIr) -> u32 {
+    pub fn insert(&mut self, precision: FuseType, tensor: TensorIr) -> usize {
         if let Some(old) = self.tensors.iter().enumerate().find(|(_, val)| match &val {
             RegisterTensor::Normal(tensor_ir, _) => tensor_ir == &tensor,
             _ => false,
         }) {
-            return old.0 as u32;
+            return old.0;
         }
 
         let value = RegisterTensor::Normal(tensor, precision);
@@ -308,7 +308,7 @@ impl RegisteredTensors {
 
         self.tensors.push(value);
 
-        pos as u32
+        pos
     }
 
     /// Update the already registered tensor with the given [tensor ir](TensorIr).

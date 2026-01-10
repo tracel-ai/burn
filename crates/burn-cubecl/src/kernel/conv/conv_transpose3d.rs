@@ -13,16 +13,16 @@ use burn_backend::{Shape, ops::ConvTransposeOptions};
 
 #[derive(CubeLaunch, CubeType)]
 struct ConvArgs {
-    conv_stride_0: u32,
-    conv_stride_1: u32,
-    conv_stride_2: u32,
-    dilation_0: u32,
-    dilation_1: u32,
-    dilation_2: u32,
-    padding_0: u32,
-    padding_1: u32,
-    padding_2: u32,
-    groups: u32,
+    conv_stride_0: usize,
+    conv_stride_1: usize,
+    conv_stride_2: usize,
+    dilation_0: usize,
+    dilation_1: usize,
+    dilation_2: usize,
+    padding_0: usize,
+    padding_1: usize,
+    padding_2: usize,
+    groups: usize,
 }
 
 #[cube(launch)]
@@ -68,13 +68,13 @@ fn conv_transpose3d_kernel<E: Numeric>(
     let y_start = ((out_y + args.padding_1) as i32 - kernel_h) / stride_1_i;
     let x_start = ((out_x + args.padding_2) as i32 - kernel_w) / stride_2_i;
 
-    let z_end = Min::min(Max::max(kernel_d + z_start + 1, 0) as u32, input.shape(2));
-    let y_end = Min::min(Max::max(kernel_h + y_start + 1, 0) as u32, input.shape(3));
-    let x_end = Min::min(Max::max(kernel_w + x_start + 1, 0) as u32, input.shape(4));
+    let z_end = Min::min(Max::max(kernel_d + z_start + 1, 0) as usize, input.shape(2));
+    let y_end = Min::min(Max::max(kernel_h + y_start + 1, 0) as usize, input.shape(3));
+    let x_end = Min::min(Max::max(kernel_w + x_start + 1, 0) as usize, input.shape(4));
 
-    let z_start = Max::max(z_start, 0) as u32;
-    let y_start = Max::max(y_start, 0) as u32;
-    let x_start = Max::max(x_start, 0) as u32;
+    let z_start = Max::max(z_start, 0) as usize;
+    let y_start = Max::max(y_start, 0) as usize;
+    let x_start = Max::max(x_start, 0) as usize;
 
     let index_input_batch = batch * input.stride(0);
     let index_weight_out_c = out_channel * weight.stride(1);
@@ -218,16 +218,16 @@ pub(crate) fn conv_transpose3d<R: CubeRuntime>(
         bias.as_tensor_arg(1),
         output.as_tensor_arg(1),
         ConvArgsLaunch::new(
-            ScalarArg::new(options.stride[0] as u32),
-            ScalarArg::new(options.stride[1] as u32),
-            ScalarArg::new(options.stride[2] as u32),
-            ScalarArg::new(options.dilation[0] as u32),
-            ScalarArg::new(options.dilation[1] as u32),
-            ScalarArg::new(options.dilation[2] as u32),
-            ScalarArg::new(options.padding[0] as u32),
-            ScalarArg::new(options.padding[1] as u32),
-            ScalarArg::new(options.padding[2] as u32),
-            ScalarArg::new(options.groups as u32),
+            ScalarArg::new(options.stride[0]),
+            ScalarArg::new(options.stride[1]),
+            ScalarArg::new(options.stride[2]),
+            ScalarArg::new(options.dilation[0]),
+            ScalarArg::new(options.dilation[1]),
+            ScalarArg::new(options.dilation[2]),
+            ScalarArg::new(options.padding[0]),
+            ScalarArg::new(options.padding[1]),
+            ScalarArg::new(options.padding[2]),
+            ScalarArg::new(options.groups),
         ),
         input.dtype.into(),
     )?;

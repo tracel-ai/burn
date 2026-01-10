@@ -14,7 +14,7 @@ pub fn into_contiguous<R: CubeRuntime>(tensor: CubeTensor<R>) -> CubeTensor<R> {
         return into_contiguous_quantized(tensor, AllocationKind::Contiguous);
     }
 
-    let output = cubecl::std::tensor::into_contiguous(
+    let output = cubecl::std::tensor::into_contiguous_ref(
         &tensor.client,
         &tensor.as_handle_ref(),
         tensor.dtype.into(),
@@ -46,7 +46,7 @@ pub fn into_contiguous_aligned<R: CubeRuntime>(tensor: CubeTensor<R>) -> CubeTen
         return into_contiguous_quantized(tensor, AllocationKind::Optimized);
     }
 
-    let output = cubecl::std::tensor::into_contiguous_pitched(
+    let output = cubecl::std::tensor::into_contiguous_pitched_ref(
         &tensor.client,
         &tensor.as_handle_ref(),
         tensor.dtype.into(),
@@ -83,7 +83,7 @@ fn into_contiguous_quantized<R: CubeRuntime>(
                 &values.as_handle_ref(),
                 &out_values.as_handle_ref(),
                 &tensor.shape,
-                scheme.num_quants() as u32,
+                scheme.num_quants(),
                 DType::U32.into(),
             )
             .expect("Kernel to never fail");
@@ -102,7 +102,7 @@ fn into_contiguous_quantized<R: CubeRuntime>(
             .expect("Kernel to never fail");
         }
         QuantStore::Native => {
-            cubecl::std::tensor::into_contiguous_ref(
+            cubecl::std::tensor::copy_into(
                 &values.client,
                 &values.as_handle_ref(),
                 &out_values.as_handle_ref(),
@@ -112,7 +112,7 @@ fn into_contiguous_quantized<R: CubeRuntime>(
         }
     }
 
-    cubecl::std::tensor::into_contiguous_ref(
+    cubecl::std::tensor::copy_into(
         &scales.client,
         &scales.as_handle_ref(),
         &out_scales.as_handle_ref(),

@@ -724,4 +724,14 @@ impl TchOps {
             },
         )
     }
+
+    pub fn atan2(lhs: TchTensor, rhs: TchTensor) -> TchTensor {
+        TchTensor::binary_ops_tensor(
+            lhs,
+            rhs,
+            |lhs, rhs| lhs.f_atan2_(rhs).unwrap(),
+            |lhs, rhs| lhs.f_atan2(rhs).unwrap(),
+            |lhs, rhs| lhs.f_atan2(rhs).unwrap(),
+        )
+    }
 }

@@ -84,7 +84,7 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
                             global_ir: tensor_global,
                             precision,
                             handle,
-                            vectorization: 1,
+                            line_size: 1,
                         }));
 
                     plan.handle_inputs
@@ -208,7 +208,7 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
                         && shape_relative == &block.shape_ref
                     {
                         block_plan.potential_reference_input = Some(InputReference::Reshaped {
-                            reshape_pos: *reshape_pos as usize,
+                            reshape_pos: *reshape_pos,
                         });
                     }
                     return true;
@@ -225,11 +225,7 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
                 }
 
                 if original == &tensor_relative.id {
-                    let shape = tensor_relative
-                        .shape
-                        .clone()
-                        .swap(dims.0 as usize, dims.1 as usize)
-                        .unwrap();
+                    let shape = tensor_relative.shape.clone().swap(dims.0, dims.1).unwrap();
 
                     if block_plan.potential_reference_input.is_none()
                         && shape.dims == block.shape_ref

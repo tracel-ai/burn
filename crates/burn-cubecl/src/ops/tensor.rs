@@ -10,12 +10,12 @@ use crate::{
     element::BoolElement,
     kernel::matmul::{MatmulStrategy, matmul},
 };
+use burn_backend::ops::GridSampleOptions;
 use burn_backend::tensor::{BoolTensor, Device, FloatElem, FloatTensor, IntTensor};
 use burn_backend::{Backend, ExecutionError};
 use burn_backend::{DType, ElementConversion, FloatDType, Slice};
 use burn_backend::{Distribution, Shape, TensorData, ops::FloatTensorOps};
 use cubecl::prelude::*;
-use cubecl::std::scalar::InputScalar;
 use cubek::reduce::components::instructions::ReduceOperationConfig;
 use std::ops::Range;
 
@@ -463,8 +463,48 @@ where
         unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::Sin)
     }
 
+    fn float_tan(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::Tan)
+    }
+
+    fn float_cosh(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::Cosh)
+    }
+
+    fn float_sinh(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::Sinh)
+    }
+
     fn float_tanh(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::Tanh)
+    }
+
+    fn float_acos(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::ArcCos)
+    }
+
+    fn float_acosh(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::ArcCosh)
+    }
+
+    fn float_asin(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::ArcSin)
+    }
+
+    fn float_asinh(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::ArcSinh)
+    }
+
+    fn float_atan(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::ArcTan)
+    }
+
+    fn float_atanh(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::ArcTanh)
+    }
+
+    fn float_atan2(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
+        crate::kernel::atan2::<R>(lhs, rhs)
     }
 
     fn float_round(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
@@ -569,5 +609,13 @@ where
 
     fn float_is_inf(tensor: FloatTensor<Self>) -> BoolTensor<Self> {
         kernel::is_inf(tensor, BT::dtype())
+    }
+
+    fn float_grid_sample_2d(
+        tensor: FloatTensor<Self>,
+        grid: FloatTensor<Self>,
+        options: GridSampleOptions,
+    ) -> FloatTensor<Self> {
+        kernel::grid_sample::grid_sample(tensor, grid, options)
     }
 }

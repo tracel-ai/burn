@@ -1,10 +1,92 @@
+use burn_core as burn;
+
 use crate::{ModuleSnapshot, ModuleStore, SafetensorsStore};
-use burn_nn::LinearConfig;
+use burn_core::module::{Module, Param};
+use burn_nn::{Initializer, LinearConfig};
+use burn_tensor::Tensor;
+use burn_tensor::backend::Backend;
+
+use tempfile::tempdir;
 
 type TestBackend = burn_ndarray::NdArray;
 
+// Define a test model with forward pass
+#[derive(Module, Debug)]
+struct ForwardTestModel<B: burn_tensor::backend::Backend> {
+    linear1: burn_nn::Linear<B>,
+    linear2: burn_nn::Linear<B>,
+}
+
+impl<B: burn_tensor::backend::Backend> ForwardTestModel<B> {
+    fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 2> {
+        let x = self.linear1.forward(input);
+        let x = burn::tensor::activation::gelu(x);
+        self.linear2.forward(x)
+    }
+}
+
+// Define config for the model
+#[derive(burn::config::Config, Debug)]
+struct ForwardTestModelConfig {
+    input_size: usize,
+    hidden_size: usize,
+    output_size: usize,
+}
+
+impl ForwardTestModelConfig {
+    fn init<B: burn_tensor::backend::Backend>(&self, device: &B::Device) -> ForwardTestModel<B> {
+        ForwardTestModel {
+            linear1: LinearConfig::new(self.input_size, self.hidden_size)
+                .with_bias(true)
+                .init(device),
+            linear2: LinearConfig::new(self.hidden_size, self.output_size)
+                .with_bias(true)
+                .init(device),
+        }
+    }
+}
+
+#[derive(Module, Debug)]
+pub struct ModuleBasic<B: Backend> {
+    weight_basic: Param<Tensor<B, 2>>,
+}
+
+impl<B: Backend> ModuleBasic<B> {
+    fn new(device: &B::Device) -> Self {
+        Self {
+            weight_basic: Initializer::Normal {
+                std: 1.0,
+                mean: 0.0,
+            }
+            .init([20, 20], device),
+        }
+    }
+}
+
+#[derive(Module, Debug)]
+pub struct ModuleComposed<B: Backend> {
+    weight: Param<Tensor<B, 2>>,
+    basic: ModuleBasic<B>,
+    tuple: (ModuleBasic<B>, ModuleBasic<B>),
+}
+
+impl<B: Backend> ModuleComposed<B> {
+    fn new(device: &B::Device) -> Self {
+        let weight = Initializer::Normal {
+            std: 1.0,
+            mean: 0.0,
+        }
+        .init([20, 20], device);
+
+        Self {
+            weight,
+            basic: ModuleBasic::new(device),
+            tuple: (ModuleBasic::new(device), ModuleBasic::new(device)),
+        }
+    }
+}
+
 #[test]
-#[cfg(feature = "std")]
 fn file_based_loading() {
     use std::fs;
 
@@ -42,7 +124,6 @@ fn file_based_loading() {
 }
 
 #[test]
-#[cfg(feature = "std")]
 fn test_store_overwrite_protection() {
     use tempfile::tempdir;
 
@@ -85,7 +166,6 @@ fn test_store_overwrite_protection() {
 }
 
 #[test]
-#[cfg(feature = "std")]
 fn test_store_overwrite_with_metadata() {
     use tempfile::tempdir;
 
@@ -121,53 +201,7 @@ fn test_store_overwrite_with_metadata() {
 }
 
 #[test]
-#[cfg(feature = "std")]
 fn test_forward_pass_preservation_after_save_load() {
-    use burn_core as burn;
-
-    use burn_core::module::Module;
-    use burn_tensor::Tensor;
-    use tempfile::tempdir;
-
-    // Define a test model with forward pass
-    #[derive(Module, Debug)]
-    struct ForwardTestModel<B: burn_tensor::backend::Backend> {
-        linear1: burn_nn::Linear<B>,
-        linear2: burn_nn::Linear<B>,
-    }
-
-    impl<B: burn_tensor::backend::Backend> ForwardTestModel<B> {
-        fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 2> {
-            let x = self.linear1.forward(input);
-            let x = burn::tensor::activation::gelu(x);
-            self.linear2.forward(x)
-        }
-    }
-
-    // Define config for the model
-    #[derive(burn::config::Config, Debug)]
-    struct ForwardTestModelConfig {
-        input_size: usize,
-        hidden_size: usize,
-        output_size: usize,
-    }
-
-    impl ForwardTestModelConfig {
-        fn init<B: burn_tensor::backend::Backend>(
-            &self,
-            device: &B::Device,
-        ) -> ForwardTestModel<B> {
-            ForwardTestModel {
-                linear1: LinearConfig::new(self.input_size, self.hidden_size)
-                    .with_bias(true)
-                    .init(device),
-                linear2: LinearConfig::new(self.hidden_size, self.output_size)
-                    .with_bias(true)
-                    .init(device),
-            }
-        }
-    }
-
     let device = Default::default();
 
     // Create model config
@@ -223,5 +257,32 @@ fn test_forward_pass_preservation_after_save_load() {
     assert!(
         output1.all_close(output3, Some(1e-6), Some(1e-6)),
         "output3 should equal output1 after loading weights"
+    );
+}
+
+#[test]
+fn should_save_load_compose() {
+    let device = <TestBackend as Backend>::Device::default();
+    let module_1 = ModuleComposed::<TestBackend>::new(&device);
+    let mut module_2 = ModuleComposed::<TestBackend>::new(&device);
+    assert_ne!(module_1.weight.to_data(), module_2.weight.to_data());
+    assert_ne!(
+        module_1.basic.weight_basic.to_data(),
+        module_2.basic.weight_basic.to_data()
+    );
+
+    let temp_dir = tempdir().unwrap();
+    let path = temp_dir.path().join("save_load_compose.safetensors");
+    let mut store = SafetensorsStore::from_file(&path);
+    module_1.save_into(&mut store).unwrap();
+
+    let mut load_store = SafetensorsStore::from_file(&path);
+    let result = module_2.load_from(&mut load_store).unwrap();
+    assert!(result.is_success());
+
+    assert_eq!(module_1.weight.to_data(), module_2.weight.to_data());
+    assert_eq!(
+        module_1.basic.weight_basic.to_data(),
+        module_2.basic.weight_basic.to_data()
     );
 }
