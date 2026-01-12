@@ -1,4 +1,5 @@
 use super::TchOps;
+use crate::TchFloatElement;
 use crate::{LibTorch, LibTorchDevice, TchShape, TchTensor, element::TchElement};
 use burn_backend::ElementConversion;
 use burn_backend::ExecutionError;
@@ -7,7 +8,7 @@ use burn_backend::tensor::BoolTensor;
 use burn_backend::tensor::IntTensor;
 use burn_backend::{Backend, Shape, TensorData, TensorMetadata, ops::BoolTensorOps};
 
-impl<E: TchElement> BoolTensorOps<Self> for LibTorch<E> {
+impl<E: TchElement, F: TchFloatElement> BoolTensorOps<Self> for LibTorch<E, F> {
     fn bool_from_data(data: TensorData, device: &LibTorchDevice) -> TchTensor {
         match data.dtype {
             burn_backend::DType::Bool => TchTensor::from_data::<bool>(data, (*device).into()),
@@ -38,7 +39,7 @@ impl<E: TchElement> BoolTensorOps<Self> for LibTorch<E> {
         tensor.tensor.device().into()
     }
 
-    fn bool_empty(shape: Shape, device: &<LibTorch<E> as Backend>::Device) -> TchTensor {
+    fn bool_empty(shape: Shape, device: &<LibTorch<E, F> as Backend>::Device) -> TchTensor {
         let tensor = tch::Tensor::empty(
             TchShape::from(shape).dims,
             (tch::Kind::Bool, (*device).into()),
@@ -47,7 +48,7 @@ impl<E: TchElement> BoolTensorOps<Self> for LibTorch<E> {
         TchTensor::new(tensor)
     }
 
-    fn bool_zeros(shape: Shape, device: &<LibTorch<E> as Backend>::Device) -> TchTensor {
+    fn bool_zeros(shape: Shape, device: &<LibTorch<E, F> as Backend>::Device) -> TchTensor {
         let tensor = tch::Tensor::zeros(
             TchShape::from(shape).dims,
             (tch::Kind::Bool, (*device).into()),
@@ -56,7 +57,7 @@ impl<E: TchElement> BoolTensorOps<Self> for LibTorch<E> {
         TchTensor::new(tensor)
     }
 
-    fn bool_ones(shape: Shape, device: &<LibTorch<E> as Backend>::Device) -> TchTensor {
+    fn bool_ones(shape: Shape, device: &<LibTorch<E, F> as Backend>::Device) -> TchTensor {
         let tensor = tch::Tensor::ones(
             TchShape::from(shape).dims,
             (tch::Kind::Bool, (*device).into()),

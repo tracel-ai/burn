@@ -6,11 +6,13 @@ use burn_backend::{
     tensor::{IntElem, IntTensor},
 };
 
-use crate::{IntoKind, LibTorch, LibTorchDevice, TchShape, TchTensor, element::TchElement};
+use crate::{
+    IntoKind, LibTorch, LibTorchDevice, TchFloatElement, TchShape, TchTensor, element::TchElement,
+};
 
 use super::TchOps;
 
-impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
+impl<E: TchElement, F: TchFloatElement> IntTensorOps<Self> for LibTorch<E, F> {
     fn int_from_data(data: TensorData, device: &LibTorchDevice) -> TchTensor {
         match data.dtype {
             burn_backend::DType::I64 => TchTensor::from_data::<i64>(data, (*device).into()),
@@ -43,7 +45,7 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
 
     fn int_empty(
         shape: Shape,
-        device: &<LibTorch<E> as Backend>::Device,
+        device: &<LibTorch<E, F> as Backend>::Device,
         dtype: IntDType,
     ) -> TchTensor {
         let tensor = tch::Tensor::empty(
@@ -206,7 +208,7 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
 
     fn int_zeros(
         shape: Shape,
-        device: &<LibTorch<E> as Backend>::Device,
+        device: &<LibTorch<E, F> as Backend>::Device,
         dtype: IntDType,
     ) -> TchTensor {
         let shape = TchShape::from(shape);
@@ -217,7 +219,7 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
 
     fn int_ones(
         shape: Shape,
-        device: &<LibTorch<E> as Backend>::Device,
+        device: &<LibTorch<E, F> as Backend>::Device,
         dtype: IntDType,
     ) -> TchTensor {
         let shape = TchShape::from(shape);
@@ -229,7 +231,7 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
     fn int_full(
         shape: Shape,
         fill_value: i64,
-        device: &<LibTorch<E> as Backend>::Device,
+        device: &<LibTorch<E, F> as Backend>::Device,
         dtype: IntDType,
     ) -> TchTensor {
         let shape = TchShape::from(shape);

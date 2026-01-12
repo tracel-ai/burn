@@ -1,5 +1,5 @@
 use burn_backend::ops::TransactionOps;
 
-use crate::{LibTorch, TchElement};
+use crate::{LibTorch, TchElement, TchFloatElement};
 
-impl<E: TchElement> TransactionOps<Self> for LibTorch<E> {}
+impl<E: TchElement, F: TchFloatElement> TransactionOps<Self> for LibTorch<E, F> {}

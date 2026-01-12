@@ -18,7 +18,7 @@
 
 use std::cmp::Ordering;
 
-use burn_tensor::{Element, ElementConversion};
+use burn_tensor::{Element, ElementComparison, ElementConversion};
 use ndarray::{Array2, Axis, s};
 
 #[allow(non_snake_case)]
@@ -29,7 +29,7 @@ use crate::Connectivity;
 
 use super::{Solver, StatsOp, max_labels};
 
-pub fn process<I: Element, B: Element, LabelsSolver: Solver<I>>(
+pub fn process<I: Element + ElementComparison, B: Element, LabelsSolver: Solver<I>>(
     img_arr: Array2<B>,
     stats: &mut impl StatsOp<I>,
 ) -> Array2<I> {
