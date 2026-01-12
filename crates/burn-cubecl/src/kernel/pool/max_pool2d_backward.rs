@@ -78,10 +78,10 @@ fn loop_ranges(
     let kms_0 = args.dilation_0 * kernel_size_0 - args.stride_0;
     let kms_1 = args.dilation_1 * kernel_size_1 - args.stride_1;
 
-    let oh_start = Max::max((ih + args.padding_0 - kms_0) / args.stride_0, 0) as u32;
-    let ow_start = Max::max((iw + args.padding_1 - kms_1) / args.stride_1, 0) as u32;
-    let oh_end = Min::min(Max::max(kms_0, 0) as u32 + oh_start, grad_h - 1) + 1;
-    let ow_end = Min::min(Max::max(kms_1, 0) as u32 + ow_start, grad_w - 1) + 1;
+    let oh_start = clamp_min((ih + args.padding_0 - kms_0) / args.stride_0, 0) as u32;
+    let ow_start = clamp_min((iw + args.padding_1 - kms_1) / args.stride_1, 0) as u32;
+    let oh_end = clamp_max(clamp_min(kms_0, 0) as u32 + oh_start, grad_h - 1) + 1;
+    let ow_end = clamp_max(clamp_min(kms_1, 0) as u32 + ow_start, grad_w - 1) + 1;
 
     (oh_start, oh_end, ow_start, ow_end)
 }

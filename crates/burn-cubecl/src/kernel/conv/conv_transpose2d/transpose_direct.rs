@@ -61,10 +61,10 @@ fn conv_transpose2d_direct_kernel<E: Numeric>(
     let y_start = ((out_y + args.padding_0) as i32 - kms_h) / stride_0_i;
     let x_start = ((out_x + args.padding_1) as i32 - kms_w) / stride_1_i;
 
-    let y_end = Min::min(Max::max(kms_h + y_start + 1, 0) as usize, input.shape(2));
-    let x_end = Min::min(Max::max(kms_w + x_start + 1, 0) as usize, input.shape(3));
-    let y_start = Max::max(y_start, 0) as usize;
-    let x_start = Max::max(x_start, 0) as usize;
+    let y_end = clamp(kms_h + y_start + 1, 0, input.shape(2) as i32) as usize;
+    let x_end = clamp(kms_w + x_start + 1, 0, input.shape(3) as i32) as usize;
+    let y_start = clamp_min(y_start, 0) as usize;
+    let x_start = clamp_min(x_start, 0) as usize;
 
     let idx_input_batch = batch * input.stride(0);
     let idx_weight_oc = out_c * weight.stride(1);
