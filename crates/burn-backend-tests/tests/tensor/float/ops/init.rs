@@ -1,5 +1,5 @@
 use super::*;
-use burn_tensor::{DType, TensorData, TensorOptions};
+use burn_tensor::{DType, TensorData};
 
 #[test]
 fn should_support_float_empty() {
@@ -11,7 +11,7 @@ fn should_support_float_empty() {
 #[test]
 fn should_support_float_empty_options() {
     let shape = [2, 2];
-    let tensor = TestTensor::<2>::empty(shape, TensorOptions::new(Default::default(), DType::F32));
+    let tensor = TestTensor::<2>::empty(shape, (&Default::default(), DType::F32));
     assert_eq!(tensor.shape(), shape.into())
 }
 
@@ -30,7 +30,7 @@ fn should_support_float_zeros() {
 #[test]
 fn should_support_float_zeros_options() {
     let shape = [2, 2];
-    let tensor = TestTensor::<2>::zeros(shape, TensorOptions::new(Default::default(), DType::F32));
+    let tensor = TestTensor::<2>::zeros(shape, (&Default::default(), DType::F32));
     assert_eq!(tensor.shape(), shape.into());
     assert_eq!(tensor.dtype(), DType::F32);
 
@@ -53,7 +53,7 @@ fn should_support_float_ones() {
 #[test]
 fn should_support_float_ones_options() {
     let shape = [2, 2];
-    let tensor = TestTensor::<2>::ones(shape, TensorOptions::new(Default::default(), DType::F32));
+    let tensor = TestTensor::<2>::ones(shape, (&Default::default(), DType::F32));
     assert_eq!(tensor.shape(), shape.into());
     assert_eq!(tensor.dtype(), DType::F32);
 

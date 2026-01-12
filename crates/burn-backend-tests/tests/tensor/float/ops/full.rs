@@ -1,5 +1,5 @@
 use super::*;
-use burn_tensor::{DType, TensorData, TensorOptions};
+use burn_tensor::{DType, TensorData};
 
 #[test]
 fn test_data_full() {
@@ -19,11 +19,7 @@ fn test_tensor_full() {
 
 #[test]
 fn test_tensor_full_options() {
-    let tensor = TestTensor::<2>::full(
-        [2, 3],
-        2.1,
-        TensorOptions::new(Default::default(), DType::F32),
-    );
+    let tensor = TestTensor::<2>::full([2, 3], 2.1, (&Default::default(), DType::F32));
     assert_eq!(tensor.dtype(), DType::F32);
 
     tensor

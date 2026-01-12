@@ -84,3 +84,10 @@ impl<B: Backend> From<&Device<B>> for TensorCreationOptions<B> {
         TensorCreationOptions::new(device.clone())
     }
 }
+
+impl<B: Backend> From<(&Device<B>, DType)> for TensorCreationOptions<B> {
+    /// Convenience conversion for a specified `(&device, dtype)` tuple.
+    fn from(args: (&Device<B>, DType)) -> Self {
+        TensorCreationOptions::new(args.0.clone()).with_dtype(args.1)
+    }
+}
