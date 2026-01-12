@@ -1,10 +1,12 @@
 pub mod dtype;
+pub mod index_conversion;
 pub mod indexing;
 pub mod quantization;
 pub mod shape;
 pub mod slice;
 
 pub use dtype::*;
+pub use index_conversion::*;
 pub use indexing::*;
 pub use quantization::*;
 pub use shape::*;
