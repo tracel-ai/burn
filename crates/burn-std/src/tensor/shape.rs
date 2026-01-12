@@ -684,18 +684,6 @@ where
     }
 }
 
-// // When `Shape` implements `IntoIterator`, the `From<T> for Shape` implementation above conflicts
-// // with `From<Shape> for Shape` which is implemented by default...
-// impl IntoIterator for Shape {
-//     type Item = usize;
-//     //
-//     type IntoIter = alloc::vec::IntoIter<Self::Item>;
-//     //
-//     fn into_iter(self) -> Self::IntoIter {
-//         self.dims.into_iter()
-//     }
-// }
-
 #[cfg(test)]
 #[allow(clippy::identity_op, reason = "useful for clarity")]
 mod tests {
