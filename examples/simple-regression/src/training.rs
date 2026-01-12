@@ -1,7 +1,7 @@
 use crate::dataset::{HousingBatcher, HousingDataset};
 use crate::model::RegressionModelConfig;
 use burn::optim::AdamConfig;
-use burn::train::{Learner, LearningParadigm, SupervisedTraining};
+use burn::train::{Learner, SupervisedTraining};
 use burn::{
     data::{dataloader::DataLoaderBuilder, dataset::Dataset},
     prelude::*,
@@ -73,7 +73,7 @@ pub fn run<B: AutodiffBackend>(artifact_dir: &str, device: B::Device) {
         .num_epochs(config.num_epochs)
         .summary();
 
-    let result = training.run(Learner::new(model, config.optimizer.init(), 1e-3));
+    let result = training.launch(Learner::new(model, config.optimizer.init(), 1e-3));
 
     config
         .save(format!("{artifact_dir}/config.json").as_str())

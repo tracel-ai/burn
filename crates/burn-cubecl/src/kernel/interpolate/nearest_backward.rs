@@ -58,7 +58,7 @@ fn interpolate_nearest_backward_kernel<F: Float>(
 #[cube]
 fn start_index<F: Float>(input_index: usize, output_size: usize, input_size: usize) -> usize {
     let numerator = F::cast_from(input_index * output_size);
-    let div: F = Ceil::ceil(numerator / F::cast_from(input_size));
+    let div = (numerator / F::cast_from(input_size)).ceil();
 
     usize::cast_from(div)
 }
@@ -66,10 +66,10 @@ fn start_index<F: Float>(input_index: usize, output_size: usize, input_size: usi
 #[cube]
 fn end_index<F: Float>(input_index: usize, output_size: usize, input_size: usize) -> usize {
     let numerator = F::cast_from((input_index + 1) * output_size);
-    let div: F = Ceil::ceil(numerator / F::cast_from(input_size));
+    let div = (numerator / F::cast_from(input_size)).ceil();
     let index = usize::cast_from(div);
 
-    Min::min(output_size, index)
+    clamp_max(index, output_size)
 }
 
 pub(crate) fn interpolate_nearest_backward_launch<R: CubeRuntime>(

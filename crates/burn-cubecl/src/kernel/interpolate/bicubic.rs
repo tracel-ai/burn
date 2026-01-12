@@ -31,31 +31,31 @@ fn interpolate_bicubic_kernel<F: Float>(
     let (b, y) = shape_out[1].div_mod(rem);
 
     let input_height = input.shape(1) - 1;
-    let output_height = f32::cast_from(Max::max(output.shape(1) - 1, 1));
-    let numerator = f32::cast_from(y * input_height);
+    let output_height = clamp_min(output.shape(1) - 1, 1) as f32;
+    let numerator = (y * input_height) as f32;
 
-    let frac = f32::cast_from(numerator / output_height);
-    let y_in_f = Floor::floor(frac);
-    let y_in = usize::cast_from(y_in_f);
+    let frac = (numerator / output_height) as f32;
+    let y_in_f = frac.floor();
+    let y_in = y_in_f as usize;
     let yw = Line::empty(line_size).fill(F::cast_from(frac - y_in_f));
 
     let y0 = select(y_in != 0, y_in - 1, 0);
     let y1 = y_in;
-    let y2 = Min::min(y_in + 1, input_height);
-    let y3 = Min::min(y_in + 2, input_height);
+    let y2 = clamp_max(y_in + 1, input_height);
+    let y3 = clamp_max(y_in + 2, input_height);
 
     let input_width = input.shape(2) - 1;
-    let output_width = f32::cast_from(Max::max(output.shape(2) - 1, 1));
-    let numerator = f32::cast_from(x * input_width);
+    let output_width = clamp_min(output.shape(2) - 1, 1) as f32;
+    let numerator = (x * input_width) as f32;
     let frac = numerator / output_width;
-    let x_in_f = Floor::floor(frac);
-    let x_in = usize::cast_from(x_in_f);
+    let x_in_f = frac.floor();
+    let x_in = x_in_f as usize;
     let xw = Line::empty(line_size).fill(F::cast_from(frac - x_in_f));
 
     let x0 = select(x_in != 0, x_in - 1, 0);
     let x1 = x_in;
-    let x2 = Min::min(x_in + 1, input_width);
-    let x3 = Min::min(x_in + 2, input_width);
+    let x2 = clamp_max(x_in + 1, input_width);
+    let x3 = clamp_max(x_in + 2, input_width);
 
     let index_base = b * input.stride(0) + c * input.stride(3);
     let in_stride_y = input.stride(1);

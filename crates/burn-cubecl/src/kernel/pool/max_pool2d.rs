@@ -44,7 +44,7 @@ impl<N: Numeric> Pool2dDirectStrategy<N> for MaxPoolStrategy {
         _index: LineSize,
         result: Line<N>,
     ) {
-        *accumulator = Max::max(*accumulator, result);
+        *accumulator = max(*accumulator, result);
     }
 
     fn count_position(
@@ -89,7 +89,7 @@ impl<N: Numeric> Pool2dDirectStrategy<N> for MaxPoolWithIndicesStrategy {
     ) {
         let indices = Line::cast_from(index);
         accumulator.1 = select_many(result.greater_than(accumulator.0), indices, accumulator.1);
-        accumulator.0 = Max::max(result, accumulator.0);
+        accumulator.0 = max(result, accumulator.0);
     }
 
     fn count_position(

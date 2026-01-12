@@ -1,6 +1,7 @@
 use crate::{
-    ApplicationLoggerInstaller, Evaluator, FileApplicationLoggerInstaller, Interrupter, TestStep,
-    evaluator::components::EvaluatorComponentTypesMarker,
+    ApplicationLoggerInstaller, Evaluator, FileApplicationLoggerInstaller, InferenceStep,
+    Interrupter, TestOutput,
+    evaluator::components::{EvaluatorComponentTypes, EvaluatorComponentTypesMarker},
     logger::FileMetricLogger,
     metric::{
         Adaptor, ItemLazy, Metric, Numeric,
@@ -12,7 +13,6 @@ use crate::{
 use burn_core::{module::Module, prelude::Backend};
 use std::{
     collections::BTreeSet,
-    marker::PhantomData,
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -21,19 +21,22 @@ use std::{
 ///
 /// The generics components of the builder should probably not be set manually, as they are
 /// optimized for Rust type inference.
-pub struct EvaluatorBuilder<B: Backend, TI, TO: ItemLazy> {
+pub struct EvaluatorBuilder<EC: EvaluatorComponentTypes> {
     tracing_logger: Option<Box<dyn ApplicationLoggerInstaller>>,
     event_store: LogEventStore,
     summary_metrics: BTreeSet<String>,
     renderer: Option<Box<dyn MetricsRenderer + 'static>>,
     interrupter: Interrupter,
-    metrics: MetricsEvaluation<TO>,
+    metrics: MetricsEvaluation<TestOutput<EC>>,
     directory: PathBuf,
     summary: bool,
-    _p: PhantomData<(B, TI, TO)>,
 }
 
-impl<B: Backend, TI, TO: ItemLazy + 'static> EvaluatorBuilder<B, TI, TO> {
+impl<B, M> EvaluatorBuilder<EvaluatorComponentTypesMarker<B, M>>
+where
+    B: Backend,
+    M: Module<B> + InferenceStep + core::fmt::Display + 'static,
+{
     /// Creates a new evaluator builder.
     ///
     /// # Arguments
@@ -52,17 +55,18 @@ impl<B: Backend, TI, TO: ItemLazy + 'static> EvaluatorBuilder<B, TI, TO> {
             summary: false,
             metrics: MetricsEvaluation::default(),
             directory,
-            _p: PhantomData,
         }
     }
+}
 
+impl<EC: EvaluatorComponentTypes> EvaluatorBuilder<EC> {
     /// Registers [numeric](crate::metric::Numeric) test [metrics](Metric).
-    pub fn metrics<M: EvalMetricRegistration<TI, TO>>(self, metrics: M) -> Self {
+    pub fn metrics<Me: EvalMetricRegistration<EC>>(self, metrics: Me) -> Self {
         metrics.register(self)
     }
 
     /// Registers text [metrics](Metric).
-    pub fn metrics_text<M: EvalTextMetricRegistration<TI, TO>>(self, metrics: M) -> Self {
+    pub fn metrics_text<Me: EvalTextMetricRegistration<EC>>(self, metrics: Me) -> Self {
         metrics.register(self)
     }
 
@@ -78,9 +82,10 @@ impl<B: Backend, TI, TO: ItemLazy + 'static> EvaluatorBuilder<B, TI, TO> {
     }
 
     /// Register a [numeric](crate::metric::Numeric) test [metric](Metric).
-    pub fn metric_numeric<Me: Metric + Numeric + 'static>(mut self, metric: Me) -> Self
+    pub fn metric_numeric<Me>(mut self, metric: Me) -> Self
     where
-        <TO as ItemLazy>::ItemSync: Adaptor<Me::Input>,
+        Me: Metric + Numeric + 'static,
+        <TestOutput<EC> as ItemLazy>::ItemSync: Adaptor<Me::Input>,
     {
         self.summary_metrics.insert(metric.name().to_string());
         self.metrics.register_test_metric_numeric(metric);
@@ -88,9 +93,10 @@ impl<B: Backend, TI, TO: ItemLazy + 'static> EvaluatorBuilder<B, TI, TO> {
     }
 
     /// Register a text test [metric](Metric).
-    pub fn metric<Me: Metric + 'static>(mut self, metric: Me) -> Self
+    pub fn metric<Me>(mut self, metric: Me) -> Self
     where
-        <TO as ItemLazy>::ItemSync: Adaptor<Me::Input>,
+        Me: Metric + 'static,
+        <TestOutput<EC> as ItemLazy>::ItemSync: Adaptor<Me::Input>,
     {
         self.summary_metrics.insert(metric.name().to_string());
         self.metrics.register_test_metric(metric);
@@ -117,22 +123,7 @@ impl<B: Backend, TI, TO: ItemLazy + 'static> EvaluatorBuilder<B, TI, TO> {
 
     /// Builds the evaluator.
     #[allow(clippy::type_complexity)]
-    pub fn build<M>(
-        mut self,
-        model: M,
-    ) -> Evaluator<
-        EvaluatorComponentTypesMarker<
-            B,
-            M,
-            AsyncProcessorEvaluation<FullEventProcessorEvaluation<TO>>,
-            TI,
-            TO,
-        >,
-    >
-    where
-        TI: Send + 'static,
-        M: Module<B> + TestStep<TI, TO> + core::fmt::Display + 'static,
-    {
+    pub fn build(mut self, model: EC::Model) -> Evaluator<EC> {
         let renderer = self
             .renderer
             .unwrap_or_else(|| default_renderer(self.interrupter.clone(), None));
@@ -156,51 +147,45 @@ impl<B: Backend, TI, TO: ItemLazy + 'static> EvaluatorBuilder<B, TI, TO> {
 }
 
 /// Trait to fake variadic generics.
-pub trait EvalMetricRegistration<TI, TO: ItemLazy>: Sized {
+pub trait EvalMetricRegistration<EC: EvaluatorComponentTypes>: Sized {
     /// Register the metrics.
-    fn register<B: Backend>(
-        self,
-        builder: EvaluatorBuilder<B, TI, TO>,
-    ) -> EvaluatorBuilder<B, TI, TO>;
+    fn register(self, builder: EvaluatorBuilder<EC>) -> EvaluatorBuilder<EC>;
 }
 
 /// Trait to fake variadic generics.
-pub trait EvalTextMetricRegistration<TI, TO: ItemLazy>: Sized {
+pub trait EvalTextMetricRegistration<EC: EvaluatorComponentTypes>: Sized {
     /// Register the metrics.
-    fn register<B: Backend>(
-        self,
-        builder: EvaluatorBuilder<B, TI, TO>,
-    ) -> EvaluatorBuilder<B, TI, TO>;
+    fn register(self, builder: EvaluatorBuilder<EC>) -> EvaluatorBuilder<EC>;
 }
 
 macro_rules! gen_tuple {
     ($($M:ident),*) => {
-        impl<$($M,)* TI: 'static, TO: ItemLazy+'static> EvalTextMetricRegistration<TI, TO> for ($($M,)*)
+        impl<$($M,)* EC: EvaluatorComponentTypes> EvalTextMetricRegistration<EC> for ($($M,)*)
         where
-            $(TO::ItemSync: Adaptor<$M::Input>,)*
+            $(<TestOutput<EC> as ItemLazy>::ItemSync: Adaptor<$M::Input>,)*
             $($M: Metric + 'static,)*
         {
             #[allow(non_snake_case)]
-            fn register<B: Backend>(
+            fn register(
                 self,
-                builder: EvaluatorBuilder<B, TI, TO>,
-            ) -> EvaluatorBuilder<B, TI, TO> {
+                builder: EvaluatorBuilder<EC>,
+            ) -> EvaluatorBuilder<EC> {
                 let ($($M,)*) = self;
                 $(let builder = builder.metric($M);)*
                 builder
             }
         }
 
-        impl<$($M,)* TI: 'static, TO: ItemLazy+'static> EvalMetricRegistration<TI, TO> for ($($M,)*)
+        impl<$($M,)* EC: EvaluatorComponentTypes> EvalMetricRegistration<EC> for ($($M,)*)
         where
-            $(TO::ItemSync: Adaptor<$M::Input>,)*
+            $(<TestOutput<EC> as ItemLazy>::ItemSync: Adaptor<$M::Input>,)*
             $($M: Metric + $crate::metric::Numeric + 'static,)*
         {
             #[allow(non_snake_case)]
-            fn register<B: Backend>(
+            fn register(
                 self,
-                builder: EvaluatorBuilder<B, TI, TO>,
-            ) -> EvaluatorBuilder<B, TI, TO> {
+                builder: EvaluatorBuilder<EC>,
+            ) -> EvaluatorBuilder<EC> {
                 let ($($M,)*) = self;
                 $(let builder = builder.metric_numeric($M);)*
                 builder

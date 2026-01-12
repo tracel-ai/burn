@@ -773,7 +773,7 @@ fn clamp<C: Numeric>(
     let input = read::<C>(inputs, outputs, locals, write_pos, input, config);
     let min = read::<C>(inputs, outputs, locals, write_pos, min, config);
     let max = read::<C>(inputs, outputs, locals, write_pos, max, config);
-    let result = Line::<C>::clamp(input, min, max);
+    let result = cubecl::prelude::clamp(input, min, max);
 
     write::<C>(inputs, outputs, locals, write_pos, result, out, config);
 }
@@ -894,7 +894,7 @@ binary_func!(powf, Line::<C>::powf, Float);
 binary_func!(rem, Line::<C>::rem, Float);
 
 unary_func!(exp, Line::<C>::exp, Float);
-unary_func!(log, Line::<C>::log, Float);
+unary_func!(log, Line::<C>::ln, Float);
 unary_func!(log1p, Line::<C>::log1p, Float);
 unary_func!(sqrt, Line::<C>::sqrt, Float);
 unary_func!(cos, Line::<C>::cos, Float);

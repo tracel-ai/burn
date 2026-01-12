@@ -2072,8 +2072,30 @@ where
     /// ```math
     /// C = AB
     /// ```
+    ///
+    /// Shapes of the form `[..., B, 1, K] @ [..., 1, K, N]` are reinterpreted as
+    /// `[..., 1, B, K] @ [..., 1, K, N]`, turning a batched vec-mat into a general
+    /// matmul, which is often faster.
     pub fn matmul(self, other: Self) -> Self {
         check!(TensorCheck::matmul(&self, &other));
+
+        if D >= 3 {
+            let batch_index = D - 3;
+            let vector_index = D - 2;
+            let lhs_dims = &self.shape()[batch_index..D];
+            let rhs_dims = &other.shape()[batch_index..D];
+
+            if let ([_, 1, k1], [1, k2, _]) = (lhs_dims, rhs_dims)
+                && k1 == k2
+            {
+                return Tensor::new(K::matmul(
+                    self.swap_dims(batch_index, vector_index).primitive,
+                    other.primitive,
+                ))
+                .swap_dims(batch_index, vector_index);
+            }
+        }
+
         Tensor::new(K::matmul(self.primitive, other.primitive))
     }
 }

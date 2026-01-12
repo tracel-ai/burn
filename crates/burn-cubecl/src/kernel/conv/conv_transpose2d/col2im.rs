@@ -273,13 +273,13 @@ fn col2im_kernel<E: Numeric>(
     } else {
         0usize.runtime()
     };
-    let x_col_end = Min::min(im_x / args.stride_w + 1, args.out_w);
+    let x_col_end = clamp_max(im_x / args.stride_w + 1, args.out_w);
     let y_col_start = if im_y >= kernel_extent_h {
         (im_y - kernel_extent_h) / args.stride_h + 1
     } else {
         0usize.runtime()
     };
-    let y_col_end = Min::min(im_y / args.stride_h + 1, args.out_h);
+    let y_col_end = clamp_max(im_y / args.stride_h + 1, args.out_h);
 
     for col_y in y_col_start..y_col_end {
         let kernel_y = im_y - col_y * args.stride_h;
