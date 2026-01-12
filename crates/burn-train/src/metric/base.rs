@@ -124,7 +124,7 @@ pub type MetricName = Arc<String>;
 /// Adaptor are used to transform types so that they can be used by metrics.
 ///
 /// This should be implemented by a model's output type for all [metric inputs](Metric::Input) that are
-/// registered with the specific [learning paradigm](crate::LearningParadigm).
+/// registered with the specific learning paradigm (i.e. [SupervisedTraining](crate::SupervisedTraining)).
 pub trait Adaptor<T> {
     /// Adapt the type to be passed to a [metric](Metric).
     fn adapt(&self) -> T;

@@ -2,7 +2,8 @@
 
 use super::indexing::ravel_index;
 use super::{AsIndex, Slice, SliceArg};
-use alloc::string::ToString;
+use alloc::format;
+use alloc::string::{String, ToString};
 use alloc::vec;
 use alloc::vec::Vec;
 use core::fmt::{Debug, Display, Formatter};
@@ -12,6 +13,9 @@ use core::{
     slice::{Iter, IterMut, SliceIndex},
 };
 use serde::{Deserialize, Serialize};
+
+pub use crate::errors::ExpressionError;
+pub use crate::tensor::index_conversion::AsSize;
 
 /// Shape of a tensor.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -36,8 +40,16 @@ pub enum ShapeError {
     OutOfBounds { dim: usize, rank: usize },
     /// A pair of shapes are incompatible for the operation.
     IncompatibleShapes { left: Shape, right: Shape },
-    /// Invalid empty shape.
-    Empty,
+    /// Invalid shape.
+    Invalid { reason: String },
+}
+
+impl ShapeError {
+    fn empty() -> Self {
+        Self::Invalid {
+            reason: "Shape is empty.".into(),
+        }
+    }
 }
 
 impl Shape {
@@ -153,7 +165,7 @@ impl Shape {
 
     /// Convert shape dimensions to full covering ranges (0..dim) for each dimension.
     pub fn into_ranges(self) -> Vec<Range<usize>> {
-        self.into_iter().map(|d| 0..d).collect()
+        self.iter().map(|&d| 0..d).collect()
     }
 
     /// Converts slice arguments into an array of slice specifications for the shape.
@@ -332,7 +344,7 @@ impl Shape {
     {
         let mut iter = shapes.into_iter();
 
-        let first = iter.next().ok_or(ShapeError::Empty)?;
+        let first = iter.next().ok_or(ShapeError::empty())?;
 
         if dim >= first.rank() {
             return Err(ShapeError::OutOfBounds {
@@ -401,7 +413,7 @@ impl Shape {
         I: IntoIterator<Item = &'a Shape>,
     {
         let mut iter = shapes.into_iter();
-        let mut broadcasted = iter.next().ok_or(ShapeError::Empty)?.clone();
+        let mut broadcasted = iter.next().ok_or(ShapeError::empty())?.clone();
         let rank = broadcasted.rank();
 
         for shape in iter {
@@ -455,14 +467,74 @@ impl Shape {
     }
 
     /// Reshape this shape to the target shape.
-    pub fn reshape(&self, target: Shape) -> Result<Shape, ShapeError> {
-        if self.num_elements() != target.num_elements() {
-            return Err(ShapeError::IncompatibleShapes {
-                left: self.clone(),
-                right: target,
-            });
+    pub fn reshape<A, T>(&self, args: A) -> Result<Shape, ShapeError>
+    where
+        A: AsRef<[T]> + Debug,
+        T: AsIndex,
+    {
+        let args = args.as_ref();
+        let mut infer_index = None;
+        let mut dims = Vec::new();
+
+        let mut new_size = 1;
+
+        for (idx, &s) in args.iter().enumerate() {
+            let s = s.as_index();
+            if s > 0 {
+                let s = s as usize;
+                new_size *= s;
+                dims.push(s);
+            } else if s == 0 {
+                // We need to find the index of the 0 dimensions and
+                // replace them with the actual dimension value.
+                let s = self.dims[idx];
+                new_size *= s;
+                dims.push(s);
+            } else if s == -1 {
+                match infer_index {
+                    None => {
+                        infer_index = Some(idx);
+                        // Used by / Replaced by handling later.
+                        dims.push(1);
+                    }
+                    Some(_) => {
+                        return Err(ShapeError::Invalid {
+                            reason: "Repeated -1 in reshape".to_string(),
+                        });
+                    }
+                }
+            } else {
+                return Err(ShapeError::Invalid {
+                    reason: "The given shape cannot contain negative dimensions (other than -1)."
+                        .to_string(),
+                });
+            }
         }
-        Ok(target)
+
+        let source_size = self.num_elements();
+        match infer_index {
+            None => {
+                if source_size != new_size {
+                    return Err(ShapeError::Invalid {
+                        reason: format!(
+                            "The given shape doesn't have the same number of elements as the current shape. Current shape: {self}, target shape: {dims:?}.",
+                        ),
+                    });
+                }
+            }
+            Some(idx) => {
+                if !source_size.is_multiple_of(new_size) {
+                    return Err(ShapeError::Invalid {
+                        reason: format!(
+                            "Cannot infer a valid target shape. Current shape: {self}, target dimensions: {args:?}."
+                        ),
+                    });
+                }
+                dims[idx] = source_size / new_size;
+            }
+        }
+
+        Ok(dims.into())
     }
 }
 
@@ -549,15 +621,6 @@ impl FromStr for Shape {
     }
 }
 
-impl IntoIterator for Shape {
-    type Item = usize;
-    type IntoIter = alloc::vec::IntoIter<Self::Item>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.dims.into_iter()
-    }
-}
-
 impl<Idx> Index<Idx> for Shape
 where
     Idx: SliceIndex<[usize]>,
@@ -593,69 +656,31 @@ impl DerefMut for Shape {
         &mut self.dims
     }
 }
-
-// Conversion sugar
-impl<const D: usize> From<[usize; D]> for Shape {
-    fn from(dims: [usize; D]) -> Self {
-        Shape::new(dims)
-    }
-}
-
-impl<const D: usize> From<[i64; D]> for Shape {
-    fn from(dims: [i64; D]) -> Self {
-        Shape {
-            dims: dims.into_iter().map(|d| d as usize).collect(),
-        }
-    }
-}
-
-impl<const D: usize> From<[i32; D]> for Shape {
-    fn from(dims: [i32; D]) -> Self {
-        Shape {
-            dims: dims.into_iter().map(|d| d as usize).collect(),
-        }
-    }
-}
-
-impl From<&[usize]> for Shape {
-    fn from(dims: &[usize]) -> Self {
-        Shape { dims: dims.into() }
-    }
-}
-
-impl From<Vec<i64>> for Shape {
-    fn from(shape: Vec<i64>) -> Self {
-        Self {
-            dims: shape.into_iter().map(|d| d as usize).collect(),
-        }
-    }
-}
-
-impl From<Vec<u64>> for Shape {
-    fn from(shape: Vec<u64>) -> Self {
-        Self {
-            dims: shape.into_iter().map(|d| d as usize).collect(),
-        }
-    }
-}
-
-impl From<Vec<usize>> for Shape {
-    fn from(shape: Vec<usize>) -> Self {
-        Self { dims: shape }
-    }
-}
-
-impl From<&Vec<usize>> for Shape {
-    fn from(shape: &Vec<usize>) -> Self {
-        Self {
-            dims: shape.clone(),
-        }
+// Allow `shape.reshape(other_shape)`.
+//
+// By implementing `AsRef<[usize]>`, `Shape` behaves like a slice of dimensions,
+// similar to how `Vec<T>` can be passed to functions expecting a slice.
+impl AsRef<[usize]> for Shape {
+    fn as_ref(&self) -> &[usize] {
+        &self.dims
     }
 }
 
 impl From<Shape> for Vec<usize> {
     fn from(shape: Shape) -> Self {
         shape.dims
+    }
+}
+
+impl<T, I> From<T> for Shape
+where
+    T: IntoIterator<Item = I>,
+    I: AsSize,
+{
+    fn from(dims: T) -> Self {
+        Shape {
+            dims: dims.into_iter().map(|d| d.as_size()).collect(),
+        }
     }
 }
 
@@ -1053,7 +1078,7 @@ mod tests {
     #[test]
     fn test_shape_broadcast_many_empty() {
         let out = Shape::broadcast_many(&[]);
-        assert_eq!(out, Err(ShapeError::Empty));
+        assert_eq!(out, Err(ShapeError::empty()));
     }
 
     #[test]
@@ -1129,7 +1154,7 @@ mod tests {
     #[test]
     fn test_shape_cat_empty() {
         let out = Shape::cat(&[], 0);
-        assert_eq!(out, Err(ShapeError::Empty));
+        assert_eq!(out, Err(ShapeError::empty()));
     }
 
     #[test]
@@ -1310,12 +1335,23 @@ mod tests {
     fn test_shape_reshape_invalid() {
         let shape = Shape::new([2, 3, 4, 5]);
         let reshaped = Shape::new([2, 2, 12, 5]);
-        let out = shape.clone().reshape(reshaped.clone());
+        let out = shape.reshape(reshaped.clone());
         assert_eq!(
             out,
-            Err(ShapeError::IncompatibleShapes {
-                left: shape,
-                right: reshaped
+            Err(ShapeError::Invalid {
+                reason: "The given shape doesn't have the same number of elements as the current shape. Current shape: [2, 3, 4, 5], target shape: [2, 2, 12, 5].".into(),
+            })
+        );
+    }
+
+    #[test]
+    fn test_shape_reshape_invalid_inferred() {
+        let shape = Shape::new([2, 4]);
+        let out = shape.reshape([-1, 3]);
+        assert_eq!(
+            out,
+            Err(ShapeError::Invalid {
+                reason: "Cannot infer a valid target shape. Current shape: [2, 4], target dimensions: [-1, 3].".into(),
             })
         );
     }
