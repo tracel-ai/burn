@@ -3,7 +3,7 @@
 use super::indexing::ravel_index;
 use super::{AsIndex, Slice, SliceArg};
 use alloc::format;
-use alloc::string::ToString;
+use alloc::string::{String, ToString};
 use alloc::vec;
 use alloc::vec::Vec;
 use core::fmt::{Debug, Display, Formatter};
