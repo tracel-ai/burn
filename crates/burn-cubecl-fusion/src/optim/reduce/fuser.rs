@@ -16,11 +16,11 @@ use cubecl::Runtime;
 
 /// Fuses element wise operations around a reduce operation.
 pub struct ReduceFuser<R: Runtime> {
-    fuser: TraceOperationFuser,
-    fuser_read_fallback: TraceOperationFuser,
+    pub(crate) fuser: TraceOperationFuser,
+    pub(crate) fuser_read_fallback: TraceOperationFuser,
     fuser_write_fallback: TraceOperationFuser,
     settings_write: FuseSettings,
-    device: R::Device,
+    pub(crate) device: R::Device,
     reduce: Option<FusedReduce>,
     settings: ReduceSettings,
 }
@@ -37,6 +37,16 @@ impl<R: Runtime> Clone for ReduceFuser<R> {
             settings: self.settings,
         }
     }
+}
+
+pub enum ReduceFuserInfo {
+    FusedReduce {
+        shape_input_id: Vec<usize>,
+        axis: usize,
+    },
+    FusedElemwise {
+        shape_id: Vec<usize>,
+    },
 }
 
 impl<R: Runtime> ReduceFuser<R> {
@@ -76,15 +86,21 @@ impl<R: Runtime> ReduceFuser<R> {
         }
     }
 
-    pub fn reduce_info(&self) -> Option<(usize, usize)> {
+    pub fn reduce_info(&self) -> ReduceFuserInfo {
         match &self.reduce {
             Some(reduce) => {
-                let shape_id = reduce.op.input.shape[reduce.axis];
+                let shape_input_id = reduce.op.input.shape.dims.clone();
                 let axis = reduce.axis;
 
-                Some((shape_id, axis))
+                ReduceFuserInfo::FusedReduce {
+                    shape_input_id,
+                    axis,
+                }
             }
-            None => None,
+            None => {
+                let shape_id = self.fuser_read_fallback.current_output_shape.clone();
+                ReduceFuserInfo::FusedElemwise { shape_id }
+            }
         }
     }
     fn on_reduce(&mut self, op: &ReduceDimOpIr, inst: ReduceInstruction) {

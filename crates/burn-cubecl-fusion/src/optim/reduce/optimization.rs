@@ -36,7 +36,7 @@ use std::sync::Arc;
 use cubek::reduce::routines::{BlueprintStrategy, unit::UnitStrategy};
 
 pub struct ReduceOptimization<R: Runtime> {
-    info: Arc<ReduceOptimizationInfo<R>>,
+    pub(crate) info: Arc<ReduceOptimizationInfo<R>>,
 }
 
 pub(crate) struct ReduceOptimizationInfo<R: Runtime> {

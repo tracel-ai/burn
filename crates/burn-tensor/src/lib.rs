@@ -18,3 +18,37 @@ pub use tensor::*;
 
 // Re-exported types
 pub use burn_backend::{AllocationProperty, Bytes, StreamId, bf16, f16, read_sync, try_read_sync};
+
+
+
+
+
+
+enum Device {
+    Cuda(CudaDevice),
+    Autodiff(Box<Self>),
+}
+
+enum FloatPrimitive {
+    Cuda(CudaDevice),
+    Autodiff(Box<Self>),
+}
+
+fn manui() {
+    let device= Device::Cuda(0);
+    let param = Tensor::new(device.autodiff()).require_grad();
+    let signal = Tensor::new(device);
+    let loss = param*signal;
+    let stuff = loss.backward();
+}
+
+
+impl FloatOps {
+    fn add(lhs, rhs) {
+        match (lhs, rhs) {
+            (FloatPrimitive::Cuda(lhs), FloatPrimitive::Cuda(rhs)) => FloatPrimitive::Cuda(CudaBackend::float_add(lhs, rhs)),
+            (FloatPrimitive::Autodiff(FloatPrimitive::Cuda(lhs)), FloatPrimitive::Cuda(rhs)) => FloatPrimitive::Autodiff(AutodiffBackend::float_add(lhs, from_inner(rhs))),
+            _ => panic!("Not the same device"),
+        }
+    }
+}

@@ -1,108 +1,71 @@
 use crate::{
     CubeFusionHandle, FallbackOperation,
-    engine::{
-        codegen::ir::{FuseArg, FuseBlockConfig, FuseType, GlobalArgsLaunch},
-        launch::runner::{TraceRunner, Vectorization},
-        trace::{FuseTrace, TraceError, TuneOutput},
+    engine::trace::{TraceError, TuneOutput},
+    optim::{
+        elemwise::ElemwiseOptimization,
+        reduce::{
+            FusedReduceError, ReduceOptimizationInfo, ReduceOptimizationState,
+            ReduceOptimizationTuneArg,
+        },
+        reduce_broadcasted::tune::fused_broadcasted_reduce_autotune,
     },
-    optim::reduce::ReduceOptimizationInfo,
 };
 use burn_fusion::stream::Context;
-use burn_ir::ReduceDimOpIr;
-use cubecl::{Runtime, client::ComputeClient, prelude::*};
-use cubek::reduce::{ReduceError, launch::RoutineStrategy};
+use cubecl::{Runtime, prelude::*};
+use cubek::reduce::launch::RoutineStrategy;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-#[cfg(not(feature = "autotune"))]
-use cubek::reduce::routines::{BlueprintStrategy, unit::UnitStrategy};
-
 pub struct ReduceBroadcastedOptimization<R: Runtime> {
-    info: Arc<ReduceBroadcastedOptimizationInfo<R>>,
+    pub(crate) info: Arc<ReduceBroadcastedOptimizationInfo<R>>,
+    pub(crate) num_ops: usize,
 }
 
 pub(crate) struct ReduceBroadcastedOptimizationInfo<R: Runtime> {
-    pub(crate) infos: Vec<ReduceOptimizationInfo<R>>,
+    pub(crate) fallbacks: Vec<ReduceBlockOptimInfo<R>>,
+}
+
+pub(crate) enum ReduceBlockOptimInfo<R: Runtime> {
+    Reduce(Arc<ReduceOptimizationInfo<R>>),
+    Elemwise(Arc<ElemwiseOptimization<R>>),
+}
+
+pub(crate) struct ReduceBroadcastedOptimizationTuneArg<R: Runtime> {
+    pub(crate) fallbacks: Vec<ReduceBlockOptimArg<R>>,
     pub(crate) client: ComputeClient<R>,
     pub(crate) device: R::Device,
 }
 
-pub(crate) struct ReduceBroadcastedOptimizationTuneArg<R: Runtime> {
-    pub(crate) info: Arc<ReduceBroadcastedOptimizationInfo<R>>,
-    pub(crate) fallback: Box<dyn FallbackOperation<R>>,
+pub(crate) enum ReduceBlockOptimArg<R: Runtime> {
+    Reduce(ReduceOptimizationTuneArg<R>),
+    Elemwise(Arc<ElemwiseOptimization<R>>),
 }
 
-#[derive(Clone, Copy, Serialize, Deserialize, Debug)]
-pub enum ReduceInstruction {
-    ArgMax,
-    ArgMin,
-    Mean,
-    Prod,
-    Sum,
-    Max,
-    Min,
-    MaxAbs,
+impl<R: Runtime> ReduceBlockOptimArg<R> {
+    pub fn execute_fallback<BT: CubeElement>(
+        &self,
+        context: &mut Context<'_, CubeFusionHandle<R>>,
+    ) -> Option<TuneOutput<R>> {
+        match self {
+            ReduceBlockOptimArg::Reduce(reduce) => Some(reduce.execute_fallback::<BT>(context)),
+            ReduceBlockOptimArg::Elemwise(elem) => {
+                elem.execute::<BT>(context);
+                None
+            }
+        }
+    }
 }
 
-pub trait ReduceFallbackFn<R: Runtime>: Send + Sync {
-    fn run(&self, context: &mut Context<'_, CubeFusionHandle<R>>);
-}
-
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct ReduceBroadcastedOptimizationState {
-    trace: FuseTrace,
-    trace_read_fallback: FuseTrace,
-    trace_write_fallback: FuseTrace,
-    pub(crate) reduce: FusedReduce,
-    len: usize,
-    len_read: usize,
-}
-
-impl core::fmt::Debug for ReduceBroadcastedOptimizationState {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!(
-            "{{ len_read: {}, len_total: {} }}",
-            self.len_read, self.len
-        ))
-    }
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct FusedReduce {
-    pub(crate) input: FuseArg,
-    pub(crate) output: FuseArg,
-    pub(crate) acc: FuseType,
-    pub(crate) axis: usize,
-    pub(crate) op: ReduceDimOpIr,
-    pub(crate) use_planes: bool,
-    pub(crate) shared: bool,
-    pub(crate) inst: ReduceInstruction,
-}
-
-#[derive(new)]
-pub struct FusedReduceLaunch<'a> {
-    reduce: &'a FusedReduce,
-    strategy: RoutineStrategy,
-}
-
-#[derive(Debug)]
-pub enum FusedReduceError {
-    Reduce(ReduceError),
-    InvalidSelection(Box<&'static str>),
-    InvalidInput,
-}
-
-impl From<ReduceError> for FusedReduceError {
-    fn from(value: ReduceError) -> Self {
-        Self::Reduce(value)
-    }
+    fallbacks: Vec<ReduceOptimizationState>,
 }
 
 impl<R: Runtime> ReduceBroadcastedOptimizationTuneArg<R> {
     pub fn execute_fused<BT: CubeElement>(
         &self,
-        context: &mut Context<'_, CubeFusionHandle<R>>,
-        strategy: RoutineStrategy,
+        _context: &mut Context<'_, CubeFusionHandle<R>>,
+        _strategy: RoutineStrategy,
     ) -> Result<TuneOutput<R>, TraceError<FusedReduceError>> {
         todo!()
     }
@@ -110,56 +73,76 @@ impl<R: Runtime> ReduceBroadcastedOptimizationTuneArg<R> {
     pub fn execute_fallback<BT: CubeElement>(
         &self,
         context: &mut Context<'_, CubeFusionHandle<R>>,
-    ) -> TuneOutput<R> {
-        todo!()
+    ) {
+        println!("execute N fallbacks: {}", self.fallbacks.len());
+        for fallback in self.fallbacks.iter() {
+            fallback.execute_fallback::<BT>(context);
+        }
     }
 }
 
 #[allow(clippy::too_many_arguments)]
 impl<R: Runtime> ReduceBroadcastedOptimization<R> {
-    pub fn new(infos: Vec<ReduceOptimizationInfo<R>>) -> Self {
-        todo!()
-    }
     /// Execute the optimization.
     pub fn execute<BT: CubeElement>(
         &mut self,
         context: &mut Context<'_, CubeFusionHandle<R>>,
-        fallback: impl FnOnce(usize) -> Box<dyn FallbackOperation<R>>,
+        fallback: impl Fn(usize) -> Box<dyn FallbackOperation<R>>,
     ) {
-        todo!()
+        let mut current_index = 0;
+        let mut client = None;
+        let mut device = None;
+
+        let fallbacks = self
+            .info
+            .fallbacks
+            .iter()
+            .map(|info| {
+                match info {
+                    ReduceBlockOptimInfo::Reduce(info) => {
+                        // The index of the fallback reduce is the number of ops fused as read.
+                        let fallback = fallback(current_index + info.len_read);
+                        client = Some(info.client.clone());
+                        device = Some(info.device.clone());
+                        let arg = ReduceOptimizationTuneArg {
+                            info: info.clone(),
+                            fallback,
+                        };
+                        current_index += info.len;
+                        ReduceBlockOptimArg::Reduce(arg)
+                    }
+                    ReduceBlockOptimInfo::Elemwise(op) => ReduceBlockOptimArg::Elemwise(op.clone()),
+                }
+            })
+            .collect();
+
+        let arg = ReduceBroadcastedOptimizationTuneArg {
+            fallbacks,
+            client: client.unwrap(),
+            device: device.unwrap(),
+        };
+
+        #[cfg(feature = "autotune")]
+        fused_broadcasted_reduce_autotune::<R, BT>(arg, context);
+
+        #[cfg(not(feature = "autotune"))]
+        arg.execute_fallback::<BT>(context);
     }
 
-    pub fn num_output_buffers(&self) -> usize {
-        todo!()
-    }
+    // pub fn num_output_buffers(&self) -> usize {
+    //     todo!()
+    // }
 
     pub fn to_state(&self) -> ReduceBroadcastedOptimizationState {
         todo!()
     }
 
-    pub fn from_state(device: &R::Device, state: ReduceBroadcastedOptimizationState) -> Self {
+    pub fn from_state(_device: &R::Device, _state: ReduceBroadcastedOptimizationState) -> Self {
         todo!()
     }
 
     /// Returns the number of output buffers added by fusion.
     pub fn num_ops_fused(&self) -> usize {
-        todo!()
-    }
-}
-
-// TODO: Implement better vectorization here.
-impl<R: Runtime> Vectorization<R> for FusedReduceLaunch<'_> {}
-
-impl<R: Runtime> TraceRunner<R> for FusedReduceLaunch<'_> {
-    type Error = FusedReduceError;
-
-    fn run<'a>(
-        &'a self,
-        client: &'a ComputeClient<R>,
-        inputs: GlobalArgsLaunch<'a, R>,
-        outputs: GlobalArgsLaunch<'a, R>,
-        configs: &'a [FuseBlockConfig],
-    ) -> Result<(), FusedReduceError> {
-        todo!()
+        self.num_ops
     }
 }

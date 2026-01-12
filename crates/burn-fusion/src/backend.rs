@@ -93,7 +93,7 @@ pub enum FuserStatus {
 }
 
 /// The properties of a [fuser](OperationFuser).
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct FuserProperties {
     /// The score of the optimization, higher is better.
     pub score: u64,
