@@ -370,7 +370,7 @@ where
     /// ```
     pub fn reshape<const D2: usize, S: ReshapeArgs<D2>>(self, shape: S) -> Tensor<B, D2, K> {
         // Convert reshape args to shape
-        let shape = shape.reshape_check::<D2>(self.shape());
+        let shape = shape.into_shape::<D2>(self.shape());
         Tensor::new(K::reshape(self.primitive, shape))
     }
 
@@ -3076,17 +3076,17 @@ impl MovedimArgs for i32 {
 /// Trait used for reshape arguments.
 pub trait ReshapeArgs<const D2: usize>: Debug {
     /// Converts to a shape.
-    fn reshape_check<const D: usize>(self, source: Shape) -> Shape;
+    fn into_shape<const D: usize>(self, source: Shape) -> Shape;
 }
 
 impl<const D2: usize, I: AsIndex> ReshapeArgs<D2> for [I; D2] {
-    fn reshape_check<const D: usize>(self, source: Shape) -> Shape {
+    fn into_shape<const D: usize>(self, source: Shape) -> Shape {
         unwrap_shape_reshape(source.reshape(self))
     }
 }
 
 impl<const D2: usize> ReshapeArgs<D2> for Shape {
-    fn reshape_check<const D: usize>(self, source: Shape) -> Shape {
+    fn into_shape<const D: usize>(self, source: Shape) -> Shape {
         unwrap_shape_reshape(source.reshape(self))
     }
 }
