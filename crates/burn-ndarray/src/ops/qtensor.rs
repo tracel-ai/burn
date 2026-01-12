@@ -329,6 +329,10 @@ where
             qparams: tensor.qparams,
         }
     }
+
+    fn q_ensure_owned(tensor: &mut QuantizedTensor<Self>) {
+        tensor.qtensor.ensure_owned()
+    }
 }
 
 fn dequantize<Q: QuantElement>(

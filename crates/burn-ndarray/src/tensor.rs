@@ -55,6 +55,18 @@ impl NdArrayTensor {
         }
         check!(F64, F32, I64, I32, I16, I8, U64, U32, U16, U8, Bool)
     }
+
+    /// Ensure that the tensor is owned. Converts borrowed to owned if necessary.
+    pub fn ensure_owned(&mut self) {
+        macro_rules! execute {
+            ($($variant:ident),*) => {
+                match self {
+                    $(NdArrayTensor::$variant(s) => { s.ensure_owned(); })*
+                }
+            };
+        }
+        execute!(F64, F32, I64, I32, I16, I8, U64, U32, U16, U8, Bool)
+    }
 }
 
 pub(crate) fn cast_to_dtype<E1: Element>(array: SharedArray<E1>, dtype: DType) -> NdArrayTensor

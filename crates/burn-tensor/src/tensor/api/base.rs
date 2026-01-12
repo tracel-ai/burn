@@ -2746,13 +2746,15 @@ impl<B: Backend, const D: usize, K: BasicOps<B>> DoubleEndedIterator for DimIter
 }
 
 impl<B: Backend, const D: usize, K: BasicOps<B>> DimIter<B, D, K> {
-    fn new(tensor: Tensor<B, D, K>, dim: usize) -> Self {
+    fn new(mut tensor: Tensor<B, D, K>, dim: usize) -> Self {
         let dims = tensor.dims();
         let ranges = dims
             .iter()
             .map(|&dim| 0..dim)
             .collect::<Vec<Range<usize>>>();
         let ranges: [Range<usize>; D] = ranges.try_into().unwrap();
+        // Ensure that tensor is owned to avoid alloc on every iteration when it's sliced
+        K::ensure_owned(&mut tensor.primitive);
         Self {
             end: dims[dim],
             ranges,

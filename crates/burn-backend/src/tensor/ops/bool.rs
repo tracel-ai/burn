@@ -206,6 +206,10 @@ impl<B: Backend> BasicOps<B> for Bool {
     fn unfold(tensor: Self::Primitive, dim: usize, size: usize, step: usize) -> Self::Primitive {
         B::bool_unfold(tensor, dim, size, step)
     }
+
+    fn ensure_owned(tensor: &mut Self::Primitive) {
+        B::bool_ensure_owned(tensor)
+    }
 }
 
 impl<B: AutodiffBackend> BasicAutodiffOps<B> for Bool {
