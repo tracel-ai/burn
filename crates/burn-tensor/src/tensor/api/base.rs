@@ -20,7 +20,7 @@ use crate::{
     backend::Backend, check,
 };
 use crate::{DType, Element};
-use crate::{IndexingUpdateOp, TensorOptions};
+use crate::{IndexingUpdateOp, TensorCreationOptions};
 use crate::{cast::ToElement, check::TensorCheck};
 use serde::{Serialize, Serializer};
 
@@ -156,7 +156,7 @@ where
     ///    let tensor = Tensor::<B, 3>::empty([2, 3, 4], &device);
     /// }
     /// ```
-    pub fn empty<S: Into<Shape>>(shape: S, options: impl Into<TensorOptions<B>>) -> Self {
+    pub fn empty<S: Into<Shape>>(shape: S, options: impl Into<TensorCreationOptions<B>>) -> Self {
         let opt = options.into();
         let shape = shape.into();
         check!(TensorCheck::creation_ops::<D>("Empty", &shape.dims));
@@ -178,7 +178,7 @@ where
     ///    // [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]
     /// }
     /// ```
-    pub fn zeros<S: Into<Shape>>(shape: S, options: impl Into<TensorOptions<B>>) -> Self {
+    pub fn zeros<S: Into<Shape>>(shape: S, options: impl Into<TensorCreationOptions<B>>) -> Self {
         let opt = options.into();
         let shape = shape.into();
         check!(TensorCheck::creation_ops::<D>("Zeros", &shape.dims));
@@ -220,7 +220,7 @@ where
     ///   // [[1.0, 1.0, 1.0], [1.0, 1.0, 1.0]]
     /// }
     /// ```
-    pub fn ones<S: Into<Shape>>(shape: S, options: impl Into<TensorOptions<B>>) -> Self {
+    pub fn ones<S: Into<Shape>>(shape: S, options: impl Into<TensorCreationOptions<B>>) -> Self {
         let opt = options.into();
         let shape = shape.into();
         check!(TensorCheck::creation_ops::<D>("Ones", &shape.dims));
@@ -265,7 +265,7 @@ where
     pub fn full<S: Into<Shape>, E: ElementConversion>(
         shape: S,
         fill_value: E,
-        options: impl Into<TensorOptions<B>>,
+        options: impl Into<TensorCreationOptions<B>>,
     ) -> Self {
         let opt = options.into();
         let shape = shape.into();

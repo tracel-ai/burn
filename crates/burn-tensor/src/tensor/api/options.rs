@@ -5,7 +5,7 @@ use burn_std::DType;
 ///
 /// This struct allows specifying the `device` and/or data type (`dtype`) when creating a tensor.
 #[derive(Debug, Clone)]
-pub struct TensorOptions<B: Backend> {
+pub struct TensorCreationOptions<B: Backend> {
     /// Device where the tensor will be created.
     pub device: Device<B>,
     /// Optional data type.
@@ -13,78 +13,74 @@ pub struct TensorOptions<B: Backend> {
     pub dtype: Option<DType>,
 }
 
-impl<B: Backend> Default for TensorOptions<B> {
-    /// Returns [default float options](TensorOptions::float): default device + backend float dtype.
+impl<B: Backend> Default for TensorCreationOptions<B> {
+    /// Returns new options with the backend's default device.
     fn default() -> Self {
-        Self::float()
+        Self::new(Default::default())
     }
 }
 
-impl<B: Backend> TensorOptions<B> {
-    /// Create new options with a specific device and dtype.
-    pub fn new(device: Device<B>, dtype: DType) -> Self {
-        Self {
-            device,
-            dtype: Some(dtype),
-        }
-    }
-
-    /// Create options with a specific device.
+impl<B: Backend> TensorCreationOptions<B> {
+    /// Create new options with a specific device.
     ///
     /// Data type will be inferred on creation from the backend's default dtype for the tensor kind.
-    pub fn device(device: Device<B>) -> Self {
+    pub fn new(device: Device<B>) -> Self {
         Self {
             device,
             dtype: None,
         }
     }
 
-    /// Create options with a specific dtype.
-    ///
-    /// Device will default to the backend's default device.
-    pub fn dtype(dtype: DType) -> Self {
-        Self {
-            dtype: Some(dtype),
-            ..Default::default()
-        }
+    /// Set the tensor creation data type.
+    pub fn with_dtype(mut self, dtype: DType) -> Self {
+        self.dtype = Some(dtype);
+
+        self
+    }
+
+    /// Set the tensor creation device.
+    pub fn with_device(mut self, device: Device<B>) -> Self {
+        self.device = device;
+
+        self
     }
 
     /// Create options with backend's default device and float dtype.
     pub fn float() -> Self {
-        Self::new(Default::default(), <B::FloatElem as Element>::dtype())
+        Self::default().with_dtype(<B::FloatElem as Element>::dtype())
     }
 
     /// Create options with backend's default device and int dtype.
     pub fn int() -> Self {
-        Self::new(Default::default(), <B::IntElem as Element>::dtype())
+        Self::default().with_dtype(<B::IntElem as Element>::dtype())
     }
 
     /// Create options with backend's default device and bool dtype.
     pub fn bool() -> Self {
-        Self::new(Default::default(), <B::BoolElem as Element>::dtype())
+        Self::default().with_dtype(<B::BoolElem as Element>::dtype())
     }
 
     /// Returns the tensor data type, or a provided default if not set.
     ///
-    /// This is useful for cases where [`TensorOptions`] may not have an explicit `dtype`.
+    /// This is useful for cases where [`TensorCreationOptions`] may not have an explicit `dtype`.
     pub fn dtype_or(&self, dtype: DType) -> DType {
         self.dtype.unwrap_or(dtype)
     }
 }
 
-impl<B: Backend> From<&Device<B>> for TensorOptions<B> {
+impl<B: Backend> From<&Device<B>> for TensorCreationOptions<B> {
     /// Convenience conversion from a reference to a device.
     ///
     /// Example:
     /// ```rust
     /// use burn_tensor::backend::Backend;
-    /// use burn_tensor::TensorOptions;
+    /// use burn_tensor::TensorCreationOptions;
     ///
     /// fn example<B: Backend>(device: B::Device) {
-    ///     let options: TensorOptions<B> = (&device).into();
+    ///     let options: TensorCreationOptions<B> = (&device).into();
     /// }
     /// ```
     fn from(device: &Device<B>) -> Self {
-        TensorOptions::device(device.clone())
+        TensorCreationOptions::new(device.clone())
     }
 }
