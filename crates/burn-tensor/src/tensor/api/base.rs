@@ -1,5 +1,6 @@
 #![allow(clippy::single_range_in_vec_init)]
 use crate::backend::ExecutionError;
+use crate::check::unwrap_shape_reshape;
 
 pub use burn_backend::tensor::BasicOps;
 
@@ -370,7 +371,6 @@ where
     pub fn reshape<const D2: usize, S: ReshapeArgs<D2>>(self, shape: S) -> Tensor<B, D2, K> {
         // Convert reshape args to shape
         let shape = shape.reshape_check::<D2>(self.shape());
-        // let shape = self.shape().reshape(shape).expect("invalid reshape");
         Tensor::new(K::reshape(self.primitive, shape))
     }
 
@@ -3081,15 +3081,13 @@ pub trait ReshapeArgs<const D2: usize>: Debug {
 
 impl<const D2: usize, I: AsIndex> ReshapeArgs<D2> for [I; D2] {
     fn reshape_check<const D: usize>(self, source: Shape) -> Shape {
-        // TODO: TensorCheck is still a useful signal / cleaner error message for TEnsor ops
-        source.reshape(self).unwrap()
+        unwrap_shape_reshape(source.reshape(self))
     }
 }
 
 impl<const D2: usize> ReshapeArgs<D2> for Shape {
     fn reshape_check<const D: usize>(self, source: Shape) -> Shape {
-        // TODO: TensorCheck is still a useful signal / cleaner error message for TEnsor ops
-        source.reshape(self).unwrap()
+        unwrap_shape_reshape(source.reshape(self))
     }
 }
 

@@ -1439,6 +1439,20 @@ pub(crate) mod macros {
     pub(crate) use check;
 }
 
+pub(crate) fn unwrap_shape_reshape(result: Result<Shape, burn_std::ShapeError>) -> Shape {
+    match result {
+        Ok(shape) => shape,
+        // `shape.reshape(new_shape)` should only return `ShapeError::Invalid`.
+        Err(burn_std::ShapeError::Invalid { reason }) => {
+            macros::check!({
+                TensorCheck::Ok.register("Reshape", crate::check::TensorError::new(reason))
+            });
+            unreachable!()
+        }
+        Err(e) => panic!("{e:?}"),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
