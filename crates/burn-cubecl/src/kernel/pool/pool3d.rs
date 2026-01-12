@@ -88,7 +88,11 @@ pub fn pool3d_direct<E: Numeric, S: Pool3dDirectStrategyFamily>(
         input.stride(3),
         input.stride(4),
     );
-    let (in_d, in_h, in_w) = (input.shape(1) as u32, input.shape(2) as u32, input.shape(3) as u32);
+    let (in_d, in_h, in_w) = (
+        input.shape(1) as u32,
+        input.shape(2) as u32,
+        input.shape(3) as u32,
+    );
 
     // Decode position: c, ow, oh, od, b
     let c = (ABSOLUTE_POS % channel_lines) * input.line_size();
@@ -139,7 +143,9 @@ pub fn pool3d_direct<E: Numeric, S: Pool3dDirectStrategyFamily>(
                     S::Pool3d::<E>::accumulate(
                         config,
                         &mut accumulator,
-                        id_pad as usize * in_h as usize * in_w as usize + ih_pad as usize * in_w as usize + iw_pad as usize,
+                        id_pad as usize * in_h as usize * in_w as usize
+                            + ih_pad as usize * in_w as usize
+                            + iw_pad as usize,
                         input[index_input / input.line_size()],
                     );
                 }
