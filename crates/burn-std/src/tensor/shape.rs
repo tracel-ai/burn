@@ -783,6 +783,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::into_iter_on_ref)]
     fn test_shape_into_iter() {
         let dims = [2, 3, 4, 5];
         let shape = Shape::new(dims);
