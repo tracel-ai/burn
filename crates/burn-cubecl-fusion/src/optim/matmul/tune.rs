@@ -219,6 +219,8 @@ pub(crate) fn create_key<R: Runtime>(
         lhs.dtype.into(),
         rhs.dtype.into(),
         out.dtype.into(),
+        opt.info.matmul.lhs.scheme(),
+        opt.info.matmul.rhs.scheme(),
     );
     FusedMatmulAutotuneKey::new(key, opt.info.num_output_buffers(), opt.info.num_ops_fused())
 }

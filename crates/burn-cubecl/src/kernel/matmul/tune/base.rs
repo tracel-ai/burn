@@ -403,5 +403,7 @@ fn create_key<R: CubeRuntime>(
         lhs.dtype.into(),
         rhs.dtype.into(),
         out.dtype.into(),
+        lhs.try_scheme(),
+        rhs.try_scheme(),
     )
 }

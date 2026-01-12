@@ -1,5 +1,6 @@
 //! Tensor data type.
 
+use cubecl::e2m1x2;
 use serde::{Deserialize, Serialize};
 
 use crate::tensor::quantization::{QuantScheme, QuantStore, QuantValue};
@@ -93,7 +94,11 @@ impl DType {
                         0
                     }
                 },
-                QuantStore::U32 => core::mem::size_of::<u32>(),
+                QuantStore::PackedU32(_) => core::mem::size_of::<u32>(),
+                QuantStore::PackedNative(_) => match scheme.value {
+                    QuantValue::E2M1 => core::mem::size_of::<e2m1x2>(),
+                    _ => 0,
+                },
             },
         }
     }

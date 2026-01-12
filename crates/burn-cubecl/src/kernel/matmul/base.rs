@@ -1,6 +1,7 @@
 use super::init_matmul_output;
-use crate::{CubeRuntime, tensor::CubeTensor};
+use crate::{CubeRuntime, kernel::quantization::dequantize, tensor::CubeTensor};
 use burn_backend::{DType, QTensorPrimitive};
+use burn_std::QuantLevel;
 use cubek::matmul::{
     definition::{MatmulElems, MatmulGlobalElems, MatmulSetupError},
     launch::{MatmulInputHandleRef, Strategy},
@@ -51,7 +52,7 @@ pub fn matmul<R: CubeRuntime>(
 pub(crate) fn launch_matmul<R: CubeRuntime>(
     strategy: &Strategy,
     lhs: CubeTensor<R>,
-    rhs: CubeTensor<R>,
+    mut rhs: CubeTensor<R>,
     out: CubeTensor<R>,
 ) -> Result<(), MatmulSetupError> {
     let client = &lhs.client;
@@ -84,17 +85,30 @@ pub(crate) fn launch_matmul<R: CubeRuntime>(
             lhs.dtype,
             MatmulInputHandleRef::new(rhs.as_handle_ref(), lhs.dtype.into()),
         ),
-        Some((data, scale)) => (
-            out_dtype,
-            MatmulInputHandleRef::quantized(
-                data.as_handle_ref(),
-                scale.as_handle_ref(),
-                &rhs.shape.dims,
-                rhs.scheme(),
-                data.dtype.into(),
-                scale.dtype.into(),
-            ),
-        ),
+        Some((data, scale)) => {
+            // Extremely hacky fix to ensure naive can run in every case
+            if matches!(strategy, Strategy::Naive)
+                && matches!(rhs.scheme().level, QuantLevel::Block(_))
+            {
+                rhs = dequantize(rhs.clone(), lhs.dtype);
+                (
+                    lhs.dtype,
+                    MatmulInputHandleRef::new(rhs.as_handle_ref(), rhs.dtype.into()),
+                )
+            } else {
+                (
+                    out_dtype,
+                    MatmulInputHandleRef::quantized(
+                        data.as_handle_ref(),
+                        scale.as_handle_ref(),
+                        &rhs.shape.dims,
+                        rhs.scheme(),
+                        data.dtype.into(),
+                        scale.dtype.into(),
+                    ),
+                )
+            }
+        }
     };
 
     let mut dtypes = MatmulElems::from_globals(&MatmulGlobalElems {
