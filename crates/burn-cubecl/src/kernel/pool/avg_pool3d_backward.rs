@@ -31,11 +31,11 @@ fn avg_pool3d_backward_kernel<E: Numeric>(
     let channel_lines = output.shape(4) / line_size;
     let channel = (ABSOLUTE_POS % channel_lines) * output.line_size();
     let pos = ABSOLUTE_POS / channel_lines;
-    let iw = pos % output.shape(3);
+    let iw = pos as u32 % output.shape(3) as u32;
     let pos = pos / output.shape(3);
-    let ih = pos % output.shape(2);
+    let ih = pos as u32 % output.shape(2) as u32;
     let pos = pos / output.shape(2);
-    let id = pos % output.shape(1);
+    let id = pos as u32 % output.shape(1) as u32;
     let batch = pos / output.shape(1);
 
     let mut grad_acc = Line::empty(grad.line_size()).fill(E::from_int(0));
@@ -44,9 +44,9 @@ fn avg_pool3d_backward_kernel<E: Numeric>(
         id as i32,
         ih as i32,
         iw as i32,
-        grad.shape(1),
-        grad.shape(2),
-        grad.shape(3),
+        grad.shape(1) as u32,
+        grad.shape(2) as u32,
+        grad.shape(3) as u32,
         args,
         kernel_size_0,
         kernel_size_1,
@@ -64,9 +64,9 @@ fn avg_pool3d_backward_kernel<E: Numeric>(
     let kernel_size_2 = comptime![kernel_size_2 as u32];
 
     let index_base = batch * grad.stride(0) + channel * grad.stride(4);
-    let border_back = output.shape(1) + padding_0;
-    let border_bottom = output.shape(2) + padding_1;
-    let border_right = output.shape(3) + padding_2;
+    let border_back = output.shape(1) as u32 + padding_0;
+    let border_bottom = output.shape(2) as u32 + padding_1;
+    let border_right = output.shape(3) as u32 + padding_2;
     let begin_d = id + padding_0;
     let begin_h = ih + padding_1;
     let begin_w = iw + padding_2;
@@ -85,9 +85,9 @@ fn avg_pool3d_backward_kernel<E: Numeric>(
                 if begin_h >= ih_start && ih < ih_end {
                     for ow in ow_start..ow_end {
                         let index = index_base
-                            + od * grad.stride(1)
-                            + oh * grad.stride(2)
-                            + ow * grad.stride(3);
+                            + od as usize * grad.stride(1)
+                            + oh as usize * grad.stride(2)
+                            + ow as usize * grad.stride(3);
 
                         let iw_start = ow * stride_2;
                         let iw_end = Min::min(iw_start + kernel_size_2, border_right);

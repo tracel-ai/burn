@@ -56,9 +56,9 @@ fn max_pool3d_with_indices_backward_kernel<E: Numeric, I: Int>(
         id as i32,
         ih as i32,
         iw as i32,
-        grad.shape(1),
-        grad.shape(2),
-        grad.shape(3),
+        grad.shape(1) as u32,
+        grad.shape(2) as u32,
+        grad.shape(3) as u32,
         args,
         kernel_size_0,
         kernel_size_1,
@@ -73,7 +73,7 @@ fn max_pool3d_with_indices_backward_kernel<E: Numeric, I: Int>(
         for oh in oh_start..oh_end {
             for ow in ow_start..ow_end {
                 let index =
-                    index_base + od * grad.stride(1) + oh * grad.stride(2) + ow * grad.stride(3);
+                    index_base + od as usize * grad.stride(1) + oh as usize * grad.stride(2) + ow as usize * grad.stride(3);
                 let index_max = Line::<u32>::cast_from(indices[index / line_size]);
 
                 grad_acc += select_many(

@@ -95,12 +95,12 @@ fn adaptive_avg_pool3d_backward_direct<E: Numeric>(
 }
 
 #[cube]
-fn start_index(output_size_index: u32, output_size: u32, input_size: u32) -> u32 {
+fn start_index(output_size_index: usize, output_size: usize, input_size: usize) -> usize {
     (output_size_index * input_size) / output_size
 }
 
 #[cube]
-fn end_index(output_size_index: u32, output_size: u32, input_size: u32) -> u32 {
+fn end_index(output_size_index: usize, output_size: usize, input_size: usize) -> usize {
     let index = (output_size_index + 1) * input_size;
     let index = index.div_ceil(output_size);
 

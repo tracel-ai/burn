@@ -16,13 +16,13 @@ pub(crate) trait Pool3dDirectStrategy<N: Numeric>: Send + Sync + 'static {
 
     fn initialize(
         #[comptime] config: &Self::Config,
-        #[comptime] line_size: u32,
+        #[comptime] line_size: LineSize,
     ) -> Self::Accumulator;
 
     fn accumulate(
         #[comptime] config: &Self::Config,
         accumulator: &mut Self::Accumulator,
-        index: u32,
+        index: usize,
         result: Line<N>,
     );
 
@@ -39,7 +39,7 @@ pub(crate) trait Pool3dDirectStrategy<N: Numeric>: Send + Sync + 'static {
 
     fn store(
         #[comptime] config: &Self::Config,
-        position: u32,
+        position: usize,
         output: &mut Tensor<Line<N>>,
         output_indices: &mut Self::Indices,
         accumulator: Self::Accumulator,
@@ -88,16 +88,16 @@ pub fn pool3d_direct<E: Numeric, S: Pool3dDirectStrategyFamily>(
         input.stride(3),
         input.stride(4),
     );
-    let (in_d, in_h, in_w) = (input.shape(1), input.shape(2), input.shape(3));
+    let (in_d, in_h, in_w) = (input.shape(1) as u32, input.shape(2) as u32, input.shape(3) as u32);
 
     // Decode position: c, ow, oh, od, b
     let c = (ABSOLUTE_POS % channel_lines) * input.line_size();
     let pos = ABSOLUTE_POS / channel_lines;
-    let ow = pos % out_w;
+    let ow = pos as u32 % out_w as u32;
     let pos = pos / out_w;
-    let oh = pos % out_h;
+    let oh = pos as u32 % out_h as u32;
     let pos = pos / out_h;
-    let od = pos % out_d;
+    let od = pos as u32 % out_d as u32;
     let b = pos / out_d;
 
     let mut accumulator = S::Pool3d::<E>::initialize(config, input.line_size());
@@ -130,16 +130,16 @@ pub fn pool3d_direct<E: Numeric, S: Pool3dDirectStrategyFamily>(
                     let ih_pad = ih - args.padding_1;
                     let iw_pad = iw - args.padding_2;
 
-                    let in_d_off = id_pad * in_stride_d;
-                    let in_h_off = ih_pad * in_stride_h;
-                    let in_w_off = iw_pad * in_stride_w;
+                    let in_d_off = id_pad as usize * in_stride_d;
+                    let in_h_off = ih_pad as usize * in_stride_h;
+                    let in_w_off = iw_pad as usize * in_stride_w;
 
                     let index_input = in_b_off + in_c_off + in_d_off + in_h_off + in_w_off;
 
                     S::Pool3d::<E>::accumulate(
                         config,
                         &mut accumulator,
-                        id_pad * in_h * in_w + ih_pad * in_w + iw_pad,
+                        id_pad as usize * in_h as usize * in_w as usize + ih_pad as usize * in_w as usize + iw_pad as usize,
                         input[index_input / input.line_size()],
                     );
                 }
