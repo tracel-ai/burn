@@ -35,7 +35,6 @@ pub fn fused_broadcasted_reduce_autotune<R: Runtime, BT: CubeElement>(
 
     let tunables = TUNER.init(|| {
         const PRIORITY_MAX: i8 = 2;
-        const PRIORITY_MIN: i8 = 1;
 
         let mut set = TunableSet::new(create_key::<R>, input_gen::<R>);
 
@@ -108,6 +107,7 @@ fn input_gen<R: Runtime>(
     input.clone()
 }
 
+#[allow(unused)]
 fn tune_reduce<R: Runtime, BT: CubeElement>(
     input: TuneInput<R, ReduceBroadcastedOptimizationTuneArg<R>>,
     strategy: &RoutineStrategy,

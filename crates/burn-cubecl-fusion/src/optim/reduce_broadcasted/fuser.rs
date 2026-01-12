@@ -156,10 +156,11 @@ impl<R: Runtime> FuserBlock<R> {
     }
 }
 
+#[derive(Debug, Clone)]
 enum State {
     Starting,
     Init { shape_id: Vec<usize>, axis: usize },
-    Closed { num_ops: usize },
+    Closed,
 }
 
 impl<R: Runtime> Clone for ReduceBroadcastedFuser<R> {
@@ -168,8 +169,8 @@ impl<R: Runtime> Clone for ReduceBroadcastedFuser<R> {
             fuser: self.fuser.clone(),
             blocks: self.blocks.clone(),
             fuser_default: self.fuser_default.clone(),
-            num_ops: 0,
-            state: State::Starting,
+            num_ops: self.num_ops.clone(),
+            state: self.state.clone(),
         }
     }
 }
@@ -194,7 +195,7 @@ impl<R: Runtime> ReduceBroadcastedFuser<R> {
 
 impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceBroadcastedFuser<R> {
     fn fuse(&mut self, operation: &OperationIr) {
-        if let State::Closed { .. } = &self.state {
+        if let State::Closed = &self.state {
             return;
         }
 
@@ -205,7 +206,8 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceBroadcastedFuser<
         let block = self.blocks.last_mut().unwrap();
 
         let analyze = block.analyze_fusion(operation, &self.state, &self.fuser);
-        println!("{analyze:?}");
+        println!("{analyze:?} => {operation:?}");
+
         let info = match analyze {
             FuserNodeAnalyse::Accept => {
                 block.fuse(operation);
@@ -213,23 +215,33 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceBroadcastedFuser<
                 block.fuser.reduce_info()
             }
             FuserNodeAnalyse::Refuse => {
-                self.state = State::Closed {
-                    num_ops: self.num_ops,
-                };
+                // println!("Should be ready => Num blocks: {}", self.blocks.len());
+                // for (i, block) in self.blocks.iter().enumerate() {
+                //     println!("Block {i} => Num Ops {:?}", block.ops.len());
+                //     for op in block.ops.iter() {
+                //         println!("{op:?}");
+                //     }
+                // }
+                // let properties = self.properties();
+                // if self.blocks.len() > 1 {
+                //     assert!(properties.ready);
+                // }
+                self.state = State::Closed;
                 return;
             }
             FuserNodeAnalyse::NewBlockRequired => {
+                let info = block.fuser.reduce_info();
                 let mut block = FuserBlock {
                     fuser: self.fuser.clone(),
                     ops: Vec::new(),
                 };
                 block.fuse(operation);
                 self.num_ops += 1;
-                let info = block.fuser.reduce_info();
                 self.blocks.push(block);
                 info
             }
         };
+        println!("Info {info:?}");
 
         match info {
             ReduceFuserInfo::FusedReduce {
@@ -240,6 +252,7 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceBroadcastedFuser<
                     shape_id: shape_input_id,
                     axis,
                 };
+                println!("Set stateo to {:?}", self.state);
             }
             ReduceFuserInfo::FusedElemwise { .. } => {}
         }
@@ -258,6 +271,7 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceBroadcastedFuser<
     }
 
     fn reset(&mut self) {
+        println!("Reset");
         let block = FuserBlock {
             fuser: self.fuser_default.clone(),
             ops: Vec::new(),
@@ -268,20 +282,37 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceBroadcastedFuser<
     }
 
     fn status(&self) -> FuserStatus {
+        match self.state {
+            State::Closed => return FuserStatus::Closed,
+            _ => {}
+        };
+
         let fuser = self.blocks.last().unwrap();
         fuser.fuser.status()
     }
 
     fn properties(&self) -> FuserProperties {
-        let mut props = FuserProperties {
-            score: 0,
-            ready: true,
+        let ready = match self.state {
+            State::Starting => false,
+            State::Closed => {
+                if self.blocks.len() == 1 {
+                    match self.blocks[0].status() {
+                        FuserNodeStatus::Elemwise => false,
+                        FuserNodeStatus::Reduce => true,
+                    }
+                } else {
+                    true
+                }
+            }
+            _ => true,
         };
+        println!("{:?}", self.state);
+        let mut props = FuserProperties { score: 0, ready };
         for block in self.blocks.iter() {
             let p = block.properties();
             println!("{p:?}");
             props.score += p.score;
-            props.ready = p.ready & props.ready;
+            props.ready = p.ready && props.ready;
         }
         println!("----- {props:?}");
         props
@@ -385,7 +416,7 @@ mod tests {
             }
         );
 
-        let (tensor7_out, tensor7) = tensor(6, vec![1, 0], TensorStatus::ReadWrite);
+        let (tensor7_out, _tensor7) = tensor(6, vec![1, 0], TensorStatus::ReadWrite);
         fuser.fuse(&OperationIr::NumericFloat(
             DType::F32,
             burn_ir::NumericOperationIr::SumDim(ReduceDimOpIr {
@@ -413,7 +444,7 @@ mod tests {
             dtype: DType::F32,
         };
         let mut tensor_init = tensor.clone();
-        tensor_init.status = TensorStatus::ReadWrite;
+        tensor_init.status = status;
 
         (tensor, tensor_init)
     }

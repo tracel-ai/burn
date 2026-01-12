@@ -39,6 +39,7 @@ impl<R: Runtime> Clone for ReduceFuser<R> {
     }
 }
 
+#[derive(Debug)]
 pub enum ReduceFuserInfo {
     FusedReduce {
         shape_input_id: Vec<usize>,
