@@ -4,7 +4,7 @@ use crate::{ElementConversion, Numeric};
 use crate::linalg::vector_norm::implementation::lp_norm_impl;
 
 /// Specifies the type of norm to compute.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Norm {
     /// L0 norm (count of non-zero elements)
     L0,
