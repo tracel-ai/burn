@@ -1,8 +1,8 @@
-use crate::metric::TopKAccuracyInput;
 use crate::metric::{
-    AccuracyInput, Adaptor, ConfusionStatsInput, HammingScoreInput, LossInput, PerplexityInput,
-    processor::ItemLazy,
+    AccuracyInput, AccuracyMetric, ConfusionStatsInput, HammingScoreInput, LossInput, LossMetric,
+    MetricAdaptor, PerplexityInput, PerplexityMetric, TopKAccuracyMetric, processor::ItemLazy,
 };
+use crate::metric::{HammingScore, Metric, TopKAccuracyInput};
 use burn_core::tensor::backend::Backend;
 use burn_core::tensor::{Int, Tensor, Transaction};
 use burn_ndarray::NdArray;
@@ -42,31 +42,34 @@ impl<B: Backend> ItemLazy for ClassificationOutput<B> {
     }
 }
 
-impl<B: Backend> Adaptor<AccuracyInput<B>> for ClassificationOutput<B> {
+impl<B: Backend> MetricAdaptor<AccuracyMetric<B>> for ClassificationOutput<B> {
     fn adapt(&self) -> AccuracyInput<B> {
         AccuracyInput::new(self.output.clone(), self.targets.clone())
     }
 }
 
-impl<B: Backend> Adaptor<LossInput<B>> for ClassificationOutput<B> {
+impl<B: Backend> MetricAdaptor<LossMetric<B>> for ClassificationOutput<B> {
     fn adapt(&self) -> LossInput<B> {
         LossInput::new(self.loss.clone())
     }
 }
 
-impl<B: Backend> Adaptor<TopKAccuracyInput<B>> for ClassificationOutput<B> {
+impl<B: Backend> MetricAdaptor<TopKAccuracyMetric<B>> for ClassificationOutput<B> {
     fn adapt(&self) -> TopKAccuracyInput<B> {
         TopKAccuracyInput::new(self.output.clone(), self.targets.clone())
     }
 }
 
-impl<B: Backend> Adaptor<PerplexityInput<B>> for ClassificationOutput<B> {
+impl<B: Backend> MetricAdaptor<PerplexityMetric<B>> for ClassificationOutput<B> {
     fn adapt(&self) -> PerplexityInput<B> {
         PerplexityInput::new(self.output.clone(), self.targets.clone())
     }
 }
 
-impl<B: Backend> Adaptor<ConfusionStatsInput<B>> for ClassificationOutput<B> {
+impl<B: Backend, M> MetricAdaptor<M> for ClassificationOutput<B>
+where
+    M: Metric<Input = ConfusionStatsInput<B>>,
+{
     fn adapt(&self) -> ConfusionStatsInput<B> {
         let [_, num_classes] = self.output.dims();
         if num_classes > 1 {
@@ -118,19 +121,22 @@ impl<B: Backend> ItemLazy for MultiLabelClassificationOutput<B> {
     }
 }
 
-impl<B: Backend> Adaptor<HammingScoreInput<B>> for MultiLabelClassificationOutput<B> {
+impl<B: Backend> MetricAdaptor<HammingScore<B>> for MultiLabelClassificationOutput<B> {
     fn adapt(&self) -> HammingScoreInput<B> {
         HammingScoreInput::new(self.output.clone(), self.targets.clone())
     }
 }
 
-impl<B: Backend> Adaptor<LossInput<B>> for MultiLabelClassificationOutput<B> {
+impl<B: Backend> MetricAdaptor<LossMetric<B>> for MultiLabelClassificationOutput<B> {
     fn adapt(&self) -> LossInput<B> {
         LossInput::new(self.loss.clone())
     }
 }
 
-impl<B: Backend> Adaptor<ConfusionStatsInput<B>> for MultiLabelClassificationOutput<B> {
+impl<B: Backend, M> MetricAdaptor<M> for MultiLabelClassificationOutput<B>
+where
+    M: Metric<Input = ConfusionStatsInput<B>>,
+{
     fn adapt(&self) -> ConfusionStatsInput<B> {
         ConfusionStatsInput::new(self.output.clone(), self.targets.clone().bool())
     }

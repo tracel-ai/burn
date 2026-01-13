@@ -10,7 +10,7 @@ use crate::metric::processor::{
     AsyncProcessorTraining, FullEventProcessorTraining, ItemLazy, MetricsTraining,
 };
 use crate::metric::store::{Aggregate, Direction, EventStoreClient, LogEventStore, Split};
-use crate::metric::{Adaptor, LossMetric, Metric, Numeric};
+use crate::metric::{LossMetric, Metric, MetricAdaptor, Numeric};
 use crate::multi::MultiDeviceLearningStrategy;
 use crate::renderer::{MetricsRenderer, default_renderer};
 use crate::single::SingleDevicetrainingStrategy;
@@ -189,7 +189,7 @@ impl<LC: LearningComponentsTypes> SupervisedTraining<LC> {
     /// Register a training metric.
     pub fn metric_train<Me: Metric + 'static>(mut self, metric: Me) -> Self
     where
-        <TrainingModelOutput<LC> as ItemLazy>::ItemSync: Adaptor<Me::Input>,
+        <TrainingModelOutput<LC> as ItemLazy>::ItemSync: MetricAdaptor<Me>,
     {
         self.metrics.register_train_metric(metric);
         self
@@ -198,7 +198,7 @@ impl<LC: LearningComponentsTypes> SupervisedTraining<LC> {
     /// Register a validation metric.
     pub fn metric_valid<Me: Metric + 'static>(mut self, metric: Me) -> Self
     where
-        <InferenceModelOutput<LC> as ItemLazy>::ItemSync: Adaptor<Me::Input>,
+        <InferenceModelOutput<LC> as ItemLazy>::ItemSync: MetricAdaptor<Me>,
     {
         self.metrics.register_valid_metric(metric);
         self
@@ -223,7 +223,7 @@ impl<LC: LearningComponentsTypes> SupervisedTraining<LC> {
     pub fn metric_train_numeric<Me>(mut self, metric: Me) -> Self
     where
         Me: Metric + Numeric + 'static,
-        <TrainingModelOutput<LC> as ItemLazy>::ItemSync: Adaptor<Me::Input>,
+        <TrainingModelOutput<LC> as ItemLazy>::ItemSync: MetricAdaptor<Me>,
     {
         self.summary_metrics.insert(metric.name().to_string());
         self.metrics.register_train_metric_numeric(metric);
@@ -233,7 +233,7 @@ impl<LC: LearningComponentsTypes> SupervisedTraining<LC> {
     /// Register a [numeric](crate::metric::Numeric) validation [metric](Metric).
     pub fn metric_valid_numeric<Me: Metric + Numeric + 'static>(mut self, metric: Me) -> Self
     where
-        <InferenceModelOutput<LC> as ItemLazy>::ItemSync: Adaptor<Me::Input>,
+        <InferenceModelOutput<LC> as ItemLazy>::ItemSync: MetricAdaptor<Me>,
     {
         self.summary_metrics.insert(metric.name().to_string());
         self.metrics.register_valid_metric_numeric(metric);
@@ -430,8 +430,8 @@ macro_rules! gen_tuple {
     ($($M:ident),*) => {
         impl<$($M,)* LC: LearningComponentsTypes> TextMetricRegistration<LC> for ($($M,)*)
         where
-            $(<TrainingModelOutput<LC> as ItemLazy>::ItemSync: Adaptor<$M::Input>,)*
-            $(<InferenceModelOutput<LC> as ItemLazy>::ItemSync: Adaptor<$M::Input>,)*
+            $(<TrainingModelOutput<LC> as ItemLazy>::ItemSync: MetricAdaptor<$M>,)*
+            $(<InferenceModelOutput<LC> as ItemLazy>::ItemSync: MetricAdaptor<$M>,)*
             $($M: Metric + 'static,)*
         {
             #[allow(non_snake_case)]
@@ -448,8 +448,8 @@ macro_rules! gen_tuple {
 
         impl<$($M,)* LC: LearningComponentsTypes> MetricRegistration<LC> for ($($M,)*)
         where
-            $(<TrainingModelOutput<LC> as ItemLazy>::ItemSync: Adaptor<$M::Input>,)*
-            $(<InferenceModelOutput<LC> as ItemLazy>::ItemSync: Adaptor<$M::Input>,)*
+            $(<TrainingModelOutput<LC> as ItemLazy>::ItemSync: MetricAdaptor<$M>,)*
+            $(<InferenceModelOutput<LC> as ItemLazy>::ItemSync: MetricAdaptor<$M>,)*
             $($M: Metric + Numeric + 'static,)*
         {
             #[allow(non_snake_case)]

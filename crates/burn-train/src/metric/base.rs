@@ -125,13 +125,16 @@ pub type MetricName = Arc<String>;
 ///
 /// This should be implemented by a model's output type for all [metric inputs](Metric::Input) that are
 /// registered with the specific learning paradigm (i.e. [SupervisedTraining](crate::SupervisedTraining)).
-pub trait Adaptor<T> {
+pub trait MetricAdaptor<M: Metric> {
     /// Adapt the type to be passed to a [metric](Metric).
-    fn adapt(&self) -> T;
+    fn adapt(&self) -> M::Input;
 }
 
-impl<T> Adaptor<()> for T {
-    fn adapt(&self) {}
+impl<M> MetricAdaptor<M> for M
+where
+    M: Metric<Input = ()>,
+{
+    fn adapt(&self) -> <M as Metric>::Input {}
 }
 
 /// Attributes that describe intrinsic properties of a numeric metric.

@@ -16,7 +16,7 @@ pub use async_wrapper::{AsyncProcessorEvaluation, AsyncProcessorTraining};
 #[cfg(test)]
 pub(crate) mod test_utils {
     use crate::metric::{
-        Adaptor, LossInput,
+        MetricAdaptor, LossInput, LossMetric,
         processor::{EventProcessorTraining, LearnerEvent, LearnerItem, MinimalEventProcessor},
     };
     use burn_core::tensor::{ElementConversion, Tensor, backend::Backend};
@@ -31,7 +31,7 @@ pub(crate) mod test_utils {
         }
     }
 
-    impl<B: Backend> Adaptor<LossInput<B>> for f64 {
+    impl<B: Backend> MetricAdaptor<LossMetric<B>> for f64 {
         fn adapt(&self) -> LossInput<B> {
             let device = B::Device::default();
             LossInput::new(Tensor::from_data([self.elem::<B::FloatElem>()], &device))

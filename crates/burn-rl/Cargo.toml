@@ -10,6 +10,12 @@ burn-core = { path = "../burn-core", version = "=0.20.0-pre.6", features = [
     "dataset",
     "std",
 ], default-features = false }
+burn-optim = { path = "../burn-optim", version = "=0.20.0-pre.6", features = [
+    "std",
+], default-features = false }
+burn-ndarray = { path = "../burn-ndarray", version = "=0.20.0-pre.6" }
+derive-new.workspace = true
+rand.workspace = true
 
 [lints]
 workspace = true

@@ -1,9 +1,7 @@
-use crate::Learner;
 use crate::checkpoint::{
     AsyncCheckpointer, CheckpointingStrategy, ComposedCheckpointingStrategy, FileCheckpointer,
     KeepLastNCheckpoints, MetricCheckpointingStrategy,
 };
-use crate::components::{OutputTrain, OutputValid};
 use crate::learner::EarlyStoppingStrategy;
 use crate::learner::base::Interrupter;
 use crate::logger::{FileMetricLogger, MetricLogger};
@@ -11,57 +9,41 @@ use crate::metric::processor::{
     AsyncProcessorTraining, FullEventProcessorTraining, ItemLazy, MetricsTraining,
 };
 use crate::metric::store::{Aggregate, Direction, EventStoreClient, LogEventStore, Split};
-use crate::metric::{Adaptor, LossMetric, Metric, Numeric};
+use crate::metric::{LossMetric, Metric, MetricAdaptor, Numeric};
 use crate::renderer::{MetricsRenderer, default_renderer};
 use crate::{
     ApplicationLoggerInstaller, EarlyStoppingStrategyRef, FileApplicationLoggerInstaller,
-    LearnerSummaryConfig, LearningCheckpointer, LearningComponentsTypes, LearningDataMarker,
-    OffPolicyLearningComponentsMarker, OffPolicyLearningComponentsTypes, ParadigmComponentsMarker,
-    ParadigmComponentsTypes, TrainBackend, TrainStep, TrainingComponents, TrainingResult,
-    ValidStep,
+    LearnerOptimizerRecord, LearnerSchedulerRecord, LearnerSummaryConfig, LearningCheckpointer,
+    LearningComponentsTypes, OffPolicyLearningComponentsMarker, OffPolicyLearningComponentsTypes,
+    RLComponents, ReinforcementLearningStrategy, RlItemTypesInference, SimpleOffPolicyStrategy,
+    TrainingBackend,
 };
-use burn_core::module::Module;
+use crate::{EpisodeSummary, LearnerModelRecord};
 use burn_core::record::FileRecorder;
 use burn_core::tensor::backend::AutodiffBackend;
-use burn_optim::Optimizer;
-use burn_optim::lr_scheduler::LrScheduler;
-use burn_optim::lr_scheduler::composed::ComposedLrScheduler;
-use burn_rl::{Environment, LearningAgent};
+use burn_rl::{Agent, Environment, LearnerAgent};
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 /// Structure to configure and launch supervised learning trainings.
-pub struct OffPolicyLearning<SC: OffPolicyLearningComponentsTypes> {
-    // Not that complex and very convenient when the traits are
-    // already constrained correctly. Extracting in another type
-    // would be more complex.
+pub struct OffPolicyLearning<OC: OffPolicyLearningComponentsTypes> {
+    // Not that complex. Extracting into another type would only make it more confusing.
     #[allow(clippy::type_complexity)]
-    checkpointers: Option<(
-        AsyncCheckpointer<
-            <<SC::LC as LearningComponentsTypes>::Model as Module<TrainBackend<SC::LC>>>::Record,
-            TrainBackend<SC::LC>,
-        >,
-        AsyncCheckpointer<
-            <<SC::LC as LearningComponentsTypes>::Optimizer as Optimizer<
-                SC::Model,
-                TrainBackend<SC::LC>,
-            >>::Record,
-            TrainBackend<SC::LC>,
-        >,
-        AsyncCheckpointer<
-            <<SC::LC as LearningComponentsTypes>::LrScheduler as LrScheduler>::Record<
-                TrainBackend<SC::LC>,
-            >,
-            TrainBackend<SC::LC>,
-        >,
-    )>,
+    // checkpointers: Option<(
+    //     AsyncCheckpointer<LearnerModelRecord<OC::LC>, TrainingBackend<OC::LC>>,
+    //     AsyncCheckpointer<LearnerOptimizerRecord<OC::LC>, TrainingBackend<OC::LC>>,
+    //     AsyncCheckpointer<LearnerSchedulerRecord<OC::LC>, TrainingBackend<OC::LC>>,
+    // )>,
     num_episodes: usize,
     checkpoint: Option<usize>,
     directory: PathBuf,
     grad_accumulation: Option<usize>,
     renderer: Option<Box<dyn MetricsRenderer + 'static>>,
-    metrics: MetricsTraining<OutputTrain<SC::LD>, OutputValid<SC::LD>>,
+    metrics: MetricsTraining<
+        RlItemTypesTrain<OC::ActionContext, EpisodeSummary, OC::TrainingOutput>,
+        RlItemTypesInference<OC::ActionContext>,
+    >,
     event_store: LogEventStore,
     interrupter: Interrupter,
     tracing_logger: Option<Box<dyn ApplicationLoggerInstaller>>,
@@ -72,48 +54,35 @@ pub struct OffPolicyLearning<SC: OffPolicyLearningComponentsTypes> {
     summary: bool,
 }
 
-impl<LC, TI, TO, VI, VO, E, A>
-    OffPolicyLearning<
-        OffPolicyLearningComponentsMarker<
-            ParadigmComponentsMarker<
-                LearningDataMarker<TI, VI, TO, VO>,
-                AsyncProcessorTraining<FullEventProcessorTraining<TO, VO>>,
-                Box<dyn CheckpointingStrategy>,
-            >,
-            LC,
-            LearningDataMarker<TI, VI, TO, VO>,
-            LC::Model,
-            LC::Optimizer,
-            ComposedLrScheduler,
-            E,
-            A,
-        >,
-    >
+// impl<LC, E, A, TO, AC> OffPolicyLearning<OffPolicyLearningComponentsMarker<LC, E, A, TO, AC>>
+// where
+//     LC: LearningComponentsTypes,
+//     E: Environment + 'static,
+//     A: LearnerAgent<TrainingBackend<LC>, E, TrainingOutput = TO, DecisionContext = AC>
+//         + Send
+//         + 'static,
+//     AC: ItemLazy + Clone + Send,
+//     TO: ItemLazy + Clone + Send,
+impl<B, E, A, TO, AC> OffPolicyLearning<OffPolicyLearningComponentsMarker<B, E, A, TO, AC>>
 where
-    LC: LearningComponentsTypes,
-    LC::Model: TrainStep<TI, TO>,
-    LC::InnerModel: ValidStep<VI, VO>,
-    TI: Send + 'static,
-    VI: Send + 'static,
-    TO: ItemLazy + 'static,
-    VO: ItemLazy + 'static,
-    E: Environment,
-    A: LearningAgent<TrainBackend<LC>, E>,
+    B: AutodiffBackend,
+    E: Environment + 'static,
+    A: LearnerAgent<B, E, TrainingOutput = TO, DecisionContext = AC> + Send + 'static,
+    AC: ItemLazy + Clone + Send + 'static,
+    TO: ItemLazy + Clone + Send,
 {
     /// Creates a new runner for a supervised training.
     ///
     /// # Arguments
     ///
     /// * `directory` - The directory to save the checkpoints.
-    /// * `dataloader_train` - The dataloader for the training split.
-    /// * `dataloader_valid` - The dataloader for the validation split.
     pub fn new(directory: impl AsRef<Path>) -> Self {
         let directory = directory.as_ref().to_path_buf();
         let experiment_log_file = directory.join("experiment.log");
         Self {
             num_episodes: 1,
             checkpoint: None,
-            checkpointers: None,
+            // checkpointers: None,
             directory,
             grad_accumulation: None,
             metrics: MetricsTraining::default(),
@@ -127,7 +96,8 @@ where
                 ComposedCheckpointingStrategy::builder()
                     .add(KeepLastNCheckpoints::new(2))
                     .add(MetricCheckpointingStrategy::new(
-                        &LossMetric::<LC::Backend>::new(), // default to valid loss
+                        // &LossMetric::<LC::Backend>::new(), // default to valid loss
+                        &LossMetric::<B>::new(), // default to valid loss
                         Aggregate::Mean,
                         Direction::Lowest,
                         Split::Valid,
@@ -141,7 +111,7 @@ where
     }
 }
 
-impl<SC: OffPolicyLearningComponentsTypes + Send + 'static> OffPolicyLearning<SC> {
+impl<OC: OffPolicyLearningComponentsTypes + 'static> OffPolicyLearning<OC> {
     /// Replace the default metric loggers with the provided ones.
     ///
     /// # Arguments
@@ -156,13 +126,10 @@ impl<SC: OffPolicyLearningComponentsTypes + Send + 'static> OffPolicyLearning<SC
     }
 
     /// Update the checkpointing_strategy.
-    pub fn with_checkpointing_strategy(
+    pub fn with_checkpointing_strategy<CS: CheckpointingStrategy + 'static>(
         mut self,
-        strategy: <SC::PC as ParadigmComponentsTypes>::CheckpointerStrategy,
-    ) -> Self
-    where
-        <SC::PC as ParadigmComponentsTypes>::CheckpointerStrategy: 'static,
-    {
+        strategy: CS,
+    ) -> Self {
         self.checkpointer_strategy = Box::new(strategy);
         self
     }
@@ -181,19 +148,20 @@ impl<SC: OffPolicyLearningComponentsTypes + Send + 'static> OffPolicyLearning<SC
     }
 
     /// Register all metrics as numeric for the training and validation set.
-    pub fn metrics<Me: MetricRegistration<SC>>(self, metrics: Me) -> Self {
+    pub fn metrics<Me: MetricRegistration<OC>>(self, metrics: Me) -> Self {
         metrics.register(self)
     }
 
     /// Register all metrics as numeric for the training and validation set.
-    pub fn metrics_text<Me: TextMetricRegistration<SC>>(self, metrics: Me) -> Self {
+    pub fn metrics_text<Me: TextMetricRegistration<OC>>(self, metrics: Me) -> Self {
         metrics.register(self)
     }
 
     /// Register a training metric.
     pub fn metric_train<Me: Metric + 'static>(mut self, metric: Me) -> Self
     where
-        <OutputTrain<SC::LD> as ItemLazy>::ItemSync: Adaptor<Me::Input>,
+        <RlItemTypesTrain<OC::ActionContext, EpisodeSummary, OC::TrainingOutput> as ItemLazy>::ItemSync:
+            MetricAdaptor<Me>,
     {
         self.metrics.register_train_metric(metric);
         self
@@ -202,7 +170,7 @@ impl<SC: OffPolicyLearningComponentsTypes + Send + 'static> OffPolicyLearning<SC
     /// Register a validation metric.
     pub fn metric_valid<Me: Metric + 'static>(mut self, metric: Me) -> Self
     where
-        <OutputValid<SC::LD> as ItemLazy>::ItemSync: Adaptor<Me::Input>,
+        <RlItemTypesInference<OC::ActionContext> as ItemLazy>::ItemSync: MetricAdaptor<Me>,
     {
         self.metrics.register_valid_metric(metric);
         self
@@ -227,7 +195,8 @@ impl<SC: OffPolicyLearningComponentsTypes + Send + 'static> OffPolicyLearning<SC
     pub fn metric_train_numeric<Me>(mut self, metric: Me) -> Self
     where
         Me: Metric + Numeric + 'static,
-        <OutputTrain<SC::LD> as ItemLazy>::ItemSync: Adaptor<Me::Input>,
+        <RlItemTypesTrain<OC::ActionContext, EpisodeSummary, OC::TrainingOutput> as ItemLazy>::ItemSync:
+            MetricAdaptor<Me>,
     {
         self.summary_metrics.insert(metric.name().to_string());
         self.metrics.register_train_metric_numeric(metric);
@@ -237,7 +206,7 @@ impl<SC: OffPolicyLearningComponentsTypes + Send + 'static> OffPolicyLearning<SC
     /// Register a [numeric](crate::metric::Numeric) validation [metric](Metric).
     pub fn metric_valid_numeric<Me: Metric + Numeric + 'static>(mut self, metric: Me) -> Self
     where
-        <OutputValid<SC::LD> as ItemLazy>::ItemSync: Adaptor<Me::Input>,
+        <RlItemTypesInference<OC::ActionContext> as ItemLazy>::ItemSync: MetricAdaptor<Me>,
     {
         self.summary_metrics.insert(metric.name().to_string());
         self.metrics.register_valid_metric_numeric(metric);
@@ -290,28 +259,28 @@ impl<SC: OffPolicyLearningComponentsTypes + Send + 'static> OffPolicyLearning<SC
 
     /// Register a checkpointer that will save the [optimizer](Optimizer), the
     /// [model](Module) and the [scheduler](LrScheduler) to different files.
-    pub fn with_file_checkpointer<FR>(mut self, recorder: FR) -> Self
-    where
-        FR: FileRecorder<<SC::LC as LearningComponentsTypes>::Backend> + 'static,
-        FR: FileRecorder<
-                <<SC::LC as LearningComponentsTypes>::Backend as AutodiffBackend>::InnerBackend,
-            > + 'static,
-    {
-        let checkpoint_dir = self.directory.join("checkpoint");
-        let checkpointer_model = FileCheckpointer::new(recorder.clone(), &checkpoint_dir, "model");
-        let checkpointer_optimizer =
-            FileCheckpointer::new(recorder.clone(), &checkpoint_dir, "optim");
-        let checkpointer_scheduler: FileCheckpointer<FR> =
-            FileCheckpointer::new(recorder, &checkpoint_dir, "scheduler");
+    // pub fn with_file_checkpointer<FR>(mut self, recorder: FR) -> Self
+    // where
+    //     FR: FileRecorder<<OC::LC as LearningComponentsTypes>::Backend> + 'static,
+    //     FR: FileRecorder<
+    //             <<OC::LC as LearningComponentsTypes>::Backend as AutodiffBackend>::InnerBackend,
+    //         > + 'static,
+    // {
+    //     let checkpoint_dir = self.directory.join("checkpoint");
+    //     let checkpointer_model = FileCheckpointer::new(recorder.clone(), &checkpoint_dir, "model");
+    //     let checkpointer_optimizer =
+    //         FileCheckpointer::new(recorder.clone(), &checkpoint_dir, "optim");
+    //     let checkpointer_scheduler: FileCheckpointer<FR> =
+    //         FileCheckpointer::new(recorder, &checkpoint_dir, "scheduler");
 
-        self.checkpointers = Some((
-            AsyncCheckpointer::new(checkpointer_model),
-            AsyncCheckpointer::new(checkpointer_optimizer),
-            AsyncCheckpointer::new(checkpointer_scheduler),
-        ));
+    //     self.checkpointers = Some((
+    //         AsyncCheckpointer::new(checkpointer_model),
+    //         AsyncCheckpointer::new(checkpointer_optimizer),
+    //         AsyncCheckpointer::new(checkpointer_scheduler),
+    //     ));
 
-        self
-    }
+    //     self
+    // }
 
     /// Enable the training summary report.
     ///
@@ -322,10 +291,11 @@ impl<SC: OffPolicyLearningComponentsTypes + Send + 'static> OffPolicyLearning<SC
     }
 
     /// Run the training with the specified [Learner](Learner) and dataloaders.
-    pub fn run<E: Environment, A: LearningAgent<TrainBackend<SC::LC>, E>>(
+    pub fn launch(
         mut self,
-        learner: Learner<SC::LC>,
-    ) -> TrainingResult<SC::InnerModel> {
+        learner_agent: OC::LearningAgent,
+        // ) -> <OC::LearningAgent as Agent<TrainingBackend<OC::LC>, OC::Env>>::Policy {
+    ) -> <OC::LearningAgent as Agent<OC::Backend, OC::Env>>::Policy {
         if self.tracing_logger.is_some()
             && let Err(e) = self.tracing_logger.as_ref().unwrap().install()
         {
@@ -347,9 +317,9 @@ impl<SC: OffPolicyLearningComponentsTypes + Send + 'static> OffPolicyLearning<SC
             event_store.clone(),
         ));
 
-        let checkpointer = self.checkpointers.map(|(model, optim, scheduler)| {
-            LearningCheckpointer::new(model, optim, scheduler, self.checkpointer_strategy)
-        });
+        // let checkpointer = self.checkpointers.map(|(model, optim, scheduler)| {
+        //     LearningCheckpointer::new(model, optim, scheduler, self.checkpointer_strategy)
+        // });
 
         let summary = if self.summary {
             Some(LearnerSummaryConfig {
@@ -360,9 +330,10 @@ impl<SC: OffPolicyLearningComponentsTypes + Send + 'static> OffPolicyLearning<SC
             None
         };
 
-        let components = TrainingComponents {
+        // TODO: pq on a besoin du type?
+        let components = RLComponents::<OC> {
             checkpoint: self.checkpoint,
-            checkpointer,
+            checkpointer: None,
             interrupter: self.interrupter,
             early_stopping: self.early_stopping,
             event_processor,
@@ -371,34 +342,38 @@ impl<SC: OffPolicyLearningComponentsTypes + Send + 'static> OffPolicyLearning<SC
             grad_accumulation: self.grad_accumulation,
             summary,
         };
+
+        let strategy = SimpleOffPolicyStrategy::new(Default::default());
+        strategy.train(learner_agent, components).model
     }
 }
 
 /// Trait to fake variadic generics.
-pub trait MetricRegistration<SC: OffPolicyLearningComponentsTypes>: Sized {
+pub trait MetricRegistration<OC: OffPolicyLearningComponentsTypes>: Sized {
     /// Register the metrics.
-    fn register(self, builder: OffPolicyLearning<SC>) -> OffPolicyLearning<SC>;
+    fn register(self, builder: OffPolicyLearning<OC>) -> OffPolicyLearning<OC>;
 }
 
 /// Trait to fake variadic generics.
-pub trait TextMetricRegistration<SC: OffPolicyLearningComponentsTypes>: Sized {
+pub trait TextMetricRegistration<OC: OffPolicyLearningComponentsTypes>: Sized {
     /// Register the metrics.
-    fn register(self, builder: OffPolicyLearning<SC>) -> OffPolicyLearning<SC>;
+    fn register(self, builder: OffPolicyLearning<OC>) -> OffPolicyLearning<OC>;
 }
 
 macro_rules! gen_tuple {
     ($($M:ident),*) => {
-        impl<$($M,)* SC: OffPolicyLearningComponentsTypes + Send + 'static> TextMetricRegistration<SC> for ($($M,)*)
+        impl<$($M,)* OC: OffPolicyLearningComponentsTypes + 'static> TextMetricRegistration<OC> for ($($M,)*)
         where
-            $(<OutputTrain<SC::LD> as ItemLazy>::ItemSync: Adaptor<$M::Input>,)*
-            $(<OutputValid<SC::LD> as ItemLazy>::ItemSync: Adaptor<$M::Input>,)*
+            // TODO: Type alias for this.
+            $(<RlItemTypesTrain<OC::ActionContext, EpisodeSummary, OC::TrainingOutput> as ItemLazy>::ItemSync: MetricAdaptor<$M>,)*
+            $(<RlItemTypesInference<OC::ActionContext> as ItemLazy>::ItemSync: MetricAdaptor<$M>,)*
             $($M: Metric + 'static,)*
         {
             #[allow(non_snake_case)]
             fn register(
                 self,
-                builder: OffPolicyLearning<SC>,
-            ) -> OffPolicyLearning<SC> {
+                builder: OffPolicyLearning<OC>,
+            ) -> OffPolicyLearning<OC> {
                 let ($($M,)*) = self;
                 $(let builder = builder.metric_train($M.clone());)*
                 $(let builder = builder.metric_valid($M);)*
@@ -406,17 +381,17 @@ macro_rules! gen_tuple {
             }
         }
 
-        impl<$($M,)* SC: OffPolicyLearningComponentsTypes + Send + 'static> MetricRegistration<SC> for ($($M,)*)
+        impl<$($M,)* OC: OffPolicyLearningComponentsTypes + 'static> MetricRegistration<OC> for ($($M,)*)
         where
-            $(<OutputTrain<SC::LD> as ItemLazy>::ItemSync: Adaptor<$M::Input>,)*
-            $(<OutputValid<SC::LD> as ItemLazy>::ItemSync: Adaptor<$M::Input>,)*
+            $(<RlItemTypesTrain<OC::ActionContext, EpisodeSummary, OC::TrainingOutput> as ItemLazy>::ItemSync: MetricAdaptor<$M>,)*
+            $(<RlItemTypesInference<OC::ActionContext> as ItemLazy>::ItemSync: MetricAdaptor<$M>,)*
             $($M: Metric + Numeric + 'static,)*
         {
             #[allow(non_snake_case)]
             fn register(
                 self,
-                builder: OffPolicyLearning<SC>,
-            ) -> OffPolicyLearning<SC> {
+                builder: OffPolicyLearning<OC>,
+            ) -> OffPolicyLearning<OC> {
                 let ($($M,)*) = self;
                 $(let builder = builder.metric_train_numeric($M.clone());)*
                 $(let builder = builder.metric_valid_numeric($M);)*

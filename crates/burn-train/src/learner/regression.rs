@@ -1,5 +1,5 @@
 use crate::metric::processor::ItemLazy;
-use crate::metric::{Adaptor, LossInput};
+use crate::metric::{LossInput, LossMetric, MetricAdaptor};
 use burn_core::tensor::backend::Backend;
 use burn_core::tensor::{Tensor, Transaction};
 use burn_ndarray::NdArray;
@@ -17,7 +17,7 @@ pub struct RegressionOutput<B: Backend> {
     pub targets: Tensor<B, 2>,
 }
 
-impl<B: Backend> Adaptor<LossInput<B>> for RegressionOutput<B> {
+impl<B: Backend> MetricAdaptor<LossMetric<B>> for RegressionOutput<B> {
     fn adapt(&self) -> LossInput<B> {
         LossInput::new(self.loss.clone())
     }

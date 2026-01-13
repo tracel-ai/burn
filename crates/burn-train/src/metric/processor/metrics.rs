@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use super::{ItemLazy, LearnerItem};
 use crate::{
     metric::{
-        Adaptor, Metric, MetricDefinition, MetricEntry, MetricId, MetricMetadata, Numeric,
+        MetricAdaptor, Metric, MetricDefinition, MetricEntry, MetricId, MetricMetadata, Numeric,
         store::{MetricsUpdate, NumericMetricUpdate},
     },
     renderer::{EvaluationProgress, TrainingProgress},
@@ -49,7 +49,7 @@ impl<T: ItemLazy> MetricsEvaluation<T> {
     /// Register a testing metric.
     pub(crate) fn register_test_metric<Me: Metric + 'static>(&mut self, metric: Me)
     where
-        T::ItemSync: Adaptor<Me::Input> + 'static,
+        T::ItemSync: MetricAdaptor<Me> + 'static,
     {
         let metric = MetricWrapper::new(metric);
         self.register_definition(&metric);
@@ -61,7 +61,7 @@ impl<T: ItemLazy> MetricsEvaluation<T> {
         &mut self,
         metric: Me,
     ) where
-        T::ItemSync: Adaptor<Me::Input> + 'static,
+        T::ItemSync: MetricAdaptor<Me> + 'static,
     {
         let metric = MetricWrapper::new(metric);
         self.register_definition(&metric);
@@ -107,7 +107,7 @@ impl<T: ItemLazy, V: ItemLazy> MetricsTraining<T, V> {
     /// Register a training metric.
     pub(crate) fn register_train_metric<Me: Metric + 'static>(&mut self, metric: Me)
     where
-        T::ItemSync: Adaptor<Me::Input> + 'static,
+        T::ItemSync: MetricAdaptor<Me> + 'static,
     {
         let metric = MetricWrapper::new(metric);
         self.register_definition(&metric);
@@ -117,7 +117,7 @@ impl<T: ItemLazy, V: ItemLazy> MetricsTraining<T, V> {
     /// Register a validation metric.
     pub(crate) fn register_valid_metric<Me: Metric + 'static>(&mut self, metric: Me)
     where
-        V::ItemSync: Adaptor<Me::Input> + 'static,
+        V::ItemSync: MetricAdaptor<Me> + 'static,
     {
         let metric = MetricWrapper::new(metric);
         self.register_definition(&metric);
@@ -129,7 +129,7 @@ impl<T: ItemLazy, V: ItemLazy> MetricsTraining<T, V> {
         &mut self,
         metric: Me,
     ) where
-        T::ItemSync: Adaptor<Me::Input> + 'static,
+        T::ItemSync: MetricAdaptor<Me> + 'static,
     {
         let metric = MetricWrapper::new(metric);
         self.register_definition(&metric);
@@ -139,7 +139,7 @@ impl<T: ItemLazy, V: ItemLazy> MetricsTraining<T, V> {
     /// Register a numeric validation metric.
     pub(crate) fn register_valid_metric_numeric<Me>(&mut self, metric: Me)
     where
-        V::ItemSync: Adaptor<Me::Input> + 'static,
+        V::ItemSync: MetricAdaptor<Me> + 'static,
         Me: Metric + Numeric + 'static,
     {
         let metric = MetricWrapper::new(metric);
@@ -284,7 +284,7 @@ impl<T, M> NumericMetricUpdater<T> for MetricWrapper<M>
 where
     T: 'static,
     M: Metric + Numeric + 'static,
-    T: Adaptor<M::Input>,
+    T: MetricAdaptor<M>,
 {
     fn update(&mut self, item: &LearnerItem<T>, metadata: &MetricMetadata) -> NumericMetricUpdate {
         let serialized_entry = self.metric.update(&item.item.adapt(), metadata);
@@ -308,7 +308,7 @@ impl<T, M> MetricUpdater<T> for MetricWrapper<M>
 where
     T: 'static,
     M: Metric + 'static,
-    T: Adaptor<M::Input>,
+    T: MetricAdaptor<M>,
 {
     fn update(&mut self, item: &LearnerItem<T>, metadata: &MetricMetadata) -> MetricEntry {
         let serialized_entry = self.metric.update(&item.item.adapt(), metadata);

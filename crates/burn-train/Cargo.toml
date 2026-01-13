@@ -37,6 +37,7 @@ burn-core = { path = "../burn-core", version = "=0.20.0-pre.6", features = [
 burn-optim = { path = "../burn-optim", version = "=0.20.0-pre.6", features = [
     "std",
 ], default-features = false }
+burn-rl = { path = "../burn-rl", version = "=0.20.0-pre.6", default-features = false }
 burn-collective = { path = "../burn-collective", version = "=0.20.0-pre.6", optional = true }
 
 log = { workspace = true }

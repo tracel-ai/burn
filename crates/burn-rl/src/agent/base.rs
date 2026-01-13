@@ -1,54 +1,34 @@
+use derive_new::new;
 use std::{marker::PhantomData, sync::mpsc::Sender, thread::spawn};
 
 use burn_core::{prelude::*, tensor::backend::AutodiffBackend};
 
-use crate::Environment;
+use crate::{Environment, Transition, TransitionBuffer};
 
-// TODO : move.
-pub struct TransitionBatch<B: Backend> {
-    pub states: Tensor<B, 2>,
-    pub next_states: Tensor<B, 2>,
-    pub actions: Tensor<B, 2>,
-    pub rewards: Tensor<B, 2>,
-    pub dones: Tensor<B, 2>,
+#[derive(Clone, new)]
+pub struct ActionContext<A, C> {
+    pub context: C,
+    pub action: A,
 }
 
-impl<B: Backend> TransitionBatch<B> {
-    pub fn cat(trajectories: Vec<Self>) -> Self {
-        let states = trajectories.iter().map(|t| t.states.clone()).collect();
-        let states = Tensor::cat(states, 0);
-        let next_states = trajectories.iter().map(|t| t.next_states.clone()).collect();
-        let next_states = Tensor::cat(next_states, 0);
-        let actions = trajectories.iter().map(|t| t.actions.clone()).collect();
-        let actions = Tensor::cat(actions, 0);
-        let rewards = trajectories.iter().map(|t| t.rewards.clone()).collect();
-        let rewards = Tensor::cat(rewards, 0);
-        let dones = trajectories.iter().map(|t| t.dones.clone()).collect();
-        let dones = Tensor::cat(dones, 0);
-        TransitionBatch {
-            states,
-            next_states,
-            actions,
-            rewards,
-            dones,
-        }
-    }
-}
-
-pub trait Agent<B: Backend>: Clone {
+pub trait Agent<B: Backend, E: Environment>: Clone {
     type Policy: Clone + Send;
-    type Input;
-    type Output;
+    type DecisionContext: Clone + Send;
 
     fn batch_take_action(
         &mut self,
-        states: Vec<Self::Input>,
+        states: Vec<E::State>,
         deterministic: bool,
-    ) -> Vec<Self::Output>;
+    ) -> Vec<ActionContext<E::Action, Self::DecisionContext>>;
+    fn take_action(
+        &mut self,
+        state: E::State,
+        deterministic: bool,
+    ) -> ActionContext<E::Action, Self::DecisionContext>;
     fn update_policy(&mut self, update: Self::Policy);
 }
 
-pub trait TrainingInput<B: AutodiffBackend> {
+pub trait OffPolicyTransitionBatch<B: AutodiffBackend> {
     fn from_samples(
         states_batch: Tensor<B, 2>,
         next_states_batch: Tensor<B, 2>,
@@ -58,19 +38,35 @@ pub trait TrainingInput<B: AutodiffBackend> {
     ) -> Self;
 }
 
-pub trait LearningAgent<B: AutodiffBackend, LI, LO>: Agent<B> {
-    fn train(&mut self, input: LI) -> (Self::Policy, LO);
+/// A training output.
+pub struct RLTrainOutput<TO, P> {
+    /// The policy.
+    pub policy: P,
+
+    /// The item.
+    pub item: TO,
+}
+
+pub trait LearnerAgent<B: AutodiffBackend, E: Environment>: Agent<B, E> {
+    type TrainingInput: From<Transition<B>>;
+    type TrainingOutput;
+
+    fn train(
+        &mut self,
+        input: &TransitionBuffer<Self::TrainingInput>,
+    ) -> RLTrainOutput<Self::TrainingOutput, Self::Policy>;
+    fn policy(&self) -> Self::Policy;
 }
 
 #[derive(Clone)]
-struct AutoBatcher<B: Backend, E: Environment, A: Agent<B>> {
+struct AutoBatcher<B: Backend, E: Environment, A: Agent<B, E>> {
     autobatch_size: usize,
     inner_agent: A,
-    batch: Vec<InferenceItem<E>>,
+    batch: Vec<InferenceItem<E, A::DecisionContext>>,
     _backend: PhantomData<B>,
 }
 
-impl<B: Backend, E: Environment + 'static, A: Agent<B> + 'static> AutoBatcher<B, E, A> {
+impl<B: Backend, E: Environment + 'static, A: Agent<B, E> + 'static> AutoBatcher<B, E, A> {
     pub fn new(autobatch_size: usize, inner_agent: A) -> Self {
         Self {
             autobatch_size,
@@ -80,7 +76,7 @@ impl<B: Backend, E: Environment + 'static, A: Agent<B> + 'static> AutoBatcher<B,
         }
     }
 
-    pub fn push(&mut self, item: InferenceItem<E>) {
+    pub fn push(&mut self, item: InferenceItem<E, A::DecisionContext>) {
         self.batch.push(item);
         if self.len() >= self.autobatch_size {
             self.flush();
@@ -99,9 +95,9 @@ impl<B: Backend, E: Environment + 'static, A: Agent<B> + 'static> AutoBatcher<B,
             .collect();
         // Only deterministic if all actions are requested as deterministic.
         let deterministic = self.batch.iter().all(|item| item.deterministic);
-        let actions = self.inner_agent.batch_take_action(input, deterministic);
+        let action_context = self.inner_agent.batch_take_action(input, deterministic);
         for (i, sender) in self.batch.iter().map(|m| m.sender.clone()).enumerate() {
-            sender.send(actions[i].clone()).unwrap();
+            sender.send(action_context[i].clone()).unwrap();
         }
         self.batch.clear();
     }
@@ -114,38 +110,27 @@ impl<B: Backend, E: Environment + 'static, A: Agent<B> + 'static> AutoBatcher<B,
     }
 }
 
-enum InferenceMessage<B: Backend, E: Environment, A: Agent<B>> {
-    Item(InferenceItem<E>),
+enum InferenceMessage<B: Backend, E: Environment, A: Agent<B, E>> {
+    Item(InferenceItem<E, A::DecisionContext>),
     Policy(A::Policy),
 }
 
 #[derive(Clone)]
-struct InferenceItem<E: Environment> {
-    sender: Sender<E::Action>,
+struct InferenceItem<E: Environment, C> {
+    sender: Sender<ActionContext<E::Action, C>>,
     inference_state: E::State,
     deterministic: bool,
 }
 
 #[derive(Clone)]
-pub struct AsyncAgent<B: Backend, E: Environment, A: Agent<B>> {
-    autobatch_size: usize,
-    inner_agent: A,
+pub struct AsyncAgent<B: Backend, E: Environment, A: Agent<B, E>> {
     inference_state_sender: Option<Sender<InferenceMessage<B, E, A>>>,
 }
 
-impl<B: Backend, E: Environment + 'static, A: Agent<B> + Send + 'static> AsyncAgent<B, E, A> {
+impl<B: Backend, E: Environment + 'static, A: Agent<B, E> + Send + 'static> AsyncAgent<B, E, A> {
     pub fn new(autobatch_size: usize, inner_agent: A) -> Self {
-        Self {
-            autobatch_size,
-            inner_agent,
-            inference_state_sender: None,
-        }
-    }
-
-    pub fn start(&mut self) {
         let (sender, receiver) = std::sync::mpsc::channel();
-        self.inference_state_sender = Some(sender);
-        let mut autobatcher = AutoBatcher::new(self.autobatch_size, self.inner_agent.clone());
+        let mut autobatcher = AutoBatcher::new(autobatch_size, inner_agent.clone());
         spawn(move || {
             loop {
                 match receiver
@@ -157,15 +142,22 @@ impl<B: Backend, E: Environment + 'static, A: Agent<B> + Send + 'static> AsyncAg
                 }
             }
         });
+
+        Self {
+            inference_state_sender: Some(sender),
+        }
     }
 }
 
-impl<B: Backend, E: Environment + 'static, A: Agent<B>> Agent<B> for AsyncAgent<B, E, A> {
+impl<B: Backend, E: Environment + 'static, A: Agent<B, E>> Agent<B, E> for AsyncAgent<B, E, A> {
     type Policy = A::Policy;
-    type Input = E::State;
-    type Output = E::Action;
+    type DecisionContext = A::DecisionContext;
 
-    fn batch_take_action(&mut self, states: Vec<E::State>, deterministic: bool) -> Vec<E::Action> {
+    fn batch_take_action(
+        &mut self,
+        states: Vec<E::State>,
+        deterministic: bool,
+    ) -> Vec<ActionContext<E::Action, Self::DecisionContext>> {
         let (action_sender, action_receiver) = std::sync::mpsc::channel();
         // Assume that only one state is passed.
         let item = InferenceItem {
@@ -178,7 +170,7 @@ impl<B: Backend, E: Environment + 'static, A: Agent<B>> Agent<B> for AsyncAgent<
             .expect("Should call start() before queue_action().")
             .send(InferenceMessage::Item(item))
             .expect("Should be able to send message to inference_server");
-        Vec::<E::Action>::from([action_receiver.recv().unwrap()])
+        Vec::from([action_receiver.recv().unwrap()])
     }
 
     fn update_policy(&mut self, update: Self::Policy) {
@@ -187,5 +179,13 @@ impl<B: Backend, E: Environment + 'static, A: Agent<B>> Agent<B> for AsyncAgent<
             .expect("Should call start() before update().")
             .send(InferenceMessage::Policy(update))
             .unwrap();
+    }
+
+    fn take_action(
+        &mut self,
+        state: E::State,
+        deterministic: bool,
+    ) -> ActionContext<E::Action, A::DecisionContext> {
+        self.batch_take_action(vec![state], deterministic)[0].clone()
     }
 }
