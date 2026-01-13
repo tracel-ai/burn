@@ -25,6 +25,12 @@ pub struct FuseTrace {
     pub resources: FuseResources,
 }
 
+impl core::fmt::Display for FuseTrace {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&burn_std::format::format_debug(&format!("{self:?}")))
+    }
+}
+
 pub enum TuneOutput<R: Runtime> {
     UnChecked(PhantomData<R>),
     #[cfg(feature = "autotune-checks")]

@@ -21,7 +21,7 @@ pub struct ReduceFuser<R: Runtime> {
     fuser_write_fallback: TraceOperationFuser,
     settings_write: FuseSettings,
     pub(crate) device: R::Device,
-    reduce: Option<FusedReduce>,
+    pub(crate) reduce: Option<FusedReduce>,
     settings: ReduceSettings,
 }
 
@@ -284,7 +284,7 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceFuser<R> {
             self.len(),
             self.fuser_read_fallback.len(),
             fuse_reduce.clone(),
-            ReduceSettings::OnlyParallel,
+            self.settings.clone(),
         );
 
         CubeOptimization::Reduce(reduce)

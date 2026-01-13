@@ -25,8 +25,13 @@ use cubecl::{
     std::{CubeOption, CubeOptionExpand, tensor::r#virtual::VirtualTensor},
 };
 use cubek::reduce::{
-    LineMode, ReduceInstruction, ReducePrecision, components::global::unit::GlobalFullUnitReduce,
-    init_tensors, launch::RoutineStrategy,
+    LineMode, ReduceInstruction, ReducePrecision,
+    components::{
+        global::unit::GlobalFullUnitReduce,
+        instructions::{ReduceOperation, ReduceOperationConfig},
+    },
+    init_tensors,
+    launch::RoutineStrategy,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -162,100 +167,141 @@ impl<R: Runtime> ReduceBroadcastedOptimization<R> {
     }
 }
 
-#[derive(CubeType, Clone)]
-struct ReduceFuseBlock<I: CubeType + Clone> {
-    // Instruction
-    inst: I,
-    #[cube(comptime)]
-    config: FuseBlockConfig,
-    #[cube(comptime)]
-    input: FuseArg,
-    #[cube(comptime)]
-    output: FuseArg,
-}
-
-#[derive(CubeType, Clone)]
-struct ElemwiseFuseBlock {
-    #[cube(comptime)]
-    config: FuseBlockConfig,
-}
-
-#[cube]
-fn reduce_many<P: ReducePrecision, Out: Numeric, I: ReduceInstruction<P> + Clone>(
-    inputs: &GlobalArgs,
-    outputs: &mut GlobalArgs,
-    locals: &mut LocalArgs,
-    reduce_axis: u32,
-    idle: CubeOption<bool>,
-    blocks: Sequence<ReduceFuseBlock<I>>,
-    block_end: CubeOption<ElemwiseFuseBlock>,
-    #[comptime] line_mode: LineMode,
-) {
-    let reduce_index = ABSOLUTE_POS;
-    #[unroll]
-    for i in 0..blocks.len() {
-        let block = blocks.index(i);
-        let input = FusedReduceInput {
-            global: inputs.clone(),
-            config: comptime!(block.config.clone()),
-            arg: comptime!(block.input.clone()),
-        };
-        let mut output = FusedReduceOutput {
-            global: outputs.clone(),
-            config: comptime!(block.config.clone()),
-            arg: comptime!(block.output.clone()),
-        };
-
-        let (input, mut output) = init_tensors::<FusedReduceArgs, P::EI, Out>(&input, &mut output);
-
-        reduce_step::<P, Out, I>(
-            &input,
-            &mut output,
-            reduce_axis,
-            reduce_index,
-            &block.inst,
-            idle,
-            locals,
-            comptime!(block.output.clone()),
-            line_mode,
-        );
-    }
-
-    match block_end {
-        CubeOption::Some(block) => {
-            let reduce_size = 1024;
-            for i in 0..reduce_size {
-                let values = Registry::<FuseArg, Line<f32>>::new();
-                let args = comptime![Sequence::<FuseArg>::new()];
-                let index = reduce_index * reduce_size + i;
-                fuse_on_write::<f32>(inputs, outputs, locals, index, values, args, &block.config)
-            }
-        }
-        CubeOption::None => {}
-    }
-}
-
-#[cube]
-fn reduce_step<P: ReducePrecision, Out: Numeric, I: ReduceInstruction<P>>(
-    input: &VirtualTensor<P::EI>,
-    output: &mut VirtualTensor<Out, ReadWrite>,
-    reduce_axis: u32,
-    reduce_index: u32,
-    inst: &I,
-    idle: CubeOption<bool>,
-    locals: &mut LocalArgs,
-    #[comptime] arg: FuseArg,
-    #[comptime] line_mode: LineMode,
-) {
-    let acc = GlobalFullUnitReduce::reduce_single::<P, Out, I>(
-        input,
-        output,
-        reduce_axis,
-        reduce_index,
-        inst,
-        idle,
-        line_mode,
-    );
-    let (item, _coord) = I::read_accumulator(inst, &acc);
-    codegen::io::write_scalar(locals, item, arg);
-}
+// #[derive(CubeType, CubeLaunch, Clone)]
+// struct ReduceFuseBlock {
+//     #[cube(comptime)]
+//     op: ReduceOperationConfig,
+//     #[cube(comptime)]
+//     config: FuseBlockConfig,
+//     #[cube(comptime)]
+//     input: FuseArg,
+//     #[cube(comptime)]
+//     output: FuseArg,
+// }
+//
+// #[derive(CubeType, CubeLaunch, Clone)]
+// struct ElemwiseFuseBlock {
+//     #[cube(comptime)]
+//     config: FuseBlockConfig,
+// }
+//
+// #[cube]
+// fn reduce_many<P: ReducePrecision, Out: Numeric, I: ReduceInstruction<P> + Clone>(
+//     inputs: &GlobalArgs,
+//     outputs: &mut GlobalArgs,
+//     locals: &mut LocalArgs,
+//     reduce_axis: u32,
+//     idle: CubeOption<bool>,
+//     blocks: Sequence<ReduceFuseBlock>,
+//     block_end: CubeOption<ElemwiseFuseBlock>,
+// ) {
+//     let global_index = ABSOLUTE_POS;
+//     let mut epilog = EpilogInfo {
+//         axis_size: 0,
+//         num_reduce: 0,
+//     };
+//
+//     #[unroll]
+//     for i in 0..blocks.len() {
+//         let block = blocks.index(i);
+//         let input = FusedReduceInput {
+//             global: inputs.clone(),
+//             config: comptime!(block.config.clone()),
+//             arg: comptime!(block.input.clone()),
+//         };
+//         let mut output = FusedReduceOutput {
+//             global: outputs.clone(),
+//             config: comptime!(block.config.clone()),
+//             arg: comptime!(block.output.clone()),
+//         };
+//
+//         let (input, mut output) = init_tensors::<FusedReduceArgs, P::EI, Out>(&input, &mut output);
+//
+//         let updated = reduce_step::<P, Out, ReduceOperation>(
+//             &input,
+//             &mut output,
+//             reduce_axis,
+//             global_index,
+//             idle,
+//             locals,
+//             block.op,
+//             comptime!(block.output.clone()),
+//         );
+//         epilog.num_reduce = updated.num_reduce;
+//         epilog.axis_size = updated.axis_size;
+//     }
+//
+//     match block_end {
+//         CubeOption::Some(block) => {
+//             let width = block.config.width as u32;
+//             let reduce_index_start = global_index * width;
+//
+//             for b in 0..width {
+//                 let reduce_index = global_index * width;
+//                 for i in 0..epilog.axis_size {
+//                     let values = Registry::<FuseArg, Line<f32>>::new();
+//                     let args = comptime![Sequence::<FuseArg>::new()];
+//                     let index = reduce_index * epilog.axis_size + i;
+//                     fuse_on_write::<f32>(
+//                         inputs,
+//                         outputs,
+//                         locals,
+//                         index,
+//                         values,
+//                         args,
+//                         &block.config,
+//                     )
+//                 }
+//             }
+//         }
+//         CubeOption::None => {}
+//     }
+// }
+//
+// #[derive(CubeType)]
+// struct EpilogInfo {
+//     #[cube(comptime)]
+//     num_reduce: u32,
+//     axis_size: u32,
+// }
+//
+// #[cube]
+// fn reduce_step<P: ReducePrecision, Out: Numeric, I: ReduceInstruction<P>>(
+//     input: &VirtualTensor<P::EI>,
+//     output: &mut VirtualTensor<Out, ReadWrite>,
+//     reduce_axis: u32,
+//     global_index: u32,
+//     idle: CubeOption<bool>,
+//     locals: &mut LocalArgs,
+//     #[comptime] config: I::Config,
+//     #[comptime] arg: FuseArg,
+// ) -> EpilogInfo {
+//     let inst = I::from_config(config);
+//     let axis_size = input.shape(reduce_axis);
+//     let line_size_output = output.line_size();
+//
+//     let mut buffer = Line::<Out>::empty(line_size_output);
+//     let reduce_index_start = global_index * line_size_output;
+//
+//     #[unroll]
+//     for i in 0..line_size_output {
+//         let reduce_index = reduce_index_start + i;
+//         let acc = GlobalFullUnitReduce::reduce_single::<P, Out, I>(
+//             input,
+//             output,
+//             reduce_axis,
+//             reduce_index,
+//             &inst,
+//             idle,
+//             LineMode::Parallel,
+//         );
+//         let line = I::merge_line::<Out>(&inst, acc, axis_size);
+//         buffer[i] = line;
+//     }
+//
+//     codegen::io::write_scalar(locals, buffer, arg);
+//     EpilogInfo {
+//         num_reduce: line_size_output,
+//         axis_size,
+//     }
+// }

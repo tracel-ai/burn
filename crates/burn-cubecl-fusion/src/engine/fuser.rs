@@ -33,7 +33,7 @@ pub(crate) struct TraceOperationFuser {
     status: FuserStatus,
     pub(crate) num_ops: usize,
     pub(crate) num_views: usize,
-    max_bindings: u32,
+    pub(crate) max_bindings: u32,
 }
 
 impl TraceOperationFuser {
