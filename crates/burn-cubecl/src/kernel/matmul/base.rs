@@ -49,6 +49,32 @@ pub fn matmul<R: CubeRuntime>(
     }
 }
 
+pub(crate) fn launch_matmul_naive<R: CubeRuntime>(
+    strategy: &Strategy,
+    mut lhs: CubeTensor<R>,
+    mut rhs: CubeTensor<R>,
+    out: CubeTensor<R>,
+) -> Result<(), MatmulSetupError> {
+    // Naive has very specific layout requirements for block scaled tensors, so we need to manually
+    // dequantize if it fails to launch normally. This is because naive is assumed to always work.
+    if lhs.qparams.is_some() || rhs.qparams.is_some() {
+        match launch_matmul(strategy, lhs.clone(), rhs.clone(), out.clone()) {
+            Err(_) => {
+                if lhs.qparams.is_some() {
+                    lhs = dequantize(lhs, out.dtype);
+                }
+                if rhs.qparams.is_some() {
+                    rhs = dequantize(rhs, out.dtype);
+                }
+                launch_matmul(strategy, lhs, rhs, out)
+            }
+            Ok(_) => Ok(()),
+        }
+    } else {
+        launch_matmul(strategy, lhs, rhs, out)
+    }
+}
+
 pub(crate) fn launch_matmul<R: CubeRuntime>(
     strategy: &Strategy,
     lhs: CubeTensor<R>,

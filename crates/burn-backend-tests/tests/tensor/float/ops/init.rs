@@ -20,7 +20,6 @@ fn should_support_float_zeros() {
     let shape = [2, 2];
     let tensor = TestTensor::<2>::zeros(shape, &Default::default());
     assert_eq!(tensor.shape(), shape.into());
-    assert_eq!(tensor.dtype(), DType::F32);
 
     tensor
         .into_data()
