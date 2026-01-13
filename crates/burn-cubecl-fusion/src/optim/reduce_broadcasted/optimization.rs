@@ -1,18 +1,33 @@
 use crate::{
     CubeFusionHandle, FallbackOperation,
-    engine::trace::{TraceError, TuneOutput},
+    engine::{
+        codegen::{
+            self,
+            ir::{FuseArg, FuseBlockConfig, GlobalArgs, LocalArgs},
+            kernel::fuse_on_write,
+        },
+        trace::{TraceError, TuneOutput},
+    },
     optim::{
         elemwise::ElemwiseOptimization,
         reduce::{
             FusedReduceError, ReduceOptimizationInfo, ReduceOptimizationState,
             ReduceOptimizationTuneArg,
+            args::{FusedReduceArgs, FusedReduceInput, FusedReduceOutput},
         },
         reduce_broadcasted::tune::fused_broadcasted_reduce_autotune,
     },
 };
 use burn_fusion::stream::Context;
-use cubecl::{Runtime, prelude::*};
-use cubek::reduce::launch::RoutineStrategy;
+use cubecl::{
+    Runtime,
+    prelude::*,
+    std::{CubeOption, CubeOptionExpand, tensor::r#virtual::VirtualTensor},
+};
+use cubek::reduce::{
+    LineMode, ReduceInstruction, ReducePrecision, components::global::unit::GlobalFullUnitReduce,
+    init_tensors, launch::RoutineStrategy,
+};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -145,4 +160,102 @@ impl<R: Runtime> ReduceBroadcastedOptimization<R> {
     pub fn num_ops_fused(&self) -> usize {
         self.num_ops
     }
+}
+
+#[derive(CubeType, Clone)]
+struct ReduceFuseBlock<I: CubeType + Clone> {
+    // Instruction
+    inst: I,
+    #[cube(comptime)]
+    config: FuseBlockConfig,
+    #[cube(comptime)]
+    input: FuseArg,
+    #[cube(comptime)]
+    output: FuseArg,
+}
+
+#[derive(CubeType, Clone)]
+struct ElemwiseFuseBlock {
+    #[cube(comptime)]
+    config: FuseBlockConfig,
+}
+
+#[cube]
+fn reduce_many<P: ReducePrecision, Out: Numeric, I: ReduceInstruction<P> + Clone>(
+    inputs: &GlobalArgs,
+    outputs: &mut GlobalArgs,
+    locals: &mut LocalArgs,
+    reduce_axis: u32,
+    idle: CubeOption<bool>,
+    blocks: Sequence<ReduceFuseBlock<I>>,
+    block_end: CubeOption<ElemwiseFuseBlock>,
+    #[comptime] line_mode: LineMode,
+) {
+    let reduce_index = ABSOLUTE_POS;
+    #[unroll]
+    for i in 0..blocks.len() {
+        let block = blocks.index(i);
+        let input = FusedReduceInput {
+            global: inputs.clone(),
+            config: comptime!(block.config.clone()),
+            arg: comptime!(block.input.clone()),
+        };
+        let mut output = FusedReduceOutput {
+            global: outputs.clone(),
+            config: comptime!(block.config.clone()),
+            arg: comptime!(block.output.clone()),
+        };
+
+        let (input, mut output) = init_tensors::<FusedReduceArgs, P::EI, Out>(&input, &mut output);
+
+        reduce_step::<P, Out, I>(
+            &input,
+            &mut output,
+            reduce_axis,
+            reduce_index,
+            &block.inst,
+            idle,
+            locals,
+            comptime!(block.output.clone()),
+            line_mode,
+        );
+    }
+
+    match block_end {
+        CubeOption::Some(block) => {
+            let reduce_size = 1024;
+            for i in 0..reduce_size {
+                let values = Registry::<FuseArg, Line<f32>>::new();
+                let args = comptime![Sequence::<FuseArg>::new()];
+                let index = reduce_index * reduce_size + i;
+                fuse_on_write::<f32>(inputs, outputs, locals, index, values, args, &block.config)
+            }
+        }
+        CubeOption::None => {}
+    }
+}
+
+#[cube]
+fn reduce_step<P: ReducePrecision, Out: Numeric, I: ReduceInstruction<P>>(
+    input: &VirtualTensor<P::EI>,
+    output: &mut VirtualTensor<Out, ReadWrite>,
+    reduce_axis: u32,
+    reduce_index: u32,
+    inst: &I,
+    idle: CubeOption<bool>,
+    locals: &mut LocalArgs,
+    #[comptime] arg: FuseArg,
+    #[comptime] line_mode: LineMode,
+) {
+    let acc = GlobalFullUnitReduce::reduce_single::<P, Out, I>(
+        input,
+        output,
+        reduce_axis,
+        reduce_index,
+        inst,
+        idle,
+        line_mode,
+    );
+    let (item, _coord) = I::read_accumulator(inst, &acc);
+    codegen::io::write_scalar(locals, item, arg);
 }

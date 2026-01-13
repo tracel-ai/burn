@@ -11,20 +11,20 @@ pub struct FusedReduceArgs;
 
 #[derive(CubeType, CubeLaunch)]
 pub struct FusedReduceInput {
-    global: GlobalArgs,
+    pub global: GlobalArgs,
     #[cube(comptime)]
-    config: FuseBlockConfig,
+    pub config: FuseBlockConfig,
     #[cube(comptime)]
-    arg: FuseArg,
+    pub arg: FuseArg,
 }
 
 #[derive(CubeType, CubeLaunch)]
 pub struct FusedReduceOutput {
-    global: GlobalArgs,
+    pub global: GlobalArgs,
     #[cube(comptime)]
-    config: FuseBlockConfig,
+    pub config: FuseBlockConfig,
     #[cube(comptime)]
-    arg: FuseArg,
+    pub arg: FuseArg,
 }
 
 pub struct FusedReduceState {
