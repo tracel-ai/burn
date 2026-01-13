@@ -849,11 +849,15 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     ///     .with_align_corners(true);
     /// let output = tensor.grid_sample_2d(grid, options);
     /// ```
-    pub fn grid_sample_2d(self, grid: Tensor<B, D>, options: GridSampleOptions) -> Tensor<B, D> {
+    pub fn grid_sample_2d(
+        self,
+        grid: Tensor<B, D>,
+        options: impl Into<GridSampleOptions>,
+    ) -> Tensor<B, D> {
         Tensor::new(TensorPrimitive::Float(B::float_grid_sample_2d(
             self.primitive.tensor(),
             grid.primitive.tensor(),
-            options,
+            options.into(),
         )))
     }
 
