@@ -1,7 +1,7 @@
 use crate::backend::Backend;
+use crate::linalg::vector_norm::implementation::lp_norm_impl;
 use crate::tensor::{BasicOps, Tensor};
 use crate::{ElementConversion, Numeric};
-use crate::linalg::vector_norm::implementation::lp_norm_impl;
 
 /// Specifies the type of norm to compute.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -240,7 +240,11 @@ pub mod implementation {
     /// # Returns
     ///
     /// The ``L(p)`` norm of the input tensor.
-    pub fn lp_norm_impl<B: Backend, const D: usize>(x: Tensor<B, D>, p: f64, dim: usize) -> Tensor<B, D> {
+    pub fn lp_norm_impl<B: Backend, const D: usize>(
+        x: Tensor<B, D>,
+        p: f64,
+        dim: usize,
+    ) -> Tensor<B, D> {
         x.abs().powf_scalar(p).sum_dim(dim).powf_scalar(1. / p)
     }
 }
