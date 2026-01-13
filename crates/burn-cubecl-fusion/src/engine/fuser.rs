@@ -257,6 +257,56 @@ impl TraceOperationFuser {
         Some(args)
     }
 
+    /// Closes the previous block and declares a new one.
+    ///
+    /// # Arguments
+    ///
+    /// - arguments: Tensors that are logical outputs of the current block and inputs of the following blocks.
+    /// - settings: [FuseSettings] to be used by the next block.
+    ///
+    /// # Returns
+    ///
+    /// None if it's impossible to create a next block with the given arguments. Otherwise, the
+    /// corresponding [arguments](Arg) to the given tensors are returned.
+    pub fn next_block_dyn<const N: usize>(
+        &mut self,
+        arguments: Vec<&TensorIr>,
+        settings: FuseSettings,
+    ) -> Vec<FuseArg> {
+        let mut is_success = true;
+        let args = arguments
+            .iter()
+            .map(|arg| {
+                // We need to register the argument as input in the current block so that we retrieve
+                // its value locally.
+                let input = self.fuser.fuser.input(arg);
+
+                if input.is_none() {
+                    is_success = false;
+                } else {
+                    // This flag the new input local value as local output to be used in a following
+                    // block.
+                    self.fuser.fuser.block_local_output(arg);
+                }
+
+                input
+            })
+            .collect::<Vec<_>>();
+
+        if !is_success {
+            return Vec::new();
+        }
+
+        let current_output_shape = core::mem::take(&mut self.current_output_shape);
+
+        self.fuser.fuser.next_block(current_output_shape, settings);
+
+        self.settings = settings;
+        self.status = FuserStatus::Open;
+
+        args.into_iter().map(|a| a.unwrap()).collect::<Vec<_>>()
+    }
+
     fn fuse_base(&mut self, ops: &BaseOperationIr) -> bool {
         match ops {
             BaseOperationIr::Equal(desc) => self.fuse_binary_ops(desc, |lhs, rhs, out| {

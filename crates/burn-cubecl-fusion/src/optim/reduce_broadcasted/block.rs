@@ -16,57 +16,53 @@ use burn_ir::OperationIr;
 use cubecl::Runtime;
 use std::sync::Arc;
 
-/// This type is responsible to fuse a single reduce block or elemwise block.
+/// Responsible for fusing a single reduce block or elementwise block.
 ///
-/// When the kind of this block is a reduce, the block supports for fuse-on-read and
-/// fuse-on-write fusion.
-///
-/// Broadcasting isn't supported, and another block should fuse it instead.
+/// When the block kind is reduce, it supports fuse-on-read and fuse-on-write fusion.
+/// Broadcasting isn't supported; another block should handle it instead.
 pub struct ReduceBlockFuser<R: Runtime> {
-    /// We're using the [ReduceFuser] for both elemwise and reduce blocks where we only keep the
-    /// fuse-on-read trace if the block is tagged as elemwise.
+    /// We use [ReduceFuser] for both elementwise and reduce blocks, keeping only the
+    /// fuse-on-read trace if the block is tagged as elementwise.
     ///
     /// # Notes
     ///
-    /// We can only have a single elemwise block at the end in a full [ReduceBlockFuser] at the end, since
+    /// A single elementwise block can only exist at the end of a full [ReduceBlockFuser],
     /// otherwise the optimization will be included in the reduce fusion block.
     pub fuser: ReduceFuser<R>,
     ops: Vec<OperationIr>,
     kind: ReduceBlockKind,
 }
 
-/// This type is responsible to fuse a single trace for all operations involved in this
-/// optimization.
+/// Responsible for fusing a single trace for all operations involved in this optimization.
 pub struct ReduceBroadcastedMainFuser {
     pub(crate) fuser: TraceOperationFuser,
     blocks: Vec<ReduceBlockKind>,
     settings_write: FuseSettings,
 }
 
-/// Where the fusion is at during the fusing process.
+/// The current state of the fusion process.
 #[derive(Debug, Clone)]
 pub enum ReduceBroadcastedStatus {
-    /// The fusion is just starting, no reduce has been fused yet.
+    /// Fusion is starting; no reduction has been fused yet.
     Starting,
-    /// The fusion is initialized with at least one reduce operation.
+    /// Fusion is initialized with at least one reduce operation.
     ///
     /// # Notes
     ///
-    /// The following reduce operation will need to be compatible with the previous reduction to
-    /// fuse.
+    /// Subsequent reduce operations must be compatible with the previous reduction to fuse.
     Init { shape_id: Vec<usize>, axis: usize },
-    /// No more operation can be fused.
+    /// No more operations can be fused.
     Closed,
 }
 
 /// The [ReduceBlockFuser] capacity to accept an [OperationIr].
 #[derive(Clone, Copy, Debug)]
 pub enum ReduceBlockFusionAnalysis {
-    /// The operation can be fused, simply call [ReduceBlockFuser::fuse()].
+    /// The operation can be fused; call [ReduceBlockFuser::fuse()].
     Accept,
-    /// The operation can't be fused, the optimization should close.
+    /// The operation cannot be fused; the optimization should close.
     Refuse,
-    /// The operation can be fused, but in another block.
+    /// The operation can be fused, but requires a new block.
     NewBlockRequired,
 }
 
@@ -80,10 +76,11 @@ impl<R: Runtime> ReduceBlockFuser<R> {
         }
     }
 
-    /// Is an elemwise fuser.
+    /// Returns true if this is an elementwise fuser.
     pub fn is_elemwise(&self) -> bool {
         matches!(self.kind, ReduceBlockKind::Elemwise)
     }
+
     /// Analyzes if fusion is possible within this block.
     pub fn analyze(
         &self,
@@ -101,7 +98,6 @@ impl<R: Runtime> ReduceBlockFuser<R> {
         }
 
         let mut fuser_try = default_node.clone();
-
         let before = fuser_try.len();
         fuser_try.fuse(op);
         let after = fuser_try.len();
@@ -150,32 +146,26 @@ impl<R: Runtime> ReduceBlockFuser<R> {
     ///
     /// # Warning
     ///
-    /// It's important to call [Self::analyze_fusion()] before calling this function to make sure
-    /// the current block accepts this operation.
+    /// Ensure [Self::analyze()] is called before this function to confirm the operation is accepted.
     pub fn fuse(&mut self, op: &OperationIr) {
         self.fuser.fuse(op);
         self.ops.push(op.clone());
 
-        // We update the kind if necessary.
-        match (&self.fuser.reduce, &self.kind) {
-            (Some(reduce), ReduceBlockKind::Elemwise) => {
-                self.kind = ReduceBlockKind::Reduce {
-                    // We just merged the reduce, since the last step the kind was Elemwise.
-                    ops_index: self.ops.len() - 1,
-                    reduce: reduce.clone(),
-                };
-            }
-            _ => {}
+        // Update the kind if a reduction is introduced to an elementwise block.
+        if let (Some(reduce), ReduceBlockKind::Elemwise) = (&self.fuser.reduce, &self.kind) {
+            self.kind = ReduceBlockKind::Reduce {
+                ops_index: self.ops.len() - 1,
+                reduce: reduce.clone(),
+            };
         }
     }
 
     /// Computes the fuser properties.
     pub fn properties(&self) -> FuserProperties {
         let mut properties = self.fuser.properties();
-        match &self.kind {
-            // We can always run elementwise trace.
-            ReduceBlockKind::Elemwise => properties.ready = true,
-            ReduceBlockKind::Reduce { .. } => {}
+        if let ReduceBlockKind::Elemwise = &self.kind {
+            // Elementwise traces are always ready to run.
+            properties.ready = true;
         }
         properties
     }
@@ -187,7 +177,7 @@ impl<R: Runtime> ReduceBlockFuser<R> {
     ) -> ReduceBlockOptimInfo<R> {
         main.register(self);
 
-        match self.kind {
+        match &self.kind {
             ReduceBlockKind::Elemwise => {
                 let len = self.fuser.fuser_read_fallback.len();
                 let device = self.fuser.device.clone();
@@ -200,11 +190,11 @@ impl<R: Runtime> ReduceBlockFuser<R> {
             ReduceBlockKind::Reduce { .. } => {
                 *num_ops += self.fuser.len();
                 let optim = self.fuser.finish();
-                let optim = match optim {
+                let info = match optim {
                     CubeOptimization::Reduce(optim) => optim.info,
-                    _ => unreachable!(),
+                    _ => unreachable!("Expected Reduce optimization"),
                 };
-                ReduceBlockOptimInfo::Reduce(optim)
+                ReduceBlockOptimInfo::Reduce(info)
             }
         }
     }
@@ -224,7 +214,7 @@ impl ReduceBroadcastedMainFuser {
         );
         let settings_write = FuseSettings {
             output_shape_updates: false,
-            // TODO: Fusion axis should be on the reduce_axis - 1.
+            // TODO: Fusion axis should be on the (reduce_axis - 1).
             vectorization: VectorizationSetting::SmallerOrEqualThanPreviousBlock,
             ..Default::default()
         };
@@ -237,24 +227,19 @@ impl ReduceBroadcastedMainFuser {
 
     /// Registers a [ReduceBlockFuser] to build the trace.
     pub fn register<R: Runtime>(&mut self, block: &ReduceBlockFuser<R>) {
+        // Helper to close previous blocks if necessary
+        if !self.fuser.is_empty() {
+            self.fuser.next_block([], self.settings_write).unwrap();
+        }
+
         match &block.kind {
             ReduceBlockKind::Elemwise => {
-                // First we need to close the previous block.
-                if !self.fuser.is_empty() {
-                    self.fuser.next_block([], self.settings_write).unwrap();
-                }
-                // We register the new operations in a fresh block.
-                for op in block.ops.iter() {
+                for op in &block.ops {
                     self.fuser.fuse(op);
                 }
                 self.blocks.push(ReduceBlockKind::Elemwise);
             }
             ReduceBlockKind::Reduce { ops_index, reduce } => {
-                // First we need to close the previous block.
-                if !self.fuser.is_empty() {
-                    self.fuser.next_block([], self.settings_write).unwrap();
-                }
-
                 for op in &block.ops[0..*ops_index] {
                     self.fuser.fuse(op);
                 }
@@ -263,8 +248,10 @@ impl ReduceBroadcastedMainFuser {
                     .fuser
                     .next_block([&reduce.op.input], self.settings_write)
                     .unwrap();
+
                 let output = self.fuser.output_unhandled(&reduce.op.out);
-                let reduce = FusedReduce {
+
+                let fused_reduce = FusedReduce {
                     input,
                     output,
                     acc: reduce.acc,
@@ -274,12 +261,13 @@ impl ReduceBroadcastedMainFuser {
                     shared: reduce.shared,
                     inst: reduce.inst,
                 };
+
                 self.blocks.push(ReduceBlockKind::Reduce {
                     ops_index: *ops_index,
-                    reduce,
+                    reduce: fused_reduce,
                 });
-                let length = block.ops.len();
-                for op in &block.ops[*ops_index..length] {
+
+                for op in &block.ops[*ops_index..] {
                     self.fuser.fuse(op);
                 }
             }

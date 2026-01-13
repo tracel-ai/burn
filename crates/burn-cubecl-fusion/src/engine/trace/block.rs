@@ -44,6 +44,7 @@ pub struct FuseBlockBuilder {
     outputs: RegisteredTensors,
     pub outputs_unhandled: Vec<FuseArg>,
     pub local_outputs: Vec<TensorId>,
+    pub local_inputs: BTreeMap<TensorId, FuseArg>,
 }
 
 #[derive(Debug)]
@@ -67,6 +68,7 @@ impl FuseBlockBuilder {
             outputs: Default::default(),
             outputs_unhandled: Default::default(),
             local_outputs: Default::default(),
+            local_inputs: Default::default(),
         }
     }
 
@@ -117,6 +119,11 @@ impl FuseBlockBuilder {
             FuseType::Bool => self.bool_precision,
             _ => precision,
         };
+
+        match self.local_inputs.get(&tensor.id) {
+            Some(val) => return Some(val.clone()),
+            None => {}
+        }
 
         let arg = match self.locals.get(precision, tensor.id) {
             Some(local) => {

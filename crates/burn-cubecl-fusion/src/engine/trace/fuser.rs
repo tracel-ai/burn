@@ -91,6 +91,13 @@ impl TraceFuser {
         self.block_current.local_outputs.push(tensor.id);
     }
 
+    /// Tag the [tensor](TensorIr) as received from a previous block.
+    ///
+    /// This will avoid reading the input again and instead use le local version when possible.
+    pub fn block_local_input(&mut self, tensor: &TensorIr, arg: FuseArg) {
+        self.block_current.local_inputs.insert(tensor.id, arg);
+    }
+
     /// Register an output tensor that won't be automatically synced into global memory.
     ///
     /// It is therefore the responsibility of the operation to write the result to given tensor.
