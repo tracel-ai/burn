@@ -97,15 +97,9 @@ pub(crate) fn swap_dims<R: CubeRuntime>(
         tensor.dtype = DType::QFloat(scheme.with_level(QuantLevel::Block(block_size)))
     }
 
-    if let DType::QFloat(scheme) = &mut tensor.dtype
-        && let QuantStore::PackedU32(packed_dim) = &mut scheme.store
-    {
+    if let DType::QFloat(scheme) = &mut tensor.dtype {
         let rank = tensor.shape.len();
-        if *packed_dim == rank - dim1 - 1 {
-            *packed_dim = rank - dim2 - 1;
-        } else if *packed_dim == rank - dim2 - 1 {
-            *packed_dim = rank - dim1 - 1;
-        }
+        scheme.swap_packing_dim(rank - dim1 - 1, rank - dim2 - 1);
     }
 
     tensor
