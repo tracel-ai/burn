@@ -117,14 +117,81 @@ fn test_l1_norm() {
 
 #[test]
 fn test_lp_norm() {
-    let x = TestTensor::<2>::from([[1., 2.], [3., 4.]]);
+    let x = TestTensor::<2>::from([[1., -2., 0.], [0., 3., 4.]]);
     let tolerance = Tolerance::relative(1e-5).set_half_precision_relative(2e-3);
 
-    let expected = TestTensor::<2>::from([[3.0365891, 4.1601677]]).into_data();
+    // Arbitrary P
+    let expected = TestTensor::<2>::from([[1.0, 3.2710664, 4.0]]).into_data();
     linalg::vector_norm(x.clone(), 3, 0)
         .into_data()
         .assert_approx_eq::<FloatElem>(&expected, tolerance);
     linalg::lp_norm(x.clone(), 3., 0)
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected, tolerance);
+
+    // L0
+    let expected = TestTensor::<2>::from([[1., 2., 1.]]).into_data();
+    linalg::vector_norm(x.clone(), linalg::Norm::L0, 0)
+        .into_data()
+        .assert_eq(&expected, true);
+    linalg::l0_norm(x.clone(), 0)
+        .into_data()
+        .assert_eq(&expected, true);
+    linalg::lp_norm(x.clone(), 0.0, 0)
+        .into_data()
+        .assert_eq(&expected, true);
+
+    // L1
+    let expected = TestTensor::<2>::from([[1.0, 5.0, 4.0]]).into_data();
+    linalg::vector_norm(x.clone(), linalg::Norm::L1, 0)
+        .into_data()
+        .assert_eq(&expected, true);
+    linalg::l1_norm(x.clone(), 0)
+        .into_data()
+        .assert_eq(&expected, true);
+    linalg::_lp_norm(x.clone(), 1.0, 0)
+        .into_data()
+        .assert_eq(&expected, true);
+    linalg::lp_norm(x.clone(), 1.0, 0)
+        .into_data()
+        .assert_eq(&expected, true);
+
+    // L2
+    let expected = TestTensor::<2>::from([[1.0, 3.6055512, 4.0]]).into_data();
+    linalg::vector_norm(x.clone(), linalg::Norm::L2, 0)
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected, tolerance);
+    linalg::l2_norm(x.clone(), 0)
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected, tolerance);
+    linalg::_lp_norm(x.clone(), 2.0, 0)
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected, tolerance);
+    linalg::lp_norm(x.clone(), 2.0, 0)
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected, tolerance);
+
+    // LInf
+    let expected = TestTensor::<2>::from([[1.0, 3.0, 4.0]]).into_data();
+    linalg::vector_norm(x.clone(), linalg::Norm::LInf, 0)
+        .into_data()
+        .assert_eq(&expected, true);
+    linalg::max_abs_norm(x.clone(), 0)
+        .into_data()
+        .assert_eq(&expected, true);
+    linalg::lp_norm(x.clone(), f64::INFINITY, 0)
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected, tolerance);
+
+    // LNegInf
+    let expected = TestTensor::<2>::from([[0.0, 2.0, 0.0]]).into_data();
+    linalg::vector_norm(x.clone(), linalg::Norm::LNegInf, 0)
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected, tolerance);
+    linalg::min_abs_norm(x.clone(), 0)
+        .into_data()
+        .assert_eq(&expected, true);
+    linalg::lp_norm(x.clone(), f64::NEG_INFINITY, 0)
         .into_data()
         .assert_approx_eq::<FloatElem>(&expected, tolerance);
 }
