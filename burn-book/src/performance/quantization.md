@@ -30,7 +30,7 @@ Quantization support in Burn is currently in active development.
 
 It supports the following PTQ modes on some backends:
 
-- Per-tensor and per-block (linear) quantization to 8-bit, 4-bit and 2-bit representations
+- Per-tensor and per-block quantization to 8-bit, 4-bit and 2-bit representations
 
 No integer operations are currently supported, which means tensors are dequantized to perform the
 operations in floating point precision.
