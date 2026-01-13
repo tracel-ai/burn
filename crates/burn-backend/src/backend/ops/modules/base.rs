@@ -286,6 +286,12 @@ impl Default for GridSampleOptions {
     }
 }
 
+impl From<InterpolateMode> for GridSampleOptions {
+    fn from(value: InterpolateMode) -> Self {
+        GridSampleOptions::new(value)
+    }
+}
+
 impl GridSampleOptions {
     /// Create new grid sample options with the given interpolation mode.
     ///
