@@ -1,6 +1,7 @@
 use crate::backend::Backend;
 use crate::tensor::{BasicOps, Tensor};
 use crate::{ElementConversion, Numeric};
+use crate::linalg::vector_norm::implementation::lp_norm_impl;
 
 /// Specifies the type of norm to compute.
 #[derive(Debug, Clone, Copy)]
@@ -108,7 +109,7 @@ pub fn vector_norm<B: Backend, const D: usize>(
         L2 => l2_norm(x, dim),
         LInf => max_abs_norm(x, dim),
         LNegInf => min_abs_norm(x, dim),
-        Lp(p) => _lp_norm(x, p, dim),
+        Lp(p) => lp_norm_impl(x, p, dim),
     }
 }
 
@@ -213,28 +214,35 @@ pub fn lp_norm<B: Backend, const D: usize>(x: Tensor<B, D>, p: f64, dim: usize) 
         2.0 => l2_norm(x, dim),
         f64::INFINITY => max_abs_norm(x, dim),
         f64::NEG_INFINITY => min_abs_norm(x, dim),
-        _ => _lp_norm(x, p, dim),
+        _ => implementation::lp_norm_impl(x, p, dim),
     }
 }
 
-/// Computes the general ``L(p)`` norm of a tensor along a specified dimension.
+/// Internal Implementation Module.
 ///
-/// This uses no specialized implementations and cannot handle:
-/// * 0.0
-/// * f64::INFINITY,
-/// * f64::NEG_INFINITY,
-///
-/// # Arguments
-///
-/// * `x` - The input tensor.
-/// * `p` - The exponent of the Lp norm.
-/// * `dim` - The dimension to compute the norm over.
-///
-/// # Returns
-///
-/// The ``L(p)`` norm of the input tensor.
-pub fn _lp_norm<B: Backend, const D: usize>(x: Tensor<B, D>, p: f64, dim: usize) -> Tensor<B, D> {
-    x.abs().powf_scalar(p).sum_dim(dim).powf_scalar(1. / p)
+/// Visible for cross-crate testing and internal use.
+pub mod implementation {
+    use super::*;
+
+    /// Computes the general ``L(p)`` norm of a tensor along a specified dimension.
+    ///
+    /// This uses no specialized implementations and cannot handle:
+    /// * 0.0
+    /// * f64::INFINITY,
+    /// * f64::NEG_INFINITY,
+    ///
+    /// # Arguments
+    ///
+    /// * `x` - The input tensor.
+    /// * `p` - The exponent of the Lp norm.
+    /// * `dim` - The dimension to compute the norm over.
+    ///
+    /// # Returns
+    ///
+    /// The ``L(p)`` norm of the input tensor.
+    pub fn lp_norm_impl<B: Backend, const D: usize>(x: Tensor<B, D>, p: f64, dim: usize) -> Tensor<B, D> {
+        x.abs().powf_scalar(p).sum_dim(dim).powf_scalar(1. / p)
+    }
 }
 
 /// Computes the L:INFINITY norm of a tensor along a specified dimension.

@@ -149,7 +149,7 @@ fn test_lp_norm() {
     linalg::l1_norm(x.clone(), 0)
         .into_data()
         .assert_eq(&expected, true);
-    linalg::_lp_norm(x.clone(), 1.0, 0)
+    linalg::implementation::lp_norm_impl(x.clone(), 1.0, 0)
         .into_data()
         .assert_eq(&expected, true);
     linalg::lp_norm(x.clone(), 1.0, 0)
@@ -164,7 +164,7 @@ fn test_lp_norm() {
     linalg::l2_norm(x.clone(), 0)
         .into_data()
         .assert_approx_eq::<FloatElem>(&expected, tolerance);
-    linalg::_lp_norm(x.clone(), 2.0, 0)
+    linalg::implementation::lp_norm_impl(x.clone(), 2.0, 0)
         .into_data()
         .assert_approx_eq::<FloatElem>(&expected, tolerance);
     linalg::lp_norm(x.clone(), 2.0, 0)
