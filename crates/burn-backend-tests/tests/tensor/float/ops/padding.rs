@@ -6,7 +6,7 @@ fn padding_constant_2d_test() {
     let unpadded_floats: [[f32; 3]; 2] = [[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]];
     let tensor = TestTensor::<2>::from(unpadded_floats);
 
-    let padded_tensor = tensor.pad((2, 2, 2, 2), PadMode::Constant(1.1));
+    let padded_tensor = tensor.pad((2, 2, 2, 2), 1.1);
 
     let expected = TensorData::from([
         [1.1, 1.1, 1.1, 1.1, 1.1, 1.1, 1.1],
@@ -24,7 +24,7 @@ fn padding_constant_4d_test() {
     let unpadded_floats = [[[[0.0, 1.0], [2.0, 3.0], [4.0, 5.0]]]];
     let tensor = TestTensor::<4>::from(unpadded_floats);
 
-    let padded_tensor = tensor.pad((2, 2, 2, 2), PadMode::Constant(1.1));
+    let padded_tensor = tensor.pad((2, 2, 2, 2), 1.1);
 
     let expected = TensorData::from([[[
         [1.1, 1.1, 1.1, 1.1, 1.1, 1.1],
@@ -43,7 +43,7 @@ fn padding_constant_asymmetric_test() {
     let unpadded_floats = [[[[0.0, 1.0], [2.0, 3.0], [4.0, 5.0]]]];
     let tensor = TestTensor::<4>::from(unpadded_floats);
 
-    let padded_tensor = tensor.pad((2, 1, 4, 3), PadMode::Constant(1.1));
+    let padded_tensor = tensor.pad((2, 1, 4, 3), 1.1);
 
     let expected = TensorData::from([[[
         [1.1, 1.1, 1.1, 1.1, 1.1],
@@ -270,7 +270,7 @@ fn padding_empty_tensor_constant_test() {
     let tensor: TestTensor<2> = TestTensor::empty([0, 3], &Default::default());
 
     // Padding an empty height dimension with constant should create a tensor of just padding
-    let padded = tensor.pad((0, 0, 2, 2), PadMode::Constant(1.0));
+    let padded = tensor.pad((0, 0, 2, 2), 1.0);
 
     // Result should be 4x3 (0 + 2 + 2 = 4 rows)
     assert_eq!(padded.dims(), [4, 3]);
