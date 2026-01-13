@@ -318,7 +318,7 @@ pub struct TchShape {
 impl From<Shape> for TchShape {
     fn from(shape: Shape) -> Self {
         TchShape {
-            dims: shape.dims.into_iter().map(|d| d as i64).collect(),
+            dims: shape.into_iter().map(|d| d as i64).collect(),
         }
     }
 }

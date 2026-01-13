@@ -244,6 +244,11 @@ impl Shape {
         self.dims.iter()
     }
 
+    /// Consume the shape and return an iterator over its dimensions.
+    pub fn into_iter(self) -> alloc::vec::IntoIter<usize> {
+        self.dims.into_iter()
+    }
+
     /// Mutable iterator over the dimensions.
     pub fn iter_mut(&mut self) -> IterMut<'_, usize> {
         self.dims.iter_mut()
