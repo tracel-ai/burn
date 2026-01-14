@@ -21,6 +21,9 @@ pub use activation::{
 mod padding;
 pub use padding::*;
 
+/// LoRA (Low-Rank Adaptation) module for parameter-efficient fine-tuning.
+pub mod lora;
+
 // For backward compat, `burn::nn::Initializer`
 pub use burn_core::module::Initializer;
 
