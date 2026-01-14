@@ -37,7 +37,7 @@ impl CIFAR10Loader for ImageFolderDataset {
 /// Download the CIFAR10 dataset from the web to the current example directory.
 fn download() -> PathBuf {
     // Point to current example directory
-    let example_dir = Path::new(file!()).parent().unwrap().parent().unwrap();
+    let example_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
     let cifar_dir = example_dir.join("cifar10");
 
     // Check for already downloaded content
