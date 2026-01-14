@@ -22,6 +22,7 @@ fn test_tensor_full_options() {
     let tensor = TestTensor::<2>::full([2, 3], 2.1, (&Default::default(), DType::F32));
     assert_eq!(tensor.dtype(), DType::F32);
 
+    // TODO: `Tensor::full` should not use `FloatElem<B>` for `fill_value`.
     tensor
         .into_data()
         .assert_eq(&TensorData::from([[2.1, 2.1, 2.1], [2.1, 2.1, 2.1]]), false);
