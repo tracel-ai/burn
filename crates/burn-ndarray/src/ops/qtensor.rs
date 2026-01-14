@@ -41,7 +41,6 @@ where
                         level: QuantLevel::Tensor | QuantLevel::Block(_),
                         mode: QuantMode::Symmetric,
                         value: QuantValue::Q8F | QuantValue::Q8S,
-                        store: QuantStore::Native | QuantStore::U32,
                         ..
                     } => {
                         // We can load QuantStore::U32 w/ QuantizedBytes impl

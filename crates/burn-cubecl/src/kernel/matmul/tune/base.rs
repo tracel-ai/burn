@@ -1,6 +1,6 @@
 use crate::{
     CubeRuntime, CubeTuneId,
-    kernel::matmul::{launch_matmul, utils::init_matmul_output},
+    kernel::matmul::{launch_matmul, launch_matmul_naive, utils::init_matmul_output},
     tensor::CubeTensor,
 };
 use burn_backend::DType;
@@ -123,7 +123,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
         // First entry should always work, since it is considered the fallback.
         set = set.with(
             Tunable::new("matmul_naive", |lhs, rhs, out| {
-                launch_matmul::<R>(&Strategy::Naive, lhs, rhs, out)
+                launch_matmul_naive::<R>(&Strategy::Naive, lhs, rhs, out)
                     .map_err(|err| std::format!("{err:?}"))
             })
             .group(&unit, |key| {
@@ -403,5 +403,7 @@ fn create_key<R: CubeRuntime>(
         lhs.dtype.into(),
         rhs.dtype.into(),
         out.dtype.into(),
+        lhs.try_scheme(),
+        rhs.try_scheme(),
     )
 }

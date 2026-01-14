@@ -381,7 +381,7 @@ fn line_sizes_quants<R: Runtime>(
                 unreachable!("Can't store native sub-byte values")
             }
         },
-        QuantStore::U32 => {
+        QuantStore::PackedU32(_) => {
             let mut line_sizes = client
                 .io_optimized_line_sizes_unchecked(size_of::<u32>())
                 .collect::<Vec<_>>();
@@ -405,6 +405,9 @@ fn line_sizes_quants<R: Runtime>(
                     *quants_line_sizes = Some(line_sizes);
                 }
             }
+        }
+        QuantStore::PackedNative(_) => {
+            panic!("Not yet supported")
         }
     };
 }
