@@ -116,10 +116,11 @@ let scheme = QuantScheme::default()
 
 #### Quantization Store
 
-| Store    | Description                                             |
-| :------- | :------------------------------------------------------ |
-| `Native` | Each quantized value stored directly in memory.         |
-| `U32`    | Multiple quantized values packed into a 32-bit integer. |
+| Store               | Description                                                                                                                                       |
+| :------------------ | :------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `Native`            | Each quantized value is stored directly in a native format, which doesn't require packing and unpacking.                                          |
+| `PackedNative(dim)` | Multiple quantized values packed into a 32-bit integer. Argument is the dimension the tensor is packed on, starting from the innermost dimension. |
+| `PackedU32(dim)`    | Multiple quantized values packed into a 32-bit integer. Argument is the dimension the tensor is packed on, starting from the innermost dimension. |
 
 Native storage is not supported for sub-byte quantization values.
 
