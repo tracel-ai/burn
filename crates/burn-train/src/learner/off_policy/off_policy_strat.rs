@@ -1,26 +1,23 @@
 use crate::{
-    AsyncEnvArrayRunner, AsyncEnvRunner, EnvRunner, EpisodeSummary, LearnerItem,
-    OffPolicyLearningComponentsTypes, RLComponents, ReinforcementLearningStrategy,
-    RlEventProcessor,
-    metric::rl_processor::{RlEventProcessorTrain, RlTrainingEvent},
+    AsyncEnvArrayRunner, AsyncEnvRunner, EnvRunner, EpisodeSummary, EventProcessorTraining,
+    LearnerItem, RLComponents, RLEvent, RLEventProcessorType, ReinforcementLearningComponentsTypes,
+    ReinforcementLearningStrategy,
 };
 use burn_core::{data::dataloader::Progress, tensor::Device};
 use burn_rl::{Agent, AsyncAgent, LearnerAgent, TransitionBuffer};
 
-/// Simplest learning strategy possible, with only a single devices doing both the training and
-/// validation.
-pub struct SimpleOffPolicyStrategy<OC: OffPolicyLearningComponentsTypes> {
-    // device: Device<TrainingBackend<OC::LC>>,
+/// Base strategy for off-policy reinforcement learning.
+pub struct SimpleOffPolicyStrategy<OC: ReinforcementLearningComponentsTypes> {
     device: Device<OC::Backend>,
 }
-impl<OC: OffPolicyLearningComponentsTypes> SimpleOffPolicyStrategy<OC> {
-    // pub fn new(device: Device<TrainingBackend<OC::LC>>) -> Self {
+impl<OC: ReinforcementLearningComponentsTypes> SimpleOffPolicyStrategy<OC> {
+    /// Create a new off-policy base strategy.
     pub fn new(device: Device<OC::Backend>) -> Self {
         Self { device }
     }
 }
 
-impl<OC: OffPolicyLearningComponentsTypes> ReinforcementLearningStrategy<OC>
+impl<OC: ReinforcementLearningComponentsTypes> ReinforcementLearningStrategy<OC>
     for SimpleOffPolicyStrategy<OC>
 {
     fn fit(
@@ -31,7 +28,7 @@ impl<OC: OffPolicyLearningComponentsTypes> ReinforcementLearningStrategy<OC>
     ) -> (
         // <OC::LearningAgent as Agent<TrainingBackend<OC::LC>, OC::Env>>::Policy,
         <OC::LearningAgent as Agent<OC::Backend, OC::Env>>::Policy,
-        RlEventProcessor<OC>,
+        RLEventProcessorType<OC>,
     ) {
         let mut event_processor = training_components.event_processor;
         let mut checkpointer = training_components.checkpointer;
@@ -94,7 +91,7 @@ impl<OC: OffPolicyLearningComponentsTypes> ReinforcementLearningStrategy<OC>
                 transition_buffer.push(item.transition.into());
 
                 num_items += 1;
-                event_processor.process_train(RlTrainingEvent::EnvStep(LearnerItem::new(
+                event_processor.process_train(RLEvent::TimeStep(LearnerItem::new(
                     item.action_context,
                     Progress::new(epoch, training_components.num_epochs),
                     epoch,
@@ -104,10 +101,10 @@ impl<OC: OffPolicyLearningComponentsTypes> ReinforcementLearningStrategy<OC>
                 )));
 
                 if item.done {
-                    event_processor.process_train(RlTrainingEvent::EpisodeEnd(LearnerItem::new(
+                    event_processor.process_train(RLEvent::EpisodeEnd(LearnerItem::new(
                         EpisodeSummary {
                             episode_length: item.ep_len,
-                            total_reward: item.cum_reward,
+                            cum_reward: item.cum_reward,
                         },
                         Progress::new(epoch, training_components.num_epochs),
                         epoch,
@@ -129,7 +126,7 @@ impl<OC: OffPolicyLearningComponentsTypes> ReinforcementLearningStrategy<OC>
                 let update = learner_agent.train(&transition_buffer);
                 env_runner.update_policy(update.policy);
 
-                event_processor.process_train(RlTrainingEvent::TrainStep(LearnerItem::new(
+                event_processor.process_train(RLEvent::TrainStep(LearnerItem::new(
                     update.item,
                     Progress::new(epoch, training_components.num_epochs),
                     epoch,

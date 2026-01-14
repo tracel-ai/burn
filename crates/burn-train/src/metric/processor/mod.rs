@@ -3,10 +3,14 @@ mod base;
 mod full;
 mod metrics;
 mod minimal;
+mod rl_metrics;
+mod rl_processor;
 
 pub use base::*;
 pub(crate) use full::*;
 pub(crate) use metrics::*;
+pub(crate) use rl_metrics::*;
+pub(crate) use rl_processor::*;
 
 #[cfg(test)]
 pub(crate) use minimal::*;

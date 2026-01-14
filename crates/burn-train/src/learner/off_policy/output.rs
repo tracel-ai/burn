@@ -3,9 +3,12 @@ use crate::{
     metric::{Adaptor, EpisodeLengthInput},
 };
 
+/// Summary of an episode.
 pub struct EpisodeSummary {
+    /// The total length of the episode.
     pub episode_length: usize,
-    pub total_reward: f64,
+    /// The final cumulative reward.
+    pub cum_reward: f64,
 }
 
 impl ItemLazy for EpisodeSummary {
@@ -18,8 +21,6 @@ impl ItemLazy for EpisodeSummary {
 
 impl Adaptor<EpisodeLengthInput> for EpisodeSummary {
     fn adapt(&self) -> EpisodeLengthInput {
-        EpisodeLengthInput {
-            ep_len: self.episode_length as f64,
-        }
+        EpisodeLengthInput::new(self.episode_length as f64)
     }
 }

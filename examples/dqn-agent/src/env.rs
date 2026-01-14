@@ -71,7 +71,7 @@ impl Environment for CartPoleWrapper {
         CartPoleState::from(self.gym_env.state)
     }
 
-    fn step(&mut self, action: Self::Action) -> StepResult<Self> {
+    fn step(&mut self, action: Self::Action) -> StepResult<Self::State> {
         let action_reward = self.gym_env.step(action.action);
         self.step_index += 1;
         StepResult {

@@ -67,4 +67,6 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         .summary();
 
     let _policy = learner.launch(agent);
+    // /// TODO:
+    // let _policy = learner.launch(agent, CartPoleWrapper::new);
 }

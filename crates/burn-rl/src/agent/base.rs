@@ -11,6 +11,13 @@ pub struct ActionContext<A, C> {
     pub action: A,
 }
 
+pub trait Policy<B: Backend, S, A> {
+    type Context: Clone;
+
+    fn logits(&mut self, state: S) -> Tensor<B, 1>;
+    fn action(&mut self, state: S) -> ActionContext<A, Self::Context>;
+}
+
 pub trait Agent<B: Backend, E: Environment>: Clone {
     type Policy: Clone + Send;
     type DecisionContext: Clone + Send;

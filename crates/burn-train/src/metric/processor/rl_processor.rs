@@ -1,13 +1,8 @@
 use std::sync::Arc;
 
 use crate::{
-    ItemLazy,
-    metric::{
-        rl_processor::{
-            RlEvaluationEvent, RlEventProcessorTrain, RlTrainingEvent, metrics::RlMetricsTraining,
-        },
-        store::{Event, EventStoreClient, MetricsUpdate},
-    },
+    AgentEvaluationEvent, EventProcessorTraining, ItemLazy, RLEvent, RLMetrics,
+    metric::store::{Event, EventStoreClient, MetricsUpdate},
     renderer::{MetricState, MetricsRenderer, TrainingProgress},
 };
 
@@ -15,22 +10,13 @@ use crate::{
 ///   - Computing and storing metrics in an [event store](crate::metric::store::EventStore).
 ///   - Render metrics using a [metrics renderer](MetricsRenderer).
 #[derive(new)]
-pub struct FullEventProcessorTrainingRl<TS: ItemLazy, ES: ItemLazy> {
-    metrics: RlMetricsTraining<TS, ES>,
+pub struct RLEventProcessor<TS: ItemLazy, ES: ItemLazy> {
+    metrics: RLMetrics<TS, ES>,
     renderer: Box<dyn MetricsRenderer>,
     store: Arc<EventStoreClient>,
 }
 
-// /// An [event processor](EventProcessorEvaluation) that handles:
-// ///   - Computing and storing metrics in an [event store](crate::metric::store::EventStore).
-// ///   - Render metrics using a [metrics renderer](MetricsRenderer).
-// pub struct FullEventProcessorEvaluationRl<TS: ItemLazy> {
-//     metrics: MetricsEvaluation<TS>,
-//     renderer: Box<dyn MetricsRenderer>,
-//     store: Arc<EventStoreClient>,
-// }
-
-impl<TS: ItemLazy, ES: ItemLazy> FullEventProcessorTrainingRl<TS, ES> {
+impl<TS: ItemLazy, ES: ItemLazy> RLEventProcessor<TS, ES> {
     fn process_update_train(&mut self, update: MetricsUpdate, progress: TrainingProgress) {
         self.store
             .add_event_train(crate::metric::store::Event::MetricsUpdate(update.clone()));
@@ -75,13 +61,12 @@ impl<TS: ItemLazy, ES: ItemLazy> FullEventProcessorTrainingRl<TS, ES> {
         self.renderer.render_valid(progress);
     }
 }
-impl<TS: ItemLazy, ES: ItemLazy> RlEventProcessorTrain for FullEventProcessorTrainingRl<TS, ES> {
-    type TrainingOutput = TS;
-    type ActionContext = ES;
-
-    fn process_train(&mut self, event: RlTrainingEvent<Self::TrainingOutput, Self::ActionContext>) {
+impl<TS: ItemLazy, ES: ItemLazy> EventProcessorTraining<RLEvent<TS, ES>, AgentEvaluationEvent<ES>>
+    for RLEventProcessor<TS, ES>
+{
+    fn process_train(&mut self, event: RLEvent<TS, ES>) {
         match event {
-            RlTrainingEvent::Start => {
+            RLEvent::Start => {
                 let definitions = self.metrics.metric_definitions();
                 self.store
                     .add_event_train(Event::MetricsInit(definitions.clone()));
@@ -89,7 +74,7 @@ impl<TS: ItemLazy, ES: ItemLazy> RlEventProcessorTrain for FullEventProcessorTra
                     .iter()
                     .for_each(|definition| self.renderer.register_metric(definition.clone()));
             }
-            RlTrainingEvent::TrainStep(item) => {
+            RLEvent::TrainStep(item) => {
                 let item = item.sync();
                 let progress = (&item).into();
                 let metadata = (&item).into();
@@ -97,7 +82,7 @@ impl<TS: ItemLazy, ES: ItemLazy> RlEventProcessorTrain for FullEventProcessorTra
                 let update = self.metrics.update_train_step(&item, &metadata);
                 self.process_update_train(update, progress);
             }
-            RlTrainingEvent::EnvStep(item) => {
+            RLEvent::TimeStep(item) => {
                 let item = item.sync();
                 let progress = (&item).into();
                 let metadata = (&item).into();
@@ -105,7 +90,7 @@ impl<TS: ItemLazy, ES: ItemLazy> RlEventProcessorTrain for FullEventProcessorTra
                 let update = self.metrics.update_env_step(&item, &metadata);
                 self.process_update_train(update, progress);
             }
-            RlTrainingEvent::EpisodeEnd(item) => {
+            RLEvent::EpisodeEnd(item) => {
                 let item = item.sync();
                 let progress = (&item).into();
                 let metadata = (&item).into();
@@ -113,16 +98,16 @@ impl<TS: ItemLazy, ES: ItemLazy> RlEventProcessorTrain for FullEventProcessorTra
                 let update = self.metrics.update_episode_end(&item, &metadata);
                 self.process_update_train(update, progress);
             }
-            RlTrainingEvent::End(learner_summary) => {
+            RLEvent::End(learner_summary) => {
                 self.renderer.on_train_end(learner_summary).ok();
             }
         }
     }
 
-    fn process_valid(&mut self, event: RlEvaluationEvent<Self::ActionContext>) {
+    fn process_valid(&mut self, event: AgentEvaluationEvent<ES>) {
         match event {
-            RlEvaluationEvent::Start => {} // no-op for now
-            RlEvaluationEvent::EnvStep(item) => {
+            AgentEvaluationEvent::Start => {} // no-op for now
+            AgentEvaluationEvent::TimeStep(item) => {
                 let item = item.sync();
                 let progress = (&item).into();
                 let metadata = (&item).into();
@@ -130,7 +115,7 @@ impl<TS: ItemLazy, ES: ItemLazy> RlEventProcessorTrain for FullEventProcessorTra
                 let update = self.metrics.update_env_step_valid(&item, &metadata);
                 self.process_update_valid(update, progress);
             }
-            RlEvaluationEvent::EpisodeEnd(item) => {
+            AgentEvaluationEvent::EpisodeEnd(item) => {
                 let item = item.sync();
                 let progress = (&item).into();
                 let metadata = (&item).into();
@@ -138,11 +123,11 @@ impl<TS: ItemLazy, ES: ItemLazy> RlEventProcessorTrain for FullEventProcessorTra
                 let update = self.metrics.update_episode_end_valid(&item, &metadata);
                 self.process_update_valid(update, progress);
             }
-            RlEvaluationEvent::End => {} // no-op for now
+            AgentEvaluationEvent::End => {} // no-op for now
         }
     }
 
     fn renderer(self) -> Box<dyn MetricsRenderer> {
-        todo!()
+        self.renderer
     }
 }

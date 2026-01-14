@@ -190,12 +190,11 @@ impl ItemLazy for EpsilonGreedyPolicyOutput {
 
 impl Adaptor<ExplorationRateInput> for EpsilonGreedyPolicyOutput {
     fn adapt(&self) -> ExplorationRateInput {
-        ExplorationRateInput {
-            exploration_rate: self.epsilon,
-        }
+        ExplorationRateInput::new(self.epsilon)
     }
 }
 
+// TODO: remove Environment
 impl<B: Backend, E: Environment, M: AgentModel<B> + DqnModel<B> + Clone + Send> Agent<B, E>
     for DqnAgent<B, E, M>
 {

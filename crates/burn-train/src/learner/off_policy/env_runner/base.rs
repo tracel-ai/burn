@@ -6,50 +6,89 @@ use burn_rl::EnvState;
 use burn_rl::Transition;
 use burn_rl::{Agent, Environment};
 
-use crate::RlEventProcessor;
+use crate::RLEventProcessorType;
 use crate::RlPolicy;
-use crate::{Interrupter, OffPolicyLearningComponentsTypes, TrainingBackend};
+use crate::{Interrupter, ReinforcementLearningComponentsTypes};
 
+/// A trajectory, i.e. a list of ordered [TimeStep](TimeStep)s.
 #[derive(Clone)]
-pub struct EpisodeTrajectory<B: Backend, C> {
-    // TODO : Change EnvStep to Transition. run_episodes should always return trajectories, even when async.
+pub struct Trajectory<B: Backend, C> {
+    // TODO : Change TimeStep to Transition. run_episodes should always return trajectories, even when async.
     // Probably need a step_sender/receiver and trajectory_sender/receiver in that case.
-    pub steps: Vec<EnvStep<B, C>>,
+    /// A list of ordered [TimeStep](TimeStep)s.
+    pub timesteps: Vec<TimeStep<B, C>>,
 }
 
+/// A timestep debscribing an iteration of the state/decision process.
 #[derive(Clone)]
-pub struct EnvStep<B: Backend, C> {
+pub struct TimeStep<B: Backend, C> {
+    /// The environment id.
     pub env_id: usize,
+    /// The [burn_rl::Transition](burn_rl::Transition).
     pub transition: Transition<B>,
+    /// True if the environement reaches a terminal state.
     pub done: bool,
+    /// The running length of the current episode.
     pub ep_len: usize,
+    /// The running cumulative reward.
     pub cum_reward: f64,
+    /// The action's context for this timestep.
     pub action_context: C,
 }
 
 // TODO : Can Agent not be generic over backend?
 // TODO : Remove BA and BT eventually and have only one Backend for the env runner.
-pub trait EnvRunner<BT: Backend, OC: OffPolicyLearningComponentsTypes> {
+/// Trait for a structure that implements an agent/environement interface.
+pub trait EnvRunner<BT: Backend, OC: ReinforcementLearningComponentsTypes> {
+    /// Start the runner.
     fn start(&mut self);
+    /// Run a certain number of timesteps.
+    ///
+    /// # Arguments
+    ///
+    /// * `num_steps` - The number of time_steps to run.
+    /// * `deterministic` - If true, use the agent's deterministic policy, else use its stochastic policy.
+    /// * `processor` - An [crate::EventProcessorTraining](crate::EventProcessorTraining).
+    /// * `interrupter` - An [crate::Interrupter](crate::Interrupter).
+    /// * `num_steps` - The number of time_steps to run.
+    ///
+    /// # Returns
+    ///
+    /// A list of ordered timesteps.
     fn run_steps(
         &mut self,
         num_steps: usize,
         deterministic: bool,
-        processor: &mut RlEventProcessor<OC>,
+        processor: &mut RLEventProcessorType<OC>,
         interrupter: &Interrupter,
-    ) -> Vec<EnvStep<BT, OC::ActionContext>>;
+    ) -> Vec<TimeStep<BT, OC::ActionContext>>;
+    /// Run a certain number of episodes.
+    ///
+    /// # Arguments
+    ///
+    /// * `num_episodes` - The number of episodes to run.
+    /// * `deterministic` - If true, use the agent's deterministic policy, else use its stochastic policy.
+    /// * `processor` - An [crate::EventProcessorTraining](crate::EventProcessorTraining).
+    /// * `interrupter` - An [crate::Interrupter](crate::Interrupter).
+    /// * `TODO:` - The number of time_steps to run.
+    ///
+    /// # Returns
+    ///
+    /// A list of ordered timesteps.
     fn run_episodes(
         &mut self,
         num_episodes: usize,
         deterministic: bool,
-        processor: &mut RlEventProcessor<OC>,
+        processor: &mut RLEventProcessorType<OC>,
         interrupter: &Interrupter,
         global_iteration: usize,
         total_global_iteration: usize,
-    ) -> Vec<EpisodeTrajectory<BT, OC::ActionContext>>;
+    ) -> Vec<Trajectory<BT, OC::ActionContext>>;
+    /// Update the runner's agent's policy
     fn update_policy(&mut self, update: RlPolicy<OC>);
 }
 
+/// A simple, synchronized agent/environement interface.
 pub struct BaseRunner<B: Backend, E: Environment, A: Agent<B, E>> {
     env: E,
     agent: A,
@@ -60,6 +99,7 @@ pub struct BaseRunner<B: Backend, E: Environment, A: Agent<B, E>> {
 }
 
 impl<B: Backend, E: Environment, A: Agent<B, E>> BaseRunner<B, E, A> {
+    /// Create a new base runner.
     pub fn new(agent: A) -> Self {
         Self {
             env: E::new(),
@@ -72,9 +112,7 @@ impl<B: Backend, E: Environment, A: Agent<B, E>> BaseRunner<B, E, A> {
     }
 }
 
-// impl<BT: Backend, OC: OffPolicyLearningComponentsTypes> EnvRunner<BT, OC>
-//     for BaseRunner<TrainingBackend<OC::LC>, OC::Env, OC::LearningAgent>
-impl<BT: Backend, OC: OffPolicyLearningComponentsTypes> EnvRunner<BT, OC>
+impl<BT: Backend, OC: ReinforcementLearningComponentsTypes> EnvRunner<BT, OC>
     for BaseRunner<OC::Backend, OC::Env, OC::LearningAgent>
 {
     fn start(&mut self) {
@@ -85,9 +123,9 @@ impl<BT: Backend, OC: OffPolicyLearningComponentsTypes> EnvRunner<BT, OC>
         &mut self,
         num_steps: usize,
         deterministic: bool,
-        processor: &mut RlEventProcessor<OC>,
-        interrupter: &Interrupter,
-    ) -> Vec<EnvStep<BT, OC::ActionContext>> {
+        _processor: &mut RLEventProcessorType<OC>, // TODO:
+        _interrupter: &Interrupter,
+    ) -> Vec<TimeStep<BT, OC::ActionContext>> {
         let mut items = vec![];
         let device = Default::default();
         for _ in 0..num_steps {
@@ -111,7 +149,7 @@ impl<BT: Backend, OC: OffPolicyLearningComponentsTypes> EnvRunner<BT, OC>
                     &device,
                 ),
             );
-            items.push(EnvStep {
+            items.push(TimeStep {
                 env_id: 0,
                 transition,
                 done: step_result.done,
@@ -140,13 +178,14 @@ impl<BT: Backend, OC: OffPolicyLearningComponentsTypes> EnvRunner<BT, OC>
 
     fn run_episodes(
         &mut self,
-        num_episodes: usize,
-        deterministic: bool,
-        processor: &mut RlEventProcessor<OC>,
-        interrupter: &Interrupter,
-        global_iteration: usize,
-        total_global_iteration: usize,
-    ) -> Vec<EpisodeTrajectory<BT, OC::ActionContext>> {
+        _num_episodes: usize,
+        _deterministic: bool,
+        _processor: &mut RLEventProcessorType<OC>,
+        _interrupter: &Interrupter,
+        _global_iteration: usize,
+        _total_global_iteration: usize,
+    ) -> Vec<Trajectory<BT, OC::ActionContext>> {
+        // TODO:
         // let mut items = vec![];
         // for _ in 0..num_episodes {
         //     let mut steps = vec![];

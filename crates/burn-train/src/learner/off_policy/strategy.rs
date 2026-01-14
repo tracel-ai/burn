@@ -2,18 +2,15 @@ use std::sync::Arc;
 
 use crate::{
     EarlyStoppingStrategyRef, Interrupter, LearnerEvent, LearnerSummaryConfig,
-    LearningCheckpointer, LearningResult, OffPolicyLearningComponentsTypes, RlEventProcessor,
-    TrainingBackend,
-    metric::{
-        processor::EventProcessorTraining, rl_processor::RlEventProcessorTrain,
-        store::EventStoreClient,
-    },
+    LearningCheckpointer, LearningResult, ReinforcementLearningComponentsTypes, RLEventProcessorType,
+    RLEvent, TrainingBackend,
+    metric::{processor::EventProcessorTraining, store::EventStoreClient},
 };
 use burn_rl::Agent;
 
 /// Struct to minimise parameters passed to [SupervisedLearningStrategy::train].
 /// These components are used during training.
-pub struct RLComponents<OC: OffPolicyLearningComponentsTypes> {
+pub struct RLComponents<OC: ReinforcementLearningComponentsTypes> {
     /// The total number of epochs
     pub num_epochs: usize,
     /// The epoch number from which to continue the training.
@@ -28,7 +25,7 @@ pub struct RLComponents<OC: OffPolicyLearningComponentsTypes> {
     /// Cloneable reference to an early stopping strategy.
     pub early_stopping: Option<EarlyStoppingStrategyRef>,
     /// An [EventProcessor](ParadigmComponentsTypes::EventProcessor) that processes events happening during training and validation.
-    pub event_processor: RlEventProcessor<OC>,
+    pub event_processor: RLEventProcessorType<OC>,
     /// A reference to an [EventStoreClient](EventStoreClient).
     pub event_store: Arc<EventStoreClient>,
     /// Config for creating a summary of the learning
@@ -36,7 +33,7 @@ pub struct RLComponents<OC: OffPolicyLearningComponentsTypes> {
 }
 
 /// Provides the `fit` function for any learning strategy
-pub trait ReinforcementLearningStrategy<OC: OffPolicyLearningComponentsTypes> {
+pub trait ReinforcementLearningStrategy<OC: ReinforcementLearningComponentsTypes> {
     /// Train the learner's model with this strategy.
     // fn train(
     //     &self,
@@ -65,7 +62,7 @@ pub trait ReinforcementLearningStrategy<OC: OffPolicyLearningComponentsTypes> {
         // Event processor start training
         training_components
             .event_processor
-            .process_train(crate::metric::rl_processor::RlTrainingEvent::Start);
+            .process_train(RLEvent::Start);
 
         // Training loop
         let (model, mut event_processor) =
@@ -80,7 +77,7 @@ pub trait ReinforcementLearningStrategy<OC: OffPolicyLearningComponentsTypes> {
 
         // Signal training end. For the TUI renderer, this handles the exit & return to main screen.
         // event_processor.process_train(LearnerEvent::End(summary));
-        event_processor.process_train(crate::metric::rl_processor::RlTrainingEvent::End(None));
+        event_processor.process_train(RLEvent::End(None));
 
         // let model = model.valid();
         let renderer = event_processor.renderer();
@@ -97,6 +94,6 @@ pub trait ReinforcementLearningStrategy<OC: OffPolicyLearningComponentsTypes> {
     ) -> (
         // <OC::LearningAgent as Agent<TrainingBackend<OC::LC>, OC::Env>>::Policy,
         <OC::LearningAgent as Agent<OC::Backend, OC::Env>>::Policy,
-        RlEventProcessor<OC>,
+        RLEventProcessorType<OC>,
     );
 }

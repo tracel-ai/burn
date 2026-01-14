@@ -10,19 +10,19 @@ use burn_rl::{Agent, AsyncAgent, Environment};
 use burn_rl::{EnvAction, Transition};
 
 use crate::{
-    EnvRunner, EnvStep, EpisodeSummary, EpisodeTrajectory, Interrupter, LearnerItem,
-    OffPolicyLearningComponentsTypes, RlEventProcessor, RlPolicy, RlState,
-    metric::rl_processor::{RlEvaluationEvent, RlEventProcessorTrain},
+    AgentEvaluationEvent, EnvRunner, EpisodeSummary, EventProcessorTraining, Interrupter,
+    LearnerItem, RLEventProcessorType, ReinforcementLearningComponentsTypes, RlPolicy, RlState,
+    TimeStep, Trajectory,
 };
 
 struct StepMessage<B: Backend, C> {
-    step: EnvStep<B, C>,
+    step: TimeStep<B, C>,
     confirmation_sender: Sender<()>,
 }
 
-pub struct AsyncEnvRunner<BT: Backend, OC: OffPolicyLearningComponentsTypes> {
+/// An asynchronous agent/environement interface.
+pub struct AsyncEnvRunner<BT: Backend, OC: ReinforcementLearningComponentsTypes> {
     id: usize,
-    // agent: AsyncAgent<TrainingBackend<OC::LC>, OC::Env, OC::LearningAgent>,
     agent: AsyncAgent<OC::Backend, OC::Env, OC::LearningAgent>,
     deterministic: bool,
     transition_device: Device<BT>,
@@ -30,10 +30,10 @@ pub struct AsyncEnvRunner<BT: Backend, OC: OffPolicyLearningComponentsTypes> {
     transition_sender: Sender<StepMessage<BT, OC::ActionContext>>,
 }
 
-impl<BT: Backend, OC: OffPolicyLearningComponentsTypes> AsyncEnvRunner<BT, OC> {
+impl<BT: Backend, OC: ReinforcementLearningComponentsTypes> AsyncEnvRunner<BT, OC> {
+    /// Create a new asynchronous runner.
     pub fn new(
         id: usize,
-        // agent: AsyncAgent<TrainingBackend<OC::LC>, OC::Env, OC::LearningAgent>,
         agent: AsyncAgent<OC::Backend, OC::Env, OC::LearningAgent>,
         deterministic: bool,
         transition_device: &Device<BT>,
@@ -50,7 +50,7 @@ impl<BT: Backend, OC: OffPolicyLearningComponentsTypes> AsyncEnvRunner<BT, OC> {
     }
 }
 
-impl<BT: Backend, OC: OffPolicyLearningComponentsTypes> EnvRunner<BT, OC>
+impl<BT: Backend, OC: ReinforcementLearningComponentsTypes> EnvRunner<BT, OC>
     for AsyncEnvRunner<BT, OC>
 {
     fn start(&mut self) {
@@ -97,7 +97,7 @@ impl<BT: Backend, OC: OffPolicyLearningComponentsTypes> EnvRunner<BT, OC>
                 );
                 transition_sender
                     .send(StepMessage {
-                        step: EnvStep {
+                        step: TimeStep {
                             env_id: id,
                             transition,
                             done: step_result.done,
@@ -122,9 +122,9 @@ impl<BT: Backend, OC: OffPolicyLearningComponentsTypes> EnvRunner<BT, OC>
         &mut self,
         num_steps: usize,
         _deterministic: bool,
-        processor: &mut RlEventProcessor<OC>,
+        processor: &mut RLEventProcessorType<OC>,
         interrupter: &Interrupter,
-    ) -> Vec<EnvStep<BT, OC::ActionContext>> {
+    ) -> Vec<TimeStep<BT, OC::ActionContext>> {
         let mut items = vec![];
         for _ in 0..num_steps {
             let msg = self
@@ -147,11 +147,11 @@ impl<BT: Backend, OC: OffPolicyLearningComponentsTypes> EnvRunner<BT, OC>
         &mut self,
         num_episodes: usize,
         deterministic: bool,
-        processor: &mut RlEventProcessor<OC>,
+        processor: &mut RLEventProcessorType<OC>,
         interrupter: &Interrupter,
         global_iteration: usize,
         total_global_iteration: usize,
-    ) -> Vec<EpisodeTrajectory<BT, OC::ActionContext>> {
+    ) -> Vec<Trajectory<BT, OC::ActionContext>> {
         let mut items = vec![];
         for episode_num in 0..num_episodes {
             let mut steps = vec![];
@@ -161,7 +161,7 @@ impl<BT: Backend, OC: OffPolicyLearningComponentsTypes> EnvRunner<BT, OC>
                 steps.push(step.clone());
 
                 step_num += 1;
-                processor.process_valid(RlEvaluationEvent::EnvStep(LearnerItem::new(
+                processor.process_valid(AgentEvaluationEvent::TimeStep(LearnerItem::new(
                     step.action_context.clone(),
                     Progress::new(episode_num, num_episodes),
                     global_iteration,
@@ -171,10 +171,10 @@ impl<BT: Backend, OC: OffPolicyLearningComponentsTypes> EnvRunner<BT, OC>
                 )));
 
                 if step.done {
-                    processor.process_valid(RlEvaluationEvent::EpisodeEnd(LearnerItem::new(
+                    processor.process_valid(AgentEvaluationEvent::EpisodeEnd(LearnerItem::new(
                         EpisodeSummary {
                             episode_length: step.ep_len,
-                            total_reward: step.cum_reward,
+                            cum_reward: step.cum_reward,
                         },
                         Progress::new(episode_num, num_episodes),
                         global_iteration,
@@ -185,27 +185,27 @@ impl<BT: Backend, OC: OffPolicyLearningComponentsTypes> EnvRunner<BT, OC>
                     break;
                 }
             }
-            items.push(EpisodeTrajectory { steps });
+            items.push(Trajectory { timesteps: steps });
         }
         items
     }
 }
 
-pub struct AsyncEnvArrayRunner<BT: Backend, OC: OffPolicyLearningComponentsTypes> {
+/// An asynchronous runner for multiple agent/environement interfaces.
+pub struct AsyncEnvArrayRunner<BT: Backend, OC: ReinforcementLearningComponentsTypes> {
     num_envs: usize,
-    // agent: AsyncAgent<TrainingBackend<OC::LC>, OC::Env, OC::LearningAgent>,
     agent: AsyncAgent<OC::Backend, OC::Env, OC::LearningAgent>,
     deterministic: bool,
     device: Device<BT>,
     transition_receiver: Receiver<StepMessage<BT, OC::ActionContext>>,
     transition_sender: Sender<StepMessage<BT, OC::ActionContext>>,
-    current_trajectories: HashMap<usize, Vec<EnvStep<BT, OC::ActionContext>>>,
+    current_trajectories: HashMap<usize, Vec<TimeStep<BT, OC::ActionContext>>>,
 }
 
-impl<BT: Backend, OC: OffPolicyLearningComponentsTypes> AsyncEnvArrayRunner<BT, OC> {
+impl<BT: Backend, OC: ReinforcementLearningComponentsTypes> AsyncEnvArrayRunner<BT, OC> {
+    /// Create a new asynchronous runner for multiple agent/environement interfaces.
     pub fn new(
         num_envs: usize,
-        // agent: AsyncAgent<TrainingBackend<OC::LC>, OC::Env, OC::LearningAgent>,
         agent: AsyncAgent<OC::Backend, OC::Env, OC::LearningAgent>,
         deterministic: bool,
         device: &Device<BT>,
@@ -223,7 +223,7 @@ impl<BT: Backend, OC: OffPolicyLearningComponentsTypes> AsyncEnvArrayRunner<BT, 
     }
 }
 
-impl<BT: Backend, OC: OffPolicyLearningComponentsTypes> EnvRunner<BT, OC>
+impl<BT: Backend, OC: ReinforcementLearningComponentsTypes> EnvRunner<BT, OC>
     for AsyncEnvArrayRunner<BT, OC>
 {
     // TODO: start() shouldn't exist.
@@ -244,9 +244,9 @@ impl<BT: Backend, OC: OffPolicyLearningComponentsTypes> EnvRunner<BT, OC>
         &mut self,
         num_steps: usize,
         _deterministic: bool,
-        processor: &mut RlEventProcessor<OC>,
+        processor: &mut RLEventProcessorType<OC>,
         interrupter: &Interrupter,
-    ) -> Vec<EnvStep<BT, OC::ActionContext>> {
+    ) -> Vec<TimeStep<BT, OC::ActionContext>> {
         let mut items = vec![];
         for _ in 0..num_steps {
             let msg = self
@@ -269,11 +269,11 @@ impl<BT: Backend, OC: OffPolicyLearningComponentsTypes> EnvRunner<BT, OC>
         &mut self,
         num_episodes: usize,
         deterministic: bool,
-        processor: &mut RlEventProcessor<OC>,
+        processor: &mut RLEventProcessorType<OC>,
         interrupter: &Interrupter,
         global_iteration: usize,
         total_global_iteration: usize,
-    ) -> Vec<EpisodeTrajectory<BT, OC::ActionContext>> {
+    ) -> Vec<Trajectory<BT, OC::ActionContext>> {
         let mut items = vec![];
         loop {
             let step = &self.run_steps(1, deterministic, processor, interrupter)[0];
@@ -284,8 +284,8 @@ impl<BT: Backend, OC: OffPolicyLearningComponentsTypes> EnvRunner<BT, OC>
             if step.done
                 && let Some(steps) = self.current_trajectories.get_mut(&step.env_id)
             {
-                items.push(EpisodeTrajectory {
-                    steps: steps.clone(),
+                items.push(Trajectory {
+                    timesteps: steps.clone(),
                 });
                 steps.clear();
             }

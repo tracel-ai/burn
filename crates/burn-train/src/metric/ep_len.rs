@@ -29,8 +29,10 @@ impl Default for EpisodeLengthMetric {
     }
 }
 
+/// The [EpisodeLengthMetric](EpisodeLengthMetric) input type.
+#[derive(new)]
 pub struct EpisodeLengthInput {
-    pub ep_len: f64,
+    ep_len: f64,
 }
 
 impl Metric for EpisodeLengthMetric {

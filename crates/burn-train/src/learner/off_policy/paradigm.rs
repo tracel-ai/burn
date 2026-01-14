@@ -5,17 +5,16 @@ use crate::checkpoint::{
 use crate::learner::EarlyStoppingStrategy;
 use crate::learner::base::Interrupter;
 use crate::logger::{FileMetricLogger, MetricLogger};
-use crate::metric::rl_processor::{
-    FullEventProcessorTrainingRl, RlAsyncProcessorTraining, RlMetricsTraining,
-};
 use crate::metric::store::{Aggregate, Direction, EventStoreClient, LogEventStore, Split};
 use crate::metric::{Adaptor, LossMetric, Metric, Numeric};
 use crate::renderer::{MetricsRenderer, default_renderer};
 use crate::{
-    ApplicationLoggerInstaller, EarlyStoppingStrategyRef, FileApplicationLoggerInstaller, ItemLazy,
-    LearnerOptimizerRecord, LearnerSchedulerRecord, LearnerSummaryConfig, LearningCheckpointer,
-    LearningComponentsTypes, OffPolicyLearningComponentsMarker, OffPolicyLearningComponentsTypes,
-    RLComponents, ReinforcementLearningStrategy, SimpleOffPolicyStrategy, TrainingBackend,
+    ApplicationLoggerInstaller, AsyncProcessorTraining, EarlyStoppingStrategyRef,
+    FileApplicationLoggerInstaller, ItemLazy, LearnerOptimizerRecord, LearnerSchedulerRecord,
+    LearnerSummaryConfig, LearningCheckpointer, LearningComponentsTypes, RLComponents,
+    RLEventProcessor, RLMetrics, ReinforcementLearningComponentsMarker,
+    ReinforcementLearningComponentsTypes, ReinforcementLearningStrategy, SimpleOffPolicyStrategy,
+    TrainingBackend,
 };
 use crate::{EpisodeSummary, LearnerModelRecord};
 use burn_core::record::FileRecorder;
@@ -26,7 +25,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 /// Structure to configure and launch supervised learning trainings.
-pub struct OffPolicyLearning<OC: OffPolicyLearningComponentsTypes> {
+pub struct OffPolicyLearning<OC: ReinforcementLearningComponentsTypes> {
     // Not that complex. Extracting into another type would only make it more confusing.
     #[allow(clippy::type_complexity)]
     // checkpointers: Option<(
@@ -39,7 +38,7 @@ pub struct OffPolicyLearning<OC: OffPolicyLearningComponentsTypes> {
     directory: PathBuf,
     grad_accumulation: Option<usize>,
     renderer: Option<Box<dyn MetricsRenderer + 'static>>,
-    metrics: RlMetricsTraining<OC::TrainingOutput, OC::ActionContext>,
+    metrics: RLMetrics<OC::TrainingOutput, OC::ActionContext>,
     event_store: LogEventStore,
     interrupter: Interrupter,
     tracing_logger: Option<Box<dyn ApplicationLoggerInstaller>>,
@@ -59,7 +58,7 @@ pub struct OffPolicyLearning<OC: OffPolicyLearningComponentsTypes> {
 //         + 'static,
 //     AC: ItemLazy + Clone + Send,
 //     TO: ItemLazy + Clone + Send,
-impl<B, E, A, TO, AC> OffPolicyLearning<OffPolicyLearningComponentsMarker<B, E, A, TO, AC>>
+impl<B, E, A, TO, AC> OffPolicyLearning<ReinforcementLearningComponentsMarker<B, E, A, TO, AC>>
 where
     B: AutodiffBackend,
     E: Environment + 'static,
@@ -81,7 +80,7 @@ where
             // checkpointers: None,
             directory,
             grad_accumulation: None,
-            metrics: RlMetricsTraining::default(),
+            metrics: RLMetrics::default(),
             event_store: LogEventStore::default(),
             renderer: None,
             interrupter: Interrupter::new(),
@@ -107,7 +106,7 @@ where
     }
 }
 
-impl<OC: OffPolicyLearningComponentsTypes + 'static> OffPolicyLearning<OC> {
+impl<OC: ReinforcementLearningComponentsTypes + 'static> OffPolicyLearning<OC> {
     /// Replace the default metric loggers with the provided ones.
     ///
     /// # Arguments
@@ -356,7 +355,7 @@ impl<OC: OffPolicyLearningComponentsTypes + 'static> OffPolicyLearning<OC> {
         }
 
         let event_store = Arc::new(EventStoreClient::new(self.event_store));
-        let event_processor = RlAsyncProcessorTraining::new(FullEventProcessorTrainingRl::new(
+        let event_processor = AsyncProcessorTraining::new(RLEventProcessor::new(
             self.metrics,
             renderer,
             event_store.clone(),
@@ -394,44 +393,44 @@ impl<OC: OffPolicyLearningComponentsTypes + 'static> OffPolicyLearning<OC> {
 }
 
 /// Trait to fake variadic generics for train step metrics.
-pub trait EnvStepMetricRegistration<OC: OffPolicyLearningComponentsTypes>: Sized {
+pub trait EnvStepMetricRegistration<OC: ReinforcementLearningComponentsTypes>: Sized {
     /// Register the metrics.
     fn register(self, builder: OffPolicyLearning<OC>) -> OffPolicyLearning<OC>;
 }
 
 /// Trait to fake variadic generics for train step text metrics.
-pub trait EnvStepTextMetricRegistration<OC: OffPolicyLearningComponentsTypes>: Sized {
+pub trait EnvStepTextMetricRegistration<OC: ReinforcementLearningComponentsTypes>: Sized {
     /// Register the metrics.
     fn register(self, builder: OffPolicyLearning<OC>) -> OffPolicyLearning<OC>;
 }
 
 /// Trait to fake variadic generics for env step metrics.
-pub trait TrainStepMetricRegistration<OC: OffPolicyLearningComponentsTypes>: Sized {
+pub trait TrainStepMetricRegistration<OC: ReinforcementLearningComponentsTypes>: Sized {
     /// Register the metrics.
     fn register(self, builder: OffPolicyLearning<OC>) -> OffPolicyLearning<OC>;
 }
 
 /// Trait to fake variadic generics for env step text metrics.
-pub trait TrainStepTextMetricRegistration<OC: OffPolicyLearningComponentsTypes>: Sized {
+pub trait TrainStepTextMetricRegistration<OC: ReinforcementLearningComponentsTypes>: Sized {
     /// Register the metrics.
     fn register(self, builder: OffPolicyLearning<OC>) -> OffPolicyLearning<OC>;
 }
 
 /// Trait to fake variadic generics for episode metrics.
-pub trait EpisodeMetricRegistration<OC: OffPolicyLearningComponentsTypes>: Sized {
+pub trait EpisodeMetricRegistration<OC: ReinforcementLearningComponentsTypes>: Sized {
     /// Register the metrics.
     fn register(self, builder: OffPolicyLearning<OC>) -> OffPolicyLearning<OC>;
 }
 
 /// Trait to fake variadic generics for episode text metrics.
-pub trait EpisodeTextMetricRegistration<OC: OffPolicyLearningComponentsTypes>: Sized {
+pub trait EpisodeTextMetricRegistration<OC: ReinforcementLearningComponentsTypes>: Sized {
     /// Register the metrics.
     fn register(self, builder: OffPolicyLearning<OC>) -> OffPolicyLearning<OC>;
 }
 
 macro_rules! gen_tuple {
     ($($M:ident),*) => {
-        impl<$($M,)* OC: OffPolicyLearningComponentsTypes + 'static> TrainStepTextMetricRegistration<OC> for ($($M,)*)
+        impl<$($M,)* OC: ReinforcementLearningComponentsTypes + 'static> TrainStepTextMetricRegistration<OC> for ($($M,)*)
         where
             $(<OC::TrainingOutput as ItemLazy>::ItemSync: Adaptor<$M::Input>,)*
             $($M: Metric + 'static,)*
@@ -447,7 +446,7 @@ macro_rules! gen_tuple {
             }
         }
 
-        impl<$($M,)* OC: OffPolicyLearningComponentsTypes + 'static> TrainStepMetricRegistration<OC> for ($($M,)*)
+        impl<$($M,)* OC: ReinforcementLearningComponentsTypes + 'static> TrainStepMetricRegistration<OC> for ($($M,)*)
         where
             $(<OC::TrainingOutput as ItemLazy>::ItemSync: Adaptor<$M::Input>,)*
             $($M: Metric + Numeric + 'static,)*
@@ -463,7 +462,7 @@ macro_rules! gen_tuple {
             }
         }
 
-        impl<$($M,)* OC: OffPolicyLearningComponentsTypes + 'static> EnvStepTextMetricRegistration<OC> for ($($M,)*)
+        impl<$($M,)* OC: ReinforcementLearningComponentsTypes + 'static> EnvStepTextMetricRegistration<OC> for ($($M,)*)
         where
             $(<OC::ActionContext as ItemLazy>::ItemSync: Adaptor<$M::Input>,)*
             $($M: Metric + 'static,)*
@@ -479,7 +478,7 @@ macro_rules! gen_tuple {
             }
         }
 
-        impl<$($M,)* OC: OffPolicyLearningComponentsTypes + 'static> EnvStepMetricRegistration<OC> for ($($M,)*)
+        impl<$($M,)* OC: ReinforcementLearningComponentsTypes + 'static> EnvStepMetricRegistration<OC> for ($($M,)*)
         where
             $(<OC::ActionContext as ItemLazy>::ItemSync: Adaptor<$M::Input>,)*
             $($M: Metric + Numeric + 'static,)*
@@ -495,7 +494,7 @@ macro_rules! gen_tuple {
             }
         }
 
-        impl<$($M,)* OC: OffPolicyLearningComponentsTypes + 'static> EpisodeTextMetricRegistration<OC> for ($($M,)*)
+        impl<$($M,)* OC: ReinforcementLearningComponentsTypes + 'static> EpisodeTextMetricRegistration<OC> for ($($M,)*)
         where
             $(EpisodeSummary: Adaptor<$M::Input> + 'static,)*
             $($M: Metric + 'static,)*
@@ -511,7 +510,7 @@ macro_rules! gen_tuple {
             }
         }
 
-        impl<$($M,)* OC: OffPolicyLearningComponentsTypes + 'static> EpisodeMetricRegistration<OC> for ($($M,)*)
+        impl<$($M,)* OC: ReinforcementLearningComponentsTypes + 'static> EpisodeMetricRegistration<OC> for ($($M,)*)
         where
             $(EpisodeSummary: Adaptor<$M::Input> + 'static,)*
             $($M: Metric + Numeric + 'static,)*

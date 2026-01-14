@@ -2,7 +2,7 @@ use burn_core::data::dataloader::Progress;
 use burn_optim::LearningRate;
 
 use crate::{
-    LearnerSummary,
+    EpisodeSummary, LearnerSummary,
     renderer::{EvaluationName, MetricsRenderer},
 };
 
@@ -16,6 +16,32 @@ pub enum LearnerEvent<T> {
     EndEpoch(usize),
     /// Signal the end of the process (e.g., training end).
     End(Option<LearnerSummary>),
+}
+
+/// Event happening during reinforcement learning.
+pub enum RLEvent<TS, ES> {
+    /// Signal the start of the process (e.g., learning starts).
+    Start,
+    /// Signal an agent's training step.
+    TrainStep(LearnerItem<TS>),
+    /// Signal a timestep of the agent-environement interface.
+    TimeStep(LearnerItem<ES>),
+    /// Signal an episode end.
+    EpisodeEnd(LearnerItem<EpisodeSummary>),
+    /// Signal the end of the process (e.g., learning ends).
+    End(Option<LearnerSummary>),
+}
+
+/// Event happening during evaluation of a renforcement learning's agent.
+pub enum AgentEvaluationEvent<T> {
+    /// Signal the start of the process (e.g., training start)
+    Start,
+    /// Signal a timestep of the agent-environement interface.
+    TimeStep(LearnerItem<T>),
+    /// Signal an episode end.
+    EpisodeEnd(LearnerItem<EpisodeSummary>),
+    /// Signal the end of the process (e.g., training end).
+    End,
 }
 
 /// Event happening during the evaluation process.
@@ -40,16 +66,11 @@ pub trait ItemLazy: Send {
 }
 
 /// Process events happening during training and validation.
-pub trait EventProcessorTraining: Send {
-    /// The training item.
-    type ItemTrain: ItemLazy;
-    /// The validation item.
-    type ItemValid: ItemLazy;
-
+pub trait EventProcessorTraining<TrainEvent, ValidEvent>: Send {
     /// Collect a training event.
-    fn process_train(&mut self, event: LearnerEvent<Self::ItemTrain>);
+    fn process_train(&mut self, event: TrainEvent);
     /// Collect a validation event.
-    fn process_valid(&mut self, event: LearnerEvent<Self::ItemValid>);
+    fn process_valid(&mut self, event: ValidEvent);
     /// Returns the renderer used for training.
     fn renderer(self) -> Box<dyn MetricsRenderer>;
 }

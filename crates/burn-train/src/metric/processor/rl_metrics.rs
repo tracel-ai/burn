@@ -7,7 +7,7 @@ use crate::{
     },
 };
 
-pub(crate) struct RlMetricsTraining<TS: ItemLazy, ES: ItemLazy> {
+pub(crate) struct RLMetrics<TS: ItemLazy, ES: ItemLazy> {
     train_step: Vec<Box<dyn MetricUpdater<TS::ItemSync>>>,
     env_step: Vec<Box<dyn MetricUpdater<ES::ItemSync>>>,
     env_step_valid: Vec<Box<dyn MetricUpdater<ES::ItemSync>>>,
@@ -23,7 +23,7 @@ pub(crate) struct RlMetricsTraining<TS: ItemLazy, ES: ItemLazy> {
     metric_definitions: HashMap<MetricId, MetricDefinition>,
 }
 
-impl<TS: ItemLazy, ES: ItemLazy> Default for RlMetricsTraining<TS, ES> {
+impl<TS: ItemLazy, ES: ItemLazy> Default for RLMetrics<TS, ES> {
     fn default() -> Self {
         Self {
             train_step: Vec::default(),
@@ -41,7 +41,7 @@ impl<TS: ItemLazy, ES: ItemLazy> Default for RlMetricsTraining<TS, ES> {
     }
 }
 
-impl<TS: ItemLazy, ES: ItemLazy> RlMetricsTraining<TS, ES> {
+impl<TS: ItemLazy, ES: ItemLazy> RLMetrics<TS, ES> {
     /// Register a training metric.
     pub(crate) fn register_env_step_metric<Me: Metric + 'static>(&mut self, metric: Me)
     where

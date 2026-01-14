@@ -29,8 +29,10 @@ impl Default for ExplorationRateMetric {
     }
 }
 
+/// The [ExplorationRateMetric](ExplorationRateMetric) input type.
+#[derive(new)]
 pub struct ExplorationRateInput {
-    pub exploration_rate: f64,
+    exploration_rate: f64,
 }
 
 impl Metric for ExplorationRateMetric {

@@ -108,11 +108,10 @@ impl<T: ItemLazy> EventProcessorEvaluation for FullEventProcessorEvaluation<T> {
     }
 }
 
-impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining for FullEventProcessorTraining<T, V> {
-    type ItemTrain = T;
-    type ItemValid = V;
-
-    fn process_train(&mut self, event: LearnerEvent<Self::ItemTrain>) {
+impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEvent<V>>
+    for FullEventProcessorTraining<T, V>
+{
+    fn process_train(&mut self, event: LearnerEvent<T>) {
         match event {
             LearnerEvent::Start => {
                 let definitions = self.metrics.metric_definitions();
@@ -165,7 +164,7 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining for FullEventProcessorTrai
         }
     }
 
-    fn process_valid(&mut self, event: LearnerEvent<Self::ItemValid>) {
+    fn process_valid(&mut self, event: LearnerEvent<V>) {
         match event {
             LearnerEvent::Start => {} // no-op for now
             LearnerEvent::ProcessedItem(item) => {
@@ -206,7 +205,7 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining for FullEventProcessorTrai
             LearnerEvent::End(_) => {} // no-op for now
         }
     }
-    fn renderer(self) -> Box<dyn crate::renderer::MetricsRenderer> {
+    fn renderer(self) -> Box<dyn MetricsRenderer> {
         self.renderer
     }
 }
