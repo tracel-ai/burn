@@ -1,30 +1,25 @@
-use crate::metric::{MetricAdaptor, EpisodeLengthInput, EpisodeLengthMetric, processor::ItemLazy};
+use crate::{
+    ItemLazy,
+    metric::{Adaptor, EpisodeLengthInput},
+};
 
-/// Simple classification output adapted for multiple metrics.
-#[derive(new)]
-pub struct EpisodeOuput {
-    /// The loss.
-    pub run_num: usize,
-
-    /// The output.
-    pub reward: f64,
-
-    /// The targets.
-    pub episode_len: usize,
+pub struct EpisodeSummary {
+    pub episode_length: usize,
+    pub total_reward: f64,
 }
 
-impl ItemLazy for EpisodeOuput {
-    type ItemSync = EpisodeOuput;
+impl ItemLazy for EpisodeSummary {
+    type ItemSync = EpisodeSummary;
 
     fn sync(self) -> Self::ItemSync {
         self
     }
 }
 
-impl MetricAdaptor<EpisodeLengthMetric> for EpisodeOuput {
+impl Adaptor<EpisodeLengthInput> for EpisodeSummary {
     fn adapt(&self) -> EpisodeLengthInput {
         EpisodeLengthInput {
-            ep_len: self.episode_len as f64,
+            ep_len: self.episode_length as f64,
         }
     }
 }

@@ -5,18 +5,17 @@ use crate::checkpoint::{
 use crate::learner::EarlyStoppingStrategy;
 use crate::learner::base::Interrupter;
 use crate::logger::{FileMetricLogger, MetricLogger};
-use crate::metric::processor::{
-    AsyncProcessorTraining, FullEventProcessorTraining, ItemLazy, MetricsTraining,
+use crate::metric::rl_processor::{
+    FullEventProcessorTrainingRl, RlAsyncProcessorTraining, RlMetricsTraining,
 };
 use crate::metric::store::{Aggregate, Direction, EventStoreClient, LogEventStore, Split};
-use crate::metric::{LossMetric, Metric, MetricAdaptor, Numeric};
+use crate::metric::{Adaptor, LossMetric, Metric, Numeric};
 use crate::renderer::{MetricsRenderer, default_renderer};
 use crate::{
-    ApplicationLoggerInstaller, EarlyStoppingStrategyRef, FileApplicationLoggerInstaller,
+    ApplicationLoggerInstaller, EarlyStoppingStrategyRef, FileApplicationLoggerInstaller, ItemLazy,
     LearnerOptimizerRecord, LearnerSchedulerRecord, LearnerSummaryConfig, LearningCheckpointer,
     LearningComponentsTypes, OffPolicyLearningComponentsMarker, OffPolicyLearningComponentsTypes,
-    RLComponents, ReinforcementLearningStrategy, RlItemTypesInference, SimpleOffPolicyStrategy,
-    TrainingBackend,
+    RLComponents, ReinforcementLearningStrategy, SimpleOffPolicyStrategy, TrainingBackend,
 };
 use crate::{EpisodeSummary, LearnerModelRecord};
 use burn_core::record::FileRecorder;
@@ -40,10 +39,7 @@ pub struct OffPolicyLearning<OC: OffPolicyLearningComponentsTypes> {
     directory: PathBuf,
     grad_accumulation: Option<usize>,
     renderer: Option<Box<dyn MetricsRenderer + 'static>>,
-    metrics: MetricsTraining<
-        RlItemTypesTrain<OC::ActionContext, EpisodeSummary, OC::TrainingOutput>,
-        RlItemTypesInference<OC::ActionContext>,
-    >,
+    metrics: RlMetricsTraining<OC::TrainingOutput, OC::ActionContext>,
     event_store: LogEventStore,
     interrupter: Interrupter,
     tracing_logger: Option<Box<dyn ApplicationLoggerInstaller>>,
@@ -85,7 +81,7 @@ where
             // checkpointers: None,
             directory,
             grad_accumulation: None,
-            metrics: MetricsTraining::default(),
+            metrics: RlMetricsTraining::default(),
             event_store: LogEventStore::default(),
             renderer: None,
             interrupter: Interrupter::new(),
@@ -148,31 +144,102 @@ impl<OC: OffPolicyLearningComponentsTypes + 'static> OffPolicyLearning<OC> {
     }
 
     /// Register all metrics as numeric for the training and validation set.
-    pub fn metrics<Me: MetricRegistration<OC>>(self, metrics: Me) -> Self {
+    pub fn train_step_metrics<Me: TrainStepMetricRegistration<OC>>(self, metrics: Me) -> Self {
         metrics.register(self)
     }
 
     /// Register all metrics as numeric for the training and validation set.
-    pub fn metrics_text<Me: TextMetricRegistration<OC>>(self, metrics: Me) -> Self {
+    pub fn train_step_metrics_text<Me: TrainStepTextMetricRegistration<OC>>(
+        self,
+        metrics: Me,
+    ) -> Self {
         metrics.register(self)
     }
 
-    /// Register a training metric.
-    pub fn metric_train<Me: Metric + 'static>(mut self, metric: Me) -> Self
+    /// Register all metrics as numeric for the training and validation set.
+    pub fn env_step_metrics<Me: EnvStepMetricRegistration<OC>>(self, metrics: Me) -> Self {
+        metrics.register(self)
+    }
+
+    /// Register all metrics as numeric for the training and validation set.
+    pub fn env_step_metrics_text<Me: EnvStepTextMetricRegistration<OC>>(self, metrics: Me) -> Self {
+        metrics.register(self)
+    }
+
+    /// Register all metrics as numeric for the training and validation set.
+    pub fn episode_metrics<Me: EpisodeMetricRegistration<OC>>(self, metrics: Me) -> Self {
+        metrics.register(self)
+    }
+
+    /// Register all metrics as numeric for the training and validation set.
+    pub fn episode_metrics_text<Me: EpisodeTextMetricRegistration<OC>>(self, metrics: Me) -> Self {
+        metrics.register(self)
+    }
+
+    /// Register a metric for a step of training.
+    pub fn train_step_metric<Me: Metric + 'static>(mut self, metric: Me) -> Self
     where
-        <RlItemTypesTrain<OC::ActionContext, EpisodeSummary, OC::TrainingOutput> as ItemLazy>::ItemSync:
-            MetricAdaptor<Me>,
+        <OC::TrainingOutput as ItemLazy>::ItemSync: Adaptor<Me::Input>,
     {
-        self.metrics.register_train_metric(metric);
+        self.metrics.register_train_step_metric(metric);
         self
     }
 
-    /// Register a validation metric.
-    pub fn metric_valid<Me: Metric + 'static>(mut self, metric: Me) -> Self
+    /// Register a [numeric](crate::metric::Numeric) [metric](Metric) for a step of training.
+    pub fn train_step_metric_numeric<Me>(mut self, metric: Me) -> Self
     where
-        <RlItemTypesInference<OC::ActionContext> as ItemLazy>::ItemSync: MetricAdaptor<Me>,
+        Me: Metric + Numeric + 'static,
+        <OC::TrainingOutput as ItemLazy>::ItemSync: Adaptor<Me::Input>,
     {
-        self.metrics.register_valid_metric(metric);
+        self.summary_metrics.insert(metric.name().to_string());
+        self.metrics.register_train_step_metric_numeric(metric);
+        self
+    }
+
+    /// Register a metric for a step of the environment runner.
+    pub fn env_step_metric<Me: Metric + 'static>(mut self, metric: Me) -> Self
+    where
+        <OC::ActionContext as ItemLazy>::ItemSync: Adaptor<Me::Input>,
+    {
+        self.metrics.register_env_step_metric(metric.clone());
+        self.metrics.register_env_step_valid_metric(metric);
+        self
+    }
+
+    /// Register a [numeric](crate::metric::Numeric) [metric](Metric) for a step of the environment runner.
+    pub fn env_step_metric_numeric<Me>(mut self, metric: Me) -> Self
+    where
+        Me: Metric + Numeric + 'static,
+        <OC::ActionContext as ItemLazy>::ItemSync: Adaptor<Me::Input>,
+    {
+        self.summary_metrics.insert(metric.name().to_string());
+        self.metrics
+            .register_env_step_metric_numeric(metric.clone());
+        self.metrics.register_env_step_valid_metric_numeric(metric);
+        self
+    }
+
+    /// Register a metric for the end of an episode.
+    pub fn episode_metric<Me: Metric + 'static>(mut self, metric: Me) -> Self
+    where
+        EpisodeSummary: Adaptor<Me::Input> + 'static,
+    {
+        self.metrics.register_episode_end_metric(metric.clone());
+        self.metrics.register_episode_end_valid_metric(metric);
+        self
+    }
+
+    /// Register a [numeric](crate::metric::Numeric) [metric](Metric) for a step of the environment runner.
+    pub fn episode_metric_numeric<Me>(mut self, metric: Me) -> Self
+    where
+        Me: Metric + Numeric + 'static,
+        EpisodeSummary: Adaptor<Me::Input> + 'static,
+    {
+        self.summary_metrics.insert(metric.name().to_string());
+        self.metrics
+            .register_episode_end_metric_numeric(metric.clone());
+        self.metrics
+            .register_episode_end_valid_metric_numeric(metric);
         self
     }
 
@@ -188,28 +255,6 @@ impl<OC: OffPolicyLearningComponentsTypes + 'static> OffPolicyLearning<OC> {
     /// amount.
     pub fn grads_accumulation(mut self, accumulation: usize) -> Self {
         self.grad_accumulation = Some(accumulation);
-        self
-    }
-
-    /// Register a [numeric](crate::metric::Numeric) training [metric](Metric).
-    pub fn metric_train_numeric<Me>(mut self, metric: Me) -> Self
-    where
-        Me: Metric + Numeric + 'static,
-        <RlItemTypesTrain<OC::ActionContext, EpisodeSummary, OC::TrainingOutput> as ItemLazy>::ItemSync:
-            MetricAdaptor<Me>,
-    {
-        self.summary_metrics.insert(metric.name().to_string());
-        self.metrics.register_train_metric_numeric(metric);
-        self
-    }
-
-    /// Register a [numeric](crate::metric::Numeric) validation [metric](Metric).
-    pub fn metric_valid_numeric<Me: Metric + Numeric + 'static>(mut self, metric: Me) -> Self
-    where
-        <RlItemTypesInference<OC::ActionContext> as ItemLazy>::ItemSync: MetricAdaptor<Me>,
-    {
-        self.summary_metrics.insert(metric.name().to_string());
-        self.metrics.register_valid_metric_numeric(metric);
         self
     }
 
@@ -311,7 +356,7 @@ impl<OC: OffPolicyLearningComponentsTypes + 'static> OffPolicyLearning<OC> {
         }
 
         let event_store = Arc::new(EventStoreClient::new(self.event_store));
-        let event_processor = AsyncProcessorTraining::new(FullEventProcessorTraining::new(
+        let event_processor = RlAsyncProcessorTraining::new(FullEventProcessorTrainingRl::new(
             self.metrics,
             renderer,
             event_store.clone(),
@@ -348,25 +393,47 @@ impl<OC: OffPolicyLearningComponentsTypes + 'static> OffPolicyLearning<OC> {
     }
 }
 
-/// Trait to fake variadic generics.
-pub trait MetricRegistration<OC: OffPolicyLearningComponentsTypes>: Sized {
+/// Trait to fake variadic generics for train step metrics.
+pub trait EnvStepMetricRegistration<OC: OffPolicyLearningComponentsTypes>: Sized {
     /// Register the metrics.
     fn register(self, builder: OffPolicyLearning<OC>) -> OffPolicyLearning<OC>;
 }
 
-/// Trait to fake variadic generics.
-pub trait TextMetricRegistration<OC: OffPolicyLearningComponentsTypes>: Sized {
+/// Trait to fake variadic generics for train step text metrics.
+pub trait EnvStepTextMetricRegistration<OC: OffPolicyLearningComponentsTypes>: Sized {
+    /// Register the metrics.
+    fn register(self, builder: OffPolicyLearning<OC>) -> OffPolicyLearning<OC>;
+}
+
+/// Trait to fake variadic generics for env step metrics.
+pub trait TrainStepMetricRegistration<OC: OffPolicyLearningComponentsTypes>: Sized {
+    /// Register the metrics.
+    fn register(self, builder: OffPolicyLearning<OC>) -> OffPolicyLearning<OC>;
+}
+
+/// Trait to fake variadic generics for env step text metrics.
+pub trait TrainStepTextMetricRegistration<OC: OffPolicyLearningComponentsTypes>: Sized {
+    /// Register the metrics.
+    fn register(self, builder: OffPolicyLearning<OC>) -> OffPolicyLearning<OC>;
+}
+
+/// Trait to fake variadic generics for episode metrics.
+pub trait EpisodeMetricRegistration<OC: OffPolicyLearningComponentsTypes>: Sized {
+    /// Register the metrics.
+    fn register(self, builder: OffPolicyLearning<OC>) -> OffPolicyLearning<OC>;
+}
+
+/// Trait to fake variadic generics for episode text metrics.
+pub trait EpisodeTextMetricRegistration<OC: OffPolicyLearningComponentsTypes>: Sized {
     /// Register the metrics.
     fn register(self, builder: OffPolicyLearning<OC>) -> OffPolicyLearning<OC>;
 }
 
 macro_rules! gen_tuple {
     ($($M:ident),*) => {
-        impl<$($M,)* OC: OffPolicyLearningComponentsTypes + 'static> TextMetricRegistration<OC> for ($($M,)*)
+        impl<$($M,)* OC: OffPolicyLearningComponentsTypes + 'static> TrainStepTextMetricRegistration<OC> for ($($M,)*)
         where
-            // TODO: Type alias for this.
-            $(<RlItemTypesTrain<OC::ActionContext, EpisodeSummary, OC::TrainingOutput> as ItemLazy>::ItemSync: MetricAdaptor<$M>,)*
-            $(<RlItemTypesInference<OC::ActionContext> as ItemLazy>::ItemSync: MetricAdaptor<$M>,)*
+            $(<OC::TrainingOutput as ItemLazy>::ItemSync: Adaptor<$M::Input>,)*
             $($M: Metric + 'static,)*
         {
             #[allow(non_snake_case)]
@@ -375,16 +442,14 @@ macro_rules! gen_tuple {
                 builder: OffPolicyLearning<OC>,
             ) -> OffPolicyLearning<OC> {
                 let ($($M,)*) = self;
-                $(let builder = builder.metric_train($M.clone());)*
-                $(let builder = builder.metric_valid($M);)*
+                $(let builder = builder.train_step_metric($M.clone());)*
                 builder
             }
         }
 
-        impl<$($M,)* OC: OffPolicyLearningComponentsTypes + 'static> MetricRegistration<OC> for ($($M,)*)
+        impl<$($M,)* OC: OffPolicyLearningComponentsTypes + 'static> TrainStepMetricRegistration<OC> for ($($M,)*)
         where
-            $(<RlItemTypesTrain<OC::ActionContext, EpisodeSummary, OC::TrainingOutput> as ItemLazy>::ItemSync: MetricAdaptor<$M>,)*
-            $(<RlItemTypesInference<OC::ActionContext> as ItemLazy>::ItemSync: MetricAdaptor<$M>,)*
+            $(<OC::TrainingOutput as ItemLazy>::ItemSync: Adaptor<$M::Input>,)*
             $($M: Metric + Numeric + 'static,)*
         {
             #[allow(non_snake_case)]
@@ -393,8 +458,71 @@ macro_rules! gen_tuple {
                 builder: OffPolicyLearning<OC>,
             ) -> OffPolicyLearning<OC> {
                 let ($($M,)*) = self;
-                $(let builder = builder.metric_train_numeric($M.clone());)*
-                $(let builder = builder.metric_valid_numeric($M);)*
+                $(let builder = builder.train_step_metric_numeric($M.clone());)*
+                builder
+            }
+        }
+
+        impl<$($M,)* OC: OffPolicyLearningComponentsTypes + 'static> EnvStepTextMetricRegistration<OC> for ($($M,)*)
+        where
+            $(<OC::ActionContext as ItemLazy>::ItemSync: Adaptor<$M::Input>,)*
+            $($M: Metric + 'static,)*
+        {
+            #[allow(non_snake_case)]
+            fn register(
+                self,
+                builder: OffPolicyLearning<OC>,
+            ) -> OffPolicyLearning<OC> {
+                let ($($M,)*) = self;
+                $(let builder = builder.env_step_metric($M.clone());)*
+                builder
+            }
+        }
+
+        impl<$($M,)* OC: OffPolicyLearningComponentsTypes + 'static> EnvStepMetricRegistration<OC> for ($($M,)*)
+        where
+            $(<OC::ActionContext as ItemLazy>::ItemSync: Adaptor<$M::Input>,)*
+            $($M: Metric + Numeric + 'static,)*
+        {
+            #[allow(non_snake_case)]
+            fn register(
+                self,
+                builder: OffPolicyLearning<OC>,
+            ) -> OffPolicyLearning<OC> {
+                let ($($M,)*) = self;
+                $(let builder = builder.env_step_metric_numeric($M.clone());)*
+                builder
+            }
+        }
+
+        impl<$($M,)* OC: OffPolicyLearningComponentsTypes + 'static> EpisodeTextMetricRegistration<OC> for ($($M,)*)
+        where
+            $(EpisodeSummary: Adaptor<$M::Input> + 'static,)*
+            $($M: Metric + 'static,)*
+        {
+            #[allow(non_snake_case)]
+            fn register(
+                self,
+                builder: OffPolicyLearning<OC>,
+            ) -> OffPolicyLearning<OC> {
+                let ($($M,)*) = self;
+                $(let builder = builder.episode_metric($M.clone());)*
+                builder
+            }
+        }
+
+        impl<$($M,)* OC: OffPolicyLearningComponentsTypes + 'static> EpisodeMetricRegistration<OC> for ($($M,)*)
+        where
+            $(EpisodeSummary: Adaptor<$M::Input> + 'static,)*
+            $($M: Metric + Numeric + 'static,)*
+        {
+            #[allow(non_snake_case)]
+            fn register(
+                self,
+                builder: OffPolicyLearning<OC>,
+            ) -> OffPolicyLearning<OC> {
+                let ($($M,)*) = self;
+                $(let builder = builder.episode_metric_numeric($M.clone());)*
                 builder
             }
         }

@@ -10,9 +10,9 @@ use burn_rl::{Agent, AsyncAgent, Environment};
 use burn_rl::{EnvAction, Transition};
 
 use crate::{
-    EnvRunner, EnvStep, EpisodeSummary, EpisodeTrajectory, EventProcessorTraining, Interrupter,
-    LearnerItem, OffPolicyLearningComponentsTypes, RlEventProcessor, RlItemTypesInference,
-    RlPolicy, RlState,
+    EnvRunner, EnvStep, EpisodeSummary, EpisodeTrajectory, Interrupter, LearnerItem,
+    OffPolicyLearningComponentsTypes, RlEventProcessor, RlPolicy, RlState,
+    metric::rl_processor::{RlEvaluationEvent, RlEventProcessorTrain},
 };
 
 struct StepMessage<B: Backend, C> {
@@ -61,7 +61,6 @@ impl<BT: Backend, OC: OffPolicyLearningComponentsTypes> EnvRunner<BT, OC>
         let device = self.transition_device.clone();
 
         let mut current_reward = 0.0;
-        let mut run_num = 0;
         let mut step_num = 0;
 
         // TODO : When running full episodes, dont block at every step, just block after episode ends (start blocking at 2nd episode end).
@@ -112,13 +111,8 @@ impl<BT: Backend, OC: OffPolicyLearningComponentsTypes> EnvRunner<BT, OC>
 
                 if step_result.done || step_result.truncated {
                     env.reset();
-                    // println!(
-                    //     "Env ID : {}      Run : {}      Ep. len. : {}      Reward : {}",
-                    //     id, run_num, step_num, current_reward
-                    // );
                     current_reward = 0.;
                     step_num = 0;
-                    run_num += 1;
                 }
             }
         });
@@ -167,8 +161,8 @@ impl<BT: Backend, OC: OffPolicyLearningComponentsTypes> EnvRunner<BT, OC>
                 steps.push(step.clone());
 
                 step_num += 1;
-                processor.process_valid(crate::LearnerEvent::ProcessedItem(LearnerItem::new(
-                    RlItemTypesInference::Step(step.action_context.clone()),
+                processor.process_valid(RlEvaluationEvent::EnvStep(LearnerItem::new(
+                    step.action_context.clone(),
                     Progress::new(episode_num, num_episodes),
                     global_iteration,
                     total_global_iteration,
@@ -177,11 +171,11 @@ impl<BT: Backend, OC: OffPolicyLearningComponentsTypes> EnvRunner<BT, OC>
                 )));
 
                 if step.done {
-                    processor.process_valid(crate::LearnerEvent::ProcessedItem(LearnerItem::new(
-                        RlItemTypesInference::EpisodeSummary(EpisodeSummary {
+                    processor.process_valid(RlEvaluationEvent::EpisodeEnd(LearnerItem::new(
+                        EpisodeSummary {
                             episode_length: step.ep_len,
                             total_reward: step.cum_reward,
-                        }),
+                        },
                         Progress::new(episode_num, num_episodes),
                         global_iteration,
                         total_global_iteration,

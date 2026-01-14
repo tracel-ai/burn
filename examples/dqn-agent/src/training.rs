@@ -5,8 +5,7 @@ use burn::{
     train::{
         MetricEarlyStoppingStrategy, OffPolicyLearning, StoppingCondition,
         metric::{
-            AccuracyMetric, EpisodeLengthMetric, ExplorationRateInput, ExplorationRateMetric,
-            LossMetric,
+            EpisodeLengthMetric, ExplorationRateMetric, LossMetric,
             store::{Aggregate, Direction, Split},
         },
     },
@@ -53,13 +52,9 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         &device,
     );
     let learner = OffPolicyLearning::new(ARTIFACT_DIR)
-        .metrics((
-            EpisodeLengthMetric::new(),
-            ExplorationRateMetric::new(),
-            AccuracyMetric::new(),
-        ))
-        .metric_train_numeric(LossMetric::new())
-        // .metric_train_numeric(LearningRateMetric::new())
+        .train_step_metrics((LossMetric::new(),))
+        .env_step_metrics((ExplorationRateMetric::new(),))
+        .episode_metrics((EpisodeLengthMetric::new(),))
         // .with_file_checkpointer(CompactRecorder::new())
         .early_stopping(MetricEarlyStoppingStrategy::new(
             &EpisodeLengthMetric::new(),
@@ -71,5 +66,5 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         .num_episodes(5000)
         .summary();
 
-    let policy = learner.launch(agent);
+    let _policy = learner.launch(agent);
 }

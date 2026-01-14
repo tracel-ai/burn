@@ -4,7 +4,7 @@ use burn::optim::SimpleOptimizer;
 use burn::optim::adaptor::OptimizerAdaptor;
 use burn::tensor::{Device, Transaction, s};
 use burn::train::ItemLazy;
-use burn::train::metric::{ExplorationRateInput, LossInput, MetricAdaptor};
+use burn::train::metric::{Adaptor, ExplorationRateInput, LossInput};
 use burn::{
     Tensor,
     config::Config,
@@ -18,7 +18,6 @@ use burn_rl::{
     ActionContext, Agent, EnvAction, EnvState, Environment, LearnerAgent, RLTrainOutput,
     Transition, TransitionBatch, TransitionBuffer,
 };
-use std::io::Error;
 use std::marker::PhantomData;
 
 use crate::utils::{EpsilonGreedyPolicy, create_lin_layers, soft_update_linear};
@@ -189,11 +188,11 @@ impl ItemLazy for EpsilonGreedyPolicyOutput {
     }
 }
 
-impl MetricAdaptor<ExplorationRateInput> for EpsilonGreedyPolicyOutput {
-    fn adapt(&self) -> Result<ExplorationRateInput, Error> {
-        Ok(ExplorationRateInput {
+impl Adaptor<ExplorationRateInput> for EpsilonGreedyPolicyOutput {
+    fn adapt(&self) -> ExplorationRateInput {
+        ExplorationRateInput {
             exploration_rate: self.epsilon,
-        })
+        }
     }
 }
 
@@ -359,9 +358,9 @@ impl<B: Backend> ItemLazy for SimpleTrainOutput<B> {
     }
 }
 
-impl<B: Backend> MetricAdaptor<LossInput<B>> for SimpleTrainOutput<B> {
-    fn adapt(&self) -> Result<LossInput<B>, Error> {
-        Ok(LossInput::new(self.policy_model_loss.clone()))
+impl<B: Backend> Adaptor<LossInput<B>> for SimpleTrainOutput<B> {
+    fn adapt(&self) -> LossInput<B> {
+        LossInput::new(self.policy_model_loss.clone())
     }
 }
 

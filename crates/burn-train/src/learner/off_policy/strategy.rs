@@ -4,7 +4,10 @@ use crate::{
     EarlyStoppingStrategyRef, Interrupter, LearnerEvent, LearnerSummaryConfig,
     LearningCheckpointer, LearningResult, OffPolicyLearningComponentsTypes, RlEventProcessor,
     TrainingBackend,
-    metric::{processor::EventProcessorTraining, store::EventStoreClient},
+    metric::{
+        processor::EventProcessorTraining, rl_processor::RlEventProcessorTrain,
+        store::EventStoreClient,
+    },
 };
 use burn_rl::Agent;
 
@@ -62,7 +65,7 @@ pub trait ReinforcementLearningStrategy<OC: OffPolicyLearningComponentsTypes> {
         // Event processor start training
         training_components
             .event_processor
-            .process_train(LearnerEvent::Start);
+            .process_train(crate::metric::rl_processor::RlTrainingEvent::Start);
 
         // Training loop
         let (model, mut event_processor) =
@@ -77,7 +80,7 @@ pub trait ReinforcementLearningStrategy<OC: OffPolicyLearningComponentsTypes> {
 
         // Signal training end. For the TUI renderer, this handles the exit & return to main screen.
         // event_processor.process_train(LearnerEvent::End(summary));
-        event_processor.process_train(LearnerEvent::End(None));
+        event_processor.process_train(crate::metric::rl_processor::RlTrainingEvent::End(None));
 
         // let model = model.valid();
         let renderer = event_processor.renderer();

@@ -1,7 +1,8 @@
 use crate::{
-    AsyncEnvArrayRunner, AsyncEnvRunner, EnvRunner, EpisodeSummary, EventProcessorTraining,
-    LearnerItem, OffPolicyLearningComponentsTypes, RLComponents, ReinforcementLearningStrategy,
+    AsyncEnvArrayRunner, AsyncEnvRunner, EnvRunner, EpisodeSummary, LearnerItem,
+    OffPolicyLearningComponentsTypes, RLComponents, ReinforcementLearningStrategy,
     RlEventProcessor,
+    metric::rl_processor::{RlEventProcessorTrain, RlTrainingEvent},
 };
 use burn_core::{data::dataloader::Progress, tensor::Device};
 use burn_rl::{Agent, AsyncAgent, LearnerAgent, TransitionBuffer};
@@ -42,8 +43,8 @@ impl<OC: OffPolicyLearningComponentsTypes> ReinforcementLearningStrategy<OC>
             autobatch_size: usize,
         }
         let multi_env_config = MultiEnvConfig {
-            num_envs: 1,
-            autobatch_size: 1,
+            num_envs: 8,
+            autobatch_size: 8,
         };
         // TODO: pq on a besoin du type?
         let mut env_runner = AsyncEnvArrayRunner::<OC::Backend, OC>::new(
@@ -93,31 +94,27 @@ impl<OC: OffPolicyLearningComponentsTypes> ReinforcementLearningStrategy<OC>
                 transition_buffer.push(item.transition.into());
 
                 num_items += 1;
-                event_processor.process_train(crate::LearnerEvent::ProcessedItem(
-                    LearnerItem::new(
-                        RlItemTypesTrain::Step(item.action_context),
+                event_processor.process_train(RlTrainingEvent::EnvStep(LearnerItem::new(
+                    item.action_context,
+                    Progress::new(epoch, training_components.num_epochs),
+                    epoch,
+                    training_components.num_epochs,
+                    num_items,
+                    None,
+                )));
+
+                if item.done {
+                    event_processor.process_train(RlTrainingEvent::EpisodeEnd(LearnerItem::new(
+                        EpisodeSummary {
+                            episode_length: item.ep_len,
+                            total_reward: item.cum_reward,
+                        },
                         Progress::new(epoch, training_components.num_epochs),
                         epoch,
                         training_components.num_epochs,
-                        num_items,
+                        epoch,
                         None,
-                    ),
-                ));
-
-                if item.done {
-                    event_processor.process_train(crate::LearnerEvent::ProcessedItem(
-                        LearnerItem::new(
-                            RlItemTypesTrain::EpisodeSummary(EpisodeSummary {
-                                episode_length: item.ep_len,
-                                total_reward: item.cum_reward,
-                            }),
-                            Progress::new(epoch, training_components.num_epochs),
-                            epoch,
-                            training_components.num_epochs,
-                            epoch,
-                            None,
-                        ),
-                    ));
+                    )));
                 }
             }
 
@@ -132,16 +129,14 @@ impl<OC: OffPolicyLearningComponentsTypes> ReinforcementLearningStrategy<OC>
                 let update = learner_agent.train(&transition_buffer);
                 env_runner.update_policy(update.policy);
 
-                event_processor.process_train(crate::LearnerEvent::ProcessedItem(
-                    LearnerItem::new(
-                        RlItemTypesTrain::TrainStep(update.item),
-                        Progress::new(epoch, training_components.num_epochs),
-                        epoch,
-                        training_components.num_epochs,
-                        epoch,
-                        None,
-                    ),
-                ));
+                event_processor.process_train(RlTrainingEvent::TrainStep(LearnerItem::new(
+                    update.item,
+                    Progress::new(epoch, training_components.num_epochs),
+                    epoch,
+                    training_components.num_epochs,
+                    epoch,
+                    None,
+                )));
             }
 
             // if let Some(checkpointer) = &mut checkpointer {
