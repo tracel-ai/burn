@@ -1,10 +1,10 @@
 use crate::{
     AsyncEnvArrayRunner, AsyncEnvRunner, EnvRunner, EpisodeSummary, EventProcessorTraining,
     LearnerItem, RLComponents, RLEvent, RLEventProcessorType, ReinforcementLearningComponentsTypes,
-    ReinforcementLearningStrategy,
+    ReinforcementLearningStrategy, RlAction, RlState,
 };
 use burn_core::{data::dataloader::Progress, tensor::Device};
-use burn_rl::{Agent, AsyncAgent, LearnerAgent, TransitionBuffer};
+use burn_rl::{AsyncPolicy, LearnerAgent, Policy, TransitionBuffer};
 
 /// Base strategy for off-policy reinforcement learning.
 pub struct SimpleOffPolicyStrategy<OC: ReinforcementLearningComponentsTypes> {
@@ -25,11 +25,7 @@ impl<OC: ReinforcementLearningComponentsTypes> ReinforcementLearningStrategy<OC>
         training_components: RLComponents<OC>,
         learner_agent: &mut OC::LearningAgent,
         starting_epoch: usize,
-    ) -> (
-        // <OC::LearningAgent as Agent<TrainingBackend<OC::LC>, OC::Env>>::Policy,
-        <OC::LearningAgent as Agent<OC::Backend, OC::Env>>::Policy,
-        RLEventProcessorType<OC>,
-    ) {
+    ) -> (OC::Policy, RLEventProcessorType<OC>) {
         let mut event_processor = training_components.event_processor;
         let mut checkpointer = training_components.checkpointer;
         let mut early_stopping = training_components.early_stopping;
@@ -46,26 +42,26 @@ impl<OC: ReinforcementLearningComponentsTypes> ReinforcementLearningStrategy<OC>
         // TODO: pq on a besoin du type?
         let mut env_runner = AsyncEnvArrayRunner::<OC::Backend, OC>::new(
             multi_env_config.num_envs,
-            AsyncAgent::new(multi_env_config.autobatch_size, learner_agent.clone()),
+            AsyncPolicy::new(multi_env_config.autobatch_size, learner_agent.policy()),
             false,
             &self.device,
         );
         env_runner.start();
         let mut env_runner_valid = AsyncEnvRunner::<OC::Backend, OC>::new(
             0,
-            AsyncAgent::new(1, learner_agent.clone()),
+            AsyncPolicy::new(1, learner_agent.policy()),
             true,
             &self.device,
         );
         env_runner_valid.start();
         let mut transition_buffer = TransitionBuffer::<
-            <OC::LearningAgent as LearnerAgent<OC::Backend, OC::Env>>::TrainingInput,
+            <OC::LearningAgent as LearnerAgent<OC::Backend, RlState<OC>, RlAction<OC>>>::TrainingInput,
         >::new(2048);
 
         let num_steps = 8;
         let mut num_items = 0;
         let valid_interval = 100;
-        let valid_episodes = 10;
+        let valid_episodes = 30;
 
         let mut global_valid_iteration = 0;
         for epoch in starting_epoch..training_components.num_epochs + 1 {
@@ -141,7 +137,7 @@ impl<OC: ReinforcementLearningComponentsTypes> ReinforcementLearningStrategy<OC>
             // }
 
             if epoch % valid_interval == 0 {
-                env_runner_valid.update_policy(learner_agent.policy());
+                env_runner_valid.update_policy(learner_agent.policy().state());
                 global_valid_iteration += 1;
                 env_runner_valid.run_episodes(
                     valid_episodes,

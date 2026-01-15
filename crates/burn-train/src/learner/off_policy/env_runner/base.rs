@@ -3,11 +3,14 @@ use std::marker::PhantomData;
 use burn_core::{Tensor, prelude::Backend};
 use burn_rl::EnvAction;
 use burn_rl::EnvState;
+use burn_rl::Environment;
+use burn_rl::Policy;
 use burn_rl::Transition;
-use burn_rl::{Agent, Environment};
 
 use crate::RLEventProcessorType;
+use crate::RlAction;
 use crate::RlPolicy;
+use crate::RlState;
 use crate::{Interrupter, ReinforcementLearningComponentsTypes};
 
 /// A trajectory, i.e. a list of ordered [TimeStep](TimeStep)s.
@@ -85,11 +88,14 @@ pub trait EnvRunner<BT: Backend, OC: ReinforcementLearningComponentsTypes> {
         total_global_iteration: usize,
     ) -> Vec<Trajectory<BT, OC::ActionContext>>;
     /// Update the runner's agent's policy
-    fn update_policy(&mut self, update: RlPolicy<OC>);
+    fn update_policy(
+        &mut self,
+        update: <RlPolicy<OC> as Policy<OC::Backend, RlState<OC>, RlAction<OC>>>::PolicyState,
+    );
 }
 
 /// A simple, synchronized agent/environement interface.
-pub struct BaseRunner<B: Backend, E: Environment, A: Agent<B, E>> {
+pub struct BaseRunner<B: Backend, E: Environment, A: Policy<B, E::State, E::Action>> {
     env: E,
     agent: A,
     current_reward: f64,
@@ -98,7 +104,7 @@ pub struct BaseRunner<B: Backend, E: Environment, A: Agent<B, E>> {
     _backend: PhantomData<B>,
 }
 
-impl<B: Backend, E: Environment, A: Agent<B, E>> BaseRunner<B, E, A> {
+impl<B: Backend, E: Environment, A: Policy<B, E::State, E::Action>> BaseRunner<B, E, A> {
     /// Create a new base runner.
     pub fn new(agent: A) -> Self {
         Self {
@@ -113,7 +119,7 @@ impl<B: Backend, E: Environment, A: Agent<B, E>> BaseRunner<B, E, A> {
 }
 
 impl<BT: Backend, OC: ReinforcementLearningComponentsTypes> EnvRunner<BT, OC>
-    for BaseRunner<OC::Backend, OC::Env, OC::LearningAgent>
+    for BaseRunner<OC::Backend, OC::Env, OC::Policy>
 {
     fn start(&mut self) {
         self.env.reset();
@@ -132,7 +138,7 @@ impl<BT: Backend, OC: ReinforcementLearningComponentsTypes> EnvRunner<BT, OC>
             let state = self.env.state();
             // Assume only 1 action is returned since only 1 state is sent
             // TODO : Should agent also have take_action() for single envs?
-            let action_context = self.agent.take_action(state.clone(), deterministic).clone();
+            let action_context = self.agent.action(&state.clone(), deterministic).clone();
 
             let step_result = self.env.step(action_context.action.clone());
 
@@ -172,8 +178,11 @@ impl<BT: Backend, OC: ReinforcementLearningComponentsTypes> EnvRunner<BT, OC>
         items
     }
 
-    fn update_policy(&mut self, update: RlPolicy<OC>) {
-        self.agent.update_policy(update);
+    fn update_policy(
+        &mut self,
+        update: <RlPolicy<OC> as Policy<OC::Backend, RlState<OC>, RlAction<OC>>>::PolicyState,
+    ) {
+        self.agent.update(update);
     }
 
     fn run_episodes(

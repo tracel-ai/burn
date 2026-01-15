@@ -1,12 +1,10 @@
 use std::sync::Arc;
 
 use crate::{
-    EarlyStoppingStrategyRef, Interrupter, LearnerEvent, LearnerSummaryConfig,
-    LearningCheckpointer, LearningResult, ReinforcementLearningComponentsTypes, RLEventProcessorType,
-    RLEvent, TrainingBackend,
+    EarlyStoppingStrategyRef, Interrupter, LearnerSummaryConfig, LearningResult, RLEvent,
+    RLEventProcessorType, ReinforcementLearningComponentsTypes,
     metric::{processor::EventProcessorTraining, store::EventStoreClient},
 };
-use burn_rl::Agent;
 
 /// Struct to minimise parameters passed to [SupervisedLearningStrategy::train].
 /// These components are used during training.
@@ -44,7 +42,7 @@ pub trait ReinforcementLearningStrategy<OC: ReinforcementLearningComponentsTypes
         &self,
         mut learner_agent: OC::LearningAgent,
         mut training_components: RLComponents<OC>,
-    ) -> LearningResult<<OC::LearningAgent as Agent<OC::Backend, OC::Env>>::Policy> {
+    ) -> LearningResult<OC::Policy> {
         let starting_epoch = 1;
         // let starting_epoch = match training_components.checkpoint {
         //     Some(checkpoint) => {
@@ -93,7 +91,7 @@ pub trait ReinforcementLearningStrategy<OC: ReinforcementLearningComponentsTypes
         starting_epoch: usize,
     ) -> (
         // <OC::LearningAgent as Agent<TrainingBackend<OC::LC>, OC::Env>>::Policy,
-        <OC::LearningAgent as Agent<OC::Backend, OC::Env>>::Policy,
+        OC::Policy,
         RLEventProcessorType<OC>,
     );
 }

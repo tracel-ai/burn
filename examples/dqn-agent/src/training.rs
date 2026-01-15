@@ -3,7 +3,8 @@ use burn::{
     optim::AdamWConfig,
     tensor::backend::AutodiffBackend,
     train::{
-        MetricEarlyStoppingStrategy, OffPolicyLearning, StoppingCondition,
+        MetricEarlyStoppingStrategy, OffPolicyLearning, ReinforcementLearningComponentsMarker,
+        StoppingCondition,
         metric::{
             EpisodeLengthMetric, ExplorationRateMetric, LossMetric,
             store::{Aggregate, Direction, Split},
@@ -14,7 +15,6 @@ use burn::{
 use crate::{
     agent::{DqnAgentConfig, DqnLearningAgent, MlpNet, MlpNetConfig},
     env::CartPoleWrapper,
-    utils::EpsilonGreedyPolicy,
 };
 
 static ARTIFACT_DIR: &str = "/tmp/burn-example-dqn-agent";
@@ -39,32 +39,28 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
     let optimizer = AdamWConfig::new()
         .with_grad_clipping(Some(GradientClippingConfig::Value(10.0)))
         .init();
-    let exploration_policy = EpsilonGreedyPolicy::new(
-        dqn_config.epsilon_start,
-        dqn_config.epsilon_end,
-        dqn_config.epsilon_decay,
-    );
     let agent = DqnLearningAgent::<_, CartPoleWrapper, _, _>::new(
         policy_model,
         optimizer,
         dqn_config,
-        exploration_policy,
         &device,
     );
-    let learner = OffPolicyLearning::new(ARTIFACT_DIR)
-        .train_step_metrics((LossMetric::new(),))
-        .env_step_metrics((ExplorationRateMetric::new(),))
-        .episode_metrics((EpisodeLengthMetric::new(),))
-        // .with_file_checkpointer(CompactRecorder::new())
-        .early_stopping(MetricEarlyStoppingStrategy::new(
-            &EpisodeLengthMetric::new(),
-            Aggregate::Mean,
-            Direction::Highest,
-            Split::Valid,
-            StoppingCondition::NoImprovementSince { n_epochs: 5 },
-        ))
-        .num_episodes(5000)
-        .summary();
+    let learner = OffPolicyLearning::<
+        ReinforcementLearningComponentsMarker<_, CartPoleWrapper, _, _, _>,
+    >::new(ARTIFACT_DIR)
+    .train_step_metrics((LossMetric::new(),))
+    .env_step_metrics((ExplorationRateMetric::new(),))
+    .episode_metrics((EpisodeLengthMetric::new(),))
+    // .with_file_checkpointer(CompactRecorder::new())
+    .early_stopping(MetricEarlyStoppingStrategy::new(
+        &EpisodeLengthMetric::new(),
+        Aggregate::Mean,
+        Direction::Highest,
+        Split::Valid,
+        StoppingCondition::NoImprovementSince { n_epochs: 5 },
+    ))
+    .num_episodes(5000)
+    .summary();
 
     let _policy = learner.launch(agent);
     // /// TODO:

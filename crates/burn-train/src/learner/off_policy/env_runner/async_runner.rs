@@ -5,14 +5,14 @@ use std::{
 };
 
 use burn_core::{Tensor, data::dataloader::Progress, prelude::Backend, tensor::Device};
-use burn_rl::EnvState;
-use burn_rl::{Agent, AsyncAgent, Environment};
+use burn_rl::{AsyncPolicy, Environment};
 use burn_rl::{EnvAction, Transition};
+use burn_rl::{EnvState, LearnerAgent, Policy};
 
 use crate::{
     AgentEvaluationEvent, EnvRunner, EpisodeSummary, EventProcessorTraining, Interrupter,
-    LearnerItem, RLEventProcessorType, ReinforcementLearningComponentsTypes, RlPolicy, RlState,
-    TimeStep, Trajectory,
+    LearnerItem, RLEventProcessorType, ReinforcementLearningComponentsTypes, RlAction, RlPolicy,
+    RlState, TimeStep, Trajectory,
 };
 
 struct StepMessage<B: Backend, C> {
@@ -23,7 +23,7 @@ struct StepMessage<B: Backend, C> {
 /// An asynchronous agent/environement interface.
 pub struct AsyncEnvRunner<BT: Backend, OC: ReinforcementLearningComponentsTypes> {
     id: usize,
-    agent: AsyncAgent<OC::Backend, OC::Env, OC::LearningAgent>,
+    agent: AsyncPolicy<OC::Backend, RlState<OC>, RlAction<OC>, RlPolicy<OC>>,
     deterministic: bool,
     transition_device: Device<BT>,
     transition_receiver: Receiver<StepMessage<BT, OC::ActionContext>>,
@@ -34,7 +34,7 @@ impl<BT: Backend, OC: ReinforcementLearningComponentsTypes> AsyncEnvRunner<BT, O
     /// Create a new asynchronous runner.
     pub fn new(
         id: usize,
-        agent: AsyncAgent<OC::Backend, OC::Env, OC::LearningAgent>,
+        agent: AsyncPolicy<OC::Backend, RlState<OC>, RlAction<OC>, RlPolicy<OC>>,
         deterministic: bool,
         transition_device: &Device<BT>,
     ) -> Self {
@@ -50,8 +50,13 @@ impl<BT: Backend, OC: ReinforcementLearningComponentsTypes> AsyncEnvRunner<BT, O
     }
 }
 
-impl<BT: Backend, OC: ReinforcementLearningComponentsTypes> EnvRunner<BT, OC>
-    for AsyncEnvRunner<BT, OC>
+impl<BT, OC> EnvRunner<BT, OC> for AsyncEnvRunner<BT, OC>
+where
+    BT: Backend,
+    OC: ReinforcementLearningComponentsTypes,
+    OC::Policy: Send + 'static,
+    <OC::Policy as Policy<OC::Backend, RlState<OC>, RlAction<OC>>>::PolicyState: Send,
+    <OC::Policy as Policy<OC::Backend, RlState<OC>, RlAction<OC>>>::ActionContext: Send,
 {
     fn start(&mut self) {
         let id = self.id;
@@ -73,9 +78,8 @@ impl<BT: Backend, OC: ReinforcementLearningComponentsTypes> EnvRunner<BT, OC>
                 .expect("Can send initial confirmation message");
             loop {
                 let state = env.state();
-                let action_context = agent
-                    .batch_take_action(Vec::<RlState<OC>>::from([state.clone()]), deterministic)[0]
-                    .clone();
+                let action_context =
+                    agent.batch_action(Vec::from([&state.clone()]), deterministic)[0].clone();
 
                 let step_result = env.step(action_context.action.clone());
 
@@ -139,8 +143,11 @@ impl<BT: Backend, OC: ReinforcementLearningComponentsTypes> EnvRunner<BT, OC>
         items
     }
 
-    fn update_policy(&mut self, update: RlPolicy<OC>) {
-        self.agent.update_policy(update);
+    fn update_policy(
+        &mut self,
+        update: <RlPolicy<OC> as Policy<OC::Backend, RlState<OC>, RlAction<OC>>>::PolicyState,
+    ) {
+        self.agent.update(update);
     }
 
     fn run_episodes(
@@ -194,7 +201,12 @@ impl<BT: Backend, OC: ReinforcementLearningComponentsTypes> EnvRunner<BT, OC>
 /// An asynchronous runner for multiple agent/environement interfaces.
 pub struct AsyncEnvArrayRunner<BT: Backend, OC: ReinforcementLearningComponentsTypes> {
     num_envs: usize,
-    agent: AsyncAgent<OC::Backend, OC::Env, OC::LearningAgent>,
+    agent: AsyncPolicy<
+        OC::Backend,
+        RlState<OC>,
+        RlAction<OC>,
+        <OC::LearningAgent as LearnerAgent<OC::Backend, RlState<OC>, RlAction<OC>>>::InnerPolicy,
+    >,
     deterministic: bool,
     device: Device<BT>,
     transition_receiver: Receiver<StepMessage<BT, OC::ActionContext>>,
@@ -206,7 +218,7 @@ impl<BT: Backend, OC: ReinforcementLearningComponentsTypes> AsyncEnvArrayRunner<
     /// Create a new asynchronous runner for multiple agent/environement interfaces.
     pub fn new(
         num_envs: usize,
-        agent: AsyncAgent<OC::Backend, OC::Env, OC::LearningAgent>,
+        agent: AsyncPolicy<OC::Backend, RlState<OC>, RlAction<OC>, OC::Policy>,
         deterministic: bool,
         device: &Device<BT>,
     ) -> Self {
@@ -223,8 +235,13 @@ impl<BT: Backend, OC: ReinforcementLearningComponentsTypes> AsyncEnvArrayRunner<
     }
 }
 
-impl<BT: Backend, OC: ReinforcementLearningComponentsTypes> EnvRunner<BT, OC>
-    for AsyncEnvArrayRunner<BT, OC>
+impl<BT, OC> EnvRunner<BT, OC> for AsyncEnvArrayRunner<BT, OC>
+where
+    BT: Backend,
+    OC: ReinforcementLearningComponentsTypes,
+    OC::Policy: Send + 'static,
+    <OC::Policy as Policy<OC::Backend, RlState<OC>, RlAction<OC>>>::PolicyState: Send,
+    <OC::Policy as Policy<OC::Backend, RlState<OC>, RlAction<OC>>>::ActionContext: Send,
 {
     // TODO: start() shouldn't exist.
     fn start(&mut self) {
@@ -261,8 +278,11 @@ impl<BT: Backend, OC: ReinforcementLearningComponentsTypes> EnvRunner<BT, OC>
         items
     }
 
-    fn update_policy(&mut self, update: RlPolicy<OC>) {
-        self.agent.update_policy(update);
+    fn update_policy(
+        &mut self,
+        update: <RlPolicy<OC> as Policy<OC::Backend, RlState<OC>, RlAction<OC>>>::PolicyState,
+    ) {
+        self.agent.update(update);
     }
 
     fn run_episodes(

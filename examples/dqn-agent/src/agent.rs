@@ -2,9 +2,10 @@ use burn::backend::NdArray;
 use burn::module::Module;
 use burn::optim::SimpleOptimizer;
 use burn::optim::adaptor::OptimizerAdaptor;
+use burn::tensor::activation::softmax;
 use burn::tensor::{Device, Transaction, s};
 use burn::train::ItemLazy;
-use burn::train::metric::{Adaptor, ExplorationRateInput, LossInput};
+use burn::train::metric::{Adaptor, LossInput};
 use burn::{
     Tensor,
     config::Config,
@@ -12,15 +13,20 @@ use burn::{
     nn::{self, loss::MseLoss},
     optim::{GradientsParams, Optimizer},
     prelude::Backend,
-    tensor::{Distribution, backend::AutodiffBackend},
+    tensor::backend::AutodiffBackend,
 };
 use burn_rl::{
-    ActionContext, Agent, EnvAction, EnvState, Environment, LearnerAgent, RLTrainOutput,
+    ActionContext, EnvAction, EnvState, Environment, LearnerAgent, Policy, RLTrainOutput,
     Transition, TransitionBatch, TransitionBuffer,
 };
+use rand::distr::Distribution;
+use rand::distr::weighted::WeightedIndex;
+use rand::rng;
 use std::marker::PhantomData;
 
-use crate::utils::{EpsilonGreedyPolicy, create_lin_layers, soft_update_linear};
+use crate::utils::{
+    EpsilonGreedyPolicy, EpsilonGreedyPolicyState, create_lin_layers, soft_update_linear,
+};
 
 #[derive(Clone)]
 pub struct InferenceOutput<B: Backend> {
@@ -158,67 +164,62 @@ impl<B: Backend> DqnModel<B> for MlpNet<B> {
 
 #[derive(Clone)]
 pub struct DqnAgent<B: Backend, E: Environment, M: AgentModel<B> + DqnModel<B>> {
-    policy: M,
-    exploration_policy: EpsilonGreedyPolicy,
+    model: M,
     device: Device<B>,
     _env: PhantomData<E::State>,
 }
 
 impl<B: Backend, E: Environment, M: AgentModel<B> + DqnModel<B>> DqnAgent<B, E, M> {
-    pub fn new(policy: M, exploration_policy: EpsilonGreedyPolicy, device: &Device<B>) -> Self {
+    pub fn new(policy: M, device: &Device<B>) -> Self {
         Self {
-            policy,
-            exploration_policy,
+            model: policy,
             device: device.clone(),
             _env: PhantomData,
         }
     }
 }
 
-#[derive(Clone)]
-pub struct EpsilonGreedyPolicyOutput {
-    pub epsilon: f64,
-}
-
-impl ItemLazy for EpsilonGreedyPolicyOutput {
-    type ItemSync = EpsilonGreedyPolicyOutput;
-
-    fn sync(self) -> Self::ItemSync {
-        self
-    }
-}
-
-impl Adaptor<ExplorationRateInput> for EpsilonGreedyPolicyOutput {
-    fn adapt(&self) -> ExplorationRateInput {
-        ExplorationRateInput::new(self.epsilon)
-    }
-}
-
 // TODO: remove Environment
-impl<B: Backend, E: Environment, M: AgentModel<B> + DqnModel<B> + Clone + Send> Agent<B, E>
-    for DqnAgent<B, E, M>
+impl<B: Backend, E: Environment, M: AgentModel<B> + DqnModel<B> + Clone + Send>
+    Policy<B, E::State, E::Action> for DqnAgent<B, E, M>
 {
-    type Policy = M;
-    type DecisionContext = EpsilonGreedyPolicyOutput;
+    type ActionContext = ();
+    type PolicyState = M;
 
-    fn batch_take_action(
+    fn logits(&mut self, state: &E::State) -> Tensor<B, 1> {
+        self.batch_logits(vec![state]).squeeze()
+    }
+
+    fn action(
         &mut self,
-        states: Vec<E::State>,
+        state: &E::State,
         deterministic: bool,
-    ) -> Vec<ActionContext<E::Action, EpsilonGreedyPolicyOutput>> {
+    ) -> ActionContext<E::Action, Self::ActionContext> {
+        self.batch_action(vec![state], deterministic).remove(0)
+    }
+
+    fn batch_logits(&mut self, states: Vec<&E::State>) -> Tensor<B, 2> {
         let input = states.iter().map(|s| s.to_tensor(&self.device)).collect();
         let input = Tensor::stack(input, 0);
         let InferenceOutput {
             probs: logits,
             values: _,
-        } = self.policy.forward(input);
-        let actions = logits.argmax(1);
+        } = self.model.forward(input);
+        logits
+    }
 
-        if deterministic {
+    fn batch_action(
+        &mut self,
+        states: Vec<&E::State>,
+        deterministc: bool,
+    ) -> Vec<ActionContext<E::Action, Self::ActionContext>> {
+        let logits = self.batch_logits(states);
+        if deterministc {
+            let actions = logits.argmax(1);
             let actions = (0..actions.dims()[0])
                 .map(|i| {
                     ActionContext::new(
-                        EpsilonGreedyPolicyOutput { epsilon: 0.0 },
+                        (),
                         E::Action::from_tensor(actions.clone().float().slice(s![i, ..])),
                     )
                 })
@@ -226,37 +227,32 @@ impl<B: Backend, E: Environment, M: AgentModel<B> + DqnModel<B> + Clone + Send> 
             return actions;
         }
 
-        // Epsilon greedy policy
-        let bs = actions.shape()[0];
-        let distribution = Distribution::Bernoulli(0.5);
-        let device = self.device.clone();
-        let rand_actions = Tensor::random([bs, 1], distribution, &device);
-
-        let threshold = self.exploration_policy.step();
-        let distribution = Distribution::Bernoulli(threshold);
-        let random_indices = Tensor::random([bs, 1], distribution, &device);
-        let inv_mask = random_indices.clone().neg().add_scalar(1);
-        let actions = (actions.clone() * inv_mask.clone() + rand_actions * random_indices).float();
-        (0..actions.dims()[0])
-            .map(|i| {
-                ActionContext::new(
-                    EpsilonGreedyPolicyOutput { epsilon: threshold },
-                    E::Action::from_tensor(actions.clone().slice(s![i, ..])),
-                )
-            })
-            .collect()
+        let mut actions = vec![];
+        let probs = softmax(logits, 1);
+        let mut rng = rng();
+        for i in 0..probs.dims()[0] {
+            let dist = WeightedIndex::new(
+                probs
+                    .clone()
+                    .slice(s![i, ..])
+                    .squeeze::<1>()
+                    .to_data()
+                    .to_vec::<f32>()
+                    .unwrap(),
+            )
+            .unwrap();
+            let action = dist.sample(&mut rng);
+            actions.push(ActionContext::new((), E::Action::from_usize(action)));
+        }
+        return actions;
     }
 
-    fn update_policy(&mut self, update: Self::Policy) {
-        self.policy = update;
+    fn update(&mut self, update: Self::PolicyState) {
+        self.model = update;
     }
 
-    fn take_action(
-        &mut self,
-        state: E::State,
-        deterministic: bool,
-    ) -> ActionContext<E::Action, Self::DecisionContext> {
-        self.batch_take_action(vec![state], deterministic)[0].clone()
+    fn state(&self) -> Self::PolicyState {
+        self.model.clone()
     }
 }
 
@@ -271,7 +267,7 @@ where
 {
     policy_model: M,
     target_model: M,
-    agent: DqnAgent<B::InnerBackend, E, M::InnerModule>,
+    agent: EpsilonGreedyPolicy<B, E::State, E::Action, DqnAgent<B, E, M>>,
     optimizer: OptimizerAdaptor<O, M, B>,
     config: DqnAgentConfig,
 }
@@ -288,10 +284,14 @@ where
         model: M,
         optimizer: OptimizerAdaptor<O, M, B>,
         config: DqnAgentConfig,
-        exploration_policy: EpsilonGreedyPolicy,
-        device: &Device<B::InnerBackend>,
+        device: &Device<B>,
     ) -> Self {
-        let agent = DqnAgent::new(model.valid(), exploration_policy, device);
+        let agent = EpsilonGreedyPolicy::new(
+            DqnAgent::new(model.clone(), device),
+            config.epsilon_start,
+            config.epsilon_end,
+            config.epsilon_decay,
+        );
         Self {
             policy_model: model.clone(),
             target_model: model,
@@ -299,38 +299,6 @@ where
             optimizer: optimizer.into(),
             config,
         }
-    }
-}
-
-impl<B, E, M, O> Agent<B, E> for DqnLearningAgent<B, E, M, O>
-where
-    B: AutodiffBackend,
-    E: Environment,
-    M: AgentModel<B> + AutodiffModule<B> + DqnModel<B> + 'static,
-    M::InnerModule: AgentModel<B::InnerBackend> + DqnModel<B::InnerBackend>,
-    O: SimpleOptimizer<B::InnerBackend> + 'static,
-{
-    type Policy = M;
-    type DecisionContext = EpsilonGreedyPolicyOutput;
-
-    fn batch_take_action(
-        &mut self,
-        states: Vec<E::State>,
-        deterministic: bool,
-    ) -> Vec<ActionContext<E::Action, EpsilonGreedyPolicyOutput>> {
-        self.agent.batch_take_action(states, deterministic)
-    }
-
-    fn update_policy(&mut self, update: Self::Policy) {
-        self.agent.update_policy(update.valid());
-    }
-
-    fn take_action(
-        &mut self,
-        state: <E as Environment>::State,
-        deterministic: bool,
-    ) -> ActionContext<<E as Environment>::Action, Self::DecisionContext> {
-        self.batch_take_action(vec![state], deterministic)[0].clone()
     }
 }
 
@@ -363,7 +331,7 @@ impl<B: Backend> Adaptor<LossInput<B>> for SimpleTrainOutput<B> {
     }
 }
 
-impl<B, E, M, O> LearnerAgent<B, E> for DqnLearningAgent<B, E, M, O>
+impl<B, E, M, O> LearnerAgent<B, E::State, E::Action> for DqnLearningAgent<B, E, M, O>
 where
     B: AutodiffBackend,
     E: Environment,
@@ -373,11 +341,15 @@ where
 {
     type TrainingInput = Transition<B>;
     type TrainingOutput = SimpleTrainOutput<B>;
+    type InnerPolicy = EpsilonGreedyPolicy<B, E::State, E::Action, DqnAgent<B, E, M>>;
 
     fn train(
         &mut self,
         input: &TransitionBuffer<Self::TrainingInput>,
-    ) -> RLTrainOutput<Self::TrainingOutput, Self::Policy> {
+    ) -> RLTrainOutput<
+        Self::TrainingOutput,
+        <Self::InnerPolicy as Policy<B, E::State, E::Action>>::PolicyState,
+    > {
         // TODO: true batch size.
         let batch = input.random_sample(128);
         let batch = TransitionBatch::from(batch);
@@ -423,14 +395,17 @@ where
             .target_model
             .soft_update(&self.policy_model, self.config.tau);
         RLTrainOutput {
-            policy: self.policy(),
+            policy: EpsilonGreedyPolicyState::new(
+                self.policy_model.clone(),
+                self.agent.state().step,
+            ),
             item: SimpleTrainOutput {
                 policy_model_loss: loss,
             },
         }
     }
 
-    fn policy(&self) -> Self::Policy {
-        self.policy_model.clone()
+    fn policy(&self) -> Self::InnerPolicy {
+        self.agent.clone()
     }
 }

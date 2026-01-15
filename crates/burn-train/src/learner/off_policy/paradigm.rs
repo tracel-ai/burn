@@ -19,7 +19,7 @@ use crate::{
 use crate::{EpisodeSummary, LearnerModelRecord};
 use burn_core::record::FileRecorder;
 use burn_core::tensor::backend::AutodiffBackend;
-use burn_rl::{Agent, Environment, LearnerAgent};
+use burn_rl::{Environment, LearnerAgent, Policy};
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -62,9 +62,11 @@ impl<B, E, A, TO, AC> OffPolicyLearning<ReinforcementLearningComponentsMarker<B,
 where
     B: AutodiffBackend,
     E: Environment + 'static,
-    A: LearnerAgent<B, E, TrainingOutput = TO, DecisionContext = AC> + Send + 'static,
-    AC: ItemLazy + Clone + Send + 'static,
+    A: LearnerAgent<B, E::State, E::Action, TrainingOutput = TO> + Send + 'static,
+    A::InnerPolicy: Policy<B, E::State, E::Action, ActionContext = AC> + Send,
+    <A::InnerPolicy as Policy<B, E::State, E::Action>>::PolicyState: Send,
     TO: ItemLazy + Clone + Send,
+    AC: ItemLazy + Clone + Send + 'static,
 {
     /// Creates a new runner for a supervised training.
     ///
@@ -339,7 +341,7 @@ impl<OC: ReinforcementLearningComponentsTypes + 'static> OffPolicyLearning<OC> {
         mut self,
         learner_agent: OC::LearningAgent,
         // ) -> <OC::LearningAgent as Agent<TrainingBackend<OC::LC>, OC::Env>>::Policy {
-    ) -> <OC::LearningAgent as Agent<OC::Backend, OC::Env>>::Policy {
+    ) -> OC::Policy {
         if self.tracing_logger.is_some()
             && let Err(e) = self.tracing_logger.as_ref().unwrap().install()
         {
