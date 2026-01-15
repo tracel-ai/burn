@@ -9,6 +9,8 @@ use crate::{
 };
 use burn_communication::Protocol;
 use burn_tensor::{ElementConversion, backend::Backend};
+
+#[cfg(feature = "tracing")]
 use tracing::Instrument;
 
 /// Perform an all-reduce with no multi-node operations (global ops)
@@ -30,6 +32,7 @@ pub(crate) async fn all_reduce_local_only<B: Backend>(
     };
 
     if op == ReduceOperation::Mean {
+        #[cfg(feature = "tracing")]
         let _span = tracing::info_span!("mean_reduction").entered();
 
         // Apply mean division
@@ -77,16 +80,25 @@ pub(crate) async fn all_reduce_with_global<B: Backend, P: Protocol>(
     };
 
     // Do aggregation on global level with the main tensor
-    main_tensor = async {
-        let global_strategy = config
-            .global_all_reduce_strategy
-            .expect("global_all_reduce_strategy must be set");
+    main_tensor = {
+        let fut = async {
+            let global_strategy = config
+                .global_all_reduce_strategy
+                .expect("global_all_reduce_strategy must be set");
 
-        global_client
-            .all_reduce(main_tensor, global_strategy, op)
-            .await
+            global_client
+                .all_reduce(main_tensor, global_strategy, op)
+                .await
+        };
+        #[cfg(feature = "tracing")]
+        {
+            fut.instrument(tracing::info_span!("global_all_reduce"))
+        }
+        #[cfg(not(feature = "tracing"))]
+        {
+            fut
+        }
     }
-    .instrument(tracing::info_span!("global_all_reduce"))
     .await
     .map_err(CollectiveError::Global)?;
 
