@@ -20,7 +20,7 @@ workspace = true
 
 [features]
 default = ["ndarray", "cubecl-backend", "fusion", "std"]
-std = []
+std = ["aligned-vec/std"]
 tracing = [
     "burn-candle?/tracing",
     "burn-cubecl?/tracing",
@@ -46,6 +46,7 @@ test-vulkan = ["burn-wgpu/vulkan", "test-wgpu"]
 test-metal = ["burn-wgpu/metal", "test-wgpu"]
 
 [dependencies]
+aligned-vec = { version = "0.6", default-features = false }
 bon = { workspace = true }
 burn-candle = { path = "../burn-candle", version = "=0.20.0-pre.6", optional = true }
 burn-cubecl = { path = "../burn-cubecl", version = "=0.20.0-pre.6", optional = true }
