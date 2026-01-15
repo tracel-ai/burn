@@ -165,7 +165,7 @@ functionality.
 | [RotaryEmbedding][200]           | ❌             | ❌           |
 | [Round][147]                     | ✅             | ✅           |
 | [Scan][148]                      | ✅             | ✅           |
-| [Scatter][149]                   | ❌             | ✅           |
+| [Scatter][149]                   | ✅             | ✅           |
 | [ScatterElements][150]           | ❌             | ❌           |
 | [ScatterND][151]                 | ❌             | ❌           |
 | [Selu][152]                      | ❌             | ❌           |

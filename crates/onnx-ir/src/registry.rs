@@ -241,7 +241,7 @@ impl ProcessorRegistry {
         );
         registry.register(
             NodeType::Scatter,
-            Box::new(crate::node::unsupported::UnsupportedProcessor),
+            Box::new(crate::node::scatter::ScatterProcessor),
         );
         registry.register(
             NodeType::ScatterElements,

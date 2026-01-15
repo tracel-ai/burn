@@ -72,7 +72,6 @@ define_placeholder_node! {
     ReverseSequenceNode,
     RoiAlignNode,
     RotaryEmbeddingNode,
-    ScatterNode,
     ScatterElementsNode,
     ScatterNDNode,
     SequenceAtNode,
@@ -140,11 +139,6 @@ impl NodeProcessor for UnsupportedProcessor {
                 outputs: builder.outputs,
             }),
             NodeType::GatherND => Node::GatherND(GatherNDNode {
-                name: builder.name,
-                inputs: builder.inputs,
-                outputs: builder.outputs,
-            }),
-            NodeType::Scatter => Node::Scatter(ScatterNode {
                 name: builder.name,
                 inputs: builder.inputs,
                 outputs: builder.outputs,
