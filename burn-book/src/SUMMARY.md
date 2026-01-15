@@ -39,3 +39,4 @@
   - [Custom Optimizer]()
   - [WebAssembly](./advanced/web-assembly.md)
   - [No-Std](./advanced/no-std.md)
+  - [LoRA Fine-tuning](./advanced/lora.md)
