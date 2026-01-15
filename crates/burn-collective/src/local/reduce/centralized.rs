@@ -1,7 +1,10 @@
 use burn_tensor::backend::Backend;
 
 use crate::PeerId;
-use crate::local::tensor_map::{CollectiveTensorMap, get_common_shape};
+use crate::local::tensor_map::CollectiveTensorMap;
+
+#[cfg(feature = "tracing")]
+use crate::local::tensor_map::get_common_shape;
 
 /// Sums the tensors on one device and returns the result
 #[cfg_attr(feature = "tracing", tracing::instrument(
