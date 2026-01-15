@@ -38,11 +38,11 @@ server = [
 
 
 [dependencies]
-burn-ir = { path = "../burn-ir", version = "=0.20.0-pre.6", default-features = true }
-burn-tensor = { path = "../burn-tensor", version = "=0.20.0-pre.6", default-features = true }
-burn-std = { path = "../burn-std", version = "=0.20.0-pre.6", default-features = true }
-burn-router = { path = "../burn-router", version = "=0.20.0-pre.6", default-features = true }
-burn-communication = { path = "../burn-communication", version = "=0.20.0-pre.6", features = [
+burn-ir = { path = "../burn-ir", version = "=0.20.0", default-features = true }
+burn-tensor = { path = "../burn-tensor", version = "=0.20.0", default-features = true }
+burn-std = { path = "../burn-std", version = "=0.20.0", default-features = true }
+burn-router = { path = "../burn-router", version = "=0.20.0", default-features = true }
+burn-communication = { path = "../burn-communication", version = "=0.20.0", features = [
     "data-service",
     "websocket",
 ] }
@@ -71,7 +71,7 @@ tracing-subscriber = { workspace = true, optional = true }
 tokio-util = { workspace = true }
 
 [dev-dependencies]
-burn-ndarray = { path = "../burn-ndarray", version = "=0.20.0-pre.6" }
+burn-ndarray = { path = "../burn-ndarray", version = "=0.20.0" }
 
 [package.metadata.docs.rs]
 features = ["doc"]

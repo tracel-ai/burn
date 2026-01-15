@@ -60,10 +60,10 @@ export_tests = []
 
 # ** Please make sure all dependencies support no_std when std is disabled **
 
-burn-autodiff = { path = "../burn-autodiff", version = "=0.20.0-pre.6", default-features = false, optional = true }
-burn-std = { path = "../burn-std", version = "=0.20.0-pre.6", default-features = false }
-burn-ir = { path = "../burn-ir", version = "=0.20.0-pre.6", default-features = false }
-burn-backend = { path = "../burn-backend", version = "=0.20.0-pre.6", default-features = false }
+burn-autodiff = { path = "../burn-autodiff", version = "=0.20.0", default-features = false, optional = true }
+burn-std = { path = "../burn-std", version = "=0.20.0", default-features = false }
+burn-ir = { path = "../burn-ir", version = "=0.20.0", default-features = false }
+burn-backend = { path = "../burn-backend", version = "=0.20.0", default-features = false }
 
 atomic_float = { workspace = true }
 blas-src = { workspace = true, default-features = false, optional = true }      # no-std compatible
