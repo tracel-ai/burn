@@ -30,9 +30,9 @@ autotune = ["burn-cubecl/autotune"]
 autotune-checks = ["burn-cubecl/autotune-checks"]
 
 [dependencies]
-burn-fusion = { path = "../burn-fusion", version = "=0.20.0", optional = true }
-burn-cubecl = { path = "../burn-cubecl", version = "=0.20.0", default-features = false }
-burn-backend = { path = "../burn-backend", version = "=0.20.0", features = [
+burn-fusion = { path = "../burn-fusion", version = "=0.21.0", optional = true }
+burn-cubecl = { path = "../burn-cubecl", version = "=0.21.0", default-features = false }
+burn-backend = { path = "../burn-backend", version = "=0.21.0", features = [
     "cubecl-cpu",
 ] }
 cubecl = { workspace = true, features = ["cpu"] }
