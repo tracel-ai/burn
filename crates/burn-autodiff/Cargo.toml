@@ -26,8 +26,8 @@ tracing = [
 ]
 
 [dependencies]
-burn-std = { path = "../burn-std", version = "=0.20.0-pre.6", default-features = false }
-burn-backend = { path = "../burn-backend", version = "=0.20.0-pre.6", default-features = false }
+burn-std = { path = "../burn-std", version = "=0.20.0", default-features = false }
+burn-backend = { path = "../burn-backend", version = "=0.20.0", default-features = false }
 
 
 derive-new = { workspace = true }
