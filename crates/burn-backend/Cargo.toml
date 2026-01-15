@@ -36,7 +36,7 @@ cubecl-wgpu = ["cubecl", "cubecl/wgpu"]
 cubecl-cpu = ["cubecl", "cubecl/cpu"]
 
 [dependencies]
-burn-std = { path = "../burn-std", version = "=0.20.0-pre.6", default-features = false }
+burn-std = { path = "../burn-std", version = "=0.21.0", default-features = false }
 cubecl = { workspace = true, optional = true, default-features = false }
 
 bytemuck = { workspace = true, features = ["extern_crate_alloc"] }

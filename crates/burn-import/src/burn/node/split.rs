@@ -29,7 +29,7 @@ impl NodeCodegen for onnx_ir::split::SplitNode {
             };
             let split_sizes_tokens = split_sizes.iter().map(|s| s.to_tokens());
             quote! {
-                let split_tensors = #input.split_with_sizes(vec![#(#split_sizes_tokens),*], #axis);
+                let split_tensors = #input.split_with_sizes([#(#split_sizes_tokens),*].into(), #axis);
                 #unpack_outputs
             }
         } else if let Some(split_size) = &self.config.split_size {
@@ -48,13 +48,6 @@ impl NodeCodegen for onnx_ir::split::SplitNode {
             }
         } else {
             panic!("Split node must have either split_size, split_sizes, or num_outputs")
-        }
-    }
-
-    fn register_imports(&self, imports: &mut BurnImports) {
-        // When split_sizes is used, we generate vec![...] which needs the vec macro
-        if self.config.split_sizes.is_some() {
-            imports.register("alloc::vec");
         }
     }
 }
@@ -111,7 +104,7 @@ mod tests {
             &self,
             input: Tensor<B, 2>,
         ) -> (Tensor<B, 2>, Tensor<B, 2>, Tensor<B, 2>) {
-            let split_tensors = input.split_with_sizes(vec![1, 3, 2], 1);
+            let split_tensors = input.split_with_sizes([1, 3, 2].into(), 1);
             let [output0, output1, output2] = split_tensors.try_into().unwrap();
             (output0, output1, output2)
         }

@@ -6,9 +6,7 @@ use crate::{
 };
 use burn_backend::{bf16, f16};
 use cubecl::{
-    calculate_cube_count_elemwise, intrinsic,
-    prelude::*,
-    std::{scalar::InputScalar, tensor::layout::linear::LinearView},
+    calculate_cube_count_elemwise, intrinsic, prelude::*, std::tensor::layout::linear::LinearView,
 };
 
 pub(crate) trait BinaryOpFamily: Send + Sync + 'static {
@@ -109,19 +107,19 @@ impl<N: Numeric> BinaryOp<N> for PowOp {
                     cubecl::ir::FloatKind::F16 => {
                         let lhs = <Line<f16> as Cast>::__expand_cast_from(scope, lhs);
                         let rhs = <Line<f16> as Cast>::__expand_cast_from(scope, rhs);
-                        let out = Powf::__expand_powf(scope, lhs, rhs);
+                        let out = Line::__expand_powf(scope, lhs, rhs);
                         return <Line<N> as Cast>::__expand_cast_from(scope, out);
                     }
                     cubecl::ir::FloatKind::BF16 => {
                         let lhs = <Line<bf16> as Cast>::__expand_cast_from(scope, lhs);
                         let rhs = <Line<bf16> as Cast>::__expand_cast_from(scope, rhs);
-                        let out = Powf::__expand_powf(scope, lhs, rhs);
+                        let out = Line::__expand_powf(scope, lhs, rhs);
                         return <Line<N> as Cast>::__expand_cast_from(scope, out);
                     }
                     cubecl::ir::FloatKind::F64 => {
                         let lhs = <Line<f64> as Cast>::__expand_cast_from(scope, lhs);
                         let rhs = <Line<f64> as Cast>::__expand_cast_from(scope, rhs);
-                        let out = Powf::__expand_powf(scope, lhs, rhs);
+                        let out = Line::__expand_powf(scope, lhs, rhs);
                         return <Line<N> as Cast>::__expand_cast_from(scope, out);
                     }
                     _ => {}
@@ -130,7 +128,7 @@ impl<N: Numeric> BinaryOp<N> for PowOp {
 
             let lhs = <Line<f32> as Cast>::__expand_cast_from(scope, lhs);
             let rhs = <Line<f32> as Cast>::__expand_cast_from(scope, rhs);
-            let out = Powf::__expand_powf(scope, lhs, rhs);
+            let out = Line::__expand_powf(scope, lhs, rhs);
             return <Line<N> as Cast>::__expand_cast_from(scope, out);
         })
     }

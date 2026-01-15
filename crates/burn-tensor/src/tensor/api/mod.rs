@@ -8,6 +8,7 @@ mod float;
 mod fmod;
 mod int;
 mod numeric;
+mod options;
 mod pad;
 mod take;
 mod transaction;
@@ -18,6 +19,7 @@ pub use base::*;
 pub use cartesian_grid::cartesian_grid;
 pub use float::{DEFAULT_ATOL, DEFAULT_RTOL};
 pub use numeric::*;
+pub use options::*;
 pub use transaction::*;
 
 pub use burn_backend::tensor::IndexingUpdateOp;

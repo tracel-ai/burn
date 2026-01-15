@@ -7,10 +7,13 @@ operator added in [this PR](https://github.com/tracel-ai/burn/pull/1133/files).
 
 `burn-tensor` is the crate that defines all tensor operations that need to be implemented by the
 various backends. The core of this lies in
-[crates/burn-tensor/src/tensor/api/numeric.rs](https://github.com/tracel-ai/burn/blob/0ee2021567b3725907df5fd1a905ce60b1aca096/crates/burn-tensor/src/tensor/api/numeric.rs),
-which is home to the numeric trait and its implementation for the different tensor types. The
-numeric trait is the home of all tensor operations that are numeric in nature and that are shared by
-`Int` and `Float` Tensor types. More information on the relationship between Tensor modules can be
+[crates/burn-backend/src/tensor/ops/numeric.rs](https://github.com/tracel-ai/burn/blob/9f31281/crates/burn-backend/src/tensor/ops/numeric.rs#L17),
+which is home to the numeric trait. The numeric trait is the home of all tensor operations that are numeric in nature and that are shared by
+`Int` and `Float` Tensor types. The numeric trait is implemented in 
+[crates/burn-backend/src/tensor/ops/int.rs](https://github.com/tracel-ai/burn/blob/9f31281/crates/burn-backend/src/tensor/ops/int.rs) for the int type 
+and in [crates/burn-backend/src/tensor/ops/float.rs](https://github.com/tracel-ai/burn/blob/9f31281/crates/burn-backend/src/tensor/ops/float.rs)
+for the float type. 
+More information on the relationship between Tensor modules can be
 found under the section for [Tensor Architecture](../project-architecture/tensor.md#tensor-operations).
 
 Here is where pow was added to `crates/burn-tensor/src/tensor/api/numeric.rs`:
@@ -30,15 +33,15 @@ that is defined by its
 [`Kind`](https://github.com/tracel-ai/burn/blob/0ee2021567b3725907df5fd1a905ce60b1aca096/crates/burn-tensor/src/tensor/api/kind.rs#L16):
 one of `Bool`, `Float`, or `Int` (those linked in 3). These call the ops for that data type defined
 in the
-[`Backend`](https://github.com/tracel-ai/burn/blob/0ee2021567b3725907df5fd1a905ce60b1aca096/crates/burn-tensor/src/tensor/backend/base.rs#L54)
+[`Backend`](https://github.com/tracel-ai/burn/blob/9f31281/crates/burn-backend/src/backend/base.rs#L64)
 supertrait[^supertrait]. This is the trait that is then implemented by the different `burn-`
 backends (such as `burn-ndarray` and `burn-wgpu`) which must implement the functions if no default
 is provided.
 
 In this case, we don't need to worry about `Bool` Tensors. `Float` ops are implemented under
-[`crates/burn-tensor/src/tensor/ops/tensor.rs`](https://github.com/tracel-ai/burn/blob/0ee2021567b3725907df5fd1a905ce60b1aca096/crates/burn-tensor/src/tensor/ops/tensor.rs#L991),
+[crates/burn-backend/src/backend/ops/tensor.rs](https://github.com/tracel-ai/burn/blob/9f31281/crates/burn-backend/src/backend/ops/tensor.rs),
 and `Int` ops under
-[`crates/burn-tensor/src/tensor/ops/int_tensor.rs`](https://github.com/tracel-ai/burn/blob/0ee2021567b3725907df5fd1a905ce60b1aca096/crates/burn-tensor/src/tensor/ops/int_tensor.rs#L539).
+[crates/burn-backend/src/backend/ops/int_tensor.rs](https://github.com/tracel-ai/burn/blob/9f31281/crates/burn-backend/src/backend/ops/int_tensor.rs).
 The current convention is ops of each type, if not unique to that type, are prefixed with the type.
 So `powf` and sundry would be defined as `int_powf` for `IntTensorOps` and `float_powf` for
 `FloatTensorOps`. If an op is unique to a type, then it should be implemented under
@@ -63,22 +66,16 @@ implementations when required/desired.
 
 ### Adding Tests
 
-Additional Tests should be added to `burn-tensor` under
-[`crates/burn-tensor/src/tests/ops/{op_name}.rs`](https://github.com/tracel-ai/burn/blob/0ee2021567b3725907df5fd1a905ce60b1aca096/crates/burn-tensor/src/tests/ops/powf.rs#L1),
-inserting the module name into `crates/burn-tensor/src/tests/ops/mod.rs`. Then add it to the
-`testgen_all` macro under `crates/burn-tensor/src/tests/mod.rs`. This macro is called from the
-`lib.rs` file in each backend, which autogenerates the tests for that specific backend. It isn't
-necessary to define tests in the backends directly, save for those that require specific testing
-such as `burn-autodiff`.
+Additional tests should be added to `burn-backend-tests` under
+[`crates/burn-backend-tests/tests/tensor/{float_or_int}/ops/{op_name}.rs`](https://github.com/tracel-ai/burn/blob/9f31281/crates/burn-backend-tests/tests/tensor/float/ops/powf.rs),
+and the module name should be inserted into `crates/burn-backend-tests/tests/tensor/{float_or_int}/ops/mod.rs`.
 
-For float tensor operations, the
-[`QTensorOps`](https://github.com/tracel-ai/burn/blob/a6a5c22e0db56d947b9165d4dae42783a5a6b689/crates/burn-tensor/src/tensor/ops/qtensor.rs#L45)
+If it makes sense for a floating point operation to support quantization, the
+[`QTensorOps`](https://github.com/tracel-ai/burn/blob/9f31281/crates/burn-backend/src/backend/ops/qtensor.rs#L117)
 counterpart is usually added at the same time with a default implementation (as mentioned in the
 previous section). Tests for `q_*` ops follow a similar procedure: the test is added under
-[`crates/burn-tensor/src/tests/quantization/ops/{op_name}.rs`](https://github.com/tracel-ai/burn/tree/a6a5c22e0db56d947b9165d4dae42783a5a6b689/crates/burn-tensor/src/tests/quantization/ops),
-the module name is inserted into `crates/burn-tensor/src/tests/quantization/ops/mod.rs` and finally
-the test is added to the
-[`testgen_quantization` macro](https://github.com/tracel-ai/burn/blob/a6a5c22e0db56d947b9165d4dae42783a5a6b689/crates/burn-tensor/src/tests/mod.rs#L67).
+[`crates/burn-backend-tests/tests/tensor/float/quantization/ops/extended/{op_name}.rs`](https://github.com/tracel-ai/burn/tree/9f31281/crates/burn-backend-tests/tests/tensor/float/quantization/ops/extended),
+the module name is inserted into [`crates/burn-backend-tests/tests/tensor/float/quantization/ops/extended/mod.rs`](https://github.com/tracel-ai/burn/blob/9f31281/crates/burn-backend-tests/tests/tensor/float/quantization/ops/extended/mod.rs).
 If you take a look at any of the existing tests for an operation on a quantized tensor,
 you will see that the inputs and expected outputs are always defined with floating point values.
 While it assumes that the quantization and dequantization are correct, it makes the tests much more
@@ -182,53 +179,55 @@ copy/pasted/adjusted from other functions.
 Here's how powf was added to `burn-fusion`:
 
 1. Added powf to the float ops under
-   [`crates/burn-fusion/src/ops/float.rs`](https://github.com/tracel-ai/burn/blob/0ee2021567b3725907df5fd1a905ce60b1aca096/crates/burn-fusion/src/ops/float.rs#L1838)
+   [crates/burn-fusion/src/ops/tensor.rs](https://github.com/tracel-ai/burn/blob/9f31281/crates/burn-fusion/src/ops/tensor.rs#L2061)
 2. Added powf to the `NumericOperationIr` enum under
-   [crates/burn-fusion/src/stream/operation.rs](https://github.com/tracel-ai/burn/blob/0ee2021567b3725907df5fd1a905ce60b1aca096/crates/burn-fusion/src/stream/operation.rs#L433)
+   [crates/burn-ir/src/operation.rs](https://github.com/tracel-ai/burn/blob/9f31281/crates/burn-ir/src/operation.rs#L564)
 3. Added powf to the implementations of `NumericOperationIr` enum under
-   [crates/burn-fusion/src/stream/context.rs](https://github.com/tracel-ai/burn/blob/0ee2021567b3725907df5fd1a905ce60b1aca096/crates/burn-fusion/src/stream/context.rs#L771)
+   [crates/burn-ir/src/operation.rs](https://github.com/tracel-ai/burn/blob/9f31281/crates/burn-ir/src/operation.rs#L1086)
+4. Added powf to the implemented of `NumericOperationIr` enum under
+   [burn/crates/burn-fusion/src/stream/context.rs](https://github.com/tracel-ai/burn/blob/9f31281/crates/burn-fusion/src/stream/context.rs#L883)
 
 The way `cubecl` handles tensor-scalar operations is by transforming both into a sequence of
 vectorized scalar operations. Since powf already existed in `cubecl`, it was pretty easy to reuse
-the existing implementation for the situation where both sides of the operation were tensors. The
-`cubecl` crate is primarily concerned with how the operation is compiled and executed by the gpu.
+the existing implementation for the situation where both sides of the operation were tensors. The `cubecl` crate is 
+primarily concerned with how the operation is compiled and executed by the gpu.
 The actual implementation is defined in `burn-cubecl`.
 
 Here is where code was added for powf in `burn-cubecl` and `cubecl`:
 
 1. to the implementation of
-   [`FloatTensorOps` under `crates/burn-cubecl/src/ops/float_ops.rs`](https://github.com/tracel-ai/burn/blob/3b51c26958128502d60fb35029c43d9b686b816c/crates/burn-cubecl/src/ops/float_ops.rs#L410)
+   [`FloatTensorOps` under `burn/crates/burn-cubecl/src/ops/tensor.rs`](https://github.com/tracel-ai/burn/blob/9f31281/crates/burn-cubecl/src/ops/tensor.rs#L578)
 2. the function being called was added to
-   [crates/burn-cubecl/src/ops/numeric.rs](https://github.com/tracel-ai/burn/blob/3b51c26958128502d60fb35029c43d9b686b816c/crates/burn-cubecl/src/ops/numeric.rs#L147)
+   [`burn/crates/burn-cubecl/src/ops/numeric.rs`](https://github.com/tracel-ai/burn/blob/9f31281/crates/burn-cubecl/src/ops/numeric.rs#L211-L214)
 3. the operator was defined in
-   [`cubecl-core/src/ir/operation.rs`](https://github.com/tracel-ai/cubecl/blob/f5b63076a01a5c03ea9ed20799d3eeaf776b45da/crates/cubecl-core/src/ir/operation.rs#L68)
+   [`cubecl/crates/cubecl-ir/src/arithmetic.rs`](https://github.com/tracel-ai/cubecl/blob/88c0c6f781f70ad2f6e9981fd0cbe2e87e153a35/crates/cubecl-ir/src/arithmetic.rs#L41)
 4. how the operation looks to the gpu was added to
-   [`crates/burn-cubecl/src/fusion/on_write/ir.rs`](https://github.com/tracel-ai/burn/blob/3b51c26958128502d60fb35029c43d9b686b816c/crates/burn-cubecl/src/fusion/on_write/ir.rs#L52)
+   [`burn/crates/burn-cubecl-fusion/src/engine/codegen/ir.rs`](https://github.com/tracel-ai/burn/blob/9f31281/crates/burn-cubecl-fusion/src/engine/codegen/ir.rs#L97)
 5. the mappings between the gpu operation and the CPP, WGSL and SPIR-V instructions were added to
-   [`cubecl-cpp/src/shared/base.rs`](https://github.com/tracel-ai/cubecl/blob/f5b63076a01a5c03ea9ed20799d3eeaf776b45da/crates/cubecl-cpp/src/shared/base.rs#L456),
-   [`cubecl-wgpu/src/compiler/wgsl/compiler.rs`](https://github.com/tracel-ai/cubecl/blob/f5b63076a01a5c03ea9ed20799d3eeaf776b45da/crates/cubecl-wgpu/src/compiler/wgsl/compiler.rs#L652)
+   [`cubecl/crates/cubecl-cpp/src/shared/base.rs`](https://github.com/tracel-ai/cubecl/blob/88c0c6f781f70ad2f6e9981fd0cbe2e87e153a35/crates/cubecl-cpp/src/shared/base.rs#L1285),
+   [`cubecl/crates/cubecl-wgpu/src/compiler/wgsl/compiler.rs`](https://github.com/tracel-ai/cubecl/blob/88c0c6f781f70ad2f6e9981fd0cbe2e87e153a35/crates/cubecl-wgpu/src/compiler/wgsl/compiler.rs#L869)
    and
-   [`cubecl-spirv/src/instruction.rs`](https://github.com/tracel-ai/cubecl/blob/f5b63076a01a5c03ea9ed20799d3eeaf776b45da/crates/cubecl-spirv/src/instruction.rs#L408)
+   [`cubecl/crates/cubecl-spirv/src/arithmetic.rs`](https://github.com/tracel-ai/cubecl/blob/88c0c6f781f70ad2f6e9981fd0cbe2e87e153a35/crates/cubecl-spirv/src/arithmetic.rs#L491)
 6. the instructions themselves were added for WGSL to
-   [instruction op enum in `cubecl-wgpu/src/compiler/wgsl/instructions.rs`](https://github.com/tracel-ai/cubecl/blob/f5b63076a01a5c03ea9ed20799d3eeaf776b45da/crates/cubecl-wgpu/src/compiler/wgsl/instructions.rs#L124),
+   [instruction op enum in `cubecl/crates/cubecl-wgpu/src/compiler/wgsl/instructions.rs`](https://github.com/tracel-ai/cubecl/blob/f5b63076a01a5c03ea9ed20799d3eeaf776b45da/crates/cubecl-wgpu/src/compiler/wgsl/instructions.rs#L124),
    and the actual
-   [instruction in wgsl here](https://github.com/tracel-ai/cubecl/blob/f5b63076a01a5c03ea9ed20799d3eeaf776b45da/crates/cubecl-wgpu/src/compiler/wgsl/instructions.rs#L547-L555),
+   [instruction in wgsl here](https://github.com/tracel-ai/cubecl/blob/88c0c6f781f70ad2f6e9981fd0cbe2e87e153a35/crates/cubecl-wgpu/src/compiler/wgsl/instructions.rs#L654),
    for CPP in the enum here
-   [`cubecl-cpp/src/shared/instruction.rs`](https://github.com/tracel-ai/cubecl/blob/f5b63076a01a5c03ea9ed20799d3eeaf776b45da/crates/cubecl-cpp/src/shared/instruction.rs#L127)
+   [`cubecl/crates/cubecl-cpp/src/shared/instruction.rs`](https://github.com/tracel-ai/cubecl/blob/88c0c6f781f70ad2f6e9981fd0cbe2e87e153a35/crates/cubecl-cpp/src/shared/instruction.rs#L187)
    and the actual instruction here
-   [`cubecl-cpp/src/shared/binary.rs`](https://github.com/tracel-ai/cubecl/blob/f5b63076a01a5c03ea9ed20799d3eeaf776b45da/crates/cubecl-cpp/src/shared/binary.rs#L137)
+   [`cubecl/crates/cubecl-cpp/src/shared/binary.rs`](https://github.com/tracel-ai/cubecl/blob/88c0c6f781f70ad2f6e9981fd0cbe2e87e153a35/crates/cubecl-cpp/src/shared/binary.rs#L216)
 
 We needed to generate some custom WGSL code for powf in WGSL, primarily due to issues with proper
 case handling of the wgsl pow function, like 0 to the 0 power being 1, and any negative number to an
 even power being positive. We reused as much as the existing logic as possible, and then branched at
 the last point based off the var type of the rhs.
-[See here](https://github.com/tracel-ai/cubecl/blob/f5b63076a01a5c03ea9ed20799d3eeaf776b45da/crates/cubecl-wgpu/src/compiler/wgsl/compiler.rs#L911).
+[See here](https://github.com/tracel-ai/cubecl/blob/88c0c6f781f70ad2f6e9981fd0cbe2e87e153a35/crates/cubecl-wgpu/src/compiler/wgsl/compiler.rs#L1229).
 For most operations, you shouldn't need to add to `cubecl-wgpu/src/compiler/wgsl/extension.rs`
 unless the operation isn't native to WGSL.
 
 For functions that need a complex kernel without a direct mapping to a base instruction, simply use
 the `cube` macro (see
-[the `cubecl` book](https://github.com/tracel-ai/cubecl/tree/f5b63076a01a5c03ea9ed20799d3eeaf776b45da/cubecl-book)).
+[the `cubecl` book](https://github.com/tracel-ai/cubecl/tree/88c0c6f781f70ad2f6e9981fd0cbe2e87e153a35/cubecl-book)).
 
 ## Adding the Op to burn-import
 

@@ -4,7 +4,6 @@ use crate::engine::{
 };
 use burn_ir::{TensorId, TensorIr, TensorStatus};
 use burn_std::{DType, quantization::QuantParam};
-use cubecl::prelude::Sequence;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, btree_map::Entry};
 
@@ -217,7 +216,7 @@ impl FuseBlockBuilder {
         &mut self,
         tensor: &TensorIr,
         output: &TensorIr,
-        dims: (u32, u32),
+        dims: (usize, usize),
         resources: &mut FuseResources,
     ) -> Option<FuseArg> {
         if matches!(tensor.dtype, DType::QFloat(..)) {
@@ -324,7 +323,7 @@ impl FuseBlockBuilder {
         let out = self.output(output, resources)?;
         let original = FuseArg::Input(input_index, precision_input, LayoutInfo::Unknown);
 
-        let mut shape = Sequence::new();
+        let mut shape = Vec::new();
 
         let index = resources.num_reshaped;
         resources.num_reshaped += 1;
@@ -333,13 +332,13 @@ impl FuseBlockBuilder {
 
         for i in 0..output.shape.rank() {
             let id = index * rank + i;
-            shape.push(FuseArg::ScalarShape(id as u32));
+            shape.push(FuseArg::ScalarShape(id));
         }
 
         resources.views.push(TensorView::Reshape {
             reshaped: output.id,
             original: tensor.id,
-            reshape_pos: index as u32,
+            reshape_pos: index,
             shape_relative: output.shape.dims.clone(),
         });
 
@@ -388,11 +387,7 @@ impl FuseBlockBuilder {
                     tensor.id,
                     FuseOp::Assign(UnaryFuseArgs {
                         input: local,
-                        out: FuseArg::Output(
-                            out_index + offset as u32,
-                            *precision,
-                            LayoutInfo::Unknown,
-                        ),
+                        out: FuseArg::Output(out_index + offset, *precision, LayoutInfo::Unknown),
                     }),
                 );
             }
@@ -664,7 +659,7 @@ impl FuseBlockBuilder {
 
 #[derive(Default, Clone, Debug)]
 struct LocalVariablePool {
-    values: BTreeMap<FuseType, BTreeMap<TensorId, u32>>,
+    values: BTreeMap<FuseType, BTreeMap<TensorId, usize>>,
 }
 
 impl LocalVariablePool {
@@ -688,7 +683,7 @@ impl LocalVariablePool {
         None
     }
 
-    fn find_tensor_id(&self, precision: FuseType, position: u32) -> Option<TensorId> {
+    fn find_tensor_id(&self, precision: FuseType, position: usize) -> Option<TensorId> {
         if let Some(indexes) = self.values.get(&precision) {
             indexes
                 .iter()
@@ -701,7 +696,7 @@ impl LocalVariablePool {
 
     fn create(&mut self, precision: FuseType, tensor_id: TensorId) -> FuseArg {
         if let Some(indexes) = self.values.get_mut(&precision) {
-            let new_index = indexes.len() as u32;
+            let new_index = indexes.len();
             indexes.insert(tensor_id, new_index);
             return FuseArg::Local(new_index, precision);
         }

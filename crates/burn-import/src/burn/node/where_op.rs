@@ -111,9 +111,9 @@ fn where_input_as_tensor(
             let rank = t.rank;
 
             if rank < broadcast_rank {
-                // Unsqueeze to match broadcast rank
+                // Unsqueeze leading dims to match broadcast rank
                 let dims_to_unsqueeze: Vec<isize> =
-                    (rank..broadcast_rank).map(|d| d as isize).collect();
+                    (0..broadcast_rank - rank).map(|d| d as isize).collect();
                 quote! { #tensor.unsqueeze_dims(&[#(#dims_to_unsqueeze),*]) }
             } else {
                 tensor
@@ -168,7 +168,7 @@ fn where_input_as_tensor(
             if broadcast_rank > 1 {
                 // Unsqueeze to match broadcast rank
                 let dims_to_unsqueeze: Vec<isize> =
-                    (1..broadcast_rank).map(|d| d as isize).collect();
+                    (0..broadcast_rank - 1).map(|d| d as isize).collect();
                 quote! { #tensor.unsqueeze_dims(&[#(#dims_to_unsqueeze),*]) }
             } else {
                 tensor
@@ -201,6 +201,30 @@ mod tests {
             y: Tensor<B, 2>,
         ) -> Tensor<B, 2> {
             let output = y.mask_where(condition, x);
+            output
+        }
+        ");
+    }
+
+    #[test]
+    fn test_where_tensor_tensor_broadcasted_tensor_broadcasted() {
+        let node = WhereNodeBuilder::new("where1")
+            .input_tensor("condition", 2, DType::Bool)
+            .input_tensor("x", 1, DType::F32)
+            .input_tensor("y", 1, DType::F32)
+            .output_tensor("output", 2, DType::F32)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(
+            &self,
+            condition: Tensor<B, 2, Bool>,
+            x: Tensor<B, 1>,
+            y: Tensor<B, 1>,
+        ) -> Tensor<B, 2> {
+            let output = y
+                .unsqueeze_dims(&[0isize])
+                .mask_where(condition, x.unsqueeze_dims(&[0isize]));
             output
         }
         ");

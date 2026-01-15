@@ -14,7 +14,7 @@ use burn::{
     record::{CompactRecorder, DefaultRecorder, Recorder},
     tensor::backend::AutodiffBackend,
     train::{
-        Learner, LearningParadigm, SupervisedTraining,
+        Learner, SupervisedTraining,
         metric::{AccuracyMetric, CudaMetric, LearningRateMetric, LossMetric, PerplexityMetric},
     },
 };
@@ -83,7 +83,7 @@ pub fn train<B: AutodiffBackend, D: Dataset<TextGenerationItem> + 'static>(
         .num_epochs(config.num_epochs)
         .summary();
 
-    let result = training.run(Learner::new(model, optim, lr_scheduler));
+    let result = training.launch(Learner::new(model, optim, lr_scheduler));
 
     config.save(format!("{artifact_dir}/config.json")).unwrap();
 

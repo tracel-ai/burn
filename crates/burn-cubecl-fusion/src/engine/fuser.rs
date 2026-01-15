@@ -326,11 +326,7 @@ impl TraceOperationFuser {
                 }
 
                 if self.fuser.fuse(|fuser| {
-                    fuser.input_swap_dims(
-                        &desc.input,
-                        &desc.out,
-                        (desc.dim1 as u32, desc.dim2 as u32),
-                    )?;
+                    fuser.input_swap_dims(&desc.input, &desc.out, (desc.dim1, desc.dim2))?;
 
                     Some(())
                 }) {
@@ -414,7 +410,7 @@ impl TraceOperationFuser {
                         input,
                         indices,
                         output,
-                        dim: desc.dim as u32,
+                        dim: desc.dim,
                     });
 
                     Some(())
@@ -434,7 +430,7 @@ impl TraceOperationFuser {
                         input,
                         indices,
                         output,
-                        dim: desc.dim as u32,
+                        dim: desc.dim,
                     });
 
                     Some(())

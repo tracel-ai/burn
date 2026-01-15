@@ -212,7 +212,7 @@ impl TraceFuser {
         &mut self,
         tensor: &TensorIr,
         output: &TensorIr,
-        dims: (u32, u32),
+        dims: (usize, usize),
     ) -> Option<FuseArg> {
         if matches!(tensor.dtype, DType::QFloat(_)) {
             return None;
@@ -245,7 +245,7 @@ impl TraceFuser {
             FuseType::Bool => self.bool_precision,
             _ => precision,
         };
-        let new_index = self.resources.scalars.len() as u32;
+        let new_index = self.resources.scalars.len();
 
         self.resources.scalars.push((precision, id.value));
         FuseArg::Scalar(new_index, precision)

@@ -1,3 +1,5 @@
+#![allow(clippy::approx_constant)]
+
 use super::*;
 use burn_tensor::TensorData;
 use burn_tensor::Tolerance;

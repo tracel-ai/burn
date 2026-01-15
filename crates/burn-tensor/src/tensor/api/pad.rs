@@ -80,8 +80,8 @@ where
     ///    // [[12.0, 12.0, −2.0, 3.0, 3.0], [5.0, 5.0, 3.0, 6.0, 6.0]]
     /// }
     /// ```
-    pub fn pad(self, padding: (usize, usize, usize, usize), mode: PadMode) -> Self {
-        match mode {
+    pub fn pad(self, padding: (usize, usize, usize, usize), mode: impl Into<PadMode>) -> Self {
+        match mode.into() {
             PadMode::Constant(value) => pad_constant(self, padding, value),
             PadMode::Reflect => pad_reflect(self, padding),
             PadMode::Edge => pad_edge(self, padding),

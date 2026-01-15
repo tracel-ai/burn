@@ -226,13 +226,13 @@ pub trait NodeProcessor: Send + Sync {
     ///
     /// The default implementation panics with the processor type name.
     /// Each processor should implement this method to build its specific Node variant.
-    fn build_node(&self, _builder: RawNode, _opset: usize) -> Node
+    fn build_node(&self, node: RawNode, _opset: usize) -> Node
     where
         Self: Sized,
     {
         panic!(
-            "build_node not implemented for {} - each processor must implement this method",
-            std::any::type_name::<Self>()
+            "build_node not implemented for {:?} - each processor must implement this method",
+            node.node_type
         )
     }
 }

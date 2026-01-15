@@ -296,17 +296,17 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceLaunch<'_> {
         let [config_read, config_write] = [&configs[0], &configs[1]];
         let shape = match &config_read.ref_layout {
             RefLayout::Concrete(FuseArg::Output(..)) => {
-                outputs.shape_ref(&config_read.ref_layout, config_read.rank as usize)
+                outputs.shape_ref(&config_read.ref_layout, config_read.rank)
             }
-            _ => inputs.shape_ref(&config_read.ref_layout, config_read.rank as usize),
+            _ => inputs.shape_ref(&config_read.ref_layout, config_read.rank),
         };
-        let reduce_count: u32 = shape
+        let reduce_count: usize = shape
             .iter()
             .enumerate()
-            .map(|(i, s)| if i == self.reduce.axis { 1 } else { *s as u32 })
+            .map(|(i, s)| if i == self.reduce.axis { 1 } else { *s })
             .product();
 
-        let line_mode = match self.reduce.axis == config_read.rank as usize - 1 {
+        let line_mode = match self.reduce.axis == config_read.rank - 1 {
             true => LineMode::Parallel,
             false => LineMode::Perpendicular,
         };
@@ -317,9 +317,9 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceLaunch<'_> {
             line_size_output: config_write.width,
         };
         let problem = ReduceProblem {
-            vector_size: shape[self.reduce.axis] as u32,
+            vector_size: shape[self.reduce.axis],
             vector_count: reduce_count,
-            axis: self.reduce.axis as u32,
+            axis: self.reduce.axis,
             dtypes: ReduceDtypes {
                 input: self.reduce.op.input.dtype.into(),
                 output: self.reduce.op.out.dtype.into(),
@@ -346,7 +346,7 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceLaunch<'_> {
             client,
             inputs,
             outputs,
-            axis: self.reduce.axis as u32,
+            axis: self.reduce.axis,
             config_fuse_read: config_read.clone(),
             config_fuse_write: config_write.clone(),
             input: self.reduce.input.clone(),
@@ -373,7 +373,7 @@ struct ReduceKwArgs<'a, 'b, Run: Runtime> {
     client: &'b ComputeClient<Run>,
     inputs: GlobalArgsLaunch<'a, Run>,
     outputs: GlobalArgsLaunch<'a, Run>,
-    axis: u32,
+    axis: usize,
     blueprint: ReduceBlueprint,
     settings: ReduceLaunchSettings,
     config_fuse_read: FuseBlockConfig,
@@ -430,7 +430,7 @@ fn launch_reduce<Run: Runtime>(
 pub fn reduce_kernel<In: Numeric, Out: Numeric, Acc: Numeric>(
     input: &FusedReduceInput,
     output: &mut FusedReduceOutput,
-    axis_reduce: u32,
+    axis_reduce: usize,
     #[comptime] blueprint: ReduceBlueprint,
     #[comptime] config: ReduceOperationConfig,
     #[define(In)] _input_dtype: StorageType,

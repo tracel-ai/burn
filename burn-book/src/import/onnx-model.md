@@ -93,11 +93,11 @@ First, add the required dependencies to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-burn = { version = "~0.20", features = ["ndarray"] }
-burn-store = { version = "~0.20", features = ["burnpack"] }
+burn = { version = "~0.21", features = ["ndarray"] }
+burn-store = { version = "~0.21", features = ["burnpack"] }
 
 [build-dependencies]
-burn-import = "~0.20"
+burn-import = "~0.21"
 ```
 
 The `burn-store` crate with the `burnpack` feature is required to load model weights at runtime.
