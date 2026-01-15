@@ -26,7 +26,7 @@ tracing = [
 
 # ** Please make sure all dependencies support no_std **
 
-burn = { path = "../burn", version = "=0.20.0", default-features = false }
-burn-ndarray = { path = "../burn-ndarray", version = "=0.20.0", default-features = false }
+burn = { path = "../burn", version = "=0.21.0", default-features = false }
+burn-ndarray = { path = "../burn-ndarray", version = "=0.21.0", default-features = false }
 
-burn-store = { path = "../burn-store", version = "=0.20.0", default-features = false, features = ["safetensors", "burnpack"]}
+burn-store = { path = "../burn-store", version = "=0.21.0", default-features = false, features = ["safetensors", "burnpack"]}

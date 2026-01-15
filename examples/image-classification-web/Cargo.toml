@@ -16,11 +16,11 @@ crate-type = ["cdylib"]
 default = []
 
 [dependencies]
-burn = { path = "../../crates/burn", version = "=0.20.0", default-features = false, features = [
+burn = { path = "../../crates/burn", version = "=0.21.0", default-features = false, features = [
     "ndarray", "webgpu",
 ] }
-burn-candle = { path = "../../crates/burn-candle", version = "=0.20.0", default-features = false }
-burn-store = { path = "../../crates/burn-store", version = "=0.20.0", default-features = false, features = ["burnpack"] }
+burn-candle = { path = "../../crates/burn-candle", version = "=0.21.0", default-features = false }
+burn-store = { path = "../../crates/burn-store", version = "=0.21.0", default-features = false, features = ["burnpack"] }
 
 log = { workspace = true }
 serde = { workspace = true }
