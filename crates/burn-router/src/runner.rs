@@ -606,7 +606,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     let shape = desc.out.shape.clone();
                     let output = B::float_full(
                         shape,
-                        desc.value.elem(),
+                        desc.value.into(),
                         &self.device,
                         desc.out.dtype.into(),
                     );
@@ -761,7 +761,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     let shape = desc.out.shape.clone();
                     let output = B::int_full(
                         shape,
-                        desc.value.elem(),
+                        desc.value.into(),
                         &self.device,
                         desc.out.dtype.into(),
                     );

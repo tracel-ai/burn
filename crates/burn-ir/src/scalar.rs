@@ -1,4 +1,4 @@
-use burn_backend::{DType, bf16, f16};
+use burn_backend::{DType, Scalar, bf16, f16};
 use burn_backend::{Element, ElementConversion};
 use core::hash::Hash;
 use serde::{Deserialize, Serialize};
@@ -80,6 +80,49 @@ impl ScalarIr {
             DType::U8 => ScalarIr::U8(elem.elem()),
             DType::Bool => ScalarIr::Bool(elem.elem()),
             DType::QFloat(_) => unimplemented!(),
+        }
+    }
+}
+
+// The enums are similar, but both types have different roles:
+// - `Scalar`: runtime literal value
+// - `ScalarIr`: serializable literal representation (used for IR)
+impl From<Scalar> for ScalarIr {
+    fn from(value: Scalar) -> Self {
+        match value {
+            Scalar::F64(x) => Self::F64(x),
+            Scalar::F32(x) => Self::F32(x),
+            Scalar::F16(x) => Self::F16(x),
+            Scalar::BF16(x) => Self::BF16(x),
+            Scalar::I64(x) => Self::I64(x),
+            Scalar::I32(x) => Self::I32(x),
+            Scalar::I16(x) => Self::I16(x),
+            Scalar::I8(x) => Self::I8(x),
+            Scalar::U64(x) => Self::U64(x),
+            Scalar::U32(x) => Self::U32(x),
+            Scalar::U16(x) => Self::U16(x),
+            Scalar::U8(x) => Self::U8(x),
+            Scalar::Bool(x) => Self::Bool(x),
+        }
+    }
+}
+
+impl From<ScalarIr> for Scalar {
+    fn from(value: ScalarIr) -> Self {
+        match value {
+            ScalarIr::F64(x) => Self::F64(x),
+            ScalarIr::F32(x) => Self::F32(x),
+            ScalarIr::F16(x) => Self::F16(x),
+            ScalarIr::BF16(x) => Self::BF16(x),
+            ScalarIr::I64(x) => Self::I64(x),
+            ScalarIr::I32(x) => Self::I32(x),
+            ScalarIr::I16(x) => Self::I16(x),
+            ScalarIr::I8(x) => Self::I8(x),
+            ScalarIr::U64(x) => Self::U64(x),
+            ScalarIr::U32(x) => Self::U32(x),
+            ScalarIr::U16(x) => Self::U16(x),
+            ScalarIr::U8(x) => Self::U8(x),
+            ScalarIr::Bool(x) => Self::Bool(x),
         }
     }
 }

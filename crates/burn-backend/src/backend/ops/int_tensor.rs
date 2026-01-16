@@ -1,9 +1,9 @@
 use super::cat::cat_with_slice_assign;
 use super::repeat_dim::repeat_with_slice_assign;
 use super::sort::{argsort, sort, sort_with_indices};
-use crate::ExecutionError;
 use crate::tensor::{BoolTensor, Device, FloatTensor, Int, IntElem, IntTensor};
 use crate::{Backend, Distribution, TensorData, TensorMetadata, element::ElementConversion};
+use crate::{ExecutionError, Scalar};
 use alloc::vec::Vec;
 use burn_std::{IntDType, Shape, Slice};
 use core::ops::Range;
@@ -761,7 +761,7 @@ pub trait IntTensorOps<B: Backend> {
     /// The tensor filled with given value
     fn int_full(
         shape: Shape,
-        fill_value: IntElem<B>,
+        fill_value: Scalar,
         device: &Device<B>,
         dtype: IntDType,
     ) -> IntTensor<B> {

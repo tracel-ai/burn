@@ -2,7 +2,7 @@ use crate::{Autodiff, checkpoint::strategy::CheckpointStrategy, tensor::Autodiff
 use alloc::vec::Vec;
 
 use burn_backend::{
-    Backend, Distribution, ExecutionError, TensorData,
+    Backend, Distribution, ExecutionError, Scalar, TensorData,
     ops::IntTensorOps,
     tensor::{BoolTensor, Device, IntTensor},
 };
@@ -131,7 +131,7 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
 
     fn int_full(
         shape: Shape,
-        fill_value: B::IntElem,
+        fill_value: Scalar,
         device: &Device<Self>,
         dtype: IntDType,
     ) -> IntTensor<B> {

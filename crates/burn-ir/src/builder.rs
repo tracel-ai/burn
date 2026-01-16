@@ -54,6 +54,7 @@ impl FullOpIr {
         value: ScalarIr,
         new_id: impl FnOnce() -> TensorId,
     ) -> Self {
+        // TODO: check that ScalarIr dtype matches dtype?
         let out = TensorIr::uninit(new_id(), shape, dtype);
 
         FullOpIr { out, value }

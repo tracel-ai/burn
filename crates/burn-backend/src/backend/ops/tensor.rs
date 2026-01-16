@@ -5,7 +5,7 @@ use super::sort::{argsort, sort, sort_with_indices};
 use crate::ops::GridSampleOptions;
 use crate::tensor::{BoolTensor, Device, Float, FloatElem, FloatTensor, IntElem, IntTensor};
 use crate::{Backend, Distribution, TensorData, element::ElementConversion};
-use crate::{ExecutionError, TensorMetadata, TensorPrimitive};
+use crate::{ExecutionError, Scalar, TensorMetadata, TensorPrimitive};
 use alloc::vec::Vec;
 use burn_std::{FloatDType, Shape, Slice};
 
@@ -49,7 +49,7 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// The tensor with the given shape and zeros.
     fn float_zeros(shape: Shape, device: &Device<B>, dtype: FloatDType) -> FloatTensor<B> {
-        Self::float_from_data(TensorData::full_dtype(shape, 0, dtype.into()), device)
+        Self::float_from_data(TensorData::full_dtype(shape, 0., dtype.into()), device)
     }
 
     /// Creates a new tensor with ones.
@@ -64,7 +64,7 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// The tensor with the given shape and ones.
     fn float_ones(shape: Shape, device: &Device<B>, dtype: FloatDType) -> FloatTensor<B> {
-        Self::float_from_data(TensorData::full_dtype(shape, 1, dtype.into()), device)
+        Self::float_from_data(TensorData::full_dtype(shape, 1., dtype.into()), device)
     }
 
     /// Creates a tensor filled with given value.
@@ -81,7 +81,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// The tensor filled with given value
     fn float_full(
         shape: Shape,
-        fill_value: FloatElem<B>,
+        fill_value: Scalar,
         device: &Device<B>,
         dtype: FloatDType,
     ) -> FloatTensor<B> {

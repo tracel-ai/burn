@@ -6,7 +6,7 @@ use crate::{
     unary_int_ops,
 };
 use burn_backend::{
-    Distribution, Element, ExecutionError, IntDType, Shape, Slice, TensorData,
+    Distribution, Element, ExecutionError, IntDType, Scalar, Shape, Slice, TensorData,
     ops::IntTensorOps,
     tensor::{BoolTensor, Device, FloatTensor, IndexingUpdateOp, IntElem, IntTensor},
 };
@@ -973,7 +973,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
 
     fn int_full(
         shape: Shape,
-        fill_value: IntElem<Self>,
+        fill_value: Scalar,
         device: &Device<Self>,
         dtype: IntDType,
     ) -> IntTensor<Self> {
@@ -988,14 +988,14 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
             fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let shape = self.out.shape.clone();
                 let output =
-                    B::int_full(shape, self.elem.elem(), &self.device, self.out.dtype.into());
+                    B::int_full(shape, self.elem.into(), &self.device, self.out.dtype.into());
                 handles.register_int_tensor::<B>(&self.out.id, output);
             }
         }
 
         let client = get_client::<B>(device);
         let dtype = dtype.into();
-        let value = ScalarIr::with_dtype(fill_value, &dtype);
+        let value = fill_value.into();
         let desc = FullOpIr::create(shape, dtype, value, || client.create_empty_handle());
 
         client

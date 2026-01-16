@@ -1,4 +1,5 @@
 use alloc::vec::Vec;
+use burn_backend::Scalar;
 use burn_backend::backend::{Backend, ExecutionError};
 
 use crate::{BackendRouter, RunnerChannel, RunnerClient, get_client};
@@ -65,13 +66,13 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
 
     fn float_full(
         shape: Shape,
-        fill_value: FloatElem<Self>,
+        fill_value: Scalar,
         device: &Device<Self>,
         dtype: FloatDType,
     ) -> FloatTensor<Self> {
         let client = get_client::<R>(device);
         let dtype = dtype.into();
-        let value = ScalarIr::with_dtype(fill_value, &dtype);
+        let value = fill_value.into();
         let desc = FullOpIr::create(shape, dtype, value, || client.create_empty_handle());
 
         client

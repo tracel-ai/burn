@@ -2,7 +2,7 @@ use alloc::vec::Vec;
 use burn_std::{DType, Shape, Slice};
 
 use crate::{
-    AutodiffBackend, Backend, Distribution, ExecutionError, TensorData,
+    AutodiffBackend, Backend, Distribution, ExecutionError, Scalar, TensorData,
     element::ElementConversion,
     ops::TransactionPrimitive,
     tensor::{
@@ -31,7 +31,12 @@ impl<B: Backend> BasicOps<B> for Int {
         device: &Device<B>,
         dtype: DType,
     ) -> Self::Primitive {
-        B::int_full(shape, fill_value.elem(), device, dtype.into())
+        B::int_full(
+            shape,
+            Scalar::with_dtype(fill_value, &dtype),
+            device,
+            dtype.into(),
+        )
     }
 
     fn register_transaction(tr: &mut TransactionPrimitive<B>, tensor: Self::Primitive) {

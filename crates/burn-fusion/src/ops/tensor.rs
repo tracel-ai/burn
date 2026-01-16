@@ -6,7 +6,7 @@ use crate::{
     unary_float_ops,
 };
 use burn_backend::{
-    Distribution, Element, ExecutionError, FloatDType, Shape, Slice, TensorData,
+    Distribution, Element, ExecutionError, FloatDType, Scalar, Shape, Slice, TensorData,
     ops::{FloatTensorOps, GridSampleOptions},
     tensor::{BoolTensor, Device, FloatElem, FloatTensor, IndexingUpdateOp, IntTensor},
 };
@@ -128,7 +128,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
 
     fn float_full(
         shape: Shape,
-        fill_value: FloatElem<Self>,
+        fill_value: Scalar,
         device: &Device<Self>,
         dtype: FloatDType,
     ) -> FloatTensor<Self> {
@@ -142,15 +142,16 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         impl<B: FusionBackend> Operation<B::FusionRuntime> for FullOps<B> {
             fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let shape = self.out.shape.clone();
+                let dtype = self.out.dtype.into();
                 let output: B::FloatTensorPrimitive =
-                    B::float_full(shape, self.elem.elem(), &self.device, self.out.dtype.into());
+                    B::float_full(shape, self.elem.into(), &self.device, dtype);
                 handles.register_float_tensor::<B>(&self.out.id, output);
             }
         }
 
         let dtype = dtype.into();
         let client = get_client::<B>(device);
-        let value = ScalarIr::with_dtype(fill_value, &dtype);
+        let value = fill_value.into();
         let desc = FullOpIr::create(shape, dtype, value, || client.create_empty_handle());
 
         client
