@@ -188,8 +188,10 @@ portable-atomic-util = { version = "0.2.4", features = ["alloc"] }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }
 # cubek = { path = "../cubek/crates/cubek", default-features = false }
 ### For the release. ###
-cubecl = { version = "=0.9.0", default-features = false }
-cubecl-common = { version = "=0.9.0", default-features = false }
+# cubecl = { version = "=0.9.0", default-features = false }
+# cubecl-common = { version = "=0.9.0", default-features = false }
+cubecl = { git = "https://github.com/adolago/cubecl", default-features = false, rev = "bfd638f9" }
+cubecl-common = { git = "https://github.com/adolago/cubecl", default-features = false, rev = "bfd638f9" }
 cubek = { version = "=0.1.0", default-features = false }
 
 ### For xtask crate ###
