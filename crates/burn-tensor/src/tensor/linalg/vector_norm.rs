@@ -1,9 +1,10 @@
 use crate::backend::Backend;
+use crate::linalg::vector_norm::implementation::lp_norm_impl;
 use crate::tensor::{BasicOps, Tensor};
 use crate::{ElementConversion, Numeric};
 
 /// Specifies the type of norm to compute.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Norm {
     /// L0 norm (count of non-zero elements)
     L0,
@@ -24,39 +25,57 @@ pub enum Norm {
     Lp(f64),
 }
 
+impl Norm {
+    /// Get the exponent of the norm.
+    pub fn to_exponent(self) -> f64 {
+        use Norm::*;
+        match self {
+            L0 => 0.0,
+            L1 => 1.0,
+            L2 => 2.0,
+            LInf => f64::INFINITY,
+            LNegInf => f64::NEG_INFINITY,
+            Lp(p) => p,
+        }
+    }
+}
+
 impl From<i32> for Norm {
     fn from(value: i32) -> Self {
+        use Norm::*;
         match value {
-            0 => Norm::L0,
-            1 => Norm::L1,
-            2 => Norm::L2,
-            _ => Norm::Lp(value as f64),
+            0 => L0,
+            1 => L1,
+            2 => L2,
+            _ => Lp(value as f64),
         }
     }
 }
 
 impl From<f32> for Norm {
     fn from(value: f32) -> Self {
+        use Norm::*;
         match value {
-            0.0 => Norm::L0,
-            1.0 => Norm::L1,
-            2.0 => Norm::L2,
-            f32::INFINITY => Norm::LInf,
-            f32::NEG_INFINITY => Norm::LNegInf,
-            _ => Norm::Lp(value as f64),
+            0.0 => L0,
+            1.0 => L1,
+            2.0 => L2,
+            f32::INFINITY => LInf,
+            f32::NEG_INFINITY => LNegInf,
+            _ => Lp(value as f64),
         }
     }
 }
 
 impl From<f64> for Norm {
     fn from(value: f64) -> Self {
+        use Norm::*;
         match value {
-            0.0 => Norm::L0,
-            1.0 => Norm::L1,
-            2.0 => Norm::L2,
-            f64::INFINITY => Norm::LInf,
-            f64::NEG_INFINITY => Norm::LNegInf,
-            _ => Norm::Lp(value),
+            0.0 => L0,
+            1.0 => L1,
+            2.0 => L2,
+            f64::INFINITY => LInf,
+            f64::NEG_INFINITY => LNegInf,
+            _ => Lp(value),
         }
     }
 }
@@ -83,14 +102,14 @@ pub fn vector_norm<B: Backend, const D: usize>(
     norm: impl Into<Norm>,
     dim: usize,
 ) -> Tensor<B, D> {
-    let norm = norm.into();
-    match norm {
-        Norm::L0 => l0_norm(x, dim),
-        Norm::L1 => l1_norm(x, dim),
-        Norm::L2 => l2_norm(x, dim),
-        Norm::LInf => max_abs_norm(x, dim),
-        Norm::LNegInf => min_abs_norm(x, dim),
-        Norm::Lp(p) => lp_norm(x, p, dim),
+    use Norm::*;
+    match norm.into() {
+        L0 => l0_norm(x, dim),
+        L1 => l1_norm(x, dim),
+        L2 => l2_norm(x, dim),
+        LInf => max_abs_norm(x, dim),
+        LNegInf => min_abs_norm(x, dim),
+        Lp(p) => lp_norm_impl(x, p, dim),
     }
 }
 
@@ -167,10 +186,17 @@ where
 ///
 /// The L2 norm of the input tensor.
 pub fn l2_norm<B: Backend, const D: usize>(x: Tensor<B, D>, dim: usize) -> Tensor<B, D> {
-    x.abs().square().sum_dim(dim).sqrt()
+    x.square().sum_dim(dim).sqrt()
 }
 
 /// Computes the general ``L(p)`` norm of a tensor along a specified dimension.
+///
+/// Uses the specialized implementations for:
+/// * 0.0
+/// * 1.0
+/// * 2.0
+/// * f64::INFINITY,
+/// * f64::NEG_INFINITY,
 ///
 /// # Arguments
 ///
@@ -182,7 +208,45 @@ pub fn l2_norm<B: Backend, const D: usize>(x: Tensor<B, D>, dim: usize) -> Tenso
 ///
 /// The ``L(p)`` norm of the input tensor.
 pub fn lp_norm<B: Backend, const D: usize>(x: Tensor<B, D>, p: f64, dim: usize) -> Tensor<B, D> {
-    x.abs().powf_scalar(p).sum_dim(dim).powf_scalar(1. / p)
+    match p {
+        0.0 => l0_norm(x, dim),
+        1.0 => l1_norm(x, dim),
+        2.0 => l2_norm(x, dim),
+        f64::INFINITY => max_abs_norm(x, dim),
+        f64::NEG_INFINITY => min_abs_norm(x, dim),
+        _ => implementation::lp_norm_impl(x, p, dim),
+    }
+}
+
+/// Internal Implementation Module.
+///
+/// Visible for cross-crate testing and internal use.
+pub mod implementation {
+    use super::*;
+
+    /// Computes the general ``L(p)`` norm of a tensor along a specified dimension.
+    ///
+    /// This uses no specialized implementations and cannot handle:
+    /// * 0.0
+    /// * f64::INFINITY,
+    /// * f64::NEG_INFINITY,
+    ///
+    /// # Arguments
+    ///
+    /// * `x` - The input tensor.
+    /// * `p` - The exponent of the Lp norm.
+    /// * `dim` - The dimension to compute the norm over.
+    ///
+    /// # Returns
+    ///
+    /// The ``L(p)`` norm of the input tensor.
+    pub fn lp_norm_impl<B: Backend, const D: usize>(
+        x: Tensor<B, D>,
+        p: f64,
+        dim: usize,
+    ) -> Tensor<B, D> {
+        x.abs().powf_scalar(p).sum_dim(dim).powf_scalar(1. / p)
+    }
 }
 
 /// Computes the L:INFINITY norm of a tensor along a specified dimension.
