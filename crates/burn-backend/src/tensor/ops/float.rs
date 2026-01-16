@@ -2,7 +2,7 @@ use alloc::vec::Vec;
 use burn_std::{DType, Shape, Slice};
 
 use crate::{
-    AutodiffBackend, Backend, Distribution, ExecutionError, TensorData, TensorPrimitive,
+    AutodiffBackend, Backend, Distribution, ExecutionError, Scalar, TensorData, TensorPrimitive,
     element::ElementConversion,
     ops::TransactionPrimitive,
     tensor::{
@@ -49,7 +49,7 @@ impl<B: Backend> BasicOps<B> for Float {
     ) -> Self::Primitive {
         TensorPrimitive::Float(B::float_full(
             shape,
-            fill_value.elem(),
+            Scalar::with_dtype(fill_value, &dtype),
             device,
             dtype.into(),
         ))

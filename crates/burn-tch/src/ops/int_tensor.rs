@@ -1,7 +1,7 @@
 use std::ops::Range;
 
 use burn_backend::{
-    Backend, Distribution, ExecutionError, IntDType, Shape, TensorData, TensorMetadata,
+    Backend, Distribution, ExecutionError, IntDType, Scalar, Shape, TensorData, TensorMetadata,
     ops::{FloatTensorOps, IntTensorOps},
     tensor::{IntElem, IntTensor},
 };
@@ -228,7 +228,7 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
 
     fn int_full(
         shape: Shape,
-        fill_value: i64,
+        fill_value: Scalar,
         device: &<LibTorch<E> as Backend>::Device,
         dtype: IntDType,
     ) -> TchTensor {
@@ -237,7 +237,7 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
 
         TchTensor::new(tch::Tensor::full(
             shape.dims,
-            fill_value,
+            fill_value.elem::<i64>(),
             (dtype.into_kind(), device),
         ))
     }

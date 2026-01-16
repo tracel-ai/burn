@@ -12,7 +12,7 @@ use crate::{
 };
 use burn_backend::ops::GridSampleOptions;
 use burn_backend::tensor::{BoolTensor, Device, FloatElem, FloatTensor, IntTensor};
-use burn_backend::{Backend, ExecutionError};
+use burn_backend::{Backend, ExecutionError, Scalar};
 use burn_backend::{DType, ElementConversion, FloatDType, Slice};
 use burn_backend::{Distribution, Shape, TensorData, ops::FloatTensorOps};
 use cubecl::prelude::*;
@@ -99,7 +99,7 @@ where
 
     fn float_full(
         shape: Shape,
-        fill_value: FloatElem<Self>,
+        fill_value: Scalar,
         device: &R::Device,
         dtype: FloatDType,
     ) -> FloatTensor<Self> {

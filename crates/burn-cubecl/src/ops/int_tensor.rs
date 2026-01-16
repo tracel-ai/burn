@@ -16,10 +16,10 @@ use crate::{
     element::BoolElement,
     kernel::prng::{random_bernoulli, random_normal, random_uniform},
 };
-use burn_backend::ExecutionError;
 use burn_backend::tensor::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
 use burn_backend::{DType, IntDType, Slice, ops::IntTensorOps};
 use burn_backend::{Distribution, ElementConversion, Shape, TensorData};
+use burn_backend::{ExecutionError, Scalar};
 use cubecl::frontend::Numeric;
 use cubecl::prelude::*;
 use cubek::reduce::components::instructions::ReduceOperationConfig;
@@ -252,7 +252,7 @@ where
 
     fn int_full(
         shape: Shape,
-        fill_value: IntElem<Self>,
+        fill_value: Scalar,
         device: &Device<Self>,
         dtype: IntDType,
     ) -> IntTensor<Self> {
