@@ -36,7 +36,9 @@ impl Default for Gpt2Tokenizer {
 
                         // Only retry on lock acquisition (best-effort flake fix).
                         if msg.contains("LockAcquisition") || msg.contains(".lock") {
-                            std::thread::sleep(std::time::Duration::from_millis(50 * (attempt + 1) as u64));
+                            std::thread::sleep(std::time::Duration::from_millis(
+                                50 * (attempt + 1) as u64,
+                            ));
                             None
                         } else {
                             // Non-lock failures should fail fast (network, model not found, etc.).
