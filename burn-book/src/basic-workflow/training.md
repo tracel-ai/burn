@@ -74,7 +74,7 @@ for our model.
 #     record::CompactRecorder,
 #     tensor::backend::AutodiffBackend,
 #     train::{
-#         ClassificationOutput, Learner, SupervisedTraining, TrainOutput, TrainStep, ValidStep,
+#         ClassificationOutput, InferenceStep, Learner, SupervisedTraining, TrainOutput, TrainStep,
 #         metric::{AccuracyMetric, LossMetric},
 #     },
 # };
@@ -93,8 +93,10 @@ for our model.
 #         ClassificationOutput::new(loss, output, targets)
 #     }
 # }
-# 
-impl<B: AutodiffBackend> TrainStep<MnistBatch<B>, ClassificationOutput<B>> for Model<B> {
+impl<B: AutodiffBackend> TrainStep for Model<B> {
+    type Input = MnistBatch<B>;
+    type Output = ClassificationOutput<B>;
+
     fn step(&self, batch: MnistBatch<B>) -> TrainOutput<ClassificationOutput<B>> {
         let item = self.forward_classification(batch.images, batch.targets);
 
@@ -102,7 +104,10 @@ impl<B: AutodiffBackend> TrainStep<MnistBatch<B>, ClassificationOutput<B>> for M
     }
 }
 
-impl<B: Backend> ValidStep<MnistBatch<B>, ClassificationOutput<B>> for Model<B> {
+impl<B: Backend> InferenceStep for Model<B> {
+    type Input = MnistBatch<B>;
+    type Output = ClassificationOutput<B>;
+
     fn step(&self, batch: MnistBatch<B>) -> ClassificationOutput<B> {
         self.forward_classification(batch.images, batch.targets)
     }
@@ -157,7 +162,7 @@ Let us move on to establishing the practical training configuration.
 #     record::CompactRecorder,
 #     tensor::backend::AutodiffBackend,
 #     train::{
-#         ClassificationOutput, Learner, TrainStep, SupervisedTraining, TrainOutput, ValidStep,
+#         ClassificationOutput, InferenceStep, Learner, SupervisedTraining, TrainOutput, TrainStep,
 #         metric::{AccuracyMetric, LossMetric},
 #     },
 # };
@@ -176,21 +181,26 @@ Let us move on to establishing the practical training configuration.
 #         ClassificationOutput::new(loss, output, targets)
 #     }
 # }
+# impl<B: AutodiffBackend> TrainStep for Model<B> {
+#     type Input = MnistBatch<B>;
+#     type Output = ClassificationOutput<B>;
 # 
-# impl<B: AutodiffBackend> TrainStep<MnistBatch<B>, ClassificationOutput<B>> for Model<B> {
 #     fn step(&self, batch: MnistBatch<B>) -> TrainOutput<ClassificationOutput<B>> {
 #         let item = self.forward_classification(batch.images, batch.targets);
 # 
 #         TrainOutput::new(self, item.loss.backward(), item)
 #     }
 # }
+#
+# impl<B: Backend> InferenceStep for Model<B> {
+#     type Input = MnistBatch<B>;
+#     type Output = ClassificationOutput<B>;
 # 
-# impl<B: Backend> ValidStep<MnistBatch<B>, ClassificationOutput<B>> for Model<B> {
 #     fn step(&self, batch: MnistBatch<B>) -> ClassificationOutput<B> {
 #         self.forward_classification(batch.images, batch.targets)
 #     }
 # }
-# 
+#
 #[derive(Config, Debug)]
 pub struct TrainingConfig {
     pub model: ModelConfig,
