@@ -80,10 +80,10 @@ impl<R: Runtime> cubecl::tune::AutotuneOutput for TuneOutput<R> {
                 num_handles += 1;
                 if let Some((shape_other, other)) = handles.get(id) {
                     use burn_std::is_contiguous;
-                    use cubecl::std::tensor::into_contiguous;
+                    use cubecl::std::tensor::into_contiguous_ref;
 
                     let current_handle = if !is_contiguous(&shape, &handle.strides) {
-                        into_contiguous::<R>(
+                        into_contiguous_ref::<R>(
                             &handle.client,
                             &handle.as_handle_ref(&shape),
                             handle.dtype.into(),
@@ -94,7 +94,7 @@ impl<R: Runtime> cubecl::tune::AutotuneOutput for TuneOutput<R> {
                         handle.handle.clone()
                     };
                     let other_handle = if !is_contiguous(&shape, &other.strides) {
-                        into_contiguous::<R>(
+                        into_contiguous_ref::<R>(
                             &other.client,
                             &other.as_handle_ref(&shape),
                             other.dtype.into(),
