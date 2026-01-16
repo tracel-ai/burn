@@ -369,7 +369,7 @@ mod tests {
         assert_eq!(config.dilation, 1);
         assert_eq!(config.groups, 1);
         assert!(config.bias);
-        assert!(matches!(config.padding, PaddingConfig1d::Explicit(2)));
+        assert!(matches!(config.padding, PaddingConfig1d::Explicit(2, 2)));
     }
 
     #[test]
@@ -413,12 +413,14 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Asymmetric padding is not supported")]
     fn test_conv1d_config_asymmetric_padding() {
         let node = create_test_node(vec![4], vec![1], vec![1, 2], vec![1], 1, false, None)
             .build_with_graph_data(16);
         let processor = Conv1dProcessor;
-        let _ = processor.extract_config(&node, 16);
+        let config = processor.extract_config(&node, 16).unwrap();
+        // Asymmetric padding should now be captured instead of panicking
+        assert!(matches!(config.padding, PaddingConfig1d::Explicit(1, 2)));
+        assert!(config.padding.is_asymmetric());
     }
 
     #[test]

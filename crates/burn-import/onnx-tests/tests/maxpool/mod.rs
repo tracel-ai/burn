@@ -2,15 +2,17 @@
 use crate::include_models;
 include_models!(
     maxpool1d,
+    maxpool1d_asymmetric_padding,
     maxpool1d_ceil_mode,
     maxpool2d,
+    maxpool2d_asymmetric_padding,
     maxpool2d_ceil_mode
 );
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use burn::tensor::{Tensor, TensorData};
+    use burn::tensor::{Shape, Tensor, TensorData};
 
     use crate::backend::TestBackend;
 
@@ -125,5 +127,59 @@ mod tests {
             [33.0, 35.0, 36.0],
         ]]]);
         output.to_data().assert_eq(&expected, true);
+    }
+
+    #[test]
+    fn maxpool1d_asymmetric_padding() {
+        // Test asymmetric padding (left=1, right=2) for MaxPool1d
+        let device = Default::default();
+        let model: maxpool1d_asymmetric_padding::Model<TestBackend> =
+            maxpool1d_asymmetric_padding::Model::new(&device);
+
+        // Run the model with ones as input for easier testing
+        let input = Tensor::<TestBackend, 3>::ones([2, 4, 10], &device);
+        let output = model.forward(input);
+
+        // With asymmetric padding (1, 2), input length 10 becomes 10+1+2=13
+        // After pool with kernel 3, stride 1, output length is 13-3+1=11
+        let expected_shape = Shape::from([2, 4, 11]);
+        assert_eq!(output.shape(), expected_shape);
+
+        // Verify the sum matches PyTorch output (all 1.0 values, so max = 1.0 for all positions that see valid input)
+        let output_sum = output.sum().into_scalar();
+        let expected_sum = 88.0; // from pytorch
+        assert!(
+            (output_sum - expected_sum).abs() < 0.1,
+            "Expected sum ~{}, got {}",
+            expected_sum,
+            output_sum
+        );
+    }
+
+    #[test]
+    fn maxpool2d_asymmetric_padding() {
+        // Test asymmetric padding (left=1, right=2, top=1, bottom=2) for MaxPool2d
+        let device = Default::default();
+        let model: maxpool2d_asymmetric_padding::Model<TestBackend> =
+            maxpool2d_asymmetric_padding::Model::new(&device);
+
+        // Run the model with ones as input for easier testing
+        let input = Tensor::<TestBackend, 4>::ones([2, 4, 10, 15], &device);
+        let output = model.forward(input);
+
+        // With asymmetric padding (1, 1, 2, 2), input (10, 15) becomes (13, 18)
+        // After pool with kernel (3, 3), stride (1, 1), output is (11, 16)
+        let expected_shape = Shape::from([2, 4, 11, 16]);
+        assert_eq!(output.shape(), expected_shape);
+
+        // Verify the sum matches ONNX Runtime output
+        let output_sum = output.sum().into_scalar();
+        let expected_sum = 1408.0; // from ONNX Runtime
+        assert!(
+            (output_sum - expected_sum).abs() < 1.0,
+            "Expected sum ~{}, got {}",
+            expected_sum,
+            output_sum
+        );
     }
 }

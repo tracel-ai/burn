@@ -7,6 +7,7 @@ use burn::module::{Content, DisplaySettings, ModuleDisplay};
 use burn::module::{Ignored, Module};
 use burn::tensor::Tensor;
 use burn::tensor::backend::Backend;
+use burn::tensor::ops::PadMode;
 
 use burn::tensor::module::max_pool2d;
 
@@ -95,25 +96,49 @@ impl MaxPool2d {
     /// - input: `[batch_size, channels, height_in, width_in]`
     /// - output: `[batch_size, channels, height_out, width_out]`
     pub fn forward<B: Backend>(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
-        let [_batch_size, _channels_in, height_in, width_in] = input.dims();
-        let padding =
-            self.padding
-                .calculate_padding_2d(height_in, width_in, &self.kernel_size, &self.stride);
+        // Handle asymmetric padding by applying explicit pad operation first
+        if self.padding.is_asymmetric() {
+            let (top, left, bottom, right) = self.padding.as_tuple();
+            // Burn's pad takes (left, right, top, bottom) for the last two dimensions
+            // Use -inf for max pooling so padded values don't affect the max
+            let padded = input.pad(
+                (left, right, top, bottom),
+                PadMode::Constant(f32::NEG_INFINITY),
+            );
+            // Use zero padding for the pool operation since we already padded
+            max_pool2d(
+                padded,
+                self.kernel_size,
+                self.stride,
+                [0, 0],
+                self.dilation,
+                self.ceil_mode,
+            )
+        } else {
+            let [_batch_size, _channels_in, height_in, width_in] = input.dims();
+            let padding = self.padding.calculate_padding_2d(
+                height_in,
+                width_in,
+                &self.kernel_size,
+                &self.stride,
+            );
 
-        max_pool2d(
-            input,
-            self.kernel_size,
-            self.stride,
-            padding,
-            self.dilation,
-            self.ceil_mode,
-        )
+            max_pool2d(
+                input,
+                self.kernel_size,
+                self.stride,
+                padding,
+                self.dilation,
+                self.ceil_mode,
+            )
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::TestBackend;
     use rstest::rstest;
 
     #[test]
@@ -146,5 +171,41 @@ mod tests {
             "Expected strides ({:?}) to match kernel size ({:?}) in default MaxPool2dConfig::new constructor",
             config.strides, config.kernel_size
         );
+    }
+
+    #[test]
+    fn asymmetric_padding_forward() {
+        let device = Default::default();
+        // Create max pool with asymmetric padding: top=1, left=2, bottom=3, right=4
+        let config = MaxPool2dConfig::new([3, 3])
+            .with_strides([1, 1])
+            .with_padding(PaddingConfig2d::Explicit(1, 2, 3, 4));
+        let pool = config.init();
+
+        // Input: [batch=1, channels=2, height=4, width=5]
+        let input = Tensor::<TestBackend, 4>::ones([1, 2, 4, 5], &device);
+        let output = pool.forward(input);
+
+        // Height: 4 + 1 + 3 = 8, output = (8 - 3) / 1 + 1 = 6
+        // Width: 5 + 2 + 4 = 11, output = (11 - 3) / 1 + 1 = 9
+        assert_eq!(output.dims(), [1, 2, 6, 9]);
+    }
+
+    #[test]
+    fn symmetric_explicit_padding_forward() {
+        let device = Default::default();
+        // Create max pool with symmetric explicit padding: top=2, left=2, bottom=2, right=2
+        let config = MaxPool2dConfig::new([3, 3])
+            .with_strides([1, 1])
+            .with_padding(PaddingConfig2d::Explicit(2, 2, 2, 2));
+        let pool = config.init();
+
+        // Input: [batch=1, channels=2, height=4, width=5]
+        let input = Tensor::<TestBackend, 4>::ones([1, 2, 4, 5], &device);
+        let output = pool.forward(input);
+
+        // Height: 4 + 2 + 2 = 8, output = (8 - 3) / 1 + 1 = 6
+        // Width: 5 + 2 + 2 = 9, output = (9 - 3) / 1 + 1 = 7
+        assert_eq!(output.dims(), [1, 2, 6, 7]);
     }
 }
