@@ -173,6 +173,16 @@ impl MeanLpErrorLoss {
     ///
     /// Dimensions can be provided in any order. They are sorted internally and
     /// reduced from highest to lowest to ensure indices remain valid.
+    /// 
+    /// # Arguments
+    ///
+    /// * `predictions` - The model's predicted values.
+    /// * `targets` - The ground truth target values.
+    /// * `dims` - Dimensions to reduce over.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the specified dimensions reduced to size 1. 
     ///
     /// # Example
     ///
