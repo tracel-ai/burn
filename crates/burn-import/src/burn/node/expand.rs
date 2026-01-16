@@ -16,8 +16,33 @@ impl NodeCodegen for onnx_ir::expand::ExpandNode {
         let input = scope.arg(input_arg);
         let output = arg_to_ident(output_arg);
 
-        let input_rank = input_arg.ty.rank();
         let output_rank = output_arg.ty.rank();
+
+        let (input, input_rank) = if input_arg.ty.is_scalar() {
+            let dtype = input_arg.ty.elem_type();
+            let tensor_creation = match dtype {
+                DType::I64
+                | DType::I32
+                | DType::I16
+                | DType::I8
+                | DType::U64
+                | DType::U32
+                | DType::U16
+                | DType::U8 => {
+                    quote! { Tensor::<B, 1, burn::tensor::Int>::from_ints([#input], &shape.device()) }
+                }
+                DType::F32 | DType::F64 | DType::F16 | DType::BF16 => {
+                    quote! { Tensor::<B, 1>::from_floats([#input], &shape.device()) }
+                }
+                DType::Bool => {
+                    quote! { Tensor::<B, 1, burn::tensor::Bool>::from_bool(burn::tensor::TensorData::from([#input]), &shape.device()) }
+                }
+                _ => panic!("Unsupported scalar type for expand input: {:?}", dtype),
+            };
+            (tensor_creation, 1)
+        } else {
+            (input, input_arg.ty.rank())
+        };
 
         let shape = match &self.config {
             onnx_ir::expand::ExpandConfig::Static(static_shape) => static_shape.to_tokens(),
@@ -44,8 +69,9 @@ impl NodeCodegen for onnx_ir::expand::ExpandNode {
         // We compute the max directly to match ONNX semantics before calling expand.
         quote! {
             let #output = {
+                let input = #input;
                 let onnx_shape: [i64; #output_rank] = #shape;
-                let input_dims = #input.dims();
+                let input_dims = input.dims();
                 let mut shape = onnx_shape;
                 #[allow(clippy::needless_range_loop)]
                 for i in 0..#input_rank {
@@ -54,7 +80,7 @@ impl NodeCodegen for onnx_ir::expand::ExpandNode {
                         shape[dim_offset] = input_dims[i] as i64;
                     }
                 }
-                #input.expand(shape)
+                input.expand(shape)
             };
         }
     }
