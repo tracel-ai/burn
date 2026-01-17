@@ -153,7 +153,7 @@ impl<'a> GraphCleaner<'a> {
             let mut state = STATE.lock();
             if let Some(state) = state.as_mut() {
                 for node in should_remove {
-                    state.graphs.remove(&node);
+                    state.remove_entry(&node);
                 }
             }
         }
