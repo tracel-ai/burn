@@ -332,4 +332,7 @@ pub trait AutodiffBackend: Backend {
     ///
     /// The autodiff backend tensor.
     fn q_from_inner(tensor: QuantizedTensor<Self::InnerBackend>) -> QuantizedTensor<Self>;
+
+    /// Sweeps over all autodiff graphs and remove unused nodes.
+    fn graph_cleanup();
 }

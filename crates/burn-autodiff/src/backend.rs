@@ -135,4 +135,8 @@ impl<B: Backend, C: CheckpointStrategy> AutodiffBackend for Autodiff<B, C> {
     fn q_from_inner(tensor: QuantizedTensor<Self::InnerBackend>) -> QuantizedTensor<Self> {
         tensor
     }
+
+    fn graph_cleanup() {
+        let () = crate::runtime::graph::GraphCleaner::cleanup_orphaned_entries();
+    }
 }
