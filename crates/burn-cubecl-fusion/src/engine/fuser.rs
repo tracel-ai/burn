@@ -7,7 +7,7 @@ use crate::engine::codegen::ir::QuantSchemeFuse;
 use burn_fusion::{FuserProperties, FuserStatus, OperationFuser};
 use burn_ir::{
     BaseOperationIr, BinaryOpIr, FloatOperationIr, NumericOperationIr, OperationIr, ScalarOpIr,
-    TensorIr, UnaryOpIr,
+    TensorId, TensorIr, UnaryOpIr,
 };
 use burn_std::DType;
 use cubecl::ir::ElemType;
@@ -33,7 +33,7 @@ pub(crate) struct TraceOperationFuser {
     status: FuserStatus,
     pub(crate) num_ops: usize,
     pub(crate) num_views: usize,
-    max_bindings: u32,
+    pub(crate) max_bindings: u32,
 }
 
 impl TraceOperationFuser {
@@ -255,6 +255,13 @@ impl TraceOperationFuser {
         self.status = FuserStatus::Open;
 
         Some(args)
+    }
+
+    /// Tag the [tensor](TensorIr) as received from a previous block.
+    ///
+    /// This will avoid reading the input again and instead use le local version when possible.
+    pub fn block_local_input(&mut self, tensor: &TensorIr, block_pos: usize) {
+        self.fuser.fuser.block_local_input(tensor, block_pos);
     }
 
     fn fuse_base(&mut self, ops: &BaseOperationIr) -> bool {

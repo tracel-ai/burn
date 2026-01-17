@@ -5,6 +5,9 @@ use cubecl::ir::{ElemType, FloatKind, IntKind, StorageType, UIntKind};
 use cubecl::prelude::*;
 use serde::{Deserialize, Serialize};
 
+use crate::engine::codegen::DYN_ELEM_ID;
+use crate::engine::trace::block::LocalInput;
+
 use super::tensor::GlobalTensor;
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
@@ -408,6 +411,7 @@ pub struct FuseBlockConfig {
     pub ref_layout: RefLayout,
     pub ops: Vec<FuseOp>,
     pub width: LineSize,
+    pub local_inputs: Vec<LocalInput>,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]

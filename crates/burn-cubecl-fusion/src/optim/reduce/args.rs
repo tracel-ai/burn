@@ -11,20 +11,20 @@ pub struct FusedReduceArgs;
 
 #[derive(CubeType, CubeLaunch)]
 pub struct FusedReduceInput {
-    global: GlobalArgs,
+    pub global: GlobalArgs,
     #[cube(comptime)]
-    config: FuseBlockConfig,
+    pub config: FuseBlockConfig,
     #[cube(comptime)]
-    arg: FuseArg,
+    pub arg: FuseArg,
 }
 
 #[derive(CubeType, CubeLaunch)]
 pub struct FusedReduceOutput {
-    global: GlobalArgs,
+    pub global: GlobalArgs,
     #[cube(comptime)]
-    config: FuseBlockConfig,
+    pub config: FuseBlockConfig,
     #[cube(comptime)]
-    arg: FuseArg,
+    pub arg: FuseArg,
 }
 
 pub struct FusedReduceState {
@@ -34,6 +34,7 @@ pub struct FusedReduceState {
     locals_on_write: *mut LocalArgs,
     config_on_read: FuseBlockConfig,
     config_on_write: FuseBlockConfig,
+    // TODO: Should be a list when multiple blocks are there.
     input: FuseArg,
     out: FuseArg,
 }
@@ -62,6 +63,7 @@ impl ReduceArgs for FusedReduceArgs {
     ) -> Self::State<P> {
         let mut locals_read = init_locals(&input.global, &mut output.global, &input.config);
         let mut locals_write = init_locals(&input.global, &mut output.global, &output.config);
+        // TODO Add stuff from previous blocks to the local of each block.
         FusedReduceState::new(input, output, &mut locals_read, &mut locals_write)
     }
 
@@ -73,6 +75,7 @@ impl ReduceArgs for FusedReduceArgs {
             index,
             comptime! {
                 let mut sequence = Sequence::new();
+                // TODO: Register local arguments from previous blocks.
                 sequence.push(state.input.clone());
                 sequence
             },

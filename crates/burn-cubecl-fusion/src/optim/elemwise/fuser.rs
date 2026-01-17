@@ -26,6 +26,9 @@ impl<R: Runtime> Clone for ElementWiseFuser<R> {
 }
 
 impl<R: Runtime> ElementWiseFuser<R> {
+    pub fn shape_id(&self) -> Vec<usize> {
+        self.fuser.current_output_shape.clone()
+    }
     pub fn new(device: R::Device, bool_precision: FuseType) -> Self {
         let client = R::client(&device);
         let props = client.properties();

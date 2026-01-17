@@ -84,7 +84,7 @@ impl<B: FusionBackend> Backend for Fusion<B> {
 }
 
 /// The status of a [fuser](OperationFuser).
-#[derive(Clone, Debug, Copy)]
+#[derive(Clone, Debug, Copy, PartialEq, Eq)]
 pub enum FuserStatus {
     /// No more operations can be fused.
     Closed,
@@ -93,7 +93,7 @@ pub enum FuserStatus {
 }
 
 /// The properties of a [fuser](OperationFuser).
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct FuserProperties {
     /// The score of the optimization, higher is better.
     pub score: u64,

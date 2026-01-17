@@ -2,6 +2,8 @@ use crate::BoolElement;
 use crate::{CubeBackend, CubeRuntime, FloatElement, IntElement, kernel, tensor::CubeTensor};
 use burn_backend::tensor::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
 use burn_backend::{DType, Shape};
+use burn_cubecl_fusion::optim::reduce::ReduceSettings;
+use burn_cubecl_fusion::optim::reduce_broadcasted::ReduceBroadcastedFuser;
 use burn_cubecl_fusion::{
     CubeFusionHandle, FallbackOperation,
     optim::{
@@ -9,6 +11,7 @@ use burn_cubecl_fusion::{
         elemwise::{ElementWiseFuser, ElemwiseOptimization},
         matmul::{MatmulFuser, MatmulOptimization},
         reduce::{ReduceFuser, ReduceOptimization},
+        reduce_broadcasted::ReduceBroadcastedOptimization,
     },
 };
 use burn_fusion::{
@@ -42,6 +45,10 @@ where
                 let operation = execution.operation_within_optimization(index);
                 Box::new(FallbackOperationWrapper::new(operation))
             }),
+            Self::ReduceBroadcasted(op) => op.execute::<BT>(context, |index| {
+                let operation = execution.operation_within_optimization(index);
+                Box::new(FallbackOperationWrapper::new(operation))
+            }),
         }
     }
 
@@ -59,6 +66,9 @@ where
             }
             CubeOptimizationState::Reduce(state) => {
                 Self::Reduce(ReduceOptimization::from_state(device, state))
+            }
+            CubeOptimizationState::ReduceBroadcasted(state) => {
+                Self::ReduceBroadcasted(ReduceBroadcastedOptimization::from_state(device, state))
             }
         }
     }
@@ -129,15 +139,20 @@ impl<R: CubeRuntime, BT: BoolElement> FusionRuntime for FusionCubeRuntime<R, BT>
 
     fn fusers(device: R::Device) -> Vec<Box<dyn burn_fusion::OperationFuser<Self::Optimization>>> {
         vec![
-            Box::new(ElementWiseFuser::new(
-                device.clone(),
-                BT::as_type_native_unchecked().into(),
-            )),
-            Box::new(MatmulFuser::new(
-                device.clone(),
-                BT::as_type_native_unchecked().into(),
-            )),
-            Box::new(ReduceFuser::new(
+            // Box::new(ElementWiseFuser::new(
+            //     device.clone(),
+            //     BT::as_type_native_unchecked().into(),
+            // )),
+            // Box::new(MatmulFuser::new(
+            //     device.clone(),
+            //     BT::as_type_native_unchecked().into(),
+            // )),
+            // Box::new(ReduceFuser::new(
+            //     device.clone(),
+            //     BT::as_type_native_unchecked().into(),
+            //     ReduceSettings::OnlyParallel,
+            // )),
+            Box::new(ReduceBroadcastedFuser::new(
                 device.clone(),
                 BT::as_type_native_unchecked().into(),
             )),
