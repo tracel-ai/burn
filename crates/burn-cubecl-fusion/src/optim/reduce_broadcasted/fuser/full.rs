@@ -3,7 +3,6 @@ use crate::{
         codegen::ir::FuseType,
         fuser::TraceOperationFuser,
         settings::{FuseSettings, RefLayoutSetting, VectorizationSetting},
-        trace::FuseTrace,
     },
     optim::{
         reduce::FusedReduce,
@@ -52,7 +51,7 @@ impl ReduceBroadcastedFullFuser {
     }
 
     /// Registers a [ReduceBlockFuser] to build the trace.
-    pub fn register<R: Runtime>(&mut self, block: &ReduceBlockFuser<R>, trace: &FuseTrace) {
+    pub fn register<R: Runtime>(&mut self, block: &ReduceBlockFuser<R>) {
         println!("Registering ...");
         // Helper to close previous blocks if necessary
         if !self.fuser.is_empty() {

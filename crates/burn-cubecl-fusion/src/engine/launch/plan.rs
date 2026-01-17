@@ -3,7 +3,7 @@ use crate::{
     engine::{
         codegen::ir::{FuseArg, FuseOp, FuseType},
         launch::vectorization::Vect,
-        trace::block::FuseBlock,
+        trace::block::{FuseBlock, LocalInput},
     },
 };
 use burn_ir::{TensorId, TensorIr};
@@ -31,6 +31,7 @@ pub struct BlockPlan<'a> {
     pub reads: BTreeMap<TensorId, Vec<FuseOp>>,
     pub writes: BTreeMap<TensorId, FuseOp>,
     pub width: LineSize,
+    pub local_inputs: Vec<LocalInput>,
 }
 
 #[derive(Debug)]
@@ -98,6 +99,7 @@ impl<R: Runtime> LaunchPlan<'_, R> {
                 width: 0,
                 potential_inplaces: Vec::new(),
                 potential_reference_input: None,
+                local_inputs: b.local_inputs.clone(),
             };
             blocks.push(block);
         }

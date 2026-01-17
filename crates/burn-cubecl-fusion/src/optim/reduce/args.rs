@@ -63,6 +63,7 @@ impl ReduceArgs for FusedReduceArgs {
     ) -> Self::State<P> {
         let mut locals_read = init_locals(&input.global, &mut output.global, &input.config);
         let mut locals_write = init_locals(&input.global, &mut output.global, &output.config);
+        // TODO Add stuff from previous blocks to the local of each block.
         FusedReduceState::new(input, output, &mut locals_read, &mut locals_write)
     }
 

@@ -33,8 +33,8 @@ pub fn fuse_on_write<E: CubePrimitive>(
 ) {
     // Write the values given as arguments.
     #[unroll]
-    for _ in 0..write_args.len() {
-        let arg = comptime![write_args[0].clone()];
+    for i in 0..write_args.len() {
+        let arg = comptime![write_args.get(i).unwrap().clone()];
         let val = write_values.find(arg.clone());
 
         write::<E>(inputs, outputs, locals, write_pos, val, arg, config);

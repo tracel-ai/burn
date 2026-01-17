@@ -1,11 +1,5 @@
 use super::block::ReduceBlockKind;
-use crate::{
-    engine::{
-        codegen::ir::{FuseArg, FuseOp},
-        trace::{FuseTrace, block::FuseBlock},
-    },
-    optim::reduce_broadcasted::fuser::block::ReduceBlockFuser,
-};
+use crate::optim::reduce_broadcasted::fuser::block::ReduceBlockFuser;
 use burn_ir::{TensorId, TensorIr};
 use cubecl::Runtime;
 use std::collections::BTreeMap;

@@ -1,8 +1,7 @@
 use crate::{
     engine::codegen::{
-        self,
-        ir::{FuseArg, FuseBlockConfig, GlobalArgs, LocalArgs},
-        kernel::fuse_on_write,
+        ir::{FuseArg, FuseBlockConfig, GlobalArgs},
+        kernel::{fuse_on_write, init_locals},
     },
     optim::reduce::args::{FusedReduceArgs, FusedReduceInput, FusedReduceOutput},
 };
@@ -42,7 +41,6 @@ struct ElemwiseFuseBlock {
 fn reduce_many<P: ReducePrecision, Out: Numeric, I: ReduceInstruction<P> + Clone>(
     inputs: &GlobalArgs,
     outputs: &mut GlobalArgs,
-    locals: &mut LocalArgs,
     reduce_axis: usize,
     idle: CubeOption<bool>,
     blocks: Sequence<ReduceFuseBlock>,
@@ -50,6 +48,8 @@ fn reduce_many<P: ReducePrecision, Out: Numeric, I: ReduceInstruction<P> + Clone
 ) {
     let global_index = ABSOLUTE_POS;
     let mut axis_size = 0;
+
+    let mut locals = Registry::<u32, Line<Out>>::new();
 
     #[unroll]
     for i in 0..blocks.len() {
@@ -67,13 +67,37 @@ fn reduce_many<P: ReducePrecision, Out: Numeric, I: ReduceInstruction<P> + Clone
 
         let (input, mut output) = init_tensors::<FusedReduceArgs, P::EI, Out>(&input, &mut output);
 
+        // let num_local_inputs = comptime!(block.config.local_inputs.len());
+        // #[unroll]
+        // for j in 0..num_local_inputs {
+        //     let local_input = comptime!(block.config.local_inputs.get(j).unwrap());
+        //     // Using the source locals. SHOULD BUILD A GLOBAL SHARED REGISTRY.
+        //     let val = codegen::io::read::<f32>(
+        //         inputs,
+        //         outputs,
+        //         locals,
+        //         global_index,
+        //         comptime!(local_input.src_arg.clone()),
+        //         &block.config,
+        //     );
+        //     codegen::io::write::<f32>(
+        //         inputs,
+        //         outputs,
+        //         locals,
+        //         global_index,
+        //         val,
+        //         comptime!(local_input.dst_arg.clone()),
+        //         &block.config,
+        //     );
+        // }
+
         axis_size = reduce_step::<P, Out, ReduceOperation>(
             &input,
             &mut output,
             reduce_axis,
             global_index,
             idle,
-            locals,
+            &mut locals,
             block.op,
             comptime!(block.output.clone()),
         );
@@ -88,7 +112,16 @@ fn reduce_many<P: ReducePrecision, Out: Numeric, I: ReduceInstruction<P> + Clone
                 let values = Registry::<FuseArg, Line<f32>>::new();
                 let args = comptime![Vec::<FuseArg>::new()];
                 let index = global_index * num_iter + i;
-                fuse_on_write::<f32>(inputs, outputs, locals, index, values, args, &block.config)
+                let mut locals = init_locals(inputs, outputs, &block.config);
+                fuse_on_write::<f32>(
+                    inputs,
+                    outputs,
+                    &mut locals,
+                    index,
+                    values,
+                    args,
+                    &block.config,
+                )
             }
         }
         CubeOption::None => {}
@@ -102,7 +135,7 @@ fn reduce_step<P: ReducePrecision, Out: Numeric, I: ReduceInstruction<P>>(
     reduce_axis: usize,
     reduce_index: usize,
     idle: CubeOption<bool>,
-    locals: &mut LocalArgs,
+    locals: &mut Registry<u32, Line<Out>>,
     #[comptime] config: I::Config,
     #[comptime] arg: FuseArg,
 ) -> usize {
@@ -119,7 +152,9 @@ fn reduce_step<P: ReducePrecision, Out: Numeric, I: ReduceInstruction<P>>(
         LineMode::Parallel,
     );
     let line = I::merge_line::<Out>(&inst, acc, axis_size);
-    codegen::io::write_scalar::<Out>(locals, Line::cast_from(line), arg);
+
+    locals.insert(0u32, Line::cast_from(line));
+    // codegen::io::write_scalar::<Out>(locals, Line::cast_from(line), arg);
 
     axis_size
 }

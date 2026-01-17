@@ -161,13 +161,14 @@ impl<R: Runtime> ReduceBlockFuser<R> {
         num_ops: &mut usize,
         full: &mut ReduceBroadcastedFullFuser,
     ) -> ReduceBlockOptimInfo<R> {
+        full.register(self);
+
         match &self.kind {
             ReduceBlockKind::Elemwise => {
                 let len = self.fuser.fuser_read_fallback.len();
                 let device = self.fuser.device.clone();
                 *num_ops += len;
                 let trace = self.fuser.fuser_read_fallback.finish();
-                full.register(self, &trace);
                 let client = R::client(&device);
                 let elementwise = ElemwiseOptimization::new(trace, client, device, len);
                 ReduceBlockOptimInfo::Elemwise(Arc::new(elementwise))
@@ -176,10 +177,7 @@ impl<R: Runtime> ReduceBlockFuser<R> {
                 *num_ops += self.fuser.len();
                 let optim = self.fuser.finish();
                 let info = match optim {
-                    CubeOptimization::Reduce(optim) => {
-                        full.register(self, &optim.info.trace);
-                        optim.info
-                    }
+                    CubeOptimization::Reduce(optim) => optim.info,
                     _ => unreachable!("Expected Reduce optimization"),
                 };
                 ReduceBlockOptimInfo::Reduce(info)

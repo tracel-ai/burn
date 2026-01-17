@@ -29,6 +29,7 @@ pub struct FuseBlock {
     pub reads: BTreeMap<TensorId, Vec<FuseOp>>,
     /// Contains all tensor outputs of the current block except for manually handled tensors.
     pub writes: BTreeMap<TensorId, FuseOp>,
+    pub local_inputs: Vec<LocalInput>,
 }
 
 #[derive(Clone, Debug)]
@@ -46,7 +47,7 @@ pub struct FuseBlockBuilder {
     pub local_inputs: BTreeMap<TensorId, LocalInput>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LocalInput {
     /// The previous block position in the full trace.
     pub block_pos: usize,
@@ -437,6 +438,7 @@ impl FuseBlockBuilder {
                 shape_ref,
                 reads,
                 writes,
+                local_inputs: self.local_inputs.values().map(|i| i.clone()).collect(),
             },
             tensor_writes,
         )
