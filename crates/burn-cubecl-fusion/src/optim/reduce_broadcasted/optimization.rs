@@ -1,38 +1,18 @@
 use crate::{
     CubeFusionHandle, FallbackOperation,
-    engine::{
-        codegen::{
-            self,
-            ir::{FuseArg, FuseBlockConfig, GlobalArgs, LocalArgs},
-            kernel::fuse_on_write,
-        },
-        trace::{TraceError, TuneOutput},
-    },
+    engine::trace::{TraceError, TuneOutput},
     optim::{
         elemwise::ElemwiseOptimization,
         reduce::{
             FusedReduceError, ReduceOptimizationInfo, ReduceOptimizationState,
             ReduceOptimizationTuneArg,
-            args::{FusedReduceArgs, FusedReduceInput, FusedReduceOutput},
         },
         reduce_broadcasted::tune::fused_broadcasted_reduce_autotune,
     },
 };
 use burn_fusion::stream::Context;
-use cubecl::{
-    Runtime,
-    prelude::*,
-    std::{CubeOption, CubeOptionExpand, tensor::r#virtual::VirtualTensor},
-};
-use cubek::reduce::{
-    LineMode, ReduceInstruction, ReducePrecision,
-    components::{
-        global::unit::GlobalFullUnitReduce,
-        instructions::{ReduceOperation, ReduceOperationConfig},
-    },
-    init_tensors,
-    launch::RoutineStrategy,
-};
+use cubecl::{Runtime, prelude::*};
+use cubek::reduce::launch::RoutineStrategy;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 

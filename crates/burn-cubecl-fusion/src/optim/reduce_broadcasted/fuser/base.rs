@@ -1,18 +1,14 @@
 use crate::{
-    engine::{
-        codegen::ir::FuseType,
-        fuser::TraceOperationFuser,
-        settings::{FuseSettings, RefLayoutSetting, VectorizationSetting},
-    },
+    engine::codegen::ir::FuseType,
     optim::{
         CubeOptimization,
-        elemwise::ElemwiseOptimization,
-        reduce::{FusedReduce, ReduceFuser, ReduceFuserInfo, ReduceSettings},
+        reduce::{ReduceFuser, ReduceFuserInfo, ReduceSettings},
         reduce_broadcasted::{
-            ReduceBlockOptimInfo, ReduceBroadcastedOptimization, ReduceBroadcastedOptimizationInfo,
-            block::{
-                ReduceBlockFuser, ReduceBlockFusionAnalysis, ReduceBroadcastedMainFuser,
-                ReduceBroadcastedStatus,
+            ReduceBroadcastedOptimization, ReduceBroadcastedOptimizationInfo,
+            fuser::{
+                block::{ReduceBlockFuser, ReduceBlockFusionAnalysis, ReduceBroadcastedStatus},
+                full::ReduceBroadcastedFullFuser,
+                full_analyzer::FullFuserAnalyzer,
             },
         },
     },
@@ -121,15 +117,19 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceBroadcastedFuser<
     }
 
     fn finish(&self) -> CubeOptimization<R> {
-        let mut main = ReduceBroadcastedMainFuser::new(self.max_bindings, self.bool_precision);
+        let analyzer = FullFuserAnalyzer::new(&self.blocks);
+        println!("ANALYZER {analyzer:?}");
+
+        let mut full =
+            ReduceBroadcastedFullFuser::new(self.max_bindings, self.bool_precision, analyzer);
         let mut num_ops = 0;
         let fallbacks = self
             .blocks
             .iter()
-            .map(|block| block.finish(&mut num_ops, &mut main))
+            .map(|block| block.finish(&mut num_ops, &mut full))
             .collect::<Vec<_>>();
 
-        let trace = main.fuser.finish();
+        let trace = full.fuser.finish();
         println!("Trace {trace}");
 
         let info = Arc::new(ReduceBroadcastedOptimizationInfo { fallbacks });
@@ -295,7 +295,79 @@ mod tests {
             }
         );
 
-        let optimization = fuser.finish();
+        let _optimization = fuser.finish();
+    }
+
+    #[test]
+    fn reduce_broadcast_workflow_2() {
+        let device: <Run as Runtime>::Device = Default::default();
+        let mut fuser = ReduceBroadcastedFuser::<Run>::new(device, FuseType::I32);
+        let (tensor1_out, tensor1) = tensor(0, vec![1, 2], TensorStatus::ReadWrite);
+        // An existing tensor
+        let (_tensor2_out, mut tensor2) = tensor(2, vec![1, 2], TensorStatus::ReadOnly);
+        let (tensor3_out, tensor3) = tensor(3, vec![1, 2], TensorStatus::ReadWrite);
+
+        // First reduce output
+        let (tensor4_out, tensor4) = tensor(1, vec![1, 0], TensorStatus::ReadWrite);
+
+        fuser.fuse(&OperationIr::BaseFloat(BaseOperationIr::Ones(
+            CreationOpIr { out: tensor1_out },
+        )));
+
+        fuser.fuse(&OperationIr::NumericFloat(
+            DType::F32,
+            burn_ir::NumericOperationIr::Add(BinaryOpIr {
+                lhs: tensor1,
+                rhs: tensor2.clone(),
+                out: tensor3_out,
+            }),
+        ));
+
+        fuser.fuse(&OperationIr::NumericFloat(
+            DType::F32,
+            burn_ir::NumericOperationIr::SumDim(ReduceDimOpIr {
+                input: tensor3,
+                out: tensor4_out,
+                axis: 1,
+            }),
+        ));
+
+        let status = fuser.status();
+        assert_eq!(3, fuser.len());
+        assert_eq!(status, FuserStatus::Open);
+        assert_eq!(
+            fuser.properties(),
+            FuserProperties {
+                score: 3,
+                ready: true
+            }
+        );
+
+        // A new tensor
+        let (tensor5_out, _tensor5) = tensor(5, vec![1, 2], TensorStatus::ReadWrite);
+        // Last time we use tensor2.
+        tensor2.status = TensorStatus::ReadWrite;
+        fuser.fuse(&OperationIr::NumericFloat(
+            DType::F32,
+            burn_ir::NumericOperationIr::Add(BinaryOpIr {
+                lhs: tensor4,
+                rhs: tensor2,
+                out: tensor5_out,
+            }),
+        ));
+
+        let status = fuser.status();
+        assert_eq!(4, fuser.len());
+        assert_eq!(status, FuserStatus::Open);
+        assert_eq!(
+            fuser.properties(),
+            FuserProperties {
+                score: 4,
+                ready: true
+            }
+        );
+
+        let _optimization = fuser.finish();
     }
 
     fn tensor(id: u64, shape: Vec<usize>, status: TensorStatus) -> (TensorIr, TensorIr) {

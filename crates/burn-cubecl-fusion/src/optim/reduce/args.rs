@@ -34,6 +34,7 @@ pub struct FusedReduceState {
     locals_on_write: *mut LocalArgs,
     config_on_read: FuseBlockConfig,
     config_on_write: FuseBlockConfig,
+    // TODO: Should be a list when multiple blocks are there.
     input: FuseArg,
     out: FuseArg,
 }
@@ -73,6 +74,7 @@ impl ReduceArgs for FusedReduceArgs {
             index,
             comptime! {
                 let mut sequence = Sequence::new();
+                // TODO: Register local arguments from previous blocks.
                 sequence.push(state.input.clone());
                 sequence
             },

@@ -43,7 +43,17 @@ pub struct FuseBlockBuilder {
     outputs: RegisteredTensors,
     pub outputs_unhandled: Vec<FuseArg>,
     pub local_outputs: Vec<TensorId>,
-    pub local_inputs: BTreeMap<TensorId, FuseArg>,
+    pub local_inputs: BTreeMap<TensorId, LocalInput>,
+}
+
+#[derive(Clone, Debug)]
+pub struct LocalInput {
+    /// The previous block position in the full trace.
+    pub block_pos: usize,
+    /// The fuse argument in the block that performs the global read.
+    pub src_arg: FuseArg,
+    /// The fuse argument in the current block reusing the register.
+    pub dst_arg: FuseArg,
 }
 
 #[derive(Debug)]
@@ -103,6 +113,24 @@ impl FuseBlockBuilder {
     }
 
     /// Register an input tensor.
+    pub fn fetch_local(&self, tensor: &TensorIr) -> Option<FuseArg> {
+        let precision = tensor.dtype.into();
+
+        match self.local_inputs.get(&tensor.id) {
+            // We simply return the local index.
+            Some(val) => return Some(val.dst_arg.clone()),
+            None => {}
+        }
+
+        self.locals.get(precision, tensor.id)
+    }
+
+    pub fn create_local(&mut self, tensor: &TensorIr) -> FuseArg {
+        let precision = tensor.dtype.into();
+        self.locals.create(precision, tensor.id)
+    }
+
+    /// Register an input tensor.
     pub fn input(&mut self, tensor: &TensorIr, resources: &mut FuseResources) -> Option<FuseArg> {
         if resources.indexed.contains_key(&tensor.id) {
             return None;
@@ -119,8 +147,17 @@ impl FuseBlockBuilder {
             _ => precision,
         };
 
+        println!(
+            "Add new input {tensor:?}, with locals: {:?}",
+            self.local_inputs
+        );
         match self.local_inputs.get(&tensor.id) {
-            Some(val) => return Some(val.clone()),
+            Some(val) => {
+                return {
+                    println!("REUSING LOCAL {:?} => {:?}", tensor.id, val);
+                    return Some(val.dst_arg.clone());
+                };
+            }
             None => {}
         }
 

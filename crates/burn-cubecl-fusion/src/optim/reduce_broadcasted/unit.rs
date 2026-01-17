@@ -43,13 +43,13 @@ fn reduce_many<P: ReducePrecision, Out: Numeric, I: ReduceInstruction<P> + Clone
     inputs: &GlobalArgs,
     outputs: &mut GlobalArgs,
     locals: &mut LocalArgs,
-    reduce_axis: u32,
+    reduce_axis: usize,
     idle: CubeOption<bool>,
     blocks: Sequence<ReduceFuseBlock>,
     block_end: CubeOption<ElemwiseFuseBlock>,
 ) {
     let global_index = ABSOLUTE_POS;
-    let mut axis_size = 0u32;
+    let mut axis_size = 0;
 
     #[unroll]
     for i in 0..blocks.len() {
@@ -82,10 +82,11 @@ fn reduce_many<P: ReducePrecision, Out: Numeric, I: ReduceInstruction<P> + Clone
     match block_end {
         CubeOption::Some(block) => {
             let width = comptime!(block.config.width as u32);
-            let num_iter = axis_size / width;
+            let num_iter = axis_size / usize::cast_from(width);
             for i in 0..num_iter {
+                // Register block local inputs.
                 let values = Registry::<FuseArg, Line<f32>>::new();
-                let args = comptime![Sequence::<FuseArg>::new()];
+                let args = comptime![Vec::<FuseArg>::new()];
                 let index = global_index * num_iter + i;
                 fuse_on_write::<f32>(inputs, outputs, locals, index, values, args, &block.config)
             }
@@ -98,13 +99,13 @@ fn reduce_many<P: ReducePrecision, Out: Numeric, I: ReduceInstruction<P> + Clone
 fn reduce_step<P: ReducePrecision, Out: Numeric, I: ReduceInstruction<P>>(
     input: &VirtualTensor<P::EI>,
     output: &mut VirtualTensor<Out, ReadWrite>,
-    reduce_axis: u32,
-    reduce_index: u32,
+    reduce_axis: usize,
+    reduce_index: usize,
     idle: CubeOption<bool>,
     locals: &mut LocalArgs,
     #[comptime] config: I::Config,
     #[comptime] arg: FuseArg,
-) -> u32 {
+) -> usize {
     let inst = I::from_config(config);
     let axis_size = input.shape(reduce_axis);
 
