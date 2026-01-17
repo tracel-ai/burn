@@ -809,4 +809,9 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     ///
     /// A tensor view with shape ``[pre=..., windows, post=..., size]``.
     fn unfold(tensor: Self::Primitive, dim: usize, size: usize, step: usize) -> Self::Primitive;
+
+    /// Ensure that the tensor is owned. Converts borrowed to owned if necessary.
+    ///
+    /// This is needed only for ndarray backend.
+    fn ensure_owned(tensor: &mut Self::Primitive);
 }

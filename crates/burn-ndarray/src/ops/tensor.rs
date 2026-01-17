@@ -695,4 +695,8 @@ where
             NdArrayOps::unfold(array, dim, size, step)
         })
     }
+
+    fn float_ensure_owned(tensor: &mut FloatTensor<Self>) {
+        tensor.ensure_owned();
+    }
 }
