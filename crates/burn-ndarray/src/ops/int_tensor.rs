@@ -10,7 +10,7 @@ use burn_backend::ElementConversion;
 
 // Current crate
 use crate::{NdArray, cast_to_dtype, execute_with_dtype, tensor::NdArrayTensor};
-use crate::{NdArrayDevice, SEED};
+use crate::{NdArrayDevice, SEED, slice};
 use crate::{SharedArray, element::QuantElement};
 use crate::{cat_with_dtype, execute_with_float_dtype};
 use crate::{element::FloatNdArrayElement, ops::matmul::matmul};
@@ -47,7 +47,7 @@ where
     }
 
     fn int_slice(tensor: NdArrayTensor, slices: &[burn_backend::Slice]) -> NdArrayTensor {
-        execute_with_int_dtype!(tensor, |array| NdArrayOps::slice(array, slices))
+        slice!(tensor, slices)
     }
 
     fn int_device(_tensor: &NdArrayTensor) -> <NdArray<E> as Backend>::Device {
