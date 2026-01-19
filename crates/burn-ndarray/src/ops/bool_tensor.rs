@@ -217,8 +217,4 @@ where
         let result = NdArrayBoolOps::all_view(tensor.bool().view());
         NdArrayTensor::from_data(TensorData::new(vec![result], Shape::new([1])))
     }
-
-    fn bool_ensure_owned(tensor: &mut BoolTensor<Self>) {
-        tensor.ensure_owned()
-    }
 }

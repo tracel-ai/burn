@@ -1369,9 +1369,4 @@ pub trait QTensorOps<B: Backend> {
         let tensor_f = Self::dequantize(tensor);
         B::float_argsort(tensor_f, dim, descending)
     }
-
-    /// Ensure that the tensor is owned. Converts borrowed to owned if necessary.
-    ///
-    /// This is needed only for ndarray backend.
-    fn q_ensure_owned(_tensor: &mut QuantizedTensor<B>) {}
 }

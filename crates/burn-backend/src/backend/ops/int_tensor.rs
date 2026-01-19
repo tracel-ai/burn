@@ -1369,9 +1369,4 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// A tensor view with shape ``[pre=..., windows, size, post=...]``.
     fn int_unfold(tensor: IntTensor<B>, dim: usize, size: usize, step: usize) -> IntTensor<B>;
-
-    /// Ensure that the tensor is owned. Converts borrowed to owned if necessary.
-    ///
-    /// This is needed only for ndarray backend.
-    fn int_ensure_owned(_tensor: &mut IntTensor<B>) {}
 }

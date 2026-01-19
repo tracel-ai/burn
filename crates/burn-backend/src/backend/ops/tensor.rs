@@ -1650,9 +1650,4 @@ pub trait FloatTensorOps<B: Backend> {
     fn float_is_inf(tensor: FloatTensor<B>) -> BoolTensor<B> {
         B::float_equal_elem(B::float_abs(tensor), f64::INFINITY.elem())
     }
-
-    /// Ensure that the tensor is owned. Converts borrowed to owned if necessary.
-    ///
-    /// This is needed only for ndarray backend.
-    fn float_ensure_owned(_tensor: &mut FloatTensor<B>) {}
 }

@@ -193,10 +193,6 @@ impl<B: Backend> BasicOps<B> for Int {
     fn unfold(tensor: Self::Primitive, dim: usize, size: usize, step: usize) -> Self::Primitive {
         B::int_unfold(tensor, dim, size, step)
     }
-
-    fn ensure_owned(tensor: &mut Self::Primitive) {
-        B::int_ensure_owned(tensor)
-    }
 }
 
 impl<B: Backend> Numeric<B> for Int {

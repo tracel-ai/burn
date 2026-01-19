@@ -312,13 +312,6 @@ impl<B: Backend> BasicOps<B> for Float {
     fn unfold(tensor: Self::Primitive, dim: usize, size: usize, step: usize) -> Self::Primitive {
         TensorPrimitive::Float(B::float_unfold(tensor.tensor(), dim, size, step))
     }
-
-    fn ensure_owned(tensor: &mut Self::Primitive) {
-        match tensor {
-            TensorPrimitive::Float(tensor) => B::float_ensure_owned(tensor),
-            TensorPrimitive::QFloat(tensor) => B::q_ensure_owned(tensor),
-        }
-    }
 }
 
 impl<B: Backend> Numeric<B> for Float {

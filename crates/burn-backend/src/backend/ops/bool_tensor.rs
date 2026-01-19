@@ -564,9 +564,4 @@ pub trait BoolTensorOps<B: Backend> {
     ///
     /// A tensor view with shape ``[pre=..., windows, size, post=...]``.
     fn bool_unfold(tensor: BoolTensor<B>, dim: usize, size: usize, step: usize) -> BoolTensor<B>;
-
-    /// Ensure that the tensor is owned. Converts borrowed to owned if necessary.
-    ///
-    /// This is needed only for ndarray backend.
-    fn bool_ensure_owned(_tensor: &mut BoolTensor<B>) {}
 }
