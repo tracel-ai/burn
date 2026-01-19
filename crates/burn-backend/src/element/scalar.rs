@@ -1,6 +1,9 @@
 use burn_std::{DType, bf16, f16};
 use num_traits::ToPrimitive;
 
+#[cfg(not(feature = "std"))]
+use num_traits::Float;
+
 use crate::{Element, ElementConversion};
 
 /// A scalar element.
