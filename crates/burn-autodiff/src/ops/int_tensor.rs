@@ -57,7 +57,7 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
         B::int_equal(lhs, rhs)
     }
 
-    fn int_equal_elem(lhs: IntTensor<B>, rhs: B::IntElem) -> BoolTensor<B> {
+    fn int_equal_elem(lhs: IntTensor<B>, rhs: Scalar) -> BoolTensor<B> {
         B::int_equal_elem(lhs, rhs)
     }
 
@@ -65,19 +65,19 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
         B::int_add(lhs, rhs)
     }
 
-    fn int_add_scalar(lhs: IntTensor<B>, rhs: B::IntElem) -> IntTensor<B> {
+    fn int_add_scalar(lhs: IntTensor<B>, rhs: Scalar) -> IntTensor<B> {
         B::int_add_scalar(lhs, rhs)
     }
 
-    fn int_clamp_min(tensor: IntTensor<B>, min: B::IntElem) -> IntTensor<B> {
+    fn int_clamp_min(tensor: IntTensor<B>, min: Scalar) -> IntTensor<B> {
         B::int_clamp_min(tensor, min)
     }
 
-    fn int_clamp_max(tensor: IntTensor<B>, max: B::IntElem) -> IntTensor<B> {
+    fn int_clamp_max(tensor: IntTensor<B>, max: Scalar) -> IntTensor<B> {
         B::int_clamp_max(tensor, max)
     }
 
-    fn int_clamp(tensor: IntTensor<B>, min: B::IntElem, max: B::IntElem) -> IntTensor<B> {
+    fn int_clamp(tensor: IntTensor<B>, min: Scalar, max: Scalar) -> IntTensor<B> {
         B::int_clamp(tensor, min, max)
     }
 
@@ -85,7 +85,7 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
         B::int_sub(lhs, rhs)
     }
 
-    fn int_sub_scalar(lhs: IntTensor<B>, rhs: B::IntElem) -> IntTensor<B> {
+    fn int_sub_scalar(lhs: IntTensor<B>, rhs: Scalar) -> IntTensor<B> {
         B::int_sub_scalar(lhs, rhs)
     }
 
@@ -93,7 +93,7 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
         B::int_mul(lhs, rhs)
     }
 
-    fn int_mul_scalar(lhs: IntTensor<B>, rhs: B::IntElem) -> IntTensor<B> {
+    fn int_mul_scalar(lhs: IntTensor<B>, rhs: Scalar) -> IntTensor<B> {
         B::int_mul_scalar(lhs, rhs)
     }
 
@@ -101,7 +101,7 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
         B::int_div(lhs, rhs)
     }
 
-    fn int_div_scalar(lhs: IntTensor<B>, rhs: B::IntElem) -> IntTensor<B> {
+    fn int_div_scalar(lhs: IntTensor<B>, rhs: Scalar) -> IntTensor<B> {
         B::int_div_scalar(lhs, rhs)
     }
 
@@ -109,7 +109,7 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
         B::int_remainder(lhs, rhs)
     }
 
-    fn int_remainder_scalar(lhs: IntTensor<B>, rhs: B::IntElem) -> IntTensor<B> {
+    fn int_remainder_scalar(lhs: IntTensor<B>, rhs: Scalar) -> IntTensor<B> {
         B::int_remainder_scalar(lhs, rhs)
     }
 
@@ -178,7 +178,7 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
         B::int_greater(lhs, rhs)
     }
 
-    fn int_greater_elem(lhs: IntTensor<B>, rhs: B::IntElem) -> BoolTensor<B> {
+    fn int_greater_elem(lhs: IntTensor<B>, rhs: Scalar) -> BoolTensor<B> {
         B::int_greater_elem(lhs, rhs)
     }
 
@@ -186,7 +186,7 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
         B::int_greater_equal(lhs, rhs)
     }
 
-    fn int_greater_equal_elem(lhs: IntTensor<B>, rhs: B::IntElem) -> BoolTensor<B> {
+    fn int_greater_equal_elem(lhs: IntTensor<B>, rhs: Scalar) -> BoolTensor<B> {
         B::int_greater_equal_elem(lhs, rhs)
     }
 
@@ -194,7 +194,7 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
         B::int_lower(lhs, rhs)
     }
 
-    fn int_lower_elem(lhs: IntTensor<B>, rhs: B::IntElem) -> BoolTensor<B> {
+    fn int_lower_elem(lhs: IntTensor<B>, rhs: Scalar) -> BoolTensor<B> {
         B::int_lower_elem(lhs, rhs)
     }
 
@@ -202,7 +202,7 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
         B::int_lower_equal(lhs, rhs)
     }
 
-    fn int_lower_equal_elem(lhs: IntTensor<B>, rhs: B::IntElem) -> BoolTensor<B> {
+    fn int_lower_equal_elem(lhs: IntTensor<B>, rhs: Scalar) -> BoolTensor<B> {
         B::int_lower_equal_elem(lhs, rhs)
     }
 
@@ -243,7 +243,7 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
     fn int_mask_fill(
         tensor: IntTensor<B>,
         mask: BoolTensor<B>,
-        value: B::IntElem,
+        value: Scalar,
     ) -> <Autodiff<B> as Backend>::IntTensorPrimitive {
         B::int_mask_fill(tensor, mask, value)
     }
@@ -351,7 +351,7 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
         B::bitwise_and(lhs, rhs)
     }
 
-    fn bitwise_and_scalar(lhs: IntTensor<Self>, rhs: B::IntElem) -> IntTensor<Self> {
+    fn bitwise_and_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
         B::bitwise_and_scalar(lhs, rhs)
     }
 
@@ -359,7 +359,7 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
         B::bitwise_or(lhs, rhs)
     }
 
-    fn bitwise_or_scalar(lhs: IntTensor<Self>, rhs: B::IntElem) -> IntTensor<Self> {
+    fn bitwise_or_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
         B::bitwise_or_scalar(lhs, rhs)
     }
 
@@ -367,7 +367,7 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
         B::bitwise_xor(lhs, rhs)
     }
 
-    fn bitwise_xor_scalar(lhs: IntTensor<Self>, rhs: B::IntElem) -> IntTensor<Self> {
+    fn bitwise_xor_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
         B::bitwise_xor_scalar(lhs, rhs)
     }
 
@@ -379,7 +379,7 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
         B::bitwise_left_shift(lhs, rhs)
     }
 
-    fn bitwise_left_shift_scalar(lhs: IntTensor<Self>, rhs: B::IntElem) -> IntTensor<Self> {
+    fn bitwise_left_shift_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
         B::bitwise_left_shift_scalar(lhs, rhs)
     }
 
@@ -387,7 +387,7 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
         B::bitwise_right_shift(lhs, rhs)
     }
 
-    fn bitwise_right_shift_scalar(lhs: IntTensor<Self>, rhs: B::IntElem) -> IntTensor<Self> {
+    fn bitwise_right_shift_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
         B::bitwise_right_shift_scalar(lhs, rhs)
     }
 

@@ -5,7 +5,7 @@ macro_rules! scalar_float_ops {
         $handles:expr, $desc:expr, $ops:expr
     ) => {{
         let lhs = $handles.get_float_tensor::<B>(&$desc.lhs);
-        let output = $ops(lhs, $desc.rhs.elem());
+        let output = $ops(lhs, $desc.rhs.into());
 
         $handles.register_float_tensor::<B>(&$desc.out.id, output);
     }};
@@ -83,7 +83,7 @@ macro_rules! scalar_float_cmp_ops {
         $handles:expr, $desc:expr, $ops:expr
     ) => {{
         let lhs = $handles.get_float_tensor::<B>(&$desc.lhs);
-        let output = $ops(lhs, $desc.rhs.elem());
+        let output = $ops(lhs, $desc.rhs.into());
 
         $handles.register_bool_tensor::<B>(&$desc.out.id, output);
     }};
@@ -109,7 +109,7 @@ macro_rules! scalar_int_ops {
         $handles:expr, $desc:expr, $ops:expr
     ) => {{
         let lhs = $handles.get_int_tensor::<B>(&$desc.lhs);
-        let output = $ops(lhs, $desc.rhs.elem());
+        let output = $ops(lhs, $desc.rhs.into());
 
         $handles.register_int_tensor::<B>(&$desc.out.id, output);
     }};
@@ -135,7 +135,7 @@ macro_rules! scalar_int_cmp_ops {
         $handles:expr, $desc:expr, $ops:expr
     ) => {{
         let lhs = $handles.get_int_tensor::<B>(&$desc.lhs);
-        let output = $ops(lhs, $desc.rhs.elem());
+        let output = $ops(lhs, $desc.rhs.into());
 
         $handles.register_bool_tensor::<B>(&$desc.out.id, output);
     }};

@@ -231,7 +231,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     let tensor = handles.get_float_tensor::<B>(&desc.tensor);
                     let mask = handles.get_bool_tensor::<B>(&desc.mask);
 
-                    let output = B::float_mask_fill(tensor, mask, desc.value.elem());
+                    let output = B::float_mask_fill(tensor, mask, desc.value.into());
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
                 BaseOperationIr::Equal(desc) => {
@@ -377,7 +377,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     let tensor = handles.get_int_tensor::<B>(&desc.tensor);
                     let mask = handles.get_bool_tensor::<B>(&desc.mask);
 
-                    let output = B::int_mask_fill(tensor, mask, desc.value.elem());
+                    let output = B::int_mask_fill(tensor, mask, desc.value.into());
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
                 BaseOperationIr::Equal(desc) => {
@@ -695,7 +695,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                 NumericOperationIr::Clamp(desc) => {
                     let tensor = handles.get_float_tensor::<B>(&desc.tensor);
 
-                    let output = B::float_clamp(tensor, desc.min.elem(), desc.max.elem());
+                    let output = B::float_clamp(tensor, desc.min.into(), desc.max.into());
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
                 NumericOperationIr::IntRandom(_) => unreachable!(),
@@ -850,7 +850,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                 NumericOperationIr::Clamp(desc) => {
                     let tensor = handles.get_int_tensor::<B>(&desc.tensor);
 
-                    let output = B::int_clamp(tensor, desc.min.elem(), desc.max.elem());
+                    let output = B::int_clamp(tensor, desc.min.into(), desc.max.into());
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
                 NumericOperationIr::IntRandom(desc) => {

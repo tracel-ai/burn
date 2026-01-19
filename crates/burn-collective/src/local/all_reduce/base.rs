@@ -8,7 +8,7 @@ use crate::{
     node::base::Node,
 };
 use burn_communication::Protocol;
-use burn_tensor::{ElementConversion, backend::Backend};
+use burn_tensor::backend::Backend;
 
 #[cfg(feature = "tracing")]
 use tracing::Instrument;
@@ -36,7 +36,7 @@ pub(crate) async fn all_reduce_local_only<B: Backend>(
         let _span = tracing::info_span!("mean_reduction").entered();
 
         // Apply mean division
-        let div = (reduced_tensors.len() as f32).elem();
+        let div = (reduced_tensors.len() as f32).into();
 
         reduced_tensors = reduced_tensors
             .into_iter()

@@ -2,6 +2,7 @@
 use crate::backend::ExecutionError;
 use crate::check::unwrap_shape_reshape;
 
+use burn_backend::Scalar;
 pub use burn_backend::tensor::BasicOps;
 
 use alloc::vec::Vec;
@@ -270,12 +271,13 @@ where
     ) -> Self {
         let opt = options.into();
         let shape = shape.into();
+        let dtype = opt.dtype_or(K::Elem::dtype());
         check!(TensorCheck::creation_ops::<D>("Full", &shape.dims));
         Self::new(K::full(
             shape,
-            fill_value,
+            Scalar::new(fill_value, &dtype),
             &opt.device,
-            opt.dtype_or(K::Elem::dtype()),
+            dtype,
         ))
     }
 
@@ -297,11 +299,12 @@ where
     /// }
     /// ```
     pub fn full_like<E: ElementConversion>(&self, fill_value: E) -> Self {
+        let dtype = self.dtype();
         Self::new(K::full(
             self.shape(),
-            fill_value,
+            Scalar::new(fill_value, &dtype),
             &self.device(),
-            self.dtype(),
+            dtype,
         ))
     }
 
@@ -1730,7 +1733,8 @@ where
     /// }
     /// ```
     pub fn mask_fill<E: ElementConversion>(self, mask: Tensor<B, D, Bool>, value: E) -> Self {
-        Self::new(K::mask_fill(self.primitive, mask.primitive, value.elem()))
+        let value = Scalar::new(value, &self.dtype());
+        Self::new(K::mask_fill(self.primitive, mask.primitive, value))
     }
 
     /// Gather tensor elements corresponding to the given indices from the specified dim.
@@ -2052,7 +2056,8 @@ where
     /// }
     /// ```
     pub fn equal_elem<E: Element>(self, other: E) -> Tensor<B, D, Bool> {
-        Tensor::new(K::equal_elem(self.primitive, other.elem()))
+        let other = Scalar::new(other, &self.dtype());
+        Tensor::new(K::equal_elem(self.primitive, other))
     }
 
     /// Applies element wise non-equality comparison and returns a boolean tensor.
@@ -2076,7 +2081,8 @@ where
     /// }
     /// ```
     pub fn not_equal_elem<E: Element>(self, other: E) -> Tensor<B, D, Bool> {
-        Tensor::new(K::not_equal_elem(self.primitive, other.elem()))
+        let other = Scalar::new(other, &self.dtype());
+        Tensor::new(K::not_equal_elem(self.primitive, other))
     }
 
     /// Concatenates all tensors into a new one along the given dimension.

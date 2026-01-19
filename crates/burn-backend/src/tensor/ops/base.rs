@@ -2,8 +2,8 @@ use alloc::vec::Vec;
 use burn_std::{DType, Shape, Slice};
 
 use crate::{
-    Backend, ExecutionError, TensorData, TensorMetadata,
-    element::{Element, ElementConversion},
+    Backend, ExecutionError, Scalar, TensorData, TensorMetadata,
+    element::Element,
     ops::TransactionPrimitive,
     tensor::{IndexingUpdateOp, IntTensor, TensorKind},
 };
@@ -115,12 +115,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     #[cfg_attr(doc, doc = crate::doc_tensor!("full"))]
     #[cfg_attr(not(doc), doc = "`Tensor::full`")]
     /// function, which is more high-level and designed for public use.
-    fn full<E: ElementConversion>(
-        shape: Shape,
-        fill_value: E,
-        device: &B::Device,
-        dtype: DType,
-    ) -> Self::Primitive;
+    fn full(shape: Shape, fill_value: Scalar, device: &B::Device, dtype: DType) -> Self::Primitive;
 
     /// Reshapes the tensor.
     ///
@@ -362,7 +357,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     fn mask_fill(
         tensor: Self::Primitive,
         mask: B::BoolTensorPrimitive,
-        value: Self::Elem,
+        value: Scalar,
     ) -> Self::Primitive;
 
     /// Gathers elements from a tensor along an axis.
@@ -616,7 +611,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     /// # Arguments
     ///
     /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side tensor.
+    /// * `rhs` - The right hand side scalar.
     ///
     /// # Returns
     ///
@@ -633,7 +628,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     #[cfg_attr(doc, doc = crate::doc_tensor!("equal_elem"))]
     #[cfg_attr(not(doc), doc = "`Tensor::equal_elem`")]
     /// function, which is more high-level and designed for public use.
-    fn equal_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive;
+    fn equal_elem(lhs: Self::Primitive, rhs: Scalar) -> B::BoolTensorPrimitive;
 
     /// Applies element-wise non-equality comparison between the given tensors.
     ///
@@ -663,7 +658,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     /// # Arguments
     ///
     /// * `lhs` - The left hand side tensor.
-    /// * `rhs` - The right hand side tensor.
+    /// * `rhs` - The right hand side scalar.
     ///
     /// # Returns
     ///
@@ -680,7 +675,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     #[cfg_attr(doc, doc = crate::doc_tensor!("not_equal_elem"))]
     #[cfg_attr(not(doc), doc = "`Tensor::not_equal_elem`")]
     /// function, which is more high-level and designed for public use.
-    fn not_equal_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive;
+    fn not_equal_elem(lhs: Self::Primitive, rhs: Scalar) -> B::BoolTensorPrimitive;
 
     /// Returns the name of the element type.
     fn elem_type_name() -> &'static str {

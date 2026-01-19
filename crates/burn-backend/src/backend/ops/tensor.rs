@@ -3,8 +3,8 @@ use super::grid_sample::float_grid_sample_2d_ref;
 use super::repeat_dim::repeat_with_slice_assign;
 use super::sort::{argsort, sort, sort_with_indices};
 use crate::ops::GridSampleOptions;
-use crate::tensor::{BoolTensor, Device, Float, FloatElem, FloatTensor, IntElem, IntTensor};
-use crate::{Backend, Distribution, TensorData, element::ElementConversion};
+use crate::tensor::{BoolTensor, Device, Float, FloatTensor, IntTensor};
+use crate::{Backend, Distribution, TensorData};
 use crate::{ExecutionError, Scalar, TensorMetadata, TensorPrimitive};
 use alloc::vec::Vec;
 use burn_std::{FloatDType, Shape, Slice};
@@ -188,7 +188,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The result of adding the scalar to the tensor.
-    fn float_add_scalar(lhs: FloatTensor<B>, rhs: FloatElem<B>) -> FloatTensor<B>;
+    fn float_add_scalar(lhs: FloatTensor<B>, rhs: Scalar) -> FloatTensor<B>;
 
     /// Clamps a tensor under a minimum value.
     ///
@@ -200,7 +200,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The clamped tensor.
-    fn float_clamp_min(tensor: FloatTensor<B>, min: FloatElem<B>) -> FloatTensor<B> {
+    fn float_clamp_min(tensor: FloatTensor<B>, min: Scalar) -> FloatTensor<B> {
         // Default implementation
         let mask = Self::float_lower_elem(tensor.clone(), min);
         B::float_mask_fill(tensor, mask, min)
@@ -216,7 +216,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The clamped tensor.
-    fn float_clamp_max(tensor: FloatTensor<B>, max: FloatElem<B>) -> FloatTensor<B> {
+    fn float_clamp_max(tensor: FloatTensor<B>, max: Scalar) -> FloatTensor<B> {
         // Default implementation
         let mask = Self::float_greater_elem(tensor.clone(), max);
         B::float_mask_fill(tensor, mask, max)
@@ -233,7 +233,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The clamped tensor.
-    fn float_clamp(tensor: FloatTensor<B>, min: FloatElem<B>, max: FloatElem<B>) -> FloatTensor<B> {
+    fn float_clamp(tensor: FloatTensor<B>, min: Scalar, max: Scalar) -> FloatTensor<B> {
         // Default implementation
         Self::float_clamp_min(Self::float_clamp_max(tensor, max), min)
     }
@@ -260,7 +260,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The result of subtracting the scalar from the tensor.
-    fn float_sub_scalar(lhs: FloatTensor<B>, rhs: FloatElem<B>) -> FloatTensor<B>;
+    fn float_sub_scalar(lhs: FloatTensor<B>, rhs: Scalar) -> FloatTensor<B>;
 
     /// Multiplies two tensors together element-wise.
     fn float_mul(lhs: FloatTensor<B>, rhs: FloatTensor<B>) -> FloatTensor<B>;
@@ -275,7 +275,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The result of multiplying the tensor by the scalar.
-    fn float_mul_scalar(lhs: FloatTensor<B>, rhs: FloatElem<B>) -> FloatTensor<B>;
+    fn float_mul_scalar(lhs: FloatTensor<B>, rhs: Scalar) -> FloatTensor<B>;
 
     /// Divides two tensors element-wise.
     ///
@@ -299,7 +299,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The result of dividing the tensor by the scalar.
-    fn float_div_scalar(lhs: FloatTensor<B>, rhs: FloatElem<B>) -> FloatTensor<B>;
+    fn float_div_scalar(lhs: FloatTensor<B>, rhs: Scalar) -> FloatTensor<B>;
 
     /// Computes the remainder of division between two tensors element-wise.
     ///
@@ -322,7 +322,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The result of applying the modulus of the scalar to the tensor.
-    fn float_remainder_scalar(lhs: FloatTensor<B>, rhs: FloatElem<B>) -> FloatTensor<B>;
+    fn float_remainder_scalar(lhs: FloatTensor<B>, rhs: Scalar) -> FloatTensor<B>;
 
     /// Multiplies two tensors together using matrix multiplication.
     ///
@@ -351,7 +351,7 @@ pub trait FloatTensorOps<B: Backend> {
 
     /// Negates a tensor element-wise.
     fn float_neg(tensor: FloatTensor<B>) -> FloatTensor<B> {
-        Self::float_mul_scalar(tensor, (-1.0_f32).elem::<FloatElem<B>>())
+        Self::float_mul_scalar(tensor, (-1f32).into())
     }
 
     /// Calculates the reciprocals element-wise
@@ -553,7 +553,7 @@ pub trait FloatTensorOps<B: Backend> {
     fn float_mask_fill(
         tensor: FloatTensor<B>,
         mask: BoolTensor<B>,
-        value: FloatElem<B>,
+        value: Scalar,
     ) -> FloatTensor<B>;
 
     /// Equal comparison of two tensors.
@@ -593,7 +593,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A boolean tensor with the result of the comparison.
-    fn float_equal_elem(lhs: FloatTensor<B>, rhs: FloatElem<B>) -> BoolTensor<B>;
+    fn float_equal_elem(lhs: FloatTensor<B>, rhs: Scalar) -> BoolTensor<B>;
 
     /// Element-wise non-equality comparison with a scalar.
     ///
@@ -605,7 +605,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A boolean tensor with the result of the comparison.
-    fn float_not_equal_elem(lhs: FloatTensor<B>, rhs: FloatElem<B>) -> BoolTensor<B> {
+    fn float_not_equal_elem(lhs: FloatTensor<B>, rhs: Scalar) -> BoolTensor<B> {
         let equal_tensor = B::float_equal_elem(lhs, rhs);
         B::bool_not(equal_tensor)
     }
@@ -632,7 +632,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A boolean tensor with the result of the comparison.
-    fn float_greater_elem(lhs: FloatTensor<B>, rhs: FloatElem<B>) -> BoolTensor<B>;
+    fn float_greater_elem(lhs: FloatTensor<B>, rhs: Scalar) -> BoolTensor<B>;
 
     /// Greater than or equal comparison of two tensors.
     ///
@@ -656,7 +656,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A boolean tensor with the result of the comparison.
-    fn float_greater_equal_elem(lhs: FloatTensor<B>, rhs: FloatElem<B>) -> BoolTensor<B>;
+    fn float_greater_equal_elem(lhs: FloatTensor<B>, rhs: Scalar) -> BoolTensor<B>;
 
     /// Less than comparison of two tensors.
     ///
@@ -680,7 +680,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A boolean tensor with the result of the comparison.
-    fn float_lower_elem(lhs: FloatTensor<B>, rhs: FloatElem<B>) -> BoolTensor<B>;
+    fn float_lower_elem(lhs: FloatTensor<B>, rhs: Scalar) -> BoolTensor<B>;
 
     /// Less than or equal comparison of two tensors.
     ///
@@ -704,7 +704,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A boolean tensor with the result of the comparison.
-    fn float_lower_equal_elem(lhs: FloatTensor<B>, rhs: FloatElem<B>) -> BoolTensor<B>;
+    fn float_lower_equal_elem(lhs: FloatTensor<B>, rhs: Scalar) -> BoolTensor<B>;
 
     /// Detaches a tensor from the computation graph.
     fn float_detach(tensor: FloatTensor<B>) -> FloatTensor<B> {
@@ -785,8 +785,8 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// A scalar tensor with the mean of all elements in `tensor`.
     fn float_mean(tensor: FloatTensor<B>) -> FloatTensor<B> {
-        let num_elems = tensor.shape().num_elements();
-        B::float_div_scalar(B::float_sum(tensor), (num_elems as i64).elem())
+        let num_elems = tensor.shape().num_elements() as f32;
+        B::float_div_scalar(B::float_sum(tensor), num_elems.into())
     }
 
     /// Mean of all elements in a tensor along a dimension.
@@ -944,9 +944,8 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The elements of `lhs` raised to the value of `rhs`.
-    fn float_powi_scalar(lhs: FloatTensor<B>, rhs: IntElem<B>) -> FloatTensor<B> {
-        let exp = rhs.elem::<i32>();
-        match exp {
+    fn float_powi_scalar(lhs: FloatTensor<B>, rhs: Scalar) -> FloatTensor<B> {
+        match rhs.elem::<i64>() {
             0 => Self::float_ones(lhs.shape(), &B::float_device(&lhs), lhs.dtype().into()),
             1 => lhs,
             2 => B::float_mul(lhs.clone(), lhs),
@@ -973,9 +972,9 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The elements of `lhs` raised to the value of `rhs`.
-    fn float_powi_scalar_impl(lhs: FloatTensor<B>, rhs: IntElem<B>) -> FloatTensor<B> {
+    fn float_powi_scalar_impl(lhs: FloatTensor<B>, rhs: Scalar) -> FloatTensor<B> {
         // Avoid a recursive loop by deferring directly to float_powf_scalar_impl.
-        Self::float_powf_scalar_impl(lhs, rhs.elem::<f32>())
+        Self::float_powf_scalar_impl(lhs, rhs)
     }
 
     /// Returns a new tensor with values raised to the power of float `value`.
@@ -995,10 +994,8 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A tensor with the same shape as `tensor` with values raised to the power of `value`.
-    fn float_powf_scalar(tensor: FloatTensor<B>, value: f32) -> FloatTensor<B> {
-        if num_traits::Float::floor(value) == value {
-            // When the exponent is an integer, use the integer exponentiation implementation.
-            let exp = B::IntElem::from_elem(value as i32);
+    fn float_powf_scalar(tensor: FloatTensor<B>, value: Scalar) -> FloatTensor<B> {
+        if let Some(exp) = value.try_as_integer() {
             Self::float_powi_scalar(tensor, exp)
         } else {
             Self::float_powf_scalar_impl(tensor, value)
@@ -1025,7 +1022,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A tensor with the same shape as `tensor` with values raised to the power of `value`.
-    fn float_powf_scalar_impl(tensor: FloatTensor<B>, value: f32) -> FloatTensor<B>;
+    fn float_powf_scalar_impl(tensor: FloatTensor<B>, value: Scalar) -> FloatTensor<B>;
 
     /// Returns a new tensor with square root values.
     ///
@@ -1443,10 +1440,10 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// A boolean tensor with a single element, True if any element in the tensor is True, False otherwise.
     fn float_any(tensor: FloatTensor<B>) -> BoolTensor<B> {
-        let bool_tensor = B::float_equal_elem(tensor, 0.0f32.elem());
+        let bool_tensor = B::float_equal_elem(tensor, 0f32.into());
         let bool_tensor = B::bool_not(bool_tensor);
         let sum = B::float_sum(B::bool_into_float(bool_tensor));
-        B::float_greater_elem(sum, 0.0f32.elem())
+        B::float_greater_elem(sum, 0f32.into())
     }
 
     /// Tests if any element in the float `tensor` evaluates to True along a given dimension `dim`.
@@ -1462,10 +1459,10 @@ pub trait FloatTensorOps<B: Backend> {
     /// where the size is 1. The elem in the `dim` axis is True if any element along this dim in the
     /// input evaluates to True, False otherwise.
     fn float_any_dim(tensor: FloatTensor<B>, dim: usize) -> BoolTensor<B> {
-        let bool_tensor = B::float_equal_elem(tensor, 0.0f32.elem());
+        let bool_tensor = B::float_equal_elem(tensor, 0f32.into());
         let bool_tensor = B::bool_not(bool_tensor);
         let sum = B::float_sum_dim(B::bool_into_float(bool_tensor), dim);
-        B::float_greater_elem(sum, 0.0f32.elem())
+        B::float_greater_elem(sum, 0f32.into())
     }
 
     /// Tests if all elements in the float `tensor` evaluate to True.
@@ -1479,11 +1476,11 @@ pub trait FloatTensorOps<B: Backend> {
     /// A boolean tensor `Tensor<B, 1, Bool>` with a single element, True if all elements in the input tensor
     /// evaluate to True, False otherwise.
     fn float_all(tensor: FloatTensor<B>) -> BoolTensor<B> {
-        let num_elems = tensor.shape().num_elements();
-        let bool_tensor = B::float_equal_elem(tensor, 0.0f32.elem());
+        let num_elems = tensor.shape().num_elements() as f32;
+        let bool_tensor = B::float_equal_elem(tensor, 0f32.into());
         let bool_tensor = B::bool_not(bool_tensor);
         let sum = B::float_sum(B::bool_into_float(bool_tensor));
-        B::float_equal_elem(sum, (num_elems as f32).elem())
+        B::float_equal_elem(sum, num_elems.into())
     }
 
     /// Tests if all elements in the float `tensor` evaluate to True along a given dimension `dim`.
@@ -1499,11 +1496,11 @@ pub trait FloatTensorOps<B: Backend> {
     /// where the size is 1. The elem in the `dim` axis is True if all elements along this dim in the input
     /// evaluates to True, False otherwise.
     fn float_all_dim(tensor: FloatTensor<B>, dim: usize) -> BoolTensor<B> {
-        let num_elems = tensor.shape().dims[dim];
-        let bool_tensor = B::float_equal_elem(tensor, 0.0f32.elem());
+        let num_elems = tensor.shape().dims[dim] as f32;
+        let bool_tensor = B::float_equal_elem(tensor, 0f32.into());
         let bool_tensor = B::bool_not(bool_tensor);
         let sum = B::float_sum_dim(B::bool_into_float(bool_tensor), dim);
-        B::float_equal_elem(sum, (num_elems as f32).elem())
+        B::float_equal_elem(sum, num_elems.into())
     }
 
     /// Returns the signs of the float `tensor`.
@@ -1521,11 +1518,11 @@ pub trait FloatTensorOps<B: Backend> {
             &B::float_device(&tensor),
             tensor.dtype().into(),
         );
-        let less_than_zero = B::float_lower_elem(tensor.clone(), 0.0f32.elem());
-        let greater_than_zero = B::float_greater_elem(tensor, 0.0f32.elem());
+        let less_than_zero = B::float_lower_elem(tensor.clone(), 0f32.into());
+        let greater_than_zero = B::float_greater_elem(tensor, 0f32.into());
 
-        let mut result = B::float_mask_fill(zeros, less_than_zero, (-1.0f32).elem());
-        result = B::float_mask_fill(result, greater_than_zero, 1.0f32.elem());
+        let mut result = B::float_mask_fill(zeros, less_than_zero, (-1f32).into());
+        result = B::float_mask_fill(result, greater_than_zero, 1f32.into());
         result
     }
 
@@ -1648,6 +1645,6 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// A boolean tensor where `true` indicates that the value is infinite
     fn float_is_inf(tensor: FloatTensor<B>) -> BoolTensor<B> {
-        B::float_equal_elem(B::float_abs(tensor), f64::INFINITY.elem())
+        B::float_equal_elem(B::float_abs(tensor), f64::INFINITY.into())
     }
 }

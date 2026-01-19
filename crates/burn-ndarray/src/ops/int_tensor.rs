@@ -4,7 +4,7 @@ use alloc::vec::Vec;
 use burn_backend::backend::ExecutionError;
 use burn_backend::ops::IntTensorOps;
 use burn_backend::tensor::{FloatTensor, IntTensor};
-use burn_backend::{Distribution, IntDType, TensorMetadata};
+use burn_backend::{Distribution, IntDType, Scalar, TensorMetadata};
 
 use burn_backend::ElementConversion;
 
@@ -76,7 +76,7 @@ where
         })
     }
 
-    fn int_mask_fill(tensor: NdArrayTensor, mask: NdArrayTensor, value: I) -> NdArrayTensor {
+    fn int_mask_fill(tensor: NdArrayTensor, mask: NdArrayTensor, value: Scalar) -> NdArrayTensor {
         execute_with_int_dtype!(tensor, |array| NdArrayOps::mask_fill(
             array,
             mask.bool(),
@@ -102,7 +102,7 @@ where
         execute_with_int_dtype!((lhs, rhs), NdArrayMathOps::equal)
     }
 
-    fn int_equal_elem(lhs: NdArrayTensor, rhs: I) -> NdArrayTensor {
+    fn int_equal_elem(lhs: NdArrayTensor, rhs: Scalar) -> NdArrayTensor {
         execute_with_int_dtype!(lhs, |array| NdArrayMathOps::equal_elem(array, rhs.elem()))
     }
 
@@ -110,7 +110,7 @@ where
         execute_with_int_dtype!((lhs, rhs), NdArrayMathOps::greater)
     }
 
-    fn int_greater_elem(lhs: NdArrayTensor, rhs: I) -> NdArrayTensor {
+    fn int_greater_elem(lhs: NdArrayTensor, rhs: Scalar) -> NdArrayTensor {
         execute_with_int_dtype!(lhs, |array| NdArrayMathOps::greater_elem(array, rhs.elem()))
     }
 
@@ -118,7 +118,7 @@ where
         execute_with_int_dtype!((lhs, rhs), NdArrayMathOps::greater_equal)
     }
 
-    fn int_greater_equal_elem(lhs: NdArrayTensor, rhs: I) -> NdArrayTensor {
+    fn int_greater_equal_elem(lhs: NdArrayTensor, rhs: Scalar) -> NdArrayTensor {
         execute_with_int_dtype!(lhs, |array| NdArrayMathOps::greater_equal_elem(
             array,
             rhs.elem()
@@ -129,7 +129,7 @@ where
         execute_with_int_dtype!((lhs, rhs), NdArrayMathOps::lower)
     }
 
-    fn int_lower_elem(lhs: NdArrayTensor, rhs: I) -> NdArrayTensor {
+    fn int_lower_elem(lhs: NdArrayTensor, rhs: Scalar) -> NdArrayTensor {
         execute_with_int_dtype!(lhs, |array| NdArrayMathOps::lower_elem(array, rhs.elem()))
     }
 
@@ -137,7 +137,7 @@ where
         execute_with_int_dtype!((lhs, rhs), NdArrayMathOps::lower_equal)
     }
 
-    fn int_lower_equal_elem(lhs: NdArrayTensor, rhs: I) -> NdArrayTensor {
+    fn int_lower_equal_elem(lhs: NdArrayTensor, rhs: Scalar) -> NdArrayTensor {
         execute_with_int_dtype!(lhs, |array| NdArrayMathOps::lower_equal_elem(
             array,
             rhs.elem()
@@ -148,7 +148,7 @@ where
         execute_with_int_dtype!((lhs, rhs), NdArrayMathOps::add)
     }
 
-    fn int_add_scalar(lhs: NdArrayTensor, rhs: I) -> NdArrayTensor {
+    fn int_add_scalar(lhs: NdArrayTensor, rhs: Scalar) -> NdArrayTensor {
         execute_with_int_dtype!(lhs, |array| NdArrayMathOps::add_scalar(array, rhs.elem()))
     }
 
@@ -156,7 +156,7 @@ where
         execute_with_int_dtype!((lhs, rhs), NdArrayMathOps::sub)
     }
 
-    fn int_sub_scalar(lhs: NdArrayTensor, rhs: I) -> NdArrayTensor {
+    fn int_sub_scalar(lhs: NdArrayTensor, rhs: Scalar) -> NdArrayTensor {
         execute_with_int_dtype!(lhs, |array| NdArrayMathOps::sub_scalar(array, rhs.elem()))
     }
 
@@ -164,7 +164,7 @@ where
         execute_with_int_dtype!((lhs, rhs), NdArrayMathOps::mul)
     }
 
-    fn int_mul_scalar(lhs: NdArrayTensor, rhs: I) -> NdArrayTensor {
+    fn int_mul_scalar(lhs: NdArrayTensor, rhs: Scalar) -> NdArrayTensor {
         execute_with_int_dtype!(lhs, |array| NdArrayMathOps::mul_scalar(array, rhs.elem()))
     }
 
@@ -172,7 +172,7 @@ where
         execute_with_int_dtype!((lhs, rhs), NdArrayMathOps::div)
     }
 
-    fn int_div_scalar(lhs: NdArrayTensor, rhs: I) -> NdArrayTensor {
+    fn int_div_scalar(lhs: NdArrayTensor, rhs: Scalar) -> NdArrayTensor {
         execute_with_int_dtype!(lhs, |array| NdArrayMathOps::div_scalar(array, rhs.elem()))
     }
 
@@ -180,15 +180,11 @@ where
         execute_with_int_dtype!((lhs, rhs), NdArrayMathOps::remainder)
     }
 
-    fn int_remainder_scalar(lhs: NdArrayTensor, rhs: I) -> NdArrayTensor {
+    fn int_remainder_scalar(lhs: NdArrayTensor, rhs: Scalar) -> NdArrayTensor {
         execute_with_int_dtype!(lhs, |array| NdArrayMathOps::remainder_scalar(
             array,
             rhs.elem()
         ))
-    }
-
-    fn int_neg(tensor: NdArrayTensor) -> NdArrayTensor {
-        Self::int_mul_scalar(tensor, (-1).elem())
     }
 
     fn int_sum(tensor: NdArrayTensor) -> NdArrayTensor {
@@ -313,15 +309,15 @@ where
         })
     }
 
-    fn int_clamp_min(tensor: NdArrayTensor, min: I) -> NdArrayTensor {
+    fn int_clamp_min(tensor: NdArrayTensor, min: Scalar) -> NdArrayTensor {
         execute_with_int_dtype!(tensor, |array| NdArrayMathOps::clamp_min(array, min.elem()))
     }
 
-    fn int_clamp_max(tensor: NdArrayTensor, max: I) -> NdArrayTensor {
+    fn int_clamp_max(tensor: NdArrayTensor, max: Scalar) -> NdArrayTensor {
         execute_with_int_dtype!(tensor, |array| NdArrayMathOps::clamp_max(array, max.elem()))
     }
 
-    fn int_clamp(tensor: NdArrayTensor, min: I, max: I) -> NdArrayTensor {
+    fn int_clamp(tensor: NdArrayTensor, min: Scalar, max: Scalar) -> NdArrayTensor {
         execute_with_int_dtype!(tensor, |array| NdArrayMathOps::clamp(
             array,
             min.elem(),
@@ -396,10 +392,10 @@ where
         })
     }
 
-    fn int_powf_scalar_impl(lhs: NdArrayTensor, rhs: f32) -> NdArrayTensor {
+    fn int_powf_scalar_impl(lhs: NdArrayTensor, rhs: Scalar) -> NdArrayTensor {
         execute_with_int_dtype!(lhs, I, |array| {
             NdArrayMathOps::elementwise_op_scalar(array, |a: I| {
-                (a.elem::<i64>().pow(rhs as u32)).elem()
+                (a.elem::<i64>().pow(rhs.elem())).elem()
             })
         })
     }
@@ -420,7 +416,7 @@ where
                 ])
             }
             DType::U64 | DType::U32 | DType::U16 | DType::U8 => {
-                Self::int_greater_elem(tensor, 0.elem())
+                Self::int_greater_elem(tensor, 0.into())
             }
             other => panic!("Unsupported dtype: {other:?}"),
         }
@@ -434,7 +430,7 @@ where
         execute_with_int_dtype!((lhs, rhs), NdArrayBitOps::bitand)
     }
 
-    fn bitwise_and_scalar(lhs: NdArrayTensor, rhs: I) -> NdArrayTensor {
+    fn bitwise_and_scalar(lhs: NdArrayTensor, rhs: Scalar) -> NdArrayTensor {
         execute_with_int_dtype!(lhs, |array| NdArrayBitOps::bitand_scalar(array, rhs.elem()))
     }
 
@@ -442,7 +438,7 @@ where
         execute_with_int_dtype!((lhs, rhs), NdArrayBitOps::bitor)
     }
 
-    fn bitwise_or_scalar(lhs: NdArrayTensor, rhs: I) -> NdArrayTensor {
+    fn bitwise_or_scalar(lhs: NdArrayTensor, rhs: Scalar) -> NdArrayTensor {
         execute_with_int_dtype!(lhs, |array| NdArrayBitOps::bitor_scalar(array, rhs.elem()))
     }
 
@@ -450,7 +446,7 @@ where
         execute_with_int_dtype!((lhs, rhs), NdArrayBitOps::bitxor)
     }
 
-    fn bitwise_xor_scalar(lhs: NdArrayTensor, rhs: I) -> NdArrayTensor {
+    fn bitwise_xor_scalar(lhs: NdArrayTensor, rhs: Scalar) -> NdArrayTensor {
         execute_with_int_dtype!(lhs, |array| NdArrayBitOps::bitxor_scalar(array, rhs.elem()))
     }
 
@@ -466,7 +462,7 @@ where
         })
     }
 
-    fn bitwise_left_shift_scalar(lhs: NdArrayTensor, rhs: I) -> NdArrayTensor {
+    fn bitwise_left_shift_scalar(lhs: NdArrayTensor, rhs: Scalar) -> NdArrayTensor {
         execute_with_int_dtype!(lhs, I, |array| {
             NdArrayMathOps::elementwise_op_scalar(array, |a: I| {
                 (a.elem::<i64>() << rhs.elem::<u32>()).elem()
@@ -482,7 +478,7 @@ where
         })
     }
 
-    fn bitwise_right_shift_scalar(lhs: NdArrayTensor, rhs: I) -> NdArrayTensor {
+    fn bitwise_right_shift_scalar(lhs: NdArrayTensor, rhs: Scalar) -> NdArrayTensor {
         execute_with_int_dtype!(lhs, I, |array| {
             NdArrayMathOps::elementwise_op_scalar(array, |a: I| {
                 (a.elem::<i64>() >> rhs.elem::<u32>()).elem()

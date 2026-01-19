@@ -252,7 +252,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     fn int_mask_fill(
         tensor: IntTensor<Self>,
         mask: BoolTensor<Self>,
-        value: IntElem<Self>,
+        value: Scalar,
     ) -> IntTensor<Self> {
         #[derive(new, Debug)]
         struct MaskFillOps<B: FusionBackend> {
@@ -265,7 +265,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
                 let tensor = handles.get_int_tensor::<B>(&self.desc.tensor);
                 let mask = handles.get_bool_tensor::<B>(&self.desc.mask);
 
-                let output = B::int_mask_fill(tensor, mask, self.desc.value.elem());
+                let output = B::int_mask_fill(tensor, mask, self.desc.value.into());
 
                 handles.register_int_tensor::<B>(&self.desc.out.id, output);
             }
@@ -274,7 +274,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         let streams = OperationStreams::with_inputs([&tensor, &mask]);
 
         let client = tensor.client.clone();
-        let value = ScalarIr::with_dtype(value, &tensor.dtype);
+        let value = value.into();
         let desc = MaskFillOpIr::create(tensor.into_ir(), mask.into_ir(), value, || {
             client.create_empty_handle()
         });
@@ -512,13 +512,13 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
             .output()
     }
 
-    fn int_equal_elem(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> BoolTensor<Self> {
+    fn int_equal_elem(lhs: IntTensor<Self>, rhs: Scalar) -> BoolTensor<Self> {
         scalar_int_cmp_ops!(EqualElemOps, B::int_equal_elem);
 
         let streams = OperationStreams::with_inputs([&lhs]);
 
         let client = lhs.client.clone();
-        let rhs = ScalarIr::with_dtype(rhs, &lhs.dtype);
+        let rhs = rhs.into();
         let desc = ScalarOpIr::create_comparison(lhs.into_ir(), rhs, B::BoolElem::dtype(), || {
             client.create_empty_handle()
         });
@@ -554,13 +554,13 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
             .output()
     }
 
-    fn int_greater_elem(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> BoolTensor<Self> {
+    fn int_greater_elem(lhs: IntTensor<Self>, rhs: Scalar) -> BoolTensor<Self> {
         scalar_int_cmp_ops!(GreaterElemOps, B::int_greater_elem);
 
         let streams = OperationStreams::with_inputs([&lhs]);
 
         let client = lhs.client.clone();
-        let rhs = ScalarIr::with_dtype(rhs, &lhs.dtype);
+        let rhs = rhs.into();
         let desc = ScalarOpIr::create_comparison(lhs.into_ir(), rhs, B::BoolElem::dtype(), || {
             client.create_empty_handle()
         });
@@ -602,13 +602,13 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
             .output()
     }
 
-    fn int_greater_equal_elem(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> BoolTensor<Self> {
+    fn int_greater_equal_elem(lhs: IntTensor<Self>, rhs: Scalar) -> BoolTensor<Self> {
         scalar_int_cmp_ops!(GreaterEqualElemOps, B::int_greater_equal_elem);
 
         let streams = OperationStreams::with_inputs([&lhs]);
 
         let client = lhs.client.clone();
-        let rhs = ScalarIr::with_dtype(rhs, &lhs.dtype);
+        let rhs = rhs.into();
         let desc = ScalarOpIr::create_comparison(lhs.into_ir(), rhs, B::BoolElem::dtype(), || {
             client.create_empty_handle()
         });
@@ -647,13 +647,13 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
             .output()
     }
 
-    fn int_lower_elem(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> BoolTensor<Self> {
+    fn int_lower_elem(lhs: IntTensor<Self>, rhs: Scalar) -> BoolTensor<Self> {
         scalar_int_cmp_ops!(LowerElemOps, B::int_lower_elem);
 
         let streams = OperationStreams::with_inputs([&lhs]);
 
         let client = lhs.client.clone();
-        let rhs = ScalarIr::with_dtype(rhs, &lhs.dtype);
+        let rhs = rhs.into();
         let desc = ScalarOpIr::create_comparison(lhs.into_ir(), rhs, B::BoolElem::dtype(), || {
             client.create_empty_handle()
         });
@@ -695,13 +695,13 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
             .output()
     }
 
-    fn int_lower_equal_elem(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> BoolTensor<Self> {
+    fn int_lower_equal_elem(lhs: IntTensor<Self>, rhs: Scalar) -> BoolTensor<Self> {
         scalar_int_cmp_ops!(LowerEqualElemOps, B::int_lower_equal_elem);
 
         let streams = OperationStreams::with_inputs([&lhs]);
 
         let client = lhs.client.clone();
-        let rhs = ScalarIr::with_dtype(rhs, &lhs.dtype);
+        let rhs = rhs.into();
         let desc = ScalarOpIr::create_comparison(lhs.into_ir(), rhs, B::BoolElem::dtype(), || {
             client.create_empty_handle()
         });
@@ -737,13 +737,13 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
             .output()
     }
 
-    fn int_add_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
+    fn int_add_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
         scalar_int_ops!(AddOps, B::int_add_scalar);
 
         let streams = OperationStreams::with_inputs([&lhs]);
 
         let client = lhs.client.clone();
-        let rhs = ScalarIr::with_dtype(rhs, &lhs.dtype);
+        let rhs = rhs.into();
         let desc = ScalarOpIr::create(lhs.into_ir(), rhs, || client.create_empty_handle());
 
         client
@@ -777,13 +777,13 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
             .output()
     }
 
-    fn int_sub_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
+    fn int_sub_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
         scalar_int_ops!(SubOps, B::int_sub_scalar);
 
         let streams = OperationStreams::with_inputs([&lhs]);
 
         let client = lhs.client.clone();
-        let rhs = ScalarIr::with_dtype(rhs, &lhs.dtype);
+        let rhs = rhs.into();
         let desc = ScalarOpIr::create(lhs.into_ir(), rhs, || client.create_empty_handle());
 
         client
@@ -817,13 +817,13 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
             .output()
     }
 
-    fn int_mul_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
+    fn int_mul_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
         scalar_int_ops!(MulOps, B::int_mul_scalar);
 
         let streams = OperationStreams::with_inputs([&lhs]);
 
         let client = lhs.client.clone();
-        let rhs = ScalarIr::with_dtype(rhs, &lhs.dtype);
+        let rhs = rhs.into();
         let desc = ScalarOpIr::create(lhs.into_ir(), rhs, || client.create_empty_handle());
 
         client
@@ -857,13 +857,13 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
             .output()
     }
 
-    fn int_div_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
+    fn int_div_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
         scalar_int_ops!(DivOps, B::int_div_scalar);
 
         let streams = OperationStreams::with_inputs([&lhs]);
 
         let client = lhs.client.clone();
-        let rhs = ScalarIr::with_dtype(rhs, &lhs.dtype);
+        let rhs = rhs.into();
         let desc = ScalarOpIr::create(lhs.into_ir(), rhs, || client.create_empty_handle());
 
         client
@@ -897,13 +897,13 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
             .output()
     }
 
-    fn int_remainder_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
+    fn int_remainder_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
         scalar_int_ops!(ModOps, B::int_remainder_scalar);
 
         let streams = OperationStreams::with_inputs([&lhs]);
 
         let client = lhs.client.clone();
-        let rhs = ScalarIr::with_dtype(rhs, &lhs.dtype);
+        let rhs = rhs.into();
         let desc = ScalarOpIr::create(lhs.into_ir(), rhs, || client.create_empty_handle());
 
         client
@@ -1259,11 +1259,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
             .output()
     }
 
-    fn int_clamp(
-        tensor: IntTensor<Self>,
-        min: IntElem<Self>,
-        max: IntElem<Self>,
-    ) -> IntTensor<Self> {
+    fn int_clamp(tensor: IntTensor<Self>, min: Scalar, max: Scalar) -> IntTensor<Self> {
         #[derive(new, Debug)]
         struct ClampOps<B: FusionBackend> {
             desc: ClampOpIr,
@@ -1273,7 +1269,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         impl<B: FusionBackend> Operation<B::FusionRuntime> for ClampOps<B> {
             fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let input = handles.get_int_tensor::<B>(&self.desc.tensor);
-                let output = B::int_clamp(input, self.desc.min.elem(), self.desc.max.elem());
+                let output = B::int_clamp(input, self.desc.min.into(), self.desc.max.into());
 
                 handles.register_int_tensor::<B>(&self.desc.out.id, output);
             }
@@ -1282,8 +1278,8 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         let streams = OperationStreams::with_inputs([&tensor]);
 
         let client = tensor.client.clone();
-        let min = ScalarIr::with_dtype(min, &tensor.dtype);
-        let max = ScalarIr::with_dtype(max, &tensor.dtype);
+        let min = min.into();
+        let max = max.into();
         let desc = ClampOpIr::create(tensor.into_ir(), min, max, || client.create_empty_handle());
 
         client
@@ -1730,13 +1726,13 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
             .output()
     }
 
-    fn bitwise_and_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
+    fn bitwise_and_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
         scalar_int_ops!(BitwiseAndOps, B::bitwise_and_scalar);
 
         let streams = OperationStreams::with_inputs([&lhs]);
 
         let client = lhs.client.clone();
-        let rhs = ScalarIr::with_dtype(rhs, &lhs.dtype);
+        let rhs = rhs.into();
         let desc = ScalarOpIr::create(lhs.into_ir(), rhs, || client.create_empty_handle());
 
         client
@@ -1767,13 +1763,13 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
             .output()
     }
 
-    fn bitwise_or_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
+    fn bitwise_or_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
         scalar_int_ops!(BitwiseOrOps, B::bitwise_or_scalar);
 
         let streams = OperationStreams::with_inputs([&lhs]);
 
         let client = lhs.client.clone();
-        let rhs = ScalarIr::with_dtype(rhs, &lhs.dtype);
+        let rhs = rhs.into();
         let desc = ScalarOpIr::create(lhs.into_ir(), rhs, || client.create_empty_handle());
 
         client
@@ -1804,13 +1800,13 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
             .output()
     }
 
-    fn bitwise_xor_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
+    fn bitwise_xor_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
         scalar_int_ops!(BitwiseXorOps, B::bitwise_xor_scalar);
 
         let streams = OperationStreams::with_inputs([&lhs]);
 
         let client = lhs.client.clone();
-        let rhs = ScalarIr::with_dtype(rhs, &lhs.dtype);
+        let rhs = rhs.into();
         let desc = ScalarOpIr::create(lhs.into_ir(), rhs, || client.create_empty_handle());
 
         client
@@ -1858,13 +1854,13 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
             .output()
     }
 
-    fn bitwise_left_shift_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
+    fn bitwise_left_shift_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
         scalar_int_ops!(BitwiseLeftShiftOps, B::bitwise_left_shift_scalar);
 
         let streams = OperationStreams::with_inputs([&lhs]);
 
         let client = lhs.client.clone();
-        let rhs = ScalarIr::with_dtype(rhs, &lhs.dtype);
+        let rhs = rhs.into();
         let desc = ScalarOpIr::create(lhs.into_ir(), rhs, || client.create_empty_handle());
 
         client
@@ -1895,13 +1891,13 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
             .output()
     }
 
-    fn bitwise_right_shift_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
+    fn bitwise_right_shift_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
         scalar_int_ops!(BitwiseRightShiftOps, B::bitwise_right_shift_scalar);
 
         let streams = OperationStreams::with_inputs([&lhs]);
 
         let client = lhs.client.clone();
-        let rhs = ScalarIr::with_dtype(rhs, &lhs.dtype);
+        let rhs = rhs.into();
         let desc = ScalarOpIr::create(lhs.into_ir(), rhs, || client.create_empty_handle());
 
         client

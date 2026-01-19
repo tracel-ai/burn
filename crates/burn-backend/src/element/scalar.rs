@@ -7,59 +7,44 @@ use crate::{Element, ElementConversion};
 #[derive(Clone, Copy, Debug)]
 #[allow(missing_docs)]
 pub enum Scalar {
-    F64(f64),
-    F32(f32),
-    F16(f16),
-    BF16(bf16),
-    I64(i64),
-    I32(i32),
-    I16(i16),
-    I8(i8),
-    U64(u64),
-    U32(u32),
-    U16(u16),
-    U8(u8),
+    Float(f64),
+    Int(i64),
+    UInt(u64),
     Bool(bool),
 }
 
 impl Scalar {
+    /// Creates a scalar with the specified data type.
+    pub fn new<E: ElementConversion>(value: E, dtype: &DType) -> Self {
+        if dtype.is_float() {
+            Self::Float(value.elem())
+        } else if dtype.is_int() {
+            Self::Int(value.elem())
+        } else if dtype.is_uint() {
+            Self::UInt(value.elem())
+        } else if dtype.is_bool() {
+            Self::Bool(value.elem())
+        } else {
+            unimplemented!("Scalar not supported for {dtype:?}")
+        }
+    }
+
     /// Converts and returns the converted element.
     pub fn elem<E: Element>(self) -> E {
         match self {
-            Self::F64(x) => x.elem(),
-            Self::F32(x) => x.elem(),
-            Self::F16(x) => x.elem(),
-            Self::BF16(x) => x.elem(),
-            Self::I64(x) => x.elem(),
-            Self::I32(x) => x.elem(),
-            Self::I16(x) => x.elem(),
-            Self::I8(x) => x.elem(),
-            Self::U64(x) => x.elem(),
-            Self::U32(x) => x.elem(),
-            Self::U16(x) => x.elem(),
-            Self::U8(x) => x.elem(),
+            Self::Float(x) => x.elem(),
+            Self::Int(x) => x.elem(),
+            Self::UInt(x) => x.elem(),
             Self::Bool(x) => x.elem(),
         }
     }
 
-    /// Creates a scalar with the specified data type.
-    pub fn with_dtype<E: ElementConversion>(elem: E, dtype: &DType) -> Self {
-        match dtype {
-            DType::F64 => Self::F64(elem.elem()),
-            DType::F32 => Self::F32(elem.elem()),
-            DType::Flex32 => Self::F32(elem.elem()),
-            DType::F16 => Self::F16(elem.elem()),
-            DType::BF16 => Self::BF16(elem.elem()),
-            DType::I64 => Self::I64(elem.elem()),
-            DType::I32 => Self::I32(elem.elem()),
-            DType::I16 => Self::I16(elem.elem()),
-            DType::I8 => Self::I8(elem.elem()),
-            DType::U64 => Self::U64(elem.elem()),
-            DType::U32 => Self::U32(elem.elem()),
-            DType::U16 => Self::U16(elem.elem()),
-            DType::U8 => Self::U8(elem.elem()),
-            DType::Bool => Self::Bool(elem.elem()),
-            DType::QFloat(_) => unimplemented!(),
+    /// Returns the exact integer value, if valid.
+    pub fn try_as_integer(&self) -> Option<Self> {
+        match self {
+            Scalar::Float(x) => (x.floor() == *x).then(|| Self::Int(x.to_i64().unwrap())),
+            Scalar::Int(_) | Scalar::UInt(_) => Some(*self),
+            Scalar::Bool(x) => Some(Scalar::Int(*x as i64)),
         }
     }
 }
@@ -69,7 +54,7 @@ macro_rules! impl_from_scalar {
         $(
             impl From<$ty> for Scalar {
                 fn from(value: $ty) -> Self {
-                    Scalar::$variant(value)
+                    Scalar::$variant(value.elem())
                 }
             }
         )+
@@ -77,81 +62,36 @@ macro_rules! impl_from_scalar {
 }
 
 impl_from_scalar! {
-    f64  => F64, f32  => F32, f16  => F16, bf16 => BF16,
-    i64  => I64, i32  => I32, i16  => I16, i8 => I8,
-    u64  => U64, u32  => U32, u16  => U16, u8 => U8, bool => Bool,
+    f64  => Float, f32  => Float, f16  => Float, bf16 => Float,
+    i64  => Int, i32  => Int, i16  => Int, i8 => Int,
+    u64  => UInt, u32  => UInt, u16  => UInt, u8 => UInt, bool => Bool,
 }
 
 // CubeCL requirement
 impl ToPrimitive for Scalar {
     fn to_i64(&self) -> Option<i64> {
         match self {
-            Scalar::F64(x) => x.to_i64(),
-            Scalar::F32(x) => x.to_i64(),
-            Scalar::F16(x) => x.to_i64(),
-            Scalar::BF16(x) => x.to_i64(),
-            Scalar::I64(x) => x.to_i64(),
-            Scalar::I32(x) => x.to_i64(),
-            Scalar::I16(x) => x.to_i64(),
-            Scalar::I8(x) => x.to_i64(),
-            Scalar::U64(x) => x.to_i64(),
-            Scalar::U32(x) => x.to_i64(),
-            Scalar::U16(x) => x.to_i64(),
-            Scalar::U8(x) => x.to_i64(),
-            Scalar::Bool(x) => (*x as u8).to_i64(),
+            Scalar::Float(x) => x.to_i64(),
+            Scalar::UInt(x) => x.to_i64(),
+            Scalar::Int(x) => Some(*x),
+            Scalar::Bool(x) => Some(*x as i64),
         }
     }
 
     fn to_u64(&self) -> Option<u64> {
         match self {
-            Scalar::F64(x) => x.to_u64(),
-            Scalar::F32(x) => x.to_u64(),
-            Scalar::F16(x) => x.to_u64(),
-            Scalar::BF16(x) => x.to_u64(),
-            Scalar::I64(x) => x.to_u64(),
-            Scalar::I32(x) => x.to_u64(),
-            Scalar::I16(x) => x.to_u64(),
-            Scalar::I8(x) => x.to_u64(),
-            Scalar::U64(x) => x.to_u64(),
-            Scalar::U32(x) => x.to_u64(),
-            Scalar::U16(x) => x.to_u64(),
-            Scalar::U8(x) => x.to_u64(),
-            Scalar::Bool(x) => (*x as u8).to_u64(),
-        }
-    }
-
-    fn to_f32(&self) -> Option<f32> {
-        match self {
-            Scalar::F64(x) => x.to_f32(),
-            Scalar::F32(x) => x.to_f32(),
-            Scalar::F16(x) => x.to_f32(),
-            Scalar::BF16(x) => x.to_f32(),
-            Scalar::I64(x) => x.to_f32(),
-            Scalar::I32(x) => x.to_f32(),
-            Scalar::I16(x) => x.to_f32(),
-            Scalar::I8(x) => x.to_f32(),
-            Scalar::U64(x) => x.to_f32(),
-            Scalar::U32(x) => x.to_f32(),
-            Scalar::U16(x) => x.to_f32(),
-            Scalar::U8(x) => x.to_f32(),
-            Scalar::Bool(x) => (*x as u8).to_f32(),
+            Scalar::Float(x) => x.to_u64(),
+            Scalar::UInt(x) => Some(*x),
+            Scalar::Int(x) => x.to_u64(),
+            Scalar::Bool(x) => Some(*x as u64),
         }
     }
 
     fn to_f64(&self) -> Option<f64> {
         match self {
-            Scalar::F64(x) => x.to_f64(),
-            Scalar::F32(x) => x.to_f64(),
-            Scalar::F16(x) => x.to_f64(),
-            Scalar::BF16(x) => x.to_f64(),
-            Scalar::I64(x) => x.to_f64(),
-            Scalar::I32(x) => x.to_f64(),
-            Scalar::I16(x) => x.to_f64(),
-            Scalar::I8(x) => x.to_f64(),
-            Scalar::U64(x) => x.to_f64(),
-            Scalar::U32(x) => x.to_f64(),
-            Scalar::U16(x) => x.to_f64(),
-            Scalar::U8(x) => x.to_f64(),
+            Scalar::Float(x) => Some(*x),
+            Scalar::UInt(x) => x.to_f64(),
+            Scalar::Int(x) => x.to_f64(),
             Scalar::Bool(x) => (*x as u8).to_f64(),
         }
     }
