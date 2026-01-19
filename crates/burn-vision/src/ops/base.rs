@@ -163,6 +163,29 @@ impl ConnectedStatsOptions {
     }
 }
 
+/// Non-Maximum Suppression options.
+#[derive(Clone, Copy, Debug)]
+pub struct NmsOptions {
+    /// IoU threshold for suppression (default: 0.5).
+    /// Boxes with IoU > threshold with a higher-scoring box are suppressed.
+    pub iou_threshold: f32,
+    /// Score threshold to filter boxes before NMS (default: 0.0, i.e., no filtering).
+    /// Boxes with score < score_threshold are discarded.
+    pub score_threshold: f32,
+    /// Maximum number of boxes to keep (0 = unlimited).
+    pub max_output_boxes: usize,
+}
+
+impl Default for NmsOptions {
+    fn default() -> Self {
+        Self {
+            iou_threshold: 0.5,
+            score_threshold: 0.0,
+            max_output_boxes: 0,
+        }
+    }
+}
+
 /// Vision capable backend, implemented by each backend
 pub trait VisionBackend:
     BoolVisionOps + IntVisionOps + FloatVisionOps + QVisionOps + Backend
@@ -261,6 +284,29 @@ pub trait FloatVisionOps: Backend {
         morph(input, kernel, MorphOp::Dilate, opts)
             .into_primitive()
             .tensor()
+    }
+
+    /// Perform Non-Maximum Suppression on bounding boxes.
+    ///
+    /// Returns indices of kept boxes after suppressing overlapping detections.
+    /// Boxes are processed in descending score order; a box suppresses all
+    /// lower-scoring boxes with IoU > threshold.
+    ///
+    /// # Arguments
+    /// * `boxes` - Bounding boxes as \[N, 4\] tensor in (x1, y1, x2, y2) format
+    /// * `scores` - Confidence scores as \[N\] tensor
+    /// * `options` - NMS options (IoU threshold, score threshold, max boxes)
+    ///
+    /// # Returns
+    /// Indices of kept boxes as \[M\] tensor where M <= N
+    fn nms(
+        boxes: FloatTensor<Self>,
+        scores: FloatTensor<Self>,
+        options: NmsOptions,
+    ) -> IntTensor<Self> {
+        let boxes = Tensor::<Self, 2>::from_primitive(TensorPrimitive::Float(boxes));
+        let scores = Tensor::<Self, 1>::from_primitive(TensorPrimitive::Float(scores));
+        cpu::nms::<Self>(boxes, scores, options).into_primitive()
     }
 }
 

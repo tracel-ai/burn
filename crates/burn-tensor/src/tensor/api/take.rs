@@ -69,7 +69,7 @@ where
         }
 
         // Add all indices dimensions
-        for idx_dim in indices_dims {
+        for &idx_dim in indices_dims.iter() {
             new_shape.push(idx_dim);
         }
 

@@ -232,6 +232,14 @@ where
         }
     }
 
+    /// Return the `QuantScheme` if present
+    pub fn try_scheme(&self) -> Option<&QuantScheme> {
+        match &self.dtype {
+            DType::QFloat(scheme) => Some(scheme),
+            _ => None,
+        }
+    }
+
     pub(crate) fn can_mut_broadcast(&self, rhs: &Self) -> bool {
         if !self.handle.can_mut() || !self.is_contiguous_buffer() {
             return false;

@@ -2,7 +2,7 @@ use super::{conv, pool};
 use crate::ops::attention;
 use crate::ops::unfold::unfold4d_using_conv2d;
 use crate::tensor::{BoolTensor, FloatTensor, IntTensor};
-use crate::{Backend, TensorMetadata};
+use crate::{Backend, ElementConversion, TensorMetadata};
 use burn_std::Shape;
 use core::num::NonZeroUsize;
 
@@ -286,6 +286,12 @@ impl Default for GridSampleOptions {
     }
 }
 
+impl From<InterpolateMode> for GridSampleOptions {
+    fn from(value: InterpolateMode) -> Self {
+        GridSampleOptions::new(value)
+    }
+}
+
 impl GridSampleOptions {
     /// Create new grid sample options with the given interpolation mode.
     ///
@@ -351,6 +357,12 @@ pub enum PadMode {
 impl Default for PadMode {
     fn default() -> Self {
         PadMode::Constant(0.0)
+    }
+}
+
+impl<E: ElementConversion> From<E> for PadMode {
+    fn from(value: E) -> Self {
+        PadMode::Constant(value.elem())
     }
 }
 

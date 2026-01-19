@@ -1,7 +1,7 @@
 use crate::{CubeRuntime, kernel, tensor::CubeTensor};
 use burn_backend::{
     DType, ExecutionError, QTensorPrimitive, Shape, TensorData,
-    quantization::{QuantLevel, params_shape},
+    quantization::{QuantLevel, QuantStore, params_shape},
 };
 use burn_backend::{TensorMetadata, ops::unfold::calculate_unfold_shape};
 use burn_std::tensor::{ReshapeAction, contiguous_strides, reshape_action};
@@ -86,10 +86,7 @@ pub(crate) fn swap_dims<R: CubeRuntime>(
         block_size.swap(dim1, dim2);
 
         // Truncate unit dims from the start
-        let block_size = block_size
-            .into_iter()
-            .skip_while(|it| *it == 1)
-            .collect::<Vec<_>>();
+        let block_size = BlockSize::new_trim(block_size);
         if block_size.len() > BlockSize::MAX_DIMS {
             panic!("Swapped block size would exceed max dims");
         }
@@ -97,7 +94,20 @@ pub(crate) fn swap_dims<R: CubeRuntime>(
         qparams.scales.shape.dims.swap(dim1, dim2);
         qparams.scales.strides.swap(dim1, dim2);
 
-        tensor.dtype = DType::QFloat(scheme.with_level(QuantLevel::block(&block_size)))
+        tensor.dtype = DType::QFloat(scheme.with_level(QuantLevel::Block(block_size)))
+    }
+
+    if let DType::QFloat(scheme) = &mut tensor.dtype
+        && let QuantStore::PackedU32(packed_dim) | QuantStore::PackedNative(packed_dim) =
+            &mut scheme.store
+    {
+        let rank = tensor.shape.len();
+
+        if *packed_dim == rank - dim1 - 1 {
+            *packed_dim = rank - dim2 - 1;
+        } else if *packed_dim == rank - dim2 - 1 {
+            *packed_dim = rank - dim1 - 1;
+        }
     }
 
     tensor
@@ -133,6 +143,17 @@ pub fn permute<R: CubeRuntime>(mut tensor: CubeTensor<R>, axes: &[usize]) -> Cub
         qparams.scales.shape = qparams.scales.shape.clone().permute(axes).unwrap();
 
         tensor.dtype = DType::QFloat(scheme.with_level(QuantLevel::block(&block_size)))
+    }
+
+    if let DType::QFloat(scheme) = &mut tensor.dtype
+        && let QuantStore::PackedU32(packed_dim) = &mut scheme.store
+    {
+        let rank = tensor.shape.len();
+        let new_pos = axes
+            .iter()
+            .position(|axis| *axis == rank - *packed_dim - 1)
+            .unwrap_or(0);
+        *packed_dim = rank - new_pos - 1;
     }
 
     tensor

@@ -83,6 +83,12 @@ impl Metric for CudaMetric {
                 };
                 let utilization_rate_formatted = format!("{}%", utilization_rates.gpu);
                 formatted = format!("{formatted} - Usage {utilization_rate_formatted}");
+
+                // Power is the currency for perf/W. NVML reports milliwatts.
+                if let Ok(power_mw) = device.power_usage() {
+                    let power_w = power_mw as f64 / 1000.0;
+                    formatted = format!("{formatted} - Power {power_w:.1} W");
+                }
             }
 
             SerializedEntry::new(formatted, raw_running)

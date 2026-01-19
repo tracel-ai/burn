@@ -29,11 +29,11 @@ https://huggingface.co/datasets/ylecun/mnist/viewer/mnist/test?row=15
 1. Add `burn-store` with the `burnpack` feature to your `Cargo.toml` dependencies:
    ```toml
    [dependencies]
-   burn = { version = "0.20", features = ["ndarray"] }
-   burn-store = { version = "0.20", features = ["burnpack"] }
+   burn = { version = "0.21", features = ["ndarray"] }
+   burn-store = { version = "0.21", features = ["burnpack"] }
 
    [build-dependencies]
-   burn-import = { version = "0.20" }
+   burn-import = { version = "0.21" }
    ```
 
 2. Create `model` directory under `src`

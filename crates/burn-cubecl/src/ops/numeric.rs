@@ -307,7 +307,7 @@ impl<N: Numeric> CumulativeOp<N> for ProdOp {
 #[cube]
 impl<N: Numeric> CumulativeOp<N> for MaxOp {
     fn execute(lhs: N, rhs: N) -> N {
-        N::max(lhs, rhs)
+        max(lhs, rhs)
     }
 
     fn init_value(first_element: N) -> N {
@@ -318,7 +318,7 @@ impl<N: Numeric> CumulativeOp<N> for MaxOp {
 #[cube]
 impl<N: Numeric> CumulativeOp<N> for MinOp {
     fn execute(lhs: N, rhs: N) -> N {
-        N::min(lhs, rhs)
+        min(lhs, rhs)
     }
 
     fn init_value(first_element: N) -> N {

@@ -121,54 +121,54 @@ fn supports_native() -> bool {
 
 #[test]
 fn should_quantize_dequantize_symmetric_arange_q8s_packed() {
-    should_quantize_dequantize_symmetric_arange(QuantValue::Q8S, QuantStore::U32, [8, 16])
+    should_quantize_dequantize_symmetric_arange(QuantValue::Q8S, QuantStore::PackedU32(0), [8, 16])
 }
 
 #[test]
 fn should_quantize_dequantize_symmetric_arange_q8f_packed() {
-    should_quantize_dequantize_symmetric_arange(QuantValue::Q8F, QuantStore::U32, [8, 16])
+    should_quantize_dequantize_symmetric_arange(QuantValue::Q8F, QuantStore::PackedU32(0), [8, 16])
 }
 
 #[test]
 fn should_quantize_dequantize_symmetric_arange_q4s_packed() {
-    should_quantize_dequantize_symmetric_arange(QuantValue::Q4S, QuantStore::U32, [8, 16])
+    should_quantize_dequantize_symmetric_arange(QuantValue::Q4S, QuantStore::PackedU32(0), [8, 16])
 }
 
 #[test]
 fn should_quantize_dequantize_symmetric_arange_q4f_packed() {
-    should_quantize_dequantize_symmetric_arange(QuantValue::Q4F, QuantStore::U32, [8, 16])
+    should_quantize_dequantize_symmetric_arange(QuantValue::Q4F, QuantStore::PackedU32(0), [8, 16])
 }
 
 #[test]
 fn should_quantize_dequantize_symmetric_arange_q2s_packed() {
-    should_quantize_dequantize_symmetric_arange(QuantValue::Q2S, QuantStore::U32, [8, 16])
+    should_quantize_dequantize_symmetric_arange(QuantValue::Q2S, QuantStore::PackedU32(0), [8, 16])
 }
 
 #[test]
 fn should_quantize_dequantize_symmetric_arange_q2f_packed() {
-    should_quantize_dequantize_symmetric_arange(QuantValue::Q2F, QuantStore::U32, [8, 16])
+    should_quantize_dequantize_symmetric_arange(QuantValue::Q2F, QuantStore::PackedU32(0), [8, 16])
 }
 
 #[test]
 fn should_quantize_dequantize_symmetric_per_block_q8s_packed() {
-    should_quantize_dequantize_symmetric_per_block(QuantValue::Q8S, 8, QuantStore::U32)
+    should_quantize_dequantize_symmetric_per_block(QuantValue::Q8S, 8, QuantStore::PackedU32(0))
 }
 
 #[test]
 fn should_quantize_dequantize_symmetric_per_block_q4s_packed() {
-    should_quantize_dequantize_symmetric_per_block(QuantValue::Q4S, 8, QuantStore::U32)
+    should_quantize_dequantize_symmetric_per_block(QuantValue::Q4S, 8, QuantStore::PackedU32(0))
 }
 
 #[test]
 #[should_panic = "Block size must be divisible by 16"]
 fn should_panic_when_block_size_cannot_store_num_quants() {
     // num_quants in u32 = 32 bits / 2 bits = 16
-    should_quantize_dequantize_symmetric_per_block(QuantValue::Q2S, 8, QuantStore::U32)
+    should_quantize_dequantize_symmetric_per_block(QuantValue::Q2S, 8, QuantStore::PackedU32(0))
 }
 
 #[test]
 fn should_quantize_dequantize_symmetric_per_block_q2s_packed() {
-    should_quantize_dequantize_symmetric_per_block(QuantValue::Q2S, 16, QuantStore::U32)
+    should_quantize_dequantize_symmetric_per_block(QuantValue::Q2S, 16, QuantStore::PackedU32(0))
 }
 
 #[test]
@@ -190,7 +190,7 @@ fn should_quantize_dequantize_symmetric_per_block_arange_q8s_packed() {
     should_quantize_dequantize_symmetric_per_block_arange(
         QuantValue::Q8S,
         32,
-        QuantStore::U32,
+        QuantStore::PackedU32(0),
         [32, 32],
     )
 }
@@ -223,7 +223,7 @@ fn should_quantize_dequantize_symmetric_arange_128x256_q8s_packed() {
     should_quantize_dequantize_symmetric_per_block_arange(
         QuantValue::Q8S,
         32,
-        QuantStore::U32,
+        QuantStore::PackedU32(0),
         [128, 256],
     )
 }

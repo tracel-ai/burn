@@ -23,7 +23,7 @@ fn should_grid_sample_2d_default() {
         &device,
     );
 
-    let output = tensor.grid_sample_2d(grid, GridSampleOptions::default());
+    let output = tensor.grid_sample_2d(grid, InterpolateMode::Bilinear);
 
     // Expected values computed with PyTorch grid_sample(align_corners=False, padding_mode='zeros')
     let expected = TensorData::from([[[[4.0, 2.0625], [2.0, 1.04]]]]);

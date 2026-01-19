@@ -33,7 +33,7 @@ fn prefix_sum_kernel<I: Int>(
 
     //acquire partition index
     if UNIT_POS_X == 0 {
-        broadcast[0] = Atomic::add(&scan_bump[batch], I::new(1));
+        broadcast[0] = scan_bump[batch].fetch_add(I::new(1));
     }
     sync_cube();
     let part_id = usize::cast_from(broadcast[0]);
@@ -150,8 +150,7 @@ fn prefix_sum_kernel<I: Int>(
 
     //Device broadcast
     if UNIT_POS_X == 0 {
-        Atomic::store(
-            &reduction[part_id + red_offs],
+        reduction[part_id + red_offs].store(
             (reduce[(spine_size - 1) as usize] << I::new(2))
                 | select(part_id != 0, flag_reduction, flag_inclusive),
         )
@@ -163,11 +162,10 @@ fn prefix_sum_kernel<I: Int>(
             let mut lookback_id = part_id - 1;
             let mut prev_reduction = zero;
             loop {
-                let flag_payload = Atomic::load(&reduction[lookback_id + red_offs]);
+                let flag_payload = reduction[lookback_id + red_offs].load();
                 if (flag_payload & flag_mask) == flag_inclusive {
                     prev_reduction += flag_payload >> I::new(2);
-                    Atomic::store(
-                        &reduction[part_id + red_offs],
+                    reduction[part_id + red_offs].store(
                         ((prev_reduction + reduce[(spine_size - 1) as usize]) << I::new(2))
                             | flag_inclusive,
                     );
