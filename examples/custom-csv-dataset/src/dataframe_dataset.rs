@@ -1,9 +1,6 @@
+use crate::{diabetes_patient::DiabetesPatient, utils::download_csv_if_missing};
 use burn_dataset::{DataframeDataset, Dataset};
 use polars::prelude::*;
-use crate::{
-    utils::download_csv_if_missing,
-    diabetes_patient::DiabetesPatient,
-};
 /// Diabetes dataset using Polars DataframeDataset as the backend.
 pub struct DiabetesDataframeDataset {
     dataset: DataframeDataset<DiabetesPatient>,
@@ -30,9 +27,10 @@ impl DiabetesDataframeDataset {
         ];
 
         // Build Schema
-        let schema = Schema::from_iter(COLS.iter().map(|(name, schema_type, _)| {
-            Field::new((*name).into(), schema_type.clone())
-        }));
+        let schema = Schema::from_iter(
+            COLS.iter()
+                .map(|(name, schema_type, _)| Field::new((*name).into(), schema_type.clone())),
+        );
 
         let mut df = LazyCsvReader::new(PlPath::new(path.to_str().unwrap()))
             .with_has_header(true)
@@ -43,10 +41,7 @@ impl DiabetesDataframeDataset {
 
         // cast columns
         for (col, _, cast_type) in COLS {
-            df.with_column(
-                df.column(col)?
-                    .cast(cast_type)?
-                    .clone())?;
+            df.with_column(df.column(col)?.cast(cast_type)?.clone())?;
         }
 
         let dataset = DataframeDataset::new(df)?;

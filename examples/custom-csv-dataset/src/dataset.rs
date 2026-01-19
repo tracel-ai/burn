@@ -1,8 +1,5 @@
+use crate::{diabetes_patient::DiabetesPatient, utils::download_csv_if_missing};
 use burn::data::dataset::{Dataset, InMemDataset};
-use crate::{
-    utils::download_csv_if_missing,
-    diabetes_patient::DiabetesPatient,
-};
 
 /// Diabetes patients dataset, also used in [scikit-learn](https://scikit-learn.org/stable/).
 /// See [Diabetes dataset](https://scikit-learn.org/stable/datasets/toy_dataset.html#diabetes-dataset).
