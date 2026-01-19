@@ -29,7 +29,6 @@ pub struct FuseBlock {
     pub reads: BTreeMap<TensorId, Vec<FuseOp>>,
     /// Contains all tensor outputs of the current block except for manually handled tensors.
     pub writes: BTreeMap<TensorId, FuseOp>,
-    pub local_inputs: Vec<LocalInput>,
 }
 
 #[derive(Clone, Debug)]
@@ -39,12 +38,14 @@ pub struct FuseBlockBuilder {
     locals: LocalVariablePool,
     pub ops: Vec<FuseOp>,
     reads: BTreeMap<TensorId, Vec<FuseOp>>,
+    // Only for global registers.
+    writes: BTreeMap<TensorId, FuseOp>,
     bool_precision: FuseType,
     // Output declared in this block alone.
     outputs: RegisteredTensors,
     pub outputs_unhandled: Vec<FuseArg>,
     pub local_outputs: Vec<TensorId>,
-    pub local_inputs: BTreeMap<TensorId, LocalInput>,
+    pub local_inputs: BTreeMap<TensorId, FuseArg>,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
@@ -75,6 +76,7 @@ impl FuseBlockBuilder {
             locals: Default::default(),
             ops: Default::default(),
             reads: Default::default(),
+            writes: Default::default(),
             outputs: Default::default(),
             outputs_unhandled: Default::default(),
             local_outputs: Default::default(),
@@ -114,21 +116,28 @@ impl FuseBlockBuilder {
     }
 
     /// Register an input tensor.
-    pub fn fetch_local(&self, tensor: &TensorIr) -> Option<FuseArg> {
+    pub fn global_register(&mut self, block_pos: usize, tensor: &TensorIr) -> Option<FuseArg> {
         let precision = tensor.dtype.into();
 
-        match self.local_inputs.get(&tensor.id) {
-            // We simply return the local index.
-            Some(val) => return Some(val.dst_arg.clone()),
-            None => {}
+        if let Some(val) = self.local_inputs.get(&tensor.id) {
+            return Some(val.clone());
         }
 
-        self.locals.get(precision, tensor.id)
-    }
+        let val = match self.locals.get(precision, tensor.id) {
+            Some(val) => val,
+            None => return None,
+        };
 
-    pub fn create_local(&mut self, tensor: &TensorIr) -> FuseArg {
-        let precision = tensor.dtype.into();
-        self.locals.create(precision, tensor.id)
+        let arg = FuseArg::GlobalRegister((block_pos, self.writes.len()), val.precision());
+
+        self.writes.insert(
+            tensor.id,
+            FuseOp::Assign(UnaryFuseArgs {
+                input: val,
+                out: arg.clone(),
+            }),
+        );
+        Some(arg)
     }
 
     /// Register an input tensor.
@@ -152,14 +161,10 @@ impl FuseBlockBuilder {
             "Add new input {tensor:?}, with locals: {:?}",
             self.local_inputs
         );
-        match self.local_inputs.get(&tensor.id) {
-            Some(val) => {
-                return {
-                    println!("REUSING LOCAL {:?} => {:?}", tensor.id, val);
-                    return Some(val.dst_arg.clone());
-                };
-            }
-            None => {}
+
+        if let Some(val) = self.local_inputs.get(&tensor.id) {
+            println!("REUSING LOCAL {:?} => {:?}", tensor.id, val);
+            return Some(val.clone());
         }
 
         let arg = match self.locals.get(precision, tensor.id) {
@@ -412,7 +417,7 @@ impl FuseBlockBuilder {
         let reads = self.reads.clone();
         let tensor_writes = self.tensor_writes(resources);
 
-        let mut writes = BTreeMap::new();
+        let mut writes = self.writes.clone();
 
         for (tensor, precision) in tensor_writes
             .iter()
@@ -438,7 +443,6 @@ impl FuseBlockBuilder {
                 shape_ref,
                 reads,
                 writes,
-                local_inputs: self.local_inputs.values().map(|i| i.clone()).collect(),
             },
             tensor_writes,
         )

@@ -54,6 +54,7 @@ pub fn read<C: CubePrimitive>(
                 read_input(inputs, locals, pos, ref_pos, layout, config, None)
             }
         }
+        FuseArg::GlobalRegister(key, _precision) => Line::cast_from(outputs.registers.read(key)),
         FuseArg::Output(pos, _precision, layout) => {
             read_output(inputs, outputs, locals, pos, ref_pos, layout, config)
         }
@@ -445,6 +446,9 @@ pub fn write<C: CubePrimitive>(
             tensor.tensor[offset] = Line::cast_from(value);
         }
         FuseArg::Local(..) => write_scalar::<C>(locals, value, arg),
+        FuseArg::GlobalRegister(key, _precision) => {
+            outputs.registers.write(key, Line::cast_from(value))
+        }
         _ => comptime![panic!("Can't write into inputs and scalars")],
     }
 }

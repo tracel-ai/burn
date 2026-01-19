@@ -127,7 +127,6 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
                 ref_layout: reference,
                 ops,
                 width: block_plan.width,
-                local_inputs: block_plan.local_inputs,
             };
             configs.push(config);
         }

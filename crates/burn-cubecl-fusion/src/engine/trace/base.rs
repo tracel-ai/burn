@@ -156,6 +156,7 @@ pub struct FuseResources {
     pub outputs: RegisteredTensors,
     pub inputs: RegisteredTensors,
     pub scalars: Vec<(FuseType, u64)>,
+    // TODO: Making put a map of global registers.
     pub views: Vec<TensorView>,
     pub indexed: BTreeMap<TensorId, FuseArg>,
     pub inputs_unhandled: Vec<TensorId>,

@@ -1,5 +1,6 @@
 use crate::{
     engine::codegen::{
+        self,
         ir::{FuseArg, FuseBlockConfig, GlobalArgs},
         kernel::{fuse_on_write, init_locals},
     },
@@ -154,7 +155,6 @@ fn reduce_step<P: ReducePrecision, Out: Numeric, I: ReduceInstruction<P>>(
     let line = I::merge_line::<Out>(&inst, acc, axis_size);
 
     locals.insert(0u32, Line::cast_from(line));
-    // codegen::io::write_scalar::<Out>(locals, Line::cast_from(line), arg);
 
     axis_size
 }

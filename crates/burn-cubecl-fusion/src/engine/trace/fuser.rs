@@ -95,18 +95,10 @@ impl TraceFuser {
     ///
     /// This will avoid reading the input again and instead use le local version when possible.
     pub fn block_local_input(&mut self, tensor: &TensorIr, block_pos: usize) {
-        let block = &self.blocks_previous[block_pos].0;
-        let src_arg = block.fetch_local(tensor).unwrap();
-        let dst_arg = self.block_current.create_local(tensor);
+        let block = &mut self.blocks_previous[block_pos].0;
+        let src_arg = block.global_register(block_pos, tensor).unwrap();
 
-        self.block_current.local_inputs.insert(
-            tensor.id,
-            LocalInput {
-                block_pos,
-                src_arg,
-                dst_arg: dst_arg,
-            },
-        );
+        self.block_current.local_inputs.insert(tensor.id, src_arg);
     }
 
     /// Register an output tensor that won't be automatically synced into global memory.
