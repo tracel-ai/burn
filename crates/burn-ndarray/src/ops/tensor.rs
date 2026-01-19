@@ -13,7 +13,7 @@ use super::{
 use crate::{
     NdArray, cast_to_dtype, cat_with_dtype, execute_with_int_dtype, tensor::NdArrayTensor,
 };
-use crate::{NdArrayDevice, SEED};
+use crate::{NdArrayDevice, SEED, slice};
 use crate::{
     SharedArray,
     element::{ExpElement, FloatNdArrayElement, IntNdArrayElement, QuantElement},
@@ -247,9 +247,7 @@ where
     }
 
     fn float_slice(tensor: FloatTensor<Self>, slices: &[burn_backend::Slice]) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
-            NdArrayOps::slice(array, slices)
-        })
+        slice!(tensor, slices)
     }
 
     fn float_slice_assign(

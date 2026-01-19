@@ -13,7 +13,7 @@ use ndarray::IntoDimension;
 // Current crate
 use crate::element::{FloatNdArrayElement, IntNdArrayElement, QuantElement};
 use crate::{NdArray, execute_with_int_dtype, tensor::NdArrayTensor};
-use crate::{NdArrayDevice, SharedArray};
+use crate::{NdArrayDevice, SharedArray, slice};
 
 // Workspace crates
 use burn_backend::{Shape, TensorData, backend::Backend};
@@ -46,7 +46,7 @@ where
     }
 
     fn bool_slice(tensor: NdArrayTensor, slices: &[burn_backend::Slice]) -> NdArrayTensor {
-        NdArrayOps::slice(tensor.bool(), slices).into()
+        slice!(tensor, slices)
     }
 
     fn bool_into_int(tensor: NdArrayTensor) -> NdArrayTensor {
