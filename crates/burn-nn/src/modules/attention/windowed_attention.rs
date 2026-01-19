@@ -31,6 +31,9 @@ pub struct WindowedAttentionConfig {
     pub d_model: usize,
     /// The number of heads.
     pub n_heads: usize,
+    /// Number of key/value heads. Set to 1 for MQA, `n_heads` for MHA (default), or another divisor of `n_heads` for GQA.
+    #[config(default = "None")]
+    pub n_heads_kv: Option<usize>,
     /// The window size for local attention.
     pub window_size: usize,
     /// Whether to use causal (unidirectional) masking. Default: true
@@ -74,6 +77,7 @@ pub struct WindowedAttention<B: Backend> {
     dropout: Dropout,
     d_model: usize,
     n_heads: usize,
+    n_heads_kv: usize,
     d_k: usize,
     window_size: usize,
     causal: bool,
@@ -92,6 +96,7 @@ impl<B: Backend> ModuleDisplay for WindowedAttention<B> {
         content
             .add("d_model", &self.d_model)
             .add("n_heads", &self.n_heads)
+            .add("n_heads_kv", &self.n_heads_kv)
             .add("d_k", &self.d_k)
             .add("window_size", &self.window_size)
             .add("causal", &self.causal)
@@ -109,21 +114,38 @@ impl WindowedAttentionConfig {
             "d_model must be divisible by n_heads"
         );
 
-        let linear = |config: &Self| {
-            LinearConfig::new(config.d_model, config.d_model)
-                .with_initializer(self.initializer.clone())
-                .init(device)
-        };
+        let n_heads_kv = self.n_heads_kv.unwrap_or(self.n_heads);
+        assert_eq!(
+            self.n_heads % n_heads_kv,
+            0,
+            "n_heads must be divisible by n_heads_kv"
+        );
+
+        let d_k = self.d_model / self.n_heads;
+
+        let query = LinearConfig::new(self.d_model, self.d_model)
+            .with_initializer(self.initializer.clone())
+            .init(device);
+        let key = LinearConfig::new(self.d_model, n_heads_kv * d_k)
+            .with_initializer(self.initializer.clone())
+            .init(device);
+        let value = LinearConfig::new(self.d_model, n_heads_kv * d_k)
+            .with_initializer(self.initializer.clone())
+            .init(device);
+        let output = LinearConfig::new(self.d_model, self.d_model)
+            .with_initializer(self.initializer.clone())
+            .init(device);
 
         WindowedAttention {
-            query: linear(self),
-            key: linear(self),
-            value: linear(self),
-            output: linear(self),
+            query,
+            key,
+            value,
+            output,
             dropout: DropoutConfig::new(self.dropout).init(),
             d_model: self.d_model,
             n_heads: self.n_heads,
-            d_k: self.d_model / self.n_heads,
+            n_heads_kv,
+            d_k,
             window_size: self.window_size,
             causal: self.causal,
             min_float: self.min_float,
@@ -165,17 +187,24 @@ impl<B: Backend> WindowedAttention<B> {
         let device = input.device();
 
         // 1. Project Q, K, V
-        let query = self.attention_linear(input.clone(), &self.query);
-        let key = self.attention_linear(input.clone(), &self.key);
-        let value = self.attention_linear(input, &self.value);
+        let query = self.reshape_query(self.query.forward(input.clone()));
+        let key = self.reshape_kv(self.key.forward(input.clone()));
+        let value = self.reshape_kv(self.value.forward(input));
 
-        // 2. Compute attention scores
+        // 2. GQA expansion: repeat K, V heads to match Q heads
+        let (key, value) = if self.n_heads != self.n_heads_kv {
+            let n_rep = self.n_heads / self.n_heads_kv;
+            (self.repeat_kv(key, n_rep), self.repeat_kv(value, n_rep))
+        } else {
+            (key, value)
+        };
+
+        // 3. Compute attention scores
         let attn_scores = query
             .matmul(key.transpose())
             .div_scalar((self.d_k as f32).sqrt());
-        let attn_scores = self.dropout.forward(attn_scores);
 
-        // 3. Apply sliding window mask
+        // 4. Apply sliding window mask
         let window_mask = generate_sliding_window_mask(
             batch_size,
             seq_length,
@@ -188,7 +217,7 @@ impl<B: Backend> WindowedAttention<B> {
             self.min_float,
         );
 
-        // 4. Apply optional padding mask
+        // 5. Apply optional padding mask
         let attn_scores = if let Some(mask_pad) = mask_pad {
             attn_scores.mask_fill(
                 mask_pad.reshape([batch_size, 1, 1, seq_length]),
@@ -198,14 +227,15 @@ impl<B: Backend> WindowedAttention<B> {
             attn_scores
         };
 
-        // 5. Compute attention weights
+        // 6. Compute attention weights and apply dropout
         let weights = if self.quiet_softmax {
             quiet_softmax(attn_scores, 3)
         } else {
             softmax(attn_scores, 3)
         };
+        let weights = self.dropout.forward(weights);
 
-        // 6. Compute context and project output
+        // 7. Compute context and project output
         let context = weights
             .matmul(value)
             .swap_dims(1, 2)
@@ -235,26 +265,35 @@ impl<B: Backend> WindowedAttention<B> {
         debug_assert_eq!(seq_length, 1, "Cached inference expects single token input");
 
         // 1. Project Q, K, V for new token
-        let query = self.attention_linear(input.clone(), &self.query);
-        let new_key = self.attention_linear(input.clone(), &self.key);
-        let new_value = self.attention_linear(input, &self.value);
+        let query = self.reshape_query(self.query.forward(input.clone()));
+        let new_key = self.reshape_kv(self.key.forward(input.clone()));
+        let new_value = self.reshape_kv(self.value.forward(input));
 
         // 2. Update cache and get windowed KV
         let (key, value) = cache.update(new_key, new_value, self.window_size);
 
-        // 3. Compute attention scores
+        // 3. GQA expansion: repeat K, V heads to match Q heads
+        let (key, value) = if self.n_heads != self.n_heads_kv {
+            let n_rep = self.n_heads / self.n_heads_kv;
+            (self.repeat_kv(key, n_rep), self.repeat_kv(value, n_rep))
+        } else {
+            (key, value)
+        };
+
+        // 4. Compute attention scores
         let attn_scores = query
             .matmul(key.transpose())
             .div_scalar((self.d_k as f32).sqrt());
 
-        // 4. Compute attention weights
+        // 5. Compute attention weights and apply dropout
         let weights = if self.quiet_softmax {
             quiet_softmax(attn_scores, 3)
         } else {
             softmax(attn_scores, 3)
         };
+        let weights = self.dropout.forward(weights);
 
-        // 5. Compute context and project output
+        // 6. Compute context and project output
         let context = weights
             .matmul(value)
             .swap_dims(1, 2)
@@ -263,12 +302,26 @@ impl<B: Backend> WindowedAttention<B> {
         self.output.forward(context)
     }
 
-    fn attention_linear(&self, x: Tensor<B, 3>, linear: &Linear<B>) -> Tensor<B, 4> {
-        let [batch_size, seq_length, _d_model] = x.dims();
-        linear
-            .forward(x)
-            .reshape([batch_size, seq_length, self.n_heads, self.d_k])
+    /// Reshape query projection to [batch, n_heads, seq_len, d_k].
+    fn reshape_query(&self, x: Tensor<B, 3>) -> Tensor<B, 4> {
+        let [batch_size, seq_length, _] = x.dims();
+        x.reshape([batch_size, seq_length, self.n_heads, self.d_k])
             .swap_dims(1, 2)
+    }
+
+    /// Reshape key/value projection to [batch, n_heads_kv, seq_len, d_k].
+    fn reshape_kv(&self, x: Tensor<B, 3>) -> Tensor<B, 4> {
+        let [batch_size, seq_length, _] = x.dims();
+        x.reshape([batch_size, seq_length, self.n_heads_kv, self.d_k])
+            .swap_dims(1, 2)
+    }
+
+    /// Repeat key/value heads for GQA: [b, h_kv, l, d] -> [b, h_kv * n_rep, l, d].
+    fn repeat_kv(&self, x: Tensor<B, 4>, n_rep: usize) -> Tensor<B, 4> {
+        let [b, h, l, d] = x.dims();
+        x.reshape([b, h, 1, l, d])
+            .expand([b, h, n_rep, l, d])
+            .reshape([b, h * n_rep, l, d])
     }
 }
 
@@ -509,6 +562,59 @@ mod tests {
     }
 
     #[test]
+    fn test_windowed_attention_gqa_shapes() {
+        let [batch_size, seq_length, d_model, n_heads, n_heads_kv, window_size] = [2, 8, 32, 4, 2, 2];
+        let device = Default::default();
+
+        let config = WindowedAttentionConfig::new(d_model, n_heads, window_size)
+            .with_n_heads_kv(Some(n_heads_kv));
+        let module = config.init::<TestBackend>(&device);
+
+        let input = Tensor::random(
+            [batch_size, seq_length, d_model],
+            Distribution::Default,
+            &device,
+        );
+        let output = module.forward(input);
+
+        assert_eq!(
+            output.shape(),
+            Shape::new([batch_size, seq_length, d_model])
+        );
+    }
+
+    #[test]
+    fn test_windowed_attention_mqa_shapes() {
+        let [batch_size, seq_length, d_model, n_heads, window_size] = [2, 8, 32, 4, 2];
+        let device = Default::default();
+
+        let config = WindowedAttentionConfig::new(d_model, n_heads, window_size)
+            .with_n_heads_kv(Some(1)); // MQA
+        let module = config.init::<TestBackend>(&device);
+
+        let input = Tensor::random(
+            [batch_size, seq_length, d_model],
+            Distribution::Default,
+            &device,
+        );
+        let output = module.forward(input);
+
+        assert_eq!(
+            output.shape(),
+            Shape::new([batch_size, seq_length, d_model])
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "n_heads must be divisible by n_heads_kv")]
+    fn test_gqa_panic_if_n_heads_not_divisible_by_n_heads_kv() {
+        let device: <TestBackend as Backend>::Device = Default::default();
+        // d_model=32, n_heads=4 is valid (32/4=8), but n_heads=4, n_heads_kv=3 is invalid (4%3!=0)
+        let config = WindowedAttentionConfig::new(32, 4, 2).with_n_heads_kv(Some(3));
+        config.init::<TestBackend>(&device);
+    }
+
+    #[test]
     fn display() {
         let [d_model, n_heads, window_size] = [32, 4, 2];
         let device = Default::default();
@@ -518,6 +624,8 @@ mod tests {
 
         let s = alloc::format!("{}", module);
         assert!(s.contains("d_model: 32"));
+        assert!(s.contains("n_heads: 4"));
+        assert!(s.contains("n_heads_kv: 4"));
         assert!(s.contains("window_size: 2"));
         assert!(s.contains("causal: true"));
     }
