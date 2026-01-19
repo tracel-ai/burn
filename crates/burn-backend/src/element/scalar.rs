@@ -15,8 +15,11 @@ pub enum Scalar {
 
 impl Scalar {
     /// Creates a scalar with the specified data type.
+    ///
+    /// # Note
+    /// [`QFloat`](DType::QFloat) scalars are represented as float for element-wise operations.
     pub fn new<E: ElementConversion>(value: E, dtype: &DType) -> Self {
-        if dtype.is_float() {
+        if dtype.is_float() | matches!(dtype, &DType::QFloat(_)) {
             Self::Float(value.elem())
         } else if dtype.is_int() {
             Self::Int(value.elem())
