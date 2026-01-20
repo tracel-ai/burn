@@ -99,6 +99,7 @@ impl ReduceBroadcastedFullFuser {
         if !self.fuser.is_empty() {
             let mut settings = self.settings_read;
             settings.vectorization = VectorizationSetting::EqualThanPreviousBlock { block_pos: 0 };
+            settings.ref_layout = RefLayoutSetting::SameAsBlock { block_pos: 0 };
             self.fuser.next_block([], settings).unwrap();
 
             let analysis = self.analyzer.retrieve_next();

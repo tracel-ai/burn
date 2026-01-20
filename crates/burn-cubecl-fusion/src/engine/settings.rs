@@ -53,4 +53,7 @@ pub enum RefLayoutSetting {
     /// Note that forcing a contiguous reference layout might reduce the opportunity of inplace
     /// fusion.
     OnlyContiguous,
+    SameAsBlock {
+        block_pos: u32,
+    },
 }

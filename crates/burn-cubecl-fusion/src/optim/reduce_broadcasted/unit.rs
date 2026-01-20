@@ -99,12 +99,6 @@ fn reduce_many(
 
     #[unroll]
     for i in 0..blocks.len() {
-        let comment = comptime! {
-            println!("Compiling block {i:?}");
-            format!("Block {i:?}");
-        };
-        comment!("Block");
-
         let block = blocks.index(i);
         let input = FusedReduceInput {
             global: inputs.clone(),

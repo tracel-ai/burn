@@ -164,16 +164,11 @@ impl FuseBlockBuilder {
             _ => precision,
         };
 
-        println!(
-            "Add new input {tensor:?}, with locals: {:?}",
-            self.local_inputs
-        );
-
         if let Some(val) = self.local_inputs.get(&tensor.id) {
-            println!("REUSING LOCAL {:?} => {:?}", tensor.id, val);
             return Some(val.clone());
         }
 
+        
         let arg = match self.locals.get(precision, tensor.id) {
             Some(local) => {
                 resources.inputs.update(tensor);
@@ -185,15 +180,14 @@ impl FuseBlockBuilder {
                 local
             }
             None => {
-                let pos = if let Some(pos) = resources.outputs.get_index(tensor.id) {
+                let input = if let Some(pos) = resources.outputs.get_index(tensor.id) {
                     // Do not register a global input, only a local input from an existing output
-                    pos
+                    FuseArg::Output(pos, precision_input, LayoutInfo::Unknown)
                 } else {
-                    resources.inputs.insert(precision_input, tensor.clone())
+                    let pos = resources.inputs.insert(precision_input, tensor.clone());
+                    FuseArg::Input(pos, precision_input, LayoutInfo::Unknown)
                 };
-                println!("New input {:?} => {}", tensor, pos);
                 let out = self.locals.create(precision, tensor.id);
-                let input = FuseArg::Input(pos, precision_input, LayoutInfo::Unknown);
 
                 let reads = if let Entry::Vacant(e) = self.reads.entry(tensor.id) {
                     e.insert(Vec::with_capacity(1));

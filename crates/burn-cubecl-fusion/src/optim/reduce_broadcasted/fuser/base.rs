@@ -116,7 +116,9 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceBroadcastedFuser<
         let info_br = Arc::new(full.finish());
         println!("+++++++++++++++===");
         for b in self.blocks.iter() {
-            println!("|| {:?}", b.ops)
+            for o in b.ops.iter() {
+                println!("{o:?}")
+            }
         }
         println!("+++++++++++++++===");
         let info = Arc::new(ReduceBroadcastedOptimizationInfo { fallbacks, info_br });

@@ -47,7 +47,7 @@ pub enum InputReference {
     },
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 /// Determine how the reference layout is chosen.
 pub enum ReferenceSelection {
     Searching,

@@ -158,15 +158,23 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             plan.global_outputs.push(global.unwrap());
         }
 
-        for (i, block) in plan.blocks.iter_mut().enumerate() {
-            if !block.reference.is_found() {
-                Self::select_reference_from_inputs(
-                    self.blocks[i].settings.ref_layout,
-                    block,
-                    &plan.handle_inputs,
-                );
+        for i in 0..plan.blocks.len() {
+            if !plan.blocks[i].reference.is_found() {
+                match self.blocks[i].settings.ref_layout {
+                    RefLayoutSetting::SameAsBlock { block_pos } => {
+                        plan.blocks[i].reference =
+                            plan.blocks[block_pos as usize].reference.clone();
+                    }
+                    _ => {
+                        Self::select_reference_from_inputs(
+                            self.blocks[i].settings.ref_layout,
+                            &mut plan.blocks[i],
+                            &plan.handle_inputs,
+                        );
+                    }
+                };
             } else {
-                Self::add_layout_info_inputs(block, &plan.handle_inputs);
+                Self::add_layout_info_inputs(&mut plan.blocks[i], &plan.handle_inputs);
             }
         }
 
@@ -221,6 +229,9 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
 
                     match ref_layout_setting {
                         RefLayoutSetting::Any => set_ref_as_concrete(block),
+                        RefLayoutSetting::SameAsBlock { .. } => {
+                            // Skip set ref.
+                        }
                         RefLayoutSetting::OnlyContiguous => {
                             if is_contiguous(
                                 &reference.global_ir.shape.dims,
