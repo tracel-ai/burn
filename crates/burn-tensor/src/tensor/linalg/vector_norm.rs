@@ -1,7 +1,8 @@
 use crate::backend::Backend;
 use crate::tensor::{BasicOps, Tensor};
 use crate::{ElementConversion, Numeric};
-
+#[allow(unused_imports)]
+use num_traits::float::Float;
 /// Specifies the type of norm to compute.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Norm {
