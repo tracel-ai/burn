@@ -223,7 +223,10 @@ impl GlobalRegisters {
         value: Line<NumericExpand<DYN_ELEM_ID>>,
     ) {
         // TODO: Implement try find.
-        let mut registers = self.registers.find(key.0);
+        let mut registers =
+            Registry::<usize, Registry<usize, Line<NumericExpand<DYN_ELEM_ID>>>>::find_or_default::<
+                usize,
+            >(&mut self.registers, key.0);
         registers.insert(key.1, value);
     }
 }

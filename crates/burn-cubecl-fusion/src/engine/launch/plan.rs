@@ -29,7 +29,7 @@ pub struct BlockPlan<'a> {
     pub potential_reference_input: Option<InputReference>,
     pub reference: ReferenceSelection,
     pub reads: BTreeMap<TensorId, Vec<FuseOp>>,
-    pub writes: BTreeMap<TensorId, FuseOp>,
+    pub writes: BTreeMap<TensorId, Vec<FuseOp>>,
     pub width: LineSize,
 }
 

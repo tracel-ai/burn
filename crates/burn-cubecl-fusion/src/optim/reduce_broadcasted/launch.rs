@@ -24,6 +24,7 @@ use cubek::reduce::{
     },
 };
 
+#[derive(Debug)]
 pub struct ReduceBrFuseBlock {
     pub(crate) op: ReduceOperationConfig,
     pub(crate) input: FuseArg,
@@ -49,6 +50,8 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceBroadcastedLaunch<'_> {
         outputs: GlobalArgsLaunch<'a, R>,
         configs: &'a [FuseBlockConfig],
     ) -> Result<(), Self::Error> {
+        println!("CCCCCCCCCCCCCCCC {configs:?}");
+        println!("BbbbbbbbbbbbbbbBBBBBBBBBBBBBBB {:?}", self.blocks);
         let routine = UnitRoutine;
         let first_config = &configs[0];
         let shape = inputs.shape_ref(&first_config.ref_layout, first_config.rank);
@@ -81,25 +84,25 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceBroadcastedLaunch<'_> {
         println!("HERE");
         let mut blocks = SequenceArg::new();
 
-        self.blocks
-            .iter()
-            .zip(configs.iter())
-            .for_each(|(block, config)| {
-                let arg = ReduceFuseBlockLaunch::new(
-                    block.op,
-                    config.clone(),
-                    block.input.clone(),
-                    block.output.clone(),
-                    match blueprint.global {
-                        GlobalReduceBlueprint::Unit(bpt) => bpt,
-                        _ => panic!(),
-                    },
-                );
-                blocks.push(arg);
-            });
+        let mut index = 0;
+        for block in self.blocks {
+            let arg = ReduceFuseBlockLaunch::new(
+                block.op,
+                configs[index].clone(),
+                configs[index + 1].clone(),
+                block.input.clone(),
+                block.output.clone(),
+                match blueprint.global {
+                    GlobalReduceBlueprint::Unit(bpt) => bpt,
+                    _ => panic!(),
+                },
+            );
+            index += 2;
+            blocks.push(arg);
+        }
 
         println!("THERE");
-        let block_end = match configs.len() > self.blocks.len() {
+        let block_end = match configs.len() > index {
             true => CubeOptionArgs::Some(ElemwiseFuseBlockLaunch::new(
                 configs.last().cloned().unwrap(),
             )),
@@ -108,7 +111,7 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceBroadcastedLaunch<'_> {
         println!("BEFORE");
 
         unsafe {
-            reduce_br_kernel::launch_unchecked::<R>(
+            let val = reduce_br_kernel::launch_unchecked::<R>(
                 client,
                 settings.cube_count,
                 settings.cube_dim,
@@ -117,7 +120,8 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceBroadcastedLaunch<'_> {
                 ScalarArg::new(self.reduce_axis),
                 blocks,
                 block_end,
-            )?;
+            );
+            panic!("{val:?}");
         }
 
         Ok(())

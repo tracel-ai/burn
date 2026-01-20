@@ -97,6 +97,7 @@ impl TraceFuser {
     pub fn block_local_input(&mut self, tensor: &TensorIr, block_pos: usize) {
         let block = &mut self.blocks_previous[block_pos].0;
         let src_arg = block.global_register(block_pos, tensor).unwrap();
+        println!("GLOBAL_REGISTER ADD : {src_arg:?}");
 
         self.block_current.local_inputs.insert(tensor.id, src_arg);
     }
@@ -257,6 +258,7 @@ impl TraceFuser {
     /// Finish fusing and returns the created trace.
     pub fn finish(&self, shape_ref: Vec<usize>) -> FuseTrace {
         let mut resources = self.resources.clone();
+        println!("{resources:?}");
         let mut outputs = RegisteredTensors::default();
         let mut blocks = Vec::new();
 

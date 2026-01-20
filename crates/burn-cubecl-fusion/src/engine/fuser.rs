@@ -7,7 +7,7 @@ use crate::engine::codegen::ir::QuantSchemeFuse;
 use burn_fusion::{FuserProperties, FuserStatus, OperationFuser};
 use burn_ir::{
     BaseOperationIr, BinaryOpIr, FloatOperationIr, NumericOperationIr, OperationIr, ScalarOpIr,
-    TensorId, TensorIr, UnaryOpIr,
+    TensorIr, UnaryOpIr,
 };
 use burn_std::DType;
 use cubecl::ir::ElemType;

@@ -28,7 +28,8 @@ pub struct FuseBlock {
     /// registered here must be vectorized manually.
     pub reads: BTreeMap<TensorId, Vec<FuseOp>>,
     /// Contains all tensor outputs of the current block except for manually handled tensors.
-    pub writes: BTreeMap<TensorId, FuseOp>,
+    /// We can have multiple writes when the same variable is reused after in another block.
+    pub writes: BTreeMap<TensorId, Vec<FuseOp>>,
 }
 
 #[derive(Clone, Debug)]
@@ -39,7 +40,7 @@ pub struct FuseBlockBuilder {
     pub ops: Vec<FuseOp>,
     reads: BTreeMap<TensorId, Vec<FuseOp>>,
     // Only for global registers.
-    writes: BTreeMap<TensorId, FuseOp>,
+    writes: BTreeMap<TensorId, Vec<FuseOp>>,
     bool_precision: FuseType,
     // Output declared in this block alone.
     outputs: RegisteredTensors,
@@ -130,13 +131,19 @@ impl FuseBlockBuilder {
 
         let arg = FuseArg::GlobalRegister((block_pos, self.writes.len()), val.precision());
 
-        self.writes.insert(
-            tensor.id,
-            FuseOp::Assign(UnaryFuseArgs {
-                input: val,
-                out: arg.clone(),
-            }),
-        );
+        let ops = match self.writes.get_mut(&tensor.id) {
+            Some(ops) => ops,
+            None => {
+                self.writes.insert(tensor.id, Vec::new());
+                self.writes.get_mut(&tensor.id).unwrap()
+            }
+        };
+        ops.push(FuseOp::Assign(UnaryFuseArgs {
+            input: val,
+            out: arg.clone(),
+        }));
+        println!("WRITE {block_pos} => {:?}", self.writes);
+
         Some(arg)
     }
 
@@ -184,6 +191,7 @@ impl FuseBlockBuilder {
                 } else {
                     resources.inputs.insert(precision_input, tensor.clone())
                 };
+                println!("New input {:?} => {}", tensor, pos);
                 let out = self.locals.create(precision, tensor.id);
                 let input = FuseArg::Input(pos, precision_input, LayoutInfo::Unknown);
 
@@ -426,13 +434,18 @@ impl FuseBlockBuilder {
             if let Some(local) = self.locals.get_any_precision(tensor.id) {
                 let out_index = tensor_writes.get_index(tensor.id).unwrap();
 
-                writes.insert(
-                    tensor.id,
-                    FuseOp::Assign(UnaryFuseArgs {
-                        input: local,
-                        out: FuseArg::Output(out_index + offset, *precision, LayoutInfo::Unknown),
-                    }),
-                );
+                let ops = match writes.get_mut(&tensor.id) {
+                    Some(ops) => ops,
+                    None => {
+                        writes.insert(tensor.id, Vec::new());
+                        writes.get_mut(&tensor.id).unwrap()
+                    }
+                };
+
+                ops.push(FuseOp::Assign(UnaryFuseArgs {
+                    input: local,
+                    out: FuseArg::Output(out_index + offset, *precision, LayoutInfo::Unknown),
+                }));
             }
         }
 

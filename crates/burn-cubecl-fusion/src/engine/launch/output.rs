@@ -358,17 +358,28 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                 for op in ops.iter_mut() {
                     if let FuseOp::Assign(op) = op {
                         op.input.add_layout_info(LayoutInfo::IsRef);
+                        break;
                     };
                 }
             }
 
-            if let Some(FuseOp::Assign(op)) = block.writes.get_mut(&output.tensor_relative.id) {
-                op.out.add_layout_info(LayoutInfo::IsRef);
+            if let Some(ops) = block.writes.get_mut(&output.tensor_relative.id) {
+                for op in ops {
+                    if let FuseOp::Assign(op) = op {
+                        op.out.add_layout_info(LayoutInfo::IsRef);
+                        break;
+                    }
+                }
             };
         } else {
             // Already validated, necessary for correctness.
-            if let Some(FuseOp::Assign(op)) = block.writes.get_mut(&output.tensor_relative.id) {
-                op.out.add_layout_info(LayoutInfo::SameAsRef);
+            if let Some(ops) = block.writes.get_mut(&output.tensor_relative.id) {
+                for op in ops {
+                    if let FuseOp::Assign(op) = op {
+                        op.out.add_layout_info(LayoutInfo::SameAsRef);
+                        break;
+                    }
+                }
             };
         }
 
@@ -413,8 +424,13 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             };
 
             // Sometimes outputs that are manually handled don't have any write registered.
-            if let Some(FuseOp::Assign(op)) = block.writes.get_mut(&output.tensor_relative.id) {
-                op.out.add_layout_info(LayoutInfo::IsRef);
+            if let Some(ops) = block.writes.get_mut(&output.tensor_relative.id) {
+                for op in ops {
+                    if let FuseOp::Assign(op) = op {
+                        op.out.add_layout_info(LayoutInfo::IsRef);
+                        break;
+                    }
+                }
             };
         } else if let ReferenceSelection::Concrete {
             shape: ref_shape,
@@ -423,9 +439,14 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         } = &block.reference
             && ref_strides == &strides
             && ref_shape == &tensor_global.shape.dims
-            && let FuseOp::Assign(op) = block.writes.get_mut(&output.tensor_relative.id).unwrap()
+            && let Some(ops) = block.writes.get_mut(&output.tensor_relative.id)
         {
-            op.out.add_layout_info(LayoutInfo::SameAsRef);
+            for op in ops {
+                if let FuseOp::Assign(op) = op {
+                    op.out.add_layout_info(LayoutInfo::SameAsRef);
+                    break;
+                }
+            }
         };
 
         // We encode bool tensors as `B`.

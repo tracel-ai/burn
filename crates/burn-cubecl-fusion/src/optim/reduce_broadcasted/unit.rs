@@ -25,7 +25,9 @@ pub struct ReduceFuseBlock {
     #[cube(comptime)]
     op: ReduceOperationConfig,
     #[cube(comptime)]
-    config: FuseBlockConfig,
+    config_input: FuseBlockConfig,
+    #[cube(comptime)]
+    config_output: FuseBlockConfig,
     #[cube(comptime)]
     input: FuseArg,
     #[cube(comptime)]
@@ -97,18 +99,21 @@ fn reduce_many(
 
     #[unroll]
     for i in 0..blocks.len() {
-        comptime! {
+        let comment = comptime! {
             println!("Compiling block {i:?}");
+            format!("Block {i:?}");
         };
+        comment!("Block");
+
         let block = blocks.index(i);
         let input = FusedReduceInput {
             global: inputs.clone(),
-            config: comptime!(block.config.clone()),
+            config: comptime!(block.config_input.clone()),
             arg: comptime!(block.input.clone()),
         };
         let mut output = FusedReduceOutput {
             global: outputs.clone(),
-            config: comptime!(block.config.clone()),
+            config: comptime!(block.config_output.clone()),
             arg: comptime!(block.output.clone()),
         };
 

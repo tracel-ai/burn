@@ -58,7 +58,6 @@ impl FullFuserAnalyzer {
 
     pub fn retrieve_next(&mut self) -> FullFuserAnalysis {
         let inputs = self.analyses.remove(0);
-        println!("{inputs:?}");
         FullFuserAnalysis { inputs }
     }
 }
@@ -127,6 +126,12 @@ impl AnalysisState {
                     println!("potential_from_previous_blocks FULL: {potential:?}");
                     if let Some(block_pos) = self.available_from_previous_full.get(&potential.id) {
                         println!("ADDING IT: {potential:?}");
+                        self.block_data.push((potential.clone(), *block_pos));
+                    }
+
+                    if let Some(block_pos) = self.available_from_previous_single.get(&potential.id)
+                    {
+                        println!("ADDING IT FROM SINGLE: {potential:?}");
                         self.block_data.push((potential.clone(), *block_pos));
                     }
                     // Can reuse the read.

@@ -118,8 +118,10 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
                 ops.push(op.clone());
             }
 
-            for op in block_plan.writes.into_values() {
-                ops.push(op);
+            for opsw in block_plan.writes.into_values() {
+                for op in opsw {
+                    ops.push(op);
+                }
             }
 
             let config = FuseBlockConfig {

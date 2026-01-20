@@ -86,6 +86,9 @@ impl ReduceBroadcastedFullFuser {
         }
 
         let trace = self.fuser.finish();
+        // println!("{:?}", self.blocks);
+        // println!("{blocks:?}");
+        // println!("{trace}");
 
         ReduceBrInfo {
             blocks,
@@ -111,14 +114,12 @@ impl ReduceBroadcastedFullFuser {
         match &block.kind {
             ReduceBlockKind::Elemwise => {
                 for op in &block.ops {
-                    println!("Registering elemwise {:?}", op);
                     self.fuser.fuse(op);
                 }
                 self.blocks.push(ReduceBlockKind::Elemwise);
             }
             ReduceBlockKind::Reduce { ops_index, reduce } => {
                 for op in &block.ops[0..*ops_index] {
-                    println!("Registering fuse-on-read {:?}", op);
                     self.fuser.fuse(op);
                 }
 
@@ -151,7 +152,6 @@ impl ReduceBroadcastedFullFuser {
                 });
 
                 for op in &block.ops[*ops_index + 1..block.ops.len()] {
-                    println!("Registering fuse-on-write {:?}", op);
                     self.fuser.fuse(op);
                 }
             }
