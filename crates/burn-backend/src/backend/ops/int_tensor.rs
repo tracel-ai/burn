@@ -1,9 +1,9 @@
 use super::cat::cat_with_slice_assign;
 use super::repeat_dim::repeat_with_slice_assign;
 use super::sort::{argsort, sort, sort_with_indices};
-use crate::ExecutionError;
 use crate::tensor::{BoolTensor, Device, FloatTensor, Int, IntElem, IntTensor};
 use crate::{Backend, Distribution, TensorData, TensorMetadata, element::ElementConversion};
+use crate::{ExecutionError, Scalar};
 use alloc::vec::Vec;
 use burn_std::{IntDType, Shape, Slice};
 use core::ops::Range;
@@ -156,7 +156,7 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The tensor with the values filled.
-    fn int_mask_fill(tensor: IntTensor<B>, mask: BoolTensor<B>, value: IntElem<B>) -> IntTensor<B>;
+    fn int_mask_fill(tensor: IntTensor<B>, mask: BoolTensor<B>, value: Scalar) -> IntTensor<B>;
 
     /// Gather elements from the tensor at the given indices.
     ///
@@ -291,7 +291,7 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The boolean tensor with the result of the comparison.
-    fn int_equal_elem(lhs: IntTensor<B>, rhs: IntElem<B>) -> BoolTensor<B>;
+    fn int_equal_elem(lhs: IntTensor<B>, rhs: Scalar) -> BoolTensor<B>;
 
     /// Element-wise non-equality comparison with a scalar.
     ///
@@ -303,7 +303,7 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The boolean tensor with the result of the comparison.
-    fn int_not_equal_elem(lhs: IntTensor<B>, rhs: IntElem<B>) -> BoolTensor<B> {
+    fn int_not_equal_elem(lhs: IntTensor<B>, rhs: Scalar) -> BoolTensor<B> {
         let equal_tensor = B::int_equal_elem(lhs, rhs);
         B::bool_not(equal_tensor)
     }
@@ -330,7 +330,7 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The boolean tensor with the result of the comparison.
-    fn int_greater_elem(lhs: IntTensor<B>, rhs: IntElem<B>) -> BoolTensor<B>;
+    fn int_greater_elem(lhs: IntTensor<B>, rhs: Scalar) -> BoolTensor<B>;
 
     /// Element-wise greater than or equal comparison.
     ///
@@ -354,7 +354,7 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The boolean tensor with the result of the comparison.
-    fn int_greater_equal_elem(lhs: IntTensor<B>, rhs: IntElem<B>) -> BoolTensor<B>;
+    fn int_greater_equal_elem(lhs: IntTensor<B>, rhs: Scalar) -> BoolTensor<B>;
 
     /// Element-wise less than comparison.
     ///
@@ -378,7 +378,7 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The boolean tensor with the result of the comparison.
-    fn int_lower_elem(lhs: IntTensor<B>, rhs: IntElem<B>) -> BoolTensor<B>;
+    fn int_lower_elem(lhs: IntTensor<B>, rhs: Scalar) -> BoolTensor<B>;
 
     /// Element-wise less than or equal comparison.
     ///
@@ -402,7 +402,7 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The boolean tensor with the result of the comparison.
-    fn int_lower_equal_elem(lhs: IntTensor<B>, rhs: IntElem<B>) -> BoolTensor<B>;
+    fn int_lower_equal_elem(lhs: IntTensor<B>, rhs: Scalar) -> BoolTensor<B>;
 
     // ====  NUMERIC ==== //
 
@@ -428,7 +428,7 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The result of the addition.
-    fn int_add_scalar(lhs: IntTensor<B>, rhs: IntElem<B>) -> IntTensor<B>;
+    fn int_add_scalar(lhs: IntTensor<B>, rhs: Scalar) -> IntTensor<B>;
 
     /// Element-wise power with a IntTensor.
     ///
@@ -478,7 +478,7 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The elements of `lhs` raised to the value of `rhs`.
-    fn int_powi_scalar(lhs: IntTensor<B>, rhs: IntElem<B>) -> IntTensor<B> {
+    fn int_powi_scalar(lhs: IntTensor<B>, rhs: Scalar) -> IntTensor<B> {
         let exp = rhs.elem::<i32>();
         match exp {
             0 => Self::int_ones(lhs.shape(), &B::int_device(&lhs), lhs.dtype().into()),
@@ -512,7 +512,7 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The elements of `lhs` raised to the value of `rhs`.
-    fn int_powi_scalar_impl(lhs: IntTensor<B>, rhs: IntElem<B>) -> IntTensor<B> {
+    fn int_powi_scalar_impl(lhs: IntTensor<B>, rhs: Scalar) -> IntTensor<B> {
         B::float_into_int(B::float_powi_scalar_impl(B::int_into_float(lhs), rhs))
     }
 
@@ -528,9 +528,9 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The elements of `lhs` raised to the value of `rhs`. Result is an IntTensor.
-    fn int_powf_scalar(lhs: IntTensor<B>, rhs: f32) -> IntTensor<B> {
-        if num_traits::Float::floor(rhs) == rhs {
-            let exp = B::IntElem::from_elem(rhs as i32);
+    fn int_powf_scalar(lhs: IntTensor<B>, rhs: Scalar) -> IntTensor<B> {
+        // TODO: remove int powf which has weird semantics
+        if let Some(exp) = rhs.try_as_integer() {
             Self::int_powi_scalar(lhs, exp)
         } else {
             Self::int_powf_scalar_impl(lhs, rhs)
@@ -549,7 +549,7 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The elements of `lhs` raised to the value of `rhs`. Result is an IntTensor.
-    fn int_powf_scalar_impl(lhs: IntTensor<B>, rhs: f32) -> IntTensor<B> {
+    fn int_powf_scalar_impl(lhs: IntTensor<B>, rhs: Scalar) -> IntTensor<B> {
         B::float_into_int(B::float_powf_scalar_impl(B::int_into_float(lhs), rhs))
     }
 
@@ -563,7 +563,7 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The clamped tensor.
-    fn int_clamp_min(tensor: IntTensor<B>, min: IntElem<B>) -> IntTensor<B> {
+    fn int_clamp_min(tensor: IntTensor<B>, min: Scalar) -> IntTensor<B> {
         let mask = Self::int_lower_elem(tensor.clone(), min);
         Self::int_mask_fill(tensor, mask, min)
     }
@@ -578,7 +578,7 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The clamped tensor.
-    fn int_clamp_max(tensor: IntTensor<B>, max: IntElem<B>) -> IntTensor<B> {
+    fn int_clamp_max(tensor: IntTensor<B>, max: Scalar) -> IntTensor<B> {
         let mask = Self::int_greater_elem(tensor.clone(), max);
         Self::int_mask_fill(tensor, mask, max)
     }
@@ -594,7 +594,7 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The clamped tensor.
-    fn int_clamp(tensor: IntTensor<B>, min: IntElem<B>, max: IntElem<B>) -> IntTensor<B> {
+    fn int_clamp(tensor: IntTensor<B>, min: Scalar, max: Scalar) -> IntTensor<B> {
         Self::int_clamp_min(Self::int_clamp_max(tensor, max), min)
     }
 
@@ -620,7 +620,7 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The result of the subtraction.
-    fn int_sub_scalar(lhs: IntTensor<B>, rhs: IntElem<B>) -> IntTensor<B>;
+    fn int_sub_scalar(lhs: IntTensor<B>, rhs: Scalar) -> IntTensor<B>;
 
     /// Element-wise multiplication.
     ///
@@ -644,7 +644,7 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The result of the multiplication.
-    fn int_mul_scalar(lhs: IntTensor<B>, rhs: IntElem<B>) -> IntTensor<B>;
+    fn int_mul_scalar(lhs: IntTensor<B>, rhs: Scalar) -> IntTensor<B>;
 
     /// Element-wise division.
     ///
@@ -668,7 +668,7 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The result of the division.
-    fn int_div_scalar(lhs: IntTensor<B>, rhs: IntElem<B>) -> IntTensor<B>;
+    fn int_div_scalar(lhs: IntTensor<B>, rhs: Scalar) -> IntTensor<B>;
 
     /// Element-wise modulus.
     ///
@@ -690,7 +690,7 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The result of applying the modulus of the scalar to the tensor.
-    fn int_remainder_scalar(lhs: IntTensor<B>, rhs: IntElem<B>) -> IntTensor<B>;
+    fn int_remainder_scalar(lhs: IntTensor<B>, rhs: Scalar) -> IntTensor<B>;
 
     /// Multiplies two tensors together using matrix multiplication.
     ///
@@ -714,7 +714,7 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// The negated tensor.
     fn int_neg(tensor: IntTensor<B>) -> IntTensor<B> {
-        Self::int_mul_scalar(tensor, (-1.0).elem::<IntElem<B>>())
+        Self::int_mul_scalar(tensor, (-1).into())
     }
 
     /// Creates a tensor of zeros.
@@ -761,7 +761,7 @@ pub trait IntTensorOps<B: Backend> {
     /// The tensor filled with given value
     fn int_full(
         shape: Shape,
-        fill_value: IntElem<B>,
+        fill_value: Scalar,
         device: &Device<B>,
         dtype: IntDType,
     ) -> IntTensor<B> {
@@ -827,8 +827,8 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// The mean of all elements in the tensor.
     fn int_mean(tensor: IntTensor<B>) -> IntTensor<B> {
-        let num_elems = tensor.shape().num_elements();
-        B::int_div_scalar(B::int_sum(tensor), (num_elems as i64).elem())
+        let num_elems = tensor.shape().num_elements() as i64;
+        B::int_div_scalar(B::int_sum(tensor), num_elems.into())
     }
 
     /// Computes the mean of all elements in the tensor along a dimension.
@@ -1164,10 +1164,10 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// A boolean tensor with a single element, True if any element in the tensor is True, False otherwise.
     fn int_any(tensor: IntTensor<B>) -> BoolTensor<B> {
-        let bool_tensor = B::int_equal_elem(tensor, 0.elem());
+        let bool_tensor = B::int_equal_elem(tensor, 0.into());
         let bool_tensor = B::bool_not(bool_tensor);
         let sum = B::int_sum(B::bool_into_int(bool_tensor));
-        B::int_greater_elem(sum, 0.elem())
+        B::int_greater_elem(sum, 0.into())
     }
 
     /// Tests if any element in the int `tensor` evaluates to True along a given dimension `dim`.
@@ -1183,10 +1183,10 @@ pub trait IntTensorOps<B: Backend> {
     /// where the size is 1. The elem in the `dim` axis is True if any element along this dim in the input
     /// evaluates to True, False otherwise.
     fn int_any_dim(tensor: IntTensor<B>, dim: usize) -> BoolTensor<B> {
-        let bool_tensor = B::int_equal_elem(tensor, 0.elem());
+        let bool_tensor = B::int_equal_elem(tensor, 0.into());
         let bool_tensor = B::bool_not(bool_tensor);
         let sum = B::int_sum_dim(B::bool_into_int(bool_tensor), dim);
-        B::int_greater_elem(sum, 0.elem())
+        B::int_greater_elem(sum, 0.into())
     }
 
     /// Tests if all elements in the int `tensor` evaluate to True.
@@ -1200,11 +1200,11 @@ pub trait IntTensorOps<B: Backend> {
     /// A boolean tensor `Tensor<B, 1, Bool>` with a single element, True if all elements in the input tensor
     /// evaluate to True, False otherwise.
     fn int_all(tensor: IntTensor<B>) -> BoolTensor<B> {
-        let num_elems = tensor.shape().num_elements();
-        let bool_tensor = B::int_equal_elem(tensor, 0.elem());
+        let num_elems = tensor.shape().num_elements() as i64;
+        let bool_tensor = B::int_equal_elem(tensor, 0.into());
         let bool_tensor = B::bool_not(bool_tensor);
         let sum = B::int_sum(B::bool_into_int(bool_tensor));
-        B::int_equal_elem(sum, (num_elems as i32).elem())
+        B::int_equal_elem(sum, num_elems.into())
     }
 
     /// Tests if all elements in the int `tensor` evaluate to True along a given dimension `dim`.
@@ -1220,11 +1220,11 @@ pub trait IntTensorOps<B: Backend> {
     /// where the size is 1. The elem in the `dim` axis is True if all elements along this dim in the input
     /// evaluates to True, False otherwise.
     fn int_all_dim(tensor: IntTensor<B>, dim: usize) -> BoolTensor<B> {
-        let num_elems = tensor.shape().dims[dim];
-        let bool_tensor = B::int_equal_elem(tensor, 0.elem());
+        let num_elems = tensor.shape().dims[dim] as i64;
+        let bool_tensor = B::int_equal_elem(tensor, 0.into());
         let bool_tensor = B::bool_not(bool_tensor);
         let sum = B::int_sum_dim(B::bool_into_int(bool_tensor), dim);
-        B::int_equal_elem(sum, (num_elems as i32).elem())
+        B::int_equal_elem(sum, num_elems.into())
     }
 
     /// Returns the signs of the int `tensor`.
@@ -1239,11 +1239,11 @@ pub trait IntTensorOps<B: Backend> {
     fn int_sign(tensor: IntTensor<B>) -> IntTensor<B> {
         let dtype = tensor.dtype();
         let zeros = B::int_zeros(tensor.shape(), &B::int_device(&tensor), dtype.into());
-        let less_than_zero = B::int_lower_elem(tensor.clone(), 0.0f32.elem());
-        let greater_than_zero = B::int_greater_elem(tensor, 0.0f32.elem());
+        let less_than_zero = B::int_lower_elem(tensor.clone(), 0.into());
+        let greater_than_zero = B::int_greater_elem(tensor, 0.into());
 
-        let mut result = B::int_mask_fill(zeros, less_than_zero, (-1.0f32).elem());
-        result = B::int_mask_fill(result, greater_than_zero, 1.0f32.elem());
+        let mut result = B::int_mask_fill(zeros, less_than_zero, (-1).into());
+        result = B::int_mask_fill(result, greater_than_zero, 1.into());
         result
     }
 
@@ -1310,19 +1310,19 @@ pub trait IntTensorOps<B: Backend> {
     fn bitwise_and(lhs: IntTensor<B>, rhs: IntTensor<B>) -> IntTensor<B>;
 
     /// Bitwise AND operation for Int Tensors with a scalar
-    fn bitwise_and_scalar(lhs: IntTensor<B>, rhs: IntElem<B>) -> IntTensor<B>;
+    fn bitwise_and_scalar(lhs: IntTensor<B>, rhs: Scalar) -> IntTensor<B>;
 
     /// Bitwise OR operation for Int Tensors
     fn bitwise_or(lhs: IntTensor<B>, rhs: IntTensor<B>) -> IntTensor<B>;
 
     /// Bitwise OR operation for Int Tensors with a scalar
-    fn bitwise_or_scalar(lhs: IntTensor<B>, rhs: IntElem<B>) -> IntTensor<B>;
+    fn bitwise_or_scalar(lhs: IntTensor<B>, rhs: Scalar) -> IntTensor<B>;
 
     /// Bitwise XOR operation for Int Tensors
     fn bitwise_xor(lhs: IntTensor<B>, rhs: IntTensor<B>) -> IntTensor<B>;
 
     /// Bitwise XOR operation for Int Tensors with a scalar
-    fn bitwise_xor_scalar(lhs: IntTensor<B>, rhs: IntElem<B>) -> IntTensor<B>;
+    fn bitwise_xor_scalar(lhs: IntTensor<B>, rhs: Scalar) -> IntTensor<B>;
 
     /// Bitwise NOT operation for Int Tensors
     fn bitwise_not(tensor: IntTensor<B>) -> IntTensor<B>;
@@ -1331,13 +1331,13 @@ pub trait IntTensorOps<B: Backend> {
     fn bitwise_left_shift(lhs: IntTensor<B>, rhs: IntTensor<B>) -> IntTensor<B>;
 
     /// Bitwise left shift operation for Int Tensors with a scalar
-    fn bitwise_left_shift_scalar(lhs: IntTensor<B>, rhs: IntElem<B>) -> IntTensor<B>;
+    fn bitwise_left_shift_scalar(lhs: IntTensor<B>, rhs: Scalar) -> IntTensor<B>;
 
     /// Bitwise right shift operation for Int Tensors
     fn bitwise_right_shift(lhs: IntTensor<B>, rhs: IntTensor<B>) -> IntTensor<B>;
 
     /// Bitwise right shift operation for Int Tensors with a scalar
-    fn bitwise_right_shift_scalar(lhs: IntTensor<B>, rhs: IntElem<B>) -> IntTensor<B>;
+    fn bitwise_right_shift_scalar(lhs: IntTensor<B>, rhs: Scalar) -> IntTensor<B>;
 
     /// Converts a tensor to another integer data type.
     ///

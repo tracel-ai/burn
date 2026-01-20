@@ -128,7 +128,7 @@ async-channel = "2.5"
 futures-lite = { version = "2.6.1", default-features = false }
 
 # Terminal UI
-ratatui = "0.29.0"
+ratatui = "0.30.0"
 
 # WGPU stuff
 text_placeholder = "0.5.1"
@@ -157,7 +157,7 @@ ndarray = { version = "0.17.2", default-features = false }
 num-traits = { version = "0.2.19", default-features = false, features = [
     "libm",
 ] } # libm is for no_std
-openblas-src = "0.10.12"
+openblas-src = "0.10.14"
 rand = { version = "0.9.2", default-features = false }
 rand_distr = { version = "0.5.1", default-features = false }
 serde = { version = "1.0.228", default-features = false, features = [
@@ -187,12 +187,12 @@ portable-atomic-util = { version = "0.2.4", features = ["alloc"] }
 # cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "d060bfd58126b790ea0f9794dd3b3d791eb74fd6" }
 # cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "475cc556c65e2e28a5b4a3b8a976d56e30a9425d" }
 ### For local development. ###
-# cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
-# cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }
+cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
+cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }
 cubek = { path = "../cubek/crates/cubek", default-features = false }
 ### For the release. ###
-cubecl = { version = "=0.9.0", default-features = false }
-cubecl-common = { version = "=0.9.0", default-features = false }
+# cubecl = { version = "=0.9.0", default-features = false }
+# cubecl-common = { version = "=0.9.0", default-features = false }
 # cubek = { version = "=0.1.0", default-features = false }
 
 ### For xtask crate ###

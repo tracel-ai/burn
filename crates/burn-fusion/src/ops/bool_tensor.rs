@@ -727,7 +727,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         let streams = OperationStreams::with_inputs([&tensor, &mask]);
 
         let client = tensor.client.clone();
-        let value = ScalarIr::with_dtype(value, &tensor.dtype);
+        let value = ScalarIr::new(value, &tensor.dtype);
         let desc = MaskFillOpIr::create(tensor.into_ir(), mask.into_ir(), value, || {
             client.create_empty_handle()
         });
@@ -840,7 +840,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         let streams = OperationStreams::with_inputs([&lhs]);
 
         let client = lhs.client.clone();
-        let rhs = ScalarIr::with_dtype(rhs, &lhs.dtype);
+        let rhs = ScalarIr::new(rhs, &lhs.dtype);
         let desc = ScalarOpIr::create_comparison(lhs.into_ir(), rhs, B::BoolElem::dtype(), || {
             client.create_empty_handle()
         });

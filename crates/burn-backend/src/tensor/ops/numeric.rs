@@ -1,8 +1,8 @@
 use burn_std::Shape;
 
 use crate::{
-    Backend, Distribution,
-    element::{Element, ElementConversion},
+    Backend, Distribution, Scalar,
+    element::Element,
     tensor::{BasicOps, IntTensor},
 };
 
@@ -62,7 +62,7 @@ where
     #[cfg_attr(doc, doc = crate::doc_tensor!("add_scalar"))]
     #[cfg_attr(not(doc), doc = "`Tensor::add_scalar`")]
     /// function, which is more high-level and designed for public use.
-    fn add_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive;
+    fn add_scalar(lhs: Self::Primitive, rhs: Scalar) -> Self::Primitive;
 
     /// Subtracts two tensors.
     ///
@@ -108,7 +108,7 @@ where
     #[cfg_attr(doc, doc = crate::doc_tensor!("sub_scalar"))]
     #[cfg_attr(not(doc), doc = "`Tensor::sub_scalar`")]
     /// function, which is more high-level and designed for public use.
-    fn sub_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive;
+    fn sub_scalar(lhs: Self::Primitive, rhs: Scalar) -> Self::Primitive;
 
     /// Divides two tensors.
     ///
@@ -154,7 +154,7 @@ where
     #[cfg_attr(doc, doc = crate::doc_tensor!("div_scalar"))]
     #[cfg_attr(not(doc), doc = "`Tensor::div_scalar`")]
     /// function, which is more high-level and designed for public use.
-    fn div_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive;
+    fn div_scalar(lhs: Self::Primitive, rhs: Scalar) -> Self::Primitive;
 
     /// Computes the modulo element-wise. The result is the *signed* remainder of the division and its absolute value is
     /// less than that of the divisor.
@@ -202,7 +202,7 @@ where
     #[cfg_attr(doc, doc = crate::doc_tensor!("remainder_scalar"))]
     #[cfg_attr(not(doc), doc = "`Tensor::remainder_scalar`")]
     /// function, which is more high-level and designed for public use.
-    fn remainder_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive;
+    fn remainder_scalar(lhs: Self::Primitive, rhs: Scalar) -> Self::Primitive;
 
     /// Multiplies two tensors.
     ///
@@ -248,7 +248,7 @@ where
     #[cfg_attr(doc, doc = crate::doc_tensor!("mul_scalar"))]
     #[cfg_attr(not(doc), doc = "`Tensor::mul_scalar`")]
     /// function, which is more high-level and designed for public use.
-    fn mul_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive;
+    fn mul_scalar(lhs: Self::Primitive, rhs: Scalar) -> Self::Primitive;
 
     /// Negates a tensor.
     ///
@@ -573,7 +573,7 @@ where
     #[cfg_attr(doc, doc = crate::doc_tensor!("greater_elem"))]
     #[cfg_attr(not(doc), doc = "`Tensor::greater_elem`")]
     /// function, which is more high-level and designed for public use.
-    fn greater_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive;
+    fn greater_elem(lhs: Self::Primitive, rhs: Scalar) -> B::BoolTensorPrimitive;
 
     /// Element-wise greater than or equal comparison between two tensors.
     ///
@@ -623,7 +623,7 @@ where
     #[cfg_attr(doc, doc = crate::doc_tensor!("greater_equal_elem"))]
     #[cfg_attr(not(doc), doc = "`Tensor::greater_equal_elem`")]
     /// function, which is more high-level and designed for public use.
-    fn greater_equal_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive;
+    fn greater_equal_elem(lhs: Self::Primitive, rhs: Scalar) -> B::BoolTensorPrimitive;
 
     /// Element-wise less than comparison between two tensors.
     ///
@@ -673,7 +673,7 @@ where
     #[cfg_attr(doc, doc = crate::doc_tensor!("lower_elem"))]
     #[cfg_attr(not(doc), doc = "`Tensor::lower_elem`")]
     /// function, which is more high-level and designed for public use.
-    fn lower_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive;
+    fn lower_elem(lhs: Self::Primitive, rhs: Scalar) -> B::BoolTensorPrimitive;
 
     /// Element-wise less than or equal comparison between two tensors.
     ///
@@ -723,7 +723,7 @@ where
     #[cfg_attr(doc, doc = crate::doc_tensor!("lower_equal_elem"))]
     #[cfg_attr(not(doc), doc = "`Tensor::lower_equal_elem`")]
     /// function, which is more high-level and designed for public use.
-    fn lower_equal_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive;
+    fn lower_equal_elem(lhs: Self::Primitive, rhs: Scalar) -> B::BoolTensorPrimitive;
 
     /// Gets the indices of the maximum elements of a tensor along an axis.
     ///
@@ -982,7 +982,7 @@ where
     #[cfg_attr(doc, doc = crate::doc_tensor!("clamp"))]
     #[cfg_attr(not(doc), doc = "`Tensor::clamp`")]
     /// function, which is more high-level and designed for public use.
-    fn clamp(tensor: Self::Primitive, min: Self::Elem, max: Self::Elem) -> Self::Primitive;
+    fn clamp(tensor: Self::Primitive, min: Scalar, max: Scalar) -> Self::Primitive;
 
     /// Clamps a tensor under a minimum value.
     ///
@@ -1004,7 +1004,7 @@ where
     #[cfg_attr(doc, doc = crate::doc_tensor!("clamp_min"))]
     #[cfg_attr(not(doc), doc = "`Tensor::clamp_min`")]
     /// function, which is more high-level and designed for public use.
-    fn clamp_min(tensor: Self::Primitive, min: Self::Elem) -> Self::Primitive;
+    fn clamp_min(tensor: Self::Primitive, min: Scalar) -> Self::Primitive;
 
     /// Clamps a tensor over a maximum value.
     ///
@@ -1026,7 +1026,7 @@ where
     #[cfg_attr(doc, doc = crate::doc_tensor!("clamp_max"))]
     #[cfg_attr(not(doc), doc = "`Tensor::clamp_max`")]
     /// function, which is more high-level and designed for public use.
-    fn clamp_max(tensor: Self::Primitive, max: Self::Elem) -> Self::Primitive;
+    fn clamp_max(tensor: Self::Primitive, max: Scalar) -> Self::Primitive;
 
     /// Calculate absolute value on all elements of a tensor
     ///
@@ -1069,14 +1069,14 @@ where
     /// # Arguments
     /// * `tensor` - The tensor to apply power to.
     /// * `power` - The power to apply to the tensor.
-    fn powf_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive;
+    fn powf_scalar(lhs: Self::Primitive, rhs: Scalar) -> Self::Primitive;
 
     /// Element-wise power of a tensor to a scalar int
     ///
     /// # Arguments
     /// * `tensor` - The tensor to apply power to.
     /// * `power` - The power to apply to the tensor.
-    fn powi_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive;
+    fn powi_scalar(lhs: Self::Primitive, rhs: Scalar) -> Self::Primitive;
 
     /// Create a random tensor.
     ///

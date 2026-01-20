@@ -273,7 +273,7 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
         value: burn_backend::tensor::BoolElem<Self>,
     ) -> BoolTensor<Self> {
         let client = tensor.client.clone();
-        let value = ScalarIr::with_dtype(value, &tensor.dtype);
+        let value = ScalarIr::new(value, &tensor.dtype);
         let desc = MaskFillOpIr::create(tensor.into_ir(), mask.into_ir(), value, || {
             client.create_empty_handle()
         });
@@ -324,7 +324,7 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
         rhs: burn_backend::tensor::BoolElem<Self>,
     ) -> BoolTensor<Self> {
         let client = lhs.client.clone();
-        let rhs = ScalarIr::with_dtype(rhs, &lhs.dtype);
+        let rhs = ScalarIr::new(rhs, &lhs.dtype);
         let desc = ScalarOpIr::create_comparison(lhs.into_ir(), rhs, R::BoolElem::dtype(), || {
             client.create_empty_handle()
         });

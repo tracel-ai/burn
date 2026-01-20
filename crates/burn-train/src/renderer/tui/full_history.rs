@@ -4,7 +4,7 @@ use crate::{
     renderer::tui::{TuiSplit, TuiTag},
 };
 use ratatui::{
-    style::{Color, Style, Stylize},
+    style::{Color, Style},
     symbols,
     widgets::{Bar, Dataset, GraphType},
 };
@@ -244,7 +244,7 @@ impl FullHistoryPoints {
                 .value((avg * factor) as u64)
                 .style(tag.split.color())
                 .text_value(format!("{:.2}", avg))
-                .label(label.into()),
+                .label(label),
             width,
         ))
     }

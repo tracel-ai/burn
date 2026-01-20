@@ -265,7 +265,7 @@ pub fn read_input_window<C: CubePrimitive>(
 ) -> Slice<C> {
     let tensor = inputs.tensors.index(pos);
     let slice = tensor.tensor.slice(start, end);
-    slice.try_cast_unchecked()
+    slice.downcast()
 }
 
 /// Returns the input as a slice.
@@ -273,7 +273,7 @@ pub fn read_input_window<C: CubePrimitive>(
 pub fn input_as_slice<C: CubePrimitive>(inputs: &GlobalArgs, #[comptime] pos: usize) -> Slice<C> {
     let tensor = inputs.tensors.index(pos);
     let slice = tensor.tensor.to_slice();
-    slice.try_cast_unchecked()
+    slice.downcast()
 }
 
 /// Returns the input tensor as a quantized scale view.
@@ -312,7 +312,7 @@ pub fn input_as_scales_view<C: CubePrimitive>(
             ScalesLayout::new_BlockScaled(layout)
         }
     };
-    View::new::<Slice<C>, usize>(&scales.tensor.to_slice().try_cast_unchecked(), layout)
+    View::new::<Slice<C>, usize>(&scales.tensor.to_slice().downcast(), layout)
 }
 
 /// Reads the input tensor aligned.

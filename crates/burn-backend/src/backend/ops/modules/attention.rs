@@ -4,7 +4,6 @@ use num_traits::Float as _;
 
 use crate::{
     Backend, TensorMetadata,
-    element::ElementConversion,
     tensor::{BoolTensor, FloatTensor},
 };
 
@@ -18,14 +17,14 @@ pub fn naive_attention<B: Backend>(
 ) -> FloatTensor<B> {
     // Attention scores: A = QKᵗ / √d
     let query_shape = query.shape().dims::<4>();
-    let sqrt_d = (*query_shape.last().unwrap() as f32).sqrt().elem();
+    let sqrt_d = (*query_shape.last().unwrap() as f32).sqrt();
     let transposed_key = B::float_transpose(key);
     let qk = B::float_matmul(query, transposed_key);
-    let attention_scores = B::float_div_scalar(qk, sqrt_d);
+    let attention_scores = B::float_div_scalar(qk, sqrt_d.into());
 
     // Masking
     let attention_scores = if let Some(mask) = mask {
-        B::float_mask_fill(attention_scores, mask, f32::NEG_INFINITY.elem())
+        B::float_mask_fill(attention_scores, mask, f32::NEG_INFINITY.into())
     } else {
         attention_scores
     };
