@@ -1,6 +1,6 @@
 use crate::{
     engine::{
-        codegen::ir::{FuseArg, FuseBlockConfig, GlobalArgsLaunch},
+        codegen::ir::{FuseArg, FuseBlockConfig, GlobalArgsLaunch, RefLayout},
         launch::runner::{TraceRunner, Vectorization},
     },
     optim::reduce_broadcasted::unit::{
@@ -53,7 +53,13 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceBroadcastedLaunch<'_> {
     ) -> Result<(), Self::Error> {
         let routine = UnitRoutine;
         let first_config = &configs[0];
-        let shape = inputs.shape_ref(&first_config.ref_layout, first_config.rank);
+
+        let shape = match &first_config.ref_layout {
+            RefLayout::Concrete(FuseArg::Output(..)) => {
+                outputs.shape_ref(&first_config.ref_layout, first_config.rank)
+            }
+            _ => inputs.shape_ref(&first_config.ref_layout, first_config.rank),
+        };
 
         let vector_size = shape[self.reduce_axis];
         let vector_count = shape.iter().product::<usize>() / vector_size;

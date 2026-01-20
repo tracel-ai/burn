@@ -168,7 +168,6 @@ impl FuseBlockBuilder {
             return Some(val.clone());
         }
 
-        
         let arg = match self.locals.get(precision, tensor.id) {
             Some(local) => {
                 resources.inputs.update(tensor);

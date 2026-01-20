@@ -352,7 +352,12 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             }
         };
 
-        if !block.reference.is_found() {
+        if !block.reference.is_found()
+            && !matches!(
+                self.blocks[block_idx].settings.ref_layout,
+                RefLayoutSetting::SameAsBlock { .. }
+            )
+        {
             let index_input = self
                 .resources
                 .inputs
@@ -427,6 +432,10 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
 
         if !block.reference.is_found()
             && self.blocks[block_idx].shape_ref == output.tensor_relative.shape.dims
+            && !matches!(
+                self.blocks[block_idx].settings.ref_layout,
+                RefLayoutSetting::SameAsBlock { .. }
+            )
         {
             block.reference = ReferenceSelection::Concrete {
                 layout: FuseArg::Output(output.pos_original, output.precision, LayoutInfo::IsRef),

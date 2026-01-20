@@ -35,10 +35,13 @@ impl ReduceBroadcastedFullFuser {
         let settings_read = FuseSettings {
             inplace: false,
             ref_layout: RefLayoutSetting::OnlyContiguous,
+            // TODO: Only for debuging for now
+            vectorization: VectorizationSetting::Deactivated,
             ..Default::default()
         };
         let settings_write = FuseSettings {
             output_shape_updates: false,
+            ref_layout: RefLayoutSetting::OnlyContiguous,
             // TODO: Fusion axis should be on the (reduce_axis - 1).
             vectorization: VectorizationSetting::Deactivated,
             ..Default::default()
