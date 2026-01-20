@@ -3,8 +3,7 @@ use crate::{IntoKind, LibTorch, LibTorchDevice, TchShape, TchTensor, element::Tc
 use burn_backend::backend::ExecutionError;
 use burn_backend::tensor::{BoolTensor, FloatTensor, IntTensor};
 use burn_backend::{
-    DType, Distribution, FloatDType, Shape, TensorData, TensorMetadata, backend::Backend,
-    ops::FloatTensorOps,
+    DType, Distribution, FloatDType, Shape, TensorData, TensorMetadata, ops::FloatTensorOps,
 };
 use burn_backend::{Scalar, bf16, f16};
 

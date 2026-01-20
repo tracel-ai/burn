@@ -309,10 +309,7 @@ impl<B: Backend> Numeric<B> for Int {
     }
 }
 
-impl<B: Backend> Ordered<B> for Int
-where
-    <B as crate::backend::Backend>::IntElem: crate::element::ElementComparison,
-{
+impl<B: Backend> Ordered<B> for Int {
     fn cummin(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
         B::int_cummin(tensor, dim)
     }

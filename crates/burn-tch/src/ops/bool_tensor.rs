@@ -5,7 +5,7 @@ use burn_backend::ExecutionError;
 use burn_backend::tensor::BoolElem;
 use burn_backend::tensor::BoolTensor;
 use burn_backend::tensor::IntTensor;
-use burn_backend::{Backend, Shape, TensorData, TensorMetadata, ops::BoolTensorOps};
+use burn_backend::{Shape, TensorData, TensorMetadata, ops::BoolTensorOps};
 
 impl<E: TchElement> BoolTensorOps<Self> for LibTorch<E> {
     fn bool_from_data(data: TensorData, device: &LibTorchDevice) -> TchTensor {

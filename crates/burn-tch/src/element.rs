@@ -1,4 +1,4 @@
-use burn_backend::{Element, ElementComparison};
+use burn_backend::Element;
 use burn_backend::{bf16, f16};
 
 /// The element type for the tch backend.

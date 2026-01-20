@@ -1,5 +1,5 @@
 use crate::{
-    Backend, ElementComparison, Scalar,
+    Backend, Scalar,
     tensor::{IntTensor, Numeric},
 };
 
@@ -11,10 +11,7 @@ use crate::{
 #[cfg_attr(doc, doc = crate::doc_tensor!())]
 #[cfg_attr(not(doc), doc = "`Tensor`")]
 /// struct.
-pub trait Ordered<B: Backend>: Numeric<B>
-where
-    Self::Elem: ElementComparison,
-{
+pub trait Ordered<B: Backend>: Numeric<B> {
     /// Computes the cumulative minimum of elements along a dimension.
     ///
     /// # Arguments

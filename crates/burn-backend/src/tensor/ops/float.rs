@@ -510,10 +510,7 @@ impl<B: Backend> Numeric<B> for Float {
         }
     }
 }
-impl<B: Backend> Ordered<B> for Float
-where
-    <B as crate::backend::Backend>::FloatElem: crate::element::ElementComparison,
-{
+impl<B: Backend> Ordered<B> for Float {
     fn cummin(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
         match tensor {
             TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_cummin(tensor, dim)),

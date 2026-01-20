@@ -1,5 +1,5 @@
 use burn_backend::{
-    Backend, ElementComparison, ElementConversion, Scalar,
+    Backend, ElementConversion, Scalar,
     tensor::{Bool, IndexingUpdateOp, Int, Ordered},
 };
 use burn_std::AsIndex;
@@ -11,7 +11,6 @@ impl<B, const D: usize, K> Tensor<B, D, K>
 where
     B: Backend,
     K: Ordered<B>,
-    K::Elem: ElementComparison,
 {
     /// Create a one hot tensor.
     ///
