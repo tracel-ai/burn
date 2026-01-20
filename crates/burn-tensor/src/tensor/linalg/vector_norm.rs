@@ -126,6 +126,7 @@ pub fn vector_norm<B: Backend, const D: usize>(
 /// * 0.0
 /// * 1.0
 /// * 2.0
+/// * 2 * N for integral N,
 /// * f64::INFINITY,
 /// * f64::NEG_INFINITY,
 ///
