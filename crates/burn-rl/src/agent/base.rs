@@ -22,7 +22,7 @@ pub trait Policy<B: Backend, S, A>: Clone {
     fn batch_action(
         &mut self,
         states: Vec<&S>,
-        deterministc: bool,
+        deterministic: bool,
     ) -> Vec<ActionContext<A, Self::ActionContext>>;
 
     fn update(&mut self, update: Self::PolicyState);

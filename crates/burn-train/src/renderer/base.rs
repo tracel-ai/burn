@@ -22,19 +22,27 @@ pub trait MetricsRendererTraining: Send + Sync {
     /// * `state` - The metric state.
     fn update_valid(&mut self, state: MetricState);
 
-    /// Renders the training progress.
+    /// Updates the training status.
     ///
     /// # Arguments
     ///
     /// * `item` - The training progress.
-    fn render_train(&mut self, item: TrainingProgress);
+    fn update_status_train(
+        &mut self,
+        item: TrainingProgress,
+        progress_indicators: Vec<ProgressType>,
+    );
 
-    /// Renders the validation progress.
+    /// Updates the validation status.
     ///
     /// # Arguments
     ///
     /// * `item` - The validation progress.
-    fn render_valid(&mut self, item: TrainingProgress);
+    fn update_status_valid(
+        &mut self,
+        item: TrainingProgress,
+        progress_indicators: Vec<ProgressType>,
+    );
 
     /// Callback method invoked when training ends, whether it
     /// completed successfully or was interrupted.
@@ -58,7 +66,7 @@ pub trait MetricsRenderer: MetricsRendererEvaluation + MetricsRendererTraining {
     /// Keep the renderer from automatically closing, requiring manual action to close it.
     fn manual_close(&mut self);
     /// Register a new metric.
-    fn register_metric(&mut self, _definition: MetricDefinition);
+    fn register_metric(&mut self, definition: MetricDefinition);
 }
 
 #[derive(Clone)]
@@ -91,7 +99,11 @@ pub trait MetricsRendererEvaluation: Send + Sync {
     /// # Arguments
     ///
     /// * `item` - The training progress.
-    fn render_test(&mut self, item: EvaluationProgress);
+    fn update_status_test(
+        &mut self,
+        item: EvaluationProgress,
+        progress_indicators: Vec<ProgressType>,
+    );
 
     /// Callback method invoked when testing ends, whether it
     /// completed successfully or was interrupted.
@@ -117,16 +129,13 @@ pub enum MetricState {
 #[derive(Debug)]
 pub struct TrainingProgress {
     /// The progress.
-    pub progress: Progress,
+    pub progress: Option<Progress>,
 
-    /// The epoch.
-    pub epoch: usize,
+    /// The progress of the whole training.
+    pub global_progress: Progress,
 
-    /// The total number of epochs.
-    pub epoch_total: usize,
-
-    /// The iteration.
-    pub iteration: usize,
+    /// The iteration, if it differs from the items processed.
+    pub iteration: Option<usize>,
 }
 
 /// Evaluation progress.
@@ -135,21 +144,48 @@ pub struct EvaluationProgress {
     /// The progress.
     pub progress: Progress,
 
-    /// The iteration.
-    pub iteration: usize,
+    /// The iteration, if it is different from the processed items.
+    pub iteration: Option<usize>,
+}
+
+impl From<&EvaluationProgress> for TrainingProgress {
+    fn from(value: &EvaluationProgress) -> Self {
+        TrainingProgress {
+            progress: None,
+            global_progress: value.progress.clone(),
+            iteration: value.iteration,
+        }
+    }
 }
 
 impl TrainingProgress {
     /// Creates a new empty training progress.
     pub fn none() -> Self {
         Self {
-            progress: Progress {
+            progress: None,
+            global_progress: Progress {
                 items_processed: 0,
                 items_total: 0,
             },
-            epoch: 0,
-            epoch_total: 0,
-            iteration: 0,
+            iteration: None,
         }
     }
+}
+
+/// Type of progress indicators.
+pub enum ProgressType {
+    /// Detailled progress.
+    Detailed {
+        /// The tag.
+        tag: String,
+        /// The progress.
+        progress: Progress,
+    },
+    /// Simple value.
+    Value {
+        /// The tag.
+        tag: String,
+        /// The value.
+        value: usize,
+    },
 }

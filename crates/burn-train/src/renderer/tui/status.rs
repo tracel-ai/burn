@@ -1,5 +1,6 @@
+use crate::renderer::ProgressType;
+
 use super::TerminalFrame;
-use crate::renderer::{EvaluationProgress, TrainingProgress};
 use ratatui::{
     prelude::{Alignment, Rect},
     style::{Color, Style, Stylize},
@@ -9,7 +10,7 @@ use ratatui::{
 
 /// Show the training status with various information.
 pub(crate) struct StatusState {
-    progress: TrainingProgress,
+    progress_indicators: Vec<ProgressType>,
     mode: Mode,
 }
 
@@ -22,7 +23,7 @@ enum Mode {
 impl Default for StatusState {
     fn default() -> Self {
         Self {
-            progress: TrainingProgress::none(),
+            progress_indicators: vec![],
             mode: Mode::Train,
         }
     }
@@ -30,24 +31,23 @@ impl Default for StatusState {
 
 impl StatusState {
     /// Update the training information.
-    pub(crate) fn update_train(&mut self, progress: TrainingProgress) {
-        self.progress = progress;
+    pub(crate) fn update_train(&mut self, progress_indicators: Vec<ProgressType>) {
+        self.progress_indicators = progress_indicators;
         self.mode = Mode::Train;
     }
     /// Update the validation information.
-    pub(crate) fn update_valid(&mut self, progress: TrainingProgress) {
-        self.progress = progress;
+    pub(crate) fn update_valid(&mut self, progress_indicators: Vec<ProgressType>) {
+        self.progress_indicators = progress_indicators;
         self.mode = Mode::Valid;
     }
     /// Update the testing information.
-    pub(crate) fn update_test(&mut self, _progress: EvaluationProgress) {
-        // TODO: Use the progress here.
-        // self.progress = progress;
+    pub(crate) fn update_test(&mut self, progress_indicators: Vec<ProgressType>) {
+        self.progress_indicators = progress_indicators;
         self.mode = Mode::Evaluation;
     }
     /// Create a view.
     pub(crate) fn view(&self) -> StatusView {
-        StatusView::new(&self.progress, &self.mode)
+        StatusView::new(&self.progress_indicators, &self.mode)
     }
 }
 
@@ -56,7 +56,7 @@ pub(crate) struct StatusView {
 }
 
 impl StatusView {
-    fn new(progress: &TrainingProgress, mode: &Mode) -> Self {
+    fn new(progress_indicators: &Vec<ProgressType>, mode: &Mode) -> Self {
         let title = |title: &str| Span::from(format!(" {title} ")).bold().yellow();
         let value = |value: String| Span::from(value).italic();
         let mode = match mode {
@@ -65,26 +65,38 @@ impl StatusView {
             Mode::Evaluation => "Evaluation",
         };
 
-        Self {
-            lines: vec![
-                vec![title("Mode      :"), value(mode.to_string())],
-                vec![
-                    title("Epoch     :"),
-                    value(format!("{}/{}", progress.epoch, progress.epoch_total)),
-                ],
-                vec![
-                    title("Iteration :"),
-                    value(format!("{}", progress.iteration)),
-                ],
-                vec![
-                    title("Items     :"),
-                    value(format!(
-                        "{}/{}",
-                        progress.progress.items_processed, progress.progress.items_total
-                    )),
-                ],
-            ],
-        }
+        let width = progress_indicators
+            .iter()
+            .map(|p| match p {
+                ProgressType::Detailed { tag, .. } => tag.len(),
+                ProgressType::Value { tag, .. } => tag.len(),
+            })
+            .max()
+            .unwrap_or(4);
+
+        let mut lines = vec![vec![
+            title(&format!("{: <width$} :", "Mode")),
+            value(mode.to_string()),
+        ]];
+
+        progress_indicators.iter().for_each(|p| match p {
+            ProgressType::Detailed { tag, progress } => lines.push(vec![
+                title(&format!("{: <width$} :", tag)),
+                value(format!(
+                    "{}/{}",
+                    progress.items_processed, progress.items_total
+                )),
+            ]),
+            ProgressType::Value {
+                tag,
+                value: num_items,
+            } => lines.push(vec![
+                title(&format!("{: <width$} :", tag)),
+                value(format!("{}", num_items)),
+            ]),
+        });
+
+        Self { lines }
     }
 
     pub(crate) fn render(self, frame: &mut TerminalFrame<'_>, size: Rect) {

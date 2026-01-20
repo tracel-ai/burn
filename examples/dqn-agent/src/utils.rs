@@ -147,16 +147,17 @@ impl<B: Backend, S: Clone, A: EnvAction + Clone, P: Policy<B, S, A>> Policy<B, S
     fn batch_action(
         &mut self,
         states: Vec<&S>,
-        deterministc: bool,
+        deterministic: bool,
     ) -> Vec<ActionContext<A, Self::ActionContext>> {
         let logits = self.inner_policy.batch_logits(states);
         let greedy_actions = logits.argmax(1);
-        let threshold = self.step();
 
-        let context = EpsilonGreedyPolicyOutput { epsilon: threshold };
         let mut actions = vec![];
         for i in 0..greedy_actions.dims()[0] {
-            if random::<f64>() > threshold || deterministc {
+            let threshold = self.step();
+            let threshold = if deterministic { 0.0 } else { threshold };
+            let context = EpsilonGreedyPolicyOutput { epsilon: threshold };
+            if random::<f64>() > threshold {
                 actions.push(ActionContext::new(
                     context.clone(),
                     A::from_tensor(greedy_actions.clone().slice(s![i, ..]).float()),

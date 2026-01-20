@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{
-    EpisodeSummary, ItemLazy, LearnerItem, MetricUpdater, MetricWrapper, NumericMetricUpdater,
+    EpisodeSummary, EvaluationItem, ItemLazy, MetricUpdater, MetricWrapper, NumericMetricUpdater,
     metric::{
         Adaptor, Metric, MetricDefinition, MetricId, MetricMetadata, Numeric, store::MetricsUpdate,
     },
@@ -167,19 +167,19 @@ impl<TS: ItemLazy, ES: ItemLazy> RLMetrics<TS, ES> {
     /// Update the training information from the training item.
     pub(crate) fn update_train_step(
         &mut self,
-        item: &LearnerItem<TS::ItemSync>,
+        item: &EvaluationItem<TS::ItemSync>,
         metadata: &MetricMetadata,
     ) -> MetricsUpdate {
         let mut entries = Vec::with_capacity(self.train_step.len());
         let mut entries_numeric = Vec::with_capacity(self.train_step_numeric.len());
 
         for metric in self.train_step.iter_mut() {
-            let state = metric.update(item, metadata);
+            let state = metric.update(&item.item, metadata);
             entries.push(state);
         }
 
         for metric in self.train_step_numeric.iter_mut() {
-            let numeric_update = metric.update(item, metadata);
+            let numeric_update = metric.update(&item.item, metadata);
             entries_numeric.push(numeric_update);
         }
 
@@ -189,19 +189,19 @@ impl<TS: ItemLazy, ES: ItemLazy> RLMetrics<TS, ES> {
     /// Update the env-step metrics from an environment step item.
     pub(crate) fn update_env_step(
         &mut self,
-        item: &LearnerItem<ES::ItemSync>,
+        item: &EvaluationItem<ES::ItemSync>,
         metadata: &MetricMetadata,
     ) -> MetricsUpdate {
         let mut entries = Vec::with_capacity(self.env_step.len());
         let mut entries_numeric = Vec::with_capacity(self.env_step_numeric.len());
 
         for metric in self.env_step.iter_mut() {
-            let state = metric.update(item, metadata);
+            let state = metric.update(&item.item, metadata);
             entries.push(state);
         }
 
         for metric in self.env_step_numeric.iter_mut() {
-            let numeric_update = metric.update(item, metadata);
+            let numeric_update = metric.update(&item.item, metadata);
             entries_numeric.push(numeric_update);
         }
 
@@ -211,19 +211,19 @@ impl<TS: ItemLazy, ES: ItemLazy> RLMetrics<TS, ES> {
     /// Update the env-step metrics for validation from an environment step item.
     pub(crate) fn update_env_step_valid(
         &mut self,
-        item: &LearnerItem<ES::ItemSync>,
+        item: &EvaluationItem<ES::ItemSync>,
         metadata: &MetricMetadata,
     ) -> MetricsUpdate {
         let mut entries = Vec::with_capacity(self.env_step_valid.len());
         let mut entries_numeric = Vec::with_capacity(self.env_step_valid_numeric.len());
 
         for metric in self.env_step_valid.iter_mut() {
-            let state = metric.update(item, metadata);
+            let state = metric.update(&item.item, metadata);
             entries.push(state);
         }
 
         for metric in self.env_step_valid_numeric.iter_mut() {
-            let numeric_update = metric.update(item, metadata);
+            let numeric_update = metric.update(&item.item, metadata);
             entries_numeric.push(numeric_update);
         }
 
@@ -233,19 +233,19 @@ impl<TS: ItemLazy, ES: ItemLazy> RLMetrics<TS, ES> {
     /// Update the episode-end metrics from an episode summary.
     pub(crate) fn update_episode_end(
         &mut self,
-        item: &LearnerItem<EpisodeSummary>,
+        item: &EvaluationItem<EpisodeSummary>,
         metadata: &MetricMetadata,
     ) -> MetricsUpdate {
         let mut entries = Vec::with_capacity(self.episode_end.len());
         let mut entries_numeric = Vec::with_capacity(self.episode_end_numeric.len());
 
         for metric in self.episode_end.iter_mut() {
-            let state = metric.update(item, metadata);
+            let state = metric.update(&item.item, metadata);
             entries.push(state);
         }
 
         for metric in self.episode_end_numeric.iter_mut() {
-            let numeric_update = metric.update(item, metadata);
+            let numeric_update = metric.update(&item.item, metadata);
             entries_numeric.push(numeric_update);
         }
 
@@ -255,19 +255,19 @@ impl<TS: ItemLazy, ES: ItemLazy> RLMetrics<TS, ES> {
     /// Update the episode-end metrics for validation from an episode summary.
     pub(crate) fn update_episode_end_valid(
         &mut self,
-        item: &LearnerItem<EpisodeSummary>,
+        item: &EvaluationItem<EpisodeSummary>,
         metadata: &MetricMetadata,
     ) -> MetricsUpdate {
         let mut entries = Vec::with_capacity(self.episode_end_valid.len());
         let mut entries_numeric = Vec::with_capacity(self.episode_end_valid_numeric.len());
 
         for metric in self.episode_end_valid.iter_mut() {
-            let state = metric.update(item, metadata);
+            let state = metric.update(&item.item, metadata);
             entries.push(state);
         }
 
         for metric in self.episode_end_valid_numeric.iter_mut() {
-            let numeric_update = metric.update(item, metadata);
+            let numeric_update = metric.update(&item.item, metadata);
             entries_numeric.push(numeric_update);
         }
 

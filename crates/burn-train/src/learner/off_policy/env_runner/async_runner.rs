@@ -10,8 +10,8 @@ use burn_rl::{EnvAction, Transition};
 use burn_rl::{EnvState, LearnerAgent, Policy};
 
 use crate::{
-    AgentEvaluationEvent, EnvRunner, EpisodeSummary, EventProcessorTraining, Interrupter,
-    LearnerItem, RLEventProcessorType, ReinforcementLearningComponentsTypes, RlAction, RlPolicy,
+    AgentEvaluationEvent, EnvRunner, EpisodeSummary, EvaluationItem, EventProcessorTraining,
+    Interrupter, RLEventProcessorType, ReinforcementLearningComponentsTypes, RlAction, RlPolicy,
     RlState, TimeStep, Trajectory,
 };
 
@@ -156,8 +156,6 @@ where
         deterministic: bool,
         processor: &mut RLEventProcessorType<OC>,
         interrupter: &Interrupter,
-        global_iteration: usize,
-        total_global_iteration: usize,
     ) -> Vec<Trajectory<BT, OC::ActionContext>> {
         let mut items = vec![];
         for episode_num in 0..num_episodes {
@@ -168,25 +166,19 @@ where
                 steps.push(step.clone());
 
                 step_num += 1;
-                processor.process_valid(AgentEvaluationEvent::TimeStep(LearnerItem::new(
+                processor.process_valid(AgentEvaluationEvent::TimeStep(EvaluationItem::new(
                     step.action_context.clone(),
-                    Progress::new(episode_num, num_episodes),
-                    global_iteration,
-                    total_global_iteration,
-                    step_num,
+                    Progress::new(step_num, step_num),
                     None,
                 )));
 
                 if step.done {
-                    processor.process_valid(AgentEvaluationEvent::EpisodeEnd(LearnerItem::new(
+                    processor.process_valid(AgentEvaluationEvent::EpisodeEnd(EvaluationItem::new(
                         EpisodeSummary {
                             episode_length: step.ep_len,
                             cum_reward: step.cum_reward,
                         },
-                        Progress::new(episode_num, num_episodes),
-                        global_iteration,
-                        total_global_iteration,
-                        episode_num,
+                        Progress::new(episode_num + 1, num_episodes),
                         None,
                     )));
                     break;
@@ -291,8 +283,6 @@ where
         deterministic: bool,
         processor: &mut RLEventProcessorType<OC>,
         interrupter: &Interrupter,
-        global_iteration: usize,
-        total_global_iteration: usize,
     ) -> Vec<Trajectory<BT, OC::ActionContext>> {
         let mut items = vec![];
         loop {

@@ -84,8 +84,6 @@ pub trait EnvRunner<BT: Backend, OC: ReinforcementLearningComponentsTypes> {
         deterministic: bool,
         processor: &mut RLEventProcessorType<OC>,
         interrupter: &Interrupter,
-        global_iteration: usize,
-        total_global_iteration: usize,
     ) -> Vec<Trajectory<BT, OC::ActionContext>>;
     /// Update the runner's agent's policy
     fn update_policy(
@@ -191,8 +189,6 @@ impl<BT: Backend, OC: ReinforcementLearningComponentsTypes> EnvRunner<BT, OC>
         _deterministic: bool,
         _processor: &mut RLEventProcessorType<OC>,
         _interrupter: &Interrupter,
-        _global_iteration: usize,
-        _total_global_iteration: usize,
     ) -> Vec<Trajectory<BT, OC::ActionContext>> {
         // TODO:
         // let mut items = vec![];

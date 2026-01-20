@@ -8,14 +8,11 @@ pub struct MetricMetadata {
     /// The current progress.
     pub progress: Progress,
 
-    /// The current epoch.
-    pub epoch: usize,
-
-    /// The total number of epochs.
-    pub epoch_total: usize,
+    /// The global progress of the training (e.g. epochs).
+    pub global_progress: Progress,
 
     /// The current iteration.
-    pub iteration: usize,
+    pub iteration: Option<usize>,
 
     /// The current learning rate.
     pub lr: Option<LearningRate>,
@@ -30,9 +27,11 @@ impl MetricMetadata {
                 items_processed: 1,
                 items_total: 1,
             },
-            epoch: 0,
-            epoch_total: 1,
-            iteration: 0,
+            global_progress: Progress {
+                items_processed: 0,
+                items_total: 1,
+            },
+            iteration: Some(0),
             lr: None,
         }
     }

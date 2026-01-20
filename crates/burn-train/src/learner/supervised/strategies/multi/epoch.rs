@@ -1,10 +1,11 @@
 use crate::learner::base::Interrupter;
-use crate::metric::processor::{EventProcessorTraining, LearnerEvent, LearnerItem};
+use crate::metric::processor::{EventProcessorTraining, LearnerEvent, TrainingItem};
 use crate::train::MultiDevicesTrainStep;
 use crate::{
     Learner, LearningComponentsTypes, MultiDeviceOptim, SupervisedTrainingEventProcessor,
     TrainLoader, TrainingBackend,
 };
+use burn_core::data::dataloader::Progress;
 use burn_core::prelude::DeviceOps;
 use burn_core::tensor::Device;
 use burn_core::tensor::backend::DeviceId;
@@ -16,7 +17,6 @@ use std::collections::HashMap;
 #[derive(new)]
 pub struct MultiDeviceTrainEpoch<LC: LearningComponentsTypes> {
     dataloaders: Vec<TrainLoader<LC>>,
-    epoch_total: usize,
     grad_accumulation: Option<usize>,
 }
 
@@ -38,30 +38,39 @@ impl<LC: LearningComponentsTypes> MultiDeviceTrainEpoch<LC> {
     pub fn run(
         &self,
         learner: &mut Learner<LC>,
-        epoch: usize,
+        global_progress: &Progress,
         event_processor: &mut SupervisedTrainingEventProcessor<LC>,
         interrupter: &Interrupter,
         devices: Vec<Device<TrainingBackend<LC>>>,
         strategy: MultiDeviceOptim,
     ) {
         match strategy {
-            MultiDeviceOptim::OptimMainDevice => {
-                self.run_optim_main(learner, epoch, event_processor, interrupter, devices)
-            }
-            MultiDeviceOptim::OptimSharded => {
-                self.run_optim_distr(learner, epoch, event_processor, interrupter, devices)
-            }
+            MultiDeviceOptim::OptimMainDevice => self.run_optim_main(
+                learner,
+                global_progress,
+                event_processor,
+                interrupter,
+                devices,
+            ),
+            MultiDeviceOptim::OptimSharded => self.run_optim_distr(
+                learner,
+                global_progress,
+                event_processor,
+                interrupter,
+                devices,
+            ),
         }
     }
 
     fn run_optim_main(
         &self,
         learner: &mut Learner<LC>,
-        epoch: usize,
+        global_progress: &Progress,
         event_processor: &mut SupervisedTrainingEventProcessor<LC>,
         interrupter: &Interrupter,
         devices: Vec<Device<TrainingBackend<LC>>>,
     ) {
+        let epoch = global_progress.items_processed;
         log::info!(
             "Executing training step for epoch {} on devices {:?}",
             epoch,
@@ -108,12 +117,11 @@ impl<LC: LearningComponentsTypes> MultiDeviceTrainEpoch<LC> {
 
             for item in progress_items {
                 iteration += 1;
-                let item = LearnerItem::new(
+                let item = TrainingItem::new(
                     item,
                     progress.clone(),
-                    epoch,
-                    self.epoch_total,
-                    iteration,
+                    global_progress.clone(),
+                    Some(iteration),
                     Some(learner.lr_current()),
                 );
 
@@ -131,11 +139,12 @@ impl<LC: LearningComponentsTypes> MultiDeviceTrainEpoch<LC> {
     fn run_optim_distr(
         &self,
         learner: &mut Learner<LC>,
-        epoch: usize,
+        global_progress: &Progress,
         event_processor: &mut SupervisedTrainingEventProcessor<LC>,
         interrupter: &Interrupter,
         devices: Vec<Device<TrainingBackend<LC>>>,
     ) {
+        let epoch = global_progress.items_processed;
         log::info!(
             "Executing training step for epoch {} on devices {:?}",
             epoch,
@@ -189,12 +198,11 @@ impl<LC: LearningComponentsTypes> MultiDeviceTrainEpoch<LC> {
 
             for item in progress_items {
                 iteration += 1;
-                let item = LearnerItem::new(
+                let item = TrainingItem::new(
                     item,
                     progress.clone(),
-                    epoch,
-                    self.epoch_total,
-                    iteration,
+                    global_progress.clone(),
+                    Some(iteration),
                     Some(learner.lr_current()),
                 );
 

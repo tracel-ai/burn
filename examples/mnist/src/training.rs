@@ -73,8 +73,8 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
     let dataset_train_plain = PartialDataset::new(dataset_train_original.clone(), 0, 55_000);
     let dataset_valid_plain = PartialDataset::new(dataset_train_original.clone(), 55_000, 60_000);
 
-    let ident_trains = generate_idents(Some(10000));
-    let ident_valid = generate_idents(None);
+    let ident_trains = generate_idents(Some(1000));
+    let ident_valid = generate_idents(Some(1000));
     let dataset_train = DatasetIdent::compose(ident_trains, dataset_train_plain);
     let dataset_valid = DatasetIdent::compose(ident_valid, dataset_valid_plain);
 

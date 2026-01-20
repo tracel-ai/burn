@@ -394,11 +394,11 @@ where
         self.target_model = self
             .target_model
             .soft_update(&self.policy_model, self.config.tau);
+        let policy_update =
+            EpsilonGreedyPolicyState::new(self.policy_model.clone(), self.agent.state().step);
+        self.agent.update(policy_update.clone());
         RLTrainOutput {
-            policy: EpsilonGreedyPolicyState::new(
-                self.policy_model.clone(),
-                self.agent.state().step,
-            ),
+            policy: policy_update,
             item: SimpleTrainOutput {
                 policy_model_loss: loss,
             },

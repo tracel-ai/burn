@@ -26,7 +26,7 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         tau: 0.005,
         epsilon_start: 0.9,
         epsilon_end: 0.01,
-        epsilon_decay: 2500.0,
+        epsilon_decay: 4000.0,
     };
     let model_config = MlpNetConfig {
         num_layers: 3,

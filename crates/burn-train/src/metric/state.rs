@@ -109,6 +109,7 @@ impl NumericMetricState {
             None => (format!("{value_current}"), format!("{value_running}")),
         };
 
+        // TODO: naming inconsistent with RL.
         let formatted = match format.unit {
             Some(unit) => {
                 format!("epoch {formatted_running} {unit} - batch {formatted_current} {unit}")

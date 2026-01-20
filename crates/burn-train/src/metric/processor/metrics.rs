@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 
-use super::{ItemLazy, LearnerItem};
+use super::{ItemLazy, TrainingItem};
 use crate::{
+    EvaluationItem,
     metric::{
         Adaptor, Metric, MetricDefinition, MetricEntry, MetricId, MetricMetadata, Numeric,
         store::{MetricsUpdate, NumericMetricUpdate},
@@ -83,19 +84,19 @@ impl<T: ItemLazy> MetricsEvaluation<T> {
     /// Update the testing information from the testing item.
     pub(crate) fn update_test(
         &mut self,
-        item: &LearnerItem<T::ItemSync>,
+        item: &EvaluationItem<T::ItemSync>,
         metadata: &MetricMetadata,
     ) -> MetricsUpdate {
         let mut entries = Vec::with_capacity(self.test.len());
         let mut entries_numeric = Vec::with_capacity(self.test_numeric.len());
 
         for metric in self.test.iter_mut() {
-            let state = metric.update(item, metadata);
+            let state = metric.update(&item.item, metadata);
             entries.push(state);
         }
 
         for metric in self.test_numeric.iter_mut() {
-            let numeric_update = metric.update(item, metadata);
+            let numeric_update = metric.update(&item.item, metadata);
             entries_numeric.push(numeric_update);
         }
 
@@ -162,19 +163,19 @@ impl<T: ItemLazy, V: ItemLazy> MetricsTraining<T, V> {
     /// Update the training information from the training item.
     pub(crate) fn update_train(
         &mut self,
-        item: &LearnerItem<T::ItemSync>,
+        item: &TrainingItem<T::ItemSync>,
         metadata: &MetricMetadata,
     ) -> MetricsUpdate {
         let mut entries = Vec::with_capacity(self.train.len());
         let mut entries_numeric = Vec::with_capacity(self.train_numeric.len());
 
         for metric in self.train.iter_mut() {
-            let state = metric.update(item, metadata);
+            let state = metric.update(&item.item, metadata);
             entries.push(state);
         }
 
         for metric in self.train_numeric.iter_mut() {
-            let numeric_update = metric.update(item, metadata);
+            let numeric_update = metric.update(&item.item, metadata);
             entries_numeric.push(numeric_update);
         }
 
@@ -184,19 +185,19 @@ impl<T: ItemLazy, V: ItemLazy> MetricsTraining<T, V> {
     /// Update the training information from the validation item.
     pub(crate) fn update_valid(
         &mut self,
-        item: &LearnerItem<V::ItemSync>,
+        item: &TrainingItem<V::ItemSync>,
         metadata: &MetricMetadata,
     ) -> MetricsUpdate {
         let mut entries = Vec::with_capacity(self.valid.len());
         let mut entries_numeric = Vec::with_capacity(self.valid_numeric.len());
 
         for metric in self.valid.iter_mut() {
-            let state = metric.update(item, metadata);
+            let state = metric.update(&item.item, metadata);
             entries.push(state);
         }
 
         for metric in self.valid_numeric.iter_mut() {
-            let numeric_update = metric.update(item, metadata);
+            let numeric_update = metric.update(&item.item, metadata);
             entries_numeric.push(numeric_update);
         }
 
@@ -224,19 +225,28 @@ impl<T: ItemLazy, V: ItemLazy> MetricsTraining<T, V> {
     }
 }
 
-impl<T> From<&LearnerItem<T>> for TrainingProgress {
-    fn from(item: &LearnerItem<T>) -> Self {
+impl<T> From<&TrainingItem<T>> for TrainingProgress {
+    fn from(item: &TrainingItem<T>) -> Self {
         Self {
-            progress: item.progress.clone(),
-            epoch: item.epoch,
-            epoch_total: item.epoch_total,
+            progress: Some(item.progress.clone()),
+            global_progress: item.global_progress.clone(),
             iteration: item.iteration,
         }
     }
 }
 
-impl<T> From<&LearnerItem<T>> for EvaluationProgress {
-    fn from(item: &LearnerItem<T>) -> Self {
+impl<T> From<&EvaluationItem<T>> for TrainingProgress {
+    fn from(item: &EvaluationItem<T>) -> Self {
+        Self {
+            progress: None,
+            global_progress: item.progress.clone(),
+            iteration: item.iteration,
+        }
+    }
+}
+
+impl<T> From<&EvaluationItem<T>> for EvaluationProgress {
+    fn from(item: &EvaluationItem<T>) -> Self {
         Self {
             progress: item.progress.clone(),
             iteration: item.iteration,
@@ -244,25 +254,35 @@ impl<T> From<&LearnerItem<T>> for EvaluationProgress {
     }
 }
 
-impl<T> From<&LearnerItem<T>> for MetricMetadata {
-    fn from(item: &LearnerItem<T>) -> Self {
+impl<T> From<&TrainingItem<T>> for MetricMetadata {
+    fn from(item: &TrainingItem<T>) -> Self {
         Self {
             progress: item.progress.clone(),
-            epoch: item.epoch,
-            epoch_total: item.epoch_total,
+            global_progress: item.global_progress.clone(),
             iteration: item.iteration,
             lr: item.lr,
         }
     }
 }
 
+impl<T> From<&EvaluationItem<T>> for MetricMetadata {
+    fn from(item: &EvaluationItem<T>) -> Self {
+        Self {
+            progress: item.progress.clone(),
+            global_progress: item.progress.clone(),
+            iteration: item.iteration,
+            lr: None,
+        }
+    }
+}
+
 pub(crate) trait NumericMetricUpdater<T>: Send + Sync {
-    fn update(&mut self, item: &LearnerItem<T>, metadata: &MetricMetadata) -> NumericMetricUpdate;
+    fn update(&mut self, item: &T, metadata: &MetricMetadata) -> NumericMetricUpdate;
     fn clear(&mut self);
 }
 
 pub(crate) trait MetricUpdater<T>: Send + Sync {
-    fn update(&mut self, item: &LearnerItem<T>, metadata: &MetricMetadata) -> MetricEntry;
+    fn update(&mut self, item: &T, metadata: &MetricMetadata) -> MetricEntry;
     fn clear(&mut self);
 }
 
@@ -286,8 +306,8 @@ where
     M: Metric + Numeric + 'static,
     T: Adaptor<M::Input>,
 {
-    fn update(&mut self, item: &LearnerItem<T>, metadata: &MetricMetadata) -> NumericMetricUpdate {
-        let serialized_entry = self.metric.update(&item.item.adapt(), metadata);
+    fn update(&mut self, item: &T, metadata: &MetricMetadata) -> NumericMetricUpdate {
+        let serialized_entry = self.metric.update(&item.adapt(), metadata);
         let update = MetricEntry::new(self.id.clone(), serialized_entry);
         let numeric = self.metric.value();
         let running = self.metric.running_value();
@@ -310,8 +330,8 @@ where
     M: Metric + 'static,
     T: Adaptor<M::Input>,
 {
-    fn update(&mut self, item: &LearnerItem<T>, metadata: &MetricMetadata) -> MetricEntry {
-        let serialized_entry = self.metric.update(&item.item.adapt(), metadata);
+    fn update(&mut self, item: &T, metadata: &MetricMetadata) -> MetricEntry {
+        let serialized_entry = self.metric.update(&item.adapt(), metadata);
         MetricEntry::new(self.id.clone(), serialized_entry)
     }
 
