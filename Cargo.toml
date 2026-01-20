@@ -190,9 +190,9 @@ portable-atomic-util = { version = "0.2.4", features = ["alloc"] }
 ### For the release. ###
 # cubecl = { version = "=0.9.0", default-features = false }
 # cubecl-common = { version = "=0.9.0", default-features = false }
-cubecl = { git = "https://github.com/adolago/cubecl", default-features = false, rev = "bfd638f9" }
-cubecl-common = { git = "https://github.com/adolago/cubecl", default-features = false, rev = "bfd638f9" }
-cubek = { version = "=0.1.0", default-features = false }
+cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "91630e96a1518642f64e239026c0cc532e602eb0" }
+cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "91630e96a1518642f64e239026c0cc532e602eb0" }
+cubek = { git = "https://github.com/adolago/cubek", default-features = false, rev = "8b533f30409f82fa4dba509b997768b5bb38281b" }
 
 ### For xtask crate ###
 tracel-xtask = "=4.9.0"
