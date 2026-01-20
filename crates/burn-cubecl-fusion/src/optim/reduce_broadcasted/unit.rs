@@ -1,7 +1,6 @@
 use crate::{
     engine::codegen::{
-        self,
-        ir::{FuseArg, FuseBlockConfig, GlobalArgs},
+        ir::{FuseArg, FuseBlockConfig, FuseType, GlobalArgs},
         kernel::{fuse_on_write, init_locals},
     },
     optim::reduce::args::{FusedReduceArgs, FusedReduceInput, FusedReduceOutput},
@@ -18,10 +17,11 @@ use cubek::reduce::{
         instructions::{ReduceOperation, ReduceOperationConfig},
     },
     init_tensors,
+    routines::UnitReduceBlueprint,
 };
 
 #[derive(CubeType, CubeLaunch, Clone)]
-struct ReduceFuseBlock {
+pub struct ReduceFuseBlock {
     #[cube(comptime)]
     op: ReduceOperationConfig,
     #[cube(comptime)]
@@ -30,27 +30,70 @@ struct ReduceFuseBlock {
     input: FuseArg,
     #[cube(comptime)]
     output: FuseArg,
+    #[cube(comptime)]
+    blueprint: UnitReduceBlueprint,
 }
 
 #[derive(CubeType, CubeLaunch, Clone)]
-struct ElemwiseFuseBlock {
+pub struct ElemwiseFuseBlock {
     #[cube(comptime)]
     config: FuseBlockConfig,
 }
 
-#[cube]
-fn reduce_many<P: ReducePrecision, Out: Numeric, I: ReduceInstruction<P> + Clone>(
+#[cube(launch_unchecked)]
+pub fn reduce_kernel(
     inputs: &GlobalArgs,
     outputs: &mut GlobalArgs,
     reduce_axis: usize,
-    idle: CubeOption<bool>,
     blocks: Sequence<ReduceFuseBlock>,
     block_end: CubeOption<ElemwiseFuseBlock>,
 ) {
-    let global_index = ABSOLUTE_POS;
-    let mut axis_size = 0;
+    reduce_many(inputs, outputs, reduce_axis, blocks, block_end);
+}
 
-    let mut locals = Registry::<u32, Line<Out>>::new();
+const REDUCE_INPUT: u8 = 0;
+const REDUCE_ACC: u8 = 1;
+const REDUCE_OUT: u8 = 2;
+
+type In = NumericExpand<REDUCE_INPUT>;
+type Acc = NumericExpand<REDUCE_ACC>;
+type Out = NumericExpand<REDUCE_OUT>;
+
+#[cube]
+fn set_polyfill_block(block: &ReduceFuseBlock) {
+    let input_precision = comptime!(block.input.precision());
+    let output_precision = comptime!(block.output.precision());
+    let acc_precision = comptime!(match input_precision {
+        FuseType::F64 => FuseType::F64,
+        FuseType::F32 => FuseType::F32,
+        FuseType::Flex32 => FuseType::F32,
+        FuseType::F16 => FuseType::F32,
+        FuseType::BF16 => FuseType::F32,
+        FuseType::I64 => FuseType::I64,
+        FuseType::I32 => FuseType::I32,
+        FuseType::I16 => FuseType::I32,
+        FuseType::I8 => FuseType::I32,
+        FuseType::U64 => FuseType::U64,
+        FuseType::U32 => FuseType::U32,
+        FuseType::U16 => FuseType::U32,
+        FuseType::U8 => FuseType::U32,
+        FuseType::Bool => FuseType::I32,
+    });
+
+    set_polyfill::<In>(comptime!(input_precision.into_type()));
+    set_polyfill::<Out>(comptime!(output_precision.into_type()));
+    set_polyfill::<Acc>(comptime!(acc_precision.into_type()));
+}
+
+#[cube]
+fn reduce_many(
+    inputs: &GlobalArgs,
+    outputs: &mut GlobalArgs,
+    reduce_axis: usize,
+    blocks: Sequence<ReduceFuseBlock>,
+    block_end: CubeOption<ElemwiseFuseBlock>,
+) {
+    let mut axis_size = 0;
 
     #[unroll]
     for i in 0..blocks.len() {
@@ -66,43 +109,19 @@ fn reduce_many<P: ReducePrecision, Out: Numeric, I: ReduceInstruction<P> + Clone
             arg: comptime!(block.output.clone()),
         };
 
-        let (input, mut output) = init_tensors::<FusedReduceArgs, P::EI, Out>(&input, &mut output);
+        set_polyfill_block(&block);
+        let (input, mut output) = init_tensors::<FusedReduceArgs, In, Out>(&input, &mut output);
 
-        // let num_local_inputs = comptime!(block.config.local_inputs.len());
-        // #[unroll]
-        // for j in 0..num_local_inputs {
-        //     let local_input = comptime!(block.config.local_inputs.get(j).unwrap());
-        //     // Using the source locals. SHOULD BUILD A GLOBAL SHARED REGISTRY.
-        //     let val = codegen::io::read::<f32>(
-        //         inputs,
-        //         outputs,
-        //         locals,
-        //         global_index,
-        //         comptime!(local_input.src_arg.clone()),
-        //         &block.config,
-        //     );
-        //     codegen::io::write::<f32>(
-        //         inputs,
-        //         outputs,
-        //         locals,
-        //         global_index,
-        //         val,
-        //         comptime!(local_input.dst_arg.clone()),
-        //         &block.config,
-        //     );
-        // }
-
-        axis_size = reduce_step::<P, Out, ReduceOperation>(
+        axis_size = reduce_step::<(In, Acc), Out, ReduceOperation>(
             &input,
             &mut output,
             reduce_axis,
-            global_index,
-            idle,
-            &mut locals,
             block.op,
-            comptime!(block.output.clone()),
+            &block.blueprint,
         );
     }
+
+    let global_index = ABSOLUTE_POS;
 
     match block_end {
         CubeOption::Some(block) => {
@@ -114,6 +133,7 @@ fn reduce_many<P: ReducePrecision, Out: Numeric, I: ReduceInstruction<P> + Clone
                 let args = comptime![Vec::<FuseArg>::new()];
                 let index = global_index * num_iter + i;
                 let mut locals = init_locals(inputs, outputs, &block.config);
+
                 fuse_on_write::<f32>(
                     inputs,
                     outputs,
@@ -130,31 +150,24 @@ fn reduce_many<P: ReducePrecision, Out: Numeric, I: ReduceInstruction<P> + Clone
 }
 
 #[cube]
+/// Perform fuse-on-read and that's it.
 fn reduce_step<P: ReducePrecision, Out: Numeric, I: ReduceInstruction<P>>(
     input: &VirtualTensor<P::EI>,
     output: &mut VirtualTensor<Out, ReadWrite>,
     reduce_axis: usize,
-    reduce_index: usize,
-    idle: CubeOption<bool>,
-    locals: &mut Registry<u32, Line<Out>>,
     #[comptime] config: I::Config,
-    #[comptime] arg: FuseArg,
+    #[comptime] blueprint: &UnitReduceBlueprint,
 ) -> usize {
     let inst = I::from_config(config);
     let axis_size = input.shape(reduce_axis);
 
-    let acc = GlobalFullUnitReduce::reduce_single::<P, Out, I>(
+    GlobalFullUnitReduce::execute::<P, Out, I>(
         input,
         output,
         reduce_axis,
-        reduce_index,
         &inst,
-        idle,
         LineMode::Parallel,
+        comptime!(blueprint.clone()),
     );
-    let line = I::merge_line::<Out>(&inst, acc, axis_size);
-
-    locals.insert(0u32, Line::cast_from(line));
-
     axis_size
 }
