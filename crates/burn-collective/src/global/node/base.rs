@@ -1,7 +1,7 @@
 use burn_communication::Protocol;
 use burn_communication::data_service::TensorDataServer;
 use burn_communication::{Address, ProtocolServer, data_service::TensorDataService};
-use burn_tensor::{ElementConversion, backend::Backend};
+use burn_tensor::backend::Backend;
 use std::collections::HashMap;
 use std::{marker::PhantomData, sync::Arc};
 use tokio::sync::RwLock;
@@ -169,7 +169,7 @@ where
         };
 
         if op == ReduceOperation::Mean {
-            result = B::float_div_scalar(result, (state.num_global_devices).elem());
+            result = B::float_div_scalar(result, (state.num_global_devices as f32).into());
         }
 
         Ok(result)

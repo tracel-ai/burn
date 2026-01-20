@@ -1,3 +1,4 @@
+use burn_backend::Scalar;
 pub use burn_backend::tensor::Numeric;
 
 use crate::alloc::borrow::ToOwned;
@@ -68,7 +69,8 @@ where
     /// }
     /// ```
     pub fn add_scalar<E: ElementConversion>(self, other: E) -> Self {
-        Self::new(K::add_scalar::<E>(self.primitive, other))
+        let other = Scalar::new(other, &self.dtype());
+        Self::new(K::add_scalar(self.primitive, other))
     }
 
     /// Applies element wise subtraction operation.
@@ -124,7 +126,8 @@ where
     /// }
     /// ```
     pub fn sub_scalar<E: ElementConversion>(self, other: E) -> Self {
-        Self::new(K::sub_scalar::<E>(self.primitive, other))
+        let other = Scalar::new(other, &self.dtype());
+        Self::new(K::sub_scalar(self.primitive, other))
     }
 
     /// Applies element wise division operation.
@@ -180,7 +183,8 @@ where
     /// }
     /// ```
     pub fn div_scalar<E: ElementConversion>(self, other: E) -> Self {
-        Self::new(K::div_scalar::<E>(self.primitive, other))
+        let other = Scalar::new(other, &self.dtype());
+        Self::new(K::div_scalar(self.primitive, other))
     }
 
     /// Applies element wise the remainder operation with a scalar.
@@ -214,7 +218,8 @@ where
     /// }
     /// ```
     pub fn remainder_scalar<E: ElementConversion>(self, other: E) -> Self {
-        Self::new(K::remainder_scalar::<E>(self.primitive, other))
+        let other = Scalar::new(other, &self.dtype());
+        Self::new(K::remainder_scalar(self.primitive, other))
     }
 
     /// Applies element wise multiplication operation.
@@ -270,7 +275,8 @@ where
     /// }
     /// ```
     pub fn mul_scalar<E: ElementConversion>(self, other: E) -> Self {
-        Self::new(K::mul_scalar::<E>(self.primitive, other))
+        let other = Scalar::new(other, &self.dtype());
+        Self::new(K::mul_scalar(self.primitive, other))
     }
 
     /// Switch sign of each element in the tensor.
@@ -839,7 +845,8 @@ where
     /// }
     /// ```
     pub fn greater_elem<E: ElementConversion>(self, other: E) -> Tensor<B, D, Bool> {
-        Tensor::new(K::greater_elem(self.primitive, other.elem()))
+        let other = Scalar::new(other, &self.dtype());
+        Tensor::new(K::greater_elem(self.primitive, other))
     }
 
     /// Applies greater-equal than `other` comparison and returns a boolean tensor.
@@ -863,7 +870,8 @@ where
     /// }
     /// ```
     pub fn greater_equal_elem<E: ElementConversion>(self, other: E) -> Tensor<B, D, Bool> {
-        Tensor::new(K::greater_equal_elem(self.primitive, other.elem()))
+        let other = Scalar::new(other, &self.dtype());
+        Tensor::new(K::greater_equal_elem(self.primitive, other))
     }
 
     /// Applies lower than `other` comparison and returns a boolean tensor.
@@ -887,7 +895,8 @@ where
     /// }
     /// ```
     pub fn lower_elem<E: ElementConversion>(self, other: E) -> Tensor<B, D, Bool> {
-        Tensor::new(K::lower_elem(self.primitive, other.elem()))
+        let other = Scalar::new(other, &self.dtype());
+        Tensor::new(K::lower_elem(self.primitive, other))
     }
 
     /// Applies lower-equal than `other` comparison and returns a boolean tensor.
@@ -911,7 +920,8 @@ where
     /// }
     /// ```
     pub fn lower_equal_elem<E: ElementConversion>(self, other: E) -> Tensor<B, D, Bool> {
-        Tensor::new(K::lower_equal_elem(self.primitive, other.elem()))
+        let other = Scalar::new(other, &self.dtype());
+        Tensor::new(K::lower_equal_elem(self.primitive, other))
     }
 
     /// Applies the argmax function along the given dimension and returns an integer tensor.
@@ -1359,7 +1369,12 @@ where
     /// }
     /// ```
     pub fn clamp<E: ElementConversion>(self, min: E, max: E) -> Self {
-        Self::new(K::clamp(self.primitive, min.elem(), max.elem()))
+        let dtype = self.dtype();
+        Self::new(K::clamp(
+            self.primitive,
+            Scalar::new(min, &dtype),
+            Scalar::new(max, &dtype),
+        ))
     }
 
     /// Clamp element wise under a minimum value.
@@ -1390,7 +1405,8 @@ where
     /// }
     /// ```
     pub fn clamp_min<E: ElementConversion>(self, min: E) -> Self {
-        Self::new(K::clamp_min(self.primitive, min.elem()))
+        let min = Scalar::new(min, &self.dtype());
+        Self::new(K::clamp_min(self.primitive, min))
     }
 
     /// Clamp element wise over a maximum value.
@@ -1421,7 +1437,8 @@ where
     /// }
     /// ```
     pub fn clamp_max<E: ElementConversion>(self, max: E) -> Self {
-        Self::new(K::clamp_max(self.primitive, max.elem()))
+        let max = Scalar::new(max, &self.dtype());
+        Self::new(K::clamp_max(self.primitive, max))
     }
 
     /// Apply element wise absolute value operation.
@@ -1579,7 +1596,8 @@ where
     /// }
     /// ```
     pub fn powf_scalar<E: ElementConversion>(self, other: E) -> Self {
-        Self::new(K::powf_scalar::<E>(self.primitive, other))
+        let other = Scalar::new(other, &self.dtype());
+        Self::new(K::powf_scalar(self.primitive, other))
     }
 
     /// Applies element wise power operation with a integer Tensor
@@ -1633,7 +1651,8 @@ where
     /// }
     /// ```
     pub fn powi_scalar<E: ElementConversion>(self, other: E) -> Self {
-        Self::new(K::powi_scalar::<E>(self.primitive, other))
+        let other = Scalar::new(other, &self.dtype());
+        Self::new(K::powi_scalar(self.primitive, other))
     }
 
     /// Converts the tensor to a boolean tensor by checking if the elements are non-zero.
@@ -1659,7 +1678,7 @@ where
     ///   // ]
     /// }
     pub fn bool(self) -> Tensor<B, D, Bool> {
-        Tensor::new(K::not_equal_elem(self.primitive, 0.elem()))
+        self.not_equal_elem(0)
     }
 
     /// Create a random tensor of the given shape on the given device where each element is

@@ -2,8 +2,7 @@ use alloc::vec::Vec;
 use burn_std::{DType, Shape, Slice};
 
 use crate::{
-    AutodiffBackend, Backend, Distribution, ExecutionError, TensorData, TensorPrimitive,
-    element::ElementConversion,
+    AutodiffBackend, Backend, Distribution, ExecutionError, Scalar, TensorData, TensorPrimitive,
     ops::TransactionPrimitive,
     tensor::{
         BasicAutodiffOps, BasicOps, Device, Float, IndexingUpdateOp, IntTensor, Numeric, TensorKind,
@@ -41,18 +40,8 @@ impl<B: Backend> BasicOps<B> for Float {
         TensorPrimitive::Float(B::float_ones(shape, device, dtype.into()))
     }
 
-    fn full<E: ElementConversion>(
-        shape: Shape,
-        fill_value: E,
-        device: &Device<B>,
-        dtype: DType,
-    ) -> Self::Primitive {
-        TensorPrimitive::Float(B::float_full(
-            shape,
-            fill_value.elem(),
-            device,
-            dtype.into(),
-        ))
+    fn full(shape: Shape, fill_value: Scalar, device: &Device<B>, dtype: DType) -> Self::Primitive {
+        TensorPrimitive::Float(B::float_full(shape, fill_value, device, dtype.into()))
     }
 
     fn register_transaction(tr: &mut TransactionPrimitive<B>, tensor: Self::Primitive) {
@@ -147,7 +136,7 @@ impl<B: Backend> BasicOps<B> for Float {
     fn mask_fill(
         tensor: Self::Primitive,
         mask: B::BoolTensorPrimitive,
-        value: Self::Elem,
+        value: Scalar,
     ) -> Self::Primitive {
         TensorPrimitive::Float(B::float_mask_fill(tensor.tensor(), mask, value))
     }
@@ -265,11 +254,11 @@ impl<B: Backend> BasicOps<B> for Float {
         B::float_not_equal(lhs.tensor(), rhs.tensor())
     }
 
-    fn equal_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive {
+    fn equal_elem(lhs: Self::Primitive, rhs: Scalar) -> B::BoolTensorPrimitive {
         B::float_equal_elem(lhs.tensor(), rhs)
     }
 
-    fn not_equal_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive {
+    fn not_equal_elem(lhs: Self::Primitive, rhs: Scalar) -> B::BoolTensorPrimitive {
         B::float_not_equal_elem(lhs.tensor(), rhs)
     }
 
@@ -319,12 +308,10 @@ impl<B: Backend> Numeric<B> for Float {
         q_bin_ops!(lhs, rhs, float_add, q_add)
     }
 
-    fn add_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
+    fn add_scalar(lhs: Self::Primitive, rhs: Scalar) -> Self::Primitive {
         match lhs {
-            TensorPrimitive::Float(lhs) => {
-                TensorPrimitive::Float(B::float_add_scalar(lhs, rhs.elem()))
-            }
-            TensorPrimitive::QFloat(lhs) => B::q_add_scalar(lhs, rhs.elem()),
+            TensorPrimitive::Float(lhs) => TensorPrimitive::Float(B::float_add_scalar(lhs, rhs)),
+            TensorPrimitive::QFloat(lhs) => B::q_add_scalar(lhs, rhs),
         }
     }
 
@@ -332,12 +319,10 @@ impl<B: Backend> Numeric<B> for Float {
         q_bin_ops!(lhs, rhs, float_sub, q_sub)
     }
 
-    fn sub_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
+    fn sub_scalar(lhs: Self::Primitive, rhs: Scalar) -> Self::Primitive {
         match lhs {
-            TensorPrimitive::Float(lhs) => {
-                TensorPrimitive::Float(B::float_sub_scalar(lhs, rhs.elem()))
-            }
-            TensorPrimitive::QFloat(lhs) => B::q_sub_scalar(lhs, rhs.elem()),
+            TensorPrimitive::Float(lhs) => TensorPrimitive::Float(B::float_sub_scalar(lhs, rhs)),
+            TensorPrimitive::QFloat(lhs) => B::q_sub_scalar(lhs, rhs),
         }
     }
 
@@ -345,32 +330,28 @@ impl<B: Backend> Numeric<B> for Float {
         q_bin_ops!(lhs, rhs, float_div, q_div)
     }
 
-    fn div_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
+    fn div_scalar(lhs: Self::Primitive, rhs: Scalar) -> Self::Primitive {
         match lhs {
-            TensorPrimitive::Float(lhs) => {
-                TensorPrimitive::Float(B::float_div_scalar(lhs, rhs.elem()))
-            }
-            TensorPrimitive::QFloat(lhs) => B::q_div_scalar(lhs, rhs.elem()),
+            TensorPrimitive::Float(lhs) => TensorPrimitive::Float(B::float_div_scalar(lhs, rhs)),
+            TensorPrimitive::QFloat(lhs) => B::q_div_scalar(lhs, rhs),
         }
     }
     fn remainder(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
         TensorPrimitive::Float(B::float_remainder(lhs.tensor(), rhs.tensor()))
     }
 
-    fn remainder_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
-        TensorPrimitive::Float(B::float_remainder_scalar(lhs.tensor(), rhs.elem()))
+    fn remainder_scalar(lhs: Self::Primitive, rhs: Scalar) -> Self::Primitive {
+        TensorPrimitive::Float(B::float_remainder_scalar(lhs.tensor(), rhs))
     }
 
     fn mul(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
         q_bin_ops!(lhs, rhs, float_mul, q_mul)
     }
 
-    fn mul_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
+    fn mul_scalar(lhs: Self::Primitive, rhs: Scalar) -> Self::Primitive {
         match lhs {
-            TensorPrimitive::Float(lhs) => {
-                TensorPrimitive::Float(B::float_mul_scalar(lhs, rhs.elem()))
-            }
-            TensorPrimitive::QFloat(lhs) => B::q_mul_scalar(lhs, rhs.elem()),
+            TensorPrimitive::Float(lhs) => TensorPrimitive::Float(B::float_mul_scalar(lhs, rhs)),
+            TensorPrimitive::QFloat(lhs) => B::q_mul_scalar(lhs, rhs),
         }
     }
     fn neg(tensor: Self::Primitive) -> Self::Primitive {
@@ -458,7 +439,7 @@ impl<B: Backend> Numeric<B> for Float {
         B::float_greater(lhs.tensor(), rhs.tensor())
     }
 
-    fn greater_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive {
+    fn greater_elem(lhs: Self::Primitive, rhs: Scalar) -> B::BoolTensorPrimitive {
         B::float_greater_elem(lhs.tensor(), rhs)
     }
 
@@ -466,7 +447,7 @@ impl<B: Backend> Numeric<B> for Float {
         B::float_greater_equal(lhs.tensor(), rhs.tensor())
     }
 
-    fn greater_equal_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive {
+    fn greater_equal_elem(lhs: Self::Primitive, rhs: Scalar) -> B::BoolTensorPrimitive {
         B::float_greater_equal_elem(lhs.tensor(), rhs)
     }
 
@@ -474,7 +455,7 @@ impl<B: Backend> Numeric<B> for Float {
         B::float_lower(lhs.tensor(), rhs.tensor())
     }
 
-    fn lower_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive {
+    fn lower_elem(lhs: Self::Primitive, rhs: Scalar) -> B::BoolTensorPrimitive {
         B::float_lower_elem(lhs.tensor(), rhs)
     }
 
@@ -482,7 +463,7 @@ impl<B: Backend> Numeric<B> for Float {
         B::float_lower_equal(lhs.tensor(), rhs.tensor())
     }
 
-    fn lower_equal_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive {
+    fn lower_equal_elem(lhs: Self::Primitive, rhs: Scalar) -> B::BoolTensorPrimitive {
         B::float_lower_equal_elem(lhs.tensor(), rhs)
     }
 
@@ -560,7 +541,7 @@ impl<B: Backend> Numeric<B> for Float {
         }
     }
 
-    fn clamp(tensor: Self::Primitive, min: B::FloatElem, max: B::FloatElem) -> Self::Primitive {
+    fn clamp(tensor: Self::Primitive, min: Scalar, max: Scalar) -> Self::Primitive {
         match tensor {
             TensorPrimitive::Float(tensor) => {
                 TensorPrimitive::Float(B::float_clamp(tensor, min, max))
@@ -569,7 +550,7 @@ impl<B: Backend> Numeric<B> for Float {
         }
     }
 
-    fn clamp_min(tensor: Self::Primitive, min: B::FloatElem) -> Self::Primitive {
+    fn clamp_min(tensor: Self::Primitive, min: Scalar) -> Self::Primitive {
         match tensor {
             TensorPrimitive::Float(tensor) => {
                 TensorPrimitive::Float(B::float_clamp_min(tensor, min))
@@ -578,7 +559,7 @@ impl<B: Backend> Numeric<B> for Float {
         }
     }
 
-    fn clamp_max(tensor: Self::Primitive, max: B::FloatElem) -> Self::Primitive {
+    fn clamp_max(tensor: Self::Primitive, max: Scalar) -> Self::Primitive {
         match tensor {
             TensorPrimitive::Float(tensor) => {
                 TensorPrimitive::Float(B::float_clamp_max(tensor, max))
@@ -598,12 +579,10 @@ impl<B: Backend> Numeric<B> for Float {
         q_bin_ops!(lhs, rhs, float_powf, q_powf)
     }
 
-    fn powf_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
+    fn powf_scalar(lhs: Self::Primitive, rhs: Scalar) -> Self::Primitive {
         match lhs {
-            TensorPrimitive::Float(lhs) => {
-                TensorPrimitive::Float(B::float_powf_scalar(lhs, rhs.elem()))
-            }
-            TensorPrimitive::QFloat(lhs) => B::q_powf_scalar(lhs, rhs.elem()),
+            TensorPrimitive::Float(lhs) => TensorPrimitive::Float(B::float_powf_scalar(lhs, rhs)),
+            TensorPrimitive::QFloat(lhs) => B::q_powf_scalar(lhs, rhs),
         }
     }
 
@@ -611,12 +590,10 @@ impl<B: Backend> Numeric<B> for Float {
         q_bin_ops!(lhs, rhs, float_powf, q_powf)
     }
 
-    fn powi_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
+    fn powi_scalar(lhs: Self::Primitive, rhs: Scalar) -> Self::Primitive {
         match lhs {
-            TensorPrimitive::Float(lhs) => {
-                TensorPrimitive::Float(B::float_powi_scalar(lhs, rhs.elem()))
-            }
-            TensorPrimitive::QFloat(lhs) => B::q_powi_scalar(lhs, rhs.elem()),
+            TensorPrimitive::Float(lhs) => TensorPrimitive::Float(B::float_powi_scalar(lhs, rhs)),
+            TensorPrimitive::QFloat(lhs) => B::q_powi_scalar(lhs, rhs),
         }
     }
 

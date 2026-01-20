@@ -1,6 +1,5 @@
 use crate::{
     Backend, TensorMetadata,
-    element::ElementConversion,
     ops::{GridSampleOptions, GridSamplePaddingMode, InterpolateMode},
     tensor::FloatTensor,
 };
@@ -81,23 +80,23 @@ fn float_grid_sample_2d_bilinear<B: Backend>(
     let (grid_x, grid_y) = if align_corners {
         // align_corners=true: x_pixel = (x_norm + 1) * (width - 1) / 2
         // Maps -1 to 0 and 1 to width - 1
-        let grid_x = B::float_add_scalar(grid_x, 1.0f32.elem());
-        let grid_x = B::float_mul_scalar(grid_x, ((w_in_f - 1.0) / 2.0).elem());
+        let grid_x = B::float_add_scalar(grid_x, 1f32.into());
+        let grid_x = B::float_mul_scalar(grid_x, ((w_in_f - 1.0) / 2.0).into());
 
-        let grid_y = B::float_add_scalar(grid_y, 1.0f32.elem());
-        let grid_y = B::float_mul_scalar(grid_y, ((h_in_f - 1.0) / 2.0).elem());
+        let grid_y = B::float_add_scalar(grid_y, 1f32.into());
+        let grid_y = B::float_mul_scalar(grid_y, ((h_in_f - 1.0) / 2.0).into());
 
         (grid_x, grid_y)
     } else {
         // align_corners=false: x_pixel = (x_norm + 1) * width / 2 - 0.5
         // Maps -1 to -0.5 and 1 to width - 0.5
-        let grid_x = B::float_add_scalar(grid_x, 1.0f32.elem());
-        let grid_x = B::float_mul_scalar(grid_x, (w_in_f / 2.0).elem());
-        let grid_x = B::float_sub_scalar(grid_x, 0.5f32.elem());
+        let grid_x = B::float_add_scalar(grid_x, 1f32.into());
+        let grid_x = B::float_mul_scalar(grid_x, (w_in_f / 2.0).into());
+        let grid_x = B::float_sub_scalar(grid_x, 0.5f32.into());
 
-        let grid_y = B::float_add_scalar(grid_y, 1.0f32.elem());
-        let grid_y = B::float_mul_scalar(grid_y, (h_in_f / 2.0).elem());
-        let grid_y = B::float_sub_scalar(grid_y, 0.5f32.elem());
+        let grid_y = B::float_add_scalar(grid_y, 1f32.into());
+        let grid_y = B::float_mul_scalar(grid_y, (h_in_f / 2.0).into());
+        let grid_y = B::float_sub_scalar(grid_y, 0.5f32.into());
 
         (grid_x, grid_y)
     };
@@ -106,8 +105,8 @@ fn float_grid_sample_2d_bilinear<B: Backend>(
     let (grid_x, grid_y) = match padding_mode {
         GridSamplePaddingMode::Border => {
             // Clamp coordinates to valid range [0, size-1]
-            let grid_x = B::float_clamp(grid_x, 0.0f32.elem(), ((w_in - 1) as f32).elem());
-            let grid_y = B::float_clamp(grid_y, 0.0f32.elem(), ((h_in - 1) as f32).elem());
+            let grid_x = B::float_clamp(grid_x, 0f32.into(), ((w_in - 1) as f32).into());
+            let grid_y = B::float_clamp(grid_y, 0f32.into(), ((h_in - 1) as f32).into());
             (grid_x, grid_y)
         }
         GridSamplePaddingMode::Reflection => {
@@ -133,30 +132,30 @@ fn float_grid_sample_2d_bilinear<B: Backend>(
     // Convert to integer indices
     let x0 = B::float_into_int(grid_x_floored.clone());
     let y0 = B::float_into_int(grid_y_floored.clone());
-    let x1 = B::float_into_int(B::float_add_scalar(grid_x_floored, 1.0f32.elem()));
-    let y1 = B::float_into_int(B::float_add_scalar(grid_y_floored, 1.0f32.elem()));
+    let x1 = B::float_into_int(B::float_add_scalar(grid_x_floored, 1f32.into()));
+    let y1 = B::float_into_int(B::float_add_scalar(grid_y_floored, 1f32.into()));
 
     // Create masks for out-of-bounds coordinates (only used for zeros padding)
     let (mask_00, mask_01, mask_10, mask_11) = if padding_mode == GridSamplePaddingMode::Zeros {
-        let x0_valid = B::int_greater_equal_elem(x0.clone(), 0.elem());
+        let x0_valid = B::int_greater_equal_elem(x0.clone(), 0.into());
         let x0_valid = B::bool_and(
             x0_valid,
-            B::int_lower_elem(x0.clone(), (w_in as i32).elem()),
+            B::int_lower_elem(x0.clone(), (w_in as i32).into()),
         );
-        let x1_valid = B::int_greater_equal_elem(x1.clone(), 0.elem());
+        let x1_valid = B::int_greater_equal_elem(x1.clone(), 0.into());
         let x1_valid = B::bool_and(
             x1_valid,
-            B::int_lower_elem(x1.clone(), (w_in as i32).elem()),
+            B::int_lower_elem(x1.clone(), (w_in as i32).into()),
         );
-        let y0_valid = B::int_greater_equal_elem(y0.clone(), 0.elem());
+        let y0_valid = B::int_greater_equal_elem(y0.clone(), 0.into());
         let y0_valid = B::bool_and(
             y0_valid,
-            B::int_lower_elem(y0.clone(), (h_in as i32).elem()),
+            B::int_lower_elem(y0.clone(), (h_in as i32).into()),
         );
-        let y1_valid = B::int_greater_equal_elem(y1.clone(), 0.elem());
+        let y1_valid = B::int_greater_equal_elem(y1.clone(), 0.into());
         let y1_valid = B::bool_and(
             y1_valid,
-            B::int_lower_elem(y1.clone(), (h_in as i32).elem()),
+            B::int_lower_elem(y1.clone(), (h_in as i32).into()),
         );
 
         (
@@ -170,27 +169,27 @@ fn float_grid_sample_2d_bilinear<B: Backend>(
     };
 
     // Clamp indices to valid range for gather
-    let x0_clamped = B::int_clamp(x0, 0.elem(), ((w_in - 1) as i32).elem());
-    let x1_clamped = B::int_clamp(x1, 0.elem(), ((w_in - 1) as i32).elem());
-    let y0_clamped = B::int_clamp(y0, 0.elem(), ((h_in - 1) as i32).elem());
-    let y1_clamped = B::int_clamp(y1, 0.elem(), ((h_in - 1) as i32).elem());
+    let x0_clamped = B::int_clamp(x0, 0.into(), ((w_in - 1) as i32).into());
+    let x1_clamped = B::int_clamp(x1, 0.into(), ((w_in - 1) as i32).into());
+    let y0_clamped = B::int_clamp(y0, 0.into(), ((h_in - 1) as i32).into());
+    let y1_clamped = B::int_clamp(y1, 0.into(), ((h_in - 1) as i32).into());
 
     // Linear indices: idx = y * W_in + x
     let w_in_scalar: i32 = w_in as i32;
     let idx_00 = B::int_add(
-        B::int_mul_scalar(y0_clamped.clone(), w_in_scalar.elem()),
+        B::int_mul_scalar(y0_clamped.clone(), w_in_scalar.into()),
         x0_clamped.clone(),
     );
     let idx_01 = B::int_add(
-        B::int_mul_scalar(y1_clamped.clone(), w_in_scalar.elem()),
+        B::int_mul_scalar(y1_clamped.clone(), w_in_scalar.into()),
         x0_clamped,
     );
     let idx_10 = B::int_add(
-        B::int_mul_scalar(y0_clamped, w_in_scalar.elem()),
+        B::int_mul_scalar(y0_clamped, w_in_scalar.into()),
         x1_clamped.clone(),
     );
     let idx_11 = B::int_add(
-        B::int_mul_scalar(y1_clamped, w_in_scalar.elem()),
+        B::int_mul_scalar(y1_clamped, w_in_scalar.into()),
         x1_clamped,
     );
 
@@ -241,10 +240,10 @@ fn float_grid_sample_2d_bilinear<B: Backend>(
             let mask_11_inv = B::bool_expand(mask_11_inv, Shape::new([n, c, h_out, w_out]));
 
             (
-                B::float_mask_fill(sample_00, mask_00_inv, 0.0f32.elem()),
-                B::float_mask_fill(sample_01, mask_01_inv, 0.0f32.elem()),
-                B::float_mask_fill(sample_10, mask_10_inv, 0.0f32.elem()),
-                B::float_mask_fill(sample_11, mask_11_inv, 0.0f32.elem()),
+                B::float_mask_fill(sample_00, mask_00_inv, 0f32.into()),
+                B::float_mask_fill(sample_01, mask_01_inv, 0f32.into()),
+                B::float_mask_fill(sample_10, mask_10_inv, 0f32.into()),
+                B::float_mask_fill(sample_11, mask_11_inv, 0f32.into()),
             )
         } else {
             (sample_00, sample_01, sample_10, sample_11)
@@ -252,10 +251,10 @@ fn float_grid_sample_2d_bilinear<B: Backend>(
 
     // Compute bilinear interpolation weights
     let one_minus_x = B::float_neg(x_frac.clone());
-    let one_minus_x = B::float_add_scalar(one_minus_x, 1.0f32.elem());
+    let one_minus_x = B::float_add_scalar(one_minus_x, 1f32.into());
 
     let one_minus_y = B::float_neg(y_frac.clone());
-    let one_minus_y = B::float_add_scalar(one_minus_y, 1.0f32.elem());
+    let one_minus_y = B::float_add_scalar(one_minus_y, 1f32.into());
 
     let weight_00 = B::float_mul(one_minus_x.clone(), one_minus_y.clone());
     let weight_01 = B::float_mul(one_minus_x.clone(), y_frac.clone());
@@ -288,26 +287,26 @@ fn reflect_coordinates<B: Backend>(
     let span = max_val - min_val;
     if span <= 0.0 {
         // Edge case: size is 1, just return min_val everywhere
-        let zeros = B::float_mul_scalar(coords, 0.0f32.elem());
-        return B::float_add_scalar(zeros, min_val.elem());
+        let zeros = B::float_mul_scalar(coords, 0f32.into());
+        return B::float_add_scalar(zeros, min_val.into());
     }
 
     // Triangle wave formula: span - |((x mod 2*span) - span)| + min_val
     let period = 2.0 * span;
 
     // x = abs(coord - min_val)
-    let x = B::float_sub_scalar(coords, min_val.elem());
+    let x = B::float_sub_scalar(coords, min_val.into());
     let x = B::float_abs(x);
 
     // x_mod = x - floor(x / period) * period
-    let x_div = B::float_div_scalar(x.clone(), period.elem());
+    let x_div = B::float_div_scalar(x.clone(), period.into());
     let x_div_floor = B::float_floor(x_div);
-    let x_mod = B::float_sub(x, B::float_mul_scalar(x_div_floor, period.elem()));
+    let x_mod = B::float_sub(x, B::float_mul_scalar(x_div_floor, period.into()));
 
     // result = span - abs(x_mod - span) + min_val
-    let diff = B::float_sub_scalar(x_mod, span.elem());
+    let diff = B::float_sub_scalar(x_mod, span.into());
     let abs_diff = B::float_abs(diff);
-    let reflected = B::float_sub_scalar(abs_diff, span.elem());
+    let reflected = B::float_sub_scalar(abs_diff, span.into());
     let reflected = B::float_neg(reflected);
-    B::float_add_scalar(reflected, min_val.elem())
+    B::float_add_scalar(reflected, min_val.into())
 }
