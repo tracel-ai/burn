@@ -9,7 +9,10 @@ use cubecl::{
     AutotuneKey, CubeElement, CubeTuneId, Runtime,
     tune::{LocalTuner, Tunable, TunableSet, TuneGroup, local_tuner},
 };
-use cubek::reduce::launch::{RoutineStrategy, tune_key::ReduceAutotuneKey};
+use cubek::reduce::{
+    launch::{RoutineStrategy, tune_key::ReduceAutotuneKey},
+    routines::{BlueprintStrategy, unit::UnitStrategy},
+};
 use serde::{Deserialize, Serialize};
 
 use super::optimization::ReduceBroadcastedOptimizationTuneArg;
@@ -48,9 +51,15 @@ pub fn fused_broadcasted_reduce_autotune<R: Runtime, BT: CubeElement>(
             "fused_reduce_broadcasted_fallback",
             tune_fallback::<R, BT>,
         ));
+
         set = set.with(
-            Tunable::new("fused_reduce_broadcasted_fallback2", tune_fallback::<R, BT>)
-                .group(&group, |_| PRIORITY_MAX),
+            Tunable::new("fused_reduce_broadcasted_unit", move |input| {
+                tune_reduce::<R, BT>(
+                    input,
+                    &RoutineStrategy::Unit(BlueprintStrategy::Inferred(UnitStrategy)),
+                )
+            })
+            .group(&group, |_| PRIORITY_MAX),
         );
 
         set

@@ -25,9 +25,9 @@ use cubek::reduce::{
 };
 
 pub struct ReduceBrFuseBlock {
-    op: ReduceOperationConfig,
-    input: FuseArg,
-    output: FuseArg,
+    pub(crate) op: ReduceOperationConfig,
+    pub(crate) input: FuseArg,
+    pub(crate) output: FuseArg,
 }
 
 #[derive(new)]

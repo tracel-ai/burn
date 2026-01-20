@@ -5,15 +5,20 @@ use crate::{
         settings::{FuseSettings, RefLayoutSetting, VectorizationSetting},
     },
     optim::{
-        reduce::FusedReduce,
-        reduce_broadcasted::fuser::{
-            block::{ReduceBlockFuser, ReduceBlockKind},
-            full_analyzer::FullFuserAnalyzer,
+        reduce::{FusedReduce, ReduceInstruction},
+        reduce_broadcasted::{
+            ReduceBrInfo,
+            fuser::{
+                block::{ReduceBlockFuser, ReduceBlockKind},
+                full_analyzer::FullFuserAnalyzer,
+            },
+            launch::ReduceBrFuseBlock,
         },
     },
 };
 use burn_fusion::OperationFuser;
 use cubecl::Runtime;
+use cubek::reduce::components::instructions::ReduceOperationConfig;
 
 /// Responsible for fusing a single trace for all operations involved in this optimization.
 pub struct ReduceBroadcastedFullFuser {
@@ -47,6 +52,45 @@ impl ReduceBroadcastedFullFuser {
             blocks: Vec::new(),
             settings_write,
             analyzer,
+        }
+    }
+
+    pub fn finish(self) -> ReduceBrInfo {
+        let mut reduce_axis = 0;
+        let mut blocks = Vec::new();
+
+        for block in self.blocks.iter() {
+            match block {
+                ReduceBlockKind::Elemwise => {}
+                ReduceBlockKind::Reduce { reduce, .. } => {
+                    let config = match reduce.inst {
+                        ReduceInstruction::ArgMax => ReduceOperationConfig::ArgMax,
+                        ReduceInstruction::ArgMin => ReduceOperationConfig::ArgMin,
+                        ReduceInstruction::Prod => ReduceOperationConfig::Prod,
+                        ReduceInstruction::Mean => ReduceOperationConfig::Mean,
+                        ReduceInstruction::Sum => ReduceOperationConfig::Sum,
+                        ReduceInstruction::Max => ReduceOperationConfig::Max,
+                        ReduceInstruction::Min => ReduceOperationConfig::Min,
+                        ReduceInstruction::MaxAbs => ReduceOperationConfig::MaxAbs,
+                    };
+
+                    let info = ReduceBrFuseBlock {
+                        op: config,
+                        input: reduce.input.clone(),
+                        output: reduce.output.clone(),
+                    };
+                    reduce_axis = reduce.axis;
+                    blocks.push(info);
+                }
+            }
+        }
+
+        let trace = self.fuser.finish();
+
+        ReduceBrInfo {
+            blocks,
+            trace,
+            reduce_axis,
         }
     }
 

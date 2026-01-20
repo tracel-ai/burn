@@ -1,18 +1,24 @@
 use crate::{
     CubeFusionHandle, FallbackOperation,
-    engine::trace::{TraceError, TuneOutput},
+    engine::{
+        launch::FuseTraceLauncher,
+        trace::{FuseTrace, TraceError, TuneOutput},
+    },
     optim::{
         elemwise::ElemwiseOptimization,
         reduce::{
             FusedReduceError, ReduceOptimizationInfo, ReduceOptimizationState,
             ReduceOptimizationTuneArg,
         },
-        reduce_broadcasted::tune::fused_broadcasted_reduce_autotune,
+        reduce_broadcasted::{
+            launch::{FusedReduceBroadcastedLaunch, ReduceBrFuseBlock},
+            tune::fused_broadcasted_reduce_autotune,
+        },
     },
 };
 use burn_fusion::stream::Context;
 use cubecl::{Runtime, prelude::*};
-use cubek::reduce::launch::RoutineStrategy;
+use cubek::reduce::{ReduceError, launch::RoutineStrategy};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -23,6 +29,13 @@ pub struct ReduceBroadcastedOptimization<R: Runtime> {
 
 pub(crate) struct ReduceBroadcastedOptimizationInfo<R: Runtime> {
     pub(crate) fallbacks: Vec<ReduceBlockOptimInfo<R>>,
+    pub(crate) info_br: Arc<ReduceBrInfo>,
+}
+
+pub(crate) struct ReduceBrInfo {
+    pub(crate) blocks: Vec<ReduceBrFuseBlock>,
+    pub(crate) trace: FuseTrace,
+    pub(crate) reduce_axis: usize,
 }
 
 pub(crate) enum ReduceBlockOptimInfo<R: Runtime> {
@@ -32,6 +45,7 @@ pub(crate) enum ReduceBlockOptimInfo<R: Runtime> {
 
 pub(crate) struct ReduceBroadcastedOptimizationTuneArg<R: Runtime> {
     pub(crate) fallbacks: Vec<ReduceBlockOptimArg<R>>,
+    pub(crate) info_br: Arc<ReduceBrInfo>,
     pub(crate) client: ComputeClient<R>,
     pub(crate) device: R::Device,
 }
@@ -64,10 +78,19 @@ pub struct ReduceBroadcastedOptimizationState {
 impl<R: Runtime> ReduceBroadcastedOptimizationTuneArg<R> {
     pub fn execute_fused<BT: CubeElement>(
         &self,
-        _context: &mut Context<'_, CubeFusionHandle<R>>,
-        _strategy: RoutineStrategy,
-    ) -> Result<TuneOutput<R>, TraceError<FusedReduceError>> {
-        todo!()
+        context: &mut Context<'_, CubeFusionHandle<R>>,
+        strategy: RoutineStrategy,
+    ) -> Result<TuneOutput<R>, TraceError<String>> {
+        let launch = FusedReduceBroadcastedLaunch::new(
+            &self.info_br.blocks,
+            self.info_br.reduce_axis,
+            strategy,
+        );
+        let launcher = FuseTraceLauncher::new(&self.info_br.trace, &launch);
+
+        launcher
+            .launch::<BT>(&self.client, &self.device, context)
+            .map_err(|err| TraceError::RunnerError(format!("{:?}", err)))
     }
 
     pub fn execute_fallback<BT: CubeElement>(
@@ -120,6 +143,7 @@ impl<R: Runtime> ReduceBroadcastedOptimization<R> {
             fallbacks,
             client: client.unwrap(),
             device: device.unwrap(),
+            info_br: self.info.info_br.clone(),
         };
 
         #[cfg(feature = "autotune")]
