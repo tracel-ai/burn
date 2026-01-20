@@ -41,7 +41,7 @@ pub struct ElemwiseFuseBlock {
 }
 
 #[cube(launch_unchecked)]
-pub fn reduce_kernel(
+pub fn reduce_br_kernel(
     inputs: &GlobalArgs,
     outputs: &mut GlobalArgs,
     reduce_axis: usize,
