@@ -1,6 +1,7 @@
 use super::*;
 use burn_tensor::TensorData;
 use burn_tensor::Tolerance;
+use burn_tensor::backend::Backend;
 use burn_tensor::linalg;
 
 #[test]
@@ -120,6 +121,14 @@ fn test_lp_norm() {
     let x = TestTensor::<2>::from([[1., -2., 0.], [0., 3., 4.]]);
     let tolerance = Tolerance::relative(1e-5).set_half_precision_relative(2e-3);
 
+    fn lp_norm_naive<B: Backend, const D: usize>(
+        x: Tensor<B, D>,
+        p: f64,
+        dim: usize,
+    ) -> Tensor<B, D> {
+        x.abs().powf_scalar(p).sum_dim(dim).powf_scalar(1. / p)
+    }
+
     // Arbitrary P
     let expected = TestTensor::<2>::from([[1.0, 3.2710664, 4.0]]).into_data();
     linalg::vector_norm(x.clone(), 3, 0)
@@ -149,7 +158,7 @@ fn test_lp_norm() {
     linalg::l1_norm(x.clone(), 0)
         .into_data()
         .assert_eq(&expected, true);
-    linalg::implementation::lp_norm_impl(x.clone(), 1.0, 0)
+    lp_norm_naive(x.clone(), 1.0, 0)
         .into_data()
         .assert_eq(&expected, true);
     linalg::lp_norm(x.clone(), 1.0, 0)
@@ -164,7 +173,7 @@ fn test_lp_norm() {
     linalg::l2_norm(x.clone(), 0)
         .into_data()
         .assert_approx_eq::<FloatElem>(&expected, tolerance);
-    linalg::implementation::lp_norm_impl(x.clone(), 2.0, 0)
+    lp_norm_naive(x.clone(), 2.0, 0)
         .into_data()
         .assert_approx_eq::<FloatElem>(&expected, tolerance);
     linalg::lp_norm(x.clone(), 2.0, 0)
