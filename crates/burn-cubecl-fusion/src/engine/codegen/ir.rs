@@ -222,6 +222,7 @@ impl GlobalRegisters {
         #[comptime] key: (usize, usize),
         value: Line<NumericExpand<DYN_ELEM_ID>>,
     ) {
+        // TODO: Implement try find.
         let mut registers = self.registers.find(key.0);
         registers.insert(key.1, value);
     }

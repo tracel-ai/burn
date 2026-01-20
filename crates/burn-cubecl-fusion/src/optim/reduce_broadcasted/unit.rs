@@ -97,6 +97,9 @@ fn reduce_many(
 
     #[unroll]
     for i in 0..blocks.len() {
+        comptime! {
+            println!("Compiling block {i:?}");
+        };
         let block = blocks.index(i);
         let input = FusedReduceInput {
             global: inputs.clone(),
@@ -125,6 +128,9 @@ fn reduce_many(
 
     match block_end {
         CubeOption::Some(block) => {
+            comptime! {
+                println!("Compiling block end");
+            };
             let width = comptime!(block.config.width as u32);
             let num_iter = axis_size / usize::cast_from(width);
             for i in 0..num_iter {

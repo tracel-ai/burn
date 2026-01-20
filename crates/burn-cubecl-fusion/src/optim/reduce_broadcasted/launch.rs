@@ -78,6 +78,7 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceBroadcastedLaunch<'_> {
             )
             .unwrap();
 
+        println!("HERE");
         let mut blocks = SequenceArg::new();
 
         self.blocks
@@ -97,12 +98,14 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceBroadcastedLaunch<'_> {
                 blocks.push(arg);
             });
 
+        println!("THERE");
         let block_end = match configs.len() > self.blocks.len() {
             true => CubeOptionArgs::Some(ElemwiseFuseBlockLaunch::new(
                 configs.last().cloned().unwrap(),
             )),
             false => CubeOptionArgs::None,
         };
+        println!("BEFORE");
 
         unsafe {
             reduce_br_kernel::launch_unchecked::<R>(
