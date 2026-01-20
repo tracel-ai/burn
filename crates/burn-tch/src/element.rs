@@ -24,7 +24,6 @@ impl TchElement for bf16 {
 }
 
 impl TchElement for i64 {}
-
 impl TchElement for i32 {}
 impl TchElement for i16 {}
 impl TchElement for i8 {}

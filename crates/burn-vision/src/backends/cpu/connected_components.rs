@@ -14,8 +14,8 @@ mod spaghetti;
 mod spaghetti_4c;
 
 /// Dispatches connected components based on `B::IntElem::dtype()`, binding a concrete
-/// integer type to enable monomorphized implementations without extra trait bounds (e.g.,
-/// after removing `ElementComparison` from `Element`).
+/// integer type to enable generic instantiations without extra trait bounds (after removing
+/// `ElementComparison` from `Element`).
 macro_rules! dispatch_int_dtype {
     (|$ty:ident| $body:expr) => {
         match B::IntElem::dtype() {
