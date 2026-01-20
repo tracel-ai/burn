@@ -1,18 +1,16 @@
 use std::ops::Range;
 
 use burn_backend::{
-    Backend, Distribution, ExecutionError, IntDType, Scalar, Shape, TensorData, TensorMetadata,
+    Distribution, ExecutionError, IntDType, Scalar, Shape, TensorData, TensorMetadata,
     ops::{FloatTensorOps, IntTensorOps},
     tensor::IntTensor,
 };
 
-use crate::{
-    IntoKind, LibTorch, LibTorchDevice, TchFloatElement, TchShape, TchTensor, element::TchElement,
-};
+use crate::{IntoKind, LibTorch, LibTorchDevice, TchShape, TchTensor, element::TchElement};
 
 use super::TchOps;
 
-impl<E: TchElement, F: TchFloatElement> IntTensorOps<Self> for LibTorch<E, F> {
+impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
     fn int_from_data(data: TensorData, device: &LibTorchDevice) -> TchTensor {
         match data.dtype {
             burn_backend::DType::I64 => TchTensor::from_data::<i64>(data, (*device).into()),

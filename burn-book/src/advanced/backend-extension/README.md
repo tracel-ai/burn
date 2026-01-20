@@ -34,7 +34,7 @@ pub trait Backend: burn::tensor::backend::Backend {
 You can then implement your new custom backend trait for any backend that you want to support:
 
 ```rust, ignore
-impl<E: TchElement> Backend for burn_tch::LibTorch<E,F,I> {
+impl<E: TchElement> Backend for burn_tch::LibTorch<E> {
    fn my_new_function(tensor: TchTensor<E, 2>) -> TchTensor<E, 2> {
       // My Tch implementation
    }
@@ -63,7 +63,7 @@ impl<B: Backend> Backend for burn_autodiff::Autodiff<B> {
    }
 }
 
-impl<E: TchElement> Backend for burn_autodiff::Autodiff<burn_tch::LibTorch<E,F,I>> {
+impl<E: TchElement> Backend for burn_autodiff::Autodiff<burn_tch::LibTorch<E>> {
    fn my_new_function(tensor: AutodiffTensor<E, 2>) -> AutodiffTensor<E, 2> {
       // My own backward implementation, generic over a backend implementation.
       //

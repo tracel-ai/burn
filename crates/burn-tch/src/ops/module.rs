@@ -1,4 +1,4 @@
-use crate::{LibTorch, TchFloatElement, TchTensor, element::TchElement};
+use crate::{LibTorch, TchTensor, element::TchElement};
 use burn_backend::{
     TensorMetadata,
     ops::{
@@ -8,7 +8,7 @@ use burn_backend::{
     },
 };
 
-impl<E: TchElement, F: TchFloatElement> ModuleOps<Self> for LibTorch<E, F> {
+impl<E: TchElement> ModuleOps<Self> for LibTorch<E> {
     fn embedding(weights: TchTensor, indices: TchTensor) -> TchTensor {
         // Workaround for MPS "Placeholder storage has not been allocated" error.
         // See: https://github.com/pytorch/pytorch/issues/123995
@@ -289,7 +289,7 @@ impl<E: TchElement, F: TchFloatElement> ModuleOps<Self> for LibTorch<E, F> {
         padding: usize,
         dilation: usize,
         ceil_mode: bool,
-    ) -> MaxPool1dWithIndices<LibTorch<E, F>> {
+    ) -> MaxPool1dWithIndices<Self> {
         let (tensor, indices) = tch::Tensor::max_pool1d_with_indices(
             &x.tensor,
             kernel_size as i64,
@@ -329,7 +329,7 @@ impl<E: TchElement, F: TchFloatElement> ModuleOps<Self> for LibTorch<E, F> {
         padding: [usize; 2],
         dilation: [usize; 2],
         ceil_mode: bool,
-    ) -> MaxPool2dWithIndices<LibTorch<E, F>> {
+    ) -> MaxPool2dWithIndices<Self> {
         let (tensor, indices) = tch::Tensor::max_pool2d_with_indices(
             &x.tensor,
             [kernel_size[0] as i64, kernel_size[1] as i64],
@@ -351,7 +351,7 @@ impl<E: TchElement, F: TchFloatElement> ModuleOps<Self> for LibTorch<E, F> {
         ceil_mode: bool,
         output_grad: TchTensor,
         indices: TchTensor,
-    ) -> MaxPool2dBackward<LibTorch<E, F>> {
+    ) -> MaxPool2dBackward<Self> {
         let grad = tch::Tensor::max_pool2d_with_indices_backward(
             &x.tensor,
             &output_grad.tensor,

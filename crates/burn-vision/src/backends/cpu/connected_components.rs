@@ -62,7 +62,7 @@ fn run<B: Backend, Stats: StatsOp<B::IntElem>>(
     (labels, stats)
 }
 
-pub trait Solver<I: Element> {
+pub trait Solver<I: Element + ElementComparison> {
     fn init(max_labels: usize) -> Self;
     /// Hack to get around mutable borrow limitations on methods
     fn merge(label_1: I, label_2: I, solver: &mut Self) -> I;

@@ -1,5 +1,4 @@
 use super::TchOps;
-use crate::TchFloatElement;
 use crate::{IntoKind, LibTorch, LibTorchDevice, TchShape, TchTensor, element::TchElement};
 use burn_backend::backend::ExecutionError;
 use burn_backend::tensor::{BoolTensor, FloatTensor, IntTensor};
@@ -9,7 +8,7 @@ use burn_backend::{
 };
 use burn_backend::{Scalar, bf16, f16};
 
-impl<E: TchElement, F: TchFloatElement> FloatTensorOps<Self> for LibTorch<E, F> {
+impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
     fn float_from_data(data: TensorData, device: &LibTorchDevice) -> TchTensor {
         match data.dtype {
             DType::F64 => TchTensor::from_data::<f64>(data, (*device).into()),

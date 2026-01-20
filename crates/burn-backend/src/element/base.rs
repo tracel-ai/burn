@@ -14,7 +14,7 @@ pub trait Element:
     ToElement
     + ElementRandom
     + ElementConversion
-    + ElementEquality
+    + ElementEq
     + ElementLimits
     + bytemuck::CheckedBitPattern
     + bytemuck::NoUninit
@@ -64,7 +64,7 @@ pub trait ElementRandom {
 }
 
 /// Element trait for equality of a tensor.
-pub trait ElementEquality {
+pub trait ElementEq {
     /// Returns whether `self` and `other` are equal.
     fn eq(&self, other: &Self) -> bool;
 }
@@ -110,7 +110,7 @@ macro_rules! make_element {
                 $dtype
             }
         }
-        impl ElementEquality for $type {
+        impl ElementEq for $type {
             fn eq(&self, other: &Self) -> bool {
                 self == other
             }
