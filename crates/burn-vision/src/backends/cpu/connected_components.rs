@@ -60,7 +60,7 @@ pub fn connected_components<B: Backend>(
     img: BoolTensor<B>,
     connectivity: Connectivity,
 ) -> IntTensor<B> {
-    dispatch_int_dtype!(|I| run::<B, I, NoOp<_>>(img, connectivity, || NoOp::default()).0)
+    dispatch_int_dtype!(|I| run::<B, I, NoOp<_>>(img, connectivity, NoOp::default).0)
 }
 
 pub fn connected_components_with_stats<B: Backend>(
