@@ -145,8 +145,8 @@ pub(crate) fn bilinear_interpolate<F: Float>(
     if y > -1.0 && height as f32 > y && x > -1.0 && width as f32 > x {
         let in_w = width;
 
-        let y_low = f32::floor(y);
-        let x_low = f32::floor(x);
+        let y_low = y.floor();
+        let x_low = x.floor();
         let y_high = (y_low + 1.) as usize;
         let x_high = (x_low + 1.) as usize;
 

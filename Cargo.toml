@@ -24,7 +24,7 @@ exclude = [
 edition = "2024"
 license = "MIT OR Apache-2.0"
 readme = "README.md"
-version = "0.20.0-pre.6"
+version = "0.21.0"
 
 [workspace.lints.clippy]
 
@@ -45,7 +45,7 @@ console_error_panic_hook = "0.1.7"
 const-random = "0.1"
 csv = "1.3.1"
 dashmap = "6.1.0"
-data-encoding = { version = "2.9.0", default-features = false, features = [
+data-encoding = { version = "2.10.0", default-features = false, features = [
     "alloc",
 ] }
 dirs = "6.0.0"
@@ -128,7 +128,7 @@ async-channel = "2.5"
 futures-lite = { version = "2.6.1", default-features = false }
 
 # Terminal UI
-ratatui = "0.29.0"
+ratatui = "0.30.0"
 
 # WGPU stuff
 text_placeholder = "0.5.1"
@@ -145,7 +145,7 @@ cfg-if = "1.0.1"
 derive-new = { version = "0.7.0", default-features = false }
 
 blas-src = { version = "0.14.0", default-features = false }
-bon = "3.8.1"
+bon = "3.8.2"
 half = { version = "2.7.1", features = [
     "alloc",
     "num-traits",
@@ -153,11 +153,11 @@ half = { version = "2.7.1", features = [
 ], default-features = false }
 macerator = { version = "0.2.9" }
 matrixmultiply = { version = "0.3.10", default-features = false }
-ndarray = { version = "0.17.1", default-features = false }
+ndarray = { version = "0.17.2", default-features = false }
 num-traits = { version = "0.2.19", default-features = false, features = [
     "libm",
 ] } # libm is for no_std
-openblas-src = "0.10.12"
+openblas-src = "0.10.14"
 rand = { version = "0.9.2", default-features = false }
 rand_distr = { version = "0.5.1", default-features = false }
 serde = { version = "1.0.228", default-features = false, features = [
@@ -180,20 +180,22 @@ portable-atomic = { version = "1.13.0" }
 portable-atomic-util = { version = "0.2.4", features = ["alloc"] }
 
 ### For the main burn branch. ###
-cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "7cd8e9c869d363edcbf989fd905eb4b28df938ab" }
-cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "7cd8e9c869d363edcbf989fd905eb4b28df938ab" }
-cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "8097a621dfd3a6a89f8d0433994e8c1adba377c2" }
+# cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "d060bfd58126b790ea0f9794dd3b3d791eb74fd6" }
+# cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "d060bfd58126b790ea0f9794dd3b3d791eb74fd6" }
+# cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "475cc556c65e2e28a5b4a3b8a976d56e30a9425d" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }
 # cubek = { path = "../cubek/crates/cubek", default-features = false }
 ### For the release. ###
-# cubecl = { version = "=0.9.0-pre.6", default-features = false }
-# cubecl-common = { version = "=0.9.0-pre.6", default-features = false }
-# cubek = { version = "=0.1.0-pre.1", default-features = false }
+cubecl = { version = "=0.9.0", default-features = false }
+cubecl-common = { version = "=0.9.0", default-features = false }
+cubek = { version = "=0.1.0", default-features = false }
 
 ### For xtask crate ###
-tracel-xtask = { version = "=2.2.1" }
+tracel-xtask = "=4.9.0"
+# ### For local development. ###
+# tracel-xtask = { path = "../xtask/crates/tracel-xtask", default-features = false }
 
 [profile.dev]
 debug = 1 # Speed up compilation time and not necessary.

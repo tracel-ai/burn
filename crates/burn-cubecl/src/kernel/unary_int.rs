@@ -115,7 +115,7 @@ pub(crate) mod unary_basic_int {
 
         fn execute(input: Line<I>, options: &Self::Options) -> Line<I> {
             match comptime![options.kind] {
-                BasicIntUnaryKind::BitwiseNot => Line::bitwise_not(input),
+                BasicIntUnaryKind::BitwiseNot => !input,
             }
         }
     }

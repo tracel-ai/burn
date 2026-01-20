@@ -1,5 +1,5 @@
 use crate::{
-    Backend, ElementComparison,
+    Backend, ElementComparison, Scalar,
     tensor::{IntTensor, Numeric},
 };
 
@@ -111,7 +111,7 @@ where
     #[cfg_attr(doc, doc = crate::doc_tensor!("greater_elem"))]
     #[cfg_attr(not(doc), doc = "`Tensor::greater_elem`")]
     /// function, which is more high-level and designed for public use.
-    fn greater_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive;
+    fn greater_elem(lhs: Self::Primitive, rhs: Scalar) -> B::BoolTensorPrimitive;
 
     /// Element-wise greater than or equal comparison between two tensors.
     ///
@@ -161,7 +161,7 @@ where
     #[cfg_attr(doc, doc = crate::doc_tensor!("greater_equal_elem"))]
     #[cfg_attr(not(doc), doc = "`Tensor::greater_equal_elem`")]
     /// function, which is more high-level and designed for public use.
-    fn greater_equal_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive;
+    fn greater_equal_elem(lhs: Self::Primitive, rhs: Scalar) -> B::BoolTensorPrimitive;
 
     /// Element-wise less than comparison between two tensors.
     ///
@@ -211,7 +211,7 @@ where
     #[cfg_attr(doc, doc = crate::doc_tensor!("lower_elem"))]
     #[cfg_attr(not(doc), doc = "`Tensor::lower_elem`")]
     /// function, which is more high-level and designed for public use.
-    fn lower_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive;
+    fn lower_elem(lhs: Self::Primitive, rhs: Scalar) -> B::BoolTensorPrimitive;
 
     /// Element-wise less than or equal comparison between two tensors.
     ///
@@ -261,7 +261,7 @@ where
     #[cfg_attr(doc, doc = crate::doc_tensor!("lower_equal_elem"))]
     #[cfg_attr(not(doc), doc = "`Tensor::lower_equal_elem`")]
     /// function, which is more high-level and designed for public use.
-    fn lower_equal_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive;
+    fn lower_equal_elem(lhs: Self::Primitive, rhs: Scalar) -> B::BoolTensorPrimitive;
 
     /// Gets the indices of the maximum elements of a tensor along an axis.
     ///
@@ -520,7 +520,7 @@ where
     #[cfg_attr(doc, doc = crate::doc_tensor!("clamp"))]
     #[cfg_attr(not(doc), doc = "`Tensor::clamp`")]
     /// function, which is more high-level and designed for public use.
-    fn clamp(tensor: Self::Primitive, min: Self::Elem, max: Self::Elem) -> Self::Primitive;
+    fn clamp(tensor: Self::Primitive, min: Scalar, max: Scalar) -> Self::Primitive;
 
     /// Clamps a tensor under a minimum value.
     ///
@@ -542,7 +542,7 @@ where
     #[cfg_attr(doc, doc = crate::doc_tensor!("clamp_min"))]
     #[cfg_attr(not(doc), doc = "`Tensor::clamp_min`")]
     /// function, which is more high-level and designed for public use.
-    fn clamp_min(tensor: Self::Primitive, min: Self::Elem) -> Self::Primitive;
+    fn clamp_min(tensor: Self::Primitive, min: Scalar) -> Self::Primitive;
 
     /// Clamps a tensor over a maximum value.
     ///
@@ -564,5 +564,5 @@ where
     #[cfg_attr(doc, doc = crate::doc_tensor!("clamp_max"))]
     #[cfg_attr(not(doc), doc = "`Tensor::clamp_max`")]
     /// function, which is more high-level and designed for public use.
-    fn clamp_max(tensor: Self::Primitive, max: Self::Elem) -> Self::Primitive;
+    fn clamp_max(tensor: Self::Primitive, max: Scalar) -> Self::Primitive;
 }

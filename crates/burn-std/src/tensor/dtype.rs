@@ -93,7 +93,11 @@ impl DType {
                         0
                     }
                 },
-                QuantStore::U32 => core::mem::size_of::<u32>(),
+                QuantStore::PackedU32(_) => core::mem::size_of::<u32>(),
+                QuantStore::PackedNative(_) => match scheme.value {
+                    QuantValue::E2M1 => core::mem::size_of::<u8>(),
+                    _ => 0,
+                },
             },
         }
     }

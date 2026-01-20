@@ -1,3 +1,4 @@
+use burn_backend::Scalar;
 pub use burn_backend::tensor::Numeric;
 
 use crate::alloc::borrow::ToOwned;
@@ -68,7 +69,8 @@ where
     /// }
     /// ```
     pub fn add_scalar<E: ElementConversion>(self, other: E) -> Self {
-        Self::new(K::add_scalar::<E>(self.primitive, other))
+        let other = Scalar::new(other, &self.dtype());
+        Self::new(K::add_scalar(self.primitive, other))
     }
 
     /// Applies element wise subtraction operation.
@@ -124,7 +126,8 @@ where
     /// }
     /// ```
     pub fn sub_scalar<E: ElementConversion>(self, other: E) -> Self {
-        Self::new(K::sub_scalar::<E>(self.primitive, other))
+        let other = Scalar::new(other, &self.dtype());
+        Self::new(K::sub_scalar(self.primitive, other))
     }
 
     /// Applies element wise division operation.
@@ -180,7 +183,8 @@ where
     /// }
     /// ```
     pub fn div_scalar<E: ElementConversion>(self, other: E) -> Self {
-        Self::new(K::div_scalar::<E>(self.primitive, other))
+        let other = Scalar::new(other, &self.dtype());
+        Self::new(K::div_scalar(self.primitive, other))
     }
 
     /// Applies element wise the remainder operation with a scalar.
@@ -214,7 +218,8 @@ where
     /// }
     /// ```
     pub fn remainder_scalar<E: ElementConversion>(self, other: E) -> Self {
-        Self::new(K::remainder_scalar::<E>(self.primitive, other))
+        let other = Scalar::new(other, &self.dtype());
+        Self::new(K::remainder_scalar(self.primitive, other))
     }
 
     /// Applies element wise multiplication operation.
@@ -270,7 +275,8 @@ where
     /// }
     /// ```
     pub fn mul_scalar<E: ElementConversion>(self, other: E) -> Self {
-        Self::new(K::mul_scalar::<E>(self.primitive, other))
+        let other = Scalar::new(other, &self.dtype());
+        Self::new(K::mul_scalar(self.primitive, other))
     }
 
     /// Switch sign of each element in the tensor.
@@ -814,7 +820,8 @@ where
     /// }
     /// ```
     pub fn powf_scalar<E: ElementConversion>(self, other: E) -> Self {
-        Self::new(K::powf_scalar::<E>(self.primitive, other))
+        let other = Scalar::new(other, &self.dtype());
+        Self::new(K::powf_scalar(self.primitive, other))
     }
 
     /// Applies element wise power operation with a integer Tensor
@@ -868,7 +875,8 @@ where
     /// }
     /// ```
     pub fn powi_scalar<E: ElementConversion>(self, other: E) -> Self {
-        Self::new(K::powi_scalar::<E>(self.primitive, other))
+        let other = Scalar::new(other, &self.dtype());
+        Self::new(K::powi_scalar(self.primitive, other))
     }
 
     /// Converts the tensor to a boolean tensor by checking if the elements are non-zero.
@@ -894,7 +902,7 @@ where
     ///   // ]
     /// }
     pub fn bool(self) -> Tensor<B, D, Bool> {
-        Tensor::new(K::not_equal_elem(self.primitive, 0.elem()))
+        self.not_equal_elem(0)
     }
 
     /// Create a random tensor of the given shape on the given device where each element is

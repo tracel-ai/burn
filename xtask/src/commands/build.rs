@@ -93,6 +93,8 @@ pub(crate) fn handle_command(
                         only: args.only.clone(),
                         ci: args.ci,
                         release: args.release,
+                        features: args.features.clone(),
+                        no_default_features: args.no_default_features,
                     },
                     env.clone(),
                     ctx.clone(),

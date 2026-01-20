@@ -270,8 +270,8 @@ impl Default for FusedMatmulSelector {
 
 #[derive(new, Clone, Serialize, Deserialize, Debug)]
 pub struct FusedMatmul {
-    lhs: MatmulArg,
-    rhs: MatmulArg,
+    pub(crate) lhs: MatmulArg,
+    pub(crate) rhs: MatmulArg,
     out: FuseArg,
     pub(crate) op: BinaryOpIr,
     pub(crate) selector: FusedMatmulSelector,
@@ -331,14 +331,14 @@ impl<'a, R: Runtime> Vectorization<R> for FusedMatmulLaunch<'a> {
         let mut axis = VectorizationAxis::default();
 
         if let MatrixBatchLayout::MildlyPermuted { transposed, .. } =
-            matrix_batch_layout(lhs_strides)
+            matrix_batch_layout(lhs_strides, self.matmul.lhs.scheme())
             && transposed
         {
             axis.insert(lhs_id_global, lhs_strides.len() - 2);
         }
 
         if let MatrixBatchLayout::MildlyPermuted { transposed, .. } =
-            matrix_batch_layout(rhs_strides)
+            matrix_batch_layout(rhs_strides, self.matmul.rhs.scheme())
             && transposed
         {
             axis.insert(rhs_id_global, rhs_strides.len() - 2);
@@ -405,14 +405,16 @@ impl FusedMatmulLaunch<'_> {
         let out_shape = outputs.shape_ref(&config.ref_layout, config.rank);
 
         let lhs_strides = inputs.strides(self.matmul.lhs.data());
+        let lhs_scheme = self.matmul.lhs.scheme();
         let rhs_strides = inputs.strides(self.matmul.rhs.data());
+        let rhs_scheme = self.matmul.rhs.scheme();
 
-        if matrix_batch_layout(&lhs_strides) == MatrixBatchLayout::HighlyPermuted {
+        if matrix_batch_layout(&lhs_strides, lhs_scheme) == MatrixBatchLayout::HighlyPermuted {
             return Err(FusedMatmulError::InvalidInput(
                 "Lhs needs to be contiguous, but can't when fusing.",
             ));
         }
-        if matrix_batch_layout(&rhs_strides) == MatrixBatchLayout::HighlyPermuted {
+        if matrix_batch_layout(&rhs_strides, rhs_scheme) == MatrixBatchLayout::HighlyPermuted {
             return Err(FusedMatmulError::InvalidInput(
                 "Rhs needs to be contiguous, but can't when fusing.",
             ));
@@ -453,6 +455,8 @@ impl FusedMatmulLaunch<'_> {
             rhs_strides,
             out_strides,
             dtypes.as_global_elems(),
+            self.matmul.lhs.scheme(),
+            self.matmul.rhs.scheme(),
         );
 
         match self.selector {

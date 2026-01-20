@@ -657,8 +657,8 @@ fn deform_col2img_kernel<F: Float, FP: Float, FAdd: FloatAtomicAddFamily>(
     for dy in -1..=1i32 {
         #[unroll]
         for dx in -1..=1i32 {
-            let yp = F::floor(y) + F::cast_from(dy);
-            let xp = F::floor(x) + F::cast_from(dx);
+            let yp = y.floor() + F::cast_from(dy);
+            let xp = x.floor() + F::cast_from(dx);
 
             if yp >= F::new(0.0)
                 && yp < F::cast_from(height)
@@ -720,7 +720,7 @@ impl<FAdd: Float> FloatAtomicAdd for IntrinsicFloatAtomicAdd<FAdd> {
 
     fn float_atomic_add<F: Float>(ptr: &mut Atomic<FAdd>, value: F) {
         let value = FAdd::cast_from(value);
-        Atomic::add(ptr, value);
+        ptr.fetch_add(value);
     }
 }
 
@@ -731,12 +731,12 @@ impl FloatAtomicAdd for CASFloatAtomicAdd {
     fn float_atomic_add<F: Float>(ptr: &mut Atomic<Self::ProxyType>, value: F) {
         let value = f32::cast_from(value);
         if value != 0.0 {
-            let mut v = Atomic::load(ptr);
+            let mut v = ptr.load();
             loop {
                 let prev = v;
-                let v_float = f32::reinterpret(v);
-                let new = u32::reinterpret(v_float + value);
-                v = Atomic::compare_and_swap(ptr, v, new);
+                let v_float = f32::from_bits(v);
+                let new = (v_float + value).to_bits();
+                v = ptr.compare_exchange_weak(v, new);
                 if prev == v {
                     break;
                 }

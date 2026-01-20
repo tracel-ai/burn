@@ -41,7 +41,7 @@ pub fn leaky_relu<const D: usize, B: Backend>(
 ) -> Tensor<B, D> {
     Tensor::from_primitive(TensorPrimitive::Float(B::leaky_relu(
         tensor.primitive.tensor(),
-        crate::ElementConversion::elem(negative_slope),
+        negative_slope.into(),
     )))
 }
 
@@ -295,8 +295,8 @@ pub fn hard_sigmoid<const D: usize, B: Backend>(
 ) -> Tensor<B, D> {
     Tensor::from_primitive(TensorPrimitive::Float(B::hard_sigmoid(
         tensor.primitive.tensor(),
-        crate::ElementConversion::elem(alpha),
-        crate::ElementConversion::elem(beta),
+        alpha.into(),
+        beta.into(),
     )))
 }
 

@@ -1,5 +1,5 @@
 use burn_backend::{
-    Backend, ElementComparison, ElementConversion,
+    Backend, ElementComparison, ElementConversion, Scalar,
     tensor::{Bool, IndexingUpdateOp, Int, Ordered},
 };
 use burn_std::AsIndex;
@@ -115,6 +115,7 @@ where
             IndexingUpdateOp::Add,
         )
     }
+
     /// Applies element wise greater comparison and returns a boolean tensor.
     ///
     /// # Panics
@@ -240,7 +241,8 @@ where
     /// }
     /// ```
     pub fn greater_elem<E: ElementConversion>(self, other: E) -> Tensor<B, D, Bool> {
-        Tensor::new(K::greater_elem(self.primitive, other.elem()))
+        let other = Scalar::new(other, &self.dtype());
+        Tensor::new(K::greater_elem(self.primitive, other))
     }
 
     /// Applies greater-equal than `other` comparison and returns a boolean tensor.
@@ -264,7 +266,8 @@ where
     /// }
     /// ```
     pub fn greater_equal_elem<E: ElementConversion>(self, other: E) -> Tensor<B, D, Bool> {
-        Tensor::new(K::greater_equal_elem(self.primitive, other.elem()))
+        let other = Scalar::new(other, &self.dtype());
+        Tensor::new(K::greater_equal_elem(self.primitive, other))
     }
 
     /// Applies lower than `other` comparison and returns a boolean tensor.
@@ -288,7 +291,8 @@ where
     /// }
     /// ```
     pub fn lower_elem<E: ElementConversion>(self, other: E) -> Tensor<B, D, Bool> {
-        Tensor::new(K::lower_elem(self.primitive, other.elem()))
+        let other = Scalar::new(other, &self.dtype());
+        Tensor::new(K::lower_elem(self.primitive, other))
     }
 
     /// Applies lower-equal than `other` comparison and returns a boolean tensor.
@@ -312,7 +316,8 @@ where
     /// }
     /// ```
     pub fn lower_equal_elem<E: ElementConversion>(self, other: E) -> Tensor<B, D, Bool> {
-        Tensor::new(K::lower_equal_elem(self.primitive, other.elem()))
+        let other = Scalar::new(other, &self.dtype());
+        Tensor::new(K::lower_equal_elem(self.primitive, other))
     }
 
     /// Applies the argmax function along the given dimension and returns an integer tensor.
@@ -334,6 +339,7 @@ where
     pub fn argmax(self, dim: usize) -> Tensor<B, D, Int> {
         Tensor::new(K::argmax(self.primitive, dim))
     }
+
     /// Find the maximum value.
     ///
     /// # Example
@@ -697,7 +703,12 @@ where
     /// }
     /// ```
     pub fn clamp<E: ElementConversion>(self, min: E, max: E) -> Self {
-        Self::new(K::clamp(self.primitive, min.elem(), max.elem()))
+        let dtype = self.dtype();
+        Self::new(K::clamp(
+            self.primitive,
+            Scalar::new(min, &dtype),
+            Scalar::new(max, &dtype),
+        ))
     }
 
     /// Clamp element wise under a minimum value.
@@ -728,7 +739,8 @@ where
     /// }
     /// ```
     pub fn clamp_min<E: ElementConversion>(self, min: E) -> Self {
-        Self::new(K::clamp_min(self.primitive, min.elem()))
+        let min = Scalar::new(min, &self.dtype());
+        Self::new(K::clamp_min(self.primitive, min))
     }
 
     /// Clamp element wise over a maximum value.
@@ -759,8 +771,10 @@ where
     /// }
     /// ```
     pub fn clamp_max<E: ElementConversion>(self, max: E) -> Self {
-        Self::new(K::clamp_max(self.primitive, max.elem()))
+        let max = Scalar::new(max, &self.dtype());
+        Self::new(K::clamp_max(self.primitive, max))
     }
+
     /// Computes the cumulative minimum of elements along the given *dimension* or *axis*.
     ///
     /// # Arguments

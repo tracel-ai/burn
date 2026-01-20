@@ -773,7 +773,7 @@ fn clamp<C: Numeric>(
     let input = read::<C>(inputs, outputs, locals, write_pos, input, config);
     let min = read::<C>(inputs, outputs, locals, write_pos, min, config);
     let max = read::<C>(inputs, outputs, locals, write_pos, max, config);
-    let result = Line::<C>::clamp(input, min, max);
+    let result = cubecl::prelude::clamp(input, min, max);
 
     write::<C>(inputs, outputs, locals, write_pos, result, out, config);
 }
@@ -802,11 +802,17 @@ fn dequantize<C: Float>(
             QuantValue::Q8F | QuantValue::Q8S => StorageType::Scalar(ElemType::UInt(UIntKind::U8)),
             QuantValue::E4M3 => StorageType::Scalar(ElemType::Float(FloatKind::E4M3)),
             QuantValue::E5M2 => StorageType::Scalar(ElemType::Float(FloatKind::E5M2)),
-            QuantValue::E2M1 => StorageType::Packed(ElemType::Float(FloatKind::E4M3), 2),
-            QuantValue::Q4F | QuantValue::Q4S | QuantValue::Q2F | QuantValue::Q2S =>
-                unreachable!("Can't store native sub-byte values"),
+            QuantValue::Q4F
+            | QuantValue::Q4S
+            | QuantValue::Q2F
+            | QuantValue::Q2S
+            | QuantValue::E2M1 => unreachable!("Can't store native sub-byte values"),
         },
-        QuantStore::U32 => ElemType::UInt(UIntKind::U32).into(),
+        QuantStore::PackedU32(_) => ElemType::UInt(UIntKind::U32).into(),
+        QuantStore::PackedNative(_) => match scheme.value {
+            QuantValue::E2M1 => StorageType::Packed(ElemType::Float(FloatKind::E4M3), 2),
+            other => panic!("{other:?} doesn't support native packing"),
+        },
     }]);
     set_polyfill::<NumericExpand<Q_PARAM_DYN_ELEM_ID>>(comptime![match scheme.param {
         cubecl::quant::scheme::QuantParam::F32 =>
@@ -888,7 +894,7 @@ binary_func!(powf, Line::<C>::powf, Float);
 binary_func!(rem, Line::<C>::rem, Float);
 
 unary_func!(exp, Line::<C>::exp, Float);
-unary_func!(log, Line::<C>::log, Float);
+unary_func!(log, Line::<C>::ln, Float);
 unary_func!(log1p, Line::<C>::log1p, Float);
 unary_func!(sqrt, Line::<C>::sqrt, Float);
 unary_func!(cos, Line::<C>::cos, Float);

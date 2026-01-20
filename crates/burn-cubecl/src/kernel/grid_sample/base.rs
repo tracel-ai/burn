@@ -76,8 +76,8 @@ pub(crate) fn fetch_with_zeros<F: Float>(
     w: i32,
 ) -> F {
     let in_bounds = x >= 0 && x < w && y >= 0 && y < h;
-    let x_clamped = Min::min(Max::max(x, 0), w - 1) as usize;
-    let y_clamped = Min::min(Max::max(y, 0), h - 1) as usize;
+    let x_clamped = clamp(x, 0, w - 1) as usize;
+    let y_clamped = clamp(y, 0, h - 1) as usize;
     let idx = base + y_clamped * stride_h + x_clamped * stride_w;
     select(in_bounds, input[idx], F::new(0.0))
 }
@@ -94,8 +94,8 @@ pub(crate) fn fetch_with_border<F: Float>(
     h: i32,
     w: i32,
 ) -> F {
-    let x_clamped = Min::min(Max::max(x, 0), w - 1) as usize;
-    let y_clamped = Min::min(Max::max(y, 0), h - 1) as usize;
+    let x_clamped = clamp(x, 0, w - 1) as usize;
+    let y_clamped = clamp(y, 0, h - 1) as usize;
     let idx = base + y_clamped * stride_h + x_clamped * stride_w;
     input[idx]
 }
@@ -131,7 +131,7 @@ fn reflect_coord_bounded(idx: i32, size: i32) -> usize {
         neg_reflected,
         select(idx > max_idx, pos_reflected, idx),
     );
-    Min::min(Max::max(result, 0), max_idx) as usize
+    clamp(result, 0, max_idx) as usize
 }
 
 /// Reflect a float coordinate into the valid sampling range.
@@ -155,9 +155,9 @@ fn reflect_float_impl<F: Float>(coord: F, min_val: F, max_val: F) -> F {
 
     // Triangle wave formula: span - |((x mod 2*span) - span)| + min_val
     let period = safe_span * F::new(2.0);
-    let x = Abs::abs(coord - min_val);
-    let x_mod = x - Floor::floor(x / period) * period;
-    let reflected = safe_span - Abs::abs(x_mod - safe_span) + min_val;
+    let x = (coord - min_val).abs();
+    let x_mod = x - (x / period).floor() * period;
+    let reflected = safe_span - (x_mod - safe_span).abs() + min_val;
 
     select(is_valid, reflected, min_val)
 }
