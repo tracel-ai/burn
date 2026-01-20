@@ -18,7 +18,7 @@
 
 use std::cmp::Ordering;
 
-use burn_tensor::{Element, ElementComparison, ElementConversion};
+use burn_tensor::{Element, ElementComparison, ElementConversion, cast::ToElement};
 use ndarray::{Array2, Axis, s};
 
 #[allow(non_snake_case)]
@@ -29,12 +29,12 @@ use crate::Connectivity;
 
 use super::{Solver, StatsOp, max_labels};
 
-pub fn process<I: Element + ElementComparison, B: Element, LabelsSolver: Solver<I>>(
+pub fn process<B: Element, LabelsSolver: Solver>(
     img_arr: Array2<B>,
-    stats: &mut impl StatsOp<I>,
-) -> Array2<I> {
+    stats: &mut impl StatsOp<Label = LabelsSolver::Label>,
+) -> Array2<LabelsSolver::Label> {
     let (h, w) = img_arr.dim();
-    let mut img_labels_arr = Array2::<I>::default(img_arr.raw_dim());
+    let mut img_labels_arr = Array2::<LabelsSolver::Label>::default(img_arr.raw_dim());
 
     let img = img_arr.as_ptr();
 
