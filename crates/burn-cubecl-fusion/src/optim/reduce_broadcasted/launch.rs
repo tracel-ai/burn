@@ -35,7 +35,8 @@ pub struct ReduceBrFuseBlock {
 pub struct FusedReduceBroadcastedLaunch<'a> {
     blocks: &'a Vec<ReduceBrFuseBlock>,
     reduce_axis: usize,
-    strategy: RoutineStrategy,
+    // TODO: Support multiple strategies.
+    _strategy: RoutineStrategy,
 }
 
 impl<R: Runtime> Vectorization<R> for FusedReduceBroadcastedLaunch<'_> {}
@@ -50,8 +51,6 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceBroadcastedLaunch<'_> {
         outputs: GlobalArgsLaunch<'a, R>,
         configs: &'a [FuseBlockConfig],
     ) -> Result<(), Self::Error> {
-        println!("CCCCCCCCCCCCCCCC {configs:?}");
-        println!("BbbbbbbbbbbbbbbBBBBBBBBBBBBBBB {:?}", self.blocks);
         let routine = UnitRoutine;
         let first_config = &configs[0];
         let shape = inputs.shape_ref(&first_config.ref_layout, first_config.rank);
@@ -81,10 +80,9 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceBroadcastedLaunch<'_> {
             )
             .unwrap();
 
-        println!("HERE");
         let mut blocks = SequenceArg::new();
-
         let mut index = 0;
+
         for block in self.blocks {
             let arg = ReduceFuseBlockLaunch::new(
                 block.op,
@@ -101,17 +99,15 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceBroadcastedLaunch<'_> {
             blocks.push(arg);
         }
 
-        println!("THERE");
         let block_end = match configs.len() > index {
             true => CubeOptionArgs::Some(ElemwiseFuseBlockLaunch::new(
                 configs.last().cloned().unwrap(),
             )),
             false => CubeOptionArgs::None,
         };
-        println!("BEFORE");
 
         unsafe {
-            let val = reduce_br_kernel::launch_unchecked::<R>(
+            reduce_br_kernel::launch_unchecked::<R>(
                 client,
                 settings.cube_count,
                 settings.cube_dim,
@@ -120,8 +116,7 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceBroadcastedLaunch<'_> {
                 ScalarArg::new(self.reduce_axis),
                 blocks,
                 block_end,
-            );
-            panic!("{val:?}");
+            )?;
         }
 
         Ok(())

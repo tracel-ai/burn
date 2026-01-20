@@ -6,10 +6,7 @@ use crate::{
     },
     optim::{
         elemwise::ElemwiseOptimization,
-        reduce::{
-            FusedReduceError, ReduceOptimizationInfo, ReduceOptimizationState,
-            ReduceOptimizationTuneArg,
-        },
+        reduce::{ReduceOptimizationInfo, ReduceOptimizationState, ReduceOptimizationTuneArg},
         reduce_broadcasted::{
             launch::{FusedReduceBroadcastedLaunch, ReduceBrFuseBlock},
             tune::fused_broadcasted_reduce_autotune,
@@ -18,7 +15,7 @@ use crate::{
 };
 use burn_fusion::stream::Context;
 use cubecl::{Runtime, prelude::*};
-use cubek::reduce::{ReduceError, launch::RoutineStrategy};
+use cubek::reduce::launch::RoutineStrategy;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -81,7 +78,6 @@ impl<R: Runtime> ReduceBroadcastedOptimizationTuneArg<R> {
         context: &mut Context<'_, CubeFusionHandle<R>>,
         strategy: RoutineStrategy,
     ) -> Result<TuneOutput<R>, TraceError<String>> {
-        println!("execute FUSED: {}", self.info_br.blocks.len());
         let launch = FusedReduceBroadcastedLaunch::new(
             &self.info_br.blocks,
             self.info_br.reduce_axis,
@@ -98,7 +94,6 @@ impl<R: Runtime> ReduceBroadcastedOptimizationTuneArg<R> {
         &self,
         context: &mut Context<'_, CubeFusionHandle<R>>,
     ) {
-        println!("execute N fallbacks: {}", self.fallbacks.len());
         for fallback in self.fallbacks.iter() {
             fallback.execute_fallback::<BT>(context);
         }

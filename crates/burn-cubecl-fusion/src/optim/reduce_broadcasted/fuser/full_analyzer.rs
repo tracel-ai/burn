@@ -106,12 +106,6 @@ impl AnalysisState {
                 self.available_from_previous_full.insert(p.id, block_pos);
             }
         }
-
-        println!("NEXT BLOCK FULL: {:?}", self.available_from_previous_full);
-        println!(
-            "NEXT BLOCK SINGLE: {:?}",
-            self.available_from_previous_single
-        );
     }
 
     fn register<'a>(
@@ -123,15 +117,14 @@ impl AnalysisState {
         match kind {
             BlockKind::Full => {
                 for potential in potential_from_previous_blocks {
-                    println!("potential_from_previous_blocks FULL: {potential:?}");
-                    if let Some(block_pos) = self.available_from_previous_full.get(&potential.id) {
-                        println!("ADDING IT: {potential:?}");
-                        self.block_data.push((potential.clone(), *block_pos));
-                    }
+                    // We can't since it's not in the same scope.
+                    // if let Some(block_pos) = self.available_from_previous_full.get(&potential.id) {
+                    //     self.block_data.push((potential.clone(), *block_pos));
+                    // }
 
+                    // We can since it's essentially a broadcast.
                     if let Some(block_pos) = self.available_from_previous_single.get(&potential.id)
                     {
-                        println!("ADDING IT FROM SINGLE: {potential:?}");
                         self.block_data.push((potential.clone(), *block_pos));
                     }
                     // Can reuse the read.
@@ -144,7 +137,6 @@ impl AnalysisState {
             }
             BlockKind::Single => {
                 for potential in potential_from_previous_blocks {
-                    println!("potential_from_previous_blocks SINGLE: {potential:?}");
                     if let Some(block_pos) = self.available_from_previous_single.get(&potential.id)
                     {
                         self.block_data.push((potential.clone(), *block_pos));

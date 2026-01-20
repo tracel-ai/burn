@@ -25,32 +25,31 @@ pub struct ReduceBroadcastedFullFuser {
     pub(crate) fuser: TraceOperationFuser,
     analyzer: FullFuserAnalyzer,
     blocks: Vec<ReduceBlockKind>,
+    settings_read: FuseSettings,
     settings_write: FuseSettings,
 }
 
 impl ReduceBroadcastedFullFuser {
     /// Creates a new fuser with the given settings.
     pub fn new(max_bindings: u32, bool_precision: FuseType, analyzer: FullFuserAnalyzer) -> Self {
-        let fuser = TraceOperationFuser::new(
-            max_bindings,
-            bool_precision,
-            FuseSettings {
-                inplace: false,
-                ref_layout: RefLayoutSetting::OnlyContiguous,
-                ..Default::default()
-            },
-        );
+        let settings_read = FuseSettings {
+            inplace: false,
+            ref_layout: RefLayoutSetting::OnlyContiguous,
+            ..Default::default()
+        };
         let settings_write = FuseSettings {
             output_shape_updates: false,
             // TODO: Fusion axis should be on the (reduce_axis - 1).
-            vectorization: VectorizationSetting::SmallerOrEqualThanPreviousBlock,
+            vectorization: VectorizationSetting::Deactivated,
             ..Default::default()
         };
+        let fuser = TraceOperationFuser::new(max_bindings, bool_precision, settings_read);
 
         Self {
             fuser,
             blocks: Vec::new(),
             settings_write,
+            settings_read,
             analyzer,
         }
     }
@@ -86,9 +85,6 @@ impl ReduceBroadcastedFullFuser {
         }
 
         let trace = self.fuser.finish();
-        // println!("{:?}", self.blocks);
-        // println!("{blocks:?}");
-        // println!("{trace}");
 
         ReduceBrInfo {
             blocks,
@@ -99,10 +95,11 @@ impl ReduceBroadcastedFullFuser {
 
     /// Registers a [ReduceBlockFuser] to build the trace.
     pub fn register<R: Runtime>(&mut self, block: &ReduceBlockFuser<R>) {
-        println!("Registering ...");
         // Helper to close previous blocks if necessary
         if !self.fuser.is_empty() {
-            self.fuser.next_block([], self.settings_write).unwrap();
+            let mut settings = self.settings_read;
+            settings.vectorization = VectorizationSetting::EqualThanPreviousBlock { block_pos: 0 };
+            self.fuser.next_block([], settings).unwrap();
 
             let analysis = self.analyzer.retrieve_next();
 

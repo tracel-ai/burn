@@ -3,7 +3,7 @@ use crate::{
     engine::{
         codegen::ir::{FuseArg, FuseOp, FuseType},
         launch::vectorization::Vect,
-        trace::block::{FuseBlock, LocalInput},
+        trace::block::FuseBlock,
     },
 };
 use burn_ir::{TensorId, TensorIr};

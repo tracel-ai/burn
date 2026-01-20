@@ -4,7 +4,7 @@ use super::{
         settings::FuseSettings,
     },
     FuseResources, RegisterTensor,
-    block::{FuseBlockBuilder, LocalInput},
+    block::FuseBlockBuilder,
 };
 use super::{FuseTrace, RegisteredTensors};
 use crate::engine::trace::block::QuantInput;
