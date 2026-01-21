@@ -68,7 +68,7 @@ def create_model():
     # Create model
     model = helper.make_model(
         graph,
-        producer_name='burn-import-test',
+        producer_name='burn-onnx-test',
         opset_imports=[helper.make_opsetid("", 16)]
     )
 

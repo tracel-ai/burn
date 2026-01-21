@@ -194,7 +194,7 @@ def build_model():
     # Create model
     model = helper.make_model(
         main_graph,
-        producer_name='burn-import-test',
+        producer_name='burn-onnx-test',
         opset_imports=[helper.make_opsetid("", 16)]
     )
 

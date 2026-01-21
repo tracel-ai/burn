@@ -76,7 +76,7 @@ def build_model():
         outputs=[helper.make_tensor_value_info('output', TensorProto.FLOAT, [2, 3])],
     )
 
-    model = helper.make_model(main_graph, producer_name='burn-import-test',
+    model = helper.make_model(main_graph, producer_name='burn-onnx-test',
                                opset_imports=[helper.make_opsetid("", 16)])
     model.ir_version = 8
     onnx.checker.check_model(model)

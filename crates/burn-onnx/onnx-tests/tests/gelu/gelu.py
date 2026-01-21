@@ -29,7 +29,7 @@ def main():
         [Y]
     )
 
-    model_def = helper.make_model(graph_def, producer_name='burn-import-test')
+    model_def = helper.make_model(graph_def, producer_name='burn-onnx-test')
     model_def.opset_import[0].version = 20  # GELU requires opset 20
 
     # Validate the model
