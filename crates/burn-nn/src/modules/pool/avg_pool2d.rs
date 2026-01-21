@@ -1,4 +1,3 @@
-use crate::conv::checks::check_same_padding_support;
 use burn_core as burn;
 
 use crate::PaddingConfig2d;
@@ -21,9 +20,8 @@ pub struct AvgPool2dConfig {
     pub strides: [usize; 2],
     /// The padding configuration.
     ///
-    /// ### Warning
-    /// Only symmetric padding is currently supported. As such, using `Same` padding with an even kernel
-    /// size is not supported as it will not produce the same output size.
+    /// Supports symmetric and asymmetric padding. `Same` padding with even kernel sizes
+    /// will automatically use asymmetric padding to preserve input dimensions.
     #[config(default = "PaddingConfig2d::Valid")]
     pub padding: PaddingConfig2d,
     /// If the padding is counted in the denominator when computing the average.
@@ -81,9 +79,6 @@ impl ModuleDisplay for AvgPool2d {
 impl AvgPool2dConfig {
     /// Initialize a new [avg pool 2d](AvgPool2d) module.
     pub fn init(&self) -> AvgPool2d {
-        if self.padding == PaddingConfig2d::Same {
-            check_same_padding_support(&self.kernel_size);
-        }
         AvgPool2d {
             stride: self.strides,
             kernel_size: self.kernel_size,
@@ -104,11 +99,20 @@ impl AvgPool2d {
     /// - input: `[batch_size, channels, height_in, width_in]`
     /// - output: `[batch_size, channels, height_out, width_out]`
     pub fn forward<B: Backend>(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
+        let [_batch_size, _channels_in, height_in, width_in] = input.dims();
+
+        // Calculate padding as pairs - handles Same, Valid, and Explicit uniformly
+        let ((top, bottom), (left, right)) = self.padding.calculate_padding_2d_pairs(
+            height_in,
+            width_in,
+            &self.kernel_size,
+            &self.stride,
+        );
+
         // TODO: Move asymmetric padding to functional level via PoolOptions
         // See: https://github.com/tracel-ai/burn/issues/4362
         // Handle asymmetric padding by applying explicit pad operation first
-        if self.padding.is_asymmetric() {
-            let (top, left, bottom, right) = self.padding.as_tuple();
+        if top != bottom || left != right {
             // Burn's pad takes (left, right, top, bottom) for the last two dimensions
             let padded = input.pad((left, right, top, bottom), PadMode::Constant(0.0));
             // Use zero padding for the pool operation since we already padded
@@ -121,19 +125,12 @@ impl AvgPool2d {
                 self.ceil_mode,
             )
         } else {
-            let [_batch_size, _channels_in, height_in, width_in] = input.dims();
-            let padding = self.padding.calculate_padding_2d(
-                height_in,
-                width_in,
-                &self.kernel_size,
-                &self.stride,
-            );
-
+            // Symmetric padding
             avg_pool2d(
                 input,
                 self.kernel_size,
                 self.stride,
-                padding,
+                [top, left],
                 self.count_include_pad,
                 self.ceil_mode,
             )
@@ -148,10 +145,19 @@ mod tests {
     use rstest::rstest;
 
     #[test]
-    #[should_panic = "Same padding with an even kernel size is not supported"]
-    fn same_with_even_kernel_is_invalid() {
-        let config = AvgPool2dConfig::new([2, 2]).with_padding(PaddingConfig2d::Same);
-        let _ = config.init();
+    fn same_with_even_kernel_uses_asymmetric_padding() {
+        let device = Default::default();
+        let config = AvgPool2dConfig::new([2, 2])
+            .with_strides([1, 1])
+            .with_padding(PaddingConfig2d::Same);
+        let pool = config.init();
+
+        // Input: [batch=1, channels=2, height=5, width=5]
+        let input = Tensor::<TestBackend, 4>::ones([1, 2, 5, 5], &device);
+        let output = pool.forward(input);
+
+        // Same padding should preserve spatial dimensions
+        assert_eq!(output.dims(), [1, 2, 5, 5]);
     }
 
     #[test]

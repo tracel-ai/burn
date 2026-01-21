@@ -1,4 +1,3 @@
-use crate::conv::checks::check_same_padding_support;
 use burn_core as burn;
 
 use crate::PaddingConfig1d;
@@ -21,9 +20,8 @@ pub struct MaxPool1dConfig {
     pub stride: usize,
     /// The padding configuration.
     ///
-    /// ### Warning
-    /// Only symmetric padding is currently supported. As such, using `Same` padding with an even kernel
-    /// size is not supported as it will not produce the same output size.
+    /// Supports symmetric and asymmetric padding. `Same` padding with even kernel sizes
+    /// will automatically use asymmetric padding to preserve input dimensions.
     #[config(default = "PaddingConfig1d::Valid")]
     pub padding: PaddingConfig1d,
     /// The dilation.
@@ -73,9 +71,6 @@ impl ModuleDisplay for MaxPool1d {
 impl MaxPool1dConfig {
     /// Initialize a new [max pool 1d](MaxPool1d) module.
     pub fn init(&self) -> MaxPool1d {
-        if self.padding == PaddingConfig1d::Same {
-            check_same_padding_support(&[self.kernel_size]);
-        }
         MaxPool1d {
             stride: self.stride,
             kernel_size: self.kernel_size,
@@ -96,11 +91,17 @@ impl MaxPool1d {
     /// - input: `[batch_size, channels, length_in]`
     /// - output: `[batch_size, channels, length_out]`
     pub fn forward<B: Backend>(&self, input: Tensor<B, 3>) -> Tensor<B, 3> {
+        let [_batch_size, _channels, length] = input.dims();
+
+        // Calculate padding as pair - handles Same, Valid, and Explicit uniformly
+        let (left, right) =
+            self.padding
+                .calculate_padding_1d_pair(length, self.kernel_size, self.stride);
+
         // TODO: Move asymmetric padding to functional level via PoolOptions
         // See: https://github.com/tracel-ai/burn/issues/4362
         // Handle asymmetric padding by applying explicit pad operation first
-        if self.padding.is_asymmetric() {
-            let (left, right) = self.padding.as_tuple();
+        if left != right {
             // Burn's pad takes (left, right, top, bottom) for the last two dimensions
             // For 1D (NCL format), we only pad L (last dim), so top/bottom = 0
             // Use -inf for max pooling so padded values don't affect the max
@@ -115,16 +116,12 @@ impl MaxPool1d {
                 self.ceil_mode,
             )
         } else {
-            let [_batch_size, _channels, length] = input.dims();
-            let padding = self
-                .padding
-                .calculate_padding_1d(length, self.kernel_size, self.stride);
-
+            // Symmetric padding
             max_pool1d(
                 input,
                 self.kernel_size,
                 self.stride,
-                padding,
+                left,
                 self.dilation,
                 self.ceil_mode,
             )
@@ -139,10 +136,19 @@ mod tests {
     use rstest::rstest;
 
     #[test]
-    #[should_panic = "Same padding with an even kernel size is not supported"]
-    fn same_with_even_kernel_is_invalid() {
-        let config = MaxPool1dConfig::new(2).with_padding(PaddingConfig1d::Same);
-        let _ = config.init();
+    fn same_with_even_kernel_uses_asymmetric_padding() {
+        let device = Default::default();
+        let config = MaxPool1dConfig::new(2)
+            .with_stride(1)
+            .with_padding(PaddingConfig1d::Same);
+        let pool = config.init();
+
+        // Input: [batch=1, channels=2, length=5]
+        let input = Tensor::<TestBackend, 3>::ones([1, 2, 5], &device);
+        let output = pool.forward(input);
+
+        // Same padding should preserve spatial dimensions
+        assert_eq!(output.dims(), [1, 2, 5]);
     }
 
     #[test]

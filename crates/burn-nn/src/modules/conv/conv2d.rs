@@ -31,9 +31,8 @@ pub struct Conv2dConfig {
     pub groups: usize,
     /// The padding configuration.
     ///
-    /// ### Warning
-    /// Only symmetric padding is currently supported. As such, using `Same` padding with an even kernel
-    /// size is not supported as it will not produce the same output size.
+    /// Supports symmetric and asymmetric padding. `Same` padding with even kernel sizes
+    /// will automatically use asymmetric padding to preserve input dimensions.
     #[config(default = "PaddingConfig2d::Valid")]
     pub padding: PaddingConfig2d,
     /// If bias should be added to the output.
@@ -72,9 +71,6 @@ impl Conv2dConfig {
     /// Initialize a new [conv2d](Conv2d) module.
     pub fn init<B: Backend>(&self, device: &B::Device) -> Conv2d<B> {
         checks::checks_channels_div_groups(self.channels[0], self.channels[1], self.groups);
-        if self.padding == PaddingConfig2d::Same {
-            checks::check_same_padding_support(&self.kernel_size);
-        }
 
         let shape = [
             self.channels[1],
@@ -170,21 +166,22 @@ impl<B: Backend> Conv2d<B> {
     pub fn forward(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
         let [_batch_size, _channels_in, height_in, width_in] = input.dims();
 
+        // Calculate padding as pairs - handles Same, Valid, and Explicit uniformly
+        let ((top, bottom), (left, right)) = self.padding.calculate_padding_2d_pairs(
+            height_in,
+            width_in,
+            &self.kernel_size,
+            &self.stride,
+        );
+
         // Build ConvOptions with appropriate padding
-        let options = if self.padding.is_asymmetric() {
-            let (top, left, bottom, right) = self.padding.as_tuple();
-            // Use asymmetric padding via ConvOptions - functional layer handles explicit pad
-            // padding = [top, left], padding_out = [bottom, right]
+        let options = if top != bottom || left != right {
+            // Asymmetric padding: functional layer handles explicit pad
             ConvOptions::new(self.stride, [top, left], self.dilation, self.groups)
                 .with_padding_out([bottom, right])
         } else {
-            let padding = self.padding.calculate_padding_2d(
-                height_in,
-                width_in,
-                &self.kernel_size,
-                &self.stride,
-            );
-            ConvOptions::new(self.stride, padding, self.dilation, self.groups)
+            // Symmetric padding
+            ConvOptions::new(self.stride, [top, left], self.dilation, self.groups)
         };
 
         conv2d(
@@ -277,11 +274,20 @@ mod tests {
     }
 
     #[test]
-    #[should_panic = "Same padding with an even kernel size is not supported"]
-    fn same_with_even_kernel_is_invalid() {
+    fn same_with_even_kernel_uses_asymmetric_padding() {
         let device = Default::default();
-        let config = Conv2dConfig::new([4, 4], [2, 2]).with_padding(PaddingConfig2d::Same);
-        let _ = config.init::<TestBackend>(&device);
+        let config = Conv2dConfig::new([4, 4], [2, 2])
+            .with_padding(PaddingConfig2d::Same)
+            .with_initializer(Initializer::Constant { value: 1.0 })
+            .with_bias(false);
+        let conv = config.init::<TestBackend>(&device);
+
+        // Input: [batch=1, channels=4, height=5, width=5]
+        let input = Tensor::<TestBackend, 4>::ones([1, 4, 5, 5], &device);
+        let output = conv.forward(input);
+
+        // Same padding should preserve spatial dimensions
+        assert_eq!(output.dims(), [1, 4, 5, 5]);
     }
 
     #[test]
