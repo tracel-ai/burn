@@ -171,6 +171,32 @@ impl RelativeOps for ModuleOperationIr {
                 options: desc.options.clone(),
                 out: desc.out.to_relative(converter),
             }),
+            ModuleOperationIr::Conv1dXBackward(desc) => {
+                ModuleOperationIr::Conv1dXBackward(Conv1dXBackwardOpIr {
+                    x: desc.x.to_relative(converter),
+                    weight: desc.weight.to_relative(converter),
+                    output_grad: desc.output_grad.to_relative(converter),
+                    options: desc.options.clone(),
+                    out: desc.out.to_relative(converter),
+                })
+            }
+            ModuleOperationIr::Conv1dWeightBackward(desc) => {
+                ModuleOperationIr::Conv1dWeightBackward(Conv1dWeightBackwardOpIr {
+                    x: desc.x.to_relative(converter),
+                    weight: desc.weight.to_relative(converter),
+                    output_grad: desc.output_grad.to_relative(converter),
+                    options: desc.options.clone(),
+                    out: desc.out.to_relative(converter),
+                })
+            }
+            ModuleOperationIr::Conv1dBiasBackward(desc) => {
+                ModuleOperationIr::Conv1dBiasBackward(Conv1dBiasBackwardOpIr {
+                    x: desc.x.to_relative(converter),
+                    bias: desc.bias.to_relative(converter),
+                    output_grad: desc.output_grad.to_relative(converter),
+                    out: desc.out.to_relative(converter),
+                })
+            }
             ModuleOperationIr::Conv2d(desc) => ModuleOperationIr::Conv2d(Conv2dOpIr {
                 x: desc.x.to_relative(converter),
                 weight: desc.weight.to_relative(converter),
@@ -178,6 +204,32 @@ impl RelativeOps for ModuleOperationIr {
                 options: desc.options.clone(),
                 out: desc.out.to_relative(converter),
             }),
+            ModuleOperationIr::Conv2dXBackward(desc) => {
+                ModuleOperationIr::Conv2dXBackward(Conv2dXBackwardOpIr {
+                    x: desc.x.to_relative(converter),
+                    weight: desc.weight.to_relative(converter),
+                    output_grad: desc.output_grad.to_relative(converter),
+                    options: desc.options.clone(),
+                    out: desc.out.to_relative(converter),
+                })
+            }
+            ModuleOperationIr::Conv2dWeightBackward(desc) => {
+                ModuleOperationIr::Conv2dWeightBackward(Conv2dWeightBackwardOpIr {
+                    x: desc.x.to_relative(converter),
+                    weight: desc.weight.to_relative(converter),
+                    output_grad: desc.output_grad.to_relative(converter),
+                    options: desc.options.clone(),
+                    out: desc.out.to_relative(converter),
+                })
+            }
+            ModuleOperationIr::Conv2dBiasBackward(desc) => {
+                ModuleOperationIr::Conv2dBiasBackward(Conv2dBiasBackwardOpIr {
+                    x: desc.x.to_relative(converter),
+                    bias: desc.bias.to_relative(converter),
+                    output_grad: desc.output_grad.to_relative(converter),
+                    out: desc.out.to_relative(converter),
+                })
+            }
             ModuleOperationIr::Conv3d(desc) => ModuleOperationIr::Conv3d(Conv3dOpIr {
                 x: desc.x.to_relative(converter),
                 weight: desc.weight.to_relative(converter),
@@ -185,6 +237,32 @@ impl RelativeOps for ModuleOperationIr {
                 options: desc.options.clone(),
                 out: desc.out.to_relative(converter),
             }),
+            ModuleOperationIr::Conv3dXBackward(desc) => {
+                ModuleOperationIr::Conv3dXBackward(Conv3dXBackwardOpIr {
+                    x: desc.x.to_relative(converter),
+                    weight: desc.weight.to_relative(converter),
+                    output_grad: desc.output_grad.to_relative(converter),
+                    options: desc.options.clone(),
+                    out: desc.out.to_relative(converter),
+                })
+            }
+            ModuleOperationIr::Conv3dWeightBackward(desc) => {
+                ModuleOperationIr::Conv3dWeightBackward(Conv3dWeightBackwardOpIr {
+                    x: desc.x.to_relative(converter),
+                    weight: desc.weight.to_relative(converter),
+                    output_grad: desc.output_grad.to_relative(converter),
+                    options: desc.options.clone(),
+                    out: desc.out.to_relative(converter),
+                })
+            }
+            ModuleOperationIr::Conv3dBiasBackward(desc) => {
+                ModuleOperationIr::Conv3dBiasBackward(Conv3dBiasBackwardOpIr {
+                    x: desc.x.to_relative(converter),
+                    bias: desc.bias.to_relative(converter),
+                    output_grad: desc.output_grad.to_relative(converter),
+                    out: desc.out.to_relative(converter),
+                })
+            }
             ModuleOperationIr::DeformableConv2d(desc) => {
                 ModuleOperationIr::DeformableConv2d(Box::new(DeformConv2dOpIr {
                     x: desc.x.to_relative(converter),
