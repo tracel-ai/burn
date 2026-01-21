@@ -350,15 +350,11 @@ pub(crate) fn conv2d_weight_backward<B: Backend>(
 /// Calculate the [2D convolution](crate::ops::ModuleOps::conv2d) backward pass, returning the gradient for `bias`.
 pub(crate) fn conv2d_bias_backward<B: Backend>(
     x: FloatTensor<B>,
-    weight: FloatTensor<B>,
     bias: FloatTensor<B>,
     output_grad: FloatTensor<B>,
 ) -> FloatTensor<B> {
-    let weight_shape = weight.shape();
-
-    let [batch_size, _channels_in, _height_in, _width_in] = x.shape().dims();
-    let [_, _, height_out, width_out] = output_grad.shape().dims();
-    let [channels_out, _, _kernel_size_1, _kernel_size_2] = weight_shape.dims();
+    let [batch_size, _, _, _] = x.shape().dims();
+    let [_, channels_out, height_out, width_out] = output_grad.shape().dims();
 
     let grad = B::float_swap_dims(output_grad, 0, 1);
     let grad = B::float_reshape(
@@ -453,21 +449,11 @@ pub(crate) fn conv3d_weight_backward<B: Backend>(
 /// Calculate the [3D convolution](crate::ops::ModuleOps::conv3d) backward pass, returning the gradient for `bias`.
 pub(crate) fn conv3d_bias_backward<B: Backend>(
     x: FloatTensor<B>,
-    weight: FloatTensor<B>,
     bias: FloatTensor<B>,
     output_grad: FloatTensor<B>,
 ) -> FloatTensor<B> {
-    let weight_shape = weight.shape();
-
     let [batch_size, _channels_in, _depth_in, _height_in, _width_in] = x.shape().dims();
-    let [_, _, depth_out, height_out, width_out] = output_grad.shape().dims();
-    let [
-        channels_out,
-        _,
-        _kernel_size_1,
-        _kernel_size_2,
-        _kernel_size_3,
-    ] = weight_shape.dims();
+    let [_, channels_out, depth_out, height_out, width_out] = output_grad.shape().dims();
 
     let grad = B::float_swap_dims(output_grad, 0, 1);
     let grad = B::float_reshape(

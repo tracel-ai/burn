@@ -289,7 +289,7 @@ impl<E: TchElement> ModuleOps<Self> for LibTorch<E> {
         padding: usize,
         dilation: usize,
         ceil_mode: bool,
-    ) -> MaxPool1dWithIndices<LibTorch<E>> {
+    ) -> MaxPool1dWithIndices<Self> {
         let (tensor, indices) = tch::Tensor::max_pool1d_with_indices(
             &x.tensor,
             kernel_size as i64,
@@ -329,7 +329,7 @@ impl<E: TchElement> ModuleOps<Self> for LibTorch<E> {
         padding: [usize; 2],
         dilation: [usize; 2],
         ceil_mode: bool,
-    ) -> MaxPool2dWithIndices<LibTorch<E>> {
+    ) -> MaxPool2dWithIndices<Self> {
         let (tensor, indices) = tch::Tensor::max_pool2d_with_indices(
             &x.tensor,
             [kernel_size[0] as i64, kernel_size[1] as i64],
@@ -351,7 +351,7 @@ impl<E: TchElement> ModuleOps<Self> for LibTorch<E> {
         ceil_mode: bool,
         output_grad: TchTensor,
         indices: TchTensor,
-    ) -> MaxPool2dBackward<LibTorch<E>> {
+    ) -> MaxPool2dBackward<Self> {
         let grad = tch::Tensor::max_pool2d_with_indices_backward(
             &x.tensor,
             &output_grad.tensor,

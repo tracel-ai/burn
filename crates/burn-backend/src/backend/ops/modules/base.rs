@@ -498,11 +498,10 @@ pub trait ModuleOps<B: Backend> {
     /// Backward pass for the [conv2d](ModuleOps::conv2d) operation, returning the gradient for `bias`.
     fn conv2d_bias_backward(
         x: FloatTensor<B>,
-        weight: FloatTensor<B>,
         bias: FloatTensor<B>,
         output_grad: FloatTensor<B>,
     ) -> FloatTensor<B> {
-        conv::conv2d_bias_backward::<B>(x, weight, bias, output_grad)
+        conv::conv2d_bias_backward::<B>(x, bias, output_grad)
     }
 
     /// Two dimensional deformable convolution.
@@ -565,11 +564,10 @@ pub trait ModuleOps<B: Backend> {
     /// Backward pass for the [conv3d](ModuleOps::conv3d) operation, returning the gradient for `bias`.
     fn conv3d_bias_backward(
         x: FloatTensor<B>,
-        weight: FloatTensor<B>,
         bias: FloatTensor<B>,
         output_grad: FloatTensor<B>,
     ) -> FloatTensor<B> {
-        conv::conv3d_bias_backward::<B>(x, weight, bias, output_grad)
+        conv::conv3d_bias_backward::<B>(x, bias, output_grad)
     }
     /// One dimensional transposed convolution.
     ///

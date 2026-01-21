@@ -6,7 +6,7 @@ use crate::{
     ops::TransactionPrimitive,
     tensor::{
         BasicAutodiffOps, BasicOps, BoolTensor, Device, IndexingUpdateOp, Int, IntTensor, Numeric,
-        TensorKind,
+        Ordered, TensorKind,
     },
 };
 
@@ -253,6 +253,63 @@ impl<B: Backend> Numeric<B> for Int {
         B::int_cumprod(tensor, dim)
     }
 
+    fn abs(tensor: Self::Primitive) -> Self::Primitive {
+        B::int_abs(tensor)
+    }
+
+    fn powf(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
+        B::int_powf(lhs, B::int_into_float(rhs))
+    }
+
+    fn powf_scalar(lhs: Self::Primitive, rhs: Scalar) -> Self::Primitive {
+        B::int_powf_scalar(lhs, rhs)
+    }
+
+    fn powi(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
+        B::int_powi(lhs, rhs)
+    }
+
+    fn powi_scalar(lhs: Self::Primitive, rhs: Scalar) -> Self::Primitive {
+        B::int_powi_scalar(lhs, rhs)
+    }
+
+    fn random(shape: Shape, distribution: Distribution, device: &Device<B>) -> Self::Primitive {
+        B::int_random(shape, distribution, device)
+    }
+
+    fn sign(tensor: Self::Primitive) -> Self::Primitive {
+        B::int_sign(tensor)
+    }
+
+    fn sort(tensor: Self::Primitive, dim: usize, descending: bool) -> Self::Primitive {
+        B::int_sort(tensor, dim, descending)
+    }
+
+    fn sort_with_indices(
+        tensor: Self::Primitive,
+        dim: usize,
+        descending: bool,
+    ) -> (Self::Primitive, IntTensor<B>) {
+        B::int_sort_with_indices(tensor, dim, descending)
+    }
+
+    fn argsort(tensor: Self::Primitive, dim: usize, descending: bool) -> IntTensor<B> {
+        B::int_argsort(tensor, dim, descending)
+    }
+
+    /// Applies the matrix multiplication operation.
+    ///
+    /// `C = AB`
+    ///
+    /// # Panics
+    ///
+    /// If the two tensors don't have a compatible shape.
+    fn matmul(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
+        B::int_matmul(lhs, rhs)
+    }
+}
+
+impl<B: Backend> Ordered<B> for Int {
     fn cummin(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
         B::int_cummin(tensor, dim)
     }
@@ -349,61 +406,6 @@ impl<B: Backend> Numeric<B> for Int {
 
     fn clamp_max(tensor: Self::Primitive, max: Scalar) -> Self::Primitive {
         B::int_clamp_max(tensor, max)
-    }
-
-    fn abs(tensor: Self::Primitive) -> Self::Primitive {
-        B::int_abs(tensor)
-    }
-
-    fn powf(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
-        B::int_powf(lhs, B::int_into_float(rhs))
-    }
-
-    fn powf_scalar(lhs: Self::Primitive, rhs: Scalar) -> Self::Primitive {
-        B::int_powf_scalar(lhs, rhs)
-    }
-
-    fn powi(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
-        B::int_powi(lhs, rhs)
-    }
-
-    fn powi_scalar(lhs: Self::Primitive, rhs: Scalar) -> Self::Primitive {
-        B::int_powi_scalar(lhs, rhs)
-    }
-
-    fn random(shape: Shape, distribution: Distribution, device: &Device<B>) -> Self::Primitive {
-        B::int_random(shape, distribution, device)
-    }
-
-    fn sign(tensor: Self::Primitive) -> Self::Primitive {
-        B::int_sign(tensor)
-    }
-
-    fn sort(tensor: Self::Primitive, dim: usize, descending: bool) -> Self::Primitive {
-        B::int_sort(tensor, dim, descending)
-    }
-
-    fn sort_with_indices(
-        tensor: Self::Primitive,
-        dim: usize,
-        descending: bool,
-    ) -> (Self::Primitive, IntTensor<B>) {
-        B::int_sort_with_indices(tensor, dim, descending)
-    }
-
-    fn argsort(tensor: Self::Primitive, dim: usize, descending: bool) -> IntTensor<B> {
-        B::int_argsort(tensor, dim, descending)
-    }
-
-    /// Applies the matrix multiplication operation.
-    ///
-    /// `C = AB`
-    ///
-    /// # Panics
-    ///
-    /// If the two tensors don't have a compatible shape.
-    fn matmul(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
-        B::int_matmul(lhs, rhs)
     }
 }
 
