@@ -9,12 +9,15 @@ use burn_std::flex32;
 
 use super::cast::ToElement;
 
-/// Element trait for tensor.
+/// Core element trait for tensor values.
+///
+/// This trait defines the minimal set of capabilities required for a type to be
+/// stored and manipulated as a tensor element across all backends.
 pub trait Element:
     ToElement
     + ElementRandom
     + ElementConversion
-    + ElementComparison
+    + ElementEq
     + ElementLimits
     + bytemuck::CheckedBitPattern
     + bytemuck::NoUninit
@@ -30,6 +33,15 @@ pub trait Element:
     /// The dtype of the element.
     fn dtype() -> DType;
 }
+
+/// Ordered element trait for tensor values.
+///
+/// This trait extends [`Element`] with ordering semantics, enabling comparison
+/// and order-dependent operations in generic Rust implementations.
+///
+/// Backends that implement these operations entirely at the device level do
+/// not rely on this trait. It only constrains the scalar type for generic Rust code.
+pub trait ElementOrdered: Element + ElementComparison {}
 
 /// Element conversion trait for tensor.
 pub trait ElementConversion {
@@ -63,13 +75,19 @@ pub trait ElementRandom {
     fn random<R: RngCore>(distribution: Distribution, rng: &mut R) -> Self;
 }
 
+/// Element trait for equality of a tensor.
+pub trait ElementEq {
+    /// Returns whether `self` and `other` are equal.
+    fn eq(&self, other: &Self) -> bool;
+}
+
 /// Element ordering trait.
 pub trait ElementComparison {
     /// Returns and [Ordering] between `self` and `other`.
     fn cmp(&self, other: &Self) -> Ordering;
 }
 
-/// Element ordering trait.
+/// Element limits trait.
 pub trait ElementLimits {
     /// The minimum representable value
     const MIN: Self;
@@ -102,6 +120,11 @@ macro_rules! make_element {
             #[inline(always)]
             fn dtype() -> burn_std::DType {
                 $dtype
+            }
+        }
+        impl ElementEq for $type {
+            fn eq(&self, other: &Self) -> bool {
+                self == other
             }
         }
 
@@ -137,6 +160,9 @@ macro_rules! make_element {
             const MIN: Self = $min;
             const MAX: Self = $max;
         }
+
+        impl ElementOrdered for $type {}
+
     };
 }
 
