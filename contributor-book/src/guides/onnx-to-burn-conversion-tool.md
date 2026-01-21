@@ -42,7 +42,7 @@ For an introduction to ONNX import in Burn, see
 - Exclude any ONNX/Protobuf-specific logic from the Burn graph
 - **Feature Support Validation**: The `onnx-ir` crate should extract and preserve all ONNX attributes
   faithfully, even if Burn does not yet support them. Rejection of unsupported features should happen
-  in `burn-import` during code generation, not in `onnx-ir` during configuration extraction. This
+  in `burn-onnx` during code generation, not in `onnx-ir` during configuration extraction. This
   allows `onnx-ir` to be reused by other projects that may have different feature support
 
 The conversion process involves three main stages:
@@ -53,10 +53,10 @@ The conversion process involves three main stages:
 
 ## Adding New Operators
 
-To extend `burn-import` with support for new ONNX operators, follow these steps:
+To extend `burn-onnx` with support for new ONNX operators, follow these steps:
 
 1. **Create PyTorch Script**: Place a PyTorch script using the new operator under
-   `crates/burn-import/onnx-tests/tests/<op>/<op>.py`. Make sure to print both input and output
+   `crates/burn-onnx/onnx-tests/tests/<op>/<op>.py`. Make sure to print both input and output
    tensors for end-to-end testing.
 
 2. **Generate ONNX Model**: Run the PyTorch script to produce an ONNX model.
@@ -65,7 +65,7 @@ To extend `burn-import` with support for new ONNX operators, follow these steps:
    model contains the expected operators.
 
 4. **Generate IR and Burn Graph**: Navigate to
-   [crates/burn-import/](https://github.com/tracel-ai/burn/tree/main/crates/burn-import) and run:
+   [crates/burn-onnx/](https://github.com/tracel-ai/burn/tree/main/crates/burn-onnx) and run:
 
    ```
    cargo r -- ./onnx-tests/tests/<op>/<op>.onnx ./out
@@ -79,9 +79,9 @@ To extend `burn-import` with support for new ONNX operators, follow these steps:
    the Burn model in Rust code, and `my-model.burnpack` contains the model weights.
 
 7. **Integration Test**: Include the test in the `tests/<op_name>/mod.rs` file in the
-   [crates/burn-import/onnx-tests/tests/](https://github.com/tracel-ai/burn/blob/main/crates/burn-import/onnx-tests/tests/) 
+   [crates/burn-onnx/onnx-tests/tests/](https://github.com/tracel-ai/burn/blob/main/crates/burn-onnx/onnx-tests/tests/)
    directory. Further details can be found in the
-   [onnx-tests README](https://github.com/tracel-ai/burn/blob/main/crates/burn-import/onnx-tests/README.md).
+   [onnx-tests README](https://github.com/tracel-ai/burn/blob/main/crates/burn-onnx/onnx-tests/README.md).
 
 ## Implementing a New Operator
 
@@ -155,9 +155,9 @@ For example, the squeeze operation in `crates/onnx-ir/src/node/squeeze.rs` conta
 - The `node_spec()` method defines input/output requirements
 - The `process()` method extracts config and constructs the `Node::Squeeze` variant
 
-### Step 2: Code Generation in burn-import
+### Step 2: Code Generation in burn-onnx
 
-1. Create a new file named `<operation_name>.rs` in the `crates/burn-import/src/burn/node/`
+1. Create a new file named `<operation_name>.rs` in the `crates/burn-onnx/src/burn/node/`
    directory. This file implements code generation for your operation by implementing the
    `NodeCodegen` trait directly on the onnx-ir node type.
 
@@ -245,7 +245,7 @@ For example, the squeeze operation in `crates/onnx-ir/src/node/squeeze.rs` conta
 
 ### Step 3: Register in Module System
 
-Add the module declaration to `crates/burn-import/src/burn/node/mod.rs`:
+Add the module declaration to `crates/burn-onnx/src/burn/node/mod.rs`:
 
 ```rust
 // ... other node modules
@@ -257,7 +257,7 @@ The modules are automatically made visible through re-exports in the same file.
 
 ### Step 4: Register in Code Generation Dispatch
 
-Add your operation to the dispatch macro in `crates/burn-import/src/burn/node_codegen.rs`. The
+Add your operation to the dispatch macro in `crates/burn-onnx/src/burn/node_codegen.rs`. The
 `impl_node_codegen_dispatch!` macro generates the trait implementation that dispatches to your
 node-specific code.
 
@@ -316,7 +316,7 @@ See [NodeProcessor Trait](#nodeprocessor-trait) for the complete trait definitio
 
 ### Step 6: Add Newly Supported Op!
 
-As a reward, add an extra check to `crates/burn-import/SUPPORTED-ONNX-OPS.md`!
+As a reward, add an extra check to `crates/burn-onnx/SUPPORTED-ONNX-OPS.md`!
 
 ### Constant Lifting
 
@@ -413,13 +413,13 @@ When implementing a new operator, there are several levels of testing to conside
 
   See existing tests in `crates/onnx-ir/src/node/squeeze.rs` for examples.
 
-- **Code Generation**: Test the burn-import Node implementation to verify correct Rust code
+- **Code Generation**: Test the burn-onnx Node implementation to verify correct Rust code
   generation. Each node file typically includes unit tests using `assert_tokens()` to validate
   generated code against expected output.
 
 ### Integration Testing
 
-- **Test Path**: Write integration tests in `crates/burn-import/onnx-tests/tests/<op_name>/mod.rs` where `<op_name>` is the name of the new operator. 
+- **Test Path**: Write integration tests in `crates/burn-onnx/onnx-tests/tests/<op_name>/mod.rs` where `<op_name>` is the name of the new operator. 
 
 - **What to Test**: 
     - Create ONNX models that use your operator and test the end-to-end conversion process
@@ -428,7 +428,7 @@ When implementing a new operator, there are several levels of testing to conside
     - Include models that test edge cases (e.g., different input shapes, parameter combinations)
     - Verify that inputs and outputs match between the original ONNX model and the converted Burn model
 - Further details can be found in the
-   [onnx-tests README](https://github.com/tracel-ai/burn/blob/main/crates/burn-import/onnx-tests/README.md).
+   [onnx-tests README](https://github.com/tracel-ai/burn/blob/main/crates/burn-onnx/onnx-tests/README.md).
 
 Testing the processor implementation is particularly important as it directly affects the
 correctness of the conversion process. Incorrect type inference can lead to mismatched tensor shapes
