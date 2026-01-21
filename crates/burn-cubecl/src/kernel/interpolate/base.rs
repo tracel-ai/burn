@@ -1,6 +1,6 @@
 use crate::{
     CubeRuntime,
-    ops::{numeric::empty_device_optimized_dtype, permute_nchw_to_nhwc, permute_nhwc_to_nchw},
+    ops::{numeric::empty_device_dtype, permute_nchw_to_nhwc, permute_nhwc_to_nchw},
     tensor::CubeTensor,
 };
 use burn_backend::{
@@ -27,7 +27,7 @@ pub fn interpolate<R: CubeRuntime>(
     let input = permute_nchw_to_nhwc(input);
 
     let shape_out = Shape::new([batch_size, out_height, out_width, channels]);
-    let output = empty_device_optimized_dtype(
+    let output = empty_device_dtype(
         input.client.clone(),
         input.device.clone(),
         shape_out,
@@ -56,7 +56,7 @@ pub fn interpolate_backward<R: CubeRuntime>(
     let out_grad = permute_nchw_to_nhwc(out_grad);
 
     let output_shape = input.shape.clone();
-    let output = empty_device_optimized_dtype(
+    let output = empty_device_dtype(
         input.client.clone(),
         input.device.clone(),
         output_shape,

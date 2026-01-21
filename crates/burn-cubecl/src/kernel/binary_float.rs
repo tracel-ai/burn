@@ -89,8 +89,12 @@ pub(crate) fn launch_binop_float<R: CubeRuntime, O: BinaryOpFloatFamily>(
 
             rhs
         } else {
-            let output =
-                empty_device_dtype(lhs.client.clone(), lhs.device.clone(), shape_out, dtype);
+            let output = empty_device_dtype(
+                lhs.client.clone(),
+                lhs.device.clone(),
+                shape_out,
+                dtype,
+            );
 
             kernel_binop::launch_unchecked::<O, R>(
                 &client,

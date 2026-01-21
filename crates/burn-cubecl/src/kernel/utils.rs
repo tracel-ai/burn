@@ -1,7 +1,7 @@
 use burn_backend::Shape;
 use cubecl::{
     ir::LineSize,
-    prelude::ArrayArg,
+    prelude::{ArrayArg, ScalarArg},
     std::{
         FastDivmod, FastDivmodArgs,
         tensor::layout::linear::{LinearLayoutArgs, LinearViewLaunch},
@@ -116,5 +116,22 @@ pub fn broadcast_shape<R: CubeRuntime>(tensors: &[&CubeTensor<R>]) -> Shape {
 
     Shape {
         dims: dims.collect(),
+    }
+}
+
+pub fn broadcast_strides<'a, R: CubeRuntime>(
+    reference: &CubeTensor<R>,
+    tensor: &'a CubeTensor<R>,
+) -> SequenceArg<'a, R, usize> {
+    if reference.shape != tensor.shape {
+        tensor
+            .strides
+            .iter()
+            .zip(tensor.shape.dims.iter().zip(&reference.shape.dims))
+            .map(|(stride, (shape, ref_shape))| if *shape == *ref_shape { *stride } else { 0 })
+            .map(ScalarArg::new)
+            .collect()
+    } else {
+        tensor.strides.iter().copied().map(ScalarArg::new).collect()
     }
 }

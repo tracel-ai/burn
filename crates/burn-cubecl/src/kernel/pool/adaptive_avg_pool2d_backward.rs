@@ -1,38 +1,39 @@
 use crate::{
     CubeRuntime,
-    kernel::into_contiguous,
+    kernel::{
+        conv::decompose_linear,
+        into_contiguous_aligned,
+        pool::pool2d::{Position, view4d},
+        utils::shape_divmod,
+    },
     ops::{max_line_size, numeric::empty_device_dtype, permute_nchw_to_nhwc, permute_nhwc_to_nchw},
     tensor::CubeTensor,
 };
 use burn_backend::Shape;
-use cubecl::{calculate_cube_count_elemwise, prelude::*};
+use cubecl::{
+    calculate_cube_count_elemwise,
+    prelude::*,
+    std::{FastDivmod, tensor::View},
+};
 
 #[cube(launch)]
 fn adaptive_avg_pool2d_backward_direct<E: Numeric>(
     grad: &Tensor<Line<E>>,
-    output: &mut Tensor<Line<E>>,
+    output: &mut View<Line<E>, Position, ReadWrite>,
+    out_shape: Sequence<FastDivmod<usize>>,
+    working_units: usize,
     #[define(E)] _dtype: StorageType,
 ) {
-    if ABSOLUTE_POS >= output.len() {
+    if ABSOLUTE_POS >= working_units {
         terminate!();
     }
 
-    let (out_h, out_w, channels) = (output.shape(1), output.shape(2), output.shape(3));
-    let channel_lines = channels / grad.line_size();
-    let (grad_stride_b, grad_stride_h, grad_stride_w, grad_stride_c) = (
-        grad.stride(0),
-        grad.stride(1),
-        grad.stride(2),
-        grad.stride(3),
-    );
+    let (_, out_h, out_w, _) = output.shape();
+    let (grad_stride_h, grad_stride_w) = (grad.stride(1), grad.stride(2));
     let (grad_h, grad_w) = (grad.shape(1), grad.shape(2));
 
-    let c = (ABSOLUTE_POS % channel_lines) * grad.line_size();
-    let pos = ABSOLUTE_POS / channel_lines;
-    let iw = pos % out_w;
-    let pos = pos / out_w;
-    let ih = pos % out_h;
-    let b = pos / out_h;
+    let (_, pos) = decompose_linear(ABSOLUTE_POS * output.line_size(), &out_shape);
+    let [b, ih, iw, c] = *pos else { panic!() };
 
     let oh_start = start_index(ih, out_h, grad_h);
     let oh_end = end_index(ih, out_h, grad_h);
@@ -42,7 +43,7 @@ fn adaptive_avg_pool2d_backward_direct<E: Numeric>(
 
     let mut grad_acc = Line::empty(grad.line_size()).fill(E::from_int(0));
 
-    let index_base = b * grad_stride_b + (c * grad_stride_c);
+    let index_base = b * grad.stride(0) + (c * grad.stride(3));
 
     for oh in oh_start..oh_end {
         let ih_start = start_index(oh, grad_h, out_h);
@@ -64,7 +65,7 @@ fn adaptive_avg_pool2d_backward_direct<E: Numeric>(
         }
     }
 
-    output[ABSOLUTE_POS] = grad_acc;
+    output[(b, ih, iw, c)] = grad_acc;
 }
 
 #[cube]
@@ -90,7 +91,7 @@ pub(crate) fn adaptive_avg_pool2d_backward<R: CubeRuntime>(
 ) -> CubeTensor<R> {
     let [batches, channels, height, width] = x.shape.dims();
 
-    let out_grad = into_contiguous(permute_nchw_to_nhwc(out_grad));
+    let out_grad = into_contiguous_aligned(permute_nchw_to_nhwc(out_grad));
     let line_size = max_line_size(&out_grad);
 
     let out_shape = Shape::new([batches, height, width, channels]);
@@ -107,7 +108,9 @@ pub(crate) fn adaptive_avg_pool2d_backward<R: CubeRuntime>(
         cube_count,
         cube_dim,
         out_grad.as_tensor_arg(line_size),
-        output.as_tensor_arg(line_size),
+        view4d(&output, line_size),
+        shape_divmod(&output),
+        ScalarArg::new(working_units),
         output.dtype.into(),
     )
     .expect("Kernel to never fail");

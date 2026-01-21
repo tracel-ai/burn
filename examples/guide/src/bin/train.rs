@@ -1,8 +1,9 @@
 #![recursion_limit = "131"]
 use burn::{
-    backend::{Autodiff, WebGpu},
+    backend::{Autodiff, Vulkan, WebGpu, Wgpu},
     data::dataset::Dataset,
     optim::AdamConfig,
+    tensor::f16,
 };
 use guide::{
     inference,
@@ -11,14 +12,14 @@ use guide::{
 };
 
 fn main() {
-    type MyBackend = WebGpu<f32, i32>;
+    type MyBackend = Vulkan<f16, i32>;
     type MyAutodiffBackend = Autodiff<MyBackend>;
 
     // Create a default Wgpu device
     let device = burn::backend::wgpu::WgpuDevice::default();
 
     // All the training artifacts will be saved in this directory
-    let artifact_dir = "/tmp/guide";
+    let artifact_dir = "target/guide";
 
     // Train the model
     training::train::<MyAutodiffBackend>(

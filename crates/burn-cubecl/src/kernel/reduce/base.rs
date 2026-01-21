@@ -209,7 +209,7 @@ pub fn init_reduce_output<Run: CubeRuntime>(
     (dim < input.shape.num_dims()).then(|| {
         let mut shape_out = input.shape.clone();
         shape_out.dims[dim] = 1;
-        empty_device_dtype::<Run>(
+        empty_device_dtype(
             input.client.clone(),
             input.device.clone(),
             shape_out,

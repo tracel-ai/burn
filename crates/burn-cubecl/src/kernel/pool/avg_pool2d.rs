@@ -3,13 +3,20 @@ use super::pool2d::{
 };
 use crate::{
     CubeRuntime,
-    kernel::into_contiguous,
-    ops::{max_line_size, numeric::empty_device_dtype, permute_nchw_to_nhwc, permute_nhwc_to_nchw},
+    kernel::{
+        into_contiguous_aligned,
+        pool::pool2d::{Position, view4d},
+        utils::shape_divmod,
+    },
+    ops::{
+        max_line_size, numeric::empty_device_dtype, permute_nchw_to_nhwc,
+        permute_nhwc_to_nchw,
+    },
     tensor::CubeTensor,
 };
 use burn_backend::{Shape, ops::conv::calculate_pool_output_size};
-use cubecl::prelude::*;
 use cubecl::{CubeDim, calculate_cube_count_elemwise, prelude::ScalarArg};
+use cubecl::{prelude::*, std::tensor::View};
 
 struct AvgPoolStrategy;
 
@@ -78,8 +85,8 @@ impl<N: Numeric> Pool2dDirectStrategy<N> for AvgPoolStrategy {
 
     fn store(
         #[comptime] _config: &Self::Config,
-        position: usize,
-        output: &mut Tensor<Line<N>>,
+        position: Position,
+        output: &mut View<Line<N>, Position, ReadWrite>,
         _output_indices: &mut (),
         accumulator: Self::Accumulator,
     ) {
@@ -120,11 +127,12 @@ pub(crate) fn avg_pool2d<R: CubeRuntime>(
     let padded_0 = in_h + 2 * padding[0];
     let padded_1 = in_w + 2 * padding[1];
 
-    let x = into_contiguous(permute_nchw_to_nhwc(x));
+    let x = into_contiguous_aligned(permute_nchw_to_nhwc(x));
     let line_size = max_line_size(&x);
 
     let shape_out = Shape::new([batch_size, size_0, size_1, channels]);
-    let output = empty_device_dtype(x.client.clone(), x.device.clone(), shape_out, x.dtype);
+    let output =
+        empty_device_dtype(x.client.clone(), x.device.clone(), shape_out, x.dtype);
 
     let working_units = output.shape.num_elements() / line_size as usize;
     let cube_dim = CubeDim::new(&x.client, working_units);
@@ -135,8 +143,10 @@ pub(crate) fn avg_pool2d<R: CubeRuntime>(
         cube_count,
         cube_dim,
         x.as_tensor_arg(line_size),
-        output.as_tensor_arg(line_size),
+        view4d(&output, line_size),
         (),
+        shape_divmod(&output),
+        ScalarArg::new(working_units),
         Pool2dDirectArgsLaunch::new(
             ScalarArg::new(stride[0] as u32),
             ScalarArg::new(stride[1] as u32),

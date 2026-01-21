@@ -18,6 +18,8 @@ burn = { path = "../../crates/burn", features = [
     "webgpu",
     "train",
     "vision",
+    "vulkan",
+    "autotune",
 ], default-features = false }
 
 # Serialization

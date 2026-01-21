@@ -74,7 +74,7 @@ pub fn full_device_dtype<R: CubeRuntime>(
             cube_dim,
             linear_view(&empty, line_size),
             value,
-            dtype.into(),
+            empty.dtype.into(),
         )
         .expect("Kernel to never fail");
     }
@@ -114,29 +114,8 @@ pub fn ones_client<R: CubeRuntime>(
     full_device_dtype(client, shape, device, InputScalar::new(1u32, dtype), dtype)
 }
 
-/// Creates a tensor with uninitialized memory
-pub fn empty_device<R: CubeRuntime, E: CubeElement>(
-    client: ComputeClient<R>,
-    device: R::Device,
-    shape: Shape,
-) -> CubeTensor<R> {
-    empty_device_dtype(client, device, shape, E::dtype())
-}
-
-/// Creates a tensor with uninitialized memory with the specific dtype.
-pub fn empty_device_dtype<R: CubeRuntime>(
-    client: ComputeClient<R>,
-    device: R::Device,
-    shape: Shape,
-    dtype: DType,
-) -> CubeTensor<R> {
-    let buffer = client.empty(shape.num_elements() * dtype.size());
-
-    CubeTensor::new_contiguous(client, device, shape, buffer, dtype)
-}
-
 /// Create a tensor with uninitialized memory
-pub fn empty_device_optimized<R: CubeRuntime, E: CubeElement>(
+pub fn empty_device<R: CubeRuntime, E: CubeElement>(
     client: ComputeClient<R>,
     device: R::Device,
     shape: Shape,
@@ -147,7 +126,7 @@ pub fn empty_device_optimized<R: CubeRuntime, E: CubeElement>(
 }
 
 /// Create a tensor with uninitialized memory
-pub fn empty_device_optimized_dtype<R: CubeRuntime>(
+pub fn empty_device_dtype<R: CubeRuntime>(
     client: ComputeClient<R>,
     device: R::Device,
     shape: Shape,

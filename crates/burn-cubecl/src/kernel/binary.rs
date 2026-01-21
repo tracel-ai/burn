@@ -223,8 +223,12 @@ pub(crate) fn launch_binop<R: CubeRuntime, O: BinaryOpFamily>(
 
             rhs
         } else {
-            let output =
-                empty_device_dtype(lhs.client.clone(), lhs.device.clone(), shape_out, dtype);
+            let output = empty_device_dtype(
+                lhs.client.clone(),
+                lhs.device.clone(),
+                shape_out,
+                dtype,
+            );
 
             kernel_binop::launch_unchecked::<O, R>(
                 &client,
@@ -257,7 +261,7 @@ pub(crate) fn launch_scalar_binop<R: CubeRuntime, O: BinaryOpFamily>(
     let cube_count = calculate_cube_count_elemwise(&tensor.client, working_units, cube_dim);
 
     unsafe {
-        if tensor.can_mut() && tensor.is_contiguous_buffer() {
+        if tensor.can_mut() && tensor.is_nonoverlapping() {
             kernel_scalar_binop::launch_unchecked::<O, R>(
                 &client,
                 cube_count,

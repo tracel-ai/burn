@@ -1,4 +1,4 @@
-use crate::ops::numeric::empty_device_optimized_dtype;
+use crate::ops::numeric::empty_device_dtype;
 use crate::{
     CubeRuntime,
     kernel::{into_contiguous_aligned, utils::linear_view},
@@ -6,7 +6,7 @@ use crate::{
     tensor::CubeTensor,
 };
 use burn_backend::ops::{ConvOptions, conv::calculate_conv_output_sizes};
-use cubecl::std::{CubeOption, CubeOptionExpand, FastDivmod, FastDivmodArgs};
+use cubecl::std::{CubeOption, CubeOptionExpand, FastDivmod, FastDivmodArgs, FastDivmodInt};
 use cubecl::{
     calculate_cube_count_elemwise, prelude::*, std::tensor::layout::linear::LinearView,
     tensor_line_size_parallel,
@@ -50,7 +50,7 @@ fn direct_conv2d_kernel<E: Numeric>(
     let in_c_per_group = weight.shape(weight.rank() - 1) as u32;
 
     let (rem, out_c) = shape_out_c.div_mod(pos as u32);
-    let (b, spatial_pos) = div_mod_seq(rem, &shape_out);
+    let (b, spatial_pos) = decompose_linear(rem, &shape_out);
 
     let g = out_c / args.channels_per_group;
     let ic_start = in_c_per_group * g;
@@ -254,7 +254,7 @@ pub fn conv_direct<R: CubeRuntime, const N: usize>(
     shape_out.extend(out_size.iter().copied());
     shape_out.push(out_channels);
 
-    let output = empty_device_optimized_dtype(
+    let output = empty_device_dtype(
         input.client.clone(),
         input.device.clone(),
         shape_out.into(),
@@ -317,7 +317,10 @@ pub fn conv_direct<R: CubeRuntime, const N: usize>(
 }
 
 #[cube]
-pub(crate) fn div_mod_seq(pos: u32, shape: &Sequence<FastDivmod<u32>>) -> (u32, Sequence<u32>) {
+pub(crate) fn decompose_linear<I: FastDivmodInt>(
+    pos: I,
+    shape: &Sequence<FastDivmod<I>>,
+) -> (I, Sequence<I>) {
     let rank = comptime![shape.len()];
     let mut offs = pos;
     let mut out = Sequence::new();
