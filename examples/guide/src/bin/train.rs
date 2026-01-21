@@ -1,9 +1,8 @@
 #![recursion_limit = "131"]
 use burn::{
-    backend::{Autodiff, Vulkan, WebGpu, Wgpu},
+    backend::{Autodiff, WebGpu},
     data::dataset::Dataset,
     optim::AdamConfig,
-    tensor::f16,
 };
 use guide::{
     inference,
@@ -12,7 +11,7 @@ use guide::{
 };
 
 fn main() {
-    type MyBackend = Vulkan<f16, i32>;
+    type MyBackend = WebGpu<f32, i32>;
     type MyAutodiffBackend = Autodiff<MyBackend>;
 
     // Create a default Wgpu device
