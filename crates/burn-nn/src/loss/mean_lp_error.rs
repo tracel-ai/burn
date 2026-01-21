@@ -4,40 +4,59 @@ use burn::module::Module;
 use burn::tensor::{Tensor, backend::Backend};
 use burn_core as burn;
 
-/// Configuration for the [Mean Lp Error Loss](MeanLpErrorLoss) module.
+/// Configuration for the [Lp Loss](LpLoss) module.
 ///
 /// # Example
 ///
 /// ```ignore
-/// use burn_nn::loss::{MeanLpErrorLossConfig, Reduction};
+/// use burn_nn::loss::{LpLossConfig, Reduction};
 ///
-/// // Create Mean Squared Error (MSE) loss with p=2
-/// let mse_loss = MeanLpErrorLossConfig::new(2.0).init();
+/// // Create L1 loss (MAE when using mean reduction)
+/// let l1_loss = LpLossConfig::l1();
 ///
-/// // Create Mean Absolute Error (MAE) loss with p=1
-/// let mae_loss = MeanLpErrorLossConfig::new(1.0).init();
+/// // Create L2 loss (MSE when using mean reduction)
+/// let l2_loss = LpLossConfig::l2();
+///
+/// // Create custom Lp loss with p=3
+/// let l3_loss = LpLossConfig::new(3.0).init();
 /// ```
 #[derive(Config, Debug)]
-pub struct MeanLpErrorLossConfig {
+pub struct LpLossConfig {
     /// The exponent `p` determining the type of error measurement.
     ///
     /// Common values:
-    /// - `p = 1.0`: Mean Absolute Error (MAE) - robust to outliers
-    /// - `p = 2.0`: Mean Squared Error (MSE) - standard choice, differentiable everywhere
+    /// - `p = 1.0`: L1 loss (MAE with mean reduction) - robust to outliers
+    /// - `p = 2.0`: L2 loss (MSE with mean reduction) - standard choice, differentiable everywhere
     /// - `p > 2.0`: Increasingly sensitive to large errors (outliers)
-    /// - `0 < p < 1`: More robust to outliers than MAE (quasi-norm)
+    /// - `0 < p < 1`: More robust to outliers than L1 (quasi-norm)
     pub p: f64,
 }
 
-impl MeanLpErrorLossConfig {
-    /// Initializes a [Mean Lp Error Loss](MeanLpErrorLoss) module.
+impl LpLossConfig {
+    /// Initializes a [Lp Loss](LpLoss) module.
     ///
     /// # Panics
     ///
     /// Panics if `p <= 0`.
-    pub fn init(&self) -> MeanLpErrorLoss {
+    pub fn init(&self) -> LpLoss {
         self.assertions();
-        MeanLpErrorLoss { p: self.p }
+        LpLoss { p: self.p }
+    }
+
+    /// Creates L1 loss (p=1).
+    ///
+    /// When used with `Reduction::Mean`, this computes Mean Absolute Error (MAE).
+    /// When used with `Reduction::Sum`, this computes Sum of Absolute Errors (SAE).
+    pub fn l1() -> LpLoss {
+        LpLoss { p: 1.0 }
+    }
+
+    /// Creates L2 loss (p=2).
+    ///
+    /// When used with `Reduction::Mean`, this computes Mean Squared Error (MSE).
+    /// When used with `Reduction::Sum`, this computes Sum of Squared Errors (SSE).
+    pub fn l2() -> LpLoss {
+        LpLoss { p: 2.0 }
     }
 
     fn assertions(&self) {
@@ -45,7 +64,7 @@ impl MeanLpErrorLossConfig {
     }
 }
 
-/// Computes the Mean(L(p) Norm Error)Loss between predictions and targets.
+/// Computes the Lp Loss between predictions and targets.
 ///
 /// This loss function computes the element-wise p-th power of absolute errors,
 /// then reduces them via mean or sum.
@@ -73,29 +92,32 @@ impl MeanLpErrorLossConfig {
 /// # Example
 ///
 /// ```ignore
-/// use burn_nn::loss::{MeanLpErrorLossConfig, Reduction};
+/// use burn_nn::loss::{LpLossConfig, Reduction};
 /// use burn::tensor::Tensor;
 ///
-/// // Create MSE loss
-/// let mse = MeanLpErrorLossConfig::new(2.0).init();
+/// // Create L2 loss
+/// let l2_loss = LpLossConfig::l2();
 ///
 /// let predictions: Tensor<Backend, 2> = /* model output */;
 /// let targets: Tensor<Backend, 2> = /* ground truth */;
 ///
-/// // Compute loss with mean reduction
-/// let reduced_loss = mse.forward(predictions, targets, Reduction::Auto);
+/// // Compute loss with mean reduction (MSE)
+/// let mse = l2_loss.forward(predictions.clone(), targets.clone(), Reduction::Mean);
+///
+/// // Compute loss with sum reduction (SSE)
+/// let sse = l2_loss.forward(predictions.clone(), targets.clone(), Reduction::Sum);
 ///
 /// // Compute loss with no reduction
-/// let unreduced_loss = mse.forward_no_reduction(predictions, targets);
+/// let unreduced_l2_loss = l2_loss.forward_no_reduction(predictions, targets);
 /// ```
 #[derive(Module, Clone, Debug)]
-pub struct MeanLpErrorLoss {
+pub struct LpLoss {
     /// The order of the norm (e.g., 1 for L1, 2 for L2).
     /// Equivalently, the exponent `p` for computing `|error|^p`.
     pub p: f64,
 }
 
-impl MeanLpErrorLoss {
+impl LpLoss {
     /// Computes the element-wise loss `|error|^p` with reduction.
     ///
     /// # Arguments
@@ -155,10 +177,10 @@ impl MeanLpErrorLoss {
 
         // Use simplified/optimized expressions for common cases (p = 1, p = 2)
         if self.p == 1.0 {
-            // Mean Absolute Error (MAE)
+            // L1 loss
             error.abs()
         } else if self.p == 2.0 {
-            // Mean Squared Error (MSE)
+            // L2 loss
             error.clone().mul(error)
         } else {
             error.abs().powf_scalar(self.p)
@@ -188,10 +210,10 @@ impl MeanLpErrorLoss {
     ///
     /// ```ignore
     /// // Image tensor: [batch, C, H, W]
-    /// let mse_loss = MeanLpErrorLoss::new(2.0);
+    /// let l2_loss = LpLossConfig::l2();
     ///
     /// // Per-image MSE for PSNR: reduce over C, H, W → [batch, 1, 1, 1]
-    /// let mse_per_image = mse_loss.forward_reduce_dims(predictions, targets, &[1, 2, 3]);
+    /// let mse_per_image = l2_loss.forward_reduce_dims(predictions, targets, &[1, 2, 3]);
     /// ```
     pub fn forward_reduce_dims<const D: usize, B: Backend>(
         &self,
@@ -223,7 +245,23 @@ mod tests {
     type FT = FloatElem<TestBackend>;
 
     #[test]
-    fn test_mean_lp_error_loss_p1() {
+    fn test_lp_loss_l1_constructor() {
+        let loss_func_l1 = LpLossConfig::l1();
+        let loss_func_p1 = LpLossConfig::new(1.0).init();
+        assert_eq!(loss_func_l1.p, 1.0);
+        assert_eq!(loss_func_l1.p, loss_func_p1.p);
+    }
+
+    #[test]
+    fn test_lp_loss_l2_constructor() {
+        let loss_func_l2 = LpLossConfig::l2();
+        let loss_func_p2 = LpLossConfig::new(2.0).init();
+        assert_eq!(loss_func_l2.p, 2.0);
+        assert_eq!(loss_func_l2.p, loss_func_p2.p);
+    }
+
+    #[test]
+    fn test_lp_loss_l1() {
         let device = Default::default();
         let predictions = Tensor::<TestBackend, 2>::from_data(
             TensorData::from([[1.0, 2.0], [3.0, 4.0]]),
@@ -235,10 +273,11 @@ mod tests {
             &device,
         );
 
-        let mse = MeanLpErrorLossConfig::new(1.0).init();
-        let loss_no_reduction = mse.forward_no_reduction(predictions.clone(), targets.clone());
-        let loss_auto = mse.forward(predictions.clone(), targets.clone(), Reduction::Auto);
-        let loss_sum = mse.forward(predictions, targets, Reduction::Sum);
+        let loss_func = LpLossConfig::l1();
+        let loss_no_reduction =
+            loss_func.forward_no_reduction(predictions.clone(), targets.clone());
+        let loss_auto = loss_func.forward(predictions.clone(), targets.clone(), Reduction::Auto);
+        let loss_sum = loss_func.forward(predictions, targets, Reduction::Sum);
 
         let expected = TensorData::from([[1.0, 1.0], [0.0, 2.0]]);
         loss_no_reduction.into_data().assert_eq(&expected, false);
@@ -251,7 +290,7 @@ mod tests {
     }
 
     #[test]
-    fn test_mean_lp_error_loss_p2() {
+    fn test_lp_loss_l2() {
         let device = Default::default();
         let predictions = Tensor::<TestBackend, 2>::from_data(
             TensorData::from([[1.0, 2.0], [3.0, 4.0]]),
@@ -263,10 +302,11 @@ mod tests {
             &device,
         );
 
-        let mse = MeanLpErrorLossConfig::new(2.0).init();
-        let loss_no_reduction = mse.forward_no_reduction(predictions.clone(), targets.clone());
-        let loss_auto = mse.forward(predictions.clone(), targets.clone(), Reduction::Auto);
-        let loss_sum = mse.forward(predictions, targets, Reduction::Sum);
+        let loss_func = LpLossConfig::l2();
+        let loss_no_reduction =
+            loss_func.forward_no_reduction(predictions.clone(), targets.clone());
+        let loss_auto = loss_func.forward(predictions.clone(), targets.clone(), Reduction::Auto);
+        let loss_sum = loss_func.forward(predictions, targets, Reduction::Sum);
 
         let expected = TensorData::from([[1.0, 1.0], [0.0, 4.0]]);
         loss_no_reduction.into_data().assert_eq(&expected, false);
@@ -279,7 +319,7 @@ mod tests {
     }
 
     #[test]
-    fn test_mean_lp_error_loss_p_half() {
+    fn test_lp_loss_p_half() {
         // L0.5 quasi-norm: more robust to outliers than L1
         let device = Default::default();
         let predictions = Tensor::<TestBackend, 2>::from_data(
@@ -292,10 +332,11 @@ mod tests {
             &device,
         );
 
-        let loss = MeanLpErrorLossConfig::new(0.5).init();
-        let loss_no_reduction = loss.forward_no_reduction(predictions.clone(), targets.clone());
-        let loss_auto = loss.forward(predictions.clone(), targets.clone(), Reduction::Auto);
-        let loss_sum = loss.forward(predictions, targets, Reduction::Sum);
+        let loss_func = LpLossConfig::new(0.5).init();
+        let loss_no_reduction =
+            loss_func.forward_no_reduction(predictions.clone(), targets.clone());
+        let loss_auto = loss_func.forward(predictions.clone(), targets.clone(), Reduction::Auto);
+        let loss_sum = loss_func.forward(predictions, targets, Reduction::Sum);
 
         // |1-2|^0.5 = 1, |2-1|^0.5 = 1, |3-3|^0.5 = 0, |4-0|^0.5 = 2
         let expected = TensorData::from([[1.0, 1.0], [0.0, 2.0]]);
@@ -309,7 +350,7 @@ mod tests {
     }
 
     #[test]
-    fn test_mean_lp_error_loss_p3() {
+    fn test_lp_loss_p3() {
         // L3 norm: more sensitive to outliers than L2
         let device = Default::default();
         let predictions = Tensor::<TestBackend, 2>::from_data(
@@ -322,10 +363,11 @@ mod tests {
             &device,
         );
 
-        let mse = MeanLpErrorLossConfig::new(3.0).init();
-        let loss_no_reduction = mse.forward_no_reduction(predictions.clone(), targets.clone());
-        let loss_auto = mse.forward(predictions.clone(), targets.clone(), Reduction::Auto);
-        let loss_sum = mse.forward(predictions, targets, Reduction::Sum);
+        let loss_func = LpLossConfig::new(3.0).init();
+        let loss_no_reduction =
+            loss_func.forward_no_reduction(predictions.clone(), targets.clone());
+        let loss_auto = loss_func.forward(predictions.clone(), targets.clone(), Reduction::Auto);
+        let loss_sum = loss_func.forward(predictions, targets, Reduction::Sum);
 
         // |1-2|^3 = 1, |2-1|^3 = 1, |3-3|^3 = 0, |4-2|^3 = 8
         let expected = TensorData::from([[1.0, 1.0], [0.0, 8.0]]);
@@ -339,7 +381,7 @@ mod tests {
     }
 
     #[test]
-    fn test_mean_lp_error_loss_zero_error() {
+    fn test_lp_loss_zero_error() {
         // Test when predictions exactly match targets
         let device = Default::default();
         let predictions = Tensor::<TestBackend, 2>::from_data(
@@ -349,72 +391,77 @@ mod tests {
 
         let targets = predictions.clone();
 
-        let loss_fn_p1 = MeanLpErrorLossConfig::new(1.0).init();
-        let loss_fn_p2 = MeanLpErrorLossConfig::new(2.0).init();
+        let loss_func_l1 = LpLossConfig::l1();
+        let loss_func_l2 = LpLossConfig::l2();
 
-        let loss_p1 = loss_fn_p1.forward(predictions.clone(), targets.clone(), Reduction::Auto);
-        let loss_p2 = loss_fn_p2.forward(predictions, targets, Reduction::Auto);
+        let l1_loss = loss_func_l1.forward(predictions.clone(), targets.clone(), Reduction::Auto);
+        let l2_loss = loss_func_l2.forward(predictions, targets, Reduction::Auto);
 
         let expected = TensorData::from([0.0]);
-        loss_p1.into_data().assert_eq(&expected, false);
-        loss_p2.into_data().assert_eq(&expected, false);
+        l1_loss.into_data().assert_eq(&expected, false);
+        l2_loss.into_data().assert_eq(&expected, false);
     }
 
     #[test]
-    fn test_mean_lp_error_loss_negative_errors() {
+    fn test_lp_loss_negative_errors() {
         // Test that negative errors are handled correctly (absolute value)
         let device = Default::default();
         let predictions =
             Tensor::<TestBackend, 1>::from_data(TensorData::from([1.0, 2.0, 3.0]), &device);
-
         let targets =
             Tensor::<TestBackend, 1>::from_data(TensorData::from([3.0, 4.0, 5.0]), &device);
+        let loss_func_l1 = LpLossConfig::l1();
+        let loss_func_p1 = LpLossConfig::new(1.0).init();
 
-        let loss_fn = MeanLpErrorLossConfig::new(1.0).init();
-        let loss_no_reduction = loss_fn.forward_no_reduction(predictions, targets);
+        let loss_no_reduction_l1 =
+            loss_func_l1.forward_no_reduction(predictions.clone(), targets.clone());
+        let loss_no_reduction_p1 = loss_func_p1.forward_no_reduction(predictions, targets);
 
         // All errors are negative: 1-3=-2, 2-4=-2, 3-5=-2, but |error| = 2
         let expected = TensorData::from([2.0, 2.0, 2.0]);
-        loss_no_reduction.into_data().assert_eq(&expected, false);
+        loss_no_reduction_l1.into_data().assert_eq(&expected, false);
+        loss_no_reduction_p1.into_data().assert_eq(&expected, false);
     }
 
     #[test]
-    fn test_mean_lp_error_loss_3d_tensor() {
+    fn test_lp_loss_3d_tensor() {
         let device = Default::default();
         let predictions = Tensor::<TestBackend, 3>::from_data(
             TensorData::from([[[1.0, 2.0], [3.0, 4.0]], [[5.0, 6.0], [7.0, 8.0]]]),
             &device,
         );
-
         let targets = Tensor::<TestBackend, 3>::from_data(
             TensorData::from([[[0.0, 2.0], [3.0, 5.0]], [[4.0, 6.0], [7.0, 10.0]]]),
             &device,
         );
+        let loss_func_l2 = LpLossConfig::l2();
+        let loss_func_p2 = LpLossConfig::new(2.0).init();
 
-        let loss_fn = MeanLpErrorLossConfig::new(2.0).init();
-        let loss = loss_fn.forward(predictions, targets, Reduction::Auto);
+        let loss_l2 = loss_func_l2.forward(predictions.clone(), targets.clone(), Reduction::Auto);
+        let loss_p2 = loss_func_p2.forward(predictions, targets, Reduction::Auto);
 
         // Errors: 1, 0, 0, -1, 1, 0, 0, -2
         // Squared: 1, 0, 0, 1, 1, 0, 0, 4
         // Mean: 7/8 = 0.875
         let expected = TensorData::from([0.875]);
-        loss.into_data().assert_eq(&expected, false);
+        loss_l2.into_data().assert_eq(&expected, false);
+        loss_p2.into_data().assert_eq(&expected, false);
     }
 
     #[test]
     #[should_panic(expected = "The order of the norm p must be positive.")]
-    fn test_mean_lp_error_loss_negative_p_panics() {
-        let _ = MeanLpErrorLossConfig::new(-1.0).init();
+    fn test_lp_loss_negative_p_panics() {
+        let _ = LpLossConfig::new(-1.0).init();
     }
 
     #[test]
     #[should_panic(expected = "The order of the norm p must be positive.")]
-    fn test_mean_lp_error_loss_zero_p_panics() {
-        let _ = MeanLpErrorLossConfig::new(0.0).init();
+    fn test_lp_loss_zero_p_panics() {
+        let _ = LpLossConfig::new(0.0).init();
     }
 
     #[test]
-    fn test_mean_lp_error_loss_fractional_p() {
+    fn test_lp_loss_fractional_p() {
         // Test p = 1.5
         let device = Default::default();
         let predictions =
@@ -422,8 +469,8 @@ mod tests {
 
         let targets = Tensor::<TestBackend, 1>::from_data(TensorData::from([1.0, 0.0]), &device);
 
-        let loss_fn = MeanLpErrorLossConfig::new(1.5).init();
-        let loss_no_reduction = loss_fn.forward_no_reduction(predictions, targets);
+        let loss_func = LpLossConfig::new(1.5).init();
+        let loss_no_reduction = loss_func.forward_no_reduction(predictions, targets);
 
         // |0-1|^1.5 = 1, |4-0|^1.5 = 8
         let expected = TensorData::from([1.0, 8.0]);
@@ -442,15 +489,21 @@ mod tests {
             TensorData::from([[0.0, 2.0, 6.0], [1.0, 5.0, 6.0]]),
             &device,
         );
-        let loss_fn = MeanLpErrorLossConfig::new(2.0).init();
+        let loss_func_l2 = LpLossConfig::l2();
+        let loss_func_p2 = LpLossConfig::new(2.0).init();
 
         // Reduce over dim 1 -> should give [2, 1] shape
-        let loss = loss_fn.forward_reduce_dims(predictions, targets, &[1]);
+        let loss_l2 = loss_func_l2.forward_reduce_dims(predictions.clone(), targets.clone(), &[1]);
+        let loss_p2 = loss_func_p2.forward_reduce_dims(predictions, targets, &[1]);
 
         // Errors row 0: [1, 0, -3] -> squared: [1, 0, 9] -> mean: 10/3
         // Errors row 1: [3, 0, 0] -> squared: [9, 0, 0] -> mean: 3
         let expected = TensorData::from([[10.0 / 3.0], [3.0]]);
-        loss.into_data()
+        loss_l2
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
+        loss_p2
+            .into_data()
             .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
@@ -466,10 +519,10 @@ mod tests {
             TensorData::from([[0.0, 2.0, 6.0], [1.0, 5.0, 6.0]]),
             &device,
         );
-        let loss_fn = MeanLpErrorLossConfig::new(2.0).init();
+        let loss_func = LpLossConfig::l2();
 
         // Reduce over dim 0 -> should give [1, 3] shape
-        let loss = loss_fn.forward_reduce_dims(predictions, targets, &[0]);
+        let loss = loss_func.forward_reduce_dims(predictions, targets, &[0]);
 
         // Squared errors: [[1, 0, 9], [9, 0, 0]]
         // Mean over dim 0: [5, 0, 4.5]
@@ -490,10 +543,10 @@ mod tests {
             TensorData::from([[[0.0, 2.0], [3.0, 6.0]], [[4.0, 6.0], [7.0, 10.0]]]),
             &device,
         );
-        let loss_fn = MeanLpErrorLossConfig::new(2.0).init();
+        let loss_func = LpLossConfig::l2();
 
         // Reduce over dims 1 and 2 -> should give [2, 1, 1] shape
-        let loss = loss_fn.forward_reduce_dims(predictions, targets, &[1, 2]);
+        let loss = loss_func.forward_reduce_dims(predictions, targets, &[1, 2]);
 
         // Batch 0 errors: [[1, 0], [0, -2]] -> squared: [[1, 0], [0, 4]] -> mean: 5/4 = 1.25
         // Batch 1 errors: [[1, 0], [0, -2]] -> squared: [[1, 0], [0, 4]] -> mean: 5/4 = 1.25
@@ -514,10 +567,10 @@ mod tests {
             TensorData::from([[2.0, 1.0], [3.0, 2.0]]),
             &device,
         );
-        let loss_fn = MeanLpErrorLossConfig::new(2.0).init();
+        let loss_func = LpLossConfig::l2();
 
         // Reduce over all dims -> should give [1, 1] shape
-        let loss = loss_fn.forward_reduce_dims(predictions, targets, &[0, 1]);
+        let loss = loss_func.forward_reduce_dims(predictions, targets, &[0, 1]);
 
         // Errors: [[-1, 1], [0, 2]] -> squared: [[1, 1], [0, 4]] -> mean: 1.5
         let expected = TensorData::from([[1.5]]);
@@ -544,10 +597,10 @@ mod tests {
             ]),
             &device,
         );
-        let loss_fn = MeanLpErrorLossConfig::new(2.0).init();
+        let loss_func = LpLossConfig::l2();
 
         // Reduce over C, H, W (dims 1, 2, 3) to get per-image MSE
-        let loss = loss_fn.forward_reduce_dims(predictions, targets, &[1, 2, 3]);
+        let loss = loss_func.forward_reduce_dims(predictions, targets, &[1, 2, 3]);
 
         // Image 1 errors: [[1, 0], [0, -2]] -> squared: [[1, 0], [0, 4]] -> mean: 1.25
         // Image 2 errors: [[0, 1], [0, 1]] -> squared: [[0, 1], [0, 1]] -> mean: 0.5
@@ -568,10 +621,10 @@ mod tests {
             TensorData::from([[0.0, 5.0, 3.0], [1.0, 5.0, 9.0]]),
             &device,
         );
-        let loss_fn = MeanLpErrorLossConfig::new(1.0).init();
+        let loss_func = LpLossConfig::l1();
 
         // Reduce over dim 1 -> should give [2, 1] shape
-        let loss = loss_fn.forward_reduce_dims(predictions, targets, &[1]);
+        let loss = loss_func.forward_reduce_dims(predictions, targets, &[1]);
 
         // Abs errors row 0: [1, 3, 0] -> mean: 4/3
         // Abs errors row 1: [3, 0, 3] -> mean: 2
@@ -592,10 +645,10 @@ mod tests {
             TensorData::from([[0.0, 2.0], [3.0, 6.0]]),
             &device,
         );
-        let loss_fn = MeanLpErrorLossConfig::new(2.0).init();
+        let loss_func = LpLossConfig::l2();
         let loss_reduce_dims =
-            loss_fn.forward_reduce_dims(predictions.clone(), targets.clone(), &[]);
-        let loss_no_reduction = loss_fn.forward_no_reduction(predictions, targets);
+            loss_func.forward_reduce_dims(predictions.clone(), targets.clone(), &[]);
+        let loss_no_reduction = loss_func.forward_no_reduction(predictions, targets);
 
         // Should be equivalent
         loss_reduce_dims
@@ -612,8 +665,8 @@ mod tests {
             &device,
         );
         let targets = predictions.clone();
-        let loss_fn = MeanLpErrorLossConfig::new(2.0).init();
-        let loss = loss_fn.forward_reduce_dims(predictions, targets, &[1, 2]);
+        let loss_func = LpLossConfig::l2();
+        let loss = loss_func.forward_reduce_dims(predictions, targets, &[1, 2]);
 
         // All zeros, reduced to shape: [2, 1, 1]
         let expected = TensorData::from([[[0.0]], [[0.0]]]);
