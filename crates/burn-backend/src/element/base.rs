@@ -9,7 +9,10 @@ use burn_std::flex32;
 
 use super::cast::ToElement;
 
-/// Element trait for tensor.
+/// Core element trait for tensor values.
+///
+/// This trait defines the minimal set of capabilities required for a type to be
+/// stored and manipulated as a tensor element across all backends.
 pub trait Element:
     ToElement
     + ElementRandom
@@ -31,7 +34,13 @@ pub trait Element:
     fn dtype() -> DType;
 }
 
-/// Ordered element trait for tensor.
+/// Ordered element trait for tensor values.
+///
+/// This trait extends [`Element`] with ordering semantics, enabling comparison
+/// and order-dependent operations in generic Rust implementations.
+///
+/// Backends that implement these operations entirely at the device level do
+/// not rely on this trait. It only constrains the scalar type for generic Rust code.
 pub trait ElementOrdered: Element + ElementComparison {}
 
 /// Element conversion trait for tensor.
@@ -78,7 +87,7 @@ pub trait ElementComparison {
     fn cmp(&self, other: &Self) -> Ordering;
 }
 
-/// Element ordering trait.
+/// Element limits trait.
 pub trait ElementLimits {
     /// The minimum representable value
     const MIN: Self;
