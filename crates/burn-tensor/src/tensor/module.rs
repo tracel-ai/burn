@@ -44,7 +44,8 @@ where
         let (padding_start, padding_end) = options.padding_as_pairs();
         let left = padding_start[0];
         let right = padding_end[0];
-        // Pad takes (left, right, top, bottom) for last two dims; for 1D we only pad width
+        // For 1D (NCL format), pad the length dimension with (left, right)
+        // and no padding for channel dimension (top=0, bottom=0)
         let padded = x.pad((left, right, 0, 0), PadMode::Constant(0.0));
         // Call backend with zero padding since we already applied it
         let zero_pad_options =
@@ -88,12 +89,12 @@ where
     // Handle asymmetric padding by applying explicit pad operation first
     if options.is_asymmetric() {
         let (padding_start, padding_end) = options.padding_as_pairs();
-        // padding_start = [top, left], padding_end = [bottom, right]
+        // padding_start = [height_start, width_start], padding_end = [height_end, width_end]
         let top = padding_start[0];
         let left = padding_start[1];
         let bottom = padding_end[0];
         let right = padding_end[1];
-        // Pad takes (left, right, top, bottom)
+        // For 2D (NCHW format), pad height (top, bottom) and width (left, right)
         let padded = x.pad((left, right, top, bottom), PadMode::Constant(0.0));
         // Call backend with zero padding since we already applied it
         let zero_pad_options =

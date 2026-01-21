@@ -213,7 +213,7 @@ mod tests {
 
     #[test]
     fn avg_pool2d_asymmetric_padding() {
-        // Test asymmetric padding (left=1, right=2, top=1, bottom=2) for AvgPool2d
+        // Test asymmetric padding: top=1, left=1, bottom=2, right=2 (ONNX pads: [1,1,2,2])
         let device = Default::default();
         let model: avg_pool2d_asymmetric_padding::Model<TestBackend> =
             avg_pool2d_asymmetric_padding::Model::new(&device);

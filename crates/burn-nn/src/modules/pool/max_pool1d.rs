@@ -102,8 +102,8 @@ impl MaxPool1d {
         // See: https://github.com/tracel-ai/burn/issues/4362
         // Handle asymmetric padding by applying explicit pad operation first
         if left != right {
-            // Burn's pad takes (left, right, top, bottom) for the last two dimensions
-            // For 1D (NCL format), we only pad L (last dim), so top/bottom = 0
+            // For 1D (NCL format), pad the length dimension with (left, right)
+            // and no padding for channel dimension (top=0, bottom=0)
             // Use -inf for max pooling so padded values don't affect the max
             let padded = input.pad((left, right, 0, 0), PadMode::Constant(f32::NEG_INFINITY));
             // Use zero padding for the pool operation since we already padded

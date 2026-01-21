@@ -50,7 +50,7 @@ impl PaddingConfig1d {
     /// Calculate symmetric padding for 1D operations.
     /// Returns a single padding value (same for both sides).
     /// Panics if asymmetric padding is detected.
-    #[allow(dead_code)] // Used in tests; kept for API consistency with 2D/3D
+    #[allow(dead_code)] // Kept for API consistency with 2D/3D; may be used by future modules
     pub(crate) fn calculate_padding_1d(
         &self,
         length: usize,
