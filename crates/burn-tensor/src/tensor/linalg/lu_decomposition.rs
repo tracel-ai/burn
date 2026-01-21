@@ -2,6 +2,7 @@ use crate::{
     Int, backend::Backend, cast::ToElement, check, check::TensorCheck, linalg::swap_slices, s,
     tensor::Tensor,
 };
+
 /// Performs PLU decomposition of a square matrix.
 ///
 /// The function decomposes a given square matrix `A` into three matrices: a permutation vector `p`,
@@ -22,9 +23,16 @@ use crate::{
 /// # Panics and numerical issues
 /// - The function will panic if the input matrix is singular or near-singular.
 /// - The function will panic if the input matrix is not square.
+///
 /// # Performance note (synchronization / device transfers)
 /// This function may involve multiple synchronizations and device transfers, especially
-/// when determining pivot elements and performing row swaps. This can impact performance,
+/// when determining pivot elements and performing row swaps. This can impact performance.
+///
+/// # Design Note
+/// This implementation prioritizes numerical correctness and backend-agnostic behavior
+/// over peak performance. It is a reference-grade implementation, not a blocked or
+/// BLAS-backed algorithm. While it serves as a robust baseline, users requiring
+/// extreme performance on specific hardware should be aware of these trade-offs.
 pub fn lu_decomposition<B: Backend>(tensor: Tensor<B, 2>) -> (Tensor<B, 2>, Tensor<B, 1, Int>) {
     check!(TensorCheck::is_square::<2>(
         "lu_decomposition",
