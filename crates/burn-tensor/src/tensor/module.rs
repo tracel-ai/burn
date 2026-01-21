@@ -47,7 +47,8 @@ where
         // Pad takes (left, right, top, bottom) for last two dims; for 1D we only pad width
         let padded = x.pad((left, right, 0, 0), PadMode::Constant(0.0));
         // Call backend with zero padding since we already applied it
-        let zero_pad_options = ConvOptions::new(options.stride, [0; 1], options.dilation, options.groups);
+        let zero_pad_options =
+            ConvOptions::new(options.stride, [0; 1], options.dilation, options.groups);
         Tensor::new(TensorPrimitive::Float(B::conv1d(
             padded.primitive.tensor(),
             weight.primitive.tensor(),
@@ -95,7 +96,8 @@ where
         // Pad takes (left, right, top, bottom)
         let padded = x.pad((left, right, top, bottom), PadMode::Constant(0.0));
         // Call backend with zero padding since we already applied it
-        let zero_pad_options = ConvOptions::new(options.stride, [0; 2], options.dilation, options.groups);
+        let zero_pad_options =
+            ConvOptions::new(options.stride, [0; 2], options.dilation, options.groups);
         Tensor::new(TensorPrimitive::Float(B::conv2d(
             padded.primitive.tensor(),
             weight.primitive.tensor(),
