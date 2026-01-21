@@ -3,7 +3,12 @@ use crate::{
     tensor::{IntTensor, Numeric},
 };
 
-/// Trait that list all operations that can be applied on all numerical tensors.
+/// Trait that list all operations that can be applied on all numerical tensors
+/// whose elements have a well-defined ordering.
+///
+/// This includes operations such as comparisons, minimum/maximum reductions,
+/// and other order-dependent computations that are not strictly valid for all numerical
+/// types.
 ///
 /// # Warnings
 ///
