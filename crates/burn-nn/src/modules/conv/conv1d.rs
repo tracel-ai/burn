@@ -3,12 +3,7 @@ use alloc::format;
 use burn_core as burn;
 
 use crate::{PaddingConfig1d, conv::checks};
-use burn::tensor::{
-    Tensor,
-    backend::Backend,
-    module::conv1d,
-    ops::ConvOptions,
-};
+use burn::tensor::{Tensor, backend::Backend, module::conv1d, ops::ConvOptions};
 use burn::{
     config::Config,
     module::{Content, DisplaySettings, Ignored, Initializer, Module, ModuleDisplay, Param},

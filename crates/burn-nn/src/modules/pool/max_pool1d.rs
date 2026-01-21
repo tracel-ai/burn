@@ -96,6 +96,8 @@ impl MaxPool1d {
     /// - input: `[batch_size, channels, length_in]`
     /// - output: `[batch_size, channels, length_out]`
     pub fn forward<B: Backend>(&self, input: Tensor<B, 3>) -> Tensor<B, 3> {
+        // TODO: Move asymmetric padding to functional level via PoolOptions
+        // See: https://github.com/tracel-ai/burn/issues/4362
         // Handle asymmetric padding by applying explicit pad operation first
         if self.padding.is_asymmetric() {
             let (left, right) = self.padding.as_tuple();
