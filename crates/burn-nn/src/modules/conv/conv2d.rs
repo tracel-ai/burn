@@ -9,7 +9,7 @@ use burn::module::{Content, DisplaySettings, Ignored, Module, ModuleDisplay, Par
 use burn::tensor::Tensor;
 use burn::tensor::backend::Backend;
 use burn::tensor::module::conv2d;
-use burn::tensor::ops::{ConvOptions, PadMode};
+use burn::tensor::ops::ConvOptions;
 
 use crate::conv::checks;
 
@@ -168,33 +168,31 @@ impl<B: Backend> Conv2d<B> {
     /// println!("{:?}", y.dims()); // [1, 8, 26, 26]
     /// ```
     pub fn forward(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
-        // Handle asymmetric padding by applying explicit pad operation first
-        if self.padding.is_asymmetric() {
+        let [_batch_size, _channels_in, height_in, width_in] = input.dims();
+
+        // Build ConvOptions with appropriate padding
+        let options = if self.padding.is_asymmetric() {
             let (top, left, bottom, right) = self.padding.as_tuple();
-            // Burn's pad takes (left, right, top, bottom) for the last two dimensions
-            let padded = input.pad((left, right, top, bottom), PadMode::Constant(0.0));
-            // Use zero padding for the conv operation since we already padded
-            conv2d(
-                padded,
-                self.weight.val(),
-                self.bias.as_ref().map(|bias| bias.val()),
-                ConvOptions::new(self.stride, [0, 0], self.dilation, self.groups),
-            )
+            // Use asymmetric padding via ConvOptions - functional layer handles explicit pad
+            // padding = [top, left], padding_out = [bottom, right]
+            ConvOptions::new(self.stride, [top, left], self.dilation, self.groups)
+                .with_padding_out([bottom, right])
         } else {
-            let [_batch_size, _channels_in, height_in, width_in] = input.dims();
             let padding = self.padding.calculate_padding_2d(
                 height_in,
                 width_in,
                 &self.kernel_size,
                 &self.stride,
             );
-            conv2d(
-                input,
-                self.weight.val(),
-                self.bias.as_ref().map(|bias| bias.val()),
-                ConvOptions::new(self.stride, padding, self.dilation, self.groups),
-            )
-        }
+            ConvOptions::new(self.stride, padding, self.dilation, self.groups)
+        };
+
+        conv2d(
+            input,
+            self.weight.val(),
+            self.bias.as_ref().map(|bias| bias.val()),
+            options,
+        )
     }
 }
 

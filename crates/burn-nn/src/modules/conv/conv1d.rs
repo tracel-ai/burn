@@ -7,7 +7,7 @@ use burn::tensor::{
     Tensor,
     backend::Backend,
     module::conv1d,
-    ops::{ConvOptions, PadMode},
+    ops::ConvOptions,
 };
 use burn::{
     config::Config,
@@ -154,32 +154,27 @@ impl<B: Backend> Conv1d<B> {
     /// - input: `[batch_size, channels_in, length_in]`
     /// - output: `[batch_size, channels_out, length_out]`
     pub fn forward(&self, input: Tensor<B, 3>) -> Tensor<B, 3> {
-        // Handle asymmetric padding by applying explicit pad operation first
-        if self.padding.is_asymmetric() {
+        let length = input.dims()[2];
+
+        // Build ConvOptions with appropriate padding
+        let options = if self.padding.is_asymmetric() {
             let (left, right) = self.padding.as_tuple();
-            // Burn's pad takes (left, right, top, bottom) for the last two dimensions
-            // For 1D (NCL format), we only pad L (last dim), so top/bottom = 0
-            let padded = input.pad((left, right, 0, 0), PadMode::Constant(0.0));
-            // Use zero padding for the conv operation since we already padded
-            conv1d(
-                padded,
-                self.weight.val(),
-                self.bias.as_ref().map(|bias| bias.val()),
-                ConvOptions::new([self.stride], [0], [self.dilation], self.groups),
-            )
+            // Use asymmetric padding via ConvOptions - functional layer handles explicit pad
+            ConvOptions::new([self.stride], [left], [self.dilation], self.groups)
+                .with_padding_out([right])
         } else {
-            let length = input.dims()[2];
             let padding = self
                 .padding
                 .calculate_padding_1d(length, self.kernel_size, self.stride);
+            ConvOptions::new([self.stride], [padding], [self.dilation], self.groups)
+        };
 
-            conv1d(
-                input,
-                self.weight.val(),
-                self.bias.as_ref().map(|bias| bias.val()),
-                ConvOptions::new([self.stride], [padding], [self.dilation], self.groups),
-            )
-        }
+        conv1d(
+            input,
+            self.weight.val(),
+            self.bias.as_ref().map(|bias| bias.val()),
+            options,
+        )
     }
 }
 
