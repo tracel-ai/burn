@@ -2,6 +2,7 @@
 use crate::include_models;
 include_models!(
     expand,
+    expand_scalar,
     expand_tensor,
     expand_shape,
     expand_with_where_shape,
@@ -40,6 +41,24 @@ mod tests {
         let expected_shape = Shape::from([2, 2]);
 
         assert_eq!(output.shape(), expected_shape);
+    }
+
+    #[test]
+    fn expand_scalar() {
+        let device = Default::default();
+        let model: expand_scalar::Model<TestBackend> = expand_scalar::Model::new(&device);
+
+        let input = 5i64;
+        let shape = Tensor::<TestBackend, 1, Int>::from_ints([2, 2], &device);
+
+        let output = model.forward(input, shape);
+        let expected_shape = Shape::from([2, 2]);
+
+        assert_eq!(output.shape(), expected_shape);
+
+        // Verify values: all elements should be 5
+        let expected = Tensor::<TestBackend, 2, Int>::from_ints([[5, 5], [5, 5]], &device);
+        output.into_data().assert_eq(&expected.into_data(), true);
     }
 
     #[test]

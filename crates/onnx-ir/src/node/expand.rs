@@ -100,9 +100,10 @@ impl NodeProcessor for ExpandProcessor {
         // Get input element type - Expand should preserve the input's element type
         let input_elem_type = match &node.inputs[0].ty {
             ArgType::Tensor(tensor) => tensor.dtype,
+            ArgType::Scalar(dtype) => *dtype,
             _ => {
                 return Err(ProcessError::TypeMismatch {
-                    expected: "Tensor".to_string(),
+                    expected: "Tensor or Scalar".to_string(),
                     actual: format!("{:?}", node.inputs[0].ty),
                 });
             }
