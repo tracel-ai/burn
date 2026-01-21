@@ -229,34 +229,36 @@ For functions that need a complex kernel without a direct mapping to a base inst
 the `cube` macro (see
 [the `cubecl` book](https://github.com/tracel-ai/cubecl/tree/88c0c6f781f70ad2f6e9981fd0cbe2e87e153a35/cubecl-book)).
 
-## Adding the Op to burn-import
+## Adding the Op to burn-onnx
 
 Generating the ONNX test files or tests is already covered
 [in the ONNX to burn guide](onnx-to-burn-conversion-tool.md#adding-new-operators); this is more
 about the specific changes you need to make when adding new operators after you have generated the
 tests.
 
-Changes will need to be made to both `onnx-ir` and `burn-import`. The code within `onnx-ir` defines
+Changes will need to be made to both `onnx-ir` and `burn-onnx`. The code within `onnx-ir` defines
 how to parse the nodes in an onnx file and produces the intermediate representation. The code within
-`burn-import` is divided into two sections: `src/onnx` and `src/burn`. The code under the former
+`burn-onnx` is divided into two sections: `src/onnx` and `src/burn`. The code under the former
 maps that intermediate representation to one used for code generation and the latter defines how to
 generate code for the operator you've implemented earlier in this guide.
 
 So when you are loading a model, the operator is first parsed to an intermediate representation
-defined by `burn-import` and then mapped to a Burn operation defined under `src/burn/node`; the
+defined by `burn-onnx` and then mapped to a Burn operation defined under `src/burn/node`; the
 mapping from onnx to burn is aptly defined in `src/onnx/to_burn`
 
 Let's review the changes made for powf starting from `src/burn` and moving to `src/onnx`:
 
+TODO: update ONNX steps below
+
 1. Determine the type of operator and add your operator to the appropriate node (operation) type, in
    this case
-   [BinaryNode under `crates/burn-import/src/burn/node/binary.rs`](https://github.com/tracel-ai/burn/blob/925716f89d0249cbc6bd14f85f40967bd7ef80a8/crates/burn-import/src/burn/node/binary.rs#L173)
+   [BinaryNode under `crates/burn-onnx/src/burn/node/binary.rs`](https://github.com/tracel-ai/burn/blob/925716f89d0249cbc6bd14f85f40967bd7ef80a8/crates/burn-onnx/src/burn/node/binary.rs#L173)
    along with its
-   [`as_str` definition](https://github.com/tracel-ai/burn/blob/925716f89d0249cbc6bd14f85f40967bd7ef80a8/crates/burn-import/src/burn/node/binary.rs#L15)
+   [`as_str` definition](https://github.com/tracel-ai/burn/blob/925716f89d0249cbc6bd14f85f40967bd7ef80a8/crates/burn-onnx/src/burn/node/binary.rs#L15)
 2. Add an arm to the match statement inside the `into_burn` function in
-   [crates/burn-import/src/onnx/to_burn.rs](https://github.com/tracel-ai/burn/blob/925716f89d0249cbc6bd14f85f40967bd7ef80a8/crates/burn-import/src/onnx/to_burn.rs#L349)
+   [crates/burn-onnx/src/onnx/to_burn.rs](https://github.com/tracel-ai/burn/blob/925716f89d0249cbc6bd14f85f40967bd7ef80a8/crates/burn-onnx/src/onnx/to_burn.rs#L349)
    for the ONNX `NodeType` (which corresponds to an op in the ONNX spec), and make an
-   [`{op}_conversion` function](https://github.com/tracel-ai/burn/blob/925716f89d0249cbc6bd14f85f40967bd7ef80a8/crates/burn-import/src/onnx/to_burn.rs#L1238)
+   [`{op}_conversion` function](https://github.com/tracel-ai/burn/blob/925716f89d0249cbc6bd14f85f40967bd7ef80a8/crates/burn-onnx/src/onnx/to_burn.rs#L1238)
    that maps the ONNX node to the binary type
 3. Specify how dimensions for the output should be derived in
    [crates/onnx-ir/src/rank_inference.rs](https://github.com/tracel-ai/burn/blob/925716f89d0249cbc6bd14f85f40967bd7ef80a8/crates/onnx-ir/src/rank_inference.rs#L64)

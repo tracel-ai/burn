@@ -61,7 +61,7 @@ There are two simple ways to upgrade your ONNX models to the recommended opset v
 Option 1: Use the provided utility script:
 
 ```
-uv run --script https://raw.githubusercontent.com/tracel-ai/burn/refs/heads/main/crates/burn-import/onnx_opset_upgrade.py
+uv run --script https://raw.githubusercontent.com/tracel-ai/burn/refs/heads/main/crates/burn-onnx/onnx_opset_upgrade.py
 ```
 
 Option 2: Use a custom Python script:
@@ -200,10 +200,10 @@ let model = Model::<Backend>::from_embedded(&device);
 Common issues and solutions:
 
 1. **Unsupported ONNX operator**: Check the
-   [list of supported ONNX operators](https://github.com/tracel-ai/burn/blob/main/crates/burn-import/SUPPORTED-ONNX-OPS.md).
+   [list of supported ONNX operators](https://github.com/tracel-ai/burn/blob/main/crates/burn-onnx/SUPPORTED-ONNX-OPS.md).
    You may need to simplify your model or wait for support.
 
-2. **Build errors**: Ensure your `burn-import` version matches your Burn version and verify the ONNX
+2. **Build errors**: Ensure your `burn-onnx` version matches your Burn version and verify the ONNX
    file path in `build.rs`.
 
 3. **Runtime errors**: Confirm that your input tensors match the expected shape and data type of
@@ -230,11 +230,11 @@ Importing ONNX models into Burn combines the vast ecosystem of pre-trained model
 performance and Rust's safety features. Following this guide, you can seamlessly integrate ONNX
 models into your Burn projects for inference, fine-tuning, or further development.
 
-The `burn-import` crate is actively developed, with ongoing work to support more ONNX operators and
+The `burn-onnx` crate is actively developed, with ongoing work to support more ONNX operators and
 improve performance. Stay tuned to the Burn repository for updates!
 
 ---
 
-> 🚨**Note**: The `burn-import` crate is in active development. For the most up-to-date information
+> 🚨**Note**: The `burn-onnx` crate is in active development. For the most up-to-date information
 > on supported ONNX operators, please refer to the
-> [official documentation](https://github.com/tracel-ai/burn/blob/main/crates/burn-import/SUPPORTED-ONNX-OPS.md).
+> [official documentation](https://github.com/tracel-ai/burn/blob/main/crates/burn-onnx/SUPPORTED-ONNX-OPS.md).
