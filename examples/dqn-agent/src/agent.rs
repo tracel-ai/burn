@@ -1,9 +1,11 @@
+use std::marker::PhantomData;
+
 use burn::backend::NdArray;
 use burn::module::Module;
 use burn::optim::SimpleOptimizer;
 use burn::optim::adaptor::OptimizerAdaptor;
 use burn::tensor::activation::softmax;
-use burn::tensor::{Device, Transaction, s};
+use burn::tensor::{Transaction, s};
 use burn::train::ItemLazy;
 use burn::train::metric::{Adaptor, LossInput};
 use burn::{
@@ -15,29 +17,20 @@ use burn::{
     prelude::Backend,
     tensor::backend::AutodiffBackend,
 };
-use burn_rl::{
-    ActionContext, EnvAction, EnvState, Environment, LearnerAgent, Policy, RLTrainOutput,
-    Transition, TransitionBatch, TransitionBuffer,
-};
+use burn_rl::{LearnerAgent, Policy, RLTrainOutput, Transition, TransitionBatch, TransitionBuffer};
 use rand::distr::Distribution;
 use rand::distr::weighted::WeightedIndex;
 use rand::rng;
-use std::marker::PhantomData;
 
 use crate::utils::{
     EpsilonGreedyPolicy, EpsilonGreedyPolicyState, create_lin_layers, soft_update_linear,
 };
 
-#[derive(Clone)]
-pub struct InferenceOutput<B: Backend> {
-    pub probs: Tensor<B, 2>,
-    pub values: Option<Tensor<B, 2>>,
-}
+pub trait DiscreteActionModel<B: Backend>: Module<B> {
+    type Input: Clone + Send;
 
-// TODO : What about infer retourne aussi TO. batch_take_action pourrait aussi retourner TO et le mettre dans la TransitionBatch or smtg.
-pub trait AgentModel<B: Backend>: Module<B> {
-    fn forward(&self, input: Tensor<B, 2>) -> InferenceOutput<B>;
-    fn infer(&self, input: Tensor<B, 2>) -> InferenceOutput<B>;
+    fn forward(&self, input: Self::Input) -> Tensor<B, 2>;
+    fn batch(&self, inputs: Vec<&Self::Input>) -> Self::Input;
 }
 
 #[derive(Config, Debug)]
@@ -84,14 +77,16 @@ impl<B: Backend> MlpNet<B> {
     }
 }
 
-impl<B: Backend> AgentModel<B> for MlpNet<B> {
+impl<B: Backend> DiscreteActionModel<B> for MlpNet<B> {
+    type Input = Tensor<B, 2>;
+
     /// Applies the forward pass on the input tensor.
     ///
     /// # Shapes
     ///
     /// - input: `[batch_size, d_input]`
     /// - output: `[batch_size, d_output]`
-    fn forward(&self, input: Tensor<B, 2>) -> InferenceOutput<B> {
+    fn forward(&self, input: Self::Input) -> Tensor<B, 2> {
         let mut x = input;
 
         for (i, linear) in self.linears.iter().enumerate() {
@@ -102,23 +97,12 @@ impl<B: Backend> AgentModel<B> for MlpNet<B> {
             }
         }
 
-        InferenceOutput {
-            probs: x,
-            values: None,
-        }
+        x
     }
 
-    fn infer(&self, input: Tensor<B, 2>) -> InferenceOutput<B> {
-        self.forward(input)
+    fn batch(&self, inputs: Vec<&Self::Input>) -> Self::Input {
+        Tensor::cat(inputs.into_iter().cloned().collect(), 0)
     }
-
-    // fn infer(&self, input: Tensor<B, 2>) -> InferenceOutput<B, Self::ForwardOutput> {
-    //     let x = self.forward(input);
-    //     InferenceOutput {
-    //         logits: x.clone(),
-    //         training_output: x,
-    //     }
-    // }
 }
 
 #[derive(Config, Debug)]
@@ -143,11 +127,11 @@ pub struct DqnAgentConfig {
     pub epsilon_decay: f64,
 }
 
-pub trait DqnModel<B: Backend> {
+pub trait TargetModel<B: Backend> {
     fn soft_update(&self, that: &Self, tau: f64) -> Self;
 }
 
-impl<B: Backend> DqnModel<B> for MlpNet<B> {
+impl<B: Backend> TargetModel<B> for MlpNet<B> {
     fn soft_update(&self, that: &Self, tau: f64) -> Self {
         let mut linears = Vec::with_capacity(self.linears.len());
         for i in 0..self.linears.len() {
@@ -163,68 +147,41 @@ impl<B: Backend> DqnModel<B> for MlpNet<B> {
 }
 
 #[derive(Clone)]
-pub struct DqnAgent<B: Backend, E: Environment, M: AgentModel<B> + DqnModel<B>> {
+pub struct DQN<B: Backend, M: DiscreteActionModel<B>> {
     model: M,
-    device: Device<B>,
-    _env: PhantomData<E::State>,
+    _backend: PhantomData<B>,
 }
 
-impl<B: Backend, E: Environment, M: AgentModel<B> + DqnModel<B>> DqnAgent<B, E, M> {
-    pub fn new(policy: M, device: &Device<B>) -> Self {
+impl<B: Backend, M: DiscreteActionModel<B>> DQN<B, M> {
+    pub fn new(policy: M) -> Self {
         Self {
             model: policy,
-            device: device.clone(),
-            _env: PhantomData,
+            _backend: PhantomData,
         }
     }
 }
 
 // TODO: remove Environment
-impl<B: Backend, E: Environment, M: AgentModel<B> + DqnModel<B> + Clone + Send>
-    Policy<B, E::State, E::Action> for DqnAgent<B, E, M>
-{
+impl<B: Backend, M: DiscreteActionModel<B>> Policy<B> for DQN<B, M> {
+    type Input = M::Input;
+    type Logits = Tensor<B, 2>;
+    type Action = Tensor<B, 2>;
+
     type ActionContext = ();
     type PolicyState = M;
 
-    fn logits(&mut self, state: &E::State) -> Tensor<B, 1> {
-        self.batch_logits(vec![state]).squeeze()
+    fn logits(&mut self, states: Self::Input) -> Self::Logits {
+        self.model.forward(states)
     }
 
     fn action(
         &mut self,
-        state: &E::State,
+        states: Self::Input,
         deterministic: bool,
-    ) -> ActionContext<E::Action, Self::ActionContext> {
-        self.batch_action(vec![state], deterministic).remove(0)
-    }
-
-    fn batch_logits(&mut self, states: Vec<&E::State>) -> Tensor<B, 2> {
-        let input = states.iter().map(|s| s.to_tensor(&self.device)).collect();
-        let input = Tensor::stack(input, 0);
-        let InferenceOutput {
-            probs: logits,
-            values: _,
-        } = self.model.forward(input);
-        logits
-    }
-
-    fn batch_action(
-        &mut self,
-        states: Vec<&E::State>,
-        deterministc: bool,
-    ) -> Vec<ActionContext<E::Action, Self::ActionContext>> {
-        let logits = self.batch_logits(states);
-        if deterministc {
-            let actions = logits.argmax(1);
-            let actions = (0..actions.dims()[0])
-                .map(|i| {
-                    ActionContext::new(
-                        (),
-                        E::Action::from_tensor(actions.clone().float().slice(s![i, ..])),
-                    )
-                })
-                .collect();
-            return actions;
+    ) -> (Self::Action, Vec<Self::ActionContext>) {
+        let logits = self.logits(states);
+        if deterministic {
+            return (logits.argmax(1).float(), vec![]);
         }
 
         let mut actions = vec![];
@@ -242,9 +199,9 @@ impl<B: Backend, E: Environment, M: AgentModel<B> + DqnModel<B> + Clone + Send>
             )
             .unwrap();
             let action = dist.sample(&mut rng);
-            actions.push(ActionContext::new((), E::Action::from_usize(action)));
+            actions.push(Tensor::<B, 1>::from_floats([action], &probs.device()));
         }
-        return actions;
+        return (Tensor::stack(actions, 1), vec![]);
     }
 
     fn update(&mut self, update: Self::PolicyState) {
@@ -254,40 +211,45 @@ impl<B: Backend, E: Environment, M: AgentModel<B> + DqnModel<B> + Clone + Send>
     fn state(&self) -> Self::PolicyState {
         self.model.clone()
     }
+
+    fn batch(&self, inputs: Vec<&Self::Input>) -> Self::Input {
+        self.model.batch(inputs)
+    }
+
+    fn unbatch(&self, inputs: Self::Action) -> Vec<Self::Action> {
+        let mut output = vec![];
+        for i in 0..inputs.dims()[0] {
+            output.push(inputs.clone().slice(s![i, ..]));
+        }
+        output
+    }
 }
 
 #[derive(Clone)]
-pub struct DqnLearningAgent<B, E, M, O>
+pub struct DqnLearningAgent<B, M, O>
 where
     B: AutodiffBackend,
-    E: Environment,
-    M: AgentModel<B> + AutodiffModule<B> + DqnModel<B> + 'static,
-    M::InnerModule: AgentModel<B::InnerBackend> + DqnModel<B::InnerBackend>,
+    M: DiscreteActionModel<B> + AutodiffModule<B> + TargetModel<B> + 'static,
+    M::InnerModule: DiscreteActionModel<B::InnerBackend> + TargetModel<B::InnerBackend>,
     O: SimpleOptimizer<B::InnerBackend> + 'static,
 {
     policy_model: M,
     target_model: M,
-    agent: EpsilonGreedyPolicy<B, E::State, E::Action, DqnAgent<B, E, M>>,
+    agent: EpsilonGreedyPolicy<B, DQN<B, M>>,
     optimizer: OptimizerAdaptor<O, M, B>,
     config: DqnAgentConfig,
 }
 
-impl<B, E, M, O> DqnLearningAgent<B, E, M, O>
+impl<B, M, O> DqnLearningAgent<B, M, O>
 where
     B: AutodiffBackend,
-    E: Environment,
-    M: AgentModel<B> + AutodiffModule<B> + DqnModel<B> + 'static,
-    M::InnerModule: AgentModel<B::InnerBackend> + DqnModel<B::InnerBackend>,
+    M: DiscreteActionModel<B> + AutodiffModule<B> + TargetModel<B> + 'static,
+    M::InnerModule: DiscreteActionModel<B::InnerBackend> + TargetModel<B::InnerBackend>,
     O: SimpleOptimizer<B::InnerBackend> + 'static,
 {
-    pub fn new(
-        model: M,
-        optimizer: OptimizerAdaptor<O, M, B>,
-        config: DqnAgentConfig,
-        device: &Device<B>,
-    ) -> Self {
+    pub fn new(model: M, optimizer: OptimizerAdaptor<O, M, B>, config: DqnAgentConfig) -> Self {
         let agent = EpsilonGreedyPolicy::new(
-            DqnAgent::new(model.clone(), device),
+            DQN::new(model.clone()),
             config.epsilon_start,
             config.epsilon_end,
             config.epsilon_decay,
@@ -331,46 +293,42 @@ impl<B: Backend> Adaptor<LossInput<B>> for SimpleTrainOutput<B> {
     }
 }
 
-impl<B, E, M, O> LearnerAgent<B, E::State, E::Action> for DqnLearningAgent<B, E, M, O>
+impl<B, M, O> LearnerAgent<B> for DqnLearningAgent<B, M, O>
 where
     B: AutodiffBackend,
-    E: Environment,
-    M: AgentModel<B> + AutodiffModule<B> + DqnModel<B> + 'static,
-    M::InnerModule: AgentModel<B::InnerBackend> + DqnModel<B::InnerBackend>,
+    M: DiscreteActionModel<B> + AutodiffModule<B> + TargetModel<B> + 'static,
+    M::Input: Clone,
+    M::InnerModule: DiscreteActionModel<B::InnerBackend> + TargetModel<B::InnerBackend>,
     O: SimpleOptimizer<B::InnerBackend> + 'static,
 {
-    type TrainingInput = Transition<B>;
+    type TrainingInput = Transition<
+        B,
+        <Self::InnerPolicy as Policy<B>>::Input,
+        <Self::InnerPolicy as Policy<B>>::Action,
+    >;
     type TrainingOutput = SimpleTrainOutput<B>;
-    type InnerPolicy = EpsilonGreedyPolicy<B, E::State, E::Action, DqnAgent<B, E, M>>;
+    type InnerPolicy = EpsilonGreedyPolicy<B, DQN<B, M>>;
 
     fn train(
         &mut self,
         input: &TransitionBuffer<Self::TrainingInput>,
-    ) -> RLTrainOutput<
-        Self::TrainingOutput,
-        <Self::InnerPolicy as Policy<B, E::State, E::Action>>::PolicyState,
-    > {
+    ) -> RLTrainOutput<Self::TrainingOutput, <Self::InnerPolicy as Policy<B>>::PolicyState> {
         // TODO: true batch size.
         let batch = input.random_sample(128);
         let batch = TransitionBatch::from(batch);
 
-        let states_batch = batch.states;
-        let next_states_batch = batch.next_states;
+        let states_batch = self.policy_model.batch(batch.states.iter().collect());
+        let next_states_batch = self.target_model.batch(batch.next_states.iter().collect());
         let actions_batch = batch.actions;
+        let actions_batch = Tensor::cat(actions_batch, 0);
         let rewards_batch = batch.rewards;
         let dones_batch = batch.dones;
 
         // Optimize
-        let InferenceOutput {
-            probs: logits,
-            values: _,
-        } = self.policy_model.forward(states_batch.clone());
+        let logits = self.policy_model.forward(states_batch);
         let state_action_values = logits.gather(1, actions_batch.int());
 
-        let InferenceOutput {
-            probs: next_state_values,
-            values: _,
-        } = self.target_model.forward(next_states_batch.clone());
+        let next_state_values = self.target_model.forward(next_states_batch.clone());
         let next_state_values = next_state_values.max_dim(1).squeeze::<1>();
 
         let not_done_batch = Tensor::ones_like(&dones_batch) - dones_batch;

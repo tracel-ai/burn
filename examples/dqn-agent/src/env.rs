@@ -1,5 +1,8 @@
-use burn::{Tensor, prelude::ToElement, tensor::Device};
-use burn_rl::{EnvAction, EnvState, Environment, StepResult};
+use burn::{
+    Tensor,
+    prelude::{Backend, ToElement},
+};
+use burn_rl::{Environment, StepResult};
 use gym_rs::{
     core::Env,
     envs::classical_control::cartpole::{CartPoleEnv, CartPoleObservation},
@@ -10,19 +13,11 @@ pub struct CartPoleAction {
     action: usize,
 }
 
-impl EnvAction for CartPoleAction {
-    fn from_tensor<B: burn::prelude::Backend>(tensor: Tensor<B, 2>) -> Self {
+impl<B: Backend> From<Tensor<B, 2>> for CartPoleAction {
+    fn from(value: Tensor<B, 2>) -> Self {
         Self {
-            action: tensor.int().into_scalar().to_usize(),
+            action: value.int().into_scalar().to_usize(),
         }
-    }
-
-    fn from_usize(action: usize) -> Self {
-        Self { action }
-    }
-
-    fn to_tensor<B: burn::prelude::Backend>(&self, device: &Device<B>) -> burn::Tensor<B, 1> {
-        Tensor::<B, 1>::from_floats([self.action as i32 as f64], device)
     }
 }
 
@@ -40,9 +35,9 @@ impl From<CartPoleObservation> for CartPoleState {
     }
 }
 
-impl EnvState for CartPoleState {
-    fn to_tensor<B: burn::prelude::Backend>(&self, device: &Device<B>) -> burn::Tensor<B, 1> {
-        Tensor::<B, 1>::from_floats(self.state, device)
+impl<B: Backend> Into<Tensor<B, 2>> for CartPoleState {
+    fn into(self) -> Tensor<B, 2> {
+        Tensor::<B, 1>::from_floats(self.state, &Default::default()).unsqueeze()
     }
 }
 

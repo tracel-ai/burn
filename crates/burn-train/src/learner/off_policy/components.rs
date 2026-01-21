@@ -10,32 +10,23 @@ pub trait ReinforcementLearningComponentsTypes {
     /// The backend used for training.
     type Backend: AutodiffBackend;
     /// The learning environement.
-    type Env: Environment + 'static;
+    type Env: Environment<State = Self::State, Action = Self::Action> + 'static;
     /// The learning agent.
     /// // TODO: type shit is weird here.
     type LearningAgent: LearnerAgent<
             Self::Backend,
-            <Self::Env as Environment>::State,
-            <Self::Env as Environment>::Action,
             TrainingOutput = Self::TrainingOutput,
             InnerPolicy = Self::Policy,
         > + Send
         + 'static;
     /// The policy used to take actions in the environment.
-    type Policy: Policy<
-            Self::Backend,
-            <Self::Env as Environment>::State,
-            <Self::Env as Environment>::Action,
-            ActionContext = Self::ActionContext,
-            PolicyState = Self::PolicyState,
-        > + Send
-        + 'static;
-    /// The policy's state during learning.
-    type PolicyState: Send;
+    type Policy: Policy<Self::Backend, ActionContext = Self::ActionContext> + Send + 'static;
     /// Additional data as context for an agent's action.
     type ActionContext: ItemLazy + Clone + Send + 'static;
     /// The output data of a training step.
     type TrainingOutput: ItemLazy + Clone + Send;
+    type State: Into<<Self::Policy as Policy<Self::Backend>>::Input> + Clone;
+    type Action: From<<Self::Policy as Policy<Self::Backend>>::Action>;
 }
 
 /// Concrete type that implements the [ReinforcementLearningComponentsTypes](ReinforcementLearningComponentsTypes) trait.
@@ -52,11 +43,12 @@ impl<B, E, A, TO, AC> ReinforcementLearningComponentsTypes
 where
     B: AutodiffBackend,
     E: Environment + 'static,
-    A: LearnerAgent<B, E::State, E::Action, TrainingOutput = TO> + Send + 'static,
-    A::InnerPolicy: Policy<B, E::State, E::Action, ActionContext = AC> + Send,
-    <A::InnerPolicy as Policy<B, E::State, E::Action>>::PolicyState: Send,
+    A: LearnerAgent<B, TrainingOutput = TO> + Send + 'static,
+    A::InnerPolicy: Policy<B, ActionContext = AC> + Send,
     TO: ItemLazy + Clone + Send,
     AC: ItemLazy + Clone + Send + 'static,
+    E::State: Into<<A::InnerPolicy as Policy<B>>::Input> + Clone,
+    E::Action: From<<A::InnerPolicy as Policy<B>>::Action>,
 {
     type Backend = B;
     type Env = E;
@@ -64,14 +56,13 @@ where
     type Policy = A::InnerPolicy;
     type ActionContext = AC;
     type TrainingOutput = TO;
-    type PolicyState = <A::InnerPolicy as Policy<B, E::State, E::Action>>::PolicyState;
+    type State = E::State;
+    type Action = E::Action;
 }
 
 pub(crate) type RlPolicy<OC> =
     <<OC as ReinforcementLearningComponentsTypes>::LearningAgent as LearnerAgent<
         <OC as ReinforcementLearningComponentsTypes>::Backend,
-        RlState<OC>,
-        RlAction<OC>,
     >>::InnerPolicy;
 // pub(crate) type RlPolicyState<OC> =
 //     <<<OC as ReinforcementLearningComponentsTypes>::LearningAgent as LearnerAgent<

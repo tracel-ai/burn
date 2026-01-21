@@ -49,24 +49,17 @@ pub struct OffPolicyLearning<OC: ReinforcementLearningComponentsTypes> {
     summary: bool,
 }
 
-// impl<LC, E, A, TO, AC> OffPolicyLearning<OffPolicyLearningComponentsMarker<LC, E, A, TO, AC>>
-// where
-//     LC: LearningComponentsTypes,
-//     E: Environment + 'static,
-//     A: LearnerAgent<TrainingBackend<LC>, E, TrainingOutput = TO, DecisionContext = AC>
-//         + Send
-//         + 'static,
-//     AC: ItemLazy + Clone + Send,
-//     TO: ItemLazy + Clone + Send,
 impl<B, E, A, TO, AC> OffPolicyLearning<ReinforcementLearningComponentsMarker<B, E, A, TO, AC>>
 where
     B: AutodiffBackend,
     E: Environment + 'static,
-    A: LearnerAgent<B, E::State, E::Action, TrainingOutput = TO> + Send + 'static,
-    A::InnerPolicy: Policy<B, E::State, E::Action, ActionContext = AC> + Send,
-    <A::InnerPolicy as Policy<B, E::State, E::Action>>::PolicyState: Send,
+    A: LearnerAgent<B, TrainingOutput = TO> + Send + 'static,
+    A::InnerPolicy: Policy<B, ActionContext = AC> + Send,
+    <A::InnerPolicy as Policy<B>>::PolicyState: Send,
     TO: ItemLazy + Clone + Send,
     AC: ItemLazy + Clone + Send + 'static,
+    E::State: Into<<A::InnerPolicy as Policy<B>>::Input> + Clone,
+    E::Action: From<<A::InnerPolicy as Policy<B>>::Action>,
 {
     /// Creates a new runner for a supervised training.
     ///

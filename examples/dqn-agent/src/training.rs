@@ -39,12 +39,7 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
     let optimizer = AdamWConfig::new()
         .with_grad_clipping(Some(GradientClippingConfig::Value(10.0)))
         .init();
-    let agent = DqnLearningAgent::<_, CartPoleWrapper, _, _>::new(
-        policy_model,
-        optimizer,
-        dqn_config,
-        &device,
-    );
+    let agent = DqnLearningAgent::new(policy_model, optimizer, dqn_config);
     let learner = OffPolicyLearning::<
         ReinforcementLearningComponentsMarker<_, CartPoleWrapper, _, _, _>,
     >::new(ARTIFACT_DIR)

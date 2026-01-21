@@ -70,10 +70,12 @@ impl TuiMetricsRendererWrapper {
                     Ok(event) => renderer.handle_event(event),
                     Err(mpsc::TryRecvError::Empty) => (),
                     Err(mpsc::TryRecvError::Disconnected) => {
-                        panic!("Renderer thread disconnected.")
+                        log::error!("Renderer thread disconnected.");
+                        break;
                     }
                 }
 
+                // TODO: Fix stopping training.
                 if renderer.interrupter.should_stop() {
                     break;
                 }

@@ -18,8 +18,9 @@ impl<OC: ReinforcementLearningComponentsTypes> SimpleOffPolicyStrategy<OC> {
     }
 }
 
-impl<OC: ReinforcementLearningComponentsTypes> ReinforcementLearningStrategy<OC>
-    for SimpleOffPolicyStrategy<OC>
+impl<OC> ReinforcementLearningStrategy<OC> for SimpleOffPolicyStrategy<OC>
+where
+    OC: ReinforcementLearningComponentsTypes,
 {
     fn fit(
         &self,
@@ -37,8 +38,8 @@ impl<OC: ReinforcementLearningComponentsTypes> ReinforcementLearningStrategy<OC>
             autobatch_size: usize,
         }
         let multi_env_config = MultiEnvConfig {
-            num_envs: 8,
-            autobatch_size: 8,
+            num_envs: 16,
+            autobatch_size: 4,
         };
         // TODO: pq on a besoin du type?
         let mut env_runner = AsyncEnvArrayRunner::<OC::Backend, OC>::new(
@@ -56,7 +57,7 @@ impl<OC: ReinforcementLearningComponentsTypes> ReinforcementLearningStrategy<OC>
         );
         env_runner_valid.start();
         let mut transition_buffer = TransitionBuffer::<
-            <OC::LearningAgent as LearnerAgent<OC::Backend, RlState<OC>, RlAction<OC>>>::TrainingInput,
+            <OC::LearningAgent as LearnerAgent<OC::Backend>>::TrainingInput,
         >::new(2048);
 
         let num_steps = 8;

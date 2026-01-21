@@ -5,36 +5,50 @@ use std::{
 };
 
 use burn_core::{Tensor, data::dataloader::Progress, prelude::Backend, tensor::Device};
+use burn_rl::Transition;
 use burn_rl::{AsyncPolicy, Environment};
-use burn_rl::{EnvAction, Transition};
-use burn_rl::{EnvState, LearnerAgent, Policy};
+use burn_rl::{LearnerAgent, Policy};
 
 use crate::{
     AgentEvaluationEvent, EnvRunner, EpisodeSummary, EvaluationItem, EventProcessorTraining,
-    Interrupter, RLEventProcessorType, ReinforcementLearningComponentsTypes, RlAction, RlPolicy,
-    RlState, TimeStep, Trajectory,
+    Interrupter, RLEventProcessorType, ReinforcementLearningComponentsTypes, RlPolicy, TimeStep,
+    Trajectory,
 };
 
-struct StepMessage<B: Backend, C> {
-    step: TimeStep<B, C>,
+struct StepMessage<B: Backend, S, A, C> {
+    step: TimeStep<B, S, A, C>,
     confirmation_sender: Sender<()>,
 }
 
 /// An asynchronous agent/environement interface.
 pub struct AsyncEnvRunner<BT: Backend, OC: ReinforcementLearningComponentsTypes> {
     id: usize,
-    agent: AsyncPolicy<OC::Backend, RlState<OC>, RlAction<OC>, RlPolicy<OC>>,
+    agent: AsyncPolicy<OC::Backend, RlPolicy<OC>>,
     deterministic: bool,
     transition_device: Device<BT>,
-    transition_receiver: Receiver<StepMessage<BT, OC::ActionContext>>,
-    transition_sender: Sender<StepMessage<BT, OC::ActionContext>>,
+    transition_receiver: Receiver<
+        StepMessage<
+            BT,
+            <OC::Policy as Policy<OC::Backend>>::Input,
+            <OC::Policy as Policy<OC::Backend>>::Action,
+            OC::ActionContext,
+        >,
+    >,
+    transition_sender: Sender<
+        StepMessage<
+            BT,
+            <OC::Policy as Policy<OC::Backend>>::Input,
+            <OC::Policy as Policy<OC::Backend>>::Action,
+            OC::ActionContext,
+        >,
+    >,
 }
 
 impl<BT: Backend, OC: ReinforcementLearningComponentsTypes> AsyncEnvRunner<BT, OC> {
     /// Create a new asynchronous runner.
     pub fn new(
         id: usize,
-        agent: AsyncPolicy<OC::Backend, RlState<OC>, RlAction<OC>, RlPolicy<OC>>,
+        agent: AsyncPolicy<OC::Backend, RlPolicy<OC>>,
         deterministic: bool,
         transition_device: &Device<BT>,
     ) -> Self {
@@ -55,8 +69,11 @@ where
     BT: Backend,
     OC: ReinforcementLearningComponentsTypes,
     OC::Policy: Send + 'static,
-    <OC::Policy as Policy<OC::Backend, RlState<OC>, RlAction<OC>>>::PolicyState: Send,
-    <OC::Policy as Policy<OC::Backend, RlState<OC>, RlAction<OC>>>::ActionContext: Send,
+    <OC::Policy as Policy<OC::Backend>>::PolicyState: Send,
+    <OC::Policy as Policy<OC::Backend>>::ActionContext: Send,
+    <OC::Policy as Policy<OC::Backend>>::Input: Send,
+    <OC::Policy as Policy<OC::Backend>>::Action: Send,
+    <OC::Policy as Policy<OC::Backend>>::Logits: Send,
 {
     fn start(&mut self) {
         let id = self.id;
@@ -78,10 +95,9 @@ where
                 .expect("Can send initial confirmation message");
             loop {
                 let state = env.state();
-                let action_context =
-                    agent.batch_action(Vec::from([&state.clone()]), deterministic)[0].clone();
+                let (action, context) = agent.action(state.clone().into(), deterministic);
 
-                let step_result = env.step(action_context.action.clone());
+                let step_result = env.step(action.clone().into());
 
                 current_reward += step_result.reward;
                 step_num += 1;
@@ -90,9 +106,9 @@ where
                     .recv()
                     .expect("Can receive confirmation from main runner thread.");
                 let transition = Transition::new(
-                    state.to_tensor(&device),
-                    step_result.next_state.to_tensor(&device),
-                    action_context.action.to_tensor(&device),
+                    state.into(),
+                    step_result.next_state.into(),
+                    action,
                     Tensor::from_data([step_result.reward as f64], &device),
                     Tensor::from_data(
                         [(step_result.done || step_result.truncated) as i32 as f64],
@@ -107,7 +123,7 @@ where
                             done: step_result.done,
                             ep_len: step_num,
                             cum_reward: current_reward,
-                            action_context: action_context.context,
+                            action_context: context[0].clone(),
                         },
                         confirmation_sender: confirmation_sender.clone(),
                     })
@@ -128,7 +144,14 @@ where
         _deterministic: bool,
         processor: &mut RLEventProcessorType<OC>,
         interrupter: &Interrupter,
-    ) -> Vec<TimeStep<BT, OC::ActionContext>> {
+    ) -> Vec<
+        TimeStep<
+            BT,
+            <OC::Policy as Policy<OC::Backend>>::Input,
+            <OC::Policy as Policy<OC::Backend>>::Action,
+            OC::ActionContext,
+        >,
+    > {
         let mut items = vec![];
         for _ in 0..num_steps {
             let msg = self
@@ -143,10 +166,7 @@ where
         items
     }
 
-    fn update_policy(
-        &mut self,
-        update: <RlPolicy<OC> as Policy<OC::Backend, RlState<OC>, RlAction<OC>>>::PolicyState,
-    ) {
+    fn update_policy(&mut self, update: <RlPolicy<OC> as Policy<OC::Backend>>::PolicyState) {
         self.agent.update(update);
     }
 
@@ -156,13 +176,20 @@ where
         deterministic: bool,
         processor: &mut RLEventProcessorType<OC>,
         interrupter: &Interrupter,
-    ) -> Vec<Trajectory<BT, OC::ActionContext>> {
+    ) -> Vec<
+        Trajectory<
+            BT,
+            <OC::Policy as Policy<OC::Backend>>::Input,
+            <OC::Policy as Policy<OC::Backend>>::Action,
+            OC::ActionContext,
+        >,
+    > {
         let mut items = vec![];
         for episode_num in 0..num_episodes {
             let mut steps = vec![];
             let mut step_num = 0;
             loop {
-                let step = &self.run_steps(1, deterministic, processor, interrupter)[0];
+                let step = self.run_steps(1, deterministic, processor, interrupter)[0].clone();
                 steps.push(step.clone());
 
                 step_num += 1;
@@ -190,27 +217,47 @@ where
     }
 }
 
+// TODO: Type aliases.
 /// An asynchronous runner for multiple agent/environement interfaces.
 pub struct AsyncEnvArrayRunner<BT: Backend, OC: ReinforcementLearningComponentsTypes> {
     num_envs: usize,
-    agent: AsyncPolicy<
-        OC::Backend,
-        RlState<OC>,
-        RlAction<OC>,
-        <OC::LearningAgent as LearnerAgent<OC::Backend, RlState<OC>, RlAction<OC>>>::InnerPolicy,
-    >,
+    agent: AsyncPolicy<OC::Backend, <OC::LearningAgent as LearnerAgent<OC::Backend>>::InnerPolicy>,
     deterministic: bool,
     device: Device<BT>,
-    transition_receiver: Receiver<StepMessage<BT, OC::ActionContext>>,
-    transition_sender: Sender<StepMessage<BT, OC::ActionContext>>,
-    current_trajectories: HashMap<usize, Vec<TimeStep<BT, OC::ActionContext>>>,
+    transition_receiver: Receiver<
+        StepMessage<
+            BT,
+            <OC::Policy as Policy<OC::Backend>>::Input,
+            <OC::Policy as Policy<OC::Backend>>::Action,
+            OC::ActionContext,
+        >,
+    >,
+    transition_sender: Sender<
+        StepMessage<
+            BT,
+            <OC::Policy as Policy<OC::Backend>>::Input,
+            <OC::Policy as Policy<OC::Backend>>::Action,
+            OC::ActionContext,
+        >,
+    >,
+    current_trajectories: HashMap<
+        usize,
+        Vec<
+            TimeStep<
+                BT,
+                <OC::Policy as Policy<OC::Backend>>::Input,
+                <OC::Policy as Policy<OC::Backend>>::Action,
+                OC::ActionContext,
+            >,
+        >,
+    >,
 }
 
 impl<BT: Backend, OC: ReinforcementLearningComponentsTypes> AsyncEnvArrayRunner<BT, OC> {
     /// Create a new asynchronous runner for multiple agent/environement interfaces.
     pub fn new(
         num_envs: usize,
-        agent: AsyncPolicy<OC::Backend, RlState<OC>, RlAction<OC>, OC::Policy>,
+        agent: AsyncPolicy<OC::Backend, OC::Policy>,
         deterministic: bool,
         device: &Device<BT>,
     ) -> Self {
@@ -232,8 +279,11 @@ where
     BT: Backend,
     OC: ReinforcementLearningComponentsTypes,
     OC::Policy: Send + 'static,
-    <OC::Policy as Policy<OC::Backend, RlState<OC>, RlAction<OC>>>::PolicyState: Send,
-    <OC::Policy as Policy<OC::Backend, RlState<OC>, RlAction<OC>>>::ActionContext: Send,
+    <OC::Policy as Policy<OC::Backend>>::PolicyState: Send,
+    <OC::Policy as Policy<OC::Backend>>::ActionContext: Send,
+    <OC::Policy as Policy<OC::Backend>>::Input: Send,
+    <OC::Policy as Policy<OC::Backend>>::Action: Send,
+    <OC::Policy as Policy<OC::Backend>>::Logits: Send,
 {
     // TODO: start() shouldn't exist.
     fn start(&mut self) {
@@ -255,7 +305,14 @@ where
         _deterministic: bool,
         processor: &mut RLEventProcessorType<OC>,
         interrupter: &Interrupter,
-    ) -> Vec<TimeStep<BT, OC::ActionContext>> {
+    ) -> Vec<
+        TimeStep<
+            BT,
+            <OC::Policy as Policy<OC::Backend>>::Input,
+            <OC::Policy as Policy<OC::Backend>>::Action,
+            OC::ActionContext,
+        >,
+    > {
         let mut items = vec![];
         for _ in 0..num_steps {
             let msg = self
@@ -270,10 +327,7 @@ where
         items
     }
 
-    fn update_policy(
-        &mut self,
-        update: <RlPolicy<OC> as Policy<OC::Backend, RlState<OC>, RlAction<OC>>>::PolicyState,
-    ) {
+    fn update_policy(&mut self, update: <RlPolicy<OC> as Policy<OC::Backend>>::PolicyState) {
         self.agent.update(update);
     }
 
@@ -283,7 +337,14 @@ where
         deterministic: bool,
         processor: &mut RLEventProcessorType<OC>,
         interrupter: &Interrupter,
-    ) -> Vec<Trajectory<BT, OC::ActionContext>> {
+    ) -> Vec<
+        Trajectory<
+            BT,
+            <OC::Policy as Policy<OC::Backend>>::Input,
+            <OC::Policy as Policy<OC::Backend>>::Action,
+            OC::ActionContext,
+        >,
+    > {
         let mut items = vec![];
         loop {
             let step = &self.run_steps(1, deterministic, processor, interrupter)[0];

@@ -11,7 +11,7 @@ use burn::{
         metric::{Adaptor, ExplorationRateInput},
     },
 };
-use burn_rl::{ActionContext, EnvAction, Policy};
+use burn_rl::Policy;
 use derive_new::new;
 use rand::{random, random_range};
 
@@ -82,23 +82,23 @@ impl Adaptor<ExplorationRateInput> for EpsilonGreedyPolicyOutput {
 }
 
 #[derive(Clone, new)]
-pub struct EpsilonGreedyPolicyState<B: Backend, S, A, P: Policy<B, S, A>> {
+pub struct EpsilonGreedyPolicyState<B: Backend, P: Policy<B>> {
     pub inner_policy: P::PolicyState,
     pub step: usize,
-    _phantom_data: PhantomData<(B, S, A)>,
+    _backend: PhantomData<B>,
 }
 
 #[derive(Clone, Debug)]
-pub struct EpsilonGreedyPolicy<B: Backend, S, A, P: Policy<B, S, A>> {
+pub struct EpsilonGreedyPolicy<B: Backend, P: Policy<B>> {
     inner_policy: P,
     eps_start: f64,
     eps_end: f64,
     eps_decay: f64,
     step: usize,
-    _phantom_data: PhantomData<(B, S, A)>,
+    _backend: PhantomData<B>,
 }
 
-impl<B: Backend, S, A, P: Policy<B, S, A>> EpsilonGreedyPolicy<B, S, A, P> {
+impl<B: Backend, P: Policy<B>> EpsilonGreedyPolicy<B, P> {
     pub fn new(inner_policy: P, eps_start: f64, eps_end: f64, eps_decay: f64) -> Self {
         Self {
             inner_policy,
@@ -106,7 +106,7 @@ impl<B: Backend, S, A, P: Policy<B, S, A>> EpsilonGreedyPolicy<B, S, A, P> {
             eps_end,
             eps_decay,
             step: 0,
-            _phantom_data: PhantomData,
+            _backend: PhantomData,
         }
     }
 
@@ -122,54 +122,46 @@ impl<B: Backend, S, A, P: Policy<B, S, A>> EpsilonGreedyPolicy<B, S, A, P> {
     }
 }
 
-impl<B: Backend, S: Clone, A: EnvAction + Clone, P: Policy<B, S, A>> Policy<B, S, A>
-    for EpsilonGreedyPolicy<B, S, A, P>
+impl<B, P> Policy<B> for EpsilonGreedyPolicy<B, P>
+where
+    B: Backend,
+    P: Policy<B, Logits = Tensor<B, 2>, Action = Tensor<B, 2>>,
 {
     type ActionContext = EpsilonGreedyPolicyOutput;
-    type PolicyState = EpsilonGreedyPolicyState<B, S, A, P>;
+    type PolicyState = EpsilonGreedyPolicyState<B, P>;
 
-    fn logits(&mut self, state: &S) -> Tensor<B, 1> {
-        self.inner_policy.logits(state)
+    type Input = P::Input;
+    type Logits = Tensor<B, 2>;
+    type Action = Tensor<B, 2>;
+
+    fn logits(&mut self, states: Self::Input) -> Self::Logits {
+        self.inner_policy.logits(states)
     }
 
     fn action(
         &mut self,
-        state: &S,
+        states: Self::Input,
         deterministic: bool,
-    ) -> burn_rl::ActionContext<A, Self::ActionContext> {
-        self.batch_action(vec![state], deterministic).remove(0)
-    }
-
-    fn batch_logits(&mut self, states: Vec<&S>) -> Tensor<B, 2> {
-        self.inner_policy.batch_logits(states)
-    }
-
-    fn batch_action(
-        &mut self,
-        states: Vec<&S>,
-        deterministic: bool,
-    ) -> Vec<ActionContext<A, Self::ActionContext>> {
-        let logits = self.inner_policy.batch_logits(states);
+    ) -> (Self::Action, Vec<Self::ActionContext>) {
+        let logits = self.inner_policy.logits(states);
         let greedy_actions = logits.argmax(1);
 
+        let mut contexts = vec![];
         let mut actions = vec![];
         for i in 0..greedy_actions.dims()[0] {
             let threshold = self.step();
             let threshold = if deterministic { 0.0 } else { threshold };
-            let context = EpsilonGreedyPolicyOutput { epsilon: threshold };
+            contexts.push(EpsilonGreedyPolicyOutput { epsilon: threshold });
             if random::<f64>() > threshold {
-                actions.push(ActionContext::new(
-                    context.clone(),
-                    A::from_tensor(greedy_actions.clone().slice(s![i, ..]).float()),
-                ));
+                actions.push(greedy_actions.clone().slice(s![i, ..]).float());
             } else {
-                actions.push(ActionContext::new(
-                    context.clone(),
-                    A::from_usize(random_range(0..2)),
-                ));
+                actions.push(
+                    Tensor::<B, 1>::from_floats([random_range(0..2)], &greedy_actions.device())
+                        .unsqueeze(),
+                );
             }
         }
-        actions
+        (Tensor::cat(actions, 0), contexts)
     }
 
     fn update(&mut self, update: Self::PolicyState) {
@@ -182,7 +174,15 @@ impl<B: Backend, S: Clone, A: EnvAction + Clone, P: Policy<B, S, A>> Policy<B, S
         EpsilonGreedyPolicyState {
             inner_policy: self.inner_policy.state(),
             step: self.step,
-            _phantom_data: PhantomData,
+            _backend: PhantomData,
         }
+    }
+
+    fn batch(&self, inputs: Vec<&Self::Input>) -> Self::Input {
+        self.inner_policy.batch(inputs)
+    }
+
+    fn unbatch(&self, inputs: Self::Action) -> Vec<Self::Action> {
+        self.inner_policy.unbatch(inputs)
     }
 }

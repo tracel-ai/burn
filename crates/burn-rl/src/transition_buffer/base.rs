@@ -5,26 +5,26 @@ use rand::{rng, seq::index::sample};
 // TODO : Probably should define an associated type for each agent defining what should be returned in a transition.
 // Like an adaptor that takes all those outputs but only stores the ones useful to the learning agent in memory.
 #[derive(Clone, new)]
-pub struct Transition<B: Backend> {
-    pub state: Tensor<B, 1>,
-    pub next_state: Tensor<B, 1>,
-    pub action: Tensor<B, 1>,
+pub struct Transition<B: Backend, S, A> {
+    pub state: S,
+    pub next_state: S,
+    pub action: A,
     pub reward: Tensor<B, 1>,
     pub done: Tensor<B, 1>,
     // pub prob: Tensor<B, 1>,
     // pub value: Option<Tensor<B, 1>>,
 }
 
-pub struct TransitionBatch<B: Backend> {
-    pub states: Tensor<B, 2>,
-    pub next_states: Tensor<B, 2>,
-    pub actions: Tensor<B, 2>,
+pub struct TransitionBatch<B: Backend, S, A> {
+    pub states: Vec<S>,
+    pub next_states: Vec<S>,
+    pub actions: Vec<A>,
     pub rewards: Tensor<B, 2>,
     pub dones: Tensor<B, 2>,
 }
 
-impl<B: Backend> From<Vec<&Transition<B>>> for TransitionBatch<B> {
-    fn from(value: Vec<&Transition<B>>) -> Self {
+impl<B: Backend, S: Clone, A: Clone> From<Vec<&Transition<B, S, A>>> for TransitionBatch<B, S, A> {
+    fn from(value: Vec<&Transition<B, S, A>>) -> Self {
         let states: Vec<_> = value.iter().map(|t| t.state.clone()).collect();
         let next_states: Vec<_> = value.iter().map(|t| t.next_state.clone()).collect();
         let actions: Vec<_> = value.iter().map(|t| t.action.clone()).collect();
@@ -32,9 +32,9 @@ impl<B: Backend> From<Vec<&Transition<B>>> for TransitionBatch<B> {
         let dones: Vec<_> = value.iter().map(|t| t.done.clone()).collect();
 
         Self {
-            states: Tensor::stack(states, 0),
-            next_states: Tensor::stack(next_states, 0),
-            actions: Tensor::stack(actions, 0),
+            states,
+            next_states,
+            actions,
             rewards: Tensor::stack(rewards, 0),
             dones: Tensor::stack(dones, 0),
         }
@@ -103,7 +103,7 @@ mod tests {
 
     use super::*;
 
-    fn transition() -> Transition<TestBackend> {
+    fn transition() -> Transition<TestBackend, Tensor<TestBackend, 1>, Tensor<TestBackend, 1>> {
         Transition::new(
             Tensor::from_data(TensorData::from([1.0, 2.0]), &Default::default()),
             Tensor::from_data(TensorData::from([1.0, 2.0]), &Default::default()),
@@ -115,7 +115,9 @@ mod tests {
 
     #[test]
     fn len_returns_number_of_elements() {
-        let mut buffer: TransitionBuffer<Transition<TestBackend>> = TransitionBuffer::new(2);
+        let mut buffer: TransitionBuffer<
+            Transition<TestBackend, Tensor<TestBackend, 1>, Tensor<TestBackend, 1>>,
+        > = TransitionBuffer::new(2);
         assert_eq!(buffer.len(), 0);
 
         buffer.push(transition());
