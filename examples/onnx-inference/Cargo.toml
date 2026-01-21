@@ -15,4 +15,4 @@ burn-store = { path = "../../crates/burn-store", features = ["burnpack"] }
 serde = { workspace = true }
 
 [build-dependencies]
-burn-import = { path = "../../crates/burn-import" }
+burn-onnx = { path = "../../crates/burn-onnx" }

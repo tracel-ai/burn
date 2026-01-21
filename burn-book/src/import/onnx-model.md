@@ -97,7 +97,7 @@ burn = { version = "~0.21", features = ["ndarray"] }
 burn-store = { version = "~0.21", features = ["burnpack"] }
 
 [build-dependencies]
-burn-import = "~0.21"
+burn-onnx = "~0.21"
 ```
 
 The `burn-store` crate with the `burnpack` feature is required to load model weights at runtime.
@@ -107,7 +107,7 @@ The `burn-store` crate with the `burnpack` feature is required to load model wei
 In your `build.rs` file:
 
 ```rust
-use burn_import::onnx::ModelGen;
+use burn_onnx::ModelGen;
 
 fn main() {
     ModelGen::new()

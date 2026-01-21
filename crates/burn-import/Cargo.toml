@@ -12,23 +12,14 @@ repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-import"
 documentation = "https://docs.rs/burn-import"
 version.workspace = true
 
-default-run = "onnx2burn"
-
 [lints]
 workspace = true
 
 [features]
-default = ["onnx", "onnx-mmap", "pytorch", "safetensors"]
+default = ["pytorch", "safetensors", "onnx", "burn-onnx?/default"]
 
-tracing = [
-    "burn/tracing",
-    "burn-ndarray?/tracing",
-    "burn-store/tracing",
-]
-
-
-onnx = ["burn-ndarray", "onnx-ir"]
-onnx-mmap = ["onnx-ir?/mmap"]
+onnx = ["burn-onnx"]
+onnx-mmap = ["burn-onnx", "burn-onnx/mmap"]
 pytorch = ["burn/record-item-custom-serde", "thiserror", "zip"]
 safetensors = [
     "burn/record-item-custom-serde",
@@ -43,27 +34,14 @@ burn = { path = "../burn", version = "=0.21.0", default-features = false, featur
 ] }
 burn-ndarray = { path = "../burn-ndarray", version = "=0.21.0", default-features = false, optional = true }
 burn-store = { path = "../burn-store", version = "=0.21.0", default-features = false, features = ["std", "pytorch", "burnpack"] }
-onnx-ir = { path = "../onnx-ir", version = "=0.21.0", optional = true, default-features = false }
+burn-onnx = { path = "../burn-onnx", version = "=0.21.0", default-features = false, optional = true }
 candle-core = { workspace = true, optional = true }
 derive-new = { workspace = true }
-half = { workspace = true }
-log = { workspace = true }
-proc-macro2 = { workspace = true }
-quote = { workspace = true }
 regex = { workspace = true, features = ["default"] }
-rust-format = { workspace = true, features = ["pretty_please", "post_process"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true, features = ["std"] }
-tracing-core = { workspace = true }
-tracing-subscriber = { workspace = true, features = ["default", "fmt", "env-filter"] }
-syn = { workspace = true, features = ["parsing"] }
 thiserror = { workspace = true, optional = true }
 zip = { workspace = true, optional = true }
-
-[dev-dependencies]
-insta = { workspace = true }
-pretty_assertions = { workspace = true }
-rstest = { workspace = true }
 
 [package.metadata.docs.rs]
 features = ["default"]

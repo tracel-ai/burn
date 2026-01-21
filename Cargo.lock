@@ -958,25 +958,14 @@ version = "0.21.0"
 dependencies = [
  "burn",
  "burn-ndarray",
+ "burn-onnx",
  "burn-store",
  "candle-core",
  "derive-new",
- "half",
- "insta",
- "log",
- "onnx-ir",
- "pretty_assertions",
- "proc-macro2",
- "quote",
  "regex",
- "rstest",
- "rust-format",
  "serde",
  "serde_json",
- "syn 2.0.114",
  "thiserror 2.0.18",
- "tracing-core",
- "tracing-subscriber",
  "zip 7.0.0",
 ]
 
@@ -1042,6 +1031,25 @@ dependencies = [
  "burn",
  "burn-ndarray",
  "burn-store",
+]
+
+[[package]]
+name = "burn-onnx"
+version = "0.21.0"
+dependencies = [
+ "burn",
+ "burn-ndarray",
+ "burn-store",
+ "derive-new",
+ "insta",
+ "log",
+ "onnx-ir",
+ "proc-macro2",
+ "quote",
+ "rust-format",
+ "syn 2.0.114",
+ "tracing-core",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -4540,7 +4548,7 @@ version = "0.21.0"
 dependencies = [
  "burn",
  "burn-candle",
- "burn-import",
+ "burn-onnx",
  "burn-store",
  "console_error_panic_hook",
  "getrandom 0.3.4",
@@ -5829,7 +5837,7 @@ name = "onnx-inference"
 version = "0.21.0"
 dependencies = [
  "burn",
- "burn-import",
+ "burn-onnx",
  "burn-store",
  "serde",
 ]
@@ -5871,7 +5879,7 @@ name = "onnx-tests"
 version = "0.21.0"
 dependencies = [
  "burn",
- "burn-import",
+ "burn-onnx",
  "burn-store",
  "float-cmp",
  "serde",
