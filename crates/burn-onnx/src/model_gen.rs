@@ -314,12 +314,7 @@ impl ModelGen {
     }
 
     /// Write debug file in development mode.
-    fn write_debug_file<T: std::fmt::Debug>(
-        &self,
-        out_file: &PathBuf,
-        extension: &str,
-        content: &T,
-    ) {
+    fn write_debug_file<T: std::fmt::Debug>(&self, out_file: &Path, extension: &str, content: &T) {
         let debug_content = format!("{content:#?}");
         let debug_file = out_file.with_extension(extension);
         log::debug!("Writing debug file: {debug_file:?}");
@@ -330,7 +325,7 @@ impl ModelGen {
     fn generate_burn_graph(
         &self,
         graph: ParsedOnnxGraph,
-        out_file: &PathBuf,
+        out_file: &Path,
         top_comment: Option<String>,
     ) -> proc_macro2::TokenStream {
         let bpk_file = out_file.with_extension("bpk");

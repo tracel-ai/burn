@@ -205,14 +205,10 @@ impl NodeCodegen for onnx_ir::reshape::ReshapeNode {
 
     fn register_imports(&self, imports: &mut BurnImports) {
         // Check if we need TensorData for shape-to-tensor conversion
-        match &self.inputs.first().unwrap().ty {
-            onnx_ir::ir::ArgType::Shape(_) => match &self.outputs.first().unwrap().ty {
-                onnx_ir::ir::ArgType::Tensor(_) => {
-                    imports.register("burn::tensor::TensorData");
-                }
-                _ => {}
-            },
-            _ => {}
+        if let onnx_ir::ir::ArgType::Shape(_) = &self.inputs.first().unwrap().ty
+            && let onnx_ir::ir::ArgType::Tensor(_) = &self.outputs.first().unwrap().ty
+        {
+            imports.register("burn::tensor::TensorData");
         }
     }
 }
