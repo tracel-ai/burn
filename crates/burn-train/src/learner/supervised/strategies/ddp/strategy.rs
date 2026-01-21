@@ -7,8 +7,9 @@ use burn_core::tensor::Device;
 use crate::ddp::worker::DdpWorker;
 use crate::metric::store::EventStoreClient;
 use crate::{
-    EarlyStoppingStrategyRef, Interrupter, Learner, SupervisedLearningComponentsTypes,
-    SupervisedLearningStrategy, TrainBackend, TrainLoader, TrainingComponents, ValidLoader,
+    EarlyStoppingStrategyRef, Interrupter, Learner, LearningComponentsTypes,
+    SupervisedLearningStrategy, SupervisedTrainingEventProcessor, TrainLoader, TrainingBackend,
+    TrainingComponents, TrainingModel, ValidLoader,
 };
 use burn_core::data::dataloader::split::split_dataloader;
 
@@ -26,31 +27,28 @@ pub(crate) struct WorkerComponents {
     pub event_store: Arc<EventStoreClient>,
 }
 
-pub struct DdpTrainingStrategy<SC: SupervisedLearningComponentsTypes> {
-    devices: Vec<Device<TrainBackend<SC::LC>>>,
+pub struct DdpTrainingStrategy<LC: LearningComponentsTypes> {
+    devices: Vec<Device<TrainingBackend<LC>>>,
     config: CollectiveConfig,
 }
-impl<SC: SupervisedLearningComponentsTypes> DdpTrainingStrategy<SC> {
-    pub fn new(devices: Vec<Device<TrainBackend<SC::LC>>>, config: CollectiveConfig) -> Self {
+impl<LC: LearningComponentsTypes> DdpTrainingStrategy<LC> {
+    pub fn new(devices: Vec<Device<TrainingBackend<LC>>>, config: CollectiveConfig) -> Self {
         let config = config.with_num_devices(devices.len());
         Self { devices, config }
     }
 }
 
-impl<SC: SupervisedLearningComponentsTypes + Send + 'static> SupervisedLearningStrategy<SC>
-    for DdpTrainingStrategy<SC>
+impl<LC: LearningComponentsTypes + Send + 'static> SupervisedLearningStrategy<LC>
+    for DdpTrainingStrategy<LC>
 {
     fn fit(
         &self,
-        training_components: TrainingComponents<SC>,
-        learner: Learner<SC::LC>,
-        dataloader_train: TrainLoader<SC::LC, SC::LD>,
-        dataloader_valid: ValidLoader<SC::LC, SC::LD>,
+        training_components: TrainingComponents<LC>,
+        learner: Learner<LC>,
+        dataloader_train: TrainLoader<LC>,
+        dataloader_valid: ValidLoader<LC>,
         starting_epoch: usize,
-    ) -> (
-        SC::Model,
-        <SC::PC as crate::ParadigmComponentsTypes>::EventProcessor,
-    ) {
+    ) -> (TrainingModel<LC>, SupervisedTrainingEventProcessor<LC>) {
         // The reference model is always on the first device provided.
         let main_device = self.devices.first().unwrap();
         // One worker per device, so we use a fixed device strategy
@@ -63,17 +61,18 @@ impl<SC: SupervisedLearningComponentsTypes + Send + 'static> SupervisedLearningS
         let peer_count = self.devices.len();
         let event_processor = Arc::new(Mutex::new(training_components.event_processor));
 
+        let interrupter = training_components.interrupter;
         let worker_components = WorkerComponents {
             num_epochs: training_components.num_epochs,
             grad_accumulation: training_components.grad_accumulation,
-            interrupter: training_components.interrupter,
+            interrupter: interrupter.clone(),
             early_stopping: training_components.early_stopping,
             event_store: training_components.event_store,
         };
 
         // Start worker for main device
         // First training dataloader corresponds to main device
-        let main_handle = DdpWorker::<SC>::start(
+        let main_handle = DdpWorker::<LC>::start(
             0.into(),
             main_device,
             learner.clone(),
@@ -92,7 +91,7 @@ impl<SC: SupervisedLearningComponentsTypes + Send + 'static> SupervisedLearningS
         let mut peer_id = 1;
         let mut secondary_workers = vec![];
         for device in &self.devices[1..] {
-            let handle = DdpWorker::<SC>::start(
+            let handle = DdpWorker::<LC>::start(
                 peer_id.into(),
                 device.clone(),
                 learner.clone(),
@@ -123,6 +122,12 @@ impl<SC: SupervisedLearningComponentsTypes + Send + 'static> SupervisedLearningS
             .join()
             .expect("Distributed data parallel main worker failed");
 
+        if interrupter.should_stop() {
+            let reason = interrupter
+                .get_message()
+                .unwrap_or(String::from("Reason unknown"));
+            log::info!("Training interrupted: {reason}");
+        }
         let Ok(event_processor) = Arc::try_unwrap(event_processor) else {
             panic!("Event processor still held!");
         };

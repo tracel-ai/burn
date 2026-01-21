@@ -8,7 +8,7 @@ use burn::{
     },
     prelude::*,
     tensor::backend::AutodiffBackend,
-    train::{ClassificationOutput, TrainOutput, TrainStep, ValidStep},
+    train::{ClassificationOutput, InferenceStep, TrainOutput, TrainStep},
 };
 
 #[derive(Config, Debug)]
@@ -94,9 +94,10 @@ impl<B: Backend> TextGenerationModel<B> {
     }
 }
 
-impl<B: AutodiffBackend> TrainStep<TrainingTextGenerationBatch<B>, ClassificationOutput<B>>
-    for TextGenerationModel<B>
-{
+impl<B: AutodiffBackend> TrainStep for TextGenerationModel<B> {
+    type Input = TrainingTextGenerationBatch<B>;
+    type Output = ClassificationOutput<B>;
+
     fn step(&self, item: TrainingTextGenerationBatch<B>) -> TrainOutput<ClassificationOutput<B>> {
         let item = self.forward_training(item);
         let grads = item.loss.backward();
@@ -105,9 +106,10 @@ impl<B: AutodiffBackend> TrainStep<TrainingTextGenerationBatch<B>, Classificatio
     }
 }
 
-impl<B: Backend> ValidStep<TrainingTextGenerationBatch<B>, ClassificationOutput<B>>
-    for TextGenerationModel<B>
-{
+impl<B: Backend> InferenceStep for TextGenerationModel<B> {
+    type Input = TrainingTextGenerationBatch<B>;
+    type Output = ClassificationOutput<B>;
+
     fn step(&self, item: TrainingTextGenerationBatch<B>) -> ClassificationOutput<B> {
         self.forward_training(item)
     }

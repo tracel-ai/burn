@@ -36,7 +36,7 @@ impl<N: Numeric> Pool2dDirectStrategy<N> for AvgPoolStrategy {
 
     fn initialize(
         #[comptime] _config: &Self::Config,
-        #[comptime] line_size: u32,
+        #[comptime] line_size: LineSize,
     ) -> Self::Accumulator {
         let sum = Line::empty(line_size).fill(N::from_int(0));
         // Count will be set dynamically: either by accumulate (count_include_pad=false)
@@ -49,7 +49,7 @@ impl<N: Numeric> Pool2dDirectStrategy<N> for AvgPoolStrategy {
     fn accumulate(
         #[comptime] config: &Self::Config,
         accumulator: &mut Self::Accumulator,
-        _index: u32,
+        _index: usize,
         result: Line<N>,
     ) {
         let (sum, count) = accumulator;
@@ -78,7 +78,7 @@ impl<N: Numeric> Pool2dDirectStrategy<N> for AvgPoolStrategy {
 
     fn store(
         #[comptime] _config: &Self::Config,
-        position: u32,
+        position: usize,
         output: &mut Tensor<Line<N>>,
         _output_indices: &mut (),
         accumulator: Self::Accumulator,

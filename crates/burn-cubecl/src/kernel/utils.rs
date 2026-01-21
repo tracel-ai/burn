@@ -1,5 +1,6 @@
 use burn_backend::Shape;
 use cubecl::{
+    ir::LineSize,
     prelude::ArrayArg,
     std::{
         FastDivmod, FastDivmodArgs,
@@ -10,17 +11,19 @@ use cubecl::{prelude::SequenceArg, std::tensor::layout::linear::LinearLayout};
 
 use crate::{CubeRuntime, tensor::CubeTensor};
 
-pub fn shape_divmod<'a, R: CubeRuntime>(tensor: &CubeTensor<R>) -> SequenceArg<'a, R, FastDivmod> {
+pub fn shape_divmod<'a, R: CubeRuntime>(
+    tensor: &CubeTensor<R>,
+) -> SequenceArg<'a, R, FastDivmod<usize>> {
     let mut arg = SequenceArg::new();
     for dim in tensor.shape.iter() {
-        arg.push(FastDivmodArgs::new(&tensor.client, *dim as u32));
+        arg.push(FastDivmodArgs::<usize>::new(&tensor.client, *dim));
     }
     arg
 }
 
 pub fn linear_layout<'a, R: CubeRuntime>(
     tensor: &'a CubeTensor<R>,
-    line_size: u8,
+    line_size: LineSize,
 ) -> LinearLayoutArgs<'a, R> {
     LinearLayoutArgs::from_shape_strides(&tensor.client, &tensor.shape, &tensor.strides, line_size)
 }
@@ -28,7 +31,7 @@ pub fn linear_layout<'a, R: CubeRuntime>(
 pub fn linear_layout_ref<'a, R: CubeRuntime>(
     tensor: &'a CubeTensor<R>,
     reference: &'a CubeTensor<R>,
-    line_size: u8,
+    line_size: LineSize,
 ) -> LinearLayoutArgs<'a, R> {
     LinearLayoutArgs::from_shape_strides_with_reference(
         &tensor.client,
@@ -41,7 +44,7 @@ pub fn linear_layout_ref<'a, R: CubeRuntime>(
 
 pub fn linear_view<'a, R: CubeRuntime>(
     tensor: &'a CubeTensor<R>,
-    line_size: u8,
+    line_size: LineSize,
 ) -> LinearViewLaunch<'a, R> {
     let len = tensor.shape.iter().product::<usize>();
     let layout = linear_layout(tensor, line_size);
@@ -54,7 +57,7 @@ pub fn linear_view<'a, R: CubeRuntime>(
 pub fn linear_view_ref<'a, R: CubeRuntime>(
     tensor: &'a CubeTensor<R>,
     reference: &'a CubeTensor<R>,
-    line_size: u8,
+    line_size: LineSize,
 ) -> LinearViewLaunch<'a, R> {
     let len = tensor.shape.iter().product::<usize>();
     let layout = linear_layout_ref(tensor, reference, line_size);
@@ -66,7 +69,7 @@ pub fn linear_view_ref<'a, R: CubeRuntime>(
 
 pub fn linear_view_alias<'a, R: CubeRuntime>(
     tensor: &'a CubeTensor<R>,
-    line_size: u8,
+    line_size: LineSize,
     pos: usize,
 ) -> LinearViewLaunch<'a, R> {
     let layout = linear_layout(tensor, line_size);

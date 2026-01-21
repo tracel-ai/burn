@@ -4,7 +4,9 @@ use syn::Generics;
 /// Basic trait to be implemented for record generation.
 pub(crate) trait RecordItemCodegen {
     /// Initialize the record item.
-    fn from_ast(ast: &syn::DeriveInput) -> Self;
+    fn from_ast(ast: &syn::DeriveInput) -> syn::Result<Self>
+    where
+        Self: Sized;
     /// Generate the record item type.
     fn gen_item_type(
         &self,

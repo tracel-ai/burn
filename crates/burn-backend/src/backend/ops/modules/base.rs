@@ -2,7 +2,7 @@ use super::{conv, pool};
 use crate::ops::attention;
 use crate::ops::unfold::unfold4d_using_conv2d;
 use crate::tensor::{BoolTensor, FloatTensor, IntTensor};
-use crate::{Backend, TensorMetadata};
+use crate::{Backend, ElementConversion, TensorMetadata};
 use burn_std::Shape;
 use core::num::NonZeroUsize;
 
@@ -312,6 +312,12 @@ impl Default for GridSampleOptions {
     }
 }
 
+impl From<InterpolateMode> for GridSampleOptions {
+    fn from(value: InterpolateMode) -> Self {
+        GridSampleOptions::new(value)
+    }
+}
+
 impl GridSampleOptions {
     /// Create new grid sample options with the given interpolation mode.
     ///
@@ -377,6 +383,12 @@ pub enum PadMode {
 impl Default for PadMode {
     fn default() -> Self {
         PadMode::Constant(0.0)
+    }
+}
+
+impl<E: ElementConversion> From<E> for PadMode {
+    fn from(value: E) -> Self {
+        PadMode::Constant(value.elem())
     }
 }
 
@@ -512,11 +524,10 @@ pub trait ModuleOps<B: Backend> {
     /// Backward pass for the [conv2d](ModuleOps::conv2d) operation, returning the gradient for `bias`.
     fn conv2d_bias_backward(
         x: FloatTensor<B>,
-        weight: FloatTensor<B>,
         bias: FloatTensor<B>,
         output_grad: FloatTensor<B>,
     ) -> FloatTensor<B> {
-        conv::conv2d_bias_backward::<B>(x, weight, bias, output_grad)
+        conv::conv2d_bias_backward::<B>(x, bias, output_grad)
     }
 
     /// Two dimensional deformable convolution.
@@ -579,11 +590,10 @@ pub trait ModuleOps<B: Backend> {
     /// Backward pass for the [conv3d](ModuleOps::conv3d) operation, returning the gradient for `bias`.
     fn conv3d_bias_backward(
         x: FloatTensor<B>,
-        weight: FloatTensor<B>,
         bias: FloatTensor<B>,
         output_grad: FloatTensor<B>,
     ) -> FloatTensor<B> {
-        conv::conv3d_bias_backward::<B>(x, weight, bias, output_grad)
+        conv::conv3d_bias_backward::<B>(x, bias, output_grad)
     }
     /// One dimensional transposed convolution.
     ///

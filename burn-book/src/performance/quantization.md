@@ -16,19 +16,21 @@ to the lower precision data type. There are two types of post-training quantizat
 1. Dynamic quantization: quantized the weights ahead of time (like static quantization) but the
    activations are dynamically at runtime.
 
-Sometimes post-training quantization is not able to achieve acceptable task accuracy. This is where
-quantization aware training comes into play, as it models the effects of quantization during
-training. Quantization errors are thus modeled in the forward and backward passes using fake
-quantization modules, which helps the model learn representations that are more robust to the
-reduction in precision.
+Sometimes post-training quantization is not able to achieve acceptable task accuracy. In general,
+this is where quantization-aware training (QAT) can be used: during training, fake-quantization
+modules are inserted in the forward and backward passes to simulate quantization effects, allowing
+the model to learn representations that are more robust to reduced precision.
+
+Burn does not currently support QAT. Only post-training quantization (PTQ) is implemented at this
+time.
 
 <div class="warning">
 
 Quantization support in Burn is currently in active development.
 
-It supports the following modes on some backends:
+It supports the following PTQ modes on some backends:
 
-- Per-tensor and per-block (linear) quantization to 8-bit, 4-bit and 2-bit representations
+- Per-tensor and per-block quantization to 8-bit, 4-bit and 2-bit representations
 
 No integer operations are currently supported, which means tensors are dequantized to perform the
 operations in floating point precision.
@@ -114,10 +116,11 @@ let scheme = QuantScheme::default()
 
 #### Quantization Store
 
-| Store    | Description                                             |
-| :------- | :------------------------------------------------------ |
-| `Native` | Each quantized value stored directly in memory.         |
-| `U32`    | Multiple quantized values packed into a 32-bit integer. |
+| Store               | Description                                                                                                                                       |
+| :------------------ | :------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `Native`            | Each quantized value is stored directly in a native format, which doesn't require packing and unpacking.                                          |
+| `PackedNative(dim)` | Multiple quantized values packed into a 32-bit integer. Argument is the dimension the tensor is packed on, starting from the innermost dimension. |
+| `PackedU32(dim)`    | Multiple quantized values packed into a 32-bit integer. Argument is the dimension the tensor is packed on, starting from the innermost dimension. |
 
 Native storage is not supported for sub-byte quantization values.
 

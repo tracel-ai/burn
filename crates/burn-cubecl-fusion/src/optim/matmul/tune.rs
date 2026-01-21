@@ -6,13 +6,12 @@ use crate::{
     tune::{TuneContext, TuneInput},
 };
 use burn_fusion::stream::Context;
-use burn_std::DType;
 use cubecl::{
     AutotuneKey, CubeElement, CubeTuneId, Runtime,
     tune::{LocalTuner, Tunable, TunableSet, TuneGroup, local_tuner},
 };
 use cubek::matmul::{
-    definition::{MatmulElemType, MatmulKind},
+    definition::MatmulKind,
     launch::{MatmulAutotuneKey, MatmulGlobalScale, should_tune_double_buffering},
 };
 use serde::{Deserialize, Serialize};
@@ -217,18 +216,11 @@ pub(crate) fn create_key<R: Runtime>(
         &rhs.shape.dims,
         &lhs_strides,
         &rhs_strides,
-        MatmulElemType {
-            dtype: lhs.dtype.into(),
-            quantized: matches!(lhs.dtype, DType::QFloat(_)),
-        },
-        MatmulElemType {
-            dtype: rhs.dtype.into(),
-            quantized: matches!(rhs.dtype, DType::QFloat(_)),
-        },
-        MatmulElemType {
-            dtype: out.dtype.into(),
-            quantized: matches!(out.dtype, DType::QFloat(_)),
-        },
+        lhs.dtype.into(),
+        rhs.dtype.into(),
+        out.dtype.into(),
+        opt.info.matmul.lhs.scheme(),
+        opt.info.matmul.rhs.scheme(),
     );
     FusedMatmulAutotuneKey::new(key, opt.info.num_output_buffers(), opt.info.num_ops_fused())
 }

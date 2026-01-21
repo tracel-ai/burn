@@ -9,7 +9,7 @@ use burn_backend::{
     tensor::{BoolTensor, Device, FloatTensor, IntTensor},
 };
 use burn_backend::{Shape, TensorData, tensor::BoolElem};
-use cubecl::std::scalar::InputScalar;
+use cubecl::prelude::InputScalar;
 use std::ops::Range;
 
 use super::{expand, numeric, permute, unfold};

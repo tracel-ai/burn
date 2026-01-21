@@ -2,12 +2,11 @@ use alloc::vec::Vec;
 use burn_std::{DType, Shape, Slice};
 
 use crate::{
-    AutodiffBackend, Backend, Distribution, ExecutionError, TensorData,
-    element::ElementConversion,
+    AutodiffBackend, Backend, Distribution, ExecutionError, Scalar, TensorData,
     ops::TransactionPrimitive,
     tensor::{
         BasicAutodiffOps, BasicOps, BoolTensor, Device, IndexingUpdateOp, Int, IntTensor, Numeric,
-        TensorKind,
+        Ordered, TensorKind,
     },
 };
 
@@ -25,13 +24,8 @@ impl<B: Backend> BasicOps<B> for Int {
         B::int_ones(shape, device, dtype.into())
     }
 
-    fn full<E: ElementConversion>(
-        shape: Shape,
-        fill_value: E,
-        device: &Device<B>,
-        dtype: DType,
-    ) -> Self::Primitive {
-        B::int_full(shape, fill_value.elem(), device, dtype.into())
+    fn full(shape: Shape, fill_value: Scalar, device: &Device<B>, dtype: DType) -> Self::Primitive {
+        B::int_full(shape, fill_value, device, dtype.into())
     }
 
     fn register_transaction(tr: &mut TransactionPrimitive<B>, tensor: Self::Primitive) {
@@ -89,7 +83,7 @@ impl<B: Backend> BasicOps<B> for Int {
     fn mask_fill(
         tensor: Self::Primitive,
         mask: B::BoolTensorPrimitive,
-        value: Self::Elem,
+        value: Scalar,
     ) -> Self::Primitive {
         B::int_mask_fill(tensor, mask, value)
     }
@@ -150,11 +144,11 @@ impl<B: Backend> BasicOps<B> for Int {
         B::int_not_equal(lhs, rhs)
     }
 
-    fn equal_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive {
+    fn equal_elem(lhs: Self::Primitive, rhs: Scalar) -> B::BoolTensorPrimitive {
         B::int_equal_elem(lhs, rhs)
     }
 
-    fn not_equal_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive {
+    fn not_equal_elem(lhs: Self::Primitive, rhs: Scalar) -> B::BoolTensorPrimitive {
         B::int_not_equal_elem(lhs, rhs)
     }
 
@@ -199,32 +193,32 @@ impl<B: Backend> Numeric<B> for Int {
     fn add(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
         B::int_add(lhs, rhs)
     }
-    fn add_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
-        B::int_add_scalar(lhs, rhs.elem())
+    fn add_scalar(lhs: Self::Primitive, rhs: Scalar) -> Self::Primitive {
+        B::int_add_scalar(lhs, rhs)
     }
     fn sub(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
         B::int_sub(lhs, rhs)
     }
-    fn sub_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
-        B::int_sub_scalar(lhs, rhs.elem())
+    fn sub_scalar(lhs: Self::Primitive, rhs: Scalar) -> Self::Primitive {
+        B::int_sub_scalar(lhs, rhs)
     }
     fn div(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
         B::int_div(lhs, rhs)
     }
-    fn div_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
-        B::int_div_scalar(lhs, rhs.elem())
+    fn div_scalar(lhs: Self::Primitive, rhs: Scalar) -> Self::Primitive {
+        B::int_div_scalar(lhs, rhs)
     }
     fn remainder(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
         B::int_remainder(lhs, rhs)
     }
-    fn remainder_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
-        B::int_remainder_scalar(lhs, rhs.elem())
+    fn remainder_scalar(lhs: Self::Primitive, rhs: Scalar) -> Self::Primitive {
+        B::int_remainder_scalar(lhs, rhs)
     }
     fn mul(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
         B::int_mul(lhs, rhs)
     }
-    fn mul_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
-        B::int_mul_scalar(lhs, rhs.elem())
+    fn mul_scalar(lhs: Self::Primitive, rhs: Scalar) -> Self::Primitive {
+        B::int_mul_scalar(lhs, rhs)
     }
     fn neg(tensor: Self::Primitive) -> Self::Primitive {
         B::int_neg(tensor)
@@ -259,6 +253,63 @@ impl<B: Backend> Numeric<B> for Int {
         B::int_cumprod(tensor, dim)
     }
 
+    fn abs(tensor: Self::Primitive) -> Self::Primitive {
+        B::int_abs(tensor)
+    }
+
+    fn powf(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
+        B::int_powf(lhs, B::int_into_float(rhs))
+    }
+
+    fn powf_scalar(lhs: Self::Primitive, rhs: Scalar) -> Self::Primitive {
+        B::int_powf_scalar(lhs, rhs)
+    }
+
+    fn powi(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
+        B::int_powi(lhs, rhs)
+    }
+
+    fn powi_scalar(lhs: Self::Primitive, rhs: Scalar) -> Self::Primitive {
+        B::int_powi_scalar(lhs, rhs)
+    }
+
+    fn random(shape: Shape, distribution: Distribution, device: &Device<B>) -> Self::Primitive {
+        B::int_random(shape, distribution, device)
+    }
+
+    fn sign(tensor: Self::Primitive) -> Self::Primitive {
+        B::int_sign(tensor)
+    }
+
+    fn sort(tensor: Self::Primitive, dim: usize, descending: bool) -> Self::Primitive {
+        B::int_sort(tensor, dim, descending)
+    }
+
+    fn sort_with_indices(
+        tensor: Self::Primitive,
+        dim: usize,
+        descending: bool,
+    ) -> (Self::Primitive, IntTensor<B>) {
+        B::int_sort_with_indices(tensor, dim, descending)
+    }
+
+    fn argsort(tensor: Self::Primitive, dim: usize, descending: bool) -> IntTensor<B> {
+        B::int_argsort(tensor, dim, descending)
+    }
+
+    /// Applies the matrix multiplication operation.
+    ///
+    /// `C = AB`
+    ///
+    /// # Panics
+    ///
+    /// If the two tensors don't have a compatible shape.
+    fn matmul(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
+        B::int_matmul(lhs, rhs)
+    }
+}
+
+impl<B: Backend> Ordered<B> for Int {
     fn cummin(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
         B::int_cummin(tensor, dim)
     }
@@ -271,7 +322,7 @@ impl<B: Backend> Numeric<B> for Int {
         B::int_greater(lhs, rhs)
     }
 
-    fn greater_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive {
+    fn greater_elem(lhs: Self::Primitive, rhs: Scalar) -> B::BoolTensorPrimitive {
         B::int_greater_elem(lhs, rhs)
     }
 
@@ -279,7 +330,7 @@ impl<B: Backend> Numeric<B> for Int {
         B::int_greater_equal(lhs, rhs)
     }
 
-    fn greater_equal_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive {
+    fn greater_equal_elem(lhs: Self::Primitive, rhs: Scalar) -> B::BoolTensorPrimitive {
         B::int_greater_equal_elem(lhs, rhs)
     }
 
@@ -287,7 +338,7 @@ impl<B: Backend> Numeric<B> for Int {
         B::int_lower(lhs, rhs)
     }
 
-    fn lower_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive {
+    fn lower_elem(lhs: Self::Primitive, rhs: Scalar) -> B::BoolTensorPrimitive {
         B::int_lower_elem(lhs, rhs)
     }
 
@@ -295,7 +346,7 @@ impl<B: Backend> Numeric<B> for Int {
         B::int_lower_equal(lhs, rhs)
     }
 
-    fn lower_equal_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive {
+    fn lower_equal_elem(lhs: Self::Primitive, rhs: Scalar) -> B::BoolTensorPrimitive {
         B::int_lower_equal_elem(lhs, rhs)
     }
 
@@ -345,71 +396,16 @@ impl<B: Backend> Numeric<B> for Int {
         B::int_min_dim_with_indices(tensor, dim)
     }
 
-    fn clamp(tensor: Self::Primitive, min: B::IntElem, max: B::IntElem) -> Self::Primitive {
+    fn clamp(tensor: Self::Primitive, min: Scalar, max: Scalar) -> Self::Primitive {
         B::int_clamp(tensor, min, max)
     }
 
-    fn clamp_min(tensor: Self::Primitive, min: B::IntElem) -> Self::Primitive {
+    fn clamp_min(tensor: Self::Primitive, min: Scalar) -> Self::Primitive {
         B::int_clamp_min(tensor, min)
     }
 
-    fn clamp_max(tensor: Self::Primitive, max: B::IntElem) -> Self::Primitive {
+    fn clamp_max(tensor: Self::Primitive, max: Scalar) -> Self::Primitive {
         B::int_clamp_max(tensor, max)
-    }
-
-    fn abs(tensor: Self::Primitive) -> Self::Primitive {
-        B::int_abs(tensor)
-    }
-
-    fn powf(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
-        B::int_powf(lhs, B::int_into_float(rhs))
-    }
-
-    fn powf_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
-        B::int_powf_scalar(lhs, rhs.elem())
-    }
-
-    fn powi(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
-        B::int_powi(lhs, rhs)
-    }
-
-    fn powi_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
-        B::int_powi_scalar(lhs, rhs.elem())
-    }
-
-    fn random(shape: Shape, distribution: Distribution, device: &Device<B>) -> Self::Primitive {
-        B::int_random(shape, distribution, device)
-    }
-
-    fn sign(tensor: Self::Primitive) -> Self::Primitive {
-        B::int_sign(tensor)
-    }
-
-    fn sort(tensor: Self::Primitive, dim: usize, descending: bool) -> Self::Primitive {
-        B::int_sort(tensor, dim, descending)
-    }
-
-    fn sort_with_indices(
-        tensor: Self::Primitive,
-        dim: usize,
-        descending: bool,
-    ) -> (Self::Primitive, IntTensor<B>) {
-        B::int_sort_with_indices(tensor, dim, descending)
-    }
-
-    fn argsort(tensor: Self::Primitive, dim: usize, descending: bool) -> IntTensor<B> {
-        B::int_argsort(tensor, dim, descending)
-    }
-
-    /// Applies the matrix multiplication operation.
-    ///
-    /// `C = AB`
-    ///
-    /// # Panics
-    ///
-    /// If the two tensors don't have a compatible shape.
-    fn matmul(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
-        B::int_matmul(lhs, rhs)
     }
 }
 

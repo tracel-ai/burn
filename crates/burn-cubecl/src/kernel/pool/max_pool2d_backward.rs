@@ -38,8 +38,8 @@ fn max_pool2d_with_indices_backward_kernel<E: Numeric, I: Int>(
     let (oh_start, oh_end, ow_start, ow_end) = loop_ranges(
         ih as i32,
         iw as i32,
-        grad.shape(1),
-        grad.shape(2),
+        grad.shape(1) as u32,
+        grad.shape(2) as u32,
         args,
         kernel_size_0,
         kernel_size_1,
@@ -51,7 +51,7 @@ fn max_pool2d_with_indices_backward_kernel<E: Numeric, I: Int>(
 
     for oh in oh_start..oh_end {
         for ow in ow_start..ow_end {
-            let index = index_base + oh * grad.stride(1) + ow * grad.stride(2);
+            let index = index_base + oh as usize * grad.stride(1) + ow as usize * grad.stride(2);
             let index_max = Line::<u32>::cast_from(indices[index / line_size]);
 
             grad_acc += select_many(
@@ -78,10 +78,10 @@ fn loop_ranges(
     let kms_0 = args.dilation_0 * kernel_size_0 - args.stride_0;
     let kms_1 = args.dilation_1 * kernel_size_1 - args.stride_1;
 
-    let oh_start = Max::max((ih + args.padding_0 - kms_0) / args.stride_0, 0) as u32;
-    let ow_start = Max::max((iw + args.padding_1 - kms_1) / args.stride_1, 0) as u32;
-    let oh_end = Min::min(Max::max(kms_0, 0) as u32 + oh_start, grad_h - 1) + 1;
-    let ow_end = Min::min(Max::max(kms_1, 0) as u32 + ow_start, grad_w - 1) + 1;
+    let oh_start = clamp_min((ih + args.padding_0 - kms_0) / args.stride_0, 0) as u32;
+    let ow_start = clamp_min((iw + args.padding_1 - kms_1) / args.stride_1, 0) as u32;
+    let oh_end = clamp_max(clamp_min(kms_0, 0) as u32 + oh_start, grad_h - 1) + 1;
+    let ow_end = clamp_max(clamp_min(kms_1, 0) as u32 + ow_start, grad_w - 1) + 1;
 
     (oh_start, oh_end, ow_start, ow_end)
 }

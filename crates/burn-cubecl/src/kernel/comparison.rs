@@ -5,11 +5,7 @@ use crate::{
     tensor::CubeTensor,
 };
 use burn_backend::DType;
-use cubecl::{
-    calculate_cube_count_elemwise,
-    prelude::*,
-    std::{scalar::InputScalar, tensor::layout::linear::LinearView},
-};
+use cubecl::{calculate_cube_count_elemwise, prelude::*, std::tensor::layout::linear::LinearView};
 
 #[cube]
 pub(crate) trait ComparisonOpFamily: 'static + Send + Sync {

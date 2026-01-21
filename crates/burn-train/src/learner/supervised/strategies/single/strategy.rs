@@ -1,50 +1,46 @@
 use crate::{
-    Learner, ParadigmComponentsTypes, SupervisedLearningComponentsTypes,
-    SupervisedLearningStrategy, TrainBackend, TrainingComponents,
-    components::{TrainLoader, ValidLoader},
+    Learner, LearningComponentsTypes, SupervisedLearningStrategy, SupervisedTrainingEventProcessor,
+    TrainLoader, TrainingBackend, TrainingComponents, TrainingModel, ValidLoader,
     single::epoch::{SingleDeviceTrainEpoch, SingleDeviceValidEpoch},
 };
 use burn_core::tensor::Device;
 
 /// Simplest learning strategy possible, with only a single devices doing both the training and
 /// validation.
-pub struct SingleDevicetrainingStrategy<SC: SupervisedLearningComponentsTypes> {
-    device: Device<TrainBackend<SC::LC>>,
+pub struct SingleDevicetrainingStrategy<LC: LearningComponentsTypes> {
+    device: Device<TrainingBackend<LC>>,
 }
-impl<SC: SupervisedLearningComponentsTypes> SingleDevicetrainingStrategy<SC> {
-    pub fn new(device: Device<TrainBackend<SC::LC>>) -> Self {
+impl<LC: LearningComponentsTypes> SingleDevicetrainingStrategy<LC> {
+    pub fn new(device: Device<TrainingBackend<LC>>) -> Self {
         Self { device }
     }
 }
 
-impl<SC: SupervisedLearningComponentsTypes> SupervisedLearningStrategy<SC>
-    for SingleDevicetrainingStrategy<SC>
+impl<LC: LearningComponentsTypes> SupervisedLearningStrategy<LC>
+    for SingleDevicetrainingStrategy<LC>
 {
     fn fit(
         &self,
-        training_components: TrainingComponents<SC>,
-        learner: Learner<SC::LC>,
-        dataloader_train: TrainLoader<SC::LC, SC::LD>,
-        dataloader_valid: ValidLoader<SC::LC, SC::LD>,
+        training_components: TrainingComponents<LC>,
+        mut learner: Learner<LC>,
+        dataloader_train: TrainLoader<LC>,
+        dataloader_valid: ValidLoader<LC>,
         starting_epoch: usize,
-    ) -> (
-        SC::Model,
-        <SC::PC as ParadigmComponentsTypes>::EventProcessor,
-    ) {
+    ) -> (TrainingModel<LC>, SupervisedTrainingEventProcessor<LC>) {
         let dataloader_train = dataloader_train.to_device(&self.device);
         let dataloader_valid = dataloader_valid.to_device(&self.device);
-        let mut learner = learner.fork(&self.device);
+        learner.fork(&self.device);
         let mut event_processor = training_components.event_processor;
         let mut checkpointer = training_components.checkpointer;
         let mut early_stopping = training_components.early_stopping;
         let num_epochs = training_components.num_epochs;
 
-        let epoch_train: SingleDeviceTrainEpoch<SC> = SingleDeviceTrainEpoch::new(
+        let epoch_train: SingleDeviceTrainEpoch<LC> = SingleDeviceTrainEpoch::new(
             dataloader_train,
             num_epochs,
             training_components.grad_accumulation,
         );
-        let epoch_valid: SingleDeviceValidEpoch<SC> =
+        let epoch_valid: SingleDeviceValidEpoch<LC> =
             SingleDeviceValidEpoch::new(dataloader_valid.clone(), num_epochs);
 
         for epoch in starting_epoch..training_components.num_epochs + 1 {
@@ -56,6 +52,11 @@ impl<SC: SupervisedLearningComponentsTypes> SupervisedLearningStrategy<SC>
             );
 
             if training_components.interrupter.should_stop() {
+                let reason = training_components
+                    .interrupter
+                    .get_message()
+                    .unwrap_or(String::from("Reason unknown"));
+                log::info!("Training interrupted: {reason}");
                 break;
             }
 
@@ -77,6 +78,6 @@ impl<SC: SupervisedLearningComponentsTypes> SupervisedLearningStrategy<SC>
             }
         }
 
-        (learner.model, event_processor)
+        (learner.model(), event_processor)
     }
 }

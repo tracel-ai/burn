@@ -46,7 +46,6 @@ impl NodeCodegen for onnx_ir::cumsum::CumSumNode {
         // Tensor is needed for Tensor::cat in exclusive mode
         if self.config.exclusive {
             imports.register("burn::tensor::Tensor");
-            imports.register("alloc::vec");
         }
     }
 }
@@ -86,7 +85,7 @@ fn generate_static_cumsum(
                     } else {
                         let sliced = cumsum_result.narrow(#axis, 0, dim_size - 1);
                         let zeros = sliced.zeros_like().narrow(#axis, 0, 1);
-                        Tensor::cat(vec![zeros, sliced], #axis)
+                        Tensor::cat([zeros, sliced].into(), #axis)
                     }
                 };
             }
@@ -107,7 +106,7 @@ fn generate_static_cumsum(
                     } else {
                         let sliced = cumsum_back.narrow(#axis, 1, dim_size - 1);
                         let zeros = sliced.zeros_like().narrow(#axis, 0, 1);
-                        Tensor::cat(vec![sliced, zeros], #axis)
+                        Tensor::cat([sliced, zeros].into(), #axis)
                     }
                 };
             }
@@ -159,7 +158,7 @@ fn generate_runtime_cumsum(
                     } else {
                         let sliced = cumsum_result.narrow(axis, 0, dim_size - 1);
                         let zeros = sliced.zeros_like().narrow(axis, 0, 1);
-                        Tensor::cat(vec![zeros, sliced], axis)
+                        Tensor::cat([zeros, sliced].into(), axis)
                     }
                 };
             }
@@ -180,7 +179,7 @@ fn generate_runtime_cumsum(
                     } else {
                         let sliced = cumsum_back.narrow(axis, 1, dim_size - 1);
                         let zeros = sliced.zeros_like().narrow(axis, 0, 1);
-                        Tensor::cat(vec![sliced, zeros], axis)
+                        Tensor::cat([sliced, zeros].into(), axis)
                     }
                 };
             }
@@ -285,7 +284,7 @@ mod tests {
                 } else {
                     let sliced = cumsum_result.narrow(0, 0, dim_size - 1);
                     let zeros = sliced.zeros_like().narrow(0, 0, 1);
-                    Tensor::cat(vec![zeros, sliced], 0)
+                    Tensor::cat([zeros, sliced].into(), 0)
                 }
             };
             output
@@ -310,7 +309,7 @@ mod tests {
                 } else {
                     let sliced = cumsum_back.narrow(0, 1, dim_size - 1);
                     let zeros = sliced.zeros_like().narrow(0, 0, 1);
-                    Tensor::cat(vec![sliced, zeros], 0)
+                    Tensor::cat([sliced, zeros].into(), 0)
                 }
             };
             output
@@ -345,7 +344,7 @@ mod tests {
                 } else {
                     let sliced = cumsum_result.narrow(1, 0, dim_size - 1);
                     let zeros = sliced.zeros_like().narrow(1, 0, 1);
-                    Tensor::cat(vec![zeros, sliced], 1)
+                    Tensor::cat([zeros, sliced].into(), 1)
                 }
             };
             output
@@ -393,7 +392,7 @@ mod tests {
                 } else {
                     let sliced = cumsum_result.narrow(axis, 0, dim_size - 1);
                     let zeros = sliced.zeros_like().narrow(axis, 0, 1);
-                    Tensor::cat(vec![zeros, sliced], axis)
+                    Tensor::cat([zeros, sliced].into(), axis)
                 }
             };
             output

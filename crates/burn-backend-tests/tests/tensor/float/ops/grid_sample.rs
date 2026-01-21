@@ -23,7 +23,7 @@ fn should_grid_sample_2d_default() {
         &device,
     );
 
-    let output = tensor.grid_sample_2d(grid, GridSampleOptions::default());
+    let output = tensor.grid_sample_2d(grid, InterpolateMode::Bilinear);
 
     // Expected values computed with PyTorch grid_sample(align_corners=False, padding_mode='zeros')
     let expected = TensorData::from([[[[4.0, 2.0625], [2.0, 1.04]]]]);
@@ -96,6 +96,30 @@ fn should_pad_border_grid_sample_2d() {
     // With border padding, out-of-bounds coordinates are clamped to border
     // Grid (0.0, -2.0) with align_corners=false: pixel (1.0, -2.5) -> clamped to (1.0, 0.0) = 1.0
     let expected = TensorData::from([[[[1.0]]]]);
+    output
+        .to_data()
+        .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
+}
+
+/// Tests bilinear interpolation with reflection padding.
+#[test]
+fn should_pad_reflection_grid_sample_2d() {
+    let device = Default::default();
+    let tensor = TestTensor::<4>::from_floats(
+        [[[[0.0, 1.0, 2.0], [3.0, 4.0, 5.0], [6.0, 7.0, 8.0]]]],
+        &device,
+    );
+    let grid = TestTensor::<4>::from_floats(
+        [[[[0.0, 0.0], [-1.0, 0.25]], [[1.0, 1.0], [0.2, -0.8]]]],
+        &device,
+    );
+
+    let options = GridSampleOptions::new(InterpolateMode::Bilinear)
+        .with_padding_mode(GridSamplePaddingMode::Reflection);
+    let output = tensor.grid_sample_2d(grid, options);
+
+    // Expected values computed with PyTorch F.grid_sample(mode='bilinear', padding_mode='reflection', align_corners=False)
+    let expected = TensorData::from([[[[4.0, 4.125], [8.0, 1.3]]]]);
     output
         .to_data()
         .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());

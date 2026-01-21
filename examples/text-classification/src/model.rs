@@ -13,7 +13,7 @@ use burn::{
     },
     prelude::*,
     tensor::{activation::softmax, backend::AutodiffBackend},
-    train::{ClassificationOutput, TrainOutput, TrainStep, ValidStep},
+    train::{ClassificationOutput, InferenceStep, TrainOutput, TrainStep},
 };
 
 // Define the model configuration
@@ -137,9 +137,10 @@ impl<B: Backend> TextClassificationModel<B> {
 }
 
 /// Define training step
-impl<B: AutodiffBackend> TrainStep<TextClassificationTrainingBatch<B>, ClassificationOutput<B>>
-    for TextClassificationModel<B>
-{
+impl<B: AutodiffBackend> TrainStep for TextClassificationModel<B> {
+    type Input = TextClassificationTrainingBatch<B>;
+    type Output = ClassificationOutput<B>;
+
     fn step(
         &self,
         item: TextClassificationTrainingBatch<B>,
@@ -153,9 +154,10 @@ impl<B: AutodiffBackend> TrainStep<TextClassificationTrainingBatch<B>, Classific
 }
 
 /// Define validation step
-impl<B: Backend> ValidStep<TextClassificationTrainingBatch<B>, ClassificationOutput<B>>
-    for TextClassificationModel<B>
-{
+impl<B: Backend> InferenceStep for TextClassificationModel<B> {
+    type Input = TextClassificationTrainingBatch<B>;
+    type Output = ClassificationOutput<B>;
+
     fn step(&self, item: TextClassificationTrainingBatch<B>) -> ClassificationOutput<B> {
         // Run forward pass and return the output
         self.forward(item)

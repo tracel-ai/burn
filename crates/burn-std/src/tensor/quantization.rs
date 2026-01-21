@@ -200,9 +200,16 @@ impl QuantizedBytes {
             QuantLevel::Block(block_size) => self.num_elements / block_size.num_elements(),
         };
 
+        if let QuantStore::PackedU32(packed_dim) = self.scheme.store {
+            assert_eq!(
+                packed_dim, 0,
+                "Packing must be on innermost dimension for splitting off values"
+            );
+        }
+
         let (values, qparams) = match self.scheme.store {
             QuantStore::Native => self.split_i8_values(num_params),
-            QuantStore::U32 => match self.scheme.value {
+            QuantStore::PackedU32(_) => match self.scheme.value {
                 QuantValue::Q8F | QuantValue::Q8S => self.split_i8_values(num_params),
                 QuantValue::Q4F | QuantValue::Q4S | QuantValue::Q2F | QuantValue::Q2S => {
                     let mut values = self.bytes.try_into_vec::<u32>().unwrap();
@@ -218,6 +225,7 @@ impl QuantizedBytes {
                     unimplemented!("Not yet supported")
                 }
             },
+            QuantStore::PackedNative(_) => unimplemented!("Not yet supported"),
         };
 
         (values, (qparams, num_params))

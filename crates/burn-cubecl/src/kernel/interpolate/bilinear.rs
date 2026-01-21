@@ -15,7 +15,7 @@ use crate::{
 fn interpolate_bilinear_kernel<F: Float>(
     input: &Tensor<Line<F>>,
     output: &mut Tensor<Line<F>>,
-    shape_out: Sequence<FastDivmod>,
+    shape_out: Sequence<FastDivmod<usize>>,
     out_layout: LinearLayout,
     #[define(F)] _dtype: StorageType,
 ) {
@@ -26,37 +26,37 @@ fn interpolate_bilinear_kernel<F: Float>(
     let line_size = input.line_size();
     let out_idx = out_layout.to_source_pos(ABSOLUTE_POS);
 
-    let (rem, c) = shape_out.index(3).div_mod(ABSOLUTE_POS * line_size);
-    let (rem, x) = shape_out.index(2).div_mod(rem);
-    let (b, y) = shape_out.index(1).div_mod(rem);
+    let (rem, c) = shape_out[3].div_mod(ABSOLUTE_POS * line_size);
+    let (rem, x) = shape_out[2].div_mod(rem);
+    let (b, y) = shape_out[1].div_mod(rem);
 
     let numerator = (input.shape(1) - 1) as f32;
-    let denominator = Max::max(output.shape(1) - 1, 1) as f32;
-    let factor = f32::cast_from(y);
+    let denominator = clamp_min(output.shape(1) - 1, 1) as f32;
+    let factor = y as f32;
 
     let frac = factor * (numerator / denominator);
 
-    let v0 = Floor::floor(frac);
-    let v1: f32 = Ceil::ceil(frac);
+    let v0 = frac.floor();
+    let v1 = frac.ceil();
     let yw = F::cast_from(frac - v0);
     let yw_ = Line::empty(line_size).fill(F::new(1.0) - yw);
     let yw = Line::empty(line_size).fill(yw);
     let y0_ok = v0 >= 0.0;
-    let y0 = v0 as u32;
-    let y1 = v1 as u32;
+    let y0 = v0 as usize;
+    let y1 = v1 as usize;
 
-    let numerator = f32::cast_from(input.shape(2) - 1);
-    let denominator = f32::cast_from(Max::max(output.shape(2) - 1, 1));
-    let factor = f32::cast_from(x);
+    let numerator = (input.shape(2) - 1) as f32;
+    let denominator = clamp_min(output.shape(2) - 1, 1) as f32;
+    let factor = x as f32;
     let frac = factor * (numerator / denominator);
-    let v0 = Floor::floor(frac);
-    let v1: f32 = Ceil::ceil(frac);
+    let v0 = frac.floor();
+    let v1 = frac.ceil();
     let xw = F::cast_from(frac - v0);
     let xw_ = Line::empty(line_size).fill(F::new(1.0) - xw);
     let xw = Line::empty(line_size).fill(xw);
     let x0_ok = v0 >= 0.0;
-    let x0 = v0 as u32;
-    let x1 = v1 as u32;
+    let x0 = v0 as usize;
+    let x1 = v1 as usize;
 
     let index_base = b * input.stride(0) + c * input.stride(3);
 

@@ -20,36 +20,178 @@ where
     B: Backend,
 {
     /// Create a boolean tensor from data on the given device.
+    ///
+    /// # Arguments
+    ///
+    /// * `data` - The tensor data.
+    /// * `device` - The device on which the tensor will be allocated.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Bool};
+    ///
+    /// fn example<B: Backend>() {
+    ///     let device = Default::default();
+    ///     let tensor = Tensor::<B, 2, Bool>::from_bool([[true, false], [false, true]].into(), &device);
+    ///     println!("{tensor}");
+    /// }
+    /// ```
     pub fn from_bool(data: TensorData, device: &B::Device) -> Self {
         Self::new(B::bool_from_data(data.convert::<B::BoolElem>(), device))
     }
 
     /// Convert the bool tensor into an int tensor.
+    ///
+    /// # Returns
+    ///
+    /// An integer tensor where `true` is converted to `1` and `false` to `0`.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Bool};
+    ///
+    /// fn example<B: Backend>() {
+    ///     let device = Default::default();
+    ///     let bool_tensor = Tensor::<B, 1, Bool>::from_bool([true, false, true].into(), &device);
+    ///     let int_tensor = bool_tensor.int();
+    ///     println!("{int_tensor}"); // [1, 0, 1]
+    /// }
+    /// ```
     pub fn int(self) -> Tensor<B, D, Int> {
         Tensor::new(B::bool_into_int(self.primitive))
     }
 
     /// Convert the bool tensor into a float tensor.
+    ///
+    /// # Returns
+    ///
+    /// A float tensor where `true` is converted to `1.0` and `false` to `0.0`.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Bool};
+    ///
+    /// fn example<B: Backend>() {
+    ///     let device = Default::default();
+    ///     let bool_tensor = Tensor::<B, 1, Bool>::from_bool([true, false, true].into(), &device);
+    ///     let float_tensor = bool_tensor.float();
+    ///     println!("{float_tensor}"); // [1.0, 0.0, 1.0]
+    /// }
+    /// ```
     pub fn float(self) -> Tensor<B, D> {
         Tensor::new(TensorPrimitive::Float(B::bool_into_float(self.primitive)))
     }
 
     /// Inverses boolean values.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Bool};
+    ///
+    /// fn example<B: Backend>() {
+    ///     let device = Default::default();
+    ///     let tensor = Tensor::<B, 2, Bool>::from_bool([[true, false], [false, true]].into(), &device);
+    ///     let inverted = tensor.bool_not();
+    ///     println!("{inverted}"); // [[false, true], [true, false]]
+    /// }
+    /// ```
     pub fn bool_not(self) -> Self {
         Tensor::new(B::bool_not(self.primitive))
     }
 
-    /// Performs logical and (`&&`) on two boolean tensors
+    /// Performs logical and (`&&`) on two boolean tensors.
+    ///
+    /// # Arguments
+    ///
+    /// * `rhs` - The right-hand side tensor for the AND operation.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor where each element is the result of `self[i] && rhs[i]`.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Bool};
+    ///
+    /// fn example<B: Backend>() {
+    ///     let device = Default::default();
+    ///     let a = Tensor::<B, 2, Bool>::from_bool([[true, true], [false, false]].into(), &device);
+    ///     let b = Tensor::<B, 2, Bool>::from_bool([[true, false], [true, false]].into(), &device);
+    ///     let result = a.bool_and(b);
+    ///     println!("{result}"); // [[true, false], [false, false]]
+    /// }
+    /// ```
     pub fn bool_and(self, rhs: Tensor<B, D, Bool>) -> Tensor<B, D, Bool> {
         Tensor::new(B::bool_and(self.primitive, rhs.primitive))
     }
 
-    /// Performs logical or (`||`) on two boolean tensors
+    /// Performs logical or (`||`) on two boolean tensors.
+    ///
+    /// # Arguments
+    ///
+    /// * `rhs` - The right-hand side tensor for the OR operation.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor where each element is the result of `self[i] || rhs[i]`.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Bool};
+    ///
+    /// fn example<B: Backend>() {
+    ///     let device = Default::default();
+    ///     let a = Tensor::<B, 2, Bool>::from_bool([[true, true], [false, false]].into(), &device);
+    ///     let b = Tensor::<B, 2, Bool>::from_bool([[true, false], [true, false]].into(), &device);
+    ///     let result = a.bool_or(b);
+    ///     println!("{result}"); // [[true, true], [true, false]]
+    /// }
+    /// ```
     pub fn bool_or(self, rhs: Tensor<B, D, Bool>) -> Tensor<B, D, Bool> {
         Tensor::new(B::bool_or(self.primitive, rhs.primitive))
     }
 
-    /// Performs logical xor (`^`) on two boolean tensors
+    /// Performs logical xor (`^`) on two boolean tensors.
+    ///
+    /// # Arguments
+    ///
+    /// * `rhs` - The right-hand side tensor for the XOR operation.
+    ///
+    /// # Returns
+    ///
+    /// A boolean tensor where each element is the result of `self[i] ^ rhs[i]`.
+    /// Returns `true` when exactly one of the operands is `true`.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Bool};
+    ///
+    /// fn example<B: Backend>() {
+    ///     let device = Default::default();
+    ///     let a = Tensor::<B, 2, Bool>::from_bool([[true, true], [false, false]].into(), &device);
+    ///     let b = Tensor::<B, 2, Bool>::from_bool([[true, false], [true, false]].into(), &device);
+    ///     let result = a.bool_xor(b);
+    ///     println!("{result}"); // [[false, true], [true, false]]
+    /// }
+    /// ```
     pub fn bool_xor(self, rhs: Tensor<B, D, Bool>) -> Tensor<B, D, Bool> {
         Tensor::new(B::bool_xor(self.primitive, rhs.primitive))
     }
@@ -60,6 +202,24 @@ where
     ///
     /// A vector of tensors, one for each dimension of the given tensor, containing the indices of
     /// the non-zero elements in that dimension.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Bool};
+    ///
+    /// fn example<B: Backend>() {
+    ///     let device = Default::default();
+    ///     let tensor = Tensor::<B, 2, Bool>::from_bool(
+    ///         [[true, false, true], [false, true, false], [false, true, false]].into(),
+    ///         &device,
+    ///     );
+    ///     let indices = tensor.nonzero();
+    ///     println!("{}", indices[0]); // [0, 0, 1, 2]
+    ///     println!("{}", indices[1]); // [0, 2, 1, 1]
+    /// }
+    /// ```
     pub fn nonzero(self) -> Vec<Tensor<B, 1, Int>> {
         try_read_sync(self.nonzero_async())
             .expect("Failed to read tensor data synchronously. Try using nonzero_async instead.")
@@ -93,6 +253,23 @@ where
     ///
     /// A tensor containing the indices of all non-zero elements of the given tensor. Each row in the
     /// result contains the indices of a non-zero element.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Bool};
+    ///
+    /// fn example<B: Backend>() {
+    ///     let device = Default::default();
+    ///     let tensor = Tensor::<B, 2, Bool>::from_bool(
+    ///         [[true, false, true], [false, true, false], [false, true, false]].into(),
+    ///         &device,
+    ///     );
+    ///     let indices = tensor.argwhere();
+    ///     println!("{indices}"); // [[0, 0], [0, 2], [1, 1], [2, 1]]
+    /// }
+    /// ```
     pub fn argwhere(self) -> Tensor<B, 2, Int> {
         try_read_sync(self.argwhere_async())
             .expect("Failed to read tensor data synchronously. Try using argwhere_async instead.")

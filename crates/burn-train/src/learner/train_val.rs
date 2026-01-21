@@ -1,4 +1,4 @@
-use crate::renderer::MetricsRenderer;
+use crate::{ItemLazy, renderer::MetricsRenderer};
 use burn_core::module::AutodiffModule;
 use burn_core::tensor::backend::AutodiffBackend;
 use burn_optim::{GradientsParams, MultiGradientsParams, Optimizer};
@@ -34,7 +34,7 @@ impl<TO> TrainOutput<TO> {
     }
 }
 
-/// Trait to be implemented for training models using supervised learning.
+/// Trait to be implemented for models to be able to be trained.
 ///
 /// The [step](TrainStep::step) method needs to be manually implemented for all structs.
 ///
@@ -44,25 +44,29 @@ impl<TO> TrainOutput<TO> {
 ///
 /// # Notes
 ///
-/// To be used with the [Learner](crate::SupervisedTraining) struct, the struct which implements this trait must
+/// To be used with the [Learner](crate::Learner) struct, the struct which implements this trait must
 /// also implement the [AutodiffModule] trait, which is done automatically with the
 /// [Module](burn_core::module::Module) derive.
-pub trait TrainStep<TI, TO> {
-    /// Runs the training step, which executes the forward and backward passes.
+pub trait TrainStep {
+    /// Type of input for a step of the training stage.
+    type Input: Send + 'static;
+    /// Type of output for a step of the training stage.
+    type Output: ItemLazy + 'static;
+    /// Runs a step for training, which executes the forward and backward passes.
     ///
     /// # Arguments
     ///
-    /// * `item` - The training input for the model.
+    /// * `item` - The input for the model.
     ///
     /// # Returns
     ///
-    /// The training output containing the model output and the gradients.
-    fn step(&self, item: TI) -> TrainOutput<TO>;
+    /// The output containing the model output and the gradients.
+    fn step(&self, item: Self::Input) -> TrainOutput<Self::Output>;
     /// Optimize the current module with the provided gradients and learning rate.
     ///
     /// # Arguments
     ///
-    /// * `optim`: Optimizer used for training this model.
+    /// * `optim`: Optimizer used for learning.
     /// * `lr`: The learning rate used for this step.
     /// * `grads`: The gradients of each parameter in the current model.
     ///
@@ -81,7 +85,7 @@ pub trait TrainStep<TI, TO> {
     ///
     /// # Arguments
     ///
-    /// * `optim`: Optimizer used for training this model.
+    /// * `optim`: Optimizer used for learning.
     /// * `lr`: The learning rate used for this step.
     /// * `grads`: Multiple gradients associated to each parameter in the current model.
     ///
@@ -98,8 +102,12 @@ pub trait TrainStep<TI, TO> {
     }
 }
 
-/// Trait to be implemented for validating models using supervised learning.
-pub trait ValidStep<VI, VO> {
+/// Trait to be implemented for validating models.
+pub trait InferenceStep {
+    /// Type of input for an inference step.
+    type Input: Send + 'static;
+    /// Type of output for an inference step.
+    type Output: ItemLazy + 'static;
     /// Runs a validation step.
     ///
     /// # Arguments
@@ -109,12 +117,12 @@ pub trait ValidStep<VI, VO> {
     /// # Returns
     ///
     /// The validation output.
-    fn step(&self, item: VI) -> VO;
+    fn step(&self, item: Self::Input) -> Self::Output;
 }
 
 /// The result of a training, containing the model along with the [renderer](MetricsRenderer).
-pub struct TrainingResult<M> {
-    /// The model trained.
+pub struct LearningResult<M> {
+    /// The model with the learned weights.
     pub model: M,
     /// The renderer that can be used for follow up training and evaluation.
     pub renderer: Box<dyn MetricsRenderer>,
