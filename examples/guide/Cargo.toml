@@ -10,16 +10,13 @@ version.workspace = true
 workspace = true
 
 [features]
-default = ["burn/std", "burn/tui", "burn/fusion"]
+default = ["burn/default", "burn/tui", "burn/vulkan"]
 
 [dependencies]
-# Disable autotune default for convolutions
 burn = { path = "../../crates/burn", features = [
     "webgpu",
     "train",
     "vision",
-    "vulkan",
-    "autotune",
 ], default-features = false }
 
 # Serialization
