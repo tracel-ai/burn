@@ -3,8 +3,7 @@ use crate::{IntoKind, LibTorch, LibTorchDevice, TchShape, TchTensor, element::Tc
 use burn_backend::backend::ExecutionError;
 use burn_backend::tensor::{BoolTensor, FloatTensor, IntTensor};
 use burn_backend::{
-    DType, Distribution, FloatDType, Shape, TensorData, TensorMetadata, backend::Backend,
-    ops::FloatTensorOps,
+    DType, Distribution, FloatDType, Shape, TensorData, TensorMetadata, ops::FloatTensorOps,
 };
 use burn_backend::{Scalar, bf16, f16};
 
@@ -98,11 +97,7 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
         TchOps::to_device(tensor, device)
     }
 
-    fn float_empty(
-        shape: Shape,
-        device: &<LibTorch<E> as Backend>::Device,
-        dtype: FloatDType,
-    ) -> TchTensor {
+    fn float_empty(shape: Shape, device: &LibTorchDevice, dtype: FloatDType) -> TchTensor {
         let tensor = tch::Tensor::empty(
             TchShape::from(shape).dims,
             (dtype.into_kind(), (*device).into()),
