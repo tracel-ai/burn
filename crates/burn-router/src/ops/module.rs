@@ -6,15 +6,7 @@ use burn_backend::ops::{
     MaxPool1dBackward, MaxPool1dWithIndices, MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps,
 };
 use burn_backend::tensor::{FloatTensor, IntElem, IntTensor};
-use burn_ir::{
-    AdaptiveAvgPool1dBackwardOpIr, AdaptiveAvgPool1dOpIr, AdaptiveAvgPool2dBackwardOpIr,
-    AdaptiveAvgPool2dOpIr, AvgPool1dBackwardOpIr, AvgPool1dOpIr, AvgPool2dBackwardOpIr,
-    AvgPool2dOpIr, Conv1dOpIr, Conv2dOpIr, Conv3dOpIr, ConvTranspose1dOpIr, ConvTranspose2dOpIr,
-    ConvTranspose3dOpIr, DeformConv2dBackwardOpIr, DeformConv2dOpIr, InterpolateBackwardOpIr,
-    InterpolateOpIr, MaxPool1dOpIr, MaxPool1dWithIndicesBackwardOpIr, MaxPool1dWithIndicesOpIr,
-    MaxPool2dOpIr, MaxPool2dWithIndicesBackwardOpIr, MaxPool2dWithIndicesOpIr, ModuleOperationIr,
-    OperationIr, OperationOutput,
-};
+use burn_ir::*;
 
 use crate::{BackendRouter, RunnerChannel, RunnerClient};
 
@@ -39,6 +31,70 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
             .output()
     }
 
+    fn conv1d_x_backward(
+        x: FloatTensor<Self>,
+        weight: FloatTensor<Self>,
+        output_grad: FloatTensor<Self>,
+        options: ConvOptions<1>,
+    ) -> FloatTensor<Self> {
+        let client = x.client.clone();
+        let desc = Conv1dXBackwardOpIr::create(
+            x.into_ir(),
+            weight.into_ir(),
+            output_grad.into_ir(),
+            options.into(),
+            || client.create_empty_handle(),
+        );
+
+        client
+            .register(OperationIr::Module(ModuleOperationIr::Conv1dXBackward(
+                desc,
+            )))
+            .output()
+    }
+
+    fn conv1d_weight_backward(
+        x: FloatTensor<Self>,
+        weight: FloatTensor<Self>,
+        output_grad: FloatTensor<Self>,
+        options: ConvOptions<1>,
+    ) -> FloatTensor<Self> {
+        let client = x.client.clone();
+        let desc = Conv1dWeightBackwardOpIr::create(
+            x.into_ir(),
+            weight.into_ir(),
+            output_grad.into_ir(),
+            options.into(),
+            || client.create_empty_handle(),
+        );
+
+        client
+            .register(OperationIr::Module(
+                ModuleOperationIr::Conv1dWeightBackward(desc),
+            ))
+            .output()
+    }
+
+    fn conv1d_bias_backward(
+        x: FloatTensor<Self>,
+        bias: FloatTensor<Self>,
+        output_grad: FloatTensor<Self>,
+    ) -> FloatTensor<Self> {
+        let client = x.client.clone();
+        let desc = Conv1dBiasBackwardOpIr::create(
+            x.into_ir(),
+            bias.into_ir(),
+            output_grad.into_ir(),
+            || client.create_empty_handle(),
+        );
+
+        client
+            .register(OperationIr::Module(ModuleOperationIr::Conv1dBiasBackward(
+                desc,
+            )))
+            .output()
+    }
+
     fn conv2d(
         x: FloatTensor<Self>,
         weight: FloatTensor<Self>,
@@ -59,6 +115,70 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
             .output()
     }
 
+    fn conv2d_x_backward(
+        x: FloatTensor<Self>,
+        weight: FloatTensor<Self>,
+        output_grad: FloatTensor<Self>,
+        options: ConvOptions<2>,
+    ) -> FloatTensor<Self> {
+        let client = x.client.clone();
+        let desc = Conv2dXBackwardOpIr::create(
+            x.into_ir(),
+            weight.into_ir(),
+            output_grad.into_ir(),
+            options.into(),
+            || client.create_empty_handle(),
+        );
+
+        client
+            .register(OperationIr::Module(ModuleOperationIr::Conv2dXBackward(
+                desc,
+            )))
+            .output()
+    }
+
+    fn conv2d_weight_backward(
+        x: FloatTensor<Self>,
+        weight: FloatTensor<Self>,
+        output_grad: FloatTensor<Self>,
+        options: ConvOptions<2>,
+    ) -> FloatTensor<Self> {
+        let client = x.client.clone();
+        let desc = Conv2dWeightBackwardOpIr::create(
+            x.into_ir(),
+            weight.into_ir(),
+            output_grad.into_ir(),
+            options.into(),
+            || client.create_empty_handle(),
+        );
+
+        client
+            .register(OperationIr::Module(
+                ModuleOperationIr::Conv2dWeightBackward(desc),
+            ))
+            .output()
+    }
+
+    fn conv2d_bias_backward(
+        x: FloatTensor<Self>,
+        bias: FloatTensor<Self>,
+        output_grad: FloatTensor<Self>,
+    ) -> FloatTensor<Self> {
+        let client = x.client.clone();
+        let desc = Conv2dBiasBackwardOpIr::create(
+            x.into_ir(),
+            bias.into_ir(),
+            output_grad.into_ir(),
+            || client.create_empty_handle(),
+        );
+
+        client
+            .register(OperationIr::Module(ModuleOperationIr::Conv2dBiasBackward(
+                desc,
+            )))
+            .output()
+    }
+
     fn conv3d(
         x: FloatTensor<Self>,
         weight: FloatTensor<Self>,
@@ -76,6 +196,70 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
 
         client
             .register(OperationIr::Module(ModuleOperationIr::Conv3d(desc)))
+            .output()
+    }
+
+    fn conv3d_x_backward(
+        x: FloatTensor<Self>,
+        weight: FloatTensor<Self>,
+        output_grad: FloatTensor<Self>,
+        options: ConvOptions<3>,
+    ) -> FloatTensor<Self> {
+        let client = x.client.clone();
+        let desc = Conv3dXBackwardOpIr::create(
+            x.into_ir(),
+            weight.into_ir(),
+            output_grad.into_ir(),
+            options.into(),
+            || client.create_empty_handle(),
+        );
+
+        client
+            .register(OperationIr::Module(ModuleOperationIr::Conv3dXBackward(
+                desc,
+            )))
+            .output()
+    }
+
+    fn conv3d_weight_backward(
+        x: FloatTensor<Self>,
+        weight: FloatTensor<Self>,
+        output_grad: FloatTensor<Self>,
+        options: ConvOptions<3>,
+    ) -> FloatTensor<Self> {
+        let client = x.client.clone();
+        let desc = Conv3dWeightBackwardOpIr::create(
+            x.into_ir(),
+            weight.into_ir(),
+            output_grad.into_ir(),
+            options.into(),
+            || client.create_empty_handle(),
+        );
+
+        client
+            .register(OperationIr::Module(
+                ModuleOperationIr::Conv3dWeightBackward(desc),
+            ))
+            .output()
+    }
+
+    fn conv3d_bias_backward(
+        x: FloatTensor<Self>,
+        bias: FloatTensor<Self>,
+        output_grad: FloatTensor<Self>,
+    ) -> FloatTensor<Self> {
+        let client = x.client.clone();
+        let desc = Conv3dBiasBackwardOpIr::create(
+            x.into_ir(),
+            bias.into_ir(),
+            output_grad.into_ir(),
+            || client.create_empty_handle(),
+        );
+
+        client
+            .register(OperationIr::Module(ModuleOperationIr::Conv3dBiasBackward(
+                desc,
+            )))
             .output()
     }
 

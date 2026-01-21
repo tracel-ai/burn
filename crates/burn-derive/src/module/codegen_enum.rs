@@ -180,12 +180,12 @@ impl ModuleCodegen for EnumModuleCodegen {
 }
 
 impl EnumModuleCodegen {
-    pub fn from_ast(ast: &syn::DeriveInput) -> Self {
-        Self {
+    pub fn from_ast(ast: &syn::DeriveInput) -> syn::Result<Self> {
+        Ok(Self {
             name: ast.ident.clone(),
-            variants: parse_variants(ast),
+            variants: parse_variants(ast)?,
             vis: ast.vis.clone(),
-        }
+        })
     }
 
     /// Generate the enum variants' match arm with the provided function

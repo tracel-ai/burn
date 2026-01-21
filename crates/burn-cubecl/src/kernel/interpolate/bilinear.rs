@@ -78,22 +78,22 @@ fn interpolate_bilinear_kernel<F: Float>(
 
     let p_a = select(
         x0_ok && y0_ok,
-        input[index_base + y0_stride + x0_stride] * xw_ * yw_,
+        input[(index_base + y0_stride + x0_stride) / line_size] * xw_ * yw_,
         zero,
     );
     let p_b = select(
         x1_ok && y0_ok,
-        input[index_base + y0_stride + x1_stride] * xw * yw_,
+        input[(index_base + y0_stride + x1_stride) / line_size] * xw * yw_,
         zero,
     );
     let p_c = select(
         x0_ok && y1_ok,
-        input[index_base + y1_stride + x0_stride] * xw_ * yw,
+        input[(index_base + y1_stride + x0_stride) / line_size] * xw_ * yw,
         zero,
     );
     let p_d = select(
         x1_ok && y1_ok,
-        input[index_base + y1_stride + x1_stride] * xw * yw,
+        input[(index_base + y1_stride + x1_stride) / line_size] * xw * yw,
         zero,
     );
 

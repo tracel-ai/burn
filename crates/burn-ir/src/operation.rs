@@ -170,10 +170,28 @@ pub enum ModuleOperationIr {
     EmbeddingBackward(EmbeddingBackwardOpIr),
     /// Operation corresponding to [conv1d](burn_backend::ops::ModuleOps::conv1d).
     Conv1d(Conv1dOpIr),
+    /// Operation corresponding to [conv1d_x_backward](burn_backend::ops::ModuleOps::conv1d_x_backward).
+    Conv1dXBackward(Conv1dXBackwardOpIr),
+    /// Operation corresponding to [conv1d_weight_backward](burn_backend::ops::ModuleOps::conv1d_weight_backward).
+    Conv1dWeightBackward(Conv1dWeightBackwardOpIr),
+    /// Operation corresponding to [conv1d_bias_backward](burn_backend::ops::ModuleOps::conv1d_bias_backward).
+    Conv1dBiasBackward(Conv1dBiasBackwardOpIr),
     /// Operation corresponding to [conv2d](burn_backend::ops::ModuleOps::conv2d).
     Conv2d(Conv2dOpIr),
+    /// Operation corresponding to [conv2d_x_backward](burn_backend::ops::ModuleOps::conv2d_x_backward).
+    Conv2dXBackward(Conv2dXBackwardOpIr),
+    /// Operation corresponding to [conv2d_weight_backward](burn_backend::ops::ModuleOps::conv2d_weight_backward).
+    Conv2dWeightBackward(Conv2dWeightBackwardOpIr),
+    /// Operation corresponding to [conv2d_bias_backward](burn_backend::ops::ModuleOps::conv2d_bias_backward).
+    Conv2dBiasBackward(Conv2dBiasBackwardOpIr),
     /// Operation corresponding to [conv3d](burn_backend::ops::ModuleOps::conv3d).
     Conv3d(Conv3dOpIr),
+    /// Operation corresponding to [conv3d_x_backward](burn_backend::ops::ModuleOps::conv3d_x_backward).
+    Conv3dXBackward(Conv3dXBackwardOpIr),
+    /// Operation corresponding to [conv3d_weight_backward](burn_backend::ops::ModuleOps::conv3d_weight_backward).
+    Conv3dWeightBackward(Conv3dWeightBackwardOpIr),
+    /// Operation corresponding to [conv3d_bias_backward](burn_backend::ops::ModuleOps::conv3d_bias_backward).
+    Conv3dBiasBackward(Conv3dBiasBackwardOpIr),
     /// Operation corresponding to [deform_conv2d](burn_backend::ops::ModuleOps::deform_conv2d)
     DeformableConv2d(Box<DeformConv2dOpIr>),
     /// Operation corresponding to [deform_conv2d_backward](burn_backend::ops::ModuleOps::deform_conv2d_backward)
@@ -958,11 +976,69 @@ pub struct Conv1dOpIr {
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
+pub struct Conv1dXBackwardOpIr {
+    pub x: TensorIr,
+    pub weight: TensorIr,
+    pub output_grad: TensorIr,
+    pub options: Conv1dOptionsIr,
+    pub out: TensorIr,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct Conv1dWeightBackwardOpIr {
+    pub x: TensorIr,
+    pub weight: TensorIr,
+    pub output_grad: TensorIr,
+    pub options: Conv1dOptionsIr,
+    pub out: TensorIr,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct Conv1dBiasBackwardOpIr {
+    pub x: TensorIr,
+    pub bias: TensorIr,
+    pub output_grad: TensorIr,
+    pub out: TensorIr,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
 pub struct Conv2dOpIr {
     pub x: TensorIr,
     pub weight: TensorIr,
     pub bias: Option<TensorIr>,
     pub options: Conv2dOptionsIr,
+    pub out: TensorIr,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct Conv2dXBackwardOpIr {
+    pub x: TensorIr,
+    pub weight: TensorIr,
+    pub output_grad: TensorIr,
+    pub options: Conv2dOptionsIr,
+    pub out: TensorIr,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct Conv2dWeightBackwardOpIr {
+    pub x: TensorIr,
+    pub weight: TensorIr,
+    pub output_grad: TensorIr,
+    pub options: Conv2dOptionsIr,
+    pub out: TensorIr,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct Conv2dBiasBackwardOpIr {
+    pub x: TensorIr,
+    pub bias: TensorIr,
+    pub output_grad: TensorIr,
     pub out: TensorIr,
 }
 
@@ -1002,6 +1078,35 @@ pub struct Conv3dOpIr {
     pub weight: TensorIr,
     pub bias: Option<TensorIr>,
     pub options: Conv3dOptionsIr,
+    pub out: TensorIr,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct Conv3dXBackwardOpIr {
+    pub x: TensorIr,
+    pub weight: TensorIr,
+    pub output_grad: TensorIr,
+    pub options: Conv3dOptionsIr,
+    pub out: TensorIr,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct Conv3dWeightBackwardOpIr {
+    pub x: TensorIr,
+    pub weight: TensorIr,
+    pub output_grad: TensorIr,
+    pub options: Conv3dOptionsIr,
+    pub out: TensorIr,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct Conv3dBiasBackwardOpIr {
+    pub x: TensorIr,
+    pub bias: TensorIr,
+    pub output_grad: TensorIr,
     pub out: TensorIr,
 }
 
@@ -2376,6 +2481,15 @@ impl ModuleOperationIr {
                     Box::new([&repr.x, &repr.weight].into_iter())
                 }
             }
+            ModuleOperationIr::Conv1dXBackward(repr) => {
+                Box::new([&repr.x, &repr.weight, &repr.output_grad].into_iter())
+            }
+            ModuleOperationIr::Conv1dWeightBackward(repr) => {
+                Box::new([&repr.x, &repr.weight, &repr.output_grad].into_iter())
+            }
+            ModuleOperationIr::Conv1dBiasBackward(repr) => {
+                Box::new([&repr.x, &repr.bias, &repr.output_grad].into_iter())
+            }
             ModuleOperationIr::Conv2d(repr) => {
                 if let Some(bias) = &repr.bias {
                     Box::new([&repr.x, &repr.weight, bias].into_iter())
@@ -2383,12 +2497,30 @@ impl ModuleOperationIr {
                     Box::new([&repr.x, &repr.weight].into_iter())
                 }
             }
+            ModuleOperationIr::Conv2dXBackward(repr) => {
+                Box::new([&repr.x, &repr.weight, &repr.output_grad].into_iter())
+            }
+            ModuleOperationIr::Conv2dWeightBackward(repr) => {
+                Box::new([&repr.x, &repr.weight, &repr.output_grad].into_iter())
+            }
+            ModuleOperationIr::Conv2dBiasBackward(repr) => {
+                Box::new([&repr.x, &repr.bias, &repr.output_grad].into_iter())
+            }
             ModuleOperationIr::Conv3d(repr) => {
                 if let Some(bias) = &repr.bias {
                     Box::new([&repr.x, &repr.weight, bias].into_iter())
                 } else {
                     Box::new([&repr.x, &repr.weight].into_iter())
                 }
+            }
+            ModuleOperationIr::Conv3dXBackward(repr) => {
+                Box::new([&repr.x, &repr.weight, &repr.output_grad].into_iter())
+            }
+            ModuleOperationIr::Conv3dWeightBackward(repr) => {
+                Box::new([&repr.x, &repr.weight, &repr.output_grad].into_iter())
+            }
+            ModuleOperationIr::Conv3dBiasBackward(repr) => {
+                Box::new([&repr.x, &repr.bias, &repr.output_grad].into_iter())
             }
             ModuleOperationIr::DeformableConv2d(repr) => match (&repr.mask, &repr.bias) {
                 (Some(mask), Some(bias)) => {
@@ -2482,8 +2614,17 @@ impl ModuleOperationIr {
             ModuleOperationIr::Embedding(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::EmbeddingBackward(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::Conv1d(repr) => Box::new([&repr.out].into_iter()),
+            ModuleOperationIr::Conv1dXBackward(repr) => Box::new([&repr.out].into_iter()),
+            ModuleOperationIr::Conv1dWeightBackward(repr) => Box::new([&repr.out].into_iter()),
+            ModuleOperationIr::Conv1dBiasBackward(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::Conv2d(repr) => Box::new([&repr.out].into_iter()),
+            ModuleOperationIr::Conv2dXBackward(repr) => Box::new([&repr.out].into_iter()),
+            ModuleOperationIr::Conv2dWeightBackward(repr) => Box::new([&repr.out].into_iter()),
+            ModuleOperationIr::Conv2dBiasBackward(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::Conv3d(repr) => Box::new([&repr.out].into_iter()),
+            ModuleOperationIr::Conv3dXBackward(repr) => Box::new([&repr.out].into_iter()),
+            ModuleOperationIr::Conv3dWeightBackward(repr) => Box::new([&repr.out].into_iter()),
+            ModuleOperationIr::Conv3dBiasBackward(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::DeformableConv2d(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::DeformableConv2dBackward(repr) => {
                 match (&repr.mask_grad, &repr.bias_grad) {
@@ -2571,6 +2712,21 @@ impl ModuleOperationIr {
                     bias.mark_read_only(nodes, &mut output);
                 }
             }
+            ModuleOperationIr::Conv1dXBackward(repr) => {
+                repr.x.mark_read_only(nodes, &mut output);
+                repr.weight.mark_read_only(nodes, &mut output);
+                repr.output_grad.mark_read_only(nodes, &mut output);
+            }
+            ModuleOperationIr::Conv1dWeightBackward(repr) => {
+                repr.x.mark_read_only(nodes, &mut output);
+                repr.weight.mark_read_only(nodes, &mut output);
+                repr.output_grad.mark_read_only(nodes, &mut output);
+            }
+            ModuleOperationIr::Conv1dBiasBackward(repr) => {
+                repr.x.mark_read_only(nodes, &mut output);
+                repr.bias.mark_read_only(nodes, &mut output);
+                repr.output_grad.mark_read_only(nodes, &mut output);
+            }
             ModuleOperationIr::Conv2d(repr) => {
                 repr.x.mark_read_only(nodes, &mut output);
                 repr.weight.mark_read_only(nodes, &mut output);
@@ -2579,6 +2735,21 @@ impl ModuleOperationIr {
                     bias.mark_read_only(nodes, &mut output);
                 }
             }
+            ModuleOperationIr::Conv2dXBackward(repr) => {
+                repr.x.mark_read_only(nodes, &mut output);
+                repr.weight.mark_read_only(nodes, &mut output);
+                repr.output_grad.mark_read_only(nodes, &mut output);
+            }
+            ModuleOperationIr::Conv2dWeightBackward(repr) => {
+                repr.x.mark_read_only(nodes, &mut output);
+                repr.weight.mark_read_only(nodes, &mut output);
+                repr.output_grad.mark_read_only(nodes, &mut output);
+            }
+            ModuleOperationIr::Conv2dBiasBackward(repr) => {
+                repr.x.mark_read_only(nodes, &mut output);
+                repr.bias.mark_read_only(nodes, &mut output);
+                repr.output_grad.mark_read_only(nodes, &mut output);
+            }
             ModuleOperationIr::Conv3d(repr) => {
                 repr.x.mark_read_only(nodes, &mut output);
                 repr.weight.mark_read_only(nodes, &mut output);
@@ -2586,6 +2757,21 @@ impl ModuleOperationIr {
                 if let Some(bias) = &mut repr.bias {
                     bias.mark_read_only(nodes, &mut output);
                 }
+            }
+            ModuleOperationIr::Conv3dXBackward(repr) => {
+                repr.x.mark_read_only(nodes, &mut output);
+                repr.weight.mark_read_only(nodes, &mut output);
+                repr.output_grad.mark_read_only(nodes, &mut output);
+            }
+            ModuleOperationIr::Conv3dWeightBackward(repr) => {
+                repr.x.mark_read_only(nodes, &mut output);
+                repr.weight.mark_read_only(nodes, &mut output);
+                repr.output_grad.mark_read_only(nodes, &mut output);
+            }
+            ModuleOperationIr::Conv3dBiasBackward(repr) => {
+                repr.x.mark_read_only(nodes, &mut output);
+                repr.bias.mark_read_only(nodes, &mut output);
+                repr.output_grad.mark_read_only(nodes, &mut output);
             }
             ModuleOperationIr::DeformableConv2d(repr) => {
                 repr.x.mark_read_only(nodes, &mut output);

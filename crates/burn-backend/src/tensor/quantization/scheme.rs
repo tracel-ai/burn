@@ -2,7 +2,7 @@ pub use burn_std::{QPARAM_ALIGN, params_shape};
 use burn_std::{QuantLevel, QuantMode, QuantScheme, Shape};
 
 use super::{Calibration, QuantizationParametersPrimitive};
-use crate::{Backend, TensorMetadata, element::ElementConversion};
+use crate::{Backend, TensorMetadata};
 
 /// Compute the quantization range mapping.
 pub fn compute_range<B: Backend>(
@@ -60,10 +60,10 @@ pub fn compute_q_params<B: Backend>(
             // `min_abs.max_pair(max_abs)`
             let mask = B::float_lower(min_abs.clone(), max_abs.clone());
             let values_range =
-                B::float_mul_scalar(B::float_mask_where(min_abs, mask, max_abs), 2.elem());
+                B::float_mul_scalar(B::float_mask_where(min_abs, mask, max_abs), 2f32.into());
 
             QuantizationParametersPrimitive {
-                scales: B::float_div_scalar(values_range, (b - a).elem()),
+                scales: B::float_div_scalar(values_range, (b - a).into()),
             }
         }
     }

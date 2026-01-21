@@ -54,6 +54,7 @@ impl FullOpIr {
         value: ScalarIr,
         new_id: impl FnOnce() -> TensorId,
     ) -> Self {
+        // TODO: check that ScalarIr dtype matches dtype?
         let out = TensorIr::uninit(new_id(), shape, dtype);
 
         FullOpIr { out, value }
@@ -644,6 +645,38 @@ impl_ir_create!(
 );
 
 impl_ir_create!(
+    Conv1dXBackwardOpIr {
+        x: TensorIr,
+        weight: TensorIr,
+        output_grad: TensorIr,
+        options: Conv1dOptionsIr
+    },
+    shape = x.shape.clone(),
+    dtype = output_grad.dtype
+);
+
+impl_ir_create!(
+    Conv1dWeightBackwardOpIr {
+        x: TensorIr,
+        weight: TensorIr,
+        output_grad: TensorIr,
+        options: Conv1dOptionsIr
+    },
+    shape = weight.shape.clone(),
+    dtype = output_grad.dtype
+);
+
+impl_ir_create!(
+    Conv1dBiasBackwardOpIr {
+        x: TensorIr,
+        bias: TensorIr,
+        output_grad: TensorIr,
+    },
+    shape = bias.shape.clone(),
+    dtype = output_grad.dtype
+);
+
+impl_ir_create!(
     Conv2dOpIr {
         x: TensorIr,
         weight: TensorIr,
@@ -671,6 +704,38 @@ impl_ir_create!(
 );
 
 impl_ir_create!(
+    Conv2dXBackwardOpIr {
+        x: TensorIr,
+        weight: TensorIr,
+        output_grad: TensorIr,
+        options: Conv2dOptionsIr
+    },
+    shape = x.shape.clone(),
+    dtype = output_grad.dtype
+);
+
+impl_ir_create!(
+    Conv2dWeightBackwardOpIr {
+        x: TensorIr,
+        weight: TensorIr,
+        output_grad: TensorIr,
+        options: Conv2dOptionsIr
+    },
+    shape = weight.shape.clone(),
+    dtype = output_grad.dtype
+);
+
+impl_ir_create!(
+    Conv2dBiasBackwardOpIr {
+        x: TensorIr,
+        bias: TensorIr,
+        output_grad: TensorIr,
+    },
+    shape = bias.shape.clone(),
+    dtype = output_grad.dtype
+);
+
+impl_ir_create!(
     Conv3dOpIr {
         x: TensorIr,
         weight: TensorIr,
@@ -695,6 +760,38 @@ impl_ir_create!(
             .filter_map(|&d| d),
         )
         .unwrap()
+);
+
+impl_ir_create!(
+    Conv3dXBackwardOpIr {
+        x: TensorIr,
+        weight: TensorIr,
+        output_grad: TensorIr,
+        options: Conv3dOptionsIr
+    },
+    shape = x.shape.clone(),
+    dtype = output_grad.dtype
+);
+
+impl_ir_create!(
+    Conv3dWeightBackwardOpIr {
+        x: TensorIr,
+        weight: TensorIr,
+        output_grad: TensorIr,
+        options: Conv3dOptionsIr
+    },
+    shape = weight.shape.clone(),
+    dtype = output_grad.dtype
+);
+
+impl_ir_create!(
+    Conv3dBiasBackwardOpIr {
+        x: TensorIr,
+        bias: TensorIr,
+        output_grad: TensorIr,
+    },
+    shape = bias.shape.clone(),
+    dtype = output_grad.dtype
 );
 
 impl_ir_create!(

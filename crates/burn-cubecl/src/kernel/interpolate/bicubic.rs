@@ -70,31 +70,31 @@ fn interpolate_bicubic_kernel<F: Float>(
     let x2_stride = x2 * in_stride_x;
     let x3_stride = x3 * in_stride_x;
 
-    let inp_0 = input[index_base + y0_stride + x0_stride];
-    let inp_1 = input[index_base + y0_stride + x1_stride];
-    let inp_2 = input[index_base + y0_stride + x2_stride];
-    let inp_3 = input[index_base + y0_stride + x3_stride];
+    let inp_0 = input[(index_base + y0_stride + x0_stride) / line_size];
+    let inp_1 = input[(index_base + y0_stride + x1_stride) / line_size];
+    let inp_2 = input[(index_base + y0_stride + x2_stride) / line_size];
+    let inp_3 = input[(index_base + y0_stride + x3_stride) / line_size];
 
     let coefficients0 = cubic_interp_1d::<F>(inp_0, inp_1, inp_2, inp_3, xw);
 
-    let inp_0 = input[index_base + y1_stride + x0_stride];
-    let inp_1 = input[index_base + y1_stride + x1_stride];
-    let inp_2 = input[index_base + y1_stride + x2_stride];
-    let inp_3 = input[index_base + y1_stride + x3_stride];
+    let inp_0 = input[(index_base + y1_stride + x0_stride) / line_size];
+    let inp_1 = input[(index_base + y1_stride + x1_stride) / line_size];
+    let inp_2 = input[(index_base + y1_stride + x2_stride) / line_size];
+    let inp_3 = input[(index_base + y1_stride + x3_stride) / line_size];
 
     let coefficients1 = cubic_interp_1d::<F>(inp_0, inp_1, inp_2, inp_3, xw);
 
-    let inp_0 = input[index_base + y2_stride + x0_stride];
-    let inp_1 = input[index_base + y2_stride + x1_stride];
-    let inp_2 = input[index_base + y2_stride + x2_stride];
-    let inp_3 = input[index_base + y2_stride + x3_stride];
+    let inp_0 = input[(index_base + y2_stride + x0_stride) / line_size];
+    let inp_1 = input[(index_base + y2_stride + x1_stride) / line_size];
+    let inp_2 = input[(index_base + y2_stride + x2_stride) / line_size];
+    let inp_3 = input[(index_base + y2_stride + x3_stride) / line_size];
 
     let coefficients2 = cubic_interp_1d::<F>(inp_0, inp_1, inp_2, inp_3, xw);
 
-    let inp_0 = input[index_base + y3_stride + x0_stride];
-    let inp_1 = input[index_base + y3_stride + x1_stride];
-    let inp_2 = input[index_base + y3_stride + x2_stride];
-    let inp_3 = input[index_base + y3_stride + x3_stride];
+    let inp_0 = input[(index_base + y3_stride + x0_stride) / line_size];
+    let inp_1 = input[(index_base + y3_stride + x1_stride) / line_size];
+    let inp_2 = input[(index_base + y3_stride + x2_stride) / line_size];
+    let inp_3 = input[(index_base + y3_stride + x3_stride) / line_size];
 
     let coefficients3 = cubic_interp_1d::<F>(inp_0, inp_1, inp_2, inp_3, xw);
 

@@ -70,11 +70,22 @@ pub struct EvaluationName {
 }
 
 impl EvaluationName {
-    /// Creates a new metric name.
+    /// Creates a new evaluation name.
     pub fn new<S: core::fmt::Display>(s: S) -> Self {
         Self {
             name: Arc::new(format!("{s}")),
         }
+    }
+
+    /// Returns the evaluation name.
+    pub fn as_str(&self) -> &str {
+        &self.name
+    }
+}
+
+impl core::fmt::Display for EvaluationName {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(&self.name)
     }
 }
 

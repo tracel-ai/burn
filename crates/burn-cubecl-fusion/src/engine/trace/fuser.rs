@@ -227,7 +227,7 @@ impl TraceFuser {
     /// Register a scalar value.
     pub fn scalar(&mut self, elem: &ScalarIr, dtype: DType) -> FuseArg {
         let precision = dtype.into();
-        let id = if let ScalarIr::U64(value) = elem {
+        let id = if let ScalarIr::UInt(value) = elem {
             ScalarId { value: *value }
         } else {
             unreachable!() // should always be u64

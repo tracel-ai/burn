@@ -1,9 +1,10 @@
 use crate::ops::FloatElem;
-use crate::{BasicOps, Numeric, Shape, Slice, Tensor, backend::Backend, cast::ToElement};
+use crate::{BasicOps, Shape, Slice, Tensor, backend::Backend, cast::ToElement};
 use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec;
 use alloc::vec::Vec;
+use burn_backend::tensor::Ordered;
 
 /// The struct should always be used with the [check](crate::check) macro.
 ///
@@ -419,7 +420,7 @@ impl TensorCheck {
         check
     }
 
-    pub(crate) fn one_hot_tensor<B: Backend, const D: usize, K: Numeric<B>>(
+    pub(crate) fn one_hot_tensor<B: Backend, const D: usize, K: Ordered<B>>(
         index_tensor: Tensor<B, D, K>,
         num_classes: usize,
     ) -> Self {

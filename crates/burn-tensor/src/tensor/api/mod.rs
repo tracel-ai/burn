@@ -9,6 +9,7 @@ mod fmod;
 mod int;
 mod numeric;
 mod options;
+mod orderable;
 mod pad;
 mod take;
 mod transaction;

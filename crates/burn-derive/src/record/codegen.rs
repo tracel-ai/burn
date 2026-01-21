@@ -5,13 +5,18 @@ use syn::{Generics, parse_quote};
 use crate::record::item::codegen::RecordItemCodegen;
 
 pub(crate) fn generate_record<G: RecordItemCodegen>(ast: &syn::DeriveInput) -> TokenStream {
-    let record_gen: RecordCodegen<G> = RecordCodegen::from_ast(ast);
-    let item_type = record_gen.gen_record_type();
-    let record_impl = record_gen.gen_impl_record();
+    let record_gen: syn::Result<RecordCodegen<G>> = RecordCodegen::from_ast(ast);
+    match record_gen {
+        Ok(record_gen) => {
+            let item_type = record_gen.gen_record_type();
+            let record_impl = record_gen.gen_impl_record();
 
-    quote! {
-        #item_type
-        #record_impl
+            quote! {
+                #item_type
+                #record_impl
+            }
+        }
+        Err(err) => err.to_compile_error(),
     }
 }
 
@@ -99,11 +104,11 @@ impl<G: RecordItemCodegen> RecordCodegen<G> {
         generics
     }
 
-    pub(crate) fn from_ast(ast: &syn::DeriveInput) -> Self {
-        Self {
+    pub(crate) fn from_ast(ast: &syn::DeriveInput) -> syn::Result<Self> {
+        Ok(Self {
             ty: RecordType::from_ast(ast),
-            codegen: G::from_ast(ast),
-        }
+            codegen: G::from_ast(ast)?,
+        })
     }
 }
 

@@ -357,7 +357,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                     grads.register::<B>(node.id, grad)
                 }
                 if let Some(node) = node_bias {
-                    let grad = B::conv2d_bias_backward(x, weight, bias, grad);
+                    let grad = B::conv2d_bias_backward(x, bias, grad);
                     grads.register::<B>(node.id, grad)
                 }
             }
@@ -957,7 +957,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                     grads.register::<B>(node.id, grad)
                 }
                 if let Some(node) = node_bias {
-                    let grad = B::conv3d_bias_backward(x, weight, bias, grad);
+                    let grad = B::conv3d_bias_backward(x, bias, grad);
                     grads.register::<B>(node.id, grad)
                 }
             }

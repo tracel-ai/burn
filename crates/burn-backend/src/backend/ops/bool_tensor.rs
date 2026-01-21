@@ -3,7 +3,7 @@ use super::{
 };
 use crate::ExecutionError;
 use crate::tensor::{Bool, BoolElem, BoolTensor, Device, FloatTensor, IntTensor};
-use crate::{Backend, TensorData, TensorMetadata, element::ElementConversion};
+use crate::{Backend, TensorData, TensorMetadata};
 use alloc::vec::Vec;
 use burn_std::{Shape, Slice};
 use core::future::Future;
@@ -240,7 +240,7 @@ pub trait BoolTensorOps<B: Backend> {
         // Default implementation: convert to int, select, then convert back to bool
         let int_tensor = B::bool_into_int(tensor);
         let selected = B::int_select(int_tensor, dim, indices);
-        B::int_equal_elem(selected, 1_i32.elem())
+        B::int_equal_elem(selected, 1.into())
     }
 
     /// Assign the selected elements along the given dimension corresponding to the given indices
@@ -267,7 +267,7 @@ pub trait BoolTensorOps<B: Backend> {
         let int_values = B::bool_into_int(value);
         let assigned = B::int_select_add(int_tensor, dim, indices, int_values);
         // After select_assign with sum reduction, any non-zero value should be true
-        B::int_greater_elem(assigned, 0_i32.elem())
+        B::int_greater_elem(assigned, 0.into())
     }
 
     /// Repeats one dimension of the tensor a given number of times along that dimension.
@@ -467,7 +467,7 @@ pub trait BoolTensorOps<B: Backend> {
     /// A boolean tensor with a single element, True if any element in the tensor is True, False otherwise.
     fn bool_any(tensor: BoolTensor<B>) -> BoolTensor<B> {
         let sum = B::int_sum(B::bool_into_int(tensor));
-        B::int_greater_elem(sum, 0.elem())
+        B::int_greater_elem(sum, 0.into())
     }
 
     /// Tests if any element in the boolean `tensor` evaluates to True along a given dimension `dim`.
@@ -484,7 +484,7 @@ pub trait BoolTensorOps<B: Backend> {
     /// evaluates to True, False otherwise.
     fn bool_any_dim(tensor: BoolTensor<B>, dim: usize) -> BoolTensor<B> {
         let sum = B::int_sum_dim(B::bool_into_int(tensor), dim);
-        B::int_greater_elem(sum, 0.elem())
+        B::int_greater_elem(sum, 0.into())
     }
 
     /// Tests if all elements in the boolean `tensor` evaluate to True.
@@ -498,9 +498,9 @@ pub trait BoolTensorOps<B: Backend> {
     /// A boolean tensor `Tensor<B, 1, Bool>` with a single element, True if all elements in the input tensor
     /// evaluate to True, False otherwise.
     fn bool_all(tensor: BoolTensor<B>) -> BoolTensor<B> {
-        let num_elems = tensor.shape().num_elements();
+        let num_elems = tensor.shape().num_elements() as i64;
         let sum = B::int_sum(B::bool_into_int(tensor));
-        B::int_equal_elem(sum, (num_elems as i32).elem())
+        B::int_equal_elem(sum, num_elems.into())
     }
 
     /// Tests if all elements in the boolean `tensor` evaluate to True along a given dimension `dim`.
@@ -516,9 +516,9 @@ pub trait BoolTensorOps<B: Backend> {
     /// where the size is 1. The elem in the `dim` axis is True if all elements along this dim in the input
     /// evaluates to True, False otherwise.
     fn bool_all_dim(tensor: BoolTensor<B>, dim: usize) -> BoolTensor<B> {
-        let num_elems = tensor.shape().dims[dim];
+        let num_elems = tensor.shape().dims[dim] as i64;
         let sum = B::int_sum_dim(B::bool_into_int(tensor), dim);
-        B::int_equal_elem(sum, (num_elems as i32).elem())
+        B::int_equal_elem(sum, num_elems.into())
     }
 
     /// Compute the indices of the elements that are non-zero, grouped by element.
