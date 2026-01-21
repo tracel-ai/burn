@@ -1,5 +1,5 @@
 use burn_communication::Protocol;
-use burn_tensor::{ElementConversion, Shape, TensorMetadata, backend::Backend};
+use burn_tensor::{Shape, TensorMetadata, backend::Backend};
 use std::sync::mpsc::SyncSender;
 
 use crate::{
@@ -146,7 +146,7 @@ impl<B: Backend> ReduceOp<B> {
             // Mean division locally
             if self.op == ReduceOperation::Mean {
                 let local_tensor_count = self.calls.len() as f32;
-                local_sum = B::float_div_scalar(local_sum, local_tensor_count.elem())
+                local_sum = B::float_div_scalar(local_sum, local_tensor_count.into())
             }
             Some(local_sum)
         };

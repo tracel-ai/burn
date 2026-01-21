@@ -245,18 +245,9 @@ fn register_scalars<'h, R: Runtime>(
         let dtype = precision.into_type();
         match context.scalars.get(&ScalarId { value: *id }) {
             Some(scalar) => match scalar {
-                ScalarIr::F64(val) => inputs.scalars.push(InputScalar::new(*val, dtype)),
-                ScalarIr::F32(val) => inputs.scalars.push(InputScalar::new(*val, dtype)),
-                ScalarIr::F16(val) => inputs.scalars.push(InputScalar::new(*val, dtype)),
-                ScalarIr::BF16(val) => inputs.scalars.push(InputScalar::new(*val, dtype)),
-                ScalarIr::I64(val) => inputs.scalars.push(InputScalar::new(*val, dtype)),
-                ScalarIr::I32(val) => inputs.scalars.push(InputScalar::new(*val, dtype)),
-                ScalarIr::I16(val) => inputs.scalars.push(InputScalar::new(*val, dtype)),
-                ScalarIr::I8(val) => inputs.scalars.push(InputScalar::new(*val, dtype)),
-                ScalarIr::U64(val) => inputs.scalars.push(InputScalar::new(*val, dtype)),
-                ScalarIr::U32(val) => inputs.scalars.push(InputScalar::new(*val, dtype)),
-                ScalarIr::U16(val) => inputs.scalars.push(InputScalar::new(*val, dtype)),
-                ScalarIr::U8(val) => inputs.scalars.push(InputScalar::new(*val, dtype)),
+                ScalarIr::Float(val) => inputs.scalars.push(InputScalar::new(*val, dtype)),
+                ScalarIr::Int(val) => inputs.scalars.push(InputScalar::new(*val, dtype)),
+                ScalarIr::UInt(val) => inputs.scalars.push(InputScalar::new(*val, dtype)),
                 ScalarIr::Bool(val) => inputs.scalars.push(InputScalar::new(*val as u8, dtype)),
             },
             None => panic!("Scalar ID not found"),

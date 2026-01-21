@@ -1,7 +1,7 @@
 use super::PlotAxes;
 use crate::renderer::tui::TuiTag;
 use ratatui::{
-    style::{Color, Style, Stylize},
+    style::{Color, Style},
     symbols,
     widgets::{Dataset, GraphType},
 };

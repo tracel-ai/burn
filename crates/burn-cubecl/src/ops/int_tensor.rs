@@ -16,10 +16,10 @@ use crate::{
     element::BoolElement,
     kernel::prng::{random_bernoulli, random_normal, random_uniform},
 };
-use burn_backend::ExecutionError;
 use burn_backend::tensor::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
 use burn_backend::{DType, IntDType, Slice, ops::IntTensorOps};
 use burn_backend::{Distribution, ElementConversion, Shape, TensorData};
+use burn_backend::{ExecutionError, Scalar};
 use cubecl::frontend::Numeric;
 use cubecl::prelude::*;
 use cubek::reduce::components::instructions::ReduceOperationConfig;
@@ -110,7 +110,7 @@ where
     fn int_mask_fill(
         tensor: IntTensor<Self>,
         mask: BoolTensor<Self>,
-        value: IntElem<Self>,
+        value: Scalar,
     ) -> IntTensor<Self> {
         let dtype = tensor.dtype;
         kernel::mask_fill_auto(tensor, mask, InputScalar::new(value, dtype), BT::dtype())
@@ -154,7 +154,7 @@ where
         kernel::equal(lhs, rhs, BT::dtype())
     }
 
-    fn int_equal_elem(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> BoolTensor<Self> {
+    fn int_equal_elem(lhs: IntTensor<Self>, rhs: Scalar) -> BoolTensor<Self> {
         let dtype = lhs.dtype;
         kernel::equal_elem(lhs, InputScalar::new(rhs, dtype), BT::dtype())
     }
@@ -163,7 +163,7 @@ where
         kernel::greater(lhs, rhs, BT::dtype())
     }
 
-    fn int_greater_elem(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> BoolTensor<Self> {
+    fn int_greater_elem(lhs: IntTensor<Self>, rhs: Scalar) -> BoolTensor<Self> {
         let dtype = lhs.dtype;
         kernel::greater_elem(lhs, InputScalar::new(rhs, dtype), BT::dtype())
     }
@@ -172,7 +172,7 @@ where
         kernel::greater_equal(lhs, rhs, BT::dtype())
     }
 
-    fn int_greater_equal_elem(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> BoolTensor<Self> {
+    fn int_greater_equal_elem(lhs: IntTensor<Self>, rhs: Scalar) -> BoolTensor<Self> {
         let dtype = lhs.dtype;
         kernel::greater_equal_elem(lhs, InputScalar::new(rhs, dtype), BT::dtype())
     }
@@ -181,7 +181,7 @@ where
         kernel::lower(lhs, rhs, BT::dtype())
     }
 
-    fn int_lower_elem(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> BoolTensor<Self> {
+    fn int_lower_elem(lhs: IntTensor<Self>, rhs: Scalar) -> BoolTensor<Self> {
         let dtype = lhs.dtype;
         kernel::lower_elem(lhs, InputScalar::new(rhs, dtype), BT::dtype())
     }
@@ -190,7 +190,7 @@ where
         kernel::lower_equal(lhs, rhs, BT::dtype())
     }
 
-    fn int_lower_equal_elem(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> BoolTensor<Self> {
+    fn int_lower_equal_elem(lhs: IntTensor<Self>, rhs: Scalar) -> BoolTensor<Self> {
         let dtype = lhs.dtype;
         kernel::lower_equal_elem(lhs, InputScalar::new(rhs, dtype), BT::dtype())
     }
@@ -199,7 +199,7 @@ where
         numeric::add(lhs, rhs)
     }
 
-    fn int_add_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
+    fn int_add_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
         let dtype = lhs.dtype;
         numeric::add_scalar(lhs, InputScalar::new(rhs, dtype))
     }
@@ -208,7 +208,7 @@ where
         numeric::sub(lhs, rhs)
     }
 
-    fn int_sub_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
+    fn int_sub_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
         let dtype = lhs.dtype;
         numeric::sub_scalar(lhs, InputScalar::new(rhs, dtype))
     }
@@ -217,7 +217,7 @@ where
         numeric::mul(lhs, rhs)
     }
 
-    fn int_mul_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
+    fn int_mul_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
         let dtype = lhs.dtype;
         numeric::mul_scalar(lhs, InputScalar::new(rhs, dtype))
     }
@@ -226,7 +226,7 @@ where
         numeric::div(lhs, rhs)
     }
 
-    fn int_div_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
+    fn int_div_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
         let dtype = lhs.dtype;
         numeric::div_scalar(lhs, InputScalar::new(rhs, dtype))
     }
@@ -235,7 +235,7 @@ where
         numeric::remainder(lhs, rhs)
     }
 
-    fn int_remainder_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
+    fn int_remainder_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
         let dtype = lhs.dtype;
         numeric::remainder_scalar(lhs, InputScalar::new(rhs, dtype))
     }
@@ -252,7 +252,7 @@ where
 
     fn int_full(
         shape: Shape,
-        fill_value: IntElem<Self>,
+        fill_value: Scalar,
         device: &Device<Self>,
         dtype: IntDType,
     ) -> IntTensor<Self> {
@@ -405,11 +405,7 @@ where
         .unwrap()
     }
 
-    fn int_clamp(
-        tensor: IntTensor<Self>,
-        min: IntElem<Self>,
-        max: IntElem<Self>,
-    ) -> IntTensor<Self> {
+    fn int_clamp(tensor: IntTensor<Self>, min: Scalar, max: Scalar) -> IntTensor<Self> {
         let dtype = tensor.dtype;
         kernel::clamp(
             tensor,
@@ -487,7 +483,7 @@ where
         numeric::bitwise_and(lhs, rhs)
     }
 
-    fn bitwise_and_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
+    fn bitwise_and_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
         let dtype = lhs.dtype;
         numeric::bitwise_and_scalar(lhs, InputScalar::new(rhs, dtype))
     }
@@ -496,7 +492,7 @@ where
         numeric::bitwise_or(lhs, rhs)
     }
 
-    fn bitwise_or_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
+    fn bitwise_or_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
         let dtype = lhs.dtype;
         numeric::bitwise_or_scalar(lhs, InputScalar::new(rhs, dtype))
     }
@@ -505,7 +501,7 @@ where
         numeric::bitwise_xor(lhs, rhs)
     }
 
-    fn bitwise_xor_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
+    fn bitwise_xor_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
         let dtype = lhs.dtype;
         numeric::bitwise_xor_scalar(lhs, InputScalar::new(rhs, dtype))
     }
@@ -518,7 +514,7 @@ where
         launch_binop_int::<R, kernel::BitwiseShlOp>(lhs, rhs)
     }
 
-    fn bitwise_left_shift_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
+    fn bitwise_left_shift_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
         let dtype = lhs.dtype;
         launch_scalar_binop_int::<R, BitwiseShlOp>(lhs, InputScalar::new(rhs, dtype))
     }
@@ -527,7 +523,7 @@ where
         launch_binop_int::<R, BitwiseShrOp>(lhs, rhs)
     }
 
-    fn bitwise_right_shift_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
+    fn bitwise_right_shift_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
         let dtype = lhs.dtype;
         launch_scalar_binop_int::<R, BitwiseShrOp>(lhs, InputScalar::new(rhs, dtype))
     }

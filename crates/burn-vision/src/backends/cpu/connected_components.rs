@@ -1,8 +1,8 @@
-use std::cmp::Ordering;
+use std::{cmp::Ordering, marker::PhantomData};
 
 use alloc::vec::Vec;
 use burn_tensor::{
-    Bool, Element, ElementConversion, Int, Shape, Tensor, TensorData,
+    Bool, DType, Element, ElementConversion, ElementOrdered, Int, Shape, Tensor, TensorData,
     backend::Backend,
     ops::{BoolTensor, IntTensor},
 };
@@ -13,11 +13,54 @@ use crate::{ConnectedStatsOptions, ConnectedStatsPrimitive, Connectivity};
 mod spaghetti;
 mod spaghetti_4c;
 
+/// Dispatches connected components based on `B::IntElem::dtype()`, binding a concrete
+/// integer type to enable generic instantiations without extra trait bounds (after removing
+/// `ElementComparison` from `Element`).
+macro_rules! dispatch_int_dtype {
+    (|$ty:ident| $body:expr) => {
+        match B::IntElem::dtype() {
+            DType::I64 => {
+                type $ty = i64;
+                $body
+            }
+            DType::I32 => {
+                type $ty = i32;
+                $body
+            }
+            DType::I16 => {
+                type $ty = i16;
+                $body
+            }
+            DType::I8 => {
+                type $ty = i8;
+                $body
+            }
+            DType::U64 => {
+                type $ty = u64;
+                $body
+            }
+            DType::U32 => {
+                type $ty = u32;
+                $body
+            }
+            DType::U16 => {
+                type $ty = u16;
+                $body
+            }
+            DType::U8 => {
+                type $ty = u8;
+                $body
+            }
+            _ => unreachable!("Unsupported dtype"),
+        }
+    };
+}
+
 pub fn connected_components<B: Backend>(
     img: BoolTensor<B>,
     connectivity: Connectivity,
 ) -> IntTensor<B> {
-    run::<B, NoOp>(img, connectivity, || NoOp).0
+    dispatch_int_dtype!(|I| run::<B, I, NoOp<_>>(img, connectivity, NoOp::default).0)
 }
 
 pub fn connected_components_with_stats<B: Backend>(
@@ -26,13 +69,16 @@ pub fn connected_components_with_stats<B: Backend>(
     _options: ConnectedStatsOptions,
 ) -> (IntTensor<B>, ConnectedStatsPrimitive<B>) {
     let device = B::bool_device(&img);
-    let (labels, stats) =
-        run::<B, ConnectedStatsOp<B::IntElem>>(img, connectivity, ConnectedStatsOp::default);
-    let stats = finalize_stats(&device, stats);
-    (labels, stats)
+
+    dispatch_int_dtype!(|I| {
+        let (labels, stats) =
+            run::<B, I, ConnectedStatsOp<I>>(img, connectivity, ConnectedStatsOp::default);
+        let stats = finalize_stats(&device, stats);
+        (labels, stats)
+    })
 }
 
-fn run<B: Backend, Stats: StatsOp<B::IntElem>>(
+fn run<B: Backend, I: ElementOrdered, Stats: StatsOp<Label = I>>(
     img: BoolTensor<B>,
     connectivity: Connectivity,
     stats: impl Fn() -> Stats,
@@ -46,13 +92,13 @@ fn run<B: Backend, Stats: StatsOp<B::IntElem>>(
     let mut stats = stats();
 
     let out = match connectivity {
-        Connectivity::Four => spaghetti_4c::process::<B::IntElem, B::BoolElem, UnionFind<_>>(
-            img, height, width, &mut stats,
-        ),
+        Connectivity::Four => {
+            spaghetti_4c::process::<B::BoolElem, UnionFind<_>>(img, height, width, &mut stats)
+        }
         Connectivity::Eight => {
             // SAFETY: This is validated by `TensorData`
             let img = unsafe { Array2::from_shape_vec_unchecked((height, width), img) };
-            spaghetti::process::<B::IntElem, B::BoolElem, UnionFind<_>>(img, &mut stats)
+            spaghetti::process::<B::BoolElem, UnionFind<_>>(img, &mut stats)
         }
     };
 
@@ -62,20 +108,24 @@ fn run<B: Backend, Stats: StatsOp<B::IntElem>>(
     (labels, stats)
 }
 
-pub trait Solver<I: Element> {
+pub trait Solver {
+    type Label: ElementOrdered;
+
     fn init(max_labels: usize) -> Self;
     /// Hack to get around mutable borrow limitations on methods
-    fn merge(label_1: I, label_2: I, solver: &mut Self) -> I;
-    fn new_label(&mut self) -> I;
-    fn flatten(&mut self) -> I;
-    fn get_label(&self, i_label: I) -> I;
+    fn merge(label_1: Self::Label, label_2: Self::Label, solver: &mut Self) -> Self::Label;
+    fn new_label(&mut self) -> Self::Label;
+    fn flatten(&mut self) -> Self::Label;
+    fn get_label(&self, i_label: Self::Label) -> Self::Label;
 }
 
 pub(crate) struct UnionFind<I: Element> {
     labels: Vec<I>,
 }
 
-impl<I: Element> Solver<I> for UnionFind<I> {
+impl<I: ElementOrdered> Solver for UnionFind<I> {
+    type Label = I;
+
     fn init(max_labels: usize) -> Self {
         let mut labels = Vec::with_capacity(max_labels);
         labels.push(0.elem());
@@ -126,18 +176,25 @@ impl<I: Element> Solver<I> for UnionFind<I> {
     }
 }
 
-pub trait StatsOp<I: Element> {
+pub trait StatsOp {
+    type Label;
+
     fn init(&mut self, num_labels: usize);
-    fn update(&mut self, row: usize, column: usize, label: I);
+    fn update(&mut self, row: usize, column: usize, label: Self::Label);
     fn finish(&mut self);
 }
 
-struct NoOp;
+#[derive(Default)]
+struct NoOp<I: Element> {
+    _i: PhantomData<I>,
+}
 
-impl<I: Element> StatsOp<I> for NoOp {
+impl<I: Element> StatsOp for NoOp<I> {
+    type Label = I; // placeholder still required
+
     fn init(&mut self, _num_labels: usize) {}
 
-    fn update(&mut self, _row: usize, _column: usize, _label: I) {}
+    fn update(&mut self, _row: usize, _column: usize, _label: Self::Label) {}
 
     fn finish(&mut self) {}
 }
@@ -151,7 +208,9 @@ struct ConnectedStatsOp<I: Element> {
     pub bottom: Vec<I>,
 }
 
-impl<I: Element> StatsOp<I> for ConnectedStatsOp<I> {
+impl<I: Element> StatsOp for ConnectedStatsOp<I> {
+    type Label = I;
+
     fn init(&mut self, num_labels: usize) {
         self.area = vec![0.elem(); num_labels];
         self.left = vec![I::MAX; num_labels];
@@ -186,19 +245,19 @@ impl<I: Element> StatsOp<I> for ConnectedStatsOp<I> {
     }
 }
 
-fn finalize_stats<B: Backend>(
+fn finalize_stats<B: Backend, I: Element>(
     device: &B::Device,
-    stats: ConnectedStatsOp<B::IntElem>,
+    stats: ConnectedStatsOp<I>,
 ) -> ConnectedStatsPrimitive<B> {
     let labels = stats.area.len();
 
-    let into_prim = |data: Vec<B::IntElem>| {
+    let into_prim = |data: Vec<I>| {
         let data = TensorData::new(data, Shape::new([labels]));
         Tensor::<B, 1, Int>::from_data(data, device).into_primitive()
     };
 
     let max_label = {
-        let data = TensorData::new(vec![B::IntElem::from_elem(labels - 1)], Shape::new([1]));
+        let data = TensorData::new(vec![I::from_elem(labels - 1)], Shape::new([1]));
         Tensor::<B, 1, Int>::from_data(data, device).into_primitive()
     };
 

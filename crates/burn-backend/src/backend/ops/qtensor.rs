@@ -4,12 +4,17 @@ use burn_std::{
     quantization::{QuantPropagation, QuantScheme},
 };
 
-use crate::tensor::{
-    BoolTensor, Device, FloatElem, FloatTensor, IntElem, IntTensor, QuantizedTensor,
-    quantization::{Calibration, QuantizationParametersPrimitive, compute_q_params, compute_range},
-};
 use crate::{
     Backend, ExecutionError, QTensorPrimitive, TensorData, TensorMetadata, TensorPrimitive,
+};
+use crate::{
+    Scalar,
+    tensor::{
+        BoolTensor, Device, FloatTensor, IntTensor, QuantizedTensor,
+        quantization::{
+            Calibration, QuantizationParametersPrimitive, compute_q_params, compute_range,
+        },
+    },
 };
 
 /// Automatically applies `dequantization -> float operation -> quantization`.
@@ -363,7 +368,7 @@ pub trait QTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The result of adding the scalar to the tensor.
-    fn q_add_scalar(lhs: QuantizedTensor<B>, rhs: FloatElem<B>) -> TensorPrimitive<B> {
+    fn q_add_scalar(lhs: QuantizedTensor<B>, rhs: Scalar) -> TensorPrimitive<B> {
         dequant_op_flow!(
             ty Self,
             float_op |tensor| B::float_add_scalar(tensor, rhs),
@@ -381,7 +386,7 @@ pub trait QTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The clamped tensor.
-    fn q_clamp_min(tensor: QuantizedTensor<B>, min: FloatElem<B>) -> TensorPrimitive<B> {
+    fn q_clamp_min(tensor: QuantizedTensor<B>, min: Scalar) -> TensorPrimitive<B> {
         dequant_op_flow!(
             ty Self,
             float_op |tensor| B::float_clamp_min(tensor, min),
@@ -399,7 +404,7 @@ pub trait QTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The clamped tensor.
-    fn q_clamp_max(tensor: QuantizedTensor<B>, max: FloatElem<B>) -> TensorPrimitive<B> {
+    fn q_clamp_max(tensor: QuantizedTensor<B>, max: Scalar) -> TensorPrimitive<B> {
         dequant_op_flow!(
             ty Self,
             float_op |tensor| B::float_clamp_max(tensor, max),
@@ -418,11 +423,7 @@ pub trait QTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The clamped tensor.
-    fn q_clamp(
-        tensor: QuantizedTensor<B>,
-        min: FloatElem<B>,
-        max: FloatElem<B>,
-    ) -> TensorPrimitive<B> {
+    fn q_clamp(tensor: QuantizedTensor<B>, min: Scalar, max: Scalar) -> TensorPrimitive<B> {
         dequant_op_flow!(
             ty Self,
             float_op |tensor| B::float_clamp(tensor, min, max),
@@ -459,7 +460,7 @@ pub trait QTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The result of subtracting the scalar from the tensor.
-    fn q_sub_scalar(lhs: QuantizedTensor<B>, rhs: FloatElem<B>) -> TensorPrimitive<B> {
+    fn q_sub_scalar(lhs: QuantizedTensor<B>, rhs: Scalar) -> TensorPrimitive<B> {
         dequant_op_flow!(
             ty Self,
             float_op |tensor| B::float_sub_scalar(tensor, rhs),
@@ -487,7 +488,7 @@ pub trait QTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The result of multiplying the tensor by the scalar.
-    fn q_mul_scalar(lhs: QuantizedTensor<B>, rhs: FloatElem<B>) -> TensorPrimitive<B> {
+    fn q_mul_scalar(lhs: QuantizedTensor<B>, rhs: Scalar) -> TensorPrimitive<B> {
         dequant_op_flow!(
             ty Self,
             float_op |tensor| B::float_mul_scalar(tensor, rhs),
@@ -524,7 +525,7 @@ pub trait QTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The result of dividing the tensor by the scalar.
-    fn q_div_scalar(lhs: QuantizedTensor<B>, rhs: FloatElem<B>) -> TensorPrimitive<B> {
+    fn q_div_scalar(lhs: QuantizedTensor<B>, rhs: Scalar) -> TensorPrimitive<B> {
         dequant_op_flow!(
             ty Self,
             float_op |tensor| B::float_div_scalar(tensor, rhs),
@@ -867,7 +868,7 @@ pub trait QTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The elements of `lhs` raised to the value of `rhs`.
-    fn q_powi_scalar(lhs: QuantizedTensor<B>, rhs: IntElem<B>) -> TensorPrimitive<B> {
+    fn q_powi_scalar(lhs: QuantizedTensor<B>, rhs: Scalar) -> TensorPrimitive<B> {
         dequant_op_flow!(
             ty Self,
             float_op |tensor| B::float_powi_scalar(tensor, rhs),
@@ -885,7 +886,7 @@ pub trait QTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A tensor with the same shape as `tensor` with values raised to the power of `value`.
-    fn q_powf_scalar(tensor: QuantizedTensor<B>, value: f32) -> TensorPrimitive<B> {
+    fn q_powf_scalar(tensor: QuantizedTensor<B>, value: Scalar) -> TensorPrimitive<B> {
         dequant_op_flow!(
             ty Self,
             float_op |tensor| B::float_powf_scalar(tensor, value),
