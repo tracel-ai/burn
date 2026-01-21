@@ -31,6 +31,9 @@ pub trait Element:
     fn dtype() -> DType;
 }
 
+/// Ordered element trait for tensor.
+pub trait ElementOrdered: Element + ElementComparison {}
+
 /// Element conversion trait for tensor.
 pub trait ElementConversion {
     /// Converts an element to another element.
@@ -148,6 +151,9 @@ macro_rules! make_element {
             const MIN: Self = $min;
             const MAX: Self = $max;
         }
+
+        impl ElementOrdered for $type {}
+
     };
 }
 

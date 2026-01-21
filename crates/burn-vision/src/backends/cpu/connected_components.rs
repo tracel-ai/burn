@@ -2,7 +2,7 @@ use std::{cmp::Ordering, marker::PhantomData};
 
 use alloc::vec::Vec;
 use burn_tensor::{
-    Bool, DType, Element, ElementComparison, ElementConversion, Int, Shape, Tensor, TensorData,
+    Bool, DType, Element, ElementConversion, ElementOrdered, Int, Shape, Tensor, TensorData,
     backend::Backend,
     ops::{BoolTensor, IntTensor},
 };
@@ -78,7 +78,7 @@ pub fn connected_components_with_stats<B: Backend>(
     })
 }
 
-fn run<B: Backend, I: Element + ElementComparison, Stats: StatsOp<Label = I>>(
+fn run<B: Backend, I: ElementOrdered, Stats: StatsOp<Label = I>>(
     img: BoolTensor<B>,
     connectivity: Connectivity,
     stats: impl Fn() -> Stats,
@@ -109,7 +109,7 @@ fn run<B: Backend, I: Element + ElementComparison, Stats: StatsOp<Label = I>>(
 }
 
 pub trait Solver {
-    type Label: Element + ElementComparison;
+    type Label: ElementOrdered;
 
     fn init(max_labels: usize) -> Self;
     /// Hack to get around mutable borrow limitations on methods
@@ -123,7 +123,7 @@ pub(crate) struct UnionFind<I: Element> {
     labels: Vec<I>,
 }
 
-impl<I: Element + ElementComparison> Solver for UnionFind<I> {
+impl<I: ElementOrdered> Solver for UnionFind<I> {
     type Label = I;
 
     fn init(max_labels: usize) -> Self {

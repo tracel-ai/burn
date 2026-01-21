@@ -4,7 +4,7 @@ use burn_std::{DType, bf16, f16};
 use num_traits::{Float, ToPrimitive};
 
 use super::TensorData;
-use crate::{ElementComparison, element::Element};
+use crate::{Element, ElementOrdered};
 
 /// The tolerance used to compare to floating point numbers.
 ///
@@ -362,7 +362,7 @@ impl TensorData {
     ///
     /// If any value is not within the half-open range bounded inclusively below
     /// and exclusively above (`start..end`).
-    pub fn assert_within_range<E: Element + ElementComparison>(&self, range: core::ops::Range<E>) {
+    pub fn assert_within_range<E: ElementOrdered>(&self, range: core::ops::Range<E>) {
         for elem in self.iter::<E>() {
             if elem.cmp(&range.start).is_lt() || elem.cmp(&range.end).is_ge() {
                 panic!("Element ({elem:?}) is not within range {range:?}");
@@ -379,7 +379,7 @@ impl TensorData {
     /// # Panics
     ///
     /// If any value is not within the half-open range bounded inclusively (`start..=end`).
-    pub fn assert_within_range_inclusive<E: Element + ElementComparison>(
+    pub fn assert_within_range_inclusive<E: ElementOrdered>(
         &self,
         range: core::ops::RangeInclusive<E>,
     ) {

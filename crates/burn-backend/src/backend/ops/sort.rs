@@ -2,7 +2,7 @@ use core::cmp::Ordering;
 
 use crate::{
     Backend, DType, TensorData,
-    element::{Element, ElementComparison, ElementConversion},
+    element::{ElementConversion, ElementOrdered},
     tensor::{BasicOps, IntElem, IntTensor},
 };
 use alloc::{vec, vec::Vec};
@@ -65,7 +65,7 @@ pub fn sort<B: Backend, K: BasicOps<B>>(
     K::from_data(data, &device)
 }
 
-pub fn sort_data<B: Backend, E: Element + ElementComparison>(
+pub fn sort_data<B: Backend, E: ElementOrdered>(
     mut data: TensorData,
     dim: usize,
     descending: bool,
@@ -122,7 +122,7 @@ pub fn sort_with_indices<B: Backend, K: BasicOps<B>>(
     )
 }
 
-fn sort_data_with_indices<B: Backend, E: Element + ElementComparison>(
+fn sort_data_with_indices<B: Backend, E: ElementOrdered>(
     mut data: TensorData,
     dim: usize,
     descending: bool,
@@ -212,7 +212,7 @@ pub fn argsort<B: Backend, K: BasicOps<B>>(
     B::int_from_data(data, &device)
 }
 
-fn argsort_data<B: Backend, E: Element + ElementComparison>(
+fn argsort_data<B: Backend, E: ElementOrdered>(
     mut data: TensorData,
     dim: usize,
     descending: bool,
@@ -250,7 +250,7 @@ fn argsort_data<B: Backend, E: Element + ElementComparison>(
 /// and if `permute_both` is enabled then the data is also sorted.
 ///
 /// This sort is unstable (i.e., may reorder equal elements).
-fn sort_slice<B: Backend, E: Element + ElementComparison>(
+fn sort_slice<B: Backend, E: ElementOrdered>(
     data: &mut [E],
     dims: &[usize],
     dim: usize,
@@ -372,6 +372,6 @@ fn dim_indices<B: Backend>(dims: &[usize], dim: usize) -> Vec<IntElem<B>> {
 }
 
 /// Compare two elements
-fn compare<E: ElementComparison>(a: &E, b: &E, descending: bool) -> Ordering {
+fn compare<E: ElementOrdered>(a: &E, b: &E, descending: bool) -> Ordering {
     if descending { b.cmp(a) } else { a.cmp(b) }
 }
