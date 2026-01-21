@@ -118,6 +118,7 @@ fn create_key<R: CubeRuntime, const N: usize>(
         padding,
         dilation,
         groups,
+        ..
     } = options.clone();
 
     let lhs_stride_align = if out_grad.strides[dim_c] == 1 {
