@@ -27,7 +27,7 @@ burn = { version = "0.21", default-features = false, features = ["ndarray"] } # 
 burn-store = { version = "0.21", default-features = false, features = ["burnpack"] }
 
 [build-dependencies]
-burn-import = { version = "0.21" } # Used to auto generate the rust code to import the model
+burn-onnx = { version = "0.21" } # Used to auto generate the rust code to import the model
 ```
 
 ### Import the Model

@@ -1,30 +1,37 @@
 #![warn(missing_docs)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
-#![allow(clippy::ptr_arg)]
-#![allow(clippy::single_match)]
-#![allow(clippy::upper_case_acronyms)]
-#![allow(clippy::approx_constant)]
 
 //! `burn-import` is a crate designed to simplify the process of importing models trained in other
-//! machine learning frameworks into the Burn framework. This tool generates a Rust source file that
-//! aligns the imported model with Burn's model and converts tensor data into a format compatible with
-//! Burn.
+//! machine learning frameworks into the Burn framework.
 
-#[cfg(any(feature = "pytorch", feature = "onnx", feature = "safetensors"))]
+#[cfg(any(feature = "pytorch", feature = "safetensors"))]
 #[macro_use]
 extern crate derive_new;
 
-// Enabled when the `pytorch` or `onnx` feature is enabled.
-#[cfg(any(feature = "pytorch", feature = "onnx"))]
-mod logger;
-
 /// The onnx module.
 #[cfg(feature = "onnx")]
-pub mod onnx;
+#[deprecated(
+    since = "0.21.0",
+    note = "ONNX import was moved to `burn-onnx`. Use that crate instead."
+)]
+pub mod onnx {
+    #[deprecated(
+        since = "0.21.0",
+        note = "ONNX import was moved to `burn-onnx`. Use that crate instead."
+    )]
+    #[allow(missing_docs)]
+    pub type ModelGen = burn_onnx::ModelGen;
+}
 
 /// The module for generating the burn code.
 #[cfg(feature = "onnx")]
-pub mod burn;
+#[deprecated(
+    since = "0.21.0",
+    note = "ONNX import was moved to `burn-onnx`. Use that crate instead."
+)]
+pub mod burn {
+    pub use burn_onnx::burn::*;
+}
 
 /// The PyTorch module for recorder.
 #[cfg(feature = "pytorch")]
@@ -37,6 +44,3 @@ pub mod safetensors;
 // Enabled when the `pytorch` or `safetensors` feature is enabled.
 #[cfg(any(feature = "pytorch", feature = "safetensors"))]
 mod common;
-
-mod formatter;
-pub use formatter::*;

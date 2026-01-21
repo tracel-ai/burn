@@ -260,7 +260,7 @@ Our ONNX support is further described in
 [this section of the Burn Book 🔥](https://burn.dev/books/burn/import/onnx-model.html).
 
 > **Note**: This crate is in active development and currently supports a
-> [limited set of ONNX operators](./crates/burn-import/SUPPORTED-ONNX-OPS.md).
+> [limited set of ONNX operators](./crates/burn-onnx/SUPPORTED-ONNX-OPS.md).
 
 </details>
 
