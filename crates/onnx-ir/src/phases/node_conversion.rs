@@ -430,7 +430,7 @@ fn coalesce(
 /// Convert Gemm to Linear (when alpha=1, beta=1, transA=0, transB=1)
 ///
 /// Note: The weight tensor is kept in its original ONNX layout [out_features, in_features].
-/// The burn-import layer is responsible for transposing the weights to Burn's expected
+/// The burn-onnx layer is responsible for transposing the weights to Burn's expected
 /// layout [in_features, out_features] during code generation.
 fn convert_gemm_to_linear(node: &mut RawNode) {
     if node.outputs.len() != 1 {

@@ -7,8 +7,8 @@ resolver = "2"
 members = [
     "crates/*",
     "crates/burn-import/pytorch-tests",
-    "crates/burn-import/onnx-tests",
     "crates/burn-import/safetensors-tests",
+    "crates/burn-onnx/onnx-tests",
     "crates/burn-collective/multinode-tests",
     "examples/*",
     "xtask",
@@ -17,7 +17,7 @@ members = [
 exclude = [
     "examples/notebook",
     "examples/raspberry-pi-pico",
-    "crates/burn-import/model-checks/*", # exclude model checking crates from workspace
+    "crates/burn-onnx/model-checks/*", # exclude model checking crates from workspace
 ]
 
 [workspace.package]

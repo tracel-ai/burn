@@ -33,7 +33,7 @@ burn = { path = "../../crates/burn", default-features = false, features = ["ndar
 burn-store = { path = "../../crates/burn-store", default-features = false, features = ["burnpack"] }
 
 [build-dependencies]
-burn-import = { path = "../../crates/burn-import" }
+burn-onnx = { path = "../../crates/burn-onnx" }
 
 [profile.release]
 debug = 2

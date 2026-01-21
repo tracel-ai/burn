@@ -12,7 +12,7 @@
 //! - **MatMul-sourced**: Weight is already in `[in_features, out_features]` format.
 //!   The `transpose_weight` config flag is set to `false`.
 //!
-//! The burn-import layer reads the `transpose_weight` flag and transposes the weight
+//! The burn-onnx layer reads the `transpose_weight` flag and transposes the weight
 //! tensor only when needed during code generation.
 //!
 //! **Related ONNX Specs**:
