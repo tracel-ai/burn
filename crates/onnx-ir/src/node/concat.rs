@@ -103,6 +103,71 @@ impl NodeProcessor for ConcatProcessor {
             .inputs
             .iter()
             .any(|i| matches!(&i.ty, ArgType::Tensor(t) if t.rank == 1));
+        let has_scalar = node
+            .inputs
+            .iter()
+            .any(|i| matches!(i.ty, ArgType::Scalar(_)));
+
+        // Handle scalar inputs: concatenating scalars (and optionally rank-1 tensors) produces a 1D tensor
+        if has_scalar {
+            // Get the dtype from the first input (can be Scalar or rank-1 Tensor)
+            let first_dtype = match &node.inputs[0].ty {
+                ArgType::Scalar(dtype) => *dtype,
+                ArgType::Tensor(t) if t.rank == 1 => t.dtype,
+                _ => {
+                    return Err(ProcessError::TypeMismatch {
+                        expected: "Scalar or rank-1 Tensor".to_string(),
+                        actual: format!("{:?}", node.inputs[0].ty),
+                    });
+                }
+            };
+
+            // Validate all inputs and calculate total output length
+            let mut total_length = 0usize;
+            for (i, input) in node.inputs.iter().enumerate() {
+                match &input.ty {
+                    ArgType::Scalar(dtype) => {
+                        if *dtype != first_dtype {
+                            return Err(ProcessError::TypeMismatch {
+                                expected: format!("dtype {:?}", first_dtype),
+                                actual: format!("Scalar with dtype {:?} at input {}", dtype, i),
+                            });
+                        }
+                        total_length += 1; // Each scalar contributes 1 element
+                    }
+                    ArgType::Tensor(t) if t.rank == 1 => {
+                        if t.dtype != first_dtype {
+                            return Err(ProcessError::TypeMismatch {
+                                expected: format!("dtype {:?}", first_dtype),
+                                actual: format!("Tensor with dtype {:?} at input {}", t.dtype, i),
+                            });
+                        }
+                        // Get tensor length from static shape or value
+                        let len = t
+                            .static_shape
+                            .as_ref()
+                            .map(|s| s[0])
+                            .or_else(|| input.value().as_ref().map(|v| v.shape[0]))
+                            .unwrap_or(1); // Default to 1 if unknown
+                        total_length += len;
+                    }
+                    _ => {
+                        return Err(ProcessError::TypeMismatch {
+                            expected: "Scalar or rank-1 Tensor".to_string(),
+                            actual: format!("{:?} at input {}", input.ty, i),
+                        });
+                    }
+                }
+            }
+
+            // Output is a 1D tensor with calculated length
+            node.outputs[0].ty = ArgType::Tensor(TensorType {
+                dtype: first_dtype,
+                rank: 1,
+                static_shape: Some(vec![total_length]),
+            });
+            return Ok(());
+        }
 
         // Validate all inputs have compatible types (all Tensor or all Shape, except mixed Shape/rank-1 tensor case)
         if !has_shape && !has_rank1_tensor {
@@ -225,12 +290,7 @@ impl NodeProcessor for ConcatProcessor {
         let rank = match &node.inputs.first().unwrap().ty {
             ArgType::Tensor(tensor) => tensor.rank as i64,
             ArgType::Shape(_) => 1, // Shapes are 1D
-            _ => {
-                return Err(ProcessError::TypeMismatch {
-                    expected: "Tensor or Shape".to_string(),
-                    actual: format!("{:?}", node.inputs.first().unwrap().ty),
-                });
-            }
+            ArgType::Scalar(_) => 0, // Scalars are rank-0
         };
 
         // if axis is negative, it is counted from the end
@@ -394,5 +454,67 @@ mod tests {
         let _config = processor.extract_config(&node, 16).unwrap();
         let result = processor.infer_types(&mut node, 16, &prefs);
         assert!(matches!(result, Err(ProcessError::TypeMismatch { .. })));
+    }
+
+    #[test]
+    fn test_concat_scalar_inputs() {
+        // Test concatenating scalar inputs (reproduces issue #4228)
+        use burn_tensor::DType;
+
+        let node = TestNodeBuilder::new(NodeType::Concat, "test_concat_scalar")
+            .input_scalar_i64("scalar1")
+            .input_scalar_i64("scalar2")
+            .output_tensor_i64("output", 1, None)
+            .attr_int("axis", 0)
+            .process(ConcatProcessor, 16);
+
+        // Check that output is 1D tensor with length = number of inputs
+        match &node.outputs[0].ty {
+            ArgType::Tensor(t) => {
+                assert_eq!(t.rank, 1);
+                assert_eq!(t.dtype, DType::I64);
+                assert_eq!(t.static_shape, Some(vec![2])); // 2 scalar inputs
+            }
+            _ => panic!("Expected Tensor output, got {:?}", node.outputs[0].ty),
+        }
+    }
+
+    #[test]
+    fn test_concat_scalar_config_extraction() {
+        // Test that extract_config works with scalar inputs
+        let node = TestNodeBuilder::new(NodeType::Concat, "test_concat_scalar")
+            .input_scalar_i64("scalar1")
+            .input_scalar_i64("scalar2")
+            .output_tensor_i64("output", 1, None)
+            .attr_int("axis", 0)
+            .build();
+
+        let processor = ConcatProcessor;
+        let config = processor.extract_config(&node, 16).unwrap();
+        assert_eq!(config.axis, 0); // Only valid axis for scalars
+    }
+
+    #[test]
+    fn test_concat_multiple_scalars() {
+        // Test concatenating multiple scalar inputs
+        use burn_tensor::DType;
+
+        let node = TestNodeBuilder::new(NodeType::Concat, "test_concat_multi_scalar")
+            .input_scalar_i64("s1")
+            .input_scalar_i64("s2")
+            .input_scalar_i64("s3")
+            .input_scalar_i64("s4")
+            .output_tensor_i64("output", 1, None)
+            .attr_int("axis", 0)
+            .process(ConcatProcessor, 16);
+
+        match &node.outputs[0].ty {
+            ArgType::Tensor(t) => {
+                assert_eq!(t.rank, 1);
+                assert_eq!(t.dtype, DType::I64);
+                assert_eq!(t.static_shape, Some(vec![4])); // 4 scalar inputs
+            }
+            _ => panic!("Expected Tensor output"),
+        }
     }
 }

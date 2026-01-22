@@ -13,10 +13,51 @@ impl NodeCodegen for onnx_ir::concat::ConcatNode {
         let output = arg_to_ident(self.outputs.first().unwrap());
         let dim = self.config.axis.to_tokens();
 
+        // Check if any inputs are scalars
+        let has_scalar = self.inputs.iter().any(|arg| arg.ty.is_scalar());
+
         // Determine if this is tensor or shape concatenation based on output type
         match &self.outputs.first().unwrap().ty {
+            ArgType::Tensor(_) if has_scalar => {
+                // Mixed scalar/tensor concatenation - convert scalars to rank-1 tensors first
+                let mut inits = Vec::new();
+                let mut input_exprs = Vec::new();
+
+                for (i, input_arg) in self.inputs.iter().enumerate() {
+                    let input = scope.arg(input_arg);
+
+                    if input_arg.ty.is_scalar() {
+                        // Convert scalar to rank-1 tensor
+                        let dtype = input_arg.ty.elem_type();
+                        let dtype_tokens = dtype.to_tokens();
+                        let kind = match dtype {
+                            DType::Bool => quote! { , Bool },
+                            _ if dtype.is_float() => quote! {},
+                            _ => quote! { , Int },
+                        };
+                        let temp_name =
+                            Ident::new(&format!("scalar_as_tensor_{}", i), Span::call_site());
+                        let init = quote! {
+                            let #temp_name: Tensor<B, 1 #kind> = Tensor::from_data_dtype(
+                                burn::tensor::TensorData::from([#input]),
+                                &*self.device,
+                                #dtype_tokens
+                            );
+                        };
+                        inits.push(init);
+                        input_exprs.push(quote! { #temp_name });
+                    } else {
+                        input_exprs.push(input);
+                    }
+                }
+
+                quote! {
+                    #(#inits)*
+                    let #output = burn::tensor::Tensor::cat([#(#input_exprs),*].into(), #dim);
+                }
+            }
             ArgType::Tensor(_) => {
-                // Tensor concatenation
+                // Tensor concatenation (no scalars)
                 let inputs = self.inputs.iter().map(|arg| scope.arg(arg));
 
                 quote! {

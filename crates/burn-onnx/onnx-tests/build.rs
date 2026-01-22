@@ -77,6 +77,8 @@ fn main() {
         .input("tests/concat/concat_mixed_three_elements.onnx")
         .input("tests/concat/concat_multiple_mixed.onnx")
         .input("tests/concat/concat_with_constants.onnx")
+        .input("tests/concat/concat_scalar_direct.onnx")
+        .input("tests/concat/concat_scalar_from_gather.onnx")
         .input("tests/constant/constant_f32.onnx")
         .input("tests/constant/constant_f64.onnx")
         .input("tests/constant/constant_i32.onnx")

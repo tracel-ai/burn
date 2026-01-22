@@ -7,7 +7,9 @@ include_models!(
     concat_mixed_single_element,
     concat_mixed_three_elements,
     concat_multiple_mixed,
-    concat_with_constants
+    concat_with_constants,
+    concat_scalar_direct,
+    concat_scalar_from_gather
 );
 
 #[cfg(test)]
@@ -142,6 +144,44 @@ mod tests {
         // The output should be [3, 4, 2, 3, 5, 7, 8, 9]
         // Shape: [3, 4] + const1: [2, 3] + const2: [5] + const3: [7, 8, 9]
         let expected: [i64; 8] = [3, 4, 2, 3, 5, 7, 8, 9];
+        assert_eq!(output, expected);
+    }
+
+    #[test]
+    fn concat_scalar_direct() {
+        // This test reproduces issue #4228: Concat receiving Scalar(I64) inputs
+        // Pattern: Shape -> Gather (scalar index) -> Concat
+        let device = Default::default();
+        let model: concat_scalar_direct::Model<TestBackend> =
+            concat_scalar_direct::Model::new(&device);
+
+        // Create test input with shape [2, 3, 4, 5]
+        let input1 = Tensor::<TestBackend, 4>::zeros([2, 3, 4, 5], &device);
+
+        // Run the model - extracts batch dim via Gather and concats with constant
+        let output = model.forward(input1);
+
+        // The output should be [2, 64] (batch=2 from input shape, 64 from constant)
+        let expected = Tensor::<TestBackend, 1, burn::prelude::Int>::from_ints([2, 64], &device);
+        assert!(output.equal(expected).all().into_scalar());
+    }
+
+    #[test]
+    fn concat_scalar_from_gather() {
+        // This test shows a workaround pattern: Shape -> Gather -> Unsqueeze -> Concat
+        // The output is a shape array since Unsqueeze converts scalar back to shape context
+        let device = Default::default();
+        let model: concat_scalar_from_gather::Model<TestBackend> =
+            concat_scalar_from_gather::Model::new(&device);
+
+        // Create test input with shape [2, 3, 4, 5]
+        let input1 = Tensor::<TestBackend, 4>::zeros([2, 3, 4, 5], &device);
+
+        // Run the model - extracts batch dim, unsqueezes, and concats with constants
+        let output = model.forward(input1);
+
+        // The output should be [2, 32, 64] (batch=2 unsqueezed, then 32, 64)
+        let expected: [i64; 3] = [2, 32, 64];
         assert_eq!(output, expected);
     }
 }
