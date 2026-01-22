@@ -3,7 +3,8 @@ include_models!(
     unsqueeze_like,
     unsqueeze_runtime_axes,
     unsqueeze_int_to_shape,
-    squeeze_unsqueeze_roundtrip
+    squeeze_unsqueeze_roundtrip,
+    unsqueeze_scalar_axes
 );
 
 #[cfg(test)]
@@ -83,5 +84,21 @@ mod tests {
 
         // Verify the value is preserved through the squeeze/unsqueeze roundtrip
         assert_eq!(output_shape[0], input_value);
+    }
+
+    #[test]
+    fn unsqueeze_scalar_axes() {
+        // Test Unsqueeze with scalar axes input (not 1D tensor)
+        // This verifies the fix for scalar axes handling in extract_config
+        let device = Default::default();
+        let model = unsqueeze_scalar_axes::Model::<TestBackend>::new(&device);
+
+        // Input: 2D tensor [3, 4]
+        let input = Tensor::<TestBackend, 2>::ones([3, 4], &device);
+
+        // Output should be 3D tensor [1, 3, 4] after unsqueeze at axis 0
+        let output = model.forward(input);
+
+        assert_eq!(output.shape(), Shape::from([1, 3, 4]));
     }
 }

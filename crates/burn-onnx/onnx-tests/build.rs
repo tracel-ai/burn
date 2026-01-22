@@ -353,6 +353,7 @@ fn main() {
         .input("tests/unsqueeze/unsqueeze_runtime_axes.onnx")
         .input("tests/unsqueeze/unsqueeze_like.onnx")
         .input("tests/unsqueeze/unsqueeze_int_to_shape.onnx")
+        .input("tests/unsqueeze/unsqueeze_scalar_axes.onnx")
         .input("tests/unsqueeze/squeeze_unsqueeze_roundtrip.onnx")
         .input("tests/split/split.onnx")
         .input("tests/xor/xor.onnx")

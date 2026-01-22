@@ -161,9 +161,31 @@ impl NodeProcessor for UnsqueezeProcessor {
                     UnsqueezeConfig::Runtime(RuntimeInputRef::new(node.inputs[1].name.clone(), 1))
                 }
             }
+            ArgType::Scalar(dtype) => {
+                // Scalar axes - treat as single axis value
+                if !dtype.is_int() {
+                    return Err(ProcessError::Custom(
+                        "Unsqueeze: scalar axes must be Int32 or Int64".to_string(),
+                    ));
+                }
+
+                if let Some(tensor_data) = input_value.value().as_ref() {
+                    match tensor_data.to_i64_vec() {
+                        Ok(axes) => UnsqueezeConfig::Static(axes),
+                        Err(_) => {
+                            return Err(ProcessError::Custom(
+                                "Unsqueeze: failed to extract scalar axis value".to_string(),
+                            ));
+                        }
+                    }
+                } else {
+                    // Runtime scalar input
+                    UnsqueezeConfig::Runtime(RuntimeInputRef::new(node.inputs[1].name.clone(), 1))
+                }
+            }
             _ => {
                 return Err(ProcessError::TypeMismatch {
-                    expected: "Tensor".to_string(),
+                    expected: "Tensor or Scalar".to_string(),
                     actual: format!("{:?}", node.inputs[1].ty),
                 });
             }

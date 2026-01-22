@@ -108,40 +108,17 @@ impl NodeProcessor for ConcatProcessor {
             .iter()
             .any(|i| matches!(i.ty, ArgType::Scalar(_)));
 
-        // Handle scalar inputs: concatenating scalars (and optionally rank-1 tensors) produces a 1D tensor
+        // Handle scalar inputs: concatenating scalars with rank-1 tensors or shapes produces a 1D output
         if has_scalar {
-            // Get the dtype from the first input (can be Scalar or rank-1 Tensor)
-            let first_dtype = match &node.inputs[0].ty {
-                ArgType::Scalar(dtype) => *dtype,
-                ArgType::Tensor(t) if t.rank == 1 => t.dtype,
-                _ => {
-                    return Err(ProcessError::TypeMismatch {
-                        expected: "Scalar or rank-1 Tensor".to_string(),
-                        actual: format!("{:?}", node.inputs[0].ty),
-                    });
-                }
-            };
-
-            // Validate all inputs and calculate total output length
+            // When we have scalars, we can mix with rank-1 tensors and shapes (all are 1D int arrays)
+            // Calculate total output length
             let mut total_length = 0usize;
             for (i, input) in node.inputs.iter().enumerate() {
                 match &input.ty {
-                    ArgType::Scalar(dtype) => {
-                        if *dtype != first_dtype {
-                            return Err(ProcessError::TypeMismatch {
-                                expected: format!("dtype {:?}", first_dtype),
-                                actual: format!("Scalar with dtype {:?} at input {}", dtype, i),
-                            });
-                        }
+                    ArgType::Scalar(_) => {
                         total_length += 1; // Each scalar contributes 1 element
                     }
                     ArgType::Tensor(t) if t.rank == 1 => {
-                        if t.dtype != first_dtype {
-                            return Err(ProcessError::TypeMismatch {
-                                expected: format!("dtype {:?}", first_dtype),
-                                actual: format!("Tensor with dtype {:?} at input {}", t.dtype, i),
-                            });
-                        }
                         // Get tensor length from static shape or value
                         let len = t
                             .static_shape
@@ -151,21 +128,42 @@ impl NodeProcessor for ConcatProcessor {
                             .unwrap_or(1); // Default to 1 if unknown
                         total_length += len;
                     }
+                    ArgType::Shape(rank) => {
+                        // Shape contributes its rank elements
+                        total_length += rank;
+                    }
                     _ => {
                         return Err(ProcessError::TypeMismatch {
-                            expected: "Scalar or rank-1 Tensor".to_string(),
+                            expected: "Scalar, rank-1 Tensor, or Shape".to_string(),
                             actual: format!("{:?} at input {}", input.ty, i),
                         });
                     }
                 }
             }
 
-            // Output is a 1D tensor with calculated length
-            node.outputs[0].ty = ArgType::Tensor(TensorType {
-                dtype: first_dtype,
-                rank: 1,
-                static_shape: Some(vec![total_length]),
-            });
+            // Output type depends on whether we have any Shape inputs
+            // If mixing scalars with shapes, output is Shape (for shape operations)
+            // Otherwise output is a 1D i64 tensor
+            if has_shape {
+                node.outputs[0].ty = ArgType::Shape(total_length);
+            } else {
+                // Get dtype from first scalar or tensor
+                let first_dtype = node
+                    .inputs
+                    .iter()
+                    .find_map(|input| match &input.ty {
+                        ArgType::Scalar(dtype) => Some(*dtype),
+                        ArgType::Tensor(t) => Some(t.dtype),
+                        _ => None,
+                    })
+                    .unwrap_or(crate::ir::DType::I64);
+
+                node.outputs[0].ty = ArgType::Tensor(TensorType {
+                    dtype: first_dtype,
+                    rank: 1,
+                    static_shape: Some(vec![total_length]),
+                });
+            }
             return Ok(());
         }
 
@@ -289,7 +287,7 @@ impl NodeProcessor for ConcatProcessor {
         // extract the rank based on input type
         let rank = match &node.inputs.first().unwrap().ty {
             ArgType::Tensor(tensor) => tensor.rank as i64,
-            ArgType::Shape(_) => 1, // Shapes are 1D
+            ArgType::Shape(_) => 1,  // Shapes are 1D
             ArgType::Scalar(_) => 0, // Scalars are rank-0
         };
 
