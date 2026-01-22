@@ -20,6 +20,8 @@
 //! 2. Clearly documented as a known limitation with validation moved to infer_types
 //!    Impact: HIGH - Models padding batch/channel dimensions will fail with cryptic error messages.
 //!
+//! Tracking issue: https://github.com/tracel-ai/burn/issues/4269
+//!
 //! TODO: Missing type constraint validation
 //! Spec defines type constraints for T (data/output), but implementation doesn't validate.
 //! Should validate constant_value type matches data type when provided.
