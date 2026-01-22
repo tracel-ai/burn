@@ -254,6 +254,7 @@ impl<B: Backend> LocalCollectiveServer<B> {
         }
     }
 
+    #[allow(clippy::unnecessary_unwrap)]
     async fn process_register_message(
         &mut self,
         device_id: PeerId,
