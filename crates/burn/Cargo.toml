@@ -15,6 +15,10 @@ version.workspace = true
 [lints]
 workspace = true
 
+[package.metadata.docs.rs]
+features = [ "doc", "network", "train", "tui", "metrics", "dataset", "sqlite", "record-item-custom-serde", "experimental-named-tensor", "store", "cubecl", "audio", "vision", "ir", "autodiff", "fusion" ]
+rustdoc-args = ["--cfg", "docsrs"]
+
 [features]
 default = [
     "std",
