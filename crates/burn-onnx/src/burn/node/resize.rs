@@ -126,53 +126,104 @@ impl NodeCodegen for onnx_ir::node::resize::ResizeNode {
             }
         } else {
             // Runtime resize - use tensor operations directly
+            //
+            // TODO: Refactor burn::tensor::module::interpolate to accept output_size and scale_factor
+            // via InterpolateOptions (similar to Interpolate2d module) instead of requiring
+            // output_size as a separate parameter. This would:
+            // 1. Simplify this codegen by passing scales directly to InterpolateOptions
+            // 2. Move the size computation (input_dims * scales) into the interpolate function
+            // 3. Align the low-level API with the high-level Interpolate2d module API
+            // See: https://github.com/tracel-ai/burn/issues/4368
             let mode = match self.config.mode {
                 ResizeMode::Nearest => quote! { burn::tensor::ops::InterpolateMode::Nearest },
                 ResizeMode::Linear => quote! { burn::tensor::ops::InterpolateMode::Bilinear },
                 ResizeMode::Cubic => quote! { burn::tensor::ops::InterpolateMode::Bicubic },
             };
 
-            // Handle runtime sizes input
-            match &self.config.sizes {
-                Some(ResizeSizes::Runtime(sizes_ref)) => {
-                    let sizes_arg = &self.inputs[sizes_ref.input_index];
+            // Handle runtime sizes or scales input
+            // Per ONNX spec: either sizes or scales must be provided (mutually exclusive)
+            if let Some(ResizeSizes::Runtime(sizes_ref)) = &self.config.sizes {
+                // Runtime sizes input
+                let sizes_arg = &self.inputs[sizes_ref.input_index];
 
-                    match &sizes_arg.ty {
-                        ArgType::Shape(_) => {
-                            let sizes_name = arg_to_ident(sizes_arg);
-                            // Extract the last 2 dimensions from the shape (H, W for 2D resize)
-                            quote! {
-                                let #output = {
-                                    let target_height = #sizes_name[2] as usize;
-                                    let target_width = #sizes_name[3] as usize;
-                                    burn::tensor::module::interpolate(
-                                        #input,
-                                        [target_height, target_width],
-                                        burn::tensor::ops::InterpolateOptions::new(#mode)
-                                    )
-                                };
-                            }
+                match &sizes_arg.ty {
+                    ArgType::Shape(_) => {
+                        let sizes_name = arg_to_ident(sizes_arg);
+                        // Extract the last 2 dimensions from the shape (H, W for 2D resize)
+                        quote! {
+                            let #output = {
+                                let target_height = #sizes_name[2] as usize;
+                                let target_width = #sizes_name[3] as usize;
+                                burn::tensor::module::interpolate(
+                                    #input,
+                                    [target_height, target_width],
+                                    burn::tensor::ops::InterpolateOptions::new(#mode)
+                                )
+                            };
                         }
-                        ArgType::Tensor(_) => {
-                            let sizes_name = scope.arg(sizes_arg);
-                            quote! {
-                                let #output = {
-                                    let sizes_data = #sizes_name.to_data().convert::<i64>();
-                                    let sizes_array = sizes_data.as_slice::<i64>().unwrap();
-                                    let target_height = sizes_array[2] as usize;
-                                    let target_width = sizes_array[3] as usize;
-                                    burn::tensor::module::interpolate(
-                                        #input,
-                                        [target_height, target_width],
-                                        burn::tensor::ops::InterpolateOptions::new(#mode)
-                                    )
-                                };
-                            }
-                        }
-                        _ => panic!("Runtime resize sizes must be Shape or Tensor"),
                     }
+                    ArgType::Tensor(_) => {
+                        let sizes_name = scope.arg(sizes_arg);
+                        quote! {
+                            let #output = {
+                                let sizes_data = #sizes_name.to_data().convert::<i64>();
+                                let sizes_array = sizes_data.as_slice::<i64>().unwrap();
+                                let target_height = sizes_array[2] as usize;
+                                let target_width = sizes_array[3] as usize;
+                                burn::tensor::module::interpolate(
+                                    #input,
+                                    [target_height, target_width],
+                                    burn::tensor::ops::InterpolateOptions::new(#mode)
+                                )
+                            };
+                        }
+                    }
+                    _ => panic!("Runtime resize sizes must be Shape or Tensor"),
                 }
-                _ => panic!("Runtime resize requires sizes input"),
+            } else if let Some(ResizeScales::Runtime(scales_ref)) = &self.config.scales {
+                // Runtime scales input - compute output size from input dimensions * scales
+                let scales_arg = &self.inputs[scales_ref.input_index];
+
+                match &scales_arg.ty {
+                    ArgType::Shape(_) => {
+                        let scales_name = arg_to_ident(scales_arg);
+                        // Compute target dimensions: input_dim * scale
+                        // scales format: [scale_n, scale_c, scale_h, scale_w]
+                        quote! {
+                            let #output = {
+                                let input_dims = #input.dims();
+                                let target_height = ((input_dims[2] as f64) * (#scales_name[2] as f64)) as usize;
+                                let target_width = ((input_dims[3] as f64) * (#scales_name[3] as f64)) as usize;
+                                burn::tensor::module::interpolate(
+                                    #input,
+                                    [target_height, target_width],
+                                    burn::tensor::ops::InterpolateOptions::new(#mode)
+                                )
+                            };
+                        }
+                    }
+                    ArgType::Tensor(_) => {
+                        let scales_name = scope.arg(scales_arg);
+                        // Compute target dimensions: input_dim * scale
+                        quote! {
+                            let #output = {
+                                let input_dims = #input.dims();
+                                let scales_data = #scales_name.to_data().convert::<f32>();
+                                let scales_array = scales_data.as_slice::<f32>().unwrap();
+                                let target_height = ((input_dims[2] as f64) * (scales_array[2] as f64)) as usize;
+                                let target_width = ((input_dims[3] as f64) * (scales_array[3] as f64)) as usize;
+                                burn::tensor::module::interpolate(
+                                    #input,
+                                    [target_height, target_width],
+                                    burn::tensor::ops::InterpolateOptions::new(#mode)
+                                )
+                            };
+                        }
+                    }
+                    _ => panic!("Runtime resize scales must be Shape or Tensor"),
+                }
+            } else {
+                panic!("Runtime resize requires either sizes or scales input")
             }
         }
     }
@@ -619,6 +670,243 @@ mod tests {
                 )
             };
             output_data
+        }
+        ");
+    }
+
+    // ==================== Runtime Resize with Scales (Shape Input) Tests ====================
+
+    #[test]
+    fn test_resize_runtime_scales_shape_nearest() {
+        let config = ResizeConfig {
+            mode: ResizeMode::Nearest,
+            scales: Some(ResizeScales::Runtime(RuntimeInputRef {
+                name: "scale_factors".to_string(),
+                input_index: 1,
+            })),
+            sizes: None,
+            ..Default::default()
+        };
+        let node = ResizeNodeBuilder::new("scale_resize")
+            .input_tensor("input", 4, DType::F32)
+            .input_shape("scale_factors")
+            .output_tensor("output", 4, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 4>, scale_factors: [i64; 1]) -> Tensor<B, 4> {
+            let output = {
+                let input_dims = input.dims();
+                let target_height = ((input_dims[2] as f64) * (scale_factors[2] as f64))
+                    as usize;
+                let target_width = ((input_dims[3] as f64) * (scale_factors[3] as f64)) as usize;
+                burn::tensor::module::interpolate(
+                    input,
+                    [target_height, target_width],
+                    burn::tensor::ops::InterpolateOptions::new(
+                        burn::tensor::ops::InterpolateMode::Nearest,
+                    ),
+                )
+            };
+            output
+        }
+        ");
+    }
+
+    #[test]
+    fn test_resize_runtime_scales_shape_linear() {
+        let config = ResizeConfig {
+            mode: ResizeMode::Linear,
+            scales: Some(ResizeScales::Runtime(RuntimeInputRef {
+                name: "scale_vals".to_string(),
+                input_index: 1,
+            })),
+            sizes: None,
+            ..Default::default()
+        };
+        let node = ResizeNodeBuilder::new("bilinear_scale")
+            .input_tensor("image", 4, DType::F32)
+            .input_shape("scale_vals")
+            .output_tensor("scaled_image", 4, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, image: Tensor<B, 4>, scale_vals: [i64; 1]) -> Tensor<B, 4> {
+            let scaled_image = {
+                let input_dims = image.dims();
+                let target_height = ((input_dims[2] as f64) * (scale_vals[2] as f64)) as usize;
+                let target_width = ((input_dims[3] as f64) * (scale_vals[3] as f64)) as usize;
+                burn::tensor::module::interpolate(
+                    image,
+                    [target_height, target_width],
+                    burn::tensor::ops::InterpolateOptions::new(
+                        burn::tensor::ops::InterpolateMode::Bilinear,
+                    ),
+                )
+            };
+            scaled_image
+        }
+        ");
+    }
+
+    #[test]
+    fn test_resize_runtime_scales_shape_cubic() {
+        let config = ResizeConfig {
+            mode: ResizeMode::Cubic,
+            scales: Some(ResizeScales::Runtime(RuntimeInputRef {
+                name: "cubic_scales".to_string(),
+                input_index: 1,
+            })),
+            sizes: None,
+            ..Default::default()
+        };
+        let node = ResizeNodeBuilder::new("bicubic_scale")
+            .input_tensor("features", 4, DType::F32)
+            .input_shape("cubic_scales")
+            .output_tensor("upscaled", 4, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, features: Tensor<B, 4>, cubic_scales: [i64; 1]) -> Tensor<B, 4> {
+            let upscaled = {
+                let input_dims = features.dims();
+                let target_height = ((input_dims[2] as f64) * (cubic_scales[2] as f64)) as usize;
+                let target_width = ((input_dims[3] as f64) * (cubic_scales[3] as f64)) as usize;
+                burn::tensor::module::interpolate(
+                    features,
+                    [target_height, target_width],
+                    burn::tensor::ops::InterpolateOptions::new(
+                        burn::tensor::ops::InterpolateMode::Bicubic,
+                    ),
+                )
+            };
+            upscaled
+        }
+        ");
+    }
+
+    // ==================== Runtime Resize with Scales (Tensor Input) Tests ====================
+
+    #[test]
+    fn test_resize_runtime_scales_tensor_nearest() {
+        let config = ResizeConfig {
+            mode: ResizeMode::Nearest,
+            scales: Some(ResizeScales::Runtime(RuntimeInputRef {
+                name: "scales_tensor".to_string(),
+                input_index: 1,
+            })),
+            sizes: None,
+            ..Default::default()
+        };
+        let node = ResizeNodeBuilder::new("nearest_scale_op")
+            .input_tensor("x", 4, DType::F32)
+            .input_tensor("scales_tensor", 1, DType::F32)
+            .output_tensor("y", 4, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, x: Tensor<B, 4>, scales_tensor: Tensor<B, 1>) -> Tensor<B, 4> {
+            let y = {
+                let input_dims = x.dims();
+                let scales_data = scales_tensor.to_data().convert::<f32>();
+                let scales_array = scales_data.as_slice::<f32>().unwrap();
+                let target_height = ((input_dims[2] as f64) * (scales_array[2] as f64)) as usize;
+                let target_width = ((input_dims[3] as f64) * (scales_array[3] as f64)) as usize;
+                burn::tensor::module::interpolate(
+                    x,
+                    [target_height, target_width],
+                    burn::tensor::ops::InterpolateOptions::new(
+                        burn::tensor::ops::InterpolateMode::Nearest,
+                    ),
+                )
+            };
+            y
+        }
+        ");
+    }
+
+    #[test]
+    fn test_resize_runtime_scales_tensor_linear() {
+        let config = ResizeConfig {
+            mode: ResizeMode::Linear,
+            scales: Some(ResizeScales::Runtime(RuntimeInputRef {
+                name: "scale_input".to_string(),
+                input_index: 1,
+            })),
+            sizes: None,
+            ..Default::default()
+        };
+        let node = ResizeNodeBuilder::new("bilinear_dynamic")
+            .input_tensor("frame", 4, DType::F32)
+            .input_tensor("scale_input", 1, DType::F32)
+            .output_tensor("resized_frame", 4, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, frame: Tensor<B, 4>, scale_input: Tensor<B, 1>) -> Tensor<B, 4> {
+            let resized_frame = {
+                let input_dims = frame.dims();
+                let scales_data = scale_input.to_data().convert::<f32>();
+                let scales_array = scales_data.as_slice::<f32>().unwrap();
+                let target_height = ((input_dims[2] as f64) * (scales_array[2] as f64)) as usize;
+                let target_width = ((input_dims[3] as f64) * (scales_array[3] as f64)) as usize;
+                burn::tensor::module::interpolate(
+                    frame,
+                    [target_height, target_width],
+                    burn::tensor::ops::InterpolateOptions::new(
+                        burn::tensor::ops::InterpolateMode::Bilinear,
+                    ),
+                )
+            };
+            resized_frame
+        }
+        ");
+    }
+
+    #[test]
+    fn test_resize_runtime_scales_tensor_cubic() {
+        let config = ResizeConfig {
+            mode: ResizeMode::Cubic,
+            scales: Some(ResizeScales::Runtime(RuntimeInputRef {
+                name: "cubic_scale_tensor".to_string(),
+                input_index: 1,
+            })),
+            sizes: None,
+            ..Default::default()
+        };
+        let node = ResizeNodeBuilder::new("bicubic_dynamic")
+            .input_tensor("data", 4, DType::F32)
+            .input_tensor("cubic_scale_tensor", 1, DType::F32)
+            .output_tensor("result", 4, DType::F32)
+            .config(config)
+            .build();
+        let code = codegen_forward_default(&node);
+        assert_snapshot!(code, @r"
+        pub fn forward(
+            &self,
+            data: Tensor<B, 4>,
+            cubic_scale_tensor: Tensor<B, 1>,
+        ) -> Tensor<B, 4> {
+            let result = {
+                let input_dims = data.dims();
+                let scales_data = cubic_scale_tensor.to_data().convert::<f32>();
+                let scales_array = scales_data.as_slice::<f32>().unwrap();
+                let target_height = ((input_dims[2] as f64) * (scales_array[2] as f64)) as usize;
+                let target_width = ((input_dims[3] as f64) * (scales_array[3] as f64)) as usize;
+                burn::tensor::module::interpolate(
+                    data,
+                    [target_height, target_width],
+                    burn::tensor::ops::InterpolateOptions::new(
+                        burn::tensor::ops::InterpolateMode::Bicubic,
+                    ),
+                )
+            };
+            result
         }
         ");
     }

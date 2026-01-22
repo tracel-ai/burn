@@ -365,6 +365,10 @@ where
 }
 
 /// Applies a [2D interpolation](crate::ops::ModuleOps::interpolate).
+///
+// TODO: Refactor to move `output_size` into `InterpolateOptions` and add `scale_factor` support.
+// This would align the API with `Interpolate2d` module which already supports both.
+// See: https://github.com/tracel-ai/burn/issues/4368
 pub fn interpolate<B>(
     x: Tensor<B, 4>,
     output_size: [usize; 2],

@@ -7,7 +7,8 @@ include_models!(
     resize_2d_nearest_scale,
     resize_with_sizes,
     resize_with_shape,
-    resize_with_sizes_tensor
+    resize_with_sizes_tensor,
+    resize_with_scales_tensor
 );
 
 #[cfg(test)]
@@ -290,5 +291,56 @@ mod tests {
         let expected_sum = -3.515_921; // from pytorch
 
         assert!(expected_sum.approx_eq(output_sum, (1.0e-3, 2)));
+    }
+
+    #[test]
+    fn resize_with_scales_tensor() {
+        // Initialize the model without weights
+        let device = Default::default();
+        let model: resize_with_scales_tensor::Model<TestBackend> =
+            resize_with_scales_tensor::Model::new(&device);
+
+        // Create input tensor [1, 3, 4, 4]
+        let input = Tensor::<TestBackend, 4>::from_floats(
+            [[
+                [
+                    [1.0, 2.0, 3.0, 4.0],
+                    [5.0, 6.0, 7.0, 8.0],
+                    [9.0, 10.0, 11.0, 12.0],
+                    [13.0, 14.0, 15.0, 16.0],
+                ],
+                [
+                    [17.0, 18.0, 19.0, 20.0],
+                    [21.0, 22.0, 23.0, 24.0],
+                    [25.0, 26.0, 27.0, 28.0],
+                    [29.0, 30.0, 31.0, 32.0],
+                ],
+                [
+                    [33.0, 34.0, 35.0, 36.0],
+                    [37.0, 38.0, 39.0, 40.0],
+                    [41.0, 42.0, 43.0, 44.0],
+                    [45.0, 46.0, 47.0, 48.0],
+                ],
+            ]],
+            &device,
+        );
+
+        // Create scales tensor to double spatial dimensions: [1, 3, 4, 4] -> [1, 3, 8, 8]
+        // Format: [scale_n, scale_c, scale_h, scale_w]
+        let scales = Tensor::<TestBackend, 1>::from_floats([1.0f32, 1.0, 2.0, 2.0], &device);
+
+        // The model should resize from [1, 3, 4, 4] to [1, 3, 8, 8] using nearest neighbor
+        let output = model.forward(input, scales);
+
+        // Check output dimensions
+        assert_eq!(output.dims(), [1, 3, 8, 8]);
+
+        // With nearest neighbor and 2x upsampling, output sum should be 4x input sum
+        // Input sum per channel: 136, 392, 648 => total = 1176
+        // Output sum should be 4704 (each value repeated 4 times)
+        let output_sum = output.sum().into_scalar();
+        let expected_sum = 4704.0f32;
+
+        assert!(expected_sum.approx_eq(output_sum, (1.0e-4, 2)));
     }
 }
