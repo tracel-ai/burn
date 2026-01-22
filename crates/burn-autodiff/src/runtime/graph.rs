@@ -127,35 +127,6 @@ pub(crate) struct GraphCleaner<'a> {
 
 impl<'a> GraphCleaner<'a> {
     pub(crate) fn cleanup_orphaned_entries() {
-        // extra cleanup procedure
-        {
-            let graphs_to_visit = {
-                let graph_locator = crate::runtime::graph::STATE.lock();
-                let graph_locator = graph_locator.as_ref().unwrap();
-                let mut graphs_to_visit = HashMap::new();
-                for (_node_id, graph) in &graph_locator.graphs {
-                    graphs_to_visit
-                        .entry(graph.origin)
-                        .or_insert_with(|| Arc::clone(graph));
-                }
-                graphs_to_visit
-            };
-
-            let mut cleaner = crate::runtime::graph::GraphCleaner::init();
-            for (_graph_origin, graph) in graphs_to_visit {
-                let mut state = graph.state.lock();
-                let server = &mut state.server;
-                server
-                    .memory_management
-                    .free_unavailable_nodes(|node_id: &NodeId| {
-                        server.steps.remove(node_id);
-                        server.actions_builder.remove(node_id);
-                        cleaner.clean(node_id);
-                    });
-            }
-            drop(cleaner);
-        }
-
         let graphs = {
             // Get the available graphs and release the lock
             match STATE.lock().as_ref() {
