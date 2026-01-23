@@ -1,5 +1,5 @@
 use super::{ConvOptions, UnfoldOptions};
-use crate::tensor::FloatTensor;
+use crate::tensor::{Device, FloatTensor};
 use crate::{Backend, TensorData, TensorMetadata, element::ElementConversion};
 use alloc::vec;
 use alloc::vec::Vec;
@@ -16,7 +16,7 @@ use burn_std::Shape;
 pub(crate) fn create_unfolding_weight<B: Backend>(
     in_channels: usize,
     kernel_size: [usize; 2],
-    device: &B::Device,
+    device: &Device<B>,
 ) -> FloatTensor<B> {
     let shape = Shape::new([
         in_channels * kernel_size[0] * kernel_size[1],

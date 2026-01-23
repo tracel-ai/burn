@@ -1191,9 +1191,11 @@ dependencies = [
  "burn-std",
  "colored 3.0.0",
  "derive-new",
+ "hashbrown 0.16.1",
  "num-traits",
- "paste",
  "serde",
+ "serial_test",
+ "spin",
 ]
 
 [[package]]
