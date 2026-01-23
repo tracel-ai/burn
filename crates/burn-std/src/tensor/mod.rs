@@ -148,8 +148,10 @@ pub fn split_strides(shape: &[usize], strides: &[usize], shape_new: &[usize]) ->
     for (i, dim) in shape_new.iter().enumerate().rev() {
         dim_prod *= *dim;
         strides_new[i] = current_stride;
-        if dim_prod == shape[old_idx] {
-            old_idx -= 1;
+        if *dim == 1 {
+            continue;
+        } else if dim_prod == shape[old_idx] {
+            old_idx = old_idx.saturating_sub(1);
             current_stride = strides[old_idx];
             dim_prod = 1;
         } else {
@@ -195,7 +197,13 @@ pub fn reshape_analysis(
                 let mut old_idx = 0;
                 for dim in shape_new {
                     dim_prod *= *dim;
-                    if dim_prod == shape[old_idx] {
+
+                    // We need to ignore unit dims because they don't affect analysis and break
+                    // things because they match the default `dim_prod`. If we don't do this,
+                    // reshapes like [2, 3] to [2, 3, 1] will panic from out of bounds access.
+                    if *dim == 1 {
+                        continue;
+                    } else if dim_prod == shape[old_idx] {
                         dim_prod = 1;
                         old_idx += 1;
                     } else if dim_prod > shape[old_idx] {
