@@ -420,14 +420,7 @@ pub fn reduce_kernel<In: Numeric, Out: Numeric, Acc: Numeric>(
     #[define(Out)] _output_dtype: StorageType,
     #[define(Acc)] _acc_dtype: StorageType,
 ) {
-    let (input, mut output, out_layout) = init_tensors::<FusedReduceArgs, In, Out>(input, output);
+    let (input, mut output) = init_tensors::<FusedReduceArgs, In, Out>(input, output);
 
-    reduce_kernel_virtual::<In, Out, Acc>(
-        &input,
-        &mut output,
-        out_layout,
-        axis_reduce,
-        blueprint,
-        config,
-    );
+    reduce_kernel_virtual::<In, Out, Acc>(&input, &mut output, axis_reduce, blueprint, config);
 }

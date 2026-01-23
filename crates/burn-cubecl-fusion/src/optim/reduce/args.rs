@@ -3,10 +3,7 @@ use crate::engine::codegen::{
     ir::{FuseArg, FuseBlockConfig, GlobalArgs, GlobalArgsExpand, LocalArgs, LocalArgsExpand},
     kernel::{fuse_on_read, fuse_on_write, init_locals},
 };
-use cubecl::{
-    prelude::*,
-    std::tensor::layout::{linear::LinearLayout, plain::PlainLayout},
-};
+use cubecl::prelude::*;
 use cubek::reduce::components::args::{ReduceArgs, ReduceDType};
 
 #[derive(Clone)]
@@ -171,10 +168,6 @@ impl ReduceArgs for FusedReduceArgs {
 
     fn line_size_output<P: ReduceDType>(state: &Self::State<P>) -> comptime_type!(LineSize) {
         ref_line_size(unsafe { &(*state.locals_on_write) })
-    }
-
-    fn out_layout<P: ReduceDType>(state: &Self::State<P>) -> LinearLayout {
-        LinearLayout::new_Plain(PlainLayout::new(Self::len_output::<P>(state)))
     }
 }
 

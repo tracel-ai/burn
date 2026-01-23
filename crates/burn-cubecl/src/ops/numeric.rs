@@ -11,9 +11,12 @@ use crate::{
     ops::max_line_size,
 };
 use burn_backend::{DType, Shape};
-use cubecl::std::{FastDivmod, tensor::layout::linear::LinearView};
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 use cubecl::{client::ComputeClient, server::Allocation};
+use cubecl::{
+    server::AllocationDescriptor,
+    std::{FastDivmod, tensor::layout::linear::LinearView},
+};
 
 /// Creates a tensor filled with `value`
 pub fn full<R: CubeRuntime, E: CubeElement>(
@@ -133,6 +136,19 @@ pub fn empty_device_dtype<R: CubeRuntime>(
     dtype: DType,
 ) -> CubeTensor<R> {
     let Allocation { handle, strides } = client.empty_tensor(&shape.dims, dtype.size());
+
+    CubeTensor::new(client, handle, shape, device, strides, dtype)
+}
+
+/// Create a contiguous tensor with uninitialized memory
+pub fn empty_device_contiguous_dtype<R: CubeRuntime>(
+    client: ComputeClient<R>,
+    device: R::Device,
+    shape: Shape,
+    dtype: DType,
+) -> CubeTensor<R> {
+    let descriptor = AllocationDescriptor::contiguous(&shape.dims, dtype.size());
+    let Allocation { handle, strides } = client.empty_tensors(vec![descriptor]).remove(0);
 
     CubeTensor::new(client, handle, shape, device, strides, dtype)
 }

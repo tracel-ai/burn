@@ -2,7 +2,7 @@
 use super::{autotune_reduce, autotune_sum};
 use crate::{
     CubeRuntime,
-    ops::numeric::{empty_device_dtype, zeros_client},
+    ops::numeric::{empty_device_contiguous_dtype, zeros_client},
     tensor::CubeTensor,
 };
 use burn_backend::{DType, Shape};
@@ -209,7 +209,7 @@ pub fn init_reduce_output<Run: CubeRuntime>(
     (dim < input.shape.num_dims()).then(|| {
         let mut shape_out = input.shape.clone();
         shape_out.dims[dim] = 1;
-        empty_device_dtype(
+        empty_device_contiguous_dtype(
             input.client.clone(),
             input.device.clone(),
             shape_out,
