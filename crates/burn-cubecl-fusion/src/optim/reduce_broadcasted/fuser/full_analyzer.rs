@@ -127,6 +127,7 @@ impl AnalysisState {
                     {
                         self.block_data.push((potential.clone(), *block_pos));
                     }
+
                     // Can reuse the read.
                     self.current_full.push(potential.clone());
                 }

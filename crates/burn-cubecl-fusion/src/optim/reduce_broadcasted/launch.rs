@@ -86,6 +86,10 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceBroadcastedLaunch<'_> {
             )
             .unwrap();
 
+
+        assert_eq!(blueprint.line_mode, LineMode::Parallel);
+        panic!("{} - {:?}", self.reduce_axis, shape);
+
         let mut blocks = SequenceArg::new();
         let mut index = 0;
 
@@ -111,6 +115,8 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceBroadcastedLaunch<'_> {
             )),
             false => CubeOptionArgs::None,
         };
+
+        // TODO: Ensure parallel is selected.
 
         unsafe {
             reduce_br_kernel::launch_unchecked::<R>(
