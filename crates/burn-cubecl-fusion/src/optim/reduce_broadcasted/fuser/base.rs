@@ -60,6 +60,7 @@ impl<R: Runtime> ReduceBroadcastedFuser<R> {
 
 impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceBroadcastedFuser<R> {
     fn fuse(&mut self, operation: &OperationIr) {
+        println!("{operation:?}");
         if let ReduceBroadcastedStatus::Closed = &self.state {
             return;
         }
@@ -76,6 +77,7 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceBroadcastedFuser<
             }
             ReduceBlockFusionAnalysis::Refuse => {
                 self.state = ReduceBroadcastedStatus::Closed;
+                println!("Closing");
                 return;
             }
             ReduceBlockFusionAnalysis::NewBlockRequired => {
@@ -113,14 +115,17 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceBroadcastedFuser<
             .map(|block| block.finish(&mut num_ops, &mut full))
             .collect::<Vec<_>>();
 
-        let info_br = Arc::new(full.finish());
         println!("+++++++++++++++===");
         for b in self.blocks.iter() {
+            println!("Block: {} ops", b.ops.len());
             for o in b.ops.iter() {
                 println!("{o:?}")
             }
         }
         println!("+++++++++++++++===");
+        let info_br = Arc::new(full.finish());
+        println!("{}", info_br.trace);
+
         let info = Arc::new(ReduceBroadcastedOptimizationInfo { fallbacks, info_br });
         CubeOptimization::ReduceBroadcasted(ReduceBroadcastedOptimization { info, num_ops })
     }

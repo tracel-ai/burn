@@ -1,14 +1,14 @@
-use burn_std::DType;
-use burn_std::quantization::{QuantScheme, QuantStore, QuantValue};
-use burn_std::{bf16, f16};
-use cubecl::ir::{ElemType, FloatKind, IntKind, StorageType, UIntKind};
-use cubecl::prelude::*;
-use serde::{Deserialize, Serialize};
-
-use crate::engine::codegen::DYN_ELEM_ID;
-use crate::engine::trace::block::LocalInput;
-
 use super::tensor::GlobalTensor;
+use crate::engine::codegen::DYN_ELEM_ID;
+use burn_std::{
+    DType, bf16, f16,
+    quantization::{QuantScheme, QuantStore, QuantValue},
+};
+use cubecl::{
+    ir::{ElemType, FloatKind, IntKind, StorageType, UIntKind},
+    prelude::*,
+};
+use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
 /// Argument to a [fuse operation](FuseOp).

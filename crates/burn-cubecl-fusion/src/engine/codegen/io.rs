@@ -43,9 +43,6 @@ pub fn read<C: CubePrimitive>(
     #[comptime] arg: FuseArg,
     #[comptime] config: &FuseBlockConfig,
 ) -> Line<C> {
-    comptime! {
-        println!("Reading {arg:?}");
-    };
     match arg {
         FuseArg::Input(pos, _precision, layout) => {
             let global = inputs.tensors.index(pos);
@@ -433,10 +430,6 @@ pub fn write<C: CubePrimitive>(
     #[comptime] arg: FuseArg,
     #[comptime] config: &FuseBlockConfig,
 ) {
-    comptime! {
-        println!("Writing {arg:?}");
-    };
-
     match arg {
         FuseArg::Output(pos, precision, layout) => {
             let tensor = outputs.tensors.index(pos);

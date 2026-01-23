@@ -56,17 +56,21 @@ impl<R: Runtime> ReduceFuser<R> {
         let props = client.properties();
         let max_bindings = props.hardware.max_bindings;
         let settings_read = FuseSettings {
+            output_shape_updates: true,
             inplace: false,
             ref_layout: RefLayoutSetting::OnlyContiguous,
             vectorization: VectorizationSetting::Deactivated,
-            ..Default::default()
+            broadcast: true,
+            // ..Default::default()
         };
         let settings_write = FuseSettings {
             output_shape_updates: false,
             inplace: false,
+            broadcast: false,
+            ref_layout: RefLayoutSetting::OnlyContiguous,
             // TODO: Fusion axis should be on the reduce_axis - 1.
             vectorization: VectorizationSetting::SmallerOrEqualThanPreviousBlock { block_pos: 0 },
-            ..Default::default()
+            // ..Default::default()
         };
         let settings_fallback = FuseSettings::default();
 
@@ -107,7 +111,9 @@ impl<R: Runtime> ReduceFuser<R> {
         }
     }
     fn on_reduce(&mut self, op: &ReduceDimOpIr, inst: ReduceInstruction) {
-        if self.fuser.current_output_shape != op.input.shape.dims {
+        if self.fuser.num_ops == 0 {
+            self.fuser.current_output_shape = op.input.shape.dims.clone();
+        } else if self.fuser.current_output_shape != op.input.shape.dims {
             self.fuser.close();
             self.fuser_read_fallback.close();
             return;

@@ -163,6 +163,9 @@ pub struct FuseResources {
     pub outputs_unhandled: Vec<FuseArg>,
     pub num_reshaped: usize,
     pub dropped: HashSet<TensorId>,
+    /// We know during fusion that we have to have those buffers has global.
+    /// The pos here can be interpreted as GLOBAL pos where the output pos are locals.
+    pub buffers: RegisteredTensors,
 }
 
 #[derive(Debug)]
@@ -304,7 +307,7 @@ impl RegisteredTensors {
     /// Insert a normal tensor with the given [precision](FusePrecision) in the current block.
     pub fn insert(&mut self, precision: FuseType, tensor: TensorIr) -> usize {
         if let Some(old) = self.tensors.iter().enumerate().find(|(_, val)| match &val {
-            RegisterTensor::Normal(tensor_ir, _) => tensor_ir == &tensor,
+            RegisterTensor::Normal(tensor_ir, _) => tensor_ir.id == tensor.id,
             _ => false,
         }) {
             return old.0;

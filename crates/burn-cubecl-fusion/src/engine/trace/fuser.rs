@@ -258,8 +258,13 @@ impl TraceFuser {
     /// Finish fusing and returns the created trace.
     pub fn finish(&self, shape_ref: Vec<usize>) -> FuseTrace {
         let mut resources = self.resources.clone();
-        println!("{resources:?}");
         let mut outputs = RegisteredTensors::default();
+
+        for tensor in resources.buffers.iter() {
+            let (tensor, ty) = tensor.as_normal_tensor().unwrap();
+            outputs.insert(ty.clone(), tensor.clone());
+        }
+
         let mut blocks = Vec::new();
 
         let mut register_block =

@@ -128,15 +128,12 @@ fn reduce_many(
         );
     }
 
-    let global_index = ABSOLUTE_POS;
-
     match block_end {
         CubeOption::Some(block) => {
-            comptime! {
-                println!("Compiling block end");
-            };
+            let global_index = ABSOLUTE_POS;
             let width = comptime!(block.config.width as u32);
             let num_iter = axis_size / usize::cast_from(width);
+
             for i in 0..num_iter {
                 // Register block local inputs.
                 let values = Registry::<FuseArg, Line<f32>>::new();

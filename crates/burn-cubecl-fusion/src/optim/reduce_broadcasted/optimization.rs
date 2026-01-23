@@ -29,6 +29,7 @@ pub(crate) struct ReduceBroadcastedOptimizationInfo<R: Runtime> {
     pub(crate) info_br: Arc<ReduceBrInfo>,
 }
 
+#[derive(Debug)]
 pub(crate) struct ReduceBrInfo {
     pub(crate) blocks: Vec<ReduceBrFuseBlock>,
     pub(crate) trace: FuseTrace,
@@ -78,17 +79,13 @@ impl<R: Runtime> ReduceBroadcastedOptimizationTuneArg<R> {
         context: &mut Context<'_, CubeFusionHandle<R>>,
         strategy: RoutineStrategy,
     ) -> Result<TuneOutput<R>, TraceError<String>> {
-        println!("======== Execute fused.");
-
         let launch = FusedReduceBroadcastedLaunch::new(
             &self.info_br.blocks,
             self.info_br.reduce_axis,
             strategy,
         );
-        println!("======== Execute fused 1.");
         let launcher = FuseTraceLauncher::new(&self.info_br.trace, &launch);
 
-        println!("======== Execute fused 2.");
         launcher
             .launch::<BT>(&self.client, &self.device, context)
             .map_err(|err| TraceError::RunnerError(format!("{:?}", err)))
@@ -98,8 +95,6 @@ impl<R: Runtime> ReduceBroadcastedOptimizationTuneArg<R> {
         &self,
         context: &mut Context<'_, CubeFusionHandle<R>>,
     ) {
-        println!("========= Execute fallbacks.");
-
         for fallback in self.fallbacks.iter() {
             fallback.execute_fallback::<BT>(context);
         }

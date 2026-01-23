@@ -622,6 +622,7 @@ impl TraceOperationFuser {
         self.fuser.fuse(|build| {
             let lhs = build.input(&desc.lhs)?;
             let rhs = build.input(&desc.rhs)?;
+            println!("OUTPUT");
             let out = build.output(&desc.out)?;
 
             build.fuse_operation(func(lhs, rhs, out));
