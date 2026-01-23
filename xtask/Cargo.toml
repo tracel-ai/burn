@@ -1,6 +1,6 @@
 [package]
 name = "xtask"
-version = "4.9.0"
+version = "4.9.1"
 edition.workspace = true
 license = "MIT OR Apache-2.0"
 

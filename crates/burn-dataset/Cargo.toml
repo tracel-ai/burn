@@ -40,7 +40,7 @@ __sqlite-shared = [
 dataframe = ["dep:polars", "dep:planus"]
 
 [dependencies]
-burn-std = { path = "../burn-std", version = "=0.20.0", optional = true, features = [
+burn-std = { path = "../burn-std", version = "0.20.1", optional = true, features = [
     "network",
 ] }
 csv = { workspace = true }

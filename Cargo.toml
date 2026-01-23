@@ -24,7 +24,7 @@ exclude = [
 edition = "2024"
 license = "MIT OR Apache-2.0"
 readme = "README.md"
-version = "0.20.0"
+version = "0.20.1"
 
 [workspace.lints.clippy]
 
@@ -188,12 +188,12 @@ portable-atomic-util = { version = "0.2.4", features = ["alloc"] }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }
 # cubek = { path = "../cubek/crates/cubek", default-features = false }
 ### For the release. ###
-cubecl = { version = "=0.9.0", default-features = false }
-cubecl-common = { version = "=0.9.0", default-features = false }
-cubek = { version = "=0.1.0", default-features = false }
+cubecl = { version = "0.9.0", default-features = false }
+cubecl-common = { version = "0.9.0", default-features = false }
+cubek = { version = "0.1.1", default-features = false }
 
 ### For xtask crate ###
-tracel-xtask = "=4.9.0"
+tracel-xtask = "4.9.0"
 # ### For local development. ###
 # tracel-xtask = { path = "../xtask/crates/tracel-xtask", default-features = false }
 
