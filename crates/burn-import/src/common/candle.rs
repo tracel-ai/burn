@@ -9,11 +9,10 @@ use burn::record::serde::{
 use burn::{
     module::ParamId,
     record::PrecisionSettings,
-    tensor::{Element, ElementConversion, TensorData},
+    tensor::{Element, ElementConversion, TensorData, bf16, f16},
 };
 
 use candle_core::WithDType;
-use half::{bf16, f16};
 use serde::Serialize;
 
 use burn::record::RecorderError;

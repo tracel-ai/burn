@@ -41,4 +41,4 @@ getrandom = { version = "0.3.3", default-features = false, features = [
 
 [build-dependencies]
 # Used to generate code from ONNX model
-burn-import = { path = "../../crates/burn-import", default-features = false, features = ["onnx"]}
+burn-onnx = { path = "../../crates/burn-onnx", default-features = false }

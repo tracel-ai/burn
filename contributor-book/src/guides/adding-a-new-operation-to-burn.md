@@ -8,13 +8,14 @@ operator added in [this PR](https://github.com/tracel-ai/burn/pull/1133/files).
 `burn-tensor` is the crate that defines all tensor operations that need to be implemented by the
 various backends. The core of this lies in
 [crates/burn-backend/src/tensor/ops/numeric.rs](https://github.com/tracel-ai/burn/blob/9f31281/crates/burn-backend/src/tensor/ops/numeric.rs#L17),
-which is home to the numeric trait. The numeric trait is the home of all tensor operations that are numeric in nature and that are shared by
-`Int` and `Float` Tensor types. The numeric trait is implemented in 
-[crates/burn-backend/src/tensor/ops/int.rs](https://github.com/tracel-ai/burn/blob/9f31281/crates/burn-backend/src/tensor/ops/int.rs) for the int type 
-and in [crates/burn-backend/src/tensor/ops/float.rs](https://github.com/tracel-ai/burn/blob/9f31281/crates/burn-backend/src/tensor/ops/float.rs)
-for the float type. 
-More information on the relationship between Tensor modules can be
-found under the section for [Tensor Architecture](../project-architecture/tensor.md#tensor-operations).
+which is home to the numeric trait. The numeric trait is the home of all tensor operations that are
+numeric in nature and that are shared by `Int` and `Float` Tensor types. The numeric trait is
+implemented in
+[crates/burn-backend/src/tensor/ops/int.rs](https://github.com/tracel-ai/burn/blob/9f31281/crates/burn-backend/src/tensor/ops/int.rs)
+for the int type and in
+[crates/burn-backend/src/tensor/ops/float.rs](https://github.com/tracel-ai/burn/blob/9f31281/crates/burn-backend/src/tensor/ops/float.rs)
+for the float type. More information on the relationship between Tensor modules can be found under
+the section for [Tensor Architecture](../project-architecture/tensor.md#tensor-operations).
 
 Here is where pow was added to `crates/burn-tensor/src/tensor/api/numeric.rs`:
 
@@ -68,20 +69,21 @@ implementations when required/desired.
 
 Additional tests should be added to `burn-backend-tests` under
 [`crates/burn-backend-tests/tests/tensor/{float_or_int}/ops/{op_name}.rs`](https://github.com/tracel-ai/burn/blob/9f31281/crates/burn-backend-tests/tests/tensor/float/ops/powf.rs),
-and the module name should be inserted into `crates/burn-backend-tests/tests/tensor/{float_or_int}/ops/mod.rs`.
+and the module name should be inserted into
+`crates/burn-backend-tests/tests/tensor/{float_or_int}/ops/mod.rs`.
 
 If it makes sense for a floating point operation to support quantization, the
 [`QTensorOps`](https://github.com/tracel-ai/burn/blob/9f31281/crates/burn-backend/src/backend/ops/qtensor.rs#L117)
 counterpart is usually added at the same time with a default implementation (as mentioned in the
 previous section). Tests for `q_*` ops follow a similar procedure: the test is added under
 [`crates/burn-backend-tests/tests/tensor/float/quantization/ops/extended/{op_name}.rs`](https://github.com/tracel-ai/burn/tree/9f31281/crates/burn-backend-tests/tests/tensor/float/quantization/ops/extended),
-the module name is inserted into [`crates/burn-backend-tests/tests/tensor/float/quantization/ops/extended/mod.rs`](https://github.com/tracel-ai/burn/blob/9f31281/crates/burn-backend-tests/tests/tensor/float/quantization/ops/extended/mod.rs).
-If you take a look at any of the existing tests for an operation on a quantized tensor,
-you will see that the inputs and expected outputs are always defined with floating point values.
-While it assumes that the quantization and dequantization are correct, it makes the tests much more
-readable and easier to understand w.r.t. what is being tested. Effectively, the tests are there to
-ensure that a tensor operation is invariant to quantization (up to some quantization error, of
-course).
+the module name is inserted into
+[`crates/burn-backend-tests/tests/tensor/float/quantization/ops/extended/mod.rs`](https://github.com/tracel-ai/burn/blob/9f31281/crates/burn-backend-tests/tests/tensor/float/quantization/ops/extended/mod.rs).
+If you take a look at any of the existing tests for an operation on a quantized tensor, you will see
+that the inputs and expected outputs are always defined with floating point values. While it assumes
+that the quantization and dequantization are correct, it makes the tests much more readable and
+easier to understand w.r.t. what is being tested. Effectively, the tests are there to ensure that a
+tensor operation is invariant to quantization (up to some quantization error, of course).
 
 _Note: the tests try to use tensors with floating point values which can be de/quantized without
 introducing too much quantization error, but the result always depends on the operation (e.g.,
@@ -189,8 +191,8 @@ Here's how powf was added to `burn-fusion`:
 
 The way `cubecl` handles tensor-scalar operations is by transforming both into a sequence of
 vectorized scalar operations. Since powf already existed in `cubecl`, it was pretty easy to reuse
-the existing implementation for the situation where both sides of the operation were tensors. The `cubecl` crate is 
-primarily concerned with how the operation is compiled and executed by the gpu.
+the existing implementation for the situation where both sides of the operation were tensors. The
+`cubecl` crate is primarily concerned with how the operation is compiled and executed by the gpu.
 The actual implementation is defined in `burn-cubecl`.
 
 Here is where code was added for powf in `burn-cubecl` and `cubecl`:
@@ -228,38 +230,6 @@ unless the operation isn't native to WGSL.
 For functions that need a complex kernel without a direct mapping to a base instruction, simply use
 the `cube` macro (see
 [the `cubecl` book](https://github.com/tracel-ai/cubecl/tree/88c0c6f781f70ad2f6e9981fd0cbe2e87e153a35/cubecl-book)).
-
-## Adding the Op to burn-import
-
-Generating the ONNX test files or tests is already covered
-[in the ONNX to burn guide](onnx-to-burn-conversion-tool.md#adding-new-operators); this is more
-about the specific changes you need to make when adding new operators after you have generated the
-tests.
-
-Changes will need to be made to both `onnx-ir` and `burn-import`. The code within `onnx-ir` defines
-how to parse the nodes in an onnx file and produces the intermediate representation. The code within
-`burn-import` is divided into two sections: `src/onnx` and `src/burn`. The code under the former
-maps that intermediate representation to one used for code generation and the latter defines how to
-generate code for the operator you've implemented earlier in this guide.
-
-So when you are loading a model, the operator is first parsed to an intermediate representation
-defined by `burn-import` and then mapped to a Burn operation defined under `src/burn/node`; the
-mapping from onnx to burn is aptly defined in `src/onnx/to_burn`
-
-Let's review the changes made for powf starting from `src/burn` and moving to `src/onnx`:
-
-1. Determine the type of operator and add your operator to the appropriate node (operation) type, in
-   this case
-   [BinaryNode under `crates/burn-import/src/burn/node/binary.rs`](https://github.com/tracel-ai/burn/blob/925716f89d0249cbc6bd14f85f40967bd7ef80a8/crates/burn-import/src/burn/node/binary.rs#L173)
-   along with its
-   [`as_str` definition](https://github.com/tracel-ai/burn/blob/925716f89d0249cbc6bd14f85f40967bd7ef80a8/crates/burn-import/src/burn/node/binary.rs#L15)
-2. Add an arm to the match statement inside the `into_burn` function in
-   [crates/burn-import/src/onnx/to_burn.rs](https://github.com/tracel-ai/burn/blob/925716f89d0249cbc6bd14f85f40967bd7ef80a8/crates/burn-import/src/onnx/to_burn.rs#L349)
-   for the ONNX `NodeType` (which corresponds to an op in the ONNX spec), and make an
-   [`{op}_conversion` function](https://github.com/tracel-ai/burn/blob/925716f89d0249cbc6bd14f85f40967bd7ef80a8/crates/burn-import/src/onnx/to_burn.rs#L1238)
-   that maps the ONNX node to the binary type
-3. Specify how dimensions for the output should be derived in
-   [crates/onnx-ir/src/rank_inference.rs](https://github.com/tracel-ai/burn/blob/925716f89d0249cbc6bd14f85f40967bd7ef80a8/crates/onnx-ir/src/rank_inference.rs#L64)
 
 And you're done! Congrats, you just fully added a new operation to burn, and we are all one step
 closer to the answer to [Are we learning yet?](https://www.arewelearningyet.com/) being "Yes, and

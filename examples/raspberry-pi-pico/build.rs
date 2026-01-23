@@ -8,7 +8,7 @@
 //! updating `memory.x` ensures a rebuild of the application with the
 //! new memory settings.
 
-use burn_import::onnx::ModelGen;
+use burn_onnx::ModelGen;
 use std::env;
 use std::fs::File;
 use std::io::Write;

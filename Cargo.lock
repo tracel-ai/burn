@@ -958,25 +958,14 @@ version = "0.21.0"
 dependencies = [
  "burn",
  "burn-ndarray",
+ "burn-onnx",
  "burn-store",
  "candle-core",
  "derive-new",
- "half",
- "insta",
- "log",
- "onnx-ir",
- "pretty_assertions",
- "proc-macro2",
- "quote",
  "regex",
- "rstest",
- "rust-format",
  "serde",
  "serde_json",
- "syn 2.0.114",
  "thiserror 2.0.18",
- "tracing-core",
- "tracing-subscriber",
  "zip 7.2.0",
 ]
 
@@ -1042,6 +1031,25 @@ dependencies = [
  "burn",
  "burn-ndarray",
  "burn-store",
+]
+
+[[package]]
+name = "burn-onnx"
+version = "0.21.0"
+dependencies = [
+ "burn",
+ "burn-ndarray",
+ "burn-store",
+ "derive-new",
+ "insta",
+ "log",
+ "onnx-ir",
+ "proc-macro2",
+ "quote",
+ "rust-format",
+ "syn 2.0.114",
+ "tracing-core",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -1436,9 +1444,9 @@ dependencies = [
 
 [[package]]
 name = "cc"
-version = "1.2.53"
+version = "1.2.54"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "755d2fce177175ffca841e9a06afdb2c4ab0f593d53b4dee48147dfaade85932"
+checksum = "6354c81bbfd62d9cfa9cb3c773c2b7b2a3a482d569de977fd0e961f6e7c00583"
 dependencies = [
  "find-msvc-tools",
  "jobserver",
@@ -2170,7 +2178,7 @@ dependencies = [
  "cubecl-core",
  "cubecl-cpp",
  "cubecl-runtime",
- "cudarc 0.18.2",
+ "cudarc 0.19.0",
  "derive-new",
  "half",
  "log",
@@ -2217,6 +2225,7 @@ dependencies = [
  "enumset",
  "float-ord",
  "fnv",
+ "foldhash 0.1.5",
  "half",
  "hashbrown 0.15.5",
  "num-traits",
@@ -2305,6 +2314,7 @@ dependencies = [
  "cubecl-runtime",
  "half",
  "hashbrown 0.15.5",
+ "serde",
  "tracel-rspirv",
 ]
 
@@ -2450,9 +2460,9 @@ dependencies = [
 
 [[package]]
 name = "cudarc"
-version = "0.18.2"
+version = "0.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3aa12038120eb13347a6ae2ffab1d34efe78150125108627fd85044dd4d6ff1e"
+checksum = "4d5be1e9776a20360ca270df637b391c85d48ea57508140f30a4e8f6da91884a"
 dependencies = [
  "libloading",
 ]
@@ -4513,7 +4523,7 @@ version = "0.21.0"
 dependencies = [
  "burn",
  "burn-candle",
- "burn-import",
+ "burn-onnx",
  "burn-store",
  "console_error_panic_hook",
  "getrandom 0.3.4",
@@ -5802,7 +5812,7 @@ name = "onnx-inference"
 version = "0.21.0"
 dependencies = [
  "burn",
- "burn-import",
+ "burn-onnx",
  "burn-store",
  "serde",
 ]
@@ -5844,7 +5854,7 @@ name = "onnx-tests"
 version = "0.21.0"
 dependencies = [
  "burn",
- "burn-import",
+ "burn-onnx",
  "burn-store",
  "float-cmp",
  "serde",
@@ -5910,9 +5920,9 @@ checksum = "d05e27ee213611ffe7d6348b942e8f942b37114c00cc03cec254295a4a17852e"
 
 [[package]]
 name = "openssl-probe"
-version = "0.2.0"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9f50d9b3dabb09ecd771ad0aa242ca6894994c130308ca3d7684634df8037391"
+checksum = "7c87def4c32ab89d880effc9e097653c8da5d6ef28e6b539d313baaacfbafcbe"
 
 [[package]]
 name = "openssl-sys"
@@ -6919,9 +6929,9 @@ dependencies = [
 
 [[package]]
 name = "proc-macro2"
-version = "1.0.105"
+version = "1.0.106"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "535d180e0ecab6268a3e718bb9fd44db66bbbc256257165fc699dadf70d16fe7"
+checksum = "8fd00f0bb2e90d81d1044c2b32617f68fcb9fa3bb7640c23e9c748e53fb30934"
 dependencies = [
  "unicode-ident",
 ]
@@ -7159,9 +7169,9 @@ dependencies = [
 
 [[package]]
 name = "quote"
-version = "1.0.43"
+version = "1.0.44"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dc74d9a594b72ae6656596548f56f667211f8a97b3d4c3d467150794690dc40a"
+checksum = "21b2ebcf727b7760c461f091f9f0f539b77b8e87f2fd88131e7f1b433b3cece4"
 dependencies = [
  "proc-macro2",
 ]
@@ -7787,7 +7797,7 @@ version = "0.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "612460d5f7bea540c490b2b6395d8e34a953e52b491accd6c86c8164c5932a63"
 dependencies = [
- "openssl-probe 0.2.0",
+ "openssl-probe 0.2.1",
  "rustls-pki-types",
  "schannel",
  "security-framework 3.5.1",
@@ -8291,9 +8301,9 @@ checksum = "67b1b7a3b5fe4f1376887184045fcf45c69e92af734b7aaddc05fb777b6fbd03"
 
 [[package]]
 name = "socket2"
-version = "0.6.1"
+version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "17129e116933cf371d018bb80ae557e889637989d8638274fb25622827b03881"
+checksum = "86f4aa3ad99f2088c990dfa82d367e19cb29268ed67c574d10d0a4bfe71f07e0"
 dependencies = [
  "libc",
  "windows-sys 0.60.2",
@@ -9223,6 +9233,7 @@ checksum = "c142cfe863e8082bec205dd283a467d0399e9bda2ee65b51391cdc3458d132b2"
 dependencies = [
  "bitflags 2.10.0",
  "rustc-hash 2.1.1",
+ "serde",
 ]
 
 [[package]]
@@ -9418,9 +9429,9 @@ checksum = "6af6ae20167a9ece4bcb41af5b80f8a1f1df981f6391189ce00fd257af04126a"
 
 [[package]]
 name = "typed-path"
-version = "0.12.0"
+version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7922f2cdc51280d47b491af9eafc41eb0cdab85eabcb390c854412fcbf26dbe8"
+checksum = "e43ffa54726cdc9ea78392023ffe9fe9cf9ac779e1c6fcb0d23f9862e3879d20"
 
 [[package]]
 name = "typenum"

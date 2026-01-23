@@ -64,7 +64,7 @@ ONNX-IR exposes a clean public API with three main components:
 
 ## Usage
 
-ONNX-IR is typically used through the `burn-import` crate, but can also be used standalone:
+ONNX-IR is typically used through the `burn-onnx` crate, but can also be used standalone:
 
 ```rust
 use onnx_ir::{OnnxGraphBuilder, OnnxGraph, Node};
@@ -106,7 +106,7 @@ for node in &graph.nodes {
 use onnx_ir::node::{SoftmaxConfig, Conv2dConfig};
 
 // Convert to another framework's representation
-// (This is typically done by burn-import or another conversion layer)
+// (This is typically done by burn-onnx or another conversion layer)
 ```
 
 ## Memory-Mapped Loading
@@ -166,8 +166,8 @@ To add support for a new ONNX operator:
 
 - **Supported ONNX Operators**: For a full list of currently supported ONNX operators, please see
   the
-  [Supported ONNX Operators table](https://github.com/tracel-ai/burn/blob/main/crates/burn-import/SUPPORTED-ONNX-OPS.md).
+  [Supported ONNX Operators table](https://github.com/tracel-ai/burn/blob/main/crates/burn-onnx/SUPPORTED-ONNX-OPS.md).
 
 - **Burn Integration**: ONNX-IR serves as the foundation for the ONNX import support in Burn. The
   conversion from ONNX-IR to Burn graphs is implemented in
-  [`burn-import/src/onnx/to_burn.rs`](https://github.com/tracel-ai/burn/blob/main/crates/burn-import/src/onnx/to_burn.rs).
+  [`burn-onnx/src/burn/`](https://github.com/tracel-ai/burn/blob/main/crates/burn-onnx/src/burn/).

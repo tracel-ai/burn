@@ -1,5 +1,6 @@
 use crate::{
     CubeRuntime,
+    kernel::into_contiguous_aligned,
     ops::{numeric::empty_device_optimized_dtype, permute_nchw_to_nhwc, permute_nhwc_to_nchw},
     tensor::CubeTensor,
 };
@@ -24,7 +25,7 @@ pub fn interpolate<R: CubeRuntime>(
     let [batch_size, channels, _, _] = input.shape.dims();
     let [out_height, out_width] = output_size;
 
-    let input = permute_nchw_to_nhwc(input);
+    let input = into_contiguous_aligned(permute_nchw_to_nhwc(input));
 
     let shape_out = Shape::new([batch_size, out_height, out_width, channels]);
     let output = empty_device_optimized_dtype(

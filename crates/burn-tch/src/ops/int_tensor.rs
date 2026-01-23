@@ -1,7 +1,7 @@
 use std::ops::Range;
 
 use burn_backend::{
-    Backend, Distribution, ExecutionError, IntDType, Scalar, Shape, TensorData, TensorMetadata,
+    Distribution, ExecutionError, IntDType, Scalar, Shape, TensorData, TensorMetadata,
     ops::{FloatTensorOps, IntTensorOps},
     tensor::IntTensor,
 };
@@ -41,11 +41,7 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
         tensor.tensor.device().into()
     }
 
-    fn int_empty(
-        shape: Shape,
-        device: &<LibTorch<E> as Backend>::Device,
-        dtype: IntDType,
-    ) -> TchTensor {
+    fn int_empty(shape: Shape, device: &LibTorchDevice, dtype: IntDType) -> TchTensor {
         let tensor = tch::Tensor::empty(
             TchShape::from(shape).dims,
             (dtype.into_kind(), (*device).into()),
@@ -200,22 +196,14 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
         )
     }
 
-    fn int_zeros(
-        shape: Shape,
-        device: &<LibTorch<E> as Backend>::Device,
-        dtype: IntDType,
-    ) -> TchTensor {
+    fn int_zeros(shape: Shape, device: &LibTorchDevice, dtype: IntDType) -> TchTensor {
         let shape = TchShape::from(shape);
         let device: tch::Device = (*device).into();
 
         TchTensor::new(tch::Tensor::zeros(shape.dims, (dtype.into_kind(), device)))
     }
 
-    fn int_ones(
-        shape: Shape,
-        device: &<LibTorch<E> as Backend>::Device,
-        dtype: IntDType,
-    ) -> TchTensor {
+    fn int_ones(shape: Shape, device: &LibTorchDevice, dtype: IntDType) -> TchTensor {
         let shape = TchShape::from(shape);
         let device: tch::Device = (*device).into();
 
@@ -225,7 +213,7 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
     fn int_full(
         shape: Shape,
         fill_value: Scalar,
-        device: &<LibTorch<E> as Backend>::Device,
+        device: &LibTorchDevice,
         dtype: IntDType,
     ) -> TchTensor {
         let shape = TchShape::from(shape);
