@@ -7,11 +7,6 @@ pub trait DeviceOps: Clone + Default + PartialEq + Send + Sync + core::fmt::Debu
     fn id(&self) -> DeviceId {
         self.to_id()
     }
-
-    /// Returns the default policy used for tensor creation on this backend device.
-    fn default_policy(&self) -> DevicePolicy {
-        Default::default()
-    }
 }
 
 /// Policy controlling default device behavior.

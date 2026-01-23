@@ -74,7 +74,7 @@ impl<B: Backend> TensorCreationOptions<B> {
     pub(crate) fn resolve_policy(&self, dtype: DType) -> DType {
         // TODO: should rely on tensor kind, not element dtype
         self.dtype.unwrap_or_else(|| {
-            let policy = get_device_policy(&self.device);
+            let policy = get_device_policy::<B>(&self.device);
             if dtype.is_float() {
                 policy.float_dtype().into()
             } else if dtype.is_int() || dtype.is_uint() {

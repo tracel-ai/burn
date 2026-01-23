@@ -1,4 +1,6 @@
-use burn_backend::{Device, DeviceId, DeviceOps, DevicePolicy};
+pub use burn_backend::DevicePolicy;
+
+use burn_backend::{Backend, Device, DeviceId, DeviceOps, Element};
 use burn_std::stub::RwLock;
 use burn_std::{FloatDType, IntDType};
 
@@ -39,7 +41,12 @@ impl DevicePolicyRegistry {
     /// Get the policy for a physical device type and device id.
     ///
     /// If no policy exists yet, a default one is created and stored.
-    fn get<D: DeviceOps + 'static>(device: &D) -> Arc<DevicePolicy> {
+    fn get_or_default<D: DeviceOps>(
+        device: &D,
+        // TODO: remove default fn once we move away from default backend elem types, and devices
+        // might implement their own default policy
+        default_fn: impl FnOnce() -> DevicePolicy,
+    ) -> Arc<DevicePolicy> {
         let key = Self::key(device);
 
         if let Some(policy) = REGISTRY.read().unwrap().get(&key) {
@@ -47,24 +54,25 @@ impl DevicePolicyRegistry {
         }
 
         let mut map = REGISTRY.write().unwrap();
-        Arc::clone(
-            map.entry(key)
-                .or_insert_with(|| Arc::new(device.default_policy())),
-        )
+        Arc::clone(map.entry(key).or_insert_with(|| Arc::new(default_fn())))
     }
 
     /// Mutate the policy for a given device.
-    fn update<D: DeviceOps + 'static>(device: &D, f: impl FnOnce(&mut DevicePolicy)) {
+    fn update<D: DeviceOps>(
+        device: &D,
+        update_fn: impl FnOnce(&mut DevicePolicy),
+        // TODO: remove default fn once we move away from default backend elem types, and devices
+        // might implement their own default policy
+        default_fn: impl FnOnce() -> DevicePolicy,
+    ) {
         let key = Self::key(device);
         let mut map = REGISTRY.write().unwrap();
 
-        let policy = map
-            .entry(key)
-            .or_insert_with(|| Arc::new(device.default_policy()));
+        let policy = map.entry(key).or_insert_with(|| Arc::new(default_fn()));
 
         // Update the policy
         let policy_mut = Arc::make_mut(policy);
-        f(policy_mut);
+        update_fn(policy_mut);
     }
 
     /// Returns the device registry key.
@@ -78,12 +86,20 @@ impl DevicePolicyRegistry {
     }
 }
 
+/// Default backend device policy.
+/// Currently set to the backend's default float and int elem types for backward compat.
+fn default_policy<B: Backend>() -> DevicePolicy {
+    DevicePolicy::default()
+        .with_float_dtype(B::FloatElem::dtype())
+        .with_int_dtype(B::IntElem::dtype())
+}
+
 /// Get the [`device`'s policy](DevicePolicy).
 ///
 /// Returns an immutable snapshot of the device's current policy. If the policy
 /// is updated after retrieval, this snapshot will not reflect those changes.
-pub(crate) fn get_device_policy<D: DeviceOps>(device: &D) -> Arc<DevicePolicy> {
-    DevicePolicyRegistry::get(device)
+pub(crate) fn get_device_policy<B: Backend>(device: &B::Device) -> Arc<DevicePolicy> {
+    DevicePolicyRegistry::get_or_default(device, default_policy::<B>)
 }
 
 /// Sets the [`device`'s policy](DevicePolicy).
@@ -96,13 +112,13 @@ pub(crate) fn get_device_policy<D: DeviceOps>(device: &D) -> Arc<DevicePolicy> {
 ///
 /// ```rust
 /// use burn_tensor::backend::Backend;
-/// use burn_tensor::{DType, Int, Tensor};
+/// use burn_tensor::{DevicePolicy, DType, Int, Tensor};
 ///
 /// fn example<B: Backend>() {
 ///     let device = B::Device::default();
 ///     
 ///     // Update the device policy
-///     let policy = device.policy()
+///     let policy = DevicePolicy::default()
 ///         .with_float_dtype(FloatDType::F16)
 ///         .with_int_dtype(IntDType::I32);
 ///     set_device_policy(&device, policy);
@@ -113,13 +129,15 @@ pub(crate) fn get_device_policy<D: DeviceOps>(device: &D) -> Arc<DevicePolicy> {
 ///     let tensor = Tensor::<B, 2, Int>::zeros([2, 3], &device);
 /// }
 /// ```
-pub fn set_device_policy<D: DeviceOps>(device: &D, policy: impl Into<DevicePolicy>) {
-    let policy = policy.into();
-
-    DevicePolicyRegistry::update(device, |p| {
-        p.set_float_dtype(policy.float_dtype());
-        p.set_int_dtype(policy.int_dtype());
-    });
+pub fn set_device_policy<B: Backend>(device: &B::Device, policy: DevicePolicy) {
+    DevicePolicyRegistry::update(
+        device,
+        |p| {
+            p.set_float_dtype(policy.float_dtype());
+            p.set_int_dtype(policy.int_dtype());
+        },
+        default_policy::<B>,
+    );
 }
 
 /// Sets the default floating-point data type for the [device](DevicePolicy).
@@ -144,12 +162,16 @@ pub fn set_device_policy<D: DeviceOps>(device: &D, policy: impl Into<DevicePolic
 ///     let tensor = Tensor::<B, 2>::zeros([2, 3], &device);
 /// }
 /// ```
-pub fn set_default_float_dtype<D: DeviceOps>(device: &D, dtype: impl Into<FloatDType>) {
+pub fn set_default_float_dtype<B: Backend>(device: &B::Device, dtype: impl Into<FloatDType>) {
     let dtype = dtype.into();
 
-    DevicePolicyRegistry::update(device, |p| {
-        p.set_float_dtype(dtype);
-    });
+    DevicePolicyRegistry::update(
+        device,
+        |p| {
+            p.set_float_dtype(dtype);
+        },
+        default_policy::<B>,
+    );
 }
 
 /// Sets the default integer data type for the [device](DevicePolicy).
@@ -174,12 +196,16 @@ pub fn set_default_float_dtype<D: DeviceOps>(device: &D, dtype: impl Into<FloatD
 ///     let tensor = Tensor::<B, 2, Int>::zeros([2, 3], &device);
 /// }
 /// ```
-pub fn set_default_int_dtype<D: DeviceOps>(device: &D, dtype: impl Into<IntDType>) {
+pub fn set_default_int_dtype<B: Backend>(device: &B::Device, dtype: impl Into<IntDType>) {
     let dtype = dtype.into();
 
-    DevicePolicyRegistry::update(device, |p| {
-        p.set_int_dtype(dtype);
-    });
+    DevicePolicyRegistry::update(
+        device,
+        |p| {
+            p.set_int_dtype(dtype);
+        },
+        default_policy::<B>,
+    );
 }
 
 #[cfg(test)]
@@ -212,13 +238,7 @@ mod tests {
         }
     }
 
-    impl DeviceOps for TestDeviceA {
-        fn default_policy(&self) -> DevicePolicy {
-            DevicePolicy::default()
-                .with_float_dtype(FloatDType::F64)
-                .with_int_dtype(IntDType::I64)
-        }
-    }
+    impl DeviceOps for TestDeviceA {}
 
     #[derive(Clone, Debug, Default, PartialEq, new)]
     pub struct TestDeviceB {
@@ -246,15 +266,19 @@ mod tests {
 
     impl DeviceOps for TestDeviceB {}
 
-    #[test]
-    fn device_default_policy_is_overridden() {
-        let p1 = DevicePolicy::default();
-        assert_eq!(p1.float_dtype(), FloatDType::F32);
-        assert_eq!(p1.int_dtype(), IntDType::I32);
+    fn get_test_device_policy<D: DeviceOps>(device: &D) -> Arc<DevicePolicy> {
+        DevicePolicyRegistry::get_or_default(device, DevicePolicy::default)
+    }
 
-        let p2 = TestDeviceA::new(0).default_policy();
-        assert_eq!(p2.float_dtype(), FloatDType::F64);
-        assert_eq!(p2.int_dtype(), IntDType::I64);
+    fn set_test_device_policy<D: DeviceOps>(device: &D, policy: DevicePolicy) {
+        DevicePolicyRegistry::update(
+            device,
+            |p| {
+                p.set_float_dtype(policy.float_dtype());
+                p.set_int_dtype(policy.int_dtype());
+            },
+            DevicePolicy::default,
+        );
     }
 
     #[test]
@@ -264,14 +288,14 @@ mod tests {
 
         let device = TestDeviceA::new(0);
 
-        let p1 = get_device_policy(&device);
-        let p2 = get_device_policy(&device);
+        let p1 = get_test_device_policy(&device);
+        let p2 = get_test_device_policy(&device);
 
         assert!(Arc::ptr_eq(&p1, &p2));
-        assert_eq!(p1.float_dtype(), FloatDType::F64);
-        assert_eq!(p1.int_dtype(), IntDType::I64);
-        assert_eq!(p2.float_dtype(), FloatDType::F64);
-        assert_eq!(p2.int_dtype(), IntDType::I64);
+        assert_eq!(p1.float_dtype(), FloatDType::F32);
+        assert_eq!(p1.int_dtype(), IntDType::I32);
+        assert_eq!(p2.float_dtype(), FloatDType::F32);
+        assert_eq!(p2.int_dtype(), IntDType::I32);
     }
 
     #[test]
@@ -282,14 +306,14 @@ mod tests {
         let device = TestDeviceA::new(0);
 
         // The device policy is meant to be set once at initialization
-        set_device_policy(
+        set_test_device_policy(
             &device,
             DevicePolicy::default()
                 .with_float_dtype(FloatDType::BF16)
                 .with_int_dtype(IntDType::I32),
         );
-        let p1 = get_device_policy(&device);
-        let p2 = get_device_policy(&device);
+        let p1 = get_test_device_policy(&device);
+        let p2 = get_test_device_policy(&device);
 
         assert!(Arc::ptr_eq(&p1, &p2));
         assert_eq!(p1.float_dtype(), FloatDType::BF16);
@@ -306,16 +330,20 @@ mod tests {
         let d1 = TestDeviceA::new(0);
         let d2 = TestDeviceA::new(1);
 
-        set_default_float_dtype(&d1, FloatDType::F16);
+        // set_default_float_dtype
+        set_test_device_policy(
+            &d1,
+            DevicePolicy::default().with_float_dtype(FloatDType::F16),
+        );
 
-        let p1 = get_device_policy(&d1);
-        let p2 = get_device_policy(&d2);
+        let p1 = get_test_device_policy(&d1);
+        let p2 = get_test_device_policy(&d2);
 
         assert!(!Arc::ptr_eq(&p1, &p2));
         assert_eq!(p1.float_dtype(), FloatDType::F16);
-        assert_eq!(p1.int_dtype(), IntDType::I64);
-        assert_eq!(p2.float_dtype(), FloatDType::F64);
-        assert_eq!(p2.int_dtype(), IntDType::I64);
+        assert_eq!(p1.int_dtype(), IntDType::I32);
+        assert_eq!(p2.float_dtype(), FloatDType::F32);
+        assert_eq!(p2.int_dtype(), IntDType::I32);
     }
 
     #[test]
@@ -326,13 +354,17 @@ mod tests {
         let d1 = TestDeviceA::new(0);
         let d2 = TestDeviceB::new(0);
 
-        set_default_float_dtype(&d2, FloatDType::F16);
+        // set_default_float_dtype
+        set_test_device_policy(
+            &d2,
+            DevicePolicy::default().with_float_dtype(FloatDType::F16),
+        );
 
-        let p1 = get_device_policy(&d1);
-        let p2 = get_device_policy(&d2);
+        let p1 = get_test_device_policy(&d1);
+        let p2 = get_test_device_policy(&d2);
 
-        assert_eq!(p1.float_dtype(), FloatDType::F64);
-        assert_eq!(p1.int_dtype(), IntDType::I64);
+        assert_eq!(p1.float_dtype(), FloatDType::F32);
+        assert_eq!(p1.int_dtype(), IntDType::I32);
         assert_eq!(p2.float_dtype(), FloatDType::F16);
         assert_eq!(p2.int_dtype(), IntDType::I32);
     }
@@ -344,15 +376,19 @@ mod tests {
 
         // The device policy is meant to be set once at initialization
         let device = TestDeviceA::new(0);
-        let before = get_device_policy(&device);
+        let before = get_test_device_policy(&device);
 
-        set_default_float_dtype(&device, FloatDType::BF16);
+        // set_default_float_dtype
+        set_test_device_policy(
+            &device,
+            DevicePolicy::default().with_float_dtype(FloatDType::BF16),
+        );
 
-        let after = get_device_policy(&device);
+        let after = get_test_device_policy(&device);
 
         assert!(!Arc::ptr_eq(&before, &after));
         assert_eq!(after.float_dtype(), FloatDType::BF16);
-        assert_eq!(before.float_dtype(), FloatDType::F64);
+        assert_eq!(before.float_dtype(), FloatDType::F32);
     }
 
     #[test]
@@ -362,14 +398,14 @@ mod tests {
 
         let device = TestDeviceA::new(0);
 
-        set_device_policy(
+        set_test_device_policy(
             &device,
             DevicePolicy::default()
                 .with_float_dtype(FloatDType::F16)
                 .with_int_dtype(IntDType::I64),
         );
 
-        let policy = get_device_policy(&device);
+        let policy = get_test_device_policy(&device);
 
         assert_eq!(policy.float_dtype(), FloatDType::F16);
         assert_eq!(policy.int_dtype(), IntDType::I64);
