@@ -44,6 +44,9 @@ burn-backend = { path = "../burn-backend", version = "=0.21.0", default-features
 derive-new = { workspace = true }
 serde = { workspace = true }
 
+[dev-dependencies]
+cubecl = { workspace = true, features = ["test-runtime"] }
+
 [package.metadata.docs.rs]
 features = ["doc"]
 rustdoc-args = ["--cfg", "docsrs"]

@@ -25,6 +25,12 @@ pub struct FuseTrace {
     pub resources: FuseResources,
 }
 
+impl core::fmt::Display for FuseTrace {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&burn_std::format::format_debug(&format!("{self:?}")))
+    }
+}
+
 pub enum TuneOutput<R: Runtime> {
     UnChecked(PhantomData<R>),
     #[cfg(feature = "autotune-checks")]
@@ -74,10 +80,10 @@ impl<R: Runtime> cubecl::tune::AutotuneOutput for TuneOutput<R> {
                 num_handles += 1;
                 if let Some((shape_other, other)) = handles.get(id) {
                     use burn_std::is_contiguous;
-                    use cubecl::std::tensor::into_contiguous;
+                    use cubecl::std::tensor::into_contiguous_ref;
 
                     let current_handle = if !is_contiguous(&shape, &handle.strides) {
-                        into_contiguous::<R>(
+                        into_contiguous_ref::<R>(
                             &handle.client,
                             &handle.as_handle_ref(&shape),
                             handle.dtype.into(),
@@ -88,7 +94,7 @@ impl<R: Runtime> cubecl::tune::AutotuneOutput for TuneOutput<R> {
                         handle.handle.clone()
                     };
                     let other_handle = if !is_contiguous(&shape, &other.strides) {
-                        into_contiguous::<R>(
+                        into_contiguous_ref::<R>(
                             &other.client,
                             &other.as_handle_ref(&shape),
                             other.dtype.into(),
@@ -150,12 +156,16 @@ pub struct FuseResources {
     pub outputs: RegisteredTensors,
     pub inputs: RegisteredTensors,
     pub scalars: Vec<(FuseType, u64)>,
+    // TODO: Making put a map of global registers.
     pub views: Vec<TensorView>,
     pub indexed: BTreeMap<TensorId, FuseArg>,
     pub inputs_unhandled: Vec<TensorId>,
     pub outputs_unhandled: Vec<FuseArg>,
     pub num_reshaped: usize,
     pub dropped: HashSet<TensorId>,
+    /// We know during fusion that we have to have those buffers has global.
+    /// The pos here can be interpreted as GLOBAL pos where the output pos are locals.
+    pub buffers: RegisteredTensors,
 }
 
 #[derive(Debug)]
@@ -297,7 +307,7 @@ impl RegisteredTensors {
     /// Insert a normal tensor with the given [precision](FusePrecision) in the current block.
     pub fn insert(&mut self, precision: FuseType, tensor: TensorIr) -> usize {
         if let Some(old) = self.tensors.iter().enumerate().find(|(_, val)| match &val {
-            RegisterTensor::Normal(tensor_ir, _) => tensor_ir == &tensor,
+            RegisterTensor::Normal(tensor_ir, _) => tensor_ir.id == tensor.id,
             _ => false,
         }) {
             return old.0;

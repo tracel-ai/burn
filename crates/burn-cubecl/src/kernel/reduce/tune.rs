@@ -237,7 +237,7 @@ impl SumAutotuneKey {
     pub(crate) fn generate<Run: CubeRuntime>(input: &CubeTensor<Run>) -> Self {
         let dtype = input.dtype;
         let length = input.shape.num_elements();
-        Self { dtype, length }
+        Self::new(dtype, length)
     }
 }
 mod sum_ops {

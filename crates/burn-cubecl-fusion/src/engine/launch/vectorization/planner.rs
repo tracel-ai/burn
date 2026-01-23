@@ -213,7 +213,7 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
             }
         }
 
-        let mut previous_width = 1;
+        let mut previous_widths = Vec::with_capacity(block_vectorization.len());
 
         // Unhandled inputs might not get included in any fused blocks for now.
         //
@@ -261,14 +261,25 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
                         u8::MAX as usize,
                     );
                 }
-                VectorizationSetting::SmallerOrEqualThanPreviousBlock => {
+                VectorizationSetting::SmallerOrEqualThanPreviousBlock { block_pos } => {
                     apply_vectorization_block(
                         tmp,
                         &mut plan.handle_inputs,
                         &mut plan.handle_outputs,
                         block_plan,
-                        previous_width,
+                        previous_widths[block_pos],
                     );
+                }
+                VectorizationSetting::EqualThanPreviousBlock { block_pos } => {
+                    apply_vectorization_block(
+                        tmp,
+                        &mut plan.handle_inputs,
+                        &mut plan.handle_outputs,
+                        block_plan,
+                        previous_widths[block_pos],
+                    );
+                    // Enforces the width.
+                    block_plan.width = previous_widths[block_pos];
                 }
                 VectorizationSetting::Deactivated => {
                     apply_vectorization_block(
@@ -280,7 +291,7 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
                     );
                 }
             }
-            previous_width = block_plan.width;
+            previous_widths.push(block_plan.width);
         }
     }
 }

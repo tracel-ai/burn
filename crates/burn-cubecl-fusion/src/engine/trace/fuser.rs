@@ -91,6 +91,17 @@ impl TraceFuser {
         self.block_current.local_outputs.push(tensor.id);
     }
 
+    /// Tag the [tensor](TensorIr) as received from a previous block.
+    ///
+    /// This will avoid reading the input again and instead use le local version when possible.
+    pub fn block_local_input(&mut self, tensor: &TensorIr, block_pos: usize) {
+        println!("{block_pos:?}/{}", self.blocks_previous.len());
+        let block = &mut self.blocks_previous[block_pos].0;
+        let src_arg = block.global_register(block_pos, tensor).unwrap();
+
+        self.block_current.local_inputs.insert(tensor.id, src_arg);
+    }
+
     /// Register an output tensor that won't be automatically synced into global memory.
     ///
     /// It is therefore the responsibility of the operation to write the result to given tensor.
@@ -248,6 +259,13 @@ impl TraceFuser {
     pub fn finish(&self, shape_ref: Vec<usize>) -> FuseTrace {
         let mut resources = self.resources.clone();
         let mut outputs = RegisteredTensors::default();
+
+        for tensor in resources.buffers.iter() {
+            let (tensor, ty) = tensor.as_normal_tensor().unwrap();
+            println!("BUFFER: {tensor:?}");
+            outputs.insert(ty.clone(), tensor.clone());
+        }
+
         let mut blocks = Vec::new();
 
         let mut register_block =

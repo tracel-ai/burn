@@ -1,11 +1,14 @@
-use burn_std::DType;
-use burn_std::quantization::{QuantScheme, QuantStore, QuantValue};
-use burn_std::{bf16, f16};
-use cubecl::ir::{ElemType, FloatKind, IntKind, StorageType, UIntKind};
-use cubecl::prelude::*;
-use serde::{Deserialize, Serialize};
-
 use super::tensor::GlobalTensor;
+use crate::engine::codegen::DYN_ELEM_ID;
+use burn_std::{
+    DType, bf16, f16,
+    quantization::{QuantScheme, QuantStore, QuantValue},
+};
+use cubecl::{
+    ir::{ElemType, FloatKind, IntKind, StorageType, UIntKind},
+    prelude::*,
+};
+use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
 /// Argument to a [fuse operation](FuseOp).
@@ -14,6 +17,8 @@ pub enum FuseArg {
     Input(usize, FuseType, LayoutInfo),
     /// A temporary local variable.
     Local(usize, FuseType),
+    /// A permanent register shared between blocks.
+    GlobalRegister((usize, usize), FuseType),
     /// A readwrite output tensor.
     Output(usize, FuseType, LayoutInfo),
     /// A global scalar.
@@ -57,6 +62,7 @@ impl FuseArg {
         *match self {
             FuseArg::Input(_, p, _) => p,
             FuseArg::Local(_, p) => p,
+            FuseArg::GlobalRegister(_, p) => p,
             FuseArg::Output(_, p, _) => p,
             FuseArg::Scalar(_, p) => p,
             FuseArg::Literal(_, p) => p,
@@ -197,6 +203,54 @@ pub struct GlobalArgs {
     pub tensors: Sequence<GlobalTensor>,
     pub scalars: Sequence<InputScalar>,
     pub reshapes: Sequence<usize>,
+    pub registers: GlobalRegisters,
+}
+
+#[derive(CubeType, Default, Clone)]
+pub struct GlobalRegisters {
+    registers: Registry<usize, Registry<usize, Line<NumericExpand<DYN_ELEM_ID>>>>,
+}
+
+#[cube]
+impl GlobalRegisters {
+    pub fn read(&self, #[comptime] key: (usize, usize)) -> Line<NumericExpand<DYN_ELEM_ID>> {
+        let registers = self.registers.find(key.0);
+        registers.find(key.1)
+    }
+    pub fn write(
+        &mut self,
+        #[comptime] key: (usize, usize),
+        value: Line<NumericExpand<DYN_ELEM_ID>>,
+    ) {
+        // TODO: Implement try find.
+        let mut registers =
+            Registry::<usize, Registry<usize, Line<NumericExpand<DYN_ELEM_ID>>>>::find_or_default::<
+                usize,
+            >(&mut self.registers, key.0);
+        registers.insert(key.1, value);
+    }
+}
+
+// Because we only create it DURING compilation, not as a real launch arg.
+unsafe impl Send for GlobalRegisters {}
+unsafe impl Sync for GlobalRegisters {}
+
+impl LaunchArg for GlobalRegisters {
+    type RuntimeArg<'a, R: Runtime> = ();
+    type CompilationArg = ();
+
+    fn compilation_arg<R: Runtime>(_runtime_arg: &Self::RuntimeArg<'_, R>) -> Self::CompilationArg {
+        ()
+    }
+
+    fn expand(
+        _arg: &Self::CompilationArg,
+        _builder: &mut KernelBuilder,
+    ) -> <Self as CubeType>::ExpandType {
+        GlobalRegistersExpand {
+            registers: Default::default(),
+        }
+    }
 }
 
 impl<R: Runtime> Default for GlobalArgsLaunch<'_, R> {
@@ -205,6 +259,7 @@ impl<R: Runtime> Default for GlobalArgsLaunch<'_, R> {
             tensors: Default::default(),
             scalars: Default::default(),
             reshapes: Default::default(),
+            registers: Default::default(),
             _phantom_runtime: std::marker::PhantomData,
             _phantom_a: std::marker::PhantomData,
         }

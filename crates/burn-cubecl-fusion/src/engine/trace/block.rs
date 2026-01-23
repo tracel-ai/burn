@@ -1,3 +1,4 @@
+use super::{FuseResources, RegisteredTensors, TensorView};
 use crate::engine::{
     codegen::ir::{BinaryFuseArgs, FuseArg, FuseOp, FuseType, LayoutInfo, UnaryFuseArgs},
     settings::FuseSettings,
@@ -6,8 +7,6 @@ use burn_ir::{TensorId, TensorIr, TensorStatus};
 use burn_std::{DType, quantization::QuantParam};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, btree_map::Entry};
-
-use super::{FuseResources, RegisteredTensors, TensorView};
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 /// A block containing all [operations](FuseOp) as well as reads and writes for each tensor along
@@ -28,7 +27,8 @@ pub struct FuseBlock {
     /// registered here must be vectorized manually.
     pub reads: BTreeMap<TensorId, Vec<FuseOp>>,
     /// Contains all tensor outputs of the current block except for manually handled tensors.
-    pub writes: BTreeMap<TensorId, FuseOp>,
+    /// We can have multiple writes when the same variable is reused after in another block.
+    pub writes: BTreeMap<TensorId, Vec<FuseOp>>,
 }
 
 #[derive(Clone, Debug)]
@@ -38,11 +38,14 @@ pub struct FuseBlockBuilder {
     locals: LocalVariablePool,
     pub ops: Vec<FuseOp>,
     reads: BTreeMap<TensorId, Vec<FuseOp>>,
+    // Only for global registers.
+    writes: BTreeMap<TensorId, Vec<FuseOp>>,
     bool_precision: FuseType,
     // Output declared in this block alone.
     outputs: RegisteredTensors,
     pub outputs_unhandled: Vec<FuseArg>,
     pub local_outputs: Vec<TensorId>,
+    pub local_inputs: BTreeMap<TensorId, FuseArg>,
 }
 
 #[derive(Debug)]
@@ -63,9 +66,11 @@ impl FuseBlockBuilder {
             locals: Default::default(),
             ops: Default::default(),
             reads: Default::default(),
+            writes: Default::default(),
             outputs: Default::default(),
             outputs_unhandled: Default::default(),
             local_outputs: Default::default(),
+            local_inputs: Default::default(),
         }
     }
 
@@ -101,6 +106,38 @@ impl FuseBlockBuilder {
     }
 
     /// Register an input tensor.
+    pub fn global_register(&mut self, block_pos: usize, tensor: &TensorIr) -> Option<FuseArg> {
+        let precision = tensor.dtype.into();
+
+        if let Some(val) = self.local_inputs.get(&tensor.id) {
+            return Some(val.clone());
+        }
+
+        let val = match self.locals.get(precision, tensor.id) {
+            Some(val) => val,
+            None => {
+                return None;
+            }
+        };
+
+        let arg = FuseArg::GlobalRegister((block_pos, self.writes.len()), val.precision());
+
+        let ops = match self.writes.get_mut(&tensor.id) {
+            Some(ops) => ops,
+            None => {
+                self.writes.insert(tensor.id, Vec::new());
+                self.writes.get_mut(&tensor.id).unwrap()
+            }
+        };
+        ops.push(FuseOp::Assign(UnaryFuseArgs {
+            input: val,
+            out: arg.clone(),
+        }));
+
+        Some(arg)
+    }
+
+    /// Register an input tensor.
     pub fn input(&mut self, tensor: &TensorIr, resources: &mut FuseResources) -> Option<FuseArg> {
         if resources.indexed.contains_key(&tensor.id) {
             return None;
@@ -117,6 +154,10 @@ impl FuseBlockBuilder {
             _ => precision,
         };
 
+        if let Some(val) = self.local_inputs.get(&tensor.id) {
+            return Some(val.clone());
+        }
+
         let arg = match self.locals.get(precision, tensor.id) {
             Some(local) => {
                 resources.inputs.update(tensor);
@@ -128,14 +169,14 @@ impl FuseBlockBuilder {
                 local
             }
             None => {
-                let pos = if let Some(pos) = resources.outputs.get_index(tensor.id) {
-                    // Do not register a global input, only a local input from an existing output
-                    pos
+                let input = if let Some(_) = resources.outputs.get_index(tensor.id) {
+                    let pos = resources.buffers.insert(precision, tensor.clone());
+                    FuseArg::Output(pos, precision_input, LayoutInfo::Unknown)
                 } else {
-                    resources.inputs.insert(precision_input, tensor.clone())
+                    let pos = resources.inputs.insert(precision_input, tensor.clone());
+                    FuseArg::Input(pos, precision_input, LayoutInfo::Unknown)
                 };
                 let out = self.locals.create(precision, tensor.id);
-                let input = FuseArg::Input(pos, precision_input, LayoutInfo::Unknown);
 
                 let reads = if let Entry::Vacant(e) = self.reads.entry(tensor.id) {
                     e.insert(Vec::with_capacity(1));
@@ -367,7 +408,7 @@ impl FuseBlockBuilder {
         let reads = self.reads.clone();
         let tensor_writes = self.tensor_writes(resources);
 
-        let mut writes = BTreeMap::new();
+        let mut writes = self.writes.clone();
 
         for (tensor, precision) in tensor_writes
             .iter()
@@ -376,13 +417,18 @@ impl FuseBlockBuilder {
             if let Some(local) = self.locals.get_any_precision(tensor.id) {
                 let out_index = tensor_writes.get_index(tensor.id).unwrap();
 
-                writes.insert(
-                    tensor.id,
-                    FuseOp::Assign(UnaryFuseArgs {
-                        input: local,
-                        out: FuseArg::Output(out_index + offset, *precision, LayoutInfo::Unknown),
-                    }),
-                );
+                let ops = match writes.get_mut(&tensor.id) {
+                    Some(ops) => ops,
+                    None => {
+                        writes.insert(tensor.id, Vec::new());
+                        writes.get_mut(&tensor.id).unwrap()
+                    }
+                };
+
+                ops.push(FuseOp::Assign(UnaryFuseArgs {
+                    input: local,
+                    out: FuseArg::Output(out_index + offset, *precision, LayoutInfo::Unknown),
+                }));
             }
         }
 
@@ -404,8 +450,6 @@ impl FuseBlockBuilder {
 
     /// Return the tensor that needs to be written to.
     fn tensor_writes(&self, resources: &FuseResources) -> RegisteredTensors {
-        let mut result = RegisteredTensors::default();
-
         let mut local_tensor_ids_input = Vec::new();
         let mut local_tensor_ids_output = Vec::new();
 
@@ -620,6 +664,8 @@ impl FuseBlockBuilder {
             mark(arg, &mut local_tensor_ids_output);
         }
 
+        let mut result = RegisteredTensors::default();
+
         // All output tensors that are never read by a following operation should be written to
         // since they are essentially the "logical" output of the shader.
         for entry in local_tensor_ids_output {
@@ -651,7 +697,7 @@ impl FuseBlockBuilder {
 }
 
 #[derive(Default, Clone, Debug)]
-struct LocalVariablePool {
+pub struct LocalVariablePool {
     values: BTreeMap<FuseType, BTreeMap<TensorId, usize>>,
 }
 
@@ -676,7 +722,7 @@ impl LocalVariablePool {
         None
     }
 
-    fn find_tensor_id(&self, precision: FuseType, position: usize) -> Option<TensorId> {
+    pub fn find_tensor_id(&self, precision: FuseType, position: usize) -> Option<TensorId> {
         if let Some(indexes) = self.values.get(&precision) {
             indexes
                 .iter()
