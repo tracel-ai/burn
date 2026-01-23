@@ -1,22 +1,19 @@
+use crate::EpisodeSummary;
 use crate::checkpoint::{
     AsyncCheckpointer, CheckpointingStrategy, ComposedCheckpointingStrategy, FileCheckpointer,
     KeepLastNCheckpoints, MetricCheckpointingStrategy,
 };
-use crate::learner::EarlyStoppingStrategy;
 use crate::learner::base::Interrupter;
 use crate::logger::{FileMetricLogger, MetricLogger};
 use crate::metric::store::{Aggregate, Direction, EventStoreClient, LogEventStore, Split};
-use crate::metric::{Adaptor, LossMetric, Metric, Numeric};
+use crate::metric::{Adaptor, EpisodeLengthMetric, Metric, Numeric};
 use crate::renderer::{MetricsRenderer, default_renderer};
 use crate::{
-    ApplicationLoggerInstaller, AsyncProcessorTraining, EarlyStoppingStrategyRef,
-    FileApplicationLoggerInstaller, ItemLazy, LearnerOptimizerRecord, LearnerSchedulerRecord,
-    LearnerSummaryConfig, LearningCheckpointer, LearningComponentsTypes, RLComponents,
-    RLEventProcessor, RLMetrics, ReinforcementLearningComponentsMarker,
-    ReinforcementLearningComponentsTypes, ReinforcementLearningStrategy, SimpleOffPolicyStrategy,
-    TrainingBackend,
+    ApplicationLoggerInstaller, AsyncProcessorTraining, FileApplicationLoggerInstaller, ItemLazy,
+    LearnerSummaryConfig, RLAgentRecord, RLCheckpointer, RLComponents, RLEventProcessor, RLMetrics,
+    RLPolicyRecord, ReinforcementLearningComponentsMarker, ReinforcementLearningComponentsTypes,
+    ReinforcementLearningStrategy, SimpleOffPolicyStrategy,
 };
-use crate::{EpisodeSummary, LearnerModelRecord};
 use burn_core::record::FileRecorder;
 use burn_core::tensor::backend::AutodiffBackend;
 use burn_rl::{Environment, LearnerAgent, Policy};
@@ -25,31 +22,29 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 /// Structure to configure and launch supervised learning trainings.
-pub struct OffPolicyLearning<OC: ReinforcementLearningComponentsTypes> {
+pub struct ReinforcementLearning<RLC: ReinforcementLearningComponentsTypes> {
     // Not that complex. Extracting into another type would only make it more confusing.
     #[allow(clippy::type_complexity)]
-    // checkpointers: Option<(
-    //     AsyncCheckpointer<LearnerModelRecord<OC::LC>, TrainingBackend<OC::LC>>,
-    //     AsyncCheckpointer<LearnerOptimizerRecord<OC::LC>, TrainingBackend<OC::LC>>,
-    //     AsyncCheckpointer<LearnerSchedulerRecord<OC::LC>, TrainingBackend<OC::LC>>,
-    // )>,
-    num_episodes: usize,
+    checkpointers: Option<(
+        AsyncCheckpointer<RLPolicyRecord<RLC>, RLC::Backend>,
+        AsyncCheckpointer<RLAgentRecord<RLC>, RLC::Backend>,
+    )>,
+    num_steps: usize,
     checkpoint: Option<usize>,
     directory: PathBuf,
     grad_accumulation: Option<usize>,
     renderer: Option<Box<dyn MetricsRenderer + 'static>>,
-    metrics: RLMetrics<OC::TrainingOutput, OC::ActionContext>,
+    metrics: RLMetrics<RLC::TrainingOutput, RLC::ActionContext>,
     event_store: LogEventStore,
     interrupter: Interrupter,
     tracing_logger: Option<Box<dyn ApplicationLoggerInstaller>>,
     checkpointer_strategy: Box<dyn CheckpointingStrategy>,
-    early_stopping: Option<EarlyStoppingStrategyRef>,
     // Use BTreeSet instead of HashSet for consistent (alphabetical) iteration order
     summary_metrics: BTreeSet<String>,
     summary: bool,
 }
 
-impl<B, E, A, TO, AC> OffPolicyLearning<ReinforcementLearningComponentsMarker<B, E, A, TO, AC>>
+impl<B, E, A, TO, AC> ReinforcementLearning<ReinforcementLearningComponentsMarker<B, E, A, TO, AC>>
 where
     B: AutodiffBackend,
     E: Environment + 'static,
@@ -70,9 +65,9 @@ where
         let directory = directory.as_ref().to_path_buf();
         let experiment_log_file = directory.join("experiment.log");
         Self {
-            num_episodes: 1,
+            num_steps: 1,
             checkpoint: None,
-            // checkpointers: None,
+            checkpointers: None,
             directory,
             grad_accumulation: None,
             metrics: RLMetrics::default(),
@@ -86,22 +81,20 @@ where
                 ComposedCheckpointingStrategy::builder()
                     .add(KeepLastNCheckpoints::new(2))
                     .add(MetricCheckpointingStrategy::new(
-                        // &LossMetric::<LC::Backend>::new(), // default to valid loss
-                        &LossMetric::<B>::new(), // default to valid loss
+                        &EpisodeLengthMetric::new(), // default to evaluations' cumulative reward.
                         Aggregate::Mean,
                         Direction::Lowest,
                         Split::Valid,
                     ))
                     .build(),
             ),
-            early_stopping: None,
             summary_metrics: BTreeSet::new(),
             summary: false,
         }
     }
 }
 
-impl<OC: ReinforcementLearningComponentsTypes + 'static> OffPolicyLearning<OC> {
+impl<RLC: ReinforcementLearningComponentsTypes + 'static> ReinforcementLearning<RLC> {
     /// Replace the default metric loggers with the provided ones.
     ///
     /// # Arguments
@@ -138,12 +131,12 @@ impl<OC: ReinforcementLearningComponentsTypes + 'static> OffPolicyLearning<OC> {
     }
 
     /// Register all metrics as numeric for the training and validation set.
-    pub fn train_step_metrics<Me: TrainStepMetricRegistration<OC>>(self, metrics: Me) -> Self {
+    pub fn train_step_metrics<Me: TrainStepMetricRegistration<RLC>>(self, metrics: Me) -> Self {
         metrics.register(self)
     }
 
     /// Register all metrics as numeric for the training and validation set.
-    pub fn train_step_metrics_text<Me: TrainStepTextMetricRegistration<OC>>(
+    pub fn train_step_metrics_text<Me: TrainStepTextMetricRegistration<RLC>>(
         self,
         metrics: Me,
     ) -> Self {
@@ -151,29 +144,32 @@ impl<OC: ReinforcementLearningComponentsTypes + 'static> OffPolicyLearning<OC> {
     }
 
     /// Register all metrics as numeric for the training and validation set.
-    pub fn env_step_metrics<Me: EnvStepMetricRegistration<OC>>(self, metrics: Me) -> Self {
+    pub fn env_step_metrics<Me: EnvStepMetricRegistration<RLC>>(self, metrics: Me) -> Self {
         metrics.register(self)
     }
 
     /// Register all metrics as numeric for the training and validation set.
-    pub fn env_step_metrics_text<Me: EnvStepTextMetricRegistration<OC>>(self, metrics: Me) -> Self {
+    pub fn env_step_metrics_text<Me: EnvStepTextMetricRegistration<RLC>>(
+        self,
+        metrics: Me,
+    ) -> Self {
         metrics.register(self)
     }
 
     /// Register all metrics as numeric for the training and validation set.
-    pub fn episode_metrics<Me: EpisodeMetricRegistration<OC>>(self, metrics: Me) -> Self {
+    pub fn episode_metrics<Me: EpisodeMetricRegistration<RLC>>(self, metrics: Me) -> Self {
         metrics.register(self)
     }
 
     /// Register all metrics as numeric for the training and validation set.
-    pub fn episode_metrics_text<Me: EpisodeTextMetricRegistration<OC>>(self, metrics: Me) -> Self {
+    pub fn episode_metrics_text<Me: EpisodeTextMetricRegistration<RLC>>(self, metrics: Me) -> Self {
         metrics.register(self)
     }
 
     /// Register a metric for a step of training.
     pub fn train_step_metric<Me: Metric + 'static>(mut self, metric: Me) -> Self
     where
-        <OC::TrainingOutput as ItemLazy>::ItemSync: Adaptor<Me::Input>,
+        <RLC::TrainingOutput as ItemLazy>::ItemSync: Adaptor<Me::Input>,
     {
         self.metrics.register_train_step_metric(metric);
         self
@@ -183,7 +179,7 @@ impl<OC: ReinforcementLearningComponentsTypes + 'static> OffPolicyLearning<OC> {
     pub fn train_step_metric_numeric<Me>(mut self, metric: Me) -> Self
     where
         Me: Metric + Numeric + 'static,
-        <OC::TrainingOutput as ItemLazy>::ItemSync: Adaptor<Me::Input>,
+        <RLC::TrainingOutput as ItemLazy>::ItemSync: Adaptor<Me::Input>,
     {
         self.summary_metrics.insert(metric.name().to_string());
         self.metrics.register_train_step_metric_numeric(metric);
@@ -193,7 +189,7 @@ impl<OC: ReinforcementLearningComponentsTypes + 'static> OffPolicyLearning<OC> {
     /// Register a metric for a step of the environment runner.
     pub fn env_step_metric<Me: Metric + 'static>(mut self, metric: Me) -> Self
     where
-        <OC::ActionContext as ItemLazy>::ItemSync: Adaptor<Me::Input>,
+        <RLC::ActionContext as ItemLazy>::ItemSync: Adaptor<Me::Input>,
     {
         self.metrics.register_env_step_metric(metric.clone());
         self.metrics.register_env_step_valid_metric(metric);
@@ -204,7 +200,7 @@ impl<OC: ReinforcementLearningComponentsTypes + 'static> OffPolicyLearning<OC> {
     pub fn env_step_metric_numeric<Me>(mut self, metric: Me) -> Self
     where
         Me: Metric + Numeric + 'static,
-        <OC::ActionContext as ItemLazy>::ItemSync: Adaptor<Me::Input>,
+        <RLC::ActionContext as ItemLazy>::ItemSync: Adaptor<Me::Input>,
     {
         self.summary_metrics.insert(metric.name().to_string());
         self.metrics
@@ -253,8 +249,8 @@ impl<OC: ReinforcementLearningComponentsTypes + 'static> OffPolicyLearning<OC> {
     }
 
     /// The number of episodes to learn over.
-    pub fn num_episodes(mut self, num_episodes: usize) -> Self {
-        self.num_episodes = num_episodes;
+    pub fn num_steps(mut self, num_episodes: usize) -> Self {
+        self.num_steps = num_episodes;
         self
     }
 
@@ -275,16 +271,6 @@ impl<OC: ReinforcementLearningComponentsTypes + 'static> OffPolicyLearning<OC> {
         self
     }
 
-    /// Register an [early stopping strategy](EarlyStoppingStrategy) to stop the training when the
-    /// conditions are meet.
-    pub fn early_stopping<Strategy>(mut self, strategy: Strategy) -> Self
-    where
-        Strategy: EarlyStoppingStrategy + Clone + Send + Sync + 'static,
-    {
-        self.early_stopping = Some(Box::new(strategy));
-        self
-    }
-
     /// By default, Rust logs are captured and written into
     /// `experiment.log`. If disabled, standard Rust log handling
     /// will apply.
@@ -296,30 +282,26 @@ impl<OC: ReinforcementLearningComponentsTypes + 'static> OffPolicyLearning<OC> {
         self
     }
 
-    /// Register a checkpointer that will save the [optimizer](Optimizer), the
-    /// [model](Module) and the [scheduler](LrScheduler) to different files.
-    // pub fn with_file_checkpointer<FR>(mut self, recorder: FR) -> Self
-    // where
-    //     FR: FileRecorder<<OC::LC as LearningComponentsTypes>::Backend> + 'static,
-    //     FR: FileRecorder<
-    //             <<OC::LC as LearningComponentsTypes>::Backend as AutodiffBackend>::InnerBackend,
-    //         > + 'static,
-    // {
-    //     let checkpoint_dir = self.directory.join("checkpoint");
-    //     let checkpointer_model = FileCheckpointer::new(recorder.clone(), &checkpoint_dir, "model");
-    //     let checkpointer_optimizer =
-    //         FileCheckpointer::new(recorder.clone(), &checkpoint_dir, "optim");
-    //     let checkpointer_scheduler: FileCheckpointer<FR> =
-    //         FileCheckpointer::new(recorder, &checkpoint_dir, "scheduler");
+    /// Register a checkpointer that will save the environment runner's [policy](Policy)
+    /// and the [learning agent](LearnerAgent) state to different files.
+    pub fn with_file_checkpointer<FR>(mut self, recorder: FR) -> Self
+    where
+        FR: FileRecorder<RLC::Backend> + 'static,
+        FR: FileRecorder<<RLC::Backend as AutodiffBackend>::InnerBackend> + 'static,
+    {
+        let checkpoint_dir = self.directory.join("checkpoint");
+        let checkpointer_policy =
+            FileCheckpointer::new(recorder.clone(), &checkpoint_dir, "policy");
+        let checkpointer_learning =
+            FileCheckpointer::new(recorder.clone(), &checkpoint_dir, "learning-agent");
 
-    //     self.checkpointers = Some((
-    //         AsyncCheckpointer::new(checkpointer_model),
-    //         AsyncCheckpointer::new(checkpointer_optimizer),
-    //         AsyncCheckpointer::new(checkpointer_scheduler),
-    //     ));
+        self.checkpointers = Some((
+            AsyncCheckpointer::new(checkpointer_policy),
+            AsyncCheckpointer::new(checkpointer_learning),
+        ));
 
-    //     self
-    // }
+        self
+    }
 
     /// Enable the training summary report.
     ///
@@ -330,11 +312,7 @@ impl<OC: ReinforcementLearningComponentsTypes + 'static> OffPolicyLearning<OC> {
     }
 
     /// Run the training with the specified [Learner](Learner) and dataloaders.
-    pub fn launch(
-        mut self,
-        learner_agent: OC::LearningAgent,
-        // ) -> <OC::LearningAgent as Agent<TrainingBackend<OC::LC>, OC::Env>>::Policy {
-    ) -> OC::Policy {
+    pub fn launch(mut self, learner_agent: RLC::LearningAgent) -> RLResult<RLC::Policy> {
         if self.tracing_logger.is_some()
             && let Err(e) = self.tracing_logger.as_ref().unwrap().install()
         {
@@ -356,9 +334,9 @@ impl<OC: ReinforcementLearningComponentsTypes + 'static> OffPolicyLearning<OC> {
             event_store.clone(),
         ));
 
-        // let checkpointer = self.checkpointers.map(|(model, optim, scheduler)| {
-        //     LearningCheckpointer::new(model, optim, scheduler, self.checkpointer_strategy)
-        // });
+        let checkpointer = self.checkpointers.map(|(policy, learning_agent)| {
+            RLCheckpointer::new(policy, learning_agent, self.checkpointer_strategy)
+        });
 
         let summary = if self.summary {
             Some(LearnerSummaryConfig {
@@ -370,126 +348,135 @@ impl<OC: ReinforcementLearningComponentsTypes + 'static> OffPolicyLearning<OC> {
         };
 
         // TODO: pq on a besoin du type?
-        let components = RLComponents::<OC> {
+        let components = RLComponents::<RLC> {
             checkpoint: self.checkpoint,
-            checkpointer: None,
+            checkpointer: checkpointer,
             interrupter: self.interrupter,
-            early_stopping: self.early_stopping,
             event_processor,
             event_store,
-            num_epochs: self.num_episodes,
+            num_steps: self.num_steps,
             grad_accumulation: self.grad_accumulation,
             summary,
         };
 
         let strategy = SimpleOffPolicyStrategy::new(Default::default());
-        strategy.train(learner_agent, components).model
+        strategy.train(learner_agent, components)
     }
 }
 
+/// The result of reinforcement learning, containing the final policy along with the [renderer](MetricsRenderer).
+pub struct RLResult<P> {
+    /// The learned policy.
+    pub policy: P,
+    /// The renderer that can be used for follow up training and evaluation.
+    pub renderer: Box<dyn MetricsRenderer>,
+}
+
 /// Trait to fake variadic generics for train step metrics.
-pub trait EnvStepMetricRegistration<OC: ReinforcementLearningComponentsTypes>: Sized {
+pub trait EnvStepMetricRegistration<RLC: ReinforcementLearningComponentsTypes>: Sized {
     /// Register the metrics.
-    fn register(self, builder: OffPolicyLearning<OC>) -> OffPolicyLearning<OC>;
+    fn register(self, builder: ReinforcementLearning<RLC>) -> ReinforcementLearning<RLC>;
 }
 
 /// Trait to fake variadic generics for train step text metrics.
-pub trait EnvStepTextMetricRegistration<OC: ReinforcementLearningComponentsTypes>: Sized {
+pub trait EnvStepTextMetricRegistration<RLC: ReinforcementLearningComponentsTypes>: Sized {
     /// Register the metrics.
-    fn register(self, builder: OffPolicyLearning<OC>) -> OffPolicyLearning<OC>;
+    fn register(self, builder: ReinforcementLearning<RLC>) -> ReinforcementLearning<RLC>;
 }
 
 /// Trait to fake variadic generics for env step metrics.
-pub trait TrainStepMetricRegistration<OC: ReinforcementLearningComponentsTypes>: Sized {
+pub trait TrainStepMetricRegistration<RLC: ReinforcementLearningComponentsTypes>: Sized {
     /// Register the metrics.
-    fn register(self, builder: OffPolicyLearning<OC>) -> OffPolicyLearning<OC>;
+    fn register(self, builder: ReinforcementLearning<RLC>) -> ReinforcementLearning<RLC>;
 }
 
 /// Trait to fake variadic generics for env step text metrics.
-pub trait TrainStepTextMetricRegistration<OC: ReinforcementLearningComponentsTypes>: Sized {
+pub trait TrainStepTextMetricRegistration<RLC: ReinforcementLearningComponentsTypes>:
+    Sized
+{
     /// Register the metrics.
-    fn register(self, builder: OffPolicyLearning<OC>) -> OffPolicyLearning<OC>;
+    fn register(self, builder: ReinforcementLearning<RLC>) -> ReinforcementLearning<RLC>;
 }
 
 /// Trait to fake variadic generics for episode metrics.
-pub trait EpisodeMetricRegistration<OC: ReinforcementLearningComponentsTypes>: Sized {
+pub trait EpisodeMetricRegistration<RLC: ReinforcementLearningComponentsTypes>: Sized {
     /// Register the metrics.
-    fn register(self, builder: OffPolicyLearning<OC>) -> OffPolicyLearning<OC>;
+    fn register(self, builder: ReinforcementLearning<RLC>) -> ReinforcementLearning<RLC>;
 }
 
 /// Trait to fake variadic generics for episode text metrics.
-pub trait EpisodeTextMetricRegistration<OC: ReinforcementLearningComponentsTypes>: Sized {
+pub trait EpisodeTextMetricRegistration<RLC: ReinforcementLearningComponentsTypes>: Sized {
     /// Register the metrics.
-    fn register(self, builder: OffPolicyLearning<OC>) -> OffPolicyLearning<OC>;
+    fn register(self, builder: ReinforcementLearning<RLC>) -> ReinforcementLearning<RLC>;
 }
 
 macro_rules! gen_tuple {
     ($($M:ident),*) => {
-        impl<$($M,)* OC: ReinforcementLearningComponentsTypes + 'static> TrainStepTextMetricRegistration<OC> for ($($M,)*)
+        impl<$($M,)* RLC: ReinforcementLearningComponentsTypes + 'static> TrainStepTextMetricRegistration<RLC> for ($($M,)*)
         where
-            $(<OC::TrainingOutput as ItemLazy>::ItemSync: Adaptor<$M::Input>,)*
+            $(<RLC::TrainingOutput as ItemLazy>::ItemSync: Adaptor<$M::Input>,)*
             $($M: Metric + 'static,)*
         {
             #[allow(non_snake_case)]
             fn register(
                 self,
-                builder: OffPolicyLearning<OC>,
-            ) -> OffPolicyLearning<OC> {
+                builder: ReinforcementLearning<RLC>,
+            ) -> ReinforcementLearning<RLC> {
                 let ($($M,)*) = self;
                 $(let builder = builder.train_step_metric($M.clone());)*
                 builder
             }
         }
 
-        impl<$($M,)* OC: ReinforcementLearningComponentsTypes + 'static> TrainStepMetricRegistration<OC> for ($($M,)*)
+        impl<$($M,)* RLC: ReinforcementLearningComponentsTypes + 'static> TrainStepMetricRegistration<RLC> for ($($M,)*)
         where
-            $(<OC::TrainingOutput as ItemLazy>::ItemSync: Adaptor<$M::Input>,)*
+            $(<RLC::TrainingOutput as ItemLazy>::ItemSync: Adaptor<$M::Input>,)*
             $($M: Metric + Numeric + 'static,)*
         {
             #[allow(non_snake_case)]
             fn register(
                 self,
-                builder: OffPolicyLearning<OC>,
-            ) -> OffPolicyLearning<OC> {
+                builder: ReinforcementLearning<RLC>,
+            ) -> ReinforcementLearning<RLC> {
                 let ($($M,)*) = self;
                 $(let builder = builder.train_step_metric_numeric($M.clone());)*
                 builder
             }
         }
 
-        impl<$($M,)* OC: ReinforcementLearningComponentsTypes + 'static> EnvStepTextMetricRegistration<OC> for ($($M,)*)
+        impl<$($M,)* RLC: ReinforcementLearningComponentsTypes + 'static> EnvStepTextMetricRegistration<RLC> for ($($M,)*)
         where
-            $(<OC::ActionContext as ItemLazy>::ItemSync: Adaptor<$M::Input>,)*
+            $(<RLC::ActionContext as ItemLazy>::ItemSync: Adaptor<$M::Input>,)*
             $($M: Metric + 'static,)*
         {
             #[allow(non_snake_case)]
             fn register(
                 self,
-                builder: OffPolicyLearning<OC>,
-            ) -> OffPolicyLearning<OC> {
+                builder: ReinforcementLearning<RLC>,
+            ) -> ReinforcementLearning<RLC> {
                 let ($($M,)*) = self;
                 $(let builder = builder.env_step_metric($M.clone());)*
                 builder
             }
         }
 
-        impl<$($M,)* OC: ReinforcementLearningComponentsTypes + 'static> EnvStepMetricRegistration<OC> for ($($M,)*)
+        impl<$($M,)* RLC: ReinforcementLearningComponentsTypes + 'static> EnvStepMetricRegistration<RLC> for ($($M,)*)
         where
-            $(<OC::ActionContext as ItemLazy>::ItemSync: Adaptor<$M::Input>,)*
+            $(<RLC::ActionContext as ItemLazy>::ItemSync: Adaptor<$M::Input>,)*
             $($M: Metric + Numeric + 'static,)*
         {
             #[allow(non_snake_case)]
             fn register(
                 self,
-                builder: OffPolicyLearning<OC>,
-            ) -> OffPolicyLearning<OC> {
+                builder: ReinforcementLearning<RLC>,
+            ) -> ReinforcementLearning<RLC> {
                 let ($($M,)*) = self;
                 $(let builder = builder.env_step_metric_numeric($M.clone());)*
                 builder
             }
         }
 
-        impl<$($M,)* OC: ReinforcementLearningComponentsTypes + 'static> EpisodeTextMetricRegistration<OC> for ($($M,)*)
+        impl<$($M,)* RLC: ReinforcementLearningComponentsTypes + 'static> EpisodeTextMetricRegistration<RLC> for ($($M,)*)
         where
             $(EpisodeSummary: Adaptor<$M::Input> + 'static,)*
             $($M: Metric + 'static,)*
@@ -497,15 +484,15 @@ macro_rules! gen_tuple {
             #[allow(non_snake_case)]
             fn register(
                 self,
-                builder: OffPolicyLearning<OC>,
-            ) -> OffPolicyLearning<OC> {
+                builder: ReinforcementLearning<RLC>,
+            ) -> ReinforcementLearning<RLC> {
                 let ($($M,)*) = self;
                 $(let builder = builder.episode_metric($M.clone());)*
                 builder
             }
         }
 
-        impl<$($M,)* OC: ReinforcementLearningComponentsTypes + 'static> EpisodeMetricRegistration<OC> for ($($M,)*)
+        impl<$($M,)* RLC: ReinforcementLearningComponentsTypes + 'static> EpisodeMetricRegistration<RLC> for ($($M,)*)
         where
             $(EpisodeSummary: Adaptor<$M::Input> + 'static,)*
             $($M: Metric + Numeric + 'static,)*
@@ -513,8 +500,8 @@ macro_rules! gen_tuple {
             #[allow(non_snake_case)]
             fn register(
                 self,
-                builder: OffPolicyLearning<OC>,
-            ) -> OffPolicyLearning<OC> {
+                builder: ReinforcementLearning<RLC>,
+            ) -> ReinforcementLearning<RLC> {
                 let ($($M,)*) = self;
                 $(let builder = builder.episode_metric_numeric($M.clone());)*
                 builder

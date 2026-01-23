@@ -17,5 +17,7 @@ burn-ndarray = { path = "../burn-ndarray", version = "=0.20.0-pre.6" }
 derive-new.workspace = true
 rand.workspace = true
 
+log = { workspace = true }
+
 [lints]
 workspace = true

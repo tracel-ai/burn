@@ -1086,6 +1086,7 @@ dependencies = [
  "burn-ndarray",
  "burn-optim",
  "derive-new",
+ "log",
  "rand 0.9.2",
 ]
 

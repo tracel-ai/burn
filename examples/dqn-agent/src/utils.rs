@@ -5,13 +5,14 @@ use burn::{
     module::{Param, ParamId},
     nn::{self, Linear},
     prelude::Backend,
+    record::Record,
     tensor::{Device, s},
     train::{
         ItemLazy,
         metric::{Adaptor, ExplorationRateInput},
     },
 };
-use burn_rl::Policy;
+use burn_rl::{Policy, PolicyState};
 use derive_new::new;
 use rand::{random, random_range};
 
@@ -81,11 +82,35 @@ impl Adaptor<ExplorationRateInput> for EpsilonGreedyPolicyOutput {
     }
 }
 
+#[derive(Record)]
+pub struct EpsilonGreedyPolicyRecord<B: Backend, P: Policy<B>> {
+    pub inner_state: <P::PolicyState as PolicyState<B>>::Record,
+    pub step: usize,
+}
+
 #[derive(Clone, new)]
 pub struct EpsilonGreedyPolicyState<B: Backend, P: Policy<B>> {
-    pub inner_policy: P::PolicyState,
+    pub inner_state: P::PolicyState,
     pub step: usize,
-    _backend: PhantomData<B>,
+}
+
+impl<B: Backend, P: Policy<B>> PolicyState<B> for EpsilonGreedyPolicyState<B, P> {
+    type Record = EpsilonGreedyPolicyRecord<B, P>;
+
+    fn into_record(&self) -> Self::Record {
+        EpsilonGreedyPolicyRecord {
+            inner_state: self.inner_state.into_record(),
+            step: self.step,
+        }
+    }
+
+    fn load_record(&self, record: Self::Record) -> Self {
+        let inner_state = self.inner_state.load_record(record.inner_state);
+        Self {
+            inner_state,
+            step: record.step,
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -167,14 +192,13 @@ where
     fn update(&mut self, update: Self::PolicyState) {
         // TODO: what to do
         // self.step = update.step;
-        self.inner_policy.update(update.inner_policy);
+        self.inner_policy.update(update.inner_state);
     }
 
     fn state(&self) -> Self::PolicyState {
         EpsilonGreedyPolicyState {
-            inner_policy: self.inner_policy.state(),
+            inner_state: self.inner_policy.state(),
             step: self.step,
-            _backend: PhantomData,
         }
     }
 

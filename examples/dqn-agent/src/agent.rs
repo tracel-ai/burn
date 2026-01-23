@@ -2,8 +2,7 @@ use std::marker::PhantomData;
 
 use burn::backend::NdArray;
 use burn::module::Module;
-use burn::optim::SimpleOptimizer;
-use burn::optim::adaptor::OptimizerAdaptor;
+use burn::record::Record;
 use burn::tensor::activation::softmax;
 use burn::tensor::{Transaction, s};
 use burn::train::ItemLazy;
@@ -17,7 +16,9 @@ use burn::{
     prelude::Backend,
     tensor::backend::AutodiffBackend,
 };
-use burn_rl::{LearnerAgent, Policy, RLTrainOutput, Transition, TransitionBatch, TransitionBuffer};
+use burn_rl::{
+    LearnerAgent, Policy, PolicyState, RLTrainOutput, Transition, TransitionBatch, TransitionBuffer,
+};
 use rand::distr::Distribution;
 use rand::distr::weighted::WeightedIndex;
 use rand::rng;
@@ -147,6 +148,27 @@ impl<B: Backend> TargetModel<B> for MlpNet<B> {
 }
 
 #[derive(Clone)]
+pub struct DqnState<B: Backend, M: DiscreteActionModel<B>> {
+    model: M,
+    _backend: PhantomData<B>,
+}
+
+impl<B: Backend, M: DiscreteActionModel<B>> PolicyState<B> for DqnState<B, M> {
+    type Record = M::Record;
+
+    fn into_record(&self) -> Self::Record {
+        self.model.clone().into_record()
+    }
+
+    fn load_record(&self, record: Self::Record) -> Self {
+        Self {
+            model: self.model.clone().load_record(record),
+            _backend: PhantomData,
+        }
+    }
+}
+
+#[derive(Clone)]
 pub struct DQN<B: Backend, M: DiscreteActionModel<B>> {
     model: M,
     _backend: PhantomData<B>,
@@ -168,7 +190,7 @@ impl<B: Backend, M: DiscreteActionModel<B>> Policy<B> for DQN<B, M> {
     type Action = Tensor<B, 2>;
 
     type ActionContext = ();
-    type PolicyState = M;
+    type PolicyState = DqnState<B, M>;
 
     fn logits(&mut self, states: Self::Input) -> Self::Logits {
         self.model.forward(states)
@@ -205,11 +227,14 @@ impl<B: Backend, M: DiscreteActionModel<B>> Policy<B> for DQN<B, M> {
     }
 
     fn update(&mut self, update: Self::PolicyState) {
-        self.model = update;
+        self.model = update.model;
     }
 
     fn state(&self) -> Self::PolicyState {
-        self.model.clone()
+        DqnState {
+            model: self.model.clone(),
+            _backend: PhantomData,
+        }
     }
 
     fn batch(&self, inputs: Vec<&Self::Input>) -> Self::Input {
@@ -225,18 +250,25 @@ impl<B: Backend, M: DiscreteActionModel<B>> Policy<B> for DQN<B, M> {
     }
 }
 
+#[derive(Record)]
+pub struct DqnLearningRecord<B: AutodiffBackend, M: AutodiffModule<B>, O: Optimizer<M, B>> {
+    policy_model: M::Record,
+    target_model: M::Record,
+    optimizer: O::Record,
+}
+
 #[derive(Clone)]
 pub struct DqnLearningAgent<B, M, O>
 where
     B: AutodiffBackend,
     M: DiscreteActionModel<B> + AutodiffModule<B> + TargetModel<B> + 'static,
     M::InnerModule: DiscreteActionModel<B::InnerBackend> + TargetModel<B::InnerBackend>,
-    O: SimpleOptimizer<B::InnerBackend> + 'static,
+    O: Optimizer<M, B> + 'static,
 {
     policy_model: M,
     target_model: M,
     agent: EpsilonGreedyPolicy<B, DQN<B, M>>,
-    optimizer: OptimizerAdaptor<O, M, B>,
+    optimizer: O,
     config: DqnAgentConfig,
 }
 
@@ -245,9 +277,9 @@ where
     B: AutodiffBackend,
     M: DiscreteActionModel<B> + AutodiffModule<B> + TargetModel<B> + 'static,
     M::InnerModule: DiscreteActionModel<B::InnerBackend> + TargetModel<B::InnerBackend>,
-    O: SimpleOptimizer<B::InnerBackend> + 'static,
+    O: Optimizer<M, B> + 'static,
 {
-    pub fn new(model: M, optimizer: OptimizerAdaptor<O, M, B>, config: DqnAgentConfig) -> Self {
+    pub fn new(model: M, optimizer: O, config: DqnAgentConfig) -> Self {
         let agent = EpsilonGreedyPolicy::new(
             DQN::new(model.clone()),
             config.epsilon_start,
@@ -258,7 +290,7 @@ where
             policy_model: model.clone(),
             target_model: model,
             agent,
-            optimizer: optimizer.into(),
+            optimizer: optimizer,
             config,
         }
     }
@@ -299,7 +331,7 @@ where
     M: DiscreteActionModel<B> + AutodiffModule<B> + TargetModel<B> + 'static,
     M::Input: Clone,
     M::InnerModule: DiscreteActionModel<B::InnerBackend> + TargetModel<B::InnerBackend>,
-    O: SimpleOptimizer<B::InnerBackend> + 'static,
+    O: Optimizer<M, B> + 'static,
 {
     type TrainingInput = Transition<
         B,
@@ -308,6 +340,7 @@ where
     >;
     type TrainingOutput = SimpleTrainOutput<B>;
     type InnerPolicy = EpsilonGreedyPolicy<B, DQN<B, M>>;
+    type Record = DqnLearningRecord<B, M, O>;
 
     fn train(
         &mut self,
@@ -352,8 +385,13 @@ where
         self.target_model = self
             .target_model
             .soft_update(&self.policy_model, self.config.tau);
-        let policy_update =
-            EpsilonGreedyPolicyState::new(self.policy_model.clone(), self.agent.state().step);
+        let policy_update = EpsilonGreedyPolicyState::new(
+            DqnState {
+                model: self.policy_model.clone(),
+                _backend: PhantomData,
+            },
+            self.agent.state().step,
+        );
         self.agent.update(policy_update.clone());
         RLTrainOutput {
             policy: policy_update,
@@ -365,5 +403,32 @@ where
 
     fn policy(&self) -> Self::InnerPolicy {
         self.agent.clone()
+    }
+
+    fn update_policy(&mut self, update: Self::InnerPolicy) {
+        self.agent = update;
+        self.policy_model = self.agent.state().inner_state.model;
+        self.target_model = self.agent.state().inner_state.model;
+    }
+
+    fn into_record(&self) -> Self::Record {
+        DqnLearningRecord {
+            policy_model: self.policy_model.clone().into_record(),
+            target_model: self.target_model.clone().into_record(),
+            optimizer: self.optimizer.to_record(),
+        }
+    }
+
+    fn load_record(self, record: Self::Record) -> Self {
+        let policy_model = self.policy_model.load_record(record.policy_model);
+        let target_model = self.target_model.load_record(record.target_model);
+        let optimizer = self.optimizer.load_record(record.optimizer);
+        Self {
+            policy_model,
+            target_model,
+            agent: self.agent,
+            optimizer,
+            config: self.config,
+        }
     }
 }

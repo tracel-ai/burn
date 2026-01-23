@@ -1,8 +1,7 @@
 use crate::{
     AsyncEnvArrayRunner, AsyncEnvRunner, EnvRunner, EpisodeSummary, EvaluationItem,
     EventProcessorTraining, RLComponents, RLEvent, RLEventProcessorType,
-    ReinforcementLearningComponentsTypes, ReinforcementLearningStrategy, RlAction, RlState,
-    TrainingItem, single::TrainingLoop,
+    ReinforcementLearningComponentsTypes, ReinforcementLearningStrategy,
 };
 use burn_core::{data::dataloader::Progress, tensor::Device};
 use burn_rl::{AsyncPolicy, LearnerAgent, Policy, TransitionBuffer};
@@ -30,8 +29,7 @@ where
     ) -> (OC::Policy, RLEventProcessorType<OC>) {
         let mut event_processor = training_components.event_processor;
         let mut checkpointer = training_components.checkpointer;
-        let mut early_stopping = training_components.early_stopping;
-        let num_epochs = training_components.num_epochs;
+        let num_steps_total = training_components.num_steps;
 
         struct MultiEnvConfig {
             num_envs: usize,
@@ -60,15 +58,12 @@ where
             <OC::LearningAgent as LearnerAgent<OC::Backend>>::TrainingInput,
         >::new(2048);
 
-        let num_steps = 8;
-        let valid_interval = 250;
+        let train_interval = 8;
+        let valid_interval = 5000;
         let valid_episodes = 5;
-
-        let mut num_items = 0;
-        let mut num_episodes = 0;
-        let mut global_valid_iteration = 0;
-        for training_progress in TrainingLoop::new(starting_epoch, training_components.num_epochs) {
-            let step = training_progress.items_processed;
+        let mut valid_next = false;
+        let mut num_steps = starting_epoch;
+        while num_steps < num_steps_total {
             if training_components.interrupter.should_stop() {
                 let reason = training_components
                     .interrupter
@@ -79,7 +74,7 @@ where
             }
 
             let items = env_runner.run_steps(
-                num_steps,
+                train_interval,
                 false,
                 &mut event_processor,
                 &training_components.interrupter,
@@ -90,21 +85,30 @@ where
                 // Maybe the agent should define what is stored from the transition (LearnerAgent::TrainingInput).
                 transition_buffer.push(item.transition.into());
 
-                num_items += 1;
+                num_steps += 1;
                 event_processor.process_train(RLEvent::TimeStep(EvaluationItem::new(
                     item.action_context,
-                    training_progress.clone(),
+                    Progress {
+                        items_processed: num_steps,
+                        items_total: num_steps_total,
+                    },
                     None,
                 )));
 
+                if num_steps % valid_interval == 0 {
+                    valid_next = true;
+                }
+
                 if item.done {
-                    num_episodes += 1;
                     event_processor.process_train(RLEvent::EpisodeEnd(EvaluationItem::new(
                         EpisodeSummary {
                             episode_length: item.ep_len,
                             cum_reward: item.cum_reward,
                         },
-                        training_progress.clone(),
+                        Progress {
+                            items_processed: num_steps,
+                            items_total: num_steps_total,
+                        },
                         None,
                     )));
                 }
@@ -123,16 +127,17 @@ where
 
                 event_processor.process_train(RLEvent::TrainStep(EvaluationItem::new(
                     update.item,
-                    training_progress,
+                    Progress {
+                        items_processed: num_steps,
+                        items_total: num_steps_total,
+                    },
                     None,
                 )));
             }
 
-            // if let Some(checkpointer) = &mut checkpointer {
-            //     checkpointer.checkpoint(&learner, epoch, &training_components.event_store);
-            // }
+            if valid_next {
+                valid_next = false;
 
-            if step % valid_interval == 0 {
                 env_runner_valid.update_policy(learner_agent.policy().state());
                 env_runner_valid.run_episodes(
                     valid_episodes,
@@ -140,15 +145,16 @@ where
                     &mut event_processor,
                     &training_components.interrupter,
                 );
-                global_valid_iteration += valid_episodes;
-                // event_processor.process_valid(LearnerEvent::EndEpoch(global_valid_iteration));
-            }
 
-            // if let Some(early_stopping) = &mut early_stopping
-            //     && early_stopping.should_stop(epoch, &training_components.event_store)
-            // {
-            //     break;
-            // }
+                if let Some(checkpointer) = &mut checkpointer {
+                    checkpointer.checkpoint(
+                        &learner_agent.policy(),
+                        &learner_agent,
+                        num_steps,
+                        &training_components.event_store,
+                    );
+                }
+            }
         }
 
         (learner_agent.policy(), event_processor)

@@ -1,12 +1,14 @@
+mod checkpointer;
 mod components;
+mod env_runner;
 mod off_policy_strat;
 mod output;
 mod paradigm;
 mod strategy;
-mod env_runner;
 
-pub use env_runner::*;
+pub use checkpointer::*;
 pub use components::*;
+pub use env_runner::*;
 pub use off_policy_strat::*;
 pub use output::*;
 pub use paradigm::*;

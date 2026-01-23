@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use burn_core::tensor::backend::AutodiffBackend;
-use burn_rl::{Environment, LearnerAgent, Policy};
+use burn_rl::{Environment, LearnerAgent, Policy, PolicyState};
 
 use crate::{AgentEvaluationEvent, AsyncProcessorTraining, ItemLazy, RLEvent};
 
@@ -25,7 +25,9 @@ pub trait ReinforcementLearningComponentsTypes {
     type ActionContext: ItemLazy + Clone + Send + 'static;
     /// The output data of a training step.
     type TrainingOutput: ItemLazy + Clone + Send;
+    /// The type of the environment state.
     type State: Into<<Self::Policy as Policy<Self::Backend>>::Input> + Clone;
+    /// The type of the environment action.
     type Action: From<<Self::Policy as Policy<Self::Backend>>::Action>;
 }
 
@@ -64,20 +66,6 @@ pub(crate) type RlPolicy<OC> =
     <<OC as ReinforcementLearningComponentsTypes>::LearningAgent as LearnerAgent<
         <OC as ReinforcementLearningComponentsTypes>::Backend,
     >>::InnerPolicy;
-// pub(crate) type RlPolicyState<OC> =
-//     <<<OC as ReinforcementLearningComponentsTypes>::LearningAgent as LearnerAgent<
-//         <OC as ReinforcementLearningComponentsTypes>::Backend,
-//         RlState<OC>,
-//         RlAction<OC>,
-//     >>::InnerPolicy as Policy<
-//         <OC as ReinforcementLearningComponentsTypes>::Backend,
-//         RlState<OC>,
-//         RlAction<OC>,
-//     >>::PolicyState;
-pub(crate) type RlState<OC> =
-    <<OC as ReinforcementLearningComponentsTypes>::Env as Environment>::State;
-pub(crate) type RlAction<OC> =
-    <<OC as ReinforcementLearningComponentsTypes>::Env as Environment>::Action;
 /// The event processor type for reinforcement learning.
 pub type RLEventProcessorType<OC> = AsyncProcessorTraining<
     RLEvent<
@@ -86,3 +74,13 @@ pub type RLEventProcessorType<OC> = AsyncProcessorTraining<
     >,
     AgentEvaluationEvent<<OC as ReinforcementLearningComponentsTypes>::ActionContext>,
 >;
+/// The record of the policy.
+pub type RLPolicyRecord<RLC> =
+    <<<RLC as ReinforcementLearningComponentsTypes>::Policy as Policy<
+        <RLC as ReinforcementLearningComponentsTypes>::Backend,
+    >>::PolicyState as PolicyState<<RLC as ReinforcementLearningComponentsTypes>::Backend>>::Record;
+/// The record of the learning agent.
+pub type RLAgentRecord<RLC> =
+    <<RLC as ReinforcementLearningComponentsTypes>::LearningAgent as LearnerAgent<
+        <RLC as ReinforcementLearningComponentsTypes>::Backend,
+    >>::Record;

@@ -1,7 +1,7 @@
 use derive_new::new;
 use std::{marker::PhantomData, sync::mpsc::Sender, thread::spawn};
 
-use burn_core::{prelude::*, tensor::backend::AutodiffBackend};
+use burn_core::{prelude::*, record::Record, tensor::backend::AutodiffBackend};
 
 use crate::{Transition, TransitionBuffer};
 
@@ -9,6 +9,13 @@ use crate::{Transition, TransitionBuffer};
 pub struct ActionContext<A, C> {
     pub context: C,
     pub action: A,
+}
+
+pub trait PolicyState<B: Backend> {
+    type Record: Record<B>;
+
+    fn into_record(&self) -> Self::Record;
+    fn load_record(&self, record: Self::Record) -> Self;
 }
 
 pub trait Policy<B: Backend>: Clone {
@@ -19,7 +26,7 @@ pub trait Policy<B: Backend>: Clone {
     type Action: Clone + Send;
 
     type ActionContext: Clone;
-    type PolicyState: Clone + Send;
+    type PolicyState: Send + PolicyState<B>;
 
     fn logits(&mut self, states: Self::Input) -> Self::Logits;
     fn action(
@@ -65,12 +72,17 @@ pub trait LearnerAgent<B: AutodiffBackend> {
     >;
     type TrainingOutput;
     type InnerPolicy: Policy<B>;
+    type Record: Record<B>;
 
     fn train(
         &mut self,
         input: &TransitionBuffer<Self::TrainingInput>,
     ) -> RLTrainOutput<Self::TrainingOutput, <Self::InnerPolicy as Policy<B>>::PolicyState>;
     fn policy(&self) -> Self::InnerPolicy;
+    fn update_policy(&mut self, update: Self::InnerPolicy);
+
+    fn into_record(&self) -> Self::Record;
+    fn load_record(self, record: Self::Record) -> Self;
 }
 
 #[derive(Clone)]
@@ -205,16 +217,18 @@ where
     pub fn new(autobatch_size: usize, inner_policy: P) -> Self {
         let (sender, receiver) = std::sync::mpsc::channel();
         let mut autobatcher = AutoBatcher::new(autobatch_size, inner_policy.clone());
-        // TODO: worker?
         spawn(move || {
             loop {
-                match receiver
-                    .recv()
-                    .expect("Should be able to receive inference messages.")
-                {
-                    InferenceMessage::ActionMessage(item) => autobatcher.push_action(item),
-                    InferenceMessage::LogitsMessage(item) => autobatcher.push_logits(item),
-                    InferenceMessage::Policy(update) => autobatcher.update_policy(update),
+                match receiver.recv() {
+                    Ok(msg) => match msg {
+                        InferenceMessage::ActionMessage(item) => autobatcher.push_action(item),
+                        InferenceMessage::LogitsMessage(item) => autobatcher.push_logits(item),
+                        InferenceMessage::Policy(update) => autobatcher.update_policy(update),
+                    },
+                    Err(err) => {
+                        log::error!("Error in AsyncPolicy : {}", err);
+                        break;
+                    }
                 }
             }
         });
@@ -281,6 +295,7 @@ where
             .unwrap();
     }
 
+    // TODO: all this.
     fn state(&self) -> Self::PolicyState {
         todo!()
     }

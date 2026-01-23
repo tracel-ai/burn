@@ -115,19 +115,25 @@ where
                         &device,
                     ),
                 );
-                transition_sender
-                    .send(StepMessage {
-                        step: TimeStep {
-                            env_id: id,
-                            transition,
-                            done: step_result.done,
-                            ep_len: step_num,
-                            cum_reward: current_reward,
-                            action_context: context[0].clone(),
-                        },
-                        confirmation_sender: confirmation_sender.clone(),
-                    })
-                    .expect("Can send transition on channel");
+                let res = transition_sender.send(StepMessage {
+                    step: TimeStep {
+                        env_id: id,
+                        transition,
+                        done: step_result.done,
+                        ep_len: step_num,
+                        cum_reward: current_reward,
+                        action_context: context[0].clone(),
+                    },
+                    confirmation_sender: confirmation_sender.clone(),
+                });
+
+                match res {
+                    Err(err) => {
+                        log::error!("Error in env runner : {}", err);
+                        break;
+                    }
+                    _ => (),
+                }
 
                 if step_result.done || step_result.truncated {
                     env.reset();

@@ -1,29 +1,27 @@
 use std::sync::Arc;
 
+use burn_rl::LearnerAgent;
+
 use crate::{
-    EarlyStoppingStrategyRef, Interrupter, LearnerSummaryConfig, LearningResult, RLEvent,
-    RLEventProcessorType, ReinforcementLearningComponentsTypes,
+    Interrupter, LearnerSummaryConfig, RLCheckpointer, RLEvent, RLEventProcessorType, RLResult,
+    ReinforcementLearningComponentsTypes,
     metric::{processor::EventProcessorTraining, store::EventStoreClient},
 };
 
-/// Struct to minimise parameters passed to [SupervisedLearningStrategy::train].
-/// These components are used during training.
-pub struct RLComponents<OC: ReinforcementLearningComponentsTypes> {
-    /// The total number of epochs
-    pub num_epochs: usize,
-    /// The epoch number from which to continue the training.
+/// Struct to minimise parameters passed to [ReinforcementLearningStrategy::train].
+pub struct RLComponents<RLC: ReinforcementLearningComponentsTypes> {
+    /// The total number of environment steps.
+    pub num_steps: usize,
+    /// The step number from which to continue the training.
     pub checkpoint: Option<usize>,
-    /// A checkpointer used to load and save learner checkpoints.
-    // pub checkpointer: Option<LearningCheckpointer<OC::LC>>,
-    pub checkpointer: Option<f64>,
+    /// A checkpointer used to load and save learning checkpoints.
+    pub checkpointer: Option<RLCheckpointer<RLC>>,
     /// Enables gradients accumulation.
     pub grad_accumulation: Option<usize>,
     /// An [Interupter](Interrupter) that allows aborting the training/evaluation process early.
     pub interrupter: Interrupter,
-    /// Cloneable reference to an early stopping strategy.
-    pub early_stopping: Option<EarlyStoppingStrategyRef>,
-    /// An [EventProcessor](ParadigmComponentsTypes::EventProcessor) that processes events happening during training and validation.
-    pub event_processor: RLEventProcessorType<OC>,
+    /// A [RLEventProcessor](crate::RLEventProcessor) that processes events happening during training and evaluation.
+    pub event_processor: RLEventProcessorType<RLC>,
     /// A reference to an [EventStoreClient](EventStoreClient).
     pub event_store: Arc<EventStoreClient>,
     /// Config for creating a summary of the learning
@@ -31,29 +29,30 @@ pub struct RLComponents<OC: ReinforcementLearningComponentsTypes> {
 }
 
 /// Provides the `fit` function for any learning strategy
-pub trait ReinforcementLearningStrategy<OC: ReinforcementLearningComponentsTypes> {
+pub trait ReinforcementLearningStrategy<RLC: ReinforcementLearningComponentsTypes> {
     /// Train the learner's model with this strategy.
-    // fn train(
-    //     &self,
-    //     mut learner_agent: OC::LearningAgent,
-    //     mut training_components: RLComponents<OC>,
-    // ) -> LearningResult<<OC::LearningAgent as Agent<TrainingBackend<OC::LC>, OC::Env>>::Policy>
     fn train(
         &self,
-        mut learner_agent: OC::LearningAgent,
-        mut training_components: RLComponents<OC>,
-    ) -> LearningResult<OC::Policy> {
-        let starting_epoch = 1;
-        // let starting_epoch = match training_components.checkpoint {
-        //     Some(checkpoint) => {
-        //         if let Some(checkpointer) = &mut training_components.checkpointer {
-        //             learner =
-        //                 checkpointer.load_checkpoint(learner, &Default::default(), checkpoint);
-        //         }
-        //         checkpoint + 1
-        //     }
-        //     None => 1,
-        // };
+        mut learner_agent: RLC::LearningAgent,
+        mut training_components: RLComponents<RLC>,
+    ) -> RLResult<RLC::Policy> {
+        let mut policy = learner_agent.policy();
+
+        let starting_epoch = match training_components.checkpoint {
+            Some(checkpoint) => {
+                if let Some(checkpointer) = &mut training_components.checkpointer {
+                    (policy, learner_agent) = checkpointer.load_checkpoint(
+                        policy,
+                        learner_agent,
+                        &Default::default(),
+                        checkpoint,
+                    );
+                }
+                checkpoint + 1
+            }
+            None => 1,
+        };
+        learner_agent.update_policy(policy);
 
         let _summary_config = training_components.summary.clone();
 
@@ -63,9 +62,10 @@ pub trait ReinforcementLearningStrategy<OC: ReinforcementLearningComponentsTypes
             .process_train(RLEvent::Start);
 
         // Training loop
-        let (model, mut event_processor) =
+        let (policy, mut event_processor) =
             self.fit(training_components, &mut learner_agent, starting_epoch);
 
+        // TODO:
         // let summary = summary_config.and_then(|summary| {
         //     summary
         //         .init()
@@ -80,18 +80,14 @@ pub trait ReinforcementLearningStrategy<OC: ReinforcementLearningComponentsTypes
         // let model = model.valid();
         let renderer = event_processor.renderer();
 
-        LearningResult { model, renderer }
+        RLResult { policy, renderer }
     }
 
     /// Training loop for this strategy
     fn fit(
         &self,
-        training_components: RLComponents<OC>,
-        learner_agent: &mut OC::LearningAgent,
+        training_components: RLComponents<RLC>,
+        learner_agent: &mut RLC::LearningAgent,
         starting_epoch: usize,
-    ) -> (
-        // <OC::LearningAgent as Agent<TrainingBackend<OC::LC>, OC::Env>>::Policy,
-        OC::Policy,
-        RLEventProcessorType<OC>,
-    );
+    ) -> (RLC::Policy, RLEventProcessorType<RLC>);
 }

@@ -1,14 +1,11 @@
 use burn::{
     grad_clipping::GradientClippingConfig,
     optim::AdamWConfig,
+    record::CompactRecorder,
     tensor::backend::AutodiffBackend,
     train::{
-        MetricEarlyStoppingStrategy, OffPolicyLearning, ReinforcementLearningComponentsMarker,
-        StoppingCondition,
-        metric::{
-            EpisodeLengthMetric, ExplorationRateMetric, LossMetric,
-            store::{Aggregate, Direction, Split},
-        },
+        ReinforcementLearning, ReinforcementLearningComponentsMarker,
+        metric::{EpisodeLengthMetric, ExplorationRateMetric, LossMetric},
     },
 };
 
@@ -40,21 +37,16 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         .with_grad_clipping(Some(GradientClippingConfig::Value(10.0)))
         .init();
     let agent = DqnLearningAgent::new(policy_model, optimizer, dqn_config);
-    let learner = OffPolicyLearning::<
+    // TODO: type.
+    let learner = ReinforcementLearning::<
         ReinforcementLearningComponentsMarker<_, CartPoleWrapper, _, _, _>,
     >::new(ARTIFACT_DIR)
     .train_step_metrics((LossMetric::new(),))
     .env_step_metrics((ExplorationRateMetric::new(),))
     .episode_metrics((EpisodeLengthMetric::new(),))
-    // .with_file_checkpointer(CompactRecorder::new())
-    .early_stopping(MetricEarlyStoppingStrategy::new(
-        &EpisodeLengthMetric::new(),
-        Aggregate::Mean,
-        Direction::Highest,
-        Split::Valid,
-        StoppingCondition::NoImprovementSince { n_epochs: 5 },
-    ))
-    .num_episodes(5000)
+    .with_file_checkpointer(CompactRecorder::new())
+    .num_steps(40_000)
+    .checkpoint(16_000)
     .summary();
 
     let _policy = learner.launch(agent);

@@ -75,11 +75,6 @@ impl TuiMetricsRendererWrapper {
                     }
                 }
 
-                // TODO: Fix stopping training.
-                if renderer.interrupter.should_stop() {
-                    break;
-                }
-
                 // Render
                 if renderer.last_update.elapsed() >= tick_rate {
                     renderer.render().unwrap()
@@ -120,7 +115,6 @@ struct TuiMetricsRenderer {
 
 impl MetricsRendererEvaluation for TuiMetricsRendererWrapper {
     fn update_test(&mut self, name: EvaluationName, state: MetricState) {
-        // TODO : Handle interruption by the user gracefully.
         self.sender
             .send(TuiRendererEvent::MetricsUpdate((
                 TuiSplit::Test,
