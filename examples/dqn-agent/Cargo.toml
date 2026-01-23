@@ -31,7 +31,7 @@ burn = { path = "../../crates/burn", features = [
     "ndarray",
     "autotune",
 ], default-features = false }
-burn-rl = { version = "0.20.0-pre.6", path = "../../crates/burn-rl" }
+burn-rl = { version = "0.21.0", path = "../../crates/burn-rl" }
 gym-rs = { version = "0.3.1", branch = "main", git = "https://github.com/MathisWellmann/gym-rs" }
 rand.workspace = true
 derive-new = { workspace = true }

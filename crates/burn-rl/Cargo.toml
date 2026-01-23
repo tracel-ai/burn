@@ -6,14 +6,14 @@ readme.workspace = true
 version.workspace = true
 
 [dependencies]
-burn-core = { path = "../burn-core", version = "=0.20.0-pre.6", features = [
+burn-core = { path = "../burn-core", version = "=0.21.0", features = [
     "dataset",
     "std",
 ], default-features = false }
-burn-optim = { path = "../burn-optim", version = "=0.20.0-pre.6", features = [
+burn-optim = { path = "../burn-optim", version = "=0.21.0", features = [
     "std",
 ], default-features = false }
-burn-ndarray = { path = "../burn-ndarray", version = "=0.20.0-pre.6" }
+burn-ndarray = { path = "../burn-ndarray", version = "=0.21.0" }
 derive-new.workspace = true
 rand.workspace = true
 

@@ -1113,7 +1113,7 @@ dependencies = [
 
 [[package]]
 name = "burn-rl"
-version = "0.20.0-pre.6"
+version = "0.21.0"
 dependencies = [
  "burn-core",
  "burn-ndarray",
@@ -2972,7 +2972,7 @@ checksum = "1aaf95b3e5c8f23aa320147307562d361db0ae0d51242340f558153b4eb2439b"
 
 [[package]]
 name = "dqn-agent"
-version = "0.20.0-pre.6"
+version = "0.21.0"
 dependencies = [
  "burn",
  "burn-rl",
@@ -4131,7 +4131,7 @@ dependencies = [
  "log",
  "nalgebra",
  "num-traits",
- "ordered-float",
+ "ordered-float 4.6.0",
  "rand 0.8.5",
  "rand_pcg",
  "sdl2",
@@ -5423,7 +5423,7 @@ checksum = "254a5372af8fc138e36684761d3c0cdb758a4410e938babcff1c860ce14ddbfc"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.111",
+ "syn 2.0.114",
 ]
 
 [[package]]
@@ -6146,6 +6146,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7bb71e1b3fa6ca1c61f383464aaf2bb0e2f8e772a1f01d486832464de363b951"
 dependencies = [
  "num-traits",
+ "rand 0.8.5",
+ "serde",
 ]
 
 [[package]]
@@ -6155,8 +6157,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e2c1f9f56e534ac6a9b8a4600bdf0f530fb393b5f393e7b4d03489c3cf0c3f01"
 dependencies = [
  "num-traits",
- "rand 0.8.5",
- "serde",
 ]
 
 [[package]]

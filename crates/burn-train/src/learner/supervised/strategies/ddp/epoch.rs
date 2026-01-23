@@ -19,14 +19,12 @@ use crate::{
 #[derive(new)]
 pub struct DdpValidEpoch<LC: LearningComponentsTypes> {
     dataloader: ValidLoader<LC>,
-    epoch_total: usize,
 }
 
 /// A training epoch.
 #[derive(new)]
 pub struct DdpTrainEpoch<LC: LearningComponentsTypes> {
     dataloader: TrainLoader<LC>,
-    epoch_total: usize,
     grad_accumulation: Option<usize>,
 }
 
