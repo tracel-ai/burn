@@ -12,11 +12,11 @@ pub(crate) struct EnumRecordItemCodegen {
 }
 
 impl RecordItemCodegen for EnumRecordItemCodegen {
-    fn from_ast(ast: &syn::DeriveInput) -> Self {
-        Self {
-            variants: parse_variants(ast),
+    fn from_ast(ast: &syn::DeriveInput) -> syn::Result<Self> {
+        Ok(Self {
+            variants: parse_variants(ast)?,
             vis: ast.vis.clone(),
-        }
+        })
     }
 
     fn gen_item_type(

@@ -1,9 +1,10 @@
 use crate::ops::FloatElem;
-use crate::{BasicOps, Numeric, Shape, Slice, Tensor, backend::Backend, cast::ToElement};
+use crate::{BasicOps, Shape, Slice, Tensor, backend::Backend, cast::ToElement};
 use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec;
 use alloc::vec::Vec;
+use burn_backend::tensor::Ordered;
 
 /// The struct should always be used with the [check](crate::check) macro.
 ///
@@ -138,53 +139,6 @@ impl TensorCheck {
                      along this dimension (Size={})",
                     tensor.shape().dims[dim]
                 )),
-            );
-        }
-
-        check
-    }
-
-    pub(crate) fn reshape_args_usize<const D1: usize, const D2: usize>(
-        original: &Shape,
-        target: &Shape,
-    ) -> Self {
-        let mut check = Self::Ok;
-
-        if original.num_elements() != target.num_elements() {
-            check = check.register(
-                "Reshape",
-                TensorError::new(
-                    "The given shape doesn't have the same number of elements as the current \
-                     tensor.",
-                )
-                .details(format!(
-                    "Current shape: {:?}, target shape: {:?}.",
-                    original.dims, target.dims
-                )),
-            );
-        }
-
-        check
-    }
-
-    pub(crate) fn reshape_args_i64<const D: usize>(target: &[i64; D]) -> Self {
-        let mut check = Self::Ok;
-
-        if target.iter().any(|&dim| dim < -1) {
-            check = check.register(
-                "Reshape",
-                TensorError::new(
-                    "The given shape cannot contain negative dimensions (other than -1).",
-                )
-                .details(format!("Target shape: {target:?}.")),
-            );
-        }
-
-        if target.iter().filter(|&x| x == &-1).count() > 1 {
-            check = check.register(
-                "Reshape",
-                TensorError::new("The given shape cannot contain more than one -1.")
-                    .details(format!("Target shape: {target:?}.")),
             );
         }
 
@@ -466,7 +420,7 @@ impl TensorCheck {
         check
     }
 
-    pub(crate) fn one_hot_tensor<B: Backend, const D: usize, K: Numeric<B>>(
+    pub(crate) fn one_hot_tensor<B: Backend, const D: usize, K: Ordered<B>>(
         index_tensor: Tensor<B, D, K>,
         num_classes: usize,
     ) -> Self {
@@ -1486,27 +1440,24 @@ pub(crate) mod macros {
     pub(crate) use check;
 }
 
+pub(crate) fn unwrap_shape_reshape(result: Result<Shape, burn_std::ShapeError>) -> Shape {
+    match result {
+        Ok(shape) => shape,
+        // `shape.reshape(new_shape)` should only return `ShapeError::Invalid`.
+        Err(burn_std::ShapeError::Invalid { reason }) => {
+            macros::check!({
+                TensorCheck::Ok.register("Reshape", crate::check::TensorError::new(reason))
+            });
+            unreachable!()
+        }
+        Err(e) => panic!("{e:?}"),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use macros::check;
-
-    #[test]
-    #[should_panic]
-    fn reshape_invalid_shape() {
-        check!(TensorCheck::reshape_args_usize::<2, 2>(
-            &Shape::new([2, 2]),
-            &Shape::new([1, 3])
-        ));
-    }
-
-    #[test]
-    fn reshape_valid_shape() {
-        check!(TensorCheck::reshape_args_usize::<2, 2>(
-            &Shape::new([2, 2]),
-            &Shape::new([1, 4])
-        ));
-    }
 
     #[test]
     #[should_panic]

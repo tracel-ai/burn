@@ -13,7 +13,7 @@
 
 #![allow(unreachable_code)]
 
-use burn_tensor::{Element, ElementConversion};
+use burn_tensor::{Element, ElementConversion, cast::ToElement};
 use ndarray::Array2;
 
 use crate::Connectivity;
@@ -24,15 +24,15 @@ use super::{Solver, StatsOp, max_labels};
 mod Spaghetti4C_forest_labels;
 pub(crate) use Spaghetti4C_forest_labels::*;
 
-pub fn process<I: Element, B: Element, LabelsSolver: Solver<I>>(
+pub fn process<B: Element, LabelsSolver: Solver>(
     img: Vec<B>,
     h: usize,
     w: usize,
-    stats: &mut impl StatsOp<I>,
-) -> Array2<I> {
+    stats: &mut impl StatsOp<Label = LabelsSolver::Label>,
+) -> Array2<LabelsSolver::Label> {
     let img = img.as_ptr();
 
-    let mut img_labels: Vec<I> = vec![0.elem(); h * w];
+    let mut img_labels: Vec<LabelsSolver::Label> = vec![0.elem(); h * w];
 
     // A quick and dirty upper bound for the maximum number of labels.
     // Following formula comes from the fact that a 2x2 block in 4-connectivity case

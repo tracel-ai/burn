@@ -6,7 +6,7 @@ use std::{
     path::Path,
 };
 
-use burn_import::onnx::ModelGen;
+use burn_onnx::ModelGen;
 
 const LABEL_SOURCE_FILE: &str = "src/model/label.txt";
 const LABEL_DEST_FILE: &str = "model/label.rs";

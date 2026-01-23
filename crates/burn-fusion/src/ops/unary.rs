@@ -14,7 +14,7 @@ macro_rules! scalar_float_ops {
         impl<B: FusionBackend> Operation<B::FusionRuntime> for $name<B> {
             fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let lhs = handles.get_float_tensor::<B>(&self.desc.lhs);
-                let output = $ops(lhs, self.desc.rhs.elem());
+                let output = $ops(lhs, self.desc.rhs.into());
 
                 handles.register_float_tensor::<B>(&self.desc.out.id, output);
             }
@@ -242,7 +242,7 @@ macro_rules! scalar_float_cmp_ops {
         impl<B: FusionBackend> Operation<B::FusionRuntime> for $name<B> {
             fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let lhs = handles.get_float_tensor::<B>(&self.desc.lhs);
-                let output = $ops(lhs, self.desc.rhs.elem());
+                let output = $ops(lhs, self.desc.rhs.into());
 
                 handles.register_bool_tensor::<B>(&self.desc.out.id, output);
             }
@@ -266,7 +266,7 @@ macro_rules! scalar_int_cmp_ops {
         impl<B: FusionBackend> Operation<B::FusionRuntime> for $name<B> {
             fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let lhs = handles.get_int_tensor::<B>(&self.desc.lhs);
-                let output = $ops(lhs, self.desc.rhs.elem());
+                let output = $ops(lhs, self.desc.rhs.into());
 
                 handles.register_bool_tensor::<B>(&self.desc.out.id, output);
             }
@@ -290,7 +290,7 @@ macro_rules! scalar_int_ops {
         impl<B: FusionBackend> Operation<B::FusionRuntime> for $name<B> {
             fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let lhs = handles.get_int_tensor::<B>(&self.desc.lhs);
-                let output = $ops(lhs, self.desc.rhs.elem());
+                let output = $ops(lhs, self.desc.rhs.into());
 
                 handles.register_int_tensor::<B>(&self.desc.out.id, output);
             }

@@ -60,7 +60,7 @@ pipeline.
 
 - Specific node operator implementations (Conv2d, Gemm, etc.)
 - Detailed node configs (those are covered in unit tests)
-- Code generation (that's burn-import's job)
+- Code generation (that's burn-onnx's job)
 
 Focus on **how the pipeline works**, not **what operations it supports**.
 

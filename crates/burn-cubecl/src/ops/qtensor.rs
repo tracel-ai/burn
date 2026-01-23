@@ -7,8 +7,8 @@ use burn_backend::{
     },
     tensor::{Device, FloatElem, FloatTensor, IntTensor, QuantizedTensor},
 };
-use cubecl::quant::scheme::QuantStore;
 use cubecl::server::{Allocation, AllocationDescriptor, AllocationKind};
+use cubecl::{e2m1x2, quant::scheme::QuantStore};
 
 use crate::{
     CubeBackend, CubeRuntime, FloatElement, IntElement,
@@ -75,7 +75,7 @@ fn new_quantized<R: CubeRuntime>(
     let num_quants = scheme.num_quants();
 
     let data_size = match scheme.store {
-        QuantStore::U32 => {
+        QuantStore::PackedU32(_) => {
             if !shape_last.is_multiple_of(num_quants) {
                 panic!("Can't store in u32")
             }
@@ -86,11 +86,17 @@ fn new_quantized<R: CubeRuntime>(
             QuantValue::Q8F | QuantValue::Q8S | QuantValue::E4M3 | QuantValue::E5M2 => {
                 size_of::<i8>()
             }
-            // Native e2m1 is packed in u8
-            QuantValue::E2M1 => size_of::<u8>(),
-            QuantValue::Q4F | QuantValue::Q4S | QuantValue::Q2F | QuantValue::Q2S => {
+            QuantValue::Q4F
+            | QuantValue::Q4S
+            | QuantValue::Q2F
+            | QuantValue::Q2S
+            | QuantValue::E2M1 => {
                 panic!("Can't store native sub-byte values")
             }
+        },
+        QuantStore::PackedNative(_) => match scheme.value {
+            QuantValue::E2M1 => size_of::<e2m1x2>(),
+            other => panic!("{other:?} doesn't support native packing"),
         },
     };
 

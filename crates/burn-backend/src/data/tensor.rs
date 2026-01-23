@@ -7,6 +7,7 @@ use alloc::vec::Vec;
 use bytemuck::{AnyBitPattern, CheckedBitPattern, Zeroable, cast_mut, checked::CheckedCastError};
 use rand::RngCore;
 
+use crate::Scalar;
 use crate::distribution::Distribution;
 use crate::element::{Element, ElementConversion};
 use burn_std::tensor::DType;
@@ -359,13 +360,13 @@ impl TensorData {
         TensorData::new(data, shape)
     }
 
-    #[allow(dead_code)]
     /// Populates the data with the given value
-    pub fn full_dtype<E: Element, S: Into<Vec<usize>>>(
+    pub fn full_dtype<E: Into<Scalar>, S: Into<Vec<usize>>>(
         shape: S,
         fill_value: E,
         dtype: DType,
     ) -> TensorData {
+        let fill_value = fill_value.into();
         match dtype {
             DType::F64 => Self::full::<f64, _>(shape, fill_value.elem()),
             DType::F32 | DType::Flex32 => Self::full::<f32, _>(shape, fill_value.elem()),

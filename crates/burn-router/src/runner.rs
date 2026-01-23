@@ -231,7 +231,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     let tensor = handles.get_float_tensor::<B>(&desc.tensor);
                     let mask = handles.get_bool_tensor::<B>(&desc.mask);
 
-                    let output = B::float_mask_fill(tensor, mask, desc.value.elem());
+                    let output = B::float_mask_fill(tensor, mask, desc.value.into());
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
                 BaseOperationIr::Equal(desc) => {
@@ -377,7 +377,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     let tensor = handles.get_int_tensor::<B>(&desc.tensor);
                     let mask = handles.get_bool_tensor::<B>(&desc.mask);
 
-                    let output = B::int_mask_fill(tensor, mask, desc.value.elem());
+                    let output = B::int_mask_fill(tensor, mask, desc.value.into());
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
                 BaseOperationIr::Equal(desc) => {
@@ -606,7 +606,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     let shape = desc.out.shape.clone();
                     let output = B::float_full(
                         shape,
-                        desc.value.elem(),
+                        desc.value.into(),
                         &self.device,
                         desc.out.dtype.into(),
                     );
@@ -695,7 +695,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                 NumericOperationIr::Clamp(desc) => {
                     let tensor = handles.get_float_tensor::<B>(&desc.tensor);
 
-                    let output = B::float_clamp(tensor, desc.min.elem(), desc.max.elem());
+                    let output = B::float_clamp(tensor, desc.min.into(), desc.max.into());
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
                 NumericOperationIr::IntRandom(_) => unreachable!(),
@@ -761,7 +761,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     let shape = desc.out.shape.clone();
                     let output = B::int_full(
                         shape,
-                        desc.value.elem(),
+                        desc.value.into(),
                         &self.device,
                         desc.out.dtype.into(),
                     );
@@ -850,7 +850,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                 NumericOperationIr::Clamp(desc) => {
                     let tensor = handles.get_int_tensor::<B>(&desc.tensor);
 
-                    let output = B::int_clamp(tensor, desc.min.elem(), desc.max.elem());
+                    let output = B::int_clamp(tensor, desc.min.into(), desc.max.into());
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
                 NumericOperationIr::IntRandom(desc) => {
@@ -1080,6 +1080,36 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     let output = B::conv1d(x, weight, bias, desc.clone().options.into());
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
+                ModuleOperationIr::Conv1dXBackward(desc) => {
+                    let x = handles.get_float_tensor::<B>(&desc.x);
+                    let weight = handles.get_float_tensor::<B>(&desc.weight);
+                    let output_grad = handles.get_float_tensor::<B>(&desc.output_grad);
+
+                    let output =
+                        B::conv1d_x_backward(x, weight, output_grad, desc.clone().options.into());
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+                ModuleOperationIr::Conv1dWeightBackward(desc) => {
+                    let x = handles.get_float_tensor::<B>(&desc.x);
+                    let weight = handles.get_float_tensor::<B>(&desc.weight);
+                    let output_grad = handles.get_float_tensor::<B>(&desc.output_grad);
+
+                    let output = B::conv1d_weight_backward(
+                        x,
+                        weight,
+                        output_grad,
+                        desc.clone().options.into(),
+                    );
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+                ModuleOperationIr::Conv1dBiasBackward(desc) => {
+                    let x = handles.get_float_tensor::<B>(&desc.x);
+                    let bias = handles.get_float_tensor::<B>(&desc.bias);
+                    let output_grad = handles.get_float_tensor::<B>(&desc.output_grad);
+
+                    let output = B::conv1d_bias_backward(x, bias, output_grad);
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
                 ModuleOperationIr::Conv2d(desc) => {
                     let x = handles.get_float_tensor::<B>(&desc.x);
                     let weight = handles.get_float_tensor::<B>(&desc.weight);
@@ -1091,6 +1121,36 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     let output = B::conv2d(x, weight, bias, desc.clone().options.into());
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
+                ModuleOperationIr::Conv2dXBackward(desc) => {
+                    let x = handles.get_float_tensor::<B>(&desc.x);
+                    let weight = handles.get_float_tensor::<B>(&desc.weight);
+                    let output_grad = handles.get_float_tensor::<B>(&desc.output_grad);
+
+                    let output =
+                        B::conv2d_x_backward(x, weight, output_grad, desc.clone().options.into());
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+                ModuleOperationIr::Conv2dWeightBackward(desc) => {
+                    let x = handles.get_float_tensor::<B>(&desc.x);
+                    let weight = handles.get_float_tensor::<B>(&desc.weight);
+                    let output_grad = handles.get_float_tensor::<B>(&desc.output_grad);
+
+                    let output = B::conv2d_weight_backward(
+                        x,
+                        weight,
+                        output_grad,
+                        desc.clone().options.into(),
+                    );
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+                ModuleOperationIr::Conv2dBiasBackward(desc) => {
+                    let x = handles.get_float_tensor::<B>(&desc.x);
+                    let bias = handles.get_float_tensor::<B>(&desc.bias);
+                    let output_grad = handles.get_float_tensor::<B>(&desc.output_grad);
+
+                    let output = B::conv2d_bias_backward(x, bias, output_grad);
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
                 ModuleOperationIr::Conv3d(desc) => {
                     let x = handles.get_float_tensor::<B>(&desc.x);
                     let weight = handles.get_float_tensor::<B>(&desc.weight);
@@ -1100,6 +1160,36 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                         .map(|bias| handles.get_float_tensor::<B>(bias));
 
                     let output = B::conv3d(x, weight, bias, desc.options.clone().into());
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+                ModuleOperationIr::Conv3dXBackward(desc) => {
+                    let x = handles.get_float_tensor::<B>(&desc.x);
+                    let weight = handles.get_float_tensor::<B>(&desc.weight);
+                    let output_grad = handles.get_float_tensor::<B>(&desc.output_grad);
+
+                    let output =
+                        B::conv3d_x_backward(x, weight, output_grad, desc.clone().options.into());
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+                ModuleOperationIr::Conv3dWeightBackward(desc) => {
+                    let x = handles.get_float_tensor::<B>(&desc.x);
+                    let weight = handles.get_float_tensor::<B>(&desc.weight);
+                    let output_grad = handles.get_float_tensor::<B>(&desc.output_grad);
+
+                    let output = B::conv3d_weight_backward(
+                        x,
+                        weight,
+                        output_grad,
+                        desc.clone().options.into(),
+                    );
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+                ModuleOperationIr::Conv3dBiasBackward(desc) => {
+                    let x = handles.get_float_tensor::<B>(&desc.x);
+                    let bias = handles.get_float_tensor::<B>(&desc.bias);
+                    let output_grad = handles.get_float_tensor::<B>(&desc.output_grad);
+
+                    let output = B::conv3d_bias_backward(x, bias, output_grad);
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
                 ModuleOperationIr::DeformableConv2d(desc) => {

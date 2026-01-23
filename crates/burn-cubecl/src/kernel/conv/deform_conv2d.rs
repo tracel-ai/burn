@@ -1,4 +1,4 @@
-use cubecl::{calculate_cube_count_elemwise, prelude::*, std::scalar::InputScalar};
+use cubecl::{calculate_cube_count_elemwise, prelude::*};
 use cubek::convolution::components::ConvSetupError;
 
 use burn_backend::{
@@ -21,20 +21,20 @@ use crate::{
 
 #[derive(CubeLaunch, CubeType)]
 struct DeformConv2dArgs {
-    conv_stride_h: u32,
-    conv_stride_w: u32,
-    dilation_h: u32,
-    dilation_w: u32,
+    conv_stride_h: usize,
+    conv_stride_w: usize,
+    dilation_h: usize,
+    dilation_w: usize,
     padding_h: InputScalar,
     padding_w: InputScalar,
-    offset_groups: u32,
+    offset_groups: usize,
 
-    kernel_height: u32,
-    kernel_width: u32,
-    out_h: u32,
-    out_w: u32,
+    kernel_height: usize,
+    kernel_width: usize,
+    out_h: usize,
+    out_w: usize,
 
-    col_stride_0: u32,
+    col_stride_0: usize,
 }
 
 #[cube(launch)]
@@ -44,8 +44,8 @@ fn deform_im2col_kernel<F: Float>(
     mask: &Tensor<F>,
     columns: &mut Tensor<F>,
     args: &DeformConv2dArgs,
-    #[comptime] kernel_h_unroll: Option<u32>,
-    #[comptime] kernel_w_unroll: Option<u32>,
+    #[comptime] kernel_h_unroll: Option<usize>,
+    #[comptime] kernel_w_unroll: Option<usize>,
     #[comptime] use_mask: bool,
     #[define(F)] _dtype: StorageType,
 ) {
@@ -131,11 +131,11 @@ fn deform_im2col_kernel<F: Float>(
 #[cube]
 pub(crate) fn bilinear_interpolate<F: Float>(
     input: &Tensor<F>,
-    height: u32,
-    width: u32,
+    height: usize,
+    width: usize,
     y: F,
     x: F,
-    offset: u32,
+    offset: usize,
 ) -> F {
     // To simplify code
     let y = f32::cast_from(y);
@@ -143,26 +143,26 @@ pub(crate) fn bilinear_interpolate<F: Float>(
 
     let mut result = F::new(0.0);
     if y > -1.0 && height as f32 > y && x > -1.0 && width as f32 > x {
-        let in_w = u32::cast_from(width);
+        let in_w = width;
 
-        let y_low = f32::floor(y);
-        let x_low = f32::floor(x);
-        let y_high = (y_low + 1.) as u32;
-        let x_high = (x_low + 1.) as u32;
+        let y_low = y.floor();
+        let x_low = x.floor();
+        let y_high = (y_low + 1.) as usize;
+        let x_high = (x_low + 1.) as usize;
 
         let zero = F::new(0.0);
         let v1: F = if y_low >= 0. && x_low >= 0. {
-            input[offset + y_low as u32 * in_w + x_low as u32]
+            input[offset + y_low as usize * in_w + x_low as usize]
         } else {
             zero
         };
         let v2: F = if y_low >= 0. && x_high < width {
-            input[offset + y_low as u32 * in_w + x_high]
+            input[offset + y_low as usize * in_w + x_high]
         } else {
             zero
         };
         let v3: F = if y_high < height && x_low >= 0. {
-            input[offset + y_high * in_w + x_low as u32]
+            input[offset + y_high * in_w + x_low as usize]
         } else {
             zero
         };
@@ -237,10 +237,10 @@ pub(crate) fn deform_im2col<R: CubeRuntime>(
         mask.as_handle_ref().as_tensor_arg(1),
         output.as_handle_ref().as_tensor_arg(1),
         DeformConv2dArgsLaunch::new(
-            ScalarArg::new(options.stride[0] as u32),
-            ScalarArg::new(options.stride[1] as u32),
-            ScalarArg::new(options.dilation[0] as u32),
-            ScalarArg::new(options.dilation[1] as u32),
+            ScalarArg::new(options.stride[0]),
+            ScalarArg::new(options.stride[1]),
+            ScalarArg::new(options.dilation[0]),
+            ScalarArg::new(options.dilation[1]),
             {
                 let val = options.padding[0] as f32;
                 InputScalar::new(val, dtype)
@@ -249,15 +249,15 @@ pub(crate) fn deform_im2col<R: CubeRuntime>(
                 let val = options.padding[1] as f32;
                 InputScalar::new(val, dtype)
             },
-            ScalarArg::new(options.offset_groups as u32),
-            ScalarArg::new(kernel_height as u32),
-            ScalarArg::new(kernel_width as u32),
-            ScalarArg::new(out_height as u32),
-            ScalarArg::new(out_width as u32),
-            ScalarArg::new(output.strides[0] as u32),
+            ScalarArg::new(options.offset_groups),
+            ScalarArg::new(kernel_height),
+            ScalarArg::new(kernel_width),
+            ScalarArg::new(out_height),
+            ScalarArg::new(out_width),
+            ScalarArg::new(output.strides[0]),
         ),
-        Some(kernel_height as u32),
-        Some(kernel_width as u32),
+        Some(kernel_height),
+        Some(kernel_width),
         use_mask,
         dtype.into(),
     )?;

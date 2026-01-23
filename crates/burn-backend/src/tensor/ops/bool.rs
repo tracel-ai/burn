@@ -2,8 +2,8 @@ use alloc::vec::Vec;
 use burn_std::{DType, Shape, Slice};
 
 use crate::{
-    AutodiffBackend, Backend, ExecutionError, TensorData,
-    element::{Element, ElementConversion},
+    AutodiffBackend, Backend, ExecutionError, Scalar, TensorData,
+    element::Element,
     ops::TransactionPrimitive,
     tensor::{BasicAutodiffOps, BasicOps, Bool, Device, IndexingUpdateOp, IntTensor, TensorKind},
 };
@@ -31,12 +31,7 @@ impl<B: Backend> BasicOps<B> for Bool {
         B::bool_ones(shape, device)
     }
 
-    fn full<E: ElementConversion>(
-        shape: Shape,
-        fill_value: E,
-        device: &Device<B>,
-        dtype: DType,
-    ) -> Self::Primitive {
+    fn full(shape: Shape, fill_value: Scalar, device: &Device<B>, dtype: DType) -> Self::Primitive {
         if dtype != Self::Elem::dtype() {
             panic!("Expected bool data type, got {dtype:?}");
         }
@@ -102,9 +97,11 @@ impl<B: Backend> BasicOps<B> for Bool {
     fn mask_fill(
         tensor: Self::Primitive,
         mask: B::BoolTensorPrimitive,
-        value: Self::Elem,
+        value: Scalar,
     ) -> Self::Primitive {
-        B::bool_mask_fill(tensor, mask, value)
+        // NOTE: we currently only support one one element type for bool, so the contract reflects that
+        // via `BoolElem<B>` instead of `Scalar` in the trait methods.
+        B::bool_mask_fill(tensor, mask, value.elem())
     }
 
     fn gather(
@@ -163,12 +160,12 @@ impl<B: Backend> BasicOps<B> for Bool {
         B::bool_not_equal(lhs, rhs)
     }
 
-    fn equal_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive {
-        B::bool_equal_elem(lhs, rhs)
+    fn equal_elem(lhs: Self::Primitive, rhs: Scalar) -> B::BoolTensorPrimitive {
+        B::bool_equal_elem(lhs, rhs.elem())
     }
 
-    fn not_equal_elem(lhs: Self::Primitive, rhs: Self::Elem) -> B::BoolTensorPrimitive {
-        B::bool_not_equal_elem(lhs, rhs)
+    fn not_equal_elem(lhs: Self::Primitive, rhs: Scalar) -> B::BoolTensorPrimitive {
+        B::bool_not_equal_elem(lhs, rhs.elem())
     }
 
     fn cat(vectors: Vec<Self::Primitive>, dim: usize) -> Self::Primitive {

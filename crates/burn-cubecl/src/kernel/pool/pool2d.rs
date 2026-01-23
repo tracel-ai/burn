@@ -16,13 +16,13 @@ pub(crate) trait Pool2dDirectStrategy<N: Numeric>: Send + Sync + 'static {
 
     fn initialize(
         #[comptime] config: &Self::Config,
-        #[comptime] line_size: u32,
+        #[comptime] line_size: LineSize,
     ) -> Self::Accumulator;
 
     fn accumulate(
         #[comptime] config: &Self::Config,
         accumulator: &mut Self::Accumulator,
-        index: u32,
+        index: usize,
         result: Line<N>,
     );
 
@@ -38,7 +38,7 @@ pub(crate) trait Pool2dDirectStrategy<N: Numeric>: Send + Sync + 'static {
 
     fn store(
         #[comptime] config: &Self::Config,
-        position: u32,
+        position: usize,
         output: &mut Tensor<Line<N>>,
         output_indices: &mut Self::Indices,
         accumulator: Self::Accumulator,
@@ -77,13 +77,13 @@ pub fn pool2d_direct<E: Numeric, S: Pool2dDirectStrategyFamily>(
         input.stride(2),
         input.stride(3),
     );
-    let (in_h, in_w) = (input.shape(1), input.shape(2));
+    let (in_h, in_w) = (input.shape(1) as u32, input.shape(2) as u32);
 
     let c = (ABSOLUTE_POS % channel_lines) * input.line_size();
     let pos = ABSOLUTE_POS / channel_lines;
-    let ow = pos % out_w;
+    let ow = pos as u32 % out_w as u32;
     let pos = pos / out_w;
-    let oh = pos % out_h;
+    let oh = pos as u32 % out_h as u32;
     let b = pos / out_h;
 
     let mut accumulator = S::Pool2d::<E>::initialize(config, input.line_size());
@@ -110,15 +110,15 @@ pub fn pool2d_direct<E: Numeric, S: Pool2dDirectStrategyFamily>(
                 let ih_pad = ih - args.padding_0;
                 let iw_pad = iw - args.padding_1;
 
-                let in_h_off = ih_pad * in_stride_h;
-                let in_w_off = iw_pad * in_stride_w;
+                let in_h_off = ih_pad as usize * in_stride_h;
+                let in_w_off = iw_pad as usize * in_stride_w;
 
                 let index_input = in_b_off + in_c_off + in_h_off + in_w_off;
 
                 S::Pool2d::<E>::accumulate(
                     config,
                     &mut accumulator,
-                    ih_pad * in_w + iw_pad,
+                    ih_pad as usize * in_w as usize + iw_pad as usize,
                     input[index_input / input.line_size()],
                 );
             }

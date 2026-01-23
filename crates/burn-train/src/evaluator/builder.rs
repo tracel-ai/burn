@@ -160,7 +160,7 @@ pub trait EvalTextMetricRegistration<EC: EvaluatorComponentTypes>: Sized {
 
 macro_rules! gen_tuple {
     ($($M:ident),*) => {
-        impl<$($M,)* EC: EvaluatorComponentTypes> EvalTextMetricRegistration<EC> for ($($M,)* )
+        impl<$($M,)* EC: EvaluatorComponentTypes> EvalTextMetricRegistration<EC> for ($($M,)*)
         where
             $(<TestOutput<EC> as ItemLazy>::ItemSync: Adaptor<$M::Input>,)*
             $($M: Metric + 'static,)*
@@ -176,7 +176,7 @@ macro_rules! gen_tuple {
             }
         }
 
-        impl<$($M,)* EC: EvaluatorComponentTypes> EvalMetricRegistration<EC> for ($($M,)* )
+        impl<$($M,)* EC: EvaluatorComponentTypes> EvalMetricRegistration<EC> for ($($M,)*)
         where
             $(<TestOutput<EC> as ItemLazy>::ItemSync: Adaptor<$M::Input>,)*
             $($M: Metric + $crate::metric::Numeric + 'static,)*

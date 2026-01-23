@@ -1,4 +1,4 @@
-use burn_import::onnx::ModelGen;
+use burn_onnx::ModelGen;
 
 fn main() {
     // Generate the model code from the ONNX file.

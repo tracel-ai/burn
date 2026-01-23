@@ -1,0 +1,22 @@
+[package]
+name = "onnx-tests"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[features]
+default = ["test-ndarray"]
+test-wgpu = ["burn/wgpu"]
+test-ndarray = ["burn/ndarray"]
+test-tch = ["burn/tch"]
+test-metal = ["burn/metal"]
+test-candle = ["burn/candle"]
+
+[dev-dependencies]
+burn = { path = "../../burn" }
+burn-store = { path = "../../burn-store", features = ["burnpack"] }
+serde = { workspace = true }
+float-cmp = { workspace = true }
+
+[build-dependencies]
+burn-onnx = { path = "../" }

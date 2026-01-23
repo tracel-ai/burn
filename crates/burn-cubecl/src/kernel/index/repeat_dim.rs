@@ -5,7 +5,7 @@ use cubecl::{calculate_cube_count_elemwise, prelude::*};
 fn repeat_dim_kernel<E: Numeric>(
     input: &Tensor<E>,
     output: &mut Tensor<E>,
-    dim: u32,
+    dim: usize,
     #[define(E)] _dtype: StorageType,
 ) {
     if ABSOLUTE_POS >= output.len() {
@@ -56,7 +56,7 @@ pub(crate) fn repeat_dim<R: CubeRuntime>(
             cube_dim,
             input.as_tensor_arg(1),
             output.as_tensor_arg(1),
-            ScalarArg::new(dim as u32),
+            ScalarArg::new(dim),
             output.dtype.into(),
         )
         .expect("Kernel to never fail");
