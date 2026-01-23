@@ -50,11 +50,6 @@ pub fn reduce_br_kernel(
     blocks: Sequence<ReduceFuseBlock>,
     block_end: CubeOption<ElemwiseFuseBlock>,
 ) {
-    comptime! {
-        println!("OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOo");
-        println!("Inputs: {:?}", inputs.tensors.len());
-        println!("Outputs: {:?}", outputs.tensors.len());
-    };
     reduce_many(inputs, outputs, reduce_axis, blocks, block_end);
 }
 

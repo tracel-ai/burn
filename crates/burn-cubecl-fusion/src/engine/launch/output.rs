@@ -204,7 +204,6 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                         .expect("Quant can't be used as inplace");
 
                     let set_ref_as_concrete = |block: &mut BlockPlan<'_>| {
-                        println!("set_ref_as_concrete {:?}", reference.global_ir);
                         block.reference = ReferenceSelection::Concrete {
                             layout: FuseArg::Input(
                                 input_pos,
@@ -217,7 +216,6 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                     };
 
                     let set_ref_as_virtual = |block: &mut BlockPlan<'_>| {
-                        println!("set_ref_as_virtual {:?}", reference.global_ir);
                         block.reference = ReferenceSelection::VirtualShape {
                             original: FuseArg::Input(
                                 input_pos,
@@ -366,7 +364,6 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                 .get_index(potential_inplace.tensor_relative.id)
                 .unwrap();
 
-            println!("Input ou8tpout");
             block.reference = ReferenceSelection::Concrete {
                 layout: FuseArg::Input(index_input, output.precision, LayoutInfo::IsRef),
                 shape: tensor_global.shape.dims.clone(),
@@ -440,7 +437,6 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                 RefLayoutSetting::SameAsBlock { .. }
             )
         {
-            println!("Normal output ref layout: {:?}->{strides:?}", tensor_global);
             block.reference = ReferenceSelection::Concrete {
                 layout: FuseArg::Output(output.pos_original, output.precision, LayoutInfo::IsRef),
                 shape: tensor_global.shape.dims.clone(),

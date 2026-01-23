@@ -1,3 +1,4 @@
+use super::{FuseResources, RegisteredTensors, TensorView};
 use crate::engine::{
     codegen::ir::{BinaryFuseArgs, FuseArg, FuseOp, FuseType, LayoutInfo, UnaryFuseArgs},
     settings::FuseSettings,
@@ -6,8 +7,6 @@ use burn_ir::{TensorId, TensorIr, TensorStatus};
 use burn_std::{DType, quantization::QuantParam};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, btree_map::Entry};
-
-use super::{FuseResources, RegisteredTensors, TensorView};
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 /// A block containing all [operations](FuseOp) as well as reads and writes for each tensor along
@@ -97,8 +96,7 @@ impl FuseBlockBuilder {
                 let out = self.locals.create(precision, tensor.id);
 
                 self.outputs.insert(precision_output, tensor.clone());
-                let pos = resources.outputs.insert(precision_output, tensor.clone());
-                println!("Add a new output: {pos:?} <== {tensor:?}");
+                resources.outputs.insert(precision_output, tensor.clone());
 
                 out
             }
@@ -117,7 +115,9 @@ impl FuseBlockBuilder {
 
         let val = match self.locals.get(precision, tensor.id) {
             Some(val) => val,
-            None => return None,
+            None => {
+                return None;
+            }
         };
 
         let arg = FuseArg::GlobalRegister((block_pos, self.writes.len()), val.precision());

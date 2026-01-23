@@ -115,14 +115,12 @@ impl ReduceBroadcastedFullFuser {
         match &block.kind {
             ReduceBlockKind::Elemwise => {
                 for op in &block.ops {
-                    println!("FUSE {op:?}");
                     self.fuser.fuse(op);
                 }
                 self.blocks.push(ReduceBlockKind::Elemwise);
             }
             ReduceBlockKind::Reduce { ops_index, reduce } => {
                 for op in &block.ops[0..*ops_index] {
-                    println!("FUSERRR {op:?}");
                     self.fuser.fuse(op);
                 }
 

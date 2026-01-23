@@ -46,14 +46,12 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
                     self.analyze(plan, pos, tensor_relative, &handle);
 
                     if tensor_global.shape.rank() < plan.rank {
-                        println!("Fixing rank...");
                         let num_elem: usize = tensor_global.shape.iter().product();
                         for _ in 0..(plan.rank - tensor_global.shape.rank()) {
                             tensor_global.shape.insert(0, 1);
                             new_strides.insert(0, num_elem);
                         }
                     }
-                    println!("Input tensor : {:?} - {new_strides:?}", tensor_global);
 
                     plan.handle_inputs
                         .push(HandleInput::Normal(NormalHandleInput::new(

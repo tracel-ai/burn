@@ -60,7 +60,6 @@ impl<R: Runtime> ReduceBroadcastedFuser<R> {
 
 impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceBroadcastedFuser<R> {
     fn fuse(&mut self, operation: &OperationIr) {
-        println!("{operation:?}");
         if let ReduceBroadcastedStatus::Closed = &self.state {
             return;
         }
@@ -77,7 +76,6 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceBroadcastedFuser<
             }
             ReduceBlockFusionAnalysis::Refuse => {
                 self.state = ReduceBroadcastedStatus::Closed;
-                println!("Closing");
                 return;
             }
             ReduceBlockFusionAnalysis::NewBlockRequired => {
@@ -105,7 +103,9 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceBroadcastedFuser<
     }
 
     fn finish(&self) -> CubeOptimization<R> {
+        println!("================================");
         let analyzer = FullFuserAnalyzer::new(&self.blocks);
+        println!("{analyzer:?}");
         let mut full =
             ReduceBroadcastedFullFuser::new(self.max_bindings, self.bool_precision, analyzer);
         let mut num_ops = 0;

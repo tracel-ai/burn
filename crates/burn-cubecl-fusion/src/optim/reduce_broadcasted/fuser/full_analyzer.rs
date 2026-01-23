@@ -42,6 +42,10 @@ impl FullFuserAnalyzer {
                             );
                         } else {
                             state.next_block();
+                            // TODO: Can we use the output directly without a fuse-on-write block?
+                            // for p in potential_to_next_blocks {
+                            //     state.current_single.push(p.clone());
+                            // }
                         }
                     }
                 }
