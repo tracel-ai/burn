@@ -407,10 +407,9 @@ impl MnistDataset {
 #    /// Download the MNIST dataset files from the web.
 #    /// Panics if the download cannot be completed or the content of the file cannot be written to disk.
 #    fn download(split: &str) -> PathBuf {
-#        // Dataset files are stored un the burn-dataset cache directory
-#        let cache_dir = dirs::home_dir()
-#            .expect("Could not get home directory")
-#            .join(".cache")
+#        // Dataset files are stored in the burn-dataset cache directory
+#        let cache_dir = dirs::cache_dir()
+#            .expect("Could not get cache directory")
 #            .join("burn-dataset");
 #        let split_dir = cache_dir.join("mnist").join(split);
 #
