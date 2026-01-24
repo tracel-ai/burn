@@ -1,3 +1,4 @@
+#![cfg_attr(docsrs, feature(doc_cfg))]
 #[macro_use]
 extern crate derive_new;
 

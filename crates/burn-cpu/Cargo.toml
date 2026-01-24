@@ -14,6 +14,11 @@ version.workspace = true
 [lints]
 workspace = true
 
+[package.metadata.docs.rs]
+# features = ["doc"]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
 [features]
 default = ["std", "fusion", "autotune", "burn-cubecl/default", "cubecl/default"]
 doc = ["burn-cubecl/doc"]
@@ -36,7 +41,3 @@ burn-backend = { path = "../burn-backend", version = "=0.21.0", features = [
     "cubecl-cpu",
 ] }
 cubecl = { workspace = true, features = ["cpu"] }
-
-[package.metadata.docs.rs]
-features = ["doc"]
-rustdoc-args = ["--cfg", "docsrs"]

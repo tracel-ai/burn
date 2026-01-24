@@ -17,6 +17,10 @@ default-run = "onnx2burn"
 [lints]
 workspace = true
 
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
 [features]
 default = ["mmap"]
 mmap = ["onnx-ir/mmap"]
@@ -46,7 +50,3 @@ syn = { workspace = true, features = ["parsing"] }
 
 [dev-dependencies]
 insta = { workspace = true }
-
-[package.metadata.docs.rs]
-features = ["default"]
-rustdoc-args = ["--cfg", "docsrs"]

@@ -10,6 +10,10 @@ repository = "https://github.com/tracel-ai/burn/tree/main/crates/onnx-ir-derive"
 [lints]
 workspace = true
 
+[package.metadata.docs.rs]
+all-features = true 
+rustdoc-args = ["--cfg", "docsrs"]
+
 [lib]
 proc-macro = true
 

@@ -1,3 +1,6 @@
+#![warn(missing_docs)]
+#![cfg_attr(docsrs, feature(doc_cfg))]
+
 //! Vision ops for burn, with GPU acceleration where possible.
 //!
 //! # Operations
@@ -8,8 +11,6 @@
 //! - `connected_components_with_stats`
 //! - `nms` (Non-Maximum Suppression)
 //!
-
-#![warn(missing_docs)]
 
 extern crate alloc;
 

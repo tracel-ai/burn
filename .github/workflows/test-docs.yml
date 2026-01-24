@@ -1,0 +1,34 @@
+name: Build docs to test code coverage. 
+on:
+  push:
+    # This wildcard allows the action to trigger on every branch push
+    branches:
+      - '**' 
+  # Allows running the action manually.
+  workflow_dispatch:
+
+env:
+  NIGHTLY_TOOLCHAIN: nightly
+
+jobs:
+  test-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.NIGHTLY_TOOLCHAIN }}
+      
+      - name: Install cargo-docs-rs
+        run: cargo install cargo-docs-rs
+      
+      - name: Build docs for all crates
+        run: |
+          set -e
+          for dir in crates/*/; do
+            crate=$(basename "$dir")
+            echo "Building $crate..."
+            cargo docs-rs -p "$crate"
+          done

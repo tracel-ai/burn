@@ -14,6 +14,10 @@ version.workspace = true
 [lints]
 workspace = true
 
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
 [features]
 cubecl = ["dep:cubecl"]
 default = ["std", "cubecl-common/default"]
@@ -52,7 +56,3 @@ dashmap = { workspace = true }
 # Enable extra-platforms for bytes on targets without native atomics (e.g., thumbv6m-none-eabi)
 [target.'cfg(not(target_has_atomic = "ptr"))'.dependencies]
 bytes = { workspace = true, features = ["extra-platforms"] }
-
-[package.metadata.docs.rs]
-features = ["doc"]
-rustdoc-args = ["--cfg", "docsrs"]
