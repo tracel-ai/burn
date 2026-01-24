@@ -14,6 +14,11 @@ version.workspace = true
 [lints]
 workspace = true
 
+[package.metadata.docs.rs]
+# features = ["doc"]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
 [features]
 autotune = ["burn-cubecl/autotune"]
 autotune-checks = ["burn-cubecl/autotune-checks"]
@@ -35,7 +40,3 @@ burn-backend = { path = "../burn-backend", version = "=0.21.0", default-features
     "cubecl-cuda",
 ] }
 cubecl = { workspace = true, features = ["cuda"] }
-
-[package.metadata.docs.rs]
-features = ["doc"]
-rustdoc-args = ["--cfg", "docsrs"]

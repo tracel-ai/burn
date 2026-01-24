@@ -16,7 +16,7 @@ version.workspace = true
 workspace = true
 
 [package.metadata.docs.rs]
-features = [ "doc", "network", "train", "tui", "metrics", "dataset", "sqlite", "record-item-custom-serde", "experimental-named-tensor", "store", "cubecl", "audio", "vision", "ir", "autodiff", "fusion" ]
+features = [ "doc" ]
 rustdoc-args = ["--cfg", "docsrs"]
 
 [features]
@@ -42,6 +42,20 @@ default = [
 doc = [
     "default",
     "train",
+    "network", 
+    "tui", 
+    "metrics", 
+    "dataset",
+    "sqlite",
+    "record-item-custom-serde",
+    "experimental-named-tensor",
+    "store",
+    "cubecl",
+    "audio",
+    "vision",
+    "ir",
+    "autodiff",
+    "fusion",
     "burn-core/doc",
     "burn-train/doc",
     "burn-collective/doc",

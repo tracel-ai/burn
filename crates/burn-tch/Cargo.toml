@@ -14,6 +14,10 @@ version.workspace = true
 [lints]
 workspace = true
 
+[package.metadata.docs.rs]
+all-features = true 
+rustdoc-args = ["--cfg", "docsrs"]
+
 [features]
 default = ["std"]
 std = ["burn-backend/std"]
@@ -32,7 +36,3 @@ torch-sys = { workspace = true }                             # for build script 
 
 [build-dependencies]
 cc = "1.2.53"
-
-[package.metadata.docs.rs]
-features = ["doc"]
-rustdoc-args = ["--cfg", "docsrs"]

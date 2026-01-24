@@ -14,6 +14,11 @@ version.workspace = true
 [lints]
 workspace = true
 
+[package.metadata.docs.rs]
+# features = ["doc"]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
 [features]
 default = [
     "autotune",
@@ -82,7 +87,3 @@ futures-lite = { workspace = true, features = ["std"] }
 # Template
 serde = { workspace = true }
 text_placeholder = { workspace = true, features = ["struct_context"] }
-
-[package.metadata.docs.rs]
-features = ["doc"]
-rustdoc-args = ["--cfg", "docsrs"]

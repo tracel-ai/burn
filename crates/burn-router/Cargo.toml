@@ -17,6 +17,10 @@ version.workspace = true
 [lints]
 workspace = true
 
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
 [features]
 default = ["std"]
 std = ["burn-backend/std", "burn-std/std", "burn-ir/std"]
@@ -38,11 +42,7 @@ log = { workspace = true }
 [dev-dependencies]
 burn-tensor = { path = "../burn-tensor", version = "=0.21.0", default-features = false }
 burn-ndarray = { path = "../burn-ndarray", version = "=0.21.0" }
-burn-wgpu = { path = "../burn-wgpu", version = "=0.21.0", default-features = false, features = [
-    "std",
-] }
-
-
-[package.metadata.docs.rs]
-features = ["doc"]
-rustdoc-args = ["--cfg", "docsrs"]
+burn-wgpu = { path = "../burn-wgpu", version = "=0.21.0", default-features = false, 
+    features = [
+        "std",
+    ]}

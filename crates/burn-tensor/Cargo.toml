@@ -14,6 +14,11 @@ version.workspace = true
 [lints]
 workspace = true
 
+[package.metadata.docs.rs]
+all-features = true 
+rustdoc-args = ["--cfg", "docsrs"]
+# rustdoc-args = ["--cfg", "docsrs", "--html-in-header", "../../katex-header.html"]
+
 [features]
 default = ["std"]
 doc = ["default"]
@@ -49,6 +54,3 @@ serde = { workspace = true }
 [dev-dependencies]
 paste = { workspace = true }
 
-[package.metadata.docs.rs]
-features = ["doc"]
-rustdoc-args = ["--cfg", "docsrs", "--html-in-header", "katex-header.html"]

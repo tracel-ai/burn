@@ -14,6 +14,11 @@ version.workspace = true
 [lints]
 workspace = true
 
+[package.metadata.docs.rs]
+# features = ["doc"]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
 [features]
 default = ["autotune", "std", "cubecl/default", "burn-fusion/default"]
 
@@ -43,7 +48,3 @@ burn-backend = { path = "../burn-backend", version = "=0.21.0", default-features
 
 derive-new = { workspace = true }
 serde = { workspace = true }
-
-[package.metadata.docs.rs]
-features = ["doc"]
-rustdoc-args = ["--cfg", "docsrs"]

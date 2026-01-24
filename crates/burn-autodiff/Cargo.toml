@@ -14,6 +14,10 @@ version.workspace = true
 [lints]
 workspace = true
 
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
 [features]
 default = ["std", "tracing"]
 std = ["dep:parking_lot"]
@@ -40,6 +44,3 @@ portable-atomic = { workspace = true }
 tracing = { workspace = true, optional = true, features = ["default"] }
 
 
-[package.metadata.docs.rs]
-features = ["default"]
-rustdoc-args = ["--cfg", "docsrs"]

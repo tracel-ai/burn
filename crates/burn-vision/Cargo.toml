@@ -17,6 +17,9 @@ version.workspace = true
 [lints]
 workspace = true
 
+[package.metadata.docs.rs]
+all-features = true 
+rustdoc-args = ["--cfg", "docsrs"]
 
 [features]
 default = ["ndarray", "cubecl-backend", "fusion", "std"]
