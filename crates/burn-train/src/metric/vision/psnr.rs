@@ -112,14 +112,6 @@ impl PsnrMetricConfig {
 /// - PSNR is computed for each image first, and then it is averaged across all the images in the batch.
 /// - For perfect reconstruction (MSE = 0), the MSE is clamped to `epsilon` to avoid division by zero,
 ///   yielding a maximum PSNR of `10 * log10(MAX^2 / epsilon)` dB.
-///
-/// # Typical Ranges
-/// | PSNR (dB) | Quality     |
-/// |-----------|-------------|
-/// | < 20      | Poor        |
-/// | 20–30     | Acceptable  |
-/// | 30–40     | Good        |
-/// | > 40      | Excellent   |
 #[derive(Clone)]
 pub struct PsnrMetric<B: Backend> {
     name: MetricName,
