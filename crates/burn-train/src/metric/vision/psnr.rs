@@ -55,7 +55,7 @@ pub struct PSNRConfig {
     /// Maximum pixel value (1.0 for normalized images, 255.0 for 8-bit images).
     pub max_val: f64,
     /// Small value added to MSE to avoid numerical instability in log calculation.
-    /// Should be small enough to allow high PSNR values but representable in f32 (default: 1e-12).
+    /// Should be small enough to allow high PSNR values (default: 1e-12).
     pub epsilon: f64,
 }
 
@@ -93,7 +93,8 @@ impl<B: Backend, const D: usize> PSNRMetric<B, D> {
 
     /// Creates a new PSNR metric with a custom config.
     pub fn with_config(config: PSNRConfig) -> Self {
-        let name = MetricName::new(format!("PSNR ({}D)", D));
+        let name = MetricName::new(format!("{D}D PSNR Metric"));
+        assert!(D >= 2, "PSNRMetric requires at least 2 dimensions.");
         Self {
             name,
             state: NumericMetricState::default(),
@@ -111,14 +112,6 @@ impl<B: Backend, const D: usize> Metric for PSNRMetric<B, D> {
     }
 
     fn update(&mut self, item: &Self::Input, _metadata: &MetricMetadata) -> SerializedEntry {
-        if item.outputs.dims() != item.targets.dims() {
-            panic!(
-                "Outputs and targets must have the same dimensions. Got {:?} and {:?}",
-                item.outputs.dims(),
-                item.targets.dims()
-            );
-        }
-
         // Dimension 0 is treated as batch size
         let batch_size = item.outputs.dims()[0];
 
@@ -139,7 +132,7 @@ impl<B: Backend, const D: usize> Metric for PSNRMetric<B, D> {
         let ln_10 = 10.0_f64.ln();
 
         // Add epsilon to MSE to avoid division by zero and log(0) when MSE is exactly 0
-        let mse_safe = mse_flat.clone() + self.config.epsilon;
+        let mse_safe = mse_flat + self.config.epsilon;
 
         // Convert natural log to log10: log10(x) = ln(x) / ln(10)
         let psnr_per_image = mse_safe
