@@ -38,6 +38,7 @@ burn-optim = { path = "../burn-optim", version = "=0.21.0", features = [
     "std",
 ], default-features = false }
 burn-collective = { path = "../burn-collective", version = "=0.21.0", optional = true }
+burn-nn = { path = "../burn-nn", version = "=0.21.0" }
 
 log = { workspace = true }
 tracing-subscriber = { workspace = true }
