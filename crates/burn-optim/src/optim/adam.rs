@@ -29,13 +29,20 @@ pub struct AdamConfig {
     /// A value required for numerical stability.
     #[config(default = 1e-5)]
     epsilon: f32,
+    /// Whether to use AMSGrad algorithm
+    #[config(default = false)]
+    amsgrad: bool,
     /// [Weight decay](WeightDecayConfig) config.
     weight_decay: Option<WeightDecayConfig>,
     /// [Gradient Clipping](GradientClippingConfig) config.
     grad_clipping: Option<GradientClippingConfig>,
 }
 
-/// Adam optimizer as described in the paper [Adam: A Method for Stochastic Optimization](https://arxiv.org/pdf/1412.6980.pdf).
+/// Adam optimizer.
+///
+/// See:
+/// - [Adam: A Method for Stochastic Optimization](https://arxiv.org/pdf/1412.6980.pdf).
+/// - [On the Convergence of Adam and Beyond](https://openreview.net/forum?id=ryQu7f-RZ)
 #[derive(Clone)]
 pub struct Adam {
     momentum: AdaptiveMomentum,
@@ -95,6 +102,7 @@ impl AdamConfig {
                 beta_1: self.beta_1,
                 beta_2: self.beta_2,
                 epsilon: self.epsilon,
+                amsgrad: self.amsgrad,
             },
             weight_decay: self.weight_decay.as_ref().map(WeightDecay::new),
         };
@@ -116,6 +124,9 @@ pub struct AdaptiveMomentumState<B: Backend, const D: usize> {
     pub moment_1: Tensor<B, D>,
     /// The second order momentum.
     pub moment_2: Tensor<B, D>,
+    /// Max of second  order momentum (for AMSGrad)
+    #[new(default)]
+    pub max_moment_2: Option<Tensor<B, D>>,
 }
 
 #[derive(Clone)]
@@ -123,6 +134,7 @@ struct AdaptiveMomentum {
     beta_1: f32,
     beta_2: f32,
     epsilon: f32,
+    amsgrad: bool,
 }
 
 impl AdaptiveMomentum {
@@ -143,6 +155,15 @@ impl AdaptiveMomentum {
                 .moment_2
                 .mul_scalar(self.beta_2)
                 .add(grad.square().mul_scalar(factor));
+            if self.amsgrad {
+                let max_v = state
+                    .max_moment_2
+                    .take()
+                    .unwrap_or_else(|| state.moment_2.clone());
+
+                let new_max = max_v.max_pair(state.moment_2.clone());
+                state.max_moment_2 = Some(new_max);
+            }
 
             state.time += 1;
 
@@ -153,22 +174,29 @@ impl AdaptiveMomentum {
 
             let factor = 1.0 - self.beta_2;
             let moment_2 = grad.square().mul_scalar(factor);
-
-            AdaptiveMomentumState::new(1, moment_1, moment_2)
+            let mut state = AdaptiveMomentumState::new(1, moment_1, moment_2);
+            if self.amsgrad {
+                state.max_moment_2 = Some(state.moment_2.clone());
+            }
+            state
         };
 
         let time = state.time as i32;
-        let moment_1_corrected = state
-            .moment_1
-            .clone()
-            .div_scalar(1f32 - self.beta_1.powi(time));
-        let moment_2_corrected = state
-            .moment_2
-            .clone()
-            .div_scalar(1f32 - self.beta_2.powi(time));
+        let bias_correction2_sqrt = (1.0 - self.beta_2.powi(time)).sqrt();
+        let combined_factor = bias_correction2_sqrt / (1.0 - self.beta_1.powi(time));
 
-        let grad = moment_1_corrected.div(moment_2_corrected.sqrt().add_scalar(self.epsilon));
+        let v_to_use = if self.amsgrad {
+            state.max_moment_2.as_ref().unwrap_or(&state.moment_2)
+        } else {
+            &state.moment_2
+        };
 
+        let grad = state.moment_1.clone().mul_scalar(combined_factor).div(
+            v_to_use
+                .clone()
+                .sqrt()
+                .add_scalar(self.epsilon * bias_correction2_sqrt),
+        );
         (grad, state)
     }
 }
@@ -186,6 +214,7 @@ impl<B: Backend, const D: usize> AdaptiveMomentumState<B, D> {
     pub fn to_device(mut self, device: &B::Device) -> Self {
         self.moment_1 = self.moment_1.to_device(device);
         self.moment_2 = self.moment_2.to_device(device);
+        self.max_moment_2 = self.max_moment_2.map(|tensor| tensor.to_device(device));
         self
     }
 }
@@ -243,7 +272,107 @@ mod tests {
 
         assert_eq!(state_optim_before.len(), state_optim_after.len());
     }
+    #[test]
+    fn test_adam_optimizer_with_amsgrad_50_steps() {
+        let device = Default::default();
+        let mut linear = given_linear_layer(
+            TensorData::from([
+                [-0.3206, 0.1374, 0.4043, 0.3200, 0.0859, 0.0671],
+                [0.0777, -0.0185, -0.3667, 0.2550, 0.1955, -0.2922],
+                [-0.0190, 0.0346, -0.2962, 0.2484, -0.2780, 0.3130],
+                [-0.2980, -0.2214, -0.3715, -0.2981, -0.0761, 0.1626],
+                [0.3300, -0.2182, 0.3717, -0.1729, 0.3796, -0.0304],
+                [-0.0159, -0.0120, 0.1258, 0.1921, 0.0293, 0.3833],
+            ]),
+            TensorData::from([-0.3905, 0.0884, -0.0970, 0.1176, 0.1366, 0.0130]),
+        );
 
+        let mut optimizer = AdamConfig::new()
+            .with_epsilon(1e-8)
+            .with_beta_1(0.9)
+            .with_beta_2(0.999)
+            .with_amsgrad(true)
+            .with_weight_decay(Some(WeightDecayConfig::new(0.5)))
+            .init();
+
+        for i in 1..=50 {
+            let x = Tensor::<TestAutodiffBackend, 2>::ones([2, 6], &device)
+                .mul_scalar(i as f32 * 0.1)
+                .require_grad();
+
+            let grads = linear.forward(x).backward();
+            let grads = GradientsParams::from_grads(grads, &linear);
+            linear = optimizer.step(LEARNING_RATE, linear, grads);
+        }
+
+        let state_updated = linear.into_record();
+        let weight_updated = state_updated.weight.to_data();
+        let bias_updated = state_updated.bias.unwrap().to_data();
+
+        let weights_expected = TensorData::from([
+            [
+                -0.9125810265541077,
+                -0.45855265855789185,
+                -0.1915993094444275,
+                -0.2759990692138672,
+                -0.5099529027938843,
+                -0.5287043452262878,
+            ],
+            [
+                -0.5181325674057007,
+                -0.6139854788780212,
+                -0.9574727416038513,
+                -0.34102925658226013,
+                -0.400514155626297,
+                -0.8847861886024475,
+            ],
+            [
+                -0.614483118057251,
+                -0.5611032247543335,
+                -0.8887064456939697,
+                -0.34762972593307495,
+                -0.8708556890487671,
+                -0.2830044627189636,
+            ],
+            [
+                -0.8904699683189392,
+                -0.8151527643203735,
+                -0.9621278643608093,
+                -0.8905676603317261,
+                -0.671261191368103,
+                -0.4333854615688324,
+            ],
+            [
+                -0.26599061489105225,
+                -0.8119961023330688,
+                -0.22424538433551788,
+                -0.7672406435012817,
+                -0.2163349837064743,
+                -0.6258266568183899,
+            ],
+            [
+                -0.611397922039032,
+                -0.6075160503387451,
+                -0.4701341986656189,
+                -0.4039117991924286,
+                -0.5663845539093018,
+                -0.21262989938259125,
+            ],
+        ]);
+        let bias_expected = TensorData::from([
+            -0.8817203044891357,
+            -0.4038999378681183,
+            -0.5889149308204651,
+            -0.37475723028182983,
+            -0.3557940721511841,
+            -0.47914788126945496,
+        ]);
+
+        type FT = FloatElem<TestAutodiffBackend>;
+        let tolerance = Tolerance::absolute(1e-5);
+        weight_updated.assert_approx_eq::<FT>(&weights_expected, tolerance);
+        bias_updated.assert_approx_eq::<FT>(&bias_expected, tolerance);
+    }
     #[test]
     fn test_adam_optimizer_with_numbers() {
         let device = Default::default();
@@ -381,6 +510,7 @@ mod tests {
                 beta_1: config.beta_1,
                 beta_2: config.beta_2,
                 epsilon: config.epsilon,
+                amsgrad: config.amsgrad,
             },
             weight_decay: config.weight_decay.as_ref().map(WeightDecay::new),
         }
