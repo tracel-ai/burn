@@ -136,11 +136,6 @@ impl DevicePolicyRegistry {
     fn key<D: Device>(device: &D) -> RegistryKey {
         (device.to_id(), TypeId::of::<D>())
     }
-
-    #[cfg(test)]
-    fn clear() {
-        REGISTRY.write().unwrap().clear();
-    }
 }
 
 /// Default backend device policy.
@@ -178,7 +173,7 @@ pub(crate) fn get_device_policy<B: Backend>(device: &B::Device) -> Arc<DevicePol
 ///     let policy = DevicePolicy::default()
 ///         .with_float_dtype(DType::F16)
 ///         .with_int_dtype(DType::I32);
-///     set_device_policy(&device, policy);
+///     set_device_policy::<B>(&device, policy);
 ///     
 ///     // All float tensors created after this will use F16 by default
 ///     let tensor = Tensor::<B, 2>::zeros([2, 3], &device);
@@ -213,7 +208,7 @@ pub fn set_device_policy<B: Backend>(device: &B::Device, policy: DevicePolicy) {
 ///     let device = B::Device::default();
 ///     
 ///     // Update the device policy
-///     set_default_float_dtype(&device, DType::F16);
+///     set_default_float_dtype::<B>(&device, DType::F16);
 ///     
 ///     // All float tensors created after this will use F16 by default
 ///     let tensor = Tensor::<B, 2>::zeros([2, 3], &device);
@@ -247,7 +242,7 @@ pub fn set_default_float_dtype<B: Backend>(device: &B::Device, dtype: impl Into<
 ///     let device = B::Device::default();
 ///     
 ///     // Update the device policy
-///     set_default_int_dtype(&device, DType::I32);
+///     set_default_int_dtype::<B>(&device, DType::I32);
 ///     
 ///     // All int tensors created after this will use I32 default
 ///     let tensor = Tensor::<B, 2, Int>::zeros([2, 3], &device);
@@ -270,6 +265,10 @@ mod tests {
     use serial_test::serial;
 
     use super::*;
+
+    fn clear_registry() {
+        REGISTRY.write().unwrap().clear();
+    }
 
     #[derive(Clone, Debug, Default, PartialEq, new)]
     pub struct TestDeviceA {
@@ -341,7 +340,7 @@ mod tests {
     #[test]
     #[serial]
     fn default_policy_is_created_and_shared() {
-        DevicePolicyRegistry::clear(); // reset registry for each test
+        clear_registry(); // reset registry for each test
 
         let device = TestDeviceA::new(0);
 
@@ -358,7 +357,7 @@ mod tests {
     #[test]
     #[serial]
     fn updated_policy_is_shared() {
-        DevicePolicyRegistry::clear(); // reset registry for each test
+        clear_registry(); // reset registry for each test
 
         let device = TestDeviceA::new(0);
 
@@ -382,7 +381,7 @@ mod tests {
     #[test]
     #[serial]
     fn policy_is_device_id_specific() {
-        DevicePolicyRegistry::clear(); // reset registry for each test
+        clear_registry(); // reset registry for each test
 
         let d1 = TestDeviceA::new(0);
         let d2 = TestDeviceA::new(1);
@@ -406,7 +405,7 @@ mod tests {
     #[test]
     #[serial]
     fn policy_is_device_type_specific() {
-        DevicePolicyRegistry::clear(); // reset registry for each test
+        clear_registry(); // reset registry for each test
 
         let d1 = TestDeviceA::new(0);
         let d2 = TestDeviceB::new(0);
@@ -429,7 +428,7 @@ mod tests {
     #[test]
     #[serial]
     fn updating_policy_should_not_affect_snapshot() {
-        DevicePolicyRegistry::clear(); // reset registry for each test
+        clear_registry(); // reset registry for each test
 
         // The device policy is meant to be set once at initialization
         let device = TestDeviceA::new(0);
@@ -451,7 +450,7 @@ mod tests {
     #[test]
     #[serial]
     fn set_device_policy_overwrites_fields() {
-        DevicePolicyRegistry::clear(); // reset registry for each test
+        clear_registry(); // reset registry for each test
 
         let device = TestDeviceA::new(0);
 
