@@ -6,13 +6,13 @@ use crate::get_device_policy;
 /// Options for tensor creation.
 ///
 /// This struct allows specifying the `device` and overriding the data type when creating a tensor.
-/// When the `dtype` is not specified, the [device's default policy](burn_backend::DevicePolicy) is used.
+/// When the `dtype` is not specified, the [device's default policy](crate::DevicePolicy) is used.
 #[derive(Debug, Clone)]
 pub struct TensorCreationOptions<B: Backend> {
     /// Device where the tensor will be created.
     pub device: Device<B>,
     /// Optional data type.
-    /// If `None`, the dtype will be inferred on creation from the [device policy](burn_backend::DevicePolicy).
+    /// If `None`, the dtype will be inferred on creation from the [device policy](crate::DevicePolicy).
     pub dtype: Option<DType>,
 }
 
@@ -26,7 +26,7 @@ impl<B: Backend> Default for TensorCreationOptions<B> {
 impl<B: Backend> TensorCreationOptions<B> {
     /// Create new options with a specific device.
     ///
-    /// Data type will follow the [device policy](burn_backend::DevicePolicy) on tensor creation.
+    /// Data type will follow the [device policy](crate::DevicePolicy) on tensor creation.
     pub fn new(device: Device<B>) -> Self {
         Self {
             device,
@@ -70,7 +70,7 @@ impl<B: Backend> TensorCreationOptions<B> {
         self.dtype.unwrap_or(dtype)
     }
 
-    /// Returns the tensor data type, or the default from the [device policy](burn_backend::DevicePolicy).
+    /// Returns the tensor data type, or the default from the [device policy](crate::DevicePolicy).
     pub(crate) fn resolve_policy(&self, dtype: DType) -> DType {
         // TODO: should rely on tensor kind, not element dtype
         self.dtype.unwrap_or_else(|| {
