@@ -50,6 +50,9 @@ spin = { workspace = true }
 # Serialization
 serde = { workspace = true }
 
+[target.'cfg(not(target_has_atomic = "ptr"))'.dependencies]
+portable-atomic-util = { workspace = true }
+
 [dev-dependencies]
 serial_test = { workspace = true }
 

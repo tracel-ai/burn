@@ -1193,6 +1193,7 @@ dependencies = [
  "derive-new",
  "hashbrown 0.16.1",
  "num-traits",
+ "portable-atomic-util",
  "serde",
  "serial_test",
  "spin",
