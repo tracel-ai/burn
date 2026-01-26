@@ -11,8 +11,8 @@ use burn_rl::{LearnerAgent, Policy};
 
 use crate::{
     AgentEvaluationEvent, EnvRunner, EpisodeSummary, EvaluationItem, EventProcessorTraining,
-    Interrupter, RLEventProcessorType, ReinforcementLearningComponentsTypes, RlPolicy, TimeStep,
-    Trajectory,
+    Interrupter, RLEvent, RLEventProcessorType, ReinforcementLearningComponentsTypes, RlPolicy,
+    TimeStep, Trajectory,
 };
 
 struct StepMessage<B: Backend, S, A, C> {
@@ -23,6 +23,7 @@ struct StepMessage<B: Backend, S, A, C> {
 /// An asynchronous agent/environement interface.
 pub struct AsyncEnvRunner<BT: Backend, OC: ReinforcementLearningComponentsTypes> {
     id: usize,
+    eval: bool,
     agent: AsyncPolicy<OC::Backend, RlPolicy<OC>>,
     deterministic: bool,
     transition_device: Device<BT>,
@@ -48,6 +49,7 @@ impl<BT: Backend, OC: ReinforcementLearningComponentsTypes> AsyncEnvRunner<BT, O
     /// Create a new asynchronous runner.
     pub fn new(
         id: usize,
+        eval: bool,
         agent: AsyncPolicy<OC::Backend, RlPolicy<OC>>,
         deterministic: bool,
         transition_device: &Device<BT>,
@@ -55,6 +57,7 @@ impl<BT: Backend, OC: ReinforcementLearningComponentsTypes> AsyncEnvRunner<BT, O
         let (transition_sender, transition_receiver) = std::sync::mpsc::channel();
         Self {
             id,
+            eval,
             agent: agent.clone(),
             deterministic,
             transition_device: transition_device.clone(),
@@ -150,6 +153,7 @@ where
         _deterministic: bool,
         processor: &mut RLEventProcessorType<OC>,
         interrupter: &Interrupter,
+        progress: &mut Progress,
     ) -> Vec<
         TimeStep<
             BT,
@@ -164,10 +168,34 @@ where
                 .transition_receiver
                 .recv()
                 .expect("Can receive transitions.");
-            items.push(msg.step);
+            items.push(msg.step.clone());
             msg.confirmation_sender
                 .send(())
-                .expect("Can send confirmation to env worker.")
+                .expect("Can send confirmation to env worker.");
+
+            if !self.eval {
+                progress.items_processed += 1;
+                processor.process_train(RLEvent::TimeStep(EvaluationItem::new(
+                    msg.step.action_context,
+                    progress.clone(),
+                    None,
+                )));
+
+                if msg.step.done {
+                    processor.process_train(RLEvent::EpisodeEnd(EvaluationItem::new(
+                        EpisodeSummary {
+                            episode_length: msg.step.ep_len,
+                            cum_reward: msg.step.cum_reward,
+                        },
+                        progress.clone(),
+                        None,
+                    )));
+                }
+            }
+
+            if interrupter.should_stop() {
+                break;
+            }
         }
         items
     }
@@ -182,6 +210,7 @@ where
         deterministic: bool,
         processor: &mut RLEventProcessorType<OC>,
         interrupter: &Interrupter,
+        progress: &mut Progress,
     ) -> Vec<
         Trajectory<
             BT,
@@ -195,25 +224,35 @@ where
             let mut steps = vec![];
             let mut step_num = 0;
             loop {
-                let step = self.run_steps(1, deterministic, processor, interrupter)[0].clone();
+                let step =
+                    self.run_steps(1, deterministic, processor, interrupter, progress)[0].clone();
                 steps.push(step.clone());
 
                 step_num += 1;
-                processor.process_valid(AgentEvaluationEvent::TimeStep(EvaluationItem::new(
-                    step.action_context.clone(),
-                    Progress::new(step_num, step_num),
-                    None,
-                )));
 
-                if step.done {
-                    processor.process_valid(AgentEvaluationEvent::EpisodeEnd(EvaluationItem::new(
-                        EpisodeSummary {
-                            episode_length: step.ep_len,
-                            cum_reward: step.cum_reward,
-                        },
-                        Progress::new(episode_num + 1, num_episodes),
+                if self.eval {
+                    processor.process_valid(AgentEvaluationEvent::TimeStep(EvaluationItem::new(
+                        step.action_context.clone(),
+                        Progress::new(step_num, step_num),
                         None,
                     )));
+
+                    if step.done {
+                        processor.process_valid(AgentEvaluationEvent::EpisodeEnd(
+                            EvaluationItem::new(
+                                EpisodeSummary {
+                                    episode_length: step.ep_len,
+                                    cum_reward: step.cum_reward,
+                                },
+                                Progress::new(episode_num + 1, num_episodes),
+                                None,
+                            ),
+                        ));
+                        break;
+                    }
+                }
+
+                if interrupter.should_stop() {
                     break;
                 }
             }
@@ -225,25 +264,27 @@ where
 
 // TODO: Type aliases.
 /// An asynchronous runner for multiple agent/environement interfaces.
-pub struct AsyncEnvArrayRunner<BT: Backend, OC: ReinforcementLearningComponentsTypes> {
+pub struct AsyncEnvArrayRunner<BT: Backend, RLC: ReinforcementLearningComponentsTypes> {
     num_envs: usize,
-    agent: AsyncPolicy<OC::Backend, <OC::LearningAgent as LearnerAgent<OC::Backend>>::InnerPolicy>,
+    eval: bool,
+    agent:
+        AsyncPolicy<RLC::Backend, <RLC::LearningAgent as LearnerAgent<RLC::Backend>>::InnerPolicy>,
     deterministic: bool,
     device: Device<BT>,
     transition_receiver: Receiver<
         StepMessage<
             BT,
-            <OC::Policy as Policy<OC::Backend>>::Input,
-            <OC::Policy as Policy<OC::Backend>>::Action,
-            OC::ActionContext,
+            <RLC::Policy as Policy<RLC::Backend>>::Input,
+            <RLC::Policy as Policy<RLC::Backend>>::Action,
+            RLC::ActionContext,
         >,
     >,
     transition_sender: Sender<
         StepMessage<
             BT,
-            <OC::Policy as Policy<OC::Backend>>::Input,
-            <OC::Policy as Policy<OC::Backend>>::Action,
-            OC::ActionContext,
+            <RLC::Policy as Policy<RLC::Backend>>::Input,
+            <RLC::Policy as Policy<RLC::Backend>>::Action,
+            RLC::ActionContext,
         >,
     >,
     current_trajectories: HashMap<
@@ -251,25 +292,27 @@ pub struct AsyncEnvArrayRunner<BT: Backend, OC: ReinforcementLearningComponentsT
         Vec<
             TimeStep<
                 BT,
-                <OC::Policy as Policy<OC::Backend>>::Input,
-                <OC::Policy as Policy<OC::Backend>>::Action,
-                OC::ActionContext,
+                <RLC::Policy as Policy<RLC::Backend>>::Input,
+                <RLC::Policy as Policy<RLC::Backend>>::Action,
+                RLC::ActionContext,
             >,
         >,
     >,
 }
 
-impl<BT: Backend, OC: ReinforcementLearningComponentsTypes> AsyncEnvArrayRunner<BT, OC> {
+impl<BT: Backend, RLC: ReinforcementLearningComponentsTypes> AsyncEnvArrayRunner<BT, RLC> {
     /// Create a new asynchronous runner for multiple agent/environement interfaces.
     pub fn new(
         num_envs: usize,
-        agent: AsyncPolicy<OC::Backend, OC::Policy>,
+        eval: bool,
+        agent: AsyncPolicy<RLC::Backend, RLC::Policy>,
         deterministic: bool,
         device: &Device<BT>,
     ) -> Self {
         let (transition_sender, transition_receiver) = std::sync::mpsc::channel();
         Self {
             num_envs,
+            eval,
             agent: agent.clone(),
             deterministic,
             device: device.clone(),
@@ -296,6 +339,7 @@ where
         for i in 0..self.num_envs {
             let mut runner = AsyncEnvRunner::<BT, OC>::new(
                 i,
+                self.eval,
                 self.agent.clone(),
                 self.deterministic,
                 &self.device,
@@ -311,6 +355,7 @@ where
         _deterministic: bool,
         processor: &mut RLEventProcessorType<OC>,
         interrupter: &Interrupter,
+        progress: &mut Progress,
     ) -> Vec<
         TimeStep<
             BT,
@@ -325,10 +370,32 @@ where
                 .transition_receiver
                 .recv()
                 .expect("Can receive transitions.");
-            items.push(msg.step);
+            items.push(msg.step.clone());
             msg.confirmation_sender
                 .send(())
                 .expect("Can send confirmation to env worker.");
+
+            progress.items_processed += 1;
+            processor.process_train(RLEvent::TimeStep(EvaluationItem::new(
+                msg.step.action_context,
+                progress.clone(),
+                None,
+            )));
+
+            if msg.step.done {
+                processor.process_train(RLEvent::EpisodeEnd(EvaluationItem::new(
+                    EpisodeSummary {
+                        episode_length: msg.step.ep_len,
+                        cum_reward: msg.step.cum_reward,
+                    },
+                    progress.clone(),
+                    None,
+                )));
+            }
+
+            if interrupter.should_stop() {
+                break;
+            }
         }
         items
     }
@@ -343,6 +410,7 @@ where
         deterministic: bool,
         processor: &mut RLEventProcessorType<OC>,
         interrupter: &Interrupter,
+        progress: &mut Progress,
     ) -> Vec<
         Trajectory<
             BT,
@@ -353,7 +421,7 @@ where
     > {
         let mut items = vec![];
         loop {
-            let step = &self.run_steps(1, deterministic, processor, interrupter)[0];
+            let step = &self.run_steps(1, deterministic, processor, interrupter, progress)[0];
             self.current_trajectories
                 .entry(step.env_id)
                 .or_default()

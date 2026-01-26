@@ -46,7 +46,7 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
     .episode_metrics((EpisodeLengthMetric::new(),))
     .with_file_checkpointer(CompactRecorder::new())
     .num_steps(40_000)
-    .checkpoint(16_000)
+    .checkpoint(20_000)
     .summary();
 
     let _policy = learner.launch(agent);

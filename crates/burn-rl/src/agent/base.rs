@@ -26,7 +26,7 @@ pub trait Policy<B: Backend>: Clone {
     type Action: Clone + Send;
 
     type ActionContext: Clone;
-    type PolicyState: Send + PolicyState<B>;
+    type PolicyState: Clone + Send + PolicyState<B>;
 
     fn logits(&mut self, states: Self::Input) -> Self::Logits;
     fn action(

@@ -67,6 +67,51 @@ impl<T> TransitionBuffer<T> {
         }
     }
 
+    /// Append a list of items to the current buffer.
+    pub fn append(&mut self, items: &mut Vec<T>) {
+        let n = items.len();
+        let mut is_overflow = false;
+        if n > self.capacity {
+            self.cursor = self.capacity - (n % self.capacity);
+            items.drain(0..n - self.capacity);
+            is_overflow = true;
+        }
+        let n = items.len();
+
+        let first_part = n.min(self.capacity - self.cursor);
+        let second_part = n - first_part;
+
+        if is_overflow {
+            if self.capacity > self.len() {
+                self.buffer
+                    .extend(items.drain(first_part..second_part + first_part));
+            } else {
+                self.buffer[..second_part]
+                    .iter_mut()
+                    .zip(items.drain(first_part..second_part + first_part))
+                    .for_each(|(slot, item)| *slot = item);
+            }
+        }
+
+        if self.capacity > self.len() {
+            self.buffer.extend(items.drain(..first_part));
+        } else {
+            self.buffer[self.cursor..self.cursor + first_part]
+                .iter_mut()
+                .zip(items.drain(..first_part))
+                .for_each(|(slot, item)| *slot = item);
+        }
+
+        if !is_overflow {
+            self.buffer[..second_part]
+                .iter_mut()
+                .zip(items.drain(..second_part))
+                .for_each(|(slot, item)| *slot = item);
+        }
+
+        self.cursor = (self.cursor + n) % self.capacity
+    }
+
     /// Returns the current number of items stored.
     pub fn len(&self) -> usize {
         self.buffer.len()
@@ -128,5 +173,32 @@ mod tests {
 
         buffer.push(transition());
         assert_eq!(buffer.len(), 2)
+    }
+
+    #[test]
+    fn append_works() {
+        let mut buffer = TransitionBuffer::new(4);
+        assert_eq!(buffer.len(), 0);
+
+        buffer.append(&mut vec![0, 1]);
+        assert_eq!(buffer.len(), 2);
+        assert_eq!(buffer.buffer, vec![0, 1]);
+
+        buffer.append(&mut vec![2, 3, 4, 5]);
+        assert_eq!(buffer.len(), 4);
+        assert_eq!(buffer.buffer, vec![4, 5, 2, 3]);
+
+        let mut buffer = TransitionBuffer::new(4);
+        buffer.append(&mut vec![0, 1, 2, 3, 4, 5]);
+        assert_eq!(buffer.len(), 4);
+        assert_eq!(buffer.buffer, vec![4, 5, 2, 3]);
+
+        buffer.append(&mut vec![10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]);
+        assert_eq!(buffer.len(), 4);
+        assert_eq!(buffer.buffer, vec![20, 17, 18, 19]);
+
+        buffer.append(&mut vec![21, 22]);
+        assert_eq!(buffer.len(), 4);
+        assert_eq!(buffer.buffer, vec![20, 21, 22, 19]);
     }
 }

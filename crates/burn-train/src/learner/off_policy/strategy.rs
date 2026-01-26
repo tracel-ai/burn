@@ -54,7 +54,7 @@ pub trait ReinforcementLearningStrategy<RLC: ReinforcementLearningComponentsType
         };
         learner_agent.update_policy(policy);
 
-        let _summary_config = training_components.summary.clone();
+        let summary_config = training_components.summary.clone();
 
         // Event processor start training
         training_components
@@ -65,17 +65,10 @@ pub trait ReinforcementLearningStrategy<RLC: ReinforcementLearningComponentsType
         let (policy, mut event_processor) =
             self.fit(training_components, &mut learner_agent, starting_epoch);
 
-        // TODO:
-        // let summary = summary_config.and_then(|summary| {
-        //     summary
-        //         .init()
-        //         .map(|summary| summary.with_model(model.to_string()))
-        //         .ok()
-        // });
+        let summary = summary_config.and_then(|summary| summary.init().ok());
 
         // Signal training end. For the TUI renderer, this handles the exit & return to main screen.
-        // event_processor.process_train(LearnerEvent::End(summary));
-        event_processor.process_train(RLEvent::End(None));
+        event_processor.process_train(RLEvent::End(summary));
 
         // let model = model.valid();
         let renderer = event_processor.renderer();

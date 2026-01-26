@@ -1,5 +1,6 @@
 use std::marker::PhantomData;
 
+use burn_core::data::dataloader::Progress;
 use burn_core::{Tensor, prelude::Backend};
 use burn_rl::Environment;
 use burn_rl::Policy;
@@ -50,6 +51,7 @@ pub trait EnvRunner<BT: Backend, OC: ReinforcementLearningComponentsTypes> {
     /// * `processor` - An [crate::EventProcessorTraining](crate::EventProcessorTraining).
     /// * `interrupter` - An [crate::Interrupter](crate::Interrupter).
     /// * `num_steps` - The number of time_steps to run.
+    /// * `progress` - A mutable reference to the learning progress.
     ///
     /// # Returns
     ///
@@ -60,6 +62,7 @@ pub trait EnvRunner<BT: Backend, OC: ReinforcementLearningComponentsTypes> {
         deterministic: bool,
         processor: &mut RLEventProcessorType<OC>,
         interrupter: &Interrupter,
+        progress: &mut Progress,
     ) -> Vec<
         TimeStep<
             BT,
@@ -76,7 +79,7 @@ pub trait EnvRunner<BT: Backend, OC: ReinforcementLearningComponentsTypes> {
     /// * `deterministic` - If true, use the agent's deterministic policy, else use its stochastic policy.
     /// * `processor` - An [crate::EventProcessorTraining](crate::EventProcessorTraining).
     /// * `interrupter` - An [crate::Interrupter](crate::Interrupter).
-    /// * `TODO:` - The number of time_steps to run.
+    /// * `progress` - A mutable reference to the learning progress.
     ///
     /// # Returns
     ///
@@ -87,6 +90,7 @@ pub trait EnvRunner<BT: Backend, OC: ReinforcementLearningComponentsTypes> {
         deterministic: bool,
         processor: &mut RLEventProcessorType<OC>,
         interrupter: &Interrupter,
+        progress: &mut Progress,
     ) -> Vec<
         Trajectory<
             BT,
@@ -136,6 +140,7 @@ impl<BT: Backend, OC: ReinforcementLearningComponentsTypes> EnvRunner<BT, OC>
         deterministic: bool,
         _processor: &mut RLEventProcessorType<OC>, // TODO:
         _interrupter: &Interrupter,
+        _progress: &mut Progress,
     ) -> Vec<
         TimeStep<
             BT,
@@ -196,6 +201,7 @@ impl<BT: Backend, OC: ReinforcementLearningComponentsTypes> EnvRunner<BT, OC>
         _deterministic: bool,
         _processor: &mut RLEventProcessorType<OC>,
         _interrupter: &Interrupter,
+        _progress: &mut Progress,
     ) -> Vec<
         Trajectory<
             BT,
