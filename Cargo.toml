@@ -74,7 +74,7 @@ paste = "1"
 planus = { version = "=1.1" }
 polars = { version = "0.51.0", features = ["lazy"] }
 pretty_assertions = "1.4.1"
-proc-macro2 = "1.0.104"
+proc-macro2 = "1.0.106"
 protobuf = "3.7.2"
 protobuf-codegen = "3.7.2"
 quote = "1.0.42"
@@ -117,7 +117,7 @@ tracing-appender = "0.2.3"
 tracing-core = { version = "0.1.36", default-features = false }
 tracing-opentelemetry = "0.32.0"
 tracing-subscriber = "0.3.20"
-zip = "7.0.0"
+zip = "7.2.0"
 
 # Persist related
 memmap2 = { version = "0.9" }
@@ -165,7 +165,7 @@ serde = { version = "1.0.228", default-features = false, features = [
     "alloc",
 ] } # alloc is for no_std, derive is needed
 serde_json = { version = "1.0.148", default-features = false }
-uuid = { version = "1.19.0", default-features = false }
+uuid = { version = "1.20.0", default-features = false }
 
 byteorder = { version = "1.5.0", default-features = false }
 libc = "0.2.179"
@@ -193,7 +193,7 @@ cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, 
 # cubek = { version = "=0.1.0", default-features = false }
 
 ### For xtask crate ###
-tracel-xtask = "=4.9.0"
+tracel-xtask = "=4.10.0"
 # ### For local development. ###
 # tracel-xtask = { path = "../xtask/crates/tracel-xtask", default-features = false }
 
