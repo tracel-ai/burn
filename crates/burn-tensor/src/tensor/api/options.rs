@@ -73,12 +73,8 @@ impl<B: Backend> TensorCreationOptions<B> {
     /// Returns the tensor data type, or the default from the [device policy](crate::DevicePolicy).
     pub(crate) fn resolve_policy(&self, dtype: DType) -> DType {
         // TODO: should rely on tensor kind, not element dtype
-        #[cfg(feature = "std")]
-        println!("resolve_policy({dtype:?})");
         self.dtype.unwrap_or_else(|| {
             let policy = get_device_policy::<B>(&self.device);
-            #[cfg(feature = "std")]
-            println!("device policy: {policy:?}");
             if dtype.is_float() {
                 policy.float_dtype().into()
             } else if dtype.is_int() || dtype.is_uint() {
