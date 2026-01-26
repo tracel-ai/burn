@@ -169,15 +169,15 @@ pub(crate) fn get_device_policy<B: Backend>(device: &B::Device) -> Arc<DevicePol
 ///
 /// ```rust
 /// use burn_tensor::backend::Backend;
-/// use burn_tensor::{DevicePolicy, DType, Int, Tensor};
+/// use burn_tensor::{DevicePolicy, DType, Int, Tensor, set_device_policy};
 ///
 /// fn example<B: Backend>() {
 ///     let device = B::Device::default();
 ///     
 ///     // Update the device policy
 ///     let policy = DevicePolicy::default()
-///         .with_float_dtype(FloatDType::F16)
-///         .with_int_dtype(IntDType::I32);
+///         .with_float_dtype(DType::F16)
+///         .with_int_dtype(DType::I32);
 ///     set_device_policy(&device, policy);
 ///     
 ///     // All float tensors created after this will use F16 by default
@@ -207,7 +207,7 @@ pub fn set_device_policy<B: Backend>(device: &B::Device, policy: DevicePolicy) {
 ///
 /// ```rust
 /// use burn_tensor::backend::Backend;
-/// use burn_tensor::{DType, Tensor};
+/// use burn_tensor::{DType, Tensor, set_default_float_dtype};
 ///
 /// fn example<B: Backend>() {
 ///     let device = B::Device::default();
@@ -241,7 +241,7 @@ pub fn set_default_float_dtype<B: Backend>(device: &B::Device, dtype: impl Into<
 ///
 /// ```rust
 /// use burn_tensor::backend::Backend;
-/// use burn_tensor::{DType, Int, Tensor};
+/// use burn_tensor::{DType, Int, Tensor, set_default_int_dtype};
 ///
 /// fn example<B: Backend>() {
 ///     let device = B::Device::default();
@@ -265,7 +265,7 @@ pub fn set_default_int_dtype<B: Backend>(device: &B::Device, dtype: impl Into<In
     );
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "std"))]
 mod tests {
     use serial_test::serial;
 
