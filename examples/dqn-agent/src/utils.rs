@@ -150,17 +150,17 @@ impl<B: Backend, P: Policy<B>> EpsilonGreedyPolicy<B, P> {
 impl<B, P> Policy<B> for EpsilonGreedyPolicy<B, P>
 where
     B: Backend,
-    P: Policy<B, Logits = Tensor<B, 2>, Action = Tensor<B, 2>>,
+    P: Policy<B, Output = Tensor<B, 2>, Action = Tensor<B, 2>>,
 {
     type ActionContext = EpsilonGreedyPolicyOutput;
     type PolicyState = EpsilonGreedyPolicyState<B, P>;
 
     type Input = P::Input;
-    type Logits = Tensor<B, 2>;
+    type Output = Tensor<B, 2>;
     type Action = Tensor<B, 2>;
 
-    fn logits(&mut self, states: Self::Input) -> Self::Logits {
-        self.inner_policy.logits(states)
+    fn forward(&mut self, states: Self::Input) -> Self::Output {
+        self.inner_policy.forward(states)
     }
 
     fn action(
@@ -168,7 +168,7 @@ where
         states: Self::Input,
         deterministic: bool,
     ) -> (Self::Action, Vec<Self::ActionContext>) {
-        let logits = self.inner_policy.logits(states);
+        let logits = self.inner_policy.forward(states);
         let greedy_actions = logits.argmax(1);
 
         let mut contexts = vec![];
@@ -209,7 +209,7 @@ where
         self.inner_policy.unbatch(inputs)
     }
 
-    fn unbatch_logits(&self, inputs: Self::Logits) -> Vec<Self::Logits> {
+    fn unbatch_logits(&self, inputs: Self::Output) -> Vec<Self::Output> {
         self.inner_policy.unbatch_logits(inputs)
     }
 

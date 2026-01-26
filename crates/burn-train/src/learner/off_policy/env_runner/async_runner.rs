@@ -84,7 +84,7 @@ where
     <RLC::Policy as Policy<RLC::Backend>>::ActionContext: Send,
     <RLC::Policy as Policy<RLC::Backend>>::Input: Send,
     <RLC::Policy as Policy<RLC::Backend>>::Action: Send,
-    <RLC::Policy as Policy<RLC::Backend>>::Logits: Send,
+    <RLC::Policy as Policy<RLC::Backend>>::Output: Send,
 {
     fn start(&mut self) {
         let id = self.id;
@@ -311,7 +311,7 @@ where
     <RLC::Policy as Policy<RLC::Backend>>::ActionContext: Send,
     <RLC::Policy as Policy<RLC::Backend>>::Input: Send,
     <RLC::Policy as Policy<RLC::Backend>>::Action: Send,
-    <RLC::Policy as Policy<RLC::Backend>>::Logits: Send,
+    <RLC::Policy as Policy<RLC::Backend>>::Output: Send,
 {
     // TODO: start() shouldn't exist.
     fn start(&mut self) {

@@ -37,9 +37,8 @@ where
         }
         let multi_env_config = MultiEnvConfig {
             num_envs: 16,
-            autobatch_size: 4,
+            autobatch_size: 8,
         };
-        // TODO: pq on a besoin du type?
         let mut env_runner = AsyncEnvArrayRunner::<RLC::Backend, RLC>::new(
             multi_env_config.num_envs,
             false,

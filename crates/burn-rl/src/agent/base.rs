@@ -25,14 +25,14 @@ pub trait PolicyState<B: Backend> {
 pub trait Policy<B: Backend>: Clone {
     type Input: Clone + Send;
     // TODO: naming?
-    type Logits: Clone + Send;
+    type Output: Clone + Send;
     // TODO: This VS ComponentsTypes trait.
     type Action: Clone + Send;
 
     type ActionContext: Clone;
     type PolicyState: Clone + Send + PolicyState<B>;
 
-    fn logits(&mut self, states: Self::Input) -> Self::Logits;
+    fn forward(&mut self, states: Self::Input) -> Self::Output;
     fn action(
         &mut self,
         states: Self::Input,
@@ -42,7 +42,7 @@ pub trait Policy<B: Backend>: Clone {
     // TODO: A littel weird but idk.
     fn batch(&self, inputs: Vec<&Self::Input>) -> Self::Input;
     fn unbatch(&self, inputs: Self::Action) -> Vec<Self::Action>;
-    fn unbatch_logits(&self, inputs: Self::Logits) -> Vec<Self::Logits>;
+    fn unbatch_logits(&self, inputs: Self::Output) -> Vec<Self::Output>;
 
     fn update(&mut self, update: Self::PolicyState);
     fn state(&self) -> Self::PolicyState;
@@ -87,7 +87,7 @@ struct AutoBatcher<B: Backend, P: Policy<B>> {
     autobatch_size: usize,
     inner_policy: P,
     batch_action: Vec<ActionItem<P::Input, P::Action, P::ActionContext>>,
-    batch_logits: Vec<LogitsItem<P::Input, P::Logits>>,
+    batch_logits: Vec<ForwardItem<P::Input, P::Output>>,
     _backend: PhantomData<B>,
 }
 
@@ -114,7 +114,7 @@ where
         }
     }
 
-    pub fn push_logits(&mut self, item: LogitsItem<P::Input, P::Logits>) {
+    pub fn push_logits(&mut self, item: ForwardItem<P::Input, P::Output>) {
         self.batch_logits.push(item);
         if self.len_logits() >= self.autobatch_size {
             self.flush_actions();
@@ -159,7 +159,7 @@ where
             .iter()
             .map(|m| &m.inference_state)
             .collect();
-        let output = self.inner_policy.logits(self.inner_policy.batch(input));
+        let output = self.inner_policy.forward(self.inner_policy.batch(input));
         let logits = self.inner_policy.unbatch_logits(output);
         for (i, item) in self.batch_logits.iter().enumerate() {
             item.sender
@@ -186,7 +186,7 @@ where
 
 enum InferenceMessage<B: Backend, P: Policy<B>> {
     ActionMessage(ActionItem<P::Input, P::Action, P::ActionContext>),
-    LogitsMessage(LogitsItem<P::Input, P::Logits>),
+    ForwardMessage(ForwardItem<P::Input, P::Output>),
     PolicyUpdate(P::PolicyState),
     PolicyRequest(Sender<P::PolicyState>),
 }
@@ -199,8 +199,8 @@ struct ActionItem<S, A, C> {
 }
 
 #[derive(Clone)]
-struct LogitsItem<S, L> {
-    sender: Sender<L>,
+struct ForwardItem<S, O> {
+    sender: Sender<O>,
     inference_state: S,
 }
 
@@ -216,7 +216,7 @@ where
     P::ActionContext: Send,
     P::PolicyState: Send,
     P::Input: Send,
-    P::Logits: Send,
+    P::Output: Send,
     P::Action: Clone + Send,
 {
     pub fn new(autobatch_size: usize, inner_policy: P) -> Self {
@@ -227,7 +227,7 @@ where
                 match receiver.recv() {
                     Ok(msg) => match msg {
                         InferenceMessage::ActionMessage(item) => autobatcher.push_action(item),
-                        InferenceMessage::LogitsMessage(item) => autobatcher.push_logits(item),
+                        InferenceMessage::ForwardMessage(item) => autobatcher.push_logits(item),
                         InferenceMessage::PolicyUpdate(update) => autobatcher.update_policy(update),
                         InferenceMessage::PolicyRequest(sender) => sender
                             .send(autobatcher.state())
@@ -256,20 +256,20 @@ where
     type PolicyState = P::PolicyState;
 
     type Input = P::Input;
-    type Logits = P::Logits;
+    type Output = P::Output;
     type Action = P::Action;
 
-    fn logits(&mut self, states: Self::Input) -> Self::Logits {
+    fn forward(&mut self, states: Self::Input) -> Self::Output {
         let (action_sender, action_receiver) = std::sync::mpsc::channel();
         // TODO: Don't Assume that only one state is passed.
-        let item = LogitsItem {
+        let item = ForwardItem {
             sender: action_sender,
             inference_state: states,
         };
         self.inference_state_sender
             .as_ref()
             .expect("Should call start() before queue_action().")
-            .send(InferenceMessage::LogitsMessage(item))
+            .send(InferenceMessage::ForwardMessage(item))
             .expect("Should be able to send message to inference_server");
         action_receiver
             .recv()
@@ -327,7 +327,7 @@ where
         todo!()
     }
 
-    fn unbatch_logits(&self, _inputs: Self::Logits) -> Vec<Self::Logits> {
+    fn unbatch_logits(&self, _inputs: Self::Output) -> Vec<Self::Output> {
         todo!()
     }
 

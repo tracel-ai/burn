@@ -17,6 +17,17 @@ mod ndarray {
     }
 }
 
+#[cfg(feature = "cuda")]
+mod cuda {
+    use burn::backend::{Autodiff, Cuda};
+    use dqn_agent::training;
+
+    pub fn run() {
+        let device = Default::default();
+        training::run::<Autodiff<Cuda>>(device);
+    }
+}
+
 fn main() {
     #[cfg(any(
         feature = "ndarray",

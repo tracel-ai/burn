@@ -2,8 +2,6 @@ use burn_core::{Tensor, prelude::Backend};
 use derive_new::new;
 use rand::{rng, seq::index::sample};
 
-// TODO : Probably should define an associated type for each agent defining what should be returned in a transition.
-// Like an adaptor that takes all those outputs but only stores the ones useful to the learning agent in memory.
 #[derive(Clone, new)]
 pub struct Transition<B: Backend, S, A> {
     pub state: S,

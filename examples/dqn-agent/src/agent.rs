@@ -186,13 +186,13 @@ impl<B: Backend, M: DiscreteActionModel<B>> DQN<B, M> {
 // TODO: remove Environment
 impl<B: Backend, M: DiscreteActionModel<B>> Policy<B> for DQN<B, M> {
     type Input = M::Input;
-    type Logits = Tensor<B, 2>;
+    type Output = Tensor<B, 2>;
     type Action = Tensor<B, 2>;
 
     type ActionContext = ();
     type PolicyState = DqnState<B, M>;
 
-    fn logits(&mut self, states: Self::Input) -> Self::Logits {
+    fn forward(&mut self, states: Self::Input) -> Self::Output {
         self.model.forward(states)
     }
 
@@ -201,7 +201,7 @@ impl<B: Backend, M: DiscreteActionModel<B>> Policy<B> for DQN<B, M> {
         states: Self::Input,
         deterministic: bool,
     ) -> (Self::Action, Vec<Self::ActionContext>) {
-        let logits = self.logits(states);
+        let logits = self.forward(states);
         if deterministic {
             return (logits.argmax(1).float(), vec![]);
         }
@@ -249,7 +249,7 @@ impl<B: Backend, M: DiscreteActionModel<B>> Policy<B> for DQN<B, M> {
         output
     }
 
-    fn unbatch_logits(&self, inputs: Self::Logits) -> Vec<Self::Logits> {
+    fn unbatch_logits(&self, inputs: Self::Output) -> Vec<Self::Output> {
         let mut output = vec![];
         for i in 0..inputs.dims()[0] {
             output.push(inputs.clone().slice(s![i, ..]));
