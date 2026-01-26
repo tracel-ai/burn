@@ -74,7 +74,7 @@ paste = "1"
 planus = { version = "=1.1" }
 polars = { version = "0.51.0", features = ["lazy"] }
 pretty_assertions = "1.4.1"
-proc-macro2 = "1.0.104"
+proc-macro2 = "1.0.106"
 protobuf = "3.7.2"
 protobuf-codegen = "3.7.2"
 quote = "1.0.42"
