@@ -41,12 +41,12 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
     let learner = ReinforcementLearning::<
         ReinforcementLearningComponentsMarker<_, CartPoleWrapper, _, _, _>,
     >::new(ARTIFACT_DIR)
-    .train_step_metrics((LossMetric::new(),))
-    .env_step_metrics((ExplorationRateMetric::new(),))
-    .episode_metrics((EpisodeLengthMetric::new(),))
+    .metrics_train_step((LossMetric::new(),))
+    .metrics_env_step((ExplorationRateMetric::new(),))
+    .metrics_episode((EpisodeLengthMetric::new(),))
     .with_file_checkpointer(CompactRecorder::new())
     .num_steps(40_000)
-    .checkpoint(20_000)
+    .checkpoint(10_000)
     .summary();
 
     let _policy = learner.launch(agent);

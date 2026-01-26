@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use burn_core::tensor::backend::AutodiffBackend;
-use burn_rl::{Environment, LearnerAgent, Policy, PolicyState};
+use burn_rl::{Environment, AgentLearner, Policy, PolicyState};
 
 use crate::{AgentEvaluationEvent, AsyncProcessorTraining, ItemLazy, RLEvent};
 
@@ -13,7 +13,7 @@ pub trait ReinforcementLearningComponentsTypes {
     type Env: Environment<State = Self::State, Action = Self::Action> + 'static;
     /// The learning agent.
     /// // TODO: type shit is weird here.
-    type LearningAgent: LearnerAgent<
+    type LearningAgent: AgentLearner<
             Self::Backend,
             TrainingOutput = Self::TrainingOutput,
             InnerPolicy = Self::Policy,
@@ -45,7 +45,7 @@ impl<B, E, A, TO, AC> ReinforcementLearningComponentsTypes
 where
     B: AutodiffBackend,
     E: Environment + 'static,
-    A: LearnerAgent<B, TrainingOutput = TO> + Send + 'static,
+    A: AgentLearner<B, TrainingOutput = TO> + Send + 'static,
     A::InnerPolicy: Policy<B, ActionContext = AC> + Send,
     TO: ItemLazy + Clone + Send,
     AC: ItemLazy + Clone + Send + 'static,
@@ -63,7 +63,7 @@ where
 }
 
 pub(crate) type RlPolicy<OC> =
-    <<OC as ReinforcementLearningComponentsTypes>::LearningAgent as LearnerAgent<
+    <<OC as ReinforcementLearningComponentsTypes>::LearningAgent as AgentLearner<
         <OC as ReinforcementLearningComponentsTypes>::Backend,
     >>::InnerPolicy;
 /// The event processor type for reinforcement learning.
@@ -81,6 +81,6 @@ pub type RLPolicyRecord<RLC> =
     >>::PolicyState as PolicyState<<RLC as ReinforcementLearningComponentsTypes>::Backend>>::Record;
 /// The record of the learning agent.
 pub type RLAgentRecord<RLC> =
-    <<RLC as ReinforcementLearningComponentsTypes>::LearningAgent as LearnerAgent<
+    <<RLC as ReinforcementLearningComponentsTypes>::LearningAgent as AgentLearner<
         <RLC as ReinforcementLearningComponentsTypes>::Backend,
     >>::Record;

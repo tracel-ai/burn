@@ -1,7 +1,5 @@
 use std::sync::Arc;
 
-use burn_rl::LearnerAgent;
-
 use crate::{
     Interrupter, LearnerSummaryConfig, RLCheckpointer, RLEvent, RLEventProcessorType, RLResult,
     ReinforcementLearningComponentsTypes,
@@ -36,13 +34,10 @@ pub trait ReinforcementLearningStrategy<RLC: ReinforcementLearningComponentsType
         mut learner_agent: RLC::LearningAgent,
         mut training_components: RLComponents<RLC>,
     ) -> RLResult<RLC::Policy> {
-        let mut policy = learner_agent.policy();
-
         let starting_epoch = match training_components.checkpoint {
             Some(checkpoint) => {
                 if let Some(checkpointer) = &mut training_components.checkpointer {
-                    (policy, learner_agent) = checkpointer.load_checkpoint(
-                        policy,
+                    learner_agent = checkpointer.load_checkpoint(
                         learner_agent,
                         &Default::default(),
                         checkpoint,
@@ -52,7 +47,6 @@ pub trait ReinforcementLearningStrategy<RLC: ReinforcementLearningComponentsType
             }
             None => 1,
         };
-        learner_agent.update_policy(policy);
 
         let summary_config = training_components.summary.clone();
 
@@ -68,6 +62,7 @@ pub trait ReinforcementLearningStrategy<RLC: ReinforcementLearningComponentsType
         let summary = summary_config.and_then(|summary| summary.init().ok());
 
         // Signal training end. For the TUI renderer, this handles the exit & return to main screen.
+        // TODO: summary makes sense for RL?
         event_processor.process_train(RLEvent::End(summary));
 
         // let model = model.valid();

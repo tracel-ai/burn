@@ -6,12 +6,15 @@ use burn_rl::Environment;
 use burn_rl::Policy;
 use burn_rl::Transition;
 
-use crate::RLEventProcessorType;
-use crate::RlPolicy;
+use crate::{
+    AgentEvaluationEvent, EpisodeSummary, EvaluationItem, EventProcessorTraining,
+    RLEventProcessorType, RLTimeStep,
+};
 use crate::{Interrupter, ReinforcementLearningComponentsTypes};
+use crate::{RLEvent, RlPolicy};
 
-/// A trajectory, i.e. a list of ordered [TimeStep](TimeStep)s.
-#[derive(Clone)]
+/// A trajectory, i.e. a list of ordered [TimeStep](TimeStep).
+#[derive(Clone, new)]
 pub struct Trajectory<B: Backend, S, A, C> {
     // TODO : Change TimeStep to Transition. run_episodes should always return trajectories, even when async.
     // Probably need a step_sender/receiver and trajectory_sender/receiver in that case.
@@ -36,10 +39,8 @@ pub struct TimeStep<B: Backend, S, A, C> {
     pub action_context: C,
 }
 
-// TODO : Can Agent not be generic over backend?
-// TODO : Remove BA and BT eventually and have only one Backend for the env runner.
 /// Trait for a structure that implements an agent/environement interface.
-pub trait EnvRunner<BT: Backend, OC: ReinforcementLearningComponentsTypes> {
+pub trait EnvRunner<BT: Backend, RLC: ReinforcementLearningComponentsTypes> {
     /// Start the runner.
     fn start(&mut self);
     /// Run a certain number of timesteps.
@@ -60,17 +61,10 @@ pub trait EnvRunner<BT: Backend, OC: ReinforcementLearningComponentsTypes> {
         &mut self,
         num_steps: usize,
         deterministic: bool,
-        processor: &mut RLEventProcessorType<OC>,
+        processor: &mut RLEventProcessorType<RLC>,
         interrupter: &Interrupter,
         progress: &mut Progress,
-    ) -> Vec<
-        TimeStep<
-            BT,
-            <OC::Policy as Policy<OC::Backend>>::Input,
-            <OC::Policy as Policy<OC::Backend>>::Action,
-            OC::ActionContext,
-        >,
-    >;
+    ) -> Vec<RLTimeStep<BT, RLC>>;
     /// Run a certain number of episodes.
     ///
     /// # Arguments
@@ -88,36 +82,40 @@ pub trait EnvRunner<BT: Backend, OC: ReinforcementLearningComponentsTypes> {
         &mut self,
         num_episodes: usize,
         deterministic: bool,
-        processor: &mut RLEventProcessorType<OC>,
+        processor: &mut RLEventProcessorType<RLC>,
         interrupter: &Interrupter,
         progress: &mut Progress,
     ) -> Vec<
         Trajectory<
             BT,
-            <OC::Policy as Policy<OC::Backend>>::Input,
-            <OC::Policy as Policy<OC::Backend>>::Action,
-            OC::ActionContext,
+            <RLC::Policy as Policy<RLC::Backend>>::Input,
+            <RLC::Policy as Policy<RLC::Backend>>::Action,
+            RLC::ActionContext,
         >,
     >;
-    /// Update the runner's agent's policy
-    fn update_policy(&mut self, update: <RlPolicy<OC> as Policy<OC::Backend>>::PolicyState);
+    /// Update the runner's agent.
+    fn update_policy(&mut self, update: <RlPolicy<RLC> as Policy<RLC::Backend>>::PolicyState);
+    /// Get the state of the runner's agent.
+    fn policy(&self) -> <RlPolicy<RLC> as Policy<RLC::Backend>>::PolicyState;
 }
 
 /// A simple, synchronized agent/environement interface.
-pub struct BaseRunner<B: Backend, E: Environment, A: Policy<B>> {
-    env: E,
-    agent: A,
+pub struct BaseRunner<B: Backend, RLC: ReinforcementLearningComponentsTypes> {
+    env: RLC::Env,
+    eval: bool,
+    agent: RLC::Policy,
     current_reward: f64,
     run_num: usize,
     step_num: usize,
     _backend: PhantomData<B>,
 }
 
-impl<B: Backend, E: Environment, A: Policy<B>> BaseRunner<B, E, A> {
+impl<B: Backend, RLC: ReinforcementLearningComponentsTypes> BaseRunner<B, RLC> {
     /// Create a new base runner.
-    pub fn new(agent: A) -> Self {
+    pub fn new(agent: RLC::Policy, eval: bool) -> Self {
         Self {
-            env: E::new(),
+            env: <RLC::Env as Environment>::new(),
+            eval,
             agent: agent.clone(),
             current_reward: 0.0,
             run_num: 0,
@@ -127,8 +125,10 @@ impl<B: Backend, E: Environment, A: Policy<B>> BaseRunner<B, E, A> {
     }
 }
 
-impl<BT: Backend, OC: ReinforcementLearningComponentsTypes> EnvRunner<BT, OC>
-    for BaseRunner<OC::Backend, OC::Env, OC::Policy>
+impl<BT, RLC> EnvRunner<BT, RLC> for BaseRunner<BT, RLC>
+where
+    BT: Backend,
+    RLC: ReinforcementLearningComponentsTypes,
 {
     fn start(&mut self) {
         self.env.reset();
@@ -138,23 +138,21 @@ impl<BT: Backend, OC: ReinforcementLearningComponentsTypes> EnvRunner<BT, OC>
         &mut self,
         num_steps: usize,
         deterministic: bool,
-        _processor: &mut RLEventProcessorType<OC>, // TODO:
-        _interrupter: &Interrupter,
-        _progress: &mut Progress,
+        processor: &mut RLEventProcessorType<RLC>,
+        interrupter: &Interrupter,
+        progress: &mut Progress,
     ) -> Vec<
         TimeStep<
             BT,
-            <OC::Policy as Policy<OC::Backend>>::Input,
-            <OC::Policy as Policy<OC::Backend>>::Action,
-            OC::ActionContext,
+            <RLC::Policy as Policy<RLC::Backend>>::Input,
+            <RLC::Policy as Policy<RLC::Backend>>::Action,
+            RLC::ActionContext,
         >,
     > {
         let mut items = vec![];
         let device = Default::default();
         for _ in 0..num_steps {
             let state = self.env.state();
-            // Assume only 1 action is returned since only 1 state is sent
-            // TODO : Should agent also have take_action() for single envs?
             let (action, context) = self.agent.action(state.clone().into(), deterministic);
 
             let step_result = self.env.step(action.clone().into());
@@ -181,6 +179,30 @@ impl<BT: Backend, OC: ReinforcementLearningComponentsTypes> EnvRunner<BT, OC>
                 action_context: context[0].clone(),
             });
 
+            if !self.eval {
+                progress.items_processed += 1;
+                processor.process_train(RLEvent::TimeStep(EvaluationItem::new(
+                    context[0].clone(),
+                    progress.clone(),
+                    None,
+                )));
+
+                if step_result.done {
+                    processor.process_train(RLEvent::EpisodeEnd(EvaluationItem::new(
+                        EpisodeSummary {
+                            episode_length: self.step_num,
+                            cum_reward: self.current_reward,
+                        },
+                        progress.clone(),
+                        None,
+                    )));
+                }
+            }
+
+            if interrupter.should_stop() {
+                break;
+            }
+
             if step_result.done || step_result.truncated {
                 self.env.reset();
                 self.current_reward = 0.;
@@ -191,39 +213,67 @@ impl<BT: Backend, OC: ReinforcementLearningComponentsTypes> EnvRunner<BT, OC>
         items
     }
 
-    fn update_policy(&mut self, update: <RlPolicy<OC> as Policy<OC::Backend>>::PolicyState) {
+    fn update_policy(&mut self, update: <RlPolicy<RLC> as Policy<RLC::Backend>>::PolicyState) {
         self.agent.update(update);
     }
 
     fn run_episodes(
         &mut self,
-        _num_episodes: usize,
-        _deterministic: bool,
-        _processor: &mut RLEventProcessorType<OC>,
-        _interrupter: &Interrupter,
-        _progress: &mut Progress,
+        num_episodes: usize,
+        deterministic: bool,
+        processor: &mut RLEventProcessorType<RLC>,
+        interrupter: &Interrupter,
+        progress: &mut Progress,
     ) -> Vec<
         Trajectory<
             BT,
-            <OC::Policy as Policy<OC::Backend>>::Input,
-            <OC::Policy as Policy<OC::Backend>>::Action,
-            OC::ActionContext,
+            <RLC::Policy as Policy<RLC::Backend>>::Input,
+            <RLC::Policy as Policy<RLC::Backend>>::Action,
+            RLC::ActionContext,
         >,
     > {
-        // TODO:
-        // let mut items = vec![];
-        // for _ in 0..num_episodes {
-        //     let mut steps = vec![];
-        //     loop {
-        //         let step = &self.run_steps(1, deterministic, processor, interrupter)[0];
-        //         steps.push(step.clone());
-        //         if step.done {
-        //             break;
-        //         }
-        //     }
-        //     items.push(EpisodeTrajectory { steps });
-        // }
-        // items
-        todo!()
+        let mut items = vec![];
+        for ep in 0..num_episodes {
+            let mut steps = vec![];
+            loop {
+                let step = &self.run_steps(1, deterministic, processor, interrupter, progress)[0];
+                steps.push(step.clone());
+
+                if self.eval {
+                    processor.process_valid(AgentEvaluationEvent::TimeStep(EvaluationItem::new(
+                        step.action_context.clone(),
+                        Progress::new(steps.len() + 1, steps.len() + 1),
+                        None,
+                    )));
+
+                    if step.done {
+                        processor.process_valid(AgentEvaluationEvent::EpisodeEnd(
+                            EvaluationItem::new(
+                                EpisodeSummary {
+                                    episode_length: step.ep_len,
+                                    cum_reward: step.cum_reward,
+                                },
+                                Progress::new(ep + 1, num_episodes),
+                                None,
+                            ),
+                        ));
+                    }
+                }
+
+                if interrupter.should_stop() || step.done{
+                    break;
+                }
+            }
+            items.push(Trajectory::new(steps));
+
+            if interrupter.should_stop() {
+                break;
+            }
+        }
+        items
+    }
+    
+    fn policy(&self) -> <RlPolicy<RLC> as Policy<<RLC as ReinforcementLearningComponentsTypes>::Backend>>::PolicyState {
+        self.agent.state()
     }
 }

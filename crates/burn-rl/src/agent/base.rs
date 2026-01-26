@@ -1,5 +1,9 @@
 use derive_new::new;
-use std::{marker::PhantomData, sync::mpsc::Sender, thread::spawn};
+use std::{
+    marker::PhantomData,
+    sync::mpsc::{self, Sender},
+    thread::spawn,
+};
 
 use burn_core::{prelude::*, record::Record, tensor::backend::AutodiffBackend};
 
@@ -38,19 +42,12 @@ pub trait Policy<B: Backend>: Clone {
     // TODO: A littel weird but idk.
     fn batch(&self, inputs: Vec<&Self::Input>) -> Self::Input;
     fn unbatch(&self, inputs: Self::Action) -> Vec<Self::Action>;
+    fn unbatch_logits(&self, inputs: Self::Logits) -> Vec<Self::Logits>;
 
     fn update(&mut self, update: Self::PolicyState);
     fn state(&self) -> Self::PolicyState;
-}
 
-pub trait OffPolicyTransitionBatch<B: AutodiffBackend> {
-    fn from_samples(
-        states_batch: Tensor<B, 2>,
-        next_states_batch: Tensor<B, 2>,
-        actions_batch: Tensor<B, 2>,
-        rewards_batch: Tensor<B, 2>,
-        dones_batch: Tensor<B, 2>,
-    ) -> Self;
+    fn from_record(&self, record: <Self::PolicyState as PolicyState<B>>::Record) -> Self;
 }
 
 /// A training output.
@@ -62,7 +59,7 @@ pub struct RLTrainOutput<TO, P> {
     pub item: TO,
 }
 
-pub trait LearnerAgent<B: AutodiffBackend> {
+pub trait AgentLearner<B: AutodiffBackend> {
     type TrainingInput: From<
         Transition<
             B,
@@ -151,39 +148,47 @@ where
                     context: vec![context[i].clone()],
                     action: actions[i].clone(),
                 })
-                .unwrap();
+                .expect("Autobatcher should be able to send resulting actions.");
         }
         self.batch_action.clear();
     }
 
-    // pub fn flush_logits(&mut self) {
-    //     let input = self
-    //         .batch_logits
-    //         .iter()
-    //         .map(|m| &m.inference_state)
-    //         .collect();
-    //     let output = self.inner_policy.logits(self.inner_policy.batch(input));
-    //     for (i, item) in self.batch_logits.iter().enumerate() {
-    //         item.sender.send(output.clone().slice(s![i, ..])).unwrap();
-    //     }
-    //     self.batch_action.clear();
-    // }
+    pub fn flush_logits(&mut self) {
+        let input = self
+            .batch_logits
+            .iter()
+            .map(|m| &m.inference_state)
+            .collect();
+        let output = self.inner_policy.logits(self.inner_policy.batch(input));
+        let logits = self.inner_policy.unbatch_logits(output);
+        for (i, item) in self.batch_logits.iter().enumerate() {
+            item.sender
+                .send(logits[i].clone())
+                .expect("Autobatcher should be able to send resulting probabilities.");
+        }
+        self.batch_action.clear();
+    }
 
     pub fn update_policy(&mut self, policy_update: P::PolicyState) {
         if self.len_actions() > 0 {
             self.flush_actions();
         }
-        // if self.len_logits() > 0 {
-        //     self.flush_logits();
-        // }
+        if self.len_logits() > 0 {
+            self.flush_logits();
+        }
         self.inner_policy.update(policy_update);
+    }
+
+    pub fn state(&self) -> P::PolicyState {
+        self.inner_policy.state()
     }
 }
 
 enum InferenceMessage<B: Backend, P: Policy<B>> {
     ActionMessage(ActionItem<P::Input, P::Action, P::ActionContext>),
     LogitsMessage(LogitsItem<P::Input, P::Logits>),
-    Policy(P::PolicyState),
+    PolicyUpdate(P::PolicyState),
+    PolicyRequest(Sender<P::PolicyState>),
 }
 
 #[derive(Clone)]
@@ -223,7 +228,10 @@ where
                     Ok(msg) => match msg {
                         InferenceMessage::ActionMessage(item) => autobatcher.push_action(item),
                         InferenceMessage::LogitsMessage(item) => autobatcher.push_logits(item),
-                        InferenceMessage::Policy(update) => autobatcher.update_policy(update),
+                        InferenceMessage::PolicyUpdate(update) => autobatcher.update_policy(update),
+                        InferenceMessage::PolicyRequest(sender) => sender
+                            .send(autobatcher.state())
+                            .expect("Autobatcher should be able to send current policy state."),
                     },
                     Err(err) => {
                         log::error!("Error in AsyncPolicy : {}", err);
@@ -263,7 +271,9 @@ where
             .expect("Should call start() before queue_action().")
             .send(InferenceMessage::LogitsMessage(item))
             .expect("Should be able to send message to inference_server");
-        action_receiver.recv().unwrap()
+        action_receiver
+            .recv()
+            .expect("AsyncPolicy should receive queued probabilities.")
     }
 
     fn action(
@@ -282,8 +292,10 @@ where
             .as_ref()
             .expect("Should call start() before queue_action().")
             .send(InferenceMessage::ActionMessage(item))
-            .expect("Should be able to send message to inference_server");
-        let action = action_receiver.recv().unwrap();
+            .expect("should be able to send message to inference_server.");
+        let action = action_receiver
+            .recv()
+            .expect("AsyncPolicy should receive queued actions.");
         (action.action, action.context)
     }
 
@@ -291,13 +303,20 @@ where
         self.inference_state_sender
             .as_ref()
             .expect("Should call start() before update().")
-            .send(InferenceMessage::Policy(update))
-            .unwrap();
+            .send(InferenceMessage::PolicyUpdate(update))
+            .expect("AsyncPolicy should be able to send policy state.")
     }
 
-    // TODO: all this.
     fn state(&self) -> Self::PolicyState {
-        todo!()
+        let (sender, receiver) = mpsc::channel();
+        self.inference_state_sender
+            .as_ref()
+            .expect("Should call start() before state().")
+            .send(InferenceMessage::PolicyRequest(sender))
+            .expect("should be able to send message to inference_server.");
+        receiver
+            .recv()
+            .expect("AsyncPolicy should be able to receive policy state.")
     }
 
     fn batch(&self, _inputs: Vec<&Self::Input>) -> Self::Input {
@@ -305,6 +324,14 @@ where
     }
 
     fn unbatch(&self, _inputs: Self::Action) -> Vec<Self::Action> {
+        todo!()
+    }
+
+    fn unbatch_logits(&self, _inputs: Self::Logits) -> Vec<Self::Logits> {
+        todo!()
+    }
+
+    fn from_record(&self, _record: <Self::PolicyState as PolicyState<B>>::Record) -> Self {
         todo!()
     }
 }

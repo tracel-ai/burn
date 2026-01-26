@@ -190,8 +190,7 @@ where
     }
 
     fn update(&mut self, update: Self::PolicyState) {
-        // TODO: what to do
-        // self.step = update.step;
+        // Note : updating an epsilon greedy policy doesn't change the step.
         self.inner_policy.update(update.inner_state);
     }
 
@@ -208,5 +207,24 @@ where
 
     fn unbatch(&self, inputs: Self::Action) -> Vec<Self::Action> {
         self.inner_policy.unbatch(inputs)
+    }
+
+    fn unbatch_logits(&self, inputs: Self::Logits) -> Vec<Self::Logits> {
+        self.inner_policy.unbatch_logits(inputs)
+    }
+
+    fn from_record(&self, record: <Self::PolicyState as PolicyState<B>>::Record) -> Self {
+        let state = self.state().load_record(record);
+        let inner_policy = self
+            .inner_policy
+            .from_record(state.inner_state.into_record());
+        EpsilonGreedyPolicy {
+            inner_policy: inner_policy,
+            eps_start: self.eps_start,
+            eps_end: self.eps_end,
+            eps_decay: self.eps_decay,
+            step: state.step,
+            _backend: PhantomData,
+        }
     }
 }

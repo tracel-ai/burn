@@ -4,7 +4,7 @@ use crate::{
     ReinforcementLearningStrategy,
 };
 use burn_core::{data::dataloader::Progress, tensor::Device};
-use burn_rl::{AsyncPolicy, LearnerAgent, Policy, TransitionBuffer};
+use burn_rl::{AgentLearner, AsyncPolicy, Policy, TransitionBuffer};
 
 /// Base strategy for off-policy reinforcement learning.
 pub struct SimpleOffPolicyStrategy<RLC: ReinforcementLearningComponentsTypes> {
@@ -57,13 +57,13 @@ where
         );
         env_runner_valid.start();
         let mut transition_buffer = TransitionBuffer::<
-            <RLC::LearningAgent as LearnerAgent<RLC::Backend>>::TrainingInput,
+            <RLC::LearningAgent as AgentLearner<RLC::Backend>>::TrainingInput,
         >::new(2048);
 
         let train_interval = 8;
         let valid_interval = 5000;
         let valid_episodes = 5;
-        let mut valid_next = valid_interval + starting_epoch;
+        let mut valid_next = valid_interval + starting_epoch - 1;
         let mut progress = Progress {
             items_processed: starting_epoch,
             items_total: num_steps_total,
@@ -120,7 +120,7 @@ where
 
                 if let Some(checkpointer) = &mut checkpointer {
                     checkpointer.checkpoint(
-                        &learner_agent.policy(),
+                        &env_runner.policy(),
                         &learner_agent,
                         valid_next,
                         &training_components.event_store,

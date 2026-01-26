@@ -1,5 +1,5 @@
 use burn_core::tensor::Device;
-use burn_rl::LearnerAgent;
+use burn_rl::AgentLearner;
 use burn_rl::Policy;
 use burn_rl::PolicyState;
 
@@ -23,7 +23,7 @@ impl<RLC: ReinforcementLearningComponentsTypes> RLCheckpointer<RLC> {
     /// Create checkpoint for the training process.
     pub fn checkpoint(
         &mut self,
-        policy: &RLC::Policy,
+        policy: &<RLC::Policy as Policy<RLC::Backend>>::PolicyState,
         learning_agent: &RLC::LearningAgent,
         epoch: usize,
         store: &EventStoreClient,
@@ -42,7 +42,7 @@ impl<RLC: ReinforcementLearningComponentsTypes> RLCheckpointer<RLC> {
                 }
                 CheckpointingAction::Save => {
                     self.policy
-                        .save(epoch, policy.state().into_record())
+                        .save(epoch, policy.into_record())
                         .expect("Can save policy checkpoint.");
                     self.learning_agent
                         .save(epoch, learning_agent.into_record())
@@ -55,24 +55,23 @@ impl<RLC: ReinforcementLearningComponentsTypes> RLCheckpointer<RLC> {
     /// Load a training checkpoint.
     pub fn load_checkpoint(
         &self,
-        mut policy: RLC::Policy,
-        mut learning_agent: RLC::LearningAgent,
+        learning_agent: RLC::LearningAgent,
         device: &Device<RLC::Backend>,
         epoch: usize,
-    ) -> (RLC::Policy, RLC::LearningAgent) {
+    ) -> RLC::LearningAgent {
         let record = self
             .policy
             .restore(epoch, device)
             .expect("Can load model checkpoint.");
-        let state = policy.state().load_record(record);
-        policy.update(state);
+        let policy = learning_agent.policy().from_record(record);
 
         let record = self
             .learning_agent
             .restore(epoch, device)
             .expect("Can load learning agent checkpoint.");
-        learning_agent = learning_agent.load_record(record);
+        let mut learning_agent = learning_agent.load_record(record);
+        learning_agent.update_policy(policy);
 
-        (policy, learning_agent)
+        learning_agent
     }
 }

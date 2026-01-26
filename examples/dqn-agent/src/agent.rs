@@ -17,7 +17,7 @@ use burn::{
     tensor::backend::AutodiffBackend,
 };
 use burn_rl::{
-    LearnerAgent, Policy, PolicyState, RLTrainOutput, Transition, TransitionBatch, TransitionBuffer,
+    AgentLearner, Policy, PolicyState, RLTrainOutput, Transition, TransitionBatch, TransitionBuffer,
 };
 use rand::distr::Distribution;
 use rand::distr::weighted::WeightedIndex;
@@ -248,6 +248,22 @@ impl<B: Backend, M: DiscreteActionModel<B>> Policy<B> for DQN<B, M> {
         }
         output
     }
+
+    fn unbatch_logits(&self, inputs: Self::Logits) -> Vec<Self::Logits> {
+        let mut output = vec![];
+        for i in 0..inputs.dims()[0] {
+            output.push(inputs.clone().slice(s![i, ..]));
+        }
+        output
+    }
+
+    fn from_record(&self, record: <Self::PolicyState as PolicyState<B>>::Record) -> Self {
+        let state = self.state().load_record(record);
+        Self {
+            model: state.model,
+            _backend: PhantomData,
+        }
+    }
 }
 
 #[derive(Record)]
@@ -325,7 +341,7 @@ impl<B: Backend> Adaptor<LossInput<B>> for SimpleTrainOutput<B> {
     }
 }
 
-impl<B, M, O> LearnerAgent<B> for DqnLearningAgent<B, M, O>
+impl<B, M, O> AgentLearner<B> for DqnLearningAgent<B, M, O>
 where
     B: AutodiffBackend,
     M: DiscreteActionModel<B> + AutodiffModule<B> + TargetModel<B> + 'static,
@@ -407,8 +423,6 @@ where
 
     fn update_policy(&mut self, update: Self::InnerPolicy) {
         self.agent = update;
-        self.policy_model = self.agent.state().inner_state.model;
-        self.target_model = self.agent.state().inner_state.model;
     }
 
     fn into_record(&self) -> Self::Record {

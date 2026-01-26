@@ -182,7 +182,7 @@ impl<LC: LearningComponentsTypes> SupervisedTraining<LC> {
         metrics.register(self)
     }
 
-    /// Register all metrics as numeric for the training and validation set.
+    /// Register all metrics as text for the training and validation set.
     pub fn metrics_text<Me: TextMetricRegistration<LC>>(self, metrics: Me) -> Self {
         metrics.register(self)
     }

@@ -16,15 +16,13 @@ use crate::{
 };
 use burn_core::record::FileRecorder;
 use burn_core::tensor::backend::AutodiffBackend;
-use burn_rl::{Environment, LearnerAgent, Policy};
+use burn_rl::{AgentLearner, Environment, Policy};
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-/// Structure to configure and launch supervised learning trainings.
+/// Structure to configure and launch reinforcement learning trainings.
 pub struct ReinforcementLearning<RLC: ReinforcementLearningComponentsTypes> {
-    // Not that complex. Extracting into another type would only make it more confusing.
-    #[allow(clippy::type_complexity)]
     checkpointers: Option<(
         AsyncCheckpointer<RLPolicyRecord<RLC>, RLC::Backend>,
         AsyncCheckpointer<RLAgentRecord<RLC>, RLC::Backend>,
@@ -48,7 +46,7 @@ impl<B, E, A, TO, AC> ReinforcementLearning<ReinforcementLearningComponentsMarke
 where
     B: AutodiffBackend,
     E: Environment + 'static,
-    A: LearnerAgent<B, TrainingOutput = TO> + Send + 'static,
+    A: AgentLearner<B, TrainingOutput = TO> + Send + 'static,
     A::InnerPolicy: Policy<B, ActionContext = AC> + Send,
     <A::InnerPolicy as Policy<B>>::PolicyState: Send,
     TO: ItemLazy + Clone + Send,
@@ -56,7 +54,7 @@ where
     E::State: Into<<A::InnerPolicy as Policy<B>>::Input> + Clone,
     E::Action: From<<A::InnerPolicy as Policy<B>>::Action>,
 {
-    /// Creates a new runner for a supervised training.
+    /// Creates a new runner for reinforcement learning.
     ///
     /// # Arguments
     ///
@@ -130,44 +128,44 @@ impl<RLC: ReinforcementLearningComponentsTypes + 'static> ReinforcementLearning<
         self
     }
 
-    /// Register all metrics as numeric for the training and validation set.
-    pub fn train_step_metrics<Me: TrainStepMetricRegistration<RLC>>(self, metrics: Me) -> Self {
+    /// Register numerical metrics for a training step of the agent.
+    pub fn metrics_train_step<Me: TrainStepMetricRegistration<RLC>>(self, metrics: Me) -> Self {
         metrics.register(self)
     }
 
-    /// Register all metrics as numeric for the training and validation set.
-    pub fn train_step_metrics_text<Me: TrainStepTextMetricRegistration<RLC>>(
+    /// Register textual metrics for a training step of the agent.
+    pub fn metrics_train_step_text<Me: TrainStepTextMetricRegistration<RLC>>(
         self,
         metrics: Me,
     ) -> Self {
         metrics.register(self)
     }
 
-    /// Register all metrics as numeric for the training and validation set.
-    pub fn env_step_metrics<Me: EnvStepMetricRegistration<RLC>>(self, metrics: Me) -> Self {
+    /// Register numerical metrics for each step of the environment.
+    pub fn metrics_env_step<Me: EnvStepMetricRegistration<RLC>>(self, metrics: Me) -> Self {
         metrics.register(self)
     }
 
-    /// Register all metrics as numeric for the training and validation set.
-    pub fn env_step_metrics_text<Me: EnvStepTextMetricRegistration<RLC>>(
+    /// Register textual metrics for each step of the environment.
+    pub fn metrics_env_step_text<Me: EnvStepTextMetricRegistration<RLC>>(
         self,
         metrics: Me,
     ) -> Self {
         metrics.register(self)
     }
 
-    /// Register all metrics as numeric for the training and validation set.
-    pub fn episode_metrics<Me: EpisodeMetricRegistration<RLC>>(self, metrics: Me) -> Self {
+    /// Register numerical metrics for a completed episode.
+    pub fn metrics_episode<Me: EpisodeMetricRegistration<RLC>>(self, metrics: Me) -> Self {
         metrics.register(self)
     }
 
-    /// Register all metrics as numeric for the training and validation set.
-    pub fn episode_metrics_text<Me: EpisodeTextMetricRegistration<RLC>>(self, metrics: Me) -> Self {
+    /// Register textual metrics for a completed episode.
+    pub fn metrics_episode_text<Me: EpisodeTextMetricRegistration<RLC>>(self, metrics: Me) -> Self {
         metrics.register(self)
     }
 
-    /// Register a metric for a step of training.
-    pub fn train_step_metric<Me: Metric + 'static>(mut self, metric: Me) -> Self
+    /// Register a textual metric for a training step of the agent.
+    pub fn metric_train_step<Me: Metric + 'static>(mut self, metric: Me) -> Self
     where
         <RLC::TrainingOutput as ItemLazy>::ItemSync: Adaptor<Me::Input>,
     {
@@ -175,8 +173,8 @@ impl<RLC: ReinforcementLearningComponentsTypes + 'static> ReinforcementLearning<
         self
     }
 
-    /// Register a [numeric](crate::metric::Numeric) [metric](Metric) for a step of training.
-    pub fn train_step_metric_numeric<Me>(mut self, metric: Me) -> Self
+    /// Register a [numeric](crate::metric::Numeric) [metric](Metric) for a training step of the agent.
+    pub fn metric_train_step_numeric<Me>(mut self, metric: Me) -> Self
     where
         Me: Metric + Numeric + 'static,
         <RLC::TrainingOutput as ItemLazy>::ItemSync: Adaptor<Me::Input>,
@@ -186,8 +184,8 @@ impl<RLC: ReinforcementLearningComponentsTypes + 'static> ReinforcementLearning<
         self
     }
 
-    /// Register a metric for a step of the environment runner.
-    pub fn env_step_metric<Me: Metric + 'static>(mut self, metric: Me) -> Self
+    /// Register a textual metric for each step of the environment.
+    pub fn metric_env_step<Me: Metric + 'static>(mut self, metric: Me) -> Self
     where
         <RLC::ActionContext as ItemLazy>::ItemSync: Adaptor<Me::Input>,
     {
@@ -196,8 +194,8 @@ impl<RLC: ReinforcementLearningComponentsTypes + 'static> ReinforcementLearning<
         self
     }
 
-    /// Register a [numeric](crate::metric::Numeric) [metric](Metric) for a step of the environment runner.
-    pub fn env_step_metric_numeric<Me>(mut self, metric: Me) -> Self
+    /// Register a [numeric](crate::metric::Numeric) [metric](Metric) for each step of the environment.
+    pub fn metric_env_step_numeric<Me>(mut self, metric: Me) -> Self
     where
         Me: Metric + Numeric + 'static,
         <RLC::ActionContext as ItemLazy>::ItemSync: Adaptor<Me::Input>,
@@ -209,8 +207,8 @@ impl<RLC: ReinforcementLearningComponentsTypes + 'static> ReinforcementLearning<
         self
     }
 
-    /// Register a metric for the end of an episode.
-    pub fn episode_metric<Me: Metric + 'static>(mut self, metric: Me) -> Self
+    /// Register a textual metric for a completed episode.
+    pub fn metric_episode<Me: Metric + 'static>(mut self, metric: Me) -> Self
     where
         EpisodeSummary: Adaptor<Me::Input> + 'static,
     {
@@ -219,8 +217,8 @@ impl<RLC: ReinforcementLearningComponentsTypes + 'static> ReinforcementLearning<
         self
     }
 
-    /// Register a [numeric](crate::metric::Numeric) [metric](Metric) for a step of the environment runner.
-    pub fn episode_metric_numeric<Me>(mut self, metric: Me) -> Self
+    /// Register a [numeric](crate::metric::Numeric) [metric](Metric) for a completed episode.
+    pub fn metric_episode_numeric<Me>(mut self, metric: Me) -> Self
     where
         Me: Metric + Numeric + 'static,
         EpisodeSummary: Adaptor<Me::Input> + 'static,
@@ -233,28 +231,13 @@ impl<RLC: ReinforcementLearningComponentsTypes + 'static> ReinforcementLearning<
         self
     }
 
-    /// Enable gradients accumulation.
-    ///
-    /// # Notes
-    ///
-    /// When you enable gradients accumulation, the gradients object used by the optimizer will be
-    /// the sum of all gradients generated by each backward pass. It might be a good idea to
-    /// reduce the learning to compensate.
-    ///
-    /// The effect is similar to increasing the `batch size` and the `learning rate` by the `accumulation`
-    /// amount.
-    pub fn grads_accumulation(mut self, accumulation: usize) -> Self {
-        self.grad_accumulation = Some(accumulation);
-        self
-    }
-
-    /// The number of episodes to learn over.
+    /// The number of environement steps to train for.
     pub fn num_steps(mut self, num_episodes: usize) -> Self {
         self.num_steps = num_episodes;
         self
     }
 
-    /// The epoch from which the training must resume.
+    /// The step from which the training must resume.
     pub fn checkpoint(mut self, checkpoint: usize) -> Self {
         self.checkpoint = Some(checkpoint);
         self
@@ -283,7 +266,7 @@ impl<RLC: ReinforcementLearningComponentsTypes + 'static> ReinforcementLearning<
     }
 
     /// Register a checkpointer that will save the environment runner's [policy](Policy)
-    /// and the [learning agent](LearnerAgent) state to different files.
+    /// and the [AgentLearner](AgentLearner) state to different files.
     pub fn with_file_checkpointer<FR>(mut self, recorder: FR) -> Self
     where
         FR: FileRecorder<RLC::Backend> + 'static,
@@ -305,13 +288,13 @@ impl<RLC: ReinforcementLearningComponentsTypes + 'static> ReinforcementLearning<
 
     /// Enable the training summary report.
     ///
-    /// The summary will be displayed after `.fit()`, when the renderer is dropped.
+    /// The summary will be displayed after `.launch()`, when the renderer is dropped.
     pub fn summary(mut self) -> Self {
         self.summary = true;
         self
     }
 
-    /// Run the training with the specified [Learner](Learner) and dataloaders.
+    /// Launch the training with the specified [AgentLearner](AgentLearner) on the specified environment.
     pub fn launch(mut self, learner_agent: RLC::LearningAgent) -> RLResult<RLC::Policy> {
         if self.tracing_logger.is_some()
             && let Err(e) = self.tracing_logger.as_ref().unwrap().install()
@@ -347,7 +330,6 @@ impl<RLC: ReinforcementLearningComponentsTypes + 'static> ReinforcementLearning<
             None
         };
 
-        // TODO: pq on a besoin du type?
         let components = RLComponents::<RLC> {
             checkpoint: self.checkpoint,
             checkpointer: checkpointer,
@@ -423,7 +405,7 @@ macro_rules! gen_tuple {
                 builder: ReinforcementLearning<RLC>,
             ) -> ReinforcementLearning<RLC> {
                 let ($($M,)*) = self;
-                $(let builder = builder.train_step_metric($M.clone());)*
+                $(let builder = builder.metric_train_step($M.clone());)*
                 builder
             }
         }
@@ -439,7 +421,7 @@ macro_rules! gen_tuple {
                 builder: ReinforcementLearning<RLC>,
             ) -> ReinforcementLearning<RLC> {
                 let ($($M,)*) = self;
-                $(let builder = builder.train_step_metric_numeric($M.clone());)*
+                $(let builder = builder.metric_train_step_numeric($M.clone());)*
                 builder
             }
         }
@@ -455,7 +437,7 @@ macro_rules! gen_tuple {
                 builder: ReinforcementLearning<RLC>,
             ) -> ReinforcementLearning<RLC> {
                 let ($($M,)*) = self;
-                $(let builder = builder.env_step_metric($M.clone());)*
+                $(let builder = builder.metric_env_step($M.clone());)*
                 builder
             }
         }
@@ -471,7 +453,7 @@ macro_rules! gen_tuple {
                 builder: ReinforcementLearning<RLC>,
             ) -> ReinforcementLearning<RLC> {
                 let ($($M,)*) = self;
-                $(let builder = builder.env_step_metric_numeric($M.clone());)*
+                $(let builder = builder.metric_env_step_numeric($M.clone());)*
                 builder
             }
         }
@@ -487,7 +469,7 @@ macro_rules! gen_tuple {
                 builder: ReinforcementLearning<RLC>,
             ) -> ReinforcementLearning<RLC> {
                 let ($($M,)*) = self;
-                $(let builder = builder.episode_metric($M.clone());)*
+                $(let builder = builder.metric_episode($M.clone());)*
                 builder
             }
         }
@@ -503,7 +485,7 @@ macro_rules! gen_tuple {
                 builder: ReinforcementLearning<RLC>,
             ) -> ReinforcementLearning<RLC> {
                 let ($($M,)*) = self;
-                $(let builder = builder.episode_metric_numeric($M.clone());)*
+                $(let builder = builder.metric_episode_numeric($M.clone());)*
                 builder
             }
         }
