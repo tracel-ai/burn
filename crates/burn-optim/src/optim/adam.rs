@@ -174,11 +174,13 @@ impl AdaptiveMomentum {
 
             let factor = 1.0 - self.beta_2;
             let moment_2 = grad.square().mul_scalar(factor);
-            let mut state = AdaptiveMomentumState::new(1, moment_1, moment_2);
-            if self.amsgrad {
-                state.max_moment_2 = Some(state.moment_2.clone());
+            let max_moment_2 = self.amsgrad.then(|| moment_2.clone());
+            AdaptiveMomentumState {
+                time: 1,
+                moment_1,
+                moment_2,
+                max_moment_2,
             }
-            state
         };
 
         let time = state.time as i32;
