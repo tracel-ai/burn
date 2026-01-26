@@ -925,7 +925,7 @@ dependencies = [
  "tar",
  "tempfile",
  "thiserror 2.0.17",
- "zip 7.0.0",
+ "zip 7.2.0",
 ]
 
 [[package]]
@@ -966,7 +966,7 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.17",
- "zip 7.0.0",
+ "zip 7.2.0",
 ]
 
 [[package]]
@@ -1168,7 +1168,7 @@ dependencies = [
  "serde",
  "tempfile",
  "textdistance",
- "zip 7.0.0",
+ "zip 7.2.0",
 ]
 
 [[package]]
@@ -8819,6 +8819,7 @@ checksum = "91e7d9e3bb61134e77bde20dd4825b97c010155709965fedf0f49bb138e52a9d"
 dependencies = [
  "deranged",
  "itoa",
+ "js-sys",
  "libc",
  "num-conv",
  "num_threads",
@@ -9431,6 +9432,12 @@ name = "typed-arena"
 version = "2.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6af6ae20167a9ece4bcb41af5b80f8a1f1df981f6391189ce00fd257af04126a"
+
+[[package]]
+name = "typed-path"
+version = "0.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e43ffa54726cdc9ea78392023ffe9fe9cf9ac779e1c6fcb0d23f9862e3879d20"
 
 [[package]]
 name = "typenum"
@@ -10849,12 +10856,11 @@ dependencies = [
 
 [[package]]
 name = "zip"
-version = "7.0.0"
+version = "7.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bdd8a47718a4ee5fe78e07667cd36f3de80e7c2bfe727c7074245ffc7303c037"
+checksum = "c42e33efc22a0650c311c2ef19115ce232583abbe80850bc8b66509ebef02de0"
 dependencies = [
  "aes",
- "arbitrary",
  "bzip2 0.6.1",
  "constant_time_eq 0.3.1",
  "crc32fast",
@@ -10870,6 +10876,7 @@ dependencies = [
  "ppmd-rust",
  "sha1",
  "time",
+ "typed-path",
  "zeroize",
  "zopfli",
  "zstd 0.13.3",
