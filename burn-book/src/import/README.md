@@ -1,13 +1,11 @@
 # Importing Models
 
-Burn supports importing models from other frameworks and file formats, enabling you to use pre-trained weights in your Burn applications.
+Burn supports importing models from other frameworks and file formats, enabling you to use
+pre-trained weights in your Burn applications.
 
 ## Supported Formats
-
-Burn currently supports three primary model import formats:
 
 | Format | Description | Use Case |
 |--------|-------------|----------|
 | [**ONNX**](./onnx-model.md) | Open Neural Network Exchange format | Direct import of complete model architectures and weights from any framework that supports ONNX export |
-| [**PyTorch**](./pytorch-model.md) | PyTorch weights (.pt, .pth) | Loading weights from PyTorch models into a matching Burn architecture |
-| [**Safetensors**](./safetensors-model.md) | Hugging Face's model serialization format | Loading a model's tensor weights into a matching Burn architecture |
+| [**Model Weights**](./model-weights.md) | PyTorch (.pt, .pth) and SafeTensors (.safetensors) | Loading tensor weights from PyTorch or Hugging Face models into a matching Burn architecture |
