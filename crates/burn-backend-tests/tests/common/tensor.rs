@@ -30,9 +30,10 @@ test_float_elem_variant!(
     ["vulkan", "cuda", "rocm", "metal"]
 );
 
-test_float_elem_variant!(
-    bf16,
-    burn_tensor::bf16,
-    "../tensor/float/mod.rs",
-    [] // ["cuda", "rocm"] TODO, ["vulkan"] only supports bf16 for matmul, metal/wgpu doesn't support bf16
-);
+// TODO: bf16 not yet supported on any backend for full test suite
+// test_float_elem_variant!(
+//     bf16,
+//     burn_tensor::bf16,
+//     "../tensor/float/mod.rs",
+//     [] // ["cuda", "rocm"] TODO, ["vulkan"] only supports bf16 for matmul, metal/wgpu doesn't support bf16
+// );
