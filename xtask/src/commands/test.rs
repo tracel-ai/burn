@@ -140,6 +140,13 @@ pub(crate) fn handle_command(
                     )?;
                 }
                 CiTestType::GithubMacRunner => {
+                    handle_backend_tests(
+                        args.clone().try_into().unwrap(),
+                        "metal",
+                        env.clone(),
+                        context.clone(),
+                    )?;
+
                     args.target = Target::AllPackages;
                     args.only.push("burn-wgpu".to_string());
                     args.features
