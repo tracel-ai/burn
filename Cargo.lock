@@ -953,23 +953,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "burn-import"
-version = "0.21.0"
-dependencies = [
- "burn",
- "burn-ndarray",
- "burn-onnx",
- "burn-store",
- "candle-core",
- "derive-new",
- "regex",
- "serde",
- "serde_json",
- "thiserror 2.0.17",
- "zip 7.2.0",
-]
-
-[[package]]
 name = "burn-ir"
 version = "0.21.0"
 dependencies = [
