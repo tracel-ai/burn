@@ -4,11 +4,11 @@ Burn provides flexible options for saving and loading model weights through the 
 
 ## Supported Formats
 
-| Format | Extension | Description |
-|--------|-----------|-------------|
-| **Burnpack** | `.bpk` | Burn's native format with fast loading, zero-copy support, and training state persistence |
-| **SafeTensors** | `.safetensors` | Industry-standard format from Hugging Face for secure tensor serialization |
-| **PyTorch** | `.pt`, `.pth` | Direct loading of PyTorch model weights (read-only) |
+| Format          | Extension      | Description                                                                               |
+| --------------- | -------------- | ----------------------------------------------------------------------------------------- |
+| **Burnpack**    | `.bpk`         | Burn's native format with fast loading, zero-copy support, and training state persistence |
+| **SafeTensors** | `.safetensors` | Industry-standard format from Hugging Face for secure tensor serialization                |
+| **PyTorch**     | `.pt`, `.pth`  | Direct loading of PyTorch model weights (read-only)                                       |
 
 ## Quick Start
 
@@ -292,29 +292,29 @@ model2.apply(snapshots, Some(filter), None, false);
 
 ### Builder Methods
 
-| Category | Method | Description |
-|----------|--------|-------------|
-| **Filtering** | `with_regex(pattern)` | Filter by regex pattern |
-| | `with_full_path(path)` | Include specific tensor |
-| | `with_predicate(fn)` | Custom filter logic |
-| **Remapping** | `with_key_remapping(from, to)` | Regex-based renaming |
-| | `remap(KeyRemapper)` | Complex remapping rules |
-| **Adapters** | `with_from_adapter(adapter)` | Loading transformations |
-| | `with_to_adapter(adapter)` | Saving transformations |
-| **Config** | `allow_partial(bool)` | Continue on missing tensors |
-| | `with_top_level_key(key)` | Access nested dict (PyTorch) |
-| | `skip_enum_variants(bool)` | Skip enum variants in paths |
-| | `map_indices_contiguous(bool)` | Remap non-contiguous indices |
-| | `metadata(key, value)` | Add custom metadata |
-| | `zero_copy(bool)` | Enable zero-copy loading |
+| Category      | Method                         | Description                  |
+| ------------- | ------------------------------ | ---------------------------- |
+| **Filtering** | `with_regex(pattern)`          | Filter by regex pattern      |
+|               | `with_full_path(path)`         | Include specific tensor      |
+|               | `with_predicate(fn)`           | Custom filter logic          |
+| **Remapping** | `with_key_remapping(from, to)` | Regex-based renaming         |
+|               | `remap(KeyRemapper)`           | Complex remapping rules      |
+| **Adapters**  | `with_from_adapter(adapter)`   | Loading transformations      |
+|               | `with_to_adapter(adapter)`     | Saving transformations       |
+| **Config**    | `allow_partial(bool)`          | Continue on missing tensors  |
+|               | `with_top_level_key(key)`      | Access nested dict (PyTorch) |
+|               | `skip_enum_variants(bool)`     | Skip enum variants in paths  |
+|               | `map_indices_contiguous(bool)` | Remap non-contiguous indices |
+|               | `metadata(key, value)`         | Add custom metadata          |
+|               | `zero_copy(bool)`              | Enable zero-copy loading     |
 
 ### Direct Access Methods
 
-| Method | Description |
-|--------|-------------|
-| `keys()` | Get ordered list of tensor names |
-| `get_all_snapshots()` | Get all tensors as BTreeMap |
-| `get_snapshot(name)` | Get specific tensor by name |
+| Method                | Description                      |
+| --------------------- | -------------------------------- |
+| `keys()`              | Get ordered list of tensor names |
+| `get_all_snapshots()` | Get all tensors as BTreeMap      |
+| `get_snapshot(name)`  | Get specific tensor by name      |
 
 ## Troubleshooting
 

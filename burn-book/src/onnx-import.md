@@ -113,8 +113,7 @@ fn main() {
 }
 ```
 
-This generates Rust code and a `.bpk` weights file from your ONNX model during the build
-process.
+This generates Rust code and a `.bpk` weights file from your ONNX model during the build process.
 
 ### Step 3: Modify `mod.rs`
 
@@ -170,7 +169,8 @@ ModelGen::new()
 - `embed_states`: When enabled, embeds model weights in the binary using `include_bytes!`. Useful
   for WebAssembly or single-binary deployments. Not recommended for large models.
 
-Model weights are stored in Burnpack format (`.bpk`), which provides efficient serialization and loading.
+Model weights are stored in Burnpack format (`.bpk`), which provides efficient serialization and
+loading.
 
 ## Loading and Using Models
 
@@ -214,10 +214,11 @@ Common issues and solutions:
 
 ## Examples and Resources
 
-For practical examples, check out the [burn-onnx examples](https://github.com/tracel-ai/burn-onnx/tree/main/examples):
+For practical examples, check out the
+[burn-onnx examples](https://github.com/tracel-ai/burn-onnx/tree/main/examples):
 
-1. [ONNX Inference](https://github.com/tracel-ai/burn-onnx/tree/main/examples/onnx-inference) - MNIST
-   inference example
+1. [ONNX Inference](https://github.com/tracel-ai/burn-onnx/tree/main/examples/onnx-inference) -
+   MNIST inference example
 2. [Image Classification Web](https://github.com/tracel-ai/burn-onnx/tree/main/examples/image-classification-web) -
    SqueezeNet running in the browser via WebAssembly
 3. [Raspberry Pi Pico](https://github.com/tracel-ai/burn-onnx/tree/main/examples/raspberry-pi-pico) -
