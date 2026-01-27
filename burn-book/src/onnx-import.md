@@ -229,8 +229,6 @@ For contributors looking to add support for new ONNX operators:
 
 - [Development Guide](https://github.com/tracel-ai/burn-onnx/blob/main/DEVELOPMENT-GUIDE.md) -
   Step-by-step guide for implementing new operators
-- [ONNX Tests README](https://github.com/tracel-ai/burn-onnx/blob/main/crates/onnx-tests/README.md) -
-  Testing procedures
 
 ## Conclusion
 
