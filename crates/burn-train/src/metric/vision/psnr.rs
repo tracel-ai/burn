@@ -7,7 +7,6 @@ use burn_core::{
     prelude::{Backend, Tensor},
     tensor::ElementConversion,
 };
-use burn_nn::loss::{LpLoss, LpLossConfig};
 use core::marker::PhantomData;
 use std::f64::consts::LN_10;
 
@@ -19,9 +18,9 @@ use std::f64::consts::LN_10;
 /// - `H`: Height
 /// - `W`: Width
 pub struct PsnrInput<B: Backend> {
-    /// Model output (predictions/reconstructions) images with shape [N, C, H, W].
+    /// Model output (predictions/reconstructions) images with shape `[N, C, H, W]`.
     outputs: Tensor<B, 4>,
-    /// Ground truth images with shape [N, C, H, W].
+    /// Ground truth images with shape `[N, C, H, W]`.
     targets: Tensor<B, 4>,
 }
 
@@ -33,8 +32,8 @@ impl<B: Backend> PsnrInput<B> {
     /// `H` is the height of the image, and `W` is the width of the image.
     ///
     /// # Arguments
-    /// - `outputs`: The model output images with shape [N, C, H, W].
-    /// - `targets`: The ground truth images with shape [N, C, H, W].
+    /// - `outputs`: The model output images with shape `[N, C, H, W]`.
+    /// - `targets`: The ground truth images with shape `[N, C, H, W]`.
     ///
     /// # Returns
     /// A new instance of `PsnrInput`.
@@ -56,8 +55,8 @@ impl<B: Backend> PsnrInput<B> {
 #[derive(Debug, Clone, Copy)]
 pub struct PsnrMetricConfig {
     /// Maximum possible pixel value.
-    /// - Use `1.0` for normalized images in range [0, 1]
-    /// - Use `255.0` for 8-bit images in range [0, 255]
+    /// - Use `1.0` for normalized images in range \[0, 1\]
+    /// - Use `255.0` for 8-bit images in range \[0, 255\]
     pub max_pixel_val: f64,
     /// Epsilon value for numerical stability when MSE is very small or zero.
     ///
@@ -121,8 +120,6 @@ pub struct PsnrMetric<B: Backend> {
     _b: PhantomData<B>,
     /// Configuration for the metric.
     config: PsnrMetricConfig,
-    /// LpLoss that will be used in each `update()` call.
-    l2_loss: LpLoss,
 }
 
 impl<B: Backend> PsnrMetric<B> {
@@ -135,15 +132,20 @@ impl<B: Backend> PsnrMetric<B> {
     /// ```
     pub fn new(config: PsnrMetricConfig) -> Self {
         Self {
-            name: MetricName::new("PSNR".to_string()),
+            name: MetricName::new(format!("PSNR@{}", config.max_pixel_val)),
             state: NumericMetricState::default(),
             config,
             _b: PhantomData,
-            l2_loss: LpLossConfig::l2(),
         }
     }
 
-    /// Overrides the default metric name which is "PSNR".
+    /// Overrides the default metric name which is `PSNR@{max_pixel_val}`.
+    ///
+    /// Examples names:
+    /// - `PSNR@1.0`
+    /// - `PSNR@255.0`
+    ///
+    /// Use this method to provide a custom name.
     pub fn with_name(mut self, name: &str) -> Self {
         self.name = MetricName::new(name.to_string());
         self
@@ -165,9 +167,8 @@ impl<B: Backend> Metric for PsnrMetric<B> {
 
         // Compute per-image MSE by reducing over all dimensions except batch (dims 1, 2, 3)
         // Resulting shape: [N, 1, 1, 1]
-        let mse_per_image = self
-            .l2_loss
-            .forward_reduce_dims(outputs, targets, &[1, 2, 3]);
+        let diff = outputs.sub(targets);
+        let mse_per_image = diff.powi_scalar(2).mean_dims(&[1, 2, 3]);
         // Flatten to shape: [N]
         let mse_flat = mse_per_image.flatten::<1>(0, 3);
         // Clamp MSE to avoid division by 0 in the expression (MAX^2 / MSE)

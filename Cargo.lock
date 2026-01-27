@@ -1213,7 +1213,6 @@ dependencies = [
  "burn-collective",
  "burn-core",
  "burn-ndarray",
- "burn-nn",
  "burn-optim",
  "derive-new",
  "log",
