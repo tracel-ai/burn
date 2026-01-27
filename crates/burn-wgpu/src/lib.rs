@@ -148,12 +148,13 @@ mod tests {
         {
             assert!(B::supports_dtype(&device, DType::F16));
             assert!(B::supports_dtype(&device, DType::I16));
+            assert!(B::supports_dtype(&device, DType::I8));
             assert!(B::supports_dtype(&device, DType::U16));
+            assert!(B::supports_dtype(&device, DType::U8));
 
             assert!(!B::supports_dtype(&device, DType::F64));
+            assert!(!B::supports_dtype(&device, DType::BF16));
             assert!(!B::supports_dtype(&device, DType::Flex32));
-            assert!(!B::supports_dtype(&device, DType::I8));
-            assert!(!B::supports_dtype(&device, DType::U8));
         }
 
         #[cfg(not(any(feature = "vulkan", feature = "metal")))]
