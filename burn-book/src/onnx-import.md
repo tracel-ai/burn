@@ -113,7 +113,7 @@ fn main() {
 }
 ```
 
-This generates Rust code and a `.burnpack` weights file from your ONNX model during the build
+This generates Rust code and a `.bpk` weights file from your ONNX model during the build
 process.
 
 ### Step 3: Modify `mod.rs`
@@ -170,7 +170,7 @@ ModelGen::new()
 - `embed_states`: When enabled, embeds model weights in the binary using `include_bytes!`. Useful
   for WebAssembly or single-binary deployments. Not recommended for large models.
 
-Model weights are stored in `.burnpack` format, which provides efficient serialization and loading.
+Model weights are stored in Burnpack format (`.bpk`), which provides efficient serialization and loading.
 
 ## Loading and Using Models
 
@@ -178,15 +178,15 @@ You can load models in several ways:
 
 ```rust, ignore
 // Load from the output directory with default device (recommended for most use cases)
-// This automatically loads weights from the .burnpack file
+// This automatically loads weights from the .bpk file
 let model = Model::<Backend>::default();
 
 // Create a new model instance with a specific device
 // (initializes weights randomly; load weights via `load_from` afterward)
 let model = Model::<Backend>::new(&device);
 
-// Load from a specific .burnpack file
-let model = Model::<Backend>::from_file("path/to/weights.burnpack", &device);
+// Load from a specific .bpk file
+let model = Model::<Backend>::from_file("path/to/weights.bpk", &device);
 
 // Load from embedded weights (if embed_states was true)
 let model = Model::<Backend>::from_embedded(&device);
