@@ -29,7 +29,6 @@
 - [Saving & Loading Models](./saving-and-loading.md)
 - [Importing Models](./import/README.md)
   - [ONNX Model](./import/onnx-model.md)
-  - [Model Weights](./import/model-weights.md)
 - [Models & Pre-Trained Weights](./models-and-pretrained-weights.md)
 - [Advanced](./advanced/README.md)
   - [Backend Extension](./advanced/backend-extension/README.md)
