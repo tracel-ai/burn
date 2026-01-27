@@ -3,21 +3,61 @@ use crate::{
     RLComponents, RLEvent, RLEventProcessorType, ReinforcementLearningComponentsTypes,
     ReinforcementLearningStrategy,
 };
-use burn_core::{data::dataloader::Progress, tensor::Device};
+use burn_core::{self as burn};
+use burn_core::{config::Config, data::dataloader::Progress, tensor::Device};
 use burn_rl::{AgentLearner, AsyncPolicy, Policy, TransitionBuffer};
 
-/// Base strategy for off-policy reinforcement learning.
-pub struct SimpleOffPolicyStrategy<RLC: ReinforcementLearningComponentsTypes> {
-    device: Device<RLC::Backend>,
+/// Parameters of an on policy training with multi environments and double-batching.
+#[derive(Config, Debug)]
+pub struct OffPolicyConfig {
+    /// The number of environments to run simultaneously for experience collection.
+    #[config(default = 1)]
+    pub num_envs: usize,
+    /// Number of environment state to accumulate before running one step of inference with the policy.
+    /// Must be equal or less than the number of simultaneous environments.
+    #[config(default = 1)]
+    pub autobatch_size: usize,
+    /// Max number of transitions stored in the replay buffer.
+    #[config(default = 1024)]
+    pub replay_buffer_size: usize,
+    /// The number of steps to collect between each step of training.
+    #[config(default = 1)]
+    pub train_interval: usize,
+    /// The number of steps to collect between each evaluation.
+    #[config(default = 10_000)]
+    pub eval_interval: usize,
+    /// The number of episodes to run for each evaluation.
+    #[config(default = 1)]
+    pub eval_episodes: usize,
+    /// The number of transition to train on.
+    #[config(default = 32)]
+    pub train_batch_size: usize,
 }
-impl<RLC: ReinforcementLearningComponentsTypes> SimpleOffPolicyStrategy<RLC> {
+
+/// Off-policy reinforcement learning strategy with multi-env experience collection and double-batching.
+pub struct OffPolicyStrategy<RLC: ReinforcementLearningComponentsTypes> {
+    device: Device<RLC::Backend>,
+    config: OffPolicyConfig,
+}
+impl<RLC: ReinforcementLearningComponentsTypes> OffPolicyStrategy<RLC> {
     /// Create a new off-policy base strategy.
     pub fn new(device: Device<RLC::Backend>) -> Self {
-        Self { device }
+        Self {
+            device,
+            config: OffPolicyConfig::new(),
+        }
+    }
+
+    /// Update the default config.
+    pub fn with_config(self, config: OffPolicyConfig) -> Self {
+        Self {
+            device: self.device,
+            config,
+        }
     }
 }
 
-impl<RLC> ReinforcementLearningStrategy<RLC> for SimpleOffPolicyStrategy<RLC>
+impl<RLC> ReinforcementLearningStrategy<RLC> for OffPolicyStrategy<RLC>
 where
     RLC: ReinforcementLearningComponentsTypes,
 {
@@ -31,18 +71,13 @@ where
         let mut checkpointer = training_components.checkpointer;
         let num_steps_total = training_components.num_steps;
 
-        struct MultiEnvConfig {
-            num_envs: usize,
-            autobatch_size: usize,
-        }
-        let multi_env_config = MultiEnvConfig {
-            num_envs: 16,
-            autobatch_size: 8,
-        };
         let mut env_runner = AsyncEnvArrayRunner::<RLC::Backend, RLC>::new(
-            multi_env_config.num_envs,
+            self.config.num_envs,
             false,
-            AsyncPolicy::new(multi_env_config.autobatch_size, learner_agent.policy()),
+            AsyncPolicy::new(
+                self.config.num_envs.min(self.config.autobatch_size),
+                learner_agent.policy(),
+            ),
             false,
             &self.device,
         );
@@ -57,12 +92,9 @@ where
         env_runner_valid.start();
         let mut transition_buffer = TransitionBuffer::<
             <RLC::LearningAgent as AgentLearner<RLC::Backend>>::TrainingInput,
-        >::new(2048);
+        >::new(self.config.replay_buffer_size);
 
-        let train_interval = 8;
-        let valid_interval = 5000;
-        let valid_episodes = 5;
-        let mut valid_next = valid_interval + starting_epoch - 1;
+        let mut valid_next = self.config.eval_interval + starting_epoch - 1;
         let mut progress = Progress {
             items_processed: starting_epoch,
             items_total: num_steps_total,
@@ -82,7 +114,7 @@ where
 
             let previous_steps = progress.items_processed;
             let items = env_runner.run_steps(
-                train_interval,
+                self.config.train_interval,
                 false,
                 &mut event_processor,
                 &training_components.interrupter,
@@ -92,12 +124,12 @@ where
             transition_buffer
                 .append(&mut items.iter().map(|i| i.transition.clone().into()).collect());
 
-            let batch_size = 128;
-            if transition_buffer.len() >= batch_size {
+            if transition_buffer.len() >= self.config.train_batch_size {
                 if let Some(u) = intermediary_update {
                     env_runner.update_policy(u.clone());
                 }
-                let train_item = learner_agent.train(&transition_buffer);
+                let transitions = transition_buffer.random_sample(self.config.train_batch_size);
+                let train_item = learner_agent.train(transitions);
                 intermediary_update = Some(train_item.policy);
 
                 event_processor.process_train(RLEvent::TrainStep(EvaluationItem::new(
@@ -110,7 +142,7 @@ where
             if valid_next > previous_steps && valid_next <= progress.items_processed {
                 env_runner_valid.update_policy(learner_agent.policy().state());
                 env_runner_valid.run_episodes(
-                    valid_episodes,
+                    self.config.eval_episodes,
                     true,
                     &mut event_processor,
                     &training_components.interrupter,
@@ -126,7 +158,7 @@ where
                     );
                 }
 
-                valid_next += valid_interval;
+                valid_next += self.config.eval_interval;
             }
         }
 

@@ -7,7 +7,7 @@ use std::{
 
 use burn_core::{prelude::*, record::Record, tensor::backend::AutodiffBackend};
 
-use crate::{Transition, TransitionBuffer};
+use crate::Transition;
 
 #[derive(Clone, new)]
 pub struct ActionContext<A, C> {
@@ -73,7 +73,7 @@ pub trait AgentLearner<B: AutodiffBackend> {
 
     fn train(
         &mut self,
-        input: &TransitionBuffer<Self::TrainingInput>,
+        input: Vec<&Self::TrainingInput>,
     ) -> RLTrainOutput<Self::TrainingOutput, <Self::InnerPolicy as Policy<B>>::PolicyState>;
     fn policy(&self) -> Self::InnerPolicy;
     fn update_policy(&mut self, update: Self::InnerPolicy);

@@ -4,7 +4,7 @@ use burn::{
     record::CompactRecorder,
     tensor::backend::AutodiffBackend,
     train::{
-        ReinforcementLearning, ReinforcementLearningComponentsMarker,
+        OffPolicyConfig, ReinforcementLearning, ReinforcementLearningComponentsMarker,
         metric::{EpisodeLengthMetric, ExplorationRateMetric, LossMetric},
     },
 };
@@ -32,6 +32,15 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         d_output: 2,
         d_hidden: 128,
     };
+    let learning_config = OffPolicyConfig {
+        num_envs: 16,
+        autobatch_size: 8,
+        replay_buffer_size: 2048,
+        train_interval: 8,
+        eval_interval: 10_000,
+        eval_episodes: 5,
+        train_batch_size: 128,
+    };
     let policy_model = MlpNet::<B>::new(&model_config, &device);
     let optimizer = AdamWConfig::new()
         .with_grad_clipping(Some(GradientClippingConfig::Value(10.0)))
@@ -46,7 +55,11 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
     .metrics_episode((EpisodeLengthMetric::new(),))
     .with_file_checkpointer(CompactRecorder::new())
     .num_steps(40_000)
-    // .checkpoint(10_000)
+    .checkpoint(10_000)
+    .with_learning_strategy(burn::train::RLStrategy::OffPolicyStrategy((
+        device,
+        learning_config,
+    )))
     .summary();
 
     let _policy = learner.launch(agent);

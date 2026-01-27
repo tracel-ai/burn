@@ -16,9 +16,7 @@ use burn::{
     prelude::Backend,
     tensor::backend::AutodiffBackend,
 };
-use burn_rl::{
-    AgentLearner, Policy, PolicyState, RLTrainOutput, Transition, TransitionBatch, TransitionBuffer,
-};
+use burn_rl::{AgentLearner, Policy, PolicyState, RLTrainOutput, Transition, TransitionBatch};
 use rand::distr::Distribution;
 use rand::distr::weighted::WeightedIndex;
 use rand::rng;
@@ -344,11 +342,9 @@ where
 
     fn train(
         &mut self,
-        input: &TransitionBuffer<Self::TrainingInput>,
+        input: std::vec::Vec<&Self::TrainingInput>,
     ) -> RLTrainOutput<Self::TrainingOutput, <Self::InnerPolicy as Policy<B>>::PolicyState> {
-        // TODO: true batch size.
-        let batch = input.random_sample(128);
-        let batch = TransitionBatch::from(batch);
+        let batch = TransitionBatch::from(input);
 
         let states_batch = self.policy_model.batch(batch.states.iter().collect());
         let next_states_batch = self.target_model.batch(batch.next_states.iter().collect());

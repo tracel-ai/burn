@@ -1,4 +1,3 @@
-use crate::EpisodeSummary;
 use crate::checkpoint::{
     AsyncCheckpointer, CheckpointingStrategy, ComposedCheckpointingStrategy, FileCheckpointer,
     KeepLastNCheckpoints, MetricCheckpointingStrategy,
@@ -10,10 +9,12 @@ use crate::metric::{Adaptor, EpisodeLengthMetric, Metric, Numeric};
 use crate::renderer::{MetricsRenderer, default_renderer};
 use crate::{
     ApplicationLoggerInstaller, AsyncProcessorTraining, FileApplicationLoggerInstaller, ItemLazy,
-    LearnerSummaryConfig, RLAgentRecord, RLCheckpointer, RLComponents, RLEventProcessor, RLMetrics,
-    RLPolicyRecord, ReinforcementLearningComponentsMarker, ReinforcementLearningComponentsTypes,
-    ReinforcementLearningStrategy, SimpleOffPolicyStrategy,
+    LearnerSummaryConfig, OffPolicyConfig, OffPolicyStrategy, RLAgentRecord, RLCheckpointer,
+    RLComponents, RLEventProcessor, RLMetrics, RLPolicyRecord,
+    ReinforcementLearningComponentsMarker, ReinforcementLearningComponentsTypes,
+    ReinforcementLearningStrategy,
 };
+use crate::{EpisodeSummary, RLStrategy};
 use burn_core::record::FileRecorder;
 use burn_core::tensor::backend::AutodiffBackend;
 use burn_rl::{AgentLearner, Environment, Policy};
@@ -37,6 +38,7 @@ pub struct ReinforcementLearning<RLC: ReinforcementLearningComponentsTypes> {
     interrupter: Interrupter,
     tracing_logger: Option<Box<dyn ApplicationLoggerInstaller>>,
     checkpointer_strategy: Box<dyn CheckpointingStrategy>,
+    learning_strategy: RLStrategy<RLC>,
     // Use BTreeSet instead of HashSet for consistent (alphabetical) iteration order
     summary_metrics: BTreeSet<String>,
     summary: bool,
@@ -86,6 +88,10 @@ where
                     ))
                     .build(),
             ),
+            learning_strategy: RLStrategy::OffPolicyStrategy((
+                Default::default(),
+                OffPolicyConfig::new(),
+            )),
             summary_metrics: BTreeSet::new(),
             summary: false,
         }
@@ -93,6 +99,16 @@ where
 }
 
 impl<RLC: ReinforcementLearningComponentsTypes + 'static> ReinforcementLearning<RLC> {
+    /// Replace the default learning strategy (Off Policy learning) with the provided one.
+    ///
+    /// # Arguments
+    ///
+    /// * `training_strategy` - The training strategy.
+    pub fn with_learning_strategy(mut self, learning_strategy: RLStrategy<RLC>) -> Self {
+        self.learning_strategy = learning_strategy;
+        self
+    }
+
     /// Replace the default metric loggers with the provided ones.
     ///
     /// # Arguments
@@ -341,8 +357,13 @@ impl<RLC: ReinforcementLearningComponentsTypes + 'static> ReinforcementLearning<
             summary,
         };
 
-        let strategy = SimpleOffPolicyStrategy::new(Default::default());
-        strategy.train(learner_agent, components)
+        match self.learning_strategy {
+            RLStrategy::OffPolicyStrategy((device, config)) => {
+                let strategy = OffPolicyStrategy::new(device).with_config(config);
+                strategy.train(learner_agent, components)
+            }
+            RLStrategy::Custom(strategy) => strategy.train(learner_agent, components),
+        }
     }
 }
 

@@ -1,8 +1,10 @@
 use std::sync::Arc;
 
+use burn_core::prelude::Backend;
+
 use crate::{
-    Interrupter, LearnerSummaryConfig, RLCheckpointer, RLEvent, RLEventProcessorType, RLResult,
-    ReinforcementLearningComponentsTypes,
+    Interrupter, LearnerSummaryConfig, OffPolicyConfig, RLCheckpointer, RLEvent,
+    RLEventProcessorType, RLResult, ReinforcementLearningComponentsTypes,
     metric::{processor::EventProcessorTraining, store::EventStoreClient},
 };
 
@@ -25,6 +27,18 @@ pub struct RLComponents<RLC: ReinforcementLearningComponentsTypes> {
     /// Config for creating a summary of the learning
     pub summary: Option<LearnerSummaryConfig>,
 }
+
+/// The strategy for reinforcement learning.
+#[derive(Clone)]
+pub enum RLStrategy<RLC: ReinforcementLearningComponentsTypes> {
+    /// Training on one device
+    OffPolicyStrategy((<RLC::Backend as Backend>::Device, OffPolicyConfig)),
+    /// Training using a custom learning strategy
+    Custom(CustomRLStrategy<RLC>),
+}
+
+/// A reference to an implementation of [ReinforcementLearningStrategy].
+pub type CustomRLStrategy<LC> = Arc<dyn ReinforcementLearningStrategy<LC>>;
 
 /// Provides the `fit` function for any learning strategy
 pub trait ReinforcementLearningStrategy<RLC: ReinforcementLearningComponentsTypes> {
