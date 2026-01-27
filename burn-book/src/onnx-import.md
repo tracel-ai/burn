@@ -214,10 +214,14 @@ Common issues and solutions:
 
 ## Examples and Resources
 
-For practical examples, check out:
+For practical examples, check out the [burn-onnx examples](https://github.com/tracel-ai/burn-onnx/tree/main/examples):
 
-1. [MNIST Inference Example](https://github.com/tracel-ai/burn/tree/main/examples/onnx-inference)
-2. [SqueezeNet Image Classification](https://github.com/tracel-ai/models/tree/main/squeezenet-burn)
+1. [ONNX Inference](https://github.com/tracel-ai/burn-onnx/tree/main/examples/onnx-inference) - MNIST
+   inference example
+2. [Image Classification Web](https://github.com/tracel-ai/burn-onnx/tree/main/examples/image-classification-web) -
+   SqueezeNet running in the browser via WebAssembly
+3. [Raspberry Pi Pico](https://github.com/tracel-ai/burn-onnx/tree/main/examples/raspberry-pi-pico) -
+   Embedded deployment example
 
 These demonstrate real-world usage of ONNX import in Burn projects.
 
