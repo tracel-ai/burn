@@ -7,6 +7,9 @@
 A comprehensive storage library for Burn that enables efficient model serialization, cross-framework
 interoperability, and advanced tensor management.
 
+> **Migrating from burn-import?** See the [Migration Guide](MIGRATION.md) for help moving from
+> `PyTorchFileRecorder`/`SafetensorsFileRecorder` to the new Store API.
+
 ## Features
 
 ### Core Capabilities
