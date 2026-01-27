@@ -24,7 +24,7 @@ use spin::Lazy as LazyLock;
 ///
 /// This includes default data types used for tensor creation.
 #[derive(Debug, Clone, Copy, Default)]
-pub struct DevicePolicy {
+pub(crate) struct DevicePolicy {
     /// Default floating-point data type for tensor creation.
     float_dtype: Option<FloatDType>,
     /// Default integer data type for tensor creation.
@@ -33,35 +33,23 @@ pub struct DevicePolicy {
 
 impl DevicePolicy {
     /// Returns the default floating-point data type used for tensor creation.
-    pub fn float_dtype(&self) -> Option<FloatDType> {
+    pub(crate) fn float_dtype(&self) -> Option<FloatDType> {
         self.float_dtype
     }
 
     /// Returns the default integer data type used for tensor creation.
-    pub fn int_dtype(&self) -> Option<IntDType> {
+    pub(crate) fn int_dtype(&self) -> Option<IntDType> {
         self.int_dtype
     }
 
     /// Sets the default floating-point data type.
-    pub fn set_float_dtype(&mut self, dtype: impl Into<FloatDType>) {
+    pub(crate) fn set_float_dtype(&mut self, dtype: impl Into<FloatDType>) {
         self.float_dtype = Some(dtype.into());
     }
 
     /// Sets the default integer data type.
-    pub fn set_int_dtype(&mut self, dtype: impl Into<IntDType>) {
+    pub(crate) fn set_int_dtype(&mut self, dtype: impl Into<IntDType>) {
         self.int_dtype = Some(dtype.into());
-    }
-
-    /// Sets the default floating-point data type.
-    pub fn with_float_dtype(mut self, dtype: impl Into<FloatDType>) -> Self {
-        self.set_float_dtype(dtype);
-        self
-    }
-
-    /// Sets the default integer data type.
-    pub fn with_int_dtype(mut self, dtype: impl Into<IntDType>) -> Self {
-        self.set_int_dtype(dtype);
-        self
     }
 }
 
@@ -131,7 +119,7 @@ pub(crate) fn get_device_policy<D: DeviceOps>(device: &D) -> Arc<DevicePolicy> {
     DevicePolicyRegistry::get(device)
 }
 
-/// Sets the default data types for the [device](DevicePolicy).
+/// Sets the default data types for the device.
 ///
 /// This updates the device's default data types used for tensor creation.
 /// The policy should typically be set once during initialization and then
@@ -141,7 +129,7 @@ pub(crate) fn get_device_policy<D: DeviceOps>(device: &D) -> Arc<DevicePolicy> {
 ///
 /// ```rust
 /// use burn_tensor::backend::Backend;
-/// use burn_tensor::{DevicePolicy, DType, Int, Tensor, set_default_dtypes};
+/// use burn_tensor::{DType, Int, Tensor, set_default_dtypes};
 ///
 /// fn example<B: Backend>() {
 ///     let device = B::Device::default();
@@ -166,7 +154,7 @@ pub fn set_default_dtypes<D: DeviceOps>(
     });
 }
 
-/// Sets the default floating-point data type for the [device](DevicePolicy).
+/// Sets the default floating-point data type for the device.
 ///
 /// This updates the device's default data types used for tensor creation.
 /// The policy should typically be set once during initialization and then
@@ -196,7 +184,7 @@ pub fn set_default_float_dtype<D: DeviceOps>(device: &D, dtype: impl Into<FloatD
     });
 }
 
-/// Sets the default integer data type for the [device](DevicePolicy).
+/// Sets the default integer data type for the device.
 ///
 /// This updates the device's default data types used for tensor creation.
 /// The policy should typically be set once during initialization and then
