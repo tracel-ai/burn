@@ -6,7 +6,7 @@ use burn::{
     nn::{self, Linear},
     prelude::Backend,
     record::Record,
-    tensor::{Device, s},
+    tensor::Device,
     train::{
         ItemLazy,
         metric::{Adaptor, ExplorationRateInput},
@@ -170,18 +170,19 @@ where
     ) -> (Self::Action, Vec<Self::ActionContext>) {
         let logits = self.inner_policy.forward(states);
         let greedy_actions = logits.argmax(1);
+        let greedy_actions = greedy_actions.split(1, 0);
 
         let mut contexts = vec![];
         let mut actions = vec![];
-        for i in 0..greedy_actions.dims()[0] {
+        for i in 0..greedy_actions.len() {
             let threshold = self.step();
             let threshold = if deterministic { 0.0 } else { threshold };
             contexts.push(EpsilonGreedyPolicyOutput { epsilon: threshold });
             if random::<f64>() > threshold {
-                actions.push(greedy_actions.clone().slice(s![i, ..]).float());
+                actions.push(greedy_actions[i].clone().float());
             } else {
                 actions.push(
-                    Tensor::<B, 1>::from_floats([random_range(0..2)], &greedy_actions.device())
+                    Tensor::<B, 1>::from_floats([random_range(0..2)], &greedy_actions[i].device())
                         .unsqueeze(),
                 );
             }

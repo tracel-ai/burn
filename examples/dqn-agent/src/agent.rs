@@ -3,8 +3,8 @@ use std::marker::PhantomData;
 use burn::backend::NdArray;
 use burn::module::Module;
 use burn::record::Record;
+use burn::tensor::Transaction;
 use burn::tensor::activation::softmax;
-use burn::tensor::{Transaction, s};
 use burn::train::ItemLazy;
 use burn::train::metric::{Adaptor, LossInput};
 use burn::{
@@ -208,20 +208,12 @@ impl<B: Backend, M: DiscreteActionModel<B>> Policy<B> for DQN<B, M> {
 
         let mut actions = vec![];
         let probs = softmax(logits, 1);
+        let probs = probs.split(1, 0);
         let mut rng = rng();
-        for i in 0..probs.dims()[0] {
-            let dist = WeightedIndex::new(
-                probs
-                    .clone()
-                    .slice(s![i, ..])
-                    .squeeze::<1>()
-                    .to_data()
-                    .to_vec::<f32>()
-                    .unwrap(),
-            )
-            .unwrap();
+        for i in 0..probs.len() {
+            let dist = WeightedIndex::new(probs[i].to_data().to_vec::<f32>().unwrap()).unwrap();
             let action = dist.sample(&mut rng);
-            actions.push(Tensor::<B, 1>::from_floats([action], &probs.device()));
+            actions.push(Tensor::<B, 1>::from_floats([action], &probs[i].device()));
         }
         return (Tensor::stack(actions, 1), vec![]);
     }
@@ -242,19 +234,11 @@ impl<B: Backend, M: DiscreteActionModel<B>> Policy<B> for DQN<B, M> {
     }
 
     fn unbatch(&self, inputs: Self::Action) -> Vec<Self::Action> {
-        let mut output = vec![];
-        for i in 0..inputs.dims()[0] {
-            output.push(inputs.clone().slice(s![i, ..]));
-        }
-        output
+        inputs.split(1, 0)
     }
 
     fn unbatch_logits(&self, inputs: Self::Output) -> Vec<Self::Output> {
-        let mut output = vec![];
-        for i in 0..inputs.dims()[0] {
-            output.push(inputs.clone().slice(s![i, ..]));
-        }
-        output
+        inputs.split(1, 0)
     }
 
     fn from_record(&self, record: <Self::PolicyState as PolicyState<B>>::Record) -> Self {
