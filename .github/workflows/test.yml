@@ -5,27 +5,27 @@ on:
     branches:
       - main
     paths:
-      - 'Cargo.lock'
-      - '**.rs'
-      - '**.sh'
-      - '**.ps1'
-      - '**.yml'
-      - '**.toml'
-      - '!**.md'
-      - '!LICENSE-APACHE'
-      - '!LICENSE-MIT'
+      - "Cargo.lock"
+      - "**.rs"
+      - "**.sh"
+      - "**.ps1"
+      - "**.yml"
+      - "**.toml"
+      - "!**.md"
+      - "!LICENSE-APACHE"
+      - "!LICENSE-MIT"
   pull_request:
     types: [opened, synchronize]
     paths:
-      - 'Cargo.lock'
-      - '**.rs'
-      - '**.sh'
-      - '**.ps1'
-      - '**.yml'
-      - '**.toml'
-      - '!**.md'
-      - '!LICENSE-APACHE'
-      - '!LICENSE-MIT'
+      - "Cargo.lock"
+      - "**.rs"
+      - "**.sh"
+      - "**.ps1"
+      - "**.yml"
+      - "**.toml"
+      - "!**.md"
+      - "!LICENSE-APACHE"
+      - "!LICENSE-MIT"
 
 env:
   # Note: It is not possible to define top level env vars and pass them to composite actions.
@@ -136,9 +136,9 @@ jobs:
     runs-on: ubuntu-22.04
     needs: [prepare-checks, code-quality]
     env:
-      DISABLE_WGPU_SPIRV: '1'
+      DISABLE_WGPU_SPIRV: "1"
       # disable incremental compilation (reduces artifact size)
-      CARGO_PROFILE_TEST_INCREMENTAL: 'false'
+      CARGO_PROFILE_TEST_INCREMENTAL: "false"
     strategy:
       matrix:
         rust: [stable, prev]
@@ -208,7 +208,7 @@ jobs:
     runs-on: windows-2022
     needs: [prepare-checks, code-quality]
     env:
-      DISABLE_WGPU: '1'
+      DISABLE_WGPU: "1"
     # Keep the stragegy to be able to easily add new rust versions if required
     strategy:
       matrix:
@@ -234,3 +234,27 @@ jobs:
       # --------------------------------------------------------------------------------
       - name: Tests
         run: cargo xtask test ${{ env.TEST_RELEASE_FLAG }} --ci github-runner
+
+  macos-std-tests:
+    runs-on: blaze/macos-15
+    needs: [prepare-checks]
+    timeout-minutes: 60
+    # Keep the stragegy to be able to easily add new rust versions if required
+    strategy:
+      matrix:
+        rust: [stable]
+        include:
+          - rust: stable
+            toolchain: stable
+    steps:
+      - name: Setup Rust
+        uses: tracel-ai/github-actions/setup-rust@v6
+        with:
+          rust-toolchain: ${{ matrix.toolchain }}
+          cache-key: ${{ matrix.rust }}-macos
+      # --------------------------------------------------------------------------------
+      - name: Device check
+        run: system_profiler SPHardwareDataType
+      # --------------------------------------------------------------------------------
+      - name: Tests
+        run: cargo xtask test ${{ env.TEST_RELEASE_FLAG }} --ci github-mac-runner
