@@ -26,4 +26,4 @@ jobs:
           # publishes on crates.io with `default-features`
           feature-group: default-features
           # Exclude crates which are not published on crates.io
-          exclude: burn-no-std-tests,onnx-tests,pytorch-tests
+          exclude: burn-no-std-tests,pytorch-tests,safetensors-tests
