@@ -1219,7 +1219,7 @@ dependencies = [
  "ratatui",
  "rstest",
  "serde",
- "sysinfo 0.37.2",
+ "sysinfo",
  "systemstat",
  "thiserror 2.0.17",
  "tracing-appender",
@@ -2162,7 +2162,7 @@ dependencies = [
  "log",
  "paste",
  "serde",
- "sysinfo 0.38.0",
+ "sysinfo",
  "tracel-llvm",
  "tracel-llvm-bundler",
 ]
@@ -8475,19 +8475,6 @@ dependencies = [
  "libc",
  "thiserror 1.0.69",
  "walkdir",
-]
-
-[[package]]
-name = "sysinfo"
-version = "0.37.2"
-source = "git+https://github.com/GuillaumeGomez/sysinfo?rev=b0ae22bfb2064d74e9561fb71890ad68763c7aff#b0ae22bfb2064d74e9561fb71890ad68763c7aff"
-dependencies = [
- "libc",
- "memchr",
- "ntapi",
- "objc2-core-foundation",
- "objc2-io-kit",
- "windows",
 ]
 
 [[package]]
