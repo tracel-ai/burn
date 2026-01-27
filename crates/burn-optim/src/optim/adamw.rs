@@ -47,6 +47,7 @@ pub struct AdamWConfig {
 /// - [Decoupled Weight Decay Regularization, Loshchilov and Hutter, 2019](https://arxiv.org/abs/1711.05101).
 /// - [Cautious Weight Decay, 2025](https://arxiv.org/abs/2510.12402)
 /// - [On the Convergence of Adam and Beyond](https://openreview.net/forum?id=ryQu7f-RZ)
+///
 /// Configured by [`AdamWConfig`].
 #[derive(Clone)]
 pub struct AdamW {
