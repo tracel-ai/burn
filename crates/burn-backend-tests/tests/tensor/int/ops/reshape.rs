@@ -144,6 +144,7 @@ fn should_support_reshape_maybe_fused_6() {
 }
 
 // Skip on metal - cubecl autotune error
+// Enable once this issue is fixed: https://github.com/tracel-ai/burn/issues/4327
 #[cfg(not(feature = "metal"))]
 #[test]
 fn should_support_multiple_reshapes_cloned_tensor() {
