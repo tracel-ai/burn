@@ -1,0 +1,13 @@
+[package]
+name = "safetensors-tests"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dev-dependencies]
+burn = { path = "../../burn" }
+burn-ndarray = { path = "../../burn-ndarray" }
+burn-autodiff = { path = "../../burn-autodiff" }
+burn-store = { path = "../", features = ["std", "safetensors"] }
+serde = { workspace = true }
+float-cmp = { workspace = true }

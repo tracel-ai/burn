@@ -7057,8 +7057,8 @@ version = "0.21.0"
 dependencies = [
  "burn",
  "burn-autodiff",
- "burn-import",
  "burn-ndarray",
+ "burn-store",
  "float-cmp",
  "serde",
 ]
@@ -7849,8 +7849,8 @@ version = "0.21.0"
 dependencies = [
  "burn",
  "burn-autodiff",
- "burn-import",
  "burn-ndarray",
+ "burn-store",
  "float-cmp",
  "serde",
 ]

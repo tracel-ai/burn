@@ -6,8 +6,8 @@ resolver = "2"
 
 members = [
     "crates/*",
-    "crates/burn-import/pytorch-tests",
-    "crates/burn-import/safetensors-tests",
+    "crates/burn-store/pytorch-tests",
+    "crates/burn-store/safetensors-tests",
     "crates/burn-onnx/onnx-tests",
     "crates/burn-collective/multinode-tests",
     "examples/*",
