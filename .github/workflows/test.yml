@@ -237,7 +237,7 @@ jobs:
 
   macos-std-tests:
     runs-on: blaze/macos-15
-    needs: [prepare-checks]
+    needs: [prepare-checks, code-quality]
     timeout-minutes: 60
     # Keep the stragegy to be able to easily add new rust versions if required
     strategy:
