@@ -87,7 +87,7 @@ static REGISTRY: LazyLock<RwLock<HashMap<RegistryKey, Arc<DevicePolicy>>>> =
 ///
 /// Device policies use snapshot semantics: when you retrieve a policy with
 /// [`get_device_policy`], you get an immutable snapshot of the current configuration.
-/// Updates to the policy (via [`set_device_policy`], [`set_default_float_dtype`], etc.)
+/// Updates to the policy (via [`set_default_dtypes`], [`set_default_float_dtype`], etc.)
 /// only affect future policy retrievals, not existing references.
 ///
 /// This is intended for the common case where policies are set once during
@@ -154,7 +154,7 @@ pub(crate) fn get_device_policy<B: Backend>(device: &B::Device) -> Arc<DevicePol
     DevicePolicyRegistry::get_or_default(device, default_policy::<B>)
 }
 
-/// Sets the [`device`'s policy](DevicePolicy).
+/// Sets the default data types for the [device](DevicePolicy).
 ///
 /// This updates the device's default data types used for tensor creation.
 /// The policy should typically be set once during initialization and then
@@ -164,16 +164,13 @@ pub(crate) fn get_device_policy<B: Backend>(device: &B::Device) -> Arc<DevicePol
 ///
 /// ```rust
 /// use burn_tensor::backend::Backend;
-/// use burn_tensor::{DevicePolicy, DType, Int, Tensor, set_device_policy};
+/// use burn_tensor::{DevicePolicy, DType, Int, Tensor, set_default_dtypes};
 ///
 /// fn example<B: Backend>() {
 ///     let device = B::Device::default();
 ///     
 ///     // Update the device policy
-///     let policy = DevicePolicy::default()
-///         .with_float_dtype(DType::F16)
-///         .with_int_dtype(DType::I32);
-///     set_device_policy::<B>(&device, policy);
+///     set_default_dtypes::<B>(&device, DType::F16, DType::I32);
 ///     
 ///     // All float tensors created after this will use F16 by default
 ///     let tensor = Tensor::<B, 2>::zeros([2, 3], &device);
@@ -181,12 +178,16 @@ pub(crate) fn get_device_policy<B: Backend>(device: &B::Device) -> Arc<DevicePol
 ///     let tensor = Tensor::<B, 2, Int>::zeros([2, 3], &device);
 /// }
 /// ```
-pub fn set_device_policy<B: Backend>(device: &B::Device, policy: DevicePolicy) {
+pub fn set_default_dtypes<B: Backend>(
+    device: &B::Device,
+    float_dtype: impl Into<FloatDType>,
+    int_dtype: impl Into<IntDType>,
+) {
     DevicePolicyRegistry::update(
         device,
         |p| {
-            p.set_float_dtype(policy.float_dtype());
-            p.set_int_dtype(policy.int_dtype());
+            p.set_float_dtype(float_dtype);
+            p.set_int_dtype(int_dtype);
         },
         default_policy::<B>,
     );
