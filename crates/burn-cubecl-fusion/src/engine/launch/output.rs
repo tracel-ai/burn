@@ -162,6 +162,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             if !block.reference.is_found() {
                 Self::select_reference_from_inputs(
                     self.blocks[i].settings.ref_layout,
+                    &self.blocks[i].shape_ref,
                     block,
                     &plan.handle_inputs,
                 );
@@ -183,6 +184,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
 
     fn select_reference_from_inputs(
         ref_layout_setting: RefLayoutSetting,
+        shape_ref: &[usize],
         block: &mut BlockPlan<'_>,
         handle_inputs: &[HandleInput<R>],
     ) {
@@ -255,7 +257,22 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                 }
             };
         } else {
-            block.reference = ReferenceSelection::NotFound;
+            // Try to create a virtual reference using any available input with the block's shape_ref.
+            // This handles cases where all inputs are views (reshapes) with shapes that don't match
+            // the block's shape_ref, but we can still iterate using the block's expected shape.
+            if let Some((input_pos, reference)) = handle_inputs
+                .iter()
+                .enumerate()
+                .find_map(|(i, h)| h.as_normal().map(|n| (i, n)))
+            {
+                block.reference = ReferenceSelection::VirtualShape {
+                    original: FuseArg::Input(input_pos, reference.precision, LayoutInfo::Unknown),
+                    shape: shape_ref.to_vec(),
+                    strides: contiguous_strides(shape_ref),
+                };
+            } else {
+                block.reference = ReferenceSelection::NotFound;
+            }
         }
     }
 
