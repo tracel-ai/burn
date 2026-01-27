@@ -28,7 +28,8 @@ mod tests {
     fn should_fail_if_struct_field_is_missing() {
         let device = Default::default();
         let mut model = Net::<TestBackend>::init(&device);
-        let mut store = PytorchStore::from_file("tests/missing_module_field/missing_module_field.pt");
+        let mut store =
+            PytorchStore::from_file("tests/missing_module_field/missing_module_field.pt");
         model
             .load_from(&mut store)
             .expect("Should decode state successfully");
