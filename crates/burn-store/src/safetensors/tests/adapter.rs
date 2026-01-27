@@ -158,10 +158,10 @@ fn adapter_with_pytorch_import() {
 
     let device = Default::default();
 
-    // Reference the safetensors file from burn-import
+    // Reference the safetensors file from burn-store
     let safetensors_path = concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../burn-import/safetensors-tests/tests/multi_layer/multi_layer.safetensors"
+        "/safetensors-tests/tests/multi_layer/multi_layer.safetensors"
     );
 
     // Simple test model that matches some of the PyTorch structure
