@@ -1,7 +1,7 @@
 # ONNX Inference
 
 This crate provides a simple example for importing MNIST ONNX model to Burn. The ONNX file is
-converted into a Rust source file using `burn-import` and the weights are stored in `.burnpack`
+converted into a Rust source file using `burn-onnx` and the weights are stored in `.burnpack`
 format and loaded at runtime.
 
 ## Usage
@@ -29,11 +29,11 @@ https://huggingface.co/datasets/ylecun/mnist/viewer/mnist/test?row=15
 1. Add `burn-store` with the `burnpack` feature to your `Cargo.toml` dependencies:
    ```toml
    [dependencies]
-   burn = { version = "0.20", features = ["ndarray"] }
-   burn-store = { version = "0.20", features = ["burnpack"] }
+   burn = { version = "0.21", features = ["ndarray"] }
+   burn-store = { version = "0.21", features = ["burnpack"] }
 
    [build-dependencies]
-   burn-import = { version = "0.20" }
+   burn-onnx = { version = "0.21" }
    ```
 
 2. Create `model` directory under `src`
@@ -55,7 +55,7 @@ https://huggingface.co/datasets/ylecun/mnist/viewer/mnist/test?row=15
 6. Add the following to `build.rs`:
 
    ```rust
-   use burn_import::onnx::ModelGen;
+   use burn_onnx::ModelGen;
 
    fn main() {
        // Generate the model code from the ONNX file.

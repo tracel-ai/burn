@@ -318,7 +318,7 @@ define_node_enum! {
     Mod => modulo::ModNode,
     CumSum => cumsum::CumSumNode,
 
-    // UNSUPPORTED / PLACEHOLDER OPERATIONS (not yet implemented in burn-import)
+    // UNSUPPORTED / PLACEHOLDER OPERATIONS (not yet implemented in burn-onnx)
     AffineGrid => unsupported::AffineGridNode,
     AveragePool => unsupported::AveragePoolNode,
     BlackmanWindow => unsupported::BlackmanWindowNode,

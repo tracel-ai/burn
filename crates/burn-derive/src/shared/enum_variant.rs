@@ -55,26 +55,49 @@ pub(crate) struct EnumVariant {
     pub ident: syn::Ident,
     pub ty: syn::Type,
 }
-pub(crate) fn parse_variants(ast: &syn::DeriveInput) -> Vec<EnumVariant> {
+pub(crate) fn parse_variants(ast: &syn::DeriveInput) -> syn::Result<Vec<EnumVariant>> {
+    let enum_data = match &ast.data {
+        syn::Data::Enum(data) => data,
+        _ => {
+            return Err(syn::Error::new_spanned(
+                ast,
+                "Module can only be derived for enums.",
+            ));
+        }
+    };
+
     let mut variants = Vec::new();
 
-    if let syn::Data::Enum(enum_data) = &ast.data {
-        for variant in enum_data.variants.iter() {
-            if variant.fields.len() != 1 {
-                // No support for unit variants or variants with multiple fields
-                panic!("Enums are only supported for one field type")
+    for variant in enum_data.variants.iter() {
+        match &variant.fields {
+            syn::Fields::Unnamed(fields) if fields.unnamed.len() == 1 => {
+                let field = &fields.unnamed[0];
+
+                variants.push(EnumVariant {
+                    ident: variant.ident.clone(),
+                    ty: field.ty.clone(),
+                });
             }
-
-            let field = variant.fields.iter().next().unwrap();
-
-            variants.push(EnumVariant {
-                ident: variant.ident.clone(),
-                ty: field.ty.clone(),
-            });
+            syn::Fields::Unnamed(_) => {
+                return Err(syn::Error::new_spanned(
+                    variant,
+                    "Module derive only supports tuple enum variants with exactly one field.",
+                ));
+            }
+            syn::Fields::Named(_) => {
+                return Err(syn::Error::new_spanned(
+                    variant,
+                    "Module derive does not support struct enum variants.",
+                ));
+            }
+            syn::Fields::Unit => {
+                return Err(syn::Error::new_spanned(
+                    variant,
+                    "Module derive does not support unit enum variants.",
+                ));
+            }
         }
-    } else {
-        panic!("Only enum can be derived")
     }
 
-    variants
+    Ok(variants)
 }

@@ -9,7 +9,7 @@ fn select_kernel<T: Numeric, I: Numeric>(
     input: &Tensor<T>,
     indices: &Tensor<I>,
     output: &mut Tensor<T>,
-    dim: u32,
+    dim: usize,
     #[define(T, I)] _dtypes: [StorageType; 2],
 ) {
     if ABSOLUTE_POS >= output.len() {
@@ -22,7 +22,7 @@ fn select_kernel<T: Numeric, I: Numeric>(
         let mut offset_local = ABSOLUTE_POS / output.stride(i) % output.shape(i);
 
         if i == dim {
-            offset_local = u32::cast_from(indices[offset_local]);
+            offset_local = usize::cast_from(indices[offset_local]);
         }
 
         offset_input += offset_local * input.stride(i);
@@ -69,7 +69,7 @@ pub(crate) fn select<R: CubeRuntime>(
                 indices.dtype.size(),
             ),
             output.as_tensor_arg(1),
-            ScalarArg::new(dim as u32),
+            ScalarArg::new(dim),
             [tensor.dtype.into(), indices.dtype.into()],
         )
         .expect("Kernel to never fail");

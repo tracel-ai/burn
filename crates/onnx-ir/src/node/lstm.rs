@@ -32,7 +32,7 @@ pub enum LstmDirection {
 ///
 /// This enum represents all activation functions defined in the ONNX LSTM spec.
 /// Not all of these are supported by burn-nn; unsupported activations will
-/// cause an error during burn-import code generation.
+/// cause an error during burn-onnx code generation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum LstmActivationFunction {
     /// Sigmoid activation (default for gates)

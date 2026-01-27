@@ -5,7 +5,6 @@ use crate::{
     model::Model,
 };
 
-use burn::train::LearningParadigm;
 use burn::{
     data::{
         dataloader::DataLoaderBuilder,
@@ -37,7 +36,7 @@ static ARTIFACT_DIR: &str = "/tmp/burn-example-mnist";
 
 #[derive(Config, Debug)]
 pub struct MnistTrainingConfig {
-    #[config(default = 20)]
+    #[config(default = 5)]
     pub num_epochs: usize,
 
     #[config(default = 256)]
@@ -109,7 +108,7 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         .num_epochs(config.num_epochs)
         .summary();
 
-    let result = training.run(Learner::new(
+    let result = training.launch(Learner::new(
         model,
         config.optimizer.init(),
         lr_scheduler.init().unwrap(),

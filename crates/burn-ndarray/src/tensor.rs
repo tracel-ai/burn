@@ -511,6 +511,19 @@ macro_rules! reshape {
     }};
 }
 
+/// Slice a tensor
+#[macro_export]
+macro_rules! slice {
+    ($tensor:expr, $slices:expr) => {
+        slice!($tensor, $slices, F64, F32, I64, I32, I16, I8, U64, U32, U16, U8, Bool)
+    };
+    ($tensor:expr, $slices:expr, $($variant:ident),*) => {
+        match $tensor {
+            $(NdArrayTensor::$variant(s) => { NdArrayOps::slice(s.view(), $slices).into() })*
+        }
+    };
+}
+
 impl NdArrayTensor {
     /// Create a new [ndarray tensor](NdArrayTensor) from [data](TensorData).
     ///

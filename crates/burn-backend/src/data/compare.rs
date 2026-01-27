@@ -4,7 +4,7 @@ use burn_std::{DType, bf16, f16};
 use num_traits::{Float, ToPrimitive};
 
 use super::TensorData;
-use crate::element::Element;
+use crate::{Element, ElementOrdered};
 
 /// The tolerance used to compare to floating point numbers.
 ///
@@ -269,7 +269,7 @@ impl TensorData {
         let mut num_diff = 0;
         let max_num_diff = 5;
         for (i, (a, b)) in self.iter::<E>().zip(other.iter::<E>()).enumerate() {
-            if a.cmp(&b).is_ne() {
+            if !a.eq(&b) {
                 // Only print the first 5 different values.
                 if num_diff < max_num_diff {
                     message += format!("\n  => Position {i}: {a} != {b}").as_str();
@@ -362,7 +362,7 @@ impl TensorData {
     ///
     /// If any value is not within the half-open range bounded inclusively below
     /// and exclusively above (`start..end`).
-    pub fn assert_within_range<E: Element>(&self, range: core::ops::Range<E>) {
+    pub fn assert_within_range<E: ElementOrdered>(&self, range: core::ops::Range<E>) {
         for elem in self.iter::<E>() {
             if elem.cmp(&range.start).is_lt() || elem.cmp(&range.end).is_ge() {
                 panic!("Element ({elem:?}) is not within range {range:?}");
@@ -379,7 +379,10 @@ impl TensorData {
     /// # Panics
     ///
     /// If any value is not within the half-open range bounded inclusively (`start..=end`).
-    pub fn assert_within_range_inclusive<E: Element>(&self, range: core::ops::RangeInclusive<E>) {
+    pub fn assert_within_range_inclusive<E: ElementOrdered>(
+        &self,
+        range: core::ops::RangeInclusive<E>,
+    ) {
         let start = range.start();
         let end = range.end();
 

@@ -81,9 +81,8 @@ impl AgNewsDataset {
         let _lock = DOWNLOAD_LOCK.lock().unwrap();
 
         // Dataset files are stored in the burn-dataset cache directory
-        let cache_dir = dirs::home_dir()
-            .expect("Could not get home directory")
-            .join(".cache")
+        let cache_dir = dirs::cache_dir()
+            .expect("Could not get cache directory")
             .join("burn-dataset");
 
         // AG NEWS dataset directory

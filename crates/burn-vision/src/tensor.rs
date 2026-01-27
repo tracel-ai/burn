@@ -4,7 +4,8 @@ use burn_tensor::{
 };
 
 use crate::{
-    BoolVisionOps, ConnectedStats, ConnectedStatsOptions, Connectivity, MorphOptions, VisionBackend,
+    BoolVisionOps, ConnectedStats, ConnectedStatsOptions, Connectivity, MorphOptions, NmsOptions,
+    VisionBackend,
 };
 
 /// Connected components tensor extensions
@@ -51,6 +52,24 @@ pub trait MorphologyKind<B: Backend>: BasicOps<B> {
         kernel: BoolTensor<B>,
         opts: MorphOptions<B, Self>,
     ) -> Self::Primitive;
+}
+
+/// Non-maximum suppression tensor operations
+pub trait Nms<B: Backend> {
+    /// Perform Non-Maximum Suppression on this tensor of bounding boxes.
+    ///
+    /// Returns indices of kept boxes after suppressing overlapping detections.
+    /// Boxes are processed in descending score order; a box suppresses all
+    /// lower-scoring boxes with IoU > threshold.
+    ///
+    /// # Arguments
+    /// * `self` - Bounding boxes as \[N, 4\] tensor in (x1, y1, x2, y2) format
+    /// * `scores` - Confidence scores as \[N\] tensor
+    /// * `options` - NMS options (IoU threshold, score threshold, max boxes)
+    ///
+    /// # Returns
+    /// Indices of kept boxes as \[M\] tensor where M <= N
+    fn nms(self, scores: Tensor<B, 1, Float>, opts: NmsOptions) -> Tensor<B, 1, Int>;
 }
 
 impl<B: BoolVisionOps> ConnectedComponents<B> for Tensor<B, 2, Bool> {
@@ -152,5 +171,16 @@ impl<B: VisionBackend> MorphologyKind<B> for Bool {
         opts: MorphOptions<B, Self>,
     ) -> Self::Primitive {
         B::bool_dilate(tensor, kernel, opts)
+    }
+}
+
+impl<B: VisionBackend> Nms<B> for Tensor<B, 2> {
+    fn nms(self, scores: Tensor<B, 1>, options: NmsOptions) -> Tensor<B, 1, Int> {
+        match (self.into_primitive(), scores.into_primitive()) {
+            (TensorPrimitive::Float(boxes), TensorPrimitive::Float(scores)) => {
+                Tensor::<B, 1, Int>::from_primitive(B::nms(boxes, scores, options))
+            }
+            _ => todo!("Quantized inputs are not yet supported"),
+        }
     }
 }

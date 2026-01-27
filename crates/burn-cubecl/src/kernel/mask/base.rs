@@ -1,5 +1,5 @@
 use burn_backend::DType;
-use cubecl::std::scalar::InputScalar;
+use cubecl::prelude::InputScalar;
 
 use super::{MaskFillStrategy, mask_where::MaskWhereStrategy};
 use crate::{CubeRuntime, tensor::CubeTensor};

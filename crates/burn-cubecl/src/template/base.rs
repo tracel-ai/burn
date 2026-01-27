@@ -23,6 +23,7 @@ impl<C: Compiler, K: KernelSource> CubeTask<C> for SourceKernel<K> {
         _compiler: &mut C,
         _options: &C::CompilationOptions,
         _mode: ExecutionMode,
+        _address_type: StorageType,
     ) -> Result<CompiledKernel<C>, CompilationError> {
         let source_template = self.kernel_source.source();
         let source = source_template.complete();
@@ -41,6 +42,10 @@ impl<C: Compiler, K: KernelSource> CubeTask<C> for SourceKernel<K> {
 impl<K: KernelSource> KernelMetadata for SourceKernel<K> {
     fn id(&self) -> KernelId {
         self.kernel_source.id()
+    }
+
+    fn address_type(&self) -> StorageType {
+        u32::as_type_native_unchecked()
     }
 }
 

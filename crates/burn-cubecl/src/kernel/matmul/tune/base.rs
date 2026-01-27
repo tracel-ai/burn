@@ -1,12 +1,12 @@
 use crate::{
     CubeRuntime, CubeTuneId,
-    kernel::matmul::{launch_matmul, utils::init_matmul_output},
+    kernel::matmul::{launch_matmul, launch_matmul_naive, utils::init_matmul_output},
     tensor::CubeTensor,
 };
 use burn_backend::DType;
 use cubecl::tune::{LocalTuner, Tunable, TunableSet, TuneGroup, local_tuner};
 use cubek::matmul::{
-    definition::{MatmulElemType, MatmulKind},
+    definition::MatmulKind,
     launch::{MatmulAutotuneKey, MatmulGlobalScale, Strategy, should_tune_double_buffering},
     routines::{
         BlueprintStrategy, TileSizeSelection, double_buffering::DoubleBufferingArgs,
@@ -123,7 +123,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
         // First entry should always work, since it is considered the fallback.
         set = set.with(
             Tunable::new("matmul_naive", |lhs, rhs, out| {
-                launch_matmul::<R>(&Strategy::Naive, lhs, rhs, out)
+                launch_matmul_naive::<R>(&Strategy::Naive, lhs, rhs, out)
                     .map_err(|err| std::format!("{err:?}"))
             })
             .group(&unit, |key| {
@@ -400,17 +400,10 @@ fn create_key<R: CubeRuntime>(
         &rhs.shape.dims,
         &lhs.strides,
         &rhs.strides,
-        MatmulElemType {
-            dtype: lhs.dtype.into(),
-            quantized: matches!(lhs.dtype, DType::QFloat(_)),
-        },
-        MatmulElemType {
-            dtype: rhs.dtype.into(),
-            quantized: matches!(rhs.dtype, DType::QFloat(_)),
-        },
-        MatmulElemType {
-            dtype: out.dtype.into(),
-            quantized: matches!(out.dtype, DType::QFloat(_)),
-        },
+        lhs.dtype.into(),
+        rhs.dtype.into(),
+        out.dtype.into(),
+        lhs.try_scheme(),
+        rhs.try_scheme(),
     )
 }

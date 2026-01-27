@@ -8,92 +8,7 @@ use alloc::format;
 use alloc::string::{String, ToString};
 use core::fmt::Debug;
 
-/// Helper trait for implementing indexing with support for negative indices.
-///
-/// # Example
-/// ```rust
-/// use burn_std::AsIndex;
-///
-/// fn example<I: AsIndex, const D: usize>(dim: I, size: usize) -> isize {
-///    let dim: usize = dim.expect_dim_index(D);
-///    unimplemented!()
-/// }
-/// ```
-pub trait AsIndex: Debug + Copy + Sized {
-    /// Converts into a slice index.
-    fn index(self) -> isize;
-
-    /// Short-form [`IndexWrap::expect_index(idx, size)`].
-    fn expect_elem_index(self, size: usize) -> usize {
-        IndexWrap::expect_elem(self, size)
-    }
-
-    /// Short-form [`IndexWrap::expect_dim(idx, size)`].
-    fn expect_dim_index(self, size: usize) -> usize {
-        IndexWrap::expect_dim(self, size)
-    }
-}
-
-impl AsIndex for usize {
-    fn index(self) -> isize {
-        self as isize
-    }
-}
-
-impl AsIndex for isize {
-    fn index(self) -> isize {
-        self
-    }
-}
-
-impl AsIndex for i64 {
-    fn index(self) -> isize {
-        self as isize
-    }
-}
-
-impl AsIndex for u64 {
-    fn index(self) -> isize {
-        self as isize
-    }
-}
-
-// Default integer type
-impl AsIndex for i32 {
-    fn index(self) -> isize {
-        self as isize
-    }
-}
-
-impl AsIndex for u32 {
-    fn index(self) -> isize {
-        self as isize
-    }
-}
-
-impl AsIndex for i16 {
-    fn index(self) -> isize {
-        self as isize
-    }
-}
-
-impl AsIndex for u16 {
-    fn index(self) -> isize {
-        self as isize
-    }
-}
-
-impl AsIndex for i8 {
-    fn index(self) -> isize {
-        self as isize
-    }
-}
-
-impl AsIndex for u8 {
-    fn index(self) -> isize {
-        self as isize
-    }
-}
+pub use crate::tensor::index_conversion::AsIndex;
 
 /// Wraps an index with negative indexing support.
 #[derive(Debug)]
@@ -192,7 +107,7 @@ pub fn try_wrap<I>(
 where
     I: AsIndex,
 {
-    let source_idx = idx.index();
+    let source_idx = idx.as_index();
     let source_size = size;
 
     let size = if source_size > 0 {
@@ -242,7 +157,7 @@ where
     if size == 0 {
         return 0; // Avoid modulo by zero
     }
-    let wrapped = idx.index().rem_euclid(size as isize);
+    let wrapped = idx.as_index().rem_euclid(size as isize);
     if wrapped < 0 {
         (wrapped + size as isize) as usize
     } else {

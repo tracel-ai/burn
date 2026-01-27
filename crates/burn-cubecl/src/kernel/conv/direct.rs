@@ -1,15 +1,12 @@
 use crate::ops::numeric::empty_device_optimized_dtype;
 use crate::{
     CubeRuntime,
-    kernel::{
-        into_contiguous_aligned,
-        utils::{linear_view, shape_divmod},
-    },
+    kernel::{into_contiguous_aligned, utils::linear_view},
     ops::max_line_size,
     tensor::CubeTensor,
 };
 use burn_backend::ops::{ConvOptions, conv::calculate_conv_output_sizes};
-use cubecl::std::{CubeOption, CubeOptionExpand, FastDivmod};
+use cubecl::std::{CubeOption, CubeOptionExpand, FastDivmod, FastDivmodArgs};
 use cubecl::{
     calculate_cube_count_elemwise, prelude::*, std::tensor::layout::linear::LinearView,
     tensor_line_size_parallel,
@@ -36,8 +33,8 @@ fn direct_conv2d_kernel<E: Numeric>(
     bias: CubeOption<Tensor<Line<E>>>,
     output: &mut LinearView<Line<E>, ReadWrite>,
     args: Conv2dArgs,
-    shape_out: Sequence<FastDivmod>,
-    shape_out_c: FastDivmod,
+    shape_out: Sequence<FastDivmod<u32>>,
+    shape_out_c: FastDivmod<u32>,
     #[comptime] has_padding: bool,
     #[define(E)] _dtype: StorageType,
 ) {
@@ -50,20 +47,20 @@ fn direct_conv2d_kernel<E: Numeric>(
     let line_size_out = output.line_size();
     let pos = ABSOLUTE_POS * line_size_out;
 
-    let in_c_per_group = weight.shape(weight.rank() - 1);
+    let in_c_per_group = weight.shape(weight.rank() - 1) as u32;
 
-    let (rem, out_c) = shape_out_c.div_mod(pos);
+    let (rem, out_c) = shape_out_c.div_mod(pos as u32);
     let (b, spatial_pos) = div_mod_seq(rem, &shape_out);
 
     let g = out_c / args.channels_per_group;
     let ic_start = in_c_per_group * g;
 
     let mut sum = match bias {
-        CubeOption::Some(bias) => bias[out_c / line_size_out],
+        CubeOption::Some(bias) => bias[out_c as usize / line_size_out],
         CubeOption::None => Line::empty(line_size_out).fill(E::from_int(0)),
     };
 
-    let in_offs = b * input.stride(0) + ic_start;
+    let in_offs = b as usize * input.stride(0) + ic_start as usize;
 
     let stride_oc = weight.stride(0);
 
@@ -74,13 +71,13 @@ fn direct_conv2d_kernel<E: Numeric>(
 
     #[unroll]
     for i in 0..n_spatial {
-        in_shape.push(input.shape(i + 1));
+        in_shape.push(input.shape(i + 1) as u32);
         in_strides.push(input.stride(i + 1));
-        kernel_shape.push(weight.shape(i + 1));
+        kernel_shape.push(weight.shape(i + 1) as u32);
         kernel_strides.push(weight.stride(i + 1));
     }
 
-    let weight_offs = out_c * stride_oc;
+    let weight_offs = out_c as usize * stride_oc;
 
     let loop_params = LoopParams {
         out_pos: spatial_pos,
@@ -101,7 +98,7 @@ fn direct_conv2d_kernel<E: Numeric>(
         true,
         weight_offs,
         &loop_params,
-        0u32,
+        0usize,
         has_padding,
     );
 
@@ -112,13 +109,13 @@ fn direct_conv2d_kernel<E: Numeric>(
 struct LoopParams {
     out_pos: Sequence<u32>,
     in_shape: Sequence<u32>,
-    in_strides: Sequence<u32>,
+    in_strides: Sequence<usize>,
     kernel_shape: Sequence<u32>,
-    kernel_strides: Sequence<u32>,
+    kernel_strides: Sequence<usize>,
     conv_params: Sequence<ConvParam>,
 
     in_c_per_group: u32,
-    stride_oc: u32,
+    stride_oc: usize,
 }
 
 #[cube]
@@ -126,11 +123,11 @@ fn kernel_loop<E: Numeric>(
     input: &Tensor<Line<E>>,
     weight: &Tensor<Line<E>>,
     sum: &mut Line<E>,
-    in_offs: u32,
+    in_offs: usize,
     in_bounds: bool,
-    weight_offs: u32,
+    weight_offs: usize,
     params: &LoopParams,
-    #[comptime] kernel_dim: u32,
+    #[comptime] kernel_dim: usize,
     #[comptime] has_padding: bool,
 ) {
     if comptime![kernel_dim < params.kernel_shape.len()] {
@@ -142,8 +139,8 @@ fn kernel_loop<E: Numeric>(
 
         for pos in 0..*params.kernel_shape.index(kernel_dim) {
             let in_pos = (out_idx * conv.stride + pos * conv.dilation) as i32 - conv.padding;
-            let in_offs = in_offs + in_pos as u32 * stride;
-            let weight_offs = weight_offs + pos * k_stride;
+            let in_offs = in_offs + in_pos as usize * stride;
+            let weight_offs = weight_offs + pos as usize * k_stride;
             let mut in_bounds = in_bounds;
 
             if has_padding {
@@ -181,19 +178,19 @@ fn kernel_loop_inner<E: Numeric>(
     input: &Tensor<Line<E>>,
     weight: &Tensor<Line<E>>,
     sum: &mut Line<E>,
-    in_offs: u32,
+    in_offs: usize,
     in_bounds: bool,
-    weight_offs: u32,
+    weight_offs: usize,
     in_c_per_group: u32,
-    stride_oc: u32,
+    stride_oc: usize,
 ) {
     let line_size_in = input.line_size();
     let line_size_out = sum.size();
 
     if in_bounds {
-        for in_c in range_stepped(0, in_c_per_group, line_size_in) {
-            let in_pos = in_offs + in_c;
-            let mut weight_pos = weight_offs + in_c;
+        for in_c in range_stepped(0, in_c_per_group, line_size_in as u32) {
+            let in_pos = in_offs + in_c as usize;
+            let mut weight_pos = weight_offs + in_c as usize;
 
             let val = input[in_pos / line_size_in];
 
@@ -225,6 +222,7 @@ pub fn conv_direct<R: CubeRuntime, const N: usize>(
     bias: Option<CubeTensor<R>>,
     options: ConvOptions<N>,
 ) -> Result<CubeTensor<R>, ConvSetupError> {
+    let client = input.client.clone();
     let out_dtype = input.dtype;
     let rank = input.shape.num_dims();
     let dim_c = rank - 1;
@@ -276,9 +274,11 @@ pub fn conv_direct<R: CubeRuntime, const N: usize>(
     // Use channels_per_group instead of in_channels to avoid issues here
     let line_size_in = max_line_size(&weight);
 
-    let mut shape_out = shape_divmod(&output);
-    shape_out.values.remove(0);
-    let shape_out_c = shape_out.values.pop().unwrap();
+    let shape_out = output.shape[1..dim_c]
+        .iter()
+        .map(|s| FastDivmodArgs::<u32>::new(&client, *s as u32))
+        .collect();
+    let shape_out_c = FastDivmodArgs::<u32>::new(&client, out_channels as u32);
 
     let mut conv_params = SequenceArg::new();
 
@@ -292,7 +292,7 @@ pub fn conv_direct<R: CubeRuntime, const N: usize>(
 
     let bias = bias.as_ref().map(|b| b.as_tensor_arg(line_size_out));
 
-    let working_units = output.shape.num_elements() / line_size_out as usize;
+    let working_units = output.shape.num_elements() / line_size_out;
     let cube_dim = CubeDim::new(&input.client, working_units);
     let cube_count = calculate_cube_count_elemwise(&input.client, working_units, cube_dim);
 
@@ -317,7 +317,7 @@ pub fn conv_direct<R: CubeRuntime, const N: usize>(
 }
 
 #[cube]
-pub(crate) fn div_mod_seq(pos: u32, shape: &Sequence<FastDivmod>) -> (u32, Sequence<u32>) {
+pub(crate) fn div_mod_seq(pos: u32, shape: &Sequence<FastDivmod<u32>>) -> (u32, Sequence<u32>) {
     let rank = comptime![shape.len()];
     let mut offs = pos;
     let mut out = Sequence::new();

@@ -11,7 +11,7 @@ use crate::{
     ops::max_line_size,
 };
 use burn_backend::{DType, Shape};
-use cubecl::std::{FastDivmod, scalar::InputScalar, tensor::layout::linear::LinearView};
+use cubecl::std::{FastDivmod, tensor::layout::linear::LinearView};
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 use cubecl::{client::ComputeClient, server::Allocation};
 
@@ -307,7 +307,7 @@ impl<N: Numeric> CumulativeOp<N> for ProdOp {
 #[cube]
 impl<N: Numeric> CumulativeOp<N> for MaxOp {
     fn execute(lhs: N, rhs: N) -> N {
-        N::max(lhs, rhs)
+        max(lhs, rhs)
     }
 
     fn init_value(first_element: N) -> N {
@@ -318,7 +318,7 @@ impl<N: Numeric> CumulativeOp<N> for MaxOp {
 #[cube]
 impl<N: Numeric> CumulativeOp<N> for MinOp {
     fn execute(lhs: N, rhs: N) -> N {
-        N::min(lhs, rhs)
+        min(lhs, rhs)
     }
 
     fn init_value(first_element: N) -> N {
@@ -343,8 +343,8 @@ impl<N: Numeric> CumulativeOp<N> for MinOp {
 fn cumulative_kernel<C: Numeric, O: CumulativeOpFamily>(
     input: &Tensor<C>,
     output: &mut LinearView<C, ReadWrite>,
-    shape: Sequence<FastDivmod>,
-    #[comptime] dim: u32,
+    shape: Sequence<FastDivmod<usize>>,
+    #[comptime] dim: usize,
     #[define(C)] _dtype: StorageType,
 ) {
     if !output.is_in_bounds(ABSOLUTE_POS) {
@@ -428,7 +428,7 @@ fn cumulative_op<R: CubeRuntime, O: CumulativeOpFamily>(
             input.as_tensor_arg(1),
             linear_view(&output, 1),
             shape_divmod(&input),
-            dim as u32,
+            dim,
             output.dtype.into(),
         )
         .expect("Kernel to never fail");

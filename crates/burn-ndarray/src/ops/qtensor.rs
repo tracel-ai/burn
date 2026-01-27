@@ -13,7 +13,7 @@ use burn_backend::{
 use crate::{
     FloatNdArrayElement, NdArray, NdArrayDevice, NdArrayQTensor, NdArrayTensor, SharedArray,
     element::{IntNdArrayElement, QuantElement},
-    execute_with_dtype, execute_with_int_dtype, execute_with_numeric_dtype,
+    execute_with_dtype, execute_with_int_dtype, execute_with_numeric_dtype, slice,
 };
 
 use super::quantization::{QuantizationStrategy, SymmetricQuantization};
@@ -41,7 +41,6 @@ where
                         level: QuantLevel::Tensor | QuantLevel::Block(_),
                         mode: QuantMode::Symmetric,
                         value: QuantValue::Q8F | QuantValue::Q8S,
-                        store: QuantStore::Native | QuantStore::U32,
                         ..
                     } => {
                         // We can load QuantStore::U32 w/ QuantizedBytes impl
@@ -300,9 +299,7 @@ where
         slices: &[burn_backend::Slice],
     ) -> QuantizedTensor<Self> {
         NdArrayQTensor {
-            qtensor: execute_with_dtype!(tensor.qtensor, E, |array: SharedArray<E>| {
-                NdArrayOps::slice(array, slices)
-            }),
+            qtensor: slice!(tensor.qtensor, slices),
             scheme: tensor.scheme,
             qparams: tensor.qparams,
         }

@@ -8,13 +8,12 @@ fn select_assign_kernel<F: Numeric, I: Numeric, Op: BinaryOpFamily>(
     tensor: &mut Tensor<F>,
     indices: &Tensor<I>,
     value: &Tensor<F>,
-    dim: &u32,
+    dim: usize,
     #[define(F, I)] _dtypes: [StorageType; 2],
 ) {
-    let dim = *dim;
-    let mut offset_tensor = 0u32;
-    let mut offset_value = 0u32;
-    let mut num_elems = 1u32;
+    let mut offset_tensor = 0;
+    let mut offset_value = 0;
+    let mut num_elems = 1;
 
     // Calculate offsets and num_elems
     for i in 0..tensor.rank() {
@@ -39,7 +38,7 @@ fn select_assign_kernel<F: Numeric, I: Numeric, Op: BinaryOpFamily>(
 
     // Main operation
     for i in 0..value.shape(dim) {
-        let index_tensor = u32::cast_from(indices[i]) * strides_tensor_dim + offset_tensor;
+        let index_tensor = usize::cast_from(indices[i]) * strides_tensor_dim + offset_tensor;
         let index_value = i * strides_value_dim + offset_value;
 
         let value = Op::BinaryOp::<F>::execute(
@@ -104,7 +103,7 @@ pub(crate) fn select_assign<R: CubeRuntime>(
                 indices.dtype.size(),
             ),
             value.as_tensor_arg(1),
-            ScalarArg::new(dim as u32),
+            ScalarArg::new(dim),
             [tensor.dtype.into(), indices.dtype.into()],
         )
         .expect("Kernel to never fail");

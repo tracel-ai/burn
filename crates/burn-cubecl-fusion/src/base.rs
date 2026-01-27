@@ -1,11 +1,14 @@
 use burn_fusion::stream::Context;
 use burn_std::{DType, quantization::QParamTensor};
-use cubecl::quant::scheme::{QuantParam, QuantScheme};
 use cubecl::{
     CubeElement, Runtime,
     client::ComputeClient,
     ir::ElemType,
     prelude::{TensorArg, TensorHandleRef},
+};
+use cubecl::{
+    ir::LineSize,
+    quant::scheme::{QuantParam, QuantScheme},
 };
 use std::marker::PhantomData;
 
@@ -73,7 +76,11 @@ impl<R: Runtime> CubeFusionHandle<R> {
         }
     }
     /// Return the reference to a tensor argument.
-    pub fn as_tensor_arg<'a>(&'a self, shape: &'a [usize], vectorisation: u8) -> TensorArg<'a, R> {
+    pub fn as_tensor_arg<'a>(
+        &'a self,
+        shape: &'a [usize],
+        line_size: LineSize,
+    ) -> TensorArg<'a, R> {
         let handle: TensorHandleRef<'a, R> = self.as_handle_ref(shape);
 
         unsafe {
@@ -81,7 +88,7 @@ impl<R: Runtime> CubeFusionHandle<R> {
                 handle.handle,
                 handle.strides,
                 handle.shape,
-                vectorisation,
+                line_size,
                 self.dtype.size(),
             )
         }

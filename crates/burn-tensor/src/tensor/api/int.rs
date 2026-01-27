@@ -1,3 +1,5 @@
+use burn_backend::Scalar;
+
 use crate::{
     Float, Int, IntDType, Shape, Tensor, TensorData, TensorPrimitive, backend::Backend,
     cartesian_grid,
@@ -123,16 +125,19 @@ where
 
     /// Applies the bitwise logical and operation with each bit in the scalar and the integers in the tensor.
     pub fn bitwise_and_scalar(self, other: B::IntElem) -> Self {
+        let other = Scalar::new(other, &self.dtype());
         Self::new(B::bitwise_and_scalar(self.primitive, other))
     }
 
     /// Applies the bitwise logical or operation with each bit in the scalar and the integers in the tensor.
     pub fn bitwise_or_scalar(self, other: B::IntElem) -> Self {
+        let other = Scalar::new(other, &self.dtype());
         Self::new(B::bitwise_or_scalar(self.primitive, other))
     }
 
     /// Applies bitwise logical xor operation with each bit in the scalar and the integers in the tensor.
     pub fn bitwise_xor_scalar(self, other: B::IntElem) -> Self {
+        let other = Scalar::new(other, &self.dtype());
         Self::new(B::bitwise_xor_scalar(self.primitive, other))
     }
 
@@ -148,11 +153,13 @@ where
 
     /// Applies the bitwise left shift operation with the scalar.
     pub fn bitwise_left_shift_scalar(self, other: B::IntElem) -> Self {
+        let other = Scalar::new(other, &self.dtype());
         Self::new(B::bitwise_left_shift_scalar(self.primitive, other))
     }
 
     /// Applies the bitwise right shift operation with the scalar.
     pub fn bitwise_right_shift_scalar(self, other: B::IntElem) -> Self {
+        let other = Scalar::new(other, &self.dtype());
         Self::new(B::bitwise_right_shift_scalar(self.primitive, other))
     }
 
