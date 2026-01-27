@@ -166,7 +166,6 @@ mod linear_model_tests {
         assert!(!result.applied.is_empty(), "No tensors were applied");
 
         // Test forward pass with loaded weights
-        println!("test input ones");
         let input = Tensor::<TestBackend, 2>::ones([1, 2], &device);
         let output = model.forward(input);
 
