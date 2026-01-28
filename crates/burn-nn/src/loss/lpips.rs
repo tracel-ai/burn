@@ -1,41 +1,65 @@
 //! LPIPS (Learned Perceptual Image Patch Similarity) loss module.
 //!
 //! LPIPS measures perceptual similarity between images using deep features.
+//! Supports VGG16 and AlexNet as backbone networks.
+//!
 //! Reference: "The Unreasonable Effectiveness of Deep Features as a Perceptual Metric"
-//! https://arxiv.org/abs/1801.03924
+//! <https://arxiv.org/abs/1801.03924>
+//!
+//! # Loading Pretrained Weights
+//!
+//! To use LPIPS with pretrained weights from PyTorch:
+//!
+//! 1. Save weights in Python:
+//! ```python
+//! import torch, lpips
+//! # For VGG
+//! loss_fn = lpips.LPIPS(net='vgg')
+//! torch.save(loss_fn.state_dict(), 'lpips_vgg.pt')
+//! # For AlexNet
+//! loss_fn = lpips.LPIPS(net='alex')
+//! torch.save(loss_fn.state_dict(), 'lpips_alex.pt')
+//! ```
+//!
+//! 2. Load weights in Rust (see [`lpips_key_remaps`] for key remapping)
 
 use alloc::vec::Vec;
 
 use burn_core as burn;
 
 use super::Reduction;
-use crate::PaddingConfig2d;
 use crate::conv::{Conv2d, Conv2dConfig};
+use crate::PaddingConfig2d;
 use burn::config::Config;
 use burn::module::{Content, DisplaySettings, Ignored, Module, ModuleDisplay};
-use burn::tensor::Tensor;
 use burn::tensor::activation::relu;
 use burn::tensor::backend::Backend;
+use burn::tensor::Tensor;
 
-/// VGG network type for LPIPS.
+/// Network type for LPIPS.
 #[derive(Config, Debug, Copy, PartialEq, Eq)]
 pub enum LpipsNet {
     /// VGG16 network (default)
     Vgg,
-    // TODO: impl Alex, Squeeze
-    // Alex,
+    /// AlexNet network
+    Alex,
+    // TODO: impl Squeeze
     // Squeeze,
 }
-/// Configuration for [LPIPS](Lpips) loss module.
+
+/// Configuration for [Lpips](Lpips) loss module.
 ///
 /// # Example
 ///
 /// ```ignore
 /// use burn_nn::loss::{LpipsConfig, LpipsNet};
 ///
-/// let lpips = LpipsConfig::new()
-///     .with_net(LpipsNet::Vgg)
-///     .with_normalize(true)
+/// // VGG (default)
+/// let lpips_vgg = LpipsConfig::new().init(&device);
+///
+/// // AlexNet
+/// let lpips_alex = LpipsConfig::new()
+///     .with_net(LpipsNet::Alex)
 ///     .init(&device);
 /// ```
 #[derive(Config, Debug)]
@@ -51,7 +75,7 @@ pub struct LpipsConfig {
 }
 
 impl LpipsConfig {
-    /// Initialize a new [LPIPS](Lpips) module.
+    /// Initialize a new [Lpips](Lpips) module.
     ///
     /// # Arguments
     ///
@@ -59,55 +83,72 @@ impl LpipsConfig {
     ///
     /// # Returns
     ///
-    /// A new LPIPS module with pretrained weights.
-    ///
-    /// # Note
-    ///
-    /// Currently only VGG network is supported.
-    /// Weights should be loaded from pretrained model for accurate results.
+    /// A new LPIPS module. Weights should be loaded from pretrained model for accurate results.
     pub fn init<B: Backend>(&self, device: &B::Device) -> Lpips<B> {
-        // VGG16 feature extractor
-        let vgg = VggFeatureExtractor::new(device);
-
-        // Linear layers (1x1 conv) for each VGG layer output
-        // Channel sizes for VGG16 layers: 64, 128, 256, 512, 512
-        let lin0 = Conv2dConfig::new([64, 1], [1, 1])
-            .with_bias(false)
-            .init(device);
-        let lin1 = Conv2dConfig::new([128, 1], [1, 1])
-            .with_bias(false)
-            .init(device);
-        let lin2 = Conv2dConfig::new([256, 1], [1, 1])
-            .with_bias(false)
-            .init(device);
-        let lin3 = Conv2dConfig::new([512, 1], [1, 1])
-            .with_bias(false)
-            .init(device);
-        let lin4 = Conv2dConfig::new([512, 1], [1, 1])
-            .with_bias(false)
-            .init(device);
-
-        Lpips {
-            vgg,
-            lin0,
-            lin1,
-            lin2,
-            lin3,
-            lin4,
-            normalize: self.normalize,
-            net: Ignored(self.net),
+        match self.net {
+            LpipsNet::Vgg => {
+                let vgg = VggFeatureExtractor::new(device);
+                // Channel sizes for VGG16: [64, 128, 256, 512, 512]
+                Lpips {
+                    vgg: Some(vgg),
+                    alex: None,
+                    lin0: Conv2dConfig::new([64, 1], [1, 1])
+                        .with_bias(false)
+                        .init(device),
+                    lin1: Conv2dConfig::new([128, 1], [1, 1])
+                        .with_bias(false)
+                        .init(device),
+                    lin2: Conv2dConfig::new([256, 1], [1, 1])
+                        .with_bias(false)
+                        .init(device),
+                    lin3: Conv2dConfig::new([512, 1], [1, 1])
+                        .with_bias(false)
+                        .init(device),
+                    lin4: Conv2dConfig::new([512, 1], [1, 1])
+                        .with_bias(false)
+                        .init(device),
+                    normalize: self.normalize,
+                    net: Ignored(self.net),
+                }
+            }
+            LpipsNet::Alex => {
+                let alex = AlexFeatureExtractor::new(device);
+                // Channel sizes for AlexNet: [64, 192, 384, 256, 256]
+                Lpips {
+                    vgg: None,
+                    alex: Some(alex),
+                    lin0: Conv2dConfig::new([64, 1], [1, 1])
+                        .with_bias(false)
+                        .init(device),
+                    lin1: Conv2dConfig::new([192, 1], [1, 1])
+                        .with_bias(false)
+                        .init(device),
+                    lin2: Conv2dConfig::new([384, 1], [1, 1])
+                        .with_bias(false)
+                        .init(device),
+                    lin3: Conv2dConfig::new([256, 1], [1, 1])
+                        .with_bias(false)
+                        .init(device),
+                    lin4: Conv2dConfig::new([256, 1], [1, 1])
+                        .with_bias(false)
+                        .init(device),
+                    normalize: self.normalize,
+                    net: Ignored(self.net),
+                }
+            }
         }
     }
 }
 
 /// LPIPS (Learned Perceptual Image Patch Similarity) loss module.
 ///
-/// Computes perceptual distance between two images using VGG features.
+/// Computes perceptual distance between two images using deep features.
+/// Supports VGG16 and AlexNet as backbone networks.
 ///
 /// # Example
 ///
 /// ```ignore
-/// use burn_nn::loss::{LpipsConfig, Reduction};
+/// use burn_nn::loss::{LpipsConfig, LpipsNet, Reduction};
 ///
 /// let device = Default::default();
 /// let lpips = LpipsConfig::new().init(&device);
@@ -121,8 +162,10 @@ impl LpipsConfig {
 #[derive(Module, Debug)]
 #[module(custom_display)]
 pub struct Lpips<B: Backend> {
-    /// VGG feature extractor
-    vgg: VggFeatureExtractor<B>,
+    /// VGG feature extractor (used when net=Vgg)
+    vgg: Option<VggFeatureExtractor<B>>,
+    /// AlexNet feature extractor (used when net=Alex)
+    alex: Option<AlexFeatureExtractor<B>>,
     /// Linear layer for layer 0 features
     lin0: Conv2d<B>,
     /// Linear layer for layer 1 features
@@ -182,18 +225,26 @@ const LPIPS_VGG_KEY_REMAPS: &[(&str, &str)] = &[
     ("lin4\\.model\\.1\\.(.*)", "lin4.$1"),
 ];
 
-// TODO: Key remapping rules for loading PyTorch lpips AlexNet weights.
-// const LPIPS_ALEX_KEY_REMAPS: &[(&str, &str)] = &[
-//     // AlexNet layers mapping
-//     // ("net\\.slice1\\.0\\.(.*)", "alex.conv1.$1"),
-//     // ...
-// ];
+/// Key remapping rules for loading PyTorch lpips AlexNet weights.
+const LPIPS_ALEX_KEY_REMAPS: &[(&str, &str)] = &[
+    // AlexNet layers: slice1.0 -> conv1, slice2.3 -> conv2, etc.
+    // The indices (0, 3, 6, 8, 10) are positions in the original AlexNet features Sequential
+    ("net\\.slice1\\.0\\.(.*)", "alex.conv1.$1"),
+    ("net\\.slice2\\.3\\.(.*)", "alex.conv2.$1"),
+    ("net\\.slice3\\.6\\.(.*)", "alex.conv3.$1"),
+    ("net\\.slice4\\.8\\.(.*)", "alex.conv4.$1"),
+    ("net\\.slice5\\.10\\.(.*)", "alex.conv5.$1"),
+    // Linear layers: lin0.model.1 -> lin0
+    ("lin0\\.model\\.1\\.(.*)", "lin0.$1"),
+    ("lin1\\.model\\.1\\.(.*)", "lin1.$1"),
+    ("lin2\\.model\\.1\\.(.*)", "lin2.$1"),
+    ("lin3\\.model\\.1\\.(.*)", "lin3.$1"),
+    ("lin4\\.model\\.1\\.(.*)", "lin4.$1"),
+];
 
 // TODO: Key remapping rules for loading PyTorch lpips SqueezeNet weights.
 // const LPIPS_SQUEEZE_KEY_REMAPS: &[(&str, &str)] = &[
 //     // SqueezeNet fire modules mapping
-//     // ("net\\.slice1\\.0\\.(.*)", "squeeze.conv1.$1"),
-//     // ...
 // ];
 
 /// Get key remapping rules for loading PyTorch lpips weights.
@@ -216,33 +267,35 @@ const LPIPS_VGG_KEY_REMAPS: &[(&str, &str)] = &[
 /// use burn_import::pytorch::{LoadArgs, PyTorchFileRecorder};
 /// use burn_nn::loss::{LpipsConfig, LpipsNet, lpips_key_remaps};
 ///
-/// // First, save PyTorch lpips weights:
-/// // >>> import torch, lpips
+/// // For VGG:
 /// // >>> loss_fn = lpips.LPIPS(net='vgg')
 /// // >>> torch.save(loss_fn.state_dict(), 'lpips_vgg.pt')
 ///
-/// let device = Default::default();
+/// // For AlexNet:
+/// // >>> loss_fn = lpips.LPIPS(net='alex')
+/// // >>> torch.save(loss_fn.state_dict(), 'lpips_alex.pt')
 ///
-/// // Build LoadArgs with all key remappings
-/// let mut load_args = LoadArgs::new("lpips_vgg.pt".into());
-/// for (pattern, replacement) in lpips_key_remaps(LpipsNet::Vgg) {
+/// let device = Default::default();
+/// let net = LpipsNet::Alex;
+///
+/// let mut load_args = LoadArgs::new("lpips_alex.pt".into());
+/// for (pattern, replacement) in lpips_key_remaps(net) {
 ///     load_args = load_args.with_key_remap(pattern, replacement);
 /// }
 ///
-/// // Load weights
 /// let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
 ///     .load(load_args, &device)
 ///     .expect("Failed to load weights");
 ///
-/// // Create model and apply weights
 /// let lpips = LpipsConfig::new()
+///     .with_net(net)
 ///     .init::<Backend>(&device)
 ///     .load_record(record);
 /// ```
 pub fn lpips_key_remaps(net: LpipsNet) -> &'static [(&'static str, &'static str)] {
     match net {
         LpipsNet::Vgg => LPIPS_VGG_KEY_REMAPS,
-        // LpipsNet::Alex => LPIPS_ALEX_KEY_REMAPS,
+        LpipsNet::Alex => LPIPS_ALEX_KEY_REMAPS,
         // LpipsNet::Squeeze => LPIPS_SQUEEZE_KEY_REMAPS,
     }
 }
@@ -314,9 +367,17 @@ impl<B: Backend> Lpips<B> {
         let input = Self::scaling_layer(input);
         let target = Self::scaling_layer(target);
 
-        // Extract features from both images
-        let feats0 = self.vgg.forward(input);
-        let feats1 = self.vgg.forward(target);
+        // Extract features from both images using the appropriate network
+        let (feats0, feats1) = match self.net.0 {
+            LpipsNet::Vgg => {
+                let vgg = self.vgg.as_ref().expect("VGG extractor not initialized");
+                (vgg.forward(input), vgg.forward(target))
+            }
+            LpipsNet::Alex => {
+                let alex = self.alex.as_ref().expect("Alex extractor not initialized");
+                (alex.forward(input), alex.forward(target))
+            }
+        };
 
         // Compute distance for each layer
         let device = feats0[0].device();
@@ -402,6 +463,10 @@ impl<B: Backend> Lpips<B> {
     }
 }
 
+// =============================================================================
+// VGG16 Feature Extractor
+// =============================================================================
+
 /// VGG16 feature extractor for LPIPS.
 ///
 /// Extracts features from 5 layers:
@@ -464,14 +529,6 @@ impl<B: Backend> VggFeatureExtractor<B> {
     }
 
     /// Extract features from 5 VGG layers.
-    ///
-    /// # Arguments
-    ///
-    /// * `x` - Input tensor of shape `[batch, 3, H, W]`
-    ///
-    /// # Returns
-    ///
-    /// Vector of 5 feature tensors from each VGG block.
     pub fn forward(&self, x: Tensor<B, 4>) -> Vec<Tensor<B, 4>> {
         let mut features = Vec::with_capacity(5);
 
@@ -511,25 +568,127 @@ impl<B: Backend> VggFeatureExtractor<B> {
     }
 }
 
-/// 2x2 max pooling with stride 2.
+// =============================================================================
+// AlexNet Feature Extractor
+// =============================================================================
+
+/// AlexNet feature extractor for LPIPS.
+///
+/// Extracts features from 5 layers:
+/// - conv1: 64 channels (after ReLU)
+/// - conv2: 192 channels (after ReLU)
+/// - conv3: 384 channels (after ReLU)
+/// - conv4: 256 channels (after ReLU)
+/// - conv5: 256 channels (after ReLU)
+#[derive(Module, Debug)]
+pub struct AlexFeatureExtractor<B: Backend> {
+    /// Conv1: 3 -> 64, kernel 11x11, stride 4, padding 2
+    conv1: Conv2d<B>,
+    /// Conv2: 64 -> 192, kernel 5x5, stride 1, padding 2
+    conv2: Conv2d<B>,
+    /// Conv3: 192 -> 384, kernel 3x3, stride 1, padding 1
+    conv3: Conv2d<B>,
+    /// Conv4: 384 -> 256, kernel 3x3, stride 1, padding 1
+    conv4: Conv2d<B>,
+    /// Conv5: 256 -> 256, kernel 3x3, stride 1, padding 1
+    conv5: Conv2d<B>,
+}
+
+impl<B: Backend> AlexFeatureExtractor<B> {
+    /// Create a new AlexNet feature extractor.
+    pub fn new(device: &B::Device) -> Self {
+        Self {
+            // Conv1: 3 -> 64, 11x11, stride 4, padding 2
+            conv1: Conv2dConfig::new([3, 64], [11, 11])
+                .with_stride([4, 4])
+                .with_padding(PaddingConfig2d::Explicit(2, 2))
+                .with_bias(true)
+                .init(device),
+            // Conv2: 64 -> 192, 5x5, stride 1, padding 2
+            conv2: Conv2dConfig::new([64, 192], [5, 5])
+                .with_padding(PaddingConfig2d::Explicit(2, 2))
+                .with_bias(true)
+                .init(device),
+            // Conv3: 192 -> 384, 3x3, stride 1, padding 1
+            conv3: Conv2dConfig::new([192, 384], [3, 3])
+                .with_padding(PaddingConfig2d::Explicit(1, 1))
+                .with_bias(true)
+                .init(device),
+            // Conv4: 384 -> 256, 3x3, stride 1, padding 1
+            conv4: Conv2dConfig::new([384, 256], [3, 3])
+                .with_padding(PaddingConfig2d::Explicit(1, 1))
+                .with_bias(true)
+                .init(device),
+            // Conv5: 256 -> 256, 3x3, stride 1, padding 1
+            conv5: Conv2dConfig::new([256, 256], [3, 3])
+                .with_padding(PaddingConfig2d::Explicit(1, 1))
+                .with_bias(true)
+                .init(device),
+        }
+    }
+
+    /// Extract features from 5 AlexNet layers.
+    pub fn forward(&self, x: Tensor<B, 4>) -> Vec<Tensor<B, 4>> {
+        let mut features = Vec::with_capacity(5);
+
+        // Slice 1: Conv1 + ReLU
+        let x = relu(self.conv1.forward(x));
+        features.push(x.clone());
+
+        // Slice 2: MaxPool + Conv2 + ReLU
+        let x = max_pool2d_alex(x);
+        let x = relu(self.conv2.forward(x));
+        features.push(x.clone());
+
+        // Slice 3: MaxPool + Conv3 + ReLU
+        let x = max_pool2d_alex(x);
+        let x = relu(self.conv3.forward(x));
+        features.push(x.clone());
+
+        // Slice 4: Conv4 + ReLU (no pooling)
+        let x = relu(self.conv4.forward(x));
+        features.push(x.clone());
+
+        // Slice 5: Conv5 + ReLU (no pooling)
+        let x = relu(self.conv5.forward(x));
+        features.push(x);
+
+        features
+    }
+}
+
+// =============================================================================
+// Pooling Helpers
+// =============================================================================
+
+/// 2x2 max pooling with stride 2 (for VGG).
 fn max_pool2d<B: Backend>(x: Tensor<B, 4>) -> Tensor<B, 4> {
     burn::tensor::module::max_pool2d(x, [2, 2], [2, 2], [0, 0], [1, 1], false)
 }
+
+/// 3x3 max pooling with stride 2 (for AlexNet).
+fn max_pool2d_alex<B: Backend>(x: Tensor<B, 4>) -> Tensor<B, 4> {
+    burn::tensor::module::max_pool2d(x, [3, 3], [2, 2], [0, 0], [1, 1], false)
+}
+
+// =============================================================================
+// Tests
+// =============================================================================
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::TestBackend;
-    use burn::tensor::{TensorData, Tolerance, ops::FloatElem};
+    use burn::tensor::{ops::FloatElem, TensorData, Tolerance};
 
     type FT = FloatElem<TestBackend>;
     type TestTensor<const D: usize> = Tensor<TestBackend, D>;
 
     // =========================================================================
-    // 기본 기능 테스트 (Basic Functionality Tests)
+    // Basic Functionality Tests
     // =========================================================================
 
-    /// 동일한 이미지는 LPIPS 거리가 0이어야 함
+    /// Identical images should have LPIPS distance of 0.
     #[test]
     fn test_lpips_identical_images_zero_loss() {
         let device = Default::default();
@@ -538,13 +697,13 @@ mod tests {
         let lpips: Lpips<TestBackend> = LpipsConfig::new().init(&device);
         let loss = lpips.forward(image.clone(), image, Reduction::Mean);
 
-        // 동일 이미지 → loss = 0
+        // Identical images → loss = 0
         let expected = TensorData::from([0.0]);
         loss.into_data()
             .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
-    /// 다른 이미지는 LPIPS 거리가 0보다 커야 함
+    /// Different images should have LPIPS distance greater than 0.
     #[test]
     fn test_lpips_different_images_positive_loss() {
         let device = Default::default();
@@ -559,7 +718,7 @@ mod tests {
         assert!(loss_value > 0.0, "LPIPS should be > 0 for different images");
     }
 
-    /// LPIPS(a, b) == LPIPS(b, a) 대칭성 테스트
+    /// Test symmetry: LPIPS(a, b) == LPIPS(b, a).
     #[test]
     fn test_lpips_symmetry() {
         let device = Default::default();
@@ -577,7 +736,7 @@ mod tests {
     }
 
     // =========================================================================
-    // Reduction 테스트
+    // Reduction Tests
     // =========================================================================
 
     #[test]
@@ -608,7 +767,7 @@ mod tests {
     }
 
     // =========================================================================
-    // 출력 범위 테스트
+    // Output Range Tests
     // =========================================================================
 
     #[test]
@@ -626,15 +785,68 @@ mod tests {
     }
 
     // =========================================================================
-    // Display 테스트
+    // AlexNet Tests
+    // =========================================================================
+
+    /// Test AlexNet LPIPS with identical images.
+    #[test]
+    fn test_lpips_alex_identical_images_zero_loss() {
+        let device = Default::default();
+        let image = TestTensor::<4>::ones([1, 3, 64, 64], &device);
+
+        let lpips: Lpips<TestBackend> = LpipsConfig::new()
+            .with_net(LpipsNet::Alex)
+            .init(&device);
+        let loss = lpips.forward(image.clone(), image, Reduction::Mean);
+
+        let expected = TensorData::from([0.0]);
+        loss.into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
+    }
+
+    /// Test AlexNet LPIPS with different images.
+    #[test]
+    fn test_lpips_alex_different_images_positive_loss() {
+        let device = Default::default();
+
+        let image1 = TestTensor::<4>::zeros([1, 3, 64, 64], &device);
+        let image2 = TestTensor::<4>::ones([1, 3, 64, 64], &device);
+
+        let lpips: Lpips<TestBackend> = LpipsConfig::new()
+            .with_net(LpipsNet::Alex)
+            .init(&device);
+        let loss = lpips.forward(image1, image2, Reduction::Mean);
+
+        let loss_value = loss.into_data().to_vec::<f32>().unwrap()[0];
+        assert!(
+            loss_value > 0.0,
+            "LPIPS (Alex) should be > 0 for different images"
+        );
+    }
+
+    // =========================================================================
+    // Display Tests
     // =========================================================================
 
     #[test]
-    fn display() {
+    fn display_vgg() {
         let device = Default::default();
         let lpips: Lpips<TestBackend> = LpipsConfig::new().init(&device);
 
         let display_str = alloc::format!("{lpips}");
         assert!(display_str.contains("Lpips"));
+        assert!(display_str.contains("Vgg"));
+    }
+
+    #[test]
+    fn display_alex() {
+        let device = Default::default();
+        let lpips: Lpips<TestBackend> = LpipsConfig::new()
+            .with_net(LpipsNet::Alex)
+            .init(&device);
+
+        let display_str = alloc::format!("{lpips}");
+        assert!(display_str.contains("Lpips"));
+        assert!(display_str.contains("Alex"));
     }
 }
