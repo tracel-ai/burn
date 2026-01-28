@@ -161,8 +161,9 @@ where
     pub fn empty<S: Into<Shape>>(shape: S, options: impl Into<TensorCreationOptions<B>>) -> Self {
         let opt = options.into();
         let shape = shape.into();
+        let dtype = opt.resolve_policy(K::Elem::dtype());
         check!(TensorCheck::creation_ops::<D>("Empty", &shape.dims));
-        Self::new(K::empty(shape, &opt.device, opt.dtype_or(K::Elem::dtype())))
+        Self::new(K::empty(shape, &opt.device, dtype))
     }
 
     /// Create a tensor of the given shape where each element is zero.
@@ -183,8 +184,9 @@ where
     pub fn zeros<S: Into<Shape>>(shape: S, options: impl Into<TensorCreationOptions<B>>) -> Self {
         let opt = options.into();
         let shape = shape.into();
+        let dtype = opt.resolve_policy(K::Elem::dtype());
         check!(TensorCheck::creation_ops::<D>("Zeros", &shape.dims));
-        Self::new(K::zeros(shape, &opt.device, opt.dtype_or(K::Elem::dtype())))
+        Self::new(K::zeros(shape, &opt.device, dtype))
     }
 
     /// Returns a new tensor with the same shape, dtype, and device as the current tensor filled with zeros.
@@ -225,8 +227,9 @@ where
     pub fn ones<S: Into<Shape>>(shape: S, options: impl Into<TensorCreationOptions<B>>) -> Self {
         let opt = options.into();
         let shape = shape.into();
+        let dtype = opt.resolve_policy(K::Elem::dtype());
         check!(TensorCheck::creation_ops::<D>("Ones", &shape.dims));
-        Self::new(K::ones(shape, &opt.device, opt.dtype_or(K::Elem::dtype())))
+        Self::new(K::ones(shape, &opt.device, dtype))
     }
 
     /// Returns a new tensor with the same shape, dtype, and device as the current tensor filled with ones.
@@ -271,7 +274,7 @@ where
     ) -> Self {
         let opt = options.into();
         let shape = shape.into();
-        let dtype = opt.dtype_or(K::Elem::dtype());
+        let dtype = opt.resolve_policy(K::Elem::dtype());
         check!(TensorCheck::creation_ops::<D>("Full", &shape.dims));
         Self::new(K::full(
             shape,
