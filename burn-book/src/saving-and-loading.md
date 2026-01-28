@@ -1,16 +1,81 @@
 # Saving and Loading Models
 
-Burn provides flexible options for saving and loading model weights through the `burn-store` crate.
+Saving your trained machine learning model is quite easy, no matter the output format you choose. As
+mentioned in the [Record](./building-blocks/record.md) section, different formats are supported to
+serialize/deserialize models. By default, we use the `NamedMpkFileRecorder` which uses the
+[MessagePack](https://msgpack.org/) binary serialization format with the help of
+[rmp_serde](https://docs.rs/rmp-serde/).
 
-## Supported Formats
+```rust, ignore
+// Save model in MessagePack format with full precision
+let recorder = NamedMpkFileRecorder::<FullPrecisionSettings>::new();
+model
+    .save_file(model_path, &recorder)
+    .expect("Should be able to save the model");
+```
+
+Note that the file extension is automatically handled by the recorder depending on the one you
+choose. Therefore, only the file path and base name should be provided.
+
+Now that you have a trained model saved to your disk, you can easily load it in a similar fashion.
+
+```rust, ignore
+// Load model in full precision from MessagePack file
+let recorder = NamedMpkFileRecorder::<FullPrecisionSettings>::new();
+model = model
+    .load_file(model_path, &recorder, device)
+    .expect("Should be able to load the model weights from the provided file");
+```
+
+**Note:** models can be saved in different output formats, just make sure you are using the correct
+recorder type when loading the saved model. Type conversion between different precision settings is
+automatically handled, but formats are not interchangeable. A model can be loaded from one format
+and saved to another format, just as long as you load it back with the new recorder type afterwards.
+
+## Initialization from Recorded Weights
+
+The most straightforward way to load weights for a module is simply by using the generated method
+[load_record](https://burn.dev/docs/burn/module/trait.Module.html#tymethod.load_record). Note that
+parameter initialization is lazy, therefore no actual tensor allocation and GPU/CPU kernels are
+executed before the module is used. This means that you can use `init(device)` followed by
+`load_record(record)` without any meaningful performance cost.
+
+```rust, ignore
+// Create a dummy initialized model to save
+let device = Default::default();
+let model = Model::<MyBackend>::init(&device);
+
+// Save model in MessagePack format with full precision
+let recorder = NamedMpkFileRecorder::<FullPrecisionSettings>::new();
+model
+    .save_file(model_path, &recorder)
+    .expect("Should be able to save the model");
+```
+
+Afterwards, the model can just as easily be loaded from the record saved on disk.
+
+```rust, ignore
+// Load model record on the backend's default device
+let record: ModelRecord<MyBackend> = NamedMpkFileRecorder::<FullPrecisionSettings>::new()
+    .load(model_path.into(), &device)
+    .expect("Should be able to load the model weights from the provided file");
+
+// Initialize a new model with the loaded record/weights
+let model = Model::init(&device).load_record(record);
+```
+
+## Model Weight Store
+
+Burn also provides the `burn-store` crate for loading and saving model weights with support for
+multiple formats and cross-framework interoperability.
+
+### Supported Formats
 
 | Format          | Extension      | Description                                                                               |
 | --------------- | -------------- | ----------------------------------------------------------------------------------------- |
 | **Burnpack**    | `.bpk`         | Burn's native format with fast loading, zero-copy support, and training state persistence |
 | **SafeTensors** | `.safetensors` | Industry-standard format from Hugging Face for secure tensor serialization                |
 | **PyTorch**     | `.pt`, `.pth`  | Direct loading of PyTorch model weights (read-only)                                       |
-
-## Quick Start
 
 ### Saving a Model
 
@@ -40,7 +105,7 @@ let mut store = BurnpackStore::from_file("model.bpk");
 model.load_from(&mut store)?;
 ```
 
-## Loading from PyTorch
+### Loading from PyTorch
 
 You can load weights directly from PyTorch `.pt` files:
 
@@ -52,7 +117,7 @@ let mut store = PytorchStore::from_file("pytorch_model.pt");
 model.load_from(&mut store)?;
 ```
 
-### Exporting from PyTorch
+#### Exporting from PyTorch
 
 Save only the model weights (state_dict), not the entire model:
 
@@ -74,7 +139,7 @@ torch.save(model.state_dict(), "model.pt")  # Correct: save state_dict
 # torch.save(model, "model.pt")             # Wrong: saves entire model
 ```
 
-### Accessing Nested State Dicts
+#### Accessing Nested State Dicts
 
 Some PyTorch checkpoints nest the state_dict under a key:
 
@@ -84,7 +149,7 @@ let mut store = PytorchStore::from_file("checkpoint.pt")
 model.load_from(&mut store)?;
 ```
 
-## Loading from SafeTensors
+### Loading from SafeTensors
 
 For SafeTensors files exported from PyTorch, use the adapter for proper weight transformation:
 
@@ -104,7 +169,7 @@ let mut store = SafetensorsStore::from_file("model.safetensors");
 model.load_from(&mut store)?;
 ```
 
-### Exporting from PyTorch to SafeTensors
+#### Exporting from PyTorch to SafeTensors
 
 ```python
 from safetensors.torch import save_file
@@ -113,7 +178,7 @@ model = Net()
 save_file(model.state_dict(), "model.safetensors")
 ```
 
-## Saving for PyTorch Compatibility
+### Saving for PyTorch Compatibility
 
 Use the adapter when saving for PyTorch consumption:
 
@@ -126,7 +191,7 @@ let mut store = SafetensorsStore::from_file("for_pytorch.safetensors")
 model.save_into(&mut store)?;
 ```
 
-## Handling Load Results
+### Handling Load Results
 
 The `load_from` method returns detailed information about the loading process:
 
@@ -146,7 +211,7 @@ if result.is_success() {
 }
 ```
 
-## Adding Metadata
+### Adding Metadata
 
 Burnpack and SafeTensors support custom metadata:
 
@@ -158,9 +223,9 @@ let mut store = BurnpackStore::from_file("model.bpk")
 model.save_into(&mut store)?;
 ```
 
-## Advanced Features
+### Advanced Features
 
-### Key Remapping
+#### Key Remapping
 
 Remap parameter names using regex patterns when model structures don't match:
 
@@ -186,7 +251,7 @@ let mut store = SafetensorsStore::from_file("model.safetensors")
     .remap(remapper);
 ```
 
-### Partial Loading
+#### Partial Loading
 
 Load weights even when some tensors are missing:
 
@@ -198,7 +263,7 @@ let result = model.load_from(&mut store)?;
 println!("Missing (initialized randomly): {:?}", result.missing);
 ```
 
-### Filtering Tensors
+#### Filtering Tensors
 
 Load or save only specific layers:
 
@@ -220,7 +285,7 @@ let mut store = SafetensorsStore::from_file("model.safetensors")
     .with_full_path("decoder.scale"); // OR specific tensor
 ```
 
-### Non-Contiguous Layer Indices
+#### Non-Contiguous Layer Indices
 
 PyTorch `nn.Sequential` with mixed layers creates non-contiguous indices. `PytorchStore`
 automatically remaps these:
@@ -237,7 +302,7 @@ let mut store = PytorchStore::from_file("model.pt")
     .map_indices_contiguous(false);
 ```
 
-### Zero-Copy Loading
+#### Zero-Copy Loading
 
 For embedded models or large files, use zero-copy loading to avoid memory copies:
 
@@ -253,7 +318,7 @@ let mut store = BurnpackStore::from_file("large_model.bpk")
 model.load_from(&mut store)?;
 ```
 
-### Direct Tensor Access
+#### Direct Tensor Access
 
 Inspect tensors without loading into a model:
 
@@ -271,7 +336,7 @@ if let Some(snapshot) = store.get_snapshot("encoder.layer0.weight")? {
 }
 ```
 
-### Model Surgery
+#### Model Surgery
 
 Transfer weights between models:
 
@@ -288,9 +353,9 @@ let snapshots = model1.collect(Some(filter.clone()), None, false);
 model2.apply(snapshots, Some(filter), None, false);
 ```
 
-## API Reference
+### API Reference
 
-### Builder Methods
+#### Builder Methods
 
 | Category      | Method                         | Description                  |
 | ------------- | ------------------------------ | ---------------------------- |
@@ -308,7 +373,7 @@ model2.apply(snapshots, Some(filter), None, false);
 |               | `metadata(key, value)`         | Add custom metadata          |
 |               | `zero_copy(bool)`              | Enable zero-copy loading     |
 
-### Direct Access Methods
+#### Direct Access Methods
 
 | Method                | Description                      |
 | --------------------- | -------------------------------- |
@@ -316,9 +381,9 @@ model2.apply(snapshots, Some(filter), None, false);
 | `get_all_snapshots()` | Get all tensors as BTreeMap      |
 | `get_snapshot(name)`  | Get specific tensor by name      |
 
-## Troubleshooting
+### Troubleshooting
 
-### Common Issues
+#### Common Issues
 
 1. **"Missing source values" error**: You saved the entire PyTorch model instead of the state_dict.
    Re-export with `torch.save(model.state_dict(), "model.pt")`.
@@ -333,7 +398,7 @@ model2.apply(snapshots, Some(filter), None, false);
    println!("Available keys: {:?}", store.keys()?);
    ```
 
-### Inspecting Files
+#### Inspecting Files
 
 Use [Netron](https://github.com/lutzroeder/netron) to visualize `.pt` and `.safetensors` files.
 
@@ -342,24 +407,3 @@ For Burnpack files:
 ```bash
 cargo run --example burnpack_inspect model.bpk
 ```
-
-## Legacy Recorder API
-
-For backwards compatibility, Burn also supports the traditional Recorder-based API. See the
-[Record](./building-blocks/record.md) documentation for details on `NamedMpkFileRecorder`,
-`BinFileRecorder`, and other recorder types.
-
-```rust, ignore
-use burn::record::{NamedMpkFileRecorder, FullPrecisionSettings};
-
-// Save with legacy recorder
-let recorder = NamedMpkFileRecorder::<FullPrecisionSettings>::new();
-model.save_file("model", &recorder)?;
-
-// Load with legacy recorder
-let recorder = NamedMpkFileRecorder::<FullPrecisionSettings>::new();
-model = model.load_file("model", &recorder, &device)?;
-```
-
-> **Note**: The `burn-store` API is recommended for new projects as it provides more features,
-> better cross-framework interoperability, and a more intuitive API.
