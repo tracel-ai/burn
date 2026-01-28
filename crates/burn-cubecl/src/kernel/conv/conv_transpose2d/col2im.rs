@@ -252,7 +252,7 @@ fn col2im_kernel<E: Numeric>(
 
     let (_, pos) = decompose_linear(ABSOLUTE_POS, &image_shape);
     let [batch, ch_im, im_y, im_x] = *pos else {
-        panic!()
+        unreachable!()
     };
 
     let im_x = im_x + args.pad_w;

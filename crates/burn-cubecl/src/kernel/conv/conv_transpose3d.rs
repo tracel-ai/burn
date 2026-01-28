@@ -51,7 +51,7 @@ fn conv_transpose3d_kernel<E: Numeric>(
 
     let (_, pos) = decompose_linear(ABSOLUTE_POS, &out_shape);
     let [batch, out_c_out, out_z, out_y, out_x] = *pos else {
-        panic!()
+        unreachable!()
     };
 
     let groups = args.groups;

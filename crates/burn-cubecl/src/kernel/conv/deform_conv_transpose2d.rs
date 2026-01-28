@@ -345,7 +345,7 @@ fn deform_col2img_coord_kernel<F: Float>(
 
     let (_, pos) = decompose_linear(ABSOLUTE_POS, &pos_shape);
     let [batch, offset_group, kernel_y, kernel_x, dir, out_y, out_x] = *pos else {
-        panic!()
+        unreachable!()
     };
 
     let channels_per_offset_group = in_channels / args.offset_groups;
@@ -604,7 +604,7 @@ fn deform_col2img_kernel<F: Float, FP: Float, FAdd: FloatAtomicAddFamily>(
 
     let (_, pos) = decompose_linear(ABSOLUTE_POS, &pos_shape);
     let [in_channel, kernel_y, kernel_x, batch, out_y, out_x] = *pos else {
-        panic!()
+        unreachable!()
     };
 
     let channels_per_offset_group = n_in_channels / n_offset_groups;

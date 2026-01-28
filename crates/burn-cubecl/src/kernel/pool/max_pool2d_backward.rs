@@ -27,7 +27,7 @@ fn max_pool2d_with_indices_backward_kernel<E: Numeric, I: Int>(
 
     let (_, pos) = decompose_linear(ABSOLUTE_POS * output.line_size(), &out_shape);
     let [batch, ih, iw, channel] = *pos else {
-        panic!()
+        unreachable!()
     };
 
     let line_size = grad.line_size();

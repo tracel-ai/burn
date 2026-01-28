@@ -86,7 +86,7 @@ pub fn pool2d_direct<E: Numeric, S: Pool2dDirectStrategyFamily>(
     }
 
     let (_, pos) = decompose_linear(ABSOLUTE_POS * output.line_size(), &out_shape);
-    let [b, oh, ow, c] = *pos else { panic!() };
+    let [b, oh, ow, c] = *pos else { unreachable!() };
 
     let (in_stride_h, in_stride_w) = (input.stride(1), input.stride(2));
     let (in_h, in_w) = (input.shape(1) as u32, input.shape(2) as u32);

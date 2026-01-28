@@ -47,7 +47,7 @@ fn conv_transpose2d_direct_kernel<E: Numeric>(
 
     let (_, pos) = decompose_linear(ABSOLUTE_POS, &out_shape);
     let [batch, oc_out, out_y, out_x] = *pos else {
-        panic!()
+        unreachable!()
     };
 
     let k = oc_out / out_c_per_group;

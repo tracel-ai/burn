@@ -45,7 +45,7 @@ fn avg_pool2d_backward_kernel<E: Numeric>(
 
     let (_, pos) = decompose_linear(ABSOLUTE_POS * output.line_size(), &out_shape);
     let [batch, ih, iw, channel] = *pos else {
-        panic!()
+        unreachable!()
     };
 
     let mut grad_acc = Line::empty(grad.line_size()).fill(E::from_int(0));

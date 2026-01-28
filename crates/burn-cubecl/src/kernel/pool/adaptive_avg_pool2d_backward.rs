@@ -33,7 +33,7 @@ fn adaptive_avg_pool2d_backward_direct<E: Numeric>(
     let (grad_h, grad_w) = (grad.shape(1), grad.shape(2));
 
     let (_, pos) = decompose_linear(ABSOLUTE_POS * output.line_size(), &out_shape);
-    let [b, ih, iw, c] = *pos else { panic!() };
+    let [b, ih, iw, c] = *pos else { unreachable!() };
 
     let oh_start = start_index(ih, out_h, grad_h);
     let oh_end = end_index(ih, out_h, grad_h);

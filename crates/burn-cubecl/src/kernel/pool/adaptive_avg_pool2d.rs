@@ -29,7 +29,7 @@ fn adaptive_avg_pool2d_direct<E: Numeric>(
     }
 
     let (_, pos) = decompose_linear(ABSOLUTE_POS * output.line_size(), &out_shape);
-    let [b, oh, ow, c] = *pos else { panic!() };
+    let [b, oh, ow, c] = *pos else { unreachable!() };
 
     let (_, out_h, out_w, _) = output.shape();
     let (in_stride_h, in_stride_w) = (input.stride(1), input.stride(2));
