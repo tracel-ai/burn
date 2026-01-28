@@ -1,22 +1,32 @@
+use burn::rl::{Environment, StepResult};
 use burn::{
     Tensor,
     prelude::{Backend, ToElement},
 };
-use burn_rl::{Environment, StepResult};
 use gym_rs::{
     core::Env,
     envs::classical_control::cartpole::{CartPoleEnv, CartPoleObservation},
 };
+
+use crate::agent::{TensorActionOutput, TensorState};
 
 #[derive(Clone)]
 pub struct CartPoleAction {
     action: usize,
 }
 
-impl<B: Backend> From<Tensor<B, 2>> for CartPoleAction {
-    fn from(value: Tensor<B, 2>) -> Self {
+impl<B: Backend> From<TensorActionOutput<B, 2>> for CartPoleAction {
+    fn from(value: TensorActionOutput<B, 2>) -> Self {
         Self {
-            action: value.int().into_scalar().to_usize(),
+            action: value.actions.int().into_scalar().to_usize(),
+        }
+    }
+}
+
+impl<B: Backend> Into<TensorActionOutput<B, 2>> for CartPoleAction {
+    fn into(self) -> TensorActionOutput<B, 2> {
+        TensorActionOutput {
+            actions: Tensor::<B, 1>::from_data([self.action], &Default::default()).unsqueeze(),
         }
     }
 }
@@ -35,9 +45,11 @@ impl From<CartPoleObservation> for CartPoleState {
     }
 }
 
-impl<B: Backend> Into<Tensor<B, 2>> for CartPoleState {
-    fn into(self) -> Tensor<B, 2> {
-        Tensor::<B, 1>::from_floats(self.state, &Default::default()).unsqueeze()
+impl<B: Backend> Into<TensorState<B, 2>> for CartPoleState {
+    fn into(self) -> TensorState<B, 2> {
+        TensorState {
+            state: Tensor::<B, 1>::from_floats(self.state, &Default::default()).unsqueeze(),
+        }
     }
 }
 

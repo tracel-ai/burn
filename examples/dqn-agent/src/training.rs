@@ -2,13 +2,13 @@ use burn::{
     grad_clipping::GradientClippingConfig,
     optim::AdamWConfig,
     record::CompactRecorder,
+    rl::Environment,
     tensor::backend::AutodiffBackend,
     train::{
         OffPolicyConfig, RLTraining,
         metric::{CumulativeRewardMetric, EpisodeLengthMetric, ExplorationRateMetric, LossMetric},
     },
 };
-use burn_rl::Environment;
 
 use crate::{
     agent::{DqnAgentConfig, DqnLearningAgent, MlpNet, MlpNetConfig},

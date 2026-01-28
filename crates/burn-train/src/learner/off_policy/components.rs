@@ -28,9 +28,13 @@ pub trait RLComponentsTypes {
     /// The output data of a training step.
     type TrainingOutput: ItemLazy + Clone + Send;
     /// The type of the environment state.
-    type State: Into<<Self::Policy as Policy<Self::Backend>>::Input> + Clone;
+    type State: Into<<Self::Policy as Policy<Self::Backend>>::Input> + Clone + Send + 'static;
     /// The type of the environment action.
-    type Action: From<<Self::Policy as Policy<Self::Backend>>::Action>;
+    type Action: From<<Self::Policy as Policy<Self::Backend>>::Action>
+        + Into<<Self::Policy as Policy<Self::Backend>>::Action>
+        + Clone
+        + Send
+        + 'static;
 }
 
 /// Concrete type that implements the [ReinforcementLearningComponentsTypes](ReinforcementLearningComponentsTypes) trait.
@@ -52,8 +56,12 @@ where
     A::InnerPolicy: Policy<B, ActionContext = AC> + Send,
     TO: ItemLazy + Clone + Send,
     AC: ItemLazy + Clone + Send + 'static,
-    E::State: Into<<A::InnerPolicy as Policy<B>>::Input> + Clone,
-    E::Action: From<<A::InnerPolicy as Policy<B>>::Action>,
+    E::State: Into<<A::InnerPolicy as Policy<B>>::Input> + Clone + Send + 'static,
+    E::Action: From<<A::InnerPolicy as Policy<B>>::Action>
+        + Into<<A::InnerPolicy as Policy<B>>::Action>
+        + Clone
+        + Send
+        + 'static,
 {
     type Backend = B;
     type Env = E;

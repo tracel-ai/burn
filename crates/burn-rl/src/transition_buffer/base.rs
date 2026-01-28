@@ -1,4 +1,4 @@
-use burn_core::{Tensor, prelude::Backend};
+use burn_core::{Tensor, prelude::Backend, tensor::backend::AutodiffBackend};
 use derive_new::new;
 use rand::{rng, seq::index::sample};
 
@@ -13,28 +13,39 @@ pub struct Transition<B: Backend, S, A> {
     // pub value: Option<Tensor<B, 1>>,
 }
 
-pub struct TransitionBatch<B: Backend, S, A> {
-    pub states: Vec<S>,
-    pub next_states: Vec<S>,
-    pub actions: Vec<A>,
+pub struct TransitionBatch<B: Backend, SB, AB> {
+    pub states: SB,
+    pub next_states: SB,
+    pub actions: AB,
     pub rewards: Tensor<B, 2>,
     pub dones: Tensor<B, 2>,
 }
 
-impl<B: Backend, S: Clone, A: Clone> From<Vec<&Transition<B, S, A>>> for TransitionBatch<B, S, A> {
-    fn from(value: Vec<&Transition<B, S, A>>) -> Self {
-        let states: Vec<_> = value.iter().map(|t| t.state.clone()).collect();
-        let next_states: Vec<_> = value.iter().map(|t| t.next_state.clone()).collect();
-        let actions: Vec<_> = value.iter().map(|t| t.action.clone()).collect();
+impl<BT, B, S, A, SB, AB> From<Vec<&Transition<BT, S, A>>> for TransitionBatch<B, SB, AB>
+where
+    BT: Backend,
+    B: AutodiffBackend,
+    S: Into<SB> + Clone,
+    A: Into<AB> + Clone,
+    SB: From<Vec<SB>>,
+    AB: From<Vec<AB>>,
+{
+    fn from(value: Vec<&Transition<BT, S, A>>) -> Self {
+        let states: Vec<_> = value.iter().map(|t| t.state.clone().into()).collect();
+        let next_states: Vec<_> = value.iter().map(|t| t.next_state.clone().into()).collect();
+        let actions: Vec<_> = value.iter().map(|t| t.action.clone().into()).collect();
         let rewards: Vec<_> = value.iter().map(|t| t.reward.clone()).collect();
         let dones: Vec<_> = value.iter().map(|t| t.done.clone()).collect();
 
+        let rewards = Tensor::stack::<2>(rewards, 0);
+        let dones = Tensor::stack::<2>(dones, 0);
+
         Self {
-            states,
-            next_states,
-            actions,
-            rewards: Tensor::stack(rewards, 0),
-            dones: Tensor::stack(dones, 0),
+            states: states.into(),
+            next_states: next_states.into(),
+            actions: actions.into(),
+            rewards: Tensor::from_data(rewards.to_data(), &Default::default()),
+            dones: Tensor::from_data(dones.to_data(), &Default::default()),
         }
     }
 }

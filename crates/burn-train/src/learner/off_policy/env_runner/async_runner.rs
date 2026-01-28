@@ -12,7 +12,8 @@ use burn_rl::{AsyncPolicy, Environment};
 
 use crate::{
     AgentEvaluationEvent, EnvRunner, EpisodeSummary, EvaluationItem, EventProcessorTraining,
-    Interrupter, RLComponentsTypes, RLEvent, RLEventProcessorType, RlPolicy, TimeStep, Trajectory,
+    Interrupter, RLComponentsTypes, RLEvent, RLEventProcessorType, RLTimeStep, RLTrajectory,
+    RlPolicy, TimeStep, Trajectory,
 };
 
 struct StepMessage<B: Backend, S, A, C> {
@@ -20,17 +21,10 @@ struct StepMessage<B: Backend, S, A, C> {
     confirmation_sender: Sender<()>,
 }
 
-pub(crate) type RLTimeStep<B, RLC> = TimeStep<
-    B,
-    <<RLC as RLComponentsTypes>::Policy as Policy<<RLC as RLComponentsTypes>::Backend>>::Input,
-    <<RLC as RLComponentsTypes>::Policy as Policy<<RLC as RLComponentsTypes>::Backend>>::Action,
-    <RLC as RLComponentsTypes>::ActionContext,
->;
-
 type RLStepMessage<B, RLC> = StepMessage<
     B,
-    <<RLC as RLComponentsTypes>::Policy as Policy<<RLC as RLComponentsTypes>::Backend>>::Input,
-    <<RLC as RLComponentsTypes>::Policy as Policy<<RLC as RLComponentsTypes>::Backend>>::Action,
+    <RLC as RLComponentsTypes>::State,
+    <RLC as RLComponentsTypes>::Action,
     <RLC as RLComponentsTypes>::ActionContext,
 >;
 
@@ -104,7 +98,7 @@ where
                 let state = env.state();
                 let (action, context) = agent.action(state.clone().into(), deterministic);
 
-                let step_result = env.step(action.clone().into());
+                let step_result = env.step(RLC::Action::from(action.clone()));
 
                 current_reward += step_result.reward;
                 step_num += 1;
@@ -113,9 +107,9 @@ where
                     .recv()
                     .expect("Can receive confirmation from main runner thread.");
                 let transition = Transition::new(
-                    state.into(),
-                    step_result.next_state.into(),
-                    action,
+                    state.clone(),
+                    step_result.next_state,
+                    RLC::Action::from(action),
                     Tensor::from_data([step_result.reward as f64], &device),
                     Tensor::from_data(
                         [(step_result.done || step_result.truncated) as i32 as f64],
@@ -208,14 +202,7 @@ where
         processor: &mut RLEventProcessorType<RLC>,
         interrupter: &Interrupter,
         progress: &mut Progress,
-    ) -> Vec<
-        Trajectory<
-            BT,
-            <RLC::Policy as Policy<RLC::Backend>>::Input,
-            <RLC::Policy as Policy<RLC::Backend>>::Action,
-            RLC::ActionContext,
-        >,
-    > {
+    ) -> Vec<RLTrajectory<BT, RLC>> {
         let mut items = vec![];
         for episode_num in 0..num_episodes {
             let mut steps = vec![];
@@ -388,14 +375,7 @@ where
         processor: &mut RLEventProcessorType<RLC>,
         interrupter: &Interrupter,
         progress: &mut Progress,
-    ) -> Vec<
-        Trajectory<
-            BT,
-            <RLC::Policy as Policy<RLC::Backend>>::Input,
-            <RLC::Policy as Policy<RLC::Backend>>::Action,
-            RLC::ActionContext,
-        >,
-    > {
+    ) -> Vec<RLTrajectory<BT, RLC>> {
         let mut items = vec![];
         loop {
             let step = &self.run_steps(1, deterministic, processor, interrupter, progress)[0];

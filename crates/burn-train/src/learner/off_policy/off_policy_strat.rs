@@ -4,7 +4,8 @@ use crate::{
 };
 use burn_core::{self as burn};
 use burn_core::{config::Config, data::dataloader::Progress, tensor::Device};
-use burn_rl::{AgentLearner, AsyncPolicy, Policy, TransitionBuffer};
+use burn_ndarray::NdArray;
+use burn_rl::{AgentLearner, AsyncPolicy, Policy, Transition, TransitionBuffer};
 
 /// Parameters of an on policy training with multi environments and double-batching.
 #[derive(Config, Debug)]
@@ -71,7 +72,7 @@ where
         let mut checkpointer = training_components.checkpointer;
         let num_steps_total = training_components.num_steps;
 
-        let mut env_runner = AsyncEnvArrayRunner::<RLC::Backend, RLC>::new(
+        let mut env_runner = AsyncEnvArrayRunner::<NdArray, RLC>::new(
             env_init.clone(),
             self.config.num_envs,
             false,
@@ -80,21 +81,22 @@ where
                 learner_agent.policy(),
             ),
             false,
-            &self.device,
+            &Default::default(),
         );
         env_runner.start();
-        let mut env_runner_valid = AsyncEnvRunner::<RLC::Backend, RLC>::new(
+        let mut env_runner_valid = AsyncEnvRunner::<NdArray, RLC>::new(
             env_init,
             0,
             true,
             AsyncPolicy::new(1, learner_agent.policy()),
             true,
-            &self.device,
+            &Default::default(),
         );
         env_runner_valid.start();
-        let mut transition_buffer = TransitionBuffer::<
-            <RLC::LearningAgent as AgentLearner<RLC::Backend>>::TrainingInput,
-        >::new(self.config.replay_buffer_size);
+        let mut transition_buffer =
+            TransitionBuffer::<Transition<NdArray, RLC::State, RLC::Action>>::new(
+                self.config.replay_buffer_size,
+            );
 
         let mut valid_next = self.config.eval_interval + starting_epoch - 1;
         let mut progress = Progress {
@@ -131,7 +133,7 @@ where
                     env_runner.update_policy(u.clone());
                 }
                 let transitions = transition_buffer.random_sample(self.config.train_batch_size);
-                let train_item = learner_agent.train(transitions);
+                let train_item = learner_agent.train(transitions.into());
                 intermediary_update = Some(train_item.policy);
 
                 event_processor.process_train(RLEvent::TrainStep(EvaluationItem::new(

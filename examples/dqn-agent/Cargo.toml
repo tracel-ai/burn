@@ -24,14 +24,14 @@ rocm = ["burn/rocm", "burn/default"]
 # Disable autotune default for now (convolutions not optimized)
 burn = { path = "../../crates/burn", features = [
     "train",
-    "vision",
-    "metrics",
-    "std",
-    "fusion",
-    "ndarray",
-    "autotune",
+    # "vision",
+    # "metrics",
+    # "std",
+    "rl",
+    # "fusion",
+    # "ndarray",
+    # "autotune",
 ], default-features = false }
-burn-rl = { version = "0.21.0", path = "../../crates/burn-rl" }
 gym-rs = { version = "0.3.1", branch = "main", git = "https://github.com/MathisWellmann/gym-rs" }
 rand.workspace = true
 derive-new = { workspace = true }

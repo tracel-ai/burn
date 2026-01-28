@@ -7,7 +7,7 @@ use std::{
 
 use burn_core::{prelude::*, record::Record, tensor::backend::AutodiffBackend};
 
-use crate::Transition;
+use crate::TransitionBatch;
 
 #[derive(Clone, new)]
 pub struct ActionContext<A, C> {
@@ -23,10 +23,10 @@ pub trait PolicyState<B: Backend> {
 }
 
 pub trait Policy<B: Backend>: Clone {
-    type Input: Clone + Send;
-    type Output: Clone + Send;
+    type Input: Clone + Send + From<Vec<Self::Input>>;
+    type Output: Clone + Send + From<Vec<Self::Output>> + Into<Vec<Self::Output>>;
     // TODO: This VS ComponentsTypes trait.
-    type Action: Clone + Send;
+    type Action: Clone + Send + From<Vec<Self::Action>> + Into<Vec<Self::Action>>;
 
     type ActionContext: Clone;
     type PolicyState: Clone + Send + PolicyState<B>;
@@ -37,11 +37,6 @@ pub trait Policy<B: Backend>: Clone {
         states: Self::Input,
         deterministic: bool,
     ) -> (Self::Action, Vec<Self::ActionContext>);
-
-    // TODO: A littel weird but idk.
-    fn batch(&self, inputs: Vec<&Self::Input>) -> Self::Input;
-    fn unbatch(&self, inputs: Self::Action) -> Vec<Self::Action>;
-    fn unbatch_logits(&self, inputs: Self::Output) -> Vec<Self::Output>;
 
     fn update(&mut self, update: Self::PolicyState);
     fn state(&self) -> Self::PolicyState;
@@ -59,20 +54,24 @@ pub struct RLTrainOutput<TO, P> {
 }
 
 pub trait AgentLearner<B: AutodiffBackend> {
-    type TrainingInput: From<
-        Transition<
-            B,
-            <Self::InnerPolicy as Policy<B>>::Input,
-            <Self::InnerPolicy as Policy<B>>::Action,
-        >,
-    >;
+    // type TrainingInput: From<
+    //     Transition<
+    //         NdArray,
+    //         <Self::InnerPolicy as Policy<B>>::Input,
+    //         <Self::InnerPolicy as Policy<B>>::Action,
+    //     >,
+    // >;
     type TrainingOutput;
     type InnerPolicy: Policy<B>;
     type Record: Record<B>;
 
     fn train(
         &mut self,
-        input: Vec<&Self::TrainingInput>,
+        input: TransitionBatch<
+            B,
+            <Self::InnerPolicy as Policy<B>>::Input,
+            <Self::InnerPolicy as Policy<B>>::Action,
+        >,
     ) -> RLTrainOutput<Self::TrainingOutput, <Self::InnerPolicy as Policy<B>>::PolicyState>;
     fn policy(&self) -> Self::InnerPolicy;
     fn update_policy(&mut self, update: Self::InnerPolicy);
@@ -129,17 +128,15 @@ where
     }
 
     pub fn flush_actions(&mut self) {
-        let input = self
+        let input: Vec<_> = self
             .batch_action
             .iter()
-            .map(|m| &m.inference_state)
+            .map(|m| m.inference_state.clone())
             .collect();
         // Only deterministic if all actions are requested as deterministic.
         let deterministic = self.batch_action.iter().all(|item| item.deterministic);
-        let (actions, context) = self
-            .inner_policy
-            .action(self.inner_policy.batch(input), deterministic);
-        let actions = self.inner_policy.unbatch(actions);
+        let (actions, context) = self.inner_policy.action(input.into(), deterministic);
+        let actions: Vec<_> = actions.into();
 
         for (i, item) in self.batch_action.iter().enumerate() {
             item.sender
@@ -153,13 +150,13 @@ where
     }
 
     pub fn flush_logits(&mut self) {
-        let input = self
+        let input: Vec<_> = self
             .batch_logits
             .iter()
-            .map(|m| &m.inference_state)
+            .map(|m| m.inference_state.clone())
             .collect();
-        let output = self.inner_policy.forward(self.inner_policy.batch(input));
-        let logits = self.inner_policy.unbatch_logits(output);
+        let output = self.inner_policy.forward(input.into());
+        let logits: Vec<_> = output.into();
         for (i, item) in self.batch_logits.iter().enumerate() {
             item.sender
                 .send(logits[i].clone())
@@ -316,18 +313,6 @@ where
         receiver
             .recv()
             .expect("AsyncPolicy should be able to receive policy state.")
-    }
-
-    fn batch(&self, _inputs: Vec<&Self::Input>) -> Self::Input {
-        todo!()
-    }
-
-    fn unbatch(&self, _inputs: Self::Action) -> Vec<Self::Action> {
-        todo!()
-    }
-
-    fn unbatch_logits(&self, _inputs: Self::Output) -> Vec<Self::Output> {
-        todo!()
     }
 
     fn from_record(&self, _record: <Self::PolicyState as PolicyState<B>>::Record) -> Self {

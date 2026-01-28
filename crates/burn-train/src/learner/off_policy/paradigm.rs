@@ -54,8 +54,12 @@ where
     <A::InnerPolicy as Policy<B>>::PolicyState: Send,
     TO: ItemLazy + Clone + Send,
     AC: ItemLazy + Clone + Send + 'static,
-    E::State: Into<<A::InnerPolicy as Policy<B>>::Input> + Clone,
-    E::Action: From<<A::InnerPolicy as Policy<B>>::Action>,
+    E::State: Into<<A::InnerPolicy as Policy<B>>::Input> + Clone + Send + 'static,
+    E::Action: From<<A::InnerPolicy as Policy<B>>::Action>
+        + Into<<A::InnerPolicy as Policy<B>>::Action>
+        + Clone
+        + Send
+        + 'static,
 {
     /// Creates a new runner for reinforcement learning.
     ///

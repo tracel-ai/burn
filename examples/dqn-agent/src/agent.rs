@@ -3,6 +3,7 @@ use std::marker::PhantomData;
 use burn::backend::NdArray;
 use burn::module::Module;
 use burn::record::Record;
+use burn::rl::{AgentLearner, Policy, PolicyState, RLTrainOutput, TransitionBatch};
 use burn::tensor::Transaction;
 use burn::tensor::activation::softmax;
 use burn::train::ItemLazy;
@@ -16,7 +17,6 @@ use burn::{
     prelude::Backend,
     tensor::backend::AutodiffBackend,
 };
-use burn_rl::{AgentLearner, Policy, PolicyState, RLTrainOutput, Transition, TransitionBatch};
 use rand::distr::Distribution;
 use rand::distr::weighted::WeightedIndex;
 use rand::rng;
@@ -26,10 +26,9 @@ use crate::utils::{
 };
 
 pub trait DiscreteActionModel<B: Backend>: Module<B> {
-    type Input: Clone + Send;
+    type Input: Clone + Send + From<Vec<Self::Input>>;
 
-    fn forward(&self, input: Self::Input) -> Tensor<B, 2>;
-    fn batch(&self, inputs: Vec<&Self::Input>) -> Self::Input;
+    fn forward(&self, input: Self::Input) -> TensorLogits<B, 2>;
 }
 
 #[derive(Config, Debug)]
@@ -76,8 +75,33 @@ impl<B: Backend> MlpNet<B> {
     }
 }
 
+#[derive(Clone)]
+pub struct TensorState<B: Backend, const D: usize> {
+    pub state: Tensor<B, D>,
+}
+
+impl<B: Backend, const D: usize> From<Vec<TensorState<B, D>>> for TensorState<B, D> {
+    fn from(value: Vec<TensorState<B, D>>) -> Self {
+        let tensors = value.iter().map(|v| v.state.clone()).collect();
+        Self {
+            state: Tensor::cat(tensors, 0),
+        }
+    }
+}
+
+impl<B: Backend, const D: usize> From<TensorState<B, D>> for Vec<TensorState<B, D>> {
+    fn from(value: TensorState<B, D>) -> Self {
+        value
+            .state
+            .split(1, 0)
+            .iter()
+            .map(|s| TensorState { state: s.clone() })
+            .collect()
+    }
+}
+
 impl<B: Backend> DiscreteActionModel<B> for MlpNet<B> {
-    type Input = Tensor<B, 2>;
+    type Input = TensorState<B, 2>;
 
     /// Applies the forward pass on the input tensor.
     ///
@@ -85,8 +109,8 @@ impl<B: Backend> DiscreteActionModel<B> for MlpNet<B> {
     ///
     /// - input: `[batch_size, d_input]`
     /// - output: `[batch_size, d_output]`
-    fn forward(&self, input: Self::Input) -> Tensor<B, 2> {
-        let mut x = input;
+    fn forward(&self, input: Self::Input) -> TensorLogits<B, 2> {
+        let mut x = input.state;
 
         for (i, linear) in self.linears.iter().enumerate() {
             x = linear.forward(x);
@@ -96,11 +120,7 @@ impl<B: Backend> DiscreteActionModel<B> for MlpNet<B> {
             }
         }
 
-        x
-    }
-
-    fn batch(&self, inputs: Vec<&Self::Input>) -> Self::Input {
-        Tensor::cat(inputs.into_iter().cloned().collect(), 0)
+        TensorLogits { logits: x }
     }
 }
 
@@ -181,11 +201,61 @@ impl<B: Backend, M: DiscreteActionModel<B>> DQN<B, M> {
     }
 }
 
+#[derive(Clone)]
+pub struct TensorLogits<B: Backend, const D: usize> {
+    pub logits: Tensor<B, D>,
+}
+
+impl<B: Backend, const D: usize> From<Vec<TensorLogits<B, D>>> for TensorLogits<B, D> {
+    fn from(value: Vec<TensorLogits<B, D>>) -> Self {
+        let tensors = value.iter().map(|v| v.logits.clone()).collect();
+        Self {
+            logits: Tensor::cat(tensors, 0),
+        }
+    }
+}
+
+impl<B: Backend, const D: usize> From<TensorLogits<B, D>> for Vec<TensorLogits<B, D>> {
+    fn from(value: TensorLogits<B, D>) -> Self {
+        value
+            .logits
+            .split(1, 0)
+            .iter()
+            .map(|l| TensorLogits { logits: l.clone() })
+            .collect()
+    }
+}
+
+#[derive(Clone)]
+pub struct TensorActionOutput<B: Backend, const D: usize> {
+    pub actions: Tensor<B, D>,
+}
+
+impl<B: Backend, const D: usize> From<Vec<TensorActionOutput<B, D>>> for TensorActionOutput<B, D> {
+    fn from(value: Vec<TensorActionOutput<B, D>>) -> Self {
+        let tensors = value.iter().map(|v| v.actions.clone()).collect();
+        Self {
+            actions: Tensor::cat(tensors, 0),
+        }
+    }
+}
+
+impl<B: Backend, const D: usize> From<TensorActionOutput<B, D>> for Vec<TensorActionOutput<B, D>> {
+    fn from(value: TensorActionOutput<B, D>) -> Self {
+        value
+            .actions
+            .split(1, 0)
+            .iter()
+            .map(|a| TensorActionOutput { actions: a.clone() })
+            .collect()
+    }
+}
+
 // TODO: remove Environment
 impl<B: Backend, M: DiscreteActionModel<B>> Policy<B> for DQN<B, M> {
     type Input = M::Input;
-    type Output = Tensor<B, 2>;
-    type Action = Tensor<B, 2>;
+    type Output = TensorLogits<B, 2>;
+    type Action = TensorActionOutput<B, 2>;
 
     type ActionContext = ();
     type PolicyState = DqnState<B, M>;
@@ -199,9 +269,12 @@ impl<B: Backend, M: DiscreteActionModel<B>> Policy<B> for DQN<B, M> {
         states: Self::Input,
         deterministic: bool,
     ) -> (Self::Action, Vec<Self::ActionContext>) {
-        let logits = self.forward(states);
+        let logits = self.forward(states).logits;
         if deterministic {
-            return (logits.argmax(1).float(), vec![]);
+            let output = TensorActionOutput {
+                actions: logits.argmax(1).float(),
+            };
+            return (output, vec![]);
         }
 
         let mut actions = vec![];
@@ -213,7 +286,11 @@ impl<B: Backend, M: DiscreteActionModel<B>> Policy<B> for DQN<B, M> {
             let action = dist.sample(&mut rng);
             actions.push(Tensor::<B, 1>::from_floats([action], &probs[i].device()));
         }
-        return (Tensor::stack(actions, 1), vec![]);
+
+        let output = TensorActionOutput {
+            actions: Tensor::stack(actions, 1),
+        };
+        return (output, vec![]);
     }
 
     fn update(&mut self, update: Self::PolicyState) {
@@ -225,18 +302,6 @@ impl<B: Backend, M: DiscreteActionModel<B>> Policy<B> for DQN<B, M> {
             model: self.model.clone(),
             _backend: PhantomData,
         }
-    }
-
-    fn batch(&self, inputs: Vec<&Self::Input>) -> Self::Input {
-        self.model.batch(inputs)
-    }
-
-    fn unbatch(&self, inputs: Self::Action) -> Vec<Self::Action> {
-        inputs.split(1, 0)
-    }
-
-    fn unbatch_logits(&self, inputs: Self::Output) -> Vec<Self::Output> {
-        inputs.split(1, 0)
     }
 
     fn from_record(&self, record: <Self::PolicyState as PolicyState<B>>::Record) -> Self {
@@ -331,34 +396,43 @@ where
     M::InnerModule: DiscreteActionModel<B::InnerBackend> + TargetModel<B::InnerBackend>,
     O: Optimizer<M, B> + 'static,
 {
-    type TrainingInput = Transition<
-        B,
-        <Self::InnerPolicy as Policy<B>>::Input,
-        <Self::InnerPolicy as Policy<B>>::Action,
-    >;
+    // type TrainingInput = Transition<
+    //     B,
+    //     <Self::InnerPolicy as Policy<B>>::Input,
+    //     <Self::InnerPolicy as Policy<B>>::Action,
+    // >;
     type TrainingOutput = SimpleTrainOutput<B>;
     type InnerPolicy = EpsilonGreedyPolicy<B, DQN<B, M>>;
     type Record = DqnLearningRecord<B, M, O>;
 
     fn train(
         &mut self,
-        input: std::vec::Vec<&Self::TrainingInput>,
+        input: TransitionBatch<
+            B,
+            <Self::InnerPolicy as Policy<B>>::Input,
+            <Self::InnerPolicy as Policy<B>>::Action,
+        >,
     ) -> RLTrainOutput<Self::TrainingOutput, <Self::InnerPolicy as Policy<B>>::PolicyState> {
-        let batch = TransitionBatch::from(input);
+        // let batch = TransitionBatch::from(input);
 
-        let states_batch = self.policy_model.batch(batch.states.iter().collect());
-        let next_states_batch = self.target_model.batch(batch.next_states.iter().collect());
-        let actions_batch = batch.actions;
-        let actions_batch = Tensor::cat(actions_batch, 0);
-        let rewards_batch = batch.rewards;
-        let dones_batch = batch.dones;
+        // let states_batch = self.policy_model.batch(batch.states.iter().collect());
+        // let next_states_batch = self.target_model.batch(batch.next_states.iter().collect());
+        // let actions_batch = batch.actions;
+        // let actions_batch = Tensor::cat(actions_batch, 0);
+        // let rewards_batch = batch.rewards;
+        // let dones_batch = batch.dones;
+        let states_batch = input.states;
+        let next_states_batch = input.next_states;
+        let actions_batch = input.actions.actions;
+        let rewards_batch = input.rewards;
+        let dones_batch = input.dones;
 
         // Optimize
-        let logits = self.policy_model.forward(states_batch);
+        let logits = self.policy_model.forward(states_batch).logits;
         let state_action_values = logits.gather(1, actions_batch.int());
 
         let next_state_values = self.target_model.forward(next_states_batch.clone());
-        let next_state_values = next_state_values.max_dim(1).squeeze::<1>();
+        let next_state_values = next_state_values.logits.max_dim(1).squeeze::<1>();
 
         let not_done_batch = Tensor::ones_like(&dones_batch) - dones_batch;
         let expected_state_action_values = (next_state_values * not_done_batch.squeeze())

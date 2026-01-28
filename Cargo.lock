@@ -670,6 +670,7 @@ dependencies = [
  "burn-nn",
  "burn-optim",
  "burn-remote",
+ "burn-rl",
  "burn-rocm",
  "burn-router",
  "burn-store",
@@ -2975,7 +2976,6 @@ name = "dqn-agent"
 version = "0.21.0"
 dependencies = [
  "burn",
- "burn-rl",
  "derive-new",
  "gym-rs",
  "rand 0.9.2",

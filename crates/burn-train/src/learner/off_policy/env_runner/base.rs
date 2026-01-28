@@ -8,7 +8,7 @@ use burn_rl::Transition;
 
 use crate::{
     AgentEvaluationEvent, EpisodeSummary, EvaluationItem, EventProcessorTraining,
-    RLEventProcessorType, RLTimeStep,
+    RLEventProcessorType,
 };
 use crate::{Interrupter, RLComponentsTypes};
 use crate::{RLEvent, RlPolicy};
@@ -38,6 +38,20 @@ pub struct TimeStep<B: Backend, S, A, C> {
     /// The action's context for this timestep.
     pub action_context: C,
 }
+
+pub(crate) type RLTimeStep<B, RLC> = TimeStep<
+    B,
+    <RLC as RLComponentsTypes>::State,
+    <RLC as RLComponentsTypes>::Action,
+    <RLC as RLComponentsTypes>::ActionContext,
+>;
+
+pub(crate) type RLTrajectory<B, RLC> = Trajectory<
+    B,
+    <RLC as RLComponentsTypes>::State,
+    <RLC as RLComponentsTypes>::Action,
+    <RLC as RLComponentsTypes>::ActionContext,
+>;
 
 /// Trait for a structure that implements an agent/environement interface.
 pub trait EnvRunner<BT: Backend, RLC: RLComponentsTypes> {
@@ -85,14 +99,7 @@ pub trait EnvRunner<BT: Backend, RLC: RLComponentsTypes> {
         processor: &mut RLEventProcessorType<RLC>,
         interrupter: &Interrupter,
         progress: &mut Progress,
-    ) -> Vec<
-        Trajectory<
-            BT,
-            <RLC::Policy as Policy<RLC::Backend>>::Input,
-            <RLC::Policy as Policy<RLC::Backend>>::Action,
-            RLC::ActionContext,
-        >,
-    >;
+    ) -> Vec<RLTrajectory<BT, RLC>>;
     /// Update the runner's agent.
     fn update_policy(&mut self, update: <RlPolicy<RLC> as Policy<RLC::Backend>>::PolicyState);
     /// Get the state of the runner's agent.
@@ -141,29 +148,22 @@ where
         processor: &mut RLEventProcessorType<RLC>,
         interrupter: &Interrupter,
         progress: &mut Progress,
-    ) -> Vec<
-        TimeStep<
-            BT,
-            <RLC::Policy as Policy<RLC::Backend>>::Input,
-            <RLC::Policy as Policy<RLC::Backend>>::Action,
-            RLC::ActionContext,
-        >,
-    > {
+    ) -> Vec<RLTimeStep<BT, RLC>> {
         let mut items = vec![];
         let device = Default::default();
         for _ in 0..num_steps {
             let state = self.env.state();
             let (action, context) = self.agent.action(state.clone().into(), deterministic);
 
-            let step_result = self.env.step(action.clone().into());
+            let step_result = self.env.step(RLC::Action::from(action.clone()));
 
             self.current_reward += step_result.reward;
             self.step_num += 1;
 
             let transition = Transition::new(
-                state.into(),
-                step_result.next_state.into(),
-                action,
+                state.clone(),
+                step_result.next_state,
+                RLC::Action::from(action),
                 Tensor::from_data([step_result.reward as f64], &device),
                 Tensor::from_data(
                     [(step_result.done || step_result.truncated) as i32 as f64],
@@ -224,19 +224,13 @@ where
         processor: &mut RLEventProcessorType<RLC>,
         interrupter: &Interrupter,
         progress: &mut Progress,
-    ) -> Vec<
-        Trajectory<
-            BT,
-            <RLC::Policy as Policy<RLC::Backend>>::Input,
-            <RLC::Policy as Policy<RLC::Backend>>::Action,
-            RLC::ActionContext,
-        >,
-    > {
+    ) -> Vec<RLTrajectory<BT, RLC>> {
         let mut items = vec![];
         for ep in 0..num_episodes {
             let mut steps = vec![];
             loop {
-                let step = &self.run_steps(1, deterministic, processor, interrupter, progress)[0];
+                let step =
+                    self.run_steps(1, deterministic, processor, interrupter, progress)[0].clone();
                 steps.push(step.clone());
 
                 if self.eval {
@@ -260,7 +254,7 @@ where
                     }
                 }
 
-                if interrupter.should_stop() || step.done{
+                if interrupter.should_stop() || step.done {
                     break;
                 }
             }
@@ -272,8 +266,10 @@ where
         }
         items
     }
-    
-    fn policy(&self) -> <RlPolicy<RLC> as Policy<<RLC as RLComponentsTypes>::Backend>>::PolicyState {
+
+    fn policy(
+        &self,
+    ) -> <RlPolicy<RLC> as Policy<<RLC as RLComponentsTypes>::Backend>>::PolicyState {
         self.agent.state()
     }
 }

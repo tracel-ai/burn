@@ -6,15 +6,17 @@ use burn::{
     nn::{self, Linear},
     prelude::Backend,
     record::Record,
+    rl::{Policy, PolicyState},
     tensor::Device,
     train::{
         ItemLazy,
         metric::{Adaptor, ExplorationRateInput},
     },
 };
-use burn_rl::{Policy, PolicyState};
 use derive_new::new;
 use rand::{random, random_range};
+
+use crate::agent::{TensorActionOutput, TensorLogits};
 
 pub fn create_lin_layers<B: Backend>(
     num_layers: usize,
@@ -150,14 +152,14 @@ impl<B: Backend, P: Policy<B>> EpsilonGreedyPolicy<B, P> {
 impl<B, P> Policy<B> for EpsilonGreedyPolicy<B, P>
 where
     B: Backend,
-    P: Policy<B, Output = Tensor<B, 2>, Action = Tensor<B, 2>>,
+    P: Policy<B, Output = TensorLogits<B, 2>, Action = TensorActionOutput<B, 2>>,
 {
     type ActionContext = EpsilonGreedyPolicyOutput;
     type PolicyState = EpsilonGreedyPolicyState<B, P>;
 
     type Input = P::Input;
-    type Output = Tensor<B, 2>;
-    type Action = Tensor<B, 2>;
+    type Output = TensorLogits<B, 2>;
+    type Action = TensorActionOutput<B, 2>;
 
     fn forward(&mut self, states: Self::Input) -> Self::Output {
         self.inner_policy.forward(states)
@@ -168,7 +170,7 @@ where
         states: Self::Input,
         deterministic: bool,
     ) -> (Self::Action, Vec<Self::ActionContext>) {
-        let logits = self.inner_policy.forward(states);
+        let logits = self.inner_policy.forward(states).logits;
         let greedy_actions = logits.argmax(1);
         let greedy_actions = greedy_actions.split(1, 0);
 
@@ -187,7 +189,9 @@ where
                 );
             }
         }
-        (Tensor::cat(actions, 0), contexts)
+
+        let output = Tensor::cat(actions, 0);
+        (TensorActionOutput { actions: output }, contexts)
     }
 
     fn update(&mut self, update: Self::PolicyState) {
@@ -200,18 +204,6 @@ where
             inner_state: self.inner_policy.state(),
             step: self.step,
         }
-    }
-
-    fn batch(&self, inputs: Vec<&Self::Input>) -> Self::Input {
-        self.inner_policy.batch(inputs)
-    }
-
-    fn unbatch(&self, inputs: Self::Action) -> Vec<Self::Action> {
-        self.inner_policy.unbatch(inputs)
-    }
-
-    fn unbatch_logits(&self, inputs: Self::Output) -> Vec<Self::Output> {
-        self.inner_policy.unbatch_logits(inputs)
     }
 
     fn from_record(&self, record: <Self::PolicyState as PolicyState<B>>::Record) -> Self {
