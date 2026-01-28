@@ -148,6 +148,7 @@ impl LpLoss {
         match reduction {
             Reduction::Mean | Reduction::Auto => unreduced_loss.mean(),
             Reduction::Sum => unreduced_loss.sum(),
+            other => panic!("{other:?} reduction is not supported"),
         }
     }
 

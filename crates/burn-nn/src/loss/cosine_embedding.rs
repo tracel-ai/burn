@@ -92,7 +92,7 @@ impl CosineEmbeddingLoss {
     ) -> Tensor<B, 1> {
         let tensor = self.forward_no_reduction(input1, input2, target);
         match &self.reduction.0 {
-            Reduction::Mean => tensor.mean(),
+            Reduction::Mean | Reduction::Auto => tensor.mean(),
             Reduction::Sum => tensor.sum(),
             other => panic!("{other:?} reduction is not supported"),
         }
