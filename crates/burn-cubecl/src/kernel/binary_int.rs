@@ -151,12 +151,8 @@ pub(crate) fn launch_binop_int<R: CubeRuntime, O: BinaryOpIntFamily>(
 
             rhs
         } else {
-            let output = empty_device_dtype(
-                lhs.client.clone(),
-                lhs.device.clone(),
-                shape_out,
-                lhs.dtype,
-            );
+            let output =
+                empty_device_dtype(lhs.client.clone(), lhs.device.clone(), shape_out, lhs.dtype);
 
             kernel_binop_int::launch_unchecked::<O, R>(
                 &client,

@@ -8,10 +8,7 @@ use crate::{
         pool::pool2d::{Position, view4d},
         utils::shape_divmod,
     },
-    ops::{
-        max_line_size, numeric::empty_device_dtype, permute_nchw_to_nhwc,
-        permute_nhwc_to_nchw,
-    },
+    ops::{max_line_size, numeric::empty_device_dtype, permute_nchw_to_nhwc, permute_nhwc_to_nchw},
     tensor::CubeTensor,
 };
 use burn_backend::{Shape, ops::conv::calculate_pool_output_size};
@@ -131,8 +128,7 @@ pub(crate) fn avg_pool2d<R: CubeRuntime>(
     let line_size = max_line_size(&x);
 
     let shape_out = Shape::new([batch_size, size_0, size_1, channels]);
-    let output =
-        empty_device_dtype(x.client.clone(), x.device.clone(), shape_out, x.dtype);
+    let output = empty_device_dtype(x.client.clone(), x.device.clone(), shape_out, x.dtype);
 
     let working_units = output.shape.num_elements() / line_size as usize;
     let cube_dim = CubeDim::new(&x.client, working_units);

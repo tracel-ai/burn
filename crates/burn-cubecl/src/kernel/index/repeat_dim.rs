@@ -1,6 +1,5 @@
 use crate::{
-    CubeRuntime, kernel::utils::shape_divmod, ops::numeric::empty_device_dtype,
-    tensor::CubeTensor,
+    CubeRuntime, kernel::utils::shape_divmod, ops::numeric::empty_device_dtype, tensor::CubeTensor,
 };
 use cubecl::{
     calculate_cube_count_elemwise,
