@@ -51,7 +51,7 @@ type TestBackend = burn_ndarray::NdArray;
 fn get_safetensors_path() -> &'static str {
     concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../burn-import/safetensors-tests/tests/multi_layer/multi_layer.safetensors"
+        "/safetensors-tests/tests/multi_layer/multi_layer.safetensors"
     )
 }
 
