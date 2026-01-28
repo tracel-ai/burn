@@ -18,3 +18,6 @@ pub use tensor::*;
 
 // Re-exported types
 pub use burn_backend::{AllocationProperty, Bytes, StreamId, bf16, f16, read_sync, try_read_sync};
+
+mod device;
+pub use device::*;

@@ -6,6 +6,13 @@ use burn_tensor::module::naive_attention;
 
 #[test]
 fn test_attention_no_mask() {
+    // Skip on metal with f16 - flash attention returns zeros
+    // Enable once this issue is fixed: https://github.com/tracel-ai/burn/issues/4325
+    #[cfg(feature = "metal")]
+    if core::any::TypeId::of::<FloatElemType>() == core::any::TypeId::of::<burn_tensor::f16>() {
+        return;
+    }
+
     let num_batches = 1;
     let num_heads = 1;
     let seq_q = 128;

@@ -6,6 +6,7 @@ use alloc::string::String;
 use alloc::vec::Vec;
 use bytemuck::{AnyBitPattern, CheckedBitPattern, Zeroable, cast_mut, checked::CheckedCastError};
 use rand::RngCore;
+use thiserror::Error;
 
 use crate::Scalar;
 use crate::distribution::Distribution;
@@ -662,20 +663,14 @@ impl core::fmt::Display for TensorData {
 }
 
 /// The things that can go wrong when manipulating tensor data.
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum DataError {
     /// Failed to cast the values to a specified element type.
+    #[error("Failed to cast values to the specified element type.\nError:\n  {0}")]
     CastError(CheckedCastError),
     /// Invalid target element type.
+    #[error("{0}")]
     TypeMismatch(String),
-}
-
-impl core::error::Error for DataError {}
-
-impl core::fmt::Display for DataError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_str(format!("{self:?}").as_str())
-    }
 }
 
 #[cfg(test)]
