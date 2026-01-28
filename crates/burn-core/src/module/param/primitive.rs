@@ -81,6 +81,10 @@ where
     fn valid(&self) -> Self::InnerModule {
         self.as_ref().map(|module| module.valid())
     }
+
+    fn from_inner(module: Self::InnerModule) -> Self {
+        module.map(|module| T::from_inner(module))
+    }
 }
 
 impl<T, B> Module<B> for Vec<T>
@@ -184,6 +188,13 @@ where
     fn valid(&self) -> Self::InnerModule {
         self.iter().map(|module| module.valid()).collect()
     }
+
+    fn from_inner(module: Self::InnerModule) -> Self {
+        module
+            .into_iter()
+            .map(|module| T::from_inner(module))
+            .collect()
+    }
 }
 
 impl<const N: usize, T, B> Module<B> for [T; N]
@@ -281,6 +292,10 @@ where
     fn valid(&self) -> Self::InnerModule {
         self.clone().map(|module| module.valid())
     }
+
+    fn from_inner(module: Self::InnerModule) -> Self {
+        module.map(|module| T::from_inner(module))
+    }
 }
 
 /// A macro for generating implementations for tuple modules of different sizes.
@@ -351,6 +366,10 @@ macro_rules! impl_module_tuple {
 
             fn valid(&self) -> Self::InnerModule {
                 ($(self.$i.valid(),)*)
+            }
+
+            fn from_inner(module: Self::InnerModule) -> Self {
+                ($($l::from_inner(module.$i),)*)
             }
         }
 
