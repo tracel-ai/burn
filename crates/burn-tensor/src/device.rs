@@ -150,15 +150,15 @@ impl DeviceError {
     }
 }
 
-fn supports_dtype<B: Backend>(
+fn check_dtype_support<B: Backend>(
     device: &B::Device,
     dtype: impl Into<DType>,
 ) -> Result<(), DeviceError> {
     let dtype = dtype.into();
-    if !B::supports_dtype(device, dtype) {
-        Err(DeviceError::unsupported_dtype(device, dtype))
-    } else {
+    if B::supports_dtype(device, dtype) {
         Ok(())
+    } else {
+        Err(DeviceError::unsupported_dtype(device, dtype))
     }
 }
 
@@ -193,8 +193,8 @@ pub fn set_default_dtypes<B: Backend>(
 ) -> Result<(), DeviceError> {
     let float_dtype = float_dtype.into();
     let int_dtype = int_dtype.into();
-    supports_dtype::<B>(device, float_dtype)?;
-    supports_dtype::<B>(device, int_dtype)?;
+    check_dtype_support::<B>(device, float_dtype)?;
+    check_dtype_support::<B>(device, int_dtype)?;
 
     Ok(set_default_dtypes_unchecked(device, float_dtype, int_dtype))
 }
@@ -226,7 +226,7 @@ pub fn set_default_float_dtype<B: Backend>(
     dtype: impl Into<FloatDType>,
 ) -> Result<(), DeviceError> {
     let dtype = dtype.into();
-    supports_dtype::<B>(device, dtype)?;
+    check_dtype_support::<B>(device, dtype)?;
 
     Ok(set_default_float_dtype_unchecked(device, dtype))
 }
@@ -258,7 +258,7 @@ pub fn set_default_int_dtype<B: Backend>(
     dtype: impl Into<IntDType>,
 ) -> Result<(), DeviceError> {
     let dtype = dtype.into();
-    supports_dtype::<B>(device, dtype)?;
+    check_dtype_support::<B>(device, dtype)?;
 
     Ok(set_default_int_dtype_unchecked(device, dtype))
 }
