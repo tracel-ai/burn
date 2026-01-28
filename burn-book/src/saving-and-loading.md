@@ -66,8 +66,12 @@ let model = Model::init(&device).load_record(record);
 
 ## Model Weight Store
 
-Burn also provides the `burn-store` crate for loading and saving model weights with support for
-multiple formats and cross-framework interoperability.
+While the Recorder API works well for basic saving and loading, `burn-store` was introduced to
+address its limitations around memory efficiency and flexibility. It provides zero-copy
+memory-mapped loading, cross-framework interoperability (PyTorch and SafeTensors), key remapping,
+partial loading, and filtering — capabilities that the Recorder API does not offer. The `burn-store`
+crate is intended to eventually replace the Recorder API, but since it was recently released, both
+APIs are supported.
 
 ### Supported Formats
 
