@@ -1,15 +1,18 @@
 use burn_backend::{Backend, Element, tensor::Device};
 use burn_std::DType;
 
+use crate::get_device_policy;
+
 /// Options for tensor creation.
 ///
-/// This struct allows specifying the `device` and/or data type (`dtype`) when creating a tensor.
+/// This struct allows specifying the `device` and overriding the data type when creating a tensor.
+/// When the `dtype` is not specified, the [device's default policy](crate::set_default_dtypes) is used.
 #[derive(Debug, Clone)]
 pub struct TensorCreationOptions<B: Backend> {
     /// Device where the tensor will be created.
     pub device: Device<B>,
     /// Optional data type.
-    /// If `None`, the dtype will be inferred on creation from the backend's default dtype for the tensor kind.
+    /// If `None`, the dtype will be inferred on creation from the [device policy](crate::set_default_dtypes).
     pub dtype: Option<DType>,
 }
 
@@ -23,7 +26,7 @@ impl<B: Backend> Default for TensorCreationOptions<B> {
 impl<B: Backend> TensorCreationOptions<B> {
     /// Create new options with a specific device.
     ///
-    /// Data type will be inferred on creation from the backend's default dtype for the tensor kind.
+    /// Data type will follow the [device policy](crate::set_default_dtypes) on tensor creation.
     pub fn new(device: Device<B>) -> Self {
         Self {
             device,
@@ -65,6 +68,26 @@ impl<B: Backend> TensorCreationOptions<B> {
     /// This is useful for cases where [`TensorCreationOptions`] may not have an explicit `dtype`.
     pub fn dtype_or(&self, dtype: DType) -> DType {
         self.dtype.unwrap_or(dtype)
+    }
+
+    /// Returns the tensor data type, or the default from the [device policy](crate::set_default_dtypes).
+    pub(crate) fn resolve_policy(&self, dtype: DType) -> DType {
+        // TODO: should rely on tensor kind, not element dtype
+        self.dtype.unwrap_or_else(|| {
+            let policy = get_device_policy(&self.device);
+            if dtype.is_float()
+                && let Some(float_dtype) = policy.float_dtype()
+            {
+                float_dtype.into()
+            } else if (dtype.is_int() || dtype.is_uint())
+                && let Some(int_dtype) = policy.int_dtype()
+            {
+                int_dtype.into()
+            } else {
+                // If policy was not explicitly set, use the fallback dtype (default backend elem type)
+                dtype
+            }
+        })
     }
 }
 
