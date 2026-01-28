@@ -164,6 +164,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                     self.blocks[i].settings.ref_layout,
                     block,
                     &plan.handle_inputs,
+                    &plan.handle_outputs,
                 );
             } else {
                 Self::add_layout_info_inputs(block, &plan.handle_inputs);
@@ -185,6 +186,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         ref_layout_setting: RefLayoutSetting,
         block: &mut BlockPlan<'_>,
         handle_inputs: &[HandleInput<R>],
+        handle_outputs: &[HandleOutput<R>],
     ) {
         if let Some(input_ref) = block.potential_reference_input.take() {
             match input_ref {
@@ -255,8 +257,63 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                 }
             };
         } else {
-            block.reference = ReferenceSelection::NotFound;
+            // No input reference found, try to use an output from this block as the reference.
+            // This can happen when loading saved model parameters that have no input data flow,
+            // or when all inputs are unhandled/indexed tensors.
+            Self::select_reference_from_outputs(ref_layout_setting, block, handle_outputs);
         }
+    }
+
+    /// Fallback: try to use an output that belongs to this block as the reference layout.
+    fn select_reference_from_outputs(
+        ref_layout_setting: RefLayoutSetting,
+        block: &mut BlockPlan<'_>,
+        handle_outputs: &[HandleOutput<R>],
+    ) {
+        // Find an owned output that belongs to this block (i.e., is in block.writes)
+        for (pos, output) in handle_outputs.iter().enumerate() {
+            if let HandleOutput::Owned {
+                relative_id,
+                precision,
+                global_shape,
+                handle,
+                ..
+            } = output
+            {
+                // Only use outputs that are written by this block
+                if !block.writes.contains_key(relative_id) {
+                    continue;
+                }
+
+                let set_ref_as_concrete = || ReferenceSelection::Concrete {
+                    layout: FuseArg::Output(pos, *precision, LayoutInfo::IsRef),
+                    shape: global_shape.clone(),
+                    strides: handle.strides.clone(),
+                };
+
+                let set_ref_as_virtual = || ReferenceSelection::VirtualShape {
+                    original: FuseArg::Output(pos, *precision, LayoutInfo::Unknown),
+                    shape: global_shape.clone(),
+                    strides: contiguous_strides(global_shape),
+                };
+
+                // Respect the ref_layout_setting, similar to how inputs are handled
+                block.reference = match ref_layout_setting {
+                    RefLayoutSetting::Any => set_ref_as_concrete(),
+                    RefLayoutSetting::OnlyContiguous => {
+                        if is_contiguous(global_shape, &handle.strides) {
+                            set_ref_as_concrete()
+                        } else {
+                            set_ref_as_virtual()
+                        }
+                    }
+                };
+                return;
+            }
+        }
+
+        // No suitable output found for this block
+        block.reference = ReferenceSelection::NotFound;
     }
 
     fn add_layout_info_inputs(block: &mut BlockPlan<'_>, handle_inputs: &[HandleInput<R>]) {
