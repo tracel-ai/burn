@@ -1,11 +1,11 @@
 use crate::{
     CubeRuntime,
     kernel::{
-        conv::{batches_per_run, decompose_linear},
+        conv::batches_per_run,
         into_contiguous_aligned,
         matmul::{MatmulStrategy, matmul},
         slice,
-        utils::{linear_view, shape_divmod},
+        utils::{decompose_linear, linear_view, shape_divmod},
     },
     ops::{numeric::empty_device_dtype, reshape, swap_dims},
     tensor::CubeTensor,

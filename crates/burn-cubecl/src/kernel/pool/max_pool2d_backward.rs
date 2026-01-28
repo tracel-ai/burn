@@ -1,6 +1,9 @@
 use crate::{
     CubeRuntime,
-    kernel::{conv::decompose_linear, into_contiguous_aligned, utils::shape_divmod},
+    kernel::{
+        into_contiguous_aligned,
+        utils::{decompose_linear, shape_divmod},
+    },
     ops::{max_line_size, numeric::empty_device_dtype, permute_nchw_to_nhwc, permute_nhwc_to_nchw},
     tensor::CubeTensor,
 };

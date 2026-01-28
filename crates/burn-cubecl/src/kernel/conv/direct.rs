@@ -1,12 +1,12 @@
-use crate::ops::numeric::empty_device_dtype;
 use crate::{
     CubeRuntime,
     kernel::{into_contiguous_aligned, utils::linear_view},
     ops::max_line_size,
     tensor::CubeTensor,
 };
+use crate::{kernel::utils::decompose_linear, ops::numeric::empty_device_dtype};
 use burn_backend::ops::{ConvOptions, conv::calculate_conv_output_sizes};
-use cubecl::std::{CubeOption, CubeOptionExpand, FastDivmod, FastDivmodArgs, FastDivmodInt};
+use cubecl::std::{CubeOption, CubeOptionExpand, FastDivmod, FastDivmodArgs};
 use cubecl::{
     calculate_cube_count_elemwise, prelude::*, std::tensor::layout::linear::LinearView,
     tensor_line_size_parallel,
@@ -314,24 +314,4 @@ pub fn conv_direct<R: CubeRuntime, const N: usize>(
     }?;
 
     Ok(output)
-}
-
-#[cube]
-pub(crate) fn decompose_linear<I: FastDivmodInt>(
-    pos: I,
-    shape: &Sequence<FastDivmod<I>>,
-) -> (I, Sequence<I>) {
-    let rank = comptime![shape.len()];
-    let mut offs = pos;
-    let mut out = Sequence::new();
-
-    #[unroll]
-    for i in 0..rank {
-        let dim = comptime![rank - i - 1];
-        let (rem, offs_local) = shape.index(dim).div_mod(offs);
-        out.push(offs_local);
-        offs = rem;
-    }
-
-    (offs, out.rev())
 }

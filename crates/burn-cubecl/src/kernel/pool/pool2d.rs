@@ -11,7 +11,7 @@ use cubecl::{
     },
 };
 
-use crate::{CubeRuntime, kernel::conv::decompose_linear, tensor::CubeTensor};
+use crate::{CubeRuntime, kernel::utils::decompose_linear, tensor::CubeTensor};
 
 pub trait Pool2dDirectStrategyFamily: Send + Sync + 'static {
     type Indices: LaunchArg;

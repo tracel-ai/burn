@@ -6,10 +6,7 @@ use cubecl::{
 
 use crate::{
     CubeRuntime,
-    kernel::{
-        conv::decompose_linear,
-        utils::{linear_view, shape_divmod},
-    },
+    kernel::utils::{decompose_linear, linear_view, shape_divmod},
     ops::numeric::empty_device_dtype,
     tensor::CubeTensor,
 };

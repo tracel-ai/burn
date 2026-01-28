@@ -1,9 +1,9 @@
 use burn_backend::Shape;
 use cubecl::{
     ir::LineSize,
-    prelude::{ArrayArg, ScalarArg},
+    prelude::*,
     std::{
-        FastDivmod, FastDivmodArgs,
+        FastDivmod, FastDivmodArgs, FastDivmodInt,
         tensor::layout::linear::{LinearLayoutArgs, LinearViewLaunch},
     },
 };
@@ -134,4 +134,24 @@ pub fn broadcast_strides<'a, R: CubeRuntime>(
     } else {
         tensor.strides.iter().copied().map(ScalarArg::new).collect()
     }
+}
+
+#[cube]
+pub(crate) fn decompose_linear<I: FastDivmodInt>(
+    pos: I,
+    shape: &Sequence<FastDivmod<I>>,
+) -> (I, Sequence<I>) {
+    let rank = comptime![shape.len()];
+    let mut offs = pos;
+    let mut out = Sequence::new();
+
+    #[unroll]
+    for i in 0..rank {
+        let dim = comptime![rank - i - 1];
+        let (rem, offs_local) = shape.index(dim).div_mod(offs);
+        out.push(offs_local);
+        offs = rem;
+    }
+
+    (offs, out.rev())
 }

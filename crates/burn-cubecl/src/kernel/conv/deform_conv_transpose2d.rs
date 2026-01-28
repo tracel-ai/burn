@@ -2,13 +2,11 @@ use super::{bilinear_interpolate, deform_im2col, index};
 use crate::{
     CubeRuntime,
     kernel::{
-        cast,
-        conv::decompose_linear,
-        into_contiguous_aligned,
+        cast, into_contiguous_aligned,
         matmul::{MatmulStrategy, matmul},
         reduce::reduce_dim,
         slice_assign,
-        utils::linear_view,
+        utils::{decompose_linear, linear_view},
     },
     ops::{
         numeric::{empty_device_dtype, zeros_client},
