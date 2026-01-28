@@ -274,7 +274,9 @@ impl<B: Backend> LocalCollectiveServer<B> {
         #[allow(clippy::unnecessary_unwrap)]
         if self.peers.is_empty() || self.config.is_none() {
             self.config = Some(config);
-        } else if *self.config.as_ref().unwrap() != config {
+        } else if let Some(cfg) = &self.config
+            && *cfg != config
+        {
             callback
                 .send(Err(CollectiveError::RegisterParamsMismatch))
                 .unwrap();

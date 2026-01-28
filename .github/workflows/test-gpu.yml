@@ -50,19 +50,21 @@ jobs:
     needs: [prepare-checks]
     timeout-minutes: 60
     # '@id:' label must be unique within this worklow
-    runs-on: [
-      '@id:burn-cuda-job-${{github.run_id}}-${{github.run_attempt}}',
-      '@pr_number:${{ inputs.pr_number }}',
-      '@organization:tracel-ai',
-      '@repository:burn',
-      '@image-family:${{ needs.prepare-checks.outputs.gcp_runners_image_family }}',
-      '@machine-type:${{ needs.prepare-checks.outputs.gcp_runners_machine_type }}',
-      '@zones:${{ needs.prepare-checks.outputs.gcp_runners_zone }}',
-      '@gpu:true' ]
+    runs-on:
+      [
+        "@id:burn-cuda-job-${{github.run_id}}-${{github.run_attempt}}",
+        "@pr_number:${{ inputs.pr_number }}",
+        "@organization:tracel-ai",
+        "@repository:burn",
+        "@image-family:${{ needs.prepare-checks.outputs.gcp_runners_image_family }}",
+        "@machine-type:${{ needs.prepare-checks.outputs.gcp_runners_machine_type }}",
+        "@zones:${{ needs.prepare-checks.outputs.gcp_runners_zone }}",
+        "@gpu:true",
+      ]
     env:
-      LD_LIBRARY_PATH: '/usr/local/cuda/lib64'
+      LD_LIBRARY_PATH: "/usr/local/cuda/lib64"
       # disable incremental compilation (reduces artifact size)
-      CARGO_PROFILE_TEST_INCREMENTAL: 'false'
+      CARGO_PROFILE_TEST_INCREMENTAL: "false"
     # Keep the stragegy to be able to easily add new rust versions if required
     strategy:
       matrix:
@@ -84,18 +86,20 @@ jobs:
     needs: [prepare-checks]
     timeout-minutes: 60
     # '@id:' label must be unique within this worklow
-    runs-on: [
-      '@id:burn-vulkan-job-${{github.run_id}}-${{github.run_attempt}}',
-      '@pr_number:${{ inputs.pr_number }}',
-      '@organization:tracel-ai',
-      '@repository:burn',
-      '@image-family:${{ needs.prepare-checks.outputs.gcp_runners_image_family }}',
-      '@machine-type:${{ needs.prepare-checks.outputs.gcp_runners_machine_type }}',
-      '@zones:${{ needs.prepare-checks.outputs.gcp_runners_zone }}',
-      '@gpu:true' ]
+    runs-on:
+      [
+        "@id:burn-vulkan-job-${{github.run_id}}-${{github.run_attempt}}",
+        "@pr_number:${{ inputs.pr_number }}",
+        "@organization:tracel-ai",
+        "@repository:burn",
+        "@image-family:${{ needs.prepare-checks.outputs.gcp_runners_image_family }}",
+        "@machine-type:${{ needs.prepare-checks.outputs.gcp_runners_machine_type }}",
+        "@zones:${{ needs.prepare-checks.outputs.gcp_runners_zone }}",
+        "@gpu:true",
+      ]
     env:
       # disable incremental compilation (reduces artifact size)
-      CARGO_PROFILE_TEST_INCREMENTAL: 'false'
+      CARGO_PROFILE_TEST_INCREMENTAL: "false"
     # Keep the stragegy to be able to easily add new rust versions if required
     strategy:
       matrix:
@@ -117,18 +121,20 @@ jobs:
     needs: [prepare-checks]
     timeout-minutes: 60
     # '@id:' label must be unique within this worklow
-    runs-on: [
-      '@id:burn-wgpu-job-${{github.run_id}}-${{github.run_attempt}}',
-      '@pr_number:${{ inputs.pr_number }}',
-      '@organization:tracel-ai',
-      '@repository:burn',
-      '@image-family:${{ needs.prepare-checks.outputs.gcp_runners_image_family }}',
-      '@machine-type:${{ needs.prepare-checks.outputs.gcp_runners_machine_type }}',
-      '@zones:${{ needs.prepare-checks.outputs.gcp_runners_zone }}',
-      '@gpu:true' ]
+    runs-on:
+      [
+        "@id:burn-wgpu-job-${{github.run_id}}-${{github.run_attempt}}",
+        "@pr_number:${{ inputs.pr_number }}",
+        "@organization:tracel-ai",
+        "@repository:burn",
+        "@image-family:${{ needs.prepare-checks.outputs.gcp_runners_image_family }}",
+        "@machine-type:${{ needs.prepare-checks.outputs.gcp_runners_machine_type }}",
+        "@zones:${{ needs.prepare-checks.outputs.gcp_runners_zone }}",
+        "@gpu:true",
+      ]
     env:
       # disable incremental compilation (reduces artifact size)
-      CARGO_PROFILE_TEST_INCREMENTAL: 'false'
+      CARGO_PROFILE_TEST_INCREMENTAL: "false"
     # Keep the stragegy to be able to easily add new rust versions if required
     strategy:
       matrix:
@@ -145,28 +151,3 @@ jobs:
       # --------------------------------------------------------------------------------
       - name: Tests (burn-wgpu)
         run: cargo xtask test ${{ env.TEST_RELEASE_FLAG }} --ci gcp-wgpu-runner
-
-# TODO: fix macos CI tests (M2 virtualization)
-  # macos-std-metal-tests:
-  #   runs-on: blaze/macos-14
-  #   needs: [prepare-checks]
-  #   timeout-minutes: 60
-  #   # Keep the stragegy to be able to easily add new rust versions if required
-  #   strategy:
-  #     matrix:
-  #       rust: [stable]
-  #       include:
-  #         - rust: stable
-  #           toolchain: stable
-  #   steps:
-  #     - name: Setup Rust
-  #       uses: tracel-ai/github-actions/setup-rust@v6
-  #       with:
-  #         rust-toolchain: ${{ matrix.toolchain }}
-  #         cache-key: ${{ matrix.rust }}-macos
-  #     # --------------------------------------------------------------------------------
-  #     - name: Device check
-  #       run: system_profiler SPHardwareDataType
-  #     # --------------------------------------------------------------------------------
-  #     - name: Tests
-  #       run: cargo xtask test ${{ env.TEST_RELEASE_FLAG }} --ci github-mac-runner
