@@ -4,7 +4,8 @@ use burn_tensor::{DType, Tensor, TensorData};
 #[cfg(feature = "std")]
 use burn_backend_tests::might_panic;
 
-#[cfg(feature = "std")]
+// Skip on metal - F64 not supported
+#[cfg(all(feature = "std", not(feature = "metal")))]
 #[might_panic(reason = "Unsupported precision for fusion")]
 #[test]
 fn cast_keeps_gradient_flow() {

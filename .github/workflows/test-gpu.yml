@@ -74,7 +74,7 @@ jobs:
             toolchain: stable
     steps:
       - name: Setup Rust
-        uses: tracel-ai/github-actions/setup-rust@v6
+        uses: tracel-ai/github-actions/setup-rust@v7
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           enable-cache: false
@@ -109,7 +109,7 @@ jobs:
             toolchain: stable
     steps:
       - name: Setup Rust
-        uses: tracel-ai/github-actions/setup-rust@v6
+        uses: tracel-ai/github-actions/setup-rust@v7
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           enable-cache: false
@@ -144,7 +144,7 @@ jobs:
             toolchain: stable
     steps:
       - name: Setup Rust
-        uses: tracel-ai/github-actions/setup-rust@v6
+        uses: tracel-ai/github-actions/setup-rust@v7
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           enable-cache: false

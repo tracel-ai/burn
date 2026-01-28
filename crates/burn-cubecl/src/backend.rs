@@ -83,6 +83,7 @@ where
     fn supports_dtype(device: &Self::Device, dtype: DType) -> bool {
         let client = R::client(device);
 
+        // TODO: define the contract for a dtype support more strictly
         let ty: StorageType = dtype.into();
         client.properties().supports_type(ty.elem_type())
     }
