@@ -98,7 +98,7 @@ pub fn launch_backwards_data<R: CubeRuntime, const N: usize>(
 
     let out_dtype = out_grad.dtype;
 
-    let weight_grad = empty_device_dtype(
+    let in_grad = empty_device_dtype(
         out_grad.client.clone(),
         out_grad.device.clone(),
         input_shape,
@@ -119,7 +119,7 @@ pub fn launch_backwards_data<R: CubeRuntime, const N: usize>(
         &client,
         &out_grad,
         &weights,
-        &weight_grad.as_handle_ref(),
+        &in_grad.as_handle_ref(),
         ConvolutionArgs {
             stride: options.stride,
             padding: options.padding,
@@ -128,5 +128,5 @@ pub fn launch_backwards_data<R: CubeRuntime, const N: usize>(
         dtypes,
     )?;
 
-    Ok(weight_grad)
+    Ok(in_grad)
 }
