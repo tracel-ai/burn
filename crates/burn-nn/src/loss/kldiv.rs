@@ -59,9 +59,9 @@ impl KLDivLoss {
     /// Compute the criterion on the input tensor.
     /// # Shapes
     ///
-    /// - predictions: [batch_size,num_targets]
-    /// - targets: [batch_size,num_targets]
-    /// - output: [1]
+    /// - predictions: \[batch_size,num_targets\]
+    /// - targets: \[batch_size,num_targets\]
+    /// - output: \[1\]
     pub fn forward<const D: usize, B: Backend>(
         &self,
         predictions: Tensor<B, D>,
