@@ -65,6 +65,12 @@ impl Serializable for CandleTensor {
             candle_core::DType::U32 => {
                 serialize_data::<u32, PS::IntElem>(flatten, shape, param_id, serializer)
             }
+            candle_core::DType::I16 => {
+                serialize_data::<i16, PS::IntElem>(flatten, shape, param_id, serializer)
+            }
+            candle_core::DType::I32 => {
+                serialize_data::<i32, PS::IntElem>(flatten, shape, param_id, serializer)
+            }
             candle_core::DType::I64 => {
                 serialize_data::<i64, PS::IntElem>(flatten, shape, param_id, serializer)
             }
@@ -80,6 +86,11 @@ impl Serializable for CandleTensor {
             candle_core::DType::F64 => {
                 serialize_data::<f64, PS::FloatElem>(flatten, shape, param_id, serializer)
             }
+            candle_core::DType::F8E4M3
+            | candle_core::DType::F6E2M3
+            | candle_core::DType::F6E3M2
+            | candle_core::DType::F4
+            | candle_core::DType::F8E8M0 => todo!("Not yet supported"),
         }
     }
 }

@@ -19,6 +19,13 @@ impl TensorMetadata for CandleTensor {
             candle_core::DType::F16 => DType::F16,
             candle_core::DType::F32 => DType::F32,
             candle_core::DType::F64 => DType::F64,
+            candle_core::DType::I16 => DType::I16,
+            candle_core::DType::I32 => DType::I32,
+            candle_core::DType::F8E4M3
+            | candle_core::DType::F6E2M3
+            | candle_core::DType::F6E3M2
+            | candle_core::DType::F8E8M0
+            | candle_core::DType::F4 => todo!("Not yet supported"),
         }
     }
 
