@@ -1,7 +1,7 @@
 use crate::{CubeRuntime, FloatElement, IntElement, element::BoolElement, tensor::CubeTensor};
 use burn_backend::{Backend, DeviceOps, ExecutionError, TensorData};
 use burn_std::DType;
-use cubecl::{ir::StorageType, server::ComputeServer};
+use cubecl::{features::TypeUsage, server::ComputeServer};
 use std::marker::PhantomData;
 
 #[cfg(not(feature = "fusion"))]
@@ -83,9 +83,14 @@ where
     fn supports_dtype(device: &Self::Device, dtype: DType) -> bool {
         let client = R::client(device);
 
-        // TODO: define the contract for a dtype support more strictly
-        let ty: StorageType = dtype.into();
-        client.properties().supports_type(ty.elem_type())
+        let type_usage = client.properties().type_usage(dtype.into());
+        // Same as `TypeUsage::all_scalar()`, but we make the usage explicit here
+        type_usage.is_superset(
+            TypeUsage::Buffer
+                | TypeUsage::Conversion
+                | TypeUsage::Arithmetic
+                | TypeUsage::DotProduct,
+        )
     }
 }
 

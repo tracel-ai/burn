@@ -144,7 +144,15 @@ pub trait Backend:
     {
     }
 
-    /// Whether the type is supported by the specified device.
+    /// Whether the type is fully supported by the specified device for general operations.
+    ///
+    /// A type is considered supported if it can be used for the full suite of tensor
+    /// operations, including storage, conversion, and basic arithmetic.
+    ///
+    /// Returning `false` does not necessarily mean the device cannot handle the type at all.
+    /// For instance, a device might support a type only for specialized hardware
+    /// acceleration (like matmul) but lack general arithmetic support. Such types
+    /// should return `false` here as they are not globally supported.
     fn supports_dtype(device: &Self::Device, dtype: DType) -> bool;
 }
 
