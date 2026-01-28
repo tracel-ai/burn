@@ -6,9 +6,8 @@ resolver = "2"
 
 members = [
     "crates/*",
-    "crates/burn-import/pytorch-tests",
-    "crates/burn-import/safetensors-tests",
-    "crates/burn-onnx/onnx-tests",
+    "crates/burn-store/pytorch-tests",
+    "crates/burn-store/safetensors-tests",
     "crates/burn-collective/multinode-tests",
     "examples/*",
     "xtask",
@@ -17,7 +16,6 @@ members = [
 exclude = [
     "examples/notebook",
     "examples/raspberry-pi-pico",
-    "crates/burn-onnx/model-checks/*", # exclude model checking crates from workspace
 ]
 
 [workspace.package]
@@ -75,8 +73,6 @@ planus = { version = "=1.1" }
 polars = { version = "0.51.0", features = ["lazy"] }
 pretty_assertions = "1.4.1"
 proc-macro2 = "1.0.106"
-protobuf = "3.7.2"
-protobuf-codegen = "3.7.2"
 quote = "1.0.42"
 r2d2 = "0.8.10"
 r2d2_sqlite = "0.31.0"
@@ -91,7 +87,6 @@ reqwest = { version = "0.12.23", default-features = false, features = [
 rmp-serde = { version = "1.3.1", default-features = false }
 rstest = "0.26.1"
 rusqlite = "0.37.0"
-rust-format = "0.3.4"
 sanitize-filename = "0.6.0"
 serde_bytes = { version = "0.11.18", default-features = false, features = [
     "alloc",
