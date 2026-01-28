@@ -5,14 +5,14 @@ use std::{
 };
 
 use burn_core::{Tensor, data::dataloader::Progress, prelude::Backend, tensor::Device};
+use burn_rl::EnvironmentInit;
 use burn_rl::Transition;
-use burn_rl::{AsyncPolicy, Environment};
 use burn_rl::{AgentLearner, Policy};
+use burn_rl::{AsyncPolicy, Environment};
 
 use crate::{
     AgentEvaluationEvent, EnvRunner, EpisodeSummary, EvaluationItem, EventProcessorTraining,
-    Interrupter, RLEvent, RLEventProcessorType, ReinforcementLearningComponentsTypes, RlPolicy,
-    TimeStep, Trajectory,
+    Interrupter, RLComponentsTypes, RLEvent, RLEventProcessorType, RlPolicy, TimeStep, Trajectory,
 };
 
 struct StepMessage<B: Backend, S, A, C> {
@@ -22,28 +22,21 @@ struct StepMessage<B: Backend, S, A, C> {
 
 pub(crate) type RLTimeStep<B, RLC> = TimeStep<
     B,
-    <<RLC as ReinforcementLearningComponentsTypes>::Policy as Policy<
-        <RLC as ReinforcementLearningComponentsTypes>::Backend,
-    >>::Input,
-    <<RLC as ReinforcementLearningComponentsTypes>::Policy as Policy<
-        <RLC as ReinforcementLearningComponentsTypes>::Backend,
-    >>::Action,
-    <RLC as ReinforcementLearningComponentsTypes>::ActionContext,
+    <<RLC as RLComponentsTypes>::Policy as Policy<<RLC as RLComponentsTypes>::Backend>>::Input,
+    <<RLC as RLComponentsTypes>::Policy as Policy<<RLC as RLComponentsTypes>::Backend>>::Action,
+    <RLC as RLComponentsTypes>::ActionContext,
 >;
 
 type RLStepMessage<B, RLC> = StepMessage<
     B,
-    <<RLC as ReinforcementLearningComponentsTypes>::Policy as Policy<
-        <RLC as ReinforcementLearningComponentsTypes>::Backend,
-    >>::Input,
-    <<RLC as ReinforcementLearningComponentsTypes>::Policy as Policy<
-        <RLC as ReinforcementLearningComponentsTypes>::Backend,
-    >>::Action,
-    <RLC as ReinforcementLearningComponentsTypes>::ActionContext,
+    <<RLC as RLComponentsTypes>::Policy as Policy<<RLC as RLComponentsTypes>::Backend>>::Input,
+    <<RLC as RLComponentsTypes>::Policy as Policy<<RLC as RLComponentsTypes>::Backend>>::Action,
+    <RLC as RLComponentsTypes>::ActionContext,
 >;
 
 /// An asynchronous agent/environement interface.
-pub struct AsyncEnvRunner<BT: Backend, RLC: ReinforcementLearningComponentsTypes> {
+pub struct AsyncEnvRunner<BT: Backend, RLC: RLComponentsTypes> {
+    env_init: RLC::EnvInit,
     id: usize,
     eval: bool,
     agent: AsyncPolicy<RLC::Backend, RlPolicy<RLC>>,
@@ -53,9 +46,10 @@ pub struct AsyncEnvRunner<BT: Backend, RLC: ReinforcementLearningComponentsTypes
     transition_sender: Sender<RLStepMessage<BT, RLC>>,
 }
 
-impl<BT: Backend, RLC: ReinforcementLearningComponentsTypes> AsyncEnvRunner<BT, RLC> {
+impl<BT: Backend, RLC: RLComponentsTypes> AsyncEnvRunner<BT, RLC> {
     /// Create a new asynchronous runner.
     pub fn new(
+        env_init: RLC::EnvInit,
         id: usize,
         eval: bool,
         agent: AsyncPolicy<RLC::Backend, RlPolicy<RLC>>,
@@ -64,6 +58,7 @@ impl<BT: Backend, RLC: ReinforcementLearningComponentsTypes> AsyncEnvRunner<BT, 
     ) -> Self {
         let (transition_sender, transition_receiver) = std::sync::mpsc::channel();
         Self {
+            env_init,
             id,
             eval,
             agent: agent.clone(),
@@ -78,7 +73,7 @@ impl<BT: Backend, RLC: ReinforcementLearningComponentsTypes> AsyncEnvRunner<BT, 
 impl<BT, RLC> EnvRunner<BT, RLC> for AsyncEnvRunner<BT, RLC>
 where
     BT: Backend,
-    RLC: ReinforcementLearningComponentsTypes,
+    RLC: RLComponentsTypes,
     RLC::Policy: Send + 'static,
     <RLC::Policy as Policy<RLC::Backend>>::PolicyState: Send,
     <RLC::Policy as Policy<RLC::Backend>>::ActionContext: Send,
@@ -92,13 +87,14 @@ where
         let deterministic = self.deterministic;
         let transition_sender = self.transition_sender.clone();
         let device = self.transition_device.clone();
+        let env_init = self.env_init.clone();
 
         let mut current_reward = 0.0;
         let mut step_num = 0;
 
         // TODO : When running full episodes, dont block at every step, just block after episode ends (start blocking at 2nd episode end).
         spawn(move || {
-            let mut env = RLC::Env::new();
+            let mut env = env_init.init();
             env.reset();
             let (confirmation_sender, confirmation_receiver) = std::sync::mpsc::channel();
             confirmation_sender
@@ -260,14 +256,17 @@ where
         }
         items
     }
-    
-    fn policy(&self) -> <RlPolicy<RLC> as Policy<<RLC as ReinforcementLearningComponentsTypes>::Backend>>::PolicyState {
+
+    fn policy(
+        &self,
+    ) -> <RlPolicy<RLC> as Policy<<RLC as RLComponentsTypes>::Backend>>::PolicyState {
         self.agent.state()
     }
 }
 
 /// An asynchronous runner for multiple agent/environement interfaces.
-pub struct AsyncEnvArrayRunner<BT: Backend, RLC: ReinforcementLearningComponentsTypes> {
+pub struct AsyncEnvArrayRunner<BT: Backend, RLC: RLComponentsTypes> {
+    env_init: RLC::EnvInit,
     num_envs: usize,
     eval: bool,
     agent:
@@ -279,9 +278,10 @@ pub struct AsyncEnvArrayRunner<BT: Backend, RLC: ReinforcementLearningComponents
     current_trajectories: HashMap<usize, Vec<RLTimeStep<BT, RLC>>>,
 }
 
-impl<BT: Backend, RLC: ReinforcementLearningComponentsTypes> AsyncEnvArrayRunner<BT, RLC> {
+impl<BT: Backend, RLC: RLComponentsTypes> AsyncEnvArrayRunner<BT, RLC> {
     /// Create a new asynchronous runner for multiple agent/environement interfaces.
     pub fn new(
+        env_init: RLC::EnvInit,
         num_envs: usize,
         eval: bool,
         agent: AsyncPolicy<RLC::Backend, RLC::Policy>,
@@ -290,6 +290,7 @@ impl<BT: Backend, RLC: ReinforcementLearningComponentsTypes> AsyncEnvArrayRunner
     ) -> Self {
         let (transition_sender, transition_receiver) = std::sync::mpsc::channel();
         Self {
+            env_init,
             num_envs,
             eval,
             agent: agent.clone(),
@@ -305,7 +306,7 @@ impl<BT: Backend, RLC: ReinforcementLearningComponentsTypes> AsyncEnvArrayRunner
 impl<BT, RLC> EnvRunner<BT, RLC> for AsyncEnvArrayRunner<BT, RLC>
 where
     BT: Backend,
-    RLC: ReinforcementLearningComponentsTypes,
+    RLC: RLComponentsTypes,
     RLC::Policy: Send + 'static,
     <RLC::Policy as Policy<RLC::Backend>>::PolicyState: Send,
     <RLC::Policy as Policy<RLC::Backend>>::ActionContext: Send,
@@ -317,6 +318,7 @@ where
     fn start(&mut self) {
         for i in 0..self.num_envs {
             let mut runner = AsyncEnvRunner::<BT, RLC>::new(
+                self.env_init.clone(),
                 i,
                 self.eval,
                 self.agent.clone(),
@@ -415,8 +417,10 @@ where
         }
         items
     }
-    
-    fn policy(&self) -> <RlPolicy<RLC> as Policy<<RLC as ReinforcementLearningComponentsTypes>::Backend>>::PolicyState {
+
+    fn policy(
+        &self,
+    ) -> <RlPolicy<RLC> as Policy<<RLC as RLComponentsTypes>::Backend>>::PolicyState {
         self.agent.state()
     }
 }

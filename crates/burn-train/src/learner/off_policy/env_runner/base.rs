@@ -10,7 +10,7 @@ use crate::{
     AgentEvaluationEvent, EpisodeSummary, EvaluationItem, EventProcessorTraining,
     RLEventProcessorType, RLTimeStep,
 };
-use crate::{Interrupter, ReinforcementLearningComponentsTypes};
+use crate::{Interrupter, RLComponentsTypes};
 use crate::{RLEvent, RlPolicy};
 
 /// A trajectory, i.e. a list of ordered [TimeStep](TimeStep).
@@ -40,7 +40,7 @@ pub struct TimeStep<B: Backend, S, A, C> {
 }
 
 /// Trait for a structure that implements an agent/environement interface.
-pub trait EnvRunner<BT: Backend, RLC: ReinforcementLearningComponentsTypes> {
+pub trait EnvRunner<BT: Backend, RLC: RLComponentsTypes> {
     /// Start the runner.
     fn start(&mut self);
     /// Run a certain number of timesteps.
@@ -100,7 +100,7 @@ pub trait EnvRunner<BT: Backend, RLC: ReinforcementLearningComponentsTypes> {
 }
 
 /// A simple, synchronized agent/environement interface.
-pub struct BaseRunner<B: Backend, RLC: ReinforcementLearningComponentsTypes> {
+pub struct BaseRunner<B: Backend, RLC: RLComponentsTypes> {
     env: RLC::Env,
     eval: bool,
     agent: RLC::Policy,
@@ -110,7 +110,7 @@ pub struct BaseRunner<B: Backend, RLC: ReinforcementLearningComponentsTypes> {
     _backend: PhantomData<B>,
 }
 
-impl<B: Backend, RLC: ReinforcementLearningComponentsTypes> BaseRunner<B, RLC> {
+impl<B: Backend, RLC: RLComponentsTypes> BaseRunner<B, RLC> {
     /// Create a new base runner.
     pub fn new(agent: RLC::Policy, eval: bool) -> Self {
         Self {
@@ -128,7 +128,7 @@ impl<B: Backend, RLC: ReinforcementLearningComponentsTypes> BaseRunner<B, RLC> {
 impl<BT, RLC> EnvRunner<BT, RLC> for BaseRunner<BT, RLC>
 where
     BT: Backend,
-    RLC: ReinforcementLearningComponentsTypes,
+    RLC: RLComponentsTypes,
 {
     fn start(&mut self) {
         self.env.reset();
@@ -273,7 +273,7 @@ where
         items
     }
     
-    fn policy(&self) -> <RlPolicy<RLC> as Policy<<RLC as ReinforcementLearningComponentsTypes>::Backend>>::PolicyState {
+    fn policy(&self) -> <RlPolicy<RLC> as Policy<<RLC as RLComponentsTypes>::Backend>>::PolicyState {
         self.agent.state()
     }
 }

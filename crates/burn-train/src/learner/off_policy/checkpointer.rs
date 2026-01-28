@@ -5,7 +5,7 @@ use burn_rl::PolicyState;
 
 use crate::RLAgentRecord;
 use crate::{
-    RLPolicyRecord, ReinforcementLearningComponentsTypes,
+    RLPolicyRecord, RLComponentsTypes,
     checkpoint::Checkpointer,
     checkpoint::{AsyncCheckpointer, CheckpointingAction, CheckpointingStrategy},
     metric::store::EventStoreClient,
@@ -13,13 +13,13 @@ use crate::{
 
 #[derive(new)]
 /// Used to create, delete, or load checkpoints of the training process.
-pub struct RLCheckpointer<RLC: ReinforcementLearningComponentsTypes> {
+pub struct RLCheckpointer<RLC: RLComponentsTypes> {
     policy: AsyncCheckpointer<RLPolicyRecord<RLC>, RLC::Backend>,
     learning_agent: AsyncCheckpointer<RLAgentRecord<RLC>, RLC::Backend>,
     strategy: Box<dyn CheckpointingStrategy>,
 }
 
-impl<RLC: ReinforcementLearningComponentsTypes> RLCheckpointer<RLC> {
+impl<RLC: RLComponentsTypes> RLCheckpointer<RLC> {
     /// Create checkpoint for the training process.
     pub fn checkpoint(
         &mut self,

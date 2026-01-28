@@ -19,3 +19,17 @@ pub trait Environment: Sized + Clone {
     fn step(&mut self, action: Self::Action) -> StepResult<Self::State>;
     fn reset(&mut self);
 }
+
+pub trait EnvironmentInit<E: Environment>: Clone {
+    fn init(&self) -> E;
+}
+
+impl<F, E> EnvironmentInit<E> for F
+where
+    F: Fn() -> E + Clone,
+    E: Environment,
+{
+    fn init(&self) -> E {
+        (self)()
+    }
+}

@@ -3,13 +3,13 @@ use std::sync::Arc;
 use burn_core::prelude::Backend;
 
 use crate::{
-    Interrupter, LearnerSummaryConfig, OffPolicyConfig, RLCheckpointer, RLEvent,
-    RLEventProcessorType, RLResult, ReinforcementLearningComponentsTypes,
+    Interrupter, LearnerSummaryConfig, OffPolicyConfig, RLCheckpointer, RLComponentsTypes, RLEvent,
+    RLEventProcessorType, RLResult,
     metric::{processor::EventProcessorTraining, store::EventStoreClient},
 };
 
 /// Struct to minimise parameters passed to [ReinforcementLearningStrategy::train].
-pub struct RLComponents<RLC: ReinforcementLearningComponentsTypes> {
+pub struct RLComponents<RLC: RLComponentsTypes> {
     /// The total number of environment steps.
     pub num_steps: usize,
     /// The step number from which to continue the training.
@@ -30,7 +30,7 @@ pub struct RLComponents<RLC: ReinforcementLearningComponentsTypes> {
 
 /// The strategy for reinforcement learning.
 #[derive(Clone)]
-pub enum RLStrategy<RLC: ReinforcementLearningComponentsTypes> {
+pub enum RLStrategies<RLC: RLComponentsTypes> {
     /// Training on one device
     OffPolicyStrategy((<RLC::Backend as Backend>::Device, OffPolicyConfig)),
     /// Training using a custom learning strategy
@@ -38,15 +38,16 @@ pub enum RLStrategy<RLC: ReinforcementLearningComponentsTypes> {
 }
 
 /// A reference to an implementation of [ReinforcementLearningStrategy].
-pub type CustomRLStrategy<LC> = Arc<dyn ReinforcementLearningStrategy<LC>>;
+pub type CustomRLStrategy<LC> = Arc<dyn RLStrategy<LC>>;
 
 /// Provides the `fit` function for any learning strategy
-pub trait ReinforcementLearningStrategy<RLC: ReinforcementLearningComponentsTypes> {
-    /// Train the learner's model with this strategy.
+pub trait RLStrategy<RLC: RLComponentsTypes> {
+    /// Train the learner agent with this strategy.
     fn train(
         &self,
         mut learner_agent: RLC::LearningAgent,
         mut training_components: RLComponents<RLC>,
+        env_init: RLC::EnvInit,
     ) -> RLResult<RLC::Policy> {
         let starting_epoch = match training_components.checkpoint {
             Some(checkpoint) => {
@@ -70,8 +71,12 @@ pub trait ReinforcementLearningStrategy<RLC: ReinforcementLearningComponentsType
             .process_train(RLEvent::Start);
 
         // Training loop
-        let (policy, mut event_processor) =
-            self.fit(training_components, &mut learner_agent, starting_epoch);
+        let (policy, mut event_processor) = self.learn(
+            training_components,
+            &mut learner_agent,
+            starting_epoch,
+            env_init,
+        );
 
         let summary = summary_config.and_then(|summary| summary.init().ok());
 
@@ -86,10 +91,11 @@ pub trait ReinforcementLearningStrategy<RLC: ReinforcementLearningComponentsType
     }
 
     /// Training loop for this strategy
-    fn fit(
+    fn learn(
         &self,
         training_components: RLComponents<RLC>,
         learner_agent: &mut RLC::LearningAgent,
         starting_epoch: usize,
+        env_init: RLC::EnvInit,
     ) -> (RLC::Policy, RLEventProcessorType<RLC>);
 }

@@ -1,7 +1,6 @@
 use crate::{
     AsyncEnvArrayRunner, AsyncEnvRunner, EnvRunner, EvaluationItem, EventProcessorTraining,
-    RLComponents, RLEvent, RLEventProcessorType, ReinforcementLearningComponentsTypes,
-    ReinforcementLearningStrategy,
+    RLComponents, RLComponentsTypes, RLEvent, RLEventProcessorType, RLStrategy,
 };
 use burn_core::{self as burn};
 use burn_core::{config::Config, data::dataloader::Progress, tensor::Device};
@@ -35,11 +34,11 @@ pub struct OffPolicyConfig {
 }
 
 /// Off-policy reinforcement learning strategy with multi-env experience collection and double-batching.
-pub struct OffPolicyStrategy<RLC: ReinforcementLearningComponentsTypes> {
+pub struct OffPolicyStrategy<RLC: RLComponentsTypes> {
     device: Device<RLC::Backend>,
     config: OffPolicyConfig,
 }
-impl<RLC: ReinforcementLearningComponentsTypes> OffPolicyStrategy<RLC> {
+impl<RLC: RLComponentsTypes> OffPolicyStrategy<RLC> {
     /// Create a new off-policy base strategy.
     pub fn new(device: Device<RLC::Backend>) -> Self {
         Self {
@@ -57,21 +56,23 @@ impl<RLC: ReinforcementLearningComponentsTypes> OffPolicyStrategy<RLC> {
     }
 }
 
-impl<RLC> ReinforcementLearningStrategy<RLC> for OffPolicyStrategy<RLC>
+impl<RLC> RLStrategy<RLC> for OffPolicyStrategy<RLC>
 where
-    RLC: ReinforcementLearningComponentsTypes,
+    RLC: RLComponentsTypes,
 {
-    fn fit(
+    fn learn(
         &self,
         training_components: RLComponents<RLC>,
         learner_agent: &mut RLC::LearningAgent,
         starting_epoch: usize,
+        env_init: RLC::EnvInit,
     ) -> (RLC::Policy, RLEventProcessorType<RLC>) {
         let mut event_processor = training_components.event_processor;
         let mut checkpointer = training_components.checkpointer;
         let num_steps_total = training_components.num_steps;
 
         let mut env_runner = AsyncEnvArrayRunner::<RLC::Backend, RLC>::new(
+            env_init.clone(),
             self.config.num_envs,
             false,
             AsyncPolicy::new(
@@ -83,6 +84,7 @@ where
         );
         env_runner.start();
         let mut env_runner_valid = AsyncEnvRunner::<RLC::Backend, RLC>::new(
+            env_init,
             0,
             true,
             AsyncPolicy::new(1, learner_agent.policy()),

@@ -1,16 +1,18 @@
 use std::marker::PhantomData;
 
 use burn_core::tensor::backend::AutodiffBackend;
-use burn_rl::{Environment, AgentLearner, Policy, PolicyState};
+use burn_rl::{AgentLearner, Environment, EnvironmentInit, Policy, PolicyState};
 
 use crate::{AgentEvaluationEvent, AsyncProcessorTraining, ItemLazy, RLEvent};
 
 /// All components used by the reinforcement learning paradigm, grouped in one trait.
-pub trait ReinforcementLearningComponentsTypes {
+pub trait RLComponentsTypes {
     /// The backend used for training.
     type Backend: AutodiffBackend;
     /// The learning environement.
     type Env: Environment<State = Self::State, Action = Self::Action> + 'static;
+    /// Specifies how to initialize the environment.
+    type EnvInit: EnvironmentInit<Self::Env> + Send + 'static;
     /// The learning agent.
     /// // TODO: type shit is weird here.
     type LearningAgent: AgentLearner<
@@ -32,19 +34,20 @@ pub trait ReinforcementLearningComponentsTypes {
 }
 
 /// Concrete type that implements the [ReinforcementLearningComponentsTypes](ReinforcementLearningComponentsTypes) trait.
-pub struct ReinforcementLearningComponentsMarker<B, E, A, TO, AC> {
+pub struct RLComponentsMarker<B, E, EI, A, TO, AC> {
     _backend: PhantomData<B>,
     _env: PhantomData<E>,
+    _env_init: PhantomData<EI>,
     _agent: PhantomData<A>,
     _training_output: PhantomData<TO>,
     _action_context: PhantomData<AC>,
 }
 
-impl<B, E, A, TO, AC> ReinforcementLearningComponentsTypes
-    for ReinforcementLearningComponentsMarker<B, E, A, TO, AC>
+impl<B, E, EI, A, TO, AC> RLComponentsTypes for RLComponentsMarker<B, E, EI, A, TO, AC>
 where
     B: AutodiffBackend,
     E: Environment + 'static,
+    EI: EnvironmentInit<E> + Send + 'static,
     A: AgentLearner<B, TrainingOutput = TO> + Send + 'static,
     A::InnerPolicy: Policy<B, ActionContext = AC> + Send,
     TO: ItemLazy + Clone + Send,
@@ -54,6 +57,7 @@ where
 {
     type Backend = B;
     type Env = E;
+    type EnvInit = EI;
     type LearningAgent = A;
     type Policy = A::InnerPolicy;
     type ActionContext = AC;
@@ -62,25 +66,19 @@ where
     type Action = E::Action;
 }
 
-pub(crate) type RlPolicy<OC> =
-    <<OC as ReinforcementLearningComponentsTypes>::LearningAgent as AgentLearner<
-        <OC as ReinforcementLearningComponentsTypes>::Backend,
-    >>::InnerPolicy;
+pub(crate) type RlPolicy<RLC> = <<RLC as RLComponentsTypes>::LearningAgent as AgentLearner<
+    <RLC as RLComponentsTypes>::Backend,
+>>::InnerPolicy;
 /// The event processor type for reinforcement learning.
-pub type RLEventProcessorType<OC> = AsyncProcessorTraining<
-    RLEvent<
-        <OC as ReinforcementLearningComponentsTypes>::TrainingOutput,
-        <OC as ReinforcementLearningComponentsTypes>::ActionContext,
-    >,
-    AgentEvaluationEvent<<OC as ReinforcementLearningComponentsTypes>::ActionContext>,
+pub type RLEventProcessorType<RLC> = AsyncProcessorTraining<
+    RLEvent<<RLC as RLComponentsTypes>::TrainingOutput, <RLC as RLComponentsTypes>::ActionContext>,
+    AgentEvaluationEvent<<RLC as RLComponentsTypes>::ActionContext>,
 >;
 /// The record of the policy.
-pub type RLPolicyRecord<RLC> =
-    <<<RLC as ReinforcementLearningComponentsTypes>::Policy as Policy<
-        <RLC as ReinforcementLearningComponentsTypes>::Backend,
-    >>::PolicyState as PolicyState<<RLC as ReinforcementLearningComponentsTypes>::Backend>>::Record;
+pub type RLPolicyRecord<RLC> = <<<RLC as RLComponentsTypes>::Policy as Policy<
+    <RLC as RLComponentsTypes>::Backend,
+>>::PolicyState as PolicyState<<RLC as RLComponentsTypes>::Backend>>::Record;
 /// The record of the learning agent.
-pub type RLAgentRecord<RLC> =
-    <<RLC as ReinforcementLearningComponentsTypes>::LearningAgent as AgentLearner<
-        <RLC as ReinforcementLearningComponentsTypes>::Backend,
-    >>::Record;
+pub type RLAgentRecord<RLC> = <<RLC as RLComponentsTypes>::LearningAgent as AgentLearner<
+    <RLC as RLComponentsTypes>::Backend,
+>>::Record;

@@ -1,6 +1,6 @@
 use crate::{
     ItemLazy,
-    metric::{Adaptor, EpisodeLengthInput},
+    metric::{Adaptor, CumulativeRewardInput, EpisodeLengthInput},
 };
 
 /// Summary of an episode.
@@ -22,5 +22,11 @@ impl ItemLazy for EpisodeSummary {
 impl Adaptor<EpisodeLengthInput> for EpisodeSummary {
     fn adapt(&self) -> EpisodeLengthInput {
         EpisodeLengthInput::new(self.episode_length as f64)
+    }
+}
+
+impl Adaptor<CumulativeRewardInput> for EpisodeSummary {
+    fn adapt(&self) -> CumulativeRewardInput {
+        CumulativeRewardInput::new(self.cum_reward as f64)
     }
 }

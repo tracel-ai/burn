@@ -24,7 +24,6 @@ pub trait PolicyState<B: Backend> {
 
 pub trait Policy<B: Backend>: Clone {
     type Input: Clone + Send;
-    // TODO: naming?
     type Output: Clone + Send;
     // TODO: This VS ComponentsTypes trait.
     type Action: Clone + Send;
