@@ -49,11 +49,7 @@ pub fn into_data(tensor: CandleTensor) -> Result<TensorData, ExecutionError> {
     }
 
     match tensor.tensor.dtype() {
-        candle_core::DType::F8E4M3
-        | candle_core::DType::F6E2M3
-        | candle_core::DType::F6E3M2
-        | candle_core::DType::F4
-        | candle_core::DType::F8E8M0 => todo!("Not yet supported"),
+        other => todo!("{other:?} not yet supported"),
         candle_core::DType::BF16 => tensor_data_from_dtype::<bf16>(&tensor),
         candle_core::DType::F16 => tensor_data_from_dtype::<f16>(&tensor),
         candle_core::DType::F32 => tensor_data_from_dtype::<f32>(&tensor),
