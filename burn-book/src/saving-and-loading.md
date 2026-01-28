@@ -56,9 +56,10 @@ Afterwards, the model can just as easily be loaded from the record saved on disk
 
 ```rust, ignore
 // Load model record on the backend's default device
-let record: ModelRecord<MyBackend> = NamedMpkFileRecorder::<FullPrecisionSettings>::new()
-    .load(model_path.into(), &device)
-    .expect("Should be able to load the model weights from the provided file");
+let record: ModelRecord<MyBackend> =
+    NamedMpkFileRecorder::<FullPrecisionSettings>::new()
+        .load(model_path.into(), &device)
+        .expect("Could not load model weights");
 
 // Initialize a new model with the loaded record/weights
 let model = Model::init(&device).load_record(record);
