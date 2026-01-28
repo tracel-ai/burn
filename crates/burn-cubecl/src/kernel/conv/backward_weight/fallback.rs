@@ -5,7 +5,7 @@ use cubek::convolution::components::ConvSetupError;
 use crate::{
     CubeRuntime,
     kernel::{conv::base::conv_forward_nhwc, slice, slice_assign},
-    ops::{numeric::empty_device_optimized_dtype, swap_dims},
+    ops::{numeric::empty_device_dtype, swap_dims},
     tensor::CubeTensor,
 };
 
@@ -55,7 +55,7 @@ fn conv_weight_grad_groups<R: CubeRuntime, const N_DIM: usize>(
     weight_shape: Shape,
     options: ConvOptions<N_DIM>,
 ) -> Result<CubeTensor<R>, ConvSetupError> {
-    let mut weight_grad = empty_device_optimized_dtype(
+    let mut weight_grad = empty_device_dtype(
         input.client.clone(),
         input.device.clone(),
         weight_shape.clone(),

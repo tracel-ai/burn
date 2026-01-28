@@ -1,38 +1,38 @@
 use crate::{
     CubeRuntime,
-    kernel::into_contiguous,
+    kernel::{
+        into_contiguous_aligned,
+        pool::pool2d::{Position, view4d},
+        utils::{decompose_linear, shape_divmod},
+    },
     ops::{max_line_size, numeric::empty_device_dtype, permute_nchw_to_nhwc, permute_nhwc_to_nchw},
     tensor::CubeTensor,
 };
 use burn_backend::Shape;
-use cubecl::{calculate_cube_count_elemwise, prelude::*};
+use cubecl::{
+    calculate_cube_count_elemwise,
+    prelude::*,
+    std::{FastDivmod, tensor::View},
+};
 
 #[cube(launch)]
 fn adaptive_avg_pool2d_direct<E: Numeric>(
     input: &Tensor<Line<E>>,
-    output: &mut Tensor<Line<E>>,
+    output: &mut View<Line<E>, Position, ReadWrite>,
+    out_shape: Sequence<FastDivmod<usize>>,
+    working_units: usize,
     #[define(E)] _dtype: StorageType,
 ) {
-    if ABSOLUTE_POS >= output.len() {
+    if ABSOLUTE_POS >= working_units {
         terminate!();
     }
 
-    let (out_h, out_w, channels) = (output.shape(1), output.shape(2), output.shape(3));
-    let channel_lines = channels / output.line_size();
-    let (in_stride_b, in_stride_h, in_stride_w, in_stride_c) = (
-        input.stride(0),
-        input.stride(1),
-        input.stride(2),
-        input.stride(3),
-    );
-    let (in_h, in_w) = (input.shape(1), input.shape(2));
+    let (_, pos) = decompose_linear(ABSOLUTE_POS * output.line_size(), &out_shape);
+    let [b, oh, ow, c] = *pos else { unreachable!() };
 
-    let c = (ABSOLUTE_POS % channel_lines) * input.line_size();
-    let pos = ABSOLUTE_POS / channel_lines;
-    let ow = pos % out_w;
-    let pos = pos / out_w;
-    let oh = pos % out_h;
-    let b = pos / out_h;
+    let (_, out_h, out_w, _) = output.shape();
+    let (in_stride_h, in_stride_w) = (input.stride(1), input.stride(2));
+    let (in_h, in_w) = (input.shape(1), input.shape(2));
 
     let ih_start = start_index(oh, out_h, in_h);
     let ih_end = end_index(oh, out_h, in_h);
@@ -42,8 +42,7 @@ fn adaptive_avg_pool2d_direct<E: Numeric>(
 
     let mut sum = Line::empty(input.line_size()).fill(E::from_int(0));
 
-    let index_input_0 = b * in_stride_b;
-    let index_input_1 = c * in_stride_c;
+    let index_input_base = b * input.stride(0) + c * input.stride(3);
 
     for ih in ih_start..ih_end {
         let index_input_2 = ih * in_stride_h;
@@ -51,7 +50,7 @@ fn adaptive_avg_pool2d_direct<E: Numeric>(
         for iw in iw_start..iw_end {
             let index_input_3 = iw * in_stride_w;
 
-            let index_input = index_input_0 + index_input_1 + index_input_2 + index_input_3;
+            let index_input = index_input_base + index_input_2 + index_input_3;
             sum += input[index_input / input.line_size()];
         }
     }
@@ -59,7 +58,7 @@ fn adaptive_avg_pool2d_direct<E: Numeric>(
     let num_ih = ih_end - ih_start;
     let num_iw = iw_end - iw_start;
 
-    output[ABSOLUTE_POS] = sum / Line::cast_from(num_ih * num_iw);
+    output[(b, oh, ow, c)] = sum / Line::cast_from(num_ih * num_iw);
 }
 
 #[cube]
@@ -85,7 +84,7 @@ pub(crate) fn adaptive_avg_pool2d<R: CubeRuntime>(
 ) -> CubeTensor<R> {
     let [batch_size, channels, _, _] = input.shape.dims();
 
-    let input = into_contiguous(permute_nchw_to_nhwc(input));
+    let input = into_contiguous_aligned(permute_nchw_to_nhwc(input));
     let line_size = max_line_size(&input);
 
     let output_shape = Shape::new([batch_size, output_size[0], output_size[1], channels]);
@@ -106,7 +105,9 @@ pub(crate) fn adaptive_avg_pool2d<R: CubeRuntime>(
         cube_count,
         cube_dim,
         input.as_tensor_arg(line_size),
-        output.as_tensor_arg(line_size),
+        view4d(&output, line_size),
+        shape_divmod(&output),
+        ScalarArg::new(working_units),
         output.dtype.into(),
     )
     .expect("Kernel to never fail");

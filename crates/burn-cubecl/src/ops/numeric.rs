@@ -11,9 +11,12 @@ use crate::{
     ops::max_line_size,
 };
 use burn_backend::{DType, Shape};
-use cubecl::std::{FastDivmod, tensor::layout::linear::LinearView};
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 use cubecl::{client::ComputeClient, server::Allocation};
+use cubecl::{
+    server::AllocationDescriptor,
+    std::{FastDivmod, tensor::layout::linear::LinearView},
+};
 
 /// Creates a tensor filled with `value`
 pub fn full<R: CubeRuntime, E: CubeElement>(
@@ -74,7 +77,7 @@ pub fn full_device_dtype<R: CubeRuntime>(
             cube_dim,
             linear_view(&empty, line_size),
             value,
-            dtype.into(),
+            empty.dtype.into(),
         )
         .expect("Kernel to never fail");
     }
@@ -114,29 +117,8 @@ pub fn ones_client<R: CubeRuntime>(
     full_device_dtype(client, shape, device, InputScalar::new(1u32, dtype), dtype)
 }
 
-/// Creates a tensor with uninitialized memory
-pub fn empty_device<R: CubeRuntime, E: CubeElement>(
-    client: ComputeClient<R>,
-    device: R::Device,
-    shape: Shape,
-) -> CubeTensor<R> {
-    empty_device_dtype(client, device, shape, E::dtype())
-}
-
-/// Creates a tensor with uninitialized memory with the specific dtype.
-pub fn empty_device_dtype<R: CubeRuntime>(
-    client: ComputeClient<R>,
-    device: R::Device,
-    shape: Shape,
-    dtype: DType,
-) -> CubeTensor<R> {
-    let buffer = client.empty(shape.num_elements() * dtype.size());
-
-    CubeTensor::new_contiguous(client, device, shape, buffer, dtype)
-}
-
 /// Create a tensor with uninitialized memory
-pub fn empty_device_optimized<R: CubeRuntime, E: CubeElement>(
+pub fn empty_device<R: CubeRuntime, E: CubeElement>(
     client: ComputeClient<R>,
     device: R::Device,
     shape: Shape,
@@ -147,13 +129,26 @@ pub fn empty_device_optimized<R: CubeRuntime, E: CubeElement>(
 }
 
 /// Create a tensor with uninitialized memory
-pub fn empty_device_optimized_dtype<R: CubeRuntime>(
+pub fn empty_device_dtype<R: CubeRuntime>(
     client: ComputeClient<R>,
     device: R::Device,
     shape: Shape,
     dtype: DType,
 ) -> CubeTensor<R> {
     let Allocation { handle, strides } = client.empty_tensor(&shape.dims, dtype.size());
+
+    CubeTensor::new(client, handle, shape, device, strides, dtype)
+}
+
+/// Create a contiguous tensor with uninitialized memory
+pub fn empty_device_contiguous_dtype<R: CubeRuntime>(
+    client: ComputeClient<R>,
+    device: R::Device,
+    shape: Shape,
+    dtype: DType,
+) -> CubeTensor<R> {
+    let descriptor = AllocationDescriptor::contiguous(&shape.dims, dtype.size());
+    let Allocation { handle, strides } = client.empty_tensors(vec![descriptor]).remove(0);
 
     CubeTensor::new(client, handle, shape, device, strides, dtype)
 }

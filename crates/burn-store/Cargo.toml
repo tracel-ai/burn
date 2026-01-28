@@ -21,9 +21,16 @@ version.workspace = true
 workspace = true
 
 [features]
-default = ["std", "pytorch", "safetensors",  "burnpack", "memmap"]
-std = ["dep:memmap2", "safetensors/std", "burn-core/std", "burn-tensor/std", "dep:regex", "byteorder/std"]
+default = ["std", "pytorch", "safetensors", "burnpack", "memmap"]
 memmap = ["std", "dep:memmap2"]
+std = [
+    "dep:memmap2",
+    "safetensors/std",
+    "burn-core/std",
+    "burn-tensor/std",
+    "dep:regex",
+    "byteorder/std",
+]
 tracing = [
     "burn-candle?/tracing",
     "burn-core/tracing",
@@ -36,11 +43,11 @@ tracing = [
 
 
 burnpack = ["serde", "ciborium"]
-wgpu = ["burn-wgpu"]
-metal = ["wgpu", "burn-wgpu/metal"]
-cuda = ["burn-cuda"]
 candle = ["burn-candle"]
+cuda = ["burn-cuda"]
+metal = ["wgpu", "burn-wgpu/metal"]
 tch = ["burn-tch"]
+wgpu = ["burn-wgpu"]
 
 safetensors = ["dep:safetensors"]
 
@@ -52,16 +59,19 @@ burn-nn = { path = "../burn-nn", version = "=0.21.0", default-features = false }
 burn-tensor = { path = "../burn-tensor", version = "=0.21.0", default-features = false }
 
 # External dependencies
-bytes = { workspace = true }
 byteorder = { workspace = true, default-features = false }
-textdistance = { workspace = true }
+bytes = { workspace = true }
+ciborium = { workspace = true, optional = true }
 half = { workspace = true }
 hashbrown = { workspace = true, features = ["serde"] }
 memmap2 = { workspace = true, optional = true }
 regex = { workspace = true, optional = true }
-ciborium = { workspace = true, optional = true }
 serde = { workspace = true, optional = true }
+textdistance = { workspace = true }
 zip = { workspace = true, optional = true }
+
+# Workaround to force broken minor version to update
+lzma-rust2 = { workspace = true, optional = true }
 
 safetensors = { workspace = true, optional = true }
 
@@ -78,20 +88,20 @@ divan = "0.1"
 tempfile = { workspace = true }
 
 [[bench]]
+harness = false
 name = "resnet18_loading"
-harness = false
 
 [[bench]]
+harness = false
 name = "unified_loading"
-harness = false
 
 [[bench]]
+harness = false
 name = "unified_saving"
-harness = false
 
 [[bench]]
-name = "zero_copy_loading"
 harness = false
+name = "zero_copy_loading"
 
 # Enable extra-platforms for bytes on targets without native atomics (e.g., thumbv6m-none-eabi)
 [target.'cfg(not(target_has_atomic = "ptr"))'.dependencies]

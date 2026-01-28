@@ -109,7 +109,7 @@ pub(crate) fn slice_assign<R: CubeRuntime>(
     }
 
     let client = tensor.client.clone();
-    let tensor = match tensor.can_mut() {
+    let tensor = match tensor.can_mut() && tensor.is_nonoverlapping() {
         true => tensor,
         false => tensor.copy(),
     };
@@ -194,7 +194,7 @@ pub(crate) fn slice_assign_with_steps<R: CubeRuntime>(
     slices: &[burn_backend::Slice],
     value: CubeTensor<R>,
 ) -> CubeTensor<R> {
-    let tensor = match tensor.can_mut() {
+    let tensor = match tensor.can_mut() && tensor.is_nonoverlapping() {
         true => tensor,
         false => tensor.copy(),
     };

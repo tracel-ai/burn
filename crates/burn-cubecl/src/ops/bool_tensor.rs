@@ -45,7 +45,7 @@ where
     }
 
     fn bool_into_int(tensor: BoolTensor<Self>) -> IntTensor<Self> {
-        kernel::bool_cast::<R, BT, I>(tensor)
+        kernel::bool_cast::<R, I>(tensor)
     }
 
     fn bool_device(tensor: &BoolTensor<Self>) -> Device<Self> {
@@ -108,7 +108,7 @@ where
     }
 
     fn bool_into_float(tensor: BoolTensor<Self>) -> FloatTensor<Self> {
-        kernel::bool_cast::<R, BT, F>(tensor)
+        kernel::bool_cast::<R, F>(tensor)
     }
 
     fn bool_swap_dims(mut tensor: BoolTensor<Self>, dim1: usize, dim2: usize) -> BoolTensor<Self> {

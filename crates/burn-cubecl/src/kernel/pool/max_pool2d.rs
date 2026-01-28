@@ -3,12 +3,16 @@ use super::pool2d::{
 };
 use crate::{
     CubeRuntime,
-    kernel::into_contiguous,
+    kernel::{
+        into_contiguous_aligned,
+        pool::pool2d::{Position, view4d},
+        utils::shape_divmod,
+    },
     ops::{max_line_size, numeric::empty_device_dtype, permute_nchw_to_nhwc, permute_nhwc_to_nchw},
     tensor::CubeTensor,
 };
 use burn_backend::{DType, Shape, ops::conv::calculate_pool_output_size};
-use cubecl::{CubeDim, calculate_cube_count_elemwise, prelude::*};
+use cubecl::{CubeDim, calculate_cube_count_elemwise, prelude::*, std::tensor::View};
 
 struct MaxPoolStrategy;
 struct MaxPoolWithIndicesStrategy;
@@ -20,7 +24,7 @@ impl Pool2dDirectStrategyFamily for MaxPoolStrategy {
 }
 
 impl Pool2dDirectStrategyFamily for MaxPoolWithIndicesStrategy {
-    type Indices = Tensor<Line<i32>>;
+    type Indices = View<Line<i32>, Position, ReadWrite>;
     type Config = ();
     type Pool2d<N: Numeric> = Self;
 }
@@ -57,8 +61,8 @@ impl<N: Numeric> Pool2dDirectStrategy<N> for MaxPoolStrategy {
 
     fn store(
         #[comptime] _config: &Self::Config,
-        position: usize,
-        output: &mut Tensor<Line<N>>,
+        position: Position,
+        output: &mut View<Line<N>, Position, ReadWrite>,
         _output_indices: &mut (),
         accumulator: Self::Accumulator,
     ) {
@@ -70,7 +74,7 @@ impl<N: Numeric> Pool2dDirectStrategy<N> for MaxPoolStrategy {
 impl<N: Numeric> Pool2dDirectStrategy<N> for MaxPoolWithIndicesStrategy {
     type Accumulator = (Line<N>, Line<i32>);
     type Config = ();
-    type Indices = Tensor<Line<i32>>;
+    type Indices = View<Line<i32>, Position, ReadWrite>;
 
     fn initialize(
         #[comptime] _config: &Self::Config,
@@ -102,9 +106,9 @@ impl<N: Numeric> Pool2dDirectStrategy<N> for MaxPoolWithIndicesStrategy {
 
     fn store(
         #[comptime] _config: &Self::Config,
-        position: usize,
-        output: &mut Tensor<Line<N>>,
-        output_indices: &mut Tensor<Line<i32>>,
+        position: Position,
+        output: &mut View<Line<N>, Position, ReadWrite>,
+        output_indices: &mut View<Line<i32>, Position, ReadWrite>,
         accumulator: Self::Accumulator,
     ) {
         output[position] = accumulator.0;
@@ -139,7 +143,7 @@ pub(crate) fn max_pool2d<R: CubeRuntime>(
         ceil_mode,
     );
 
-    let x = into_contiguous(permute_nchw_to_nhwc(x));
+    let x = into_contiguous_aligned(permute_nchw_to_nhwc(x));
 
     let line_size = max_line_size(&x);
 
@@ -155,8 +159,10 @@ pub(crate) fn max_pool2d<R: CubeRuntime>(
         cube_count,
         cube_dim,
         x.as_tensor_arg(line_size),
-        output.as_tensor_arg(line_size),
+        view4d(&output, line_size),
         (),
+        shape_divmod(&output),
+        ScalarArg::new(working_units),
         Pool2dDirectArgsLaunch::new(
             ScalarArg::new(stride[0] as u32),
             ScalarArg::new(stride[1] as u32),
@@ -202,7 +208,7 @@ pub(crate) fn max_pool2d_with_indices<R: CubeRuntime>(
         ceil_mode,
     );
 
-    let x = into_contiguous(permute_nchw_to_nhwc(x));
+    let x = into_contiguous_aligned(permute_nchw_to_nhwc(x));
     let line_size = max_line_size(&x);
 
     let shape_out = Shape::new([batch_size, size_0, size_1, channels]);
@@ -223,8 +229,10 @@ pub(crate) fn max_pool2d_with_indices<R: CubeRuntime>(
         cube_count,
         cube_dim,
         x.as_tensor_arg(line_size),
-        output.as_tensor_arg(line_size),
-        indices.as_tensor_arg(line_size),
+        view4d(&output, line_size),
+        view4d(&indices, line_size),
+        shape_divmod(&output),
+        ScalarArg::new(working_units),
         Pool2dDirectArgsLaunch::new(
             ScalarArg::new(stride[0] as u32),
             ScalarArg::new(stride[1] as u32),

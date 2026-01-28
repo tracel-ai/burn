@@ -1,29 +1,40 @@
-use crate::kernel::into_contiguous;
-use crate::ops::numeric::empty_device_dtype;
 use crate::{CubeRuntime, tensor::CubeTensor};
-use cubecl::prelude::*;
-use cubecl::{CubeDim, calculate_cube_count_elemwise};
+use crate::{
+    kernel::utils::{linear_view, shape_divmod},
+    ops::numeric::empty_device_dtype,
+};
+use cubecl::{CubeDim, calculate_cube_count_elemwise, std::tensor::layout::linear::LinearView};
+use cubecl::{prelude::*, std::FastDivmod};
 
 #[cube(launch_unchecked)]
 fn select_kernel<T: Numeric, I: Numeric>(
     input: &Tensor<T>,
-    indices: &Tensor<I>,
-    output: &mut Tensor<T>,
+    indices: &LinearView<I>,
+    output: &mut LinearView<T, ReadWrite>,
+    out_shape: Sequence<FastDivmod<usize>>,
     dim: usize,
     #[define(T, I)] _dtypes: [StorageType; 2],
 ) {
-    if ABSOLUTE_POS >= output.len() {
+    if ABSOLUTE_POS >= output.shape() {
         terminate!();
     }
 
+    let rank = out_shape.len().comptime();
+
+    let mut offset = ABSOLUTE_POS;
     let mut offset_input = 0;
 
-    for i in 0..output.rank() {
-        let mut offset_local = ABSOLUTE_POS / output.stride(i) % output.shape(i);
+    #[unroll]
+    for i in 0..rank {
+        let i = rank - i - 1;
+        let (rem, offset_local) = out_shape[i].div_mod(offset);
+        offset = rem;
 
-        if i == dim {
-            offset_local = usize::cast_from(indices[offset_local]);
-        }
+        let offset_local = cubecl::prelude::select(
+            i == dim,
+            usize::cast_from(indices[offset_local]),
+            offset_local,
+        );
 
         offset_input += offset_local * input.stride(i);
     }
@@ -36,11 +47,9 @@ pub(crate) fn select<R: CubeRuntime>(
     dim: usize,
     indices: CubeTensor<R>,
 ) -> CubeTensor<R> {
-    let ndims = tensor.shape.num_dims();
     let mut shape_output = tensor.shape.clone();
     shape_output.dims[dim] = indices.shape[0];
     let total_elem = shape_output.num_elements();
-    let indices = into_contiguous(indices);
 
     let output = empty_device_dtype(
         tensor.client.clone(),
@@ -49,7 +58,6 @@ pub(crate) fn select<R: CubeRuntime>(
         tensor.dtype,
     );
 
-    let dummy_array = vec![1; ndims];
     let working_units = total_elem;
     let cube_dim = CubeDim::new(&indices.client, working_units);
     let cube_count = calculate_cube_count_elemwise(&indices.client, working_units, cube_dim);
@@ -60,15 +68,9 @@ pub(crate) fn select<R: CubeRuntime>(
             cube_count,
             cube_dim,
             tensor.as_tensor_arg(1),
-            // Ignore shape and stride
-            TensorArg::from_raw_parts_and_size(
-                &indices.handle,
-                &dummy_array,
-                &dummy_array,
-                1,
-                indices.dtype.size(),
-            ),
-            output.as_tensor_arg(1),
+            linear_view(&indices, 1),
+            linear_view(&output, 1),
+            shape_divmod(&output),
             ScalarArg::new(dim),
             [tensor.dtype.into(), indices.dtype.into()],
         )

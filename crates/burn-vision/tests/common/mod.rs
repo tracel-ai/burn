@@ -20,6 +20,7 @@ pub type TestBackend = burn_cuda::Cuda;
 #[allow(unused)]
 pub type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;
 pub type TestTensorInt<const D: usize> = burn_tensor::Tensor<TestBackend, D, Int>;
+#[allow(unused)]
 pub type TestTensorBool<const D: usize> = burn_tensor::Tensor<TestBackend, D, Bool>;
 
 #[allow(unused)]

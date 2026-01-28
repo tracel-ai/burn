@@ -49,7 +49,7 @@ where
     let cube_count = calculate_cube_count_elemwise(&tensor.client, working_units, cube_dim);
 
     unsafe {
-        if tensor.can_mut() && tensor.is_contiguous_buffer() {
+        if tensor.can_mut() && tensor.is_nonoverlapping() {
             unary_numeric::launch_unchecked::<O, R>(
                 &client,
                 cube_count,

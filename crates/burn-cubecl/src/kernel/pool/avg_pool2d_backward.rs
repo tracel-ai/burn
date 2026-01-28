@@ -1,10 +1,18 @@
 use crate::{
     CubeRuntime,
+    kernel::{
+        pool::pool2d::{Position, view4d},
+        utils::{decompose_linear, shape_divmod},
+    },
     ops::{max_line_size, numeric::empty_device_dtype, permute_nchw_to_nhwc, permute_nhwc_to_nchw},
     tensor::CubeTensor,
 };
 use burn_backend::Shape;
-use cubecl::{calculate_cube_count_elemwise, prelude::*};
+use cubecl::{
+    calculate_cube_count_elemwise,
+    prelude::*,
+    std::{FastDivmod, tensor::View},
+};
 
 #[derive(CubeLaunch, CubeType)]
 pub(crate) struct PoolBackwardArgs {
@@ -19,26 +27,25 @@ pub(crate) struct PoolBackwardArgs {
 #[cube(launch_unchecked)]
 fn avg_pool2d_backward_kernel<E: Numeric>(
     grad: &Tensor<Line<E>>,
-    output: &mut Tensor<Line<E>>,
+    output: &mut View<Line<E>, Position, ReadWrite>,
+    out_shape: Sequence<FastDivmod<usize>>,
+    working_units: usize,
     args: &PoolBackwardArgs,
     #[comptime] kernel_size_0: i32,
     #[comptime] kernel_size_1: i32,
     #[comptime] count_include_pad: bool,
     #[define(E)] _dtype: StorageType,
 ) {
-    if ABSOLUTE_POS >= output.len() {
+    if ABSOLUTE_POS >= working_units {
         terminate!();
     }
 
     let line_size = grad.line_size();
 
-    let channel_lines = output.shape(3) / line_size;
-    let channel = (ABSOLUTE_POS % channel_lines) * output.line_size();
-    let pos = ABSOLUTE_POS / channel_lines;
-    let iw = pos as u32 % output.shape(2) as u32;
-    let pos = pos / output.shape(2);
-    let ih = pos as u32 % output.shape(1) as u32;
-    let batch = pos / output.shape(1);
+    let (_, pos) = decompose_linear(ABSOLUTE_POS * output.line_size(), &out_shape);
+    let [batch, ih, iw, channel] = *pos else {
+        unreachable!()
+    };
 
     let mut grad_acc = Line::empty(grad.line_size()).fill(E::from_int(0));
 
@@ -60,17 +67,17 @@ fn avg_pool2d_backward_kernel<E: Numeric>(
     let kernel_size_1 = comptime![kernel_size_1 as u32];
 
     let index_base = batch * grad.stride(0) + channel * grad.stride(3);
-    let border_bottom = output.shape(1) as u32 + padding_0;
-    let border_right = output.shape(2) as u32 + padding_1;
-    let begin_h = ih + padding_0;
-    let begin_w = iw + padding_1;
+    let border_bottom = output.shape().1 as u32 + padding_0;
+    let border_right = output.shape().2 as u32 + padding_1;
+    let begin_h = ih as u32 + padding_0;
+    let begin_w = iw as u32 + padding_1;
 
     for oh in oh_start..oh_end {
         let ih_start = oh * stride_0;
         let ih_end = clamp_max(ih_start + kernel_size_0, border_bottom);
         let ih_start = clamp_min(ih_start, padding_0);
 
-        if begin_h >= ih_start && ih < ih_end {
+        if begin_h >= ih_start && (ih as u32) < ih_end {
             for ow in ow_start..ow_end {
                 let index =
                     index_base + oh as usize * grad.stride(1) + ow as usize * grad.stride(2);
@@ -79,7 +86,7 @@ fn avg_pool2d_backward_kernel<E: Numeric>(
                 let iw_end = clamp_max(iw_start + kernel_size_1, border_right);
                 let iw_start = clamp_min(iw_start, padding_1);
 
-                if begin_w >= iw_start && iw < iw_end {
+                if begin_w >= iw_start && (iw as u32) < iw_end {
                     if count_include_pad {
                         grad_acc += grad[index / line_size]
                             / Line::cast_from(kernel_size_0 * kernel_size_1);
@@ -94,7 +101,7 @@ fn avg_pool2d_backward_kernel<E: Numeric>(
         }
     }
 
-    output[ABSOLUTE_POS] = grad_acc;
+    output[(batch, ih, iw, channel)] = grad_acc;
 }
 
 #[cube]
@@ -152,7 +159,9 @@ pub(crate) fn avg_pool2d_backward<R: CubeRuntime>(
             cube_count,
             cube_dim,
             grad.as_tensor_arg(line_size),
-            output.as_tensor_arg(line_size),
+            view4d(&output, line_size),
+            shape_divmod(&output),
+            ScalarArg::new(working_units),
             PoolBackwardArgsLaunch::new(
                 ScalarArg::new(stride[0] as i32),
                 ScalarArg::new(stride[1] as i32),

@@ -1,4 +1,8 @@
-use cubecl::{calculate_cube_count_elemwise, prelude::*};
+use cubecl::{
+    calculate_cube_count_elemwise,
+    prelude::*,
+    std::{CubeOption, CubeOptionExpand, FastDivmod, FastDivmodArgs},
+};
 use cubek::convolution::components::ConvSetupError;
 
 use burn_backend::{
@@ -9,13 +13,10 @@ use burn_backend::{
 use crate::{
     CubeRuntime,
     kernel::{
-        AddOp, into_contiguous, launch_binop,
+        AddOp, into_contiguous_aligned, launch_binop,
         matmul::{MatmulStrategy, matmul},
     },
-    ops::{
-        numeric::{ones_client, zeros_client},
-        reshape, swap_dims,
-    },
+    ops::{numeric::zeros_client, reshape, swap_dims},
     tensor::CubeTensor,
 };
 
@@ -33,20 +34,18 @@ struct DeformConv2dArgs {
     kernel_width: usize,
     out_h: usize,
     out_w: usize,
-
-    col_stride_0: usize,
 }
 
 #[cube(launch)]
 fn deform_im2col_kernel<F: Float>(
     input: &Tensor<F>,
     offset: &Tensor<F>,
-    mask: &Tensor<F>,
+    mask: &CubeOption<Tensor<F>>,
     columns: &mut Tensor<F>,
+    pos_shape: Sequence<FastDivmod<usize>>,
     args: &DeformConv2dArgs,
     #[comptime] kernel_h_unroll: Option<usize>,
     #[comptime] kernel_w_unroll: Option<usize>,
-    #[comptime] use_mask: bool,
     #[define(F)] _dtype: StorageType,
 ) {
     // position shape: [in_channels, batch_size, out_h, out_w]
@@ -57,38 +56,40 @@ fn deform_im2col_kernel<F: Float>(
     let kernel_width = kernel_w_unroll.unwrap_or(args.kernel_width);
     let unroll_w = kernel_w_unroll.is_some();
 
-    // Keep mask in bind group
-    let default_mask_value = mask[0];
-
     let out_h = args.out_h;
     let out_w = args.out_w;
-    let batch_size = input.shape(0);
     let in_channels = input.shape(1);
     let height = input.shape(2);
     let width = input.shape(3);
-    let col_stride_0 = args.col_stride_0;
+    let col_stride_0 = columns.stride(0);
 
-    let out_x = ABSOLUTE_POS % out_w;
-    let out_y = (ABSOLUTE_POS / out_w) % out_h;
-    let out_batch = (ABSOLUTE_POS / (out_w * out_h)) % batch_size;
-    let in_channel = ABSOLUTE_POS / (out_w * out_h * batch_size);
-    let out_channel = in_channel * kernel_height * kernel_width;
+    let (rem, out_x) = pos_shape[3].div_mod(ABSOLUTE_POS);
+    let (rem, out_y) = pos_shape[2].div_mod(rem);
+    let (in_channel, batch) = pos_shape[1].div_mod(rem);
+
+    if in_channel >= in_channels {
+        terminate!()
+    }
+
+    let out_k_base = in_channel * kernel_height * kernel_width;
+    let out_n = batch * out_h * out_w + out_y * out_w + out_x;
 
     let channels_per_offset_group = in_channels / args.offset_groups;
     let group_index = in_channel / channels_per_offset_group;
 
-    let mut col_base_idx =
-        out_channel * col_stride_0 + out_batch * (out_h * out_w) + out_y * out_w + out_x;
+    let mut col_base_idx = out_k_base * columns.stride(0) + out_n * columns.stride(1);
 
-    let input_base_idx = out_batch * input.stride(0) + in_channel * input.stride(1);
+    let input_base_idx = batch * input.stride(0) + in_channel * input.stride(1);
 
-    let offset_base_idx = out_batch * offset.stride(0)
-        + group_index * kernel_height * kernel_width * 2 * out_h * out_w;
-    let mut mask_base_idx = 0;
-    if use_mask {
-        mask_base_idx =
-            out_batch * mask.stride(0) + group_index * kernel_height * kernel_width * out_h * out_w;
-    }
+    let offset_base_idx = batch * offset.stride(0)
+        + group_index * kernel_height * kernel_width * 2 * offset.stride(1);
+
+    let mask_base_idx = match &mask {
+        CubeOption::Some(mask) => {
+            batch * mask.stride(0) + group_index * kernel_height * kernel_width * mask.stride(1)
+        }
+        CubeOption::None => 0,
+    };
 
     #[unroll(unroll_h)]
     for kernel_y in 0..kernel_height {
@@ -96,14 +97,6 @@ fn deform_im2col_kernel<F: Float>(
         for kernel_x in 0..kernel_width {
             let mask_index = kernel_y * kernel_width + kernel_x;
             let offset_index = mask_index * 2;
-
-            let mut mask_value = default_mask_value;
-            if use_mask {
-                mask_value = mask[mask_base_idx
-                    + mask_index * mask.stride(1)
-                    + out_y * mask.stride(2)
-                    + out_x * mask.stride(3)];
-            }
 
             let offset_y = offset[offset_base_idx
                 + offset_index * offset.stride(1)
@@ -121,8 +114,18 @@ fn deform_im2col_kernel<F: Float>(
                 + offset_x;
 
             let interpolated = bilinear_interpolate(input, height, width, y, x, input_base_idx);
+            let value = match mask {
+                CubeOption::Some(mask) => {
+                    let mask_value = mask[mask_base_idx
+                        + mask_index * mask.stride(1)
+                        + out_y * mask.stride(2)
+                        + out_x * mask.stride(3)];
+                    mask_value * interpolated
+                }
+                CubeOption::None => interpolated,
+            };
 
-            columns[col_base_idx] = mask_value * interpolated;
+            columns[col_base_idx] = value;
             col_base_idx += col_stride_0;
         }
     }
@@ -140,11 +143,11 @@ pub(crate) fn bilinear_interpolate<F: Float>(
     // To simplify code
     let y = f32::cast_from(y);
     let x = f32::cast_from(x);
+    let stride_y = input.stride(2);
+    let stride_x = input.stride(3);
 
     let mut result = F::new(0.0);
     if y > -1.0 && height as f32 > y && x > -1.0 && width as f32 > x {
-        let in_w = width;
-
         let y_low = y.floor();
         let x_low = x.floor();
         let y_high = (y_low + 1.) as usize;
@@ -152,22 +155,22 @@ pub(crate) fn bilinear_interpolate<F: Float>(
 
         let zero = F::new(0.0);
         let v1: F = if y_low >= 0. && x_low >= 0. {
-            input[offset + y_low as usize * in_w + x_low as usize]
+            input[offset + y_low as usize * stride_y + x_low as usize * stride_x]
         } else {
             zero
         };
         let v2: F = if y_low >= 0. && x_high < width {
-            input[offset + y_low as usize * in_w + x_high]
+            input[offset + y_low as usize * stride_y + x_high * stride_x]
         } else {
             zero
         };
         let v3: F = if y_high < height && x_low >= 0. {
-            input[offset + y_high * in_w + x_low as usize]
+            input[offset + y_high * stride_y + x_low as usize * stride_x]
         } else {
             zero
         };
         let v4: F = if y_high < height && x_high < width {
-            input[offset + y_high * in_w + x_high]
+            input[offset + y_high * stride_y + x_high * stride_x]
         } else {
             zero
         };
@@ -208,21 +211,12 @@ pub(crate) fn deform_im2col<R: CubeRuntime>(
         batch_size * out_height * out_width,
     ]);
 
+    let pos_shape = [in_channels, batch_size, out_height, out_width]
+        .into_iter()
+        .map(|s| FastDivmodArgs::new(&client, s))
+        .collect();
+
     let output = zeros_client(client.clone(), device.clone(), shape_out.clone(), dtype);
-    let use_mask = mask.is_some();
-    let mask = mask.unwrap_or_else(|| {
-        ones_client(
-            client.clone(),
-            device.clone(),
-            Shape::new([
-                offset.shape[0],
-                offset.shape[1] / 2,
-                offset.shape[2],
-                offset.shape[3],
-            ]),
-            dtype,
-        )
-    });
 
     let num_kernels = in_channels * batch_size * out_height * out_width;
     let cube_dim = CubeDim::new(&input.client, num_kernels);
@@ -232,10 +226,11 @@ pub(crate) fn deform_im2col<R: CubeRuntime>(
         &input.client,
         cube_count,
         cube_dim,
-        input.as_handle_ref().as_tensor_arg(1),
-        offset.as_handle_ref().as_tensor_arg(1),
-        mask.as_handle_ref().as_tensor_arg(1),
+        input.as_tensor_arg(1),
+        offset.as_tensor_arg(1),
+        mask.as_ref().map(|mask| mask.as_tensor_arg(1)).into(),
         output.as_handle_ref().as_tensor_arg(1),
+        pos_shape,
         DeformConv2dArgsLaunch::new(
             ScalarArg::new(options.stride[0]),
             ScalarArg::new(options.stride[1]),
@@ -254,11 +249,9 @@ pub(crate) fn deform_im2col<R: CubeRuntime>(
             ScalarArg::new(kernel_width),
             ScalarArg::new(out_height),
             ScalarArg::new(out_width),
-            ScalarArg::new(output.strides[0]),
         ),
         Some(kernel_height),
         Some(kernel_width),
-        use_mask,
         dtype.into(),
     )?;
 
@@ -273,11 +266,11 @@ pub(crate) fn deform_conv2d<R: CubeRuntime>(
     bias: Option<CubeTensor<R>>,
     options: DeformConvOptions<2>,
 ) -> Result<CubeTensor<R>, ConvSetupError> {
-    let input = into_contiguous(input);
-    let offset = into_contiguous(offset);
-    let weight = into_contiguous(weight);
-    let mask = mask.map(|it| into_contiguous(it));
-    let bias = bias.map(|it| into_contiguous(it));
+    let input = into_contiguous_aligned(input);
+    let offset = into_contiguous_aligned(offset);
+    let weight = into_contiguous_aligned(weight);
+    let mask = mask.map(|it| into_contiguous_aligned(it));
+    let bias = bias.map(|it| into_contiguous_aligned(it));
 
     let [batch_size, _, in_height, in_width] = input.shape.dims();
     let [out_channels, _, kernel_h, kernel_w] = weight.shape.dims();

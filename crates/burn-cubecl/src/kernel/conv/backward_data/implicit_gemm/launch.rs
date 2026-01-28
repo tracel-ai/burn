@@ -11,7 +11,7 @@ use cubek::{
     },
 };
 
-use crate::{CubeRuntime, ops::numeric::empty_device_optimized_dtype, tensor::CubeTensor};
+use crate::{CubeRuntime, ops::numeric::empty_device_dtype, tensor::CubeTensor};
 
 pub fn dgrad_gemm_simple_sync<R: CubeRuntime, const N: usize>(
     out_grad: CubeTensor<R>,
@@ -98,7 +98,7 @@ pub fn launch_backwards_data<R: CubeRuntime, const N: usize>(
 
     let out_dtype = out_grad.dtype;
 
-    let weight_grad = empty_device_optimized_dtype(
+    let in_grad = empty_device_dtype(
         out_grad.client.clone(),
         out_grad.device.clone(),
         input_shape,
@@ -119,7 +119,7 @@ pub fn launch_backwards_data<R: CubeRuntime, const N: usize>(
         &client,
         &out_grad,
         &weights,
-        &weight_grad.as_handle_ref(),
+        &in_grad.as_handle_ref(),
         ConvolutionArgs {
             stride: options.stride,
             padding: options.padding,
@@ -128,5 +128,5 @@ pub fn launch_backwards_data<R: CubeRuntime, const N: usize>(
         dtypes,
     )?;
 
-    Ok(weight_grad)
+    Ok(in_grad)
 }
