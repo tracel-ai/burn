@@ -46,6 +46,7 @@ num-traits = { workspace = true }
 # Device
 hashbrown = { workspace = true }
 spin = { workspace = true }
+thiserror = { workspace = true }
 
 # Serialization
 serde = { workspace = true }

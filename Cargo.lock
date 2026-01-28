@@ -1197,6 +1197,7 @@ dependencies = [
  "serde",
  "serial_test",
  "spin",
+ "thiserror 2.0.17",
 ]
 
 [[package]]

@@ -1,12 +1,15 @@
-use burn_backend::{Device, DeviceId, DeviceOps};
+use alloc::format;
+use alloc::string::String;
+use burn_backend::{Backend, Device, DeviceId, DeviceOps};
 use burn_std::stub::RwLock;
-use burn_std::{FloatDType, IntDType};
+use burn_std::{DType, FloatDType, IntDType};
 
 #[cfg(target_has_atomic = "ptr")]
 use alloc::sync::Arc;
 
 #[cfg(not(target_has_atomic = "ptr"))]
 use portable_atomic_util::Arc;
+use thiserror::Error;
 
 use core::any::TypeId;
 
@@ -43,13 +46,13 @@ impl DevicePolicy {
     }
 
     /// Sets the default floating-point data type.
-    pub(crate) fn set_float_dtype(&mut self, dtype: impl Into<FloatDType>) {
-        self.float_dtype = Some(dtype.into());
+    pub(crate) fn set_float_dtype(&mut self, dtype: FloatDType) {
+        self.float_dtype = Some(dtype);
     }
 
     /// Sets the default integer data type.
-    pub(crate) fn set_int_dtype(&mut self, dtype: impl Into<IntDType>) {
-        self.int_dtype = Some(dtype.into());
+    pub(crate) fn set_int_dtype(&mut self, dtype: IntDType) {
+        self.int_dtype = Some(dtype);
     }
 }
 
@@ -119,6 +122,46 @@ pub(crate) fn get_device_policy<D: DeviceOps>(device: &D) -> Arc<DevicePolicy> {
     DevicePolicyRegistry::get(device)
 }
 
+/// Errors that can occur during device-related operations.
+///
+/// This covers errors related to hardware capability mismatches, such as
+/// requesting a data type not supported by the device, and configuration
+/// errors like attempting to change a policy in an invalid context.
+#[derive(Debug, Error)]
+pub enum DeviceError {
+    /// Unsupported data type by the device.
+    #[error("Device {device} does not support the requested data type {dtype:?}")]
+    UnsupportedDType {
+        /// The string representation of the device.
+        device: String,
+        /// The data type that caused the error.
+        dtype: DType,
+    },
+    // TODO: `InvalidContext` if a device policy cannot be changed after init / during training / etc.
+}
+
+impl DeviceError {
+    /// Helper to create a [`DeviceError::UnsupportedDType`] from any device.
+    pub fn unsupported_dtype<D: DeviceOps>(device: &D, dtype: DType) -> Self {
+        Self::UnsupportedDType {
+            device: format!("{device:?}"),
+            dtype,
+        }
+    }
+}
+
+fn supports_dtype<B: Backend>(
+    device: &B::Device,
+    dtype: impl Into<DType>,
+) -> Result<(), DeviceError> {
+    let dtype = dtype.into();
+    if !B::supports_dtype(device, dtype) {
+        Err(DeviceError::unsupported_dtype(device, dtype))
+    } else {
+        Ok(())
+    }
+}
+
 /// Sets the default data types for the device.
 ///
 /// This updates the device's default data types used for tensor creation.
@@ -135,7 +178,7 @@ pub(crate) fn get_device_policy<D: DeviceOps>(device: &D) -> Arc<DevicePolicy> {
 ///     let device = B::Device::default();
 ///     
 ///     // Update the device policy
-///     set_default_dtypes(&device, DType::F16, DType::I32);
+///     set_default_dtypes::<B>(&device, DType::F16, DType::I32);
 ///     
 ///     // All float tensors created after this will use F16 by default
 ///     let tensor = Tensor::<B, 2>::zeros([2, 3], &device);
@@ -143,15 +186,17 @@ pub(crate) fn get_device_policy<D: DeviceOps>(device: &D) -> Arc<DevicePolicy> {
 ///     let tensor = Tensor::<B, 2, Int>::zeros([2, 3], &device);
 /// }
 /// ```
-pub fn set_default_dtypes<D: DeviceOps>(
-    device: &D,
+pub fn set_default_dtypes<B: Backend>(
+    device: &B::Device,
     float_dtype: impl Into<FloatDType>,
     int_dtype: impl Into<IntDType>,
-) {
-    DevicePolicyRegistry::update(device, |p| {
-        p.set_float_dtype(float_dtype);
-        p.set_int_dtype(int_dtype);
-    });
+) -> Result<(), DeviceError> {
+    let float_dtype = float_dtype.into();
+    let int_dtype = int_dtype.into();
+    supports_dtype::<B>(device, float_dtype)?;
+    supports_dtype::<B>(device, int_dtype)?;
+
+    Ok(set_default_dtypes_unchecked(device, float_dtype, int_dtype))
 }
 
 /// Sets the default floating-point data type for the device.
@@ -170,18 +215,20 @@ pub fn set_default_dtypes<D: DeviceOps>(
 ///     let device = B::Device::default();
 ///     
 ///     // Update the device policy
-///     set_default_float_dtype(&device, DType::F16);
+///     set_default_float_dtype::<B>(&device, DType::F16);
 ///     
 ///     // All float tensors created after this will use F16 by default
 ///     let tensor = Tensor::<B, 2>::zeros([2, 3], &device);
 /// }
 /// ```
-pub fn set_default_float_dtype<D: DeviceOps>(device: &D, dtype: impl Into<FloatDType>) {
+pub fn set_default_float_dtype<B: Backend>(
+    device: &B::Device,
+    dtype: impl Into<FloatDType>,
+) -> Result<(), DeviceError> {
     let dtype = dtype.into();
+    supports_dtype::<B>(device, dtype)?;
 
-    DevicePolicyRegistry::update(device, |p| {
-        p.set_float_dtype(dtype);
-    });
+    Ok(set_default_float_dtype_unchecked(device, dtype))
 }
 
 /// Sets the default integer data type for the device.
@@ -200,15 +247,41 @@ pub fn set_default_float_dtype<D: DeviceOps>(device: &D, dtype: impl Into<FloatD
 ///     let device = B::Device::default();
 ///     
 ///     // Update the device policy
-///     set_default_int_dtype(&device, DType::I32);
+///     set_default_int_dtype::<B>(&device, DType::I32);
 ///     
 ///     // All int tensors created after this will use I32 default
 ///     let tensor = Tensor::<B, 2, Int>::zeros([2, 3], &device);
 /// }
 /// ```
-pub fn set_default_int_dtype<D: DeviceOps>(device: &D, dtype: impl Into<IntDType>) {
+pub fn set_default_int_dtype<B: Backend>(
+    device: &B::Device,
+    dtype: impl Into<IntDType>,
+) -> Result<(), DeviceError> {
     let dtype = dtype.into();
+    supports_dtype::<B>(device, dtype)?;
 
+    Ok(set_default_int_dtype_unchecked(device, dtype))
+}
+
+// Unchecked versions
+fn set_default_dtypes_unchecked<D: DeviceOps>(
+    device: &D,
+    float_dtype: FloatDType,
+    int_dtype: IntDType,
+) {
+    DevicePolicyRegistry::update(device, |p| {
+        p.set_float_dtype(float_dtype);
+        p.set_int_dtype(int_dtype);
+    });
+}
+
+fn set_default_float_dtype_unchecked<D: DeviceOps>(device: &D, dtype: FloatDType) {
+    DevicePolicyRegistry::update(device, |p| {
+        p.set_float_dtype(dtype);
+    });
+}
+
+fn set_default_int_dtype_unchecked<D: DeviceOps>(device: &D, dtype: IntDType) {
     DevicePolicyRegistry::update(device, |p| {
         p.set_int_dtype(dtype);
     });
@@ -302,7 +375,7 @@ mod tests {
         let device = TestDeviceA::new(0);
 
         // The device policy is meant to be set once at initialization
-        set_default_dtypes(&device, FloatDType::BF16, IntDType::I32);
+        set_default_dtypes_unchecked(&device, FloatDType::BF16, IntDType::I32);
         let p1 = get_device_policy(&device);
         let p2 = get_device_policy(&device);
 
@@ -321,7 +394,7 @@ mod tests {
         let d1 = TestDeviceA::new(0);
         let d2 = TestDeviceA::new(1);
 
-        set_default_float_dtype(&d1, FloatDType::F16);
+        set_default_float_dtype_unchecked(&d1, FloatDType::F16);
 
         let p1 = get_device_policy(&d1);
         let p2 = get_device_policy(&d2);
@@ -341,7 +414,7 @@ mod tests {
         let d1 = TestDeviceA::new(0);
         let d2 = TestDeviceB::new(0);
 
-        set_default_float_dtype(&d2, FloatDType::F16);
+        set_default_float_dtype_unchecked(&d2, FloatDType::F16);
 
         let p1 = get_device_policy(&d1);
         let p2 = get_device_policy(&d2);
@@ -361,8 +434,7 @@ mod tests {
         let device = TestDeviceA::new(0);
         let before = get_device_policy(&device);
 
-        // set_default_float_dtype
-        set_default_float_dtype(&device, FloatDType::BF16);
+        set_default_float_dtype_unchecked(&device, FloatDType::BF16);
 
         let after = get_device_policy(&device);
 
@@ -378,7 +450,7 @@ mod tests {
 
         let device = TestDeviceA::new(0);
 
-        set_default_dtypes(&device, FloatDType::F16, IntDType::I64);
+        set_default_dtypes_unchecked(&device, FloatDType::F16, IntDType::I64);
 
         let policy = get_device_policy(&device);
 
