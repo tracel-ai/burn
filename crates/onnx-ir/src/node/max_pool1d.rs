@@ -260,7 +260,7 @@ mod tests {
         assert_eq!(config.kernel_size, 4);
         assert_eq!(config.stride, 2);
         assert_eq!(config.dilation, 1);
-        assert!(matches!(config.padding, PaddingConfig1d::Explicit(2)));
+        assert!(matches!(config.padding, PaddingConfig1d::Explicit(2, 2)));
     }
 
     #[test]
@@ -279,11 +279,13 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Asymmetric padding is not supported")]
     fn test_max_pool1d_config_asymmetric_padding() {
         let node = create_test_node(vec![4], vec![1], vec![1, 2], vec![1], 0, None);
         let processor = MaxPool1dProcessor;
-        let _ = processor.extract_config(&node, 16);
+        let config = processor.extract_config(&node, 16).unwrap();
+        // Asymmetric padding should now be captured instead of panicking
+        assert!(matches!(config.padding, PaddingConfig1d::Explicit(1, 2)));
+        assert!(config.padding.is_asymmetric());
     }
 
     #[test]

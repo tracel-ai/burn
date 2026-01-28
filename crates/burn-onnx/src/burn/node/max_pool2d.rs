@@ -1,4 +1,5 @@
 use super::prelude::*;
+
 impl NodeCodegen for onnx_ir::max_pool2d::MaxPool2dNode {
     fn inputs(&self) -> &[Argument] {
         &self.inputs
@@ -12,9 +13,10 @@ impl NodeCodegen for onnx_ir::max_pool2d::MaxPool2dNode {
         let name = Ident::new(&self.name, Span::call_site());
         let kernel_size = self.config.kernel_size.to_tokens();
         let strides = self.config.strides.to_tokens();
-        let padding = self.config.padding.to_tokens();
         let dilation = self.config.dilation.to_tokens();
         let ceil_mode = self.config.ceil_mode;
+
+        let padding = self.config.padding.to_tokens();
 
         Some(Field::new(
             self.name.clone(),
@@ -60,6 +62,23 @@ mod tests {
     fn create_max_pool2d_node(name: &str, ceil_mode: bool) -> MaxPool2dNode {
         let config =
             MaxPool2dConfig::new([3, 3], [1, 1], PaddingConfig2d::Valid, [1, 1], ceil_mode);
+
+        MaxPool2dNodeBuilder::new(name)
+            .input_tensor("input", 4, DType::F32)
+            .output_tensor("output", 4, DType::F32)
+            .config(config)
+            .build()
+    }
+
+    fn create_max_pool2d_node_asymmetric(name: &str) -> MaxPool2dNode {
+        // Asymmetric padding: top=1, left=2, bottom=3, right=4
+        let config = MaxPool2dConfig::new(
+            [3, 3],
+            [1, 1],
+            PaddingConfig2d::Explicit(1, 2, 3, 4),
+            [1, 1],
+            false,
+        );
 
         MaxPool2dNodeBuilder::new(name)
             .input_tensor("input", 4, DType::F32)
@@ -118,5 +137,33 @@ mod tests {
             .with_ceil_mode(true)
             .init();
         "#);
+    }
+
+    #[test]
+    fn test_max_pool2d_forward_asymmetric_padding() {
+        let node = create_max_pool2d_node_asymmetric("pool1");
+        let code = codegen_forward_default(&node);
+        // Asymmetric padding is now handled by the burn-nn module
+        assert_snapshot!(code, @r"
+        pub fn forward(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
+            let output = self.pool1.forward(input);
+            output
+        }
+        ");
+    }
+
+    #[test]
+    fn test_max_pool2d_field_init_asymmetric_padding() {
+        let node = create_max_pool2d_node_asymmetric("pool1");
+        let code = codegen_field_init(&node);
+        // Asymmetric padding is passed directly to the module
+        assert_snapshot!(code, @r"
+        let pool1 = MaxPool2dConfig::new([3, 3])
+            .with_strides([1, 1])
+            .with_padding(PaddingConfig2d::Explicit(1, 2, 3, 4))
+            .with_dilation([1, 1])
+            .with_ceil_mode(false)
+            .init();
+        ");
     }
 }

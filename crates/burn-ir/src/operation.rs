@@ -1316,6 +1316,7 @@ impl From<Conv1dOptionsIr> for ConvOptions<1> {
         ConvOptions {
             stride: val.stride,
             padding: val.padding,
+            padding_out: None,
             dilation: val.dilation,
             groups: val.groups,
         }
@@ -1327,6 +1328,7 @@ impl From<Conv2dOptionsIr> for ConvOptions<2> {
         ConvOptions {
             stride: val.stride,
             padding: val.padding,
+            padding_out: None,
             dilation: val.dilation,
             groups: val.groups,
         }
@@ -1338,6 +1340,7 @@ impl From<Conv3dOptionsIr> for ConvOptions<3> {
         ConvOptions {
             stride: val.stride,
             padding: val.padding,
+            padding_out: None,
             dilation: val.dilation,
             groups: val.groups,
         }

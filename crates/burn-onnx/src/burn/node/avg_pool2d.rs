@@ -1,4 +1,5 @@
 use super::prelude::*;
+
 impl NodeCodegen for onnx_ir::node::avg_pool2d::AveragePool2dNode {
     fn inputs(&self) -> &[Argument] {
         &self.inputs
@@ -12,9 +13,10 @@ impl NodeCodegen for onnx_ir::node::avg_pool2d::AveragePool2dNode {
         let name = Ident::new(&self.name, Span::call_site());
         let kernel_size = self.config.kernel_size.to_tokens();
         let strides = self.config.strides.to_tokens();
-        let padding = self.config.padding.to_tokens();
         let count_include_pad = self.config.count_include_pad;
         let ceil_mode = self.config.ceil_mode;
+
+        let padding = self.config.padding.to_tokens();
 
         Some(Field::new(
             self.name.clone(),
@@ -74,6 +76,24 @@ mod tests {
             .build()
     }
 
+    fn create_avg_pool2d_node_asymmetric(name: &str) -> AveragePool2dNode {
+        // Asymmetric padding: top=1, left=2, bottom=3, right=4
+        let config = AvgPool2dConfig::new(
+            [3, 3],
+            [1, 1],
+            PaddingConfig2d::Explicit(1, 2, 3, 4),
+            false,
+            [1, 1],
+            false,
+        );
+
+        AveragePool2dNodeBuilder::new(name)
+            .input_tensor("input", 4, DType::F32)
+            .output_tensor("output", 4, DType::F32)
+            .config(config)
+            .build()
+    }
+
     #[test]
     fn test_avg_pool2d_forward() {
         let node = create_avg_pool2d_node("pool1", false);
@@ -124,5 +144,20 @@ mod tests {
             .with_ceil_mode(true)
             .init();
         "#);
+    }
+
+    #[test]
+    fn test_avg_pool2d_field_init_asymmetric_padding() {
+        let node = create_avg_pool2d_node_asymmetric("pool1");
+        let code = codegen_field_init(&node);
+        // Asymmetric padding is passed directly to the module
+        assert_snapshot!(code, @r"
+        let pool1 = AvgPool2dConfig::new([3, 3])
+            .with_strides([1, 1])
+            .with_padding(PaddingConfig2d::Explicit(1, 2, 3, 4))
+            .with_count_include_pad(false)
+            .with_ceil_mode(false)
+            .init();
+        ");
     }
 }

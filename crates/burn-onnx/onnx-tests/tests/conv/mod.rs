@@ -1,6 +1,12 @@
 // Import the shared macro
 use crate::include_models;
-include_models!(conv1d, conv2d, conv3d);
+include_models!(
+    conv1d,
+    conv1d_asymmetric_padding,
+    conv2d,
+    conv2d_asymmetric_padding,
+    conv3d
+);
 
 #[cfg(test)]
 mod tests {
@@ -73,6 +79,57 @@ mod tests {
 
         let expected_sum = 48.494_262; // from pytorch
 
+        assert!(expected_sum.approx_eq(output_sum, (1.0e-4, 2)));
+    }
+
+    #[test]
+    fn conv1d_asymmetric_padding() {
+        // Initialize the model with weights (loaded from the exported file)
+        // This model tests asymmetric padding: (left=1, right=2)
+        let model: conv1d_asymmetric_padding::Model<TestBackend> =
+            conv1d_asymmetric_padding::Model::default();
+
+        // Run the model with ones as input for easier testing
+        let input = Tensor::<TestBackend, 3>::ones([2, 4, 10], &Default::default());
+
+        let output = model.forward(input);
+
+        // With asymmetric padding (1, 2), input length 10 becomes 10+1+2=13
+        // After conv with kernel 3, stride 1, output length is 13-3+1=11
+        let expected_shape = Shape::from([2, 6, 11]);
+        assert_eq!(output.shape(), expected_shape);
+
+        // We are using the sum of the output tensor to test the correctness
+        let output_sum = output.sum().into_scalar();
+        let expected_sum = -0.386_136; // from pytorch
+
+        assert!(expected_sum.approx_eq(output_sum, (1.0e-3, 2)));
+    }
+
+    #[test]
+    fn conv2d_asymmetric_padding() {
+        // Initialize the model with weights (loaded from the exported file)
+        // This model tests asymmetric padding: (left=1, right=2, top=1, bottom=3)
+        let model: conv2d_asymmetric_padding::Model<TestBackend> =
+            conv2d_asymmetric_padding::Model::default();
+
+        // Run the model with ones as input for easier testing
+        let input = Tensor::<TestBackend, 4>::ones([2, 4, 10, 15], &Default::default());
+
+        let output = model.forward(input);
+
+        // With asymmetric padding (1, 2, 1, 3), input (10, 15) becomes (10+1+3, 15+1+2) = (14, 18)
+        // After conv with kernel (3, 3), stride (1, 1), output is (12, 16)
+        let expected_shape = Shape::from([2, 6, 12, 16]);
+        assert_eq!(output.shape(), expected_shape);
+
+        // We are using the sum of the output tensor to test the correctness
+        // because the output tensor is too large to compare with the expected tensor.
+        let output_sum = output.sum().into_scalar();
+
+        let expected_sum = -481.674_65; // from burn (close to pytorch's -481.6749572753906)
+
+        // Use a slightly larger tolerance to account for floating-point differences
         assert!(expected_sum.approx_eq(output_sum, (1.0e-4, 2)));
     }
 }

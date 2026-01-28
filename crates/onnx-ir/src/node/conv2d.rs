@@ -359,7 +359,10 @@ mod tests {
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         assert_eq!(config.kernel_size, [3, 3]);
-        assert!(matches!(config.padding, PaddingConfig2d::Explicit(1, 1)));
+        assert!(matches!(
+            config.padding,
+            PaddingConfig2d::Explicit(1, 1, 1, 1)
+        ));
     }
 
     #[test]
@@ -424,7 +427,10 @@ mod tests {
         processor.infer_types(&mut node, 16, &prefs).unwrap();
 
         assert_eq!(config.kernel_size, [3, 3]);
-        assert!(matches!(config.padding, PaddingConfig2d::Explicit(1, 1)));
+        assert!(matches!(
+            config.padding,
+            PaddingConfig2d::Explicit(1, 1, 1, 1)
+        ));
     }
 
     #[test]
