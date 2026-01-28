@@ -1,11 +1,10 @@
 use burn_core as burn;
 
+use super::Reduction;
 use burn::module::{Content, DisplaySettings, ModuleDisplay};
 use burn::tensor::Tensor;
 use burn::tensor::backend::Backend;
 use burn::{config::Config, module::Module};
-
-use super::Reduction;
 
 /// Configuration to create a [KLDiv loss](KLDivLoss).
 #[derive(Config, Debug)]
@@ -75,7 +74,10 @@ impl KLDivLoss {
                 let batch_size = loss.dims()[0] as f32;
                 loss.sum().div_scalar(batch_size)
             }
-            Reduction::Mean => loss.mean(),
+            Reduction::Mean => {
+                // log::warn!("reduction: 'Reduction::Mean' divides the total loss by both the batch size and the support size.'Reduction::BatchMean' divides only by the batch size, and aligns with the KL div math definition.");
+                loss.mean()
+            }
             Reduction::Sum => loss.sum(),
         }
     }
