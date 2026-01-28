@@ -196,7 +196,8 @@ pub fn set_default_dtypes<B: Backend>(
     check_dtype_support::<B>(device, float_dtype)?;
     check_dtype_support::<B>(device, int_dtype)?;
 
-    Ok(set_default_dtypes_unchecked(device, float_dtype, int_dtype))
+    set_default_dtypes_unchecked(device, float_dtype, int_dtype);
+    Ok(())
 }
 
 /// Sets the default floating-point data type for the device.
@@ -228,7 +229,8 @@ pub fn set_default_float_dtype<B: Backend>(
     let dtype = dtype.into();
     check_dtype_support::<B>(device, dtype)?;
 
-    Ok(set_default_float_dtype_unchecked(device, dtype))
+    set_default_float_dtype_unchecked(device, dtype);
+    Ok(())
 }
 
 /// Sets the default integer data type for the device.
@@ -260,7 +262,8 @@ pub fn set_default_int_dtype<B: Backend>(
     let dtype = dtype.into();
     check_dtype_support::<B>(device, dtype)?;
 
-    Ok(set_default_int_dtype_unchecked(device, dtype))
+    set_default_int_dtype_unchecked(device, dtype);
+    Ok(())
 }
 
 // Unchecked versions
