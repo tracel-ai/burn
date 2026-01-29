@@ -694,6 +694,7 @@ dependencies = [
  "bytemuck",
  "cubecl",
  "derive-new",
+ "enumset",
  "hashbrown 0.16.1",
  "num-traits",
  "paste",
@@ -1046,6 +1047,7 @@ version = "0.21.0"
 dependencies = [
  "async-channel",
  "axum",
+ "burn-backend",
  "burn-communication",
  "burn-ir",
  "burn-ndarray",

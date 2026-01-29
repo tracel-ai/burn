@@ -1,7 +1,10 @@
 use crate::{CubeRuntime, FloatElement, IntElement, element::BoolElement, tensor::CubeTensor};
-use burn_backend::{Backend, DeviceOps, ExecutionError, TensorData};
+use burn_backend::{Backend, DTypeUsage, DTypeUsageSet, DeviceOps, ExecutionError, TensorData};
 use burn_std::DType;
-use cubecl::{features::TypeUsage, server::ComputeServer};
+use cubecl::{
+    features::{MmaConfig, ScaledMmaConfig, TypeUsage},
+    server::ComputeServer,
+};
 use std::marker::PhantomData;
 
 #[cfg(not(feature = "fusion"))]
@@ -91,6 +94,50 @@ where
                 | TypeUsage::Arithmetic
                 | TypeUsage::DotProduct,
         )
+    }
+
+    fn dtype_usage(device: &Self::Device, dtype: DType) -> DTypeUsageSet {
+        let client = R::client(device);
+
+        let props = client.properties();
+        let storage = dtype.into();
+        let usage = props.type_usage(storage);
+        let is_arithmetic = usage.contains(TypeUsage::Arithmetic);
+
+        let mut out = DTypeUsageSet::new();
+
+        // General purpose
+        if usage.is_superset(TypeUsage::Buffer | TypeUsage::Conversion) {
+            out |= DTypeUsage::Storage;
+        }
+
+        if is_arithmetic {
+            out |= DTypeUsage::Arithmetic;
+        }
+
+        // A type is specialized if:
+        // - It has specialized MMA hardware support
+        // - It has specialized IO (ldmatrix/stmatrix)
+        // - OR it only supports dot products but lacks general arithmetic (restricted specialization)
+        let has_mma = |cfg: &MmaConfig| {
+            cfg.a_type == storage || cfg.b_type == storage || cfg.cd_type == storage
+        };
+        // NOTE: we don't check the scales type as it is more of a property
+        let has_scaled_mma = |cfg: &ScaledMmaConfig| {
+            cfg.a_type == storage || cfg.b_type == storage || cfg.cd_type == storage
+        };
+
+        if props.features.ldmatrix.contains(&storage)
+            || props.features.stmatrix.contains(&storage)
+            || props.features.cmma.iter().any(has_mma)
+            || props.features.mma.iter().any(has_mma)
+            || props.features.scaled_mma.iter().any(has_scaled_mma)
+            || (usage.contains(TypeUsage::DotProduct) && !is_arithmetic)
+        {
+            out |= DTypeUsage::Specialized;
+        }
+
+        out
     }
 }
 

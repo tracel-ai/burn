@@ -1,9 +1,9 @@
 use std::marker::PhantomData;
 
+use burn_backend::Shape;
 use burn_communication::ProtocolClient;
 use burn_ir::TensorIr;
 use burn_router::{RouterTensor, RunnerChannel, get_client};
-use burn_tensor::Shape;
 
 use super::{
     RemoteClient,
@@ -46,7 +46,7 @@ impl<C: ProtocolClient> RunnerChannel for RemoteChannel<C> {
         _client: &Self::Client,
         _handle: RemoteTensorHandle<C>,
         _shape: Shape,
-        _dtype: burn_tensor::DType,
+        _dtype: burn_backend::DType,
     ) -> RouterTensor<Self::Client> {
         // This function is normally only used to move a tensor from a device to another.
         //
