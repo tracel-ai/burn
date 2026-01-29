@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use burn::backend::NdArray;
 use burn::module::Module;
 use burn::record::Record;
-use burn::rl::{Policy, PolicyLearner, PolicyState, RLTrainOutput, TransitionBatch};
+use burn::rl::{Batchable, Policy, PolicyLearner, PolicyState, RLTrainOutput, TransitionBatch};
 use burn::tensor::Transaction;
 use burn::tensor::activation::softmax;
 use burn::train::ItemLazy;
@@ -26,9 +26,9 @@ use crate::utils::{
 };
 
 pub trait DiscreteActionModel<B: Backend>: Module<B> {
-    type Input: Clone + Send + From<Vec<Self::Input>>;
+    type Input: Clone + Send + Batchable;
 
-    fn forward(&self, input: Self::Input) -> TensorLogits<B, 2>;
+    fn forward(&self, input: Self::Input) -> DiscreteLogitsTensor<B, 2>;
 }
 
 #[derive(Config, Debug)]
@@ -76,32 +76,29 @@ impl<B: Backend> MlpNet<B> {
 }
 
 #[derive(Clone)]
-pub struct TensorState<B: Backend, const D: usize> {
+pub struct ObservationTensor<B: Backend, const D: usize> {
     pub state: Tensor<B, D>,
 }
 
-impl<B: Backend, const D: usize> From<Vec<TensorState<B, D>>> for TensorState<B, D> {
-    fn from(value: Vec<TensorState<B, D>>) -> Self {
+impl<B: Backend, const D: usize> Batchable for ObservationTensor<B, D> {
+    fn batch(value: Vec<Self>) -> Self {
         let tensors = value.iter().map(|v| v.state.clone()).collect();
         Self {
             state: Tensor::cat(tensors, 0),
         }
     }
-}
 
-impl<B: Backend, const D: usize> From<TensorState<B, D>> for Vec<TensorState<B, D>> {
-    fn from(value: TensorState<B, D>) -> Self {
-        value
-            .state
+    fn unbatch(self) -> Vec<Self> {
+        self.state
             .split(1, 0)
             .iter()
-            .map(|s| TensorState { state: s.clone() })
+            .map(|s| ObservationTensor { state: s.clone() })
             .collect()
     }
 }
 
 impl<B: Backend> DiscreteActionModel<B> for MlpNet<B> {
-    type Input = TensorState<B, 2>;
+    type Input = ObservationTensor<B, 2>;
 
     /// Applies the forward pass on the input tensor.
     ///
@@ -109,7 +106,7 @@ impl<B: Backend> DiscreteActionModel<B> for MlpNet<B> {
     ///
     /// - input: `[batch_size, d_input]`
     /// - output: `[batch_size, d_output]`
-    fn forward(&self, input: Self::Input) -> TensorLogits<B, 2> {
+    fn forward(&self, input: Self::Input) -> DiscreteLogitsTensor<B, 2> {
         let mut x = input.state;
 
         for (i, linear) in self.linears.iter().enumerate() {
@@ -120,7 +117,7 @@ impl<B: Backend> DiscreteActionModel<B> for MlpNet<B> {
             }
         }
 
-        TensorLogits { logits: x }
+        DiscreteLogitsTensor { logits: x }
     }
 }
 
@@ -202,51 +199,45 @@ impl<B: Backend, M: DiscreteActionModel<B>> DQN<B, M> {
 }
 
 #[derive(Clone)]
-pub struct TensorLogits<B: Backend, const D: usize> {
+pub struct DiscreteLogitsTensor<B: Backend, const D: usize> {
     pub logits: Tensor<B, D>,
 }
 
-impl<B: Backend, const D: usize> From<Vec<TensorLogits<B, D>>> for TensorLogits<B, D> {
-    fn from(value: Vec<TensorLogits<B, D>>) -> Self {
+impl<B: Backend, const D: usize> Batchable for DiscreteLogitsTensor<B, D> {
+    fn batch(value: Vec<Self>) -> Self {
         let tensors = value.iter().map(|v| v.logits.clone()).collect();
         Self {
             logits: Tensor::cat(tensors, 0),
         }
     }
-}
 
-impl<B: Backend, const D: usize> From<TensorLogits<B, D>> for Vec<TensorLogits<B, D>> {
-    fn from(value: TensorLogits<B, D>) -> Self {
-        value
-            .logits
+    fn unbatch(self) -> Vec<Self> {
+        self.logits
             .split(1, 0)
             .iter()
-            .map(|l| TensorLogits { logits: l.clone() })
+            .map(|l| DiscreteLogitsTensor { logits: l.clone() })
             .collect()
     }
 }
 
 #[derive(Clone)]
-pub struct TensorActionOutput<B: Backend, const D: usize> {
+pub struct DiscreteActionTensor<B: Backend, const D: usize> {
     pub actions: Tensor<B, D>,
 }
 
-impl<B: Backend, const D: usize> From<Vec<TensorActionOutput<B, D>>> for TensorActionOutput<B, D> {
-    fn from(value: Vec<TensorActionOutput<B, D>>) -> Self {
+impl<B: Backend, const D: usize> Batchable for DiscreteActionTensor<B, D> {
+    fn batch(value: Vec<Self>) -> Self {
         let tensors = value.iter().map(|v| v.actions.clone()).collect();
         Self {
             actions: Tensor::cat(tensors, 0),
         }
     }
-}
 
-impl<B: Backend, const D: usize> From<TensorActionOutput<B, D>> for Vec<TensorActionOutput<B, D>> {
-    fn from(value: TensorActionOutput<B, D>) -> Self {
-        value
-            .actions
+    fn unbatch(self) -> Vec<Self> {
+        self.actions
             .split(1, 0)
             .iter()
-            .map(|a| TensorActionOutput { actions: a.clone() })
+            .map(|a| DiscreteActionTensor { actions: a.clone() })
             .collect()
     }
 }
@@ -254,8 +245,8 @@ impl<B: Backend, const D: usize> From<TensorActionOutput<B, D>> for Vec<TensorAc
 // TODO: remove Environment
 impl<B: Backend, M: DiscreteActionModel<B>> Policy<B> for DQN<B, M> {
     type Observation = M::Input;
-    type ActionDistribution = TensorLogits<B, 2>;
-    type Action = TensorActionOutput<B, 2>;
+    type ActionDistribution = DiscreteLogitsTensor<B, 2>;
+    type Action = DiscreteActionTensor<B, 2>;
 
     type ActionContext = ();
     type PolicyState = DqnState<B, M>;
@@ -271,7 +262,7 @@ impl<B: Backend, M: DiscreteActionModel<B>> Policy<B> for DQN<B, M> {
     ) -> (Self::Action, Vec<Self::ActionContext>) {
         let logits = self.forward(states).logits;
         if deterministic {
-            let output = TensorActionOutput {
+            let output = DiscreteActionTensor {
                 actions: logits.argmax(1).float(),
             };
             return (output, vec![]);
@@ -287,7 +278,7 @@ impl<B: Backend, M: DiscreteActionModel<B>> Policy<B> for DQN<B, M> {
             actions.push(Tensor::<B, 1>::from_floats([action], &probs[i].device()));
         }
 
-        let output = TensorActionOutput {
+        let output = DiscreteActionTensor {
             actions: Tensor::stack(actions, 1),
         };
         return (output, vec![]);

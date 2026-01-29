@@ -8,24 +8,24 @@ use gym_rs::{
     envs::classical_control::cartpole::{CartPoleEnv, CartPoleObservation},
 };
 
-use crate::agent::{TensorActionOutput, TensorState};
+use crate::agent::{DiscreteActionTensor, ObservationTensor};
 
 #[derive(Clone)]
 pub struct CartPoleAction {
     action: usize,
 }
 
-impl<B: Backend> From<TensorActionOutput<B, 2>> for CartPoleAction {
-    fn from(value: TensorActionOutput<B, 2>) -> Self {
+impl<B: Backend> From<DiscreteActionTensor<B, 2>> for CartPoleAction {
+    fn from(value: DiscreteActionTensor<B, 2>) -> Self {
         Self {
             action: value.actions.int().into_scalar().to_usize(),
         }
     }
 }
 
-impl<B: Backend> Into<TensorActionOutput<B, 2>> for CartPoleAction {
-    fn into(self) -> TensorActionOutput<B, 2> {
-        TensorActionOutput {
+impl<B: Backend> Into<DiscreteActionTensor<B, 2>> for CartPoleAction {
+    fn into(self) -> DiscreteActionTensor<B, 2> {
+        DiscreteActionTensor {
             actions: Tensor::<B, 1>::from_data([self.action], &Default::default()).unsqueeze(),
         }
     }
@@ -45,9 +45,9 @@ impl From<CartPoleObservation> for CartPoleState {
     }
 }
 
-impl<B: Backend> Into<TensorState<B, 2>> for CartPoleState {
-    fn into(self) -> TensorState<B, 2> {
-        TensorState {
+impl<B: Backend> Into<ObservationTensor<B, 2>> for CartPoleState {
+    fn into(self) -> ObservationTensor<B, 2> {
+        ObservationTensor {
             state: Tensor::<B, 1>::from_floats(self.state, &Default::default()).unsqueeze(),
         }
     }

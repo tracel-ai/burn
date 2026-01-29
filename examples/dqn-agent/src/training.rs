@@ -53,10 +53,9 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         .with_file_checkpointer(CompactRecorder::new())
         .num_steps(40_000)
         // .checkpoint(10_000)
-        .with_learning_strategy(burn::train::RLStrategies::OffPolicyStrategy((
-            device,
+        .with_learning_strategy(burn::train::RLStrategies::OffPolicyStrategy(
             learning_config,
-        )))
+        ))
         .summary();
 
     let _policy = learner.launch(agent);

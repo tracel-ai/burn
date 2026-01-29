@@ -11,7 +11,7 @@ pub struct StepResult<S> {
 }
 
 /// Trait to be implemented for a RL environment.
-pub trait Environment: Sized + Clone {
+pub trait Environment {
     /// The type of the state.
     type State;
     /// The type of actions.

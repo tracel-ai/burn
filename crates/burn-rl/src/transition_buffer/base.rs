@@ -2,6 +2,8 @@ use burn_core::{Tensor, prelude::Backend, tensor::backend::AutodiffBackend};
 use derive_new::new;
 use rand::{rng, seq::index::sample};
 
+use crate::Batchable;
+
 /// A state transition in an environment.
 #[derive(Clone, new)]
 pub struct Transition<B: Backend, S, A> {
@@ -15,8 +17,6 @@ pub struct Transition<B: Backend, S, A> {
     pub reward: Tensor<B, 1>,
     /// If the environment has reached a terminal state.
     pub done: Tensor<B, 1>,
-    // pub prob: Tensor<B, 1>,
-    // pub value: Option<Tensor<B, 1>>,
 }
 
 /// A batch of transitions.
@@ -39,8 +39,8 @@ where
     B: AutodiffBackend,
     S: Into<SB> + Clone,
     A: Into<AB> + Clone,
-    SB: From<Vec<SB>>,
-    AB: From<Vec<AB>>,
+    SB: Batchable,
+    AB: Batchable,
 {
     fn from(value: Vec<&Transition<BT, S, A>>) -> Self {
         let states: Vec<_> = value.iter().map(|t| t.state.clone().into()).collect();
@@ -53,9 +53,9 @@ where
         let dones = Tensor::stack::<2>(dones, 0);
 
         Self {
-            states: states.into(),
-            next_states: next_states.into(),
-            actions: actions.into(),
+            states: SB::batch(states),
+            next_states: SB::batch(next_states),
+            actions: AB::batch(actions),
             rewards: Tensor::from_data(rewards.to_data(), &Default::default()),
             dones: Tensor::from_data(dones.to_data(), &Default::default()),
         }

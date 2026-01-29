@@ -16,7 +16,7 @@ use crate::{
 use crate::{EpisodeSummary, RLStrategies};
 use burn_core::record::FileRecorder;
 use burn_core::tensor::backend::AutodiffBackend;
-use burn_rl::{Environment, EnvironmentInit, Policy, PolicyLearner};
+use burn_rl::{Batchable, Environment, EnvironmentInit, Policy, PolicyLearner};
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -44,16 +44,19 @@ pub struct RLTraining<RLC: RLComponentsTypes> {
     env_initializer: RLC::EnvInit,
 }
 
-impl<B, E, EI, A, TO, AC> RLTraining<RLComponentsMarker<B, E, EI, A, TO, AC>>
+impl<B, E, EI, A> RLTraining<RLComponentsMarker<B, E, EI, A>>
 where
     B: AutodiffBackend,
     E: Environment + 'static,
     EI: EnvironmentInit<E> + Send + 'static,
-    A: PolicyLearner<B, TrainContext = TO> + Send + 'static,
-    A::InnerPolicy: Policy<B, ActionContext = AC> + Send,
-    <A::InnerPolicy as Policy<B>>::PolicyState: Send,
-    TO: ItemLazy + Clone + Send,
-    AC: ItemLazy + Clone + Send + 'static,
+    A: PolicyLearner<B> + Send + 'static,
+    A::TrainContext: ItemLazy + Clone + Send,
+    A::InnerPolicy: Policy<B> + Send,
+    <A::InnerPolicy as Policy<B>>::Observation: Batchable + Clone + Send,
+    <A::InnerPolicy as Policy<B>>::ActionDistribution: Batchable + Clone + Send,
+    <A::InnerPolicy as Policy<B>>::Action: Batchable + Clone + Send,
+    <A::InnerPolicy as Policy<B>>::ActionContext: ItemLazy + Clone + Send + 'static,
+    <A::InnerPolicy as Policy<B>>::PolicyState: Clone + Send,
     E::State: Into<<A::InnerPolicy as Policy<B>>::Observation> + Clone + Send + 'static,
     E::Action: From<<A::InnerPolicy as Policy<B>>::Action>
         + Into<<A::InnerPolicy as Policy<B>>::Action>
@@ -94,10 +97,7 @@ where
                     ))
                     .build(),
             ),
-            learning_strategy: RLStrategies::OffPolicyStrategy((
-                Default::default(),
-                OffPolicyConfig::new(),
-            )),
+            learning_strategy: RLStrategies::OffPolicyStrategy(OffPolicyConfig::new()),
             summary_metrics: BTreeSet::new(),
             summary: false,
             env_initializer,
@@ -365,8 +365,8 @@ impl<RLC: RLComponentsTypes + 'static> RLTraining<RLC> {
         };
 
         match self.learning_strategy {
-            RLStrategies::OffPolicyStrategy((device, config)) => {
-                let strategy = OffPolicyStrategy::new(device).with_config(config);
+            RLStrategies::OffPolicyStrategy(config) => {
+                let strategy = OffPolicyStrategy::new(config);
                 strategy.train(learner_agent, components, self.env_initializer)
             }
             RLStrategies::Custom(strategy) => {

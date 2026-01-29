@@ -1,7 +1,5 @@
 use std::sync::Arc;
 
-use burn_core::prelude::Backend;
-
 use crate::{
     Interrupter, LearnerSummaryConfig, OffPolicyConfig, RLCheckpointer, RLComponentsTypes, RLEvent,
     RLEventProcessorType, RLResult,
@@ -32,7 +30,7 @@ pub struct RLComponents<RLC: RLComponentsTypes> {
 #[derive(Clone)]
 pub enum RLStrategies<RLC: RLComponentsTypes> {
     /// Training on one device
-    OffPolicyStrategy((<RLC::Backend as Backend>::Device, OffPolicyConfig)),
+    OffPolicyStrategy(OffPolicyConfig),
     /// Training using a custom learning strategy
     Custom(CustomRLStrategy<RLC>),
 }

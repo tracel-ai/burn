@@ -32,20 +32,16 @@ pub trait PolicyState<B: Backend> {
 /// Trait for a RL policy.
 pub trait Policy<B: Backend>: Clone {
     /// The observation given as input to the policy.
-    type Observation: Clone + Send + From<Vec<Self::Observation>>;
+    type Observation;
     /// The action distribution parameters defining how the action will be sampled.
-    type ActionDistribution: Clone
-        + Send
-        + From<Vec<Self::ActionDistribution>>
-        + Into<Vec<Self::ActionDistribution>>;
-    // TODO: This VS ComponentsTypes trait.
+    type ActionDistribution;
     /// The action.
-    type Action: Clone + Send + From<Vec<Self::Action>> + Into<Vec<Self::Action>>;
+    type Action;
 
     /// Additionnal context on the policy's decision.
-    type ActionContext: Clone;
+    type ActionContext;
     /// The current parameterization of the policy.
-    type PolicyState: Clone + Send + PolicyState<B>;
+    type PolicyState: PolicyState<B>;
 
     /// Produces the action distribution from a batch of observations.
     fn forward(&mut self, obs: Self::Observation) -> Self::ActionDistribution;
@@ -65,6 +61,14 @@ pub trait Policy<B: Backend>: Clone {
     fn from_record(&self, record: <Self::PolicyState as PolicyState<B>>::Record) -> Self;
 }
 
+/// Trait for a type that can be batched and unbatched (split).
+pub trait Batchable: Sized {
+    /// Create a batch from a list of items.
+    fn batch(value: Vec<Self>) -> Self;
+    /// Create a list from batched items.
+    fn unbatch(self) -> Vec<Self>;
+}
+
 /// A training output.
 pub struct RLTrainOutput<TO, P> {
     /// The policy.
@@ -75,7 +79,13 @@ pub struct RLTrainOutput<TO, P> {
 }
 
 /// Learner for a policy.
-pub trait PolicyLearner<B: AutodiffBackend> {
+pub trait PolicyLearner<B>
+where
+    B: AutodiffBackend,
+    <Self::InnerPolicy as Policy<B>>::Observation: Clone + Batchable,
+    <Self::InnerPolicy as Policy<B>>::ActionDistribution: Clone + Batchable,
+    <Self::InnerPolicy as Policy<B>>::Action: Clone + Batchable,
+{
     /// Additionnal context of a training step.
     type TrainContext;
     /// The policy to train.
@@ -116,7 +126,10 @@ impl<B, P> AutoBatcher<B, P>
 where
     B: Backend,
     P: Policy<B>,
-    P::Action: Clone,
+    P::Observation: Clone + Batchable,
+    P::ActionDistribution: Clone + Batchable,
+    P::Action: Clone + Batchable,
+    P::ActionContext: Clone,
 {
     pub fn new(autobatch_size: usize, inner_policy: P) -> Self {
         Self {
@@ -158,8 +171,10 @@ where
             .collect();
         // Only deterministic if all actions are requested as deterministic.
         let deterministic = self.batch_action.iter().all(|item| item.deterministic);
-        let (actions, context) = self.inner_policy.action(input.into(), deterministic);
-        let actions: Vec<_> = actions.into();
+        let (actions, context) = self
+            .inner_policy
+            .action(P::Observation::batch(input), deterministic);
+        let actions: Vec<_> = actions.unbatch();
 
         for (i, item) in self.batch_action.iter().enumerate() {
             item.sender
@@ -178,8 +193,8 @@ where
             .iter()
             .map(|m| m.inference_state.clone())
             .collect();
-        let output = self.inner_policy.forward(input.into());
-        let logits: Vec<_> = output.into();
+        let output = self.inner_policy.forward(P::Observation::batch(input));
+        let logits: Vec<_> = output.unbatch();
         for (i, item) in self.batch_logits.iter().enumerate() {
             item.sender
                 .send(logits[i].clone())
@@ -233,11 +248,11 @@ impl<B, P> AsyncPolicy<B, P>
 where
     B: Backend,
     P: Policy<B> + Clone + Send + 'static,
-    P::ActionContext: Send,
+    P::ActionContext: Clone + Send,
     P::PolicyState: Send,
-    P::Observation: Send,
-    P::ActionDistribution: Send,
-    P::Action: Clone + Send,
+    P::Observation: Clone + Send + Batchable,
+    P::ActionDistribution: Clone + Send + Batchable,
+    P::Action: Clone + Send + Batchable,
 {
     /// Create the policy.
     ///

@@ -1,9 +1,11 @@
+use std::marker::PhantomData;
+
 use crate::{
     AsyncEnvArrayRunner, AsyncEnvRunner, EnvRunner, EvaluationItem, EventProcessorTraining,
     RLComponents, RLComponentsTypes, RLEvent, RLEventProcessorType, RLStrategy,
 };
 use burn_core::{self as burn};
-use burn_core::{config::Config, data::dataloader::Progress, tensor::Device};
+use burn_core::{config::Config, data::dataloader::Progress};
 use burn_ndarray::NdArray;
 use burn_rl::{AsyncPolicy, Policy, PolicyLearner, Transition, TransitionBuffer};
 
@@ -36,23 +38,15 @@ pub struct OffPolicyConfig {
 
 /// Off-policy reinforcement learning strategy with multi-env experience collection and double-batching.
 pub struct OffPolicyStrategy<RLC: RLComponentsTypes> {
-    device: Device<RLC::Backend>,
     config: OffPolicyConfig,
+    _components: PhantomData<RLC>,
 }
 impl<RLC: RLComponentsTypes> OffPolicyStrategy<RLC> {
     /// Create a new off-policy base strategy.
-    pub fn new(device: Device<RLC::Backend>) -> Self {
+    pub fn new(config: OffPolicyConfig) -> Self {
         Self {
-            device,
-            config: OffPolicyConfig::new(),
-        }
-    }
-
-    /// Update the default config.
-    pub fn with_config(self, config: OffPolicyConfig) -> Self {
-        Self {
-            device: self.device,
             config,
+            _components: PhantomData,
         }
     }
 }

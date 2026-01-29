@@ -16,7 +16,7 @@ use burn::{
 use derive_new::new;
 use rand::{random, random_range};
 
-use crate::agent::{TensorActionOutput, TensorLogits};
+use crate::agent::{DiscreteActionTensor, DiscreteLogitsTensor};
 
 pub fn create_lin_layers<B: Backend>(
     num_layers: usize,
@@ -152,14 +152,18 @@ impl<B: Backend, P: Policy<B>> EpsilonGreedyPolicy<B, P> {
 impl<B, P> Policy<B> for EpsilonGreedyPolicy<B, P>
 where
     B: Backend,
-    P: Policy<B, ActionDistribution = TensorLogits<B, 2>, Action = TensorActionOutput<B, 2>>,
+    P: Policy<
+            B,
+            ActionDistribution = DiscreteLogitsTensor<B, 2>,
+            Action = DiscreteActionTensor<B, 2>,
+        >,
 {
     type ActionContext = EpsilonGreedyPolicyOutput;
     type PolicyState = EpsilonGreedyPolicyState<B, P>;
 
     type Observation = P::Observation;
-    type ActionDistribution = TensorLogits<B, 2>;
-    type Action = TensorActionOutput<B, 2>;
+    type ActionDistribution = DiscreteLogitsTensor<B, 2>;
+    type Action = DiscreteActionTensor<B, 2>;
 
     fn forward(&mut self, states: Self::Observation) -> Self::ActionDistribution {
         self.inner_policy.forward(states)
@@ -191,7 +195,7 @@ where
         }
 
         let output = Tensor::cat(actions, 0);
-        (TensorActionOutput { actions: output }, contexts)
+        (DiscreteActionTensor { actions: output }, contexts)
     }
 
     fn update(&mut self, update: Self::PolicyState) {
