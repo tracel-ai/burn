@@ -242,7 +242,6 @@ impl<B: Backend, const D: usize> Batchable for DiscreteActionTensor<B, D> {
     }
 }
 
-// TODO: remove Environment
 impl<B: Backend, M: DiscreteActionModel<B>> Policy<B> for DQN<B, M> {
     type Observation = M::Input;
     type ActionDistribution = DiscreteLogitsTensor<B, 2>;

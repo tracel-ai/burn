@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use crate::{
-    AsyncEnvArrayRunner, AsyncEnvRunner, EnvRunner, EvaluationItem, EventProcessorTraining,
+    AgentEnvAsyncLoop, AgentEnvLoop, EvaluationItem, EventProcessorTraining, MultiAgentEnvLoop,
     RLComponents, RLComponentsTypes, RLEvent, RLEventProcessorType, RLStrategy,
 };
 use burn_core::{self as burn};
@@ -66,7 +66,7 @@ where
         let mut checkpointer = training_components.checkpointer;
         let num_steps_total = training_components.num_steps;
 
-        let mut env_runner = AsyncEnvArrayRunner::<NdArray, RLC>::new(
+        let mut env_runner = MultiAgentEnvLoop::<NdArray, RLC>::new(
             env_init.clone(),
             self.config.num_envs,
             false,
@@ -78,7 +78,7 @@ where
             &Default::default(),
         );
         env_runner.start();
-        let mut env_runner_valid = AsyncEnvRunner::<NdArray, RLC>::new(
+        let mut env_runner_valid = AgentEnvAsyncLoop::<NdArray, RLC>::new(
             env_init,
             0,
             true,
@@ -113,7 +113,6 @@ where
             let previous_steps = progress.items_processed;
             let items = env_runner.run_steps(
                 self.config.train_interval,
-                false,
                 &mut event_processor,
                 &training_components.interrupter,
                 &mut progress,
@@ -141,7 +140,6 @@ where
                 env_runner_valid.update_policy(learner_agent.policy().state());
                 env_runner_valid.run_episodes(
                     self.config.eval_episodes,
-                    true,
                     &mut event_processor,
                     &training_components.interrupter,
                     &mut progress,

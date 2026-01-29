@@ -16,8 +16,6 @@ use crate::{RLEvent, RlPolicy};
 /// A trajectory, i.e. a list of ordered [TimeStep](TimeStep).
 #[derive(Clone, new)]
 pub struct Trajectory<B: Backend, S, A, C> {
-    // TODO : Change TimeStep to Transition. run_episodes should always return trajectories, even when async.
-    // Probably need a step_sender/receiver and trajectory_sender/receiver in that case.
     /// A list of ordered [TimeStep](TimeStep)s.
     pub timesteps: Vec<TimeStep<B, S, A, C>>,
 }
@@ -54,15 +52,14 @@ pub(crate) type RLTrajectory<B, RLC> = Trajectory<
 >;
 
 /// Trait for a structure that implements an agent/environement interface.
-pub trait EnvRunner<BT: Backend, RLC: RLComponentsTypes> {
-    /// Start the runner.
+pub trait AgentEnvLoop<BT: Backend, RLC: RLComponentsTypes> {
+    /// Start the loop.
     fn start(&mut self);
     /// Run a certain number of timesteps.
     ///
     /// # Arguments
     ///
     /// * `num_steps` - The number of time_steps to run.
-    /// * `deterministic` - If true, use the agent's deterministic policy, else use its stochastic policy.
     /// * `processor` - An [crate::EventProcessorTraining](crate::EventProcessorTraining).
     /// * `interrupter` - An [crate::Interrupter](crate::Interrupter).
     /// * `num_steps` - The number of time_steps to run.
@@ -74,7 +71,6 @@ pub trait EnvRunner<BT: Backend, RLC: RLComponentsTypes> {
     fn run_steps(
         &mut self,
         num_steps: usize,
-        deterministic: bool,
         processor: &mut RLEventProcessorType<RLC>,
         interrupter: &Interrupter,
         progress: &mut Progress,
@@ -84,7 +80,6 @@ pub trait EnvRunner<BT: Backend, RLC: RLComponentsTypes> {
     /// # Arguments
     ///
     /// * `num_episodes` - The number of episodes to run.
-    /// * `deterministic` - If true, use the agent's deterministic policy, else use its stochastic policy.
     /// * `processor` - An [crate::EventProcessorTraining](crate::EventProcessorTraining).
     /// * `interrupter` - An [crate::Interrupter](crate::Interrupter).
     /// * `progress` - A mutable reference to the learning progress.
@@ -95,7 +90,6 @@ pub trait EnvRunner<BT: Backend, RLC: RLComponentsTypes> {
     fn run_episodes(
         &mut self,
         num_episodes: usize,
-        deterministic: bool,
         processor: &mut RLEventProcessorType<RLC>,
         interrupter: &Interrupter,
         progress: &mut Progress,
@@ -107,23 +101,30 @@ pub trait EnvRunner<BT: Backend, RLC: RLComponentsTypes> {
 }
 
 /// A simple, synchronized agent/environement interface.
-pub struct BaseRunner<B: Backend, RLC: RLComponentsTypes> {
+pub struct AgentEnvBaseLoop<B: Backend, RLC: RLComponentsTypes> {
     env: RLC::Env,
     eval: bool,
     agent: RLC::Policy,
+    deterministic: bool,
     current_reward: f64,
     run_num: usize,
     step_num: usize,
     _backend: PhantomData<B>,
 }
 
-impl<B: Backend, RLC: RLComponentsTypes> BaseRunner<B, RLC> {
+impl<B: Backend, RLC: RLComponentsTypes> AgentEnvBaseLoop<B, RLC> {
     /// Create a new base runner.
-    pub fn new(env_init: RLC::EnvInit, agent: RLC::Policy, eval: bool) -> Self {
+    pub fn new(
+        env_init: RLC::EnvInit,
+        agent: RLC::Policy,
+        eval: bool,
+        deterministic: bool,
+    ) -> Self {
         Self {
             env: env_init.init(),
             eval,
             agent: agent.clone(),
+            deterministic,
             current_reward: 0.0,
             run_num: 0,
             step_num: 0,
@@ -132,7 +133,7 @@ impl<B: Backend, RLC: RLComponentsTypes> BaseRunner<B, RLC> {
     }
 }
 
-impl<BT, RLC> EnvRunner<BT, RLC> for BaseRunner<BT, RLC>
+impl<BT, RLC> AgentEnvLoop<BT, RLC> for AgentEnvBaseLoop<BT, RLC>
 where
     BT: Backend,
     RLC: RLComponentsTypes,
@@ -144,7 +145,6 @@ where
     fn run_steps(
         &mut self,
         num_steps: usize,
-        deterministic: bool,
         processor: &mut RLEventProcessorType<RLC>,
         interrupter: &Interrupter,
         progress: &mut Progress,
@@ -153,7 +153,7 @@ where
         let device = Default::default();
         for _ in 0..num_steps {
             let state = self.env.state();
-            let (action, context) = self.agent.action(state.clone().into(), deterministic);
+            let (action, context) = self.agent.action(state.clone().into(), self.deterministic);
 
             let step_result = self.env.step(RLC::Action::from(action.clone()));
 
@@ -220,17 +220,17 @@ where
     fn run_episodes(
         &mut self,
         num_episodes: usize,
-        deterministic: bool,
         processor: &mut RLEventProcessorType<RLC>,
         interrupter: &Interrupter,
         progress: &mut Progress,
     ) -> Vec<RLTrajectory<BT, RLC>> {
+        self.env.reset();
+
         let mut items = vec![];
         for ep in 0..num_episodes {
             let mut steps = vec![];
             loop {
-                let step =
-                    self.run_steps(1, deterministic, processor, interrupter, progress)[0].clone();
+                let step = self.run_steps(1, processor, interrupter, progress)[0].clone();
                 steps.push(step.clone());
 
                 if self.eval {

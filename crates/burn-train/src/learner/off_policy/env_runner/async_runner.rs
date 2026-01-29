@@ -7,11 +7,11 @@ use std::{
 use burn_core::{Tensor, data::dataloader::Progress, prelude::Backend, tensor::Device};
 use burn_rl::EnvironmentInit;
 use burn_rl::Transition;
-use burn_rl::{PolicyLearner, Policy};
 use burn_rl::{AsyncPolicy, Environment};
+use burn_rl::{Policy, PolicyLearner};
 
 use crate::{
-    AgentEvaluationEvent, EnvRunner, EpisodeSummary, EvaluationItem, EventProcessorTraining,
+    AgentEnvLoop, AgentEvaluationEvent, EpisodeSummary, EvaluationItem, EventProcessorTraining,
     Interrupter, RLComponentsTypes, RLEvent, RLEventProcessorType, RLTimeStep, RLTrajectory,
     RlPolicy, TimeStep, Trajectory,
 };
@@ -29,7 +29,7 @@ type RLStepMessage<B, RLC> = StepMessage<
 >;
 
 /// An asynchronous agent/environement interface.
-pub struct AsyncEnvRunner<BT: Backend, RLC: RLComponentsTypes> {
+pub struct AgentEnvAsyncLoop<BT: Backend, RLC: RLComponentsTypes> {
     env_init: RLC::EnvInit,
     id: usize,
     eval: bool,
@@ -40,7 +40,7 @@ pub struct AsyncEnvRunner<BT: Backend, RLC: RLComponentsTypes> {
     transition_sender: Sender<RLStepMessage<BT, RLC>>,
 }
 
-impl<BT: Backend, RLC: RLComponentsTypes> AsyncEnvRunner<BT, RLC> {
+impl<BT: Backend, RLC: RLComponentsTypes> AgentEnvAsyncLoop<BT, RLC> {
     /// Create a new asynchronous runner.
     pub fn new(
         env_init: RLC::EnvInit,
@@ -64,7 +64,7 @@ impl<BT: Backend, RLC: RLComponentsTypes> AsyncEnvRunner<BT, RLC> {
     }
 }
 
-impl<BT, RLC> EnvRunner<BT, RLC> for AsyncEnvRunner<BT, RLC>
+impl<BT, RLC> AgentEnvLoop<BT, RLC> for AgentEnvAsyncLoop<BT, RLC>
 where
     BT: Backend,
     RLC: RLComponentsTypes,
@@ -148,7 +148,6 @@ where
     fn run_steps(
         &mut self,
         num_steps: usize,
-        _deterministic: bool,
         processor: &mut RLEventProcessorType<RLC>,
         interrupter: &Interrupter,
         progress: &mut Progress,
@@ -198,7 +197,6 @@ where
     fn run_episodes(
         &mut self,
         num_episodes: usize,
-        deterministic: bool,
         processor: &mut RLEventProcessorType<RLC>,
         interrupter: &Interrupter,
         progress: &mut Progress,
@@ -208,8 +206,7 @@ where
             let mut steps = vec![];
             let mut step_num = 0;
             loop {
-                let step =
-                    self.run_steps(1, deterministic, processor, interrupter, progress)[0].clone();
+                let step = self.run_steps(1, processor, interrupter, progress)[0].clone();
                 steps.push(step.clone());
 
                 step_num += 1;
@@ -252,7 +249,7 @@ where
 }
 
 /// An asynchronous runner for multiple agent/environement interfaces.
-pub struct AsyncEnvArrayRunner<BT: Backend, RLC: RLComponentsTypes> {
+pub struct MultiAgentEnvLoop<BT: Backend, RLC: RLComponentsTypes> {
     env_init: RLC::EnvInit,
     num_envs: usize,
     eval: bool,
@@ -265,7 +262,7 @@ pub struct AsyncEnvArrayRunner<BT: Backend, RLC: RLComponentsTypes> {
     current_trajectories: HashMap<usize, Vec<RLTimeStep<BT, RLC>>>,
 }
 
-impl<BT: Backend, RLC: RLComponentsTypes> AsyncEnvArrayRunner<BT, RLC> {
+impl<BT: Backend, RLC: RLComponentsTypes> MultiAgentEnvLoop<BT, RLC> {
     /// Create a new asynchronous runner for multiple agent/environement interfaces.
     pub fn new(
         env_init: RLC::EnvInit,
@@ -290,7 +287,7 @@ impl<BT: Backend, RLC: RLComponentsTypes> AsyncEnvArrayRunner<BT, RLC> {
     }
 }
 
-impl<BT, RLC> EnvRunner<BT, RLC> for AsyncEnvArrayRunner<BT, RLC>
+impl<BT, RLC> AgentEnvLoop<BT, RLC> for MultiAgentEnvLoop<BT, RLC>
 where
     BT: Backend,
     RLC: RLComponentsTypes,
@@ -304,7 +301,7 @@ where
     // TODO: start() shouldn't exist.
     fn start(&mut self) {
         for i in 0..self.num_envs {
-            let mut runner = AsyncEnvRunner::<BT, RLC>::new(
+            let mut runner = AgentEnvAsyncLoop::<BT, RLC>::new(
                 self.env_init.clone(),
                 i,
                 self.eval,
@@ -320,7 +317,6 @@ where
     fn run_steps(
         &mut self,
         num_steps: usize,
-        _deterministic: bool,
         processor: &mut RLEventProcessorType<RLC>,
         interrupter: &Interrupter,
         progress: &mut Progress,
@@ -371,14 +367,13 @@ where
     fn run_episodes(
         &mut self,
         num_episodes: usize,
-        deterministic: bool,
         processor: &mut RLEventProcessorType<RLC>,
         interrupter: &Interrupter,
         progress: &mut Progress,
     ) -> Vec<RLTrajectory<BT, RLC>> {
         let mut items = vec![];
         loop {
-            let step = &self.run_steps(1, deterministic, processor, interrupter, progress)[0];
+            let step = &self.run_steps(1, processor, interrupter, progress)[0];
             self.current_trajectories
                 .entry(step.env_id)
                 .or_default()
