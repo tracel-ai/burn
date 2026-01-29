@@ -1,14 +1,15 @@
 use crate::{
     CubeRuntime,
-    kernel::into_contiguous,
-    ops::{
-        numeric::{empty_device_dtype, zeros_client},
-        reshape,
-    },
+    kernel::utils::{decompose_linear, linear_view, shape_divmod},
+    ops::numeric::empty_device_dtype,
     tensor::CubeTensor,
 };
 use burn_backend::{Shape, ops::ConvTransposeOptions};
-use cubecl::{calculate_cube_count_elemwise, prelude::*};
+use cubecl::{
+    calculate_cube_count_elemwise,
+    prelude::*,
+    std::{CubeOption, CubeOptionExpand, FastDivmod, tensor::layout::linear::LinearView},
+};
 use cubek::convolution::components::ConvSetupError;
 
 #[derive(CubeLaunch, CubeType)]
@@ -26,12 +27,13 @@ struct ConvArgs {
 fn conv_transpose2d_direct_kernel<E: Numeric>(
     input: &Tensor<E>,
     weight: &Tensor<E>,
-    bias: &Tensor<E>,
-    output: &mut Tensor<E>,
+    bias: &CubeOption<Tensor<E>>,
+    output: &mut LinearView<E, ReadWrite>,
+    out_shape: Sequence<FastDivmod<usize>>,
     args: ConvArgs,
     #[define(E)] _dtype: StorageType,
 ) {
-    if ABSOLUTE_POS >= output.len() {
+    if ABSOLUTE_POS >= output.shape() {
         terminate!();
     }
 
@@ -40,10 +42,10 @@ fn conv_transpose2d_direct_kernel<E: Numeric>(
     let kernel_h = weight.shape(2);
     let kernel_w = weight.shape(3);
 
-    let batch = ABSOLUTE_POS / output.stride(0) % output.shape(0);
-    let oc_out = ABSOLUTE_POS / output.stride(1) % output.shape(1);
-    let out_y = ABSOLUTE_POS / output.stride(2) % output.shape(2);
-    let out_x = ABSOLUTE_POS / output.stride(3) % output.shape(3);
+    let (_, pos) = decompose_linear(ABSOLUTE_POS, &out_shape);
+    let [batch, oc_out, out_y, out_x] = *pos else {
+        unreachable!()
+    };
 
     let k = oc_out / out_c_per_group;
     let group = k % args.groups;
@@ -69,7 +71,10 @@ fn conv_transpose2d_direct_kernel<E: Numeric>(
     let idx_input_batch = batch * input.stride(0);
     let idx_weight_oc = out_c * weight.stride(1);
 
-    let mut sum = bias[oc_out];
+    let mut sum = match bias {
+        CubeOption::Some(bias) => bias[oc_out],
+        CubeOption::None => E::from_int(0),
+    };
 
     let numerator_h_base = out_y + args.padding_0;
     let numerator_w_base = out_x + args.padding_1;
@@ -129,8 +134,6 @@ pub fn conv_transpose2d_direct<R: CubeRuntime>(
     bias: Option<CubeTensor<R>>,
     options: ConvTransposeOptions<2>,
 ) -> Result<CubeTensor<R>, ConvSetupError> {
-    let input = into_contiguous(input);
-    let weight = into_contiguous(weight);
     let [batch_size, _, in_height, in_width] = input.shape.dims();
     let [_, out_channels, kernel_0, kernel_1] = weight.shape.dims();
 
@@ -154,22 +157,6 @@ pub fn conv_transpose2d_direct<R: CubeRuntime>(
         input.dtype,
     );
 
-    let bias = match bias {
-        Some(bias) => {
-            let shape = Shape::from([bias.shape[0], 1, 1, 1]);
-            reshape(bias, shape)
-        }
-        None => {
-            let shape = Shape::from([output.shape[0], 1, 1, 1]);
-            zeros_client(
-                input.client.clone(),
-                input.device.clone(),
-                shape,
-                input.dtype,
-            )
-        }
-    };
-
     let num_elems = output.shape.num_elements();
     let cube_dim = CubeDim::new(&input.client, num_elems);
     let cube_count = calculate_cube_count_elemwise(&input.client, num_elems, cube_dim);
@@ -180,8 +167,9 @@ pub fn conv_transpose2d_direct<R: CubeRuntime>(
         cube_dim,
         input.as_tensor_arg(1),
         weight.as_tensor_arg(1),
-        bias.as_tensor_arg(1),
-        output.as_tensor_arg(1),
+        bias.as_ref().map(|bias| bias.as_tensor_arg(1)).into(),
+        linear_view(&output, 1),
+        shape_divmod(&output),
         ConvArgsLaunch::new(
             ScalarArg::new(options.stride[0]),
             ScalarArg::new(options.stride[1]),

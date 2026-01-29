@@ -18,7 +18,7 @@ fn main() {
     let device = burn::backend::wgpu::WgpuDevice::default();
 
     // All the training artifacts will be saved in this directory
-    let artifact_dir = "/tmp/guide";
+    let artifact_dir = "target/guide";
 
     // Train the model
     training::train::<MyAutodiffBackend>(
