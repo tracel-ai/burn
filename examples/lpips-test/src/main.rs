@@ -13,8 +13,8 @@
 //!
 //! ## Run
 //! ```bash
-//! # Burn
-//! cargo run -p lpips-test
+//! # Burn (run from project root)
+//! cargo run -p lpips-test --release
 //!
 //! # PyTorch (for comparison)
 //! cd examples/lpips-test && python compare.py
