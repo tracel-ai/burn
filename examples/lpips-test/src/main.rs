@@ -119,5 +119,11 @@ fn main() {
         run_tests(&lpips_alex, &device);
     }
 
+    // SqueezeNet
+    println!("\n[SqueezeNet]");
+    if let Some(lpips_squeeze) = load_lpips("examples/lpips-test/weights/lpips_squeeze.pt", LpipsNet::Squeeze, &device) {
+        run_tests(&lpips_squeeze, &device);
+    }
+
     println!("\nCompare with: cd examples/lpips-test && python compare.py");
 }
