@@ -64,6 +64,11 @@ pub enum LpipsNet {
 /// let lpips_alex = LpipsConfig::new()
 ///     .with_net(LpipsNet::Alex)
 ///     .init(&device);
+///
+/// // SqueezeNet
+/// let lpips_squeeze = LpipsConfig::new()
+///     .with_net(LpipsNet::Squeeze)
+///     .init(&device);
 /// ```
 #[derive(Config, Debug)]
 pub struct LpipsConfig {
