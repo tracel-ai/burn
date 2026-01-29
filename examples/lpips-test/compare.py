@@ -39,6 +39,11 @@ def generate_weights():
     torch.save(loss_alex.state_dict(), weights_dir / "lpips_alex.pt")
     print(f"  Saved: {weights_dir / 'lpips_alex.pt'}")
 
+    print("Generating SqueezeNet weights...")
+    loss_squeeze = lpips.LPIPS(net='squeeze')
+    torch.save(loss_squeeze.state_dict(), weights_dir / "lpips_squeeze.pt")
+    print(f"  Saved: {weights_dir / 'lpips_squeeze.pt'}")
+
     print("\nDone! Now run:")
     print("  cargo run -p lpips-test")
     print("  python compare.py")
@@ -86,6 +91,11 @@ def main():
     print("\n[AlexNet]")
     loss_alex = lpips.LPIPS(net='alex')
     run_tests(loss_alex, "AlexNet")
+
+    # SqueezeNet
+    print("\n[SqueezeNet]")
+    loss_squeeze = lpips.LPIPS(net='squeeze')
+    run_tests(loss_squeeze, "SqueezeNet")
 
     print("\nCompare with: cargo run -p lpips-test")
 
