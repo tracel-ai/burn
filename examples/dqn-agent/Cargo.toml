@@ -16,7 +16,7 @@ tch-gpu = ["burn/tch"]
 remote = ["burn/remote"]
 wgpu = ["burn/wgpu", "burn/default"]
 metal = ["burn/metal", "burn/default"]
-cuda = ["burn/cuda", "burn/default"]
+cuda = ["burn/cuda"]
 vulkan = ["burn/vulkan", "burn/default"]
 rocm = ["burn/rocm", "burn/default"]
 
@@ -25,11 +25,11 @@ rocm = ["burn/rocm", "burn/default"]
 burn = { path = "../../crates/burn", features = [
     "train",
     # "vision",
-    # "metrics",
-    # "std",
+    "metrics",
+    "std",
     "rl",
     # "fusion",
-    # "ndarray",
+    "ndarray",
     # "autotune",
 ], default-features = false }
 gym-rs = { version = "0.3.1", branch = "main", git = "https://github.com/MathisWellmann/gym-rs" }

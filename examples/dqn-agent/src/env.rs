@@ -59,6 +59,15 @@ pub struct CartPoleWrapper {
     step_index: usize,
 }
 
+impl CartPoleWrapper {
+    pub fn new() -> Self {
+        Self {
+            gym_env: CartPoleEnv::new(gym_rs::utils::renderer::RenderMode::None),
+            step_index: 0,
+        }
+    }
+}
+
 impl Environment for CartPoleWrapper {
     type State = CartPoleState;
     type Action = CartPoleAction;
@@ -66,13 +75,6 @@ impl Environment for CartPoleWrapper {
     const MAX_STEPS: usize = 500;
     const OBS_SPACE: usize = 4;
     const ACTION_SPACE: usize = 2;
-
-    fn new() -> Self {
-        Self {
-            gym_env: CartPoleEnv::new(gym_rs::utils::renderer::RenderMode::None),
-            step_index: 0,
-        }
-    }
 
     fn state(&self) -> Self::State {
         CartPoleState::from(self.gym_env.state)

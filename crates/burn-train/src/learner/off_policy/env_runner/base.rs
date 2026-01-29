@@ -2,9 +2,9 @@ use std::marker::PhantomData;
 
 use burn_core::data::dataloader::Progress;
 use burn_core::{Tensor, prelude::Backend};
-use burn_rl::Environment;
 use burn_rl::Policy;
 use burn_rl::Transition;
+use burn_rl::{Environment, EnvironmentInit};
 
 use crate::{
     AgentEvaluationEvent, EpisodeSummary, EvaluationItem, EventProcessorTraining,
@@ -119,9 +119,9 @@ pub struct BaseRunner<B: Backend, RLC: RLComponentsTypes> {
 
 impl<B: Backend, RLC: RLComponentsTypes> BaseRunner<B, RLC> {
     /// Create a new base runner.
-    pub fn new(agent: RLC::Policy, eval: bool) -> Self {
+    pub fn new(env_init: RLC::EnvInit, agent: RLC::Policy, eval: bool) -> Self {
         Self {
-            env: <RLC::Env as Environment>::new(),
+            env: env_init.init(),
             eval,
             agent: agent.clone(),
             current_reward: 0.0,

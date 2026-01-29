@@ -16,7 +16,7 @@ use crate::{
 use crate::{EpisodeSummary, RLStrategies};
 use burn_core::record::FileRecorder;
 use burn_core::tensor::backend::AutodiffBackend;
-use burn_rl::{AgentLearner, Environment, EnvironmentInit, Policy};
+use burn_rl::{Environment, EnvironmentInit, Policy, PolicyLearner};
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -49,12 +49,12 @@ where
     B: AutodiffBackend,
     E: Environment + 'static,
     EI: EnvironmentInit<E> + Send + 'static,
-    A: AgentLearner<B, TrainingOutput = TO> + Send + 'static,
+    A: PolicyLearner<B, TrainContext = TO> + Send + 'static,
     A::InnerPolicy: Policy<B, ActionContext = AC> + Send,
     <A::InnerPolicy as Policy<B>>::PolicyState: Send,
     TO: ItemLazy + Clone + Send,
     AC: ItemLazy + Clone + Send + 'static,
-    E::State: Into<<A::InnerPolicy as Policy<B>>::Input> + Clone + Send + 'static,
+    E::State: Into<<A::InnerPolicy as Policy<B>>::Observation> + Clone + Send + 'static,
     E::Action: From<<A::InnerPolicy as Policy<B>>::Action>
         + Into<<A::InnerPolicy as Policy<B>>::Action>
         + Clone

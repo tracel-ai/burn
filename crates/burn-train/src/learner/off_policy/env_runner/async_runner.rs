@@ -7,7 +7,7 @@ use std::{
 use burn_core::{Tensor, data::dataloader::Progress, prelude::Backend, tensor::Device};
 use burn_rl::EnvironmentInit;
 use burn_rl::Transition;
-use burn_rl::{AgentLearner, Policy};
+use burn_rl::{PolicyLearner, Policy};
 use burn_rl::{AsyncPolicy, Environment};
 
 use crate::{
@@ -71,9 +71,9 @@ where
     RLC::Policy: Send + 'static,
     <RLC::Policy as Policy<RLC::Backend>>::PolicyState: Send,
     <RLC::Policy as Policy<RLC::Backend>>::ActionContext: Send,
-    <RLC::Policy as Policy<RLC::Backend>>::Input: Send,
+    <RLC::Policy as Policy<RLC::Backend>>::Observation: Send,
     <RLC::Policy as Policy<RLC::Backend>>::Action: Send,
-    <RLC::Policy as Policy<RLC::Backend>>::Output: Send,
+    <RLC::Policy as Policy<RLC::Backend>>::ActionDistribution: Send,
 {
     fn start(&mut self) {
         let id = self.id;
@@ -257,7 +257,7 @@ pub struct AsyncEnvArrayRunner<BT: Backend, RLC: RLComponentsTypes> {
     num_envs: usize,
     eval: bool,
     agent:
-        AsyncPolicy<RLC::Backend, <RLC::LearningAgent as AgentLearner<RLC::Backend>>::InnerPolicy>,
+        AsyncPolicy<RLC::Backend, <RLC::LearningAgent as PolicyLearner<RLC::Backend>>::InnerPolicy>,
     deterministic: bool,
     device: Device<BT>,
     transition_receiver: Receiver<RLStepMessage<BT, RLC>>,
@@ -297,9 +297,9 @@ where
     RLC::Policy: Send + 'static,
     <RLC::Policy as Policy<RLC::Backend>>::PolicyState: Send,
     <RLC::Policy as Policy<RLC::Backend>>::ActionContext: Send,
-    <RLC::Policy as Policy<RLC::Backend>>::Input: Send,
+    <RLC::Policy as Policy<RLC::Backend>>::Observation: Send,
     <RLC::Policy as Policy<RLC::Backend>>::Action: Send,
-    <RLC::Policy as Policy<RLC::Backend>>::Output: Send,
+    <RLC::Policy as Policy<RLC::Backend>>::ActionDistribution: Send,
 {
     // TODO: start() shouldn't exist.
     fn start(&mut self) {

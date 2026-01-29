@@ -5,7 +5,7 @@ use crate::{
 use burn_core::{self as burn};
 use burn_core::{config::Config, data::dataloader::Progress, tensor::Device};
 use burn_ndarray::NdArray;
-use burn_rl::{AgentLearner, AsyncPolicy, Policy, Transition, TransitionBuffer};
+use burn_rl::{AsyncPolicy, Policy, PolicyLearner, Transition, TransitionBuffer};
 
 /// Parameters of an on policy training with multi environments and double-batching.
 #[derive(Config, Debug)]

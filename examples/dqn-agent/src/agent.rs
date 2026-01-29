@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use burn::backend::NdArray;
 use burn::module::Module;
 use burn::record::Record;
-use burn::rl::{AgentLearner, Policy, PolicyState, RLTrainOutput, TransitionBatch};
+use burn::rl::{Policy, PolicyLearner, PolicyState, RLTrainOutput, TransitionBatch};
 use burn::tensor::Transaction;
 use burn::tensor::activation::softmax;
 use burn::train::ItemLazy;
@@ -253,20 +253,20 @@ impl<B: Backend, const D: usize> From<TensorActionOutput<B, D>> for Vec<TensorAc
 
 // TODO: remove Environment
 impl<B: Backend, M: DiscreteActionModel<B>> Policy<B> for DQN<B, M> {
-    type Input = M::Input;
-    type Output = TensorLogits<B, 2>;
+    type Observation = M::Input;
+    type ActionDistribution = TensorLogits<B, 2>;
     type Action = TensorActionOutput<B, 2>;
 
     type ActionContext = ();
     type PolicyState = DqnState<B, M>;
 
-    fn forward(&mut self, states: Self::Input) -> Self::Output {
+    fn forward(&mut self, states: Self::Observation) -> Self::ActionDistribution {
         self.model.forward(states)
     }
 
     fn action(
         &mut self,
-        states: Self::Input,
+        states: Self::Observation,
         deterministic: bool,
     ) -> (Self::Action, Vec<Self::ActionContext>) {
         let logits = self.forward(states).logits;
@@ -388,7 +388,7 @@ impl<B: Backend> Adaptor<LossInput<B>> for SimpleTrainOutput<B> {
     }
 }
 
-impl<B, M, O> AgentLearner<B> for DqnLearningAgent<B, M, O>
+impl<B, M, O> PolicyLearner<B> for DqnLearningAgent<B, M, O>
 where
     B: AutodiffBackend,
     M: DiscreteActionModel<B> + AutodiffModule<B> + TargetModel<B> + 'static,
@@ -396,12 +396,7 @@ where
     M::InnerModule: DiscreteActionModel<B::InnerBackend> + TargetModel<B::InnerBackend>,
     O: Optimizer<M, B> + 'static,
 {
-    // type TrainingInput = Transition<
-    //     B,
-    //     <Self::InnerPolicy as Policy<B>>::Input,
-    //     <Self::InnerPolicy as Policy<B>>::Action,
-    // >;
-    type TrainingOutput = SimpleTrainOutput<B>;
+    type TrainContext = SimpleTrainOutput<B>;
     type InnerPolicy = EpsilonGreedyPolicy<B, DQN<B, M>>;
     type Record = DqnLearningRecord<B, M, O>;
 
@@ -409,18 +404,10 @@ where
         &mut self,
         input: TransitionBatch<
             B,
-            <Self::InnerPolicy as Policy<B>>::Input,
+            <Self::InnerPolicy as Policy<B>>::Observation,
             <Self::InnerPolicy as Policy<B>>::Action,
         >,
-    ) -> RLTrainOutput<Self::TrainingOutput, <Self::InnerPolicy as Policy<B>>::PolicyState> {
-        // let batch = TransitionBatch::from(input);
-
-        // let states_batch = self.policy_model.batch(batch.states.iter().collect());
-        // let next_states_batch = self.target_model.batch(batch.next_states.iter().collect());
-        // let actions_batch = batch.actions;
-        // let actions_batch = Tensor::cat(actions_batch, 0);
-        // let rewards_batch = batch.rewards;
-        // let dones_batch = batch.dones;
+    ) -> RLTrainOutput<Self::TrainContext, <Self::InnerPolicy as Policy<B>>::PolicyState> {
         let states_batch = input.states;
         let next_states_batch = input.next_states;
         let actions_batch = input.actions.actions;

@@ -152,22 +152,22 @@ impl<B: Backend, P: Policy<B>> EpsilonGreedyPolicy<B, P> {
 impl<B, P> Policy<B> for EpsilonGreedyPolicy<B, P>
 where
     B: Backend,
-    P: Policy<B, Output = TensorLogits<B, 2>, Action = TensorActionOutput<B, 2>>,
+    P: Policy<B, ActionDistribution = TensorLogits<B, 2>, Action = TensorActionOutput<B, 2>>,
 {
     type ActionContext = EpsilonGreedyPolicyOutput;
     type PolicyState = EpsilonGreedyPolicyState<B, P>;
 
-    type Input = P::Input;
-    type Output = TensorLogits<B, 2>;
+    type Observation = P::Observation;
+    type ActionDistribution = TensorLogits<B, 2>;
     type Action = TensorActionOutput<B, 2>;
 
-    fn forward(&mut self, states: Self::Input) -> Self::Output {
+    fn forward(&mut self, states: Self::Observation) -> Self::ActionDistribution {
         self.inner_policy.forward(states)
     }
 
     fn action(
         &mut self,
-        states: Self::Input,
+        states: Self::Observation,
         deterministic: bool,
     ) -> (Self::Action, Vec<Self::ActionContext>) {
         let logits = self.inner_policy.forward(states).logits;

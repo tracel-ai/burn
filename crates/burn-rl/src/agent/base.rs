@@ -9,38 +9,59 @@ use burn_core::{prelude::*, record::Record, tensor::backend::AutodiffBackend};
 
 use crate::TransitionBatch;
 
+/// An action along with additionnal context about the decision.
 #[derive(Clone, new)]
 pub struct ActionContext<A, C> {
+    /// The context.
     pub context: C,
+    /// The action.
     pub action: A,
 }
 
+/// The state of a policy.
 pub trait PolicyState<B: Backend> {
+    /// The type of the record.
     type Record: Record<B>;
 
+    /// Convert the state to a record.
     fn into_record(&self) -> Self::Record;
+    /// Load the state from a record.
     fn load_record(&self, record: Self::Record) -> Self;
 }
 
+/// Trait for a RL policy.
 pub trait Policy<B: Backend>: Clone {
-    type Input: Clone + Send + From<Vec<Self::Input>>;
-    type Output: Clone + Send + From<Vec<Self::Output>> + Into<Vec<Self::Output>>;
+    /// The observation given as input to the policy.
+    type Observation: Clone + Send + From<Vec<Self::Observation>>;
+    /// The action distribution parameters defining how the action will be sampled.
+    type ActionDistribution: Clone
+        + Send
+        + From<Vec<Self::ActionDistribution>>
+        + Into<Vec<Self::ActionDistribution>>;
     // TODO: This VS ComponentsTypes trait.
+    /// The action.
     type Action: Clone + Send + From<Vec<Self::Action>> + Into<Vec<Self::Action>>;
 
+    /// Additionnal context on the policy's decision.
     type ActionContext: Clone;
+    /// The current parameterization of the policy.
     type PolicyState: Clone + Send + PolicyState<B>;
 
-    fn forward(&mut self, states: Self::Input) -> Self::Output;
+    /// Produces the action distribution from a batch of observations.
+    fn forward(&mut self, obs: Self::Observation) -> Self::ActionDistribution;
+    /// Gives the action from a batch of observations.
     fn action(
         &mut self,
-        states: Self::Input,
+        states: Self::Observation,
         deterministic: bool,
     ) -> (Self::Action, Vec<Self::ActionContext>);
 
+    /// Update the policy's parameters.
     fn update(&mut self, update: Self::PolicyState);
+    /// Returns the current parameterization.
     fn state(&self) -> Self::PolicyState;
 
+    /// Loads the policy parameters from a record.
     fn from_record(&self, record: <Self::PolicyState as PolicyState<B>>::Record) -> Self;
 }
 
@@ -53,30 +74,32 @@ pub struct RLTrainOutput<TO, P> {
     pub item: TO,
 }
 
-pub trait AgentLearner<B: AutodiffBackend> {
-    // type TrainingInput: From<
-    //     Transition<
-    //         NdArray,
-    //         <Self::InnerPolicy as Policy<B>>::Input,
-    //         <Self::InnerPolicy as Policy<B>>::Action,
-    //     >,
-    // >;
-    type TrainingOutput;
+/// Learner for a policy.
+pub trait PolicyLearner<B: AutodiffBackend> {
+    /// Additionnal context of a training step.
+    type TrainContext;
+    /// The policy to train.
     type InnerPolicy: Policy<B>;
+    /// The record of the learner.
     type Record: Record<B>;
 
+    /// Execute a training step on the policy.
     fn train(
         &mut self,
         input: TransitionBatch<
             B,
-            <Self::InnerPolicy as Policy<B>>::Input,
+            <Self::InnerPolicy as Policy<B>>::Observation,
             <Self::InnerPolicy as Policy<B>>::Action,
         >,
-    ) -> RLTrainOutput<Self::TrainingOutput, <Self::InnerPolicy as Policy<B>>::PolicyState>;
+    ) -> RLTrainOutput<Self::TrainContext, <Self::InnerPolicy as Policy<B>>::PolicyState>;
+    /// Returns the learner's current policy.
     fn policy(&self) -> Self::InnerPolicy;
+    /// Update the learner's policy.
     fn update_policy(&mut self, update: Self::InnerPolicy);
 
+    /// Convert the learner's state into a record.
     fn into_record(&self) -> Self::Record;
+    /// Load the learner's state from a record.
     fn load_record(self, record: Self::Record) -> Self;
 }
 
@@ -84,8 +107,8 @@ pub trait AgentLearner<B: AutodiffBackend> {
 struct AutoBatcher<B: Backend, P: Policy<B>> {
     autobatch_size: usize,
     inner_policy: P,
-    batch_action: Vec<ActionItem<P::Input, P::Action, P::ActionContext>>,
-    batch_logits: Vec<ForwardItem<P::Input, P::Output>>,
+    batch_action: Vec<ActionItem<P::Observation, P::Action, P::ActionContext>>,
+    batch_logits: Vec<ForwardItem<P::Observation, P::ActionDistribution>>,
     _backend: PhantomData<B>,
 }
 
@@ -105,14 +128,14 @@ where
         }
     }
 
-    pub fn push_action(&mut self, item: ActionItem<P::Input, P::Action, P::ActionContext>) {
+    pub fn push_action(&mut self, item: ActionItem<P::Observation, P::Action, P::ActionContext>) {
         self.batch_action.push(item);
         if self.len_actions() >= self.autobatch_size {
             self.flush_actions();
         }
     }
 
-    pub fn push_logits(&mut self, item: ForwardItem<P::Input, P::Output>) {
+    pub fn push_logits(&mut self, item: ForwardItem<P::Observation, P::ActionDistribution>) {
         self.batch_logits.push(item);
         if self.len_logits() >= self.autobatch_size {
             self.flush_actions();
@@ -181,8 +204,8 @@ where
 }
 
 enum InferenceMessage<B: Backend, P: Policy<B>> {
-    ActionMessage(ActionItem<P::Input, P::Action, P::ActionContext>),
-    ForwardMessage(ForwardItem<P::Input, P::Output>),
+    ActionMessage(ActionItem<P::Observation, P::Action, P::ActionContext>),
+    ForwardMessage(ForwardItem<P::Observation, P::ActionDistribution>),
     PolicyUpdate(P::PolicyState),
     PolicyRequest(Sender<P::PolicyState>),
 }
@@ -200,6 +223,7 @@ struct ForwardItem<S, O> {
     inference_state: S,
 }
 
+/// An asynchronous policy with autobatching for inference.
 #[derive(Clone)]
 pub struct AsyncPolicy<B: Backend, P: Policy<B>> {
     inference_state_sender: Option<Sender<InferenceMessage<B, P>>>,
@@ -211,10 +235,16 @@ where
     P: Policy<B> + Clone + Send + 'static,
     P::ActionContext: Send,
     P::PolicyState: Send,
-    P::Input: Send,
-    P::Output: Send,
+    P::Observation: Send,
+    P::ActionDistribution: Send,
     P::Action: Clone + Send,
 {
+    /// Create the policy.
+    ///
+    /// # Arguments
+    ///
+    /// * `autobatch_size` - Number of observation to accumulate before running a pass of inference.
+    /// * `inner_policy` - The policy used to take actions.
     pub fn new(autobatch_size: usize, inner_policy: P) -> Self {
         let (sender, receiver) = std::sync::mpsc::channel();
         let mut autobatcher = AutoBatcher::new(autobatch_size, inner_policy.clone());
@@ -251,11 +281,11 @@ where
     type ActionContext = P::ActionContext;
     type PolicyState = P::PolicyState;
 
-    type Input = P::Input;
-    type Output = P::Output;
+    type Observation = P::Observation;
+    type ActionDistribution = P::ActionDistribution;
     type Action = P::Action;
 
-    fn forward(&mut self, states: Self::Input) -> Self::Output {
+    fn forward(&mut self, states: Self::Observation) -> Self::ActionDistribution {
         let (action_sender, action_receiver) = std::sync::mpsc::channel();
         // TODO: Don't Assume that only one state is passed.
         let item = ForwardItem {
@@ -274,7 +304,7 @@ where
 
     fn action(
         &mut self,
-        states: Self::Input,
+        states: Self::Observation,
         deterministic: bool,
     ) -> (Self::Action, Vec<Self::ActionContext>) {
         let (action_sender, action_receiver) = std::sync::mpsc::channel();

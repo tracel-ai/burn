@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use burn_core::tensor::backend::AutodiffBackend;
-use burn_rl::{AgentLearner, Environment, EnvironmentInit, Policy, PolicyState};
+use burn_rl::{PolicyLearner, Environment, EnvironmentInit, Policy, PolicyState};
 
 use crate::{AgentEvaluationEvent, AsyncProcessorTraining, ItemLazy, RLEvent};
 
@@ -15,9 +15,9 @@ pub trait RLComponentsTypes {
     type EnvInit: EnvironmentInit<Self::Env> + Send + 'static;
     /// The learning agent.
     /// // TODO: type shit is weird here.
-    type LearningAgent: AgentLearner<
+    type LearningAgent: PolicyLearner<
             Self::Backend,
-            TrainingOutput = Self::TrainingOutput,
+            TrainContext = Self::TrainingOutput,
             InnerPolicy = Self::Policy,
         > + Send
         + 'static;
@@ -28,7 +28,7 @@ pub trait RLComponentsTypes {
     /// The output data of a training step.
     type TrainingOutput: ItemLazy + Clone + Send;
     /// The type of the environment state.
-    type State: Into<<Self::Policy as Policy<Self::Backend>>::Input> + Clone + Send + 'static;
+    type State: Into<<Self::Policy as Policy<Self::Backend>>::Observation> + Clone + Send + 'static;
     /// The type of the environment action.
     type Action: From<<Self::Policy as Policy<Self::Backend>>::Action>
         + Into<<Self::Policy as Policy<Self::Backend>>::Action>
@@ -52,11 +52,11 @@ where
     B: AutodiffBackend,
     E: Environment + 'static,
     EI: EnvironmentInit<E> + Send + 'static,
-    A: AgentLearner<B, TrainingOutput = TO> + Send + 'static,
+    A: PolicyLearner<B, TrainContext = TO> + Send + 'static,
     A::InnerPolicy: Policy<B, ActionContext = AC> + Send,
     TO: ItemLazy + Clone + Send,
     AC: ItemLazy + Clone + Send + 'static,
-    E::State: Into<<A::InnerPolicy as Policy<B>>::Input> + Clone + Send + 'static,
+    E::State: Into<<A::InnerPolicy as Policy<B>>::Observation> + Clone + Send + 'static,
     E::Action: From<<A::InnerPolicy as Policy<B>>::Action>
         + Into<<A::InnerPolicy as Policy<B>>::Action>
         + Clone
@@ -74,7 +74,7 @@ where
     type Action = E::Action;
 }
 
-pub(crate) type RlPolicy<RLC> = <<RLC as RLComponentsTypes>::LearningAgent as AgentLearner<
+pub(crate) type RlPolicy<RLC> = <<RLC as RLComponentsTypes>::LearningAgent as PolicyLearner<
     <RLC as RLComponentsTypes>::Backend,
 >>::InnerPolicy;
 /// The event processor type for reinforcement learning.
@@ -87,6 +87,6 @@ pub type RLPolicyRecord<RLC> = <<<RLC as RLComponentsTypes>::Policy as Policy<
     <RLC as RLComponentsTypes>::Backend,
 >>::PolicyState as PolicyState<<RLC as RLComponentsTypes>::Backend>>::Record;
 /// The record of the learning agent.
-pub type RLAgentRecord<RLC> = <<RLC as RLComponentsTypes>::LearningAgent as AgentLearner<
+pub type RLAgentRecord<RLC> = <<RLC as RLComponentsTypes>::LearningAgent as PolicyLearner<
     <RLC as RLComponentsTypes>::Backend,
 >>::Record;

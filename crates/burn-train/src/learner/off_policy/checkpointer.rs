@@ -1,5 +1,5 @@
 use burn_core::tensor::Device;
-use burn_rl::AgentLearner;
+use burn_rl::PolicyLearner;
 use burn_rl::Policy;
 use burn_rl::PolicyState;
 

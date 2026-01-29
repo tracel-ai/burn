@@ -2,22 +2,34 @@ use burn_core::{Tensor, prelude::Backend, tensor::backend::AutodiffBackend};
 use derive_new::new;
 use rand::{rng, seq::index::sample};
 
+/// A state transition in an environment.
 #[derive(Clone, new)]
 pub struct Transition<B: Backend, S, A> {
+    /// The initial state.
     pub state: S,
+    /// The state after the step was taken.
     pub next_state: S,
+    /// The action taken in the step.
     pub action: A,
+    /// The reward.
     pub reward: Tensor<B, 1>,
+    /// If the environment has reached a terminal state.
     pub done: Tensor<B, 1>,
     // pub prob: Tensor<B, 1>,
     // pub value: Option<Tensor<B, 1>>,
 }
 
+/// A batch of transitions.
 pub struct TransitionBatch<B: Backend, SB, AB> {
+    /// Batched initial states.
     pub states: SB,
+    /// Batched resulting states.
     pub next_states: SB,
+    /// Batched actions.
     pub actions: AB,
+    /// Batched rewards.
     pub rewards: Tensor<B, 2>,
+    /// Batched flags for terminal states.
     pub dones: Tensor<B, 2>,
 }
 
@@ -50,6 +62,7 @@ where
     }
 }
 
+/// A circular buffer for transitions.
 pub struct TransitionBuffer<T> {
     buffer: Vec<T>,
     capacity: usize,
@@ -126,10 +139,12 @@ impl<T> TransitionBuffer<T> {
         self.buffer.len()
     }
 
+    /// Clear the buffer.
     pub fn clear(&mut self) {
         self.buffer.clear();
     }
 
+    /// Sample the buffer at the given indices.
     pub fn sample(&self, indices: Vec<usize>) -> Vec<&T> {
         let mut items = Vec::with_capacity(indices.len());
 
@@ -141,6 +156,7 @@ impl<T> TransitionBuffer<T> {
         items
     }
 
+    /// Sample `batch_size` transitions at random.
     pub fn random_sample(&self, batch_size: usize) -> Vec<&T> {
         assert!(batch_size <= self.len());
         let mut rng = rng();
