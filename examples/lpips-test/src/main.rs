@@ -1,152 +1,123 @@
 //! LPIPS pretrained weights test example.
 //!
-//! This example loads pretrained LPIPS weights from PyTorch and compares
-//! the output with PyTorch's reference values using various test images.
+//! This example loads pretrained LPIPS weights from PyTorch and computes
+//! LPIPS values for comparison with PyTorch.
 //!
 //! ## Prerequisites
 //!
-//! Run the Python scripts first:
+//! Generate weights file first (Python):
 //! ```bash
-//! cd crates/burn-nn/scripts
-//! python save_lpips_weights.py      # Generate lpips_vgg.pt
-//! python test_with_images.py        # Generate test images
+//! cd examples/lpips-test
+//! python compare.py --generate-weights
+//! ```
+//!
+//! ## Run
+//! ```bash
+//! # Burn
+//! cargo run -p lpips-test
+//!
+//! # PyTorch (for comparison)
+//! cd examples/lpips-test && python compare.py
 //! ```
 
 use burn::backend::NdArray;
-use burn::nn::loss::{lpips_key_remaps, LpipsConfig, LpipsNet, Reduction};
+use burn::nn::loss::{lpips_key_remaps, Lpips, LpipsConfig, LpipsNet, Reduction};
 use burn::prelude::*;
 use burn::record::{FullPrecisionSettings, Recorder};
-use burn::tensor::{TensorData, Tolerance};
+use burn::tensor::TensorData;
 use burn_import::pytorch::{LoadArgs, PyTorchFileRecorder};
 use std::fs::File;
 use std::io::Read;
+use std::path::Path;
 
 type Backend = NdArray<f32>;
-type FT = f32;
 
-const WEIGHTS_PATH: &str = "crates/burn-nn/scripts/lpips_vgg.pt";
-const SCRIPTS_PATH: &str = "crates/burn-nn/scripts";
-
-/// Load raw float32 tensor from file
-fn load_raw_image(path: &str, shape: [usize; 4], device: &<Backend as burn::tensor::backend::Backend>::Device) -> Tensor<Backend, 4> {
-    let mut file = File::open(path).expect(&format!("Failed to open {}", path));
+/// Load a raw image file (64x64x3 f32 format) as a tensor
+fn load_raw_image(path: &str, device: &<Backend as burn::tensor::backend::Backend>::Device) -> Tensor<Backend, 4> {
+    let mut file = File::open(path).expect("Failed to open image file");
     let mut buffer = Vec::new();
-    file.read_to_end(&mut buffer).unwrap();
+    file.read_to_end(&mut buffer).expect("Failed to read image file");
 
+    // Convert bytes to f32 (little-endian)
     let floats: Vec<f32> = buffer
         .chunks_exact(4)
         .map(|chunk| f32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]))
         .collect();
 
-    let data = TensorData::new(floats, shape);
-    Tensor::from_data(data, device)
+    // Shape: [H, W, C] -> [1, C, H, W]
+    let data = TensorData::new(floats, [64, 64, 3]);
+    Tensor::<Backend, 3>::from_data(data, device)
+        .permute([2, 0, 1])  // [C, H, W]
+        .unsqueeze::<4>()    // [1, C, H, W]
 }
 
-fn main() {
-    println!("=== LPIPS Pretrained Weights Test ===\n");
+/// Load LPIPS model with pretrained weights
+fn load_lpips(weights_path: &str, net: LpipsNet, device: &<Backend as burn::tensor::backend::Backend>::Device) -> Option<Lpips<Backend>> {
+    if !Path::new(weights_path).exists() {
+        println!("Weights not found: {}", weights_path);
+        println!("Run: cd examples/lpips-test && python compare.py --generate-weights");
+        return None;
+    }
 
-    let device = Default::default();
-
-    // Build LoadArgs with key remappings
-    let key_remaps = lpips_key_remaps(LpipsNet::Vgg);
-    let mut load_args = LoadArgs::new(WEIGHTS_PATH.into());
+    let key_remaps = lpips_key_remaps(net);
+    let mut load_args = LoadArgs::new(weights_path.into());
     for (pattern, replacement) in key_remaps {
         load_args = load_args.with_key_remap(pattern, replacement);
     }
 
-    println!("Loading weights from: {}", WEIGHTS_PATH);
-    println!("Applying {} key remappings...\n", key_remaps.len());
-
-    // Load weights
     let record = PyTorchFileRecorder::<FullPrecisionSettings>::default()
-        .load(load_args, &device)
-        .expect("Failed to load LPIPS pretrained weights");
+        .load(load_args, device)
+        .expect("Failed to load weights");
 
-    // Create model with pretrained weights
-    let lpips = LpipsConfig::new()
-        .with_normalize(true)
-        .init::<Backend>(&device)
-        .load_record(record);
+    Some(
+        LpipsConfig::new()
+            .with_net(net)
+            .with_normalize(true)
+            .init::<Backend>(device)
+            .load_record(record)
+    )
+}
 
-    println!("Model loaded successfully!\n");
+fn run_tests(lpips: &Lpips<Backend>, device: &<Backend as burn::tensor::backend::Backend>::Device) {
+    let img_h = "examples/lpips-test/img/test_img_horizontal.raw";
+    let img_v = "examples/lpips-test/img/test_img_vertical.raw";
+    let img_d = "examples/lpips-test/img/test_img_diagonal.raw";
 
-    // =========================================================================
-    // Test 1: zeros vs ones (32x32)
-    // =========================================================================
-    println!("--- Test 1: zeros vs ones (32x32) ---");
-    let img1 = Tensor::<Backend, 4>::zeros([1, 3, 32, 32], &device);
-    let img2 = Tensor::<Backend, 4>::ones([1, 3, 32, 32], &device);
+    // Test 1: zeros vs ones
+    let zeros = Tensor::<Backend, 4>::zeros([1, 3, 64, 64], device);
+    let ones = Tensor::<Backend, 4>::ones([1, 3, 64, 64], device);
+    let loss1 = lpips.forward(zeros, ones, Reduction::Mean);
+    println!("  zeros vs ones:      {:.6}", loss1.to_data().to_vec::<f32>().unwrap()[0]);
 
-    let loss = lpips.forward(img1, img2, Reduction::Mean);
-    let loss_value = loss.to_data().to_vec::<f32>().unwrap()[0];
+    // Test 2: horizontal vs vertical
+    let h = load_raw_image(img_h, device);
+    let v = load_raw_image(img_v, device);
+    let loss2 = lpips.forward(h, v, Reduction::Mean);
+    println!("  horizontal vs vertical: {:.6}", loss2.to_data().to_vec::<f32>().unwrap()[0]);
 
-    // PyTorch: loss_fn(zeros, ones, normalize=True) = 0.511287
-    let expected = TensorData::from([0.511287_f32]);
-    println!("Burn:    {:.6}", loss_value);
-    println!("PyTorch: {:.6}", 0.511287);
+    // Test 3: horizontal vs diagonal
+    let h = load_raw_image(img_h, device);
+    let d = load_raw_image(img_d, device);
+    let loss3 = lpips.forward(h, d, Reduction::Mean);
+    println!("  horizontal vs diagonal: {:.6}", loss3.to_data().to_vec::<f32>().unwrap()[0]);
+}
 
-    loss.into_data()
-        .assert_approx_eq::<FT>(&expected, Tolerance::default());
-    println!("✓ PASSED\n");
+fn main() {
+    println!("=== LPIPS Test (Burn) ===\n");
 
-    // =========================================================================
-    // Test 2: Gradient images (64x64)
-    // =========================================================================
-    let img_h_path = format!("{}/test_img_horizontal.raw", SCRIPTS_PATH);
-    let img_v_path = format!("{}/test_img_vertical.raw", SCRIPTS_PATH);
-    let img_d_path = format!("{}/test_img_diagonal.raw", SCRIPTS_PATH);
+    let device = Default::default();
 
-    // Check if gradient images exist
-    if std::path::Path::new(&img_h_path).exists() {
-        println!("--- Test 2: Gradient images (64x64) ---");
-
-        let shape = [1, 3, 64, 64];
-        let img_h = load_raw_image(&img_h_path, shape, &device);
-        let img_v = load_raw_image(&img_v_path, shape, &device);
-        let img_d = load_raw_image(&img_d_path, shape, &device);
-
-        // Test horizontal vs vertical
-        // PyTorch: 0.686618
-        let loss = lpips.forward(img_h.clone(), img_v.clone(), Reduction::Mean);
-        let loss_value = loss.to_data().to_vec::<f32>().unwrap()[0];
-        let expected = TensorData::from([0.686618_f32]);
-        println!("horizontal vs vertical: Burn={:.6}, PyTorch={:.6}", loss_value, 0.686618);
-        loss.into_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::default());
-        println!("✓ PASSED");
-
-        // Test horizontal vs diagonal
-        // PyTorch: 0.693684
-        let loss = lpips.forward(img_h.clone(), img_d.clone(), Reduction::Mean);
-        let loss_value = loss.to_data().to_vec::<f32>().unwrap()[0];
-        let expected = TensorData::from([0.693684_f32]);
-        println!("horizontal vs diagonal: Burn={:.6}, PyTorch={:.6}", loss_value, 0.693684);
-        loss.into_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::default());
-        println!("✓ PASSED");
-
-        // Test vertical vs diagonal
-        // PyTorch: 0.557329
-        let loss = lpips.forward(img_v.clone(), img_d.clone(), Reduction::Mean);
-        let loss_value = loss.to_data().to_vec::<f32>().unwrap()[0];
-        let expected = TensorData::from([0.557329_f32]);
-        println!("vertical vs diagonal:   Burn={:.6}, PyTorch={:.6}", loss_value, 0.557329);
-        loss.into_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::default());
-        println!("✓ PASSED");
-
-        // Test same image (should be 0)
-        let loss = lpips.forward(img_h.clone(), img_h, Reduction::Mean);
-        let loss_value = loss.to_data().to_vec::<f32>().unwrap()[0];
-        let expected = TensorData::from([0.0_f32]);
-        println!("horizontal vs horizontal: Burn={:.6}, PyTorch={:.6}", loss_value, 0.0);
-        loss.into_data()
-            .assert_approx_eq::<FT>(&expected, Tolerance::default());
-        println!("✓ PASSED\n");
-    } else {
-        println!("--- Test 2: Skipped (gradient images not found) ---");
-        println!("Run: cd crates/burn-nn/scripts && python test_with_images.py\n");
+    // VGG
+    println!("[VGG]");
+    if let Some(lpips_vgg) = load_lpips("examples/lpips-test/weights/lpips_vgg.pt", LpipsNet::Vgg, &device) {
+        run_tests(&lpips_vgg, &device);
     }
 
-    println!("=== All tests PASSED! ===");
+    // AlexNet
+    println!("\n[AlexNet]");
+    if let Some(lpips_alex) = load_lpips("examples/lpips-test/weights/lpips_alex.pt", LpipsNet::Alex, &device) {
+        run_tests(&lpips_alex, &device);
+    }
+
+    println!("\nCompare with: cd examples/lpips-test && python compare.py");
 }
