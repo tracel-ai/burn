@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use super::{
+use super::super::{
     MetricAttributes, MetricMetadata, NumericAttributes, NumericEntry,
     state::{FormatOptions, NumericMetricState},
 };

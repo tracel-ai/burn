@@ -1,46 +1,53 @@
 use std::sync::Arc;
 
-use super::{
+use super::super::{
     MetricAttributes, MetricMetadata, NumericAttributes, NumericEntry,
     state::{FormatOptions, NumericMetricState},
 };
 use crate::metric::{Metric, MetricName, Numeric, SerializedEntry};
 
-/// Metric for the length of the last completed episode.
+/// Metric for the cumulative reward of the last completed episode.
 #[derive(Clone)]
-pub struct EpisodeLengthMetric {
+pub struct CumulativeRewardMetric {
     name: MetricName,
     state: NumericMetricState,
 }
 
-impl EpisodeLengthMetric {
+impl CumulativeRewardMetric {
     /// Creates a new episode length metric.
     pub fn new() -> Self {
         Self {
-            name: Arc::new("Episode length".to_string()),
+            name: Arc::new("Cum. Reward".to_string()),
             state: NumericMetricState::new(),
         }
     }
 }
 
-impl Default for EpisodeLengthMetric {
+impl Default for CumulativeRewardMetric {
     fn default() -> Self {
         Self::new()
     }
 }
 
-/// The [EpisodeLengthMetric](EpisodeLengthMetric) input type.
+/// The [CumulativeRewardMetric](CumulativeRewardMetric) input type.
 #[derive(new)]
-pub struct EpisodeLengthInput {
-    ep_len: f64,
+pub struct CumulativeRewardInput {
+    cum_reward: f64,
 }
 
-impl Metric for EpisodeLengthMetric {
-    type Input = EpisodeLengthInput;
+impl Metric for CumulativeRewardMetric {
+    type Input = CumulativeRewardInput;
 
-    fn update(&mut self, item: &EpisodeLengthInput, _metadata: &MetricMetadata) -> SerializedEntry {
-        self.state
-            .update(item.ep_len, 1, FormatOptions::new(self.name()).precision(0))
+    fn update(
+        &mut self,
+        item: &CumulativeRewardInput,
+        _metadata: &MetricMetadata,
+    ) -> SerializedEntry {
+        self.state.update(
+            item.cum_reward,
+            1,
+            FormatOptions::new(self.name()).precision(2),
+        )
     }
 
     fn clear(&mut self) {
@@ -53,14 +60,14 @@ impl Metric for EpisodeLengthMetric {
 
     fn attributes(&self) -> MetricAttributes {
         NumericAttributes {
-            unit: Some(String::from("steps")),
+            unit: None,
             higher_is_better: true,
         }
         .into()
     }
 }
 
-impl Numeric for EpisodeLengthMetric {
+impl Numeric for CumulativeRewardMetric {
     fn value(&self) -> NumericEntry {
         self.state.current_value()
     }
