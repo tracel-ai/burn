@@ -1,7 +1,7 @@
 //! LPIPS (Learned Perceptual Image Patch Similarity) loss module.
 //!
 //! LPIPS measures perceptual similarity between images using deep features.
-//! Supports VGG16 and AlexNet as backbone networks.
+//! Supports VGG16, AlexNet, and SqueezeNet as backbone networks.
 //!
 //! Reference: "The Unreasonable Effectiveness of Deep Features as a Perceptual Metric"
 //! <https://arxiv.org/abs/1801.03924>
@@ -19,6 +19,9 @@
 //! # For AlexNet
 //! loss_fn = lpips.LPIPS(net='alex')
 //! torch.save(loss_fn.state_dict(), 'lpips_alex.pt')
+//! # For SqueezeNet
+//! loss_fn = lpips.LPIPS(net='squeeze')
+//! torch.save(loss_fn.state_dict(), 'lpips_squeeze.pt')
 //! ```
 //!
 //! 2. Load weights in Rust (see [`lpips_key_remaps`] for key remapping)
@@ -43,8 +46,8 @@ pub enum LpipsNet {
     Vgg,
     /// AlexNet network
     Alex,
-    // TODO: impl Squeeze
-    // Squeeze,
+    /// SqueezeNet network
+    Squeeze,
 }
 
 /// Configuration for [Lpips](Lpips) loss module.
@@ -92,6 +95,7 @@ impl LpipsConfig {
                 Lpips {
                     vgg: Some(vgg),
                     alex: None,
+                    squeeze: None,
                     lin0: Conv2dConfig::new([64, 1], [1, 1])
                         .with_bias(false)
                         .init(device),
@@ -107,6 +111,8 @@ impl LpipsConfig {
                     lin4: Conv2dConfig::new([512, 1], [1, 1])
                         .with_bias(false)
                         .init(device),
+                    lin5: None,
+                    lin6: None,
                     normalize: self.normalize,
                     net: Ignored(self.net),
                 }
@@ -117,6 +123,7 @@ impl LpipsConfig {
                 Lpips {
                     vgg: None,
                     alex: Some(alex),
+                    squeeze: None,
                     lin0: Conv2dConfig::new([64, 1], [1, 1])
                         .with_bias(false)
                         .init(device),
@@ -132,6 +139,44 @@ impl LpipsConfig {
                     lin4: Conv2dConfig::new([256, 1], [1, 1])
                         .with_bias(false)
                         .init(device),
+                    lin5: None,
+                    lin6: None,
+                    normalize: self.normalize,
+                    net: Ignored(self.net),
+                }
+            }
+            LpipsNet::Squeeze => {
+                let squeeze = SqueezeFeatureExtractor::new(device);
+                // Channel sizes for SqueezeNet: [64, 128, 256, 384, 384, 512, 512]
+                Lpips {
+                    vgg: None,
+                    alex: None,
+                    squeeze: Some(squeeze),
+                    lin0: Conv2dConfig::new([64, 1], [1, 1])
+                        .with_bias(false)
+                        .init(device),
+                    lin1: Conv2dConfig::new([128, 1], [1, 1])
+                        .with_bias(false)
+                        .init(device),
+                    lin2: Conv2dConfig::new([256, 1], [1, 1])
+                        .with_bias(false)
+                        .init(device),
+                    lin3: Conv2dConfig::new([384, 1], [1, 1])
+                        .with_bias(false)
+                        .init(device),
+                    lin4: Conv2dConfig::new([384, 1], [1, 1])
+                        .with_bias(false)
+                        .init(device),
+                    lin5: Some(
+                        Conv2dConfig::new([512, 1], [1, 1])
+                            .with_bias(false)
+                            .init(device),
+                    ),
+                    lin6: Some(
+                        Conv2dConfig::new([512, 1], [1, 1])
+                            .with_bias(false)
+                            .init(device),
+                    ),
                     normalize: self.normalize,
                     net: Ignored(self.net),
                 }
@@ -143,7 +188,7 @@ impl LpipsConfig {
 /// LPIPS (Learned Perceptual Image Patch Similarity) loss module.
 ///
 /// Computes perceptual distance between two images using deep features.
-/// Supports VGG16 and AlexNet as backbone networks.
+/// Supports VGG16, AlexNet, and SqueezeNet as backbone networks.
 ///
 /// # Example
 ///
@@ -166,6 +211,8 @@ pub struct Lpips<B: Backend> {
     vgg: Option<VggFeatureExtractor<B>>,
     /// AlexNet feature extractor (used when net=Alex)
     alex: Option<AlexFeatureExtractor<B>>,
+    /// SqueezeNet feature extractor (used when net=Squeeze)
+    squeeze: Option<SqueezeFeatureExtractor<B>>,
     /// Linear layer for layer 0 features
     lin0: Conv2d<B>,
     /// Linear layer for layer 1 features
@@ -176,6 +223,10 @@ pub struct Lpips<B: Backend> {
     lin3: Conv2d<B>,
     /// Linear layer for layer 4 features
     lin4: Conv2d<B>,
+    /// Linear layer for layer 5 features (SqueezeNet only)
+    lin5: Option<Conv2d<B>>,
+    /// Linear layer for layer 6 features (SqueezeNet only)
+    lin6: Option<Conv2d<B>>,
     /// Whether to normalize input
     normalize: bool,
     /// Network type
@@ -242,10 +293,50 @@ const LPIPS_ALEX_KEY_REMAPS: &[(&str, &str)] = &[
     ("lin4\\.model\\.1\\.(.*)", "lin4.$1"),
 ];
 
-// TODO: Key remapping rules for loading PyTorch lpips SqueezeNet weights.
-// const LPIPS_SQUEEZE_KEY_REMAPS: &[(&str, &str)] = &[
-//     // SqueezeNet fire modules mapping
-// ];
+/// Key remapping rules for loading PyTorch lpips SqueezeNet weights.
+const LPIPS_SQUEEZE_KEY_REMAPS: &[(&str, &str)] = &[
+    // SqueezeNet conv1: slice1.0
+    ("net\\.slice1\\.0\\.(.*)", "squeeze.conv1.$1"),
+    // Fire modules: squeeze.3, 4, 6, 7, 9, 10, 11, 12
+    // slice2: features 2-4 (MaxPool, Fire3, Fire4) -> fire1, fire2
+    ("net\\.slice2\\.3\\.squeeze\\.(.*)", "squeeze.fire1.squeeze.$1"),
+    ("net\\.slice2\\.3\\.expand1x1\\.(.*)", "squeeze.fire1.expand1x1.$1"),
+    ("net\\.slice2\\.3\\.expand3x3\\.(.*)", "squeeze.fire1.expand3x3.$1"),
+    ("net\\.slice2\\.4\\.squeeze\\.(.*)", "squeeze.fire2.squeeze.$1"),
+    ("net\\.slice2\\.4\\.expand1x1\\.(.*)", "squeeze.fire2.expand1x1.$1"),
+    ("net\\.slice2\\.4\\.expand3x3\\.(.*)", "squeeze.fire2.expand3x3.$1"),
+    // slice3: features 5-7 (MaxPool, Fire5, Fire6) -> fire3, fire4
+    ("net\\.slice3\\.6\\.squeeze\\.(.*)", "squeeze.fire3.squeeze.$1"),
+    ("net\\.slice3\\.6\\.expand1x1\\.(.*)", "squeeze.fire3.expand1x1.$1"),
+    ("net\\.slice3\\.6\\.expand3x3\\.(.*)", "squeeze.fire3.expand3x3.$1"),
+    ("net\\.slice3\\.7\\.squeeze\\.(.*)", "squeeze.fire4.squeeze.$1"),
+    ("net\\.slice3\\.7\\.expand1x1\\.(.*)", "squeeze.fire4.expand1x1.$1"),
+    ("net\\.slice3\\.7\\.expand3x3\\.(.*)", "squeeze.fire4.expand3x3.$1"),
+    // slice4: features 8-9 (MaxPool, Fire7) -> fire5
+    ("net\\.slice4\\.9\\.squeeze\\.(.*)", "squeeze.fire5.squeeze.$1"),
+    ("net\\.slice4\\.9\\.expand1x1\\.(.*)", "squeeze.fire5.expand1x1.$1"),
+    ("net\\.slice4\\.9\\.expand3x3\\.(.*)", "squeeze.fire5.expand3x3.$1"),
+    // slice5: features 10 (Fire8) -> fire6
+    ("net\\.slice5\\.10\\.squeeze\\.(.*)", "squeeze.fire6.squeeze.$1"),
+    ("net\\.slice5\\.10\\.expand1x1\\.(.*)", "squeeze.fire6.expand1x1.$1"),
+    ("net\\.slice5\\.10\\.expand3x3\\.(.*)", "squeeze.fire6.expand3x3.$1"),
+    // slice6: features 11 (Fire9) -> fire7
+    ("net\\.slice6\\.11\\.squeeze\\.(.*)", "squeeze.fire7.squeeze.$1"),
+    ("net\\.slice6\\.11\\.expand1x1\\.(.*)", "squeeze.fire7.expand1x1.$1"),
+    ("net\\.slice6\\.11\\.expand3x3\\.(.*)", "squeeze.fire7.expand3x3.$1"),
+    // slice7: features 12 (Fire10) -> fire8
+    ("net\\.slice7\\.12\\.squeeze\\.(.*)", "squeeze.fire8.squeeze.$1"),
+    ("net\\.slice7\\.12\\.expand1x1\\.(.*)", "squeeze.fire8.expand1x1.$1"),
+    ("net\\.slice7\\.12\\.expand3x3\\.(.*)", "squeeze.fire8.expand3x3.$1"),
+    // Linear layers: lin0-lin6.model.1 -> lin0-lin6
+    ("lin0\\.model\\.1\\.(.*)", "lin0.$1"),
+    ("lin1\\.model\\.1\\.(.*)", "lin1.$1"),
+    ("lin2\\.model\\.1\\.(.*)", "lin2.$1"),
+    ("lin3\\.model\\.1\\.(.*)", "lin3.$1"),
+    ("lin4\\.model\\.1\\.(.*)", "lin4.$1"),
+    ("lin5\\.model\\.1\\.(.*)", "lin5.$1"),
+    ("lin6\\.model\\.1\\.(.*)", "lin6.$1"),
+];
 
 /// Get key remapping rules for loading PyTorch lpips weights.
 ///
@@ -296,7 +387,7 @@ pub fn lpips_key_remaps(net: LpipsNet) -> &'static [(&'static str, &'static str)
     match net {
         LpipsNet::Vgg => LPIPS_VGG_KEY_REMAPS,
         LpipsNet::Alex => LPIPS_ALEX_KEY_REMAPS,
-        // LpipsNet::Squeeze => LPIPS_SQUEEZE_KEY_REMAPS,
+        LpipsNet::Squeeze => LPIPS_SQUEEZE_KEY_REMAPS,
     }
 }
 
@@ -377,6 +468,13 @@ impl<B: Backend> Lpips<B> {
                 let alex = self.alex.as_ref().expect("Alex extractor not initialized");
                 (alex.forward(input), alex.forward(target))
             }
+            LpipsNet::Squeeze => {
+                let squeeze = self
+                    .squeeze
+                    .as_ref()
+                    .expect("Squeeze extractor not initialized");
+                (squeeze.forward(input), squeeze.forward(target))
+            }
         };
 
         // Compute distance for each layer
@@ -402,6 +500,15 @@ impl<B: Backend> Lpips<B> {
         // Layer 4
         let diff4 = self.compute_layer_distance(&feats0[4], &feats1[4], &self.lin4);
         total_loss = total_loss.add(diff4);
+
+        // Layers 5-6 (SqueezeNet only)
+        if let (Some(lin5), Some(lin6)) = (&self.lin5, &self.lin6) {
+            let diff5 = self.compute_layer_distance(&feats0[5], &feats1[5], lin5);
+            total_loss = total_loss.add(diff5);
+
+            let diff6 = self.compute_layer_distance(&feats0[6], &feats1[6], lin6);
+            total_loss = total_loss.add(diff6);
+        }
 
         total_loss
     }
@@ -658,6 +765,152 @@ impl<B: Backend> AlexFeatureExtractor<B> {
 }
 
 // =============================================================================
+// SqueezeNet Feature Extractor
+// =============================================================================
+
+/// Fire module for SqueezeNet.
+///
+/// A fire module consists of:
+/// - Squeeze layer: 1x1 conv to reduce channels
+/// - Expand layers: parallel 1x1 and 3x3 convs, concatenated
+#[derive(Module, Debug)]
+pub struct FireModule<B: Backend> {
+    /// Squeeze layer: 1x1 conv
+    squeeze: Conv2d<B>,
+    /// Expand 1x1 conv
+    expand1x1: Conv2d<B>,
+    /// Expand 3x3 conv
+    expand3x3: Conv2d<B>,
+}
+
+impl<B: Backend> FireModule<B> {
+    /// Create a new Fire module.
+    pub fn new(
+        in_channels: usize,
+        squeeze_channels: usize,
+        expand1x1_channels: usize,
+        expand3x3_channels: usize,
+        device: &B::Device,
+    ) -> Self {
+        Self {
+            squeeze: Conv2dConfig::new([in_channels, squeeze_channels], [1, 1])
+                .with_bias(true)
+                .init(device),
+            expand1x1: Conv2dConfig::new([squeeze_channels, expand1x1_channels], [1, 1])
+                .with_bias(true)
+                .init(device),
+            expand3x3: Conv2dConfig::new([squeeze_channels, expand3x3_channels], [3, 3])
+                .with_padding(PaddingConfig2d::Explicit(1, 1))
+                .with_bias(true)
+                .init(device),
+        }
+    }
+
+    /// Forward pass through fire module.
+    pub fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 4> {
+        let squeezed = relu(self.squeeze.forward(x));
+        let e1 = relu(self.expand1x1.forward(squeezed.clone()));
+        let e3 = relu(self.expand3x3.forward(squeezed));
+        // Concatenate along channel dimension
+        Tensor::cat(alloc::vec![e1, e3], 1)
+    }
+}
+
+/// SqueezeNet 1.1 feature extractor for LPIPS.
+///
+/// Extracts features from 7 layers:
+/// - After conv1+relu: 64 channels
+/// - After fire1+fire2: 128 channels
+/// - After fire3+fire4: 256 channels
+/// - After fire5: 384 channels
+/// - After fire6: 384 channels
+/// - After fire7: 512 channels
+/// - After fire8: 512 channels
+#[derive(Module, Debug)]
+pub struct SqueezeFeatureExtractor<B: Backend> {
+    /// Conv1: 3 -> 64, kernel 3x3, stride 2
+    conv1: Conv2d<B>,
+    /// Fire1: 64 -> 128 (squeeze=16, expand=64+64)
+    fire1: FireModule<B>,
+    /// Fire2: 128 -> 128 (squeeze=16, expand=64+64)
+    fire2: FireModule<B>,
+    /// Fire3: 128 -> 256 (squeeze=32, expand=128+128)
+    fire3: FireModule<B>,
+    /// Fire4: 256 -> 256 (squeeze=32, expand=128+128)
+    fire4: FireModule<B>,
+    /// Fire5: 256 -> 384 (squeeze=48, expand=192+192)
+    fire5: FireModule<B>,
+    /// Fire6: 384 -> 384 (squeeze=48, expand=192+192)
+    fire6: FireModule<B>,
+    /// Fire7: 384 -> 512 (squeeze=64, expand=256+256)
+    fire7: FireModule<B>,
+    /// Fire8: 512 -> 512 (squeeze=64, expand=256+256)
+    fire8: FireModule<B>,
+}
+
+impl<B: Backend> SqueezeFeatureExtractor<B> {
+    /// Create a new SqueezeNet feature extractor.
+    pub fn new(device: &B::Device) -> Self {
+        Self {
+            // Conv1: 3 -> 64, 3x3, stride 2
+            conv1: Conv2dConfig::new([3, 64], [3, 3])
+                .with_stride([2, 2])
+                .with_bias(true)
+                .init(device),
+            // Fire modules (SqueezeNet 1.1 configuration)
+            fire1: FireModule::new(64, 16, 64, 64, device),   // -> 128
+            fire2: FireModule::new(128, 16, 64, 64, device),  // -> 128
+            fire3: FireModule::new(128, 32, 128, 128, device), // -> 256
+            fire4: FireModule::new(256, 32, 128, 128, device), // -> 256
+            fire5: FireModule::new(256, 48, 192, 192, device), // -> 384
+            fire6: FireModule::new(384, 48, 192, 192, device), // -> 384
+            fire7: FireModule::new(384, 64, 256, 256, device), // -> 512
+            fire8: FireModule::new(512, 64, 256, 256, device), // -> 512
+        }
+    }
+
+    /// Extract features from 7 SqueezeNet layers.
+    pub fn forward(&self, x: Tensor<B, 4>) -> Vec<Tensor<B, 4>> {
+        let mut features = Vec::with_capacity(7);
+
+        // Slice 1: Conv1 + ReLU (64 channels)
+        let x = relu(self.conv1.forward(x));
+        features.push(x.clone());
+
+        // Slice 2: MaxPool + Fire1 + Fire2 (128 channels)
+        let x = max_pool2d_squeeze(x);
+        let x = self.fire1.forward(x);
+        let x = self.fire2.forward(x);
+        features.push(x.clone());
+
+        // Slice 3: MaxPool + Fire3 + Fire4 (256 channels)
+        let x = max_pool2d_squeeze(x);
+        let x = self.fire3.forward(x);
+        let x = self.fire4.forward(x);
+        features.push(x.clone());
+
+        // Slice 4: MaxPool + Fire5 (384 channels)
+        let x = max_pool2d_squeeze(x);
+        let x = self.fire5.forward(x);
+        features.push(x.clone());
+
+        // Slice 5: Fire6 (384 channels)
+        let x = self.fire6.forward(x);
+        features.push(x.clone());
+
+        // Slice 6: Fire7 (512 channels)
+        let x = self.fire7.forward(x);
+        features.push(x.clone());
+
+        // Slice 7: Fire8 (512 channels)
+        let x = self.fire8.forward(x);
+        features.push(x);
+
+        features
+    }
+}
+
+// =============================================================================
 // Pooling Helpers
 // =============================================================================
 
@@ -669,6 +922,11 @@ fn max_pool2d<B: Backend>(x: Tensor<B, 4>) -> Tensor<B, 4> {
 /// 3x3 max pooling with stride 2 (for AlexNet).
 fn max_pool2d_alex<B: Backend>(x: Tensor<B, 4>) -> Tensor<B, 4> {
     burn::tensor::module::max_pool2d(x, [3, 3], [2, 2], [0, 0], [1, 1], false)
+}
+
+/// 3x3 max pooling with stride 2, ceil mode (for SqueezeNet).
+fn max_pool2d_squeeze<B: Backend>(x: Tensor<B, 4>) -> Tensor<B, 4> {
+    burn::tensor::module::max_pool2d(x, [3, 3], [2, 2], [0, 0], [1, 1], true)
 }
 
 // =============================================================================
@@ -825,6 +1083,46 @@ mod tests {
     }
 
     // =========================================================================
+    // SqueezeNet Tests
+    // =========================================================================
+
+    /// Test SqueezeNet LPIPS with identical images.
+    #[test]
+    fn test_lpips_squeeze_identical_images_zero_loss() {
+        let device = Default::default();
+        let image = TestTensor::<4>::ones([1, 3, 64, 64], &device);
+
+        let lpips: Lpips<TestBackend> = LpipsConfig::new()
+            .with_net(LpipsNet::Squeeze)
+            .init(&device);
+        let loss = lpips.forward(image.clone(), image, Reduction::Mean);
+
+        let expected = TensorData::from([0.0]);
+        loss.into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
+    }
+
+    /// Test SqueezeNet LPIPS with different images.
+    #[test]
+    fn test_lpips_squeeze_different_images_positive_loss() {
+        let device = Default::default();
+
+        let image1 = TestTensor::<4>::zeros([1, 3, 64, 64], &device);
+        let image2 = TestTensor::<4>::ones([1, 3, 64, 64], &device);
+
+        let lpips: Lpips<TestBackend> = LpipsConfig::new()
+            .with_net(LpipsNet::Squeeze)
+            .init(&device);
+        let loss = lpips.forward(image1, image2, Reduction::Mean);
+
+        let loss_value = loss.into_data().to_vec::<f32>().unwrap()[0];
+        assert!(
+            loss_value > 0.0,
+            "LPIPS (Squeeze) should be > 0 for different images"
+        );
+    }
+
+    // =========================================================================
     // Display Tests
     // =========================================================================
 
@@ -848,5 +1146,17 @@ mod tests {
         let display_str = alloc::format!("{lpips}");
         assert!(display_str.contains("Lpips"));
         assert!(display_str.contains("Alex"));
+    }
+
+    #[test]
+    fn display_squeeze() {
+        let device = Default::default();
+        let lpips: Lpips<TestBackend> = LpipsConfig::new()
+            .with_net(LpipsNet::Squeeze)
+            .init(&device);
+
+        let display_str = alloc::format!("{lpips}");
+        assert!(display_str.contains("Lpips"));
+        assert!(display_str.contains("Squeeze"));
     }
 }
