@@ -20,11 +20,11 @@ advanced user or a beginner. We have crafted some sections for you:
   loops, fine-tuning your models to meet your specific requirements. This section empowers you to
   harness Burn's flexibility to its fullest.
 
-- [Saving & Loading Models](./saving-and-loading.md): Learn how to easily save and load your trained
-  models.
+- [Saving & Loading Models](./saving-and-loading.md): Learn how to save and load your trained
+  models, including importing weights from PyTorch and SafeTensors formats.
 
-- [Importing Models](./import): Learn how to import ONNX and PyTorch models, expanding your
-  compatibility with other deep learning ecosystems.
+- [ONNX Import](./onnx-import.md): Learn how to import ONNX models using the
+  [burn-onnx](https://github.com/tracel-ai/burn-onnx) crate.
 
 - [Models & Pre-Trained Weights](./models-and-pretrained-weights.md): Get started quickly with
   ready-to-use models and pre-trained weights.

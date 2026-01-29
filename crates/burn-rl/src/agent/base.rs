@@ -48,7 +48,7 @@ pub trait Policy<B: Backend>: Clone {
     /// Gives the action from a batch of observations.
     fn action(
         &mut self,
-        states: Self::Observation,
+        obs: Self::Observation,
         deterministic: bool,
     ) -> (Self::Action, Vec<Self::ActionContext>);
 
@@ -73,7 +73,6 @@ pub trait Batchable: Sized {
 pub struct RLTrainOutput<TO, P> {
     /// The policy.
     pub policy: P,
-
     /// The item.
     pub item: TO,
 }
@@ -241,7 +240,7 @@ struct ForwardItem<S, O> {
 /// An asynchronous policy with autobatching for inference.
 #[derive(Clone)]
 pub struct AsyncPolicy<B: Backend, P: Policy<B>> {
-    inference_state_sender: Option<Sender<InferenceMessage<B, P>>>,
+    inference_state_sender: Sender<InferenceMessage<B, P>>,
 }
 
 impl<B, P> AsyncPolicy<B, P>
@@ -283,7 +282,7 @@ where
         });
 
         Self {
-            inference_state_sender: Some(sender),
+            inference_state_sender: sender,
         }
     }
 }
@@ -302,14 +301,11 @@ where
 
     fn forward(&mut self, states: Self::Observation) -> Self::ActionDistribution {
         let (action_sender, action_receiver) = std::sync::mpsc::channel();
-        // TODO: Don't Assume that only one state is passed.
         let item = ForwardItem {
             sender: action_sender,
             inference_state: states,
         };
         self.inference_state_sender
-            .as_ref()
-            .expect("Should call start() before queue_action().")
             .send(InferenceMessage::ForwardMessage(item))
             .expect("Should be able to send message to inference_server");
         action_receiver
@@ -323,15 +319,12 @@ where
         deterministic: bool,
     ) -> (Self::Action, Vec<Self::ActionContext>) {
         let (action_sender, action_receiver) = std::sync::mpsc::channel();
-        // TODO: Don't Assume that only one state is passed.
         let item = ActionItem {
             sender: action_sender,
             inference_state: states,
             deterministic,
         };
         self.inference_state_sender
-            .as_ref()
-            .expect("Should call start() before queue_action().")
             .send(InferenceMessage::ActionMessage(item))
             .expect("should be able to send message to inference_server.");
         let action = action_receiver
@@ -342,8 +335,6 @@ where
 
     fn update(&mut self, update: Self::PolicyState) {
         self.inference_state_sender
-            .as_ref()
-            .expect("Should call start() before update().")
             .send(InferenceMessage::PolicyUpdate(update))
             .expect("AsyncPolicy should be able to send policy state.")
     }
@@ -351,8 +342,6 @@ where
     fn state(&self) -> Self::PolicyState {
         let (sender, receiver) = mpsc::channel();
         self.inference_state_sender
-            .as_ref()
-            .expect("Should call start() before state().")
             .send(InferenceMessage::PolicyRequest(sender))
             .expect("should be able to send message to inference_server.");
         receiver
@@ -361,6 +350,7 @@ where
     }
 
     fn from_record(&self, _record: <Self::PolicyState as PolicyState<B>>::Record) -> Self {
+        // Not needed for now
         todo!()
     }
 }

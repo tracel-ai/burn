@@ -1,7 +1,9 @@
 # No Standard Library
 
-In this section, you will learn how to run an onnx inference model on an embedded system, with no standard library support on a Raspberry Pi Pico 2. This should be universally applicable to other platforms. All the code can be found under the
-[examples directory](https://github.com/tracel-ai/burn/tree/main/examples/raspberry-pi-pico).
+In this section, you will learn how to run an ONNX inference model on an embedded system, with no
+standard library support on a Raspberry Pi Pico 2. This should be universally applicable to other
+platforms. All the code can be found in the
+[burn-onnx examples](https://github.com/tracel-ai/burn-onnx/tree/main/examples/raspberry-pi-pico).
 
 ## Step-by-Step Guide
 
@@ -31,7 +33,7 @@ burn-onnx = { version = "0.21" } # Used to auto generate the rust code to import
 ```
 
 ### Import the Model
-Follow the directions to [import models](../import/README.md).
+Follow the directions in [ONNX Import](../onnx-import.md).
 
 Use the following ModelGen config
 ```rs

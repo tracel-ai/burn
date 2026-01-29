@@ -1,4 +1,4 @@
-use crate::{CubeRuntime, kernel, tensor::CubeTensor};
+use crate::{CubeRuntime, kernel, ops::numeric::empty_device_dtype, tensor::CubeTensor};
 use burn_backend::{
     DType, ExecutionError, QTensorPrimitive, Shape, TensorData,
     quantization::{QuantLevel, QuantStore, params_shape},
@@ -9,11 +9,17 @@ use cubecl::{ir::LineSize, server::CopyDescriptor};
 use cubecl::{quant::scheme::BlockSize, tensor_line_size_parallel};
 
 pub(crate) fn from_data<R: CubeRuntime>(data: TensorData, device: &R::Device) -> CubeTensor<R> {
-    let shape: Shape = (&data.shape).into();
     let client = R::client(device);
-    let buffer = client.create(data.bytes);
-
-    CubeTensor::new_contiguous(client, device.clone(), shape, buffer, data.dtype)
+    let alloc = client.create_tensor(data.bytes, &data.shape, data.dtype.size());
+    let shape: Shape = (&data.shape).into();
+    CubeTensor::new(
+        client,
+        alloc.handle,
+        shape,
+        device.clone(),
+        alloc.strides,
+        data.dtype,
+    )
 }
 
 pub(crate) async fn into_data<R: CubeRuntime>(
@@ -64,9 +70,16 @@ pub(crate) fn empty<R: CubeRuntime>(
     dtype: DType,
 ) -> CubeTensor<R> {
     let client = R::client(device);
-    let buffer = client.empty(shape.num_elements() * dtype.size());
+    let alloc = client.empty_tensor(&shape.dims, dtype.size());
 
-    CubeTensor::new_contiguous(client, device.clone(), shape, buffer, dtype)
+    CubeTensor::new(
+        client,
+        alloc.handle,
+        shape,
+        device.clone(),
+        alloc.strides,
+        dtype,
+    )
 }
 
 pub(crate) fn swap_dims<R: CubeRuntime>(
@@ -279,16 +292,21 @@ pub fn reshape<R: CubeRuntime>(mut tensor: CubeTensor<R>, shape: Shape) -> CubeT
         ReshapeAction::Recompute => (),
     }
 
-    let tensor = kernel::into_contiguous(tensor);
-
-    let mut out = CubeTensor::new_contiguous(
-        tensor.client,
-        tensor.device,
+    let out = empty_device_dtype(
+        tensor.client.clone(),
+        tensor.device.clone(),
         shape,
-        tensor.handle,
         tensor.dtype,
     );
-    out.qparams = tensor.qparams;
+
+    cubecl::std::tensor::copy_into(
+        &tensor.client,
+        &tensor.as_handle_ref(),
+        &out.as_handle_ref(),
+        tensor.dtype.into(),
+    )
+    .expect("Kernel should not fail");
+
     out
 }
 

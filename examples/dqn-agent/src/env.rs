@@ -73,8 +73,6 @@ impl Environment for CartPoleWrapper {
     type Action = CartPoleAction;
 
     const MAX_STEPS: usize = 500;
-    const OBS_SPACE: usize = 4;
-    const ACTION_SPACE: usize = 2;
 
     fn state(&self) -> Self::State {
         CartPoleState::from(self.gym_env.state)

@@ -1,36 +1,42 @@
-use crate::kernel::{AddOp, BinaryOp, BinaryOpFamily, OrOp, into_contiguous};
+use crate::kernel::{
+    AddOp, BinaryOp, BinaryOpFamily, OrOp,
+    utils::{linear_view, shape_divmod},
+};
 use crate::{CubeRuntime, tensor::CubeTensor};
-use cubecl::prelude::*;
-use cubecl::{CubeDim, calculate_cube_count_elemwise};
+use cubecl::{CubeDim, calculate_cube_count_elemwise, std::tensor::layout::linear::LinearView};
+use cubecl::{prelude::*, std::FastDivmod};
 
 #[cube(launch_unchecked)]
 fn select_assign_kernel<F: Numeric, I: Numeric, Op: BinaryOpFamily>(
     tensor: &mut Tensor<F>,
-    indices: &Tensor<I>,
+    indices: &LinearView<I>,
     value: &Tensor<F>,
-    dim: usize,
+    value_shape: Sequence<FastDivmod<usize>>,
+    num_elems: usize,
+    #[comptime] dim: usize,
     #[define(F, I)] _dtypes: [StorageType; 2],
 ) {
-    let mut offset_tensor = 0;
-    let mut offset_value = 0;
-    let mut num_elems = 1;
-
-    // Calculate offsets and num_elems
-    for i in 0..tensor.rank() {
-        if i != dim {
-            let shape_tensor = tensor.shape(i);
-
-            num_elems *= shape_tensor;
-
-            let ogwl = ABSOLUTE_POS / indices.stride(i);
-
-            offset_tensor += ogwl % shape_tensor * tensor.stride(i);
-            offset_value += ogwl % value.shape(i) * value.stride(i);
-        }
-    }
-
     if ABSOLUTE_POS >= num_elems {
         terminate!();
+    }
+
+    let rank = value_shape.len().comptime();
+
+    let mut offset = ABSOLUTE_POS;
+    let mut offset_tensor = 0;
+    let mut offset_value = 0;
+
+    // Calculate offsets and num_elems
+    #[unroll]
+    for i in 0..rank {
+        let i = rank - i - 1;
+        if i != dim {
+            let (rem, local_pos) = value_shape[i].div_mod(offset);
+            offset = rem;
+
+            offset_tensor += local_pos * tensor.stride(i);
+            offset_value += local_pos * value.stride(i);
+        }
     }
 
     let strides_tensor_dim = tensor.stride(dim);
@@ -56,29 +62,12 @@ pub(crate) fn select_assign<R: CubeRuntime>(
     value: CubeTensor<R>,
     is_bool: bool,
 ) -> CubeTensor<R> {
-    let ndims = tensor.shape.num_dims();
-    let tensor = match tensor.can_mut() {
+    let tensor = match tensor.can_mut() && tensor.is_nonoverlapping() {
         true => tensor,
         false => tensor.copy(),
     };
-    let indices = into_contiguous(indices);
 
-    let mut strides = vec![0; ndims];
-    let mut current = 1;
-    let mut num_elems = 1;
-
-    tensor
-        .shape
-        .dims
-        .iter()
-        .enumerate()
-        .rev()
-        .filter(|(index, _val)| *index != dim)
-        .for_each(|(index, val)| {
-            strides[index] = current;
-            current *= val;
-            num_elems *= tensor.shape[index];
-        });
+    let num_elems = tensor.shape.num_elements() / tensor.shape.dims[dim];
     let working_units = num_elems;
     let cube_dim = CubeDim::new(&indices.client, working_units);
     let cube_count = calculate_cube_count_elemwise(&indices.client, working_units, cube_dim);
@@ -94,16 +83,11 @@ pub(crate) fn select_assign<R: CubeRuntime>(
             cube_count,
             cube_dim,
             tensor.as_tensor_arg(1),
-            // Ignored shape + custom strides.
-            TensorArg::from_raw_parts_and_size(
-                &indices.handle,
-                &strides,
-                &strides,
-                1,
-                indices.dtype.size(),
-            ),
+            linear_view(&indices, 1),
             value.as_tensor_arg(1),
-            ScalarArg::new(dim),
+            shape_divmod(&value),
+            ScalarArg::new(num_elems),
+            dim,
             [tensor.dtype.into(), indices.dtype.into()],
         )
         .expect("Kernel to never fail");

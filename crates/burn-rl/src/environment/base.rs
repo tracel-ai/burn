@@ -19,11 +19,6 @@ pub trait Environment {
 
     /// The maximum number of step for one episode.
     const MAX_STEPS: usize;
-    // TODO: not usize.
-    /// The set of all possible states.
-    const OBS_SPACE: usize;
-    /// The set of all possible actions.
-    const ACTION_SPACE: usize;
 
     /// Returns the current state.
     fn state(&self) -> Self::State;

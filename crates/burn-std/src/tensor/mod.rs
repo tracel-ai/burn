@@ -72,9 +72,11 @@ pub enum ReshapeAnalysis {
     /// Original tensor is contiguous, can update the strides.
     IsContiguous,
     /// Original tensor is highly permutated, can't update the strides.
-    HighlyPermutated,
+    HighlyPermuted,
     /// Only batch dimensions are added, can update the strides.
     Broadcasted,
+    /// Dimensions are only split, can update the strides.
+    Split,
     /// Original tensor is bigger than output shape.
     SmallerRank,
     /// New shape is the same.
@@ -89,7 +91,7 @@ impl ReshapeAnalysis {
                 strides: contiguous_strides(shape_new),
             },
             ReshapeAnalysis::NoChange => ReshapeAction::NoChange,
-            ReshapeAnalysis::HighlyPermutated | ReshapeAnalysis::SmallerRank => {
+            ReshapeAnalysis::HighlyPermuted | ReshapeAnalysis::SmallerRank => {
                 ReshapeAction::Recompute
             }
             ReshapeAnalysis::Broadcasted => {
@@ -98,6 +100,13 @@ impl ReshapeAnalysis {
                 let n_new_batch = shape_new_rank - shape_rank;
                 let num_elems = shape.iter().product::<usize>();
                 let strides_new = broadcast_strides(n_new_batch, shape_rank, num_elems, strides);
+
+                ReshapeAction::UpdateStrides {
+                    strides: strides_new,
+                }
+            }
+            ReshapeAnalysis::Split => {
+                let strides_new = split_strides(shape, strides, shape_new);
 
                 ReshapeAction::UpdateStrides {
                     strides: strides_new,
@@ -128,6 +137,31 @@ pub fn broadcast_strides(
     strides_new
 }
 
+/// Calculate the new strides given added split dimensions.
+pub fn split_strides(shape: &[usize], strides: &[usize], shape_new: &[usize]) -> Vec<usize> {
+    let mut strides_new = vec![1; shape_new.len()];
+
+    let mut old_idx = shape.len() - 1;
+    let mut current_stride = strides[old_idx];
+    let mut dim_prod = 1;
+
+    for (i, dim) in shape_new.iter().enumerate().rev() {
+        dim_prod *= *dim;
+        strides_new[i] = current_stride;
+        if *dim == 1 {
+            continue;
+        } else if dim_prod == shape[old_idx] {
+            old_idx = old_idx.saturating_sub(1);
+            current_stride = strides[old_idx];
+            dim_prod = 1;
+        } else {
+            current_stride *= *dim;
+        }
+    }
+
+    strides_new
+}
+
 /// Returns the analysis of a reshape operation.
 pub fn reshape_analysis(
     shape: &[usize],
@@ -137,15 +171,17 @@ pub fn reshape_analysis(
     let shape_rank = shape.len();
     let shape_new_rank = shape_new.len();
 
+    let is_contiguous = match strides {
+        Some(strides) => is_contiguous(shape, strides),
+        None => false,
+    };
+
+    if is_contiguous {
+        return ReshapeAnalysis::IsContiguous;
+    }
+
     if shape_new_rank < shape_rank {
-        let is_contiguous = match strides {
-            Some(strides) => is_contiguous(shape, strides),
-            None => false,
-        };
-        return match is_contiguous {
-            true => ReshapeAnalysis::IsContiguous,
-            false => ReshapeAnalysis::SmallerRank,
-        };
+        return ReshapeAnalysis::SmallerRank;
     }
 
     let n_new_batch = shape_new_rank - shape_rank;
@@ -156,23 +192,34 @@ pub fn reshape_analysis(
                 && shape_new[0..n_new_batch] == vec![1; n_new_batch]
             {
                 return ReshapeAnalysis::Broadcasted;
+            } else {
+                let mut dim_prod = 1;
+                let mut old_idx = 0;
+                for dim in shape_new {
+                    dim_prod *= *dim;
+
+                    // We need to ignore unit dims because they don't affect analysis and break
+                    // things because they match the default `dim_prod`. If we don't do this,
+                    // reshapes like [2, 3] to [2, 3, 1] will panic from out of bounds access.
+                    if *dim == 1 {
+                        continue;
+                    } else if dim_prod == shape[old_idx] {
+                        dim_prod = 1;
+                        old_idx += 1;
+                    } else if dim_prod > shape[old_idx] {
+                        return ReshapeAnalysis::HighlyPermuted;
+                    }
+                }
+                return ReshapeAnalysis::Split;
             }
         }
 
         false => {
             if shape == shape_new {
                 return ReshapeAnalysis::NoChange;
-            } else {
-                let is_contiguous = match strides {
-                    Some(strides) => is_contiguous(shape, strides),
-                    None => false,
-                };
-                if is_contiguous {
-                    return ReshapeAnalysis::IsContiguous;
-                }
             }
         }
     };
 
-    ReshapeAnalysis::HighlyPermutated
+    ReshapeAnalysis::HighlyPermuted
 }
