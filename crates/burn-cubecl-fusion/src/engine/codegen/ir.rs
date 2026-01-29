@@ -208,26 +208,35 @@ pub struct GlobalArgs {
 
 #[derive(CubeType, Default, Clone)]
 pub struct GlobalRegisters {
-    registers: Registry<usize, Registry<usize, Line<NumericExpand<DYN_ELEM_ID>>>>,
+    registers: Registry<usize, Registry<usize, RuntimeCell<Line<NumericExpand<DYN_ELEM_ID>>>>>,
 }
 
 #[cube]
 impl GlobalRegisters {
+    pub fn init(&mut self, #[comptime] key: (usize, usize), #[comptime] line_size: usize) {
+        let mut registers = Registry::<
+            usize,
+            Registry<usize, RuntimeCell<Line<NumericExpand<DYN_ELEM_ID>>>>,
+        >::find_or_default::<usize>(&mut self.registers, key.0);
+        let cell = RuntimeCell::new(Line::empty(line_size));
+        registers.insert(key.1, cell);
+    }
+
     pub fn read(&self, #[comptime] key: (usize, usize)) -> Line<NumericExpand<DYN_ELEM_ID>> {
         let registers = self.registers.find(key.0);
-        registers.find(key.1)
+        let cell = registers.find(key.1);
+        cell.read()
     }
+
     pub fn write(
         &mut self,
         #[comptime] key: (usize, usize),
         value: Line<NumericExpand<DYN_ELEM_ID>>,
     ) {
-        // TODO: Implement try find.
-        let mut registers =
-            Registry::<usize, Registry<usize, Line<NumericExpand<DYN_ELEM_ID>>>>::find_or_default::<
-                usize,
-            >(&mut self.registers, key.0);
-        registers.insert(key.1, value);
+        comment!("Write global register");
+        let registers = self.registers.find(key.0);
+        let cell = registers.find(key.1);
+        cell.store(value);
     }
 }
 
@@ -463,6 +472,129 @@ pub struct FuseBlockConfig {
     pub ref_layout: RefLayout,
     pub ops: Vec<FuseOp>,
     pub width: LineSize,
+}
+
+impl FuseBlockConfig {
+    pub fn global_registers(&self, registers: &mut Vec<((usize, usize), StorageType)>) {
+        for op in self.ops.iter() {
+            op.global_registers(registers);
+        }
+    }
+}
+
+impl FuseArg {
+    pub fn global_registers(&self, registers: &mut Vec<((usize, usize), StorageType)>) {
+        match self {
+            FuseArg::GlobalRegister(arg, fuse_type) => {
+                registers.push((*arg, fuse_type.into_type()))
+            }
+            _ => {}
+        };
+    }
+}
+
+impl FuseOp {
+    pub fn global_registers(&self, registers: &mut Vec<((usize, usize), StorageType)>) {
+        match self {
+            FuseOp::Add(binary_fuse_args)
+            | FuseOp::Sub(binary_fuse_args)
+            | FuseOp::Mul(binary_fuse_args)
+            | FuseOp::Div(binary_fuse_args)
+            | FuseOp::Powf(binary_fuse_args)
+            | FuseOp::Equal(binary_fuse_args)
+            | FuseOp::Lower(binary_fuse_args)
+            | FuseOp::Greater(binary_fuse_args)
+            | FuseOp::LowerEqual(binary_fuse_args)
+            | FuseOp::Rem(binary_fuse_args)
+            | FuseOp::GreaterEqual(binary_fuse_args) => {
+                binary_fuse_args.lhs.global_registers(registers);
+                binary_fuse_args.rhs.global_registers(registers);
+                binary_fuse_args.out.global_registers(registers);
+            }
+            FuseOp::Abs(unary_fuse_args)
+            | FuseOp::Exp(unary_fuse_args)
+            | FuseOp::Log(unary_fuse_args)
+            | FuseOp::Log1p(unary_fuse_args)
+            | FuseOp::Cos(unary_fuse_args)
+            | FuseOp::Sin(unary_fuse_args)
+            | FuseOp::Tanh(unary_fuse_args)
+            | FuseOp::Erf(unary_fuse_args)
+            | FuseOp::Sqrt(unary_fuse_args)
+            | FuseOp::Recip(unary_fuse_args)
+            | FuseOp::Assign(unary_fuse_args) => {
+                unary_fuse_args.input.global_registers(registers);
+                unary_fuse_args.out.global_registers(registers);
+            }
+            FuseOp::Clamp {
+                input,
+                min,
+                max,
+                out,
+            } => {
+                input.global_registers(registers);
+                min.global_registers(registers);
+                max.global_registers(registers);
+                out.global_registers(registers);
+            }
+            FuseOp::ConditionalAssign {
+                cond,
+                lhs,
+                rhs,
+                out,
+            } => {
+                cond.global_registers(registers);
+                lhs.global_registers(registers);
+                rhs.global_registers(registers);
+                out.global_registers(registers);
+            }
+            FuseOp::Gather {
+                input,
+                indices,
+                output,
+                dim: _,
+            } => {
+                input.global_registers(registers);
+                indices.global_registers(registers);
+                output.global_registers(registers);
+            }
+            FuseOp::Select {
+                input,
+                indices,
+                output,
+                dim: _,
+            } => {
+                input.global_registers(registers);
+                indices.global_registers(registers);
+                output.global_registers(registers);
+            }
+            FuseOp::Dequantize {
+                values,
+                params,
+                output,
+                scheme: _,
+            } => {
+                values.global_registers(registers);
+                params.global_registers(registers);
+                output.global_registers(registers);
+            }
+        }
+    }
+}
+
+#[cube]
+pub fn global_registers_init(#[comptime] block: &FuseBlockConfig, registers: &mut GlobalRegisters) {
+    let output = comptime! {
+        let mut output = Vec::<((usize, usize), StorageType)>::new();
+        block.global_registers(&mut output);
+        output
+    };
+
+    #[unroll]
+    for i in 0..comptime!(output.len()) {
+        let (key, dtype) = comptime!(output.get(i as usize).unwrap().clone());
+        set_polyfill::<NumericExpand<DYN_ELEM_ID>>(dtype);
+        registers.init(key, block.width);
+    }
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]

@@ -31,6 +31,7 @@ pub fn fuse_on_write<E: CubePrimitive>(
     #[comptime] write_args: Vec<FuseArg>,
     #[comptime] config: &FuseBlockConfig,
 ) {
+    comment!("Fuse on write begin");
     // Write the values given as arguments.
     #[unroll]
     for i in 0..write_args.len() {
@@ -41,6 +42,7 @@ pub fn fuse_on_write<E: CubePrimitive>(
     }
 
     fuse(inputs, outputs, locals, write_pos, config);
+    comment!("Fuse on write end");
 }
 
 #[cube]
@@ -66,6 +68,7 @@ pub fn fuse_on_read<E: CubePrimitive>(
     #[comptime] read_args: Sequence<FuseArg>,
     #[comptime] config: &FuseBlockConfig,
 ) -> Sequence<Line<E>> {
+    comment!("Fuse on read begin");
     fuse(inputs, outputs, locals, read_pos, config);
 
     let mut output = Sequence::new();
@@ -98,6 +101,7 @@ pub fn fuse_on_read<E: CubePrimitive>(
         }
     }
 
+    comment!("Fuse on read end");
     output
 }
 
@@ -113,10 +117,11 @@ pub fn init_locals(
     outputs: &mut GlobalArgs,
     #[comptime] config: &FuseBlockConfig,
 ) -> LocalArgs {
+    comment!("Init locals begin");
     let mut ref_shape = Array::new(config.rank);
     let mut ref_strides = Array::new(config.rank);
 
-    match config.ref_layout.clone() {
+    let locals = match config.ref_layout.clone() {
         RefLayout::Concrete(arg) => match comptime![arg] {
             FuseArg::Input(index, ..) => {
                 let layout = inputs.tensors.index(index);
@@ -224,7 +229,9 @@ pub fn init_locals(
                 LocalArgs::new(ref_shape.to_slice(), ref_strides.to_slice(), line_size)
             }
         },
-    }
+    };
+    comment!("Init locals end");
+    locals
 }
 
 #[cube]

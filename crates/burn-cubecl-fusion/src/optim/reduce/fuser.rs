@@ -120,11 +120,7 @@ impl<R: Runtime> ReduceFuser<R> {
             return;
         }
 
-        let Some([input]) = self.fuser.next_block([&op.input], self.settings_write) else {
-            self.fuser.close();
-            self.fuser_read_fallback.close();
-            return;
-        };
+        let [input] = self.fuser.next_block([&op.input], self.settings_write);
 
         let output = self.fuser.output_unhandled(&op.out);
         let axis = op.axis;

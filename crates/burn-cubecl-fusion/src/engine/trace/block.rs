@@ -44,7 +44,6 @@ pub struct FuseBlockBuilder {
     // Output declared in this block alone.
     outputs: RegisteredTensors,
     pub outputs_unhandled: Vec<FuseArg>,
-    pub local_outputs: Vec<TensorId>,
     pub local_inputs: BTreeMap<TensorId, FuseArg>,
 }
 
@@ -69,7 +68,6 @@ impl FuseBlockBuilder {
             writes: Default::default(),
             outputs: Default::default(),
             outputs_unhandled: Default::default(),
-            local_outputs: Default::default(),
             local_inputs: Default::default(),
         }
     }
@@ -171,6 +169,7 @@ impl FuseBlockBuilder {
             None => {
                 let input = if let Some(_) = resources.outputs.get_index(tensor.id) {
                     let pos = resources.buffers.insert(precision, tensor.clone());
+                    println!("Buffer {tensor:?} => Output({pos})");
                     FuseArg::Output(pos, precision_input, LayoutInfo::Unknown)
                 } else {
                     let pos = resources.inputs.insert(precision_input, tensor.clone());
@@ -402,8 +401,8 @@ impl FuseBlockBuilder {
         &self,
         resources: &FuseResources,
         shape_ref: Vec<usize>,
-        offset: usize,
-    ) -> (FuseBlock, RegisteredTensors) {
+        outputs: &mut RegisteredTensors,
+    ) -> FuseBlock {
         let ops = self.ops.clone();
         let reads = self.reads.clone();
         let tensor_writes = self.tensor_writes(resources);
@@ -415,7 +414,7 @@ impl FuseBlockBuilder {
             .filter_map(|entry| entry.as_normal_tensor())
         {
             if let Some(local) = self.locals.get_any_precision(tensor.id) {
-                let out_index = tensor_writes.get_index(tensor.id).unwrap();
+                let out_index = outputs.insert(precision.clone(), tensor.clone());
 
                 let ops = match writes.get_mut(&tensor.id) {
                     Some(ops) => ops,
@@ -427,21 +426,18 @@ impl FuseBlockBuilder {
 
                 ops.push(FuseOp::Assign(UnaryFuseArgs {
                     input: local,
-                    out: FuseArg::Output(out_index + offset, *precision, LayoutInfo::Unknown),
+                    out: FuseArg::Output(out_index, *precision, LayoutInfo::Unknown),
                 }));
             }
         }
 
-        (
-            FuseBlock {
-                settings: self.settings,
-                ops,
-                shape_ref,
-                reads,
-                writes,
-            },
-            tensor_writes,
-        )
+        FuseBlock {
+            settings: self.settings,
+            ops,
+            shape_ref,
+            reads,
+            writes,
+        }
     }
 
     pub fn estimate_num_outputs(&self, resources: &FuseResources) -> u32 {
@@ -671,10 +667,8 @@ impl FuseBlockBuilder {
         for entry in local_tensor_ids_output {
             let is_read = local_tensor_ids_input.contains(&entry);
 
-            if !is_read
-                && !self.local_outputs.contains(&entry.0)
-                && !resources.dropped.contains(&entry.0)
-            {
+            // TODO: We write too much.
+            if !is_read && !resources.dropped.contains(&entry.0) {
                 let (tensor_id, precision) = entry;
                 let (tensor, _) = resources.outputs.get(tensor_id).unwrap();
                 result.insert(precision, tensor.clone());

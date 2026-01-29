@@ -103,7 +103,7 @@ impl ReduceBroadcastedFullFuser {
             let mut settings = self.settings_read;
             settings.vectorization = VectorizationSetting::EqualThanPreviousBlock { block_pos: 0 };
             settings.ref_layout = RefLayoutSetting::SameAsBlock { block_pos: 0 };
-            self.fuser.next_block([], settings).unwrap();
+            self.fuser.next_block([], settings);
 
             let analysis = self.analyzer.retrieve_next();
 
@@ -126,12 +126,13 @@ impl ReduceBroadcastedFullFuser {
 
                 let [input] = self
                     .fuser
-                    .next_block([&reduce.op.input], self.settings_write)
-                    .unwrap();
+                    .next_block([&reduce.op.input], self.settings_write);
+                println!("Thing to work with as reduce input: {input:?}");
 
                 let output = self.fuser.output_unhandled(&reduce.op.out);
                 let analysis = self.analyzer.retrieve_next();
 
+                println!("Analysis {:?} op: {:?}", analysis.inputs, reduce.op);
                 for (tensor, block_pos) in analysis.inputs {
                     self.fuser.block_local_input(&tensor, block_pos);
                 }

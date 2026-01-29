@@ -66,7 +66,9 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceBroadcastedFuser<
 
         let block = self.blocks.last_mut().unwrap();
 
+        println!("{operation:?}");
         let analyze = block.analyze(operation, &self.state, &self.fuser_default);
+        println!("{analyze:?}");
 
         let info = match analyze {
             ReduceBlockFusionAnalysis::Accept => {

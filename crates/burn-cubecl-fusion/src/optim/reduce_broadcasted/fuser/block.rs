@@ -79,7 +79,6 @@ impl<R: Runtime> ReduceBlockFuser<R> {
         fuser_try.fuse(op);
         let after = fuser_try.len();
 
-        println!("{before:?} => {after:?}");
         if after > before {
             return ReduceBlockFusionAnalysis::Accept;
         }

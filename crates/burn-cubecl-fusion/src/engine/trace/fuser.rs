@@ -3,7 +3,7 @@ use super::{
         codegen::ir::{FuseArg, FuseOp, FuseType, LayoutInfo},
         settings::FuseSettings,
     },
-    FuseResources, RegisterTensor,
+    FuseResources,
     block::FuseBlockBuilder,
 };
 use super::{FuseTrace, RegisteredTensors};
@@ -37,6 +37,11 @@ impl TraceFuser {
             blocks_previous: Default::default(),
             resources: Default::default(),
         }
+    }
+
+    /// Get the number of blocks that are closed.
+    pub fn num_previous_blocks(&self) -> usize {
+        self.blocks_previous.len()
     }
 
     /// Tag a tensor as dropped.
@@ -84,22 +89,18 @@ impl TraceFuser {
         estimation
     }
 
-    /// Tag the [tensor](TensorIr) to be the logical returned value of the current block.
-    ///
-    /// This will avoid the output to be written in global memory when not necessary.
-    pub fn block_local_output(&mut self, tensor: &TensorIr) {
-        self.block_current.local_outputs.push(tensor.id);
-    }
-
     /// Tag the [tensor](TensorIr) as received from a previous block.
     ///
     /// This will avoid reading the input again and instead use le local version when possible.
-    pub fn block_local_input(&mut self, tensor: &TensorIr, block_pos: usize) {
+    pub fn block_local_input(&mut self, tensor: &TensorIr, block_pos: usize) -> FuseArg {
         println!("{block_pos:?}/{}", self.blocks_previous.len());
         let block = &mut self.blocks_previous[block_pos].0;
         let src_arg = block.global_register(block_pos, tensor).unwrap();
 
-        self.block_current.local_inputs.insert(tensor.id, src_arg);
+        self.block_current
+            .local_inputs
+            .insert(tensor.id, src_arg.clone());
+        src_arg
     }
 
     /// Register an output tensor that won't be automatically synced into global memory.
@@ -109,6 +110,7 @@ impl TraceFuser {
         let arg = self
             .output(tensor)
             .expect("Can't add a new output that is already used in an index operation");
+        println!("outputs_unhandled {tensor:?} => {arg:?}");
         self.resources.outputs_unhandled.push(arg.clone());
         self.block_current.outputs_unhandled.push(arg.clone());
         arg
@@ -256,45 +258,28 @@ impl TraceFuser {
     }
 
     /// Finish fusing and returns the created trace.
+    ///
+    /// TODO: FIX Not all blocks have the same shape ref.
     pub fn finish(&self, shape_ref: Vec<usize>) -> FuseTrace {
         let mut resources = self.resources.clone();
         let mut outputs = RegisteredTensors::default();
 
         for tensor in resources.buffers.iter() {
             let (tensor, ty) = tensor.as_normal_tensor().unwrap();
-            println!("BUFFER: {tensor:?}");
             outputs.insert(ty.clone(), tensor.clone());
         }
 
         let mut blocks = Vec::new();
 
-        let mut register_block =
-            |block: &FuseBlockBuilder, shape_ref: &Vec<usize>, offset: usize| {
-                let (block, block_tensor_writes) =
-                    block.build(&self.resources, shape_ref.clone(), offset);
-                blocks.push(block);
-
-                let num_outputs = block_tensor_writes.len();
-                for entry in block_tensor_writes.into_iter() {
-                    match entry {
-                        RegisterTensor::Normal(ir, precision) => {
-                            outputs.insert(precision, ir);
-                        }
-                        _ => {
-                            panic!("Quantized tensor unsupported for output")
-                        }
-                    }
-                }
-
-                num_outputs
-            };
-
-        let mut offset = 0;
+        let mut register_block = |block: &FuseBlockBuilder, shape_ref: &Vec<usize>| {
+            let block = block.build(&self.resources, shape_ref.clone(), &mut outputs);
+            blocks.push(block);
+        };
 
         for (block, shape_ref) in self.blocks_previous.iter() {
-            offset += register_block(block, shape_ref, offset);
+            register_block(block, shape_ref);
         }
-        register_block(&self.block_current, &shape_ref, offset);
+        register_block(&self.block_current, &shape_ref);
 
         // We update the output tensors registered to be the ones that are written to in global
         // memory.
