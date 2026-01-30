@@ -1,6 +1,5 @@
 use super::attribute::AttributeAnalyzer;
 use proc_macro2::Ident;
-use quote::quote;
 use syn::{Field, Type, TypePath};
 
 #[derive(Clone)]
@@ -67,17 +66,12 @@ impl FieldTypeAnalyzer {
         name
     }
 
-    /// Returns the doc of the field if present.
-    pub fn doc(&self) -> Option<proc_macro2::TokenStream> {
+    /// Returns the docs of the field.
+    pub fn docs(&self) -> impl Iterator<Item = &syn::Attribute> {
         self.field
             .attrs
             .iter()
-            .find(|attr| attr.path().is_ident("doc"))
-            .map(|doc| {
-                quote! {
-                    #doc
-                }
-            })
+            .filter(|attr| attr.path().is_ident("doc"))
     }
 
     pub fn attributes(&self) -> impl Iterator<Item = AttributeAnalyzer> {
