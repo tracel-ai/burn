@@ -65,10 +65,7 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceBroadcastedFuser<
         }
 
         let block = self.blocks.last_mut().unwrap();
-
-        println!("{operation:?}");
         let analyze = block.analyze(operation, &self.state, &self.fuser_default);
-        println!("{analyze:?}");
 
         let info = match analyze {
             ReduceBlockFusionAnalysis::Accept => {
@@ -110,9 +107,7 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceBroadcastedFuser<
     }
 
     fn finish(&mut self) -> CubeOptimization<R> {
-        println!("================================");
         let analyzer = FullFuserAnalyzer::new(&self.blocks);
-        println!("{analyzer:?}");
         let mut full =
             ReduceBroadcastedFullFuser::new(self.max_bindings, self.bool_precision, analyzer);
         let mut num_ops = 0;
@@ -122,17 +117,7 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceBroadcastedFuser<
             .map(|block| block.finish(&mut num_ops, &mut full))
             .collect::<Vec<_>>();
 
-        println!("+++++++++++++++===");
-        for b in self.blocks.iter() {
-            println!("Block: {} ops", b.ops.len());
-            for o in b.ops.iter() {
-                println!("{o:?}")
-            }
-        }
-        println!("+++++++++++++++===");
         let info_br = Arc::new(full.finish());
-        //  println!("{}", info_br.trace);
-
         let info = Arc::new(ReduceBroadcastedOptimizationInfo { fallbacks, info_br });
         CubeOptimization::ReduceBroadcasted(ReduceBroadcastedOptimization { info, num_ops })
     }

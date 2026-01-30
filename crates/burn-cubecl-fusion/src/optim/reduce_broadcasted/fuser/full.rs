@@ -127,12 +127,10 @@ impl ReduceBroadcastedFullFuser {
                 let [input] = self
                     .fuser
                     .next_block([&reduce.op.input], self.settings_write);
-                println!("Thing to work with as reduce input: {input:?}");
 
                 let output = self.fuser.output_unhandled(&reduce.op.out);
                 let analysis = self.analyzer.retrieve_next();
 
-                println!("Analysis {:?} op: {:?}", analysis.inputs, reduce.op);
                 for (tensor, block_pos) in analysis.inputs {
                     self.fuser.block_local_input(&tensor, block_pos);
                 }

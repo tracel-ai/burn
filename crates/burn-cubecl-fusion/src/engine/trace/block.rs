@@ -47,7 +47,6 @@ pub struct FuseBlockBuilder {
     pub local_inputs: BTreeMap<TensorId, FuseArg>,
     /// The reference shape used by this block.
     pub shape_ref: Vec<usize>,
-    buffers: RegisteredTensors,
 }
 
 #[derive(Debug)]
@@ -73,7 +72,6 @@ impl FuseBlockBuilder {
             outputs_unhandled: Default::default(),
             local_inputs: Default::default(),
             shape_ref: Vec::new(),
-            buffers: Default::default(),
         }
     }
 
@@ -442,14 +440,6 @@ impl FuseBlockBuilder {
         }
     }
 
-    pub fn estimate_num_outputs(
-        &self,
-        resources: &FuseResources,
-        buffers: &mut Vec<TensorId>,
-    ) -> u32 {
-        self.tensor_writes(resources, buffers).len() as u32
-    }
-
     /// Return the tensor that needs to be written to.
     pub fn tensor_writes(
         &self,
@@ -472,7 +462,6 @@ impl FuseBlockBuilder {
                     } else if resources.buffers.get(tensor.id).is_some()
                         && !buffers.contains(&tensor.id)
                     {
-                        println!("FOUND {tensor:?}");
                         result.insert(*precision, tensor.clone());
                         // We make sure we don't write multiple time in the same buffer, only the
                         // earliest possible.
@@ -510,17 +499,6 @@ impl LocalVariablePool {
         }
 
         None
-    }
-
-    pub fn find_tensor_id(&self, precision: FuseType, position: usize) -> Option<TensorId> {
-        if let Some(indexes) = self.values.get(&precision) {
-            indexes
-                .iter()
-                .find(|(_id, index)| **index == position)
-                .map(|(id, _index)| *id)
-        } else {
-            None
-        }
     }
 
     fn create(&mut self, precision: FuseType, tensor_id: TensorId) -> FuseArg {
