@@ -102,31 +102,22 @@ where
         let props = client.properties();
         let storage = dtype.into();
         let usage = props.type_usage(storage);
-        let is_arithmetic = usage.contains(TypeUsage::Arithmetic);
 
         let mut out = DTypeUsageSet::new();
 
-        // General purpose
         if usage.is_superset(TypeUsage::Buffer | TypeUsage::Conversion) {
             out |= DTypeUsage::Storage;
         }
 
-        if is_arithmetic {
+        if usage.contains(TypeUsage::Arithmetic) {
             out |= DTypeUsage::Arithmetic;
         }
 
-        // A type is specialized if:
-        // - It has specialized MMA hardware support
-        // - OR it only supports dot products but lacks general arithmetic (restricted specialization)
         let has_mma = |cfg: &MmaConfig| {
             cfg.a_type == storage || cfg.b_type == storage || cfg.cd_type == storage
         };
-
-        if props.features.cmma.iter().any(has_mma)
-            || props.features.mma.iter().any(has_mma)
-            || (usage.contains(TypeUsage::DotProduct) && !is_arithmetic)
-        {
-            out |= DTypeUsage::Specialized;
+        if props.features.cmma.iter().any(has_mma) || props.features.mma.iter().any(has_mma) {
+            out |= DTypeUsage::Accelerated;
         }
 
         out

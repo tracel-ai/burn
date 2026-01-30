@@ -361,24 +361,23 @@ pub enum DTypeUsage {
     /// The type supports general-purpose arithmetic and common tensor
     /// operations (e.g. elementwise ops, reductions, etc.).
     Arithmetic,
-    /// The type is supported by specialized hardware instructions.
+    /// The type is supported by hardware-accelerated execution paths.
     ///
-    /// This primarily indicates support for high-performance matrix multiplication via
-    /// specialized instructions (e.g., MMA/CMMA). It may also represent restricted
-    /// specialized operations (such as dot products) on types that otherwise lack
-    /// general arithmetic support.
+    /// This typically indicates support for accelerator-backed compute units (e.g., tensor
+    /// cores executing MMA instructions) for high-performance operations such as matrix
+    /// multiplication and operations that lower to it.
     ///
     /// # Notes
     /// - A type can be both [`Arithmetic`](DTypeUsage::Arithmetic) and
-    ///   [`Specialized`](DTypeUsage::Specialized) if it supports general-purpose operations
+    ///   [`Accelerated`](DTypeUsage::Accelerated) if it supports general-purpose operations
     ///   *and* accelerated paths.
-    /// - If a type is only marked as `Specialized` (without `Arithmetic`), it means it is
-    ///   not generally usable for standard tensor operations and can only participate in the
-    ///   specialized or restricted instructions.
+    /// - If a type is marked as `Accelerated` but not `Arithmetic`, it is not
+    ///   suitable for general-purpose tensor operations and may only be used
+    ///   in specific accelerated operations.
     ///
-    /// `Specialized` is a **flag**, not a detailed descriptor. It does not enumerate which
-    /// exact instructions are available.
-    Specialized,
+    /// `Accelerated` is a **flag**, not a detailed descriptor. It does not enumerate which
+    /// operations are accelerated or which accelerator features are available.
+    Accelerated,
 }
 
 /// A set of [DTypeUsage] representing the total capabilities of a data type on a device.
