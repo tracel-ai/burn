@@ -192,10 +192,10 @@ impl<B: Backend> SsimMetric<B> {
     /// Creates a new SSIM metric with the given configuration.
     ///
     /// # Note
-    /// The metric name format is "SSIM\_dr{}\_w{}\_σ{:.1}\_k{:.3}\_{:.3}"
+    /// The metric name format is "SSIM (dr={}, w={}, σ={})"
     /// where dr is the data range, w is the window size, sigma is the
-    /// standard deviation, the two values following k are k1 and k2 respectively.
-    /// For example, the metric name might be "SSIM\_dr1.0\_w11\_σ1.5\_k0.01\_0.03".
+    /// standard deviation. For example, the metric name might be
+    /// "SSIM (dr=1.0, w=11, σ=1.5)".
     ///
     /// # Example
     /// ```ignore
