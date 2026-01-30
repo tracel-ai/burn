@@ -2,7 +2,7 @@ use crate::{CubeRuntime, FloatElement, IntElement, element::BoolElement, tensor:
 use burn_backend::{Backend, DTypeUsage, DTypeUsageSet, DeviceOps, ExecutionError, TensorData};
 use burn_std::DType;
 use cubecl::{
-    features::{MmaConfig, ScaledMmaConfig, TypeUsage},
+    features::{MmaConfig, TypeUsage},
     server::ComputeServer,
 };
 use std::marker::PhantomData;
@@ -117,21 +117,13 @@ where
 
         // A type is specialized if:
         // - It has specialized MMA hardware support
-        // - It has specialized IO (ldmatrix/stmatrix)
         // - OR it only supports dot products but lacks general arithmetic (restricted specialization)
         let has_mma = |cfg: &MmaConfig| {
             cfg.a_type == storage || cfg.b_type == storage || cfg.cd_type == storage
         };
-        // NOTE: we don't check the scales type as it is more of a property
-        let has_scaled_mma = |cfg: &ScaledMmaConfig| {
-            cfg.a_type == storage || cfg.b_type == storage || cfg.cd_type == storage
-        };
 
-        if props.features.ldmatrix.contains(&storage)
-            || props.features.stmatrix.contains(&storage)
-            || props.features.cmma.iter().any(has_mma)
+        if props.features.cmma.iter().any(has_mma)
             || props.features.mma.iter().any(has_mma)
-            || props.features.scaled_mma.iter().any(has_scaled_mma)
             || (usage.contains(TypeUsage::DotProduct) && !is_arithmetic)
         {
             out |= DTypeUsage::Specialized;

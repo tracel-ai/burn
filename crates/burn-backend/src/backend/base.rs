@@ -152,8 +152,8 @@ pub trait Backend:
     ///
     /// Returning `false` does not necessarily mean the device cannot handle the type at all.
     /// For instance, a device might support a type only for specialized hardware
-    /// acceleration (e.g., dot product) but lack general arithmetic support. Such types
-    /// should return `false` here as they are not globally supported.
+    /// acceleration (e.g., matrix multiplication) but lack general arithmetic support. Such
+    /// types should return `false` here as they are not globally supported.
     fn supports_dtype(device: &Self::Device, dtype: DType) -> bool {
         Self::dtype_usage(device, dtype).is_superset(DTypeUsage::general())
     }
@@ -363,10 +363,10 @@ pub enum DTypeUsage {
     Arithmetic,
     /// The type is supported by specialized hardware instructions.
     ///
-    /// This includes support for high-performance matrix instructions (MMA/CMMA),
-    /// specialized matrix data paths (e.g., optimized tile-based memory loads), or
-    /// restricted operations like dot products on types that otherwise lack general
-    /// arithmetic support.
+    /// This primarily indicates support for high-performance matrix multiplication via
+    /// specialized instructions (e.g., MMA/CMMA). It may also represent restricted
+    /// specialized operations (such as dot products) on types that otherwise lack
+    /// general arithmetic support.
     ///
     /// # Notes
     /// - A type can be both [`Arithmetic`](DTypeUsage::Arithmetic) and
