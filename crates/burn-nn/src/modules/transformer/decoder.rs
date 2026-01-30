@@ -6,6 +6,7 @@ use burn::config::Config;
 use burn::module::{Content, DisplaySettings, Initializer, Module, ModuleDisplay};
 use burn::tensor::{Bool, Tensor, backend::Backend};
 
+use crate::activation::ActivationConfig;
 use crate::cache::TensorCache;
 use crate::{
     Dropout, DropoutConfig, LayerNorm, LayerNormConfig,
@@ -44,6 +45,12 @@ pub struct TransformerDecoderConfig {
         default = "Initializer::KaimingUniform{gain:1.0/num_traits::Float::sqrt(3.0), fan_out_only:false}"
     )]
     pub initializer: Initializer,
+    /// The activation function used in the position-wise feed-forward network. Default: Gelu
+    #[config(default = "ActivationConfig::Gelu")]
+    pub activation: ActivationConfig,
+    /// The epsilon value for layer normalization. Default: 1e-5
+    #[config(default = 1e-5)]
+    pub layer_norm_eps: f64,
 }
 
 /// The transformer decoder module as describe in the paper [Attention Is All You Need](https://arxiv.org/abs/1706.03762).
@@ -252,12 +259,20 @@ impl<B: Backend> TransformerDecoderLayer<B> {
             .with_dropout(config.dropout)
             .with_quiet_softmax(config.quiet_softmax)
             .init(device);
-        let norm_1 = LayerNormConfig::new(config.d_model).init(device);
-        let norm_2 = LayerNormConfig::new(config.d_model).init(device);
-        let norm_3 = LayerNormConfig::new(config.d_model).init(device);
+        let norm_1 = LayerNormConfig::new(config.d_model)
+            .with_epsilon(config.layer_norm_eps)
+            .init(device);
+        let norm_2 = LayerNormConfig::new(config.d_model)
+            .with_epsilon(config.layer_norm_eps)
+            .init(device);
+        let norm_3 = LayerNormConfig::new(config.d_model)
+            .with_epsilon(config.layer_norm_eps)
+            .init(device);
         let dropout = DropoutConfig::new(config.dropout).init();
         let pwff = PositionWiseFeedForwardConfig::new(config.d_model, config.d_ff)
+            .with_initializer(config.initializer.clone())
             .with_dropout(config.dropout)
+            .with_activation(config.activation.clone())
             .init(device);
 
         Self {
@@ -280,7 +295,7 @@ impl<B: Backend> TransformerDecoderLayer<B> {
 
         // Normalize.
         if self.norm_first {
-            residual_path = self.norm_3.forward(residual_path);
+            residual_path = self.norm_1.forward(residual_path);
         }
 
         // Self attention.
@@ -299,7 +314,7 @@ impl<B: Backend> TransformerDecoderLayer<B> {
         // Cross attention residual path.
         // Normalize.
         let residual_path = if self.norm_first {
-            self.norm_1.forward(x.clone())
+            self.norm_2.forward(x.clone())
         } else {
             x = self.norm_1.forward(x);
             x.clone()
@@ -322,7 +337,7 @@ impl<B: Backend> TransformerDecoderLayer<B> {
         // Feed forward residual path.
         // Normalize.
         let residual_path = if self.norm_first {
-            self.norm_2.forward(x.clone())
+            self.norm_3.forward(x.clone())
         } else {
             x = self.norm_2.forward(x);
             x.clone()
@@ -355,8 +370,8 @@ impl<B: Backend> TransformerDecoderLayer<B> {
         // Normalize.
         if self.norm_first {
             residual_path = cache
-                .norm_3
-                .forward_autoregressive(residual_path, 1, |x| self.norm_3.forward(x));
+                .norm_1
+                .forward_autoregressive(residual_path, 1, |x| self.norm_1.forward(x));
         }
 
         // Self attention.
@@ -379,8 +394,8 @@ impl<B: Backend> TransformerDecoderLayer<B> {
         // Normalize.
         let residual_path = if self.norm_first {
             cache
-                .norm_1
-                .forward_autoregressive(x.clone(), 1, |x| self.norm_1.forward(x))
+                .norm_2
+                .forward_autoregressive(x.clone(), 1, |x| self.norm_2.forward(x))
         } else {
             x = cache
                 .norm_1
@@ -409,8 +424,8 @@ impl<B: Backend> TransformerDecoderLayer<B> {
         // Normalize.
         let residual_path = if self.norm_first {
             cache
-                .norm_2
-                .forward_autoregressive(x.clone(), 1, |x| self.norm_2.forward(x))
+                .norm_3
+                .forward_autoregressive(x.clone(), 1, |x| self.norm_3.forward(x))
         } else {
             x = cache
                 .norm_2

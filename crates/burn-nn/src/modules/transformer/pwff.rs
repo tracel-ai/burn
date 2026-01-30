@@ -1,6 +1,7 @@
 use burn_core as burn;
 
-use crate::{Dropout, DropoutConfig, Gelu, Linear, LinearConfig};
+use crate::activation::{Activation, ActivationConfig};
+use crate::{Dropout, DropoutConfig, Linear, LinearConfig};
 use burn::config::Config;
 use burn::module::{Content, DisplaySettings, Initializer, Module, ModuleDisplay};
 use burn::tensor::{Tensor, backend::Backend};
@@ -20,6 +21,9 @@ pub struct PositionWiseFeedForwardConfig {
         default = "Initializer::KaimingUniform{gain:1.0/num_traits::Float::sqrt(3.0), fan_out_only:false}"
     )]
     pub initializer: Initializer,
+    /// The activation function used between the two linear layers. Default: Gelu
+    #[config(default = "ActivationConfig::Gelu")]
+    pub activation: ActivationConfig,
 }
 
 /// Applies the position-wise feed-forward network to the input tensor from the paper [Attention Is All You Need](https://arxiv.org/pdf/1706.03762v7).
@@ -41,8 +45,8 @@ pub struct PositionWiseFeedForward<B: Backend> {
     pub linear_outer: Linear<B>,
     /// Dropout layer.
     pub dropout: Dropout,
-    /// GELU activation function.
-    pub gelu: Gelu,
+    /// Activation function.
+    pub activation: Activation<B>,
 }
 
 impl<B: Backend> ModuleDisplay for PositionWiseFeedForward<B> {
@@ -74,7 +78,7 @@ impl PositionWiseFeedForwardConfig {
                 .with_initializer(self.initializer.clone())
                 .init(device),
             dropout: DropoutConfig::new(self.dropout).init(),
-            gelu: Gelu::new(),
+            activation: self.activation.init(device),
         }
     }
 }
@@ -88,7 +92,7 @@ impl<B: Backend> PositionWiseFeedForward<B> {
     /// - output: `[batch_size, seq_length, d_model]`
     pub fn forward<const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
         let x = self.linear_inner.forward(input);
-        let x = self.gelu.forward(x);
+        let x = self.activation.forward(x);
         let x = self.dropout.forward(x);
 
         self.linear_outer.forward(x)

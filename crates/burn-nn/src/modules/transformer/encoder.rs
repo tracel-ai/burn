@@ -5,6 +5,7 @@ use alloc::vec::Vec;
 use super::{PositionWiseFeedForward, PositionWiseFeedForwardConfig};
 use crate::{
     Dropout, DropoutConfig, LayerNorm, LayerNormConfig,
+    activation::ActivationConfig,
     attention::{MhaCache, MhaInput, MultiHeadAttention, MultiHeadAttentionConfig},
     cache::TensorCache,
 };
@@ -42,6 +43,12 @@ pub struct TransformerEncoderConfig {
         default = "Initializer::KaimingUniform{gain:1.0/num_traits::Float::sqrt(3.0), fan_out_only:false}"
     )]
     pub initializer: Initializer,
+    /// The activation function used in the position-wise feed-forward network. Default: Gelu
+    #[config(default = "ActivationConfig::Gelu")]
+    pub activation: ActivationConfig,
+    /// The epsilon value for layer normalization. Default: 1e-5
+    #[config(default = 1e-5)]
+    pub layer_norm_eps: f64,
 }
 
 /// The transformer encoder module as describe in the paper [Attention Is All You Need](https://arxiv.org/abs/1706.03762).
@@ -206,9 +213,9 @@ pub struct TransformerEncoderLayer<B: Backend> {
     pub mha: MultiHeadAttention<B>,
     /// Position-wise feed-forward sub-layer.
     pub pwff: PositionWiseFeedForward<B>,
-    /// Layer normalization applied around the feed-forward sub-layer.
-    pub norm_1: LayerNorm<B>,
     /// Layer normalization applied around the attention sub-layer.
+    pub norm_1: LayerNorm<B>,
+    /// Layer normalization applied around the feed-forward sub-layer.
     pub norm_2: LayerNorm<B>,
     /// Dropout module applied to residual connections.
     pub dropout: Dropout,
@@ -225,19 +232,24 @@ impl<B: Backend> TransformerEncoderLayer<B> {
             .with_dropout(config.dropout)
             .with_quiet_softmax(config.quiet_softmax)
             .init(device);
-        let norm_1 = LayerNormConfig::new(config.d_model).init(device);
-        let norm_2 = LayerNormConfig::new(config.d_model).init(device);
+        let norm_1 = LayerNormConfig::new(config.d_model)
+            .with_epsilon(config.layer_norm_eps)
+            .init(device);
+        let norm_2 = LayerNormConfig::new(config.d_model)
+            .with_epsilon(config.layer_norm_eps)
+            .init(device);
         let dropout = DropoutConfig::new(config.dropout).init();
         let pwff = PositionWiseFeedForwardConfig::new(config.d_model, config.d_ff)
             .with_initializer(config.initializer.clone())
             .with_dropout(config.dropout)
+            .with_activation(config.activation.clone())
             .init(device);
 
         Self {
             mha,
+            pwff,
             norm_1,
             norm_2,
-            pwff,
             dropout,
             norm_first: config.norm_first,
         }
@@ -261,7 +273,7 @@ impl<B: Backend> TransformerEncoderLayer<B> {
 
         // Normalize.
         if self.norm_first {
-            residual_path = self.norm_2.forward(residual_path)
+            residual_path = self.norm_1.forward(residual_path)
         }
 
         // Multi-head attention.
@@ -280,7 +292,7 @@ impl<B: Backend> TransformerEncoderLayer<B> {
         // Feed forward residual path.
         // Normalize.
         let residual_path = if self.norm_first {
-            self.norm_1.forward(x.clone())
+            self.norm_2.forward(x.clone())
         } else {
             x = self.norm_1.forward(x);
             x.clone()
@@ -315,8 +327,8 @@ impl<B: Backend> TransformerEncoderLayer<B> {
         // Normalize.
         if self.norm_first {
             residual_path = cache
-                .norm_2
-                .forward_autoregressive(residual_path, 1, |x| self.norm_2.forward(x))
+                .norm_1
+                .forward_autoregressive(residual_path, 1, |x| self.norm_1.forward(x))
         }
 
         // Multi-head attention.
@@ -336,8 +348,8 @@ impl<B: Backend> TransformerEncoderLayer<B> {
         // Normalize.
         let residual_path = if self.norm_first {
             cache
-                .norm_1
-                .forward_autoregressive(x.clone(), 1, |x| self.norm_1.forward(x))
+                .norm_2
+                .forward_autoregressive(x.clone(), 1, |x| self.norm_2.forward(x))
         } else {
             x = cache
                 .norm_1
