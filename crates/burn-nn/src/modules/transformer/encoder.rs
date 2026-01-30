@@ -218,7 +218,8 @@ pub struct TransformerEncoderLayer<B: Backend> {
 }
 
 impl<B: Backend> TransformerEncoderLayer<B> {
-    fn new(config: &TransformerEncoderConfig, device: &B::Device) -> Self {
+    /// Create a new transformer encoder layer from the given configuration.
+    pub fn new(config: &TransformerEncoderConfig, device: &B::Device) -> Self {
         let mha = MultiHeadAttentionConfig::new(config.d_model, config.n_heads)
             .with_initializer(config.initializer.clone())
             .with_dropout(config.dropout)
@@ -242,7 +243,13 @@ impl<B: Backend> TransformerEncoderLayer<B> {
         }
     }
 
-    fn forward(
+    /// Applies the forward pass on the input tensor.
+    ///
+    /// # Shapes
+    ///
+    /// - input: `[batch_size, seq_length, d_model]`
+    /// - output: `[batch_size, seq_length, d_model]`
+    pub fn forward(
         &self,
         input: Tensor<B, 3>,
         mask_pad: Option<Tensor<B, 2, Bool>>,
@@ -293,7 +300,8 @@ impl<B: Backend> TransformerEncoderLayer<B> {
         x
     }
 
-    fn forward_autoregressive_inference(
+    /// Applies the forward pass using an autoregressive cache.
+    pub fn forward_autoregressive_inference(
         &self,
         input: Tensor<B, 3>,
         mask_pad: Option<Tensor<B, 2, Bool>>,
@@ -356,15 +364,21 @@ impl<B: Backend> TransformerEncoderLayer<B> {
     }
 }
 
-struct TransformerEncoderLayerAutoregressiveCache<B: Backend> {
-    mha: MhaCache<B>,
-    pwff: TensorCache<B, 3>,
-    norm_1: TensorCache<B, 3>,
-    norm_2: TensorCache<B, 3>,
+/// Autoregressive cache for a single [Transformer Encoder Layer](TransformerEncoderLayer).
+pub struct TransformerEncoderLayerAutoregressiveCache<B: Backend> {
+    /// Multi-head attention cache.
+    pub mha: MhaCache<B>,
+    /// Position-wise feed-forward cache.
+    pub pwff: TensorCache<B, 3>,
+    /// First layer norm cache.
+    pub norm_1: TensorCache<B, 3>,
+    /// Second layer norm cache.
+    pub norm_2: TensorCache<B, 3>,
 }
 
 impl<B: Backend> TransformerEncoderLayerAutoregressiveCache<B> {
-    fn empty() -> Self {
+    /// Create an empty cache.
+    pub fn empty() -> Self {
         Self {
             mha: MhaCache::autoregressive(),
             pwff: TensorCache::empty(),

@@ -173,27 +173,43 @@ impl<B: Backend> TransformerDecoderInput<B> {
 /// [Transformer Decoder](TransformerDecoder) layer module.
 #[derive(Module, Debug)]
 pub struct TransformerDecoderLayer<B: Backend> {
-    cross_attn: MultiHeadAttention<B>,
-    self_attn: MultiHeadAttention<B>,
-    pwff: PositionWiseFeedForward<B>,
-    norm_1: LayerNorm<B>,
-    norm_2: LayerNorm<B>,
-    norm_3: LayerNorm<B>,
-    dropout: Dropout,
-    norm_first: bool,
+    /// Cross-attention module.
+    pub cross_attn: MultiHeadAttention<B>,
+    /// Self-attention module.
+    pub self_attn: MultiHeadAttention<B>,
+    /// Position-wise feed-forward module.
+    pub pwff: PositionWiseFeedForward<B>,
+    /// First layer norm.
+    pub norm_1: LayerNorm<B>,
+    /// Second layer norm.
+    pub norm_2: LayerNorm<B>,
+    /// Third layer norm.
+    pub norm_3: LayerNorm<B>,
+    /// Dropout.
+    pub dropout: Dropout,
+    /// Whether to apply norm first.
+    pub norm_first: bool,
 }
 
-struct TransformerDecoderLayerAutoregressiveCache<B: Backend> {
-    cross_attn: MhaCache<B>,
-    self_attn: MhaCache<B>,
-    pwff: TensorCache<B, 3>,
-    norm_1: TensorCache<B, 3>,
-    norm_2: TensorCache<B, 3>,
-    norm_3: TensorCache<B, 3>,
+/// Autoregressive cache for a single [Transformer Decoder Layer](TransformerDecoderLayer).
+pub struct TransformerDecoderLayerAutoregressiveCache<B: Backend> {
+    /// Cross-attention cache.
+    pub cross_attn: MhaCache<B>,
+    /// Self-attention cache.
+    pub self_attn: MhaCache<B>,
+    /// Position-wise feed-forward cache.
+    pub pwff: TensorCache<B, 3>,
+    /// First layer norm cache.
+    pub norm_1: TensorCache<B, 3>,
+    /// Second layer norm cache.
+    pub norm_2: TensorCache<B, 3>,
+    /// Third layer norm cache.
+    pub norm_3: TensorCache<B, 3>,
 }
 
 impl<B: Backend> TransformerDecoderLayerAutoregressiveCache<B> {
-    fn empty() -> Self {
+    /// Create an empty cache.
+    pub fn empty() -> Self {
         Self {
             cross_attn: MhaCache::autoregressive_cross_attention(),
             self_attn: MhaCache::autoregressive(),
@@ -223,7 +239,8 @@ impl<B: Backend> TransformerDecoderAutoregressiveCache<B> {
 }
 
 impl<B: Backend> TransformerDecoderLayer<B> {
-    fn new(config: &TransformerDecoderConfig, device: &B::Device) -> Self {
+    /// Create a new [TransformerDecoderLayer](TransformerDecoderLayer).
+    pub fn new(config: &TransformerDecoderConfig, device: &B::Device) -> Self {
         let self_attn = MultiHeadAttentionConfig::new(config.d_model, config.n_heads)
             .with_initializer(config.initializer.clone())
             .with_dropout(config.dropout)
@@ -256,7 +273,7 @@ impl<B: Backend> TransformerDecoderLayer<B> {
     }
 
     /// Applies the TransformerDecoder forward pass to the input tensor.
-    fn forward(&self, mut input: TransformerDecoderInput<B>) -> TransformerDecoderInput<B> {
+    pub fn forward(&self, mut input: TransformerDecoderInput<B>) -> TransformerDecoderInput<B> {
         // Self attention residual path.
         let x = input.target;
         let mut residual_path = x.clone();
@@ -325,7 +342,8 @@ impl<B: Backend> TransformerDecoderLayer<B> {
         input
     }
 
-    fn forward_autoregressive_inference(
+    /// Applies the forward pass using an autoregressive cache.
+    pub fn forward_autoregressive_inference(
         &self,
         mut input: TransformerDecoderInput<B>,
         cache: &mut TransformerDecoderLayerAutoregressiveCache<B>,
