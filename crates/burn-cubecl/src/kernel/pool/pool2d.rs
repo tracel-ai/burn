@@ -1,11 +1,25 @@
 use core::hash::Hash;
-use cubecl::prelude::*;
+use cubecl::{
+    prelude::*,
+    std::{
+        FastDivmod,
+        tensor::{
+            View,
+            launch::ViewArg,
+            layout::fixed_dim::{FixedDimLayout, FixedDimLayoutLaunch},
+        },
+    },
+};
+
+use crate::{CubeRuntime, kernel::utils::decompose_linear, tensor::CubeTensor};
 
 pub trait Pool2dDirectStrategyFamily: Send + Sync + 'static {
     type Indices: LaunchArg;
     type Config: CubeType + Clone + Send + Sync + core::fmt::Debug + Hash + core::cmp::Eq;
     type Pool2d<N: Numeric>: Pool2dDirectStrategy<N, Config = Self::Config, Indices = Self::Indices>;
 }
+
+pub(super) type Position = (usize, usize, usize, usize);
 
 #[cube]
 pub(crate) trait Pool2dDirectStrategy<N: Numeric>: Send + Sync + 'static {
@@ -38,8 +52,8 @@ pub(crate) trait Pool2dDirectStrategy<N: Numeric>: Send + Sync + 'static {
 
     fn store(
         #[comptime] config: &Self::Config,
-        position: usize,
-        output: &mut Tensor<Line<N>>,
+        position: Position,
+        output: &mut View<Line<N>, Position, ReadWrite>,
         output_indices: &mut Self::Indices,
         accumulator: Self::Accumulator,
     );
@@ -58,48 +72,39 @@ pub struct Pool2dDirectArgs {
 #[cube(launch)]
 pub fn pool2d_direct<E: Numeric, S: Pool2dDirectStrategyFamily>(
     input: &Tensor<Line<E>>,
-    output: &mut Tensor<Line<E>>,
+    output: &mut View<Line<E>, Position, ReadWrite>,
     indices: &mut S::Indices,
+    out_shape: Sequence<FastDivmod<usize>>,
+    working_units: usize,
     args: &Pool2dDirectArgs,
     #[comptime] kernel_size: (u32, u32),
     #[comptime] config: &S::Config,
     #[define(E)] _dtype: StorageType,
 ) {
-    if ABSOLUTE_POS >= output.len() {
+    if ABSOLUTE_POS >= working_units {
         terminate!();
     }
 
-    let (out_h, out_w, channels) = (output.shape(1), output.shape(2), output.shape(3));
-    let channel_lines = channels / input.line_size();
-    let (in_stride_b, in_stride_h, in_stride_w, in_stride_c) = (
-        input.stride(0),
-        input.stride(1),
-        input.stride(2),
-        input.stride(3),
-    );
-    let (in_h, in_w) = (input.shape(1) as u32, input.shape(2) as u32);
+    let (_, pos) = decompose_linear(ABSOLUTE_POS * output.line_size(), &out_shape);
+    let [b, oh, ow, c] = *pos else { unreachable!() };
 
-    let c = (ABSOLUTE_POS % channel_lines) * input.line_size();
-    let pos = ABSOLUTE_POS / channel_lines;
-    let ow = pos as u32 % out_w as u32;
-    let pos = pos / out_w;
-    let oh = pos as u32 % out_h as u32;
-    let b = pos / out_h;
+    let (in_stride_h, in_stride_w) = (input.stride(1), input.stride(2));
+    let (in_h, in_w) = (input.shape(1) as u32, input.shape(2) as u32);
 
     let mut accumulator = S::Pool2d::<E>::initialize(config, input.line_size());
 
-    let in_b_off = b * in_stride_b;
-    let in_c_off = c * in_stride_c;
+    let in_b_off = b * input.stride(0);
+    let in_c_off = c * input.stride(3);
 
     let border_bottom = in_h + args.padding_0;
     let border_right = in_w + args.padding_1;
 
     for kh in 0..kernel_size.0 {
-        let ih = oh * args.strides_0 + kh * args.dilation_0;
+        let ih = oh as u32 * args.strides_0 + kh * args.dilation_0;
         let within_padding_h = ih >= args.padding_0 && ih < border_bottom;
 
         for kw in 0..kernel_size.1 {
-            let iw = ow * args.strides_1 + kw * args.dilation_1;
+            let iw = ow as u32 * args.strides_1 + kw * args.dilation_1;
             let within_padding_w = iw >= args.padding_1 && iw < border_right;
 
             // Let strategy handle position counting (only used by avg_pool)
@@ -125,5 +130,26 @@ pub fn pool2d_direct<E: Numeric, S: Pool2dDirectStrategyFamily>(
         }
     }
 
-    S::Pool2d::<E>::store(config, ABSOLUTE_POS, output, indices, accumulator);
+    S::Pool2d::<E>::store(config, (b, oh, ow, c), output, indices, accumulator);
+}
+
+pub(super) fn view4d<R: CubeRuntime>(
+    tensor: &CubeTensor<R>,
+    line_size: LineSize,
+) -> ViewArg<'_, Position, R> {
+    let shape = &tensor.shape.dims;
+    let shape = (
+        ScalarArg::new(shape[0]),
+        ScalarArg::new(shape[1]),
+        ScalarArg::new(shape[2]),
+        ScalarArg::new(shape[3]),
+    );
+    let handle = tensor.as_handle_ref();
+    let len = handle.shape.iter().product::<usize>();
+    let layout =
+        FixedDimLayoutLaunch::<Position, R>::from_shape_handle_unchecked(&handle, shape, line_size);
+    let buffer = unsafe {
+        ArrayArg::from_raw_parts_and_size(handle.handle, len, line_size, handle.elem_size)
+    };
+    ViewArg::new::<FixedDimLayout<Position>>(buffer, layout)
 }

@@ -15,7 +15,7 @@ use burn_tensor::TensorData;
 use tokio::sync::mpsc::{Receiver, Sender};
 
 /// A stream makes sure all operations registered are executed in the order they were sent to the
-/// server, protentially waiting to reconstruct consistency.
+/// server, potentially waiting to reconstruct consistency.
 #[derive(Clone)]
 pub struct Stream<B, P>
 where

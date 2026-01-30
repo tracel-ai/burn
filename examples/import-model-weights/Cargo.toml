@@ -17,7 +17,9 @@ burn = { path = "../../crates/burn", features = [
     "vision",
 ] }
 
-burn-import = { path = "../../crates/burn-import", features = [
+burn-store = { path = "../../crates/burn-store", features = [
+    "std",
     "pytorch",
     "safetensors",
+    "burnpack",
 ], default-features = false }

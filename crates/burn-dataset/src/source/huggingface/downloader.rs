@@ -100,7 +100,7 @@ impl HuggingfaceDatasetLoader {
 
     /// Specify a base directory to store the dataset.
     ///
-    /// If not specified, the dataset will be stored in `~/.cache/burn-dataset`.
+    /// If not specified, the dataset will be stored in the system cache directory under `burn-dataset`.
     pub fn with_base_dir(mut self, base_dir: &str) -> Self {
         self.base_dir = Some(base_dir.into());
         self
@@ -116,7 +116,7 @@ impl HuggingfaceDatasetLoader {
 
     /// Specify a huggingface cache directory to store the downloaded datasets.
     ///
-    /// If not specified, the dataset will be stored in `~/.cache/huggingface/datasets`.
+    /// If not specified, the dataset will be stored in the system cache directory under `huggingface/datasets`.
     pub fn with_huggingface_cache_dir(mut self, huggingface_cache_dir: &str) -> Self {
         self.huggingface_cache_dir = Some(huggingface_cache_dir.to_string());
         self

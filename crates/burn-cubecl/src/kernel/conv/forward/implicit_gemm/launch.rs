@@ -1,4 +1,4 @@
-use crate::{CubeRuntime, ops::numeric::empty_device_optimized_dtype, tensor::CubeTensor};
+use crate::{CubeRuntime, ops::numeric::empty_device_dtype, tensor::CubeTensor};
 use burn_backend::ops::{ConvOptions, conv::calculate_conv_output_sizes};
 use cubek::{
     convolution::{
@@ -128,7 +128,7 @@ pub fn launch_convolution_forward<R: CubeRuntime, const N: usize>(
     out_shape.insert(0, batch_size);
     out_shape.push(out_channels);
 
-    let out = empty_device_optimized_dtype(
+    let out = empty_device_dtype(
         input.client.clone(),
         input.device.clone(),
         out_shape.into(),

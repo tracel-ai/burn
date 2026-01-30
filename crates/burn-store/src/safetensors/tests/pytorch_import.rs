@@ -50,7 +50,7 @@ fn multi_layer_model_import() {
     // Reference the safetensors file from burn-import
     let safetensors_path = concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../burn-import/safetensors-tests/tests/multi_layer/multi_layer.safetensors"
+        "/safetensors-tests/tests/multi_layer/multi_layer.safetensors"
     );
 
     // Load the model using SafetensorsStore
@@ -93,7 +93,7 @@ fn safetensors_round_trip_with_pytorch_model() {
     // Reference the safetensors file from burn-import
     let safetensors_path = concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../burn-import/safetensors-tests/tests/multi_layer/multi_layer.safetensors"
+        "/safetensors-tests/tests/multi_layer/multi_layer.safetensors"
     );
 
     // Load the model from PyTorch safetensors
@@ -149,7 +149,7 @@ fn partial_load_from_pytorch_model() {
     // Reference the safetensors file from burn-import
     let safetensors_path = concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../burn-import/safetensors-tests/tests/multi_layer/multi_layer.safetensors"
+        "/safetensors-tests/tests/multi_layer/multi_layer.safetensors"
     );
 
     // Load only conv1 and norm1 parameters (not fc1)
@@ -180,7 +180,7 @@ fn verify_tensor_names_from_pytorch() {
     // Reference the safetensors file from burn-import
     let safetensors_path = concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../burn-import/safetensors-tests/tests/multi_layer/multi_layer.safetensors"
+        "/safetensors-tests/tests/multi_layer/multi_layer.safetensors"
     );
 
     // Create a model and load from PyTorch
