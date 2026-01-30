@@ -4,8 +4,7 @@ use crate::{
     graph::Parent,
     tensor::NodeRefCount,
 };
-use alloc::{borrow::ToOwned, sync::Arc, vec, vec::Vec};
-use core::mem;
+use alloc::{borrow::ToOwned, sync::Arc, vec::Vec};
 
 #[derive(Default, Debug)]
 pub struct GraphMemoryManagement {
@@ -54,9 +53,8 @@ impl GraphMemoryManagement {
     /// This function goes into three steps, which must happen for all leaves
     /// before going into the next step. Then it deletes what can be safely deleted
     pub(crate) fn free_unavailable_nodes(&mut self, mut on_free_graph: impl FnMut(&NodeId)) {
-        let leaves = self.leaves.clone();
-        let mut new_leaves = HashSet::new();
-        let mut deletables = Vec::new();
+        // Leaves cache to avoid having a ref to self
+        let leaves = core::mem::take(&mut self.leaves);
 
         // When consuming nodes with a backward pass, some other backward passes become
         // unavailable because some of their parents have been consumed. They are
@@ -71,14 +69,9 @@ impl GraphMemoryManagement {
         // hence the need to iterate on all leaves.
         self.useful_propagation(leaves.clone());
 
-        // New leaves are the roots of a useful backward sub-tree.
+        // Add new leaves as the roots of useful backward sub-tree.
         // Deletables are everything not marked as useful.
-        for leaf in leaves {
-            self.identify_leaves_and_deletables(leaf, &mut new_leaves, &mut deletables);
-        }
-
-        // Replace leaves by the new ones and delete everything not useful anymore
-        mem::swap(&mut self.leaves, &mut new_leaves);
+        let mut deletables = self.new_leaves_and_deletables(leaves.into_iter().collect());
 
         self.clear_unused_roots(&mut deletables);
 
@@ -215,14 +208,9 @@ impl GraphMemoryManagement {
         }
     }
 
-    fn identify_leaves_and_deletables(
-        &self,
-        leaf_id: NodeId,
-        new_leaves: &mut HashSet<NodeId>,
-        to_delete: &mut Vec<NodeId>,
-    ) {
+    fn new_leaves_and_deletables(&mut self, mut to_visit: Vec<NodeId>) -> Vec<NodeId> {
+        let mut to_delete: Vec<NodeId> = Vec::new();
         let mut visited = HashSet::new();
-        let mut to_visit = vec![leaf_id];
 
         while let Some(node_id) = to_visit.pop() {
             visited.insert(node_id);
@@ -233,7 +221,8 @@ impl GraphMemoryManagement {
                 .expect("Node should have status")
             {
                 NodeMemoryStatus::Useful => {
-                    new_leaves.insert(node_id);
+                    // New leaves are the roots of a useful backward sub-tree.
+                    self.leaves.insert(node_id);
                 }
                 _ => {
                     to_delete.push(node_id);
@@ -252,6 +241,7 @@ impl GraphMemoryManagement {
                 }
             };
         }
+        to_delete
     }
 
     fn is_referenced(&self, node_id: NodeId) -> bool {
