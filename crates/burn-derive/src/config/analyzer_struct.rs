@@ -298,13 +298,15 @@ impl ConfigAnalyzer for ConfigStructAnalyzer {
             let name = field.ident();
             let ty = &field.field.ty;
             let docs = field.docs();
+            let default_doc = "- Defaults to `None`";
             let doc_str = format!(
-                "Sets the value for the field [`{}`](Self::{0}).\n- Defaults to `None`\n\n",
+                "Sets the value for the field [`{}`](Self::{0}).\n\n",
                 quote!(#name)
             );
             let fn_docs = quote! {
                 #[doc = #doc_str]
                 #(#docs)*
+                #[doc = #default_doc]
             };
             let fn_name = Ident::new(&format!("with_{name}"), name.span());
 
