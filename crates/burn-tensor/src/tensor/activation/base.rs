@@ -72,6 +72,29 @@ pub fn gelu<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D> {
     Tensor::from_primitive(TensorPrimitive::Float(B::gelu(tensor.primitive.tensor())))
 }
 
+/// Applies the tanh-based approximate GELU function element-wise, matching
+/// PyTorch's `gelu(approximate="tanh")` and HuggingFace's `gelu_new`.
+///
+#[cfg_attr(
+    doc,
+    doc = r#"
+$$
+\text{GELU\_approx}(x)
+= \frac{x}{2}\left(1 + \tanh\left(\sqrt{\frac{2}{\pi}}\left(x + 0.044715\,x^3\right)\right)\right)
+$$
+"#
+)]
+#[cfg_attr(
+    not(doc),
+    doc = "`GELU_approx(x) = 0.5 * x * (1 + tanh(sqrt(2/pi) * (x + 0.044715 * x^3)))`"
+)]
+pub fn gelu_approximate<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D> {
+    let x = tensor;
+    let inner = x.clone() + x.clone().powf_scalar(3.0) * 0.044715;
+    let inner = inner * core::f64::consts::FRAC_2_PI.sqrt();
+    (x.clone() * (inner.tanh() + 1)) * 0.5
+}
+
 /// Applies Parametric ReLu activation function as described in the paper
 /// [Delving Deep into Rectifiers: Surpassing Human-Level Performance on ImageNet Classification](https://arxiv.org/pdf/1502.01852).
 ///

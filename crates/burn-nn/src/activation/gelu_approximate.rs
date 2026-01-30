@@ -24,11 +24,7 @@ impl GeluApproximate {
     /// - input: `[..., any]`
     /// - output: `[..., any]`
     pub fn forward<B: Backend, const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
-        // 0.5 * x * (1 + tanh(sqrt(2/pi) * (x + 0.044715 * x^3)))
-        let x = input;
-        let inner = x.clone() + x.clone().powf_scalar(3.0) * 0.044715;
-        let inner = inner * core::f64::consts::FRAC_2_PI.sqrt();
-        (x.clone() * (inner.tanh() + 1)) * 0.5
+        burn::tensor::activation::gelu_approximate(input)
     }
 }
 
