@@ -1,4 +1,3 @@
-use crate::conv::checks::check_same_padding_support;
 use burn_core as burn;
 
 use crate::PaddingConfig1d;
@@ -7,6 +6,7 @@ use burn::module::{Content, DisplaySettings, ModuleDisplay};
 use burn::module::{Ignored, Module};
 use burn::tensor::Tensor;
 use burn::tensor::backend::Backend;
+use burn::tensor::ops::PadMode;
 
 use burn::tensor::module::max_pool1d;
 
@@ -20,9 +20,8 @@ pub struct MaxPool1dConfig {
     pub stride: usize,
     /// The padding configuration.
     ///
-    /// ### Warning
-    /// Only symmetric padding is currently supported. As such, using `Same` padding with an even kernel
-    /// size is not supported as it will not produce the same output size.
+    /// Supports symmetric and asymmetric padding. `Same` padding with even kernel sizes
+    /// will automatically use asymmetric padding to preserve input dimensions.
     #[config(default = "PaddingConfig1d::Valid")]
     pub padding: PaddingConfig1d,
     /// The dilation.
@@ -72,9 +71,6 @@ impl ModuleDisplay for MaxPool1d {
 impl MaxPool1dConfig {
     /// Initialize a new [max pool 1d](MaxPool1d) module.
     pub fn init(&self) -> MaxPool1d {
-        if self.padding == PaddingConfig1d::Same {
-            check_same_padding_support(&[self.kernel_size]);
-        }
         MaxPool1d {
             stride: self.stride,
             kernel_size: self.kernel_size,
@@ -96,31 +92,63 @@ impl MaxPool1d {
     /// - output: `[batch_size, channels, length_out]`
     pub fn forward<B: Backend>(&self, input: Tensor<B, 3>) -> Tensor<B, 3> {
         let [_batch_size, _channels, length] = input.dims();
-        let padding = self
-            .padding
-            .calculate_padding_1d(length, self.kernel_size, self.stride);
 
-        max_pool1d(
-            input,
-            self.kernel_size,
-            self.stride,
-            padding,
-            self.dilation,
-            self.ceil_mode,
-        )
+        // Calculate padding as pair - handles Same, Valid, and Explicit uniformly
+        let (left, right) =
+            self.padding
+                .calculate_padding_1d_pair(length, self.kernel_size, self.stride);
+
+        // TODO: Move asymmetric padding to functional level via PoolOptions
+        // See: https://github.com/tracel-ai/burn/issues/4362
+        // Handle asymmetric padding by applying explicit pad operation first
+        if left != right {
+            // For 1D (NCL format), pad the length dimension with (left, right)
+            // and no padding for channel dimension (top=0, bottom=0)
+            // Use -inf for max pooling so padded values don't affect the max
+            let padded = input.pad((left, right, 0, 0), PadMode::Constant(f32::NEG_INFINITY));
+            // Use zero padding for the pool operation since we already padded
+            max_pool1d(
+                padded,
+                self.kernel_size,
+                self.stride,
+                0,
+                self.dilation,
+                self.ceil_mode,
+            )
+        } else {
+            // Symmetric padding
+            max_pool1d(
+                input,
+                self.kernel_size,
+                self.stride,
+                left,
+                self.dilation,
+                self.ceil_mode,
+            )
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::TestBackend;
     use rstest::rstest;
 
     #[test]
-    #[should_panic = "Same padding with an even kernel size is not supported"]
-    fn same_with_even_kernel_is_invalid() {
-        let config = MaxPool1dConfig::new(2).with_padding(PaddingConfig1d::Same);
-        let _ = config.init();
+    fn same_with_even_kernel_uses_asymmetric_padding() {
+        let device = Default::default();
+        let config = MaxPool1dConfig::new(2)
+            .with_stride(1)
+            .with_padding(PaddingConfig1d::Same);
+        let pool = config.init();
+
+        // Input: [batch=1, channels=2, length=5]
+        let input = Tensor::<TestBackend, 3>::ones([1, 2, 5], &device);
+        let output = pool.forward(input);
+
+        // Same padding should preserve spatial dimensions
+        assert_eq!(output.dims(), [1, 2, 5]);
     }
 
     #[test]
@@ -146,5 +174,41 @@ mod tests {
             "Expected stride ({:?}) to match kernel size ({:?}) in default MaxPool1dConfig::new constructor",
             config.stride, config.kernel_size
         );
+    }
+
+    #[test]
+    fn asymmetric_padding_forward() {
+        let device = Default::default();
+        // Create max pool with asymmetric padding: left=1, right=2
+        let config = MaxPool1dConfig::new(3)
+            .with_stride(1)
+            .with_padding(PaddingConfig1d::Explicit(1, 2));
+        let pool = config.init();
+
+        // Input: [batch=1, channels=2, length=4]
+        let input = Tensor::<TestBackend, 3>::ones([1, 2, 4], &device);
+        let output = pool.forward(input);
+
+        // With asymmetric padding (1, 2), input length 4 becomes 4+1+2=7
+        // Output length = (7 - 3) / 1 + 1 = 5
+        assert_eq!(output.dims(), [1, 2, 5]);
+    }
+
+    #[test]
+    fn symmetric_explicit_padding_forward() {
+        let device = Default::default();
+        // Create max pool with symmetric explicit padding: left=2, right=2
+        let config = MaxPool1dConfig::new(3)
+            .with_stride(1)
+            .with_padding(PaddingConfig1d::Explicit(2, 2));
+        let pool = config.init();
+
+        // Input: [batch=1, channels=2, length=4]
+        let input = Tensor::<TestBackend, 3>::ones([1, 2, 4], &device);
+        let output = pool.forward(input);
+
+        // With symmetric padding (2, 2), input length 4 becomes 4+2+2=8
+        // Output length = (8 - 3) / 1 + 1 = 6
+        assert_eq!(output.dims(), [1, 2, 6]);
     }
 }

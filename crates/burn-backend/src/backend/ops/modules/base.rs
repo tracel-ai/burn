@@ -125,6 +125,65 @@ impl<const N: usize> ConvOptions<N> {
     }
 }
 
+/// Convolution options with support for asymmetric padding.
+///
+/// Wraps [`ConvOptions`] (which represents symmetric padding for the backend op)
+/// and adds optional asymmetric padding. When asymmetric padding is specified,
+/// the functional convolution layer applies an explicit pad operation before
+/// dispatching to the backend.
+///
+/// Implements `From<ConvOptions<N>>` for backward compatibility.
+#[derive(Debug, Clone)]
+pub struct PaddedConvOptions<const N: usize> {
+    /// The underlying convolution options for the backend.
+    pub options: ConvOptions<N>,
+    /// Padding at the end of each dimension (e.g., bottom/right for 2D).
+    /// If `None`, padding is symmetric (same as `options.padding`).
+    /// If `Some`, specifies different end-padding per dimension.
+    pub padding_end: Option<[usize; N]>,
+}
+
+impl<const N: usize> PaddedConvOptions<N> {
+    /// Creates options with asymmetric padding.
+    ///
+    /// `padding_start` is stored in `ConvOptions::padding`.
+    /// `padding_end` specifies the end padding per dimension.
+    pub fn asymmetric(
+        stride: [usize; N],
+        padding_start: [usize; N],
+        padding_end: [usize; N],
+        dilation: [usize; N],
+        groups: usize,
+    ) -> Self {
+        let options = ConvOptions::new(stride, padding_start, dilation, groups);
+        if padding_start == padding_end {
+            Self {
+                options,
+                padding_end: None,
+            }
+        } else {
+            Self {
+                options,
+                padding_end: Some(padding_end),
+            }
+        }
+    }
+
+    /// Returns true if padding is asymmetric.
+    pub fn is_asymmetric(&self) -> bool {
+        self.padding_end.is_some()
+    }
+}
+
+impl<const N: usize> From<ConvOptions<N>> for PaddedConvOptions<N> {
+    fn from(options: ConvOptions<N>) -> Self {
+        Self {
+            options,
+            padding_end: None,
+        }
+    }
+}
+
 /// Convolution options.
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct DeformConvOptions<const N: usize> {
