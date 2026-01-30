@@ -23,7 +23,7 @@ pub struct TraceFuser {
     pub bool_precision: FuseType,
     // The tensors returned by the block that don't need to be written to global memory.
     block_current: FuseBlockBuilder,
-    blocks_previous: Vec<(FuseBlockBuilder, Vec<usize>)>,
+    blocks_previous: Vec<FuseBlockBuilder>,
     resources: FuseResources,
 }
 
@@ -58,7 +58,7 @@ impl TraceFuser {
     pub fn num_ops_fused(&self) -> u32 {
         let mut num_ops_fused = 0;
 
-        for (block, _) in self.blocks_previous.iter() {
+        for block in self.blocks_previous.iter() {
             num_ops_fused += block.ops.len();
         }
 
@@ -70,7 +70,8 @@ impl TraceFuser {
     pub fn next_block(&mut self, shape_ref: Vec<usize>, settings: FuseSettings) {
         let mut block_new = FuseBlockBuilder::new(self.bool_precision, settings);
         core::mem::swap(&mut self.block_current, &mut block_new);
-        self.blocks_previous.push((block_new, shape_ref));
+        block_new.shape_ref = shape_ref;
+        self.blocks_previous.push(block_new);
         self.settings = settings;
     }
 
@@ -79,7 +80,7 @@ impl TraceFuser {
     pub fn estimate_bindings(&self) -> u32 {
         let mut estimation = 1; // Metadata takes one.
         for b in self.blocks_previous.iter() {
-            estimation += b.0.estimate_num_outputs(&self.resources);
+            estimation += b.estimate_num_outputs(&self.resources);
         }
         estimation += self.block_current.estimate_num_outputs(&self.resources);
         estimation += self.resources.inputs.len() as u32;
@@ -93,8 +94,7 @@ impl TraceFuser {
     ///
     /// This will avoid reading the input again and instead use le local version when possible.
     pub fn block_local_input(&mut self, tensor: &TensorIr, block_pos: usize) -> FuseArg {
-        println!("{block_pos:?}/{}", self.blocks_previous.len());
-        let block = &mut self.blocks_previous[block_pos].0;
+        let block = &mut self.blocks_previous[block_pos];
         let src_arg = block.global_register(block_pos, tensor).unwrap();
 
         self.block_current
@@ -110,7 +110,7 @@ impl TraceFuser {
         let arg = self
             .output(tensor)
             .expect("Can't add a new output that is already used in an index operation");
-        println!("outputs_unhandled {tensor:?} => {arg:?}");
+
         self.resources.outputs_unhandled.push(arg.clone());
         self.block_current.outputs_unhandled.push(arg.clone());
         arg
@@ -258,9 +258,7 @@ impl TraceFuser {
     }
 
     /// Finish fusing and returns the created trace.
-    ///
-    /// TODO: FIX Not all blocks have the same shape ref.
-    pub fn finish(&self, shape_ref: Vec<usize>) -> FuseTrace {
+    pub fn finish(&mut self, shape_ref: Vec<usize>) -> FuseTrace {
         let mut resources = self.resources.clone();
         let mut outputs = RegisteredTensors::default();
 
@@ -271,15 +269,16 @@ impl TraceFuser {
 
         let mut blocks = Vec::new();
 
-        let mut register_block = |block: &FuseBlockBuilder, shape_ref: &Vec<usize>| {
-            let block = block.build(&self.resources, shape_ref.clone(), &mut outputs);
+        let mut register_block = |block: &FuseBlockBuilder| {
+            let block = block.build(&self.resources, &mut outputs);
             blocks.push(block);
         };
 
-        for (block, shape_ref) in self.blocks_previous.iter() {
-            register_block(block, shape_ref);
+        for block in self.blocks_previous.iter() {
+            register_block(block);
         }
-        register_block(&self.block_current, &shape_ref);
+        self.block_current.shape_ref = shape_ref;
+        register_block(&self.block_current);
 
         // We update the output tensors registered to be the ones that are written to in global
         // memory.

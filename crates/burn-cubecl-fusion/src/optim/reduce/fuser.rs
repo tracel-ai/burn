@@ -59,13 +59,12 @@ impl<R: Runtime> ReduceFuser<R> {
             output_shape_updates: true,
             inplace: false,
             ref_layout: RefLayoutSetting::OnlyContiguous,
-            vectorization: VectorizationSetting::Deactivated,
+            vectorization: VectorizationSetting::Activated,
             broadcast: true,
-            // ..Default::default()
         };
         let settings_write = FuseSettings {
             output_shape_updates: false,
-            inplace: false,
+            inplace: true,
             broadcast: false,
             ref_layout: RefLayoutSetting::OnlyContiguous,
             // TODO: Fusion axis should be on the reduce_axis - 1.
@@ -273,7 +272,7 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceFuser<R> {
         }
     }
 
-    fn finish(&self) -> CubeOptimization<R> {
+    fn finish(&mut self) -> CubeOptimization<R> {
         let client = R::client(&self.device);
         let trace = self.fuser.finish();
         let trace_read_fallback = self.fuser_read_fallback.finish();

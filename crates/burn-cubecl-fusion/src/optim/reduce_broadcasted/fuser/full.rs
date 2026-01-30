@@ -36,7 +36,7 @@ impl ReduceBroadcastedFullFuser {
             inplace: false,
             ref_layout: RefLayoutSetting::OnlyContiguous,
             // TODO: Only for debuging for now
-            vectorization: VectorizationSetting::Deactivated,
+            vectorization: VectorizationSetting::Activated,
             ..Default::default()
         };
         let settings_write = FuseSettings {
@@ -57,7 +57,7 @@ impl ReduceBroadcastedFullFuser {
         }
     }
 
-    pub fn finish(self) -> ReduceBrInfo {
+    pub fn finish(mut self) -> ReduceBrInfo {
         let mut reduce_axis = 0;
         let mut blocks = Vec::new();
 

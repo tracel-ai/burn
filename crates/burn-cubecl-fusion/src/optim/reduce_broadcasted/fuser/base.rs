@@ -104,7 +104,7 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceBroadcastedFuser<
         }
     }
 
-    fn finish(&self) -> CubeOptimization<R> {
+    fn finish(&mut self) -> CubeOptimization<R> {
         println!("================================");
         let analyzer = FullFuserAnalyzer::new(&self.blocks);
         println!("{analyzer:?}");
@@ -113,7 +113,7 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceBroadcastedFuser<
         let mut num_ops = 0;
         let fallbacks = self
             .blocks
-            .iter()
+            .iter_mut()
             .map(|block| block.finish(&mut num_ops, &mut full))
             .collect::<Vec<_>>();
 

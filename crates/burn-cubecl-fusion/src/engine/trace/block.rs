@@ -45,6 +45,8 @@ pub struct FuseBlockBuilder {
     outputs: RegisteredTensors,
     pub outputs_unhandled: Vec<FuseArg>,
     pub local_inputs: BTreeMap<TensorId, FuseArg>,
+    /// The reference shape used by this block.
+    pub shape_ref: Vec<usize>,
 }
 
 #[derive(Debug)]
@@ -69,6 +71,7 @@ impl FuseBlockBuilder {
             outputs: Default::default(),
             outputs_unhandled: Default::default(),
             local_inputs: Default::default(),
+            shape_ref: Vec::new(),
         }
     }
 
@@ -169,12 +172,13 @@ impl FuseBlockBuilder {
             None => {
                 let input = if let Some(_) = resources.outputs.get_index(tensor.id) {
                     let pos = resources.buffers.insert(precision, tensor.clone());
-                    println!("Buffer {tensor:?} => Output({pos})");
+                    // TODO: Add a write to the previous block that added that output.
                     FuseArg::Output(pos, precision_input, LayoutInfo::Unknown)
                 } else {
                     let pos = resources.inputs.insert(precision_input, tensor.clone());
                     FuseArg::Input(pos, precision_input, LayoutInfo::Unknown)
                 };
+
                 let out = self.locals.create(precision, tensor.id);
 
                 let reads = if let Entry::Vacant(e) = self.reads.entry(tensor.id) {
@@ -397,12 +401,7 @@ impl FuseBlockBuilder {
     }
 
     /// Build into a fuse block.
-    pub fn build(
-        &self,
-        resources: &FuseResources,
-        shape_ref: Vec<usize>,
-        outputs: &mut RegisteredTensors,
-    ) -> FuseBlock {
+    pub fn build(&self, resources: &FuseResources, outputs: &mut RegisteredTensors) -> FuseBlock {
         let ops = self.ops.clone();
         let reads = self.reads.clone();
         let tensor_writes = self.tensor_writes(resources);
@@ -434,7 +433,7 @@ impl FuseBlockBuilder {
         FuseBlock {
             settings: self.settings,
             ops,
-            shape_ref,
+            shape_ref: self.shape_ref.clone(),
             reads,
             writes,
         }
@@ -670,6 +669,7 @@ impl FuseBlockBuilder {
             // TODO: We write too much.
             if !is_read && !resources.dropped.contains(&entry.0) {
                 let (tensor_id, precision) = entry;
+                println!("WRITE BECAUSE: {tensor_id:?}");
                 let (tensor, _) = resources.outputs.get(tensor_id).unwrap();
                 result.insert(precision, tensor.clone());
             }
@@ -682,6 +682,7 @@ impl FuseBlockBuilder {
                 && let TensorStatus::ReadOnly = tensor.status
                 && !resources.dropped.contains(&tensor.id)
             {
+                println!("WRITE YEAH: {tensor:?}");
                 result.insert(*precision, tensor.clone());
             }
         }

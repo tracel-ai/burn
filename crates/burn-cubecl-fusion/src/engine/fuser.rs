@@ -110,7 +110,7 @@ impl OperationFuser<FuseTrace> for TraceOperationFuser {
         self.num_ops += 1;
     }
 
-    fn finish(&self) -> FuseTrace {
+    fn finish(&mut self) -> FuseTrace {
         self.fuser.finish(self.current_output_shape.clone())
     }
 
@@ -759,7 +759,7 @@ impl TryTraceFuser {
         true
     }
 
-    fn finish(&self, shape: Vec<usize>) -> FuseTrace {
+    fn finish(&mut self, shape: Vec<usize>) -> FuseTrace {
         self.fuser.finish(shape)
     }
 }

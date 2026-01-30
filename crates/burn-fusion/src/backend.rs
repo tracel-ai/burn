@@ -117,7 +117,7 @@ pub trait OperationFuser<O>: Send {
     /// Register a new [tensor operation](OperationIr).
     fn fuse(&mut self, operation: &OperationIr);
     /// Finish the optimization and create a fusion operation.
-    fn finish(&self) -> O;
+    fn finish(&mut self) -> O;
     /// Reset the state.
     fn reset(&mut self);
     /// Return the builder [status](FuserStatus).

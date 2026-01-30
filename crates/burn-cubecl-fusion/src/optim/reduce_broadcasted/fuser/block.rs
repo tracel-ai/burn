@@ -157,7 +157,7 @@ impl<R: Runtime> ReduceBlockFuser<R> {
     }
 
     pub fn finish(
-        &self,
+        &mut self,
         num_ops: &mut usize,
         full: &mut ReduceBroadcastedFullFuser,
     ) -> ReduceBlockOptimInfo<R> {
