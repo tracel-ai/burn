@@ -213,9 +213,9 @@ pub struct TransformerEncoderLayer<B: Backend> {
     pub mha: MultiHeadAttention<B>,
     /// Position-wise feed-forward sub-layer.
     pub pwff: PositionWiseFeedForward<B>,
-    /// Layer normalization applied around the feed-forward sub-layer.
-    pub norm_1: LayerNorm<B>,
     /// Layer normalization applied around the attention sub-layer.
+    pub norm_1: LayerNorm<B>,
+    /// Layer normalization applied around the feed-forward sub-layer.
     pub norm_2: LayerNorm<B>,
     /// Dropout module applied to residual connections.
     pub dropout: Dropout,
