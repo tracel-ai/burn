@@ -3,7 +3,10 @@ use crate::{
     backend::Backend,
     check,
     check::TensorCheck,
-    ops::{ConvOptions, ConvTransposeOptions, InterpolateOptions, PadMode, PaddedConvOptions, UnfoldOptions},
+    ops::{
+        ConvOptions, ConvTransposeOptions, InterpolateOptions, PadMode, PaddedConvOptions,
+        UnfoldOptions,
+    },
 };
 
 use super::ops::DeformConvOptions;
