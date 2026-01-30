@@ -3,7 +3,7 @@ use alloc::format;
 use burn_core as burn;
 
 use crate::{PaddingConfig1d, conv::checks};
-use burn::tensor::{Tensor, backend::Backend, module::conv1d, ops::ConvOptions};
+use burn::tensor::{Tensor, backend::Backend, module::conv1d, ops::PaddedConvOptions};
 use burn::{
     config::Config,
     module::{Content, DisplaySettings, Ignored, Initializer, Module, ModuleDisplay, Param},
@@ -152,15 +152,13 @@ impl<B: Backend> Conv1d<B> {
             self.padding
                 .calculate_padding_1d_pair(length, self.kernel_size, self.stride);
 
-        // Build ConvOptions with appropriate padding
-        let options = if left != right {
-            // Asymmetric padding: functional layer handles explicit pad
-            ConvOptions::new([self.stride], [left], [self.dilation], self.groups)
-                .with_padding_out([right])
-        } else {
-            // Symmetric padding
-            ConvOptions::new([self.stride], [left], [self.dilation], self.groups)
-        };
+        let options = PaddedConvOptions::asymmetric(
+            [self.stride],
+            [left],
+            [right],
+            [self.dilation],
+            self.groups,
+        );
 
         conv1d(
             input,

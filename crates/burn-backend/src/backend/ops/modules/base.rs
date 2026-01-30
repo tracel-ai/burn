@@ -98,13 +98,8 @@ pub struct ConvOptions<const N: usize> {
     /// Stride (non-zero).
     pub stride: [usize; N],
 
-    /// Padding at the start of each dimension (top/left for 2D).
+    /// Padding.
     pub padding: [usize; N],
-
-    /// Padding at the end of each dimension (bottom/right for 2D).
-    /// If `None`, uses the same values as `padding` (symmetric).
-    /// If `Some`, enables asymmetric padding where start != end.
-    pub padding_out: Option<[usize; N]>,
 
     /// Dilation (non-zero).
     pub dilation: [usize; N],
@@ -114,7 +109,7 @@ pub struct ConvOptions<const N: usize> {
 }
 
 impl<const N: usize> ConvOptions<N> {
-    /// Constructs a new `ConvOptions` with symmetric padding.
+    /// Constructs a new `ConvOptions`.
     pub fn new(
         stride: [usize; N],
         padding: [usize; N],
@@ -124,30 +119,68 @@ impl<const N: usize> ConvOptions<N> {
         Self {
             stride: stride.map(|s| check_nonzero(s, "stride must be non-zero")),
             padding,
-            padding_out: None,
             dilation: dilation.map(|d| check_nonzero(d, "dilation must be non-zero")),
             groups: check_nonzero(groups, "groups must be non-zero"),
         }
     }
+}
 
-    /// Sets asymmetric padding (different start and end padding).
-    pub fn with_padding_out(mut self, padding_out: [usize; N]) -> Self {
-        self.padding_out = Some(padding_out);
-        self
-    }
+/// Convolution options with support for asymmetric padding.
+///
+/// Wraps [`ConvOptions`] (which represents symmetric padding for the backend op)
+/// and adds optional asymmetric padding. When asymmetric padding is specified,
+/// the functional convolution layer applies an explicit pad operation before
+/// dispatching to the backend.
+///
+/// Implements `From<ConvOptions<N>>` for backward compatibility.
+#[derive(Debug, Clone)]
+pub struct PaddedConvOptions<const N: usize> {
+    /// The underlying convolution options for the backend.
+    pub options: ConvOptions<N>,
+    /// Padding at the end of each dimension (e.g., bottom/right for 2D).
+    /// If `None`, padding is symmetric (same as `options.padding`).
+    /// If `Some`, specifies different end-padding per dimension.
+    pub padding_end: Option<[usize; N]>,
+}
 
-    /// Returns true if padding is asymmetric (start != end for any dimension).
-    pub fn is_asymmetric(&self) -> bool {
-        match &self.padding_out {
-            Some(padding_out) => self.padding != *padding_out,
-            None => false,
+impl<const N: usize> PaddedConvOptions<N> {
+    /// Creates options with asymmetric padding.
+    ///
+    /// `padding_start` is stored in `ConvOptions::padding`.
+    /// `padding_end` specifies the end padding per dimension.
+    pub fn asymmetric(
+        stride: [usize; N],
+        padding_start: [usize; N],
+        padding_end: [usize; N],
+        dilation: [usize; N],
+        groups: usize,
+    ) -> Self {
+        let options = ConvOptions::new(stride, padding_start, dilation, groups);
+        if padding_start == padding_end {
+            Self {
+                options,
+                padding_end: None,
+            }
+        } else {
+            Self {
+                options,
+                padding_end: Some(padding_end),
+            }
         }
     }
 
-    /// Returns the padding as (start, end) for each dimension.
-    pub fn padding_as_pairs(&self) -> ([usize; N], [usize; N]) {
-        let padding_out = self.padding_out.unwrap_or(self.padding);
-        (self.padding, padding_out)
+    /// Returns true if padding is asymmetric.
+    pub fn is_asymmetric(&self) -> bool {
+        self.padding_end.is_some()
+    }
+}
+
+impl<const N: usize> From<ConvOptions<N>> for PaddedConvOptions<N> {
+    fn from(options: ConvOptions<N>) -> Self {
+        Self {
+            options,
+            padding_end: None,
+        }
     }
 }
 

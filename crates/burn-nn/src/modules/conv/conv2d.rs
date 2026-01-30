@@ -9,7 +9,7 @@ use burn::module::{Content, DisplaySettings, Ignored, Module, ModuleDisplay, Par
 use burn::tensor::Tensor;
 use burn::tensor::backend::Backend;
 use burn::tensor::module::conv2d;
-use burn::tensor::ops::ConvOptions;
+use burn::tensor::ops::PaddedConvOptions;
 
 use crate::conv::checks;
 
@@ -174,15 +174,13 @@ impl<B: Backend> Conv2d<B> {
             &self.stride,
         );
 
-        // Build ConvOptions with appropriate padding
-        let options = if top != bottom || left != right {
-            // Asymmetric padding: functional layer handles explicit pad
-            ConvOptions::new(self.stride, [top, left], self.dilation, self.groups)
-                .with_padding_out([bottom, right])
-        } else {
-            // Symmetric padding
-            ConvOptions::new(self.stride, [top, left], self.dilation, self.groups)
-        };
+        let options = PaddedConvOptions::asymmetric(
+            self.stride,
+            [top, left],
+            [bottom, right],
+            self.dilation,
+            self.groups,
+        );
 
         conv2d(
             input,
