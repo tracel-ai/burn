@@ -243,14 +243,12 @@ impl ConfigAnalyzer for ConfigStructAnalyzer {
                 }
             };
             docs_header(&mut fn_docs, false, false, true);
-            let doc_str = format!(
-                "###### `{}`\n- Defaults to `{}`\n\n",
-                quote!(#name),
-                quote!(#value)
-            );
+            let default_doc = format!("- Defaults to `{}`", quote!(#value));
+            let doc_str = format!("###### `{}`\n", quote!(#name));
             fn_docs.extend(quote! {
                 #[doc = #doc_str]
                 #(#docs)*
+                #[doc = #default_doc]
             });
         }
 
