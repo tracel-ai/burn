@@ -205,8 +205,8 @@ impl<B: Backend> SsimMetric<B> {
     pub fn new(config: SsimMetricConfig) -> Self {
         Self {
             name: MetricName::new(format!(
-                "SSIM_dr{}_w{}_σ{:.1}_k{:.3}_{:.3}",
-                config.data_range, config.window_size, config.sigma, config.k1, config.k2
+                "SSIM (dr={}, w={}, σ={})",
+                config.data_range, config.window_size, config.sigma,
             )),
             state: NumericMetricState::default(),
             config,
@@ -700,8 +700,14 @@ mod tests {
     fn test_ssim_custom_name() {
         let config = SsimMetricConfig::new(1.0);
         let metric = SsimMetric::<TestBackend>::new(config).with_name("CustomSSIM");
-
         assert_eq!(metric.name().to_string(), "CustomSSIM");
+
+        let metric = SsimMetric::<TestBackend>::new(test_config());
+        assert_eq!(metric.name().to_string(), "SSIM (dr=1, w=3, σ=1)");
+
+        let config = SsimMetricConfig::new(255.0);
+        let metric = SsimMetric::<TestBackend>::new(config);
+        assert_eq!(metric.name().to_string(), "SSIM (dr=255, w=11, σ=1.5)");
     }
 
     #[test]
@@ -805,6 +811,17 @@ mod tests {
         let mut metric = SsimMetric::<TestBackend>::new(config);
         let input = SsimInput::new(outputs, targets);
         let _entry = metric.update(&input, &MetricMetadata::fake());
+    }
+
+    #[test]
+    fn test_ssim_valid_k1_k2() {
+        let config = SsimMetricConfig::new(1.0).with_k1_k2(0.015, 0.035);
+        assert!(
+            config.k1 == 0.015 && config.k2 == 0.035,
+            "Expected k1=0.015 and k2=0.035, got k1={} and k2={}",
+            config.k1,
+            config.k2
+        );
     }
 
     #[test]
