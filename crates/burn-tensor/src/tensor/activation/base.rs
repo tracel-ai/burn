@@ -89,9 +89,13 @@ $$
     doc = "`GELU_approx(x) = 0.5 * x * (1 + tanh(sqrt(2/pi) * (x + 0.044715 * x^3)))`"
 )]
 pub fn gelu_approximate<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D> {
+    /// sqrt(2/π) precomputed as FRAC_2_SQRT_PI * FRAC_1_SQRT_2
+    const SQRT_2_OVER_PI: f64 =
+        core::f64::consts::FRAC_2_SQRT_PI * core::f64::consts::FRAC_1_SQRT_2;
+
     let x = tensor;
     let inner = x.clone() + x.clone().powf_scalar(3.0) * 0.044715;
-    let inner = inner * (core::f64::consts::FRAC_2_SQRT_PI * core::f64::consts::FRAC_1_SQRT_2);
+    let inner = inner * SQRT_2_OVER_PI;
     (x.clone() * (inner.tanh() + 1)) * 0.5
 }
 
