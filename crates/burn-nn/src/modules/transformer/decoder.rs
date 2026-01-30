@@ -270,6 +270,7 @@ impl<B: Backend> TransformerDecoderLayer<B> {
             .init(device);
         let dropout = DropoutConfig::new(config.dropout).init();
         let pwff = PositionWiseFeedForwardConfig::new(config.d_model, config.d_ff)
+            .with_initializer(config.initializer.clone())
             .with_dropout(config.dropout)
             .with_activation(config.activation.clone())
             .init(device);
