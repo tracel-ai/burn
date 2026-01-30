@@ -214,10 +214,12 @@ impl ConfigAnalyzer for ConfigStructAnalyzer {
                 #name: None,
             });
             docs_header(&mut fn_docs, false, true, false);
-            let doc_str = format!("###### `{}`\n- Defaults to `None`\n\n", quote!(#name));
+            let default_doc = "- Defaults to `None`";
+            let doc_str = format!("###### `{}`\n", quote!(#name));
             fn_docs.extend(quote! {
                 #[doc = #doc_str]
                 #(#docs)*
+                #[doc = #default_doc]
             });
         }
 
