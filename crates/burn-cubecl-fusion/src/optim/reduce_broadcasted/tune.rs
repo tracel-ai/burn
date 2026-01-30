@@ -49,13 +49,13 @@ pub fn fused_broadcasted_reduce_autotune<R: Runtime, BT: CubeElement>(
         // First one should always work.
         set = set.with(Tunable::new(
             "fused_reduce_broadcasted_fallback",
-            // tune_fallback::<R, BT>,
-            move |input| {
-                tune_reduce::<R, BT>(
-                    input,
-                    &RoutineStrategy::Unit(BlueprintStrategy::Inferred(UnitStrategy)),
-                )
-            },
+            tune_fallback::<R, BT>,
+            // move |input| {
+            //     tune_reduce::<R, BT>(
+            //         input,
+            //         &RoutineStrategy::Unit(BlueprintStrategy::Inferred(UnitStrategy)),
+            //     )
+            // },
         ));
 
         set = set.with(

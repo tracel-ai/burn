@@ -95,10 +95,15 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceBroadcastedFuser<
                 shape_input_id,
                 axis,
             } => {
-                self.state = ReduceBroadcastedStatus::Init {
-                    shape_id: shape_input_id,
-                    axis,
-                };
+                // Only support last axis for now.
+                if axis != shape_input_id.len() - 1 {
+                    self.state = ReduceBroadcastedStatus::Abord;
+                } else {
+                    self.state = ReduceBroadcastedStatus::Init {
+                        shape_id: shape_input_id,
+                        axis,
+                    };
+                }
             }
             ReduceFuserInfo::FusedElemwise { .. } => {}
         }
@@ -126,7 +131,7 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceBroadcastedFuser<
         }
         println!("+++++++++++++++===");
         let info_br = Arc::new(full.finish());
-        println!("{}", info_br.trace);
+        //  println!("{}", info_br.trace);
 
         let info = Arc::new(ReduceBroadcastedOptimizationInfo { fallbacks, info_br });
         CubeOptimization::ReduceBroadcasted(ReduceBroadcastedOptimization { info, num_ops })
@@ -141,7 +146,9 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceBroadcastedFuser<
 
     fn status(&self) -> FuserStatus {
         match self.state {
-            ReduceBroadcastedStatus::Closed => return FuserStatus::Closed,
+            ReduceBroadcastedStatus::Closed | ReduceBroadcastedStatus::Abord => {
+                return FuserStatus::Closed;
+            }
             _ => {}
         };
 
@@ -151,7 +158,7 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceBroadcastedFuser<
 
     fn properties(&self) -> FuserProperties {
         let ready = match self.state {
-            ReduceBroadcastedStatus::Starting => false,
+            ReduceBroadcastedStatus::Starting | ReduceBroadcastedStatus::Abord => false,
             ReduceBroadcastedStatus::Closed => {
                 if self.blocks.len() == 1 {
                     !self.blocks[0].is_elemwise()

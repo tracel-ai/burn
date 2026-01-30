@@ -69,7 +69,6 @@ impl<R: Runtime> ReduceFuser<R> {
             ref_layout: RefLayoutSetting::OnlyContiguous,
             // TODO: Fusion axis should be on the reduce_axis - 1.
             vectorization: VectorizationSetting::SmallerOrEqualThanPreviousBlock { block_pos: 0 },
-            // ..Default::default()
         };
         let settings_fallback = FuseSettings::default();
 

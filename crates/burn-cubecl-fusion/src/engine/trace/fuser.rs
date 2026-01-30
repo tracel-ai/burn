@@ -78,11 +78,18 @@ impl TraceFuser {
     // Estimate how many bindings are in use right now. This can return more than the actual number
     // but should never return less.
     pub fn estimate_bindings(&self) -> u32 {
+        let mut buffers = Vec::new();
         let mut estimation = 1; // Metadata takes one.
+
+        // We assume we are not going to write multiple times in the same output buffer.
         for b in self.blocks_previous.iter() {
-            estimation += b.estimate_num_outputs(&self.resources);
+            estimation += b.tensor_writes(&self.resources, &mut buffers).len() as u32;
         }
-        estimation += self.block_current.estimate_num_outputs(&self.resources);
+
+        estimation += self
+            .block_current
+            .tensor_writes(&self.resources, &mut buffers)
+            .len() as u32;
         estimation += self.resources.inputs.len() as u32;
         // One buffer per scalar type for now.
         estimation += self.resources.scalars.len() as u32;
@@ -93,9 +100,15 @@ impl TraceFuser {
     /// Tag the [tensor](TensorIr) as received from a previous block.
     ///
     /// This will avoid reading the input again and instead use le local version when possible.
-    pub fn block_local_input(&mut self, tensor: &TensorIr, block_pos: usize) -> FuseArg {
+    pub fn block_local_input(
+        &mut self,
+        tensor: &TensorIr,
+        block_pos: usize,
+        // resources: &mut RegisteredTensors,
+    ) -> FuseArg {
         let block = &mut self.blocks_previous[block_pos];
         let src_arg = block.global_register(block_pos, tensor).unwrap();
+        self.resources.outputs.update(tensor);
 
         self.block_current
             .local_inputs
@@ -124,6 +137,8 @@ impl TraceFuser {
             panic!("Can't add a new input that is already used in an index operation");
         }
 
+        self.resources.outputs.update(tensor);
+
         let precision = tensor.dtype.into();
         // Bool tensors are encoded as bool_precision.
         let precision_input = match precision {
@@ -145,6 +160,7 @@ impl TraceFuser {
         if self.resources.indexed.contains_key(&tensor.id) {
             panic!("Can't add a new input that is already used in an index operation");
         }
+        self.resources.outputs.update(tensor);
 
         let precision = tensor.dtype.into();
         let precision_scales = match tensor.dtype {
@@ -173,11 +189,13 @@ impl TraceFuser {
             return None;
         }
 
+        self.resources.outputs.update(tensor);
         self.block_current.input(tensor, &mut self.resources)
     }
 
     /// Register an input tensor.
     pub fn input_quantized(&mut self, tensor: &TensorIr) -> Option<QuantInput> {
+        self.resources.outputs.update(tensor);
         self.block_current.input_quant(tensor, &mut self.resources)
     }
 
@@ -196,6 +214,7 @@ impl TraceFuser {
         }
 
         if let Some(val) = self.resources.indexed.get(&tensor.id) {
+            self.resources.outputs.update(tensor);
             return Some(val.clone());
         };
 
@@ -223,6 +242,8 @@ impl TraceFuser {
         if matches!(tensor.dtype, DType::QFloat(_)) {
             return None;
         }
+
+        self.resources.outputs.update(tensor);
         self.block_current
             .input_swap_dims(tensor, output, dims, &mut self.resources)
     }
@@ -261,6 +282,7 @@ impl TraceFuser {
     pub fn finish(&mut self, shape_ref: Vec<usize>) -> FuseTrace {
         let mut resources = self.resources.clone();
         let mut outputs = RegisteredTensors::default();
+        let mut buffers = Vec::new();
 
         for tensor in resources.buffers.iter() {
             let (tensor, ty) = tensor.as_normal_tensor().unwrap();
@@ -270,7 +292,7 @@ impl TraceFuser {
         let mut blocks = Vec::new();
 
         let mut register_block = |block: &FuseBlockBuilder| {
-            let block = block.build(&self.resources, &mut outputs);
+            let block = block.build(&self.resources, &mut outputs, &mut buffers);
             blocks.push(block);
         };
 

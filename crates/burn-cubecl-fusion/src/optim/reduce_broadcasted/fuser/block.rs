@@ -39,6 +39,8 @@ pub enum ReduceBroadcastedStatus {
     Init { shape_id: Vec<usize>, axis: usize },
     /// No more operations can be fused.
     Closed,
+    /// Invalid axis.
+    Abord,
 }
 
 /// The [ReduceBlockFuser] capacity to accept an [OperationIr].
