@@ -91,7 +91,7 @@ $$
 pub fn gelu_approximate<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D> {
     let x = tensor;
     let inner = x.clone() + x.clone().powf_scalar(3.0) * 0.044715;
-    let inner = inner * core::f64::consts::FRAC_2_PI.sqrt();
+    let inner = inner * 0.7978845608028654;
     (x.clone() * (inner.tanh() + 1)) * 0.5
 }
 
