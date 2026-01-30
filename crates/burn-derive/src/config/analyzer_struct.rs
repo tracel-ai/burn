@@ -150,31 +150,82 @@ impl ConfigStructAnalyzer {
 impl ConfigAnalyzer for ConfigStructAnalyzer {
     fn gen_new_fn(&self) -> TokenStream {
         let mut body = quote! {};
-        let mut names = Vec::new();
+        let mut args = Vec::new();
+
+        let mut fn_docs = quote! {};
+        let mut has_field_docs = false;
+        let mut has_required_docs = false;
+        let mut has_option_docs = false;
+        let mut has_default_docs = false;
+        let mut docs_header = |fn_docs: &mut TokenStream,
+                               required_docs: bool,
+                               option_docs: bool,
+                               default_docs: bool| {
+            if !has_field_docs {
+                has_field_docs = true;
+                fn_docs.extend(quote! {
+                    #[doc = "# Arguments"]
+                });
+            }
+            if !has_required_docs && required_docs {
+                fn_docs.extend(quote! {
+                    #[doc = "###### Required Arguments"]
+                });
+                has_required_docs = true;
+            }
+            if !has_option_docs && option_docs {
+                fn_docs.extend(quote! {
+                    #[doc = "###### Optional Arguments"]
+                });
+                has_option_docs = true;
+            }
+            if !has_default_docs && default_docs {
+                fn_docs.extend(quote! {
+                    #[doc = "###### Default Arguments"]
+                });
+                has_default_docs = true;
+            }
+        };
 
         for field in self.fields_required.iter() {
             let name = field.ident();
             let ty = &field.field.ty;
+            let docs = field.docs();
 
             body.extend(quote! {
                 #name: #name,
             });
-            names.push(quote! {
+            args.push(quote! {
                 #name: #ty
+            });
+            docs_header(&mut fn_docs, true, false, false);
+            let doc_str = format!("###### `{}`\n\n", quote!(#name));
+            fn_docs.extend(quote! {
+                #[doc = #doc_str]
+                #(#docs)*
             });
         }
 
         for field in self.fields_option.iter() {
             let name = field.ident();
+            let docs = field.docs();
 
             body.extend(quote! {
                 #name: None,
+            });
+            docs_header(&mut fn_docs, false, true, false);
+            let doc_str = format!("###### `{}`\n- Defaults to `None`\n\n", quote!(#name));
+            fn_docs.extend(quote! {
+                #[doc = #doc_str]
+                #(#docs)*
             });
         }
 
         for (field, attribute) in self.fields_default.iter() {
             let name = field.ident();
             let value = &attribute.value;
+            let docs = field.docs();
+
             match value {
                 syn::Lit::Str(value) => {
                     let stream: proc_macro2::TokenStream = value.value().parse().unwrap();
@@ -189,13 +240,24 @@ impl ConfigAnalyzer for ConfigStructAnalyzer {
                     });
                 }
             };
+            docs_header(&mut fn_docs, false, false, true);
+            let doc_str = format!(
+                "###### `{}`\n- Defaults to `{}`\n\n",
+                quote!(#name),
+                quote!(#value)
+            );
+            fn_docs.extend(quote! {
+                #[doc = #doc_str]
+                #(#docs)*
+            });
         }
 
         let body = quote! {
-            /// Create a new instance of the config.
+            #[doc = "Create a new instance of the config."]
+            #fn_docs
             #[allow(clippy::too_many_arguments)]
             pub fn new(
-                #(#names),*
+                #(#args),*
             ) -> Self {
                 Self { #body }
             }
@@ -206,18 +268,24 @@ impl ConfigAnalyzer for ConfigStructAnalyzer {
     fn gen_builder_fns(&self) -> TokenStream {
         let mut body = quote! {};
 
-        for (field, _) in self.fields_default.iter() {
+        for (field, attribute) in self.fields_default.iter() {
             let name = field.ident();
-            let doc = field.doc().unwrap_or_else(|| {
-                quote! {
-                        /// Set the default value for the field.
-                }
-            });
             let ty = &field.field.ty;
+            let value = &attribute.value;
+            let docs = field.docs();
+            let doc_str = format!(
+                "Sets the value for the field [`{}`](Self::{0}).\n- Defaults to `{}`\n\n",
+                quote!(#name),
+                quote!(#value)
+            );
+            let fn_docs = quote! {
+                #[doc = #doc_str]
+                #(#docs)*
+            };
             let fn_name = Ident::new(&format!("with_{name}"), name.span());
 
             body.extend(quote! {
-                #doc
+                #fn_docs
                 pub fn #fn_name(mut self, #name: #ty) -> Self {
                     self.#name = #name;
                     self
@@ -228,10 +296,19 @@ impl ConfigAnalyzer for ConfigStructAnalyzer {
         for field in self.fields_option.iter() {
             let name = field.ident();
             let ty = &field.field.ty;
+            let docs = field.docs();
+            let doc_str = format!(
+                "Sets the value for the field [`{}`](Self::{0}).\n- Defaults to `None`\n\n",
+                quote!(#name)
+            );
+            let fn_docs = quote! {
+                #[doc = #doc_str]
+                #(#docs)*
+            };
             let fn_name = Ident::new(&format!("with_{name}"), name.span());
 
             body.extend(quote! {
-                /// Set the default value for the field.
+                #fn_docs
                 pub fn #fn_name(mut self, #name: #ty) -> Self {
                     self.#name = #name;
                     self
