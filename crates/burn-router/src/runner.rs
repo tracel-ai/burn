@@ -1538,7 +1538,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
         ctx.create_empty_handle()
     }
 
-    fn supports_dtype(&self, dtype: DType) -> bool {
-        B::supports_dtype(&self.device, dtype)
+    fn dtype_usage(&self, dtype: DType) -> burn_backend::DTypeUsageSet {
+        B::dtype_usage(&self.device, dtype)
     }
 }

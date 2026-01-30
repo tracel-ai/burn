@@ -155,6 +155,8 @@ fn check_dtype_support<B: Backend>(
     dtype: impl Into<DType>,
 ) -> Result<(), DeviceError> {
     let dtype = dtype.into();
+    // Default dtypes should have `DTypeUsage::general()`. Types restricted to specialized
+    // operations should not be used as default.
     if B::supports_dtype(device, dtype) {
         Ok(())
     } else {

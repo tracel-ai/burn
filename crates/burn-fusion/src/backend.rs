@@ -81,6 +81,10 @@ impl<B: FusionBackend> Backend for Fusion<B> {
     fn supports_dtype(device: &Self::Device, dtype: DType) -> bool {
         B::supports_dtype(device, dtype)
     }
+
+    fn dtype_usage(device: &Self::Device, dtype: DType) -> burn_backend::DTypeUsageSet {
+        B::dtype_usage(device, dtype)
+    }
 }
 
 /// The status of a [fuser](OperationFuser).

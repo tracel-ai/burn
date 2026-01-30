@@ -162,7 +162,14 @@ impl<E: TchElement> Backend for LibTorch<E> {
         Ok(())
     }
 
-    fn supports_dtype(_device: &Self::Device, dtype: burn_backend::DType) -> bool {
-        dtype.try_into_kind().is_ok()
+    fn dtype_usage(
+        _device: &Self::Device,
+        dtype: burn_backend::DType,
+    ) -> burn_backend::DTypeUsageSet {
+        if dtype.try_into_kind().is_ok() {
+            burn_backend::DTypeUsage::general()
+        } else {
+            burn_backend::DTypeUsageSet::empty()
+        }
     }
 }

@@ -73,6 +73,10 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
     fn supports_dtype(device: &Self::Device, dtype: burn_std::DType) -> bool {
         B::supports_dtype(device, dtype)
     }
+
+    fn dtype_usage(device: &Self::Device, dtype: burn_std::DType) -> burn_backend::DTypeUsageSet {
+        B::dtype_usage(device, dtype)
+    }
 }
 
 impl<B: Backend, C: CheckpointStrategy> AutodiffBackend for Autodiff<B, C> {
