@@ -6,6 +6,7 @@ use burn::config::Config;
 use burn::module::{Content, DisplaySettings, Initializer, Module, ModuleDisplay};
 use burn::tensor::{Bool, Tensor, backend::Backend};
 
+use crate::activation::ActivationConfig;
 use crate::cache::TensorCache;
 use crate::{
     Dropout, DropoutConfig, LayerNorm, LayerNormConfig,
@@ -44,6 +45,12 @@ pub struct TransformerDecoderConfig {
         default = "Initializer::KaimingUniform{gain:1.0/num_traits::Float::sqrt(3.0), fan_out_only:false}"
     )]
     pub initializer: Initializer,
+    /// The activation function used in the position-wise feed-forward network. Default: Gelu
+    #[config(default = "ActivationConfig::Gelu")]
+    pub activation: ActivationConfig,
+    /// The epsilon value for layer normalization. Default: 1e-5
+    #[config(default = 1e-5)]
+    pub layer_norm_eps: f64,
 }
 
 /// The transformer decoder module as describe in the paper [Attention Is All You Need](https://arxiv.org/abs/1706.03762).
@@ -252,12 +259,19 @@ impl<B: Backend> TransformerDecoderLayer<B> {
             .with_dropout(config.dropout)
             .with_quiet_softmax(config.quiet_softmax)
             .init(device);
-        let norm_1 = LayerNormConfig::new(config.d_model).init(device);
-        let norm_2 = LayerNormConfig::new(config.d_model).init(device);
-        let norm_3 = LayerNormConfig::new(config.d_model).init(device);
+        let norm_1 = LayerNormConfig::new(config.d_model)
+            .with_epsilon(config.layer_norm_eps)
+            .init(device);
+        let norm_2 = LayerNormConfig::new(config.d_model)
+            .with_epsilon(config.layer_norm_eps)
+            .init(device);
+        let norm_3 = LayerNormConfig::new(config.d_model)
+            .with_epsilon(config.layer_norm_eps)
+            .init(device);
         let dropout = DropoutConfig::new(config.dropout).init();
         let pwff = PositionWiseFeedForwardConfig::new(config.d_model, config.d_ff)
             .with_dropout(config.dropout)
+            .with_activation(config.activation.clone())
             .init(device);
 
         Self {

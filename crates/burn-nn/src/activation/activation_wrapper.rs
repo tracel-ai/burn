@@ -1,8 +1,8 @@
 use burn_core as burn;
 
 use crate::activation::{
-    Gelu, HardSigmoid, HardSigmoidConfig, HardSwish, LeakyRelu, LeakyReluConfig, PRelu,
-    PReluConfig, Relu, Sigmoid, Softplus, SoftplusConfig, SwiGlu, SwiGluConfig, Tanh,
+    Gelu, GeluApproximate, HardSigmoid, HardSigmoidConfig, HardSwish, LeakyRelu, LeakyReluConfig,
+    PRelu, PReluConfig, Relu, Sigmoid, Softplus, SoftplusConfig, SwiGlu, SwiGluConfig, Tanh,
 };
 use burn::config::Config;
 use burn::module::Module;
@@ -15,6 +15,9 @@ use burn::tensor::backend::Backend;
 pub enum ActivationConfig {
     /// [`Gelu`] activation layer.
     Gelu,
+
+    /// [`GeluApproximate`] activation layer (tanh approximation).
+    GeluApproximate,
 
     /// [`PRelu`] activation layer.
     PRelu(PReluConfig),
@@ -81,6 +84,7 @@ impl ActivationConfig {
             ActivationConfig::Relu => Relu.into(),
             ActivationConfig::LeakyRelu(conf) => conf.init().into(),
             ActivationConfig::Gelu => Gelu.into(),
+            ActivationConfig::GeluApproximate => GeluApproximate.into(),
             ActivationConfig::PRelu(conf) => conf.init(device).into(),
             ActivationConfig::SwiGlu(conf) => conf.init(device).into(),
             ActivationConfig::HardSigmoid(conf) => conf.init().into(),
@@ -101,6 +105,9 @@ impl ActivationConfig {
 pub enum Activation<B: Backend> {
     /// [`Gelu`] activation layer.
     Gelu(Gelu),
+
+    /// [`GeluApproximate`] activation layer (tanh approximation).
+    GeluApproximate(GeluApproximate),
 
     /// [`PRelu`] activation layer.
     PRelu(PRelu<B>),
@@ -133,6 +140,12 @@ pub enum Activation<B: Backend> {
 impl<B: Backend> From<Gelu> for Activation<B> {
     fn from(layer: Gelu) -> Self {
         Self::Gelu(layer)
+    }
+}
+
+impl<B: Backend> From<GeluApproximate> for Activation<B> {
+    fn from(layer: GeluApproximate) -> Self {
+        Self::GeluApproximate(layer)
     }
 }
 
@@ -197,6 +210,7 @@ impl<B: Backend> Activation<B> {
             Activation::Relu(layer) => layer.forward(input),
             Activation::LeakyRelu(layer) => layer.forward(input),
             Activation::Gelu(layer) => layer.forward(input),
+            Activation::GeluApproximate(layer) => layer.forward(input),
             Activation::PRelu(layer) => layer.forward(input),
             Activation::SwiGlu(layer) => layer.forward(input),
             Activation::HardSigmoid(layer) => layer.forward(input),
@@ -241,6 +255,16 @@ mod tests {
         let expected = Gelu.forward(input.clone());
 
         check_stateless_config_output(ActivationConfig::Gelu, input, expected, &device)
+    }
+
+    #[test]
+    fn test_gelu_approximate() {
+        let device = Default::default();
+        let input = make_input::<TestBackend>(&device);
+
+        let expected = GeluApproximate.forward(input.clone());
+
+        check_stateless_config_output(ActivationConfig::GeluApproximate, input, expected, &device)
     }
 
     #[test]

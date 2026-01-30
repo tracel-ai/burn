@@ -5,6 +5,7 @@
 //! * [`Relu`] - the default,
 //! * ['PRelu']
 //! * [`Gelu`]
+//! * [`GeluApproximate`]
 //! * [`LeakyRelu`]
 //! * [`SwiGlu`]
 //! * [`Sigmoid`]
@@ -22,6 +23,7 @@ mod activation_wrapper;
 // These are pub(crate) for dual-export in `nn` without re-exporting
 // all of `nn.activation`, or manually listing each symbol.
 pub(crate) mod gelu;
+pub(crate) mod gelu_approximate;
 pub(crate) mod glu;
 pub(crate) mod hard_sigmoid;
 pub(crate) mod hard_swish;
@@ -35,6 +37,7 @@ pub(crate) mod tanh;
 
 pub use activation_wrapper::*;
 pub use gelu::*;
+pub use gelu_approximate::*;
 pub use glu::*;
 pub use hard_sigmoid::*;
 pub use hard_swish::*;
