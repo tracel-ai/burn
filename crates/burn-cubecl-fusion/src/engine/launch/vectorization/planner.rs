@@ -291,6 +291,16 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
                     );
                 }
             }
+
+            // When only virtual inputs/outputs are present for a block, we need to set a width.
+            if block_plan.width == 0 {
+                if let Some(w) = previous_widths.last() {
+                    block_plan.width = *w;
+                } else {
+                    block_plan.width = 1;
+                }
+            }
+
             previous_widths.push(block_plan.width);
         }
     }
