@@ -57,6 +57,9 @@ impl ModuleDisplay for KLDivLoss {
 
 impl KLDivLoss {
     /// Compute the criterion on the input tensor.
+    ///
+    /// `Reduction::Auto` behaves as `Reduction::BatchMean`,`Reduction::Mean` dose not align with the math definition.
+    ///
     /// # Shapes
     ///
     /// - predictions: \[batch_size,num_targets\]
@@ -74,10 +77,7 @@ impl KLDivLoss {
                 let batch_size = loss.dims()[0] as f32;
                 loss.sum().div_scalar(batch_size)
             }
-            Reduction::Mean => {
-                // log::warn!("reduction: 'Reduction::Mean' divides the total loss by both the batch size and the support size.'Reduction::BatchMean' divides only by the batch size, and aligns with the KL div math definition.");
-                loss.mean()
-            }
+            Reduction::Mean => loss.mean(),
             Reduction::Sum => loss.sum(),
         }
     }
