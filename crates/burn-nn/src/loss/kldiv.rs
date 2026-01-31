@@ -31,8 +31,8 @@ impl KLDivLossConfig {
 /// ```tex
 /// y_{true} \cdot (\log{y_{true}} - \log{y_{pred}})
 ///     ```
-/// By Default,this loss expects the argument `inp` in the log-space, and the output will be applied `batchmean`.
-/// The argument `target` may also be provided in the log-space if `log_target` = true
+/// By default, the loss expects the input in the log-space.
+/// The targets may also be provided in the log-space if `log_target` is true.
 ///
 /// See
 /// - [Kullback–Leibler divergence](https://en.wikipedia.org/wiki/Kullback-Leibler_divergence)
