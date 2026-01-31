@@ -58,11 +58,76 @@ pub trait ModuleAdapter: Send + Sync {
 
     /// Clone the adapter into a boxed trait object
     fn clone_box(&self) -> Box<dyn ModuleAdapter>;
+
+    /// Chain adapters together, applying `self` first and then `next`.
+    ///
+    /// This is useful when multiple transformations are required when importing model weights
+    /// (e.g. PyTorch -> Burn layout conversion, then dtype casting, then custom remapping).
+    ///
+    /// The semantics follow a simple pipeline:
+    /// - `adapt`: `next.adapt(&self.adapt(snapshot))`
+    /// - `get_alternative_param_name`: try `self` first; if it returns an alternative name,
+    ///   try `next` with that name, otherwise return the first alternative name.
+    fn chain<A>(self, next: A) -> ChainAdapter
+    where
+        Self: Sized + 'static,
+        A: ModuleAdapter + 'static,
+    {
+        ChainAdapter::new(self, next)
+    }
 }
 
 impl Clone for Box<dyn ModuleAdapter> {
     fn clone(&self) -> Self {
         self.clone_box()
+    }
+}
+
+/// Adapter that applies two adapters in sequence.
+///
+/// This allows composing smaller adapters instead of creating one large monolithic adapter.
+#[derive(Clone)]
+pub struct ChainAdapter {
+    first: Box<dyn ModuleAdapter>,
+    second: Box<dyn ModuleAdapter>,
+}
+
+impl ChainAdapter {
+    /// Create a new adapter chain.
+    pub fn new<A, B>(first: A, second: B) -> Self
+    where
+        A: ModuleAdapter + 'static,
+        B: ModuleAdapter + 'static,
+    {
+        Self {
+            first: Box::new(first),
+            second: Box::new(second),
+        }
+    }
+}
+
+impl ModuleAdapter for ChainAdapter {
+    fn adapt(&self, snapshot: &TensorSnapshot) -> TensorSnapshot {
+        let snapshot = self.first.adapt(snapshot);
+        self.second.adapt(&snapshot)
+    }
+
+    fn get_alternative_param_name(&self, param_name: &str, container_type: &str) -> Option<String> {
+        if let Some(name) = self
+            .first
+            .get_alternative_param_name(param_name, container_type)
+        {
+            self.second
+                .get_alternative_param_name(&name, container_type)
+                .or(Some(name))
+        } else {
+            self.second
+                .get_alternative_param_name(param_name, container_type)
+        }
+    }
+
+    fn clone_box(&self) -> Box<dyn ModuleAdapter> {
+        Box::new(self.clone())
     }
 }
 
@@ -290,7 +355,9 @@ fn transpose_tensor_data(data: TensorData) -> TensorData {
 mod tests {
     use super::*;
     use alloc::rc::Rc;
+    use alloc::sync::Arc;
     use burn_tensor::{DType, TensorData};
+    use core::sync::atomic::{AtomicUsize, Ordering};
 
     fn create_test_snapshot(path: &str, shape: Vec<usize>, container_type: &str) -> TensorSnapshot {
         let path_parts: Vec<String> = path.split('.').map(|s| s.to_string()).collect();
@@ -405,5 +472,183 @@ mod tests {
         snapshot2.container_stack = None;
         let adapted2 = adapter.adapt(&snapshot2);
         assert_eq!(adapted2.shape, vec![10, 5]); // No transposition
+    }
+
+    #[derive(Clone)]
+    struct RenameParamAdapter {
+        from: &'static str,
+        to: &'static str,
+        called: Arc<AtomicUsize>,
+    }
+
+    impl ModuleAdapter for RenameParamAdapter {
+        fn adapt(&self, snapshot: &TensorSnapshot) -> TensorSnapshot {
+            self.called.fetch_add(1, Ordering::Relaxed);
+
+            let path_stack = match snapshot.path_stack.as_ref() {
+                Some(stack) => stack,
+                None => return snapshot.clone(),
+            };
+            let param = match path_stack.last() {
+                Some(p) => p.as_str(),
+                None => return snapshot.clone(),
+            };
+            if param != self.from {
+                return snapshot.clone();
+            }
+
+            let mut new_path = path_stack.to_vec();
+            *new_path.last_mut().unwrap() = self.to.to_string();
+
+            TensorSnapshot::from_closure(
+                snapshot.clone_data_fn(),
+                snapshot.dtype,
+                snapshot.shape.clone(),
+                new_path,
+                snapshot.container_stack.clone().unwrap_or_default(),
+                snapshot.tensor_id.unwrap_or_default(),
+            )
+        }
+
+        fn get_alternative_param_name(
+            &self,
+            _param_name: &str,
+            _container_type: &str,
+        ) -> Option<String> {
+            None
+        }
+
+        fn clone_box(&self) -> Box<dyn ModuleAdapter> {
+            Box::new(self.clone())
+        }
+    }
+
+    #[derive(Clone)]
+    struct AltNameAdapter {
+        from: &'static str,
+        to: &'static str,
+        called: Arc<AtomicUsize>,
+    }
+
+    impl ModuleAdapter for AltNameAdapter {
+        fn adapt(&self, snapshot: &TensorSnapshot) -> TensorSnapshot {
+            TensorSnapshot::from_closure(
+                snapshot.clone_data_fn(),
+                snapshot.dtype,
+                snapshot.shape.clone(),
+                snapshot.path_stack.clone().unwrap_or_default(),
+                snapshot.container_stack.clone().unwrap_or_default(),
+                snapshot.tensor_id.unwrap_or_default(),
+            )
+        }
+
+        fn get_alternative_param_name(
+            &self,
+            param_name: &str,
+            _container_type: &str,
+        ) -> Option<String> {
+            self.called.fetch_add(1, Ordering::Relaxed);
+            if param_name == self.from {
+                Some(self.to.to_string())
+            } else {
+                None
+            }
+        }
+
+        fn clone_box(&self) -> Box<dyn ModuleAdapter> {
+            Box::new(self.clone())
+        }
+    }
+
+    #[test]
+    fn test_chain_adapter_pipes_adapt() {
+        let called1 = Arc::new(AtomicUsize::new(0));
+        let called2 = Arc::new(AtomicUsize::new(0));
+
+        let a = RenameParamAdapter {
+            from: "weight",
+            to: "a",
+            called: called1.clone(),
+        };
+        let b = RenameParamAdapter {
+            from: "a",
+            to: "b",
+            called: called2.clone(),
+        };
+
+        let chain = a.chain(b);
+        let snapshot = create_test_snapshot("fc.weight", vec![2, 2], module_names::LINEAR);
+        let adapted = chain.adapt(&snapshot);
+
+        assert_eq!(adapted.full_path(), "fc.b");
+        assert_eq!(called1.load(Ordering::Relaxed), 1);
+        assert_eq!(called2.load(Ordering::Relaxed), 1);
+    }
+
+    #[test]
+    fn test_chain_adapter_alternative_name_pipes_and_fallbacks() {
+        let called1 = Arc::new(AtomicUsize::new(0));
+        let called2 = Arc::new(AtomicUsize::new(0));
+
+        let a = AltNameAdapter {
+            from: "gamma",
+            to: "weight",
+            called: called1.clone(),
+        };
+        let b = AltNameAdapter {
+            from: "weight",
+            to: "scale",
+            called: called2.clone(),
+        };
+
+        let chain = a.chain(b);
+        let alt = chain.get_alternative_param_name("gamma", module_names::LAYER_NORM);
+        assert_eq!(alt.as_deref(), Some("scale"));
+        assert_eq!(called1.load(Ordering::Relaxed), 1);
+        assert_eq!(called2.load(Ordering::Relaxed), 1);
+
+        // If the second adapter doesn't have a mapping for the first alternative,
+        // fall back to the first alternative name.
+        let called1 = Arc::new(AtomicUsize::new(0));
+        let called2 = Arc::new(AtomicUsize::new(0));
+        let a = AltNameAdapter {
+            from: "gamma",
+            to: "weight",
+            called: called1.clone(),
+        };
+        let b = AltNameAdapter {
+            from: "something-else",
+            to: "unused",
+            called: called2.clone(),
+        };
+        let chain = a.chain(b);
+        let alt = chain.get_alternative_param_name("gamma", module_names::LAYER_NORM);
+        assert_eq!(alt.as_deref(), Some("weight"));
+        assert_eq!(called1.load(Ordering::Relaxed), 1);
+        assert_eq!(called2.load(Ordering::Relaxed), 1);
+
+        // If the first adapter doesn't provide an alternative, try the second with the original name.
+        let called1 = Arc::new(AtomicUsize::new(0));
+        let called2 = Arc::new(AtomicUsize::new(0));
+        let a = AltNameAdapter {
+            from: "something-else",
+            to: "unused",
+            called: called1.clone(),
+        };
+        let b = AltNameAdapter {
+            from: "gamma",
+            to: "weight",
+            called: called2.clone(),
+        };
+        let chain = a.chain(b);
+        let alt = chain.get_alternative_param_name("gamma", module_names::LAYER_NORM);
+        assert_eq!(alt.as_deref(), Some("weight"));
+        assert_eq!(called1.load(Ordering::Relaxed), 1);
+        assert_eq!(called2.load(Ordering::Relaxed), 1);
+
+        // clone_box must preserve behavior.
+        let boxed = chain.clone_box();
+        let alt = boxed.get_alternative_param_name("gamma", module_names::LAYER_NORM);
+        assert_eq!(alt.as_deref(), Some("weight"));
     }
 }
