@@ -3,21 +3,33 @@
 When working with the learner, you have the option to record metrics that will be monitored
 throughout the training process. We currently offer a restricted range of metrics.
 
-| Metric           | Description                                             |
-| ---------------- | ------------------------------------------------------- |
-| Accuracy         | Calculate the accuracy in percentage                    |
-| TopKAccuracy     | Calculate the top-k accuracy in percentage              |
-| Precision        | Calculate precision in percentage                       |
-| Recall           | Calculate recall in percentage                          |
-| FBetaScore       | Calculate F<sub>β </sub>score in percentage             |
-| AUROC            | Calculate the area under curve of ROC in percentage     |
-| Loss             | Output the loss used for the backward pass              |
-| CPU Temperature  | Fetch the temperature of CPUs                           |
-| CPU Usage        | Fetch the CPU utilization                               |
-| CPU Memory Usage | Fetch the CPU RAM usage                                 |
-| GPU Temperature  | Fetch the GPU temperature                               |
-| Learning Rate    | Fetch the current learning rate for each optimizer step |
-| CUDA             | Fetch general CUDA metrics such as utilization          |
+| Metric              | Description                                                                                 |
+| ------------------- | ------------------------------------------------------------------------------------------- |
+| Accuracy            | Calculate the accuracy in percentage                                                        |
+| TopKAccuracy        | Calculate the top-k accuracy in percentage                                                  |
+| Precision           | Calculate precision in percentage                                                           |
+| Recall              | Calculate recall in percentage                                                              |
+| FBetaScore          | Calculate F<sub>β </sub>score in percentage                                                 |
+| AUROC               | Calculate the area under curve of ROC in percentage                                         |
+| Loss                | Output the loss used for the backward pass                                                  |
+| CharErrorRate (CER) | Calculate Character Error Rate in percentage                                                |
+| WordErrorRate (WER) | Calculate Word Error Rate in percentage                                                     |
+| HammingScore        | Calculate hamming score (also known as multi-label or label-based accuracy) in percentage   |
+| Perplexity          | Calculate perplexity which is a measure of how well a probability model predicts samples    |
+| IterationSpeed      | Tracks the training iteration speed, measuring how many iterations are completed per second |
+| CPU Temperature     | Fetch the temperature of CPUs                                                               |
+| CPU Usage           | Fetch the CPU utilization                                                                   |
+| CPU Memory Usage    | Fetch the CPU RAM usage                                                                     |
+| GPU Temperature     | Fetch the GPU temperature                                                                   |
+| Learning Rate       | Fetch the current learning rate for each optimizer step                                     |
+| CUDA                | Fetch general CUDA metrics such as utilization                                              |
+
+| Vision Metric | Description                                                                              |
+| ------------- | ---------------------------------------------------------------------------------------- |
+| Dice          | Computes the Dice-Sorenson coefficient (DSC) for evaluating overlap between binary masks |
+| PSNR          | Computes the peak signal-to-noise-ratio (PSNR) for image quality assessment              |
+| SSIM          | Computes the structural similarity index measure (SSIM) for image quality assessment     |
+
 
 In order to use a metric, the output of your training step has to implement the `Adaptor` trait from
 `burn-train::metric`. Here is an example for the classification output, already provided with the
