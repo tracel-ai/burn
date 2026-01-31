@@ -11,6 +11,9 @@ pub enum Reduction {
     /// The sum of the losses will be returned.
     Sum,
 
+    /// The sum of the losses divided by the batch_size will be returnerd.
+    BatchMean,
+
     /// The mean of the losses will be returned.
     Auto,
 }
