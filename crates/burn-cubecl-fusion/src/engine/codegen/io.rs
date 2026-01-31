@@ -591,6 +591,7 @@ pub fn ref_buffer_len(
         },
         RefLayout::Virtual(VirtualLayout::Reshaped { .. }) => num_elements(locals, config),
         RefLayout::Virtual(VirtualLayout::Shape(..)) => num_elements(locals, config),
+        RefLayout::Virtual(VirtualLayout::Runtime { .. }) => num_elements(locals, config),
     }
 }
 

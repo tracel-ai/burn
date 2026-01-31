@@ -203,6 +203,7 @@ pub struct GlobalArgs {
     pub tensors: Sequence<GlobalTensor>,
     pub scalars: Sequence<InputScalar>,
     pub reshapes: Sequence<usize>,
+    pub runtime_layouts: Sequence<usize>,
     pub registers: GlobalRegisters,
 }
 
@@ -269,6 +270,7 @@ impl<R: Runtime> Default for GlobalArgsLaunch<'_, R> {
             scalars: Default::default(),
             reshapes: Default::default(),
             registers: Default::default(),
+            runtime_layouts: Default::default(),
             _phantom_runtime: std::marker::PhantomData,
             _phantom_a: std::marker::PhantomData,
         }
@@ -313,6 +315,14 @@ impl<R: Runtime> GlobalArgsLaunch<'_, R> {
                         .collect()
                 }
                 VirtualLayout::Shape(original, _) => self.shape(original),
+                VirtualLayout::Runtime { pos } => {
+                    let start = (*pos * 2) * rank;
+                    let end = start + rank;
+                    self.runtime_layouts.values[start..end]
+                        .iter()
+                        .map(|s| s.elem)
+                        .collect()
+                }
             },
         }
     }
@@ -620,6 +630,8 @@ pub enum VirtualLayout {
     SwapDims(FuseArg, (usize, usize)),
     /// Virtual tensor with the same shape as the given input, but with contiguous strides.
     Shape(FuseArg, usize),
+    /// We don't have access to global metadata, they are passed as runtime values.
+    Runtime { pos: usize },
 }
 
 impl FuseArg {

@@ -3,7 +3,7 @@ use crate::{
     engine::{
         codegen::ir::{FuseArg, FuseOp, FuseType},
         launch::vectorization::Vect,
-        trace::block::FuseBlock,
+        trace::{RuntimeLayout, block::FuseBlock},
     },
 };
 use burn_ir::{TensorId, TensorIr};
@@ -21,6 +21,10 @@ pub struct LaunchPlan<'a, R: Runtime> {
     pub blocks: Vec<BlockPlan<'a>>,
     pub vectorizations: BTreeMap<TensorId, Vect>,
     pub cleared: Vec<TensorId>,
+    /// Sometimes we fuse too much that we can't rely on the inputs metadata to get access to the
+    /// inner shape/strides for a block. This is when we use a [RuntimeLayout] where the shape and
+    /// strides are passed from the host.
+    pub runtime_layouts: Vec<RuntimeLayout>,
 }
 
 #[derive(Debug)]
@@ -51,7 +55,6 @@ pub enum InputReference {
 /// Determine how the reference layout is chosen.
 pub enum ReferenceSelection {
     Searching,
-    NotFound,
     Concrete {
         layout: FuseArg,
         shape: Vec<usize>,
@@ -69,11 +72,24 @@ pub enum ReferenceSelection {
         shape: Vec<usize>,
         strides: Vec<usize>,
     },
+    /// We can't rely on input or output tensor metadata to know the layout of a block.
+    /// Therefore we pass values from the host at runtime.
+    Runtime {
+        // /// The actual shape to be used as reference layout.
+        // shape: Vec<usize>,
+        // /// The actual strides to be used as reference layout.
+        // strides: Vec<usize>,
+        /// The index relative to the number of runtime layout used for a kernel.
+        ///
+        /// Since all runtime shapes are stored in the same buffer, the pos is necessary to fetch
+        /// the right one during execution.
+        pos: usize,
+    },
 }
 
 impl ReferenceSelection {
     pub fn is_found(&self) -> bool {
-        !matches!(self, Self::Searching | Self::NotFound)
+        !matches!(self, Self::Searching)
     }
 
     pub fn compatible_strides_for_inplace(&self, strides_inplace: &[usize]) -> bool {
@@ -110,6 +126,7 @@ impl<R: Runtime> LaunchPlan<'_, R> {
             blocks,
             vectorizations: Default::default(),
             cleared: Default::default(),
+            runtime_layouts: Default::default(),
         }
     }
 }

@@ -162,10 +162,21 @@ pub struct FuseResources {
     pub inputs_unhandled: Vec<TensorId>,
     pub outputs_unhandled: Vec<FuseArg>,
     pub num_reshaped: usize,
+    /// TODO: Maybe we can simply update the inputs/outputs registered tensors.
     pub dropped: HashSet<TensorId>,
     /// We know during fusion that we have to have those buffers has global.
     /// The pos here can be interpreted as GLOBAL pos where the output pos are locals.
     pub buffers: RegisteredTensors,
+    // Sometimes we fuse too much that we can't rely on the inputs metadata to get access to the
+    // inner shape/strides for a block. This is when we use a [RuntimeLayout] where the shape and
+    // strides are passed from the host.
+    // pub runtime_layouts: Vec<RuntimeLayout>,
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug, Default)]
+pub struct RuntimeLayout {
+    pub shape: Vec<usize>,
+    pub strides: Vec<usize>,
 }
 
 #[derive(Debug)]

@@ -17,6 +17,8 @@ pub struct Context<'a, H> {
     pub handles: &'a mut HandleContainer<H>,
     /// Scalars found in the graph in the order they appeared.
     pub scalars: &'a mut HashMap<ScalarId, ScalarIr>,
+    /// TODO
+    pub shapes_relative2global: &'a HashMap<usize, usize>,
 }
 
 #[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord, Debug)]
@@ -30,6 +32,7 @@ pub(crate) struct OperationConverter {
     tensors_relative2global: HashMap<TensorId, TensorIr>,
     tensors_global2relative: HashMap<TensorId, TensorIr>,
     shapes_global2relative: HashMap<usize, usize>,
+    shapes_relative2global: HashMap<usize, usize>,
     scalars: HashMap<ScalarId, ScalarIr>,
 }
 
@@ -39,11 +42,13 @@ impl Default for OperationConverter {
             tensors_relative2global: Default::default(),
             tensors_global2relative: Default::default(),
             shapes_global2relative: Default::default(),
+            shapes_relative2global: Default::default(),
             scalars: Default::default(),
         };
 
         // global 1 is always shape id 0.
         val.shapes_global2relative.insert(1, 0);
+        val.shapes_relative2global.insert(0, 1);
 
         val
     }
@@ -54,6 +59,7 @@ pub struct ContextOwned<H> {
     tensors: HashMap<TensorId, TensorIr>,
     handles: HandleContainer<H>,
     scalars: HashMap<ScalarId, ScalarIr>,
+    shapes_relative2global: HashMap<usize, usize>,
 }
 
 impl<H: Clone> ContextOwned<H> {
@@ -63,6 +69,7 @@ impl<H: Clone> ContextOwned<H> {
             tensors: &mut self.tensors,
             handles: &mut self.handles,
             scalars: &mut self.scalars,
+            shapes_relative2global: &self.shapes_relative2global,
         }
     }
 
@@ -72,6 +79,7 @@ impl<H: Clone> ContextOwned<H> {
             tensors: self.tensors.clone(),
             handles: self.handles.fork(),
             scalars: self.scalars.clone(),
+            shapes_relative2global: self.shapes_relative2global.clone(),
         }
     }
 }
@@ -83,6 +91,7 @@ impl<H: Clone> Context<'_, H> {
             tensors: self.tensors.clone(),
             handles: self.handles.fork(),
             scalars: self.scalars.clone(),
+            shapes_relative2global: self.shapes_relative2global.clone(),
         }
     }
 }
@@ -108,6 +117,7 @@ impl OperationConverter {
             handles,
             tensors: &mut self.tensors_relative2global,
             scalars: &mut self.scalars,
+            shapes_relative2global: &self.shapes_relative2global,
         }
     }
 
@@ -116,8 +126,11 @@ impl OperationConverter {
         self.tensors_global2relative.clear();
 
         self.shapes_global2relative.clear();
+        self.shapes_relative2global.clear();
+
         // global 1 is always shape id 0.
         self.shapes_global2relative.insert(1, 0);
+        self.shapes_relative2global.insert(0, 1);
 
         self.scalars.clear();
     }
@@ -1142,6 +1155,7 @@ impl RelativeOps for TensorIr {
                 relative_shape.push(dim_id);
 
                 converter.shapes_global2relative.insert(*dim, dim_id);
+                converter.shapes_relative2global.insert(dim_id, *dim);
             }
         }
 

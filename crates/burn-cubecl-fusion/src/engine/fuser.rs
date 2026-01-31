@@ -198,7 +198,6 @@ impl TraceOperationFuser {
     ///
     /// - The argument that maps to the tensor to be used during kernel expansion.
     pub fn output_unhandled(&mut self, tensor: &TensorIr) -> FuseArg {
-        println!("Output output_unhandled {tensor:?}");
         if self.current_output_shape.is_empty() {
             self.current_output_shape = tensor.shape.dims.clone();
         } else if self.current_output_shape.iter().sum::<usize>() < tensor.shape.iter().sum() {

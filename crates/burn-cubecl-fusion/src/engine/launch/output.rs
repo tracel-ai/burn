@@ -8,7 +8,7 @@ use crate::{
         codegen::ir::{FuseArg, FuseOp, LayoutInfo},
         launch::HandleInput,
         settings::RefLayoutSetting,
-        trace::{FuseResources, RegisterTensor, TensorView, block::FuseBlock},
+        trace::{FuseResources, RegisterTensor, RuntimeLayout, TensorView, block::FuseBlock},
     },
     strides_dyn_rank,
 };
@@ -166,11 +166,27 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                             plan.blocks[block_pos as usize].reference.clone();
                     }
                     _ => {
-                        Self::select_reference_from_inputs(
-                            self.blocks[i].settings.ref_layout,
+                        let new_runtime = Self::select_reference_from_inputs(
+                            &self.blocks[i],
                             &mut plan.blocks[i],
                             &plan.handle_inputs,
                         );
+
+                        if let Some(shape) = new_runtime {
+                            let pos = plan.runtime_layouts.len();
+                            let mut shape_global = shape.clone();
+                            for (i, s) in shape.iter().enumerate() {
+                                shape_global[i] = *context.shapes_relative2global.get(s).unwrap();
+                            }
+
+                            let strides = strides_dyn_rank(&shape_global);
+
+                            plan.blocks[i].reference = ReferenceSelection::Runtime { pos };
+                            plan.runtime_layouts.push(RuntimeLayout {
+                                shape: shape_global,
+                                strides,
+                            });
+                        }
                     }
                 };
             } else {
@@ -190,11 +206,11 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
     }
 
     fn select_reference_from_inputs(
-        ref_layout_setting: RefLayoutSetting,
-        block: &mut BlockPlan<'_>,
+        block: &FuseBlock,
+        block_plan: &mut BlockPlan<'_>,
         handle_inputs: &[HandleInput<R>],
-    ) {
-        if let Some(input_ref) = block.potential_reference_input.take() {
+    ) -> Option<Vec<usize>> {
+        if let Some(input_ref) = block_plan.potential_reference_input.take() {
             match input_ref {
                 InputReference::Normal { input_pos } => {
                     let reference = handle_inputs
@@ -227,8 +243,8 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                         };
                     };
 
-                    match ref_layout_setting {
-                        RefLayoutSetting::Any => set_ref_as_concrete(block),
+                    match block.settings.ref_layout {
+                        RefLayoutSetting::Any => set_ref_as_concrete(block_plan),
                         RefLayoutSetting::SameAsBlock { .. } => {
                             // Skip set ref.
                         }
@@ -237,14 +253,14 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                                 &reference.global_ir.shape.dims,
                                 &reference.handle.strides,
                             ) {
-                                set_ref_as_concrete(block)
+                                set_ref_as_concrete(block_plan)
                             } else {
-                                set_ref_as_virtual(block)
+                                set_ref_as_virtual(block_plan)
                             }
                         }
                     }
 
-                    Self::add_layout_info_inputs(block, handle_inputs);
+                    Self::add_layout_info_inputs(block_plan, handle_inputs);
                 }
                 InputReference::SwapDims { original_pos, dims } => {
                     let reference = handle_inputs
@@ -252,7 +268,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                         .unwrap()
                         .as_normal()
                         .expect("Quant can't be used in swap dims operation");
-                    block.reference = ReferenceSelection::SwapDims {
+                    block_plan.reference = ReferenceSelection::SwapDims {
                         original: FuseArg::Input(
                             original_pos,
                             reference.precision,
@@ -262,11 +278,12 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                     };
                 }
                 InputReference::Reshaped { reshape_pos } => {
-                    block.reference = ReferenceSelection::Reshaped { reshape_pos };
+                    block_plan.reference = ReferenceSelection::Reshaped { reshape_pos };
                 }
             };
+            None
         } else {
-            block.reference = ReferenceSelection::NotFound;
+            Some(block.shape_ref.clone())
         }
     }
 

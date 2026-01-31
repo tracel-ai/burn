@@ -206,6 +206,21 @@ pub fn init_locals(
 
                 LocalArgs::new(ref_shape.to_slice(), ref_strides.to_slice(), line_size)
             }
+            VirtualLayout::Runtime { pos } => {
+                let start_shape = (pos * 2) * config.rank;
+                let start_strides = start_shape + config.rank;
+
+                #[unroll]
+                for i in 0..config.rank {
+                    let shape_index = start_shape + i;
+                    let strides_index = start_strides + i;
+
+                    ref_shape[i] = *inputs.runtime_layouts.index(shape_index);
+                    ref_strides[i] = *inputs.runtime_layouts.index(strides_index);
+                }
+
+                LocalArgs::new(ref_shape.to_slice(), ref_strides.to_slice(), config.width)
+            }
             VirtualLayout::Shape(original, line_size) => {
                 let layout = match original.clone() {
                     FuseArg::Input(pos, ..) => inputs.tensors.index(pos),
