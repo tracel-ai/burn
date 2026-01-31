@@ -28,5 +28,11 @@ impl IntCandleElement for u8 {}
 impl CandleElement for u32 {}
 impl IntCandleElement for u32 {}
 
+impl CandleElement for i32 {}
+impl IntCandleElement for i32 {}
+
 impl CandleElement for i64 {}
 impl IntCandleElement for i64 {}
+
+impl CandleElement for u64 {}
+impl IntCandleElement for u64 {}
