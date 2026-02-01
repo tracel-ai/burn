@@ -293,7 +293,6 @@ Those operations are only available for `Float` tensors.
 | `tensor.fmod(other)`                         | `tensor.fmod(other)`                       |
 | `tensor.fmod_scalar(scalar)`                 | `tensor.fmod(scalar)`                      |
 | `tensor.from_floats(floats, device)`         | N/A                                        |
-| `tensor.from_full_precision(tensor)`         | N/A                                        |
 | `tensor.int()`                               | Similar to `tensor.to(torch.long)`         |
 | `tensor.is_close(other, atol, rtol)`         | `torch.isclose(tensor, other, atol, rtol)` |
 | `tensor.is_finite()`                         | `torch.isfinite(tensor)`                   |
@@ -312,7 +311,6 @@ Those operations are only available for `Float` tensors.
 | `tensor.sqrt()`                              | `tensor.sqrt()`                            |
 | `tensor.tan()`                               | `tensor.tan()`                             |
 | `tensor.tanh()`                              | `tensor.tanh()`                            |
-| `tensor.to_full_precision()`                 | `tensor.to(torch.float)`                   |
 | `tensor.trunc()`                             | `tensor.trunc()`                           |
 | `tensor.var(dim)`                            | `tensor.var(dim)`                          |
 | `tensor.var_bias(dim)`                       | N/A                                        |
