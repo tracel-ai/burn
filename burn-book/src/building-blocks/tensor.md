@@ -282,6 +282,13 @@ Those operations are only available for `Float` tensors.
 
 | Burn API                                     | PyTorch Equivalent                         |
 | -------------------------------------------- | ------------------------------------------ |
+| `tensor.acos()`                              | `tensor.acos()`                            |
+| `tensor.acosh()`                             | `tensor.acosh()`                           |
+| `tensor.asin()`                              | `tensor.asin()`                            |
+| `tensor.asinh()`                             | `tensor.asinh()`                           |
+| `tensor.atan()`                              | `tensor.atan()`                            |
+| `tensor.atanh()`                             | `tensor.atanh()`                           |
+| `tensor.atan2()`                             | `tensor.atan2()`                           |
 | `tensor.cast(dtype)`                         | `tensor.to(dtype)`                         |
 | `tensor.ceil()`                              | `tensor.ceil()`                            |
 | `tensor.cos()`                               | `tensor.cos()`                             |
