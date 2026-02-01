@@ -288,7 +288,7 @@ Those operations are only available for `Float` tensors.
 | `tensor.asinh()`                             | `tensor.asinh()`                           |
 | `tensor.atan()`                              | `tensor.atan()`                            |
 | `tensor.atanh()`                             | `tensor.atanh()`                           |
-| `tensor.atan2()`                             | `tensor.atan2()`                           |
+| `tensor.atan2(other_tensor)`                 | `tensor.atan2(other_tensor)`               |
 | `tensor.cast(dtype)`                         | `tensor.to(dtype)`                         |
 | `tensor.ceil()`                              | `tensor.ceil()`                            |
 | `tensor.cos()`                               | `tensor.cos()`                             |
@@ -399,10 +399,10 @@ strategies.
 
 ## Grid Functions
 
-| Burn API                                           | PyTorch Equivalent                      |
-| -------------------------------------------------- | --------------------------------------- |
-| `grid::meshgrid(tensors, GridIndexing::Matrix)`    | `torch.meshgrid(tensors, indexing="ij") |
-| `grid::meshgrid(tensors, GridIndexing::Cartesian)` | `torch.meshgrid(tensors, indexing="xy") |
+| Burn API                                           | PyTorch Equivalent                       |
+| -------------------------------------------------- | ---------------------------------------- |
+| `grid::meshgrid(tensors, GridIndexing::Matrix)`    | `torch.meshgrid(tensors, indexing="ij")` |
+| `grid::meshgrid(tensors, GridIndexing::Cartesian)` | `torch.meshgrid(tensors, indexing="xy")` |
 
 ## Linalg Functions
 
