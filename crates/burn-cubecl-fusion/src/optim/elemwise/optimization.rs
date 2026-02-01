@@ -3,7 +3,10 @@ use crate::{
     engine::{
         codegen::{
             io::ref_len,
-            ir::{FuseArg, FuseBlockConfig, GlobalArgs, GlobalArgsLaunch, RefLayout},
+            ir::{
+                FuseArg, FuseBlockConfig, GlobalArgs, GlobalArgsLaunch, RefLayout,
+                global_registers_init,
+            },
             kernel::{fuse_on_write, init_locals},
         },
         launch::{
@@ -121,6 +124,8 @@ fn elemwise_fuse(
     let values = Registry::<FuseArg, Line<f32>>::new();
     let args = comptime![Vec::<FuseArg>::new()];
     let pos = ABSOLUTE_POS;
+
+    global_registers_init(config, &mut outputs.registers);
 
     let mut locals = init_locals(inputs, outputs, config);
     let length = ref_len(inputs, outputs, &locals, config);

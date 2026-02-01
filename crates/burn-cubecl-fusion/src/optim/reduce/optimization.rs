@@ -6,7 +6,9 @@ use super::tune::fused_reduce_autotune;
 use crate::{
     CubeFusionHandle, FallbackOperation,
     engine::{
-        codegen::ir::{FuseArg, FuseBlockConfig, FuseType, GlobalArgsLaunch, RefLayout},
+        codegen::ir::{
+            FuseArg, FuseBlockConfig, FuseType, GlobalArgsLaunch, RefLayout, global_registers_init,
+        },
         launch::{
             FuseTraceLauncher,
             runner::{TraceRunner, Vectorization},
@@ -437,6 +439,9 @@ pub fn reduce_kernel<In: Numeric, Out: Numeric, Acc: Numeric>(
     #[define(Out)] _output_dtype: StorageType,
     #[define(Acc)] _acc_dtype: StorageType,
 ) {
+    global_registers_init(&input.config, &mut output.global.registers);
+    global_registers_init(&output.config, &mut output.global.registers);
+
     let (input, mut output) = init_tensors::<FusedReduceArgs, In, Out>(input, output);
 
     reduce_kernel_virtual::<In, Out, Acc>(&input, &mut output, axis_reduce, blueprint, config);

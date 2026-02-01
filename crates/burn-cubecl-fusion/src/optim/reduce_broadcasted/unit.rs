@@ -106,32 +106,24 @@ fn reduce_many(
 
     #[unroll]
     for i in 0..blocks.len() {
-        comment!("New block");
         let block = blocks.index(i);
-        comment!("After block index");
         let input = FusedReduceInput {
             global: inputs.clone(),
             config: comptime!(block.config_input.clone()),
             arg: comptime!(block.input.clone()),
         };
-        comment!("After input");
         let global = outputs.clone();
-        comment!("After output clone");
         let config = comptime!(block.config_output.clone());
-        comment!("After config clone");
         let arg = comptime!(block.output.clone());
-        comment!("After arg clone");
         let mut output = FusedReduceOutput {
             global,
             config,
             arg,
         };
-        comment!("After output");
 
         set_polyfill_block(&block);
         let (input, mut output) = init_tensors::<FusedReduceArgs, In, Out>(&input, &mut output);
 
-        comment!("Reduce step start ...");
         axis_size = reduce_step::<(In, Acc), Out, ReduceOperation>(
             &input,
             &mut output,
@@ -139,12 +131,10 @@ fn reduce_many(
             block.op,
             &block.blueprint,
         );
-        comment!("Reduce step completed");
     }
 
     match block_end {
         CubeOption::Some(block) => {
-            comment!("Block end start ...");
             let global_index = ABSOLUTE_POS;
             let width = comptime!(block.config.width as u32);
             let num_iter = axis_size / usize::cast_from(width);
@@ -156,7 +146,6 @@ fn reduce_many(
                 let index = global_index * num_iter + i;
                 let mut locals = init_locals(inputs, outputs, &block.config);
 
-                comment!("Fuse one write ...");
                 fuse_on_write::<f32>(
                     inputs,
                     outputs,
@@ -167,7 +156,6 @@ fn reduce_many(
                     &block.config,
                 )
             }
-            comment!("Block end completed");
         }
         CubeOption::None => {}
     }
