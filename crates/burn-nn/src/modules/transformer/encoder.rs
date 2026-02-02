@@ -213,9 +213,9 @@ pub struct TransformerEncoderLayer<B: Backend> {
     pub mha: MultiHeadAttention<B>,
     /// Position-wise feed-forward sub-layer.
     pub pwff: PositionWiseFeedForward<B>,
-    /// Layer normalization applied around the attention sub-layer.
-    pub norm_1: LayerNorm<B>,
     /// Layer normalization applied around the feed-forward sub-layer.
+    pub norm_1: LayerNorm<B>,
+    /// Layer normalization applied around the attention sub-layer.
     pub norm_2: LayerNorm<B>,
     /// Dropout module applied to residual connections.
     pub dropout: Dropout,
@@ -247,9 +247,9 @@ impl<B: Backend> TransformerEncoderLayer<B> {
 
         Self {
             mha,
-            pwff,
             norm_1,
             norm_2,
+            pwff,
             dropout,
             norm_first: config.norm_first,
         }
@@ -273,7 +273,7 @@ impl<B: Backend> TransformerEncoderLayer<B> {
 
         // Normalize.
         if self.norm_first {
-            residual_path = self.norm_1.forward(residual_path)
+            residual_path = self.norm_2.forward(residual_path)
         }
 
         // Multi-head attention.
@@ -292,7 +292,7 @@ impl<B: Backend> TransformerEncoderLayer<B> {
         // Feed forward residual path.
         // Normalize.
         let residual_path = if self.norm_first {
-            self.norm_2.forward(x.clone())
+            self.norm_1.forward(x.clone())
         } else {
             x = self.norm_1.forward(x);
             x.clone()
@@ -327,8 +327,8 @@ impl<B: Backend> TransformerEncoderLayer<B> {
         // Normalize.
         if self.norm_first {
             residual_path = cache
-                .norm_1
-                .forward_autoregressive(residual_path, 1, |x| self.norm_1.forward(x))
+                .norm_2
+                .forward_autoregressive(residual_path, 1, |x| self.norm_2.forward(x))
         }
 
         // Multi-head attention.
@@ -348,8 +348,8 @@ impl<B: Backend> TransformerEncoderLayer<B> {
         // Normalize.
         let residual_path = if self.norm_first {
             cache
-                .norm_2
-                .forward_autoregressive(x.clone(), 1, |x| self.norm_2.forward(x))
+                .norm_1
+                .forward_autoregressive(x.clone(), 1, |x| self.norm_1.forward(x))
         } else {
             x = cache
                 .norm_1
