@@ -25,6 +25,9 @@ pub struct OffPolicyConfig {
     /// The number of steps to collect between each step of training.
     #[config(default = 1)]
     pub train_interval: usize,
+    /// Number of optimization steps done each `train_interval`.
+    #[config(default = 1)]
+    pub train_steps: usize,
     /// The number of steps to collect between each evaluation.
     #[config(default = 10_000)]
     pub eval_interval: usize,
@@ -34,6 +37,9 @@ pub struct OffPolicyConfig {
     /// The number of transition to train on.
     #[config(default = 32)]
     pub train_batch_size: usize,
+    /// Number of steps to collect before starting to train.
+    #[config(default = 0)]
+    pub warmup_steps: usize,
 }
 
 /// Off-policy reinforcement learning strategy with multi-env experience collection and double-batching.
@@ -121,19 +127,23 @@ where
             transition_buffer
                 .append(&mut items.iter().map(|i| i.transition.clone().into()).collect());
 
-            if transition_buffer.len() >= self.config.train_batch_size {
-                if let Some(u) = intermediary_update {
+            if transition_buffer.len() >= self.config.train_batch_size
+                && progress.items_processed >= self.config.warmup_steps
+            {
+                if let Some(ref u) = intermediary_update {
                     env_runner.update_policy(u.clone());
                 }
-                let transitions = transition_buffer.random_sample(self.config.train_batch_size);
-                let train_item = learner_agent.train(transitions.into());
-                intermediary_update = Some(train_item.policy);
+                for _ in 0..self.config.train_steps {
+                    let transitions = transition_buffer.random_sample(self.config.train_batch_size);
+                    let train_item = learner_agent.train(transitions.into());
+                    intermediary_update = Some(train_item.policy);
 
-                event_processor.process_train(RLEvent::TrainStep(EvaluationItem::new(
-                    train_item.item,
-                    progress.clone(),
-                    None,
-                )));
+                    event_processor.process_train(RLEvent::TrainStep(EvaluationItem::new(
+                        train_item.item,
+                        progress.clone(),
+                        None,
+                    )));
+                }
             }
 
             if valid_next > previous_steps && valid_next <= progress.items_processed {

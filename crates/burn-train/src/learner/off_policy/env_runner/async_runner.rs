@@ -117,6 +117,7 @@ where
                 );
 
                 if !request_episode {
+                    agent.decrement_agents(1);
                     let request = match request_receiver.recv() {
                         Ok(req) => req,
                         Err(err) => {
@@ -124,6 +125,7 @@ where
                             break;
                         }
                     };
+                    agent.increment_agents(1);
 
                     match request {
                         RequestMessage::Step() => (),
@@ -352,6 +354,8 @@ where
 {
     // TODO: start() shouldn't exist.
     fn start(&mut self) {
+        self.agent.increment_agents(self.num_envs);
+
         for i in 0..self.num_envs {
             let mut runner = AgentEnvAsyncLoop::<BT, RLC>::new(
                 self.env_init.clone(),
@@ -367,8 +371,8 @@ where
             self.request_senders
                 .push(runner.request_sender.clone().unwrap());
         }
+
         // Double batching : The environments are always one step ahead.
-        self.agent.increment_agents(self.num_envs);
         self.request_senders.iter().for_each(|s| {
             s.send(RequestMessage::Step())
                 .expect("Main thread can send step requests.")
@@ -390,7 +394,6 @@ where
                 .expect("Can receive transitions.");
             items.push(transition.clone());
 
-            // No need to manage the autobatch_size since we use double batching.
             self.request_senders[transition.env_id]
                 .send(RequestMessage::Step())
                 .expect("Main thread can request steps.");
@@ -433,9 +436,6 @@ where
         interrupter: &Interrupter,
         _progress: &mut Progress,
     ) -> Vec<RLTrajectory<BT, RLC>> {
-        // Here, managing the number of runners calling the autobatcher is important. Reset it to 0 at the start.
-        self.agent.decrement_agents(self.num_envs);
-
         // Send `num_episodes` initial requests.
         let mut idx = vec![];
         if num_episodes < self.num_envs {
@@ -447,7 +447,6 @@ where
             idx = (0..self.num_envs).collect();
         }
         let num_requests = self.num_envs.min(num_episodes);
-        self.agent.increment_agents(num_requests);
         idx.into_iter().for_each(|i| {
             self.request_senders[i]
                 .send(RequestMessage::Episode())
@@ -465,10 +464,7 @@ where
                 self.request_senders[trajectory.timesteps[0].env_id]
                     .send(RequestMessage::Episode())
                     .expect("Main thread can request steps.");
-            } else {
-                self.agent.decrement_agents(1);
             }
-
             for (i, step) in trajectory.timesteps.iter().enumerate() {
                 if self.eval {
                     processor.process_valid(AgentEvaluationEvent::TimeStep(EvaluationItem::new(
@@ -514,8 +510,6 @@ where
             }
         }
 
-        // No more runner at this point. We can reset the references to the envs number for double batching.
-        self.agent.increment_agents(self.num_envs);
         items
     }
 

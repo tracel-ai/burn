@@ -1,6 +1,11 @@
 use derive_new::new;
 use std::{
-    sync::mpsc::{self, Sender},
+    sync::{
+        Arc,
+        atomic::AtomicUsize,
+        atomic::Ordering,
+        mpsc::{self, Sender},
+    },
     thread::spawn,
 };
 
@@ -113,7 +118,8 @@ where
 
 #[derive(Clone)]
 struct PolicyAutoBatcher<B: Backend, P: Policy<B>> {
-    num_agents: usize,
+    // `num_agents` used to make sure the autobatcher doesn't block if less agents call it than the autobatch size.
+    num_agents: Arc<AtomicUsize>,
     max_autobatch_size: usize,
     inner_policy: P,
     batch_action: Vec<ActionItem<P::Observation, P::Action, P::ActionContext>>,
@@ -131,7 +137,7 @@ where
 {
     pub fn new(max_autobatch_size: usize, inner_policy: P) -> Self {
         Self {
-            num_agents: 0,
+            num_agents: Arc::new(AtomicUsize::new(0)),
             max_autobatch_size,
             inner_policy,
             batch_action: vec![],
@@ -141,14 +147,24 @@ where
 
     pub fn push_action(&mut self, item: ActionItem<P::Observation, P::Action, P::ActionContext>) {
         self.batch_action.push(item);
-        if self.len_actions() >= self.num_agents.min(self.max_autobatch_size) {
+        if self.len_actions()
+            >= self
+                .num_agents
+                .load(Ordering::Relaxed)
+                .min(self.max_autobatch_size)
+        {
             self.flush_actions();
         }
     }
 
     pub fn push_logits(&mut self, item: ForwardItem<P::Observation, P::ActionDistribution>) {
         self.batch_logits.push(item);
-        if self.len_logits() >= self.num_agents.min(self.max_autobatch_size) {
+        if self.len_logits()
+            >= self
+                .num_agents
+                .load(Ordering::Relaxed)
+                .min(self.max_autobatch_size)
+        {
             self.flush_logits();
         }
     }
@@ -162,7 +178,6 @@ where
     }
 
     pub fn flush_actions(&mut self) {
-        log::info!("Flusing with : {}", self.len_actions());
         if self.len_actions() <= 0 {
             return;
         }
@@ -223,15 +238,25 @@ where
     }
 
     pub fn increment_agents(&mut self, num: usize) {
-        self.num_agents += num;
+        self.num_agents.fetch_add(num, Ordering::Relaxed);
     }
 
     pub fn decrement_agents(&mut self, num: usize) {
-        self.num_agents -= num;
-        if self.len_actions() >= self.num_agents.min(self.max_autobatch_size) {
+        self.num_agents.fetch_sub(num, Ordering::Relaxed);
+        if self.len_actions()
+            >= self
+                .num_agents
+                .load(Ordering::Relaxed)
+                .min(self.max_autobatch_size)
+        {
             self.flush_actions();
         }
-        if self.len_logits() >= self.num_agents.min(self.max_autobatch_size) {
+        if self.len_logits()
+            >= self
+                .num_agents
+                .load(Ordering::Relaxed)
+                .min(self.max_autobatch_size)
+        {
             self.flush_logits();
         }
     }
