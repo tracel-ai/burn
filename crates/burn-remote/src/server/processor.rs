@@ -1,3 +1,4 @@
+use burn_backend::TensorData;
 use burn_communication::{
     Protocol,
     data_service::{TensorDataService, TensorTransferId},
@@ -5,7 +6,6 @@ use burn_communication::{
 use burn_ir::{BackendIr, OperationIr, TensorId, TensorIr};
 use burn_router::{Runner, RunnerClient};
 use burn_std::DType;
-use burn_tensor::TensorData;
 use core::marker::PhantomData;
 use std::sync::Arc;
 use tokio::sync::mpsc::Sender;
@@ -112,7 +112,7 @@ where
                     }
                     ProcessorTask::Seed(seed) => runner.seed(seed),
                     ProcessorTask::SupportsDType(id, dtype, callback) => {
-                        let result = runner.supports_dtype(dtype);
+                        let result = runner.dtype_usage(dtype);
                         callback
                             .send(TaskResponse {
                                 content: TaskResponseContent::SupportsDType(result),

@@ -19,11 +19,10 @@ default = ["client", "server"]
 doc = []
 tracing = [
     "burn-communication/tracing",
-    "burn-communication/tracing",
     "burn-ir/tracing",
     "burn-router/tracing",
     "burn-std/tracing",
-    "burn-tensor/tracing",
+    "burn-backend/tracing",
 ]
 
 client = ["tokio-tungstenite", "async-channel", "tokio/sync"]
@@ -39,7 +38,7 @@ server = [
 
 [dependencies]
 burn-ir = { path = "../burn-ir", version = "=0.21.0", default-features = true }
-burn-tensor = { path = "../burn-tensor", version = "=0.21.0", default-features = true }
+burn-backend = { path = "../burn-backend", version = "=0.21.0", default-features = true }
 burn-std = { path = "../burn-std", version = "=0.21.0", default-features = true }
 burn-router = { path = "../burn-router", version = "=0.21.0", default-features = true }
 burn-communication = { path = "../burn-communication", version = "=0.21.0", features = [
@@ -72,6 +71,7 @@ tokio-util = { workspace = true }
 
 [dev-dependencies]
 burn-ndarray = { path = "../burn-ndarray", version = "=0.21.0" }
+burn-tensor = { path = "../burn-tensor", version = "=0.21.0", default-features = true }
 
 [package.metadata.docs.rs]
 features = ["doc"]
