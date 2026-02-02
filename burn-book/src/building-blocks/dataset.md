@@ -280,7 +280,7 @@ storage. At this point, the dataset could be naively iterated over to provide th
 sample to process at a time, but this is not very efficient.
 
 Instead, we collect multiple samples that the model can process as a _batch_ to fully leverage
-modern hardware (e.g., GPUs - which have impressing parallel processing capabilities). Since each
+modern hardware (e.g., GPUs - which have impressive parallel processing capabilities). Since each
 data sample in the dataset can be collected independently, the data loading is typically done in
 parallel to further speed things up. In this case, we parallelize the data loading using a
 multi-threaded `BatchDataLoader` to obtain a sequence of items from the `Dataset` implementation.
@@ -407,10 +407,9 @@ impl MnistDataset {
 #    /// Download the MNIST dataset files from the web.
 #    /// Panics if the download cannot be completed or the content of the file cannot be written to disk.
 #    fn download(split: &str) -> PathBuf {
-#        // Dataset files are stored un the burn-dataset cache directory
-#        let cache_dir = dirs::home_dir()
-#            .expect("Could not get home directory")
-#            .join(".cache")
+#        // Dataset files are stored in the burn-dataset cache directory
+#        let cache_dir = dirs::cache_dir()
+#            .expect("Could not get cache directory")
 #            .join("burn-dataset");
 #        let split_dir = cache_dir.join("mnist").join(split);
 #

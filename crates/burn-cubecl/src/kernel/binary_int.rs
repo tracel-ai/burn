@@ -4,11 +4,7 @@ use crate::{
     ops::{max_line_size, numeric::empty_device_dtype},
     tensor::CubeTensor,
 };
-use cubecl::{
-    calculate_cube_count_elemwise,
-    prelude::*,
-    std::{scalar::InputScalar, tensor::layout::linear::LinearView},
-};
+use cubecl::{calculate_cube_count_elemwise, prelude::*, std::tensor::layout::linear::LinearView};
 
 pub(crate) trait BinaryOpIntFamily: Send + Sync + 'static {
     type BinaryOp<C: Int>: BinaryOpInt<C>;
@@ -123,8 +119,9 @@ pub(crate) fn launch_binop_int<R: CubeRuntime, O: BinaryOpIntFamily>(
     let client = lhs.client.clone();
     let num_elems = shape_out.num_elements();
 
-    let cube_dim = CubeDim::default();
-    let cube_count = calculate_cube_count_elemwise(num_elems / line_size as usize, cube_dim);
+    let working_units = num_elems / line_size as usize;
+    let cube_dim = CubeDim::new(&lhs.client, working_units);
+    let cube_count = calculate_cube_count_elemwise(&lhs.client, working_units, cube_dim);
 
     unsafe {
         if lhs.can_mut_broadcast(&rhs) {
@@ -181,11 +178,12 @@ pub(crate) fn launch_scalar_binop_int<R: CubeRuntime, O: BinaryOpIntFamily>(
     let client = tensor.client.clone();
     let num_elems = tensor.shape.num_elements();
 
-    let cube_dim = CubeDim::default();
-    let cube_count = calculate_cube_count_elemwise(num_elems / line_size as usize, cube_dim);
+    let working_units = num_elems / line_size as usize;
+    let cube_dim = CubeDim::new(&tensor.client, working_units);
+    let cube_count = calculate_cube_count_elemwise(&tensor.client, working_units, cube_dim);
 
     unsafe {
-        if tensor.can_mut() && tensor.is_contiguous_buffer() {
+        if tensor.can_mut() && tensor.is_nonoverlapping() {
             kernel_scalar_binop_int::launch_unchecked::<O, R>(
                 &client,
                 cube_count,
@@ -209,7 +207,7 @@ pub(crate) fn launch_scalar_binop_int<R: CubeRuntime, O: BinaryOpIntFamily>(
             kernel_scalar_binop_int::launch_unchecked::<O, R>(
                 &client,
                 cube_count,
-                CubeDim::default(),
+                cube_dim,
                 linear_view(&tensor, line_size),
                 scalar,
                 linear_view(&output, line_size),

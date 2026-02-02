@@ -4,18 +4,18 @@ use crate::{
 };
 use burn_fusion::stream::Context;
 use burn_ir::{TensorId, TensorIr};
-use cubecl::Runtime;
+use cubecl::{Runtime, ir::LineSize};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 #[derive(Debug, Clone, Copy)]
 pub enum Vect {
     Broadcasted,
-    Aligned(u8),
+    Aligned(LineSize),
 }
 
 impl Vect {
-    pub fn line_size(&self) -> u8 {
+    pub fn line_size(&self) -> LineSize {
         match self {
             Vect::Broadcasted => 1,
             Vect::Aligned(val) => *val,
@@ -29,13 +29,13 @@ impl Vect {
 
 #[derive(Default, Clone, Serialize, Deserialize, Debug)]
 pub struct LineSizeOverrides {
-    state: Option<BTreeMap<TensorId, Vec<u8>>>,
-    default: Option<Vec<u8>>,
+    state: Option<BTreeMap<TensorId, Vec<LineSize>>>,
+    default: Option<Vec<LineSize>>,
 }
 
 #[allow(unused)]
 impl LineSizeOverrides {
-    pub fn overrides(&mut self, tensor_id: &TensorId, line_sizes: Vec<u8>) {
+    pub fn overrides(&mut self, tensor_id: &TensorId, line_sizes: Vec<LineSize>) {
         let map = match &mut self.state {
             Some(val) => val,
             None => {
@@ -46,7 +46,7 @@ impl LineSizeOverrides {
 
         map.insert(*tensor_id, line_sizes);
     }
-    pub fn overrides_default(&mut self, line_sizes: Vec<u8>) {
+    pub fn overrides_default(&mut self, line_sizes: Vec<LineSize>) {
         self.default = Some(line_sizes);
     }
 
@@ -72,7 +72,7 @@ impl LineSizeOverrides {
         }
     }
 
-    pub fn tensor(&self, tensor_id: &TensorId) -> Option<&Vec<u8>> {
+    pub fn tensor(&self, tensor_id: &TensorId) -> Option<&Vec<LineSize>> {
         let map = match &self.state {
             Some(val) => val,
             None => match &self.default {
@@ -97,10 +97,10 @@ pub(crate) fn vectorization_default<'a, R: Runtime>(
     inputs: impl Iterator<Item = VectorizationHandle<'a, R>>,
     outputs: impl Iterator<Item = &'a TensorIr>,
     reshaped: impl Iterator<Item = (&'a TensorIr, &'a TensorIr, bool)>,
-    swapped: impl Iterator<Item = (&'a TensorIr, &'a TensorIr, bool, &'a (u32, u32))>,
-    line_sizes: &[u8],
+    swapped: impl Iterator<Item = (&'a TensorIr, &'a TensorIr, bool, &'a (usize, usize))>,
+    line_sizes: &[LineSize],
     overrides: &LineSizeOverrides,
-    max: u8,
+    max: LineSize,
     axis: &VectorizationAxis,
 ) {
     let swapped: Vec<_> = swapped.collect();
@@ -148,7 +148,7 @@ pub(crate) fn vectorization_default<'a, R: Runtime>(
                         overrides.tensor(&tensor_ir.id),
                     );
                     let num_quants = match tensor_ir.dtype {
-                        burn_tensor::DType::QFloat(quant_scheme) => quant_scheme.num_quants() as u8,
+                        burn_std::DType::QFloat(quant_scheme) => quant_scheme.num_quants(),
                         _ => panic!(""),
                     };
                     let val = match val {
@@ -214,8 +214,8 @@ fn vectorization_input<R: Runtime>(
     handle: &CubeFusionHandle<R>,
     desc: &TensorIr,
     axis: &VectorizationAxis,
-    line_sizes: &[u8],
-    overrides: Option<&Vec<u8>>,
+    line_sizes: &[LineSize],
+    overrides: Option<&Vec<LineSize>>,
 ) -> Vect {
     let axis = axis.get(desc.id, || handle.strides.len() - 1);
     let shape_axis = desc.shape[axis];
@@ -229,9 +229,9 @@ fn vectorization_input<R: Runtime>(
         return Vect::Aligned(1);
     }
 
-    let inner = |s: u8| {
+    let inner = |s: LineSize| {
         // The last dimension should be a multiple of the vector size or broadcated.
-        if shape_axis.is_multiple_of(s as usize) {
+        if shape_axis.is_multiple_of(s) {
             return Some(Vect::Aligned(s));
         }
         None
@@ -260,15 +260,15 @@ fn vectorization_input<R: Runtime>(
 fn vectorization_output(
     desc: &TensorIr,
     axis: &VectorizationAxis,
-    line_sizes: &[u8],
-    max: u8,
-    overrides: Option<&Vec<u8>>,
+    line_sizes: &[LineSize],
+    max: LineSize,
+    overrides: Option<&Vec<LineSize>>,
 ) -> Vect {
     let axis = axis.get(desc.id, || desc.shape.rank() - 1);
 
-    let inner = |s: u8| {
+    let inner = |s: LineSize| {
         // The dimension should be a multiple of the vector size.
-        if desc.shape[axis].is_multiple_of(s as usize) && s <= max {
+        if desc.shape[axis].is_multiple_of(s) && s <= max {
             return Some(Vect::Aligned(s));
         }
 
@@ -299,9 +299,9 @@ fn vectorization_reshape(
     original: &TensorIr,
     multi_reads: bool,
     axis: &VectorizationAxis,
-    line_sizes: &[u8],
-    max: u8,
-    overrides: Option<&Vec<u8>>,
+    line_sizes: &[LineSize],
+    max: LineSize,
+    overrides: Option<&Vec<LineSize>>,
 ) -> Vect {
     let axis = axis.get(reshaped.id, || reshaped.shape.rank() - 1);
     let reshape_shape_axis = reshaped.shape[axis];
@@ -321,10 +321,10 @@ fn vectorization_reshape(
         return Vect::Aligned(1);
     }
 
-    let inner = |s: u8| {
+    let inner = |s: LineSize| {
         if !multi_reads {
             // The last dimension should be a multiple of the vector size or broadcated.
-            if reshape_shape_axis.is_multiple_of(s as usize) && s <= max {
+            if reshape_shape_axis.is_multiple_of(s) && s <= max {
                 Some(Vect::Aligned(s))
             } else {
                 None
@@ -333,8 +333,8 @@ fn vectorization_reshape(
             // Since the original tensor must share the same vectorization factor as the
             // reshaped tensor, they must have compatible shapes when both are access
             // independently.
-            if reshape_shape_axis.is_multiple_of(s as usize)
-                && original_shape_axis.is_multiple_of(s as usize)
+            if reshape_shape_axis.is_multiple_of(s)
+                && original_shape_axis.is_multiple_of(s)
                 && s <= max
             {
                 Some(Vect::Aligned(s))
@@ -370,11 +370,11 @@ fn vectorization_swapped<R: Runtime>(
     swapped: &TensorIr,
     original: &TensorIr,
     multi_reads: bool,
-    dims: &(u32, u32),
-    max: u8,
+    dims: &(usize, usize),
+    max: LineSize,
     axis: &VectorizationAxis,
-    line_sizes: &[u8],
-    overrides: Option<&Vec<u8>>,
+    line_sizes: &[LineSize],
+    overrides: Option<&Vec<LineSize>>,
 ) -> Vect {
     let axis = axis.get(swapped.id, || swapped.shape.rank() - 1);
 
@@ -382,10 +382,10 @@ fn vectorization_swapped<R: Runtime>(
     let shape_axis = original.shape[axis];
 
     let axis_index = axis;
-    let dim_index = if dims.0 as usize == axis_index {
-        dims.1 as usize
-    } else if dims.1 as usize == axis_index {
-        dims.0 as usize
+    let dim_index = if dims.0 == axis_index {
+        dims.1
+    } else if dims.1 == axis_index {
+        dims.0
     } else {
         axis_index
     };
@@ -406,16 +406,13 @@ fn vectorization_swapped<R: Runtime>(
         return Vect::Broadcasted;
     }
 
-    let inner = |s: u8| {
+    let inner = |s: LineSize| {
         // The last dimension should be a multiple of the vector size or broadcated.
         if multi_reads {
-            if swapped_axis.is_multiple_of(s as usize) && s <= max {
+            if swapped_axis.is_multiple_of(s) && s <= max {
                 return Some(Vect::Aligned(s));
             }
-        } else if swapped_axis.is_multiple_of(s as usize)
-            && shape_axis.is_multiple_of(s as usize)
-            && s <= max
-        {
+        } else if swapped_axis.is_multiple_of(s) && shape_axis.is_multiple_of(s) && s <= max {
             return Some(Vect::Aligned(s));
         }
         None

@@ -1,7 +1,5 @@
-use burn_tensor::{
-    DType, Element, FloatDType, IntDType, Shape, TensorData, TensorMetadata,
-    quantization::{QTensorPrimitive, QuantScheme},
-};
+use burn_backend::{DType, FloatDType, IntDType, Shape, quantization::QuantScheme};
+use burn_backend::{Element, QTensorPrimitive, TensorData, TensorMetadata};
 
 use crate::{CandleDevice, element::CandleElement};
 
@@ -21,6 +19,9 @@ impl TensorMetadata for CandleTensor {
             candle_core::DType::F16 => DType::F16,
             candle_core::DType::F32 => DType::F32,
             candle_core::DType::F64 => DType::F64,
+            candle_core::DType::I16 => DType::I16,
+            candle_core::DType::I32 => DType::I32,
+            other => todo!("{other:?} not yet supported"),
         }
     }
 
@@ -67,28 +68,47 @@ impl CandleTensor {
 }
 
 pub(crate) trait IntoDType {
-    fn into_dtype(self) -> candle_core::DType;
+    fn try_into_dtype(self) -> Result<candle_core::DType, candle_core::Error>;
+
+    fn into_dtype(self) -> candle_core::DType
+    where
+        Self: Sized,
+    {
+        self.try_into_dtype().unwrap()
+    }
 }
 
 impl IntoDType for IntDType {
-    fn into_dtype(self) -> candle_core::DType {
-        match self {
-            IntDType::I64 => candle_core::DType::I64,
-            IntDType::U32 => candle_core::DType::U32,
-            IntDType::U8 => candle_core::DType::U8,
-            other => panic!("Unsupported dtype {other:?}"),
-        }
+    fn try_into_dtype(self) -> Result<candle_core::DType, candle_core::Error> {
+        let dtype: DType = self.into();
+        dtype.try_into_dtype()
     }
 }
 
 impl IntoDType for FloatDType {
-    fn into_dtype(self) -> candle_core::DType {
+    fn try_into_dtype(self) -> Result<candle_core::DType, candle_core::Error> {
+        let dtype: DType = self.into();
+        dtype.try_into_dtype()
+    }
+}
+
+impl IntoDType for DType {
+    fn try_into_dtype(self) -> Result<candle_core::DType, candle_core::Error> {
         match self {
-            FloatDType::F64 => candle_core::DType::F64,
-            FloatDType::F32 => candle_core::DType::F32,
-            FloatDType::Flex32 => candle_core::DType::F32,
-            FloatDType::F16 => candle_core::DType::F16,
-            FloatDType::BF16 => candle_core::DType::BF16,
+            DType::F64 => Ok(candle_core::DType::F64),
+            DType::F32 => Ok(candle_core::DType::F32),
+            DType::Flex32 => Ok(candle_core::DType::F32),
+            DType::F16 => Ok(candle_core::DType::F16),
+            DType::BF16 => Ok(candle_core::DType::BF16),
+            DType::I64 => Ok(candle_core::DType::I64),
+            DType::U32 => Ok(candle_core::DType::U32),
+            DType::U8 => Ok(candle_core::DType::U8),
+            DType::I16 => Ok(candle_core::DType::I16),
+            DType::I32 => Ok(candle_core::DType::I32),
+            // DType::Bool => Ok(candle_core::DType::U8),
+            _ => Err(candle_core::Error::Msg(format!(
+                "Unsupported dtype {self:?}"
+            ))),
         }
     }
 }

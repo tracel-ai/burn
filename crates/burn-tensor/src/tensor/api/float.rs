@@ -1,18 +1,16 @@
 use crate::AsIndex;
 use crate::FloatDType;
 use crate::Tensor;
-use crate::canonicalize_dim;
 use crate::cast::ToElement;
 use crate::check;
 use crate::check::TensorCheck;
-use crate::ops::InterpolateMode;
+use crate::ops::GridSampleOptions;
 use crate::quantization::{QuantScheme, QuantizationParameters};
 use crate::tensor::backend::Backend;
 use crate::tensor::stats;
 use crate::tensor::{Distribution, TensorData};
-use crate::{Int, TensorPrimitive};
-
-use super::Bool;
+use crate::{Bool, Int, TensorPrimitive};
+use burn_backend::tensor::quantization::QuantizationParametersPrimitive;
 
 /// Default RTOL value for `is_close` and `all_close`.
 pub const DEFAULT_RTOL: f64 = 1e-5;
@@ -201,6 +199,176 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     pub fn tanh(self) -> Self {
         Self::new(TensorPrimitive::Float(B::float_tanh(
             self.primitive.tensor(),
+        )))
+    }
+
+    /// Applies element wise inverse sine operation.
+    ///
+    #[cfg_attr(doc, doc = r#"$y_i = \asin\(x_i\)$"#)]
+    #[cfg_attr(not(doc), doc = "`y_i = asin(x_i)`")]
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::Tensor;
+    ///
+    /// fn example<B: Backend>() {
+    ///     let device = Default::default();
+    ///
+    ///     let tensor = Tensor::<B, 1>::from_data([0.0, -1.0, 1.0], &device);
+    ///     println!("{}", tensor.asin()); // [ 0.0000, -1.5708,  1.5708]
+    /// }
+    /// ```
+    pub fn asin(self) -> Self {
+        Self::new(TensorPrimitive::Float(B::float_asin(
+            self.primitive.tensor(),
+        )))
+    }
+
+    /// Applies element wise inverse hyperbolic sine operation.
+    ///
+    #[cfg_attr(doc, doc = r#"$y_i = \asinh\(x_i\)$"#)]
+    #[cfg_attr(not(doc), doc = "`y_i = asinh(x_i)`")]
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::Tensor;
+    ///
+    /// fn example<B: Backend>() {
+    ///     let device = Default::default();
+    ///
+    ///     let tensor = Tensor::<B, 1>::from_data([0.0, -1.0, 1.0], &device);
+    ///     println!("{}", tensor.asinh()); // [ 0.0000, -0.8814,  0.8814]
+    /// }
+    /// ```
+    pub fn asinh(self) -> Self {
+        Self::new(TensorPrimitive::Float(B::float_asinh(
+            self.primitive.tensor(),
+        )))
+    }
+
+    /// Applies element wise inverse cosine operation.
+    ///
+    #[cfg_attr(doc, doc = r#"$y_i = \acos\(x_i\)$"#)]
+    #[cfg_attr(not(doc), doc = "`y_i = acos(x_i)`")]
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::Tensor;
+    ///
+    /// fn example<B: Backend>() {
+    ///     let device = Default::default();
+    ///
+    ///     let tensor = Tensor::<B, 1>::from_data([0.0, -1.0, 1.0], &device);
+    ///     println!("{}", tensor.acos()); // [1.5708, 3.1416, 0.0]
+    /// }
+    /// ```
+    pub fn acos(self) -> Self {
+        Self::new(TensorPrimitive::Float(B::float_acos(
+            self.primitive.tensor(),
+        )))
+    }
+
+    /// Applies element wise inverse hyperbolic cosine operation.
+    ///
+    #[cfg_attr(doc, doc = r#"$y_i = \acosh\(x_i\)$"#)]
+    #[cfg_attr(not(doc), doc = "`y_i = acosh(x_i)`")]
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::Tensor;
+    ///
+    /// fn example<B: Backend>() {
+    ///     let device = Default::default();
+    ///
+    ///     let tensor = Tensor::<B, 1>::from_data([1.0, 2.0, 3.0], &device);
+    ///     println!("{}", tensor.sinh()); // [0.0000, 1.3170, 1.7627]
+    /// }
+    /// ```
+    pub fn acosh(self) -> Self {
+        Self::new(TensorPrimitive::Float(B::float_acosh(
+            self.primitive.tensor(),
+        )))
+    }
+
+    /// Applies element wise inverse tangent operation.
+    ///
+    #[cfg_attr(doc, doc = r#"$y_i = \atan\(x_i\)$"#)]
+    #[cfg_attr(not(doc), doc = "`y_i = atan(x_i)`")]
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::Tensor;
+    ///
+    /// fn example<B: Backend>() {
+    ///     let device = Default::default();
+    ///
+    ///     let tensor = Tensor::<B, 1>::from_data([0.0, -1.0, 2.0], &device);
+    ///     println!("{}", tensor.sinh()); // [ 0.0, -0.7854,  1.1071]
+    /// }
+    /// ```
+    pub fn atan(self) -> Self {
+        Self::new(TensorPrimitive::Float(B::float_atan(
+            self.primitive.tensor(),
+        )))
+    }
+
+    /// Applies element wise inverse hyperbolic tangent operation.
+    ///
+    #[cfg_attr(doc, doc = r#"$y_i = \atan\(x_i\)$"#)]
+    #[cfg_attr(not(doc), doc = "`y_i = atan(x_i)`")]
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::Tensor;
+    ///
+    /// fn example<B: Backend>() {
+    ///     let device = Default::default();
+    ///
+    ///     let tensor = Tensor::<B, 1>::from_data([0.0, -0.5, 0.5], &device);
+    ///     println!("{}", tensor.sinh()); // [ 0.0, -0.5493,  0.5493]
+    /// }
+    /// ```
+    pub fn atanh(self) -> Self {
+        Self::new(TensorPrimitive::Float(B::float_atanh(
+            self.primitive.tensor(),
+        )))
+    }
+
+    /// Applies element wise inverse tangent operation using the signs of arguments to determine the correct quadrant.
+    ///
+    #[cfg_attr(doc, doc = r#"$z_i = \atan2\(y_i, x_i\)$"#)]
+    #[cfg_attr(not(doc), doc = "`z_i = atan2(y_i, x_i)`")]
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::Tensor;
+    ///
+    /// fn example<B: Backend>() {
+    ///     let device = Default::default();
+    ///
+    ///     let lhs = Tensor::<B, 1>::from_data([-2.0, 2.0, -2.0], &device);
+    ///     let rhs = Tensor::<B, 1>::from_data([1.0, -1.0, -1.0], &device);
+    ///     println!("{}", lhs.atan2(rhs)); // [-1.1071,  2.0344, -2.0344]
+    /// }
+    /// ```
+    pub fn atan2(self, other: Self) -> Self {
+        Self::new(TensorPrimitive::Float(B::float_atan2(
+            self.primitive.tensor(),
+            other.primitive.tensor(),
         )))
     }
 
@@ -402,7 +570,9 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
         Tensor::new(TensorPrimitive::QFloat(B::quantize(
             self.primitive.tensor(),
             scheme,
-            qparams.into(),
+            QuantizationParametersPrimitive {
+                scales: qparams.scales.primitive.tensor(),
+            },
         )))
     }
 
@@ -655,24 +825,39 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// Samples tensor as a two-dimensional spatial grid of (possibly multi-channel) values,
     /// using the given locations in [-1, 1].
     ///
-    /// Interpolation is bilinear.
-    /// Padding is border: out of bounds locations will be clamped to the nearest border
-    ///
     /// # Arguments
     ///
-    /// * `tensor` - The tensor being sampled from, shape (N, C, H_in, W_in)
     /// * `grid` - A tensor of locations, with shape (N, H_out, W_out, 2). Values are [-1, 1].
     ///   A [x = -1, y = -1] means top-left, and [x = 1, y = 1] means bottom-right
-    /// * `method` - How to interpolate between samples
+    /// * `options` - Grid sampling options (mode, padding_mode, align_corners)
     ///
     /// # Returns
     ///
     /// A tensor with shape (N, C, H_out, W_out)
-    pub fn grid_sample_2d(self, grid: Tensor<B, D>, method: InterpolateMode) -> Tensor<B, D> {
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// use burn_tensor::ops::{GridSampleOptions, GridSamplePaddingMode, InterpolateMode};
+    ///
+    /// // Default options (bilinear, zeros padding, align_corners=false)
+    /// let output = tensor.grid_sample_2d(grid, GridSampleOptions::default());
+    ///
+    /// // Custom options
+    /// let options = GridSampleOptions::new(InterpolateMode::Bilinear)
+    ///     .with_padding_mode(GridSamplePaddingMode::Border)
+    ///     .with_align_corners(true);
+    /// let output = tensor.grid_sample_2d(grid, options);
+    /// ```
+    pub fn grid_sample_2d(
+        self,
+        grid: Tensor<B, D>,
+        options: impl Into<GridSampleOptions>,
+    ) -> Tensor<B, D> {
         Tensor::new(TensorPrimitive::Float(B::float_grid_sample_2d(
             self.primitive.tensor(),
             grid.primitive.tensor(),
-            method,
+            options.into(),
         )))
     }
 
@@ -690,7 +875,7 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     ///
     /// A tensor containing the cross product of `self` and `other` along `dim`.
     pub fn cross<Dim: AsIndex>(self, other: Tensor<B, D>, dim: Dim) -> Tensor<B, D> {
-        let dim = canonicalize_dim(dim, D, false);
+        let dim = dim.expect_dim_index(D);
         check!(TensorCheck::cross(&self, &other, dim));
         Tensor::new(TensorPrimitive::Float(B::float_cross(
             self.primitive.tensor(),

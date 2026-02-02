@@ -18,25 +18,25 @@ workspace = true
 default = ["std"]
 std = []
 doc = ["default"]
+tracing = [
+    "burn-backend/tracing",
+    "burn-std/tracing",
+]
+
 cuda = ["candle-core/cuda"]
 metal = ["candle-core/metal"]
 accelerate = ["candle-core/accelerate"]
 
 [dependencies]
-derive-new = { workspace = true }
-burn-tensor = { path = "../burn-tensor", version = "=0.20.0-pre.3", default-features = false }
-burn-std = { path = "../burn-std", version = "=0.20.0-pre.3", default-features = false }
-half = { workspace = true }
+burn-backend = { path = "../burn-backend", version = "=0.21.0", default-features = false }
+# For rand utils and stub mutex
+burn-std = { path = "../burn-std", version = "=0.21.0", default-features = false }
+
 candle-core = { workspace = true }
+derive-new = { workspace = true }
 
 [dev-dependencies]
-burn-autodiff = { path = "../burn-autodiff", version = "=0.20.0-pre.3", default-features = false, features = [
-    "export_tests",
-] }
-burn-tch = { path = "../burn-tch", version = "=0.20.0-pre.3", default-features = false, features = [
-] }
-burn-tensor = { path = "../burn-tensor", version = "=0.20.0-pre.3", default-features = false, features = [
-    "export_tests",
+burn-tch = { path = "../burn-tch", version = "=0.21.0", default-features = false, features = [
 ] }
 
 [package.metadata.docs.rs]

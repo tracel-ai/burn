@@ -14,7 +14,7 @@ use burn::{
     record::{CompactRecorder, DefaultRecorder, Recorder},
     tensor::backend::AutodiffBackend,
     train::{
-        LearnerBuilder, LearningStrategy,
+        Learner, SupervisedTraining,
         metric::{AccuracyMetric, CudaMetric, LearningRateMetric, LossMetric, PerplexityMetric},
     },
 };
@@ -68,7 +68,7 @@ pub fn train<B: AutodiffBackend, D: Dataset<TextGenerationItem> + 'static>(
         .init()
         .unwrap();
 
-    let learner = LearnerBuilder::new(artifact_dir)
+    let training = SupervisedTraining::new(artifact_dir, dataloader_train, dataloader_test)
         .metric_train(CudaMetric::new())
         .metric_valid(CudaMetric::new())
         .metric_train_numeric(AccuracyMetric::new().with_pad_token(tokenizer.pad_token()))
@@ -81,15 +81,9 @@ pub fn train<B: AutodiffBackend, D: Dataset<TextGenerationItem> + 'static>(
         .with_file_checkpointer(CompactRecorder::new())
         .grads_accumulation(accum)
         .num_epochs(config.num_epochs)
-        .summary()
-        .build(
-            model,
-            optim,
-            lr_scheduler,
-            LearningStrategy::SingleDevice(device.clone()),
-        );
+        .summary();
 
-    let result = learner.fit(dataloader_train, dataloader_test);
+    let result = training.launch(Learner::new(model, optim, lr_scheduler));
 
     config.save(format!("{artifact_dir}/config.json")).unwrap();
 

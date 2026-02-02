@@ -1,7 +1,6 @@
-use burn_tensor::{
-    Shape,
-    backend::Backend,
-    ops::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor},
+use burn_backend::{
+    Backend, Shape,
+    tensor::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor},
 };
 
 /// A tensor representation containing a reference to a tensor resource with a given shape.

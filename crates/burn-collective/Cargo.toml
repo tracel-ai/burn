@@ -17,6 +17,15 @@ workspace = true
 [features]
 default = []
 doc = []
+tracing = [
+    "dep:tracing",
+    "burn-std/tracing",
+    "burn-tensor/tracing",
+    "burn-communication/tracing",
+    "burn-ndarray?/tracing",
+    "burn-wgpu?/tracing",
+    "burn-cuda?/tracing",
+]
 orchestrator = ["burn-communication/websocket"]
 
 # Backends for testing
@@ -27,12 +36,12 @@ test-vulkan = ["burn-wgpu", "burn-wgpu/vulkan"]
 test-cuda = ["burn-cuda"]
 
 [dependencies]
-burn-tensor = { path = "../burn-tensor", version = "=0.20.0-pre.3", default-features = true }
-burn-std = { path = "../burn-std", version = "=0.20.0-pre.3", default-features = true }
+burn-tensor = { path = "../burn-tensor", version = "=0.21.0", default-features = true }
+burn-std = { path = "../burn-std", version = "=0.21.0", default-features = true }
 
 log = { workspace = true }
 
-burn-communication = { path = "../burn-communication", version = "=0.20.0-pre.3", features = [
+burn-communication = { path = "../burn-communication", version = "=0.21.0", features = [
     "data-service",
     "websocket",
 ] }
@@ -41,17 +50,19 @@ tokio = { workspace = true, features = [
     "sync",
     "signal",
     "time",
+    "tracing",
 ] }
 serde = { workspace = true, features = ["derive"] }
 rmp-serde = { workspace = true }
 bytes = { workspace = true }
 futures = { workspace = true }
 tokio-util = { workspace = true }
+tracing = { workspace = true, optional = true }
 
 # Tests
-burn-ndarray = { path = "../burn-ndarray", version = "=0.20.0-pre.3", optional = true }
-burn-wgpu = { path = "../burn-wgpu", version = "=0.20.0-pre.3", optional = true }
-burn-cuda = { path = "../burn-cuda", version = "=0.20.0-pre.3", optional = true }
+burn-ndarray = { path = "../burn-ndarray", version = "=0.21.0", optional = true }
+burn-wgpu = { path = "../burn-wgpu", version = "=0.21.0", optional = true }
+burn-cuda = { path = "../burn-cuda", version = "=0.21.0", optional = true }
 
 [dev-dependencies]
 serial_test = { workspace = true }

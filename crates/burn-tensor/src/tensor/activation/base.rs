@@ -41,7 +41,7 @@ pub fn leaky_relu<const D: usize, B: Backend>(
 ) -> Tensor<B, D> {
     Tensor::from_primitive(TensorPrimitive::Float(B::leaky_relu(
         tensor.primitive.tensor(),
-        crate::ElementConversion::elem(negative_slope),
+        negative_slope.into(),
     )))
 }
 
@@ -194,6 +194,8 @@ pub fn softplus<const D: usize, B: Backend>(tensor: Tensor<B, D>, beta: f64) -> 
 
 /// Applies the "quiet softmax" function on the input tensor along the given dimension.
 ///
+/// Also referred to as [`softmax1`](https://www.evanmiller.org/attention-is-off-by-one.html).
+///
 /// This function is similar to the softmax function, but it allows for "no selection" when
 /// all the outputs are close to zero.
 ///
@@ -218,11 +220,11 @@ $$
 pub fn quiet_softmax<const D: usize, B: Backend>(tensor: Tensor<B, D>, dim: usize) -> Tensor<B, D> {
     check!(TensorCheck::dim_ops::<D>("softmax", dim));
 
-    let tensor = tensor.clone() - tensor.detach().max_dim(dim);
-    let tensor = tensor.exp();
-    let tensor_tmp = tensor.clone().sum_dim(dim);
+    let max_vals = tensor.clone().detach().max_dim(dim);
+    let exp_x = (tensor - max_vals.clone()).exp();
+    let sum_exp = exp_x.clone().sum_dim(dim);
 
-    tensor.div(tensor_tmp + 1)
+    exp_x.div(sum_exp + max_vals.neg().exp())
 }
 
 /// Applies the log softmax function on the input tensor along the given dimension.
@@ -293,8 +295,8 @@ pub fn hard_sigmoid<const D: usize, B: Backend>(
 ) -> Tensor<B, D> {
     Tensor::from_primitive(TensorPrimitive::Float(B::hard_sigmoid(
         tensor.primitive.tensor(),
-        crate::ElementConversion::elem(alpha),
-        crate::ElementConversion::elem(beta),
+        alpha.into(),
+        beta.into(),
     )))
 }
 
@@ -328,6 +330,24 @@ $$
 #[cfg_attr(not(doc), doc = "`SiLU(x) = x * sigmoid(x) = x / (1 + exp(-x))`")]
 pub fn silu<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D> {
     tensor.clone().mul(sigmoid(tensor))
+}
+
+/// Applies the hard swish function element-wise.
+///
+#[cfg_attr(
+    doc,
+    doc = r#"
+$$
+\text{hard\_swish}\(x\) = x \cdot \text{hard\_sigmoid}(x) = x \cdot \max(0, \min(1, \frac{x}{6} + 0.5))
+$$
+"#
+)]
+#[cfg_attr(
+    not(doc),
+    doc = "`hard_swish(x) = x * hard_sigmoid(x) = x * max(0, min(1, x/6 + 0.5))`"
+)]
+pub fn hard_swish<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D> {
+    tensor.clone().mul(hard_sigmoid(tensor, 1.0 / 6.0, 0.5))
 }
 
 /// Applies the Mish function as described in the paper in
@@ -376,10 +396,9 @@ pub fn glu<const D: usize, B: Backend>(tensor: Tensor<B, D>, dim: usize) -> Tens
         "Input tensor along dimension {dim} must have an even size. N is divisible by 2."
     );
     let new_len = tensor.dims()[dim] / 2;
-    // The `s!` macro is used for slicing tensors along a specific dimension.
-    // Usage: s![dim, start..end] slices the tensor along `dim` from `start` to `end` (exclusive).
-    let a = tensor.clone().slice(s![dim, 0..new_len]);
-    let b = tensor.slice(s![dim, new_len..new_len * 2]);
+
+    let a = tensor.clone().slice_dim(dim, s![0..new_len]);
+    let b = tensor.slice_dim(dim, s![new_len..new_len * 2]);
 
     a.mul(sigmoid(b))
 }

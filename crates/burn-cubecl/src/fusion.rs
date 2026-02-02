@@ -1,5 +1,7 @@
 use crate::BoolElement;
 use crate::{CubeBackend, CubeRuntime, FloatElement, IntElement, kernel, tensor::CubeTensor};
+use burn_backend::tensor::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
+use burn_backend::{DType, Shape};
 use burn_cubecl_fusion::{
     CubeFusionHandle, FallbackOperation,
     optim::{
@@ -14,7 +16,6 @@ use burn_fusion::{
     stream::{Operation, OrderedExecution},
 };
 use burn_ir::{BackendIr, TensorHandle};
-use burn_tensor::{DType, Shape};
 use core::marker::PhantomData;
 use std::sync::Arc;
 
@@ -86,21 +87,19 @@ impl<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolElement> BackendIr
 {
     type Handle = CubeFusionHandle<R>;
 
-    fn float_tensor(handle: TensorHandle<Self::Handle>) -> burn_tensor::ops::FloatTensor<Self> {
+    fn float_tensor(handle: TensorHandle<Self::Handle>) -> FloatTensor<Self> {
         into_tensor(handle.handle, handle.shape)
     }
 
-    fn int_tensor(handle: TensorHandle<Self::Handle>) -> burn_tensor::ops::IntTensor<Self> {
+    fn int_tensor(handle: TensorHandle<Self::Handle>) -> IntTensor<Self> {
         into_tensor(handle.handle, handle.shape)
     }
 
-    fn bool_tensor(handle: TensorHandle<Self::Handle>) -> burn_tensor::ops::BoolTensor<Self> {
+    fn bool_tensor(handle: TensorHandle<Self::Handle>) -> BoolTensor<Self> {
         into_tensor(handle.handle, handle.shape)
     }
 
-    fn quantized_tensor(
-        handle: TensorHandle<Self::Handle>,
-    ) -> burn_tensor::ops::QuantizedTensor<Self> {
+    fn quantized_tensor(handle: TensorHandle<Self::Handle>) -> QuantizedTensor<Self> {
         into_tensor(handle.handle, handle.shape)
     }
 
@@ -108,19 +107,19 @@ impl<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolElement> BackendIr
     //     into_tensor(handle.handle, handle.shape)
     // }
 
-    fn float_tensor_handle(tensor: burn_tensor::ops::FloatTensor<Self>) -> Self::Handle {
+    fn float_tensor_handle(tensor: FloatTensor<Self>) -> Self::Handle {
         tensor.into()
     }
 
-    fn int_tensor_handle(tensor: burn_tensor::ops::IntTensor<Self>) -> Self::Handle {
+    fn int_tensor_handle(tensor: IntTensor<Self>) -> Self::Handle {
         tensor.into()
     }
 
-    fn bool_tensor_handle(tensor: burn_tensor::ops::BoolTensor<Self>) -> Self::Handle {
+    fn bool_tensor_handle(tensor: BoolTensor<Self>) -> Self::Handle {
         tensor.into()
     }
 
-    fn quantized_tensor_handle(tensor: burn_tensor::ops::QuantizedTensor<Self>) -> Self::Handle {
+    fn quantized_tensor_handle(tensor: QuantizedTensor<Self>) -> Self::Handle {
         tensor.into()
     }
 
@@ -168,7 +167,7 @@ impl<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolElement> FusionBack
 
     type FullPrecisionBackend = CubeBackend<R, f32, i32, BT>;
 
-    fn cast_float(tensor: burn_tensor::ops::FloatTensor<Self>, dtype: DType) -> Self::Handle {
+    fn cast_float(tensor: FloatTensor<Self>, dtype: DType) -> Self::Handle {
         kernel::cast(tensor, dtype).into()
     }
 }

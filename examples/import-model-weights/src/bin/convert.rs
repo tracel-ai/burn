@@ -1,12 +1,10 @@
 use std::{env, path::Path, process};
 
-use burn::{
-    backend::NdArray,
-    record::{FullPrecisionSettings, NamedMpkFileRecorder, Recorder},
+use burn::backend::NdArray;
+use burn_store::{
+    BurnpackStore, ModuleSnapshot, PyTorchToBurnAdapter, PytorchStore, SafetensorsStore,
 };
-use burn_import::pytorch::PyTorchFileRecorder;
-use burn_import::safetensors::SafetensorsFileRecorder;
-use import_model_weights::ModelRecord;
+use import_model_weights::Model;
 
 // Path constants
 const PYTORCH_WEIGHTS_PATH: &str = "weights/mnist.pt";
@@ -35,25 +33,27 @@ pub fn main() {
     // Use the default device (CPU)
     let device = Default::default();
 
-    // Load the model record based on the specified format
-    let model_record: ModelRecord<B> = match weight_format {
+    // Initialize a model with default weights
+    let mut model: Model<B> = Model::init(&device);
+
+    // Load the model weights based on the specified format
+    match weight_format {
         "pytorch" => {
             println!("Loading PyTorch weights from '{PYTORCH_WEIGHTS_PATH}'...");
-            PyTorchFileRecorder::<FullPrecisionSettings>::default()
-                .load(PYTORCH_WEIGHTS_PATH.into(), &device)
-                .unwrap_or_else(|_| {
-                    panic!("Failed to load PyTorch model weights from '{PYTORCH_WEIGHTS_PATH}'")
-                })
+            let mut store = PytorchStore::from_file(PYTORCH_WEIGHTS_PATH);
+            model.load_from(&mut store).unwrap_or_else(|e| {
+                panic!("Failed to load PyTorch model weights from '{PYTORCH_WEIGHTS_PATH}': {e}")
+            });
         }
         "safetensors" => {
             println!("Loading Safetensors weights from '{SAFETENSORS_WEIGHTS_PATH}'...");
-            SafetensorsFileRecorder::<FullPrecisionSettings>::default()
-                .load(SAFETENSORS_WEIGHTS_PATH.into(), &device)
-                .unwrap_or_else(|_| {
-                    panic!(
-                        "Failed to load Safetensors model weights from '{SAFETENSORS_WEIGHTS_PATH}'"
-                    )
-                })
+            let mut store = SafetensorsStore::from_file(SAFETENSORS_WEIGHTS_PATH)
+                .with_from_adapter(PyTorchToBurnAdapter);
+            model.load_from(&mut store).unwrap_or_else(|e| {
+                panic!(
+                    "Failed to load Safetensors model weights from '{SAFETENSORS_WEIGHTS_PATH}': {e}"
+                )
+            });
         }
         _ => {
             eprintln!(
@@ -63,29 +63,22 @@ pub fn main() {
         }
     };
 
-    // Create a recorder for saving the model record in Burn's format
-    let recorder = NamedMpkFileRecorder::<FullPrecisionSettings>::default();
-
     // Define the output path for the Burn model file
     let output_file_path = output_directory.join(MODEL_OUTPUT_NAME);
 
-    println!(
-        "Saving model record to '{}.mpk'...",
-        output_file_path.display()
-    );
+    println!("Saving model to '{}.bpk'...", output_file_path.display());
 
-    // Save the loaded record to the specified file path
-    recorder
-        .record(model_record, output_file_path.clone())
-        .unwrap_or_else(|_| {
-            panic!(
-                "Failed to save model record to '{}.mpk'",
-                output_file_path.display()
-            )
-        });
+    // Save the model using BurnpackStore
+    let mut store = BurnpackStore::from_file(&output_file_path).overwrite(true);
+    model.save_into(&mut store).unwrap_or_else(|e| {
+        panic!(
+            "Failed to save model to '{}.bpk': {e}",
+            output_file_path.display()
+        )
+    });
 
     println!(
-        "Model record successfully saved to '{}.mpk'.",
+        "Model successfully saved to '{}.bpk'.",
         output_file_path.display()
     );
 }

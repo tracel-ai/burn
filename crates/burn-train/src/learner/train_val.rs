@@ -1,17 +1,7 @@
-use crate::components::{
-    InputTrain, InputValid, LearnerComponentTypes, TrainBackend, ValidBackend,
-};
-#[cfg(feature = "ddp")]
-use crate::ddp::DdpLearningStrategy;
-use crate::multi::MultiDeviceLearningStrategy;
-use crate::renderer::MetricsRenderer;
-use crate::single::SingleDeviceLearningStrategy;
-use crate::{Learner, LearningMethod, LearningStrategy};
-use burn_core::data::dataloader::DataLoader;
+use crate::{ItemLazy, renderer::MetricsRenderer};
 use burn_core::module::AutodiffModule;
 use burn_core::tensor::backend::AutodiffBackend;
 use burn_optim::{GradientsParams, MultiGradientsParams, Optimizer};
-use std::sync::Arc;
 
 /// A training output.
 pub struct TrainOutput<TO> {
@@ -44,7 +34,7 @@ impl<TO> TrainOutput<TO> {
     }
 }
 
-/// Trait to be implemented for training models.
+/// Trait to be implemented for models to be able to be trained.
 ///
 /// The [step](TrainStep::step) method needs to be manually implemented for all structs.
 ///
@@ -54,25 +44,29 @@ impl<TO> TrainOutput<TO> {
 ///
 /// # Notes
 ///
-/// To be used with the [Learner](Learner) struct, the struct which implements this trait must
+/// To be used with the [Learner](crate::Learner) struct, the struct which implements this trait must
 /// also implement the [AutodiffModule] trait, which is done automatically with the
 /// [Module](burn_core::module::Module) derive.
-pub trait TrainStep<TI, TO> {
-    /// Runs the training step, which executes the forward and backward passes.
+pub trait TrainStep {
+    /// Type of input for a step of the training stage.
+    type Input: Send + 'static;
+    /// Type of output for a step of the training stage.
+    type Output: ItemLazy + 'static;
+    /// Runs a step for training, which executes the forward and backward passes.
     ///
     /// # Arguments
     ///
-    /// * `item` - The training input for the model.
+    /// * `item` - The input for the model.
     ///
     /// # Returns
     ///
-    /// The training output containing the model output and the gradients.
-    fn step(&self, item: TI) -> TrainOutput<TO>;
+    /// The output containing the model output and the gradients.
+    fn step(&self, item: Self::Input) -> TrainOutput<Self::Output>;
     /// Optimize the current module with the provided gradients and learning rate.
     ///
     /// # Arguments
     ///
-    /// * `optim`: Optimizer used for training this model.
+    /// * `optim`: Optimizer used for learning.
     /// * `lr`: The learning rate used for this step.
     /// * `grads`: The gradients of each parameter in the current model.
     ///
@@ -91,7 +85,7 @@ pub trait TrainStep<TI, TO> {
     ///
     /// # Arguments
     ///
-    /// * `optim`: Optimizer used for training this model.
+    /// * `optim`: Optimizer used for learning.
     /// * `lr`: The learning rate used for this step.
     /// * `grads`: Multiple gradients associated to each parameter in the current model.
     ///
@@ -109,7 +103,11 @@ pub trait TrainStep<TI, TO> {
 }
 
 /// Trait to be implemented for validating models.
-pub trait ValidStep<VI, VO> {
+pub trait InferenceStep {
+    /// Type of input for an inference step.
+    type Input: Send + 'static;
+    /// Type of output for an inference step.
+    type Output: ItemLazy + 'static;
     /// Runs a validation step.
     ///
     /// # Arguments
@@ -119,61 +117,13 @@ pub trait ValidStep<VI, VO> {
     /// # Returns
     ///
     /// The validation output.
-    fn step(&self, item: VI) -> VO;
+    fn step(&self, item: Self::Input) -> Self::Output;
 }
 
-/// A reference to the training split [DataLoader](DataLoader).
-pub type TrainLoader<LC> = Arc<dyn DataLoader<TrainBackend<LC>, InputTrain<LC>>>;
-/// A reference to the validation split [DataLoader](DataLoader).
-pub type ValidLoader<LC> = Arc<dyn DataLoader<ValidBackend<LC>, InputValid<LC>>>;
-
 /// The result of a training, containing the model along with the [renderer](MetricsRenderer).
-pub struct TrainingResult<M> {
-    /// The model trained.
+pub struct LearningResult<M> {
+    /// The model with the learned weights.
     pub model: M,
     /// The renderer that can be used for follow up training and evaluation.
     pub renderer: Box<dyn MetricsRenderer>,
-}
-
-impl<LC: LearnerComponentTypes + Send + 'static> Learner<LC> {
-    /// Fits the model.
-    ///
-    /// # Arguments
-    ///
-    /// * `dataloader_train` - The training dataloader.
-    /// * `dataloader_valid` - The validation dataloader.
-    ///
-    /// # Returns
-    ///
-    /// The fitted model.
-    pub fn fit(
-        self,
-        dataloader_train: TrainLoader<LC>,
-        dataloader_valid: ValidLoader<LC>,
-    ) -> TrainingResult<LC::InnerModel> {
-        log::info!("Fitting the model:\n {}", self.model);
-
-        match &self.learning_strategy {
-            LearningStrategy::SingleDevice(device) => {
-                let single_device = SingleDeviceLearningStrategy::new(device.clone());
-                single_device.fit(self, dataloader_train, dataloader_valid)
-            }
-            LearningStrategy::CustomSingleDevice(learning_strategy) => learning_strategy
-                .clone()
-                .fit(self, dataloader_train, dataloader_valid),
-            LearningStrategy::MultiDevice(devices, optim) => {
-                let multi_device = MultiDeviceLearningStrategy::new(devices.clone(), *optim);
-                multi_device.fit(self, dataloader_train, dataloader_valid)
-            }
-            LearningStrategy::CustomMultiDevice(learning_strategy) => learning_strategy
-                .clone()
-                .fit(self, dataloader_train, dataloader_valid),
-
-            #[cfg(feature = "ddp")]
-            LearningStrategy::DistributedDataParallel { devices, config } => {
-                let ddp = DdpLearningStrategy::new(devices.clone(), config.clone());
-                ddp.fit(self, dataloader_train, dataloader_valid)
-            }
-        }
-    }
 }

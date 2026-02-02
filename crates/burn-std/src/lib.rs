@@ -16,6 +16,14 @@ pub mod id;
 pub mod tensor;
 pub use tensor::*;
 
+/// Common Errors.
+pub mod errors;
+pub use errors::*;
+
+/// Network utilities.
+#[cfg(feature = "network")]
+pub mod network;
+
 // Re-exported types
 pub use cubecl_common::bytes::*;
 pub use cubecl_common::*;
@@ -27,7 +35,7 @@ pub use cubecl::flex32;
 #[cfg(feature = "cubecl")]
 mod cube {
     use cubecl::ir::{ElemType, FloatKind, IntKind, StorageType, UIntKind};
-    use cubecl_quant::scheme::QuantScheme;
+    use cubecl_common::quant::scheme::QuantScheme;
 
     use crate::tensor::DType;
     use crate::tensor::quantization::{QuantStore, QuantValue};
@@ -62,8 +70,15 @@ mod cube {
                             panic!("Can't store native sub-byte values")
                         }
                     },
-                    QuantStore::U32 => Self::UInt(UIntKind::U32),
+                    QuantStore::PackedU32(_) => Self::UInt(UIntKind::U32),
+                    QuantStore::PackedNative(_) => match scheme.value {
+                        QuantValue::E2M1 => panic!("Can't store native sub-byte values"),
+                        other => panic!("{other:?} doesn't support native packing"),
+                    },
                 },
+                //need to open a PR for CubeCL once everything else is finished
+                DType::Complex64 => todo!(),
+                DType::Complex32 => todo!(),
             }
         }
     }
@@ -72,7 +87,7 @@ mod cube {
         fn from(dtype: DType) -> cubecl::ir::StorageType {
             match dtype {
                 DType::QFloat(QuantScheme {
-                    store: QuantStore::Native,
+                    store: QuantStore::PackedNative(_),
                     value: QuantValue::E2M1,
                     ..
                 }) => StorageType::Packed(ElemType::Float(FloatKind::E2M1), 2),

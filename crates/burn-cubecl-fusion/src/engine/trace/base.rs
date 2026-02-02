@@ -11,7 +11,9 @@ use std::{
 };
 
 #[cfg(feature = "autotune-checks")]
-use burn_tensor::TensorData;
+use crate::CubeFusionHandle;
+#[cfg(feature = "autotune-checks")]
+use burn_backend::TensorData;
 #[cfg(feature = "autotune-checks")]
 use std::collections::HashMap;
 
@@ -56,7 +58,8 @@ impl<R: Runtime> TuneOutput<R> {
 impl<R: Runtime> cubecl::tune::AutotuneOutput for TuneOutput<R> {
     #[cfg(feature = "autotune-checks")]
     fn check_equivalence(&self, other: Self) {
-        use burn_tensor::{DType, Tolerance};
+        use burn_backend::Tolerance;
+        use burn_std::DType;
 
         if let (
             TuneOutput::Checked {
@@ -70,13 +73,34 @@ impl<R: Runtime> cubecl::tune::AutotuneOutput for TuneOutput<R> {
             for (id, (shape, handle)) in handles_ref.iter() {
                 num_handles += 1;
                 if let Some((shape_other, other)) = handles.get(id) {
-                    assert_eq!(
-                        handle.strides, other.strides,
-                        "TODO: It should be OK, we simply need to call `into_contiguous` before the assertion."
-                    );
+                    use burn_std::is_contiguous;
+                    use cubecl::std::tensor::into_contiguous;
 
-                    let data_ref = handle.client.read_one(handle.handle.clone());
-                    let data_other = other.client.read_one(other.handle.clone());
+                    let current_handle = if !is_contiguous(&shape, &handle.strides) {
+                        into_contiguous::<R>(
+                            &handle.client,
+                            &handle.as_handle_ref(&shape),
+                            handle.dtype.into(),
+                        )
+                        .unwrap()
+                        .handle
+                    } else {
+                        handle.handle.clone()
+                    };
+                    let other_handle = if !is_contiguous(&shape, &other.strides) {
+                        into_contiguous::<R>(
+                            &other.client,
+                            &other.as_handle_ref(&shape),
+                            other.dtype.into(),
+                        )
+                        .unwrap()
+                        .handle
+                    } else {
+                        other.handle.clone()
+                    };
+
+                    let data_ref = handle.client.read_one(current_handle);
+                    let data_other = other.client.read_one(other_handle);
                     let data_ref = TensorData::from_bytes(data_ref, shape.clone(), handle.dtype);
                     let data_other =
                         TensorData::from_bytes(data_other, shape_other.clone(), handle.dtype);
@@ -145,13 +169,13 @@ pub enum TensorView {
     Reshape {
         reshaped: TensorId,
         original: TensorId,
-        reshape_pos: u32,
+        reshape_pos: usize,
         shape_relative: Vec<usize>,
     },
     SwapDims {
         swapped: TensorId,
         original: TensorId,
-        dims: (u32, u32),
+        dims: (usize, usize),
     },
 }
 
@@ -203,7 +227,7 @@ impl RegisteredTensors {
     }
 
     /// Doesn't return quantized tensor.
-    pub fn get_index(&self, tensor_id: TensorId) -> Option<u32> {
+    pub fn get_index(&self, tensor_id: TensorId) -> Option<usize> {
         self.tensors
             .iter()
             .enumerate()
@@ -212,11 +236,11 @@ impl RegisteredTensors {
                 RegisterTensor::QuantValues(_) => false,
                 RegisterTensor::QuantParams(_) => false,
             })
-            .map(|(pos, _)| pos as u32)
+            .map(|(pos, _)| pos)
     }
 
     /// Get the index of a quantized tensor.
-    pub fn get_index_quant(&self, tensor_id: TensorId) -> Option<u32> {
+    pub fn get_index_quant(&self, tensor_id: TensorId) -> Option<usize> {
         self.tensors
             .iter()
             .enumerate()
@@ -225,7 +249,7 @@ impl RegisteredTensors {
                 RegisterTensor::QuantValues(tensor_ir) => tensor_ir.id == tensor_id,
                 RegisterTensor::QuantParams(_) => false,
             })
-            .map(|(pos, _)| pos as u32)
+            .map(|(pos, _)| pos)
     }
 
     /// Doesn't return quantized tensor.
@@ -249,12 +273,12 @@ impl RegisteredTensors {
     /// Insert a quantized tensor.
     ///
     /// It will return the positions for both the value tensor and param tensor.
-    pub fn insert_quant(&mut self, tensor: TensorIr) -> (u32, u32) {
+    pub fn insert_quant(&mut self, tensor: TensorIr) -> (usize, usize) {
         if let Some(old) = self.tensors.iter().enumerate().find(|(_, val)| match &val {
             RegisterTensor::QuantValues(tensor_ir) => tensor_ir == &tensor,
             _ => false,
         }) {
-            let values = old.0 as u32;
+            let values = old.0;
             let params = values + 1;
             return (values, params);
         }
@@ -267,16 +291,16 @@ impl RegisteredTensors {
         let pos_params = self.len();
         self.tensors.push(params);
 
-        (pos_values as u32, pos_params as u32)
+        (pos_values, pos_params)
     }
 
     /// Insert a normal tensor with the given [precision](FusePrecision) in the current block.
-    pub fn insert(&mut self, precision: FuseType, tensor: TensorIr) -> u32 {
+    pub fn insert(&mut self, precision: FuseType, tensor: TensorIr) -> usize {
         if let Some(old) = self.tensors.iter().enumerate().find(|(_, val)| match &val {
             RegisterTensor::Normal(tensor_ir, _) => tensor_ir == &tensor,
             _ => false,
         }) {
-            return old.0 as u32;
+            return old.0;
         }
 
         let value = RegisterTensor::Normal(tensor, precision);
@@ -284,7 +308,7 @@ impl RegisteredTensors {
 
         self.tensors.push(value);
 
-        pos as u32
+        pos
     }
 
     /// Update the already registered tensor with the given [tensor ir](TensorIr).

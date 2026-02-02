@@ -2,15 +2,16 @@ use crate::{
     Fusion, FusionBackend,
     stream::{OperationStreams, execution::Operation},
 };
-use burn_ir::*;
-use burn_tensor::{
+use burn_backend::{
     Element,
     ops::{
-        ConvOptions, ConvTransposeOptions, DeformConv2dBackward, DeformConvOptions, FloatTensor,
-        IntTensor, InterpolateOptions, MaxPool1dBackward, MaxPool1dWithIndices, MaxPool2dBackward,
+        ConvOptions, ConvTransposeOptions, DeformConv2dBackward, DeformConvOptions,
+        InterpolateOptions, MaxPool1dBackward, MaxPool1dWithIndices, MaxPool2dBackward,
         MaxPool2dWithIndices, ModuleOps,
     },
+    tensor::{FloatTensor, IntTensor},
 };
+use burn_ir::*;
 use std::marker::PhantomData;
 
 macro_rules! make_ops {
@@ -74,6 +75,120 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             .output()
     }
 
+    fn conv1d_x_backward(
+        x: FloatTensor<Fusion<B>>,
+        weight: FloatTensor<Fusion<B>>,
+        output_grad: FloatTensor<Fusion<B>>,
+        options: ConvOptions<1>,
+    ) -> FloatTensor<Fusion<B>> {
+        make_ops!(
+            Conv1dXBackwardOps,
+            Conv1dXBackwardOpIr,
+            |desc: &Conv1dXBackwardOpIr, handles: &mut HandleContainer<B::Handle>| {
+                let x = handles.get_float_tensor::<B>(&desc.x);
+                let weight = handles.get_float_tensor::<B>(&desc.weight);
+                let output_grad = handles.get_float_tensor::<B>(&desc.output_grad);
+                let output =
+                    B::conv1d_x_backward(x, weight, output_grad, desc.options.clone().into());
+                handles.register_float_tensor::<B>(&desc.out.id, output);
+            }
+        );
+
+        let streams = OperationStreams::with_inputs([&x, &weight, &output_grad]);
+
+        let client = x.client.clone();
+        let desc = Conv1dXBackwardOpIr::create(
+            x.into_ir(),
+            weight.into_ir(),
+            output_grad.into_ir(),
+            options.into(),
+            || client.create_empty_handle(),
+        );
+
+        client
+            .register(
+                streams,
+                OperationIr::Module(ModuleOperationIr::Conv1dXBackward(desc.clone())),
+                Conv1dXBackwardOps::<B>::new(desc),
+            )
+            .output()
+    }
+
+    fn conv1d_weight_backward(
+        x: FloatTensor<Fusion<B>>,
+        weight: FloatTensor<Fusion<B>>,
+        output_grad: FloatTensor<Fusion<B>>,
+        options: ConvOptions<1>,
+    ) -> FloatTensor<Fusion<B>> {
+        make_ops!(
+            Conv1dWeightBackwardOps,
+            Conv1dWeightBackwardOpIr,
+            |desc: &Conv1dWeightBackwardOpIr, handles: &mut HandleContainer<B::Handle>| {
+                let x = handles.get_float_tensor::<B>(&desc.x);
+                let weight = handles.get_float_tensor::<B>(&desc.weight);
+                let output_grad = handles.get_float_tensor::<B>(&desc.output_grad);
+                let output =
+                    B::conv1d_weight_backward(x, weight, output_grad, desc.options.clone().into());
+                handles.register_float_tensor::<B>(&desc.out.id, output);
+            }
+        );
+
+        let streams = OperationStreams::with_inputs([&x, &weight, &output_grad]);
+
+        let client = x.client.clone();
+        let desc = Conv1dWeightBackwardOpIr::create(
+            x.into_ir(),
+            weight.into_ir(),
+            output_grad.into_ir(),
+            options.into(),
+            || client.create_empty_handle(),
+        );
+
+        client
+            .register(
+                streams,
+                OperationIr::Module(ModuleOperationIr::Conv1dWeightBackward(desc.clone())),
+                Conv1dWeightBackwardOps::<B>::new(desc),
+            )
+            .output()
+    }
+
+    fn conv1d_bias_backward(
+        x: FloatTensor<Fusion<B>>,
+        bias: FloatTensor<Fusion<B>>,
+        output_grad: FloatTensor<Fusion<B>>,
+    ) -> FloatTensor<Fusion<B>> {
+        make_ops!(
+            Conv1dBiasBackwardOps,
+            Conv1dBiasBackwardOpIr,
+            |desc: &Conv1dBiasBackwardOpIr, handles: &mut HandleContainer<B::Handle>| {
+                let x = handles.get_float_tensor::<B>(&desc.x);
+                let bias = handles.get_float_tensor::<B>(&desc.bias);
+                let output_grad = handles.get_float_tensor::<B>(&desc.output_grad);
+                let output = B::conv1d_bias_backward(x, bias, output_grad);
+                handles.register_float_tensor::<B>(&desc.out.id, output);
+            }
+        );
+
+        let streams = OperationStreams::with_inputs([&x, &bias, &output_grad]);
+
+        let client = x.client.clone();
+        let desc = Conv1dBiasBackwardOpIr::create(
+            x.into_ir(),
+            bias.into_ir(),
+            output_grad.into_ir(),
+            || client.create_empty_handle(),
+        );
+
+        client
+            .register(
+                streams,
+                OperationIr::Module(ModuleOperationIr::Conv1dBiasBackward(desc.clone())),
+                Conv1dBiasBackwardOps::<B>::new(desc),
+            )
+            .output()
+    }
+
     fn conv2d(
         x: FloatTensor<Self>,
         weight: FloatTensor<Self>,
@@ -115,6 +230,120 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
                 streams,
                 OperationIr::Module(ModuleOperationIr::Conv2d(desc.clone())),
                 Conv2dOps::<B>::new(desc),
+            )
+            .output()
+    }
+
+    fn conv2d_x_backward(
+        x: FloatTensor<Fusion<B>>,
+        weight: FloatTensor<Fusion<B>>,
+        output_grad: FloatTensor<Fusion<B>>,
+        options: ConvOptions<2>,
+    ) -> FloatTensor<Fusion<B>> {
+        make_ops!(
+            Conv2dXBackwardOps,
+            Conv2dXBackwardOpIr,
+            |desc: &Conv2dXBackwardOpIr, handles: &mut HandleContainer<B::Handle>| {
+                let x = handles.get_float_tensor::<B>(&desc.x);
+                let weight = handles.get_float_tensor::<B>(&desc.weight);
+                let output_grad = handles.get_float_tensor::<B>(&desc.output_grad);
+                let output =
+                    B::conv2d_x_backward(x, weight, output_grad, desc.options.clone().into());
+                handles.register_float_tensor::<B>(&desc.out.id, output);
+            }
+        );
+
+        let streams = OperationStreams::with_inputs([&x, &weight, &output_grad]);
+
+        let client = x.client.clone();
+        let desc = Conv2dXBackwardOpIr::create(
+            x.into_ir(),
+            weight.into_ir(),
+            output_grad.into_ir(),
+            options.into(),
+            || client.create_empty_handle(),
+        );
+
+        client
+            .register(
+                streams,
+                OperationIr::Module(ModuleOperationIr::Conv2dXBackward(desc.clone())),
+                Conv2dXBackwardOps::<B>::new(desc),
+            )
+            .output()
+    }
+
+    fn conv2d_weight_backward(
+        x: FloatTensor<Fusion<B>>,
+        weight: FloatTensor<Fusion<B>>,
+        output_grad: FloatTensor<Fusion<B>>,
+        options: ConvOptions<2>,
+    ) -> FloatTensor<Fusion<B>> {
+        make_ops!(
+            Conv2dWeightBackwardOps,
+            Conv2dWeightBackwardOpIr,
+            |desc: &Conv2dWeightBackwardOpIr, handles: &mut HandleContainer<B::Handle>| {
+                let x = handles.get_float_tensor::<B>(&desc.x);
+                let weight = handles.get_float_tensor::<B>(&desc.weight);
+                let output_grad = handles.get_float_tensor::<B>(&desc.output_grad);
+                let output =
+                    B::conv2d_weight_backward(x, weight, output_grad, desc.options.clone().into());
+                handles.register_float_tensor::<B>(&desc.out.id, output);
+            }
+        );
+
+        let streams = OperationStreams::with_inputs([&x, &weight, &output_grad]);
+
+        let client = x.client.clone();
+        let desc = Conv2dWeightBackwardOpIr::create(
+            x.into_ir(),
+            weight.into_ir(),
+            output_grad.into_ir(),
+            options.into(),
+            || client.create_empty_handle(),
+        );
+
+        client
+            .register(
+                streams,
+                OperationIr::Module(ModuleOperationIr::Conv2dWeightBackward(desc.clone())),
+                Conv2dWeightBackwardOps::<B>::new(desc),
+            )
+            .output()
+    }
+
+    fn conv2d_bias_backward(
+        x: FloatTensor<Fusion<B>>,
+        bias: FloatTensor<Fusion<B>>,
+        output_grad: FloatTensor<Fusion<B>>,
+    ) -> FloatTensor<Fusion<B>> {
+        make_ops!(
+            Conv2dBiasBackwardOps,
+            Conv2dBiasBackwardOpIr,
+            |desc: &Conv2dBiasBackwardOpIr, handles: &mut HandleContainer<B::Handle>| {
+                let x = handles.get_float_tensor::<B>(&desc.x);
+                let bias = handles.get_float_tensor::<B>(&desc.bias);
+                let output_grad = handles.get_float_tensor::<B>(&desc.output_grad);
+                let output = B::conv2d_bias_backward(x, bias, output_grad);
+                handles.register_float_tensor::<B>(&desc.out.id, output);
+            }
+        );
+
+        let streams = OperationStreams::with_inputs([&x, &bias, &output_grad]);
+
+        let client = x.client.clone();
+        let desc = Conv2dBiasBackwardOpIr::create(
+            x.into_ir(),
+            bias.into_ir(),
+            output_grad.into_ir(),
+            || client.create_empty_handle(),
+        );
+
+        client
+            .register(
+                streams,
+                OperationIr::Module(ModuleOperationIr::Conv2dBiasBackward(desc.clone())),
+                Conv2dBiasBackwardOps::<B>::new(desc),
             )
             .output()
     }
@@ -313,6 +542,120 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             .output()
     }
 
+    fn conv3d_x_backward(
+        x: FloatTensor<Fusion<B>>,
+        weight: FloatTensor<Fusion<B>>,
+        output_grad: FloatTensor<Fusion<B>>,
+        options: ConvOptions<3>,
+    ) -> FloatTensor<Fusion<B>> {
+        make_ops!(
+            Conv3dXBackwardOps,
+            Conv3dXBackwardOpIr,
+            |desc: &Conv3dXBackwardOpIr, handles: &mut HandleContainer<B::Handle>| {
+                let x = handles.get_float_tensor::<B>(&desc.x);
+                let weight = handles.get_float_tensor::<B>(&desc.weight);
+                let output_grad = handles.get_float_tensor::<B>(&desc.output_grad);
+                let output =
+                    B::conv3d_x_backward(x, weight, output_grad, desc.options.clone().into());
+                handles.register_float_tensor::<B>(&desc.out.id, output);
+            }
+        );
+
+        let streams = OperationStreams::with_inputs([&x, &weight, &output_grad]);
+
+        let client = x.client.clone();
+        let desc = Conv3dXBackwardOpIr::create(
+            x.into_ir(),
+            weight.into_ir(),
+            output_grad.into_ir(),
+            options.into(),
+            || client.create_empty_handle(),
+        );
+
+        client
+            .register(
+                streams,
+                OperationIr::Module(ModuleOperationIr::Conv3dXBackward(desc.clone())),
+                Conv3dXBackwardOps::<B>::new(desc),
+            )
+            .output()
+    }
+
+    fn conv3d_weight_backward(
+        x: FloatTensor<Fusion<B>>,
+        weight: FloatTensor<Fusion<B>>,
+        output_grad: FloatTensor<Fusion<B>>,
+        options: ConvOptions<3>,
+    ) -> FloatTensor<Fusion<B>> {
+        make_ops!(
+            Conv3dWeightBackwardOps,
+            Conv3dWeightBackwardOpIr,
+            |desc: &Conv3dWeightBackwardOpIr, handles: &mut HandleContainer<B::Handle>| {
+                let x = handles.get_float_tensor::<B>(&desc.x);
+                let weight = handles.get_float_tensor::<B>(&desc.weight);
+                let output_grad = handles.get_float_tensor::<B>(&desc.output_grad);
+                let output =
+                    B::conv3d_weight_backward(x, weight, output_grad, desc.options.clone().into());
+                handles.register_float_tensor::<B>(&desc.out.id, output);
+            }
+        );
+
+        let streams = OperationStreams::with_inputs([&x, &weight, &output_grad]);
+
+        let client = x.client.clone();
+        let desc = Conv3dWeightBackwardOpIr::create(
+            x.into_ir(),
+            weight.into_ir(),
+            output_grad.into_ir(),
+            options.into(),
+            || client.create_empty_handle(),
+        );
+
+        client
+            .register(
+                streams,
+                OperationIr::Module(ModuleOperationIr::Conv3dWeightBackward(desc.clone())),
+                Conv3dWeightBackwardOps::<B>::new(desc),
+            )
+            .output()
+    }
+
+    fn conv3d_bias_backward(
+        x: FloatTensor<Fusion<B>>,
+        bias: FloatTensor<Fusion<B>>,
+        output_grad: FloatTensor<Fusion<B>>,
+    ) -> FloatTensor<Fusion<B>> {
+        make_ops!(
+            Conv3dBiasBackwardOps,
+            Conv3dBiasBackwardOpIr,
+            |desc: &Conv3dBiasBackwardOpIr, handles: &mut HandleContainer<B::Handle>| {
+                let x = handles.get_float_tensor::<B>(&desc.x);
+                let bias = handles.get_float_tensor::<B>(&desc.bias);
+                let output_grad = handles.get_float_tensor::<B>(&desc.output_grad);
+                let output = B::conv3d_bias_backward(x, bias, output_grad);
+                handles.register_float_tensor::<B>(&desc.out.id, output);
+            }
+        );
+
+        let streams = OperationStreams::with_inputs([&x, &bias, &output_grad]);
+
+        let client = x.client.clone();
+        let desc = Conv3dBiasBackwardOpIr::create(
+            x.into_ir(),
+            bias.into_ir(),
+            output_grad.into_ir(),
+            || client.create_empty_handle(),
+        );
+
+        client
+            .register(
+                streams,
+                OperationIr::Module(ModuleOperationIr::Conv3dBiasBackward(desc.clone())),
+                Conv3dBiasBackwardOps::<B>::new(desc),
+            )
+            .output()
+    }
+
     fn conv_transpose1d(
         x: FloatTensor<Self>,
         weight: FloatTensor<Self>,
@@ -454,6 +797,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         stride: usize,
         padding: usize,
         count_include_pad: bool,
+        ceil_mode: bool,
     ) -> FloatTensor<Self> {
         make_ops!(
             AvgPool1dOps,
@@ -466,6 +810,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
                     args.stride,
                     args.padding,
                     args.count_include_pad,
+                    args.ceil_mode,
                 );
 
                 handles.register_float_tensor::<B>(&args.out.id, output);
@@ -480,6 +825,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             stride,
             padding,
             count_include_pad,
+            ceil_mode,
             || client.create_empty_handle(),
         );
 
@@ -498,6 +844,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         stride: [usize; 2],
         padding: [usize; 2],
         count_include_pad: bool,
+        ceil_mode: bool,
     ) -> FloatTensor<Self> {
         make_ops!(
             AvgPool2dOps,
@@ -510,6 +857,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
                     args.stride,
                     args.padding,
                     args.count_include_pad,
+                    args.ceil_mode,
                 );
 
                 handles.register_float_tensor::<B>(&args.out.id, output);
@@ -525,6 +873,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             stride,
             padding,
             count_include_pad,
+            ceil_mode,
             || client.create_empty_handle(),
         );
 
@@ -544,6 +893,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         stride: usize,
         padding: usize,
         count_include_pad: bool,
+        ceil_mode: bool,
     ) -> FloatTensor<Self> {
         make_ops!(
             AvgPool1dBackwardOps,
@@ -558,6 +908,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
                     args.stride,
                     args.padding,
                     args.count_include_pad,
+                    args.ceil_mode,
                 );
 
                 handles.register_float_tensor::<B>(&args.out.id, output);
@@ -574,6 +925,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             stride,
             padding,
             count_include_pad,
+            ceil_mode,
             || client.create_empty_handle(),
         );
 
@@ -593,6 +945,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         stride: [usize; 2],
         padding: [usize; 2],
         count_include_pad: bool,
+        ceil_mode: bool,
     ) -> FloatTensor<Self> {
         make_ops!(
             AvgPool2dBackwardOps,
@@ -607,6 +960,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
                     args.stride,
                     args.padding,
                     args.count_include_pad,
+                    args.ceil_mode,
                 );
 
                 handles.register_float_tensor::<B>(&args.out.id, output);
@@ -623,6 +977,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             stride,
             padding,
             count_include_pad,
+            ceil_mode,
             || client.create_empty_handle(),
         );
 
@@ -641,6 +996,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         stride: usize,
         padding: usize,
         dilation: usize,
+        ceil_mode: bool,
     ) -> FloatTensor<Self> {
         make_ops!(
             MaxPool1dOps,
@@ -653,6 +1009,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
                     args.stride,
                     args.padding,
                     args.dilation,
+                    args.ceil_mode,
                 );
 
                 handles.register_float_tensor::<B>(&args.out.id, output);
@@ -662,10 +1019,15 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         let streams = OperationStreams::with_inputs([&x]);
 
         let client = x.client.clone();
-        let desc =
-            MaxPool1dOpIr::create(x.into_ir(), kernel_size, stride, padding, dilation, || {
-                client.create_empty_handle()
-            });
+        let desc = MaxPool1dOpIr::create(
+            x.into_ir(),
+            kernel_size,
+            stride,
+            padding,
+            dilation,
+            ceil_mode,
+            || client.create_empty_handle(),
+        );
 
         client
             .register(
@@ -682,6 +1044,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
+        ceil_mode: bool,
     ) -> FloatTensor<Self> {
         make_ops!(
             MaxPool2dOps,
@@ -694,6 +1057,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
                     args.stride,
                     args.padding,
                     args.dilation,
+                    args.ceil_mode,
                 );
 
                 handles.register_float_tensor::<B>(&args.out.id, output);
@@ -703,10 +1067,15 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         let streams = OperationStreams::with_inputs([&x]);
 
         let client = x.client.clone();
-        let desc =
-            MaxPool2dOpIr::create(x.into_ir(), kernel_size, stride, padding, dilation, || {
-                client.create_empty_handle()
-            });
+        let desc = MaxPool2dOpIr::create(
+            x.into_ir(),
+            kernel_size,
+            stride,
+            padding,
+            dilation,
+            ceil_mode,
+            || client.create_empty_handle(),
+        );
 
         client
             .register(
@@ -723,6 +1092,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         stride: usize,
         padding: usize,
         dilation: usize,
+        ceil_mode: bool,
     ) -> MaxPool1dWithIndices<Self> {
         make_ops!(
             MaxPool1dWithIndicesOps,
@@ -735,6 +1105,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
                     args.stride,
                     args.padding,
                     args.dilation,
+                    args.ceil_mode,
                 );
 
                 handles.register_float_tensor::<B>(&args.out.id, output.output);
@@ -751,6 +1122,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             stride,
             padding,
             dilation,
+            ceil_mode,
             B::IntElem::dtype(),
             || client.create_empty_handle(),
         );
@@ -772,6 +1144,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
+        ceil_mode: bool,
     ) -> MaxPool2dWithIndices<Self> {
         make_ops!(
             MaxPool2dWithIndicesOps,
@@ -784,6 +1157,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
                     args.stride,
                     args.padding,
                     args.dilation,
+                    args.ceil_mode,
                 );
 
                 handles.register_float_tensor::<B>(&args.out.id, output.output);
@@ -800,6 +1174,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             stride,
             padding,
             dilation,
+            ceil_mode,
             B::IntElem::dtype(),
             || client.create_empty_handle(),
         );
@@ -821,6 +1196,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         stride: usize,
         padding: usize,
         dilation: usize,
+        ceil_mode: bool,
         output_grad: FloatTensor<Self>,
         indices: IntTensor<Self>,
     ) -> MaxPool1dBackward<Self> {
@@ -837,6 +1213,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
                     args.stride,
                     args.padding,
                     args.dilation,
+                    args.ceil_mode,
                     grad,
                     indices,
                 );
@@ -856,6 +1233,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             stride,
             padding,
             dilation,
+            ceil_mode,
             || client.create_empty_handle(),
         );
 
@@ -878,6 +1256,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
+        ceil_mode: bool,
         output_grad: FloatTensor<Self>,
         indices: IntTensor<Self>,
     ) -> MaxPool2dBackward<Self> {
@@ -894,6 +1273,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
                     args.stride,
                     args.padding,
                     args.dilation,
+                    args.ceil_mode,
                     grad,
                     indices,
                 );
@@ -913,6 +1293,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             stride,
             padding,
             dilation,
+            ceil_mode,
             || client.create_empty_handle(),
         );
 

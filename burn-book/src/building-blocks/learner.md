@@ -3,7 +3,7 @@
 The [burn-train](https://github.com/tracel-ai/burn/tree/main/crates/burn-train) crate encapsulates
 multiple utilities for training deep learning models. The goal of the crate is to provide users with
 a well-crafted and flexible training loop, so that projects do not have to write such components
-from the ground up. Most of the interactions with `burn-train` will be with the `LearnerBuilder`
+from the ground up. Most of the interactions with `burn-train` will be with the `SupervisedTraining`
 struct, briefly presented in the previous [training section](../basic-workflow/training.md). This
 struct enables you to configure the training loop, offering support for registering metrics,
 enabling logging, checkpointing states, using multiple devices, and so on.
@@ -16,7 +16,7 @@ creating a [custom training loop](../custom-training-loop.md) might be what you 
 
 ## Usage
 
-The learner builder provides numerous options when it comes to configurations.
+The `SupervisedLearning` struct must be created with the training and validation dataloaders. It provides you with numerous options when it comes to configurations.
 
 | Configuration          | Description                                                                    |
 | ---------------------- | ------------------------------------------------------------------------------ |
@@ -32,21 +32,20 @@ The learner builder provides numerous options when it comes to configurations.
 | Devices                | Set the devices to be used                                                     |
 | Checkpoint             | Restart training from a checkpoint                                             |
 | Application logging    | Configure the application logging installer (default is writing to `experiment.log`)                                   |
+| Training Strategy      | Use a custom training strategy, allowing you to use your own training loop with all the capabilities of the `SupervisedTraining` struct          |
 
-When the builder is configured at your liking, you can then move forward to build the learner. The
-build method requires three inputs: the model, the optimizer and the learning rate scheduler. Note
+When the training is configured to your liking, you can then move forward to running the training. The
+`launch` method requires a learner object providing: the model, the optimizer and the learning rate scheduler. Note
 that the latter can be a simple float if you want it to be constant during training.
 
-The result will be a newly created Learner struct, which has only one method, the `fit` function
-which must be called with the training and validation dataloaders. This will start the training and
-return the trained model once finished.
+The `launch` method will start the training and return the trained model once finished.
 
 Again, please refer to the [training section](../basic-workflow/training.md) for a relevant code
 snippet.
 
 ## Artifacts
 
-When creating a new builder, all the collected data will be saved under the directory provided as
+When creating a `SupervisedTraining` instance, all the collected data will be saved under the directory provided as
 the argument to the `new` method. Here is an example of the data layout for a model recorded using
 the compressed message pack format, with the accuracy and loss metrics registered:
 

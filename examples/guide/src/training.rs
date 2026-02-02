@@ -10,7 +10,7 @@ use burn::{
     record::CompactRecorder,
     tensor::backend::AutodiffBackend,
     train::{
-        ClassificationOutput, LearnerBuilder, LearningStrategy, TrainOutput, TrainStep, ValidStep,
+        ClassificationOutput, InferenceStep, Learner, SupervisedTraining, TrainOutput, TrainStep,
         metric::{AccuracyMetric, LossMetric},
     },
 };
@@ -30,7 +30,10 @@ impl<B: Backend> Model<B> {
     }
 }
 
-impl<B: AutodiffBackend> TrainStep<MnistBatch<B>, ClassificationOutput<B>> for Model<B> {
+impl<B: AutodiffBackend> TrainStep for Model<B> {
+    type Input = MnistBatch<B>;
+    type Output = ClassificationOutput<B>;
+
     fn step(&self, batch: MnistBatch<B>) -> TrainOutput<ClassificationOutput<B>> {
         let item = self.forward_classification(batch.images, batch.targets);
 
@@ -38,7 +41,10 @@ impl<B: AutodiffBackend> TrainStep<MnistBatch<B>, ClassificationOutput<B>> for M
     }
 }
 
-impl<B: Backend> ValidStep<MnistBatch<B>, ClassificationOutput<B>> for Model<B> {
+impl<B: Backend> InferenceStep for Model<B> {
+    type Input = MnistBatch<B>;
+    type Output = ClassificationOutput<B>;
+
     fn step(&self, batch: MnistBatch<B>) -> ClassificationOutput<B> {
         self.forward_classification(batch.images, batch.targets)
     }
@@ -88,22 +94,18 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
         .num_workers(config.num_workers)
         .build(MnistDataset::test());
 
-    let learner = LearnerBuilder::new(artifact_dir)
-        .metric_train_numeric(AccuracyMetric::new())
-        .metric_valid_numeric(AccuracyMetric::new())
-        .metric_train_numeric(LossMetric::new())
-        .metric_valid_numeric(LossMetric::new())
+    let training = SupervisedTraining::new(artifact_dir, dataloader_train, dataloader_test)
+        .metrics((AccuracyMetric::new(), LossMetric::new()))
         .with_file_checkpointer(CompactRecorder::new())
         .num_epochs(config.num_epochs)
-        .summary()
-        .build(
-            config.model.init::<B>(&device),
-            config.optimizer.init(),
-            config.learning_rate,
-            LearningStrategy::SingleDevice(device.clone()),
-        );
+        .summary();
 
-    let result = learner.fit(dataloader_train, dataloader_test);
+    let model = config.model.init::<B>(&device);
+    let result = training.launch(Learner::new(
+        model,
+        config.optimizer.init(),
+        config.learning_rate,
+    ));
 
     result
         .model

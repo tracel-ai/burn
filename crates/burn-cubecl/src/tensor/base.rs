@@ -1,9 +1,9 @@
 use crate::CubeRuntime;
 use crate::element::CubeElement;
 use crate::kernel::{NumericUnaryOp, NumericUnaryOpFamily, launch_unary_numeric};
+use burn_backend::quantization::QuantScheme;
+use burn_backend::{DType, QTensorPrimitive, Shape, TensorMetadata};
 use burn_std::tensor::is_contiguous;
-use burn_tensor::quantization::QTensorPrimitive;
-use burn_tensor::{DType, Shape, TensorMetadata};
 use cubecl::client::ComputeClient;
 use cubecl::frontend::Numeric;
 use cubecl::prelude::{TensorHandleRef, *};
@@ -45,79 +45,12 @@ impl<R: CubeRuntime> From<CubeTensor<R>> for TensorHandle<R> {
 impl<R: CubeRuntime> cubecl::tune::AutotuneOutput for CubeTensor<R> {
     #[cfg(feature = "autotune-checks")]
     fn check_equivalence(&self, other: Self) {
-        use burn_tensor::Tolerance;
-
         use crate::ops::into_data_sync;
+        use burn_backend::Tolerance;
 
-        match self.dtype {
-            DType::F64 => {
-                let expected = into_data_sync::<R, f64>(self.clone());
-                let actual = into_data_sync::<R, f64>(other);
-                expected.assert_approx_eq::<f64>(&actual, Tolerance::permissive());
-            }
-            DType::F32 | DType::Flex32 => {
-                let expected = into_data_sync::<R, f32>(self.clone());
-                let actual = into_data_sync::<R, f32>(other);
-                expected.assert_approx_eq::<f32>(&actual, Tolerance::permissive());
-            }
-            DType::F16 => {
-                let expected = into_data_sync::<R, half::f16>(self.clone());
-                let actual = into_data_sync::<R, half::f16>(other);
-                expected.assert_approx_eq::<half::f16>(&actual, Tolerance::permissive());
-            }
-            DType::BF16 => {
-                let expected = into_data_sync::<R, half::bf16>(self.clone());
-                let actual = into_data_sync::<R, half::bf16>(other);
-                expected.assert_approx_eq::<half::bf16>(&actual, Tolerance::permissive());
-            }
-            DType::I64 => {
-                let expected = into_data_sync::<R, i64>(self.clone());
-                let actual = into_data_sync::<R, i64>(other);
-                expected.assert_eq(&actual, true);
-            }
-            DType::I32 => {
-                let expected = into_data_sync::<R, i32>(self.clone());
-                let actual = into_data_sync::<R, i32>(other);
-                expected.assert_eq(&actual, true);
-            }
-            DType::I16 => {
-                let expected = into_data_sync::<R, i16>(self.clone());
-                let actual = into_data_sync::<R, i16>(other);
-                expected.assert_eq(&actual, true);
-            }
-            DType::I8 => {
-                let expected = into_data_sync::<R, i8>(self.clone());
-                let actual = into_data_sync::<R, i8>(other);
-                expected.assert_eq(&actual, true);
-            }
-            DType::U64 => {
-                let expected = into_data_sync::<R, u64>(self.clone());
-                let actual = into_data_sync::<R, u64>(other);
-                expected.assert_eq(&actual, true);
-            }
-            DType::U32 => {
-                let expected = into_data_sync::<R, u32>(self.clone());
-                let actual = into_data_sync::<R, u32>(other);
-                expected.assert_eq(&actual, true);
-            }
-            DType::U16 => {
-                let expected = into_data_sync::<R, u16>(self.clone());
-                let actual = into_data_sync::<R, u16>(other);
-                expected.assert_eq(&actual, true);
-            }
-            DType::U8 => {
-                let expected = into_data_sync::<R, u8>(self.clone());
-                let actual = into_data_sync::<R, u8>(other);
-                expected.assert_eq(&actual, true);
-            }
-            DType::Bool => (),
-            DType::QFloat(..) => (),
-            DType::Complex32 | DType::Complex64 => {
-                // Complex numbers don't implement Float trait, so we can't use assert_approx_eq
-                // For now, just skip the assertion since complex ops are not implemented yet
-                ()
-            }
-        }
+        let expected = into_data_sync::<R>(self.clone());
+        let actual = into_data_sync::<R>(other);
+        expected.assert_approx_eq::<f32>(&actual, Tolerance::permissive());
     }
 }
 
@@ -169,7 +102,7 @@ impl<R: CubeRuntime> TensorMetadata for CubeTensor<R> {
 }
 
 impl<R: CubeRuntime> QTensorPrimitive for CubeTensor<R> {
-    fn scheme(&self) -> &burn_tensor::quantization::QuantScheme {
+    fn scheme(&self) -> &QuantScheme {
         if let DType::QFloat(scheme) = &self.dtype {
             scheme
         } else {
@@ -273,7 +206,7 @@ where
     }
 
     /// Return the reference to a tensor argument.
-    pub fn as_tensor_arg<'a>(&'a self, line_size: u8) -> TensorArg<'a, R> {
+    pub fn as_tensor_arg<'a>(&'a self, line_size: LineSize) -> TensorArg<'a, R> {
         let size = self.dtype.size();
         let handle: TensorHandleRef<'a, R> = self.as_handle_ref();
 
@@ -289,18 +222,26 @@ where
     }
 
     /// Return the reference to an array argument.
-    pub fn as_array_arg<E: CubeElement>(&self, vectorisation: u8) -> ArrayArg<'_, R> {
+    pub fn as_array_arg<E: CubeElement>(&self, line_size: LineSize) -> ArrayArg<'_, R> {
         unsafe {
             ArrayArg::from_raw_parts::<E>(
                 &self.handle,
                 self.handle.size() as usize / core::mem::size_of::<E>(),
-                vectorisation,
+                line_size,
             )
         }
     }
 
+    /// Return the `QuantScheme` if present
+    pub fn try_scheme(&self) -> Option<&QuantScheme> {
+        match &self.dtype {
+            DType::QFloat(scheme) => Some(scheme),
+            _ => None,
+        }
+    }
+
     pub(crate) fn can_mut_broadcast(&self, rhs: &Self) -> bool {
-        if !self.handle.can_mut() || !self.is_contiguous_buffer() {
+        if !self.handle.can_mut() || !self.is_nonoverlapping() {
             return false;
         }
         let ndims = self.shape.num_dims();
@@ -369,6 +310,28 @@ where
     /// regions within the shape).
     pub fn is_contiguous_buffer(&self) -> bool {
         self.shape.num_elements() * self.dtype.size() == self.handle.size() as usize
+    }
+
+    /// Checks if the tensor is non-overlapping (can be safely written to).
+    pub fn is_nonoverlapping(&self) -> bool {
+        if self.strides.contains(&0) {
+            return false;
+        }
+        let rank = self.rank();
+        if rank > 1 {
+            let mut dims = self.shape.iter().zip(&self.strides).collect::<Vec<_>>();
+            dims.sort_by_key(|(_, stride)| **stride);
+
+            let mut max_offset = 0;
+            for (shape, stride) in dims.into_iter() {
+                if *stride <= max_offset && *shape != 1 {
+                    return false;
+                }
+
+                max_offset += (*shape - 1) * *stride;
+            }
+        }
+        true
     }
 }
 

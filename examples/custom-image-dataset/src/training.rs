@@ -13,7 +13,7 @@ use burn::{
     record::CompactRecorder,
     tensor::backend::AutodiffBackend,
     train::{
-        ClassificationOutput, LearnerBuilder, LearningStrategy, TrainOutput, TrainStep, ValidStep,
+        ClassificationOutput, InferenceStep, Learner, SupervisedTraining, TrainOutput, TrainStep,
         metric::{AccuracyMetric, LossMetric},
     },
 };
@@ -36,7 +36,10 @@ impl<B: Backend> Cnn<B> {
     }
 }
 
-impl<B: AutodiffBackend> TrainStep<ClassificationBatch<B>, ClassificationOutput<B>> for Cnn<B> {
+impl<B: AutodiffBackend> TrainStep for Cnn<B> {
+    type Input = ClassificationBatch<B>;
+    type Output = ClassificationOutput<B>;
+
     fn step(&self, batch: ClassificationBatch<B>) -> TrainOutput<ClassificationOutput<B>> {
         let item = self.forward_classification(batch.images, batch.targets);
 
@@ -44,7 +47,10 @@ impl<B: AutodiffBackend> TrainStep<ClassificationBatch<B>, ClassificationOutput<
     }
 }
 
-impl<B: Backend> ValidStep<ClassificationBatch<B>, ClassificationOutput<B>> for Cnn<B> {
+impl<B: Backend> InferenceStep for Cnn<B> {
+    type Input = ClassificationBatch<B>;
+    type Output = ClassificationOutput<B>;
+
     fn step(&self, batch: ClassificationBatch<B>) -> ClassificationOutput<B> {
         self.forward_classification(batch.images, batch.targets)
     }
@@ -97,24 +103,24 @@ pub fn train<B: AutodiffBackend>(config: TrainingConfig, device: B::Device) {
         .build(ImageFolderDataset::cifar10_test());
 
     // Learner config
-    let learner = LearnerBuilder::new(ARTIFACT_DIR)
+    let training = SupervisedTraining::new(ARTIFACT_DIR, dataloader_train, dataloader_test)
         .metric_train_numeric(AccuracyMetric::new())
         .metric_valid_numeric(AccuracyMetric::new())
         .metric_train_numeric(LossMetric::new())
         .metric_valid_numeric(LossMetric::new())
         .with_file_checkpointer(CompactRecorder::new())
         .num_epochs(config.num_epochs)
-        .summary()
-        .build(
-            Cnn::new(NUM_CLASSES.into(), &device),
-            config.optimizer.init(),
-            config.learning_rate,
-            LearningStrategy::SingleDevice(device.clone()),
-        );
+        .summary();
+
+    let model = Cnn::new(NUM_CLASSES.into(), &device);
 
     // Training
     let now = Instant::now();
-    let result = learner.fit(dataloader_train, dataloader_test);
+    let result = training.launch(Learner::new(
+        model,
+        config.optimizer.init(),
+        config.learning_rate,
+    ));
     let elapsed = now.elapsed().as_secs();
     println!("Training completed in {}m{}s", (elapsed / 60), elapsed % 60);
 

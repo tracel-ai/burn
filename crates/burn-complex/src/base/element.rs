@@ -2,10 +2,10 @@
 
 /// 32-bit complex number type (real and imaginary parts are f32).
 use burn_tensor::{
-    DType, Distribution, Element, ElementComparison, ElementConversion, ElementLimits,
-    ElementRandom, cast::ToElement,
+    DType, Distribution, Element, ElementConversion, ElementEq, ElementLimits, ElementRandom,
+    cast::ToElement,
 };
-use core::cmp::Ordering;
+
 use num_traits::identities::ConstZero;
 use rand::RngCore;
 pub trait ToComplex<C> {
@@ -181,15 +181,6 @@ macro_rules! make_complex {
             }
         }
 
-        impl ElementComparison for $type {
-            fn cmp(&self, other: &Self) -> Ordering {
-                let a = self.to_complex();
-                let b = other.to_complex();
-                #[allow(clippy::redundant_closure_call)]
-                $cmp(&a, &b)
-            }
-        }
-
         impl ElementLimits for $type {
             const MIN: Self = $min;
             const MAX: Self = $max;
@@ -225,6 +216,12 @@ macro_rules! make_complex {
             #[inline]
             fn to_complex64(&self) -> Complex64 {
                 Complex64::new(self.real as f64, self.imag as f64)
+            }
+        }
+
+        impl ElementEq for $type {
+            fn eq(&self, other: &Self) -> bool {
+                self.real == other.real && self.imag == other.imag
             }
         }
 

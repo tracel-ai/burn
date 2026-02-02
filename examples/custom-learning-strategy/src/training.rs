@@ -1,15 +1,17 @@
-use burn::train::EventProcessorTraining;
-
-use std::{marker::PhantomData, sync::Arc};
-
 use crate::model::ModelConfig;
+use burn::record::NoStdTrainingRecorder;
+use burn::train::{
+    EventProcessorTraining, Learner, LearningComponentsTypes, SupervisedLearningStrategy,
+    SupervisedTraining, SupervisedTrainingEventProcessor, TrainLoader, TrainingBackend,
+    TrainingComponents, TrainingModel, ValidLoader,
+};
 use burn::{
     data::{
         dataloader::DataLoaderBuilder,
         dataset::{transform::PartialDataset, vision::MnistDataset},
     },
     lr_scheduler::{
-        LrScheduler, composed::ComposedLrSchedulerConfig, cosine::CosineAnnealingLrSchedulerConfig,
+        composed::ComposedLrSchedulerConfig, cosine::CosineAnnealingLrSchedulerConfig,
         linear::LinearLrSchedulerConfig,
     },
     module::AutodiffModule,
@@ -18,22 +20,21 @@ use burn::{
     record::CompactRecorder,
     tensor::{Device, backend::AutodiffBackend},
     train::{
-        LearnerBuilder, LearnerComponentTypes, LearnerEvent, LearnerItem, LearningMethod,
-        MetricEarlyStoppingStrategy, StoppingCondition, TrainLoader, TrainStep, ValidLoader,
-        ValidStep,
+        InferenceStep, LearnerEvent, LearnerItem, MetricEarlyStoppingStrategy, StoppingCondition,
         metric::{
-            AccuracyMetric, LearningRateMetric, LossMetric,
+            AccuracyMetric, LossMetric,
             store::{Aggregate, Direction, Split},
         },
     },
 };
 use guide::data::MnistBatcher;
+use std::{marker::PhantomData, sync::Arc};
 
 static ARTIFACT_DIR: &str = "/tmp/burn-example-mnist";
 
 #[derive(Config, Debug)]
 pub struct MnistTrainingConfig {
-    #[config(default = 10)]
+    #[config(default = 5)]
     pub num_epochs: usize,
     #[config(default = 64)]
     pub batch_size: usize,
@@ -65,19 +66,9 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
     let model = config.model.init::<B>(&device);
 
     let dataset_train_original = Arc::new(MnistDataset::train());
-    let dataset_train = PartialDataset::new(dataset_train_original.clone(), 0, 55_000);
-    let dataset_valid = PartialDataset::new(dataset_train_original.clone(), 55_000, 60_000);
+    let dataset_train = PartialDataset::new(dataset_train_original.clone(), 0, 15_000);
+    let dataset_valid = PartialDataset::new(dataset_train_original.clone(), 15_000, 17_000);
 
-    let dataloader_train = DataLoaderBuilder::new(MnistBatcher::default())
-        .batch_size(config.batch_size)
-        .shuffle(config.seed)
-        .num_workers(config.num_workers)
-        .build(dataset_train);
-    let dataloader_valid = DataLoaderBuilder::new(MnistBatcher::default())
-        .batch_size(config.batch_size)
-        .shuffle(config.seed)
-        .num_workers(config.num_workers)
-        .build(dataset_valid);
     let lr_scheduler = ComposedLrSchedulerConfig::new()
         .cosine(CosineAnnealingLrSchedulerConfig::new(1.0, 2000))
         // Warmup
@@ -91,32 +82,50 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         StoppingCondition::NoImprovementSince { n_epochs: 5 },
     );
 
-    let learner = LearnerBuilder::new(ARTIFACT_DIR)
+    let dataloader_train = DataLoaderBuilder::new(MnistBatcher::default())
+        .batch_size(config.batch_size)
+        .shuffle(config.seed)
+        .num_workers(config.num_workers)
+        .build(dataset_train);
+
+    let dataloader_valid = DataLoaderBuilder::new(MnistBatcher::default())
+        .batch_size(config.batch_size)
+        .shuffle(config.seed)
+        .num_workers(config.num_workers)
+        .build(dataset_valid);
+
+    let training = SupervisedTraining::new(ARTIFACT_DIR, dataloader_train, dataloader_valid)
         .metrics((AccuracyMetric::new(), LossMetric::new()))
-        .metric_train_numeric(LearningRateMetric::new())
         .with_file_checkpointer(CompactRecorder::new())
         .early_stopping(early_stopping)
         .num_epochs(config.num_epochs)
         .summary()
-        .build(
-            model,
-            config.optimizer.init(),
-            lr_scheduler.init().unwrap(),
-            burn::train::LearningStrategy::CustomSingleDevice(Arc::new(
-                MyCustomLearningStrategy::new(device),
-            )),
-        );
+        .with_training_strategy(burn::train::TrainingStrategy::Custom(Arc::new(
+            MyCustomLearningStrategy::new(device),
+        )));
 
-    learner.fit(dataloader_train, dataloader_valid);
+    let result = training.launch(Learner::new(
+        model,
+        config.optimizer.init(),
+        lr_scheduler.init().unwrap(),
+    ));
+
+    result
+        .model
+        .save_file(
+            format!("{ARTIFACT_DIR}/model"),
+            &NoStdTrainingRecorder::new(),
+        )
+        .expect("Failed to save trained model");
 }
 
-struct MyCustomLearningStrategy<LC: LearnerComponentTypes> {
-    device: Device<LC::Backend>,
+struct MyCustomLearningStrategy<LC: LearningComponentsTypes> {
+    device: Device<TrainingBackend<LC>>,
     _p: PhantomData<LC>,
 }
 
-impl<LC: LearnerComponentTypes> MyCustomLearningStrategy<LC> {
-    pub fn new(device: Device<LC::Backend>) -> Self {
+impl<LC: LearningComponentsTypes> MyCustomLearningStrategy<LC> {
+    pub fn new(device: Device<TrainingBackend<LC>>) -> Self {
         Self {
             device,
             _p: PhantomData,
@@ -124,39 +133,24 @@ impl<LC: LearnerComponentTypes> MyCustomLearningStrategy<LC> {
     }
 }
 
-impl<LC: LearnerComponentTypes> LearningMethod<LC> for MyCustomLearningStrategy<LC> {
-    type PreparedDataloaders = (TrainLoader<LC>, ValidLoader<LC>);
-
-    type PreparedModel = <LC as LearnerComponentTypes>::Model;
-
-    fn prepare_dataloaders(
+impl<LC: LearningComponentsTypes> SupervisedLearningStrategy<LC> for MyCustomLearningStrategy<LC> {
+    fn fit(
         &self,
+        training_components: TrainingComponents<LC>,
+        mut learner: Learner<LC>,
         dataloader_train: TrainLoader<LC>,
         dataloader_valid: ValidLoader<LC>,
-    ) -> Self::PreparedDataloaders {
-        // The reference model is always on the first device provided.
-        let train = dataloader_train.to_device(&self.device);
-        let valid = dataloader_valid.to_device(&self.device);
-
-        (train, valid)
-    }
-
-    fn prepare_model(&self, model: LC::Model) -> Self::PreparedModel {
-        model.fork(&self.device)
-    }
-
-    fn learn(
-        &self,
-        mut model: Self::PreparedModel,
-        (dataloader_train, dataloader_valid): Self::PreparedDataloaders,
         starting_epoch: usize,
-        components: burn::train::LearnerComponents<LC>,
-    ) -> (LC::Model, LC::EventProcessor) {
-        let mut scheduler = components.lr_scheduler;
-        let mut optim = components.optim;
-        let mut processor = components.event_processor;
+    ) -> (TrainingModel<LC>, SupervisedTrainingEventProcessor<LC>) {
+        let dataloader_train = dataloader_train.to_device(&self.device);
+        let dataloader_valid = dataloader_valid.to_device(&self.device);
+        learner.fork(&self.device);
+        let mut event_processor = training_components.event_processor;
+        let mut checkpointer = training_components.checkpointer;
+        let interrupter = training_components.interrupter;
+        let num_epochs = training_components.num_epochs;
 
-        for epoch in starting_epoch..components.num_epochs + 1 {
+        for epoch in starting_epoch..num_epochs + 1 {
             // Iterate over our training and validation loop for X epochs.
             log::info!("Executing training step for epoch {}", epoch,);
 
@@ -166,27 +160,35 @@ impl<LC: LearnerComponentTypes> LearningMethod<LC> for MyCustomLearningStrategy<
 
             while let Some(item) = iterator.next() {
                 iteration += 1;
-                let lr = scheduler.step();
-                log::info!("Iteration {iteration}");
+                learner.lr_step();
+                log::info!("Iteration {iteration} of my custom learning strategy");
 
                 let progress = iterator.progress();
-                let item = model.step(item);
-                model = model.optimize(&mut optim, lr, item.grads);
+                let item = learner.train_step(item);
+                learner.optimizer_step(item.grads);
 
                 let item = LearnerItem::new(
                     item.item,
                     progress,
                     epoch,
-                    components.num_epochs,
+                    num_epochs,
                     iteration,
-                    Some(lr),
+                    Some(learner.lr_current()),
                 );
 
-                processor.process_train(LearnerEvent::ProcessedItem(item));
-            }
-            processor.process_train(LearnerEvent::EndEpoch(epoch));
+                event_processor.process_train(LearnerEvent::ProcessedItem(item));
 
-            let model_valid = model.valid();
+                if interrupter.should_stop() {
+                    let reason = interrupter
+                        .get_message()
+                        .unwrap_or(String::from("Reason unknown"));
+                    log::info!("Training interrupted: {reason}");
+                    break;
+                }
+            }
+            event_processor.process_train(LearnerEvent::EndEpoch(epoch));
+
+            let model_valid = learner.model().valid();
 
             let mut iterator = dataloader_valid.iter();
             let mut iteration = 0;
@@ -196,20 +198,17 @@ impl<LC: LearnerComponentTypes> LearningMethod<LC> for MyCustomLearningStrategy<
                 iteration += 1;
 
                 let item = model_valid.step(item);
-                let item = LearnerItem::new(
-                    item,
-                    progress,
-                    epoch,
-                    components.num_epochs,
-                    iteration,
-                    None,
-                );
+                let item = LearnerItem::new(item, progress, epoch, num_epochs, iteration, None);
 
-                processor.process_valid(LearnerEvent::ProcessedItem(item));
+                event_processor.process_valid(LearnerEvent::ProcessedItem(item));
             }
-            processor.process_valid(LearnerEvent::EndEpoch(epoch));
+            event_processor.process_valid(LearnerEvent::EndEpoch(epoch));
+
+            if let Some(checkpointer) = &mut checkpointer {
+                checkpointer.checkpoint(&learner, epoch, &training_components.event_store);
+            }
         }
 
-        (model, processor)
+        (learner.model(), event_processor)
     }
 }

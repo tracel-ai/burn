@@ -21,28 +21,20 @@ default = ["std", "fusion", "autotune", "burn-cubecl/default", "cubecl/default"]
 doc = ["burn-cubecl/doc"]
 fusion = ["burn-fusion", "burn-cubecl/fusion"]
 std = ["burn-cubecl/std", "cubecl/std"]
+tracing = [
+    "burn-backend/tracing",
+    "burn-cubecl/tracing",
+    "burn-fusion?/tracing",
+    "cubecl/tracing",
+]
 
 [dependencies]
-burn-fusion = { path = "../burn-fusion", version = "=0.20.0-pre.3", optional = true }
-burn-cubecl = { path = "../burn-cubecl", version = "=0.20.0-pre.3", default-features = false }
-burn-tensor = { path = "../burn-tensor", version = "=0.20.0-pre.3", features = [
+burn-fusion = { path = "../burn-fusion", version = "=0.21.0", optional = true }
+burn-cubecl = { path = "../burn-cubecl", version = "=0.21.0", default-features = false }
+burn-backend = { path = "../burn-backend", version = "=0.21.0", default-features = false, features = [
     "cubecl-cuda",
 ] }
 cubecl = { workspace = true, features = ["cuda"] }
-
-bytemuck = { workspace = true }
-half = { workspace = true }
-
-derive-new = { workspace = true }
-log = { workspace = true }
-
-
-[dev-dependencies]
-burn-cubecl = { path = "../burn-cubecl", version = "=0.20.0-pre.3", default-features = false, features = [
-    "export_tests",
-] }
-paste = { workspace = true }
-
 
 [package.metadata.docs.rs]
 features = ["doc"]

@@ -1,14 +1,21 @@
 //! Tensor shape definition.
 
+use super::indexing::ravel_index;
+use super::{AsIndex, Slice, SliceArg};
+use alloc::format;
+use alloc::string::{String, ToString};
+use alloc::vec;
 use alloc::vec::Vec;
+use core::fmt::{Debug, Display, Formatter};
+use core::str::FromStr;
 use core::{
     ops::{Deref, DerefMut, Index, IndexMut, Range},
     slice::{Iter, IterMut, SliceIndex},
 };
 use serde::{Deserialize, Serialize};
 
-use super::indexing::ravel_index;
-use super::{AsIndex, Slice, SliceArg};
+pub use crate::errors::ExpressionError;
+pub use crate::tensor::index_conversion::AsSize;
 
 /// Shape of a tensor.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -33,8 +40,16 @@ pub enum ShapeError {
     OutOfBounds { dim: usize, rank: usize },
     /// A pair of shapes are incompatible for the operation.
     IncompatibleShapes { left: Shape, right: Shape },
-    /// Invalid empty shape.
-    Empty,
+    /// Invalid shape.
+    Invalid { reason: String },
+}
+
+impl ShapeError {
+    fn empty() -> Self {
+        Self::Invalid {
+            reason: "Shape is empty.".into(),
+        }
+    }
 }
 
 impl Shape {
@@ -79,6 +94,58 @@ impl Shape {
         self
     }
 
+    /// Flatten the shape along a given range of dimensions.
+    ///
+    /// This function collapses the specified range of dimensions into a single dimension,
+    /// effectively flattening the tensor in that range.
+    ///
+    /// # Arguments
+    ///
+    /// - `start_dim`: The starting dimension of the range to be flattened,
+    ///   supports negative indexing.
+    /// - `end_dim`: The ending dimension of the range to be flattened (inclusive),
+    ///   supports negative indexing.
+    ///
+    /// # Returns
+    ///
+    /// A new `Shape` instance with the specified range of dimensions flattened.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_std::Shape;
+    ///
+    /// fn example() {
+    ///     let shape = Shape::new([2, 3, 4]);
+    ///
+    ///     let flattened = shape.flatten_dims(1, 2);
+    ///     println!("{flattened}");
+    ///     // [2, 12]
+    /// }
+    /// ```
+    pub fn flatten_dims(self, start_dim: impl AsIndex, end_dim: impl AsIndex) -> Self {
+        let rank = self.rank();
+        let start = start_dim.expect_dim_index(rank);
+        let end = end_dim.expect_dim_index(rank);
+
+        assert!(
+            start <= end,
+            "start_dim ({start}) must be <= than end_dim ({end})"
+        );
+
+        let existing = self.dims;
+
+        let flattened_size = existing[start..=end].iter().product();
+
+        let new_rank = rank - (end - start);
+        let mut dims = vec![0; new_rank];
+        dims[..start].copy_from_slice(&existing[..start]);
+        dims[start] = flattened_size;
+        dims[start + 1..].copy_from_slice(&existing[end + 1..]);
+
+        Self { dims }
+    }
+
     /// Compute the ravel index for the given coordinates.
     ///
     /// This returns the row-major order raveling:
@@ -98,7 +165,7 @@ impl Shape {
 
     /// Convert shape dimensions to full covering ranges (0..dim) for each dimension.
     pub fn into_ranges(self) -> Vec<Range<usize>> {
-        self.into_iter().map(|d| 0..d).collect()
+        self.iter().map(|&d| 0..d).collect()
     }
 
     /// Converts slice arguments into an array of slice specifications for the shape.
@@ -160,11 +227,11 @@ impl Shape {
     /// - [`Shape::into_ranges`] - Convert to full covering ranges
     ///
     /// [`s!`]: crate::s!
-    pub fn into_slices<const D: usize, S>(self, slices: S) -> [Slice; D]
+    pub fn into_slices<S>(self, slices: S) -> Vec<Slice>
     where
-        S: SliceArg<D>,
+        S: SliceArg,
     {
-        slices.into_slices(self)
+        slices.into_slices(&self)
     }
 
     /// Construct a vector of the dims.
@@ -277,7 +344,7 @@ impl Shape {
     {
         let mut iter = shapes.into_iter();
 
-        let first = iter.next().ok_or(ShapeError::Empty)?;
+        let first = iter.next().ok_or(ShapeError::empty())?;
 
         if dim >= first.rank() {
             return Err(ShapeError::OutOfBounds {
@@ -346,7 +413,7 @@ impl Shape {
         I: IntoIterator<Item = &'a Shape>,
     {
         let mut iter = shapes.into_iter();
-        let mut broadcasted = iter.next().ok_or(ShapeError::Empty)?.clone();
+        let mut broadcasted = iter.next().ok_or(ShapeError::empty())?.clone();
         let rank = broadcasted.rank();
 
         for shape in iter {
@@ -400,14 +467,74 @@ impl Shape {
     }
 
     /// Reshape this shape to the target shape.
-    pub fn reshape(&self, target: Shape) -> Result<Shape, ShapeError> {
-        if self.num_elements() != target.num_elements() {
-            return Err(ShapeError::IncompatibleShapes {
-                left: self.clone(),
-                right: target,
-            });
+    pub fn reshape<A, T>(&self, args: A) -> Result<Shape, ShapeError>
+    where
+        A: AsRef<[T]> + Debug,
+        T: AsIndex,
+    {
+        let args = args.as_ref();
+        let mut infer_index = None;
+        let mut dims = Vec::new();
+
+        let mut new_size = 1;
+
+        for (idx, &s) in args.iter().enumerate() {
+            let s = s.as_index();
+            if s > 0 {
+                let s = s as usize;
+                new_size *= s;
+                dims.push(s);
+            } else if s == 0 {
+                // We need to find the index of the 0 dimensions and
+                // replace them with the actual dimension value.
+                let s = self.dims[idx];
+                new_size *= s;
+                dims.push(s);
+            } else if s == -1 {
+                match infer_index {
+                    None => {
+                        infer_index = Some(idx);
+                        // Used by / Replaced by handling later.
+                        dims.push(1);
+                    }
+                    Some(_) => {
+                        return Err(ShapeError::Invalid {
+                            reason: "Repeated -1 in reshape".to_string(),
+                        });
+                    }
+                }
+            } else {
+                return Err(ShapeError::Invalid {
+                    reason: "The given shape cannot contain negative dimensions (other than -1)."
+                        .to_string(),
+                });
+            }
         }
-        Ok(target)
+
+        let source_size = self.num_elements();
+        match infer_index {
+            None => {
+                if source_size != new_size {
+                    return Err(ShapeError::Invalid {
+                        reason: format!(
+                            "The given shape doesn't have the same number of elements as the current shape. Current shape: {self}, target shape: {dims:?}.",
+                        ),
+                    });
+                }
+            }
+            Some(idx) => {
+                if !source_size.is_multiple_of(new_size) {
+                    return Err(ShapeError::Invalid {
+                        reason: format!(
+                            "Cannot infer a valid target shape. Current shape: {self}, target dimensions: {args:?}."
+                        ),
+                    });
+                }
+                dims[idx] = source_size / new_size;
+            }
+        }
+
+        Ok(dims.into())
     }
 }
 
@@ -442,12 +569,55 @@ pub fn calculate_matmul_output(lhs: &Shape, rhs: &Shape) -> Result<Shape, ShapeE
     Ok(shape)
 }
 
-impl IntoIterator for Shape {
-    type Item = usize;
-    type IntoIter = alloc::vec::IntoIter<Self::Item>;
+impl Display for Shape {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        self.dims.fmt(f)
+    }
+}
 
-    fn into_iter(self) -> Self::IntoIter {
-        self.dims.into_iter()
+impl FromStr for Shape {
+    type Err = crate::ExpressionError;
+
+    fn from_str(source: &str) -> Result<Self, Self::Err> {
+        let mut s = source.trim();
+
+        const DELIMS: [(&str, &str); 2] = [("[", "]"), ("(", ")")];
+
+        for (open, close) in DELIMS {
+            if let Some(p) = s.strip_prefix(open) {
+                if let Some(p) = p.strip_suffix(close) {
+                    s = p.trim();
+                    break;
+                } else {
+                    return Err(crate::ExpressionError::ParseError {
+                        message: "Unbalanced delimiters".to_string(),
+                        source: source.to_string(),
+                    });
+                }
+            }
+        }
+
+        if s.is_empty() {
+            return Ok(Shape::new([]));
+        }
+
+        let dims =
+            s.split(',')
+                .map(|dim_str| {
+                    dim_str.trim().parse::<usize>().map_err(|_| {
+                        crate::ExpressionError::ParseError {
+                            message: "Unable to parse shape".to_string(),
+                            source: source.to_string(),
+                        }
+                    })
+                })
+                .collect::<Result<Vec<usize>, crate::ExpressionError>>()?;
+
+        if dims.is_empty() {
+            unreachable!("Split should have returned at least one element");
+        }
+
+        Ok(Shape { dims })
     }
 }
 
@@ -486,63 +656,13 @@ impl DerefMut for Shape {
         &mut self.dims
     }
 }
-
-// Conversion sugar
-impl<const D: usize> From<[usize; D]> for Shape {
-    fn from(dims: [usize; D]) -> Self {
-        Shape::new(dims)
-    }
-}
-
-impl<const D: usize> From<[i64; D]> for Shape {
-    fn from(dims: [i64; D]) -> Self {
-        Shape {
-            dims: dims.into_iter().map(|d| d as usize).collect(),
-        }
-    }
-}
-
-impl<const D: usize> From<[i32; D]> for Shape {
-    fn from(dims: [i32; D]) -> Self {
-        Shape {
-            dims: dims.into_iter().map(|d| d as usize).collect(),
-        }
-    }
-}
-
-impl From<&[usize]> for Shape {
-    fn from(dims: &[usize]) -> Self {
-        Shape { dims: dims.into() }
-    }
-}
-
-impl From<Vec<i64>> for Shape {
-    fn from(shape: Vec<i64>) -> Self {
-        Self {
-            dims: shape.into_iter().map(|d| d as usize).collect(),
-        }
-    }
-}
-
-impl From<Vec<u64>> for Shape {
-    fn from(shape: Vec<u64>) -> Self {
-        Self {
-            dims: shape.into_iter().map(|d| d as usize).collect(),
-        }
-    }
-}
-
-impl From<Vec<usize>> for Shape {
-    fn from(shape: Vec<usize>) -> Self {
-        Self { dims: shape }
-    }
-}
-
-impl From<&Vec<usize>> for Shape {
-    fn from(shape: &Vec<usize>) -> Self {
-        Self {
-            dims: shape.clone(),
-        }
+// Allow `shape.reshape(other_shape)`.
+//
+// By implementing `AsRef<[usize]>`, `Shape` behaves like a slice of dimensions,
+// similar to how `Vec<T>` can be passed to functions expecting a slice.
+impl AsRef<[usize]> for Shape {
+    fn as_ref(&self) -> &[usize] {
+        &self.dims
     }
 }
 
@@ -552,12 +672,100 @@ impl From<Shape> for Vec<usize> {
     }
 }
 
+impl<T, I> From<T> for Shape
+where
+    T: IntoIterator<Item = I>,
+    I: AsSize,
+{
+    fn from(dims: T) -> Self {
+        Shape {
+            dims: dims.into_iter().map(|d| d.as_size()).collect(),
+        }
+    }
+}
+
 #[cfg(test)]
 #[allow(clippy::identity_op, reason = "useful for clarity")]
 mod tests {
     use super::*;
     use crate::s;
+    use alloc::string::ToString;
     use alloc::vec;
+
+    #[test]
+    fn test_shape_to_str() {
+        let shape = Shape::new([2, 3, 4, 5]);
+        assert_eq!(shape.to_string(), "[2, 3, 4, 5]");
+    }
+
+    #[test]
+    fn test_shape_from_str() {
+        assert_eq!(
+            "[2, 3, 4, 5]".parse::<Shape>().unwrap(),
+            Shape::new([2, 3, 4, 5])
+        );
+        assert_eq!(
+            "(2, 3, 4, 5)".parse::<Shape>().unwrap(),
+            Shape::new([2, 3, 4, 5])
+        );
+        assert_eq!(
+            "2, 3, 4, 5".parse::<Shape>().unwrap(),
+            Shape::new([2, 3, 4, 5])
+        );
+
+        assert_eq!("[2]".parse::<Shape>().unwrap(), Shape::new([2]));
+        assert_eq!("(2)".parse::<Shape>().unwrap(), Shape::new([2]));
+        assert_eq!("2".parse::<Shape>().unwrap(), Shape::new([2]));
+
+        assert_eq!("[]".parse::<Shape>().unwrap(), Shape::new([]));
+        assert_eq!("".parse::<Shape>().unwrap(), Shape::new([]));
+
+        assert_eq!(
+            "[".parse::<Shape>(),
+            Err(crate::ExpressionError::ParseError {
+                message: "Unbalanced delimiters".to_string(),
+                source: "[".to_string()
+            })
+        );
+
+        assert_eq!(
+            "[[1]".parse::<Shape>(),
+            Err(crate::ExpressionError::ParseError {
+                message: "Unable to parse shape".to_string(),
+                source: "[[1]".to_string()
+            })
+        );
+        assert_eq!(
+            "[[1]]".parse::<Shape>(),
+            Err(crate::ExpressionError::ParseError {
+                message: "Unable to parse shape".to_string(),
+                source: "[[1]]".to_string()
+            })
+        );
+        assert_eq!(
+            "[1)".parse::<Shape>(),
+            Err(crate::ExpressionError::ParseError {
+                message: "Unbalanced delimiters".to_string(),
+                source: "[1)".to_string()
+            })
+        );
+
+        assert_eq!(
+            "]".parse::<Shape>(),
+            Err(crate::ExpressionError::ParseError {
+                message: "Unable to parse shape".to_string(),
+                source: "]".to_string()
+            })
+        );
+
+        assert_eq!(
+            "[a]".parse::<Shape>(),
+            Err(crate::ExpressionError::ParseError {
+                message: "Unable to parse shape".to_string(),
+                source: "[a]".to_string()
+            })
+        );
+    }
 
     #[test]
     fn num_dims_and_rank() {
@@ -575,6 +783,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::into_iter_on_ref)]
     fn test_shape_into_iter() {
         let dims = [2, 3, 4, 5];
         let shape = Shape::new(dims);
@@ -870,7 +1079,7 @@ mod tests {
     #[test]
     fn test_shape_broadcast_many_empty() {
         let out = Shape::broadcast_many(&[]);
-        assert_eq!(out, Err(ShapeError::Empty));
+        assert_eq!(out, Err(ShapeError::empty()));
     }
 
     #[test]
@@ -946,7 +1155,7 @@ mod tests {
     #[test]
     fn test_shape_cat_empty() {
         let out = Shape::cat(&[], 0);
-        assert_eq!(out, Err(ShapeError::Empty));
+        assert_eq!(out, Err(ShapeError::empty()));
     }
 
     #[test]
@@ -1127,13 +1336,31 @@ mod tests {
     fn test_shape_reshape_invalid() {
         let shape = Shape::new([2, 3, 4, 5]);
         let reshaped = Shape::new([2, 2, 12, 5]);
-        let out = shape.clone().reshape(reshaped.clone());
+        let out = shape.reshape(reshaped.clone());
         assert_eq!(
             out,
-            Err(ShapeError::IncompatibleShapes {
-                left: shape,
-                right: reshaped
+            Err(ShapeError::Invalid {
+                reason: "The given shape doesn't have the same number of elements as the current shape. Current shape: [2, 3, 4, 5], target shape: [2, 2, 12, 5].".into(),
             })
         );
+    }
+
+    #[test]
+    fn test_shape_reshape_invalid_inferred() {
+        let shape = Shape::new([2, 4]);
+        let out = shape.reshape([-1, 3]);
+        assert_eq!(
+            out,
+            Err(ShapeError::Invalid {
+                reason: "Cannot infer a valid target shape. Current shape: [2, 4], target dimensions: [-1, 3].".into(),
+            })
+        );
+    }
+
+    #[test]
+    fn test_flatten_dims() {
+        let shape = Shape::new([2, 3, 4, 5]);
+        let flattened = shape.flatten_dims(-2, 3);
+        assert_eq!(flattened, Shape::new([2, 3, 20]));
     }
 }

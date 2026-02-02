@@ -1,4 +1,3 @@
-#![cfg(target_os = "linux")]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
 extern crate alloc;
@@ -15,9 +14,34 @@ pub type Cpu<F = f32, I = i32> = burn_fusion::Fusion<CubeBackend<CpuRuntime, F, 
 
 #[cfg(test)]
 mod tests {
-    use burn_cubecl::CubeBackend;
+    use super::*;
+    use burn_backend::{Backend, DType, QTensorPrimitive};
+    use burn_cubecl::tensor::CubeTensor;
 
-    pub type TestRuntime = cubecl::cpu::CpuRuntime;
+    #[test]
+    fn should_support_dtypes() {
+        type B = Cpu;
+        let device = Default::default();
 
-    burn_cubecl::testgen_all!([f32], [i8, i16, i32, i64], [u32]);
+        assert!(B::supports_dtype(&device, DType::F64));
+        assert!(B::supports_dtype(&device, DType::F32));
+        assert!(B::supports_dtype(&device, DType::F16));
+        assert!(B::supports_dtype(&device, DType::BF16));
+        assert!(B::supports_dtype(&device, DType::I64));
+        assert!(B::supports_dtype(&device, DType::I32));
+        assert!(B::supports_dtype(&device, DType::I16));
+        assert!(B::supports_dtype(&device, DType::I8));
+        assert!(B::supports_dtype(&device, DType::U64));
+        assert!(B::supports_dtype(&device, DType::U32));
+        assert!(B::supports_dtype(&device, DType::U16));
+        assert!(B::supports_dtype(&device, DType::U8));
+        assert!(B::supports_dtype(
+            &device,
+            DType::QFloat(CubeTensor::<CpuRuntime>::default_scheme())
+        ));
+
+        // Currently not registered in supported types
+        assert!(!B::supports_dtype(&device, DType::Flex32));
+        assert!(!B::supports_dtype(&device, DType::Bool));
+    }
 }

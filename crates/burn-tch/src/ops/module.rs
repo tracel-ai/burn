@@ -1,5 +1,5 @@
 use crate::{LibTorch, TchTensor, element::TchElement};
-use burn_tensor::{
+use burn_backend::{
     TensorMetadata,
     ops::{
         ConvOptions, ConvTransposeOptions, DeformConv2dBackward, DeformConvOptions,
@@ -205,13 +205,14 @@ impl<E: TchElement> ModuleOps<Self> for LibTorch<E> {
         stride: usize,
         padding: usize,
         count_include_pad: bool,
+        ceil_mode: bool,
     ) -> TchTensor {
         let tensor = tch::Tensor::avg_pool1d(
             &x.tensor,
             [kernel_size as i64],
             [stride as i64],
             [padding as i64],
-            false,
+            ceil_mode,
             count_include_pad,
         );
 
@@ -223,13 +224,14 @@ impl<E: TchElement> ModuleOps<Self> for LibTorch<E> {
         stride: [usize; 2],
         padding: [usize; 2],
         count_include_pad: bool,
+        ceil_mode: bool,
     ) -> TchTensor {
         let tensor = tch::Tensor::avg_pool2d(
             &x.tensor,
             [kernel_size[0] as i64, kernel_size[1] as i64],
             [stride[0] as i64, stride[1] as i64],
             [padding[0] as i64, padding[1] as i64],
-            false,
+            ceil_mode,
             count_include_pad,
             None,
         );
@@ -244,6 +246,7 @@ impl<E: TchElement> ModuleOps<Self> for LibTorch<E> {
         stride: [usize; 2],
         padding: [usize; 2],
         count_include_pad: bool,
+        ceil_mode: bool,
     ) -> TchTensor {
         let tensor = tch::Tensor::avg_pool2d_backward(
             &x.tensor,
@@ -251,7 +254,7 @@ impl<E: TchElement> ModuleOps<Self> for LibTorch<E> {
             [kernel_size[0] as i64, kernel_size[1] as i64],
             [stride[0] as i64, stride[1] as i64],
             [padding[0] as i64, padding[1] as i64],
-            false,
+            ceil_mode,
             count_include_pad,
             None,
         );
@@ -265,6 +268,7 @@ impl<E: TchElement> ModuleOps<Self> for LibTorch<E> {
         stride: usize,
         padding: usize,
         dilation: usize,
+        ceil_mode: bool,
     ) -> TchTensor {
         let tensor = tch::Tensor::max_pool1d(
             &x.tensor,
@@ -272,7 +276,7 @@ impl<E: TchElement> ModuleOps<Self> for LibTorch<E> {
             stride as i64,
             padding as i64,
             dilation as i64,
-            false,
+            ceil_mode,
         );
 
         TchTensor::new(tensor)
@@ -284,14 +288,15 @@ impl<E: TchElement> ModuleOps<Self> for LibTorch<E> {
         stride: usize,
         padding: usize,
         dilation: usize,
-    ) -> MaxPool1dWithIndices<LibTorch<E>> {
+        ceil_mode: bool,
+    ) -> MaxPool1dWithIndices<Self> {
         let (tensor, indices) = tch::Tensor::max_pool1d_with_indices(
             &x.tensor,
             kernel_size as i64,
             stride as i64,
             padding as i64,
             dilation as i64,
-            false,
+            ceil_mode,
         );
 
         MaxPool1dWithIndices::new(TchTensor::new(tensor), TchTensor::new(indices))
@@ -303,6 +308,7 @@ impl<E: TchElement> ModuleOps<Self> for LibTorch<E> {
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
+        ceil_mode: bool,
     ) -> TchTensor {
         let tensor = tch::Tensor::max_pool2d(
             &x.tensor,
@@ -310,7 +316,7 @@ impl<E: TchElement> ModuleOps<Self> for LibTorch<E> {
             [stride[0] as i64, stride[1] as i64],
             [padding[0] as i64, padding[1] as i64],
             [dilation[0] as i64, dilation[1] as i64],
-            false,
+            ceil_mode,
         );
 
         TchTensor::new(tensor)
@@ -322,14 +328,15 @@ impl<E: TchElement> ModuleOps<Self> for LibTorch<E> {
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
-    ) -> MaxPool2dWithIndices<LibTorch<E>> {
+        ceil_mode: bool,
+    ) -> MaxPool2dWithIndices<Self> {
         let (tensor, indices) = tch::Tensor::max_pool2d_with_indices(
             &x.tensor,
             [kernel_size[0] as i64, kernel_size[1] as i64],
             [stride[0] as i64, stride[1] as i64],
             [padding[0] as i64, padding[1] as i64],
             [dilation[0] as i64, dilation[1] as i64],
-            false,
+            ceil_mode,
         );
 
         MaxPool2dWithIndices::new(TchTensor::new(tensor), TchTensor::new(indices))
@@ -341,9 +348,10 @@ impl<E: TchElement> ModuleOps<Self> for LibTorch<E> {
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
+        ceil_mode: bool,
         output_grad: TchTensor,
         indices: TchTensor,
-    ) -> MaxPool2dBackward<LibTorch<E>> {
+    ) -> MaxPool2dBackward<Self> {
         let grad = tch::Tensor::max_pool2d_with_indices_backward(
             &x.tensor,
             &output_grad.tensor,
@@ -351,7 +359,7 @@ impl<E: TchElement> ModuleOps<Self> for LibTorch<E> {
             [stride[0] as i64, stride[1] as i64],
             [padding[0] as i64, padding[1] as i64],
             [dilation[0] as i64, dilation[1] as i64],
-            false,
+            ceil_mode,
             &indices.tensor,
         );
 

@@ -1,9 +1,8 @@
-use burn_tensor::DType;
-use burn_tensor::quantization::{QuantScheme, QuantStore, QuantValue};
+use burn_std::DType;
+use burn_std::quantization::{QuantScheme, QuantStore, QuantValue};
+use burn_std::{bf16, f16};
 use cubecl::ir::{ElemType, FloatKind, IntKind, StorageType, UIntKind};
 use cubecl::prelude::*;
-use cubecl::std::scalar::InputScalar;
-use half::{bf16, f16};
 use serde::{Deserialize, Serialize};
 
 use super::tensor::GlobalTensor;
@@ -12,30 +11,30 @@ use super::tensor::GlobalTensor;
 /// Argument to a [fuse operation](FuseOp).
 pub enum FuseArg {
     /// A readonly input tensor.
-    Input(u32, FuseType, LayoutInfo),
+    Input(usize, FuseType, LayoutInfo),
     /// A temporary local variable.
-    Local(u32, FuseType),
+    Local(usize, FuseType),
     /// A readwrite output tensor.
-    Output(u32, FuseType, LayoutInfo),
+    Output(usize, FuseType, LayoutInfo),
     /// A global scalar.
-    Scalar(u32, FuseType),
+    Scalar(usize, FuseType),
     /// A global scalar used in a reshape operation.
     ///
     /// This is not a scalar defined by a user for computation, but a scalar defined as part of
     /// a reshape operation.
-    ScalarShape(u32),
+    ScalarShape(usize),
     /// Only constant that can be encoded into an u32 can be used as literal.
-    Literal(u32, FuseType),
+    Literal(usize, FuseType),
     /// A readonly input tensor that is reshaped.
     InputReshaped {
         original: Box<FuseArg>,
-        shape: Sequence<FuseArg>,
+        shape: Vec<FuseArg>,
         broadcasted: bool,
     },
     /// A readonly input tensor with swapped dimensions.
     InputSwapDims {
         original: Box<FuseArg>,
-        dims: (u32, u32),
+        dims: (usize, usize),
         broadcasted: bool,
     },
 }
@@ -128,13 +127,13 @@ pub enum FuseOp {
         input: FuseArg,
         indices: FuseArg,
         output: FuseArg,
-        dim: u32,
+        dim: usize,
     },
     Select {
         input: FuseArg,
         indices: FuseArg,
         output: FuseArg,
-        dim: u32,
+        dim: usize,
     },
     Dequantize {
         values: FuseArg,
@@ -197,13 +196,7 @@ impl FuseOp {
 pub struct GlobalArgs {
     pub tensors: Sequence<GlobalTensor>,
     pub scalars: Sequence<InputScalar>,
-    pub reshapes: Sequence<u32>,
-}
-
-impl GlobalArgsExpand {
-    pub fn __expand_clone_method(&self, _scope: &mut Scope) -> Self {
-        self.clone()
-    }
+    pub reshapes: Sequence<usize>,
 }
 
 impl<R: Runtime> Default for GlobalArgsLaunch<'_, R> {
@@ -244,15 +237,15 @@ impl<R: Runtime> GlobalArgsLaunch<'_, R> {
             RefLayout::Virtual(layout) => match layout {
                 VirtualLayout::SwapDims(original, dims) => {
                     let mut shape = self.shape(original);
-                    shape.swap(dims.0 as usize, dims.1 as usize);
+                    shape.swap(dims.0, dims.1);
                     shape
                 }
                 VirtualLayout::Reshaped { reshape_pos, .. } => {
-                    let start = *reshape_pos as usize * rank;
+                    let start = *reshape_pos * rank;
                     let end = start + rank;
                     self.reshapes.values[start..end]
                         .iter()
-                        .map(|s| s.elem as usize)
+                        .map(|s| s.elem)
                         .collect()
                 }
                 VirtualLayout::Shape(original, _) => self.shape(original),
@@ -296,7 +289,7 @@ impl<R: Runtime> GlobalArgsLaunch<'_, R> {
     /// # Panics
     ///
     /// If the argument doesn't have an handle.
-    pub fn line_size(&self, arg: &FuseArg) -> u8 {
+    pub fn line_size(&self, arg: &FuseArg) -> LineSize {
         match self.resolve_arg(arg) {
             TensorArg::Handle { line_size, .. } => *line_size,
             TensorArg::Alias { .. } => panic!("Unsupported yet"),
@@ -310,8 +303,8 @@ impl<R: Runtime> GlobalArgsLaunch<'_, R> {
     /// If the argument isn't a global input or output tensor.
     pub fn resolve_arg(&self, arg: &FuseArg) -> &TensorArg<'_, R> {
         match arg {
-            FuseArg::Input(pos, _, _) => &self.tensors.values[*pos as usize].tensor,
-            FuseArg::Output(pos, _, _) => &self.tensors.values[*pos as usize].tensor,
+            FuseArg::Input(pos, _, _) => &self.tensors.values[*pos].tensor,
+            FuseArg::Output(pos, _, _) => &self.tensors.values[*pos].tensor,
             other => panic!("Arg not found: {other:?}"),
         }
     }
@@ -321,57 +314,51 @@ impl<R: Runtime> GlobalArgsLaunch<'_, R> {
 /// Keep track of all local variables that are used as argument in fused
 /// [element wise operations](ElemwiseOp).
 pub struct LocalArgs {
-    pub l_f64: Registry<u32, Line<f64>>,
-    pub l_f32: Registry<u32, Line<f32>>,
-    pub l_f16: Registry<u32, Line<f16>>,
-    pub l_bf16: Registry<u32, Line<bf16>>,
-    pub l_i64: Registry<u32, Line<i64>>,
-    pub l_i32: Registry<u32, Line<i32>>,
-    pub l_i16: Registry<u32, Line<i16>>,
-    pub l_i8: Registry<u32, Line<i8>>,
-    pub l_u64: Registry<u32, Line<u64>>,
-    pub l_u32: Registry<u32, Line<u32>>,
-    pub l_u16: Registry<u32, Line<u16>>,
-    pub l_u8: Registry<u32, Line<u8>>,
-    pub l_bool: Registry<u32, Line<bool>>,
-    pub ref_shape: Slice<u32>,
-    pub ref_strides: Slice<u32>,
+    pub l_f64: Registry<usize, Line<f64>>,
+    pub l_f32: Registry<usize, Line<f32>>,
+    pub l_f16: Registry<usize, Line<f16>>,
+    pub l_bf16: Registry<usize, Line<bf16>>,
+    pub l_i64: Registry<usize, Line<i64>>,
+    pub l_i32: Registry<usize, Line<i32>>,
+    pub l_i16: Registry<usize, Line<i16>>,
+    pub l_i8: Registry<usize, Line<i8>>,
+    pub l_u64: Registry<usize, Line<u64>>,
+    pub l_u32: Registry<usize, Line<u32>>,
+    pub l_u16: Registry<usize, Line<u16>>,
+    pub l_u8: Registry<usize, Line<u8>>,
+    pub l_bool: Registry<usize, Line<bool>>,
+    pub ref_shape: Slice<usize>,
+    pub ref_strides: Slice<usize>,
     #[cube(comptime)]
-    pub ref_line_size: u32,
+    pub ref_line_size: LineSize,
 }
 
 #[cube]
 impl LocalArgs {
     /// Creates a new [LocalArgs] container.
     pub fn new(
-        ref_shape: Slice<u32>,
-        ref_strides: Slice<u32>,
-        #[comptime] ref_line_size: u32,
+        ref_shape: Slice<usize>,
+        ref_strides: Slice<usize>,
+        #[comptime] ref_line_size: LineSize,
     ) -> LocalArgs {
         LocalArgs {
-            l_f64: Registry::<u32, Line<f64>>::new(),
-            l_f32: Registry::<u32, Line<f32>>::new(),
-            l_f16: Registry::<u32, Line<f16>>::new(),
-            l_bf16: Registry::<u32, Line<bf16>>::new(),
-            l_i64: Registry::<u32, Line<i64>>::new(),
-            l_i32: Registry::<u32, Line<i32>>::new(),
-            l_i16: Registry::<u32, Line<i16>>::new(),
-            l_i8: Registry::<u32, Line<i8>>::new(),
-            l_u64: Registry::<u32, Line<u64>>::new(),
-            l_u32: Registry::<u32, Line<u32>>::new(),
-            l_u16: Registry::<u32, Line<u16>>::new(),
-            l_u8: Registry::<u32, Line<u8>>::new(),
-            l_bool: Registry::<u32, Line<bool>>::new(),
+            l_f64: Registry::<usize, Line<f64>>::new(),
+            l_f32: Registry::<usize, Line<f32>>::new(),
+            l_f16: Registry::<usize, Line<f16>>::new(),
+            l_bf16: Registry::<usize, Line<bf16>>::new(),
+            l_i64: Registry::<usize, Line<i64>>::new(),
+            l_i32: Registry::<usize, Line<i32>>::new(),
+            l_i16: Registry::<usize, Line<i16>>::new(),
+            l_i8: Registry::<usize, Line<i8>>::new(),
+            l_u64: Registry::<usize, Line<u64>>::new(),
+            l_u32: Registry::<usize, Line<u32>>::new(),
+            l_u16: Registry::<usize, Line<u16>>::new(),
+            l_u8: Registry::<usize, Line<u8>>::new(),
+            l_bool: Registry::<usize, Line<bool>>::new(),
             ref_shape,
             ref_strides,
             ref_line_size,
         }
-    }
-}
-
-impl LocalArgsExpand {
-    pub fn __expand_clone_method(&self, _scope: &mut Scope) -> Self {
-        self.clone()
     }
 }
 
@@ -417,10 +404,10 @@ pub enum FuseType {
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 /// Configuration that encapsulates all comptime information necessary for element wise fusion.
 pub struct FuseBlockConfig {
-    pub rank: u32,
+    pub rank: usize,
     pub ref_layout: RefLayout,
-    pub ops: Sequence<FuseOp>,
-    pub width: u8,
+    pub ops: Vec<FuseOp>,
+    pub width: LineSize,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
@@ -437,12 +424,15 @@ pub enum RefLayout {
 /// tensor with swap dimensions.
 pub enum VirtualLayout {
     /// Virtual tensor with the provided shape id and contiguous strides.
-    Reshaped { reshape_pos: u32, line_size: u32 },
+    Reshaped {
+        reshape_pos: usize,
+        line_size: LineSize,
+    },
     /// Virtual tensor with the same shape as the given input, but with swap dims and contiguous
     /// strides.
-    SwapDims(FuseArg, (u32, u32)),
+    SwapDims(FuseArg, (usize, usize)),
     /// Virtual tensor with the same shape as the given input, but with contiguous strides.
-    Shape(FuseArg, u32),
+    Shape(FuseArg, usize),
 }
 
 impl FuseArg {
@@ -544,14 +534,22 @@ impl From<DType> for FuseType {
             DType::QFloat(scheme) => match scheme.store {
                 QuantStore::Native => match scheme.value {
                     QuantValue::Q8F | QuantValue::Q8S => Self::I8,
-                    QuantValue::E4M3 | QuantValue::E5M2 | QuantValue::E2M1 => {
+                    QuantValue::E4M3 | QuantValue::E5M2 => {
                         unimplemented!("Unsupported precision for fusion")
                     }
-                    QuantValue::Q4F | QuantValue::Q4S | QuantValue::Q2F | QuantValue::Q2S => {
+                    QuantValue::Q4F
+                    | QuantValue::Q4S
+                    | QuantValue::Q2F
+                    | QuantValue::Q2S
+                    | QuantValue::E2M1 => {
                         panic!("Can't store native sub-byte values")
                     }
                 },
-                QuantStore::U32 => Self::U32,
+                QuantStore::PackedU32(_) => Self::U32,
+                QuantStore::PackedNative(_) => match scheme.value {
+                    QuantValue::E2M1 => unimplemented!("Unsupported precision for fusion"),
+                    other => panic!("{other:?} doesn't support native packing"),
+                },
             },
             DType::Complex64 => todo!(),
             DType::Complex32 => todo!(),

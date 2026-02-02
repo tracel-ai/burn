@@ -4,6 +4,7 @@ use burn_communication::{
 };
 use burn_ir::{BackendIr, OperationIr, TensorId, TensorIr};
 use burn_router::{Runner, RunnerClient};
+use burn_std::DType;
 use burn_tensor::TensorData;
 use core::marker::PhantomData;
 use std::sync::Arc;
@@ -35,6 +36,7 @@ pub enum ProcessorTask {
     ReadTensor(ConnectionId, TensorIr, Callback<TaskResponse>),
     Sync(ConnectionId, Callback<TaskResponse>),
     Seed(u64),
+    SupportsDType(ConnectionId, DType, Callback<TaskResponse>),
     Close,
 }
 
@@ -86,13 +88,13 @@ where
                         count,
                     } => {
                         log::info!("Exposing tensor: (id: {transfer_id:?})");
-                        let data = runner.read_tensor(tensor).await;
+                        let data = runner.read_tensor_async(tensor).await;
                         data_service
                             .expose_data(data.unwrap(), count, transfer_id)
                             .await;
                     }
                     ProcessorTask::ReadTensor(id, tensor, callback) => {
-                        let tensor = runner.read_tensor(tensor).await;
+                        let tensor = runner.read_tensor_async(tensor).await;
                         callback
                             .send(TaskResponse {
                                 content: TaskResponseContent::ReadTensor(tensor),
@@ -109,6 +111,16 @@ where
                         break;
                     }
                     ProcessorTask::Seed(seed) => runner.seed(seed),
+                    ProcessorTask::SupportsDType(id, dtype, callback) => {
+                        let result = runner.supports_dtype(dtype);
+                        callback
+                            .send(TaskResponse {
+                                content: TaskResponseContent::SupportsDType(result),
+                                id,
+                            })
+                            .await
+                            .unwrap();
+                    }
                 }
             }
         });

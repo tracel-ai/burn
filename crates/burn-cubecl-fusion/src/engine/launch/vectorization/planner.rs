@@ -20,7 +20,10 @@ use cubecl::{
     client::ComputeClient,
     ir::{ElemType, StorageType, UIntKind},
 };
-use cubecl_quant::scheme::{QuantScheme, QuantStore, QuantValue};
+use cubecl::{
+    ir::LineSize,
+    quant::scheme::{QuantScheme, QuantStore, QuantValue},
+};
 use std::marker::PhantomData;
 
 /// Select the best vectorization factor for each tensor handle.
@@ -78,13 +81,13 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
         });
 
         let mut ref_elem = (ElemType::UInt(UIntKind::U64).into(), 8);
-        let mut quants_line_sizes: Option<Vec<u8>> = None;
+        let mut quants_line_sizes: Option<Vec<LineSize>> = None;
 
         for input in plan.handle_inputs.iter() {
             let elem: StorageType = match input {
                 HandleInput::Normal(h) => h.global_ir.dtype.into(),
                 HandleInput::QuantValues(handle) => match handle.global_ir.dtype {
-                    burn_tensor::DType::QFloat(scheme) => {
+                    burn_std::DType::QFloat(scheme) => {
                         line_sizes_quants(client, &mut quants_line_sizes, scheme);
                         continue;
                     }
@@ -124,7 +127,7 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
             Some(line_sizes) => line_sizes,
             None => client
                 .io_optimized_line_sizes_unchecked(ref_elem.0.size())
-                .collect::<Vec<u8>>(),
+                .collect::<Vec<_>>(),
         };
 
         let vectorization_axis = runner.axis(plan);
@@ -154,7 +157,7 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
             tensors_reshaped,
             tensors_swapped,
             &line_sizes,
-            u8::MAX,
+            u8::MAX as usize,
             vectorization_axis,
         );
 
@@ -228,13 +231,13 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
 
             match plan.vectorizations.get(&input_global.id).unwrap() {
                 Vect::Aligned(vect) => {
-                    let handle = &mut plan.handle_inputs[pos as usize];
+                    let handle = &mut plan.handle_inputs[pos];
                     match handle {
                         HandleInput::Normal(handle) => {
-                            handle.vectorization = *vect;
+                            handle.line_size = *vect;
                         }
                         HandleInput::QuantValues(handle) => {
-                            handle.vectorization = *vect;
+                            handle.line_size = *vect;
                         }
                         HandleInput::QuantParams(_) => {}
                     }
@@ -255,7 +258,7 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
                         &mut plan.handle_inputs,
                         &mut plan.handle_outputs,
                         block_plan,
-                        u8::MAX,
+                        u8::MAX as usize,
                     );
                 }
                 VectorizationSetting::SmallerOrEqualThanPreviousBlock => {
@@ -291,7 +294,7 @@ enum VectorizationAction {
 #[derive(Debug)]
 struct BlockVectorization {
     action: VectorizationAction,
-    potential: u8,
+    potential: LineSize,
     broadcasted: bool,
 }
 
@@ -300,7 +303,7 @@ fn apply_vectorization_block<R: Runtime>(
     inputs: &mut [HandleInput<R>],
     outputs: &mut [HandleOutput<R>],
     block_plan: &mut BlockPlan,
-    max: u8,
+    max: LineSize,
 ) {
     for item in block_vectorization {
         match item.action {
@@ -313,11 +316,11 @@ fn apply_vectorization_block<R: Runtime>(
 
                 match &mut inputs[pos] {
                     HandleInput::Normal(input) => {
-                        input.vectorization = vect;
+                        input.line_size = vect;
                         input.broadcated = br;
                     }
                     HandleInput::QuantValues(input) => {
-                        input.vectorization = vect;
+                        input.line_size = vect;
                     }
                     HandleInput::QuantParams(_) => {
                         // Not vectorized
@@ -348,7 +351,7 @@ fn apply_vectorization_block<R: Runtime>(
 
 fn line_sizes_quants<R: Runtime>(
     client: &ComputeClient<R>,
-    quants_line_sizes: &mut Option<Vec<u8>>,
+    quants_line_sizes: &mut Option<Vec<LineSize>>,
     scheme: QuantScheme,
 ) {
     match scheme.store {
@@ -361,7 +364,7 @@ fn line_sizes_quants<R: Runtime>(
             | QuantValue::E2M1 => {
                 let line_sizes = client
                     .io_optimized_line_sizes_unchecked(size_of::<i8>())
-                    .collect::<Vec<u8>>();
+                    .collect::<Vec<_>>();
 
                 match &quants_line_sizes {
                     Some(sizes) => {
@@ -378,12 +381,12 @@ fn line_sizes_quants<R: Runtime>(
                 unreachable!("Can't store native sub-byte values")
             }
         },
-        QuantStore::U32 => {
+        QuantStore::PackedU32(_) => {
             let mut line_sizes = client
                 .io_optimized_line_sizes_unchecked(size_of::<u32>())
-                .collect::<Vec<u8>>();
+                .collect::<Vec<_>>();
             for val in line_sizes.iter_mut() {
-                *val *= scheme.num_quants() as u8;
+                *val *= scheme.num_quants();
             }
 
             match &quants_line_sizes {
@@ -402,6 +405,9 @@ fn line_sizes_quants<R: Runtime>(
                     *quants_line_sizes = Some(line_sizes);
                 }
             }
+        }
+        QuantStore::PackedNative(_) => {
+            panic!("Not yet supported")
         }
     };
 }

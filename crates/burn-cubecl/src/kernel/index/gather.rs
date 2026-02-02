@@ -1,49 +1,38 @@
 use crate::{
     CubeRuntime,
-    kernel::utils::{linear_layout, linear_view},
+    kernel::utils::{broadcast_strides, linear_view, shape_divmod},
     ops::numeric::empty_device_dtype,
     tensor::CubeTensor,
 };
-use cubecl::std::tensor::{
-    index_offset_with_layout,
-    layout::{Layout, LayoutExpand},
-};
+use cubecl::frontend::{ABSOLUTE_POS, Numeric, Tensor};
+use cubecl::std::{FastDivmod, tensor::index_offset_contiguous_fastdivmod};
 use cubecl::{CubeDim, std::tensor::layout::linear::LinearView};
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
-use cubecl::{
-    frontend::{ABSOLUTE_POS, Numeric, Tensor},
-    std::tensor::layout::linear::LinearLayout,
-};
 
 #[cube(launch_unchecked)]
 fn gather_kernel<T: Numeric, I: Numeric>(
     input: &Tensor<Line<T>>,
     indices: &LinearView<Line<I>>,
-    output: &mut Tensor<Line<T>>,
-    out_layout: LinearLayout,
-    dim: &u32,
+    output: &mut LinearView<Line<T>, ReadWrite>,
+    in_strides: Sequence<usize>, // zeroed out for broadcast dims and `dim`
+    out_shape: Sequence<FastDivmod<usize>>,
+    dim: usize,
     #[define(T, I)] _dtypes: [StorageType; 2],
 ) {
     if !indices.is_in_bounds(ABSOLUTE_POS) {
         terminate!();
     }
 
-    let index = indices[ABSOLUTE_POS];
-    let out_pos = out_layout.to_source_pos(ABSOLUTE_POS);
+    let mut offset = index_offset_contiguous_fastdivmod(
+        ABSOLUTE_POS,
+        &out_shape,
+        &in_strides,
+        input.line_size(),
+    );
 
-    let stride = input.stride(*dim);
-    let mut offset = u32::cast_from(index);
-    offset *= stride;
+    offset += usize::cast_from(indices[ABSOLUTE_POS]) * input.stride(dim);
 
-    if *dim > 0 {
-        let offset_before = index_offset_with_layout(input, output, out_pos, 0, *dim, false);
-        offset += offset_before;
-    }
-
-    let offset_after =
-        index_offset_with_layout(input, output, out_pos, *dim + 1, input.rank(), false);
-    offset += offset_after;
-    output[out_pos] = input[offset];
+    output[ABSOLUTE_POS] = input[offset];
 }
 
 pub(crate) fn gather<R: CubeRuntime>(
@@ -60,8 +49,11 @@ pub(crate) fn gather<R: CubeRuntime>(
         tensor.dtype,
     );
 
-    let cube_dim = CubeDim::default();
-    let cube_count = calculate_cube_count_elemwise(total_elem, cube_dim);
+    let cube_dim = CubeDim::new(&tensor.client, total_elem);
+    let cube_count = calculate_cube_count_elemwise(&tensor.client, total_elem, cube_dim);
+    let mut in_strides = broadcast_strides(&output, &tensor);
+    in_strides.values[dim] = ScalarArg::new(0); // Zero `dim` to exclude it from the indexing
+
     unsafe {
         gather_kernel::launch_unchecked(
             &tensor.client,
@@ -69,12 +61,14 @@ pub(crate) fn gather<R: CubeRuntime>(
             cube_dim,
             tensor.as_tensor_arg(1),
             linear_view(&indices, 1),
-            output.as_tensor_arg(1),
-            linear_layout(&output, 1),
-            ScalarArg::new(dim as u32),
+            linear_view(&output, 1),
+            in_strides,
+            shape_divmod(&output),
+            ScalarArg::new(dim),
             [tensor.dtype.into(), indices.dtype.into()],
         )
         .expect("Kernel to never fail");
     }
+
     output
 }

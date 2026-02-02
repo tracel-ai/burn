@@ -11,12 +11,9 @@ use burn_nn::{Linear, LinearConfig};
 use burn_tensor::Tensor;
 use burn_tensor::backend::Backend;
 
-/// Path to burn-import pytorch test files
+/// Path to pytorch test files (now under burn-store)
 fn pytorch_test_path(subdir: &str, filename: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .unwrap()
-        .join("burn-import")
         .join("pytorch-tests")
         .join("tests")
         .join(subdir)
@@ -55,6 +52,28 @@ mod basic_tests {
         assert!(store.validate);
         assert!(!store.allow_partial);
         assert!(store.top_level_key.is_none());
+        // Contiguous index mapping is enabled by default for PyTorch files
+        assert!(store.map_indices_contiguous);
+    }
+
+    #[test]
+    fn test_store_map_indices_contiguous_default() {
+        // Verify that map_indices_contiguous is enabled by default
+        let store = PytorchStore::from_file("model.pth");
+        assert!(
+            store.map_indices_contiguous,
+            "map_indices_contiguous should be enabled by default"
+        );
+    }
+
+    #[test]
+    fn test_store_map_indices_contiguous_disabled() {
+        // Verify that we can disable map_indices_contiguous
+        let store = PytorchStore::from_file("model.pth").map_indices_contiguous(false);
+        assert!(
+            !store.map_indices_contiguous,
+            "map_indices_contiguous should be disabled after explicit call"
+        );
     }
 
     #[test]
@@ -735,5 +754,447 @@ mod enum_variant_tests {
                 e
             ),
         }
+    }
+}
+
+#[cfg(test)]
+mod direct_access_tests {
+    use super::*;
+
+    #[test]
+    fn test_get_all_snapshots() {
+        let path = pytorch_test_path("linear", "linear.pt");
+
+        if !path.exists() {
+            println!("Skipping test - file not found: {:?}", path);
+            return;
+        }
+
+        let mut store = PytorchStore::from_file(path);
+        let snapshots = store.get_all_snapshots().unwrap();
+
+        // linear.pt should have fc1.weight, fc1.bias, fc2.weight, fc2.bias
+        assert!(!snapshots.is_empty(), "Should have snapshots");
+        assert!(
+            snapshots.contains_key("fc1.weight"),
+            "Should contain fc1.weight"
+        );
+        assert!(
+            snapshots.contains_key("fc1.bias"),
+            "Should contain fc1.bias"
+        );
+    }
+
+    #[test]
+    fn test_get_snapshot_existing() {
+        let path = pytorch_test_path("linear", "linear.pt");
+
+        if !path.exists() {
+            println!("Skipping test - file not found: {:?}", path);
+            return;
+        }
+
+        let mut store = PytorchStore::from_file(path);
+
+        // Get existing snapshot
+        let snapshot = store.get_snapshot("fc1.weight").unwrap();
+        assert!(snapshot.is_some(), "Should find fc1.weight");
+
+        let snapshot = snapshot.unwrap();
+        // Linear weight should be 2D
+        assert_eq!(snapshot.shape.len(), 2, "Weight should be 2D tensor");
+
+        // Verify we can load data
+        let data = snapshot.to_data().unwrap();
+        assert!(!data.bytes.is_empty(), "Data should not be empty");
+    }
+
+    #[test]
+    fn test_get_snapshot_not_found() {
+        let path = pytorch_test_path("linear", "linear.pt");
+
+        if !path.exists() {
+            println!("Skipping test - file not found: {:?}", path);
+            return;
+        }
+
+        let mut store = PytorchStore::from_file(path);
+
+        // Get non-existent snapshot
+        let snapshot = store.get_snapshot("nonexistent.weight").unwrap();
+        assert!(snapshot.is_none(), "Should not find nonexistent tensor");
+    }
+
+    #[test]
+    fn test_keys() {
+        let path = pytorch_test_path("linear", "linear.pt");
+
+        if !path.exists() {
+            println!("Skipping test - file not found: {:?}", path);
+            return;
+        }
+
+        let mut store = PytorchStore::from_file(path);
+        let keys = store.keys().unwrap();
+
+        assert!(!keys.is_empty(), "Should have keys");
+        assert!(
+            keys.contains(&"fc1.weight".to_string()),
+            "Keys should contain fc1.weight"
+        );
+        assert!(
+            keys.contains(&"fc1.bias".to_string()),
+            "Keys should contain fc1.bias"
+        );
+    }
+
+    #[test]
+    fn test_keys_fast_path() {
+        let path = pytorch_test_path("linear", "linear.pt");
+
+        if !path.exists() {
+            println!("Skipping test - file not found: {:?}", path);
+            return;
+        }
+
+        // Create fresh store - cache should be empty
+        let mut store = PytorchStore::from_file(&path);
+
+        // keys() should work without populating the full cache (fast path)
+        let keys = store.keys().unwrap();
+        assert!(!keys.is_empty(), "Should have keys via fast path");
+
+        // Now call get_all_snapshots to populate cache
+        let snapshots = store.get_all_snapshots().unwrap();
+        assert!(!snapshots.is_empty(), "Should have snapshots");
+
+        // keys() should now use the cached data
+        let keys2 = store.keys().unwrap();
+        assert_eq!(keys.len(), keys2.len(), "Keys count should match");
+    }
+
+    #[test]
+    fn test_caching_behavior() {
+        let path = pytorch_test_path("linear", "linear.pt");
+
+        if !path.exists() {
+            println!("Skipping test - file not found: {:?}", path);
+            return;
+        }
+
+        let mut store = PytorchStore::from_file(path);
+
+        // First call populates cache
+        let snapshots1 = store.get_all_snapshots().unwrap();
+        let count1 = snapshots1.len();
+
+        // Second call uses cache
+        let snapshots2 = store.get_all_snapshots().unwrap();
+        let count2 = snapshots2.len();
+
+        assert_eq!(count1, count2, "Cached results should match");
+    }
+
+    #[test]
+    fn test_get_all_snapshots_with_remapping() {
+        let path = pytorch_test_path("linear", "linear.pt");
+
+        if !path.exists() {
+            println!("Skipping test - file not found: {:?}", path);
+            return;
+        }
+
+        // Create store with key remapping
+        let mut store = PytorchStore::from_file(path).with_key_remapping(r"^fc1\.", "linear1.");
+
+        let snapshots = store.get_all_snapshots().unwrap();
+
+        // Should have remapped keys
+        assert!(
+            snapshots.contains_key("linear1.weight"),
+            "Should contain remapped key linear1.weight. Keys: {:?}",
+            snapshots.keys().collect::<Vec<_>>()
+        );
+        assert!(
+            snapshots.contains_key("linear1.bias"),
+            "Should contain remapped key linear1.bias"
+        );
+
+        // Original keys should not exist
+        assert!(
+            !snapshots.contains_key("fc1.weight"),
+            "Should not contain original key fc1.weight"
+        );
+    }
+
+    #[test]
+    fn test_get_snapshot_with_remapped_name() {
+        let path = pytorch_test_path("linear", "linear.pt");
+
+        if !path.exists() {
+            println!("Skipping test - file not found: {:?}", path);
+            return;
+        }
+
+        // Create store with key remapping
+        let mut store = PytorchStore::from_file(path).with_key_remapping(r"^fc1\.", "linear1.");
+
+        // Should find by remapped name
+        let snapshot = store.get_snapshot("linear1.weight").unwrap();
+        assert!(snapshot.is_some(), "Should find tensor by remapped name");
+
+        // Should NOT find by original name
+        let snapshot_orig = store.get_snapshot("fc1.weight").unwrap();
+        assert!(
+            snapshot_orig.is_none(),
+            "Should not find tensor by original name after remapping"
+        );
+    }
+
+    #[test]
+    fn test_get_all_snapshots_ignores_filter() {
+        let path = pytorch_test_path("linear", "linear.pt");
+
+        if !path.exists() {
+            println!("Skipping test - file not found: {:?}", path);
+            return;
+        }
+
+        // Create store with filter that only matches fc1
+        let mut store = PytorchStore::from_file(path).with_regex(r"^fc1\.");
+
+        // get_all_snapshots should return ALL tensors regardless of filter
+        let snapshots = store.get_all_snapshots().unwrap();
+
+        // Should have both fc1 and fc2 tensors
+        assert!(
+            snapshots.contains_key("fc1.weight"),
+            "Should contain fc1.weight"
+        );
+        assert!(
+            snapshots.contains_key("fc2.weight"),
+            "Should contain fc2.weight (filter not applied to get_all_snapshots)"
+        );
+    }
+}
+
+/// Tests for contiguous index mapping feature
+#[cfg(test)]
+mod map_indices_contiguous_tests {
+    use super::*;
+    type TestBackend = burn_ndarray::NdArray;
+
+    /// Model with a Vec of Conv2d layers that expects contiguous indices
+    #[derive(Module, Debug)]
+    struct SequentialConvModel<B: Backend> {
+        fc: Vec<Conv2d<B>>,
+    }
+
+    impl<B: Backend> SequentialConvModel<B> {
+        pub fn new(device: &B::Device, num_layers: usize) -> Self {
+            Self {
+                fc: (0..num_layers)
+                    .map(|_| {
+                        Conv2dConfig::new([2, 2], [3, 3])
+                            .with_bias(true)
+                            .init(device)
+                    })
+                    .collect(),
+            }
+        }
+    }
+
+    #[test]
+    fn test_load_non_contiguous_indexes_with_mapping() {
+        // This test uses the non_contiguous_indexes.pt file which has:
+        // fc.0.weight, fc.0.bias, fc.2.weight, fc.2.bias, fc.4.weight, ... (non-contiguous)
+        // The Burn model expects fc.0, fc.1, fc.2, ... (contiguous)
+
+        let path = pytorch_test_path("non_contiguous_indexes", "non_contiguous_indexes.pt");
+
+        if !path.exists() {
+            println!("Skipping test - file not found: {:?}", path);
+            return;
+        }
+
+        let device = Default::default();
+
+        // Create model with 5 conv layers (matching the PyTorch model)
+        let mut model = SequentialConvModel::<TestBackend>::new(&device, 5);
+
+        // Load with contiguous index mapping enabled (default)
+        let mut store = PytorchStore::from_file(&path)
+            .map_indices_contiguous(true)
+            .allow_partial(true)
+            .validate(false);
+
+        let result = store.apply_to::<TestBackend, _>(&mut model);
+
+        match result {
+            Ok(apply_result) => {
+                println!("Applied tensors: {:?}", apply_result.applied);
+                println!("Missing tensors: {:?}", apply_result.missing);
+                println!("Unused tensors: {:?}", apply_result.unused);
+
+                // All fc layers should be loaded successfully
+                assert!(
+                    !apply_result.applied.is_empty(),
+                    "Should have applied tensors"
+                );
+
+                // Verify we have tensors from all 5 layers
+                // With mapping: fc.0, fc.1, fc.2, fc.3, fc.4
+                for i in 0..5 {
+                    let has_weight = apply_result
+                        .applied
+                        .iter()
+                        .any(|p| p.contains(&format!("fc.{}.weight", i)));
+                    let has_bias = apply_result
+                        .applied
+                        .iter()
+                        .any(|p| p.contains(&format!("fc.{}.bias", i)));
+
+                    assert!(
+                        has_weight,
+                        "Should have applied fc.{}.weight, applied: {:?}",
+                        i, apply_result.applied
+                    );
+                    assert!(
+                        has_bias,
+                        "Should have applied fc.{}.bias, applied: {:?}",
+                        i, apply_result.applied
+                    );
+                }
+
+                // There should be no missing tensors (assuming model matches)
+                let missing_fc: Vec<_> = apply_result
+                    .missing
+                    .iter()
+                    .filter(|(p, _)| p.starts_with("fc."))
+                    .collect();
+                assert!(
+                    missing_fc.is_empty(),
+                    "Should have no missing fc tensors with index mapping. Missing: {:?}",
+                    missing_fc
+                );
+            }
+            Err(e) => panic!("Failed to load with index mapping: {}", e),
+        }
+    }
+
+    #[test]
+    fn test_load_non_contiguous_indexes_without_mapping() {
+        // This test verifies that loading fails or has missing tensors when
+        // map_indices_contiguous is disabled
+
+        let path = pytorch_test_path("non_contiguous_indexes", "non_contiguous_indexes.pt");
+
+        if !path.exists() {
+            println!("Skipping test - file not found: {:?}", path);
+            return;
+        }
+
+        let device = Default::default();
+
+        // Create model with 5 conv layers
+        let mut model = SequentialConvModel::<TestBackend>::new(&device, 5);
+
+        // Load with contiguous index mapping DISABLED
+        let mut store = PytorchStore::from_file(&path)
+            .map_indices_contiguous(false) // Disable index mapping
+            .allow_partial(true)
+            .validate(false);
+
+        let result = store.apply_to::<TestBackend, _>(&mut model);
+
+        match result {
+            Ok(apply_result) => {
+                println!(
+                    "Without index mapping - Applied tensors: {:?}",
+                    apply_result.applied
+                );
+                println!(
+                    "Without index mapping - Missing tensors: {:?}",
+                    apply_result.missing
+                );
+
+                // Without index mapping, we should have missing tensors for fc.1, fc.3
+                // because the source has fc.0, fc.2, fc.4, fc.6, fc.8 but model expects fc.0-4
+                let missing_fc: Vec<_> = apply_result
+                    .missing
+                    .iter()
+                    .filter(|(p, _)| p.starts_with("fc."))
+                    .collect();
+
+                assert!(
+                    !missing_fc.is_empty(),
+                    "Should have missing fc tensors without index mapping (indices 1, 3 don't exist in file)"
+                );
+
+                // Specifically, fc.1 and fc.3 should be missing
+                let has_fc1_missing = apply_result
+                    .missing
+                    .iter()
+                    .any(|(p, _)| p.starts_with("fc.1."));
+                let has_fc3_missing = apply_result
+                    .missing
+                    .iter()
+                    .any(|(p, _)| p.starts_with("fc.3."));
+
+                assert!(
+                    has_fc1_missing || has_fc3_missing,
+                    "Should have fc.1 or fc.3 missing. Missing: {:?}",
+                    apply_result.missing
+                );
+            }
+            Err(e) => panic!("Unexpected error: {}", e),
+        }
+    }
+
+    #[test]
+    fn test_mapping_applied_to_keys() {
+        // Verify that the keys returned by the store are mapped
+        let path = pytorch_test_path("non_contiguous_indexes", "non_contiguous_indexes.pt");
+
+        if !path.exists() {
+            println!("Skipping test - file not found: {:?}", path);
+            return;
+        }
+
+        // With index mapping enabled (default)
+        let mut store_mapped = PytorchStore::from_file(&path).map_indices_contiguous(true);
+
+        let keys_mapped = store_mapped.keys().unwrap();
+        println!("Keys with index mapping: {:?}", keys_mapped);
+
+        // Should have contiguous keys: fc.0, fc.1, fc.2, fc.3, fc.4
+        assert!(
+            keys_mapped.iter().any(|k| k.starts_with("fc.1.")),
+            "With index mapping, should have fc.1 (from fc.2)"
+        );
+        assert!(
+            keys_mapped.iter().any(|k| k.starts_with("fc.2.")),
+            "With index mapping, should have fc.2 (from fc.4)"
+        );
+
+        // Without index mapping
+        let mut store_no_mapping = PytorchStore::from_file(&path).map_indices_contiguous(false);
+
+        let keys_no_mapping = store_no_mapping.keys().unwrap();
+        println!("Keys without index mapping: {:?}", keys_no_mapping);
+
+        // Should have original non-contiguous keys: fc.0, fc.2, fc.4, fc.6, fc.8
+        assert!(
+            keys_no_mapping.iter().any(|k| k.starts_with("fc.2.")),
+            "Without index mapping, should have original fc.2"
+        );
+        assert!(
+            keys_no_mapping.iter().any(|k| k.starts_with("fc.4.")),
+            "Without index mapping, should have original fc.4"
+        );
+        assert!(
+            !keys_no_mapping.iter().any(|k| k.starts_with("fc.1.")),
+            "Without index mapping, should NOT have fc.1 (not in original file)"
+        );
     }
 }

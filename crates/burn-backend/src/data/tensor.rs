@@ -6,14 +6,13 @@ use alloc::string::String;
 use alloc::vec::Vec;
 use bytemuck::{AnyBitPattern, CheckedBitPattern, Zeroable, cast_mut, checked::CheckedCastError};
 use rand::RngCore;
+use thiserror::Error;
 
+use crate::Scalar;
 use crate::distribution::Distribution;
 use crate::element::{Element, ElementConversion};
 use burn_std::tensor::DType;
-use burn_std::tensor::quantization::{
-    QuantLevel, QuantMode, QuantScheme, QuantValue, QuantizedBytes,
-};
-use burn_std::{Bytes, bf16, f16};
+use burn_std::{Bytes, QuantLevel, QuantMode, QuantScheme, QuantValue, QuantizedBytes, bf16, f16};
 
 /// Data structure for tensors.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -189,6 +188,7 @@ impl TensorData {
             Ok(elems) => return Ok(elems),
             Err(bytes) => bytes,
         };
+
         // The bytes might have been deserialized and allocated with a different align.
         // In that case, we have to memcopy the data into a new vector, more suitably allocated
         Ok(bytemuck::checked::try_cast_slice(me.as_bytes())
@@ -385,13 +385,13 @@ impl TensorData {
         TensorData::new(data, shape)
     }
 
-    #[allow(dead_code)]
     /// Populates the data with the given value
-    pub fn full_dtype<E: Element, S: Into<Vec<usize>>>(
+    pub fn full_dtype<E: Into<Scalar>, S: Into<Vec<usize>>>(
         shape: S,
         fill_value: E,
         dtype: DType,
     ) -> TensorData {
+        let fill_value = fill_value.into();
         match dtype {
             DType::F64 => Self::full::<f64, _>(shape, fill_value.elem()),
             DType::F32 | DType::Flex32 => Self::full::<f32, _>(shape, fill_value.elem()),
@@ -710,20 +710,14 @@ impl core::fmt::Display for TensorData {
 }
 
 /// The things that can go wrong when manipulating tensor data.
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum DataError {
     /// Failed to cast the values to a specified element type.
+    #[error("Failed to cast values to the specified element type.\nError:\n  {0}")]
     CastError(CheckedCastError),
     /// Invalid target element type.
+    #[error("{0}")]
     TypeMismatch(String),
-}
-
-impl core::error::Error for DataError {}
-
-impl core::fmt::Display for DataError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_str(format!("{self:?}").as_str())
-    }
 }
 
 #[cfg(test)]

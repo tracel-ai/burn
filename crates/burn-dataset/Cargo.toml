@@ -15,12 +15,16 @@ version.workspace = true
 workspace = true
 
 [features]
-audio = ["hound"]
-builtin-sources = ["vision", "dep:tar", "nlp"]
 default = ["sqlite-bundled"]
 doc = ["default"]
+tracing = [
+    "burn-std/tracing",
+]
+
+audio = ["hound"]
+builtin-sources = ["vision", "dep:tar", "nlp"]
 fake = ["dep:fake"]
-network = ["dep:indicatif", "dep:reqwest", "dep:tokio"]
+network = ["dep:burn-std"]
 sqlite = ["__sqlite-shared", "dep:rusqlite"]
 sqlite-bundled = ["__sqlite-shared", "rusqlite/bundled"]
 vision = ["dep:flate2", "dep:globwalk", "dep:image", "network"]
@@ -36,6 +40,9 @@ __sqlite-shared = [
 dataframe = ["dep:polars", "dep:planus"]
 
 [dependencies]
+burn-std = { path = "../burn-std", version = "=0.21.0", optional = true, features = [
+    "network",
+] }
 csv = { workspace = true }
 derive-new = { workspace = true }
 dirs = { workspace = true }
@@ -50,7 +57,7 @@ encoding_rs = { workspace = true, optional = true }
 polars = { workspace = true, optional = true }
 r2d2 = { workspace = true, optional = true }
 r2d2_sqlite = { workspace = true, optional = true }
-rand = { workspace = true, features = ["std"] }
+rand = { workspace = true, features = ["std", "os_rng"] }
 zip = { workspace = true, optional = true }
 rmp-serde = { workspace = true }
 rusqlite = { workspace = true, optional = true }
@@ -62,11 +69,6 @@ strum = { workspace = true }
 tar = { workspace = true, optional = true }
 tempfile = { workspace = true }
 thiserror = { workspace = true }
-
-# Network downloader
-indicatif = { workspace = true, optional = true }
-reqwest = { workspace = true, optional = true }
-tokio = { workspace = true, optional = true }
 
 
 [dev-dependencies]

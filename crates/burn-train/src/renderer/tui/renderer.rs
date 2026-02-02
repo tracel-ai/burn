@@ -348,7 +348,7 @@ impl CallbackFn for KillPopupAccept {
 
 impl CallbackFn for QuitPopupAccept {
     fn call(&self) -> bool {
-        self.0.stop();
+        self.0.stop(Some("Stopping training from user input."));
         true
     }
 }
@@ -368,6 +368,7 @@ impl Drop for TuiMetricsRenderer {
 
             if let Some(summary) = &self.summary {
                 println!("{summary}");
+                log::info!("{summary}");
             }
         }
     }

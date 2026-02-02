@@ -1,44 +1,80 @@
 use core::mem;
 
-use burn_tensor::{
-    DType, Element, Shape, TensorData, TensorMetadata,
-    quantization::{QParams, QTensorPrimitive, QuantLevel, QuantMode, QuantScheme, QuantValue},
+use burn_backend::{
+    DType, Element, QTensorPrimitive, Shape, TensorData, TensorMetadata,
+    quantization::{QParams, QuantLevel, QuantMode, QuantScheme, QuantValue},
 };
 
+use crate::NdArrayStorage;
 use crate::ops::quantization::{QuantizationStrategy, SymmetricQuantization};
 use alloc::vec::Vec;
 use ndarray::{ArcArray, ArrayD, IxDyn};
 
-/// Concrete storage type for ndarray
+/// Concrete storage type for ndarray (owned with COW semantics via Arc)
 pub type SharedArray<E> = ArcArray<E, IxDyn>;
 
 /// Tensor primitive used by the [ndarray backend](crate::NdArray).
+///
+/// Supports both owned and borrowed (zero-copy) data via [`NdArrayStorage`].
+/// When data is borrowed from external sources (like burnpack files),
+/// it remains zero-copy until a mutating operation is performed.
 #[derive(Debug, Clone)]
 #[allow(missing_docs)]
 pub enum NdArrayTensor {
-    F64(SharedArray<f64>),
-    F32(SharedArray<f32>),
-    I64(SharedArray<i64>),
-    I32(SharedArray<i32>),
-    I16(SharedArray<i16>),
-    I8(SharedArray<i8>),
-    U64(SharedArray<u64>),
-    U32(SharedArray<u32>),
-    U16(SharedArray<u16>),
-    U8(SharedArray<u8>),
-    Bool(SharedArray<bool>),
+    F64(NdArrayStorage<f64>),
+    F32(NdArrayStorage<f32>),
+    I64(NdArrayStorage<i64>),
+    I32(NdArrayStorage<i32>),
+    I16(NdArrayStorage<i16>),
+    I8(NdArrayStorage<i8>),
+    U64(NdArrayStorage<u64>),
+    U32(NdArrayStorage<u32>),
+    U16(NdArrayStorage<u16>),
+    U8(NdArrayStorage<u8>),
+    Bool(NdArrayStorage<bool>),
     #[cfg(feature = "complex")]
-    Complex32(SharedArray<burn_complex::base::element::Complex32>),
+    Complex32(NdArrayStorage<burn_complex::base::element::Complex32>),
     #[cfg(feature = "complex")]
-    Complex64(SharedArray<burn_complex::base::element::Complex64>),
+    Complex64(NdArrayStorage<burn_complex::base::element::Complex64>),
 }
 
 impl NdArrayTensor {
+    /// Extract bool array, converting to owned if necessary.
     pub(crate) fn bool(self) -> SharedArray<bool> {
         match self {
-            NdArrayTensor::Bool(arr) => arr,
+            NdArrayTensor::Bool(storage) => storage.into_shared(),
             _ => unimplemented!("Expected bool tensor, got {:?}", self.dtype()),
         }
+    }
+
+    /// Returns true if this tensor uses borrowed (zero-copy) storage.
+    #[cfg(not(feature = "complex"))]
+    #[inline]
+    pub fn is_borrowed(&self) -> bool {
+        macro_rules! check {
+            ($($variant:ident),*) => {
+                match self {
+                    $(NdArrayTensor::$variant(s) => s.is_borrowed(),)*
+                }
+            };
+        }
+        check!(
+            F64,
+            F32,
+            I64,
+            I32,
+            I16,
+            I8,
+            U64,
+            U32,
+            U16,
+            U8,
+            Bool,
+            #[cfg(feature = "complex")]
+            Complex32,
+            #[cfg(feature = "complex")]
+            Complex64
+        )
     }
 }
 
@@ -77,8 +113,16 @@ where
 
 macro_rules! impl_from {
     ($($ty: ty => $dtype: ident),*) => {
+        // From SharedArray (owned) -> NdArrayTensor
         $(impl From<SharedArray<$ty>> for NdArrayTensor {
            fn from(value: SharedArray<$ty>) -> NdArrayTensor {
+                NdArrayTensor::$dtype(NdArrayStorage::from_owned(value))
+           }
+        })*
+
+        // From NdArrayStorage -> NdArrayTensor
+        $(impl From<NdArrayStorage<$ty>> for NdArrayTensor {
+           fn from(value: NdArrayStorage<$ty>) -> NdArrayTensor {
                 NdArrayTensor::$dtype(value)
            }
         })*
@@ -97,7 +141,9 @@ impl_from!(
     burn_complex::base::element::Complex64 => Complex64
 );
 
-/// Macro to execute an operation a given element type.
+/// Macro to execute an operation on a given element type.
+///
+/// Extracts the storage from NdArrayTensor, converts to SharedArray, and passes to operation.
 ///
 /// # Panics
 /// Since there is no automatic type cast at this time, binary operations for different
@@ -105,14 +151,15 @@ impl_from!(
 #[macro_export]
 macro_rules! execute_with_dtype {
     (($lhs:expr, $rhs:expr),$element:ident,  $op:expr, [$($dtype: ident => $ty: ty),*]) => {{
-        let lhs_dtype = burn_tensor::TensorMetadata::dtype(&$lhs);
-        let rhs_dtype = burn_tensor::TensorMetadata::dtype(&$rhs);
+        let lhs_dtype = burn_backend::TensorMetadata::dtype(&$lhs);
+        let rhs_dtype = burn_backend::TensorMetadata::dtype(&$rhs);
         match ($lhs, $rhs) {
             $(
                 ($crate::NdArrayTensor::$dtype(lhs), $crate::NdArrayTensor::$dtype(rhs)) => {
                     #[allow(unused)]
                     type $element = $ty;
-                    $op(lhs, rhs).into()
+                    // Convert storage to SharedArray for compatibility with existing operations
+                    $op(lhs.into_shared(), rhs.into_shared()).into()
                 }
             )*
             _ => panic!(
@@ -139,10 +186,11 @@ macro_rules! execute_with_dtype {
     ($tensor:expr, $element:ident, $op:expr, [$($dtype: ident => $ty: ty),*]) => {{
         match $tensor {
             $(
-                $crate::NdArrayTensor::$dtype(lhs) => {
+                $crate::NdArrayTensor::$dtype(storage) => {
                     #[allow(unused)]
                     type $element = $ty;
-                    $op(lhs).into()
+                    // Convert to SharedArray for compatibility with most operations
+                    $op(storage.into_shared()).into()
                 }
             )*
             #[allow(unreachable_patterns)]
@@ -270,7 +318,9 @@ macro_rules! execute_with_numeric_dtype {
     }};
 }
 
-/// Macro to execute an cat operation on a given set of element types.
+/// Macro to execute a cat operation on a given set of element types.
+///
+/// Uses zero-copy views from storage for concatenation.
 ///
 /// # Panics
 /// Since there is no automatic type cast at this time, binary operations for different
@@ -283,10 +333,11 @@ macro_rules! cat_with_dtype {
                 let tensors = $tensors
                     .iter()
                     .map(|t| {
-                        if let NdArrayTensor::$dtype(tensor) = t {
-                            tensor.view()
+                        if let NdArrayTensor::$dtype(storage) = t {
+                            // Use storage.view() for zero-copy access
+                            storage.view()
                         } else {
-                            panic!("Concatenate data type mismatch (expected f32, got f64)")
+                            panic!("Concatenate data type mismatch (expected {:?}, got {:?})", $tensors[0].dtype(), t.dtype())
                         }
                     })
                     .collect::<Vec<_>>();
@@ -297,6 +348,14 @@ macro_rules! cat_with_dtype {
     };
 }
 
+// Use storage's shape method (works for both borrowed and owned)
+macro_rules! get_shape {
+    ($($variant:ident),*) => {
+        match self {
+            $(NdArrayTensor::$variant(storage) => Shape::from(storage.shape().to_vec()),)*
+        }
+    };
+}
 impl TensorMetadata for NdArrayTensor {
     fn dtype(&self) -> DType {
         match self {
@@ -319,9 +378,31 @@ impl TensorMetadata for NdArrayTensor {
     }
 
     fn shape(&self) -> Shape {
-        execute_with_dtype!(self, E, |a: &ArcArray<E, IxDyn>| Shape::from(
-            a.shape().to_vec()
-        ))
+        // Use storage's shape method (works for both borrowed and owned)
+        macro_rules! get_shape {
+            ($($variant:ident),*) => {
+                match self {
+                    $(NdArrayTensor::$variant(storage) => Shape::from(storage.shape().to_vec()),)*
+                }
+            };
+        }
+        get_shape!(
+            F64,
+            F32,
+            I64,
+            I32,
+            I16,
+            I8,
+            U64,
+            U32,
+            U16,
+            U8,
+            Bool,
+            #[cfg(feature = "complex")]
+            Complex32,
+            #[cfg(feature = "complex")]
+            Complex64
+        )
     }
 
     fn rank(&self) -> usize {
@@ -357,6 +438,34 @@ impl ShapeOps for &[usize] {
 }
 
 mod utils {
+    // For borrowed data, we assume it's contiguous (it came from TensorData which is contiguous)
+    // For owned data, we check the strides
+    macro_rules! check_contiguous {
+        ($($variant:ident),*) => {
+            match self {
+                $(NdArrayTensor::$variant(storage) => {
+                    match storage {
+                        NdArrayStorage::Borrowed { .. } => {
+                            // Borrowed storage requires contiguous row-major data
+                            // (see NdArrayStorage::from_borrowed documentation)
+                            true
+                        }
+                        NdArrayStorage::Owned(array) => {
+                            let shape = array.shape();
+                            let mut strides = Vec::with_capacity(array.strides().len());
+                            for &stride in array.strides() {
+                                if stride <= 0 {
+                                    return false;
+                                }
+                                strides.push(stride as usize);
+                            }
+                            is_contiguous(shape, &strides)
+                        }
+                    }
+                })*
+            }
+        };
+    }
     use burn_std::tensor::is_contiguous;
 
     use super::*;
@@ -392,24 +501,56 @@ mod utils {
                 TensorData::new(vec, shape)
             }
 
+            // Convert storage to owned array before extracting data
             execute_with_dtype!(self, |arr| inner(shape, contiguous, arr))
         }
 
         pub(crate) fn is_contiguous(&self) -> bool {
-            fn inner<E: Element>(array: &ArcArray<E, IxDyn>) -> bool {
-                let shape = array.shape();
-                let mut strides = Vec::with_capacity(array.strides().len());
-
-                for &stride in array.strides() {
-                    if stride <= 0 {
-                        return false;
+            // For borrowed data, we assume it's contiguous (it came from TensorData which is contiguous)
+            // For owned data, we check the strides
+            macro_rules! check_contiguous {
+                ($($variant:ident),*) => {
+                    match self {
+                        $(NdArrayTensor::$variant(storage) => {
+                            match storage {
+                                NdArrayStorage::Borrowed { .. } => {
+                                    // Borrowed storage requires contiguous row-major data
+                                    // (see NdArrayStorage::from_borrowed documentation)
+                                    true
+                                }
+                                NdArrayStorage::Owned(array) => {
+                                    let shape = array.shape();
+                                    let mut strides = Vec::with_capacity(array.strides().len());
+                                    for &stride in array.strides() {
+                                        if stride <= 0 {
+                                            return false;
+                                        }
+                                        strides.push(stride as usize);
+                                    }
+                                    is_contiguous(shape, &strides)
+                                }
+                            }
+                        })*
                     }
-                    strides.push(stride as usize);
-                }
-                is_contiguous(shape, &strides)
+                };
             }
-
-            execute_with_dtype!(self, inner)
+            check_contiguous!(
+                F64,
+                F32,
+                I64,
+                I32,
+                I16,
+                I8,
+                U64,
+                U32,
+                U16,
+                U8,
+                Bool,
+                #[cfg(feature = "complex")]
+                Complex32,
+                #[cfg(feature = "complex")]
+                Complex64
+            )
         }
     }
 }
@@ -472,9 +613,88 @@ macro_rules! reshape {
     }};
 }
 
+/// Slice a tensor
+#[macro_export]
+macro_rules! slice {
+    ($tensor:expr, $slices:expr) => {
+        slice!($tensor, $slices, F64, F32, I64, I32, I16, I8, U64, U32, U16, U8, Bool)
+    };
+    ($tensor:expr, $slices:expr, $($variant:ident),*) => {
+        match $tensor {
+            $(NdArrayTensor::$variant(s) => { NdArrayOps::slice(s.view(), $slices).into() })*
+        }
+    };
+}
+
 impl NdArrayTensor {
     /// Create a new [ndarray tensor](NdArrayTensor) from [data](TensorData).
-    pub fn from_data(mut data: TensorData) -> NdArrayTensor {
+    ///
+    /// This method attempts zero-copy loading when possible. If the data has properly
+    /// aligned bytes that can be borrowed, it creates a borrowed tensor. Otherwise,
+    /// it falls back to copying the data.
+    ///
+    /// Zero-copy loading works when:
+    /// - The data's bytes are properly aligned for the element type
+    /// - The bytes can be borrowed (e.g., from mmap'd file or static data)
+    pub fn from_data(data: TensorData) -> NdArrayTensor {
+        // Try borrowed storage first, fall back to owned if not possible
+        match Self::try_from_data_borrowed(data) {
+            Ok(tensor) => tensor,
+            Err(data) => Self::from_data_owned(data),
+        }
+    }
+
+    /// Try to create a tensor with borrowed storage (zero-copy).
+    ///
+    /// Takes ownership of TensorData and returns it back on failure.
+    /// No cloning occurs - bytes are moved into storage or returned on failure.
+    ///
+    /// Returns `Err(data)` if borrowing is not possible (e.g., misaligned data).
+    fn try_from_data_borrowed(data: TensorData) -> Result<NdArrayTensor, TensorData> {
+        let TensorData {
+            bytes,
+            shape,
+            dtype,
+        } = data;
+
+        macro_rules! try_borrow {
+            ($ty:ty, $variant:ident, $bytes:expr, $shape:expr) => {
+                match NdArrayStorage::<$ty>::from_borrowed($bytes, $shape) {
+                    Ok(storage) => return Ok(NdArrayTensor::$variant(storage)),
+                    Err((bytes, shape)) => (bytes, shape),
+                }
+            };
+        }
+
+        // Try to create borrowed storage; get bytes back on failure
+        let (bytes, shape) = match dtype {
+            DType::F64 => try_borrow!(f64, F64, bytes, shape),
+            DType::F32 => try_borrow!(f32, F32, bytes, shape),
+            DType::I64 => try_borrow!(i64, I64, bytes, shape),
+            DType::I32 => try_borrow!(i32, I32, bytes, shape),
+            DType::I16 => try_borrow!(i16, I16, bytes, shape),
+            DType::I8 => try_borrow!(i8, I8, bytes, shape),
+            DType::U64 => try_borrow!(u64, U64, bytes, shape),
+            DType::U32 => try_borrow!(u32, U32, bytes, shape),
+            DType::U16 => try_borrow!(u16, U16, bytes, shape),
+            DType::U8 => try_borrow!(u8, U8, bytes, shape),
+            DType::Bool => try_borrow!(bool, Bool, bytes, shape),
+            _ => (bytes, shape), // QFloat not supported for zero-copy
+        };
+
+        Err(TensorData {
+            bytes,
+            shape,
+            dtype,
+        })
+    }
+
+    /// Create a tensor with owned storage.
+    ///
+    /// This may or may not copy data depending on whether the underlying bytes
+    /// can be reclaimed (via `try_into_vec`). If bytes are uniquely owned,
+    /// no copy occurs; otherwise data is copied to a new allocation.
+    fn from_data_owned(mut data: TensorData) -> NdArrayTensor {
         let shape = mem::take(&mut data.shape);
 
         macro_rules! execute {
@@ -482,7 +702,7 @@ impl NdArrayTensor {
                 match $data.dtype {
                     $(DType::$dtype => {
                         match data.into_vec::<$ty>() {
-                            // Safety: TensorData checks shape validity on creation, so we don't need to repeat that check here
+                            // Safety: TensorData checks shape validity on creation
                             Ok(vec) => unsafe { ArrayD::from_shape_vec_unchecked(shape, vec) }.into_shared(),
                             Err(err) => panic!("Data should have the same element type as the tensor {err:?}"),
                         }.into()
@@ -578,7 +798,7 @@ impl QTensorPrimitive for NdArrayQTensor {
     }
 
     fn default_scheme() -> QuantScheme {
-        QuantScheme::default().with_store(burn_tensor::quantization::QuantStore::Native)
+        QuantScheme::default().with_store(burn_backend::quantization::QuantStore::Native)
     }
 }
 
@@ -599,14 +819,15 @@ impl TensorMetadata for NdArrayQTensor {
 #[cfg(test)]
 mod tests {
     use crate::NdArray;
+    use alloc::vec;
 
     use super::*;
-    use burn_std::rand::get_seeded_rng;
-    use burn_tensor::{
+    use burn_backend::{
         Distribution,
         ops::{FloatTensorOps, QTensorOps},
         quantization::{QuantStore, QuantizationParametersPrimitive},
     };
+    use burn_std::rand::get_seeded_rng;
 
     #[test]
     fn should_support_into_and_from_data_1d() {
@@ -687,5 +908,74 @@ mod tests {
                 QuantValue::Q8S
             ))
         );
+    }
+
+    // ==========================================================================
+    // Zero-copy integration tests
+    // These tests verify end-to-end zero-copy behavior through NdArrayTensor.
+    // ==========================================================================
+
+    #[test]
+    fn zero_copy_creates_borrowed_storage() {
+        // Verify that from_data creates borrowed storage when possible.
+        // Note: For native allocations, Bytes::clone() copies data internally,
+        // but the storage type (Borrowed) is preserved, which is important for
+        // the is_unique() behavior that triggers copy-on-write.
+        use burn_std::Bytes;
+
+        let data: Vec<f32> = vec![1.0, 2.0, 3.0, 4.0];
+        let bytes = Bytes::from_elems(data);
+        let tensor_data = TensorData::from_bytes(bytes, Shape::new([2, 2]), DType::F32);
+
+        let tensor = NdArrayTensor::from_data(tensor_data);
+
+        match &tensor {
+            NdArrayTensor::F32(storage) => {
+                assert!(
+                    storage.is_borrowed(),
+                    "ZERO-COPY REGRESSION: from_data should create borrowed storage \
+                     for properly aligned TensorData with Bytes"
+                );
+                assert!(
+                    !storage.is_unique(),
+                    "ZERO-COPY REGRESSION: borrowed storage must report is_unique() == false"
+                );
+            }
+            _ => panic!("Expected F32 tensor"),
+        }
+    }
+
+    #[test]
+    fn zero_copy_data_integrity() {
+        // Verify data is correctly accessible through borrowed storage
+        use burn_std::Bytes;
+
+        let data: Vec<f32> = vec![1.0, 2.0, 3.0, 4.0];
+        let bytes = Bytes::from_elems(data);
+        let tensor_data = TensorData::from_bytes(bytes, Shape::new([2, 2]), DType::F32);
+
+        let tensor = NdArrayTensor::from_data(tensor_data);
+
+        match &tensor {
+            NdArrayTensor::F32(storage) => {
+                let view = storage.view();
+                assert_eq!(view[[0, 0]], 1.0);
+                assert_eq!(view[[0, 1]], 2.0);
+                assert_eq!(view[[1, 0]], 3.0);
+                assert_eq!(view[[1, 1]], 4.0);
+            }
+            _ => panic!("Expected F32 tensor"),
+        }
+    }
+
+    #[test]
+    fn zero_copy_fallback_when_bytes_owned() {
+        // When TensorData owns bytes exclusively, it may use the copy path
+        // This is expected behavior - verify it still works correctly
+        let data = TensorData::from([1.0f32, 2.0, 3.0, 4.0]);
+        let tensor = NdArrayTensor::from_data(data.clone());
+        let result = tensor.into_data();
+
+        assert_eq!(data, result, "Data should round-trip correctly");
     }
 }

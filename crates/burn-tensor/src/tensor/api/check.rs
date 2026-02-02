@@ -1,9 +1,10 @@
 use crate::ops::FloatElem;
-use crate::{BasicOps, Numeric, Shape, Slice, Tensor, backend::Backend, cast::ToElement};
+use crate::{BasicOps, Shape, Slice, Tensor, backend::Backend, cast::ToElement};
 use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec;
 use alloc::vec::Vec;
+use burn_backend::tensor::Ordered;
 
 /// The struct should always be used with the [check](crate::check) macro.
 ///
@@ -138,53 +139,6 @@ impl TensorCheck {
                      along this dimension (Size={})",
                     tensor.shape().dims[dim]
                 )),
-            );
-        }
-
-        check
-    }
-
-    pub(crate) fn reshape_args_usize<const D1: usize, const D2: usize>(
-        original: &Shape,
-        target: &Shape,
-    ) -> Self {
-        let mut check = Self::Ok;
-
-        if original.num_elements() != target.num_elements() {
-            check = check.register(
-                "Reshape",
-                TensorError::new(
-                    "The given shape doesn't have the same number of elements as the current \
-                     tensor.",
-                )
-                .details(format!(
-                    "Current shape: {:?}, target shape: {:?}.",
-                    original.dims, target.dims
-                )),
-            );
-        }
-
-        check
-    }
-
-    pub(crate) fn reshape_args_i64<const D: usize>(target: &[i64; D]) -> Self {
-        let mut check = Self::Ok;
-
-        if target.iter().any(|&dim| dim < -1) {
-            check = check.register(
-                "Reshape",
-                TensorError::new(
-                    "The given shape cannot contain negative dimensions (other than -1).",
-                )
-                .details(format!("Target shape: {target:?}.")),
-            );
-        }
-
-        if target.iter().filter(|&x| x == &-1).count() > 1 {
-            check = check.register(
-                "Reshape",
-                TensorError::new("The given shape cannot contain more than one -1.")
-                    .details(format!("Target shape: {target:?}.")),
             );
         }
 
@@ -466,7 +420,7 @@ impl TensorCheck {
         check
     }
 
-    pub(crate) fn one_hot_tensor<B: Backend, const D: usize, K: Numeric<B>>(
+    pub(crate) fn one_hot_tensor<B: Backend, const D: usize, K: Ordered<B>>(
         index_tensor: Tensor<B, D, K>,
         num_classes: usize,
     ) -> Self {
@@ -776,9 +730,9 @@ impl TensorCheck {
         check
     }
 
-    pub(crate) fn slice<const D1: usize, const D2: usize>(shape: &Shape, slices: &[Slice]) -> Self {
+    pub(crate) fn slice<const R: usize>(shape: &Shape, slices: &[Slice]) -> Self {
         let mut check = Self::Ok;
-        let n_dims_tensor = D1;
+        let n_dims_tensor = R;
         let n_dims_slices = slices.len();
 
         if n_dims_tensor < n_dims_slices {
@@ -796,7 +750,7 @@ impl TensorCheck {
             );
         }
 
-        for (i, slice) in slices.iter().enumerate().take(D1) {
+        for (i, slice) in slices.iter().enumerate().take(R) {
             let d_tensor = shape[i];
 
             // Check the raw end value before conversion
@@ -818,22 +772,9 @@ impl TensorCheck {
                     );
             }
 
-            let range = slice.to_range(d_tensor);
-
-            if range.start >= range.end {
-                check = check.register(
-                    "Slice",
-                    TensorError::new(
-                        "The provided slice has a range where the start index is bigger or \
-                         equal to its end.",
-                    )
-                    .details(format!(
-                        "The range at dimension '{}' starts at '{}' and is greater or equal to \
-                         its end '{}'. Tensor shape {:?}.",
-                        i, range.start, range.end, shape.dims,
-                    )),
-                );
-            }
+            // Empty slices (start >= end) are allowed and produce a tensor with size 0
+            // in that dimension. This matches PyTorch behavior and is required for ONNX
+            // compatibility where dynamic slice ranges may become empty at runtime.
 
             if slice.step() == 0 {
                 check = check.register(
@@ -848,14 +789,15 @@ impl TensorCheck {
         check
     }
 
-    pub(crate) fn slice_assign<const D1: usize, const D2: usize>(
+    pub(crate) fn slice_assign<const R: usize>(
         shape: &Shape,
         shape_value: &Shape,
         slices: &[crate::Slice],
     ) -> Self {
         let mut check = Self::Ok;
+        let n_dims_slices = slices.len();
 
-        if D1 < D2 {
+        if R < n_dims_slices {
             check = check.register(
                 "Slice Assign",
                 TensorError::new(
@@ -864,12 +806,12 @@ impl TensorCheck {
                 )
                 .details(format!(
                     "The slices array must be smaller or equal to the tensor number of \
-                     dimensions. Tensor number of dimensions: {D1}, slices array length {D2}."
+                     dimensions. Tensor number of dimensions: {R}, slices array length {n_dims_slices}."
                 )),
             );
         }
 
-        for (i, slice) in slices.iter().enumerate().take(usize::min(D1, D2)) {
+        for (i, slice) in slices.iter().enumerate().take(usize::min(R, n_dims_slices)) {
             let d_tensor = shape[i];
             let d_tensor_value = shape_value.dims[i];
             let range = slice.to_range(d_tensor);
@@ -915,19 +857,8 @@ impl TensorCheck {
                 );
             }
 
-            if range.start >= range.end && slice.step > 0 {
-                check = check.register(
-                    "Slice Assign",
-                    TensorError::new(
-                        "The provided slice has a range where the start index is bigger or \
-                         equal to its end with positive step.",
-                    )
-                    .details(format!(
-                        "The range start ({}) must be smaller than its end ({}) for positive step ({}) at dimension {}",
-                        range.start, range.end, slice.step, i
-                    )),
-                );
-            }
+            // Note: Empty slices (start >= end with positive step) are handled at the API level
+            // by returning the original tensor unchanged, so we don't check for them here.
         }
 
         check
@@ -1509,6 +1440,20 @@ pub(crate) mod macros {
     pub(crate) use check;
 }
 
+pub(crate) fn unwrap_shape_reshape(result: Result<Shape, burn_std::ShapeError>) -> Shape {
+    match result {
+        Ok(shape) => shape,
+        // `shape.reshape(new_shape)` should only return `ShapeError::Invalid`.
+        Err(burn_std::ShapeError::Invalid { reason }) => {
+            macros::check!({
+                TensorCheck::Ok.register("Reshape", crate::check::TensorError::new(reason))
+            });
+            unreachable!()
+        }
+        Err(e) => panic!("{e:?}"),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1516,33 +1461,16 @@ mod tests {
 
     #[test]
     #[should_panic]
-    fn reshape_invalid_shape() {
-        check!(TensorCheck::reshape_args_usize::<2, 2>(
-            &Shape::new([2, 2]),
-            &Shape::new([1, 3])
-        ));
-    }
-
-    #[test]
-    fn reshape_valid_shape() {
-        check!(TensorCheck::reshape_args_usize::<2, 2>(
-            &Shape::new([2, 2]),
-            &Shape::new([1, 4])
-        ));
-    }
-
-    #[test]
-    #[should_panic]
     fn index_range_exceed_dimension() {
         let slices = vec![Slice::from(0..2), Slice::from(0..4), Slice::from(1..8)];
-        check!(TensorCheck::slice::<3, 3>(&Shape::new([3, 5, 7]), &slices));
+        check!(TensorCheck::slice::<3>(&Shape::new([3, 5, 7]), &slices));
     }
 
     #[test]
     #[should_panic]
     fn index_range_exceed_number_of_dimensions() {
         let slices = vec![Slice::from(0..1), Slice::from(0..1), Slice::from(0..1)];
-        check!(TensorCheck::slice::<2, 3>(&Shape::new([3, 5]), &slices));
+        check!(TensorCheck::slice::<2>(&Shape::new([3, 5]), &slices));
     }
 
     #[test]

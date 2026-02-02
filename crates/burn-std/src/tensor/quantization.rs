@@ -1,21 +1,88 @@
 //! Quantization data representation.
 
 // Re-exported types
-pub use cubecl_quant::scheme::{
+pub use cubecl_common::quant::scheme::{
     BlockSize, QuantLevel, QuantMode, QuantParam, QuantScheme, QuantStore, QuantValue,
 };
+
+/// Alignment (in bytes) for quantization parameters in serialized tensor data.
+///
+/// NOTE: This is currently f32-based since scales were originally always f32.
+/// With `QuantParam` now supporting different precisions (F16, BF16, etc.),
+/// this alignment may need to be revisited in the future.
+pub const QPARAM_ALIGN: usize = core::mem::align_of::<f32>();
 
 use alloc::vec::Vec;
 use core::any::TypeId;
 use num_traits::PrimInt;
+use serde::{Deserialize, Serialize};
 
-use crate::bytes::Bytes;
+use crate::{DType, Shape, bytes::Bytes};
+
+#[derive(
+    Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, Default,
+)]
+/// The precision of accumulating elements.
+pub enum QuantAcc {
+    /// Full precision.
+    #[default]
+    F32,
+    /// Half precision.
+    F16,
+    /// bfloat16 precision.
+    BF16,
+}
+
+/// Specify if the output of an operation is quantized using the scheme of the input
+/// or returned unquantized.
+#[derive(
+    Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, Default,
+)]
+pub enum QuantPropagation {
+    /// The output is quantized using the scheme of the input.
+    Propagate,
+    /// The output is not quantized.
+    #[default]
+    Inhibit,
+}
 
 /// The quantization tensor data parameters.
 #[derive(Clone, Debug)]
 pub struct QParams<S> {
     /// The scaling factor.
     pub scales: S,
+}
+
+/// A quantization parameter tensor descriptor.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct QParamTensor {
+    /// Start of the tensor in the buffer
+    pub offset_start: usize,
+    /// Offset of tensor end from the end of the buffer
+    pub offset_end: usize,
+    /// Shape of the tensor
+    pub shape: Shape,
+    /// Strides of the tensor
+    pub strides: Vec<usize>,
+    /// Data type of the tensor
+    pub dtype: DType,
+}
+
+/// Calculate the shape of the quantization parameters for a given tensor and level
+pub fn params_shape(data_shape: &Shape, level: QuantLevel) -> Shape {
+    match level {
+        QuantLevel::Tensor => Shape::new([1]),
+        QuantLevel::Block(block_size) => {
+            let mut params_shape = data_shape.clone();
+            let block_size = block_size.to_dim_vec(data_shape.num_dims());
+
+            for (shape, block_size) in params_shape.dims.iter_mut().zip(block_size) {
+                *shape = (*shape).div_ceil(block_size as usize);
+            }
+
+            params_shape
+        }
+    }
 }
 
 /// Quantized data bytes representation.
@@ -56,14 +123,14 @@ impl QuantizedBytes {
         match scheme.level {
             QuantLevel::Tensor => {
                 let scale_bytes = bytemuck::bytes_of(&scales[0]);
-                bytes.extend_from_byte_slice_aligned(scale_bytes, align_of::<f32>());
+                bytes.extend_from_byte_slice_aligned(scale_bytes, QPARAM_ALIGN);
             }
             QuantLevel::Block(_block_size) => {
                 let mut scale_bytes = Vec::with_capacity(size_of_val(scales));
                 for scale in scales {
                     scale_bytes.extend_from_slice(bytemuck::bytes_of(scale));
                 }
-                bytes.extend_from_byte_slice_aligned(scale_bytes.as_slice(), align_of::<f32>());
+                bytes.extend_from_byte_slice_aligned(scale_bytes.as_slice(), QPARAM_ALIGN);
             }
         }
 
@@ -133,9 +200,16 @@ impl QuantizedBytes {
             QuantLevel::Block(block_size) => self.num_elements / block_size.num_elements(),
         };
 
+        if let QuantStore::PackedU32(packed_dim) = self.scheme.store {
+            assert_eq!(
+                packed_dim, 0,
+                "Packing must be on innermost dimension for splitting off values"
+            );
+        }
+
         let (values, qparams) = match self.scheme.store {
             QuantStore::Native => self.split_i8_values(num_params),
-            QuantStore::U32 => match self.scheme.value {
+            QuantStore::PackedU32(_) => match self.scheme.value {
                 QuantValue::Q8F | QuantValue::Q8S => self.split_i8_values(num_params),
                 QuantValue::Q4F | QuantValue::Q4S | QuantValue::Q2F | QuantValue::Q2S => {
                     let mut values = self.bytes.try_into_vec::<u32>().unwrap();
@@ -151,6 +225,7 @@ impl QuantizedBytes {
                     unimplemented!("Not yet supported")
                 }
             },
+            QuantStore::PackedNative(_) => unimplemented!("Not yet supported"),
         };
 
         (values, (qparams, num_params))

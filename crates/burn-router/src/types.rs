@@ -1,10 +1,10 @@
-use burn_ir::{BackendIr, OperationIr, TensorHandle, TensorId, TensorIr};
-use burn_std::future::DynFut;
-use burn_tensor::{
+use burn_backend::{
     DType, Shape, TensorData,
-    backend::{Backend, DeviceId, DeviceOps, ExecutionError, SyncError},
+    backend::{Backend, DeviceId, DeviceOps, ExecutionError},
     try_read_sync,
 };
+use burn_ir::{BackendIr, OperationIr, TensorHandle, TensorId, TensorIr};
+use burn_std::future::DynFut;
 
 use crate::{
     ByteBridge, DirectChannel, MultiBackendBridge, RouterTensor, Runner, RunnerChannel,
@@ -20,7 +20,7 @@ macro_rules! impl_multi_backend_types {
         /// - `Handle`: the type used to point to a tensor (defined for all backends).
         /// - `MultiRunnerClient`: a client for multiple runners (each responsible to execute tensor operations on a given backend).
         /// - `DirectChannel`: a local channel with direct connection to the backend runner clients.
-        /// - `ByteBridge`: a simple multi-backend bridge that transfers tensors via the underlying [tensor data](burn_tensor::TensorData).
+        /// - `ByteBridge`: a simple multi-backend bridge that transfers tensors via the underlying [tensor data](burn_backend::TensorData).
         ///
         /// Each enum type is defined with backend identifiers as variant names (e.g., `B1` and `B2` for dual backends).
         pub mod $module_name {
@@ -113,11 +113,11 @@ macro_rules! impl_multi_backend_types {
                     }
                 }
 
-                fn read_tensor(&self, tensor: TensorIr) -> DynFut<Result<TensorData, ExecutionError>> {
+                fn read_tensor_async(&self, tensor: TensorIr) -> DynFut<Result<TensorData, ExecutionError>> {
                     match self {
-                        Self::$DefaultBackend(runner) => runner.read_tensor(tensor),
+                        Self::$DefaultBackend(runner) => runner.read_tensor_async(tensor),
                         $(
-                            Self::$OtherBackend(runner) => runner.read_tensor(tensor),
+                            Self::$OtherBackend(runner) => runner.read_tensor_async(tensor),
                         )+
                     }
                 }
@@ -146,7 +146,7 @@ macro_rules! impl_multi_backend_types {
                     }
                 }
 
-                fn sync(&self) -> Result<(), SyncError> {
+                fn sync(&self) -> Result<(), ExecutionError> {
                     match self {
                         Self::$DefaultBackend(runner) => runner.sync(),
                         $(
@@ -165,10 +165,19 @@ macro_rules! impl_multi_backend_types {
                 }
 
                 fn create_empty_handle(&self) -> TensorId {
-                            match self {
+                    match self {
                         Self::$DefaultBackend(runner) => runner.create_empty_handle(),
                         $(
                             Self::$OtherBackend(runner) => runner.create_empty_handle(),
+                        )+
+                    }
+                }
+
+                fn supports_dtype(&self, dtype: burn_std::DType) -> bool {
+                    match self {
+                        Self::$DefaultBackend(runner) => runner.supports_dtype(dtype),
+                        $(
+                            Self::$OtherBackend(runner) => runner.supports_dtype(dtype),
                         )+
                     }
                 }

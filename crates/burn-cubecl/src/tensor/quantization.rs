@@ -1,6 +1,6 @@
-use burn_tensor::{DType, Shape, quantization::QParamTensor};
+use burn_backend::{DType, Shape, TensorMetadata as _, quantization::QParamTensor};
+use cubecl::quant::scheme::{QuantStore, QuantValue};
 use cubecl::{client::ComputeClient, server::Handle};
-use cubecl_quant::scheme::{QuantStore, QuantValue};
 
 use crate::CubeRuntime;
 
@@ -8,7 +8,7 @@ use super::CubeTensor;
 
 /// Runtime parameters for quantization. Can be used to construct a scales handle from the base
 /// tensor handle.
-pub type QParams = burn_tensor::quantization::QParams<QParamTensor>;
+pub type QParams = burn_backend::quantization::QParams<QParamTensor>;
 
 impl<R: CubeRuntime> CubeTensor<R> {
     /// Create a new quantized tensor
@@ -33,6 +33,9 @@ impl<R: CubeRuntime> CubeTensor<R> {
     }
 
     /// Returns the two tensors: (values, params) for a quantized tensor.
+    /// For the values, native types that aren't supported as a normal `DType` will be returned
+    /// as an unsigned integer tensor representing the bits. Should be reconstructed using `from_bits`
+    /// in kernels.
     pub fn quantized_handles(&self) -> Option<(CubeTensor<R>, CubeTensor<R>)> {
         let params = self.scales()?;
         let scheme = match self.dtype {
@@ -50,17 +53,27 @@ impl<R: CubeRuntime> CubeTensor<R> {
                     dtype: DType::I8,
                     qparams: None,
                 },
-                QuantValue::E4M3 | QuantValue::E5M2 | QuantValue::E2M1 => {
-                    unimplemented!("Not yet supported")
-                }
-                QuantValue::Q4F | QuantValue::Q4S | QuantValue::Q2F | QuantValue::Q2S => {
+                QuantValue::E4M3 | QuantValue::E5M2 => CubeTensor {
+                    client: self.client.clone(),
+                    handle: self.handle.clone(),
+                    shape: self.shape.clone(),
+                    device: self.device.clone(),
+                    strides: self.strides.clone(),
+                    dtype: DType::U8,
+                    qparams: None,
+                },
+                QuantValue::Q4F
+                | QuantValue::Q4S
+                | QuantValue::Q2F
+                | QuantValue::Q2S
+                | QuantValue::E2M1 => {
                     panic!("Can't store native sub-byte values")
                 }
             },
-            QuantStore::U32 => {
-                let major_dim = self.major_dim();
+            QuantStore::PackedU32(packed_dim) => {
+                let packed_dim = self.rank() - packed_dim - 1;
                 let mut shape = self.shape.clone();
-                shape[major_dim] = shape[major_dim].div_ceil(scheme.num_quants());
+                shape[packed_dim] = shape[packed_dim].div_ceil(scheme.num_quants());
 
                 CubeTensor {
                     client: self.client.clone(),
@@ -72,20 +85,27 @@ impl<R: CubeRuntime> CubeTensor<R> {
                     qparams: None,
                 }
             }
+            QuantStore::PackedNative(packed_dim) => match scheme.value {
+                QuantValue::E2M1 => {
+                    let packed_dim = self.rank() - packed_dim - 1;
+                    let mut shape = self.shape.clone();
+                    shape[packed_dim] = shape[packed_dim].div_ceil(scheme.num_quants());
+
+                    CubeTensor {
+                        client: self.client.clone(),
+                        handle: self.handle.clone(),
+                        shape,
+                        device: self.device.clone(),
+                        strides: self.strides.clone(),
+                        dtype: DType::U8,
+                        qparams: None,
+                    }
+                }
+                other => panic!("{other:?} doesn't support native packing"),
+            },
         };
 
         Some((values, params))
-    }
-
-    fn major_dim(&self) -> usize {
-        let rank = self.shape.num_dims();
-        self.strides
-            .iter()
-            .enumerate()
-            .rev()
-            .find(|(_, s)| **s == 1)
-            .map(|(i, _)| i)
-            .unwrap_or(rank - 1)
     }
 
     /// Construct a separate tensor for the quantization scales, if present

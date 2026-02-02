@@ -4,7 +4,7 @@ use crate::{
     ops::numeric::empty_device_dtype,
     tensor::CubeTensor,
 };
-use burn_tensor::Slice;
+use burn_backend::Slice;
 use cubecl::{
     calculate_cube_count_elemwise, intrinsic,
     prelude::*,
@@ -58,8 +58,8 @@ pub fn slice<R: CubeRuntime>(tensor: CubeTensor<R>, indices: &[Range<usize>]) ->
 fn slice_kernel<E: Numeric>(
     input: &Tensor<E>,
     output: &mut LinearView<E, ReadWrite>,
-    out_shape: Sequence<FastDivmod>,
-    indices: Sequence<u32>,
+    out_shape: Sequence<FastDivmod<usize>>,
+    indices: Sequence<usize>,
     #[define(E)] _dtype: StorageType,
 ) {
     if !output.is_in_bounds(ABSOLUTE_POS) {
@@ -73,11 +73,10 @@ fn slice_kernel<E: Numeric>(
     #[unroll]
     for i in 0..rank {
         // Iterate in reverse to use divmod
-        let i = unwrap(i);
-        let dim = comptime![rank - i - 1];
+        let dim = rank - i - 1;
 
-        let range_start = *indices.index(dim);
-        let (rem, offset_local) = out_shape.index(dim).div_mod(offset_output);
+        let range_start = indices[dim];
+        let (rem, offset_local) = out_shape[dim].div_mod(offset_output);
         offset_output = rem;
 
         let offset_local = offset_local + range_start;
@@ -94,15 +93,16 @@ pub(crate) fn slice_on_output<R: CubeRuntime>(
     indices: &[Range<usize>],
 ) -> CubeTensor<R> {
     let ndims = tensor.shape.num_dims();
-    let mut indices_sequence = SequenceArg::<R, u32>::new();
+    let mut indices_sequence = SequenceArg::<R, usize>::new();
 
     for i in 0..ndims {
         let start = indices.get(i).map(|index| index.start).unwrap_or(0);
-        indices_sequence.push(ScalarArg::new(start as u32));
+        indices_sequence.push(ScalarArg::new(start));
     }
 
-    let cube_dim = CubeDim::default();
-    let cube_count = calculate_cube_count_elemwise(output.shape.num_elements(), cube_dim);
+    let working_units = output.shape.num_elements();
+    let cube_dim = CubeDim::new(&tensor.client, working_units);
+    let cube_count = calculate_cube_count_elemwise(&tensor.client, working_units, cube_dim);
 
     unsafe {
         slice_kernel::launch_unchecked(
@@ -126,9 +126,9 @@ pub(crate) fn slice_on_output<R: CubeRuntime>(
 fn slice_with_steps_kernel<E: Numeric>(
     input: &Tensor<E>,
     output: &mut LinearView<E, ReadWrite>,
-    out_shape: Sequence<FastDivmod>,
-    starts: Sequence<u32>,
-    ends: Sequence<u32>,
+    out_shape: Sequence<FastDivmod<usize>>,
+    starts: Sequence<usize>,
+    ends: Sequence<usize>,
     steps: Sequence<i32>,
     #[define(E)] _dtype: StorageType,
 ) {
@@ -144,21 +144,20 @@ fn slice_with_steps_kernel<E: Numeric>(
     #[unroll]
     for i in 0..rank {
         // Iterate in reverse to use divmod
-        let i = unwrap(i);
-        let dim = comptime![rank - i - 1];
-        let start = *starts.index(dim);
-        let end = *ends.index(dim);
-        let step = *steps.index(dim);
+        let dim = rank - i - 1;
+        let start = starts[dim];
+        let end = ends[dim];
+        let step = steps[dim];
 
-        let (rem, output_idx) = out_shape.index(dim).div_mod(output_offset);
+        let (rem, output_idx) = out_shape[dim].div_mod(output_offset);
         output_offset = rem;
 
         let input_idx = if step > 0 {
             // Forward stepping
-            start + output_idx * (step as u32)
+            start + output_idx * (step as usize)
         } else {
             // Backward stepping - start from end-1
-            let abs_step = (-step) as u32;
+            let abs_step = (-step) as usize;
             let end_minus_1 = end - 1;
             end_minus_1 - output_idx * abs_step
         };
@@ -196,27 +195,28 @@ pub fn slice_with_steps<R: CubeRuntime>(tensor: CubeTensor<R>, slices: &[Slice])
     );
 
     // Prepare three separate sequences for kernel
-    let mut starts = SequenceArg::<R, u32>::new();
-    let mut ends = SequenceArg::<R, u32>::new();
+    let mut starts = SequenceArg::<R, usize>::new();
+    let mut ends = SequenceArg::<R, usize>::new();
     let mut steps = SequenceArg::<R, i32>::new();
 
     for (dim, slice) in slices.iter().enumerate() {
         let range = slice.to_range(tensor.shape[dim]);
-        starts.push(ScalarArg::new(range.start as u32));
-        ends.push(ScalarArg::new(range.end as u32));
+        starts.push(ScalarArg::new(range.start));
+        ends.push(ScalarArg::new(range.end));
         steps.push(ScalarArg::new(slice.step as i32));
     }
 
     // Pad with default values if needed to match tensor dimensions
     for dim in slices.len()..tensor.shape.num_dims() {
         starts.push(ScalarArg::new(0));
-        ends.push(ScalarArg::new(tensor.shape[dim] as u32));
+        ends.push(ScalarArg::new(tensor.shape[dim]));
         steps.push(ScalarArg::new(1));
     }
 
     // Launch kernel
-    let cube_dim = CubeDim::default();
-    let cube_count = calculate_cube_count_elemwise(shape_output.num_elements(), cube_dim);
+    let working_units = shape_output.num_elements();
+    let cube_dim = CubeDim::new(&tensor.client, working_units);
+    let cube_count = calculate_cube_count_elemwise(&tensor.client, working_units, cube_dim);
 
     unsafe {
         slice_with_steps_kernel::launch_unchecked(

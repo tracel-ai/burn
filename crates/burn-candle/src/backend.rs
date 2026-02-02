@@ -1,18 +1,17 @@
 use std::marker::PhantomData;
 
+use burn_backend::{
+    BackTrace, Backend, DType, DeviceId, DeviceOps, ExecutionError, QTensorPrimitive,
+    tensor::Device,
+};
 use burn_std::{
     rand::{SeedableRng, StdRng},
     stub::Mutex,
 };
-use burn_tensor::{
-    Device,
-    backend::{Backend, DeviceId, DeviceOps, SyncError},
-    quantization::QTensorPrimitive,
-};
 use candle_core::{DeviceLocation, backend::BackendDevice};
 
 use crate::{
-    CandleTensor,
+    CandleTensor, IntoDType,
     element::{CandleElement, FloatCandleElement, IntCandleElement},
 };
 
@@ -177,8 +176,8 @@ impl From<candle_core::Device> for CandleDevice {
     }
 }
 
-impl burn_std::device::Device for CandleDevice {
-    fn to_id(&self) -> burn_tensor::backend::DeviceId {
+impl burn_backend::Device for CandleDevice {
+    fn to_id(&self) -> burn_backend::DeviceId {
         match self {
             CandleDevice::Cuda(device) => DeviceId::new(0, device.index as u32),
             CandleDevice::Metal(device) => DeviceId::new(1, device.index as u32),
@@ -232,28 +231,69 @@ impl<F: FloatCandleElement, I: IntCandleElement> Backend for Candle<F, I> {
         device.set_seed(seed);
     }
 
-    fn sync(device: &Device<Self>) -> Result<(), SyncError> {
+    fn sync(device: &Device<Self>) -> Result<(), ExecutionError> {
         let device: candle_core::Device = (device.clone()).into();
 
         match device {
             candle_core::Device::Cpu => (),
             candle_core::Device::Cuda(device) => {
                 #[cfg(feature = "cuda")]
-                device.synchronize().map_err(|err| SyncError::Generic {
-                    context: format!("Can't sync the cuda device: {err}"),
-                })?;
+                device
+                    .synchronize()
+                    .map_err(|err| ExecutionError::Generic {
+                        reason: format!("Can't sync the cuda device: {err}"),
+                        backtrace: BackTrace::capture(),
+                    })?;
             }
             candle_core::Device::Metal(device) => {
                 // For some reason, device.wait_until_completed() does not seem to work,
                 // and neither does writing and reading a value with into_data
-                return Err(SyncError::NotSupported {
-                    context:
+                return Err(ExecutionError::Generic {
+                    reason:
                         "Device synchronization unavailable with Metal device on Candle backend"
                             .into(),
+                    backtrace: BackTrace::capture(),
                 });
             }
         }
 
         Ok(())
+    }
+
+    fn supports_dtype(_device: &Device<Self>, dtype: DType) -> bool {
+        dtype.try_into_dtype().is_ok()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use burn_std::QuantScheme;
+
+    use super::*;
+
+    #[test]
+    fn should_support_dtypes() {
+        type B = Candle<f32>;
+        let device = Default::default();
+
+        assert!(B::supports_dtype(&device, DType::F64));
+        assert!(B::supports_dtype(&device, DType::F32));
+        assert!(B::supports_dtype(&device, DType::Flex32));
+        assert!(B::supports_dtype(&device, DType::F16));
+        assert!(B::supports_dtype(&device, DType::BF16));
+        assert!(B::supports_dtype(&device, DType::I64));
+        assert!(B::supports_dtype(&device, DType::U32));
+        assert!(B::supports_dtype(&device, DType::U8));
+        assert!(B::supports_dtype(&device, DType::I32));
+        assert!(B::supports_dtype(&device, DType::I16));
+
+        assert!(!B::supports_dtype(&device, DType::U64));
+        assert!(!B::supports_dtype(&device, DType::U16));
+        assert!(!B::supports_dtype(&device, DType::I8));
+        assert!(!B::supports_dtype(&device, DType::Bool));
+        assert!(!B::supports_dtype(
+            &device,
+            DType::QFloat(QuantScheme::default())
+        ));
     }
 }

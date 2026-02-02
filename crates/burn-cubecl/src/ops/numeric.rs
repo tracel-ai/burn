@@ -10,10 +10,13 @@ use crate::{
     },
     ops::max_line_size,
 };
-use burn_tensor::{DType, Shape};
-use cubecl::std::{FastDivmod, scalar::InputScalar, tensor::layout::linear::LinearView};
+use burn_backend::{DType, Shape};
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 use cubecl::{client::ComputeClient, server::Allocation};
+use cubecl::{
+    server::AllocationDescriptor,
+    std::{FastDivmod, tensor::layout::linear::LinearView},
+};
 
 /// Creates a tensor filled with `value`
 pub fn full<R: CubeRuntime, E: CubeElement>(
@@ -63,8 +66,9 @@ pub fn full_device_dtype<R: CubeRuntime>(
     let num_elems = empty.shape.num_elements();
     let line_size = max_line_size(&empty);
 
-    let cube_dim = CubeDim::default();
-    let cube_count = calculate_cube_count_elemwise(num_elems / line_size as usize, cube_dim);
+    let working_units = num_elems / line_size as usize;
+    let cube_dim = CubeDim::new(&empty.client, working_units);
+    let cube_count = calculate_cube_count_elemwise(&empty.client, working_units, cube_dim);
 
     unsafe {
         full_kernel::launch_unchecked(
@@ -73,7 +77,7 @@ pub fn full_device_dtype<R: CubeRuntime>(
             cube_dim,
             linear_view(&empty, line_size),
             value,
-            dtype.into(),
+            empty.dtype.into(),
         )
         .expect("Kernel to never fail");
     }
@@ -113,29 +117,8 @@ pub fn ones_client<R: CubeRuntime>(
     full_device_dtype(client, shape, device, InputScalar::new(1u32, dtype), dtype)
 }
 
-/// Creates a tensor with uninitialized memory
-pub fn empty_device<R: CubeRuntime, E: CubeElement>(
-    client: ComputeClient<R>,
-    device: R::Device,
-    shape: Shape,
-) -> CubeTensor<R> {
-    empty_device_dtype(client, device, shape, E::dtype())
-}
-
-/// Creates a tensor with uninitialized memory with the specific dtype.
-pub fn empty_device_dtype<R: CubeRuntime>(
-    client: ComputeClient<R>,
-    device: R::Device,
-    shape: Shape,
-    dtype: DType,
-) -> CubeTensor<R> {
-    let buffer = client.empty(shape.num_elements() * dtype.size());
-
-    CubeTensor::new_contiguous(client, device, shape, buffer, dtype)
-}
-
 /// Create a tensor with uninitialized memory
-pub fn empty_device_optimized<R: CubeRuntime, E: CubeElement>(
+pub fn empty_device<R: CubeRuntime, E: CubeElement>(
     client: ComputeClient<R>,
     device: R::Device,
     shape: Shape,
@@ -146,13 +129,26 @@ pub fn empty_device_optimized<R: CubeRuntime, E: CubeElement>(
 }
 
 /// Create a tensor with uninitialized memory
-pub fn empty_device_optimized_dtype<R: CubeRuntime>(
+pub fn empty_device_dtype<R: CubeRuntime>(
     client: ComputeClient<R>,
     device: R::Device,
     shape: Shape,
     dtype: DType,
 ) -> CubeTensor<R> {
     let Allocation { handle, strides } = client.empty_tensor(&shape.dims, dtype.size());
+
+    CubeTensor::new(client, handle, shape, device, strides, dtype)
+}
+
+/// Create a contiguous tensor with uninitialized memory
+pub fn empty_device_contiguous_dtype<R: CubeRuntime>(
+    client: ComputeClient<R>,
+    device: R::Device,
+    shape: Shape,
+    dtype: DType,
+) -> CubeTensor<R> {
+    let descriptor = AllocationDescriptor::contiguous(&shape.dims, dtype.size());
+    let Allocation { handle, strides } = client.empty_tensors(vec![descriptor]).remove(0);
 
     CubeTensor::new(client, handle, shape, device, strides, dtype)
 }
@@ -306,7 +302,7 @@ impl<N: Numeric> CumulativeOp<N> for ProdOp {
 #[cube]
 impl<N: Numeric> CumulativeOp<N> for MaxOp {
     fn execute(lhs: N, rhs: N) -> N {
-        N::max(lhs, rhs)
+        max(lhs, rhs)
     }
 
     fn init_value(first_element: N) -> N {
@@ -317,7 +313,7 @@ impl<N: Numeric> CumulativeOp<N> for MaxOp {
 #[cube]
 impl<N: Numeric> CumulativeOp<N> for MinOp {
     fn execute(lhs: N, rhs: N) -> N {
-        N::min(lhs, rhs)
+        min(lhs, rhs)
     }
 
     fn init_value(first_element: N) -> N {
@@ -342,8 +338,8 @@ impl<N: Numeric> CumulativeOp<N> for MinOp {
 fn cumulative_kernel<C: Numeric, O: CumulativeOpFamily>(
     input: &Tensor<C>,
     output: &mut LinearView<C, ReadWrite>,
-    shape: Sequence<FastDivmod>,
-    #[comptime] dim: u32,
+    shape: Sequence<FastDivmod<usize>>,
+    #[comptime] dim: usize,
     #[define(C)] _dtype: StorageType,
 ) {
     if !output.is_in_bounds(ABSOLUTE_POS) {
@@ -415,8 +411,9 @@ fn cumulative_op<R: CubeRuntime, O: CumulativeOpFamily>(
     let output = empty_device_dtype(client.clone(), device, input.shape.clone(), input.dtype);
 
     let num_elems = output.shape.num_elements();
-    let cube_dim = CubeDim::default();
-    let cube_count = calculate_cube_count_elemwise(num_elems, cube_dim);
+    let working_units = num_elems;
+    let cube_dim = CubeDim::new(&client, working_units);
+    let cube_count = calculate_cube_count_elemwise(&client, working_units, cube_dim);
 
     unsafe {
         cumulative_kernel::launch_unchecked::<O, R>(
@@ -426,7 +423,7 @@ fn cumulative_op<R: CubeRuntime, O: CumulativeOpFamily>(
             input.as_tensor_arg(1),
             linear_view(&output, 1),
             shape_divmod(&input),
-            dim as u32,
+            dim,
             output.dtype.into(),
         )
         .expect("Kernel to never fail");

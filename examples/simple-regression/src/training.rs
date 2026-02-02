@@ -1,13 +1,13 @@
 use crate::dataset::{HousingBatcher, HousingDataset};
 use crate::model::RegressionModelConfig;
 use burn::optim::AdamConfig;
-use burn::train::LearningStrategy;
+use burn::train::{Learner, SupervisedTraining};
 use burn::{
     data::{dataloader::DataLoaderBuilder, dataset::Dataset},
     prelude::*,
     record::{CompactRecorder, NoStdTrainingRecorder},
     tensor::backend::AutodiffBackend,
-    train::{LearnerBuilder, metric::LossMetric},
+    train::metric::LossMetric,
 };
 
 #[derive(Config, Debug)]
@@ -66,20 +66,14 @@ pub fn run<B: AutodiffBackend>(artifact_dir: &str, device: B::Device) {
         .build(valid_dataset);
 
     // Model
-    let learner = LearnerBuilder::new(artifact_dir)
+    let training = SupervisedTraining::new(artifact_dir, dataloader_train, dataloader_test)
         .metric_train_numeric(LossMetric::new())
         .metric_valid_numeric(LossMetric::new())
         .with_file_checkpointer(CompactRecorder::new())
         .num_epochs(config.num_epochs)
-        .summary()
-        .build(
-            model,
-            config.optimizer.init(),
-            1e-3,
-            LearningStrategy::SingleDevice(device.clone()),
-        );
+        .summary();
 
-    let result = learner.fit(dataloader_train, dataloader_test);
+    let result = training.launch(Learner::new(model, config.optimizer.init(), 1e-3));
 
     config
         .save(format!("{artifact_dir}/config.json").as_str())

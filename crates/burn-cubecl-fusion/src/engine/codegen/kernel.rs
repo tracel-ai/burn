@@ -1,10 +1,10 @@
 use super::{DYN_ELEM_ID, Q_PARAM_DYN_ELEM_ID, Q_STORE_DYN_ELEM_ID, io::*, ir::*};
-use burn_tensor::quantization::{QuantScheme, QuantStore, QuantValue};
+use burn_std::quantization::{QuantScheme, QuantStore, QuantValue};
 use cubecl::{
     ir::{ElemType, FloatKind, StorageType, UIntKind},
     prelude::*,
 };
-use cubecl_quant::{dequantize::dequantize_symmetric_packed_value_at, scheme::QuantMode};
+use cubek::quantization::{dequantize::dequantize_symmetric_packed_value_at, scheme::QuantMode};
 
 #[cube]
 /// Fuse element-wise operations at the given write position.
@@ -26,16 +26,16 @@ pub fn fuse_on_write<E: CubePrimitive>(
     inputs: &GlobalArgs,
     outputs: &mut GlobalArgs,
     locals: &mut LocalArgs,
-    write_pos: u32,
+    write_pos: usize,
     write_values: Registry<FuseArg, Line<E>>,
-    #[comptime] write_args: Sequence<FuseArg>,
+    #[comptime] write_args: Vec<FuseArg>,
     #[comptime] config: &FuseBlockConfig,
 ) {
     // Write the values given as arguments.
     #[unroll]
-    for i in 0..write_args.len() {
-        let arg = comptime![write_args.index(i).clone()];
-        let val = write_values.find(comptime![arg.clone()]);
+    for _ in 0..write_args.len() {
+        let arg = comptime![write_args[0].clone()];
+        let val = write_values.find(arg.clone());
 
         write::<E>(inputs, outputs, locals, write_pos, val, arg, config);
     }
@@ -62,7 +62,7 @@ pub fn fuse_on_read<E: CubePrimitive>(
     inputs: &GlobalArgs,
     outputs: &mut GlobalArgs,
     locals: &mut LocalArgs,
-    read_pos: u32,
+    read_pos: usize,
     #[comptime] read_args: Sequence<FuseArg>,
     #[comptime] config: &FuseBlockConfig,
 ) -> Sequence<Line<E>> {
@@ -76,11 +76,11 @@ pub fn fuse_on_read<E: CubePrimitive>(
         let value = read::<E>(inputs, outputs, locals, read_pos, arg, config);
 
         let value_line_size = value.line_size();
-        let output_line_size = comptime!(config.width as u32);
+        let output_line_size = config.width;
 
         // We currently don't support broadcasting __across__ blocks.
         if comptime!(value_line_size != output_line_size) {
-            let mut tmp = Line::<E>::empty(comptime!(config.width as u32));
+            let mut tmp = Line::<E>::empty(config.width);
             comptime!(
                 assert_eq!(value_line_size, 1, "The input line_size must be 1 or the same as the config width.");
             );
@@ -88,7 +88,7 @@ pub fn fuse_on_read<E: CubePrimitive>(
             let val = value[0];
 
             #[unroll]
-            for i in 0..comptime!(config.width as u32) {
+            for i in 0..config.width {
                 tmp[i] = val;
             }
 
@@ -116,7 +116,7 @@ pub fn init_locals(
     let mut ref_shape = Array::new(config.rank);
     let mut ref_strides = Array::new(config.rank);
 
-    match comptime![config.ref_layout.clone()] {
+    match config.ref_layout.clone() {
         RefLayout::Concrete(arg) => match comptime![arg] {
             FuseArg::Input(index, ..) => {
                 let layout = inputs.tensors.index(index);
@@ -152,23 +152,23 @@ pub fn init_locals(
         },
         RefLayout::Virtual(layout) => match layout {
             VirtualLayout::SwapDims(original, dims) => {
-                let layout = match comptime![original.clone()] {
+                let layout = match original.clone() {
                     FuseArg::Input(pos, ..) => inputs.tensors.index(pos),
                     FuseArg::Output(pos, ..) => outputs.tensors.index(pos),
                     _ => comptime![panic!("Unsupported")],
                 };
 
-                let mut stride_curr = 1u32;
+                let mut stride_curr = 1;
 
                 #[unroll]
                 #[allow(clippy::clone_on_copy)]
                 for i in 0..config.rank {
                     let reverse = reverse_index(config.rank, i);
-                    let swap = comptime![swap_dims_transform(comptime![&reverse], dims)];
-                    let shape = layout.tensor.shape(comptime![swap.clone()]);
+                    let swap = comptime![swap_dims_transform(reverse, dims)];
+                    let shape = layout.tensor.shape(swap.clone());
 
-                    ref_shape[comptime![reverse.clone()]] = shape;
-                    ref_strides[comptime![reverse.clone()]] = stride_curr;
+                    ref_shape[reverse] = shape;
+                    ref_strides[reverse] = stride_curr;
 
                     stride_curr *= ref_shape[comptime![reverse]];
                 }
@@ -183,7 +183,7 @@ pub fn init_locals(
                 reshape_pos,
                 line_size,
             } => {
-                let mut stride_curr = 1u32;
+                let mut stride_curr = 1;
                 let start = reshape_pos * config.rank;
 
                 #[unroll]
@@ -191,7 +191,7 @@ pub fn init_locals(
                 for i in 0..config.rank {
                     let reverse = reverse_index(config.rank, i);
                     let arg = comptime![FuseArg::ScalarShape(start + reverse)];
-                    let shape = read_scalar_shape(inputs, comptime![arg.clone()]);
+                    let shape = read_scalar_shape(inputs, arg.clone());
 
                     ref_shape[comptime![reverse]] = shape;
                     ref_strides[comptime![reverse]] = stride_curr;
@@ -202,12 +202,12 @@ pub fn init_locals(
                 LocalArgs::new(ref_shape.to_slice(), ref_strides.to_slice(), line_size)
             }
             VirtualLayout::Shape(original, line_size) => {
-                let layout = match comptime![original.clone()] {
+                let layout = match original.clone() {
                     FuseArg::Input(pos, ..) => inputs.tensors.index(pos),
                     FuseArg::Output(pos, ..) => outputs.tensors.index(pos),
                     _ => comptime![panic!("Unsupported")],
                 };
-                let mut stride_curr = 1u32;
+                let mut stride_curr = 1;
 
                 #[unroll]
                 #[allow(clippy::clone_on_copy)]
@@ -233,13 +233,13 @@ fn fuse(
     inputs: &GlobalArgs,
     outputs: &mut GlobalArgs,
     locals: &mut LocalArgs,
-    pos: u32,
+    pos: usize,
     #[comptime] config: &FuseBlockConfig,
 ) {
     #[unroll]
     for index in 0..config.ops.len() {
-        let op = comptime! { config.ops.index(index).clone() };
-        set_polyfill::<NumericExpand<DYN_ELEM_ID>>(comptime![op.cmp_type()]);
+        let op = config.ops[index].clone();
+        set_polyfill::<NumericExpand<DYN_ELEM_ID>>(op.cmp_type());
 
         match op {
             FuseOp::Add(op) => {
@@ -367,7 +367,7 @@ macro_rules! binary_op {
             inputs: &GlobalArgs,
             outputs: &mut GlobalArgs,
             locals: &mut LocalArgs,
-            write_pos: u32,
+            write_pos: usize,
             #[comptime] op: BinaryFuseArgs,
             #[comptime] config: &FuseBlockConfig,
         ) {
@@ -387,7 +387,7 @@ macro_rules! binary_func {
             inputs: &GlobalArgs,
             outputs: &mut GlobalArgs,
             locals: &mut LocalArgs,
-            write_pos: u32,
+            write_pos: usize,
             #[comptime] op: BinaryFuseArgs,
             #[comptime] config: &FuseBlockConfig,
         ) {
@@ -407,7 +407,7 @@ macro_rules! comparison_op {
             inputs: &GlobalArgs,
             outputs: &mut GlobalArgs,
             locals: &mut LocalArgs,
-            write_pos: u32,
+            write_pos: usize,
             #[comptime] op: BinaryFuseArgs,
             #[comptime] config: &FuseBlockConfig,
         ) {
@@ -427,7 +427,7 @@ macro_rules! unary_func {
             inputs: &GlobalArgs,
             outputs: &mut GlobalArgs,
             locals: &mut LocalArgs,
-            write_pos: u32,
+            write_pos: usize,
             #[comptime] op: UnaryFuseArgs,
             #[comptime] config: &FuseBlockConfig,
         ) {
@@ -444,7 +444,7 @@ fn assign<C: CubePrimitive>(
     inputs: &GlobalArgs,
     outputs: &mut GlobalArgs,
     locals: &mut LocalArgs,
-    write_pos: u32,
+    write_pos: usize,
     #[comptime] op: UnaryFuseArgs,
     #[comptime] config: &FuseBlockConfig,
 ) {
@@ -458,8 +458,8 @@ fn gather<C: Numeric>(
     inputs: &GlobalArgs,
     outputs: &mut GlobalArgs,
     locals: &mut LocalArgs,
-    write_pos: u32,
-    #[comptime] dim: u32,
+    write_pos: usize,
+    #[comptime] dim: usize,
     #[comptime] input: FuseArg,
     #[comptime] indices: FuseArg,
     #[comptime] output: FuseArg,
@@ -482,7 +482,7 @@ fn gather<C: Numeric>(
 
     let stride_input_dim = global_stride(inputs, dim, pos_input);
 
-    let mut index = 0u32;
+    let mut index = 0;
     let mut result = Line::empty(line_size);
 
     if comptime![dim > 0] {
@@ -491,8 +491,8 @@ fn gather<C: Numeric>(
             outputs,
             locals,
             write_pos,
-            comptime!(input.clone()),
-            comptime![Some((0u32, dim))],
+            input.clone(),
+            comptime![Some((0, dim))],
             config,
         );
         index += index_before;
@@ -517,7 +517,7 @@ fn gather<C: Numeric>(
         locals,
         write_pos,
         indices,
-        comptime![Some((0u32, config.rank))],
+        comptime![Some((0, config.rank))],
         config,
     );
 
@@ -539,7 +539,7 @@ fn gather<C: Numeric>(
                 inputs,
                 locals,
                 pos_input,
-                index + (offset[0] * stride_input_dim),
+                index + (offset[0] as usize * stride_input_dim),
                 LayoutInfo::IsRef,
                 config,
                 None,
@@ -549,7 +549,7 @@ fn gather<C: Numeric>(
         }
     } else {
         // Shared index for whole line
-        let stride_input_line = global_stride(inputs, comptime!(config.rank - 1), pos_input);
+        let stride_input_line = global_stride(inputs, config.rank - 1, pos_input);
 
         let offset = read_input::<u32>(
             inputs,
@@ -561,7 +561,7 @@ fn gather<C: Numeric>(
             None,
         );
 
-        index += offset[0] * stride_input_dim;
+        index += offset[0] as usize * stride_input_dim;
 
         #[unroll]
         for i in 0..line_size {
@@ -587,8 +587,8 @@ fn select_indices<C: Numeric>(
     inputs: &GlobalArgs,
     outputs: &mut GlobalArgs,
     locals: &mut LocalArgs,
-    write_pos: u32,
-    #[comptime] dim: u32,
+    write_pos: usize,
+    #[comptime] dim: usize,
     #[comptime] input: FuseArg,
     #[comptime] indices: FuseArg,
     #[comptime] output: FuseArg,
@@ -613,7 +613,7 @@ fn select_indices<C: Numeric>(
 
     let stride_input_dim = global_stride(inputs, dim, pos_input);
 
-    let mut index = 0u32;
+    let mut index = 0;
     let mut result = Line::empty(line_size_ref);
 
     if comptime![dim != config.rank - 1] {
@@ -627,8 +627,8 @@ fn select_indices<C: Numeric>(
                 outputs,
                 locals,
                 write_pos,
-                comptime!(input.clone()),
-                comptime![Some((0u32, dim))],
+                input.clone(),
+                comptime![Some((0, dim))],
                 config,
             );
             index += index_before;
@@ -640,7 +640,7 @@ fn select_indices<C: Numeric>(
                 outputs,
                 locals,
                 write_pos,
-                comptime!(input.clone()),
+                input.clone(),
                 comptime![Some((dim + 1, config.rank))],
                 config,
             );
@@ -660,7 +660,7 @@ fn select_indices<C: Numeric>(
             None,
         );
 
-        index += offset_dim[0] * stride_input_dim;
+        index += offset_dim[0] as usize * stride_input_dim;
 
         #[unroll]
         for i in 0..line_size_ref {
@@ -687,8 +687,8 @@ fn select_indices<C: Numeric>(
                 outputs,
                 locals,
                 write_pos,
-                comptime!(input.clone()),
-                comptime![Some((0u32, dim))],
+                input.clone(),
+                comptime![Some((0, dim))],
                 config,
             );
             index += index_before;
@@ -726,7 +726,7 @@ fn select_indices<C: Numeric>(
                 inputs,
                 locals,
                 pos_input,
-                index + (offset_dim[0] * stride_input_dim),
+                index + (offset_dim[0] as usize * stride_input_dim),
                 LayoutInfo::IsRef,
                 config,
                 None,
@@ -743,7 +743,7 @@ fn conditional_assign<C: CubePrimitive>(
     inputs: &GlobalArgs,
     outputs: &mut GlobalArgs,
     locals: &mut LocalArgs,
-    write_pos: u32,
+    write_pos: usize,
     #[comptime] cond: FuseArg,
     #[comptime] lhs: FuseArg,
     #[comptime] rhs: FuseArg,
@@ -763,7 +763,7 @@ fn clamp<C: Numeric>(
     inputs: &GlobalArgs,
     outputs: &mut GlobalArgs,
     locals: &mut LocalArgs,
-    write_pos: u32,
+    write_pos: usize,
     #[comptime] input: FuseArg,
     #[comptime] min: FuseArg,
     #[comptime] max: FuseArg,
@@ -773,7 +773,7 @@ fn clamp<C: Numeric>(
     let input = read::<C>(inputs, outputs, locals, write_pos, input, config);
     let min = read::<C>(inputs, outputs, locals, write_pos, min, config);
     let max = read::<C>(inputs, outputs, locals, write_pos, max, config);
-    let result = Line::<C>::clamp(input, min, max);
+    let result = cubecl::prelude::clamp(input, min, max);
 
     write::<C>(inputs, outputs, locals, write_pos, result, out, config);
 }
@@ -784,7 +784,7 @@ fn dequantize<C: Float>(
     inputs: &GlobalArgs,
     outputs: &mut GlobalArgs,
     locals: &mut LocalArgs,
-    write_pos: u32,
+    write_pos: usize,
     #[comptime] input: FuseArg,
     #[comptime] scales: FuseArg,
     #[comptime] output: FuseArg,
@@ -802,22 +802,28 @@ fn dequantize<C: Float>(
             QuantValue::Q8F | QuantValue::Q8S => StorageType::Scalar(ElemType::UInt(UIntKind::U8)),
             QuantValue::E4M3 => StorageType::Scalar(ElemType::Float(FloatKind::E4M3)),
             QuantValue::E5M2 => StorageType::Scalar(ElemType::Float(FloatKind::E5M2)),
-            QuantValue::E2M1 => StorageType::Packed(ElemType::Float(FloatKind::E4M3), 2),
-            QuantValue::Q4F | QuantValue::Q4S | QuantValue::Q2F | QuantValue::Q2S =>
-                unreachable!("Can't store native sub-byte values"),
+            QuantValue::Q4F
+            | QuantValue::Q4S
+            | QuantValue::Q2F
+            | QuantValue::Q2S
+            | QuantValue::E2M1 => unreachable!("Can't store native sub-byte values"),
         },
-        QuantStore::U32 => ElemType::UInt(UIntKind::U32).into(),
+        QuantStore::PackedU32(_) => ElemType::UInt(UIntKind::U32).into(),
+        QuantStore::PackedNative(_) => match scheme.value {
+            QuantValue::E2M1 => StorageType::Packed(ElemType::Float(FloatKind::E4M3), 2),
+            other => panic!("{other:?} doesn't support native packing"),
+        },
     }]);
     set_polyfill::<NumericExpand<Q_PARAM_DYN_ELEM_ID>>(comptime![match scheme.param {
-        cubecl_quant::scheme::QuantParam::F32 =>
+        cubecl::quant::scheme::QuantParam::F32 =>
             StorageType::Scalar(ElemType::Float(FloatKind::F32)),
-        cubecl_quant::scheme::QuantParam::F16 =>
+        cubecl::quant::scheme::QuantParam::F16 =>
             StorageType::Scalar(ElemType::Float(FloatKind::F16)),
-        cubecl_quant::scheme::QuantParam::BF16 =>
+        cubecl::quant::scheme::QuantParam::BF16 =>
             StorageType::Scalar(ElemType::Float(FloatKind::BF16)),
-        cubecl_quant::scheme::QuantParam::UE8M0 =>
+        cubecl::quant::scheme::QuantParam::UE8M0 =>
             StorageType::Scalar(ElemType::Float(FloatKind::UE8M0)),
-        cubecl_quant::scheme::QuantParam::UE4M3 =>
+        cubecl::quant::scheme::QuantParam::UE4M3 =>
             StorageType::Scalar(ElemType::Float(FloatKind::E4M3)),
     }]);
 
@@ -834,7 +840,7 @@ fn dequantize<C: Float>(
     );
 
     let line_size = input.line_size();
-    let num_quants = comptime!(scheme.num_quants() as u32);
+    let num_quants = scheme.num_quants();
 
     let scales = input_as_scales_view::<NumericExpand<Q_PARAM_DYN_ELEM_ID>>(
         inputs,
@@ -856,22 +862,15 @@ fn dequantize<C: Float>(
     } else {
         let mut line = Line::empty(line_size_result);
 
-        // We have to do all index work as comptime because higher line sizes removes the
-        // possibility to index dynamically on lines.
-        let mut i = comptime!(0);
-
         #[unroll]
-        for _ in 0..line_size {
-            let mut j = comptime!(0);
+        for i in 0..line_size {
             let value = result[i];
 
             #[unroll]
-            for _ in 0..num_quants {
-                let index = comptime!(i * num_quants + j);
+            for j in 0..num_quants {
+                let index = i * num_quants + j;
                 line[index] = value[j];
-                comptime!(j += 1);
             }
-            comptime!(i += 1);
         }
 
         line
@@ -895,7 +894,7 @@ binary_func!(powf, Line::<C>::powf, Float);
 binary_func!(rem, Line::<C>::rem, Float);
 
 unary_func!(exp, Line::<C>::exp, Float);
-unary_func!(log, Line::<C>::log, Float);
+unary_func!(log, Line::<C>::ln, Float);
 unary_func!(log1p, Line::<C>::log1p, Float);
 unary_func!(sqrt, Line::<C>::sqrt, Float);
 unary_func!(cos, Line::<C>::cos, Float);

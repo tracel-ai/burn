@@ -854,3 +854,322 @@ fn test_forward_pass_preservation_after_save_load() {
         "output3 should equal output1 after loading weights"
     );
 }
+
+#[test]
+fn test_store_get_all_snapshots() {
+    let device = Default::default();
+    let module = TestModule::<TestBackend>::new(&device);
+
+    // Save module to bytes
+    let mut save_store = BurnpackStore::from_bytes(None);
+    save_store.collect_from(&module).unwrap();
+    let bytes = save_store.get_bytes().unwrap();
+
+    // Get all snapshots (returns &BTreeMap<String, TensorSnapshot>)
+    let mut load_store = BurnpackStore::from_bytes(Some(bytes));
+    let snapshots = load_store.get_all_snapshots().unwrap();
+
+    // Should have 4 tensors
+    assert_eq!(snapshots.len(), 4);
+
+    // Verify tensor names exist (BTreeMap keys)
+    assert!(snapshots.contains_key("weight"));
+    assert!(snapshots.contains_key("bias"));
+    assert!(snapshots.contains_key("nested.gamma"));
+    assert!(snapshots.contains_key("nested.beta"));
+}
+
+#[test]
+fn test_store_get_snapshot_existing() {
+    let device = Default::default();
+    let module = TestModule::<TestBackend>::new(&device);
+
+    // Save module to bytes
+    let mut save_store = BurnpackStore::from_bytes(None);
+    save_store.collect_from(&module).unwrap();
+    let bytes = save_store.get_bytes().unwrap();
+
+    // Get a specific snapshot (returns Option<&TensorSnapshot>)
+    let mut load_store = BurnpackStore::from_bytes(Some(bytes));
+    let snapshot = load_store.get_snapshot("weight").unwrap();
+
+    // Should find the tensor
+    assert!(snapshot.is_some());
+    let snapshot = snapshot.unwrap();
+    assert_eq!(snapshot.full_path(), "weight");
+    assert_eq!(snapshot.shape, vec![2, 2]);
+
+    // Verify data can be loaded
+    let data = snapshot.to_data().unwrap();
+    assert_eq!(data.to_vec::<f32>().unwrap(), vec![1.0, 2.0, 3.0, 4.0]);
+}
+
+#[test]
+fn test_store_get_snapshot_nested() {
+    let device = Default::default();
+    let module = TestModule::<TestBackend>::new(&device);
+
+    // Save module to bytes
+    let mut save_store = BurnpackStore::from_bytes(None);
+    save_store.collect_from(&module).unwrap();
+    let bytes = save_store.get_bytes().unwrap();
+
+    // Get a nested snapshot
+    let mut load_store = BurnpackStore::from_bytes(Some(bytes));
+    let snapshot = load_store.get_snapshot("nested.gamma").unwrap();
+
+    assert!(snapshot.is_some());
+    let snapshot = snapshot.unwrap();
+    assert_eq!(snapshot.full_path(), "nested.gamma");
+    assert_eq!(snapshot.shape, vec![2]);
+}
+
+#[test]
+fn test_store_get_snapshot_not_found() {
+    let device = Default::default();
+    let module = TestModule::<TestBackend>::new(&device);
+
+    // Save module to bytes
+    let mut save_store = BurnpackStore::from_bytes(None);
+    save_store.collect_from(&module).unwrap();
+    let bytes = save_store.get_bytes().unwrap();
+
+    // Try to get a non-existent snapshot
+    let mut load_store = BurnpackStore::from_bytes(Some(bytes));
+    let snapshot = load_store.get_snapshot("nonexistent").unwrap();
+
+    // Should return None
+    assert!(snapshot.is_none());
+}
+
+#[test]
+fn test_store_keys() {
+    let device = Default::default();
+    let module = TestModule::<TestBackend>::new(&device);
+
+    // Save module to bytes
+    let mut save_store = BurnpackStore::from_bytes(None);
+    save_store.collect_from(&module).unwrap();
+    let bytes = save_store.get_bytes().unwrap();
+
+    // Get all keys
+    let mut load_store = BurnpackStore::from_bytes(Some(bytes));
+    let keys = load_store.keys().unwrap();
+
+    // Should have 4 keys
+    assert_eq!(keys.len(), 4);
+    assert!(keys.contains(&"weight".to_string()));
+    assert!(keys.contains(&"bias".to_string()));
+    assert!(keys.contains(&"nested.gamma".to_string()));
+    assert!(keys.contains(&"nested.beta".to_string()));
+}
+
+#[test]
+#[cfg(feature = "std")]
+fn test_store_get_all_snapshots_from_file() {
+    use tempfile::tempdir;
+
+    let device = Default::default();
+    let module = TestModule::<TestBackend>::new(&device);
+
+    // Save to file
+    let temp_dir = tempdir().unwrap();
+    let path = temp_dir.path().join("test_get_all_snapshots.bpk");
+
+    let mut save_store = BurnpackStore::from_file(&path);
+    save_store.collect_from(&module).unwrap();
+
+    // Get snapshots from file (returns &BTreeMap)
+    let mut load_store = BurnpackStore::from_file(&path);
+    let snapshots = load_store.get_all_snapshots().unwrap();
+
+    assert_eq!(snapshots.len(), 4);
+
+    // Verify we can load data from a snapshot (use get() on BTreeMap)
+    let weight_snapshot = snapshots.get("weight").unwrap();
+    let data = weight_snapshot.to_data().unwrap();
+    assert_eq!(data.to_vec::<f32>().unwrap(), vec![1.0, 2.0, 3.0, 4.0]);
+}
+
+#[test]
+fn test_store_caching_behavior() {
+    let device = Default::default();
+    let module = TestModule::<TestBackend>::new(&device);
+
+    // Save module to bytes
+    let mut save_store = BurnpackStore::from_bytes(None);
+    save_store.collect_from(&module).unwrap();
+    let bytes = save_store.get_bytes().unwrap();
+
+    // Create store and call get_snapshots multiple times
+    let mut load_store = BurnpackStore::from_bytes(Some(bytes));
+
+    // First call should populate cache
+    let snapshots1 = load_store.get_all_snapshots().unwrap();
+    assert_eq!(snapshots1.len(), 4);
+
+    // Second call should return cached data (same reference)
+    let snapshots2 = load_store.get_all_snapshots().unwrap();
+    assert_eq!(snapshots2.len(), 4);
+
+    // get_snapshot should also use the cache
+    let weight = load_store.get_snapshot("weight").unwrap();
+    assert!(weight.is_some());
+}
+
+#[test]
+fn test_store_cache_invalidation_on_save() {
+    let device = Default::default();
+
+    // Create first module with specific weights
+    let module1 = TestModule::<TestBackend>::new(&device);
+
+    // Save module1 to bytes store
+    let mut store = BurnpackStore::from_bytes(None);
+    store.collect_from(&module1).unwrap();
+
+    // Populate cache by calling get_snapshots
+    let snapshots1 = store.get_all_snapshots().unwrap();
+    assert_eq!(snapshots1.len(), 4);
+    let weight1_data = snapshots1.get("weight").unwrap().to_data().unwrap();
+    let weight1_values: Vec<f32> = weight1_data.to_vec().unwrap();
+
+    // Create a different module with different weights
+    let module2 = TestModule::<TestBackend> {
+        weight: Param::from_tensor(Tensor::from_data([[10.0, 20.0], [30.0, 40.0]], &device)),
+        bias: Param::from_tensor(Tensor::from_data([100.0, 200.0], &device)),
+        nested: NestedModule {
+            gamma: Param::from_tensor(Tensor::from_data([1000.0, 2000.0], &device)),
+            beta: Param::from_tensor(Tensor::from_data([3000.0, 4000.0], &device)),
+        },
+    };
+
+    // Save module2 - this should invalidate the cache
+    store.collect_from(&module2).unwrap();
+
+    // Get snapshots again - should return NEW data, not cached old data
+    let snapshots2 = store.get_all_snapshots().unwrap();
+    assert_eq!(snapshots2.len(), 4);
+    let weight2_data = snapshots2.get("weight").unwrap().to_data().unwrap();
+    let weight2_values: Vec<f32> = weight2_data.to_vec().unwrap();
+
+    // Verify the data changed (cache was invalidated)
+    assert_ne!(weight1_values, weight2_values);
+    assert_eq!(weight2_values, vec![10.0, 20.0, 30.0, 40.0]);
+}
+
+/// Test storing and loading quantized weights with BurnpackStore.
+/// Regression test for https://github.com/tracel-ai/burn/issues/4179
+#[test]
+fn test_store_quantized_module_round_trip() {
+    use burn_core::module::Quantizer;
+    use burn_nn::LinearConfig;
+    use burn_tensor::quantization::{
+        Calibration, QTensorPrimitive, QuantLevel, QuantParam, QuantValue,
+    };
+
+    let device = Default::default();
+
+    // Create a simple linear module (512x512 as in the bug report)
+    let linear = LinearConfig::new(512, 512)
+        .with_bias(false)
+        .init::<TestBackend>(&device);
+
+    // Define quantization scheme (Q8S with tensor-level quantization)
+    let scheme = <<TestBackend as burn_tensor::backend::Backend>::QuantizedTensorPrimitive as QTensorPrimitive>::default_scheme()
+        .with_value(QuantValue::Q8S)
+        .with_level(QuantLevel::Tensor)
+        .with_param(QuantParam::F32);
+
+    // Quantize the module
+    let calibration = Calibration::MinMax;
+    let mut quantizer = Quantizer {
+        calibration,
+        scheme,
+    };
+    let quantized_linear = linear.quantize_weights(&mut quantizer);
+
+    // Save the quantized module
+    let mut save_store = BurnpackStore::from_bytes(None);
+    let result = save_store.collect_from(&quantized_linear);
+    assert!(
+        result.is_ok(),
+        "Failed to save quantized module: {:?}",
+        result.err()
+    );
+
+    // Get the bytes
+    let bytes = save_store.get_bytes().expect("Failed to get bytes");
+
+    // Load the bytes and verify we can read the tensor metadata
+    let mut load_store = BurnpackStore::from_bytes(Some(bytes));
+    let snapshots = load_store
+        .get_all_snapshots()
+        .expect("Failed to get snapshots");
+
+    // Verify we have the weight tensor
+    assert_eq!(snapshots.len(), 1, "Expected 1 tensor (weight)");
+    assert!(snapshots.contains_key("weight"), "Expected 'weight' tensor");
+
+    // Verify the tensor metadata
+    let weight_snapshot = snapshots.get("weight").unwrap();
+    assert_eq!(weight_snapshot.shape, vec![512, 512]);
+
+    // Verify we can load the tensor data
+    let weight_data = weight_snapshot
+        .to_data()
+        .expect("Failed to load tensor data");
+    assert_eq!(weight_data.shape, vec![512, 512]);
+}
+
+/// Test storing quantized weights with block-level quantization.
+#[test]
+fn test_store_quantized_module_block_level() {
+    use burn_core::module::Quantizer;
+    use burn_nn::LinearConfig;
+    use burn_tensor::quantization::{
+        Calibration, QTensorPrimitive, QuantLevel, QuantParam, QuantValue,
+    };
+
+    let device = Default::default();
+
+    // Create a linear module
+    let linear = LinearConfig::new(128, 128)
+        .with_bias(false)
+        .init::<TestBackend>(&device);
+
+    // Define quantization scheme with block-level quantization
+    let scheme = <<TestBackend as burn_tensor::backend::Backend>::QuantizedTensorPrimitive as QTensorPrimitive>::default_scheme()
+        .with_value(QuantValue::Q8S)
+        .with_level(QuantLevel::block([32])) // Block size of 32
+        .with_param(QuantParam::F32);
+
+    // Quantize the module
+    let calibration = Calibration::MinMax;
+    let mut quantizer = Quantizer {
+        calibration,
+        scheme,
+    };
+    let quantized_linear = linear.quantize_weights(&mut quantizer);
+
+    // Save the quantized module
+    let mut save_store = BurnpackStore::from_bytes(None);
+    let result = save_store.collect_from(&quantized_linear);
+    assert!(
+        result.is_ok(),
+        "Failed to save quantized module with block-level quantization: {:?}",
+        result.err()
+    );
+
+    // Get the bytes and verify round-trip
+    let bytes = save_store.get_bytes().expect("Failed to get bytes");
+
+    let mut load_store = BurnpackStore::from_bytes(Some(bytes));
+    let snapshots = load_store
+        .get_all_snapshots()
+        .expect("Failed to get snapshots");
+
+    assert_eq!(snapshots.len(), 1);
+    let weight_snapshot = snapshots.get("weight").unwrap();
+    assert_eq!(weight_snapshot.shape, vec![128, 128]);
+}

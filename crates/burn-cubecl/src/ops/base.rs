@@ -1,20 +1,25 @@
-use crate::{CubeRuntime, kernel, tensor::CubeTensor};
-use burn_std::tensor::{ReshapeAction, contiguous_strides, reshape_action};
-use burn_tensor::{
-    DType, Shape, TensorData,
-    backend::ExecutionError,
-    quantization::{QTensorPrimitive, QuantLevel, params_shape},
+use crate::{CubeRuntime, kernel, ops::numeric::empty_device_dtype, tensor::CubeTensor};
+use burn_backend::{
+    DType, ExecutionError, QTensorPrimitive, Shape, TensorData,
+    quantization::{QuantLevel, QuantStore, params_shape},
 };
-use burn_tensor::{TensorMetadata, ops::unfold::calculate_unfold_shape};
-use cubecl::{server::CopyDescriptor, tensor_vectorization_factor};
-use cubecl_quant::scheme::BlockSize;
+use burn_backend::{TensorMetadata, ops::unfold::calculate_unfold_shape};
+use burn_std::tensor::{ReshapeAction, contiguous_strides, reshape_action};
+use cubecl::{ir::LineSize, server::CopyDescriptor};
+use cubecl::{quant::scheme::BlockSize, tensor_line_size_parallel};
 
 pub(crate) fn from_data<R: CubeRuntime>(data: TensorData, device: &R::Device) -> CubeTensor<R> {
-    let shape: Shape = (&data.shape).into();
     let client = R::client(device);
-    let buffer = client.create(data.bytes);
-
-    CubeTensor::new_contiguous(client, device.clone(), shape, buffer, data.dtype)
+    let alloc = client.create_tensor(data.bytes, &data.shape, data.dtype.size());
+    let shape: Shape = (&data.shape).into();
+    CubeTensor::new(
+        client,
+        alloc.handle,
+        shape,
+        device.clone(),
+        alloc.strides,
+        data.dtype,
+    )
 }
 
 pub(crate) async fn into_data<R: CubeRuntime>(
@@ -29,8 +34,8 @@ pub(crate) async fn into_data<R: CubeRuntime>(
         .client
         .read_one_tensor_async(binding)
         .await
-        .map_err(|err| ExecutionError::Generic {
-            context: format!("{err}"),
+        .map_err(|err| ExecutionError::WithContext {
+            reason: format!("{err}"),
         })?;
 
     Ok(TensorData::from_bytes(bytes, tensor.shape, tensor.dtype))
@@ -42,6 +47,10 @@ pub fn into_data_sync<R: CubeRuntime>(tensor: CubeTensor<R>) -> TensorData {
     burn_std::future::block_on(into_data(tensor)).unwrap()
 }
 
+#[cfg_attr(
+    feature = "tracing",
+    tracing::instrument(level = "trace", skip(tensor, device))
+)]
 pub(crate) fn to_device<R: CubeRuntime>(
     tensor: CubeTensor<R>,
     device: &R::Device,
@@ -61,9 +70,16 @@ pub(crate) fn empty<R: CubeRuntime>(
     dtype: DType,
 ) -> CubeTensor<R> {
     let client = R::client(device);
-    let buffer = client.empty(shape.num_elements() * dtype.size());
+    let alloc = client.empty_tensor(&shape.dims, dtype.size());
 
-    CubeTensor::new_contiguous(client, device.clone(), shape, buffer, dtype)
+    CubeTensor::new(
+        client,
+        alloc.handle,
+        shape,
+        device.clone(),
+        alloc.strides,
+        dtype,
+    )
 }
 
 pub(crate) fn swap_dims<R: CubeRuntime>(
@@ -83,10 +99,7 @@ pub(crate) fn swap_dims<R: CubeRuntime>(
         block_size.swap(dim1, dim2);
 
         // Truncate unit dims from the start
-        let block_size = block_size
-            .into_iter()
-            .skip_while(|it| *it == 1)
-            .collect::<Vec<_>>();
+        let block_size = BlockSize::new_trim(block_size);
         if block_size.len() > BlockSize::MAX_DIMS {
             panic!("Swapped block size would exceed max dims");
         }
@@ -94,7 +107,20 @@ pub(crate) fn swap_dims<R: CubeRuntime>(
         qparams.scales.shape.dims.swap(dim1, dim2);
         qparams.scales.strides.swap(dim1, dim2);
 
-        tensor.dtype = burn_tensor::DType::QFloat(scheme.with_level(QuantLevel::block(&block_size)))
+        tensor.dtype = DType::QFloat(scheme.with_level(QuantLevel::Block(block_size)))
+    }
+
+    if let DType::QFloat(scheme) = &mut tensor.dtype
+        && let QuantStore::PackedU32(packed_dim) | QuantStore::PackedNative(packed_dim) =
+            &mut scheme.store
+    {
+        let rank = tensor.shape.len();
+
+        if *packed_dim == rank - dim1 - 1 {
+            *packed_dim = rank - dim2 - 1;
+        } else if *packed_dim == rank - dim2 - 1 {
+            *packed_dim = rank - dim1 - 1;
+        }
     }
 
     tensor
@@ -129,7 +155,18 @@ pub fn permute<R: CubeRuntime>(mut tensor: CubeTensor<R>, axes: &[usize]) -> Cub
         qparams.scales.strides = axes.iter().map(|i| qparams.scales.strides[*i]).collect();
         qparams.scales.shape = qparams.scales.shape.clone().permute(axes).unwrap();
 
-        tensor.dtype = burn_tensor::DType::QFloat(scheme.with_level(QuantLevel::block(&block_size)))
+        tensor.dtype = DType::QFloat(scheme.with_level(QuantLevel::block(&block_size)))
+    }
+
+    if let DType::QFloat(scheme) = &mut tensor.dtype
+        && let QuantStore::PackedU32(packed_dim) = &mut scheme.store
+    {
+        let rank = tensor.shape.len();
+        let new_pos = axes
+            .iter()
+            .position(|axis| *axis == rank - *packed_dim - 1)
+            .unwrap_or(0);
+        *packed_dim = rank - new_pos - 1;
     }
 
     tensor
@@ -147,6 +184,18 @@ pub fn permute_nchw_to_nhwc<R: CubeRuntime>(tensor: CubeTensor<R>) -> CubeTensor
     permute(tensor, &dims)
 }
 
+/// Permute a shape's dimensions from NCHW to NHWC, or the N-dimensional equivalent
+pub fn permute_nchw_to_nhwc_shape(shape: Shape) -> Shape {
+    let rank = shape.num_dims();
+    let c_dim = 1;
+
+    let mut dims = vec![0];
+    dims.extend(2..rank);
+    dims.push(c_dim);
+
+    shape.permute(&dims).expect("Shape permute should succeed")
+}
+
 /// Permute a tensor's dimensions from NHWC to NCHW, or the N-dimensional equivalent
 pub fn permute_nhwc_to_nchw<R: CubeRuntime>(tensor: CubeTensor<R>) -> CubeTensor<R> {
     let rank = tensor.shape.num_dims();
@@ -157,6 +206,18 @@ pub fn permute_nhwc_to_nchw<R: CubeRuntime>(tensor: CubeTensor<R>) -> CubeTensor
     dims.extend(1..c_dim);
 
     permute(tensor, &dims)
+}
+
+/// Permute a shape's dimensions from NHWC to NCHW, or the N-dimensional equivalent
+pub fn permute_nhwc_to_nchw_shape(shape: Shape) -> Shape {
+    let rank = shape.num_dims();
+    let c_dim = rank - 1;
+
+    let mut dims = vec![0];
+    dims.push(c_dim);
+    dims.extend(1..c_dim);
+
+    shape.permute(&dims).expect("Shape permute should succeed")
 }
 
 pub(crate) fn expand<R: CubeRuntime>(tensor: CubeTensor<R>, target_shape: Shape) -> CubeTensor<R> {
@@ -231,16 +292,21 @@ pub fn reshape<R: CubeRuntime>(mut tensor: CubeTensor<R>, shape: Shape) -> CubeT
         ReshapeAction::Recompute => (),
     }
 
-    let tensor = kernel::into_contiguous(tensor);
-
-    let mut out = CubeTensor::new_contiguous(
-        tensor.client,
-        tensor.device,
+    let out = empty_device_dtype(
+        tensor.client.clone(),
+        tensor.device.clone(),
         shape,
-        tensor.handle,
         tensor.dtype,
     );
-    out.qparams = tensor.qparams;
+
+    cubecl::std::tensor::copy_into(
+        &tensor.client,
+        &tensor.as_handle_ref(),
+        &out.as_handle_ref(),
+        tensor.dtype.into(),
+    )
+    .expect("Kernel should not fail");
+
     out
 }
 
@@ -306,24 +372,31 @@ pub fn q_reshape<R: CubeRuntime>(mut tensor: CubeTensor<R>, shape: Shape) -> Cub
     tensor
 }
 
-pub(crate) fn max_line_size<R: CubeRuntime>(tensor: &CubeTensor<R>) -> u8 {
-    tensor_vectorization_factor(
-        R::supported_line_sizes(),
-        &tensor.shape.dims,
+pub(crate) fn max_line_size<R: CubeRuntime>(tensor: &CubeTensor<R>) -> LineSize {
+    tensor_line_size_parallel(
+        tensor
+            .client
+            .io_optimized_line_sizes_unchecked(tensor.dtype.size()),
+        &tensor.shape,
         &tensor.strides,
-        tensor.shape.num_dims() - 1,
+        tensor.shape.len() - 1,
     )
 }
 
-pub(crate) fn max_line_size_many<R: CubeRuntime>(tensors: &[&CubeTensor<R>], dim: usize) -> u8 {
+pub(crate) fn max_line_size_many<R: CubeRuntime>(
+    tensors: &[&CubeTensor<R>],
+    axis: usize,
+) -> LineSize {
     let vec = tensors
         .iter()
         .map(|tensor| {
-            tensor_vectorization_factor(
-                R::supported_line_sizes(),
-                &tensor.shape.dims,
+            tensor_line_size_parallel(
+                tensor
+                    .client
+                    .io_optimized_line_sizes_unchecked(tensor.dtype.size()),
+                &tensor.shape,
                 &tensor.strides,
-                dim,
+                axis,
             )
         })
         .min();

@@ -1,6 +1,7 @@
 use super::{Backward, Ops, unary};
 use crate::{checkpoint::base::Checkpointer, grads::Gradients};
-use burn_tensor::{Shape, TensorMetadata, backend::Backend};
+use burn_backend::{Backend, TensorMetadata};
+use burn_std::Shape;
 
 #[derive(Debug)]
 pub(crate) struct MaxMinDim;
@@ -20,7 +21,7 @@ impl<B: Backend> Backward<B, 1> for MaxMinDim {
             let dtype = grad.dtype();
             let zeros = B::float_zeros(shape, &device, dtype.into());
 
-            B::float_scatter(dim, zeros, indices, grad)
+            B::float_scatter_add(dim, zeros, indices, grad)
         });
     }
 }

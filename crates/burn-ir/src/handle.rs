@@ -110,7 +110,7 @@ impl<H: Clone> HandleContainer<H> {
         }
     }
 
-    /// Get the [float tensor](burn_tensor::backend::Backend::FloatTensorPrimitive) corresponding to the
+    /// Get the [float tensor](burn_backend::backend::Backend::FloatTensorPrimitive) corresponding to the
     /// given [tensor intermediate representation](TensorIr).
     pub fn get_float_tensor<B>(&mut self, tensor: &TensorIr) -> B::FloatTensorPrimitive
     where
@@ -119,7 +119,7 @@ impl<H: Clone> HandleContainer<H> {
         B::float_tensor(self.get_tensor_handle(tensor))
     }
 
-    /// Get the [int tensor](burn_tensor::backend::Backend::IntTensorPrimitive) corresponding to the
+    /// Get the [int tensor](burn_backend::backend::Backend::IntTensorPrimitive) corresponding to the
     /// given [tensor intermediate representation](TensorIr).
     pub fn get_int_tensor<B>(&mut self, tensor: &TensorIr) -> B::IntTensorPrimitive
     where
@@ -128,7 +128,7 @@ impl<H: Clone> HandleContainer<H> {
         B::int_tensor(self.get_tensor_handle(tensor))
     }
 
-    /// Get the [bool tensor](burn_tensor::backend::Backend::BoolTensorPrimitive) corresponding to the
+    /// Get the [bool tensor](burn_backend::backend::Backend::BoolTensorPrimitive) corresponding to the
     /// given [tensor intermediate representation](TensorIr).
     pub fn get_bool_tensor<B>(&mut self, tensor: &TensorIr) -> B::BoolTensorPrimitive
     where
@@ -137,7 +137,7 @@ impl<H: Clone> HandleContainer<H> {
         B::bool_tensor(self.get_tensor_handle(tensor))
     }
 
-    /// Get the [quantized tensor](burn_tensor::backend::Backend::QuantizedTensorPrimitive) corresponding to the
+    /// Get the [quantized tensor](burn_backend::backend::Backend::QuantizedTensorPrimitive) corresponding to the
     /// given [tensor intermediate representation](TensorIr).
     pub fn get_quantized_tensor<B>(&mut self, tensor: &TensorIr) -> B::QuantizedTensorPrimitive
     where
@@ -146,7 +146,7 @@ impl<H: Clone> HandleContainer<H> {
         B::quantized_tensor(self.get_tensor_handle(tensor))
     }
 
-    /// Register a new [float tensor](burn_tensor::backend::Backend::FloatTensorPrimitive) with the corresponding [tensor id](TensorId).
+    /// Register a new [float tensor](burn_backend::backend::Backend::FloatTensorPrimitive) with the corresponding [tensor id](TensorId).
     pub fn register_float_tensor<B>(&mut self, id: &TensorId, tensor: B::FloatTensorPrimitive)
     where
         B: BackendIr<Handle = H>,
@@ -155,7 +155,7 @@ impl<H: Clone> HandleContainer<H> {
         self.handles.insert(*id, Handle::Existing(handle));
     }
 
-    /// Register a new [quantized tensor](burn_tensor::backend::Backend::QuantizedTensorPrimitive) with the corresponding [tensor ids](TensorId).
+    /// Register a new [quantized tensor](burn_backend::backend::Backend::QuantizedTensorPrimitive) with the corresponding [tensor ids](TensorId).
     pub fn register_quantized_tensor<B>(
         &mut self,
         id: &TensorId,
@@ -167,7 +167,7 @@ impl<H: Clone> HandleContainer<H> {
         self.handles.insert(*id, Handle::Existing(handle));
     }
 
-    /// Register a new [int tensor](burn_tensor::backend::Backend::IntTensorPrimitive) with the corresponding [tensor id](TensorId).
+    /// Register a new [int tensor](burn_backend::backend::Backend::IntTensorPrimitive) with the corresponding [tensor id](TensorId).
     pub fn register_int_tensor<B>(&mut self, id: &TensorId, tensor: B::IntTensorPrimitive)
     where
         B: BackendIr<Handle = H>,
@@ -176,7 +176,7 @@ impl<H: Clone> HandleContainer<H> {
         self.handles.insert(*id, Handle::Existing(handle));
     }
 
-    /// Register a new [bool tensor](burn_tensor::backend::Backend::BoolTensorPrimitive) with the corresponding [tensor id](TensorId).
+    /// Register a new [bool tensor](burn_backend::backend::Backend::BoolTensorPrimitive) with the corresponding [tensor id](TensorId).
     pub fn register_bool_tensor<B>(&mut self, id: &TensorId, tensor: B::BoolTensorPrimitive)
     where
         B: BackendIr<Handle = H>,

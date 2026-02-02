@@ -15,14 +15,20 @@ version.workspace = true
 workspace = true
 
 [features]
-default = ["std"]
-export_tests = ["burn-tensor-testgen"]
+default = ["std", "tracing"]
 std = ["dep:parking_lot"]
+export_tests = []         # check checkpointer is_empty in tests
+
+tracing = [
+    "dep:tracing",
+    "burn-std/tracing",
+    "burn-backend/tracing",
+]
 
 [dependencies]
-burn-std = { path = "../burn-std", version = "=0.20.0-pre.3", default-features = false }
-burn-tensor = { path = "../burn-tensor", version = "=0.20.0-pre.3", default-features = false }
-burn-tensor-testgen = { path = "../burn-tensor-testgen", version = "=0.20.0-pre.3", optional = true }
+burn-std = { path = "../burn-std", version = "=0.21.0", default-features = false }
+burn-backend = { path = "../burn-backend", version = "=0.21.0", default-features = false }
+
 
 derive-new = { workspace = true }
 spin = { workspace = true }
@@ -31,12 +37,8 @@ log = { workspace = true }
 hashbrown = { workspace = true }
 num-traits = { workspace = true }
 portable-atomic = { workspace = true }
+tracing = { workspace = true, optional = true, features = ["default"] }
 
-
-[dev-dependencies]
-burn-tensor = { path = "../burn-tensor", version = "=0.20.0-pre.3", default-features = false, features = [
-    "export_tests",
-] }
 
 [package.metadata.docs.rs]
 features = ["default"]

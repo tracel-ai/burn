@@ -45,11 +45,12 @@ where
     let client = tensor.client.clone();
     let num_elems = tensor.shape.num_elements();
 
-    let cube_dim = CubeDim::default();
-    let cube_count = calculate_cube_count_elemwise(num_elems / line_size as usize, cube_dim);
+    let working_units = num_elems / line_size as usize;
+    let cube_dim = CubeDim::new(&tensor.client, working_units);
+    let cube_count = calculate_cube_count_elemwise(&tensor.client, working_units, cube_dim);
 
     unsafe {
-        if tensor.can_mut() && tensor.is_contiguous_buffer() {
+        if tensor.can_mut() && tensor.is_nonoverlapping() {
             unary_float::launch_unchecked::<O, R>(
                 &client,
                 cube_count,
@@ -73,7 +74,7 @@ where
             unary_float::launch_unchecked::<O, R>(
                 &client,
                 cube_count,
-                CubeDim::default(),
+                cube_dim,
                 linear_view(&tensor, line_size),
                 linear_view(&output, line_size),
                 args(&()),
@@ -108,8 +109,17 @@ pub(crate) mod unary_basic {
         Log1p,
         Sqrt,
         Abs,
+        ArcCos,
+        ArcCosh,
+        ArcSin,
+        ArcSinh,
+        ArcTan,
+        ArcTanh,
         Cos,
+        Cosh,
         Sin,
+        Sinh,
+        Tan,
         Tanh,
         Round,
         Floor,
@@ -133,12 +143,15 @@ pub(crate) mod unary_basic {
         fn execute(input: Line<F>, options: &Self::Options) -> Line<F> {
             match comptime![options.kind] {
                 BasicFloatUnaryKind::Exp => Line::exp(input),
-                BasicFloatUnaryKind::Log => Line::log(input),
+                BasicFloatUnaryKind::Log => Line::ln(input),
                 BasicFloatUnaryKind::Log1p => Line::log1p(input),
                 BasicFloatUnaryKind::Sqrt => Line::sqrt(input),
                 BasicFloatUnaryKind::Abs => Line::abs(input),
                 BasicFloatUnaryKind::Cos => Line::cos(input),
                 BasicFloatUnaryKind::Sin => Line::sin(input),
+                BasicFloatUnaryKind::Tan => Line::tan(input),
+                BasicFloatUnaryKind::Cosh => Line::cosh(input),
+                BasicFloatUnaryKind::Sinh => Line::sinh(input),
                 BasicFloatUnaryKind::Tanh => Line::tanh(input),
                 BasicFloatUnaryKind::Round => Line::round(input),
                 BasicFloatUnaryKind::Floor => Line::floor(input),
@@ -146,6 +159,12 @@ pub(crate) mod unary_basic {
                 BasicFloatUnaryKind::Trunc => Line::trunc(input),
                 BasicFloatUnaryKind::Erf => Line::erf(input),
                 BasicFloatUnaryKind::Recip => Line::recip(input),
+                BasicFloatUnaryKind::ArcCos => Line::acos(input),
+                BasicFloatUnaryKind::ArcCosh => Line::acosh(input),
+                BasicFloatUnaryKind::ArcSin => Line::asin(input),
+                BasicFloatUnaryKind::ArcSinh => Line::asinh(input),
+                BasicFloatUnaryKind::ArcTan => Line::atan(input),
+                BasicFloatUnaryKind::ArcTanh => Line::atanh(input),
             }
         }
     }

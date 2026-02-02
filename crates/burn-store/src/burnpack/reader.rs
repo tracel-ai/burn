@@ -3,6 +3,7 @@ use super::base::MAX_FILE_SIZE;
 use super::base::{
     BurnpackError, BurnpackHeader, BurnpackMetadata, FORMAT_VERSION, HEADER_SIZE, MAGIC_NUMBER,
     MAX_CBOR_RECURSION_DEPTH, MAX_METADATA_SIZE, MAX_TENSOR_COUNT, MAX_TENSOR_SIZE,
+    aligned_data_section_start,
 };
 use crate::TensorSnapshot;
 use alloc::format;
@@ -24,11 +25,8 @@ use std::path::Path;
 
 /// Storage backend for BurnpackReader
 pub(crate) enum StorageBackend {
-    /// Memory-based storage
+    /// Memory-based storage (also used for memory-mapped files converted to bytes::Bytes)
     Memory(Rc<Bytes>),
-    /// Memory-mapped file storage (efficient for large files)
-    #[cfg(all(feature = "std", feature = "memmap"))]
-    Mmap(Rc<memmap2::Mmap>),
     /// File-based storage with buffered reading
     #[cfg(feature = "std")]
     #[allow(dead_code)]
@@ -80,29 +78,6 @@ impl StorageBackend {
                 bytes.copy_from_slice(&data_bytes[offset..end]);
                 Ok(())
             }
-            #[cfg(all(feature = "std", feature = "memmap"))]
-            StorageBackend::Mmap(mmap) => {
-                let mmap_bytes = mmap.as_ref();
-                let end = offset.checked_add(bytes.len()).ok_or_else(|| {
-                    BurnpackError::IoError(format!(
-                        "Offset overflow: offset {} + length {} exceeds maximum",
-                        offset,
-                        bytes.len()
-                    ))
-                })?;
-
-                if end > mmap_bytes.len() {
-                    return Err(BurnpackError::IoError(format!(
-                        "Read out of bounds: requested {}..{} but mmap length is {}",
-                        offset,
-                        end,
-                        mmap_bytes.len()
-                    )));
-                }
-
-                bytes.copy_from_slice(&mmap_bytes[offset..end]);
-                Ok(())
-            }
             #[cfg(feature = "std")]
             StorageBackend::FileBuffered { file } => {
                 use std::io::SeekFrom;
@@ -125,11 +100,53 @@ impl StorageBackend {
     pub(crate) fn as_bytes(&self) -> Result<&[u8], BurnpackError> {
         match self {
             StorageBackend::Memory(data) => Ok(data.as_ref()),
-            #[cfg(all(feature = "std", feature = "memmap"))]
-            StorageBackend::Mmap(mmap) => Ok(mmap.as_ref()),
             #[cfg(feature = "std")]
             StorageBackend::FileBuffered { .. } => Err(BurnpackError::IoError(
                 "Cannot get full bytes reference for FileBuffered backend".into(),
+            )),
+        }
+    }
+
+    /// Attempt to slice bytes without copying (zero-copy).
+    ///
+    /// This uses `Bytes::clone()` + `split()` which is zero-copy when the underlying
+    /// `Bytes` was created via `Bytes::from_shared()` (backed by `bytes::Bytes`).
+    ///
+    /// # Returns
+    /// - `Ok(bytes)` - Successfully created a zero-copy slice
+    /// - `Err(_)` - Backend doesn't support zero-copy or split failed
+    pub(crate) fn slice_bytes(&self, start: usize, end: usize) -> Result<Bytes, BurnpackError> {
+        if end < start {
+            return Err(BurnpackError::IoError(format!(
+                "Invalid slice range: end ({}) < start ({})",
+                end, start
+            )));
+        }
+
+        match self {
+            StorageBackend::Memory(data) => {
+                // Clone the Bytes - cheap if backed by SharedBytesAllocationController
+                let cloned = (**data).clone();
+
+                // Split at start offset to get (_, right)
+                let (_, right) = cloned.split(start).map_err(|(_, e)| {
+                    BurnpackError::IoError(format!("Failed to split at start {}: {:?}", start, e))
+                })?;
+
+                // Split right at (end - start) to get (middle, _)
+                let slice_len = end - start;
+                let (middle, _) = right.split(slice_len).map_err(|(_, e)| {
+                    BurnpackError::IoError(format!(
+                        "Failed to split at length {}: {:?}",
+                        slice_len, e
+                    ))
+                })?;
+
+                Ok(middle)
+            }
+            #[cfg(feature = "std")]
+            StorageBackend::FileBuffered { .. } => Err(BurnpackError::IoError(
+                "Zero-copy not supported for buffered file reading. Use from_file() with memmap feature for zero-copy loading.".into(),
             )),
         }
     }
@@ -239,7 +256,7 @@ impl BurnpackReader {
         Ok(Self {
             metadata,
             storage: StorageBackend::Memory(Rc::new(bytes)),
-            data_offset: metadata_end,
+            data_offset: aligned_data_section_start(header.metadata_size as usize),
         })
     }
 
@@ -354,10 +371,15 @@ impl BurnpackReader {
             }
         }
 
+        // Convert mmap to bytes::Bytes for zero-copy slicing support
+        // bytes::Bytes::from_owner takes ownership and enables efficient slicing
+        let shared_bytes = bytes::Bytes::from_owner(mmap);
+        let bytes = Bytes::from_shared(shared_bytes, burn_tensor::AllocationProperty::File);
+
         Ok(Self {
             metadata,
-            storage: StorageBackend::Mmap(Rc::new(mmap)),
-            data_offset: metadata_end,
+            storage: StorageBackend::Memory(Rc::new(bytes)),
+            data_offset: aligned_data_section_start(header.metadata_size as usize),
         })
     }
 
@@ -488,12 +510,35 @@ impl BurnpackReader {
             storage: StorageBackend::FileBuffered {
                 file: Rc::new(RefCell::new(file)),
             },
-            data_offset: metadata_end,
+            data_offset: aligned_data_section_start(header.metadata_size as usize),
         })
     }
 
-    /// Get all tensor snapshots at once for efficient loading
+    /// Get all tensor snapshots at once for efficient loading (always copies data)
     pub fn get_snapshots(&self) -> Result<Vec<TensorSnapshot>, BurnpackError> {
+        self.get_snapshots_internal(false)
+    }
+
+    /// Get all tensor snapshots with optional zero-copy loading.
+    ///
+    /// When `zero_copy` is true and the backend supports it (Memory backend with
+    /// `Bytes::from_shared()`), tensor data is sliced without copying. This keeps
+    /// the original data alive as long as any tensor holds a reference.
+    ///
+    /// When `zero_copy` is false or the backend doesn't support it, data is copied
+    /// into newly allocated buffers (default behavior).
+    pub fn get_snapshots_zero_copy(
+        &self,
+        zero_copy: bool,
+    ) -> Result<Vec<TensorSnapshot>, BurnpackError> {
+        self.get_snapshots_internal(zero_copy)
+    }
+
+    /// Internal implementation with optional zero-copy support
+    fn get_snapshots_internal(
+        &self,
+        zero_copy: bool,
+    ) -> Result<Vec<TensorSnapshot>, BurnpackError> {
         let mut snapshots = Vec::new();
 
         for (name, descriptor) in &self.metadata.tensors {
@@ -517,8 +562,6 @@ impl BurnpackReader {
             // Clone storage reference for the closure
             let storage = match &self.storage {
                 StorageBackend::Memory(data) => StorageBackend::Memory(data.clone()),
-                #[cfg(all(feature = "std", feature = "memmap"))]
-                StorageBackend::Mmap(mmap) => StorageBackend::Mmap(mmap.clone()),
                 #[cfg(feature = "std")]
                 StorageBackend::FileBuffered { file } => {
                     StorageBackend::FileBuffered { file: file.clone() }
@@ -581,26 +624,47 @@ impl BurnpackReader {
                 .map(ParamId::from)
                 .unwrap_or_else(ParamId::new);
 
+            // Create the data-loading closure based on zero_copy flag
+            let data_fn: Rc<dyn Fn() -> Result<TensorData, crate::TensorSnapshotError>> =
+                if zero_copy {
+                    // Zero-copy closure: slice without copying, error if not supported
+                    Rc::new(move || {
+                        let bytes = storage.slice_bytes(start, end).map_err(|e| {
+                            crate::TensorSnapshotError::IoError(format!(
+                                "Zero-copy slice failed: {}",
+                                e
+                            ))
+                        })?;
+                        Ok(TensorData::from_bytes(
+                            bytes,
+                            shape_for_closure.clone(),
+                            dtype,
+                        ))
+                    })
+                } else {
+                    // Copying closure: always allocate and copy
+                    Rc::new(move || {
+                        let len = end - start;
+                        // TODO Should be allocated by the backend in the future
+                        // See https://github.com/tracel-ai/burn/pull/3792#discussion_r2416812091
+                        let mut data_bytes = vec![0u8; len];
+                        storage.read_into(&mut data_bytes, start).map_err(|e| {
+                            crate::TensorSnapshotError::IoError(format!(
+                                "Failed to read tensor data: {}",
+                                e
+                            ))
+                        })?;
+                        Ok(TensorData::from_bytes_vec(
+                            data_bytes,
+                            shape_for_closure.clone(),
+                            dtype,
+                        ))
+                    })
+                };
+
             // Create lazy TensorSnapshot
             let snapshot = TensorSnapshot::from_closure(
-                Rc::new(move || {
-                    // This closure is only called when data is actually needed
-                    let len = end - start;
-                    // TODO Should be allocated by the backend in the future
-                    // See https://github.com/tracel-ai/burn/pull/3792#discussion_r2416812091
-                    let mut data_bytes = vec![0u8; len];
-                    storage.read_into(&mut data_bytes, start).map_err(|e| {
-                        crate::TensorSnapshotError::IoError(format!(
-                            "Failed to read tensor data: {}",
-                            e
-                        ))
-                    })?;
-                    Ok(TensorData::from_bytes_vec(
-                        data_bytes,
-                        shape_for_closure.clone(),
-                        dtype,
-                    ))
-                }),
+                data_fn,
                 dtype,
                 shape,
                 name.split('.').map(|s| s.to_string()).collect(),

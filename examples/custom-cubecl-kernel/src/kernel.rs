@@ -8,9 +8,9 @@ pub fn fused_matmul_add_relu_kernel<F: Float>(
     bias: &Tensor<F>,
     output: &mut Tensor<F>,
 ) {
-    let row = ABSOLUTE_POS_X;
-    let col = ABSOLUTE_POS_Y;
-    let batch = ABSOLUTE_POS_Z;
+    let row = ABSOLUTE_POS_X as usize;
+    let col = ABSOLUTE_POS_Y as usize;
+    let batch = ABSOLUTE_POS_Z as usize;
 
     let n_rows = output.shape(output.rank() - 2);
     let n_cols = output.shape(output.rank() - 1);

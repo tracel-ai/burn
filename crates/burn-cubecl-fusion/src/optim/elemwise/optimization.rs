@@ -86,15 +86,15 @@ impl<R: Runtime> TraceRunner<R> for ElemwiseRunner {
         let config = &configs[0];
         let shape = match &config.ref_layout {
             RefLayout::Concrete(arg) => match arg {
-                FuseArg::Input(..) => inputs.shape_ref(&config.ref_layout, config.rank as usize),
-                FuseArg::Output(..) => outputs.shape_ref(&config.ref_layout, config.rank as usize),
+                FuseArg::Input(..) => inputs.shape_ref(&config.ref_layout, config.rank),
+                FuseArg::Output(..) => outputs.shape_ref(&config.ref_layout, config.rank),
                 _ => panic!("Invalid concreate ref layout"),
             },
-            RefLayout::Virtual(_) => inputs.shape_ref(&config.ref_layout, config.rank as usize),
+            RefLayout::Virtual(_) => inputs.shape_ref(&config.ref_layout, config.rank),
         };
-        let total_elem = shape.iter().product::<usize>() / config.width as usize;
-        let cube_dim = CubeDim::default();
-        let cube_count = calculate_cube_count_elemwise(total_elem, cube_dim);
+        let working_units = shape.iter().product::<usize>() / config.width;
+        let cube_dim = CubeDim::new(client, working_units);
+        let cube_count = calculate_cube_count_elemwise(client, working_units, cube_dim);
 
         unsafe {
             elemwise_fuse::launch_unchecked(
@@ -119,7 +119,7 @@ fn elemwise_fuse(
 ) {
     // We write no values for this fusion.
     let values = Registry::<FuseArg, Line<f32>>::new();
-    let args = comptime![Sequence::<FuseArg>::new()];
+    let args = comptime![Vec::<FuseArg>::new()];
     let pos = ABSOLUTE_POS;
 
     let mut locals = init_locals(inputs, outputs, config);

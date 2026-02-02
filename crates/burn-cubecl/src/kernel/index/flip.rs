@@ -1,36 +1,45 @@
 use crate::{
-    CubeRuntime, kernel::into_contiguous, ops::numeric::empty_device_dtype, tensor::CubeTensor,
+    CubeRuntime,
+    kernel::utils::{linear_view, shape_divmod},
+    ops::numeric::empty_device_dtype,
+    tensor::CubeTensor,
 };
-use burn_tensor::DType;
-use cubecl::std::scalar::InputScalar;
-use cubecl::{calculate_cube_count_elemwise, prelude::*};
+use burn_backend::DType;
+use cubecl::{
+    calculate_cube_count_elemwise,
+    prelude::*,
+    std::{FastDivmod, tensor::layout::linear::LinearView},
+};
 
 #[cube(launch_unchecked)]
 fn flip_kernel<E: Numeric, Bool: Int>(
     input: &Tensor<E>,
-    output: &mut Tensor<E>,
+    output: &mut LinearView<E, ReadWrite>,
+    in_shape: Sequence<FastDivmod<usize>>,
     indices: Sequence<InputScalar>,
-    #[comptime] rank: u32,
     #[define(E, Bool)] _dtypes: [StorageType; 2],
 ) {
-    if ABSOLUTE_POS >= output.len() {
+    if !output.is_in_bounds(ABSOLUTE_POS) {
         terminate!();
     }
 
+    let rank = in_shape.len().comptime();
+
+    let mut offset = ABSOLUTE_POS;
     let mut offset_input = 0;
 
     #[unroll]
     for i in 0..rank {
-        let stride = input.stride(i);
-        let shape = output.shape(i);
-        let flip = indices.index(i).get::<Bool>() == Bool::from_int(1);
-        let mut offset_local = ABSOLUTE_POS / stride % shape;
+        let dim = rank - i - 1;
+        let shape = input.shape(dim);
 
-        if flip {
-            offset_local = shape - offset_local - 1;
-        }
+        let (rem, offset_local) = in_shape[dim].div_mod(offset);
+        offset = rem;
 
-        offset_input += offset_local * stride;
+        let flip = indices.index(dim).get::<Bool>() == Bool::from_int(1);
+        let offset_local = select(flip, shape - offset_local - 1, offset_local);
+
+        offset_input += offset_local * input.stride(dim);
     }
 
     output[ABSOLUTE_POS] = input[offset_input];
@@ -56,7 +65,6 @@ pub(crate) fn flip_on_output<R: CubeRuntime>(
     indices: &[usize],
     dtype_bool: DType,
 ) -> CubeTensor<R> {
-    let tensor = into_contiguous(tensor);
     let dtype_input = tensor.dtype;
     let ndims = tensor.shape.num_dims();
     let mut indices_sequence = SequenceArg::<'_, R, InputScalar>::new();
@@ -68,8 +76,9 @@ pub(crate) fn flip_on_output<R: CubeRuntime>(
         });
     }
 
-    let cube_dim = CubeDim::default();
-    let cube_count = calculate_cube_count_elemwise(output.shape.num_elements(), cube_dim);
+    let num_elements = output.shape.num_elements();
+    let cube_dim = CubeDim::new(&tensor.client, num_elements);
+    let cube_count = calculate_cube_count_elemwise(&tensor.client, num_elements, cube_dim);
 
     unsafe {
         flip_kernel::launch_unchecked(
@@ -77,9 +86,9 @@ pub(crate) fn flip_on_output<R: CubeRuntime>(
             cube_count,
             cube_dim,
             tensor.as_tensor_arg(1),
-            output.as_tensor_arg(1),
+            linear_view(&output, 1),
+            shape_divmod(&tensor),
             indices_sequence,
-            ndims as u32,
             [dtype_input.into(), dtype_bool.into()],
         )
         .expect("Kernel to never fail");

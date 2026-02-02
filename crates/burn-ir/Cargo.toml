@@ -16,17 +16,17 @@ workspace = true
 
 [features]
 default = ["std"]
-std = ["burn-tensor/std"]
+std = ["burn-backend/std"]
 doc = ["default"]
+tracing = [
+    "burn-backend/tracing",
+]
 
 [dependencies]
 serde = { workspace = true }
 hashbrown = { workspace = true } # no_std compatible
 
-burn-tensor = { path = "../burn-tensor", version = "=0.20.0-pre.3", default-features = false }
-
-[target.'cfg(not(target_has_atomic = "ptr"))'.dependencies]
-portable-atomic-util = { workspace = true }
+burn-backend = { path = "../burn-backend", version = "=0.21.0", default-features = false }
 
 [package.metadata.docs.rs]
 features = ["doc"]

@@ -16,41 +16,47 @@ workspace = true
 
 [features]
 default = ["std"]
-cubecl = ["dep:cubecl", "burn-std/cubecl", "burn-backend/cubecl"]
-cubecl-cuda = ["cubecl", "cubecl/cuda"]
-cubecl-hip = ["cubecl", "cubecl/hip"]
-cubecl-wgpu = ["cubecl", "cubecl/wgpu"]
-cubecl-cpu = ["cubecl", "cubecl/cpu"]
 doc = ["default"]
-experimental-named-tensor = []
-export_tests = ["burn-tensor-testgen", "cubecl"]
 std = [
     "num-traits/std",
     "burn-std/std",
     "burn-backend/std",
     "colored",
 ]
+tracing = [
+    "burn-std/tracing",
+    "burn-backend/tracing",
+]
+
+cubecl = ["burn-std/cubecl", "burn-backend/cubecl"]
+cubecl-cuda = ["burn-backend/cubecl-cuda"]
+cubecl-hip = ["burn-backend/cubecl-hip"]
+cubecl-wgpu = ["burn-backend/cubecl-wgpu"]
+cubecl-cpu = ["burn-backend/cubecl-cpu"]
+experimental-named-tensor = []
 
 [dependencies]
-burn-std = { path = "../burn-std", version = "0.20.0-pre.3", default-features = false }
-burn-tensor-testgen = { path = "../burn-tensor-testgen", version = "0.20.0-pre.3", optional = true }
-burn-backend = { path = "../burn-backend", version = "0.20.0-pre.3", default-features = false }
-cubecl = { workspace = true, optional = true, default-features = false }
+burn-std = { path = "../burn-std", version = "=0.21.0", default-features = false }
+burn-backend = { path = "../burn-backend", version = "=0.21.0", default-features = false }
 
 colored = { workspace = true, optional = true }
 derive-new = { workspace = true }
 num-traits = { workspace = true }
 
-# The same implementation of HashMap in std but with no_std support (only needs alloc crate)
-hashbrown = { workspace = true } # no_std compatible
+# Device
+hashbrown = { workspace = true }
+spin = { workspace = true }
+thiserror = { workspace = true }
 
 # Serialization
 serde = { workspace = true }
 
+[target.'cfg(not(target_has_atomic = "ptr"))'.dependencies]
+portable-atomic-util = { workspace = true }
+
 [dev-dependencies]
-paste = { workspace = true }
+serial_test = { workspace = true }
 
 [package.metadata.docs.rs]
 features = ["doc"]
-# KaTeX header is copied to the crate root in the publish workflow
 rustdoc-args = ["--cfg", "docsrs", "--html-in-header", "katex-header.html"]

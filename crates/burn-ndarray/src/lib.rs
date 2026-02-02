@@ -17,34 +17,13 @@ mod ops;
 mod parallel;
 mod rand;
 mod sharing;
+mod storage;
 mod tensor;
 
 pub use backend::*;
 pub use element::*;
 pub(crate) use sharing::*;
+pub(crate) use storage::*;
 pub use tensor::*;
 
 extern crate alloc;
-
-#[cfg(test)]
-mod tests {
-    type TestBackend = crate::NdArray<f32>;
-    type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;
-    type TestTensorInt<const D: usize> = burn_tensor::Tensor<TestBackend, D, burn_tensor::Int>;
-    type TestTensorBool<const D: usize> = burn_tensor::Tensor<TestBackend, D, burn_tensor::Bool>;
-
-    use alloc::format;
-    use alloc::vec;
-    use alloc::vec::Vec;
-
-    burn_tensor::testgen_all!();
-
-    #[cfg(feature = "std")]
-    burn_autodiff::testgen_all!();
-
-    // Quantization
-    burn_tensor::testgen_calibration!();
-    burn_tensor::testgen_scheme!();
-    burn_tensor::testgen_quantize!();
-    burn_tensor::testgen_q_data!();
-}

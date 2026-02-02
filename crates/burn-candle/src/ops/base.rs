@@ -5,14 +5,12 @@ use crate::{
     Candle, CandleDevice, CandleTensor,
     element::{CandleElement, FloatCandleElement, IntCandleElement},
 };
-use burn_tensor::{
-    Distribution,
-    backend::ExecutionError,
+use burn_backend::{
+    BackTrace, Backend, Distribution, ExecutionError, Slice, bf16, f16,
     ops::unfold::{calculate_unfold_shape, calculate_unfold_windows},
 };
-use burn_tensor::{Element, Shape, TensorData, TensorMetadata, backend::Backend};
+use burn_backend::{Element, Shape, TensorData, TensorMetadata};
 use candle_core::{Layout, WithDType};
-use half::{bf16, f16};
 
 use super::tensor;
 
@@ -39,22 +37,27 @@ pub fn into_data(tensor: CandleTensor) -> Result<TensorData, ExecutionError> {
             .tensor
             .flatten_all()
             .map_err(|err| ExecutionError::Generic {
-                context: format!("{err}"),
+                reason: format!("{err}"),
+                backtrace: BackTrace::capture(),
             })?
             .to_vec1::<T>()
             .map_err(|err| ExecutionError::Generic {
-                context: format!("{err}"),
+                reason: format!("{err}"),
+                backtrace: BackTrace::capture(),
             })?;
         Ok(TensorData::new(data, tensor.shape()))
     }
 
     match tensor.tensor.dtype() {
+        other => todo!("{other:?} not yet supported"),
         candle_core::DType::BF16 => tensor_data_from_dtype::<bf16>(&tensor),
         candle_core::DType::F16 => tensor_data_from_dtype::<f16>(&tensor),
         candle_core::DType::F32 => tensor_data_from_dtype::<f32>(&tensor),
         candle_core::DType::F64 => tensor_data_from_dtype::<f64>(&tensor),
         candle_core::DType::U8 => tensor_data_from_dtype::<u8>(&tensor),
         candle_core::DType::U32 => tensor_data_from_dtype::<u32>(&tensor),
+        candle_core::DType::I16 => tensor_data_from_dtype::<i16>(&tensor),
+        candle_core::DType::I32 => tensor_data_from_dtype::<i32>(&tensor),
         candle_core::DType::I64 => tensor_data_from_dtype::<i64>(&tensor),
     }
 }
@@ -129,7 +132,7 @@ pub fn slice(tensor: CandleTensor, ranges: &[std::ops::Range<usize>]) -> CandleT
     CandleTensor::new(narrow_tensor)
 }
 
-pub fn slice_with_steps(tensor: CandleTensor, slices: &[burn_tensor::Slice]) -> CandleTensor {
+pub fn slice_with_steps(tensor: CandleTensor, slices: &[Slice]) -> CandleTensor {
     let mut result_tensor = tensor.tensor;
 
     for (dim, slice) in slices.iter().enumerate() {
@@ -189,11 +192,7 @@ pub fn slice_with_steps(tensor: CandleTensor, slices: &[burn_tensor::Slice]) -> 
     CandleTensor::new(result_tensor)
 }
 
-pub fn slice_assign(
-    tensor: CandleTensor,
-    slices: &[burn_tensor::Slice],
-    value: CandleTensor,
-) -> CandleTensor {
+pub fn slice_assign(tensor: CandleTensor, slices: &[Slice], value: CandleTensor) -> CandleTensor {
     // Check if all slices have step=1 (candle's native slice_assign requirement)
     let all_unit_steps = slices.iter().all(|s| s.step == 1);
 
@@ -218,7 +217,7 @@ pub fn slice_assign(
 /// Implements slice_assign for non-unit steps using index operations
 fn slice_assign_with_steps_workaround(
     tensor: CandleTensor,
-    slices: &[burn_tensor::Slice],
+    slices: &[Slice],
     value: CandleTensor,
 ) -> CandleTensor {
     let shape = tensor.shape();
@@ -275,7 +274,7 @@ fn slice_assign_with_steps_workaround(
 }
 
 /// Generate indices for each dimension based on slice specifications
-fn generate_slice_indices(slices: &[burn_tensor::Slice], tensor_dims: &[usize]) -> Vec<Vec<usize>> {
+fn generate_slice_indices(slices: &[Slice], tensor_dims: &[usize]) -> Vec<Vec<usize>> {
     let ndims = tensor_dims.len();
     let mut indices_per_dim = Vec::with_capacity(ndims);
 

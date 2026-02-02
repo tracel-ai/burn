@@ -1,7 +1,9 @@
 # No Standard Library
 
-In this section, you will learn how to run an onnx inference model on an embedded system, with no standard library support on a Raspberry Pi Pico. This should be universally applicable to other platforms. All the code can be found under the
-[examples directory](https://github.com/tracel-ai/burn/tree/main/examples/raspberry-pi-pico).
+In this section, you will learn how to run an ONNX inference model on an embedded system, with no
+standard library support on a Raspberry Pi Pico 2. This should be universally applicable to other
+platforms. All the code can be found in the
+[burn-onnx examples](https://github.com/tracel-ai/burn-onnx/tree/main/examples/raspberry-pi-pico).
 
 ## Step-by-Step Guide
 
@@ -23,21 +25,21 @@ Some other dependencies have to be added
 ```toml
 [dependencies]
 embedded-alloc = "0.6.0" # Only if there is no default allocator for your chip
-burn = { version = "0.20", default-features = false, features = ["ndarray"] } # Backend must be ndarray
+burn = { version = "0.21", default-features = false, features = ["ndarray"] } # Backend must be ndarray
+burn-store = { version = "0.21", default-features = false, features = ["burnpack"] }
 
 [build-dependencies]
-burn-import = { version = "0.20" } # Used to auto generate the rust code to import the model
+burn-onnx = { version = "0.21" } # Used to auto generate the rust code to import the model
 ```
 
 ### Import the Model
-Follow the directions to [import models](../import/README.md).
+Follow the directions in [ONNX Import](../onnx-import.md).
 
 Use the following ModelGen config
 ```rs
 ModelGen::new()
     .input(my_model)
     .out_dir("model/")
-    .record_type(RecordType::Bincode)
     .embed_states(true)
     .run_from_script();
 ```
@@ -53,11 +55,13 @@ static HEAP: Heap = Heap::empty();
 
 #[embassy_executor::main]
 async fn main(_spawner: Spawner) {
-	{
+    {
         use core::mem::MaybeUninit;
-        const HEAP_SIZE: usize = 100 * 1024; // This is dependent on the model size in memory.
+        // Watch out for this, if it is too big or small for your model, the
+        // program may crash. This is in u8 bytes, as such this is a total of 100kb
+        const HEAP_SIZE: usize = 100 * 1024;
         static mut HEAP_MEM: [MaybeUninit<u8>; HEAP_SIZE] = [MaybeUninit::uninit(); HEAP_SIZE];
-        unsafe { HEAP.init(&raw mut HEAP_MEM as usize, HEAP_SIZE) }
+        unsafe { HEAP.init(&raw mut HEAP_MEM as usize, HEAP_SIZE) } // Initialize the heap
     }
 }
 ```

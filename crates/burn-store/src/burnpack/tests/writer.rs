@@ -1,6 +1,7 @@
 use crate::burnpack::{
     base::{
-        BurnpackHeader, BurnpackMetadata, FORMAT_VERSION, HEADER_SIZE, MAGIC_NUMBER, magic_range,
+        BurnpackHeader, BurnpackMetadata, FORMAT_VERSION, HEADER_SIZE, MAGIC_NUMBER,
+        aligned_data_section_start, magic_range,
     },
     writer::BurnpackWriter,
 };
@@ -135,33 +136,48 @@ fn test_writer_to_bytes_with_tensors() {
     assert_eq!(bias.data_offsets.1 - bias.data_offsets.0, 24); // 3 * 8 bytes
 
     // Verify actual tensor data
+    // Data section starts at aligned position after metadata
+    let data_section_start = aligned_data_section_start(header.metadata_size as usize);
     let weights = metadata.tensors.get("weights").unwrap();
     let bias = metadata.tensors.get("bias").unwrap();
-    let weights_data = &bytes[metadata_end + weights.data_offsets.0 as usize
-        ..metadata_end + weights.data_offsets.1 as usize];
+    let weights_data = &bytes[data_section_start + weights.data_offsets.0 as usize
+        ..data_section_start + weights.data_offsets.1 as usize];
     assert_eq!(weights_data, f32_bytes);
 
-    let bias_data = &bytes
-        [metadata_end + bias.data_offsets.0 as usize..metadata_end + bias.data_offsets.1 as usize];
+    let bias_data = &bytes[data_section_start + bias.data_offsets.0 as usize
+        ..data_section_start + bias.data_offsets.1 as usize];
     assert_eq!(bias_data, i64_bytes);
 }
 
 #[test]
 fn test_writer_all_dtypes() {
-    // Test all supported data types
+    use half::{bf16, f16};
+
+    // Test all supported data types (excluding QFloat which is tested separately)
+    // Format: (DType, expected_size_per_element, sample_data_bytes)
     let test_cases = vec![
-        (DType::F32, 4, [1.0f32.to_le_bytes().to_vec()].concat()),
-        (DType::F64, 8, [1.0f64.to_le_bytes().to_vec()].concat()),
-        (DType::I32, 4, [1i32.to_le_bytes().to_vec()].concat()),
-        (DType::I64, 8, [1i64.to_le_bytes().to_vec()].concat()),
-        (DType::U32, 4, [1u32.to_le_bytes().to_vec()].concat()),
-        (DType::U64, 8, [1u64.to_le_bytes().to_vec()].concat()),
+        // Floating point types
+        (DType::F64, 8, 1.0f64.to_le_bytes().to_vec()),
+        (DType::F32, 4, 1.0f32.to_le_bytes().to_vec()),
+        (DType::F16, 2, f16::from_f32(1.0).to_le_bytes().to_vec()),
+        (DType::BF16, 2, bf16::from_f32(1.0).to_le_bytes().to_vec()),
+        // Signed integers
+        (DType::I64, 8, 1i64.to_le_bytes().to_vec()),
+        (DType::I32, 4, 1i32.to_le_bytes().to_vec()),
+        (DType::I16, 2, 1i16.to_le_bytes().to_vec()),
+        (DType::I8, 1, 1i8.to_le_bytes().to_vec()),
+        // Unsigned integers
+        (DType::U64, 8, 255u64.to_le_bytes().to_vec()),
+        (DType::U32, 4, 255u32.to_le_bytes().to_vec()),
+        (DType::U16, 2, 255u16.to_le_bytes().to_vec()),
         (DType::U8, 1, vec![255u8]),
+        // Boolean
         (DType::Bool, 1, vec![1u8]),
     ];
 
     let mut snapshots = vec![];
-    for (i, (dtype, _expected_size, data)) in test_cases.into_iter().enumerate() {
+    let mut expected_data = vec![];
+    for (i, (dtype, expected_size, data)) in test_cases.into_iter().enumerate() {
         let name = format!("tensor_{}", i);
         let snapshot = TensorSnapshot::from_data(
             TensorData::from_bytes_vec(data.clone(), vec![1], dtype),
@@ -170,24 +186,215 @@ fn test_writer_all_dtypes() {
             burn_core::module::ParamId::new(),
         );
         snapshots.push(snapshot);
+        expected_data.push((name, dtype, expected_size, data));
     }
 
     let writer = BurnpackWriter::new(snapshots);
-
     let bytes = writer.to_bytes().unwrap();
 
-    // Parse and verify
+    // Parse and verify metadata
     let header = BurnpackHeader::from_bytes(&bytes[..HEADER_SIZE]).unwrap();
     let metadata: BurnpackMetadata =
         ciborium::de::from_reader(&bytes[HEADER_SIZE..HEADER_SIZE + header.metadata_size as usize])
             .unwrap();
 
-    assert_eq!(metadata.tensors.len(), 8);
+    assert_eq!(
+        metadata.tensors.len(),
+        13,
+        "Expected 13 dtypes to be tested"
+    );
 
-    for i in 0..8 {
-        let name = format!("tensor_{}", i);
-        let tensor = metadata.tensors.get(&name).unwrap();
-        assert_eq!(tensor.shape, vec![1]);
+    // Verify each tensor's metadata and data
+    let data_section_start = aligned_data_section_start(header.metadata_size as usize);
+    for (name, expected_dtype, expected_size, expected_bytes) in expected_data {
+        let tensor = metadata
+            .tensors
+            .get(&name)
+            .unwrap_or_else(|| panic!("Missing tensor: {}", name));
+        assert_eq!(tensor.dtype, expected_dtype, "DType mismatch for {}", name);
+        assert_eq!(tensor.shape, vec![1], "Shape mismatch for {}", name);
+
+        // Verify data size matches expected
+        let data_size = (tensor.data_offsets.1 - tensor.data_offsets.0) as usize;
+        assert_eq!(
+            data_size, expected_size,
+            "Data size mismatch for {} ({:?})",
+            name, expected_dtype
+        );
+
+        // Verify actual data bytes match
+        let actual_bytes = &bytes[data_section_start + tensor.data_offsets.0 as usize
+            ..data_section_start + tensor.data_offsets.1 as usize];
+        assert_eq!(
+            actual_bytes,
+            expected_bytes.as_slice(),
+            "Data mismatch for {} ({:?})",
+            name,
+            expected_dtype
+        );
+    }
+}
+
+#[test]
+fn test_writer_all_dtypes_round_trip() {
+    use crate::burnpack::reader::BurnpackReader;
+    use half::{bf16, f16};
+
+    // Test all dtypes can be written and read back correctly
+    let test_cases = vec![
+        // Floating point types - use multiple elements to better test
+        (
+            "f64_tensor",
+            DType::F64,
+            [1.0f64, 2.0, 3.0, 4.0]
+                .iter()
+                .flat_map(|v| v.to_le_bytes())
+                .collect::<Vec<u8>>(),
+            vec![4],
+        ),
+        (
+            "f32_tensor",
+            DType::F32,
+            [1.0f32, 2.0, 3.0, 4.0]
+                .iter()
+                .flat_map(|v| v.to_le_bytes())
+                .collect::<Vec<u8>>(),
+            vec![2, 2],
+        ),
+        (
+            "f16_tensor",
+            DType::F16,
+            [f16::from_f32(1.0), f16::from_f32(2.0)]
+                .iter()
+                .flat_map(|v| v.to_le_bytes())
+                .collect::<Vec<u8>>(),
+            vec![2],
+        ),
+        (
+            "bf16_tensor",
+            DType::BF16,
+            [bf16::from_f32(1.0), bf16::from_f32(2.0)]
+                .iter()
+                .flat_map(|v| v.to_le_bytes())
+                .collect::<Vec<u8>>(),
+            vec![2],
+        ),
+        // Signed integers
+        (
+            "i64_tensor",
+            DType::I64,
+            [1i64, -2, 3, -4]
+                .iter()
+                .flat_map(|v| v.to_le_bytes())
+                .collect::<Vec<u8>>(),
+            vec![4],
+        ),
+        (
+            "i32_tensor",
+            DType::I32,
+            [1i32, -2, 3, -4]
+                .iter()
+                .flat_map(|v| v.to_le_bytes())
+                .collect::<Vec<u8>>(),
+            vec![2, 2],
+        ),
+        (
+            "i16_tensor",
+            DType::I16,
+            [1i16, -2, 3, -4]
+                .iter()
+                .flat_map(|v| v.to_le_bytes())
+                .collect::<Vec<u8>>(),
+            vec![4],
+        ),
+        (
+            "i8_tensor",
+            DType::I8,
+            [1i8, -2, 3, -4]
+                .iter()
+                .flat_map(|v| v.to_le_bytes())
+                .collect::<Vec<u8>>(),
+            vec![2, 2],
+        ),
+        // Unsigned integers
+        (
+            "u64_tensor",
+            DType::U64,
+            [1u64, 2, 3, 4]
+                .iter()
+                .flat_map(|v| v.to_le_bytes())
+                .collect::<Vec<u8>>(),
+            vec![4],
+        ),
+        (
+            "u32_tensor",
+            DType::U32,
+            [1u32, 2, 3, 4]
+                .iter()
+                .flat_map(|v| v.to_le_bytes())
+                .collect::<Vec<u8>>(),
+            vec![2, 2],
+        ),
+        (
+            "u16_tensor",
+            DType::U16,
+            [1u16, 2, 3, 4]
+                .iter()
+                .flat_map(|v| v.to_le_bytes())
+                .collect::<Vec<u8>>(),
+            vec![4],
+        ),
+        ("u8_tensor", DType::U8, vec![1u8, 2, 3, 4], vec![2, 2]),
+        // Boolean
+        ("bool_tensor", DType::Bool, vec![1u8, 0, 1, 0], vec![4]),
+    ];
+
+    let mut snapshots = vec![];
+    let mut expected_results: Vec<(&str, DType, Vec<u8>, Vec<usize>)> = vec![];
+
+    for (name, dtype, data, shape) in test_cases.into_iter() {
+        let snapshot = TensorSnapshot::from_data(
+            TensorData::from_bytes_vec(data.clone(), shape.clone(), dtype),
+            vec![name.to_string()],
+            vec![],
+            burn_core::module::ParamId::new(),
+        );
+        snapshots.push(snapshot);
+        expected_results.push((name, dtype, data, shape));
+    }
+
+    // Write to bytes
+    let writer = BurnpackWriter::new(snapshots);
+    let bytes = writer.to_bytes().unwrap();
+
+    // Read back using BurnpackReader
+    let reader = BurnpackReader::from_bytes(bytes).unwrap();
+
+    // Verify each tensor can be read back with correct data
+    for (name, expected_dtype, expected_data, expected_shape) in expected_results {
+        let snapshot = reader
+            .get_tensor_snapshot(name)
+            .unwrap_or_else(|e| panic!("Failed to get tensor snapshot {}: {}", name, e));
+        let tensor_data = snapshot
+            .to_data()
+            .unwrap_or_else(|e| panic!("Failed to read tensor data {}: {}", name, e));
+
+        assert_eq!(
+            tensor_data.dtype, expected_dtype,
+            "DType mismatch for {}",
+            name
+        );
+        assert_eq!(
+            tensor_data.shape, expected_shape,
+            "Shape mismatch for {}",
+            name
+        );
+        assert_eq!(
+            &tensor_data.bytes[..],
+            expected_data.as_slice(),
+            "Data mismatch for {}",
+            name
+        );
     }
 }
 
@@ -375,7 +582,9 @@ fn test_writer_lazy_snapshot_evaluation() {
     assert_eq!(tensor.shape, vec![2, 2]);
 
     // Verify the data was correctly written
-    let tensor_data = &bytes[metadata_end..metadata_end + 16];
+    // Data section starts at aligned position after metadata
+    let data_section_start = aligned_data_section_start(header.metadata_size as usize);
+    let tensor_data = &bytes[data_section_start..data_section_start + 16];
     let expected: Vec<u8> = [1.0f32, 2.0, 3.0, 4.0]
         .iter()
         .flat_map(|f| f.to_le_bytes())

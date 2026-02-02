@@ -1,12 +1,12 @@
 use crate::{RouterTensor, RunnerChannel};
 use alloc::boxed::Box;
 use alloc::vec::Vec;
+use burn_backend::{
+    DType, TensorData,
+    backend::{DeviceId, DeviceOps, ExecutionError},
+};
 use burn_ir::{OperationIr, TensorId, TensorIr};
 use burn_std::future::DynFut;
-use burn_tensor::{
-    TensorData,
-    backend::{DeviceId, DeviceOps, ExecutionError, SyncError},
-};
 use core::ops::DerefMut;
 use hashbrown::HashMap;
 use spin::Mutex;
@@ -39,9 +39,9 @@ pub trait RunnerClient: Clone + Send + Sync + Sized {
         out
     }
     /// Read the values contained by a tensor.
-    fn read_tensor(&self, tensor: TensorIr) -> DynFut<Result<TensorData, ExecutionError>>;
+    fn read_tensor_async(&self, tensor: TensorIr) -> DynFut<Result<TensorData, ExecutionError>>;
     /// Sync the runner, ensure that all computations are finished.
-    fn sync(&self) -> Result<(), SyncError>;
+    fn sync(&self) -> Result<(), ExecutionError>;
     /// Create a new (uninitialized) empty tensor and returns its corresponding [tensor id](TensorId).
     fn create_empty_handle(&self) -> TensorId;
     /// Create a new [RouterTensor] from the tensor data.
@@ -50,6 +50,8 @@ pub trait RunnerClient: Clone + Send + Sync + Sized {
     fn device(&self) -> Self::Device;
     /// Seed the runner.
     fn seed(&self, seed: u64);
+    /// Whether the type is supported.
+    fn supports_dtype(&self, dtype: DType) -> bool;
 }
 
 pub(crate) struct RunnerClientLocator {

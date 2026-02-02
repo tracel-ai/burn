@@ -128,7 +128,7 @@ mod tests {
 
     use crate::{
         logger::{FileMetricLogger, InMemoryMetricLogger},
-        metric::{MetricDefinition, MetricEntry, MetricId, SerializedEntry},
+        metric::{MetricDefinition, MetricEntry, MetricId, SerializedEntry, store::MetricsUpdate},
     };
 
     use super::*;
@@ -152,7 +152,9 @@ mod tests {
                 SerializedEntry::new(num.to_string(), num.to_string()),
             );
             let entries = Vec::from([entry]);
-            self.logger.log(entries, self.epoch, Split::Train, None);
+            let metrics_update = MetricsUpdate::new(entries, vec![]);
+            self.logger
+                .log(metrics_update, self.epoch, Split::Train, None);
         }
         fn log_definition(&mut self) {
             let definition = MetricDefinition {
@@ -217,7 +219,8 @@ mod tests {
             SerializedEntry::new(loss_1.to_string(), NumericEntry::Value(loss_1).serialize()),
         );
         let entries = Vec::from([entry]);
-        logger.log(entries, 1, Split::Train, None);
+        let metrics_update = MetricsUpdate::new(entries, vec![]);
+        logger.log(metrics_update, 1, Split::Train, None);
         let entry = MetricEntry::new(
             metric_id.clone(),
             SerializedEntry::new(
@@ -230,7 +233,8 @@ mod tests {
             ),
         );
         let entries = Vec::from([entry]);
-        logger.log(entries, 1, Split::Train, None);
+        let metrics_update = MetricsUpdate::new(entries, vec![]);
+        logger.log(metrics_update, 1, Split::Train, None);
 
         let value = aggregate
             .aggregate(

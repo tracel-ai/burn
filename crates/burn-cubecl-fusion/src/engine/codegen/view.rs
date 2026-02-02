@@ -12,12 +12,9 @@ use cubecl::{
     io::read_masked,
     ir::StorageType,
     prelude::{barrier::BarrierExpand, *},
-    std::{
-        CubeOption, CubeOptionExpand,
-        tensor::{
-            ViewOperations, ViewOperationsExpand, ViewOperationsMut, ViewOperationsMutExpand,
-            layout::Coords1d,
-        },
+    std::tensor::{
+        ViewOperations, ViewOperationsExpand, ViewOperationsMut, ViewOperationsMutExpand,
+        layout::Coords1d,
     },
 };
 
@@ -27,7 +24,7 @@ pub struct GlobalInput {
     inputs: GlobalArgs,
     locals: LocalArgs,
     #[cube(comptime)]
-    pos: u32,
+    pos: usize,
     #[cube(comptime)]
     ty: StorageType,
     #[cube(comptime)]
@@ -70,7 +67,7 @@ impl<E: CubePrimitive> ViewOperationsExpand<E, Coords1d> for GlobalInputExpand {
     fn __expand_read_method(
         &self,
         scope: &mut Scope,
-        pos: ExpandElementTyped<u32>,
+        pos: ExpandElementTyped<usize>,
     ) -> <E as CubeType>::ExpandType {
         ViewOperationsExpand::<E, Coords1d>::__expand_read_unchecked_method(self, scope, pos)
     }
@@ -79,7 +76,7 @@ impl<E: CubePrimitive> ViewOperationsExpand<E, Coords1d> for GlobalInputExpand {
     fn __expand_read_checked_method(
         &self,
         scope: &mut Scope,
-        pos: ExpandElementTyped<u32>,
+        pos: ExpandElementTyped<usize>,
     ) -> <E as CubeType>::ExpandType {
         let zero = E::__expand_cast_from(scope, 0.into());
         ViewOperationsExpand::<E, Coords1d>::__expand_read_masked_method(self, scope, pos, zero)
@@ -89,7 +86,7 @@ impl<E: CubePrimitive> ViewOperationsExpand<E, Coords1d> for GlobalInputExpand {
     fn __expand_read_masked_method(
         &self,
         scope: &mut Scope,
-        pos: ExpandElementTyped<u32>,
+        pos: ExpandElementTyped<usize>,
         value: <E as CubeType>::ExpandType,
     ) -> <E as CubeType>::ExpandType {
         let in_bounds = ViewOperationsExpand::<E, Coords1d>::__expand_is_in_bounds_method(
@@ -106,7 +103,7 @@ impl<E: CubePrimitive> ViewOperationsExpand<E, Coords1d> for GlobalInputExpand {
     fn __expand_read_unchecked_method(
         &self,
         scope: &mut Scope,
-        pos: ExpandElementTyped<u32>,
+        pos: ExpandElementTyped<usize>,
     ) -> <E as CubeType>::ExpandType {
         let value = read_input::expand::<E>(
             scope,
@@ -125,17 +122,12 @@ impl<E: CubePrimitive> ViewOperationsExpand<E, Coords1d> for GlobalInputExpand {
     fn __expand_to_linear_slice_method(
         &self,
         scope: &mut Scope,
-        pos: ExpandElementTyped<u32>,
-        end: ExpandElementTyped<u32>,
+        pos: ExpandElementTyped<usize>,
+        end: ExpandElementTyped<usize>,
     ) -> SliceExpand<E, ReadOnly> {
         scope.register_type::<NumericExpand<DYN_ELEM_ID>>(self.ty);
         let end = add::expand(scope, end.clone(), 1.into());
         read_input_window::expand(scope, self.inputs.clone(), self.pos, pos, end)
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    fn __expand_as_tensor_map_method(&self, scope: &mut Scope) -> CubeOptionExpand<TensorMap<E>> {
-        CubeOption::__expand_new_None(scope)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -144,13 +136,13 @@ impl<E: CubePrimitive> ViewOperationsExpand<E, Coords1d> for GlobalInputExpand {
         _scope: &mut Scope,
         _barrier: BarrierExpand,
         _shared_memory: SliceExpand<E, ReadWrite>,
-        _pos: ExpandElementTyped<u32>,
+        _pos: ExpandElementTyped<usize>,
     ) {
         panic!("Not a tensor map")
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn __expand_shape_method(&self, scope: &mut Scope) -> ExpandElementTyped<u32> {
+    fn __expand_shape_method(&self, scope: &mut Scope) -> ExpandElementTyped<usize> {
         global_buffer_len::expand(scope, self.inputs.clone(), self.pos)
     }
 
@@ -158,7 +150,7 @@ impl<E: CubePrimitive> ViewOperationsExpand<E, Coords1d> for GlobalInputExpand {
     fn __expand_is_in_bounds_method(
         &self,
         scope: &mut Scope,
-        pos: ExpandElementTyped<u32>,
+        pos: ExpandElementTyped<usize>,
     ) -> ExpandElementTyped<bool> {
         let buffer_len = global_buffer_len::expand(scope, self.inputs.clone(), self.pos);
         lt::expand(scope, pos, buffer_len)
@@ -167,7 +159,7 @@ impl<E: CubePrimitive> ViewOperationsExpand<E, Coords1d> for GlobalInputExpand {
 
 impl Lined for GlobalInput {}
 impl LinedExpand for GlobalInputExpand {
-    fn line_size(&self) -> u32 {
+    fn line_size(&self) -> LineSize {
         let mut temp_scope = Scope::root(false);
         global_line_size::expand(&mut temp_scope, self.inputs.clone(), self.pos)
     }
@@ -209,7 +201,7 @@ impl<E: CubePrimitive> ViewOperationsExpand<Line<E>, Coords1d> for FusedOutputEx
     fn __expand_read_method(
         &self,
         _scope: &mut Scope,
-        _pos: ExpandElementTyped<u32>,
+        _pos: ExpandElementTyped<usize>,
     ) -> <Line<E> as CubeType>::ExpandType {
         todo!()
     }
@@ -218,7 +210,7 @@ impl<E: CubePrimitive> ViewOperationsExpand<Line<E>, Coords1d> for FusedOutputEx
     fn __expand_read_checked_method(
         &self,
         _scope: &mut Scope,
-        _pos: ExpandElementTyped<u32>,
+        _pos: ExpandElementTyped<usize>,
     ) -> <Line<E> as CubeType>::ExpandType {
         todo!()
     }
@@ -227,7 +219,7 @@ impl<E: CubePrimitive> ViewOperationsExpand<Line<E>, Coords1d> for FusedOutputEx
     fn __expand_read_masked_method(
         &self,
         _scope: &mut Scope,
-        _pos: ExpandElementTyped<u32>,
+        _pos: ExpandElementTyped<usize>,
         _value: <Line<E> as CubeType>::ExpandType,
     ) -> <Line<E> as CubeType>::ExpandType {
         todo!()
@@ -237,7 +229,7 @@ impl<E: CubePrimitive> ViewOperationsExpand<Line<E>, Coords1d> for FusedOutputEx
     fn __expand_read_unchecked_method(
         &self,
         _scope: &mut Scope,
-        _pos: ExpandElementTyped<u32>,
+        _pos: ExpandElementTyped<usize>,
     ) -> <Line<E> as CubeType>::ExpandType {
         todo!()
     }
@@ -246,18 +238,10 @@ impl<E: CubePrimitive> ViewOperationsExpand<Line<E>, Coords1d> for FusedOutputEx
     fn __expand_to_linear_slice_method(
         &self,
         _scope: &mut Scope,
-        _pos: ExpandElementTyped<u32>,
-        _size: ExpandElementTyped<u32>,
+        _pos: ExpandElementTyped<usize>,
+        _size: ExpandElementTyped<usize>,
     ) -> SliceExpand<Line<E>, ReadOnly> {
         todo!()
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    fn __expand_as_tensor_map_method(
-        &self,
-        scope: &mut Scope,
-    ) -> CubeOptionExpand<TensorMap<Line<E>>> {
-        CubeOption::__expand_new_None(scope)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -266,13 +250,13 @@ impl<E: CubePrimitive> ViewOperationsExpand<Line<E>, Coords1d> for FusedOutputEx
         _scope: &mut Scope,
         _barrier: BarrierExpand,
         _shared_memory: SliceExpand<Line<E>, ReadWrite>,
-        _pos: ExpandElementTyped<u32>,
+        _pos: ExpandElementTyped<usize>,
     ) {
         panic!("Not a tensor map")
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn __expand_shape_method(&self, scope: &mut Scope) -> ExpandElementTyped<u32> {
+    fn __expand_shape_method(&self, scope: &mut Scope) -> ExpandElementTyped<usize> {
         ref_len::expand(
             scope,
             self.inputs.clone(),
@@ -286,7 +270,7 @@ impl<E: CubePrimitive> ViewOperationsExpand<Line<E>, Coords1d> for FusedOutputEx
     fn __expand_is_in_bounds_method(
         &self,
         scope: &mut Scope,
-        pos: ExpandElementTyped<u32>,
+        pos: ExpandElementTyped<usize>,
     ) -> ExpandElementTyped<bool> {
         let buffer_len = ref_buffer_len::expand(
             scope,
@@ -305,11 +289,11 @@ impl<E: CubePrimitive> ViewOperationsMutExpand<Line<E>, Coords1d> for FusedOutpu
     fn __expand_write_method(
         &self,
         scope: &mut Scope,
-        pos: ExpandElementTyped<u32>,
+        pos: ExpandElementTyped<usize>,
         value: <Line<E> as CubeType>::ExpandType,
     ) {
         let values = Registry::<FuseArg, Line<E>>::__expand_new(scope);
-        let mut args = comptime![Sequence::<FuseArg>::new()];
+        let mut args = comptime![Vec::<FuseArg>::new()];
 
         values
             .clone()
@@ -332,7 +316,7 @@ impl<E: CubePrimitive> ViewOperationsMutExpand<Line<E>, Coords1d> for FusedOutpu
     fn __expand_write_checked_method(
         &self,
         scope: &mut Scope,
-        pos: ExpandElementTyped<u32>,
+        pos: ExpandElementTyped<usize>,
         value: <Line<E> as CubeType>::ExpandType,
     ) {
         let in_bounds = ViewOperationsExpand::<Line<E>, Coords1d>::__expand_is_in_bounds_method(
@@ -349,8 +333,8 @@ impl<E: CubePrimitive> ViewOperationsMutExpand<Line<E>, Coords1d> for FusedOutpu
     fn __expand_to_linear_slice_mut_method(
         &self,
         _scope: &mut Scope,
-        _pos: ExpandElementTyped<u32>,
-        _size: ExpandElementTyped<u32>,
+        _pos: ExpandElementTyped<usize>,
+        _size: ExpandElementTyped<usize>,
     ) -> SliceExpand<Line<E>, ReadWrite> {
         todo!("Not yet supported")
     }
@@ -360,7 +344,7 @@ impl<E: CubePrimitive> ViewOperationsMutExpand<Line<E>, Coords1d> for FusedOutpu
         &self,
         _scope: &mut Scope,
         _shared_memory: SliceExpand<Line<E>, ReadOnly>,
-        _pos: ExpandElementTyped<u32>,
+        _pos: ExpandElementTyped<usize>,
     ) {
         panic!("Not a tensor map")
     }
@@ -368,7 +352,7 @@ impl<E: CubePrimitive> ViewOperationsMutExpand<Line<E>, Coords1d> for FusedOutpu
 
 impl Lined for FusedOutput {}
 impl LinedExpand for FusedOutputExpand {
-    fn line_size(&self) -> u32 {
+    fn line_size(&self) -> LineSize {
         self.locals.ref_line_size
     }
 }

@@ -27,8 +27,8 @@ Since the MNIST task is a classification problem, we will use the `Classificatio
 #     record::CompactRecorder,
 #     tensor::backend::AutodiffBackend,
 #     train::{
+#         ClassificationOutput, Learner, SupervisedTraining, TrainOutput, TrainStep, ValidStep,
 #         metric::{AccuracyMetric, LossMetric},
-#         ClassificationOutput, LearnerBuilder, TrainOutput, TrainStep, ValidStep,
 #     },
 # };
 # 
@@ -74,8 +74,8 @@ for our model.
 #     record::CompactRecorder,
 #     tensor::backend::AutodiffBackend,
 #     train::{
+#         ClassificationOutput, InferenceStep, Learner, SupervisedTraining, TrainOutput, TrainStep,
 #         metric::{AccuracyMetric, LossMetric},
-#         ClassificationOutput, LearnerBuilder, TrainOutput, TrainStep, ValidStep,
 #     },
 # };
 # 
@@ -93,8 +93,10 @@ for our model.
 #         ClassificationOutput::new(loss, output, targets)
 #     }
 # }
-# 
-impl<B: AutodiffBackend> TrainStep<MnistBatch<B>, ClassificationOutput<B>> for Model<B> {
+impl<B: AutodiffBackend> TrainStep for Model<B> {
+    type Input = MnistBatch<B>;
+    type Output = ClassificationOutput<B>;
+
     fn step(&self, batch: MnistBatch<B>) -> TrainOutput<ClassificationOutput<B>> {
         let item = self.forward_classification(batch.images, batch.targets);
 
@@ -102,7 +104,10 @@ impl<B: AutodiffBackend> TrainStep<MnistBatch<B>, ClassificationOutput<B>> for M
     }
 }
 
-impl<B: Backend> ValidStep<MnistBatch<B>, ClassificationOutput<B>> for Model<B> {
+impl<B: Backend> InferenceStep for Model<B> {
+    type Input = MnistBatch<B>;
+    type Output = ClassificationOutput<B>;
+
     fn step(&self, batch: MnistBatch<B>) -> ClassificationOutput<B> {
         self.forward_classification(batch.images, batch.targets)
     }
@@ -157,7 +162,7 @@ Let us move on to establishing the practical training configuration.
 #     record::CompactRecorder,
 #     tensor::backend::AutodiffBackend,
 #     train::{
-#         ClassificationOutput, LearnerBuilder, LearningStrategy, TrainOutput, TrainStep, ValidStep,
+#         ClassificationOutput, InferenceStep, Learner, SupervisedTraining, TrainOutput, TrainStep,
 #         metric::{AccuracyMetric, LossMetric},
 #     },
 # };
@@ -176,21 +181,26 @@ Let us move on to establishing the practical training configuration.
 #         ClassificationOutput::new(loss, output, targets)
 #     }
 # }
+# impl<B: AutodiffBackend> TrainStep for Model<B> {
+#     type Input = MnistBatch<B>;
+#     type Output = ClassificationOutput<B>;
 # 
-# impl<B: AutodiffBackend> TrainStep<MnistBatch<B>, ClassificationOutput<B>> for Model<B> {
 #     fn step(&self, batch: MnistBatch<B>) -> TrainOutput<ClassificationOutput<B>> {
 #         let item = self.forward_classification(batch.images, batch.targets);
 # 
 #         TrainOutput::new(self, item.loss.backward(), item)
 #     }
 # }
+#
+# impl<B: Backend> InferenceStep for Model<B> {
+#     type Input = MnistBatch<B>;
+#     type Output = ClassificationOutput<B>;
 # 
-# impl<B: Backend> ValidStep<MnistBatch<B>, ClassificationOutput<B>> for Model<B> {
 #     fn step(&self, batch: MnistBatch<B>) -> ClassificationOutput<B> {
 #         self.forward_classification(batch.images, batch.targets)
 #     }
 # }
-# 
+#
 #[derive(Config, Debug)]
 pub struct TrainingConfig {
     pub model: ModelConfig,
@@ -235,22 +245,18 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
         .num_workers(config.num_workers)
         .build(MnistDataset::test());
 
-    let learner = LearnerBuilder::new(artifact_dir)
-        .metric_train_numeric(AccuracyMetric::new())
-        .metric_valid_numeric(AccuracyMetric::new())
-        .metric_train_numeric(LossMetric::new())
-        .metric_valid_numeric(LossMetric::new())
+    let training = SupervisedTraining::new(artifact_dir, dataloader_train, dataloader_test)
+        .metrics((AccuracyMetric::new(), LossMetric::new()))
         .with_file_checkpointer(CompactRecorder::new())
-        .learning_strategy(LearningStrategy::SingleDevice(device.clone()))
         .num_epochs(config.num_epochs)
-        .summary()
-        .build(
-            config.model.init::<B>(&device),
-            config.optimizer.init(),
-            config.learning_rate,
-        );
+        .summary();
 
-    let result = learner.fit(dataloader_train, dataloader_test);
+    let model = config.model.init::<B>(&device);
+    let result = training.launch(Learner::new(
+        model,
+        config.optimizer.init(),
+        config.learning_rate,
+    ));
 
     result
         .model
@@ -263,29 +269,30 @@ It is a good practice to use the `Config` derive to create the experiment config
 `train` function, the first thing we are doing is making sure the `artifact_dir` exists, using the
 standard rust library for file manipulation. All checkpoints, logging and metrics will be stored
 under this directory. We initialize the dataloaders using the previously created batcher. Since no
-automatic differentiation is needed during the validation phase, the `learner.fit(...)` method
+automatic differentiation is needed during the validation phase, the `training.launch(...)` method
 defines the necessary backend bounds on the data loader for `B::InnerBackend` (see
 [Backend](./backend.md)). The autodiff capabilities are available through a type system, making it
 nearly impossible to forget to deactivate gradient calculation.
 
-Next, we create our learner with the accuracy and loss metric on both training and validation steps
-along with the device and the epoch. We also configure the checkpointer using the `CompactRecorder`
-to indicate how weights should be stored. This struct implements the `Recorder` trait, which makes
+Next, we create a supervised training runner with the dataloaders for training and validation and
+we register the accuracy and loss metric on both training and validation steps. We also configure the
+checkpointer using the `CompactRecorder` to indicate how weights should be stored. This struct implements the `Recorder` trait, which makes
 it capable of saving records for persistency.
 
-We then build the learner with the model, the optimizer and the learning rate. Notably, the third
-argument of the build function should actually be a learning rate _scheduler_. When provided with a
+For the sake of simplicity in this example, we employ the test set as the validation
+set; however, we do not recommend this practice for actual usage.
+
+We create the learner containing the model, the optimizer and the learning rate. Notably, the third
+argument of the learner's `new` function should actually be a learning rate _scheduler_. When provided with a
 float as in our example, it is automatically transformed into a _constant_ learning rate scheduler.
 The learning rate is not part of the optimizer config as it is often done in other frameworks, but
 rather passed as a parameter when executing the optimizer step. This avoids having to mutate the
 state of the optimizer and is therefore more functional. It makes no difference when using the
 learner struct, but it will be an essential nuance to grasp if you implement your own training loop.
 
-Once the learner is created, we can simply call `fit` and provide the training and validation
-dataloaders. For the sake of simplicity in this example, we employ the test set as the validation
-set; however, we do not recommend this practice for actual usage.
+Once the learner and supervised training instance are created, we can call `training.launch` and provide the learner.
 
-Finally, the trained model is returned by the `fit` method. The trained weights are then saved using
+Finally, the trained model is returned by the `launch` method. The trained weights are then saved using
 the `CompactRecorder`. This recorder employs the `MessagePack` format with half precision, `f16` for
 floats and `i16` for integers. Other recorders are available, offering support for various formats,
 such as `BinCode` and `JSON`, with or without compression. Any backend, regardless of precision, can

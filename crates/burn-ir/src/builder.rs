@@ -1,7 +1,7 @@
 #![allow(missing_docs)]
 
 use alloc::vec::Vec;
-use burn_tensor::{
+use burn_backend::{
     DType, Distribution, Shape, Slice, calculate_matmul_output,
     ops::{
         conv::{
@@ -11,6 +11,7 @@ use burn_tensor::{
         unfold::calculate_unfold_shape,
     },
     quantization::QuantScheme,
+    tensor::IndexingUpdateOp,
 };
 
 use crate::{ScalarIr, TensorId, TensorIr};
@@ -53,6 +54,7 @@ impl FullOpIr {
         value: ScalarIr,
         new_id: impl FnOnce() -> TensorId,
     ) -> Self {
+        // TODO: check that ScalarIr dtype matches dtype?
         let out = TensorIr::uninit(new_id(), shape, dtype);
 
         FullOpIr { out, value }
@@ -287,7 +289,8 @@ impl_ir_create!(
         tensor: TensorIr,
         dim: usize,
         indices: TensorIr,
-        value: TensorIr
+        value: TensorIr,
+        update: IndexingUpdateOp
     },
     shape = tensor.shape.clone(), // TODO: check dims compat between tensor and indices
     dtype = output_dtype([&tensor.dtype, &value.dtype]).unwrap()
@@ -339,7 +342,8 @@ impl_ir_create!(
         tensor: TensorIr,
         dim: usize,
         indices: TensorIr,
-        value: TensorIr
+        value: TensorIr,
+        update: IndexingUpdateOp
     },
     // TODO: check value and indices shape match for dim
     shape = tensor.shape.clone(),
@@ -402,10 +406,18 @@ impl_ir_create!(
         kernel_size: usize,
         stride: usize,
         padding: usize,
-        count_include_pad: bool
+        count_include_pad: bool,
+        ceil_mode: bool
     },
-    shape =
-        calculate_pool_output_shape(&x.shape, &[kernel_size], &[stride], &[padding], &[1]).unwrap(),
+    shape = calculate_pool_output_shape(
+        &x.shape,
+        &[kernel_size],
+        &[stride],
+        &[padding],
+        &[1],
+        ceil_mode
+    )
+    .unwrap(),
     dtype = x.dtype
 );
 
@@ -416,7 +428,8 @@ impl_ir_create!(
         kernel_size: usize,
         stride: usize,
         padding: usize,
-        count_include_pad: bool
+        count_include_pad: bool,
+        ceil_mode: bool
     },
     shape = x.shape.clone(),
     dtype = x.dtype
@@ -428,10 +441,18 @@ impl_ir_create!(
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
-        count_include_pad: bool
+        count_include_pad: bool,
+        ceil_mode: bool
     },
-    shape =
-        calculate_pool_output_shape(&x.shape, &kernel_size, &stride, &padding, &[1, 1]).unwrap(),
+    shape = calculate_pool_output_shape(
+        &x.shape,
+        &kernel_size,
+        &stride,
+        &padding,
+        &[1, 1],
+        ceil_mode
+    )
+    .unwrap(),
     dtype = x.dtype
 );
 
@@ -442,7 +463,8 @@ impl_ir_create!(
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
-        count_include_pad: bool
+        count_include_pad: bool,
+        ceil_mode: bool
     },
     shape = x.shape.clone(),
     dtype = x.dtype
@@ -455,10 +477,17 @@ impl_ir_create!(
         stride: usize,
         padding: usize,
         dilation: usize,
+        ceil_mode: bool
     },
-    shape =
-        calculate_pool_output_shape(&x.shape, &[kernel_size], &[stride], &[padding], &[dilation])
-            .unwrap(),
+    shape = calculate_pool_output_shape(
+        &x.shape,
+        &[kernel_size],
+        &[stride],
+        &[padding],
+        &[dilation],
+        ceil_mode
+    )
+    .unwrap(),
     dtype = x.dtype
 );
 
@@ -469,9 +498,17 @@ impl_ir_create!(
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
+        ceil_mode: bool
     },
-    shape =
-        calculate_pool_output_shape(&x.shape, &kernel_size, &stride, &padding, &dilation).unwrap(),
+    shape = calculate_pool_output_shape(
+        &x.shape,
+        &kernel_size,
+        &stride,
+        &padding,
+        &dilation,
+        ceil_mode
+    )
+    .unwrap(),
     dtype = x.dtype
 );
 
@@ -484,6 +521,7 @@ impl_ir_create!(
         stride: usize,
         padding: usize,
         dilation: usize,
+        ceil_mode: bool
     },
     shape = x.shape.clone(),
     dtype = x.dtype
@@ -498,6 +536,7 @@ impl_ir_create!(
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
+        ceil_mode: bool
     },
     shape = x.shape.clone(),
     dtype = x.dtype
@@ -561,6 +600,24 @@ impl_ir_create!(
 );
 
 impl_ir_create!(
+    GridSample2dOpIr {
+        tensor: TensorIr,
+        grid: TensorIr,
+        options: GridSampleOptionsIr
+    },
+    // Input tensor: [N, C, H_in, W_in]
+    // Grid: [N, H_out, W_out, 2]
+    // Output: [N, C, H_out, W_out]
+    shape = Shape::new([
+        tensor.shape[0],
+        tensor.shape[1],
+        grid.shape[1],
+        grid.shape[2]
+    ]),
+    dtype = tensor.dtype
+);
+
+impl_ir_create!(
     Conv1dOpIr {
         x: TensorIr,
         weight: TensorIr,
@@ -585,6 +642,38 @@ impl_ir_create!(
             .filter_map(|&d| d),
         )
         .unwrap()
+);
+
+impl_ir_create!(
+    Conv1dXBackwardOpIr {
+        x: TensorIr,
+        weight: TensorIr,
+        output_grad: TensorIr,
+        options: Conv1dOptionsIr
+    },
+    shape = x.shape.clone(),
+    dtype = output_grad.dtype
+);
+
+impl_ir_create!(
+    Conv1dWeightBackwardOpIr {
+        x: TensorIr,
+        weight: TensorIr,
+        output_grad: TensorIr,
+        options: Conv1dOptionsIr
+    },
+    shape = weight.shape.clone(),
+    dtype = output_grad.dtype
+);
+
+impl_ir_create!(
+    Conv1dBiasBackwardOpIr {
+        x: TensorIr,
+        bias: TensorIr,
+        output_grad: TensorIr,
+    },
+    shape = bias.shape.clone(),
+    dtype = output_grad.dtype
 );
 
 impl_ir_create!(
@@ -615,6 +704,38 @@ impl_ir_create!(
 );
 
 impl_ir_create!(
+    Conv2dXBackwardOpIr {
+        x: TensorIr,
+        weight: TensorIr,
+        output_grad: TensorIr,
+        options: Conv2dOptionsIr
+    },
+    shape = x.shape.clone(),
+    dtype = output_grad.dtype
+);
+
+impl_ir_create!(
+    Conv2dWeightBackwardOpIr {
+        x: TensorIr,
+        weight: TensorIr,
+        output_grad: TensorIr,
+        options: Conv2dOptionsIr
+    },
+    shape = weight.shape.clone(),
+    dtype = output_grad.dtype
+);
+
+impl_ir_create!(
+    Conv2dBiasBackwardOpIr {
+        x: TensorIr,
+        bias: TensorIr,
+        output_grad: TensorIr,
+    },
+    shape = bias.shape.clone(),
+    dtype = output_grad.dtype
+);
+
+impl_ir_create!(
     Conv3dOpIr {
         x: TensorIr,
         weight: TensorIr,
@@ -639,6 +760,38 @@ impl_ir_create!(
             .filter_map(|&d| d),
         )
         .unwrap()
+);
+
+impl_ir_create!(
+    Conv3dXBackwardOpIr {
+        x: TensorIr,
+        weight: TensorIr,
+        output_grad: TensorIr,
+        options: Conv3dOptionsIr
+    },
+    shape = x.shape.clone(),
+    dtype = output_grad.dtype
+);
+
+impl_ir_create!(
+    Conv3dWeightBackwardOpIr {
+        x: TensorIr,
+        weight: TensorIr,
+        output_grad: TensorIr,
+        options: Conv3dOptionsIr
+    },
+    shape = weight.shape.clone(),
+    dtype = output_grad.dtype
+);
+
+impl_ir_create!(
+    Conv3dBiasBackwardOpIr {
+        x: TensorIr,
+        bias: TensorIr,
+        output_grad: TensorIr,
+    },
+    shape = bias.shape.clone(),
+    dtype = output_grad.dtype
 );
 
 impl_ir_create!(
@@ -873,12 +1026,14 @@ impl DeformConv2dBackwardOpIr {
 }
 
 impl MaxPool1dWithIndicesOpIr {
+    #[allow(clippy::too_many_arguments)]
     pub fn create(
         x: TensorIr,
         kernel_size: usize,
         stride: usize,
         padding: usize,
         dilation: usize,
+        ceil_mode: bool,
         dtype_indices: DType,
         mut new_id: impl FnMut() -> TensorId,
     ) -> Self {
@@ -888,6 +1043,7 @@ impl MaxPool1dWithIndicesOpIr {
             &[stride],
             &[padding],
             &[dilation],
+            ceil_mode,
         )
         .unwrap();
         let out = TensorIr::uninit(new_id(), shape.clone(), x.dtype);
@@ -899,6 +1055,7 @@ impl MaxPool1dWithIndicesOpIr {
             stride,
             padding,
             dilation,
+            ceil_mode,
             out,
             out_indices,
         }
@@ -906,18 +1063,26 @@ impl MaxPool1dWithIndicesOpIr {
 }
 
 impl MaxPool2dWithIndicesOpIr {
+    #[allow(clippy::too_many_arguments)]
     pub fn create(
         x: TensorIr,
         kernel_size: [usize; 2],
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
+        ceil_mode: bool,
         dtype_indices: DType,
         mut new_id: impl FnMut() -> TensorId,
     ) -> Self {
-        let shape =
-            calculate_pool_output_shape(&x.shape, &kernel_size, &stride, &padding, &dilation)
-                .unwrap();
+        let shape = calculate_pool_output_shape(
+            &x.shape,
+            &kernel_size,
+            &stride,
+            &padding,
+            &dilation,
+            ceil_mode,
+        )
+        .unwrap();
         let out = TensorIr::uninit(new_id(), shape.clone(), x.dtype);
         let out_indices = TensorIr::uninit(new_id(), shape, dtype_indices);
 
@@ -927,6 +1092,7 @@ impl MaxPool2dWithIndicesOpIr {
             stride,
             padding,
             dilation,
+            ceil_mode,
             out,
             out_indices,
         }

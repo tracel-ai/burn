@@ -126,6 +126,14 @@ impl NumericMetricState {
             count: self.current_count,
         }
     }
+
+    /// Get the running aggregated value.
+    pub fn running_value(&self) -> NumericEntry {
+        NumericEntry::Aggregated {
+            aggregated_value: self.sum / self.count as f64,
+            count: self.count,
+        }
+    }
 }
 
 impl Default for NumericMetricState {

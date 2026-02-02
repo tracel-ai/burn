@@ -1,4 +1,5 @@
 use crate::PeerId;
+use crate::local::tensor_map::CollectiveTensorMap;
 use burn_tensor::backend::{Backend, DeviceOps};
 use std::collections::HashMap;
 
@@ -6,14 +7,15 @@ use std::collections::HashMap;
 /// Similar to [reduce_sum_tree](reduce_sum_tree), but this function broadcasts the result with
 /// the same tree algorithm.
 /// The returned tensors are on the same devices as the corresponding inputs
+#[cfg_attr(
+    feature = "tracing",
+    tracing::instrument(level = "trace", skip(tensors))
+)]
 pub(crate) fn all_reduce_sum_tree<B: Backend>(
-    tensors: &mut HashMap<PeerId, B::FloatTensorPrimitive>,
+    tensors: CollectiveTensorMap<B>,
     arity: u32,
-) {
-    let mut input = vec![];
-    for (id, tensor) in tensors.drain() {
-        input.push((id, tensor));
-    }
+) -> CollectiveTensorMap<B> {
+    let mut input = tensors.into_iter().collect::<Vec<_>>();
 
     // Sort to put devices of the same type together
     input.sort_by(|a, b| {
@@ -24,12 +26,18 @@ pub(crate) fn all_reduce_sum_tree<B: Backend>(
     // Recursive all-reduce
     let out = all_reduce_sum_tree_inner::<B>(input, arity);
 
+    let mut tensors = HashMap::new();
     for (id, tensor) in out {
         tensors.insert(id, tensor);
     }
+    tensors
 }
 
 /// Recursive function that sums `tensors` and redistributes the result to the host devices
+#[cfg_attr(
+    feature = "tracing",
+    tracing::instrument(level = "trace", skip(tensors))
+)]
 fn all_reduce_sum_tree_inner<B: Backend>(
     mut tensors: Vec<(PeerId, B::FloatTensorPrimitive)>,
     arity: u32,

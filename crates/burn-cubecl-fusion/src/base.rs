@@ -1,12 +1,15 @@
 use burn_fusion::stream::Context;
-use burn_tensor::{DType, quantization::QParamTensor};
+use burn_std::{DType, quantization::QParamTensor};
 use cubecl::{
     CubeElement, Runtime,
     client::ComputeClient,
     ir::ElemType,
     prelude::{TensorArg, TensorHandleRef},
 };
-use cubecl_quant::scheme::{QuantParam, QuantScheme};
+use cubecl::{
+    ir::LineSize,
+    quant::scheme::{QuantParam, QuantScheme},
+};
 use std::marker::PhantomData;
 
 /// Defines a fallback operation when fusion isn't possible.
@@ -17,7 +20,7 @@ pub trait FallbackOperation<R: Runtime>: Send + Sync {
 
 /// Runtime parameters for quantization. Can be used to construct a scales handle from the base
 /// tensor handle.
-pub type QParams = burn_tensor::quantization::QParams<QParamTensor>;
+pub type QParams = burn_std::quantization::QParams<QParamTensor>;
 
 /// Handle to be used when fusing operations.
 pub struct CubeFusionHandle<R: Runtime> {
@@ -73,7 +76,11 @@ impl<R: Runtime> CubeFusionHandle<R> {
         }
     }
     /// Return the reference to a tensor argument.
-    pub fn as_tensor_arg<'a>(&'a self, shape: &'a [usize], vectorisation: u8) -> TensorArg<'a, R> {
+    pub fn as_tensor_arg<'a>(
+        &'a self,
+        shape: &'a [usize],
+        line_size: LineSize,
+    ) -> TensorArg<'a, R> {
         let handle: TensorHandleRef<'a, R> = self.as_handle_ref(shape);
 
         unsafe {
@@ -81,7 +88,7 @@ impl<R: Runtime> CubeFusionHandle<R> {
                 handle.handle,
                 handle.strides,
                 handle.shape,
-                vectorisation,
+                line_size,
                 self.dtype.size(),
             )
         }

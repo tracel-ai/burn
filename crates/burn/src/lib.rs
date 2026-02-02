@@ -47,17 +47,31 @@
 //! - Autodiff: Backend decorator that brings backpropagation to any backend
 //! - Fusion: Backend decorator that brings kernel fusion to backends that support it
 //!
-//! # Quantization (Beta)
+//! # Quantization
 //!
-//! Quantization techniques perform computations and store tensors in lower precision data types like 8-bit integer
-//! instead of floating point precision. There are multiple approaches to quantize a deep learning model. In most cases,
-//! the model is trained in floating point precision and later converted to the lower precision data type. This is called
-//! post-training quantization (PTQ). On the other hand, quantization aware training (QAT) models the effects of quantization
-//! during training. Quantization errors are thus modeled in the forward and backward passes, which helps the model learn
-//! representations that are more robust to the reduction in precision.
+//! Quantization techniques perform computations and store tensors in lower precision data types like
+//! 8-bit integer instead of floating point precision. There are multiple approaches to quantize a deep
+//! learning model categorized as post-training quantization (PTQ) and quantization aware training (QAT).
 //!
-//! Quantization support in Burn is currently in active development. It supports the following modes on some backends:
-//! - Per-tensor and per-block (linear) quantization to 8-bit, 4-bit and 2-bit representations
+//! In post-training quantization, the model is trained in floating point precision and later converted
+//! to the lower precision data type. There are two types of post-training quantization:
+//!
+//! 1. Static quantization: quantizes the weights and activations of the model. Quantizing the
+//!    activations statically requires data to be calibrated (i.e., recording the activation values to
+//!    compute the optimal quantization parameters with representative data).
+//! 2. Dynamic quantization: quantized the weights ahead of time (like static quantization) but the
+//!    activations are dynamically at runtime.
+//!
+//! Sometimes post-training quantization is not able to achieve acceptable task accuracy. In general,
+//! this is where quantization-aware training (QAT) can be used: during training, fake-quantization
+//! modules are inserted in the forward and backward passes to simulate quantization effects, allowing
+//! the model to learn representations that are more robust to reduced precision.
+//!
+//! Burn does not currently support QAT. Only post-training quantization (PTQ) is implemented at this
+//! time.
+//!
+//! Quantization support in Burn is currently in active development. It supports the following PTQ modes on some backends:
+//! - Per-tensor and per-block quantization to 8-bit, 4-bit and 2-bit representations
 //!
 //! ## Feature Flags
 //!

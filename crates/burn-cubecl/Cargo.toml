@@ -15,13 +15,6 @@ version.workspace = true
 workspace = true
 
 [features]
-autotune = ["burn-cubecl-fusion?/autotune"]
-autotune-checks = [
-    "autotune",
-    "cubecl/autotune-checks",
-    "burn-cubecl-fusion?/autotune-checks",
-]
-memory-checks = ["burn-fusion?/memory-checks"]
 default = [
     "autotune",
     "std",
@@ -30,56 +23,58 @@ default = [
     "burn-fusion?/default",
     "burn-cubecl-fusion?/default",
 ]
-doc = ["default"]
-export_tests = [
-    # Too expensive and flaky for the CI.
-    # "memory-checks", 
-    # "autotune-checks",
-    "burn-tensor-testgen",
-    "serial_test",
-    "burn-autodiff/export_tests",
-    "burn-tensor/export_tests",
-    "burn-ndarray",
-    "fusion",
-    "paste",
-]
-fusion = ["burn-fusion", "burn-cubecl-fusion"]
-fusion-experimental = ["fusion"]
 std = [
     "cubecl/std",
-    "burn-tensor/std",
+    "burn-backend/std",
     "burn-fusion?/std",
     "burn-cubecl-fusion?/std",
 ]
+doc = ["default"]
+memory-checks = ["burn-fusion?/memory-checks"]
+tracing = [
+    "dep:tracing",
+    "cubecl/tracing",
+    "burn-std/tracing",
+    "burn-backend/tracing",
+    "burn-fusion?/tracing",
+    "burn-cubecl-fusion?/tracing",
+]
+
+autotune = ["burn-cubecl-fusion?/autotune"]
+autotune-checks = [
+    "autotune",
+    "cubecl/autotune-checks",
+    "burn-cubecl-fusion?/autotune-checks",
+]
+
+fusion = ["burn-fusion", "burn-cubecl-fusion"]
+fusion-experimental = ["fusion"]
 
 template = []
 
 [dependencies]
-burn-fusion = { path = "../burn-fusion", version = "=0.20.0-pre.3", default-features = false, optional = true }
-burn-cubecl-fusion = { path = "../burn-cubecl-fusion", version = "=0.20.0-pre.3", default-features = false, optional = true }
-burn-ir = { path = "../burn-ir", version = "=0.20.0-pre.3", default-features = false }
-burn-tensor = { path = "../burn-tensor", version = "=0.20.0-pre.3", default-features = false, features = [
+burn-cubecl-fusion = { path = "../burn-cubecl-fusion", version = "=0.21.0", default-features = false, optional = true }
+burn-fusion = { path = "../burn-fusion", version = "=0.21.0", default-features = false, optional = true }
+burn-ir = { path = "../burn-ir", version = "=0.21.0", default-features = false }
+burn-std = { path = "../burn-std", version = "=0.21.0", default-features = false, features = [
     "cubecl",
 ] }
-burn-std = { path = "../burn-std", version = "=0.20.0-pre.3", default-features = false, features = [
+burn-backend = { path = "../burn-backend", version = "=0.21.0", default-features = false, features = [
     "cubecl",
 ] }
-cubecl = { workspace = true, features = [
+cubecl = { workspace = true, features = ["stdlib"] }
+cubek = { workspace = true, features = [
+    "attention",
     "matmul",
     "convolution",
     "reduce",
     "random",
-    "stdlib",
+    "quantization",
 ] }
-cubecl-quant = { workspace = true, features = ["kernels"] }
+tracing = { workspace = true, features = ["attributes"], optional = true }
 
-bytemuck = { workspace = true }
 derive-new = { workspace = true }
-half = { workspace = true, features = ["bytemuck"] }
 log = { workspace = true }
-num-traits = { workspace = true }
-rand = { workspace = true }
-spin = { workspace = true }
 
 # Async
 futures-lite = { workspace = true, features = ["std"] }
@@ -87,17 +82,6 @@ futures-lite = { workspace = true, features = ["std"] }
 # Template
 serde = { workspace = true }
 text_placeholder = { workspace = true, features = ["struct_context"] }
-
-burn-tensor-testgen = { path = "../burn-tensor-testgen", version = "=0.20.0-pre.3", optional = true }
-hashbrown = { workspace = true }
-
-# When exporting tests
-burn-autodiff = { path = "../burn-autodiff", version = "=0.20.0-pre.3", default-features = false, optional = true }
-burn-ndarray = { path = "../burn-ndarray", version = "=0.20.0-pre.3", features = [
-    "export_tests", # for "native" sub-byte quantization tests reference
-], optional = true }
-paste = { workspace = true, optional = true }
-serial_test = { workspace = true, optional = true }
 
 [package.metadata.docs.rs]
 features = ["doc"]

@@ -1,4 +1,5 @@
 mod binary;
+mod binary_float;
 mod binary_int;
 mod cast;
 mod clamp;
@@ -12,6 +13,7 @@ mod unary_int;
 mod unary_numeric;
 
 pub(crate) use binary::*;
+pub(crate) use binary_float::*;
 pub(crate) use binary_int::*;
 pub use cast::*;
 pub use contiguous::*;
@@ -22,10 +24,13 @@ pub(crate) use unary_int::*;
 pub(crate) use unary_numeric::*;
 
 pub use crate::cubecl::prelude::KernelMetadata;
-pub use burn_std::PLANE_DIM_APPROX;
 
+/// Attention kernels
+pub mod attention;
 /// Convolution kernels
 pub mod conv;
+/// Grid sampling kernels
+pub mod grid_sample;
 /// Interpolation kernels
 pub mod interpolate;
 /// Matmul kernels

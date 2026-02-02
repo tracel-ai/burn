@@ -154,7 +154,7 @@ impl GraphMemoryManagement {
         let mut to_tag_useful = PopNodeSet::default();
         let mut to_explore = PopNodeSet::new(leaves);
 
-        // Utilitary function to iterate over a node's parents
+        // Utility function to iterate over a node's parents
         let parents = |node_id| {
             self.nodes
                 .get(&node_id)

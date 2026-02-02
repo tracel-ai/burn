@@ -1,3 +1,4 @@
+use burn_backend::tensor::IndexingUpdateOp;
 use core::hash::Hash;
 use serde::{Deserialize, Serialize};
 
@@ -5,10 +6,11 @@ use alloc::borrow::ToOwned;
 use alloc::boxed::Box;
 use alloc::{string::String, vec::Vec};
 
-use burn_tensor::{
+use burn_backend::{
     DType, Distribution, Slice,
     ops::{
-        ConvOptions, ConvTransposeOptions, DeformConvOptions, InterpolateMode, InterpolateOptions,
+        ConvOptions, ConvTransposeOptions, DeformConvOptions, GridSampleOptions,
+        GridSamplePaddingMode, InterpolateMode, InterpolateOptions,
     },
     quantization::QuantScheme,
 };
@@ -91,118 +93,158 @@ pub enum OperationIr {
 /// Operation intermediate representation specific to a float tensor.
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 pub enum FloatOperationIr {
-    /// Operation corresponding to [exp](burn_tensor::ops::FloatTensorOps::float_exp).
+    /// Operation corresponding to [exp](burn_backend::ops::FloatTensorOps::float_exp).
     Exp(UnaryOpIr),
-    /// Operation corresponding to [log](burn_tensor::ops::FloatTensorOps::float_log).
+    /// Operation corresponding to [log](burn_backend::ops::FloatTensorOps::float_log).
     Log(UnaryOpIr),
-    /// Operation corresponding to [log1p](burn_tensor::ops::FloatTensorOps::float_log1p).
+    /// Operation corresponding to [log1p](burn_backend::ops::FloatTensorOps::float_log1p).
     Log1p(UnaryOpIr),
-    /// Operation corresponding to [erf](burn_tensor::ops::FloatTensorOps::float_erf).
+    /// Operation corresponding to [erf](burn_backend::ops::FloatTensorOps::float_erf).
     Erf(UnaryOpIr),
-    /// Operation corresponding to [powf_scalar](burn_tensor::ops::FloatTensorOps::float_powf_scalar).
+    /// Operation corresponding to [powf_scalar](burn_backend::ops::FloatTensorOps::float_powf_scalar).
     PowfScalar(ScalarOpIr),
-    /// Operation corresponding to [sqrt](burn_tensor::ops::FloatTensorOps::float_sqrt).
+    /// Operation corresponding to [sqrt](burn_backend::ops::FloatTensorOps::float_sqrt).
     Sqrt(UnaryOpIr),
-    /// Operation corresponding to [cos](burn_tensor::ops::FloatTensorOps::float_cos).
+    /// Operation corresponding to [cos](burn_backend::ops::FloatTensorOps::float_cos).
     Cos(UnaryOpIr),
-    /// Operation corresponding to [sin](burn_tensor::ops::FloatTensorOps::float_sin).
+    /// Operation corresponding to [cosh](burn_backend::ops::FloatTensorOps::float_cosh).
+    Cosh(UnaryOpIr),
+    /// Operation corresponding to [sin](burn_backend::ops::FloatTensorOps::float_sin).
     Sin(UnaryOpIr),
-    /// Operation corresponding to [tanh](burn_tensor::ops::FloatTensorOps::float_tanh).
+    /// Operation corresponding to [sin](burn_backend::ops::FloatTensorOps::float_sinh).
+    Sinh(UnaryOpIr),
+    /// Operation corresponding to [tan](burn_backend::ops::FloatTensorOps::float_tan).
+    Tan(UnaryOpIr),
+    /// Operation corresponding to [tanh](burn_backend::ops::FloatTensorOps::float_tanh).
     Tanh(UnaryOpIr),
-    /// Operation corresponding to [round](burn_tensor::ops::FloatTensorOps::float_round).
+    /// Operation corresponding to [acos](burn_backend::ops::FloatTensorOps::float_acos).
+    ArcCos(UnaryOpIr),
+    /// Operation corresponding to [acosh](burn_backend::ops::FloatTensorOps::float_acosh).
+    ArcCosh(UnaryOpIr),
+    /// Operation corresponding to [asin](burn_backend::ops::FloatTensorOps::float_asin).
+    ArcSin(UnaryOpIr),
+    /// Operation corresponding to [asinh](burn_backend::ops::FloatTensorOps::float_asinh).
+    ArcSinh(UnaryOpIr),
+    /// Operation corresponding to [atan](burn_backend::ops::FloatTensorOps::float_atan).
+    ArcTan(UnaryOpIr),
+    /// Operation corresponding to [atanh](burn_backend::ops::FloatTensorOps::float_atanh).
+    ArcTanh(UnaryOpIr),
+    /// Operation corresponding to [atan2](burn_backend::ops::FloatTensorOps::float_atan2).
+    ArcTan2(BinaryOpIr),
+    /// Operation corresponding to [round](burn_backend::ops::FloatTensorOps::float_round).
     Round(UnaryOpIr),
-    /// Operation corresponding to [floor](burn_tensor::ops::FloatTensorOps::float_floor).
+    /// Operation corresponding to [floor](burn_backend::ops::FloatTensorOps::float_floor).
     Floor(UnaryOpIr),
-    /// Operation corresponding to [ceil](burn_tensor::ops::FloatTensorOps::float_ceil).
+    /// Operation corresponding to [ceil](burn_backend::ops::FloatTensorOps::float_ceil).
     Ceil(UnaryOpIr),
-    /// Operation corresponding to [trunc](burn_tensor::ops::FloatTensorOps::float_trunc).
+    /// Operation corresponding to [trunc](burn_backend::ops::FloatTensorOps::float_trunc).
     Trunc(UnaryOpIr),
-    /// Operation corresponding to [into_int](burn_tensor::ops::FloatTensorOps::float_into_int).
+    /// Operation corresponding to [into_int](burn_backend::ops::FloatTensorOps::float_into_int).
     IntoInt(CastOpIr),
-    /// Operation corresponding to [matmul](burn_tensor::ops::FloatTensorOps::float_matmul).
+    /// Operation corresponding to [matmul](burn_backend::ops::FloatTensorOps::float_matmul).
     Matmul(MatmulOpIr),
-    /// Operation corresponding to [cross](burn_tensor::ops::FloatTensorOps::float_cross).
+    /// Operation corresponding to [cross](burn_backend::ops::FloatTensorOps::float_cross).
     Cross(CrossOpIr),
-    /// Operation corresponding to [random](burn_tensor::ops::FloatTensorOps::float_random).
+    /// Operation corresponding to [random](burn_backend::ops::FloatTensorOps::float_random).
     Random(RandomOpIr),
-    /// Operation corresponding to [recip](burn_tensor::ops::FloatTensorOps::float_recip).
+    /// Operation corresponding to [recip](burn_backend::ops::FloatTensorOps::float_recip).
     Recip(UnaryOpIr),
-    /// Operation corresponding to [is_nan](burn_tensor::ops::FloatTensorOps::float_is_nan).
+    /// Operation corresponding to [is_nan](burn_backend::ops::FloatTensorOps::float_is_nan).
     IsNan(UnaryOpIr),
-    /// Operation corresponding to [is_nan](burn_tensor::ops::FloatTensorOps::float_is_inf).
+    /// Operation corresponding to [is_nan](burn_backend::ops::FloatTensorOps::float_is_inf).
     IsInf(UnaryOpIr),
-    /// Operation corresponding to [quantize](burn_tensor::ops::QTensorOps::quantize).
+    /// Operation corresponding to [quantize](burn_backend::ops::QTensorOps::quantize).
     Quantize(QuantizeOpIr),
-    /// Operation corresponding to [dequantize](burn_tensor::ops::QTensorOps::dequantize).
+    /// Operation corresponding to [dequantize](burn_backend::ops::QTensorOps::dequantize).
     Dequantize(DequantizeOpIr),
+    /// Operation corresponding to [grid_sample_2d](burn_backend::ops::FloatTensorOps::float_grid_sample_2d).
+    GridSample2d(GridSample2dOpIr),
 }
 
 /// Operation intermediate representation specific to module.
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 pub enum ModuleOperationIr {
-    /// Operation corresponding to [embedding](burn_tensor::ops::ModuleOps::embedding).
+    /// Operation corresponding to [embedding](burn_backend::ops::ModuleOps::embedding).
     Embedding(EmbeddingOpIr),
-    /// Operation corresponding to [embedding_backward](burn_tensor::ops::ModuleOps::embedding_backward).
+    /// Operation corresponding to [embedding_backward](burn_backend::ops::ModuleOps::embedding_backward).
     EmbeddingBackward(EmbeddingBackwardOpIr),
-    /// Operation corresponding to [conv1d](burn_tensor::ops::ModuleOps::conv1d).
+    /// Operation corresponding to [conv1d](burn_backend::ops::ModuleOps::conv1d).
     Conv1d(Conv1dOpIr),
-    /// Operation corresponding to [conv2d](burn_tensor::ops::ModuleOps::conv2d).
+    /// Operation corresponding to [conv1d_x_backward](burn_backend::ops::ModuleOps::conv1d_x_backward).
+    Conv1dXBackward(Conv1dXBackwardOpIr),
+    /// Operation corresponding to [conv1d_weight_backward](burn_backend::ops::ModuleOps::conv1d_weight_backward).
+    Conv1dWeightBackward(Conv1dWeightBackwardOpIr),
+    /// Operation corresponding to [conv1d_bias_backward](burn_backend::ops::ModuleOps::conv1d_bias_backward).
+    Conv1dBiasBackward(Conv1dBiasBackwardOpIr),
+    /// Operation corresponding to [conv2d](burn_backend::ops::ModuleOps::conv2d).
     Conv2d(Conv2dOpIr),
-    /// Operation corresponding to [conv3d](burn_tensor::ops::ModuleOps::conv3d).
+    /// Operation corresponding to [conv2d_x_backward](burn_backend::ops::ModuleOps::conv2d_x_backward).
+    Conv2dXBackward(Conv2dXBackwardOpIr),
+    /// Operation corresponding to [conv2d_weight_backward](burn_backend::ops::ModuleOps::conv2d_weight_backward).
+    Conv2dWeightBackward(Conv2dWeightBackwardOpIr),
+    /// Operation corresponding to [conv2d_bias_backward](burn_backend::ops::ModuleOps::conv2d_bias_backward).
+    Conv2dBiasBackward(Conv2dBiasBackwardOpIr),
+    /// Operation corresponding to [conv3d](burn_backend::ops::ModuleOps::conv3d).
     Conv3d(Conv3dOpIr),
-    /// Operation corresponding to [deform_conv2d](burn_tensor::ops::ModuleOps::deform_conv2d)
+    /// Operation corresponding to [conv3d_x_backward](burn_backend::ops::ModuleOps::conv3d_x_backward).
+    Conv3dXBackward(Conv3dXBackwardOpIr),
+    /// Operation corresponding to [conv3d_weight_backward](burn_backend::ops::ModuleOps::conv3d_weight_backward).
+    Conv3dWeightBackward(Conv3dWeightBackwardOpIr),
+    /// Operation corresponding to [conv3d_bias_backward](burn_backend::ops::ModuleOps::conv3d_bias_backward).
+    Conv3dBiasBackward(Conv3dBiasBackwardOpIr),
+    /// Operation corresponding to [deform_conv2d](burn_backend::ops::ModuleOps::deform_conv2d)
     DeformableConv2d(Box<DeformConv2dOpIr>),
-    /// Operation corresponding to [deform_conv2d_backward](burn_tensor::ops::ModuleOps::deform_conv2d_backward)
+    /// Operation corresponding to [deform_conv2d_backward](burn_backend::ops::ModuleOps::deform_conv2d_backward)
     DeformableConv2dBackward(Box<DeformConv2dBackwardOpIr>),
-    /// Operation corresponding to [conv transpose 1d](burn_tensor::ops::ModuleOps::conv_transpose1d).
+    /// Operation corresponding to [conv transpose 1d](burn_backend::ops::ModuleOps::conv_transpose1d).
     ConvTranspose1d(ConvTranspose1dOpIr),
-    /// Operation corresponding to [conv transpose 2d](burn_tensor::ops::ModuleOps::conv_transpose2d).
+    /// Operation corresponding to [conv transpose 2d](burn_backend::ops::ModuleOps::conv_transpose2d).
     ConvTranspose2d(ConvTranspose2dOpIr),
-    /// Operation corresponding to [conv transpose 3d](burn_tensor::ops::ModuleOps::conv_transpose3d).
+    /// Operation corresponding to [conv transpose 3d](burn_backend::ops::ModuleOps::conv_transpose3d).
     ConvTranspose3d(ConvTranspose3dOpIr),
-    /// Operation corresponding to [avg pool 1d](burn_tensor::ops::ModuleOps::avg_pool1d).
+    /// Operation corresponding to [avg pool 1d](burn_backend::ops::ModuleOps::avg_pool1d).
     AvgPool1d(AvgPool1dOpIr),
-    /// Operation corresponding to [avg pool 2d](burn_tensor::ops::ModuleOps::avg_pool2d).
+    /// Operation corresponding to [avg pool 2d](burn_backend::ops::ModuleOps::avg_pool2d).
     AvgPool2d(AvgPool2dOpIr),
     /// Operation corresponding to
-    /// [avg pool 1d backward](burn_tensor::ops::ModuleOps::avg_pool1d_backward).
+    /// [avg pool 1d backward](burn_backend::ops::ModuleOps::avg_pool1d_backward).
     AvgPool1dBackward(AvgPool1dBackwardOpIr),
     /// Operation corresponding to
-    /// [avg pool 2d backward](burn_tensor::ops::ModuleOps::avg_pool2d_backward).
+    /// [avg pool 2d backward](burn_backend::ops::ModuleOps::avg_pool2d_backward).
     AvgPool2dBackward(AvgPool2dBackwardOpIr),
     /// Operation corresponding to
-    /// [adaptive avg pool 1d](burn_tensor::ops::ModuleOps::adaptive_avg_pool1d).
+    /// [adaptive avg pool 1d](burn_backend::ops::ModuleOps::adaptive_avg_pool1d).
     AdaptiveAvgPool1d(AdaptiveAvgPool1dOpIr),
     /// Operation corresponding to
-    /// [adaptive avg pool 2d](burn_tensor::ops::ModuleOps::adaptive_avg_pool2d).
+    /// [adaptive avg pool 2d](burn_backend::ops::ModuleOps::adaptive_avg_pool2d).
     AdaptiveAvgPool2d(AdaptiveAvgPool2dOpIr),
     /// Operation corresponding to
-    /// [adaptive avg pool 1d backward](burn_tensor::ops::ModuleOps::adaptive_avg_pool1d_backward).
+    /// [adaptive avg pool 1d backward](burn_backend::ops::ModuleOps::adaptive_avg_pool1d_backward).
     AdaptiveAvgPool1dBackward(AdaptiveAvgPool1dBackwardOpIr),
     /// Operation corresponding to
-    /// [adaptive avg pool 2d backward](burn_tensor::ops::ModuleOps::adaptive_avg_pool2d_backward).
+    /// [adaptive avg pool 2d backward](burn_backend::ops::ModuleOps::adaptive_avg_pool2d_backward).
     AdaptiveAvgPool2dBackward(AdaptiveAvgPool2dBackwardOpIr),
     /// Operation corresponding to
-    /// [max pool 1d](burn_tensor::ops::ModuleOps::max_pool1d).
+    /// [max pool 1d](burn_backend::ops::ModuleOps::max_pool1d).
     MaxPool1d(MaxPool1dOpIr),
     /// Operation corresponding to
-    /// [max pool 1d with indices](burn_tensor::ops::ModuleOps::max_pool1d_with_indices).
+    /// [max pool 1d with indices](burn_backend::ops::ModuleOps::max_pool1d_with_indices).
     MaxPool1dWithIndices(MaxPool1dWithIndicesOpIr),
     /// Operation corresponding to
-    /// [max pool 1d with indices backward](burn_tensor::ops::ModuleOps::max_pool1d_with_indices_backward).
+    /// [max pool 1d with indices backward](burn_backend::ops::ModuleOps::max_pool1d_with_indices_backward).
     MaxPool1dWithIndicesBackward(MaxPool1dWithIndicesBackwardOpIr),
     /// Operation corresponding to
-    /// [max pool 2d](burn_tensor::ops::ModuleOps::max_pool1d).
+    /// [max pool 2d](burn_backend::ops::ModuleOps::max_pool1d).
     MaxPool2d(MaxPool2dOpIr),
     /// Operation corresponding to
-    /// [max pool 2d with indices](burn_tensor::ops::ModuleOps::max_pool2d_with_indices).
+    /// [max pool 2d with indices](burn_backend::ops::ModuleOps::max_pool2d_with_indices).
     MaxPool2dWithIndices(MaxPool2dWithIndicesOpIr),
     /// Operation corresponding to
-    /// [max pool 2d with indices backward](burn_tensor::ops::ModuleOps::max_pool2d_with_indices_backward).
+    /// [max pool 2d with indices backward](burn_backend::ops::ModuleOps::max_pool2d_with_indices_backward).
     MaxPool2dWithIndicesBackward(MaxPool2dWithIndicesBackwardOpIr),
-    /// Operation corresponding to [interpolate](burn_tensor::ops::ModuleOps::interpolate).
+    /// Operation corresponding to [interpolate](burn_backend::ops::ModuleOps::interpolate).
     Interpolate(InterpolateOpIr),
-    /// Operation corresponding to [interpolate backward](burn_tensor::ops::ModuleOps::interpolate_backward).
+    /// Operation corresponding to [interpolate backward](burn_backend::ops::ModuleOps::interpolate_backward).
     InterpolateBackward(InterpolateBackwardOpIr),
 }
 
@@ -211,36 +253,36 @@ pub enum ModuleOperationIr {
 pub enum BaseOperationIr {
     /// Operation corresponding to:
     ///
-    /// Float => [reshape](burn_tensor::ops::FloatTensorOps::float_reshape).
-    /// Int => [reshape](burn_tensor::ops::IntTensorOps::int_reshape).
-    /// Bool => [reshape](burn_tensor::ops::BoolTensorOps::bool_reshape).
+    /// Float => [reshape](burn_backend::ops::FloatTensorOps::float_reshape).
+    /// Int => [reshape](burn_backend::ops::IntTensorOps::int_reshape).
+    /// Bool => [reshape](burn_backend::ops::BoolTensorOps::bool_reshape).
     Reshape(ShapeOpIr),
 
     /// Operation corresponding to:
     ///
-    /// Float => [swap_dims](burn_tensor::ops::FloatTensorOps::float_swap_dims).
-    /// Int => [swap_dims](burn_tensor::ops::IntTensorOps::int_swap_dims).
-    /// Bool => [swap_dims](burn_tensor::ops::BoolTensorOps::bool_swap_dims).
+    /// Float => [swap_dims](burn_backend::ops::FloatTensorOps::float_swap_dims).
+    /// Int => [swap_dims](burn_backend::ops::IntTensorOps::int_swap_dims).
+    /// Bool => [swap_dims](burn_backend::ops::BoolTensorOps::bool_swap_dims).
     SwapDims(SwapDimsOpIr),
 
     /// Operation corresponding to:
     ///
-    /// Float => [permute](burn_tensor::ops::FloatTensorOps::float_permute).
-    /// Int => [permute](burn_tensor::ops::IntTensorOps::int_permute).
-    /// Bool => [permute](burn_tensor::ops::BoolTensorOps::bool_permute).
+    /// Float => [permute](burn_backend::ops::FloatTensorOps::float_permute).
+    /// Int => [permute](burn_backend::ops::IntTensorOps::int_permute).
+    /// Bool => [permute](burn_backend::ops::BoolTensorOps::bool_permute).
     Permute(PermuteOpIr),
 
     /// Operation corresponding to:
-    /// Float => [flip](burn_tensor::ops::FloatTensorOps::float_flip).
-    /// Int => [flip](burn_tensor::ops::IntTensorOps::int_flip).
-    /// Bool => [flip](burn_tensor::ops::BoolTensorOps::bool_flip).
+    /// Float => [flip](burn_backend::ops::FloatTensorOps::float_flip).
+    /// Int => [flip](burn_backend::ops::IntTensorOps::int_flip).
+    /// Bool => [flip](burn_backend::ops::BoolTensorOps::bool_flip).
     Flip(FlipOpIr),
 
     /// Operation corresponding to:
     ///
-    /// Float => [expand](burn_tensor::ops::FloatTensorOps::float_expand).
-    /// Int => [expand](burn_tensor::ops::IntTensorOps::int_expand).
-    /// Bool => [expand](burn_tensor::ops::BoolTensorOps::bool_expand).
+    /// Float => [expand](burn_backend::ops::FloatTensorOps::float_expand).
+    /// Int => [expand](burn_backend::ops::IntTensorOps::int_expand).
+    /// Bool => [expand](burn_backend::ops::BoolTensorOps::bool_expand).
     Expand(ShapeOpIr),
 
     /// Unfold windows along an axis.
@@ -249,53 +291,95 @@ pub enum BaseOperationIr {
 
     /// Operation corresponding to:
     ///
-    /// Float => [slice](burn_tensor::ops::FloatTensorOps::float_slice).
-    /// Int => [slice](burn_tensor::ops::IntTensorOps::int_slice).
-    /// Bool => [slice](burn_tensor::ops::BoolTensorOps::bool_slice).
+    /// Float => [slice](burn_backend::ops::FloatTensorOps::float_slice).
+    /// Int => [slice](burn_backend::ops::IntTensorOps::int_slice).
+    /// Bool => [slice](burn_backend::ops::BoolTensorOps::bool_slice).
     Slice(SliceOpIr),
     /// Operation corresponding to:
     ///
-    /// Float => [slice assign](burn_tensor::ops::FloatTensorOps::float_slice_assign).
-    /// Int => [slice assign](burn_tensor::ops::IntTensorOps::int_slice_assign).
-    /// Bool => [slice assign](burn_tensor::ops::BoolTensorOps::bool_slice_assign).
+    /// Float => [slice assign](burn_backend::ops::FloatTensorOps::float_slice_assign).
+    /// Int => [slice assign](burn_backend::ops::IntTensorOps::int_slice_assign).
+    /// Bool => [slice assign](burn_backend::ops::BoolTensorOps::bool_slice_assign).
     SliceAssign(SliceAssignOpIr),
     /// Operation corresponding to:
     ///
-    /// Float => [equal](burn_tensor::ops::FloatTensorOps::float_equal).
-    /// Int => [equal](burn_tensor::ops::IntTensorOps::int_equal).
-    /// Bool => [equal](burn_tensor::ops::BoolTensorOps::bool_equal).
+    /// Float => [select](burn_backend::ops::FloatTensorOps::float_select).
+    /// Int => [select](burn_backend::ops::IntTensorOps::int_select).
+    /// Bool => [select](burn_backend::ops::BoolTensorOps::bool_select).
+    Select(SelectOpIr),
+    /// Operation corresponding to:
+    ///
+    /// Float => [select assign](burn_backend::ops::FloatTensorOps::float_select_add).
+    /// Int => [select assign](burn_backend::ops::IntTensorOps::int_select_add).
+    /// Bool => [select assign](burn_backend::ops::BoolTensorOps::bool_select_or).
+    SelectAssign(SelectAssignOpIr),
+    /// Operation corresponding to:
+    ///
+    /// Float => [mask where](burn_backend::ops::FloatTensorOps::float_mask_where).
+    /// Int => [mask where](burn_backend::ops::IntTensorOps::int_mask_where).
+    /// Bool => [mask where](burn_backend::ops::BoolTensorOps::bool_mask_where).
+    MaskWhere(MaskWhereOpIr),
+    /// Operation corresponding to:
+    ///
+    /// Float => [mask fill](burn_backend::ops::FloatTensorOps::float_mask_fill).
+    /// Int => [mask fill](burn_backend::ops::IntTensorOps::int_mask_fill).
+    /// Bool => [mask fill](burn_backend::ops::BoolTensorOps::bool_mask_fill).
+    MaskFill(MaskFillOpIr),
+    /// Operation corresponding to:
+    ///
+    /// Float => [gather](burn_backend::ops::FloatTensorOps::float_gather).
+    /// Int => [gather](burn_backend::ops::IntTensorOps::int_gather).
+    /// Bool => [gather](burn_backend::ops::BoolTensorOps::bool_gather).
+    Gather(GatherOpIr),
+    /// Operation corresponding to:
+    ///
+    /// Float => [scatter](burn_backend::ops::FloatTensorOps::float_scatter_add).
+    /// Int => [scatter](burn_backend::ops::IntTensorOps::int_scatter_add).
+    /// Bool => [scatter](burn_backend::ops::BoolTensorOps::bool_scatter_or).
+    Scatter(ScatterOpIr),
+    /// Operation corresponding to:
+    ///
+    /// Float => [equal](burn_backend::ops::FloatTensorOps::float_equal).
+    /// Int => [equal](burn_backend::ops::IntTensorOps::int_equal).
+    /// Bool => [equal](burn_backend::ops::BoolTensorOps::bool_equal).
     Equal(BinaryOpIr),
     /// Operation corresponding to:
     ///
-    /// Float => [repeat dim](burn_tensor::ops::FloatTensorOps::float_repeat_dim).
-    /// Int => [repeat dim](burn_tensor::ops::IntTensorOps::int_repeat_dim).
-    /// Bool => [repeat dim](burn_tensor::ops::BoolTensorOps::bool_repeat_dim).
+    /// Float => [equal elem](burn_backend::ops::FloatTensorOps::float_equal_elem).
+    /// Int => [equal elem](burn_backend::ops::IntTensorOps::int_equal_elem).
+    /// Bool => [equal elem](burn_backend::ops::BoolTensorOps::bool_equal_elem).
+    EqualElem(ScalarOpIr),
+    /// Operation corresponding to:
+    ///
+    /// Float => [repeat dim](burn_backend::ops::FloatTensorOps::float_repeat_dim).
+    /// Int => [repeat dim](burn_backend::ops::IntTensorOps::int_repeat_dim).
+    /// Bool => [repeat dim](burn_backend::ops::BoolTensorOps::bool_repeat_dim).
     RepeatDim(RepeatDimOpIr),
     /// Operation corresponding to:
     ///
-    /// Float => [cat](burn_tensor::ops::FloatTensorOps::float_cat).
-    /// Int => [cat](burn_tensor::ops::IntTensorOps::int_cat).
-    /// Bool => [cat](burn_tensor::ops::BoolTensorOps::bool_cat).
+    /// Float => [cat](burn_backend::ops::FloatTensorOps::float_cat).
+    /// Int => [cat](burn_backend::ops::IntTensorOps::int_cat).
+    /// Bool => [cat](burn_backend::ops::BoolTensorOps::bool_cat).
     Cat(CatOpIr),
     /// Cast operation, no direct operation and should be supported by fusion backend.
     Cast(CastOpIr),
     /// Operation corresponding to:
     ///
-    /// Float => [empty](burn_tensor::ops::FloatTensorOps::float_empty).
-    /// Int => [empty](burn_tensor::ops::IntTensorOps::int_empty).
-    /// Bool => [empty](burn_tensor::ops::BoolTensorOps::bool_empty).
+    /// Float => [empty](burn_backend::ops::FloatTensorOps::float_empty).
+    /// Int => [empty](burn_backend::ops::IntTensorOps::int_empty).
+    /// Bool => [empty](burn_backend::ops::BoolTensorOps::bool_empty).
     Empty(CreationOpIr),
     /// Operation corresponding to:
     ///
-    /// Float => [ones](burn_tensor::ops::FloatTensorOps::float_ones).
-    /// Int => [ones](burn_tensor::ops::IntTensorOps::int_ones).
-    /// Bool => [ones](burn_tensor::ops::BoolTensorOps::bool_ones).
+    /// Float => [ones](burn_backend::ops::FloatTensorOps::float_ones).
+    /// Int => [ones](burn_backend::ops::IntTensorOps::int_ones).
+    /// Bool => [ones](burn_backend::ops::BoolTensorOps::bool_ones).
     Ones(CreationOpIr),
     /// Operation corresponding to:
     ///
-    /// Float => [zeros](burn_tensor::ops::FloatTensorOps::float_zeros).
-    /// Int => [zeros](burn_tensor::ops::IntTensorOps::int_zeros).
-    /// Bool => [zeros](burn_tensor::ops::BoolTensorOps::bool_zeros).
+    /// Float => [zeros](burn_backend::ops::FloatTensorOps::float_zeros).
+    /// Int => [zeros](burn_backend::ops::IntTensorOps::int_zeros).
+    /// Bool => [zeros](burn_backend::ops::BoolTensorOps::bool_zeros).
     Zeros(CreationOpIr),
 }
 
@@ -304,320 +388,285 @@ pub enum BaseOperationIr {
 pub enum NumericOperationIr {
     /// Operation corresponding to:
     ///
-    /// Float => [add](burn_tensor::ops::FloatTensorOps::float_add).
-    /// Int => [add](burn_tensor::ops::IntTensorOps::int_add).
+    /// Float => [add](burn_backend::ops::FloatTensorOps::float_add).
+    /// Int => [add](burn_backend::ops::IntTensorOps::int_add).
     Add(BinaryOpIr),
     /// Operation corresponding to:
     ///
-    /// Float => [add scalar](burn_tensor::ops::FloatTensorOps::float_add_scalar).
-    /// Int => [add scalar](burn_tensor::ops::IntTensorOps::int_add_scalar).
+    /// Float => [add scalar](burn_backend::ops::FloatTensorOps::float_add_scalar).
+    /// Int => [add scalar](burn_backend::ops::IntTensorOps::int_add_scalar).
     AddScalar(ScalarOpIr),
     /// Operation corresponding to:
     ///
-    /// Float => [sub](burn_tensor::ops::FloatTensorOps::float_sub).
-    /// Int => [sub](burn_tensor::ops::IntTensorOps::int_sub).
+    /// Float => [sub](burn_backend::ops::FloatTensorOps::float_sub).
+    /// Int => [sub](burn_backend::ops::IntTensorOps::int_sub).
     Sub(BinaryOpIr),
     /// Operation corresponding to:
     ///
-    /// Float => [sub scalar](burn_tensor::ops::FloatTensorOps::float_sub_scalar).
-    /// Int => [sub scalar](burn_tensor::ops::IntTensorOps::int_sub_scalar).
+    /// Float => [sub scalar](burn_backend::ops::FloatTensorOps::float_sub_scalar).
+    /// Int => [sub scalar](burn_backend::ops::IntTensorOps::int_sub_scalar).
     SubScalar(ScalarOpIr),
     /// Operation corresponding to:
     ///
-    /// Float => [div](burn_tensor::ops::FloatTensorOps::float_div).
-    /// Int => [div](burn_tensor::ops::IntTensorOps::int_div).
+    /// Float => [div](burn_backend::ops::FloatTensorOps::float_div).
+    /// Int => [div](burn_backend::ops::IntTensorOps::int_div).
     Div(BinaryOpIr),
     /// Operation corresponding to:
     ///
-    /// Float => [div scalar](burn_tensor::ops::FloatTensorOps::float_div_scalar).
-    /// Int => [div scalar](burn_tensor::ops::IntTensorOps::int_div_scalar).
+    /// Float => [div scalar](burn_backend::ops::FloatTensorOps::float_div_scalar).
+    /// Int => [div scalar](burn_backend::ops::IntTensorOps::int_div_scalar).
     DivScalar(ScalarOpIr),
     /// Operation corresponding to:
     ///
-    /// Float => [rem](burn_tensor::ops::FloatTensorOps::float_remainder).
-    /// Int => [rem](burn_tensor::ops::IntTensorOps::int_remainder).
+    /// Float => [rem](burn_backend::ops::FloatTensorOps::float_remainder).
+    /// Int => [rem](burn_backend::ops::IntTensorOps::int_remainder).
     Rem(BinaryOpIr),
     /// Operation corresponding to:
     ///
-    /// Float => [rem scalar](burn_tensor::ops::FloatTensorOps::float_remainder_scalar).
-    /// Int => [rem scalar](burn_tensor::ops::IntTensorOps::int_remainder_scalar).
+    /// Float => [rem scalar](burn_backend::ops::FloatTensorOps::float_remainder_scalar).
+    /// Int => [rem scalar](burn_backend::ops::IntTensorOps::int_remainder_scalar).
     RemScalar(ScalarOpIr),
     /// Operation corresponding to:
     ///
-    /// Float => [mul](burn_tensor::ops::FloatTensorOps::float_mul).
-    /// Int => [mul](burn_tensor::ops::IntTensorOps::int_mul).
+    /// Float => [mul](burn_backend::ops::FloatTensorOps::float_mul).
+    /// Int => [mul](burn_backend::ops::IntTensorOps::int_mul).
     Mul(BinaryOpIr),
     /// Operation corresponding to:
     ///
-    /// Float => [mul scalar](burn_tensor::ops::FloatTensorOps::float_mul_scalar).
-    /// Int => [mul scalar](burn_tensor::ops::IntTensorOps::int_mul_scalar).
+    /// Float => [mul scalar](burn_backend::ops::FloatTensorOps::float_mul_scalar).
+    /// Int => [mul scalar](burn_backend::ops::IntTensorOps::int_mul_scalar).
     MulScalar(ScalarOpIr),
     /// Operation corresponding to:
     ///
-    /// Float => [abs](burn_tensor::ops::FloatTensorOps::float_abs).
-    /// Int => [abs](burn_tensor::ops::IntTensorOps::int_abs).
+    /// Float => [abs](burn_backend::ops::FloatTensorOps::float_abs).
+    /// Int => [abs](burn_backend::ops::IntTensorOps::int_abs).
     Abs(UnaryOpIr),
     /// Operation corresponding to:
     ///
-    /// Float => [full](burn_tensor::ops::FloatTensorOps::float_full).
-    /// Int => [full](burn_tensor::ops::IntTensorOps::int_full).
+    /// Float => [full](burn_backend::ops::FloatTensorOps::float_full).
+    /// Int => [full](burn_backend::ops::IntTensorOps::int_full).
     Full(FullOpIr),
     /// Operation corresponding to:
     ///
-    /// Float => [gather](burn_tensor::ops::FloatTensorOps::float_gather).
-    /// Int => [gather](burn_tensor::ops::IntTensorOps::int_gather).
-    Gather(GatherOpIr),
-    /// Operation corresponding to:
-    ///
-    /// Float => [scatter](burn_tensor::ops::FloatTensorOps::float_scatter).
-    /// Int => [scatter](burn_tensor::ops::IntTensorOps::int_scatter).
-    Scatter(ScatterOpIr),
-    /// Operation corresponding to:
-    ///
-    /// Float => [select](burn_tensor::ops::FloatTensorOps::float_select).
-    /// Int => [select](burn_tensor::ops::IntTensorOps::int_select).
-    Select(SelectOpIr),
-    /// Operation corresponding to:
-    ///
-    /// Float => [select assign](burn_tensor::ops::FloatTensorOps::float_select_assign).
-    /// Int => [select assign](burn_tensor::ops::IntTensorOps::int_select_assign).
-    SelectAssign(SelectAssignOpIr),
-    /// Operation corresponding to:
-    ///
-    /// Float => [mask where](burn_tensor::ops::FloatTensorOps::float_mask_where).
-    /// Int => [mask where](burn_tensor::ops::IntTensorOps::int_mask_where).
-    MaskWhere(MaskWhereOpIr),
-    /// Operation corresponding to:
-    ///
-    /// Float => [mask fill](burn_tensor::ops::FloatTensorOps::float_mask_fill).
-    /// Int => [mask fill](burn_tensor::ops::IntTensorOps::int_mask_fill).
-    MaskFill(MaskFillOpIr),
-    /// Operation corresponding to:
-    ///
-    /// Float => [mean dim](burn_tensor::ops::FloatTensorOps::float_mean_dim).
-    /// Int => [mean dim](burn_tensor::ops::IntTensorOps::int_mean_dim).
+    /// Float => [mean dim](burn_backend::ops::FloatTensorOps::float_mean_dim).
+    /// Int => [mean dim](burn_backend::ops::IntTensorOps::int_mean_dim).
     MeanDim(ReduceDimOpIr),
     /// Operation corresponding to:
     ///
-    /// Float => [mean](burn_tensor::ops::FloatTensorOps::float_mean).
-    /// Int => [mean](burn_tensor::ops::IntTensorOps::int_mean).
+    /// Float => [mean](burn_backend::ops::FloatTensorOps::float_mean).
+    /// Int => [mean](burn_backend::ops::IntTensorOps::int_mean).
     Mean(ReduceOpIr),
     /// Operation corresponding to:
     ///
-    /// Float => [sum](burn_tensor::ops::FloatTensorOps::float_sum).
-    /// Int => [sum](burn_tensor::ops::IntTensorOps::int_sum).
+    /// Float => [sum](burn_backend::ops::FloatTensorOps::float_sum).
+    /// Int => [sum](burn_backend::ops::IntTensorOps::int_sum).
     Sum(ReduceOpIr),
     /// Operation corresponding to:
     ///
-    /// Float => [sum dim](burn_tensor::ops::FloatTensorOps::float_sum_dim).
-    /// Int => [sum dim](burn_tensor::ops::IntTensorOps::int_sum_dim).
+    /// Float => [sum dim](burn_backend::ops::FloatTensorOps::float_sum_dim).
+    /// Int => [sum dim](burn_backend::ops::IntTensorOps::int_sum_dim).
     SumDim(ReduceDimOpIr),
     /// Operation corresponding to:
     ///
-    /// Float => [prod](burn_tensor::ops::FloatTensorOps::float_prod).
-    /// Int => [prod](burn_tensor::ops::IntTensorOps::int_prod).
+    /// Float => [prod](burn_backend::ops::FloatTensorOps::float_prod).
+    /// Int => [prod](burn_backend::ops::IntTensorOps::int_prod).
     Prod(ReduceOpIr),
     /// Operation corresponding to:
     ///
-    /// Float => [prod dim](burn_tensor::ops::FloatTensorOps::float_prod_dim).
-    /// Int => [prod dim](burn_tensor::ops::IntTensorOps::int_prod_dim).
+    /// Float => [prod dim](burn_backend::ops::FloatTensorOps::float_prod_dim).
+    /// Int => [prod dim](burn_backend::ops::IntTensorOps::int_prod_dim).
     ProdDim(ReduceDimOpIr),
     /// Operation corresponding to:
     ///
-    /// Float => [equal elem](burn_tensor::ops::FloatTensorOps::float_equal_elem).
-    /// Int => [equal elem](burn_tensor::ops::IntTensorOps::int_equal_elem).
-    EqualElem(ScalarOpIr),
-    /// Operation corresponding to:
-    ///
-    /// Float => [greater](burn_tensor::ops::FloatTensorOps::float_greater).
-    /// Int => [greater](burn_tensor::ops::IntTensorOps::int_greater).
+    /// Float => [greater](burn_backend::ops::FloatTensorOps::float_greater).
+    /// Int => [greater](burn_backend::ops::IntTensorOps::int_greater).
     Greater(BinaryOpIr),
     /// Operation corresponding to:
     ///
-    /// Float => [greater elem](burn_tensor::ops::FloatTensorOps::float_greater_elem).
-    /// Int => [greater elem](burn_tensor::ops::IntTensorOps::int_greater_elem).
+    /// Float => [greater elem](burn_backend::ops::FloatTensorOps::float_greater_elem).
+    /// Int => [greater elem](burn_backend::ops::IntTensorOps::int_greater_elem).
     GreaterElem(ScalarOpIr),
     /// Operation corresponding to:
     ///
-    /// Float => [greater equal](burn_tensor::ops::FloatTensorOps::float_greater_elem).
-    /// Int => [greater elem](burn_tensor::ops::IntTensorOps::int_greater_elem).
+    /// Float => [greater equal](burn_backend::ops::FloatTensorOps::float_greater_elem).
+    /// Int => [greater elem](burn_backend::ops::IntTensorOps::int_greater_elem).
     GreaterEqual(BinaryOpIr),
     /// Operation corresponding to:
     ///
-    /// Float => [greater equal elem](burn_tensor::ops::FloatTensorOps::float_greater_equal_elem).
-    /// Int => [greater equal elem](burn_tensor::ops::IntTensorOps::int_greater_equal_elem).
+    /// Float => [greater equal elem](burn_backend::ops::FloatTensorOps::float_greater_equal_elem).
+    /// Int => [greater equal elem](burn_backend::ops::IntTensorOps::int_greater_equal_elem).
     GreaterEqualElem(ScalarOpIr),
     /// Operation corresponding to:
     ///
-    /// Float => [lower](burn_tensor::ops::FloatTensorOps::float_lower).
-    /// Int => [lower](burn_tensor::ops::IntTensorOps::int_lower).
+    /// Float => [lower](burn_backend::ops::FloatTensorOps::float_lower).
+    /// Int => [lower](burn_backend::ops::IntTensorOps::int_lower).
     Lower(BinaryOpIr),
     /// Operation corresponding to:
     ///
-    /// Float => [lower elem](burn_tensor::ops::FloatTensorOps::float_lower_elem).
-    /// Int => [lower elem](burn_tensor::ops::IntTensorOps::int_lower_elem).
+    /// Float => [lower elem](burn_backend::ops::FloatTensorOps::float_lower_elem).
+    /// Int => [lower elem](burn_backend::ops::IntTensorOps::int_lower_elem).
     LowerElem(ScalarOpIr),
     /// Operation corresponding to:
     ///
-    /// Float => [lower equal](burn_tensor::ops::FloatTensorOps::float_lower_equal).
-    /// Int => [lower equal](burn_tensor::ops::IntTensorOps::int_lower_equal).
+    /// Float => [lower equal](burn_backend::ops::FloatTensorOps::float_lower_equal).
+    /// Int => [lower equal](burn_backend::ops::IntTensorOps::int_lower_equal).
     LowerEqual(BinaryOpIr),
     /// Operation corresponding to:
     ///
-    /// Float => [lower equal elem](burn_tensor::ops::FloatTensorOps::float_lower_equal_elem).
-    /// Int => [lower equal elem](burn_tensor::ops::IntTensorOps::int_lower_equal_elem).
+    /// Float => [lower equal elem](burn_backend::ops::FloatTensorOps::float_lower_equal_elem).
+    /// Int => [lower equal elem](burn_backend::ops::IntTensorOps::int_lower_equal_elem).
     LowerEqualElem(ScalarOpIr),
     /// Operation corresponding to:
     ///
-    /// Float => [argmax](burn_tensor::ops::FloatTensorOps::float_argmax).
-    /// Int => [argmax](burn_tensor::ops::IntTensorOps::int_argmax).
+    /// Float => [argmax](burn_backend::ops::FloatTensorOps::float_argmax).
+    /// Int => [argmax](burn_backend::ops::IntTensorOps::int_argmax).
     ArgMax(ReduceDimOpIr),
     /// Operation corresponding to:
     ///
-    /// Float => [argmin](burn_tensor::ops::FloatTensorOps::float_argmin).
-    /// Int => [argmin](burn_tensor::ops::IntTensorOps::int_argmin).
+    /// Float => [argmin](burn_backend::ops::FloatTensorOps::float_argmin).
+    /// Int => [argmin](burn_backend::ops::IntTensorOps::int_argmin).
     ArgMin(ReduceDimOpIr),
     /// Operation corresponding to:
     ///
-    /// Float => [max](burn_tensor::ops::FloatTensorOps::float_max).
-    /// Int => [max](burn_tensor::ops::IntTensorOps::int_max).
+    /// Float => [max](burn_backend::ops::FloatTensorOps::float_max).
+    /// Int => [max](burn_backend::ops::IntTensorOps::int_max).
     Max(ReduceOpIr),
     /// Operation corresponding to:
     ///
-    /// Float => [max dim with indices](burn_tensor::ops::FloatTensorOps::float_max_dim_with_indices).
-    /// Int => [max dim with indices](burn_tensor::ops::IntTensorOps::int_max_dim_with_indices).
+    /// Float => [max dim with indices](burn_backend::ops::FloatTensorOps::float_max_dim_with_indices).
+    /// Int => [max dim with indices](burn_backend::ops::IntTensorOps::int_max_dim_with_indices).
     MaxDimWithIndices(ReduceDimWithIndicesOpIr),
     /// Operation corresponding to:
     ///
-    /// Float => [min dim with indices](burn_tensor::ops::FloatTensorOps::float_min_dim_with_indices).
-    /// Int => [min dim with indices](burn_tensor::ops::IntTensorOps::int_min_dim_with_indices).
+    /// Float => [min dim with indices](burn_backend::ops::FloatTensorOps::float_min_dim_with_indices).
+    /// Int => [min dim with indices](burn_backend::ops::IntTensorOps::int_min_dim_with_indices).
     MinDimWithIndices(ReduceDimWithIndicesOpIr),
     /// Operation corresponding to:
     ///
-    /// Float => [min](burn_tensor::ops::FloatTensorOps::float_min).
-    /// Int => [min](burn_tensor::ops::IntTensorOps::int_min).
+    /// Float => [min](burn_backend::ops::FloatTensorOps::float_min).
+    /// Int => [min](burn_backend::ops::IntTensorOps::int_min).
     Min(ReduceOpIr),
     /// Operation corresponding to:
     ///
-    /// Float => [max dim](burn_tensor::ops::FloatTensorOps::float_max_dim).
-    /// Int => [max dim](burn_tensor::ops::IntTensorOps::int_max_dim).
+    /// Float => [max dim](burn_backend::ops::FloatTensorOps::float_max_dim).
+    /// Int => [max dim](burn_backend::ops::IntTensorOps::int_max_dim).
     MaxDim(ReduceDimOpIr),
     /// Operation corresponding to:
     ///
-    /// Float => [min dim](burn_tensor::ops::FloatTensorOps::float_min_dim).
-    /// Int => [min dim](burn_tensor::ops::IntTensorOps::int_min_dim).
+    /// Float => [min dim](burn_backend::ops::FloatTensorOps::float_min_dim).
+    /// Int => [min dim](burn_backend::ops::IntTensorOps::int_min_dim).
     MinDim(ReduceDimOpIr),
     /// Operation corresponding to:
     ///
-    /// Float => [max_abs](burn_tensor::ops::FloatTensorOps::float_max_abs).
-    /// Int => [max_abs](burn_tensor::ops::IntTensorOps::int_max_abs).
+    /// Float => [max_abs](burn_backend::ops::FloatTensorOps::float_max_abs).
+    /// Int => [max_abs](burn_backend::ops::IntTensorOps::int_max_abs).
     MaxAbs(ReduceOpIr),
     /// Operation corresponding to:
     ///
-    /// Float => [max_abs dim](burn_tensor::ops::FloatTensorOps::float_max_abs_dim).
-    /// Int => [max_abs dim](burn_tensor::ops::IntTensorOps::int_max_abs_dim).
+    /// Float => [max_abs dim](burn_backend::ops::FloatTensorOps::float_max_abs_dim).
+    /// Int => [max_abs dim](burn_backend::ops::IntTensorOps::int_max_abs_dim).
     MaxAbsDim(ReduceDimOpIr),
     /// Operation corresponding to:
     ///
-    /// Float => [clamp](burn_tensor::ops::FloatTensorOps::float_clamp).
-    /// Int => [clamp](burn_tensor::ops::IntTensorOps::int_clamp).
+    /// Float => [clamp](burn_backend::ops::FloatTensorOps::float_clamp).
+    /// Int => [clamp](burn_backend::ops::IntTensorOps::int_clamp).
     Clamp(ClampOpIr),
     /// Operation corresponding to:
     ///
-    /// Int => [random](burn_tensor::ops::IntTensorOps::int_random).
+    /// Int => [random](burn_backend::ops::IntTensorOps::int_random).
     IntRandom(RandomOpIr),
     /// Operation corresponding to:
     ///
-    /// Float => [powf](burn_tensor::ops::FloatTensorOps::float_powf).
-    /// Int => [powf](burn_tensor::ops::IntTensorOps::int_powf).
+    /// Float => [powf](burn_backend::ops::FloatTensorOps::float_powf).
+    /// Int => [powf](burn_backend::ops::IntTensorOps::int_powf).
     Powf(BinaryOpIr),
     /// Operation corresponding to:
     ///
-    /// Float => [cumsum](burn_tensor::ops::FloatTensorOps::float_cumsum).
-    /// Int => [cumsum](burn_tensor::ops::IntTensorOps::int_cumsum).
+    /// Float => [cumsum](burn_backend::ops::FloatTensorOps::float_cumsum).
+    /// Int => [cumsum](burn_backend::ops::IntTensorOps::int_cumsum).
     CumSum(DimOpIr),
     /// Operation corresponding to:
     ///
-    /// Float => [cumprod](burn_tensor::ops::FloatTensorOps::float_cumprod).
-    /// Int => [cumprod](burn_tensor::ops::IntTensorOps::int_cumprod).
+    /// Float => [cumprod](burn_backend::ops::FloatTensorOps::float_cumprod).
+    /// Int => [cumprod](burn_backend::ops::IntTensorOps::int_cumprod).
     CumProd(DimOpIr),
     /// Operation corresponding to:
     ///
-    /// Float => [cummin](burn_tensor::ops::FloatTensorOps::float_cummin).
-    /// Int => [cummin](burn_tensor::ops::IntTensorOps::int_cummin).
+    /// Float => [cummin](burn_backend::ops::FloatTensorOps::float_cummin).
+    /// Int => [cummin](burn_backend::ops::IntTensorOps::int_cummin).
     CumMin(DimOpIr),
     /// Operation corresponding to:
     ///
-    /// Float => [cummax](burn_tensor::ops::FloatTensorOps::float_cummax).
-    /// Int => [cummax](burn_tensor::ops::IntTensorOps::int_cummax).
+    /// Float => [cummax](burn_backend::ops::FloatTensorOps::float_cummax).
+    /// Int => [cummax](burn_backend::ops::IntTensorOps::int_cummax).
     CumMax(DimOpIr),
 }
 
 /// Operation intermediate representation specific to an int tensor.
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 pub enum IntOperationIr {
-    /// Operation corresponding to [into float](burn_tensor::ops::IntTensorOps::int_into_float).
+    /// Operation corresponding to [into float](burn_backend::ops::IntTensorOps::int_into_float).
     IntoFloat(CastOpIr),
     /// Operation corresponding to:
     ///
-    /// Int => [bitwise and](burn_tensor::ops::IntTensorOps::bitwise_and).
+    /// Int => [bitwise and](burn_backend::ops::IntTensorOps::bitwise_and).
     BitwiseAnd(BinaryOpIr),
     /// Operation corresponding to:
     ///
-    /// Int => [bitwise and scalar](burn_tensor::ops::IntTensorOps::bitwise_and_scalar).
+    /// Int => [bitwise and scalar](burn_backend::ops::IntTensorOps::bitwise_and_scalar).
     BitwiseAndScalar(ScalarOpIr),
     /// Operation corresponding to:
     ///
-    /// Int => [bitwise or](burn_tensor::ops::IntTensorOps::bitwise_or).
+    /// Int => [bitwise or](burn_backend::ops::IntTensorOps::bitwise_or).
     BitwiseOr(BinaryOpIr),
     /// Operation corresponding to:
     ///
-    /// Int => [bitwise or scalar](burn_tensor::ops::IntTensorOps::bitwise_or_scalar).
+    /// Int => [bitwise or scalar](burn_backend::ops::IntTensorOps::bitwise_or_scalar).
     BitwiseOrScalar(ScalarOpIr),
     /// Operation corresponding to:
     ///
-    /// Int => [bitwise xor](burn_tensor::ops::IntTensorOps::bitwise_xor).
+    /// Int => [bitwise xor](burn_backend::ops::IntTensorOps::bitwise_xor).
     BitwiseXor(BinaryOpIr),
     /// Operation corresponding to:
     ///
-    /// Int => [bitwise xor scalar](burn_tensor::ops::IntTensorOps::bitwise_xor_scalar).
+    /// Int => [bitwise xor scalar](burn_backend::ops::IntTensorOps::bitwise_xor_scalar).
     BitwiseXorScalar(ScalarOpIr),
     /// Operation corresponding to:
     ///
-    /// Int => [bitwise not](burn_tensor::ops::IntTensorOps::bitwise_not).
+    /// Int => [bitwise not](burn_backend::ops::IntTensorOps::bitwise_not).
     BitwiseNot(UnaryOpIr),
     /// Operation corresponding to:
     ///
-    /// Int => [bitwise left shift](burn_tensor::ops::IntTensorOps::bitwise_left_shift).
+    /// Int => [bitwise left shift](burn_backend::ops::IntTensorOps::bitwise_left_shift).
     BitwiseLeftShift(BinaryOpIr),
     /// Operation corresponding to:
     ///
-    /// Int => [bitwise left shift scalar](burn_tensor::ops::IntTensorOps::bitwise_left_shift_scalar).
+    /// Int => [bitwise left shift scalar](burn_backend::ops::IntTensorOps::bitwise_left_shift_scalar).
     BitwiseLeftShiftScalar(ScalarOpIr),
     /// Operation corresponding to:
     ///
-    /// Int => [bitwise right shift](burn_tensor::ops::IntTensorOps::bitwise_right_shift).
+    /// Int => [bitwise right shift](burn_backend::ops::IntTensorOps::bitwise_right_shift).
     BitwiseRightShift(BinaryOpIr),
     /// Operation corresponding to:
     ///
-    /// Int => [bitwise right shift scalar](burn_tensor::ops::IntTensorOps::bitwise_right_shift_scalar).
+    /// Int => [bitwise right shift scalar](burn_backend::ops::IntTensorOps::bitwise_right_shift_scalar).
     BitwiseRightShiftScalar(ScalarOpIr),
-    /// Operation corresponding to [matmul](burn_tensor::ops::IntTensorOps::int_matmul).
+    /// Operation corresponding to [matmul](burn_backend::ops::IntTensorOps::int_matmul).
     Matmul(MatmulOpIr),
 }
 
 /// Operation intermediate representation specific to a bool tensor.
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 pub enum BoolOperationIr {
-    /// Operation corresponding to [into float](burn_tensor::ops::BoolTensorOps::bool_into_float).
+    /// Operation corresponding to [into float](burn_backend::ops::BoolTensorOps::bool_into_float).
     IntoFloat(CastOpIr),
-    /// Operation corresponding to [into int](burn_tensor::ops::BoolTensorOps::bool_into_int).
+    /// Operation corresponding to [into int](burn_backend::ops::BoolTensorOps::bool_into_int).
     IntoInt(CastOpIr),
-    /// Operation corresponding to [not](burn_tensor::ops::BoolTensorOps::bool_not).
+    /// Operation corresponding to [not](burn_backend::ops::BoolTensorOps::bool_not).
     Not(UnaryOpIr),
-    /// Operation corresponding to [and](burn_tensor::ops::BoolTensorOps::bool_and).
+    /// Operation corresponding to [and](burn_backend::ops::BoolTensorOps::bool_and).
     And(BinaryOpIr),
-    /// Operation corresponding to [or](burn_tensor::ops::BoolTensorOps::bool_or).
+    /// Operation corresponding to [or](burn_backend::ops::BoolTensorOps::bool_or).
     Or(BinaryOpIr),
 }
 
@@ -804,6 +853,7 @@ pub struct ScatterOpIr {
     pub dim: usize,
     pub indices: TensorIr,
     pub value: TensorIr,
+    pub update: IndexingUpdateOp,
     pub out: TensorIr,
 }
 
@@ -823,6 +873,7 @@ pub struct SelectAssignOpIr {
     pub dim: usize,
     pub indices: TensorIr,
     pub value: TensorIr,
+    pub update: IndexingUpdateOp,
     pub out: TensorIr,
 }
 
@@ -838,7 +889,7 @@ pub struct SliceOpIr {
 #[allow(missing_docs)]
 pub struct SliceAssignOpIr {
     pub tensor: TensorIr,
-    pub ranges: Vec<burn_tensor::Slice>,
+    pub ranges: Vec<burn_backend::Slice>,
     pub value: TensorIr,
     pub out: TensorIr,
 }
@@ -925,11 +976,69 @@ pub struct Conv1dOpIr {
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
+pub struct Conv1dXBackwardOpIr {
+    pub x: TensorIr,
+    pub weight: TensorIr,
+    pub output_grad: TensorIr,
+    pub options: Conv1dOptionsIr,
+    pub out: TensorIr,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct Conv1dWeightBackwardOpIr {
+    pub x: TensorIr,
+    pub weight: TensorIr,
+    pub output_grad: TensorIr,
+    pub options: Conv1dOptionsIr,
+    pub out: TensorIr,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct Conv1dBiasBackwardOpIr {
+    pub x: TensorIr,
+    pub bias: TensorIr,
+    pub output_grad: TensorIr,
+    pub out: TensorIr,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
 pub struct Conv2dOpIr {
     pub x: TensorIr,
     pub weight: TensorIr,
     pub bias: Option<TensorIr>,
     pub options: Conv2dOptionsIr,
+    pub out: TensorIr,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct Conv2dXBackwardOpIr {
+    pub x: TensorIr,
+    pub weight: TensorIr,
+    pub output_grad: TensorIr,
+    pub options: Conv2dOptionsIr,
+    pub out: TensorIr,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct Conv2dWeightBackwardOpIr {
+    pub x: TensorIr,
+    pub weight: TensorIr,
+    pub output_grad: TensorIr,
+    pub options: Conv2dOptionsIr,
+    pub out: TensorIr,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct Conv2dBiasBackwardOpIr {
+    pub x: TensorIr,
+    pub bias: TensorIr,
+    pub output_grad: TensorIr,
     pub out: TensorIr,
 }
 
@@ -969,6 +1078,35 @@ pub struct Conv3dOpIr {
     pub weight: TensorIr,
     pub bias: Option<TensorIr>,
     pub options: Conv3dOptionsIr,
+    pub out: TensorIr,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct Conv3dXBackwardOpIr {
+    pub x: TensorIr,
+    pub weight: TensorIr,
+    pub output_grad: TensorIr,
+    pub options: Conv3dOptionsIr,
+    pub out: TensorIr,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct Conv3dWeightBackwardOpIr {
+    pub x: TensorIr,
+    pub weight: TensorIr,
+    pub output_grad: TensorIr,
+    pub options: Conv3dOptionsIr,
+    pub out: TensorIr,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct Conv3dBiasBackwardOpIr {
+    pub x: TensorIr,
+    pub bias: TensorIr,
+    pub output_grad: TensorIr,
     pub out: TensorIr,
 }
 
@@ -1262,6 +1400,7 @@ pub struct AvgPool1dOpIr {
     pub stride: usize,
     pub padding: usize,
     pub count_include_pad: bool,
+    pub ceil_mode: bool,
     pub out: TensorIr,
 }
 
@@ -1273,6 +1412,7 @@ pub struct AvgPool2dOpIr {
     pub stride: [usize; 2],
     pub padding: [usize; 2],
     pub count_include_pad: bool,
+    pub ceil_mode: bool,
     pub out: TensorIr,
 }
 
@@ -1285,6 +1425,7 @@ pub struct AvgPool1dBackwardOpIr {
     pub stride: usize,
     pub padding: usize,
     pub count_include_pad: bool,
+    pub ceil_mode: bool,
     pub out: TensorIr,
 }
 
@@ -1297,6 +1438,7 @@ pub struct AvgPool2dBackwardOpIr {
     pub stride: [usize; 2],
     pub padding: [usize; 2],
     pub count_include_pad: bool,
+    pub ceil_mode: bool,
     pub out: TensorIr,
 }
 
@@ -1340,6 +1482,7 @@ pub struct MaxPool1dOpIr {
     pub stride: usize,
     pub padding: usize,
     pub dilation: usize,
+    pub ceil_mode: bool,
     pub out: TensorIr,
 }
 
@@ -1351,6 +1494,7 @@ pub struct MaxPool1dWithIndicesOpIr {
     pub stride: usize,
     pub padding: usize,
     pub dilation: usize,
+    pub ceil_mode: bool,
     pub out: TensorIr,
     pub out_indices: TensorIr,
 }
@@ -1365,6 +1509,7 @@ pub struct MaxPool1dWithIndicesBackwardOpIr {
     pub stride: usize,
     pub padding: usize,
     pub dilation: usize,
+    pub ceil_mode: bool,
     pub out: TensorIr,
 }
 
@@ -1376,6 +1521,7 @@ pub struct MaxPool2dOpIr {
     pub stride: [usize; 2],
     pub padding: [usize; 2],
     pub dilation: [usize; 2],
+    pub ceil_mode: bool,
     pub out: TensorIr,
 }
 
@@ -1387,6 +1533,7 @@ pub struct MaxPool2dWithIndicesOpIr {
     pub stride: [usize; 2],
     pub padding: [usize; 2],
     pub dilation: [usize; 2],
+    pub ceil_mode: bool,
     pub out: TensorIr,
     pub out_indices: TensorIr,
 }
@@ -1401,6 +1548,7 @@ pub struct MaxPool2dWithIndicesBackwardOpIr {
     pub stride: [usize; 2],
     pub padding: [usize; 2],
     pub dilation: [usize; 2],
+    pub ceil_mode: bool,
     pub out: TensorIr,
 }
 
@@ -1471,6 +1619,71 @@ pub struct InterpolateBackwardOpIr {
     pub output_size: [usize; 2],
     pub options: InterpolateOptionsIr,
     pub out: TensorIr,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub enum GridSamplePaddingModeIr {
+    Zeros,
+    Border,
+    Reflection,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct GridSampleOptionsIr {
+    pub mode: InterpolateModeIr,
+    pub padding_mode: GridSamplePaddingModeIr,
+    pub align_corners: bool,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct GridSample2dOpIr {
+    pub tensor: TensorIr,
+    pub grid: TensorIr,
+    pub options: GridSampleOptionsIr,
+    pub out: TensorIr,
+}
+
+impl From<GridSamplePaddingModeIr> for GridSamplePaddingMode {
+    fn from(val: GridSamplePaddingModeIr) -> Self {
+        match val {
+            GridSamplePaddingModeIr::Zeros => Self::Zeros,
+            GridSamplePaddingModeIr::Border => Self::Border,
+            GridSamplePaddingModeIr::Reflection => Self::Reflection,
+        }
+    }
+}
+
+impl From<GridSamplePaddingMode> for GridSamplePaddingModeIr {
+    fn from(val: GridSamplePaddingMode) -> Self {
+        match val {
+            GridSamplePaddingMode::Zeros => Self::Zeros,
+            GridSamplePaddingMode::Border => Self::Border,
+            GridSamplePaddingMode::Reflection => Self::Reflection,
+        }
+    }
+}
+
+impl From<GridSampleOptionsIr> for GridSampleOptions {
+    fn from(val: GridSampleOptionsIr) -> Self {
+        Self {
+            mode: val.mode.into(),
+            padding_mode: val.padding_mode.into(),
+            align_corners: val.align_corners,
+        }
+    }
+}
+
+impl From<GridSampleOptions> for GridSampleOptionsIr {
+    fn from(val: GridSampleOptions) -> Self {
+        Self {
+            mode: val.mode.into(),
+            padding_mode: val.padding_mode.into(),
+            align_corners: val.align_corners,
+        }
+    }
 }
 
 impl OperationIr {
@@ -1559,7 +1772,20 @@ impl BaseOperationIr {
             BaseOperationIr::Flip(repr) => Box::new([&repr.input].into_iter()),
             BaseOperationIr::Slice(repr) => Box::new([&repr.tensor].into_iter()),
             BaseOperationIr::SliceAssign(repr) => Box::new([&repr.tensor, &repr.value].into_iter()),
+            BaseOperationIr::Gather(repr) => Box::new([&repr.tensor, &repr.indices].into_iter()),
+            BaseOperationIr::Scatter(repr) => {
+                Box::new([&repr.tensor, &repr.indices, &repr.value].into_iter())
+            }
+            BaseOperationIr::Select(repr) => Box::new([&repr.tensor, &repr.indices].into_iter()),
+            BaseOperationIr::SelectAssign(repr) => {
+                Box::new([&repr.tensor, &repr.indices, &repr.value].into_iter())
+            }
+            BaseOperationIr::MaskWhere(repr) => {
+                Box::new([&repr.tensor, &repr.mask, &repr.value].into_iter())
+            }
+            BaseOperationIr::MaskFill(repr) => Box::new([&repr.tensor, &repr.mask].into_iter()),
             BaseOperationIr::Equal(repr) => Box::new([&repr.lhs, &repr.rhs].into_iter()),
+            BaseOperationIr::EqualElem(repr) => Box::new([&repr.lhs].into_iter()),
             BaseOperationIr::RepeatDim(repr) => Box::new([&repr.tensor].into_iter()),
             BaseOperationIr::Cat(repr) => Box::new(repr.tensors.iter()),
             BaseOperationIr::Cast(repr) => Box::new([&repr.input].into_iter()),
@@ -1579,7 +1805,14 @@ impl BaseOperationIr {
             BaseOperationIr::Flip(repr) => Box::new([&repr.out].into_iter()),
             BaseOperationIr::Slice(repr) => Box::new([&repr.out].into_iter()),
             BaseOperationIr::SliceAssign(repr) => Box::new([&repr.out].into_iter()),
+            BaseOperationIr::Gather(repr) => Box::new([&repr.out].into_iter()),
+            BaseOperationIr::Scatter(repr) => Box::new([&repr.out].into_iter()),
+            BaseOperationIr::Select(repr) => Box::new([&repr.out].into_iter()),
+            BaseOperationIr::SelectAssign(repr) => Box::new([&repr.out].into_iter()),
+            BaseOperationIr::MaskWhere(repr) => Box::new([&repr.out].into_iter()),
+            BaseOperationIr::MaskFill(repr) => Box::new([&repr.out].into_iter()),
             BaseOperationIr::Equal(repr) => Box::new([&repr.out].into_iter()),
+            BaseOperationIr::EqualElem(repr) => Box::new([&repr.out].into_iter()),
             BaseOperationIr::RepeatDim(repr) => Box::new([&repr.out].into_iter()),
             BaseOperationIr::Cat(repr) => Box::new([&repr.out].into_iter()),
             BaseOperationIr::Cast(repr) => Box::new([&repr.out].into_iter()),
@@ -1618,9 +1851,39 @@ impl BaseOperationIr {
                 repr.tensor.mark_read_only(nodes, &mut output);
                 repr.value.mark_read_only(nodes, &mut output);
             }
+            BaseOperationIr::Gather(repr) => {
+                repr.tensor.mark_read_only(nodes, &mut output);
+                repr.indices.mark_read_only(nodes, &mut output);
+            }
+            BaseOperationIr::Scatter(repr) => {
+                repr.tensor.mark_read_only(nodes, &mut output);
+                repr.indices.mark_read_only(nodes, &mut output);
+                repr.value.mark_read_only(nodes, &mut output);
+            }
+            BaseOperationIr::Select(repr) => {
+                repr.tensor.mark_read_only(nodes, &mut output);
+                repr.indices.mark_read_only(nodes, &mut output);
+            }
+            BaseOperationIr::SelectAssign(repr) => {
+                repr.tensor.mark_read_only(nodes, &mut output);
+                repr.indices.mark_read_only(nodes, &mut output);
+                repr.value.mark_read_only(nodes, &mut output);
+            }
+            BaseOperationIr::MaskWhere(repr) => {
+                repr.tensor.mark_read_only(nodes, &mut output);
+                repr.mask.mark_read_only(nodes, &mut output);
+                repr.value.mark_read_only(nodes, &mut output);
+            }
+            BaseOperationIr::MaskFill(repr) => {
+                repr.tensor.mark_read_only(nodes, &mut output);
+                repr.mask.mark_read_only(nodes, &mut output);
+            }
             BaseOperationIr::Equal(repr) => {
                 repr.lhs.mark_read_only(nodes, &mut output);
                 repr.rhs.mark_read_only(nodes, &mut output);
+            }
+            BaseOperationIr::EqualElem(repr) => {
+                repr.lhs.mark_read_only(nodes, &mut output);
             }
             BaseOperationIr::RepeatDim(repr) => {
                 repr.tensor.mark_read_only(nodes, &mut output);
@@ -1658,19 +1921,6 @@ impl NumericOperationIr {
             NumericOperationIr::DivScalar(repr) => Box::new([&repr.lhs].into_iter()),
             NumericOperationIr::Rem(repr) => Box::new([&repr.lhs, &repr.rhs].into_iter()),
             NumericOperationIr::RemScalar(repr) => Box::new([&repr.lhs].into_iter()),
-            NumericOperationIr::Gather(repr) => Box::new([&repr.tensor, &repr.indices].into_iter()),
-            NumericOperationIr::Scatter(repr) => {
-                Box::new([&repr.tensor, &repr.indices, &repr.value].into_iter())
-            }
-            NumericOperationIr::Select(repr) => Box::new([&repr.tensor, &repr.indices].into_iter()),
-            NumericOperationIr::SelectAssign(repr) => {
-                Box::new([&repr.tensor, &repr.indices, &repr.value].into_iter())
-            }
-            NumericOperationIr::MaskWhere(repr) => {
-                Box::new([&repr.tensor, &repr.mask, &repr.value].into_iter())
-            }
-            NumericOperationIr::MaskFill(repr) => Box::new([&repr.tensor, &repr.mask].into_iter()),
-            NumericOperationIr::EqualElem(repr) => Box::new([&repr.lhs].into_iter()),
             NumericOperationIr::GreaterElem(repr) => Box::new([&repr.lhs].into_iter()),
             NumericOperationIr::GreaterEqualElem(repr) => Box::new([&repr.lhs].into_iter()),
             NumericOperationIr::LowerElem(repr) => Box::new([&repr.lhs].into_iter()),
@@ -1719,13 +1969,6 @@ impl NumericOperationIr {
             NumericOperationIr::DivScalar(repr) => Box::new([&repr.out].into_iter()),
             NumericOperationIr::Rem(repr) => Box::new([&repr.out].into_iter()),
             NumericOperationIr::RemScalar(repr) => Box::new([&repr.out].into_iter()),
-            NumericOperationIr::Gather(repr) => Box::new([&repr.out].into_iter()),
-            NumericOperationIr::Scatter(repr) => Box::new([&repr.out].into_iter()),
-            NumericOperationIr::Select(repr) => Box::new([&repr.out].into_iter()),
-            NumericOperationIr::SelectAssign(repr) => Box::new([&repr.out].into_iter()),
-            NumericOperationIr::MaskWhere(repr) => Box::new([&repr.out].into_iter()),
-            NumericOperationIr::MaskFill(repr) => Box::new([&repr.out].into_iter()),
-            NumericOperationIr::EqualElem(repr) => Box::new([&repr.out].into_iter()),
             NumericOperationIr::GreaterElem(repr) => Box::new([&repr.out].into_iter()),
             NumericOperationIr::GreaterEqualElem(repr) => Box::new([&repr.out].into_iter()),
             NumericOperationIr::LowerElem(repr) => Box::new([&repr.out].into_iter()),
@@ -1802,36 +2045,6 @@ impl NumericOperationIr {
                 repr.rhs.mark_read_only(nodes, &mut output);
             }
             NumericOperationIr::RemScalar(repr) => {
-                repr.lhs.mark_read_only(nodes, &mut output);
-            }
-            NumericOperationIr::Gather(repr) => {
-                repr.tensor.mark_read_only(nodes, &mut output);
-                repr.indices.mark_read_only(nodes, &mut output);
-            }
-            NumericOperationIr::Scatter(repr) => {
-                repr.tensor.mark_read_only(nodes, &mut output);
-                repr.indices.mark_read_only(nodes, &mut output);
-                repr.value.mark_read_only(nodes, &mut output);
-            }
-            NumericOperationIr::Select(repr) => {
-                repr.tensor.mark_read_only(nodes, &mut output);
-                repr.indices.mark_read_only(nodes, &mut output);
-            }
-            NumericOperationIr::SelectAssign(repr) => {
-                repr.tensor.mark_read_only(nodes, &mut output);
-                repr.indices.mark_read_only(nodes, &mut output);
-                repr.value.mark_read_only(nodes, &mut output);
-            }
-            NumericOperationIr::MaskWhere(repr) => {
-                repr.tensor.mark_read_only(nodes, &mut output);
-                repr.mask.mark_read_only(nodes, &mut output);
-                repr.value.mark_read_only(nodes, &mut output);
-            }
-            NumericOperationIr::MaskFill(repr) => {
-                repr.tensor.mark_read_only(nodes, &mut output);
-                repr.mask.mark_read_only(nodes, &mut output);
-            }
-            NumericOperationIr::EqualElem(repr) => {
                 repr.lhs.mark_read_only(nodes, &mut output);
             }
             NumericOperationIr::GreaterElem(repr) => {
@@ -1967,6 +2180,19 @@ impl FloatOperationIr {
             FloatOperationIr::Dequantize(repr) => Box::new([&repr.input].into_iter()),
             FloatOperationIr::IsNan(repr) => Box::new([&repr.input].into_iter()),
             FloatOperationIr::IsInf(repr) => Box::new([&repr.input].into_iter()),
+            FloatOperationIr::GridSample2d(repr) => {
+                Box::new([&repr.tensor, &repr.grid].into_iter())
+            }
+            FloatOperationIr::Tan(repr) => Box::new([&repr.input].into_iter()),
+            FloatOperationIr::Cosh(repr) => Box::new([&repr.input].into_iter()),
+            FloatOperationIr::Sinh(repr) => Box::new([&repr.input].into_iter()),
+            FloatOperationIr::ArcCos(repr) => Box::new([&repr.input].into_iter()),
+            FloatOperationIr::ArcCosh(repr) => Box::new([&repr.input].into_iter()),
+            FloatOperationIr::ArcSin(repr) => Box::new([&repr.input].into_iter()),
+            FloatOperationIr::ArcSinh(repr) => Box::new([&repr.input].into_iter()),
+            FloatOperationIr::ArcTan(repr) => Box::new([&repr.input].into_iter()),
+            FloatOperationIr::ArcTanh(repr) => Box::new([&repr.input].into_iter()),
+            FloatOperationIr::ArcTan2(repr) => Box::new([&repr.lhs, &repr.rhs].into_iter()),
         }
     }
     fn outputs(&self) -> Box<dyn Iterator<Item = &TensorIr> + '_> {
@@ -1993,6 +2219,17 @@ impl FloatOperationIr {
             FloatOperationIr::Dequantize(repr) => Box::new([&repr.out].into_iter()),
             FloatOperationIr::IsNan(repr) => Box::new([&repr.out].into_iter()),
             FloatOperationIr::IsInf(repr) => Box::new([&repr.out].into_iter()),
+            FloatOperationIr::GridSample2d(repr) => Box::new([&repr.out].into_iter()),
+            FloatOperationIr::Tan(repr) => Box::new([&repr.out].into_iter()),
+            FloatOperationIr::Cosh(repr) => Box::new([&repr.out].into_iter()),
+            FloatOperationIr::Sinh(repr) => Box::new([&repr.out].into_iter()),
+            FloatOperationIr::ArcCos(repr) => Box::new([&repr.out].into_iter()),
+            FloatOperationIr::ArcCosh(repr) => Box::new([&repr.out].into_iter()),
+            FloatOperationIr::ArcSin(repr) => Box::new([&repr.out].into_iter()),
+            FloatOperationIr::ArcSinh(repr) => Box::new([&repr.out].into_iter()),
+            FloatOperationIr::ArcTan(repr) => Box::new([&repr.out].into_iter()),
+            FloatOperationIr::ArcTanh(repr) => Box::new([&repr.out].into_iter()),
+            FloatOperationIr::ArcTan2(repr) => Box::new([&repr.out].into_iter()),
         }
     }
 
@@ -2066,6 +2303,23 @@ impl FloatOperationIr {
             }
             FloatOperationIr::IsInf(repr) => {
                 repr.input.mark_read_only(nodes, &mut output);
+            }
+            FloatOperationIr::GridSample2d(repr) => {
+                repr.tensor.mark_read_only(nodes, &mut output);
+                repr.grid.mark_read_only(nodes, &mut output);
+            }
+            FloatOperationIr::Tan(repr) => repr.input.mark_read_only(nodes, &mut output),
+            FloatOperationIr::Cosh(repr) => repr.input.mark_read_only(nodes, &mut output),
+            FloatOperationIr::Sinh(repr) => repr.input.mark_read_only(nodes, &mut output),
+            FloatOperationIr::ArcCos(repr) => repr.input.mark_read_only(nodes, &mut output),
+            FloatOperationIr::ArcCosh(repr) => repr.input.mark_read_only(nodes, &mut output),
+            FloatOperationIr::ArcSin(repr) => repr.input.mark_read_only(nodes, &mut output),
+            FloatOperationIr::ArcSinh(repr) => repr.input.mark_read_only(nodes, &mut output),
+            FloatOperationIr::ArcTan(repr) => repr.input.mark_read_only(nodes, &mut output),
+            FloatOperationIr::ArcTanh(repr) => repr.input.mark_read_only(nodes, &mut output),
+            FloatOperationIr::ArcTan2(repr) => {
+                repr.lhs.mark_read_only(nodes, &mut output);
+                repr.rhs.mark_read_only(nodes, &mut output);
             }
         };
 
@@ -2227,6 +2481,15 @@ impl ModuleOperationIr {
                     Box::new([&repr.x, &repr.weight].into_iter())
                 }
             }
+            ModuleOperationIr::Conv1dXBackward(repr) => {
+                Box::new([&repr.x, &repr.weight, &repr.output_grad].into_iter())
+            }
+            ModuleOperationIr::Conv1dWeightBackward(repr) => {
+                Box::new([&repr.x, &repr.weight, &repr.output_grad].into_iter())
+            }
+            ModuleOperationIr::Conv1dBiasBackward(repr) => {
+                Box::new([&repr.x, &repr.bias, &repr.output_grad].into_iter())
+            }
             ModuleOperationIr::Conv2d(repr) => {
                 if let Some(bias) = &repr.bias {
                     Box::new([&repr.x, &repr.weight, bias].into_iter())
@@ -2234,12 +2497,30 @@ impl ModuleOperationIr {
                     Box::new([&repr.x, &repr.weight].into_iter())
                 }
             }
+            ModuleOperationIr::Conv2dXBackward(repr) => {
+                Box::new([&repr.x, &repr.weight, &repr.output_grad].into_iter())
+            }
+            ModuleOperationIr::Conv2dWeightBackward(repr) => {
+                Box::new([&repr.x, &repr.weight, &repr.output_grad].into_iter())
+            }
+            ModuleOperationIr::Conv2dBiasBackward(repr) => {
+                Box::new([&repr.x, &repr.bias, &repr.output_grad].into_iter())
+            }
             ModuleOperationIr::Conv3d(repr) => {
                 if let Some(bias) = &repr.bias {
                     Box::new([&repr.x, &repr.weight, bias].into_iter())
                 } else {
                     Box::new([&repr.x, &repr.weight].into_iter())
                 }
+            }
+            ModuleOperationIr::Conv3dXBackward(repr) => {
+                Box::new([&repr.x, &repr.weight, &repr.output_grad].into_iter())
+            }
+            ModuleOperationIr::Conv3dWeightBackward(repr) => {
+                Box::new([&repr.x, &repr.weight, &repr.output_grad].into_iter())
+            }
+            ModuleOperationIr::Conv3dBiasBackward(repr) => {
+                Box::new([&repr.x, &repr.bias, &repr.output_grad].into_iter())
             }
             ModuleOperationIr::DeformableConv2d(repr) => match (&repr.mask, &repr.bias) {
                 (Some(mask), Some(bias)) => {
@@ -2333,8 +2614,17 @@ impl ModuleOperationIr {
             ModuleOperationIr::Embedding(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::EmbeddingBackward(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::Conv1d(repr) => Box::new([&repr.out].into_iter()),
+            ModuleOperationIr::Conv1dXBackward(repr) => Box::new([&repr.out].into_iter()),
+            ModuleOperationIr::Conv1dWeightBackward(repr) => Box::new([&repr.out].into_iter()),
+            ModuleOperationIr::Conv1dBiasBackward(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::Conv2d(repr) => Box::new([&repr.out].into_iter()),
+            ModuleOperationIr::Conv2dXBackward(repr) => Box::new([&repr.out].into_iter()),
+            ModuleOperationIr::Conv2dWeightBackward(repr) => Box::new([&repr.out].into_iter()),
+            ModuleOperationIr::Conv2dBiasBackward(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::Conv3d(repr) => Box::new([&repr.out].into_iter()),
+            ModuleOperationIr::Conv3dXBackward(repr) => Box::new([&repr.out].into_iter()),
+            ModuleOperationIr::Conv3dWeightBackward(repr) => Box::new([&repr.out].into_iter()),
+            ModuleOperationIr::Conv3dBiasBackward(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::DeformableConv2d(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::DeformableConv2dBackward(repr) => {
                 match (&repr.mask_grad, &repr.bias_grad) {
@@ -2422,6 +2712,21 @@ impl ModuleOperationIr {
                     bias.mark_read_only(nodes, &mut output);
                 }
             }
+            ModuleOperationIr::Conv1dXBackward(repr) => {
+                repr.x.mark_read_only(nodes, &mut output);
+                repr.weight.mark_read_only(nodes, &mut output);
+                repr.output_grad.mark_read_only(nodes, &mut output);
+            }
+            ModuleOperationIr::Conv1dWeightBackward(repr) => {
+                repr.x.mark_read_only(nodes, &mut output);
+                repr.weight.mark_read_only(nodes, &mut output);
+                repr.output_grad.mark_read_only(nodes, &mut output);
+            }
+            ModuleOperationIr::Conv1dBiasBackward(repr) => {
+                repr.x.mark_read_only(nodes, &mut output);
+                repr.bias.mark_read_only(nodes, &mut output);
+                repr.output_grad.mark_read_only(nodes, &mut output);
+            }
             ModuleOperationIr::Conv2d(repr) => {
                 repr.x.mark_read_only(nodes, &mut output);
                 repr.weight.mark_read_only(nodes, &mut output);
@@ -2430,6 +2735,21 @@ impl ModuleOperationIr {
                     bias.mark_read_only(nodes, &mut output);
                 }
             }
+            ModuleOperationIr::Conv2dXBackward(repr) => {
+                repr.x.mark_read_only(nodes, &mut output);
+                repr.weight.mark_read_only(nodes, &mut output);
+                repr.output_grad.mark_read_only(nodes, &mut output);
+            }
+            ModuleOperationIr::Conv2dWeightBackward(repr) => {
+                repr.x.mark_read_only(nodes, &mut output);
+                repr.weight.mark_read_only(nodes, &mut output);
+                repr.output_grad.mark_read_only(nodes, &mut output);
+            }
+            ModuleOperationIr::Conv2dBiasBackward(repr) => {
+                repr.x.mark_read_only(nodes, &mut output);
+                repr.bias.mark_read_only(nodes, &mut output);
+                repr.output_grad.mark_read_only(nodes, &mut output);
+            }
             ModuleOperationIr::Conv3d(repr) => {
                 repr.x.mark_read_only(nodes, &mut output);
                 repr.weight.mark_read_only(nodes, &mut output);
@@ -2437,6 +2757,21 @@ impl ModuleOperationIr {
                 if let Some(bias) = &mut repr.bias {
                     bias.mark_read_only(nodes, &mut output);
                 }
+            }
+            ModuleOperationIr::Conv3dXBackward(repr) => {
+                repr.x.mark_read_only(nodes, &mut output);
+                repr.weight.mark_read_only(nodes, &mut output);
+                repr.output_grad.mark_read_only(nodes, &mut output);
+            }
+            ModuleOperationIr::Conv3dWeightBackward(repr) => {
+                repr.x.mark_read_only(nodes, &mut output);
+                repr.weight.mark_read_only(nodes, &mut output);
+                repr.output_grad.mark_read_only(nodes, &mut output);
+            }
+            ModuleOperationIr::Conv3dBiasBackward(repr) => {
+                repr.x.mark_read_only(nodes, &mut output);
+                repr.bias.mark_read_only(nodes, &mut output);
+                repr.output_grad.mark_read_only(nodes, &mut output);
             }
             ModuleOperationIr::DeformableConv2d(repr) => {
                 repr.x.mark_read_only(nodes, &mut output);

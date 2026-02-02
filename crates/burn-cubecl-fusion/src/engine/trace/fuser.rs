@@ -10,8 +10,8 @@ use super::{FuseTrace, RegisteredTensors};
 use crate::engine::trace::block::QuantInput;
 use burn_fusion::stream::ScalarId;
 use burn_ir::{ScalarIr, TensorId, TensorIr};
-use burn_tensor::DType;
-use cubecl_quant::scheme::QuantParam;
+use burn_std::DType;
+use cubecl::quant::scheme::QuantParam;
 
 #[derive(Clone, Debug)]
 /// It is responsible to create a [trace](FuseTrace) composed of multiple [blocks](super::block::FuseBlock).
@@ -205,7 +205,7 @@ impl TraceFuser {
         &mut self,
         tensor: &TensorIr,
         output: &TensorIr,
-        dims: (u32, u32),
+        dims: (usize, usize),
     ) -> Option<FuseArg> {
         if matches!(tensor.dtype, DType::QFloat(_)) {
             return None;
@@ -227,7 +227,7 @@ impl TraceFuser {
     /// Register a scalar value.
     pub fn scalar(&mut self, elem: &ScalarIr, dtype: DType) -> FuseArg {
         let precision = dtype.into();
-        let id = if let ScalarIr::U64(value) = elem {
+        let id = if let ScalarIr::UInt(value) = elem {
             ScalarId { value: *value }
         } else {
             unreachable!() // should always be u64
@@ -238,7 +238,7 @@ impl TraceFuser {
             FuseType::Bool => self.bool_precision,
             _ => precision,
         };
-        let new_index = self.resources.scalars.len() as u32;
+        let new_index = self.resources.scalars.len();
 
         self.resources.scalars.push((precision, id.value));
         FuseArg::Scalar(new_index, precision)

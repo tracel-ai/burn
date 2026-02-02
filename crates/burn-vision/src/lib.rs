@@ -6,6 +6,7 @@
 //! Currently implemented are:
 //! - `connected_components`
 //! - `connected_components_with_stats`
+//! - `nms` (Non-Maximum Suppression)
 //!
 
 #![warn(missing_docs)]
@@ -18,10 +19,6 @@ mod base;
 mod ops;
 mod tensor;
 mod transform;
-
-#[cfg(feature = "export-tests")]
-#[allow(missing_docs)]
-pub mod tests;
 
 pub use base::*;
 pub use ops::*;

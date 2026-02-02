@@ -96,7 +96,7 @@ pub use traits::{ModuleSnapshot, ModuleStore};
 #[cfg(feature = "std")]
 mod keyremapper;
 #[cfg(feature = "std")]
-pub use keyremapper::KeyRemapper;
+pub use keyremapper::{KeyRemapper, map_indices_contiguous};
 
 #[cfg(feature = "pytorch")]
 pub mod pytorch;
@@ -112,3 +112,5 @@ pub use safetensors::{SafetensorsStore, SafetensorsStoreError};
 mod burnpack;
 #[cfg(feature = "burnpack")]
 pub use burnpack::store::BurnpackStore;
+#[cfg(feature = "burnpack")]
+pub use burnpack::writer::BurnpackWriter;

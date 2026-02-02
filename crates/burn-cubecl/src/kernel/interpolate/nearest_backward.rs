@@ -15,7 +15,7 @@ use crate::{
 fn interpolate_nearest_backward_kernel<F: Float>(
     grad: &Tensor<Line<F>>,
     output: &mut Tensor<Line<F>>,
-    shape_out: Sequence<FastDivmod>,
+    shape_out: Sequence<FastDivmod<usize>>,
     out_layout: LinearLayout,
     #[define(F)] _dtype: StorageType,
 ) {
@@ -31,9 +31,9 @@ fn interpolate_nearest_backward_kernel<F: Float>(
     let grad_h = grad.shape(1);
     let grad_w = grad.shape(2);
 
-    let (rem, c) = shape_out.index(3).div_mod(ABSOLUTE_POS * line_size);
-    let (rem, out_x) = shape_out.index(2).div_mod(rem);
-    let (b, out_y) = shape_out.index(1).div_mod(rem);
+    let (rem, c) = shape_out[3].div_mod(ABSOLUTE_POS * line_size);
+    let (rem, out_x) = shape_out[2].div_mod(rem);
+    let (b, out_y) = shape_out[1].div_mod(rem);
 
     let grad_y_start = start_index::<F>(out_y, grad_h, out_h);
     let grad_y_end = end_index::<F>(out_y, grad_h, out_h);
@@ -56,20 +56,20 @@ fn interpolate_nearest_backward_kernel<F: Float>(
 }
 
 #[cube]
-fn start_index<F: Float>(input_index: u32, output_size: u32, input_size: u32) -> u32 {
+fn start_index<F: Float>(input_index: usize, output_size: usize, input_size: usize) -> usize {
     let numerator = F::cast_from(input_index * output_size);
-    let div: F = Ceil::ceil(numerator / F::cast_from(input_size));
+    let div = (numerator / F::cast_from(input_size)).ceil();
 
-    u32::cast_from(div)
+    usize::cast_from(div)
 }
 
 #[cube]
-fn end_index<F: Float>(input_index: u32, output_size: u32, input_size: u32) -> u32 {
+fn end_index<F: Float>(input_index: usize, output_size: usize, input_size: usize) -> usize {
     let numerator = F::cast_from((input_index + 1) * output_size);
-    let div: F = Ceil::ceil(numerator / F::cast_from(input_size));
-    let index = u32::cast_from(div);
+    let div = (numerator / F::cast_from(input_size)).ceil();
+    let index = usize::cast_from(div);
 
-    Min::min(output_size, index)
+    clamp_max(index, output_size)
 }
 
 pub(crate) fn interpolate_nearest_backward_launch<R: CubeRuntime>(
@@ -80,9 +80,9 @@ pub(crate) fn interpolate_nearest_backward_launch<R: CubeRuntime>(
     let out_shape = shape_divmod(&output);
     let out_layout = linear_layout(&output, line_size);
 
-    let cube_dim = CubeDim::default();
-    let cube_count =
-        calculate_cube_count_elemwise(output.shape.num_elements() / line_size as usize, cube_dim);
+    let working_units = output.shape.num_elements() / line_size as usize;
+    let cube_dim = CubeDim::new(&out_grad.client, working_units);
+    let cube_count = calculate_cube_count_elemwise(&out_grad.client, working_units, cube_dim);
 
     unsafe {
         interpolate_nearest_backward_kernel::launch_unchecked(

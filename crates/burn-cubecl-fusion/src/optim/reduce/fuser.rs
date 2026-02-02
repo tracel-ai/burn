@@ -9,7 +9,7 @@ use crate::{
 };
 use burn_fusion::{FuserStatus, OperationFuser};
 use burn_ir::{NumericOperationIr, OperationIr, ReduceDimOpIr};
-use cubecl::{Runtime, reduce::ReduceStrategy};
+use cubecl::Runtime;
 
 /// Fuses element wise operations around a reduce operation.
 pub struct ReduceFuser<R: Runtime> {
@@ -46,6 +46,7 @@ impl<R: Runtime> ReduceFuser<R> {
         };
         let settings_write = FuseSettings {
             output_shape_updates: false,
+            // TODO: Fusion axis should be on the reduce_axis - 1.
             vectorization: VectorizationSetting::SmallerOrEqualThanPreviousBlock,
             ..Default::default()
         };
@@ -107,18 +108,17 @@ impl<R: Runtime> ReduceFuser<R> {
             _ => input.precision(),
         };
 
-        self.reduce = Some(FusedReduce::new(
+        self.reduce = Some(FusedReduce {
             input,
             output,
             acc,
             axis,
-            op.clone(),
-            ReduceStrategy {
-                shared: false,
-                use_planes: false,
-            },
+            op: op.clone(),
+            use_planes: false,
+            shared: false,
             inst,
-        ));
+        });
+
         self.fuser_read_fallback.close();
     }
 

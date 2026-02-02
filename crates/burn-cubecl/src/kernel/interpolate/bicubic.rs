@@ -15,7 +15,7 @@ use crate::{
 fn interpolate_bicubic_kernel<F: Float>(
     input: &Tensor<Line<F>>,
     output: &mut Tensor<Line<F>>,
-    shape_out: Sequence<FastDivmod>,
+    shape_out: Sequence<FastDivmod<usize>>,
     out_layout: LinearLayout,
     #[define(F)] _dtype: StorageType,
 ) {
@@ -26,36 +26,36 @@ fn interpolate_bicubic_kernel<F: Float>(
     let line_size = input.line_size();
     let out_idx = out_layout.to_source_pos(ABSOLUTE_POS);
 
-    let (rem, c) = shape_out.index(3).div_mod(ABSOLUTE_POS * line_size);
-    let (rem, x) = shape_out.index(2).div_mod(rem);
-    let (b, y) = shape_out.index(1).div_mod(rem);
+    let (rem, c) = shape_out[3].div_mod(ABSOLUTE_POS * line_size);
+    let (rem, x) = shape_out[2].div_mod(rem);
+    let (b, y) = shape_out[1].div_mod(rem);
 
     let input_height = input.shape(1) - 1;
-    let output_height = f32::cast_from(Max::max(output.shape(1) - 1, 1));
-    let numerator = f32::cast_from(y * input_height);
+    let output_height = clamp_min(output.shape(1) - 1, 1) as f32;
+    let numerator = (y * input_height) as f32;
 
-    let frac = f32::cast_from(numerator / output_height);
-    let y_in_f = Floor::floor(frac);
-    let y_in = u32::cast_from(y_in_f);
+    let frac = (numerator / output_height) as f32;
+    let y_in_f = frac.floor();
+    let y_in = y_in_f as usize;
     let yw = Line::empty(line_size).fill(F::cast_from(frac - y_in_f));
 
     let y0 = select(y_in != 0, y_in - 1, 0);
     let y1 = y_in;
-    let y2 = Min::min(y_in + 1, input_height);
-    let y3 = Min::min(y_in + 2, input_height);
+    let y2 = clamp_max(y_in + 1, input_height);
+    let y3 = clamp_max(y_in + 2, input_height);
 
     let input_width = input.shape(2) - 1;
-    let output_width = f32::cast_from(Max::max(output.shape(2) - 1, 1));
-    let numerator = f32::cast_from(x * input_width);
+    let output_width = clamp_min(output.shape(2) - 1, 1) as f32;
+    let numerator = (x * input_width) as f32;
     let frac = numerator / output_width;
-    let x_in_f = Floor::floor(frac);
-    let x_in = u32::cast_from(x_in_f);
+    let x_in_f = frac.floor();
+    let x_in = x_in_f as usize;
     let xw = Line::empty(line_size).fill(F::cast_from(frac - x_in_f));
 
     let x0 = select(x_in != 0, x_in - 1, 0);
     let x1 = x_in;
-    let x2 = Min::min(x_in + 1, input_width);
-    let x3 = Min::min(x_in + 2, input_width);
+    let x2 = clamp_max(x_in + 1, input_width);
+    let x3 = clamp_max(x_in + 2, input_width);
 
     let index_base = b * input.stride(0) + c * input.stride(3);
     let in_stride_y = input.stride(1);
@@ -70,31 +70,31 @@ fn interpolate_bicubic_kernel<F: Float>(
     let x2_stride = x2 * in_stride_x;
     let x3_stride = x3 * in_stride_x;
 
-    let inp_0 = input[index_base + y0_stride + x0_stride];
-    let inp_1 = input[index_base + y0_stride + x1_stride];
-    let inp_2 = input[index_base + y0_stride + x2_stride];
-    let inp_3 = input[index_base + y0_stride + x3_stride];
+    let inp_0 = input[(index_base + y0_stride + x0_stride) / line_size];
+    let inp_1 = input[(index_base + y0_stride + x1_stride) / line_size];
+    let inp_2 = input[(index_base + y0_stride + x2_stride) / line_size];
+    let inp_3 = input[(index_base + y0_stride + x3_stride) / line_size];
 
     let coefficients0 = cubic_interp_1d::<F>(inp_0, inp_1, inp_2, inp_3, xw);
 
-    let inp_0 = input[index_base + y1_stride + x0_stride];
-    let inp_1 = input[index_base + y1_stride + x1_stride];
-    let inp_2 = input[index_base + y1_stride + x2_stride];
-    let inp_3 = input[index_base + y1_stride + x3_stride];
+    let inp_0 = input[(index_base + y1_stride + x0_stride) / line_size];
+    let inp_1 = input[(index_base + y1_stride + x1_stride) / line_size];
+    let inp_2 = input[(index_base + y1_stride + x2_stride) / line_size];
+    let inp_3 = input[(index_base + y1_stride + x3_stride) / line_size];
 
     let coefficients1 = cubic_interp_1d::<F>(inp_0, inp_1, inp_2, inp_3, xw);
 
-    let inp_0 = input[index_base + y2_stride + x0_stride];
-    let inp_1 = input[index_base + y2_stride + x1_stride];
-    let inp_2 = input[index_base + y2_stride + x2_stride];
-    let inp_3 = input[index_base + y2_stride + x3_stride];
+    let inp_0 = input[(index_base + y2_stride + x0_stride) / line_size];
+    let inp_1 = input[(index_base + y2_stride + x1_stride) / line_size];
+    let inp_2 = input[(index_base + y2_stride + x2_stride) / line_size];
+    let inp_3 = input[(index_base + y2_stride + x3_stride) / line_size];
 
     let coefficients2 = cubic_interp_1d::<F>(inp_0, inp_1, inp_2, inp_3, xw);
 
-    let inp_0 = input[index_base + y3_stride + x0_stride];
-    let inp_1 = input[index_base + y3_stride + x1_stride];
-    let inp_2 = input[index_base + y3_stride + x2_stride];
-    let inp_3 = input[index_base + y3_stride + x3_stride];
+    let inp_0 = input[(index_base + y3_stride + x0_stride) / line_size];
+    let inp_1 = input[(index_base + y3_stride + x1_stride) / line_size];
+    let inp_2 = input[(index_base + y3_stride + x2_stride) / line_size];
+    let inp_3 = input[(index_base + y3_stride + x3_stride) / line_size];
 
     let coefficients3 = cubic_interp_1d::<F>(inp_0, inp_1, inp_2, inp_3, xw);
 
@@ -157,9 +157,9 @@ pub(crate) fn interpolate_bicubic_launch<R: CubeRuntime>(
     let out_shape = shape_divmod(&output);
     let out_layout = linear_layout(&output, line_size);
 
-    let cube_dim = CubeDim::default();
-    let cube_count =
-        calculate_cube_count_elemwise(output.shape.num_elements() / line_size as usize, cube_dim);
+    let working_units = output.shape.num_elements() / line_size as usize;
+    let cube_dim = CubeDim::new(&input.client, working_units);
+    let cube_count = calculate_cube_count_elemwise(&input.client, working_units, cube_dim);
 
     interpolate_bicubic_kernel::launch(
         &input.client,

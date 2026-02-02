@@ -413,55 +413,6 @@ where
         ))
     }
 
-    // The make_complex! macro implements ElementComparison via magnitude, then real.
-    fn complex_greater(lhs: NdArrayTensor, rhs: NdArrayTensor) -> NdArrayTensor {
-        execute_with_complex_dtype!((lhs, rhs), NdArrayMathOps::greater)
-    }
-
-    fn complex_greater_elem(
-        lhs: NdArrayTensor,
-        rhs: <NdArray<E, I, Q> as burn_complex::base::ComplexTensorBackend>::ComplexElem,
-    ) -> NdArrayTensor {
-        let rhs = rhs.to_complex();
-        execute_with_complex_dtype!(lhs, |l| NdArrayMathOps::greater_elem(l, rhs))
-    }
-
-    fn complex_greater_equal(lhs: NdArrayTensor, rhs: NdArrayTensor) -> NdArrayTensor {
-        execute_with_complex_dtype!((lhs, rhs), NdArrayMathOps::greater_equal)
-    }
-
-    fn complex_greater_equal_elem(
-        lhs: NdArrayTensor,
-        rhs: <NdArray<E, I, Q> as burn_complex::base::ComplexTensorBackend>::ComplexElem,
-    ) -> NdArrayTensor {
-        let rhs = rhs.to_complex();
-        execute_with_complex_dtype!(lhs, |l| NdArrayMathOps::greater_equal_elem(l, rhs))
-    }
-
-    fn complex_lower(lhs: NdArrayTensor, rhs: NdArrayTensor) -> NdArrayTensor {
-        execute_with_complex_dtype!((lhs, rhs), NdArrayMathOps::lower)
-    }
-
-    fn complex_lower_elem(
-        lhs: NdArrayTensor,
-        rhs: <NdArray<E, I, Q> as burn_complex::base::ComplexTensorBackend>::ComplexElem,
-    ) -> NdArrayTensor {
-        let rhs = rhs.to_complex();
-        execute_with_complex_dtype!(lhs, |l| NdArrayMathOps::lower_elem(l, rhs))
-    }
-
-    fn complex_lower_equal(lhs: NdArrayTensor, rhs: NdArrayTensor) -> NdArrayTensor {
-        execute_with_complex_dtype!((lhs, rhs), NdArrayMathOps::lower_equal)
-    }
-
-    fn complex_lower_equal_elem(
-        lhs: NdArrayTensor,
-        rhs: <NdArray<E, I, Q> as burn_complex::base::ComplexTensorBackend>::ComplexElem,
-    ) -> NdArrayTensor {
-        let rhs = rhs.to_complex();
-        execute_with_complex_dtype!(lhs, |l| NdArrayMathOps::lower_equal_elem(l, rhs))
-    }
-
     // ---------- masked ops / gather / scatter ----------
 
     fn complex_mask_where(
@@ -518,59 +469,6 @@ where
 
     // ---------- argmax/argmin/max/min & max_abs/min_abs ----------
 
-    fn complex_argmax(tensor: NdArrayTensor, dim: usize) -> NdArrayTensor {
-        execute_with_complex_dtype!(tensor, |t| NdArrayMathOps::argmax::<Complex32>(t, dim))
-    }
-
-    fn complex_argmin(tensor: NdArrayTensor, dim: usize) -> NdArrayTensor {
-        execute_with_complex_dtype!(tensor, |t| NdArrayMathOps::argmin::<Complex32>(t, dim))
-    }
-
-    fn complex_max(tensor: NdArrayTensor) -> NdArrayTensor {
-        execute_with_complex_dtype!(tensor, NdArrayMathOps::max)
-    }
-
-    fn complex_max_dim(tensor: NdArrayTensor, dim: usize) -> NdArrayTensor {
-        execute_with_complex_dtype!(tensor, |t| NdArrayMathOps::max_dim(t, dim))
-    }
-
-    fn complex_max_dim_with_indices(
-        tensor: NdArrayTensor,
-        dim: usize,
-    ) -> (NdArrayTensor, NdArrayTensor) {
-        execute_with_complex_dtype!(
-            tensor,
-            |t| NdArrayMathOps::max_dim_with_indices::<Complex32>(t, dim)
-        )
-    }
-
-    fn complex_max_abs(tensor: NdArrayTensor) -> NdArrayTensor {
-        // pick element with largest magnitude (consistent with cmp)
-        execute_with_complex_dtype!(tensor, NdArrayMathOps::max)
-    }
-
-    fn complex_max_abs_dim(tensor: NdArrayTensor, dim: usize) -> NdArrayTensor {
-        execute_with_complex_dtype!(tensor, |t| NdArrayMathOps::max_dim(t, dim))
-    }
-
-    fn complex_min(tensor: NdArrayTensor) -> NdArrayTensor {
-        execute_with_complex_dtype!(tensor, NdArrayMathOps::min)
-    }
-
-    fn complex_min_dim(tensor: NdArrayTensor, dim: usize) -> NdArrayTensor {
-        execute_with_complex_dtype!(tensor, |t| NdArrayMathOps::min_dim(t, dim))
-    }
-
-    fn complex_min_dim_with_indices(
-        tensor: NdArrayTensor,
-        dim: usize,
-    ) -> (NdArrayTensor, NdArrayTensor) {
-        execute_with_complex_dtype!(
-            tensor,
-            |t| NdArrayMathOps::min_dim_with_indices::<Complex32>(t, dim)
-        )
-    }
-
     // ---------- clamp ----------
 
     fn complex_clamp(
@@ -581,22 +479,6 @@ where
         let min = min.to_complex();
         let max = max.to_complex();
         execute_with_complex_dtype!(tensor, |t| NdArrayMathOps::clamp(t, min, max))
-    }
-
-    fn complex_clamp_min(
-        tensor: NdArrayTensor,
-        min: <NdArray<E, I, Q> as burn_complex::base::ComplexTensorBackend>::ComplexElem,
-    ) -> NdArrayTensor {
-        let min = min.to_complex();
-        execute_with_complex_dtype!(tensor, |t| NdArrayMathOps::clamp_min(t, min))
-    }
-
-    fn complex_clamp_max(
-        tensor: NdArrayTensor,
-        max: <NdArray<E, I, Q> as burn_complex::base::ComplexTensorBackend>::ComplexElem,
-    ) -> NdArrayTensor {
-        let max = max.to_complex();
-        execute_with_complex_dtype!(tensor, |t| NdArrayMathOps::clamp_max(t, max))
     }
 
     // ---------- pow ----------
@@ -668,30 +550,6 @@ where
         })
     }
 
-    // ---------- sorting / argsort ----------
-
-    fn complex_sort(tensor: NdArrayTensor, dim: usize, descending: bool) -> NdArrayTensor {
-        execute_with_complex_dtype!(tensor, |t| NdArrayOps::sort::<Complex32>(
-            t, dim, descending
-        ))
-    }
-
-    fn complex_sort_with_indices(
-        tensor: NdArrayTensor,
-        dim: usize,
-        descending: bool,
-    ) -> (NdArrayTensor, NdArrayTensor) {
-        execute_with_complex_dtype!(tensor, |t| NdArrayOps::sort_with_indices::<Complex32>(
-            t, dim, descending
-        ))
-    }
-
-    fn complex_argsort(tensor: NdArrayTensor, dim: usize, descending: bool) -> NdArrayTensor {
-        execute_with_complex_dtype!(tensor, |t| NdArrayOps::argsort::<Complex32>(
-            t, dim, descending
-        ))
-    }
-
     // ---------- matmul & scans ----------
 
     fn complex_matmul(lhs: NdArrayTensor, rhs: NdArrayTensor) -> NdArrayTensor {
@@ -706,14 +564,6 @@ where
 
     fn complex_cumprod(tensor: NdArrayTensor, dim: usize) -> NdArrayTensor {
         execute_with_complex_dtype!(tensor, |t| NdArrayMathOps::cumprod(t, dim))
-    }
-
-    fn complex_cummin(tensor: NdArrayTensor, dim: usize) -> NdArrayTensor {
-        execute_with_complex_dtype!(tensor, |t| NdArrayMathOps::cummin::<Complex32>(t, dim))
-    }
-
-    fn complex_cummax(tensor: NdArrayTensor, dim: usize) -> NdArrayTensor {
-        execute_with_complex_dtype!(tensor, |t| NdArrayMathOps::cummax::<Complex32>(t, dim))
     }
 
     fn complex_add(

@@ -1,8 +1,5 @@
+use crate::{AsIndex, BasicOps, Int, Tensor, backend::Backend, check, check::TensorCheck};
 use alloc::vec::Vec;
-
-use crate::{
-    AsIndex, BasicOps, Int, Tensor, backend::Backend, canonicalize_dim, check, check::TensorCheck,
-};
 
 impl<B, const D: usize, K> Tensor<B, D, K>
 where
@@ -48,7 +45,7 @@ where
         dim: impl AsIndex,
         indices: Tensor<B, DI, Int>,
     ) -> Tensor<B, DO, K> {
-        let dim = canonicalize_dim(dim, D, false);
+        let dim = dim.expect_dim_index(D);
         check!(TensorCheck::take::<D, DI, DO>(dim));
 
         // Store the indices shape for reshaping later
@@ -72,7 +69,7 @@ where
         }
 
         // Add all indices dimensions
-        for idx_dim in indices_dims {
+        for &idx_dim in indices_dims.iter() {
             new_shape.push(idx_dim);
         }
 

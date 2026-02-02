@@ -1,10 +1,11 @@
-use burn_tensor::{
+use burn_backend::{
     Shape,
     ops::{
-        ConvOptions, ConvTransposeOptions, DeformConv2dBackward, DeformConvOptions, FloatTensor,
-        IntTensor, InterpolateMode, InterpolateOptions, MaxPool2dBackward, MaxPool2dWithIndices,
-        ModuleOps, UnfoldOptions,
+        ConvOptions, ConvTransposeOptions, DeformConv2dBackward, DeformConvOptions,
+        InterpolateMode, InterpolateOptions, MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps,
+        UnfoldOptions,
     },
+    tensor::{FloatTensor, IntTensor},
 };
 use candle_core::ToUsize2;
 
@@ -194,6 +195,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<Self> for Candle<F, I
         stride: [usize; 2],
         padding: [usize; 2],
         count_include_pad: bool,
+        ceil_mode: bool,
     ) -> FloatTensor<Self> {
         assert!(
             padding[0] == 0 && padding[1] == 0,
@@ -203,6 +205,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<Self> for Candle<F, I
             count_include_pad,
             "Candle does not support excluding pad count in pooling"
         );
+        assert!(!ceil_mode, "Candle does not support ceil_mode in pooling");
         CandleTensor::new(
             x.tensor
                 .avg_pool2d_with_stride((kernel_size[0], kernel_size[1]), (stride[0], stride[1]))
@@ -217,6 +220,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<Self> for Candle<F, I
         stride: [usize; 2],
         padding: [usize; 2],
         count_include_pad: bool,
+        _ceil_mode: bool,
     ) -> FloatTensor<Self> {
         panic!("avg_pool2d_backward is not supported by Candle")
     }
@@ -227,6 +231,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<Self> for Candle<F, I
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
+        ceil_mode: bool,
     ) -> FloatTensor<Self> {
         assert!(
             padding[0] == 0 && padding[1] == 0,
@@ -236,6 +241,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<Self> for Candle<F, I
             dilation[0] == 1 && dilation[1] == 1,
             "Candle does not support dilation in pooling"
         );
+        assert!(!ceil_mode, "Candle does not support ceil_mode in pooling");
         CandleTensor::new(
             x.tensor
                 .max_pool2d_with_stride((kernel_size[0], kernel_size[1]), (stride[0], stride[1]))
@@ -249,6 +255,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<Self> for Candle<F, I
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
+        _ceil_mode: bool,
     ) -> MaxPool2dWithIndices<Candle<F, I>> {
         panic!("max_pool2d_with_indices is not supported by Candle")
     }
@@ -259,6 +266,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<Self> for Candle<F, I
         stride: [usize; 2],
         padding: [usize; 2],
         dilation: [usize; 2],
+        _ceil_mode: bool,
         output_grad: FloatTensor<Self>,
         indices: IntTensor<Self>,
     ) -> MaxPool2dBackward<Candle<F, I>> {

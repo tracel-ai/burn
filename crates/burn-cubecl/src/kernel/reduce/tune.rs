@@ -4,17 +4,22 @@ use super::SumAutotuneKey;
 use crate::{CubeAutotuneKey, CubeRuntime, CubeTuneId, tensor::CubeTensor};
 use cubecl::{
     client::ComputeClient,
-    reduce::{ReduceDtypes, ReduceFamily, tune_key::ReduceAutotuneKey},
-    tune::{LocalTuner, Tunable, TunableSet, local_tuner},
+    tune::{LocalTuner, Tunable, TunableSet, TuneGroup, local_tuner},
+};
+use cubek::reduce::{
+    ReduceDtypes, ReduceStrategy,
+    components::instructions::ReduceOperationConfig,
+    launch::{LineSizeStrategy, RoutineStrategy, tune_key::ReduceAutotuneKey},
+    routines::{BlueprintStrategy, cube::CubeStrategy, plane::PlaneStrategy, unit::UnitStrategy},
 };
 
 /// Executes autotune on reduce operations.
-pub fn autotune_reduce<R: CubeRuntime, Rd: cubecl::reduce::ReduceFamily>(
+pub fn autotune_reduce<R: CubeRuntime>(
     client: &ComputeClient<R>,
     input: CubeTensor<R>,
     output: CubeTensor<R>,
-    dim: usize,
-    config: Rd::Config,
+    axis: usize,
+    config: ReduceOperationConfig,
     dtypes: ReduceDtypes,
 ) {
     use reduce_ops::*;
@@ -22,29 +27,136 @@ pub fn autotune_reduce<R: CubeRuntime, Rd: cubecl::reduce::ReduceFamily>(
     static TUNER: LocalTuner<ReduceAutotuneKey, CubeTuneId> = local_tuner!("reduce-dim");
 
     let tunables = TUNER.init(|| {
-        TunableSet::new(create_key::<R, Rd>, reduce_input_gen::<R, Rd>)
-            .with(Tunable::new("reduce", reduce::<R, Rd>))
-            .with(Tunable::new("reduce_shared", reduce_shared::<R, Rd>))
-            .with(Tunable::new("reduce_plane", reduce_plane::<R, Rd>))
-            .with(Tunable::new(
-                "reduce_shared_plane",
-                reduce_shared_plane::<R, Rd>,
-            ))
+        const PRIORITY_MAX: i8 = 2;
+        const PRIORITY_MIN: i8 = 1;
+        const PRIORITY_SKIP: i8 = -1;
+
+        let mut set = TunableSet::new(create_key::<R>, reduce_input_gen::<R>);
+
+        let default_group =
+            TuneGroup::<ReduceAutotuneKey>::new("default_reduce", |_key| PRIORITY_MAX);
+        let vectorized_parallel_group =
+            TuneGroup::<ReduceAutotuneKey>::new("vectorized_parallel_reduce", |key| {
+                if key.axis_is_contiguous {
+                    PRIORITY_MAX
+                } else {
+                    // We disable the tunable with the setting [line_size.parallel_output_vectorization]
+                    // when the reduce isn't parallel, since it would duplicate tunables.
+                    PRIORITY_SKIP
+                }
+            });
+
+        enum ReduceProps {
+            GreatWithLowReduceCount,
+            GreatWithHighReduceCount,
+            Balanced,
+        }
+
+        for (line_size, line_size_ident) in [
+            (
+                LineSizeStrategy {
+                    parallel_output_vectorization: true,
+                },
+                "_vectorized_parallel_reduce",
+            ),
+            (
+                LineSizeStrategy {
+                    parallel_output_vectorization: false,
+                },
+                "",
+            ),
+        ] {
+            for (name, routine, props) in [
+                (
+                    "unit",
+                    RoutineStrategy::Unit(BlueprintStrategy::Inferred(UnitStrategy)),
+                    ReduceProps::GreatWithHighReduceCount,
+                ),
+                (
+                    "plane",
+                    RoutineStrategy::Plane(BlueprintStrategy::Inferred(PlaneStrategy {
+                        independent: true,
+                    })),
+                    ReduceProps::Balanced,
+                ),
+                (
+                    "cube",
+                    RoutineStrategy::Cube(BlueprintStrategy::Inferred(CubeStrategy {
+                        use_planes: true,
+                    })),
+                    ReduceProps::GreatWithLowReduceCount,
+                ),
+            ] {
+                let name = format!("{name}{line_size_ident}");
+                let mut tunable = Tunable::new(
+                    name,
+                    move |(input, output, axis, config, dtypes): (
+                        CubeTensor<R>,
+                        CubeTensor<R>,
+                        usize,
+                        ReduceOperationConfig,
+                        ReduceDtypes,
+                    )| {
+                        let strategy = ReduceStrategy {
+                            routine: routine.clone(),
+                            line_size,
+                        };
+                        cubek::reduce::reduce::<R>(
+                            &input.client,
+                            input.as_handle_ref(),
+                            output.as_handle_ref(),
+                            axis,
+                            strategy,
+                            config,
+                            dtypes,
+                        )
+                        .map_err(|e| format!("{e}"))
+                    },
+                );
+                if line_size.parallel_output_vectorization {
+                    tunable = tunable.group(&vectorized_parallel_group, |_| PRIORITY_MAX);
+                }
+
+                tunable = tunable.group(&default_group, move |key| match props {
+                    ReduceProps::GreatWithLowReduceCount => {
+                        if key.vector_count < 128 {
+                            PRIORITY_MAX
+                        } else {
+                            // When you have a high level of vector to reduce, it is normally
+                            // better to use another routine.
+                            PRIORITY_MIN
+                        }
+                    }
+                    ReduceProps::GreatWithHighReduceCount => {
+                        if key.vector_count > 64 {
+                            PRIORITY_MAX
+                        } else {
+                            // Bellow 64 it is normally better to use another routine
+                            PRIORITY_MIN
+                        }
+                    }
+                    ReduceProps::Balanced => PRIORITY_MAX,
+                });
+                set = set.with(tunable);
+            }
+        }
+
+        set
     });
 
     TUNER.execute(
         &CubeTuneId::new(&input.client, &input.device),
         client,
         tunables,
-        (input, output, dim, config, dtypes),
+        (input, output, axis, config, dtypes),
     );
 }
 
-pub(crate) fn create_key<Run: CubeRuntime, Rd: ReduceFamily>(
+pub(crate) fn create_key<Run: CubeRuntime>(
     input: &CubeTensor<Run>,
     output: &CubeTensor<Run>,
     axis: &usize,
-    _config: &Rd::Config,
+    _config: &ReduceOperationConfig,
     dtypes: &ReduceDtypes,
 ) -> ReduceAutotuneKey {
     let elem_input = input.dtype.into();
@@ -64,113 +176,25 @@ pub(crate) fn create_key<Run: CubeRuntime, Rd: ReduceFamily>(
 mod reduce_ops {
     #![allow(missing_docs)]
 
-    use cubecl::reduce::{ReduceDtypes, ReduceFamily};
+    use cubek::reduce::ReduceDtypes;
 
     use super::*;
 
-    pub(crate) fn reduce_input_gen<Run: CubeRuntime, Rd: ReduceFamily>(
+    pub(crate) fn reduce_input_gen<Run: CubeRuntime>(
         _key: &ReduceAutotuneKey,
         input: &CubeTensor<Run>,
         output: &CubeTensor<Run>,
         dim: &usize,
-        config: &Rd::Config,
+        config: &ReduceOperationConfig,
         dtypes: &ReduceDtypes,
     ) -> (
         CubeTensor<Run>,
         CubeTensor<Run>,
         usize,
-        Rd::Config,
+        ReduceOperationConfig,
         ReduceDtypes,
     ) {
         (input.clone(), output.copy(), *dim, *config, *dtypes)
-    }
-
-    pub(crate) fn reduce<Run: CubeRuntime, Rd: cubecl::reduce::ReduceFamily>(
-        input: CubeTensor<Run>,
-        output: CubeTensor<Run>,
-        axis: usize,
-        config: Rd::Config,
-        dtypes: ReduceDtypes,
-    ) -> Result<(), String> {
-        cubecl::reduce::reduce::<Run, Rd>(
-            &input.client,
-            input.as_handle_ref(),
-            output.as_handle_ref(),
-            axis,
-            Some(cubecl::reduce::ReduceStrategy {
-                shared: false,
-                use_planes: false,
-            }),
-            config,
-            dtypes,
-        )
-        .map_err(|e| format!("{e}"))
-    }
-
-    pub(crate) fn reduce_shared<Run: CubeRuntime, Rd: cubecl::reduce::ReduceFamily>(
-        input: CubeTensor<Run>,
-        output: CubeTensor<Run>,
-        axis: usize,
-        config: Rd::Config,
-        dtypes: ReduceDtypes,
-    ) -> Result<(), String> {
-        cubecl::reduce::reduce::<Run, Rd>(
-            &input.client,
-            input.as_handle_ref(),
-            output.as_handle_ref(),
-            axis,
-            Some(cubecl::reduce::ReduceStrategy {
-                shared: true,
-                use_planes: false,
-            }),
-            config,
-            dtypes,
-        )
-        .map_err(|e| format!("{e}"))
-    }
-
-    pub(crate) fn reduce_plane<Run: CubeRuntime, Rd: cubecl::reduce::ReduceFamily>(
-        input: CubeTensor<Run>,
-        output: CubeTensor<Run>,
-        axis: usize,
-        config: Rd::Config,
-        dtypes: ReduceDtypes,
-    ) -> Result<(), String> {
-        cubecl::reduce::reduce::<Run, Rd>(
-            &input.client,
-            input.as_handle_ref(),
-            output.as_handle_ref(),
-            axis,
-            Some(cubecl::reduce::ReduceStrategy {
-                shared: false,
-                use_planes: true,
-            }),
-            config,
-            dtypes,
-        )
-        .map_err(|e| format!("{e}"))
-    }
-
-    pub(crate) fn reduce_shared_plane<Run: CubeRuntime, Rd: cubecl::reduce::ReduceFamily>(
-        input: CubeTensor<Run>,
-        output: CubeTensor<Run>,
-        axis: usize,
-        config: Rd::Config,
-        dtypes: ReduceDtypes,
-    ) -> Result<(), String> {
-        cubecl::reduce::reduce::<Run, Rd>(
-            &input.client,
-            input.as_handle_ref(),
-            output.as_handle_ref(),
-            axis,
-            Some(cubecl::reduce::ReduceStrategy {
-                shared: true,
-                use_planes: true,
-            }),
-            config,
-            dtypes,
-        )
-        .map_err(|e| format!("{e}"))
     }
 }
 
@@ -236,7 +260,7 @@ mod sum_ops {
         let device = input.device.clone();
         let output = zeros_client(client.clone(), device, [1].into(), input.dtype);
 
-        cubecl::reduce::shared_sum::<Run>(
+        cubek::reduce::shared_sum::<Run>(
             &input.client,
             input.as_handle_ref(),
             output.as_handle_ref(),
@@ -253,8 +277,9 @@ mod sum_ops {
     ) -> Result<CubeTensor<Run>, String> {
         crate::kernel::reduce::reduce::<Run>(
             input,
-            crate::kernel::reduce::ReduceStrategy::Autotune,
-            cubecl::reduce::instructions::ReduceFnConfig::Sum,
+            None,
+            crate::kernel::reduce::KernelReduceStrategy::Autotune,
+            cubek::reduce::components::instructions::ReduceOperationConfig::Sum,
         )
         .map_err(|e| e.to_string())
     }

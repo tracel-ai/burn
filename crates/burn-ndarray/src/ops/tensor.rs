@@ -1,9 +1,9 @@
 // Language
 use alloc::vec::Vec;
-use burn_tensor::backend::ExecutionError;
-use burn_tensor::ops::FloatTensor;
-use burn_tensor::ops::InterpolateMode;
-use burn_tensor::{TensorMetadata, cast::ToElement};
+use burn_backend::backend::ExecutionError;
+use burn_backend::ops::GridSampleOptions;
+use burn_backend::tensor::FloatTensor;
+use burn_backend::{TensorMetadata, element::cast::ToElement};
 
 // Current crate
 use super::{
@@ -13,7 +13,7 @@ use super::{
 use crate::{
     NdArray, cast_to_dtype, cat_with_dtype, execute_with_int_dtype, tensor::NdArrayTensor,
 };
-use crate::{NdArrayDevice, SEED};
+use crate::{NdArrayDevice, SEED, slice};
 use crate::{
     SharedArray,
     element::{ExpElement, FloatNdArrayElement, IntNdArrayElement, QuantElement},
@@ -22,8 +22,8 @@ use crate::{execute_with_float_dtype, ops::grid_sample::grid_sample_2d};
 
 // Workspace crates
 use crate::rand::get_seeded_rng;
-use burn_tensor::{Distribution, FloatDType};
-use burn_tensor::{ElementConversion, Shape, TensorData, backend::Backend, ops::FloatTensorOps};
+use burn_backend::{Distribution, FloatDType, Scalar};
+use burn_backend::{ElementConversion, Shape, TensorData, backend::Backend, ops::FloatTensorOps};
 
 #[cfg(not(feature = "std"))]
 #[allow(unused_imports)]
@@ -100,40 +100,50 @@ where
         execute_with_float_dtype!((lhs, rhs), NdArrayMathOps::add)
     }
 
-    fn float_add_scalar(lhs: FloatTensor<Self>, rhs: E) -> FloatTensor<Self> {
-        execute_with_float_dtype!(lhs, |lhs| NdArrayMathOps::add_scalar(lhs, rhs.elem()))
+    fn float_add_scalar(lhs: FloatTensor<Self>, rhs: Scalar) -> FloatTensor<Self> {
+        execute_with_float_dtype!(lhs, FloatElem, |array: SharedArray<FloatElem>| {
+            NdArrayMathOps::add_scalar(array, rhs.elem())
+        })
     }
 
     fn float_sub(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
         execute_with_float_dtype!((lhs, rhs), NdArrayMathOps::sub)
     }
 
-    fn float_sub_scalar(lhs: FloatTensor<Self>, rhs: E) -> FloatTensor<Self> {
-        execute_with_float_dtype!(lhs, |lhs| NdArrayMathOps::sub_scalar(lhs, rhs.elem()))
+    fn float_sub_scalar(lhs: FloatTensor<Self>, rhs: Scalar) -> FloatTensor<Self> {
+        execute_with_float_dtype!(lhs, FloatElem, |array: SharedArray<FloatElem>| {
+            NdArrayMathOps::sub_scalar(array, rhs.elem())
+        })
     }
 
     fn float_mul(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
         execute_with_float_dtype!((lhs, rhs), NdArrayMathOps::mul)
     }
 
-    fn float_mul_scalar(lhs: FloatTensor<Self>, rhs: E) -> FloatTensor<Self> {
-        execute_with_float_dtype!(lhs, |lhs| NdArrayMathOps::mul_scalar(lhs, rhs.elem()))
+    fn float_mul_scalar(lhs: FloatTensor<Self>, rhs: Scalar) -> FloatTensor<Self> {
+        execute_with_float_dtype!(lhs, FloatElem, |array: SharedArray<FloatElem>| {
+            NdArrayMathOps::mul_scalar(array, rhs.elem())
+        })
     }
 
     fn float_div(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
         execute_with_float_dtype!((lhs, rhs), NdArrayMathOps::div)
     }
 
-    fn float_div_scalar(lhs: FloatTensor<Self>, rhs: E) -> FloatTensor<Self> {
-        execute_with_float_dtype!(lhs, |lhs| NdArrayMathOps::div_scalar(lhs, rhs.elem()))
+    fn float_div_scalar(lhs: FloatTensor<Self>, rhs: Scalar) -> FloatTensor<Self> {
+        execute_with_float_dtype!(lhs, FloatElem, |array: SharedArray<FloatElem>| {
+            NdArrayMathOps::div_scalar(array, rhs.elem())
+        })
     }
 
     fn float_remainder(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
         execute_with_float_dtype!((lhs, rhs), NdArrayMathOps::remainder)
     }
 
-    fn float_remainder_scalar(lhs: FloatTensor<Self>, rhs: E) -> FloatTensor<Self> {
-        execute_with_float_dtype!(lhs, |lhs| NdArrayMathOps::remainder_scalar(lhs, rhs.elem()))
+    fn float_remainder_scalar(lhs: FloatTensor<Self>, rhs: Scalar) -> FloatTensor<Self> {
+        execute_with_float_dtype!(lhs, FloatElem, |array: SharedArray<FloatElem>| {
+            NdArrayMathOps::remainder_scalar(array, rhs.elem())
+        })
     }
 
     fn float_matmul(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
@@ -148,20 +158,22 @@ where
         execute_with_float_dtype!((lhs, rhs), |lhs, rhs| cross(lhs, rhs, dim))
     }
 
-    fn float_neg(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        Self::float_mul_scalar(tensor, (-1f32).elem::<E>())
-    }
-
     fn float_recip(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, NdArrayMathOps::recip)
+        execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
+            NdArrayMathOps::recip(array)
+        })
     }
 
     fn float_swap_dims(tensor: FloatTensor<Self>, dim1: usize, dim2: usize) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, |tensor| NdArrayOps::swap_dims(tensor, dim1, dim2))
+        execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
+            NdArrayOps::swap_dims(array, dim1, dim2)
+        })
     }
 
     fn float_reshape(tensor: FloatTensor<Self>, shape: Shape) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, |tensor| NdArrayOps::reshape(tensor, shape))
+        execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
+            NdArrayOps::reshape(array, shape)
+        })
     }
 
     fn float_gather(
@@ -169,24 +181,32 @@ where
         tensor: FloatTensor<Self>,
         indices: NdArrayTensor,
     ) -> FloatTensor<Self> {
-        execute_with_int_dtype!(indices, I, |indices| -> NdArrayTensor {
-            execute_with_float_dtype!(tensor, |tensor| NdArrayMathOps::gather(
-                dim, tensor, indices
-            ))
-        })
+        execute_with_int_dtype!(
+            indices,
+            IntElem,
+            |idx_array: SharedArray<IntElem>| -> NdArrayTensor {
+                execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
+                    NdArrayOps::gather(dim, array, idx_array)
+                })
+            }
+        )
     }
 
-    fn float_scatter(
+    fn float_scatter_add(
         dim: usize,
         tensor: FloatTensor<Self>,
         indices: NdArrayTensor,
         value: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
-        execute_with_int_dtype!(indices, I, |indices| -> NdArrayTensor {
-            execute_with_float_dtype!((tensor, value), |tensor, value| NdArrayMathOps::scatter(
-                dim, tensor, indices, value
-            ))
-        })
+        execute_with_int_dtype!(
+            indices,
+            IntElem,
+            |idx_array: SharedArray<IntElem>| -> NdArrayTensor {
+                execute_with_float_dtype!((tensor, value), |tensor, value| NdArrayOps::scatter(
+                    dim, tensor, idx_array, value
+                ))
+            }
+        )
     }
 
     fn float_select(
@@ -194,33 +214,41 @@ where
         dim: usize,
         indices: NdArrayTensor,
     ) -> FloatTensor<Self> {
-        execute_with_int_dtype!(indices, I, |indices| -> NdArrayTensor {
-            execute_with_float_dtype!(tensor, |tensor| NdArrayMathOps::select(
-                tensor, dim, indices
-            ))
-        })
+        execute_with_int_dtype!(
+            indices,
+            IntElem,
+            |idx_array: SharedArray<IntElem>| -> NdArrayTensor {
+                execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
+                    NdArrayMathOps::select(array, dim, idx_array)
+                })
+            }
+        )
     }
 
-    fn float_select_assign(
+    fn float_select_add(
         tensor: FloatTensor<Self>,
         dim: usize,
         indices: NdArrayTensor,
         value: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
-        execute_with_int_dtype!(indices, I, |indices| -> NdArrayTensor {
-            execute_with_float_dtype!((tensor, value), |tensor, value| {
-                NdArrayMathOps::select_assign(tensor, dim, indices, value)
-            })
-        })
+        execute_with_int_dtype!(
+            indices,
+            IntElem,
+            |idx_array: SharedArray<IntElem>| -> NdArrayTensor {
+                execute_with_float_dtype!((tensor, value), |tensor, value| {
+                    NdArrayMathOps::select_assign(tensor, dim, idx_array, value)
+                })
+            }
+        )
     }
 
-    fn float_slice(tensor: FloatTensor<Self>, slices: &[burn_tensor::Slice]) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, |tensor| NdArrayOps::slice(tensor, slices))
+    fn float_slice(tensor: FloatTensor<Self>, slices: &[burn_backend::Slice]) -> FloatTensor<Self> {
+        slice!(tensor, slices)
     }
 
     fn float_slice_assign(
         tensor: FloatTensor<Self>,
-        slices: &[burn_tensor::Slice],
+        slices: &[burn_backend::Slice],
         value: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
         execute_with_float_dtype!((tensor, value), |tensor, value| {
@@ -234,29 +262,27 @@ where
         value: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
         execute_with_float_dtype!((tensor, value), |tensor, value| {
-            NdArrayMathOps::mask_where(tensor, mask.bool(), value)
+            NdArrayOps::mask_where(tensor, mask.bool(), value)
         })
     }
 
     fn float_mask_fill(
         tensor: FloatTensor<Self>,
         mask: NdArrayTensor,
-        value: E,
+        value: Scalar,
     ) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, |tensor| NdArrayMathOps::mask_fill(
-            tensor,
-            mask.bool(),
-            value.elem()
-        ))
+        execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
+            NdArrayOps::mask_fill(array, mask.bool(), value.elem())
+        })
     }
 
     fn float_equal(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> NdArrayTensor {
         execute_with_float_dtype!((lhs, rhs), |lhs, rhs| { NdArrayMathOps::equal(lhs, rhs) })
     }
 
-    fn float_equal_elem(lhs: FloatTensor<Self>, rhs: E) -> NdArrayTensor {
-        execute_with_float_dtype!(lhs, |tensor| {
-            NdArrayMathOps::equal_elem(tensor, rhs.elem())
+    fn float_equal_elem(lhs: FloatTensor<Self>, rhs: Scalar) -> NdArrayTensor {
+        execute_with_float_dtype!(lhs, FloatElem, |array: SharedArray<FloatElem>| {
+            NdArrayMathOps::equal_elem(array, rhs.elem())
         })
     }
 
@@ -264,9 +290,9 @@ where
         execute_with_float_dtype!((lhs, rhs), |lhs, rhs| { NdArrayMathOps::greater(lhs, rhs) })
     }
 
-    fn float_greater_elem(lhs: FloatTensor<Self>, rhs: E) -> NdArrayTensor {
-        execute_with_float_dtype!(lhs, |tensor| {
-            NdArrayMathOps::greater_elem(tensor, rhs.elem())
+    fn float_greater_elem(lhs: FloatTensor<Self>, rhs: Scalar) -> NdArrayTensor {
+        execute_with_float_dtype!(lhs, FloatElem, |array: SharedArray<FloatElem>| {
+            NdArrayMathOps::greater_elem(array, rhs.elem())
         })
     }
 
@@ -276,9 +302,9 @@ where
         })
     }
 
-    fn float_greater_equal_elem(lhs: FloatTensor<Self>, rhs: E) -> NdArrayTensor {
-        execute_with_float_dtype!(lhs, |tensor| {
-            NdArrayMathOps::greater_equal_elem(tensor, rhs.elem())
+    fn float_greater_equal_elem(lhs: FloatTensor<Self>, rhs: Scalar) -> NdArrayTensor {
+        execute_with_float_dtype!(lhs, FloatElem, |array: SharedArray<FloatElem>| {
+            NdArrayMathOps::greater_equal_elem(array, rhs.elem())
         })
     }
 
@@ -286,9 +312,9 @@ where
         execute_with_float_dtype!((lhs, rhs), |lhs, rhs| { NdArrayMathOps::lower(lhs, rhs) })
     }
 
-    fn float_lower_elem(lhs: FloatTensor<Self>, rhs: E) -> NdArrayTensor {
-        execute_with_float_dtype!(lhs, |tensor| {
-            NdArrayMathOps::lower_elem(tensor, rhs.elem())
+    fn float_lower_elem(lhs: FloatTensor<Self>, rhs: Scalar) -> NdArrayTensor {
+        execute_with_float_dtype!(lhs, FloatElem, |array: SharedArray<FloatElem>| {
+            NdArrayMathOps::lower_elem(array, rhs.elem())
         })
     }
 
@@ -298,9 +324,9 @@ where
         })
     }
 
-    fn float_lower_equal_elem(lhs: FloatTensor<Self>, rhs: E) -> NdArrayTensor {
-        execute_with_float_dtype!(lhs, |tensor| {
-            NdArrayMathOps::lower_equal_elem(tensor, rhs.elem())
+    fn float_lower_equal_elem(lhs: FloatTensor<Self>, rhs: Scalar) -> NdArrayTensor {
+        execute_with_float_dtype!(lhs, FloatElem, |array: SharedArray<FloatElem>| {
+            NdArrayMathOps::lower_equal_elem(array, rhs.elem())
         })
     }
 
@@ -309,146 +335,273 @@ where
     }
 
     fn float_mean(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, NdArrayMathOps::mean)
+        // Use view() for zero-copy on borrowed storage
+        execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
+            NdArrayMathOps::mean_view(array.view())
+        })
     }
 
     fn float_sum(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, NdArrayMathOps::sum)
+        // Use view() for zero-copy on borrowed storage
+        execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
+            NdArrayMathOps::sum_view(array.view())
+        })
     }
 
     fn float_mean_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, |tensor| NdArrayMathOps::mean_dim(tensor, dim))
+        execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
+            NdArrayMathOps::mean_dim(array, dim)
+        })
     }
 
     fn float_cumsum(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, |tensor| NdArrayMathOps::cumsum(tensor, dim))
+        execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
+            NdArrayMathOps::cumsum(array, dim)
+        })
     }
 
     fn float_cumprod(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, |tensor| NdArrayMathOps::cumprod(tensor, dim))
+        execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
+            NdArrayMathOps::cumprod(array, dim)
+        })
     }
 
     fn float_cummin(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, |tensor| NdArrayMathOps::cummin(tensor, dim))
+        execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
+            NdArrayMathOps::cummin(array, dim)
+        })
     }
 
     fn float_cummax(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, |tensor| NdArrayMathOps::cummax(tensor, dim))
+        execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
+            NdArrayMathOps::cummax(array, dim)
+        })
     }
 
     fn float_sum_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, |tensor| NdArrayMathOps::sum_dim(tensor, dim))
+        execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
+            NdArrayMathOps::sum_dim(array, dim)
+        })
     }
 
     fn float_argmax(tensor: FloatTensor<Self>, dim: usize) -> NdArrayTensor {
-        execute_with_float_dtype!(tensor, |tensor| NdArrayMathOps::argmax::<I>(tensor, dim))
+        // Use view() for zero-copy on borrowed storage
+        execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
+            NdArrayMathOps::argmax_view::<I>(array.view(), dim)
+        })
     }
 
     fn float_argmin(tensor: FloatTensor<Self>, dim: usize) -> NdArrayTensor {
-        execute_with_float_dtype!(tensor, |tensor| NdArrayMathOps::argmin::<I>(tensor, dim))
+        // Use view() for zero-copy on borrowed storage
+        execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
+            NdArrayMathOps::argmin_view::<I>(array.view(), dim)
+        })
     }
 
     fn float_exp(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, E, |tensor: SharedArray<E>| {
-            tensor.mapv_into(|a| a.exp_elem()).into_shared()
+        execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
+            array.mapv_into(|a: FloatElem| a.exp_elem()).into_shared()
         })
     }
 
     fn float_log(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, E, |tensor: SharedArray<E>| {
-            tensor.mapv_into(|a| a.log_elem()).into_shared()
+        execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
+            array.mapv_into(|a: FloatElem| a.log_elem()).into_shared()
         })
     }
 
     fn float_prod(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, NdArrayMathOps::prod)
-    }
-
-    fn float_prod_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, |tensor| NdArrayMathOps::prod_dim(tensor, dim))
-    }
-
-    fn float_log1p(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, E, |tensor: SharedArray<E>| {
-            tensor.mapv_into(|a| a.log1p_elem()).into_shared()
+        // Use view() for zero-copy on borrowed storage
+        execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
+            NdArrayMathOps::prod_view(array.view())
         })
     }
 
-    fn float_powf_scalar_impl(tensor: FloatTensor<Self>, value: f32) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, E, |tensor: SharedArray<E>| {
-            tensor.mapv_into(|a| a.powf_elem(value)).into_shared()
+    fn float_prod_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
+        execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
+            NdArrayMathOps::prod_dim(array, dim)
+        })
+    }
+
+    fn float_max(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        // Use view() for zero-copy on borrowed storage
+        execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
+            NdArrayMathOps::max_view(array.view())
+        })
+    }
+
+    fn float_min(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        // Use view() for zero-copy on borrowed storage
+        execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
+            NdArrayMathOps::min_view(array.view())
+        })
+    }
+
+    fn float_log1p(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
+            array.mapv_into(|a: FloatElem| a.log1p_elem()).into_shared()
+        })
+    }
+
+    fn float_powf_scalar_impl(tensor: FloatTensor<Self>, value: Scalar) -> FloatTensor<Self> {
+        execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
+            array
+                .mapv_into(|a: FloatElem| a.powf_elem(value.elem()))
+                .into_shared()
         })
     }
 
     fn float_sqrt(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, E, |tensor: SharedArray<E>| {
-            tensor.mapv_into(|a| a.sqrt_elem()).into_shared()
+        execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
+            array.mapv_into(|a: FloatElem| a.sqrt_elem()).into_shared()
         })
     }
 
     fn float_abs(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, E, NdArrayMathOps::abs)
+        execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
+            NdArrayMathOps::abs(array)
+        })
     }
 
     fn float_cos(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, E, |tensor: SharedArray<E>| {
-            tensor
-                .mapv_into(|a| (a.to_f64()).cos().elem())
+        execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
+            array
+                .mapv_into(|a: FloatElem| (a.to_f64()).cos().elem())
+                .into_shared()
+        })
+    }
+
+    fn float_cosh(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
+            array
+                .mapv_into(|a: FloatElem| (a.to_f64()).cosh().elem())
                 .into_shared()
         })
     }
 
     fn float_sin(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, E, |tensor: SharedArray<E>| {
-            tensor
-                .mapv_into(|a| (a.to_f64()).sin().elem())
+        execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
+            array
+                .mapv_into(|a: FloatElem| (a.to_f64()).sin().elem())
+                .into_shared()
+        })
+    }
+
+    fn float_sinh(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
+            array
+                .mapv_into(|a: FloatElem| (a.to_f64()).sinh().elem())
+                .into_shared()
+        })
+    }
+
+    fn float_tan(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
+            array
+                .mapv_into(|a: FloatElem| (a.to_f64()).tan().elem())
                 .into_shared()
         })
     }
 
     fn float_tanh(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, E, |tensor: SharedArray<E>| {
-            tensor
-                .mapv_into(|a| (a.to_f64()).tanh().elem())
+        execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
+            array
+                .mapv_into(|a: FloatElem| (a.to_f64()).tanh().elem())
                 .into_shared()
         })
     }
 
+    fn float_acos(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
+            array
+                .mapv_into(|a: FloatElem| (a.to_f64()).acos().elem())
+                .into_shared()
+        })
+    }
+
+    fn float_acosh(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
+            array
+                .mapv_into(|a: FloatElem| (a.to_f64()).acosh().elem())
+                .into_shared()
+        })
+    }
+
+    fn float_asin(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
+            array
+                .mapv_into(|a: FloatElem| (a.to_f64()).asin().elem())
+                .into_shared()
+        })
+    }
+
+    fn float_asinh(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
+            array
+                .mapv_into(|a: FloatElem| (a.to_f64()).asinh().elem())
+                .into_shared()
+        })
+    }
+
+    fn float_atan(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
+            array
+                .mapv_into(|a: FloatElem| (a.to_f64()).atan().elem())
+                .into_shared()
+        })
+    }
+
+    fn float_atanh(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
+            array
+                .mapv_into(|a: FloatElem| (a.to_f64()).atanh().elem())
+                .into_shared()
+        })
+    }
+
+    fn float_atan2(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
+        execute_with_float_dtype!((lhs, rhs), FloatElem, |lhs, rhs| {
+            NdArrayMathOps::elementwise_op(lhs, rhs, |a: &FloatElem, b: &FloatElem| a.atan2(*b))
+        })
+    }
+
     fn float_round(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, E, |tensor: SharedArray<E>| {
-            tensor
-                .mapv_into(|a| round_ties_even_wrapper(a.to_f64()).elem())
+        execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
+            array
+                .mapv_into(|a: FloatElem| round_ties_even_wrapper(a.to_f64()).elem())
                 .into_shared()
         })
     }
 
     fn float_floor(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, E, |tensor: SharedArray<E>| {
-            tensor
-                .mapv_into(|a| (a.to_f64()).floor().elem())
+        execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
+            array
+                .mapv_into(|a: FloatElem| (a.to_f64()).floor().elem())
                 .into_shared()
         })
     }
 
     fn float_ceil(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, E, |tensor: SharedArray<E>| {
-            tensor
-                .mapv_into(|a| (a.to_f64()).ceil().elem())
+        execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
+            array
+                .mapv_into(|a: FloatElem| (a.to_f64()).ceil().elem())
                 .into_shared()
         })
     }
 
     fn float_trunc(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, E, |tensor: SharedArray<E>| {
-            tensor
-                .mapv_into(|a| (a.to_f64()).trunc().elem())
+        execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
+            array
+                .mapv_into(|a: FloatElem| (a.to_f64()).trunc().elem())
                 .into_shared()
         })
     }
 
     fn float_erf(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, E, |tensor: SharedArray<E>| {
-            tensor.mapv_into(|a| erf(a.to_f64()).elem()).into_shared()
+        execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
+            array
+                .mapv_into(|a: FloatElem| erf(a.to_f64()).elem())
+                .into_shared()
         })
     }
 
@@ -456,69 +609,73 @@ where
         cat_with_dtype!(tensors, dim, [F64, F32])
     }
 
-    fn float_clamp_min(tensor: FloatTensor<Self>, min: E) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, |tensor| NdArrayMathOps::clamp_min(
-            tensor,
-            min.elem()
-        ))
+    fn float_clamp_min(tensor: FloatTensor<Self>, min: Scalar) -> FloatTensor<Self> {
+        execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
+            NdArrayMathOps::clamp_min(array, min.elem())
+        })
     }
 
-    fn float_clamp_max(tensor: FloatTensor<Self>, max: E) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, |tensor| NdArrayMathOps::clamp_max(
-            tensor,
-            max.elem()
-        ))
+    fn float_clamp_max(tensor: FloatTensor<Self>, max: Scalar) -> FloatTensor<Self> {
+        execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
+            NdArrayMathOps::clamp_max(array, max.elem())
+        })
     }
 
-    fn float_clamp(tensor: FloatTensor<Self>, min: E, max: E) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, |tensor| NdArrayMathOps::clamp(
-            tensor,
-            min.elem(),
-            max.elem()
-        ))
+    fn float_clamp(tensor: FloatTensor<Self>, min: Scalar, max: Scalar) -> FloatTensor<Self> {
+        execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
+            NdArrayMathOps::clamp(array, min.elem(), max.elem())
+        })
     }
 
     fn float_into_int(tensor: FloatTensor<Self>) -> NdArrayTensor {
-        execute_with_float_dtype!(tensor, |tensor: SharedArray<E>| {
-            tensor.mapv(|a| a.elem::<I>()).into_shared()
+        execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
+            array.mapv(|a: FloatElem| a.elem::<I>()).into_shared()
         })
     }
 
     fn float_powf(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
-        execute_with_float_dtype!((lhs, rhs), E, |lhs, rhs| NdArrayMathOps::elementwise_op(
-            lhs,
-            rhs,
-            |a: &E, b: &E| a.powf(*b)
-        ))
+        execute_with_float_dtype!((lhs, rhs), FloatElem, |lhs, rhs| {
+            NdArrayMathOps::elementwise_op(lhs, rhs, |a: &FloatElem, b: &FloatElem| a.powf(*b))
+        })
     }
 
     fn float_permute(tensor: FloatTensor<Self>, axes: &[usize]) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, |tensor| NdArrayOps::permute(tensor, axes))
+        execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
+            NdArrayOps::permute(array, axes)
+        })
     }
 
     fn float_flip(tensor: FloatTensor<Self>, axes: &[usize]) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, |tensor| NdArrayOps::flip(tensor, axes))
+        execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
+            NdArrayOps::flip(array, axes)
+        })
     }
 
     fn float_sign(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, NdArrayMathOps::sign_op)
+        execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
+            NdArrayMathOps::sign_op(array)
+        })
     }
 
     fn float_expand(tensor: FloatTensor<Self>, shape: Shape) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, |tensor| NdArrayOps::expand(tensor, shape))
+        execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
+            NdArrayOps::expand(array, shape)
+        })
     }
 
     fn float_cast(tensor: FloatTensor<Self>, dtype: FloatDType) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, |tensor| cast_to_dtype(tensor, dtype.into()))
+        execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
+            cast_to_dtype(array, dtype.into())
+        })
     }
 
     fn float_grid_sample_2d(
         tensor: FloatTensor<Self>,
         grid: FloatTensor<Self>,
-        method: InterpolateMode,
+        options: GridSampleOptions,
     ) -> FloatTensor<Self> {
         execute_with_float_dtype!((tensor, grid), |tensor, grid| grid_sample_2d(
-            tensor, grid, method
+            tensor, grid, options
         ))
     }
 
@@ -528,6 +685,8 @@ where
         size: usize,
         step: usize,
     ) -> FloatTensor<Self> {
-        execute_with_float_dtype!(tensor, |tensor| NdArrayOps::unfold(tensor, dim, size, step))
+        execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
+            NdArrayOps::unfold(array, dim, size, step)
+        })
     }
 }

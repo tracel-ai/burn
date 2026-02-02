@@ -1,7 +1,7 @@
 use burn_communication::Protocol;
 use burn_communication::data_service::TensorDataServer;
 use burn_communication::{Address, ProtocolServer, data_service::TensorDataService};
-use burn_tensor::{ElementConversion, backend::Backend};
+use burn_tensor::backend::Backend;
 use std::collections::HashMap;
 use std::{marker::PhantomData, sync::Arc};
 use tokio::sync::RwLock;
@@ -20,10 +20,10 @@ use crate::{
         },
         shared::{GlobalCollectiveError, RemoteRequest, RemoteResponse},
     },
-    local::server::get_server_runtime,
+    local::server::get_collective_server_runtime,
 };
 
-// Must be synchronized between all nodes for collective operations to work
+/// Must be synchronized between all nodes for collective operations to work
 pub(crate) struct NodeState {
     pub node_id: NodeId,
     pub nodes: HashMap<NodeId, Address>,
@@ -56,7 +56,7 @@ where
         let data_service = Arc::new(TensorDataService::new(cancel_token.clone()));
         let sync_service = Arc::new(SyncService::new(state.clone()));
 
-        let runtime = get_server_runtime();
+        let runtime = get_collective_server_runtime();
         let server = comms_server
             .route_tensor_data_service(data_service.clone())
             .route("/sync", {
@@ -169,7 +169,7 @@ where
         };
 
         if op == ReduceOperation::Mean {
-            result = B::float_div_scalar(result, (state.num_global_devices).elem());
+            result = B::float_div_scalar(result, (state.num_global_devices as f32).into());
         }
 
         Ok(result)

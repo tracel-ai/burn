@@ -4,12 +4,8 @@ use crate::{
     ops::{max_line_size, numeric::empty_device_dtype},
     tensor::CubeTensor,
 };
-use burn_tensor::DType;
-use cubecl::{
-    calculate_cube_count_elemwise,
-    prelude::*,
-    std::{scalar::InputScalar, tensor::layout::linear::LinearView},
-};
+use burn_backend::DType;
+use cubecl::{calculate_cube_count_elemwise, prelude::*, std::tensor::layout::linear::LinearView};
 
 #[cube]
 pub(crate) trait ComparisonOpFamily: 'static + Send + Sync {
@@ -131,8 +127,9 @@ pub(crate) fn launch_cmp<R: CubeRuntime, O: ComparisonOpFamily>(
     let client = lhs.client.clone();
     let num_elems = shape_out.num_elements();
 
-    let cube_dim = CubeDim::default();
-    let cube_count = calculate_cube_count_elemwise(num_elems / line_size as usize, cube_dim);
+    let working_units = num_elems / line_size as usize;
+    let cube_dim = CubeDim::new(&lhs.client, working_units);
+    let cube_count = calculate_cube_count_elemwise(&lhs.client, working_units, cube_dim);
 
     let dtypes = [lhs.dtype.into(), dtype_bool.into()];
     let same_tensor_type = dtypes[0] == dtypes[1];
@@ -163,7 +160,7 @@ pub(crate) fn launch_cmp<R: CubeRuntime, O: ComparisonOpFamily>(
             kernel_cmp::launch_unchecked::<O, R>(
                 &client,
                 cube_count,
-                CubeDim::default(),
+                cube_dim,
                 linear_view_ref(&lhs, &rhs, line_size),
                 linear_view(&rhs, line_size),
                 linear_view_alias(&rhs, line_size, 1),
@@ -192,7 +189,7 @@ pub(crate) fn launch_cmp<R: CubeRuntime, O: ComparisonOpFamily>(
             kernel_cmp::launch_unchecked::<O, R>(
                 &client,
                 cube_count,
-                CubeDim::default(),
+                cube_dim,
                 linear_view_ref(&lhs, &output, line_size),
                 linear_view_ref(&rhs, &output, line_size),
                 linear_view(&output, line_size),
@@ -214,13 +211,14 @@ pub(crate) fn launch_scalar_cmp<R: CubeRuntime, O: ComparisonOpFamily>(
     let client = tensor.client.clone();
     let num_elems = tensor.shape.num_elements();
 
-    let cube_dim = CubeDim::default();
-    let cube_count = calculate_cube_count_elemwise(num_elems / line_size as usize, cube_dim);
+    let working_units = num_elems / line_size as usize;
+    let cube_dim = CubeDim::new(&tensor.client, working_units);
+    let cube_count = calculate_cube_count_elemwise(&tensor.client, working_units, cube_dim);
 
     let dtypes = [tensor.dtype.into(), dtype_bool.into()];
     let same_tensor_type = dtypes[0] == dtypes[1];
 
-    if same_tensor_type && tensor.can_mut() {
+    if same_tensor_type && tensor.can_mut() && tensor.is_nonoverlapping() {
         unsafe {
             kernel_scalar_cmp::launch_unchecked::<O, R>(
                 &client,
@@ -254,7 +252,7 @@ pub(crate) fn launch_scalar_cmp<R: CubeRuntime, O: ComparisonOpFamily>(
             kernel_scalar_cmp::launch_unchecked::<O, R>(
                 &client,
                 cube_count,
-                CubeDim::default(),
+                cube_dim,
                 linear_view(&tensor, line_size),
                 scalar,
                 linear_view(&output, line_size),
@@ -406,8 +404,9 @@ pub(crate) fn launch_predicate<R: CubeRuntime, O: PredicateOpFamily>(
     let num_elems = tensor.shape.num_elements();
 
     let dtypes = [tensor.dtype.into(), dtype_bool.into()];
-    let cube_dim = CubeDim::default();
-    let cube_count = calculate_cube_count_elemwise(num_elems / line_size as usize, cube_dim);
+    let working_units = num_elems / line_size as usize;
+    let cube_dim = CubeDim::new(&tensor.client, working_units);
+    let cube_count = calculate_cube_count_elemwise(&tensor.client, working_units, cube_dim);
 
     let output = empty_device_dtype(
         tensor.client.clone(),
@@ -420,7 +419,7 @@ pub(crate) fn launch_predicate<R: CubeRuntime, O: PredicateOpFamily>(
         kernel_predicate::launch_unchecked::<O, R>(
             &client,
             cube_count,
-            CubeDim::default(),
+            cube_dim,
             linear_view_ref(&tensor, &output, line_size),
             linear_view(&output, line_size),
             dtypes,

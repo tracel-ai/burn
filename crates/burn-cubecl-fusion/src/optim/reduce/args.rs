@@ -3,10 +3,8 @@ use crate::engine::codegen::{
     ir::{FuseArg, FuseBlockConfig, GlobalArgs, GlobalArgsExpand, LocalArgs, LocalArgsExpand},
     kernel::{fuse_on_read, fuse_on_write, init_locals},
 };
-use cubecl::{
-    prelude::*,
-    reduce::args::{ReduceArgs, ReduceDType},
-};
+use cubecl::prelude::*;
+use cubek::reduce::components::args::{ReduceArgs, ReduceDType};
 
 #[derive(Clone)]
 pub struct FusedReduceArgs;
@@ -67,8 +65,8 @@ impl ReduceArgs for FusedReduceArgs {
         FusedReduceState::new(input, output, &mut locals_read, &mut locals_write)
     }
 
-    fn read_input<P: ReduceDType>(state: &Self::State<P>, index: u32) -> Line<P::In> {
-        *fuse_on_read::<P::In>(
+    fn read_input<P: ReduceDType>(state: &Self::State<P>, index: usize) -> Line<P::In> {
+        fuse_on_read::<P::In>(
             unsafe { &(*state.inputs) },
             unsafe { &mut (*state.outputs) },
             unsafe { &mut (*state.locals_on_read) },
@@ -79,17 +77,16 @@ impl ReduceArgs for FusedReduceArgs {
                 sequence
             },
             &state.config_on_read,
-        )
-        .index(0)
+        )[0]
     }
 
-    fn read_output<P: ReduceDType>(_state: &Self::State<P>, _index: u32) -> Line<P::Out> {
-        Line::empty(1_u32)
+    fn read_output<P: ReduceDType>(_state: &Self::State<P>, _index: usize) -> Line<P::Out> {
+        Line::empty(1usize)
     }
 
-    fn write_output<P: ReduceDType>(state: &mut Self::State<P>, index: u32, value: Line<P::Out>) {
+    fn write_output<P: ReduceDType>(state: &mut Self::State<P>, index: usize, value: Line<P::Out>) {
         let mut values = Registry::<FuseArg, Line<P::Out>>::new();
-        let mut args = comptime![Sequence::<FuseArg>::new()];
+        let mut args = comptime![Vec::<FuseArg>::new()];
 
         values.insert(comptime![state.out.clone()], value);
         comptime![args.push(state.out.clone())];
@@ -105,7 +102,7 @@ impl ReduceArgs for FusedReduceArgs {
         );
     }
 
-    fn len_input<P: ReduceDType>(state: &Self::State<P>) -> u32 {
+    fn len_input<P: ReduceDType>(state: &Self::State<P>) -> usize {
         ref_len(
             unsafe { &(*state.inputs) },
             unsafe { &(*state.outputs) },
@@ -114,7 +111,7 @@ impl ReduceArgs for FusedReduceArgs {
         )
     }
 
-    fn len_output<P: ReduceDType>(state: &Self::State<P>) -> u32 {
+    fn len_output<P: ReduceDType>(state: &Self::State<P>) -> usize {
         ref_len(
             unsafe { &(*state.inputs) },
             unsafe { &(*state.outputs) },
@@ -123,7 +120,7 @@ impl ReduceArgs for FusedReduceArgs {
         )
     }
 
-    fn buffer_len_input<P: ReduceDType>(state: &Self::State<P>) -> u32 {
+    fn buffer_len_input<P: ReduceDType>(state: &Self::State<P>) -> usize {
         ref_buffer_len(
             unsafe { &(*state.inputs) },
             unsafe { &(*state.outputs) },
@@ -132,7 +129,7 @@ impl ReduceArgs for FusedReduceArgs {
         )
     }
 
-    fn buffer_len_output<P: ReduceDType>(state: &Self::State<P>) -> u32 {
+    fn buffer_len_output<P: ReduceDType>(state: &Self::State<P>) -> usize {
         ref_buffer_len(
             unsafe { &(*state.inputs) },
             unsafe { &(*state.outputs) },
@@ -141,35 +138,35 @@ impl ReduceArgs for FusedReduceArgs {
         )
     }
 
-    fn rank_input<P: ReduceDType>(state: &Self::State<P>) -> u32 {
+    fn rank_input<P: ReduceDType>(state: &Self::State<P>) -> usize {
         state.config_on_read.rank.runtime()
     }
 
-    fn rank_output<P: ReduceDType>(state: &Self::State<P>) -> u32 {
+    fn rank_output<P: ReduceDType>(state: &Self::State<P>) -> usize {
         state.config_on_write.rank.runtime()
     }
 
-    fn shape_input<P: ReduceDType>(state: &Self::State<P>, dim: u32) -> u32 {
+    fn shape_input<P: ReduceDType>(state: &Self::State<P>, dim: usize) -> usize {
         ref_shape(unsafe { &(*state.locals_on_read) }, dim)
     }
 
-    fn shape_output<P: ReduceDType>(state: &Self::State<P>, dim: u32) -> u32 {
+    fn shape_output<P: ReduceDType>(state: &Self::State<P>, dim: usize) -> usize {
         ref_shape(unsafe { &(*state.locals_on_write) }, dim)
     }
 
-    fn stride_input<P: ReduceDType>(state: &Self::State<P>, dim: u32) -> u32 {
+    fn stride_input<P: ReduceDType>(state: &Self::State<P>, dim: usize) -> usize {
         ref_stride(unsafe { &(*state.locals_on_read) }, dim)
     }
 
-    fn stride_output<P: ReduceDType>(state: &Self::State<P>, dim: u32) -> u32 {
+    fn stride_output<P: ReduceDType>(state: &Self::State<P>, dim: usize) -> usize {
         ref_stride(unsafe { &(*state.locals_on_write) }, dim)
     }
 
-    fn line_size_input<P: ReduceDType>(state: &Self::State<P>) -> comptime_type!(u32) {
+    fn line_size_input<P: ReduceDType>(state: &Self::State<P>) -> comptime_type!(LineSize) {
         ref_line_size(unsafe { &(*state.locals_on_read) })
     }
 
-    fn line_size_output<P: ReduceDType>(state: &Self::State<P>) -> comptime_type!(u32) {
+    fn line_size_output<P: ReduceDType>(state: &Self::State<P>) -> comptime_type!(LineSize) {
         ref_line_size(unsafe { &(*state.locals_on_write) })
     }
 }

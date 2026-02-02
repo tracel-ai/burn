@@ -1,6 +1,6 @@
-use burn_tensor::{DType, quantization::QTensorPrimitive};
+use burn_backend::{DType, QTensorPrimitive};
+use cubecl::quant::scheme::{QuantStore, QuantValue};
 use cubecl::server::AllocationKind;
-use cubecl_quant::scheme::{QuantStore, QuantValue};
 
 use crate::{CubeRuntime, ops::empty_qtensor, tensor::CubeTensor};
 
@@ -14,7 +14,7 @@ pub fn into_contiguous<R: CubeRuntime>(tensor: CubeTensor<R>) -> CubeTensor<R> {
         return into_contiguous_quantized(tensor, AllocationKind::Contiguous);
     }
 
-    let output = cubecl::std::tensor::into_contiguous(
+    let output = cubecl::std::tensor::into_contiguous_ref(
         &tensor.client,
         &tensor.as_handle_ref(),
         tensor.dtype.into(),
@@ -33,6 +33,10 @@ pub fn into_contiguous<R: CubeRuntime>(tensor: CubeTensor<R>) -> CubeTensor<R> {
 
 /// Make a jit tensor contiguous with an aligned last stride. Tensor is considered already contiguous
 /// if runtime can read it as is. This is equivalent in practice.
+#[cfg_attr(
+    feature = "tracing",
+    tracing::instrument(level = "trace", skip(tensor))
+)]
 pub fn into_contiguous_aligned<R: CubeRuntime>(tensor: CubeTensor<R>) -> CubeTensor<R> {
     if R::can_read_tensor(&tensor.shape, &tensor.strides) {
         return tensor;
@@ -42,7 +46,7 @@ pub fn into_contiguous_aligned<R: CubeRuntime>(tensor: CubeTensor<R>) -> CubeTen
         return into_contiguous_quantized(tensor, AllocationKind::Optimized);
     }
 
-    let output = cubecl::std::tensor::into_contiguous_pitched(
+    let output = cubecl::std::tensor::into_contiguous_pitched_ref(
         &tensor.client,
         &tensor.as_handle_ref(),
         tensor.dtype.into(),
@@ -59,6 +63,10 @@ pub fn into_contiguous_aligned<R: CubeRuntime>(tensor: CubeTensor<R>) -> CubeTen
     )
 }
 
+#[cfg_attr(
+    feature = "tracing",
+    tracing::instrument(level = "trace", skip(tensor))
+)]
 fn into_contiguous_quantized<R: CubeRuntime>(
     tensor: CubeTensor<R>,
     kind: AllocationKind,
@@ -69,32 +77,34 @@ fn into_contiguous_quantized<R: CubeRuntime>(
     let (out_values, out_scales) = output.quantized_handles().unwrap();
 
     match scheme.store {
-        QuantStore::U32 => {
+        QuantStore::PackedU32(packed_dim) => {
             cubecl::std::tensor::into_contiguous_packed_ref(
                 &values.client,
                 &values.as_handle_ref(),
                 &out_values.as_handle_ref(),
+                packed_dim,
                 &tensor.shape,
-                scheme.num_quants() as u32,
+                scheme.num_quants(),
                 DType::U32.into(),
             )
             .expect("Kernel to never fail");
         }
         // e2m1 is special because it has a native packed representation, `e2m1x2`.
         // It's internally stored as `u8` with a packing factor of 2.
-        QuantStore::Native if scheme.value == QuantValue::E2M1 => {
+        QuantStore::PackedNative(packed_dim) if scheme.value == QuantValue::E2M1 => {
             cubecl::std::tensor::into_contiguous_packed_ref(
                 &values.client,
                 &values.as_handle_ref(),
                 &out_values.as_handle_ref(),
+                packed_dim,
                 &tensor.shape,
-                2,
+                scheme.num_quants(),
                 DType::U8.into(),
             )
             .expect("Kernel to never fail");
         }
-        QuantStore::Native => {
-            cubecl::std::tensor::into_contiguous_ref(
+        _ => {
+            cubecl::std::tensor::copy_into(
                 &values.client,
                 &values.as_handle_ref(),
                 &out_values.as_handle_ref(),
@@ -104,7 +114,7 @@ fn into_contiguous_quantized<R: CubeRuntime>(
         }
     }
 
-    cubecl::std::tensor::into_contiguous_ref(
+    cubecl::std::tensor::copy_into(
         &scales.client,
         &scales.as_handle_ref(),
         &out_scales.as_handle_ref(),

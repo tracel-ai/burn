@@ -1,8 +1,8 @@
-use burn_std::future::DynFut;
-use burn_tensor::{
-    Bool, Device, Distribution, ElementConversion, IntDType, Shape, TensorData,
-    backend::ExecutionError,
-    ops::{BoolTensor, FloatTensor, FloatTensorOps, IntElem, IntTensor, IntTensorOps},
+use burn_backend::{
+    DType, Distribution, ElementConversion, ExecutionError, IntDType, Scalar, Shape, Slice,
+    TensorData,
+    ops::{FloatTensorOps, IntTensorOps},
+    tensor::{Bool, BoolTensor, Device, FloatTensor, IntElem, IntTensor},
 };
 
 use crate::{
@@ -23,9 +23,9 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
 
     fn int_from_data(data: TensorData, device: &Device<Self>) -> IntTensor<Self> {
         match data.dtype {
-            burn_tensor::DType::I64 => super::base::from_data::<i64>(data, device),
-            burn_tensor::DType::U32 => super::base::from_data::<u32>(data, device),
-            burn_tensor::DType::U8 => super::base::from_data::<u8>(data, device),
+            DType::I64 => super::base::from_data::<i64>(data, device),
+            DType::U32 => super::base::from_data::<u32>(data, device),
+            DType::U8 => super::base::from_data::<u8>(data, device),
             _ => unimplemented!("Unsupported dtype for `int_from_data`"),
         }
     }
@@ -42,13 +42,13 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
         super::base::reshape(tensor, shape)
     }
 
-    fn int_slice(tensor: IntTensor<Self>, slices: &[burn_tensor::Slice]) -> IntTensor<Self> {
+    fn int_slice(tensor: IntTensor<Self>, slices: &[Slice]) -> IntTensor<Self> {
         super::base::slice_with_steps(tensor, slices)
     }
 
     fn int_slice_assign(
         tensor: IntTensor<Self>,
-        slices: &[burn_tensor::Slice],
+        slices: &[Slice],
         value: IntTensor<Self>,
     ) -> IntTensor<Self> {
         super::base::slice_assign(tensor, slices, value)
@@ -69,12 +69,12 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
     fn int_mask_fill(
         tensor: IntTensor<Self>,
         mask: BoolTensor<Self>,
-        value: IntElem<Self>,
+        value: Scalar,
     ) -> IntTensor<Self> {
         CandleTensor::new(
             mask.tensor
                 .where_cond(
-                    &super::candle_utils::fill_like::<I>(value, &tensor.tensor),
+                    &super::candle_utils::fill_like::<I>(value.elem(), &tensor.tensor),
                     &tensor.tensor,
                 )
                 .unwrap(),
@@ -91,7 +91,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
         CandleTensor::new(tensor.gather(&indices, dim).unwrap())
     }
 
-    fn int_scatter(
+    fn int_scatter_add(
         dim: usize,
         tensor: IntTensor<Self>,
         indices: IntTensor<Self>,
@@ -113,7 +113,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
         CandleTensor::new(tensor.tensor.index_select(&indices.tensor, dim).unwrap())
     }
 
-    fn int_select_assign(
+    fn int_select_add(
         tensor: IntTensor<Self>,
         dim: usize,
         indices: IntTensor<Self>,
@@ -137,12 +137,8 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
         CandleTensor::new(lhs_broadcast.eq(&rhs_broadcast).unwrap())
     }
 
-    fn int_equal_elem(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> BoolTensor<Self> {
-        CandleTensor::new(
-            lhs.tensor
-                .eq(&super::candle_utils::fill_like::<I>(rhs, &lhs.tensor))
-                .unwrap(),
-        )
+    fn int_equal_elem(lhs: IntTensor<Self>, rhs: Scalar) -> BoolTensor<Self> {
+        CandleTensor::new(lhs.tensor.eq(rhs.elem::<I>()).unwrap())
     }
 
     fn int_greater(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> BoolTensor<Self> {
@@ -151,10 +147,13 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
         CandleTensor::new(lhs_broadcast.gt(&rhs_broadcast).unwrap())
     }
 
-    fn int_greater_elem(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> BoolTensor<Self> {
+    fn int_greater_elem(lhs: IntTensor<Self>, rhs: Scalar) -> BoolTensor<Self> {
         CandleTensor::new(
             lhs.tensor
-                .gt(&super::candle_utils::fill_like::<I>(rhs, &lhs.tensor))
+                .gt(&super::candle_utils::fill_like::<I>(
+                    rhs.elem(),
+                    &lhs.tensor,
+                ))
                 .unwrap(),
         )
     }
@@ -165,10 +164,13 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
         CandleTensor::new(lhs_broadcast.ge(&rhs_broadcast).unwrap())
     }
 
-    fn int_greater_equal_elem(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> BoolTensor<Self> {
+    fn int_greater_equal_elem(lhs: IntTensor<Self>, rhs: Scalar) -> BoolTensor<Self> {
         CandleTensor::new(
             lhs.tensor
-                .ge(&super::candle_utils::fill_like::<I>(rhs, &lhs.tensor))
+                .ge(&super::candle_utils::fill_like::<I>(
+                    rhs.elem(),
+                    &lhs.tensor,
+                ))
                 .unwrap(),
         )
     }
@@ -179,10 +181,13 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
         CandleTensor::new(lhs_broadcast.lt(&rhs_broadcast).unwrap())
     }
 
-    fn int_lower_elem(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> BoolTensor<Self> {
+    fn int_lower_elem(lhs: IntTensor<Self>, rhs: Scalar) -> BoolTensor<Self> {
         CandleTensor::new(
             lhs.tensor
-                .lt(&super::candle_utils::fill_like::<I>(rhs, &lhs.tensor))
+                .lt(&super::candle_utils::fill_like::<I>(
+                    rhs.elem(),
+                    &lhs.tensor,
+                ))
                 .unwrap(),
         )
     }
@@ -193,10 +198,13 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
         CandleTensor::new(lhs_broadcast.le(&rhs_broadcast).unwrap())
     }
 
-    fn int_lower_equal_elem(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> BoolTensor<Self> {
+    fn int_lower_equal_elem(lhs: IntTensor<Self>, rhs: Scalar) -> BoolTensor<Self> {
         CandleTensor::new(
             lhs.tensor
-                .le(&super::candle_utils::fill_like::<I>(rhs, &lhs.tensor))
+                .le(&super::candle_utils::fill_like::<I>(
+                    rhs.elem(),
+                    &lhs.tensor,
+                ))
                 .unwrap(),
         )
     }
@@ -205,7 +213,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
         CandleTensor::new(lhs.tensor.broadcast_add(&rhs.tensor).unwrap())
     }
 
-    fn int_add_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
+    fn int_add_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
         CandleTensor::new((lhs.tensor + rhs.elem::<f64>()).unwrap())
     }
 
@@ -213,7 +221,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
         CandleTensor::new(lhs.tensor.broadcast_sub(&rhs.tensor).unwrap())
     }
 
-    fn int_sub_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
+    fn int_sub_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
         CandleTensor::new((lhs.tensor - rhs.elem::<f64>()).unwrap())
     }
 
@@ -221,7 +229,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
         CandleTensor::new(lhs.tensor.broadcast_mul(&rhs.tensor).unwrap())
     }
 
-    fn int_mul_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
+    fn int_mul_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
         CandleTensor::new((lhs.tensor * rhs.elem::<f64>()).unwrap())
     }
 
@@ -229,7 +237,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
         CandleTensor::new(lhs.tensor.broadcast_div(&rhs.tensor).unwrap())
     }
 
-    fn int_div_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
+    fn int_div_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
         // Candle implements scalar a/b as a * (1/b). With ints 1/b is rounded to 0 so we always obtain 0.
         panic!("Not supported by Candle")
     }
@@ -247,7 +255,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
         )
     }
 
-    fn int_remainder_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
+    fn int_remainder_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
         // Same problem as int_div_scalar.
         panic!("Not supported by Candle")
     }
@@ -449,7 +457,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
         unimplemented!("bitwise_and is not implemented for Candle IntTensor");
     }
 
-    fn bitwise_and_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
+    fn bitwise_and_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
         unimplemented!("bitwise_and_scalar is not implemented for Candle IntTensor");
     }
 
@@ -457,7 +465,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
         unimplemented!("bitwise_or is not implemented for Candle IntTensor");
     }
 
-    fn bitwise_or_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
+    fn bitwise_or_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
         unimplemented!("bitwise_or_scalar is not implemented for Candle IntTensor");
     }
 
@@ -465,7 +473,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
         unimplemented!("bitwise_xor is not implemented for Candle IntTensor");
     }
 
-    fn bitwise_xor_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
+    fn bitwise_xor_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
         unimplemented!("bitwise_xor_scalar is not implemented for Candle IntTensor");
     }
 
@@ -481,11 +489,11 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
         unimplemented!("bitwise_right_shift is not implemented for Candle IntTensor");
     }
 
-    fn bitwise_left_shift_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
+    fn bitwise_left_shift_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
         unimplemented!("bitwise_left_shift_scalar is not implemented for Candle IntTensor");
     }
 
-    fn bitwise_right_shift_scalar(lhs: IntTensor<Self>, rhs: IntElem<Self>) -> IntTensor<Self> {
+    fn bitwise_right_shift_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
         unimplemented!("bitwise_right_shift_scalar is not implemented for Candle IntTensor");
     }
 

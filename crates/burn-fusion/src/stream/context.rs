@@ -1,5 +1,5 @@
+use burn_backend::{Shape, Slice};
 use burn_ir::*;
-use burn_tensor::Shape;
 use hashbrown::HashMap;
 
 /// The context contains the relative graph tensor mapping so that a relative tensor id can be
@@ -171,6 +171,32 @@ impl RelativeOps for ModuleOperationIr {
                 options: desc.options.clone(),
                 out: desc.out.to_relative(converter),
             }),
+            ModuleOperationIr::Conv1dXBackward(desc) => {
+                ModuleOperationIr::Conv1dXBackward(Conv1dXBackwardOpIr {
+                    x: desc.x.to_relative(converter),
+                    weight: desc.weight.to_relative(converter),
+                    output_grad: desc.output_grad.to_relative(converter),
+                    options: desc.options.clone(),
+                    out: desc.out.to_relative(converter),
+                })
+            }
+            ModuleOperationIr::Conv1dWeightBackward(desc) => {
+                ModuleOperationIr::Conv1dWeightBackward(Conv1dWeightBackwardOpIr {
+                    x: desc.x.to_relative(converter),
+                    weight: desc.weight.to_relative(converter),
+                    output_grad: desc.output_grad.to_relative(converter),
+                    options: desc.options.clone(),
+                    out: desc.out.to_relative(converter),
+                })
+            }
+            ModuleOperationIr::Conv1dBiasBackward(desc) => {
+                ModuleOperationIr::Conv1dBiasBackward(Conv1dBiasBackwardOpIr {
+                    x: desc.x.to_relative(converter),
+                    bias: desc.bias.to_relative(converter),
+                    output_grad: desc.output_grad.to_relative(converter),
+                    out: desc.out.to_relative(converter),
+                })
+            }
             ModuleOperationIr::Conv2d(desc) => ModuleOperationIr::Conv2d(Conv2dOpIr {
                 x: desc.x.to_relative(converter),
                 weight: desc.weight.to_relative(converter),
@@ -178,6 +204,32 @@ impl RelativeOps for ModuleOperationIr {
                 options: desc.options.clone(),
                 out: desc.out.to_relative(converter),
             }),
+            ModuleOperationIr::Conv2dXBackward(desc) => {
+                ModuleOperationIr::Conv2dXBackward(Conv2dXBackwardOpIr {
+                    x: desc.x.to_relative(converter),
+                    weight: desc.weight.to_relative(converter),
+                    output_grad: desc.output_grad.to_relative(converter),
+                    options: desc.options.clone(),
+                    out: desc.out.to_relative(converter),
+                })
+            }
+            ModuleOperationIr::Conv2dWeightBackward(desc) => {
+                ModuleOperationIr::Conv2dWeightBackward(Conv2dWeightBackwardOpIr {
+                    x: desc.x.to_relative(converter),
+                    weight: desc.weight.to_relative(converter),
+                    output_grad: desc.output_grad.to_relative(converter),
+                    options: desc.options.clone(),
+                    out: desc.out.to_relative(converter),
+                })
+            }
+            ModuleOperationIr::Conv2dBiasBackward(desc) => {
+                ModuleOperationIr::Conv2dBiasBackward(Conv2dBiasBackwardOpIr {
+                    x: desc.x.to_relative(converter),
+                    bias: desc.bias.to_relative(converter),
+                    output_grad: desc.output_grad.to_relative(converter),
+                    out: desc.out.to_relative(converter),
+                })
+            }
             ModuleOperationIr::Conv3d(desc) => ModuleOperationIr::Conv3d(Conv3dOpIr {
                 x: desc.x.to_relative(converter),
                 weight: desc.weight.to_relative(converter),
@@ -185,6 +237,32 @@ impl RelativeOps for ModuleOperationIr {
                 options: desc.options.clone(),
                 out: desc.out.to_relative(converter),
             }),
+            ModuleOperationIr::Conv3dXBackward(desc) => {
+                ModuleOperationIr::Conv3dXBackward(Conv3dXBackwardOpIr {
+                    x: desc.x.to_relative(converter),
+                    weight: desc.weight.to_relative(converter),
+                    output_grad: desc.output_grad.to_relative(converter),
+                    options: desc.options.clone(),
+                    out: desc.out.to_relative(converter),
+                })
+            }
+            ModuleOperationIr::Conv3dWeightBackward(desc) => {
+                ModuleOperationIr::Conv3dWeightBackward(Conv3dWeightBackwardOpIr {
+                    x: desc.x.to_relative(converter),
+                    weight: desc.weight.to_relative(converter),
+                    output_grad: desc.output_grad.to_relative(converter),
+                    options: desc.options.clone(),
+                    out: desc.out.to_relative(converter),
+                })
+            }
+            ModuleOperationIr::Conv3dBiasBackward(desc) => {
+                ModuleOperationIr::Conv3dBiasBackward(Conv3dBiasBackwardOpIr {
+                    x: desc.x.to_relative(converter),
+                    bias: desc.bias.to_relative(converter),
+                    output_grad: desc.output_grad.to_relative(converter),
+                    out: desc.out.to_relative(converter),
+                })
+            }
             ModuleOperationIr::DeformableConv2d(desc) => {
                 ModuleOperationIr::DeformableConv2d(Box::new(DeformConv2dOpIr {
                     x: desc.x.to_relative(converter),
@@ -245,6 +323,7 @@ impl RelativeOps for ModuleOperationIr {
                 stride: desc.stride,
                 padding: desc.padding,
                 count_include_pad: desc.count_include_pad,
+                ceil_mode: desc.ceil_mode,
                 out: desc.out.to_relative(converter),
             }),
             ModuleOperationIr::AvgPool2d(desc) => ModuleOperationIr::AvgPool2d(AvgPool2dOpIr {
@@ -253,6 +332,7 @@ impl RelativeOps for ModuleOperationIr {
                 stride: desc.stride,
                 padding: desc.padding,
                 count_include_pad: desc.count_include_pad,
+                ceil_mode: desc.ceil_mode,
                 out: desc.out.to_relative(converter),
             }),
             ModuleOperationIr::AvgPool1dBackward(desc) => {
@@ -263,6 +343,7 @@ impl RelativeOps for ModuleOperationIr {
                     stride: desc.stride,
                     padding: desc.padding,
                     count_include_pad: desc.count_include_pad,
+                    ceil_mode: desc.ceil_mode,
                     out: desc.out.to_relative(converter),
                 })
             }
@@ -274,6 +355,7 @@ impl RelativeOps for ModuleOperationIr {
                     stride: desc.stride,
                     padding: desc.padding,
                     count_include_pad: desc.count_include_pad,
+                    ceil_mode: desc.ceil_mode,
                     out: desc.out.to_relative(converter),
                 })
             }
@@ -311,6 +393,7 @@ impl RelativeOps for ModuleOperationIr {
                 stride: desc.stride,
                 padding: desc.padding,
                 dilation: desc.dilation,
+                ceil_mode: desc.ceil_mode,
                 out: desc.out.to_relative(converter),
             }),
             ModuleOperationIr::MaxPool1dWithIndices(desc) => {
@@ -320,6 +403,7 @@ impl RelativeOps for ModuleOperationIr {
                     stride: desc.stride,
                     padding: desc.padding,
                     dilation: desc.dilation,
+                    ceil_mode: desc.ceil_mode,
                     out: desc.out.to_relative(converter),
                     out_indices: desc.out_indices.to_relative(converter),
                 })
@@ -333,6 +417,7 @@ impl RelativeOps for ModuleOperationIr {
                     stride: desc.stride,
                     padding: desc.padding,
                     dilation: desc.dilation,
+                    ceil_mode: desc.ceil_mode,
                     out: desc.out.to_relative(converter),
                 })
             }
@@ -342,6 +427,7 @@ impl RelativeOps for ModuleOperationIr {
                 stride: desc.stride,
                 padding: desc.padding,
                 dilation: desc.dilation,
+                ceil_mode: desc.ceil_mode,
                 out: desc.out.to_relative(converter),
             }),
             ModuleOperationIr::MaxPool2dWithIndices(desc) => {
@@ -351,6 +437,7 @@ impl RelativeOps for ModuleOperationIr {
                     stride: desc.stride,
                     padding: desc.padding,
                     dilation: desc.dilation,
+                    ceil_mode: desc.ceil_mode,
                     out: desc.out.to_relative(converter),
                     out_indices: desc.out_indices.to_relative(converter),
                 })
@@ -364,6 +451,7 @@ impl RelativeOps for ModuleOperationIr {
                     stride: desc.stride,
                     padding: desc.padding,
                     dilation: desc.dilation,
+                    ceil_mode: desc.ceil_mode,
                     out: desc.out.to_relative(converter),
                 })
             }
@@ -428,6 +516,47 @@ impl RelativeOps for FloatOperationIr {
                 input: desc.input.to_relative(converter),
                 out: desc.out.to_relative(converter),
             }),
+            FloatOperationIr::Tan(desc) => FloatOperationIr::Tan(UnaryOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            FloatOperationIr::Cosh(desc) => FloatOperationIr::Cosh(UnaryOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            FloatOperationIr::Sinh(desc) => FloatOperationIr::Sinh(UnaryOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            FloatOperationIr::ArcCos(desc) => FloatOperationIr::ArcCos(UnaryOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            FloatOperationIr::ArcCosh(desc) => FloatOperationIr::ArcCosh(UnaryOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            FloatOperationIr::ArcSin(desc) => FloatOperationIr::ArcSin(UnaryOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            FloatOperationIr::ArcSinh(desc) => FloatOperationIr::ArcSinh(UnaryOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            FloatOperationIr::ArcTan(desc) => FloatOperationIr::ArcTan(UnaryOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            FloatOperationIr::ArcTanh(desc) => FloatOperationIr::ArcTanh(UnaryOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            FloatOperationIr::ArcTan2(desc) => FloatOperationIr::ArcTan2(BinaryOpIr {
+                lhs: desc.lhs.to_relative(converter),
+                rhs: desc.rhs.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
             FloatOperationIr::IntoInt(desc) => FloatOperationIr::IntoInt(CastOpIr {
                 input: desc.input.to_relative(converter),
                 out: desc.out.to_relative(converter),
@@ -487,6 +616,14 @@ impl RelativeOps for FloatOperationIr {
                 input: desc.input.to_relative(converter),
                 out: desc.out.to_relative(converter),
             }),
+            FloatOperationIr::GridSample2d(desc) => {
+                FloatOperationIr::GridSample2d(GridSample2dOpIr {
+                    tensor: desc.tensor.to_relative(converter),
+                    grid: desc.grid.to_relative(converter),
+                    options: desc.options.clone(),
+                    out: desc.out.to_relative(converter),
+                })
+            }
         }
     }
 }
@@ -683,46 +820,6 @@ impl RelativeOps for NumericOperationIr {
                 out: desc.out.to_relative(converter),
                 value: desc.value.to_relative(converter),
             }),
-            NumericOperationIr::Gather(desc) => NumericOperationIr::Gather(GatherOpIr {
-                tensor: desc.tensor.to_relative(converter),
-                dim: desc.dim,
-                indices: desc.indices.to_relative(converter),
-                out: desc.out.to_relative(converter),
-            }),
-            NumericOperationIr::Scatter(desc) => NumericOperationIr::Scatter(ScatterOpIr {
-                tensor: desc.tensor.to_relative(converter),
-                dim: desc.dim,
-                indices: desc.indices.to_relative(converter),
-                value: desc.value.to_relative(converter),
-                out: desc.out.to_relative(converter),
-            }),
-            NumericOperationIr::Select(desc) => NumericOperationIr::Select(SelectOpIr {
-                tensor: desc.tensor.to_relative(converter),
-                dim: desc.dim,
-                indices: desc.indices.to_relative(converter),
-                out: desc.out.to_relative(converter),
-            }),
-            NumericOperationIr::SelectAssign(desc) => {
-                NumericOperationIr::SelectAssign(SelectAssignOpIr {
-                    tensor: desc.tensor.to_relative(converter),
-                    dim: desc.dim,
-                    indices: desc.indices.to_relative(converter),
-                    value: desc.value.to_relative(converter),
-                    out: desc.out.to_relative(converter),
-                })
-            }
-            NumericOperationIr::MaskWhere(desc) => NumericOperationIr::MaskWhere(MaskWhereOpIr {
-                tensor: desc.tensor.to_relative(converter),
-                mask: desc.mask.to_relative(converter),
-                value: desc.value.to_relative(converter),
-                out: desc.out.to_relative(converter),
-            }),
-            NumericOperationIr::MaskFill(desc) => NumericOperationIr::MaskFill(MaskFillOpIr {
-                tensor: desc.tensor.to_relative(converter),
-                mask: desc.mask.to_relative(converter),
-                value: desc.value.to_relative(converter),
-                out: desc.out.to_relative(converter),
-            }),
             NumericOperationIr::MeanDim(desc) => NumericOperationIr::MeanDim(ReduceDimOpIr {
                 input: desc.input.to_relative(converter),
                 axis: desc.axis,
@@ -750,11 +847,6 @@ impl RelativeOps for NumericOperationIr {
             NumericOperationIr::ProdDim(desc) => NumericOperationIr::ProdDim(ReduceDimOpIr {
                 input: desc.input.to_relative(converter),
                 axis: desc.axis,
-                out: desc.out.to_relative(converter),
-            }),
-            NumericOperationIr::EqualElem(desc) => NumericOperationIr::EqualElem(ScalarOpIr {
-                lhs: desc.lhs.to_relative(converter),
-                rhs: desc.rhs.to_relative(converter),
                 out: desc.out.to_relative(converter),
             }),
             NumericOperationIr::Greater(desc) => NumericOperationIr::Greater(BinaryOpIr {
@@ -931,24 +1023,63 @@ impl RelativeOps for BaseOperationIr {
             }),
             BaseOperationIr::Slice(desc) => BaseOperationIr::Slice(SliceOpIr {
                 tensor: desc.tensor.to_relative(converter),
-                ranges: desc
-                    .ranges
-                    .iter()
-                    .map(|_info| burn_tensor::Slice::from(0..1))
-                    .collect(),
+                ranges: desc.ranges.iter().map(|_info| Slice::from(0..1)).collect(),
                 out: desc.out.to_relative(converter),
             }),
             BaseOperationIr::SliceAssign(desc) => BaseOperationIr::SliceAssign(SliceAssignOpIr {
                 tensor: desc.tensor.to_relative(converter),
-                ranges: desc
-                    .ranges
-                    .iter()
-                    .map(|_range| burn_tensor::Slice::from(0..1))
-                    .collect(),
+                ranges: desc.ranges.iter().map(|_range| Slice::from(0..1)).collect(),
+                value: desc.value.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            BaseOperationIr::Gather(desc) => BaseOperationIr::Gather(GatherOpIr {
+                tensor: desc.tensor.to_relative(converter),
+                dim: desc.dim,
+                indices: desc.indices.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            BaseOperationIr::Scatter(desc) => BaseOperationIr::Scatter(ScatterOpIr {
+                tensor: desc.tensor.to_relative(converter),
+                dim: desc.dim,
+                indices: desc.indices.to_relative(converter),
+                value: desc.value.to_relative(converter),
+                update: desc.update,
+                out: desc.out.to_relative(converter),
+            }),
+            BaseOperationIr::Select(desc) => BaseOperationIr::Select(SelectOpIr {
+                tensor: desc.tensor.to_relative(converter),
+                dim: desc.dim,
+                indices: desc.indices.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            BaseOperationIr::SelectAssign(desc) => {
+                BaseOperationIr::SelectAssign(SelectAssignOpIr {
+                    tensor: desc.tensor.to_relative(converter),
+                    dim: desc.dim,
+                    indices: desc.indices.to_relative(converter),
+                    value: desc.value.to_relative(converter),
+                    update: desc.update,
+                    out: desc.out.to_relative(converter),
+                })
+            }
+            BaseOperationIr::MaskWhere(desc) => BaseOperationIr::MaskWhere(MaskWhereOpIr {
+                tensor: desc.tensor.to_relative(converter),
+                mask: desc.mask.to_relative(converter),
+                value: desc.value.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            BaseOperationIr::MaskFill(desc) => BaseOperationIr::MaskFill(MaskFillOpIr {
+                tensor: desc.tensor.to_relative(converter),
+                mask: desc.mask.to_relative(converter),
                 value: desc.value.to_relative(converter),
                 out: desc.out.to_relative(converter),
             }),
             BaseOperationIr::Equal(desc) => BaseOperationIr::Equal(BinaryOpIr {
+                lhs: desc.lhs.to_relative(converter),
+                rhs: desc.rhs.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            BaseOperationIr::EqualElem(desc) => BaseOperationIr::EqualElem(ScalarOpIr {
                 lhs: desc.lhs.to_relative(converter),
                 rhs: desc.rhs.to_relative(converter),
                 out: desc.out.to_relative(converter),
@@ -1058,15 +1189,15 @@ impl RelativeOps for ScalarIr {
         };
 
         converter.scalars.insert(id, *self);
-        ScalarIr::U64(id.value)
+        ScalarIr::UInt(id.value)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use burn_backend::DType;
     use burn_ir::{TensorId, TensorIr, TensorStatus};
-    use burn_tensor::DType;
 
     #[test]
     fn tensor_description_to_relative() {
@@ -1108,13 +1239,13 @@ mod tests {
 
     #[test]
     fn scalar_ir_to_relative() {
-        let scalar1 = ScalarIr::F32(1.0);
-        let scalar2 = ScalarIr::U8(1);
+        let scalar1 = ScalarIr::Float(1.0);
+        let scalar2 = ScalarIr::UInt(1);
         let mut converter = OperationConverter::default();
         let scalar1_local = scalar1.to_relative(&mut converter);
         let scalar2_local = scalar2.to_relative(&mut converter);
 
-        assert_eq!(scalar1_local, ScalarIr::U64(0));
-        assert_eq!(scalar2_local, ScalarIr::U64(1));
+        assert_eq!(scalar1_local, ScalarIr::UInt(0));
+        assert_eq!(scalar2_local, ScalarIr::UInt(1));
     }
 }

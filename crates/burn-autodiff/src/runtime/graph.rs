@@ -9,7 +9,7 @@ use crate::{
 };
 use alloc::sync::Arc;
 use alloc::vec::Vec;
-use burn_tensor::backend::Backend;
+use burn_backend::Backend;
 use hashbrown::{HashMap, HashSet};
 
 #[cfg(feature = "std")]
@@ -153,7 +153,7 @@ impl<'a> GraphCleaner<'a> {
             let mut state = STATE.lock();
             if let Some(state) = state.as_mut() {
                 for node in should_remove {
-                    state.graphs.remove(&node);
+                    state.remove_entry(&node);
                 }
             }
         }

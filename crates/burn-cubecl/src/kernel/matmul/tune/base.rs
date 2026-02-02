@@ -1,24 +1,18 @@
-use burn_tensor::DType;
-use cubecl::{
-    matmul::{
-        AcceleratedTileKind, PartialReadingStrategy, ReadingStrategy, Strategy,
-        components::MatmulKind,
-        kernels::layered::{
-            Selection, TileSizeSelection, double_buffering::DoubleBufferingArgs,
-            ordered_double_buffering::OrderedSelectionArgs, simple::SimpleArgs,
-            simple_unit::SimpleUnitSelectionArgs,
-        },
-        tune_key::{
-            MatmulAutotuneKey, MatmulElemType, MatmulGlobalScale, should_tune_double_buffering,
-        },
-    },
-    tune::{LocalTuner, Tunable, TunableSet, TuneGroup, local_tuner},
-};
-
 use crate::{
     CubeRuntime, CubeTuneId,
-    kernel::matmul::{launch_matmul, utils::init_matmul_output},
+    kernel::matmul::{launch_matmul, launch_matmul_naive, utils::init_matmul_output},
     tensor::CubeTensor,
+};
+use burn_backend::DType;
+use cubecl::tune::{LocalTuner, Tunable, TunableSet, TuneGroup, local_tuner};
+use cubek::matmul::{
+    definition::MatmulKind,
+    launch::{MatmulAutotuneKey, MatmulGlobalScale, Strategy, should_tune_double_buffering},
+    routines::{
+        BlueprintStrategy, TileSizeSelection, double_buffering::DoubleBufferingArgs,
+        double_unit::DoubleUnitSelectionArgs, ordered_double_buffering::OrderedSelectionArgs,
+        simple::SimpleArgs, simple_unit::SimpleUnitSelectionArgs,
+    },
 };
 
 fn matmul_input_gen<R: CubeRuntime>(
@@ -90,8 +84,19 @@ pub fn matmul_autotune<R: CubeRuntime>(
         let tma = TuneGroup::<MatmulAutotuneKey>::new("tma", |key| {
             // For large matmul, we set the max priority to TMA kernels, higher than any other
             // matmuls, since they are the best kernels no matter what.
+            //
+            // But only when all axis are large.
+            let max_axis = usize::max(key.definition.m, key.definition.n);
+            let max_axis = usize::max(key.definition.k, max_axis);
+
+            let min_axis = usize::min(key.definition.m, key.definition.n);
+            let min_axis = usize::min(key.definition.k, min_axis);
+
+            let skewed_factor = max_axis / min_axis;
+
             let priority_max = if matches!(key.analysis.kind, MatmulKind::General)
                 && matches!(key.analysis.scale_global, MatmulGlobalScale::Large)
+                && skewed_factor < 4
             {
                 PRIORITY_MAX
             } else {
@@ -118,7 +123,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
         // First entry should always work, since it is considered the fallback.
         set = set.with(
             Tunable::new("matmul_naive", |lhs, rhs, out| {
-                launch_matmul::<R>(&Strategy::Naive, lhs, rhs, out)
+                launch_matmul_naive::<R>(&Strategy::Naive, lhs, rhs, out)
                     .map_err(|err| std::format!("{err:?}"))
             })
             .group(&unit, |key| {
@@ -134,8 +139,14 @@ pub fn matmul_autotune<R: CubeRuntime>(
 
         // Unit VecMat
         for (strategy, double_buf) in [
-            (Strategy::SimpleVecMat(Selection::Inferred(())), false),
-            (Strategy::DoubleVecMat(Selection::Inferred(())), true),
+            (
+                Strategy::SimpleVecMat(BlueprintStrategy::Inferred(().into())),
+                false,
+            ),
+            (
+                Strategy::DoubleVecMat(BlueprintStrategy::Inferred(().into())),
+                true,
+            ),
         ] {
             set = set.with(
                 Tunable::new(strategy.to_string(), move |lhs, rhs, out| {
@@ -156,17 +167,15 @@ pub fn matmul_autotune<R: CubeRuntime>(
         ] {
             for (strategy, double_buf) in [
                 (
-                    Strategy::SimpleUnit(Selection::Inferred(SimpleUnitSelectionArgs {
+                    Strategy::SimpleUnit(BlueprintStrategy::Inferred(SimpleUnitSelectionArgs {
                         tile_size,
                     })),
                     false,
                 ),
                 (
-                    Strategy::DoubleUnit(Selection::Inferred(
-                        cubecl::matmul::kernels::layered::double_unit::DoubleUnitSelectionArgs {
-                            tile_size,
-                        },
-                    )),
+                    Strategy::DoubleUnit(BlueprintStrategy::Inferred(DoubleUnitSelectionArgs {
+                        tile_size,
+                    })),
                     true,
                 ),
             ] {
@@ -184,119 +193,187 @@ pub fn matmul_autotune<R: CubeRuntime>(
         }
 
         // Accelerated matmuls
-        for (tile_kind, tile_group) in [
-            (AcceleratedTileKind::Cmma, &cmma),
-            (AcceleratedTileKind::Mma, &mma),
+        for (strategy, double_buf, group_extra, tile_group) in [
+            (
+                Strategy::SimpleCyclicCmma(BlueprintStrategy::Inferred(SimpleArgs {
+                    multi_rows: false,
+                })),
+                false,
+                None,
+                &cmma,
+            ),
+            (
+                Strategy::SimpleCyclicMma(BlueprintStrategy::Inferred(SimpleArgs {
+                    multi_rows: false,
+                })),
+                false,
+                None,
+                &mma,
+            ),
+            (
+                Strategy::SimpleCyclicCmma(BlueprintStrategy::Inferred(SimpleArgs {
+                    multi_rows: true,
+                })),
+                false,
+                None,
+                &cmma,
+            ),
+            (
+                Strategy::SimpleCyclicMma(BlueprintStrategy::Inferred(SimpleArgs {
+                    multi_rows: true,
+                })),
+                false,
+                None,
+                &mma,
+            ),
+            (
+                Strategy::OrderedDoubleCmma(BlueprintStrategy::Inferred(OrderedSelectionArgs {
+                    partition_k: Some(2),
+                    row_count: Some(4),
+                    rows_per_plane: Some(2),
+                })),
+                true,
+                None,
+                &cmma,
+            ),
+            (
+                Strategy::OrderedDoubleMma(BlueprintStrategy::Inferred(OrderedSelectionArgs {
+                    partition_k: Some(2),
+                    row_count: Some(4),
+                    rows_per_plane: Some(2),
+                })),
+                true,
+                None,
+                &mma,
+            ),
+            (
+                Strategy::OrderedDoubleCmma(BlueprintStrategy::Inferred(OrderedSelectionArgs {
+                    partition_k: Some(2),
+                    row_count: Some(8),
+                    rows_per_plane: Some(2),
+                })),
+                true,
+                None,
+                &cmma,
+            ),
+            (
+                Strategy::OrderedDoubleMma(BlueprintStrategy::Inferred(OrderedSelectionArgs {
+                    partition_k: Some(2),
+                    row_count: Some(8),
+                    rows_per_plane: Some(2),
+                })),
+                true,
+                None,
+                &mma,
+            ),
+            (
+                Strategy::DoubleCyclicCmma(BlueprintStrategy::Inferred(DoubleBufferingArgs {
+                    specialized: false,
+                })),
+                true,
+                None,
+                &cmma,
+            ),
+            (
+                Strategy::DoubleCyclicMma(BlueprintStrategy::Inferred(DoubleBufferingArgs {
+                    specialized: false,
+                })),
+                true,
+                None,
+                &mma,
+            ),
+            (
+                Strategy::DoubleCyclicCmma(BlueprintStrategy::Inferred(DoubleBufferingArgs {
+                    specialized: true,
+                })),
+                true,
+                None,
+                &cmma,
+            ),
+            (
+                Strategy::DoubleCyclicMma(BlueprintStrategy::Inferred(DoubleBufferingArgs {
+                    specialized: true,
+                })),
+                true,
+                None,
+                &mma,
+            ),
+            (
+                Strategy::SpecializedCyclicCmma(BlueprintStrategy::Inferred(().into())),
+                true,
+                None,
+                &cmma,
+            ),
+            (
+                Strategy::SpecializedCyclicMma(BlueprintStrategy::Inferred(().into())),
+                true,
+                None,
+                &mma,
+            ),
+            (
+                Strategy::SimpleTmaCmma(BlueprintStrategy::Inferred(SimpleArgs {
+                    multi_rows: false,
+                })),
+                false,
+                Some(&tma),
+                &cmma,
+            ),
+            (
+                Strategy::SimpleTmaMma(BlueprintStrategy::Inferred(SimpleArgs {
+                    multi_rows: false,
+                })),
+                false,
+                Some(&tma),
+                &mma,
+            ),
+            (
+                Strategy::SimpleTmaCmma(BlueprintStrategy::Inferred(SimpleArgs {
+                    multi_rows: true,
+                })),
+                false,
+                Some(&tma),
+                &cmma,
+            ),
+            (
+                Strategy::SimpleTmaMma(BlueprintStrategy::Inferred(SimpleArgs {
+                    multi_rows: true,
+                })),
+                false,
+                Some(&tma),
+                &mma,
+            ),
+            (
+                Strategy::SpecializedTmaCmma(BlueprintStrategy::Inferred(().into())),
+                true,
+                Some(&tma),
+                &cmma,
+            ),
+            (
+                Strategy::SpecializedTmaMma(BlueprintStrategy::Inferred(().into())),
+                true,
+                Some(&tma),
+                &mma,
+            ),
         ] {
-            for (strategy, double_buf, group_extra) in [
-                (
-                    Strategy::Simple {
-                        read_strategy: ReadingStrategy::Cyclic,
-                        selection: Selection::Inferred(SimpleArgs { multi_rows: false }),
-                        tile_kind,
-                    },
-                    false,
-                    None,
-                ),
-                (
-                    Strategy::Simple {
-                        read_strategy: ReadingStrategy::Cyclic,
-                        selection: Selection::Inferred(SimpleArgs { multi_rows: true }),
-                        tile_kind,
-                    },
-                    false,
-                    None,
-                ),
-                (
-                    Strategy::OrderedDoubleBuffering {
-                        selection: Selection::Inferred(OrderedSelectionArgs {
-                            partition_k: Some(2),
-                            row_count: Some(4),
-                            rows_per_plane: Some(2),
-                        }),
-                        tile_kind,
-                    },
-                    true,
-                    None,
-                ),
-                (
-                    Strategy::OrderedDoubleBuffering {
-                        selection: Selection::Inferred(OrderedSelectionArgs {
-                            partition_k: Some(2),
-                            row_count: Some(8),
-                            rows_per_plane: Some(2),
-                        }),
-                        tile_kind,
-                    },
-                    true,
-                    None,
-                ),
-                (
-                    Strategy::DoubleBuffering {
-                        selection: Selection::Inferred(DoubleBufferingArgs { specialized: false }),
-                        tile_kind,
-                        read_strategy: PartialReadingStrategy::Tilewise,
-                    },
-                    true,
-                    None,
-                ),
-                (
-                    Strategy::DoubleBuffering {
-                        selection: Selection::Inferred(DoubleBufferingArgs { specialized: true }),
-                        tile_kind,
-                        read_strategy: PartialReadingStrategy::Tilewise,
-                    },
-                    true,
-                    None,
-                ),
-                (
-                    Strategy::Simple {
-                        read_strategy: ReadingStrategy::Tma,
-                        selection: Selection::Inferred(SimpleArgs { multi_rows: false }),
-                        tile_kind,
-                    },
-                    false,
-                    Some(&tma),
-                ),
-                (
-                    Strategy::Simple {
-                        read_strategy: ReadingStrategy::Tma,
-                        selection: Selection::Inferred(SimpleArgs { multi_rows: true }),
-                        tile_kind,
-                    },
-                    false,
-                    Some(&tma),
-                ),
-                (
-                    Strategy::Specialized {
-                        selection: Selection::Inferred(()),
-                        tile_kind,
-                    },
-                    true,
-                    Some(&tma),
-                ),
-            ] {
-                let priority_within_group =
-                    |key: &MatmulAutotuneKey, double_buf: bool| match double_buf {
-                        false => PRIORITY_MAX,
-                        true => double_buffering_priority(key, PRIORITY_MAX, PRIORITY_HIGH),
-                    };
-                let mut tunable = Tunable::new(strategy.to_string(), move |lhs, rhs, out| {
-                    launch_matmul::<R>(&strategy, lhs, rhs, out).map_err(|err| format!("{err:?}"))
-                });
+            let priority_within_group = |key: &MatmulAutotuneKey, double_buf: bool| match double_buf
+            {
+                false => PRIORITY_MAX,
+                true => double_buffering_priority(key, PRIORITY_MAX, PRIORITY_HIGH),
+            };
+            let mut tunable = Tunable::new(strategy.to_string(), move |lhs, rhs, out| {
+                launch_matmul::<R>(&strategy, lhs, rhs, out).map_err(|err| format!("{err:?}"))
+            });
 
-                // tile group
-                tunable = tunable.group(tile_group, move |key| {
-                    priority_within_group(key, double_buf)
-                });
+            // tile group
+            tunable = tunable.group(tile_group, move |key| {
+                priority_within_group(key, double_buf)
+            });
 
-                // extra group
-                if let Some(group) = group_extra {
-                    tunable =
-                        tunable.group(group, move |key| priority_within_group(key, double_buf));
-                }
-                set = set.with(tunable);
+            // extra group
+            if let Some(group) = group_extra {
+                tunable = tunable.group(group, move |key| priority_within_group(key, double_buf));
             }
+            set = set.with(tunable);
         }
 
         set
@@ -323,17 +400,10 @@ fn create_key<R: CubeRuntime>(
         &rhs.shape.dims,
         &lhs.strides,
         &rhs.strides,
-        MatmulElemType {
-            elem: lhs.dtype.into(),
-            quantized: matches!(lhs.dtype, DType::QFloat(_)),
-        },
-        MatmulElemType {
-            elem: rhs.dtype.into(),
-            quantized: matches!(rhs.dtype, DType::QFloat(_)),
-        },
-        MatmulElemType {
-            elem: out.dtype.into(),
-            quantized: matches!(out.dtype, DType::QFloat(_)),
-        },
+        lhs.dtype.into(),
+        rhs.dtype.into(),
+        out.dtype.into(),
+        lhs.try_scheme(),
+        rhs.try_scheme(),
     )
 }

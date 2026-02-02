@@ -1,5 +1,5 @@
 use crate::{
-    Int, Tensor, TensorPrimitive,
+    Bool, Int, Tensor, TensorPrimitive,
     backend::Backend,
     check,
     check::TensorCheck,
@@ -207,6 +207,7 @@ pub fn max_pool1d<B>(
     stride: usize,
     padding: usize,
     dilation: usize,
+    ceil_mode: bool,
 ) -> Tensor<B, 3>
 where
     B: Backend,
@@ -217,6 +218,7 @@ where
         stride,
         padding,
         dilation,
+        ceil_mode,
     )))
 }
 
@@ -227,6 +229,7 @@ pub fn max_pool2d<B>(
     stride: [usize; 2],
     padding: [usize; 2],
     dilation: [usize; 2],
+    ceil_mode: bool,
 ) -> Tensor<B, 4>
 where
     B: Backend,
@@ -237,6 +240,7 @@ where
         stride,
         padding,
         dilation,
+        ceil_mode,
     )))
 }
 
@@ -247,6 +251,7 @@ pub fn avg_pool2d<B>(
     stride: [usize; 2],
     padding: [usize; 2],
     count_include_pad: bool,
+    ceil_mode: bool,
 ) -> Tensor<B, 4>
 where
     B: Backend,
@@ -257,6 +262,7 @@ where
         stride,
         padding,
         count_include_pad,
+        ceil_mode,
     )))
 }
 
@@ -267,6 +273,7 @@ pub fn avg_pool1d<B>(
     stride: usize,
     padding: usize,
     count_include_pad: bool,
+    ceil_mode: bool,
 ) -> Tensor<B, 3>
 where
     B: Backend,
@@ -277,6 +284,7 @@ where
         stride,
         padding,
         count_include_pad,
+        ceil_mode,
     )))
 }
 
@@ -287,12 +295,19 @@ pub fn max_pool1d_with_indices<B>(
     stride: usize,
     padding: usize,
     dilation: usize,
+    ceil_mode: bool,
 ) -> (Tensor<B, 3>, Tensor<B, 3, Int>)
 where
     B: Backend,
 {
-    let output =
-        B::max_pool1d_with_indices(x.primitive.tensor(), kernel_size, stride, padding, dilation);
+    let output = B::max_pool1d_with_indices(
+        x.primitive.tensor(),
+        kernel_size,
+        stride,
+        padding,
+        dilation,
+        ceil_mode,
+    );
 
     (
         Tensor::new(TensorPrimitive::Float(output.output)),
@@ -307,12 +322,19 @@ pub fn max_pool2d_with_indices<B>(
     stride: [usize; 2],
     padding: [usize; 2],
     dilation: [usize; 2],
+    ceil_mode: bool,
 ) -> (Tensor<B, 4>, Tensor<B, 4, Int>)
 where
     B: Backend,
 {
-    let output =
-        B::max_pool2d_with_indices(x.primitive.tensor(), kernel_size, stride, padding, dilation);
+    let output = B::max_pool2d_with_indices(
+        x.primitive.tensor(),
+        kernel_size,
+        stride,
+        padding,
+        dilation,
+        ceil_mode,
+    );
 
     (
         Tensor::new(TensorPrimitive::Float(output.output)),
@@ -406,4 +428,52 @@ pub fn linear<B: Backend, const D: usize>(
         Some(bias) => output.add(bias),
         None => output,
     }
+}
+
+/// Computes scaled dot-product attention: softmax(QKᵗ / √d) · V,
+/// optionally applying a 4D mask to the attention scores.
+///
+/// # Arguments
+/// - `query`: Query tensor of shape `[batch_size, num_heads, seq_len_q, head_dim]`
+/// - `key`: Key tensor of shape `[batch_size, num_heads, seq_len_k, head_dim]`
+/// - `value`: Value tensor of shape `[batch_size, num_heads, seq_len_k, head_dim]`
+/// - `mask`: Optional boolean mask of shape `[batch_size, num_heads, seq_len_q, seq_len_k]`,
+///   where `true` indicates positions to mask (i.e. set to -∞ before softmax).
+///
+/// # Returns
+/// A tensor of shape `[batch_size, num_heads, seq_len_q, head_dim]`
+/// representing the attended context per head.
+///
+/// # Note
+/// This implementation does not support dropout and is intended for inference or
+/// use cases where dropout is not needed.
+pub fn attention<B: Backend>(
+    query: Tensor<B, 4>,
+    key: Tensor<B, 4>,
+    value: Tensor<B, 4>,
+    mask: Option<Tensor<B, 4, Bool>>,
+) -> Tensor<B, 4> {
+    Tensor::new(TensorPrimitive::Float(B::attention(
+        query.primitive.tensor(),
+        key.primitive.tensor(),
+        value.primitive.tensor(),
+        mask.map(|mask| mask.primitive),
+    )))
+}
+
+/// Exports naive attention to test backend's attention against
+pub fn naive_attention<B: Backend>(
+    query: Tensor<B, 4>,
+    key: Tensor<B, 4>,
+    value: Tensor<B, 4>,
+    mask: Option<Tensor<B, 4, Bool>>,
+) -> Tensor<B, 4> {
+    Tensor::new(TensorPrimitive::Float(
+        crate::ops::attention::naive_attention::<B>(
+            query.primitive.tensor(),
+            key.primitive.tensor(),
+            value.primitive.tensor(),
+            mask.map(|mask| mask.primitive),
+        ),
+    ))
 }

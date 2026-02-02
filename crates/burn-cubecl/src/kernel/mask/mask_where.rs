@@ -1,4 +1,4 @@
-use burn_tensor::DType;
+use burn_backend::DType;
 use cubecl::{calculate_cube_count_elemwise, prelude::*, std::tensor::layout::linear::LinearView};
 
 use crate::{
@@ -47,10 +47,11 @@ pub fn mask_where<R: CubeRuntime>(
     strategy: MaskWhereStrategy,
     dtype_bool: DType,
 ) -> CubeTensor<R> {
-    let cube_dim = CubeDim::default();
     let line_size = max_line_size_many(&[&input, &mask, &value], input.shape.num_dims() - 1);
-    let cube_count =
-        calculate_cube_count_elemwise(input.shape.num_elements() / line_size as usize, cube_dim);
+
+    let working_units = input.shape.num_elements() / line_size as usize;
+    let cube_dim = CubeDim::new(&input.client, working_units);
+    let cube_count = calculate_cube_count_elemwise(&input.client, working_units, cube_dim);
 
     let out_shape = broadcast_shape(&[&input, &mask, &value]);
 

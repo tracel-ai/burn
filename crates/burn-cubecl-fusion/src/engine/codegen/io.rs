@@ -1,16 +1,14 @@
 //! This module declares input-output primitives to read and write values during kernel expansion.
 use super::{DYN_ELEM_ID, ir::*, tensor::GlobalTensor};
-use burn_tensor::quantization::QuantScheme;
+use burn_std::quantization::QuantScheme;
+use cubecl::quant::scheme::QuantLevel;
 use cubecl::{
     intrinsic,
     ir::{ExpandElement, Variable},
     prelude::*,
     std::{FastDivmod, tensor::View},
 };
-use cubecl_quant::{
-    layout::{BlockScaledLayout, PerTensorLayout, ScalesLayout},
-    scheme::QuantLevel,
-};
+use cubek::quantization::layout::{BlockScaledLayout, PerTensorLayout, ScalesLayout};
 use serde::{Deserialize, Serialize};
 
 /// Define how a tensor might be transformed at runtime.
@@ -20,11 +18,11 @@ pub enum Transform {
     ///
     /// This enum entry contains a sequence of [arguments](FuseArg) that points to global scalars representing the
     /// new shape for the current tensor.
-    Reshape(Sequence<FuseArg>),
+    Reshape(Vec<FuseArg>),
     /// Two axes have been swapped on a tensor.
     ///
     /// The enum entry contains those two axes.
-    SwapDims(u32, u32),
+    SwapDims(usize, usize),
 }
 
 /// Reads the value from the [arg](FuseArg) and cast it to the generic cube primitive.
@@ -41,7 +39,7 @@ pub fn read<C: CubePrimitive>(
     inputs: &GlobalArgs,
     outputs: &GlobalArgs,
     locals: &LocalArgs,
-    ref_pos: u32,
+    ref_pos: usize,
     #[comptime] arg: FuseArg,
     #[comptime] config: &FuseBlockConfig,
 ) -> Line<C> {
@@ -50,7 +48,7 @@ pub fn read<C: CubePrimitive>(
             let global = inputs.tensors.index(pos);
             let line_size = global.tensor.line_size();
 
-            if comptime![!global.broadcasted && line_size != config.width as u32] {
+            if comptime![!global.broadcasted && line_size != config.width] {
                 read_input_aligned(inputs, locals, pos, ref_pos, layout, config, None)
             } else {
                 read_input(inputs, locals, pos, ref_pos, layout, config, None)
@@ -92,7 +90,7 @@ pub fn read<C: CubePrimitive>(
                 let global = inputs.tensors.index(pos);
                 let line_size = global.tensor.line_size();
 
-                if comptime![!broadcasted && line_size != config.width as u32] {
+                if comptime![!broadcasted && line_size != config.width] {
                     read_input_aligned(
                         inputs,
                         locals,
@@ -125,7 +123,7 @@ pub fn read<C: CubePrimitive>(
                 let global = inputs.tensors.index(pos);
                 let line_size = global.tensor.line_size();
 
-                if comptime![!broadcasted && line_size != config.width as u32] {
+                if comptime![!broadcasted && line_size != config.width] {
                     read_input_aligned(
                         inputs,
                         locals,
@@ -160,15 +158,15 @@ pub fn read<C: CubePrimitive>(
 fn index_offset_with_quant_layout(
     tensor: &GlobalTensor,
     locals: &LocalArgs,
-    index: u32,
-    #[comptime] rank: u32,
+    index: usize,
+    #[comptime] rank: usize,
     #[comptime] scheme: QuantScheme,
-) -> u32 {
-    let (start, end) = comptime![(0u32, rank - 1)];
-    let num_quants = comptime!(scheme.num_quants() as u32);
+) -> usize {
+    let (start, end) = (0, rank - 1);
+    let num_quants = scheme.num_quants();
 
     let offset_ref = index * locals.ref_line_size;
-    let mut offset = 0u32;
+    let mut offset = 0;
 
     #[unroll]
     for i in start..end {
@@ -194,7 +192,7 @@ fn index_offset_with_quant_layout(
 pub fn read_quantized<C: CubePrimitive>(
     inputs: &GlobalArgs,
     locals: &LocalArgs,
-    ref_pos: u32,
+    ref_pos: usize,
     #[comptime] arg: FuseArg,
     #[comptime] config: &FuseBlockConfig,
     #[comptime] scheme: QuantScheme,
@@ -226,9 +224,9 @@ pub fn read_scalar<C: CubePrimitive>(inputs: &GlobalArgs, #[comptime] arg: FuseA
 
 /// Reads a global scalar that is used as a reshape position.
 #[cube]
-pub fn read_scalar_shape(inputs: &GlobalArgs, #[comptime] arg: FuseArg) -> u32 {
+pub fn read_scalar_shape(inputs: &GlobalArgs, #[comptime] arg: FuseArg) -> usize {
     match arg {
-        FuseArg::ScalarShape(pos) => *inputs.reshapes.index(pos),
+        FuseArg::ScalarShape(pos) => inputs.reshapes[pos],
         _ => comptime![panic!("Not a scalar shape")],
     }
 }
@@ -238,8 +236,8 @@ pub fn read_scalar_shape(inputs: &GlobalArgs, #[comptime] arg: FuseArg) -> u32 {
 pub fn read_input<C: CubePrimitive>(
     inputs: &GlobalArgs,
     locals: &LocalArgs,
-    #[comptime] pos: u32,
-    ref_pos: u32,
+    #[comptime] pos: usize,
+    ref_pos: usize,
     #[comptime] layout: LayoutInfo,
     #[comptime] config: &FuseBlockConfig,
     #[comptime] transform: Option<Transform>,
@@ -257,32 +255,32 @@ pub fn read_input<C: CubePrimitive>(
 #[cube]
 pub fn read_input_window<C: CubePrimitive>(
     inputs: &GlobalArgs,
-    #[comptime] pos: u32,
-    start: u32,
-    end: u32,
+    #[comptime] pos: usize,
+    start: usize,
+    end: usize,
 ) -> Slice<C> {
     let tensor = inputs.tensors.index(pos);
     let slice = tensor.tensor.slice(start, end);
-    slice.try_cast_unchecked()
+    slice.downcast()
 }
 
 /// Returns the input as a slice.
 #[cube]
-pub fn input_as_slice<C: CubePrimitive>(inputs: &GlobalArgs, #[comptime] pos: u32) -> Slice<C> {
+pub fn input_as_slice<C: CubePrimitive>(inputs: &GlobalArgs, #[comptime] pos: usize) -> Slice<C> {
     let tensor = inputs.tensors.index(pos);
     let slice = tensor.tensor.to_slice();
-    slice.try_cast_unchecked()
+    slice.downcast()
 }
 
 /// Returns the input tensor as a quantized scale view.
 #[cube]
 pub fn input_as_scales_view<C: CubePrimitive>(
     inputs: &GlobalArgs,
-    #[comptime] pos: u32,
-    #[comptime] tensor_pos: u32,
+    #[comptime] pos: usize,
+    #[comptime] tensor_pos: usize,
     #[comptime] level: QuantLevel,
     #[comptime] config: &FuseBlockConfig,
-) -> View<C, u32> {
+) -> View<C, usize> {
     set_polyfill_typed::<C, NumericExpand<DYN_ELEM_ID>>();
     let tensor = inputs.tensors.index(tensor_pos);
     let scales = inputs.tensors.index(pos);
@@ -291,7 +289,7 @@ pub fn input_as_scales_view<C: CubePrimitive>(
     let layout = match level {
         QuantLevel::Tensor => ScalesLayout::new_PerTensor(PerTensorLayout::new(tensor_len)),
         QuantLevel::Block(block_size) => {
-            let block_size = comptime![block_size.to_dim_vec(rank as usize)];
+            let block_size = comptime![block_size.to_dim_vec(rank)];
             let mut tensor_shape = Sequence::new();
             let mut scales_strides = Sequence::new();
             #[unroll]
@@ -310,7 +308,7 @@ pub fn input_as_scales_view<C: CubePrimitive>(
             ScalesLayout::new_BlockScaled(layout)
         }
     };
-    View::new::<Slice<C>, u32>(&scales.tensor.to_slice().try_cast_unchecked(), layout)
+    View::new::<Slice<C>, usize>(&scales.tensor.to_slice().downcast(), layout)
 }
 
 /// Reads the input tensor aligned.
@@ -318,22 +316,22 @@ pub fn input_as_scales_view<C: CubePrimitive>(
 pub fn read_input_aligned<C: CubePrimitive>(
     inputs: &GlobalArgs,
     locals: &LocalArgs,
-    #[comptime] pos: u32,
-    ref_pos: u32,
+    #[comptime] pos: usize,
+    ref_pos: usize,
     #[comptime] layout: LayoutInfo,
     #[comptime] config: &FuseBlockConfig,
     #[comptime] transform: Option<Transform>,
 ) -> Line<C> {
-    let mut result: Line<C> = Line::<C>::empty(comptime![config.width as u32]);
+    let mut result: Line<C> = Line::<C>::empty(config.width);
     let tensor = inputs.tensors.index(pos);
 
-    match comptime![transform.clone()] {
+    match transform.clone() {
         Some(Transform::Reshape(shape)) => {
             // Very brute force, not really efficient, but not easy to optimize and not a very
             // frequent workflow.
-            let ref_pos = ref_pos * comptime![config.width as u32];
+            let ref_pos = ref_pos * config.width;
             #[unroll]
-            for i in 0u32..comptime!(config.width as u32) {
+            for i in 0..config.width {
                 let index = reshaped_index(
                     inputs,
                     locals,
@@ -348,11 +346,11 @@ pub fn read_input_aligned<C: CubePrimitive>(
         Some(Transform::SwapDims(dim1, dim2)) => {
             let offset =
                 get_offset_aligned(inputs, locals, tensor, ref_pos, layout, config, transform);
-            let i = comptime![swap_dims_transform(&(config.rank - 1), (dim1, dim2))];
-            let stride = tensor.tensor.stride(comptime![i]);
+            let i = comptime![swap_dims_transform(config.rank - 1, (dim1, dim2))];
+            let stride = tensor.tensor.stride(i);
 
             #[unroll]
-            for i in 0u32..comptime!(config.width as u32) {
+            for i in 0..config.width {
                 let index = offset + i * stride;
                 result[i] = C::cast_from(tensor.tensor[index][0])
             }
@@ -360,9 +358,9 @@ pub fn read_input_aligned<C: CubePrimitive>(
         None => {
             let offset =
                 get_offset_aligned(inputs, locals, tensor, ref_pos, layout, config, transform);
-            let stride = tensor.tensor.stride(comptime![config.rank - 1]);
+            let stride = tensor.tensor.stride(config.rank - 1);
             #[unroll]
-            for i in 0u32..comptime!(config.width as u32) {
+            for i in 0..config.width {
                 let index = offset + i * stride;
                 result[i] = C::cast_from(tensor.tensor[index][0])
             }
@@ -379,11 +377,11 @@ pub fn get_offset_aligned(
     inputs: &GlobalArgs,
     locals: &LocalArgs,
     tensor: &GlobalTensor,
-    ref_pos: u32,
+    ref_pos: usize,
     #[comptime] layout: LayoutInfo,
     #[comptime] config: &FuseBlockConfig,
     #[comptime] transform: Option<Transform>,
-) -> u32 {
+) -> usize {
     match layout {
         LayoutInfo::SameAsRef | LayoutInfo::IsRef => {
             (ref_pos * locals.ref_line_size) / tensor.tensor.line_size()
@@ -406,8 +404,8 @@ pub fn read_output<C: CubePrimitive>(
     inputs: &GlobalArgs,
     outputs: &GlobalArgs,
     locals: &LocalArgs,
-    pos: u32,
-    ref_pos: u32,
+    #[comptime] pos: usize,
+    ref_pos: usize,
     #[comptime] layout: LayoutInfo,
     #[comptime] config: &FuseBlockConfig,
 ) -> Line<C> {
@@ -426,7 +424,7 @@ pub fn write<C: CubePrimitive>(
     inputs: &GlobalArgs,
     outputs: &mut GlobalArgs,
     locals: &mut LocalArgs,
-    ref_pos: u32,
+    ref_pos: usize,
     value: Line<C>,
     #[comptime] arg: FuseArg,
     #[comptime] config: &FuseBlockConfig,
@@ -470,11 +468,11 @@ pub(crate) fn global_offset(
     inputs: &GlobalArgs,
     outputs: &GlobalArgs,
     locals: &LocalArgs,
-    index: u32,
+    index: usize,
     #[comptime] arg: FuseArg,
-    #[comptime] range: Option<(u32, u32)>,
+    #[comptime] range: Option<(usize, usize)>,
     #[comptime] config: &FuseBlockConfig,
-) -> u32 {
+) -> usize {
     match arg {
         FuseArg::Input(pos, _precision, _layout) => {
             let tensor = inputs.tensors.index(pos);
@@ -493,11 +491,11 @@ fn get_offset(
     inputs: &GlobalArgs,
     locals: &LocalArgs,
     tensor: &GlobalTensor,
-    ref_pos: u32,
-    #[comptime] range: Option<(u32, u32)>,
+    ref_pos: usize,
+    #[comptime] range: Option<(usize, usize)>,
     #[comptime] config: &FuseBlockConfig,
     #[comptime] transform: Option<Transform>,
-) -> u32 {
+) -> usize {
     index_offset_with_layout(
         inputs,
         tensor,
@@ -511,28 +509,28 @@ fn get_offset(
 
 #[cube]
 /// Gets the line size for a global tensor.
-pub fn global_line_size(global: &GlobalArgs, #[comptime] pos: u32) -> comptime_type!(u32) {
+pub fn global_line_size(global: &GlobalArgs, #[comptime] pos: usize) -> comptime_type!(LineSize) {
     let tensor = global.tensors.index(pos);
     tensor.tensor.line_size()
 }
 
 #[cube]
 /// Gets the rank for a global tensor.
-pub fn global_rank(global: &GlobalArgs, #[comptime] pos: u32) -> u32 {
+pub fn global_rank(global: &GlobalArgs, #[comptime] pos: usize) -> usize {
     let tensor = global.tensors.index(pos);
     tensor.tensor.rank()
 }
 
 #[cube]
 /// Gets the length for a global tensor.
-pub fn global_len(global: &GlobalArgs, #[comptime] pos: u32) -> u32 {
+pub fn global_len(global: &GlobalArgs, #[comptime] pos: usize) -> usize {
     let tensor = global.tensors.index(pos);
     tensor.tensor.len()
 }
 
 #[cube]
 /// Gets the buffer length for a global tensor.
-pub fn global_buffer_len(global: &GlobalArgs, #[comptime] pos: u32) -> u32 {
+pub fn global_buffer_len(global: &GlobalArgs, #[comptime] pos: usize) -> usize {
     let tensor = global.tensors.index(pos);
     tensor.tensor.buffer_len()
 }
@@ -544,8 +542,8 @@ pub fn ref_len(
     outputs: &GlobalArgs,
     locals: &LocalArgs,
     #[comptime] config: &FuseBlockConfig,
-) -> u32 {
-    match comptime![config.ref_layout.clone()] {
+) -> usize {
+    match config.ref_layout.clone() {
         RefLayout::Concrete(arg) => match comptime![arg] {
             FuseArg::Input(index, _, _) => global_len(inputs, index),
             FuseArg::Output(index, _, _) => global_len(outputs, index),
@@ -562,8 +560,8 @@ pub fn ref_buffer_len(
     outputs: &GlobalArgs,
     locals: &LocalArgs,
     #[comptime] config: &FuseBlockConfig,
-) -> u32 {
-    match comptime![config.ref_layout.clone()] {
+) -> usize {
+    match config.ref_layout.clone() {
         RefLayout::Concrete(arg) => match comptime![arg] {
             FuseArg::Input(index, _, _) => global_buffer_len(inputs, index),
             FuseArg::Output(index, _, _) => global_buffer_len(outputs, index),
@@ -581,8 +579,8 @@ pub fn ref_buffer_len(
 
 #[cube]
 /// Gets the reference number of elements.
-pub fn num_elements(locals: &LocalArgs, #[comptime] config: &FuseBlockConfig) -> u32 {
-    let mut length = 1u32;
+pub fn num_elements(locals: &LocalArgs, #[comptime] config: &FuseBlockConfig) -> usize {
+    let mut length = 1;
 
     for i in 0..config.rank {
         length *= locals.ref_shape[i];
@@ -593,32 +591,32 @@ pub fn num_elements(locals: &LocalArgs, #[comptime] config: &FuseBlockConfig) ->
 
 #[cube]
 /// Gets the reference axis shape.
-pub fn ref_shape(locals: &LocalArgs, axis: u32) -> u32 {
+pub fn ref_shape(locals: &LocalArgs, axis: usize) -> usize {
     locals.ref_shape[axis]
 }
 
 #[cube]
 /// Gets the reference axis stride.
-pub fn ref_stride(locals: &LocalArgs, axis: u32) -> u32 {
+pub fn ref_stride(locals: &LocalArgs, axis: usize) -> usize {
     locals.ref_strides[axis]
 }
 
 #[cube]
 /// Gets the reference line size.
-pub fn ref_line_size(locals: &LocalArgs) -> comptime_type!(u32) {
+pub fn ref_line_size(locals: &LocalArgs) -> comptime_type!(LineSize) {
     comptime![locals.ref_line_size]
 }
 
 #[cube]
 /// Gets the given tensor axis shape.
-pub fn global_shape(global: &GlobalArgs, axis: u32, #[comptime] pos: u32) -> u32 {
+pub fn global_shape(global: &GlobalArgs, axis: usize, #[comptime] pos: usize) -> usize {
     let tensor = global.tensors.index(pos);
     tensor.tensor.shape(axis)
 }
 
 #[cube]
 /// Gets the given tensor axis stride.
-pub fn global_stride(global: &GlobalArgs, dim: u32, #[comptime] pos: u32) -> u32 {
+pub fn global_stride(global: &GlobalArgs, dim: usize, #[comptime] pos: usize) -> usize {
     let tensor = global.tensors.index(pos);
     tensor.tensor.stride(dim)
 }
@@ -628,11 +626,11 @@ fn index_offset_with_layout(
     inputs: &GlobalArgs,
     tensor: &GlobalTensor,
     locals: &LocalArgs,
-    index: u32,
-    #[comptime] range: Option<(u32, u32)>,
-    #[comptime] rank: u32,
+    index: usize,
+    #[comptime] range: Option<(usize, usize)>,
+    #[comptime] rank: usize,
     #[comptime] transform: Option<Transform>,
-) -> u32 {
+) -> usize {
     match comptime![transform.clone()] {
         Some(Transform::Reshape(shape)) => {
             comptime![assert!(
@@ -647,15 +645,15 @@ fn index_offset_with_layout(
         Some(Transform::SwapDims(dim1, dim2)) => {
             let (start, end) = comptime! {match range {
                 Some(range) => range,
-                None => (0u32, rank),
+                None => (0, rank),
             }};
 
             let offset_ref = index * locals.ref_line_size;
-            let mut offset = 0u32;
+            let mut offset = 0;
 
             #[unroll]
             for i in start..end {
-                let index = comptime![swap_dims_transform(&i, (dim1, dim2))];
+                let index = comptime![swap_dims_transform(i, (dim1, dim2))];
                 let ogwl = offset_ref / locals.ref_strides[i];
                 offset += ogwl % tensor.tensor.shape(index) * tensor.tensor.stride(index);
             }
@@ -665,11 +663,11 @@ fn index_offset_with_layout(
         None => {
             let (start, end) = comptime! {match range {
                 Some(range) => range,
-                None => (0u32, rank),
+                None => (0, rank),
             }};
 
             let offset_ref = index * locals.ref_line_size;
-            let mut offset = 0u32;
+            let mut offset = 0;
 
             #[unroll]
             for i in start..end {
@@ -682,10 +680,7 @@ fn index_offset_with_layout(
     }
 }
 
-pub(crate) fn swap_dims_transform<I: Index + Clone>(i: &I, dims: (u32, u32)) -> u32 {
-    let i_cloned: I = i.clone();
-    let i = i_cloned.value().as_const().unwrap().as_u32();
-
+pub(crate) fn swap_dims_transform(i: usize, dims: (usize, usize)) -> usize {
     if i == dims.0 {
         dims.1
     } else if i == dims.1 {
@@ -701,18 +696,18 @@ pub(crate) fn swap_dims_transform<I: Index + Clone>(i: &I, dims: (u32, u32)) -> 
 fn reshaped_index(
     inputs: &GlobalArgs,
     locals: &LocalArgs,
-    index: u32,
-    #[comptime] rank: u32,
-    #[comptime] shape: Sequence<FuseArg>,
-) -> u32 {
-    let mut offset = 0u32;
-    let mut stride_curr = 1u32;
+    index: usize,
+    #[comptime] rank: usize,
+    #[comptime] shape: Vec<FuseArg>,
+) -> usize {
+    let mut offset = 0;
+    let mut stride_curr = 1;
 
     #[unroll]
     for r in 0..rank {
-        let i = reverse_index(rank, r);
-        let arg = comptime![shape.index(i)];
-        let shape_i = read_scalar_shape(inputs, comptime![arg.clone()]);
+        let i = reverse_index(rank, r).comptime();
+        let arg = shape[i].clone();
+        let shape_i = read_scalar_shape(inputs, arg);
         let ogwl = index / locals.ref_strides[i];
 
         offset += ogwl % shape_i * stride_curr;
@@ -728,9 +723,9 @@ fn reshaped_index(
 #[allow(clippy::clone_on_copy)]
 fn reshaped_index_to_original_index<C: CubePrimitive>(
     original: &Tensor<Line<C>>,
-    index_reshaped: u32,
-    #[comptime] rank: u32,
-) -> u32 {
+    index_reshaped: usize,
+    #[comptime] rank: usize,
+) -> usize {
     let mut remaining = index_reshaped;
     let mut offset = 0;
 
@@ -751,21 +746,19 @@ fn reshaped_index_to_original_index<C: CubePrimitive>(
 
 #[cube]
 #[allow(unused_variables)]
-pub(crate) fn reverse_index(#[comptime] rank: u32, iter: u32) -> comptime_type!(u32) {
-    intrinsic!(|_| {
-        let elem = iter.constant().map(|cons| cons.as_u32()).unwrap();
-        rank - elem - 1
-    })
+pub(crate) fn reverse_index(
+    #[comptime] rank: usize,
+    #[comptime] iter: usize,
+) -> comptime_type!(usize) {
+    rank - iter - 1
 }
 
 /// Generic way to construct any [`CubePrimitive`] from an int. Used for fusion.
 #[allow(unused_variables)]
 #[cube]
-fn from_const_int<C: CubePrimitive>(#[comptime] value: u32) -> C {
+fn from_const_int<C: CubePrimitive>(#[comptime] value: usize) -> C {
     intrinsic!(|scope| {
-        let constant: ExpandElement = value.into();
-        let constant_c = constant.as_const().unwrap().cast_to(C::as_type(scope));
-        ExpandElement::Plain(Variable::constant(constant_c)).into()
+        ExpandElement::Plain(Variable::constant(value.into(), C::as_type(scope))).into()
     })
 }
 

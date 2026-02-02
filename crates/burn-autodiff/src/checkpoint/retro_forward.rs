@@ -38,7 +38,6 @@ impl RetroForwards {
         }
     }
 
-    #[cfg(feature = "export_tests")]
     pub(crate) fn is_empty(&self) -> bool {
         self.map.is_empty()
     }
@@ -54,7 +53,7 @@ macro_rules! retro_unary_scalar {
         #[derive(new, Debug, Clone)]
         struct $name<B: Backend> {
             lhs_id: NodeId,
-            rhs: FloatElem<B>,
+            rhs: Scalar,
             _backend: PhantomData<B>,
         }
 

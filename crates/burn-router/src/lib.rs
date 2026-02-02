@@ -23,7 +23,7 @@ pub use tensor::*;
 pub use types::*;
 
 /// A local channel with a simple byte bridge between backends.
-/// It transfers tensors between backends via the underlying [tensor data](burn_tensor::TensorData).
+/// It transfers tensors between backends via the underlying [tensor data](burn_backend::TensorData).
 pub type DirectByteChannel<Backends> = DirectChannel<Backends, ByteBridge<Backends>>;
 
 /// Router backend.
@@ -38,26 +38,12 @@ pub type Router<Backends> = BackendRouter<DirectByteChannel<Backends>>;
 extern crate alloc;
 
 #[cfg(test)]
+#[allow(unused)]
 mod tests {
-    use alloc::format;
-    use alloc::vec;
-
     use crate::BackendRouter;
     use crate::DirectByteChannel;
 
     pub type TestBackend1 = burn_ndarray::NdArray<f32, i32>;
     pub type TestBackend2 = burn_wgpu::Wgpu<f32, i32>;
     pub type TestBackend = BackendRouter<DirectByteChannel<(TestBackend1, TestBackend2)>>;
-
-    pub type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;
-    pub type TestTensorInt<const D: usize> = burn_tensor::Tensor<TestBackend, D, burn_tensor::Int>;
-    pub type TestTensorBool<const D: usize> =
-        burn_tensor::Tensor<TestBackend, D, burn_tensor::Bool>;
-
-    burn_tensor::testgen_all!();
-    // TODO: add support for quantization
-    // burn_tensor::testgen_quantization!();
-
-    #[cfg(feature = "std")]
-    burn_autodiff::testgen_all!();
 }

@@ -1,5 +1,7 @@
 mod adapter;
+mod direct_access;
 mod error_handling;
+#[cfg(feature = "std")]
 mod file_io;
 mod filtering;
 mod integration;

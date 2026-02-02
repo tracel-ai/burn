@@ -6,6 +6,6 @@ mod int_tensor;
 mod module;
 mod qtensor;
 mod tensor;
-mod transactions;
+mod transaction;
 
 pub(crate) use base::*;

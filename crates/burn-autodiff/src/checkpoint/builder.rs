@@ -4,7 +4,7 @@ use crate::{
     tensor::AutodiffTensor,
 };
 use alloc::{boxed::Box, sync::Arc, vec::Vec};
-use burn_tensor::backend::Backend;
+use burn_backend::Backend;
 use core::any::Any;
 
 use super::{
@@ -37,7 +37,7 @@ pub enum CheckpointingAction {
 unsafe impl Send for CheckpointingAction {}
 
 impl CheckpointingAction {
-    /// Utilitary function to access the id of the node of the checkpointing action
+    /// Utility function to access the id of the node of the checkpointing action
     pub fn id(&self) -> NodeId {
         match self {
             CheckpointingAction::Computed {

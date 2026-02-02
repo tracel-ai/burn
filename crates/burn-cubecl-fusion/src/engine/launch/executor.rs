@@ -12,12 +12,11 @@ use crate::{
 };
 use burn_fusion::stream::{Context, ScalarId};
 use burn_ir::ScalarIr;
-use burn_tensor::DType;
+use burn_std::DType;
 use cubecl::{
     CubeElement, Runtime,
     client::ComputeClient,
-    prelude::{ScalarArg, Sequence, TensorArg},
-    std::scalar::InputScalar,
+    prelude::{InputScalar, ScalarArg, TensorArg},
 };
 use std::marker::PhantomData;
 
@@ -87,15 +86,15 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
             let reference = match block_plan.reference {
                 ReferenceSelection::Concrete { layout, .. } => RefLayout::Concrete(layout),
                 ReferenceSelection::VirtualShape { original, .. } => {
-                    RefLayout::Virtual(VirtualLayout::Shape(original, block_plan.width as u32))
+                    RefLayout::Virtual(VirtualLayout::Shape(original, block_plan.width))
                 }
                 ReferenceSelection::SwapDims { original, dims } => {
                     RefLayout::Virtual(VirtualLayout::SwapDims(original, dims))
                 }
                 ReferenceSelection::Reshaped { reshape_pos } => {
                     RefLayout::Virtual(VirtualLayout::Reshaped {
-                        reshape_pos: reshape_pos as u32,
-                        line_size: block_plan.width as u32,
+                        reshape_pos,
+                        line_size: block_plan.width,
                     })
                 }
                 ReferenceSelection::NotFound | ReferenceSelection::Searching => {
@@ -107,7 +106,7 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
                 }
             };
 
-            let mut ops = Sequence::<FuseOp>::new();
+            let mut ops = Vec::<FuseOp>::new();
 
             for read_ops in block_plan.reads.into_values() {
                 for op in read_ops {
@@ -124,7 +123,7 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
             }
 
             let config = FuseBlockConfig {
-                rank: plan.rank as u32,
+                rank: plan.rank,
                 ref_layout: reference,
                 ops,
                 width: block_plan.width,
@@ -153,7 +152,7 @@ fn register_inputs<'h, R: Runtime>(
             HandleInput::Normal(hi) => {
                 let arg = hi
                     .handle
-                    .as_tensor_arg(&hi.global_ir.shape.dims, hi.vectorization);
+                    .as_tensor_arg(&hi.global_ir.shape.dims, hi.line_size);
                 inputs.tensors.push(GlobalTensorArg::new(
                     arg,
                     hi.precision.into_elem(),
@@ -163,7 +162,7 @@ fn register_inputs<'h, R: Runtime>(
             HandleInput::QuantValues(hi) => {
                 let arg = hi
                     .handle
-                    .as_tensor_arg(&hi.global_ir.shape.dims, hi.vectorization);
+                    .as_tensor_arg(&hi.global_ir.shape.dims, hi.line_size);
                 inputs
                     .tensors
                     .push(GlobalTensorArg::new(arg, hi.precision.into_elem(), false));
@@ -209,12 +208,12 @@ fn register_outputs<'s, BT: CubeElement, R: Runtime>(
                 precision,
                 handle,
                 global_shape,
-                vectorization,
+                vectorization: line_size,
                 #[cfg(feature = "autotune-checks")]
                 relative_id,
                 ..
             } => {
-                let arg = handle.as_tensor_arg(global_shape, *vectorization);
+                let arg = handle.as_tensor_arg(global_shape, *line_size);
 
                 let elem = match precision {
                     FuseType::Bool => match elem_dtype::<BT>() {
@@ -246,18 +245,9 @@ fn register_scalars<'h, R: Runtime>(
         let dtype = precision.into_type();
         match context.scalars.get(&ScalarId { value: *id }) {
             Some(scalar) => match scalar {
-                ScalarIr::F64(val) => inputs.scalars.push(InputScalar::new(*val, dtype)),
-                ScalarIr::F32(val) => inputs.scalars.push(InputScalar::new(*val, dtype)),
-                ScalarIr::F16(val) => inputs.scalars.push(InputScalar::new(*val, dtype)),
-                ScalarIr::BF16(val) => inputs.scalars.push(InputScalar::new(*val, dtype)),
-                ScalarIr::I64(val) => inputs.scalars.push(InputScalar::new(*val, dtype)),
-                ScalarIr::I32(val) => inputs.scalars.push(InputScalar::new(*val, dtype)),
-                ScalarIr::I16(val) => inputs.scalars.push(InputScalar::new(*val, dtype)),
-                ScalarIr::I8(val) => inputs.scalars.push(InputScalar::new(*val, dtype)),
-                ScalarIr::U64(val) => inputs.scalars.push(InputScalar::new(*val, dtype)),
-                ScalarIr::U32(val) => inputs.scalars.push(InputScalar::new(*val, dtype)),
-                ScalarIr::U16(val) => inputs.scalars.push(InputScalar::new(*val, dtype)),
-                ScalarIr::U8(val) => inputs.scalars.push(InputScalar::new(*val, dtype)),
+                ScalarIr::Float(val) => inputs.scalars.push(InputScalar::new(*val, dtype)),
+                ScalarIr::Int(val) => inputs.scalars.push(InputScalar::new(*val, dtype)),
+                ScalarIr::UInt(val) => inputs.scalars.push(InputScalar::new(*val, dtype)),
                 ScalarIr::Bool(val) => inputs.scalars.push(InputScalar::new(*val as u8, dtype)),
             },
             None => panic!("Scalar ID not found"),
@@ -269,7 +259,7 @@ fn register_scalars<'h, R: Runtime>(
             let global = context.tensors.get(reshaped).unwrap();
 
             for shape in global.shape.iter() {
-                inputs.reshapes.push(ScalarArg::new(*shape as u32));
+                inputs.reshapes.push(ScalarArg::new(*shape));
             }
         }
     }

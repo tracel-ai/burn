@@ -1,11 +1,14 @@
 mod activation;
 mod binary;
+mod bool_tensor;
 mod boolean;
 mod complex;
 mod float;
 mod int;
+mod int_tensor;
 mod module;
 mod qtensor;
+mod tensor;
 mod transaction;
 mod unary;
 

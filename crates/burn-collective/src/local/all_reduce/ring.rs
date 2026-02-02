@@ -1,12 +1,18 @@
 use super::tree::all_reduce_sum_tree;
 use crate::PeerId;
+use crate::local::tensor_map;
+use crate::local::tensor_map::CollectiveTensorMap;
 use burn_tensor::{Shape, Slice, TensorMetadata, backend::Backend};
 use std::{collections::HashMap, ops::Range};
 
 /// Ring implementation of All-Reduce (Ring-Reduce)
+#[cfg_attr(
+    feature = "tracing",
+    tracing::instrument(level = "trace", skip(tensors))
+)]
 pub(crate) fn all_reduce_sum_ring<B: Backend>(
-    tensors: &mut HashMap<PeerId, B::FloatTensorPrimitive>,
-) {
+    tensors: CollectiveTensorMap<B>,
+) -> CollectiveTensorMap<B> {
     // https://blog.dailydoseofds.com/p/all-reduce-and-ring-reduce-for-model
 
     // Example: tensors=3, slices=3
@@ -38,7 +44,8 @@ pub(crate) fn all_reduce_sum_ring<B: Backend>(
     // 2  2  2
 
     // Verify all shapes are the same
-    let shape = get_shape::<B>(tensors).expect("Cannot aggregate tensors with different sizes");
+    let shape = tensor_map::get_common_shape::<B>(&tensors)
+        .expect("Cannot aggregate tensors with different sizes");
 
     // Chose an axis
     let slice_dim = get_slice_dim(&shape);
@@ -47,12 +54,11 @@ pub(crate) fn all_reduce_sum_ring<B: Backend>(
     let tensor_count = tensors.len();
     if slice_dim_size < tensor_count {
         // Tensor cannot be split into N slices! Use a fallback algorithm: binary tree
-        all_reduce_sum_tree::<B>(tensors, 2);
-        return;
+        return all_reduce_sum_tree::<B>(tensors, 2);
     }
 
     // Split tensors into slices
-    let mut sliced_tensors = slice_tensors::<B>(core::mem::take(tensors), shape, slice_dim);
+    let mut sliced_tensors = slice_tensors::<B>(tensors, shape, slice_dim);
 
     // phase 1: aggregate in ring N-1 times (Reduce-Scatter)
     ring_cycles::<B>(&mut sliced_tensors, true);
@@ -61,14 +67,15 @@ pub(crate) fn all_reduce_sum_ring<B: Backend>(
     ring_cycles::<B>(&mut sliced_tensors, false);
 
     // merge slices and put back in result
-    for (id, slices) in sliced_tensors {
-        tensors.insert(id, B::float_cat(slices, slice_dim));
-    }
+    sliced_tensors
+        .into_iter()
+        .map(|(id, slices)| (id, B::float_cat(slices, slice_dim)))
+        .collect()
 }
 
 /// Get the dimension to slice across: the largest dimension of the shape
 pub(crate) fn get_slice_dim(shape: &Shape) -> usize {
-    // get dimension with greatest size
+    // get dimension with the greatest size.
     shape
         .dims
         .iter()
@@ -76,20 +83,6 @@ pub(crate) fn get_slice_dim(shape: &Shape) -> usize {
         .max_by(|(_, a), (_, b)| a.cmp(b))
         .map(|(index, _)| index)
         .unwrap()
-}
-
-/// Get the shape of the tensors. They should have all the same shape, otherwise None is returned.
-fn get_shape<B: Backend>(tensors: &HashMap<PeerId, B::FloatTensorPrimitive>) -> Option<Shape> {
-    let mut shape: Option<Shape> = None;
-
-    for tensor in tensors.values() {
-        let shape = shape.get_or_insert_with(|| tensor.shape());
-        if tensor.shape() != *shape {
-            return None;
-        }
-    }
-
-    shape
 }
 
 /// With a ring of N tensors, send the tensors N-1 times, either for the first of second phase.

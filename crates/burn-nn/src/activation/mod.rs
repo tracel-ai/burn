@@ -9,6 +9,8 @@
 //! * [`SwiGlu`]
 //! * [`Sigmoid`]
 //! * [`HardSigmoid`]
+//! * [`HardSwish`]
+//! * [`Softplus`]
 //! * [`Tanh`]
 //!
 //! The activation layer [`GLU`] has shape-changing behaviors
@@ -22,10 +24,12 @@ mod activation_wrapper;
 pub(crate) mod gelu;
 pub(crate) mod glu;
 pub(crate) mod hard_sigmoid;
+pub(crate) mod hard_swish;
 pub(crate) mod leaky_relu;
 pub(crate) mod prelu;
 pub(crate) mod relu;
 pub(crate) mod sigmoid;
+pub(crate) mod softplus;
 pub(crate) mod swiglu;
 pub(crate) mod tanh;
 
@@ -33,9 +37,11 @@ pub use activation_wrapper::*;
 pub use gelu::*;
 pub use glu::*;
 pub use hard_sigmoid::*;
+pub use hard_swish::*;
 pub use leaky_relu::*;
 pub use prelu::*;
 pub use relu::*;
 pub use sigmoid::*;
+pub use softplus::*;
 pub use swiglu::*;
 pub use tanh::*;

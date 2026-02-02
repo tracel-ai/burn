@@ -2,6 +2,7 @@
 
 use crate::Shape;
 use crate::indexing::AsIndex;
+use alloc::format;
 use alloc::vec::Vec;
 use core::fmt::{Display, Formatter};
 use core::ops::{Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive};
@@ -10,22 +11,33 @@ use core::str::FromStr;
 /// Trait for slice arguments that can be converted into an array of slices.
 /// This allows the `slice` method to accept both single slices (from `s![..]`)
 /// and arrays of slices (from `s![.., ..]` or `[0..5, 1..3]`).
-pub trait SliceArg<const D2: usize> {
-    /// Convert to an array of slices with clamping to shape dimensions
-    fn into_slices(self, shape: Shape) -> [Slice; D2];
+pub trait SliceArg {
+    /// Convert to an vec of slices with clamping to shape dimensions.
+    ///
+    /// Returns a [Slice] for each dimension in `shape`.
+    fn into_slices(self, shape: &Shape) -> Vec<Slice>;
 }
 
-impl<const D2: usize, T> SliceArg<D2> for [T; D2]
-where
-    T: Into<Slice>,
-{
-    fn into_slices(self, shape: Shape) -> [Slice; D2] {
-        self.into_iter()
+impl<S: Into<Slice> + Clone> SliceArg for &[S] {
+    fn into_slices(self, shape: &Shape) -> Vec<Slice> {
+        assert!(
+            self.len() <= shape.num_dims(),
+            "Too many slices provided for shape, got {} but expected at most {}",
+            self.len(),
+            shape.num_dims()
+        );
+
+        shape
+            .iter()
             .enumerate()
-            .map(|(i, s)| {
-                let slice: Slice = s.into();
+            .map(|(i, dim_size)| {
+                let slice = if i >= self.len() {
+                    Slice::full()
+                } else {
+                    self[i].clone().into()
+                };
                 // Apply shape clamping by converting to range and back
-                let clamped_range = slice.to_range(shape[i]);
+                let clamped_range = slice.to_range(*dim_size);
                 Slice::new(
                     clamped_range.start as isize,
                     Some(clamped_range.end as isize),
@@ -33,23 +45,31 @@ where
                 )
             })
             .collect::<Vec<_>>()
-            .try_into()
-            .unwrap()
     }
 }
 
-impl<T> SliceArg<1> for T
+impl SliceArg for &Vec<Slice> {
+    fn into_slices(self, shape: &Shape) -> Vec<Slice> {
+        self.as_slice().into_slices(shape)
+    }
+}
+
+impl<const R: usize, T> SliceArg for [T; R]
+where
+    T: Into<Slice> + Clone,
+{
+    fn into_slices(self, shape: &Shape) -> Vec<Slice> {
+        self.as_slice().into_slices(shape)
+    }
+}
+
+impl<T> SliceArg for T
 where
     T: Into<Slice>,
 {
-    fn into_slices(self, shape: Shape) -> [Slice; 1] {
+    fn into_slices(self, shape: &Shape) -> Vec<Slice> {
         let slice: Slice = self.into();
-        let clamped_range = slice.to_range(shape[0]);
-        [Slice::new(
-            clamped_range.start as isize,
-            Some(clamped_range.end as isize),
-            slice.step(),
-        )]
+        [slice].as_slice().into_slices(shape)
     }
 }
 
@@ -323,6 +343,47 @@ pub struct Slice {
     pub step: isize,
 }
 
+/// Defines an [`Iterator`] over a [`Slice`].
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct SliceIter {
+    slice: Slice,
+    current: isize,
+}
+
+impl Iterator for SliceIter {
+    type Item = isize;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let next = self.current;
+        self.current += self.slice.step;
+
+        if let Some(end) = self.slice.end {
+            if self.slice.is_reversed() {
+                if next <= end {
+                    return None;
+                }
+            } else if next >= end {
+                return None;
+            }
+        }
+
+        Some(next)
+    }
+}
+
+/// Note: Unbounded [`Slice`]s produce infinite iterators.
+impl IntoIterator for Slice {
+    type Item = isize;
+    type IntoIter = SliceIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        SliceIter {
+            slice: self,
+            current: self.start,
+        }
+    }
+}
+
 impl Default for Slice {
     fn default() -> Self {
         Self::full()
@@ -347,6 +408,52 @@ impl Slice {
             start: idx,
             end: handle_signed_inclusive_end(idx),
             step: 1,
+        }
+    }
+
+    /// Converts the slice to a vector.
+    pub fn into_vec(self) -> Vec<isize> {
+        assert!(
+            self.end.is_some(),
+            "Slice must have an end to convert to a vector: {self:?}"
+        );
+        self.into_iter().collect()
+    }
+
+    /// Clips the slice to a maximum size.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// assert_eq!(
+    ///     Slice::new(0, None, 1).bound_to(10),
+    ///     Slice::new(0, Some(10), 1));
+    /// assert_eq!(
+    ///     Slice::new(0, Some(5), 1).bound_to(10),
+    ///     Slice::new(0, Some(5), 1));
+    /// assert_eq!(
+    ///     Slice::new(0, None, -1).bound_to(10),
+    ///     Slice::new(0, Some(-11), -1));
+    /// assert_eq!(
+    ///     Slice::new(0, Some(-5), -1).bound_to(10),
+    ///     Slice::new(0, Some(-5), -1));
+    /// ```
+    pub fn bound_to(self, size: usize) -> Self {
+        let mut bounds = size as isize;
+
+        if let Some(end) = self.end {
+            if end > 0 {
+                bounds = end.min(bounds);
+            } else {
+                bounds = end.max(-(bounds + 1));
+            }
+        } else if self.is_reversed() {
+            bounds = -(bounds + 1);
+        }
+
+        Self {
+            end: Some(bounds),
+            ..self
         }
     }
 
@@ -408,6 +515,10 @@ impl Slice {
     /// Calculates the output size for this slice operation
     pub fn output_size(&self, dim_size: usize) -> usize {
         let range = self.to_range(dim_size);
+        // Handle empty slices (start >= end)
+        if range.start >= range.end {
+            return 0;
+        }
         let len = range.end - range.start;
         if self.step.unsigned_abs() == 1 {
             len
@@ -435,8 +546,8 @@ fn handle_signed_inclusive_end(end: isize) -> Option<isize> {
 impl<I: AsIndex> From<Range<I>> for Slice {
     fn from(r: Range<I>) -> Self {
         Self {
-            start: r.start.index(),
-            end: Some(r.end.index()),
+            start: r.start.as_index(),
+            end: Some(r.end.as_index()),
             step: 1,
         }
     }
@@ -445,8 +556,8 @@ impl<I: AsIndex> From<Range<I>> for Slice {
 impl<I: AsIndex + Copy> From<RangeInclusive<I>> for Slice {
     fn from(r: RangeInclusive<I>) -> Self {
         Self {
-            start: (*r.start()).index(),
-            end: handle_signed_inclusive_end((*r.end()).index()),
+            start: r.start().as_index(),
+            end: handle_signed_inclusive_end(r.end().as_index()),
             step: 1,
         }
     }
@@ -455,7 +566,7 @@ impl<I: AsIndex + Copy> From<RangeInclusive<I>> for Slice {
 impl<I: AsIndex> From<RangeFrom<I>> for Slice {
     fn from(r: RangeFrom<I>) -> Self {
         Self {
-            start: r.start.index(),
+            start: r.start.as_index(),
             end: None,
             step: 1,
         }
@@ -466,7 +577,7 @@ impl<I: AsIndex> From<RangeTo<I>> for Slice {
     fn from(r: RangeTo<I>) -> Self {
         Self {
             start: 0,
-            end: Some(r.end.index()),
+            end: Some(r.end.as_index()),
             step: 1,
         }
     }
@@ -476,7 +587,7 @@ impl<I: AsIndex> From<RangeToInclusive<I>> for Slice {
     fn from(r: RangeToInclusive<I>) -> Self {
         Self {
             start: 0,
-            end: handle_signed_inclusive_end(r.end.index()),
+            end: handle_signed_inclusive_end(r.end.as_index()),
             step: 1,
         }
     }
@@ -510,6 +621,12 @@ impl From<i32> for Slice {
     }
 }
 
+impl From<i64> for Slice {
+    fn from(i: i64) -> Self {
+        Slice::index(i as isize)
+    }
+}
+
 impl Display for Slice {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         if self.step == 1
@@ -534,14 +651,17 @@ impl Display for Slice {
 }
 
 impl FromStr for Slice {
-    type Err = SliceExpressionError;
+    type Err = crate::ExpressionError;
 
     fn from_str(source: &str) -> Result<Self, Self::Err> {
         let mut s = source.trim();
 
         let parse_int = |v: &str| -> Result<isize, Self::Err> {
             v.parse::<isize>().map_err(|e| {
-                SliceExpressionError::parse_error(format!("Invalid integer: '{v}': {}", e), source)
+                crate::ExpressionError::parse_error(
+                    format!("Invalid integer: '{v}': {}", e),
+                    source,
+                )
             })
         };
 
@@ -555,7 +675,7 @@ impl FromStr for Slice {
         }
 
         if s.is_empty() {
-            return Err(SliceExpressionError::parse_error(
+            return Err(crate::ExpressionError::parse_error(
                 "Empty expression",
                 source,
             ));
@@ -578,7 +698,7 @@ impl FromStr for Slice {
         }
 
         if step == 0 {
-            return Err(SliceExpressionError::invalid_expression(
+            return Err(crate::ExpressionError::invalid_expression(
                 "Step cannot be zero",
                 source,
             ));
@@ -588,86 +708,11 @@ impl FromStr for Slice {
     }
 }
 
-#[allow(unused_imports)]
-use alloc::format;
-use alloc::string::String;
-
-/// Common Parse Error.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum SliceExpressionError {
-    /// Parse Error.
-    ParseError {
-        /// The error message.
-        message: String,
-        /// The source expression.
-        source: String,
-    },
-
-    /// Invalid Expression.
-    InvalidExpression {
-        /// The error message.
-        message: String,
-        /// The source expression.
-        source: String,
-    },
-}
-
-impl SliceExpressionError {
-    /// Constructs a new `ParseError`.
-    ///
-    /// This function is a utility for creating instances where a parsing error needs to be represented,
-    /// encapsulating a descriptive error message and the source of the error.
-    ///
-    /// # Parameters
-    ///
-    /// - `message`: A value that can be converted into a `String`, representing a human-readable description
-    ///   of the parsing error.
-    /// - `source`: A value that can be converted into a `String`, typically identifying the origin or
-    ///   input that caused the parsing error.
-    pub fn parse_error(message: impl Into<String>, source: impl Into<String>) -> Self {
-        Self::ParseError {
-            message: message.into(),
-            source: source.into(),
-        }
-    }
-
-    /// Creates a new `InvalidExpression`.
-    ///
-    /// # Parameters
-    /// - `message`: A detailed message describing the nature of the invalid expression.
-    ///   Accepts any type that can be converted into a `String`.
-    /// - `source`: The source or context in which the invalid expression occurred.
-    ///   Accepts any type that can be converted into a `String`.
-    pub fn invalid_expression(message: impl Into<String>, source: impl Into<String>) -> Self {
-        Self::InvalidExpression {
-            message: message.into(),
-            source: source.into(),
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::alloc::string::ToString;
-
-    #[test]
-    fn test_parse_error() {
-        let err = SliceExpressionError::parse_error("test", "source");
-        assert_eq!(
-            format!("{:?}", err),
-            "ParseError { message: \"test\", source: \"source\" }"
-        );
-    }
-
-    #[test]
-    fn test_invalid_expression() {
-        let err = SliceExpressionError::invalid_expression("test", "source");
-        assert_eq!(
-            format!("{:?}", err),
-            "InvalidExpression { message: \"test\", source: \"source\" }"
-        );
-    }
+    use alloc::string::ToString;
+    use alloc::vec;
 
     #[test]
     fn test_slice_to_str() {
@@ -695,7 +740,7 @@ mod tests {
 
         assert_eq!(
             "..;0".parse::<Slice>(),
-            Err(SliceExpressionError::invalid_expression(
+            Err(crate::ExpressionError::invalid_expression(
                 "Step cannot be zero",
                 "..;0"
             ))
@@ -703,25 +748,25 @@ mod tests {
 
         assert_eq!(
             "".parse::<Slice>(),
-            Err(SliceExpressionError::parse_error("Empty expression", ""))
+            Err(crate::ExpressionError::parse_error("Empty expression", ""))
         );
         assert_eq!(
             "a".parse::<Slice>(),
-            Err(SliceExpressionError::parse_error(
+            Err(crate::ExpressionError::parse_error(
                 "Invalid integer: 'a': invalid digit found in string",
                 "a"
             ))
         );
         assert_eq!(
             "..a".parse::<Slice>(),
-            Err(SliceExpressionError::parse_error(
+            Err(crate::ExpressionError::parse_error(
                 "Invalid integer: 'a': invalid digit found in string",
                 "..a"
             ))
         );
         assert_eq!(
             "a:b:c".parse::<Slice>(),
-            Err(SliceExpressionError::parse_error(
+            Err(crate::ExpressionError::parse_error(
                 "Invalid integer: 'a:b:c': invalid digit found in string",
                 "a:b:c"
             ))
@@ -738,5 +783,155 @@ mod tests {
         assert_eq!(Slice::new(0, Some(10), -2).output_size(10), 5);
         assert_eq!(Slice::new(2, Some(8), -3).output_size(10), 2); // ceil(6/3)
         assert_eq!(Slice::new(5, Some(5), 1).output_size(10), 0); // empty range
+    }
+
+    #[test]
+    fn test_bound_to() {
+        assert_eq!(
+            Slice::new(0, None, 1).bound_to(10),
+            Slice::new(0, Some(10), 1)
+        );
+        assert_eq!(
+            Slice::new(0, Some(5), 1).bound_to(10),
+            Slice::new(0, Some(5), 1)
+        );
+
+        assert_eq!(
+            Slice::new(0, None, -1).bound_to(10),
+            Slice::new(0, Some(-11), -1)
+        );
+        assert_eq!(
+            Slice::new(0, Some(-5), -1).bound_to(10),
+            Slice::new(0, Some(-5), -1)
+        );
+    }
+
+    #[test]
+    fn test_slice_iter() {
+        assert_eq!(
+            Slice::new(2, Some(3), 1).into_iter().collect::<Vec<_>>(),
+            vec![2]
+        );
+        assert_eq!(
+            Slice::new(3, Some(-1), -1).into_iter().collect::<Vec<_>>(),
+            vec![3, 2, 1, 0]
+        );
+
+        assert_eq!(Slice::new(3, Some(-1), -1).into_vec(), vec![3, 2, 1, 0]);
+
+        assert_eq!(
+            Slice::new(3, None, 2)
+                .into_iter()
+                .take(3)
+                .collect::<Vec<_>>(),
+            vec![3, 5, 7]
+        );
+        assert_eq!(
+            Slice::new(3, None, 2)
+                .bound_to(8)
+                .into_iter()
+                .collect::<Vec<_>>(),
+            vec![3, 5, 7]
+        );
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "Slice must have an end to convert to a vector: Slice { start: 0, end: None, step: 1 }"
+    )]
+    fn test_unbound_slice_into_vec() {
+        Slice::new(0, None, 1).into_vec();
+    }
+
+    #[test]
+    fn into_slices_should_return_for_all_shape_dims() {
+        let slice = s![1];
+        let shape = Shape::new([2, 3, 1]);
+
+        let slices = slice.into_slices(&shape);
+
+        assert_eq!(slices.len(), shape.len());
+
+        assert_eq!(slices[0], Slice::new(1, Some(2), 1));
+        assert_eq!(slices[1], Slice::new(0, Some(3), 1));
+        assert_eq!(slices[2], Slice::new(0, Some(1), 1));
+
+        let slice = s![1, 0..2];
+        let slices = slice.into_slices(&shape);
+
+        assert_eq!(slices.len(), shape.len());
+
+        assert_eq!(slices[0], Slice::new(1, Some(2), 1));
+        assert_eq!(slices[1], Slice::new(0, Some(2), 1));
+        assert_eq!(slices[2], Slice::new(0, Some(1), 1));
+
+        let slice = s![..];
+        let slices = slice.into_slices(&shape);
+
+        assert_eq!(slices.len(), shape.len());
+
+        assert_eq!(slices[0], Slice::new(0, Some(2), 1));
+        assert_eq!(slices[1], Slice::new(0, Some(3), 1));
+        assert_eq!(slices[2], Slice::new(0, Some(1), 1));
+    }
+
+    #[test]
+    fn into_slices_all_dimensions() {
+        let slice = s![1, ..2, ..];
+        let shape = Shape::new([2, 3, 1]);
+
+        let slices = slice.into_slices(&shape);
+
+        assert_eq!(slices.len(), shape.len());
+
+        assert_eq!(slices[0], Slice::new(1, Some(2), 1));
+        assert_eq!(slices[1], Slice::new(0, Some(2), 1));
+        assert_eq!(slices[2], Slice::new(0, Some(1), 1));
+    }
+
+    #[test]
+    fn into_slices_supports_empty_dimensions() {
+        let slice = s![.., 1, ..];
+        let shape = Shape::new([0, 3, 1]);
+
+        let slices = slice.into_slices(&shape);
+
+        assert_eq!(slices.len(), shape.len());
+
+        assert_eq!(slices[0], Slice::new(0, Some(0), 1));
+        assert_eq!(slices[1], Slice::new(1, Some(2), 1));
+        assert_eq!(slices[2], Slice::new(0, Some(1), 1));
+    }
+
+    #[test]
+    #[should_panic = "Too many slices provided for shape"]
+    fn into_slices_should_match_shape_rank() {
+        let slice = s![.., 1, ..];
+        let shape = Shape::new([3, 1]);
+
+        let _ = slice.into_slices(&shape);
+    }
+
+    #[test]
+    fn should_support_const_and_full() {
+        static SLICES: [Slice; 2] = [Slice::full(), Slice::new(2, None, 1)];
+        assert_eq!(SLICES[0], Slice::new(0, None, 1));
+        assert_eq!(SLICES[1], Slice::new(2, None, 1));
+    }
+
+    #[test]
+    fn should_support_default() {
+        assert_eq!(Slice::default(), Slice::new(0, None, 1));
+    }
+
+    #[test]
+    fn should_support_copy() {
+        let mut slice = Slice::new(1, Some(3), 2);
+        let slice_copy = slice;
+
+        slice.end = Some(4);
+
+        assert_eq!(slice, Slice::new(1, Some(4), 2));
+        assert_eq!(slice_copy, Slice::new(1, Some(3), 2));
     }
 }

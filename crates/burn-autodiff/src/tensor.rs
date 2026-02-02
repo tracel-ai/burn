@@ -5,7 +5,7 @@ use crate::{
     runtime::{AutodiffClient, AutodiffClientImpl},
 };
 use alloc::{boxed::Box, sync::Arc, vec};
-use burn_tensor::{TensorMetadata, backend::Backend};
+use burn_backend::{Backend, TensorMetadata};
 
 #[derive(Debug, Clone)]
 pub struct AutodiffTensor<B: Backend> {
@@ -15,11 +15,11 @@ pub struct AutodiffTensor<B: Backend> {
 }
 
 impl<B: Backend> TensorMetadata for AutodiffTensor<B> {
-    fn dtype(&self) -> burn_tensor::DType {
+    fn dtype(&self) -> burn_std::DType {
         self.primitive.dtype()
     }
 
-    fn shape(&self) -> burn_tensor::Shape {
+    fn shape(&self) -> burn_std::Shape {
         self.primitive.shape()
     }
 

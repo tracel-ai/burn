@@ -4,19 +4,21 @@ macro_rules! keepdim {
         $self:expr,
         mean
     ) => {{
-        let tensor: SharedArray<E> = mean_dim($self.clone(), $dim);
+        // Get shape first (via reference), then pass ownership to avoid clone
         let mut shape = $self.shape().into_shape();
         shape[$dim] = 1;
-        NdArrayOps::reshape(tensor.clone(), shape)
+        let tensor: SharedArray<E> = mean_dim($self, $dim);
+        NdArrayOps::reshape(tensor, shape)
     }};
     (
         $dim:expr,
         $self:expr,
         sum
     ) => {{
-        let tensor: SharedArray<E> = sum_dim($self.clone(), $dim);
+        // Get shape first (via reference), then pass ownership to avoid clone
         let mut shape = $self.shape().into_shape();
         shape[$dim] = 1;
+        let tensor: SharedArray<E> = sum_dim($self, $dim);
         NdArrayOps::reshape(tensor, shape)
     }};
     (
@@ -24,14 +26,15 @@ macro_rules! keepdim {
         $self:expr,
         prod
     ) => {{
-        let tensor: SharedArray<E> = prod_dim($self.clone(), $dim);
+        // Get shape first (via reference), then pass ownership to avoid clone
         let mut shape = $self.shape().into_shape();
         shape[$dim] = 1;
+        let tensor: SharedArray<E> = prod_dim($self, $dim);
         NdArrayOps::reshape(tensor, shape)
     }};
 }
 
-use burn_tensor::ElementConversion;
+use burn_backend::ElementConversion;
 pub(crate) use keepdim;
 use ndarray::{Axis, Zip};
 
@@ -59,7 +62,8 @@ where
 {
     let axis = Axis(dim);
     let shape = tensor.shape().to_vec();
-    let mut result = tensor.to_owned();
+    // Use into_owned() instead of to_owned() - only copies if shared, avoids copy if unique
+    let mut result = tensor.into_owned();
     let dim_size = shape[dim];
 
     for i in 1..dim_size {
