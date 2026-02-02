@@ -13,7 +13,7 @@ use burn_core::{prelude::*, record::Record, tensor::backend::AutodiffBackend};
 
 use crate::TransitionBatch;
 
-/// An action along with additionnal context about the decision.
+/// An action along with additional context about the decision.
 #[derive(Clone, new)]
 pub struct ActionContext<A, C> {
     /// The context.
@@ -28,7 +28,7 @@ pub trait PolicyState<B: Backend> {
     type Record: Record<B>;
 
     /// Convert the state to a record.
-    fn into_record(&self) -> Self::Record;
+    fn into_record(self) -> Self::Record;
     /// Load the state from a record.
     fn load_record(&self, record: Self::Record) -> Self;
 }
@@ -42,7 +42,7 @@ pub trait Policy<B: Backend>: Clone {
     /// The action.
     type Action;
 
-    /// Additionnal context on the policy's decision.
+    /// Additional context on the policy's decision.
     type ActionContext;
     /// The current parameterization of the policy.
     type PolicyState: PolicyState<B>;
@@ -62,7 +62,7 @@ pub trait Policy<B: Backend>: Clone {
     fn state(&self) -> Self::PolicyState;
 
     /// Loads the policy parameters from a record.
-    fn from_record(&self, record: <Self::PolicyState as PolicyState<B>>::Record) -> Self;
+    fn load_record(self, record: <Self::PolicyState as PolicyState<B>>::Record) -> Self;
 }
 
 /// Trait for a type that can be batched and unbatched (split).
@@ -89,7 +89,7 @@ where
     <Self::InnerPolicy as Policy<B>>::ActionDistribution: Clone + Batchable,
     <Self::InnerPolicy as Policy<B>>::Action: Clone + Batchable,
 {
-    /// Additionnal context of a training step.
+    /// Additional context of a training step.
     type TrainContext;
     /// The policy to train.
     type InnerPolicy: Policy<B>;
@@ -111,7 +111,7 @@ where
     fn update_policy(&mut self, update: Self::InnerPolicy);
 
     /// Convert the learner's state into a record.
-    fn into_record(&self) -> Self::Record;
+    fn record(&self) -> Self::Record;
     /// Load the learner's state from a record.
     fn load_record(self, record: Self::Record) -> Self;
 }
@@ -178,7 +178,7 @@ where
     }
 
     pub fn flush_actions(&mut self) {
-        if self.len_actions() <= 0 {
+        if self.len_actions() == 0 {
             return;
         }
         let input: Vec<_> = self
@@ -205,7 +205,7 @@ where
     }
 
     pub fn flush_logits(&mut self) {
-        if self.len_logits() <= 0 {
+        if self.len_logits() == 0 {
             return;
         }
         let input: Vec<_> = self
@@ -412,7 +412,7 @@ where
             .expect("AsyncPolicy should be able to receive policy state.")
     }
 
-    fn from_record(&self, _record: <Self::PolicyState as PolicyState<B>>::Record) -> Self {
+    fn load_record(self, _record: <Self::PolicyState as PolicyState<B>>::Record) -> Self {
         // Not needed for now
         todo!()
     }

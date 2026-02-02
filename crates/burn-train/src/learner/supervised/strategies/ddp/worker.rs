@@ -91,11 +91,9 @@ where
             .map(|dataloader| DdpValidEpoch::<LC>::new(dataloader));
         self.learner.fork(&self.device);
 
-        // TODO: Is TrainingLoop a good util? Where shold it be defined?
         for training_progress in TrainingLoop::new(self.starting_epoch, num_epochs) {
             let epoch = training_progress.items_processed;
 
-            // TODO: Is the TrainingProgress abstraction any good?
             epoch_train.run(
                 &mut self.learner,
                 &training_progress,

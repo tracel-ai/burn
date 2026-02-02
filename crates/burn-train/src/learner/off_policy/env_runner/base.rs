@@ -27,7 +27,7 @@ pub struct TimeStep<B: Backend, S, A, C> {
     pub env_id: usize,
     /// The [burn_rl::Transition](burn_rl::Transition).
     pub transition: Transition<B, S, A>,
-    /// True if the environement reaches a terminal state.
+    /// True if the environment reaches a terminal state.
     pub done: bool,
     /// The running length of the current episode.
     pub ep_len: usize,

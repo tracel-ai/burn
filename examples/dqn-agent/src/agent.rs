@@ -171,7 +171,7 @@ pub struct DqnState<B: Backend, M: DiscreteActionModel<B>> {
 impl<B: Backend, M: DiscreteActionModel<B>> PolicyState<B> for DqnState<B, M> {
     type Record = M::Record;
 
-    fn into_record(&self) -> Self::Record {
+    fn into_record(self) -> Self::Record {
         self.model.clone().into_record()
     }
 
@@ -294,7 +294,7 @@ impl<B: Backend, M: DiscreteActionModel<B>> Policy<B> for DQN<B, M> {
         }
     }
 
-    fn from_record(&self, record: <Self::PolicyState as PolicyState<B>>::Record) -> Self {
+    fn load_record(self, record: <Self::PolicyState as PolicyState<B>>::Record) -> Self {
         let state = self.state().load_record(record);
         Self {
             model: state.model,
@@ -390,6 +390,8 @@ where
     type InnerPolicy = EpsilonGreedyPolicy<B, DQN<B, M>>;
     type Record = DqnLearningRecord<B, M, O>;
 
+    // Not that complex. No use in extracting in a type alias that is going to be used only once.
+    #[allow(clippy::type_complexity)]
     fn train(
         &mut self,
         input: TransitionBatch<
@@ -456,7 +458,7 @@ where
         self.agent = update;
     }
 
-    fn into_record(&self) -> Self::Record {
+    fn record(&self) -> Self::Record {
         DqnLearningRecord {
             policy_model: self.policy_model.clone().into_record(),
             target_model: self.target_model.clone().into_record(),

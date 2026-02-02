@@ -9,7 +9,7 @@ use crate::{AgentEvaluationEvent, AsyncProcessorTraining, ItemLazy, RLEvent};
 pub trait RLComponentsTypes {
     /// The backend used for training.
     type Backend: AutodiffBackend;
-    /// The learning environement.
+    /// The learning environment.
     type Env: Environment<State = Self::State, Action = Self::Action> + 'static;
     /// Specifies how to initialize the environment.
     type EnvInit: EnvironmentInit<Self::Env> + Send + 'static;

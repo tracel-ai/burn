@@ -99,7 +99,7 @@ pub struct EpsilonGreedyPolicyState<B: Backend, P: Policy<B>> {
 impl<B: Backend, P: Policy<B>> PolicyState<B> for EpsilonGreedyPolicyState<B, P> {
     type Record = EpsilonGreedyPolicyRecord<B, P>;
 
-    fn into_record(&self) -> Self::Record {
+    fn into_record(self) -> Self::Record {
         EpsilonGreedyPolicyRecord {
             inner_state: self.inner_state.into_record(),
             step: self.step,
@@ -210,11 +210,11 @@ where
         }
     }
 
-    fn from_record(&self, record: <Self::PolicyState as PolicyState<B>>::Record) -> Self {
+    fn load_record(self, record: <Self::PolicyState as PolicyState<B>>::Record) -> Self {
         let state = self.state().load_record(record);
         let inner_policy = self
             .inner_policy
-            .from_record(state.inner_state.into_record());
+            .load_record(state.inner_state.into_record());
         EpsilonGreedyPolicy {
             inner_policy: inner_policy,
             eps_start: self.eps_start,

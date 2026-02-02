@@ -1,11 +1,9 @@
 use burn_core::tensor::Device;
-use burn_rl::PolicyLearner;
-use burn_rl::Policy;
-use burn_rl::PolicyState;
+use burn_rl::{Policy, PolicyLearner, PolicyState};
 
 use crate::RLAgentRecord;
 use crate::{
-    RLPolicyRecord, RLComponentsTypes,
+    RLComponentsTypes, RLPolicyRecord,
     checkpoint::Checkpointer,
     checkpoint::{AsyncCheckpointer, CheckpointingAction, CheckpointingStrategy},
     metric::store::EventStoreClient,
@@ -42,10 +40,10 @@ impl<RLC: RLComponentsTypes> RLCheckpointer<RLC> {
                 }
                 CheckpointingAction::Save => {
                     self.policy
-                        .save(epoch, policy.into_record())
+                        .save(epoch, policy.clone().into_record())
                         .expect("Can save policy checkpoint.");
                     self.learning_agent
-                        .save(epoch, learning_agent.into_record())
+                        .save(epoch, learning_agent.record())
                         .expect("Can save learning agent checkpoint.");
                 }
             }
@@ -63,7 +61,7 @@ impl<RLC: RLComponentsTypes> RLCheckpointer<RLC> {
             .policy
             .restore(epoch, device)
             .expect("Can load model checkpoint.");
-        let policy = learning_agent.policy().from_record(record);
+        let policy = learning_agent.policy().load_record(record);
 
         let record = self
             .learning_agent

@@ -24,7 +24,7 @@ pub enum RLEvent<TS, ES> {
     Start,
     /// Signal an agent's training step.
     TrainStep(EvaluationItem<TS>),
-    /// Signal a timestep of the agent-environement interface.
+    /// Signal a timestep of the agent-environment interface.
     TimeStep(EvaluationItem<ES>),
     /// Signal an episode end.
     EpisodeEnd(EvaluationItem<EpisodeSummary>),
@@ -32,11 +32,11 @@ pub enum RLEvent<TS, ES> {
     End(Option<LearnerSummary>),
 }
 
-/// Event happening during evaluation of a renforcement learning's agent.
+/// Event happening during evaluation of a reinforcement learning's agent.
 pub enum AgentEvaluationEvent<T> {
     /// Signal the start of the process (e.g., training start)
     Start,
-    /// Signal a timestep of the agent-environement interface.
+    /// Signal a timestep of the agent-environment interface.
     TimeStep(EvaluationItem<T>),
     /// Signal an episode end.
     EpisodeEnd(EvaluationItem<EpisodeSummary>),

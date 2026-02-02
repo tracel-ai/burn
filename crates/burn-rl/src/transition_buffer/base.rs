@@ -139,6 +139,11 @@ impl<T> TransitionBuffer<T> {
         self.buffer.len()
     }
 
+    /// Returns the current number of items stored.
+    pub fn is_empty(&self) -> bool {
+        self.buffer.is_empty()
+    }
+
     /// Clear the buffer.
     pub fn clear(&mut self) {
         self.buffer.clear();

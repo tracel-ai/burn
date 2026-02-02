@@ -354,6 +354,7 @@ where
 {
     // TODO: start() shouldn't exist.
     fn start(&mut self) {
+        // Double batching : The environments are always one step ahead of requests. This allows inference for the first batch of steps.
         self.agent.increment_agents(self.num_envs);
 
         for i in 0..self.num_envs {

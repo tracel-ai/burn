@@ -254,7 +254,7 @@ impl<RLC: RLComponentsTypes + 'static> RLTraining<RLC> {
         self
     }
 
-    /// The number of environement steps to train for.
+    /// The number of environment steps to train for.
     pub fn num_steps(mut self, num_episodes: usize) -> Self {
         self.num_steps = num_episodes;
         self

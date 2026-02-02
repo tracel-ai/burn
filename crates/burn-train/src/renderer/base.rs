@@ -185,7 +185,7 @@ impl TrainingProgress {
 
 /// Type of progress indicators.
 pub enum ProgressType {
-    /// Detailled progress.
+    /// Detailed progress.
     Detailed {
         /// The tag.
         tag: String,
