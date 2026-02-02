@@ -1,9 +1,0 @@
-[package]
-name = "lpips-test"
-version = "0.1.0"
-edition = "2021"
-publish = false
-
-[dependencies]
-burn = { path = "../../crates/burn", features = ["ndarray"] }
-burn-import = { path = "../../crates/burn-import", features = ["pytorch"] }
