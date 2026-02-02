@@ -56,19 +56,15 @@ impl<R: Runtime> ReduceFuser<R> {
         let props = client.properties();
         let max_bindings = props.hardware.max_bindings;
         let settings_read = FuseSettings {
-            output_shape_updates: true,
             inplace: false,
             ref_layout: RefLayoutSetting::OnlyContiguous,
-            vectorization: VectorizationSetting::Activated,
-            broadcast: true,
+            ..Default::default()
         };
         let settings_write = FuseSettings {
             output_shape_updates: false,
-            inplace: true,
-            broadcast: false,
-            ref_layout: RefLayoutSetting::OnlyContiguous,
             // TODO: Fusion axis should be on the reduce_axis - 1.
             vectorization: VectorizationSetting::SmallerOrEqualThanPreviousBlock { block_pos: 0 },
+            ..Default::default()
         };
         let settings_fallback = FuseSettings::default();
 

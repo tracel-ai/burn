@@ -60,7 +60,10 @@ impl<R: Runtime> ReduceBroadcastedFuser<R> {
 
 impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceBroadcastedFuser<R> {
     fn fuse(&mut self, operation: &OperationIr) {
-        if let ReduceBroadcastedStatus::Closed = &self.state {
+        if matches!(
+            &self.state,
+            ReduceBroadcastedStatus::Closed | ReduceBroadcastedStatus::Abord
+        ) {
             return;
         }
 

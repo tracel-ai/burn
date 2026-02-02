@@ -68,9 +68,6 @@ impl ReduceArgs for FusedReduceArgs {
     }
 
     fn read_input<P: ReduceDType>(state: &Self::State<P>, index: usize) -> Line<P::In> {
-        comptime! {
-            println!("Fuse-on-read ...");
-        };
         let value = fuse_on_read::<P::In>(
             unsafe { &(*state.inputs) },
             unsafe { &mut (*state.outputs) },
@@ -84,9 +81,6 @@ impl ReduceArgs for FusedReduceArgs {
             },
             &state.config_on_read,
         )[0];
-        comptime! {
-            println!("Fuse-on-read DONE.");
-        };
         value
     }
 
@@ -100,9 +94,6 @@ impl ReduceArgs for FusedReduceArgs {
 
         values.insert(comptime![state.out.clone()], value);
         comptime![args.push(state.out.clone())];
-        comptime! {
-            println!("Fuse-on-write ...");
-        };
         fuse_on_write(
             unsafe { &(*state.inputs) },
             unsafe { &mut (*state.outputs) },
@@ -112,9 +103,6 @@ impl ReduceArgs for FusedReduceArgs {
             args,
             &state.config_on_write,
         );
-        comptime! {
-            println!("Fuse-on-write DONE.");
-        };
     }
 
     fn len_input<P: ReduceDType>(state: &Self::State<P>) -> usize {
