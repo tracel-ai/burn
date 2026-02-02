@@ -37,7 +37,7 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         autobatch_size: 8,
         replay_buffer_size: 2048,
         train_interval: 8,
-        eval_interval: 10_000,
+        eval_interval: 5_000,
         eval_episodes: 5,
         train_batch_size: 128,
     };
@@ -52,7 +52,7 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         .metrics_episode((EpisodeLengthMetric::new(), CumulativeRewardMetric::new()))
         .with_file_checkpointer(CompactRecorder::new())
         .num_steps(40_000)
-        // .checkpoint(10_000)
+        .checkpoint(10_000)
         .with_learning_strategy(burn::train::RLStrategies::OffPolicyStrategy(
             learning_config,
         ))

@@ -1,6 +1,5 @@
 use derive_new::new;
 use std::{
-    marker::PhantomData,
     sync::mpsc::{self, Sender},
     thread::spawn,
 };
@@ -113,15 +112,15 @@ where
 }
 
 #[derive(Clone)]
-struct AutoBatcher<B: Backend, P: Policy<B>> {
-    autobatch_size: usize,
+struct PolicyAutoBatcher<B: Backend, P: Policy<B>> {
+    num_agents: usize,
+    max_autobatch_size: usize,
     inner_policy: P,
     batch_action: Vec<ActionItem<P::Observation, P::Action, P::ActionContext>>,
     batch_logits: Vec<ForwardItem<P::Observation, P::ActionDistribution>>,
-    _backend: PhantomData<B>,
 }
 
-impl<B, P> AutoBatcher<B, P>
+impl<B, P> PolicyAutoBatcher<B, P>
 where
     B: Backend,
     P: Policy<B>,
@@ -130,27 +129,27 @@ where
     P::Action: Clone + Batchable,
     P::ActionContext: Clone,
 {
-    pub fn new(autobatch_size: usize, inner_policy: P) -> Self {
+    pub fn new(max_autobatch_size: usize, inner_policy: P) -> Self {
         Self {
-            autobatch_size,
+            num_agents: 0,
+            max_autobatch_size,
             inner_policy,
             batch_action: vec![],
             batch_logits: vec![],
-            _backend: PhantomData,
         }
     }
 
     pub fn push_action(&mut self, item: ActionItem<P::Observation, P::Action, P::ActionContext>) {
         self.batch_action.push(item);
-        if self.len_actions() >= self.autobatch_size {
+        if self.len_actions() >= self.num_agents.min(self.max_autobatch_size) {
             self.flush_actions();
         }
     }
 
     pub fn push_logits(&mut self, item: ForwardItem<P::Observation, P::ActionDistribution>) {
         self.batch_logits.push(item);
-        if self.len_logits() >= self.autobatch_size {
-            self.flush_actions();
+        if self.len_logits() >= self.num_agents.min(self.max_autobatch_size) {
+            self.flush_logits();
         }
     }
 
@@ -163,6 +162,10 @@ where
     }
 
     pub fn flush_actions(&mut self) {
+        log::info!("Flusing with : {}", self.len_actions());
+        if self.len_actions() <= 0 {
+            return;
+        }
         let input: Vec<_> = self
             .batch_action
             .iter()
@@ -187,6 +190,9 @@ where
     }
 
     pub fn flush_logits(&mut self) {
+        if self.len_logits() <= 0 {
+            return;
+        }
         let input: Vec<_> = self
             .batch_logits
             .iter()
@@ -215,6 +221,20 @@ where
     pub fn state(&self) -> P::PolicyState {
         self.inner_policy.state()
     }
+
+    pub fn increment_agents(&mut self, num: usize) {
+        self.num_agents += num;
+    }
+
+    pub fn decrement_agents(&mut self, num: usize) {
+        self.num_agents -= num;
+        if self.len_actions() >= self.num_agents.min(self.max_autobatch_size) {
+            self.flush_actions();
+        }
+        if self.len_logits() >= self.num_agents.min(self.max_autobatch_size) {
+            self.flush_logits();
+        }
+    }
 }
 
 enum InferenceMessage<B: Backend, P: Policy<B>> {
@@ -222,6 +242,8 @@ enum InferenceMessage<B: Backend, P: Policy<B>> {
     ForwardMessage(ForwardItem<P::Observation, P::ActionDistribution>),
     PolicyUpdate(P::PolicyState),
     PolicyRequest(Sender<P::PolicyState>),
+    IncrementAgents(usize),
+    DecrementAgents(usize),
 }
 
 #[derive(Clone)]
@@ -261,7 +283,7 @@ where
     /// * `inner_policy` - The policy used to take actions.
     pub fn new(autobatch_size: usize, inner_policy: P) -> Self {
         let (sender, receiver) = std::sync::mpsc::channel();
-        let mut autobatcher = AutoBatcher::new(autobatch_size, inner_policy.clone());
+        let mut autobatcher = PolicyAutoBatcher::new(autobatch_size, inner_policy.clone());
         spawn(move || {
             loop {
                 match receiver.recv() {
@@ -272,6 +294,8 @@ where
                         InferenceMessage::PolicyRequest(sender) => sender
                             .send(autobatcher.state())
                             .expect("Autobatcher should be able to send current policy state."),
+                        InferenceMessage::IncrementAgents(num) => autobatcher.increment_agents(num),
+                        InferenceMessage::DecrementAgents(num) => autobatcher.decrement_agents(num),
                     },
                     Err(err) => {
                         log::error!("Error in AsyncPolicy : {}", err);
@@ -284,6 +308,20 @@ where
         Self {
             inference_state_sender: sender,
         }
+    }
+
+    /// Increment the number of agents using this policy.
+    pub fn increment_agents(&self, num: usize) {
+        self.inference_state_sender
+            .send(InferenceMessage::IncrementAgents(num))
+            .expect("Can send message to autobatcher.")
+    }
+
+    /// Decrement the number of agents using this policy.
+    pub fn decrement_agents(&self, num: usize) {
+        self.inference_state_sender
+            .send(InferenceMessage::DecrementAgents(num))
+            .expect("Can send message to autobatcher.")
     }
 }
 

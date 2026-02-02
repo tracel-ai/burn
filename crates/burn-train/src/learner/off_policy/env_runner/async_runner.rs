@@ -1,14 +1,14 @@
+use rand::prelude::SliceRandom;
 use std::{
-    collections::HashMap,
     sync::mpsc::{Receiver, Sender},
     thread::spawn,
 };
 
 use burn_core::{Tensor, data::dataloader::Progress, prelude::Backend, tensor::Device};
 use burn_rl::EnvironmentInit;
+use burn_rl::Policy;
 use burn_rl::Transition;
 use burn_rl::{AsyncPolicy, Environment};
-use burn_rl::{Policy, PolicyLearner};
 
 use crate::{
     AgentEnvLoop, AgentEvaluationEvent, EpisodeSummary, EvaluationItem, EventProcessorTraining,
@@ -16,17 +16,10 @@ use crate::{
     RlPolicy, TimeStep, Trajectory,
 };
 
-struct StepMessage<B: Backend, S, A, C> {
-    step: TimeStep<B, S, A, C>,
-    confirmation_sender: Sender<()>,
+enum RequestMessage {
+    Step(),
+    Episode(),
 }
-
-type RLStepMessage<B, RLC> = StepMessage<
-    B,
-    <RLC as RLComponentsTypes>::State,
-    <RLC as RLComponentsTypes>::Action,
-    <RLC as RLComponentsTypes>::ActionContext,
->;
 
 /// An asynchronous agent/environement interface.
 pub struct AgentEnvAsyncLoop<BT: Backend, RLC: RLComponentsTypes> {
@@ -36,8 +29,11 @@ pub struct AgentEnvAsyncLoop<BT: Backend, RLC: RLComponentsTypes> {
     agent: AsyncPolicy<RLC::Backend, RlPolicy<RLC>>,
     deterministic: bool,
     transition_device: Device<BT>,
-    transition_receiver: Receiver<RLStepMessage<BT, RLC>>,
-    transition_sender: Sender<RLStepMessage<BT, RLC>>,
+    transition_receiver: Receiver<RLTimeStep<BT, RLC>>,
+    transition_sender: Sender<RLTimeStep<BT, RLC>>,
+    trajectory_receiver: Receiver<RLTrajectory<BT, RLC>>,
+    trajectory_sender: Sender<RLTrajectory<BT, RLC>>,
+    request_sender: Option<Sender<RequestMessage>>,
 }
 
 impl<BT: Backend, RLC: RLComponentsTypes> AgentEnvAsyncLoop<BT, RLC> {
@@ -51,6 +47,7 @@ impl<BT: Backend, RLC: RLComponentsTypes> AgentEnvAsyncLoop<BT, RLC> {
         transition_device: &Device<BT>,
     ) -> Self {
         let (transition_sender, transition_receiver) = std::sync::mpsc::channel();
+        let (trajectory_sender, trajectory_receiver) = std::sync::mpsc::channel();
         Self {
             env_init,
             id,
@@ -60,6 +57,9 @@ impl<BT: Backend, RLC: RLComponentsTypes> AgentEnvAsyncLoop<BT, RLC> {
             transition_device: transition_device.clone(),
             transition_receiver,
             transition_sender,
+            trajectory_receiver,
+            trajectory_sender,
+            request_sender: None,
         }
     }
 }
@@ -80,20 +80,22 @@ where
         let mut agent = self.agent.clone();
         let deterministic = self.deterministic;
         let transition_sender = self.transition_sender.clone();
+        let trajectory_sender = self.trajectory_sender.clone();
         let device = self.transition_device.clone();
         let env_init = self.env_init.clone();
 
+        let (request_sender, request_receiver) = std::sync::mpsc::channel();
+        self.request_sender = Some(request_sender);
+
+        let mut current_steps = vec![];
         let mut current_reward = 0.0;
         let mut step_num = 0;
 
-        // TODO : When running full episodes, dont block at every step, just block after episode ends (start blocking at 2nd episode end).
         spawn(move || {
             let mut env = env_init.init();
             env.reset();
-            let (confirmation_sender, confirmation_receiver) = std::sync::mpsc::channel();
-            confirmation_sender
-                .send(())
-                .expect("Can send initial confirmation message");
+
+            let mut request_episode = false;
             loop {
                 let state = env.state();
                 let (action, context) = agent.action(state.clone().into(), deterministic);
@@ -103,9 +105,6 @@ where
                 current_reward += step_result.reward;
                 step_num += 1;
 
-                confirmation_receiver
-                    .recv()
-                    .expect("Can receive confirmation from main runner thread.");
                 let transition = Transition::new(
                     state.clone(),
                     step_result.next_state,
@@ -116,27 +115,50 @@ where
                         &device,
                     ),
                 );
-                let res = transition_sender.send(StepMessage {
-                    step: TimeStep {
-                        env_id: id,
-                        transition,
-                        done: step_result.done,
-                        ep_len: step_num,
-                        cum_reward: current_reward,
-                        action_context: context[0].clone(),
-                    },
-                    confirmation_sender: confirmation_sender.clone(),
-                });
 
-                match res {
-                    Err(err) => {
+                if !request_episode {
+                    let request = match request_receiver.recv() {
+                        Ok(req) => req,
+                        Err(err) => {
+                            log::error!("Error in env runner : {}", err);
+                            break;
+                        }
+                    };
+
+                    match request {
+                        RequestMessage::Step() => (),
+                        RequestMessage::Episode() => request_episode = true,
+                    }
+                }
+
+                let time_step = TimeStep {
+                    env_id: id,
+                    transition,
+                    done: step_result.done,
+                    ep_len: step_num,
+                    cum_reward: current_reward,
+                    action_context: context[0].clone(),
+                };
+                current_steps.push(time_step.clone());
+
+                if !request_episode {
+                    if let Err(err) = transition_sender.send(time_step) {
                         log::error!("Error in env runner : {}", err);
                         break;
                     }
-                    _ => (),
                 }
 
                 if step_result.done || step_result.truncated {
+                    if request_episode {
+                        request_episode = false;
+                        trajectory_sender
+                            .send(Trajectory {
+                                timesteps: current_steps.clone(),
+                            })
+                            .expect("Can send trajectory to main thread.");
+                    }
+                    current_steps.clear();
+
                     env.reset();
                     current_reward = 0.;
                     step_num = 0;
@@ -153,29 +175,32 @@ where
         progress: &mut Progress,
     ) -> Vec<RLTimeStep<BT, RLC>> {
         let mut items = vec![];
+        self.agent.increment_agents(1);
         for _ in 0..num_steps {
-            let msg = self
+            self.request_sender
+                .as_ref()
+                .expect("Call start before running steps.")
+                .send(RequestMessage::Step())
+                .expect("Can request transitions.");
+            let transition = self
                 .transition_receiver
                 .recv()
                 .expect("Can receive transitions.");
-            items.push(msg.step.clone());
-            msg.confirmation_sender
-                .send(())
-                .expect("Can send confirmation to env worker.");
+            items.push(transition.clone());
 
             if !self.eval {
                 progress.items_processed += 1;
                 processor.process_train(RLEvent::TimeStep(EvaluationItem::new(
-                    msg.step.action_context,
+                    transition.action_context,
                     progress.clone(),
                     None,
                 )));
 
-                if msg.step.done {
+                if transition.done {
                     processor.process_train(RLEvent::EpisodeEnd(EvaluationItem::new(
                         EpisodeSummary {
-                            episode_length: msg.step.ep_len,
-                            cum_reward: msg.step.cum_reward,
+                            episode_length: transition.ep_len,
+                            cum_reward: transition.cum_reward,
                         },
                         progress.clone(),
                         None,
@@ -187,11 +212,8 @@ where
                 break;
             }
         }
+        self.agent.decrement_agents(1);
         items
-    }
-
-    fn update_policy(&mut self, update: <RlPolicy<RLC> as Policy<RLC::Backend>>::PolicyState) {
-        self.agent.update(update);
     }
 
     fn run_episodes(
@@ -199,22 +221,26 @@ where
         num_episodes: usize,
         processor: &mut RLEventProcessorType<RLC>,
         interrupter: &Interrupter,
-        progress: &mut Progress,
+        _progress: &mut Progress,
     ) -> Vec<RLTrajectory<BT, RLC>> {
         let mut items = vec![];
+        self.agent.increment_agents(1);
         for episode_num in 0..num_episodes {
-            let mut steps = vec![];
-            let mut step_num = 0;
-            loop {
-                let step = self.run_steps(1, processor, interrupter, progress)[0].clone();
-                steps.push(step.clone());
+            self.request_sender
+                .as_ref()
+                .expect("Call start before running episodes.")
+                .send(RequestMessage::Episode())
+                .expect("Can request episodes.");
+            let trajectory = self
+                .trajectory_receiver
+                .recv()
+                .expect("Main thread can receive trajectory.");
 
-                step_num += 1;
-
+            for (i, step) in trajectory.timesteps.iter().enumerate() {
                 if self.eval {
                     processor.process_valid(AgentEvaluationEvent::TimeStep(EvaluationItem::new(
                         step.action_context.clone(),
-                        Progress::new(step_num, step_num),
+                        Progress::new(i, i),
                         None,
                     )));
 
@@ -230,15 +256,37 @@ where
                             ),
                         ));
                     }
-                }
+                } else {
+                    processor.process_train(RLEvent::TimeStep(EvaluationItem::new(
+                        step.action_context.clone(),
+                        Progress::new(i, i),
+                        None,
+                    )));
 
-                if interrupter.should_stop() || step.done {
-                    break;
+                    if step.done {
+                        processor.process_train(RLEvent::EpisodeEnd(EvaluationItem::new(
+                            EpisodeSummary {
+                                episode_length: step.ep_len,
+                                cum_reward: step.cum_reward,
+                            },
+                            Progress::new(episode_num + 1, num_episodes),
+                            None,
+                        )));
+                    }
                 }
             }
-            items.push(Trajectory::new(steps));
+
+            items.push(trajectory);
+            if interrupter.should_stop() {
+                break;
+            }
         }
+        self.agent.decrement_agents(1);
         items
+    }
+
+    fn update_policy(&mut self, update: <RlPolicy<RLC> as Policy<RLC::Backend>>::PolicyState) {
+        self.agent.update(update);
     }
 
     fn policy(
@@ -253,13 +301,14 @@ pub struct MultiAgentEnvLoop<BT: Backend, RLC: RLComponentsTypes> {
     env_init: RLC::EnvInit,
     num_envs: usize,
     eval: bool,
-    agent:
-        AsyncPolicy<RLC::Backend, <RLC::LearningAgent as PolicyLearner<RLC::Backend>>::InnerPolicy>,
+    agent: AsyncPolicy<RLC::Backend, RLC::Policy>,
     deterministic: bool,
     device: Device<BT>,
-    transition_receiver: Receiver<RLStepMessage<BT, RLC>>,
-    transition_sender: Sender<RLStepMessage<BT, RLC>>,
-    current_trajectories: HashMap<usize, Vec<RLTimeStep<BT, RLC>>>,
+    transition_receiver: Receiver<RLTimeStep<BT, RLC>>,
+    transition_sender: Sender<RLTimeStep<BT, RLC>>,
+    trajectory_receiver: Receiver<RLTrajectory<BT, RLC>>,
+    trajectory_sender: Sender<RLTrajectory<BT, RLC>>,
+    request_senders: Vec<Sender<RequestMessage>>,
 }
 
 impl<BT: Backend, RLC: RLComponentsTypes> MultiAgentEnvLoop<BT, RLC> {
@@ -273,6 +322,7 @@ impl<BT: Backend, RLC: RLComponentsTypes> MultiAgentEnvLoop<BT, RLC> {
         device: &Device<BT>,
     ) -> Self {
         let (transition_sender, transition_receiver) = std::sync::mpsc::channel();
+        let (trajectory_sender, trajectory_receiver) = std::sync::mpsc::channel();
         Self {
             env_init,
             num_envs,
@@ -282,7 +332,9 @@ impl<BT: Backend, RLC: RLComponentsTypes> MultiAgentEnvLoop<BT, RLC> {
             device: device.clone(),
             transition_receiver,
             transition_sender,
-            current_trajectories: HashMap::default(),
+            trajectory_receiver,
+            trajectory_sender,
+            request_senders: Vec::with_capacity(num_envs),
         }
     }
 }
@@ -310,8 +362,17 @@ where
                 &self.device,
             );
             runner.transition_sender = self.transition_sender.clone();
+            runner.trajectory_sender = self.trajectory_sender.clone();
             runner.start();
+            self.request_senders
+                .push(runner.request_sender.clone().unwrap());
         }
+        // Double batching : The environments are always one step ahead.
+        self.agent.increment_agents(self.num_envs);
+        self.request_senders.iter().for_each(|s| {
+            s.send(RequestMessage::Step())
+                .expect("Main thread can send step requests.")
+        });
     }
 
     fn run_steps(
@@ -323,29 +384,30 @@ where
     ) -> Vec<RLTimeStep<BT, RLC>> {
         let mut items = vec![];
         for _ in 0..num_steps {
-            let msg = self
+            let transition = self
                 .transition_receiver
                 .recv()
                 .expect("Can receive transitions.");
-            items.push(msg.step.clone());
-            msg.confirmation_sender
-                .send(())
-                .expect("Can send confirmation to env worker.");
+            items.push(transition.clone());
 
-            progress.items_processed += 1;
+            // No need to manage the autobatch_size since we use double batching.
+            self.request_senders[transition.env_id]
+                .send(RequestMessage::Step())
+                .expect("Main thread can request steps.");
 
             if !self.eval {
+                progress.items_processed += 1;
                 processor.process_train(RLEvent::TimeStep(EvaluationItem::new(
-                    msg.step.action_context,
+                    transition.action_context,
                     progress.clone(),
                     None,
                 )));
 
-                if msg.step.done {
+                if transition.done {
                     processor.process_train(RLEvent::EpisodeEnd(EvaluationItem::new(
                         EpisodeSummary {
-                            episode_length: msg.step.ep_len,
-                            cum_reward: msg.step.cum_reward,
+                            episode_length: transition.ep_len,
+                            cum_reward: transition.cum_reward,
                         },
                         progress.clone(),
                         None,
@@ -369,27 +431,91 @@ where
         num_episodes: usize,
         processor: &mut RLEventProcessorType<RLC>,
         interrupter: &Interrupter,
-        progress: &mut Progress,
+        _progress: &mut Progress,
     ) -> Vec<RLTrajectory<BT, RLC>> {
+        // Here, managing the number of runners calling the autobatcher is important. Reset it to 0 at the start.
+        self.agent.decrement_agents(self.num_envs);
+
+        // Send `num_episodes` initial requests.
+        let mut idx = vec![];
+        if num_episodes < self.num_envs {
+            let mut rng = rand::rng();
+            let mut vec: Vec<usize> = (0..self.num_envs).collect();
+            vec.shuffle(&mut rng);
+            idx = vec.into_iter().take(num_episodes).collect();
+        } else {
+            idx = (0..self.num_envs).collect();
+        }
+        let num_requests = self.num_envs.min(num_episodes);
+        self.agent.increment_agents(num_requests);
+        idx.into_iter().for_each(|i| {
+            self.request_senders[i]
+                .send(RequestMessage::Episode())
+                .expect("Main thread can request steps.");
+        });
+
         let mut items = vec![];
-        loop {
-            let step = &self.run_steps(1, processor, interrupter, progress)[0];
-            self.current_trajectories
-                .entry(step.env_id)
-                .or_default()
-                .push(step.clone());
-            if step.done
-                && let Some(steps) = self.current_trajectories.get_mut(&step.env_id)
-            {
-                items.push(Trajectory {
-                    timesteps: steps.clone(),
-                });
-                steps.clear();
+        for episode_num in 0..num_episodes {
+            let trajectory = self
+                .trajectory_receiver
+                .recv()
+                .expect("Can receive trajectory.");
+            items.push(trajectory.clone());
+            if items.len() + num_requests <= num_episodes {
+                self.request_senders[trajectory.timesteps[0].env_id]
+                    .send(RequestMessage::Episode())
+                    .expect("Main thread can request steps.");
+            } else {
+                self.agent.decrement_agents(1);
             }
-            if items.len() >= num_episodes {
+
+            for (i, step) in trajectory.timesteps.iter().enumerate() {
+                if self.eval {
+                    processor.process_valid(AgentEvaluationEvent::TimeStep(EvaluationItem::new(
+                        step.action_context.clone(),
+                        Progress::new(i, i),
+                        None,
+                    )));
+
+                    if step.done {
+                        processor.process_valid(AgentEvaluationEvent::EpisodeEnd(
+                            EvaluationItem::new(
+                                EpisodeSummary {
+                                    episode_length: step.ep_len,
+                                    cum_reward: step.cum_reward,
+                                },
+                                Progress::new(episode_num + 1, num_episodes),
+                                None,
+                            ),
+                        ));
+                    }
+                } else {
+                    processor.process_train(RLEvent::TimeStep(EvaluationItem::new(
+                        step.action_context.clone(),
+                        Progress::new(i, i),
+                        None,
+                    )));
+
+                    if step.done {
+                        processor.process_train(RLEvent::EpisodeEnd(EvaluationItem::new(
+                            EpisodeSummary {
+                                episode_length: step.ep_len,
+                                cum_reward: step.cum_reward,
+                            },
+                            Progress::new(episode_num + 1, num_episodes),
+                            None,
+                        )));
+                    }
+                }
+            }
+
+            if interrupter.should_stop() {
                 break;
             }
         }
+
+        // No more runner at this point. We can reset the references to the envs number for double batching.
+        self.agent.increment_agents(self.num_envs);
         items
     }
 

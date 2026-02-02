@@ -63,6 +63,7 @@ async-channel = { workspace = true }
 burn-ndarray = { path = "../burn-ndarray", version = "=0.21.0" }
 rstest.workspace = true
 thiserror.workspace = true
+rand.workspace = true
 
 [dev-dependencies]
 burn-ndarray = { path = "../burn-ndarray", version = "=0.21.0" }
