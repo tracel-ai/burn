@@ -167,8 +167,13 @@ impl FuseBlockBuilder {
             }
             None => {
                 let input = if let Some(_) = resources.outputs.get_index(tensor.id) {
+                    match resources.registers.get(&tensor.id) {
+                        Some(val) => return Some(val.clone()),
+                        None => {}
+                    };
+                    // TODO: Sometimes can be access without an extra buffer.
                     let pos = resources.buffers.insert(precision, tensor.clone());
-                    // TODO: Add a write to the previous block that added that output.
+                    println!("\n\nBUFFER {pos}\n\n");
                     FuseArg::Output(pos, precision_input, LayoutInfo::Unknown)
                 } else {
                     let pos = resources.inputs.insert(precision_input, tensor.clone());

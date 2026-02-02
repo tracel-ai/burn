@@ -178,6 +178,7 @@ impl<R: Runtime> ReduceBlockFuser<R> {
             ReduceBlockKind::Reduce { .. } => {
                 *num_ops += self.fuser.len();
                 let optim = self.fuser.finish();
+                // TODO: Actually execute the optimization instead of the wack we do rn
                 let info = match optim {
                     CubeOptimization::Reduce(optim) => optim.info,
                     _ => unreachable!("Expected Reduce optimization"),

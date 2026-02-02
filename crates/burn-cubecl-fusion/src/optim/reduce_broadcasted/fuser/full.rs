@@ -103,12 +103,12 @@ impl ReduceBroadcastedFullFuser {
             let mut settings = self.settings_read;
             settings.vectorization = VectorizationSetting::EqualThanPreviousBlock { block_pos: 0 };
             settings.ref_layout = RefLayoutSetting::SameAsBlock { block_pos: 0 };
-            self.fuser.next_block([], settings);
+            self.fuser.next_block([], settings, false);
 
             let analysis = self.analyzer.retrieve_next();
 
             for (tensor, block_pos) in analysis.inputs {
-                self.fuser.block_local_input(&tensor, block_pos);
+                self.fuser.block_local_input(&tensor, block_pos, false);
             }
         }
 
@@ -126,13 +126,14 @@ impl ReduceBroadcastedFullFuser {
 
                 let [input] = self
                     .fuser
-                    .next_block([&reduce.op.input], self.settings_write);
+                    .next_block([&reduce.op.input], self.settings_write, false);
 
                 let output = self.fuser.output_unhandled(&reduce.op.out);
                 let analysis = self.analyzer.retrieve_next();
 
+                // Can be broadcasted so the generated buffer can be global.
                 for (tensor, block_pos) in analysis.inputs {
-                    self.fuser.block_local_input(&tensor, block_pos);
+                    self.fuser.block_local_input(&tensor, block_pos, true);
                 }
 
                 let fused_reduce = FusedReduce {

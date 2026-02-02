@@ -3,7 +3,7 @@ use super::{
     settings::FuseSettings,
     trace::{FuseTrace, TraceFuser, block::QuantInput},
 };
-use crate::engine::codegen::ir::QuantSchemeFuse;
+use crate::engine::{codegen::ir::QuantSchemeFuse, trace::FuseResources};
 use burn_fusion::{FuserProperties, FuserStatus, OperationFuser};
 use burn_ir::{
     BaseOperationIr, BinaryOpIr, FloatOperationIr, NumericOperationIr, OperationIr, ScalarOpIr,
@@ -223,6 +223,7 @@ impl TraceOperationFuser {
         &mut self,
         arguments: [&TensorIr; N],
         settings: FuseSettings,
+        global: bool,
     ) -> [FuseArg; N] {
         let block_pos = self.fuser.fuser.num_previous_blocks();
         let current_output_shape = core::mem::take(&mut self.current_output_shape);
@@ -232,14 +233,16 @@ impl TraceOperationFuser {
         self.settings = settings;
         self.status = FuserStatus::Open;
 
-        arguments.map(|arg| self.fuser.fuser.block_local_input(arg, block_pos))
+        arguments.map(|arg| self.fuser.fuser.block_local_input(arg, block_pos, global))
     }
 
     /// Tag the [tensor](TensorIr) as received from a previous block.
     ///
     /// This will avoid reading the input again and instead use le local version when possible.
-    pub fn block_local_input(&mut self, tensor: &TensorIr, block_pos: usize) {
-        self.fuser.fuser.block_local_input(tensor, block_pos);
+    pub fn block_local_input(&mut self, tensor: &TensorIr, block_pos: usize, global: bool) {
+        self.fuser
+            .fuser
+            .block_local_input(tensor, block_pos, global);
     }
 
     fn fuse_base(&mut self, ops: &BaseOperationIr) -> bool {

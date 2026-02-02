@@ -43,7 +43,7 @@ pub struct ElemwiseFuseBlock {
 }
 
 #[cube(launch_unchecked)]
-pub fn reduce_br_kernel(
+pub fn reduce_kernel_broadcasted(
     inputs: &GlobalArgs,
     outputs: &mut GlobalArgs,
     reduce_axis: usize,
@@ -139,6 +139,7 @@ fn reduce_many(
             let width = comptime!(block.config.width as u32);
             let num_iter = axis_size / usize::cast_from(width);
 
+            comment!("Fuse on write elemwise block start");
             for i in 0..num_iter {
                 // Register block local inputs.
                 let values = Registry::<FuseArg, Line<f32>>::new();
@@ -156,6 +157,7 @@ fn reduce_many(
                     &block.config,
                 )
             }
+            comment!("Fuse on write elemwise block end.");
         }
         CubeOption::None => {}
     }

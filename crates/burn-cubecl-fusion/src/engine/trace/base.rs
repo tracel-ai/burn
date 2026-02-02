@@ -167,10 +167,10 @@ pub struct FuseResources {
     /// We know during fusion that we have to have those buffers has global.
     /// The pos here can be interpreted as GLOBAL pos where the output pos are locals.
     pub buffers: RegisteredTensors,
-    // Sometimes we fuse too much that we can't rely on the inputs metadata to get access to the
-    // inner shape/strides for a block. This is when we use a [RuntimeLayout] where the shape and
-    // strides are passed from the host.
-    // pub runtime_layouts: Vec<RuntimeLayout>,
+    /// Global registers available everywhere.
+    ///
+    /// TODO: Not all registers should be globals.
+    pub registers: BTreeMap<TensorId, FuseArg>,
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug, Default)]

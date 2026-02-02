@@ -100,7 +100,12 @@ impl TraceFuser {
     /// Tag the [tensor](TensorIr) as received from a previous block.
     ///
     /// This will avoid reading the input again and instead use le local version when possible.
-    pub fn block_local_input(&mut self, tensor: &TensorIr, block_pos: usize) -> FuseArg {
+    pub fn block_local_input(
+        &mut self,
+        tensor: &TensorIr,
+        block_pos: usize,
+        global: bool,
+    ) -> FuseArg {
         let block = &mut self.blocks_previous[block_pos];
 
         let src_arg = match block.global_register(block_pos, tensor) {
@@ -113,6 +118,10 @@ impl TraceFuser {
         };
 
         self.resources.outputs.update(tensor);
+
+        if global {
+            self.resources.registers.insert(tensor.id, src_arg.clone());
+        }
 
         self.block_current
             .local_inputs

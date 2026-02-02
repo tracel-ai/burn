@@ -66,7 +66,16 @@ pub enum ReduceSettings {
 
 pub(crate) struct ReduceOptimizationTuneArg<R: Runtime> {
     pub(crate) info: Arc<ReduceOptimizationInfo<R>>,
-    pub(crate) fallback: Box<dyn FallbackOperation<R>>,
+    pub(crate) fallback: Arc<Box<dyn FallbackOperation<R>>>,
+}
+
+impl<R: Runtime> Clone for ReduceOptimizationTuneArg<R> {
+    fn clone(&self) -> Self {
+        Self {
+            info: self.info.clone(),
+            fallback: self.fallback.clone(),
+        }
+    }
 }
 
 #[derive(Clone, Copy, Serialize, Deserialize, Debug)]
@@ -222,7 +231,7 @@ impl<R: Runtime> ReduceOptimization<R> {
         let fallback = fallback(self.info.len_read);
         let arg = ReduceOptimizationTuneArg {
             info: self.info.clone(),
-            fallback,
+            fallback: Arc::new(fallback),
         };
 
         #[cfg(feature = "autotune")]
@@ -412,7 +421,7 @@ fn launch_reduce<Run: Runtime>(
     dtype_acc: DType,
 ) -> Result<(), LaunchError> {
     unsafe {
-        reduce_kernel::launch_unchecked::<Run>(
+        reduce_kernel_fused::launch_unchecked::<Run>(
             kwargs.client,
             kwargs.settings.cube_count,
             kwargs.settings.cube_dim,
@@ -429,7 +438,7 @@ fn launch_reduce<Run: Runtime>(
 }
 
 #[cube(launch_unchecked)]
-pub fn reduce_kernel<In: Numeric, Out: Numeric, Acc: Numeric>(
+pub fn reduce_kernel_fused<In: Numeric, Out: Numeric, Acc: Numeric>(
     input: &FusedReduceInput,
     output: &mut FusedReduceOutput,
     axis_reduce: usize,

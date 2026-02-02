@@ -4,7 +4,7 @@ use crate::{
         launch::runner::{TraceRunner, Vectorization},
     },
     optim::reduce_broadcasted::unit::{
-        ElemwiseFuseBlockLaunch, ReduceFuseBlockLaunch, reduce_br_kernel,
+        ElemwiseFuseBlockLaunch, ReduceFuseBlockLaunch, reduce_kernel_broadcasted,
     },
 };
 use cubecl::{
@@ -117,7 +117,7 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceBroadcastedLaunch<'_> {
         // TODO: Ensure parallel is selected.
 
         unsafe {
-            reduce_br_kernel::launch_unchecked::<R>(
+            reduce_kernel_broadcasted::launch_unchecked::<R>(
                 client,
                 settings.cube_count,
                 settings.cube_dim,

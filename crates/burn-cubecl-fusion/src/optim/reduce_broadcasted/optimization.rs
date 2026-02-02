@@ -1,3 +1,5 @@
+#[cfg(feature = "autotune")]
+use crate::optim::reduce::tune::fused_reduce_autotune;
 use crate::{
     CubeFusionHandle, FallbackOperation,
     engine::{
@@ -59,7 +61,15 @@ impl<R: Runtime> ReduceBlockOptimArg<R> {
         context: &mut Context<'_, CubeFusionHandle<R>>,
     ) -> Option<TuneOutput<R>> {
         match self {
-            ReduceBlockOptimArg::Reduce(reduce) => Some(reduce.execute_fallback::<BT>(context)),
+            ReduceBlockOptimArg::Reduce(reduce) => {
+                #[cfg(feature = "autotune")]
+                {
+                    fused_reduce_autotune::<R, BT>(reduce.clone(), context);
+                    None
+                }
+                #[cfg(not(feature = "autotune"))]
+                Some(reduce.execute_fallback::<BT>(context))
+            }
             ReduceBlockOptimArg::Elemwise(elem) => {
                 elem.execute::<BT>(context);
                 None
@@ -126,7 +136,7 @@ impl<R: Runtime> ReduceBroadcastedOptimization<R> {
                         device = Some(info.device.clone());
                         let arg = ReduceOptimizationTuneArg {
                             info: info.clone(),
-                            fallback,
+                            fallback: Arc::new(fallback),
                         };
                         current_index += info.len;
                         ReduceBlockOptimArg::Reduce(arg)
