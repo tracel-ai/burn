@@ -4,11 +4,7 @@ use crate::{
     ops::{max_line_size, numeric::empty_device_dtype},
     tensor::CubeTensor,
 };
-use cubecl::{
-    calculate_cube_count_elemwise,
-    prelude::*,
-    std::{scalar::InputScalar, tensor::layout::linear::LinearView},
-};
+use cubecl::{calculate_cube_count_elemwise, prelude::*, std::tensor::layout::linear::LinearView};
 
 pub(crate) trait BinaryOpIntFamily: Send + Sync + 'static {
     type BinaryOp<C: Int>: BinaryOpInt<C>;
@@ -187,7 +183,7 @@ pub(crate) fn launch_scalar_binop_int<R: CubeRuntime, O: BinaryOpIntFamily>(
     let cube_count = calculate_cube_count_elemwise(&tensor.client, working_units, cube_dim);
 
     unsafe {
-        if tensor.can_mut() && tensor.is_contiguous_buffer() {
+        if tensor.can_mut() && tensor.is_nonoverlapping() {
             kernel_scalar_binop_int::launch_unchecked::<O, R>(
                 &client,
                 cube_count,

@@ -47,7 +47,7 @@ where
     let cube_count = calculate_cube_count_elemwise(&tensor.client, working_units, cube_dim);
 
     unsafe {
-        if tensor.can_mut() && tensor.is_contiguous_buffer() {
+        if tensor.can_mut() && tensor.is_nonoverlapping() {
             unary_int::launch_unchecked::<O, R>(
                 &client,
                 cube_count,
@@ -115,7 +115,7 @@ pub(crate) mod unary_basic_int {
 
         fn execute(input: Line<I>, options: &Self::Options) -> Line<I> {
             match comptime![options.kind] {
-                BasicIntUnaryKind::BitwiseNot => Line::bitwise_not(input),
+                BasicIntUnaryKind::BitwiseNot => !input,
             }
         }
     }

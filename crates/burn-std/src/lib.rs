@@ -70,7 +70,11 @@ mod cube {
                             panic!("Can't store native sub-byte values")
                         }
                     },
-                    QuantStore::U32 => Self::UInt(UIntKind::U32),
+                    QuantStore::PackedU32(_) => Self::UInt(UIntKind::U32),
+                    QuantStore::PackedNative(_) => match scheme.value {
+                        QuantValue::E2M1 => panic!("Can't store native sub-byte values"),
+                        other => panic!("{other:?} doesn't support native packing"),
+                    },
                 },
             }
         }
@@ -80,7 +84,7 @@ mod cube {
         fn from(dtype: DType) -> cubecl::ir::StorageType {
             match dtype {
                 DType::QFloat(QuantScheme {
-                    store: QuantStore::Native,
+                    store: QuantStore::PackedNative(_),
                     value: QuantValue::E2M1,
                     ..
                 }) => StorageType::Packed(ElemType::Float(FloatKind::E2M1), 2),

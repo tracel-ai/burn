@@ -58,9 +58,9 @@ impl<E> NdArrayOps<E>
 where
     E: Copy + Debug + Element + crate::AddAssignElement,
 {
-    pub fn slice(tensor: SharedArray<E>, slices: &[Slice]) -> SharedArray<E> {
+    pub fn slice(tensor: ArrayView<E, IxDyn>, slices: &[Slice]) -> SharedArray<E> {
         let slices = Self::to_slice_args_with_steps(slices, tensor.shape().num_dims());
-        tensor.slice_move(slices.as_slice()).into_shared()
+        tensor.slice_move(slices.as_slice()).to_shared()
     }
 
     pub fn slice_assign(

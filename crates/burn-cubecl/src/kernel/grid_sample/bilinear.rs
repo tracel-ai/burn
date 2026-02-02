@@ -1,7 +1,7 @@
 use cubecl::std::{FastDivmod, FastDivmodArgs};
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
-use crate::{CubeRuntime, ops::numeric::empty_device_optimized_dtype, tensor::CubeTensor};
+use crate::{CubeRuntime, ops::numeric::empty_device_dtype, tensor::CubeTensor};
 use burn_backend::{Shape, ops::GridSampleOptions};
 
 use super::base::{PaddingMode, fetch_value, reflect_coord};
@@ -14,10 +14,10 @@ use super::base::{PaddingMode, fetch_value, reflect_coord};
 /// 3. For each channel: fetch 4 corner values, interpolate, and write output
 #[cube(launch)]
 fn grid_sample_bilinear_kernel<F: Float>(
-    input: &Tensor<F>,                   // [N, C, H_in, W_in]
-    grid: &Tensor<F>,                    // [N, H_out, W_out, 2]
-    output: &mut Tensor<F>,              // [N, C, H_out, W_out]
-    shape_spatial: Sequence<FastDivmod>, // [N, H_out, W_out] for thread decomposition
+    input: &Tensor<F>,                        // [N, C, H_in, W_in]
+    grid: &Tensor<F>,                         // [N, H_out, W_out, 2]
+    output: &mut Tensor<F>,                   // [N, C, H_out, W_out]
+    shape_spatial: Sequence<FastDivmod<u32>>, // [N, H_out, W_out] for thread decomposition
     #[comptime] align_corners: bool,
     #[comptime] pad_mode: PaddingMode,
     #[define(F)] _dtype: StorageType,
@@ -30,15 +30,17 @@ fn grid_sample_bilinear_kernel<F: Float>(
     }
 
     // Decompose spatial index into (n, h_out, w_out)
-    let (rem, w_out) = shape_spatial.index(2).div_mod(spatial_idx);
-    let (n, h_out) = shape_spatial.index(1).div_mod(rem);
+    let (rem, w_out) = shape_spatial[2].div_mod(spatial_idx as u32);
+    let (n, h_out) = shape_spatial[1].div_mod(rem);
 
-    let channels = input.shape(1);
-    let h_in = input.shape(2);
-    let w_in = input.shape(3);
+    let channels = input.shape(1) as u32;
+    let h_in = input.shape(2) as u32;
+    let w_in = input.shape(3) as u32;
 
     // Read grid coordinates once per spatial position
-    let grid_offset = n * grid.stride(0) + h_out * grid.stride(1) + w_out * grid.stride(2);
+    let grid_offset = n as usize * grid.stride(0)
+        + h_out as usize * grid.stride(1)
+        + w_out as usize * grid.stride(2);
     let gx = grid[grid_offset]; // x coordinate in [-1, 1]
     let gy = grid[grid_offset + 1]; // y coordinate in [-1, 1]
 
@@ -64,8 +66,8 @@ fn grid_sample_bilinear_kernel<F: Float>(
     };
 
     // Compute floor and ceil indices
-    let x0_f = Floor::floor(px);
-    let y0_f = Floor::floor(py);
+    let x0_f = px.floor();
+    let y0_f = py.floor();
     let x1_f = x0_f + F::new(1.0);
     let y1_f = y0_f + F::new(1.0);
 
@@ -95,12 +97,13 @@ fn grid_sample_bilinear_kernel<F: Float>(
     let out_stride_w = output.stride(3);
 
     // Base offsets for this spatial position
-    let in_base_n = n * stride_n;
-    let out_base_spatial = n * out_stride_n + h_out * out_stride_h + w_out * out_stride_w;
+    let in_base_n = n as usize * stride_n;
+    let out_base_spatial =
+        n as usize * out_stride_n + h_out as usize * out_stride_h + w_out as usize * out_stride_w;
 
     // Loop over all channels - grid coords and weights are reused
     for c in 0..channels {
-        let in_base = in_base_n + c * stride_c;
+        let in_base = in_base_n + c as usize * stride_c;
 
         let v00 = fetch_value(
             input, in_base, stride_h, stride_w, y0, x0, h_in, w_in, pad_mode,
@@ -118,7 +121,7 @@ fn grid_sample_bilinear_kernel<F: Float>(
         // Bilinear interpolation
         let result = wx_ * wy_ * v00 + wx_ * wy * v01 + wx * wy_ * v10 + wx * wy * v11;
 
-        let out_idx = out_base_spatial + c * out_stride_c;
+        let out_idx = out_base_spatial + c as usize * out_stride_c;
         output[out_idx] = result;
     }
 }
@@ -135,7 +138,7 @@ pub(crate) fn grid_sample_bilinear_launch<R: CubeRuntime>(
 
     // Create output tensor [N, C, H_out, W_out]
     let output_shape = Shape::new([batch_size, channels, h_out, w_out]);
-    let output = empty_device_optimized_dtype(
+    let output = empty_device_dtype(
         input.client.clone(),
         input.device.clone(),
         output_shape,

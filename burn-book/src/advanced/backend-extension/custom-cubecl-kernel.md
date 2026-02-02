@@ -317,7 +317,7 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
                 // The state consists of what will be needed for this operation's backward pass.
                 // Since we need the parents' outputs, we must checkpoint their ids to retrieve
                 // their node output at the beginning of the backward pass. We can also save
-                // utilitary data such as the bias shape. If we also need this operation's output,
+                // utility data such as the bias shape. If we also need this operation's output,
                 // we can either save it in the state or recompute it.
                 // during the backward pass. Here we choose to save it in the state because it's a
                 // compute bound operation.

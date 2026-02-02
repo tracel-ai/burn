@@ -206,7 +206,7 @@ where
     }
 
     /// Return the reference to a tensor argument.
-    pub fn as_tensor_arg<'a>(&'a self, line_size: u8) -> TensorArg<'a, R> {
+    pub fn as_tensor_arg<'a>(&'a self, line_size: LineSize) -> TensorArg<'a, R> {
         let size = self.dtype.size();
         let handle: TensorHandleRef<'a, R> = self.as_handle_ref();
 
@@ -222,18 +222,26 @@ where
     }
 
     /// Return the reference to an array argument.
-    pub fn as_array_arg<E: CubeElement>(&self, vectorisation: u8) -> ArrayArg<'_, R> {
+    pub fn as_array_arg<E: CubeElement>(&self, line_size: LineSize) -> ArrayArg<'_, R> {
         unsafe {
             ArrayArg::from_raw_parts::<E>(
                 &self.handle,
                 self.handle.size() as usize / core::mem::size_of::<E>(),
-                vectorisation,
+                line_size,
             )
         }
     }
 
+    /// Return the `QuantScheme` if present
+    pub fn try_scheme(&self) -> Option<&QuantScheme> {
+        match &self.dtype {
+            DType::QFloat(scheme) => Some(scheme),
+            _ => None,
+        }
+    }
+
     pub(crate) fn can_mut_broadcast(&self, rhs: &Self) -> bool {
-        if !self.handle.can_mut() || !self.is_contiguous_buffer() {
+        if !self.handle.can_mut() || !self.is_nonoverlapping() {
             return false;
         }
         let ndims = self.shape.num_dims();
@@ -302,6 +310,28 @@ where
     /// regions within the shape).
     pub fn is_contiguous_buffer(&self) -> bool {
         self.shape.num_elements() * self.dtype.size() == self.handle.size() as usize
+    }
+
+    /// Checks if the tensor is non-overlapping (can be safely written to).
+    pub fn is_nonoverlapping(&self) -> bool {
+        if self.strides.contains(&0) {
+            return false;
+        }
+        let rank = self.rank();
+        if rank > 1 {
+            let mut dims = self.shape.iter().zip(&self.strides).collect::<Vec<_>>();
+            dims.sort_by_key(|(_, stride)| **stride);
+
+            let mut max_offset = 0;
+            for (shape, stride) in dims.into_iter() {
+                if *stride <= max_offset && *shape != 1 {
+                    return false;
+                }
+
+                max_offset += (*shape - 1) * *stride;
+            }
+        }
+        true
     }
 }
 

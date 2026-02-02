@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use burn_backend::{
-    BackTrace, Backend, DType, DeviceId, DeviceOps, ExecutionError, QTensorPrimitive,
+    BackTrace, Backend, DType, DTypeUsage, DeviceId, DeviceOps, ExecutionError, QTensorPrimitive,
     tensor::Device,
 };
 use burn_std::{
@@ -260,8 +260,12 @@ impl<F: FloatCandleElement, I: IntCandleElement> Backend for Candle<F, I> {
         Ok(())
     }
 
-    fn supports_dtype(_device: &Device<Self>, dtype: DType) -> bool {
-        dtype.try_into_dtype().is_ok()
+    fn dtype_usage(device: &Self::Device, dtype: DType) -> burn_backend::DTypeUsageSet {
+        if dtype.try_into_dtype().is_ok() {
+            burn_backend::DTypeUsage::general()
+        } else {
+            burn_backend::DTypeUsageSet::empty()
+        }
     }
 }
 
@@ -284,11 +288,11 @@ mod tests {
         assert!(B::supports_dtype(&device, DType::I64));
         assert!(B::supports_dtype(&device, DType::U32));
         assert!(B::supports_dtype(&device, DType::U8));
+        assert!(B::supports_dtype(&device, DType::I32));
+        assert!(B::supports_dtype(&device, DType::I16));
 
         assert!(!B::supports_dtype(&device, DType::U64));
         assert!(!B::supports_dtype(&device, DType::U16));
-        assert!(!B::supports_dtype(&device, DType::I32));
-        assert!(!B::supports_dtype(&device, DType::I16));
         assert!(!B::supports_dtype(&device, DType::I8));
         assert!(!B::supports_dtype(&device, DType::Bool));
         assert!(!B::supports_dtype(

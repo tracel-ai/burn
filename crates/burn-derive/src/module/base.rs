@@ -21,14 +21,19 @@ pub(crate) fn derive_impl(ast: &syn::DeriveInput) -> TokenStream {
                 generate_module_const(ast)
             }
         }
-        syn::Data::Enum(_data) => {
-            if has_backend {
-                generate_module_standard(ast, EnumModuleCodegen::from_ast(ast))
-            } else {
-                generate_module_const(ast)
+        syn::Data::Enum(_data) => match EnumModuleCodegen::from_ast(ast) {
+            Ok(enum_codegen) => {
+                if has_backend {
+                    generate_module_standard(ast, enum_codegen)
+                } else {
+                    generate_module_const(ast)
+                }
             }
+            Err(err) => err.to_compile_error(),
+        },
+        syn::Data::Union(_) => {
+            syn::Error::new_spanned(ast, "Union modules aren't supported").to_compile_error()
         }
-        syn::Data::Union(_) => panic!("Union modules aren't supported yet."),
     }
     .into()
 }

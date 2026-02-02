@@ -4,7 +4,7 @@ edition.workspace = true
 license = "MIT OR Apache-2.0"
 name = "import-model-weights"
 publish = false
-version = "0.20.0-pre.5"
+version.workspace = true
 
 [lints]
 workspace = true
@@ -17,7 +17,9 @@ burn = { path = "../../crates/burn", features = [
     "vision",
 ] }
 
-burn-import = { path = "../../crates/burn-import", features = [
+burn-store = { path = "../../crates/burn-store", features = [
+    "std",
     "pytorch",
     "safetensors",
+    "burnpack",
 ], default-features = false }

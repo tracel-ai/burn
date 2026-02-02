@@ -43,7 +43,7 @@ pub fn flash_attention<R: CubeRuntime>(
         &out.as_handle_ref(),
         &dtypes,
         AttentionOptions {
-            causal: true,
+            causal: false,
             accumulator_precision: AccumulatorPrecision::Strict(cubecl::ir::StorageType::Scalar(
                 cubecl::ir::ElemType::Float(cubecl::ir::FloatKind::F32),
             )),

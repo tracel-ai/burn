@@ -5,11 +5,7 @@ use crate::{
     tensor::CubeTensor,
 };
 use burn_backend::DType;
-use cubecl::{
-    calculate_cube_count_elemwise,
-    prelude::*,
-    std::{scalar::InputScalar, tensor::layout::linear::LinearView},
-};
+use cubecl::{calculate_cube_count_elemwise, prelude::*, std::tensor::layout::linear::LinearView};
 
 #[cube]
 pub(crate) trait ComparisonOpFamily: 'static + Send + Sync {
@@ -222,7 +218,7 @@ pub(crate) fn launch_scalar_cmp<R: CubeRuntime, O: ComparisonOpFamily>(
     let dtypes = [tensor.dtype.into(), dtype_bool.into()];
     let same_tensor_type = dtypes[0] == dtypes[1];
 
-    if same_tensor_type && tensor.can_mut() {
+    if same_tensor_type && tensor.can_mut() && tensor.is_nonoverlapping() {
         unsafe {
             kernel_scalar_cmp::launch_unchecked::<O, R>(
                 &client,

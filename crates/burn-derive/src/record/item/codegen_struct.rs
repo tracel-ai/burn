@@ -11,14 +11,14 @@ pub(crate) struct StructRecordItemCodegen {
 }
 
 impl RecordItemCodegen for StructRecordItemCodegen {
-    fn from_ast(ast: &syn::DeriveInput) -> Self {
-        Self {
+    fn from_ast(ast: &syn::DeriveInput) -> syn::Result<Self> {
+        Ok(Self {
             fields: parse_fields(ast)
                 .into_iter()
                 .map(FieldTypeAnalyzer::new)
                 .collect(),
             vis: ast.vis.clone(),
-        }
+        })
     }
 
     fn gen_item_type(

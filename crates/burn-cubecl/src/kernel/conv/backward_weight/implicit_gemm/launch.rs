@@ -6,12 +6,12 @@ use cubek::{
         components::ConvSetupError,
     },
     matmul::{
-        definition::{MatmulElemType, MatmulElems, MatmulGlobalElems},
+        definition::{MatmulElems, MatmulGlobalElems},
         launch::MatmulInputHandleRef,
     },
 };
 
-use crate::{CubeRuntime, ops::numeric::empty_device_optimized_dtype, tensor::CubeTensor};
+use crate::{CubeRuntime, ops::numeric::empty_device_dtype, tensor::CubeTensor};
 
 pub(crate) fn wgrad_gemm_simple_sync<R: CubeRuntime, const N: usize>(
     input: CubeTensor<R>,
@@ -98,7 +98,7 @@ pub fn launch_backwards_weight<R: CubeRuntime, const N: usize>(
 
     let out_dtype = out_grad.dtype;
 
-    let weight_grad = empty_device_optimized_dtype(
+    let weight_grad = empty_device_dtype(
         input.client.clone(),
         input.device.clone(),
         weight_shape,
@@ -107,18 +107,9 @@ pub fn launch_backwards_weight<R: CubeRuntime, const N: usize>(
 
     let client = input.client.clone();
     let dtypes = MatmulElems::from_globals(&MatmulGlobalElems {
-        lhs: MatmulElemType {
-            dtype: input.dtype.into(),
-            quantized: false,
-        },
-        rhs: MatmulElemType {
-            dtype: out_grad.dtype.into(),
-            quantized: false,
-        },
-        out: MatmulElemType {
-            dtype: out_dtype.into(),
-            quantized: false,
-        },
+        lhs: input.dtype.into(),
+        rhs: out_grad.dtype.into(),
+        out: out_dtype.into(),
     });
     let input = MatmulInputHandleRef::new(input.as_handle_ref(), input.dtype.into());
     let out_grad = MatmulInputHandleRef::new(out_grad.as_handle_ref(), out_grad.dtype.into());

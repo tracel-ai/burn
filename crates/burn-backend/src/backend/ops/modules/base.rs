@@ -2,7 +2,7 @@ use super::{conv, pool};
 use crate::ops::attention;
 use crate::ops::unfold::unfold4d_using_conv2d;
 use crate::tensor::{BoolTensor, FloatTensor, IntTensor};
-use crate::{Backend, TensorMetadata};
+use crate::{Backend, ElementConversion, TensorMetadata};
 use burn_std::Shape;
 use core::num::NonZeroUsize;
 
@@ -121,6 +121,65 @@ impl<const N: usize> ConvOptions<N> {
             padding,
             dilation: dilation.map(|d| check_nonzero(d, "dilation must be non-zero")),
             groups: check_nonzero(groups, "groups must be non-zero"),
+        }
+    }
+}
+
+/// Convolution options with support for asymmetric padding.
+///
+/// Wraps [`ConvOptions`] (which represents symmetric padding for the backend op)
+/// and adds optional asymmetric padding. When asymmetric padding is specified,
+/// the functional convolution layer applies an explicit pad operation before
+/// dispatching to the backend.
+///
+/// Implements `From<ConvOptions<N>>` for backward compatibility.
+#[derive(Debug, Clone)]
+pub struct PaddedConvOptions<const N: usize> {
+    /// The underlying convolution options for the backend.
+    pub options: ConvOptions<N>,
+    /// Padding at the end of each dimension (e.g., bottom/right for 2D).
+    /// If `None`, padding is symmetric (same as `options.padding`).
+    /// If `Some`, specifies different end-padding per dimension.
+    pub padding_end: Option<[usize; N]>,
+}
+
+impl<const N: usize> PaddedConvOptions<N> {
+    /// Creates options with asymmetric padding.
+    ///
+    /// `padding_start` is stored in `ConvOptions::padding`.
+    /// `padding_end` specifies the end padding per dimension.
+    pub fn asymmetric(
+        stride: [usize; N],
+        padding_start: [usize; N],
+        padding_end: [usize; N],
+        dilation: [usize; N],
+        groups: usize,
+    ) -> Self {
+        let options = ConvOptions::new(stride, padding_start, dilation, groups);
+        if padding_start == padding_end {
+            Self {
+                options,
+                padding_end: None,
+            }
+        } else {
+            Self {
+                options,
+                padding_end: Some(padding_end),
+            }
+        }
+    }
+
+    /// Returns true if padding is asymmetric.
+    pub fn is_asymmetric(&self) -> bool {
+        self.padding_end.is_some()
+    }
+}
+
+impl<const N: usize> From<ConvOptions<N>> for PaddedConvOptions<N> {
+    fn from(options: ConvOptions<N>) -> Self {
+        Self {
+            options,
+            padding_end: None,
         }
     }
 }
@@ -286,6 +345,12 @@ impl Default for GridSampleOptions {
     }
 }
 
+impl From<InterpolateMode> for GridSampleOptions {
+    fn from(value: InterpolateMode) -> Self {
+        GridSampleOptions::new(value)
+    }
+}
+
 impl GridSampleOptions {
     /// Create new grid sample options with the given interpolation mode.
     ///
@@ -351,6 +416,12 @@ pub enum PadMode {
 impl Default for PadMode {
     fn default() -> Self {
         PadMode::Constant(0.0)
+    }
+}
+
+impl<E: ElementConversion> From<E> for PadMode {
+    fn from(value: E) -> Self {
+        PadMode::Constant(value.elem())
     }
 }
 
@@ -486,11 +557,10 @@ pub trait ModuleOps<B: Backend> {
     /// Backward pass for the [conv2d](ModuleOps::conv2d) operation, returning the gradient for `bias`.
     fn conv2d_bias_backward(
         x: FloatTensor<B>,
-        weight: FloatTensor<B>,
         bias: FloatTensor<B>,
         output_grad: FloatTensor<B>,
     ) -> FloatTensor<B> {
-        conv::conv2d_bias_backward::<B>(x, weight, bias, output_grad)
+        conv::conv2d_bias_backward::<B>(x, bias, output_grad)
     }
 
     /// Two dimensional deformable convolution.
@@ -553,11 +623,10 @@ pub trait ModuleOps<B: Backend> {
     /// Backward pass for the [conv3d](ModuleOps::conv3d) operation, returning the gradient for `bias`.
     fn conv3d_bias_backward(
         x: FloatTensor<B>,
-        weight: FloatTensor<B>,
         bias: FloatTensor<B>,
         output_grad: FloatTensor<B>,
     ) -> FloatTensor<B> {
-        conv::conv3d_bias_backward::<B>(x, weight, bias, output_grad)
+        conv::conv3d_bias_backward::<B>(x, bias, output_grad)
     }
     /// One dimensional transposed convolution.
     ///

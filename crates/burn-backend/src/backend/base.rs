@@ -2,6 +2,7 @@ use burn_std::DType;
 pub use burn_std::backtrace::BackTrace;
 
 use alloc::string::String;
+use enumset::{EnumSet, EnumSetType};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -144,8 +145,21 @@ pub trait Backend:
     {
     }
 
-    /// Whether the type is supported by the specified device.
-    fn supports_dtype(device: &Self::Device, dtype: DType) -> bool;
+    /// Whether the type is fully supported by the specified device for general operations.
+    ///
+    /// A type is considered supported if it can be used for the full suite of tensor
+    /// operations, including storage, conversion, and basic arithmetic.
+    ///
+    /// Returning `false` does not necessarily mean the device cannot handle the type at all.
+    /// For instance, a device might support a type only for specialized hardware
+    /// acceleration (e.g., matrix multiplication) but lack general arithmetic support. Such
+    /// types should return `false` here as they are not globally supported.
+    fn supports_dtype(device: &Self::Device, dtype: DType) -> bool {
+        Self::dtype_usage(device, dtype).is_superset(DTypeUsage::general())
+    }
+
+    /// Returns the [DTypeUsageSet] for the given [DType] on the specified device.
+    fn dtype_usage(device: &Self::Device, dtype: DType) -> DTypeUsageSet;
 }
 
 /// An error that can happen when syncing a device.
@@ -332,4 +346,46 @@ pub trait AutodiffBackend: Backend {
     ///
     /// The autodiff backend tensor.
     fn q_from_inner(tensor: QuantizedTensor<Self::InnerBackend>) -> QuantizedTensor<Self>;
+}
+
+/// Describes how a data type can be used on a given device.
+///
+/// A data type may be supported for different classes of operations. Not all
+/// data types that appear in hardware or kernel implementations are suitable
+/// for general-purpose tensor operations.
+#[derive(Debug, EnumSetType)]
+pub enum DTypeUsage {
+    /// The type can be stored in device memory and converted to and from
+    /// other supported data types.
+    Storage,
+    /// The type supports general-purpose arithmetic and common tensor
+    /// operations (e.g. elementwise ops, reductions, etc.).
+    Arithmetic,
+    /// The type is supported by hardware-accelerated execution paths.
+    ///
+    /// This typically indicates support for accelerator-backed compute units (e.g., tensor
+    /// cores executing MMA instructions) for high-performance operations such as matrix
+    /// multiplication and operations that lower to it.
+    ///
+    /// # Notes
+    /// - A type can be both [`Arithmetic`](DTypeUsage::Arithmetic) and
+    ///   [`Accelerated`](DTypeUsage::Accelerated) if it supports general-purpose operations
+    ///   *and* accelerated paths.
+    /// - If a type is marked as `Accelerated` but not `Arithmetic`, it is not
+    ///   suitable for general-purpose tensor operations and may only be used
+    ///   in specific accelerated operations.
+    ///
+    /// `Accelerated` is a **flag**, not a detailed descriptor. It does not enumerate which
+    /// operations are accelerated or which accelerator features are available.
+    Accelerated,
+}
+
+/// A set of [DTypeUsage] representing the total capabilities of a data type on a device.
+pub type DTypeUsageSet = EnumSet<DTypeUsage>;
+
+impl DTypeUsage {
+    /// Returns the usage set required for general-purpose tensor support.
+    pub fn general() -> DTypeUsageSet {
+        DTypeUsage::Storage | DTypeUsage::Arithmetic
+    }
 }

@@ -1,8 +1,9 @@
 use burn_backend::Shape;
 use cubecl::{
-    prelude::ArrayArg,
+    ir::LineSize,
+    prelude::*,
     std::{
-        FastDivmod, FastDivmodArgs,
+        FastDivmod, FastDivmodArgs, FastDivmodInt,
         tensor::layout::linear::{LinearLayoutArgs, LinearViewLaunch},
     },
 };
@@ -10,17 +11,19 @@ use cubecl::{prelude::SequenceArg, std::tensor::layout::linear::LinearLayout};
 
 use crate::{CubeRuntime, tensor::CubeTensor};
 
-pub fn shape_divmod<'a, R: CubeRuntime>(tensor: &CubeTensor<R>) -> SequenceArg<'a, R, FastDivmod> {
+pub fn shape_divmod<'a, R: CubeRuntime>(
+    tensor: &CubeTensor<R>,
+) -> SequenceArg<'a, R, FastDivmod<usize>> {
     let mut arg = SequenceArg::new();
     for dim in tensor.shape.iter() {
-        arg.push(FastDivmodArgs::new(&tensor.client, *dim as u32));
+        arg.push(FastDivmodArgs::<usize>::new(&tensor.client, *dim));
     }
     arg
 }
 
 pub fn linear_layout<'a, R: CubeRuntime>(
     tensor: &'a CubeTensor<R>,
-    line_size: u8,
+    line_size: LineSize,
 ) -> LinearLayoutArgs<'a, R> {
     LinearLayoutArgs::from_shape_strides(&tensor.client, &tensor.shape, &tensor.strides, line_size)
 }
@@ -28,7 +31,7 @@ pub fn linear_layout<'a, R: CubeRuntime>(
 pub fn linear_layout_ref<'a, R: CubeRuntime>(
     tensor: &'a CubeTensor<R>,
     reference: &'a CubeTensor<R>,
-    line_size: u8,
+    line_size: LineSize,
 ) -> LinearLayoutArgs<'a, R> {
     LinearLayoutArgs::from_shape_strides_with_reference(
         &tensor.client,
@@ -41,7 +44,7 @@ pub fn linear_layout_ref<'a, R: CubeRuntime>(
 
 pub fn linear_view<'a, R: CubeRuntime>(
     tensor: &'a CubeTensor<R>,
-    line_size: u8,
+    line_size: LineSize,
 ) -> LinearViewLaunch<'a, R> {
     let len = tensor.shape.iter().product::<usize>();
     let layout = linear_layout(tensor, line_size);
@@ -54,7 +57,7 @@ pub fn linear_view<'a, R: CubeRuntime>(
 pub fn linear_view_ref<'a, R: CubeRuntime>(
     tensor: &'a CubeTensor<R>,
     reference: &'a CubeTensor<R>,
-    line_size: u8,
+    line_size: LineSize,
 ) -> LinearViewLaunch<'a, R> {
     let len = tensor.shape.iter().product::<usize>();
     let layout = linear_layout_ref(tensor, reference, line_size);
@@ -66,7 +69,7 @@ pub fn linear_view_ref<'a, R: CubeRuntime>(
 
 pub fn linear_view_alias<'a, R: CubeRuntime>(
     tensor: &'a CubeTensor<R>,
-    line_size: u8,
+    line_size: LineSize,
     pos: usize,
 ) -> LinearViewLaunch<'a, R> {
     let layout = linear_layout(tensor, line_size);
@@ -114,4 +117,41 @@ pub fn broadcast_shape<R: CubeRuntime>(tensors: &[&CubeTensor<R>]) -> Shape {
     Shape {
         dims: dims.collect(),
     }
+}
+
+pub fn broadcast_strides<'a, R: CubeRuntime>(
+    reference: &CubeTensor<R>,
+    tensor: &'a CubeTensor<R>,
+) -> SequenceArg<'a, R, usize> {
+    if reference.shape != tensor.shape {
+        tensor
+            .strides
+            .iter()
+            .zip(tensor.shape.dims.iter().zip(&reference.shape.dims))
+            .map(|(stride, (shape, ref_shape))| if *shape == *ref_shape { *stride } else { 0 })
+            .map(ScalarArg::new)
+            .collect()
+    } else {
+        tensor.strides.iter().copied().map(ScalarArg::new).collect()
+    }
+}
+
+#[cube]
+pub(crate) fn decompose_linear<I: FastDivmodInt>(
+    pos: I,
+    shape: &Sequence<FastDivmod<I>>,
+) -> (I, Sequence<I>) {
+    let rank = comptime![shape.len()];
+    let mut offs = pos;
+    let mut out = Sequence::new();
+
+    #[unroll]
+    for i in 0..rank {
+        let dim = comptime![rank - i - 1];
+        let (rem, offs_local) = shape.index(dim).div_mod(offs);
+        out.push(offs_local);
+        offs = rem;
+    }
+
+    (offs, out.rev())
 }

@@ -1,36 +1,38 @@
-use cubecl::{calculate_cube_count_elemwise, prelude::*};
+use cubecl::{
+    calculate_cube_count_elemwise,
+    prelude::*,
+    std::{CubeOption, CubeOptionExpand, FastDivmod, tensor::layout::linear::LinearView},
+};
 
 use crate::{
     CubeRuntime,
-    kernel::into_contiguous,
-    ops::{
-        numeric::{empty_device_dtype, zeros_client},
-        reshape,
-    },
+    kernel::utils::{decompose_linear, linear_view, shape_divmod},
+    ops::numeric::empty_device_dtype,
     tensor::CubeTensor,
 };
 use burn_backend::{Shape, ops::ConvTransposeOptions};
 
 #[derive(CubeLaunch, CubeType)]
 struct ConvArgs {
-    conv_stride_0: u32,
-    conv_stride_1: u32,
-    conv_stride_2: u32,
-    dilation_0: u32,
-    dilation_1: u32,
-    dilation_2: u32,
-    padding_0: u32,
-    padding_1: u32,
-    padding_2: u32,
-    groups: u32,
+    conv_stride_0: usize,
+    conv_stride_1: usize,
+    conv_stride_2: usize,
+    dilation_0: usize,
+    dilation_1: usize,
+    dilation_2: usize,
+    padding_0: usize,
+    padding_1: usize,
+    padding_2: usize,
+    groups: usize,
 }
 
 #[cube(launch)]
 fn conv_transpose3d_kernel<E: Numeric>(
     input: &Tensor<E>,
     weight: &Tensor<E>,
-    bias: &Tensor<E>,
-    output: &mut Tensor<E>,
+    bias: &CubeOption<Tensor<E>>,
+    output: &mut LinearView<E, ReadWrite>,
+    out_shape: Sequence<FastDivmod<usize>>,
     args: ConvArgs,
     #[define(E)] _dtype: StorageType,
 ) {
@@ -44,11 +46,10 @@ fn conv_transpose3d_kernel<E: Numeric>(
     let stride_1_i = args.conv_stride_1 as i32;
     let stride_2_i = args.conv_stride_2 as i32;
 
-    let batch = ABSOLUTE_POS / output.stride(0) % output.shape(0);
-    let out_c_out = ABSOLUTE_POS / output.stride(1) % output.shape(1);
-    let out_z = ABSOLUTE_POS / output.stride(2) % output.shape(2);
-    let out_y = ABSOLUTE_POS / output.stride(3) % output.shape(3);
-    let out_x = ABSOLUTE_POS / output.stride(4) % output.shape(4);
+    let (_, pos) = decompose_linear(ABSOLUTE_POS, &out_shape);
+    let [batch, out_c_out, out_z, out_y, out_x] = *pos else {
+        unreachable!()
+    };
 
     let groups = args.groups;
     let in_c_per_group = in_channels / groups;
@@ -68,18 +69,21 @@ fn conv_transpose3d_kernel<E: Numeric>(
     let y_start = ((out_y + args.padding_1) as i32 - kernel_h) / stride_1_i;
     let x_start = ((out_x + args.padding_2) as i32 - kernel_w) / stride_2_i;
 
-    let z_end = Min::min(Max::max(kernel_d + z_start + 1, 0) as u32, input.shape(2));
-    let y_end = Min::min(Max::max(kernel_h + y_start + 1, 0) as u32, input.shape(3));
-    let x_end = Min::min(Max::max(kernel_w + x_start + 1, 0) as u32, input.shape(4));
+    let z_end = clamp(kernel_d + z_start + 1, 0, input.shape(2) as i32) as usize;
+    let y_end = clamp(kernel_h + y_start + 1, 0, input.shape(3) as i32) as usize;
+    let x_end = clamp(kernel_w + x_start + 1, 0, input.shape(4) as i32) as usize;
 
-    let z_start = Max::max(z_start, 0) as u32;
-    let y_start = Max::max(y_start, 0) as u32;
-    let x_start = Max::max(x_start, 0) as u32;
+    let z_start = clamp_min(z_start, 0) as usize;
+    let y_start = clamp_min(y_start, 0) as usize;
+    let x_start = clamp_min(x_start, 0) as usize;
 
     let index_input_batch = batch * input.stride(0);
     let index_weight_out_c = out_channel * weight.stride(1);
 
-    let mut sum = bias[out_c_out];
+    let mut sum = match bias {
+        CubeOption::Some(bias) => bias[out_c_out],
+        CubeOption::None => E::from_int(0),
+    };
 
     let numerator_d_base = out_z + args.padding_0;
     let numerator_h_base = out_y + args.padding_1;
@@ -153,8 +157,6 @@ pub(crate) fn conv_transpose3d<R: CubeRuntime>(
     bias: Option<CubeTensor<R>>,
     options: ConvTransposeOptions<3>,
 ) -> Result<CubeTensor<R>, LaunchError> {
-    let input = into_contiguous(input);
-    let weight = into_contiguous(weight);
     let [batch_size, _, in_depth, in_height, in_width] = input.shape.dims();
     let [_, out_channels, kernel_0, kernel_1, kernel_2] = weight.shape.dims();
 
@@ -189,22 +191,6 @@ pub(crate) fn conv_transpose3d<R: CubeRuntime>(
         input.dtype,
     );
 
-    let bias = match bias {
-        Some(bias) => {
-            let shape = Shape::from([bias.shape[0], 1, 1, 1, 1]);
-            reshape(bias, shape)
-        }
-        None => {
-            let shape = Shape::from([output.shape[0], 1, 1, 1, 1]);
-            zeros_client(
-                input.client.clone(),
-                input.device.clone(),
-                shape,
-                input.dtype,
-            )
-        }
-    };
-
     let num_elems = output.shape.num_elements();
     let cube_dim = CubeDim::new(&input.client, num_elems);
     let cube_count = calculate_cube_count_elemwise(&input.client, num_elems, cube_dim);
@@ -215,19 +201,20 @@ pub(crate) fn conv_transpose3d<R: CubeRuntime>(
         cube_dim,
         input.as_tensor_arg(1),
         weight.as_tensor_arg(1),
-        bias.as_tensor_arg(1),
-        output.as_tensor_arg(1),
+        bias.as_ref().map(|bias| bias.as_tensor_arg(1)).into(),
+        linear_view(&output, 1),
+        shape_divmod(&output),
         ConvArgsLaunch::new(
-            ScalarArg::new(options.stride[0] as u32),
-            ScalarArg::new(options.stride[1] as u32),
-            ScalarArg::new(options.stride[2] as u32),
-            ScalarArg::new(options.dilation[0] as u32),
-            ScalarArg::new(options.dilation[1] as u32),
-            ScalarArg::new(options.dilation[2] as u32),
-            ScalarArg::new(options.padding[0] as u32),
-            ScalarArg::new(options.padding[1] as u32),
-            ScalarArg::new(options.padding[2] as u32),
-            ScalarArg::new(options.groups as u32),
+            ScalarArg::new(options.stride[0]),
+            ScalarArg::new(options.stride[1]),
+            ScalarArg::new(options.stride[2]),
+            ScalarArg::new(options.dilation[0]),
+            ScalarArg::new(options.dilation[1]),
+            ScalarArg::new(options.dilation[2]),
+            ScalarArg::new(options.padding[0]),
+            ScalarArg::new(options.padding[1]),
+            ScalarArg::new(options.padding[2]),
+            ScalarArg::new(options.groups),
         ),
         input.dtype.into(),
     )?;

@@ -13,8 +13,8 @@ use cubecl::{
 fn slice_assign_kernel<E: Numeric>(
     input: &mut Tensor<Line<E>>,
     value: &LinearView<Line<E>>,
-    slice_shape: Sequence<FastDivmod>,
-    slice_offsets: Sequence<u32>,
+    slice_shape: Sequence<FastDivmod<usize>>,
+    slice_offsets: Sequence<usize>,
     #[define(E)] _dtype: StorageType,
 ) {
     if !value.is_in_bounds(ABSOLUTE_POS) {
@@ -27,21 +27,17 @@ fn slice_assign_kernel<E: Numeric>(
     let mut offset_remainder = ABSOLUTE_POS * line_size;
     let mut offset_input = 0;
 
-    let mut i = comptime![0];
-
     #[allow(clippy::explicit_counter_loop)]
     #[unroll]
-    for _ in 0..rank {
-        let dim = comptime![rank - i - 1];
-        let (rem, offset_local) = slice_shape.index(dim).div_mod(offset_remainder);
+    for i in 0..rank {
+        let dim = rank - i - 1;
+        let (rem, offset_local) = slice_shape[dim].div_mod(offset_remainder);
 
-        let range_start = *slice_offsets.index(dim);
+        let range_start = slice_offsets[dim];
         let offset_local_input = offset_local + range_start;
 
         offset_input += offset_local_input * input.stride(dim);
         offset_remainder = rem;
-
-        comptime![i += 1;]
     }
 
     // Value tensor is accessed linearly since it's a LinearView
@@ -53,9 +49,9 @@ fn slice_assign_kernel<E: Numeric>(
 fn slice_assign_with_steps_kernel<E: Numeric>(
     input: &mut Tensor<E>,
     value: &LinearView<E>,
-    value_shape: Sequence<FastDivmod>,
-    starts: Sequence<u32>,
-    ends: Sequence<u32>,
+    value_shape: Sequence<FastDivmod<usize>>,
+    starts: Sequence<usize>,
+    ends: Sequence<usize>,
     steps: Sequence<i32>,
     #[define(E)] _dtype: StorageType,
 ) {
@@ -71,22 +67,21 @@ fn slice_assign_with_steps_kernel<E: Numeric>(
     #[unroll]
     for i in 0..rank {
         // Iterate in reverse to use divmod
-        let i = unwrap(i);
-        let dim = comptime![rank - i - 1];
-        let start = *starts.index(dim);
-        let end = *ends.index(dim);
-        let step = *steps.index(dim);
+        let dim = rank - i - 1;
+        let start = starts[dim];
+        let end = ends[dim];
+        let step = steps[dim];
 
-        let (rem, value_idx) = value_shape.index(dim).div_mod(value_offset);
+        let (rem, value_idx) = value_shape[dim].div_mod(value_offset);
         value_offset = rem;
 
         let input_idx = if step > 0 {
             // Forward stepping
-            start + value_idx * (step as u32)
+            start + value_idx * (step as usize)
         } else if step < 0 {
             // Backward stepping - start from end-1
             // For negative steps, we iterate backwards through the selected indices
-            let abs_step = (-step) as u32;
+            let abs_step = (-step) as usize;
             let end_minus_1 = end - 1;
             end_minus_1 - value_idx * abs_step
         } else {
@@ -114,7 +109,7 @@ pub(crate) fn slice_assign<R: CubeRuntime>(
     }
 
     let client = tensor.client.clone();
-    let tensor = match tensor.can_mut() {
+    let tensor = match tensor.can_mut() && tensor.is_nonoverlapping() {
         true => tensor,
         false => tensor.copy(),
     };
@@ -135,7 +130,7 @@ pub(crate) fn slice_assign<R: CubeRuntime>(
         *R::supported_line_sizes()
             .iter()
             .filter(|it| {
-                let it = **it as usize;
+                let it = **it;
                 shape.is_multiple_of(it)
                     && strides_compatible(&tensor.strides, it)
                     && strides_compatible(&value.strides, it)
@@ -147,8 +142,8 @@ pub(crate) fn slice_assign<R: CubeRuntime>(
         1
     };
 
-    let mut shape = SequenceArg::<R, FastDivmod>::new();
-    let mut offsets = SequenceArg::<R, u32>::new();
+    let mut shape = SequenceArg::<R, FastDivmod<usize>>::new();
+    let mut offsets = SequenceArg::<R, usize>::new();
 
     for i in 0..ndims {
         let slice = indices.get(i).cloned().unwrap_or(burn_backend::Slice {
@@ -160,11 +155,11 @@ pub(crate) fn slice_assign<R: CubeRuntime>(
         let end = slice.end.unwrap_or(tensor.shape[i] as isize);
         let length = (end - slice.start) as usize;
 
-        shape.push(FastDivmodArgs::new(&client, length as u32));
-        offsets.push(ScalarArg::new(start as u32));
+        shape.push(FastDivmodArgs::<usize>::new(&client, length));
+        offsets.push(ScalarArg::new(start));
     }
 
-    let working_units = value.shape.num_elements() / line_size as usize;
+    let working_units = value.shape.num_elements() / line_size;
     let cube_dim = CubeDim::new(&tensor.client, working_units);
     let cube_count = calculate_cube_count_elemwise(&tensor.client, working_units, cube_dim);
 
@@ -199,27 +194,27 @@ pub(crate) fn slice_assign_with_steps<R: CubeRuntime>(
     slices: &[burn_backend::Slice],
     value: CubeTensor<R>,
 ) -> CubeTensor<R> {
-    let tensor = match tensor.can_mut() {
+    let tensor = match tensor.can_mut() && tensor.is_nonoverlapping() {
         true => tensor,
         false => tensor.copy(),
     };
 
     // Prepare sequences for kernel
-    let mut starts = SequenceArg::<R, u32>::new();
-    let mut ends = SequenceArg::<R, u32>::new();
+    let mut starts = SequenceArg::<R, usize>::new();
+    let mut ends = SequenceArg::<R, usize>::new();
     let mut steps = SequenceArg::<R, i32>::new();
 
     for (dim, slice) in slices.iter().enumerate() {
         let range = slice.to_range(tensor.shape[dim]);
-        starts.push(ScalarArg::new(range.start as u32));
-        ends.push(ScalarArg::new(range.end as u32));
+        starts.push(ScalarArg::new(range.start));
+        ends.push(ScalarArg::new(range.end));
         steps.push(ScalarArg::new(slice.step as i32));
     }
 
     // Pad with default values if needed to match tensor dimensions
     for dim in slices.len()..tensor.shape.num_dims() {
         starts.push(ScalarArg::new(0));
-        ends.push(ScalarArg::new(tensor.shape[dim] as u32));
+        ends.push(ScalarArg::new(tensor.shape[dim]));
         steps.push(ScalarArg::new(1));
     }
 

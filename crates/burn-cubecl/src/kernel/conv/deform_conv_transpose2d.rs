@@ -2,21 +2,28 @@ use super::{bilinear_interpolate, deform_im2col, index};
 use crate::{
     CubeRuntime,
     kernel::{
-        cast, into_contiguous,
+        cast, into_contiguous_aligned,
         matmul::{MatmulStrategy, matmul},
         reduce::reduce_dim,
         slice_assign,
+        utils::{decompose_linear, linear_view},
     },
     ops::{
-        numeric::{empty_device_dtype, ones_client, zeros_client},
+        numeric::{empty_device_dtype, zeros_client},
         reshape, swap_dims,
     },
     tensor::CubeTensor,
 };
 use burn_backend::{DType, Shape, ops::DeformConvOptions};
 use cubecl::{
-    CubeDim, CubeLaunch, calculate_cube_count_elemwise, cube, features::TypeUsage, prelude::*,
-    std::scalar::InputScalar,
+    CubeDim, CubeLaunch, calculate_cube_count_elemwise, cube,
+    features::TypeUsage,
+    ir::FloatKind,
+    prelude::*,
+    std::{
+        CubeOption, CubeOptionExpand, FastDivmod, FastDivmodArgs,
+        tensor::layout::linear::LinearView,
+    },
 };
 use cubek::{
     convolution::components::ConvSetupError,
@@ -80,9 +87,10 @@ pub(crate) fn deform_conv2d_backward<R: CubeRuntime>(
         reshape(grad, bias.shape)
     });
 
-    let input = into_contiguous(input);
-    let offset = into_contiguous(offset);
-    let mask = mask.map(|it| into_contiguous(it));
+    let input = into_contiguous_aligned(input);
+    let offset = into_contiguous_aligned(offset);
+    let weight = into_contiguous_aligned(weight);
+    let mask = mask.map(|it| into_contiguous_aligned(it));
 
     let (input_gradient, offset_gradient, mask_gradient) = backward_gradient_inputs(
         input.clone(),
@@ -225,23 +233,16 @@ fn compute_offset_and_mask_gradient<R: CubeRuntime>(
 ) -> Result<(CubeTensor<R>, Option<CubeTensor<R>>), ConvSetupError> {
     let client = offset.client.clone();
     let device = offset.device.clone();
-    let (kernel_height, kernel_width) = kernel_dims;
+    let (kernel_h, kernel_w) = kernel_dims;
 
-    let use_mask = mask.is_some();
+    let [batches, _, out_h, out_w] = offset.shape.dims();
+    let offset_groups = options.offset_groups;
 
-    let mask = mask.unwrap_or_else(|| {
-        ones_client(
-            client.clone(),
-            device.clone(),
-            Shape::new([
-                offset.shape[0],
-                offset.shape[1] / 2,
-                offset.shape[2],
-                offset.shape[3],
-            ]),
-            columns.dtype,
-        )
-    });
+    let pos_shape = [batches, offset_groups, kernel_h, kernel_w, 2, out_h, out_w];
+    let pos_shape = pos_shape
+        .into_iter()
+        .map(|s| FastDivmodArgs::new(&client, s))
+        .collect();
 
     let grad_offset = empty_device_dtype(
         client.clone(),
@@ -249,12 +250,14 @@ fn compute_offset_and_mask_gradient<R: CubeRuntime>(
         offset.shape.clone(),
         offset.dtype,
     );
-    let grad_mask = empty_device_dtype(
-        client.clone(),
-        device.clone(),
-        mask.shape.clone(),
-        mask.dtype,
-    );
+    let grad_mask = mask.as_ref().map(|mask| {
+        empty_device_dtype(
+            client.clone(),
+            device.clone(),
+            mask.shape.clone(),
+            mask.dtype,
+        )
+    });
 
     let num_elements_offset = offset.shape.num_elements();
     let cube_dim = CubeDim::new(&image.client, num_elements_offset);
@@ -266,178 +269,173 @@ fn compute_offset_and_mask_gradient<R: CubeRuntime>(
             &image.client,
             cube_count,
             cube_dim,
-            image.as_handle_ref().as_tensor_arg(1),
-            offset.as_handle_ref().as_tensor_arg(1),
-            mask.as_handle_ref().as_tensor_arg(1),
-            columns.as_handle_ref().as_tensor_arg(1),
-            grad_offset.as_handle_ref().as_tensor_arg(1),
-            grad_mask.as_handle_ref().as_tensor_arg(1),
+            image.as_tensor_arg(1),
+            offset.as_tensor_arg(1),
+            mask.as_ref().map(|mask| mask.as_tensor_arg(1)).into(),
+            columns.as_tensor_arg(1),
+            linear_view(&grad_offset, 1),
+            grad_mask
+                .as_ref()
+                .map(|grad_mask| grad_mask.as_tensor_arg(1))
+                .into(),
+            pos_shape,
             DeformConv2dCol2ImgCoordArgsLaunch::new(
-                ScalarArg::new(options.stride[0] as u32),
-                ScalarArg::new(options.stride[1] as u32),
-                ScalarArg::new(options.dilation[0] as u32),
-                ScalarArg::new(options.dilation[1] as u32),
+                ScalarArg::new(options.stride[0]),
+                ScalarArg::new(options.stride[1]),
+                ScalarArg::new(options.dilation[0]),
+                ScalarArg::new(options.dilation[1]),
                 InputScalar::new(options.padding[0] as f32, dtype.elem_type()),
                 InputScalar::new(options.padding[1] as f32, dtype.elem_type()),
-                ScalarArg::new(options.offset_groups as u32),
-                ScalarArg::new(kernel_height as u32),
-                ScalarArg::new(kernel_width as u32),
+                ScalarArg::new(offset_groups),
+                ScalarArg::new(kernel_h),
+                ScalarArg::new(kernel_w),
             ),
-            use_mask,
             dtype,
         )
     }?;
 
-    let mask_gradient = if use_mask { Some(grad_mask) } else { None };
-    Ok((grad_offset, mask_gradient))
+    Ok((grad_offset, grad_mask))
 }
 
 #[derive(CubeLaunch, CubeType)]
 struct DeformConv2dCol2ImgCoordArgs {
-    stride_h: u32,
-    stride_w: u32,
-    dilation_h: u32,
-    dilation_w: u32,
+    stride_h: usize,
+    stride_w: usize,
+    dilation_h: usize,
+    dilation_w: usize,
     pad_h: InputScalar,
     pad_w: InputScalar,
-    offset_groups: u32,
-    kernel_height: u32,
-    kernel_width: u32,
+    offset_groups: usize,
+    kernel_height: usize,
+    kernel_width: usize,
 }
 
-#[expect(clippy::collapsible_if)]
 #[cube(launch_unchecked)]
 fn deform_col2img_coord_kernel<F: Float>(
     image: &Tensor<F>,
     offset: &Tensor<F>,
-    mask: &Tensor<F>,
+    mask: &CubeOption<Tensor<F>>,
     columns: &Tensor<F>,
-    grad_offset: &mut Tensor<F>,
-    grad_mask: &mut Tensor<F>,
+    grad_offset: &mut LinearView<F, ReadWrite>,
+    grad_mask: &mut CubeOption<Tensor<F>>,
+    pos_shape: Sequence<FastDivmod<usize>>,
     args: &DeformConv2dCol2ImgCoordArgs,
-    #[comptime] use_mask: bool,
     #[define(F)] _dtype: StorageType,
 ) {
-    // Position format: [batch, [offset_group, kernel_h, kernel_w, 2], out_h, out_w]
+    // Position format: [batch, [offset_groups, kernel_h, kernel_w, 2], out_h, out_w]
+    // Columns format: [[in_channel, kernel_h, kernel_w], [batch, out_h, out_w]]
     // Alternatively : [batch, offset_channels, out_h, out_w]
 
-    if ABSOLUTE_POS >= grad_offset.len() {
+    if ABSOLUTE_POS >= grad_offset.shape() {
         terminate!();
     }
 
-    let offset_channels = offset.shape(1);
     let out_h = offset.shape(2);
     let out_w = offset.shape(3);
-    let batch_size = image.shape(0);
     let in_channels = image.shape(1);
     let height = image.shape(2);
     let width = image.shape(3);
     let kernel_w = args.kernel_width;
     let kernel_h = args.kernel_height;
-    let n_offset_groups = args.offset_groups;
-    let _ = mask[0]; // Make sure mask isn't removed from bind group
 
     let mut grad_offset_val = F::new(0.0);
     let mut grad_mask_val = F::new(0.0);
 
-    let w = ABSOLUTE_POS % out_w;
-    let h = (ABSOLUTE_POS / out_w) % out_h;
-    let w_w = (ABSOLUTE_POS / (out_w * out_h * 2)) % kernel_w;
-    let w_h = (ABSOLUTE_POS / (out_w * out_h * 2 * kernel_w)) % kernel_h;
-    let c = (ABSOLUTE_POS / (out_w * out_h)) % offset_channels;
-    let b = ABSOLUTE_POS / (out_w * out_h * offset_channels);
-
-    let offset_group = c / (kernel_h * kernel_w * 2);
-    let col_step = kernel_h * kernel_w;
+    let (_, pos) = decompose_linear(ABSOLUTE_POS, &pos_shape);
+    let [batch, offset_group, kernel_y, kernel_x, dir, out_y, out_x] = *pos else {
+        unreachable!()
+    };
 
     let channels_per_offset_group = in_channels / args.offset_groups;
 
+    let col_n = batch * out_h * out_w + out_y * out_w + out_x;
+
     let col_base_idx =
-        offset_group * channels_per_offset_group * kernel_h * kernel_w * batch_size * out_w * out_h;
+        offset_group * channels_per_offset_group * kernel_h * kernel_w * columns.stride(0)
+            + col_n * columns.stride(1);
     let mut image_base_idx =
-        (b * n_offset_groups + offset_group) * channels_per_offset_group * height * width;
-    let offset_base_idx =
-        (b * n_offset_groups + offset_group) * 2 * kernel_h * kernel_w * out_h * out_w;
-    let mask_base_idx = (b * n_offset_groups + offset_group) * kernel_h * kernel_w * out_h * out_w;
+        batch * image.stride(0) + offset_group * channels_per_offset_group * image.stride(1);
 
-    let offset_c = c - offset_group * 2 * kernel_h * kernel_w;
-    let is_y_direction = offset_c.is_multiple_of(2);
+    let offset_pos_1 =
+        offset_group * kernel_h * kernel_w * 2 + kernel_y * kernel_w * 2 + kernel_x * 2;
+    let offset_base_idx = batch * offset.stride(0)
+        + offset_pos_1 * offset.stride(1)
+        + out_y * offset.stride(2)
+        + out_x * offset.stride(3);
 
-    let c_bound = channels_per_offset_group * kernel_h * kernel_w;
+    let offset_y_idx = offset_base_idx;
+    let offset_x_idx = offset_base_idx + offset.stride(1);
 
-    for col_c in range_stepped(offset_c / 2, c_bound, col_step) {
-        let col_pos = (((col_c * batch_size + b) * out_h) + h) * out_w + w;
+    let offset_y = offset[offset_y_idx];
+    let offset_x = offset[offset_x_idx];
 
-        let out_x = col_pos % out_w;
-        let out_y = (col_pos / out_w) % out_h;
-        let j = (col_pos / (out_w * out_h * batch_size)) % kernel_w;
-        let i = (col_pos / (out_w * out_h * batch_size * kernel_w)) % kernel_h;
+    let mask_pos_1 = offset_group * kernel_h * kernel_w + kernel_y * kernel_w + kernel_x;
+    let mask_value = match &mask {
+        CubeOption::Some(mask) => {
+            let mask_idx = batch * mask.stride(0)
+                + mask_pos_1 * mask.stride(1)
+                + out_y * mask.stride(2)
+                + out_x * mask.stride(3);
+            mask[mask_idx]
+        }
+        CubeOption::None => F::new(1.0),
+    };
 
-        let mask_idx = i * kernel_w + j;
-        let offset_idx = mask_idx * 2;
+    let is_y_direction = dir == 0;
 
-        let offset_y_idx = (offset_idx * out_h + out_y) * out_w + out_x;
-        let offset_x_idx = ((offset_idx + 1) * out_h + out_y) * out_w + out_x;
+    for col_c in 0..channels_per_offset_group {
+        let col_pos = col_base_idx + col_c * kernel_h * kernel_w * columns.stride(0);
 
-        let offset_y = offset[offset_base_idx + offset_y_idx];
-        let offset_x = offset[offset_base_idx + offset_x_idx];
-
-        let mask_value = if use_mask {
-            mask[mask_base_idx + (mask_idx * out_h + out_y) * out_w + out_x]
-        } else {
-            F::new(1.0)
-        };
-
-        let y = F::cast_from(out_y * args.stride_h + i * args.dilation_h) - args.pad_h.get::<F>()
+        let y = F::cast_from(out_y * args.stride_h + kernel_y * args.dilation_h)
+            - args.pad_h.get::<F>()
             + offset_y;
-        let x = F::cast_from(out_x * args.stride_w + j * args.dilation_w) - args.pad_w.get::<F>()
+        let x = F::cast_from(out_x * args.stride_w + kernel_x * args.dilation_w)
+            - args.pad_w.get::<F>()
             + offset_x;
 
-        let weight = get_coordinate_weight(
-            &image.slice(image_base_idx, image.len()),
-            height,
-            width,
-            y,
-            x,
-            is_y_direction,
-        );
+        let weight =
+            get_coordinate_weight(image, image_base_idx, height, width, y, x, is_y_direction);
+        let columns_value = columns[col_pos];
 
-        grad_offset_val += mask_value * weight * columns[col_base_idx + col_pos];
+        grad_offset_val += mask_value * weight * columns_value;
 
-        if use_mask {
-            if is_y_direction {
-                grad_mask_val += columns[col_base_idx + col_pos]
-                    * bilinear_interpolate(image, height, width, y, x, image_base_idx);
-            }
+        if grad_mask.is_some() && is_y_direction {
+            grad_mask_val +=
+                columns_value * bilinear_interpolate(image, height, width, y, x, image_base_idx);
         }
 
-        image_base_idx += height * width;
+        image_base_idx += image.stride(1);
     }
 
     grad_offset[ABSOLUTE_POS] = grad_offset_val;
 
-    if use_mask {
-        if is_y_direction {
-            let idx = ((((b * n_offset_groups + offset_group) * kernel_h + w_h) * kernel_w + w_w)
-                * out_h
-                + h)
-                * out_w
-                + w;
-            grad_mask[idx] = grad_mask_val
+    match grad_mask {
+        CubeOption::Some(grad_mask) => {
+            if is_y_direction {
+                let idx = batch * grad_mask.stride(0)
+                    + mask_pos_1 * grad_mask.stride(1)
+                    + out_y * grad_mask.stride(2)
+                    + out_x * grad_mask.stride(3);
+
+                grad_mask[idx] = grad_mask_val
+            }
         }
+        CubeOption::None => {}
     }
 }
 
 #[cube]
 fn get_coordinate_weight<F: Float>(
-    input: &Slice<F>,
-    height: u32,
-    width: u32,
+    input: &Tensor<F>,
+    offset: usize,
+    height: usize,
+    width: usize,
     y: F,
     x: F,
     is_y_direction: bool,
 ) -> F {
-    let stride_y = width;
+    let stride_y = input.stride(2);
+    let stride_x = input.stride(3);
 
     let y = f32::cast_from(y);
     let x = f32::cast_from(x);
@@ -453,22 +451,22 @@ fn get_coordinate_weight<F: Float>(
     let valid_x_high = x_high >= 0. && x_high < width as f32;
 
     let bottom_left = if valid_y_low && valid_x_low {
-        input[y_low as u32 * stride_y + x_low as u32]
+        input[offset + y_low as usize * stride_y + x_low as usize * stride_x]
     } else {
         F::new(0.0)
     };
     let bottom_right = if valid_y_low && valid_x_high {
-        input[y_low as u32 * stride_y + x_high as u32]
+        input[offset + y_low as usize * stride_y + x_high as usize * stride_x]
     } else {
         F::new(0.0)
     };
     let top_left = if valid_y_high && valid_x_low {
-        input[y_high as u32 * stride_y + x_low as u32]
+        input[offset + y_high as usize * stride_y + x_low as usize * stride_x]
     } else {
         F::new(0.0)
     };
     let top_right = if valid_y_high && valid_x_high {
-        input[y_high as u32 * stride_y + x_high as u32]
+        input[offset + y_high as usize * stride_y + x_high as usize * stride_x]
     } else {
         F::new(0.0)
     };
@@ -495,19 +493,24 @@ fn compute_input_grad<R: CubeRuntime>(
 
     let supports_fadd = client
         .properties()
-        .type_usage(StorageType::Atomic(
-            f32::as_type_native_unchecked().elem_type(),
-        ))
+        .type_usage(StorageType::Atomic(FloatKind::F32.into()))
         .contains(TypeUsage::AtomicAdd);
     let supports_same_type = client
         .properties()
         .type_usage(StorageType::Atomic(columns.dtype.into()))
         .contains(TypeUsage::AtomicAdd);
 
-    let [batch_size, in_channels, height, width] = input_shape.dims();
-    let (kernel_height, kernel_width) = kernel_dims;
+    let [batches, in_channels, height, width] = input_shape.dims();
+    let [_, _, out_h, out_w] = offset.shape.dims();
+    let (kernel_h, kernel_w) = kernel_dims;
 
-    let shape = Shape::new([batch_size, in_channels, height, width]);
+    let pos_shape = [in_channels, kernel_h, kernel_w, batches, out_h, out_w];
+    let pos_shape = pos_shape
+        .into_iter()
+        .map(|s| FastDivmodArgs::new(&client, s))
+        .collect();
+
+    let shape = Shape::new([batches, in_channels, height, width]);
     let grad_in = match supports_fadd && supports_same_type {
         // Use type as is to save a cast
         true => zeros_client(client.clone(), device.clone(), shape, columns.dtype),
@@ -515,16 +518,6 @@ fn compute_input_grad<R: CubeRuntime>(
         false => zeros_client(client.clone(), device.clone(), shape, DType::F32),
     };
     let grad_arg = grad_in.as_tensor_arg(1);
-
-    let use_mask = mask.is_some();
-    let mask = mask.unwrap_or_else(|| {
-        ones_client(
-            client.clone(),
-            device.clone(),
-            Shape::new([1, 1, 1, 1]),
-            columns.dtype,
-        )
-    });
 
     let num_elements = columns.shape.num_elements();
     let cube_dim = CubeDim::new(&offset.client, num_elements);
@@ -539,31 +532,28 @@ fn compute_input_grad<R: CubeRuntime>(
         true => [dtype.into(), dtype.into()],
         false => [dtype.into(), DType::F32.into()],
     };
+
     unsafe {
         launch(
             &offset.client,
             cube_count,
             cube_dim,
             offset.as_tensor_arg(1),
-            mask.as_tensor_arg(1),
-            columns.as_tensor_arg(1),
+            mask.as_ref().map(|mask| mask.as_tensor_arg(1)).into(),
+            linear_view(&columns, 1),
             grad_arg,
+            pos_shape,
             DeformConv2dCol2ImgArgsLaunch::new(
-                ScalarArg::new(options.stride[0] as u32),
-                ScalarArg::new(options.stride[1] as u32),
-                ScalarArg::new(options.dilation[0] as u32),
-                ScalarArg::new(options.dilation[1] as u32),
+                ScalarArg::new(options.stride[0]),
+                ScalarArg::new(options.stride[1]),
+                ScalarArg::new(options.dilation[0]),
+                ScalarArg::new(options.dilation[1]),
                 InputScalar::new(options.padding[0] as f32, dtypes[0].elem_type()),
                 InputScalar::new(options.padding[1] as f32, dtypes[0].elem_type()),
-                ScalarArg::new(options.offset_groups as u32),
-                ScalarArg::new(batch_size as u32),
-                ScalarArg::new(in_channels as u32),
-                ScalarArg::new(height as u32),
-                ScalarArg::new(width as u32),
-                ScalarArg::new(kernel_height as u32),
-                ScalarArg::new(kernel_width as u32),
+                ScalarArg::new(options.offset_groups),
+                ScalarArg::new(kernel_h),
+                ScalarArg::new(kernel_w),
             ),
-            use_mask,
             dtypes,
         )
     }?;
@@ -577,75 +567,69 @@ fn compute_input_grad<R: CubeRuntime>(
 
 #[derive(CubeLaunch, CubeType)]
 struct DeformConv2dCol2ImgArgs {
-    stride_h: u32,
-    stride_w: u32,
-    dilation_h: u32,
-    dilation_w: u32,
+    stride_h: usize,
+    stride_w: usize,
+    dilation_h: usize,
+    dilation_w: usize,
     pad_h: InputScalar,
     pad_w: InputScalar,
-    offset_groups: u32,
-    batch_size: u32,
-    in_channels: u32,
-    height: u32,
-    width: u32,
-    kernel_height: u32,
-    kernel_width: u32,
+    offset_groups: usize,
+    kernel_height: usize,
+    kernel_width: usize,
 }
 
 #[cube(launch_unchecked)]
 fn deform_col2img_kernel<F: Float, FP: Float, FAdd: FloatAtomicAddFamily>(
     offset: &Tensor<F>,
-    mask: &Tensor<F>,
-    columns: &Tensor<F>,
+    mask: &CubeOption<Tensor<F>>,
+    columns: &LinearView<F>,
     grad_input: &mut Tensor<Atomic<ProxyType<FAdd, FP>>>,
+    pos_shape: Sequence<FastDivmod<usize>>,
     args: &DeformConv2dCol2ImgArgs,
-    #[comptime] use_mask: bool,
     #[define(F, FP)] _dtype: [StorageType; 2],
 ) {
     // Position format: [[in_channels, kernel_h, kernel_w], [batch_size, out_h, out_w]]
-    if ABSOLUTE_POS >= columns.len() {
+    if ABSOLUTE_POS >= columns.shape() {
         terminate!();
     }
 
-    let n_in_channels = args.in_channels;
-    let height = args.height;
-    let width = args.width;
-    let out_h = offset.shape(2);
-    let out_w = offset.shape(3);
+    let n_in_channels = grad_input.shape(1);
+    let height = grad_input.shape(2);
+    let width = grad_input.shape(3);
     let kernel_h = args.kernel_height;
     let kernel_w = args.kernel_width;
     let n_offset_groups = args.offset_groups;
-    let batch_size = args.batch_size;
 
-    let out_x = ABSOLUTE_POS % out_w;
-    let out_y = (ABSOLUTE_POS / out_w) % out_h;
-    let batch = (ABSOLUTE_POS / (out_w * out_h)) % batch_size;
-    let kernel_x = (ABSOLUTE_POS / (out_w * out_h * batch_size)) % kernel_w;
-    let kernel_y = (ABSOLUTE_POS / (out_w * out_h * batch_size * kernel_w)) % kernel_h;
-    let in_channel = ABSOLUTE_POS / (out_w * out_h * batch_size * kernel_w * kernel_h);
+    let (_, pos) = decompose_linear(ABSOLUTE_POS, &pos_shape);
+    let [in_channel, kernel_y, kernel_x, batch, out_y, out_x] = *pos else {
+        unreachable!()
+    };
 
     let channels_per_offset_group = n_in_channels / n_offset_groups;
     let offset_group = in_channel / channels_per_offset_group;
 
-    let offset_base_idx =
-        (batch * n_offset_groups + offset_group) * 2 * kernel_h * kernel_w * out_h * out_w;
+    let offset_pos_1 =
+        offset_group * kernel_h * kernel_w * 2 + kernel_y * kernel_w * 2 + kernel_x * 2;
+    let offset_base_idx = batch * offset.stride(0)
+        + offset_pos_1 * offset.stride(1)
+        + out_y * offset.stride(2)
+        + out_x * offset.stride(3);
 
-    let mask_idx = kernel_y * kernel_w + kernel_x;
-    let offset_idx = mask_idx * 2;
+    let offset_y_idx = offset_base_idx;
+    let offset_x_idx = offset_base_idx + offset.stride(1);
 
-    let offset_y_idx = (offset_idx * out_h + out_y) * out_w + out_x;
-    let offset_x_idx = ((offset_idx + 1) * out_h + out_y) * out_w + out_x;
+    let offset_y = offset[offset_y_idx];
+    let offset_x = offset[offset_x_idx];
 
-    let offset_y = offset[offset_base_idx + offset_y_idx];
-    let offset_x = offset[offset_base_idx + offset_x_idx];
-
-    let mask_value = if use_mask {
-        let mask_base_idx =
-            (batch * n_offset_groups + offset_group) * kernel_h * kernel_w * out_h * out_w;
-
-        mask[mask_base_idx + (mask_idx * out_h + out_y) * out_w + out_x]
-    } else {
-        F::new(1.0)
+    let mask_value = match mask {
+        CubeOption::Some(mask) => {
+            let mask_pos_1 = offset_group * kernel_h * kernel_w + kernel_y * kernel_w + kernel_x;
+            mask[batch * mask.stride(0)
+                + mask_pos_1 * mask.stride(1)
+                + out_y * mask.stride(2)
+                + out_x * mask.stride(3)]
+        }
+        CubeOption::None => F::new(1.0),
     };
 
     let y = F::cast_from(out_y * args.stride_h + kernel_y * args.dilation_h)
@@ -658,8 +642,8 @@ fn deform_col2img_kernel<F: Float, FP: Float, FAdd: FloatAtomicAddFamily>(
     for dy in -1..=1i32 {
         #[unroll]
         for dx in -1..=1i32 {
-            let yp = F::floor(y) + F::cast_from(dy);
-            let xp = F::floor(x) + F::cast_from(dx);
+            let yp = y.floor() + F::cast_from(dy);
+            let xp = x.floor() + F::cast_from(dx);
 
             if yp >= F::new(0.0)
                 && yp < F::cast_from(height)
@@ -668,9 +652,10 @@ fn deform_col2img_kernel<F: Float, FP: Float, FAdd: FloatAtomicAddFamily>(
                 && F::abs(y - yp) < F::new(1.0)
                 && F::abs(x - xp) < F::new(1.0)
             {
-                let gradient_pos =
-                    ((batch * n_in_channels + in_channel) * height + u32::cast_from(yp)) * width
-                        + u32::cast_from(xp);
+                let gradient_pos = batch * grad_input.stride(0)
+                    + in_channel * grad_input.stride(1)
+                    + usize::cast_from(yp) * grad_input.stride(2)
+                    + usize::cast_from(xp) * grad_input.stride(3);
 
                 let weight = (F::new(1.0) - F::abs(y - yp)) * (F::new(1.0) - F::abs(x - xp));
 
@@ -721,7 +706,7 @@ impl<FAdd: Float> FloatAtomicAdd for IntrinsicFloatAtomicAdd<FAdd> {
 
     fn float_atomic_add<F: Float>(ptr: &mut Atomic<FAdd>, value: F) {
         let value = FAdd::cast_from(value);
-        Atomic::add(ptr, value);
+        ptr.fetch_add(value);
     }
 }
 
@@ -732,12 +717,12 @@ impl FloatAtomicAdd for CASFloatAtomicAdd {
     fn float_atomic_add<F: Float>(ptr: &mut Atomic<Self::ProxyType>, value: F) {
         let value = f32::cast_from(value);
         if value != 0.0 {
-            let mut v = Atomic::load(ptr);
+            let mut v = ptr.load();
             loop {
                 let prev = v;
-                let v_float = f32::reinterpret(v);
-                let new = u32::reinterpret(v_float + value);
-                v = Atomic::compare_and_swap(ptr, v, new);
+                let v_float = f32::from_bits(v);
+                let new = (v_float + value).to_bits();
+                v = ptr.compare_exchange_weak(v, new);
                 if prev == v {
                     break;
                 }

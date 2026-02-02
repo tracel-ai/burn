@@ -3,13 +3,17 @@ use super::pool2d::{
 };
 use crate::{
     CubeRuntime,
-    kernel::into_contiguous,
+    kernel::{
+        into_contiguous_aligned,
+        pool::pool2d::{Position, view4d},
+        utils::shape_divmod,
+    },
     ops::{max_line_size, numeric::empty_device_dtype, permute_nchw_to_nhwc, permute_nhwc_to_nchw},
     tensor::CubeTensor,
 };
 use burn_backend::{Shape, ops::conv::calculate_pool_output_size};
-use cubecl::prelude::*;
 use cubecl::{CubeDim, calculate_cube_count_elemwise, prelude::ScalarArg};
+use cubecl::{prelude::*, std::tensor::View};
 
 struct AvgPoolStrategy;
 
@@ -36,7 +40,7 @@ impl<N: Numeric> Pool2dDirectStrategy<N> for AvgPoolStrategy {
 
     fn initialize(
         #[comptime] _config: &Self::Config,
-        #[comptime] line_size: u32,
+        #[comptime] line_size: LineSize,
     ) -> Self::Accumulator {
         let sum = Line::empty(line_size).fill(N::from_int(0));
         // Count will be set dynamically: either by accumulate (count_include_pad=false)
@@ -49,7 +53,7 @@ impl<N: Numeric> Pool2dDirectStrategy<N> for AvgPoolStrategy {
     fn accumulate(
         #[comptime] config: &Self::Config,
         accumulator: &mut Self::Accumulator,
-        _index: u32,
+        _index: usize,
         result: Line<N>,
     ) {
         let (sum, count) = accumulator;
@@ -78,8 +82,8 @@ impl<N: Numeric> Pool2dDirectStrategy<N> for AvgPoolStrategy {
 
     fn store(
         #[comptime] _config: &Self::Config,
-        position: u32,
-        output: &mut Tensor<Line<N>>,
+        position: Position,
+        output: &mut View<Line<N>, Position, ReadWrite>,
         _output_indices: &mut (),
         accumulator: Self::Accumulator,
     ) {
@@ -120,7 +124,7 @@ pub(crate) fn avg_pool2d<R: CubeRuntime>(
     let padded_0 = in_h + 2 * padding[0];
     let padded_1 = in_w + 2 * padding[1];
 
-    let x = into_contiguous(permute_nchw_to_nhwc(x));
+    let x = into_contiguous_aligned(permute_nchw_to_nhwc(x));
     let line_size = max_line_size(&x);
 
     let shape_out = Shape::new([batch_size, size_0, size_1, channels]);
@@ -135,8 +139,10 @@ pub(crate) fn avg_pool2d<R: CubeRuntime>(
         cube_count,
         cube_dim,
         x.as_tensor_arg(line_size),
-        output.as_tensor_arg(line_size),
+        view4d(&output, line_size),
         (),
+        shape_divmod(&output),
+        ScalarArg::new(working_units),
         Pool2dDirectArgsLaunch::new(
             ScalarArg::new(stride[0] as u32),
             ScalarArg::new(stride[1] as u32),

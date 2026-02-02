@@ -4,7 +4,7 @@ use burn::{
     optim::AdamConfig,
     tensor::backend::AutodiffBackend,
     train::{
-        Learner, LearningParadigm, SupervisedTraining,
+        Learner, SupervisedTraining,
         renderer::{
             EvaluationName, EvaluationProgress, MetricState, MetricsRenderer,
             MetricsRendererEvaluation, MetricsRendererTraining, TrainingProgress,
@@ -97,5 +97,5 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
     // can be used to interrupt training
     let _interrupter = training.interrupter();
 
-    let _model_trained = training.run(Learner::new(model, optim, config.lr));
+    let _model_trained = training.launch(Learner::new(model, optim, config.lr));
 }

@@ -10,7 +10,7 @@ target
 .fleet
 .ipynb_checkpoints/
 
-# Generated IR and Burn Graph from ONNX
+# Build output directory
 out
 
 # Virtual Environment of Python

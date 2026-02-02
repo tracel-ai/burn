@@ -6,12 +6,12 @@ use cubek::{
         components::ConvSetupError,
     },
     matmul::{
-        definition::{MatmulElemType, MatmulElems, MatmulGlobalElems},
+        definition::{MatmulElems, MatmulGlobalElems},
         launch::MatmulInputHandleRef,
     },
 };
 
-use crate::{CubeRuntime, ops::numeric::empty_device_optimized_dtype, tensor::CubeTensor};
+use crate::{CubeRuntime, ops::numeric::empty_device_dtype, tensor::CubeTensor};
 
 pub fn dgrad_gemm_simple_sync<R: CubeRuntime, const N: usize>(
     out_grad: CubeTensor<R>,
@@ -98,7 +98,7 @@ pub fn launch_backwards_data<R: CubeRuntime, const N: usize>(
 
     let out_dtype = out_grad.dtype;
 
-    let weight_grad = empty_device_optimized_dtype(
+    let in_grad = empty_device_dtype(
         out_grad.client.clone(),
         out_grad.device.clone(),
         input_shape,
@@ -107,18 +107,9 @@ pub fn launch_backwards_data<R: CubeRuntime, const N: usize>(
 
     let client = out_grad.client.clone();
     let dtypes = MatmulElems::from_globals(&MatmulGlobalElems {
-        lhs: MatmulElemType {
-            dtype: out_grad.dtype.into(),
-            quantized: false,
-        },
-        rhs: MatmulElemType {
-            dtype: weights.dtype.into(),
-            quantized: false,
-        },
-        out: MatmulElemType {
-            dtype: out_dtype.into(),
-            quantized: false,
-        },
+        lhs: out_grad.dtype.into(),
+        rhs: weights.dtype.into(),
+        out: out_dtype.into(),
     });
     let out_grad = MatmulInputHandleRef::new(out_grad.as_handle_ref(), out_grad.dtype.into());
     let weights = MatmulInputHandleRef::new(weights.as_handle_ref(), weights.dtype.into());
@@ -128,7 +119,7 @@ pub fn launch_backwards_data<R: CubeRuntime, const N: usize>(
         &client,
         &out_grad,
         &weights,
-        &weight_grad.as_handle_ref(),
+        &in_grad.as_handle_ref(),
         ConvolutionArgs {
             stride: options.stride,
             padding: options.padding,
@@ -137,5 +128,5 @@ pub fn launch_backwards_data<R: CubeRuntime, const N: usize>(
         dtypes,
     )?;
 
-    Ok(weight_grad)
+    Ok(in_grad)
 }

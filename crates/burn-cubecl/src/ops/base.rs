@@ -1,19 +1,25 @@
-use crate::{CubeRuntime, kernel, tensor::CubeTensor};
+use crate::{CubeRuntime, kernel, ops::numeric::empty_device_dtype, tensor::CubeTensor};
 use burn_backend::{
     DType, ExecutionError, QTensorPrimitive, Shape, TensorData,
-    quantization::{QuantLevel, params_shape},
+    quantization::{QuantLevel, QuantStore, params_shape},
 };
 use burn_backend::{TensorMetadata, ops::unfold::calculate_unfold_shape};
 use burn_std::tensor::{ReshapeAction, contiguous_strides, reshape_action};
-use cubecl::server::CopyDescriptor;
+use cubecl::{ir::LineSize, server::CopyDescriptor};
 use cubecl::{quant::scheme::BlockSize, tensor_line_size_parallel};
 
 pub(crate) fn from_data<R: CubeRuntime>(data: TensorData, device: &R::Device) -> CubeTensor<R> {
-    let shape: Shape = (&data.shape).into();
     let client = R::client(device);
-    let buffer = client.create(data.bytes);
-
-    CubeTensor::new_contiguous(client, device.clone(), shape, buffer, data.dtype)
+    let alloc = client.create_tensor(data.bytes, &data.shape, data.dtype.size());
+    let shape: Shape = (&data.shape).into();
+    CubeTensor::new(
+        client,
+        alloc.handle,
+        shape,
+        device.clone(),
+        alloc.strides,
+        data.dtype,
+    )
 }
 
 pub(crate) async fn into_data<R: CubeRuntime>(
@@ -64,9 +70,16 @@ pub(crate) fn empty<R: CubeRuntime>(
     dtype: DType,
 ) -> CubeTensor<R> {
     let client = R::client(device);
-    let buffer = client.empty(shape.num_elements() * dtype.size());
+    let alloc = client.empty_tensor(&shape.dims, dtype.size());
 
-    CubeTensor::new_contiguous(client, device.clone(), shape, buffer, dtype)
+    CubeTensor::new(
+        client,
+        alloc.handle,
+        shape,
+        device.clone(),
+        alloc.strides,
+        dtype,
+    )
 }
 
 pub(crate) fn swap_dims<R: CubeRuntime>(
@@ -86,10 +99,7 @@ pub(crate) fn swap_dims<R: CubeRuntime>(
         block_size.swap(dim1, dim2);
 
         // Truncate unit dims from the start
-        let block_size = block_size
-            .into_iter()
-            .skip_while(|it| *it == 1)
-            .collect::<Vec<_>>();
+        let block_size = BlockSize::new_trim(block_size);
         if block_size.len() > BlockSize::MAX_DIMS {
             panic!("Swapped block size would exceed max dims");
         }
@@ -97,7 +107,20 @@ pub(crate) fn swap_dims<R: CubeRuntime>(
         qparams.scales.shape.dims.swap(dim1, dim2);
         qparams.scales.strides.swap(dim1, dim2);
 
-        tensor.dtype = DType::QFloat(scheme.with_level(QuantLevel::block(&block_size)))
+        tensor.dtype = DType::QFloat(scheme.with_level(QuantLevel::Block(block_size)))
+    }
+
+    if let DType::QFloat(scheme) = &mut tensor.dtype
+        && let QuantStore::PackedU32(packed_dim) | QuantStore::PackedNative(packed_dim) =
+            &mut scheme.store
+    {
+        let rank = tensor.shape.len();
+
+        if *packed_dim == rank - dim1 - 1 {
+            *packed_dim = rank - dim2 - 1;
+        } else if *packed_dim == rank - dim2 - 1 {
+            *packed_dim = rank - dim1 - 1;
+        }
     }
 
     tensor
@@ -133,6 +156,17 @@ pub fn permute<R: CubeRuntime>(mut tensor: CubeTensor<R>, axes: &[usize]) -> Cub
         qparams.scales.shape = qparams.scales.shape.clone().permute(axes).unwrap();
 
         tensor.dtype = DType::QFloat(scheme.with_level(QuantLevel::block(&block_size)))
+    }
+
+    if let DType::QFloat(scheme) = &mut tensor.dtype
+        && let QuantStore::PackedU32(packed_dim) = &mut scheme.store
+    {
+        let rank = tensor.shape.len();
+        let new_pos = axes
+            .iter()
+            .position(|axis| *axis == rank - *packed_dim - 1)
+            .unwrap_or(0);
+        *packed_dim = rank - new_pos - 1;
     }
 
     tensor
@@ -258,16 +292,21 @@ pub fn reshape<R: CubeRuntime>(mut tensor: CubeTensor<R>, shape: Shape) -> CubeT
         ReshapeAction::Recompute => (),
     }
 
-    let tensor = kernel::into_contiguous(tensor);
-
-    let mut out = CubeTensor::new_contiguous(
-        tensor.client,
-        tensor.device,
+    let out = empty_device_dtype(
+        tensor.client.clone(),
+        tensor.device.clone(),
         shape,
-        tensor.handle,
         tensor.dtype,
     );
-    out.qparams = tensor.qparams;
+
+    cubecl::std::tensor::copy_into(
+        &tensor.client,
+        &tensor.as_handle_ref(),
+        &out.as_handle_ref(),
+        tensor.dtype.into(),
+    )
+    .expect("Kernel should not fail");
+
     out
 }
 
@@ -333,7 +372,7 @@ pub fn q_reshape<R: CubeRuntime>(mut tensor: CubeTensor<R>, shape: Shape) -> Cub
     tensor
 }
 
-pub(crate) fn max_line_size<R: CubeRuntime>(tensor: &CubeTensor<R>) -> u8 {
+pub(crate) fn max_line_size<R: CubeRuntime>(tensor: &CubeTensor<R>) -> LineSize {
     tensor_line_size_parallel(
         tensor
             .client
@@ -344,7 +383,10 @@ pub(crate) fn max_line_size<R: CubeRuntime>(tensor: &CubeTensor<R>) -> u8 {
     )
 }
 
-pub(crate) fn max_line_size_many<R: CubeRuntime>(tensors: &[&CubeTensor<R>], axis: usize) -> u8 {
+pub(crate) fn max_line_size_many<R: CubeRuntime>(
+    tensors: &[&CubeTensor<R>],
+    axis: usize,
+) -> LineSize {
     let vec = tensors
         .iter()
         .map(|tensor| {

@@ -1,13 +1,10 @@
 use super::{RemoteChannel, RemoteClient};
 use crate::shared::{ComputeTask, TaskResponseContent, TensorRemote};
+use burn_backend::{DeviceId, DeviceOps, ExecutionError, Shape, TensorData};
 use burn_communication::{Address, ProtocolClient, data_service::TensorTransferId};
 use burn_ir::TensorIr;
 use burn_router::{MultiBackendBridge, RouterTensor, RunnerClient, get_client};
 use burn_std::{backtrace::BackTrace, future::DynFut};
-use burn_tensor::{
-    Shape, TensorData,
-    backend::{DeviceId, DeviceOps, ExecutionError},
-};
 use std::sync::OnceLock;
 use std::{collections::HashMap, marker::PhantomData, str::FromStr, sync::Mutex};
 
@@ -118,7 +115,7 @@ impl RunnerClient for RemoteClient {
         self.sender.new_tensor_id()
     }
 
-    fn supports_dtype(&self, dtype: burn_std::DType) -> bool {
+    fn dtype_usage(&self, dtype: burn_std::DType) -> burn_backend::DTypeUsageSet {
         let fut = self.sender.send_async(ComputeTask::SupportsDType(dtype));
 
         match self.runtime.block_on(fut) {
@@ -250,7 +247,7 @@ impl<C: ProtocolClient> MultiBackendBridge for RemoteBridge<C> {
 
     fn change_backend_float(
         tensor: Self::TensorHandle,
-        _shape: burn_tensor::Shape,
+        _shape: burn_backend::Shape,
         target_device: &Self::Device,
     ) -> Self::TensorHandle {
         tensor.change_backend(target_device)
@@ -258,7 +255,7 @@ impl<C: ProtocolClient> MultiBackendBridge for RemoteBridge<C> {
 
     fn change_backend_int(
         tensor: Self::TensorHandle,
-        _shape: burn_tensor::Shape,
+        _shape: burn_backend::Shape,
         target_device: &Self::Device,
     ) -> Self::TensorHandle {
         tensor.change_backend(target_device)
@@ -266,7 +263,7 @@ impl<C: ProtocolClient> MultiBackendBridge for RemoteBridge<C> {
 
     fn change_backend_bool(
         tensor: Self::TensorHandle,
-        _shape: burn_tensor::Shape,
+        _shape: burn_backend::Shape,
         target_device: &Self::Device,
     ) -> Self::TensorHandle {
         tensor.change_backend(target_device)

@@ -198,7 +198,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                     let set_ref_as_concrete = |block: &mut BlockPlan<'_>| {
                         block.reference = ReferenceSelection::Concrete {
                             layout: FuseArg::Input(
-                                input_pos as u32,
+                                input_pos,
                                 reference.precision,
                                 LayoutInfo::IsRef,
                             ),
@@ -210,7 +210,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                     let set_ref_as_virtual = |block: &mut BlockPlan<'_>| {
                         block.reference = ReferenceSelection::VirtualShape {
                             original: FuseArg::Input(
-                                input_pos as u32,
+                                input_pos,
                                 reference.precision,
                                 LayoutInfo::Unknown,
                             ),
@@ -243,7 +243,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                         .expect("Quant can't be used in swap dims operation");
                     block.reference = ReferenceSelection::SwapDims {
                         original: FuseArg::Input(
-                            original_pos as u32,
+                            original_pos,
                             reference.precision,
                             LayoutInfo::Unknown,
                         ),
@@ -407,11 +407,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             && self.blocks[block_idx].shape_ref == output.tensor_relative.shape.dims
         {
             block.reference = ReferenceSelection::Concrete {
-                layout: FuseArg::Output(
-                    output.pos_original as u32,
-                    output.precision,
-                    LayoutInfo::IsRef,
-                ),
+                layout: FuseArg::Output(output.pos_original, output.precision, LayoutInfo::IsRef),
                 shape: tensor_global.shape.dims.clone(),
                 strides: strides.clone(),
             };
@@ -553,7 +549,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         output: OutputSorted,
         tensor_global: TensorIr,
         original: TensorId,
-        dims: (u32, u32),
+        dims: (usize, usize),
         block_idx: usize,
     ) {
         let block = &mut plan.blocks[block_idx];
@@ -578,7 +574,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             dtype,
             qparams: original_handle.handle.qparams.clone(),
         };
-        handle.strides.swap(dims.0 as usize, dims.1 as usize);
+        handle.strides.swap(dims.0, dims.1);
 
         context
             .handles
