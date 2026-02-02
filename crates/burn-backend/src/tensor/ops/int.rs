@@ -281,6 +281,19 @@ impl<B: Backend> Numeric<B> for Int {
         B::int_sign(tensor)
     }
 
+    /// Applies the matrix multiplication operation.
+    ///
+    /// `C = AB`
+    ///
+    /// # Panics
+    ///
+    /// If the two tensors don't have a compatible shape.
+    fn matmul(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
+        B::int_matmul(lhs, rhs)
+    }
+}
+
+impl<B: Backend> Ordered<B> for Int {
     fn sort(tensor: Self::Primitive, dim: usize, descending: bool) -> Self::Primitive {
         B::int_sort(tensor, dim, descending)
     }
@@ -297,19 +310,6 @@ impl<B: Backend> Numeric<B> for Int {
         B::int_argsort(tensor, dim, descending)
     }
 
-    /// Applies the matrix multiplication operation.
-    ///
-    /// `C = AB`
-    ///
-    /// # Panics
-    ///
-    /// If the two tensors don't have a compatible shape.
-    fn matmul(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
-        B::int_matmul(lhs, rhs)
-    }
-}
-
-impl<B: Backend> Ordered<B> for Int {
     fn cummin(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
         B::int_cummin(tensor, dim)
     }
