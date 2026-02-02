@@ -37,7 +37,7 @@ bytemuck = "1.24.0"
 bytes = { version = "1.10", default-features = false }
 candle-core = { version = "0.9.2" }
 ciborium = { version = "0.2", default-features = false }
-clap = { version = "4.5.48", features = ["derive"] }
+clap = { version = "4.5.56", features = ["derive"] }
 colored = "3.0.0"
 console_error_panic_hook = "0.1.7"
 const-random = "0.1"
