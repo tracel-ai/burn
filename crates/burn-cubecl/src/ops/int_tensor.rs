@@ -540,4 +540,45 @@ where
     ) -> FloatTensor<Self> {
         unfold(tensor, dim, size, step)
     }
+
+    fn int_sort(tensor: IntTensor<Self>, dim: usize, descending: bool) -> IntTensor<Self> {
+        // Use accelerated radix sort for 1D tensors
+        if tensor.shape.num_dims() == 1 && dim == 0 {
+            return kernel::sort::sort_1d(tensor, descending)
+                .expect("Accelerated sort failed");
+        }
+        // Fall back to CPU for multi-dimensional tensors
+        burn_backend::ops::sort::sort::<Self, burn_backend::tensor::Int>(tensor, dim, descending)
+    }
+
+    fn int_sort_with_indices(
+        tensor: IntTensor<Self>,
+        dim: usize,
+        descending: bool,
+    ) -> (IntTensor<Self>, IntTensor<Self>) {
+        // Use accelerated radix sort for 1D tensors
+        if tensor.shape.num_dims() == 1 && dim == 0 {
+            let (values, indices) = kernel::sort::sort_with_indices_1d(tensor, descending)
+                .expect("Accelerated sort failed");
+            let indices = kernel::cast(indices, I::dtype());
+            return (values, indices);
+        }
+        // Fall back to CPU for multi-dimensional tensors
+        burn_backend::ops::sort::sort_with_indices::<Self, burn_backend::tensor::Int>(
+            tensor, dim, descending,
+        )
+    }
+
+    fn int_argsort(tensor: IntTensor<Self>, dim: usize, descending: bool) -> IntTensor<Self> {
+        // Use accelerated radix sort for 1D tensors
+        if tensor.shape.num_dims() == 1 && dim == 0 {
+            let indices = kernel::sort::argsort_1d(tensor, descending)
+                .expect("Accelerated sort failed");
+            return kernel::cast(indices, I::dtype());
+        }
+        // Fall back to CPU for multi-dimensional tensors
+        burn_backend::ops::sort::argsort::<Self, burn_backend::tensor::Int>(
+            tensor, dim, descending,
+        )
+    }
 }

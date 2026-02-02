@@ -613,4 +613,51 @@ where
     ) -> FloatTensor<Self> {
         kernel::grid_sample::grid_sample(tensor, grid, options)
     }
+
+    fn float_sort(tensor: FloatTensor<Self>, dim: usize, descending: bool) -> FloatTensor<Self> {
+        // Use accelerated radix sort for 1D tensors
+        if tensor.shape.num_dims() == 1 && dim == 0 {
+            return kernel::sort::sort_1d(tensor, descending)
+                .expect("Accelerated sort failed");
+        }
+        // Fall back to CPU for multi-dimensional tensors
+        let tensor = burn_backend::TensorPrimitive::Float(tensor);
+        burn_backend::ops::sort::sort::<Self, burn_backend::tensor::Float>(tensor, dim, descending)
+            .tensor()
+    }
+
+    fn float_sort_with_indices(
+        tensor: FloatTensor<Self>,
+        dim: usize,
+        descending: bool,
+    ) -> (FloatTensor<Self>, IntTensor<Self>) {
+        // Use accelerated radix sort for 1D tensors
+        if tensor.shape.num_dims() == 1 && dim == 0 {
+            let (values, indices) = kernel::sort::sort_with_indices_1d(tensor, descending)
+                .expect("Accelerated sort failed");
+            let indices = kernel::cast(indices, I::dtype());
+            return (values, indices);
+        }
+        // Fall back to CPU for multi-dimensional tensors
+        let tensor = burn_backend::TensorPrimitive::Float(tensor);
+        let (values, indices) =
+            burn_backend::ops::sort::sort_with_indices::<Self, burn_backend::tensor::Float>(
+                tensor, dim, descending,
+            );
+        (values.tensor(), indices)
+    }
+
+    fn float_argsort(tensor: FloatTensor<Self>, dim: usize, descending: bool) -> IntTensor<Self> {
+        // Use accelerated radix sort for 1D tensors
+        if tensor.shape.num_dims() == 1 && dim == 0 {
+            let indices = kernel::sort::argsort_1d(tensor, descending)
+                .expect("Accelerated sort failed");
+            return kernel::cast(indices, I::dtype());
+        }
+        // Fall back to CPU for multi-dimensional tensors
+        let tensor = burn_backend::TensorPrimitive::Float(tensor);
+        burn_backend::ops::sort::argsort::<Self, burn_backend::tensor::Float>(
+            tensor, dim, descending,
+        )
+    }
 }

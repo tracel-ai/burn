@@ -9,7 +9,8 @@ mod transaction;
 pub(crate) mod argwhere;
 pub(crate) mod cat;
 pub(crate) mod repeat_dim;
-pub(crate) mod sort;
+/// Fallback sorting implementations for cases that don't have native GPU sorting.
+pub mod sort;
 
 pub use activation::*;
 pub use bool_tensor::*;

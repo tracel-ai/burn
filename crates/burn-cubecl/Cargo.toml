@@ -70,8 +70,10 @@ cubek = { workspace = true, features = [
     "reduce",
     "random",
     "quantization",
+    "sort",
 ] }
 tracing = { workspace = true, features = ["attributes"], optional = true }
+half = { workspace = true }
 
 derive-new = { workspace = true }
 log = { workspace = true }
