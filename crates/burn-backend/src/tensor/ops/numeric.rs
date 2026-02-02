@@ -1,10 +1,6 @@
 use burn_std::Shape;
 
-use crate::{
-    Backend, Distribution, Scalar,
-    element::Element,
-    tensor::{BasicOps, IntTensor},
-};
+use crate::{Backend, Distribution, Scalar, element::Element, tensor::BasicOps};
 
 /// Trait that list all operations that can be applied on all numerical tensors.
 ///
