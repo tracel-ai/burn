@@ -33,7 +33,7 @@ invalid_html_tags = "deny"
 [workspace.dependencies]
 atomic_float = "1"
 axum = "0.8.8"
-bytemuck = "1.24.0"
+bytemuck = "1.25.0"
 bytes = { version = "1.10", default-features = false }
 candle-core = { version = "0.9.2" }
 ciborium = { version = "0.2", default-features = false }
