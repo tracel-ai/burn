@@ -414,8 +414,6 @@ $$
 "#
 )]
 #[cfg_attr(not(doc), doc = "`softsign(x_i) = x_i / (1 + |x_i|)`")]
-///
-/// See also [ONNX Softsign](https://onnx.ai/onnx/operators/onnx__Softsign.html).
 pub fn softsign<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D> {
     tensor.clone().div(tensor.abs() + 1)
 }
