@@ -2,7 +2,8 @@ use burn_core as burn;
 
 use crate::activation::{
     Celu, CeluConfig, Gelu, HardSigmoid, HardSigmoidConfig, HardSwish, LeakyRelu, LeakyReluConfig,
-    PRelu, PReluConfig, Relu, Sigmoid, Softplus, SoftplusConfig, SwiGlu, SwiGluConfig, Tanh,
+    PRelu, PReluConfig, Relu, Sigmoid, Softplus, SoftplusConfig, Softsign, SwiGlu, SwiGluConfig,
+    Tanh,
 };
 use burn::config::Config;
 use burn::module::Module;
@@ -15,6 +16,9 @@ use burn::tensor::backend::Backend;
 pub enum ActivationConfig {
     /// [`Gelu`] activation layer.
     Gelu,
+
+    /// [`Gelu`] activation layer with tanh approximation.
+    GeluApproximate,
 
     /// [`PRelu`] activation layer.
     PRelu(PReluConfig),
@@ -42,6 +46,9 @@ pub enum ActivationConfig {
 
     /// [`Softplus`] activation layer.
     Softplus(SoftplusConfig),
+
+    /// [`Softsign`] activation layer.
+    Softsign,
 
     /// [`Celu`] activation layer.
     Celu(CeluConfig),
@@ -89,7 +96,8 @@ impl ActivationConfig {
         match self {
             ActivationConfig::Relu => Relu.into(),
             ActivationConfig::LeakyRelu(conf) => conf.init().into(),
-            ActivationConfig::Gelu => Gelu.into(),
+            ActivationConfig::Gelu => Gelu::new().into(),
+            ActivationConfig::GeluApproximate => Gelu::new_approximate().into(),
             ActivationConfig::PRelu(conf) => conf.init(device).into(),
             ActivationConfig::SwiGlu(conf) => conf.init(device).into(),
             ActivationConfig::HardSigmoid(conf) => conf.init().into(),
@@ -97,6 +105,7 @@ impl ActivationConfig {
             ActivationConfig::Softplus(conf) => conf.init().into(),
             ActivationConfig::Sigmoid => Sigmoid.into(),
             ActivationConfig::Tanh => Tanh.into(),
+            ActivationConfig::Softsign => Softsign.into(),
             ActivationConfig::Celu(conf) => conf.init().into(),
         }
     }
@@ -138,6 +147,9 @@ pub enum Activation<B: Backend> {
 
     /// [`Softplus`] activation layer.
     Softplus(Softplus),
+
+    /// [`Softsign`] activation layer.
+    Softsign(Softsign),
 
     /// [`Celu`] activation layer.
     Celu(Celu),
@@ -203,6 +215,12 @@ impl<B: Backend> From<Softplus> for Activation<B> {
     }
 }
 
+impl<B: Backend> From<Softsign> for Activation<B> {
+    fn from(layer: Softsign) -> Self {
+        Self::Softsign(layer)
+    }
+}
+
 impl<B: Backend> From<Celu> for Activation<B> {
     fn from(layer: Celu) -> Self {
         Self::Celu(layer)
@@ -223,6 +241,7 @@ impl<B: Backend> Activation<B> {
             Activation::Softplus(layer) => layer.forward(input),
             Activation::Sigmoid(layer) => layer.forward(input),
             Activation::Tanh(layer) => layer.forward(input),
+            Activation::Softsign(layer) => layer.forward(input),
             Activation::Celu(layer) => layer.forward(input),
         }
     }
@@ -258,9 +277,19 @@ mod tests {
         let device = Default::default();
         let input = make_input::<TestBackend>(&device);
 
-        let expected = Gelu.forward(input.clone());
+        let expected = Gelu::new().forward(input.clone());
 
         check_stateless_config_output(ActivationConfig::Gelu, input, expected, &device)
+    }
+
+    #[test]
+    fn test_gelu_approximate() {
+        let device = Default::default();
+        let input = make_input::<TestBackend>(&device);
+
+        let expected = Gelu::new_approximate().forward(input.clone());
+
+        check_stateless_config_output(ActivationConfig::GeluApproximate, input, expected, &device)
     }
 
     #[test]
@@ -353,6 +382,16 @@ mod tests {
         let expected = inner_config.init().forward(input.clone());
 
         check_stateless_config_output(inner_config.into(), input, expected, &device)
+    }
+
+    #[test]
+    fn test_softsign() {
+        let device = Default::default();
+        let input = make_input::<TestBackend>(&device);
+
+        let expected = Softsign.forward(input.clone());
+
+        check_stateless_config_output(ActivationConfig::Softsign, input, expected, &device)
     }
 
     #[test]

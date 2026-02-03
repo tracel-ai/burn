@@ -2687,7 +2687,7 @@ where
     ///
     /// # Warning
     ///
-    /// For the `ndarray` and `candle` backends; this is not a view but a copy
+    /// For the `ndarray` backend; this is not a view but a copy
     /// with duplicated data.
     ///
     /// # Arguments

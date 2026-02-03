@@ -11,6 +11,7 @@
 //! * [`HardSigmoid`]
 //! * [`HardSwish`]
 //! * [`Softplus`]
+//! * [`Softsign`]
 //! * [`Tanh`]
 //! * [`Celu`]
 //!
@@ -32,6 +33,7 @@ pub(crate) mod prelu;
 pub(crate) mod relu;
 pub(crate) mod sigmoid;
 pub(crate) mod softplus;
+pub(crate) mod softsign;
 pub(crate) mod swiglu;
 pub(crate) mod tanh;
 
@@ -46,5 +48,6 @@ pub use prelu::*;
 pub use relu::*;
 pub use sigmoid::*;
 pub use softplus::*;
+pub use softsign::*;
 pub use swiglu::*;
 pub use tanh::*;

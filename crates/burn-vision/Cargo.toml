@@ -22,7 +22,6 @@ workspace = true
 default = ["ndarray", "cubecl-backend", "fusion", "std"]
 std = ["aligned-vec/std"]
 tracing = [
-    "burn-candle?/tracing",
     "burn-cubecl?/tracing",
     "burn-fusion?/tracing",
     "burn-ir/tracing",
@@ -32,7 +31,6 @@ tracing = [
     "cubecl/tracing",
 ]
 
-candle = ["burn-candle"]
 cubecl-backend = ["cubecl", "burn-cubecl"]
 fusion = ["burn-fusion", "burn-cuda/fusion", "burn-wgpu/fusion"]
 ndarray = ["burn-ndarray"]
@@ -48,7 +46,6 @@ test-metal = ["burn-wgpu/metal", "test-wgpu"]
 [dependencies]
 aligned-vec = { version = "0.6", default-features = false }
 bon = { workspace = true }
-burn-candle = { path = "../burn-candle", version = "=0.21.0", optional = true }
 burn-cubecl = { path = "../burn-cubecl", version = "=0.21.0", optional = true }
 burn-fusion = { path = "../burn-fusion", version = "=0.21.0", optional = true }
 burn-ir = { path = "../burn-ir", version = "=0.21.0" }
