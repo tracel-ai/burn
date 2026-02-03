@@ -5,14 +5,9 @@ on:
     - cron: '0 21 * * WED' # Run every Wednesday at 21:00 (UTC)
   push:
     tags:
-      - 'v*.*.*' # Run when a new version is being published
+      - 'v*.*.*'
 
 env:
-  #
-  # Dependency versioning
-  #
-
-  # careful version
   CAREFUL_VERSION: "0.4.8"
 
 concurrency:
@@ -21,121 +16,116 @@ concurrency:
 
 jobs:
   cargo-careful:
-
     runs-on: ubuntu-latest
-
     steps:
-    - uses: actions/checkout@v6
-
-    - name: Install Rust nightly
-      uses: dtolnay/rust-toolchain@nightly
-      with:
-        toolchain: nightly
-        components: rustfmt, rust-src
-
-    - name: Install llvmpipe and lavapipe
-      uses: tracel-ai/github-actions/setup-llvmpipe-lavapipe@v8
-
-    - name: Install cargo-careful
-      env:
-        CAREFUL_LINK: https://github.com/RalfJung/cargo-careful/releases/download
-      run: |
-        curl -L "$CAREFUL_LINK/v$CAREFUL_VERSION/cargo-careful.x86_64-unknown-linux-musl" \
-        --output $HOME/.cargo/bin/cargo-careful
-        chmod +x $HOME/.cargo/bin/cargo-careful
-
-    - name: Run cargo-careful
-      # Looking for undefined behaviours
-      run: cargo +nightly careful test
+      - name: checkout
+        uses: actions/checkout@v6
+      # --------------------------------------------------------------------------------
+      - name: Install Rust nightly
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          toolchain: nightly
+          components: rustfmt, rust-src
+      # --------------------------------------------------------------------------------
+      - name: Install Mesa
+        uses: tracel-ai/github-actions/install-mesa@v8
+      # --------------------------------------------------------------------------------
+      - name: Install cargo-careful
+        env:
+          CAREFUL_LINK: https://github.com/RalfJung/cargo-careful/releases/download
+        run: |
+          curl -L "$CAREFUL_LINK/v$CAREFUL_VERSION/cargo-careful.x86_64-unknown-linux-musl" \
+          --output $HOME/.cargo/bin/cargo-careful
+          chmod +x $HOME/.cargo/bin/cargo-careful
+      # --------------------------------------------------------------------------------
+      - name: Run cargo-careful
+        # Looking for undefined behaviours
+        run: cargo +nightly careful test
 
   address-sanitizer:
-
     runs-on: ubuntu-latest
-
     steps:
-    - uses: actions/checkout@v6
-
-    - name: Install Rust nightly
-      uses: dtolnay/rust-toolchain@nightly
-      with:
-        toolchain: nightly
-        components: rustfmt, rust-src
-
-    - name: Install llvmpipe and lavapipe
-      uses: tracel-ai/github-actions/setup-llvmpipe-lavapipe@v8
-
-    - name: Run AddressSanitizer
-      env:
-        RUSTFLAGS: -Zsanitizer=address -Copt-level=3
-        RUSTDOCFLAGS: -Zsanitizer=address
-      # Looking for memory vulnerabilities
-      run: cargo test -Zbuild-std --target x86_64-unknown-linux-gnu -- --nocapture
+      - name: checkout
+        uses: actions/checkout@v6
+      # --------------------------------------------------------------------------------
+      - name: Install Rust nightly
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          toolchain: nightly
+          components: rustfmt, rust-src
+      # --------------------------------------------------------------------------------
+      - name: Install Mesa
+        uses: tracel-ai/github-actions/install-mesa@v8
+      # --------------------------------------------------------------------------------
+      - name: Run AddressSanitizer
+        env:
+          RUSTFLAGS: -Zsanitizer=address -Copt-level=3
+          RUSTDOCFLAGS: -Zsanitizer=address
+        # Looking for memory vulnerabilities
+        run: cargo test -Zbuild-std --target x86_64-unknown-linux-gnu -- --nocapture
 
   thread-sanitizer:
-
     runs-on: ubuntu-latest
-
     steps:
-    - uses: actions/checkout@v6
-
-    - name: Install Rust nightly
-      uses: dtolnay/rust-toolchain@nightly
-      with:
-        toolchain: nightly
-        components: rustfmt, rust-src
-
-    - name: Install llvmpipe and lavapipe
-      uses: tracel-ai/github-actions/setup-llvmpipe-lavapipe@v8
-
-    - name: Run ThreadSanitizer
-      env:
-        RUSTFLAGS: -Zsanitizer=thread -Copt-level=3
-        RUSTDOCFLAGS: -Zsanitizer=thread
-      # Looking for data race among threads
-      run: cargo test -Zbuild-std --target x86_64-unknown-linux-gnu -- --nocapture
+      - name: checkout
+        uses: actions/checkout@v6
+      # --------------------------------------------------------------------------------
+      - name: Install Rust nightly
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          toolchain: nightly
+          components: rustfmt, rust-src
+      # --------------------------------------------------------------------------------
+      - name: Install Mesa
+        uses: tracel-ai/github-actions/install-mesa@v8
+      # --------------------------------------------------------------------------------
+      - name: Run ThreadSanitizer
+        env:
+          RUSTFLAGS: -Zsanitizer=thread -Copt-level=3
+          RUSTDOCFLAGS: -Zsanitizer=thread
+        # Looking for data race among threads
+        run: cargo test -Zbuild-std --target x86_64-unknown-linux-gnu -- --nocapture
 
   memory-sanitizer:
-
     runs-on: ubuntu-latest
-
     steps:
-    - uses: actions/checkout@v6
-
-    - name: Install Rust nightly
-      uses: dtolnay/rust-toolchain@nightly
-      with:
-        toolchain: nightly
-        components: rustfmt, rust-src
-
-    - name: Install llvmpipe and lavapipe
-      uses: tracel-ai/github-actions/setup-llvmpipe-lavapipe@v8
-
-    - name: Run MemorySanitizer
-      env:
-        RUSTFLAGS: -Zsanitizer=memory -Zsanitizer-memory-track-origins -Copt-level=3
-        RUSTDOCFLAGS: -Zsanitizer=memory -Zsanitizer-memory-track-origins
-      # Looking for unitialized memory.
-      run: cargo test -Zbuild-std --target x86_64-unknown-linux-gnu -- --nocapture
+      - name: checkout
+        uses: actions/checkout@v6
+      # --------------------------------------------------------------------------------
+      - name: Install Rust nightly
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          toolchain: nightly
+          components: rustfmt, rust-src
+      # --------------------------------------------------------------------------------
+      - name: Install Mesa
+        uses: tracel-ai/github-actions/install-mesa@v8
+      # --------------------------------------------------------------------------------
+      - name: Run MemorySanitizer
+        env:
+          RUSTFLAGS: -Zsanitizer=memory -Zsanitizer-memory-track-origins -Copt-level=3
+          RUSTDOCFLAGS: -Zsanitizer=memory -Zsanitizer-memory-track-origins
+        # Looking for unitialized memory.
+        run: cargo test -Zbuild-std --target x86_64-unknown-linux-gnu -- --nocapture
 
   safe-stack:
-
     runs-on: ubuntu-latest
-
     steps:
-    - uses: actions/checkout@v6
-
-    - name: Install Rust nightly
-      uses: dtolnay/rust-toolchain@nightly
-      with:
-        toolchain: nightly
-        components: rustfmt, rust-src
-
-    - name: Install llvmpipe and lavapipe
-      uses: tracel-ai/github-actions/setup-llvmpipe-lavapipe@v8
-
-    - name: Run SafeStack
-      env:
-        RUSTFLAGS: -Zsanitizer=safestack -Copt-level=3
-        RUSTDOCFLAGS: -Zsanitizer=safestack
-      # Provides backward edge control flow protection
-      run: cargo test -Zbuild-std --target x86_64-unknown-linux-gnu -- --nocapture
+      - name: checkout
+        uses: actions/checkout@v6
+      # --------------------------------------------------------------------------------
+      - name: Install Rust nightly
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          toolchain: nightly
+          components: rustfmt, rust-src
+      # --------------------------------------------------------------------------------
+      - name: Install Mesa
+        uses: tracel-ai/github-actions/install-mesa@v8
+      # --------------------------------------------------------------------------------
+      - name: Run SafeStack
+        env:
+          RUSTFLAGS: -Zsanitizer=safestack -Copt-level=3
+          RUSTDOCFLAGS: -Zsanitizer=safestack
+        # Provides backward edge control flow protection
+        run: cargo test -Zbuild-std --target x86_64-unknown-linux-gnu -- --nocapture
