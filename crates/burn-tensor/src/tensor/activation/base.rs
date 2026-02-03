@@ -402,6 +402,32 @@ pub fn tanh<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D> {
     tensor.tanh()
 }
 
+/// Applies the thresholded rectified linear unit function element-wise.
+///
+#[cfg_attr(
+    doc,
+    doc = r#"
+$$
+\text{ThresholdedReLU}(x) =
+ \begin{cases}
+     x & \text{if } x > \alpha \newline
+     0 & \text{otherwise}
+ \end{cases}
+$$
+"#
+)]
+#[cfg_attr(not(doc), doc = "`f(x) =`\n- `x if x > alpha`\n- `0 otherwise`")]
+///
+/// # Arguments
+/// - `alpha`: threshold value (default in ONNX is 1.0).
+pub fn thresholded_relu<const D: usize, B: Backend>(
+    tensor: Tensor<B, D>,
+    alpha: f64,
+) -> Tensor<B, D> {
+    let mask = tensor.clone().lower_equal_elem(alpha);
+    tensor.mask_fill(mask, 0)
+}
+
 /// Applies the gated linear unit function.
 ///
 /// GLU(a,b)=a⊗σ(b) where `a` is the first half of the input matrices and `b` is the second half.

@@ -244,6 +244,7 @@ Burn comes with built-in modules that you can use to build your own modules.
 | `Softsign`      | `nn.Softsign`                                 |
 | `RmsNorm`       | _No direct equivalent_                        |
 | `SwiGlu`        | _No direct equivalent_                        |
+| `ThresholdedRelu` | _No direct equivalent_                      |
 | `Interpolate1d` | _No direct equivalent_                        |
 | `Interpolate2d` | _No direct equivalent_                        |
 
