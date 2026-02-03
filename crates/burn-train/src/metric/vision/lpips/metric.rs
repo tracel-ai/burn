@@ -63,7 +63,10 @@ pub struct LpipsConfig {
 }
 
 impl LpipsConfig {
-    /// Initialize a new [Lpips](Lpips) module.
+    /// Initialize a new [Lpips](Lpips) module with pretrained weights.
+    ///
+    /// Downloads and loads official LPIPS pretrained weights from the
+    /// PerceptualSimilarity repository.
     ///
     /// # Arguments
     ///
@@ -71,7 +74,31 @@ impl LpipsConfig {
     ///
     /// # Returns
     ///
-    /// A new LPIPS module. Weights should be loaded from pretrained model for accurate results.
+    /// A new LPIPS module with pretrained weights loaded.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// use burn_train::metric::vision::{LpipsConfig, LpipsNet};
+    ///
+    /// let lpips = LpipsConfig::new()
+    ///     .with_net(LpipsNet::Vgg)
+    ///     .init_pretrained(&device);
+    /// ```
+    pub fn init_pretrained<B: Backend>(&self, device: &B::Device) -> Lpips<B> {
+        let lpips = self.init(device);
+        super::weights::load_pretrained_weights(lpips, self.net)
+    }
+
+    /// Initialize a new [Lpips](Lpips) module with random weights.
+    ///
+    /// # Arguments
+    ///
+    /// * `device` - Device to create the module on.
+    ///
+    /// # Returns
+    ///
+    /// A new LPIPS module with random weights. Use `init_pretrained` for accurate results.
     pub fn init<B: Backend>(&self, device: &B::Device) -> Lpips<B> {
         match self.net {
             LpipsNet::Vgg => {
@@ -699,5 +726,109 @@ mod tests {
         let display_str = format!("{lpips}");
         assert!(display_str.contains("Lpips"));
         assert!(display_str.contains("Squeeze"));
+    }
+
+    // =========================================================================
+    // Pretrained Weights Tests (requires network)
+    // =========================================================================
+
+    /// Test VGG pretrained weights download and loading.
+    /// Run with: cargo test -p burn-train --features vision test_lpips_pretrained_vgg -- --ignored
+    #[test]
+    #[ignore = "requires network access to download pretrained weights"]
+    fn test_lpips_pretrained_vgg() {
+        let device = Default::default();
+
+        // This will download ~60MB of weights
+        let lpips: Lpips<TestBackend> = LpipsConfig::new()
+            .with_net(LpipsNet::Vgg)
+            .init_pretrained(&device);
+
+        // Test with identical images - should be 0
+        let image = TestTensor::<4>::ones([1, 3, 64, 64], &device);
+        let distance = lpips.forward(image.clone(), image, Reduction::Mean);
+        let distance_value = distance.into_data().to_vec::<f32>().unwrap()[0];
+        assert!(
+            distance_value.abs() < 1e-5,
+            "Pretrained LPIPS (VGG) should be ~0 for identical images, got {}",
+            distance_value
+        );
+
+        // Test with different images - should be positive
+        let image1 = TestTensor::<4>::zeros([1, 3, 64, 64], &device);
+        let image2 = TestTensor::<4>::ones([1, 3, 64, 64], &device);
+        let distance = lpips.forward(image1, image2, Reduction::Mean);
+        let distance_value = distance.into_data().to_vec::<f32>().unwrap()[0];
+        assert!(
+            distance_value > 0.0,
+            "Pretrained LPIPS (VGG) should be > 0 for different images"
+        );
+        println!("LPIPS VGG distance (black vs white): {}", distance_value);
+    }
+
+    /// Test AlexNet pretrained weights download and loading.
+    /// Run with: cargo test -p burn-train --features vision test_lpips_pretrained_alex -- --ignored
+    #[test]
+    #[ignore = "requires network access to download pretrained weights"]
+    fn test_lpips_pretrained_alex() {
+        let device = Default::default();
+
+        let lpips: Lpips<TestBackend> = LpipsConfig::new()
+            .with_net(LpipsNet::Alex)
+            .init_pretrained(&device);
+
+        // Test with identical images
+        let image = TestTensor::<4>::ones([1, 3, 64, 64], &device);
+        let distance = lpips.forward(image.clone(), image, Reduction::Mean);
+        let distance_value = distance.into_data().to_vec::<f32>().unwrap()[0];
+        assert!(
+            distance_value.abs() < 1e-5,
+            "Pretrained LPIPS (Alex) should be ~0 for identical images, got {}",
+            distance_value
+        );
+
+        // Test with different images
+        let image1 = TestTensor::<4>::zeros([1, 3, 64, 64], &device);
+        let image2 = TestTensor::<4>::ones([1, 3, 64, 64], &device);
+        let distance = lpips.forward(image1, image2, Reduction::Mean);
+        let distance_value = distance.into_data().to_vec::<f32>().unwrap()[0];
+        assert!(
+            distance_value > 0.0,
+            "Pretrained LPIPS (Alex) should be > 0 for different images"
+        );
+        println!("LPIPS Alex distance (black vs white): {}", distance_value);
+    }
+
+    /// Test SqueezeNet pretrained weights download and loading.
+    /// Run with: cargo test -p burn-train --features vision test_lpips_pretrained_squeeze -- --ignored
+    #[test]
+    #[ignore = "requires network access to download pretrained weights"]
+    fn test_lpips_pretrained_squeeze() {
+        let device = Default::default();
+
+        let lpips: Lpips<TestBackend> = LpipsConfig::new()
+            .with_net(LpipsNet::Squeeze)
+            .init_pretrained(&device);
+
+        // Test with identical images
+        let image = TestTensor::<4>::ones([1, 3, 64, 64], &device);
+        let distance = lpips.forward(image.clone(), image, Reduction::Mean);
+        let distance_value = distance.into_data().to_vec::<f32>().unwrap()[0];
+        assert!(
+            distance_value.abs() < 1e-5,
+            "Pretrained LPIPS (Squeeze) should be ~0 for identical images, got {}",
+            distance_value
+        );
+
+        // Test with different images
+        let image1 = TestTensor::<4>::zeros([1, 3, 64, 64], &device);
+        let image2 = TestTensor::<4>::ones([1, 3, 64, 64], &device);
+        let distance = lpips.forward(image1, image2, Reduction::Mean);
+        let distance_value = distance.into_data().to_vec::<f32>().unwrap()[0];
+        assert!(
+            distance_value > 0.0,
+            "Pretrained LPIPS (Squeeze) should be > 0 for different images"
+        );
+        println!("LPIPS Squeeze distance (black vs white): {}", distance_value);
     }
 }

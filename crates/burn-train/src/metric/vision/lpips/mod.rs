@@ -10,8 +10,10 @@ mod alexnet;
 mod metric;
 mod squeezenet;
 mod vgg;
+mod weights;
 
 pub use metric::{Lpips, LpipsAlex, LpipsConfig, LpipsNet, LpipsSqueeze, LpipsVgg};
+pub use weights::{get_weights_url, load_pretrained_weights};
 
 // Re-export feature extractors for advanced use cases
 pub use alexnet::AlexFeatureExtractor;
