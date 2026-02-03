@@ -2,7 +2,7 @@ use burn_core as burn;
 
 use crate::activation::{
     Gelu, HardSigmoid, HardSigmoidConfig, HardSwish, LeakyRelu, LeakyReluConfig, PRelu,
-    PReluConfig, Relu, Sigmoid, Softplus, SoftplusConfig, SwiGlu, SwiGluConfig, Tanh,
+    PReluConfig, Relu, Sigmoid, Softplus, SoftplusConfig, Softsign, SwiGlu, SwiGluConfig, Tanh,
 };
 use burn::config::Config;
 use burn::module::Module;
@@ -45,6 +45,9 @@ pub enum ActivationConfig {
 
     /// [`Softplus`] activation layer.
     Softplus(SoftplusConfig),
+
+    /// [`Softsign`] activation layer.
+    Softsign,
 }
 
 impl From<PReluConfig> for ActivationConfig {
@@ -92,6 +95,7 @@ impl ActivationConfig {
             ActivationConfig::Softplus(conf) => conf.init().into(),
             ActivationConfig::Sigmoid => Sigmoid.into(),
             ActivationConfig::Tanh => Tanh.into(),
+            ActivationConfig::Softsign => Softsign.into(),
         }
     }
 }
@@ -132,6 +136,9 @@ pub enum Activation<B: Backend> {
 
     /// [`Softplus`] activation layer.
     Softplus(Softplus),
+
+    /// [`Softsign`] activation layer.
+    Softsign(Softsign),
 }
 
 impl<B: Backend> From<Gelu> for Activation<B> {
@@ -194,6 +201,12 @@ impl<B: Backend> From<Softplus> for Activation<B> {
     }
 }
 
+impl<B: Backend> From<Softsign> for Activation<B> {
+    fn from(layer: Softsign) -> Self {
+        Self::Softsign(layer)
+    }
+}
+
 impl<B: Backend> Activation<B> {
     /// Forward pass.
     pub fn forward<const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
@@ -208,6 +221,7 @@ impl<B: Backend> Activation<B> {
             Activation::Softplus(layer) => layer.forward(input),
             Activation::Sigmoid(layer) => layer.forward(input),
             Activation::Tanh(layer) => layer.forward(input),
+            Activation::Softsign(layer) => layer.forward(input),
         }
     }
 }
@@ -347,6 +361,16 @@ mod tests {
         let expected = inner_config.init().forward(input.clone());
 
         check_stateless_config_output(inner_config.into(), input, expected, &device)
+    }
+
+    #[test]
+    fn test_softsign() {
+        let device = Default::default();
+        let input = make_input::<TestBackend>(&device);
+
+        let expected = Softsign.forward(input.clone());
+
+        check_stateless_config_output(ActivationConfig::Softsign, input, expected, &device)
     }
 
     #[test]

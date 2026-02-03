@@ -14,4 +14,5 @@ mod silu;
 mod softmax;
 mod softmin;
 mod softplus;
+mod softsign;
 mod tanh_activation;
