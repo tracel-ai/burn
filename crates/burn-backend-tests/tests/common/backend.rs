@@ -5,9 +5,6 @@ use super::FloatElemType;
 #[cfg(feature = "ndarray")]
 pub type TestBackend = burn_ndarray::NdArray<FloatElemType>;
 
-#[cfg(feature = "candle")]
-pub type TestBackend = burn_candle::Candle<FloatElemType>;
-
 #[cfg(feature = "tch")]
 pub type TestBackend = burn_tch::LibTorch<FloatElemType>;
 

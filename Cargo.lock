@@ -709,7 +709,6 @@ name = "burn-backend-tests"
 version = "0.21.0"
 dependencies = [
  "burn-autodiff",
- "burn-candle",
  "burn-cpu",
  "burn-cubecl",
  "burn-cuda",
@@ -1114,7 +1113,6 @@ dependencies = [
 name = "burn-store"
 version = "0.21.0"
 dependencies = [
- "burn-candle",
  "burn-core",
  "burn-cuda",
  "burn-ndarray",
@@ -1205,7 +1203,6 @@ version = "0.21.0"
 dependencies = [
  "aligned-vec",
  "bon",
- "burn-candle",
  "burn-cubecl",
  "burn-cuda",
  "burn-fusion",

@@ -27,8 +27,6 @@ cargo test-metal
 # Router
 cargo test-router
 
-# Candle
-cargo test-candle
 # NdArray
 cargo test-ndarray
 # LibTorch
