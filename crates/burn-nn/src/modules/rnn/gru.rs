@@ -1,12 +1,12 @@
 use burn_core as burn;
 
 use super::gate_controller::GateController;
+use crate::activation::{Activation, ActivationConfig};
 use burn::config::Config;
 use burn::module::Initializer;
 use burn::module::Module;
 use burn::module::{Content, DisplaySettings, ModuleDisplay};
 use burn::tensor::Tensor;
-use burn::tensor::activation;
 use burn::tensor::backend::Backend;
 
 /// Configuration to create a [gru](Gru) module using the [init function](GruConfig::init).
@@ -36,6 +36,18 @@ pub struct GruConfig {
     /// Gru initializer
     #[config(default = "Initializer::XavierNormal{gain:1.0}")]
     pub initializer: Initializer,
+    /// Activation function for the update and reset gates.
+    /// Default is Sigmoid, which is standard for GRU gates.
+    #[config(default = "ActivationConfig::Sigmoid")]
+    pub gate_activation: ActivationConfig,
+    /// Activation function for the new/candidate gate.
+    /// Default is Tanh, which is standard for GRU.
+    #[config(default = "ActivationConfig::Tanh")]
+    pub hidden_activation: ActivationConfig,
+    /// Optional hidden state clip threshold. If provided, hidden state values are clipped
+    /// to the range `[-clip, +clip]` after each timestep. This can help prevent
+    /// exploding values during inference.
+    pub clip: Option<f64>,
 }
 
 /// The Gru (Gated recurrent unit) module. This implementation is for a unidirectional, stateless, Gru.
@@ -56,6 +68,12 @@ pub struct Gru<B: Backend> {
     pub d_hidden: usize,
     /// If reset gate should be applied after weight multiplication.
     pub reset_after: bool,
+    /// Activation function for gates (update, reset).
+    pub gate_activation: Activation<B>,
+    /// Activation function for new/candidate gate.
+    pub hidden_activation: Activation<B>,
+    /// Optional hidden state clip threshold.
+    pub clip: Option<f64>,
 }
 
 impl<B: Backend> ModuleDisplay for Gru<B> {
@@ -111,6 +129,9 @@ impl GruConfig {
             new_gate,
             d_hidden: self.d_hidden,
             reset_after: self.reset_after,
+            gate_activation: self.gate_activation.init(device),
+            hidden_activation: self.hidden_activation.init(device),
+            clip: self.clip,
         }
     }
 }
@@ -147,21 +168,21 @@ impl<B: Backend> Gru<B> {
             // u(pdate)g(ate) tensors
             let biased_ug_input_sum =
                 self.gate_product(&input_t, &hidden_t, None, &self.update_gate);
-            let update_values = activation::sigmoid(biased_ug_input_sum); // Colloquially referred to as z(t)
+            let update_values = self.gate_activation.forward(biased_ug_input_sum); // z(t)
 
             // r(eset)g(ate) tensors
             let biased_rg_input_sum =
                 self.gate_product(&input_t, &hidden_t, None, &self.reset_gate);
-            let reset_values = activation::sigmoid(biased_rg_input_sum); // Colloquially referred to as r(t)
+            let reset_values = self.gate_activation.forward(biased_rg_input_sum); // r(t)
 
             // n(ew)g(ate) tensor
             let biased_ng_input_sum = if self.reset_after {
                 self.gate_product(&input_t, &hidden_t, Some(&reset_values), &self.new_gate)
             } else {
-                let reset_t = hidden_t.clone().mul(reset_values); // Passed as input to new_gate
+                let reset_t = hidden_t.clone().mul(reset_values);
                 self.gate_product(&input_t, &reset_t, None, &self.new_gate)
             };
-            let candidate_state = biased_ng_input_sum.tanh(); // Colloquially referred to as g(t)
+            let candidate_state = self.hidden_activation.forward(biased_ng_input_sum); // g(t)
 
             // calculate linear interpolation between previous hidden state and candidate state:
             // g(t) * (1 - z(t)) + z(t) * hidden_t
@@ -169,6 +190,11 @@ impl<B: Backend> Gru<B> {
                 .clone()
                 .mul(update_values.clone().sub_scalar(1).mul_scalar(-1)) // (1 - z(t)) = -(z(t) - 1)
                 + update_values.clone().mul(hidden_t);
+
+            // Apply hidden state clipping if configured
+            if let Some(clip) = self.clip {
+                hidden_t = hidden_t.clamp(-clip, clip);
+            }
 
             let unsqueezed_hidden_state = hidden_t.clone().unsqueeze_dim(1);
 
@@ -217,12 +243,12 @@ impl<B: Backend> Gru<B> {
             // u(pdate)g(ate) tensors
             let biased_ug_input_sum =
                 self.gate_product(&input_t, &hidden_t, None, &self.update_gate);
-            let update_values = activation::sigmoid(biased_ug_input_sum);
+            let update_values = self.gate_activation.forward(biased_ug_input_sum);
 
             // r(eset)g(ate) tensors
             let biased_rg_input_sum =
                 self.gate_product(&input_t, &hidden_t, None, &self.reset_gate);
-            let reset_values = activation::sigmoid(biased_rg_input_sum);
+            let reset_values = self.gate_activation.forward(biased_rg_input_sum);
 
             // n(ew)g(ate) tensor
             let biased_ng_input_sum = if self.reset_after {
@@ -231,13 +257,18 @@ impl<B: Backend> Gru<B> {
                 let reset_t = hidden_t.clone().mul(reset_values);
                 self.gate_product(&input_t, &reset_t, None, &self.new_gate)
             };
-            let candidate_state = biased_ng_input_sum.tanh();
+            let candidate_state = self.hidden_activation.forward(biased_ng_input_sum);
 
             // calculate linear interpolation between previous hidden state and candidate state
             hidden_t = candidate_state
                 .clone()
                 .mul(update_values.clone().sub_scalar(1).mul_scalar(-1))
                 + update_values.clone().mul(hidden_t);
+
+            // Apply hidden state clipping if configured
+            if let Some(clip) = self.clip {
+                hidden_t = hidden_t.clamp(-clip, clip);
+            }
 
             let unsqueezed_hidden_state = hidden_t.clone().unsqueeze_dim(1);
 
@@ -327,6 +358,14 @@ pub struct BiGruConfig {
     /// If false, the input tensor is expected to be `[seq_length, batch_size, input_size]`.
     #[config(default = true)]
     pub batch_first: bool,
+    /// Activation function for the update and reset gates.
+    #[config(default = "ActivationConfig::Sigmoid")]
+    pub gate_activation: ActivationConfig,
+    /// Activation function for the new/candidate gate.
+    #[config(default = "ActivationConfig::Tanh")]
+    pub hidden_activation: ActivationConfig,
+    /// Optional hidden state clip threshold.
+    pub clip: Option<f64>,
 }
 
 /// The BiGru module. This implementation is for Bidirectional GRU.
@@ -379,7 +418,10 @@ impl BiGruConfig {
         // Internal GRUs always use batch_first=true; BiGru handles layout conversion
         let base_config = GruConfig::new(self.d_input, self.d_hidden, self.bias)
             .with_initializer(self.initializer.clone())
-            .with_reset_after(self.reset_after);
+            .with_reset_after(self.reset_after)
+            .with_gate_activation(self.gate_activation.clone())
+            .with_hidden_activation(self.hidden_activation.clone())
+            .with_clip(self.clip);
 
         BiGru {
             forward: base_config.clone().init(device),
