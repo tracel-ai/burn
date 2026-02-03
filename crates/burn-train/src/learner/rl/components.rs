@@ -54,7 +54,7 @@ pub trait RLComponentsTypes {
     type TrainingOutput: ItemLazy + Clone + Send;
 }
 
-/// Concrete type that implements the [ReinforcementLearningComponentsTypes](ReinforcementLearningComponentsTypes) trait.
+/// Concrete type that implements the [RLComponentsTypes](RLComponentsTypes) trait.
 pub struct RLComponentsMarker<B, E, EI, A> {
     _backend: PhantomData<B>,
     _env: PhantomData<E>,
