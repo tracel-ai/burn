@@ -16,6 +16,9 @@ pub enum ActivationConfig {
     /// [`Gelu`] activation layer.
     Gelu,
 
+    /// [`Gelu`] activation layer with tanh approximation.
+    GeluApproximate,
+
     /// [`PRelu`] activation layer.
     PRelu(PReluConfig),
 
@@ -80,7 +83,8 @@ impl ActivationConfig {
         match self {
             ActivationConfig::Relu => Relu.into(),
             ActivationConfig::LeakyRelu(conf) => conf.init().into(),
-            ActivationConfig::Gelu => Gelu.into(),
+            ActivationConfig::Gelu => Gelu::new().into(),
+            ActivationConfig::GeluApproximate => Gelu::new_approximate().into(),
             ActivationConfig::PRelu(conf) => conf.init(device).into(),
             ActivationConfig::SwiGlu(conf) => conf.init(device).into(),
             ActivationConfig::HardSigmoid(conf) => conf.init().into(),
@@ -238,9 +242,19 @@ mod tests {
         let device = Default::default();
         let input = make_input::<TestBackend>(&device);
 
-        let expected = Gelu.forward(input.clone());
+        let expected = Gelu::new().forward(input.clone());
 
         check_stateless_config_output(ActivationConfig::Gelu, input, expected, &device)
+    }
+
+    #[test]
+    fn test_gelu_approximate() {
+        let device = Default::default();
+        let input = make_input::<TestBackend>(&device);
+
+        let expected = Gelu::new_approximate().forward(input.clone());
+
+        check_stateless_config_output(ActivationConfig::GeluApproximate, input, expected, &device)
     }
 
     #[test]
