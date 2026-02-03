@@ -217,11 +217,10 @@ impl<B: Backend> Gru<B> {
             };
             let candidate_state = self.hidden_activation.forward(biased_ng_input_sum);
 
-            // calculate linear interpolation between previous hidden state and candidate state
-            hidden_t = candidate_state
-                .clone()
-                .mul(update_values.clone().sub_scalar(1).mul_scalar(-1))
-                + update_values.clone().mul(hidden_t);
+            // calculate linear interpolation between previous hidden state and candidate state:
+            // h_t = (1 - z_t) * g_t + z_t * h_{t-1}
+            let one_minus_z = update_values.clone().neg().add_scalar(1.0);
+            hidden_t = candidate_state.mul(one_minus_z) + update_values.mul(hidden_t);
 
             // Apply hidden state clipping if configured
             if let Some(clip) = self.clip {
@@ -259,40 +258,19 @@ impl<B: Backend> Gru<B> {
         let input_product = input.clone().matmul(gate.input_transform.weight.val());
         let hidden_product = hidden.clone().matmul(gate.hidden_transform.weight.val());
 
-        let input_bias = gate
-            .input_transform
-            .bias
-            .as_ref()
-            .map(|bias_param| bias_param.val());
-        let hidden_bias = gate
-            .hidden_transform
-            .bias
-            .as_ref()
-            .map(|bias_param| bias_param.val());
+        let input_part = match &gate.input_transform.bias {
+            Some(bias) => input_product + bias.val().unsqueeze(),
+            None => input_product,
+        };
 
-        match (input_bias, hidden_bias, reset) {
-            (Some(input_bias), Some(hidden_bias), Some(r)) => {
-                input_product
-                    + input_bias.unsqueeze()
-                    + r.clone().mul(hidden_product + hidden_bias.unsqueeze())
-            }
-            (Some(input_bias), Some(hidden_bias), None) => {
-                input_product + input_bias.unsqueeze() + hidden_product + hidden_bias.unsqueeze()
-            }
-            (Some(input_bias), None, Some(r)) => {
-                input_product + input_bias.unsqueeze() + r.clone().mul(hidden_product)
-            }
-            (Some(input_bias), None, None) => {
-                input_product + input_bias.unsqueeze() + hidden_product
-            }
-            (None, Some(hidden_bias), Some(r)) => {
-                input_product + r.clone().mul(hidden_product + hidden_bias.unsqueeze())
-            }
-            (None, Some(hidden_bias), None) => {
-                input_product + hidden_product + hidden_bias.unsqueeze()
-            }
-            (None, None, Some(r)) => input_product + r.clone().mul(hidden_product),
-            (None, None, None) => input_product + hidden_product,
+        let hidden_part = match &gate.hidden_transform.bias {
+            Some(bias) => hidden_product + bias.val().unsqueeze(),
+            None => hidden_product,
+        };
+
+        match reset {
+            Some(r) => input_part + r.clone().mul(hidden_part),
+            None => input_part + hidden_part,
         }
     }
 }
@@ -883,8 +861,7 @@ mod tests {
             .with_hidden_activation(ActivationConfig::Relu);
         let gru = config.init::<TestBackend>(&device);
 
-        let input =
-            Tensor::<TestBackend, 3>::random([2, 3, 4], Distribution::Default, &device);
+        let input = Tensor::<TestBackend, 3>::random([2, 3, 4], Distribution::Default, &device);
 
         // Should run without panicking and produce valid output
         let output = gru.forward(input, None);
@@ -901,8 +878,7 @@ mod tests {
             .with_hidden_activation(ActivationConfig::Relu);
         let bigru = config.init::<TestBackend>(&device);
 
-        let input =
-            Tensor::<TestBackend, 3>::random([2, 3, 4], Distribution::Default, &device);
+        let input = Tensor::<TestBackend, 3>::random([2, 3, 4], Distribution::Default, &device);
 
         let (output, state) = bigru.forward(input, None);
         assert_eq!(output.shape().dims, [2, 3, 16]); // hidden_size * 2
@@ -918,8 +894,7 @@ mod tests {
         let config = GruConfig::new(4, 8, true).with_clip(Some(clip_value));
         let gru = config.init::<TestBackend>(&device);
 
-        let input =
-            Tensor::<TestBackend, 3>::random([2, 5, 4], Distribution::Default, &device);
+        let input = Tensor::<TestBackend, 3>::random([2, 5, 4], Distribution::Default, &device);
 
         let output = gru.forward(input, None);
 
@@ -945,8 +920,7 @@ mod tests {
         let config = BiGruConfig::new(4, 8, true).with_clip(Some(clip_value));
         let bigru = config.init::<TestBackend>(&device);
 
-        let input =
-            Tensor::<TestBackend, 3>::random([2, 5, 4], Distribution::Default, &device);
+        let input = Tensor::<TestBackend, 3>::random([2, 5, 4], Distribution::Default, &device);
 
         let (output, state) = bigru.forward(input, None);
 
