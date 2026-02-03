@@ -1204,6 +1204,7 @@ dependencies = [
  "burn-collective",
  "burn-core",
  "burn-ndarray",
+ "burn-nn",
  "burn-optim",
  "burn-rl",
  "derive-new",
