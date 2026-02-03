@@ -197,12 +197,15 @@ impl<B: Backend> Rnn<B> {
         for (input_t, t) in input_timestep_iter {
             let input_t = input_t.squeeze_dim(1);
 
-            // i(nput)g(ate) tensors
+            // Compute gate output: h_t = activation(W_i @ x_t + W_h @ h_{t-1} + b)
             let biased_gate_sum = self
-                .input_gate
+                .gate
                 .gate_product(input_t.clone(), hidden_state.clone());
             
-            let output_values = self.gate_activation.forward(biased_gate_sum);
+            let output_values = self.hidden_activation.forward(biased_gate_sum);
+            
+            // Update hidden state
+            hidden_state = output_values;
 
             // Apply cell state clipping if configured
             if let Some(clip) = self.clip {
@@ -428,12 +431,9 @@ mod tests {
 
     /// Test forward pass with simple input vector.
     ///
-    /// f_t = sigmoid(0.7*0.1 + 0.7*0) = sigmoid(0.07) = 0.5173928
-    /// i_t = sigmoid(0.5*0.1 + 0.5*0) = sigmoid(0.05) = 0.5123725
-    /// o_t = sigmoid(1.1*0.1 + 1.1*0) = sigmoid(0.11) = 0.5274723
-    /// c_t = tanh(0.9*0.1 + 0.9*0) = tanh(0.09) = 0.0892937
-    /// C_t = f_t * 0 + i_t * c_t = 0 + 0.5123725 * 0.0892937 = 0.04575243
-    /// h_t = o_t * tanh(C_t) = 0.5274723 * tanh(0.04575243) = 0.5274723 * 0.04568173 = 0.024083648
+    /// Simple RNN: h_t = tanh(W_input @ x_t + W_hidden @ h_{t-1} + b)
+    /// With input=0.1, weight_input=0.5, bias=0.0, h_0=0.2, weight_hidden=0.3
+    /// h_t = tanh(0.5 * 0.1 + 0.3 * 0.2 + 0.0) = tanh(0.11) ≈ 0.10955
     #[test]
     fn test_forward_single_input_single_feature() {
         let device = Default::default();
@@ -486,7 +486,7 @@ mod tests {
         let (output, state) = rnn.forward(input, None);
 
         let tolerance = Tolerance::default();
-        let expected = TensorData::from([[0.0242]]);
+        let expected = TensorData::from([[0.10955]]);
         state
             .hidden
             .to_data()
@@ -508,7 +508,6 @@ mod tests {
 
         let (output, state) = rnn.forward(batched_input, None);
         assert_eq!(output.dims(), [1, 2, 1024]);
-        assert_eq!(state.cell.dims(), [1, 1024]);
         assert_eq!(state.hidden.dims(), [1, 1024]);
     }
 
