@@ -10,22 +10,30 @@ concurrency:
 
 jobs:
   valgrind:
-
-    runs-on: ubuntu-latest
-
+    runs-on: [
+      '@id:burn-linux-valgrind-${{ github.run_id }}-${{ github.run_attempt }}',
+      '@image-family:ubuntu-2404-lts-amd64',
+      '@image-project:ubuntu-os-cloud',
+      '@disk-size:100',
+      '@keep-alive:false',
+      '@machine-type:n2-standard-16',
+      '@os:linux',
+      '@zones:northamerica-northeast1-b'
+      ]
     steps:
-    - uses: actions/checkout@v6
-
-    - name: Install llvmpipe and lavapipe
-      uses: tracel-ai/github-actions/setup-llvmpipe-lavapipe@v8
-
-    - name: Install valgrind
-      run: |
-        sudo apt-get install valgrind
-
-    - name: Run cargo-valgrind
-      env:
-        CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER: "valgrind -s --leak-check=full --show-leak-kinds=all --error-exitcode=1"
-      # Looking for vulnerabilities
-      run: |
-        cargo test
+      - name: checkout
+        uses: actions/checkout@v6
+      # --------------------------------------------------------------------------------
+      - name: Install llvmpipe and lavapipe
+        uses: tracel-ai/github-actions/setup-llvmpipe-lavapipe@v8
+      # --------------------------------------------------------------------------------
+      - name: Install valgrind
+        run: |
+          sudo apt-get install valgrind
+      # --------------------------------------------------------------------------------
+      - name: Run cargo-valgrind
+        env:
+          CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER: "valgrind -s --leak-check=full --show-leak-kinds=all --error-exitcode=1"
+        # Looking for vulnerabilities
+        run: |
+          cargo test
