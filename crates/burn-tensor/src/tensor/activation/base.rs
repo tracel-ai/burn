@@ -402,3 +402,20 @@ pub fn glu<const D: usize, B: Backend>(tensor: Tensor<B, D>, dim: usize) -> Tens
 
     a.mul(sigmoid(b))
 }
+
+/// Applies the Softsign function element-wise.
+///
+#[cfg_attr(
+    doc,
+    doc = r#"
+$$
+\text{softsign}(x) = \frac{x}{1 + |x|}
+$$
+"#
+)]
+#[cfg_attr(not(doc), doc = "`softsign(x_i) = x_i / (1 + |x_i|)`")]
+///
+/// See also [ONNX Softsign](https://onnx.ai/onnx/operators/onnx__Softsign.html).
+pub fn softsign<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D> {
+    tensor.clone().div(tensor.abs() + 1)
+}
