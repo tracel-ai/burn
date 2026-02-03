@@ -393,6 +393,7 @@ strategies.
 | `activation::quiet_softmax(tensor, dim)`         | `nn.functional.quiet_softmax(tensor, dim)`         |
 | `activation::relu(tensor)`                       | `nn.functional.relu(tensor)`                       |
 | `activation::sigmoid(tensor)`                    | `nn.functional.sigmoid(tensor)`                    |
+| `activation::selu(tensor)`                       | `nn.functional.selu(tensor)`                       |
 | `activation::silu(tensor)`                       | `nn.functional.silu(tensor)`                       |
 | `activation::softmax(tensor, dim)`               | `nn.functional.softmax(tensor, dim)`               |
 | `activation::softmin(tensor, dim)`               | `nn.functional.softmin(tensor, dim)`               |

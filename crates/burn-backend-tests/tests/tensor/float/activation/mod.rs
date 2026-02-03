@@ -11,6 +11,7 @@ mod mish;
 mod prelu;
 mod quiet_softmax;
 mod relu;
+mod selu;
 mod sigmoid;
 mod silu;
 mod softmax;
