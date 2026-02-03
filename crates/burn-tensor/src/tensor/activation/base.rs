@@ -400,15 +400,14 @@ $$
 /// # Arguments
 /// - `alpha`: scaling parameter for the negative part. Default is 1.0.
 pub fn celu<const D: usize, B: Backend>(tensor: Tensor<B, D>, alpha: f64) -> Tensor<B, D> {
-    let mask = tensor.clone().greater_elem(0);
-    let positive = tensor.clone().mask_fill(mask.clone().bool_not(), 0.0);
-    let negative = tensor
+    let mask = tensor.clone().lower_equal_elem(0);
+    let scaled = tensor
+        .clone()
         .div_scalar(alpha)
         .exp()
         .sub_scalar(1)
-        .mul_scalar(alpha)
-        .mask_fill(mask, 0.0);
-    positive.add(negative)
+        .mul_scalar(alpha);
+    tensor.mask_where(mask, scaled)
 }
 
 /// Applies the gated linear unit function.
