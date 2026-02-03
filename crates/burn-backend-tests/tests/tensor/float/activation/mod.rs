@@ -1,5 +1,6 @@
 use super::*;
 
+mod celu;
 mod gelu;
 mod glu;
 mod hard_sigmoid;

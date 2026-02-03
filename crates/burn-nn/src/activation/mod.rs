@@ -12,6 +12,7 @@
 //! * [`HardSwish`]
 //! * [`Softplus`]
 //! * [`Tanh`]
+//! * [`Celu`]
 //!
 //! The activation layer [`GLU`] has shape-changing behaviors
 //! not compatible with the common API, and is not included
@@ -21,6 +22,7 @@ mod activation_wrapper;
 
 // These are pub(crate) for dual-export in `nn` without re-exporting
 // all of `nn.activation`, or manually listing each symbol.
+pub(crate) mod celu;
 pub(crate) mod gelu;
 pub(crate) mod glu;
 pub(crate) mod hard_sigmoid;
@@ -34,6 +36,7 @@ pub(crate) mod swiglu;
 pub(crate) mod tanh;
 
 pub use activation_wrapper::*;
+pub use celu::*;
 pub use gelu::*;
 pub use glu::*;
 pub use hard_sigmoid::*;

@@ -376,6 +376,41 @@ pub fn tanh<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D> {
     tensor.tanh()
 }
 
+/// Applies the Continuously Differentiable Exponential Linear Unit function element-wise.
+///
+#[cfg_attr(
+    doc,
+    doc = r#"
+$$
+\text{CELU}(x) =
+ \begin{cases}
+     x & \text{if } x \geq 0 \newline
+     \alpha \cdot \left(\exp\left(\frac{x}{\alpha}\right) - 1\right) & \text{otherwise}
+ \end{cases}
+$$
+"#
+)]
+#[cfg_attr(
+    not(doc),
+    doc = "`celu(x) = max(0, x) + min(0, alpha * (exp(x / alpha) - 1))`"
+)]
+///
+/// See also [CELU](https://pytorch.org/docs/stable/generated/torch.nn.CELU.html)
+///
+/// # Arguments
+/// - `alpha`: scaling parameter for the negative part. Default is 1.0.
+pub fn celu<const D: usize, B: Backend>(tensor: Tensor<B, D>, alpha: f64) -> Tensor<B, D> {
+    let mask = tensor.clone().greater_elem(0);
+    let positive = tensor.clone().mask_fill(mask.clone().bool_not(), 0.0);
+    let negative = tensor
+        .div_scalar(alpha)
+        .exp()
+        .sub_scalar(1)
+        .mul_scalar(alpha)
+        .mask_fill(mask, 0.0);
+    positive.add(negative)
+}
+
 /// Applies the gated linear unit function.
 ///
 /// GLU(a,b)=a⊗σ(b) where `a` is the first half of the input matrices and `b` is the second half.
