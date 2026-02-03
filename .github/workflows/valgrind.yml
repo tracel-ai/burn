@@ -17,7 +17,7 @@ jobs:
     - uses: actions/checkout@v6
 
     - name: Install llvmpipe and lavapipe
-      uses: tracel-ai/github-actions/setup-llvmpipe-lavapipe@v7
+      uses: tracel-ai/github-actions/setup-llvmpipe-lavapipe@v8
 
     - name: Install valgrind
       run: |
