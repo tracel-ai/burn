@@ -187,10 +187,6 @@ impl<R: Runtime> ReduceBroadcastedOptimization<R> {
         arg.execute_fallback::<BT>(context);
     }
 
-    // pub fn num_output_buffers(&self) -> usize {
-    //     todo!()
-    // }
-
     pub fn to_state(&self) -> ReduceBroadcastedOptimizationState {
         ReduceBroadcastedOptimizationState {
             fallbacks: self

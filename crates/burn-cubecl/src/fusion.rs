@@ -152,10 +152,10 @@ impl<R: CubeRuntime, BT: BoolElement> FusionRuntime for FusionCubeRuntime<R, BT>
                 BT::as_type_native_unchecked().into(),
                 ReduceSettings::Always,
             )),
-            // Box::new(ReduceBroadcastedFuser::new(
-            //     device.clone(),
-            //     BT::as_type_native_unchecked().into(),
-            // )),
+            Box::new(ReduceBroadcastedFuser::new(
+                device.clone(),
+                BT::as_type_native_unchecked().into(),
+            )),
         ]
     }
 }
