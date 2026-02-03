@@ -23,6 +23,7 @@ use burn_backend::{ExecutionError, Scalar};
 use cubecl::frontend::Numeric;
 use cubecl::prelude::*;
 use cubek::reduce::components::instructions::ReduceOperationConfig;
+use cubek::sort::SortOrder;
 use std::ops::Range;
 
 impl<R, F, I, BT> IntTensorOps<Self> for CubeBackend<R, F, I, BT>
@@ -544,7 +545,7 @@ where
     fn int_sort(tensor: IntTensor<Self>, dim: usize, descending: bool) -> IntTensor<Self> {
         // Use accelerated radix sort for 1D tensors
         if tensor.shape.num_dims() == 1 && dim == 0 {
-            return kernel::sort::sort_1d(tensor, descending)
+            return kernel::sort::sort(tensor, SortOrder::asc_or_desc(descending))
                 .expect("Accelerated sort failed");
         }
         // Fall back to CPU for multi-dimensional tensors
@@ -558,8 +559,9 @@ where
     ) -> (IntTensor<Self>, IntTensor<Self>) {
         // Use accelerated radix sort for 1D tensors
         if tensor.shape.num_dims() == 1 && dim == 0 {
-            let (values, indices) = kernel::sort::sort_with_indices_1d(tensor, descending)
-                .expect("Accelerated sort failed");
+            let (values, indices) =
+                kernel::sort::sort_with_indices(tensor, SortOrder::asc_or_desc(descending))
+                    .expect("Accelerated sort failed");
             let indices = kernel::cast(indices, I::dtype());
             return (values, indices);
         }
@@ -572,13 +574,11 @@ where
     fn int_argsort(tensor: IntTensor<Self>, dim: usize, descending: bool) -> IntTensor<Self> {
         // Use accelerated radix sort for 1D tensors
         if tensor.shape.num_dims() == 1 && dim == 0 {
-            let indices = kernel::sort::argsort_1d(tensor, descending)
+            let indices = kernel::sort::argsort(tensor, SortOrder::asc_or_desc(descending))
                 .expect("Accelerated sort failed");
             return kernel::cast(indices, I::dtype());
         }
         // Fall back to CPU for multi-dimensional tensors
-        burn_backend::ops::sort::argsort::<Self, burn_backend::tensor::Int>(
-            tensor, dim, descending,
-        )
+        burn_backend::ops::sort::argsort::<Self, burn_backend::tensor::Int>(tensor, dim, descending)
     }
 }
