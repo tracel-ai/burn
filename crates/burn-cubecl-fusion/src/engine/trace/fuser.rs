@@ -108,12 +108,14 @@ impl TraceFuser {
     ) -> FuseArg {
         let block = &mut self.blocks_previous[block_pos];
 
-        let src_arg = match block.global_register(block_pos, tensor) {
+        let src_arg = match block.multi_block_variable(block_pos, tensor, global) {
             Some(val) => val,
             None => {
                 // We try to read the input if not present.
                 block.input(tensor, &mut self.resources);
-                block.global_register(block_pos, tensor).unwrap()
+                block
+                    .multi_block_variable(block_pos, tensor, global)
+                    .unwrap()
             }
         };
 

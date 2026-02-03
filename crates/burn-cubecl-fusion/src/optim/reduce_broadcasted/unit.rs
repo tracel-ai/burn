@@ -1,6 +1,6 @@
 use crate::{
     engine::codegen::{
-        ir::{FuseArg, FuseBlockConfig, FuseType, GlobalArgs, global_registers_init},
+        ir::{FuseArg, FuseBlockConfig, FuseType, GlobalArgs, multi_block_variables_init},
         kernel::{fuse_on_write, init_locals},
     },
     optim::reduce::args::{FusedReduceArgs, FusedReduceInput, FusedReduceOutput},
@@ -53,8 +53,8 @@ pub fn reduce_kernel_broadcasted(
     #[unroll]
     for i in 0..blocks.len() {
         let block = blocks.index(i);
-        global_registers_init(&block.config_input, &mut outputs.registers);
-        global_registers_init(&block.config_output, &mut outputs.registers);
+        multi_block_variables_init(&block.config_input, &mut outputs.variables);
+        multi_block_variables_init(&block.config_output, &mut outputs.variables);
     }
 
     reduce_many(inputs, outputs, reduce_axis, blocks, block_end);

@@ -3,7 +3,7 @@ use super::{
     settings::FuseSettings,
     trace::{FuseTrace, TraceFuser, block::QuantInput},
 };
-use crate::engine::{codegen::ir::QuantSchemeFuse, trace::FuseResources};
+use crate::engine::codegen::ir::QuantSchemeFuse;
 use burn_fusion::{FuserProperties, FuserStatus, OperationFuser};
 use burn_ir::{
     BaseOperationIr, BinaryOpIr, FloatOperationIr, NumericOperationIr, OperationIr, ScalarOpIr,

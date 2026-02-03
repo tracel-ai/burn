@@ -23,8 +23,9 @@ use cubek::reduce::{
         unit::{UnitRoutine, UnitStrategy},
     },
 };
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ReduceBrFuseBlock {
     pub(crate) op: ReduceOperationConfig,
     pub(crate) input: FuseArg,

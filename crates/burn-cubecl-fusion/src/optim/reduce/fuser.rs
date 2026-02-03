@@ -58,13 +58,18 @@ impl<R: Runtime> ReduceFuser<R> {
         let settings_read = FuseSettings {
             inplace: false,
             ref_layout: RefLayoutSetting::OnlyContiguous,
-            ..Default::default()
+            broadcast: true,
+            output_shape_updates: true,
+            vectorization: VectorizationSetting::Activated,
         };
         let settings_write = FuseSettings {
+            inplace: false,
             output_shape_updates: false,
             // TODO: Fusion axis should be on the reduce_axis - 1.
-            vectorization: VectorizationSetting::SmallerOrEqualThanPreviousBlock { block_pos: 0 },
-            ..Default::default()
+            // vectorization: VectorizationSetting::SmallerOrEqualThanPreviousBlock { block_pos: 0 },
+            vectorization: VectorizationSetting::Deactivated,
+            broadcast: false,
+            ref_layout: RefLayoutSetting::OnlyContiguous,
         };
         let settings_fallback = FuseSettings::default();
 

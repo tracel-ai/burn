@@ -54,11 +54,13 @@ pub fn read<C: CubePrimitive>(
                 read_input(inputs, locals, pos, ref_pos, layout, config, None)
             }
         }
-        FuseArg::GlobalRegister(key, _precision) => Line::cast_from(outputs.registers.read(key)),
+        FuseArg::MultiBlockLocal(key, _) | FuseArg::MultiBlockGlobal(key, _) => {
+            Line::cast_from(outputs.variables.read(key))
+        }
         FuseArg::Output(pos, _precision, layout) => {
             read_output(inputs, outputs, locals, pos, ref_pos, layout, config)
         }
-        FuseArg::Local(pos, precision) => match comptime![precision] {
+        FuseArg::BlockLocal { pos, ty } => match comptime![ty] {
             FuseType::F64 => Line::cast_from(locals.l_f64.find(pos)),
             FuseType::F32 | FuseType::Flex32 => Line::cast_from(locals.l_f32.find(pos)),
             FuseType::F16 => Line::cast_from(locals.l_f16.find(pos)),
@@ -445,9 +447,9 @@ pub fn write<C: CubePrimitive>(
 
             tensor.tensor[offset] = Line::cast_from(value);
         }
-        FuseArg::Local(..) => write_scalar::<C>(locals, value, arg),
-        FuseArg::GlobalRegister(key, _precision) => {
-            outputs.registers.write(key, Line::cast_from(value))
+        FuseArg::BlockLocal { .. } => write_scalar::<C>(locals, value, arg),
+        FuseArg::MultiBlockLocal(key, _) | FuseArg::MultiBlockGlobal(key, _) => {
+            outputs.variables.write(key, Line::cast_from(value))
         }
         _ => comptime![panic!("Can't write into inputs and scalars")],
     }
@@ -461,7 +463,7 @@ pub fn write_scalar<C: CubePrimitive>(
     #[comptime] arg: FuseArg,
 ) {
     match arg {
-        FuseArg::Local(pos, precision) => match comptime![precision] {
+        FuseArg::BlockLocal { pos, ty } => match comptime![ty] {
             FuseType::F64 => locals.l_f64.insert(pos, Line::cast_from(value)),
             FuseType::F32 | FuseType::Flex32 => locals.l_f32.insert(pos, Line::cast_from(value)),
             FuseType::F16 => locals.l_f16.insert(pos, Line::cast_from(value)),

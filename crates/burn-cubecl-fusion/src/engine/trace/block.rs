@@ -1,6 +1,6 @@
 use super::{FuseResources, RegisteredTensors, TensorView};
 use crate::engine::{
-    codegen::ir::{FuseArg, FuseOp, FuseType, LayoutInfo, UnaryFuseArgs},
+    codegen::ir::{FuseArg, FuseOp, FuseType, LayoutInfo, MultiBlockPos, UnaryFuseArgs},
     settings::FuseSettings,
 };
 use burn_ir::{TensorId, TensorIr, TensorStatus};
@@ -107,7 +107,12 @@ impl FuseBlockBuilder {
     }
 
     /// Register an input tensor.
-    pub fn global_register(&mut self, block_pos: usize, tensor: &TensorIr) -> Option<FuseArg> {
+    pub fn multi_block_variable(
+        &mut self,
+        block_pos: usize,
+        tensor: &TensorIr,
+        global: bool,
+    ) -> Option<FuseArg> {
         let precision = tensor.dtype.into();
 
         if let Some(val) = self.local_inputs.get(&tensor.id) {
@@ -121,7 +126,23 @@ impl FuseBlockBuilder {
             }
         };
 
-        let arg = FuseArg::GlobalRegister((block_pos, self.writes.len()), val.precision());
+        let arg = if global {
+            FuseArg::MultiBlockGlobal(
+                MultiBlockPos {
+                    block_pos,
+                    block_local_pos: self.writes.len(),
+                },
+                val.precision(),
+            )
+        } else {
+            FuseArg::MultiBlockLocal(
+                MultiBlockPos {
+                    block_pos,
+                    block_local_pos: self.writes.len(),
+                },
+                val.precision(),
+            )
+        };
 
         let ops = match self.writes.get_mut(&tensor.id) {
             Some(ops) => ops,
@@ -173,7 +194,6 @@ impl FuseBlockBuilder {
                     };
                     // TODO: Sometimes can be access without an extra buffer.
                     let pos = resources.buffers.insert(precision, tensor.clone());
-                    println!("\n\nBUFFER {pos}\n\n");
                     FuseArg::Output(pos, precision_input, LayoutInfo::Unknown)
                 } else {
                     let pos = resources.inputs.insert(precision_input, tensor.clone());
@@ -490,7 +510,10 @@ impl LocalVariablePool {
         if let Some(indexes) = self.values.get(&precision)
             && let Some(index) = indexes.get(&tensor_id)
         {
-            return Some(FuseArg::Local(*index, precision));
+            return Some(FuseArg::BlockLocal {
+                pos: *index,
+                ty: precision,
+            });
         }
 
         None
@@ -499,7 +522,10 @@ impl LocalVariablePool {
     fn get_any_precision(&self, tensor_id: TensorId) -> Option<FuseArg> {
         for (precision, indexes) in self.values.iter() {
             if let Some(index) = indexes.get(&tensor_id) {
-                return Some(FuseArg::Local(*index, *precision));
+                return Some(FuseArg::BlockLocal {
+                    pos: *index,
+                    ty: *precision,
+                });
             }
         }
 
@@ -510,13 +536,19 @@ impl LocalVariablePool {
         if let Some(indexes) = self.values.get_mut(&precision) {
             let new_index = indexes.len();
             indexes.insert(tensor_id, new_index);
-            return FuseArg::Local(new_index, precision);
+            return FuseArg::BlockLocal {
+                pos: new_index,
+                ty: precision,
+            };
         }
 
         let new_index = 0;
         self.values
             .insert(precision, BTreeMap::from_iter([(tensor_id, new_index)]));
 
-        FuseArg::Local(new_index, precision)
+        FuseArg::BlockLocal {
+            pos: new_index,
+            ty: precision,
+        }
     }
 }

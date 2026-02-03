@@ -33,18 +33,19 @@ impl ReduceBroadcastedFullFuser {
     /// Creates a new fuser with the given settings.
     pub fn new(max_bindings: u32, bool_precision: FuseType, analyzer: FullFuserAnalyzer) -> Self {
         let settings_read = FuseSettings {
+            output_shape_updates: true,
+            broadcast: true,
             inplace: false,
             ref_layout: RefLayoutSetting::OnlyContiguous,
-            // TODO: Only for debuging for now
             vectorization: VectorizationSetting::Activated,
-            ..Default::default()
         };
         let settings_write = FuseSettings {
             output_shape_updates: false,
+            inplace: false,
+            broadcast: false,
             ref_layout: RefLayoutSetting::OnlyContiguous,
-            // TODO: Fusion axis should be on the (reduce_axis - 1).
+            // Deactivated for now, but would be cool to support vectorization of the output.
             vectorization: VectorizationSetting::Deactivated,
-            ..Default::default()
         };
         let fuser = TraceOperationFuser::new(max_bindings, bool_precision, settings_read);
 
@@ -133,7 +134,7 @@ impl ReduceBroadcastedFullFuser {
 
                 // Can be broadcasted so the generated buffer can be global.
                 for (tensor, block_pos) in analysis.inputs {
-                    self.fuser.block_local_input(&tensor, block_pos, true);
+                    self.fuser.block_local_input(&tensor, block_pos, false);
                 }
 
                 let fused_reduce = FusedReduce {

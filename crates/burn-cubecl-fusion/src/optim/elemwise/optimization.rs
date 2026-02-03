@@ -5,7 +5,7 @@ use crate::{
             io::ref_len,
             ir::{
                 FuseArg, FuseBlockConfig, GlobalArgs, GlobalArgsLaunch, RefLayout,
-                global_registers_init,
+                multi_block_variables_init,
             },
             kernel::{fuse_on_write, init_locals},
         },
@@ -125,7 +125,7 @@ fn elemwise_fuse(
     let args = comptime![Vec::<FuseArg>::new()];
     let pos = ABSOLUTE_POS;
 
-    global_registers_init(config, &mut outputs.registers);
+    multi_block_variables_init(config, &mut outputs.variables);
 
     let mut locals = init_locals(inputs, outputs, config);
     let length = ref_len(inputs, outputs, &locals, config);

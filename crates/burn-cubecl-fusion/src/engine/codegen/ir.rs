@@ -15,12 +15,21 @@ use serde::{Deserialize, Serialize};
 pub enum FuseArg {
     /// A readonly input tensor.
     Input(usize, FuseType, LayoutInfo),
-    /// A temporary local variable.
-    Local(usize, FuseType),
-    /// A permanent register shared between blocks.
-    GlobalRegister((usize, usize), FuseType),
     /// A readwrite output tensor.
     Output(usize, FuseType, LayoutInfo),
+    /// A temporary local variable within a single [block](FuseBlockConfig).
+    BlockLocal {
+        /// The position of the current variable relative to all local variables within a single block.
+        pos: usize,
+        /// The type of the current variable.
+        ty: FuseType,
+    },
+    /// A variable shared between multiple [block](FuseBlockConfig) that must have a compatible
+    /// scope.
+    MultiBlockLocal(MultiBlockPos, FuseType),
+    /// A variable shared between multiple [blocks](FuseBlockConfig) within a global accessible
+    /// scope.
+    MultiBlockGlobal(MultiBlockPos, FuseType),
     /// A global scalar.
     Scalar(usize, FuseType),
     /// A global scalar used in a reshape operation.
@@ -44,6 +53,15 @@ pub enum FuseArg {
     },
 }
 
+/// Metadata of a variable shared between blocks.
+#[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
+pub struct MultiBlockPos {
+    /// The block position in all blocks included in a fused trace.
+    pub block_pos: usize,
+    /// The [FuseArg::BlockLocal] position in the block where the variable is first initialized.
+    pub block_local_pos: usize,
+}
+
 #[derive(
     CubeType, Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord,
 )]
@@ -61,8 +79,9 @@ impl FuseArg {
     pub fn precision(&self) -> FuseType {
         *match self {
             FuseArg::Input(_, p, _) => p,
-            FuseArg::Local(_, p) => p,
-            FuseArg::GlobalRegister(_, p) => p,
+            FuseArg::BlockLocal { ty, .. } => ty,
+            FuseArg::MultiBlockLocal(_, p) => p,
+            FuseArg::MultiBlockGlobal(_, p) => p,
             FuseArg::Output(_, p, _) => p,
             FuseArg::Scalar(_, p) => p,
             FuseArg::Literal(_, p) => p,
@@ -204,48 +223,48 @@ pub struct GlobalArgs {
     pub scalars: Sequence<InputScalar>,
     pub reshapes: Sequence<usize>,
     pub runtime_layouts: Sequence<usize>,
-    pub registers: GlobalRegisters,
+    pub variables: MultiBlockVariables,
 }
 
 #[derive(CubeType, Default, Clone)]
-pub struct GlobalRegisters {
-    registers: Registry<usize, Registry<usize, RuntimeCell<Line<NumericExpand<DYN_ELEM_ID>>>>>,
+pub struct MultiBlockVariables {
+    variables: Registry<usize, Registry<usize, RuntimeCell<Line<NumericExpand<DYN_ELEM_ID>>>>>,
 }
 
 #[cube]
-impl GlobalRegisters {
-    pub fn init(&mut self, #[comptime] key: (usize, usize), #[comptime] line_size: usize) {
+impl MultiBlockVariables {
+    pub fn init(&mut self, #[comptime] key: MultiBlockPos, #[comptime] line_size: usize) {
         let mut registers = Registry::<
             usize,
             Registry<usize, RuntimeCell<Line<NumericExpand<DYN_ELEM_ID>>>>,
-        >::find_or_default::<usize>(&mut self.registers, key.0);
+        >::find_or_default::<usize>(&mut self.variables, key.block_pos);
         let cell = RuntimeCell::new(Line::empty(line_size));
-        registers.insert(key.1, cell);
+        registers.insert(key.block_local_pos, cell);
     }
 
-    pub fn read(&self, #[comptime] key: (usize, usize)) -> Line<NumericExpand<DYN_ELEM_ID>> {
-        let registers = self.registers.find(key.0);
-        let cell = registers.find(key.1);
+    pub fn read(&self, #[comptime] key: MultiBlockPos) -> Line<NumericExpand<DYN_ELEM_ID>> {
+        let registers = self.variables.find(key.block_pos);
+        let cell = registers.find(key.block_local_pos);
         cell.read()
     }
 
     pub fn write(
         &mut self,
-        #[comptime] key: (usize, usize),
+        #[comptime] key: MultiBlockPos,
         value: Line<NumericExpand<DYN_ELEM_ID>>,
     ) {
-        comment!("Write global register");
-        let registers = self.registers.find(key.0);
-        let cell = registers.find(key.1);
+        let registers = self.variables.find(key.block_pos);
+        // Try find for local(visibility) registers.
+        let cell = registers.find(key.block_local_pos);
         cell.store(value);
     }
 }
 
 // Because we only create it DURING compilation, not as a real launch arg.
-unsafe impl Send for GlobalRegisters {}
-unsafe impl Sync for GlobalRegisters {}
+unsafe impl Send for MultiBlockVariables {}
+unsafe impl Sync for MultiBlockVariables {}
 
-impl LaunchArg for GlobalRegisters {
+impl LaunchArg for MultiBlockVariables {
     type RuntimeArg<'a, R: Runtime> = ();
     type CompilationArg = ();
 
@@ -257,8 +276,8 @@ impl LaunchArg for GlobalRegisters {
         _arg: &Self::CompilationArg,
         _builder: &mut KernelBuilder,
     ) -> <Self as CubeType>::ExpandType {
-        GlobalRegistersExpand {
-            registers: Default::default(),
+        MultiBlockVariablesExpand {
+            variables: Default::default(),
         }
     }
 }
@@ -269,7 +288,7 @@ impl<R: Runtime> Default for GlobalArgsLaunch<'_, R> {
             tensors: Default::default(),
             scalars: Default::default(),
             reshapes: Default::default(),
-            registers: Default::default(),
+            variables: Default::default(),
             runtime_layouts: Default::default(),
             _phantom_runtime: std::marker::PhantomData,
             _phantom_a: std::marker::PhantomData,
@@ -485,18 +504,21 @@ pub struct FuseBlockConfig {
 }
 
 impl FuseBlockConfig {
-    pub fn global_registers(&self, registers: &mut Vec<((usize, usize), StorageType)>) {
+    pub fn multi_block_variables(&self, registers: &mut Vec<(MultiBlockPos, StorageType)>) {
         for op in self.ops.iter() {
-            op.global_registers(registers);
+            op.multi_block_variables(registers);
         }
     }
 }
 
 impl FuseArg {
-    pub fn global_registers(&self, registers: &mut Vec<((usize, usize), StorageType)>) {
+    pub fn multi_block_variable(&self, registers: &mut Vec<(MultiBlockPos, StorageType)>) {
         match self {
-            FuseArg::GlobalRegister(arg, fuse_type) => {
-                registers.push((*arg, fuse_type.into_type()))
+            FuseArg::MultiBlockGlobal(arg, fuse_type)
+                // TODO: we need to init the multi-block local, but at some point we could avoid
+                // that for performance (easier for the underlying compiler).
+            | FuseArg::MultiBlockLocal(arg, fuse_type) => {
+                registers.push((arg.clone(), fuse_type.into_type()))
             }
             _ => {}
         };
@@ -504,7 +526,7 @@ impl FuseArg {
 }
 
 impl FuseOp {
-    pub fn global_registers(&self, registers: &mut Vec<((usize, usize), StorageType)>) {
+    pub fn multi_block_variables(&self, registers: &mut Vec<(MultiBlockPos, StorageType)>) {
         match self {
             FuseOp::Add(binary_fuse_args)
             | FuseOp::Sub(binary_fuse_args)
@@ -517,9 +539,9 @@ impl FuseOp {
             | FuseOp::LowerEqual(binary_fuse_args)
             | FuseOp::Rem(binary_fuse_args)
             | FuseOp::GreaterEqual(binary_fuse_args) => {
-                binary_fuse_args.lhs.global_registers(registers);
-                binary_fuse_args.rhs.global_registers(registers);
-                binary_fuse_args.out.global_registers(registers);
+                binary_fuse_args.lhs.multi_block_variable(registers);
+                binary_fuse_args.rhs.multi_block_variable(registers);
+                binary_fuse_args.out.multi_block_variable(registers);
             }
             FuseOp::Abs(unary_fuse_args)
             | FuseOp::Exp(unary_fuse_args)
@@ -532,8 +554,8 @@ impl FuseOp {
             | FuseOp::Sqrt(unary_fuse_args)
             | FuseOp::Recip(unary_fuse_args)
             | FuseOp::Assign(unary_fuse_args) => {
-                unary_fuse_args.input.global_registers(registers);
-                unary_fuse_args.out.global_registers(registers);
+                unary_fuse_args.input.multi_block_variable(registers);
+                unary_fuse_args.out.multi_block_variable(registers);
             }
             FuseOp::Clamp {
                 input,
@@ -541,10 +563,10 @@ impl FuseOp {
                 max,
                 out,
             } => {
-                input.global_registers(registers);
-                min.global_registers(registers);
-                max.global_registers(registers);
-                out.global_registers(registers);
+                input.multi_block_variable(registers);
+                min.multi_block_variable(registers);
+                max.multi_block_variable(registers);
+                out.multi_block_variable(registers);
             }
             FuseOp::ConditionalAssign {
                 cond,
@@ -552,10 +574,10 @@ impl FuseOp {
                 rhs,
                 out,
             } => {
-                cond.global_registers(registers);
-                lhs.global_registers(registers);
-                rhs.global_registers(registers);
-                out.global_registers(registers);
+                cond.multi_block_variable(registers);
+                lhs.multi_block_variable(registers);
+                rhs.multi_block_variable(registers);
+                out.multi_block_variable(registers);
             }
             FuseOp::Gather {
                 input,
@@ -563,9 +585,9 @@ impl FuseOp {
                 output,
                 dim: _,
             } => {
-                input.global_registers(registers);
-                indices.global_registers(registers);
-                output.global_registers(registers);
+                input.multi_block_variable(registers);
+                indices.multi_block_variable(registers);
+                output.multi_block_variable(registers);
             }
             FuseOp::Select {
                 input,
@@ -573,9 +595,9 @@ impl FuseOp {
                 output,
                 dim: _,
             } => {
-                input.global_registers(registers);
-                indices.global_registers(registers);
-                output.global_registers(registers);
+                input.multi_block_variable(registers);
+                indices.multi_block_variable(registers);
+                output.multi_block_variable(registers);
             }
             FuseOp::Dequantize {
                 values,
@@ -583,19 +605,22 @@ impl FuseOp {
                 output,
                 scheme: _,
             } => {
-                values.global_registers(registers);
-                params.global_registers(registers);
-                output.global_registers(registers);
+                values.multi_block_variable(registers);
+                params.multi_block_variable(registers);
+                output.multi_block_variable(registers);
             }
         }
     }
 }
 
 #[cube]
-pub fn global_registers_init(#[comptime] block: &FuseBlockConfig, registers: &mut GlobalRegisters) {
+pub fn multi_block_variables_init(
+    #[comptime] block: &FuseBlockConfig,
+    variables: &mut MultiBlockVariables,
+) {
     let output = comptime! {
-        let mut output = Vec::<((usize, usize), StorageType)>::new();
-        block.global_registers(&mut output);
+        let mut output = Vec::<(MultiBlockPos, StorageType)>::new();
+        block.multi_block_variables(&mut output);
         output
     };
 
@@ -603,7 +628,7 @@ pub fn global_registers_init(#[comptime] block: &FuseBlockConfig, registers: &mu
     for i in 0..comptime!(output.len()) {
         let (key, dtype) = comptime!(output.get(i as usize).unwrap().clone());
         set_polyfill::<NumericExpand<DYN_ELEM_ID>>(dtype);
-        registers.init(key, block.width);
+        variables.init(key, block.width);
     }
 }
 

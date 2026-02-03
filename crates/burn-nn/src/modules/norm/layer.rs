@@ -73,9 +73,7 @@ impl<B: Backend> LayerNorm<B> {
     /// - input: `[..., any, d_model]`
     /// - output: `[..., any, d_model]`
     pub fn forward<const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
-        B::sync(&input.device());
         let (var, mean) = input.clone().var_mean_bias(D - 1);
-        B::sync(&var.device());
 
         let input_normalized = input.sub(mean).div(var.add_scalar(self.epsilon).sqrt());
 

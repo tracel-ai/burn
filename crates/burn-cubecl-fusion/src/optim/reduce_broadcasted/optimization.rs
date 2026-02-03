@@ -7,7 +7,7 @@ use crate::{
         trace::{FuseTrace, TraceError, TuneOutput},
     },
     optim::{
-        elemwise::ElemwiseOptimization,
+        elemwise::{ElemwiseOptimization, ElemwiseOptimizationState},
         reduce::{ReduceOptimizationInfo, ReduceOptimizationState, ReduceOptimizationTuneArg},
         reduce_broadcasted::{
             launch::{FusedReduceBroadcastedLaunch, ReduceBrFuseBlock},
@@ -31,7 +31,7 @@ pub(crate) struct ReduceBroadcastedOptimizationInfo<R: Runtime> {
     pub(crate) info_br: Arc<ReduceBrInfo>,
 }
 
-#[derive(Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub(crate) struct ReduceBrInfo {
     pub(crate) blocks: Vec<ReduceBrFuseBlock>,
     pub(crate) trace: FuseTrace,
@@ -41,6 +41,25 @@ pub(crate) struct ReduceBrInfo {
 pub(crate) enum ReduceBlockOptimInfo<R: Runtime> {
     Reduce(Arc<ReduceOptimizationInfo<R>>),
     Elemwise(Arc<ElemwiseOptimization<R>>),
+}
+
+impl<R: Runtime> ReduceBlockOptimInfo<R> {
+    pub fn from_state(device: &R::Device, state: ReduceBlockState) -> Self {
+        match state {
+            ReduceBlockState::Reduce(state) => {
+                Self::Reduce(Arc::new(ReduceOptimizationInfo::from_state(device, state)))
+            }
+            ReduceBlockState::Elemwise(state) => {
+                Self::Elemwise(Arc::new(ElemwiseOptimization::from_state(device, state)))
+            }
+        }
+    }
+    pub fn to_state(&self) -> ReduceBlockState {
+        match self {
+            Self::Reduce(info) => ReduceBlockState::Reduce(info.to_state()),
+            Self::Elemwise(info) => ReduceBlockState::Elemwise(info.to_state()),
+        }
+    }
 }
 
 pub(crate) struct ReduceBroadcastedOptimizationTuneArg<R: Runtime> {
@@ -80,7 +99,15 @@ impl<R: Runtime> ReduceBlockOptimArg<R> {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ReduceBroadcastedOptimizationState {
-    fallbacks: Vec<ReduceOptimizationState>,
+    fallbacks: Vec<ReduceBlockState>,
+    broadcasted: ReduceBrInfo,
+    num_ops: usize,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub enum ReduceBlockState {
+    Reduce(ReduceOptimizationState),
+    Elemwise(ElemwiseOptimizationState),
 }
 
 impl<R: Runtime> ReduceBroadcastedOptimizationTuneArg<R> {
@@ -165,11 +192,30 @@ impl<R: Runtime> ReduceBroadcastedOptimization<R> {
     // }
 
     pub fn to_state(&self) -> ReduceBroadcastedOptimizationState {
-        todo!()
+        ReduceBroadcastedOptimizationState {
+            fallbacks: self
+                .info
+                .fallbacks
+                .iter()
+                .map(|info| info.to_state())
+                .collect(),
+            broadcasted: self.info.info_br.as_ref().clone(),
+            num_ops: self.num_ops,
+        }
     }
 
-    pub fn from_state(_device: &R::Device, _state: ReduceBroadcastedOptimizationState) -> Self {
-        todo!()
+    pub fn from_state(device: &R::Device, state: ReduceBroadcastedOptimizationState) -> Self {
+        Self {
+            info: Arc::new(ReduceBroadcastedOptimizationInfo {
+                fallbacks: state
+                    .fallbacks
+                    .into_iter()
+                    .map(|state| ReduceBlockOptimInfo::from_state(device, state))
+                    .collect(),
+                info_br: Arc::new(state.broadcasted),
+            }),
+            num_ops: state.num_ops,
+        }
     }
 
     /// Returns the number of output buffers added by fusion.

@@ -7,7 +7,8 @@ use crate::{
     CubeFusionHandle, FallbackOperation,
     engine::{
         codegen::ir::{
-            FuseArg, FuseBlockConfig, FuseType, GlobalArgsLaunch, RefLayout, global_registers_init,
+            FuseArg, FuseBlockConfig, FuseType, GlobalArgsLaunch, RefLayout,
+            multi_block_variables_init,
         },
         launch::{
             FuseTraceLauncher,
@@ -53,6 +54,35 @@ pub(crate) struct ReduceOptimizationInfo<R: Runtime> {
     settings: ReduceSettings,
 }
 
+impl<R: Runtime> ReduceOptimizationInfo<R> {
+    pub fn from_state(device: &R::Device, state: ReduceOptimizationState) -> Self {
+        let client = R::client(device);
+
+        Self {
+            trace: state.trace,
+            trace_read_fallback: state.trace_read_fallback,
+            trace_write_fallback: state.trace_write_fallback,
+            client,
+            device: device.clone(),
+            len: state.len,
+            len_read: state.len_read,
+            reduce: state.reduce,
+            settings: state.settings,
+        }
+    }
+    pub fn to_state(&self) -> ReduceOptimizationState {
+        ReduceOptimizationState {
+            trace: self.trace.clone(),
+            trace_read_fallback: self.trace_read_fallback.clone(),
+            trace_write_fallback: self.trace_write_fallback.clone(),
+            len: self.len.clone(),
+            len_read: self.len_read.clone(),
+            reduce: self.reduce.clone(),
+            settings: self.settings.clone(),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Copy, Clone)]
 pub enum ReduceSettings {
     Always,
@@ -96,13 +126,13 @@ pub trait ReduceFallbackFn<R: Runtime>: Send + Sync {
 
 #[derive(Serialize, Deserialize)]
 pub struct ReduceOptimizationState {
-    trace: FuseTrace,
-    trace_read_fallback: FuseTrace,
-    trace_write_fallback: FuseTrace,
+    pub(crate) trace: FuseTrace,
+    pub(crate) trace_read_fallback: FuseTrace,
+    pub(crate) trace_write_fallback: FuseTrace,
     pub(crate) reduce: FusedReduce,
-    len: usize,
-    len_read: usize,
-    settings: ReduceSettings,
+    pub(crate) len: usize,
+    pub(crate) len_read: usize,
+    pub(crate) settings: ReduceSettings,
 }
 
 impl core::fmt::Debug for ReduceOptimizationState {
@@ -448,8 +478,8 @@ pub fn reduce_kernel_fused<In: Numeric, Out: Numeric, Acc: Numeric>(
     #[define(Out)] _output_dtype: StorageType,
     #[define(Acc)] _acc_dtype: StorageType,
 ) {
-    global_registers_init(&input.config, &mut output.global.registers);
-    global_registers_init(&output.config, &mut output.global.registers);
+    multi_block_variables_init(&input.config, &mut output.global.variables);
+    multi_block_variables_init(&output.config, &mut output.global.variables);
 
     let (input, mut output) = init_tensors::<FusedReduceArgs, In, Out>(input, output);
 

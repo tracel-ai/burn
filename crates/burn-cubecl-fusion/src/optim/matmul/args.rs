@@ -1,6 +1,6 @@
 use crate::engine::codegen::{
     io::ref_line_size,
-    ir::{FuseArg, FuseBlockConfig, FuseType, GlobalArgs, LocalArgs, global_registers_init},
+    ir::{FuseArg, FuseBlockConfig, FuseType, GlobalArgs, LocalArgs, multi_block_variables_init},
     kernel::init_locals,
     view::{FusedOutput, GlobalInput, GlobalInputExpand},
 };
@@ -62,7 +62,7 @@ impl MatmulArgs for FusedMatmulArgs {
         #[comptime] rhs_layout_config: GlobalLayoutConfig,
         #[comptime] out_layout_config: GlobalLayoutConfig,
     ) -> Self::State<Lhs, Rhs, EO> {
-        global_registers_init(&inputs.config, &mut outputs.registers);
+        multi_block_variables_init(&inputs.config, &mut outputs.variables);
 
         let mut locals = init_locals(&inputs.global, outputs, &inputs.config);
         let rank = comptime![inputs.config.rank];
