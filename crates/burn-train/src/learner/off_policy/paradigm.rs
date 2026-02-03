@@ -255,8 +255,8 @@ impl<RLC: RLComponentsTypes + 'static> RLTraining<RLC> {
     }
 
     /// The number of environment steps to train for.
-    pub fn num_steps(mut self, num_episodes: usize) -> Self {
-        self.num_steps = num_episodes;
+    pub fn num_steps(mut self, num_steps: usize) -> Self {
+        self.num_steps = num_steps;
         self
     }
 
@@ -289,7 +289,7 @@ impl<RLC: RLComponentsTypes + 'static> RLTraining<RLC> {
     }
 
     /// Register a checkpointer that will save the environment runner's [policy](Policy)
-    /// and the [AgentLearner](AgentLearner) state to different files.
+    /// and the [PolicyLearner](PolicyLearner) state to different files.
     pub fn with_file_checkpointer<FR>(mut self, recorder: FR) -> Self
     where
         FR: FileRecorder<RLC::Backend> + 'static,
@@ -317,7 +317,7 @@ impl<RLC: RLComponentsTypes + 'static> RLTraining<RLC> {
         self
     }
 
-    /// Launch the training with the specified [AgentLearner](AgentLearner) on the specified environment.
+    /// Launch the training with the specified [PolicyLearner](PolicyLearner) on the specified environment.
     pub fn launch(mut self, learner_agent: RLC::LearningAgent) -> RLResult<RLC::Policy> {
         if self.tracing_logger.is_some()
             && let Err(e) = self.tracing_logger.as_ref().unwrap().install()

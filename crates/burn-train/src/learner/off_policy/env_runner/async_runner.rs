@@ -100,7 +100,8 @@ where
                 let state = env.state();
                 let (action, context) = agent.action(state.clone().into(), deterministic);
 
-                let step_result = env.step(RLC::Action::from(action.clone()));
+                let env_action = RLC::Action::from(action);
+                let step_result = env.step(env_action.clone());
 
                 current_reward += step_result.reward;
                 step_num += 1;
@@ -108,7 +109,7 @@ where
                 let transition = Transition::new(
                     state.clone(),
                     step_result.next_state,
-                    RLC::Action::from(action),
+                    env_action,
                     Tensor::from_data([step_result.reward as f64], &device),
                     Tensor::from_data(
                         [(step_result.done || step_result.truncated) as i32 as f64],
