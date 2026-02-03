@@ -37,7 +37,7 @@ bytemuck = "1.25.0"
 bytes = { version = "1.11.1", default-features = false }
 candle-core = { version = "0.9.2" }
 ciborium = { version = "0.2", default-features = false }
-clap = { version = "4.5.56", features = ["derive"] }
+clap = { version = "4.5.57", features = ["derive"] }
 colored = "3.0.0"
 console_error_panic_hook = "0.1.7"
 const-random = "0.1"
@@ -50,11 +50,11 @@ dirs = "6.0.0"
 encoding_rs = "0.8.33"
 enumset = { version = "1.1.10", default-features = false }
 fake = "4.4.0"
-flate2 = "1.1.4"
+flate2 = "1.1.9"
 float-cmp = "0.10.0"
 futures = "0.3"
 futures-util = "0.3"
-gix-tempfile = { version = "20.0.0", features = ["signals"] }
+gix-tempfile = { version = "21.0.0", features = ["signals"] }
 globwalk = "0.9.1"
 hashbrown = "0.16"
 hound = "3.5.1"
@@ -79,7 +79,7 @@ quote = "1.0.42"
 r2d2 = "0.8.10"
 r2d2_sqlite = "0.31.0"
 rayon = "1.10.0"
-regex = { version = "1.12.1", default-features = false, features = [
+regex = { version = "1.12.3", default-features = false, features = [
     "perf",
     "unicode",
 ] }
@@ -174,7 +174,7 @@ torch-sys = "0.22.0"                                        # matches what tch i
 
 ahash = { version = "0.8.12", default-features = false }
 portable-atomic = { version = "1.13.1" }
-portable-atomic-util = { version = "0.2.4", features = ["alloc"] }
+portable-atomic-util = { version = "0.2.5", features = ["alloc"] }
 
 ### For the main burn branch. ###
 cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "a3987c60e410d77b6b38e99d1c2a6bc0979d38ba" }
