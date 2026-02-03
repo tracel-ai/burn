@@ -72,8 +72,7 @@ pub fn gelu<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D> {
     Tensor::from_primitive(TensorPrimitive::Float(B::gelu(tensor.primitive.tensor())))
 }
 
-/// Applies the tanh-based approximate GELU function element-wise, matching
-/// PyTorch's `gelu(approximate="tanh")` and HuggingFace's `gelu_new`.
+/// Applies the tanh-based approximate GELU function element-wise.
 ///
 #[cfg_attr(
     doc,
