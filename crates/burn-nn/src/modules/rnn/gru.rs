@@ -948,4 +948,127 @@ mod tests {
             );
         }
     }
+
+    /// Test Gru against PyTorch reference implementation.
+    /// Expected values computed with PyTorch nn.GRU (seed=42 for weights, seed=123 for input).
+    #[test]
+    fn test_gru_against_pytorch() {
+        use burn::tensor::Device;
+
+        let device = Default::default();
+        TestBackend::seed(&device, 0);
+
+        let config = GruConfig::new(2, 3, true);
+        let mut gru = config.init::<TestBackend>(&device);
+
+        fn create_gate_controller<const D1: usize, const D2: usize>(
+            input_weights: [[f32; D1]; D2],
+            input_biases: [f32; D1],
+            hidden_weights: [[f32; D1]; D1],
+            hidden_biases: [f32; D1],
+            device: &Device<TestBackend>,
+        ) -> GateController<TestBackend> {
+            let d_input = input_weights[0].len();
+            let d_output = input_weights.len();
+
+            let input_record = LinearRecord {
+                weight: Param::from_data(TensorData::from(input_weights), device),
+                bias: Some(Param::from_data(TensorData::from(input_biases), device)),
+            };
+            let hidden_record = LinearRecord {
+                weight: Param::from_data(TensorData::from(hidden_weights), device),
+                bias: Some(Param::from_data(TensorData::from(hidden_biases), device)),
+            };
+            GateController::create_with_weights(
+                d_input,
+                d_output,
+                true,
+                Initializer::XavierUniform { gain: 1.0 },
+                input_record,
+                hidden_record,
+            )
+        }
+
+        // Input: [batch=1, seq=4, input=2]
+        let input = Tensor::<TestBackend, 3>::from_data(
+            TensorData::from([[
+                [-0.11147, 0.12036],
+                [-0.36963, -0.24042],
+                [-1.19692, 0.20927],
+                [-0.97236, -0.75505],
+            ]]),
+            &device,
+        );
+
+        // Initial hidden state: [batch=1, hidden=3]
+        let h0 = Tensor::<TestBackend, 2>::from_data(
+            TensorData::from([[0.3239, -0.10852, 0.21033]]),
+            &device,
+        );
+
+        // Update gate (z) - weights from PyTorch, transposed for Burn's Row layout
+        gru.update_gate = create_gate_controller(
+            [[-0.2811, 0.5090, 0.5018], [0.3391, -0.4236, 0.1081]],
+            [0.2932, -0.3519, -0.5715],
+            [
+                [-0.3471, 0.5214, 0.0961],
+                [0.0545, -0.4904, -0.1875],
+                [-0.5702, 0.4457, 0.3568],
+            ],
+            [-0.0100, 0.4518, -0.4102],
+            &device,
+        );
+
+        // Reset gate (r)
+        gru.reset_gate = create_gate_controller(
+            [[0.4414, -0.1353, -0.1265], [0.4792, 0.5304, 0.1165]],
+            [-0.2524, 0.3333, 0.1033],
+            [
+                [-0.2695, -0.0677, -0.4557],
+                [0.1472, -0.2345, -0.2662],
+                [-0.2660, 0.3830, -0.1630],
+            ],
+            [0.1663, 0.2391, 0.1826],
+            &device,
+        );
+
+        // New gate (n)
+        gru.new_gate = create_gate_controller(
+            [[0.4266, 0.2784, 0.4451], [0.0782, -0.0815, 0.0853]],
+            [-0.2231, -0.4428, 0.4737],
+            [
+                [0.0900, -0.1821, 0.2430],
+                [0.4665, 0.1551, 0.5155],
+                [0.0631, -0.1566, 0.3337],
+            ],
+            [0.0364, -0.3941, 0.1780],
+            &device,
+        );
+
+        // Expected values from PyTorch
+        let expected_output_with_h0 = TensorData::from([[
+            [0.05665, -0.34932, 0.43267],
+            [-0.1737, -0.49246, 0.38099],
+            [-0.35401, -0.68099, 0.05061],
+            [-0.47854, -0.70427, -0.13648],
+        ]]);
+
+        let expected_output_no_h0 = TensorData::from([[
+            [-0.0985, -0.31661, 0.36126],
+            [-0.24563, -0.47784, 0.34609],
+            [-0.39497, -0.67659, 0.03083],
+            [-0.50146, -0.70066, -0.14894],
+        ]]);
+
+        let output_with_h0 = gru.forward(input.clone(), Some(h0));
+        let output_no_h0 = gru.forward(input, None);
+
+        let tolerance = Tolerance::permissive();
+        output_with_h0
+            .to_data()
+            .assert_approx_eq::<FT>(&expected_output_with_h0, tolerance);
+        output_no_h0
+            .to_data()
+            .assert_approx_eq::<FT>(&expected_output_no_h0, tolerance);
+    }
 }
