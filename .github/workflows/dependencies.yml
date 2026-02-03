@@ -8,11 +8,6 @@ on:
       - 'v*.*.*' # Run when a new version is being published
 
 env:
-  #
-  # Dependency versioning
-  #
-
-  # Udeps version
   UDEPS_VERSION: "0.1.57"
 
 concurrency:

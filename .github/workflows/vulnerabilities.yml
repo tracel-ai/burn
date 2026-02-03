@@ -8,7 +8,7 @@ on:
       - 'v*.*.*'
 
 env:
-  CAREFUL_VERSION: "0.4.8"
+  CAREFUL_VERSION: "0.4.9"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
