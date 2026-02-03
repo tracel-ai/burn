@@ -27,7 +27,25 @@ pub struct FuseTrace {
 
 impl core::fmt::Display for FuseTrace {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&burn_std::format::format_debug(&format!("{self:?}")))
+        writeln!(f, "FuseTrace")?;
+        for b in self.blocks.iter() {
+            writeln!(f, " - Block shape={:?}", b.shape_ref)?;
+            for (tensor, ops) in b.reads.iter() {
+                for op in ops.iter() {
+                    writeln!(f, "   - {op} <== {tensor}")?;
+                }
+            }
+            for op in b.ops.iter() {
+                writeln!(f, "   - {op}")?;
+            }
+            for (tensor, ops) in b.writes.iter() {
+                for op in ops.iter() {
+                    writeln!(f, "   - {op} <== {tensor}")?;
+                }
+            }
+        }
+
+        Ok(())
     }
 }
 
@@ -162,7 +180,7 @@ pub struct FuseResources {
     pub inputs_unhandled: Vec<TensorId>,
     pub outputs_unhandled: Vec<FuseArg>,
     pub num_reshaped: usize,
-    /// TODO: Maybe we can simply update the inputs/outputs registered tensors.
+    /// Necessary to remove some entries from the context.
     pub dropped: HashSet<TensorId>,
     /// We know during fusion that we have to have those buffers has global.
     /// The pos here can be interpreted as GLOBAL pos where the output pos are locals.

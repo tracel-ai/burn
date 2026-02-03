@@ -464,6 +464,7 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// Calculate the variance along the given dimension without applying the Bessel’s correction and also returns the mean.
     pub fn var_mean_bias(self, dim: usize) -> (Self, Self) {
         let mean = self.clone().mean_dim(dim);
+        B::sync(&mean.device()).unwrap();
         let var = stats::var_with_mean_bias(self, mean.clone(), dim);
         (var, mean)
     }

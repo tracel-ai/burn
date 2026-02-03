@@ -116,6 +116,11 @@ impl<R: Runtime> ReduceBroadcastedOptimizationTuneArg<R> {
         context: &mut Context<'_, CubeFusionHandle<R>>,
         strategy: RoutineStrategy,
     ) -> Result<TuneOutput<R>, TraceError<String>> {
+        println!("==== Execute Fused ====");
+        println!("{}", self.info_br.trace);
+        for b in self.info_br.blocks.iter() {
+            println!("{} = {:?}({})", b.output, b.op, b.input);
+        }
         let launch = FusedReduceBroadcastedLaunch::new(
             &self.info_br.blocks,
             self.info_br.reduce_axis,
@@ -146,6 +151,7 @@ impl<R: Runtime> ReduceBroadcastedOptimization<R> {
         context: &mut Context<'_, CubeFusionHandle<R>>,
         fallback: impl Fn(usize) -> Box<dyn FallbackOperation<R>>,
     ) {
+        // println!("==== Execute broadcasted ====");
         let mut current_index = 0;
         let mut client = None;
         let mut device = None;

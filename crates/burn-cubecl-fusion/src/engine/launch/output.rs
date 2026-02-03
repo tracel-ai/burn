@@ -400,6 +400,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                 for op in ops {
                     if let FuseOp::Assign(op) = op {
                         op.out.add_layout_info(LayoutInfo::IsRef);
+                        println!("Here?");
                         break;
                     }
                 }
@@ -555,7 +556,8 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
 
         match update {
             Some(strides) => {
-                block.writes.remove(&output.tensor_relative.id);
+                // We modify the metadata instead.
+                remove_concrete_write(block, output.tensor_relative.id);
 
                 let handle = CubeFusionHandle {
                     client: client.clone(),
@@ -620,7 +622,9 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         };
 
         // TODO: Check if we can also remove the read, if we have a dead partial graph.
-        block.writes.remove(&output.tensor_relative.id);
+        //
+        // We modify the metadata instead.
+        remove_concrete_write(block, output.tensor_relative.id);
 
         let strides = original_handle.handle.strides.clone();
 
@@ -667,5 +671,22 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                 _ => None, // Quant tensor can't be reshaped.
             })
             .unwrap()
+    }
+}
+
+fn remove_concrete_write(block: &mut BlockPlan, id: TensorId) {
+    let ops = block.writes.remove(&id);
+
+    if let Some(ops) = ops {
+        let mut keep = Vec::with_capacity(ops.len());
+
+        for op in ops {
+            if let FuseOp::Assign(args) = &op {
+                if !matches!(args.out, FuseArg::Output(..)) {
+                    keep.push(op);
+                }
+            }
+        }
+        block.writes.insert(id, keep);
     }
 }

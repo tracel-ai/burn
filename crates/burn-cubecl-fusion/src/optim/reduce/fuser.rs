@@ -56,11 +56,12 @@ impl<R: Runtime> ReduceFuser<R> {
         let props = client.properties();
         let max_bindings = props.hardware.max_bindings;
         let settings_read = FuseSettings {
+            // Inplace would work, but not when we have a concrete output to write too.
             inplace: false,
             ref_layout: RefLayoutSetting::OnlyContiguous,
-            broadcast: true,
+            broadcast: false,
             output_shape_updates: true,
-            vectorization: VectorizationSetting::Activated,
+            vectorization: VectorizationSetting::Deactivated,
         };
         let settings_write = FuseSettings {
             inplace: false,

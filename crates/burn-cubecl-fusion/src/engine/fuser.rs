@@ -62,7 +62,7 @@ impl OperationFuser<FuseTrace> for TraceOperationFuser {
                     return;
                 }
 
-                self.fuser.fuser.fuse_dropped(tensor.id);
+                self.fuser.fuser.fuse_dropped(tensor);
             }
             OperationIr::BaseFloat(ops) => {
                 if !self.fuse_base(ops) {

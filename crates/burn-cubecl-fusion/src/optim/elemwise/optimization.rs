@@ -23,7 +23,7 @@ use serde::{Deserialize, Serialize};
 #[derive(new)]
 /// Fuse element wise operations into a single kernel.
 pub struct ElemwiseOptimization<R: Runtime> {
-    trace: FuseTrace,
+    pub(crate) trace: FuseTrace,
     client: ComputeClient<R>,
     device: R::Device,
     len: usize,

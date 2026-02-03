@@ -50,6 +50,7 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
         context: &mut Context<'_, CubeFusionHandle<R>>,
         plan: LaunchPlan<'a, R>,
     ) -> Result<TuneOutput<R>, ExecutionError<R, Runner>> {
+        println!("Execute...");
         let mut num_writes = 0;
         for b in plan.blocks.iter() {
             num_writes += b.writes.len();
@@ -130,6 +131,7 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
                 ops.push(op.clone());
             }
 
+            println!("{:?}", block_plan.writes);
             for opsw in block_plan.writes.into_values() {
                 for op in opsw {
                     ops.push(op);

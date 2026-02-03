@@ -76,7 +76,9 @@ pub fn fused_reduce_autotune<R: Runtime, BT: CubeElement>(
             (
                 "fused_cube",
                 RoutineStrategy::Cube(BlueprintStrategy::Inferred(CubeStrategy {
-                    use_planes: true,
+                    // Two steps reduction doesn't work with fuse-on-write, we can't activate plane
+                    // when using the cube algo.
+                    use_planes: false,
                 })),
                 ReduceProps::GreatWithLowReduceCount,
             ),

@@ -9,7 +9,7 @@ use super::{
 use super::{FuseTrace, RegisteredTensors};
 use crate::engine::trace::block::QuantInput;
 use burn_fusion::stream::ScalarId;
-use burn_ir::{ScalarIr, TensorId, TensorIr};
+use burn_ir::{ScalarIr, TensorIr};
 use burn_std::DType;
 use cubecl::quant::scheme::QuantParam;
 
@@ -45,8 +45,10 @@ impl TraceFuser {
     }
 
     /// Tag a tensor as dropped.
-    pub fn fuse_dropped(&mut self, id: TensorId) {
-        self.resources.dropped.insert(id);
+    pub fn fuse_dropped(&mut self, tensor: &TensorIr) {
+        self.resources.outputs.update(tensor);
+        self.resources.inputs.update(tensor);
+        self.resources.dropped.insert(tensor.id);
     }
 
     /// Register an operation.
@@ -205,6 +207,7 @@ impl TraceFuser {
         }
 
         self.resources.outputs.update(tensor);
+
         self.block_current.input(tensor, &mut self.resources)
     }
 
@@ -269,6 +272,7 @@ impl TraceFuser {
             return None;
         }
 
+        self.resources.outputs.update(tensor);
         self.block_current
             .input_reshaped(tensor, output, &mut self.resources)
     }

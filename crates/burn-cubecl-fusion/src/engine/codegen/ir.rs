@@ -4,6 +4,7 @@ use burn_std::{
     DType, bf16, f16,
     quantization::{QuantScheme, QuantStore, QuantValue},
 };
+use core::fmt::Display;
 use cubecl::{
     ir::{ElemType, FloatKind, IntKind, StorageType, UIntKind},
     prelude::*,
@@ -51,6 +52,33 @@ pub enum FuseArg {
         dims: (usize, usize),
         broadcasted: bool,
     },
+}
+
+impl Display for FuseArg {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            FuseArg::Input(pos, ..) => write!(f, "input({pos})"),
+            FuseArg::Output(pos, ..) => write!(f, "output({pos})"),
+            FuseArg::BlockLocal { pos, .. } => write!(f, "local({pos})"),
+            FuseArg::MultiBlockLocal(mbp, ..) => write!(f, "{mbp}"),
+            FuseArg::MultiBlockGlobal(mbp, ..) => write!(f, "global_{mbp}"),
+            FuseArg::Scalar(pos, ..) => write!(f, "scalar({pos})"),
+            FuseArg::ScalarShape(pos) => write!(f, "scalar_shape({pos})"),
+            FuseArg::Literal(val, ..) => write!(f, "literal_{val}"),
+            FuseArg::InputReshaped { original, .. } => write!(f, "input_reshaped_{original}"),
+            FuseArg::InputSwapDims { original, .. } => write!(f, "input_swap_dims_{original}"),
+        }
+    }
+}
+
+impl Display for MultiBlockPos {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "block_local({}-{})",
+            self.block_pos, self.block_local_pos
+        )
+    }
 }
 
 /// Metadata of a variable shared between blocks.
@@ -168,6 +196,81 @@ pub enum FuseOp {
     },
 }
 
+impl Display for FuseOp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            FuseOp::Add(args) => write!(f, "{} = {} + {}", args.out, args.lhs, args.rhs),
+            FuseOp::Sub(args) => write!(f, "{} = {} - {}", args.out, args.lhs, args.rhs),
+            FuseOp::Mul(args) => write!(f, "{} = {} * {}", args.out, args.lhs, args.rhs),
+            FuseOp::Div(args) => write!(f, "{} = {} / {}", args.out, args.lhs, args.rhs),
+            FuseOp::Powf(args) => write!(f, "{} = powf({}, {})", args.out, args.lhs, args.rhs),
+            FuseOp::Abs(args) => write!(f, "{} = abs({})", args.out, args.input),
+            FuseOp::Exp(args) => write!(f, "{} = exp({})", args.out, args.input),
+            FuseOp::Log(args) => write!(f, "{} = log({})", args.out, args.input),
+            FuseOp::Log1p(args) => write!(f, "{} = log1p({})", args.out, args.input),
+            FuseOp::Cos(args) => write!(f, "{} = cos({})", args.out, args.input),
+            FuseOp::Sin(args) => write!(f, "{} = sin({})", args.out, args.input),
+            FuseOp::Tanh(args) => write!(f, "{} = tanh({})", args.out, args.input),
+            FuseOp::Erf(args) => write!(f, "{} = erf({})", args.out, args.input),
+            FuseOp::Sqrt(args) => write!(f, "{} = sqrt({})", args.out, args.input),
+            FuseOp::Recip(args) => write!(f, "{} = recip({})", args.out, args.input),
+            FuseOp::Assign(args) => write!(f, "{} = {}", args.out, args.input),
+            FuseOp::Equal(args) => write!(f, "{} = {} == {}", args.out, args.lhs, args.rhs),
+            FuseOp::Lower(args) => write!(f, "{} = {} < {}", args.out, args.lhs, args.rhs),
+            FuseOp::Greater(args) => write!(f, "{} = {} > {}", args.out, args.lhs, args.rhs),
+            FuseOp::LowerEqual(args) => write!(f, "{} = {} <= {}", args.out, args.lhs, args.rhs),
+            FuseOp::Rem(args) => write!(f, "{} = {} % {}", args.out, args.lhs, args.rhs),
+            FuseOp::GreaterEqual(args) => write!(f, "{} = {} >= {}", args.out, args.lhs, args.rhs),
+            FuseOp::Clamp {
+                input,
+                min,
+                max,
+                out,
+            } => write!(f, "{} = clamp({}, min={}, max={})", out, input, min, max),
+            FuseOp::ConditionalAssign {
+                cond,
+                lhs,
+                rhs,
+                out,
+            } => write!(
+                f,
+                "{} = select(cond={}, lhs={}, rhs={})",
+                out, cond, lhs, rhs
+            ),
+            FuseOp::Gather {
+                input,
+                indices,
+                output,
+                dim,
+            } => write!(
+                f,
+                "{} = gather(input={}, indices={}, dim={})",
+                output, input, indices, dim
+            ),
+            FuseOp::Select {
+                input,
+                indices,
+                output,
+                dim,
+            } => write!(
+                f,
+                "{} = select(input={}, indices={}, dim={})",
+                output, input, indices, dim
+            ),
+            FuseOp::Dequantize {
+                values,
+                params,
+                output,
+                scheme: _,
+            } => write!(
+                f,
+                "{} = dequantize(values={}, params={})",
+                output, values, params
+            ),
+        }
+    }
+}
+
 #[derive(
     CubeType, CubeLaunch, Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord,
 )]
@@ -234,6 +337,9 @@ pub struct MultiBlockVariables {
 #[cube]
 impl MultiBlockVariables {
     pub fn init(&mut self, #[comptime] key: MultiBlockPos, #[comptime] line_size: usize) {
+        comptime! {
+            println!("Init multi block var {key:?}");
+        };
         let mut registers = Registry::<
             usize,
             Registry<usize, RuntimeCell<Line<NumericExpand<DYN_ELEM_ID>>>>,
@@ -243,6 +349,9 @@ impl MultiBlockVariables {
     }
 
     pub fn read(&self, #[comptime] key: MultiBlockPos) -> Line<NumericExpand<DYN_ELEM_ID>> {
+        comptime! {
+            println!("Read multi block var {key:?}");
+        };
         let registers = self.variables.find(key.block_pos);
         let cell = registers.find(key.block_local_pos);
         cell.read()
@@ -253,6 +362,9 @@ impl MultiBlockVariables {
         #[comptime] key: MultiBlockPos,
         value: Line<NumericExpand<DYN_ELEM_ID>>,
     ) {
+        comptime! {
+            println!("Write multi block var {key:?}");
+        };
         let registers = self.variables.find(key.block_pos);
         // Try find for local(visibility) registers.
         let cell = registers.find(key.block_local_pos);

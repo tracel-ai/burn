@@ -50,6 +50,9 @@ pub fn reduce_kernel_broadcasted(
     blocks: Sequence<ReduceFuseBlock>,
     block_end: CubeOption<ElemwiseFuseBlock>,
 ) {
+    comptime! {
+        println!("HEEEEEERE");
+    }
     #[unroll]
     for i in 0..blocks.len() {
         let block = blocks.index(i);

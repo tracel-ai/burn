@@ -476,9 +476,7 @@ impl FuseBlockBuilder {
         // All tensors where their latest representation is not read write should be written to since they
         // are going to be used after the fused kernel by other operations.
         for output in self.outputs.iter() {
-            if let Some((tensor, _precision)) = output.as_normal_tensor()
-                && !resources.dropped.contains(&tensor.id)
-            {
+            if let Some((tensor, _precision)) = output.as_normal_tensor() {
                 // We get the latest representation from the resources, not just this block.
                 if let Some((tensor, precision)) = resources.outputs.get(tensor.id) {
                     if !matches!(tensor.status, TensorStatus::ReadWrite) {
