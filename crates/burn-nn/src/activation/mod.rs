@@ -13,6 +13,7 @@
 //! * [`Softplus`]
 //! * [`Softsign`]
 //! * [`Tanh`]
+//! * [`ThresholdedRelu`]
 //!
 //! The activation layer [`GLU`] has shape-changing behaviors
 //! not compatible with the common API, and is not included
@@ -34,6 +35,7 @@ pub(crate) mod softplus;
 pub(crate) mod softsign;
 pub(crate) mod swiglu;
 pub(crate) mod tanh;
+pub(crate) mod thresholded_relu;
 
 pub use activation_wrapper::*;
 pub use gelu::*;
@@ -48,3 +50,4 @@ pub use softplus::*;
 pub use softsign::*;
 pub use swiglu::*;
 pub use tanh::*;
+pub use thresholded_relu::*;
