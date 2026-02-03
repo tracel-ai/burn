@@ -155,56 +155,14 @@ impl<B: Backend> Gru<B> {
         let device = batched_input.device();
         let [batch_size, seq_length, _] = batched_input.shape().dims();
 
-        let mut batched_hidden_state =
-            Tensor::empty([batch_size, seq_length, self.d_hidden], &device);
-
-        let mut hidden_t = match state {
-            Some(state) => state,
-            None => Tensor::zeros([batch_size, self.d_hidden], &device),
-        };
-
-        for (t, input_t) in batched_input.iter_dim(1).enumerate() {
-            let input_t = input_t.squeeze_dim(1);
-            // u(pdate)g(ate) tensors
-            let biased_ug_input_sum =
-                self.gate_product(&input_t, &hidden_t, None, &self.update_gate);
-            let update_values = self.gate_activation.forward(biased_ug_input_sum); // z(t)
-
-            // r(eset)g(ate) tensors
-            let biased_rg_input_sum =
-                self.gate_product(&input_t, &hidden_t, None, &self.reset_gate);
-            let reset_values = self.gate_activation.forward(biased_rg_input_sum); // r(t)
-
-            // n(ew)g(ate) tensor
-            let biased_ng_input_sum = if self.reset_after {
-                self.gate_product(&input_t, &hidden_t, Some(&reset_values), &self.new_gate)
-            } else {
-                let reset_t = hidden_t.clone().mul(reset_values);
-                self.gate_product(&input_t, &reset_t, None, &self.new_gate)
-            };
-            let candidate_state = self.hidden_activation.forward(biased_ng_input_sum); // g(t)
-
-            // calculate linear interpolation between previous hidden state and candidate state:
-            // g(t) * (1 - z(t)) + z(t) * hidden_t
-            hidden_t = candidate_state
-                .clone()
-                .mul(update_values.clone().sub_scalar(1).mul_scalar(-1)) // (1 - z(t)) = -(z(t) - 1)
-                + update_values.clone().mul(hidden_t);
-
-            // Apply hidden state clipping if configured
-            if let Some(clip) = self.clip {
-                hidden_t = hidden_t.clamp(-clip, clip);
-            }
-
-            let unsqueezed_hidden_state = hidden_t.clone().unsqueeze_dim(1);
-
-            batched_hidden_state = batched_hidden_state.slice_assign(
-                [0..batch_size, t..(t + 1), 0..self.d_hidden],
-                unsqueezed_hidden_state,
-            );
-        }
-
-        batched_hidden_state
+        self.forward_iter(
+            batched_input.iter_dim(1).zip(0..seq_length),
+            state,
+            batch_size,
+            seq_length,
+            &device,
+        )
+        .0
     }
 
     /// Forward pass variant that accepts an iterator over timesteps.
@@ -913,5 +871,107 @@ mod tests {
             alloc::format!("{layer}"),
             "BiGru {d_input: 2, d_hidden: 8, bias: true, params: 576}"
         );
+    }
+
+    #[test]
+    fn test_gru_custom_activations() {
+        let device = Default::default();
+
+        // Create GRU with custom activations (ReLU instead of Sigmoid/Tanh)
+        let config = GruConfig::new(4, 8, true)
+            .with_gate_activation(ActivationConfig::Relu)
+            .with_hidden_activation(ActivationConfig::Relu);
+        let gru = config.init::<TestBackend>(&device);
+
+        let input =
+            Tensor::<TestBackend, 3>::random([2, 3, 4], Distribution::Default, &device);
+
+        // Should run without panicking and produce valid output
+        let output = gru.forward(input, None);
+        assert_eq!(output.shape().dims, [2, 3, 8]);
+    }
+
+    #[test]
+    fn test_bigru_custom_activations() {
+        let device = Default::default();
+
+        // Create BiGRU with custom activations
+        let config = BiGruConfig::new(4, 8, true)
+            .with_gate_activation(ActivationConfig::Relu)
+            .with_hidden_activation(ActivationConfig::Relu);
+        let bigru = config.init::<TestBackend>(&device);
+
+        let input =
+            Tensor::<TestBackend, 3>::random([2, 3, 4], Distribution::Default, &device);
+
+        let (output, state) = bigru.forward(input, None);
+        assert_eq!(output.shape().dims, [2, 3, 16]); // hidden_size * 2
+        assert_eq!(state.shape().dims, [2, 2, 8]);
+    }
+
+    #[test]
+    fn test_gru_clipping() {
+        let device = Default::default();
+
+        // Create GRU with clipping enabled
+        let clip_value = 0.5;
+        let config = GruConfig::new(4, 8, true).with_clip(Some(clip_value));
+        let gru = config.init::<TestBackend>(&device);
+
+        let input =
+            Tensor::<TestBackend, 3>::random([2, 5, 4], Distribution::Default, &device);
+
+        let output = gru.forward(input, None);
+
+        // Verify output values are within the clip range
+        let output_data: Vec<f32> = output.to_data().to_vec().unwrap();
+        for val in output_data {
+            assert!(
+                val >= -clip_value as f32 && val <= clip_value as f32,
+                "Value {} is outside clip range [-{}, {}]",
+                val,
+                clip_value,
+                clip_value
+            );
+        }
+    }
+
+    #[test]
+    fn test_bigru_clipping() {
+        let device = Default::default();
+
+        // Create BiGRU with clipping enabled
+        let clip_value = 0.3;
+        let config = BiGruConfig::new(4, 8, true).with_clip(Some(clip_value));
+        let bigru = config.init::<TestBackend>(&device);
+
+        let input =
+            Tensor::<TestBackend, 3>::random([2, 5, 4], Distribution::Default, &device);
+
+        let (output, state) = bigru.forward(input, None);
+
+        // Verify output values are within the clip range
+        let output_data: Vec<f32> = output.to_data().to_vec().unwrap();
+        for val in output_data {
+            assert!(
+                val >= -clip_value as f32 && val <= clip_value as f32,
+                "Output value {} is outside clip range [-{}, {}]",
+                val,
+                clip_value,
+                clip_value
+            );
+        }
+
+        // Verify state values are within the clip range
+        let state_data: Vec<f32> = state.to_data().to_vec().unwrap();
+        for val in state_data {
+            assert!(
+                val >= -clip_value as f32 && val <= clip_value as f32,
+                "State value {} is outside clip range [-{}, {}]",
+                val,
+                clip_value,
+                clip_value
+            );
+        }
     }
 }
