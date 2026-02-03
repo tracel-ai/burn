@@ -1,124 +1,19 @@
-use derive_new::new;
 use std::{
     sync::{
         Arc,
-        atomic::AtomicUsize,
-        atomic::Ordering,
+        atomic::{AtomicUsize, Ordering},
         mpsc::{self, Sender},
     },
     thread::spawn,
 };
 
-use burn_core::{prelude::*, record::Record, tensor::backend::AutodiffBackend};
+use burn_core::prelude::Backend;
 
-use crate::TransitionBatch;
-
-/// An action along with additional context about the decision.
-#[derive(Clone, new)]
-pub struct ActionContext<A, C> {
-    /// The context.
-    pub context: C,
-    /// The action.
-    pub action: A,
-}
-
-/// The state of a policy.
-pub trait PolicyState<B: Backend> {
-    /// The type of the record.
-    type Record: Record<B>;
-
-    /// Convert the state to a record.
-    fn into_record(self) -> Self::Record;
-    /// Load the state from a record.
-    fn load_record(&self, record: Self::Record) -> Self;
-}
-
-/// Trait for a RL policy.
-pub trait Policy<B: Backend>: Clone {
-    /// The observation given as input to the policy.
-    type Observation;
-    /// The action distribution parameters defining how the action will be sampled.
-    type ActionDistribution;
-    /// The action.
-    type Action;
-
-    /// Additional context on the policy's decision.
-    type ActionContext;
-    /// The current parameterization of the policy.
-    type PolicyState: PolicyState<B>;
-
-    /// Produces the action distribution from a batch of observations.
-    fn forward(&mut self, obs: Self::Observation) -> Self::ActionDistribution;
-    /// Gives the action from a batch of observations.
-    fn action(
-        &mut self,
-        obs: Self::Observation,
-        deterministic: bool,
-    ) -> (Self::Action, Vec<Self::ActionContext>);
-
-    /// Update the policy's parameters.
-    fn update(&mut self, update: Self::PolicyState);
-    /// Returns the current parameterization.
-    fn state(&self) -> Self::PolicyState;
-
-    /// Loads the policy parameters from a record.
-    fn load_record(self, record: <Self::PolicyState as PolicyState<B>>::Record) -> Self;
-}
-
-/// Trait for a type that can be batched and unbatched (split).
-pub trait Batchable: Sized {
-    /// Create a batch from a list of items.
-    fn batch(value: Vec<Self>) -> Self;
-    /// Create a list from batched items.
-    fn unbatch(self) -> Vec<Self>;
-}
-
-/// A training output.
-pub struct RLTrainOutput<TO, P> {
-    /// The policy.
-    pub policy: P,
-    /// The item.
-    pub item: TO,
-}
-
-/// Learner for a policy.
-pub trait PolicyLearner<B>
-where
-    B: AutodiffBackend,
-    <Self::InnerPolicy as Policy<B>>::Observation: Clone + Batchable,
-    <Self::InnerPolicy as Policy<B>>::ActionDistribution: Clone + Batchable,
-    <Self::InnerPolicy as Policy<B>>::Action: Clone + Batchable,
-{
-    /// Additional context of a training step.
-    type TrainContext;
-    /// The policy to train.
-    type InnerPolicy: Policy<B>;
-    /// The record of the learner.
-    type Record: Record<B>;
-
-    /// Execute a training step on the policy.
-    fn train(
-        &mut self,
-        input: TransitionBatch<
-            B,
-            <Self::InnerPolicy as Policy<B>>::Observation,
-            <Self::InnerPolicy as Policy<B>>::Action,
-        >,
-    ) -> RLTrainOutput<Self::TrainContext, <Self::InnerPolicy as Policy<B>>::PolicyState>;
-    /// Returns the learner's current policy.
-    fn policy(&self) -> Self::InnerPolicy;
-    /// Update the learner's policy.
-    fn update_policy(&mut self, update: Self::InnerPolicy);
-
-    /// Convert the learner's state into a record.
-    fn record(&self) -> Self::Record;
-    /// Load the learner's state from a record.
-    fn load_record(self, record: Self::Record) -> Self;
-}
+use crate::{ActionContext, Batchable, Policy, PolicyState};
 
 #[derive(Clone)]
-struct PolicyAutoBatcher<B: Backend, P: Policy<B>> {
-    // `num_agents` used to make sure the autobatcher doesn't block if less agents call it than the autobatch size.
+struct PolicyInferenceServer<B: Backend, P: Policy<B>> {
+    // `num_agents` used to make sure autobatching doesn't block the agents if they are less than the autobatch size.
     num_agents: Arc<AtomicUsize>,
     max_autobatch_size: usize,
     inner_policy: P,
@@ -126,7 +21,7 @@ struct PolicyAutoBatcher<B: Backend, P: Policy<B>> {
     batch_logits: Vec<ForwardItem<P::Observation, P::ActionDistribution>>,
 }
 
-impl<B, P> PolicyAutoBatcher<B, P>
+impl<B, P> PolicyInferenceServer<B, P>
 where
     B: Backend,
     P: Policy<B>,
@@ -284,7 +179,7 @@ struct ForwardItem<S, O> {
     inference_state: S,
 }
 
-/// An asynchronous policy with autobatching for inference.
+/// An asynchronous policy using an inference server with autobatching.
 #[derive(Clone)]
 pub struct AsyncPolicy<B: Backend, P: Policy<B>> {
     inference_state_sender: Sender<InferenceMessage<B, P>>,
@@ -304,11 +199,11 @@ where
     ///
     /// # Arguments
     ///
-    /// * `autobatch_size` - Number of observation to accumulate before running a pass of inference.
+    /// * `autobatch_size` - Number of observations to accumulate before running a pass of inference.
     /// * `inner_policy` - The policy used to take actions.
     pub fn new(autobatch_size: usize, inner_policy: P) -> Self {
         let (sender, receiver) = std::sync::mpsc::channel();
-        let mut autobatcher = PolicyAutoBatcher::new(autobatch_size, inner_policy.clone());
+        let mut autobatcher = PolicyInferenceServer::new(autobatch_size, inner_policy.clone());
         spawn(move || {
             loop {
                 match receiver.recv() {
@@ -335,14 +230,14 @@ where
         }
     }
 
-    /// Increment the number of agents using this policy.
+    /// Increment the number of agents using the inference server.
     pub fn increment_agents(&self, num: usize) {
         self.inference_state_sender
             .send(InferenceMessage::IncrementAgents(num))
             .expect("Can send message to autobatcher.")
     }
 
-    /// Decrement the number of agents using this policy.
+    /// Decrement the number of agents using the inference server.
     pub fn decrement_agents(&self, num: usize) {
         self.inference_state_sender
             .send(InferenceMessage::DecrementAgents(num))

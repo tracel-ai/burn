@@ -6,12 +6,12 @@ use burn_rl::Policy;
 use burn_rl::Transition;
 use burn_rl::{Environment, EnvironmentInit};
 
+use crate::RLEvent;
 use crate::{
     AgentEvaluationEvent, EpisodeSummary, EvaluationItem, EventProcessorTraining,
     RLEventProcessorType,
 };
 use crate::{Interrupter, RLComponentsTypes};
-use crate::{RLEvent, RlPolicy};
 
 /// A trajectory, i.e. a list of ordered [TimeStep](TimeStep).
 #[derive(Clone, new)]
@@ -95,9 +95,9 @@ pub trait AgentEnvLoop<BT: Backend, RLC: RLComponentsTypes> {
         progress: &mut Progress,
     ) -> Vec<RLTrajectory<BT, RLC>>;
     /// Update the runner's agent.
-    fn update_policy(&mut self, update: <RlPolicy<RLC> as Policy<RLC::Backend>>::PolicyState);
+    fn update_policy(&mut self, update: RLC::PolicyState);
     /// Get the state of the runner's agent.
-    fn policy(&self) -> <RlPolicy<RLC> as Policy<RLC::Backend>>::PolicyState;
+    fn policy(&self) -> RLC::PolicyState;
 }
 
 /// A simple, synchronized agent/environement interface.
@@ -213,7 +213,7 @@ where
         items
     }
 
-    fn update_policy(&mut self, update: <RlPolicy<RLC> as Policy<RLC::Backend>>::PolicyState) {
+    fn update_policy(&mut self, update: RLC::PolicyState) {
         self.agent.update(update);
     }
 
@@ -267,9 +267,7 @@ where
         items
     }
 
-    fn policy(
-        &self,
-    ) -> <RlPolicy<RLC> as Policy<<RLC as RLComponentsTypes>::Backend>>::PolicyState {
+    fn policy(&self) -> RLC::PolicyState {
         self.agent.state()
     }
 }

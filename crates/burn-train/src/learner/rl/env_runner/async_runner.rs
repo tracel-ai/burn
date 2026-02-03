@@ -68,12 +68,6 @@ impl<BT, RLC> AgentEnvLoop<BT, RLC> for AgentEnvAsyncLoop<BT, RLC>
 where
     BT: Backend,
     RLC: RLComponentsTypes,
-    RLC::Policy: Send + 'static,
-    <RLC::Policy as Policy<RLC::Backend>>::PolicyState: Send,
-    <RLC::Policy as Policy<RLC::Backend>>::ActionContext: Send,
-    <RLC::Policy as Policy<RLC::Backend>>::Observation: Send,
-    <RLC::Policy as Policy<RLC::Backend>>::Action: Send,
-    <RLC::Policy as Policy<RLC::Backend>>::ActionDistribution: Send,
 {
     fn start(&mut self) {
         let id = self.id;
@@ -178,7 +172,6 @@ where
         progress: &mut Progress,
     ) -> Vec<RLTimeStep<BT, RLC>> {
         let mut items = vec![];
-        self.agent.increment_agents(1);
         for _ in 0..num_steps {
             self.request_sender
                 .as_ref()
@@ -215,7 +208,6 @@ where
                 break;
             }
         }
-        self.agent.decrement_agents(1);
         items
     }
 
@@ -240,6 +232,7 @@ where
                 .expect("Main thread can receive trajectory.");
 
             for (i, step) in trajectory.timesteps.iter().enumerate() {
+                // TODO : clean this.
                 if self.eval {
                     processor.process_valid(AgentEvaluationEvent::TimeStep(EvaluationItem::new(
                         step.action_context.clone(),
@@ -288,13 +281,11 @@ where
         items
     }
 
-    fn update_policy(&mut self, update: <RlPolicy<RLC> as Policy<RLC::Backend>>::PolicyState) {
+    fn update_policy(&mut self, update: RLC::PolicyState) {
         self.agent.update(update);
     }
 
-    fn policy(
-        &self,
-    ) -> <RlPolicy<RLC> as Policy<<RLC as RLComponentsTypes>::Backend>>::PolicyState {
+    fn policy(&self) -> RLC::PolicyState {
         self.agent.state()
     }
 }
@@ -346,12 +337,6 @@ impl<BT, RLC> AgentEnvLoop<BT, RLC> for MultiAgentEnvLoop<BT, RLC>
 where
     BT: Backend,
     RLC: RLComponentsTypes,
-    RLC::Policy: Send + 'static,
-    <RLC::Policy as Policy<RLC::Backend>>::PolicyState: Send,
-    <RLC::Policy as Policy<RLC::Backend>>::ActionContext: Send,
-    <RLC::Policy as Policy<RLC::Backend>>::Observation: Send,
-    <RLC::Policy as Policy<RLC::Backend>>::Action: Send,
-    <RLC::Policy as Policy<RLC::Backend>>::ActionDistribution: Send,
 {
     // TODO: start() shouldn't exist.
     fn start(&mut self) {
@@ -427,7 +412,7 @@ where
         items
     }
 
-    fn update_policy(&mut self, update: <RlPolicy<RLC> as Policy<RLC::Backend>>::PolicyState) {
+    fn update_policy(&mut self, update: RLC::PolicyState) {
         self.agent.update(update);
     }
 
@@ -515,9 +500,7 @@ where
         items
     }
 
-    fn policy(
-        &self,
-    ) -> <RlPolicy<RLC> as Policy<<RLC as RLComponentsTypes>::Backend>>::PolicyState {
+    fn policy(&self) -> RLC::PolicyState {
         self.agent.state()
     }
 }

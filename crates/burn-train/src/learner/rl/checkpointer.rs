@@ -21,7 +21,7 @@ impl<RLC: RLComponentsTypes> RLCheckpointer<RLC> {
     /// Create checkpoint for the training process.
     pub fn checkpoint(
         &mut self,
-        policy: &<RLC::Policy as Policy<RLC::Backend>>::PolicyState,
+        policy: &RLC::PolicyState,
         learning_agent: &RLC::LearningAgent,
         epoch: usize,
         store: &EventStoreClient,
