@@ -424,7 +424,7 @@ $$
 /// See also [CELU](https://pytorch.org/docs/stable/generated/torch.nn.CELU.html)
 ///
 /// # Arguments
-/// - `alpha`: scaling parameter for the negative part. Default is 1.0.
+/// - `alpha`: scaling parameter for the negative part.
 pub fn celu<const D: usize, B: Backend>(tensor: Tensor<B, D>, alpha: f64) -> Tensor<B, D> {
     let mask = tensor.clone().lower_equal_elem(0);
     let scaled = tensor
