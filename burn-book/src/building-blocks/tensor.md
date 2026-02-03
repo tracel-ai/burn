@@ -395,6 +395,7 @@ strategies.
 | `activation::softmax(tensor, dim)`               | `nn.functional.softmax(tensor, dim)`               |
 | `activation::softmin(tensor, dim)`               | `nn.functional.softmin(tensor, dim)`               |
 | `activation::softplus(tensor, beta)`             | `nn.functional.softplus(tensor, beta)`             |
+| `activation::softsign(tensor)`                   | `nn.functional.softsign(tensor)`                   |
 | `activation::tanh(tensor)`                       | `nn.functional.tanh(tensor)`                       |
 
 ## Grid Functions

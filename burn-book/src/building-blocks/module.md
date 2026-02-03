@@ -241,6 +241,7 @@ Burn comes with built-in modules that you can use to build your own modules.
 | `Linear`        | `nn.Linear`                                   |
 | `Prelu`         | `nn.PReLu`                                    |
 | `Relu`          | `nn.ReLU`                                     |
+| `Softsign`      | `nn.Softsign`                                 |
 | `RmsNorm`       | _No direct equivalent_                        |
 | `SwiGlu`        | _No direct equivalent_                        |
 | `Interpolate1d` | _No direct equivalent_                        |
