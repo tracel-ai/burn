@@ -68,15 +68,15 @@ pub fn fused_reduce_autotune<R: Runtime, BT: CubeElement>(
             ),
             (
                 "fused_plane",
-                RoutineStrategy::Cube(BlueprintStrategy::Inferred(CubeStrategy {
-                    use_planes: true,
+                RoutineStrategy::Plane(BlueprintStrategy::Inferred(PlaneStrategy {
+                    independent: true,
                 })),
                 ReduceProps::Balanced,
             ),
             (
                 "fused_cube",
-                RoutineStrategy::Plane(BlueprintStrategy::Inferred(PlaneStrategy {
-                    independent: true,
+                RoutineStrategy::Cube(BlueprintStrategy::Inferred(CubeStrategy {
+                    use_planes: true,
                 })),
                 ReduceProps::GreatWithLowReduceCount,
             ),
