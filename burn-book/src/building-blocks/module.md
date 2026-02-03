@@ -231,6 +231,7 @@ Burn comes with built-in modules that you can use to build your own modules.
 | --------------- | --------------------------------------------- |
 | `BatchNorm`     | `nn.BatchNorm1d`, `nn.BatchNorm2d` etc.       |
 | `Dropout`       | `nn.Dropout`                                  |
+| `Elu`           | `nn.ELU`                                      |
 | `Embedding`     | `nn.Embedding`                                |
 | `Gelu`          | `nn.Gelu`                                     |
 | `GroupNorm`     | `nn.GroupNorm`                                |

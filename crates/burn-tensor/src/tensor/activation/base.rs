@@ -402,6 +402,30 @@ pub fn tanh<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D> {
     tensor.tanh()
 }
 
+/// Applies the Exponential Linear Unit function element-wise.
+///
+#[cfg_attr(
+    doc,
+    doc = r#"
+$$
+\text{ELU}\(x\) =
+ \begin{cases}
+     x & \text{if } x > 0 \newline
+     \alpha \cdot (\exp(x) - 1) & \text{if } x \leq 0
+ \end{cases}
+$$
+"#
+)]
+#[cfg_attr(
+    not(doc),
+    doc = "`f(x) =`\n- `x for x > 0`\n- `alpha * (exp(x) - 1) for x <= 0`"
+)]
+pub fn elu<const D: usize, B: Backend>(tensor: Tensor<B, D>, alpha: f64) -> Tensor<B, D> {
+    let mask = tensor.clone().lower_equal_elem(0);
+    let scaled = tensor.clone().exp().sub_scalar(1).mul_scalar(alpha);
+    tensor.mask_where(mask, scaled)
+}
+
 /// Applies the thresholded rectified linear unit function element-wise.
 ///
 #[cfg_attr(

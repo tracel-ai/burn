@@ -14,8 +14,8 @@ pub use modules::*;
 
 pub mod activation;
 pub use activation::{
-    gelu::*, glu::*, hard_sigmoid::*, leaky_relu::*, prelu::*, relu::*, sigmoid::*, softplus::*,
-    softsign::*, swiglu::*, tanh::*, thresholded_relu::*,
+    elu::*, gelu::*, glu::*, hard_sigmoid::*, leaky_relu::*, prelu::*, relu::*, sigmoid::*,
+    softplus::*, softsign::*, swiglu::*, tanh::*, thresholded_relu::*,
 };
 
 mod padding;
