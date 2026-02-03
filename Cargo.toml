@@ -79,7 +79,7 @@ quote = "1.0.42"
 r2d2 = "0.8.10"
 r2d2_sqlite = "0.31.0"
 rayon = "1.10.0"
-regex = { version = "1.12.1", default-features = false, features = [
+regex = { version = "1.12.3", default-features = false, features = [
     "perf",
     "unicode",
 ] }
