@@ -152,28 +152,22 @@ impl<RLC: RLComponentsTypes + 'static> RLTraining<RLC> {
     }
 
     /// Register numerical metrics for a training step of the agent.
-    pub fn metrics_train_step<Me: TrainStepMetricRegistration<RLC>>(self, metrics: Me) -> Self {
+    pub fn metrics_train<Me: TrainMetricRegistration<RLC>>(self, metrics: Me) -> Self {
         metrics.register(self)
     }
 
     /// Register textual metrics for a training step of the agent.
-    pub fn metrics_train_step_text<Me: TrainStepTextMetricRegistration<RLC>>(
-        self,
-        metrics: Me,
-    ) -> Self {
+    pub fn text_metrics_train<Me: TrainTextMetricRegistration<RLC>>(self, metrics: Me) -> Self {
         metrics.register(self)
     }
 
-    /// Register numerical metrics for each step of the environment.
-    pub fn metrics_env_step<Me: EnvStepMetricRegistration<RLC>>(self, metrics: Me) -> Self {
+    /// Register numerical metrics for each action of the agent.
+    pub fn metrics_agent<Me: AgentMetricRegistration<RLC>>(self, metrics: Me) -> Self {
         metrics.register(self)
     }
 
-    /// Register textual metrics for each step of the environment.
-    pub fn metrics_env_step_text<Me: EnvStepTextMetricRegistration<RLC>>(
-        self,
-        metrics: Me,
-    ) -> Self {
+    /// Register textual metrics for each action of the agent.
+    pub fn text_metrics_agent<Me: AgentTextMetricRegistration<RLC>>(self, metrics: Me) -> Self {
         metrics.register(self)
     }
 
@@ -183,74 +177,71 @@ impl<RLC: RLComponentsTypes + 'static> RLTraining<RLC> {
     }
 
     /// Register textual metrics for a completed episode.
-    pub fn metrics_episode_text<Me: EpisodeTextMetricRegistration<RLC>>(self, metrics: Me) -> Self {
+    pub fn text_metrics_episode<Me: EpisodeTextMetricRegistration<RLC>>(self, metrics: Me) -> Self {
         metrics.register(self)
     }
 
-    /// Register a textual metric for a training step of the agent.
-    pub fn metric_train_step<Me: Metric + 'static>(mut self, metric: Me) -> Self
+    /// Register a textual metric for a training step.
+    pub fn text_metric_train<Me: Metric + 'static>(mut self, metric: Me) -> Self
     where
         <RLC::TrainingOutput as ItemLazy>::ItemSync: Adaptor<Me::Input>,
     {
-        self.metrics.register_train_step_metric(metric);
+        self.metrics.register_text_metric_train(metric);
         self
     }
 
-    /// Register a [numeric](crate::metric::Numeric) [metric](Metric) for a training step of the agent.
-    pub fn metric_train_step_numeric<Me>(mut self, metric: Me) -> Self
+    /// Register a [numeric](crate::metric::Numeric) [metric](Metric) for a training step.
+    pub fn metric_train<Me>(mut self, metric: Me) -> Self
     where
         Me: Metric + Numeric + 'static,
         <RLC::TrainingOutput as ItemLazy>::ItemSync: Adaptor<Me::Input>,
     {
         self.summary_metrics.insert(metric.name().to_string());
-        self.metrics.register_train_step_metric_numeric(metric);
+        self.metrics.register_metric_train(metric);
         self
     }
 
-    /// Register a textual metric for each step of the environment.
-    pub fn metric_env_step<Me: Metric + 'static>(mut self, metric: Me) -> Self
+    /// Register a textual metric for each action taken by the agent.
+    pub fn text_metric_agent<Me: Metric + 'static>(mut self, metric: Me) -> Self
     where
         <RLC::ActionContext as ItemLazy>::ItemSync: Adaptor<Me::Input>,
     {
-        self.metrics.register_env_step_metric(metric.clone());
-        self.metrics.register_env_step_valid_metric(metric);
+        self.metrics.register_text_metric_agent(metric.clone());
+        self.metrics.register_text_metric_agent_valid(metric);
         self
     }
 
-    /// Register a [numeric](crate::metric::Numeric) [metric](Metric) for each step of the environment.
-    pub fn metric_env_step_numeric<Me>(mut self, metric: Me) -> Self
+    /// Register a [numeric](crate::metric::Numeric) [metric](Metric) for each action taken by the agent.
+    pub fn metric_agent<Me>(mut self, metric: Me) -> Self
     where
         Me: Metric + Numeric + 'static,
         <RLC::ActionContext as ItemLazy>::ItemSync: Adaptor<Me::Input>,
     {
         self.summary_metrics.insert(metric.name().to_string());
-        self.metrics
-            .register_env_step_metric_numeric(metric.clone());
-        self.metrics.register_env_step_valid_metric_numeric(metric);
+        self.metrics.register_agent_metric(metric.clone());
+        self.metrics.register_agent_metric_valid(metric);
         self
     }
 
     /// Register a textual metric for a completed episode.
-    pub fn metric_episode<Me: Metric + 'static>(mut self, metric: Me) -> Self
+    pub fn text_metric_episode<Me: Metric + 'static>(mut self, metric: Me) -> Self
     where
         EpisodeSummary: Adaptor<Me::Input> + 'static,
     {
-        self.metrics.register_episode_end_metric(metric.clone());
-        self.metrics.register_episode_end_valid_metric(metric);
+        self.metrics.register_text_metric_episode(metric.clone());
+        self.metrics.register_text_metric_episode_valid(metric);
         self
     }
 
     /// Register a [numeric](crate::metric::Numeric) [metric](Metric) for a completed episode.
-    pub fn metric_episode_numeric<Me>(mut self, metric: Me) -> Self
+    pub fn metric_episode<Me>(mut self, metric: Me) -> Self
     where
         Me: Metric + Numeric + 'static,
         EpisodeSummary: Adaptor<Me::Input> + 'static,
     {
         self.summary_metrics.insert(metric.name().to_string());
-        self.metrics
-            .register_episode_end_metric_numeric(metric.clone());
-        self.metrics
-            .register_episode_end_valid_metric_numeric(metric);
+        self.metrics.register_episode_metric(metric.clone());
+        self.metrics.register_episode_metric_valid(metric);
         self
     }
 
@@ -385,25 +376,25 @@ pub struct RLResult<P> {
 }
 
 /// Trait to fake variadic generics for train step metrics.
-pub trait EnvStepMetricRegistration<RLC: RLComponentsTypes>: Sized {
+pub trait AgentMetricRegistration<RLC: RLComponentsTypes>: Sized {
     /// Register the metrics.
     fn register(self, builder: RLTraining<RLC>) -> RLTraining<RLC>;
 }
 
 /// Trait to fake variadic generics for train step text metrics.
-pub trait EnvStepTextMetricRegistration<RLC: RLComponentsTypes>: Sized {
+pub trait AgentTextMetricRegistration<RLC: RLComponentsTypes>: Sized {
     /// Register the metrics.
     fn register(self, builder: RLTraining<RLC>) -> RLTraining<RLC>;
 }
 
 /// Trait to fake variadic generics for env step metrics.
-pub trait TrainStepMetricRegistration<RLC: RLComponentsTypes>: Sized {
+pub trait TrainMetricRegistration<RLC: RLComponentsTypes>: Sized {
     /// Register the metrics.
     fn register(self, builder: RLTraining<RLC>) -> RLTraining<RLC>;
 }
 
 /// Trait to fake variadic generics for env step text metrics.
-pub trait TrainStepTextMetricRegistration<RLC: RLComponentsTypes>: Sized {
+pub trait TrainTextMetricRegistration<RLC: RLComponentsTypes>: Sized {
     /// Register the metrics.
     fn register(self, builder: RLTraining<RLC>) -> RLTraining<RLC>;
 }
@@ -422,7 +413,7 @@ pub trait EpisodeTextMetricRegistration<RLC: RLComponentsTypes>: Sized {
 
 macro_rules! gen_tuple {
     ($($M:ident),*) => {
-        impl<$($M,)* RLC: RLComponentsTypes + 'static> TrainStepTextMetricRegistration<RLC> for ($($M,)*)
+        impl<$($M,)* RLC: RLComponentsTypes + 'static> TrainTextMetricRegistration<RLC> for ($($M,)*)
         where
             $(<RLC::TrainingOutput as ItemLazy>::ItemSync: Adaptor<$M::Input>,)*
             $($M: Metric + 'static,)*
@@ -433,12 +424,12 @@ macro_rules! gen_tuple {
                 builder: RLTraining<RLC>,
             ) -> RLTraining<RLC> {
                 let ($($M,)*) = self;
-                $(let builder = builder.metric_train_step($M.clone());)*
+                $(let builder = builder.text_metric_train($M.clone());)*
                 builder
             }
         }
 
-        impl<$($M,)* RLC: RLComponentsTypes + 'static> TrainStepMetricRegistration<RLC> for ($($M,)*)
+        impl<$($M,)* RLC: RLComponentsTypes + 'static> TrainMetricRegistration<RLC> for ($($M,)*)
         where
             $(<RLC::TrainingOutput as ItemLazy>::ItemSync: Adaptor<$M::Input>,)*
             $($M: Metric + Numeric + 'static,)*
@@ -449,12 +440,12 @@ macro_rules! gen_tuple {
                 builder: RLTraining<RLC>,
             ) -> RLTraining<RLC> {
                 let ($($M,)*) = self;
-                $(let builder = builder.metric_train_step_numeric($M.clone());)*
+                $(let builder = builder.metric_train($M.clone());)*
                 builder
             }
         }
 
-        impl<$($M,)* RLC: RLComponentsTypes + 'static> EnvStepTextMetricRegistration<RLC> for ($($M,)*)
+        impl<$($M,)* RLC: RLComponentsTypes + 'static> AgentTextMetricRegistration<RLC> for ($($M,)*)
         where
             $(<RLC::ActionContext as ItemLazy>::ItemSync: Adaptor<$M::Input>,)*
             $($M: Metric + 'static,)*
@@ -465,12 +456,12 @@ macro_rules! gen_tuple {
                 builder: RLTraining<RLC>,
             ) -> RLTraining<RLC> {
                 let ($($M,)*) = self;
-                $(let builder = builder.metric_env_step($M.clone());)*
+                $(let builder = builder.text_metric_agent($M.clone());)*
                 builder
             }
         }
 
-        impl<$($M,)* RLC: RLComponentsTypes + 'static> EnvStepMetricRegistration<RLC> for ($($M,)*)
+        impl<$($M,)* RLC: RLComponentsTypes + 'static> AgentMetricRegistration<RLC> for ($($M,)*)
         where
             $(<RLC::ActionContext as ItemLazy>::ItemSync: Adaptor<$M::Input>,)*
             $($M: Metric + Numeric + 'static,)*
@@ -481,7 +472,7 @@ macro_rules! gen_tuple {
                 builder: RLTraining<RLC>,
             ) -> RLTraining<RLC> {
                 let ($($M,)*) = self;
-                $(let builder = builder.metric_env_step_numeric($M.clone());)*
+                $(let builder = builder.metric_agent($M.clone());)*
                 builder
             }
         }
@@ -497,7 +488,7 @@ macro_rules! gen_tuple {
                 builder: RLTraining<RLC>,
             ) -> RLTraining<RLC> {
                 let ($($M,)*) = self;
-                $(let builder = builder.metric_episode($M.clone());)*
+                $(let builder = builder.text_metric_episode($M.clone());)*
                 builder
             }
         }
@@ -513,7 +504,7 @@ macro_rules! gen_tuple {
                 builder: RLTraining<RLC>,
             ) -> RLTraining<RLC> {
                 let ($($M,)*) = self;
-                $(let builder = builder.metric_episode_numeric($M.clone());)*
+                $(let builder = builder.metric_episode($M.clone());)*
                 builder
             }
         }

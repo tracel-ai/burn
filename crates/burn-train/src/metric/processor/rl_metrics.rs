@@ -43,7 +43,7 @@ impl<TS: ItemLazy, ES: ItemLazy> Default for RLMetrics<TS, ES> {
 
 impl<TS: ItemLazy, ES: ItemLazy> RLMetrics<TS, ES> {
     /// Register a training metric.
-    pub(crate) fn register_env_step_metric<Me: Metric + 'static>(&mut self, metric: Me)
+    pub(crate) fn register_text_metric_agent<Me: Metric + 'static>(&mut self, metric: Me)
     where
         ES::ItemSync: Adaptor<Me::Input> + 'static,
     {
@@ -53,10 +53,8 @@ impl<TS: ItemLazy, ES: ItemLazy> RLMetrics<TS, ES> {
     }
 
     /// Register a training metric.
-    pub(crate) fn register_env_step_metric_numeric<Me: Metric + Numeric + 'static>(
-        &mut self,
-        metric: Me,
-    ) where
+    pub(crate) fn register_agent_metric<Me: Metric + Numeric + 'static>(&mut self, metric: Me)
+    where
         ES::ItemSync: Adaptor<Me::Input> + 'static,
     {
         let metric = MetricWrapper::new(metric);
@@ -65,7 +63,7 @@ impl<TS: ItemLazy, ES: ItemLazy> RLMetrics<TS, ES> {
     }
 
     /// Register a training metric.
-    pub(crate) fn register_train_step_metric<Me: Metric + 'static>(&mut self, metric: Me)
+    pub(crate) fn register_text_metric_train<Me: Metric + 'static>(&mut self, metric: Me)
     where
         TS::ItemSync: Adaptor<Me::Input> + 'static,
     {
@@ -75,10 +73,8 @@ impl<TS: ItemLazy, ES: ItemLazy> RLMetrics<TS, ES> {
     }
 
     /// Register a training metric.
-    pub(crate) fn register_train_step_metric_numeric<Me: Metric + Numeric + 'static>(
-        &mut self,
-        metric: Me,
-    ) where
+    pub(crate) fn register_metric_train<Me: Metric + Numeric + 'static>(&mut self, metric: Me)
+    where
         TS::ItemSync: Adaptor<Me::Input> + 'static,
     {
         let metric = MetricWrapper::new(metric);
@@ -87,7 +83,7 @@ impl<TS: ItemLazy, ES: ItemLazy> RLMetrics<TS, ES> {
     }
 
     /// Register a validation env-step metric.
-    pub(crate) fn register_env_step_valid_metric<Me: Metric + 'static>(&mut self, metric: Me)
+    pub(crate) fn register_text_metric_agent_valid<Me: Metric + 'static>(&mut self, metric: Me)
     where
         ES::ItemSync: Adaptor<Me::Input> + 'static,
     {
@@ -97,10 +93,8 @@ impl<TS: ItemLazy, ES: ItemLazy> RLMetrics<TS, ES> {
     }
 
     /// Register a validation env-step numeric metric.
-    pub(crate) fn register_env_step_valid_metric_numeric<Me: Metric + Numeric + 'static>(
-        &mut self,
-        metric: Me,
-    ) where
+    pub(crate) fn register_agent_metric_valid<Me: Metric + Numeric + 'static>(&mut self, metric: Me)
+    where
         ES::ItemSync: Adaptor<Me::Input> + 'static,
     {
         let metric = MetricWrapper::new(metric);
@@ -109,7 +103,7 @@ impl<TS: ItemLazy, ES: ItemLazy> RLMetrics<TS, ES> {
     }
 
     /// Register an episode-end metric.
-    pub(crate) fn register_episode_end_metric<Me: Metric + 'static>(&mut self, metric: Me)
+    pub(crate) fn register_text_metric_episode<Me: Metric + 'static>(&mut self, metric: Me)
     where
         EpisodeSummary: Adaptor<Me::Input> + 'static,
     {
@@ -119,10 +113,8 @@ impl<TS: ItemLazy, ES: ItemLazy> RLMetrics<TS, ES> {
     }
 
     /// Register an episode-end numeric metric.
-    pub(crate) fn register_episode_end_metric_numeric<Me: Metric + Numeric + 'static>(
-        &mut self,
-        metric: Me,
-    ) where
+    pub(crate) fn register_episode_metric<Me: Metric + Numeric + 'static>(&mut self, metric: Me)
+    where
         EpisodeSummary: Adaptor<Me::Input> + 'static,
     {
         let metric = MetricWrapper::new(metric);
@@ -131,7 +123,7 @@ impl<TS: ItemLazy, ES: ItemLazy> RLMetrics<TS, ES> {
     }
 
     /// Register an episode-end metric for validation.
-    pub(crate) fn register_episode_end_valid_metric<Me: Metric + 'static>(&mut self, metric: Me)
+    pub(crate) fn register_text_metric_episode_valid<Me: Metric + 'static>(&mut self, metric: Me)
     where
         EpisodeSummary: Adaptor<Me::Input> + 'static,
     {
@@ -141,7 +133,7 @@ impl<TS: ItemLazy, ES: ItemLazy> RLMetrics<TS, ES> {
     }
 
     /// Register an episode-end numeric metric for validation.
-    pub(crate) fn register_episode_end_valid_metric_numeric<Me: Metric + Numeric + 'static>(
+    pub(crate) fn register_episode_metric_valid<Me: Metric + Numeric + 'static>(
         &mut self,
         metric: Me,
     ) where
