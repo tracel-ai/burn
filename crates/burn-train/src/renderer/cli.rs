@@ -19,7 +19,7 @@ impl MetricsRendererTraining for CliMetricsRenderer {
 
     fn update_valid(&mut self, _state: MetricState) {}
 
-    fn update_status_train(
+    fn render_train(
         &mut self,
         item: TrainingProgress,
         _progress_indicators: Vec<ProgressType>,
@@ -27,7 +27,7 @@ impl MetricsRendererTraining for CliMetricsRenderer {
         println!("{item:?}");
     }
 
-    fn update_status_valid(
+    fn render_valid(
         &mut self,
         item: TrainingProgress,
         _progress_indicators: Vec<ProgressType>,
@@ -37,7 +37,7 @@ impl MetricsRendererTraining for CliMetricsRenderer {
 }
 
 impl MetricsRendererEvaluation for CliMetricsRenderer {
-    fn update_status_test(
+    fn render_test(
         &mut self,
         item: EvaluationProgress,
         _progress_indicators: Vec<ProgressType>,

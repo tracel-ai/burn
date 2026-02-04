@@ -164,7 +164,7 @@ where
                 state.clone(),
                 step_result.next_state,
                 RLC::Action::from(action),
-                Tensor::from_data([step_result.reward as f64], &device),
+                Tensor::from_data([step_result.reward], &device),
                 Tensor::from_data(
                     [(step_result.done || step_result.truncated) as i32 as f64],
                     &device,

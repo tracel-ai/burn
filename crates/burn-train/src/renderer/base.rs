@@ -22,27 +22,19 @@ pub trait MetricsRendererTraining: Send + Sync {
     /// * `state` - The metric state.
     fn update_valid(&mut self, state: MetricState);
 
-    /// Updates the training status.
+    /// Renders the training progress.
     ///
     /// # Arguments
     ///
     /// * `item` - The training progress.
-    fn update_status_train(
-        &mut self,
-        item: TrainingProgress,
-        progress_indicators: Vec<ProgressType>,
-    );
+    fn render_train(&mut self, item: TrainingProgress, progress_indicators: Vec<ProgressType>);
 
-    /// Updates the validation status.
+    /// Renders the validation progress.
     ///
     /// # Arguments
     ///
     /// * `item` - The validation progress.
-    fn update_status_valid(
-        &mut self,
-        item: TrainingProgress,
-        progress_indicators: Vec<ProgressType>,
-    );
+    fn render_valid(&mut self, item: TrainingProgress, progress_indicators: Vec<ProgressType>);
 
     /// Callback method invoked when training ends, whether it
     /// completed successfully or was interrupted.
@@ -110,11 +102,7 @@ pub trait MetricsRendererEvaluation: Send + Sync {
     /// # Arguments
     ///
     /// * `item` - The training progress.
-    fn update_status_test(
-        &mut self,
-        item: EvaluationProgress,
-        progress_indicators: Vec<ProgressType>,
-    );
+    fn render_test(&mut self, item: EvaluationProgress, progress_indicators: Vec<ProgressType>);
 
     /// Callback method invoked when testing ends, whether it
     /// completed successfully or was interrupted.

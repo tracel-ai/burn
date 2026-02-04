@@ -130,7 +130,7 @@ pub trait Adaptor<T> {
 }
 
 impl<T> Adaptor<()> for T {
-    fn adapt(&self) -> () {}
+    fn adapt(&self) {}
 }
 
 /// Attributes that describe intrinsic properties of a numeric metric.

@@ -23,6 +23,8 @@ use std::sync::Arc;
 
 /// Structure to configure and launch reinforcement learning trainings.
 pub struct RLTraining<RLC: RLComponentsTypes> {
+    // Not that complex. Extracting into yet another type would only make it more confusing.
+    #[allow(clippy::type_complexity)]
     checkpointers: Option<(
         AsyncCheckpointer<RLPolicyRecord<RLC>, RLC::Backend>,
         AsyncCheckpointer<RLAgentRecord<RLC>, RLC::Backend>,
@@ -346,7 +348,7 @@ impl<RLC: RLComponentsTypes + 'static> RLTraining<RLC> {
 
         let components = RLComponents::<RLC> {
             checkpoint: self.checkpoint,
-            checkpointer: checkpointer,
+            checkpointer,
             interrupter: self.interrupter,
             event_processor,
             event_store,

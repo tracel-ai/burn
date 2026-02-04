@@ -56,7 +56,7 @@ pub(crate) struct StatusView {
 }
 
 impl StatusView {
-    fn new(progress_indicators: &Vec<ProgressType>, mode: &Mode) -> Self {
+    fn new(progress_indicators: &[ProgressType], mode: &Mode) -> Self {
         let title = |title: &str| Span::from(format!(" {title} ")).bold().yellow();
         let value = |value: String| Span::from(value).italic();
         let mode = match mode {

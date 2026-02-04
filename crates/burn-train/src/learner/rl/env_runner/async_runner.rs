@@ -104,7 +104,7 @@ where
                     state.clone(),
                     step_result.next_state,
                     env_action,
-                    Tensor::from_data([step_result.reward as f64], &device),
+                    Tensor::from_data([step_result.reward], &device),
                     Tensor::from_data(
                         [(step_result.done || step_result.truncated) as i32 as f64],
                         &device,
@@ -138,11 +138,9 @@ where
                 };
                 current_steps.push(time_step.clone());
 
-                if !request_episode {
-                    if let Err(err) = transition_sender.send(time_step) {
-                        log::error!("Error in env runner : {}", err);
-                        break;
-                    }
+                if !request_episode && let Err(err) = transition_sender.send(time_step) {
+                    log::error!("Error in env runner : {}", err);
+                    break;
                 }
 
                 if step_result.done || step_result.truncated {

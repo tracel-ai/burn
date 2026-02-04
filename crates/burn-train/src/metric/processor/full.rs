@@ -139,7 +139,7 @@ impl<T: ItemLazy> EventProcessorEvaluation for FullEventProcessorEvaluation<T> {
                     });
 
                 let indicators = self.progress_indicators(&progress);
-                self.renderer.update_status_test(progress, indicators);
+                self.renderer.render_test(progress, indicators);
             }
             EvaluatorEvent::End => {
                 self.renderer.on_test_end().ok();
@@ -193,7 +193,7 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
                     });
 
                 let indicators = self.progress_indicators(&progress);
-                self.renderer.update_status_train(progress, indicators);
+                self.renderer.render_train(progress, indicators);
             }
             LearnerEvent::EndEpoch(epoch) => {
                 self.store
@@ -238,7 +238,7 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEv
                     });
 
                 let indicators = self.progress_indicators(&progress);
-                self.renderer.update_status_valid(progress, indicators);
+                self.renderer.render_valid(progress, indicators);
             }
             LearnerEvent::EndEpoch(epoch) => {
                 self.store

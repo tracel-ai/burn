@@ -45,7 +45,9 @@ enum TuiRendererEvent {
     StatusUpdateTrain((TuiSplit, TrainingProgress, Vec<ProgressType>)),
     StatusUpdateTest((EvaluationProgress, Vec<ProgressType>)),
     TrainEnd(Option<LearnerSummary>),
-    Persistent(()),
+    ManualClose(),
+    Close(),
+    Persistent(),
 }
 
 /// The terminal UI metrics renderer.
@@ -76,8 +78,15 @@ impl TuiMetricsRendererWrapper {
                 }
 
                 // Render
-                if renderer.last_update.elapsed() >= tick_rate {
-                    renderer.render().unwrap()
+                if renderer.last_update.elapsed() >= tick_rate
+                    && let Err(err) = renderer.render()
+                {
+                    log::error!("Render error: {err}");
+                    break;
+                }
+
+                if (renderer.manual_close && renderer.interrupter.should_stop()) || renderer.close {
+                    break;
                 }
             }
         });
@@ -89,11 +98,15 @@ impl TuiMetricsRendererWrapper {
         }
     }
 
+    fn send_event(&self, event: TuiRendererEvent) {
+        if let Err(e) = self.sender.send(event) {
+            log::warn!("Failed to send TUI event: {e}");
+        }
+    }
+
     /// Set the renderer to persistent mode.
     pub fn persistent(self) -> Self {
-        self.sender
-            .send(TuiRendererEvent::Persistent(()))
-            .expect("Can send tui renderer event.");
+        self.send_event(TuiRendererEvent::Persistent());
         self
     }
 }
@@ -110,103 +123,87 @@ struct TuiMetricsRenderer {
     popup: PopupState,
     previous_panic_hook: Option<Arc<PanicHook>>,
     persistent: bool,
+    manual_close: bool,
+    close: bool,
     summary: Option<LearnerSummary>,
 }
 
 impl MetricsRendererEvaluation for TuiMetricsRendererWrapper {
     fn update_test(&mut self, name: EvaluationName, state: MetricState) {
-        self.sender
-            .send(TuiRendererEvent::MetricsUpdate((
-                TuiSplit::Test,
-                TuiGroup::Named(name.name),
-                state,
-            )))
-            .expect("Can send tui renderer event.");
+        self.send_event(TuiRendererEvent::MetricsUpdate((
+            TuiSplit::Test,
+            TuiGroup::Named(name.name),
+            state,
+        )));
     }
 
-    fn update_status_test(
-        &mut self,
-        item: EvaluationProgress,
-        progress_indicators: Vec<ProgressType>,
-    ) {
-        self.sender
-            .send(TuiRendererEvent::StatusUpdateTest((
-                item,
-                progress_indicators,
-            )))
-            .expect("Can send tui renderer event.");
+    fn render_test(&mut self, item: EvaluationProgress, progress_indicators: Vec<ProgressType>) {
+        self.send_event(TuiRendererEvent::StatusUpdateTest((
+            item,
+            progress_indicators,
+        )));
     }
 }
 
 impl MetricsRenderer for TuiMetricsRendererWrapper {
     fn manual_close(&mut self) {
+        self.send_event(TuiRendererEvent::ManualClose());
         let _ = self.handle_join.take().unwrap().join();
     }
 
     fn register_metric(&mut self, definition: MetricDefinition) {
-        self.sender
-            .send(TuiRendererEvent::MetricRegistration(definition))
-            .expect("Can send tui renderer event.");
+        self.send_event(TuiRendererEvent::MetricRegistration(definition));
     }
 }
 
 impl MetricsRendererTraining for TuiMetricsRendererWrapper {
     fn update_train(&mut self, state: MetricState) {
-        self.sender
-            .send(TuiRendererEvent::MetricsUpdate((
-                TuiSplit::Train,
-                TuiGroup::Default,
-                state,
-            )))
-            .expect("Can send tui renderer event.");
+        self.send_event(TuiRendererEvent::MetricsUpdate((
+            TuiSplit::Train,
+            TuiGroup::Default,
+            state,
+        )));
     }
 
     fn update_valid(&mut self, state: MetricState) {
-        self.sender
-            .send(TuiRendererEvent::MetricsUpdate((
-                TuiSplit::Valid,
-                TuiGroup::Default,
-                state,
-            )))
-            .expect("Can send tui renderer event.");
+        self.send_event(TuiRendererEvent::MetricsUpdate((
+            TuiSplit::Valid,
+            TuiGroup::Default,
+            state,
+        )));
     }
 
-    fn update_status_train(
-        &mut self,
-        item: TrainingProgress,
-        progress_indicators: Vec<ProgressType>,
-    ) {
-        self.sender
-            .send(TuiRendererEvent::StatusUpdateTrain((
-                TuiSplit::Train,
-                item,
-                progress_indicators,
-            )))
-            .expect("Can send tui renderer event.");
+    fn render_train(&mut self, item: TrainingProgress, progress_indicators: Vec<ProgressType>) {
+        self.send_event(TuiRendererEvent::StatusUpdateTrain((
+            TuiSplit::Train,
+            item,
+            progress_indicators,
+        )));
     }
 
-    fn update_status_valid(
-        &mut self,
-        item: TrainingProgress,
-        progress_indicators: Vec<ProgressType>,
-    ) {
-        self.sender
-            .send(TuiRendererEvent::StatusUpdateTrain((
-                TuiSplit::Valid,
-                item,
-                progress_indicators,
-            )))
-            .expect("Can send tui renderer event.");
+    fn render_valid(&mut self, item: TrainingProgress, progress_indicators: Vec<ProgressType>) {
+        self.send_event(TuiRendererEvent::StatusUpdateTrain((
+            TuiSplit::Valid,
+            item,
+            progress_indicators,
+        )));
     }
 
     fn on_train_end(&mut self, summary: Option<LearnerSummary>) -> Result<(), Box<dyn Error>> {
         // Reset for following steps.
         self.interrupter.reset();
         // Update the summary
-        self.sender
-            .send(TuiRendererEvent::TrainEnd(summary))
-            .expect("Can send tui renderer event.");
+        self.send_event(TuiRendererEvent::TrainEnd(summary));
         Ok(())
+    }
+}
+
+impl Drop for TuiMetricsRendererWrapper {
+    fn drop(&mut self) {
+        if !std::thread::panicking() {
+            self.send_event(TuiRendererEvent::Close());
+            let _ = self.handle_join.take().unwrap().join();
+        }
     }
 }
 
@@ -268,6 +265,8 @@ impl TuiMetricsRenderer {
             popup: PopupState::Empty,
             previous_panic_hook: Some(previous_panic_hook),
             persistent: false,
+            manual_close: false,
+            close: false,
             summary: None,
         }
     }
@@ -303,9 +302,9 @@ impl TuiMetricsRenderer {
                 self.interrupter.reset();
                 self.summary = learner_summary;
             }
-            TuiRendererEvent::Persistent(_) => {
-                self.persistent = true;
-            }
+            TuiRendererEvent::ManualClose() => self.manual_close = true,
+            TuiRendererEvent::Persistent() => self.persistent = true,
+            TuiRendererEvent::Close() => self.close = true,
         }
     }
 

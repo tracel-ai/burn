@@ -27,6 +27,6 @@ impl Adaptor<EpisodeLengthInput> for EpisodeSummary {
 
 impl Adaptor<CumulativeRewardInput> for EpisodeSummary {
     fn adapt(&self) -> CumulativeRewardInput {
-        CumulativeRewardInput::new(self.cum_reward as f64)
+        CumulativeRewardInput::new(self.cum_reward)
     }
 }

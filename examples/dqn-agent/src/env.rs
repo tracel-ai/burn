@@ -23,10 +23,10 @@ impl<B: Backend> From<DiscreteActionTensor<B, 2>> for CartPoleAction {
     }
 }
 
-impl<B: Backend> Into<DiscreteActionTensor<B, 2>> for CartPoleAction {
-    fn into(self) -> DiscreteActionTensor<B, 2> {
+impl<B: Backend> From<CartPoleAction> for DiscreteActionTensor<B, 2> {
+    fn from(value: CartPoleAction) -> Self {
         DiscreteActionTensor {
-            actions: Tensor::<B, 1>::from_data([self.action], &Default::default()).unsqueeze(),
+            actions: Tensor::<B, 1>::from_data([value.action], &Default::default()).unsqueeze(),
         }
     }
 }
@@ -44,11 +44,10 @@ impl From<CartPoleObservation> for CartPoleState {
         }
     }
 }
-
-impl<B: Backend> Into<ObservationTensor<B, 2>> for CartPoleState {
-    fn into(self) -> ObservationTensor<B, 2> {
+impl<B: Backend> From<CartPoleState> for ObservationTensor<B, 2> {
+    fn from(val: CartPoleState) -> Self {
         ObservationTensor {
-            state: Tensor::<B, 1>::from_floats(self.state, &Default::default()).unsqueeze(),
+            state: Tensor::<B, 1>::from_floats(val.state, &Default::default()).unsqueeze(),
         }
     }
 }
@@ -57,6 +56,12 @@ impl<B: Backend> Into<ObservationTensor<B, 2>> for CartPoleState {
 pub struct CartPoleWrapper {
     gym_env: CartPoleEnv,
     step_index: usize,
+}
+
+impl Default for CartPoleWrapper {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl CartPoleWrapper {

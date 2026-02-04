@@ -139,7 +139,7 @@ impl<B: Backend, P: Policy<B>> EpsilonGreedyPolicy<B, P> {
 
     fn get_threshold(&self) -> f64 {
         self.eps_end
-            + (self.eps_start - self.eps_end) * f64::exp(-1. * self.step as f64 / self.eps_decay)
+            + (self.eps_start - self.eps_end) * f64::exp(-(self.step as f64) / self.eps_decay)
     }
 
     fn step(&mut self) -> f64 {
@@ -180,16 +180,15 @@ where
 
         let mut contexts = vec![];
         let mut actions = vec![];
-        for i in 0..greedy_actions.len() {
+        for a in greedy_actions {
             let threshold = self.step();
             let threshold = if deterministic { 0.0 } else { threshold };
             contexts.push(EpsilonGreedyPolicyOutput { epsilon: threshold });
             if random::<f64>() > threshold {
-                actions.push(greedy_actions[i].clone().float());
+                actions.push(a.clone().float());
             } else {
                 actions.push(
-                    Tensor::<B, 1>::from_floats([random_range(0..2)], &greedy_actions[i].device())
-                        .unsqueeze(),
+                    Tensor::<B, 1>::from_floats([random_range(0..2)], &a.device()).unsqueeze(),
                 );
             }
         }
@@ -216,7 +215,7 @@ where
             .inner_policy
             .load_record(state.inner_state.into_record());
         EpsilonGreedyPolicy {
-            inner_policy: inner_policy,
+            inner_policy,
             eps_start: self.eps_start,
             eps_end: self.eps_end,
             eps_decay: self.eps_decay,

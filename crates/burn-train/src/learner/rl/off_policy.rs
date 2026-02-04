@@ -124,8 +124,7 @@ where
                 &mut progress,
             );
 
-            transition_buffer
-                .append(&mut items.iter().map(|i| i.transition.clone().into()).collect());
+            transition_buffer.append(&mut items.iter().map(|i| i.transition.clone()).collect());
 
             if transition_buffer.len() >= self.config.train_batch_size
                 && progress.items_processed >= self.config.warmup_steps
@@ -158,7 +157,7 @@ where
                 if let Some(checkpointer) = &mut checkpointer {
                     checkpointer.checkpoint(
                         &env_runner.policy(),
-                        &learner_agent,
+                        learner_agent,
                         valid_next,
                         &training_components.event_store,
                     );

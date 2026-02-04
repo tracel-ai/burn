@@ -3,7 +3,9 @@ use std::marker::PhantomData;
 use burn::backend::NdArray;
 use burn::module::Module;
 use burn::record::Record;
-use burn::rl::{Batchable, Policy, PolicyLearner, PolicyState, RLTrainOutput, TransitionBatch};
+use burn::rl::{
+    Batchable, LearnerTransitionBatch, Policy, PolicyLearner, PolicyState, RLTrainOutput,
+};
 use burn::tensor::Transaction;
 use burn::tensor::activation::softmax;
 use burn::train::ItemLazy;
@@ -271,16 +273,16 @@ impl<B: Backend, M: DiscreteActionModel<B>> Policy<B> for DQN<B, M> {
         let probs = softmax(logits, 1);
         let probs = probs.split(1, 0);
         let mut rng = rng();
-        for i in 0..probs.len() {
-            let dist = WeightedIndex::new(probs[i].to_data().to_vec::<f32>().unwrap()).unwrap();
+        for p in probs {
+            let dist = WeightedIndex::new(p.to_data().to_vec::<f32>().unwrap()).unwrap();
             let action = dist.sample(&mut rng);
-            actions.push(Tensor::<B, 1>::from_floats([action], &probs[i].device()));
+            actions.push(Tensor::<B, 1>::from_floats([action], &p.device()));
         }
 
         let output = DiscreteActionTensor {
             actions: Tensor::stack(actions, 1),
         };
-        return (output, vec![]);
+        (output, vec![])
     }
 
     fn update(&mut self, update: Self::PolicyState) {
@@ -343,7 +345,7 @@ where
             policy_model: model.clone(),
             target_model: model,
             agent,
-            optimizer: optimizer,
+            optimizer,
             config,
         }
     }
@@ -390,15 +392,9 @@ where
     type InnerPolicy = EpsilonGreedyPolicy<B, DQN<B, M>>;
     type Record = DqnLearningRecord<B, M, O>;
 
-    // Not that complex. No use in extracting in a type alias that is going to be used only once.
-    #[allow(clippy::type_complexity)]
     fn train(
         &mut self,
-        input: TransitionBatch<
-            B,
-            <Self::InnerPolicy as Policy<B>>::Observation,
-            <Self::InnerPolicy as Policy<B>>::Action,
-        >,
+        input: LearnerTransitionBatch<B, Self::InnerPolicy>,
     ) -> RLTrainOutput<Self::TrainContext, <Self::InnerPolicy as Policy<B>>::PolicyState> {
         let states_batch = input.states;
         let next_states_batch = input.next_states;

@@ -18,21 +18,19 @@ pub struct RLEventProcessor<TS: ItemLazy, ES: ItemLazy> {
 
 impl<TS: ItemLazy, ES: ItemLazy> RLEventProcessor<TS, ES> {
     fn progress_indicators(&self, progress: &TrainingProgress) -> Vec<ProgressType> {
-        let mut indicators = vec![];
-        indicators.push(ProgressType::Detailed {
+        let indicators = vec![ProgressType::Detailed {
             tag: String::from("Step"),
             progress: progress.global_progress.clone(),
-        });
+        }];
 
         indicators
     }
 
     fn progress_indicators_eval(&self, progress: &TrainingProgress) -> Vec<ProgressType> {
-        let mut indicators = vec![];
-        indicators.push(ProgressType::Detailed {
+        let indicators = vec![ProgressType::Detailed {
             tag: String::from("Step"),
             progress: progress.global_progress.clone(),
-        });
+        }];
 
         indicators
     }
@@ -108,7 +106,7 @@ impl<TS: ItemLazy, ES: ItemLazy> EventProcessorTraining<RLEvent<TS, ES>, AgentEv
                 let update = self.metrics.update_env_step(&item, &metadata);
                 self.process_update_train(update);
                 let status = self.progress_indicators(&progress);
-                self.renderer.update_status_train(progress, status);
+                self.renderer.render_train(progress, status);
             }
             RLEvent::EpisodeEnd(item) => {
                 let item = item.sync();
@@ -141,7 +139,7 @@ impl<TS: ItemLazy, ES: ItemLazy> EventProcessorTraining<RLEvent<TS, ES>, AgentEv
                 let update = self.metrics.update_episode_end_valid(&item, &metadata);
                 self.process_update_valid(update);
                 let status = self.progress_indicators_eval(&progress);
-                self.renderer.update_status_valid(progress, status);
+                self.renderer.render_valid(progress, status);
             }
             AgentEvaluationEvent::End => {} // no-op for now
         }
