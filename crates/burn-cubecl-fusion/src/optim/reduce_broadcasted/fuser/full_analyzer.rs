@@ -42,10 +42,6 @@ impl FullFuserAnalyzer {
                             );
                         } else {
                             state.next_block();
-                            // TODO: Can we use the output directly without a fuse-on-write block?
-                            // for p in potential_to_next_blocks {
-                            //     state.current_single.push(p.clone());
-                            // }
                         }
                     }
                 }
@@ -55,6 +51,7 @@ impl FullFuserAnalyzer {
 
         // First one is never called.
         state.analyses.remove(0);
+
         Self {
             analyses: state.analyses,
         }
@@ -122,11 +119,14 @@ impl AnalysisState {
             BlockKind::Full => {
                 for potential in potential_from_previous_blocks {
                     // We can't since it's not in the same scope.
+                    //
+                    // TODO: Find a way to merge multiple reduce loops.
+                    //
                     // if let Some(block_pos) = self.available_from_previous_full.get(&potential.id) {
                     //     self.block_data.push((potential.clone(), *block_pos));
                     // }
 
-                    // We can since it's essentially a broadcast.
+                    // We can since it's a broadcast.
                     if let Some(block_pos) = self.available_from_previous_single.get(&potential.id)
                     {
                         self.block_data.push((potential.clone(), *block_pos));

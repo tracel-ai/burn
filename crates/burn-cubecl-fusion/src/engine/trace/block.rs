@@ -192,7 +192,6 @@ impl FuseBlockBuilder {
                         Some(val) => return Some(val.clone()),
                         None => {}
                     };
-                    // TODO: Sometimes can be access without an extra buffer.
                     let pos = resources.buffers.insert(precision, tensor.clone());
                     FuseArg::Output(pos, precision_input, LayoutInfo::Unknown)
                 } else {
@@ -466,6 +465,11 @@ impl FuseBlockBuilder {
     }
 
     /// Return the tensor that needs to be written to.
+    ///
+    /// # Notes
+    ///
+    /// The buffers vector passed as input is only to track the intermediary buffer writes needed
+    /// during execution.
     pub fn tensor_writes(
         &self,
         resources: &FuseResources,
@@ -481,7 +485,6 @@ impl FuseBlockBuilder {
                 if let Some((tensor, precision)) = resources.outputs.get(tensor.id) {
                     if !matches!(tensor.status, TensorStatus::ReadWrite) {
                         result.insert(*precision, tensor.clone());
-                        // TODO: Should check for the current block.
                     } else if resources.buffers.get(tensor.id).is_some()
                         && !buffers.contains(&tensor.id)
                     {

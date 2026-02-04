@@ -57,18 +57,16 @@ impl<R: Runtime> ReduceFuser<R> {
         let max_bindings = props.hardware.max_bindings;
         let settings_read = FuseSettings {
             // Inplace would work, but not when we have a concrete output to write too.
-            inplace: false,
+            inplace: true,
             ref_layout: RefLayoutSetting::OnlyContiguous,
             broadcast: false,
             output_shape_updates: true,
-            vectorization: VectorizationSetting::Deactivated,
+            vectorization: VectorizationSetting::Activated,
         };
         let settings_write = FuseSettings {
             inplace: false,
             output_shape_updates: false,
-            // TODO: Fusion axis should be on the reduce_axis - 1.
-            // vectorization: VectorizationSetting::SmallerOrEqualThanPreviousBlock { block_pos: 0 },
-            vectorization: VectorizationSetting::Deactivated,
+            vectorization: VectorizationSetting::SmallerOrEqualThanPreviousBlock { block_pos: 0 },
             broadcast: false,
             ref_layout: RefLayoutSetting::OnlyContiguous,
         };

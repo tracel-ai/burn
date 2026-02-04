@@ -10,7 +10,7 @@ use crate::{
         elemwise::{ElemwiseOptimization, ElemwiseOptimizationState},
         reduce::{ReduceOptimizationInfo, ReduceOptimizationState, ReduceOptimizationTuneArg},
         reduce_broadcasted::{
-            launch::{FusedReduceBroadcastedLaunch, ReduceBrFuseBlock},
+            launch::{FusedReduceBroadcastedLaunch, ReduceBroadcastedFuseBlock},
             tune::fused_broadcasted_reduce_autotune,
         },
     },
@@ -28,12 +28,12 @@ pub struct ReduceBroadcastedOptimization<R: Runtime> {
 
 pub(crate) struct ReduceBroadcastedOptimizationInfo<R: Runtime> {
     pub(crate) fallbacks: Vec<ReduceBlockOptimInfo<R>>,
-    pub(crate) info_br: Arc<ReduceBrInfo>,
+    pub(crate) info_br: Arc<ReduceBroadcastedInfo>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub(crate) struct ReduceBrInfo {
-    pub(crate) blocks: Vec<ReduceBrFuseBlock>,
+pub(crate) struct ReduceBroadcastedInfo {
+    pub(crate) blocks: Vec<ReduceBroadcastedFuseBlock>,
     pub(crate) trace: FuseTrace,
     pub(crate) reduce_axis: usize,
 }
@@ -64,7 +64,7 @@ impl<R: Runtime> ReduceBlockOptimInfo<R> {
 
 pub(crate) struct ReduceBroadcastedOptimizationTuneArg<R: Runtime> {
     pub(crate) fallbacks: Vec<ReduceBlockOptimArg<R>>,
-    pub(crate) info_br: Arc<ReduceBrInfo>,
+    pub(crate) info_br: Arc<ReduceBroadcastedInfo>,
     pub(crate) client: ComputeClient<R>,
     pub(crate) device: R::Device,
 }
@@ -100,7 +100,7 @@ impl<R: Runtime> ReduceBlockOptimArg<R> {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ReduceBroadcastedOptimizationState {
     fallbacks: Vec<ReduceBlockState>,
-    broadcasted: ReduceBrInfo,
+    broadcasted: ReduceBroadcastedInfo,
     num_ops: usize,
 }
 
@@ -116,11 +116,6 @@ impl<R: Runtime> ReduceBroadcastedOptimizationTuneArg<R> {
         context: &mut Context<'_, CubeFusionHandle<R>>,
         strategy: RoutineStrategy,
     ) -> Result<TuneOutput<R>, TraceError<String>> {
-        println!("==== Execute Fused ====");
-        println!("{}", self.info_br.trace);
-        for b in self.info_br.blocks.iter() {
-            println!("{} = {:?}({})", b.output, b.op, b.input);
-        }
         let launch = FusedReduceBroadcastedLaunch::new(
             &self.info_br.blocks,
             self.info_br.reduce_axis,
@@ -151,7 +146,6 @@ impl<R: Runtime> ReduceBroadcastedOptimization<R> {
         context: &mut Context<'_, CubeFusionHandle<R>>,
         fallback: impl Fn(usize) -> Box<dyn FallbackOperation<R>>,
     ) {
-        // println!("==== Execute broadcasted ====");
         let mut current_index = 0;
         let mut client = None;
         let mut device = None;

@@ -20,6 +20,11 @@ use cubek::reduce::{
     routines::UnitReduceBlueprint,
 };
 
+/// A configuration block for a reduction operation within a fused kernel.
+///
+/// This struct holds all the compile-time information needed to perform a
+/// reduction, including the operation type (Sum, Max, etc.) and the layout
+/// configuration for both input and output.
 #[derive(CubeType, CubeLaunch, Clone)]
 pub struct ReduceFuseBlock {
     #[cube(comptime)]
@@ -36,12 +41,25 @@ pub struct ReduceFuseBlock {
     blueprint: UnitReduceBlueprint,
 }
 
+/// A configuration block for an elementwise operation that follows a reduction.
 #[derive(CubeType, CubeLaunch, Clone)]
 pub struct ElemwiseFuseBlock {
     #[cube(comptime)]
     config: FuseBlockConfig,
 }
 
+/// The entry point for a broadcasted reduction kernel.
+///
+/// This kernel initializes local variables for multiple reduction blocks and then
+/// executes the reduction sequence.
+///
+/// # Arguments
+///
+/// * `inputs` - Global arguments containing input tensor handles.
+/// * `outputs` - Global arguments containing output tensor handles.
+/// * `reduce_axis` - The dimension along which the reduction is performed.
+/// * `blocks` - A sequence of reduction operations to execute.
+/// * `block_end` - An optional elementwise block to execute after reductions are complete.
 #[cube(launch_unchecked)]
 pub fn reduce_kernel_broadcasted(
     inputs: &GlobalArgs,
@@ -50,9 +68,6 @@ pub fn reduce_kernel_broadcasted(
     blocks: Sequence<ReduceFuseBlock>,
     block_end: CubeOption<ElemwiseFuseBlock>,
 ) {
-    comptime! {
-        println!("HEEEEEERE");
-    }
     #[unroll]
     for i in 0..blocks.len() {
         let block = blocks.index(i);
@@ -71,6 +86,7 @@ type In = NumericExpand<REDUCE_INPUT>;
 type Acc = NumericExpand<REDUCE_ACC>;
 type Out = NumericExpand<REDUCE_OUT>;
 
+/// Configures the precision polyfills for the reduction based on the block's `FuseType`.
 #[cube]
 fn set_polyfill_block(block: &ReduceFuseBlock) {
     let input_precision = comptime!(block.input.precision());
@@ -97,6 +113,8 @@ fn set_polyfill_block(block: &ReduceFuseBlock) {
     set_polyfill::<Acc>(comptime!(acc_precision.into_type()));
 }
 
+/// Internal logic for executing a sequence of reduction blocks followed by an optional
+/// trailing elementwise block.
 #[cube]
 fn reduce_many(
     inputs: &GlobalArgs,
@@ -142,7 +160,6 @@ fn reduce_many(
             let width = comptime!(block.config.width as u32);
             let num_iter = axis_size / usize::cast_from(width);
 
-            comment!("Fuse on write elemwise block start");
             for i in 0..num_iter {
                 // Register block local inputs.
                 let values = Registry::<FuseArg, Line<f32>>::new();
@@ -160,14 +177,15 @@ fn reduce_many(
                     &block.config,
                 )
             }
-            comment!("Fuse on write elemwise block end.");
         }
         CubeOption::None => {}
     }
 }
 
 #[cube]
-/// Perform fuse-on-read and that's it.
+/// Executes a single reduction step using a specified instruction and blueprint.
+///
+/// Returns the size of the axis that was reduced.
 fn reduce_step<P: ReducePrecision, Out: Numeric, I: ReduceInstruction<P>>(
     input: &VirtualTensor<P::EI>,
     output: &mut VirtualTensor<Out, ReadWrite>,

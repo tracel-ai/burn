@@ -26,7 +26,7 @@ use cubek::reduce::{
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ReduceBrFuseBlock {
+pub struct ReduceBroadcastedFuseBlock {
     pub(crate) op: ReduceOperationConfig,
     pub(crate) input: FuseArg,
     pub(crate) output: FuseArg,
@@ -34,7 +34,7 @@ pub struct ReduceBrFuseBlock {
 
 #[derive(new)]
 pub struct FusedReduceBroadcastedLaunch<'a> {
-    blocks: &'a Vec<ReduceBrFuseBlock>,
+    blocks: &'a Vec<ReduceBroadcastedFuseBlock>,
     reduce_axis: usize,
     // TODO: Support multiple strategies.
     _strategy: RoutineStrategy,

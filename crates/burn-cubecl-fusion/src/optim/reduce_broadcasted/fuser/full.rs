@@ -7,12 +7,12 @@ use crate::{
     optim::{
         reduce::{FusedReduce, ReduceInstruction},
         reduce_broadcasted::{
-            ReduceBrInfo,
+            ReduceBroadcastedInfo,
             fuser::{
                 block::{ReduceBlockFuser, ReduceBlockKind},
                 full_analyzer::FullFuserAnalyzer,
             },
-            launch::ReduceBrFuseBlock,
+            launch::ReduceBroadcastedFuseBlock,
         },
     },
 };
@@ -58,7 +58,8 @@ impl ReduceBroadcastedFullFuser {
         }
     }
 
-    pub fn finish(mut self) -> ReduceBrInfo {
+    /// Finishes fusing all blocks.
+    pub fn finish(mut self) -> ReduceBroadcastedInfo {
         let mut reduce_axis = 0;
         let mut blocks = Vec::new();
 
@@ -77,20 +78,20 @@ impl ReduceBroadcastedFullFuser {
                         ReduceInstruction::MaxAbs => ReduceOperationConfig::MaxAbs,
                     };
 
-                    let info = ReduceBrFuseBlock {
+                    let block = ReduceBroadcastedFuseBlock {
                         op: config,
                         input: reduce.input.clone(),
                         output: reduce.output.clone(),
                     };
                     reduce_axis = reduce.axis;
-                    blocks.push(info);
+                    blocks.push(block);
                 }
             }
         }
 
         let trace = self.fuser.finish();
 
-        ReduceBrInfo {
+        ReduceBroadcastedInfo {
             blocks,
             trace,
             reduce_axis,
