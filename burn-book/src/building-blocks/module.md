@@ -275,7 +275,7 @@ Burn comes with built-in modules that you can use to build your own modules.
 
 | Burn API         | PyTorch Equivalent     |
 | ---------------- | ---------------------- |
-| `Gru`            | `nn.GRU`               |
+| `Gru`/`BiGru`    | `nn.GRU`               |
 | `Lstm`/`BiLstm`  | `nn.LSTM`              |
 | `GateController` | _No direct equivalent_ |
 
