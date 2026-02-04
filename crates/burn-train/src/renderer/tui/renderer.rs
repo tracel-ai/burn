@@ -17,7 +17,8 @@ use ratatui::{
 };
 use std::collections::HashMap;
 use std::panic::{set_hook, take_hook};
-use std::sync::{Arc, mpsc};
+use std::sync::mpsc::{Receiver, Sender};
+use std::sync::{Arc, Mutex, mpsc};
 use std::thread::{JoinHandle, spawn};
 use std::{
     error::Error,
@@ -55,16 +56,19 @@ pub struct TuiMetricsRendererWrapper {
     sender: mpsc::Sender<TuiRendererEvent>,
     interrupter: Interrupter,
     handle_join: Option<JoinHandle<()>>,
+    kill_signal: Arc<Mutex<Receiver<()>>>,
 }
 
 impl TuiMetricsRendererWrapper {
     /// Create a new terminal UI renderer.
     pub fn new(interrupter: Interrupter, checkpoint: Option<usize>) -> Self {
         let (sender, receiver) = mpsc::channel();
+        let (kill_signal_sender, kill_signal_receiver) = mpsc::channel();
 
         let interrupter_clone = interrupter.clone();
         let handle_join = spawn(move || {
-            let mut renderer = TuiMetricsRenderer::new(interrupter_clone, checkpoint);
+            let mut renderer =
+                TuiMetricsRenderer::new(interrupter_clone, checkpoint, kill_signal_sender);
 
             let tick_rate = Duration::from_millis(MAX_REFRESH_RATE_MILLIS);
             loop {
@@ -95,10 +99,14 @@ impl TuiMetricsRendererWrapper {
             sender,
             interrupter,
             handle_join: Some(handle_join),
+            kill_signal: Arc::new(Mutex::new(kill_signal_receiver)),
         }
     }
 
     fn send_event(&self, event: TuiRendererEvent) {
+        if self.kill_signal.lock().unwrap().try_recv().is_ok() {
+            panic!("Killing training from user input.")
+        }
         if let Err(e) = self.sender.send(event) {
             log::warn!("Failed to send TUI event: {e}");
         }
@@ -126,6 +134,7 @@ struct TuiMetricsRenderer {
     manual_close: bool,
     close: bool,
     summary: Option<LearnerSummary>,
+    kill_signal: Sender<()>,
 }
 
 impl MetricsRendererEvaluation for TuiMetricsRendererWrapper {
@@ -235,7 +244,11 @@ impl TuiMetricsRenderer {
         };
     }
 
-    pub fn new(interrupter: Interrupter, checkpoint: Option<usize>) -> Self {
+    pub fn new(
+        interrupter: Interrupter,
+        checkpoint: Option<usize>,
+        kill_signal: Sender<()>,
+    ) -> Self {
         let mut stdout = io::stdout();
         execute!(stdout, EnterAlternateScreen).unwrap();
         enable_raw_mode().unwrap();
@@ -250,7 +263,6 @@ impl TuiMetricsRenderer {
                 let _ = disable_raw_mode();
                 let _ = execute!(io::stdout(), LeaveAlternateScreen);
                 previous_panic_hook(panic_info);
-                std::process::exit(0);
             }
         }));
 
@@ -269,6 +281,7 @@ impl TuiMetricsRenderer {
             manual_close: false,
             close: false,
             summary: None,
+            kill_signal,
         }
     }
 
@@ -369,7 +382,7 @@ impl TuiMetricsRenderer {
                                      the current training fails. Any code following the training \
                                      won't be executed.",
                                 'k',
-                                KillPopupAccept,
+                                KillPopupAccept(self.kill_signal.clone()),
                             ),
                             Callback::new(
                                 "Cancel",
@@ -456,11 +469,12 @@ impl TuiMetricsRenderer {
 }
 
 struct QuitPopupAccept(Interrupter);
-struct KillPopupAccept;
+struct KillPopupAccept(Sender<()>);
 struct PopupCancel;
 
 impl CallbackFn for KillPopupAccept {
     fn call(&self) -> bool {
+        self.0.send(()).unwrap();
         panic!("Killing training from user input.");
     }
 }
