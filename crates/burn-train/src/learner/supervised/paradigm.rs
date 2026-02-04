@@ -23,7 +23,7 @@ use crate::{
 };
 use crate::{Learner, SupervisedLearningStrategy};
 use burn_core::data::dataloader::DataLoader;
-use burn_core::module::AutodiffModule;
+use burn_core::module::{AutodiffModule, Module};
 use burn_core::record::FileRecorder;
 use burn_core::tensor::backend::AutodiffBackend;
 use burn_optim::Optimizer;
@@ -64,7 +64,7 @@ where
     tracing_logger: Option<Box<dyn ApplicationLoggerInstaller>>,
     checkpointer_strategy: Box<dyn CheckpointingStrategy>,
     early_stopping: Option<EarlyStoppingStrategyRef>,
-    training_strategy: TrainingStrategy<LC>,
+    training_strategy: Option<TrainingStrategy<LC>>,
     dataloader_train: TrainLoader<LC>,
     dataloader_valid: ValidLoader<LC>,
     // Use BTreeSet instead of HashSet for consistent (alphabetical) iteration order
@@ -121,7 +121,7 @@ where
                     .build(),
             ),
             early_stopping: None,
-            training_strategy: TrainingStrategy::SingleDevice(Default::default()),
+            training_strategy: None,
             summary_metrics: BTreeSet::new(),
             summary: false,
             dataloader_train,
@@ -131,13 +131,13 @@ where
 }
 
 impl<LC: LearningComponentsTypes> SupervisedTraining<LC> {
-    /// Replace the default training strategy (SingleDeviceTrainingStrategy) with the provided ones.
+    /// Replace the default training strategy (SingleDeviceTrainingStrategy) with the provided one.
     ///
     /// # Arguments
     ///
     /// * `training_strategy` - The training strategy.
     pub fn with_training_strategy(mut self, training_strategy: TrainingStrategy<LC>) -> Self {
-        self.training_strategy = training_strategy;
+        self.training_strategy = Some(training_strategy);
         self
     }
 
@@ -372,7 +372,14 @@ impl<LC: LearningComponentsTypes + Send + 'static> SupervisedTraining<LC> {
             summary,
         };
 
-        match self.training_strategy {
+        // Default to single device based on model
+        let training_strategy = self
+            .training_strategy
+            .unwrap_or(TrainingStrategy::SingleDevice(
+                learner.model.devices()[0].clone(),
+            ));
+
+        match training_strategy {
             TrainingStrategy::SingleDevice(device) => {
                 let single_device: SingleDevicetrainingStrategy<LC> =
                     SingleDevicetrainingStrategy::new(device);
