@@ -1,5 +1,6 @@
 use super::*;
 
+mod celu;
 mod elu;
 mod gelu;
 mod glu;

@@ -14,6 +14,7 @@
 //! * [`Softsign`]
 //! * [`Tanh`]
 //! * [`Elu`]
+//! * [`Celu`]
 //! * [`ThresholdedRelu`]
 //!
 //! The activation layer [`GLU`] has shape-changing behaviors
@@ -24,6 +25,7 @@ mod activation_wrapper;
 
 // These are pub(crate) for dual-export in `nn` without re-exporting
 // all of `nn.activation`, or manually listing each symbol.
+pub(crate) mod celu;
 pub(crate) mod elu;
 pub(crate) mod gelu;
 pub(crate) mod glu;
@@ -40,6 +42,7 @@ pub(crate) mod tanh;
 pub(crate) mod thresholded_relu;
 
 pub use activation_wrapper::*;
+pub use celu::*;
 pub use elu::*;
 pub use gelu::*;
 pub use glu::*;

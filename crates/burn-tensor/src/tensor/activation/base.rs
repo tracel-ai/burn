@@ -426,6 +426,40 @@ pub fn elu<const D: usize, B: Backend>(tensor: Tensor<B, D>, alpha: f64) -> Tens
     tensor.mask_where(mask, scaled)
 }
 
+/// Applies the Continuously Differentiable Exponential Linear Unit function element-wise.
+///
+#[cfg_attr(
+    doc,
+    doc = r#"
+$$
+\text{CELU}(x) =
+ \begin{cases}
+     x & \text{if } x \geq 0 \newline
+     \alpha \cdot \left(\exp\left(\frac{x}{\alpha}\right) - 1\right) & \text{otherwise}
+ \end{cases}
+$$
+"#
+)]
+#[cfg_attr(
+    not(doc),
+    doc = "`celu(x) = max(0, x) + min(0, alpha * (exp(x / alpha) - 1))`"
+)]
+///
+/// See also [CELU](https://pytorch.org/docs/stable/generated/torch.nn.CELU.html)
+///
+/// # Arguments
+/// - `alpha`: scaling parameter for the negative part.
+pub fn celu<const D: usize, B: Backend>(tensor: Tensor<B, D>, alpha: f64) -> Tensor<B, D> {
+    let mask = tensor.clone().lower_equal_elem(0);
+    let scaled = tensor
+        .clone()
+        .div_scalar(alpha)
+        .exp()
+        .sub_scalar(1)
+        .mul_scalar(alpha);
+    tensor.mask_where(mask, scaled)
+}
+
 /// Applies the thresholded rectified linear unit function element-wise.
 ///
 #[cfg_attr(

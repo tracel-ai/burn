@@ -230,6 +230,7 @@ Burn comes with built-in modules that you can use to build your own modules.
 | Burn API        | PyTorch Equivalent                            |
 | --------------- | --------------------------------------------- |
 | `BatchNorm`     | `nn.BatchNorm1d`, `nn.BatchNorm2d` etc.       |
+| `Celu`          | `nn.CELU`                                     |
 | `Dropout`       | `nn.Dropout`                                  |
 | `Elu`           | `nn.ELU`                                      |
 | `Embedding`     | `nn.Embedding`                                |
