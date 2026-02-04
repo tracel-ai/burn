@@ -400,7 +400,6 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                 for op in ops {
                     if let FuseOp::Assign(op) = op {
                         op.out.add_layout_info(LayoutInfo::IsRef);
-                        println!("Here?");
                         break;
                     }
                 }

@@ -181,20 +181,9 @@ impl<R: Runtime> ReduceOptimizationTuneArg<R> {
         context: &mut Context<'_, CubeFusionHandle<R>>,
         strategy: RoutineStrategy,
     ) -> Result<TuneOutput<R>, TraceError<FusedReduceError>> {
-        println!("Execute fused...");
-        println!("{}", self.info.trace);
-        println!(
-            "{} = {:?}({}, axis={})",
-            self.info.reduce.output,
-            self.info.reduce.inst,
-            self.info.reduce.input,
-            self.info.reduce.axis
-        );
         let launch = FusedReduceLaunch::new(&self.info.reduce, strategy);
         let launcher = FuseTraceLauncher::new(&self.info.trace, &launch);
-        let r = launcher.launch::<BT>(&self.info.client, &self.info.device, context);
-        println!("Execute fused done.");
-        r
+        launcher.launch::<BT>(&self.info.client, &self.info.device, context)
     }
 
     pub fn execute_fallback<BT: CubeElement>(
