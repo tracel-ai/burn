@@ -360,11 +360,9 @@ impl SqliteDatasetStorage {
     pub fn base_dir(base_dir: Option<PathBuf>) -> PathBuf {
         match base_dir {
             Some(base_dir) => base_dir,
-            None => {
-                let home_dir = dirs::home_dir().expect("Could not get home directory");
-
-                home_dir.join(".cache").join("burn-dataset")
-            }
+            None => dirs::cache_dir()
+                .expect("Could not get cache directory")
+                .join("burn-dataset"),
         }
     }
 

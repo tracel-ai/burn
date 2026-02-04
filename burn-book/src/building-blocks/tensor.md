@@ -282,6 +282,13 @@ Those operations are only available for `Float` tensors.
 
 | Burn API                                     | PyTorch Equivalent                         |
 | -------------------------------------------- | ------------------------------------------ |
+| `tensor.acos()`                              | `tensor.acos()`                            |
+| `tensor.acosh()`                             | `tensor.acosh()`                           |
+| `tensor.asin()`                              | `tensor.asin()`                            |
+| `tensor.asinh()`                             | `tensor.asinh()`                           |
+| `tensor.atan()`                              | `tensor.atan()`                            |
+| `tensor.atanh()`                             | `tensor.atanh()`                           |
+| `tensor.atan2(other_tensor)`                 | `tensor.atan2(other_tensor)`               |
 | `tensor.cast(dtype)`                         | `tensor.to(dtype)`                         |
 | `tensor.ceil()`                              | `tensor.ceil()`                            |
 | `tensor.cos()`                               | `tensor.cos()`                             |
@@ -293,7 +300,6 @@ Those operations are only available for `Float` tensors.
 | `tensor.fmod(other)`                         | `tensor.fmod(other)`                       |
 | `tensor.fmod_scalar(scalar)`                 | `tensor.fmod(scalar)`                      |
 | `tensor.from_floats(floats, device)`         | N/A                                        |
-| `tensor.from_full_precision(tensor)`         | N/A                                        |
 | `tensor.int()`                               | Similar to `tensor.to(torch.long)`         |
 | `tensor.is_close(other, atol, rtol)`         | `torch.isclose(tensor, other, atol, rtol)` |
 | `tensor.is_finite()`                         | `torch.isfinite(tensor)`                   |
@@ -312,7 +318,6 @@ Those operations are only available for `Float` tensors.
 | `tensor.sqrt()`                              | `tensor.sqrt()`                            |
 | `tensor.tan()`                               | `tensor.tan()`                             |
 | `tensor.tanh()`                              | `tensor.tanh()`                            |
-| `tensor.to_full_precision()`                 | `tensor.to(torch.float)`                   |
 | `tensor.trunc()`                             | `tensor.trunc()`                           |
 | `tensor.var(dim)`                            | `tensor.var(dim)`                          |
 | `tensor.var_bias(dim)`                       | N/A                                        |
@@ -390,14 +395,16 @@ strategies.
 | `activation::softmax(tensor, dim)`               | `nn.functional.softmax(tensor, dim)`               |
 | `activation::softmin(tensor, dim)`               | `nn.functional.softmin(tensor, dim)`               |
 | `activation::softplus(tensor, beta)`             | `nn.functional.softplus(tensor, beta)`             |
+| `activation::softsign(tensor)`                   | `nn.functional.softsign(tensor)`                   |
 | `activation::tanh(tensor)`                       | `nn.functional.tanh(tensor)`                       |
+| `activation::thresholded_relu(tensor, alpha)`    | `nn.functional.threshold(tensor, alpha, 0)`        |
 
 ## Grid Functions
 
-| Burn API                                           | PyTorch Equivalent                      |
-| -------------------------------------------------- | --------------------------------------- |
-| `grid::meshgrid(tensors, GridIndexing::Matrix)`    | `torch.meshgrid(tensors, indexing="ij") |
-| `grid::meshgrid(tensors, GridIndexing::Cartesian)` | `torch.meshgrid(tensors, indexing="xy") |
+| Burn API                                           | PyTorch Equivalent                       |
+| -------------------------------------------------- | ---------------------------------------- |
+| `grid::meshgrid(tensors, GridIndexing::Matrix)`    | `torch.meshgrid(tensors, indexing="ij")` |
+| `grid::meshgrid(tensors, GridIndexing::Cartesian)` | `torch.meshgrid(tensors, indexing="xy")` |
 
 ## Linalg Functions
 

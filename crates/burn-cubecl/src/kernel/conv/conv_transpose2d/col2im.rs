@@ -2,9 +2,10 @@ use crate::{
     CubeRuntime,
     kernel::{
         conv::batches_per_run,
-        into_contiguous,
+        into_contiguous_aligned,
         matmul::{MatmulStrategy, matmul},
         slice,
+        utils::{decompose_linear, linear_view, shape_divmod},
     },
     ops::{numeric::empty_device_dtype, reshape, swap_dims},
     tensor::CubeTensor,
@@ -13,7 +14,11 @@ use burn_backend::{
     Shape,
     ops::{ConvTransposeOptions, conv::calculate_conv_transpose_output_size},
 };
-use cubecl::{calculate_cube_count_elemwise, prelude::*};
+use cubecl::{
+    calculate_cube_count_elemwise,
+    prelude::*,
+    std::{CubeOption, CubeOptionExpand, FastDivmod, tensor::layout::linear::LinearView},
+};
 use cubek::convolution::components::ConvSetupError;
 
 /// Perform a 2D convolution transposition using the GEMM (col2im) algorithm.
@@ -69,7 +74,7 @@ pub fn conv_transpose2d_col2im<R: CubeRuntime>(
         weight.clone(),
         Shape::new([groups, input_ch_per_group, col_shape_0]),
     );
-    let weight = into_contiguous(swap_dims(weight, 1, 2));
+    let weight = into_contiguous_aligned(swap_dims(weight, 1, 2));
 
     if batches_per_run != batch_size {
         let runs = batch_size / batches_per_run;
@@ -181,22 +186,12 @@ fn col2im<R: CubeRuntime>(
     options: ConvTransposeOptions<2>,
 ) -> Result<(), LaunchError> {
     let dtype = columns.dtype;
-    let [_, col_size_1] = columns.shape.dims();
 
-    let columns = into_contiguous(columns);
-    let has_bias = bias.is_some();
-    let bias = bias.map(into_contiguous).unwrap_or_else(|| {
-        empty_device_dtype(
-            columns.client.clone(),
-            columns.device.clone(),
-            Shape::new([1]),
-            dtype,
-        )
-    });
+    let columns = into_contiguous_aligned(columns);
+    let bias = bias.map(into_contiguous_aligned);
 
     let num_elems = out.shape.num_elements();
 
-    let vectorization = 1;
     let cube_dim = CubeDim::new(&columns.client, num_elems);
     let cube_count = calculate_cube_count_elemwise(&columns.client, num_elems, cube_dim);
 
@@ -205,9 +200,10 @@ fn col2im<R: CubeRuntime>(
             &columns.client,
             cube_count,
             cube_dim,
-            columns.as_tensor_arg(vectorization),
-            bias.as_tensor_arg(vectorization),
-            out.as_tensor_arg(vectorization),
+            columns.as_tensor_arg(1),
+            bias.as_ref().map(|bias| bias.as_tensor_arg(1)).into(),
+            linear_view(&out, 1),
+            shape_divmod(&out),
             Col2ImArgsLaunch::new(
                 ScalarArg::new(out_h),
                 ScalarArg::new(out_w),
@@ -219,9 +215,7 @@ fn col2im<R: CubeRuntime>(
                 ScalarArg::new(options.dilation[1]),
                 ScalarArg::new(options.stride[0]),
                 ScalarArg::new(options.stride[1]),
-                ScalarArg::new(col_size_1),
             ),
-            has_bias,
             dtype.into(),
         )
     }
@@ -241,27 +235,28 @@ struct Col2ImArgs {
     dilation_w: usize,
     stride_h: usize,
     stride_w: usize,
-
-    col_size_1: usize,
 }
 
 #[cube(launch_unchecked)]
 fn col2im_kernel<E: Numeric>(
     columns: &Tensor<E>,
-    bias: &Tensor<E>,
-    image: &mut Tensor<E>,
+    bias: &CubeOption<Tensor<E>>,
+    image: &mut LinearView<E, ReadWrite>,
+    image_shape: Sequence<FastDivmod<usize>>,
     args: &Col2ImArgs,
-    #[comptime] has_bias: bool,
     #[define(E)] _dtype: StorageType,
 ) {
-    if ABSOLUTE_POS >= image.len() {
+    if ABSOLUTE_POS >= image.shape() {
         terminate!();
     }
 
-    let im_x = ABSOLUTE_POS % image.shape(3) + args.pad_w;
-    let im_y = ABSOLUTE_POS / image.stride(2) % image.shape(2) + args.pad_h;
-    let ch_im = ABSOLUTE_POS / image.stride(1) % image.shape(1);
-    let batch = ABSOLUTE_POS / image.stride(0);
+    let (_, pos) = decompose_linear(ABSOLUTE_POS, &image_shape);
+    let [batch, ch_im, im_y, im_x] = *pos else {
+        unreachable!()
+    };
+
+    let im_x = im_x + args.pad_w;
+    let im_y = im_y + args.pad_h;
 
     let kernel_extent_w = (args.kernel_w - 1) * args.dilation_w + 1;
     let kernel_extent_h = (args.kernel_h - 1) * args.dilation_h + 1;
@@ -291,20 +286,17 @@ fn col2im_kernel<E: Numeric>(
                 let kernel_y = kernel_y / args.dilation_h;
                 let kernel_x = kernel_x / args.dilation_w;
 
-                let col_pos = ch_im * args.kernel_h * args.kernel_w * args.col_size_1
-                    + kernel_y * args.kernel_w * args.col_size_1
-                    + kernel_x * args.col_size_1
-                    + batch * args.out_h * args.out_w
-                    + col_y * args.out_w
-                    + col_x;
+                let col_k =
+                    ch_im * args.kernel_h * args.kernel_w + kernel_y * args.kernel_w + kernel_x;
+                let col_n = batch * args.out_h * args.out_w + col_y * args.out_w + col_x;
+                let col_pos = col_k * columns.stride(0) + col_n * columns.stride(1);
                 val += columns[col_pos];
             }
         }
     }
 
-    if has_bias {
-        image[ABSOLUTE_POS] = val + bias[ch_im];
-    } else {
-        image[ABSOLUTE_POS] = val;
+    match bias {
+        CubeOption::Some(bias) => image[ABSOLUTE_POS] = val + bias[ch_im],
+        CubeOption::None => image[ABSOLUTE_POS] = val,
     }
 }

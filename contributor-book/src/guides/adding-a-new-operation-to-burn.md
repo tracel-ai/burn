@@ -153,7 +153,7 @@ For testing the `autodiff` operations, please refer to
 ## Adding the Op to other backends
 
 Most of these are fairly straightforward implementations. For reference here's pow's float
-implementation for torch, ndarray and candle backends:
+implementation for torch and ndarray backends:
 
 1. Torch implementation in
    [crates/burn-tch/src/ops/tensor.rs](https://github.com/tracel-ai/burn/blob/0ee2021567b3725907df5fd1a905ce60b1aca096/crates/burn-tch/src/ops/tensor.rs#L467)
@@ -161,8 +161,6 @@ implementation for torch, ndarray and candle backends:
    [crates/burn-tch/src/ops/base.rs](https://github.com/tracel-ai/burn/blob/0ee2021567b3725907df5fd1a905ce60b1aca096/crates/burn-tch/src/ops/base.rs#L481)
 2. NdArray in
    [crates/burn-ndarray/src/ops/tensor.rs](https://github.com/tracel-ai/burn/blob/0ee2021567b3725907df5fd1a905ce60b1aca096/crates/burn-ndarray/src/ops/tensor.rs#L472)
-3. Candle in
-   [crates/burn-candle/src/ops/tensor.rs](https://github.com/tracel-ai/burn/blob/0ee2021567b3725907df5fd1a905ce60b1aca096/crates/burn-candle/src/ops/tensor.rs#L504)
 
 This is where any calculation happens currently. Playing a guessing game with method names and
 seeing what completions are suggested will take you far. If you are having trouble figuring out how

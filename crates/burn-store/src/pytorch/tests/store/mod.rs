@@ -11,12 +11,9 @@ use burn_nn::{Linear, LinearConfig};
 use burn_tensor::Tensor;
 use burn_tensor::backend::Backend;
 
-/// Path to burn-import pytorch test files
+/// Path to pytorch test files (now under burn-store)
 fn pytorch_test_path(subdir: &str, filename: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .unwrap()
-        .join("burn-import")
         .join("pytorch-tests")
         .join("tests")
         .join(subdir)

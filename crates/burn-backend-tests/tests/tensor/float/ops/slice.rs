@@ -212,6 +212,8 @@ fn should_support_slice_fill_cast_f32() {
         .assert_eq(&TensorData::from([1.0, 1.0, 2.0]), false);
 }
 
+// Skip on metal - F64 not supported
+#[cfg(not(feature = "metal"))]
 #[test]
 fn should_support_slice_fill_cast_f64() {
     let data = TensorData::from([0.0, 1.0, 2.0]);

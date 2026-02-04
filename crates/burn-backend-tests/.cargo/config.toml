@@ -1,5 +1,4 @@
 [alias]
-test-candle = "test --release --no-default-features --features candle,std"
 test-cpu = "test --release --no-default-features --features cpu,std"
 test-cuda = "test --release --no-default-features --features cuda,std"
 test-ndarray = "test --release --no-default-features --features ndarray,std"

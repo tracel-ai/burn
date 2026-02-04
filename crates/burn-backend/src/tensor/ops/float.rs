@@ -459,6 +459,23 @@ impl<B: Backend> Numeric<B> for Float {
         TensorPrimitive::Float(B::float_sign(tensor.tensor()))
     }
 
+    /// Applies the matrix multiplication operation.
+    ///
+    /// `C = AB`
+    ///
+    /// # Panics
+    ///
+    /// If the two tensors don't have a compatible shape.
+    fn matmul(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
+        match (lhs, rhs) {
+            (TensorPrimitive::Float(lhs), TensorPrimitive::Float(rhs)) => {
+                TensorPrimitive::Float(B::float_matmul(lhs, rhs))
+            }
+            (lhs, rhs) => B::q_matmul(lhs, rhs),
+        }
+    }
+}
+impl<B: Backend> Ordered<B> for Float {
     fn sort(tensor: Self::Primitive, dim: usize, descending: bool) -> Self::Primitive {
         match tensor {
             TensorPrimitive::Float(tensor) => {
@@ -494,23 +511,6 @@ impl<B: Backend> Numeric<B> for Float {
         }
     }
 
-    /// Applies the matrix multiplication operation.
-    ///
-    /// `C = AB`
-    ///
-    /// # Panics
-    ///
-    /// If the two tensors don't have a compatible shape.
-    fn matmul(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
-        match (lhs, rhs) {
-            (TensorPrimitive::Float(lhs), TensorPrimitive::Float(rhs)) => {
-                TensorPrimitive::Float(B::float_matmul(lhs, rhs))
-            }
-            (lhs, rhs) => B::q_matmul(lhs, rhs),
-        }
-    }
-}
-impl<B: Backend> Ordered<B> for Float {
     fn cummin(tensor: Self::Primitive, dim: usize) -> Self::Primitive {
         match tensor {
             TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_cummin(tensor, dim)),

@@ -85,6 +85,9 @@ fn should_handle_multi_threads_no_async_op() {
     })
 }
 
+// Skip on metal - flaky (works when ran alone)
+// Enable once this issue is fixed: https://github.com/tracel-ai/burn/issues/4328
+#[cfg(not(feature = "metal"))]
 #[test]
 fn should_handle_multi_threads_no_async_op_no_wait() {
     run_multi_thread_test(MultiThreadTestSettings {

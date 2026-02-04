@@ -173,11 +173,11 @@ macro_rules! impl_multi_backend_types {
                     }
                 }
 
-                fn supports_dtype(&self, dtype: burn_std::DType) -> bool {
+                fn dtype_usage(&self, dtype: burn_std::DType) -> burn_backend::DTypeUsageSet {
                     match self {
-                        Self::$DefaultBackend(runner) => runner.supports_dtype(dtype),
+                        Self::$DefaultBackend(runner) => runner.dtype_usage(dtype),
                         $(
-                            Self::$OtherBackend(runner) => runner.supports_dtype(dtype),
+                            Self::$OtherBackend(runner) => runner.dtype_usage(dtype),
                         )+
                     }
                 }

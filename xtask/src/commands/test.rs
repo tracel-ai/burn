@@ -140,6 +140,13 @@ pub(crate) fn handle_command(
                     )?;
                 }
                 CiTestType::GithubMacRunner => {
+                    handle_backend_tests(
+                        args.clone().try_into().unwrap(),
+                        "metal",
+                        env.clone(),
+                        context.clone(),
+                    )?;
+
                     args.target = Target::AllPackages;
                     args.only.push("burn-wgpu".to_string());
                     args.features
@@ -219,14 +226,6 @@ pub(crate) fn handle_command(
                 CiTestType::GcpCudaRunner => (),
                 CiTestType::GcpVulkanRunner | CiTestType::GcpWgpuRunner => (), // handled in tests above
                 CiTestType::GithubMacRunner => {
-                    // burn-candle
-                    helpers::custom_crates_tests(
-                        vec!["burn-candle"],
-                        handle_test_args(&["--features", "accelerate"], args.release),
-                        None,
-                        None,
-                        "std accelerate",
-                    )?;
                     // burn-ndarray
                     helpers::custom_crates_tests(
                         vec!["burn-ndarray"],

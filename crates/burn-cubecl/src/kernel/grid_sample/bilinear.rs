@@ -1,7 +1,7 @@
 use cubecl::std::{FastDivmod, FastDivmodArgs};
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
-use crate::{CubeRuntime, ops::numeric::empty_device_optimized_dtype, tensor::CubeTensor};
+use crate::{CubeRuntime, ops::numeric::empty_device_dtype, tensor::CubeTensor};
 use burn_backend::{Shape, ops::GridSampleOptions};
 
 use super::base::{PaddingMode, fetch_value, reflect_coord};
@@ -138,7 +138,7 @@ pub(crate) fn grid_sample_bilinear_launch<R: CubeRuntime>(
 
     // Create output tensor [N, C, H_out, W_out]
     let output_shape = Shape::new([batch_size, channels, h_out, w_out]);
-    let output = empty_device_optimized_dtype(
+    let output = empty_device_dtype(
         input.client.clone(),
         input.device.clone(),
         output_shape,

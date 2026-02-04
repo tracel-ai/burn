@@ -19,6 +19,9 @@ impl TensorMetadata for CandleTensor {
             candle_core::DType::F16 => DType::F16,
             candle_core::DType::F32 => DType::F32,
             candle_core::DType::F64 => DType::F64,
+            candle_core::DType::I16 => DType::I16,
+            candle_core::DType::I32 => DType::I32,
+            other => todo!("{other:?} not yet supported"),
         }
     }
 
@@ -100,6 +103,8 @@ impl IntoDType for DType {
             DType::I64 => Ok(candle_core::DType::I64),
             DType::U32 => Ok(candle_core::DType::U32),
             DType::U8 => Ok(candle_core::DType::U8),
+            DType::I16 => Ok(candle_core::DType::I16),
+            DType::I32 => Ok(candle_core::DType::I32),
             // DType::Bool => Ok(candle_core::DType::U8),
             _ => Err(candle_core::Error::Msg(format!(
                 "Unsupported dtype {self:?}"

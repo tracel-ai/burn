@@ -8,7 +8,6 @@
 
 [advisories]
 ignore = [
-    "RUSTSEC-2024-0437", # Protobuf used in ONNX graph parsing.
     "RUSTSEC-2024-0436", # Paste used to generate macro, should be removed at some point.
     "RUSTSEC-2025-0119", # `number_prefix` used by `tokenizers`, only in the examples.
     "RUSTSEC-2025-0141", # `bincode` is no longer maintained.

@@ -8,11 +8,6 @@ on:
       - 'v*.*.*' # Run when a new version is being published
 
 env:
-  #
-  # Dependency versioning
-  #
-
-  # Udeps version
   UDEPS_VERSION: "0.1.57"
 
 concurrency:
@@ -22,43 +17,39 @@ concurrency:
 jobs:
   dependencies:
     runs-on: ubuntu-latest
-
     strategy:
       matrix:
         checks:
           - licenses
           - bans sources
-
     continue-on-error: ${{ matrix.checks == 'licenses' }} # failed licenses don't abort
-
     steps:
-
       - name: checkout
         uses: actions/checkout@v6
-
+      # --------------------------------------------------------------------------------
       - name: Audit Rust dependencies
         # If a vulnerability is found, a new issue will automatically be opened
         # since this action runs on main branch
         uses: actions-rust-lang/audit@v1
-
+      # --------------------------------------------------------------------------------
       - name: Detect multiple versions of the same crate
         uses: EmbarkStudios/cargo-deny-action@v2
         with:
           command: check ${{ matrix.checks }}
-
+      # --------------------------------------------------------------------------------
       - name: Install Rust nightly
         uses: dtolnay/rust-toolchain@nightly
         with:
           toolchain: nightly
           components: rustfmt
-
+      # --------------------------------------------------------------------------------
       - name: Install cargo-udeps
         env:
           UDEPS_LINK: https://github.com/est31/cargo-udeps/releases/download
         run: |
           curl -L "$UDEPS_LINK/v$UDEPS_VERSION/cargo-udeps-v$UDEPS_VERSION-x86_64-unknown-linux-gnu.tar.gz" |
           tar xz -C $HOME/.cargo/bin --strip-components 2
-
+      # --------------------------------------------------------------------------------
       - name: Run cargo-udeps
         run: |
           cargo +nightly udeps --all-targets

@@ -42,23 +42,23 @@ Most backends support all operating systems, so we don't mention them in the tab
 
 **GPU Backends:**
 
-|         | CUDA | ROCm | Metal | Vulkan | WebGPU | Candle | LibTorch |
-| ------- | ---- | ---- | ----- | ------ | ------ | ------ | -------- |
-| Nvidia  | ☑️   | -    | -     | ☑️     | ☑️     | ☑️     | ☑️       |
-| AMD     | -    | ☑️   | -     | ☑️     | ☑️     | -      | ☑️       |
-| Apple   | -    | -    | ☑️    | -      | ☑️     | -      | ☑️       |
-| Intel   | -    | -    | -     | ☑️     | ☑️     | -      | -        |
-| Qualcom | -    | -    | -     | ☑️     | ☑️     | -      | -        |
-| Wasm    | -    | -    | -     | -      | ☑️     | -      | -        |
+|         | CUDA | ROCm | Metal | Vulkan | WebGPU | LibTorch |
+| ------- | ---- | ---- | ----- | ------ | ------ | -------- |
+| Nvidia  | ☑️   | -    | -     | ☑️     | ☑️     | ☑️       |
+| AMD     | -    | ☑️   | -     | ☑️     | ☑️     | ☑️       |
+| Apple   | -    | -    | ☑️    | -      | ☑️     | ☑️       |
+| Intel   | -    | -    | -     | ☑️     | ☑️     | -        |
+| Qualcom | -    | -    | -     | ☑️     | ☑️     | -        |
+| Wasm    | -    | -    | -     | -      | ☑️     | -        |
 
 **CPU Backends:**
 
-|        | Cpu (CubeCL) | NdArray | Candle | LibTorch |
-| ------ | ------------ | ------- | ------ | -------- |
-| X86    | ☑️           | ☑️      | ☑️     | ☑️       |
-| Arm    | ☑️           | ☑️      | ☑️     | ☑️       |
-| Wasm   | -            | ☑️      | ☑️     | -        |
-| no-std | -            | ☑️      | -      | -        |
+|        | Cpu (CubeCL) | NdArray | LibTorch |
+| ------ | ------------ | ------- | -------- |
+| X86    | ☑️           | ☑️      | ☑️       |
+| Arm    | ☑️           | ☑️      | ☑️       |
+| Wasm   | -            | ☑️      | -        |
+| no-std | -            | ☑️      | -        |
 
 <br />
 
@@ -251,16 +251,17 @@ ONNX Support 🐫
 </summary>
 <br />
 
-Burn supports importing ONNX (Open Neural Network Exchange) models, allowing you to easily port
-models from TensorFlow or PyTorch to Burn. The ONNX model is converted into Rust code that uses
-Burn's native APIs, enabling the imported model to run on any Burn backend (CPU, GPU, WebAssembly)
-and benefit from all of Burn's optimizations like automatic kernel fusion.
+Burn supports importing ONNX (Open Neural Network Exchange) models through the
+[burn-onnx](https://github.com/tracel-ai/burn-onnx) crate, allowing you to easily port models from
+TensorFlow or PyTorch to Burn. The ONNX model is converted into Rust code that uses Burn's native
+APIs, enabling the imported model to run on any Burn backend (CPU, GPU, WebAssembly) and benefit
+from all of Burn's optimizations like automatic kernel fusion.
 
 Our ONNX support is further described in
-[this section of the Burn Book 🔥](https://burn.dev/books/burn/import/onnx-model.html).
+[this section of the Burn Book 🔥](https://burn.dev/books/burn/onnx-import.html).
 
 > **Note**: This crate is in active development and currently supports a
-> [limited set of ONNX operators](./crates/burn-onnx/SUPPORTED-ONNX-OPS.md).
+> [limited set of ONNX operators](https://github.com/tracel-ai/burn-onnx/blob/main/SUPPORTED-ONNX-OPS.md).
 
 </details>
 
@@ -274,10 +275,8 @@ You can load weights from PyTorch or Safetensors formats directly into your Burn
 This makes it easy to reuse existing models while benefiting from Burn's performance and deployment
 features.
 
-Learn more:
-
-- [Import pre-trained PyTorch models into Burn](https://burn.dev/books/burn/import/pytorch-model.html)
-- [Load models from Safetensors format](https://burn.dev/books/burn/import/safetensors-model.html)
+Learn more in the [Saving & Loading Models](https://burn.dev/books/burn/saving-and-loading.html)
+section of the Burn Book.
 
 </details>
 
@@ -287,7 +286,7 @@ Inference in the Browser 🌐
 </summary>
 <br />
 
-Several of our backends can run in WebAssembly environments: Candle and NdArray for CPU execution,
+Several of our backends can run in WebAssembly environments: NdArray for CPU execution,
 and WGPU for GPU acceleration via WebGPU. This means that you can run inference directly within a
 browser. We provide several examples of this:
 
@@ -423,8 +422,6 @@ Additional examples:
   `Learner` configured to log metrics and keep training checkpoints.
 - [Named Tensor](./examples/named-tensor) : Performs operations with the experimental `NamedTensor`
   feature.
-- [ONNX Import Inference](./examples/onnx-inference) : Imports an ONNX model pre-trained on MNIST to
-  perform inference on a sample image with Burn.
 - [PyTorch Import Inference](./examples/import-model-weights) : Imports a PyTorch model pre-trained
   on MNIST to perform inference on a sample image with Burn.
 - [Text Classification](./examples/text-classification) : Trains a text classification transformer
