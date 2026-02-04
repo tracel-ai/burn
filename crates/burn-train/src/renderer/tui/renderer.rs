@@ -250,6 +250,7 @@ impl TuiMetricsRenderer {
                 let _ = disable_raw_mode();
                 let _ = execute!(io::stdout(), LeaveAlternateScreen);
                 previous_panic_hook(panic_info);
+                std::process::exit(0);
             }
         }));
 
