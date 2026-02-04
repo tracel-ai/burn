@@ -31,7 +31,7 @@ pub type LearnerSchedulerRecord<LC> =
 
 /// Learner struct encapsulating all components necessary to train a Neural Network model.
 pub struct Learner<LC: LearningComponentsTypes> {
-    model: LC::TrainingModel,
+    pub(crate) model: LC::TrainingModel,
     optim: LC::Optimizer,
     lr_scheduler: LC::LrScheduler,
     lr: f64,
