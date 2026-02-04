@@ -2,8 +2,8 @@ use burn_core as burn;
 
 use crate::activation::{
     Celu, CeluConfig, Elu, EluConfig, Gelu, HardSigmoid, HardSigmoidConfig, HardSwish, LeakyRelu,
-    LeakyReluConfig, PRelu, PReluConfig, Relu, Sigmoid, Softplus, SoftplusConfig, Softsign, SwiGlu,
-    SwiGluConfig, Tanh, ThresholdedRelu, ThresholdedReluConfig,
+    LeakyReluConfig, PRelu, PReluConfig, Relu, Selu, Sigmoid, Softplus, SoftplusConfig, Softsign,
+    SwiGlu, SwiGluConfig, Tanh, ThresholdedRelu, ThresholdedReluConfig,
 };
 use burn::config::Config;
 use burn::module::Module;
@@ -31,6 +31,9 @@ pub enum ActivationConfig {
 
     /// [`SwiGlu`] activation layer.
     SwiGlu(SwiGluConfig),
+
+    /// [`Selu`] activation layer.
+    Selu,
 
     /// [`Sigmoid`] activation layer.
     Sigmoid,
@@ -121,6 +124,7 @@ impl ActivationConfig {
             ActivationConfig::HardSigmoid(conf) => conf.init().into(),
             ActivationConfig::HardSwish => HardSwish.into(),
             ActivationConfig::Softplus(conf) => conf.init().into(),
+            ActivationConfig::Selu => Selu.into(),
             ActivationConfig::Sigmoid => Sigmoid.into(),
             ActivationConfig::Tanh => Tanh.into(),
             ActivationConfig::Softsign => Softsign.into(),
@@ -152,6 +156,9 @@ pub enum Activation<B: Backend> {
 
     /// [`SwiGlu`] activation layer.
     SwiGlu(SwiGlu<B>),
+
+    /// [`Selu`] activation layer.
+    Selu(Selu),
 
     /// [`Sigmoid`] activation layer.
     Sigmoid(Sigmoid),
@@ -208,6 +215,12 @@ impl<B: Backend> From<LeakyRelu> for Activation<B> {
 impl<B: Backend> From<SwiGlu<B>> for Activation<B> {
     fn from(layer: SwiGlu<B>) -> Self {
         Self::SwiGlu(layer)
+    }
+}
+
+impl<B: Backend> From<Selu> for Activation<B> {
+    fn from(layer: Selu) -> Self {
+        Self::Selu(layer)
     }
 }
 
@@ -277,6 +290,7 @@ impl<B: Backend> Activation<B> {
             Activation::HardSigmoid(layer) => layer.forward(input),
             Activation::HardSwish(layer) => layer.forward(input),
             Activation::Softplus(layer) => layer.forward(input),
+            Activation::Selu(layer) => layer.forward(input),
             Activation::Sigmoid(layer) => layer.forward(input),
             Activation::Tanh(layer) => layer.forward(input),
             Activation::Softsign(layer) => layer.forward(input),
@@ -391,6 +405,16 @@ mod tests {
             layer.forward(input.clone()),
             reference.forward(input.clone()),
         )
+    }
+
+    #[test]
+    fn test_selu() {
+        let device = Default::default();
+        let input = make_input::<TestBackend>(&device);
+
+        let expected = Selu.forward(input.clone());
+
+        check_stateless_config_output(ActivationConfig::Selu, input, expected, &device)
     }
 
     #[test]

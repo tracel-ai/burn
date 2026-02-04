@@ -460,6 +460,39 @@ pub fn celu<const D: usize, B: Backend>(tensor: Tensor<B, D>, alpha: f64) -> Ten
     tensor.mask_where(mask, scaled)
 }
 
+/// Applies the Scaled Exponential Linear Unit function element-wise
+/// as described in the paper [Self-Normalizing Neural Networks](https://arxiv.org/abs/1706.02515).
+///
+#[cfg_attr(
+    doc,
+    doc = r#"
+$$
+\text{SELU}\(x\) = \gamma \cdot
+ \begin{cases}
+     x & \text{if } x > 0 \newline
+     \alpha \cdot (\exp(x) - 1) & \text{if } x \leq 0
+ \end{cases}
+$$
+
+where $\alpha \approx 1.6733$ and $\gamma \approx 1.0507$.
+"#
+)]
+#[cfg_attr(
+    not(doc),
+    doc = "`selu(x) = gamma * x if x > 0, gamma * alpha * (exp(x) - 1) if x <= 0`"
+)]
+pub fn selu<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D> {
+    // Constants from the SELU paper / ONNX spec
+    const ALPHA: f64 = 1.6732632423543772848170429916717_f64;
+    const GAMMA: f64 = 1.0507009873554804934193349852946_f64;
+
+    let mask = tensor.clone().greater_equal_elem(0.0);
+    let positive = tensor.clone().mul_scalar(GAMMA);
+    let negative = tensor.exp().sub_scalar(1.0).mul_scalar(ALPHA * GAMMA);
+
+    negative.mask_where(mask, positive)
+}
+
 /// Applies the thresholded rectified linear unit function element-wise.
 ///
 #[cfg_attr(

@@ -7,6 +7,7 @@
 //! * [`Gelu`]
 //! * [`LeakyRelu`]
 //! * [`SwiGlu`]
+//! * [`Selu`]
 //! * [`Sigmoid`]
 //! * [`HardSigmoid`]
 //! * [`HardSwish`]
@@ -34,6 +35,7 @@ pub(crate) mod hard_swish;
 pub(crate) mod leaky_relu;
 pub(crate) mod prelu;
 pub(crate) mod relu;
+pub(crate) mod selu;
 pub(crate) mod sigmoid;
 pub(crate) mod softplus;
 pub(crate) mod softsign;
@@ -51,6 +53,7 @@ pub use hard_swish::*;
 pub use leaky_relu::*;
 pub use prelu::*;
 pub use relu::*;
+pub use selu::*;
 pub use sigmoid::*;
 pub use softplus::*;
 pub use softsign::*;
