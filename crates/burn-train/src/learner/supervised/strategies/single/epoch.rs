@@ -1,9 +1,10 @@
 use crate::learner::base::Interrupter;
-use crate::metric::processor::{EventProcessorTraining, LearnerEvent, LearnerItem};
+use crate::metric::processor::{EventProcessorTraining, LearnerEvent, TrainingItem};
 use crate::{
     InferenceStep, Learner, LearningComponentsTypes, SupervisedTrainingEventProcessor, TrainLoader,
     ValidLoader,
 };
+use burn_core::data::dataloader::Progress;
 use burn_core::module::AutodiffModule;
 use burn_optim::GradientsAccumulator;
 
@@ -11,14 +12,12 @@ use burn_optim::GradientsAccumulator;
 #[derive(new)]
 pub struct SingleDeviceValidEpoch<LC: LearningComponentsTypes> {
     dataloader: ValidLoader<LC>,
-    epoch_total: usize,
 }
 
 /// A training epoch.
 #[derive(new)]
 pub struct SingleDeviceTrainEpoch<LC: LearningComponentsTypes> {
     dataloader: TrainLoader<LC>,
-    epoch_total: usize,
     grad_accumulation: Option<usize>,
 }
 
@@ -32,10 +31,11 @@ impl<LC: LearningComponentsTypes> SingleDeviceValidEpoch<LC> {
     pub fn run(
         &self,
         learner: &Learner<LC>,
-        epoch: usize,
+        global_progress: &Progress,
         processor: &mut SupervisedTrainingEventProcessor<LC>,
         interrupter: &Interrupter,
     ) {
+        let epoch = global_progress.items_processed;
         log::info!("Executing validation step for epoch {}", epoch);
         let model = learner.model().valid();
 
@@ -47,7 +47,13 @@ impl<LC: LearningComponentsTypes> SingleDeviceValidEpoch<LC> {
             iteration += 1;
 
             let item = model.step(item);
-            let item = LearnerItem::new(item, progress, epoch, self.epoch_total, iteration, None);
+            let item = TrainingItem::new(
+                item,
+                progress,
+                global_progress.clone(),
+                Some(iteration),
+                None,
+            );
 
             processor.process_valid(LearnerEvent::ProcessedItem(item));
 
@@ -75,10 +81,11 @@ impl<LC: LearningComponentsTypes> SingleDeviceTrainEpoch<LC> {
     pub fn run(
         &self,
         learner: &mut Learner<LC>,
-        epoch: usize,
+        global_progress: &Progress,
         processor: &mut SupervisedTrainingEventProcessor<LC>,
         interrupter: &Interrupter,
     ) {
+        let epoch = global_progress.items_processed;
         log::info!("Executing training step for epoch {}", epoch,);
 
         // Single device / dataloader
@@ -110,12 +117,11 @@ impl<LC: LearningComponentsTypes> SingleDeviceTrainEpoch<LC> {
                 None => learner.optimizer_step(item.grads),
             }
 
-            let item = LearnerItem::new(
+            let item = TrainingItem::new(
                 item.item,
                 progress,
-                epoch,
-                self.epoch_total,
-                iteration,
+                global_progress.clone(),
+                Some(iteration),
                 Some(learner.lr_current()),
             );
 

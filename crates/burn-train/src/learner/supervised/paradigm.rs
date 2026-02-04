@@ -16,10 +16,10 @@ use crate::renderer::{MetricsRenderer, default_renderer};
 use crate::single::SingleDevicetrainingStrategy;
 use crate::{
     ApplicationLoggerInstaller, EarlyStoppingStrategyRef, FileApplicationLoggerInstaller,
-    InferenceBackend, InferenceModel, InferenceModelInput, InferenceStep, LearnerModelRecord,
-    LearnerOptimizerRecord, LearnerSchedulerRecord, LearnerSummaryConfig, LearningCheckpointer,
-    LearningComponentsMarker, LearningComponentsTypes, LearningResult, TrainStep, TrainingBackend,
-    TrainingComponents, TrainingModelInput, TrainingStrategy,
+    InferenceBackend, InferenceModel, InferenceModelInput, InferenceStep, LearnerEvent,
+    LearnerModelRecord, LearnerOptimizerRecord, LearnerSchedulerRecord, LearnerSummaryConfig,
+    LearningCheckpointer, LearningComponentsMarker, LearningComponentsTypes, LearningResult,
+    TrainStep, TrainingBackend, TrainingComponents, TrainingModelInput, TrainingStrategy,
 };
 use crate::{Learner, SupervisedLearningStrategy};
 use burn_core::data::dataloader::DataLoader;
@@ -38,7 +38,8 @@ pub type TrainLoader<LC> = Arc<dyn DataLoader<TrainingBackend<LC>, TrainingModel
 pub type ValidLoader<LC> = Arc<dyn DataLoader<InferenceBackend<LC>, InferenceModelInput<LC>>>;
 /// The event processor type for supervised learning.
 pub type SupervisedTrainingEventProcessor<LC> = AsyncProcessorTraining<
-    FullEventProcessorTraining<TrainingModelOutput<LC>, InferenceModelOutput<LC>>,
+    LearnerEvent<TrainingModelOutput<LC>>,
+    LearnerEvent<InferenceModelOutput<LC>>,
 >;
 
 /// Structure to configure and launch supervised learning trainings.
@@ -181,7 +182,7 @@ impl<LC: LearningComponentsTypes> SupervisedTraining<LC> {
         metrics.register(self)
     }
 
-    /// Register all metrics as numeric for the training and validation set.
+    /// Register all metrics as text for the training and validation set.
     pub fn metrics_text<Me: TextMetricRegistration<LC>>(self, metrics: Me) -> Self {
         metrics.register(self)
     }

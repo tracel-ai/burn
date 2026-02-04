@@ -56,7 +56,7 @@ impl<O: SimpleOptimizer<B>, B: Backend> Clone for AdaptorRecordV1<O, B> {
 }
 
 /// [Optimizer adaptor](crate::optim::simple::adaptor::OptimizerAdaptor) record item.
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 #[serde(bound = "")]
 pub enum AdaptorRecordItemV1<O: SimpleOptimizer<B>, B: Backend, S: PrecisionSettings> {
     /// Rank 0.

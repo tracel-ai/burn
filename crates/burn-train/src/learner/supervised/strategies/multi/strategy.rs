@@ -1,8 +1,9 @@
 use crate::{
     Learner, LearningComponentsTypes, MultiDeviceOptim, SupervisedLearningStrategy,
     SupervisedTrainingEventProcessor, TrainLoader, TrainingBackend, TrainingComponents,
-    TrainingModel, ValidLoader, multi::epoch::MultiDeviceTrainEpoch,
-    single::epoch::SingleDeviceValidEpoch,
+    TrainingModel, ValidLoader,
+    multi::epoch::MultiDeviceTrainEpoch,
+    single::{TrainingLoop, epoch::SingleDeviceValidEpoch},
 };
 use burn_core::{data::dataloader::split::split_dataloader, tensor::Device};
 
@@ -39,20 +40,19 @@ impl<LC: LearningComponentsTypes> SupervisedLearningStrategy<LC>
         let mut event_processor = training_components.event_processor;
         let mut checkpointer = training_components.checkpointer;
         let mut early_stopping = training_components.early_stopping;
-        let num_epochs = training_components.num_epochs;
 
         let epoch_train = MultiDeviceTrainEpoch::<LC>::new(
             dataloader_train.clone(),
-            num_epochs,
             training_components.grad_accumulation,
         );
         let epoch_valid: SingleDeviceValidEpoch<LC> =
-            SingleDeviceValidEpoch::new(dataloader_valid.clone(), num_epochs);
+            SingleDeviceValidEpoch::new(dataloader_valid.clone());
 
-        for epoch in starting_epoch..training_components.num_epochs + 1 {
+        for training_progress in TrainingLoop::new(starting_epoch, training_components.num_epochs) {
+            let epoch = training_progress.items_processed;
             epoch_train.run(
                 &mut learner,
-                epoch,
+                &training_progress,
                 &mut event_processor,
                 &training_components.interrupter,
                 self.devices.to_vec(),
@@ -70,7 +70,7 @@ impl<LC: LearningComponentsTypes> SupervisedLearningStrategy<LC>
 
             epoch_valid.run(
                 &learner,
-                epoch,
+                &training_progress,
                 &mut event_processor,
                 &training_components.interrupter,
             );
