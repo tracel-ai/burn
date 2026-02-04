@@ -322,9 +322,6 @@ impl MultiBlockVariables {
     ///
     /// The type of [`NumericExpand<DYN_ELEM_ID>`] must be set before calling this function.
     pub fn init(&mut self, #[comptime] key: MultiBlockPos, #[comptime] line_size: usize) {
-        comptime! {
-            println!("Init multi block var {key:?}");
-        };
         let mut registers = Registry::<
             usize,
             Registry<usize, RuntimeCell<Line<NumericExpand<DYN_ELEM_ID>>>>,
@@ -339,9 +336,6 @@ impl MultiBlockVariables {
     ///
     /// The variable must be initialized.
     pub fn read(&self, #[comptime] key: MultiBlockPos) -> Line<NumericExpand<DYN_ELEM_ID>> {
-        comptime! {
-            println!("Read multi block var {key:?}");
-        };
         let registers = self.variables.find(key.block_pos);
         let cell = registers.find(key.block_local_pos);
         cell.read()
@@ -357,9 +351,6 @@ impl MultiBlockVariables {
         #[comptime] key: MultiBlockPos,
         value: Line<NumericExpand<DYN_ELEM_ID>>,
     ) {
-        comptime! {
-            println!("Write multi block var {key:?}");
-        };
         let registers = self.variables.find(key.block_pos);
         // Try find for local(visibility) registers.
         let cell = registers.find(key.block_local_pos);
