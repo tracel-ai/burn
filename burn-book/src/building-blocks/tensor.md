@@ -380,6 +380,7 @@ strategies.
 
 | Burn API                                         | PyTorch Equivalent                                 |
 | ------------------------------------------------ | -------------------------------------------------- |
+| `activation::elu(tensor, alpha)`                 | `nn.functional.elu(tensor, alpha)`                 |
 | `activation::gelu(tensor)`                       | `nn.functional.gelu(tensor)`                       |
 | `activation::hard_sigmoid(tensor, alpha, beta)`  | `nn.functional.hardsigmoid(tensor)`                |
 | `activation::hard_swish(tensor)`                 | `nn.functional.hardswish(tensor)`                  |
