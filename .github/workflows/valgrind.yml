@@ -24,8 +24,8 @@ jobs:
       - name: checkout
         uses: actions/checkout@v6
       # --------------------------------------------------------------------------------
-      - name: Install llvmpipe and lavapipe
-        uses: tracel-ai/github-actions/setup-llvmpipe-lavapipe@v8
+      - name: Install Mesa
+        uses: tracel-ai/github-actions/install-mesa@v9
       # --------------------------------------------------------------------------------
       - name: Install valgrind
         run: |
