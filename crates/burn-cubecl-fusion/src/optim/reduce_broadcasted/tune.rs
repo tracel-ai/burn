@@ -102,7 +102,7 @@ pub(crate) fn create_key<R: Runtime>(
     // Sum up complexity metrics across all blocks in the fused trace.
     let (mut num_reads, mut num_writes, mut num_ops) = (0, 0, 0);
 
-    for block in opt.info_br.trace.blocks.iter() {
+    for block in opt.broadcasted.trace.blocks.iter() {
         num_reads += block.reads.len();
         num_writes += block.writes.len();
         num_ops += block.ops.len();

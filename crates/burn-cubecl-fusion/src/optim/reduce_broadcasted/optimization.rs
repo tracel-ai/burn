@@ -28,7 +28,7 @@ pub struct ReduceBroadcastedOptimization<R: Runtime> {
 
 pub(crate) struct ReduceBroadcastedOptimizationInfo<R: Runtime> {
     pub(crate) fallbacks: Vec<ReduceBlockOptimInfo<R>>,
-    pub(crate) info_br: Arc<ReduceBroadcastedInfo>,
+    pub(crate) broadcasted: Arc<ReduceBroadcastedInfo>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -64,7 +64,7 @@ impl<R: Runtime> ReduceBlockOptimInfo<R> {
 
 pub(crate) struct ReduceBroadcastedOptimizationTuneArg<R: Runtime> {
     pub(crate) fallbacks: Vec<ReduceBlockOptimArg<R>>,
-    pub(crate) info_br: Arc<ReduceBroadcastedInfo>,
+    pub(crate) broadcasted: Arc<ReduceBroadcastedInfo>,
     pub(crate) client: ComputeClient<R>,
     pub(crate) device: R::Device,
 }
@@ -117,11 +117,11 @@ impl<R: Runtime> ReduceBroadcastedOptimizationTuneArg<R> {
         strategy: RoutineStrategy,
     ) -> Result<TuneOutput<R>, TraceError<String>> {
         let launch = FusedReduceBroadcastedLaunch::new(
-            &self.info_br.blocks,
-            self.info_br.reduce_axis,
+            &self.broadcasted.blocks,
+            self.broadcasted.reduce_axis,
             strategy,
         );
-        let launcher = FuseTraceLauncher::new(&self.info_br.trace, &launch);
+        let launcher = FuseTraceLauncher::new(&self.broadcasted.trace, &launch);
 
         launcher
             .launch::<BT>(&self.client, &self.device, context)
@@ -177,7 +177,7 @@ impl<R: Runtime> ReduceBroadcastedOptimization<R> {
             fallbacks,
             client: client.unwrap(),
             device: device.unwrap(),
-            info_br: self.info.info_br.clone(),
+            broadcasted: self.info.broadcasted.clone(),
         };
 
         #[cfg(feature = "autotune")]
@@ -195,7 +195,7 @@ impl<R: Runtime> ReduceBroadcastedOptimization<R> {
                 .iter()
                 .map(|info| info.to_state())
                 .collect(),
-            broadcasted: self.info.info_br.as_ref().clone(),
+            broadcasted: self.info.broadcasted.as_ref().clone(),
             num_ops: self.num_ops,
         }
     }
@@ -208,7 +208,7 @@ impl<R: Runtime> ReduceBroadcastedOptimization<R> {
                     .into_iter()
                     .map(|state| ReduceBlockOptimInfo::from_state(device, state))
                     .collect(),
-                info_br: Arc::new(state.broadcasted),
+                broadcasted: Arc::new(state.broadcasted),
             }),
             num_ops: state.num_ops,
         }

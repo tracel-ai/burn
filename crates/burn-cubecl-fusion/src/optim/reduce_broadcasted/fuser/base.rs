@@ -120,8 +120,11 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceBroadcastedFuser<
             .map(|block| block.finish(&mut num_ops, &mut full))
             .collect::<Vec<_>>();
 
-        let info_br = Arc::new(full.finish());
-        let info = Arc::new(ReduceBroadcastedOptimizationInfo { fallbacks, info_br });
+        let broadcasted = Arc::new(full.finish());
+        let info = Arc::new(ReduceBroadcastedOptimizationInfo {
+            fallbacks,
+            broadcasted,
+        });
         CubeOptimization::ReduceBroadcasted(ReduceBroadcastedOptimization { info, num_ops })
     }
 
