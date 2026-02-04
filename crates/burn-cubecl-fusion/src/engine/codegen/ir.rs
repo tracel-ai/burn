@@ -54,33 +54,6 @@ pub enum FuseArg {
     },
 }
 
-impl Display for FuseArg {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            FuseArg::Input(pos, ..) => write!(f, "input({pos})"),
-            FuseArg::Output(pos, ..) => write!(f, "output({pos})"),
-            FuseArg::BlockLocal { pos, .. } => write!(f, "local({pos})"),
-            FuseArg::MultiBlockLocal(mbp, ..) => write!(f, "{mbp}"),
-            FuseArg::MultiBlockGlobal(mbp, ..) => write!(f, "global_{mbp}"),
-            FuseArg::Scalar(pos, ..) => write!(f, "scalar({pos})"),
-            FuseArg::ScalarShape(pos) => write!(f, "scalar_shape({pos})"),
-            FuseArg::Literal(val, ..) => write!(f, "literal_{val}"),
-            FuseArg::InputReshaped { original, .. } => write!(f, "input_reshaped_{original}"),
-            FuseArg::InputSwapDims { original, .. } => write!(f, "input_swap_dims_{original}"),
-        }
-    }
-}
-
-impl Display for MultiBlockPos {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "block_local({}-{})",
-            self.block_pos, self.block_local_pos
-        )
-    }
-}
-
 /// Metadata of a variable shared between blocks.
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
 pub struct MultiBlockPos {
@@ -322,13 +295,20 @@ impl FuseOp {
 #[derive(CubeType, CubeLaunch, Default, Clone)]
 /// Global arguments that are used for fusing [element wise operations](ElemTypewiseOp).
 pub struct GlobalArgs {
+    /// Tensors that are stored in global memory.
     pub tensors: Sequence<GlobalTensor>,
+    /// Scalars that are stored in global memory.
     pub scalars: Sequence<InputScalar>,
+    /// To be used to perform reshape inside a fused kernel.
     pub reshapes: Sequence<usize>,
+    /// When there are no metadata as a reference layout, we provide runtime shape/strides in this
+    /// sequence instead.
     pub runtime_layouts: Sequence<usize>,
+    /// Variables shared between blocks.
     pub variables: MultiBlockVariables,
 }
 
+/// Variables shared between blocks.
 #[derive(CubeType, Default, Clone)]
 pub struct MultiBlockVariables {
     variables: Registry<usize, Registry<usize, RuntimeCell<Line<NumericExpand<DYN_ELEM_ID>>>>>,
@@ -336,6 +316,11 @@ pub struct MultiBlockVariables {
 
 #[cube]
 impl MultiBlockVariables {
+    /// Initializes the variable with the given key and line size.
+    ///
+    /// # Notes
+    ///
+    /// The type of [`NumericExpand<DYN_ELEM_ID>`] must be set before calling this function.
     pub fn init(&mut self, #[comptime] key: MultiBlockPos, #[comptime] line_size: usize) {
         comptime! {
             println!("Init multi block var {key:?}");
@@ -348,6 +333,11 @@ impl MultiBlockVariables {
         registers.insert(key.block_local_pos, cell);
     }
 
+    /// Read the variable using the provided key.
+    ///
+    /// # Notes
+    ///
+    /// The variable must be initialized.
     pub fn read(&self, #[comptime] key: MultiBlockPos) -> Line<NumericExpand<DYN_ELEM_ID>> {
         comptime! {
             println!("Read multi block var {key:?}");
@@ -357,6 +347,11 @@ impl MultiBlockVariables {
         cell.read()
     }
 
+    /// Write to the variable using the provided key and value.
+    ///
+    /// # Notes
+    ///
+    /// The variable must be initialized.
     pub fn write(
         &mut self,
         #[comptime] key: MultiBlockPos,
@@ -726,6 +721,7 @@ impl FuseOp {
 }
 
 #[cube]
+/// Initializes block variables, both globals and locals.
 pub fn multi_block_variables_init(
     #[comptime] block: &FuseBlockConfig,
     variables: &mut MultiBlockVariables,
@@ -888,5 +884,32 @@ impl From<DType> for FuseType {
                 },
             },
         }
+    }
+}
+
+impl Display for FuseArg {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            FuseArg::Input(pos, ..) => write!(f, "input({pos})"),
+            FuseArg::Output(pos, ..) => write!(f, "output({pos})"),
+            FuseArg::BlockLocal { pos, .. } => write!(f, "local({pos})"),
+            FuseArg::MultiBlockLocal(mbp, ..) => write!(f, "{mbp}"),
+            FuseArg::MultiBlockGlobal(mbp, ..) => write!(f, "global_{mbp}"),
+            FuseArg::Scalar(pos, ..) => write!(f, "scalar({pos})"),
+            FuseArg::ScalarShape(pos) => write!(f, "scalar_shape({pos})"),
+            FuseArg::Literal(val, ..) => write!(f, "literal_{val}"),
+            FuseArg::InputReshaped { original, .. } => write!(f, "input_reshaped_{original}"),
+            FuseArg::InputSwapDims { original, .. } => write!(f, "input_swap_dims_{original}"),
+        }
+    }
+}
+
+impl Display for MultiBlockPos {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "block_local({}-{})",
+            self.block_pos, self.block_local_pos
+        )
     }
 }
