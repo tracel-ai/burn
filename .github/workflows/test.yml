@@ -87,8 +87,11 @@ jobs:
           - rust: stable
             toolchain: stable
     steps:
+      - name: checkout
+        uses: actions/checkout@v6
+      # --------------------------------------------------------------------------------
       - name: Setup Rust
-        uses: tracel-ai/github-actions/setup-rust@v7
+        uses: tracel-ai/github-actions/setup-rust@v8
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           cache-key: ${{ matrix.rust }}-linux
@@ -108,7 +111,7 @@ jobs:
         run: cargo xtask check lint
       # --------------------------------------------------------------------------------
       - name: Typos
-        uses: tracel-ai/github-actions/check-typos@v7
+        uses: tracel-ai/github-actions/check-typos@v8
 
   documentation:
     runs-on: ubuntu-22.04
@@ -120,8 +123,11 @@ jobs:
           - rust: stable
             toolchain: stable
     steps:
+      - name: checkout
+        uses: actions/checkout@v6
+      # --------------------------------------------------------------------------------
       - name: Setup Rust
-        uses: tracel-ai/github-actions/setup-rust@v7
+        uses: tracel-ai/github-actions/setup-rust@v8
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           cache-key: ${{ matrix.rust }}-linux
@@ -149,8 +155,11 @@ jobs:
           - rust: prev
             toolchain: ${{ needs.prepare-checks.outputs.rust-prev-version }}
     steps:
+      - name: checkout
+        uses: actions/checkout@v6
+      # --------------------------------------------------------------------------------
       - name: Setup Rust
-        uses: tracel-ai/github-actions/setup-rust@v7
+        uses: tracel-ai/github-actions/setup-rust@v8
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           cache-key: ${{ matrix.rust }}-linux
@@ -192,8 +201,11 @@ jobs:
           - rust: prev
             toolchain: ${{ needs.prepare-checks.outputs.rust-prev-version }}
     steps:
+      - name: checkout
+        uses: actions/checkout@v6
+      # --------------------------------------------------------------------------------
       - name: Setup Rust
-        uses: tracel-ai/github-actions/setup-rust@v7
+        uses: tracel-ai/github-actions/setup-rust@v8
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           cache-key: ${{ matrix.rust }}-linux-no-std
@@ -217,15 +229,18 @@ jobs:
           - rust: stable
             toolchain: stable
     steps:
+      - name: checkout
+        uses: actions/checkout@v6
+      # --------------------------------------------------------------------------------
       - name: Setup Rust
-        uses: tracel-ai/github-actions/setup-rust@v7
+        uses: tracel-ai/github-actions/setup-rust@v8
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           cache-key: ${{ matrix.rust }}-windows
       # --------------------------------------------------------------------------------
       - name: Setup Windows runner
         if: env.DISABLE_WGPU != '1'
-        uses: tracel-ai/github-actions/setup-windows@v7
+        uses: tracel-ai/github-actions/setup-windows@v8
         with:
           dxc-release: ${{ env.DXC_RELEASE }}
           dxc-filename: ${{ env.DXC_FILENAME }}
@@ -247,8 +262,11 @@ jobs:
           - rust: stable
             toolchain: stable
     steps:
+      - name: checkout
+        uses: actions/checkout@v6
+      # --------------------------------------------------------------------------------
       - name: Setup Rust
-        uses: tracel-ai/github-actions/setup-rust@v7
+        uses: tracel-ai/github-actions/setup-rust@v8
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           cache-key: ${{ matrix.rust }}-macos

@@ -73,8 +73,11 @@ jobs:
           - rust: stable
             toolchain: stable
     steps:
+      - name: checkout
+        uses: actions/checkout@v6
+      # --------------------------------------------------------------------------------
       - name: Setup Rust
-        uses: tracel-ai/github-actions/setup-rust@v7
+        uses: tracel-ai/github-actions/setup-rust@v8
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           enable-cache: false
@@ -108,8 +111,11 @@ jobs:
           - rust: stable
             toolchain: stable
     steps:
+      - name: checkout
+        uses: actions/checkout@v6
+      # --------------------------------------------------------------------------------
       - name: Setup Rust
-        uses: tracel-ai/github-actions/setup-rust@v7
+        uses: tracel-ai/github-actions/setup-rust@v8
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           enable-cache: false
@@ -143,8 +149,11 @@ jobs:
           - rust: stable
             toolchain: stable
     steps:
+      - name: checkout
+        uses: actions/checkout@v6
+      # --------------------------------------------------------------------------------
       - name: Setup Rust
-        uses: tracel-ai/github-actions/setup-rust@v7
+        uses: tracel-ai/github-actions/setup-rust@v8
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           enable-cache: false

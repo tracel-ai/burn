@@ -402,6 +402,30 @@ pub fn tanh<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D> {
     tensor.tanh()
 }
 
+/// Applies the Exponential Linear Unit function element-wise.
+///
+#[cfg_attr(
+    doc,
+    doc = r#"
+$$
+\text{ELU}\(x\) =
+ \begin{cases}
+     x & \text{if } x > 0 \newline
+     \alpha \cdot (\exp(x) - 1) & \text{if } x \leq 0
+ \end{cases}
+$$
+"#
+)]
+#[cfg_attr(
+    not(doc),
+    doc = "`f(x) =`\n- `x for x > 0`\n- `alpha * (exp(x) - 1) for x <= 0`"
+)]
+pub fn elu<const D: usize, B: Backend>(tensor: Tensor<B, D>, alpha: f64) -> Tensor<B, D> {
+    let mask = tensor.clone().lower_equal_elem(0);
+    let scaled = tensor.clone().exp().sub_scalar(1).mul_scalar(alpha);
+    tensor.mask_where(mask, scaled)
+}
+
 /// Applies the Continuously Differentiable Exponential Linear Unit function element-wise.
 ///
 #[cfg_attr(
@@ -434,6 +458,32 @@ pub fn celu<const D: usize, B: Backend>(tensor: Tensor<B, D>, alpha: f64) -> Ten
         .sub_scalar(1)
         .mul_scalar(alpha);
     tensor.mask_where(mask, scaled)
+}
+
+/// Applies the thresholded rectified linear unit function element-wise.
+///
+#[cfg_attr(
+    doc,
+    doc = r#"
+$$
+\text{ThresholdedReLU}(x) =
+ \begin{cases}
+     x & \text{if } x > \alpha \newline
+     0 & \text{otherwise}
+ \end{cases}
+$$
+"#
+)]
+#[cfg_attr(not(doc), doc = "`f(x) =`\n- `x if x > alpha`\n- `0 otherwise`")]
+///
+/// # Arguments
+/// - `alpha`: threshold value (default in ONNX is 1.0).
+pub fn thresholded_relu<const D: usize, B: Backend>(
+    tensor: Tensor<B, D>,
+    alpha: f64,
+) -> Tensor<B, D> {
+    let mask = tensor.clone().lower_equal_elem(alpha);
+    tensor.mask_fill(mask, 0)
 }
 
 /// Applies the gated linear unit function.

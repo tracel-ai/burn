@@ -381,6 +381,7 @@ strategies.
 | Burn API                                         | PyTorch Equivalent                                 |
 | ------------------------------------------------ | -------------------------------------------------- |
 | `activation::celu(tensor, alpha)`                | `nn.functional.celu(tensor, alpha)`                |
+| `activation::elu(tensor, alpha)`                 | `nn.functional.elu(tensor, alpha)`                 |
 | `activation::gelu(tensor)`                       | `nn.functional.gelu(tensor)`                       |
 | `activation::hard_sigmoid(tensor, alpha, beta)`  | `nn.functional.hardsigmoid(tensor)`                |
 | `activation::hard_swish(tensor)`                 | `nn.functional.hardswish(tensor)`                  |
@@ -398,6 +399,7 @@ strategies.
 | `activation::softplus(tensor, beta)`             | `nn.functional.softplus(tensor, beta)`             |
 | `activation::softsign(tensor)`                   | `nn.functional.softsign(tensor)`                   |
 | `activation::tanh(tensor)`                       | `nn.functional.tanh(tensor)`                       |
+| `activation::thresholded_relu(tensor, alpha)`    | `nn.functional.threshold(tensor, alpha, 0)`        |
 
 ## Grid Functions
 
