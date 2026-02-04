@@ -110,9 +110,11 @@ impl<R: Runtime> ReduceFuser<R> {
     }
     fn on_reduce(&mut self, op: &ReduceDimOpIr, inst: ReduceInstruction) {
         // TODO: Fix: we need to hava fuse-on-read with an identity block.
-        if self.fuser.num_ops == 0 && false {
-            self.fuser.current_output_shape = op.input.shape.dims.clone();
-        } else if self.fuser.current_output_shape != op.input.shape.dims {
+        // if self.fuser.num_ops == 0 && false {
+        //     self.fuser.current_output_shape = op.input.shape.dims.clone();
+        // } else if self.fuser.current_output_shape != op.input.shape.dims {
+
+        if self.fuser.current_output_shape != op.input.shape.dims {
             self.fuser.close();
             self.fuser_read_fallback.close();
             return;
@@ -289,7 +291,7 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceFuser<R> {
             self.len(),
             self.fuser_read_fallback.len(),
             fuse_reduce.clone(),
-            self.settings.clone(),
+            self.settings,
         );
 
         CubeOptimization::Reduce(reduce)

@@ -305,7 +305,7 @@ impl TraceFuser {
 
         for tensor in resources.buffers.iter() {
             let (tensor, ty) = tensor.as_normal_tensor().unwrap();
-            outputs.insert(ty.clone(), tensor.clone());
+            outputs.insert(*ty, tensor.clone());
         }
 
         let mut blocks = Vec::new();

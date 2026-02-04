@@ -681,10 +681,10 @@ fn remove_concrete_write(block: &mut BlockPlan, id: TensorId) {
         let mut keep = Vec::with_capacity(ops.len());
 
         for op in ops {
-            if let FuseOp::Assign(args) = &op {
-                if !matches!(args.out, FuseArg::Output(..)) {
-                    keep.push(op);
-                }
+            if let FuseOp::Assign(args) = &op
+                && !matches!(args.out, FuseArg::Output(..))
+            {
+                keep.push(op);
             }
         }
         block.writes.insert(id, keep);

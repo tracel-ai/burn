@@ -105,6 +105,7 @@ pub struct ReduceBroadcastedOptimizationState {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+#[allow(clippy::large_enum_variant)] // Only for serialization.
 pub enum ReduceBlockState {
     Reduce(ReduceOptimizationState),
     Elemwise(ElemwiseOptimizationState),

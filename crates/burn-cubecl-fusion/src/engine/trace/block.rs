@@ -187,11 +187,11 @@ impl FuseBlockBuilder {
                 local
             }
             None => {
-                let input = if let Some(_) = resources.outputs.get_index(tensor.id) {
-                    match resources.registers.get(&tensor.id) {
-                        Some(val) => return Some(val.clone()),
-                        None => {}
+                let input = if resources.outputs.get_index(tensor.id).is_some() {
+                    if let Some(val) = resources.registers.get(&tensor.id) {
+                        return Some(val.clone());
                     };
+
                     let pos = resources.buffers.insert(precision, tensor.clone());
                     FuseArg::Output(pos, precision_input, LayoutInfo::Unknown)
                 } else {
@@ -438,7 +438,7 @@ impl FuseBlockBuilder {
             .filter_map(|entry| entry.as_normal_tensor())
         {
             if let Some(local) = self.locals.get_any_precision(tensor.id) {
-                let out_index = outputs.insert(precision.clone(), tensor.clone());
+                let out_index = outputs.insert(*precision, tensor.clone());
 
                 let ops = match writes.get_mut(&tensor.id) {
                     Some(ops) => ops,

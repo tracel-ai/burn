@@ -75,10 +75,10 @@ impl<R: Runtime> ReduceOptimizationInfo<R> {
             trace: self.trace.clone(),
             trace_read_fallback: self.trace_read_fallback.clone(),
             trace_write_fallback: self.trace_write_fallback.clone(),
-            len: self.len.clone(),
-            len_read: self.len_read.clone(),
+            len: self.len,
+            len_read: self.len_read,
             reduce: self.reduce.clone(),
-            settings: self.settings.clone(),
+            settings: self.settings,
         }
     }
 }

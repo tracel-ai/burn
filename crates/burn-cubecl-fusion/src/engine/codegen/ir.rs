@@ -376,7 +376,6 @@ impl LaunchArg for MultiBlockVariables {
     type CompilationArg = ();
 
     fn compilation_arg<R: Runtime>(_runtime_arg: &Self::RuntimeArg<'_, R>) -> Self::CompilationArg {
-        ()
     }
 
     fn expand(
@@ -734,7 +733,7 @@ pub fn multi_block_variables_init(
 
     #[unroll]
     for i in 0..comptime!(output.len()) {
-        let (key, dtype) = comptime!(output.get(i as usize).unwrap().clone());
+        let (key, dtype) = comptime!(output.get(i).unwrap().clone());
         set_polyfill::<NumericExpand<DYN_ELEM_ID>>(dtype);
         variables.init(key, block.width);
     }

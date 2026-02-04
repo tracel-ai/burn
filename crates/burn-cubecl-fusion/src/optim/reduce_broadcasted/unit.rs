@@ -116,6 +116,7 @@ fn set_polyfill_block(block: &ReduceFuseBlock) {
 /// Internal logic for executing a sequence of reduction blocks followed by an optional
 /// trailing elementwise block.
 #[cube]
+#[allow(clippy::clone_on_copy)]
 fn reduce_many(
     inputs: &GlobalArgs,
     outputs: &mut GlobalArgs,
@@ -142,7 +143,7 @@ fn reduce_many(
             arg,
         };
 
-        set_polyfill_block(&block);
+        set_polyfill_block(block);
         let (input, mut output) = init_tensors::<FusedReduceArgs, In, Out>(&input, &mut output);
 
         axis_size = reduce_step::<(In, Acc), Out, ReduceOperation>(
@@ -150,7 +151,7 @@ fn reduce_many(
             &mut output,
             reduce_axis,
             block.op,
-            &block.blueprint,
+            comptime!(block.blueprint.clone()),
         );
     }
 
@@ -174,7 +175,7 @@ fn reduce_many(
                     index,
                     values,
                     args,
-                    &block.config,
+                    &block.config.clone(),
                 )
             }
         }
@@ -191,7 +192,7 @@ fn reduce_step<P: ReducePrecision, Out: Numeric, I: ReduceInstruction<P>>(
     output: &mut VirtualTensor<Out, ReadWrite>,
     reduce_axis: usize,
     #[comptime] config: I::Config,
-    #[comptime] blueprint: &UnitReduceBlueprint,
+    #[comptime] blueprint: UnitReduceBlueprint,
 ) -> usize {
     let inst = I::from_config(config);
     let axis_size = input.shape(reduce_axis);
@@ -202,7 +203,7 @@ fn reduce_step<P: ReducePrecision, Out: Numeric, I: ReduceInstruction<P>>(
         reduce_axis,
         &inst,
         LineMode::Parallel,
-        comptime!(blueprint.clone()),
+        comptime!(blueprint),
     );
     axis_size
 }

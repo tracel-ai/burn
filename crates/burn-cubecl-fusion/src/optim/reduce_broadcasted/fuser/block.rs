@@ -143,7 +143,7 @@ impl<R: Runtime> ReduceBlockFuser<R> {
         if let (Some(reduce), ReduceBlockKind::Elemwise) = (&self.fuser.reduce, &self.kind) {
             self.kind = ReduceBlockKind::Reduce {
                 ops_index: self.ops.len() - 1,
-                reduce: reduce.clone(),
+                reduce: Box::new(reduce.clone()),
             };
         }
     }
@@ -193,7 +193,7 @@ pub enum ReduceBlockKind {
     Elemwise,
     Reduce {
         ops_index: usize,
-        reduce: FusedReduce,
+        reduce: Box<FusedReduce>,
     },
 }
 

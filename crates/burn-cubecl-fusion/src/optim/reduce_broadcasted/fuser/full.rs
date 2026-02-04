@@ -151,7 +151,7 @@ impl ReduceBroadcastedFullFuser {
 
                 self.blocks.push(ReduceBlockKind::Reduce {
                     ops_index: *ops_index,
-                    reduce: fused_reduce,
+                    reduce: Box::new(fused_reduce),
                 });
 
                 for op in &block.ops[*ops_index + 1..block.ops.len()] {

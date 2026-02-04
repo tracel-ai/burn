@@ -33,10 +33,10 @@ impl<R: Runtime> Clone for ReduceBroadcastedFuser<R> {
         Self {
             blocks: self.blocks.clone(),
             fuser_default: self.fuser_default.clone(),
-            num_ops: self.num_ops.clone(),
+            num_ops: self.num_ops,
             state: self.state.clone(),
-            max_bindings: self.max_bindings.clone(),
-            bool_precision: self.bool_precision.clone(),
+            max_bindings: self.max_bindings,
+            bool_precision: self.bool_precision,
         }
     }
 }

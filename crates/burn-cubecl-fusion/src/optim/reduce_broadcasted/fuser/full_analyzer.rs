@@ -97,15 +97,15 @@ impl AnalysisState {
         // Makes the current tensor reads available for the next block.
         for p in self.current_single.drain(..) {
             // We need to keep the earliest block position.
-            if !self.available_from_previous_single.contains_key(&p.id) {
-                self.available_from_previous_single.insert(p.id, block_pos);
-            }
+            self.available_from_previous_single
+                .entry(p.id)
+                .or_insert(block_pos);
         }
         for p in self.current_full.drain(..) {
             // We need to keep the earliest block position.
-            if !self.available_from_previous_full.contains_key(&p.id) {
-                self.available_from_previous_full.insert(p.id, block_pos);
-            }
+            self.available_from_previous_full
+                .entry(p.id)
+                .or_insert(block_pos);
         }
     }
 
