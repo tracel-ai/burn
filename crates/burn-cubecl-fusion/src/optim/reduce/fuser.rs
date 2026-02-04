@@ -109,7 +109,8 @@ impl<R: Runtime> ReduceFuser<R> {
         }
     }
     fn on_reduce(&mut self, op: &ReduceDimOpIr, inst: ReduceInstruction) {
-        // TODO: Fix: we need to hava fuse-on-read with an identity block.
+        // TODO: Fix: we need to have fuse-on-read with an identity block.
+        //
         // if self.fuser.num_ops == 0 && false {
         //     self.fuser.current_output_shape = op.input.shape.dims.clone();
         // } else if self.fuser.current_output_shape != op.input.shape.dims {
