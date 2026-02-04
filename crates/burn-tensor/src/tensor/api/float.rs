@@ -468,6 +468,92 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
         (var, mean)
     }
 
+    /// Returns the median value along the specified dimension.
+    ///
+    /// The median is not unique for input tensors with an even number of elements
+    /// in the reduced dimension. In this case, the lower of the two medians is returned,
+    /// following PyTorch's behavior.
+    ///
+    /// # Arguments
+    ///
+    /// - `dim` - The dimension along which to compute the median.
+    ///
+    /// # Returns
+    ///
+    /// - A tensor containing the median values along the specified dimension.
+    ///
+    /// # Example 1
+    ///
+    /// ```ignore
+    /// // Assuming backend B
+    /// let device = B::Device::default();
+    /// let tensor = Tensor::<B, 2>::from_data(
+    ///     [[1.0, 5.0, 3.0, 2.0], [8.0, 4.0, 6.0, 7.0]],
+    ///     &device,
+    /// );
+    ///
+    /// // Median along dimension 0:
+    /// // sorted columns are [1.0, 8.0], [4.0, 5.0], [3.0, 6.0], [2.0, 7.0]
+    /// let median = tensor.median(0);
+    /// // Result: [[1.0, 4.0, 3.0, 2.0]]
+    ///
+    /// // Median along dimension 1:
+    /// // sorted rows are [1.0, 2.0, 3.0, 5.0] and [4.0, 6.0, 7.0, 8.0]
+    /// let median = tensor.median(1);
+    /// // Result: [[2.0], [6.0]]
+    /// ```
+    ///
+    /// # Example 2
+    ///
+    /// The median across all elements can be calculated as follows:
+    ///
+    /// ```ignore
+    /// // D is the number of dimensions of the tensor
+    /// let flattened_tensor: Tensor<B, 1> = tensor.flatten(0, D - 1);
+    ///
+    /// // Calculate median for dim 0 since the tensor has become 1 dimensional
+    /// let median = flattened_tensor.median(0);
+    /// // Result: [4.0]
+    /// ```
+    pub fn median(self, dim: usize) -> Self {
+        stats::median(self, dim)
+    }
+
+    /// Returns the median value along the specified dimension and its index.
+    ///
+    /// The median is not unique for input tensors with an even number of elements
+    /// in the reduced dimension. In this case, the lower of the two medians is returned,
+    /// following PyTorch's behavior.
+    ///
+    /// # Arguments
+    ///
+    /// - `dim` - The dimension along which to compute the median.
+    ///
+    /// # Returns
+    ///
+    /// A tuple containing:
+    /// - A tensor with the median values.
+    /// - A tensor with the indices of the median values in the original tensor.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// // Assuming backend B
+    /// let device = B::Device::default();
+    /// let tensor = Tensor::<B, 2>::from_data(
+    ///     [[1.0, 5.0, 3.0, 2.0], [8.0, 4.0, 6.0, 7.0]],
+    ///     &device,
+    /// );
+    ///
+    /// // Median along dimension 1:
+    /// // sorted rows are [1.0, 2.0, 3.0, 5.0] and [4.0, 6.0, 7.0, 8.0]
+    /// let (values, indices) = tensor.median_with_indices(1);
+    /// // values: [[2.0], [6.0]], indices: [[3], [2]] (position in the original tensor)
+    /// ```
+    pub fn median_with_indices(self, dim: usize) -> (Self, Tensor<B, D, Int>) {
+        stats::median_with_indices(self, dim)
+    }
+
     /// Converts a tensor to the specified floating point data type.
     ///
     /// This is always a no-op when casting to the current dtype.
