@@ -36,19 +36,11 @@ impl MetricsRendererTraining for CustomRenderer {
 
     fn update_valid(&mut self, _state: MetricState) {}
 
-    fn render_train(
-        &mut self,
-        item: TrainingProgress,
-        _progress_indicators: Vec<ProgressType>,
-    ) {
+    fn render_train(&mut self, item: TrainingProgress, _progress_indicators: Vec<ProgressType>) {
         dbg!(item);
     }
 
-    fn render_valid(
-        &mut self,
-        item: TrainingProgress,
-        _progress_indicators: Vec<ProgressType>,
-    ) {
+    fn render_valid(&mut self, item: TrainingProgress, _progress_indicators: Vec<ProgressType>) {
         dbg!(item);
     }
 }
@@ -64,11 +56,7 @@ impl MetricsRenderer for CustomRenderer {
 impl MetricsRendererEvaluation for CustomRenderer {
     fn update_test(&mut self, _name: EvaluationName, _state: MetricState) {}
 
-    fn render_test(
-        &mut self,
-        item: EvaluationProgress,
-        _progress_indicators: Vec<ProgressType>,
-    ) {
+    fn render_test(&mut self, item: EvaluationProgress, _progress_indicators: Vec<ProgressType>) {
         dbg!(item);
     }
 }
