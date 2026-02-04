@@ -76,7 +76,6 @@ struct AnalysisState {
     /// That pool contains tensors that are available in the fuse-on-read of a reduce and the
     /// element-wise broadcasted part
     available_from_previous_full: BTreeMap<TensorId, usize>,
-    // With the trace I get get the fuse arg.
     block_data: Vec<(TensorIr, usize)>,
     analyses: Vec<Vec<(TensorIr, usize)>>,
     current_full: Vec<TensorIr>,

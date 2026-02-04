@@ -17,7 +17,7 @@ pub struct Context<'a, H> {
     pub handles: &'a mut HandleContainer<H>,
     /// Scalars found in the graph in the order they appeared.
     pub scalars: &'a mut HashMap<ScalarId, ScalarIr>,
-    /// TODO
+    /// Shape mapping from relative shape ids to global (real) shape ids.
     pub shapes_relative2global: &'a HashMap<usize, usize>,
 }
 

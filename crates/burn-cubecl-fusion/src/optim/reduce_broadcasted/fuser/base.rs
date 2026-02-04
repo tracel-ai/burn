@@ -62,7 +62,7 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceBroadcastedFuser<
     fn fuse(&mut self, operation: &OperationIr) {
         if matches!(
             &self.state,
-            ReduceBroadcastedStatus::Closed | ReduceBroadcastedStatus::Abord
+            ReduceBroadcastedStatus::Closed | ReduceBroadcastedStatus::Abort
         ) {
             return;
         }
@@ -97,7 +97,7 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceBroadcastedFuser<
             } => {
                 // Only support last axis for now.
                 if axis != shape_input_id.len() - 1 {
-                    self.state = ReduceBroadcastedStatus::Abord;
+                    self.state = ReduceBroadcastedStatus::Abort;
                 } else {
                     self.state = ReduceBroadcastedStatus::Init {
                         shape_id: shape_input_id,
@@ -137,7 +137,7 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceBroadcastedFuser<
 
     fn status(&self) -> FuserStatus {
         match self.state {
-            ReduceBroadcastedStatus::Closed | ReduceBroadcastedStatus::Abord => {
+            ReduceBroadcastedStatus::Closed | ReduceBroadcastedStatus::Abort => {
                 return FuserStatus::Closed;
             }
             _ => {}
@@ -149,7 +149,7 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceBroadcastedFuser<
 
     fn properties(&self) -> FuserProperties {
         let ready = match self.state {
-            ReduceBroadcastedStatus::Starting | ReduceBroadcastedStatus::Abord => false,
+            ReduceBroadcastedStatus::Starting | ReduceBroadcastedStatus::Abort => false,
             ReduceBroadcastedStatus::Closed => {
                 if self.blocks.len() == 1 {
                     !self.blocks[0].is_elemwise()

@@ -40,7 +40,7 @@ pub enum ReduceBroadcastedStatus {
     /// No more operations can be fused.
     Closed,
     /// Invalid axis.
-    Abord,
+    Abort,
 }
 
 /// The [ReduceBlockFuser] capacity to accept an [OperationIr].
