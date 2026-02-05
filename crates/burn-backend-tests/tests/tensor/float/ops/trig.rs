@@ -3,6 +3,7 @@
 use super::*;
 use burn_tensor::TensorData;
 use burn_tensor::Tolerance;
+use core::f32::consts::{FRAC_PI_2, FRAC_PI_3, FRAC_PI_4, FRAC_PI_6, FRAC_PI_8, PI};
 
 #[test]
 fn should_support_cos_ops() {
@@ -180,4 +181,58 @@ fn should_support_atan2_ops() {
     output
         .into_data()
         .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
+}
+
+#[test]
+fn should_support_deg2rad_ops() {
+    let device = Default::default();
+    let tensor = TestTensor::<1>::from_floats(
+        [
+            0.0, 22.5, 30.0, 45.0, 60.0, 90.0, 135.0, 180.0, 270.0, 360.0,
+        ],
+        &device,
+    );
+
+    let output = tensor.deg2rad();
+    let expected = TensorData::from([
+        0.0f32,
+        FRAC_PI_8,
+        FRAC_PI_6,
+        FRAC_PI_4,
+        FRAC_PI_3,
+        FRAC_PI_2,
+        0.75 * PI,
+        PI,
+        1.5 * PI,
+        2.0 * PI,
+    ]);
+
+    output.into_data().assert_eq(&expected, false);
+}
+
+#[test]
+fn should_support_rad2deg_ops() {
+    let device = Default::default();
+    let tensor = TestTensor::<1>::from_floats(
+        [
+            0.0,
+            FRAC_PI_8,
+            FRAC_PI_6,
+            FRAC_PI_4,
+            FRAC_PI_3,
+            FRAC_PI_2,
+            PI,
+            1.5 * PI,
+            2.0 * PI,
+            -FRAC_PI_3,
+        ],
+        &device,
+    );
+
+    let output = tensor.rad2deg();
+    let expected = TensorData::from([
+        0.0f32, 22.5, 30.0, 45.0, 60.0, 90.0, 180.0, 270.0, 360.0, -60.0,
+    ]);
+
+    output.into_data().assert_eq(&expected, false);
 }
