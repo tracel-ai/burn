@@ -40,11 +40,11 @@ pub struct RnnConfig {
     /// This is useful for implementing reverse-direction RNNs (e.g., ONNX reverse direction).
     #[config(default = false)]
     pub reverse: bool,
-    /// Optional cell state clip threshold. If provided, cell state values are clipped
+    /// Optional hidden state clip threshold. If provided, hidden state values are clipped
     /// to the range `[-clip, +clip]` after each timestep. This can help prevent
     /// exploding values during inference.
     pub clip: Option<f64>,
-    /// Activation function applied to the cell state before computing hidden output.
+    /// Activation function applied to the hidden state before computing hidden output.
     /// Default is Tanh, which is standard for Rnn.
     #[config(default = "ActivationConfig::Tanh")]
     pub hidden_activation: ActivationConfig,
@@ -64,7 +64,7 @@ pub struct Rnn<B: Backend> {
     pub batch_first: bool,
     /// If true, process the sequence in reverse order.
     pub reverse: bool,
-    /// Optional cell state clip threshold.
+    /// Optional hidden state clip threshold.
     pub clip: Option<f64>,
     /// Activation function for hidden output.
     pub hidden_activation: Activation<B>,
@@ -206,7 +206,7 @@ impl<B: Backend> Rnn<B> {
             // Update hidden state
             hidden_state = output_values;
 
-            // Apply cell state clipping if configured
+            // Apply hidden state clipping if configured
             if let Some(clip) = self.clip {
                 hidden_state = hidden_state.clamp(-clip, clip);
             }
@@ -240,9 +240,9 @@ pub struct BiRnnConfig {
     /// If false, the input tensor is expected to be `[seq_length, batch_size, input_size]`.
     #[config(default = true)]
     pub batch_first: bool,
-    /// Optional cell state clip threshold.
+    /// Optional hidden state clip threshold.
     pub clip: Option<f64>,
-    /// Activation function applied to the cell state before computing hidden output.
+    /// Activation function applied to the hidden state before computing hidden output.
     #[config(default = "ActivationConfig::Tanh")]
     pub hidden_activation: ActivationConfig,
 }
