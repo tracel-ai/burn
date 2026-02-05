@@ -473,6 +473,13 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// The median is not unique for input tensors with an even number of elements
     /// in the reduced dimension. In this case, the lower of the two medians is returned,
     /// following PyTorch's behavior.
+    /// 
+    /// # Note
+    ///
+    /// The current implementation performs a full sort along the specified dimension,
+    /// which has O(nlog(n)) complexity. Additionally, most backends currently fall back
+    /// to CPU for the sort operation, which may result in slower performance compared
+    /// to native GPU operations.
     ///
     /// # Arguments
     ///
@@ -516,6 +523,8 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// // Result: [4.0]
     /// ```
     pub fn median(self, dim: usize) -> Self {
+        // TODO: Allow backend specialization. Optimally, implement a median kernel for cubecl
+        // instead of leveraging a full sort to get the median.
         stats::median(self, dim)
     }
 
@@ -524,6 +533,13 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// The median is not unique for input tensors with an even number of elements
     /// in the reduced dimension. In this case, the lower of the two medians is returned,
     /// following PyTorch's behavior.
+    /// 
+    /// # Note
+    ///
+    /// The current implementation performs a full sort along the specified dimension,
+    /// which has O(nlog(n)) complexity. Additionally, most backends currently fall back
+    /// to CPU for the sort operation, which may result in slower performance compared
+    /// to native GPU operations.
     ///
     /// # Arguments
     ///
@@ -551,6 +567,8 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// // values: [[2.0], [6.0]], indices: [[3], [2]] (position in the original tensor)
     /// ```
     pub fn median_with_indices(self, dim: usize) -> (Self, Tensor<B, D, Int>) {
+        // TODO: Allow backend specialization. Optimally, implement a median kernel for cubecl
+        // instead of leveraging a full sort to get the median.
         stats::median_with_indices(self, dim)
     }
 
