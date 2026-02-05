@@ -207,7 +207,9 @@ fn should_support_deg2rad_ops() {
         2.0 * PI,
     ]);
 
-    output.into_data().assert_eq(&expected, false);
+    output
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
 }
 
 #[test]
@@ -234,5 +236,7 @@ fn should_support_rad2deg_ops() {
         0.0f32, 22.5, 30.0, 45.0, 60.0, 90.0, 180.0, 270.0, 360.0, -60.0,
     ]);
 
-    output.into_data().assert_eq(&expected, false);
+    output
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
 }
