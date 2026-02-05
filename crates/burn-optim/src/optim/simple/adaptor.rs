@@ -159,11 +159,14 @@ where
         let grad = self.grads.remove(id);
 
         let tensor = if let Some((grad, device)) = grad {
+            log::info!("[{id:?}] Optimize on {device:?}");
             let is_require_grad = tensor.is_require_grad();
             let (key, record) = self.records.remove_entry(&id).unzip();
             let tensor = if tensor.device() != device {
+                log::info!("[{id:?}] Moving tensor to {device:?}");
                 tensor.to_device(&device)
             } else {
+                log::info!("[{id:?}] Tensor already on {device:?}");
                 tensor
             };
 

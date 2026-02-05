@@ -107,6 +107,10 @@ impl<B: Backend> SimpleOptimizer<B> for AdamW {
     }
 
     fn to_device<const D: usize>(mut state: Self::State<D>, device: &Device<B>) -> Self::State<D> {
+        log::info!(
+            "Optimizer moving momentum from {:?} to {device:?}",
+            state.momentum.moment_1.device()
+        );
         state.momentum = state.momentum.to_device(device);
         state
     }
