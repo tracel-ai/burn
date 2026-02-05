@@ -9,7 +9,7 @@ use burn::tensor::backend::Backend;
 
 /// A RnnState is used to store hidden state in RNN.
 pub struct RnnState<B: Backend, const D: usize> {
-    /// The hidden state. 
+    /// The hidden state.
     pub hidden: Tensor<B, D>,
 }
 
@@ -50,7 +50,6 @@ pub struct RnnConfig {
     pub hidden_activation: ActivationConfig,
 }
 
-
 /// The Rnn module. This implementation is for a unidirectional, stateless, Rnn.
 /// Should be created with [RnnConfig].
 #[derive(Module, Debug)]
@@ -77,7 +76,7 @@ impl<B: Backend> ModuleDisplay for Rnn<B> {
             .with_new_line_after_attribute(false)
             .optional()
     }
-    
+
     fn custom_content(&self, content: Content) -> Option<Content> {
         let [d_input, _] = self.gate.input_transform.weight.shape().dims();
         let bias = self.gate.input_transform.bias.is_some();
@@ -201,9 +200,9 @@ impl<B: Backend> Rnn<B> {
             let biased_gate_sum = self
                 .gate
                 .gate_product(input_t.clone(), hidden_state.clone());
-            
+
             let output_values = self.hidden_activation.forward(biased_gate_sum);
-            
+
             // Update hidden state
             hidden_state = output_values;
 
@@ -221,10 +220,7 @@ impl<B: Backend> Rnn<B> {
             );
         }
 
-        (
-            batched_hidden_state,
-            RnnState::new(hidden_state),
-        )
+        (batched_hidden_state, RnnState::new(hidden_state))
     }
 }
 
@@ -275,13 +271,7 @@ impl<B: Backend> ModuleDisplay for BiRnn<B> {
     }
 
     fn custom_content(&self, content: Content) -> Option<Content> {
-        let [d_input, _] = self
-            .forward
-            .gate
-            .input_transform
-            .weight
-            .shape()
-            .dims();
+        let [d_input, _] = self.forward.gate.input_transform.weight.shape().dims();
         let bias = self.forward.gate.input_transform.bias.is_some();
 
         content
@@ -291,7 +281,6 @@ impl<B: Backend> ModuleDisplay for BiRnn<B> {
             .optional()
     }
 }
-
 
 impl BiRnnConfig {
     /// Initialize a new [Bidirectional RNN](BiRnn) module.
@@ -391,12 +380,10 @@ impl<B: Backend> BiRnn<B> {
             output.swap_dims(0, 1)
         };
 
-        let state = RnnState::new(
-            Tensor::stack(
-                [final_state_forward.hidden, final_state_reverse.hidden].to_vec(),
-                0,
-            ),
-        );
+        let state = RnnState::new(Tensor::stack(
+            [final_state_forward.hidden, final_state_reverse.hidden].to_vec(),
+            0,
+        ));
 
         (output, state)
     }
@@ -433,7 +420,7 @@ mod tests {
     ///
     /// Simple RNN: h_t = tanh(W_input @ x_t + W_hidden @ h_{t-1} + b)
     /// With input=0.1, weight_input=0.5, bias=0.0, h_0=0.2, weight_hidden=0.3
-    /// h_t = tanh(0.5 * 0.1 + 0.3 * 0.2 + 0.0) = tanh(0.11) ≈ 0.10955
+    /// h_t = tanh(0.5*0.1 + 0.5*0) = tanh(0.05) = 0.04995
     #[test]
     fn test_forward_single_input_single_feature() {
         let device = Default::default();
@@ -486,7 +473,7 @@ mod tests {
         let (output, state) = rnn.forward(input, None);
 
         let tolerance = Tolerance::default();
-        let expected = TensorData::from([[0.10955]]);
+        let expected = TensorData::from([[0.04995]]);
         state
             .hidden
             .to_data()
@@ -511,7 +498,6 @@ mod tests {
         assert_eq!(state.hidden.dims(), [1, 1024]);
     }
 
-
     #[test]
     #[cfg(feature = "std")]
     fn test_batched_backward_pass() {
@@ -526,12 +512,7 @@ mod tests {
         let fake_loss = output;
         let grads = fake_loss.backward();
 
-        let some_gradient = rnn
-            .gate
-            .hidden_transform
-            .weight
-            .grad(&grads)
-            .unwrap();
+        let some_gradient = rnn.gate.hidden_transform.weight.grad(&grads).unwrap();
 
         // Asserts that the gradients exist and are non-zero
         assert_ne!(
@@ -545,7 +526,7 @@ mod tests {
         );
     }
 
-        #[test]
+    #[test]
     fn test_bidirectional() {
         let device = Default::default();
         TestBackend::seed(&device, 0);
@@ -582,6 +563,7 @@ mod tests {
             )
         }
 
+        // [batch_size=1, seq_length=4, input_size=2]
         let input = Tensor::<TestBackend, 3>::from_data(
             TensorData::from([[
                 [0.949, -0.861],
@@ -591,19 +573,25 @@ mod tests {
             ]]),
             &device,
         );
+
+        // [2, batch_size=1, hidden_size=3]
         let h0 = Tensor::<TestBackend, 3>::from_data(
             TensorData::from([[[0.280, 0.360, -1.242]], [[-0.588, 0.729, -0.788]]]),
             &device,
         );
 
         rnn.forward.gate = create_gate_controller(
+            // input_weights: [input_size=2, hidden_size=3]
             [[0.367, 0.091, 0.342], [0.322, 0.533, 0.059]],
+            // input_biases: [hidden_size=3]
             [-0.196, 0.354, 0.209],
+            // hidden_weights: [hidden_size=3, hidden_size=3]
             [
                 [-0.320, 0.232, -0.165],
                 [0.093, -0.572, -0.315],
                 [-0.467, 0.325, 0.046],
             ],
+            // hidden_biases: [hidden_size=3]
             [0.181, -0.190, -0.245],
             &device,
         );
@@ -620,27 +608,26 @@ mod tests {
             &device,
         );
 
+        // [batch_size=1, sequence_length=4, hidden_size * 2 = 6]
+        // The expected output values were computed from PyTorch
         let expected_output_with_init_state = TensorData::from([[
-            [0.23764, -0.03442, 0.04414, -0.15635, -0.03366, -0.05798],
-            [0.00473, -0.02254, 0.02988, -0.16510, -0.00306, 0.08742],
-            [0.06210, -0.06509, -0.05339, -0.01710, 0.02091, 0.16012],
-            [-0.03420, 0.07774, -0.09774, -0.02604, 0.12584, 0.20872],
+            [0.5226, -0.6370, 0.0210, 0.0685, 0.3867, 0.3602],
+            [0.3580, 0.8431, 0.4129, -0.3175, 0.4374, 0.1766],
+            [-0.3837, -0.2703, -0.3957, -0.1542, -0.1122, 0.0725],
+            [0.5059, 0.5527, 0.1244, -0.6779, 0.3725, -0.3387],
         ]]);
         let expected_output_without_init_state = TensorData::from([[
-            [0.08679, -0.08776, -0.00528, -0.15969, -0.05322, -0.08863],
-            [-0.02577, -0.05057, 0.00033, -0.17558, -0.03679, 0.03142],
-            [0.02942, -0.07411, -0.06044, -0.03601, -0.09998, 0.04846],
-            [-0.04026, 0.07178, -0.10189, -0.07349, -0.04576, 0.05550],
+            [0.0560, -0.2056, 0.2334, 0.0892, 0.3912, 0.3607],
+            [0.4340, 0.7378, 0.3714, -0.2394, 0.4235, 0.2002],
+            [-0.3962, -0.2097, -0.3798, 0.0532, -0.2067, 0.1727],
+            [0.5075, 0.5298, 0.1083, -0.3200, 0.0764, -0.1282],
         ]]);
-        let expected_hn_with_init_state = TensorData::from([
-            [[-0.03420, 0.07774, -0.09774]],
-            [[-0.15635, -0.03366, -0.05798]],
-        ]);
-        let expected_hn_without_init_state = TensorData::from([
-            [[-0.04026, 0.07178, -0.10189]],
-            [[-0.15969, -0.05322, -0.08863]],
-        ]);
 
+        //`[2, batch_size=1, hidden_size=3]`
+        let expected_hn_with_init_state =
+            TensorData::from([[[0.5059, 0.5527, 0.1244]], [[0.0685, 0.3867, 0.3602]]]);
+        let expected_hn_without_init_state =
+            TensorData::from([[[0.5075, 0.5298, 0.1083]], [[0.0892, 0.3912, 0.3607]]]);
 
         let (output_with_init_state, state_with_init_state) =
             rnn.forward(input.clone(), Some(RnnState::new(h0)));
@@ -671,7 +658,7 @@ mod tests {
 
         assert_eq!(
             alloc::format!("{layer}"),
-            "Rnn {d_input: 2, d_hidden: 3, bias: true, params: 84}"
+            "Rnn {d_input: 2, d_hidden: 3, bias: true, params: 21}"
         );
     }
 
@@ -683,7 +670,7 @@ mod tests {
 
         assert_eq!(
             alloc::format!("{layer}"),
-            "BiRnn {d_input: 2, d_hidden: 3, bias: true, params: 168}"
+            "BiRnn {d_input: 2, d_hidden: 3, bias: true, params: 42}"
         );
     }
 }
