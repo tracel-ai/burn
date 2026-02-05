@@ -28,7 +28,7 @@ jobs:
           components: rustfmt, rust-src
       # --------------------------------------------------------------------------------
       - name: Install Mesa
-        uses: tracel-ai/github-actions/install-mesa@v8
+        uses: tracel-ai/github-actions/install-mesa@v9
       # --------------------------------------------------------------------------------
       - name: Install cargo-careful
         env:
@@ -55,7 +55,7 @@ jobs:
           components: rustfmt, rust-src
       # --------------------------------------------------------------------------------
       - name: Install Mesa
-        uses: tracel-ai/github-actions/install-mesa@v8
+        uses: tracel-ai/github-actions/install-mesa@v9
       # --------------------------------------------------------------------------------
       - name: Run AddressSanitizer
         env:
@@ -77,7 +77,7 @@ jobs:
           components: rustfmt, rust-src
       # --------------------------------------------------------------------------------
       - name: Install Mesa
-        uses: tracel-ai/github-actions/install-mesa@v8
+        uses: tracel-ai/github-actions/install-mesa@v9
       # --------------------------------------------------------------------------------
       - name: Run ThreadSanitizer
         env:
@@ -99,7 +99,7 @@ jobs:
           components: rustfmt, rust-src
       # --------------------------------------------------------------------------------
       - name: Install Mesa
-        uses: tracel-ai/github-actions/install-mesa@v8
+        uses: tracel-ai/github-actions/install-mesa@v9
       # --------------------------------------------------------------------------------
       - name: Run MemorySanitizer
         env:
@@ -121,7 +121,7 @@ jobs:
           components: rustfmt, rust-src
       # --------------------------------------------------------------------------------
       - name: Install Mesa
-        uses: tracel-ai/github-actions/install-mesa@v8
+        uses: tracel-ai/github-actions/install-mesa@v9
       # --------------------------------------------------------------------------------
       - name: Run SafeStack
         env:

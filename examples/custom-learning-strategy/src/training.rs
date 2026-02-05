@@ -1,4 +1,5 @@
 use crate::model::ModelConfig;
+use burn::data::dataloader::Progress;
 use burn::record::NoStdTrainingRecorder;
 use burn::train::{
     EventProcessorTraining, Learner, LearningComponentsTypes, SupervisedLearningStrategy,
@@ -20,7 +21,7 @@ use burn::{
     record::CompactRecorder,
     tensor::{Device, backend::AutodiffBackend},
     train::{
-        InferenceStep, LearnerEvent, LearnerItem, MetricEarlyStoppingStrategy, StoppingCondition,
+        InferenceStep, LearnerEvent, MetricEarlyStoppingStrategy, StoppingCondition, TrainingItem,
         metric::{
             AccuracyMetric, LossMetric,
             store::{Aggregate, Direction, Split},
@@ -167,12 +168,11 @@ impl<LC: LearningComponentsTypes> SupervisedLearningStrategy<LC> for MyCustomLea
                 let item = learner.train_step(item);
                 learner.optimizer_step(item.grads);
 
-                let item = LearnerItem::new(
+                let item = TrainingItem::new(
                     item.item,
                     progress,
-                    epoch,
-                    num_epochs,
-                    iteration,
+                    Progress::new(epoch, num_epochs),
+                    Some(iteration),
                     Some(learner.lr_current()),
                 );
 
@@ -198,7 +198,13 @@ impl<LC: LearningComponentsTypes> SupervisedLearningStrategy<LC> for MyCustomLea
                 iteration += 1;
 
                 let item = model_valid.step(item);
-                let item = LearnerItem::new(item, progress, epoch, num_epochs, iteration, None);
+                let item = TrainingItem::new(
+                    item,
+                    progress,
+                    Progress::new(epoch, num_epochs),
+                    Some(iteration),
+                    None,
+                );
 
                 event_processor.process_valid(LearnerEvent::ProcessedItem(item));
             }

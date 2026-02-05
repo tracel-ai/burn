@@ -27,7 +27,7 @@ pub(crate) fn default_renderer(
 ) -> Box<dyn MetricsRenderer> {
     #[cfg(feature = "tui")]
     if std::io::stdout().is_terminal() {
-        return Box::new(tui::TuiMetricsRenderer::new(interuptor, checkpoint));
+        return Box::new(tui::TuiMetricsRendererWrapper::new(interuptor, checkpoint));
     }
 
     Box::new(CliMetricsRenderer::new())

@@ -1,9 +1,9 @@
 use burn_core as burn;
 
 use crate::activation::{
-    Gelu, HardSigmoid, HardSigmoidConfig, HardSwish, LeakyRelu, LeakyReluConfig, PRelu,
-    PReluConfig, Relu, Sigmoid, Softplus, SoftplusConfig, Softsign, SwiGlu, SwiGluConfig, Tanh,
-    ThresholdedRelu, ThresholdedReluConfig,
+    Celu, CeluConfig, Elu, EluConfig, Gelu, HardSigmoid, HardSigmoidConfig, HardSwish, LeakyRelu,
+    LeakyReluConfig, PRelu, PReluConfig, Relu, Selu, Sigmoid, Softplus, SoftplusConfig, Softsign,
+    SwiGlu, SwiGluConfig, Tanh, ThresholdedRelu, ThresholdedReluConfig,
 };
 use burn::config::Config;
 use burn::module::Module;
@@ -32,6 +32,9 @@ pub enum ActivationConfig {
     /// [`SwiGlu`] activation layer.
     SwiGlu(SwiGluConfig),
 
+    /// [`Selu`] activation layer.
+    Selu,
+
     /// [`Sigmoid`] activation layer.
     Sigmoid,
 
@@ -49,6 +52,12 @@ pub enum ActivationConfig {
 
     /// [`Softsign`] activation layer.
     Softsign,
+
+    /// [`Elu`] activation layer.
+    Elu(EluConfig),
+
+    /// [`Celu`] activation layer.
+    Celu(CeluConfig),
 
     /// [`ThresholdedRelu`] activation layer.
     ThresholdedRelu(ThresholdedReluConfig),
@@ -84,6 +93,18 @@ impl From<SoftplusConfig> for ActivationConfig {
     }
 }
 
+impl From<EluConfig> for ActivationConfig {
+    fn from(config: EluConfig) -> Self {
+        Self::Elu(config)
+    }
+}
+
+impl From<CeluConfig> for ActivationConfig {
+    fn from(config: CeluConfig) -> Self {
+        Self::Celu(config)
+    }
+}
+
 impl From<ThresholdedReluConfig> for ActivationConfig {
     fn from(config: ThresholdedReluConfig) -> Self {
         Self::ThresholdedRelu(config)
@@ -103,9 +124,12 @@ impl ActivationConfig {
             ActivationConfig::HardSigmoid(conf) => conf.init().into(),
             ActivationConfig::HardSwish => HardSwish.into(),
             ActivationConfig::Softplus(conf) => conf.init().into(),
+            ActivationConfig::Selu => Selu.into(),
             ActivationConfig::Sigmoid => Sigmoid.into(),
             ActivationConfig::Tanh => Tanh.into(),
             ActivationConfig::Softsign => Softsign.into(),
+            ActivationConfig::Elu(conf) => conf.init().into(),
+            ActivationConfig::Celu(conf) => conf.init().into(),
             ActivationConfig::ThresholdedRelu(conf) => conf.init().into(),
         }
     }
@@ -133,6 +157,9 @@ pub enum Activation<B: Backend> {
     /// [`SwiGlu`] activation layer.
     SwiGlu(SwiGlu<B>),
 
+    /// [`Selu`] activation layer.
+    Selu(Selu),
+
     /// [`Sigmoid`] activation layer.
     Sigmoid(Sigmoid),
 
@@ -150,6 +177,12 @@ pub enum Activation<B: Backend> {
 
     /// [`Softsign`] activation layer.
     Softsign(Softsign),
+
+    /// [`Elu`] activation layer.
+    Elu(Elu),
+
+    /// [`Celu`] activation layer.
+    Celu(Celu),
 
     /// [`ThresholdedRelu`] activation layer.
     ThresholdedRelu(ThresholdedRelu),
@@ -182,6 +215,12 @@ impl<B: Backend> From<LeakyRelu> for Activation<B> {
 impl<B: Backend> From<SwiGlu<B>> for Activation<B> {
     fn from(layer: SwiGlu<B>) -> Self {
         Self::SwiGlu(layer)
+    }
+}
+
+impl<B: Backend> From<Selu> for Activation<B> {
+    fn from(layer: Selu) -> Self {
+        Self::Selu(layer)
     }
 }
 
@@ -221,6 +260,18 @@ impl<B: Backend> From<Softsign> for Activation<B> {
     }
 }
 
+impl<B: Backend> From<Elu> for Activation<B> {
+    fn from(layer: Elu) -> Self {
+        Self::Elu(layer)
+    }
+}
+
+impl<B: Backend> From<Celu> for Activation<B> {
+    fn from(layer: Celu) -> Self {
+        Self::Celu(layer)
+    }
+}
+
 impl<B: Backend> From<ThresholdedRelu> for Activation<B> {
     fn from(layer: ThresholdedRelu) -> Self {
         Self::ThresholdedRelu(layer)
@@ -239,9 +290,12 @@ impl<B: Backend> Activation<B> {
             Activation::HardSigmoid(layer) => layer.forward(input),
             Activation::HardSwish(layer) => layer.forward(input),
             Activation::Softplus(layer) => layer.forward(input),
+            Activation::Selu(layer) => layer.forward(input),
             Activation::Sigmoid(layer) => layer.forward(input),
             Activation::Tanh(layer) => layer.forward(input),
             Activation::Softsign(layer) => layer.forward(input),
+            Activation::Elu(layer) => layer.forward(input),
+            Activation::Celu(layer) => layer.forward(input),
             Activation::ThresholdedRelu(layer) => layer.forward(input),
         }
     }
@@ -354,6 +408,16 @@ mod tests {
     }
 
     #[test]
+    fn test_selu() {
+        let device = Default::default();
+        let input = make_input::<TestBackend>(&device);
+
+        let expected = Selu.forward(input.clone());
+
+        check_stateless_config_output(ActivationConfig::Selu, input, expected, &device)
+    }
+
+    #[test]
     fn test_sigmoid() {
         let device = Default::default();
         let input = make_input::<TestBackend>(&device);
@@ -395,11 +459,33 @@ mod tests {
     }
 
     #[test]
+    fn test_elu() {
+        let device = Default::default();
+        let input = make_input::<TestBackend>(&device);
+
+        let inner_config = EluConfig::new();
+        let expected = inner_config.init().forward(input.clone());
+
+        check_stateless_config_output(inner_config.into(), input, expected, &device)
+    }
+
+    #[test]
     fn test_softplus() {
         let device = Default::default();
         let input = make_input::<TestBackend>(&device);
 
         let inner_config = SoftplusConfig::new();
+        let expected = inner_config.init().forward(input.clone());
+
+        check_stateless_config_output(inner_config.into(), input, expected, &device)
+    }
+
+    #[test]
+    fn test_celu() {
+        let device = Default::default();
+        let input = make_input::<TestBackend>(&device);
+
+        let inner_config = CeluConfig::new();
         let expected = inner_config.init().forward(input.clone());
 
         check_stateless_config_output(inner_config.into(), input, expected, &device)

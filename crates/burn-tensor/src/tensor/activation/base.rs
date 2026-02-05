@@ -402,6 +402,97 @@ pub fn tanh<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D> {
     tensor.tanh()
 }
 
+/// Applies the Exponential Linear Unit function element-wise.
+///
+#[cfg_attr(
+    doc,
+    doc = r#"
+$$
+\text{ELU}\(x\) =
+ \begin{cases}
+     x & \text{if } x > 0 \newline
+     \alpha \cdot (\exp(x) - 1) & \text{if } x \leq 0
+ \end{cases}
+$$
+"#
+)]
+#[cfg_attr(
+    not(doc),
+    doc = "`f(x) =`\n- `x for x > 0`\n- `alpha * (exp(x) - 1) for x <= 0`"
+)]
+pub fn elu<const D: usize, B: Backend>(tensor: Tensor<B, D>, alpha: f64) -> Tensor<B, D> {
+    let mask = tensor.clone().lower_equal_elem(0);
+    let scaled = tensor.clone().exp().sub_scalar(1).mul_scalar(alpha);
+    tensor.mask_where(mask, scaled)
+}
+
+/// Applies the Continuously Differentiable Exponential Linear Unit function element-wise.
+///
+#[cfg_attr(
+    doc,
+    doc = r#"
+$$
+\text{CELU}(x) =
+ \begin{cases}
+     x & \text{if } x \geq 0 \newline
+     \alpha \cdot \left(\exp\left(\frac{x}{\alpha}\right) - 1\right) & \text{otherwise}
+ \end{cases}
+$$
+"#
+)]
+#[cfg_attr(
+    not(doc),
+    doc = "`celu(x) = max(0, x) + min(0, alpha * (exp(x / alpha) - 1))`"
+)]
+///
+/// See also [CELU](https://pytorch.org/docs/stable/generated/torch.nn.CELU.html)
+///
+/// # Arguments
+/// - `alpha`: scaling parameter for the negative part.
+pub fn celu<const D: usize, B: Backend>(tensor: Tensor<B, D>, alpha: f64) -> Tensor<B, D> {
+    let mask = tensor.clone().lower_equal_elem(0);
+    let scaled = tensor
+        .clone()
+        .div_scalar(alpha)
+        .exp()
+        .sub_scalar(1)
+        .mul_scalar(alpha);
+    tensor.mask_where(mask, scaled)
+}
+
+/// Applies the Scaled Exponential Linear Unit function element-wise
+/// as described in the paper [Self-Normalizing Neural Networks](https://arxiv.org/abs/1706.02515).
+///
+#[cfg_attr(
+    doc,
+    doc = r#"
+$$
+\text{SELU}\(x\) = \gamma \cdot
+ \begin{cases}
+     x & \text{if } x > 0 \newline
+     \alpha \cdot (\exp(x) - 1) & \text{if } x \leq 0
+ \end{cases}
+$$
+
+where $\alpha \approx 1.6733$ and $\gamma \approx 1.0507$.
+"#
+)]
+#[cfg_attr(
+    not(doc),
+    doc = "`selu(x) = gamma * x if x > 0, gamma * alpha * (exp(x) - 1) if x <= 0`"
+)]
+pub fn selu<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D> {
+    // Constants from the SELU paper / ONNX spec
+    const ALPHA: f64 = 1.6732632423543772848170429916717_f64;
+    const GAMMA: f64 = 1.0507009873554804934193349852946_f64;
+
+    let mask = tensor.clone().greater_equal_elem(0.0);
+    let positive = tensor.clone().mul_scalar(GAMMA);
+    let negative = tensor.exp().sub_scalar(1.0).mul_scalar(ALPHA * GAMMA);
+
+    negative.mask_where(mask, positive)
+}
+
 /// Applies the thresholded rectified linear unit function element-wise.
 ///
 #[cfg_attr(

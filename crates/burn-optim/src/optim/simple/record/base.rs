@@ -19,7 +19,7 @@ where
 }
 
 /// [Optimizer adaptor](crate::optim::simple::adaptor::OptimizerAdaptor) record item.
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 #[serde(bound = "")]
 pub enum AdaptorRecordItem<
     O: SimpleOptimizer<B::InnerBackend>,

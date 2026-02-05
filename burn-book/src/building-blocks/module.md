@@ -230,7 +230,9 @@ Burn comes with built-in modules that you can use to build your own modules.
 | Burn API        | PyTorch Equivalent                            |
 | --------------- | --------------------------------------------- |
 | `BatchNorm`     | `nn.BatchNorm1d`, `nn.BatchNorm2d` etc.       |
+| `Celu`          | `nn.CELU`                                     |
 | `Dropout`       | `nn.Dropout`                                  |
+| `Elu`           | `nn.ELU`                                      |
 | `Embedding`     | `nn.Embedding`                                |
 | `Gelu`          | `nn.Gelu`                                     |
 | `GroupNorm`     | `nn.GroupNorm`                                |
@@ -241,6 +243,7 @@ Burn comes with built-in modules that you can use to build your own modules.
 | `Linear`        | `nn.Linear`                                   |
 | `Prelu`         | `nn.PReLu`                                    |
 | `Relu`          | `nn.ReLU`                                     |
+| `Selu`          | `nn.SELU`                                     |
 | `Softsign`      | `nn.Softsign`                                 |
 | `RmsNorm`       | _No direct equivalent_                        |
 | `SwiGlu`        | _No direct equivalent_                        |
@@ -275,7 +278,7 @@ Burn comes with built-in modules that you can use to build your own modules.
 
 | Burn API         | PyTorch Equivalent     |
 | ---------------- | ---------------------- |
-| `Gru`            | `nn.GRU`               |
+| `Gru`/`BiGru`    | `nn.GRU`               |
 | `Lstm`/`BiLstm`  | `nn.LSTM`              |
 | `GateController` | _No direct equivalent_ |
 
