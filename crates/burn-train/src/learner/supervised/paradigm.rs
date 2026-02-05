@@ -13,7 +13,7 @@ use crate::metric::store::{Aggregate, Direction, EventStoreClient, LogEventStore
 use crate::metric::{Adaptor, LossMetric, Metric, Numeric};
 use crate::multi::MultiDeviceLearningStrategy;
 use crate::renderer::{MetricsRenderer, default_renderer};
-use crate::single::SingleDevicetrainingStrategy;
+use crate::single::SingleDeviceTrainingStrategy;
 use crate::{
     ApplicationLoggerInstaller, EarlyStoppingStrategyRef, FileApplicationLoggerInstaller,
     InferenceBackend, InferenceModel, InferenceModelInput, InferenceStep, LearnerEvent,
@@ -382,8 +382,8 @@ impl<LC: LearningComponentsTypes + Send + 'static> SupervisedTraining<LC> {
 
         match training_strategy {
             TrainingStrategy::SingleDevice(device) => {
-                let single_device: SingleDevicetrainingStrategy<LC> =
-                    SingleDevicetrainingStrategy::new(device);
+                let single_device: SingleDeviceTrainingStrategy<LC> =
+                    SingleDeviceTrainingStrategy::new(device);
                 single_device.train(
                     learner,
                     self.dataloader_train,
@@ -398,8 +398,14 @@ impl<LC: LearningComponentsTypes + Send + 'static> SupervisedTraining<LC> {
                 components,
             ),
             TrainingStrategy::MultiDevice(devices, multi_device_optim) => {
-                let multi_device = MultiDeviceLearningStrategy::new(devices, multi_device_optim);
-                multi_device.train(
+                let strategy: Box<dyn SupervisedLearningStrategy<LC>> = match devices.len() == 1 {
+                    true => Box::new(SingleDeviceTrainingStrategy::new(devices[0].clone())),
+                    false => Box::new(MultiDeviceLearningStrategy::new(
+                        devices,
+                        multi_device_optim,
+                    )),
+                };
+                strategy.train(
                     learner,
                     self.dataloader_train,
                     self.dataloader_valid,
