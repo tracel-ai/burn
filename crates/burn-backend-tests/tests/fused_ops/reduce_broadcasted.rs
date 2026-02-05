@@ -15,7 +15,7 @@ fn test_reduce_broadcasted_1() {
         .float();
 
     // Forces previous tensors to be materialized.
-    TestBackend::sync(&device);
+    TestBackend::sync(&device).unwrap();
 
     let x = tensor + fused_on_read.clone();
     let x = x.sum_dim(1);
@@ -52,7 +52,7 @@ fn test_reduce_broadcasted_2() {
         .float();
 
     // Forces previous tensors to be materialized.
-    TestBackend::sync(&device);
+    TestBackend::sync(&device).unwrap();
 
     let x = tensor + fused_on_read.clone();
     let x = x.sum_dim(1);
@@ -60,7 +60,7 @@ fn test_reduce_broadcasted_2() {
     let x = x.mean_dim(1);
 
     let end = x + y;
-    TestBackend::sync(&device);
+    TestBackend::sync(&device).unwrap();
 
     let actual = end.into_data();
     let expected = TensorData::from([
@@ -90,7 +90,7 @@ fn test_reduce_broadcasted_3() {
         .float();
 
     // Forces previous tensors to be materialized.
-    TestBackend::sync(&device);
+    TestBackend::sync(&device).unwrap();
 
     let x = tensor + fused_on_read.clone();
     let x = x.sum_dim(1);
@@ -130,7 +130,7 @@ fn test_reduce_broadcasted_4_reused_partial() {
         .float();
 
     // Forces previous tensors to be materialized.
-    TestBackend::sync(&device);
+    TestBackend::sync(&device).unwrap();
 
     // In fusion we have to create a global buffer to keep the intermediate data for now.
     let x_previous = tensor + fused_on_read;
