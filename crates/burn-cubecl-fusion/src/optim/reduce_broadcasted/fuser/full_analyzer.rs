@@ -63,6 +63,7 @@ impl FullFuserAnalyzer {
     }
 }
 
+#[derive(Debug)]
 pub struct FullFuserAnalysis {
     /// The tensor received from a previous block.
     pub inputs: Vec<(TensorIr, usize)>,

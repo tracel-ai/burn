@@ -269,6 +269,9 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
                         block_plan,
                         previous_widths[block_pos],
                     );
+                    if block_plan.width == 0 {
+                        block_plan.width = previous_widths[block_pos];
+                    }
                 }
                 VectorizationSetting::EqualThanPreviousBlock { block_pos } => {
                     apply_vectorization_block(
@@ -289,6 +292,7 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
                         block_plan,
                         1,
                     );
+                    block_plan.width = 1;
                 }
             }
 

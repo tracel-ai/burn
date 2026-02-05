@@ -882,7 +882,7 @@ impl Display for FuseArg {
         match self {
             FuseArg::Input(pos, ..) => write!(f, "input({pos})"),
             FuseArg::Output(pos, ..) => write!(f, "output({pos})"),
-            FuseArg::BlockLocal { pos, .. } => write!(f, "local({pos})"),
+            FuseArg::BlockLocal { pos, ty } => write!(f, "local({pos}, {ty:?})"),
             FuseArg::MultiBlockLocal(mbp, ..) => write!(f, "{mbp}"),
             FuseArg::MultiBlockGlobal(mbp, ..) => write!(f, "global_{mbp}"),
             FuseArg::Scalar(pos, ..) => write!(f, "scalar({pos})"),
