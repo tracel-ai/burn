@@ -1,4 +1,7 @@
-use core::hash::{BuildHasher, Hasher};
+use core::{
+    hash::{BuildHasher, Hasher},
+    sync::atomic::AtomicU64,
+};
 
 use alloc::string::String;
 use burn_std::id::IdGenerator;
@@ -27,12 +30,14 @@ impl Default for ParamId {
     }
 }
 
+static PARAM_COUNT: AtomicU64 = AtomicU64::new(0);
+
 impl ParamId {
     /// Create a new parameter ID.
     pub fn new() -> Self {
-        Self {
-            value: IdGenerator::generate(),
-        }
+        let id = PARAM_COUNT.fetch_add(1, core::sync::atomic::Ordering::Acquire);
+
+        Self { value: id }
     }
 
     /// Gets the internal value of the id.
