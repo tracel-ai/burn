@@ -63,9 +63,6 @@ type WgpuBackend = burn_wgpu::Wgpu;
 #[cfg(feature = "cuda")]
 type CudaBackend = burn_cuda::Cuda<f32, i32>;
 
-#[cfg(feature = "candle")]
-type CandleBackend = burn_candle::Candle<f32, i64>;
-
 #[cfg(feature = "tch")]
 type TchBackend = burn_tch::LibTorch<f32>;
 
@@ -179,8 +176,6 @@ fn main() {
     println!("  - WGPU (GPU)");
     #[cfg(feature = "cuda")]
     println!("  - CUDA (NVIDIA GPU)");
-    #[cfg(feature = "candle")]
-    println!("  - Candle");
     #[cfg(feature = "tch")]
     println!("  - LibTorch");
     #[cfg(feature = "metal")]
@@ -593,9 +588,6 @@ bench_backend!(WgpuBackend, wgpu_backend, "WGPU Backend (GPU)");
 
 #[cfg(feature = "cuda")]
 bench_backend!(CudaBackend, cuda_backend, "CUDA Backend (NVIDIA GPU)");
-
-#[cfg(feature = "candle")]
-bench_backend!(CandleBackend, candle_backend, "Candle Backend");
 
 #[cfg(feature = "tch")]
 bench_backend!(TchBackend, tch_backend, "LibTorch Backend");

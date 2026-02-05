@@ -50,8 +50,8 @@ pub trait RunnerClient: Clone + Send + Sync + Sized {
     fn device(&self) -> Self::Device;
     /// Seed the runner.
     fn seed(&self, seed: u64);
-    /// Whether the type is supported.
-    fn supports_dtype(&self, dtype: DType) -> bool;
+    /// Returns the supported data type usage set
+    fn dtype_usage(&self, dtype: DType) -> burn_backend::DTypeUsageSet;
 }
 
 pub(crate) struct RunnerClientLocator {

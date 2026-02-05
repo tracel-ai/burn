@@ -65,13 +65,14 @@ impl NumericMetricsState {
 
     /// Update the state with the training progress.
     pub(crate) fn update_progress_train(&mut self, progress: &TrainingProgress) {
-        self.epoch = progress.epoch;
+        self.epoch = progress.global_progress.items_processed;
 
         if self.num_samples_train.is_some() {
             return;
         }
 
-        self.num_samples_train = Some(progress.progress.items_total);
+        // If the training only has the notion of global progress, num_samples_train remains None.
+        self.num_samples_train = progress.progress.as_ref().map(|p| p.items_total);
     }
 
     /// Update the state with the validation progress.
@@ -80,16 +81,20 @@ impl NumericMetricsState {
             return;
         }
 
+        // If num_samples_train is None, keep the default max_samples for validation.
         if let Some(num_sample_train) = self.num_samples_train {
             for (_, (_recent, full)) in self.data.iter_mut() {
-                let ratio = progress.progress.items_total as f64 / num_sample_train as f64;
+                let ratio = match &progress.progress {
+                    Some(p) => p.items_total as f64 / num_sample_train as f64,
+                    None => progress.global_progress.items_total as f64 / num_sample_train as f64,
+                };
 
                 full.update_max_sample(TuiSplit::Valid, ratio);
             }
         }
 
-        self.epoch = progress.epoch;
-        self.num_samples_valid = Some(progress.progress.items_total);
+        self.epoch = progress.global_progress.items_processed;
+        self.num_samples_valid = progress.progress.as_ref().map(|p| p.items_total);
     }
 
     /// Update the state with the testing progress.

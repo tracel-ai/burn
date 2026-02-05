@@ -3,7 +3,7 @@ use alloc::format;
 use burn_core as burn;
 
 use crate::{PaddingConfig1d, conv::checks};
-use burn::tensor::{Tensor, backend::Backend, module::conv1d, ops::ConvOptions};
+use burn::tensor::{Tensor, backend::Backend, module::conv1d, ops::PaddedConvOptions};
 use burn::{
     config::Config,
     module::{Content, DisplaySettings, Ignored, Initializer, Module, ModuleDisplay, Param},
@@ -29,9 +29,8 @@ pub struct Conv1dConfig {
     pub groups: usize,
     /// The padding configuration.
     ///
-    /// ### Warning
-    /// Only symmetric padding is currently supported. As such, using `Same` padding with an even kernel
-    /// size is not supported as it will not produce the same output size.
+    /// Supports symmetric and asymmetric padding. `Same` padding with even kernel sizes
+    /// will automatically use asymmetric padding to preserve input dimensions.
     #[config(default = "PaddingConfig1d::Valid")]
     pub padding: PaddingConfig1d,
     /// If bias should be added to the output.
@@ -103,9 +102,6 @@ impl Conv1dConfig {
     /// Initialize a new [conv1d](Conv1d) module.
     pub fn init<B: Backend>(&self, device: &B::Device) -> Conv1d<B> {
         checks::checks_channels_div_groups(self.channels_in, self.channels_out, self.groups);
-        if self.padding == PaddingConfig1d::Same {
-            checks::check_same_padding_support(&[self.kernel_size]);
-        }
 
         let shape = [
             self.channels_out,
@@ -150,15 +146,25 @@ impl<B: Backend> Conv1d<B> {
     /// - output: `[batch_size, channels_out, length_out]`
     pub fn forward(&self, input: Tensor<B, 3>) -> Tensor<B, 3> {
         let length = input.dims()[2];
-        let padding = self
-            .padding
-            .calculate_padding_1d(length, self.kernel_size, self.stride);
+
+        // Calculate padding as pair - handles Same, Valid, and Explicit uniformly
+        let (left, right) =
+            self.padding
+                .calculate_padding_1d_pair(length, self.kernel_size, self.stride);
+
+        let options = PaddedConvOptions::asymmetric(
+            [self.stride],
+            [left],
+            [right],
+            [self.dilation],
+            self.groups,
+        );
 
         conv1d(
             input,
             self.weight.val(),
             self.bias.as_ref().map(|bias| bias.val()),
-            ConvOptions::new([self.stride], [padding], [self.dilation], self.groups),
+            options,
         )
     }
 }
@@ -200,11 +206,20 @@ mod tests {
     }
 
     #[test]
-    #[should_panic = "Same padding with an even kernel size is not supported"]
-    fn same_with_even_kernel_is_invalid() {
+    fn same_with_even_kernel_uses_asymmetric_padding() {
         let device = Default::default();
-        let config = Conv1dConfig::new(5, 5, 4).with_padding(PaddingConfig1d::Same);
-        let _ = config.init::<TestBackend>(&device);
+        let config = Conv1dConfig::new(4, 4, 2)
+            .with_padding(PaddingConfig1d::Same)
+            .with_initializer(Initializer::Constant { value: 1.0 })
+            .with_bias(false);
+        let conv = config.init::<TestBackend>(&device);
+
+        // Input: [batch=1, channels=4, length=5]
+        let input = Tensor::<TestBackend, 3>::ones([1, 4, 5], &device);
+        let output = conv.forward(input);
+
+        // Same padding should preserve spatial dimensions
+        assert_eq!(output.dims(), [1, 4, 5]);
     }
 
     #[test]
@@ -226,5 +241,43 @@ mod tests {
 
         let input = Tensor::<TestBackend, 3>::zeros([1, 4, 10], &Default::default());
         let _ = conv.forward(input);
+    }
+
+    #[test]
+    fn asymmetric_padding_forward() {
+        let device = Default::default();
+        // Create conv with asymmetric padding: left=1, right=2
+        let config = Conv1dConfig::new(2, 3, 3)
+            .with_padding(PaddingConfig1d::Explicit(1, 2))
+            .with_initializer(Initializer::Constant { value: 1.0 })
+            .with_bias(false);
+        let conv = config.init::<TestBackend>(&device);
+
+        // Input: [batch=1, channels=2, length=4]
+        let input = Tensor::<TestBackend, 3>::ones([1, 2, 4], &device);
+        let output = conv.forward(input);
+
+        // With asymmetric padding (1, 2), input length 4 becomes 4+1+2=7
+        // Output length = (7 - 3) / 1 + 1 = 5
+        assert_eq!(output.dims(), [1, 3, 5]);
+    }
+
+    #[test]
+    fn symmetric_explicit_padding_forward() {
+        let device = Default::default();
+        // Create conv with symmetric explicit padding: left=2, right=2
+        let config = Conv1dConfig::new(2, 3, 3)
+            .with_padding(PaddingConfig1d::Explicit(2, 2))
+            .with_initializer(Initializer::Constant { value: 1.0 })
+            .with_bias(false);
+        let conv = config.init::<TestBackend>(&device);
+
+        // Input: [batch=1, channels=2, length=4]
+        let input = Tensor::<TestBackend, 3>::ones([1, 2, 4], &device);
+        let output = conv.forward(input);
+
+        // With symmetric padding (2, 2), input length 4 becomes 4+2+2=8
+        // Output length = (8 - 3) / 1 + 1 = 6
+        assert_eq!(output.dims(), [1, 3, 6]);
     }
 }

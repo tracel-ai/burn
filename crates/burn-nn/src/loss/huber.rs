@@ -93,6 +93,7 @@ impl HuberLoss {
         match reduction {
             Reduction::Mean | Reduction::Auto => loss.mean(),
             Reduction::Sum => loss.sum(),
+            other => panic!("{other:?} reduction is not supported"),
         }
     }
     /// Compute the loss element-wise for the predictions and targets.

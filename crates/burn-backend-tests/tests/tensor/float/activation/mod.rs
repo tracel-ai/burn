@@ -1,5 +1,7 @@
 use super::*;
 
+mod celu;
+mod elu;
 mod gelu;
 mod glu;
 mod hard_sigmoid;
@@ -9,9 +11,12 @@ mod mish;
 mod prelu;
 mod quiet_softmax;
 mod relu;
+mod selu;
 mod sigmoid;
 mod silu;
 mod softmax;
 mod softmin;
 mod softplus;
+mod softsign;
 mod tanh_activation;
+mod thresholded_relu;

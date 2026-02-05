@@ -1,5 +1,6 @@
 use crate::ddp::epoch::{DdpTrainEpoch, DdpValidEpoch};
 use crate::ddp::strategy::WorkerComponents;
+use crate::single::TrainingLoop;
 use crate::{
     Learner, LearningCheckpointer, LearningComponentsTypes, SupervisedTrainingEventProcessor,
     TrainLoader, TrainingBackend, ValidLoader,
@@ -83,18 +84,19 @@ where
         // Changed the train epoch to keep the dataloaders
         let epoch_train = DdpTrainEpoch::<LC>::new(
             self.dataloader_train.clone(),
-            num_epochs,
             self.components.grad_accumulation,
         );
         let epoch_valid = self
             .dataloader_valid
-            .map(|dataloader| DdpValidEpoch::<LC>::new(dataloader, num_epochs));
+            .map(|dataloader| DdpValidEpoch::<LC>::new(dataloader));
         self.learner.fork(&self.device);
 
-        for epoch in self.starting_epoch..num_epochs + 1 {
+        for training_progress in TrainingLoop::new(self.starting_epoch, num_epochs) {
+            let epoch = training_progress.items_processed;
+
             epoch_train.run(
                 &mut self.learner,
-                epoch,
+                &training_progress,
                 self.event_processor.clone(),
                 &interrupter,
                 self.peer_id,
@@ -111,7 +113,7 @@ where
                 let mut event_processor = self.event_processor.lock().unwrap();
                 runner.run(
                     &self.learner.model(),
-                    epoch,
+                    &training_progress,
                     &mut event_processor,
                     &interrupter,
                 );

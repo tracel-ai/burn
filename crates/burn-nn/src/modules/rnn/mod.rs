@@ -10,5 +10,6 @@ pub mod gru;
 pub mod lstm;
 
 pub use gate_controller::*;
+pub use gru::*;
 pub use lstm::*;
 pub use vanilla::*;

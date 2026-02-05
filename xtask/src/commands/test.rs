@@ -118,6 +118,9 @@ pub(crate) fn handle_command(
                         "burn-router".to_string(),
                         "burn-tch".to_string(),
                         "burn-wgpu".to_string(),
+                        // dqn-agent example relies on gym-rs dependency which requires SDL2.
+                        // It would be good not to remove the gym-rs dependency in the future.
+                        "dqn-agent".to_string(),
                     ]);
 
                     // Burn remote tests don't work on windows for now
@@ -226,14 +229,6 @@ pub(crate) fn handle_command(
                 CiTestType::GcpCudaRunner => (),
                 CiTestType::GcpVulkanRunner | CiTestType::GcpWgpuRunner => (), // handled in tests above
                 CiTestType::GithubMacRunner => {
-                    // burn-candle
-                    helpers::custom_crates_tests(
-                        vec!["burn-candle"],
-                        handle_test_args(&["--features", "accelerate"], args.release),
-                        None,
-                        None,
-                        "std accelerate",
-                    )?;
                     // burn-ndarray
                     helpers::custom_crates_tests(
                         vec!["burn-ndarray"],

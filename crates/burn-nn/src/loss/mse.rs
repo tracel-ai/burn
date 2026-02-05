@@ -37,6 +37,7 @@ impl MseLoss {
         match reduction {
             Reduction::Mean | Reduction::Auto => tensor.mean(),
             Reduction::Sum => tensor.sum(),
+            other => panic!("{other:?} reduction is not supported"),
         }
     }
 
