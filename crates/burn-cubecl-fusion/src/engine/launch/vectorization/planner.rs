@@ -213,7 +213,7 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
             }
         }
 
-        let mut previous_width = 1;
+        let mut previous_widths = Vec::with_capacity(block_vectorization.len());
 
         // Unhandled inputs might not get included in any fused blocks for now.
         //
@@ -261,14 +261,28 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
                         u8::MAX as usize,
                     );
                 }
-                VectorizationSetting::SmallerOrEqualThanPreviousBlock => {
+                VectorizationSetting::SmallerOrEqualThanPreviousBlock { block_pos } => {
                     apply_vectorization_block(
                         tmp,
                         &mut plan.handle_inputs,
                         &mut plan.handle_outputs,
                         block_plan,
-                        previous_width,
+                        previous_widths[block_pos],
                     );
+                    if block_plan.width == 0 {
+                        block_plan.width = previous_widths[block_pos];
+                    }
+                }
+                VectorizationSetting::EqualThanPreviousBlock { block_pos } => {
+                    apply_vectorization_block(
+                        tmp,
+                        &mut plan.handle_inputs,
+                        &mut plan.handle_outputs,
+                        block_plan,
+                        previous_widths[block_pos],
+                    );
+                    // Enforces the width.
+                    block_plan.width = previous_widths[block_pos];
                 }
                 VectorizationSetting::Deactivated => {
                     apply_vectorization_block(
@@ -278,9 +292,20 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
                         block_plan,
                         1,
                     );
+                    block_plan.width = 1;
                 }
             }
-            previous_width = block_plan.width;
+
+            // When only virtual inputs/outputs are present for a block, we need to set a width.
+            if block_plan.width == 0 {
+                if let Some(w) = previous_widths.last() {
+                    block_plan.width = *w;
+                } else {
+                    block_plan.width = 1;
+                }
+            }
+
+            previous_widths.push(block_plan.width);
         }
     }
 }

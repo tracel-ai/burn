@@ -1,13 +1,12 @@
+use super::{FuseResources, RegisteredTensors, TensorView};
 use crate::engine::{
-    codegen::ir::{BinaryFuseArgs, FuseArg, FuseOp, FuseType, LayoutInfo, UnaryFuseArgs},
+    codegen::ir::{FuseArg, FuseOp, FuseType, LayoutInfo, MultiBlockPos, UnaryFuseArgs},
     settings::FuseSettings,
 };
 use burn_ir::{TensorId, TensorIr, TensorStatus};
 use burn_std::{DType, quantization::QuantParam};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, btree_map::Entry};
-
-use super::{FuseResources, RegisteredTensors, TensorView};
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 /// A block containing all [operations](FuseOp) as well as reads and writes for each tensor along
@@ -28,7 +27,8 @@ pub struct FuseBlock {
     /// registered here must be vectorized manually.
     pub reads: BTreeMap<TensorId, Vec<FuseOp>>,
     /// Contains all tensor outputs of the current block except for manually handled tensors.
-    pub writes: BTreeMap<TensorId, FuseOp>,
+    /// We can have multiple writes when the same variable is reused after in another block.
+    pub writes: BTreeMap<TensorId, Vec<FuseOp>>,
 }
 
 #[derive(Clone, Debug)]
@@ -38,11 +38,15 @@ pub struct FuseBlockBuilder {
     locals: LocalVariablePool,
     pub ops: Vec<FuseOp>,
     reads: BTreeMap<TensorId, Vec<FuseOp>>,
+    // Only for global registers.
+    writes: BTreeMap<TensorId, Vec<FuseOp>>,
     bool_precision: FuseType,
     // Output declared in this block alone.
     outputs: RegisteredTensors,
     pub outputs_unhandled: Vec<FuseArg>,
-    pub local_outputs: Vec<TensorId>,
+    pub local_inputs: BTreeMap<TensorId, FuseArg>,
+    /// The reference shape used by this block.
+    pub shape_ref: Vec<usize>,
 }
 
 #[derive(Debug)]
@@ -63,9 +67,11 @@ impl FuseBlockBuilder {
             locals: Default::default(),
             ops: Default::default(),
             reads: Default::default(),
+            writes: Default::default(),
             outputs: Default::default(),
             outputs_unhandled: Default::default(),
-            local_outputs: Default::default(),
+            local_inputs: Default::default(),
+            shape_ref: Vec::new(),
         }
     }
 
@@ -101,6 +107,59 @@ impl FuseBlockBuilder {
     }
 
     /// Register an input tensor.
+    pub fn multi_block_variable(
+        &mut self,
+        block_pos: usize,
+        tensor: &TensorIr,
+        global: bool,
+    ) -> Option<FuseArg> {
+        let precision = tensor.dtype.into();
+
+        if let Some(val) = self.local_inputs.get(&tensor.id) {
+            return Some(val.clone());
+        }
+
+        let val = match self.locals.get(precision, tensor.id) {
+            Some(val) => val,
+            None => {
+                return None;
+            }
+        };
+
+        let arg = if global {
+            FuseArg::MultiBlockGlobal(
+                MultiBlockPos {
+                    block_pos,
+                    block_local_pos: self.writes.len(),
+                },
+                val.precision(),
+            )
+        } else {
+            FuseArg::MultiBlockLocal(
+                MultiBlockPos {
+                    block_pos,
+                    block_local_pos: self.writes.len(),
+                },
+                val.precision(),
+            )
+        };
+
+        let ops = match self.writes.get_mut(&tensor.id) {
+            Some(ops) => ops,
+            None => {
+                self.writes.insert(tensor.id, Vec::new());
+                self.writes.get_mut(&tensor.id).unwrap()
+            }
+        };
+        ops.push(FuseOp::Assign(UnaryFuseArgs {
+            input: val,
+            out: arg.clone(),
+        }));
+
+        Some(arg)
+    }
+
+    /// Register an input tensor.
     pub fn input(&mut self, tensor: &TensorIr, resources: &mut FuseResources) -> Option<FuseArg> {
         if resources.indexed.contains_key(&tensor.id) {
             return None;
@@ -117,25 +176,30 @@ impl FuseBlockBuilder {
             _ => precision,
         };
 
+        if let Some(val) = self.local_inputs.get(&tensor.id) {
+            return Some(val.clone());
+        }
+
         let arg = match self.locals.get(precision, tensor.id) {
             Some(local) => {
                 resources.inputs.update(tensor);
-                // An input can be an output of a previously fused operation.
-                // We need to flag the new status for the tensor.
-                resources.outputs.update(tensor);
-                self.outputs.update(tensor);
 
                 local
             }
             None => {
-                let pos = if let Some(pos) = resources.outputs.get_index(tensor.id) {
-                    // Do not register a global input, only a local input from an existing output
-                    pos
+                let input = if resources.outputs.get_index(tensor.id).is_some() {
+                    if let Some(val) = resources.registers.get(&tensor.id) {
+                        return Some(val.clone());
+                    };
+
+                    let pos = resources.buffers.insert(precision, tensor.clone());
+                    FuseArg::Output(pos, precision_input, LayoutInfo::Unknown)
                 } else {
-                    resources.inputs.insert(precision_input, tensor.clone())
+                    let pos = resources.inputs.insert(precision_input, tensor.clone());
+                    FuseArg::Input(pos, precision_input, LayoutInfo::Unknown)
                 };
+
                 let out = self.locals.create(precision, tensor.id);
-                let input = FuseArg::Input(pos, precision_input, LayoutInfo::Unknown);
 
                 let reads = if let Entry::Vacant(e) = self.reads.entry(tensor.id) {
                     e.insert(Vec::with_capacity(1));
@@ -360,289 +424,76 @@ impl FuseBlockBuilder {
     pub fn build(
         &self,
         resources: &FuseResources,
-        shape_ref: Vec<usize>,
-        offset: usize,
-    ) -> (FuseBlock, RegisteredTensors) {
+        outputs: &mut RegisteredTensors,
+        buffers: &mut Vec<TensorId>,
+    ) -> FuseBlock {
         let ops = self.ops.clone();
         let reads = self.reads.clone();
-        let tensor_writes = self.tensor_writes(resources);
+        let tensor_writes = self.tensor_writes(resources, buffers);
 
-        let mut writes = BTreeMap::new();
+        let mut writes = self.writes.clone();
 
         for (tensor, precision) in tensor_writes
             .iter()
             .filter_map(|entry| entry.as_normal_tensor())
         {
             if let Some(local) = self.locals.get_any_precision(tensor.id) {
-                let out_index = tensor_writes.get_index(tensor.id).unwrap();
+                let out_index = outputs.insert(*precision, tensor.clone());
 
-                writes.insert(
-                    tensor.id,
-                    FuseOp::Assign(UnaryFuseArgs {
-                        input: local,
-                        out: FuseArg::Output(out_index + offset, *precision, LayoutInfo::Unknown),
-                    }),
-                );
+                let ops = match writes.get_mut(&tensor.id) {
+                    Some(ops) => ops,
+                    None => {
+                        writes.insert(tensor.id, Vec::new());
+                        writes.get_mut(&tensor.id).unwrap()
+                    }
+                };
+
+                ops.push(FuseOp::Assign(UnaryFuseArgs {
+                    input: local,
+                    out: FuseArg::Output(out_index, *precision, LayoutInfo::Unknown),
+                }));
             }
         }
 
-        (
-            FuseBlock {
-                settings: self.settings,
-                ops,
-                shape_ref,
-                reads,
-                writes,
-            },
-            tensor_writes,
-        )
-    }
-
-    pub fn estimate_num_outputs(&self, resources: &FuseResources) -> u32 {
-        self.tensor_writes(resources).len() as u32
+        FuseBlock {
+            settings: self.settings,
+            ops,
+            shape_ref: self.shape_ref.clone(),
+            reads,
+            writes,
+        }
     }
 
     /// Return the tensor that needs to be written to.
-    fn tensor_writes(&self, resources: &FuseResources) -> RegisteredTensors {
+    ///
+    /// # Notes
+    ///
+    /// The buffers vector passed as input is only to track the intermediary buffer writes needed
+    /// during execution.
+    pub fn tensor_writes(
+        &self,
+        resources: &FuseResources,
+        buffers: &mut Vec<TensorId>,
+    ) -> RegisteredTensors {
         let mut result = RegisteredTensors::default();
 
-        let mut local_tensor_ids_input = Vec::new();
-        let mut local_tensor_ids_output = Vec::new();
-
-        // Mark a variable to the provided list of tensor ids using the variable list.
-        //
-        // Only local variables can become outputs.
-        let mark = |var: &FuseArg, list: &mut Vec<(TensorId, FuseType)>| {
-            if let FuseArg::Local(index, precision) = var
-                && let Some(tensor_id) = self.locals.find_tensor_id(*precision, *index)
-            {
-                // Input and outputs tensors are using bool_precision for booleans.
-                let precision = match precision {
-                    FuseType::Bool => self.bool_precision,
-                    _ => *precision,
-                };
-
-                let entry = (tensor_id, precision);
-                if !list.contains(&entry) {
-                    list.push(entry);
-                }
-            }
-        };
-
-        let mark_binary = |op: &BinaryFuseArgs,
-                           inputs: &mut Vec<(TensorId, FuseType)>,
-                           outputs: &mut Vec<(TensorId, FuseType)>| {
-            mark(&op.lhs, inputs);
-            mark(&op.rhs, inputs);
-            mark(&op.out, outputs);
-        };
-        let mark_unary = |op: &UnaryFuseArgs,
-                          inputs: &mut Vec<(TensorId, FuseType)>,
-                          outputs: &mut Vec<(TensorId, FuseType)>| {
-            mark(&op.input, inputs);
-            mark(&op.out, outputs);
-        };
-
-        let mut mark_op = |op: &FuseOp| match op {
-            FuseOp::Add(op) => mark_binary(
-                op,
-                &mut local_tensor_ids_input,
-                &mut local_tensor_ids_output,
-            ),
-            FuseOp::Sub(op) => mark_binary(
-                op,
-                &mut local_tensor_ids_input,
-                &mut local_tensor_ids_output,
-            ),
-            FuseOp::Mul(op) => mark_binary(
-                op,
-                &mut local_tensor_ids_input,
-                &mut local_tensor_ids_output,
-            ),
-            FuseOp::Div(op) => mark_binary(
-                op,
-                &mut local_tensor_ids_input,
-                &mut local_tensor_ids_output,
-            ),
-            FuseOp::Powf(op) => mark_binary(
-                op,
-                &mut local_tensor_ids_input,
-                &mut local_tensor_ids_output,
-            ),
-            FuseOp::Abs(op) => mark_unary(
-                op,
-                &mut local_tensor_ids_input,
-                &mut local_tensor_ids_output,
-            ),
-            FuseOp::Exp(op) => mark_unary(
-                op,
-                &mut local_tensor_ids_input,
-                &mut local_tensor_ids_output,
-            ),
-            FuseOp::Sqrt(op) => mark_unary(
-                op,
-                &mut local_tensor_ids_input,
-                &mut local_tensor_ids_output,
-            ),
-            FuseOp::Log(op) => mark_unary(
-                op,
-                &mut local_tensor_ids_input,
-                &mut local_tensor_ids_output,
-            ),
-            FuseOp::Log1p(op) => mark_unary(
-                op,
-                &mut local_tensor_ids_input,
-                &mut local_tensor_ids_output,
-            ),
-            FuseOp::Cos(op) => mark_unary(
-                op,
-                &mut local_tensor_ids_input,
-                &mut local_tensor_ids_output,
-            ),
-            FuseOp::Sin(op) => mark_unary(
-                op,
-                &mut local_tensor_ids_input,
-                &mut local_tensor_ids_output,
-            ),
-            FuseOp::Tanh(op) => mark_unary(
-                op,
-                &mut local_tensor_ids_input,
-                &mut local_tensor_ids_output,
-            ),
-            FuseOp::Erf(op) => mark_unary(
-                op,
-                &mut local_tensor_ids_input,
-                &mut local_tensor_ids_output,
-            ),
-            FuseOp::Recip(op) => mark_unary(
-                op,
-                &mut local_tensor_ids_input,
-                &mut local_tensor_ids_output,
-            ),
-            FuseOp::Assign(op) => mark_unary(
-                op,
-                &mut local_tensor_ids_input,
-                &mut local_tensor_ids_output,
-            ),
-            FuseOp::ConditionalAssign {
-                cond,
-                lhs,
-                rhs,
-                out,
-            } => {
-                mark(cond, &mut local_tensor_ids_input);
-                mark(lhs, &mut local_tensor_ids_input);
-                mark(rhs, &mut local_tensor_ids_input);
-                mark(out, &mut local_tensor_ids_output);
-            }
-            FuseOp::Gather {
-                input,
-                indices,
-                output,
-                dim: _,
-            } => {
-                mark(input, &mut local_tensor_ids_input);
-                mark(indices, &mut local_tensor_ids_input);
-                mark(output, &mut local_tensor_ids_output);
-            }
-            FuseOp::Select {
-                input,
-                indices,
-                output,
-                dim: _,
-            } => {
-                mark(input, &mut local_tensor_ids_input);
-                mark(indices, &mut local_tensor_ids_input);
-                mark(output, &mut local_tensor_ids_output);
-            }
-            FuseOp::Equal(op) => mark_binary(
-                op,
-                &mut local_tensor_ids_input,
-                &mut local_tensor_ids_output,
-            ),
-            FuseOp::Lower(op) => mark_binary(
-                op,
-                &mut local_tensor_ids_input,
-                &mut local_tensor_ids_output,
-            ),
-            FuseOp::Greater(op) => mark_binary(
-                op,
-                &mut local_tensor_ids_input,
-                &mut local_tensor_ids_output,
-            ),
-            FuseOp::LowerEqual(op) => mark_binary(
-                op,
-                &mut local_tensor_ids_input,
-                &mut local_tensor_ids_output,
-            ),
-            FuseOp::GreaterEqual(op) => mark_binary(
-                op,
-                &mut local_tensor_ids_input,
-                &mut local_tensor_ids_output,
-            ),
-            FuseOp::Dequantize {
-                values,
-                params: _,
-                output,
-                scheme: _,
-            } => {
-                mark(values, &mut local_tensor_ids_input);
-                mark(output, &mut local_tensor_ids_output);
-            }
-            FuseOp::Rem(op) => mark_binary(
-                op,
-                &mut local_tensor_ids_input,
-                &mut local_tensor_ids_output,
-            ),
-            FuseOp::Clamp {
-                input,
-                min: _,
-                max: _,
-                out,
-            } => {
-                mark(input, &mut local_tensor_ids_input);
-                mark(out, &mut local_tensor_ids_output);
-            }
-        };
-
-        // For all operators, mark their local tensor id in the proper set.
-        for (_, ops) in self.reads.iter() {
-            for op in ops {
-                mark_op(op);
-            }
-        }
-
-        for op in self.ops.iter() {
-            mark_op(op);
-        }
-
-        for arg in self.outputs_unhandled.iter() {
-            mark(arg, &mut local_tensor_ids_output);
-        }
-
-        // All output tensors that are never read by a following operation should be written to
-        // since they are essentially the "logical" output of the shader.
-        for entry in local_tensor_ids_output {
-            let is_read = local_tensor_ids_input.contains(&entry);
-
-            if !is_read
-                && !self.local_outputs.contains(&entry.0)
-                && !resources.dropped.contains(&entry.0)
-            {
-                let (tensor_id, precision) = entry;
-                let (tensor, _) = resources.outputs.get(tensor_id).unwrap();
-                result.insert(precision, tensor.clone());
-            }
-        }
-
-        // All tensors where their latest representation is read only should be written to since they
+        // All tensors where their latest representation is not read write should be written to since they
         // are going to be used after the fused kernel by other operations.
         for output in self.outputs.iter() {
-            if let Some((tensor, precision)) = output.as_normal_tensor()
-                && let TensorStatus::ReadOnly = tensor.status
-                && !resources.dropped.contains(&tensor.id)
-            {
-                result.insert(*precision, tensor.clone());
+            if let Some((tensor, _precision)) = output.as_normal_tensor() {
+                // We get the latest representation from the resources, not just this block.
+                if let Some((tensor, precision)) = resources.outputs.get(tensor.id) {
+                    if !matches!(tensor.status, TensorStatus::ReadWrite) {
+                        result.insert(*precision, tensor.clone());
+                    } else if resources.buffers.get(tensor.id).is_some()
+                        && !buffers.contains(&tensor.id)
+                    {
+                        result.insert(*precision, tensor.clone());
+                        // We make sure we don't write multiple time in the same buffer, only the
+                        // earliest possible.
+                        buffers.push(tensor.id);
+                    }
+                }
             }
         }
 
@@ -651,7 +502,7 @@ impl FuseBlockBuilder {
 }
 
 #[derive(Default, Clone, Debug)]
-struct LocalVariablePool {
+pub struct LocalVariablePool {
     values: BTreeMap<FuseType, BTreeMap<TensorId, usize>>,
 }
 
@@ -660,7 +511,10 @@ impl LocalVariablePool {
         if let Some(indexes) = self.values.get(&precision)
             && let Some(index) = indexes.get(&tensor_id)
         {
-            return Some(FuseArg::Local(*index, precision));
+            return Some(FuseArg::BlockLocal {
+                pos: *index,
+                ty: precision,
+            });
         }
 
         None
@@ -669,35 +523,33 @@ impl LocalVariablePool {
     fn get_any_precision(&self, tensor_id: TensorId) -> Option<FuseArg> {
         for (precision, indexes) in self.values.iter() {
             if let Some(index) = indexes.get(&tensor_id) {
-                return Some(FuseArg::Local(*index, *precision));
+                return Some(FuseArg::BlockLocal {
+                    pos: *index,
+                    ty: *precision,
+                });
             }
         }
 
         None
     }
 
-    fn find_tensor_id(&self, precision: FuseType, position: usize) -> Option<TensorId> {
-        if let Some(indexes) = self.values.get(&precision) {
-            indexes
-                .iter()
-                .find(|(_id, index)| **index == position)
-                .map(|(id, _index)| *id)
-        } else {
-            None
-        }
-    }
-
     fn create(&mut self, precision: FuseType, tensor_id: TensorId) -> FuseArg {
         if let Some(indexes) = self.values.get_mut(&precision) {
             let new_index = indexes.len();
             indexes.insert(tensor_id, new_index);
-            return FuseArg::Local(new_index, precision);
+            return FuseArg::BlockLocal {
+                pos: new_index,
+                ty: precision,
+            };
         }
 
         let new_index = 0;
         self.values
             .insert(precision, BTreeMap::from_iter([(tensor_id, new_index)]));
 
-        FuseArg::Local(new_index, precision)
+        FuseArg::BlockLocal {
+            pos: new_index,
+            ty: precision,
+        }
     }
 }

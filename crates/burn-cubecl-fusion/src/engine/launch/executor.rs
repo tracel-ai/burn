@@ -80,6 +80,15 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
         );
         register_outputs::<BT, R>(&plan.handle_outputs, &mut outputs, &mut tune_output);
 
+        for layout in plan.runtime_layouts {
+            for s in layout.shape {
+                inputs.runtime_layouts.push(ScalarArg::new(s));
+            }
+            for s in layout.strides {
+                inputs.runtime_layouts.push(ScalarArg::new(s));
+            }
+        }
+
         let mut configs = Vec::with_capacity(plan.blocks.len());
 
         for (block_plan, block) in plan.blocks.into_iter().zip(self.blocks) {
@@ -97,7 +106,10 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
                         line_size: block_plan.width,
                     })
                 }
-                ReferenceSelection::NotFound | ReferenceSelection::Searching => {
+                ReferenceSelection::Runtime { pos } => {
+                    RefLayout::Virtual(VirtualLayout::Runtime { pos })
+                }
+                ReferenceSelection::Searching => {
                     return Err(ExecutionError::new(
                         TraceError::ReferenceNotFound,
                         plan.handle_inputs,
@@ -118,8 +130,10 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
                 ops.push(op.clone());
             }
 
-            for op in block_plan.writes.into_values() {
-                ops.push(op);
+            for opsw in block_plan.writes.into_values() {
+                for op in opsw {
+                    ops.push(op);
+                }
             }
 
             let config = FuseBlockConfig {

@@ -35,4 +35,7 @@ mod fusion {
     mod autodiff {
         include!("common/autodiff.rs");
     }
+
+    // Fusion tests
+    include!("fused_ops/mod.rs");
 }
