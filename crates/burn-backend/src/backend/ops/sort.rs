@@ -65,6 +65,10 @@ pub fn sort<B: Backend, K: BasicOps<B>>(
     K::from_data(data, &device)
 }
 
+/// Sort data in a tensor along the specified dimension.
+///
+/// This is a CPU fallback implementation that can be used for cases where wew don't have
+/// native GPU sorting support (eg. multi-dimnesional sorting).
 pub fn sort_data<B: Backend, E: ElementOrdered>(
     mut data: TensorData,
     dim: usize,

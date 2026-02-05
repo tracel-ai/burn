@@ -93,7 +93,7 @@ impl SsimMetricConfig {
     /// // Normalized images [0, 1]
     /// let config1 = SsimMetricConfig::new(1.0);
     ///
-    /// // 8-bit images [0, 255]  
+    /// // 8-bit images [0, 255]
     /// let config2 = SsimMetricConfig::new(255.0);
     ///
     /// // Also set custom values for k1 and k2
@@ -618,7 +618,7 @@ mod tests {
 
         let ssim = metric.value().current();
         assert!(
-            ssim >= -1.0 && ssim <= 1.0,
+            (-1.0..=1.0).contains(&ssim),
             "SSIM should be in range [-1, 1], got {}",
             ssim
         );
