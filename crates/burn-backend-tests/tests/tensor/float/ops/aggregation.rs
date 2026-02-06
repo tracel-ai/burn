@@ -440,3 +440,21 @@ fn test_mean_dims_2d() {
         .to_data()
         .assert_eq(&TensorData::from([[2.5]]), false);
 }
+
+#[test]
+fn test_multiple_reduce_dims_permuted() {
+    // Regression test for https://github.com/tracel-ai/burn/issues/4461
+    let tensor = TestTensorInt::arange(0..2 * 2 * 256, &Default::default())
+        .float()
+        .reshape([2, 2, 256]);
+
+    let output = tensor
+        .permute([1, 2, 0])
+        .mean_dim(0)
+        .mean_dim(1)
+        .squeeze_dims::<1>(&[0, 1]);
+
+    output
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&TensorData::from([255.5, 767.5]), Tolerance::default());
+}
