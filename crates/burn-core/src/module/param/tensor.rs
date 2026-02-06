@@ -299,20 +299,38 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D>> {
     }
 
     fn to_device(self, device: &Device<B>) -> Self {
-        self.map(|tensor| tensor.to_device(device))
+        let shape = self.shape();
+        let (id, tensor, _param_mapper) = self.consume();
+
+        Self::uninitialized(
+            id,
+            move |device: &<B as Backend>::Device, _is_require_grad: bool| tensor.to_device(device),
+            device.clone(),
+            false,
+            shape,
+        )
     }
 
     fn fork(self, device: &Device<B>) -> Self {
-        self.map(|tensor| {
-            let is_require_grad = tensor.is_require_grad();
-            let mut tensor = tensor.to_device(device).detach();
+        let is_require_grad = self.is_require_grad();
+        let shape = self.shape();
+        let (id, tensor, _param_mapper) = self.consume();
+        let tensor = tensor.detach();
 
-            if is_require_grad {
-                tensor = tensor.require_grad();
-            }
-
-            tensor
-        })
+        Self::uninitialized(
+            id,
+            move |device: &<B as Backend>::Device, is_require_grad: bool| {
+                let tensor = tensor.to_device(device);
+                if is_require_grad {
+                    tensor.require_grad()
+                } else {
+                    tensor
+                }
+            },
+            device.clone(),
+            is_require_grad,
+            shape,
+        )
     }
 
     fn collect_devices(&self, mut devices: Vec<Device<B>>) -> Vec<Device<B>> {
