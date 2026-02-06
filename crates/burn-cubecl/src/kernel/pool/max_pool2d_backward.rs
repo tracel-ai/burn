@@ -140,7 +140,7 @@ pub(crate) fn max_pool2d_with_indices_backward<R: CubeRuntime>(
                 ScalarArg::new(stride[0] as i32),
                 ScalarArg::new(stride[1] as i32),
                 ScalarArg::new(dilation[0] as i32),
-                ScalarArg::new(dilation[0] as i32),
+                ScalarArg::new(dilation[1] as i32),
                 ScalarArg::new(padding[0] as i32),
                 ScalarArg::new(padding[1] as i32),
             ),
