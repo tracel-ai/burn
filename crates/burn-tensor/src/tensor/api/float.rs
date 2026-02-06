@@ -11,6 +11,7 @@ use crate::tensor::stats;
 use crate::tensor::{Distribution, TensorData};
 use crate::{Bool, Int, TensorPrimitive};
 use burn_backend::tensor::quantization::QuantizationParametersPrimitive;
+use core::f32;
 
 /// Default RTOL value for `is_close` and `all_close`.
 pub const DEFAULT_RTOL: f64 = 1e-5;
@@ -370,6 +371,26 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
             self.primitive.tensor(),
             other.primitive.tensor(),
         )))
+    }
+
+    /// Converts each of the elements of the input tensor from angles in degrees to radians.
+    ///
+    /// # Example
+    /// ```ignore
+    /// let tensor_in_radians = tensor.deg2rad();
+    /// ```
+    pub fn deg2rad(self) -> Self {
+        self.mul_scalar(f32::consts::PI / 180.0)
+    }
+
+    /// Converts each of the elements of the input tensor from angles in radians to degrees.
+    ///
+    /// # Example
+    /// ```ignore
+    /// let tensor_in_degrees = tensor.rad2deg();
+    /// ```
+    pub fn rad2deg(self) -> Self {
+        self.mul_scalar(180.0 / f32::consts::PI)
     }
 
     /// Applies element wise round operation.
