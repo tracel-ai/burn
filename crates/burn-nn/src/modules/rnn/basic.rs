@@ -678,17 +678,16 @@ mod tests {
         let device = Default::default();
 
         // Create Rnn with clipping enabled
-        let clip_value = 0.5;
+        let clip_value = 0.3;
         let config = RnnConfig::new(4, 8, true).with_clip(Some(clip_value));
         let rnn = config.init::<TestBackend>(&device);
 
         let input = Tensor::<TestBackend, 3>::random([2, 5, 4], Distribution::Default, &device);
-
-        let output = rnn.forward(input, None).state.hidden;
+        let (_, state) = rnn.forward(input, None);
 
         // Verify output values are within the clip range
-        let output_data: Vec<f32> = output.to_data().to_vec().unwrap();
-        for val in output_data {
+        let hidden_state: Vec<f32> = state.hidden.to_data().to_vec().unwrap();
+        for val in hidden_state {
             assert!(
                 val >= -clip_value as f32 && val <= clip_value as f32,
                 "Value {} is outside clip range [-{}, {}]",
