@@ -314,7 +314,7 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D>> {
                 if &tensor.device() != device {
                     log::info!("[{id:?}] Actually moving to {device:?}");
                 }
-                let tensor = tensor.to_device(device).detach();
+                let tensor = tensor.detach().to_device(device).detach();
 
                 if is_require_grad {
                     tensor.require_grad()
