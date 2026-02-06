@@ -299,9 +299,9 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D>> {
     }
 
     fn to_device(self, device: &Device<B>) -> Self {
-        let is_require_grad = self.is_require_grad();
         let shape = self.shape();
         let (id, tensor, _param_mapper) = self.consume();
+        let is_require_grad = tensor.is_require_grad();
 
         Self::uninitialized(
             id,
@@ -320,9 +320,9 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D>> {
     }
 
     fn fork(self, device: &Device<B>) -> Self {
-        let is_require_grad = self.is_require_grad();
         let shape = self.shape();
         let (id, tensor, _param_mapper) = self.consume();
+        let is_require_grad = tensor.is_require_grad();
 
         Self::uninitialized(
             id,
