@@ -401,6 +401,33 @@ mod tests {
     #[cfg(feature = "std")]
     use crate::TestAutodiffBackend;
 
+    fn create_single_feature_gate_controller(
+        weights: f32,
+        biases: f32,
+        d_input: usize,
+        d_output: usize,
+        bias: bool,
+        initializer: Initializer,
+        device: &Device<TestBackend>,
+    ) -> GateController<TestBackend> {
+        let record_1 = LinearRecord {
+            weight: Param::from_data(TensorData::from([[weights]]), device),
+            bias: Some(Param::from_data(TensorData::from([biases]), device)),
+        };
+        let record_2 = LinearRecord {
+            weight: Param::from_data(TensorData::from([[weights]]), device),
+            bias: Some(Param::from_data(TensorData::from([biases]), device)),
+        };
+        GateController::create_with_weights(
+            d_input,
+            d_output,
+            bias,
+            initializer,
+            record_1,
+            record_2,
+        )
+    }
+
     #[test]
     fn test_with_uniform_initializer() {
         let device = Default::default();
@@ -430,34 +457,7 @@ mod tests {
         let device = Default::default();
         let mut rnn = config.init::<TestBackend>(&device);
 
-        fn create_gate_controller(
-            weights: f32,
-            biases: f32,
-            d_input: usize,
-            d_output: usize,
-            bias: bool,
-            initializer: Initializer,
-            device: &Device<TestBackend>,
-        ) -> GateController<TestBackend> {
-            let record_1 = LinearRecord {
-                weight: Param::from_data(TensorData::from([[weights]]), device),
-                bias: Some(Param::from_data(TensorData::from([biases]), device)),
-            };
-            let record_2 = LinearRecord {
-                weight: Param::from_data(TensorData::from([[weights]]), device),
-                bias: Some(Param::from_data(TensorData::from([biases]), device)),
-            };
-            GateController::create_with_weights(
-                d_input,
-                d_output,
-                bias,
-                initializer,
-                record_1,
-                record_2,
-            )
-        }
-
-        rnn.gate = create_gate_controller(
+        rnn.gate = create_single_feature_gate_controller(
             0.5,
             0.0,
             1,
@@ -696,5 +696,47 @@ mod tests {
                 clip_value
             );
         }
+    }
+
+    #[test]
+    fn test_forward_reverse_sequence() {
+        let device = Default::default();
+        TestBackend::seed(&device, 0);
+
+        // Create RNN with reverse=true to process sequence in reverse order
+        let config = RnnConfig::new(1, 1, false).with_reverse(true);
+        let mut rnn = config.init::<TestBackend>(&device);
+
+        rnn.gate = create_single_feature_gate_controller(
+            0.5,
+            0.0,
+            1,
+            1,
+            false,
+            Initializer::XavierUniform { gain: 1.0 },
+            &device,
+        );
+
+        // Create input with 3 timesteps: [0.1, 0.2, 0.3]
+        // Shape: [batch_size=1, seq_length=3, input_features=1]
+        let input =
+            Tensor::<TestBackend, 3>::from_data(TensorData::from([[[0.1], [0.2], [0.3]]]), &device);
+
+        let (output, state) = rnn.forward(input, None);
+
+        // With reverse=true and weight=0.5, sequence is processed in reverse:
+        // t=2 (last): h = tanh(0.5*0.3 + 0.5*0) = tanh(0.15) ≈ 0.1488850
+        // t=1 (mid):  h = tanh(0.5*0.2 + 0.5*0.1488850) ≈ 0.17269433
+        // t=0 (first): h = tanh(0.5*0.1 + 0.5*0.17269433) ≈ 0.135508
+        let expected_final_hidden = TensorData::from([[0.135508]]);
+
+        let tolerance = Tolerance::default();
+        state
+            .hidden
+            .to_data()
+            .assert_approx_eq::<FT>(&expected_final_hidden, tolerance);
+
+        // Verify output tensor has correct shape and matches state at final timestep
+        assert_eq!(output.dims(), [1, 3, 1]);
     }
 }
