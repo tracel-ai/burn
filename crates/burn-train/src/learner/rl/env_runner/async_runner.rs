@@ -45,7 +45,7 @@ impl<BT: Backend, RLC: RLComponentsTypes> AgentEnvAsyncLoop<BT, RLC> {
     ///
     /// # Arguments
     ///
-    /// * `env_init` - A function returning an environement instance.
+    /// * `env_init` - A function returning an environment instance.
     /// * `agent` - An [AsyncPolicy](AsyncPolicy) taking actions in the loop.
     /// * `config` - An [AsyncAgentEnvLoopConfig](AsyncAgentEnvLoopConfig).
     /// * `transition_sender` - Optional sender for transitions if you want to drive the requests from outside of the loop instance.
