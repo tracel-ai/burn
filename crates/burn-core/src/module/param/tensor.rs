@@ -323,12 +323,11 @@ impl<const D: usize, B: Backend> Module<B> for Param<Tensor<B, D>> {
         let is_require_grad = self.is_require_grad();
         let shape = self.shape();
         let (id, tensor, _param_mapper) = self.consume();
-        let tensor = tensor.detach();
 
         Self::uninitialized(
             id,
             move |device: &<B as Backend>::Device, is_require_grad: bool| {
-                let tensor = tensor.to_device(device);
+                let tensor = tensor.detach().to_device(device);
                 if is_require_grad {
                     tensor.require_grad()
                 } else {
