@@ -1,0 +1,31 @@
+[package]
+authors = ["burn contributors"]
+edition.workspace = true
+license.workspace = true
+name = "lora-finetuning"
+publish = false
+version.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+default = ["burn/tui"]
+ndarray = ["burn/ndarray"]
+ndarray-blas-accelerate = ["burn/ndarray", "burn/accelerate"]
+ndarray-blas-netlib = ["burn/ndarray", "burn/blas-netlib"]
+ndarray-blas-openblas = ["burn/ndarray", "burn/openblas"]
+tch-cpu = ["burn/tch"]
+tch-gpu = ["burn/tch"]
+wgpu = ["burn/wgpu"]
+cuda = ["burn/cuda", "burn/default"]
+metal = ["burn/metal", "burn/default"]
+vulkan = ["burn/vulkan", "burn/default"]
+rocm = ["burn/rocm", "burn/default"]
+remote = ["burn/remote"]
+
+[dependencies]
+burn = { path = "../../crates/burn", features = ["train", "tui"] }
+log = { workspace = true }
+rand = { workspace = true }
+serde = { workspace = true, features = ["std", "derive"] }
