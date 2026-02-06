@@ -52,9 +52,12 @@ impl NdArrayTensor {
     #[inline]
     pub fn is_borrowed(&self) -> bool {
         macro_rules! check {
-            ($($variant:ident),*) => {
+            ($( $(#[$meta:meta])* $variant:ident ),*) => {
                 match self {
-                    $(NdArrayTensor::$variant(s) => s.is_borrowed(),)*
+                    $(
+                        $(#[$meta])*
+                        NdArrayTensor::$variant(storage) => storage.is_borrowed(),
+                    )*
                 }
             };
         }
@@ -380,9 +383,11 @@ impl TensorMetadata for NdArrayTensor {
     fn shape(&self) -> Shape {
         // Use storage's shape method (works for both borrowed and owned)
         macro_rules! get_shape {
-            ($($variant:ident),*) => {
+            ($( $(#[$meta:meta])* $variant:ident ),*) => {
                 match self {
-                    $(NdArrayTensor::$variant(storage) => Shape::from(storage.shape().to_vec()),)*
+                    $(
+                        $(#[$meta])* NdArrayTensor::$variant(storage) => Shape::from(storage.shape().to_vec()),
+                    )*
                 }
             };
         }
@@ -509,28 +514,31 @@ mod utils {
             // For borrowed data, we assume it's contiguous (it came from TensorData which is contiguous)
             // For owned data, we check the strides
             macro_rules! check_contiguous {
-                ($($variant:ident),*) => {
+                ($( $(#[$meta:meta])* $variant:ident ),*) => {
                     match self {
-                        $(NdArrayTensor::$variant(storage) => {
-                            match storage {
-                                NdArrayStorage::Borrowed { .. } => {
-                                    // Borrowed storage requires contiguous row-major data
-                                    // (see NdArrayStorage::from_borrowed documentation)
-                                    true
-                                }
-                                NdArrayStorage::Owned(array) => {
-                                    let shape = array.shape();
-                                    let mut strides = Vec::with_capacity(array.strides().len());
-                                    for &stride in array.strides() {
-                                        if stride <= 0 {
-                                            return false;
-                                        }
-                                        strides.push(stride as usize);
+                        $(
+                            $(#[$meta])*
+                            NdArrayTensor::$variant(storage) => {
+                                match storage {
+                                    NdArrayStorage::Borrowed { .. } => {
+                                        // Borrowed storage requires contiguous row-major data
+                                        // (see NdArrayStorage::from_borrowed documentation)
+                                        true
                                     }
-                                    is_contiguous(shape, &strides)
+                                    NdArrayStorage::Owned(array) => {
+                                        let shape = array.shape();
+                                        let mut strides = Vec::with_capacity(array.strides().len());
+                                        for &stride in array.strides() {
+                                            if stride <= 0 {
+                                                return false;
+                                            }
+                                            strides.push(stride as usize);
+                                        }
+                                        is_contiguous(shape, &strides)
+                                    }
                                 }
                             }
-                        })*
+                        )*
                     }
                 };
             }

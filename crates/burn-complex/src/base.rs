@@ -6,8 +6,8 @@ definitions in one spot.
 */
 use burn_tensor::{
     BasicOps, Bytes, DType, Device, Distribution, Element, ElementConversion, FloatDType,
-    IndexingUpdateOp, Int, Numeric, Shape, Slice, Tensor, TensorData, TensorKind, TensorMetadata,
-    Transaction, TransactionPrimitive,
+    IndexingUpdateOp, Numeric, Scalar, Shape, Slice, TensorData, TensorKind, TensorMetadata,
+    TransactionPrimitive,
     backend::{Backend, ExecutionError},
     ops::{FloatTensor, IntTensor},
 };
@@ -958,7 +958,7 @@ where
         B::complex_sub(lhs, rhs)
     }
 
-    fn sub_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
+    fn sub_scalar(lhs: Self::Primitive, rhs: Scalar) -> Self::Primitive {
         // TODO: Implement complex_sub_scalar in ComplexTensorOps
         let device = B::complex_device(&lhs);
         let shape = B::complex_shape(&lhs);
@@ -971,7 +971,7 @@ where
         B::complex_mul(lhs, rhs)
     }
 
-    fn mul_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
+    fn mul_scalar(lhs: Self::Primitive, rhs: Scalar) -> Self::Primitive {
         // TODO: Implement complex_mul_scalar in ComplexTensorOps
         let device = B::complex_device(&lhs);
         let shape = B::complex_shape(&lhs);
@@ -984,7 +984,7 @@ where
         B::complex_div(lhs, rhs)
     }
 
-    fn div_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
+    fn div_scalar(lhs: Self::Primitive, rhs: Scalar) -> Self::Primitive {
         // TODO: Implement complex_div_scalar in ComplexTensorOps
         let device = B::complex_device(&lhs);
         let shape = B::complex_shape(&lhs);
@@ -1012,7 +1012,7 @@ where
         B::complex_powc(lhs, rhs)
     }
 
-    fn powf_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
+    fn powf_scalar(lhs: Self::Primitive, rhs: Scalar) -> Self::Primitive {
         let device = B::complex_device(&lhs);
         let shape = B::complex_shape(&lhs);
         let scalar_complex: B::ComplexElem = rhs.elem();
@@ -1029,7 +1029,7 @@ where
         B::complex_remainder(lhs, rhs)
     }
 
-    fn remainder_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
+    fn remainder_scalar(lhs: Self::Primitive, rhs: Scalar) -> Self::Primitive {
         B::complex_remainder_scalar(lhs, rhs.elem())
     }
 
@@ -1069,7 +1069,7 @@ where
         B::complex_powi(lhs, rhs)
     }
 
-    fn powi_scalar<E: ElementConversion>(lhs: Self::Primitive, rhs: E) -> Self::Primitive {
+    fn powi_scalar(lhs: Self::Primitive, rhs: Scalar) -> Self::Primitive {
         B::complex_powi_scalar(lhs, rhs.elem())
     }
 

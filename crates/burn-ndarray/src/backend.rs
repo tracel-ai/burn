@@ -128,6 +128,11 @@ where
                     _scheme => burn_backend::DTypeUsageSet::empty(),
                 }
             }
+            #[cfg(feature = "complex")]
+            DType::Complex32 | DType::Complex64 => burn_backend::DTypeUsage::general(),
+            //Is this the right behavior or should this panic?
+            #[cfg(not(feature = "complex"))]
+            DType::Complex32 | DType::Complex64 => burn_backend::DTypeUsageSet::empty(),
         }
     }
 }
