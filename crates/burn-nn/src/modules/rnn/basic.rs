@@ -419,7 +419,7 @@ mod tests {
     /// Test forward pass with simple input vector.
     ///
     /// Simple RNN: h_t = tanh(W_input @ x_t + W_hidden @ h_{t-1} + b)
-    /// With input=0.1, weight_input=0.5, bias=0.0, h_0=0.2, weight_hidden=0.3
+    /// With input=0.1, weight_input=0.5, bias=0.0, h_0=0.0, weight_hidden=0.5
     /// h_t = tanh(0.5*0.1 + 0.5*0) = tanh(0.05) = 0.04995
     #[test]
     fn test_forward_single_input_single_feature() {
@@ -532,7 +532,6 @@ mod tests {
         TestBackend::seed(&device, 0);
 
         let config = BiRnnConfig::new(2, 3, true);
-        let device = Default::default();
         let mut rnn = config.init(&device);
 
         fn create_gate_controller<const D1: usize, const D2: usize>(
@@ -672,5 +671,31 @@ mod tests {
             alloc::format!("{layer}"),
             "BiRnn {d_input: 2, d_hidden: 3, bias: true, params: 42}"
         );
+    }
+
+    #[test]
+    fn test_rnn_clipping() {
+        let device = Default::default();
+
+        // Create Rnn with clipping enabled
+        let clip_value = 0.5;
+        let config = RnnConfig::new(4, 8, true).with_clip(Some(clip_value));
+        let rnn = config.init::<TestBackend>(&device);
+
+        let input = Tensor::<TestBackend, 3>::random([2, 5, 4], Distribution::Default, &device);
+
+        let output = rnn.forward(input, None).state.hidden;
+
+        // Verify output values are within the clip range
+        let output_data: Vec<f32> = output.to_data().to_vec().unwrap();
+        for val in output_data {
+            assert!(
+                val >= -clip_value as f32 && val <= clip_value as f32,
+                "Value {} is outside clip range [-{}, {}]",
+                val,
+                clip_value,
+                clip_value
+            );
+        }
     }
 }
