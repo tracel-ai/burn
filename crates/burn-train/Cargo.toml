@@ -15,7 +15,7 @@ version.workspace = true
 workspace = true
 
 [features]
-default = ["sys-metrics", "tui"]
+default = ["sys-metrics", "tui", "rl"]
 doc = ["default"]
 tracing = [
     "burn-core/tracing",
@@ -26,6 +26,7 @@ tracing = [
 
 sys-metrics = ["nvml-wrapper", "sysinfo", "systemstat"]
 tui = ["ratatui"]
+rl = ["burn-rl"]
 # Distributed Data Parallel
 ddp = ["burn-collective", "burn-optim/collective"]
 
@@ -37,7 +38,7 @@ burn-core = { path = "../burn-core", version = "=0.21.0", features = [
 burn-optim = { path = "../burn-optim", version = "=0.21.0", features = [
     "std",
 ], default-features = false }
-burn-rl = { path = "../burn-rl", version = "=0.21.0", default-features = false }
+burn-rl = { path = "../burn-rl", version = "=0.21.0", optional = true, default-features = false }
 burn-collective = { path = "../burn-collective", version = "=0.21.0", optional = true }
 
 log = { workspace = true }
