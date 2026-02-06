@@ -1,0 +1,23 @@
+[package]
+name = "burn-rl"
+edition.workspace = true
+license.workspace = true
+readme.workspace = true
+version.workspace = true
+
+[dependencies]
+burn-core = { path = "../burn-core", version = "=0.21.0", features = [
+    "dataset",
+    "std",
+], default-features = false }
+burn-optim = { path = "../burn-optim", version = "=0.21.0", features = [
+    "std",
+], default-features = false }
+burn-ndarray = { path = "../burn-ndarray", version = "=0.21.0" }
+derive-new.workspace = true
+rand.workspace = true
+
+log = { workspace = true }
+
+[lints]
+workspace = true

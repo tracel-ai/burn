@@ -118,6 +118,7 @@ cubecl = ["dep:cubecl"]
 
 audio = ["burn-core/audio"]
 vision = ["burn-core/vision"]
+rl = ["dep:burn-rl"]
 
 # Backend
 ir = ["burn-ir"]
@@ -177,6 +178,7 @@ burn-collective = { path = "../burn-collective", version = "=0.21.0", optional =
 burn-store = { path = "../burn-store", version = "=0.21.0", optional = true, default-features = false }
 burn-nn = { path = "../burn-nn", version = "=0.21.0", default-features = false }
 burn-optim = { path = "../burn-optim", version = "=0.21.0", default-features = false }
+burn-rl = { path = "../burn-rl", version = "=0.21.0", optional = true, default-features = false }
 
 # Backends
 burn-autodiff = { path = "../burn-autodiff", version = "=0.21.0", optional = true, default-features = false }

@@ -90,7 +90,7 @@ where
         *seed = Some(rng);
     }
 
-    fn supports_dtype(_device: &Self::Device, dtype: DType) -> bool {
+    fn dtype_usage(_device: &Self::Device, dtype: DType) -> burn_backend::DTypeUsageSet {
         match dtype {
             DType::F64
             | DType::F32
@@ -103,8 +103,8 @@ where
             | DType::U32
             | DType::U16
             | DType::U8
-            | DType::Bool => true,
-            DType::F16 | DType::BF16 => false,
+            | DType::Bool => burn_backend::DTypeUsage::general(),
+            DType::F16 | DType::BF16 => burn_backend::DTypeUsageSet::empty(),
             DType::QFloat(scheme) => {
                 match scheme {
                     QuantScheme {
@@ -124,8 +124,8 @@ where
                             | QuantValue::Q2S,
                         store: QuantStore::Native,
                         ..
-                    } => true,
-                    _scheme => false,
+                    } => burn_backend::DTypeUsage::general(),
+                    _scheme => burn_backend::DTypeUsageSet::empty(),
                 }
             }
         }

@@ -85,10 +85,14 @@ impl<B: FusionBackend> Backend for Fusion<B> {
     fn supports_dtype(device: &Self::Device, dtype: DType) -> bool {
         B::supports_dtype(device, dtype)
     }
+
+    fn dtype_usage(device: &Self::Device, dtype: DType) -> burn_backend::DTypeUsageSet {
+        B::dtype_usage(device, dtype)
+    }
 }
 
 /// The status of a [fuser](OperationFuser).
-#[derive(Clone, Debug, Copy)]
+#[derive(Clone, Debug, Copy, PartialEq, Eq)]
 pub enum FuserStatus {
     /// No more operations can be fused.
     Closed,
@@ -97,7 +101,7 @@ pub enum FuserStatus {
 }
 
 /// The properties of a [fuser](OperationFuser).
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct FuserProperties {
     /// The score of the optimization, higher is better.
     pub score: u64,
@@ -121,7 +125,7 @@ pub trait OperationFuser<O>: Send {
     /// Register a new [tensor operation](OperationIr).
     fn fuse(&mut self, operation: &OperationIr);
     /// Finish the optimization and create a fusion operation.
-    fn finish(&self) -> O;
+    fn finish(&mut self) -> O;
     /// Reset the state.
     fn reset(&mut self);
     /// Return the builder [status](FuserStatus).

@@ -72,8 +72,6 @@ impl From<ScalarIr> for Scalar {
             ScalarIr::Int(x) => Self::Int(x),
             ScalarIr::UInt(x) => Self::UInt(x),
             ScalarIr::Bool(x) => Self::Bool(x),
-            DType::Complex64 => todo!(),
-            DType::Complex32 => todo!(),
         }
     }
 }

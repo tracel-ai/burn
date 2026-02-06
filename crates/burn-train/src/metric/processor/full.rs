@@ -1,7 +1,9 @@
 use super::{EventProcessorTraining, ItemLazy, LearnerEvent, MetricsTraining};
 use crate::metric::processor::{EvaluatorEvent, EventProcessorEvaluation, MetricsEvaluation};
 use crate::metric::store::{EpochSummary, EventStoreClient, Split};
-use crate::renderer::{MetricState, MetricsRenderer};
+use crate::renderer::{
+    EvaluationProgress, MetricState, MetricsRenderer, ProgressType, TrainingProgress,
+};
 use std::sync::Arc;
 
 /// An [event processor](EventProcessorTraining) that handles:
@@ -34,6 +36,30 @@ impl<T: ItemLazy, V: ItemLazy> FullEventProcessorTraining<T, V> {
             store,
         }
     }
+
+    fn progress_indicators(&self, progress: &TrainingProgress) -> Vec<ProgressType> {
+        let mut indicators = vec![];
+        indicators.push(ProgressType::Detailed {
+            tag: String::from("Epoch"),
+            progress: progress.global_progress.clone(),
+        });
+
+        if let Some(iteration) = progress.iteration {
+            indicators.push(ProgressType::Value {
+                tag: String::from("Iteration"),
+                value: iteration,
+            });
+        };
+
+        if let Some(p) = &progress.progress {
+            indicators.push(ProgressType::Detailed {
+                tag: String::from("Items"),
+                progress: p.clone(),
+            });
+        };
+
+        indicators
+    }
 }
 
 impl<T: ItemLazy> FullEventProcessorEvaluation<T> {
@@ -47,6 +73,23 @@ impl<T: ItemLazy> FullEventProcessorEvaluation<T> {
             renderer,
             store,
         }
+    }
+
+    fn progress_indicators(&self, progress: &EvaluationProgress) -> Vec<ProgressType> {
+        let mut indicators = vec![];
+        if let Some(iteration) = progress.iteration {
+            indicators.push(ProgressType::Value {
+                tag: String::from("Iteration"),
+                value: iteration,
+            });
+        };
+
+        indicators.push(ProgressType::Detailed {
+            tag: String::from("Items"),
+            progress: progress.progress.clone(),
+        });
+
+        indicators
     }
 }
 
@@ -95,7 +138,8 @@ impl<T: ItemLazy> EventProcessorEvaluation for FullEventProcessorEvaluation<T> {
                         )
                     });
 
-                self.renderer.render_test(progress);
+                let indicators = self.progress_indicators(&progress);
+                self.renderer.render_test(progress, indicators);
             }
             EvaluatorEvent::End => {
                 self.renderer.on_test_end().ok();
@@ -108,11 +152,10 @@ impl<T: ItemLazy> EventProcessorEvaluation for FullEventProcessorEvaluation<T> {
     }
 }
 
-impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining for FullEventProcessorTraining<T, V> {
-    type ItemTrain = T;
-    type ItemValid = V;
-
-    fn process_train(&mut self, event: LearnerEvent<Self::ItemTrain>) {
+impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEvent<V>>
+    for FullEventProcessorTraining<T, V>
+{
+    fn process_train(&mut self, event: LearnerEvent<T>) {
         match event {
             LearnerEvent::Start => {
                 let definitions = self.metrics.metric_definitions();
@@ -149,7 +192,8 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining for FullEventProcessorTrai
                         ))
                     });
 
-                self.renderer.render_train(progress);
+                let indicators = self.progress_indicators(&progress);
+                self.renderer.render_train(progress, indicators);
             }
             LearnerEvent::EndEpoch(epoch) => {
                 self.store
@@ -165,7 +209,7 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining for FullEventProcessorTrai
         }
     }
 
-    fn process_valid(&mut self, event: LearnerEvent<Self::ItemValid>) {
+    fn process_valid(&mut self, event: LearnerEvent<V>) {
         match event {
             LearnerEvent::Start => {} // no-op for now
             LearnerEvent::ProcessedItem(item) => {
@@ -193,7 +237,8 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining for FullEventProcessorTrai
                         ))
                     });
 
-                self.renderer.render_valid(progress);
+                let indicators = self.progress_indicators(&progress);
+                self.renderer.render_valid(progress, indicators);
             }
             LearnerEvent::EndEpoch(epoch) => {
                 self.store
@@ -206,7 +251,7 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining for FullEventProcessorTrai
             LearnerEvent::End(_) => {} // no-op for now
         }
     }
-    fn renderer(self) -> Box<dyn crate::renderer::MetricsRenderer> {
+    fn renderer(self) -> Box<dyn MetricsRenderer> {
         self.renderer
     }
 }

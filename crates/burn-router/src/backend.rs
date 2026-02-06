@@ -72,8 +72,8 @@ impl<R: RunnerChannel> Backend for BackendRouter<R> {
         client.sync()
     }
 
-    fn supports_dtype(device: &Self::Device, dtype: DType) -> bool {
+    fn dtype_usage(device: &Self::Device, dtype: DType) -> burn_backend::DTypeUsageSet {
         let client = get_client::<R>(device);
-        client.supports_dtype(dtype)
+        client.dtype_usage(dtype)
     }
 }

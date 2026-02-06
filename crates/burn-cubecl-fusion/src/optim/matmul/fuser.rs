@@ -116,7 +116,7 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for MatmulFuser<R> {
         }
     }
 
-    fn finish(&self) -> CubeOptimization<R> {
+    fn finish(&mut self) -> CubeOptimization<R> {
         let client = R::client(&self.device);
         let trace = self.fuser.finish();
         let trace_fallback = self.fuser_fallback.finish();

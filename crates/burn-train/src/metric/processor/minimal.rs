@@ -14,11 +14,10 @@ pub(crate) struct MinimalEventProcessor<T: ItemLazy, V: ItemLazy> {
     store: Arc<EventStoreClient>,
 }
 
-impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining for MinimalEventProcessor<T, V> {
-    type ItemTrain = T;
-    type ItemValid = V;
-
-    fn process_train(&mut self, event: LearnerEvent<Self::ItemTrain>) {
+impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining<LearnerEvent<T>, LearnerEvent<V>>
+    for MinimalEventProcessor<T, V>
+{
+    fn process_train(&mut self, event: LearnerEvent<T>) {
         match event {
             LearnerEvent::Start => {
                 let definitions = self.metrics.metric_definitions();
@@ -47,7 +46,7 @@ impl<T: ItemLazy, V: ItemLazy> EventProcessorTraining for MinimalEventProcessor<
         }
     }
 
-    fn process_valid(&mut self, event: LearnerEvent<Self::ItemValid>) {
+    fn process_valid(&mut self, event: LearnerEvent<V>) {
         match event {
             LearnerEvent::Start => {} // no-op for now
             LearnerEvent::ProcessedItem(item) => {

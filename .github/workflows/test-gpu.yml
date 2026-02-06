@@ -16,7 +16,7 @@ env:
   # Note: It is not possible to define top level env vars and pass them to composite actions.
   # To work around this issue we use inputs and define all the env vars here.
 
-  RUST_PREVIOUS_VERSION: 1.86.0
+  RUST_PREVIOUS_VERSION: 1.92.0
 
   # Dependency versioning
   # from wgpu repo: https://github.com/gfx-rs/wgpu/blob/trunk/.github/workflows/ci.yml
@@ -73,8 +73,11 @@ jobs:
           - rust: stable
             toolchain: stable
     steps:
-      - name: Setup Rust
-        uses: tracel-ai/github-actions/setup-rust@v7
+      - name: checkout
+        uses: actions/checkout@v6
+      # --------------------------------------------------------------------------------
+      - name: Install Rust
+        uses: tracel-ai/github-actions/install-rust@v9
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           enable-cache: false
@@ -108,8 +111,11 @@ jobs:
           - rust: stable
             toolchain: stable
     steps:
+      - name: checkout
+        uses: actions/checkout@v6
+      # --------------------------------------------------------------------------------
       - name: Setup Rust
-        uses: tracel-ai/github-actions/setup-rust@v7
+        uses: tracel-ai/github-actions/install-rust@v9
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           enable-cache: false
@@ -143,8 +149,11 @@ jobs:
           - rust: stable
             toolchain: stable
     steps:
+      - name: checkout
+        uses: actions/checkout@v6
+      # --------------------------------------------------------------------------------
       - name: Setup Rust
-        uses: tracel-ai/github-actions/setup-rust@v7
+        uses: tracel-ai/github-actions/install-rust@v9
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           enable-cache: false

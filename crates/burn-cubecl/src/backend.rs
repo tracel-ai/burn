@@ -1,7 +1,10 @@
 use crate::{CubeRuntime, FloatElement, IntElement, element::BoolElement, tensor::CubeTensor};
-use burn_backend::{Backend, DeviceOps, ExecutionError, TensorData};
+use burn_backend::{Backend, DTypeUsage, DTypeUsageSet, DeviceOps, ExecutionError, TensorData};
 use burn_std::DType;
-use cubecl::{features::TypeUsage, server::ComputeServer};
+use cubecl::{
+    features::{MmaConfig, TypeUsage},
+    server::ComputeServer,
+};
 use std::marker::PhantomData;
 
 #[cfg(not(feature = "fusion"))]
@@ -93,6 +96,33 @@ where
                 | TypeUsage::Arithmetic
                 | TypeUsage::DotProduct,
         )
+    }
+
+    fn dtype_usage(device: &Self::Device, dtype: DType) -> DTypeUsageSet {
+        let client = R::client(device);
+
+        let props = client.properties();
+        let storage = dtype.into();
+        let usage = props.type_usage(storage);
+
+        let mut out = DTypeUsageSet::new();
+
+        if usage.is_superset(TypeUsage::Buffer | TypeUsage::Conversion) {
+            out |= DTypeUsage::Storage;
+        }
+
+        if usage.contains(TypeUsage::Arithmetic) {
+            out |= DTypeUsage::Arithmetic;
+        }
+
+        let has_mma = |cfg: &MmaConfig| {
+            cfg.a_type == storage || cfg.b_type == storage || cfg.cd_type == storage
+        };
+        if props.features.cmma.iter().any(has_mma) || props.features.mma.iter().any(has_mma) {
+            out |= DTypeUsage::Accelerated;
+        }
+
+        out
     }
 }
 
