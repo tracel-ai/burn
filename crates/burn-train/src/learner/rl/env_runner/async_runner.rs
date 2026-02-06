@@ -21,6 +21,16 @@ enum RequestMessage {
     Episode(),
 }
 
+/// Configuration for an async agent/environment loop.
+pub struct AsyncAgentEnvLoopConfig {
+    /// If the loop is used for evaluation (as opposed to training).
+    pub eval: bool,
+    /// If the agent should take action deterministically.
+    pub deterministic: bool,
+    /// An arbitrary ID for the loop.
+    pub id: usize,
+}
+
 /// An asynchronous agent/environement interface.
 pub struct AgentEnvAsyncLoop<BT: Backend, RLC: RLComponentsTypes> {
     eval: bool,
@@ -37,9 +47,7 @@ impl<BT: Backend, RLC: RLComponentsTypes> AgentEnvAsyncLoop<BT, RLC> {
     ///
     /// * `env_init` - A function returning an environement instance.
     /// * `agent` - An [AsyncPolicy](AsyncPolicy) taking actions in the loop.
-    /// * `eval` - If the loop is used for evaluation (as opposed to training).
-    /// * `deterministic` - If the agent should take action deterministically.
-    /// * `id` - An arbitrary ID for the loop.
+    /// * `config` - An [AsyncAgentEnvLoopConfig](AsyncAgentEnvLoopConfig) taking actions in the loop.
     /// * `transition_sender` - Optional sender for transitions if you want to drive the requests from outside of the loop instance.
     /// * `trajectory_sender` - Optional sender for trajectories if you want to drive the requests from outside of the loop instance.
     ///
@@ -49,9 +57,7 @@ impl<BT: Backend, RLC: RLComponentsTypes> AgentEnvAsyncLoop<BT, RLC> {
     pub fn new(
         env_init: RLC::EnvInit,
         agent: AsyncPolicy<RLC::Backend, RlPolicy<RLC>>,
-        eval: bool,
-        deterministic: bool,
-        id: usize,
+        config: AsyncAgentEnvLoopConfig,
         transition_device: &Device<BT>,
         transition_sender: Option<Sender<RLTimeStep<BT, RLC>>>,
         trajectory_sender: Option<Sender<RLTrajectory<BT, RLC>>>,
@@ -64,6 +70,7 @@ impl<BT: Backend, RLC: RLComponentsTypes> AgentEnvAsyncLoop<BT, RLC> {
 
         let device = transition_device.clone();
         let mut loop_agent = agent.clone();
+        let eval = config.eval;
 
         let mut current_steps = vec![];
         let mut current_reward = 0.0;
@@ -75,7 +82,8 @@ impl<BT: Backend, RLC: RLComponentsTypes> AgentEnvAsyncLoop<BT, RLC> {
             let mut request_episode = false;
             loop {
                 let state = env.state();
-                let (action, context) = loop_agent.action(state.clone().into(), deterministic);
+                let (action, context) =
+                    loop_agent.action(state.clone().into(), config.deterministic);
 
                 let env_action = RLC::Action::from(action);
                 let step_result = env.step(env_action.clone());
@@ -112,7 +120,7 @@ impl<BT: Backend, RLC: RLComponentsTypes> AgentEnvAsyncLoop<BT, RLC> {
                 }
 
                 let time_step = TimeStep {
-                    env_id: id,
+                    env_id: config.id,
                     transition,
                     done: step_result.done,
                     ep_len: step_num,
@@ -309,12 +317,15 @@ impl<BT: Backend, RLC: RLComponentsTypes> MultiAgentEnvLoop<BT, RLC> {
         agent.increment_agents(num_envs);
 
         for i in 0..num_envs {
+            let config = AsyncAgentEnvLoopConfig {
+                eval,
+                deterministic,
+                id: i,
+            };
             let runner = AgentEnvAsyncLoop::<BT, RLC>::new(
                 env_init.clone(),
                 agent.clone(),
-                eval,
-                deterministic,
-                i,
+                config,
                 &device.clone(),
                 Some(transition_sender.clone()),
                 Some(trajectory_sender.clone()),
@@ -488,6 +499,7 @@ mod tests {
     use burn_core::data::dataloader::Progress;
     use burn_rl::AsyncPolicy;
 
+    use crate::learner::rl::env_runner::async_runner::AsyncAgentEnvLoopConfig;
     use crate::learner::rl::env_runner::base::AgentEnvLoop;
     use crate::learner::tests::{MockPolicyState, MockProcessor};
     use crate::{
@@ -503,12 +515,15 @@ mod tests {
     ) -> AgentEnvAsyncLoop<TestBackend, MockRLComponents> {
         let env_init = MockEnvInit;
         let agent = MockPolicy(state);
+        let config = AsyncAgentEnvLoopConfig {
+            eval,
+            deterministic,
+            id: 0,
+        };
         AgentEnvAsyncLoop::<TestBackend, MockRLComponents>::new(
             env_init,
             AsyncPolicy::new(1, agent),
-            eval,
-            deterministic,
-            0,
+            config,
             &Default::default(),
             None,
             None,
