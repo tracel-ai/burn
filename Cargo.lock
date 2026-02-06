@@ -1201,6 +1201,7 @@ name = "burn-train"
 version = "0.21.0"
 dependencies = [
  "async-channel",
+ "burn-autodiff",
  "burn-collective",
  "burn-core",
  "burn-ndarray",

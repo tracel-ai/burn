@@ -41,6 +41,8 @@ pub(crate) mod tests {
     use burn_core::{prelude::Tensor, tensor::Bool};
     use std::default::Default;
 
+    pub type TestAutodiffBackend = burn_autodiff::Autodiff<TestBackend>;
+
     /// Probability of tp before adding errors
     pub const THRESHOLD: f64 = 0.5;
 

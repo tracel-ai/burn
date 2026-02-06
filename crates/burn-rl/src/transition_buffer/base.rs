@@ -1,3 +1,5 @@
+use std::io::{Error, ErrorKind};
+
 use burn_core::{Tensor, prelude::Backend, tensor::backend::AutodiffBackend};
 use derive_new::new;
 use rand::{rng, seq::index::sample};
@@ -150,20 +152,39 @@ impl<T> TransitionBuffer<T> {
     }
 
     /// Sample the buffer at the given indices.
-    pub fn sample(&self, indices: Vec<usize>) -> Vec<&T> {
+    pub fn sample(&self, indices: Vec<usize>) -> Result<Vec<&T>, Error> {
         let mut items = Vec::with_capacity(indices.len());
 
         for &idx in indices.iter() {
-            if let Some(item) = self.buffer.get(idx) {
-                items.push(item);
+            match self.buffer.get(idx) {
+                Some(item) => items.push(item),
+                None => {
+                    return Err(Error::new(
+                        ErrorKind::InvalidInput,
+                        format!(
+                            "index out of bound: the len is {} but the index is {}",
+                            self.len(),
+                            idx
+                        ),
+                    ));
+                }
             }
         }
-        items
+        Ok(items)
     }
 
     /// Sample `batch_size` transitions at random.
-    pub fn random_sample(&self, batch_size: usize) -> Vec<&T> {
-        assert!(batch_size <= self.len());
+    pub fn random_sample(&self, batch_size: usize) -> Result<Vec<&T>, Error> {
+        if batch_size > self.len() {
+            return Err(Error::new(
+                ErrorKind::InvalidInput,
+                format!(
+                    "batch size {} bigger than buffer length {}",
+                    batch_size,
+                    self.len()
+                ),
+            ));
+        }
         let mut rng = rng();
         let indices = sample(&mut rng, self.len(), batch_size).into_vec();
         self.sample(indices)
@@ -254,7 +275,7 @@ mod tests {
             cursor: 0,
         };
 
-        let samples = buffer.sample(vec![0, 2]);
+        let samples = buffer.sample(vec![0, 2]).unwrap();
         assert_eq!(samples.len(), 2);
         assert_eq!(*samples[0], 1);
         assert_eq!(*samples[1], 3);
@@ -268,10 +289,8 @@ mod tests {
             cursor: 0,
         };
 
-        let samples = buffer.sample(vec![0, 5, 2]);
-        assert_eq!(samples.len(), 2);
-        assert_eq!(*samples[0], 10);
-        assert_eq!(*samples[1], 30);
+        let result = buffer.sample(vec![0, 5, 2]);
+        assert!(result.is_err());
     }
 
     #[test]
@@ -282,12 +301,11 @@ mod tests {
             cursor: 0,
         };
 
-        let samples = buffer.random_sample(3);
+        let samples = buffer.random_sample(3).unwrap();
         assert_eq!(samples.len(), 3);
     }
 
     #[test]
-    #[should_panic]
     fn random_sample_exceeds_buffer_size() {
         let buffer = TransitionBuffer {
             buffer: vec![1, 2, 3],
@@ -295,6 +313,7 @@ mod tests {
             cursor: 0,
         };
 
-        buffer.random_sample(5);
+        let result = buffer.random_sample(5);
+        assert!(result.is_err())
     }
 }
