@@ -20,10 +20,10 @@ use serde::{Deserialize, Serialize};
 /// Autotune key representative of sum versions
 pub struct SumAutotuneKey {
     /// The type of the tensor
-    pub dtype: burn_backend::DType,
+    dtype: burn_backend::DType,
     /// The anchored length of the tensor
     #[autotune(anchor)]
-    pub length: usize,
+    length: usize,
 }
 
 /// Check if the client supports atomic add for the given element type.

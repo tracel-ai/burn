@@ -11,6 +11,7 @@ use crate::tensor::stats;
 use crate::tensor::{Distribution, TensorData};
 use crate::{Bool, Int, TensorPrimitive};
 use burn_backend::tensor::quantization::QuantizationParametersPrimitive;
+use core::f32;
 
 /// Default RTOL value for `is_close` and `all_close`.
 pub const DEFAULT_RTOL: f64 = 1e-5;
@@ -372,6 +373,26 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
         )))
     }
 
+    /// Converts each of the elements of the input tensor from angles in degrees to radians.
+    ///
+    /// # Example
+    /// ```ignore
+    /// let tensor_in_radians = tensor.deg2rad();
+    /// ```
+    pub fn deg2rad(self) -> Self {
+        self.mul_scalar(f32::consts::PI / 180.0)
+    }
+
+    /// Converts each of the elements of the input tensor from angles in radians to degrees.
+    ///
+    /// # Example
+    /// ```ignore
+    /// let tensor_in_degrees = tensor.rad2deg();
+    /// ```
+    pub fn rad2deg(self) -> Self {
+        self.mul_scalar(180.0 / f32::consts::PI)
+    }
+
     /// Applies element wise round operation.
     ///
     /// This function implements the [round half to even](https://en.wikipedia.org/wiki/Rounding#Rounding_half_to_even)
@@ -466,6 +487,110 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
         let mean = self.clone().mean_dim(dim);
         let var = stats::var_with_mean_bias(self, mean.clone(), dim);
         (var, mean)
+    }
+
+    /// Returns the median value along the specified dimension.
+    ///
+    /// The median is not unique for input tensors with an even number of elements
+    /// in the reduced dimension. In this case, the lower of the two medians is returned,
+    /// following PyTorch's behavior.
+    ///
+    /// # Note
+    ///
+    /// The current implementation performs a full sort along the specified dimension,
+    /// which has O(nlog(n)) complexity. Additionally, most backends currently fall back
+    /// to CPU for the sort operation, which may result in slower performance compared
+    /// to native GPU operations.
+    ///
+    /// # Arguments
+    ///
+    /// - `dim` - The dimension along which to compute the median.
+    ///
+    /// # Returns
+    ///
+    /// - A tensor containing the median values along the specified dimension.
+    ///
+    /// # Example 1
+    ///
+    /// ```ignore
+    /// // Assuming backend B
+    /// let device = B::Device::default();
+    /// let tensor = Tensor::<B, 2>::from_data(
+    ///     [[1.0, 5.0, 3.0, 2.0], [8.0, 4.0, 6.0, 7.0]],
+    ///     &device,
+    /// );
+    ///
+    /// // Median along dimension 0:
+    /// // sorted columns are [1.0, 8.0], [4.0, 5.0], [3.0, 6.0], [2.0, 7.0]
+    /// let median = tensor.median(0);
+    /// // Result: [[1.0, 4.0, 3.0, 2.0]]
+    ///
+    /// // Median along dimension 1:
+    /// // sorted rows are [1.0, 2.0, 3.0, 5.0] and [4.0, 6.0, 7.0, 8.0]
+    /// let median = tensor.median(1);
+    /// // Result: [[2.0], [6.0]]
+    /// ```
+    ///
+    /// # Example 2
+    ///
+    /// The median across all elements can be calculated as follows:
+    ///
+    /// ```ignore
+    /// // D is the number of dimensions of the tensor
+    /// let flattened_tensor: Tensor<B, 1> = tensor.flatten(0, D - 1);
+    ///
+    /// // Calculate median for dim 0 since the tensor has become 1 dimensional
+    /// let median = flattened_tensor.median(0);
+    /// // Result: [4.0]
+    /// ```
+    pub fn median(self, dim: usize) -> Self {
+        // TODO: Allow backend specialization. Optimally, implement a median kernel for cubecl
+        // instead of leveraging a full sort to get the median.
+        stats::median(self, dim)
+    }
+
+    /// Returns the median value along the specified dimension and its index.
+    ///
+    /// The median is not unique for input tensors with an even number of elements
+    /// in the reduced dimension. In this case, the lower of the two medians is returned,
+    /// following PyTorch's behavior.
+    ///
+    /// # Note
+    ///
+    /// The current implementation performs a full sort along the specified dimension,
+    /// which has O(nlog(n)) complexity. Additionally, most backends currently fall back
+    /// to CPU for the sort operation, which may result in slower performance compared
+    /// to native GPU operations.
+    ///
+    /// # Arguments
+    ///
+    /// - `dim` - The dimension along which to compute the median.
+    ///
+    /// # Returns
+    ///
+    /// A tuple containing:
+    /// - A tensor with the median values.
+    /// - A tensor with the indices of the median values in the original tensor.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// // Assuming backend B
+    /// let device = B::Device::default();
+    /// let tensor = Tensor::<B, 2>::from_data(
+    ///     [[1.0, 5.0, 3.0, 2.0], [8.0, 4.0, 6.0, 7.0]],
+    ///     &device,
+    /// );
+    ///
+    /// // Median along dimension 1:
+    /// // sorted rows are [1.0, 2.0, 3.0, 5.0] and [4.0, 6.0, 7.0, 8.0]
+    /// let (values, indices) = tensor.median_with_indices(1);
+    /// // values: [[2.0], [6.0]], indices: [[3], [2]] (position in the original tensor)
+    /// ```
+    pub fn median_with_indices(self, dim: usize) -> (Self, Tensor<B, D, Int>) {
+        // TODO: Allow backend specialization. Optimally, implement a median kernel for cubecl
+        // instead of leveraging a full sort to get the median.
+        stats::median_with_indices(self, dim)
     }
 
     /// Converts a tensor to the specified floating point data type.

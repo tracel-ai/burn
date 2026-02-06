@@ -109,7 +109,6 @@ mod tests {
             .init::<TestBackend>(&device);
 
         let input = Tensor::arange(0..9, &device).float().reshape([3, 3]);
-
         let output = module.forward(input);
 
         let expected = TensorData::from([

@@ -33,7 +33,7 @@ pub(crate) struct TraceOperationFuser {
     status: FuserStatus,
     pub(crate) num_ops: usize,
     pub(crate) num_views: usize,
-    max_bindings: u32,
+    pub(crate) max_bindings: u32,
 }
 
 impl TraceOperationFuser {
@@ -62,7 +62,7 @@ impl OperationFuser<FuseTrace> for TraceOperationFuser {
                     return;
                 }
 
-                self.fuser.fuser.fuse_dropped(tensor.id);
+                self.fuser.fuser.fuse_dropped(tensor);
             }
             OperationIr::BaseFloat(ops) => {
                 if !self.fuse_base(ops) {
@@ -110,7 +110,7 @@ impl OperationFuser<FuseTrace> for TraceOperationFuser {
         self.num_ops += 1;
     }
 
-    fn finish(&self) -> FuseTrace {
+    fn finish(&mut self) -> FuseTrace {
         self.fuser.finish(self.current_output_shape.clone())
     }
 
@@ -223,30 +223,9 @@ impl TraceOperationFuser {
         &mut self,
         arguments: [&TensorIr; N],
         settings: FuseSettings,
-    ) -> Option<[FuseArg; N]> {
-        let mut is_success = true;
-        let args = arguments.map(|arg| {
-            // We need to register the argument as input in the current block so that we retrieve
-            // its value locally.
-            let input = self.fuser.fuser.input(arg);
-
-            if input.is_none() {
-                is_success = false;
-            } else {
-                // This flag the new input local value as local output to be used in a following
-                // block.
-                self.fuser.fuser.block_local_output(arg);
-            }
-
-            input
-        });
-
-        let args = if !is_success {
-            return None;
-        } else {
-            args.map(|arg| arg.unwrap())
-        };
-
+        global: bool,
+    ) -> [FuseArg; N] {
+        let block_pos = self.fuser.fuser.num_previous_blocks();
         let current_output_shape = core::mem::take(&mut self.current_output_shape);
 
         self.fuser.fuser.next_block(current_output_shape, settings);
@@ -254,7 +233,16 @@ impl TraceOperationFuser {
         self.settings = settings;
         self.status = FuserStatus::Open;
 
-        Some(args)
+        arguments.map(|arg| self.fuser.fuser.block_local_input(arg, block_pos, global))
+    }
+
+    /// Tag the [tensor](TensorIr) as received from a previous block.
+    ///
+    /// This will avoid reading the input again and instead use le local version when possible.
+    pub fn block_local_input(&mut self, tensor: &TensorIr, block_pos: usize, global: bool) {
+        self.fuser
+            .fuser
+            .block_local_input(tensor, block_pos, global);
     }
 
     fn fuse_base(&mut self, ops: &BaseOperationIr) -> bool {
@@ -773,7 +761,7 @@ impl TryTraceFuser {
         true
     }
 
-    fn finish(&self, shape: Vec<usize>) -> FuseTrace {
+    fn finish(&mut self, shape: Vec<usize>) -> FuseTrace {
         self.fuser.finish(shape)
     }
 }

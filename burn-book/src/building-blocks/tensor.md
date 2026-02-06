@@ -294,6 +294,7 @@ Those operations are only available for `Float` tensors.
 | `tensor.cos()`                               | `tensor.cos()`                             |
 | `tensor.cosh()`                              | `tensor.cosh()`                            |
 | `tensor.cross(other)`                        | `torch.cross(tensor, other)`               |
+| `tensor.deg2rad()`                           | `torch.deg2rad()`                          |
 | `tensor.erf()`                               | `tensor.erf()`                             |
 | `tensor.exp()`                               | `tensor.exp()`                             |
 | `tensor.floor()`                             | `tensor.floor()`                           |
@@ -308,6 +309,7 @@ Those operations are only available for `Float` tensors.
 | `tensor.log()`                               | `tensor.log()`                             |
 | `tensor.log1p()`                             | `tensor.log1p()`                           |
 | `tensor.matmul(other)`                       | `tensor.matmul(other)`                     |
+| `tensor.rad2deg()`                           | `torch.rad2deg()`                          |
 | `tensor.random(shape, distribution, device)` | N/A                                        |
 | `tensor.random_like(distribution)`           | `torch.rand_like()` only uniform           |
 | `tensor.recip()` or `1.0 / tensor`           | `tensor.reciprocal()` or `1.0 / tensor`    |
@@ -323,6 +325,8 @@ Those operations are only available for `Float` tensors.
 | `tensor.var_bias(dim)`                       | N/A                                        |
 | `tensor.var_mean(dim)`                       | N/A                                        |
 | `tensor.var_mean_bias(dim)`                  | N/A                                        |
+| `tensor.median(dim)`                         | `tensor.median(dim)`                       |
+| `tensor.median_with_indices(dim)`            | `tensor.median(dim)`                       |
 
 ### Int Operations
 

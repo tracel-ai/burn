@@ -56,7 +56,7 @@ pub enum Action {
     Execute(ExecutionPlanId),
 }
 
-impl<O> Policy<O> {
+impl<O: core::fmt::Debug> Policy<O> {
     /// Create a new policy.
     pub(crate) fn new() -> Self {
         Self {
