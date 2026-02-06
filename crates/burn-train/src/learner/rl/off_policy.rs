@@ -1,8 +1,9 @@
 use std::marker::PhantomData;
 
 use crate::{
-    AgentEnvAsyncLoop, AgentEnvLoop, EvaluationItem, EventProcessorTraining, MultiAgentEnvLoop,
-    RLComponents, RLComponentsTypes, RLEvent, RLEventProcessorType, RLStrategy,
+    AgentEnvAsyncLoop, AgentEnvLoop, AsyncAgentEnvLoopConfig, EvaluationItem,
+    EventProcessorTraining, MultiAgentEnvLoop, RLComponents, RLComponentsTypes, RLEvent,
+    RLEventProcessorType, RLStrategy,
 };
 use burn_core::{self as burn};
 use burn_core::{config::Config, data::dataloader::Progress};
@@ -61,7 +62,7 @@ impl<RLC> RLStrategy<RLC> for OffPolicyStrategy<RLC>
 where
     RLC: RLComponentsTypes,
 {
-    fn learn(
+    fn train_loop(
         &self,
         training_components: RLComponents<RLC>,
         learner_agent: &mut RLC::LearningAgent,
@@ -73,26 +74,29 @@ where
         let num_steps_total = training_components.num_steps;
 
         let mut env_runner = MultiAgentEnvLoop::<NdArray, RLC>::new(
-            env_init.clone(),
             self.config.num_envs,
-            false,
+            env_init.clone(),
             AsyncPolicy::new(
                 self.config.num_envs.min(self.config.autobatch_size),
                 learner_agent.policy(),
             ),
             false,
+            false,
             &Default::default(),
         );
-        env_runner.start();
+        let runner_config = AsyncAgentEnvLoopConfig {
+            eval: true,
+            deterministic: true,
+            id: 0,
+        };
         let mut env_runner_valid = AgentEnvAsyncLoop::<NdArray, RLC>::new(
             env_init,
-            0,
-            true,
             AsyncPolicy::new(1, learner_agent.policy()),
-            true,
+            runner_config,
             &Default::default(),
+            None,
+            None,
         );
-        env_runner_valid.start();
         let mut transition_buffer =
             TransitionBuffer::<Transition<NdArray, RLC::State, RLC::Action>>::new(
                 self.config.replay_buffer_size,
@@ -133,7 +137,9 @@ where
                     env_runner.update_policy(u.clone());
                 }
                 for _ in 0..self.config.train_steps {
-                    let transitions = transition_buffer.random_sample(self.config.train_batch_size);
+                    let transitions = transition_buffer
+                        .random_sample(self.config.train_batch_size)
+                        .unwrap();
                     let train_item = learner_agent.train(transitions.into());
                     intermediary_update = Some(train_item.policy);
 

@@ -5,6 +5,12 @@ pub mod store;
 /// Metrics module for vision tasks.
 pub mod vision;
 
+//Metrics for reinforcement learning.
+#[cfg(feature = "rl")]
+mod rl;
+#[cfg(feature = "rl")]
+pub use rl::*;
+
 // System metrics
 #[cfg(feature = "sys-metrics")]
 mod cpu_temp;
@@ -37,7 +43,6 @@ mod loss;
 mod perplexity;
 mod precision;
 mod recall;
-mod rl;
 mod top_k_acc;
 mod wer;
 
@@ -54,7 +59,6 @@ pub use loss::*;
 pub use perplexity::*;
 pub use precision::*;
 pub use recall::*;
-pub use rl::*;
 pub use top_k_acc::*;
 pub use wer::*;
 

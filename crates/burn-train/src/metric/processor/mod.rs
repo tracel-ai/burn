@@ -3,13 +3,17 @@ mod base;
 mod full;
 mod metrics;
 mod minimal;
+#[cfg(feature = "rl")]
 mod rl_metrics;
+#[cfg(feature = "rl")]
 mod rl_processor;
 
 pub use base::*;
 pub(crate) use full::*;
 pub(crate) use metrics::*;
+#[cfg(feature = "rl")]
 pub(crate) use rl_metrics::*;
+#[cfg(feature = "rl")]
 pub(crate) use rl_processor::*;
 
 #[cfg(test)]
