@@ -323,6 +323,8 @@ Those operations are only available for `Float` tensors.
 | `tensor.var_bias(dim)`                       | N/A                                        |
 | `tensor.var_mean(dim)`                       | N/A                                        |
 | `tensor.var_mean_bias(dim)`                  | N/A                                        |
+| `tensor.median(dim)`                         | `tensor.median(dim)`                       |
+| `tensor.median_with_indices(dim)`            | `tensor.median(dim)`                       |
 
 ### Int Operations
 
