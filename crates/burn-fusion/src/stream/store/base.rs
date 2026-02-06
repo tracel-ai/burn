@@ -46,7 +46,7 @@ pub(crate) struct ExecutionPlan<O> {
     pub(crate) optimization: BlockOptimization<O>,
 }
 
-impl<O> ExecutionPlanStore<O> {
+impl<O: core::fmt::Debug> ExecutionPlanStore<O> {
     pub fn new() -> Self {
         Self {
             plans: Vec::new(),

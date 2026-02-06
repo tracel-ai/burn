@@ -504,7 +504,7 @@ impl OperationFuser<TestOptimization> for TestOptimizationBuilder {
     }
 
     /// Build the optimization.
-    fn finish(&self) -> TestOptimization {
+    fn finish(&mut self) -> TestOptimization {
         TestOptimization::new(self.builder_id, self.len())
     }
 

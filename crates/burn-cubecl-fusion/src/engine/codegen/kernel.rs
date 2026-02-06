@@ -31,16 +31,18 @@ pub fn fuse_on_write<E: CubePrimitive>(
     #[comptime] write_args: Vec<FuseArg>,
     #[comptime] config: &FuseBlockConfig,
 ) {
+    comment!("Fuse on write begin");
     // Write the values given as arguments.
     #[unroll]
-    for _ in 0..write_args.len() {
-        let arg = comptime![write_args[0].clone()];
+    for i in 0..write_args.len() {
+        let arg = comptime![write_args.get(i).unwrap().clone()];
         let val = write_values.find(arg.clone());
 
         write::<E>(inputs, outputs, locals, write_pos, val, arg, config);
     }
 
     fuse(inputs, outputs, locals, write_pos, config);
+    comment!("Fuse on write end");
 }
 
 #[cube]
@@ -66,6 +68,7 @@ pub fn fuse_on_read<E: CubePrimitive>(
     #[comptime] read_args: Sequence<FuseArg>,
     #[comptime] config: &FuseBlockConfig,
 ) -> Sequence<Line<E>> {
+    comment!("Fuse on read begin");
     fuse(inputs, outputs, locals, read_pos, config);
 
     let mut output = Sequence::new();
@@ -98,6 +101,7 @@ pub fn fuse_on_read<E: CubePrimitive>(
         }
     }
 
+    comment!("Fuse on read end");
     output
 }
 
@@ -113,10 +117,11 @@ pub fn init_locals(
     outputs: &mut GlobalArgs,
     #[comptime] config: &FuseBlockConfig,
 ) -> LocalArgs {
+    comment!("Init locals begin");
     let mut ref_shape = Array::new(config.rank);
     let mut ref_strides = Array::new(config.rank);
 
-    match config.ref_layout.clone() {
+    let locals = match config.ref_layout.clone() {
         RefLayout::Concrete(arg) => match comptime![arg] {
             FuseArg::Input(index, ..) => {
                 let layout = inputs.tensors.index(index);
@@ -201,6 +206,21 @@ pub fn init_locals(
 
                 LocalArgs::new(ref_shape.to_slice(), ref_strides.to_slice(), line_size)
             }
+            VirtualLayout::Runtime { pos } => {
+                let start_shape = (pos * 2) * config.rank;
+                let start_strides = start_shape + config.rank;
+
+                #[unroll]
+                for i in 0..config.rank {
+                    let shape_index = start_shape + i;
+                    let strides_index = start_strides + i;
+
+                    ref_shape[i] = *inputs.runtime_layouts.index(shape_index);
+                    ref_strides[i] = *inputs.runtime_layouts.index(strides_index);
+                }
+
+                LocalArgs::new(ref_shape.to_slice(), ref_strides.to_slice(), config.width)
+            }
             VirtualLayout::Shape(original, line_size) => {
                 let layout = match original.clone() {
                     FuseArg::Input(pos, ..) => inputs.tensors.index(pos),
@@ -224,7 +244,9 @@ pub fn init_locals(
                 LocalArgs::new(ref_shape.to_slice(), ref_strides.to_slice(), line_size)
             }
         },
-    }
+    };
+    comment!("Init locals end");
+    locals
 }
 
 #[cube]
