@@ -16,7 +16,7 @@ use alloc::vec::Vec;
 #[allow(unused_imports)]
 use num_traits::Float as _;
 
-/// Cubic Interploate
+/// Cubic Interpolate
 ///
 /// Uses two points (x1, f1), (x2, f2) and their first derivatives g1,g2 to construct
 /// a cubic interpolant and return its minimum within the given bounds.
@@ -547,7 +547,7 @@ impl<B: Backend + AutodiffBackend> LBFGS<B> {
                     if ys > 1e-10 {
                         // updating memory
                         if self.state.history_s.len() >= self.config.history_size {
-                            // shift hisotry by one (limited-memory)
+                            // shift history by one (limited-memory)
                             self.state.history_s.remove(0);
                             self.state.history_y.remove(0);
                         }
