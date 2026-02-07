@@ -10,7 +10,6 @@ use burn::tensor::backend::Backend;
 use burn::tensor::{Tensor, backend::AutodiffBackend};
 use serde::{Deserialize, Serialize};
 
-#[cfg(not(feature = "std"))]
 use alloc::vec::Vec;
 #[cfg(not(feature = "std"))]
 #[allow(unused_imports)]
