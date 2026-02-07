@@ -136,7 +136,7 @@ where
             break;
         }
 
-        // gtd_new >=0 , there must be a local minimum in the inteval.
+        // gtd_new >=0 , there must be a local minimum in the interval.
         if gtd_new >= 0.0 {
             bracket = Some([
                 LineSearchSample {
