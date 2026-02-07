@@ -11,6 +11,7 @@ use burn::tensor::{Tensor, backend::AutodiffBackend};
 use serde::{Deserialize, Serialize};
 
 use alloc::vec::Vec;
+use alloc::vec;
 #[cfg(not(feature = "std"))]
 #[allow(unused_imports)]
 use num_traits::Float as _;
