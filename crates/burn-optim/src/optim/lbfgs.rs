@@ -10,8 +10,8 @@ use burn::tensor::backend::Backend;
 use burn::tensor::{Tensor, backend::AutodiffBackend};
 use serde::{Deserialize, Serialize};
 
-use alloc::vec::Vec;
 use alloc::vec;
+use alloc::vec::Vec;
 #[cfg(not(feature = "std"))]
 #[allow(unused_imports)]
 use num_traits::Float as _;
