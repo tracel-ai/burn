@@ -432,6 +432,17 @@ pub struct InterpolateBackward<B: Backend> {
     pub x_grad: FloatTensor<B>,
 }
 
+/// Options for [attention](ModuleOps::attention).
+#[derive(Debug, Clone, Default)]
+pub struct AttentionOptions {
+    /// Custom scale factor applied to QK^T. When `None`, defaults to `1/sqrt(head_dim)`.
+    pub scale: Option<f64>,
+
+    /// Soft capping applied before softmax: `softcap * tanh(scores / softcap)`.
+    /// Used by Gemma-2 and similar models.
+    pub softcap: Option<f64>,
+}
+
 /// Module operations trait.
 pub trait ModuleOps<B: Backend> {
     /// Embedding operation.
@@ -993,11 +1004,14 @@ pub trait ModuleOps<B: Backend> {
     /// optionally applying a mask to the attention scores.
     ///
     /// # Arguments
-    /// - `query`: Query tensor of shape `[batch_size, num_heads, seq_len_q,  head_dim]`
+    /// - `query`: Query tensor of shape `[batch_size, num_heads, seq_len_q, head_dim]`
     /// - `key`: Key tensor of shape `[batch_size, num_heads, seq_len_k, head_dim]`
     /// - `value`: Value tensor of shape `[batch_size, num_heads, seq_len_k, val_dim]`
     /// - `mask`: Optional boolean mask of shape `[batch_size, num_heads, seq_len_q, seq_len_k]`,
-    ///   here `true` indicates positions to mask (i.e. set to -∞ before softmax).
+    ///   where `true` indicates positions to mask (i.e. set to -inf before softmax).
+    /// - `attn_bias`: Optional float tensor of shape `[batch_size, num_heads, seq_len_q, seq_len_k]`
+    ///   added to the attention scores before softmax (e.g. ALiBi, relative position biases).
+    /// - `options`: Additional attention options (custom scale, softcap).
     ///
     /// # Returns
     /// A tensor of shape `[batch_size, num_heads, seq_len_q, val_dim]`
@@ -1011,8 +1025,10 @@ pub trait ModuleOps<B: Backend> {
         key: FloatTensor<B>,
         value: FloatTensor<B>,
         mask: Option<BoolTensor<B>>,
+        attn_bias: Option<FloatTensor<B>>,
+        options: AttentionOptions,
     ) -> FloatTensor<B> {
-        attention::naive_attention::<B>(query, key, value, mask)
+        attention::naive_attention::<B>(query, key, value, mask, attn_bias, options)
     }
 }
 
