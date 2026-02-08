@@ -30,37 +30,48 @@ throughout the training process. We currently offer a restricted range of metric
 | PSNR          | Computes the peak signal-to-noise-ratio (PSNR) for image quality assessment              |
 | SSIM          | Computes the structural similarity index measure (SSIM) for image quality assessment     |
 
+## Using Metrics with the Learner
 
-In order to use a metric, the output of your training step has to implement the `Adaptor` trait from
-`burn-train::metric`. Here is an example for the classification output, already provided with the
-crate.
+In order to use a metric, the output of your training step must implement the `Adaptor` trait from 
+`burn-train::metric` for each metric's corresponding input type. The `Adaptor` trait simply converts 
+your output struct into the input type the metric expects.
 
-```rust , ignore
-/// Simple classification output adapted for multiple metrics.
-#[derive(new)]
-pub struct ClassificationOutput<B: Backend> {
-    /// The loss.
-    pub loss: Tensor<B, 1>,
+Burn provides four built-in output structs that cover common tasks. Each one already implements 
+`Adaptor` for a set of metrics, so in many cases you can use them directly without writing any 
+adaptor code yourself.
 
-    /// The output.
-    pub output: Tensor<B, 2>,
+- `ClassificationOutput<B>`:
+    - Use case: Single-label classification
+    - Fields: `loss: Tensor<B, 1>`, `output: Tensor<B, 2>`, `targets: Tensor<B, 1, Int>`
+    - Adapted metrics: Accuracy, TopKAccuracy, Perplexity, Precision\*, Recall\*, FBetaScore\*, AUROC\*, Loss
+- `MultiLabelClassificationOutput<B>`:
+    - Use case: Multi-label classification
+    - Fields: `loss: Tensor<B, 1>`, `output: Tensor<B, 2>`, `targets: Tensor<B, 2, Int>`
+    - Adapted metrics: HammingScore, Precision\*, Recall\*, FBetaScore\*, Loss
+- `RegressionOutput<B>`:
+    - Use case: Regression tasks
+    - Fields: `loss: Tensor<B, 1>`, `output: Tensor<B, 2>`, `targets: Tensor<B, 2>`
+    - Adapted metrics: Loss
+- `SequenceOutput<B>`:
+    - Use case: Sequence prediction
+    - Fields: `loss: Tensor<B, 1>`, `output: Tensor<B, 2, Int>`, `targets: Tensor<B, 2, Int>`
+    - Adapted metrics: CER, WER, Loss
 
-    /// The targets.
-    pub targets: Tensor<B, 1, Int>,
-}
+\* Precision, Recall, and FBetaScore all use `ConfusionStatsInput` as its input type so these three 
+metrics are automatically (implicitly) adapted since `ConfusionStatsInput` is adapted.
 
+If your metric isn't already adapted for the appropriate output struct, you can implement `Adaptor` yourself. 
+For example, here is how `ClassificationOutput` adapts to `AccuracyInput`:
+
+```rust,ignore
 impl<B: Backend> Adaptor<AccuracyInput<B>> for ClassificationOutput<B> {
     fn adapt(&self) -> AccuracyInput<B> {
         AccuracyInput::new(self.output.clone(), self.targets.clone())
     }
 }
-
-impl<B: Backend> Adaptor<LossInput<B>> for ClassificationOutput<B> {
-    fn adapt(&self) -> LossInput<B> {
-        LossInput::new(self.loss.clone())
-    }
-}
 ```
+
+If your task type is not covered by the built-in output structs, consider opening an issue on the [GitHub repository](https://github.com/tracel-ai/burn).
 
 # Custom Metric
 
