@@ -495,7 +495,8 @@ pub fn linear<B: Backend, const D: usize>(
 }
 
 /// Computes scaled dot-product attention: softmax(QKᵗ * scale) · V,
-/// optionally applying a mask and/or additive bias to the attention scores.
+/// where scale defaults to 1/sqrt(head_dim) (configurable via `options.scale`).
+/// Optionally applies masking, additive bias, causal masking, and softcap.
 ///
 /// # Arguments
 /// - `query`: Query tensor of shape `[batch_size, num_heads, seq_len_q, head_dim]`
@@ -505,7 +506,7 @@ pub fn linear<B: Backend, const D: usize>(
 ///   where `true` indicates positions to mask (i.e. set to -inf before softmax).
 /// - `attn_bias`: Optional float tensor of shape `[batch_size, num_heads, seq_len_q, seq_len_k]`
 ///   added to the attention scores before softmax (e.g. ALiBi, relative position biases).
-/// - `options`: Additional attention options (custom scale, softcap).
+/// - `options`: Additional attention options (custom scale, softcap, causal masking).
 ///
 /// # Returns
 /// A tensor of shape `[batch_size, num_heads, seq_len_q, val_dim]`

@@ -433,14 +433,20 @@ pub struct InterpolateBackward<B: Backend> {
 }
 
 /// Options for [attention](ModuleOps::attention).
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct AttentionOptions {
     /// Custom scale factor applied to QK^T. When `None`, defaults to `1/sqrt(head_dim)`.
     pub scale: Option<f64>,
 
     /// Soft capping applied before softmax: `softcap * tanh(scores / softcap)`.
-    /// Used by Gemma-2 and similar models.
+    /// Used by Gemma-2 and similar models. Must be positive when set.
     pub softcap: Option<f64>,
+
+    /// When `true`, applies causal (autoregressive) masking so that each query position
+    /// can only attend to key positions at or before it. This is more efficient than
+    /// passing an explicit lower-triangular bool mask because backends can use optimized
+    /// kernel paths (e.g. flash attention with causal mode).
+    pub is_causal: bool,
 }
 
 /// Module operations trait.
@@ -1000,8 +1006,9 @@ pub trait ModuleOps<B: Backend> {
         options: InterpolateOptions,
     ) -> FloatTensor<B>;
 
-    /// Computes scaled dot-product attention: softmax(QKᵗ / √d) · V,
-    /// optionally applying a mask to the attention scores.
+    /// Computes scaled dot-product attention: softmax(QKᵗ * scale) · V,
+    /// where scale defaults to 1/sqrt(head_dim). Optionally applies masking,
+    /// additive bias, causal masking, and softcap to the attention scores.
     ///
     /// # Arguments
     /// - `query`: Query tensor of shape `[batch_size, num_heads, seq_len_q, head_dim]`
@@ -1011,7 +1018,7 @@ pub trait ModuleOps<B: Backend> {
     ///   where `true` indicates positions to mask (i.e. set to -inf before softmax).
     /// - `attn_bias`: Optional float tensor of shape `[batch_size, num_heads, seq_len_q, seq_len_k]`
     ///   added to the attention scores before softmax (e.g. ALiBi, relative position biases).
-    /// - `options`: Additional attention options (custom scale, softcap).
+    /// - `options`: Additional attention options (custom scale, softcap, causal masking).
     ///
     /// # Returns
     /// A tensor of shape `[batch_size, num_heads, seq_len_q, val_dim]`
