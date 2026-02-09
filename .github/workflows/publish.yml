@@ -13,6 +13,19 @@ on:
         default: false
 
 jobs:
+  publish-burn-rl:
+    needs:
+      - publish-burn-core
+      - publish-burn-optim
+      # dev dependencies
+      - publish-burn-ndarray
+    uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v9
+    with:
+      crate: burn-vision
+      dry-run-only: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run-only || false }}
+    secrets:
+      CRATES_IO_API_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}
+
   publish-burn-vision:
     needs:
       - publish-burn-autodiff
@@ -362,6 +375,7 @@ jobs:
       - publish-burn-core
       - publish-burn-optim
       - publish-burn-collective
+      - publish-burn-rl
       - publish-burn-ndarray
     uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v9
     with:

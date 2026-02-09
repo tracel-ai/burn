@@ -13,11 +13,13 @@ burn-core = { path = "../burn-core", version = "=0.21.0", features = [
 burn-optim = { path = "../burn-optim", version = "=0.21.0", features = [
     "std",
 ], default-features = false }
-burn-ndarray = { path = "../burn-ndarray", version = "=0.21.0" }
+
 derive-new.workspace = true
 rand.workspace = true
-
 log = { workspace = true }
+
+[dev-dependencies]
+burn-ndarray = { path = "../burn-ndarray", version = "=0.21.0" }
 
 [lints]
 workspace = true
