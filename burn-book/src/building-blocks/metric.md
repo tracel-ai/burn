@@ -55,7 +55,7 @@ adaptor code yourself.
 - `SequenceOutput<B>`:
     - Use case: Sequence prediction
     - Fields: `loss: Tensor<B, 1>`, `output: Tensor<B, 2, Int>`, `targets: Tensor<B, 2, Int>`
-    - Adapted metrics: CER, WER, Loss
+    - Adapted metrics: Accuracy, TopKAccuracy, Perplexity, CER, WER, Loss
 
 \* Precision, Recall, and FBetaScore all use `ConfusionStatsInput` as its input type so these three 
 metrics are automatically (implicitly) adapted since `ConfusionStatsInput` is adapted.
@@ -71,7 +71,28 @@ impl<B: Backend> Adaptor<AccuracyInput<B>> for ClassificationOutput<B> {
 }
 ```
 
-If your task type is not covered by the built-in output structs, consider opening an issue on the [GitHub repository](https://github.com/tracel-ai/burn).
+If your task type is not covered by the built-in output structs, you can create an output struct for your data
+and then adapt your metric for the output struct:
+
+```rust,ignore
+#[derive(new)]
+pub struct ClassificationOutput<B: Backend> {
+    /// The loss.
+    pub loss: Tensor<B, 1>,
+
+    /// The output.
+    pub output: Tensor<B, 2>,
+
+    /// The targets.
+    pub targets: Tensor<B, 1, Int>,
+}
+
+impl<B: Backend> Adaptor<AccuracyInput<B>> for ClassificationOutput<B> {
+    fn adapt(&self) -> AccuracyInput<B> {
+        AccuracyInput::new(self.output.clone(), self.targets.clone())
+    }
+}
+```
 
 # Custom Metric
 

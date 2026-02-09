@@ -4,7 +4,7 @@ use burn_core::tensor::backend::Backend;
 use burn_core::tensor::{Tensor, Transaction};
 use burn_ndarray::NdArray;
 
-/// Regression output adapted for multiple metrics.
+/// Regression output adapted for the loss metric.
 #[derive(new)]
 pub struct RegressionOutput<B: Backend> {
     /// The loss.
