@@ -42,23 +42,23 @@ Most backends support all operating systems, so we don't mention them in the tab
 
 **GPU Backends:**
 
-|         | CUDA | ROCm | Metal | Vulkan | WebGPU | Candle | LibTorch |
-| ------- | ---- | ---- | ----- | ------ | ------ | ------ | -------- |
-| Nvidia  | ☑️   | -    | -     | ☑️     | ☑️     | ☑️     | ☑️       |
-| AMD     | -    | ☑️   | -     | ☑️     | ☑️     | -      | ☑️       |
-| Apple   | -    | -    | ☑️    | -      | ☑️     | -      | ☑️       |
-| Intel   | -    | -    | -     | ☑️     | ☑️     | -      | -        |
-| Qualcom | -    | -    | -     | ☑️     | ☑️     | -      | -        |
-| Wasm    | -    | -    | -     | -      | ☑️     | -      | -        |
+|         | CUDA | ROCm | Metal | Vulkan | WebGPU | LibTorch |
+| ------- | ---- | ---- | ----- | ------ | ------ | -------- |
+| Nvidia  | ☑️   | -    | -     | ☑️     | ☑️     | ☑️       |
+| AMD     | -    | ☑️   | -     | ☑️     | ☑️     | ☑️       |
+| Apple   | -    | -    | ☑️    | -      | ☑️     | ☑️       |
+| Intel   | -    | -    | -     | ☑️     | ☑️     | -        |
+| Qualcom | -    | -    | -     | ☑️     | ☑️     | -        |
+| Wasm    | -    | -    | -     | -      | ☑️     | -        |
 
 **CPU Backends:**
 
-|        | Cpu (CubeCL) | NdArray | Candle | LibTorch |
-| ------ | ------------ | ------- | ------ | -------- |
-| X86    | ☑️           | ☑️      | ☑️     | ☑️       |
-| Arm    | ☑️           | ☑️      | ☑️     | ☑️       |
-| Wasm   | -            | ☑️      | ☑️     | -        |
-| no-std | -            | ☑️      | -      | -        |
+|        | Cpu (CubeCL) | NdArray | LibTorch |
+| ------ | ------------ | ------- | -------- |
+| X86    | ☑️           | ☑️      | ☑️       |
+| Arm    | ☑️           | ☑️      | ☑️       |
+| Wasm   | -            | ☑️      | -        |
+| no-std | -            | ☑️      | -        |
 
 <br />
 
@@ -286,7 +286,7 @@ Inference in the Browser 🌐
 </summary>
 <br />
 
-Several of our backends can run in WebAssembly environments: Candle and NdArray for CPU execution,
+Several of our backends can run in WebAssembly environments: NdArray for CPU execution,
 and WGPU for GPU acceleration via WebGPU. This means that you can run inference directly within a
 browser. We provide several examples of this:
 

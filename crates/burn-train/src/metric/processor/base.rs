@@ -2,7 +2,7 @@ use burn_core::data::dataloader::Progress;
 use burn_optim::LearningRate;
 
 use crate::{
-    LearnerSummary,
+    EpisodeSummary, LearnerSummary,
     renderer::{EvaluationName, MetricsRenderer},
 };
 
@@ -11,11 +11,37 @@ pub enum LearnerEvent<T> {
     /// Signal the start of the process (e.g., training start)
     Start,
     /// Signal that an item have been processed.
-    ProcessedItem(LearnerItem<T>),
+    ProcessedItem(TrainingItem<T>),
     /// Signal the end of an epoch.
     EndEpoch(usize),
     /// Signal the end of the process (e.g., training end).
     End(Option<LearnerSummary>),
+}
+
+/// Event happening during reinforcement learning.
+pub enum RLEvent<TS, ES> {
+    /// Signal the start of the process (e.g., learning starts).
+    Start,
+    /// Signal an agent's training step.
+    TrainStep(EvaluationItem<TS>),
+    /// Signal a timestep of the agent-environment interface.
+    TimeStep(EvaluationItem<ES>),
+    /// Signal an episode end.
+    EpisodeEnd(EvaluationItem<EpisodeSummary>),
+    /// Signal the end of the process (e.g., learning ends).
+    End(Option<LearnerSummary>),
+}
+
+/// Event happening during evaluation of a reinforcement learning's agent.
+pub enum AgentEvaluationEvent<T> {
+    /// Signal the start of the process (e.g., training start)
+    Start,
+    /// Signal a timestep of the agent-environment interface.
+    TimeStep(EvaluationItem<T>),
+    /// Signal an episode end.
+    EpisodeEnd(EvaluationItem<EpisodeSummary>),
+    /// Signal the end of the process (e.g., training end).
+    End,
 }
 
 /// Event happening during the evaluation process.
@@ -23,7 +49,7 @@ pub enum EvaluatorEvent<T> {
     /// Signal the start of the process (e.g., training start)
     Start,
     /// Signal that an item have been processed.
-    ProcessedItem(EvaluationName, LearnerItem<T>),
+    ProcessedItem(EvaluationName, EvaluationItem<T>),
     /// Signal the end of the process (e.g., training end).
     End,
 }
@@ -40,16 +66,11 @@ pub trait ItemLazy: Send {
 }
 
 /// Process events happening during training and validation.
-pub trait EventProcessorTraining: Send {
-    /// The training item.
-    type ItemTrain: ItemLazy;
-    /// The validation item.
-    type ItemValid: ItemLazy;
-
+pub trait EventProcessorTraining<TrainEvent, ValidEvent>: Send {
     /// Collect a training event.
-    fn process_train(&mut self, event: LearnerEvent<Self::ItemTrain>);
+    fn process_train(&mut self, event: TrainEvent);
     /// Collect a validation event.
-    fn process_valid(&mut self, event: LearnerEvent<Self::ItemValid>);
+    fn process_valid(&mut self, event: ValidEvent);
     /// Returns the renderer used for training.
     fn renderer(self) -> Box<dyn MetricsRenderer>;
 }
@@ -68,37 +89,58 @@ pub trait EventProcessorEvaluation: Send {
 
 /// A learner item.
 #[derive(new)]
-pub struct LearnerItem<T> {
+pub struct TrainingItem<T> {
     /// The item.
     pub item: T,
 
     /// The progress.
     pub progress: Progress,
 
-    /// The epoch.
-    pub epoch: usize,
+    /// The global progress of the training (e.g. epochs).
+    pub global_progress: Progress,
 
-    /// The total number of epochs.
-    pub epoch_total: usize,
-
-    /// The iteration.
-    pub iteration: usize,
+    /// The iteration, if it it different from the items processed.
+    pub iteration: Option<usize>,
 
     /// The learning rate.
     pub lr: Option<LearningRate>,
 }
 
-impl<T: ItemLazy> ItemLazy for LearnerItem<T> {
-    type ItemSync = LearnerItem<T::ItemSync>;
+impl<T: ItemLazy> ItemLazy for TrainingItem<T> {
+    type ItemSync = TrainingItem<T::ItemSync>;
 
     fn sync(self) -> Self::ItemSync {
-        LearnerItem {
+        TrainingItem {
             item: self.item.sync(),
             progress: self.progress,
-            epoch: self.epoch,
-            epoch_total: self.epoch_total,
+            global_progress: self.global_progress,
             iteration: self.iteration,
             lr: self.lr,
+        }
+    }
+}
+
+/// An evaluation item.
+#[derive(new)]
+pub struct EvaluationItem<T> {
+    /// The item.
+    pub item: T,
+
+    /// The progress.
+    pub progress: Progress,
+
+    /// The iteration, if it it different from the items processed.
+    pub iteration: Option<usize>,
+}
+
+impl<T: ItemLazy> ItemLazy for EvaluationItem<T> {
+    type ItemSync = EvaluationItem<T::ItemSync>;
+
+    fn sync(self) -> Self::ItemSync {
+        EvaluationItem {
+            item: self.item.sync(),
+            progress: self.progress,
+            iteration: self.iteration,
         }
     }
 }

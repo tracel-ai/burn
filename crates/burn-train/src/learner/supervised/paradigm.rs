@@ -13,17 +13,17 @@ use crate::metric::store::{Aggregate, Direction, EventStoreClient, LogEventStore
 use crate::metric::{Adaptor, LossMetric, Metric, Numeric};
 use crate::multi::MultiDeviceLearningStrategy;
 use crate::renderer::{MetricsRenderer, default_renderer};
-use crate::single::SingleDevicetrainingStrategy;
+use crate::single::SingleDeviceTrainingStrategy;
 use crate::{
     ApplicationLoggerInstaller, EarlyStoppingStrategyRef, FileApplicationLoggerInstaller,
-    InferenceBackend, InferenceModel, InferenceModelInput, InferenceStep, LearnerModelRecord,
-    LearnerOptimizerRecord, LearnerSchedulerRecord, LearnerSummaryConfig, LearningCheckpointer,
-    LearningComponentsMarker, LearningComponentsTypes, LearningResult, TrainStep, TrainingBackend,
-    TrainingComponents, TrainingModelInput, TrainingStrategy,
+    InferenceBackend, InferenceModel, InferenceModelInput, InferenceStep, LearnerEvent,
+    LearnerModelRecord, LearnerOptimizerRecord, LearnerSchedulerRecord, LearnerSummaryConfig,
+    LearningCheckpointer, LearningComponentsMarker, LearningComponentsTypes, LearningResult,
+    TrainStep, TrainingBackend, TrainingComponents, TrainingModelInput, TrainingStrategy,
 };
 use crate::{Learner, SupervisedLearningStrategy};
 use burn_core::data::dataloader::DataLoader;
-use burn_core::module::AutodiffModule;
+use burn_core::module::{AutodiffModule, Module};
 use burn_core::record::FileRecorder;
 use burn_core::tensor::backend::AutodiffBackend;
 use burn_optim::Optimizer;
@@ -38,7 +38,8 @@ pub type TrainLoader<LC> = Arc<dyn DataLoader<TrainingBackend<LC>, TrainingModel
 pub type ValidLoader<LC> = Arc<dyn DataLoader<InferenceBackend<LC>, InferenceModelInput<LC>>>;
 /// The event processor type for supervised learning.
 pub type SupervisedTrainingEventProcessor<LC> = AsyncProcessorTraining<
-    FullEventProcessorTraining<TrainingModelOutput<LC>, InferenceModelOutput<LC>>,
+    LearnerEvent<TrainingModelOutput<LC>>,
+    LearnerEvent<InferenceModelOutput<LC>>,
 >;
 
 /// Structure to configure and launch supervised learning trainings.
@@ -64,7 +65,7 @@ where
     tracing_logger: Option<Box<dyn ApplicationLoggerInstaller>>,
     checkpointer_strategy: Box<dyn CheckpointingStrategy>,
     early_stopping: Option<EarlyStoppingStrategyRef>,
-    training_strategy: TrainingStrategy<LC>,
+    training_strategy: Option<TrainingStrategy<LC>>,
     dataloader_train: TrainLoader<LC>,
     dataloader_valid: ValidLoader<LC>,
     // Use BTreeSet instead of HashSet for consistent (alphabetical) iteration order
@@ -121,7 +122,7 @@ where
                     .build(),
             ),
             early_stopping: None,
-            training_strategy: TrainingStrategy::SingleDevice(Default::default()),
+            training_strategy: None,
             summary_metrics: BTreeSet::new(),
             summary: false,
             dataloader_train,
@@ -131,13 +132,13 @@ where
 }
 
 impl<LC: LearningComponentsTypes> SupervisedTraining<LC> {
-    /// Replace the default training strategy (SingleDeviceTrainingStrategy) with the provided ones.
+    /// Replace the default training strategy (SingleDeviceTrainingStrategy) with the provided one.
     ///
     /// # Arguments
     ///
     /// * `training_strategy` - The training strategy.
     pub fn with_training_strategy(mut self, training_strategy: TrainingStrategy<LC>) -> Self {
-        self.training_strategy = training_strategy;
+        self.training_strategy = Some(training_strategy);
         self
     }
 
@@ -181,7 +182,7 @@ impl<LC: LearningComponentsTypes> SupervisedTraining<LC> {
         metrics.register(self)
     }
 
-    /// Register all metrics as numeric for the training and validation set.
+    /// Register all metrics as text for the training and validation set.
     pub fn metrics_text<Me: TextMetricRegistration<LC>>(self, metrics: Me) -> Self {
         metrics.register(self)
     }
@@ -372,10 +373,17 @@ impl<LC: LearningComponentsTypes + Send + 'static> SupervisedTraining<LC> {
             summary,
         };
 
-        match self.training_strategy {
+        // Default to single device based on model
+        let training_strategy = self
+            .training_strategy
+            .unwrap_or(TrainingStrategy::SingleDevice(
+                learner.model.devices()[0].clone(),
+            ));
+
+        match training_strategy {
             TrainingStrategy::SingleDevice(device) => {
-                let single_device: SingleDevicetrainingStrategy<LC> =
-                    SingleDevicetrainingStrategy::new(device);
+                let single_device: SingleDeviceTrainingStrategy<LC> =
+                    SingleDeviceTrainingStrategy::new(device);
                 single_device.train(
                     learner,
                     self.dataloader_train,
@@ -390,8 +398,14 @@ impl<LC: LearningComponentsTypes + Send + 'static> SupervisedTraining<LC> {
                 components,
             ),
             TrainingStrategy::MultiDevice(devices, multi_device_optim) => {
-                let multi_device = MultiDeviceLearningStrategy::new(devices, multi_device_optim);
-                multi_device.train(
+                let strategy: Box<dyn SupervisedLearningStrategy<LC>> = match devices.len() == 1 {
+                    true => Box::new(SingleDeviceTrainingStrategy::new(devices[0].clone())),
+                    false => Box::new(MultiDeviceLearningStrategy::new(
+                        devices,
+                        multi_device_optim,
+                    )),
+                };
+                strategy.train(
                     learner,
                     self.dataloader_train,
                     self.dataloader_valid,

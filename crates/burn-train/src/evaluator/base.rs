@@ -1,7 +1,8 @@
 use crate::{
-    AsyncProcessorEvaluation, FullEventProcessorEvaluation, InferenceStep, Interrupter,
+    AsyncProcessorEvaluation, EvaluationItem, FullEventProcessorEvaluation, InferenceStep,
+    Interrupter,
     evaluator::components::EvaluatorComponentTypes,
-    metric::processor::{EvaluatorEvent, EventProcessorEvaluation, LearnerItem},
+    metric::processor::{EvaluatorEvent, EventProcessorEvaluation},
     renderer::{EvaluationName, MetricsRenderer},
 };
 use burn_core::{data::dataloader::DataLoader, module::Module};
@@ -43,7 +44,7 @@ impl<EC: EvaluatorComponentTypes> Evaluator<EC> {
             iteration += 1;
 
             let item = self.model.step(item);
-            let item = LearnerItem::new(item, progress, 0, 1, iteration, None);
+            let item = EvaluationItem::new(item, progress, Some(iteration));
 
             self.event_processor
                 .process_test(EvaluatorEvent::ProcessedItem(name.clone(), item));

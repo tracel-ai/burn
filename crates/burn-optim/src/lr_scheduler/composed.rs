@@ -102,7 +102,7 @@ enum LrSchedulerItem {
 }
 
 #[derive(Record)]
-/// Record item for the [componsed learning rate scheduler](ComposedLrScheduler).
+/// Record item for the [composed learning rate scheduler](ComposedLrScheduler).
 pub enum LrSchedulerRecord<B: Backend> {
     /// The linear variant.
     Linear(<LinearLrScheduler as LrScheduler>::Record<B>),
@@ -115,7 +115,7 @@ pub enum LrSchedulerRecord<B: Backend> {
 }
 
 #[derive(Record)]
-/// Records for the [componsed learning rate scheduler](ComposedLrScheduler).
+/// Records for the [composed learning rate scheduler](ComposedLrScheduler).
 pub struct ComposedLrSchedulerRecord<B: Backend> {
     schedulers: Vec<LrSchedulerRecord<B>>,
 }

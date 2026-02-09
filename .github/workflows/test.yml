@@ -36,26 +36,6 @@ env:
   # Dependency versioning
   # from wgpu repo: https://github.com/gfx-rs/wgpu/blob/trunk/.github/workflows/ci.yml
 
-  # Sourced from https://vulkan.lunarg.com/sdk/home#linux
-  VULKAN_SDK_VERSION: "1.3.268"
-
-  # Sourced from https://archive.mesa3d.org/. Bumping this requires
-  # updating the mesa build in https://github.com/gfx-rs/ci-build and creating a new release.
-  MESA_VERSION: "24.2.3"
-  # Corresponds to https://github.com/gfx-rs/ci-build/releases
-  MESA_CI_BINARY_BUILD: "build19"
-  # TODO: properly handle as noted in https://github.com/tracel-ai/cubecl/pull/866
-  # # Override cudarc version since it can't be detected on CI. Should correspond to highest feature
-  # # set supported by CubeCL
-  # CUDARC_CUDA_VERSION: "12080"
-
-  # Sourced from https://www.nuget.org/packages/Microsoft.Direct3D.WARP
-  WARP_VERSION: "1.0.13"
-  # Sourced from https://github.com/microsoft/DirectXShaderCompiler/releases
-  # Must also be changed in shaders.yaml
-  DXC_RELEASE: "v1.8.2407"
-  DXC_FILENAME: "dxc_2024_07_31_clang_cl.zip"
-
   # Mozilla Grcov
   GRCOV_LINK: "https://github.com/mozilla/grcov/releases/download"
   GRCOV_VERSION: "0.8.19"
@@ -87,8 +67,11 @@ jobs:
           - rust: stable
             toolchain: stable
     steps:
+      - name: checkout
+        uses: actions/checkout@v6
+      # --------------------------------------------------------------------------------
       - name: Setup Rust
-        uses: tracel-ai/github-actions/setup-rust@v7
+        uses: tracel-ai/github-actions/install-rust@v9
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           cache-key: ${{ matrix.rust }}-linux
@@ -108,7 +91,7 @@ jobs:
         run: cargo xtask check lint
       # --------------------------------------------------------------------------------
       - name: Typos
-        uses: tracel-ai/github-actions/check-typos@v7
+        uses: tracel-ai/github-actions/check-typos@v9
 
   documentation:
     runs-on: ubuntu-22.04
@@ -120,8 +103,11 @@ jobs:
           - rust: stable
             toolchain: stable
     steps:
+      - name: checkout
+        uses: actions/checkout@v6
+      # --------------------------------------------------------------------------------
       - name: Setup Rust
-        uses: tracel-ai/github-actions/setup-rust@v7
+        uses: tracel-ai/github-actions/install-rust@v9
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           cache-key: ${{ matrix.rust }}-linux
@@ -149,8 +135,11 @@ jobs:
           - rust: prev
             toolchain: ${{ needs.prepare-checks.outputs.rust-prev-version }}
     steps:
+      - name: checkout
+        uses: actions/checkout@v6
+      # --------------------------------------------------------------------------------
       - name: Setup Rust
-        uses: tracel-ai/github-actions/setup-rust@v7
+        uses: tracel-ai/github-actions/install-rust@v9
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           cache-key: ${{ matrix.rust }}-linux
@@ -192,8 +181,11 @@ jobs:
           - rust: prev
             toolchain: ${{ needs.prepare-checks.outputs.rust-prev-version }}
     steps:
+      - name: checkout
+        uses: actions/checkout@v6
+      # --------------------------------------------------------------------------------
       - name: Setup Rust
-        uses: tracel-ai/github-actions/setup-rust@v7
+        uses: tracel-ai/github-actions/install-rust@v9
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           cache-key: ${{ matrix.rust }}-linux-no-std
@@ -207,8 +199,6 @@ jobs:
   windows-std-tests:
     runs-on: windows-2022
     needs: [prepare-checks, code-quality]
-    env:
-      DISABLE_WGPU: "1"
     # Keep the stragegy to be able to easily add new rust versions if required
     strategy:
       matrix:
@@ -217,20 +207,14 @@ jobs:
           - rust: stable
             toolchain: stable
     steps:
+      - name: checkout
+        uses: actions/checkout@v6
+      # --------------------------------------------------------------------------------
       - name: Setup Rust
-        uses: tracel-ai/github-actions/setup-rust@v7
+        uses: tracel-ai/github-actions/install-rust@v9
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           cache-key: ${{ matrix.rust }}-windows
-      # --------------------------------------------------------------------------------
-      - name: Setup Windows runner
-        if: env.DISABLE_WGPU != '1'
-        uses: tracel-ai/github-actions/setup-windows@v7
-        with:
-          dxc-release: ${{ env.DXC_RELEASE }}
-          dxc-filename: ${{ env.DXC_FILENAME }}
-          mesa-version: ${{ env.MESA_VERSION }}
-          warp-version: ${{ env.WARP_VERSION }}
       # --------------------------------------------------------------------------------
       - name: Tests
         run: cargo xtask test ${{ env.TEST_RELEASE_FLAG }} --ci github-runner
@@ -247,8 +231,11 @@ jobs:
           - rust: stable
             toolchain: stable
     steps:
+      - name: checkout
+        uses: actions/checkout@v6
+      # --------------------------------------------------------------------------------
       - name: Setup Rust
-        uses: tracel-ai/github-actions/setup-rust@v7
+        uses: tracel-ai/github-actions/install-rust@v9
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           cache-key: ${{ matrix.rust }}-macos

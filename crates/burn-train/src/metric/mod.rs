@@ -37,6 +37,7 @@ mod loss;
 mod perplexity;
 mod precision;
 mod recall;
+mod rl;
 mod top_k_acc;
 mod wer;
 
@@ -53,6 +54,7 @@ pub use loss::*;
 pub use perplexity::*;
 pub use precision::*;
 pub use recall::*;
+pub use rl::*;
 pub use top_k_acc::*;
 pub use wer::*;
 

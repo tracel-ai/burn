@@ -38,7 +38,9 @@ pub enum VectorizationSetting {
     /// Equivalent to using line_size of one.
     Deactivated,
     /// This is a good setting when a block processes values calculated from a previous block.
-    SmallerOrEqualThanPreviousBlock,
+    SmallerOrEqualThanPreviousBlock { block_pos: usize },
+    /// This is a good setting when a block processes values calculated from a previous block.
+    EqualThanPreviousBlock { block_pos: usize },
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
@@ -51,4 +53,7 @@ pub enum RefLayoutSetting {
     /// Note that forcing a contiguous reference layout might reduce the opportunity of inplace
     /// fusion.
     OnlyContiguous,
+    SameAsBlock {
+        block_pos: u32,
+    },
 }

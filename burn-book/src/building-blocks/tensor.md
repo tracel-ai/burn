@@ -294,6 +294,7 @@ Those operations are only available for `Float` tensors.
 | `tensor.cos()`                               | `tensor.cos()`                             |
 | `tensor.cosh()`                              | `tensor.cosh()`                            |
 | `tensor.cross(other)`                        | `torch.cross(tensor, other)`               |
+| `tensor.deg2rad()`                           | `torch.deg2rad()`                          |
 | `tensor.erf()`                               | `tensor.erf()`                             |
 | `tensor.exp()`                               | `tensor.exp()`                             |
 | `tensor.floor()`                             | `tensor.floor()`                           |
@@ -308,6 +309,7 @@ Those operations are only available for `Float` tensors.
 | `tensor.log()`                               | `tensor.log()`                             |
 | `tensor.log1p()`                             | `tensor.log1p()`                           |
 | `tensor.matmul(other)`                       | `tensor.matmul(other)`                     |
+| `tensor.rad2deg()`                           | `torch.rad2deg()`                          |
 | `tensor.random(shape, distribution, device)` | N/A                                        |
 | `tensor.random_like(distribution)`           | `torch.rand_like()` only uniform           |
 | `tensor.recip()` or `1.0 / tensor`           | `tensor.reciprocal()` or `1.0 / tensor`    |
@@ -323,6 +325,8 @@ Those operations are only available for `Float` tensors.
 | `tensor.var_bias(dim)`                       | N/A                                        |
 | `tensor.var_mean(dim)`                       | N/A                                        |
 | `tensor.var_mean_bias(dim)`                  | N/A                                        |
+| `tensor.median(dim)`                         | `tensor.median(dim)`                       |
+| `tensor.median_with_indices(dim)`            | `tensor.median(dim)`                       |
 
 ### Int Operations
 
@@ -380,6 +384,8 @@ strategies.
 
 | Burn API                                         | PyTorch Equivalent                                 |
 | ------------------------------------------------ | -------------------------------------------------- |
+| `activation::celu(tensor, alpha)`                | `nn.functional.celu(tensor, alpha)`                |
+| `activation::elu(tensor, alpha)`                 | `nn.functional.elu(tensor, alpha)`                 |
 | `activation::gelu(tensor)`                       | `nn.functional.gelu(tensor)`                       |
 | `activation::hard_sigmoid(tensor, alpha, beta)`  | `nn.functional.hardsigmoid(tensor)`                |
 | `activation::hard_swish(tensor)`                 | `nn.functional.hardswish(tensor)`                  |
@@ -391,11 +397,14 @@ strategies.
 | `activation::quiet_softmax(tensor, dim)`         | `nn.functional.quiet_softmax(tensor, dim)`         |
 | `activation::relu(tensor)`                       | `nn.functional.relu(tensor)`                       |
 | `activation::sigmoid(tensor)`                    | `nn.functional.sigmoid(tensor)`                    |
+| `activation::selu(tensor)`                       | `nn.functional.selu(tensor)`                       |
 | `activation::silu(tensor)`                       | `nn.functional.silu(tensor)`                       |
 | `activation::softmax(tensor, dim)`               | `nn.functional.softmax(tensor, dim)`               |
 | `activation::softmin(tensor, dim)`               | `nn.functional.softmin(tensor, dim)`               |
 | `activation::softplus(tensor, beta)`             | `nn.functional.softplus(tensor, beta)`             |
+| `activation::softsign(tensor)`                   | `nn.functional.softsign(tensor)`                   |
 | `activation::tanh(tensor)`                       | `nn.functional.tanh(tensor)`                       |
+| `activation::thresholded_relu(tensor, alpha)`    | `nn.functional.threshold(tensor, alpha, 0)`        |
 
 ## Grid Functions
 

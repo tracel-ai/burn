@@ -84,7 +84,11 @@ impl ZipSource {
             let name = file.name().to_string();
             let offset = file.data_start().unwrap_or_default();
             let compressed_size = file.compressed_size();
-            file_list.push((name, offset, compressed_size));
+            file_list.push((
+                name,
+                offset.expect("should have an offset"),
+                compressed_size,
+            ));
         }
 
         Ok(Self { path, file_list })
