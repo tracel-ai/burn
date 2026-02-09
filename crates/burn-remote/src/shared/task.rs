@@ -1,4 +1,4 @@
-use burn_backend::{DTypeUsageSet, ExecutionError, TensorData};
+use burn_backend::{ExecutionError, TensorData};
 use burn_communication::{Address, data_service::TensorTransferId};
 use burn_ir::{OperationIr, TensorId, TensorIr};
 use burn_std::{
@@ -81,5 +81,7 @@ pub struct TaskResponse {
 pub enum TaskResponseContent {
     ReadTensor(Result<TensorData, ExecutionError>),
     SyncBackend(Result<(), ExecutionError>),
-    SupportsDType(DTypeUsageSet),
+    // SupportsDType(DTypeUsageSet),
+    // TODO: Update to `DTypeUsageSet` when it implements `serde`.
+    SupportsDType(()),
 }

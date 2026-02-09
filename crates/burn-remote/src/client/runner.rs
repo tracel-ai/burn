@@ -120,7 +120,8 @@ impl RunnerClient for RemoteClient {
 
         match self.runtime.block_on(fut) {
             Ok(response) => match response {
-                TaskResponseContent::SupportsDType(res) => res,
+                // TODO: Support that variant.
+                // TaskResponseContent::SupportsDType(res) => res,
                 _ => panic!("Invalid message type"),
             },
             Err(e) => panic!("Failed to check dtype support: {:?}", e),
