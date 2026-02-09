@@ -82,7 +82,7 @@ impl ZipSource {
         for i in 0..archive.len() {
             let file = archive.by_index(i)?;
             let name = file.name().to_string();
-            let offset = file.data_start().unwrap_or_default();
+            let offset = file.data_start();
             let compressed_size = file.compressed_size();
             file_list.push((
                 name,
