@@ -13,10 +13,7 @@ members = [
     "xtask",
 ]
 
-exclude = [
-    "examples/notebook",
-    "examples/raspberry-pi-pico",
-]
+exclude = ["examples/notebook", "examples/raspberry-pi-pico"]
 
 [workspace.package]
 edition = "2024"
@@ -148,7 +145,7 @@ half = { version = "2.7.1", features = [
     "num-traits",
     "serde",
 ], default-features = false }
-macerator = { version = "0.2.9" }
+macerator = { version = "0.3.0" }
 matrixmultiply = { version = "0.3.10", default-features = false }
 ndarray = { version = "0.17.2", default-features = false }
 num-traits = { version = "0.2.19", default-features = false, features = [
@@ -177,9 +174,9 @@ portable-atomic = { version = "1.13.1" }
 portable-atomic-util = { version = "0.2.5", features = ["alloc"] }
 
 ### For the main burn branch. ###
-cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "e51a5538ddc443148c9422450a9abc3c793fc6fb" }
-cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "e51a5538ddc443148c9422450a9abc3c793fc6fb" }
-cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "1d4b6acdb5c35acb39454a5558c5d1f6fd1edd99" }
+cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "c9515fb79af850b63b1f8f747ebe378b9a1965c3" }
+cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "c9515fb79af850b63b1f8f747ebe378b9a1965c3" }
+cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "9653247607cb3852690d404ec880ddfd87a20910" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }
@@ -190,7 +187,7 @@ cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, 
 # cubek = { version = "=0.1.0", default-features = false }
 
 ### For xtask crate ###
-tracel-xtask = "=4.12.3"
+tracel-xtask = "=4.13.1"
 # ### For local development. ###
 # tracel-xtask = { path = "../xtask/crates/tracel-xtask", default-features = false }
 
