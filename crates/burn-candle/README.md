@@ -1,6 +1,6 @@
 # Burn Candle Backend
 
-> **Deprecated:** This crate is deprecated as of `0.21.0` and will be removed in a future release.
+> **Deprecated:** This crate is deprecated as of `0.21.0-pre.1` and will be removed in a future release.
 > Please migrate to one of the actively maintained backends:
 > - **CubeCL backends** (CUDA, ROCm, Vulkan, Metal, WebGPU) for GPU acceleration
 > - **NdArray** for portable CPU execution
