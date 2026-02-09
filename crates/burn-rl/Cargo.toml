@@ -6,11 +6,11 @@ readme.workspace = true
 version.workspace = true
 
 [dependencies]
-burn-core = { path = "../burn-core", version = "=0.21.0", features = [
+burn-core = { path = "../burn-core", version = "=0.21.0-pre.1", features = [
     "dataset",
     "std",
 ], default-features = false }
-burn-optim = { path = "../burn-optim", version = "=0.21.0", features = [
+burn-optim = { path = "../burn-optim", version = "=0.21.0-pre.1", features = [
     "std",
 ], default-features = false }
 
@@ -19,7 +19,7 @@ rand.workspace = true
 log = { workspace = true }
 
 [dev-dependencies]
-burn-ndarray = { path = "../burn-ndarray", version = "=0.21.0" }
+burn-ndarray = { path = "../burn-ndarray", version = "=0.21.0-pre.1" }
 
 [lints]
 workspace = true
