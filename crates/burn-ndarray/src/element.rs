@@ -144,8 +144,8 @@ macro_rules! make_elem {
 
             #[inline(always)]
             fn int_abs_elem(self) -> Self {
-                (self as i64).abs() as $ty
-            }
+                (self as i64).saturating_abs() as $ty
+            }            
         }
     };
     (
@@ -198,8 +198,8 @@ macro_rules! make_elem {
 
             #[inline(always)]
             fn int_abs_elem(self) -> Self {
-                (self as i32).unsigned_abs() as $ty
-            }
+                (self as i32).saturating_abs() as $ty
+            }            
         }
     };
 }
