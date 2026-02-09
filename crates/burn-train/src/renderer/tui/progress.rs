@@ -292,7 +292,7 @@ mod tests {
         };
         let progress = TrainingProgress {
             progress: Some(half),
-            global_progress: global_progress,
+            global_progress,
             iteration: Some(500),
         };
 
@@ -315,7 +315,7 @@ mod tests {
         };
         let progress = TrainingProgress {
             progress: Some(half),
-            global_progress: global_progress,
+            global_progress,
             iteration: Some(500),
         };
 
