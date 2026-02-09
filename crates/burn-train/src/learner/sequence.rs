@@ -5,7 +5,7 @@ use burn_core::tensor::{Int, Tensor, Transaction};
 use burn_ndarray::NdArray;
 
 /// Sequence prediction output adapted for multiple metrics.
-/// 
+///
 /// Supported metrics:
 /// - Accuracy
 /// - TopKAccuracy
@@ -17,7 +17,7 @@ use burn_ndarray::NdArray;
 pub struct SequenceOutput<B: Backend> {
     /// The loss.
     pub loss: Tensor<B, 1>,
-    
+
     /// Raw logits. Shape: `[batch_size, seq_len, vocab_size]`
     pub logits: Tensor<B, 3>,
 
@@ -36,12 +36,14 @@ impl<B: Backend> SequenceOutput<B> {
             None => self.logits.clone().argmax(2).squeeze_dim::<2>(2),
         }
     }
-    
+
     fn flat_logits(&self) -> Tensor<B, 2> {
         let [batch_size, seq_len, vocab_size] = self.logits.dims();
-        self.logits.clone().reshape([batch_size * seq_len, vocab_size])
+        self.logits
+            .clone()
+            .reshape([batch_size * seq_len, vocab_size])
     }
-    
+
     fn flat_targets(&self) -> Tensor<B, 1, Int> {
         let [batch_size, seq_len] = self.targets.dims();
         self.targets.clone().reshape([batch_size * seq_len])
@@ -53,7 +55,7 @@ impl<B: Backend> ItemLazy for SequenceOutput<B> {
 
     fn sync(self) -> Self::ItemSync {
         let device = &Default::default();
-        
+
         match self.predictions {
             Some(preds) => {
                 let [logits, loss, targets, predictions] = Transaction::default()
@@ -64,14 +66,14 @@ impl<B: Backend> ItemLazy for SequenceOutput<B> {
                     .execute()
                     .try_into()
                     .expect("Correct amount of tensor data");
-                
+
                 SequenceOutput {
                     logits: Tensor::from_data(logits, device),
                     loss: Tensor::from_data(loss, device),
                     targets: Tensor::from_data(targets, device),
-                    predictions: Some(Tensor::from_data(predictions, device))
+                    predictions: Some(Tensor::from_data(predictions, device)),
                 }
-            },
+            }
             None => {
                 let [logits, loss, targets] = Transaction::default()
                     .register(self.logits)
@@ -80,14 +82,14 @@ impl<B: Backend> ItemLazy for SequenceOutput<B> {
                     .execute()
                     .try_into()
                     .expect("Correct amount of tensor data");
-                
+
                 SequenceOutput {
                     logits: Tensor::from_data(logits, device),
                     loss: Tensor::from_data(loss, device),
                     targets: Tensor::from_data(targets, device),
-                    predictions: None
+                    predictions: None,
                 }
-            },
+            }
         }
     }
 }
@@ -127,4 +129,3 @@ impl<B: Backend> Adaptor<PerplexityInput<B>> for SequenceOutput<B> {
         PerplexityInput::new(self.flat_logits(), self.flat_targets())
     }
 }
-
