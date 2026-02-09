@@ -25,6 +25,12 @@ pub(crate) mod tests {
     use burn_core::{self as burn};
 
     /// Mock policy for testing
+    ///
+    /// Calling `forward()` with a [MockObservation](MockObservation) (list of f32) returns a [MockActionDistribution](MockActionDistribution)
+    /// containing a list of 0s of the same length as the observation.
+    ///
+    /// Calling `action()` with a [MockObservation](MockObservation) (list of f32) returns a [MockAction](MockAction) with a list of actions of the same length as the observation.
+    /// The actions are all 1 if the call is requested as deterministic, or else 0.
     #[derive(Clone)]
     pub(crate) struct MockPolicy {}
 
@@ -86,19 +92,22 @@ pub(crate) mod tests {
         }
     }
 
-    // Mock types for testing
+    /// Mock observation for testing represented as a vector of f32. Can call `batch()` and `unbatch` on it.
     #[derive(Clone)]
     pub(crate) struct MockObservation(pub Vec<f32>);
 
+    /// Mock action for testing represented as a vector of i32. Can call `batch()` and `unbatch` on it.
     #[derive(Clone)]
     pub(crate) struct MockAction(pub Vec<i32>);
 
+    /// Mock action distribution for testing represented as a vector of i32. Can call `batch()` and `unbatch` on it.
     #[derive(Clone)]
     pub(crate) struct MockActionDistribution(Vec<f32>);
 
     #[derive(Clone)]
     pub(crate) struct MockActionContext;
 
+    /// Mock policy state for testing represented as an arbitrary `usize` that has no effect on the policy.
     #[derive(Clone)]
     pub(crate) struct MockPolicyState;
 
