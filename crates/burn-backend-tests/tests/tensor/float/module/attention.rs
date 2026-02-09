@@ -49,12 +49,10 @@ fn test_attention_no_mask() {
     let expected =
         naive_attention::<TestBackend>(query, key, value, None, None, Default::default());
 
-    output
-        .into_data()
-        .assert_approx_eq::<FloatElem>(
-            &expected.into_data(),
-            Tolerance::rel_abs(1e-2, 1e-3).set_half_precision_relative(1e-1),
-        );
+    output.into_data().assert_approx_eq::<FloatElem>(
+        &expected.into_data(),
+        Tolerance::rel_abs(1e-2, 1e-3).set_half_precision_relative(1e-1),
+    );
 }
 
 #[test]
@@ -93,12 +91,10 @@ fn test_attention_custom_scale() {
 
     let expected = naive_attention::<TestBackend>(query, key, value, None, None, options);
 
-    output
-        .into_data()
-        .assert_approx_eq::<FloatElem>(
-            &expected.into_data(),
-            Tolerance::rel_abs(1e-2, 1e-3).set_half_precision_relative(1e-1),
-        );
+    output.into_data().assert_approx_eq::<FloatElem>(
+        &expected.into_data(),
+        Tolerance::rel_abs(1e-2, 1e-3).set_half_precision_relative(1e-1),
+    );
 }
 
 #[test]
@@ -138,12 +134,10 @@ fn test_attention_attn_bias() {
     let expected =
         naive_attention::<TestBackend>(query, key, value, None, Some(bias), Default::default());
 
-    output
-        .into_data()
-        .assert_approx_eq::<FloatElem>(
-            &expected.into_data(),
-            Tolerance::rel_abs(1e-2, 1e-3).set_half_precision_relative(1e-1),
-        );
+    output.into_data().assert_approx_eq::<FloatElem>(
+        &expected.into_data(),
+        Tolerance::rel_abs(1e-2, 1e-3).set_half_precision_relative(1e-1),
+    );
 }
 
 #[test]
@@ -182,12 +176,10 @@ fn test_attention_softcap() {
 
     let expected = naive_attention::<TestBackend>(query, key, value, None, None, options);
 
-    output
-        .into_data()
-        .assert_approx_eq::<FloatElem>(
-            &expected.into_data(),
-            Tolerance::rel_abs(1e-2, 1e-3).set_half_precision_relative(1e-1),
-        );
+    output.into_data().assert_approx_eq::<FloatElem>(
+        &expected.into_data(),
+        Tolerance::rel_abs(1e-2, 1e-3).set_half_precision_relative(1e-1),
+    );
 }
 
 #[test]
@@ -233,12 +225,10 @@ fn test_attention_is_causal() {
 
     let expected = naive_attention::<TestBackend>(query, key, value, None, None, options);
 
-    output
-        .into_data()
-        .assert_approx_eq::<FloatElem>(
-            &expected.into_data(),
-            Tolerance::rel_abs(1e-2, 1e-3).set_half_precision_relative(1e-1),
-        );
+    output.into_data().assert_approx_eq::<FloatElem>(
+        &expected.into_data(),
+        Tolerance::rel_abs(1e-2, 1e-3).set_half_precision_relative(1e-1),
+    );
 }
 
 /// Cross-attention: seq_q != seq_k, with causal masking and additive bias.
@@ -283,12 +273,10 @@ fn test_attention_cross_attention_with_bias() {
 
     let expected = naive_attention::<TestBackend>(query, key, value, None, Some(bias), options);
 
-    output
-        .into_data()
-        .assert_approx_eq::<FloatElem>(
-            &expected.into_data(),
-            Tolerance::rel_abs(1e-2, 1e-3).set_half_precision_relative(1e-1),
-        );
+    output.into_data().assert_approx_eq::<FloatElem>(
+        &expected.into_data(),
+        Tolerance::rel_abs(1e-2, 1e-3).set_half_precision_relative(1e-1),
+    );
 }
 
 /// Regression: softcap must be applied before -inf masking.
