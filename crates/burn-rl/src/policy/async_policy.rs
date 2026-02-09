@@ -69,7 +69,7 @@ where
     }
 
     pub fn len_logits(&self) -> usize {
-        self.batch_action.len()
+        self.batch_logits.len()
     }
 
     pub fn flush_actions(&mut self) {
@@ -115,7 +115,7 @@ where
                 .send(logits[i].clone())
                 .expect("Autobatcher should be able to send resulting probabilities.");
         }
-        self.batch_action.clear();
+        self.batch_logits.clear();
     }
 
     pub fn update_policy(&mut self, policy_update: P::PolicyState) {
@@ -310,5 +310,175 @@ where
     fn load_record(self, _record: <Self::PolicyState as PolicyState<B>>::Record) -> Self {
         // Not needed for now
         todo!()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::thread::JoinHandle;
+    use std::time::Duration;
+
+    use crate::TestBackend;
+    use crate::tests::{MockAction, MockObservation, MockPolicy};
+
+    use super::*;
+
+    #[test]
+    fn test_multiple_actions_before_flush() {
+        fn launch_thread(
+            policy: &AsyncPolicy<TestBackend, MockPolicy>,
+            handles: &mut Vec<JoinHandle<()>>,
+        ) {
+            let mut thread_policy = policy.clone();
+            let handle = spawn(move || {
+                thread_policy.action(MockObservation(vec![0.]), false);
+            });
+            handles.push(handle);
+        }
+
+        let policy = AsyncPolicy::new(8, MockPolicy::new());
+        policy.increment_agents(1000);
+
+        let mut handles = vec![];
+        launch_thread(&policy, &mut handles);
+        std::thread::sleep(Duration::from_millis(10));
+        assert!(!handles[0].is_finished());
+
+        for _ in 0..6 {
+            launch_thread(&policy, &mut handles);
+        }
+        std::thread::sleep(Duration::from_millis(10));
+        for i in 0..7 {
+            assert!(!handles[i].is_finished());
+        }
+
+        launch_thread(&policy, &mut handles);
+        std::thread::sleep(Duration::from_millis(10));
+        for i in 0..8 {
+            assert!(handles[i].is_finished());
+        }
+
+        let mut handles = vec![];
+        launch_thread(&policy, &mut handles);
+        std::thread::sleep(Duration::from_millis(10));
+        assert!(!handles[0].is_finished());
+    }
+
+    #[test]
+    fn test_multiple_forward_before_flush() {
+        fn launch_thread(
+            policy: &AsyncPolicy<TestBackend, MockPolicy>,
+            handles: &mut Vec<JoinHandle<()>>,
+        ) {
+            let mut thread_policy = policy.clone();
+            let handle = spawn(move || {
+                thread_policy.forward(MockObservation(vec![0.]));
+            });
+            handles.push(handle);
+        }
+
+        let policy = AsyncPolicy::new(8, MockPolicy::new());
+        policy.increment_agents(1000);
+
+        let mut handles = vec![];
+        launch_thread(&policy, &mut handles);
+        std::thread::sleep(Duration::from_millis(10));
+        assert!(!handles[0].is_finished());
+
+        for _ in 0..6 {
+            launch_thread(&policy, &mut handles);
+        }
+        std::thread::sleep(Duration::from_millis(10));
+        for i in 0..7 {
+            assert!(!handles[i].is_finished());
+        }
+
+        launch_thread(&policy, &mut handles);
+        std::thread::sleep(Duration::from_millis(10));
+        for i in 0..8 {
+            assert!(handles[i].is_finished());
+        }
+
+        let mut handles = vec![];
+        launch_thread(&policy, &mut handles);
+        std::thread::sleep(Duration::from_millis(10));
+        assert!(!handles[0].is_finished());
+    }
+
+    #[test]
+    fn test_async_policy_deterministic_behaviour() {
+        fn launch_thread(
+            policy: &AsyncPolicy<TestBackend, MockPolicy>,
+            handles: &mut Vec<JoinHandle<MockAction>>,
+            deterministic: bool,
+        ) {
+            let mut thread_policy = policy.clone();
+            let handle = spawn(move || {
+                let (action, _) = thread_policy.action(MockObservation(vec![0.]), deterministic);
+                action
+            });
+            handles.push(handle);
+        }
+
+        let policy = AsyncPolicy::new(2, MockPolicy::new());
+        policy.increment_agents(1000);
+
+        let mut handles = vec![];
+        launch_thread(&policy, &mut handles, true);
+        launch_thread(&policy, &mut handles, false);
+        for _ in 0..2 {
+            let action = handles.pop().unwrap().join().unwrap();
+            assert_eq!(action.0, vec![0]);
+        }
+
+        let mut handles = vec![];
+        launch_thread(&policy, &mut handles, true);
+        launch_thread(&policy, &mut handles, true);
+        for _ in 0..2 {
+            let action = handles.pop().unwrap().join().unwrap();
+            assert_eq!(action.0, vec![1]);
+        }
+    }
+
+    #[test]
+    fn flush_when_running_agents_smaller_than_autobatch_size() {
+        fn launch_thread(
+            policy: &AsyncPolicy<TestBackend, MockPolicy>,
+            handles: &mut Vec<JoinHandle<()>>,
+        ) {
+            let mut thread_policy = policy.clone();
+            let handle = spawn(move || {
+                thread_policy.action(MockObservation(vec![0.]), false);
+            });
+            handles.push(handle);
+        }
+
+        let policy = AsyncPolicy::new(8, MockPolicy::new());
+        policy.increment_agents(3);
+
+        let mut handles = vec![];
+        launch_thread(&policy, &mut handles);
+        launch_thread(&policy, &mut handles);
+        std::thread::sleep(Duration::from_millis(10));
+        assert!(!handles[0].is_finished());
+        assert!(!handles[1].is_finished());
+
+        launch_thread(&policy, &mut handles);
+        std::thread::sleep(Duration::from_millis(10));
+        for i in 0..3 {
+            assert!(handles[i].is_finished());
+        }
+
+        let mut handles = vec![];
+        launch_thread(&policy, &mut handles);
+        launch_thread(&policy, &mut handles);
+        std::thread::sleep(Duration::from_millis(10));
+        assert!(!handles[0].is_finished());
+        assert!(!handles[1].is_finished());
+
+        policy.decrement_agents(1);
+        std::thread::sleep(Duration::from_millis(10));
+        assert!(handles[0].is_finished());
+        assert!(handles[1].is_finished());
     }
 }

@@ -21,10 +21,9 @@ vulkan = ["burn/vulkan", "burn/default"]
 rocm = ["burn/rocm", "burn/default"]
 
 [dependencies]
-# Disable autotune default for now (convolutions not optimized)
+# Disable autotune default for now.
 burn = { path = "../../crates/burn", features = [
     "train",
-    # "vision",
     "metrics",
     "std",
     "rl",

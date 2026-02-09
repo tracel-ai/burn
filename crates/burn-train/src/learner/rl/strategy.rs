@@ -69,7 +69,7 @@ pub trait RLStrategy<RLC: RLComponentsTypes> {
             .process_train(RLEvent::Start);
 
         // Training loop
-        let (policy, mut event_processor) = self.learn(
+        let (policy, mut event_processor) = self.train_loop(
             training_components,
             &mut learner_agent,
             starting_epoch,
@@ -89,7 +89,7 @@ pub trait RLStrategy<RLC: RLComponentsTypes> {
     }
 
     /// Training loop for this strategy
-    fn learn(
+    fn train_loop(
         &self,
         training_components: RLComponents<RLC>,
         learner_agent: &mut RLC::LearningAgent,
