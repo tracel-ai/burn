@@ -1,9 +1,13 @@
+#[cfg(feature = "rl")]
+mod rl;
+#[cfg(feature = "rl")]
+pub use rl::*;
+
 mod application_logger;
 mod base;
 mod classification;
 mod early_stopping;
 mod regression;
-mod rl;
 mod sequence;
 mod summary;
 mod supervised;
@@ -14,7 +18,6 @@ pub use base::*;
 pub use classification::*;
 pub use early_stopping::*;
 pub use regression::*;
-pub use rl::*;
 pub use sequence::*;
 pub use summary::*;
 pub use supervised::*;

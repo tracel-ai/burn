@@ -1,6 +1,6 @@
 use super::{codegen::ModuleCodegen, record_enum::EnumModuleRecordCodegen};
 use crate::shared::enum_variant::{EnumVariant, parse_variants};
-use proc_macro2::{Ident, TokenStream};
+use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
 use syn::Visibility;
 
@@ -129,6 +129,21 @@ impl ModuleCodegen for EnumModuleCodegen {
         }
     }
 
+    fn gen_from_inner(&self) -> TokenStream {
+        let match_body =
+            self.gen_variants_match_fn_param("module", "Self::InnerModule::", |variant| {
+                quote! {
+                    Self::#variant(burn::module::AutodiffModule::<B>::from_inner(module))
+                }
+            });
+
+        quote! {
+            fn from_inner(module: Self::InnerModule) -> Self {
+                #match_body
+            }
+        }
+    }
+
     fn gen_into_record(&self) -> TokenStream {
         let match_body = self.gen_variants_match_fn(|variant| {
             quote! {
@@ -188,24 +203,33 @@ impl EnumModuleCodegen {
         })
     }
 
-    /// Generate the enum variants' match arm with the provided function
+    /// Generate the enum variants' match arms with the provided function
     fn gen_variants_match_fn<F>(&self, func: F) -> TokenStream
     where
         F: Fn(Ident) -> TokenStream,
     {
-        let mut match_arms = quote! {};
+        self.gen_variants_match_fn_param("self", "Self::", func)
+    }
 
-        for variant in self.variants.iter() {
+    /// Generate a match expression over the given argument (e.g., `self`)
+    /// and using the provided prefix for variants (e.g., `Self::` or `Self::InnerModule::`)
+    fn gen_variants_match_fn_param<F>(&self, arg: &str, prefix: &str, func: F) -> TokenStream
+    where
+        F: Fn(Ident) -> TokenStream,
+    {
+        let match_arms = self.variants.iter().map(|variant| {
             let name = &variant.ident;
-            let arm_pattern = quote! {Self::#name(module)};
+            let full_variant = syn::parse_str::<syn::Path>(&format!("{prefix}{name}")).unwrap();
+            let arm_pattern = quote! { #full_variant(module) };
             let arm_code = func(name.clone());
+            quote! { #arm_pattern => #arm_code, }
+        });
 
-            match_arms.extend(quote! {#arm_pattern => #arm_code,})
-        }
+        let arg = Ident::new(arg, Span::call_site());
 
         quote! {
-            match self {
-                #match_arms
+            match #arg {
+                #(#match_arms)*
             }
         }
     }

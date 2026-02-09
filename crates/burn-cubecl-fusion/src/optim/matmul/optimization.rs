@@ -24,7 +24,7 @@ use cubecl::{
     std::tensor::{MatrixBatchLayout, matrix_batch_layout},
 };
 use cubek::matmul::{
-    components::tile::{cmma::CmmaMatmul, io::Filled, mma::MmaMatmul},
+    components::tile::{cmma::CmmaMatmul, mma::MmaMatmul},
     definition::{
         MatmulElems, MatmulGlobalElems, MatmulLineSizes, MatmulProblem, MatmulSetupError,
         MatrixLayout,
@@ -380,7 +380,7 @@ macro_rules! with_tile_kind {
     ($kind: expr, $T: ident, $launch: expr) => {
         match $kind {
             AcceleratedTileKind::Cmma => {
-                type $T = CmmaMatmul<Filled>;
+                type $T = CmmaMatmul;
                 ($launch)()
             }
             AcceleratedTileKind::Mma => {
@@ -624,18 +624,19 @@ impl FusedMatmulLaunch<'_> {
     }
 }
 
-fn launch_inner_fix_dtype<'a, R: Runtime, A: Routine>(
+fn launch_inner_fix_dtype<'a, R: Runtime, A: Routine<()>>(
     client: &ComputeClient<R>,
     input: FusedMatmulInputLaunch<'a, R>,
     output: GlobalArgsLaunch<'a, R>,
     problem: MatmulProblem,
     line_sizes: MatmulLineSizes,
-    blueprint_strategy: &BlueprintStrategy<A>,
+    blueprint_strategy: &BlueprintStrategy<(), A>,
 ) -> Result<(), MatmulSetupError> {
     launch_kernel_virtual::<FusedMatmulArgs, R, A>(
         client,
         input,
         output,
+        (),
         problem,
         line_sizes,
         blueprint_strategy,

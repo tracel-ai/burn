@@ -15,6 +15,7 @@ pub(crate) trait ModuleCodegen {
     fn gen_fork(&self) -> TokenStream;
     fn gen_map(&self) -> TokenStream;
     fn gen_valid(&self) -> TokenStream;
+    fn gen_from_inner(&self) -> TokenStream;
     fn gen_into_record(&self) -> TokenStream;
     fn gen_load_record(&self) -> TokenStream;
     fn gen_clone(&self) -> TokenStream;
@@ -39,6 +40,7 @@ pub(crate) fn generate_module_standard<Codegen: ModuleCodegen>(
     let to_device = codegen.gen_to_device();
     let fork = codegen.gen_fork();
     let valid_fn = codegen.gen_valid();
+    let from_inner_fn = codegen.gen_from_inner();
     let into_record_fn = codegen.gen_into_record();
     let load_record_fn = codegen.gen_load_record();
     let clone_fn = codegen.gen_clone();
@@ -51,8 +53,12 @@ pub(crate) fn generate_module_standard<Codegen: ModuleCodegen>(
         generics.module.split_for_impl();
     let (generics_module_autodiff, generics_ty_module_autodiff, generics_where_module_autodiff) =
         generics.module_autodiff.split_for_impl();
+    let (generics_module_has_autodiff, _generics_ty, generics_where_module_has_autodiff) =
+        generics.module_has_autodiff.split_for_impl();
 
     let generics_ty_inner_module = generics.inner_module_ty;
+    let generics_ty_train_module = generics.train_module_ty;
+    let generics_ty_train_inner_module = generics.train_inner_ty;
 
     let mut codegen = quote! {
         impl #generics_module burn::module::Module<B> for #name #generics_ty_module #generics_where_module {
@@ -77,6 +83,13 @@ pub(crate) fn generate_module_standard<Codegen: ModuleCodegen>(
             type InnerModule=#name<B::InnerBackend, #generics_ty_inner_module>;
 
             #valid_fn
+
+            #from_inner_fn
+        }
+
+        impl #generics_module_has_autodiff burn::module::HasAutodiffModule<B> for #name<B::InnerBackend, #generics_ty_train_module> #generics_where_module_has_autodiff
+        {
+            type TrainModule=#name<B, #generics_ty_train_inner_module>;
         }
 
         impl #generics_module core::fmt::Display for #name #generics_ty_module #generics_where_module {
@@ -168,13 +181,17 @@ pub(crate) fn generate_module_const(ast: &syn::DeriveInput) -> TokenStream {
 struct GenericsParser {
     module: Generics,
     module_autodiff: Generics,
+    module_has_autodiff: Generics,
     inner_module_ty: TokenStream,
+    train_module_ty: TokenStream,
+    train_inner_ty: TokenStream,
 }
 
 impl GenericsParser {
     fn from_ast(generics: &Generics) -> Self {
         let mut module = GenericsHelper::new(generics.clone());
         let mut module_autodiff = GenericsHelper::new(generics.clone());
+        let mut module_has_autodiff = GenericsHelper::new(generics.clone());
 
         let backend_trait = module.fetch_backend_trait();
 
@@ -186,7 +203,17 @@ impl GenericsParser {
                 <B as burn::tensor::backend::AutodiffBackend>::InnerBackend: #backend_trait
         });
 
+        module_has_autodiff.add_predicate(parse_quote! {
+                B: burn::tensor::backend::AutodiffBackend
+        });
+
+        module_has_autodiff.add_predicate(parse_quote! {
+                <B as burn::tensor::backend::AutodiffBackend>::InnerBackend: #backend_trait
+        });
+
         let mut generics_names_except_backend = quote! {};
+        let mut train_generics_names_except_backend = quote! {};
+        let mut train_inner_generics_names_except_backend = quote! {};
 
         module
         .types()
@@ -231,16 +258,47 @@ impl GenericsParser {
                 }
             );
 
+            module_has_autodiff.add_predicate(
+                parse_quote! {
+                    #ident: burn::module::Module<B::InnerBackend>
+                }
+            );
+
+            module_has_autodiff.add_predicate(
+                parse_quote! {
+                    #ident: burn::module::ModuleDisplay
+                }
+            );
+
+            module_has_autodiff.add_predicate(
+                parse_quote! {
+                    #ident: burn::module::HasAutodiffModule<B>
+                }
+            );
+
+            module_has_autodiff.add_predicate(
+                parse_quote! {
+                    #ident::TrainModule: burn::module::ModuleDisplay
+                }
+            );
+            train_generics_names_except_backend.extend(quote! { #ident, });
+            train_inner_generics_names_except_backend.extend(quote! { #ident::TrainModule, });
+
         });
 
         module.consts().into_iter().for_each(|ident| {
             generics_names_except_backend.extend(quote! { #ident, });
+            train_generics_names_except_backend.extend(quote! { #ident, });
+            train_inner_generics_names_except_backend.extend(quote! { #ident, });
         });
 
         Self {
             module: module.generics,
             module_autodiff: module_autodiff.generics,
+            module_has_autodiff: module_has_autodiff.generics,
             inner_module_ty: generics_names_except_backend,
+            train_module_ty: train_generics_names_except_backend,
+            train_inner_ty: train_inner_generics_names_except_backend,
         }
     }
 }

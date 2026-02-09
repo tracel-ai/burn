@@ -126,6 +126,21 @@ pub trait Module<B: Backend>: Clone + Send + core::fmt::Debug {
         )
     }
 
+    /// Move the module and all of its sub-modules to the autodiff backend.
+    ///
+    /// # Notes
+    ///
+    /// * Only plain modules (not already on an autodiff backend) can be moved.
+    /// * Calling `train()` on a module that is already on an autodiff backend
+    ///   will result in a type error, because the module's inner backend does not match.
+    fn train<AB>(self) -> <Self as HasAutodiffModule<AB>>::TrainModule
+    where
+        AB: AutodiffBackend<InnerBackend = B>,
+        Self: HasAutodiffModule<AB>,
+    {
+        <Self as HasAutodiffModule<AB>>::TrainModule::from_inner(self)
+    }
+
     /// Get the number of parameters the module has, including all of its sub-modules.
     fn num_params(&self) -> usize {
         module!(
@@ -402,6 +417,54 @@ pub trait AutodiffModule<B: AutodiffBackend>: Module<B> + Send + core::fmt::Debu
     /// Inner module without auto-differentiation.
     type InnerModule: Module<B::InnerBackend>;
 
-    /// Get the same module, but on the inner backend without auto-differentiation.
+    /// Returns the same module, but on the inner backend without auto-differentiation.
     fn valid(&self) -> Self::InnerModule;
+
+    /// Wraps an inner module back into an auto-diff module.
+    fn from_inner(module: Self::InnerModule) -> Self;
+}
+
+/// Helper trait to associate a module with its autodiff version.
+pub trait HasAutodiffModule<B: AutodiffBackend> {
+    /// The module with auto-differentiation.
+    type TrainModule: AutodiffModule<B, InnerModule = Self>;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use crate::TestAutodiffBackend;
+    use crate::test_utils::SimpleLinear;
+
+    #[test]
+    fn test_module_val_train_stateful() {
+        let device = Default::default();
+        let module = SimpleLinear::<TestAutodiffBackend>::new(4, 4, &device);
+
+        assert!(module.weight.is_require_grad());
+        assert!(module.weight.require_grad);
+
+        let module = module.valid();
+        assert!(!module.weight.is_require_grad());
+        assert!(module.weight.require_grad); // stateful
+
+        // Without `HasAutodiffModule`, we would need to specify the module type as well, which would be annoying
+        // let module: SimpleLinear<TestAutodiffBackend> = module.train();
+        let module = module.train::<TestAutodiffBackend>();
+        assert!(module.weight.is_require_grad());
+        assert!(module.weight.require_grad); // stateful
+
+        let module = module.no_grad();
+        assert!(!module.weight.is_require_grad());
+        assert!(!module.weight.require_grad); // stateful
+
+        let module = module.valid();
+        assert!(!module.weight.is_require_grad()); // always
+        assert!(!module.weight.require_grad); // stateful
+
+        let module = module.train::<TestAutodiffBackend>();
+        assert!(!module.weight.is_require_grad());
+        assert!(!module.weight.require_grad); // stateful
+    }
 }

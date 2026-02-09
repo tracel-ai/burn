@@ -118,7 +118,7 @@ cubecl = ["dep:cubecl"]
 
 audio = ["burn-core/audio"]
 vision = ["burn-core/vision"]
-rl = ["dep:burn-rl"]
+rl = ["dep:burn-rl", "burn-train?/rl"]
 
 # Backend
 ir = ["burn-ir"]
