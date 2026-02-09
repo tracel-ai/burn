@@ -13,10 +13,7 @@ members = [
     "xtask",
 ]
 
-exclude = [
-    "examples/notebook",
-    "examples/raspberry-pi-pico",
-]
+exclude = ["examples/notebook", "examples/raspberry-pi-pico"]
 
 [workspace.package]
 edition = "2024"
@@ -114,7 +111,7 @@ tracing-appender = "0.2.3"
 tracing-core = { version = "0.1.36", default-features = false }
 tracing-opentelemetry = "0.32.0"
 tracing-subscriber = "0.3.20"
-zip = "7.2.0"
+zip = "7.4.0"
 
 # Persist related
 memmap2 = { version = "0.9" }
@@ -148,7 +145,7 @@ half = { version = "2.7.1", features = [
     "num-traits",
     "serde",
 ], default-features = false }
-macerator = { version = "0.2.9" }
+macerator = { version = "0.3.0" }
 matrixmultiply = { version = "0.3.10", default-features = false }
 ndarray = { version = "0.17.2", default-features = false }
 num-traits = { version = "0.2.19", default-features = false, features = [
@@ -177,9 +174,9 @@ portable-atomic = { version = "1.13.1" }
 portable-atomic-util = { version = "0.2.4", features = ["alloc"] }
 
 ### For the main burn branch. ###
-cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "a3987c60e410d77b6b38e99d1c2a6bc0979d38ba" }
-cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "a3987c60e410d77b6b38e99d1c2a6bc0979d38ba" }
-cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "bed07d3e901a3540a6eabb03424eecc7d04d2c82" }
+cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "c9515fb79af850b63b1f8f747ebe378b9a1965c3" }
+cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "c9515fb79af850b63b1f8f747ebe378b9a1965c3" }
+cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "4c538f1073b990a87b588feea46efdf36395ab44" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }

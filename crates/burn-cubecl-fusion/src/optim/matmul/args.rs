@@ -54,10 +54,12 @@ impl MatmulArgs for FusedMatmulArgs {
     type Output<EO: Numeric> = GlobalArgs;
     type Input<Lhs: Numeric, Rhs: Numeric, EO: Numeric> = FusedMatmulInput;
     type State<Lhs: Numeric, Rhs: Numeric, EO: Numeric> = FusedMatmulState;
+    type Config = ();
 
     fn init_state<Lhs: Numeric, Rhs: Numeric, EO: Numeric>(
         inputs: &Self::Input<Lhs, Rhs, EO>,
         outputs: &mut Self::Output<EO>,
+        _config: (),
         #[comptime] lhs_layout_config: GlobalLayoutConfig,
         #[comptime] rhs_layout_config: GlobalLayoutConfig,
         #[comptime] out_layout_config: GlobalLayoutConfig,
@@ -218,6 +220,9 @@ impl MatmulArgs for FusedMatmulArgs {
         batch: usize,
     ) -> usize {
         state.out_batch.to_source_pos(batch)
+    }
+
+    fn runtime_config<Lhs: Numeric, Rhs: Numeric, EO: Numeric>(_state: &Self::State<Lhs, Rhs, EO>) {
     }
 }
 
