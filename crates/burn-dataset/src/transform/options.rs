@@ -1,6 +1,6 @@
+use rand::SeedableRng;
 use rand::prelude::StdRng;
 use rand::rngs::SysRng;
-use rand::{Rng, SeedableRng};
 
 /// Defines a source for a `StdRng`.
 ///
