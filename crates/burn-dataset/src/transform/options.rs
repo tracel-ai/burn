@@ -21,10 +21,6 @@ use rand::{Rng, SeedableRng};
 /// let rng = StdRng::seed_from_u64(123);
 /// let with_rng: RngSource = rng.into();
 ///
-/// // From a snapshot of the current state (`RngSource::Rng`)
-/// let rng = StdRng::seed_from_u64(123);
-/// let snapshot: RngSource = (&rng).into();
-///
 /// // Advances the original RNG and then clones its new state
 /// let mut rng = StdRng::seed_from_u64(123);
 /// let stateful: RngSource = (&mut rng).into();
