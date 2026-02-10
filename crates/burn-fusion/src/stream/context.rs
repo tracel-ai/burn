@@ -1059,6 +1059,22 @@ impl RelativeOps for BaseOperationIr {
                 update: desc.update,
                 out: desc.out.to_relative(converter),
             }),
+            BaseOperationIr::ScatterNd(desc) => {
+                BaseOperationIr::ScatterNd(ScatterNdOpIr {
+                    data: desc.data.to_relative(converter),
+                    indices: desc.indices.to_relative(converter),
+                    values: desc.values.to_relative(converter),
+                    reduction: desc.reduction,
+                    out: desc.out.to_relative(converter),
+                })
+            }
+            BaseOperationIr::GatherNd(desc) => {
+                BaseOperationIr::GatherNd(GatherNdOpIr {
+                    data: desc.data.to_relative(converter),
+                    indices: desc.indices.to_relative(converter),
+                    out: desc.out.to_relative(converter),
+                })
+            }
             BaseOperationIr::Select(desc) => BaseOperationIr::Select(SelectOpIr {
                 tensor: desc.tensor.to_relative(converter),
                 dim: desc.dim,

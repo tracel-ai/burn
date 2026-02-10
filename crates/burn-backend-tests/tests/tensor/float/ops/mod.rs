@@ -28,6 +28,7 @@ mod floor;
 mod fmod;
 mod full;
 mod gather_scatter;
+mod gather_scatter_nd;
 mod grid_sample;
 mod inf;
 mod init;

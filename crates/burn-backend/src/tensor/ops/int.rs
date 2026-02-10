@@ -6,7 +6,7 @@ use crate::{
     ops::TransactionPrimitive,
     tensor::{
         BasicAutodiffOps, BasicOps, BoolTensor, Device, IndexingUpdateOp, Int, IntTensor, Numeric,
-        Ordered, TensorKind,
+        Ordered, ScatterNdReduction, TensorKind,
     },
 };
 
@@ -106,6 +106,22 @@ impl<B: Backend> BasicOps<B> for Int {
         match update {
             IndexingUpdateOp::Add => B::int_scatter_add(dim, tensor, indices, values),
         }
+    }
+
+    fn scatter_nd(
+        data: Self::Primitive,
+        indices: IntTensor<B>,
+        values: Self::Primitive,
+        reduction: ScatterNdReduction,
+    ) -> Self::Primitive {
+        B::int_scatter_nd(data, indices, values, reduction)
+    }
+
+    fn gather_nd(
+        data: Self::Primitive,
+        indices: IntTensor<B>,
+    ) -> Self::Primitive {
+        B::int_gather_nd(data, indices)
     }
 
     fn device(tensor: &Self::Primitive) -> Device<B> {

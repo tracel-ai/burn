@@ -205,6 +205,38 @@ where
         )
     }
 
+    fn float_scatter_nd(
+        data: FloatTensor<Self>,
+        indices: NdArrayTensor,
+        values: FloatTensor<Self>,
+        reduction: burn_backend::tensor::ScatterNdReduction,
+    ) -> FloatTensor<Self> {
+        execute_with_int_dtype!(
+            indices,
+            IntElem,
+            |idx_array: SharedArray<IntElem>| -> NdArrayTensor {
+                execute_with_float_dtype!((data, values), |data, values| NdArrayOps::scatter_nd(
+                    data, idx_array, values, reduction
+                ))
+            }
+        )
+    }
+
+    fn float_gather_nd(
+        data: FloatTensor<Self>,
+        indices: NdArrayTensor,
+    ) -> FloatTensor<Self> {
+        execute_with_int_dtype!(
+            indices,
+            IntElem,
+            |idx_array: SharedArray<IntElem>| -> NdArrayTensor {
+                execute_with_float_dtype!(data, FloatElem, |array: SharedArray<FloatElem>| {
+                    NdArrayOps::gather_nd(array, idx_array)
+                })
+            }
+        )
+    }
+
     fn float_select(
         tensor: FloatTensor<Self>,
         dim: usize,

@@ -6,7 +6,7 @@ use crate::{
     ops::TransactionPrimitive,
     tensor::{
         BasicAutodiffOps, BasicOps, Device, Float, IndexingUpdateOp, IntTensor, Numeric, Ordered,
-        TensorKind,
+        ScatterNdReduction, TensorKind,
     },
 };
 
@@ -168,6 +168,27 @@ impl<B: Backend> BasicOps<B> for Float {
                 values.tensor(),
             )),
         }
+    }
+
+    fn scatter_nd(
+        data: Self::Primitive,
+        indices: IntTensor<B>,
+        values: Self::Primitive,
+        reduction: ScatterNdReduction,
+    ) -> Self::Primitive {
+        TensorPrimitive::Float(B::float_scatter_nd(
+            data.tensor(),
+            indices,
+            values.tensor(),
+            reduction,
+        ))
+    }
+
+    fn gather_nd(
+        data: Self::Primitive,
+        indices: IntTensor<B>,
+    ) -> Self::Primitive {
+        TensorPrimitive::Float(B::float_gather_nd(data.tensor(), indices))
     }
 
     fn device(tensor: &Self::Primitive) -> Device<B> {

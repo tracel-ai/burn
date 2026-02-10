@@ -4,6 +4,7 @@ use burn_backend::backend::{Backend, ExecutionError};
 use crate::{BackendRouter, RunnerChannel, RunnerClient, get_client};
 use burn_backend::tensor::{
     BoolTensor, Device, FloatElem, FloatTensor, IndexingUpdateOp, IntElem, IntTensor,
+    ScatterNdReduction,
 };
 use burn_backend::{
     Distribution, Element, IntDType, Scalar, Shape, Slice, TensorData, ops::IntTensorOps,
@@ -13,6 +14,7 @@ use burn_ir::{
     GatherOpIr, InitOperationIr, IntOperationIr, MaskFillOpIr, MaskWhereOpIr, MatmulOpIr,
     NumericOperationIr, OperationIr, OperationOutput, PermuteOpIr, RandomOpIr, ReduceDimOpIr,
     ReduceDimWithIndicesOpIr, ReduceOpIr, RepeatDimOpIr, ScalarOpIr, ScatterOpIr, SelectAssignOpIr,
+    ScatterNdOpIr, GatherNdOpIr,
     SelectOpIr, ShapeOpIr, SliceAssignOpIr, SliceOpIr, SwapDimsOpIr, UnaryOpIr, UnfoldOpIr,
 };
 
@@ -169,6 +171,40 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
 
         client
             .register(OperationIr::BaseInt(BaseOperationIr::Scatter(desc)))
+            .output()
+    }
+
+    fn int_scatter_nd(
+        data: IntTensor<Self>,
+        indices: IntTensor<Self>,
+        values: IntTensor<Self>,
+        reduction: ScatterNdReduction,
+    ) -> IntTensor<Self> {
+        let client = data.client.clone();
+        let desc = ScatterNdOpIr::create(
+            data.into_ir(),
+            indices.into_ir(),
+            values.into_ir(),
+            reduction,
+            || client.create_empty_handle(),
+        );
+
+        client
+            .register(OperationIr::BaseInt(BaseOperationIr::ScatterNd(desc)))
+            .output()
+    }
+
+    fn int_gather_nd(
+        data: IntTensor<Self>,
+        indices: IntTensor<Self>,
+    ) -> IntTensor<Self> {
+        let client = data.client.clone();
+        let desc = GatherNdOpIr::create(data.into_ir(), indices.into_ir(), || {
+            client.create_empty_handle()
+        });
+
+        client
+            .register(OperationIr::BaseInt(BaseOperationIr::GatherNd(desc)))
             .output()
     }
 

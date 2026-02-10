@@ -449,6 +449,44 @@ pub trait FloatTensorOps<B: Backend> {
         value: FloatTensor<B>,
     ) -> FloatTensor<B>;
 
+    /// Multi-dimensional scatter: update `data` at locations specified by `indices` with `values`.
+    ///
+    /// # Arguments
+    ///
+    /// * `data` - The tensor to scatter into.
+    /// * `indices` - An M-dimensional integer tensor whose last dimension indexes into `data`.
+    /// * `values` - The values to scatter.
+    /// * `reduction` - How to combine with existing values.
+    ///
+    /// # Returns
+    ///
+    /// The tensor with scattered values.
+    fn float_scatter_nd(
+        _data: FloatTensor<B>,
+        _indices: IntTensor<B>,
+        _values: FloatTensor<B>,
+        _reduction: crate::tensor::ScatterNdReduction,
+    ) -> FloatTensor<B> {
+        panic!("float_scatter_nd is not implemented for this backend")
+    }
+
+    /// Multi-dimensional gather: collect slices from `data` at locations specified by `indices`.
+    ///
+    /// # Arguments
+    ///
+    /// * `data` - The tensor to gather from.
+    /// * `indices` - An M-dimensional integer tensor whose last dimension indexes into `data`.
+    ///
+    /// # Returns
+    ///
+    /// The gathered tensor.
+    fn float_gather_nd(
+        _data: FloatTensor<B>,
+        _indices: IntTensor<B>,
+    ) -> FloatTensor<B> {
+        panic!("float_gather_nd is not implemented for this backend")
+    }
+
     /// Select tensor elements along the given dimension corresponding for the given indices.
     ///
     /// # Arguments

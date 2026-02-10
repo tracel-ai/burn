@@ -22,7 +22,7 @@ use crate::{
     backend::Backend, check,
 };
 use crate::{DType, Element};
-use crate::{IndexingUpdateOp, TensorCreationOptions};
+use crate::{IndexingUpdateOp, ScatterNdReduction, TensorCreationOptions};
 use crate::{cast::ToElement, check::TensorCheck};
 use serde::{Serialize, Serializer};
 
@@ -1811,6 +1811,122 @@ where
             values.primitive,
             update,
         ))
+    }
+
+    /// Multi-dimensional scatter: update `self` at locations given by `indices` using assignment.
+    ///
+    /// `indices` is an M-dimensional integer tensor whose last dimension (K) indexes into the
+    /// first K dimensions of `self`. The `values` tensor has shape
+    /// `[indices.shape[0..M-1]..., self.shape[K..D]...]`.
+    pub fn scatter_nd<const M: usize, const DV: usize>(
+        self,
+        indices: Tensor<B, M, Int>,
+        values: Tensor<B, DV, K>,
+    ) -> Self {
+        check!(TensorCheck::scatter_nd::<D, M, DV>(
+            &self.shape(),
+            &indices.shape(),
+            &values.shape()
+        ));
+        Self::new(K::scatter_nd(
+            self.primitive,
+            indices.primitive,
+            values.primitive,
+            ScatterNdReduction::Assign,
+        ))
+    }
+
+    /// Multi-dimensional scatter with additive reduction.
+    pub fn scatter_nd_add<const M: usize, const DV: usize>(
+        self,
+        indices: Tensor<B, M, Int>,
+        values: Tensor<B, DV, K>,
+    ) -> Self {
+        check!(TensorCheck::scatter_nd::<D, M, DV>(
+            &self.shape(),
+            &indices.shape(),
+            &values.shape()
+        ));
+        Self::new(K::scatter_nd(
+            self.primitive,
+            indices.primitive,
+            values.primitive,
+            ScatterNdReduction::Add,
+        ))
+    }
+
+    /// Multi-dimensional scatter with multiplicative reduction.
+    pub fn scatter_nd_mul<const M: usize, const DV: usize>(
+        self,
+        indices: Tensor<B, M, Int>,
+        values: Tensor<B, DV, K>,
+    ) -> Self {
+        check!(TensorCheck::scatter_nd::<D, M, DV>(
+            &self.shape(),
+            &indices.shape(),
+            &values.shape()
+        ));
+        Self::new(K::scatter_nd(
+            self.primitive,
+            indices.primitive,
+            values.primitive,
+            ScatterNdReduction::Mul,
+        ))
+    }
+
+    /// Multi-dimensional scatter with minimum reduction.
+    pub fn scatter_nd_min<const M: usize, const DV: usize>(
+        self,
+        indices: Tensor<B, M, Int>,
+        values: Tensor<B, DV, K>,
+    ) -> Self {
+        check!(TensorCheck::scatter_nd::<D, M, DV>(
+            &self.shape(),
+            &indices.shape(),
+            &values.shape()
+        ));
+        Self::new(K::scatter_nd(
+            self.primitive,
+            indices.primitive,
+            values.primitive,
+            ScatterNdReduction::Min,
+        ))
+    }
+
+    /// Multi-dimensional scatter with maximum reduction.
+    pub fn scatter_nd_max<const M: usize, const DV: usize>(
+        self,
+        indices: Tensor<B, M, Int>,
+        values: Tensor<B, DV, K>,
+    ) -> Self {
+        check!(TensorCheck::scatter_nd::<D, M, DV>(
+            &self.shape(),
+            &indices.shape(),
+            &values.shape()
+        ));
+        Self::new(K::scatter_nd(
+            self.primitive,
+            indices.primitive,
+            values.primitive,
+            ScatterNdReduction::Max,
+        ))
+    }
+
+    /// Multi-dimensional gather: collect slices from `self` at multi-index locations
+    /// specified by `indices`.
+    ///
+    /// `indices` is an M-dimensional integer tensor whose last dimension (K) indexes into the
+    /// first K dimensions of `self`. The output has shape
+    /// `[indices.shape[0..M-1]..., self.shape[K..D]...]`.
+    pub fn gather_nd<const M: usize, const DV: usize>(
+        self,
+        indices: Tensor<B, M, Int>,
+    ) -> Tensor<B, DV, K> {
+        check!(TensorCheck::gather_nd::<D, M, DV>(
+            &self.shape(),
+            &indices.shape()
+        ));
+        Tensor::new(K::gather_nd(self.primitive, indices.primitive))
     }
 
     /// Converts the data of the current tensor.

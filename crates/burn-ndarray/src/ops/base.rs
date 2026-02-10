@@ -186,6 +186,165 @@ where
         output
     }
 
+    pub fn scatter_nd<I: NdArrayElement>(
+        data: SharedArray<E>,
+        indices: SharedArray<I>,
+        values: SharedArray<E>,
+        reduction: burn_backend::tensor::ScatterNdReduction,
+    ) -> SharedArray<E> {
+        use burn_backend::tensor::ScatterNdReduction;
+
+        let data_shape: Vec<usize> = data.shape().to_vec();
+        let idx_shape: Vec<usize> = indices.shape().to_vec();
+        let m = idx_shape.len();
+        let k = idx_shape[m - 1];
+
+        // Number of index tuples = product of batch dims (first M-1 dims of indices)
+        let num_indices: usize = idx_shape[..m - 1].iter().product();
+        // Size of each slice to scatter = product of data.shape[K..]
+        let slice_size: usize = data_shape[k..].iter().product();
+
+        let mut output = data.into_owned();
+        let output_flat = output
+            .as_slice_mut()
+            .expect("ndarray scatter_nd requires contiguous data");
+
+        // Flatten indices to [num_indices, K]
+        let idx_flat = indices
+            .as_slice()
+            .expect("ndarray scatter_nd requires contiguous indices");
+
+        // Flatten values to [num_indices, slice_size]
+        let val_flat = values
+            .as_slice()
+            .expect("ndarray scatter_nd requires contiguous values");
+
+        let strides: Vec<usize> = {
+            let mut s = vec![0usize; k];
+            if k > 0 {
+                s[k - 1] = slice_size;
+                for i in (0..k - 1).rev() {
+                    s[i] = s[i + 1] * data_shape[i + 1];
+                }
+            }
+            s
+        };
+
+        for n in 0..num_indices {
+            // Compute flat base offset from the K-dimensional index
+            let mut base_offset = 0usize;
+            for j in 0..k {
+                let idx_val = idx_flat[n * k + j].elem::<i64>() as usize;
+                base_offset += idx_val * strides[j];
+            }
+
+            // Apply reduction over the slice
+            let val_offset = n * slice_size;
+            match reduction {
+                ScatterNdReduction::Assign => {
+                    for s in 0..slice_size {
+                        output_flat[base_offset + s] = val_flat[val_offset + s];
+                    }
+                }
+                ScatterNdReduction::Add => {
+                    for s in 0..slice_size {
+                        output_flat[base_offset + s].add_assign(val_flat[val_offset + s]);
+                    }
+                }
+                ScatterNdReduction::Mul => {
+                    for s in 0..slice_size {
+                        let a: f64 = output_flat[base_offset + s].elem();
+                        let b: f64 = val_flat[val_offset + s].elem();
+                        output_flat[base_offset + s] = (a * b).elem();
+                    }
+                }
+                ScatterNdReduction::Min => {
+                    for s in 0..slice_size {
+                        let a = output_flat[base_offset + s];
+                        let b = val_flat[val_offset + s];
+                        if b.elem::<f64>() < a.elem::<f64>() {
+                            output_flat[base_offset + s] = b;
+                        }
+                    }
+                }
+                ScatterNdReduction::Max => {
+                    for s in 0..slice_size {
+                        let a = output_flat[base_offset + s];
+                        let b = val_flat[val_offset + s];
+                        if b.elem::<f64>() > a.elem::<f64>() {
+                            output_flat[base_offset + s] = b;
+                        }
+                    }
+                }
+            }
+        }
+
+        output.into_shared()
+    }
+
+    pub fn gather_nd<I: NdArrayElement>(
+        data: SharedArray<E>,
+        indices: SharedArray<I>,
+    ) -> SharedArray<E> {
+        let data_shape: Vec<usize> = data.shape().to_vec();
+        let idx_shape: Vec<usize> = indices.shape().to_vec();
+        let m = idx_shape.len();
+        let k = idx_shape[m - 1];
+
+        // Number of index tuples
+        let num_indices: usize = idx_shape[..m - 1].iter().product();
+        // Size of each output slice
+        let slice_size: usize = data_shape[k..].iter().product();
+
+        // Output shape: idx_shape[..m-1] ++ data_shape[k..]
+        let mut out_shape_vec: Vec<usize> = idx_shape[..m - 1].to_vec();
+        out_shape_vec.extend_from_slice(&data_shape[k..]);
+        let out_total = num_indices * slice_size;
+
+        let data_flat = data
+            .as_slice()
+            .expect("ndarray gather_nd requires contiguous data");
+
+        let idx_flat = indices
+            .as_slice()
+            .expect("ndarray gather_nd requires contiguous indices");
+
+        let strides: Vec<usize> = {
+            let mut s = vec![0usize; k];
+            if k > 0 {
+                s[k - 1] = slice_size;
+                for i in (0..k - 1).rev() {
+                    s[i] = s[i + 1] * data_shape[i + 1];
+                }
+            }
+            s
+        };
+
+        let mut output_vec: Vec<E> = vec![0.elem::<E>(); out_total];
+
+        for n in 0..num_indices {
+            let mut base_offset = 0usize;
+            for j in 0..k {
+                let idx_val = idx_flat[n * k + j].elem::<i64>() as usize;
+                base_offset += idx_val * strides[j];
+            }
+
+            let out_offset = n * slice_size;
+            for s in 0..slice_size {
+                output_vec[out_offset + s] = data_flat[base_offset + s];
+            }
+        }
+
+        let out_shape = Shape { dims: out_shape_vec };
+        let output = ArrayD::from_shape_vec(
+            out_shape.dims.as_slice(),
+            output_vec,
+        )
+        .expect("gather_nd: shape mismatch");
+
+        output.into_shared()
+    }
+
     fn gather_batch_size(shape_tensor: &[usize], shape_indices: &[usize]) -> usize {
         let ndims = shape_tensor.num_dims();
         let mut batch_size = 1;

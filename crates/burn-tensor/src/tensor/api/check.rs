@@ -910,6 +910,102 @@ impl TensorCheck {
         check
     }
 
+    pub(crate) fn scatter_nd<const D: usize, const M: usize, const DV: usize>(
+        data_shape: &Shape,
+        indices_shape: &Shape,
+        values_shape: &Shape,
+    ) -> Self {
+        let ops = "ScatterNd";
+        let mut check = Self::Ok;
+
+        let k = indices_shape.dims[M - 1];
+
+        if k > D {
+            check = check.register(
+                ops,
+                TensorError::new(format!(
+                    "Last dimension of indices (K={k}) must be <= data rank (D={D})"
+                )),
+            );
+        }
+
+        let expected_dv = M - 1 + D - k;
+        if DV != expected_dv {
+            check = check.register(
+                ops,
+                TensorError::new(format!(
+                    "Values rank DV={DV} does not match expected M-1+D-K = {expected_dv}"
+                )),
+            );
+        }
+
+        // Batch dims: first M-1 dims of values must equal first M-1 dims of indices
+        for i in 0..(M - 1) {
+            if values_shape.dims[i] != indices_shape.dims[i] {
+                check = check.register(
+                    ops,
+                    TensorError::new(format!(
+                        "Batch dimension {i} mismatch: values={} vs indices={}",
+                        values_shape.dims[i], indices_shape.dims[i]
+                    )),
+                );
+            }
+        }
+
+        // Slice dims: last D-K dims of values must equal last D-K dims of data
+        for i in 0..(D - k) {
+            let val_idx = M - 1 + i;
+            let data_idx = k + i;
+            if val_idx < DV && data_idx < D {
+                if values_shape.dims[val_idx] != data_shape.dims[data_idx] {
+                    check = check.register(
+                        ops,
+                        TensorError::new(format!(
+                            "Slice dimension mismatch at values[{val_idx}]={} vs data[{data_idx}]={}",
+                            values_shape.dims[val_idx], data_shape.dims[data_idx]
+                        )),
+                    );
+                }
+            }
+        }
+
+        check
+    }
+
+    pub(crate) fn gather_nd<const D: usize, const M: usize, const DV: usize>(
+        data_shape: &Shape,
+        indices_shape: &Shape,
+    ) -> Self {
+        let ops = "GatherNd";
+        let mut check = Self::Ok;
+
+        let k = indices_shape.dims[M - 1];
+
+        if k > D {
+            check = check.register(
+                ops,
+                TensorError::new(format!(
+                    "Last dimension of indices (K={k}) must be <= data rank (D={D})"
+                )),
+            );
+        }
+
+        let expected_dv = M - 1 + D - k;
+        if DV != expected_dv {
+            check = check.register(
+                ops,
+                TensorError::new(format!(
+                    "Output rank DV={DV} does not match expected M-1+D-K = {expected_dv}"
+                )),
+            );
+        }
+
+        // Suppress unused warning
+        let _ = data_shape;
+
+        check
+    }
+
     pub(crate) fn select<const D: usize>(dim: usize) -> Self {
         Self::check_select_basic::<D>(Self::Ok, "select", dim)
     }

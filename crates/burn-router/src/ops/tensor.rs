@@ -5,6 +5,7 @@ use burn_backend::backend::{Backend, ExecutionError};
 use crate::{BackendRouter, RunnerChannel, RunnerClient, get_client};
 use burn_backend::tensor::{
     BoolTensor, Device, FloatElem, FloatTensor, IndexingUpdateOp, IntElem, IntTensor,
+    ScatterNdReduction,
 };
 use burn_backend::{
     Distribution, Element, FloatDType, Shape, Slice, TensorData, ops::FloatTensorOps,
@@ -14,6 +15,7 @@ use burn_ir::{
     FlipOpIr, FloatOperationIr, FullOpIr, GatherOpIr, InitOperationIr, MaskFillOpIr, MaskWhereOpIr,
     MatmulOpIr, NumericOperationIr, OperationIr, OperationOutput, PermuteOpIr, RandomOpIr,
     ReduceDimOpIr, ReduceDimWithIndicesOpIr, ReduceOpIr, RepeatDimOpIr, ScalarOpIr, ScatterOpIr,
+    ScatterNdOpIr, GatherNdOpIr,
     SelectAssignOpIr, SelectOpIr, ShapeOpIr, SliceAssignOpIr, SliceOpIr, SwapDimsOpIr, UnaryOpIr,
     UnfoldOpIr,
 };
@@ -359,6 +361,40 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
 
         client
             .register(OperationIr::BaseFloat(BaseOperationIr::Scatter(desc)))
+            .output()
+    }
+
+    fn float_scatter_nd(
+        data: FloatTensor<Self>,
+        indices: IntTensor<Self>,
+        values: FloatTensor<Self>,
+        reduction: ScatterNdReduction,
+    ) -> FloatTensor<Self> {
+        let client = data.client.clone();
+        let desc = ScatterNdOpIr::create(
+            data.into_ir(),
+            indices.into_ir(),
+            values.into_ir(),
+            reduction,
+            || client.create_empty_handle(),
+        );
+
+        client
+            .register(OperationIr::BaseFloat(BaseOperationIr::ScatterNd(desc)))
+            .output()
+    }
+
+    fn float_gather_nd(
+        data: FloatTensor<Self>,
+        indices: IntTensor<Self>,
+    ) -> FloatTensor<Self> {
+        let client = data.client.clone();
+        let desc = GatherNdOpIr::create(data.into_ir(), indices.into_ir(), || {
+            client.create_empty_handle()
+        });
+
+        client
+            .register(OperationIr::BaseFloat(BaseOperationIr::GatherNd(desc)))
             .output()
     }
 
