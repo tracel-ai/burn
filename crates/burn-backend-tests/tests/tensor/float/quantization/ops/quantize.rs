@@ -1,8 +1,8 @@
 use super::*;
 use alloc::{vec, vec::Vec};
 use burn_tensor::quantization::{
-    QParams, QTensorPrimitive, QuantLevel, QuantStore, QuantValue, QuantizationParameters,
-    QuantizedBytes,
+    QParams, QTensorPrimitive, QuantLevel, QuantScheme, QuantStore, QuantValue,
+    QuantizationParameters, QuantizedBytes,
 };
 use burn_tensor::{DType, TensorData};
 use burn_tensor::{Tolerance, ops::QuantizedTensor};
@@ -208,4 +208,47 @@ fn should_quantize_dequantize_symmetric_per_block_arange_16x16() {
     output
         .into_data()
         .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
+}
+
+fn should_quantize_transposed(tensor: Tensor<TestBackend, 2>, scheme: QuantScheme) {
+    let tensor_t = tensor.clone().transpose();
+
+    let output = tensor_t.quantize_dynamic(&scheme).dequantize().transpose();
+
+    tensor
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&output.into_data(), Tolerance::permissive());
+}
+
+#[test]
+fn should_quantize_symmetric_int8_transposed_8x32() {
+    let scheme = QuantizedTensor::<TestBackend>::default_scheme().with_value(QuantValue::Q8S);
+
+    let tensor = TestTensorInt::arange(0..256, &Default::default())
+        .float()
+        .reshape([8, 32]);
+    should_quantize_transposed(tensor, scheme);
+}
+
+#[test]
+fn should_quantize_symmetric_int8_transposed_48x64() {
+    let scheme = QuantizedTensor::<TestBackend>::default_scheme().with_value(QuantValue::Q8S);
+
+    let tensor = TestTensorInt::arange(0..3072, &Default::default())
+        .float()
+        .reshape([48, 64]);
+    should_quantize_transposed(tensor, scheme);
+}
+
+#[test]
+fn should_quantize_symmetric_per_block_int8_transposed_32x64() {
+    let scheme = QuantizedTensor::<TestBackend>::default_scheme()
+        .with_value(QuantValue::Q8S)
+        .with_level(QuantLevel::block([32]));
+
+    let tensor = TestTensorInt::arange(0..2048, &Default::default())
+        .float()
+        .div_scalar(2048.)
+        .reshape([32, 64]);
+    should_quantize_transposed(tensor, scheme);
 }
