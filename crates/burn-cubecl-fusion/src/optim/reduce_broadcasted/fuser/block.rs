@@ -85,6 +85,11 @@ impl<R: Runtime> ReduceBlockFuser<R> {
             return ReduceBlockFusionAnalysis::Accept;
         }
 
+        // Can't create a new block if the previous one was not a reduction.
+        if self.fuser.reduce.is_none() {
+            return ReduceBlockFusionAnalysis::Refuse;
+        }
+
         let mut fuser_try = default_node.clone();
         let before = fuser_try.len();
         fuser_try.fuse(op);
