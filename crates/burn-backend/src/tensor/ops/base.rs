@@ -5,7 +5,7 @@ use crate::{
     Backend, ExecutionError, Scalar, TensorData, TensorMetadata,
     element::Element,
     ops::TransactionPrimitive,
-    tensor::{IndexingUpdateOp, IntTensor, TensorKind},
+    tensor::{IndexingUpdateOp, IntTensor, ScatterNdReduction, TensorKind},
 };
 
 /// Trait that list all operations that can be applied on all tensors.
@@ -418,6 +418,20 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
         indices: IntTensor<B>,
         values: Self::Primitive,
         update: IndexingUpdateOp,
+    ) -> Self::Primitive;
+
+    /// Multi-dimensional scatter: update `data` at multi-index locations specified by `indices`.
+    fn scatter_nd(
+        data: Self::Primitive,
+        indices: IntTensor<B>,
+        values: Self::Primitive,
+        reduction: ScatterNdReduction,
+    ) -> Self::Primitive;
+
+    /// Multi-dimensional gather: collect slices from `data` at multi-index locations.
+    fn gather_nd(
+        data: Self::Primitive,
+        indices: IntTensor<B>,
     ) -> Self::Primitive;
 
     /// Returns the device on which the tensor is allocated.

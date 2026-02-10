@@ -20,6 +20,7 @@ mod expand;
 mod flip;
 mod full;
 mod gather_scatter;
+mod gather_scatter_nd;
 mod init;
 mod mask;
 mod matmul;
