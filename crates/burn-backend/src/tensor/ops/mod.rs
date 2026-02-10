@@ -19,3 +19,18 @@ pub enum IndexingUpdateOp {
     Add,
     // Mul
 }
+
+/// Reduction mode for multi-dimensional scatter (scatter_nd).
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum ScatterNdReduction {
+    /// Overwrite existing values.
+    Assign,
+    /// Add values to existing.
+    Add,
+    /// Multiply existing values.
+    Mul,
+    /// Take element-wise minimum.
+    Min,
+    /// Take element-wise maximum.
+    Max,
+}
