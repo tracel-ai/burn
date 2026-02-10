@@ -60,7 +60,7 @@ pub struct ElemwiseFuseBlock {
 /// * `reduce_axis` - The dimension along which the reduction is performed.
 /// * `blocks` - A sequence of reduction operations to execute.
 /// * `block_end` - An optional elementwise block to execute after reductions are complete.
-#[cube(launch_unchecked)]
+#[cube(launch_unchecked, address_type = "dynamic")]
 pub fn reduce_kernel_broadcasted(
     inputs: &GlobalArgs,
     outputs: &mut GlobalArgs,

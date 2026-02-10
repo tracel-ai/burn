@@ -6,12 +6,12 @@ use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
 use crate::{
     CubeRuntime,
-    kernel::utils::{linear_layout, shape_divmod},
+    kernel::utils::{address_type, linear_layout, shape_divmod},
     ops::max_line_size,
     tensor::CubeTensor,
 };
 
-#[cube(launch_unchecked)]
+#[cube(launch_unchecked, address_type = "dynamic")]
 fn interpolate_nearest_kernel<F: Float>(
     input: &Tensor<Line<F>>,
     output: &mut Tensor<Line<F>>,
@@ -66,6 +66,7 @@ pub(crate) fn interpolate_nearest_launch<R: CubeRuntime>(
             &client,
             cube_count,
             cube_dim,
+            address_type!(input, output),
             input.as_tensor_arg(line_size),
             output.as_tensor_arg(line_size),
             shape_out,

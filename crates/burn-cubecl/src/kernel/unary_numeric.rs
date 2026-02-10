@@ -1,6 +1,6 @@
 use crate::{
     CubeRuntime,
-    kernel::utils::{linear_view, linear_view_alias},
+    kernel::utils::{address_type, linear_view, linear_view_alias},
     ops::{max_line_size, numeric::empty_device_dtype},
     tensor::CubeTensor,
 };
@@ -18,7 +18,7 @@ pub(crate) trait NumericUnaryOp<N: CubePrimitive>: 'static + Send + Sync {
     fn execute(input: Line<N>, options: &Self::Options) -> Line<N>;
 }
 
-#[cube(launch_unchecked)]
+#[cube(launch_unchecked, address_type = "dynamic")]
 pub(crate) fn unary_numeric<N: Numeric, O: NumericUnaryOpFamily>(
     input: &LinearView<Line<N>>,
     output: &mut LinearView<Line<N>, ReadWrite>,
@@ -54,6 +54,7 @@ where
                 &client,
                 cube_count,
                 cube_dim,
+                address_type!(tensor),
                 linear_view(&tensor, line_size),
                 linear_view_alias(&tensor, line_size, 0),
                 args(&()),
@@ -74,6 +75,7 @@ where
                 &client,
                 cube_count,
                 cube_dim,
+                address_type!(tensor, output),
                 linear_view(&tensor, line_size),
                 linear_view(&output, line_size),
                 args(&()),

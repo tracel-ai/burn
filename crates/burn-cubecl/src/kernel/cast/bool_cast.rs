@@ -1,6 +1,6 @@
 use crate::{
     CubeElement, CubeRuntime,
-    kernel::utils::linear_view,
+    kernel::utils::{address_type, linear_view},
     ops::{max_line_size, numeric::empty_device},
     tensor::CubeTensor,
 };
@@ -8,7 +8,7 @@ use cubecl::{
     CubeDim, calculate_cube_count_elemwise, prelude::*, std::tensor::layout::linear::LinearView,
 };
 
-#[cube(launch_unchecked)]
+#[cube(launch_unchecked, address_type = "dynamic")]
 fn bool_cast_kernel<B: Int, T: Numeric>(
     input: &LinearView<Line<B>>,
     output: &mut LinearView<Line<T>, ReadWrite>,
@@ -45,6 +45,7 @@ pub fn bool_cast<R: CubeRuntime, EO: CubeElement>(tensor: CubeTensor<R>) -> Cube
             &tensor.client,
             cube_count,
             cube_dim,
+            address_type!(tensor, output),
             linear_view(&tensor, line_size),
             linear_view(&output, line_size),
             tensor.dtype.into(),

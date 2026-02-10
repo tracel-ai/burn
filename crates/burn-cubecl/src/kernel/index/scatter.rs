@@ -1,12 +1,15 @@
 use crate::{
     CubeRuntime,
-    kernel::{AddOp, BinaryOp, BinaryOpFamily, OrOp, utils::shape_divmod},
+    kernel::{
+        AddOp, BinaryOp, BinaryOpFamily, OrOp,
+        utils::{address_type, shape_divmod},
+    },
     tensor::CubeTensor,
 };
 use cubecl::{CubeDim, calculate_cube_count_elemwise};
 use cubecl::{prelude::*, std::FastDivmod};
 
-#[cube(launch_unchecked)]
+#[cube(launch_unchecked, address_type = "dynamic")]
 fn scatter_kernel<T: Numeric, I: Int, Op: BinaryOpFamily>(
     input: &mut Tensor<T>,
     indices: &Tensor<I>,
@@ -92,6 +95,7 @@ pub(crate) fn scatter<R: CubeRuntime>(
             &indices.client.clone(),
             cube_count,
             cube_dim,
+            address_type!(tensor, indices, value),
             tensor.as_tensor_arg(1),
             indices.as_tensor_arg(1),
             value.as_tensor_arg(1),

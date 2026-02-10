@@ -351,6 +351,9 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceLaunch<'_> {
             true => LineMode::Parallel,
             false => LineMode::Perpendicular,
         };
+        let address_type = inputs
+            .required_address_type()
+            .max(outputs.required_address_type());
 
         let settings = ReduceLineSettings {
             line_mode,
@@ -366,6 +369,7 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceLaunch<'_> {
                 output: self.reduce.op.out.dtype.into(),
                 accumulation: self.reduce.acc.into_elem().into(),
             },
+            address_type,
         };
 
         let (blueprint, settings) = match self.strategy.clone() {
@@ -455,6 +459,7 @@ fn launch_reduce<Run: Runtime>(
             kwargs.client,
             kwargs.settings.cube_count,
             kwargs.settings.cube_dim,
+            kwargs.settings.address_type,
             FusedReduceInputLaunch::new(kwargs.inputs, kwargs.config_fuse_read, kwargs.input),
             FusedReduceOutputLaunch::new(kwargs.outputs, kwargs.config_fuse_write, kwargs.output),
             ScalarArg::new(kwargs.axis),
@@ -467,7 +472,7 @@ fn launch_reduce<Run: Runtime>(
     }
 }
 
-#[cube(launch_unchecked)]
+#[cube(launch_unchecked, address_type = "dynamic")]
 pub fn reduce_kernel_fused<In: Numeric, Out: Numeric, Acc: Numeric>(
     input: &FusedReduceInput,
     output: &mut FusedReduceOutput,

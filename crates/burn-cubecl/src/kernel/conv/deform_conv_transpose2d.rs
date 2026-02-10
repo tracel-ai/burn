@@ -6,7 +6,7 @@ use crate::{
         matmul::{MatmulStrategy, matmul},
         reduce::reduce_dim,
         slice_assign,
-        utils::{decompose_linear, linear_view},
+        utils::{address_type, decompose_linear, linear_view},
     },
     ops::{
         numeric::{empty_device_dtype, zeros_client},
@@ -269,6 +269,7 @@ fn compute_offset_and_mask_gradient<R: CubeRuntime>(
             &image.client,
             cube_count,
             cube_dim,
+            address_type!(image, offset, mask, grad_offset, grad_mask),
             image.as_tensor_arg(1),
             offset.as_tensor_arg(1),
             mask.as_ref().map(|mask| mask.as_tensor_arg(1)).into(),
@@ -310,7 +311,7 @@ struct DeformConv2dCol2ImgCoordArgs {
     kernel_width: usize,
 }
 
-#[cube(launch_unchecked)]
+#[cube(launch_unchecked, address_type = "dynamic")]
 fn deform_col2img_coord_kernel<F: Float>(
     image: &Tensor<F>,
     offset: &Tensor<F>,
@@ -538,6 +539,7 @@ fn compute_input_grad<R: CubeRuntime>(
             &offset.client,
             cube_count,
             cube_dim,
+            address_type!(offset, mask, columns, grad_in),
             offset.as_tensor_arg(1),
             mask.as_ref().map(|mask| mask.as_tensor_arg(1)).into(),
             linear_view(&columns, 1),
@@ -578,7 +580,7 @@ struct DeformConv2dCol2ImgArgs {
     kernel_width: usize,
 }
 
-#[cube(launch_unchecked)]
+#[cube(launch_unchecked, address_type = "dynamic")]
 fn deform_col2img_kernel<F: Float, FP: Float, FAdd: FloatAtomicAddFamily>(
     offset: &Tensor<F>,
     mask: &CubeOption<Tensor<F>>,

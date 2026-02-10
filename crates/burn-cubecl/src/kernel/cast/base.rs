@@ -1,6 +1,6 @@
 use crate::{
     CubeRuntime,
-    kernel::utils::linear_view,
+    kernel::utils::{address_type, linear_view},
     ops::{max_line_size, numeric::empty_device_dtype},
     tensor::CubeTensor,
 };
@@ -8,7 +8,7 @@ use burn_backend::DType;
 use cubecl::std::tensor::layout::linear::LinearView;
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
-#[cube(launch)]
+#[cube(launch, address_type = "dynamic")]
 pub(crate) fn cast_element<I: Numeric, O: Numeric>(
     input: &LinearView<Line<I>>,
     output: &mut LinearView<Line<O>, ReadWrite>,
@@ -59,6 +59,7 @@ pub fn cast<R: CubeRuntime>(input: CubeTensor<R>, dtype: DType) -> CubeTensor<R>
         &client,
         cube_count,
         cube_dim,
+        address_type!(input, output),
         linear_view(&input, line_size),
         linear_view(&output, line_size),
         [dtype_input.into(), dtype_output.into()],

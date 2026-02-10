@@ -15,6 +15,7 @@ use crate::{
     kernel::{
         AddOp, into_contiguous_aligned, launch_binop,
         matmul::{MatmulStrategy, matmul},
+        utils::address_type,
     },
     ops::{numeric::zeros_client, reshape, swap_dims},
     tensor::CubeTensor,
@@ -36,7 +37,7 @@ struct DeformConv2dArgs {
     out_w: usize,
 }
 
-#[cube(launch)]
+#[cube(launch, address_type = "dynamic")]
 fn deform_im2col_kernel<F: Float>(
     input: &Tensor<F>,
     offset: &Tensor<F>,
@@ -226,6 +227,7 @@ pub(crate) fn deform_im2col<R: CubeRuntime>(
         &input.client,
         cube_count,
         cube_dim,
+        address_type!(input, offset, mask, output),
         input.as_tensor_arg(1),
         offset.as_tensor_arg(1),
         mask.as_ref().map(|mask| mask.as_tensor_arg(1)).into(),

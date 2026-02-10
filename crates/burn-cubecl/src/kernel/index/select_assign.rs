@@ -1,12 +1,12 @@
 use crate::kernel::{
     AddOp, BinaryOp, BinaryOpFamily, OrOp,
-    utils::{linear_view, shape_divmod},
+    utils::{address_type, linear_view, shape_divmod},
 };
 use crate::{CubeRuntime, tensor::CubeTensor};
 use cubecl::{CubeDim, calculate_cube_count_elemwise, std::tensor::layout::linear::LinearView};
 use cubecl::{prelude::*, std::FastDivmod};
 
-#[cube(launch_unchecked)]
+#[cube(launch_unchecked, address_type = "dynamic")]
 fn select_assign_kernel<F: Numeric, I: Numeric, Op: BinaryOpFamily>(
     tensor: &mut Tensor<F>,
     indices: &LinearView<I>,
@@ -82,6 +82,7 @@ pub(crate) fn select_assign<R: CubeRuntime>(
             &tensor.client,
             cube_count,
             cube_dim,
+            address_type!(tensor, indices, value),
             tensor.as_tensor_arg(1),
             linear_view(&indices, 1),
             value.as_tensor_arg(1),

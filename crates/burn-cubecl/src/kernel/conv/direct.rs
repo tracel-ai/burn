@@ -1,6 +1,9 @@
 use crate::{
     CubeRuntime,
-    kernel::{into_contiguous_aligned, utils::linear_view},
+    kernel::{
+        into_contiguous_aligned,
+        utils::{address_type, linear_view},
+    },
     ops::max_line_size,
     tensor::CubeTensor,
 };
@@ -26,7 +29,7 @@ struct Conv2dArgs {
     channels_per_group: u32,
 }
 
-#[cube(launch_unchecked)]
+#[cube(launch_unchecked, address_type = "dynamic")]
 fn direct_conv2d_kernel<E: Numeric>(
     input: &Tensor<Line<E>>,
     weight: &Tensor<Line<E>>,
@@ -290,8 +293,6 @@ pub fn conv_direct<R: CubeRuntime, const N: usize>(
         ));
     }
 
-    let bias = bias.as_ref().map(|b| b.as_tensor_arg(line_size_out));
-
     let working_units = output.shape.num_elements() / line_size_out;
     let cube_dim = CubeDim::new(&input.client, working_units);
     let cube_count = calculate_cube_count_elemwise(&input.client, working_units, cube_dim);
@@ -301,9 +302,10 @@ pub fn conv_direct<R: CubeRuntime, const N: usize>(
             &input.client,
             cube_count,
             cube_dim,
+            address_type!(input, weight, bias, output),
             input.as_tensor_arg(line_size_in),
             weight.as_tensor_arg(line_size_in),
-            bias.into(),
+            bias.as_ref().map(|b| b.as_tensor_arg(line_size_out)).into(),
             linear_view(&output, line_size_out),
             Conv2dArgsLaunch::new(conv_params, ScalarArg::new(channels_per_group as u32)),
             shape_out,

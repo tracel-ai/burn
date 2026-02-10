@@ -3,7 +3,7 @@ use crate::{
     kernel::{
         into_contiguous_aligned,
         pool::pool2d::{Position, view4d},
-        utils::{decompose_linear, shape_divmod},
+        utils::{address_type, decompose_linear, shape_divmod},
     },
     ops::{max_line_size, numeric::empty_device_dtype, permute_nchw_to_nhwc, permute_nhwc_to_nchw},
     tensor::CubeTensor,
@@ -15,7 +15,7 @@ use cubecl::{
     std::{FastDivmod, tensor::View},
 };
 
-#[cube(launch)]
+#[cube(launch, address_type = "dynamic")]
 fn adaptive_avg_pool2d_backward_direct<E: Numeric>(
     grad: &Tensor<Line<E>>,
     output: &mut View<Line<E>, Position, ReadWrite>,
@@ -106,6 +106,7 @@ pub(crate) fn adaptive_avg_pool2d_backward<R: CubeRuntime>(
         &x.client,
         cube_count,
         cube_dim,
+        address_type!(out_grad, output),
         out_grad.as_tensor_arg(line_size),
         view4d(&output, line_size),
         shape_divmod(&output),
