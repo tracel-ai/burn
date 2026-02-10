@@ -210,7 +210,7 @@ fn should_quantize_dequantize_symmetric_per_block_arange_16x16() {
         .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
 }
 
-fn should_quantize_transposed(tensor: Tensor<TestBackend, 2>, scheme: QuantScheme) {
+fn should_quantize_transposed<const D: usize>(tensor: Tensor<TestBackend, D>, scheme: QuantScheme) {
     let tensor_t = tensor.clone().transpose();
 
     let output = tensor_t.quantize_dynamic(&scheme).dequantize().transpose();
@@ -253,4 +253,27 @@ fn should_quantize_symmetric_per_block_int8_transposed_32x64() {
         .div_scalar(2048.)
         .reshape([32, 64]);
     should_quantize_transposed(tensor, scheme);
+}
+
+#[test]
+fn should_quantize_symmetric_int8_permuted_batch_dims() {
+    let scheme = QuantizedTensor::<TestBackend>::default_scheme().with_value(QuantValue::Q8S);
+
+    let tensor = TestTensorInt::arange(0..2048, &Default::default())
+        .float()
+        .div_scalar(2048.)
+        .reshape([2, 4, 8, 32]);
+
+    // Permute [0,1,2,3] -> [1,2,0,3]
+    // This rearranges batch dims but keeps packed dim in place
+    let tensor_permuted = tensor.clone().permute([1, 2, 0, 3]);
+
+    let output = tensor_permuted
+        .quantize_dynamic(&scheme)
+        .dequantize()
+        .permute([2, 0, 1, 3]); // reverse permutation
+
+    tensor
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&output.into_data(), Tolerance::permissive());
 }
