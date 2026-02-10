@@ -74,7 +74,7 @@ ndarray = { workspace = true }
 num-traits = { workspace = true }
 openblas-src = { workspace = true, optional = true }
 paste = { workspace = true }
-rand = { workspace = true, default-features = false, features = ["small_rng"] }
+rand = { workspace = true, default-features = false }
 
 # SIMD
 bytemuck = { workspace = true, optional = true }

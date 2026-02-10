@@ -1,5 +1,6 @@
-use rand::prelude::StdRng;
-use rand::{RngCore, SeedableRng};
+use rand::Rng;
+use rand::SeedableRng;
+use rand::rngs::StdRng;
 
 /// Defines a source for a `StdRng`.
 ///
@@ -10,26 +11,17 @@ use rand::{RngCore, SeedableRng};
 /// use rand::SeedableRng;
 /// use burn_dataset::transform::RngSource;
 ///
-/// // Default via `StdRng::from_os_rng()` (`RngSource::Default`)
+/// // Default via OS randomness (`RngSource::Default`)
 /// let system: RngSource = RngSource::default();
 ///
 /// // From a fixed seed (`RngSource::Seed`)
 /// let seeded: RngSource = 42.into();
 ///
 /// // From an existing rng (`RngSource::Rng`)
-/// let rng = StdRng::seed_from_u64(123);
-/// let with_rng: RngSource = rng.into();
-///
-/// // From a snapshot of the current state (`RngSource::Rng`)
-/// let rng = StdRng::seed_from_u64(123);
-/// let snapshot: RngSource = (&rng).into();
-///
-/// // Advances the original RNG and then clones its new state
 /// let mut rng = StdRng::seed_from_u64(123);
-/// let stateful: RngSource = (&mut rng).into();
+/// let with_rng: RngSource = (&mut rng).into();
 /// ```
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-#[allow(clippy::large_enum_variant)]
 pub enum RngSource {
     /// Build a new rng from the system.
     #[default]
@@ -38,16 +30,16 @@ pub enum RngSource {
     /// The rng is passed as a seed.
     Seed(u64),
 
-    /// The rng is passed as an option.
-    Rng(StdRng),
+    /// The rng state is captured as seed bytes.
+    Rng([u8; 32]),
 }
 
 impl From<RngSource> for StdRng {
     fn from(source: RngSource) -> Self {
-        match &source {
-            RngSource::Default => StdRng::from_os_rng(),
-            RngSource::Rng(rng) => rng.clone(),
-            RngSource::Seed(seed) => StdRng::seed_from_u64(*seed),
+        match source {
+            RngSource::Default => rand::make_rng(),
+            RngSource::Rng(seed) => StdRng::from_seed(seed),
+            RngSource::Seed(seed) => StdRng::seed_from_u64(seed),
         }
     }
 }
@@ -59,23 +51,19 @@ impl From<u64> for RngSource {
 }
 
 impl From<StdRng> for RngSource {
-    fn from(rng: StdRng) -> Self {
-        Self::Rng(rng)
+    fn from(mut rng: StdRng) -> Self {
+        let mut seed = [0u8; 32];
+        rng.fill_bytes(&mut seed);
+        Self::Rng(seed)
     }
 }
 
-impl From<&StdRng> for RngSource {
-    fn from(rng: &StdRng) -> Self {
-        Self::Rng(rng.clone())
-    }
-}
-
-/// Users calling with a mutable rng expect state advancement,
-/// So conversion from `&mut StdRng` advances the rng before cloning.
+/// Advances the RNG and captures its state as seed bytes.
 impl From<&mut StdRng> for RngSource {
     fn from(rng: &mut StdRng) -> Self {
-        rng.next_u64();
-        Self::Rng(rng.clone())
+        let mut seed = [0u8; 32];
+        rng.fill_bytes(&mut seed);
+        Self::Rng(seed)
     }
 }
 
@@ -145,7 +133,7 @@ mod tests {
         assert_eq!(&rng_source, &RngSource::Default);
         assert_eq!(&rng_source, &RngSource::default());
 
-        // Exercise the from_os_rng() call; but we don't know its seed;
+        // Exercise the make_rng() path
         let _rng: StdRng = rng_source.into();
     }
 
@@ -162,32 +150,27 @@ mod tests {
 
     #[test]
     fn test_rng_source_rng() {
-        let original = StdRng::seed_from_u64(42);
-
-        // From StdRng.
+        // From StdRng (owned).
         {
-            let rng_source = RngSource::from(original.clone());
-            let rng: StdRng = rng_source.into();
-            assert_eq!(rng, original);
+            let rng = StdRng::seed_from_u64(42);
+            let rng_source = RngSource::from(rng);
+            matches!(rng_source, RngSource::Rng(_));
+
+            // Converting back should produce a deterministic StdRng.
+            let rng_a: StdRng = rng_source.clone().into();
+            let rng_b: StdRng = rng_source.into();
+            assert_eq!(rng_a, rng_b);
         }
 
-        // From &StdRng.
+        // From &mut StdRng (advances the original).
         {
-            let rng_source = RngSource::from(&original);
-            let rng: StdRng = rng_source.into();
-            assert_eq!(rng, original);
-        }
+            let mut rng = StdRng::seed_from_u64(42);
+            let original = StdRng::seed_from_u64(42);
 
-        // From &mut StdRng.
-        {
-            let mut stateful = original.clone();
-
-            let rng_source = RngSource::from(&mut stateful);
-            assert_ne!(stateful, original);
-
-            // Advance the rng.
-            let rng: StdRng = rng_source.into();
-            assert_eq!(rng, stateful);
+            let rng_source = RngSource::from(&mut rng);
+            // Original rng was advanced by fill_bytes
+            assert_ne!(rng, original);
+            matches!(rng_source, RngSource::Rng(_));
         }
     }
 

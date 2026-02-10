@@ -19,7 +19,7 @@ pub struct MultiThreadDataLoader<B: Backend, I, O> {
     dataset: Arc<dyn Dataset<I>>,
     batcher: Arc<dyn Batcher<B, I, O>>,
     device: B::Device,
-    rng: Option<rand::rngs::StdRng>,
+    rng: Option<spin::Mutex<rand::rngs::StdRng>>,
     num_threads: usize,
 
     // The lazily initialized data loaders
@@ -77,7 +77,7 @@ where
             batcher,
             num_threads,
             device,
-            rng,
+            rng: rng.map(spin::Mutex::new),
             dataloaders: OnceLock::new(),
         }
     }
@@ -90,7 +90,7 @@ where
                 if let Some(rng) = self.rng.as_ref() {
                     // Pre-shuffle the dataset before split if shuffle is enabled.
                     // This ensures that each thread gets a uniform random sample of the dataset.
-                    let mut rng = rng.clone();
+                    let mut rng = rng.lock().fork();
                     dataset = Arc::new(burn_dataset::transform::ShuffledDataset::new(
                         dataset, &mut rng,
                     ));
@@ -104,9 +104,9 @@ where
                 };
 
                 // Create more rngs from the first one, one for each new dataloader.
-                let mut rng = self.rng.clone();
+                let mut base_rng = self.rng.as_ref().map(|rng| rng.lock().fork());
                 let rngs = (0..self.num_threads).map(|_| {
-                    rng.as_mut().map(|rng| {
+                    base_rng.as_mut().map(|rng| {
                         StdRng::seed_from_u64(Distribution::sample(&StandardUniform, rng))
                     })
                 });
@@ -187,7 +187,7 @@ where
             self.batcher.clone(),
             self.num_threads,
             device.clone(),
-            self.rng.clone(),
+            self.rng.as_ref().map(|rng| rng.lock().fork()),
         ))
     }
 
@@ -198,7 +198,7 @@ where
             self.batcher.clone(),
             self.num_threads,
             self.device.clone(),
-            self.rng.clone(),
+            self.rng.as_ref().map(|rng| rng.lock().fork()),
         );
         Arc::new(dataloader)
     }
