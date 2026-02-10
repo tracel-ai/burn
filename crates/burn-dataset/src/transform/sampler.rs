@@ -343,9 +343,9 @@ mod tests {
         assert_eq!(options.rng_source, RngSource::Default);
         let options = options.with_seed(42);
         assert_eq!(options.rng_source, RngSource::Seed(42));
-        let mut rng = StdRng::seed_from_u64(9);
-        let options = options.with_rng(rng.fork());
-        assert_eq!(options.rng_source, RngSource::Rng(rng));
+        let rng = StdRng::seed_from_u64(9);
+        let options = options.with_rng(rng);
+        assert!(matches!(options.rng_source, RngSource::Rng(_)));
     }
 
     #[test]

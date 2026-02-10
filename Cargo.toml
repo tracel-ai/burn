@@ -152,7 +152,7 @@ num-traits = { version = "0.2.19", default-features = false, features = [
     "libm",
 ] } # libm is for no_std
 openblas-src = "0.10.14"
-rand = { version = "0.10.0", default-features = false }
+rand = { version = "0.10.0", default-features = false, features = ["std_rng"] }
 rand_distr = { version = "0.6.0", default-features = false }
 serde = { version = "1.0.228", default-features = false, features = [
     "derive",

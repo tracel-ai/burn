@@ -21,9 +21,11 @@ use rand::{Rng, SeedableRng};
 /// let rng = StdRng::seed_from_u64(123);
 /// let with_rng: RngSource = rng.into();
 ///
-/// // Advances the original RNG and then clones its new state
+/// // Forks the parent RNG to derive an independent, deterministic child RNG.
+/// // The original `rng` is modified, and the resulting `RngSource` contains
+/// // a new RNG starting from a unique state.
 /// let mut rng = StdRng::seed_from_u64(123);
-/// let stateful: RngSource = (&mut rng).into();
+/// let forked: RngSource = (&mut rng).into();
 /// ```
 #[derive(Debug, Default, PartialEq, Eq)]
 #[allow(clippy::large_enum_variant)]
@@ -43,7 +45,7 @@ impl From<RngSource> for StdRng {
     fn from(source: RngSource) -> Self {
         match source {
             RngSource::Default => StdRng::try_from_rng(&mut SysRng).unwrap(),
-            RngSource::Rng(mut rng) => rng.fork(),
+            RngSource::Rng(rng) => rng,
             RngSource::Seed(seed) => StdRng::seed_from_u64(seed),
         }
     }
@@ -61,11 +63,13 @@ impl From<StdRng> for RngSource {
     }
 }
 
-/// Users calling with a mutable rng expect state advancement,
-/// So conversion from `&mut StdRng` advances the rng before cloning.
+/// Derive an independent RNG from a mutable parent RNG.
+///
+/// This advances the parent RNG and creates a new RNG seeded from its output.
+/// The derived RNG is *not* a clone of the parent's state, but an independent
+/// stream (equivalent to `SeedableRng::fork`).
 impl From<&mut StdRng> for RngSource {
     fn from(rng: &mut StdRng) -> Self {
-        rng.next_u64();
         Self::Rng(rng.fork())
     }
 }
@@ -153,25 +157,31 @@ mod tests {
 
     #[test]
     fn test_rng_source_rng() {
-        let mut original = StdRng::seed_from_u64(42);
-
-        // From StdRng.
+        // From StdRng (owned).
         {
-            let rng_source = RngSource::from(original.fork());
+            let original = StdRng::seed_from_u64(42);
+
+            let rng_source = RngSource::from(original);
             let rng: StdRng = rng_source.into();
+            // No longer clone, but from <> into should not have advanced the state
+            let original = StdRng::seed_from_u64(42);
             assert_eq!(rng, original);
         }
 
-        // From &mut StdRng.
+        // From &mut StdRng (forks parent)
         {
-            let mut stateful = original.fork();
+            let mut original = StdRng::seed_from_u64(42);
+            let mut rng = StdRng::seed_from_u64(42);
+            let rng_forked = rng.fork();
 
-            let rng_source = RngSource::from(&mut stateful);
-            assert_ne!(stateful, original);
+            let rng_source = RngSource::from(&mut original);
 
-            // Advance the rng.
+            // Ensure the original was advanced
+            assert_eq!(original, rng);
+
+            // Ensure the sourced RNG matches the fork
             let rng: StdRng = rng_source.into();
-            assert_eq!(rng, stateful);
+            assert_eq!(rng, rng_forked);
         }
     }
 
