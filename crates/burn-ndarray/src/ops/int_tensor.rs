@@ -7,7 +7,6 @@ use burn_backend::tensor::{FloatTensor, IntTensor};
 use burn_backend::{Distribution, IntDType, Scalar, TensorMetadata};
 
 use burn_backend::ElementConversion;
-use rand::SeedableRng;
 
 // Current crate
 use crate::{NdArray, cast_to_dtype, execute_with_dtype, tensor::NdArrayTensor};

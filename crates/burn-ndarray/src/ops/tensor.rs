@@ -4,7 +4,6 @@ use burn_backend::backend::ExecutionError;
 use burn_backend::ops::GridSampleOptions;
 use burn_backend::tensor::FloatTensor;
 use burn_backend::{TensorMetadata, element::cast::ToElement};
-use rand::SeedableRng;
 
 // Current crate
 use super::{
