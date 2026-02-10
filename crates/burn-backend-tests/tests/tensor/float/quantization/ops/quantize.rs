@@ -226,6 +226,7 @@ fn should_quantize_symmetric_int8_transposed_8x32() {
 
     let tensor = TestTensorInt::arange(0..256, &Default::default())
         .float()
+        .div_scalar(256.)
         .reshape([8, 32]);
     should_quantize_transposed(tensor, scheme);
 }
@@ -236,6 +237,7 @@ fn should_quantize_symmetric_int8_transposed_48x64() {
 
     let tensor = TestTensorInt::arange(0..3072, &Default::default())
         .float()
+        .div_scalar(3072.)
         .reshape([48, 64]);
     should_quantize_transposed(tensor, scheme);
 }
