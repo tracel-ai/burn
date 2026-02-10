@@ -126,7 +126,7 @@ where
                 };
 
                 // Create more rngs from the first one, one for each new dataloader.
-                let mut rng = self.seed.map(|seed| StdRng::from_seed(seed));
+                let mut rng = self.seed.map(StdRng::from_seed);
                 let rngs = (0..self.num_threads).map(|_| {
                     rng.as_mut().map(|rng| {
                         StdRng::seed_from_u64(Distribution::sample(&StandardUniform, rng))
@@ -209,7 +209,7 @@ where
             self.batcher.clone(),
             self.num_threads,
             device.clone(),
-            self.seed.clone(),
+            self.seed,
         ))
     }
 
@@ -220,7 +220,7 @@ where
             self.batcher.clone(),
             self.num_threads,
             self.device.clone(),
-            self.seed.clone(),
+            self.seed,
         );
         Arc::new(dataloader)
     }
