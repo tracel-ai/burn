@@ -1,9 +1,9 @@
 use burn_dataset::Dataset;
 use burn_dataset::transform::PartialDataset;
 use burn_tensor::backend::Backend;
-use rand::SeedableRng;
 use rand::distr::{Distribution, StandardUniform};
 use rand::rngs::StdRng;
+use rand::{Rng, SeedableRng};
 
 use super::batcher::Batcher;
 use super::{BatchDataLoader, BatchStrategy, DataLoader, DataLoaderIterator, Progress};
@@ -12,6 +12,8 @@ use std::thread;
 
 const MAX_QUEUED_ITEMS: usize = 100;
 
+type RngSeed = <StdRng as SeedableRng>::Seed;
+
 /// A multi-threaded data loader that can be used to iterate over a dataset.
 pub struct MultiThreadDataLoader<B: Backend, I, O> {
     // Configuration parameters needed for initialization
@@ -19,7 +21,7 @@ pub struct MultiThreadDataLoader<B: Backend, I, O> {
     dataset: Arc<dyn Dataset<I>>,
     batcher: Arc<dyn Batcher<B, I, O>>,
     device: B::Device,
-    rng: Option<rand::rngs::StdRng>,
+    seed: Option<RngSeed>,
     num_threads: usize,
 
     // The lazily initialized data loaders
@@ -71,13 +73,33 @@ where
         device: B::Device,
         rng: Option<rand::rngs::StdRng>,
     ) -> Self {
+        let mut seed = None;
+        if let Some(mut rng) = rng {
+            // RNG stream splitting (not state cloning): derive a new seed from the RNG's output.
+            // This is exactly what `rng.fork()` does.
+            let mut s = RngSeed::default();
+            rng.fill_bytes(&mut s);
+
+            seed = Some(s);
+        }
+        Self::from_seed(strategy, dataset, batcher, num_threads, device, seed)
+    }
+
+    fn from_seed(
+        strategy: Box<dyn BatchStrategy<I>>,
+        dataset: Arc<dyn Dataset<I>>,
+        batcher: Arc<dyn Batcher<B, I, O>>,
+        num_threads: usize,
+        device: B::Device,
+        seed: Option<RngSeed>,
+    ) -> Self {
         Self {
             strategy,
             dataset,
             batcher,
             num_threads,
             device,
-            rng,
+            seed,
             dataloaders: OnceLock::new(),
         }
     }
@@ -87,10 +109,10 @@ where
         self.dataloaders
             .get_or_init(|| {
                 let mut dataset = self.dataset.clone();
-                if let Some(rng) = self.rng.as_ref() {
+                if let Some(seed) = self.seed.as_ref() {
                     // Pre-shuffle the dataset before split if shuffle is enabled.
                     // This ensures that each thread gets a uniform random sample of the dataset.
-                    let mut rng = rng.clone();
+                    let mut rng = StdRng::from_seed(*seed);
                     dataset = Arc::new(burn_dataset::transform::ShuffledDataset::new(
                         dataset, &mut rng,
                     ));
@@ -104,7 +126,7 @@ where
                 };
 
                 // Create more rngs from the first one, one for each new dataloader.
-                let mut rng = self.rng.clone();
+                let mut rng = self.seed.map(|seed| StdRng::from_seed(seed));
                 let rngs = (0..self.num_threads).map(|_| {
                     rng.as_mut().map(|rng| {
                         StdRng::seed_from_u64(Distribution::sample(&StandardUniform, rng))
@@ -181,24 +203,24 @@ where
     }
 
     fn to_device(&self, device: &B::Device) -> Arc<dyn DataLoader<B, O>> {
-        Arc::new(Self::new(
+        Arc::new(Self::from_seed(
             self.strategy.clone_dyn(),
             self.dataset.clone(),
             self.batcher.clone(),
             self.num_threads,
             device.clone(),
-            self.rng.clone(),
+            self.seed.clone(),
         ))
     }
 
     fn slice(&self, start: usize, end: usize) -> Arc<dyn DataLoader<B, O>> {
-        let dataloader = Self::new(
+        let dataloader = Self::from_seed(
             self.strategy.clone_dyn(),
             Arc::new(PartialDataset::new(self.dataset.clone(), start, end)),
             self.batcher.clone(),
             self.num_threads,
             self.device.clone(),
-            self.rng.clone(),
+            self.seed.clone(),
         );
         Arc::new(dataloader)
     }

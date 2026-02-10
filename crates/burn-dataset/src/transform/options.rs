@@ -1,5 +1,6 @@
 use rand::prelude::StdRng;
-use rand::{RngCore, SeedableRng};
+use rand::rngs::SysRng;
+use rand::{Rng, SeedableRng};
 
 /// Defines a source for a `StdRng`.
 ///
@@ -28,7 +29,7 @@ use rand::{RngCore, SeedableRng};
 /// let mut rng = StdRng::seed_from_u64(123);
 /// let stateful: RngSource = (&mut rng).into();
 /// ```
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Default, PartialEq, Eq)]
 #[allow(clippy::large_enum_variant)]
 pub enum RngSource {
     /// Build a new rng from the system.
@@ -44,10 +45,10 @@ pub enum RngSource {
 
 impl From<RngSource> for StdRng {
     fn from(source: RngSource) -> Self {
-        match &source {
-            RngSource::Default => StdRng::from_os_rng(),
-            RngSource::Rng(rng) => rng.clone(),
-            RngSource::Seed(seed) => StdRng::seed_from_u64(*seed),
+        match source {
+            RngSource::Default => StdRng::try_from_rng(&mut SysRng).unwrap(),
+            RngSource::Rng(mut rng) => rng.fork(),
+            RngSource::Seed(seed) => StdRng::seed_from_u64(seed),
         }
     }
 }
@@ -64,18 +65,12 @@ impl From<StdRng> for RngSource {
     }
 }
 
-impl From<&StdRng> for RngSource {
-    fn from(rng: &StdRng) -> Self {
-        Self::Rng(rng.clone())
-    }
-}
-
 /// Users calling with a mutable rng expect state advancement,
 /// So conversion from `&mut StdRng` advances the rng before cloning.
 impl From<&mut StdRng> for RngSource {
     fn from(rng: &mut StdRng) -> Self {
         rng.next_u64();
-        Self::Rng(rng.clone())
+        Self::Rng(rng.fork())
     }
 }
 
@@ -162,25 +157,18 @@ mod tests {
 
     #[test]
     fn test_rng_source_rng() {
-        let original = StdRng::seed_from_u64(42);
+        let mut original = StdRng::seed_from_u64(42);
 
         // From StdRng.
         {
-            let rng_source = RngSource::from(original.clone());
-            let rng: StdRng = rng_source.into();
-            assert_eq!(rng, original);
-        }
-
-        // From &StdRng.
-        {
-            let rng_source = RngSource::from(&original);
+            let rng_source = RngSource::from(original.fork());
             let rng: StdRng = rng_source.into();
             assert_eq!(rng, original);
         }
 
         // From &mut StdRng.
         {
-            let mut stateful = original.clone();
+            let mut stateful = original.fork();
 
             let rng_source = RngSource::from(&mut stateful);
             assert_ne!(stateful, original);

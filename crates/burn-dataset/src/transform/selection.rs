@@ -254,7 +254,7 @@ mod tests {
         let size = 10;
 
         let mut rng1 = StdRng::seed_from_u64(10);
-        let mut rng2 = rng1.clone();
+        let mut rng2 = rng1.fork();
 
         let mut expected = iota(size);
         expected.shuffle(&mut rng1);

@@ -4,6 +4,7 @@ use burn_backend::backend::ExecutionError;
 use burn_backend::ops::GridSampleOptions;
 use burn_backend::tensor::FloatTensor;
 use burn_backend::{TensorMetadata, element::cast::ToElement};
+use rand::SeedableRng;
 
 // Current crate
 use super::{
@@ -63,8 +64,8 @@ where
         device: &NdArrayDevice,
     ) -> FloatTensor<Self> {
         let mut seed = SEED.lock().unwrap();
-        let mut rng = if let Some(rng_seeded) = seed.as_ref() {
-            rng_seeded.clone()
+        let mut rng = if let Some(rng_seeded) = seed.as_mut() {
+            rng_seeded.fork()
         } else {
             get_seeded_rng()
         };

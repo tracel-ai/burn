@@ -7,6 +7,7 @@ use burn_backend::tensor::{FloatTensor, IntTensor};
 use burn_backend::{Distribution, IntDType, Scalar, TensorMetadata};
 
 use burn_backend::ElementConversion;
+use rand::SeedableRng;
 
 // Current crate
 use crate::{NdArray, cast_to_dtype, execute_with_dtype, tensor::NdArrayTensor};
@@ -354,8 +355,8 @@ where
         device: &NdArrayDevice,
     ) -> NdArrayTensor {
         let mut seed = SEED.lock().unwrap();
-        let mut rng = if let Some(rng_seeded) = seed.as_ref() {
-            rng_seeded.clone()
+        let mut rng = if let Some(rng_seeded) = seed.as_mut() {
+            rng_seeded.fork()
         } else {
             get_seeded_rng()
         };

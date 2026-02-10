@@ -33,9 +33,9 @@ where
 pub(crate) static SEED: Mutex<Option<StdRng>> = Mutex::new(None);
 
 pub(crate) fn get_seeded_rng() -> StdRng {
-    let mut seed = SEED.lock().unwrap();
-    match seed.as_ref() {
-        Some(rng_seeded) => rng_seeded.clone(),
+    let mut seed_guard = SEED.lock().unwrap();
+    match seed_guard.as_mut() {
+        Some(rng_seeded) => rng_seeded.fork(),
         None => burn_std::rand::get_seeded_rng(),
     }
 }
