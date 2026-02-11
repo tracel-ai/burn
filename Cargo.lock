@@ -1211,6 +1211,7 @@ dependencies = [
  "burn-std",
  "burn-store",
  "derive-new",
+ "dirs",
  "log",
  "nvml-wrapper",
  "rand 0.10.0",

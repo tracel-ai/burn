@@ -197,6 +197,7 @@ impl LpipsConfig {
 /// let distance = lpips.forward(img1, img2, Reduction::Mean);
 /// ```
 #[derive(Module, Debug)]
+#[allow(clippy::large_enum_variant)]
 #[module(custom_display)]
 pub enum Lpips<B: Backend> {
     /// VGG16 backbone (5 feature layers)
@@ -257,7 +258,7 @@ pub struct LpipsSqueeze<B: Backend> {
 impl<B: Backend> LpipsVgg<B> {
     /// Compute LPIPS distance without reduction using VGG backbone.
     pub fn forward_no_reduction(&self, input: Tensor<B, 4>, target: Tensor<B, 4>) -> Tensor<B, 1> {
-        let [batch, _, _, _] = input.dims();
+        let [_batch, _, _, _] = input.dims();
 
         // Preprocess inputs
         let (input, target) = preprocess_inputs(input, target, self.normalize);
@@ -266,24 +267,25 @@ impl<B: Backend> LpipsVgg<B> {
         let feats0 = self.extractor.forward(input);
         let feats1 = self.extractor.forward(target);
 
-        // Compute distance for each layer
-        let device = feats0[0].device();
-        let mut total_loss = Tensor::zeros([batch], &device);
+        // Compute distance for each layer using stack + sum
+        let layer_distances: Vec<Tensor<B, 2>> = vec![
+            compute_layer_distance(&feats0[0], &feats1[0], &self.lin0).unsqueeze_dim(1),
+            compute_layer_distance(&feats0[1], &feats1[1], &self.lin1).unsqueeze_dim(1),
+            compute_layer_distance(&feats0[2], &feats1[2], &self.lin2).unsqueeze_dim(1),
+            compute_layer_distance(&feats0[3], &feats1[3], &self.lin3).unsqueeze_dim(1),
+            compute_layer_distance(&feats0[4], &feats1[4], &self.lin4).unsqueeze_dim(1),
+        ];
 
-        total_loss = total_loss.add(compute_layer_distance(&feats0[0], &feats1[0], &self.lin0));
-        total_loss = total_loss.add(compute_layer_distance(&feats0[1], &feats1[1], &self.lin1));
-        total_loss = total_loss.add(compute_layer_distance(&feats0[2], &feats1[2], &self.lin2));
-        total_loss = total_loss.add(compute_layer_distance(&feats0[3], &feats1[3], &self.lin3));
-        total_loss = total_loss.add(compute_layer_distance(&feats0[4], &feats1[4], &self.lin4));
-
-        total_loss
+        Tensor::cat(layer_distances, 1)
+            .sum_dim(1)
+            .squeeze_dim::<1>(1)
     }
 }
 
 impl<B: Backend> LpipsAlex<B> {
     /// Compute LPIPS distance without reduction using AlexNet backbone.
     pub fn forward_no_reduction(&self, input: Tensor<B, 4>, target: Tensor<B, 4>) -> Tensor<B, 1> {
-        let [batch, _, _, _] = input.dims();
+        let [_batch, _, _, _] = input.dims();
 
         // Preprocess inputs
         let (input, target) = preprocess_inputs(input, target, self.normalize);
@@ -292,24 +294,25 @@ impl<B: Backend> LpipsAlex<B> {
         let feats0 = self.extractor.forward(input);
         let feats1 = self.extractor.forward(target);
 
-        // Compute distance for each layer
-        let device = feats0[0].device();
-        let mut total_loss = Tensor::zeros([batch], &device);
+        // Compute distance for each layer using stack + sum
+        let layer_distances: Vec<Tensor<B, 2>> = vec![
+            compute_layer_distance(&feats0[0], &feats1[0], &self.lin0).unsqueeze_dim(1),
+            compute_layer_distance(&feats0[1], &feats1[1], &self.lin1).unsqueeze_dim(1),
+            compute_layer_distance(&feats0[2], &feats1[2], &self.lin2).unsqueeze_dim(1),
+            compute_layer_distance(&feats0[3], &feats1[3], &self.lin3).unsqueeze_dim(1),
+            compute_layer_distance(&feats0[4], &feats1[4], &self.lin4).unsqueeze_dim(1),
+        ];
 
-        total_loss = total_loss.add(compute_layer_distance(&feats0[0], &feats1[0], &self.lin0));
-        total_loss = total_loss.add(compute_layer_distance(&feats0[1], &feats1[1], &self.lin1));
-        total_loss = total_loss.add(compute_layer_distance(&feats0[2], &feats1[2], &self.lin2));
-        total_loss = total_loss.add(compute_layer_distance(&feats0[3], &feats1[3], &self.lin3));
-        total_loss = total_loss.add(compute_layer_distance(&feats0[4], &feats1[4], &self.lin4));
-
-        total_loss
+        Tensor::cat(layer_distances, 1)
+            .sum_dim(1)
+            .squeeze_dim::<1>(1)
     }
 }
 
 impl<B: Backend> LpipsSqueeze<B> {
     /// Compute LPIPS distance without reduction using SqueezeNet backbone.
     pub fn forward_no_reduction(&self, input: Tensor<B, 4>, target: Tensor<B, 4>) -> Tensor<B, 1> {
-        let [batch, _, _, _] = input.dims();
+        let [_batch, _, _, _] = input.dims();
 
         // Preprocess inputs
         let (input, target) = preprocess_inputs(input, target, self.normalize);
@@ -318,19 +321,20 @@ impl<B: Backend> LpipsSqueeze<B> {
         let feats0 = self.extractor.forward(input);
         let feats1 = self.extractor.forward(target);
 
-        // Compute distance for each layer (7 layers for SqueezeNet)
-        let device = feats0[0].device();
-        let mut total_loss = Tensor::zeros([batch], &device);
+        // Compute distance for each layer using stack + sum (7 layers for SqueezeNet)
+        let layer_distances: Vec<Tensor<B, 2>> = vec![
+            compute_layer_distance(&feats0[0], &feats1[0], &self.lin0).unsqueeze_dim(1),
+            compute_layer_distance(&feats0[1], &feats1[1], &self.lin1).unsqueeze_dim(1),
+            compute_layer_distance(&feats0[2], &feats1[2], &self.lin2).unsqueeze_dim(1),
+            compute_layer_distance(&feats0[3], &feats1[3], &self.lin3).unsqueeze_dim(1),
+            compute_layer_distance(&feats0[4], &feats1[4], &self.lin4).unsqueeze_dim(1),
+            compute_layer_distance(&feats0[5], &feats1[5], &self.lin5).unsqueeze_dim(1),
+            compute_layer_distance(&feats0[6], &feats1[6], &self.lin6).unsqueeze_dim(1),
+        ];
 
-        total_loss = total_loss.add(compute_layer_distance(&feats0[0], &feats1[0], &self.lin0));
-        total_loss = total_loss.add(compute_layer_distance(&feats0[1], &feats1[1], &self.lin1));
-        total_loss = total_loss.add(compute_layer_distance(&feats0[2], &feats1[2], &self.lin2));
-        total_loss = total_loss.add(compute_layer_distance(&feats0[3], &feats1[3], &self.lin3));
-        total_loss = total_loss.add(compute_layer_distance(&feats0[4], &feats1[4], &self.lin4));
-        total_loss = total_loss.add(compute_layer_distance(&feats0[5], &feats1[5], &self.lin5));
-        total_loss = total_loss.add(compute_layer_distance(&feats0[6], &feats1[6], &self.lin6));
-
-        total_loss
+        Tensor::cat(layer_distances, 1)
+            .sum_dim(1)
+            .squeeze_dim::<1>(1)
     }
 }
 
@@ -348,8 +352,8 @@ impl<B: Backend> ModuleDisplay for Lpips<B> {
             Lpips::Squeeze(inner) => ("Squeeze", inner.normalize),
         };
         content
-            .add("net", &format!("{}", net_name))
-            .add("normalize", &format!("{}", normalize))
+            .add("net", &net_name.to_string())
+            .add("normalize", &normalize.to_string())
             .optional()
     }
 }
@@ -455,9 +459,7 @@ fn compute_layer_distance<B: Backend>(
 
     // Apply linear layer (learned weights)
     // Shape: [batch, C, H, W] -> [batch, 1, H, W]
-    // Note: With pretrained weights, lin weights are positive.
-    // We use abs() to ensure non-negative output with random weights.
-    let weighted = lin.forward(diff_sq).abs();
+    let weighted = lin.forward(diff_sq);
 
     // Spatial average: compute mean over C, H, W dimensions
     // Shape: [batch, 1, H, W] -> [batch]
@@ -591,24 +593,6 @@ mod tests {
     }
 
     // =========================================================================
-    // Output Range Tests
-    // =========================================================================
-
-    #[test]
-    fn test_lpips_output_non_negative() {
-        let device = Default::default();
-
-        let image1 = TestTensor::<4>::zeros([1, 3, 32, 32], &device);
-        let image2 = TestTensor::<4>::ones([1, 3, 32, 32], &device);
-
-        let lpips: Lpips<TestBackend> = LpipsConfig::new().init(&device);
-        let distance = lpips.forward(image1, image2, Reduction::Mean);
-
-        let distance_value = distance.into_data().to_vec::<f32>().unwrap()[0];
-        assert!(distance_value >= 0.0, "LPIPS should be >= 0");
-    }
-
-    // =========================================================================
     // AlexNet Tests
     // =========================================================================
 
@@ -627,9 +611,9 @@ mod tests {
             .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
-    /// Test AlexNet LPIPS with different images.
+    /// Test AlexNet LPIPS with different images produces non-zero distance.
     #[test]
-    fn test_lpips_alex_different_images_positive_distance() {
+    fn test_lpips_alex_different_images_nonzero_distance() {
         let device = Default::default();
 
         let image1 = TestTensor::<4>::zeros([1, 3, 64, 64], &device);
@@ -639,9 +623,11 @@ mod tests {
         let distance = lpips.forward(image1, image2, Reduction::Mean);
 
         let distance_value = distance.into_data().to_vec::<f32>().unwrap()[0];
+        // Note: With random weights, non-negativity is not guaranteed.
+        // We only check that different images produce a non-zero distance.
         assert!(
-            distance_value > 0.0,
-            "LPIPS (Alex) should be > 0 for different images"
+            distance_value.abs() > 1e-6,
+            "LPIPS (Alex) should be != 0 for different images"
         );
     }
 
@@ -665,9 +651,9 @@ mod tests {
             .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
-    /// Test SqueezeNet LPIPS with different images.
+    /// Test SqueezeNet LPIPS with different images produces non-zero distance.
     #[test]
-    fn test_lpips_squeeze_different_images_positive_distance() {
+    fn test_lpips_squeeze_different_images_nonzero_distance() {
         let device = Default::default();
 
         let image1 = TestTensor::<4>::zeros([1, 3, 64, 64], &device);
@@ -678,9 +664,11 @@ mod tests {
         let distance = lpips.forward(image1, image2, Reduction::Mean);
 
         let distance_value = distance.into_data().to_vec::<f32>().unwrap()[0];
+        // Note: With random weights, non-negativity is not guaranteed.
+        // We only check that different images produce a non-zero distance.
         assert!(
-            distance_value > 0.0,
-            "LPIPS (Squeeze) should be > 0 for different images"
+            distance_value.abs() > 1e-6,
+            "LPIPS (Squeeze) should be != 0 for different images"
         );
     }
 
@@ -724,9 +712,7 @@ mod tests {
     // =========================================================================
 
     /// Test VGG pretrained weights download and loading.
-    /// Run with: cargo test -p burn-train --features vision test_lpips_pretrained_vgg -- --ignored
     #[test]
-    #[ignore = "requires network access to download pretrained weights"]
     fn test_lpips_pretrained_vgg() {
         let device = Default::default();
 
@@ -758,9 +744,7 @@ mod tests {
     }
 
     /// Test AlexNet pretrained weights download and loading.
-    /// Run with: cargo test -p burn-train --features vision test_lpips_pretrained_alex -- --ignored
     #[test]
-    #[ignore = "requires network access to download pretrained weights"]
     fn test_lpips_pretrained_alex() {
         let device = Default::default();
 
@@ -791,9 +775,7 @@ mod tests {
     }
 
     /// Test SqueezeNet pretrained weights download and loading.
-    /// Run with: cargo test -p burn-train --features vision test_lpips_pretrained_squeeze -- --ignored
     #[test]
-    #[ignore = "requires network access to download pretrained weights"]
     fn test_lpips_pretrained_squeeze() {
         let device = Default::default();
 

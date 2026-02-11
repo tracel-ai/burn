@@ -5,7 +5,9 @@ use burn_core as burn;
 use burn::tensor::backend::Backend;
 use burn_std::network::downloader::download_file_as_bytes;
 use burn_store::{ModuleSnapshot, PytorchStore};
+use std::fs::{File, create_dir_all};
 use std::io::Write;
+use std::path::PathBuf;
 
 use super::metric::{Lpips, LpipsNet};
 
@@ -27,7 +29,23 @@ pub fn get_weights_url(net: LpipsNet) -> &'static str {
     }
 }
 
+/// Get the cache directory for LPIPS weights.
+fn get_cache_dir() -> PathBuf {
+    let cache_dir = dirs::cache_dir()
+        .expect("Could not get cache directory")
+        .join("burn-dataset")
+        .join("lpips");
+
+    if !cache_dir.exists() {
+        create_dir_all(&cache_dir).expect("Failed to create cache directory");
+    }
+
+    cache_dir
+}
+
 /// Download and load pretrained weights into an LPIPS module.
+///
+/// Weights are cached in the user's cache directory to avoid re-downloading.
 ///
 /// # Arguments
 ///
@@ -39,24 +57,24 @@ pub fn get_weights_url(net: LpipsNet) -> &'static str {
 /// The LPIPS module with loaded pretrained weights.
 pub fn load_pretrained_weights<B: Backend>(mut lpips: Lpips<B>, net: LpipsNet) -> Lpips<B> {
     let url = get_weights_url(net);
-    let message = match net {
-        LpipsNet::Vgg => "Downloading LPIPS VGG weights...",
-        LpipsNet::Alex => "Downloading LPIPS AlexNet weights...",
-        LpipsNet::Squeeze => "Downloading LPIPS SqueezeNet weights...",
-    };
+    let cache_dir = get_cache_dir();
+    let cache_path = cache_dir.join(format!("{:?}.pth", net).to_lowercase());
 
-    // Download weights (synchronous, tokio runtime handled internally)
-    let bytes = download_file_as_bytes(url, message);
+    // Download only if not already cached
+    if !cache_path.exists() {
+        let message = match net {
+            LpipsNet::Vgg => "Downloading LPIPS VGG weights...",
+            LpipsNet::Alex => "Downloading LPIPS AlexNet weights...",
+            LpipsNet::Squeeze => "Downloading LPIPS SqueezeNet weights...",
+        };
 
-    // Write to temporary file (PytorchStore requires file path)
-    let temp_dir = std::env::temp_dir();
-    let temp_path = temp_dir.join(format!("lpips_{:?}.pth", net));
-    let mut file = std::fs::File::create(&temp_path).expect("Failed to create temp file");
-    file.write_all(&bytes).expect("Failed to write weights");
-    drop(file);
+        let bytes = download_file_as_bytes(url, message);
+        let mut file = File::create(&cache_path).expect("Failed to create cache file");
+        file.write_all(&bytes).expect("Failed to write weights");
+    }
 
     // Create PyTorch store with key remapping for Burn compatibility
-    let mut store = PytorchStore::from_file(&temp_path)
+    let mut store = PytorchStore::from_file(&cache_path)
         .allow_partial(true)
         .skip_enum_variants(true)
         // VGG feature extractor remapping
@@ -103,9 +121,6 @@ pub fn load_pretrained_weights<B: Backend>(mut lpips: Lpips<B>, net: LpipsNet) -
     if let Err(e) = result {
         log::warn!("Some weights could not be loaded: {:?}", e);
     }
-
-    // Cleanup temp file
-    let _ = std::fs::remove_file(&temp_path);
 
     lpips
 }
