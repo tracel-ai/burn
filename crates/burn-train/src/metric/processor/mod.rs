@@ -3,10 +3,18 @@ mod base;
 mod full;
 mod metrics;
 mod minimal;
+#[cfg(feature = "rl")]
+mod rl_metrics;
+#[cfg(feature = "rl")]
+mod rl_processor;
 
 pub use base::*;
 pub(crate) use full::*;
 pub(crate) use metrics::*;
+#[cfg(feature = "rl")]
+pub(crate) use rl_metrics::*;
+#[cfg(feature = "rl")]
+pub(crate) use rl_processor::*;
 
 #[cfg(test)]
 pub(crate) use minimal::*;
@@ -17,7 +25,7 @@ pub use async_wrapper::{AsyncProcessorEvaluation, AsyncProcessorTraining};
 pub(crate) mod test_utils {
     use crate::metric::{
         Adaptor, LossInput,
-        processor::{EventProcessorTraining, LearnerEvent, LearnerItem, MinimalEventProcessor},
+        processor::{EventProcessorTraining, LearnerEvent, MinimalEventProcessor, TrainingItem},
     };
     use burn_core::tensor::{ElementConversion, Tensor, backend::Backend};
 
@@ -47,14 +55,16 @@ pub(crate) mod test_utils {
             items_processed: 1,
             items_total: 10,
         };
-        let num_epochs = 3;
-        let dummy_iteration = 1;
+        let dummy_global_progress = burn_core::data::dataloader::Progress {
+            items_processed: epoch,
+            items_total: 3,
+        };
+        let dummy_iteration = Some(1);
 
-        processor.process_train(LearnerEvent::ProcessedItem(LearnerItem::new(
+        processor.process_train(LearnerEvent::ProcessedItem(TrainingItem::new(
             value,
             dummy_progress,
-            epoch,
-            num_epochs,
+            dummy_global_progress,
             dummy_iteration,
             None,
         )));

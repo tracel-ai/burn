@@ -36,8 +36,12 @@ impl ProgressBarState {
     /// Update the training progress.
     pub(crate) fn update_train(&mut self, progress: &TrainingProgress) {
         self.progress_total = calculate_progress(progress, 0, 0);
+        let local_progress = progress
+            .progress
+            .as_ref()
+            .unwrap_or(&progress.global_progress);
         self.progress_task =
-            progress.progress.items_processed as f64 / progress.progress.items_total as f64;
+            local_progress.items_processed as f64 / local_progress.items_total as f64;
         self.estimate.update(progress, self.starting_epoch);
         self.split = TuiSplit::Train;
     }
@@ -45,8 +49,12 @@ impl ProgressBarState {
     /// Update the validation progress.
     pub(crate) fn update_valid(&mut self, progress: &TrainingProgress) {
         // We don't use the validation for the total progress yet.
+        let local_progress = progress
+            .progress
+            .as_ref()
+            .unwrap_or(&progress.global_progress);
         self.progress_task =
-            progress.progress.items_processed as f64 / progress.progress.items_total as f64;
+            local_progress.items_processed as f64 / local_progress.items_total as f64;
         self.split = TuiSplit::Valid;
     }
 
@@ -187,7 +195,7 @@ impl ProgressEstimate {
         }
 
         // When the training has started since at least 10 seconds and completed 10 iterations.
-        if progress.iteration >= WARMUP_NUM_ITERATION
+        if progress.iteration >= Some(WARMUP_NUM_ITERATION)
             && self.started.elapsed() > Duration::from_secs(10)
         {
             self.init(progress, starting_epoch);
@@ -195,11 +203,17 @@ impl ProgressEstimate {
     }
 
     fn init(&mut self, progress: &TrainingProgress, starting_epoch: usize) {
-        let epoch = progress.epoch - starting_epoch;
-        let epoch_items = (epoch - 1) * progress.progress.items_total;
-        let iteration_items = progress.progress.items_processed;
+        let epoch = progress.global_progress.items_processed - starting_epoch;
 
-        self.warmup_num_items = epoch_items + iteration_items;
+        self.warmup_num_items = match &progress.progress {
+            Some(local_progress) => {
+                let epoch_items = (epoch - 1) * local_progress.items_total;
+                let iteration_items = local_progress.items_processed;
+                epoch_items + iteration_items
+            }
+            None => epoch,
+        };
+
         self.started_after_warmup = Some(Instant::now());
         self.progress = calculate_progress(progress, starting_epoch, self.warmup_num_items);
     }
@@ -210,15 +224,19 @@ fn calculate_progress(
     starting_epoch: usize,
     ignore_num_items: usize,
 ) -> f64 {
-    let epoch_total = progress.epoch_total - starting_epoch;
-    let epoch = progress.epoch - starting_epoch;
+    let epoch_total = progress.global_progress.items_total - starting_epoch;
+    let epoch = progress.global_progress.items_processed - starting_epoch;
+    match &progress.progress {
+        Some(local_progress) => {
+            let total_items = local_progress.items_total * epoch_total;
+            let epoch_items = (epoch - 1) * local_progress.items_total;
+            let iteration_items = local_progress.items_processed;
+            let num_items = epoch_items + iteration_items - ignore_num_items;
 
-    let total_items = progress.progress.items_total * epoch_total;
-    let epoch_items = (epoch - 1) * progress.progress.items_total;
-    let iteration_items = progress.progress.items_processed;
-    let num_items = epoch_items + iteration_items - ignore_num_items;
-
-    num_items as f64 / total_items as f64
+            num_items as f64 / total_items as f64
+        }
+        None => epoch as f64 / epoch_total as f64,
+    }
 }
 
 fn format_eta(eta_secs: u64) -> String {
@@ -268,11 +286,14 @@ mod tests {
             items_processed: 5,
             items_total: 10,
         };
+        let global_progress = Progress {
+            items_processed: 9,
+            items_total: 10,
+        };
         let progress = TrainingProgress {
-            progress: half,
-            epoch: 9,
-            epoch_total: 10,
-            iteration: 500,
+            progress: Some(half),
+            global_progress,
+            iteration: Some(500),
         };
 
         let starting_epoch = 8;
@@ -288,11 +309,14 @@ mod tests {
             items_processed: 110,
             items_total: 1000,
         };
+        let global_progress = Progress {
+            items_processed: 9,
+            items_total: 10,
+        };
         let progress = TrainingProgress {
-            progress: half,
-            epoch: 9,
-            epoch_total: 10,
-            iteration: 500,
+            progress: Some(half),
+            global_progress,
+            iteration: Some(500),
         };
 
         let starting_epoch = 8;

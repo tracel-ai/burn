@@ -4,16 +4,16 @@ use burn_core::tensor::backend::Backend;
 use burn_core::tensor::{Tensor, Transaction};
 use burn_ndarray::NdArray;
 
-/// Simple regression output adapted for multiple metrics.
+/// Regression output adapted for the loss metric.
 #[derive(new)]
 pub struct RegressionOutput<B: Backend> {
     /// The loss.
     pub loss: Tensor<B, 1>,
 
-    /// The output.
+    /// The predicted values. Shape: \[batch_size, num_targets\].
     pub output: Tensor<B, 2>,
 
-    /// The targets.
+    /// The ground truth values. Shape: \[batch_size, num_targets\].
     pub targets: Tensor<B, 2>,
 }
 

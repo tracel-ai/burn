@@ -1,7 +1,7 @@
 [package]
 authors = ["louisfd <louisfd94@gmail.com>"]
 categories = ["science"]
-description = "Candle backend for the Burn framework"
+description = "[Deprecated] Candle backend for the Burn framework - use burn-cubecl, burn-ndarray, or burn-tch instead"
 edition.workspace = true
 keywords = ["deep-learning", "machine-learning", "data"]
 license.workspace = true
@@ -28,15 +28,15 @@ metal = ["candle-core/metal"]
 accelerate = ["candle-core/accelerate"]
 
 [dependencies]
-burn-backend = { path = "../burn-backend", version = "=0.21.0", default-features = false }
+burn-backend = { path = "../burn-backend", version = "=0.21.0-pre.1", default-features = false }
 # For rand utils and stub mutex
-burn-std = { path = "../burn-std", version = "=0.21.0", default-features = false }
+burn-std = { path = "../burn-std", version = "=0.21.0-pre.1", default-features = false }
 
 candle-core = { workspace = true }
 derive-new = { workspace = true }
 
 [dev-dependencies]
-burn-tch = { path = "../burn-tch", version = "=0.21.0", default-features = false, features = [
+burn-tch = { path = "../burn-tch", version = "=0.21.0-pre.1", default-features = false, features = [
 ] }
 
 [package.metadata.docs.rs]

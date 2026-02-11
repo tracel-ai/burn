@@ -3,21 +3,46 @@ use crate::{
     TrainLoader, TrainingBackend, TrainingComponents, TrainingModel, ValidLoader,
     single::epoch::{SingleDeviceTrainEpoch, SingleDeviceValidEpoch},
 };
-use burn_core::tensor::Device;
+use burn_core::{data::dataloader::Progress, tensor::Device};
 
 /// Simplest learning strategy possible, with only a single devices doing both the training and
 /// validation.
-pub struct SingleDevicetrainingStrategy<LC: LearningComponentsTypes> {
+pub struct SingleDeviceTrainingStrategy<LC: LearningComponentsTypes> {
     device: Device<TrainingBackend<LC>>,
 }
-impl<LC: LearningComponentsTypes> SingleDevicetrainingStrategy<LC> {
+impl<LC: LearningComponentsTypes> SingleDeviceTrainingStrategy<LC> {
     pub fn new(device: Device<TrainingBackend<LC>>) -> Self {
         Self { device }
     }
 }
 
+#[derive(new)]
+pub(crate) struct TrainingLoop {
+    next_iteration: usize,
+    total_iteration: usize,
+}
+
+/// An iterator that returns the progress of the training.
+impl Iterator for TrainingLoop {
+    type Item = Progress;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.next_iteration > self.total_iteration {
+            return None;
+        }
+
+        let progress = Progress {
+            items_processed: self.next_iteration,
+            items_total: self.total_iteration,
+        };
+
+        self.next_iteration += 1;
+        Some(progress)
+    }
+}
+
 impl<LC: LearningComponentsTypes> SupervisedLearningStrategy<LC>
-    for SingleDevicetrainingStrategy<LC>
+    for SingleDeviceTrainingStrategy<LC>
 {
     fn fit(
         &self,
@@ -33,20 +58,17 @@ impl<LC: LearningComponentsTypes> SupervisedLearningStrategy<LC>
         let mut event_processor = training_components.event_processor;
         let mut checkpointer = training_components.checkpointer;
         let mut early_stopping = training_components.early_stopping;
-        let num_epochs = training_components.num_epochs;
 
-        let epoch_train: SingleDeviceTrainEpoch<LC> = SingleDeviceTrainEpoch::new(
-            dataloader_train,
-            num_epochs,
-            training_components.grad_accumulation,
-        );
+        let epoch_train: SingleDeviceTrainEpoch<LC> =
+            SingleDeviceTrainEpoch::new(dataloader_train, training_components.grad_accumulation);
         let epoch_valid: SingleDeviceValidEpoch<LC> =
-            SingleDeviceValidEpoch::new(dataloader_valid.clone(), num_epochs);
+            SingleDeviceValidEpoch::new(dataloader_valid.clone());
 
-        for epoch in starting_epoch..training_components.num_epochs + 1 {
+        for training_progress in TrainingLoop::new(starting_epoch, training_components.num_epochs) {
+            let epoch = training_progress.items_processed;
             epoch_train.run(
                 &mut learner,
-                epoch,
+                &training_progress,
                 &mut event_processor,
                 &training_components.interrupter,
             );
@@ -62,7 +84,7 @@ impl<LC: LearningComponentsTypes> SupervisedLearningStrategy<LC>
 
             epoch_valid.run(
                 &learner,
-                epoch,
+                &training_progress,
                 &mut event_processor,
                 &training_components.interrupter,
             );

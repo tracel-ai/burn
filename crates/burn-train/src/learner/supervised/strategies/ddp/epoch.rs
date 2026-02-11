@@ -1,4 +1,5 @@
 use burn_collective::{PeerId, ReduceOperation};
+use burn_core::data::dataloader::Progress;
 use burn_core::module::AutodiffModule;
 use burn_core::tensor::backend::AutodiffBackend;
 use burn_optim::GradientsAccumulator;
@@ -9,7 +10,7 @@ use std::sync::{Arc, Mutex};
 
 use crate::SupervisedTrainingEventProcessor;
 use crate::learner::base::Interrupter;
-use crate::metric::processor::{EventProcessorTraining, LearnerEvent, LearnerItem};
+use crate::metric::processor::{EventProcessorTraining, LearnerEvent, TrainingItem};
 use crate::{
     InferenceStep, Learner, LearningComponentsTypes, TrainLoader, TrainingBackend, ValidLoader,
 };
@@ -18,14 +19,12 @@ use crate::{
 #[derive(new)]
 pub struct DdpValidEpoch<LC: LearningComponentsTypes> {
     dataloader: ValidLoader<LC>,
-    epoch_total: usize,
 }
 
 /// A training epoch.
 #[derive(new)]
 pub struct DdpTrainEpoch<LC: LearningComponentsTypes> {
     dataloader: TrainLoader<LC>,
-    epoch_total: usize,
     grad_accumulation: Option<usize>,
 }
 
@@ -39,10 +38,11 @@ impl<LC: LearningComponentsTypes> DdpValidEpoch<LC> {
     pub fn run(
         &self,
         model: &<LC as LearningComponentsTypes>::TrainingModel,
-        epoch: usize,
+        global_progress: &Progress,
         processor: &mut SupervisedTrainingEventProcessor<LC>,
         interrupter: &Interrupter,
     ) {
+        let epoch = global_progress.items_processed;
         log::info!("Executing validation step for epoch {}", epoch);
         let model = model.valid();
 
@@ -54,7 +54,13 @@ impl<LC: LearningComponentsTypes> DdpValidEpoch<LC> {
             iteration += 1;
 
             let item = model.step(item);
-            let item = LearnerItem::new(item, progress, epoch, self.epoch_total, iteration, None);
+            let item = TrainingItem::new(
+                item,
+                progress,
+                global_progress.clone(),
+                Some(iteration),
+                None,
+            );
 
             processor.process_valid(LearnerEvent::ProcessedItem(item));
 
@@ -84,13 +90,14 @@ impl<LC: LearningComponentsTypes> DdpTrainEpoch<LC> {
     pub fn run(
         &self,
         learner: &mut Learner<LC>,
-        epoch: usize,
+        global_progress: &Progress,
         processor: Arc<Mutex<SupervisedTrainingEventProcessor<LC>>>,
         interrupter: &Interrupter,
         peer_id: PeerId,
         peer_count: usize,
         is_main: bool,
     ) {
+        let epoch = global_progress.items_processed;
         log::info!("Executing training step for epoch {}", epoch,);
 
         let mut iterator = self.dataloader.iter();
@@ -143,12 +150,11 @@ impl<LC: LearningComponentsTypes> DdpTrainEpoch<LC> {
                 }
             }
 
-            let item = LearnerItem::new(
+            let item = TrainingItem::new(
                 item.item,
                 progress,
-                epoch,
-                self.epoch_total,
-                iteration,
+                global_progress.clone(),
+                Some(iteration),
                 Some(learner.lr_current()),
             );
 

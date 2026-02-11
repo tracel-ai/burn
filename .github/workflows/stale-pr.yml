@@ -12,12 +12,11 @@ permissions:
 
 jobs:
   stale-pr:
-
     runs-on: ubuntu-latest
-
     steps:
-    - uses: actions/checkout@v6
-
+    - name: checkout
+      uses: actions/checkout@v6
+      # --------------------------------------------------------------------------------
     - name: Stale pull requests
       uses: actions/stale@v10
       with:

@@ -124,6 +124,12 @@ pub mod train {
     pub use burn_train::*;
 }
 
+/// Module for reinforcement learning.
+#[cfg(feature = "rl")]
+pub mod rl {
+    pub use burn_rl::*;
+}
+
 /// Backend module.
 pub mod backend;
 

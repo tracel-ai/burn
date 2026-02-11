@@ -3,7 +3,14 @@ pub mod state;
 /// Module responsible to save and exposes data collected during training.
 pub mod store;
 /// Metrics module for vision tasks.
+#[cfg(feature = "vision")]
 pub mod vision;
+
+//Metrics for reinforcement learning.
+#[cfg(feature = "rl")]
+mod rl;
+#[cfg(feature = "rl")]
+pub use rl::*;
 
 // System metrics
 #[cfg(feature = "sys-metrics")]

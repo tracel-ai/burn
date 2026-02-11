@@ -386,6 +386,7 @@ impl<B: Backend> Numeric for SsimMetric<B> {
 }
 
 #[cfg(test)]
+#[allow(clippy::manual_range_contains)]
 mod tests {
     use super::*;
     use crate::{TestBackend, metric::Numeric};

@@ -11,20 +11,20 @@ pub struct FusedReduceArgs;
 
 #[derive(CubeType, CubeLaunch)]
 pub struct FusedReduceInput {
-    global: GlobalArgs,
+    pub global: GlobalArgs,
     #[cube(comptime)]
-    config: FuseBlockConfig,
+    pub config: FuseBlockConfig,
     #[cube(comptime)]
-    arg: FuseArg,
+    pub arg: FuseArg,
 }
 
 #[derive(CubeType, CubeLaunch)]
 pub struct FusedReduceOutput {
-    global: GlobalArgs,
+    pub global: GlobalArgs,
     #[cube(comptime)]
-    config: FuseBlockConfig,
+    pub config: FuseBlockConfig,
     #[cube(comptime)]
-    arg: FuseArg,
+    pub arg: FuseArg,
 }
 
 pub struct FusedReduceState {
@@ -34,6 +34,7 @@ pub struct FusedReduceState {
     locals_on_write: *mut LocalArgs,
     config_on_read: FuseBlockConfig,
     config_on_write: FuseBlockConfig,
+    // TODO: Should be a list when multiple blocks are there.
     input: FuseArg,
     out: FuseArg,
 }
@@ -62,22 +63,25 @@ impl ReduceArgs for FusedReduceArgs {
     ) -> Self::State<P> {
         let mut locals_read = init_locals(&input.global, &mut output.global, &input.config);
         let mut locals_write = init_locals(&input.global, &mut output.global, &output.config);
+        // TODO Add stuff from previous blocks to the local of each block.
         FusedReduceState::new(input, output, &mut locals_read, &mut locals_write)
     }
 
     fn read_input<P: ReduceDType>(state: &Self::State<P>, index: usize) -> Line<P::In> {
-        fuse_on_read::<P::In>(
+        let value = fuse_on_read::<P::In>(
             unsafe { &(*state.inputs) },
             unsafe { &mut (*state.outputs) },
             unsafe { &mut (*state.locals_on_read) },
             index,
             comptime! {
                 let mut sequence = Sequence::new();
+                // TODO: Register local arguments from previous blocks.
                 sequence.push(state.input.clone());
                 sequence
             },
             &state.config_on_read,
-        )[0]
+        )[0];
+        value
     }
 
     fn read_output<P: ReduceDType>(_state: &Self::State<P>, _index: usize) -> Line<P::Out> {
@@ -90,7 +94,6 @@ impl ReduceArgs for FusedReduceArgs {
 
         values.insert(comptime![state.out.clone()], value);
         comptime![args.push(state.out.clone())];
-
         fuse_on_write(
             unsafe { &(*state.inputs) },
             unsafe { &mut (*state.outputs) },

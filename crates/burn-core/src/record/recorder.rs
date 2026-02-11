@@ -285,7 +285,7 @@ mod tests {
     #[test]
     #[should_panic]
     fn err_when_invalid_item() {
-        #[derive(new, Serialize, Deserialize)]
+        #[derive(new, Serialize, Deserialize, Clone)]
         struct Item<S: PrecisionSettings> {
             value: S::FloatElem,
         }
