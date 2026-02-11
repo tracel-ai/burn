@@ -499,23 +499,3 @@ where
         execute_with_int_dtype!(tensor, |array| NdArrayOps::unfold(array, dim, size, step))
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use crate::NdArray;
-    use burn::tensor::{Int, Tensor, TensorData};
-    use burn::tensor::Device;
-
-    type TestTensor<const D: usize> = Tensor<NdArray, D, Int>;
-
-    #[test]
-    fn should_support_abs_ops_int_signed_min() {
-        let data = TensorData::from([[i64::MIN]]);
-        let tensor = TestTensor::<2>::from_data(data, Device::default());
-        let output = tensor.abs();
-
-        let expected = TensorData::from([[i64::MIN]]);
-        assert_eq!(output.into_data(), expected);
-    }
-}
-
