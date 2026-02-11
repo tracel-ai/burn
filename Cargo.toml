@@ -152,8 +152,8 @@ num-traits = { version = "0.2.19", default-features = false, features = [
     "libm",
 ] } # libm is for no_std
 openblas-src = "0.10.14"
-rand = { version = "0.9.2", default-features = false }
-rand_distr = { version = "0.5.1", default-features = false }
+rand = { version = "0.10.0", default-features = false, features = ["std_rng"] }
+rand_distr = { version = "0.6.0", default-features = false }
 serde = { version = "1.0.228", default-features = false, features = [
     "derive",
     "alloc",
@@ -174,16 +174,16 @@ portable-atomic = { version = "1.13.1" }
 portable-atomic-util = { version = "0.2.5", features = ["alloc"] }
 
 ### For the main burn branch. ###
-# cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "d35fb454083d99e8a0dce9ab7f1bcfaffa9a6da5" }
-# cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "d35fb454083d99e8a0dce9ab7f1bcfaffa9a6da5" }
-cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "d08a997bbdd0e987fb4b9365374995b834e7892e" }
+cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "6e988fd3e2bac9487438c5dd07f6b771a895c675" }
+cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "6e988fd3e2bac9487438c5dd07f6b771a895c675" }
+cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "26b8aa36036c03eedf67bc862571284811afb72f" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }
 # cubek = { path = "../cubek/crates/cubek", default-features = false }
 ### For the release. ###
-cubecl = { version = "=0.10.0-pre.1", default-features = false }
-cubecl-common = { version = "=0.10.0-pre.1", default-features = false }
+# cubecl = { version = "=0.10.0-pre.1", default-features = false }
+# cubecl-common = { version = "=0.10.0-pre.1", default-features = false }
 # cubek = { version = "=0.2.0-pre.1", default-features = false }
 
 ### For xtask crate ###

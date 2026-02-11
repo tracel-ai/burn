@@ -63,11 +63,7 @@ where
         device: &NdArrayDevice,
     ) -> FloatTensor<Self> {
         let mut seed = SEED.lock().unwrap();
-        let mut rng = if let Some(rng_seeded) = seed.as_ref() {
-            rng_seeded.clone()
-        } else {
-            get_seeded_rng()
-        };
+        let mut rng = seed.take().unwrap_or_else(get_seeded_rng);
         let tensor = Self::float_from_data(
             TensorData::random::<E, _, _>(shape, distribution, &mut rng),
             device,

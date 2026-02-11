@@ -1,5 +1,5 @@
 use core::cmp::Ordering;
-use rand::RngCore;
+use rand::Rng;
 
 use crate::distribution::Distribution;
 use burn_std::{DType, bf16, f16};
@@ -72,7 +72,7 @@ pub trait ElementRandom {
     /// # Returns
     ///
     /// The random value.
-    fn random<R: RngCore>(distribution: Distribution, rng: &mut R) -> Self;
+    fn random<R: Rng>(distribution: Distribution, rng: &mut R) -> Self;
 }
 
 /// Element trait for equality of a tensor.
@@ -141,7 +141,7 @@ macro_rules! make_element {
         }
 
         impl ElementRandom for $type {
-            fn random<R: RngCore>(distribution: Distribution, rng: &mut R) -> Self {
+            fn random<R: Rng>(distribution: Distribution, rng: &mut R) -> Self {
                 #[allow(clippy::redundant_closure_call)]
                 $random(distribution, rng)
             }
