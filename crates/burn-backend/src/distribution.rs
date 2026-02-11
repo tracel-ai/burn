@@ -1,6 +1,6 @@
 //! Random value distributions used to initialize and populate tensor data.
 
-use rand::{Rng, RngCore, distr::StandardUniform};
+use rand::{Rng, RngExt, distr::StandardUniform};
 
 use super::element::{Element, ElementConversion};
 
@@ -27,7 +27,7 @@ pub struct DistributionSampler<'a, E, R>
 where
     StandardUniform: rand::distr::Distribution<E>,
     E: rand::distr::uniform::SampleUniform,
-    R: RngCore,
+    R: Rng,
 {
     kind: DistributionSamplerKind<E>,
     rng: &'a mut R,
@@ -57,7 +57,7 @@ where
     StandardUniform: rand::distr::Distribution<E>,
     E: rand::distr::uniform::SampleUniform,
     E: Element,
-    R: RngCore,
+    R: Rng,
 {
     /// Sames a random value from the distribution.
     pub fn sample(&mut self) -> E {
@@ -88,7 +88,7 @@ impl Distribution {
     /// The distribution sampler.
     pub fn sampler<R, E>(self, rng: &'_ mut R) -> DistributionSampler<'_, E, R>
     where
-        R: RngCore,
+        R: Rng,
         E: Element + rand::distr::uniform::SampleUniform,
         StandardUniform: rand::distr::Distribution<E>,
     {

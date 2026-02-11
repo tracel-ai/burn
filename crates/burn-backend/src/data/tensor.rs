@@ -5,7 +5,7 @@ use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
 use bytemuck::{AnyBitPattern, CheckedBitPattern, Zeroable, cast_mut, checked::CheckedCastError};
-use rand::RngCore;
+use rand::Rng;
 use thiserror::Error;
 
 use crate::Scalar;
@@ -307,7 +307,7 @@ impl TensorData {
     }
 
     /// Populates the data with random values.
-    pub fn random<E: Element, R: RngCore, S: Into<Vec<usize>>>(
+    pub fn random<E: Element, R: Rng, S: Into<Vec<usize>>>(
         shape: S,
         distribution: Distribution,
         rng: &mut R,
@@ -677,7 +677,10 @@ pub enum DataError {
 mod tests {
     use super::*;
     use alloc::vec;
-    use rand::{SeedableRng, rngs::StdRng};
+    use rand::{
+        SeedableRng,
+        rngs::{StdRng, SysRng},
+    };
 
     #[test]
     fn should_have_rank() {
@@ -685,7 +688,7 @@ mod tests {
         let data = TensorData::random::<f32, _, _>(
             shape,
             Distribution::Default,
-            &mut StdRng::from_os_rng(),
+            &mut StdRng::try_from_rng(&mut SysRng).unwrap(),
         );
 
         assert_eq!(data.rank(), 3);
@@ -697,7 +700,7 @@ mod tests {
         let data = TensorData::random::<f32, _, _>(
             shape,
             Distribution::Default,
-            &mut StdRng::from_os_rng(),
+            &mut StdRng::try_from_rng(&mut SysRng).unwrap(),
         );
 
         let expected = data.iter::<f32>().collect::<Vec<f32>>();
@@ -713,7 +716,7 @@ mod tests {
         let data = TensorData::random::<f32, _, _>(
             shape,
             Distribution::Default,
-            &mut StdRng::from_os_rng(),
+            &mut StdRng::try_from_rng(&mut SysRng).unwrap(),
         );
 
         data.into_vec::<i32>().unwrap();
@@ -726,7 +729,7 @@ mod tests {
         let data = TensorData::random::<f32, _, _>(
             shape,
             Distribution::Default,
-            &mut StdRng::from_os_rng(),
+            &mut StdRng::try_from_rng(&mut SysRng).unwrap(),
         );
 
         assert_eq!(num_elements, data.bytes.len() / 4); // f32 stored as u8s
