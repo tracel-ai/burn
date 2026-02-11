@@ -2,7 +2,7 @@ use burn_core::data::dataloader::Progress;
 use burn_optim::LearningRate;
 
 use crate::{
-    EpisodeSummary, LearnerSummary,
+    LearnerSummary,
     renderer::{EvaluationName, MetricsRenderer},
 };
 
@@ -16,32 +16,6 @@ pub enum LearnerEvent<T> {
     EndEpoch(usize),
     /// Signal the end of the process (e.g., training end).
     End(Option<LearnerSummary>),
-}
-
-/// Event happening during reinforcement learning.
-pub enum RLEvent<TS, ES> {
-    /// Signal the start of the process (e.g., learning starts).
-    Start,
-    /// Signal an agent's training step.
-    TrainStep(EvaluationItem<TS>),
-    /// Signal a timestep of the agent-environment interface.
-    TimeStep(EvaluationItem<ES>),
-    /// Signal an episode end.
-    EpisodeEnd(EvaluationItem<EpisodeSummary>),
-    /// Signal the end of the process (e.g., learning ends).
-    End(Option<LearnerSummary>),
-}
-
-/// Event happening during evaluation of a reinforcement learning's agent.
-pub enum AgentEvaluationEvent<T> {
-    /// Signal the start of the process (e.g., training start)
-    Start,
-    /// Signal a timestep of the agent-environment interface.
-    TimeStep(EvaluationItem<T>),
-    /// Signal an episode end.
-    EpisodeEnd(EvaluationItem<EpisodeSummary>),
-    /// Signal the end of the process (e.g., training end).
-    End,
 }
 
 /// Event happening during the evaluation process.

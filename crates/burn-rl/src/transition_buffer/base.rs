@@ -1,3 +1,5 @@
+use std::io::{Error, ErrorKind};
+
 use burn_core::{Tensor, prelude::Backend, tensor::backend::AutodiffBackend};
 use derive_new::new;
 use rand::{rng, seq::index::sample};
@@ -150,20 +152,39 @@ impl<T> TransitionBuffer<T> {
     }
 
     /// Sample the buffer at the given indices.
-    pub fn sample(&self, indices: Vec<usize>) -> Vec<&T> {
+    pub fn sample(&self, indices: Vec<usize>) -> Result<Vec<&T>, Error> {
         let mut items = Vec::with_capacity(indices.len());
 
         for &idx in indices.iter() {
-            if let Some(item) = self.buffer.get(idx) {
-                items.push(item);
+            match self.buffer.get(idx) {
+                Some(item) => items.push(item),
+                None => {
+                    return Err(Error::new(
+                        ErrorKind::InvalidInput,
+                        format!(
+                            "index out of bound: the len is {} but the index is {}",
+                            self.len(),
+                            idx
+                        ),
+                    ));
+                }
             }
         }
-        items
+        Ok(items)
     }
 
     /// Sample `batch_size` transitions at random.
-    pub fn random_sample(&self, batch_size: usize) -> Vec<&T> {
-        assert!(batch_size <= self.len());
+    pub fn random_sample(&self, batch_size: usize) -> Result<Vec<&T>, Error> {
+        if batch_size > self.len() {
+            return Err(Error::new(
+                ErrorKind::InvalidInput,
+                format!(
+                    "batch size {} bigger than buffer length {}",
+                    batch_size,
+                    self.len()
+                ),
+            ));
+        }
         let mut rng = rng();
         let indices = sample(&mut rng, self.len(), batch_size).into_vec();
         self.sample(indices)
@@ -172,41 +193,38 @@ impl<T> TransitionBuffer<T> {
 
 #[cfg(test)]
 mod tests {
-    use burn_core::tensor::TensorData;
-
-    use crate::TestBackend;
-
     use super::*;
 
-    fn transition() -> Transition<TestBackend, Tensor<TestBackend, 1>, Tensor<TestBackend, 1>> {
-        Transition::new(
-            Tensor::from_data(TensorData::from([1.0, 2.0]), &Default::default()),
-            Tensor::from_data(TensorData::from([1.0, 2.0]), &Default::default()),
-            Tensor::from_data(TensorData::from([1.0]), &Default::default()),
-            Tensor::from_data(TensorData::from([1.0]), &Default::default()),
-            Tensor::from_data(TensorData::from([1.0]), &Default::default()),
-        )
-    }
-
     #[test]
-    fn len_returns_number_of_elements() {
-        let mut buffer: TransitionBuffer<
-            Transition<TestBackend, Tensor<TestBackend, 1>, Tensor<TestBackend, 1>>,
-        > = TransitionBuffer::new(2);
+    fn push_fills_and_overwrites() {
+        let mut buffer = TransitionBuffer::new(3);
         assert_eq!(buffer.len(), 0);
 
-        buffer.push(transition());
+        buffer.push(0);
         assert_eq!(buffer.len(), 1);
+        assert_eq!(buffer.buffer, vec![0]);
 
-        buffer.push(transition());
+        buffer.push(1);
         assert_eq!(buffer.len(), 2);
+        assert_eq!(buffer.buffer, vec![0, 1]);
 
-        buffer.push(transition());
-        assert_eq!(buffer.len(), 2)
+        buffer.push(2);
+        assert_eq!(buffer.len(), 3);
+        assert_eq!(buffer.buffer, vec![0, 1, 2]);
+
+        buffer.push(3);
+        assert_eq!(buffer.len(), 3);
+        assert_eq!(buffer.buffer, vec![3, 1, 2]);
+
+        buffer.push(4);
+        buffer.push(5);
+        buffer.push(6);
+        assert_eq!(buffer.len(), 3);
+        assert_eq!(buffer.buffer, vec![6, 4, 5]);
     }
 
     #[test]
-    fn append_works() {
+    fn append_fills_and_overwrites() {
         let mut buffer = TransitionBuffer::new(4);
         assert_eq!(buffer.len(), 0);
 
@@ -230,5 +248,72 @@ mod tests {
         buffer.append(&mut vec![21, 22]);
         assert_eq!(buffer.len(), 4);
         assert_eq!(buffer.buffer, vec![20, 21, 22, 19]);
+    }
+
+    #[test]
+    fn clear_removes_all_items() {
+        let mut buffer = TransitionBuffer::new(2);
+        assert!(buffer.is_empty());
+
+        buffer.push(1);
+        assert!(!buffer.is_empty());
+
+        buffer.clear();
+        assert!(buffer.is_empty());
+
+        buffer.append(&mut vec![1, 2, 3]);
+        assert!(!buffer.is_empty());
+        buffer.clear();
+        assert!(buffer.is_empty());
+    }
+
+    #[test]
+    fn sample_with_valid_indices() {
+        let buffer = TransitionBuffer {
+            buffer: vec![1, 2, 3, 4],
+            capacity: 5,
+            cursor: 0,
+        };
+
+        let samples = buffer.sample(vec![0, 2]).unwrap();
+        assert_eq!(samples.len(), 2);
+        assert_eq!(*samples[0], 1);
+        assert_eq!(*samples[1], 3);
+    }
+
+    #[test]
+    fn sample_with_out_of_bounds_indices() {
+        let buffer = TransitionBuffer {
+            buffer: vec![10, 20, 30],
+            capacity: 5,
+            cursor: 0,
+        };
+
+        let result = buffer.sample(vec![0, 5, 2]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn random_sample_returns_correct_size() {
+        let buffer = TransitionBuffer {
+            buffer: vec![1, 2, 3, 4, 5],
+            capacity: 5,
+            cursor: 0,
+        };
+
+        let samples = buffer.random_sample(3).unwrap();
+        assert_eq!(samples.len(), 3);
+    }
+
+    #[test]
+    fn random_sample_exceeds_buffer_size() {
+        let buffer = TransitionBuffer {
+            buffer: vec![1, 2, 3],
+            capacity: 3,
+            cursor: 0,
+        };
+
+        let result = buffer.random_sample(5);
+        assert!(result.is_err())
     }
 }

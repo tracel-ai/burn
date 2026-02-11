@@ -53,8 +53,6 @@ pub(crate) type RLTrajectory<B, RLC> = Trajectory<
 
 /// Trait for a structure that implements an agent/environement interface.
 pub trait AgentEnvLoop<BT: Backend, RLC: RLComponentsTypes> {
-    /// Start the loop.
-    fn start(&mut self);
     /// Run a certain number of timesteps.
     ///
     /// # Arguments
@@ -120,8 +118,11 @@ impl<B: Backend, RLC: RLComponentsTypes> AgentEnvBaseLoop<B, RLC> {
         eval: bool,
         deterministic: bool,
     ) -> Self {
+        let mut env = env_init.init();
+        env.reset();
+
         Self {
-            env: env_init.init(),
+            env,
             eval,
             agent: agent.clone(),
             deterministic,
@@ -138,10 +139,6 @@ where
     BT: Backend,
     RLC: RLComponentsTypes,
 {
-    fn start(&mut self) {
-        self.env.reset();
-    }
-
     fn run_steps(
         &mut self,
         num_steps: usize,
@@ -269,5 +266,77 @@ where
 
     fn policy(&self) -> RLC::PolicyState {
         self.agent.state()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{AsyncProcessorTraining, TestBackend};
+
+    use crate::learner::tests::{
+        MockEnvInit, MockPolicy, MockPolicyState, MockProcessor, MockRLComponents,
+    };
+
+    use super::*;
+
+    fn setup(
+        state: usize,
+        eval: bool,
+        deterministic: bool,
+    ) -> AgentEnvBaseLoop<TestBackend, MockRLComponents> {
+        let env_init = MockEnvInit;
+        let agent = MockPolicy(state);
+        AgentEnvBaseLoop::<TestBackend, MockRLComponents>::new(env_init, agent, eval, deterministic)
+    }
+
+    #[test]
+    fn test_policy_returns_agent_state() {
+        let runner = setup(1000, false, false);
+        let policy_state = runner.policy();
+        assert_eq!(policy_state.0, 1000);
+    }
+
+    #[test]
+    fn test_update_policy() {
+        let mut runner = setup(0, false, false);
+
+        runner.update_policy(MockPolicyState(1));
+        assert_eq!(runner.policy().0, 1);
+    }
+
+    #[test]
+    fn run_steps_returns_requested_number() {
+        let mut runner = setup(0, false, false);
+        let mut processor = AsyncProcessorTraining::new(MockProcessor);
+        let mut interrupter = Interrupter::new();
+        let mut progress = Progress {
+            items_processed: 0,
+            items_total: 1,
+        };
+
+        let steps = runner.run_steps(1, &mut processor, &mut interrupter, &mut progress);
+        assert_eq!(steps.len(), 1);
+        let steps = runner.run_steps(8, &mut processor, &mut interrupter, &mut progress);
+        assert_eq!(steps.len(), 8);
+    }
+
+    #[test]
+    fn run_episodes_returns_requested_number() {
+        let mut runner = setup(0, false, false);
+        let mut processor = AsyncProcessorTraining::new(MockProcessor);
+        let mut interrupter = Interrupter::new();
+        let mut progress = Progress {
+            items_processed: 0,
+            items_total: 1,
+        };
+
+        let trajectories = runner.run_episodes(1, &mut processor, &mut interrupter, &mut progress);
+        assert_eq!(trajectories.len(), 1);
+        assert_ne!(trajectories[0].timesteps.len(), 0);
+        let trajectories = runner.run_episodes(8, &mut processor, &mut interrupter, &mut progress);
+        assert_eq!(trajectories.len(), 8);
+        for i in 0..8 {
+            assert_ne!(trajectories[i].timesteps.len(), 0);
+        }
     }
 }

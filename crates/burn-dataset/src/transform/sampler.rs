@@ -1,11 +1,11 @@
 use crate::Dataset;
 use crate::transform::{RngSource, SizeConfig};
 use rand::prelude::SliceRandom;
-use rand::{Rng, distr::Uniform, rngs::StdRng, seq::IteratorRandom};
+use rand::{RngExt, distr::Uniform, rngs::StdRng, seq::IteratorRandom};
 use std::{marker::PhantomData, ops::DerefMut, sync::Mutex};
 
 /// Options to configure a [SamplerDataset].
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct SamplerDatasetOptions {
     /// The sampling mode.
     pub replace_samples: bool,
@@ -274,7 +274,7 @@ where
                     // > Although the elements are selected randomly, the order of elements in
                     // > the buffer is neither stable nor fully random. If random ordering is
                     // > desired, shuffle the result.
-                    indices.extend(idx_range.choose_multiple(rng, self.size - indices.len()));
+                    indices.extend(idx_range.sample(rng, self.size - indices.len()));
 
                     // The real shuffling is done here.
                     indices.shuffle(rng);
@@ -344,8 +344,8 @@ mod tests {
         let options = options.with_seed(42);
         assert_eq!(options.rng_source, RngSource::Seed(42));
         let rng = StdRng::seed_from_u64(9);
-        let options = options.with_rng(rng.clone());
-        assert_eq!(options.rng_source, RngSource::Rng(rng.clone()));
+        let options = options.with_rng(rng);
+        assert!(matches!(options.rng_source, RngSource::Rng(_)));
     }
 
     #[test]

@@ -1,10 +1,36 @@
 use std::sync::Arc;
 
 use crate::{
-    AgentEvaluationEvent, EventProcessorTraining, ItemLazy, RLEvent, RLMetrics,
+    EpisodeSummary, EvaluationItem, EventProcessorTraining, ItemLazy, LearnerSummary, RLMetrics,
     metric::store::{Event, EventStoreClient, MetricsUpdate},
     renderer::{MetricState, MetricsRenderer, ProgressType, TrainingProgress},
 };
+
+/// Event happening during reinforcement learning.
+pub enum RLEvent<TS, ES> {
+    /// Signal the start of the process (e.g., learning starts).
+    Start,
+    /// Signal an agent's training step.
+    TrainStep(EvaluationItem<TS>),
+    /// Signal a timestep of the agent-environment interface.
+    TimeStep(EvaluationItem<ES>),
+    /// Signal an episode end.
+    EpisodeEnd(EvaluationItem<EpisodeSummary>),
+    /// Signal the end of the process (e.g., learning ends).
+    End(Option<LearnerSummary>),
+}
+
+/// Event happening during evaluation of a reinforcement learning's agent.
+pub enum AgentEvaluationEvent<T> {
+    /// Signal the start of the process (e.g., training start)
+    Start,
+    /// Signal a timestep of the agent-environment interface.
+    TimeStep(EvaluationItem<T>),
+    /// Signal an episode end.
+    EpisodeEnd(EvaluationItem<EpisodeSummary>),
+    /// Signal the end of the process (e.g., training end).
+    End,
+}
 
 /// An [event processor](EventProcessorTraining) that handles:
 ///   - Computing and storing metrics in an [event store](crate::metric::store::EventStore).

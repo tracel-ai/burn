@@ -34,10 +34,7 @@ pub(crate) static SEED: Mutex<Option<StdRng>> = Mutex::new(None);
 
 pub(crate) fn get_seeded_rng() -> StdRng {
     let mut seed = SEED.lock().unwrap();
-    match seed.as_ref() {
-        Some(rng_seeded) => rng_seeded.clone(),
-        None => burn_std::rand::get_seeded_rng(),
-    }
+    seed.take().unwrap_or_else(burn_std::rand::get_seeded_rng)
 }
 
 pub(crate) fn set_seeded_rng(rng_seeded: StdRng) {

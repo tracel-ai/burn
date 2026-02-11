@@ -7,7 +7,7 @@ use burn_tensor::{
 };
 
 use num_traits::identities::ConstZero;
-use rand::RngCore;
+use rand::Rng;
 pub trait ToComplex<C> {
     fn to_complex(&self) -> C;
 }
@@ -175,7 +175,7 @@ macro_rules! make_complex {
 
 
         impl ElementRandom for $type {
-            fn random<R: RngCore>(distribution: Distribution, rng: &mut R) -> Self {
+            fn random<R: Rng>(distribution: Distribution, rng: &mut R) -> Self {
                 #[allow(clippy::redundant_closure_call)]
                 $random(distribution, rng)
             }

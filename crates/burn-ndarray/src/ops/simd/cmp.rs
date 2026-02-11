@@ -1,7 +1,7 @@
 use core::{marker::PhantomData, slice};
 
 use burn_backend::Element;
-use macerator::{Scalar, Simd, VEq, VOrd, Vector, vload_unaligned};
+use macerator::{Mask, Scalar, Simd, VEq, VOrd, Vector, vload_unaligned};
 use ndarray::ArrayD;
 use seq_macro::seq;
 
@@ -10,7 +10,7 @@ use crate::{NdArrayElement, SharedArray, ops::simd::uninit_array_like};
 use super::should_use_simd;
 
 pub trait SimdCmpOp<T: Scalar> {
-    fn apply_vec<S: Simd>(lhs: Vector<S, T>, rhs: Vector<S, T>) -> T::Mask<S>;
+    fn apply_vec<S: Simd>(lhs: Vector<S, T>, rhs: Vector<S, T>) -> Mask<S, T>;
     fn apply(lhs: T, rhs: T) -> bool;
     fn is_accelerated<S: Simd>() -> bool;
 }
@@ -18,7 +18,7 @@ pub trait SimdCmpOp<T: Scalar> {
 pub struct VecEquals;
 
 impl<T: VEq> SimdCmpOp<T> for VecEquals {
-    fn apply_vec<S: Simd>(lhs: Vector<S, T>, rhs: Vector<S, T>) -> <T as Scalar>::Mask<S> {
+    fn apply_vec<S: Simd>(lhs: Vector<S, T>, rhs: Vector<S, T>) -> Mask<S, T> {
         lhs.eq(rhs)
     }
 
@@ -34,7 +34,7 @@ impl<T: VEq> SimdCmpOp<T> for VecEquals {
 pub struct VecGreater;
 
 impl<T: VOrd + PartialOrd> SimdCmpOp<T> for VecGreater {
-    fn apply_vec<S: Simd>(lhs: Vector<S, T>, rhs: Vector<S, T>) -> <T as Scalar>::Mask<S> {
+    fn apply_vec<S: Simd>(lhs: Vector<S, T>, rhs: Vector<S, T>) -> Mask<S, T> {
         lhs.gt(rhs)
     }
 
@@ -50,7 +50,7 @@ impl<T: VOrd + PartialOrd> SimdCmpOp<T> for VecGreater {
 pub struct VecGreaterEq;
 
 impl<T: VOrd + PartialOrd> SimdCmpOp<T> for VecGreaterEq {
-    fn apply_vec<S: Simd>(lhs: Vector<S, T>, rhs: Vector<S, T>) -> <T as Scalar>::Mask<S> {
+    fn apply_vec<S: Simd>(lhs: Vector<S, T>, rhs: Vector<S, T>) -> Mask<S, T> {
         lhs.ge(rhs)
     }
 
@@ -66,7 +66,7 @@ impl<T: VOrd + PartialOrd> SimdCmpOp<T> for VecGreaterEq {
 pub struct VecLowerEq;
 
 impl<T: VOrd + PartialOrd> SimdCmpOp<T> for VecLowerEq {
-    fn apply_vec<S: Simd>(lhs: Vector<S, T>, rhs: Vector<S, T>) -> <T as Scalar>::Mask<S> {
+    fn apply_vec<S: Simd>(lhs: Vector<S, T>, rhs: Vector<S, T>) -> Mask<S, T> {
         lhs.le(rhs)
     }
 
@@ -82,7 +82,7 @@ impl<T: VOrd + PartialOrd> SimdCmpOp<T> for VecLowerEq {
 pub struct VecLower;
 
 impl<T: VOrd + PartialOrd> SimdCmpOp<T> for VecLower {
-    fn apply_vec<S: Simd>(lhs: Vector<S, T>, rhs: Vector<S, T>) -> <T as Scalar>::Mask<S> {
+    fn apply_vec<S: Simd>(lhs: Vector<S, T>, rhs: Vector<S, T>) -> Mask<S, T> {
         lhs.lt(rhs)
     }
 
