@@ -18,40 +18,61 @@ version.workspace = true
 workspace = true
 
 [features]
-default = ["std"]
-std = ["burn-backend/std", "burn-std/std", "burn-ir/std"]
+default = [
+    "std",
+    "burn-autodiff?/default",
+    "burn-cpu?/default",
+    "burn-cuda?/default",
+    "burn-ndarray?/default",
+    "burn-rocm?/default",
+    "burn-tch?/default",
+    "burn-wgpu?/default",
+]
 doc = ["default"]
-tracing = ["burn-router/tracing"]
+std = [
+    "burn-backend/std",
+    "burn-std/std",
+    "burn-autodiff?/std",
+    "burn-cpu?/std",
+    "burn-cuda?/std",
+    "burn-ndarray?/std",
+    "burn-rocm?/std",
+    "burn-tch?/std",
+    "burn-wgpu?/std",
+]
+tracing = [
+    "burn-autodiff?/tracing",
+    "burn-cpu?/tracing",
+    "burn-cuda?/tracing",
+    "burn-ndarray?/tracing",
+    "burn-rocm?/tracing",
+    "burn-tch?/tracing",
+    "burn-wgpu?/tracing",
+]
 
 # Backends
-# TODO: implement BackendIr for candle + tch if we want to add them
-# candle = ["burn-candle"]
-# candle-cuda = ["candle", "burn-candle/cuda"]
-# candle-metal = ["burn-candle?/metal"]
 cuda = ["burn-cuda"]
 rocm = ["burn-rocm"]
 ndarray = ["burn-ndarray"]
-# tch = ["burn-tch"]
+tch = ["burn-tch"]
 vulkan = ["wgpu", "burn-wgpu/vulkan"]
 webgpu = ["wgpu", "burn-wgpu/webgpu"]
 metal = ["wgpu", "burn-wgpu/metal"]
 wgpu = ["burn-wgpu"]
 cpu = ["burn-cpu"]
+autodiff = ["burn-autodiff"]
 
 [dependencies]
-burn-ir = { path = "../burn-ir", version = "=0.21.0", default-features = false }
 burn-backend = { path = "../burn-backend", version = "=0.21.0", default-features = false }
 burn-std = { path = "../burn-std", version = "=0.21.0", default-features = false }
-burn-router = { path = "../burn-router", version = "=0.21.0", default-features = false }
 
 # Backends
 burn-autodiff = { path = "../burn-autodiff", version = "=0.21.0", optional = true, default-features = false }
-# burn-candle = { path = "../burn-candle", version = "=0.21.0", optional = true }
-burn-cuda = { path = "../burn-cuda", version = "=0.21.0", optional = true, default-features = false }
 burn-cpu = { path = "../burn-cpu", version = "=0.21.0", optional = true, default-features = false }
-burn-rocm = { path = "../burn-rocm", version = "=0.21.0", optional = true, default-features = false }
+burn-cuda = { path = "../burn-cuda", version = "=0.21.0", optional = true, default-features = false }
 burn-ndarray = { path = "../burn-ndarray", version = "=0.21.0", optional = true, default-features = false }
-# burn-tch = { path = "../burn-tch", version = "=0.21.0", default-features = false, optional = true }
+burn-tch = { path = "../burn-tch", version = "=0.21.0", optional = true, default-features = false }
+burn-rocm = { path = "../burn-rocm", version = "=0.21.0", optional = true, default-features = false }
 burn-wgpu = { path = "../burn-wgpu", version = "=0.21.0", optional = true, default-features = false }
 
 [package.metadata.docs.rs]

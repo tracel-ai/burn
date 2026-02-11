@@ -948,11 +948,10 @@ dependencies = [
  "burn-backend",
  "burn-cpu",
  "burn-cuda",
- "burn-ir",
  "burn-ndarray",
  "burn-rocm",
- "burn-router",
  "burn-std",
+ "burn-tch",
  "burn-wgpu",
 ]
 

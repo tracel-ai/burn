@@ -129,6 +129,7 @@ impl<B: BackendIr> Runner<B> {
     }
 }
 
+// This is a Remote Runner
 impl<B: BackendIr> RunnerClient for Runner<B> {
     type Device = B::Device;
 
@@ -528,7 +529,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     let tensor = handles.get_bool_tensor::<B>(&desc.tensor);
                     let mask = handles.get_bool_tensor::<B>(&desc.mask);
 
-                    let output = B::bool_mask_fill(tensor, mask, desc.value.elem());
+                    let output = B::bool_mask_fill(tensor, mask, desc.value.into());
                     handles.register_bool_tensor::<B>(&desc.out.id, output);
                 }
                 BaseOperationIr::Equal(desc) => {
@@ -541,7 +542,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                 BaseOperationIr::EqualElem(desc) => {
                     let lhs = handles.get_bool_tensor::<B>(&desc.lhs);
 
-                    let output = B::bool_equal_elem(lhs, desc.rhs.elem());
+                    let output = B::bool_equal_elem(lhs, desc.rhs.into());
                     handles.register_bool_tensor::<B>(&desc.out.id, output);
                 }
                 BaseOperationIr::RepeatDim(desc) => {

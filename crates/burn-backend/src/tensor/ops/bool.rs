@@ -99,9 +99,7 @@ impl<B: Backend> BasicOps<B> for Bool {
         mask: B::BoolTensorPrimitive,
         value: Scalar,
     ) -> Self::Primitive {
-        // NOTE: we currently only support one one element type for bool, so the contract reflects that
-        // via `BoolElem<B>` instead of `Scalar` in the trait methods.
-        B::bool_mask_fill(tensor, mask, value.elem())
+        B::bool_mask_fill(tensor, mask, value)
     }
 
     fn gather(
@@ -161,11 +159,11 @@ impl<B: Backend> BasicOps<B> for Bool {
     }
 
     fn equal_elem(lhs: Self::Primitive, rhs: Scalar) -> B::BoolTensorPrimitive {
-        B::bool_equal_elem(lhs, rhs.elem())
+        B::bool_equal_elem(lhs, rhs)
     }
 
     fn not_equal_elem(lhs: Self::Primitive, rhs: Scalar) -> B::BoolTensorPrimitive {
-        B::bool_not_equal_elem(lhs, rhs.elem())
+        B::bool_not_equal_elem(lhs, rhs)
     }
 
     fn cat(vectors: Vec<Self::Primitive>, dim: usize) -> Self::Primitive {
