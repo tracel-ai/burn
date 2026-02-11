@@ -94,6 +94,10 @@ impl<B: Backend> Adaptor<AccuracyInput<B>> for ClassificationOutput<B> {
 }
 ```
 
+You can also open an issue on the [GitHub repository](https://github.com/tracel-ai/burn) when your task type is 
+not covered by the built-in output structs. However, since creating an output struct for your data is simple, 
+it is recommended to try creating your own output struct first. 
+
 # Custom Metric
 
 Generating your own custom metrics is done by implementing the `Metric` trait.
