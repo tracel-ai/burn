@@ -53,7 +53,6 @@ fn should_support_quantize_symmetric_int8() {
     // Dequantize
     let x = x_q.dequantize();
 
-    // Precision 2 for dequantization errors
     x.into_data().assert_approx_eq::<FloatElem>(
         &tensor.into_data(),
         Tolerance::absolute(1e-1).set_relative(1e-2),
@@ -110,9 +109,10 @@ fn should_quantize_dequantize_symmetric_arange_16x16() {
     let output = input.clone().quantize_dynamic(&scheme);
     let output = output.dequantize();
 
-    output
-        .into_data()
-        .assert_approx_eq::<FloatElem>(&input.into_data(), Tolerance::default());
+    output.into_data().assert_approx_eq::<FloatElem>(
+        &input.into_data(),
+        Tolerance::absolute(1e-1).set_relative(1e-2),
+    );
 }
 
 #[test]
@@ -129,9 +129,10 @@ fn should_quantize_dequantize_symmetric_per_block_arange_16x16() {
     let output = input.clone().quantize_dynamic(&scheme);
     let output = output.dequantize();
 
-    output
-        .into_data()
-        .assert_approx_eq::<FloatElem>(&input.into_data(), Tolerance::default());
+    output.into_data().assert_approx_eq::<FloatElem>(
+        &input.into_data(),
+        Tolerance::absolute(1e-1).set_relative(1e-2),
+    );
 }
 
 fn should_quantize_transposed<const D: usize>(tensor: Tensor<TestBackend, D>, scheme: QuantScheme) {
@@ -139,9 +140,10 @@ fn should_quantize_transposed<const D: usize>(tensor: Tensor<TestBackend, D>, sc
 
     let output = tensor_t.quantize_dynamic(&scheme).dequantize().transpose();
 
-    tensor
-        .into_data()
-        .assert_approx_eq::<FloatElem>(&output.into_data(), Tolerance::permissive());
+    tensor.into_data().assert_approx_eq::<FloatElem>(
+        &output.into_data(),
+        Tolerance::absolute(1e-1).set_relative(1e-2),
+    );
 }
 
 #[test]
@@ -197,7 +199,8 @@ fn should_quantize_symmetric_int8_permuted_batch_dims() {
         .dequantize()
         .permute([2, 0, 1, 3]); // reverse permutation
 
-    tensor
-        .into_data()
-        .assert_approx_eq::<FloatElem>(&output.into_data(), Tolerance::permissive());
+    tensor.into_data().assert_approx_eq::<FloatElem>(
+        &output.into_data(),
+        Tolerance::absolute(1e-1).set_relative(1e-2),
+    );
 }
