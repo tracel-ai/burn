@@ -17,3 +17,5 @@ extend-exclude = [
 [default.extend-words]
 # Don't correct "arange" which is intentional
 arange = "arange"
+# Don't correct "convnet" (convolutional network)
+convnet = "convnet"
