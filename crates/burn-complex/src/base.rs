@@ -34,14 +34,6 @@ pub trait ComplexTensorBackend: Backend + ComplexTensorOps<Self> {
 
     /// The underlaying layout for the complex elements
     type Layout: ComplexLayout;
-
-    /// Returns the real part of a complex tensor.
-    fn real(tensor: ComplexTensor<Self>) -> FloatTensor<Self::InnerBackend>;
-    /// Returns the imaginary part of a complex tensor.
-    fn imag(tensor: ComplexTensor<Self>) -> FloatTensor<Self::InnerBackend>;
-
-    fn to_complex(tensor: FloatTensor<Self::InnerBackend>) -> ComplexTensor<Self>;
-    // can reuse float random
 }
 //Note: changing to adopt terminology used in fftw doc
 
@@ -87,6 +79,9 @@ impl ComplexLayout for InterleavedLayout {}
 /// Operations on complex tensors.
 pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     type Layout: ComplexLayout;
+
+    fn to_complex(tensor: B::FloatTensorPrimitive) -> ComplexTensor<B>;
+    // can reuse float random
     /// Creates a new complex tensor from the data structure.
     ///
     /// # Arguments
@@ -97,7 +92,9 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// # Returns
     ///
     /// The tensor with the given data.
-    fn complex_from_data(data: TensorData, device: &Device<B>) -> ComplexTensor<B>;
+    fn complex_from_data(data: TensorData, device: &Device<B>) -> ComplexTensor<B> {
+        todo!()
+    }
 
     /// Creates a new complex tensor with random values.
     ///
@@ -114,7 +111,9 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
         shape: Shape,
         distribution: Distribution,
         device: &Device<B>,
-    ) -> ComplexTensor<B>;
+    ) -> ComplexTensor<B> {
+        todo!()
+    }
 
     /// Creates a new complex tensor with zeros.
     ///
@@ -172,7 +171,9 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// # Returns
     ///
     /// The shape of the tensor.
-    fn complex_shape(tensor: &ComplexTensor<B>) -> Shape;
+    fn complex_shape(tensor: &ComplexTensor<B>) -> Shape {
+        todo!()
+    }
 
     /// Converts the tensor to a data structure.
     ///
@@ -183,7 +184,9 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// # Returns
     ///
     /// The data structure with the tensor's data.
-    fn complex_to_data(tensor: &ComplexTensor<B>) -> TensorData;
+    fn complex_to_data(tensor: &ComplexTensor<B>) -> TensorData {
+        todo!()
+    }
 
     /// Gets the device of the tensor.
     ///
@@ -194,7 +197,9 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// # Returns
     ///
     /// The device of the tensor.
-    fn complex_device(tensor: &ComplexTensor<B>) -> Device<B>;
+    fn complex_device(tensor: &ComplexTensor<B>) -> Device<B> {
+        todo!()
+    }
 
     /// Moves the tensor to the given device.
     ///
@@ -206,7 +211,9 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// # Returns
     ///
     /// The tensor on the given device.
-    fn complex_to_device(tensor: ComplexTensor<B>, device: &Device<B>) -> ComplexTensor<B>;
+    fn complex_to_device(tensor: ComplexTensor<B>, device: &Device<B>) -> ComplexTensor<B> {
+        todo!()
+    }
 
     /// Converts the tensor to a different element type.
     ///
@@ -231,7 +238,9 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// # Returns
     ///
     /// The tensor with the new shape.
-    fn complex_reshape(tensor: ComplexTensor<B>, shape: Shape) -> ComplexTensor<B>;
+    fn complex_reshape(tensor: ComplexTensor<B>, shape: Shape) -> ComplexTensor<B> {
+        todo!()
+    }
 
     /// Transposes the tensor.
     ///
@@ -242,7 +251,9 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// # Returns
     ///
     /// The transposed tensor.
-    fn complex_transpose(tensor: ComplexTensor<B>) -> ComplexTensor<B>;
+    fn complex_transpose(tensor: ComplexTensor<B>) -> ComplexTensor<B> {
+        todo!()
+    }
 
     /// Adds two tensors together.
     ///
@@ -254,7 +265,9 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// # Returns
     ///
     /// The result of adding the two tensors together.
-    fn complex_add(lhs: ComplexTensor<B>, rhs: ComplexTensor<B>) -> ComplexTensor<B>;
+    fn complex_add(lhs: ComplexTensor<B>, rhs: ComplexTensor<B>) -> ComplexTensor<B> {
+        todo!()
+    }
 
     /// Subtracts the second tensor from the first tensor.
     ///
@@ -266,7 +279,9 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// # Returns
     ///
     /// The result of subtracting the second tensor from the first tensor.
-    fn complex_sub(lhs: ComplexTensor<B>, rhs: ComplexTensor<B>) -> ComplexTensor<B>;
+    fn complex_sub(lhs: ComplexTensor<B>, rhs: ComplexTensor<B>) -> ComplexTensor<B> {
+        todo!()
+    }
 
     /// Multiplies two complex tensors together using complex multiplication.
     ///
@@ -278,7 +293,9 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// # Returns
     ///
     /// The result of multiplying the two tensors together.
-    fn complex_mul(lhs: ComplexTensor<B>, rhs: ComplexTensor<B>) -> ComplexTensor<B>;
+    fn complex_mul(lhs: ComplexTensor<B>, rhs: ComplexTensor<B>) -> ComplexTensor<B> {
+        todo!()
+    }
 
     /// Divides the first tensor by the second tensor using complex division.
     ///
@@ -290,7 +307,9 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// # Returns
     ///
     /// The result of dividing the first tensor by the second tensor.
-    fn complex_div(lhs: ComplexTensor<B>, rhs: ComplexTensor<B>) -> ComplexTensor<B>;
+    fn complex_div(lhs: ComplexTensor<B>, rhs: ComplexTensor<B>) -> ComplexTensor<B> {
+        todo!()
+    }
 
     /// Negates the tensor.
     ///
@@ -301,7 +320,9 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// # Returns
     ///
     /// The negated tensor.
-    fn complex_neg(tensor: ComplexTensor<B>) -> ComplexTensor<B>;
+    fn complex_neg(tensor: ComplexTensor<B>) -> ComplexTensor<B> {
+        todo!()
+    }
 
     /// Returns the complex conjugate of the tensor.
     ///
@@ -312,7 +333,9 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// # Returns
     ///
     /// The complex conjugate of the tensor.
-    fn complex_conj(tensor: ComplexTensor<B>) -> ComplexTensor<B>;
+    fn complex_conj(tensor: ComplexTensor<B>) -> ComplexTensor<B> {
+        todo!()
+    }
 
     /// Returns the real part of the complex tensor.
     ///
@@ -323,7 +346,9 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// # Returns
     ///
     /// A float tensor containing the real parts.
-    fn complex_real(tensor: ComplexTensor<B>) -> B::FloatTensorPrimitive;
+    fn real(tensor: ComplexTensor<B>) -> B::FloatTensorPrimitive {
+        todo!()
+    }
 
     /// Returns the imaginary part of the complex tensor.
     ///
@@ -334,7 +359,9 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// # Returns
     ///
     /// A float tensor containing the imaginary parts.
-    fn complex_imag(tensor: ComplexTensor<B>) -> B::FloatTensorPrimitive;
+    fn imag(tensor: ComplexTensor<B>) -> B::FloatTensorPrimitive {
+        todo!()
+    }
 
     /// Returns the magnitude (absolute value) of the complex tensor.
     ///
@@ -345,7 +372,9 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// # Returns
     ///
     /// A float tensor containing the magnitudes.
-    fn complex_abs(tensor: ComplexTensor<B>) -> B::FloatTensorPrimitive;
+    fn complex_abs(tensor: ComplexTensor<B>) -> B::FloatTensorPrimitive {
+        todo!()
+    }
 
     /// Returns the phase (argument) of the complex tensor.
     ///
@@ -356,7 +385,9 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// # Returns
     ///
     /// A float tensor containing the phases in radians.
-    fn complex_arg(tensor: ComplexTensor<B>) -> B::FloatTensorPrimitive;
+    fn complex_arg(tensor: ComplexTensor<B>) -> B::FloatTensorPrimitive {
+        todo!()
+    }
 
     /// Creates a complex tensor from real and imaginary parts.
     ///
@@ -371,7 +402,9 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     fn complex_from_parts(
         real: B::FloatTensorPrimitive,
         imag: B::FloatTensorPrimitive,
-    ) -> ComplexTensor<B>;
+    ) -> ComplexTensor<B> {
+        todo!()
+    }
 
     /// Creates a complex tensor from magnitude and phase.
     ///
@@ -386,7 +419,9 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     fn complex_from_polar(
         magnitude: B::FloatTensorPrimitive,
         phase: B::FloatTensorPrimitive,
-    ) -> ComplexTensor<B>;
+    ) -> ComplexTensor<B> {
+        todo!()
+    }
 
     /// Complex exponential function.
     ///
@@ -397,7 +432,9 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// # Returns
     ///
     /// The exponential of the tensor.
-    fn complex_exp(tensor: ComplexTensor<B>) -> ComplexTensor<B>;
+    fn complex_exp(tensor: ComplexTensor<B>) -> ComplexTensor<B> {
+        todo!()
+    }
 
     /// Complex natural logarithm.
     ///
@@ -408,7 +445,9 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// # Returns
     ///
     /// The natural logarithm of the tensor.
-    fn complex_log(tensor: ComplexTensor<B>) -> ComplexTensor<B>;
+    fn complex_log(tensor: ComplexTensor<B>) -> ComplexTensor<B> {
+        todo!()
+    }
 
     /// Complex power function.
     ///
@@ -420,7 +459,9 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// # Returns
     ///
     /// The result of raising the base to the exponent.
-    fn complex_powc(lhs: ComplexTensor<B>, rhs: ComplexTensor<B>) -> ComplexTensor<B>;
+    fn complex_powc(lhs: ComplexTensor<B>, rhs: ComplexTensor<B>) -> ComplexTensor<B> {
+        todo!()
+    }
 
     /// Complex square root.
     ///
@@ -431,7 +472,9 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// # Returns
     ///
     /// The square root of the tensor.
-    fn complex_sqrt(tensor: ComplexTensor<B>) -> ComplexTensor<B>;
+    fn complex_sqrt(tensor: ComplexTensor<B>) -> ComplexTensor<B> {
+        todo!()
+    }
 
     /// Complex sine function.
     ///
@@ -442,7 +485,9 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// # Returns
     ///
     /// The sine of the tensor.
-    fn complex_sin(tensor: ComplexTensor<B>) -> ComplexTensor<B>;
+    fn complex_sin(tensor: ComplexTensor<B>) -> ComplexTensor<B> {
+        todo!()
+    }
 
     /// Complex cosine function.
     ///
@@ -453,7 +498,9 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// # Returns
     ///
     /// The cosine of the tensor.
-    fn complex_cos(tensor: ComplexTensor<B>) -> ComplexTensor<B>;
+    fn complex_cos(tensor: ComplexTensor<B>) -> ComplexTensor<B> {
+        todo!()
+    }
 
     /// Complex tangent function.
     ///
@@ -464,7 +511,9 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// # Returns
     ///
     /// The tangent of the tensor.
-    fn complex_tan(tensor: ComplexTensor<B>) -> ComplexTensor<B>;
+    fn complex_tan(tensor: ComplexTensor<B>) -> ComplexTensor<B> {
+        todo!()
+    }
 
     /// Complex select function.
     ///
@@ -481,7 +530,9 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
         tensor: ComplexTensor<B>,
         dim: usize,
         indices: <B as Backend>::IntTensorPrimitive,
-    ) -> ComplexTensor<B>;
+    ) -> ComplexTensor<B> {
+        todo!()
+    }
 
     /// Complex select assign function.
     ///
@@ -500,7 +551,9 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
         dim: usize,
         indices: <B as Backend>::IntTensorPrimitive,
         values: ComplexTensor<B>,
-    ) -> ComplexTensor<B>;
+    ) -> ComplexTensor<B> {
+        todo!()
+    }
 
     /// Complex slice function.
     ///
@@ -514,7 +567,9 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// # Returns
     ///
     /// The sliced tensor.
-    fn complex_slice(tensor: ComplexTensor<B>, slices: &[burn_tensor::Slice]) -> ComplexTensor<B>;
+    fn complex_slice(tensor: ComplexTensor<B>, slices: &[burn_tensor::Slice]) -> ComplexTensor<B> {
+        todo!()
+    }
 
     /// Assign the selected elements corresponding for the given ranges to the given value.
     ///
@@ -531,7 +586,9 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
         tensor: ComplexTensor<B>,
         ranges: &[burn_tensor::Slice],
         value: ComplexTensor<B>,
-    ) -> ComplexTensor<B>;
+    ) -> ComplexTensor<B> {
+        todo!()
+    }
 
     /// Swaps two dimensions of a tensor.
     ///
@@ -544,7 +601,9 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// # Returns
     ///
     /// The tensor with the dimensions swapped.
-    fn complex_swap_dims(tensor: ComplexTensor<B>, dim1: usize, dim2: usize) -> ComplexTensor<B>;
+    fn complex_swap_dims(tensor: ComplexTensor<B>, dim1: usize, dim2: usize) -> ComplexTensor<B> {
+        todo!()
+    }
 
     /// Repeat the tensor along the given dimension.
     ///
@@ -557,7 +616,9 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// # Returns
     ///
     /// The tensor with the given dimension repeated.
-    fn complex_repeat_dim(tensor: ComplexTensor<B>, dim: usize, times: usize) -> ComplexTensor<B>;
+    fn complex_repeat_dim(tensor: ComplexTensor<B>, dim: usize, times: usize) -> ComplexTensor<B> {
+        todo!()
+    }
 
     /// Equal comparison of two tensors.
     ///
@@ -569,7 +630,9 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// # Returns
     ///
     /// A boolean tensor with the result of the comparison.
-    fn complex_equal(lhs: ComplexTensor<B>, rhs: ComplexTensor<B>) -> B::BoolTensorPrimitive;
+    fn complex_equal(lhs: ComplexTensor<B>, rhs: ComplexTensor<B>) -> B::BoolTensorPrimitive {
+        todo!()
+    }
 
     /// Element-wise non-equality comparison.
     ///
@@ -581,7 +644,9 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// # Returns
     ///
     /// A boolean tensor with the result of the comparison.
-    fn complex_not_equal(lhs: ComplexTensor<B>, rhs: ComplexTensor<B>) -> B::BoolTensorPrimitive;
+    fn complex_not_equal(lhs: ComplexTensor<B>, rhs: ComplexTensor<B>) -> B::BoolTensorPrimitive {
+        todo!()
+    }
 
     /// Concatenates tensors along a dimension.
     ///
@@ -593,7 +658,9 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// # Returns
     ///
     /// A tensor with the concatenated tensors along `dim`.
-    fn complex_cat(tensors: Vec<ComplexTensor<B>>, dim: usize) -> ComplexTensor<B>;
+    fn complex_cat(tensors: Vec<ComplexTensor<B>>, dim: usize) -> ComplexTensor<B> {
+        todo!()
+    }
 
     /// Tests if any element in the `tensor` evaluates to True.
     ///
@@ -604,7 +671,9 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// # Returns
     ///
     /// A boolean tensor with a single element, True if any element in the tensor is True, False otherwise.
-    fn complex_any(tensor: ComplexTensor<B>) -> B::BoolTensorPrimitive;
+    fn complex_any(tensor: ComplexTensor<B>) -> B::BoolTensorPrimitive {
+        todo!()
+    }
 
     /// Tests if any element in the float `tensor` evaluates to True along a given dimension `dim`.
     ///
@@ -618,7 +687,9 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// A boolean tensor `Tensor<B, D, Bool>` with the same size as input `tensor`, except in the `dim` axis
     /// where the size is 1. The elem in the `dim` axis is True if any element along this dim in the
     /// input evaluates to True, False otherwise.
-    fn complex_any_dim(tensor: ComplexTensor<B>, dim: usize) -> B::BoolTensorPrimitive;
+    fn complex_any_dim(tensor: ComplexTensor<B>, dim: usize) -> B::BoolTensorPrimitive {
+        todo!()
+    }
 
     /// Tests if all elements in the float `tensor` evaluate to True.
     ///
@@ -630,7 +701,9 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     ///
     /// A boolean tensor `Tensor<B, 1, Bool>` with a single element, True if all elements in the input tensor
     /// evaluate to True, False otherwise.
-    fn complex_all(tensor: ComplexTensor<B>) -> B::BoolTensorPrimitive;
+    fn complex_all(tensor: ComplexTensor<B>) -> B::BoolTensorPrimitive {
+        todo!()
+    }
 
     /// Tests if all elements in the float `tensor` evaluate to True along a given dimension `dim`.
     ///
@@ -644,16 +717,24 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// A boolean tensor `Tensor<B, D, Bool>` with the same size as input `tensor`, except in the `dim` axis
     /// where the size is 1. The elem in the `dim` axis is True if all elements along this dim in the input
     /// evaluates to True, False otherwise.
-    fn complex_all_dim(tensor: ComplexTensor<B>, dim: usize) -> B::BoolTensorPrimitive;
+    fn complex_all_dim(tensor: ComplexTensor<B>, dim: usize) -> B::BoolTensorPrimitive {
+        todo!()
+    }
 
     /// Permute axes.
-    fn complex_permute(tensor: ComplexTensor<B>, axes: &[usize]) -> ComplexTensor<B>;
+    fn complex_permute(tensor: ComplexTensor<B>, axes: &[usize]) -> ComplexTensor<B> {
+        todo!()
+    }
 
     /// Expand to broadcast shape.
-    fn complex_expand(tensor: ComplexTensor<B>, shape: Shape) -> ComplexTensor<B>;
+    fn complex_expand(tensor: ComplexTensor<B>, shape: Shape) -> ComplexTensor<B> {
+        todo!()
+    }
 
     /// Flip along given axes.
-    fn complex_flip(tensor: ComplexTensor<B>, axes: &[usize]) -> ComplexTensor<B>;
+    fn complex_flip(tensor: ComplexTensor<B>, axes: &[usize]) -> ComplexTensor<B> {
+        todo!()
+    }
 
     /// Unfold (im2col-like) along a dimension.
     fn complex_unfold(
@@ -661,7 +742,9 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
         dim: usize,
         size: usize,
         step: usize,
-    ) -> ComplexTensor<B>;
+    ) -> ComplexTensor<B> {
+        todo!()
+    }
 
     /// Select tensor elements along the given dimension corresponding for the given indices.
     ///
@@ -678,19 +761,39 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
         tensor: ComplexTensor<B>,
         dim: usize,
         indices: IntTensor<B>,
-    ) -> ComplexTensor<B>;
+    ) -> ComplexTensor<B> {
+        todo!()
+    }
 
-    fn complex_sum(tensor: ComplexTensor<B>) -> ComplexTensor<B>;
-    fn complex_sum_dim(tensor: ComplexTensor<B>, dim: usize) -> ComplexTensor<B>;
-    fn complex_prod(tensor: ComplexTensor<B>) -> ComplexTensor<B>;
-    fn complex_prod_dim(tensor: ComplexTensor<B>, dim: usize) -> ComplexTensor<B>;
-    fn complex_mean(tensor: ComplexTensor<B>) -> ComplexTensor<B>;
-    fn complex_mean_dim(tensor: ComplexTensor<B>, dim: usize) -> ComplexTensor<B>;
+    fn complex_sum(tensor: ComplexTensor<B>) -> ComplexTensor<B> {
+        todo!()
+    }
+    fn complex_sum_dim(tensor: ComplexTensor<B>, dim: usize) -> ComplexTensor<B> {
+        todo!()
+    }
+    fn complex_prod(tensor: ComplexTensor<B>) -> ComplexTensor<B> {
+        todo!()
+    }
+    fn complex_prod_dim(tensor: ComplexTensor<B>, dim: usize) -> ComplexTensor<B> {
+        todo!()
+    }
+    fn complex_mean(tensor: ComplexTensor<B>) -> ComplexTensor<B> {
+        todo!()
+    }
+    fn complex_mean_dim(tensor: ComplexTensor<B>, dim: usize) -> ComplexTensor<B> {
+        todo!()
+    }
 
-    fn complex_remainder(lhs: ComplexTensor<B>, rhs: ComplexTensor<B>) -> ComplexTensor<B>;
-    fn complex_remainder_scalar(lhs: ComplexTensor<B>, rhs: B::ComplexElem) -> ComplexTensor<B>;
+    fn complex_remainder(lhs: ComplexTensor<B>, rhs: ComplexTensor<B>) -> ComplexTensor<B> {
+        todo!()
+    }
+    fn complex_remainder_scalar(lhs: ComplexTensor<B>, rhs: B::ComplexElem) -> ComplexTensor<B> {
+        todo!()
+    }
 
-    fn complex_equal_elem(lhs: ComplexTensor<B>, rhs: B::ComplexElem) -> B::BoolTensorPrimitive;
+    fn complex_equal_elem(lhs: ComplexTensor<B>, rhs: B::ComplexElem) -> B::BoolTensorPrimitive {
+        todo!()
+    }
     fn complex_not_equal_elem(lhs: ComplexTensor<B>, rhs: B::ComplexElem)
     -> B::BoolTensorPrimitive;
 
@@ -698,41 +801,53 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
         tensor: ComplexTensor<B>,
         mask: B::BoolTensorPrimitive,
         source: ComplexTensor<B>,
-    ) -> ComplexTensor<B>;
+    ) -> ComplexTensor<B> {
+        todo!()
+    }
     fn complex_mask_fill(
         tensor: ComplexTensor<B>,
         mask: B::BoolTensorPrimitive,
         value: B::ComplexElem,
-    ) -> ComplexTensor<B>;
+    ) -> ComplexTensor<B> {
+        todo!()
+    }
     fn complex_gather(
         dim: usize,
         tensor: ComplexTensor<B>,
         indices: B::IntTensorPrimitive,
-    ) -> ComplexTensor<B>;
+    ) -> ComplexTensor<B> {
+        todo!()
+    }
     fn complex_scatter(
         dim: usize,
         tensor: ComplexTensor<B>,
         indices: B::IntTensorPrimitive,
         values: ComplexTensor<B>,
-    ) -> ComplexTensor<B>;
+    ) -> ComplexTensor<B> {
+        todo!()
+    }
     //todo: add doc strings
-    fn complex_sign(tensor: ComplexTensor<B>) -> ComplexTensor<B>;
+    fn complex_sign(tensor: ComplexTensor<B>) -> ComplexTensor<B> {
+        todo!()
+    }
 
-    fn complex_clamp(
-        tensor: ComplexTensor<B>,
-        min: B::ComplexElem,
-        max: B::ComplexElem,
-    ) -> ComplexTensor<B>;
-    fn complex_clamp_min(tensor: ComplexTensor<B>, min: B::ComplexElem) -> ComplexTensor<B>;
-    fn complex_clamp_max(tensor: ComplexTensor<B>, max: B::ComplexElem) -> ComplexTensor<B>;
+    fn complex_powi(lhs: ComplexTensor<B>, rhs: ComplexTensor<B>) -> ComplexTensor<B> {
+        todo!()
+    }
+    fn complex_powi_scalar(lhs: ComplexTensor<B>, rhs: B::ComplexElem) -> ComplexTensor<B> {
+        todo!()
+    }
 
-    fn complex_powi(lhs: ComplexTensor<B>, rhs: ComplexTensor<B>) -> ComplexTensor<B>;
-    fn complex_powi_scalar(lhs: ComplexTensor<B>, rhs: B::ComplexElem) -> ComplexTensor<B>;
+    fn complex_matmul(lhs: ComplexTensor<B>, rhs: ComplexTensor<B>) -> ComplexTensor<B> {
+        todo!()
+    }
 
-    fn complex_matmul(lhs: ComplexTensor<B>, rhs: ComplexTensor<B>) -> ComplexTensor<B>;
-
-    fn complex_cumsum(tensor: ComplexTensor<B>, dim: usize) -> ComplexTensor<B>;
-    fn complex_cumprod(tensor: ComplexTensor<B>, dim: usize) -> ComplexTensor<B>;
+    fn complex_cumsum(tensor: ComplexTensor<B>, dim: usize) -> ComplexTensor<B> {
+        todo!()
+    }
+    fn complex_cumprod(tensor: ComplexTensor<B>, dim: usize) -> ComplexTensor<B> {
+        todo!()
+    }
 }
 
 /// A type-level representation of the kind of a complex tensor.
@@ -920,14 +1035,14 @@ impl<B: ComplexTensorBackend> BasicOps<B> for Complex {
         lhs: Self::Primitive,
         rhs: burn_tensor::Scalar,
     ) -> <B as Backend>::BoolTensorPrimitive {
-        todo!()
+        B::complex_equal_elem(lhs, rhs.elem())
     }
 
     fn not_equal_elem(
         lhs: Self::Primitive,
         rhs: burn_tensor::Scalar,
     ) -> <B as Backend>::BoolTensorPrimitive {
-        todo!()
+        B::complex_not_equal_elem(lhs, rhs.elem())
     }
 
     fn full(
