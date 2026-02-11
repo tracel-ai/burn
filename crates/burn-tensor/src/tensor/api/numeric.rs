@@ -681,6 +681,11 @@ where
     ///   // [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
     /// }
     /// ```
+    ///
+    /// # Notes
+    ///
+    /// For signed integer dtypes, this operation uses two's-complement wraparound semantics, similar to
+    /// `x.wrapping_abs()`. For example, `abs(i64::MIN) == i64::MIN`.
     pub fn abs(self) -> Self {
         Self::new(K::abs(self.primitive))
     }
