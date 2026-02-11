@@ -1,130 +1,319 @@
-// TODO: for engine Device enum
-// /// High-level device type used by the tensor API.
-// ///
-// /// This type wraps the backend-specific [device](Backend::Device) and handles default
-// /// floating-point and integer data types used for tensor creation. These defaults can be
-// /// overriden at the call site using [`TensorCreationOptions`](crate::TensorCreationOptions).
-// ///
-// /// The backend device itself is accessed internally by tensor creation operations and is
-// /// is not exposed publicly.
-// #[derive(Debug, Default, Clone)]
-// pub struct Device<B: Backend> {
-//     /// Device type used by the backend.
-//     inner: B::Device,
-// }
+use burn_backend::{DeviceId, DeviceOps};
 
-// impl<B: Backend> Device<B> {
-//     pub fn new(device: B::Device) -> Self {
-//         Self { inner: device }
-//     }
-//     /// Returns the default floating-point data type used for tensor creation.
-//     pub fn default_float_dtype(&self) -> FloatDType {
-//         DevicePolicyRegistry::get(&self.inner).float_dtype()
-//     }
+use crate::backends::*;
 
-//     /// Returns the default integer data type used for tensor creation.
-//     pub fn default_int_dtype(&self) -> IntDType {
-//         DevicePolicyRegistry::get(&self.inner).int_dtype()
-//     }
+/// Represents a device for the [`Engine`](crate::Engine).
+///
+/// Each variant corresponds to a backend that the [`Engine`](crate::Engine) can dispatch operations to.
+///
+/// # Example
+///
+/// ```ignore
+/// use burn::Device;
+///
+/// #[cfg(feature = "cpu")]
+/// let cpu_device = Device::Cpu(Default::default());
+///
+/// #[cfg(feature = "cuda")]
+/// let cuda_device = Device::Cuda(Default::default());
+/// ```
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Device {
+    /// The [CPU backend](Cpu) device.
+    #[cfg(feature = "cpu")]
+    Cpu(CpuDevice),
 
-//     /// Sets the default floating-point data type.
-//     pub fn set_default_float_dtype(&mut self, dtype: impl Into<FloatDType>) {
-//         DevicePolicyRegistry::update(&self.inner, |p| {
-//             p.set_float_dtype(dtype);
-//         });
-//     }
+    /// The [CUDA backend](Cuda) device.
+    #[cfg(feature = "cuda")]
+    Cuda(CudaDevice),
 
-//     /// Sets the default integer data type.
-//     pub fn set_default_int_dtype(&mut self, dtype: impl Into<IntDType>) {
-//         DevicePolicyRegistry::update(&self.inner, |p| {
-//             p.set_int_dtype(dtype);
-//         });
-//     }
+    /// The [Metal backend](Metal) device (via WGPU runtime).
+    #[cfg(feature = "metal")]
+    Metal(WgpuDevice),
 
-//     /// Returns the backend-specific device.
-//     pub(crate) fn backend(&self) -> &B::Device {
-//         &self.inner
-//     }
-// }
+    /// The [ROCm backend](Rocm) device.
+    #[cfg(feature = "rocm")]
+    Rocm(RocmDevice),
 
-// impl<B: Backend<Device = D>, D: DeviceOps> From<D> for Device<B> {
-//     fn from(value: D) -> Self {
-//         Self::new(value)
-//     }
-// }
+    /// The [Vulkan backend](Vulkan) device.
+    #[cfg(feature = "vulkan")]
+    Vulkan(WgpuDevice),
 
-// previous macro
-#[macro_export]
-macro_rules! binary_op {
-    ($kind:ident, $inner_fn:ident, $op:ident, $lhs:expr, $rhs:expr $(, $($args:expr),* )? $(,)?) => {
-        match ($lhs, $rhs) {
+    /// The [WebGPU backend](WebGpu) device (via WGPU runtime).
+    #[cfg(feature = "webgpu")]
+    WebGpu(WgpuDevice),
+
+    /// The [NdArray backend](NdArray) device (CPU-only).
+    #[cfg(feature = "ndarray")]
+    NdArray(NdArrayDevice),
+
+    /// The [LibTorch backend](LibTorch) device.
+    #[cfg(feature = "tch")]
+    LibTorch(LibTorchDevice),
+}
+
+/// Global engine backend with feature-gated backend support
+// pub type Engine = BackendRouter<EngineChannel>;
+
+impl Default for Device {
+    #[allow(unreachable_code)]
+    fn default() -> Self {
+        // TODO: which priority?
+
+        #[cfg(feature = "cpu")]
+        return Self::Cpu(CpuDevice::default());
+
+        #[cfg(feature = "cuda")]
+        return Self::Cuda(CudaDevice::default());
+
+        #[cfg(feature = "metal")]
+        return Self::Metal(burn_wgpu::WgpuDevice::default());
+
+        #[cfg(feature = "rocm")]
+        return Self::Rocm(RocmDevice::default());
+
+        #[cfg(feature = "vulkan")]
+        return Self::Vulkan(burn_wgpu::WgpuDevice::default());
+
+        #[cfg(feature = "webgpu")]
+        return Self::WebGpu(burn_wgpu::WgpuDevice::default());
+
+        #[cfg(feature = "ndarray")]
+        return Self::NdArray(NdArrayDevice::default());
+
+        #[cfg(feature = "tch")]
+        return Self::LibTorch(LibTorchDevice::default());
+    }
+}
+
+/// Base multiplier to avoid type_id clashes between backends.
+/// Limits the number of device types per backend, but this is a sensible limit.
+const TYPE_ID_BASE: u16 = 10;
+
+impl Device {
+    /// Returns a unique number per variant to encode into type_id.
+    fn variant_id(&self) -> EngineId {
+        match self {
             #[cfg(feature = "cpu")]
-            ($crate::EngineTensor::Cpu(lhs), $crate::EngineTensor::Cpu(rhs)) => {
-                $crate::EngineTensor::Cpu($crate::BackendTensor::$kind(
-                    Cpu::<f32>::$op(lhs.$inner_fn(), rhs.$inner_fn() $(, $($args),*)?)
-                ))
-            }
+            Self::Cpu(_) => EngineId::Cpu,
             #[cfg(feature = "cuda")]
-            ($crate::EngineTensor::Cuda(lhs), $crate::EngineTensor::Cuda(rhs)) => {
-                $crate::EngineTensor::Cuda($crate::BackendTensor::$kind(
-                    Cuda::<f32>::$op(lhs.$inner_fn(), rhs.$inner_fn() $(, $($args),*)?)
-                ))
-            }
+            Self::Cuda(_) => EngineId::Cuda,
             #[cfg(feature = "metal")]
-            ($crate::EngineTensor::Metal(lhs), $crate::EngineTensor::Metal(rhs)) => {
-                $crate::EngineTensor::Metal($crate::BackendTensor::$kind(
-                    Metal::<f32>::$op(lhs.$inner_fn(), rhs.$inner_fn() $(, $($args),*)?)
-                ))
-            }
+            Self::Metal(_) => EngineId::Metal,
             #[cfg(feature = "rocm")]
-            ($crate::EngineTensor::Rocm(lhs), $crate::EngineTensor::Rocm(rhs)) => {
-                $crate::EngineTensor::Rocm($crate::BackendTensor::$kind(
-                    Rocm::<f32>::$op(lhs.$inner_fn(), rhs.$inner_fn() $(, $($args),*)?)
-                ))
-            }
+            Self::Rocm(_) => EngineId::Rocm,
             #[cfg(feature = "vulkan")]
-            ($crate::EngineTensor::Vulkan(lhs), $crate::EngineTensor::Vulkan(rhs)) => {
-                $crate::EngineTensor::Vulkan($crate::BackendTensor::$kind(
-                    Vulkan::<f32>::$op(lhs.$inner_fn(), rhs.$inner_fn() $(, $($args),*)?)
-                ))
-            }
+            Self::Vulkan(_) => EngineId::Vulkan,
             #[cfg(feature = "webgpu")]
-            ($crate::EngineTensor::WebGpu(lhs), $crate::EngineTensor::WebGpu(rhs)) => {
-                $crate::EngineTensor::WebGpu($crate::BackendTensor::$kind(
-                    WebGpu::<f32>::$op(lhs.$inner_fn(), rhs.$inner_fn() $(, $($args),*)?)
-                ))
-            }
+            Self::WebGpu(_) => EngineId::WebGpu,
             #[cfg(feature = "ndarray")]
-            ($crate::EngineTensor::NdArray(lhs), $crate::EngineTensor::NdArray(rhs)) => {
-                $crate::EngineTensor::NdArray($crate::BackendTensor::$kind(
-                    NdArray::<f32>::$op(lhs.$inner_fn(), rhs.$inner_fn() $(, $($args),*)?)
-                ))
-            }
+            Self::NdArray(_) => EngineId::NdArray,
             #[cfg(feature = "tch")]
-            ($crate::EngineTensor::LibTorch(lhs), $crate::EngineTensor::LibTorch(rhs)) => {
-                $crate::EngineTensor::LibTorch($crate::BackendTensor::$kind(
-                    LibTorch::<f32>::$op(lhs.$inner_fn(), rhs.$inner_fn() $(, $($args),*)?)
-                ))
-            }
-            (lhs, rhs) => {
-                panic!(
-                    "Cross-device operation attempted between {:?} and {:?}. 
-                     Tensors must be moved to the same device before operations.",
-                    lhs, rhs
-                );
-            }
+            Self::LibTorch(_) => EngineId::LibTorch,
         }
-    };
+    }
+
+    /// Encode variant ID and backend type ID into a unique `type_id`.
+    fn encode_type_id(&self, backend_type_id: u16) -> u16 {
+        u16::from(self.variant_id()) * TYPE_ID_BASE + backend_type_id
+    }
+
+    /// Decode an encoded `type_id` into variant ID and backend type ID.
+    fn decode_type_id(type_id: u16) -> (EngineId, u16) {
+        let variant = type_id / TYPE_ID_BASE;
+        let backend_type_id = type_id % TYPE_ID_BASE;
+        (
+            EngineId::try_from(variant).expect("Unknown Device variant"),
+            backend_type_id,
+        )
+    }
 }
 
-/// Dispatch a binary int tensor operation.
-#[macro_export]
-macro_rules! binary_int {
-    ($op:ident, $lhs:expr, $rhs:expr$(, $($args:expr),* )? $(,)? => $out:ident) => {
-        $crate::binary_int!($op, $lhs, $rhs $(, $($args),*)? => Int)
-    };
-    // Specify output kind
-    ($op:ident, $lhs:expr, $rhs:expr$(, $($args:expr),* )? $(,)? => $out:ident) => {
-        $crate::binary_op!($out, int, $op, $lhs, $rhs $(, $($args),*)?)
-    };
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u16)]
+enum EngineId {
+    #[cfg(feature = "cpu")]
+    Cpu = 0,
+    #[cfg(feature = "cuda")]
+    Cuda = 1,
+    #[cfg(feature = "metal")]
+    Metal = 2,
+    #[cfg(feature = "rocm")]
+    Rocm = 3,
+    #[cfg(feature = "vulkan")]
+    Vulkan = 4,
+    #[cfg(feature = "webgpu")]
+    WebGpu = 5,
+    #[cfg(feature = "ndarray")]
+    NdArray = 6,
+    #[cfg(feature = "tch")]
+    LibTorch = 7,
 }
+
+impl From<EngineId> for u16 {
+    fn from(variant: EngineId) -> Self {
+        variant as u16
+    }
+}
+
+impl TryFrom<u16> for EngineId {
+    type Error = ();
+
+    fn try_from(value: u16) -> Result<Self, Self::Error> {
+        match value {
+            #[cfg(feature = "cpu")]
+            0 => Ok(Self::Cpu),
+            #[cfg(feature = "cuda")]
+            1 => Ok(Self::Cuda),
+            #[cfg(feature = "metal")]
+            2 => Ok(Self::Metal),
+            #[cfg(feature = "rocm")]
+            3 => Ok(Self::Rocm),
+            #[cfg(feature = "vulkan")]
+            4 => Ok(Self::Vulkan),
+            #[cfg(feature = "webgpu")]
+            5 => Ok(Self::WebGpu),
+            #[cfg(feature = "ndarray")]
+            6 => Ok(Self::NdArray),
+            #[cfg(feature = "tch")]
+            7 => Ok(Self::LibTorch),
+            _ => Err(()),
+        }
+    }
+}
+
+impl DeviceOps for Device {}
+
+impl burn_std::device::Device for Device {
+    fn from_id(mut device_id: DeviceId) -> Self {
+        let (engine_id, backend_type_id) = Self::decode_type_id(device_id.type_id);
+        device_id.type_id = backend_type_id;
+
+        match engine_id {
+            #[cfg(feature = "cpu")]
+            EngineId::Cpu => Self::Cpu(CpuDevice::from_id(device_id)),
+            #[cfg(feature = "cuda")]
+            EngineId::Cuda => Self::Cuda(CudaDevice::from_id(device_id)),
+            #[cfg(feature = "metal")]
+            EngineId::Metal => Self::Metal(WgpuDevice::from_id(device_id)),
+            #[cfg(feature = "rocm")]
+            EngineId::Rocm => Self::Rocm(RocmDevice::from_id(device_id)),
+            #[cfg(feature = "vulkan")]
+            EngineId::Vulkan => Self::Vulkan(WgpuDevice::from_id(device_id)),
+            #[cfg(feature = "webgpu")]
+            EngineId::WebGpu => Self::WebGpu(WgpuDevice::from_id(device_id)),
+            #[cfg(feature = "ndarray")]
+            EngineId::NdArray => Self::NdArray(NdArrayDevice::from_id(device_id)),
+            #[cfg(feature = "tch")]
+            EngineId::LibTorch => Self::LibTorch(LibTorchDevice::from_id(device_id)),
+        }
+    }
+
+    fn to_id(&self) -> DeviceId {
+        let mut device_id = match self {
+            #[cfg(feature = "cpu")]
+            Self::Cpu(device) => device.to_id(),
+            #[cfg(feature = "cuda")]
+            Self::Cuda(device) => device.to_id(),
+            #[cfg(feature = "metal")]
+            Self::Metal(device) => device.to_id(),
+            #[cfg(feature = "rocm")]
+            Self::Rocm(device) => device.to_id(),
+            #[cfg(feature = "vulkan")]
+            Self::Vulkan(device) => device.to_id(),
+            #[cfg(feature = "webgpu")]
+            Self::WebGpu(device) => device.to_id(),
+            #[cfg(feature = "ndarray")]
+            Self::NdArray(device) => device.to_id(),
+            #[cfg(feature = "tch")]
+            Self::LibTorch(device) => device.to_id(),
+        };
+        device_id.type_id = self.encode_type_id(device_id.type_id);
+        device_id
+    }
+
+    fn device_count(type_id: u16) -> usize {
+        let (engine_id, backend_type_id) = Self::decode_type_id(type_id);
+        match engine_id {
+            #[cfg(feature = "cpu")]
+            EngineId::Cpu => CpuDevice::device_count(backend_type_id),
+            #[cfg(feature = "cuda")]
+            EngineId::Cuda => CudaDevice::device_count(backend_type_id),
+            #[cfg(feature = "metal")]
+            EngineId::Metal => WgpuDevice::device_count(backend_type_id),
+            #[cfg(feature = "rocm")]
+            EngineId::Rocm => RocmDevice::device_count(backend_type_id),
+            #[cfg(feature = "vulkan")]
+            EngineId::Vulkan => WgpuDevice::device_count(backend_type_id),
+            #[cfg(feature = "webgpu")]
+            EngineId::WebGpu => WgpuDevice::device_count(backend_type_id),
+            #[cfg(feature = "ndarray")]
+            EngineId::NdArray => NdArrayDevice::device_count(backend_type_id),
+            #[cfg(feature = "tch")]
+            EngineId::LibTorch => LibTorchDevice::device_count(backend_type_id),
+        }
+    }
+}
+
+// #[cfg(feature = "cpu")]
+// impl From<CpuDevice> for Device {
+//     fn from(device: CpuDevice) -> Self {
+//         Device::Cpu(device)
+//     }
+// }
+
+// #[cfg(feature = "cuda")]
+// impl From<CudaDevice> for Device {
+//     fn from(device: CudaDevice) -> Self {
+//         Device::Cuda(device)
+//     }
+// }
+
+// #[cfg(feature = "metal")]
+// impl From<WgpuDevice> for Device {
+//     fn from(device: WgpuDevice) -> Self {
+//         Device::Metal(device)
+//     }
+// }
+
+// #[cfg(feature = "rocm")]
+// impl From<RocmDevice> for Device {
+//     fn from(device: RocmDevice) -> Self {
+//         Device::Rocm(device)
+//     }
+// }
+
+// #[cfg(feature = "vulkan")]
+// impl From<WgpuDevice> for Device {
+//     fn from(device: WgpuDevice) -> Self {
+//         Device::Vulkan(device)
+//     }
+// }
+
+// #[cfg(feature = "webgpu")]
+// impl From<WgpuDevice> for Device {
+//     fn from(device: WgpuDevice) -> Self {
+//         Device::WebGpu(device)
+//     }
+// }
+
+// #[cfg(feature = "ndarray")]
+// impl From<NdArrayDevice> for Device {
+//     fn from(device: NdArrayDevice) -> Self {
+//         Device::NdArray(device)
+//     }
+// }
+
+// #[cfg(feature = "tch")]
+// impl From<LibTorchDevice> for Device {
+//     fn from(device: LibTorchDevice) -> Self {
+//         Device::LibTorch(device)
+//     }
+// }
+
+// #[cfg(feature = "tch")]
+// impl From<LibTorchDevice> for Device {
+//     fn from(device: LibTorchDevice) -> Self {
+//         Device::LibTorch(device)
+//     }
+// }

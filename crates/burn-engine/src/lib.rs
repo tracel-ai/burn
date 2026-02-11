@@ -25,10 +25,12 @@ compile_error!("At least one backend feature must be enabled.");
 compile_error!("Only one wgpu runtime feature can be enabled at once.");
 
 mod backend;
+mod device;
 mod ops;
 mod tensor;
 
 pub use backend::*;
+pub use device::*;
 pub use tensor::*;
 
 extern crate alloc;

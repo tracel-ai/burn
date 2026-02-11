@@ -1,8 +1,8 @@
-use burn::{Engine, EngineDevice, Tensor, backend::Autodiff};
+use burn::{Device, Engine, Tensor, backend::Autodiff};
 
 pub fn test_engine() {
-    let device = EngineDevice::Cuda(Default::default());
-    let device_vulk = EngineDevice::Vulkan(Default::default());
+    let device = Device::Cuda(Default::default());
+    let device_vulk = Device::Vulkan(Default::default());
 
     let zeros_cuda = Tensor::<Engine, 2>::zeros([128, 128], &device);
     println!("{zeros_cuda}");
@@ -18,7 +18,7 @@ pub fn test_engine() {
 
     // let _invalid = zeros_cuda + ones;
 
-    type EngineAd = Autodiff<BurnBackend>;
+    type EngineAd = Autodiff<Engine>;
 
     let zeros_cuda = Tensor::<EngineAd, 2>::zeros([128, 128], &device);
     println!("{zeros_cuda}");
