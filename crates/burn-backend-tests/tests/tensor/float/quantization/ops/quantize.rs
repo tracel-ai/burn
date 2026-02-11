@@ -4,7 +4,7 @@ use burn_tensor::quantization::{
     QParams, QTensorPrimitive, QuantLevel, QuantScheme, QuantStore, QuantValue,
     QuantizationParameters, QuantizedBytes,
 };
-use burn_tensor::{DType, TensorData};
+use burn_tensor::{DType, Element, TensorData};
 use burn_tensor::{Tolerance, ops::QuantizedTensor};
 
 fn get_q_params(data: TensorData) -> QParams<Vec<f32>> {
@@ -24,6 +24,10 @@ fn get_q_params(data: TensorData) -> QParams<Vec<f32>> {
 
 #[test]
 fn should_support_quantize_symmetric_int8() {
+    // Strict equality was based on full precision
+    if !matches!(FloatElem::dtype(), DType::F32) {
+        return;
+    }
     let device = Default::default();
     let tensor = TestTensor::<1>::from_floats([-1.8, -1.0, 0.0, 0.5], &device);
     let scheme = QuantizedTensor::<TestBackend>::default_scheme().with_value(QuantValue::Q8S);
@@ -46,10 +50,10 @@ fn should_support_quantize_symmetric_int8() {
 
     // Quantization parameters check
     let qparams = get_q_params(x_q_data);
+    let expected = get_q_params(expected);
     assert_eq!(qparams.scales.len(), 1);
-    // TODO: check scales dtype
-    // let expected = get_q_params(expected);
-    // assert_eq!(qparams.scales, expected.scales);
+    // TODO: check scales
+    assert_eq!(qparams.scales, expected.scales);
 
     // Dequantize
     let x = x_q.dequantize();
