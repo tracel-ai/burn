@@ -258,8 +258,6 @@ pub struct LpipsSqueeze<B: Backend> {
 impl<B: Backend> LpipsVgg<B> {
     /// Compute LPIPS distance without reduction using VGG backbone.
     pub fn forward_no_reduction(&self, input: Tensor<B, 4>, target: Tensor<B, 4>) -> Tensor<B, 1> {
-        let [_batch, _, _, _] = input.dims();
-
         // Preprocess inputs
         let (input, target) = preprocess_inputs(input, target, self.normalize);
 
@@ -285,8 +283,6 @@ impl<B: Backend> LpipsVgg<B> {
 impl<B: Backend> LpipsAlex<B> {
     /// Compute LPIPS distance without reduction using AlexNet backbone.
     pub fn forward_no_reduction(&self, input: Tensor<B, 4>, target: Tensor<B, 4>) -> Tensor<B, 1> {
-        let [_batch, _, _, _] = input.dims();
-
         // Preprocess inputs
         let (input, target) = preprocess_inputs(input, target, self.normalize);
 
@@ -312,8 +308,6 @@ impl<B: Backend> LpipsAlex<B> {
 impl<B: Backend> LpipsSqueeze<B> {
     /// Compute LPIPS distance without reduction using SqueezeNet backbone.
     pub fn forward_no_reduction(&self, input: Tensor<B, 4>, target: Tensor<B, 4>) -> Tensor<B, 1> {
-        let [_batch, _, _, _] = input.dims();
-
         // Preprocess inputs
         let (input, target) = preprocess_inputs(input, target, self.normalize);
 
