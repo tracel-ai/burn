@@ -73,8 +73,7 @@ pub struct RLTrainOutput<TO, P> {
 }
 
 /// Batched transitions for a PolicyLearner.
-pub type LearnerTransitionBatch<B, P> =
-    TransitionBatch<B, <P as Policy<B>>::Observation, <P as Policy<B>>::Action>;
+pub type LearnerTransitionBatch<B> = TransitionBatch<B>;
 
 /// Learner for a policy.
 pub trait PolicyLearner<B>
@@ -94,7 +93,7 @@ where
     /// Execute a training step on the policy.
     fn train(
         &mut self,
-        input: LearnerTransitionBatch<B, Self::InnerPolicy>,
+        input: LearnerTransitionBatch<B>,
     ) -> RLTrainOutput<Self::TrainContext, <Self::InnerPolicy as Policy<B>>::PolicyState>;
     /// Returns the learner's current policy.
     fn policy(&self) -> Self::InnerPolicy;
