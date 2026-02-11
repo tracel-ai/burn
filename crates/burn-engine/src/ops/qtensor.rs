@@ -8,7 +8,9 @@ use burn_std::{QuantPropagation, Shape, Slice};
 
 use crate::{Device, Engine, EngineTensor};
 use crate::{backends::*, unary_op};
-use crate::{create_quantized, dispatch_async_quantized, multi_tensor_op, unary_quantized};
+use crate::{
+    create_quantized, dispatch_async_quantized, multi_tensor_op, to_device, unary_quantized,
+};
 
 impl QTensorOps<Self> for Engine {
     fn q_from_data(data: TensorData, device: &Device) -> QuantizedTensor<Self> {
@@ -39,7 +41,18 @@ impl QTensorOps<Self> for Engine {
     }
 
     fn q_to_device(tensor: QuantizedTensor<Self>, device: &Device) -> QuantizedTensor<Self> {
-        todo!() // TODO: backend bridge
+        to_device!(
+            Quantized,
+            quantized,
+            tensor,
+            device,
+            q_to_device,
+            |inner, device| {
+                let data =
+                    burn_backend::read_sync(B1::q_into_data(inner)).expect("Should read data");
+                B2::q_from_data(data, device)
+            }
+        )
     }
 
     fn q_reshape(tensor: QuantizedTensor<Self>, shape: Shape) -> QuantizedTensor<Self> {

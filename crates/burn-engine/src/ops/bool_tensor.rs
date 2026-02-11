@@ -7,7 +7,9 @@ use burn_std::{Shape, Slice};
 
 use crate::backends::*;
 use crate::{Device, Engine, EngineTensor};
-use crate::{binary_bool, create_bool, dispatch_async_bool, multi_tensor_op, unary_bool};
+use crate::{
+    binary_bool, create_bool, dispatch_async_bool, multi_tensor_op, to_device, unary_bool,
+};
 
 impl BoolTensorOps<Self> for Engine {
     fn bool_empty(shape: Shape, device: &Device) -> BoolTensor<Self> {
@@ -43,7 +45,18 @@ impl BoolTensorOps<Self> for Engine {
     }
 
     fn bool_to_device(tensor: BoolTensor<Self>, device: &Device) -> BoolTensor<Self> {
-        todo!() // TODO: backend bridge
+        to_device!(
+            Bool,
+            bool,
+            tensor,
+            device,
+            bool_to_device,
+            |inner, device| {
+                let data =
+                    burn_backend::read_sync(B1::bool_into_data(inner)).expect("Should read data");
+                B2::bool_from_data(data, device)
+            }
+        )
     }
 
     fn bool_reshape(tensor: BoolTensor<Self>, shape: Shape) -> BoolTensor<Self> {

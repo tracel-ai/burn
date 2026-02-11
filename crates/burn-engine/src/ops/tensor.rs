@@ -7,7 +7,9 @@ use burn_std::{FloatDType, Shape, Slice};
 
 use crate::backends::*;
 use crate::{Device, Engine, EngineTensor};
-use crate::{binary_float, create_float, dispatch_async_float, multi_tensor_op, unary_float};
+use crate::{
+    binary_float, create_float, dispatch_async_float, multi_tensor_op, to_device, unary_float,
+};
 
 // TODO: remove backend default elem type genericsnow that we have per-device defaults
 // https://github.com/tracel-ai/burn/issues/3642
@@ -38,7 +40,18 @@ impl FloatTensorOps<Self> for Engine {
     }
 
     fn float_to_device(tensor: FloatTensor<Self>, device: &Device) -> FloatTensor<Self> {
-        todo!() // TODO: backend bridge
+        to_device!(
+            Float,
+            float,
+            tensor,
+            device,
+            float_to_device,
+            |inner, device| {
+                let data =
+                    burn_backend::read_sync(B1::float_into_data(inner)).expect("Should read data");
+                B2::float_from_data(data, device)
+            }
+        )
     }
 
     fn float_into_int(tensor: FloatTensor<Self>) -> IntTensor<Self> {

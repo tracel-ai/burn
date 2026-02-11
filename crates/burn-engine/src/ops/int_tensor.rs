@@ -7,7 +7,7 @@ use burn_std::{IntDType, Shape, Slice};
 
 use crate::backends::*;
 use crate::{Device, Engine, EngineTensor};
-use crate::{binary_int, create_int, dispatch_async_int, multi_tensor_op, unary_int};
+use crate::{binary_int, create_int, dispatch_async_int, multi_tensor_op, to_device, unary_int};
 
 impl IntTensorOps<Self> for Engine {
     fn int_empty(shape: Shape, device: &Device, dtype: IntDType) -> IntTensor<Self> {
@@ -27,7 +27,10 @@ impl IntTensorOps<Self> for Engine {
     }
 
     fn int_to_device(tensor: IntTensor<Self>, device: &Device) -> IntTensor<Self> {
-        todo!() // TODO: backend bridge
+        to_device!(Int, int, tensor, device, int_to_device, |inner, device| {
+            let data = burn_backend::read_sync(B1::int_into_data(inner)).expect("Should read data");
+            B2::int_from_data(data, device)
+        })
     }
 
     fn int_reshape(tensor: IntTensor<Self>, shape: Shape) -> IntTensor<Self> {

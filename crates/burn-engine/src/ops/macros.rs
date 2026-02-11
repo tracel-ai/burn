@@ -47,6 +47,153 @@ macro_rules! dispatch_device {
 }
 
 #[macro_export]
+macro_rules! to_device {
+    ($kind:ident, $inner_fn:ident, $tensor:expr, $device:expr, $to_device:ident, |$t:ident, $d:ident| $to_backend:expr) => {{
+        match ($tensor, $device) {
+            // To same backend, different device
+            #[cfg(feature = "cpu")]
+            (EngineTensor::Cpu(tensor), Device::Cpu($d)) => {
+                $crate::EngineTensor::Cpu($crate::BackendTensor::$kind({
+                    Cpu::<f32>::$to_device(tensor.$inner_fn(), $d)
+                }))
+            }
+            #[cfg(feature = "cuda")]
+            (EngineTensor::Cuda(tensor), Device::Cuda($d)) => $crate::EngineTensor::Cuda(
+                $crate::BackendTensor::$kind(Cuda::<f32>::$to_device(tensor.$inner_fn(), $d)),
+            ),
+            #[cfg(feature = "metal")]
+            (EngineTensor::Metal(tensor), Device::Metal($d)) => $crate::EngineTensor::Metal(
+                $crate::BackendTensor::$kind(Metal::<f32>::$to_device(tensor.$inner_fn(), $d)),
+            ),
+            #[cfg(feature = "rocm")]
+            (EngineTensor::Rocm(tensor), Device::Rocm($d)) => $crate::EngineTensor::Rocm(
+                $crate::BackendTensor::$kind(Rocm::<f32>::$to_device(tensor.$inner_fn(), $d)),
+            ),
+            #[cfg(feature = "vulkan")]
+            (EngineTensor::Vulkan(tensor), Device::Vulkan($d)) => $crate::EngineTensor::Vulkan(
+                $crate::BackendTensor::$kind(Vulkan::<f32>::$to_device(tensor.$inner_fn(), $d)),
+            ),
+            #[cfg(feature = "webgpu")]
+            (EngineTensor::WebGpu(tensor), Device::WebGpu($d)) => $crate::EngineTensor::WebGpu(
+                $crate::BackendTensor::$kind(WebGpu::<f32>::$to_device(tensor.$inner_fn(), $d)),
+            ),
+            #[cfg(feature = "ndarray")]
+            (EngineTensor::NdArray(tensor), Device::NdArray($d)) => $crate::EngineTensor::NdArray(
+                $crate::BackendTensor::$kind(NdArray::<f32>::$to_device(tensor.$inner_fn(), $d)),
+            ),
+            #[cfg(feature = "tch")]
+            (EngineTensor::LibTorch(tensor), Device::LibTorch($d)) => {
+                $crate::EngineTensor::LibTorch($crate::BackendTensor::$kind(
+                    LibTorch::<f32>::$to_device(tensor.$inner_fn(), $d),
+                ))
+            }
+            // From Cpu to other backend
+            #[cfg(all(feature = "cpu", feature = "cuda"))]
+            (EngineTensor::Cpu(tensor), Device::Cuda($d)) => {
+                type B1 = Cpu<f32>;
+                type B2 = Cuda<f32>;
+                let $t = tensor.$inner_fn();
+                $crate::EngineTensor::Cuda($crate::BackendTensor::$kind($to_backend))
+            }
+            #[cfg(all(feature = "cpu", feature = "metal"))]
+            (EngineTensor::Cpu(tensor), Device::Metal($d)) => {
+                type B1 = Cpu<f32>;
+                type B2 = Metal<f32>;
+                let $t = tensor.$inner_fn();
+                $crate::EngineTensor::Metal($crate::BackendTensor::$kind($to_backend))
+            }
+            #[cfg(all(feature = "cpu", feature = "rocm"))]
+            (EngineTensor::Cpu(tensor), Device::Rocm($d)) => {
+                type B1 = Cpu<f32>;
+                type B2 = Rocm<f32>;
+                let $t = tensor.$inner_fn();
+                $crate::EngineTensor::Rocm($crate::BackendTensor::$kind($to_backend))
+            }
+            #[cfg(all(feature = "cpu", feature = "vulkan"))]
+            (EngineTensor::Cpu(tensor), Device::Vulkan($d)) => {
+                type B1 = Cpu<f32>;
+                type B2 = Vulkan<f32>;
+                let $t = tensor.$inner_fn();
+                $crate::EngineTensor::Vulkan($crate::BackendTensor::$kind($to_backend))
+            }
+            #[cfg(all(feature = "cpu", feature = "webgpu"))]
+            (EngineTensor::Cpu(tensor), Device::WebGpu($d)) => {
+                type B1 = Cpu<f32>;
+                type B2 = WebGpu<f32>;
+                let $t = tensor.$inner_fn();
+                $crate::EngineTensor::WebGpu($crate::BackendTensor::$kind($to_backend))
+            }
+            #[cfg(all(feature = "cpu", feature = "ndarray"))]
+            (EngineTensor::Cpu(tensor), Device::NdArray($d)) => {
+                type B1 = Cpu<f32>;
+                type B2 = NdArray<f32>;
+                let $t = tensor.$inner_fn();
+                $crate::EngineTensor::NdArray($crate::BackendTensor::$kind($to_backend))
+            }
+            #[cfg(all(feature = "cpu", feature = "tch"))]
+            (EngineTensor::Cpu(tensor), Device::LibTorch($d)) => {
+                type B1 = Cpu<f32>;
+                type B2 = LibTorch<f32>;
+                let $t = tensor.$inner_fn();
+                $crate::EngineTensor::LibTorch($crate::BackendTensor::$kind($to_backend))
+            }
+            // From Cuda to other backend
+            #[cfg(all(feature = "cuda", feature = "cpu"))]
+            (EngineTensor::Cuda(tensor), Device::Cpu($d)) => {
+                type B1 = Cuda<f32>;
+                type B2 = Cpu<f32>;
+                let $t = tensor.$inner_fn();
+                $crate::EngineTensor::Cpu($crate::BackendTensor::$kind($to_backend))
+            }
+            #[cfg(all(feature = "cuda", feature = "metal"))]
+            (EngineTensor::Cuda(tensor), Device::Metal($d)) => {
+                type B1 = Cuda<f32>;
+                type B2 = Metal<f32>;
+                let $t = tensor.$inner_fn();
+                $crate::EngineTensor::Metal($crate::BackendTensor::$kind($to_backend))
+            }
+            #[cfg(all(feature = "cuda", feature = "rocm"))]
+            (EngineTensor::Cuda(tensor), Device::Rocm($d)) => {
+                type B1 = Cuda<f32>;
+                type B2 = Rocm<f32>;
+                let $t = tensor.$inner_fn();
+                $crate::EngineTensor::Rocm($crate::BackendTensor::$kind($to_backend))
+            }
+            #[cfg(all(feature = "cuda", feature = "vulkan"))]
+            (EngineTensor::Cuda(tensor), Device::Vulkan($d)) => {
+                type B1 = Cuda<f32>;
+                type B2 = Vulkan<f32>;
+                let $t = tensor.$inner_fn();
+                $crate::EngineTensor::Vulkan($crate::BackendTensor::$kind($to_backend))
+            }
+            #[cfg(all(feature = "cuda", feature = "webgpu"))]
+            (EngineTensor::Cuda(tensor), Device::WebGpu($d)) => {
+                type B1 = Cuda<f32>;
+                type B2 = WebGpu<f32>;
+                let $t = tensor.$inner_fn();
+                $crate::EngineTensor::WebGpu($crate::BackendTensor::$kind($to_backend))
+            }
+            #[cfg(all(feature = "cuda", feature = "ndarray"))]
+            (EngineTensor::Cuda(tensor), Device::NdArray($d)) => {
+                type B1 = Cuda<f32>;
+                type B2 = NdArray<f32>;
+                let $t = tensor.$inner_fn();
+                $crate::EngineTensor::NdArray($crate::BackendTensor::$kind($to_backend))
+            }
+            #[cfg(all(feature = "cuda", feature = "tch"))]
+            (EngineTensor::Cuda(tensor), Device::LibTorch($d)) => {
+                type B1 = Cuda<f32>;
+                type B2 = LibTorch<f32>;
+                let $t = tensor.$inner_fn();
+                $crate::EngineTensor::LibTorch($crate::BackendTensor::$kind($to_backend))
+            }
+            // TODO all combinations
+            _ => todo!(),
+        }
+    }};
+}
+
+#[macro_export]
 macro_rules! creation_op {
     ($kind:ident, $device:expr, $op:expr) => {{
         match $device {
