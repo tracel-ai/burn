@@ -3,11 +3,11 @@
 use burn_core as burn;
 
 use burn::module::Module;
+use burn::tensor::Tensor;
 use burn::tensor::activation::relu;
 use burn::tensor::backend::Backend;
-use burn::tensor::Tensor;
-use burn_nn::conv::{Conv2d, Conv2dConfig};
 use burn_nn::PaddingConfig2d;
+use burn_nn::conv::{Conv2d, Conv2dConfig};
 
 /// AlexNet feature extractor for LPIPS.
 ///

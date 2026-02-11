@@ -3,11 +3,11 @@
 use burn_core as burn;
 
 use burn::module::Module;
+use burn::tensor::Tensor;
 use burn::tensor::activation::relu;
 use burn::tensor::backend::Backend;
-use burn::tensor::Tensor;
-use burn_nn::conv::{Conv2d, Conv2dConfig};
 use burn_nn::PaddingConfig2d;
+use burn_nn::conv::{Conv2d, Conv2dConfig};
 
 /// Fire module for SqueezeNet.
 ///
@@ -99,8 +99,8 @@ impl<B: Backend> SqueezeFeatureExtractor<B> {
                 .with_bias(true)
                 .init(device),
             // Fire modules (SqueezeNet 1.1 configuration)
-            fire1: FireModule::new(64, 16, 64, 64, device),    // -> 128
-            fire2: FireModule::new(128, 16, 64, 64, device),   // -> 128
+            fire1: FireModule::new(64, 16, 64, 64, device), // -> 128
+            fire2: FireModule::new(128, 16, 64, 64, device), // -> 128
             fire3: FireModule::new(128, 32, 128, 128, device), // -> 256
             fire4: FireModule::new(256, 32, 128, 128, device), // -> 256
             fire5: FireModule::new(256, 48, 192, 192, device), // -> 384

@@ -10,8 +10,8 @@ use burn_core as burn;
 
 use burn::config::Config;
 use burn::module::{Content, DisplaySettings, Module, ModuleDisplay};
-use burn::tensor::backend::Backend;
 use burn::tensor::Tensor;
+use burn::tensor::backend::Backend;
 use burn_nn::conv::{Conv2d, Conv2dConfig};
 use burn_nn::loss::Reduction;
 
@@ -497,7 +497,7 @@ fn preprocess_inputs<B: Backend>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use burn_core::tensor::{ops::FloatElem, TensorData, Tolerance};
+    use burn_core::tensor::{TensorData, Tolerance, ops::FloatElem};
     use burn_ndarray::NdArray;
 
     type TestBackend = NdArray<f32>;
@@ -551,12 +551,12 @@ mod tests {
         let image2 = TestTensor::<4>::ones([1, 3, 32, 32], &device);
 
         let lpips: Lpips<TestBackend> = LpipsConfig::new().init(&device);
-        let distance_ab = lpips.forward(image1.clone(), image2.clone(), Reduction::Mean);
-        let distance_ba = lpips.forward(image2, image1, Reduction::Mean);
+        let distance_forward = lpips.forward(image1.clone(), image2.clone(), Reduction::Mean);
+        let distance_reverse = lpips.forward(image2, image1, Reduction::Mean);
 
-        distance_ab
+        distance_forward
             .into_data()
-            .assert_approx_eq::<FT>(&distance_ba.into_data(), Tolerance::default());
+            .assert_approx_eq::<FT>(&distance_reverse.into_data(), Tolerance::default());
     }
 
     // =========================================================================
@@ -618,9 +618,7 @@ mod tests {
         let device = Default::default();
         let image = TestTensor::<4>::ones([1, 3, 64, 64], &device);
 
-        let lpips: Lpips<TestBackend> = LpipsConfig::new()
-            .with_net(LpipsNet::Alex)
-            .init(&device);
+        let lpips: Lpips<TestBackend> = LpipsConfig::new().with_net(LpipsNet::Alex).init(&device);
         let distance = lpips.forward(image.clone(), image, Reduction::Mean);
 
         let expected = TensorData::from([0.0]);
@@ -637,9 +635,7 @@ mod tests {
         let image1 = TestTensor::<4>::zeros([1, 3, 64, 64], &device);
         let image2 = TestTensor::<4>::ones([1, 3, 64, 64], &device);
 
-        let lpips: Lpips<TestBackend> = LpipsConfig::new()
-            .with_net(LpipsNet::Alex)
-            .init(&device);
+        let lpips: Lpips<TestBackend> = LpipsConfig::new().with_net(LpipsNet::Alex).init(&device);
         let distance = lpips.forward(image1, image2, Reduction::Mean);
 
         let distance_value = distance.into_data().to_vec::<f32>().unwrap()[0];
@@ -659,9 +655,8 @@ mod tests {
         let device = Default::default();
         let image = TestTensor::<4>::ones([1, 3, 64, 64], &device);
 
-        let lpips: Lpips<TestBackend> = LpipsConfig::new()
-            .with_net(LpipsNet::Squeeze)
-            .init(&device);
+        let lpips: Lpips<TestBackend> =
+            LpipsConfig::new().with_net(LpipsNet::Squeeze).init(&device);
         let distance = lpips.forward(image.clone(), image, Reduction::Mean);
 
         let expected = TensorData::from([0.0]);
@@ -678,9 +673,8 @@ mod tests {
         let image1 = TestTensor::<4>::zeros([1, 3, 64, 64], &device);
         let image2 = TestTensor::<4>::ones([1, 3, 64, 64], &device);
 
-        let lpips: Lpips<TestBackend> = LpipsConfig::new()
-            .with_net(LpipsNet::Squeeze)
-            .init(&device);
+        let lpips: Lpips<TestBackend> =
+            LpipsConfig::new().with_net(LpipsNet::Squeeze).init(&device);
         let distance = lpips.forward(image1, image2, Reduction::Mean);
 
         let distance_value = distance.into_data().to_vec::<f32>().unwrap()[0];
@@ -707,9 +701,7 @@ mod tests {
     #[test]
     fn display_alex() {
         let device = Default::default();
-        let lpips: Lpips<TestBackend> = LpipsConfig::new()
-            .with_net(LpipsNet::Alex)
-            .init(&device);
+        let lpips: Lpips<TestBackend> = LpipsConfig::new().with_net(LpipsNet::Alex).init(&device);
 
         let display_str = format!("{lpips}");
         assert!(display_str.contains("Lpips"));
@@ -719,9 +711,8 @@ mod tests {
     #[test]
     fn display_squeeze() {
         let device = Default::default();
-        let lpips: Lpips<TestBackend> = LpipsConfig::new()
-            .with_net(LpipsNet::Squeeze)
-            .init(&device);
+        let lpips: Lpips<TestBackend> =
+            LpipsConfig::new().with_net(LpipsNet::Squeeze).init(&device);
 
         let display_str = format!("{lpips}");
         assert!(display_str.contains("Lpips"));
@@ -829,6 +820,9 @@ mod tests {
             distance_value > 0.0,
             "Pretrained LPIPS (Squeeze) should be > 0 for different images"
         );
-        println!("LPIPS Squeeze distance (black vs white): {}", distance_value);
+        println!(
+            "LPIPS Squeeze distance (black vs white): {}",
+            distance_value
+        );
     }
 }
