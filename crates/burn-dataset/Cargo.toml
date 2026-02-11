@@ -57,7 +57,7 @@ encoding_rs = { workspace = true, optional = true }
 polars = { workspace = true, optional = true }
 r2d2 = { workspace = true, optional = true }
 r2d2_sqlite = { workspace = true, optional = true }
-rand = { workspace = true, features = ["std", "os_rng"] }
+rand = { workspace = true, features = ["std", "sys_rng"] }
 zip = { workspace = true, optional = true }
 rmp-serde = { workspace = true }
 rusqlite = { workspace = true, optional = true }

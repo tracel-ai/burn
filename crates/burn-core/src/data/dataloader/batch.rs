@@ -4,6 +4,7 @@ use burn_dataset::{
     transform::{PartialDataset, ShuffledDataset},
 };
 use burn_tensor::backend::Backend;
+use rand::SeedableRng;
 use std::ops::DerefMut;
 use std::sync::Arc;
 
@@ -100,8 +101,8 @@ where
 
     fn to_device(&self, device: &B::Device) -> Arc<dyn DataLoader<B, O>> {
         let rng = self.rng.as_ref().map(|rng| {
-            let rng = rng.lock();
-            rng.clone()
+            let mut rng = rng.lock();
+            rng.fork()
         });
         Arc::new(Self::new(
             self.strategy.clone_dyn(),
@@ -114,8 +115,8 @@ where
 
     fn slice(&self, start: usize, end: usize) -> Arc<dyn DataLoader<B, O>> {
         let rng = self.rng.as_ref().map(|rng| {
-            let rng = rng.lock();
-            rng.clone()
+            let mut rng = rng.lock();
+            rng.fork()
         });
         let dataloader = Self::new(
             self.strategy.clone_dyn(),

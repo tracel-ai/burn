@@ -9,7 +9,7 @@ use burn::{
     prelude::*,
     vision::Transform2D,
 };
-use rand::Rng;
+use rand::RngExt;
 
 #[derive(Clone, Debug, Default)]
 pub struct MnistBatcher {}
