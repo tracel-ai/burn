@@ -1,6 +1,6 @@
 use burn_backend::ops::TransactionOps;
 
-use crate::Engine;
+use crate::Dispatch;
 
 // TODO?
-impl TransactionOps<Self> for Engine {}
+impl TransactionOps<Self> for Dispatch {}

@@ -76,8 +76,8 @@ macro_rules! to_device_arms {
             // --- Same backend to_device ---
             $(
                 #[cfg(feature = $src_feature)]
-                ($crate::EngineTensor::$B1(tensor), $crate::Device::$B1(d)) => {
-                    $crate::EngineTensor::$B1($crate::BackendTensor::$kind(
+                ($crate::DispatchTensor::$B1(tensor), $crate::Device::$B1(d)) => {
+                    $crate::DispatchTensor::$B1($crate::BackendTensor::$kind(
                         $B1::<f32>::$to_device(tensor.$inner_fn(), d)
                     ))
                 }
@@ -88,12 +88,12 @@ macro_rules! to_device_arms {
             $(
                 $(
                     #[cfg(all(feature = $src_feature, feature = $dst_feature))]
-                    ($crate::EngineTensor::$B1(tensor), $crate::Device::$B2($device_ident)) => {
+                    ($crate::DispatchTensor::$B1(tensor), $crate::Device::$B2($device_ident)) => {
                         type B1 = $B1<f32>;
                         type B2 = $B2<f32>;
                         let $inner = tensor.$inner_fn();
 
-                        $crate::EngineTensor::$B2(
+                        $crate::DispatchTensor::$B2(
                             $crate::BackendTensor::$kind($body)
                         )
                     }
@@ -135,7 +135,7 @@ macro_rules! creation_op_arms {
                 #[cfg(feature = $feature)]
                 $crate::Device::$Backend($inner) => {
                     type B = $Backend<f32>;
-                    $crate::EngineTensor::$Backend(
+                    $crate::DispatchTensor::$Backend(
                         $crate::BackendTensor::$kind($body)
                     )
                 }
@@ -165,10 +165,10 @@ macro_rules! unary_op_arms {
         match $tensor {
             $(
                 #[cfg(feature = $feature)]
-                $crate::EngineTensor::$Backend($inner) => {
+                $crate::DispatchTensor::$Backend($inner) => {
                     type B = $Backend<f32>;
                     let $inner = $inner.$inner_kind();
-                    $crate::EngineTensor::$Backend($crate::BackendTensor::$kind($body))
+                    $crate::DispatchTensor::$Backend($crate::BackendTensor::$kind($body))
                 }
             )*
         }
@@ -184,7 +184,7 @@ macro_rules! unary_op_arms {
         match $tensor {
             $(
                 #[cfg(feature = $feature)]
-                $crate::EngineTensor::$Backend($inner) => {
+                $crate::DispatchTensor::$Backend($inner) => {
                     type B = $Backend<f32>;
                     let $inner = $inner.$inner_kind();
                     $body
@@ -221,11 +221,11 @@ macro_rules! binary_op_arms {
         match ($lhs, $rhs) {
             $(
                 #[cfg(feature = $feature)]
-                ($crate::EngineTensor::$Backend($lhs_inner), $crate::EngineTensor::$Backend($rhs_inner)) => {
+                ($crate::DispatchTensor::$Backend($lhs_inner), $crate::DispatchTensor::$Backend($rhs_inner)) => {
                     type B = $Backend<f32>;
                     let $lhs_inner = $lhs_inner.$lhs_kind();
                     let $rhs_inner = $rhs_inner.$rhs_kind();
-                    $crate::EngineTensor::$Backend($crate::BackendTensor::$kind($body))
+                    $crate::DispatchTensor::$Backend($crate::BackendTensor::$kind($body))
                 }
             )*
             (lhs, rhs) => {
@@ -265,12 +265,12 @@ macro_rules! multi_op_arms {
         match ($t1, $t2, $t3) {
             $(
                 #[cfg(feature = $feature)]
-                ($crate::EngineTensor::$Backend($t1_inner), $crate::EngineTensor::$Backend($t2_inner), $crate::EngineTensor::$Backend($t3_inner)) => {
+                ($crate::DispatchTensor::$Backend($t1_inner), $crate::DispatchTensor::$Backend($t2_inner), $crate::DispatchTensor::$Backend($t3_inner)) => {
                     type B = $Backend<f32>;
                     let $t1_inner = $t1_inner.$t1_kind();
                     let $t2_inner = $t2_inner.$t2_kind();
                     let $t3_inner = $t3_inner.$t3_kind();
-                    $crate::EngineTensor::$Backend($crate::BackendTensor::$kind($body))
+                    $crate::DispatchTensor::$Backend($crate::BackendTensor::$kind($body))
                 }
             )*
             (t1, t2, t3) => {
@@ -313,7 +313,7 @@ macro_rules! module_op_arm {
         // Required inputs
         $(
             let $x = match $x {
-                $crate::EngineTensor::$Backend(inner) => inner.$kind(),
+                $crate::DispatchTensor::$Backend(inner) => inner.$kind(),
                 _ => panic!("Input tensor {} is on the wrong device", stringify!($x)),
             };
         )+
@@ -321,7 +321,7 @@ macro_rules! module_op_arm {
         // Optional inputs
         $(
             let $opt_in = $opt_in.map(|o| match o {
-                $crate::EngineTensor::$Backend(inner) => inner.float(), // standard for module ops
+                $crate::DispatchTensor::$Backend(inner) => inner.float(), // standard for module ops
                 _ => panic!("Optional tensor {} is on the wrong device", stringify!($opt_in)),
             });
         )*
@@ -330,8 +330,8 @@ macro_rules! module_op_arm {
 
         // Outputs and optional outputs
         (
-            $( $crate::EngineTensor::$Backend($crate::as_float($out)) ),+,
-            $( $opt_out.map(|t| $crate::EngineTensor::$Backend($crate::as_float(t))) ),*
+            $( $crate::DispatchTensor::$Backend($crate::as_float($out)) ),+,
+            $( $opt_out.map(|t| $crate::DispatchTensor::$Backend($crate::as_float(t))) ),*
         )
     }};
 }
@@ -358,7 +358,7 @@ macro_rules! module_op_arms {
         match $crate::first_input!($inputs) {
             $(
                 #[cfg(feature = $feature)]
-                $crate::EngineTensor::$Backend(_) => {
+                $crate::DispatchTensor::$Backend(_) => {
                     $crate::module_op_arm!(
                         $Backend,
                         $inputs,

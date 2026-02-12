@@ -6,10 +6,10 @@ use burn_backend::{
 use burn_std::{Shape, Slice};
 
 use crate::backends::*;
-use crate::{Device, Engine};
+use crate::{Device, Dispatch};
 use crate::{binary_op, creation_op, multi_tensor_op, to_device, unary_op};
 
-impl BoolTensorOps<Self> for Engine {
+impl BoolTensorOps<Self> for Dispatch {
     fn bool_empty(shape: Shape, device: &Device) -> BoolTensor<Self> {
         creation_op!(Bool, device, |device| B::bool_empty(shape, device))
     }

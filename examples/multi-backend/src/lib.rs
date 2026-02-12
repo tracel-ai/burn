@@ -1,13 +1,13 @@
-use burn::{Device, Engine, Tensor, backend::Autodiff};
+use burn::{Device, Dispatch, Tensor, backend::Autodiff};
 
 pub fn test_engine() {
     let device = Device::Cuda(Default::default());
     let device_vulk = Device::Vulkan(Default::default());
 
-    let zeros_cuda = Tensor::<Engine, 2>::zeros([128, 128], &device);
+    let zeros_cuda = Tensor::<Dispatch, 2>::zeros([128, 128], &device);
     println!("{zeros_cuda}");
 
-    let ones = Tensor::<Engine, 2>::ones([128, 128], &device_vulk);
+    let ones = Tensor::<Dispatch, 2>::ones([128, 128], &device_vulk);
     println!("{ones}");
 
     let zeros = zeros_cuda.clone().to_device(&device_vulk);
@@ -18,7 +18,7 @@ pub fn test_engine() {
 
     // let _invalid = zeros_cuda + ones;
 
-    type EngineAd = Autodiff<Engine>;
+    type EngineAd = Autodiff<Dispatch>;
 
     let zeros_cuda = Tensor::<EngineAd, 2>::zeros([128, 128], &device);
     println!("{zeros_cuda}");

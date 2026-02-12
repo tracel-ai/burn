@@ -1,3 +1,3 @@
-# Burn Backend Engine
+# Burn Backend Dispatch
 
-A multi-backend engine that forwards the tensor operations to the appropriate backend.
+A multi-backend dispatch that forwards the tensor operations to the appropriate backend.

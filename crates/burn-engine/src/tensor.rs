@@ -111,7 +111,7 @@ impl<B: Backend> QTensorPrimitive for BackendTensor<B> {
 }
 
 #[derive(Clone, Debug)]
-pub enum EngineTensor {
+pub enum DispatchTensor {
     /// The [CPU backend](Cpu) tensor.
     #[cfg(feature = "cpu")]
     Cpu(BackendTensor<Cpu>),
@@ -145,69 +145,69 @@ pub enum EngineTensor {
     LibTorch(BackendTensor<LibTorch>),
 }
 
-impl TensorMetadata for EngineTensor {
+impl TensorMetadata for DispatchTensor {
     fn dtype(&self) -> burn_std::DType {
         match self {
             #[cfg(feature = "cpu")]
-            EngineTensor::Cpu(tensor) => tensor.dtype(),
+            DispatchTensor::Cpu(tensor) => tensor.dtype(),
             #[cfg(feature = "cuda")]
-            EngineTensor::Cuda(tensor) => tensor.dtype(),
+            DispatchTensor::Cuda(tensor) => tensor.dtype(),
             #[cfg(feature = "metal")]
-            EngineTensor::Metal(tensor) => tensor.dtype(),
+            DispatchTensor::Metal(tensor) => tensor.dtype(),
             #[cfg(feature = "rocm")]
-            EngineTensor::Rocm(tensor) => tensor.dtype(),
+            DispatchTensor::Rocm(tensor) => tensor.dtype(),
             #[cfg(feature = "vulkan")]
-            EngineTensor::Vulkan(tensor) => tensor.dtype(),
+            DispatchTensor::Vulkan(tensor) => tensor.dtype(),
             #[cfg(feature = "webgpu")]
-            EngineTensor::WebGpu(tensor) => tensor.dtype(),
+            DispatchTensor::WebGpu(tensor) => tensor.dtype(),
             #[cfg(feature = "ndarray")]
-            EngineTensor::NdArray(tensor) => tensor.dtype(),
+            DispatchTensor::NdArray(tensor) => tensor.dtype(),
             #[cfg(feature = "tch")]
-            EngineTensor::LibTorch(tensor) => tensor.dtype(),
+            DispatchTensor::LibTorch(tensor) => tensor.dtype(),
         }
     }
 
     fn shape(&self) -> burn_std::Shape {
         match self {
             #[cfg(feature = "cpu")]
-            EngineTensor::Cpu(tensor) => tensor.shape(),
+            DispatchTensor::Cpu(tensor) => tensor.shape(),
             #[cfg(feature = "cuda")]
-            EngineTensor::Cuda(tensor) => tensor.shape(),
+            DispatchTensor::Cuda(tensor) => tensor.shape(),
             #[cfg(feature = "metal")]
-            EngineTensor::Metal(tensor) => tensor.shape(),
+            DispatchTensor::Metal(tensor) => tensor.shape(),
             #[cfg(feature = "rocm")]
-            EngineTensor::Rocm(tensor) => tensor.shape(),
+            DispatchTensor::Rocm(tensor) => tensor.shape(),
             #[cfg(feature = "vulkan")]
-            EngineTensor::Vulkan(tensor) => tensor.shape(),
+            DispatchTensor::Vulkan(tensor) => tensor.shape(),
             #[cfg(feature = "webgpu")]
-            EngineTensor::WebGpu(tensor) => tensor.shape(),
+            DispatchTensor::WebGpu(tensor) => tensor.shape(),
             #[cfg(feature = "ndarray")]
-            EngineTensor::NdArray(tensor) => tensor.shape(),
+            DispatchTensor::NdArray(tensor) => tensor.shape(),
             #[cfg(feature = "tch")]
-            EngineTensor::LibTorch(tensor) => tensor.shape(),
+            DispatchTensor::LibTorch(tensor) => tensor.shape(),
         }
     }
 }
 
-impl QTensorPrimitive for EngineTensor {
+impl QTensorPrimitive for DispatchTensor {
     fn scheme(&self) -> &burn_std::QuantScheme {
         match self {
             #[cfg(feature = "cpu")]
-            EngineTensor::Cpu(tensor) => tensor.scheme(),
+            DispatchTensor::Cpu(tensor) => tensor.scheme(),
             #[cfg(feature = "cuda")]
-            EngineTensor::Cuda(tensor) => tensor.scheme(),
+            DispatchTensor::Cuda(tensor) => tensor.scheme(),
             #[cfg(feature = "metal")]
-            EngineTensor::Metal(tensor) => tensor.scheme(),
+            DispatchTensor::Metal(tensor) => tensor.scheme(),
             #[cfg(feature = "rocm")]
-            EngineTensor::Rocm(tensor) => tensor.scheme(),
+            DispatchTensor::Rocm(tensor) => tensor.scheme(),
             #[cfg(feature = "vulkan")]
-            EngineTensor::Vulkan(tensor) => tensor.scheme(),
+            DispatchTensor::Vulkan(tensor) => tensor.scheme(),
             #[cfg(feature = "webgpu")]
-            EngineTensor::WebGpu(tensor) => tensor.scheme(),
+            DispatchTensor::WebGpu(tensor) => tensor.scheme(),
             #[cfg(feature = "ndarray")]
-            EngineTensor::NdArray(tensor) => tensor.scheme(),
+            DispatchTensor::NdArray(tensor) => tensor.scheme(),
             #[cfg(feature = "tch")]
-            EngineTensor::LibTorch(tensor) => tensor.scheme(),
+            DispatchTensor::LibTorch(tensor) => tensor.scheme(),
         }
     }
 }

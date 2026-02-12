@@ -3,11 +3,11 @@ use burn_backend::{
     tensor::{FloatTensor, IntTensor},
 };
 
-use crate::Engine;
+use crate::Dispatch;
 use crate::backends::*;
 use crate::module_op;
 
-impl ModuleOps<Self> for Engine {
+impl ModuleOps<Self> for Dispatch {
     fn conv2d(
         x: FloatTensor<Self>,
         weight: FloatTensor<Self>,

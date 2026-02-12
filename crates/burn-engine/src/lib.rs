@@ -3,7 +3,7 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![recursion_limit = "138"]
 
-//! Burn multi-backend engine.
+//! Burn multi-backend dispatch.
 
 #[cfg(not(any(
     feature = "cpu",

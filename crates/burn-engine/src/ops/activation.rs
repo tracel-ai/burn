@@ -1,10 +1,10 @@
 use burn_backend::{Scalar, ops::ActivationOps, tensor::FloatTensor};
 
-use crate::Engine;
+use crate::Dispatch;
 use crate::backends::*;
 use crate::{binary_op, unary_op};
 
-impl ActivationOps<Self> for Engine {
+impl ActivationOps<Self> for Dispatch {
     fn leaky_relu(tensor: FloatTensor<Self>, negative_slope: Scalar) -> FloatTensor<Self> {
         unary_op!(tensor, float, |tensor| B::leaky_relu(tensor, negative_slope) => Float)
     }

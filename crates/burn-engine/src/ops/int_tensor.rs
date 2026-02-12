@@ -6,10 +6,10 @@ use burn_backend::{
 use burn_std::{IntDType, Shape, Slice};
 
 use crate::backends::*;
-use crate::{Device, Engine};
+use crate::{Device, Dispatch};
 use crate::{binary_op, creation_op, multi_tensor_op, to_device, unary_op};
 
-impl IntTensorOps<Self> for Engine {
+impl IntTensorOps<Self> for Dispatch {
     fn int_empty(shape: Shape, device: &Device, dtype: IntDType) -> IntTensor<Self> {
         creation_op!(Int, device, |device| B::int_empty(shape, device, dtype))
     }

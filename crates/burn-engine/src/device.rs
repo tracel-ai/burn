@@ -2,9 +2,9 @@ use burn_backend::{DeviceId, DeviceOps};
 
 use crate::backends::*;
 
-/// Represents a device for the [`Engine`](crate::Engine).
+/// Represents a device for the [`Dispatch`](crate::Dispatch).
 ///
-/// Each variant corresponds to a backend that the [`Engine`](crate::Engine) can dispatch operations to.
+/// Each variant corresponds to a backend that the [`Dispatch`](crate::Dispatch) can dispatch operations to.
 ///
 /// # Example
 ///
@@ -52,9 +52,6 @@ pub enum Device {
     LibTorch(LibTorchDevice),
 }
 
-/// Global engine backend with feature-gated backend support
-// pub type Engine = BackendRouter<EngineChannel>;
-
 impl Default for Device {
     #[allow(unreachable_code)]
     fn default() -> Self {
@@ -92,38 +89,38 @@ const TYPE_ID_BASE: u16 = 10;
 
 impl Device {
     /// Returns a unique number per variant to encode into type_id.
-    fn variant_id(&self) -> EngineId {
+    fn backend_id(&self) -> BackendId {
         match self {
             #[cfg(feature = "cpu")]
-            Self::Cpu(_) => EngineId::Cpu,
+            Self::Cpu(_) => BackendId::Cpu,
             #[cfg(feature = "cuda")]
-            Self::Cuda(_) => EngineId::Cuda,
+            Self::Cuda(_) => BackendId::Cuda,
             #[cfg(feature = "metal")]
-            Self::Metal(_) => EngineId::Metal,
+            Self::Metal(_) => BackendId::Metal,
             #[cfg(feature = "rocm")]
-            Self::Rocm(_) => EngineId::Rocm,
+            Self::Rocm(_) => BackendId::Rocm,
             #[cfg(feature = "vulkan")]
-            Self::Vulkan(_) => EngineId::Vulkan,
+            Self::Vulkan(_) => BackendId::Vulkan,
             #[cfg(feature = "webgpu")]
-            Self::WebGpu(_) => EngineId::WebGpu,
+            Self::WebGpu(_) => BackendId::WebGpu,
             #[cfg(feature = "ndarray")]
-            Self::NdArray(_) => EngineId::NdArray,
+            Self::NdArray(_) => BackendId::NdArray,
             #[cfg(feature = "tch")]
-            Self::LibTorch(_) => EngineId::LibTorch,
+            Self::LibTorch(_) => BackendId::LibTorch,
         }
     }
 
     /// Encode variant ID and backend type ID into a unique `type_id`.
     fn encode_type_id(&self, backend_type_id: u16) -> u16 {
-        u16::from(self.variant_id()) * TYPE_ID_BASE + backend_type_id
+        u16::from(self.backend_id()) * TYPE_ID_BASE + backend_type_id
     }
 
     /// Decode an encoded `type_id` into variant ID and backend type ID.
-    fn decode_type_id(type_id: u16) -> (EngineId, u16) {
+    fn decode_type_id(type_id: u16) -> (BackendId, u16) {
         let variant = type_id / TYPE_ID_BASE;
         let backend_type_id = type_id % TYPE_ID_BASE;
         (
-            EngineId::try_from(variant).expect("Unknown Device variant"),
+            BackendId::try_from(variant).expect("Unknown Device variant"),
             backend_type_id,
         )
     }
@@ -131,7 +128,7 @@ impl Device {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u16)]
-enum EngineId {
+enum BackendId {
     #[cfg(feature = "cpu")]
     Cpu = 0,
     #[cfg(feature = "cuda")]
@@ -150,13 +147,13 @@ enum EngineId {
     LibTorch = 7,
 }
 
-impl From<EngineId> for u16 {
-    fn from(variant: EngineId) -> Self {
+impl From<BackendId> for u16 {
+    fn from(variant: BackendId) -> Self {
         variant as u16
     }
 }
 
-impl TryFrom<u16> for EngineId {
+impl TryFrom<u16> for BackendId {
     type Error = ();
 
     fn try_from(value: u16) -> Result<Self, Self::Error> {
@@ -186,26 +183,26 @@ impl DeviceOps for Device {}
 
 impl burn_std::device::Device for Device {
     fn from_id(mut device_id: DeviceId) -> Self {
-        let (engine_id, backend_type_id) = Self::decode_type_id(device_id.type_id);
+        let (dispatch_id, backend_type_id) = Self::decode_type_id(device_id.type_id);
         device_id.type_id = backend_type_id;
 
-        match engine_id {
+        match dispatch_id {
             #[cfg(feature = "cpu")]
-            EngineId::Cpu => Self::Cpu(CpuDevice::from_id(device_id)),
+            BackendId::Cpu => Self::Cpu(CpuDevice::from_id(device_id)),
             #[cfg(feature = "cuda")]
-            EngineId::Cuda => Self::Cuda(CudaDevice::from_id(device_id)),
+            BackendId::Cuda => Self::Cuda(CudaDevice::from_id(device_id)),
             #[cfg(feature = "metal")]
-            EngineId::Metal => Self::Metal(WgpuDevice::from_id(device_id)),
+            BackendId::Metal => Self::Metal(WgpuDevice::from_id(device_id)),
             #[cfg(feature = "rocm")]
-            EngineId::Rocm => Self::Rocm(RocmDevice::from_id(device_id)),
+            BackendId::Rocm => Self::Rocm(RocmDevice::from_id(device_id)),
             #[cfg(feature = "vulkan")]
-            EngineId::Vulkan => Self::Vulkan(WgpuDevice::from_id(device_id)),
+            BackendId::Vulkan => Self::Vulkan(WgpuDevice::from_id(device_id)),
             #[cfg(feature = "webgpu")]
-            EngineId::WebGpu => Self::WebGpu(WgpuDevice::from_id(device_id)),
+            BackendId::WebGpu => Self::WebGpu(WgpuDevice::from_id(device_id)),
             #[cfg(feature = "ndarray")]
-            EngineId::NdArray => Self::NdArray(NdArrayDevice::from_id(device_id)),
+            BackendId::NdArray => Self::NdArray(NdArrayDevice::from_id(device_id)),
             #[cfg(feature = "tch")]
-            EngineId::LibTorch => Self::LibTorch(LibTorchDevice::from_id(device_id)),
+            BackendId::LibTorch => Self::LibTorch(LibTorchDevice::from_id(device_id)),
         }
     }
 
@@ -233,24 +230,24 @@ impl burn_std::device::Device for Device {
     }
 
     fn device_count(type_id: u16) -> usize {
-        let (engine_id, backend_type_id) = Self::decode_type_id(type_id);
-        match engine_id {
+        let (dispatch_id, backend_type_id) = Self::decode_type_id(type_id);
+        match dispatch_id {
             #[cfg(feature = "cpu")]
-            EngineId::Cpu => CpuDevice::device_count(backend_type_id),
+            BackendId::Cpu => CpuDevice::device_count(backend_type_id),
             #[cfg(feature = "cuda")]
-            EngineId::Cuda => CudaDevice::device_count(backend_type_id),
+            BackendId::Cuda => CudaDevice::device_count(backend_type_id),
             #[cfg(feature = "metal")]
-            EngineId::Metal => WgpuDevice::device_count(backend_type_id),
+            BackendId::Metal => WgpuDevice::device_count(backend_type_id),
             #[cfg(feature = "rocm")]
-            EngineId::Rocm => RocmDevice::device_count(backend_type_id),
+            BackendId::Rocm => RocmDevice::device_count(backend_type_id),
             #[cfg(feature = "vulkan")]
-            EngineId::Vulkan => WgpuDevice::device_count(backend_type_id),
+            BackendId::Vulkan => WgpuDevice::device_count(backend_type_id),
             #[cfg(feature = "webgpu")]
-            EngineId::WebGpu => WgpuDevice::device_count(backend_type_id),
+            BackendId::WebGpu => WgpuDevice::device_count(backend_type_id),
             #[cfg(feature = "ndarray")]
-            EngineId::NdArray => NdArrayDevice::device_count(backend_type_id),
+            BackendId::NdArray => NdArrayDevice::device_count(backend_type_id),
             #[cfg(feature = "tch")]
-            EngineId::LibTorch => LibTorchDevice::device_count(backend_type_id),
+            BackendId::LibTorch => LibTorchDevice::device_count(backend_type_id),
         }
     }
 }

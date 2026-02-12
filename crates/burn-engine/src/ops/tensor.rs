@@ -6,13 +6,13 @@ use burn_backend::{
 use burn_std::{FloatDType, Shape, Slice};
 
 use crate::backends::*;
-use crate::{Device, Engine};
+use crate::{Device, Dispatch};
 use crate::{binary_op, creation_op, multi_tensor_op, to_device, unary_op};
 
 // TODO: remove backend default elem type genericsnow that we have per-device defaults
 // https://github.com/tracel-ai/burn/issues/3642
 
-impl FloatTensorOps<Self> for Engine {
+impl FloatTensorOps<Self> for Dispatch {
     fn float_from_data(data: burn_backend::TensorData, device: &Device) -> FloatTensor<Self> {
         creation_op!(Float, device, |device| B::float_from_data(data, device))
     }
