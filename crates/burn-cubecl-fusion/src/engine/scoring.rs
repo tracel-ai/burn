@@ -57,7 +57,7 @@ impl Scoring {
 
         const FACTOR_IO: u64 = 100;
         const FACTOR_LAUNCH: u64 = 10;
-        const FACTOR_PENALTY: u64 = 150;
+        const FACTOR_PENALTY: u64 = 50;
 
         let num_fused = reads_fused + writes_fused;
         let num_unfused = self.num_reads + self.num_writes;
@@ -111,15 +111,10 @@ mod tests {
     #[test]
     fn test_scoring_io_savings() {
         let mut scoring = Scoring::default();
-        // 2 ops: each 1 read, 1 write = 4 total IO, 2 ops
         scoring.num_reads = 2;
         scoring.num_writes = 2;
         scoring.num_ops = 2;
 
-        // Fused: 1 read, 1 write, 0 penalty
-        // IO saved: (4 - 2) * 100 = 200
-        // Launch saved: (2 - 1) * 10 = 10
-        // Total = 210
         let score = scoring.calculate_score(1, 1, 0);
         assert_eq!(score, 210);
     }
@@ -127,18 +122,12 @@ mod tests {
     #[test]
     fn test_scoring_with_penalties() {
         let mut scoring = Scoring::default();
-        // 2 ops: 4 total IO, 2 ops
         scoring.num_reads = 2;
         scoring.num_writes = 2;
         scoring.num_ops = 2;
 
-        // Fused: 1 read, 1 write, BUT 1 penalty (e.g., a Reshape)
-        // IO saved: 200
-        // Launch saved: 10
-        // Penalty: 1 * 150 = 150
-        // Total = (200 + 10) - 150 = 60
         let score = scoring.calculate_score(1, 1, 1);
-        assert_eq!(score, 60);
+        assert_eq!(score, 160);
     }
 
     #[test]
@@ -148,8 +137,6 @@ mod tests {
         scoring.num_writes = 1;
         scoring.num_ops = 2;
 
-        // If penalty is high (150) and we only saved a launch (10)
-        // (0 IO saved + 10 Launch) - 150 = -140 -> clamped to 0
         let score = scoring.calculate_score(1, 1, 1);
         assert_eq!(score, 0);
     }
@@ -157,7 +144,6 @@ mod tests {
     #[test]
     fn test_scoring_no_ops() {
         let scoring = Scoring::default();
-        // Should not panic with 0 ops due to checked_sub
         let score = scoring.calculate_score(0, 0, 0);
         assert_eq!(score, 0);
     }
