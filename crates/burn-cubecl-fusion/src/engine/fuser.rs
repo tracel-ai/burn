@@ -120,6 +120,7 @@ impl OperationFuser<FuseTrace> for TraceOperationFuser {
 
     fn reset(&mut self) {
         self.num_ops = 0;
+        self.num_views = 0;
         self.status = FuserStatus::Open;
         self.fuser = TryTraceFuser::new(
             self.max_bindings,
