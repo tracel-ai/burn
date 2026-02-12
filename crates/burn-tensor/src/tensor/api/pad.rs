@@ -7,39 +7,75 @@ use super::Numeric;
 
 /// Trait for types that can be used as padding specifications.
 ///
-/// Padding is specified as `(before, after)` pairs per dimension.
-/// If fewer pairs than dimensions are provided, they apply to the **last** N dimensions
-/// (earlier dimensions are left unpadded).
-pub trait IntoPadding {
-    /// Converts into a list of `(before, after)` padding pairs.
-    fn into_padding(self) -> Vec<(usize, usize)>;
+/// Padding is specified as `(before, after)` pairs per dimension, returned as a
+/// fixed-size array `[(usize, usize); D]`. If fewer pairs than dimensions are provided,
+/// they apply to the **last** N dimensions (earlier dimensions are left unpadded).
+pub trait IntoPadding<const D: usize> {
+    /// Converts into a fixed-size array of `(before, after)` padding pairs.
+    fn into_padding(self) -> [(usize, usize); D];
 }
 
-impl IntoPadding for Vec<(usize, usize)> {
-    fn into_padding(self) -> Vec<(usize, usize)> {
-        self
-    }
-}
-
-impl IntoPadding for &[(usize, usize)] {
-    fn into_padding(self) -> Vec<(usize, usize)> {
-        self.to_vec()
-    }
-}
-
-impl<const N: usize> IntoPadding for [(usize, usize); N] {
-    fn into_padding(self) -> Vec<(usize, usize)> {
-        self.to_vec()
+impl<const D: usize, const N: usize> IntoPadding<D> for [(usize, usize); N] {
+    fn into_padding(self) -> [(usize, usize); D] {
+        assert!(
+            N <= D,
+            "Padding has {} pairs but tensor only has {} dimensions",
+            N,
+            D
+        );
+        let mut result = [(0usize, 0usize); D];
+        let offset = D - N;
+        for (i, pair) in self.into_iter().enumerate() {
+            result[offset + i] = pair;
+        }
+        result
     }
 }
 
 /// Backward-compatible: `(left, right, top, bottom)` maps to last 2 dimensions.
 ///
-/// Equivalent to `&[(top, bottom), (left, right)]`.
-impl IntoPadding for (usize, usize, usize, usize) {
-    fn into_padding(self) -> Vec<(usize, usize)> {
+/// Equivalent to `[(top, bottom), (left, right)]`.
+impl<const D: usize> IntoPadding<D> for (usize, usize, usize, usize) {
+    fn into_padding(self) -> [(usize, usize); D] {
         let (left, right, top, bottom) = self;
-        alloc::vec![(top, bottom), (left, right)]
+        let mut result = [(0usize, 0usize); D];
+        result[D - 2] = (top, bottom);
+        result[D - 1] = (left, right);
+        result
+    }
+}
+
+impl<const D: usize> IntoPadding<D> for &[(usize, usize)] {
+    fn into_padding(self) -> [(usize, usize); D] {
+        assert!(
+            self.len() <= D,
+            "Padding has {} pairs but tensor only has {} dimensions",
+            self.len(),
+            D
+        );
+        let mut result = [(0usize, 0usize); D];
+        let offset = D - self.len();
+        for (i, &pair) in self.iter().enumerate() {
+            result[offset + i] = pair;
+        }
+        result
+    }
+}
+
+impl<const D: usize> IntoPadding<D> for Vec<(usize, usize)> {
+    fn into_padding(self) -> [(usize, usize); D] {
+        assert!(
+            self.len() <= D,
+            "Padding has {} pairs but tensor only has {} dimensions",
+            self.len(),
+            D
+        );
+        let mut result = [(0usize, 0usize); D];
+        let offset = D - self.len();
+        for (i, pair) in self.into_iter().enumerate() {
+            result[offset + i] = pair;
+        }
+        result
     }
 }
 
@@ -64,22 +100,6 @@ fn build_slice_ranges<const D: usize>(
         .unwrap()
 }
 
-/// Expand padding pairs to length D, left-padding with (0, 0) for unspecified leading dimensions.
-fn expand_padding<const D: usize>(pairs: Vec<(usize, usize)>) -> [(usize, usize); D] {
-    assert!(
-        pairs.len() <= D,
-        "Padding has {} pairs but tensor only has {} dimensions",
-        pairs.len(),
-        D
-    );
-    let mut result = [(0usize, 0usize); D];
-    let offset = D - pairs.len();
-    for (i, pair) in pairs.into_iter().enumerate() {
-        result[offset + i] = pair;
-    }
-    result
-}
-
 impl<B, const D: usize, K> Tensor<B, D, K>
 where
     B: Backend,
@@ -98,8 +118,8 @@ where
     /// # Arguments
     ///
     /// * `padding` - Padding specification. Accepts:
+    ///   - `[(before, after); N]` fixed-size array of pairs (N <= D)
     ///   - `&[(before, after)]` slice of pairs per dimension
-    ///   - `[(before, after); N]` fixed-size array of pairs
     ///   - `Vec<(before, after)>` vector of pairs
     ///   - `(left, right, top, bottom)` tuple for last-2-dim backward compatibility
     /// * `mode` - The padding mode: `Constant(value)`, `Reflect`, or `Edge`.
@@ -135,8 +155,8 @@ where
     ///    let padded = tensor.pad([(1, 1)], PadMode::Reflect);
     /// }
     /// ```
-    pub fn pad(self, padding: impl IntoPadding, mode: impl Into<PadMode>) -> Self {
-        let pairs = expand_padding::<D>(padding.into_padding());
+    pub fn pad(self, padding: impl IntoPadding<D>, mode: impl Into<PadMode>) -> Self {
+        let pairs = padding.into_padding();
         match mode.into() {
             PadMode::Constant(value) => pad_constant(self, &pairs, value),
             PadMode::Reflect => pad_reflect(self, &pairs),
