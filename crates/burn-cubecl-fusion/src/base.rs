@@ -3,7 +3,7 @@ use burn_std::{DType, quantization::QParamTensor};
 use cubecl::{
     CubeElement, Runtime,
     client::ComputeClient,
-    ir::ElemType,
+    ir::{AddressType, ElemType},
     prelude::{TensorArg, TensorHandleRef},
 };
 use cubecl::{
@@ -75,6 +75,17 @@ impl<R: Runtime> CubeFusionHandle<R> {
             elem_size: self.dtype.size(),
         }
     }
+
+    pub fn required_address_type(&self) -> AddressType {
+        match self.dtype {
+            DType::QFloat(scheme) => {
+                let len = self.handle.size() as usize * 8 / scheme.size_bits_value();
+                AddressType::from_len(len)
+            }
+            _ => AddressType::from_len(self.handle.size() as usize / self.dtype.size()),
+        }
+    }
+
     /// Return the reference to a tensor argument.
     pub fn as_tensor_arg<'a>(
         &'a self,

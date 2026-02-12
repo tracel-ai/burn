@@ -1,6 +1,6 @@
 use crate::{
     CubeRuntime,
-    kernel::utils::{linear_view, shape_divmod},
+    kernel::utils::{address_type, linear_view, shape_divmod},
 };
 use crate::{element::CubeElement, tensor::CubeTensor};
 use crate::{
@@ -50,7 +50,7 @@ pub fn full_device_dtype<R: CubeRuntime>(
 ) -> CubeTensor<R> {
     let empty = empty_device_dtype(client, device, shape, dtype);
 
-    #[cube(launch_unchecked)]
+    #[cube(launch_unchecked, address_type = "dynamic")]
     pub fn full_kernel<C: Numeric>(
         tensor: &mut LinearView<C, ReadWrite>,
         value: InputScalar,
@@ -75,6 +75,7 @@ pub fn full_device_dtype<R: CubeRuntime>(
             &empty.client,
             cube_count,
             cube_dim,
+            address_type!(empty),
             linear_view(&empty, line_size),
             value,
             empty.dtype.into(),
@@ -334,7 +335,7 @@ impl<N: Numeric> CumulativeOp<N> for MinOp {
 /// # TODO
 ///
 /// Implement an efficient GPU-optimized parallel scan algorithm.
-#[cube(launch_unchecked)]
+#[cube(launch_unchecked, address_type = "dynamic")]
 fn cumulative_kernel<C: Numeric, O: CumulativeOpFamily>(
     input: &Tensor<C>,
     output: &mut LinearView<C, ReadWrite>,
@@ -420,6 +421,7 @@ fn cumulative_op<R: CubeRuntime, O: CumulativeOpFamily>(
             &client,
             cube_count,
             cube_dim,
+            address_type!(input, output),
             input.as_tensor_arg(1),
             linear_view(&output, 1),
             shape_divmod(&input),

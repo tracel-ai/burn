@@ -98,12 +98,16 @@ impl<R: Runtime> TraceRunner<R> for ElemwiseRunner {
         let working_units = shape.iter().product::<usize>() / config.width;
         let cube_dim = CubeDim::new(client, working_units);
         let cube_count = calculate_cube_count_elemwise(client, working_units, cube_dim);
+        let address_type = inputs
+            .required_address_type()
+            .max(outputs.required_address_type());
 
         unsafe {
             elemwise_fuse::launch_unchecked(
                 client,
                 cube_count,
                 cube_dim,
+                address_type,
                 inputs,
                 outputs,
                 config.clone(),
@@ -114,7 +118,7 @@ impl<R: Runtime> TraceRunner<R> for ElemwiseRunner {
     }
 }
 
-#[cube(launch_unchecked)]
+#[cube(launch_unchecked, address_type = "dynamic")]
 fn elemwise_fuse(
     inputs: &GlobalArgs,
     outputs: &mut GlobalArgs,

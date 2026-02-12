@@ -64,6 +64,9 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceBroadcastedLaunch<'_> {
 
         let vector_size = shape[self.reduce_axis];
         let vector_count = shape.iter().product::<usize>() / vector_size;
+        let address_type = inputs
+            .required_address_type()
+            .max(outputs.required_address_type());
 
         let (blueprint, settings) = routine
             .prepare::<R>(
@@ -77,6 +80,7 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceBroadcastedLaunch<'_> {
                         output: StorageType::Scalar(ElemType::Float(FloatKind::F32)),
                         accumulation: StorageType::Scalar(ElemType::Float(FloatKind::F32)),
                     },
+                    address_type,
                 },
                 ReduceLineSettings {
                     line_mode: LineMode::Parallel,
@@ -122,6 +126,7 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceBroadcastedLaunch<'_> {
                 client,
                 settings.cube_count,
                 settings.cube_dim,
+                settings.address_type,
                 inputs,
                 outputs,
                 ScalarArg::new(self.reduce_axis),

@@ -1,6 +1,8 @@
 use crate::{
     CubeRuntime,
-    kernel::utils::{broadcast_shape, linear_view, linear_view_alias, linear_view_ref},
+    kernel::utils::{
+        address_type, broadcast_shape, linear_view, linear_view_alias, linear_view_ref,
+    },
     ops::{max_line_size, numeric::empty_device_dtype},
     tensor::CubeTensor,
 };
@@ -79,7 +81,7 @@ impl<N: Numeric> ComparisonOp<N> for LowerOp {
     }
 }
 
-#[cube(launch_unchecked)]
+#[cube(launch_unchecked, address_type = "dynamic")]
 pub(crate) fn kernel_scalar_cmp<N: Numeric, Bool: Numeric, O: ComparisonOpFamily>(
     input: &LinearView<Line<N>>,
     scalar: InputScalar,
@@ -96,7 +98,7 @@ pub(crate) fn kernel_scalar_cmp<N: Numeric, Bool: Numeric, O: ComparisonOpFamily
     ));
 }
 
-#[cube(launch_unchecked)]
+#[cube(launch_unchecked, address_type = "dynamic")]
 pub(crate) fn kernel_cmp<N: Numeric, Bool: Numeric, O: ComparisonOpFamily>(
     lhs: &LinearView<Line<N>>,
     rhs: &LinearView<Line<N>>,
@@ -139,6 +141,7 @@ pub(crate) fn launch_cmp<R: CubeRuntime, O: ComparisonOpFamily>(
                 &client,
                 cube_count,
                 cube_dim,
+                address_type!(lhs, rhs),
                 linear_view(&lhs, line_size),
                 linear_view_ref(&rhs, &lhs, line_size),
                 linear_view_alias(&lhs, line_size, 0),
@@ -161,6 +164,7 @@ pub(crate) fn launch_cmp<R: CubeRuntime, O: ComparisonOpFamily>(
                 &client,
                 cube_count,
                 cube_dim,
+                address_type!(lhs, rhs),
                 linear_view_ref(&lhs, &rhs, line_size),
                 linear_view(&rhs, line_size),
                 linear_view_alias(&rhs, line_size, 1),
@@ -190,6 +194,7 @@ pub(crate) fn launch_cmp<R: CubeRuntime, O: ComparisonOpFamily>(
                 &client,
                 cube_count,
                 cube_dim,
+                address_type!(lhs, rhs, output),
                 linear_view_ref(&lhs, &output, line_size),
                 linear_view_ref(&rhs, &output, line_size),
                 linear_view(&output, line_size),
@@ -224,6 +229,7 @@ pub(crate) fn launch_scalar_cmp<R: CubeRuntime, O: ComparisonOpFamily>(
                 &client,
                 cube_count,
                 cube_dim,
+                address_type!(tensor),
                 linear_view(&tensor, line_size),
                 scalar,
                 linear_view_alias(&tensor, line_size, 0),
@@ -253,6 +259,7 @@ pub(crate) fn launch_scalar_cmp<R: CubeRuntime, O: ComparisonOpFamily>(
                 &client,
                 cube_count,
                 cube_dim,
+                address_type!(tensor, output),
                 linear_view(&tensor, line_size),
                 scalar,
                 linear_view(&output, line_size),
@@ -381,7 +388,7 @@ impl<F: Float> PredicateOp<F> for IsInfOp {
     }
 }
 
-#[cube(launch_unchecked)]
+#[cube(launch_unchecked, address_type = "dynamic")]
 pub(crate) fn kernel_predicate<F: Float, Bool: Numeric, O: PredicateOpFamily>(
     input: &LinearView<Line<F>>,
     output: &mut LinearView<Line<Bool>, ReadWrite>,
@@ -420,6 +427,7 @@ pub(crate) fn launch_predicate<R: CubeRuntime, O: PredicateOpFamily>(
             &client,
             cube_count,
             cube_dim,
+            address_type!(tensor, output),
             linear_view_ref(&tensor, &output, line_size),
             linear_view(&output, line_size),
             dtypes,

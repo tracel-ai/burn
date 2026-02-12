@@ -155,3 +155,30 @@ pub(crate) fn decompose_linear<I: FastDivmodInt>(
 
     (offs, out.rev())
 }
+
+pub(crate) trait RequiredAddrType {
+    fn required_address_type(&self) -> AddressType;
+}
+
+impl<R: CubeRuntime> RequiredAddrType for CubeTensor<R> {
+    fn required_address_type(&self) -> AddressType {
+        self.required_address_type()
+    }
+}
+impl<R: CubeRuntime> RequiredAddrType for Option<CubeTensor<R>> {
+    fn required_address_type(&self) -> AddressType {
+        self.as_ref()
+            .map(|it| it.required_address_type())
+            .unwrap_or_default()
+    }
+}
+
+macro_rules! address_type {
+    ($($tensor: tt),*) => {
+        [$($crate::kernel::utils::RequiredAddrType::required_address_type(&$tensor)),*]
+        .into_iter()
+        .max()
+        .unwrap_or_default()
+    };
+}
+pub(crate) use address_type;
