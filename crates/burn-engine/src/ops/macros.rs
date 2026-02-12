@@ -382,7 +382,7 @@ macro_rules! module_op_arms {
 ///     inputs[(x, float), (weight, float)],
 ///     opt_inputs[bias] =>
 ///     outputs[out]
-///     { B::conv2d(x, weight, bias, ...) }
+///     { (B::conv2d(x, weight, bias, options),) }
 /// )
 /// ```
 // NOTE: a bit verbose but easier to handle automatic backend and input repetitions.
