@@ -54,20 +54,20 @@ impl Backend for Engine {
     type QuantizedTensorPrimitive = EngineTensor;
 
     fn name(device: &Self::Device) -> String {
-        let inner = dispatch_device!(device, B::name);
+        let inner = dispatch_device!(device, |device| B::name(device));
         format!("engine<{inner}>")
     }
 
     fn seed(device: &Self::Device, seed: u64) {
-        dispatch_device!(device, B::seed, seed)
+        dispatch_device!(device, |device| B::seed(device, seed))
     }
 
     fn sync(device: &Self::Device) -> Result<(), ExecutionError> {
-        dispatch_device!(device, B::sync)
+        dispatch_device!(device, |device| B::sync(device))
     }
 
     fn dtype_usage(device: &Self::Device, dtype: DType) -> burn_backend::DTypeUsageSet {
-        dispatch_device!(device, B::dtype_usage, dtype)
+        dispatch_device!(device, |device| B::dtype_usage(device, dtype))
     }
 }
 

@@ -6,15 +6,13 @@ use burn_backend::{
 };
 use burn_std::{QuantPropagation, Shape, Slice};
 
-use crate::{Device, Engine, EngineTensor};
-use crate::{backends::*, unary_op};
-use crate::{
-    create_quantized, dispatch_async_quantized, multi_tensor_op, to_device, unary_quantized,
-};
+use crate::backends::*;
+use crate::{Device, Engine};
+use crate::{binary_op, creation_op, to_device, unary_op};
 
 impl QTensorOps<Self> for Engine {
     fn q_from_data(data: TensorData, device: &Device) -> QuantizedTensor<Self> {
-        create_quantized!(device, |device| B::q_from_data(data, device))
+        creation_op!(Quantized, device, |device| B::q_from_data(data, device))
     }
 
     fn quantize(
@@ -22,18 +20,17 @@ impl QTensorOps<Self> for Engine {
         scheme: &burn_std::QuantScheme,
         qparams: QuantizationParametersPrimitive<Self>,
     ) -> QuantizedTensor<Self> {
-        multi_tensor_op!(
-            Quantized,
-            float(tensor),
-            float(qparams.scales),
+        binary_op!(
+            (tensor, float),
+            (qparams.scales, float),
             |tensor, scales| {
                 B::quantize(tensor, scheme, QuantizationParametersPrimitive { scales })
-            }
+            } => Quantized
         )
     }
 
     fn dequantize(tensor: QuantizedTensor<Self>) -> FloatTensor<Self> {
-        unary_op!(Float, quantized, dequantize, tensor)
+        unary_op!(tensor, quantized, |tensor| B::dequantize(tensor) => Float)
     }
 
     fn q_device(tensor: &QuantizedTensor<Self>) -> Device {
@@ -56,15 +53,15 @@ impl QTensorOps<Self> for Engine {
     }
 
     fn q_reshape(tensor: QuantizedTensor<Self>, shape: Shape) -> QuantizedTensor<Self> {
-        unary_quantized!(q_reshape, tensor, shape)
+        unary_op!(tensor, quantized, |tensor| B::q_reshape(tensor, shape) => Quantized)
     }
 
     async fn q_into_data(tensor: QuantizedTensor<Self>) -> Result<TensorData, ExecutionError> {
-        dispatch_async_quantized!(q_into_data, tensor)
+        unary_op!(tensor, quantized, |tensor| B::q_into_data(tensor).await)
     }
 
     fn q_expand(tensor: QuantizedTensor<Self>, shape: Shape) -> QuantizedTensor<Self> {
-        unary_quantized!(q_expand, tensor, shape)
+        unary_op!(tensor, quantized, |tensor| B::q_expand(tensor, shape) => Quantized)
     }
 
     fn q_swap_dims(
@@ -72,15 +69,15 @@ impl QTensorOps<Self> for Engine {
         dim1: usize,
         dim2: usize,
     ) -> QuantizedTensor<Self> {
-        unary_quantized!(q_swap_dims, tensor, dim1, dim2)
+        unary_op!(tensor, quantized, |tensor| B::q_swap_dims(tensor, dim1, dim2) => Quantized)
     }
 
     fn q_permute(tensor: QuantizedTensor<Self>, axes: &[usize]) -> QuantizedTensor<Self> {
-        unary_quantized!(q_permute, tensor, axes)
+        unary_op!(tensor, quantized, |tensor| B::q_permute(tensor, axes) => Quantized)
     }
 
     fn q_flip(tensor: QuantizedTensor<Self>, axes: &[usize]) -> QuantizedTensor<Self> {
-        unary_quantized!(q_flip, tensor, axes)
+        unary_op!(tensor, quantized, |tensor| B::q_flip(tensor, axes) => Quantized)
     }
 
     fn q_select(
@@ -88,18 +85,15 @@ impl QTensorOps<Self> for Engine {
         dim: usize,
         indices: IntTensor<Self>,
     ) -> QuantizedTensor<Self> {
-        multi_tensor_op!(
-            Quantized,
-            quantized, // tensor
-            int,       // indices
-            tensor,
-            indices,
-            |tensor, indices| B::q_select(tensor, dim, indices)
+        binary_op!(
+            (tensor, quantized),
+            (indices, int),
+            |tensor, indices| B::q_select(tensor, dim, indices) => Quantized
         )
     }
 
     fn q_slice(tensor: QuantizedTensor<Self>, slices: &[Slice]) -> QuantizedTensor<Self> {
-        unary_quantized!(q_slice, tensor, slices)
+        unary_op!(tensor, quantized, |tensor| B::q_slice(tensor, slices) => Quantized)
     }
 
     fn q_matmul(lhs: TensorPrimitive<Self>, rhs: TensorPrimitive<Self>) -> TensorPrimitive<Self> {
@@ -107,12 +101,9 @@ impl QTensorOps<Self> for Engine {
         match (lhs, rhs) {
             (TensorPrimitive::QFloat(lhs), TensorPrimitive::QFloat(rhs)) => {
                 if matches!(lhs.propagation(), QuantPropagation::Propagate) {
-                    let out = multi_tensor_op!(
-                        Quantized,
-                        quantized, // lhs
-                        quantized, // rhs
-                        lhs,
-                        rhs,
+                    let out = binary_op!(
+                        (lhs, quantized),
+                        (rhs, quantized),
                         |lhs, rhs| {
                             if let TensorPrimitive::QFloat(out) = B::q_matmul(
                                 TensorPrimitive::QFloat(lhs),
@@ -122,16 +113,13 @@ impl QTensorOps<Self> for Engine {
                             } else {
                                 unreachable!()
                             }
-                        }
+                        } => Quantized
                     );
                     TensorPrimitive::QFloat(out)
                 } else {
-                    let out = multi_tensor_op!(
-                        Float,
-                        quantized, // lhs
-                        quantized, // rhs
-                        lhs,
-                        rhs,
+                    let out = binary_op!(
+                        (lhs, quantized),
+                        (rhs, quantized),
                         |lhs, rhs| {
                             if let TensorPrimitive::Float(out) = B::q_matmul(
                                 TensorPrimitive::QFloat(lhs),
@@ -141,19 +129,16 @@ impl QTensorOps<Self> for Engine {
                             } else {
                                 unreachable!()
                             }
-                        }
+                        } => Float
                     );
                     TensorPrimitive::Float(out)
                 }
             }
             (TensorPrimitive::Float(lhs), TensorPrimitive::QFloat(rhs)) => {
                 if matches!(rhs.propagation(), QuantPropagation::Propagate) {
-                    let out = multi_tensor_op!(
-                        Quantized,
-                        float,     // lhs
-                        quantized, // rhs
-                        lhs,
-                        rhs,
+                    let out = binary_op!(
+                        (lhs, float),
+                        (rhs, quantized),
                         |lhs, rhs| {
                             if let TensorPrimitive::QFloat(out) = B::q_matmul(
                                 TensorPrimitive::Float(lhs),
@@ -163,16 +148,13 @@ impl QTensorOps<Self> for Engine {
                             } else {
                                 unreachable!()
                             }
-                        }
+                        } => Quantized
                     );
                     TensorPrimitive::QFloat(out)
                 } else {
-                    let out = multi_tensor_op!(
-                        Float,
-                        float,     // lhs
-                        quantized, // rhs
-                        lhs,
-                        rhs,
+                    let out = binary_op!(
+                        (lhs, float),
+                        (rhs, quantized),
                         |lhs, rhs| {
                             if let TensorPrimitive::Float(out) = B::q_matmul(
                                 TensorPrimitive::Float(lhs),
@@ -182,19 +164,16 @@ impl QTensorOps<Self> for Engine {
                             } else {
                                 unreachable!()
                             }
-                        }
+                        } => Float
                     );
                     TensorPrimitive::Float(out)
                 }
             }
             (TensorPrimitive::QFloat(lhs), TensorPrimitive::Float(rhs)) => {
                 if matches!(lhs.propagation(), QuantPropagation::Propagate) {
-                    let out = multi_tensor_op!(
-                        Quantized,
-                        quantized, // lhs
-                        float,     // rhs
-                        lhs,
-                        rhs,
+                    let out = binary_op!(
+                        (lhs, quantized),
+                        (rhs, float),
                         |lhs, rhs| {
                             if let TensorPrimitive::QFloat(out) = B::q_matmul(
                                 TensorPrimitive::QFloat(lhs),
@@ -204,16 +183,13 @@ impl QTensorOps<Self> for Engine {
                             } else {
                                 unreachable!()
                             }
-                        }
+                        } => Quantized
                     );
                     TensorPrimitive::QFloat(out)
                 } else {
-                    let out = multi_tensor_op!(
-                        Float,
-                        quantized, // lhs
-                        float,     // rhs
-                        lhs,
-                        rhs,
+                    let out = binary_op!(
+                        (lhs, quantized),
+                        (rhs, float),
                         |lhs, rhs| {
                             if let TensorPrimitive::Float(out) = B::q_matmul(
                                 TensorPrimitive::QFloat(lhs),
@@ -223,7 +199,7 @@ impl QTensorOps<Self> for Engine {
                             } else {
                                 unreachable!()
                             }
-                        }
+                        } => Float
                     );
                     TensorPrimitive::Float(out)
                 }

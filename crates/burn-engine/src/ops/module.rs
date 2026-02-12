@@ -16,7 +16,10 @@ impl ModuleOps<Self> for Engine {
     ) -> FloatTensor<Self> {
         // TODO: clean up macro that currently always destructures a tuple, and returns one
         module_op!(
-            float(x, weight), opt(bias) => (out) {
+            inputs[(x, float), (weight, float)],
+            opt_inputs[bias] =>
+            outputs[result]
+            {
                 (B::conv2d(x, weight, bias, options),)
             }
         )
@@ -32,7 +35,10 @@ impl ModuleOps<Self> for Engine {
         options: burn_backend::ops::DeformConvOptions<2>,
     ) -> FloatTensor<Self> {
         module_op!(
-            float(x, offset, weight), opt(mask, bias) => (out) {
+            inputs[(x, float), (offset, float), (weight, float)],
+            opt_inputs[mask, bias] =>
+            outputs[result]
+            {
                 (B::deform_conv2d(x, offset, weight, mask, bias, options),)
             }
         )
@@ -49,8 +55,11 @@ impl ModuleOps<Self> for Engine {
         options: burn_backend::ops::DeformConvOptions<2>,
     ) -> DeformConv2dBackward<Self> {
         let (x_grad, offset_grad, weight_grad, mask_grad, bias_grad) = module_op!(
-            float(x, offset, weight, output_grad), opt(mask, bias)
-            => (x_grad, offset_grad, weight_grad) opt(mask_grad, bias_grad) {
+            inputs[(x, float), (offset, float), (weight, float), (output_grad, float)],
+            opt_inputs[mask, bias] =>
+            outputs[x_grad, offset_grad, weight_grad],
+            opt_outputs[mask_grad, bias_grad]
+            {
                 let res = B::deform_conv2d_backward(x, offset, weight, mask, bias, output_grad, options);
                 (res.x_grad, res.offset_grad, res.weight_grad, res.mask_grad, res.bias_grad)
             }
@@ -65,7 +74,10 @@ impl ModuleOps<Self> for Engine {
         options: burn_backend::ops::ConvOptions<3>,
     ) -> FloatTensor<Self> {
         module_op!(
-            float(x, weight), opt(bias) => (out) {
+            inputs[(x, float), (weight, float)],
+            opt_inputs[bias] =>
+            outputs[result]
+            {
                 (B::conv3d(x, weight, bias, options),)
             }
         )
@@ -79,7 +91,10 @@ impl ModuleOps<Self> for Engine {
         options: burn_backend::ops::ConvTransposeOptions<2>,
     ) -> FloatTensor<Self> {
         module_op!(
-            float(x, weight), opt(bias) => (out) {
+            inputs[(x, float), (weight, float)],
+            opt_inputs[bias] =>
+            outputs[result]
+            {
                 (B::conv_transpose2d(x, weight, bias, options),)
             }
         )
@@ -93,7 +108,10 @@ impl ModuleOps<Self> for Engine {
         options: burn_backend::ops::ConvTransposeOptions<3>,
     ) -> FloatTensor<Self> {
         module_op!(
-            float(x, weight), opt(bias) => (out) {
+            inputs[(x, float), (weight, float)],
+            opt_inputs[bias] =>
+            outputs[result]
+            {
                 (B::conv_transpose3d(x, weight, bias, options),)
             }
         )
@@ -109,7 +127,10 @@ impl ModuleOps<Self> for Engine {
         ceil_mode: bool,
     ) -> FloatTensor<Self> {
         module_op!(
-            float(x), opt() => (out) {
+            inputs[(x, float)],
+            opt_inputs[] =>
+            outputs[result]
+            {
                 (B::avg_pool2d(x, kernel_size, stride, padding, count_include_pad, ceil_mode),)
             }
         )
@@ -126,7 +147,10 @@ impl ModuleOps<Self> for Engine {
         ceil_mode: bool,
     ) -> FloatTensor<Self> {
         module_op!(
-            float(x, grad), opt() => (out) {
+            inputs[(x, float), (grad, float)],
+            opt_inputs[] =>
+            outputs[result]
+            {
                 (B::avg_pool2d_backward(x, grad, kernel_size, stride, padding, count_include_pad, ceil_mode),)
             }
         )
@@ -135,7 +159,10 @@ impl ModuleOps<Self> for Engine {
 
     fn adaptive_avg_pool2d(x: FloatTensor<Self>, output_size: [usize; 2]) -> FloatTensor<Self> {
         module_op!(
-            float(x), opt() => (out) {
+            inputs[(x, float)],
+            opt_inputs[] =>
+            outputs[result]
+            {
                 (B::adaptive_avg_pool2d(x, output_size),)
             }
         )
@@ -147,7 +174,10 @@ impl ModuleOps<Self> for Engine {
         grad: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
         module_op!(
-            float(x, grad), opt() => (out) {
+            inputs[(x, float), (grad, float)],
+            opt_inputs[] =>
+            outputs[result]
+            {
                 (B::adaptive_avg_pool2d_backward(x, grad),)
             }
         )
@@ -163,7 +193,10 @@ impl ModuleOps<Self> for Engine {
         ceil_mode: bool,
     ) -> FloatTensor<Self> {
         module_op!(
-            float(x), opt() => (out) {
+            inputs[(x, float)],
+            opt_inputs[] =>
+            outputs[result]
+            {
                 (B::max_pool2d(x, kernel_size, stride, padding, dilation, ceil_mode),)
             }
         )
@@ -179,7 +212,10 @@ impl ModuleOps<Self> for Engine {
         ceil_mode: bool,
     ) -> MaxPool2dWithIndices<Self> {
         let (out, indices) = module_op!(
-            float(x), opt() => (out, indices) {
+            inputs[(x, float)],
+            opt_inputs[] =>
+            outputs[out, indices]
+            {
                 let res = B::max_pool2d_with_indices(x, kernel_size, stride, padding, dilation, ceil_mode);
                 (res.output, res.indices)
             }
@@ -198,11 +234,15 @@ impl ModuleOps<Self> for Engine {
         indices: IntTensor<Self>,
     ) -> MaxPool2dBackward<Self> {
         let x_grad = module_op!(
-            float(x, output_grad), int(indices), opt() => (x_grad) opt() {
+            inputs[(x, float), (output_grad, float), (indices, int)],
+            opt_inputs[] =>
+            outputs[result]
+            {
                 let res = B::max_pool2d_with_indices_backward(x, kernel_size, stride, padding, dilation, ceil_mode, output_grad, indices);
                 (res.x_grad,)
             }
-        ).0;
+        )
+        .0;
         MaxPool2dBackward::new(x_grad)
     }
 
@@ -212,7 +252,10 @@ impl ModuleOps<Self> for Engine {
         options: burn_backend::ops::InterpolateOptions,
     ) -> FloatTensor<Self> {
         module_op!(
-            float(x), opt() => (out) {
+            inputs[(x, float)],
+            opt_inputs[] =>
+            outputs[result]
+            {
                 (B::interpolate(x, output_size, options),)
             }
         )
@@ -226,7 +269,10 @@ impl ModuleOps<Self> for Engine {
         options: burn_backend::ops::InterpolateOptions,
     ) -> FloatTensor<Self> {
         module_op!(
-            float(x, grad), opt() => (out) {
+            inputs[(x, float), (grad, float)],
+            opt_inputs[] =>
+            outputs[result]
+            {
                 (B::interpolate_backward(x, grad, output_size, options),)
             }
         )

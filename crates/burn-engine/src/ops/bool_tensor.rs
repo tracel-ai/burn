@@ -6,38 +6,36 @@ use burn_backend::{
 use burn_std::{Shape, Slice};
 
 use crate::backends::*;
-use crate::{Device, Engine, EngineTensor};
-use crate::{
-    binary_bool, create_bool, dispatch_async_bool, multi_tensor_op, to_device, unary_bool,
-};
+use crate::{Device, Engine};
+use crate::{binary_op, creation_op, multi_tensor_op, to_device, unary_op};
 
 impl BoolTensorOps<Self> for Engine {
     fn bool_empty(shape: Shape, device: &Device) -> BoolTensor<Self> {
-        create_bool!(device, |device| B::bool_empty(shape, device))
+        creation_op!(Bool, device, |device| B::bool_empty(shape, device))
     }
 
     fn bool_zeros(shape: Shape, device: &Device) -> BoolTensor<Self> {
-        create_bool!(device, |device| B::bool_zeros(shape, device))
+        creation_op!(Bool, device, |device| B::bool_zeros(shape, device))
     }
 
     fn bool_ones(shape: Shape, device: &Device) -> BoolTensor<Self> {
-        create_bool!(device, |device| B::bool_ones(shape, device))
+        creation_op!(Bool, device, |device| B::bool_ones(shape, device))
     }
 
     async fn bool_into_data(tensor: BoolTensor<Self>) -> Result<TensorData, ExecutionError> {
-        dispatch_async_bool!(bool_into_data, tensor)
+        unary_op!(tensor, float, |tensor| B::bool_into_data(tensor).await)
     }
 
     fn bool_from_data(data: TensorData, device: &Device) -> BoolTensor<Self> {
-        create_bool!(device, |device| B::bool_from_data(data, device))
+        creation_op!(Bool, device, |device| B::bool_from_data(data, device))
     }
 
     fn bool_into_int(tensor: BoolTensor<Self>) -> IntTensor<Self> {
-        unary_bool!(bool_into_int, tensor => Int)
+        unary_op!(tensor, bool, |tensor| B::bool_into_int(tensor) => Int)
     }
 
     fn bool_into_float(tensor: BoolTensor<Self>) -> FloatTensor<Self> {
-        unary_bool!(bool_into_float, tensor => Float)
+        unary_op!(tensor, bool, |tensor| B::bool_into_float(tensor) => Float)
     }
 
     fn bool_device(tensor: &BoolTensor<Self>) -> Device {
@@ -60,11 +58,11 @@ impl BoolTensorOps<Self> for Engine {
     }
 
     fn bool_reshape(tensor: BoolTensor<Self>, shape: Shape) -> BoolTensor<Self> {
-        unary_bool!(bool_reshape, tensor, shape)
+        unary_op!(tensor, bool, |tensor| B::bool_reshape(tensor, shape) => Bool)
     }
 
     fn bool_slice(tensor: BoolTensor<Self>, slices: &[Slice]) -> BoolTensor<Self> {
-        unary_bool!(bool_slice, tensor, slices)
+        unary_op!(tensor, bool, |tensor| B::bool_slice(tensor, slices) => Bool)
     }
 
     fn bool_slice_assign(
@@ -72,9 +70,7 @@ impl BoolTensorOps<Self> for Engine {
         slices: &[Slice],
         value: BoolTensor<Self>,
     ) -> BoolTensor<Self> {
-        multi_tensor_op!(Bool, bool(tensor), bool(value), |tensor, value| {
-            B::bool_slice_assign(tensor, slices, value)
-        })
+        binary_op!((tensor, bool), (value, bool), |tensor, value| B::bool_slice_assign(tensor, slices, value) => Bool)
     }
 
     fn bool_mask_where(
@@ -83,11 +79,10 @@ impl BoolTensorOps<Self> for Engine {
         value: BoolTensor<Self>,
     ) -> BoolTensor<Self> {
         multi_tensor_op!(
-            Bool,
-            bool(tensor),
-            bool(mask),
-            bool(value),
-            |tensor, mask, value| B::bool_mask_where(tensor, mask, value)
+            (tensor, bool),
+            (mask, bool),
+            (value, bool),
+            |tensor, mask, value| B::bool_mask_where(tensor, mask, value) => Bool
         )
     }
 
@@ -96,9 +91,7 @@ impl BoolTensorOps<Self> for Engine {
         mask: BoolTensor<Self>,
         value: Scalar,
     ) -> BoolTensor<Self> {
-        multi_tensor_op!(Bool, bool(tensor), bool(mask), |tensor, mask| {
-            B::bool_mask_fill(tensor, mask, value)
-        })
+        binary_op!((tensor, bool), (mask, bool), |tensor, mask| B::bool_mask_fill(tensor, mask, value) => Bool)
     }
 
     fn bool_gather(
@@ -106,9 +99,7 @@ impl BoolTensorOps<Self> for Engine {
         tensor: BoolTensor<Self>,
         indices: IntTensor<Self>,
     ) -> BoolTensor<Self> {
-        multi_tensor_op!(Bool, bool(tensor), int(indices), |tensor, indices| {
-            B::bool_gather(dim, tensor, indices)
-        })
+        binary_op!((tensor, bool), (indices, int), |tensor, indices| B::bool_gather(dim, tensor, indices) => Bool)
     }
 
     fn bool_scatter_or(
@@ -118,48 +109,47 @@ impl BoolTensorOps<Self> for Engine {
         value: BoolTensor<Self>,
     ) -> BoolTensor<Self> {
         multi_tensor_op!(
-            Bool,
-            bool(tensor),
-            int(indices),
-            bool(value),
-            |tensor, indices, value| B::bool_scatter_or(dim, tensor, indices, value)
+            (tensor, bool),
+            (indices, int),
+            (value, bool),
+            |tensor, indices, value| B::bool_scatter_or(dim, tensor, indices, value) => Bool
         )
     }
 
     fn bool_equal(lhs: BoolTensor<Self>, rhs: BoolTensor<Self>) -> BoolTensor<Self> {
-        binary_bool!(bool_equal, lhs, rhs)
+        binary_op!((lhs, bool), (rhs, bool), |lhs, rhs| B::bool_equal(lhs, rhs) => Bool)
     }
 
     fn bool_equal_elem(lhs: BoolTensor<Self>, rhs: Scalar) -> BoolTensor<Self> {
-        unary_bool!(bool_equal_elem, lhs, rhs)
+        unary_op!(lhs, float, |lhs| B::bool_equal_elem(lhs, rhs) => Bool)
     }
 
     fn bool_not(tensor: BoolTensor<Self>) -> BoolTensor<Self> {
-        unary_bool!(bool_not, tensor)
+        unary_op!(tensor, bool, |tensor| B::bool_not(tensor) => Bool)
     }
 
-    fn bool_and(tensor: BoolTensor<Self>, rhs: BoolTensor<Self>) -> BoolTensor<Self> {
-        binary_bool!(bool_and, tensor, rhs)
+    fn bool_and(lhs: BoolTensor<Self>, rhs: BoolTensor<Self>) -> BoolTensor<Self> {
+        binary_op!((lhs, bool), (rhs, bool), |lhs, rhs| B::bool_and(lhs, rhs) => Bool)
     }
 
-    fn bool_or(tensor: BoolTensor<Self>, rhs: BoolTensor<Self>) -> BoolTensor<Self> {
-        binary_bool!(bool_or, tensor, rhs)
+    fn bool_or(lhs: BoolTensor<Self>, rhs: BoolTensor<Self>) -> BoolTensor<Self> {
+        binary_op!((lhs, bool), (rhs, bool), |lhs, rhs| B::bool_or(lhs, rhs) => Bool)
     }
 
     fn bool_swap_dims(tensor: BoolTensor<Self>, dim1: usize, dim2: usize) -> BoolTensor<Self> {
-        unary_bool!(bool_swap_dims, tensor, dim1, dim2)
+        unary_op!(tensor, bool, |tensor| B::bool_swap_dims(tensor, dim1, dim2) => Bool)
     }
 
     fn bool_permute(tensor: BoolTensor<Self>, axes: &[usize]) -> BoolTensor<Self> {
-        unary_bool!(bool_permute, tensor, axes)
+        unary_op!(tensor, bool, |tensor| B::bool_permute(tensor, axes) => Bool)
     }
 
     fn bool_flip(tensor: BoolTensor<Self>, axes: &[usize]) -> BoolTensor<Self> {
-        unary_bool!(bool_flip, tensor, axes)
+        unary_op!(tensor, bool, |tensor| B::bool_flip(tensor, axes) => Bool)
     }
 
     fn bool_expand(tensor: BoolTensor<Self>, shape: Shape) -> BoolTensor<Self> {
-        unary_bool!(bool_expand, tensor, shape)
+        unary_op!(tensor, bool, |tensor| B::bool_expand(tensor, shape) => Bool)
     }
 
     fn bool_unfold(
@@ -168,6 +158,6 @@ impl BoolTensorOps<Self> for Engine {
         size: usize,
         step: usize,
     ) -> BoolTensor<Self> {
-        unary_bool!(bool_unfold, tensor, dim, size, step)
+        unary_op!(tensor, bool, |tensor| B::bool_unfold(tensor, dim, size, step) => Bool)
     }
 }

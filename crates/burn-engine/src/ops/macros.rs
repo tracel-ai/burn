@@ -2,56 +2,28 @@
 // 1. Document macro usage
 // 2. Simplify other dispatch macros based on `apply_to_device` with auto generated combinations (same backend only)
 
+/// Supplies a list of all supported backends and their corresponding feature flags
+/// to a callback macro. This centralizes the backend registry.
 #[macro_export]
-macro_rules! dispatch_device {
-    ($device:expr, $op:expr $(, $($args:expr),* )? $(,)?) => {{
-        match $device {
-            #[cfg(feature = "cpu")]
-            Device::Cpu(inner) => {
-                type B = Cpu<f32>;
-                $op(inner $(, $($args),*)?)
-            }
-            #[cfg(feature = "cuda")]
-            Device::Cuda(inner) => {
-                type B = Cuda<f32>;
-                $op(inner $(, $($args),*)?)
-            }
-            #[cfg(feature = "metal")]
-            Device::Metal(inner) => {
-                type B = Metal<f32>;
-                $op(inner $(, $($args),*)?)
-            }
-            #[cfg(feature = "rocm")]
-            Device::Rocm(inner) => {
-                type B = Rocm<f32>;
-                $op(inner $(, $($args),*)?)
-            }
-            #[cfg(feature = "vulkan")]
-            Device::Vulkan(inner) => {
-                type B = Vulkan<f32>;
-                $op(inner $(, $($args),*)?)
-            }
-            #[cfg(feature = "webgpu")]
-            Device::WebGpu(inner) => {
-                type B = WebGpu<f32>;
-                $op(inner $(, $($args),*)?)
-            }
-            #[cfg(feature = "ndarray")]
-            Device::NdArray(inner) => {
-                type B = NdArray<f32>;
-                $op(inner $(, $($args),*)?)
-            }
-            #[cfg(feature = "tch")]
-            Device::LibTorch(inner) => {
-                type B = LibTorch<f32>;
-                $op(inner $(, $($args),*)?)
-            }
+macro_rules! backend_list {
+    ($callback:ident, $($extra:tt)*) => {
+        $crate::$callback! {
+            $($extra)*;
+            [Cpu, "cpu"],
+            [Cuda, "cuda"],
+            [Metal, "metal"],
+            [Rocm, "rocm"],
+            [Vulkan, "vulkan"],
+            [WebGpu, "webgpu"],
+            [NdArray, "ndarray"],
+            [LibTorch, "tch"]
         }
-    }};
+    };
 }
 
+/// Supplies a matrix of cross-backend combinations. Used for operations where the source and destination backends may differ.
 #[macro_export]
-macro_rules! backend_data {
+macro_rules! backend_matrix {
     ($callback:ident, $($extra:tt)*) => {
         $crate::$callback! {
             $($extra)*;
@@ -68,7 +40,34 @@ macro_rules! backend_data {
 }
 
 #[macro_export]
-macro_rules! apply_to_device {
+macro_rules! dispatch_device_arms {
+    (
+        $device:expr,
+        |$inner:ident| $body:expr;
+        $([$Backend:ident, $feature:literal]),*
+    ) => {
+        match $device {
+            $(
+                #[cfg(feature = $feature)]
+                $crate::Device::$Backend($inner) => {
+                    type B = $Backend<f32>;
+                    $body
+                }
+            )*
+        }
+    };
+}
+
+/// Dispatches an operation body based on the provided device.
+#[macro_export]
+macro_rules! dispatch_device {
+    ($device:expr, |$inner:ident| $body:expr) => {
+        $crate::backend_list!(dispatch_device_arms, $device, |$inner| $body)
+    };
+}
+
+#[macro_export]
+macro_rules! to_device_arms {
     (
         $kind:ident, $inner_fn:ident, $tensor:expr, $device:expr, $to_device:ident, |$inner:ident, $device_ident:ident| $body:expr;
         $( [$B1:ident, $src_feature:literal] => [ $( [$B2:ident, $dst_feature:literal] ),+ ] );*
@@ -106,11 +105,13 @@ macro_rules! apply_to_device {
     };
 }
 
+/// Handles tensor movement between devices, supporting both same-backend transfers
+/// and cross-backend dispatches.
 #[macro_export]
 macro_rules! to_device {
     ($kind:ident, $inner_fn:ident, $tensor:expr, $device:expr, $to_device:ident, |$inner:ident, $device_ident:ident| $body:expr) => {
-        $crate::backend_data!(
-            apply_to_device,
+        $crate::backend_matrix!(
+            to_device_arms,
             $kind,
             $inner_fn,
             $tensor,
@@ -122,634 +123,302 @@ macro_rules! to_device {
 }
 
 #[macro_export]
-macro_rules! creation_op {
-    ($kind:ident, $device:expr, $op:expr) => {{
+macro_rules! creation_op_arms {
+    (
+        $kind:ident,
+        $device:expr,
+        |$inner:ident| $body:expr;
+        $([$Backend:ident, $feature:literal]),*
+    ) => {{
         match $device {
-            #[cfg(feature = "cpu")]
-            Device::Cpu(inner) => EngineTensor::Cpu($crate::BackendTensor::$kind({
-                type B = Cpu<f32>;
-                $op(inner)
-            })),
-            #[cfg(feature = "cuda")]
-            Device::Cuda(inner) => EngineTensor::Cuda($crate::BackendTensor::$kind({
-                type B = Cuda<f32>;
-                $op(inner)
-            })),
-            #[cfg(feature = "metal")]
-            Device::Metal(inner) => EngineTensor::Metal($crate::BackendTensor::$kind({
-                type B = Metal<f32>;
-                $op(inner)
-            })),
-            #[cfg(feature = "rocm")]
-            Device::Rocm(inner) => EngineTensor::Rocm($crate::BackendTensor::$kind({
-                type B = Rocm<f32>;
-                $op(inner)
-            })),
-            #[cfg(feature = "vulkan")]
-            Device::Vulkan(inner) => EngineTensor::Vulkan($crate::BackendTensor::$kind({
-                type B = Vulkan<f32>;
-                $op(inner)
-            })),
-            #[cfg(feature = "webgpu")]
-            Device::WebGpu(inner) => EngineTensor::WebGpu($crate::BackendTensor::$kind({
-                type B = WebGpu<f32>;
-                $op(inner)
-            })),
-            #[cfg(feature = "ndarray")]
-            Device::NdArray(inner) => EngineTensor::NdArray($crate::BackendTensor::$kind({
-                type B = NdArray<f32>;
-                $op(inner)
-            })),
-            #[cfg(feature = "tch")]
-            Device::LibTorch(inner) => EngineTensor::LibTorch($crate::BackendTensor::$kind({
-                type B = LibTorch<f32>;
-                $op(inner)
-            })),
+            $(
+                #[cfg(feature = $feature)]
+                $crate::Device::$Backend($inner) => {
+                    type B = $Backend<f32>;
+                    $crate::EngineTensor::$Backend(
+                        $crate::BackendTensor::$kind($body)
+                    )
+                }
+            )*
         }
     }};
 }
 
+/// Dispatches a tensor creation operation (e.g., zeros, ones) to the correct backend
+/// based on the provided device.
 #[macro_export]
-macro_rules! dispatch_async_op {
-    ($inner_fn:ident, $op:ident, $tensor:expr $(, $($args:expr),* )? $(,)?) => {
-        match $tensor {
-            #[cfg(feature = "cpu")]
-            EngineTensor::Cpu(inner) => Cpu::<f32>::$op(inner.$inner_fn() $(, $($args),*)?).await,
-            #[cfg(feature = "cuda")]
-            EngineTensor::Cuda(inner) => Cuda::<f32>::$op(inner.$inner_fn() $(, $($args),*)?).await,
-            #[cfg(feature = "metal")]
-            EngineTensor::Metal(inner) => Metal::<f32>::$op(inner.$inner_fn() $(, $($args),*)?).await,
-            #[cfg(feature = "rocm")]
-            EngineTensor::Rocm(inner) => Rocm::<f32>::$op(inner.$inner_fn() $(, $($args),*)?).await,
-            #[cfg(feature = "vulkan")]
-            EngineTensor::Vulkan(inner) => Vulkan::<f32>::$op(inner.$inner_fn() $(, $($args),*)?).await,
-            #[cfg(feature = "webgpu")]
-            EngineTensor::WebGpu(inner) => WebGpu::<f32>::$op(inner.$inner_fn() $(, $($args),*)?).await,
-            #[cfg(feature = "ndarray")]
-            EngineTensor::NdArray(inner) => NdArray::<f32>::$op(inner.$inner_fn() $(, $($args),*)?).await,
-            #[cfg(feature = "tch")]
-            EngineTensor::LibTorch(inner) => LibTorch::<f32>::$op(inner.$inner_fn() $(, $($args),*)?).await
-        }
+macro_rules! creation_op {
+    ($kind:ident, $device:expr, |$inner:ident| $body:expr) => {
+        $crate::backend_list!(creation_op_arms, $kind, $device, |$inner| $body)
     };
 }
 
+#[macro_export]
+macro_rules! unary_op_arms {
+    (
+        $kind:ident,
+        $inner_kind:ident,
+        $tensor:expr,
+        |$inner:ident| $body:expr;
+        $([$Backend:ident, $feature:literal]),*
+    ) => {{
+        match $tensor {
+            $(
+                #[cfg(feature = $feature)]
+                $crate::EngineTensor::$Backend($inner) => {
+                    type B = $Backend<f32>;
+                    let $inner = $inner.$inner_kind();
+                    $crate::EngineTensor::$Backend($crate::BackendTensor::$kind($body))
+                }
+            )*
+        }
+    }};
+
+    // Operations that do not return a tensor kind
+    (
+        $inner_kind:ident,
+        $tensor:expr,
+        |$inner:ident| $body:expr;
+        $([$Backend:ident, $feature:literal]),*
+    ) => {{
+        match $tensor {
+            $(
+                #[cfg(feature = $feature)]
+                $crate::EngineTensor::$Backend($inner) => {
+                    type B = $Backend<f32>;
+                    let $inner = $inner.$inner_kind();
+                    $body
+                }
+            )*
+        }
+    }};
+}
+
+/// Backend dispatch for unary operations.
+///
+/// When the return `=> Kind` is not provided, the operation output is not wrapped in a dispatch tensor (e.g., `into_data(..)`)
 #[macro_export]
 macro_rules! unary_op {
-    ($kind:ident, $inner_fn:ident, $op:ident, $tensor:expr $(, $($args:expr),* )? $(,)?) => {
-        match $tensor {
-            #[cfg(feature = "cpu")]
-            EngineTensor::Cpu(inner) => {
-                EngineTensor::Cpu($crate::BackendTensor::$kind(Cpu::<f32>::$op(inner.$inner_fn() $(, $($args),*)?)))
-            }
-            #[cfg(feature = "cuda")]
-            EngineTensor::Cuda(inner) => {
-                EngineTensor::Cuda($crate::BackendTensor::$kind(Cuda::<f32>::$op(inner.$inner_fn() $(, $($args),*)?)))
-            }
-            #[cfg(feature = "metal")]
-            EngineTensor::Metal(inner) => {
-                EngineTensor::Metal($crate::BackendTensor::$kind(Metal::<f32>::$op(inner.$inner_fn() $(, $($args),*)?)))
-            }
-            #[cfg(feature = "rocm")]
-            EngineTensor::Rocm(inner) => {
-                EngineTensor::Rocm($crate::BackendTensor::$kind(Rocm::<f32>::$op(inner.$inner_fn() $(, $($args),*)?)))
-            }
-            #[cfg(feature = "vulkan")]
-            EngineTensor::Vulkan(inner) => {
-                EngineTensor::Vulkan($crate::BackendTensor::$kind(Vulkan::<f32>::$op(inner.$inner_fn() $(, $($args),*)?)))
-            }
-            #[cfg(feature = "webgpu")]
-            EngineTensor::WebGpu(inner) => {
-                EngineTensor::WebGpu($crate::BackendTensor::$kind(WebGpu::<f32>::$op(inner.$inner_fn() $(, $($args),*)?)))
-            }
-            #[cfg(feature = "ndarray")]
-            EngineTensor::NdArray(inner) => {
-                EngineTensor::NdArray($crate::BackendTensor::$kind(NdArray::<f32>::$op(inner.$inner_fn() $(, $($args),*)?)))
-            }
-            #[cfg(feature = "tch")]
-            EngineTensor::LibTorch(inner) => {
-                EngineTensor::LibTorch($crate::BackendTensor::$kind(LibTorch::<f32>::$op(inner.$inner_fn() $(, $($args),*)?)))
+    ($tensor:expr, $inner_kind:ident, |$inner:ident| $body:expr => $kind:ident) => {
+        $crate::backend_list!(unary_op_arms, $kind, $inner_kind, $tensor, |$inner| {
+            $body
+        })
+    };
+    ($tensor:expr, $inner_kind:ident, |$inner:ident| $body:expr) => {
+        $crate::backend_list!(unary_op_arms, $inner_kind, $tensor, |$inner| { $body })
+    };
+}
+
+#[macro_export]
+macro_rules! binary_op_arms {
+    (
+        $kind:ident,
+        ($lhs:expr, $lhs_kind:ident),
+        ($rhs:expr, $rhs_kind:ident),
+        |$lhs_inner:ident, $rhs_inner:ident| $body:expr;
+        $([$Backend:ident, $feature:literal]),*
+    ) => {{
+        match ($lhs, $rhs) {
+            $(
+                #[cfg(feature = $feature)]
+                ($crate::EngineTensor::$Backend($lhs_inner), $crate::EngineTensor::$Backend($rhs_inner)) => {
+                    type B = $Backend<f32>;
+                    let $lhs_inner = $lhs_inner.$lhs_kind();
+                    let $rhs_inner = $rhs_inner.$rhs_kind();
+                    $crate::EngineTensor::$Backend($crate::BackendTensor::$kind($body))
+                }
+            )*
+            (lhs, rhs) => {
+                panic!(
+                    "The provided tensors are not on the same backend. Got backends {:?} and {:?}.", lhs, rhs
+                );
             }
         }
-    };
+    }};
 }
 
-/// Dispatch a float tensor creation operation.
+/// Backend dispatch for binary operations.
+/// Automatically verifies that both tensors reside on the same backend.
 #[macro_export]
-macro_rules! create_float {
-    ($device:expr, $op:expr $(,)?) => {
-        $crate::creation_op!(Float, $device, $op)
+macro_rules! binary_op {
+    (($lhs:expr, $lhs_kind:ident), ($rhs:expr, $rhs_kind:ident), |$lhs_inner:ident, $rhs_inner:ident| $body:expr => $kind:ident) => {
+        $crate::backend_list!(
+            binary_op_arms,
+            $kind,
+            ($lhs, $lhs_kind),
+            ($rhs, $rhs_kind),
+            |$lhs_inner, $rhs_inner| { $body }
+        )
     };
 }
 
-/// Dispatch an int tensor creation operation.
 #[macro_export]
-macro_rules! create_int {
-    ($device:expr, $op:expr $(,)?) => {
-        $crate::creation_op!(Int, $device, $op)
-    };
+macro_rules! multi_op_arms {
+    (
+        $kind:ident,
+        ($t1:expr, $t1_kind:ident),
+        ($t2:expr, $t2_kind:ident),
+        ($t3:expr, $t3_kind:ident),
+        |$t1_inner:ident, $t2_inner:ident, $t3_inner:ident| $body:expr;
+        $([$Backend:ident, $feature:literal]),*
+    ) => {{
+        match ($t1, $t2, $t3) {
+            $(
+                #[cfg(feature = $feature)]
+                ($crate::EngineTensor::$Backend($t1_inner), $crate::EngineTensor::$Backend($t2_inner), $crate::EngineTensor::$Backend($t3_inner)) => {
+                    type B = $Backend<f32>;
+                    let $t1_inner = $t1_inner.$t1_kind();
+                    let $t2_inner = $t2_inner.$t2_kind();
+                    let $t3_inner = $t3_inner.$t3_kind();
+                    $crate::EngineTensor::$Backend($crate::BackendTensor::$kind($body))
+                }
+            )*
+            (t1, t2, t3) => {
+                panic!(
+                    "The provided tensors are not on the same backend. Got backends {:?}, {:?} and {:?}.", t1, t2, t3
+                );
+            }
+        }
+    }};
 }
 
-/// Dispatch a bool tensor creation operation.
-#[macro_export]
-macro_rules! create_bool {
-    ($device:expr, $op:expr $(,)?) => {
-        $crate::creation_op!(Bool, $device, $op)
-    };
-}
-
-/// Dispatch a quantized tensor creation operation.
-#[macro_export]
-macro_rules! create_quantized {
-    ($device:expr, $op:expr $(,)?) => {
-        $crate::creation_op!(Quantized, $device, $op)
-    };
-}
-
-/// Dispatch a float tensor operation where the result is not wrapped.
-#[macro_export]
-macro_rules! dispatch_async_float {
-    ($op:ident, $tensor:expr$(, $($args:expr),* )? $(,)?) => {
-        $crate::dispatch_async_op!(float, $op, $tensor $(, $($args),*)?)
-    };
-}
-
-/// Dispatch an int tensor operation where the result is not wrapped.
-#[macro_export]
-macro_rules! dispatch_async_int {
-    ($op:ident, $tensor:expr$(, $($args:expr),* )? $(,)?) => {
-        $crate::dispatch_async_op!(int, $op, $tensor $(, $($args),*)?)
-    };
-}
-
-/// Dispatch a bool tensor operation where the result is not wrapped.
-#[macro_export]
-macro_rules! dispatch_async_bool {
-    ($op:ident, $tensor:expr$(, $($args:expr),* )? $(,)?) => {
-        $crate::dispatch_async_op!(bool, $op, $tensor $(, $($args),*)?)
-    };
-}
-
-/// Dispatch a quantized tensor operation where the result is not wrapped.
-#[macro_export]
-macro_rules! dispatch_async_quantized {
-    ($op:ident, $tensor:expr$(, $($args:expr),* )? $(,)?) => {
-        $crate::dispatch_async_op!(quantized, $op, $tensor $(, $($args),*)?)
-    };
-}
-
-/// Dispatch a unary float tensor operation.
-#[macro_export]
-macro_rules! unary_float {
-    ($op:ident, $tensor:expr$(, $($args:expr),* )? $(,)?) => {
-        $crate::unary_float!($op, $tensor $(, $($args),*)? => Float)
-    };
-    // Specify output kind
-    ($op:ident, $tensor:expr$(, $($args:expr),* )? $(,)? => $out:ident) => {
-        $crate::unary_op!($out, float, $op, $tensor $(, $($args),*)?)
-    };
-}
-
-/// Dispatch a unary int tensor operation.
-#[macro_export]
-macro_rules! unary_int {
-    ($op:ident, $tensor:expr$(, $($args:expr),* )? $(,)?) => {
-        $crate::unary_int!($op, $tensor $(, $($args),*)? => Int)
-    };
-    // Specify output kind
-    ($op:ident, $tensor:expr$(, $($args:expr),* )? $(,)? => $out:ident) => {
-        $crate::unary_op!($out, int, $op, $tensor $(, $($args),*)?)
-    };
-}
-
-/// Dispatch a unary bool tensor operation.
-#[macro_export]
-macro_rules! unary_bool {
-    ($op:ident, $tensor:expr$(, $($args:expr),* )? $(,)?) => {
-        $crate::unary_int!($op, $tensor $(, $($args),*)? => Bool)
-    };
-    // Specify output kind
-    ($op:ident, $tensor:expr$(, $($args:expr),* )? $(,)? => $out:ident) => {
-        $crate::unary_op!($out, bool, $op, $tensor $(, $($args),*)?)
-    };
-}
-
-/// Dispatch a unary quantized tensor operation.
-#[macro_export]
-macro_rules! unary_quantized {
-    ($op:ident, $tensor:expr$(, $($args:expr),* )? $(,)?) => {
-        $crate::unary_quantized!($op, $tensor $(, $($args),*)? => Quantized)
-    };
-    // Specify output kind
-    ($op:ident, $tensor:expr$(, $($args:expr),* )? $(,)? => $out:ident) => {
-        $crate::unary_op!($out, quantized, $op, $tensor $(, $($args),*)?)
-    };
-}
-
-/// Dispatch a binary float tensor operation.
-#[macro_export]
-macro_rules! binary_float {
-    ($op:ident, $lhs:expr, $rhs:expr$(, $($args:expr),* )? $(,)?) => {
-        $crate::binary_float!($op, $lhs, $rhs $(, $($args),*)? => Float)
-    };
-    // Specify output kind
-    ($op:ident, $lhs:expr, $rhs:expr$(, $($args:expr),* )? $(,)? => $out:ident) => {
-        $crate::multi_tensor_op!($out, float($lhs), float($rhs), |lhs, rhs| B::$op(lhs, rhs $(, $($args),*)?))
-    };
-}
-
-/// Dispatch a binary int tensor operation.
-#[macro_export]
-macro_rules! binary_int {
-    ($op:ident, $lhs:expr, $rhs:expr$(, $($args:expr),* )? $(,)?) => {
-        $crate::binary_int!($op, $lhs, $rhs $(, $($args),*)? => Int)
-    };
-    // Specify output kind
-    ($op:ident, $lhs:expr, $rhs:expr$(, $($args:expr),* )? $(,)? => $out:ident) => {
-        $crate::multi_tensor_op!($out, int($lhs), int($rhs), |lhs, rhs| B::$op(lhs, rhs $(, $($args),*)?))
-    };
-}
-
-/// Dispatch a binary bool tensor operation.
-#[macro_export]
-macro_rules! binary_bool {
-    ($op:ident, $lhs:expr, $rhs:expr$(, $($args:expr),* )? $(,)?) => {
-        $crate::binary_bool!($op, $lhs, $rhs $(, $($args),*)? => Bool)
-    };
-    // Specify output kind
-    ($op:ident, $lhs:expr, $rhs:expr$(, $($args:expr),* )? $(,)? => $out:ident) => {
-        $crate::multi_tensor_op!($out, bool($lhs), bool($rhs), |lhs, rhs| B::$op(lhs, rhs $(, $($args),*)?))
-    };
-}
-
-/// Dispatch a binary quantized tensor operation.
-#[macro_export]
-macro_rules! binary_quantized {
-    ($op:ident, $lhs:expr, $rhs:expr$(, $($args:expr),* )? $(,)?) => {
-        $crate::binary_quantized!($op, $lhs, $rhs $(, $($args),*)? => Quantized)
-    };
-    // Specify output kind
-    ($op:ident, $lhs:expr, $rhs:expr$(, $($args:expr),* )? $(,)? => $out:ident) => {
-        $crate::multi_tensor_op!($out, quantized($lhs), quantized($rhs), |lhs, rhs| B::$op(lhs, rhs $(, $($args),*)?))
-    };
-}
-
+/// Backend dispatch for operations involving three tensors.
+/// Automatically verifies that all tensors reside on the same backend.
 #[macro_export]
 macro_rules! multi_tensor_op {
-    // -----------------------------------
-    // Operations on 2 tensors
-    // -----------------------------------
-    // Float with float (binary_float)
-    ($kind:ident, float($tensor1:expr), float($tensor2:expr), |$t1:ident, $t2:ident| $body:expr) => {
-        $crate::multi_tensor_op!($kind, float, float, $tensor1, $tensor2, |$t1, $t2| $body)
+    (($t1:expr, $t1_kind:ident), ($t2:expr, $t2_kind:ident), ($t3:expr, $t3_kind:ident), |$t1_inner:ident, $t2_inner:ident, $t3_inner:ident| $body:expr => $kind:ident) => {
+        $crate::backend_list!(
+            multi_op_arms,
+            $kind,
+            ($t1, $t1_kind),
+            ($t2, $t2_kind),
+            ($t3, $t3_kind),
+            |$t1_inner, $t2_inner, $t3_inner| { $body }
+        )
     };
-    // Float with int
-    ($kind:ident, float($tensor1:expr), int($tensor2:expr), |$t1:ident, $t2:ident| $body:expr) => {
-        $crate::multi_tensor_op!($kind, float, int, $tensor1, $tensor2, |$t1, $t2| $body)
-    };
-    // Float with bool
-    ($kind:ident, float($tensor1:expr), bool($tensor2:expr), |$t1:ident, $t2:ident| $body:expr) => {
-        $crate::multi_tensor_op!($kind, float, bool, $tensor1, $tensor2, |$t1, $t2| $body)
-    };
-    // Int with int (binary_int)
-    ($kind:ident, int($tensor1:expr), int($tensor2:expr), |$t1:ident, $t2:ident| $body:expr) => {
-        $crate::multi_tensor_op!($kind, int, int, $tensor1, $tensor2, |$t1, $t2| $body)
-    };
-    // Int with bool
-    ($kind:ident, int($tensor1:expr), bool($tensor2:expr), |$t1:ident, $t2:ident| $body:expr) => {
-        $crate::multi_tensor_op!($kind, int, bool, $tensor1, $tensor2, |$t1, $t2| $body)
-    };
-    // Bool with bool (binary_bool)
-    ($kind:ident, bool($tensor1:expr), bool($tensor2:expr), |$t1:ident, $t2:ident| $body:expr) => {
-        $crate::multi_tensor_op!($kind, bool, bool, $tensor1, $tensor2, |$t1, $t2| $body)
-    };
-    // Bool with int
-    ($kind:ident, bool($tensor1:expr), int($tensor2:expr), |$t1:ident, $t2:ident| $body:expr) => {
-        $crate::multi_tensor_op!($kind, bool, int, $tensor1, $tensor2, |$t1, $t2| $body)
-    };
-    ($kind:ident, $inner_fn1:ident, $inner_fn2:ident, $tensor1:expr, $tensor2:expr, |$t1:ident, $t2:ident| $body:expr) => {
-        match ($tensor1, $tensor2) {
-            #[cfg(feature = "cpu")]
-            ($crate::EngineTensor::Cpu($t1), $crate::EngineTensor::Cpu($t2)) => {
-                $crate::EngineTensor::Cpu($crate::BackendTensor::$kind({
-                    type B = Cpu<f32>;
-                    let $t1 = $t1.$inner_fn1();
-                    let $t2 = $t2.$inner_fn2();
-                    $body
-                }))
-            }
-            #[cfg(feature = "cuda")]
-            ($crate::EngineTensor::Cuda($t1), $crate::EngineTensor::Cuda($t2)) => {
-                $crate::EngineTensor::Cuda($crate::BackendTensor::$kind({
-                    type B = Cuda<f32>;
-                    let $t1 = $t1.$inner_fn1();
-                    let $t2 = $t2.$inner_fn2();
-                    $body
-                }))
-            }
-            #[cfg(feature = "metal")]
-            ($crate::EngineTensor::Metal($t1), $crate::EngineTensor::Metal($t2)) => {
-                $crate::EngineTensor::Metal($crate::BackendTensor::$kind({
-                    type B = Metal<f32>;
-                    let $t1 = $t1.$inner_fn1();
-                    let $t2 = $t2.$inner_fn2();
-                    $body
-                }))
-            }
-            #[cfg(feature = "rocm")]
-            ($crate::EngineTensor::Rocm($t1), $crate::EngineTensor::Rocm($t2)) => {
-                $crate::EngineTensor::Rocm($crate::BackendTensor::$kind({
-                    type B = Rocm<f32>;
-                    let $t1 = $t1.$inner_fn1();
-                    let $t2 = $t2.$inner_fn2();
-                    $body
-                }))
-            }
-            #[cfg(feature = "vulkan")]
-            ($crate::EngineTensor::Vulkan($t1), $crate::EngineTensor::Vulkan($t2)) => {
-                $crate::EngineTensor::Vulkan($crate::BackendTensor::$kind({
-                    type B = Vulkan<f32>;
-                    let $t1 = $t1.$inner_fn1();
-                    let $t2 = $t2.$inner_fn2();
-                    $body
-                }))
-            }
-            #[cfg(feature = "webgpu")]
-            ($crate::EngineTensor::WebGpu($t1), $crate::EngineTensor::WebGpu($t2)) => {
-                $crate::EngineTensor::WebGpu($crate::BackendTensor::$kind({
-                    type B = WebGpu<f32>;
-                    let $t1 = $t1.$inner_fn1();
-                    let $t2 = $t2.$inner_fn2();
-                    $body
-                }))
-            }
-            #[cfg(feature = "ndarray")]
-            ($crate::EngineTensor::NdArray($t1), $crate::EngineTensor::NdArray($t2)) => {
-                $crate::EngineTensor::NdArray($crate::BackendTensor::$kind({
-                    type B = NdArray<f32>;
-                    let $t1 = $t1.$inner_fn1();
-                    let $t2 = $t2.$inner_fn2();
-                    $body
-                }))
-            }
-            #[cfg(feature = "tch")]
-            ($crate::EngineTensor::LibTorch($t1), $crate::EngineTensor::LibTorch($t2)) => {
-                $crate::EngineTensor::LibTorch($crate::BackendTensor::$kind({
-                    type B = LibTorch<f32>;
-                    let $t1 = $t1.$inner_fn1();
-                    let $t2 = $t2.$inner_fn2();
-                    $body
-                }))
-            }
-            ($t1, $t2) => {
-                panic!(
-                    "The provided tensors are not on the same device. Got devices {:?} and {:?}.", $t1, $t2
-                );
-            }
-        }
-    };
+}
 
-    // -----------------------------------
-    // Operations on 3 tensors
-    // -----------------------------------
-    // Float - int - float
-    ($kind:ident, float($tensor1:expr), int($tensor2:expr), float($tensor3:expr), |$t1:ident, $t2:ident, $t3:ident| $body:expr) => {
-        $crate::multi_tensor_op!($kind, float, int, float, $tensor1, $tensor2, $tensor3, |$t1, $t2, $t3| $body)
-    };
-    // Float - bool - float
-    ($kind:ident, float($tensor1:expr), bool($tensor2:expr), float($tensor3:expr), |$t1:ident, $t2:ident, $t3:ident| $body:expr) => {
-        $crate::multi_tensor_op!($kind, float, bool, float, $tensor1, $tensor2, $tensor3, |$t1, $t2, $t3| $body)
-    };
-    // Int - int - int
-    ($kind:ident, int($tensor1:expr), int($tensor2:expr), int($tensor3:expr), |$t1:ident, $t2:ident, $t3:ident| $body:expr) => {
-        $crate::multi_tensor_op!($kind, int, int, int, $tensor1, $tensor2, $tensor3, |$t1, $t2, $t3| $body)
-    };
-    // Int - bool - int
-    ($kind:ident, int($tensor1:expr), bool($tensor2:expr), int($tensor3:expr), |$t1:ident, $t2:ident, $t3:ident| $body:expr) => {
-        $crate::multi_tensor_op!($kind, int, bool, int, $tensor1, $tensor2, $tensor3, |$t1, $t2, $t3| $body)
-    };
-    // Bool - bool - bool
-    ($kind:ident, bool($tensor1:expr), bool($tensor2:expr), bool($tensor3:expr), |$t1:ident, $t2:ident, $t3:ident| $body:expr) => {
-        $crate::multi_tensor_op!($kind, bool, bool, bool, $tensor1, $tensor2, $tensor3, |$t1, $t2, $t3| $body)
-    };
-    // Bool - int - bool
-    ($kind:ident, bool($tensor1:expr), int($tensor2:expr), bool($tensor3:expr), |$t1:ident, $t2:ident, $t3:ident| $body:expr) => {
-        $crate::multi_tensor_op!($kind, bool, int, bool, $tensor1, $tensor2, $tensor3, |$t1, $t2, $t3| $body)
-    };
+#[macro_export]
+macro_rules! module_op_arm {
+    (
+        $Backend:ident,
+        [ $( ($x:ident, $kind:ident) ),+ ],
+        [ $( $opt_in:ident ),* ],
+        [ $( $out:ident ),+ ],
+        [ $( $opt_out:ident ),* ],
+        $body:expr
+    ) => {{
+        type B = $Backend<f32>;
 
-    ($kind:ident, $inner_fn1:ident, $inner_fn2:ident, $inner_fn3:ident, $tensor1:expr, $tensor2:expr, $tensor3:expr, |$t1:ident, $t2:ident, $t3:ident| $body:expr) => {
-        match ($tensor1, $tensor2, $tensor3) {
-            #[cfg(feature = "cpu")]
-            ($crate::EngineTensor::Cpu($t1), $crate::EngineTensor::Cpu($t2), $crate::EngineTensor::Cpu($t3))  => {
-                $crate::EngineTensor::Cpu($crate::BackendTensor::$kind({
-                    type B = Cpu<f32>;
-                    let $t1 = $t1.$inner_fn1();
-                    let $t2 = $t2.$inner_fn2();
-                    let $t3 = $t3.$inner_fn3();
-                    $body
-                }))
-            }
-            #[cfg(feature = "cuda")]
-            ($crate::EngineTensor::Cuda($t1), $crate::EngineTensor::Cuda($t2), $crate::EngineTensor::Cuda($t3)) => {
-                $crate::EngineTensor::Cuda($crate::BackendTensor::$kind({
-                    type B = Cuda<f32>;
-                    let $t1 = $t1.$inner_fn1();
-                    let $t2 = $t2.$inner_fn2();
-                    let $t3 = $t3.$inner_fn3();
-                    $body
-                }))
-            }
-            #[cfg(feature = "metal")]
-            ($crate::EngineTensor::Metal($t1), $crate::EngineTensor::Metal($t2), $crate::EngineTensor::Metal($t3)) => {
-                $crate::EngineTensor::Metal($crate::BackendTensor::$kind({
-                    type B = Metal<f32>;
-                    let $t1 = $t1.$inner_fn1();
-                    let $t2 = $t2.$inner_fn2();
-                    let $t3 = $t3.$inner_fn3();
-                    $body
-                }))
-            }
-            #[cfg(feature = "rocm")]
-            ($crate::EngineTensor::Rocm($t1), $crate::EngineTensor::Rocm($t2), $crate::EngineTensor::Rocm($t3)) => {
-                $crate::EngineTensor::Rocm($crate::BackendTensor::$kind({
-                    type B = Rocm<f32>;
-                    let $t1 = $t1.$inner_fn1();
-                    let $t2 = $t2.$inner_fn2();
-                    let $t3 = $t3.$inner_fn3();
-                    $body
-                }))
-            }
-            #[cfg(feature = "vulkan")]
-            ($crate::EngineTensor::Vulkan($t1), $crate::EngineTensor::Vulkan($t2), $crate::EngineTensor::Vulkan($t3)) => {
-                $crate::EngineTensor::Vulkan($crate::BackendTensor::$kind({
-                    type B = Vulkan<f32>;
-                    let $t1 = $t1.$inner_fn1();
-                    let $t2 = $t2.$inner_fn2();
-                    let $t3 = $t3.$inner_fn3();
-                    $body
-                }))
-            }
-            #[cfg(feature = "webgpu")]
-            ($crate::EngineTensor::WebGpu($t1), $crate::EngineTensor::WebGpu($t2), $crate::EngineTensor::WebGpu($t3)) => {
-                $crate::EngineTensor::WebGpu($crate::BackendTensor::$kind({
-                    type B = WebGpu<f32>;
-                    let $t1 = $t1.$inner_fn1();
-                    let $t2 = $t2.$inner_fn2();
-                    let $t3 = $t3.$inner_fn3();
-                    $body
-                }))
-            }
-            #[cfg(feature = "ndarray")]
-            ($crate::EngineTensor::NdArray($t1), $crate::EngineTensor::NdArray($t2), $crate::EngineTensor::NdArray($t3)) => {
-                $crate::EngineTensor::NdArray($crate::BackendTensor::$kind({
-                    type B = NdArray<f32>;
-                    let $t1 = $t1.$inner_fn1();
-                    let $t2 = $t2.$inner_fn2();
-                    let $t3 = $t3.$inner_fn3();
-                    $body
-                }))
-            }
-            #[cfg(feature = "tch")]
-            ($crate::EngineTensor::LibTorch($t1), $crate::EngineTensor::LibTorch($t2), $crate::EngineTensor::LibTorch($t3)) => {
-                $crate::EngineTensor::LibTorch($crate::BackendTensor::$kind({
-                    type B = LibTorch<f32>;
-                    let $t1 = $t1.$inner_fn1();
-                    let $t2 = $t2.$inner_fn2();
-                    let $t3 = $t3.$inner_fn3();
-                    $body
-                }))
-            }
-            ($t1, $t2, $t3) => {
-                panic!(
-                    "The provided tensors are not on the same device. Got devices {:?}, {:?} and {:?}.", $t1, $t2, $t3
-                );
-            }
+        // Required inputs
+        $(
+            let $x = match $x {
+                $crate::EngineTensor::$Backend(inner) => inner.$kind(),
+                _ => panic!("Input tensor {} is on the wrong device", stringify!($x)),
+            };
+        )+
+
+        // Optional inputs
+        $(
+            let $opt_in = $opt_in.map(|o| match o {
+                $crate::EngineTensor::$Backend(inner) => inner.float(), // standard for module ops
+                _ => panic!("Optional tensor {} is on the wrong device", stringify!($opt_in)),
+            });
+        )*
+
+        let ($($out),+, $($opt_out),*) = $body;
+
+        // Outputs and optional outputs
+        (
+            $( $crate::EngineTensor::$Backend($crate::as_float($out)) ),+,
+            $( $opt_out.map(|t| $crate::EngineTensor::$Backend($crate::as_float(t))) ),*
+        )
+    }};
+}
+
+// Helper to extract the first identifier for the match statement
+#[macro_export]
+macro_rules! first_input {
+    ([ ($x:ident, $kind:ident) $(, $rest:tt)* ]) => {
+        $x
+    };
+}
+
+#[macro_export]
+macro_rules! module_op_arms {
+    (
+        $inputs:tt,
+        $opt_inputs:tt,
+        $outputs:tt,
+        $opt_outputs:tt,
+        $body:expr;
+        $( [$Backend:ident, $feature:literal] ),*
+    ) => {
+        // #[allow(unused_parens, unreachable_patterns)]
+        match $crate::first_input!($inputs) {
+            $(
+                #[cfg(feature = $feature)]
+                $crate::EngineTensor::$Backend(_) => {
+                    $crate::module_op_arm!(
+                        $Backend,
+                        $inputs,
+                        $opt_inputs,
+                        $outputs,
+                        $opt_outputs,
+                        $body
+                    )
+                }
+            )*
         }
     };
 }
 
-// A little verbose but we have to capture optional inputs and outputs...
+/// High-level macro for complex module operations (e.g., Conv, Linear).
+/// Handles variable numbers of required/optional inputs and wraps multiple outputs.
+///
+/// Usage:
+/// ```rust
+/// module_op!(
+///     inputs[(x, float), (weight, float)],
+///     opt_inputs[bias] =>
+///     outputs[out]
+///     { B::conv2d(x, weight, bias, ...) }
+/// )
+/// ```
+// NOTE: a bit verbose but easier to handle automatic backend and input repetitions.
 #[macro_export]
 macro_rules! module_op {
-    // Pattern without int() and without optional outputs (single or multiple required outputs)
-    (float($($x:ident),+), opt($($opt:ident),*) => ($($out:ident),+) $body:expr) => {{
-        module_op!(float($($x),+), int(), opt($($opt),*) => ($($out),+) opt() $body)
-    }};
+    // Required inputs + required outputs
+    (
+        inputs[ $(($x:ident, $kind:ident)),+ ],
+        opt_inputs[ $($opt_in:ident),* ] =>
+        outputs[ $($out:ident),+ ]
+        $body:expr
+    ) => {
+        $crate::module_op!(
+            inputs[ $(($x, $kind)),+ ],
+            opt_inputs[ $($opt_in),* ] =>
+            outputs[ $($out),+ ],
+            opt_outputs[] // empty opt outputs
+            $body
+        )
+    };
 
-    // Pattern without int()
-    (float($($x:ident),+), opt($($opt:ident),*) => ($($out:ident),+) opt($($opt_out:ident),*) $body:expr) => {{
-        module_op!(float($($x),+), int(), opt($($opt),*) => ($($out),+) opt($($opt_out),*) $body)
-    }};
-
-
-    (float($($x:ident),+), int($($i:ident),*), opt($($opt:ident),*) => ($($out:ident),+) opt($($opt_out:ident),*) $body:expr) => {{
-        #[allow(unused_parens, unreachable_patterns)]
-        match ($($x),+ $(,$i),*) {
-            #[cfg(feature = "cpu")]
-            ($($crate::EngineTensor::Cpu($x)),+ $(,$crate::EngineTensor::Cpu($i)),*) => {{
-                type B = Cpu<f32>;
-                // Unwrap the inner tensors
-                $(let $x = $x.float();)+
-                $(let $i = $i.float();)*
-                $(let $opt = $opt.map(|o| match o { $crate::EngineTensor::Cpu(val) => val.float(), _ => panic!("Optional tensor is not on the same device.") });)*
-
-                let ($($out),+, $($opt_out),*) = $body;
-
-                module_op!(@wrap_outputs Cpu, ($($out),+) opt($($opt_out),*))
-            }},
-
-            #[cfg(feature = "cuda")]
-            ($($crate::EngineTensor::Cuda($x)),+ $(,$crate::EngineTensor::Cuda($i)),*) => {{
-                type B = Cuda<f32>;
-                $(let $x = $x.float();)+
-                $(let $i = $i.float();)*
-                $(let $opt = $opt.map(|o| match o { $crate::EngineTensor::Cuda(val) => val.float(), _ => panic!("Optional tensor is not on the same device.") });)*
-
-                let ($($out),+, $($opt_out),*) = $body;
-
-                module_op!(@wrap_outputs Cuda, ($($out),+) opt($($opt_out),*))
-            }},
-
-            #[cfg(feature = "metal")]
-            ($($crate::EngineTensor::Metal($x)),+ $(,$crate::EngineTensor::Metal($i)),*) => {{
-                type B = Metal<f32>;
-                $(let $x = $x.float();)+
-                $(let $i = $i.float();)*
-                $(let $opt = $opt.map(|o| match o { $crate::EngineTensor::Metal(val) => val.float(), _ => panic!("Optional tensor is not on the same device.") });)*
-
-                let ($($out),+, $($opt_out),*) = $body;
-
-                module_op!(@wrap_outputs Metal, ($($out),+) opt($($opt_out),*))
-            }},
-
-            #[cfg(feature = "rocm")]
-            ($($crate::EngineTensor::Rocm($x)),+ $(,$crate::EngineTensor::Rocm($i)),*) => {{
-                type B = Rocm<f32>;
-                $(let $x = $x.float();)+
-                $(let $i = $i.float();)*
-                $(let $opt = $opt.map(|o| match o { $crate::EngineTensor::Rocm(val) => val.float(), _ => panic!("Optional tensor is not on the same device.") });)*
-
-                let ($($out),+, $($opt_out),*) = $body;
-
-                module_op!(@wrap_outputs Rocm, ($($out),+) opt($($opt_out),*))
-            }},
-
-            #[cfg(feature = "vulkan")]
-            ($($crate::EngineTensor::Vulkan($x)),+ $(,$crate::EngineTensor::Vulkan($i)),*) => {{
-                type B = Vulkan<f32>;
-                $(let $x = $x.float();)+
-                $(let $i = $i.float();)*
-                $(let $opt = $opt.map(|o| match o { $crate::EngineTensor::Vulkan(val) => val.float(), _ => panic!("Optional tensor is not on the same device.") });)*
-
-                let ($($out),+, $($opt_out),*) = $body;
-
-                module_op!(@wrap_outputs Vulkan, ($($out),+) opt($($opt_out),*))
-            }},
-
-            #[cfg(feature = "webgpu")]
-            ($($crate::EngineTensor::WebGpu($x)),+ $(,$crate::EngineTensor::WebGpu($i)),*) => {{
-                type B = WebGpu<f32>;
-                $(let $x = $x.float();)+
-                $(let $i = $i.float();)*
-                $(let $opt =  $opt.map(|o| match o { $crate::EngineTensor::WebGpu(val) => val.float(), _ => panic!("Optional tensor is not on the same device.") });)*
-
-                let ($($out),+, $($opt_out),*) = $body;
-
-                module_op!(@wrap_outputs WebGpu, ($($out),+) opt($($opt_out),*))
-            }},
-
-            #[cfg(feature = "ndarray")]
-            ($($crate::EngineTensor::NdArray($x)),+ $(,$crate::EngineTensor::NdArray($i)),*) => {{
-                type B = NdArray<f32>;
-                $(let $x = $x.float();)+
-                $(let $i = $i.float();)*
-                $(let $opt = $opt.map(|o| match o { $crate::EngineTensor::NdArray(val) => val.float(), _ => panic!("Optional tensor is not on the same device.") });)*
-
-                let ($($out),+, $($opt_out),*) = $body;
-
-                module_op!(@wrap_outputs NdArray, ($($out),+) opt($($opt_out),*))
-            }},
-
-            #[cfg(feature = "tch")]
-            ($($crate::EngineTensor::LibTorch($x)),+ $(,$crate::EngineTensor::LibTorch($i)),*) => {{
-                type B = LibTorch<f32>;
-                $(let $x = $x.float();)+
-                $(let $i = $i.float();)*
-                $(let $opt = $opt.map(|o| match o { $crate::EngineTensor::LibTorch(val) => val.float(), _ => panic!("Optional tensor is not on the same device.") });)*
-
-                let ($($out),+, $($opt_out),*) = $body;
-
-                module_op!(@wrap_outputs LibTorch, ($($out),+) opt($($opt_out),*))
-            }},
-
-            _ => panic!("The provided tensors are not on the same device."),
-        }
-    }};
-
-    // Wrap outputs: required outputs + optional outputs
-    (@wrap_outputs $backend:ident, ($($out_id:ident),+) opt($($opt_id:ident),*)) => {
-        (
-            $($crate::EngineTensor::$backend($crate::as_float($out_id))),+,
-            $($opt_id.map(|t| $crate::EngineTensor::$backend($crate::as_float(t)))),*
+    // Required + optional for both inputs and outputs
+    (
+        inputs[ $(($x:ident, $kind:ident)),+ ],
+        opt_inputs[ $($opt_in:ident),* ] =>
+        outputs[ $($out:ident),+ ],
+        opt_outputs[ $($opt_out:ident),* ]
+        $body:expr
+    ) => {
+        $crate::backend_list!(
+            module_op_arms,
+            [ $(($x, $kind)),+ ],
+            [ $($opt_in),* ],
+            [ $($out),+ ],
+            [ $($opt_out),* ],
+            $body
         )
     };
 }
