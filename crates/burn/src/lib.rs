@@ -168,8 +168,8 @@ pub mod grad_clipping {
     pub use burn_optim::grad_clipping::*;
 }
 
-#[cfg(feature = "engine")]
-pub use burn_engine::*;
+#[cfg(feature = "dispatch")]
+pub use burn_dispatch::*;
 
 /// CubeCL module re-export.
 #[cfg(feature = "cubecl")]

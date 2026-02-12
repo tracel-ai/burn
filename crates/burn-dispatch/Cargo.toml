@@ -4,14 +4,14 @@ authors = [
     "nathanielsimard <nathaniel.simard.42@gmail.com>",
 ]
 categories = ["science"]
-description = "Backend engine for the Burn framework"
+description = "Backend dispatch for the Burn framework"
 edition.workspace = true
 keywords = ["deep-learning", "machine-learning", "data"]
 license.workspace = true
-name = "burn-engine"
+name = "burn-dispatch"
 readme.workspace = true
-repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-engine"
-documentation = "https://docs.rs/burn-engine"
+repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-dispatch"
+documentation = "https://docs.rs/burn-dispatch"
 version.workspace = true
 
 [lints]

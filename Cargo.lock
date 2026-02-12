@@ -409,6 +409,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "backend-dispatch"
+version = "0.21.0-pre.1"
+dependencies = [
+ "burn",
+]
+
+[[package]]
 name = "backtrace"
 version = "0.3.76"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -665,7 +672,7 @@ dependencies = [
  "burn-core",
  "burn-cpu",
  "burn-cuda",
- "burn-engine",
+ "burn-dispatch",
  "burn-ir",
  "burn-ndarray",
  "burn-nn",
@@ -950,7 +957,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "burn-engine"
+name = "burn-dispatch"
 version = "0.21.0-pre.1"
 dependencies = [
  "burn-autodiff",
@@ -5381,13 +5388,6 @@ checksum = "ac9557c559cd6fc9867e122e20d2cbefc9ca29d80d027a8e39310920ed2f0a97"
 dependencies = [
  "num-traits",
  "pxfm",
-]
-
-[[package]]
-name = "multi-backend"
-version = "0.21.0-pre.1"
-dependencies = [
- "burn",
 ]
 
 [[package]]

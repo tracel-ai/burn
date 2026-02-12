@@ -1,6 +1,6 @@
 use burn::{Device, Dispatch, Tensor, backend::Autodiff};
 
-pub fn test_engine() {
+pub fn test_dispatch() {
     let device = Device::Cuda(Default::default());
     let device_vulk = Device::Vulkan(Default::default());
 

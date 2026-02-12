@@ -1,8 +1,8 @@
 [package]
-authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
+authors = ["laggui <lagrange.guillaume.1@gmail.com>"]
 edition.workspace = true
 license.workspace = true
-name = "multi-backend"
+name = "backend-dispatch"
 publish = false
 version.workspace = true
 
@@ -11,7 +11,7 @@ workspace = true
 
 [dependencies]
 burn = { path = "../../crates/burn", default-features = false, features = [
-    "engine",
+    "dispatch",
     "cuda",
     "vulkan",
     "autotune",
