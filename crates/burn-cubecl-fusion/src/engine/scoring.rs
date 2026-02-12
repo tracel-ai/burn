@@ -68,13 +68,11 @@ impl Scoring {
         };
 
         // We minus 1 since at least one kernel launch is necessary.
-        let score_launch = self.num_ops.checked_sub(1).unwrap_or(0) as u64 * FACTOR_LAUNCH;
+        let score_launch = self.num_ops.saturating_sub(1) as u64 * FACTOR_LAUNCH;
 
         let score_penalty = num_penalty as u64 * FACTOR_PENALTY;
 
-        (score_io + score_launch)
-            .checked_sub(score_penalty)
-            .unwrap_or(0)
+        (score_io + score_launch).saturating_sub(score_penalty)
     }
 
     fn count_fused_io<F>(&self, ops: &[FuseOp], arg_extractor: F) -> (usize, usize)

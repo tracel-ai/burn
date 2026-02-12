@@ -311,13 +311,7 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceFuser<R> {
 
     fn properties(&self) -> burn_fusion::FuserProperties {
         let mut properties = self.fuser.properties();
-
-        if self.reduce.is_some() {
-            properties.ready = true;
-        } else {
-            properties.ready = false;
-        };
-
+        properties.ready = self.reduce.is_some();
         properties
     }
 
