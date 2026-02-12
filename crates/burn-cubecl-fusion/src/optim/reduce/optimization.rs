@@ -366,6 +366,7 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceLaunch<'_> {
                 output: self.reduce.op.out.dtype.into(),
                 accumulation: self.reduce.acc.into_elem().into(),
             },
+            address_type: AddressType::default(),
         };
 
         let (blueprint, settings) = match self.strategy.clone() {

@@ -455,6 +455,7 @@ impl FusedMatmulLaunch<'_> {
             rhs_strides,
             out_strides,
             dtypes.as_global_elems(),
+            AddressType::default(),
             self.matmul.lhs.scheme(),
             self.matmul.rhs.scheme(),
         );

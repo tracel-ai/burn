@@ -9,7 +9,7 @@ use crate::{
 };
 use cubecl::{
     Runtime,
-    ir::{ElemType, FloatKind, StorageType},
+    ir::{AddressType, ElemType, FloatKind, StorageType},
     prelude::{ComputeClient, ScalarArg, SequenceArg},
     server::LaunchError,
     std::CubeOptionArgs,
@@ -77,6 +77,7 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceBroadcastedLaunch<'_> {
                         output: StorageType::Scalar(ElemType::Float(FloatKind::F32)),
                         accumulation: StorageType::Scalar(ElemType::Float(FloatKind::F32)),
                     },
+                    address_type: AddressType::default(),
                 },
                 ReduceLineSettings {
                     line_mode: LineMode::Parallel,
