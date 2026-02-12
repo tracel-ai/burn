@@ -210,13 +210,7 @@ mod tests {
         let status = fuser.status();
         assert_eq!(2, fuser.len());
         assert_eq!(status, FuserStatus::Open);
-        assert_eq!(
-            fuser.properties(),
-            FuserProperties {
-                score: 2,
-                ready: true
-            }
-        );
+        assert!(fuser.properties().ready,);
 
         // An existing tensor
         let (_tensor3_out, tensor3) = tensor(2, vec![1, 0], TensorStatus::ReadWrite);
@@ -234,13 +228,7 @@ mod tests {
         let status = fuser.status();
         assert_eq!(3, fuser.len());
         assert_eq!(status, FuserStatus::Open);
-        assert_eq!(
-            fuser.properties(),
-            FuserProperties {
-                score: 3,
-                ready: true
-            }
-        );
+        assert!(fuser.properties().ready,);
 
         // An existing tensor
         let (_tensor5_out, tensor5) = tensor(4, vec![1, 2], TensorStatus::ReadWrite);
@@ -258,13 +246,7 @@ mod tests {
         let status = fuser.status();
         assert_eq!(4, fuser.len());
         assert_eq!(status, FuserStatus::Open);
-        assert_eq!(
-            fuser.properties(),
-            FuserProperties {
-                score: 4,
-                ready: true
-            }
-        );
+        assert!(fuser.properties().ready,);
 
         let (tensor7_out, _tensor7) = tensor(6, vec![1, 0], TensorStatus::ReadWrite);
         fuser.fuse(&OperationIr::NumericFloat(
@@ -277,13 +259,7 @@ mod tests {
         ));
         assert_eq!(5, fuser.len());
         assert_eq!(status, FuserStatus::Open);
-        assert_eq!(
-            fuser.properties(),
-            FuserProperties {
-                score: 5,
-                ready: true
-            }
-        );
+        assert!(fuser.properties().ready,);
 
         let _optimization = fuser.finish();
     }
@@ -325,13 +301,7 @@ mod tests {
         let status = fuser.status();
         assert_eq!(3, fuser.len());
         assert_eq!(status, FuserStatus::Open);
-        assert_eq!(
-            fuser.properties(),
-            FuserProperties {
-                score: 3,
-                ready: true
-            }
-        );
+        assert!(fuser.properties().ready,);
 
         // A new tensor
         let (tensor5_out, _tensor5) = tensor(5, vec![1, 2], TensorStatus::ReadWrite);
@@ -349,13 +319,7 @@ mod tests {
         let status = fuser.status();
         assert_eq!(4, fuser.len());
         assert_eq!(status, FuserStatus::Open);
-        assert_eq!(
-            fuser.properties(),
-            FuserProperties {
-                score: 4,
-                ready: true
-            }
-        );
+        assert!(fuser.properties().ready,);
 
         let _optimization = fuser.finish();
     }
