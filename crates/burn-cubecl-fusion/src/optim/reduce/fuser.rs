@@ -314,7 +314,6 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceFuser<R> {
 
         if self.reduce.is_some() {
             properties.ready = true;
-            properties.score += 1;
         } else {
             properties.ready = false;
         };

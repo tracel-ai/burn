@@ -224,7 +224,8 @@ fn find_best_optimization_index<O>(
     for (i, optimization) in optimizations.iter().enumerate() {
         let properties = optimization.properties();
 
-        if properties.ready && properties.score >= best_score {
+        // A score of zero is worse than fusing.
+        if properties.ready && properties.score > best_score {
             best_index = Some(i);
             best_score = properties.score;
         }
