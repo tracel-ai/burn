@@ -1,7 +1,7 @@
 use crate::{
+    CubeBackend, CubeRuntime, FloatElement, IntElement,
     element::BoolElement,
     kernel::{self, conv::ConvTranspose2dStrategy},
-    CubeBackend, CubeRuntime, FloatElement, IntElement,
 };
 use burn_backend::ops::{
     AttentionOptions, ConvOptions, ConvTransposeOptions, DeformConv2dBackward, DeformConvOptions,
