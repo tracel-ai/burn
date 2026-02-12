@@ -5,6 +5,44 @@ use crate::{Element, ElementConversion, Tensor, backend::Backend, ops::PadMode};
 
 use super::Numeric;
 
+/// Trait for types that can be used as padding specifications.
+///
+/// Padding is specified as `(before, after)` pairs per dimension.
+/// If fewer pairs than dimensions are provided, they apply to the **last** N dimensions
+/// (earlier dimensions are left unpadded).
+pub trait IntoPadding {
+    /// Converts into a list of `(before, after)` padding pairs.
+    fn into_padding(self) -> Vec<(usize, usize)>;
+}
+
+impl IntoPadding for Vec<(usize, usize)> {
+    fn into_padding(self) -> Vec<(usize, usize)> {
+        self
+    }
+}
+
+impl IntoPadding for &[(usize, usize)] {
+    fn into_padding(self) -> Vec<(usize, usize)> {
+        self.to_vec()
+    }
+}
+
+impl<const N: usize> IntoPadding for [(usize, usize); N] {
+    fn into_padding(self) -> Vec<(usize, usize)> {
+        self.to_vec()
+    }
+}
+
+/// Backward-compatible: `(left, right, top, bottom)` maps to last 2 dimensions.
+///
+/// Equivalent to `&[(top, bottom), (left, right)]`.
+impl IntoPadding for (usize, usize, usize, usize) {
+    fn into_padding(self) -> Vec<(usize, usize)> {
+        let (left, right, top, bottom) = self;
+        alloc::vec![(top, bottom), (left, right)]
+    }
+}
+
 /// Helper to build a range array for slice_assign, selecting a portion of one dimension.
 fn build_slice_ranges<const D: usize>(
     dims: [usize; D],
@@ -26,20 +64,44 @@ fn build_slice_ranges<const D: usize>(
         .unwrap()
 }
 
+/// Expand padding pairs to length D, left-padding with (0, 0) for unspecified leading dimensions.
+fn expand_padding<const D: usize>(pairs: Vec<(usize, usize)>) -> [(usize, usize); D] {
+    assert!(
+        pairs.len() <= D,
+        "Padding has {} pairs but tensor only has {} dimensions",
+        pairs.len(),
+        D
+    );
+    let mut result = [(0usize, 0usize); D];
+    let offset = D - pairs.len();
+    for (i, pair) in pairs.into_iter().enumerate() {
+        result[offset + i] = pair;
+    }
+    result
+}
+
 impl<B, const D: usize, K> Tensor<B, D, K>
 where
     B: Backend,
     K: Numeric<B>,
     K::Elem: Element,
 {
-    /// Pads the tensor on the last two dimensions using the specified padding mode.
+    /// Pads the tensor using the specified padding mode.
     ///
-    /// **Note**: Currently, padding is only supported on the last two dimensions of a tensor
-    /// (typically height and width for image data in NCHW format).
+    /// Padding is specified as `(before, after)` pairs. If fewer pairs than tensor dimensions
+    /// are provided, they apply to the **last** N dimensions (unspecified leading dimensions
+    /// are left unpadded).
+    ///
+    /// For backward compatibility, a `(left, right, top, bottom)` tuple is also accepted,
+    /// which pads the last two dimensions.
     ///
     /// # Arguments
     ///
-    /// * `padding` - A tuple `(left, right, top, bottom)` specifying padding for the last two dimensions.
+    /// * `padding` - Padding specification. Accepts:
+    ///   - `&[(before, after)]` slice of pairs per dimension
+    ///   - `[(before, after); N]` fixed-size array of pairs
+    ///   - `Vec<(before, after)>` vector of pairs
+    ///   - `(left, right, top, bottom)` tuple for last-2-dim backward compatibility
     /// * `mode` - The padding mode: `Constant(value)`, `Reflect`, or `Edge`.
     ///
     /// # Returns
@@ -48,6 +110,7 @@ where
     ///
     /// # Panics
     ///
+    /// - Panics if more padding pairs are provided than tensor dimensions.
     /// - `Reflect` mode panics if padding exceeds `dimension_size - 1`.
     /// - `Edge` mode panics if padding is applied to a zero-sized dimension.
     ///
@@ -62,37 +125,30 @@ where
     ///    let device = B::Device::default();
     ///    let tensor = Tensor::<B, 2>::from_data([[12.0, -2.0, 3.0], [5.0, 3.0, 6.0]], &device);
     ///
-    ///    // Constant padding with value 0.0
+    ///    // Constant padding with value 0.0 (backward-compatible tuple)
     ///    let padded = tensor.clone().pad((1, 1, 1, 1), PadMode::Constant(0.0));
-    ///    // [
-    ///    //   [0.0, 0.0, 0.0, 0.0, 0.0],
-    ///    //   [0.0, 12.0, -2.0, 3.0, 0.0],
-    ///    //   [0.0, 5.0, 3.0, 6.0, 0.0],
-    ///    //   [0.0, 0.0, 0.0, 0.0, 0.0]
-    ///    // ]
     ///
-    ///    // Reflect padding
-    ///    let padded = tensor.clone().pad((1, 1, 0, 0), PadMode::Reflect);
-    ///    // [[−2.0, 12.0, −2.0, 3.0, −2.0], [3.0, 5.0, 3.0, 6.0, 3.0]]
+    ///    // Pad arbitrary dimensions with slice of (before, after) pairs
+    ///    let padded = tensor.clone().pad([(1, 1), (2, 2)], PadMode::Constant(0.0));
     ///
-    ///    // Edge padding
-    ///    let padded = tensor.pad((1, 1, 0, 0), PadMode::Edge);
-    ///    // [[12.0, 12.0, −2.0, 3.0, 3.0], [5.0, 5.0, 3.0, 6.0, 6.0]]
+    ///    // Pad only the last dimension
+    ///    let padded = tensor.pad([(1, 1)], PadMode::Reflect);
     /// }
     /// ```
-    pub fn pad(self, padding: (usize, usize, usize, usize), mode: impl Into<PadMode>) -> Self {
+    pub fn pad(self, padding: impl IntoPadding, mode: impl Into<PadMode>) -> Self {
+        let pairs = expand_padding::<D>(padding.into_padding());
         match mode.into() {
-            PadMode::Constant(value) => pad_constant(self, padding, value),
-            PadMode::Reflect => pad_reflect(self, padding),
-            PadMode::Edge => pad_edge(self, padding),
+            PadMode::Constant(value) => pad_constant(self, &pairs, value),
+            PadMode::Reflect => pad_reflect(self, &pairs),
+            PadMode::Edge => pad_edge(self, &pairs),
         }
     }
 }
 
 /// Pad with a constant value.
-pub fn pad_constant<B, const D: usize, K, E>(
+fn pad_constant<B, const D: usize, K, E>(
     tensor: Tensor<B, D, K>,
-    padding: (usize, usize, usize, usize),
+    padding: &[(usize, usize); D],
     value: E,
 ) -> Tensor<B, D, K>
 where
@@ -101,35 +157,25 @@ where
     K::Elem: Element,
     E: ElementConversion,
 {
-    let (left, right, top, bottom) = padding;
-
     let mut padded_dims: [usize; D] = tensor.dims();
 
-    // Update the last two dimensions with padding
-    padded_dims[D - 2] += top + bottom;
-    padded_dims[D - 1] += left + right;
+    for (i, &(before, after)) in padding.iter().enumerate() {
+        padded_dims[i] += before + after;
+    }
 
-    // Create the ranges for the padded tensor
-    let ranges: [core::ops::Range<usize>; D] = padded_dims
+    let ranges: [Range<usize>; D] = padded_dims
         .iter()
         .enumerate()
         .map(|(i, &dim)| {
-            if i == D - 2 {
-                top..dim - bottom
-            } else if i == D - 1 {
-                left..dim - right
-            } else {
-                0..dim
-            }
+            let (before, after) = padding[i];
+            before..dim - after
         })
-        .collect::<Vec<core::ops::Range<usize>>>()
+        .collect::<Vec<Range<usize>>>()
         .try_into()
         .unwrap();
 
-    // Create the padded tensor
     let padded_tensor = Tensor::full(padded_dims, value, &tensor.device());
 
-    // Assign the original tensor data to the appropriate slice of the padded tensor
     padded_tensor.slice_assign(ranges, tensor)
 }
 
@@ -137,45 +183,36 @@ where
 ///
 /// For ONNX "reflect" mode: mirrors from index 1, not index 0.
 /// Example: `[1, 2, 3, 4]` with left padding 2 becomes `[3, 2, 1, 2, 3, 4]`
-pub fn pad_reflect<B, const D: usize, K>(
+fn pad_reflect<B, const D: usize, K>(
     tensor: Tensor<B, D, K>,
-    padding: (usize, usize, usize, usize),
+    padding: &[(usize, usize); D],
 ) -> Tensor<B, D, K>
 where
     B: Backend,
     K: Numeric<B>,
     K::Elem: Element,
 {
-    let (left, right, top, bottom) = padding;
     let dims = tensor.dims();
 
-    // Validate padding doesn't exceed tensor dimensions
-    // For reflect mode, padding must be less than the corresponding dimension
-    assert!(
-        top < dims[D - 2] && bottom < dims[D - 2],
-        "Reflect padding on height ({}, {}) must be less than height dimension ({})",
-        top,
-        bottom,
-        dims[D - 2]
-    );
-    assert!(
-        left < dims[D - 1] && right < dims[D - 1],
-        "Reflect padding on width ({}, {}) must be less than width dimension ({})",
-        left,
-        right,
-        dims[D - 1]
-    );
+    for (i, &(before, after)) in padding.iter().enumerate() {
+        if before > 0 || after > 0 {
+            assert!(
+                before < dims[i] && after < dims[i],
+                "Reflect padding ({}, {}) must be less than dimension {} size ({})",
+                before,
+                after,
+                i,
+                dims[i]
+            );
+        }
+    }
 
     let mut result = tensor;
 
-    // Pad height dimension (D - 2): top and bottom
-    if top > 0 || bottom > 0 {
-        result = pad_reflect_dim(result, D - 2, top, bottom);
-    }
-
-    // Pad width dimension (D - 1): left and right
-    if left > 0 || right > 0 {
-        result = pad_reflect_dim(result, D - 1, left, right);
+    for (i, &(before, after)) in padding.iter().enumerate() {
+        if before > 0 || after > 0 {
+            result = pad_reflect_dim(result, i, before, after);
+        }
     }
 
     result
@@ -230,42 +267,33 @@ where
 /// Pad by replicating edge values.
 ///
 /// Example: `[1, 2, 3, 4]` with left padding 2 becomes `[1, 1, 1, 2, 3, 4]`
-pub fn pad_edge<B, const D: usize, K>(
+fn pad_edge<B, const D: usize, K>(
     tensor: Tensor<B, D, K>,
-    padding: (usize, usize, usize, usize),
+    padding: &[(usize, usize); D],
 ) -> Tensor<B, D, K>
 where
     B: Backend,
     K: Numeric<B>,
     K::Elem: Element,
 {
-    let (left, right, top, bottom) = padding;
     let dims = tensor.dims();
 
-    // Validate dimensions are non-zero when padding is requested
-    if top > 0 || bottom > 0 {
-        assert!(
-            dims[D - 2] > 0,
-            "Cannot apply edge padding to zero-sized height dimension"
-        );
-    }
-    if left > 0 || right > 0 {
-        assert!(
-            dims[D - 1] > 0,
-            "Cannot apply edge padding to zero-sized width dimension"
-        );
+    for (i, &(before, after)) in padding.iter().enumerate() {
+        if before > 0 || after > 0 {
+            assert!(
+                dims[i] > 0,
+                "Cannot apply edge padding to zero-sized dimension {}",
+                i
+            );
+        }
     }
 
     let mut result = tensor;
 
-    // Pad height dimension (D - 2): top and bottom
-    if top > 0 || bottom > 0 {
-        result = pad_edge_dim(result, D - 2, top, bottom);
-    }
-
-    // Pad width dimension (D - 1): left and right
-    if left > 0 || right > 0 {
-        result = pad_edge_dim(result, D - 1, left, right);
+    for (i, &(before, after)) in padding.iter().enumerate() {
+        if before > 0 || after > 0 {
+            result = pad_edge_dim(result, i, before, after);
+        }
     }
 
     result
