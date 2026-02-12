@@ -4,8 +4,8 @@ use crate::{
     check,
     check::TensorCheck,
     ops::{
-        ConvOptions, ConvTransposeOptions, InterpolateOptions, PadMode, PaddedConvOptions,
-        UnfoldOptions,
+        AttentionOptions, ConvOptions, ConvTransposeOptions, InterpolateOptions, PadMode,
+        PaddedConvOptions, UnfoldOptions,
     },
 };
 
@@ -494,18 +494,22 @@ pub fn linear<B: Backend, const D: usize>(
     }
 }
 
-/// Computes scaled dot-product attention: softmax(QKᵗ / √d) · V,
-/// optionally applying a 4D mask to the attention scores.
+/// Computes scaled dot-product attention: softmax(QKᵗ * scale) · V,
+/// where scale defaults to 1/sqrt(head_dim) (configurable via `options.scale`).
+/// Optionally applies masking, additive bias, causal masking, and softcap.
 ///
 /// # Arguments
 /// - `query`: Query tensor of shape `[batch_size, num_heads, seq_len_q, head_dim]`
 /// - `key`: Key tensor of shape `[batch_size, num_heads, seq_len_k, head_dim]`
-/// - `value`: Value tensor of shape `[batch_size, num_heads, seq_len_k, head_dim]`
+/// - `value`: Value tensor of shape `[batch_size, num_heads, seq_len_k, val_dim]`
 /// - `mask`: Optional boolean mask of shape `[batch_size, num_heads, seq_len_q, seq_len_k]`,
-///   where `true` indicates positions to mask (i.e. set to -∞ before softmax).
+///   where `true` indicates positions to mask (i.e. set to -inf before softmax).
+/// - `attn_bias`: Optional float tensor of shape `[batch_size, num_heads, seq_len_q, seq_len_k]`
+///   added to the attention scores before softmax (e.g. ALiBi, relative position biases).
+/// - `options`: Additional attention options (custom scale, softcap, causal masking).
 ///
 /// # Returns
-/// A tensor of shape `[batch_size, num_heads, seq_len_q, head_dim]`
+/// A tensor of shape `[batch_size, num_heads, seq_len_q, val_dim]`
 /// representing the attended context per head.
 ///
 /// # Note
@@ -516,21 +520,27 @@ pub fn attention<B: Backend>(
     key: Tensor<B, 4>,
     value: Tensor<B, 4>,
     mask: Option<Tensor<B, 4, Bool>>,
+    attn_bias: Option<Tensor<B, 4>>,
+    options: AttentionOptions,
 ) -> Tensor<B, 4> {
     Tensor::new(TensorPrimitive::Float(B::attention(
         query.primitive.tensor(),
         key.primitive.tensor(),
         value.primitive.tensor(),
         mask.map(|mask| mask.primitive),
+        attn_bias.map(|bias| bias.primitive.tensor()),
+        options,
     )))
 }
 
-/// Exports naive attention to test backend's attention against
+/// Exports naive attention to test backend's attention against.
 pub fn naive_attention<B: Backend>(
     query: Tensor<B, 4>,
     key: Tensor<B, 4>,
     value: Tensor<B, 4>,
     mask: Option<Tensor<B, 4, Bool>>,
+    attn_bias: Option<Tensor<B, 4>>,
+    options: AttentionOptions,
 ) -> Tensor<B, 4> {
     Tensor::new(TensorPrimitive::Float(
         crate::ops::attention::naive_attention::<B>(
@@ -538,6 +548,8 @@ pub fn naive_attention<B: Backend>(
             key.primitive.tensor(),
             value.primitive.tensor(),
             mask.map(|mask| mask.primitive),
+            attn_bias.map(|bias| bias.primitive.tensor()),
+            options,
         ),
     ))
 }

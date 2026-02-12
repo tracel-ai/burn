@@ -17,6 +17,7 @@ workspace = true
 [features]
 default = ["sys-metrics", "tui", "rl"]
 doc = ["default"]
+vision = ["burn-nn", "burn-store/pytorch", "burn-std/network", "dirs"]
 tracing = [
     "burn-core/tracing",
     "burn-optim/tracing",
@@ -40,6 +41,10 @@ burn-optim = { path = "../burn-optim", version = "=0.21.0-pre.1", features = [
 ], default-features = false }
 burn-rl = { path = "../burn-rl", version = "=0.21.0-pre.1", optional = true, default-features = false }
 burn-collective = { path = "../burn-collective", version = "=0.21.0-pre.1", optional = true }
+burn-nn = { path = "../burn-nn", version = "=0.21.0-pre.1", optional = true, default-features = false, features = ["std"] }
+burn-store = { path = "../burn-store", version = "=0.21.0-pre.1", optional = true, default-features = false, features = ["std"] }
+burn-std = { path = "../burn-std", version = "=0.21.0-pre.1", optional = true, default-features = false, features = ["std"] }
+dirs = { workspace = true, optional = true }
 
 log = { workspace = true }
 tracing-subscriber = { workspace = true }

@@ -13,6 +13,7 @@ pub fn flash_attention<R: CubeRuntime>(
     key: CubeTensor<R>,
     value: CubeTensor<R>,
     mask: Option<CubeTensor<R>>,
+    is_causal: bool,
     out_dtype: DType,
 ) -> Result<CubeTensor<R>, AttentionSetupError> {
     let client = &query.client;
@@ -43,7 +44,7 @@ pub fn flash_attention<R: CubeRuntime>(
         &out.as_handle_ref(),
         &dtypes,
         AttentionOptions {
-            causal: false,
+            causal: is_causal,
             accumulator_precision: AccumulatorPrecision::Strict(cubecl::ir::StorageType::Scalar(
                 cubecl::ir::ElemType::Float(cubecl::ir::FloatKind::F32),
             )),
