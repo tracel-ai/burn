@@ -52,7 +52,9 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
     ) -> Result<TuneOutput<R>, ExecutionError<R, Runner>> {
         let mut num_writes = 0;
         for b in plan.blocks.iter() {
-            num_writes += b.writes.len();
+            for writes in b.writes.values() {
+                num_writes += writes.len();
+            }
         }
 
         #[cfg(feature = "autotune-checks")]

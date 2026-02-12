@@ -556,7 +556,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         match update {
             Some(strides) => {
                 // We modify the metadata instead.
-                remove_concrete_write(block, output.tensor_relative.id);
+                remove_concrete_write(block, output.tensor_relative.id, output.pos_original);
 
                 let handle = CubeFusionHandle {
                     client: client.clone(),
@@ -623,7 +623,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         // TODO: Check if we can also remove the read, if we have a dead partial graph.
         //
         // We modify the metadata instead.
-        remove_concrete_write(block, output.tensor_relative.id);
+        remove_concrete_write(block, output.tensor_relative.id, output.pos_original);
 
         let strides = original_handle.handle.strides.clone();
 
@@ -673,17 +673,21 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
     }
 }
 
-fn remove_concrete_write(block: &mut BlockPlan, id: TensorId) {
+fn remove_concrete_write(block: &mut BlockPlan, id: TensorId, output_pos: usize) {
     let ops = block.writes.remove(&id);
 
     if let Some(ops) = ops {
         let mut keep = Vec::with_capacity(ops.len());
 
         for op in ops {
-            if let FuseOp::Assign(args) = &op
-                && !matches!(args.out, FuseArg::Output(..))
-            {
-                keep.push(op);
+            if let FuseOp::Assign(args) = &op {
+                if let FuseArg::Output(pos, ..) = args.out {
+                    if pos != output_pos {
+                        keep.push(op);
+                    }
+                } else {
+                    keep.push(op);
+                }
             }
         }
         block.writes.insert(id, keep);
