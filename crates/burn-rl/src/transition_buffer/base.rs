@@ -62,27 +62,24 @@ impl<B: Backend> TransitionBuffer<B> {
     pub fn push(&mut self, transition: Transition<B>) {
         let idx = self.write_head % self.capacity;
 
-        self.states = self
-            .states
-            .clone()
-            .slice_assign(idx..idx + 1, transition.state.unsqueeze_dim(0));
-        self.next_states = self
-            .next_states
-            .clone()
-            .slice_assign(idx..idx + 1, transition.next_state.unsqueeze_dim(0));
-        self.actions = self
-            .actions
-            .clone()
-            .slice_assign(idx..idx + 1, transition.action.unsqueeze_dim(0));
-        self.rewards = self.rewards.clone().slice_assign(
-            idx..idx + 1,
-            Tensor::from_data([[transition.reward]], &self.device),
-        );
+        self.states
+            .inplace(|states| states.slice_assign(idx..idx + 1, transition.state.unsqueeze_dim(0)));
 
-        self.dones = self.dones.clone().slice_assign(
-            idx..idx + 1,
-            Tensor::from_data([[if transition.done { 1.0 } else { 0.0 }]], &self.device),
-        );
+        self.next_states.inplace(|next_states| {
+            next_states.slice_assign(idx..idx + 1, transition.next_state.unsqueeze_dim(0))
+        });
+
+        self.actions.inplace(|actions| {
+            actions.slice_assign(idx..idx + 1, transition.action.unsqueeze_dim(0))
+        });
+
+        let reward = Tensor::from_data([[transition.reward]], &self.device);
+        self.rewards
+            .inplace(|rewards| rewards.slice_assign(idx..idx + 1, reward));
+
+        let done = Tensor::from_data([[if transition.done { 1.0 } else { 0.0 }]], &self.device);
+        self.dones
+            .inplace(|dones| dones.slice_assign(idx..idx + 1, done));
 
         self.write_head += 1;
         if self.len < self.capacity {
