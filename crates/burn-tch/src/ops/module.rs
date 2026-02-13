@@ -391,15 +391,28 @@ impl<E: TchElement> ModuleOps<Self> for LibTorch<E> {
     ) -> TchTensor {
         let output_size = output_size.map(|e| e as i64);
 
+        let align_corners = options.align_corners;
         let tensor = match options.mode {
             InterpolateMode::Nearest => {
                 tch::Tensor::upsample_nearest2d(&x.tensor, output_size, None, None)
             }
             InterpolateMode::Bilinear => {
-                tch::Tensor::upsample_bilinear2d(&x.tensor, output_size, true, None, None)
+                tch::Tensor::upsample_bilinear2d(
+                    &x.tensor,
+                    output_size,
+                    align_corners,
+                    None,
+                    None,
+                )
             }
             InterpolateMode::Bicubic => {
-                tch::Tensor::upsample_bicubic2d(&x.tensor, output_size, true, None, None)
+                tch::Tensor::upsample_bicubic2d(
+                    &x.tensor,
+                    output_size,
+                    align_corners,
+                    None,
+                    None,
+                )
             }
         };
 
@@ -415,6 +428,7 @@ impl<E: TchElement> ModuleOps<Self> for LibTorch<E> {
         let output_size = output_size.map(|e| e as i64);
         let [n, c, h_in, w_in] = x.shape().dims();
         let input_size = [n as i64, c as i64, h_in as i64, w_in as i64];
+        let align_corners = options.align_corners;
 
         let tensor = match options.mode {
             InterpolateMode::Nearest => tch::Tensor::upsample_nearest2d_backward(
@@ -428,7 +442,7 @@ impl<E: TchElement> ModuleOps<Self> for LibTorch<E> {
                 &grad.tensor,
                 output_size,
                 input_size,
-                true,
+                align_corners,
                 None,
                 None,
             ),
@@ -436,7 +450,7 @@ impl<E: TchElement> ModuleOps<Self> for LibTorch<E> {
                 &grad.tensor,
                 output_size,
                 input_size,
-                true,
+                align_corners,
                 None,
                 None,
             ),
