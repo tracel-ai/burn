@@ -378,9 +378,7 @@ impl GridSampleOptions {
 /// Padding mode for tensor pad operations.
 ///
 /// Defines how values are filled when padding a tensor beyond its original boundaries.
-///
-/// **Note**: Currently, padding is only supported on the last two dimensions of a tensor
-/// (typically height and width for image data in NCHW format).
+/// Padding can be applied to any dimension of a tensor.
 ///
 /// # Modes
 ///
