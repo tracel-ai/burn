@@ -335,7 +335,7 @@ impl<const D: usize, B: Backend> ModuleDisplayDefault for Param<Tensor<B, D>> {
         };
         let string = format!(
             "ParamTensor {{rank: {D}, shape: {:?}, kind: float{id}}}",
-            self.shape()
+            self.shape().as_slice()
         );
         content.add_formatted(&string).optional()
     }
