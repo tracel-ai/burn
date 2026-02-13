@@ -207,8 +207,7 @@ struct FieldExtractor {
 impl<'de> Deserializer<'de> for &mut FieldExtractor {
     type Error = de::value::Error;
 
-    // Use Result<V::Value, Self::Error> directly
-    fn deserialize_any<V>(self, _visitor: V) -> Result<V::Value, Self::Error>
+    fn deserialize_any<V>(self, _visitor: V) -> core::result::Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
@@ -220,7 +219,7 @@ impl<'de> Deserializer<'de> for &mut FieldExtractor {
         _name: &'static str,
         fields: &'static [&'static str],
         _visitor: V,
-    ) -> Result<V::Value, Self::Error>
+    ) -> core::result::Result<V::Value, Self::Error>
     where
         V: Visitor<'de>,
     {
