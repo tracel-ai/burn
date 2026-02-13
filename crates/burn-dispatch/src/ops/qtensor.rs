@@ -8,7 +8,6 @@ use burn_std::{QuantPropagation, Shape, Slice};
 
 use crate::backends::*;
 use crate::{Device, Dispatch};
-use crate::{binary_op, creation_op, to_device, unary_op};
 
 impl QTensorOps<Self> for Dispatch {
     fn q_from_data(data: TensorData, device: &Device) -> QuantizedTensor<Self> {

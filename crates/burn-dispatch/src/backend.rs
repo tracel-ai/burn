@@ -6,7 +6,7 @@ use burn_backend::ExecutionError;
 use burn_std::DType;
 
 use crate::backends::*;
-use crate::{Device, DispatchTensor, dispatch_device};
+use crate::{Device, DispatchTensor};
 
 /// The main execution backend in Burn.
 ///

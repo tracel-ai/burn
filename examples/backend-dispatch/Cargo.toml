@@ -13,7 +13,7 @@ workspace = true
 burn = { path = "../../crates/burn", default-features = false, features = [
     "dispatch",
     "cuda",
-    "vulkan",
+    "cpu",
     "autotune",
     "fusion",
     "autodiff",

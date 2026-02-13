@@ -1,13 +1,9 @@
-// TODO:
-// 1. Document macro usage
-// 2. Simplify other dispatch macros based on `apply_to_device` with auto generated combinations (same backend only)
-
 /// Supplies a list of all supported backends and their corresponding feature flags
 /// to a callback macro. This centralizes the backend registry.
-#[macro_export]
+
 macro_rules! backend_list {
     ($callback:ident, $($extra:tt)*) => {
-        $crate::$callback! {
+        $callback! {
             $($extra)*;
             [Cpu, feature = "cpu"],
             [Cuda, feature = "cuda"],
@@ -22,10 +18,10 @@ macro_rules! backend_list {
 }
 
 /// Supplies a matrix of cross-backend combinations. Used for operations where the source and destination backends may differ.
-#[macro_export]
+
 macro_rules! backend_matrix {
     ($callback:ident, $($extra:tt)*) => {
-        $crate::$callback! {
+        $callback! {
             $($extra)*;
             [Cpu, feature = "cpu"] => [[Cuda, feature = "cuda"], [Metal, wgpu_metal], [Rocm, feature = "rocm"], [Vulkan, wgpu_vulkan], [WebGpu, wgpu_webgpu], [NdArray, feature = "ndarray"], [LibTorch, feature = "tch"]];
             [Cuda, feature = "cuda"] => [[Cpu, feature = "cpu"], [Metal, wgpu_metal], [Rocm, feature = "rocm"], [Vulkan, wgpu_vulkan], [WebGpu, wgpu_webgpu], [NdArray, feature = "ndarray"], [LibTorch, feature = "tch"]];
@@ -39,7 +35,9 @@ macro_rules! backend_matrix {
     };
 }
 
-#[macro_export]
+/// Match arm generator for `dispatch_device`.
+/// Maps each backend variant to a block where the specific backend type is bound to `B`.
+
 macro_rules! dispatch_device_arms {
     (
         $device:expr,
@@ -59,14 +57,17 @@ macro_rules! dispatch_device_arms {
 }
 
 /// Dispatches an operation body based on the provided device.
-#[macro_export]
+
 macro_rules! dispatch_device {
     ($device:expr, |$inner:ident| $body:expr) => {
-        $crate::backend_list!(dispatch_device_arms, $device, |$inner| $body)
+        backend_list!(dispatch_device_arms, $device, |$inner| $body)
     };
 }
 
-#[macro_export]
+/// Match arm generator for `to_device`.
+/// Handles the logic for same-backend transfers (fast path) and cross-backend
+/// transfers by generating a grid of all device combinations provided via `backend_matrix`.
+
 macro_rules! to_device_arms {
     (
         $kind:ident, $inner_fn:ident, $tensor:expr, $device:expr, $to_device:ident, |$inner:ident, $device_ident:ident| $body:expr;
@@ -99,18 +100,16 @@ macro_rules! to_device_arms {
                     }
                 )+
             )*
-
-            _ => todo!("Requested device combination is not supported or feature-gated off"),
         }
     };
 }
 
 /// Handles tensor movement between devices, supporting both same-backend transfers
 /// and cross-backend dispatches.
-#[macro_export]
+
 macro_rules! to_device {
     ($kind:ident, $inner_fn:ident, $tensor:expr, $device:expr, $to_device:ident, |$inner:ident, $device_ident:ident| $body:expr) => {
-        $crate::backend_matrix!(
+        backend_matrix!(
             to_device_arms,
             $kind,
             $inner_fn,
@@ -122,7 +121,10 @@ macro_rules! to_device {
     };
 }
 
-#[macro_export]
+/// Match arm generator for `creation_op`.
+/// Matches a device and provides the specific backend type `B` to the closure before wrapping
+/// the resulting tensor in the corresponding `DispatchTensor` variant.
+
 macro_rules! creation_op_arms {
     (
         $kind:ident,
@@ -146,14 +148,19 @@ macro_rules! creation_op_arms {
 
 /// Dispatches a tensor creation operation (e.g., zeros, ones) to the correct backend
 /// based on the provided device.
-#[macro_export]
+
 macro_rules! creation_op {
     ($kind:ident, $device:expr, |$inner:ident| $body:expr) => {
-        $crate::backend_list!(creation_op_arms, $kind, $device, |$inner| $body)
+        backend_list!(creation_op_arms, $kind, $device, |$inner| $body)
     };
 }
 
-#[macro_export]
+/// Match arm generator for `unary_op`.
+/// Unwraps the inner tensor primitive (e.g., `inner.float()`) and provides the backend type `B`
+/// for the operation.
+///
+/// When the return kind is provided, the result is wrapped in the corresponding `DispatchTensor` variant.
+
 macro_rules! unary_op_arms {
     (
         $kind:ident,
@@ -197,19 +204,21 @@ macro_rules! unary_op_arms {
 /// Backend dispatch for unary operations.
 ///
 /// When the return `=> Kind` is not provided, the operation output is not wrapped in a dispatch tensor (e.g., `into_data(..)`)
-#[macro_export]
+
 macro_rules! unary_op {
     ($tensor:expr, $inner_kind:ident, |$inner:ident| $body:expr => $kind:ident) => {
-        $crate::backend_list!(unary_op_arms, $kind, $inner_kind, $tensor, |$inner| {
+        backend_list!(unary_op_arms, $kind, $inner_kind, $tensor, |$inner| {
             $body
         })
     };
     ($tensor:expr, $inner_kind:ident, |$inner:ident| $body:expr) => {
-        $crate::backend_list!(unary_op_arms, $inner_kind, $tensor, |$inner| { $body })
+        backend_list!(unary_op_arms, $inner_kind, $tensor, |$inner| { $body })
     };
 }
 
-#[macro_export]
+/// Match arm generator for `binary_op`.
+/// Matches two tensors to ensure they share the same backend before unwrapping them for the operation.
+
 macro_rules! binary_op_arms {
     (
         $kind:ident,
@@ -239,10 +248,10 @@ macro_rules! binary_op_arms {
 
 /// Backend dispatch for binary operations.
 /// Automatically verifies that both tensors reside on the same backend.
-#[macro_export]
+
 macro_rules! binary_op {
     (($lhs:expr, $lhs_kind:ident), ($rhs:expr, $rhs_kind:ident), |$lhs_inner:ident, $rhs_inner:ident| $body:expr => $kind:ident) => {
-        $crate::backend_list!(
+        backend_list!(
             binary_op_arms,
             $kind,
             ($lhs, $lhs_kind),
@@ -252,7 +261,9 @@ macro_rules! binary_op {
     };
 }
 
-#[macro_export]
+/// Match arm generator for `multi_tensor_op`.
+/// Matches three tensors to ensure they share the same backend before unwrapping them for the operation.
+
 macro_rules! multi_op_arms {
     (
         $kind:ident,
@@ -284,10 +295,10 @@ macro_rules! multi_op_arms {
 
 /// Backend dispatch for operations involving three tensors.
 /// Automatically verifies that all tensors reside on the same backend.
-#[macro_export]
+
 macro_rules! multi_tensor_op {
     (($t1:expr, $t1_kind:ident), ($t2:expr, $t2_kind:ident), ($t3:expr, $t3_kind:ident), |$t1_inner:ident, $t2_inner:ident, $t3_inner:ident| $body:expr => $kind:ident) => {
-        $crate::backend_list!(
+        backend_list!(
             multi_op_arms,
             $kind,
             ($t1, $t1_kind),
@@ -298,13 +309,16 @@ macro_rules! multi_tensor_op {
     };
 }
 
-#[macro_export]
+/// The core logic for a single backend in a `module_op`.
+/// Handles the manual unwrapping of required/optional inputs and the
+/// re-wrapping of multiple required/optional output tensors.
+
 macro_rules! module_op_arm {
     (
         $Backend:ident,
-        [ $( ($x:ident, $kind:ident) ),+ ],
+        [ $( ($x:ident, $x_kind:ident) ),+ ],
         [ $( $opt_in:ident ),* ],
-        [ $( $out:ident ),+ ],
+        [ $( ($out:ident, $out_kind:ident) ),+  ],
         [ $( $opt_out:ident ),* ],
         $body:expr
     ) => {{
@@ -313,7 +327,7 @@ macro_rules! module_op_arm {
         // Required inputs
         $(
             let $x = match $x {
-                $crate::DispatchTensor::$Backend(inner) => inner.$kind(),
+                $crate::DispatchTensor::$Backend(inner) => inner.$x_kind(),
                 _ => panic!("Input tensor {} is on the wrong device", stringify!($x)),
             };
         )+
@@ -330,21 +344,25 @@ macro_rules! module_op_arm {
 
         // Outputs and optional outputs
         (
-            $( $crate::DispatchTensor::$Backend($crate::as_float($out)) ),+,
-            $( $opt_out.map(|t| $crate::DispatchTensor::$Backend($crate::as_float(t))) ),*
+            $( $crate::DispatchTensor::$Backend($crate::BackendTensor::$out_kind($out)) ),+,
+            $( $opt_out.map(|t| $crate::DispatchTensor::$Backend($crate::BackendTensor::Float(t))) ),*
         )
     }};
 }
 
-// Helper to extract the first identifier for the match statement
-#[macro_export]
+/// Helper to extract the first identifier from an input list.
+/// Used to determine the device/backend for dispatching multi-tensor operations.
+
 macro_rules! first_input {
     ([ ($x:ident, $kind:ident) $(, $rest:tt)* ]) => {
         $x
     };
 }
 
-#[macro_export]
+/// Match arm generator for `module_op`.
+/// Determines the backend based on the first input and delegates to `module_op_arm`
+/// to handle the repetition-heavy unwrapping and wrapping logic.
+
 macro_rules! module_op_arms {
     (
         $inputs:tt,
@@ -355,11 +373,11 @@ macro_rules! module_op_arms {
         $( [$Backend:ident, $cfg:meta] ),*
     ) => {
         // #[allow(unused_parens, unreachable_patterns)]
-        match $crate::first_input!($inputs) {
+        match first_input!($inputs) {
             $(
                 #[cfg($cfg)]
                 $crate::DispatchTensor::$Backend(_) => {
-                    $crate::module_op_arm!(
+                    module_op_arm!(
                         $Backend,
                         $inputs,
                         $opt_inputs,
@@ -386,39 +404,65 @@ macro_rules! module_op_arms {
 /// )
 /// ```
 // NOTE: a bit verbose but easier to handle automatic backend and input repetitions.
-#[macro_export]
 macro_rules! module_op {
-    // Required inputs + required outputs
+    // Required + optional for both inputs and outputs
     (
         inputs[ $(($x:ident, $kind:ident)),+ ],
-        opt_inputs[ $($opt_in:ident),* ] =>
-        outputs[ $($out:ident),+ ]
+        opt_inputs[ $($opt_in:ident),* ],
+        outputs[ $( ($out:ident, $out_kind:ident) ),+ ],
+        opt_outputs[ $($opt_out:ident),* ],
         $body:expr
     ) => {
-        $crate::module_op!(
-            inputs[ $(($x, $kind)),+ ],
-            opt_inputs[ $($opt_in),* ] =>
-            outputs[ $($out),+ ],
-            opt_outputs[] // empty opt outputs
+        backend_list!(
+            module_op_arms,
+            [ $(($x, $kind)),+ ],
+            [ $($opt_in),* ],
+            [ $(($out, $out_kind)),+ ],
+            [ $($opt_out),* ],
             $body
         )
     };
 
-    // Required + optional for both inputs and outputs
     (
         inputs[ $(($x:ident, $kind:ident)),+ ],
-        opt_inputs[ $($opt_in:ident),* ] =>
+        opt_inputs[ $($opt_in:ident),* ],
         outputs[ $($out:ident),+ ],
-        opt_outputs[ $($opt_out:ident),* ]
         $body:expr
     ) => {
-        $crate::backend_list!(
-            module_op_arms,
-            [ $(($x, $kind)),+ ],
-            [ $($opt_in),* ],
-            [ $($out),+ ],
-            [ $($opt_out),* ],
-            $body
+        module_op!(
+            inputs[ $(($x, $kind)),+ ],
+            opt_inputs[ $($opt_in),* ],
+            outputs[ $(($out, Float)),+ ],
+            opt_outputs[],
+            $body  // Don't wrap - pass through as-is
+        )
+    };
+
+    (
+        inputs[ $(($x:ident, $kind:ident)),+ ],
+        outputs[ $( ($out:ident, $out_kind:ident) ),+ ],
+        $body:expr
+    ) => {
+        module_op!(
+            inputs[ $(($x, $kind)),+ ],
+            opt_inputs[],
+            outputs[ $(($out, $out_kind)),+ ],
+            opt_outputs[],
+            $body  // Don't wrap - pass through as-is
+        )
+    };
+
+    (
+        inputs[ $(($x:ident, $kind:ident)),+ ],
+        outputs[ $($out:ident),+ ],
+        $body:expr
+    ) => {
+        module_op!(
+            inputs[ $(($x, $kind)),+ ],
+            opt_inputs[],
+            outputs[ $(($out, Float)),+ ],
+            opt_outputs[],
+            $body  // Don't wrap - pass through as-is
         )
     };
 }

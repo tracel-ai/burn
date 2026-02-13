@@ -5,7 +5,6 @@ use burn_backend::{
 
 use crate::Dispatch;
 use crate::backends::*;
-use crate::module_op;
 
 impl ModuleOps<Self> for Dispatch {
     fn conv2d(
@@ -17,8 +16,8 @@ impl ModuleOps<Self> for Dispatch {
         // TODO: clean up macro that currently always destructures a tuple, and returns one
         module_op!(
             inputs[(x, float), (weight, float)],
-            opt_inputs[bias] =>
-            outputs[result]
+            opt_inputs[bias],
+            outputs[out],
             {
                 (B::conv2d(x, weight, bias, options),)
             }
@@ -36,8 +35,8 @@ impl ModuleOps<Self> for Dispatch {
     ) -> FloatTensor<Self> {
         module_op!(
             inputs[(x, float), (offset, float), (weight, float)],
-            opt_inputs[mask, bias] =>
-            outputs[result]
+            opt_inputs[mask, bias],
+            outputs[out],
             {
                 (B::deform_conv2d(x, offset, weight, mask, bias, options),)
             }
@@ -56,9 +55,9 @@ impl ModuleOps<Self> for Dispatch {
     ) -> DeformConv2dBackward<Self> {
         let (x_grad, offset_grad, weight_grad, mask_grad, bias_grad) = module_op!(
             inputs[(x, float), (offset, float), (weight, float), (output_grad, float)],
-            opt_inputs[mask, bias] =>
-            outputs[x_grad, offset_grad, weight_grad],
-            opt_outputs[mask_grad, bias_grad]
+            opt_inputs[mask, bias],
+            outputs[(x_grad, Float), (offset_grad, Float), (weight_grad, Float)],
+            opt_outputs[mask_grad, bias_grad],
             {
                 let res = B::deform_conv2d_backward(x, offset, weight, mask, bias, output_grad, options);
                 (res.x_grad, res.offset_grad, res.weight_grad, res.mask_grad, res.bias_grad)
@@ -75,8 +74,8 @@ impl ModuleOps<Self> for Dispatch {
     ) -> FloatTensor<Self> {
         module_op!(
             inputs[(x, float), (weight, float)],
-            opt_inputs[bias] =>
-            outputs[result]
+            opt_inputs[bias],
+            outputs[out],
             {
                 (B::conv3d(x, weight, bias, options),)
             }
@@ -92,8 +91,8 @@ impl ModuleOps<Self> for Dispatch {
     ) -> FloatTensor<Self> {
         module_op!(
             inputs[(x, float), (weight, float)],
-            opt_inputs[bias] =>
-            outputs[result]
+            opt_inputs[bias],
+            outputs[out],
             {
                 (B::conv_transpose2d(x, weight, bias, options),)
             }
@@ -109,8 +108,8 @@ impl ModuleOps<Self> for Dispatch {
     ) -> FloatTensor<Self> {
         module_op!(
             inputs[(x, float), (weight, float)],
-            opt_inputs[bias] =>
-            outputs[result]
+            opt_inputs[bias],
+            outputs[out],
             {
                 (B::conv_transpose3d(x, weight, bias, options),)
             }
@@ -126,14 +125,16 @@ impl ModuleOps<Self> for Dispatch {
         count_include_pad: bool,
         ceil_mode: bool,
     ) -> FloatTensor<Self> {
-        module_op!(
-            inputs[(x, float)],
-            opt_inputs[] =>
-            outputs[result]
-            {
-                (B::avg_pool2d(x, kernel_size, stride, padding, count_include_pad, ceil_mode),)
-            }
-        )
+        module_op!(inputs[(x, float)], outputs[out], {
+            (B::avg_pool2d(
+                x,
+                kernel_size,
+                stride,
+                padding,
+                count_include_pad,
+                ceil_mode,
+            ),)
+        })
         .0
     }
 
@@ -148,8 +149,7 @@ impl ModuleOps<Self> for Dispatch {
     ) -> FloatTensor<Self> {
         module_op!(
             inputs[(x, float), (grad, float)],
-            opt_inputs[] =>
-            outputs[result]
+            outputs[out],
             {
                 (B::avg_pool2d_backward(x, grad, kernel_size, stride, padding, count_include_pad, ceil_mode),)
             }
@@ -158,14 +158,9 @@ impl ModuleOps<Self> for Dispatch {
     }
 
     fn adaptive_avg_pool2d(x: FloatTensor<Self>, output_size: [usize; 2]) -> FloatTensor<Self> {
-        module_op!(
-            inputs[(x, float)],
-            opt_inputs[] =>
-            outputs[result]
-            {
-                (B::adaptive_avg_pool2d(x, output_size),)
-            }
-        )
+        module_op!(inputs[(x, float)], outputs[out], {
+            (B::adaptive_avg_pool2d(x, output_size),)
+        })
         .0
     }
 
@@ -175,8 +170,7 @@ impl ModuleOps<Self> for Dispatch {
     ) -> FloatTensor<Self> {
         module_op!(
             inputs[(x, float), (grad, float)],
-            opt_inputs[] =>
-            outputs[result]
+            outputs[out],
             {
                 (B::adaptive_avg_pool2d_backward(x, grad),)
             }
@@ -192,14 +186,16 @@ impl ModuleOps<Self> for Dispatch {
         dilation: [usize; 2],
         ceil_mode: bool,
     ) -> FloatTensor<Self> {
-        module_op!(
-            inputs[(x, float)],
-            opt_inputs[] =>
-            outputs[result]
-            {
-                (B::max_pool2d(x, kernel_size, stride, padding, dilation, ceil_mode),)
-            }
-        )
+        module_op!(inputs[(x, float)], outputs[out], {
+            (B::max_pool2d(
+                x,
+                kernel_size,
+                stride,
+                padding,
+                dilation,
+                ceil_mode,
+            ),)
+        })
         .0
     }
 
@@ -213,8 +209,7 @@ impl ModuleOps<Self> for Dispatch {
     ) -> MaxPool2dWithIndices<Self> {
         let (out, indices) = module_op!(
             inputs[(x, float)],
-            opt_inputs[] =>
-            outputs[out, indices]
+            outputs[out, indices],
             {
                 let res = B::max_pool2d_with_indices(x, kernel_size, stride, padding, dilation, ceil_mode);
                 (res.output, res.indices)
@@ -235,8 +230,7 @@ impl ModuleOps<Self> for Dispatch {
     ) -> MaxPool2dBackward<Self> {
         let x_grad = module_op!(
             inputs[(x, float), (output_grad, float), (indices, int)],
-            opt_inputs[] =>
-            outputs[result]
+            outputs[out],
             {
                 let res = B::max_pool2d_with_indices_backward(x, kernel_size, stride, padding, dilation, ceil_mode, output_grad, indices);
                 (res.x_grad,)
@@ -251,14 +245,9 @@ impl ModuleOps<Self> for Dispatch {
         output_size: [usize; 2],
         options: burn_backend::ops::InterpolateOptions,
     ) -> FloatTensor<Self> {
-        module_op!(
-            inputs[(x, float)],
-            opt_inputs[] =>
-            outputs[result]
-            {
-                (B::interpolate(x, output_size, options),)
-            }
-        )
+        module_op!(inputs[(x, float)], outputs[out], {
+            (B::interpolate(x, output_size, options),)
+        })
         .0
     }
 
@@ -270,8 +259,7 @@ impl ModuleOps<Self> for Dispatch {
     ) -> FloatTensor<Self> {
         module_op!(
             inputs[(x, float), (grad, float)],
-            opt_inputs[] =>
-            outputs[result]
+            outputs[out],
             {
                 (B::interpolate_backward(x, grad, output_size, options),)
             }

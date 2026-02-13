@@ -7,7 +7,6 @@ use burn_std::{FloatDType, Shape, Slice};
 
 use crate::backends::*;
 use crate::{Device, Dispatch};
-use crate::{binary_op, creation_op, multi_tensor_op, to_device, unary_op};
 
 // TODO: remove backend default elem type genericsnow that we have per-device defaults
 // https://github.com/tracel-ai/burn/issues/3642

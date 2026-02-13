@@ -48,6 +48,9 @@
 )))]
 compile_error!("At least one backend feature must be enabled.");
 
+#[macro_use]
+mod macros;
+
 mod backend;
 mod device;
 mod ops;

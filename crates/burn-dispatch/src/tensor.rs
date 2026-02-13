@@ -62,22 +62,6 @@ impl<B: Backend> BackendTensor<B> {
     }
 }
 
-pub(crate) fn as_float<B: Backend>(tensor: B::FloatTensorPrimitive) -> BackendTensor<B> {
-    BackendTensor::Float(tensor)
-}
-
-pub(crate) fn as_qfloat<B: Backend>(tensor: B::QuantizedTensorPrimitive) -> BackendTensor<B> {
-    BackendTensor::Quantized(tensor)
-}
-
-pub(crate) fn as_int<B: Backend>(tensor: B::IntTensorPrimitive) -> BackendTensor<B> {
-    BackendTensor::Int(tensor)
-}
-
-pub(crate) fn as_bool<B: Backend>(tensor: B::BoolTensorPrimitive) -> BackendTensor<B> {
-    BackendTensor::Bool(tensor)
-}
-
 impl<B: Backend> TensorMetadata for BackendTensor<B> {
     fn dtype(&self) -> burn_std::DType {
         match self {
@@ -110,6 +94,10 @@ impl<B: Backend> QTensorPrimitive for BackendTensor<B> {
     }
 }
 
+/// Dispatch tensor that can hold tensors from any enabled backend.
+///
+/// This enum wraps backend-specific tensor types, allowing runtime selection
+/// of the backend to execute operations on.
 #[derive(Clone, Debug)]
 pub enum DispatchTensor {
     /// The [CPU backend](Cpu) tensor.
