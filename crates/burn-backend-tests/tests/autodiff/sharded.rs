@@ -3,11 +3,11 @@ use std::sync::mpsc::SyncSender;
 use burn_autodiff::Autodiff;
 use burn_collective::{AllReduceStrategy, CollectiveConfig, register, reset_collective};
 use burn_tensor::{
-    Shape, Tensor, TensorData, Tolerance,
+    Tensor, TensorData, Tolerance,
     backend::{AutodiffBackend, Backend, PeerId, ReduceOperation},
 };
-use rand::SeedableRng;
 use rand::rngs::StdRng;
+use rand::{SeedableRng, rngs::SysRng};
 use serial_test::serial;
 
 pub type TestBackend = burn_ndarray::NdArray<f32>;
@@ -39,7 +39,7 @@ pub fn run_peer_sharded<B>(
 }
 
 fn generate_random_input_autodiff<B>(
-    shape: Shape,
+    shape: Vec<usize>,
     op: ReduceOperation,
     thread_count: usize,
     transformation: fn(Tensor<B, 1>) -> Tensor<B, 1>,
@@ -52,7 +52,7 @@ where
             TensorData::random::<f32, _, _>(
                 shape.clone(),
                 burn_tensor::Distribution::Default,
-                &mut StdRng::from_os_rng(),
+                &mut StdRng::try_from_rng(&mut SysRng).unwrap(),
             )
         })
         .collect();
@@ -90,9 +90,7 @@ fn test_all_reduce<B>(
 
     let (send, recv) = std::sync::mpsc::sync_channel(32);
 
-    let shape = Shape {
-        dims: vec![tensor_size],
-    };
+    let shape = vec![tensor_size];
 
     let (input, expected) = generate_random_input_autodiff(shape, op, device_count, transformation);
 

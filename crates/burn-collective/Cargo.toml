@@ -56,9 +56,9 @@ tracing = { workspace = true, optional = true }
 [dev-dependencies]
 serial_test = { workspace = true }
 # Tests
-burn-ndarray = { path = "../burn-ndarray", version = "=0.21.0" }
-burn-wgpu = { path = "../burn-wgpu", version = "=0.21.0" }
-burn-cuda = { path = "../burn-cuda", version = "=0.21.0" }
+burn-ndarray = { path = "../burn-ndarray", version = "=0.21.0-pre.1" }
+burn-wgpu = { path = "../burn-wgpu", version = "=0.21.0-pre.1" }
+burn-cuda = { path = "../burn-cuda", version = "=0.21.0-pre.1" }
 
 
 [package.metadata.docs.rs]

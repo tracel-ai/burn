@@ -50,6 +50,7 @@ impl<B: Backend> BroadcastOp<B> {
         self.root.unwrap_or(self.calls.first().unwrap().caller)
     }
 
+    #[allow(dead_code)]
     pub fn peers(&self) -> Vec<PeerId> {
         self.calls.iter().map(|c| c.caller).collect()
     }

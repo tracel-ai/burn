@@ -16,6 +16,13 @@ use crate::{
 use alloc::vec::Vec;
 use burn_backend::{Backend, ShardedParams, tensor::FloatTensor};
 
+struct TapeResult {
+    tape: Vec<Vec<StepBoxed>>,
+    checkpointer: Checkpointer,
+    n_required_map: HashMap<NodeId, usize>,
+    sharded_params: HashMap<NodeId, ShardedParams>,
+}
+
 #[derive(Default)]
 pub struct AutodiffServer {
     steps: HashMap<NodeId, StepBoxed>,
@@ -61,16 +68,15 @@ impl AutodiffServer {
         let builder = self.actions_builder.remove(&node_id).unwrap();
 
         let mut consumed = Vec::new();
-        let (tape, checkpointer, n_required_map, sharded_params_map) =
-            self.build_tape(node_id, step, builder, &mut consumed);
+        let tape_result = self.build_tape(node_id, step, builder, &mut consumed);
 
         let grads = Gradients::new::<B>(
             root_node.clone(),
             root_tensor,
-            n_required_map,
-            sharded_params_map,
+            tape_result.n_required_map,
+            tape_result.sharded_params,
         );
-        let gradients = Self::execute_steps(tape, grads, checkpointer);
+        let gradients = Self::execute_steps(tape_result.tape, grads, tape_result.checkpointer);
 
         // Cleanup
         let mut cleaner = NC::init();
@@ -101,19 +107,14 @@ impl AutodiffServer {
         node_step: StepBoxed,
         mut builder: CheckpointerBuilder,
         consumed: &mut Vec<NodeId>,
-    ) -> (
-        Vec<Vec<StepBoxed>>,
-        Checkpointer,
-        HashMap<NodeId, usize>,
-        HashMap<NodeId, ShardedParams>,
-    ) {
+    ) -> TapeResult {
         let mut tape = (0..node_step.depth() + 1)
             .map(|_| Vec::with_capacity(1))
             .collect::<Vec<_>>();
 
         let mut tree = HashMap::default();
         let mut n_required_map = HashMap::<NodeId, usize>::default();
-        let mut sharded_parameters = HashMap::<NodeId, ShardedParams>::default();
+        let mut sharded_params = HashMap::<NodeId, ShardedParams>::default();
 
         BreadthFirstSearch.traverse(node, node_step, &mut self.steps, |id, step| {
             self.memory_management.consume_node(id);
@@ -122,7 +123,7 @@ impl AutodiffServer {
 
             let depth = step.depth();
             step.sharded_params()
-                .and_then(|params| sharded_parameters.insert(id, params));
+                .and_then(|params| sharded_params.insert(id, params));
 
             if let Some(steps) = tape.get_mut(depth) {
                 let parents = step
@@ -151,7 +152,12 @@ impl AutodiffServer {
 
         let checkpointer = builder.build(NodeTree::new(tree));
 
-        (tape, checkpointer, n_required_map, sharded_parameters)
+        TapeResult {
+            tape,
+            checkpointer,
+            n_required_map,
+            sharded_params,
+        }
     }
 
     fn execute_steps(

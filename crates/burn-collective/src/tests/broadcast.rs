@@ -3,7 +3,7 @@ mod tests {
 
     use burn_std::rand::get_seeded_rng;
     use burn_tensor::{
-        Shape, Tensor, TensorData, TensorPrimitive, Tolerance,
+        Tensor, TensorData, TensorPrimitive, Tolerance,
         backend::{Backend, PeerId},
     };
 
@@ -48,7 +48,7 @@ mod tests {
         output.send(tensor).unwrap();
     }
 
-    fn generate_random_input(shape: Shape) -> TensorData {
+    fn generate_random_input(shape: Vec<usize>) -> TensorData {
         TensorData::random::<f32, _, _>(
             shape.clone(),
             burn_tensor::Distribution::Default,
@@ -65,9 +65,7 @@ mod tests {
 
         let (send, recv) = std::sync::mpsc::sync_channel(32);
 
-        let shape = Shape {
-            dims: vec![tensor_size],
-        };
+        let shape = vec![tensor_size];
 
         let input = generate_random_input(shape);
 

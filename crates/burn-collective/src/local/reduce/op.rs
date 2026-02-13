@@ -46,6 +46,7 @@ impl<B: Backend> ReduceOp<B> {
         }
     }
 
+    #[allow(dead_code)]
     fn peers(&self) -> Vec<PeerId> {
         self.calls.iter().map(|c| c.caller).collect()
     }
