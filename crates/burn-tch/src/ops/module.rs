@@ -397,22 +397,10 @@ impl<E: TchElement> ModuleOps<Self> for LibTorch<E> {
                 tch::Tensor::upsample_nearest2d(&x.tensor, output_size, None, None)
             }
             InterpolateMode::Bilinear => {
-                tch::Tensor::upsample_bilinear2d(
-                    &x.tensor,
-                    output_size,
-                    align_corners,
-                    None,
-                    None,
-                )
+                tch::Tensor::upsample_bilinear2d(&x.tensor, output_size, align_corners, None, None)
             }
             InterpolateMode::Bicubic => {
-                tch::Tensor::upsample_bicubic2d(
-                    &x.tensor,
-                    output_size,
-                    align_corners,
-                    None,
-                    None,
-                )
+                tch::Tensor::upsample_bicubic2d(&x.tensor, output_size, align_corners, None, None)
             }
         };
 

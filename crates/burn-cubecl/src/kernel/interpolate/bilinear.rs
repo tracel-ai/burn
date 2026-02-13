@@ -38,7 +38,11 @@ fn interpolate_bilinear_kernel<F: Float>(
     } else {
         let in_size = input.shape(1) as f32;
         let out_size = output.shape(1) as f32;
-        f32::clamp((y as f32 + 0.5) * (in_size / out_size) - 0.5, 0.0, in_size - 1.0)
+        f32::clamp(
+            (y as f32 + 0.5) * (in_size / out_size) - 0.5,
+            0.0,
+            in_size - 1.0,
+        )
     };
 
     let v0 = frac.floor();
@@ -57,7 +61,11 @@ fn interpolate_bilinear_kernel<F: Float>(
     } else {
         let in_size = input.shape(2) as f32;
         let out_size = output.shape(2) as f32;
-        f32::clamp((x as f32 + 0.5) * (in_size / out_size) - 0.5, 0.0, in_size - 1.0)
+        f32::clamp(
+            (x as f32 + 0.5) * (in_size / out_size) - 0.5,
+            0.0,
+            in_size - 1.0,
+        )
     };
     let v0 = frac.floor();
     let v1 = frac.ceil();
