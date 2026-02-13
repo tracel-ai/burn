@@ -232,6 +232,17 @@ where
         }
     }
 
+    /// Returns the address type required to index this tensor
+    pub fn required_address_type(&self) -> AddressType {
+        match self.try_scheme() {
+            Some(scheme) => {
+                let len = self.handle.size() as usize * 8 / scheme.size_bits_value();
+                AddressType::from_len(len)
+            }
+            None => AddressType::from_len(self.handle.size() as usize / self.dtype.size()),
+        }
+    }
+
     /// Return the `QuantScheme` if present
     pub fn try_scheme(&self) -> Option<&QuantScheme> {
         match &self.dtype {

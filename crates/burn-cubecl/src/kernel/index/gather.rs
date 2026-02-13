@@ -1,6 +1,6 @@
 use crate::{
     CubeRuntime,
-    kernel::utils::{broadcast_strides, linear_view, shape_divmod},
+    kernel::utils::{address_type, broadcast_strides, linear_view, shape_divmod},
     ops::numeric::empty_device_dtype,
     tensor::CubeTensor,
 };
@@ -9,7 +9,7 @@ use cubecl::std::{FastDivmod, tensor::index_offset_contiguous_fastdivmod};
 use cubecl::{CubeDim, std::tensor::layout::linear::LinearView};
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
-#[cube(launch_unchecked)]
+#[cube(launch_unchecked, address_type = "dynamic")]
 fn gather_kernel<T: Numeric, I: Numeric>(
     input: &Tensor<Line<T>>,
     indices: &LinearView<Line<I>>,
@@ -59,6 +59,7 @@ pub(crate) fn gather<R: CubeRuntime>(
             &tensor.client,
             cube_count,
             cube_dim,
+            address_type!(tensor, indices, output),
             tensor.as_tensor_arg(1),
             linear_view(&indices, 1),
             linear_view(&output, 1),

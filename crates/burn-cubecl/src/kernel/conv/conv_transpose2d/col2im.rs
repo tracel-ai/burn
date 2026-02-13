@@ -5,7 +5,7 @@ use crate::{
         into_contiguous_aligned,
         matmul::{MatmulStrategy, matmul},
         slice,
-        utils::{decompose_linear, linear_view, shape_divmod},
+        utils::{address_type, decompose_linear, linear_view, shape_divmod},
     },
     ops::{numeric::empty_device_dtype, reshape, swap_dims},
     tensor::CubeTensor,
@@ -200,6 +200,7 @@ fn col2im<R: CubeRuntime>(
             &columns.client,
             cube_count,
             cube_dim,
+            address_type!(columns, bias, out),
             columns.as_tensor_arg(1),
             bias.as_ref().map(|bias| bias.as_tensor_arg(1)).into(),
             linear_view(&out, 1),
@@ -237,7 +238,7 @@ struct Col2ImArgs {
     stride_w: usize,
 }
 
-#[cube(launch_unchecked)]
+#[cube(launch_unchecked, address_type = "dynamic")]
 fn col2im_kernel<E: Numeric>(
     columns: &Tensor<E>,
     bias: &CubeOption<Tensor<E>>,

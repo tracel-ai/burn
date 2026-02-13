@@ -38,6 +38,7 @@ pub struct GlobalTensorArg<'a, R: Runtime> {
     pub tensor: <Tensor<Line<NumericExpand<DYN_ELEM_ID>>> as LaunchArg>::RuntimeArg<'a, R>,
     pub elem: ElemType,
     pub broadcasted: bool,
+    pub address_type: AddressType,
 }
 
 impl CompilationArg for GlobalTensorCompilationArg {}

@@ -1,6 +1,6 @@
 use crate::{
     CubeRuntime,
-    kernel::utils::{decompose_linear, linear_view, shape_divmod},
+    kernel::utils::{address_type, decompose_linear, linear_view, shape_divmod},
     ops::numeric::empty_device_dtype,
     tensor::CubeTensor,
 };
@@ -23,7 +23,7 @@ struct ConvArgs {
     groups: usize,
 }
 
-#[cube(launch)]
+#[cube(launch, address_type = "dynamic")]
 fn conv_transpose2d_direct_kernel<E: Numeric>(
     input: &Tensor<E>,
     weight: &Tensor<E>,
@@ -165,6 +165,7 @@ pub fn conv_transpose2d_direct<R: CubeRuntime>(
         &input.client,
         cube_count,
         cube_dim,
+        address_type!(input, weight, bias, output),
         input.as_tensor_arg(1),
         weight.as_tensor_arg(1),
         bias.as_ref().map(|bias| bias.as_tensor_arg(1)).into(),

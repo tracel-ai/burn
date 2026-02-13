@@ -6,7 +6,7 @@ use crate::{
     kernel::{
         into_contiguous_aligned,
         pool::pool2d::{Position, view4d},
-        utils::shape_divmod,
+        utils::{address_type, shape_divmod},
     },
     ops::{max_line_size, numeric::empty_device_dtype, permute_nchw_to_nhwc, permute_nhwc_to_nchw},
     tensor::CubeTensor,
@@ -138,6 +138,7 @@ pub(crate) fn avg_pool2d<R: CubeRuntime>(
         &x.client,
         cube_count,
         cube_dim,
+        address_type!(x, output),
         x.as_tensor_arg(line_size),
         view4d(&output, line_size),
         (),
