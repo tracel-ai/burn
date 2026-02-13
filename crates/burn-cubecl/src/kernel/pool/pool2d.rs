@@ -69,7 +69,7 @@ pub struct Pool2dDirectArgs {
     pub padding_1: u32,
 }
 
-#[cube(launch)]
+#[cube(launch, address_type = "dynamic")]
 pub fn pool2d_direct<E: Numeric, S: Pool2dDirectStrategyFamily>(
     input: &Tensor<Line<E>>,
     output: &mut View<Line<E>, Position, ReadWrite>,

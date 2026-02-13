@@ -1,7 +1,9 @@
 use cubecl::std::{FastDivmod, FastDivmodArgs};
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
-use crate::{CubeRuntime, ops::numeric::empty_device_dtype, tensor::CubeTensor};
+use crate::{
+    CubeRuntime, kernel::utils::address_type, ops::numeric::empty_device_dtype, tensor::CubeTensor,
+};
 use burn_backend::{Shape, ops::GridSampleOptions};
 
 use super::base::{PaddingMode, fetch_value, reflect_coord};
@@ -12,12 +14,12 @@ use super::base::{PaddingMode, fetch_value, reflect_coord};
 /// 1. Reading (x, y) coordinates from the grid tensor (once per spatial position)
 /// 2. Converting normalized [-1, 1] coords to pixel coordinates (once)
 /// 3. For each channel: fetch 4 corner values, interpolate, and write output
-#[cube(launch)]
+#[cube(launch, address_type = "dynamic")]
 fn grid_sample_bilinear_kernel<F: Float>(
-    input: &Tensor<F>,                        // [N, C, H_in, W_in]
-    grid: &Tensor<F>,                         // [N, H_out, W_out, 2]
-    output: &mut Tensor<F>,                   // [N, C, H_out, W_out]
-    shape_spatial: Sequence<FastDivmod<u32>>, // [N, H_out, W_out] for thread decomposition
+    input: &Tensor<F>,                          // [N, C, H_in, W_in]
+    grid: &Tensor<F>,                           // [N, H_out, W_out, 2]
+    output: &mut Tensor<F>,                     // [N, C, H_out, W_out]
+    shape_spatial: Sequence<FastDivmod<usize>>, // [N, H_out, W_out] for thread decomposition
     #[comptime] align_corners: bool,
     #[comptime] pad_mode: PaddingMode,
     #[define(F)] _dtype: StorageType,
@@ -30,7 +32,7 @@ fn grid_sample_bilinear_kernel<F: Float>(
     }
 
     // Decompose spatial index into (n, h_out, w_out)
-    let (rem, w_out) = shape_spatial[2].div_mod(spatial_idx as u32);
+    let (rem, w_out) = shape_spatial[2].div_mod(spatial_idx);
     let (n, h_out) = shape_spatial[1].div_mod(rem);
 
     let channels = input.shape(1) as u32;
@@ -38,9 +40,7 @@ fn grid_sample_bilinear_kernel<F: Float>(
     let w_in = input.shape(3) as u32;
 
     // Read grid coordinates once per spatial position
-    let grid_offset = n as usize * grid.stride(0)
-        + h_out as usize * grid.stride(1)
-        + w_out as usize * grid.stride(2);
+    let grid_offset = n * grid.stride(0) + h_out * grid.stride(1) + w_out * grid.stride(2);
     let gx = grid[grid_offset]; // x coordinate in [-1, 1]
     let gy = grid[grid_offset + 1]; // y coordinate in [-1, 1]
 
@@ -97,9 +97,8 @@ fn grid_sample_bilinear_kernel<F: Float>(
     let out_stride_w = output.stride(3);
 
     // Base offsets for this spatial position
-    let in_base_n = n as usize * stride_n;
-    let out_base_spatial =
-        n as usize * out_stride_n + h_out as usize * out_stride_h + w_out as usize * out_stride_w;
+    let in_base_n = n * stride_n;
+    let out_base_spatial = n * out_stride_n + h_out * out_stride_h + w_out * out_stride_w;
 
     // Loop over all channels - grid coords and weights are reused
     for c in 0..channels {
@@ -151,7 +150,7 @@ pub(crate) fn grid_sample_bilinear_launch<R: CubeRuntime>(
 
     let mut shape_spatial = SequenceArg::new();
     for dim in spatial_shape.iter() {
-        shape_spatial.push(FastDivmodArgs::new(&input.client, *dim as u32));
+        shape_spatial.push(FastDivmodArgs::new(&input.client, *dim));
     }
 
     let cube_dim = CubeDim::new(&input.client, num_spatial);
@@ -163,6 +162,7 @@ pub(crate) fn grid_sample_bilinear_launch<R: CubeRuntime>(
         &input.client,
         cube_count,
         cube_dim,
+        address_type!(input, grid, output),
         input.as_tensor_arg(1),
         grid.as_tensor_arg(1),
         output.as_tensor_arg(1),

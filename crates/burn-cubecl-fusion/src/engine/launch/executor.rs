@@ -16,6 +16,7 @@ use burn_std::DType;
 use cubecl::{
     CubeElement, Runtime,
     client::ComputeClient,
+    ir::AddressType,
     prelude::{InputScalar, ScalarArg, TensorArg},
 };
 use std::marker::PhantomData;
@@ -173,21 +174,28 @@ fn register_inputs<'h, R: Runtime>(
                     arg,
                     hi.precision.into_elem(),
                     hi.broadcated,
+                    hi.handle.required_address_type(),
                 ));
             }
             HandleInput::QuantValues(hi) => {
                 let arg = hi
                     .handle
                     .as_tensor_arg(&hi.global_ir.shape.dims, hi.line_size);
-                inputs
-                    .tensors
-                    .push(GlobalTensorArg::new(arg, hi.precision.into_elem(), false));
+                inputs.tensors.push(GlobalTensorArg::new(
+                    arg,
+                    hi.precision.into_elem(),
+                    false,
+                    hi.handle.required_address_type(),
+                ));
             }
             HandleInput::QuantParams(hi) => {
                 let arg = hi.handle.as_tensor_arg(&hi.shape, 1);
-                inputs
-                    .tensors
-                    .push(GlobalTensorArg::new(arg, hi.precision.into_elem(), false));
+                inputs.tensors.push(GlobalTensorArg::new(
+                    arg,
+                    hi.precision.into_elem(),
+                    false,
+                    hi.handle.required_address_type(),
+                ));
             }
         }
     }
@@ -210,6 +218,7 @@ fn register_outputs<'s, BT: CubeElement, R: Runtime>(
                     TensorArg::alias(*input_pos),
                     precision.into_elem(),
                     false,
+                    AddressType::default(),
                 ));
 
                 #[cfg(feature = "autotune-checks")]
@@ -245,7 +254,12 @@ fn register_outputs<'s, BT: CubeElement, R: Runtime>(
                     handles.insert(*relative_id, (global_shape.clone(), handle.clone()));
                 }
 
-                outputs.tensors.push(GlobalTensorArg::new(arg, elem, false));
+                outputs.tensors.push(GlobalTensorArg::new(
+                    arg,
+                    elem,
+                    false,
+                    handle.required_address_type(),
+                ));
             }
         }
     }

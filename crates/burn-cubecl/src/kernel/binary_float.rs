@@ -1,6 +1,8 @@
 use crate::{
     CubeRuntime,
-    kernel::utils::{broadcast_shape, linear_view, linear_view_alias, linear_view_ref},
+    kernel::utils::{
+        address_type, broadcast_shape, linear_view, linear_view_alias, linear_view_ref,
+    },
     ops::{max_line_size, numeric::empty_device_dtype},
     tensor::CubeTensor,
 };
@@ -29,7 +31,7 @@ impl<N: Float> BinaryOpFloat<N> for ArcTan2Op {
     }
 }
 
-#[cube(launch_unchecked)]
+#[cube(launch_unchecked, address_type = "dynamic")]
 pub(crate) fn kernel_binop<C: Float, O: BinaryOpFloatFamily>(
     lhs: &LinearView<Line<C>>,
     rhs: &LinearView<Line<C>>,
@@ -67,6 +69,7 @@ pub(crate) fn launch_binop_float<R: CubeRuntime, O: BinaryOpFloatFamily>(
                 &client,
                 cube_count,
                 cube_dim,
+                address_type!(lhs, rhs),
                 linear_view(&lhs, line_size),
                 linear_view_ref(&rhs, &lhs, line_size),
                 linear_view_alias(&lhs, line_size, 0),
@@ -80,6 +83,7 @@ pub(crate) fn launch_binop_float<R: CubeRuntime, O: BinaryOpFloatFamily>(
                 &client,
                 cube_count,
                 cube_dim,
+                address_type!(lhs, rhs),
                 linear_view_ref(&lhs, &rhs, line_size),
                 linear_view(&rhs, line_size),
                 linear_view_alias(&rhs, line_size, 1),
@@ -96,6 +100,7 @@ pub(crate) fn launch_binop_float<R: CubeRuntime, O: BinaryOpFloatFamily>(
                 &client,
                 cube_count,
                 cube_dim,
+                address_type!(lhs, rhs, output),
                 linear_view_ref(&lhs, &output, line_size),
                 linear_view_ref(&rhs, &output, line_size),
                 linear_view(&output, line_size),
