@@ -9,7 +9,7 @@ use crate::{
 };
 use cubecl::{
     Runtime,
-    ir::{AddressType, ElemType, FloatKind, StorageType},
+    ir::{ElemType, FloatKind, StorageType},
     prelude::{ComputeClient, ScalarArg, SequenceArg},
     server::LaunchError,
     std::CubeOptionArgs,
