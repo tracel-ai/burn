@@ -11,7 +11,7 @@ use crate::{
 use burn_core::module::{AutodiffModule, Module};
 use burn_core::prelude::Backend;
 use burn_core::tensor::Device;
-use burn_core::tensor::backend::AutodiffBackend;
+use burn_core::tensor::backend::{AutodiffBackend, PeerId, ReduceOperation};
 use burn_optim::lr_scheduler::LrScheduler;
 use burn_optim::{GradientsParams, MultiGradientsParams, Optimizer};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -71,6 +71,16 @@ impl<LC: LearningComponentsTypes> Learner<LC> {
     /// Fork the learner's model to the given device.
     pub fn fork(&mut self, device: &<TrainingBackend<LC> as Backend>::Device) {
         self.model = self.model().fork(device);
+    }
+
+    /// Mark the model as sharded across multiple devices.
+    ///
+    /// # Arguments
+    ///
+    /// * `peer_id` - The device's [PeerId](PeerId).
+    /// * `op` - The reduce operation.
+    pub fn grad_sharded(&mut self, peer_id: PeerId, op: ReduceOperation) {
+        self.model = self.model.clone().grad_sharded(peer_id, op);
     }
 
     /// Returns the current model.

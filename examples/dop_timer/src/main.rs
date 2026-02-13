@@ -1,10 +1,10 @@
 use crate::event_utils::example_instrumented_event;
 use crate::workers::WorkerHandle;
 use burn::Tensor;
-use burn::collective::{AllReduceStrategy, CollectiveConfig, ReduceOperation};
+use burn::collective::{AllReduceStrategy, CollectiveConfig};
 use burn::prelude::{Backend, DeviceOps};
 use burn::tensor::Shape;
-use burn::tensor::backend::DeviceId;
+use burn::tensor::backend::{DeviceId, ReduceOperation};
 use clap::{Parser, ValueEnum};
 use opentelemetry::trace::TracerProvider;
 use opentelemetry_sdk::Resource;

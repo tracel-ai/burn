@@ -4,7 +4,7 @@ use super::repeat_dim::repeat_with_slice_assign;
 use super::sort::{argsort, sort, sort_with_indices};
 use crate::ops::GridSampleOptions;
 use crate::tensor::{BoolTensor, Device, Float, FloatTensor, IntTensor};
-use crate::{Backend, Distribution, TensorData};
+use crate::{Backend, Distribution, PeerId, ReduceOperation, ShardedParams, TensorData};
 use crate::{ExecutionError, Scalar, TensorMetadata, TensorPrimitive};
 use alloc::vec::Vec;
 use burn_std::{FloatDType, Shape, Slice};
@@ -722,6 +722,22 @@ pub trait FloatTensorOps<B: Backend> {
     fn float_is_require_grad(_tensor: &FloatTensor<B>) -> bool {
         // Should only be overridden by autodiff backends.
         false
+    }
+
+    /// Sets the `sharded` parameters of a tensor.
+    fn float_set_sharded_params(
+        tensor: FloatTensor<B>,
+        _peer_id: PeerId,
+        _op: ReduceOperation,
+    ) -> FloatTensor<B> {
+        // Should only be overridden by autodiff backends.
+        tensor
+    }
+
+    /// Returns the [ShardedParams](ShardedParams) of a tensor.
+    fn float_sharded_params(_tensor: &FloatTensor<B>) -> Option<ShardedParams> {
+        // Should only be overridden by autodiff backends.
+        None
     }
 
     /// Sum of all elements in a tensor.

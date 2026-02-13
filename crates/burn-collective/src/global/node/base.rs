@@ -1,18 +1,15 @@
 use burn_communication::Protocol;
 use burn_communication::data_service::TensorDataServer;
 use burn_communication::{Address, ProtocolServer, data_service::TensorDataService};
-use burn_tensor::backend::Backend;
+use burn_tensor::backend::{Backend, PeerId, ReduceOperation};
 use std::collections::HashMap;
 use std::{marker::PhantomData, sync::Arc};
 use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
 
 use crate::node::sync::SyncService;
+use crate::{AllReduceStrategy, BroadcastStrategy, GlobalRegisterParams, NodeId, ReduceStrategy};
 use crate::{
-    AllReduceStrategy, BroadcastStrategy, GlobalRegisterParams, NodeId, PeerId, ReduceStrategy,
-};
-use crate::{
-    ReduceOperation,
     global::{
         node::{
             centralized::centralized_all_reduce_sum, ring::ring_all_reduce_sum,

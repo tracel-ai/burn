@@ -1,7 +1,10 @@
+use crate::collections::HashMap;
+
 use burn_backend::{
-    Backend, TensorMetadata, TensorPrimitive,
+    Backend, ShardedParams, TensorMetadata, TensorPrimitive,
     tensor::{FloatTensor, TensorContainer},
 };
+use burn_collective::all_reduce;
 
 use crate::{
     NodeId,
@@ -9,19 +12,46 @@ use crate::{
     tensor::AutodiffTensor,
 };
 
+#[derive(new, Debug)]
+pub(crate) struct ShardedRegistration {
+    sharded_params: ShardedParams,
+    n_required: usize,
+}
+
+impl ShardedRegistration {
+    pub(crate) fn on_register<B: Backend>(&mut self, tensor: FloatTensor<B>) -> FloatTensor<B> {
+        self.n_required -= 1;
+        match self.n_required {
+            0 => all_reduce::<B>(self.sharded_params.peer_id, tensor, self.sharded_params.op)
+                .expect("error all reduce in register"),
+            _ => tensor,
+        }
+    }
+}
+
 /// Gradient identifier.
 pub type GradID = u64;
 
 /// Gradients container used during the backward pass.
 pub struct Gradients {
     container: TensorContainer<GradID>,
+    sharded_registration: HashMap<NodeId, ShardedRegistration>,
 }
 
 impl Gradients {
     /// Creates a new gradients container.
-    pub fn new<B: Backend>(root_node: NodeRef, root_tensor: FloatTensor<B>) -> Self {
+    pub fn new<B: Backend>(
+        root_node: NodeRef,
+        root_tensor: FloatTensor<B>,
+        n_required_map: HashMap<NodeId, usize>,
+        sharded_params_map: HashMap<NodeId, ShardedParams>,
+    ) -> Self {
         let mut gradients = Self {
             container: TensorContainer::new(),
+            sharded_registration: Self::sharded_registration_from_maps(
+                n_required_map,
+                sharded_params_map,
+            ),
         };
         gradients.register::<B>(
             root_node.id,
@@ -32,6 +62,20 @@ impl Gradients {
             ),
         );
         gradients
+    }
+
+    fn sharded_registration_from_maps(
+        n_required_map: HashMap<NodeId, usize>,
+        sharded_params: HashMap<NodeId, ShardedParams>,
+    ) -> HashMap<NodeId, ShardedRegistration> {
+        let mut sharded_registration = HashMap::default();
+        sharded_params.iter().for_each(|(k, v)| {
+            sharded_registration.insert(
+                *k,
+                ShardedRegistration::new(v.clone(), *n_required_map.get(k).unwrap_or(&1)),
+            );
+        });
+        sharded_registration
     }
 
     /// Consumes the gradients for a given tensor.
@@ -71,15 +115,20 @@ impl Gradients {
     /// Register a grad tensor in the container.
     ///
     /// If the tensor already exists, add both tensors together before saving the result.
+    ///
+    /// If the tensor is sharded across multiple device, perform an all_reduce operation.
     pub fn register<B: Backend>(&mut self, node_id: NodeId, value: FloatTensor<B>) {
-        if let Some(tensor_old) = self.container.remove::<B>(&node_id.value) {
-            self.container.register::<B>(
-                node_id.value,
-                TensorPrimitive::Float(B::float_add(value, tensor_old.tensor())),
-            );
+        let mut out = if let Some(tensor_old) = self.container.remove::<B>(&node_id.value) {
+            B::float_add(value, tensor_old.tensor())
         } else {
-            self.container
-                .register::<B>(node_id.value, TensorPrimitive::Float(value));
+            value
+        };
+
+        if let Some(registration) = self.sharded_registration.get_mut(&node_id) {
+            out = registration.on_register::<B>(out);
         }
+
+        self.container
+            .register::<B>(node_id.value, TensorPrimitive::Float(out));
     }
 }

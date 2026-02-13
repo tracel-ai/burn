@@ -1,6 +1,7 @@
 use std::fmt::Display;
 
 use burn_communication::Address;
+use burn_tensor::backend::ReduceOperation;
 use serde::{Deserialize, Serialize};
 
 /// Parameter struct for setting up and getting parameters for collective operations.
@@ -257,13 +258,6 @@ pub struct SharedBroadcastParams {
     pub global_strategy: Option<BroadcastStrategy>,
 }
 
-/// Reduce can be done different ways
-#[derive(Debug, PartialEq, Clone, Copy, Serialize, Deserialize)]
-pub enum ReduceOperation {
-    Sum,
-    Mean,
-}
-
 /// All reduce can be implemented with different algorithms, which all have the same result.
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize)]
 pub enum AllReduceStrategy {
@@ -303,35 +297,4 @@ pub enum BroadcastStrategy {
 
     /// See [all-reduce](AllReduceStrategy::Tree)
     Tree(u32),
-}
-
-/// A unique identifier for a peer in the context of collective operations.
-/// They must be unique, even in multi-node contexts.
-///
-/// This is like the rank in NCCL
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct PeerId(u32);
-
-impl Display for PeerId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "PeerId({})", self.0)
-    }
-}
-
-impl From<u32> for PeerId {
-    fn from(value: u32) -> Self {
-        Self(value)
-    }
-}
-
-impl From<i32> for PeerId {
-    fn from(value: i32) -> Self {
-        Self(value as u32)
-    }
-}
-
-impl From<usize> for PeerId {
-    fn from(value: usize) -> Self {
-        Self(value as u32)
-    }
 }

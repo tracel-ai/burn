@@ -2,11 +2,19 @@ mod tests {
     use std::sync::mpsc::SyncSender;
 
     use burn_std::rand::get_seeded_rng;
-    use burn_tensor::{Shape, Tensor, TensorData, TensorPrimitive, Tolerance, backend::Backend};
+    use burn_tensor::{
+        Tensor, TensorData, TensorPrimitive, Tolerance,
+        backend::{Backend, PeerId},
+    };
 
     use serial_test::serial;
 
-    #[cfg(feature = "test-ndarray")]
+    #[cfg(not(all(
+        feature = "test-cuda",
+        feature = "test-wgpu",
+        feature = "test-metal",
+        feature = "test-vulkan"
+    )))]
     pub type TestBackend = burn_ndarray::NdArray<f32>;
 
     #[cfg(feature = "test-cuda")]
@@ -21,9 +29,7 @@ mod tests {
     #[cfg(feature = "test-vulkan")]
     pub type TestBackend = burn_wgpu::Wgpu<f32>;
 
-    use crate::{
-        BroadcastStrategy, CollectiveConfig, PeerId, broadcast, register, reset_collective,
-    };
+    use crate::{BroadcastStrategy, CollectiveConfig, broadcast, register, reset_collective};
 
     pub fn run_peer<B: Backend>(
         id: PeerId,
@@ -42,7 +48,7 @@ mod tests {
         output.send(tensor).unwrap();
     }
 
-    fn generate_random_input(shape: Shape) -> TensorData {
+    fn generate_random_input(shape: Vec<usize>) -> TensorData {
         TensorData::random::<f32, _, _>(
             shape.clone(),
             burn_tensor::Distribution::Default,
@@ -59,9 +65,7 @@ mod tests {
 
         let (send, recv) = std::sync::mpsc::sync_channel(32);
 
-        let shape = Shape {
-            dims: vec![tensor_size],
-        };
+        let shape = vec![tensor_size];
 
         let input = generate_random_input(shape);
 

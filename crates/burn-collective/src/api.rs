@@ -1,8 +1,7 @@
-use burn_tensor::backend::Backend;
+use burn_tensor::backend::{Backend, PeerId, ReduceOperation};
 
 use crate::{
-    CollectiveConfig, PeerId, ReduceOperation, global::shared::GlobalCollectiveError,
-    local::server::get_collective_client,
+    CollectiveConfig, global::shared::GlobalCollectiveError, local::server::get_collective_client,
 };
 
 /// Errors from collective operations
