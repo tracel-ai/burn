@@ -78,13 +78,13 @@ impl DispatchTensor {
             DispatchTensor::Cpu(tensor) => Device::Cpu(tensor.device()),
             #[cfg(feature = "cuda")]
             DispatchTensor::Cuda(tensor) => Device::Cuda(tensor.device()),
-            #[cfg(feature = "metal")]
+            #[cfg(wgpu_metal)]
             DispatchTensor::Metal(tensor) => Device::Metal(tensor.device()),
             #[cfg(feature = "rocm")]
             DispatchTensor::Rocm(tensor) => Device::Rocm(tensor.device()),
-            #[cfg(feature = "vulkan")]
+            #[cfg(wgpu_vulkan)]
             DispatchTensor::Vulkan(tensor) => Device::Vulkan(tensor.device()),
-            #[cfg(feature = "webgpu")]
+            #[cfg(wgpu_webgpu)]
             DispatchTensor::WebGpu(tensor) => Device::WebGpu(tensor.device()),
             #[cfg(feature = "ndarray")]
             DispatchTensor::NdArray(tensor) => Device::NdArray(tensor.device()),

@@ -28,7 +28,7 @@ pub enum Device {
     Cuda(CudaDevice),
 
     /// The [Metal backend](Metal) device (via WGPU runtime).
-    #[cfg(feature = "metal")]
+    #[cfg(wgpu_metal)]
     Metal(WgpuDevice),
 
     /// The [ROCm backend](Rocm) device.
@@ -36,11 +36,11 @@ pub enum Device {
     Rocm(RocmDevice),
 
     /// The [Vulkan backend](Vulkan) device.
-    #[cfg(feature = "vulkan")]
+    #[cfg(wgpu_vulkan)]
     Vulkan(WgpuDevice),
 
     /// The [WebGPU backend](WebGpu) device (via WGPU runtime).
-    #[cfg(feature = "webgpu")]
+    #[cfg(wgpu_webgpu)]
     WebGpu(WgpuDevice),
 
     /// The [NdArray backend](NdArray) device (CPU-only).
@@ -63,16 +63,16 @@ impl Default for Device {
         #[cfg(feature = "cuda")]
         return Self::Cuda(CudaDevice::default());
 
-        #[cfg(feature = "metal")]
+        #[cfg(wgpu_metal)]
         return Self::Metal(burn_wgpu::WgpuDevice::default());
 
         #[cfg(feature = "rocm")]
         return Self::Rocm(RocmDevice::default());
 
-        #[cfg(feature = "vulkan")]
+        #[cfg(wgpu_vulkan)]
         return Self::Vulkan(burn_wgpu::WgpuDevice::default());
 
-        #[cfg(feature = "webgpu")]
+        #[cfg(wgpu_webgpu)]
         return Self::WebGpu(burn_wgpu::WgpuDevice::default());
 
         #[cfg(feature = "ndarray")]
@@ -95,13 +95,13 @@ impl Device {
             Self::Cpu(_) => BackendId::Cpu,
             #[cfg(feature = "cuda")]
             Self::Cuda(_) => BackendId::Cuda,
-            #[cfg(feature = "metal")]
+            #[cfg(wgpu_metal)]
             Self::Metal(_) => BackendId::Metal,
             #[cfg(feature = "rocm")]
             Self::Rocm(_) => BackendId::Rocm,
-            #[cfg(feature = "vulkan")]
+            #[cfg(wgpu_vulkan)]
             Self::Vulkan(_) => BackendId::Vulkan,
-            #[cfg(feature = "webgpu")]
+            #[cfg(wgpu_webgpu)]
             Self::WebGpu(_) => BackendId::WebGpu,
             #[cfg(feature = "ndarray")]
             Self::NdArray(_) => BackendId::NdArray,
@@ -133,13 +133,13 @@ enum BackendId {
     Cpu = 0,
     #[cfg(feature = "cuda")]
     Cuda = 1,
-    #[cfg(feature = "metal")]
+    #[cfg(wgpu_metal)]
     Metal = 2,
     #[cfg(feature = "rocm")]
     Rocm = 3,
-    #[cfg(feature = "vulkan")]
+    #[cfg(wgpu_vulkan)]
     Vulkan = 4,
-    #[cfg(feature = "webgpu")]
+    #[cfg(wgpu_webgpu)]
     WebGpu = 5,
     #[cfg(feature = "ndarray")]
     NdArray = 6,
@@ -162,13 +162,13 @@ impl TryFrom<u16> for BackendId {
             0 => Ok(Self::Cpu),
             #[cfg(feature = "cuda")]
             1 => Ok(Self::Cuda),
-            #[cfg(feature = "metal")]
+            #[cfg(wgpu_metal)]
             2 => Ok(Self::Metal),
             #[cfg(feature = "rocm")]
             3 => Ok(Self::Rocm),
-            #[cfg(feature = "vulkan")]
+            #[cfg(wgpu_vulkan)]
             4 => Ok(Self::Vulkan),
-            #[cfg(feature = "webgpu")]
+            #[cfg(wgpu_webgpu)]
             5 => Ok(Self::WebGpu),
             #[cfg(feature = "ndarray")]
             6 => Ok(Self::NdArray),
@@ -191,13 +191,13 @@ impl burn_std::device::Device for Device {
             BackendId::Cpu => Self::Cpu(CpuDevice::from_id(device_id)),
             #[cfg(feature = "cuda")]
             BackendId::Cuda => Self::Cuda(CudaDevice::from_id(device_id)),
-            #[cfg(feature = "metal")]
+            #[cfg(wgpu_metal)]
             BackendId::Metal => Self::Metal(WgpuDevice::from_id(device_id)),
             #[cfg(feature = "rocm")]
             BackendId::Rocm => Self::Rocm(RocmDevice::from_id(device_id)),
-            #[cfg(feature = "vulkan")]
+            #[cfg(wgpu_vulkan)]
             BackendId::Vulkan => Self::Vulkan(WgpuDevice::from_id(device_id)),
-            #[cfg(feature = "webgpu")]
+            #[cfg(wgpu_webgpu)]
             BackendId::WebGpu => Self::WebGpu(WgpuDevice::from_id(device_id)),
             #[cfg(feature = "ndarray")]
             BackendId::NdArray => Self::NdArray(NdArrayDevice::from_id(device_id)),
@@ -212,13 +212,13 @@ impl burn_std::device::Device for Device {
             Self::Cpu(device) => device.to_id(),
             #[cfg(feature = "cuda")]
             Self::Cuda(device) => device.to_id(),
-            #[cfg(feature = "metal")]
+            #[cfg(wgpu_metal)]
             Self::Metal(device) => device.to_id(),
             #[cfg(feature = "rocm")]
             Self::Rocm(device) => device.to_id(),
-            #[cfg(feature = "vulkan")]
+            #[cfg(wgpu_vulkan)]
             Self::Vulkan(device) => device.to_id(),
-            #[cfg(feature = "webgpu")]
+            #[cfg(wgpu_webgpu)]
             Self::WebGpu(device) => device.to_id(),
             #[cfg(feature = "ndarray")]
             Self::NdArray(device) => device.to_id(),
@@ -236,13 +236,13 @@ impl burn_std::device::Device for Device {
             BackendId::Cpu => CpuDevice::device_count(backend_type_id),
             #[cfg(feature = "cuda")]
             BackendId::Cuda => CudaDevice::device_count(backend_type_id),
-            #[cfg(feature = "metal")]
+            #[cfg(wgpu_metal)]
             BackendId::Metal => WgpuDevice::device_count(backend_type_id),
             #[cfg(feature = "rocm")]
             BackendId::Rocm => RocmDevice::device_count(backend_type_id),
-            #[cfg(feature = "vulkan")]
+            #[cfg(wgpu_vulkan)]
             BackendId::Vulkan => WgpuDevice::device_count(backend_type_id),
-            #[cfg(feature = "webgpu")]
+            #[cfg(wgpu_webgpu)]
             BackendId::WebGpu => WgpuDevice::device_count(backend_type_id),
             #[cfg(feature = "ndarray")]
             BackendId::NdArray => NdArrayDevice::device_count(backend_type_id),
@@ -266,7 +266,7 @@ impl burn_std::device::Device for Device {
 //     }
 // }
 
-// #[cfg(feature = "metal")]
+// #[cfg(wgpu_metal)]
 // impl From<WgpuDevice> for Device {
 //     fn from(device: WgpuDevice) -> Self {
 //         Device::Metal(device)
@@ -280,14 +280,14 @@ impl burn_std::device::Device for Device {
 //     }
 // }
 
-// #[cfg(feature = "vulkan")]
+// #[cfg(wgpu_vulkan)]
 // impl From<WgpuDevice> for Device {
 //     fn from(device: WgpuDevice) -> Self {
 //         Device::Vulkan(device)
 //     }
 // }
 
-// #[cfg(feature = "webgpu")]
+// #[cfg(wgpu_webgpu)]
 // impl From<WgpuDevice> for Device {
 //     fn from(device: WgpuDevice) -> Self {
 //         Device::WebGpu(device)

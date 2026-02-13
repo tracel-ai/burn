@@ -121,7 +121,7 @@ pub enum DispatchTensor {
     Cuda(BackendTensor<Cuda>),
 
     /// The [Metal backend](Metal) tensor.
-    #[cfg(feature = "metal")]
+    #[cfg(wgpu_metal)]
     Metal(BackendTensor<Metal>),
 
     /// The [ROCm backend](Rocm) tensor.
@@ -129,11 +129,11 @@ pub enum DispatchTensor {
     Rocm(BackendTensor<Rocm>),
 
     /// The [Vulkan backend](Vulkan) tensor.
-    #[cfg(feature = "vulkan")]
+    #[cfg(wgpu_vulkan)]
     Vulkan(BackendTensor<Vulkan>),
 
     /// The [WebGPU backend](WebGpu) tensor.
-    #[cfg(feature = "webgpu")]
+    #[cfg(wgpu_webgpu)]
     WebGpu(BackendTensor<WebGpu>),
 
     /// The [NdArray backend](NdArray) tensor.
@@ -152,13 +152,13 @@ impl TensorMetadata for DispatchTensor {
             DispatchTensor::Cpu(tensor) => tensor.dtype(),
             #[cfg(feature = "cuda")]
             DispatchTensor::Cuda(tensor) => tensor.dtype(),
-            #[cfg(feature = "metal")]
+            #[cfg(wgpu_metal)]
             DispatchTensor::Metal(tensor) => tensor.dtype(),
             #[cfg(feature = "rocm")]
             DispatchTensor::Rocm(tensor) => tensor.dtype(),
-            #[cfg(feature = "vulkan")]
+            #[cfg(wgpu_vulkan)]
             DispatchTensor::Vulkan(tensor) => tensor.dtype(),
-            #[cfg(feature = "webgpu")]
+            #[cfg(wgpu_webgpu)]
             DispatchTensor::WebGpu(tensor) => tensor.dtype(),
             #[cfg(feature = "ndarray")]
             DispatchTensor::NdArray(tensor) => tensor.dtype(),
@@ -173,13 +173,13 @@ impl TensorMetadata for DispatchTensor {
             DispatchTensor::Cpu(tensor) => tensor.shape(),
             #[cfg(feature = "cuda")]
             DispatchTensor::Cuda(tensor) => tensor.shape(),
-            #[cfg(feature = "metal")]
+            #[cfg(wgpu_metal)]
             DispatchTensor::Metal(tensor) => tensor.shape(),
             #[cfg(feature = "rocm")]
             DispatchTensor::Rocm(tensor) => tensor.shape(),
-            #[cfg(feature = "vulkan")]
+            #[cfg(wgpu_vulkan)]
             DispatchTensor::Vulkan(tensor) => tensor.shape(),
-            #[cfg(feature = "webgpu")]
+            #[cfg(wgpu_webgpu)]
             DispatchTensor::WebGpu(tensor) => tensor.shape(),
             #[cfg(feature = "ndarray")]
             DispatchTensor::NdArray(tensor) => tensor.shape(),
@@ -196,13 +196,13 @@ impl QTensorPrimitive for DispatchTensor {
             DispatchTensor::Cpu(tensor) => tensor.scheme(),
             #[cfg(feature = "cuda")]
             DispatchTensor::Cuda(tensor) => tensor.scheme(),
-            #[cfg(feature = "metal")]
+            #[cfg(wgpu_metal)]
             DispatchTensor::Metal(tensor) => tensor.scheme(),
             #[cfg(feature = "rocm")]
             DispatchTensor::Rocm(tensor) => tensor.scheme(),
-            #[cfg(feature = "vulkan")]
+            #[cfg(wgpu_vulkan)]
             DispatchTensor::Vulkan(tensor) => tensor.scheme(),
-            #[cfg(feature = "webgpu")]
+            #[cfg(wgpu_webgpu)]
             DispatchTensor::WebGpu(tensor) => tensor.scheme(),
             #[cfg(feature = "ndarray")]
             DispatchTensor::NdArray(tensor) => tensor.scheme(),
