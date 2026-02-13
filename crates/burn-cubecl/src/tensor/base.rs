@@ -150,15 +150,10 @@ where
         let mut strides = vec![0; ndims];
         let mut current = 1;
 
-        shape
-            .dims
-            .iter()
-            .enumerate()
-            .rev()
-            .for_each(|(index, val)| {
-                strides[index] = current;
-                current *= val;
-            });
+        shape.iter().enumerate().rev().for_each(|(index, val)| {
+            strides[index] = current;
+            current *= val;
+        });
 
         Self {
             client,
@@ -175,7 +170,7 @@ where
     pub fn to_client(&self, client: ComputeClient<R>, device: R::Device) -> Self {
         let desc = self
             .handle
-            .copy_descriptor(&self.shape.dims, &self.strides, self.elem_size());
+            .copy_descriptor(&self.shape, &self.strides, self.elem_size());
         let alloc = self.client.to_client_tensor(desc, &client);
 
         Self {
@@ -194,7 +189,7 @@ where
         TensorHandleRef {
             handle: &self.handle,
             strides: &self.strides,
-            shape: &self.shape.dims,
+            shape: &self.shape,
             runtime: PhantomData,
             elem_size: self.elem_size(),
         }
@@ -314,7 +309,7 @@ where
     /// strides at position k is equal to the product of the shapes
     /// at all positions greater than k. However, all axes with a shape of 1 are ignored.
     pub fn is_contiguous(&self) -> bool {
-        is_contiguous(&self.shape.dims, &self.strides)
+        is_contiguous(&self.shape, &self.strides)
     }
 
     /// Check if the current tensor has a contiguous backing buffer (no overlap and no empty memory

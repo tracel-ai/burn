@@ -335,7 +335,7 @@ impl<const D: usize, B: Backend> ModuleDisplayDefault for Param<Tensor<B, D>> {
         };
         let string = format!(
             "ParamTensor {{rank: {D}, shape: {:?}, kind: float{id}}}",
-            self.shape().dims
+            self.shape()
         );
         content.add_formatted(&string).optional()
     }
@@ -390,7 +390,7 @@ impl<const D: usize, B: Backend> ModuleDisplayDefault for Param<Tensor<B, D, Int
         };
         let string = format!(
             "ParamTensor {{rank: {D}, shape: {:?}, kind: int{id}}}",
-            self.shape().dims
+            self.shape()
         );
         content.add_formatted(&string).optional()
     }
@@ -446,7 +446,7 @@ impl<const D: usize, B: Backend> ModuleDisplayDefault for Param<Tensor<B, D, Boo
 
         let string = format!(
             "ParamTensor {{rank: {D}, shape: {:?}, kind: bool{id}}}",
-            self.shape().dims
+            self.shape()
         );
         content.add_formatted(&string).optional()
     }

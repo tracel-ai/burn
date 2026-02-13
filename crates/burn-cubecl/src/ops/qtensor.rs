@@ -79,7 +79,7 @@ fn new_quantized<R: CubeRuntime>(
             if !shape_last.is_multiple_of(num_quants) {
                 panic!("Can't store in u32")
             }
-            shape_value.dims[rank - 1] = shape_last.div_ceil(num_quants);
+            shape_value[rank - 1] = shape_last.div_ceil(num_quants);
             size_of::<u32>()
         }
         QuantStore::Native => match scheme.value {
@@ -109,9 +109,8 @@ fn new_quantized<R: CubeRuntime>(
     };
 
     let scales_shape = params_shape(&shape, scheme.level);
-    let data_desc = AllocationDescriptor::new(alloc_kind, &shape_value.dims, data_size);
-    let scales_desc =
-        AllocationDescriptor::new(alloc_kind, &scales_shape.dims, scales_dtype.size());
+    let data_desc = AllocationDescriptor::new(alloc_kind, &shape_value, data_size);
+    let scales_desc = AllocationDescriptor::new(alloc_kind, &scales_shape, scales_dtype.size());
 
     let mut tensors = match data {
         Some(data) => {
@@ -222,7 +221,7 @@ where
             return into_data(tensor).await;
         }
 
-        let (shape, dtype) = (tensor.shape.dims.clone(), tensor.dtype);
+        let (shape, dtype) = (tensor.shape.clone(), tensor.dtype);
         let (values, params) = tensor.quantized_handles().unwrap();
 
         let mut data_values = into_data(values).await?;
@@ -232,7 +231,7 @@ where
 
         Ok(TensorData {
             bytes: data_values.bytes,
-            shape,
+            shape: shape.to_vec(),
             dtype,
         })
     }

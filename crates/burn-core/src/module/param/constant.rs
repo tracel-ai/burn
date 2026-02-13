@@ -186,7 +186,7 @@ impl<const D: usize, B: Backend, K: BasicOps<B>> Module<B> for Tensor<B, D, K> {
 
 impl<const D: usize, B: Backend, K: BasicOps<B>> ModuleDisplayDefault for Tensor<B, D, K> {
     fn content(&self, content: Content) -> Option<Content> {
-        let string = format!("Tensor {{rank: {D}, shape: {:?}}}", self.shape().dims);
+        let string = format!("Tensor {{rank: {D}, shape: {:?}}}", self.shape());
         content.add_single(&string).optional()
     }
 }

@@ -12,6 +12,7 @@ use crate::{
 };
 use burn_fusion::{FuserStatus, OperationFuser};
 use burn_ir::{NumericOperationIr, OperationIr, ReduceDimOpIr};
+use burn_std::Shape;
 use cubecl::Runtime;
 
 /// Fuses element wise operations around a reduce operation.
@@ -41,13 +42,8 @@ impl<R: Runtime> Clone for ReduceFuser<R> {
 
 #[derive(Debug)]
 pub enum ReduceFuserInfo {
-    FusedReduce {
-        shape_input_id: Vec<usize>,
-        axis: usize,
-    },
-    FusedElemwise {
-        shape_id: Vec<usize>,
-    },
+    FusedReduce { shape_input_id: Shape, axis: usize },
+    FusedElemwise { shape_id: Shape },
 }
 
 impl<R: Runtime> ReduceFuser<R> {
@@ -94,7 +90,7 @@ impl<R: Runtime> ReduceFuser<R> {
     pub fn reduce_info(&self) -> ReduceFuserInfo {
         match &self.reduce {
             Some(reduce) => {
-                let shape_input_id = reduce.op.input.shape.dims.clone();
+                let shape_input_id = reduce.op.input.shape.clone();
                 let axis = reduce.axis;
 
                 ReduceFuserInfo::FusedReduce {
@@ -115,7 +111,7 @@ impl<R: Runtime> ReduceFuser<R> {
         //     self.fuser.current_output_shape = op.input.shape.dims.clone();
         // } else if self.fuser.current_output_shape != op.input.shape.dims {
 
-        if self.fuser.current_output_shape != op.input.shape.dims {
+        if self.fuser.current_output_shape != op.input.shape {
             self.fuser.close();
             self.fuser_read_fallback.close();
             return;

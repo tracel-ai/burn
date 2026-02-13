@@ -162,7 +162,7 @@ where
         let opt = options.into();
         let shape = shape.into();
         let dtype = opt.resolve_policy(K::Elem::dtype());
-        check!(TensorCheck::creation_ops::<D>("Empty", &shape.dims));
+        check!(TensorCheck::creation_ops::<D>("Empty", &shape));
         Self::new(K::empty(shape, &opt.device, dtype))
     }
 
@@ -185,7 +185,7 @@ where
         let opt = options.into();
         let shape = shape.into();
         let dtype = opt.resolve_policy(K::Elem::dtype());
-        check!(TensorCheck::creation_ops::<D>("Zeros", &shape.dims));
+        check!(TensorCheck::creation_ops::<D>("Zeros", &shape));
         Self::new(K::zeros(shape, &opt.device, dtype))
     }
 
@@ -228,7 +228,7 @@ where
         let opt = options.into();
         let shape = shape.into();
         let dtype = opt.resolve_policy(K::Elem::dtype());
-        check!(TensorCheck::creation_ops::<D>("Ones", &shape.dims));
+        check!(TensorCheck::creation_ops::<D>("Ones", &shape));
         Self::new(K::ones(shape, &opt.device, dtype))
     }
 
@@ -275,7 +275,7 @@ where
         let opt = options.into();
         let shape = shape.into();
         let dtype = opt.resolve_policy(K::Elem::dtype());
-        check!(TensorCheck::creation_ops::<D>("Full", &shape.dims));
+        check!(TensorCheck::creation_ops::<D>("Full", &shape));
         Self::new(K::full(
             shape,
             Scalar::new(fill_value, &dtype),
@@ -756,7 +756,6 @@ where
     pub fn squeeze<const D2: usize>(self) -> Tensor<B, D2, K> {
         let new_dims = self
             .shape()
-            .dims
             .iter()
             .filter_map(|&dim| if dim == 1 { None } else { Some(dim) })
             .collect::<Vec<_>>();
@@ -806,9 +805,9 @@ where
     /// }
     /// ```
     pub fn squeeze_dim<const D2: usize>(self, dim: usize) -> Tensor<B, D2, K> {
-        check!(TensorCheck::squeeze::<D2>(dim, &self.shape().dims));
+        check!(TensorCheck::squeeze::<D2>(dim, &self.shape()));
 
-        let current_dims = self.shape().dims;
+        let current_dims = self.shape();
         let mut new_dims: [usize; D2] = [0; D2];
 
         new_dims[..dim].copy_from_slice(&current_dims[..dim]);
@@ -856,7 +855,7 @@ where
     /// }
     /// ```
     pub fn squeeze_dims<const D2: usize>(self, dims: &[isize]) -> Tensor<B, D2, K> {
-        let current_dims = self.shape().dims;
+        let current_dims = self.shape();
         let mut dim_indices: Vec<usize>;
 
         // Check if dims is empty, if yes then assign dim_indices all single-dimensional entries
@@ -1009,7 +1008,7 @@ where
     /// ```
     pub fn unsqueeze_dims<const D2: usize>(self, axes: &[impl AsIndex]) -> Tensor<B, D2, K> {
         let mut new_dims = [1; D2];
-        let old_dims = self.shape().dims;
+        let old_dims = self.shape();
         //for checking if the dimension is in the acceptable range
 
         //part 1: convert the negative indices to positive
@@ -1084,7 +1083,7 @@ where
         Dim: AsIndex,
     {
         let dim = dim.expect_dim_index(D);
-        let size = self.shape().dims[dim];
+        let size = self.shape()[dim];
         if size == 0 {
             // If the dimension is empty, return the tensor as is.
             return self;
@@ -1113,7 +1112,7 @@ where
     fn unchecked_roll_dim(self, shift: usize, dim: usize) -> Self {
         #[cfg(debug_assertions)]
         {
-            let size = self.shape().dims[dim];
+            let size = self.shape()[dim];
             assert!(
                 0 < shift && shift < size,
                 "Expected: 0 < shift < size: found shift={shift}, size={size}",
@@ -1167,7 +1166,7 @@ where
 
         let item_count = dims.len();
 
-        let shape = self.shape().dims;
+        let shape = self.shape();
 
         // Accumulate the effective shifts for each dimension.
         let mut accumulated_shifts: Vec<isize> = vec![0; shape.len()];
@@ -1350,9 +1349,9 @@ where
         check!(TensorCheck::slice::<D>(&shape, &slices));
 
         // Calculate output shape and check for empty slices
-        let mut output_dims = shape.dims.clone();
+        let mut output_dims = shape.clone();
         for (dim, slice) in slices.iter().enumerate() {
-            output_dims[dim] = slice.output_size(shape.dims[dim]);
+            output_dims[dim] = slice.output_size(shape[dim]);
         }
 
         // Return empty tensor if any dimension is 0 (empty slice)
@@ -1439,7 +1438,7 @@ where
         let is_empty_assignment = slices
             .iter()
             .enumerate()
-            .any(|(i, slice)| slice.output_size(shape.dims[i]) == 0);
+            .any(|(i, slice)| slice.output_size(shape[i]) == 0);
 
         if is_empty_assignment {
             return self;
@@ -2127,13 +2126,13 @@ where
 
         let non_empty_primitives: Vec<_> = tensors
             .into_iter()
-            .filter(|t| t.shape().dims[dim] > 0)
+            .filter(|t| t.shape()[dim] > 0)
             .map(|t| t.primitive)
             .collect();
 
         // If all tensors were empty, return an empty tensor with size 0 on concat dim
         if non_empty_primitives.is_empty() {
-            shape.dims[dim] = 0;
+            shape[dim] = 0;
             return Self::empty(shape, &device);
         }
 
@@ -2306,7 +2305,7 @@ where
     /// ```
     pub fn chunk(self, chunks: usize, dim: usize) -> Vec<Self> {
         check!(TensorCheck::dim_ops::<D>("chunk", dim));
-        let size = self.shape().dims[dim];
+        let size = self.shape()[dim];
         if size < chunks {
             return (0..size)
                 .map(|i| Self::narrow(self.clone(), dim, i, 1))
@@ -2366,7 +2365,7 @@ where
     /// ```
     pub fn split(self, split_size: usize, dim: usize) -> Vec<Self> {
         check!(TensorCheck::split::<D>(&self.shape(), split_size, dim));
-        let size = self.shape().dims[dim];
+        let size = self.shape()[dim];
         let mut tensors = Vec::new();
 
         let mut start = 0;

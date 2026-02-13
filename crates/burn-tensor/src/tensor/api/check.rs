@@ -120,24 +120,24 @@ impl TensorCheck {
             );
         }
 
-        if start >= tensor.shape().dims[dim] {
+        if start >= tensor.shape()[dim] {
             check = check.register(
                 "Narrow",
                 TensorError::new(format!(
                     "Can't narrow at dimension {dim}, start exceeds the size of the tensor along \
                      this dimension (Size={})",
-                    tensor.shape().dims[dim]
+                    tensor.shape()[dim]
                 )),
             );
         }
 
-        if start + length > tensor.shape().dims[dim] {
+        if start + length > tensor.shape()[dim] {
             check = check.register(
                 "Narrow",
                 TensorError::new(format!(
                     "Can't narrow at dimension {dim}, start + length exceeds the size of the tensor \
                      along this dimension (Size={})",
-                    tensor.shape().dims[dim]
+                    tensor.shape()[dim]
                 )),
             );
         }
@@ -549,8 +549,8 @@ impl TensorCheck {
         let shape_lhs = lhs.shape();
         let shape_rhs = rhs.shape();
 
-        let dim_lhs = shape_lhs.dims[D - 1];
-        let dim_rhs = shape_rhs.dims[D - 2];
+        let dim_lhs = shape_lhs[D - 1];
+        let dim_rhs = shape_rhs[D - 2];
 
         if dim_lhs != dim_rhs {
             check = check.register(
@@ -561,7 +561,7 @@ impl TensorCheck {
                 ))
                 .details(format!(
                     "Lhs shape {:?}, rhs shape {:?}.",
-                    shape_lhs.dims, shape_rhs.dims
+                    shape_lhs, shape_rhs
                 )),
             );
         }
@@ -594,8 +594,8 @@ impl TensorCheck {
             return check;
         }
 
-        let dim_size_lhs = shape_lhs.dims[dim];
-        let dim_size_rhs = shape_rhs.dims[dim];
+        let dim_size_lhs = shape_lhs[dim];
+        let dim_size_rhs = shape_rhs[dim];
 
         if dim_size_lhs != 3 || dim_size_rhs != 3 {
             check = check.register(
@@ -609,8 +609,8 @@ impl TensorCheck {
         // Check broadcastability of other dimensions
         for i in 0..D {
             if i != dim {
-                let l = shape_lhs.dims[i];
-                let r = shape_rhs.dims[i];
+                let l = shape_lhs[i];
+                let r = shape_rhs[i];
                 if l != r && l != 1 && r != 1 {
                     check = check.register(
                         "Cross",
@@ -705,7 +705,7 @@ impl TensorCheck {
         }
 
         let mut shape_reference = tensors.first().unwrap().shape();
-        shape_reference.dims[dim] = 1; // We want to check every dims except the one where the
+        shape_reference[dim] = 1; // We want to check every dims except the one where the
         // concatenation happens.
 
         for tensor in tensors {
@@ -767,7 +767,7 @@ impl TensorCheck {
                         .details(format!(
                             "The slice end index {} exceeds the size of the tensor ({}) at dimension {}. \
                              Tensor shape {:?}.",
-                            end, d_tensor, i, shape.dims,
+                            end, d_tensor, i, shape,
                         )),
                     );
             }
@@ -813,7 +813,7 @@ impl TensorCheck {
 
         for (i, slice) in slices.iter().enumerate().take(usize::min(R, n_dims_slices)) {
             let d_tensor = shape[i];
-            let d_tensor_value = shape_value.dims[i];
+            let d_tensor_value = shape_value[i];
             let range = slice.to_range(d_tensor);
 
             if range.end > d_tensor {
@@ -826,7 +826,7 @@ impl TensorCheck {
                     .details(format!(
                         "The range ({}..{}) exceeds the size of the tensor ({}) at dimension {}. \
                          Current tensor shape {:?}, value tensor shape {:?}.",
-                        range.start, range.end, d_tensor, i, shape.dims, shape_value.dims,
+                        range.start, range.end, d_tensor, i, shape, shape_value,
                     )),
                 );
             }
@@ -851,8 +851,8 @@ impl TensorCheck {
                         num_elements,
                         d_tensor_value,
                         i,
-                        shape.dims,
-                        shape_value.dims,
+                        shape,
+                        shape_value,
                     )),
                 );
             }
@@ -902,7 +902,7 @@ impl TensorCheck {
                 )
                 .details(format!(
                     "The shape differs: {:?} != {:?}",
-                    shape_indices.dims, shape_value.dims
+                    shape_indices, shape_value
                 )),
             );
         }
@@ -968,14 +968,14 @@ impl TensorCheck {
     ) -> Self {
         let mut check = Self::check_select_basic::<D>(Self::Ok, "Select Assign", dim);
 
-        if shape_value.dims[dim] != shape_indices.dims[0] {
+        if shape_value[dim] != shape_indices[0] {
             check = check.register(
                 "Select Assign",
                 TensorError::new(
                     format!(
                         "Number of indices ({}) should be equal to value tensor dimensions {:?} on axis (dim={dim})",
-                        shape_indices.dims[0],
-                        shape_value.dims
+                        shape_indices[0],
+                        shape_value
                     ),
                 )
             );
@@ -1018,7 +1018,7 @@ impl TensorCheck {
             }
 
             let tensor_dim_i = shape[i];
-            let indices_dim_i = shape_indices.dims[i];
+            let indices_dim_i = shape_indices[i];
 
             if tensor_dim_i != indices_dim_i {
                 check = check.register(
@@ -1042,11 +1042,11 @@ impl TensorCheck {
         shape_weight: &Shape,
     ) -> Self {
         let mut check = Self::Ok;
-        if shape_weight.dims[0] == 1 {
+        if shape_weight[0] == 1 {
             check
         } else if D >= 2 {
-            let channels = shape_tensor.dims[1];
-            let num_weights = shape_weight.dims[0];
+            let channels = shape_tensor[1];
+            let num_weights = shape_weight[0];
             if channels != num_weights {
                 check = check.register(
                     "PReLu",
@@ -1068,7 +1068,7 @@ impl TensorCheck {
                 )
                 .details(format!(
                     "Got no. of channels: 1, no. of weights: {}",
-                    shape_weight.dims[0]
+                    shape_weight[0]
                 )),
             );
             check
@@ -1194,8 +1194,8 @@ impl TensorCheck {
         let mut check = self;
 
         for i in 0..D {
-            let d_lhs = lhs.dims[i];
-            let d_rhs = rhs.dims[i];
+            let d_lhs = lhs[i];
+            let d_rhs = rhs[i];
 
             if d_lhs != d_rhs {
                 let is_broadcast = d_lhs == 1 || d_rhs == 1;
@@ -1210,7 +1210,7 @@ impl TensorCheck {
                         format!(
                             "Incompatible size at dimension '{}' => '{} != {}', which can't be \
                              broadcasted. Lhs tensor shape {:?}, Rhs tensor shape {:?}.",
-                            i, d_lhs, d_rhs, lhs.dims, rhs.dims,
+                            i, d_lhs, d_rhs, lhs, rhs,
                         ),
                     ),
                 );
@@ -1255,7 +1255,7 @@ impl TensorCheck {
                 1
             };
             let d_to = if i >= start_index_to {
-                to.dims[i - start_index_to]
+                to[i - start_index_to]
             } else {
                 1
             };
@@ -1273,8 +1273,8 @@ impl TensorCheck {
                         max_dims - i - 1,
                         d_shape,
                         d_to,
-                        shape.dims,
-                        to.dims,
+                        shape,
+                        to,
                     )),
                 );
                 break; // Incompatibility found, no need to check further.
@@ -1349,12 +1349,12 @@ impl TensorCheck {
     /// Check if input is compatible with LU decomposition.
     pub fn is_square<const D: usize>(ops: &str, shape: &Shape) -> Self {
         let mut check = TensorCheck::Ok;
-        if shape.dims[D - 1] != shape.dims[D - 2] {
+        if shape[D - 1] != shape[D - 2] {
             check = check.register(
                 ops,
                 TensorError::new("The input tensor must be square.").details(format!(
                     "Got tensor with shape {:?}, expected last two dimensions to be equal",
-                    shape.dims
+                    shape
                 )),
             );
         }
