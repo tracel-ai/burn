@@ -1,6 +1,5 @@
 /// Supplies a list of all supported backends and their corresponding feature flags
 /// to a callback macro. This centralizes the backend registry.
-
 macro_rules! backend_list {
     ($callback:ident, $($extra:tt)*) => {
         $callback! {
@@ -18,7 +17,6 @@ macro_rules! backend_list {
 }
 
 /// Supplies a matrix of cross-backend combinations. Used for operations where the source and destination backends may differ.
-
 macro_rules! backend_matrix {
     ($callback:ident, $($extra:tt)*) => {
         $callback! {
@@ -37,7 +35,6 @@ macro_rules! backend_matrix {
 
 /// Match arm generator for `dispatch_device`.
 /// Maps each backend variant to a block where the specific backend type is bound to `B`.
-
 macro_rules! dispatch_device_arms {
     (
         $device:expr,
@@ -57,7 +54,6 @@ macro_rules! dispatch_device_arms {
 }
 
 /// Dispatches an operation body based on the provided device.
-
 macro_rules! dispatch_device {
     ($device:expr, |$inner:ident| $body:expr) => {
         backend_list!(dispatch_device_arms, $device, |$inner| $body)
@@ -67,7 +63,6 @@ macro_rules! dispatch_device {
 /// Match arm generator for `to_device`.
 /// Handles the logic for same-backend transfers (fast path) and cross-backend
 /// transfers by generating a grid of all device combinations provided via `backend_matrix`.
-
 macro_rules! to_device_arms {
     (
         $kind:ident, $inner_fn:ident, $tensor:expr, $device:expr, $to_device:ident, |$inner:ident, $device_ident:ident| $body:expr;
@@ -106,7 +101,6 @@ macro_rules! to_device_arms {
 
 /// Handles tensor movement between devices, supporting both same-backend transfers
 /// and cross-backend dispatches.
-
 macro_rules! to_device {
     ($kind:ident, $inner_fn:ident, $tensor:expr, $device:expr, $to_device:ident, |$inner:ident, $device_ident:ident| $body:expr) => {
         backend_matrix!(
@@ -124,7 +118,6 @@ macro_rules! to_device {
 /// Match arm generator for `creation_op`.
 /// Matches a device and provides the specific backend type `B` to the closure before wrapping
 /// the resulting tensor in the corresponding `DispatchTensor` variant.
-
 macro_rules! creation_op_arms {
     (
         $kind:ident,
@@ -148,7 +141,6 @@ macro_rules! creation_op_arms {
 
 /// Dispatches a tensor creation operation (e.g., zeros, ones) to the correct backend
 /// based on the provided device.
-
 macro_rules! creation_op {
     ($kind:ident, $device:expr, |$inner:ident| $body:expr) => {
         backend_list!(creation_op_arms, $kind, $device, |$inner| $body)
@@ -160,7 +152,6 @@ macro_rules! creation_op {
 /// for the operation.
 ///
 /// When the return kind is provided, the result is wrapped in the corresponding `DispatchTensor` variant.
-
 macro_rules! unary_op_arms {
     (
         $kind:ident,
@@ -204,7 +195,6 @@ macro_rules! unary_op_arms {
 /// Backend dispatch for unary operations.
 ///
 /// When the return `=> Kind` is not provided, the operation output is not wrapped in a dispatch tensor (e.g., `into_data(..)`)
-
 macro_rules! unary_op {
     ($tensor:expr, $inner_kind:ident, |$inner:ident| $body:expr => $kind:ident) => {
         backend_list!(unary_op_arms, $kind, $inner_kind, $tensor, |$inner| {
@@ -218,7 +208,6 @@ macro_rules! unary_op {
 
 /// Match arm generator for `binary_op`.
 /// Matches two tensors to ensure they share the same backend before unwrapping them for the operation.
-
 macro_rules! binary_op_arms {
     (
         $kind:ident,
@@ -248,7 +237,6 @@ macro_rules! binary_op_arms {
 
 /// Backend dispatch for binary operations.
 /// Automatically verifies that both tensors reside on the same backend.
-
 macro_rules! binary_op {
     (($lhs:expr, $lhs_kind:ident), ($rhs:expr, $rhs_kind:ident), |$lhs_inner:ident, $rhs_inner:ident| $body:expr => $kind:ident) => {
         backend_list!(
@@ -263,7 +251,6 @@ macro_rules! binary_op {
 
 /// Match arm generator for `multi_tensor_op`.
 /// Matches three tensors to ensure they share the same backend before unwrapping them for the operation.
-
 macro_rules! multi_op_arms {
     (
         $kind:ident,
@@ -295,7 +282,6 @@ macro_rules! multi_op_arms {
 
 /// Backend dispatch for operations involving three tensors.
 /// Automatically verifies that all tensors reside on the same backend.
-
 macro_rules! multi_tensor_op {
     (($t1:expr, $t1_kind:ident), ($t2:expr, $t2_kind:ident), ($t3:expr, $t3_kind:ident), |$t1_inner:ident, $t2_inner:ident, $t3_inner:ident| $body:expr => $kind:ident) => {
         backend_list!(
@@ -312,7 +298,6 @@ macro_rules! multi_tensor_op {
 /// The core logic for a single backend in a `module_op`.
 /// Handles the manual unwrapping of required/optional inputs and the
 /// re-wrapping of multiple required/optional output tensors.
-
 macro_rules! module_op_arm {
     (
         $Backend:ident,
@@ -352,7 +337,6 @@ macro_rules! module_op_arm {
 
 /// Helper to extract the first identifier from an input list.
 /// Used to determine the device/backend for dispatching multi-tensor operations.
-
 macro_rules! first_input {
     ([ ($x:ident, $kind:ident) $(, $rest:tt)* ]) => {
         $x
@@ -362,7 +346,6 @@ macro_rules! first_input {
 /// Match arm generator for `module_op`.
 /// Determines the backend based on the first input and delegates to `module_op_arm`
 /// to handle the repetition-heavy unwrapping and wrapping logic.
-
 macro_rules! module_op_arms {
     (
         $inputs:tt,
