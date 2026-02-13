@@ -5,7 +5,11 @@ use crate::{
 };
 use alloc::{string::String, vec::Vec};
 pub use burn_derive::Module;
-use burn_tensor::{Bool, Int, Tensor, ops::Device};
+use burn_tensor::{
+    Bool, Int, Tensor,
+    backend::{PeerId, ReduceOperation, ShardedParams},
+    ops::Device,
+};
 
 /// Type alias to `Vec<B::Device>` which supports `no_std` environments, but automatically using
 /// the `alloc` crate.
@@ -14,7 +18,25 @@ pub type Devices<B> = Vec<Device<B>>;
 // At the moment, our plan is to continue experimenting with the macro internally and monitor its development.
 // We may consider making it public in the future.
 macro_rules! module {
-    (map=$module:ident, ops=$item:expr) => {{
+    (map=$module:ident, ops=$item:expr, ops_arg = ($arg_name:ident : $ty:ty = $args:expr)) => {{
+        struct Mapper {
+            map_args: $ty,
+        }
+        impl<B: Backend> ModuleMapper<B> for Mapper {
+            fn map_float<const D: usize>(
+                &mut self,
+                param: Param<Tensor<B, D>>,
+            ) -> Param<Tensor<B, D>> {
+                let (id, tensor, mapper) = param.consume();
+                let func = $item;
+                let tensor = func(tensor, self.map_args.clone());
+                Param::from_mapped_value(id, tensor, mapper)
+            }
+        }
+        let mut mapper = Mapper { map_args: $args };
+        $module.map(&mut mapper)
+    }};
+    (map=$module:ident,  ops=$item:expr) => {{
         struct Mapper;
         impl<B: Backend> ModuleMapper<B> for Mapper {
             fn map_float<const D: usize>(
@@ -123,6 +145,21 @@ pub trait Module<B: Backend>: Clone + Send + core::fmt::Debug {
         module!(
             map = self,
             ops = |tensor: Tensor<B, D>| tensor.set_require_grad(false)
+        )
+    }
+
+    /// Each tensor in the module tree will be marked as sharded across multiple devices.
+    ///
+    /// # Arguments
+    ///
+    /// * `peer_id` - The device's [PeerId](PeerId).
+    /// * `op` - The reduce operation.
+    fn grad_sharded(self, peer_id: PeerId, op: ReduceOperation) -> Self {
+        module!(
+            map = self,
+            ops =
+                |tensor: Tensor<B, D>, p: ShardedParams| tensor.set_sharded_params(p.peer_id, p.op),
+            ops_arg = (args: ShardedParams = ShardedParams { peer_id, op })
         )
     }
 

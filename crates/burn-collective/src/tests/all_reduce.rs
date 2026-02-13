@@ -2,11 +2,19 @@ mod tests {
     use std::sync::mpsc::SyncSender;
 
     use burn_std::rand::get_seeded_rng;
-    use burn_tensor::{Shape, Tensor, TensorData, TensorPrimitive, Tolerance, backend::Backend};
+    use burn_tensor::{
+        Shape, Tensor, TensorData, TensorPrimitive, Tolerance,
+        backend::{Backend, PeerId, ReduceOperation},
+    };
 
     use serial_test::serial;
 
-    #[cfg(feature = "test-ndarray")]
+    #[cfg(not(all(
+        feature = "test-cuda",
+        feature = "test-wgpu",
+        feature = "test-metal",
+        feature = "test-vulkan"
+    )))]
     pub type TestBackend = burn_ndarray::NdArray<f32>;
 
     #[cfg(feature = "test-cuda")]
@@ -21,10 +29,7 @@ mod tests {
     #[cfg(feature = "test-vulkan")]
     pub type TestBackend = burn_wgpu::Wgpu<f32>;
 
-    use crate::{
-        AllReduceStrategy, CollectiveConfig, PeerId, ReduceOperation, all_reduce, register,
-        reset_collective,
-    };
+    use crate::{AllReduceStrategy, CollectiveConfig, all_reduce, register, reset_collective};
 
     pub fn run_peer<B: Backend>(
         id: PeerId,

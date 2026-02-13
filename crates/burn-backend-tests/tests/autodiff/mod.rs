@@ -61,6 +61,7 @@ mod repeat_dim;
 mod reshape;
 mod round;
 mod select;
+mod sharded;
 mod sigmoid;
 mod sign;
 mod slice;

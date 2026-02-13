@@ -1,7 +1,6 @@
-use burn_tensor::backend::{Backend, DeviceOps};
+use burn_tensor::backend::{Backend, DeviceOps, PeerId};
 use std::collections::HashMap;
 
-use crate::PeerId;
 use crate::local::tensor_map::{CollectiveTensorMap, PeerDeviceMap};
 
 /// Performs a broadcast on the provided tensors in a b-tree structure with `arity`.

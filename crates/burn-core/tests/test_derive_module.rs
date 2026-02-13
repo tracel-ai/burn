@@ -274,6 +274,8 @@ mod require_grad {
 
     use super::*;
 
+    // TODO : grad_sharded() tests
+
     #[test]
     fn should_have_grad_by_default() {
         let device = <TestBackend as Backend>::Device::default();

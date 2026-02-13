@@ -1,13 +1,13 @@
 use burn::{
     backend::Autodiff,
-    collective::{self, CollectiveConfig, PeerId, ReduceOperation},
+    collective::{self, CollectiveConfig},
     data::{dataloader::DataLoaderBuilder, dataset::transform::PartialDataset},
     nn::transformer::TransformerEncoderConfig,
     optim::{GradientsParams, Optimizer, SgdConfig},
     prelude::*,
     tensor::{
         TensorPrimitive,
-        backend::{AutodiffBackend, DeviceId},
+        backend::{AutodiffBackend, DeviceId, PeerId, ReduceOperation},
     },
 };
 use std::{

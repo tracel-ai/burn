@@ -1,11 +1,13 @@
 use burn::{
     backend::NdArray,
     prelude::Backend,
-    tensor::{Tensor, TensorPrimitive, Tolerance},
+    tensor::{
+        Tensor, TensorPrimitive, Tolerance,
+        backend::{PeerId, ReduceOperation},
+    },
 };
 use burn_collective::{
-    CollectiveConfig, PeerId, ReduceOperation, all_reduce, finish_collective, register,
-    reset_collective,
+    CollectiveConfig, all_reduce, finish_collective, register, reset_collective,
 };
 use burn_collective_multinode_tests::shared::{NodeTest, NodeTestResult, TENSOR_RANK};
 use std::{

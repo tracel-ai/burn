@@ -5,9 +5,10 @@ use crate::{
     Learner, LearningCheckpointer, LearningComponentsTypes, SupervisedTrainingEventProcessor,
     TrainLoader, TrainingBackend, ValidLoader,
 };
-use burn_collective::{self, CollectiveConfig, PeerId};
+use burn_collective::{self, CollectiveConfig};
 use burn_core::tensor::Device;
 use burn_core::tensor::backend::AutodiffBackend;
+use burn_core::tensor::backend::PeerId;
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 
@@ -90,6 +91,10 @@ where
             .dataloader_valid
             .map(|dataloader| DdpValidEpoch::<LC>::new(dataloader));
         self.learner.fork(&self.device);
+        self.learner.grad_sharded(
+            self.peer_id,
+            burn_core::tensor::backend::ReduceOperation::Mean,
+        );
 
         for training_progress in TrainingLoop::new(self.starting_epoch, num_epochs) {
             let epoch = training_progress.items_processed;
@@ -99,7 +104,6 @@ where
                 &training_progress,
                 self.event_processor.clone(),
                 &interrupter,
-                self.peer_id,
                 self.peer_count,
                 self.is_main,
             );

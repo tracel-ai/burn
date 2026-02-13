@@ -5,7 +5,7 @@ use crate::{
     runtime::{AutodiffClient, AutodiffClientImpl},
 };
 use alloc::{boxed::Box, sync::Arc, vec};
-use burn_backend::{Backend, TensorMetadata};
+use burn_backend::{Backend, PeerId, ReduceOperation, ShardedParams, TensorMetadata};
 
 #[derive(Debug, Clone)]
 pub struct AutodiffTensor<B: Backend> {
@@ -51,6 +51,10 @@ impl Step for RootStep {
     fn depth(&self) -> usize {
         self.node.order
     }
+
+    fn sharded_params(&self) -> Option<ShardedParams> {
+        self.node.sharded_params.clone()
+    }
 }
 
 impl<B: Backend> AutodiffTensor<B> {
@@ -64,6 +68,7 @@ impl<B: Backend> AutodiffTensor<B> {
             Requirement::None,
             ComputingProperty::Ambiguous,
             AutodiffClientImpl::new(),
+            None,
         )
         .into();
 
@@ -97,13 +102,31 @@ impl<B: Backend> AutodiffTensor<B> {
                     Requirement::Grad,
                     self.node.properties.clone(),
                     self.node.client.clone(),
+                    self.node.sharded_params.clone(),
                 )
                 .into();
-                let step = RootStep::new(self.node.clone());
+                let step: RootStep = RootStep::new(self.node.clone());
 
                 self.register_step(step, CheckpointerBuilder::default())
             }
         }
+    }
+
+    /// Mark the tensor as sharded.
+    pub fn grad_sharded(mut self, peer_id: PeerId, op: ReduceOperation) -> Self {
+        self.node = Node::new(
+            vec![],
+            0,
+            self.node.id,
+            self.node.requirement,
+            self.node.properties.clone(),
+            self.node.client.clone(),
+            Some(ShardedParams { peer_id, op }),
+        )
+        .into();
+        let step = RootStep::new(self.node.clone());
+
+        self.register_step(step, CheckpointerBuilder::default())
     }
 
     /// Create a tensor from parent infos.
@@ -136,6 +159,7 @@ impl<B: Backend> AutodiffTensor<B> {
             requirement,
             computing_properties,
             client,
+            None, // Sharded params do not propagate.
         )
         .into();
 

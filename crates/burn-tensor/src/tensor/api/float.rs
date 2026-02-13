@@ -10,6 +10,9 @@ use crate::tensor::backend::Backend;
 use crate::tensor::stats;
 use crate::tensor::{Distribution, TensorData};
 use crate::{Bool, Int, TensorPrimitive};
+use burn_backend::PeerId;
+use burn_backend::ReduceOperation;
+use burn_backend::ShardedParams;
 use burn_backend::tensor::quantization::QuantizationParametersPrimitive;
 
 /// Default RTOL value for `is_close` and `all_close`.
@@ -529,6 +532,30 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
             }
         };
         Self::new(primitive)
+    }
+
+    /// Mark the tensor as sharded across multiple devices.
+    /// The gradients will be aggregated during the backward pass.
+    ///
+    /// This function does nothing when autodiff is not enabled.
+    pub fn set_sharded_params(self, peer_id: PeerId, op: ReduceOperation) -> Self {
+        let primitive = match self.primitive {
+            TensorPrimitive::Float(tensor) => {
+                TensorPrimitive::Float(B::float_set_sharded_params(tensor, peer_id, op))
+            }
+            TensorPrimitive::QFloat(_tensor) => {
+                todo!()
+            }
+        };
+        Self::new(primitive)
+    }
+
+    /// Returns the sharded parameters if the tensor was marked as sharded.
+    pub fn sharded_params(&self) -> Option<ShardedParams> {
+        match &self.primitive {
+            TensorPrimitive::Float(tensor) => B::float_sharded_params(tensor),
+            TensorPrimitive::QFloat(_tensor) => todo!(),
+        }
     }
 
     /// Applies the relu function to the tensor.

@@ -25,6 +25,7 @@ default = [
     # Default
     "ndarray",
     "std",
+    "burn-collective",
 ]
 std = [
     "burn-tensor/std",
@@ -89,6 +90,8 @@ cube = [
 # Test configs
 quantization = []
 
+collective = ["burn-collective"]
+
 [dependencies]
 burn-tensor = { path = "../burn-tensor", version = "=0.21.0", default-features = false }
 burn-tensor-testgen = { path = "../burn-tensor-testgen", version = "=0.21.0" }
@@ -113,8 +116,11 @@ burn-cubecl = { path = "../burn-cubecl", version = "=0.21.0", optional = true, f
     "fusion",
 ] }
 
+burn-collective = { path = "../burn-collective", version = "=0.21.0", optional = true, default-features = false }
+
 num-traits = { workspace = true }
 serial_test = { workspace = true }
 
 cubecl = { workspace = true, optional = true }
 cubek = { workspace = true, features = ["random"], optional = true }
+rand.workspace = true

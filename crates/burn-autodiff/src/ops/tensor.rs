@@ -20,7 +20,7 @@ use crate::{
 };
 
 use burn_backend::{
-    Backend, ExecutionError, TensorData, TensorMetadata,
+    Backend, ExecutionError, PeerId, ReduceOperation, ShardedParams, TensorData, TensorMetadata,
     ops::FloatTensorOps,
     tensor::{BoolTensor, Device, FloatTensor, IntTensor},
 };
@@ -1468,14 +1468,18 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
 
     fn float_detach(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         // When we detach a tensor, we remove it from the graph, but we still want to keep the
-        // `require_grad` setting.
+        // `require_grad` and `sharded` setting.
         let is_require_grad = Self::float_is_require_grad(&tensor);
-        let tensor = AutodiffTensor::new(tensor.primitive);
+        let sharded_params = Self::float_sharded_params(&tensor);
+        let mut tensor = AutodiffTensor::new(tensor.primitive);
 
-        match is_require_grad {
-            true => tensor.require_grad(),
-            false => tensor,
+        if is_require_grad {
+            tensor = tensor.require_grad();
         }
+        if let Some(params) = sharded_params {
+            tensor = tensor.grad_sharded(params.peer_id, params.op);
+        }
+        tensor
     }
 
     fn float_set_require_grad(tensor: FloatTensor<Self>, require_grad: bool) -> FloatTensor<Self> {
@@ -1488,6 +1492,18 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
 
     fn float_is_require_grad(tensor: &FloatTensor<Self>) -> bool {
         matches!(tensor.node.requirement, Requirement::Grad)
+    }
+
+    fn float_set_sharded_params(
+        tensor: FloatTensor<Self>,
+        peer_id: PeerId,
+        op: ReduceOperation,
+    ) -> FloatTensor<Self> {
+        tensor.grad_sharded(peer_id, op)
+    }
+
+    fn float_sharded_params(tensor: &FloatTensor<Self>) -> Option<ShardedParams> {
+        tensor.node.sharded_params.clone()
     }
 
     fn float_mean(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
@@ -2904,6 +2920,10 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             }
             fn depth(&self) -> usize {
                 self.output.order
+            }
+
+            fn sharded_params(&self) -> Option<ShardedParams> {
+                self.output.sharded_params.clone()
             }
         }
 
