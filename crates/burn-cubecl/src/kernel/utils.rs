@@ -114,9 +114,7 @@ pub fn broadcast_shape<R: CubeRuntime>(tensors: &[&CubeTensor<R>]) -> Shape {
         max
     });
 
-    Shape {
-        dims: dims.collect(),
-    }
+    Shape::from(dims)
 }
 
 pub fn broadcast_strides<'a, R: CubeRuntime>(
@@ -127,7 +125,7 @@ pub fn broadcast_strides<'a, R: CubeRuntime>(
         tensor
             .strides
             .iter()
-            .zip(tensor.shape.dims.iter().zip(&reference.shape.dims))
+            .zip(tensor.shape.iter().zip(reference.shape.iter()))
             .map(|(stride, (shape, ref_shape))| if *shape == *ref_shape { *stride } else { 0 })
             .map(ScalarArg::new)
             .collect()

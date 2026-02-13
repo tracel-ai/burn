@@ -79,7 +79,7 @@ pub(crate) fn scatter<R: CubeRuntime>(
         false => tensor.copy(),
     };
 
-    let num_elems = tensor.shape.num_elements() / tensor.shape.dims[dim];
+    let num_elems = tensor.shape.num_elements() / tensor.shape[dim];
 
     let working_units = num_elems;
     let cube_dim = CubeDim::new(&indices.client, working_units);

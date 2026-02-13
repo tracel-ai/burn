@@ -7,6 +7,7 @@ use crate::{
     },
 };
 use burn_ir::{TensorId, TensorIr};
+use burn_std::Shape;
 use cubecl::{Runtime, ir::LineSize};
 use std::collections::BTreeMap;
 
@@ -79,7 +80,7 @@ pub enum ReferenceSelection {
     /// Layout from a normal tensor.
     Concrete {
         layout: FuseArg,
-        shape: Vec<usize>,
+        shape: Shape,
         strides: Vec<usize>,
     },
     /// Layout from a swapped dim tensor.
@@ -92,7 +93,7 @@ pub enum ReferenceSelection {
     /// Layout that has the shape of an input, but not its strides.
     VirtualShape {
         original: FuseArg,
-        shape: Vec<usize>,
+        shape: Shape,
         strides: Vec<usize>,
     },
     /// The layout is provided dynamically by the host at runtime.
@@ -162,7 +163,7 @@ pub enum HandleOutput<R: Runtime> {
         relative_id: TensorId,
         precision: FuseType,
         handle: CubeFusionHandle<R>,
-        global_shape: Vec<usize>,
+        global_shape: Shape,
         vectorization: LineSize,
     },
 }
@@ -195,7 +196,7 @@ pub struct QuantValuesHandleInput<R: Runtime> {
 pub struct QuantParamsHandleInput<R: Runtime> {
     pub precision: FuseType,
     pub handle: CubeFusionHandle<R>,
-    pub shape: Vec<usize>,
+    pub shape: Shape,
 }
 
 /// Different types of inputs that can be passed to a fused kernel.

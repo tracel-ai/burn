@@ -6,6 +6,7 @@ use crate::optim::{
 };
 use burn_fusion::{FuserProperties, OperationFuser};
 use burn_ir::OperationIr;
+use burn_std::Shape;
 use cubecl::Runtime;
 use std::sync::Arc;
 
@@ -36,7 +37,7 @@ pub enum ReduceBroadcastedStatus {
     /// # Notes
     ///
     /// Subsequent reduce operations must be compatible with the previous reduction to fuse.
-    Init { shape_id: Vec<usize>, axis: usize },
+    Init { shape_id: Shape, axis: usize },
     /// No more operations can be fused.
     Closed,
     /// Invalid axis.

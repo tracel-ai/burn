@@ -48,7 +48,7 @@ pub(crate) fn select<R: CubeRuntime>(
     indices: CubeTensor<R>,
 ) -> CubeTensor<R> {
     let mut shape_output = tensor.shape.clone();
-    shape_output.dims[dim] = indices.shape[0];
+    shape_output[dim] = indices.shape[0];
     let total_elem = shape_output.num_elements();
 
     let output = empty_device_dtype(

@@ -84,8 +84,8 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
         register_outputs::<BT, R>(&plan.handle_outputs, &mut outputs, &mut tune_output);
 
         for layout in plan.runtime_layouts {
-            for s in layout.shape {
-                inputs.runtime_layouts.push(ScalarArg::new(s));
+            for s in layout.shape.iter() {
+                inputs.runtime_layouts.push(ScalarArg::new(*s));
             }
             for s in layout.strides {
                 inputs.runtime_layouts.push(ScalarArg::new(s));
@@ -167,9 +167,7 @@ fn register_inputs<'h, R: Runtime>(
     for hi in handle_inputs.iter() {
         match hi {
             HandleInput::Normal(hi) => {
-                let arg = hi
-                    .handle
-                    .as_tensor_arg(&hi.global_ir.shape.dims, hi.line_size);
+                let arg = hi.handle.as_tensor_arg(&hi.global_ir.shape, hi.line_size);
                 inputs.tensors.push(GlobalTensorArg::new(
                     arg,
                     hi.precision.into_elem(),
@@ -178,9 +176,7 @@ fn register_inputs<'h, R: Runtime>(
                 ));
             }
             HandleInput::QuantValues(hi) => {
-                let arg = hi
-                    .handle
-                    .as_tensor_arg(&hi.global_ir.shape.dims, hi.line_size);
+                let arg = hi.handle.as_tensor_arg(&hi.global_ir.shape, hi.line_size);
                 inputs.tensors.push(GlobalTensorArg::new(
                     arg,
                     hi.precision.into_elem(),

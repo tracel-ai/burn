@@ -10,7 +10,7 @@ use super::{FuseTrace, RegisteredTensors};
 use crate::engine::trace::block::QuantInput;
 use burn_fusion::stream::ScalarId;
 use burn_ir::{ScalarIr, TensorIr};
-use burn_std::DType;
+use burn_std::{DType, Shape};
 use cubecl::quant::scheme::QuantParam;
 
 #[derive(Clone, Debug)]
@@ -69,7 +69,7 @@ impl TraceFuser {
     }
 
     /// Close the current block with the given reference shape and creates a new one with new [fusion settings](FuseSettings).
-    pub fn next_block(&mut self, shape_ref: Vec<usize>, settings: FuseSettings) {
+    pub fn next_block(&mut self, shape_ref: Shape, settings: FuseSettings) {
         let mut block_new = FuseBlockBuilder::new(self.bool_precision, settings);
         core::mem::swap(&mut self.block_current, &mut block_new);
         block_new.shape_ref = shape_ref;
@@ -298,7 +298,7 @@ impl TraceFuser {
     }
 
     /// Finish fusing and returns the created trace.
-    pub fn finish(&mut self, shape_ref: Vec<usize>) -> FuseTrace {
+    pub fn finish(&mut self, shape_ref: Shape) -> FuseTrace {
         let mut resources = self.resources.clone();
         let mut outputs = RegisteredTensors::default();
         let mut buffers = Vec::new();

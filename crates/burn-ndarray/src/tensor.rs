@@ -373,9 +373,7 @@ impl ShapeOps for &[usize] {
     }
 
     fn into_shape(self) -> Shape {
-        Shape {
-            dims: self.to_vec(),
-        }
+        Shape::from(self)
     }
 }
 
@@ -479,7 +477,7 @@ macro_rules! reshape {
         shape $shape:expr,
         array $array:expr
     ) => {{
-        let dim = $crate::to_typed_dims!($n, $shape.dims, justdim);
+        let dim = $crate::to_typed_dims!($n, $shape, justdim);
         let array = match $array.is_standard_layout() {
             true => {
                 match $array.to_shape(dim) {

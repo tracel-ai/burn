@@ -64,7 +64,7 @@ fn conv_weight_grad_groups<R: CubeRuntime, const N_DIM: usize>(
 
     let dim_c = input.rank() - 1;
 
-    let channels_out = weight_shape.dims[0];
+    let channels_out = weight_shape[0];
     let increment_co = channels_out / options.groups;
 
     let input_swapped = swap_dims(input, 0, dim_c);
@@ -72,7 +72,7 @@ fn conv_weight_grad_groups<R: CubeRuntime, const N_DIM: usize>(
 
     let kernel_size = &weight_shape[1..dim_c];
     let kernel_size_slice = kernel_size.iter().map(|&s| 0..s).collect::<Vec<_>>();
-    let increment_ci = weight_grad.shape.dims[dim_c];
+    let increment_ci = weight_grad.shape[dim_c];
 
     for g in 0..options.groups {
         let start_idx_ci = g * increment_ci;
@@ -91,7 +91,7 @@ fn conv_weight_grad_groups<R: CubeRuntime, const N_DIM: usize>(
             Default::default(),
         )?;
         let mut weight_grad_tmp = swap_dims(weight_grad_tmp, 0, dim_c);
-        let kernel_size_tmp = &weight_grad_tmp.shape.dims[1..dim_c];
+        let kernel_size_tmp = &weight_grad_tmp.shape[1..dim_c];
 
         if kernel_size != kernel_size_tmp {
             let mut slices = vec![0..increment_co];

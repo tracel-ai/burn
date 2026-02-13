@@ -36,7 +36,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
             return Self::float_from_data(cpu_random::<F>(shape, distribution), device);
         }
 
-        let shape = shape.dims;
+        let shape = shape.to_vec();
         let device = &(device.clone()).into();
         match distribution {
             Distribution::Default => CandleTensor::new(

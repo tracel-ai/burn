@@ -780,7 +780,7 @@ pub trait ModuleOps<B: Backend> {
             // batch, channels, h_blocks, w_blocks, h_kern, w_kern
 
             let blocks = B::float_permute(blocks, &[0, 1, 4, 5, 2, 3]);
-            let shape = &blocks.shape().dims;
+            let shape = blocks.shape();
 
             // batch, channels, h_kern, w_kern, h_blocks, w_blocks
 

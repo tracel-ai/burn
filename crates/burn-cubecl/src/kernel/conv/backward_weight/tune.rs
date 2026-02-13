@@ -105,9 +105,9 @@ fn create_key<R: CubeRuntime, const N: usize>(
 
     let batch_size = input.shape[0];
     let in_channels = input.shape[dim_c];
-    let out_channels = weight_shape.dims[0];
+    let out_channels = weight_shape[0];
 
-    let kernel_size = weight_shape.dims[1..dim_c].to_vec();
+    let kernel_size = weight_shape[1..dim_c].to_vec();
     let in_shape = input.shape[1..dim_c]
         .iter()
         .map(|shape| anchor(*shape, None, None, None))
