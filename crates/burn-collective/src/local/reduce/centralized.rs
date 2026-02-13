@@ -9,7 +9,7 @@ use crate::local::tensor_map::get_common_shape;
 #[cfg_attr(feature = "tracing", tracing::instrument(
     level="trace",
     skip(tensors),
-    fields(shape = ?get_common_shape::<B>(&tensors).unwrap().dims)
+    fields(shape = ?get_common_shape::<B>(&tensors).unwrap())
 ))]
 pub(crate) fn reduce_sum_centralized<B: Backend>(
     mut tensors: CollectiveTensorMap<B>,

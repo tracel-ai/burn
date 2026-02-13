@@ -114,9 +114,7 @@ pub fn broadcast_shape<R: CubeRuntime>(tensors: &[&CubeTensor<R>]) -> Shape {
         max
     });
 
-    Shape {
-        dims: dims.collect(),
-    }
+    Shape::from(dims)
 }
 
 pub fn broadcast_strides<'a, R: CubeRuntime>(
@@ -127,7 +125,7 @@ pub fn broadcast_strides<'a, R: CubeRuntime>(
         tensor
             .strides
             .iter()
-            .zip(tensor.shape.dims.iter().zip(&reference.shape.dims))
+            .zip(tensor.shape.iter().zip(reference.shape.iter()))
             .map(|(stride, (shape, ref_shape))| if *shape == *ref_shape { *stride } else { 0 })
             .map(ScalarArg::new)
             .collect()
@@ -155,3 +153,30 @@ pub(crate) fn decompose_linear<I: FastDivmodInt>(
 
     (offs, out.rev())
 }
+
+pub(crate) trait RequiredAddrType {
+    fn required_address_type(&self) -> AddressType;
+}
+
+impl<R: CubeRuntime> RequiredAddrType for CubeTensor<R> {
+    fn required_address_type(&self) -> AddressType {
+        self.required_address_type()
+    }
+}
+impl<R: CubeRuntime> RequiredAddrType for Option<CubeTensor<R>> {
+    fn required_address_type(&self) -> AddressType {
+        self.as_ref()
+            .map(|it| it.required_address_type())
+            .unwrap_or_default()
+    }
+}
+
+macro_rules! address_type {
+    ($($tensor: tt),*) => {
+        [$($crate::kernel::utils::RequiredAddrType::required_address_type(&$tensor)),*]
+        .into_iter()
+        .max()
+        .unwrap_or_default()
+    };
+}
+pub(crate) use address_type;

@@ -3,14 +3,14 @@ use super::{
         codegen::ir::{FuseArg, FuseOp, FuseType, LayoutInfo},
         settings::FuseSettings,
     },
-    FuseResources, RegisterTensor,
+    FuseResources,
     block::FuseBlockBuilder,
 };
 use super::{FuseTrace, RegisteredTensors};
 use crate::engine::trace::block::QuantInput;
 use burn_fusion::stream::ScalarId;
-use burn_ir::{ScalarIr, TensorId, TensorIr};
-use burn_std::DType;
+use burn_ir::{ScalarIr, TensorIr};
+use burn_std::{DType, Shape};
 use cubecl::quant::scheme::QuantParam;
 
 #[derive(Clone, Debug)]
@@ -23,7 +23,7 @@ pub struct TraceFuser {
     pub bool_precision: FuseType,
     // The tensors returned by the block that don't need to be written to global memory.
     block_current: FuseBlockBuilder,
-    blocks_previous: Vec<(FuseBlockBuilder, Vec<usize>)>,
+    blocks_previous: Vec<FuseBlockBuilder>,
     resources: FuseResources,
 }
 
@@ -39,9 +39,16 @@ impl TraceFuser {
         }
     }
 
+    /// Get the number of blocks that are closed.
+    pub fn num_previous_blocks(&self) -> usize {
+        self.blocks_previous.len()
+    }
+
     /// Tag a tensor as dropped.
-    pub fn fuse_dropped(&mut self, id: TensorId) {
-        self.resources.dropped.insert(id);
+    pub fn fuse_dropped(&mut self, tensor: &TensorIr) {
+        self.resources.outputs.update(tensor);
+        self.resources.inputs.update(tensor);
+        self.resources.dropped.insert(tensor.id);
     }
 
     /// Register an operation.
@@ -53,7 +60,7 @@ impl TraceFuser {
     pub fn num_ops_fused(&self) -> u32 {
         let mut num_ops_fused = 0;
 
-        for (block, _) in self.blocks_previous.iter() {
+        for block in self.blocks_previous.iter() {
             num_ops_fused += block.ops.len();
         }
 
@@ -62,21 +69,29 @@ impl TraceFuser {
     }
 
     /// Close the current block with the given reference shape and creates a new one with new [fusion settings](FuseSettings).
-    pub fn next_block(&mut self, shape_ref: Vec<usize>, settings: FuseSettings) {
+    pub fn next_block(&mut self, shape_ref: Shape, settings: FuseSettings) {
         let mut block_new = FuseBlockBuilder::new(self.bool_precision, settings);
         core::mem::swap(&mut self.block_current, &mut block_new);
-        self.blocks_previous.push((block_new, shape_ref));
+        block_new.shape_ref = shape_ref;
+        self.blocks_previous.push(block_new);
         self.settings = settings;
     }
 
     // Estimate how many bindings are in use right now. This can return more than the actual number
     // but should never return less.
     pub fn estimate_bindings(&self) -> u32 {
+        let mut buffers = Vec::new();
         let mut estimation = 1; // Metadata takes one.
+
+        // We assume we are not going to write multiple times in the same output buffer.
         for b in self.blocks_previous.iter() {
-            estimation += b.0.estimate_num_outputs(&self.resources);
+            estimation += b.tensor_writes(&self.resources, &mut buffers).len() as u32;
         }
-        estimation += self.block_current.estimate_num_outputs(&self.resources);
+
+        estimation += self
+            .block_current
+            .tensor_writes(&self.resources, &mut buffers)
+            .len() as u32;
         estimation += self.resources.inputs.len() as u32;
         // One buffer per scalar type for now.
         estimation += self.resources.scalars.len() as u32;
@@ -84,11 +99,38 @@ impl TraceFuser {
         estimation
     }
 
-    /// Tag the [tensor](TensorIr) to be the logical returned value of the current block.
+    /// Tag the [tensor](TensorIr) as received from a previous block.
     ///
-    /// This will avoid the output to be written in global memory when not necessary.
-    pub fn block_local_output(&mut self, tensor: &TensorIr) {
-        self.block_current.local_outputs.push(tensor.id);
+    /// This will avoid reading the input again and instead use le local version when possible.
+    pub fn block_local_input(
+        &mut self,
+        tensor: &TensorIr,
+        block_pos: usize,
+        global: bool,
+    ) -> FuseArg {
+        let block = &mut self.blocks_previous[block_pos];
+
+        let src_arg = match block.multi_block_variable(block_pos, tensor, global) {
+            Some(val) => val,
+            None => {
+                // We try to read the input if not present.
+                block.input(tensor, &mut self.resources);
+                block
+                    .multi_block_variable(block_pos, tensor, global)
+                    .unwrap()
+            }
+        };
+
+        self.resources.outputs.update(tensor);
+
+        if global {
+            self.resources.registers.insert(tensor.id, src_arg.clone());
+        }
+
+        self.block_current
+            .local_inputs
+            .insert(tensor.id, src_arg.clone());
+        src_arg
     }
 
     /// Register an output tensor that won't be automatically synced into global memory.
@@ -98,6 +140,7 @@ impl TraceFuser {
         let arg = self
             .output(tensor)
             .expect("Can't add a new output that is already used in an index operation");
+
         self.resources.outputs_unhandled.push(arg.clone());
         self.block_current.outputs_unhandled.push(arg.clone());
         arg
@@ -110,6 +153,8 @@ impl TraceFuser {
         if self.resources.indexed.contains_key(&tensor.id) {
             panic!("Can't add a new input that is already used in an index operation");
         }
+
+        self.resources.outputs.update(tensor);
 
         let precision = tensor.dtype.into();
         // Bool tensors are encoded as bool_precision.
@@ -132,6 +177,7 @@ impl TraceFuser {
         if self.resources.indexed.contains_key(&tensor.id) {
             panic!("Can't add a new input that is already used in an index operation");
         }
+        self.resources.outputs.update(tensor);
 
         let precision = tensor.dtype.into();
         let precision_scales = match tensor.dtype {
@@ -160,11 +206,14 @@ impl TraceFuser {
             return None;
         }
 
+        self.resources.outputs.update(tensor);
+
         self.block_current.input(tensor, &mut self.resources)
     }
 
     /// Register an input tensor.
     pub fn input_quantized(&mut self, tensor: &TensorIr) -> Option<QuantInput> {
+        self.resources.outputs.update(tensor);
         self.block_current.input_quant(tensor, &mut self.resources)
     }
 
@@ -183,6 +232,7 @@ impl TraceFuser {
         }
 
         if let Some(val) = self.resources.indexed.get(&tensor.id) {
+            self.resources.outputs.update(tensor);
             return Some(val.clone());
         };
 
@@ -210,6 +260,8 @@ impl TraceFuser {
         if matches!(tensor.dtype, DType::QFloat(_)) {
             return None;
         }
+
+        self.resources.outputs.update(tensor);
         self.block_current
             .input_swap_dims(tensor, output, dims, &mut self.resources)
     }
@@ -220,6 +272,7 @@ impl TraceFuser {
             return None;
         }
 
+        self.resources.outputs.update(tensor);
         self.block_current
             .input_reshaped(tensor, output, &mut self.resources)
     }
@@ -245,38 +298,28 @@ impl TraceFuser {
     }
 
     /// Finish fusing and returns the created trace.
-    pub fn finish(&self, shape_ref: Vec<usize>) -> FuseTrace {
+    pub fn finish(&mut self, shape_ref: Shape) -> FuseTrace {
         let mut resources = self.resources.clone();
         let mut outputs = RegisteredTensors::default();
+        let mut buffers = Vec::new();
+
+        for tensor in resources.buffers.iter() {
+            let (tensor, ty) = tensor.as_normal_tensor().unwrap();
+            outputs.insert(*ty, tensor.clone());
+        }
+
         let mut blocks = Vec::new();
 
-        let mut register_block =
-            |block: &FuseBlockBuilder, shape_ref: &Vec<usize>, offset: usize| {
-                let (block, block_tensor_writes) =
-                    block.build(&self.resources, shape_ref.clone(), offset);
-                blocks.push(block);
+        let mut register_block = |block: &FuseBlockBuilder| {
+            let block = block.build(&self.resources, &mut outputs, &mut buffers);
+            blocks.push(block);
+        };
 
-                let num_outputs = block_tensor_writes.len();
-                for entry in block_tensor_writes.into_iter() {
-                    match entry {
-                        RegisterTensor::Normal(ir, precision) => {
-                            outputs.insert(precision, ir);
-                        }
-                        _ => {
-                            panic!("Quantized tensor unsupported for output")
-                        }
-                    }
-                }
-
-                num_outputs
-            };
-
-        let mut offset = 0;
-
-        for (block, shape_ref) in self.blocks_previous.iter() {
-            offset += register_block(block, shape_ref, offset);
+        for block in self.blocks_previous.iter() {
+            register_block(block);
         }
-        register_block(&self.block_current, &shape_ref, offset);
+        self.block_current.shape_ref = shape_ref;
+        register_block(&self.block_current);
 
         // We update the output tensors registered to be the ones that are written to in global
         // memory.

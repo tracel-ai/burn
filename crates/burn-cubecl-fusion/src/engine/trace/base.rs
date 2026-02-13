@@ -3,6 +3,7 @@ use crate::engine::{
     trace::block::FuseBlock,
 };
 use burn_ir::{TensorId, TensorIr};
+use burn_std::Shape;
 use cubecl::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -23,6 +24,30 @@ use std::collections::HashMap;
 pub struct FuseTrace {
     pub blocks: Vec<FuseBlock>,
     pub resources: FuseResources,
+}
+
+impl core::fmt::Display for FuseTrace {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "FuseTrace")?;
+        for b in self.blocks.iter() {
+            writeln!(f, " - Block shape={:?}", b.shape_ref)?;
+            for (tensor, ops) in b.reads.iter() {
+                for op in ops.iter() {
+                    writeln!(f, "   - {op} <== {tensor}")?;
+                }
+            }
+            for op in b.ops.iter() {
+                writeln!(f, "   - {op}")?;
+            }
+            for (tensor, ops) in b.writes.iter() {
+                for op in ops.iter() {
+                    writeln!(f, "   - {op} <== {tensor}")?;
+                }
+            }
+        }
+
+        Ok(())
+    }
 }
 
 pub enum TuneOutput<R: Runtime> {
@@ -74,10 +99,10 @@ impl<R: Runtime> cubecl::tune::AutotuneOutput for TuneOutput<R> {
                 num_handles += 1;
                 if let Some((shape_other, other)) = handles.get(id) {
                     use burn_std::is_contiguous;
-                    use cubecl::std::tensor::into_contiguous;
+                    use cubecl::std::tensor::into_contiguous_ref;
 
                     let current_handle = if !is_contiguous(&shape, &handle.strides) {
-                        into_contiguous::<R>(
+                        into_contiguous_ref::<R>(
                             &handle.client,
                             &handle.as_handle_ref(&shape),
                             handle.dtype.into(),
@@ -88,7 +113,7 @@ impl<R: Runtime> cubecl::tune::AutotuneOutput for TuneOutput<R> {
                         handle.handle.clone()
                     };
                     let other_handle = if !is_contiguous(&shape, &other.strides) {
-                        into_contiguous::<R>(
+                        into_contiguous_ref::<R>(
                             &other.client,
                             &other.as_handle_ref(&shape),
                             other.dtype.into(),
@@ -150,12 +175,36 @@ pub struct FuseResources {
     pub outputs: RegisteredTensors,
     pub inputs: RegisteredTensors,
     pub scalars: Vec<(FuseType, u64)>,
+    // TODO: Making put a map of global registers.
     pub views: Vec<TensorView>,
     pub indexed: BTreeMap<TensorId, FuseArg>,
     pub inputs_unhandled: Vec<TensorId>,
     pub outputs_unhandled: Vec<FuseArg>,
     pub num_reshaped: usize,
+    /// Necessary to remove some entries from the context.
     pub dropped: HashSet<TensorId>,
+    /// We know during fusion that we have to have those buffers has global.
+    /// The pos here can be interpreted as GLOBAL pos where the output pos are locals.
+    pub buffers: RegisteredTensors,
+    /// Global registers available everywhere.
+    ///
+    /// TODO: Not all registers should be globals.
+    pub registers: BTreeMap<TensorId, FuseArg>,
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug)]
+pub struct RuntimeLayout {
+    pub shape: Shape,
+    pub strides: Vec<usize>,
+}
+
+impl Default for RuntimeLayout {
+    fn default() -> Self {
+        Self {
+            shape: Shape::new([]),
+            strides: Default::default(),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -170,7 +219,7 @@ pub enum TensorView {
         reshaped: TensorId,
         original: TensorId,
         reshape_pos: usize,
-        shape_relative: Vec<usize>,
+        shape_relative: Shape,
     },
     SwapDims {
         swapped: TensorId,
@@ -297,7 +346,7 @@ impl RegisteredTensors {
     /// Insert a normal tensor with the given [precision](FusePrecision) in the current block.
     pub fn insert(&mut self, precision: FuseType, tensor: TensorIr) -> usize {
         if let Some(old) = self.tensors.iter().enumerate().find(|(_, val)| match &val {
-            RegisterTensor::Normal(tensor_ir, _) => tensor_ir == &tensor,
+            RegisterTensor::Normal(tensor_ir, _) => tensor_ir.id == tensor.id,
             _ => false,
         }) {
             return old.0;

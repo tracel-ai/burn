@@ -19,7 +19,10 @@ metal = ["burn/metal"]
 
 [dependencies]
 clap = { workspace = true, features = ["derive"] }
-burn = { path = "../../crates/burn", version = "=0.21.0", features = ["collective", "tracing"] }
+burn = { path = "../../crates/burn", version = "=0.21.0-pre.1", features = [
+    "collective",
+    "tracing",
+] }
 
 log = { workspace = true }
 rand = { workspace = true }
@@ -34,4 +37,3 @@ opentelemetry_sdk = { workspace = true }
 opentelemetry-aws = { workspace = true }
 opentelemetry-otlp = { workspace = true, features = ["tracing", "grpc-tonic"] }
 opentelemetry-stdout = "0.31.0"
-

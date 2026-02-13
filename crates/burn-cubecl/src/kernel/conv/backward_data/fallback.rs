@@ -20,9 +20,9 @@ pub(crate) fn conv_data_backward_fallback<R: CubeRuntime, const N_DIM: usize>(
 ) -> Result<CubeTensor<R>, ConvSetupError> {
     let dim_c = out_grad.rank();
 
-    let kernel_size = &weights.shape.dims[1..dim_c];
-    let in_shape = &in_shape.dims[1..dim_c];
-    let out_shape = &out_grad.shape.dims[1..dim_c];
+    let kernel_size = &weights.shape[1..dim_c];
+    let in_shape = &in_shape[1..dim_c];
+    let out_shape = &out_grad.shape[1..dim_c];
 
     let mut padding_out = [0; N_DIM];
 

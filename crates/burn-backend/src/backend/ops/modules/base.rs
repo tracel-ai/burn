@@ -378,9 +378,7 @@ impl GridSampleOptions {
 /// Padding mode for tensor pad operations.
 ///
 /// Defines how values are filled when padding a tensor beyond its original boundaries.
-///
-/// **Note**: Currently, padding is only supported on the last two dimensions of a tensor
-/// (typically height and width for image data in NCHW format).
+/// Padding can be applied to any dimension of a tensor.
 ///
 /// # Modes
 ///
@@ -430,6 +428,23 @@ impl<E: ElementConversion> From<E> for PadMode {
 pub struct InterpolateBackward<B: Backend> {
     /// Gradient.
     pub x_grad: FloatTensor<B>,
+}
+
+/// Options for [attention](ModuleOps::attention).
+#[derive(Debug, Clone, Copy, Default, PartialEq, serde::Deserialize, serde::Serialize)]
+pub struct AttentionOptions {
+    /// Custom scale factor applied to QK^T. When `None`, defaults to `1/sqrt(head_dim)`.
+    pub scale: Option<f64>,
+
+    /// Soft capping applied before softmax: `softcap * tanh(scores / softcap)`.
+    /// Used by Gemma-2 and similar models. Must be positive when set.
+    pub softcap: Option<f64>,
+
+    /// When `true`, applies causal (autoregressive) masking so that each query position
+    /// can only attend to key positions at or before it. This is more efficient than
+    /// passing an explicit lower-triangular bool mask because backends can use optimized
+    /// kernel paths (e.g. flash attention with causal mode).
+    pub is_causal: bool,
 }
 
 /// Module operations trait.
@@ -765,7 +780,7 @@ pub trait ModuleOps<B: Backend> {
             // batch, channels, h_blocks, w_blocks, h_kern, w_kern
 
             let blocks = B::float_permute(blocks, &[0, 1, 4, 5, 2, 3]);
-            let shape = &blocks.shape().dims;
+            let shape = blocks.shape();
 
             // batch, channels, h_kern, w_kern, h_blocks, w_blocks
 
@@ -989,15 +1004,19 @@ pub trait ModuleOps<B: Backend> {
         options: InterpolateOptions,
     ) -> FloatTensor<B>;
 
-    /// Computes scaled dot-product attention: softmax(QKᵗ / √d) · V,
-    /// optionally applying a mask to the attention scores.
+    /// Computes scaled dot-product attention: softmax(QKᵗ * scale) · V,
+    /// where scale defaults to 1/sqrt(head_dim). Optionally applies masking,
+    /// additive bias, causal masking, and softcap to the attention scores.
     ///
     /// # Arguments
-    /// - `query`: Query tensor of shape `[batch_size, num_heads, seq_len_q,  head_dim]`
+    /// - `query`: Query tensor of shape `[batch_size, num_heads, seq_len_q, head_dim]`
     /// - `key`: Key tensor of shape `[batch_size, num_heads, seq_len_k, head_dim]`
     /// - `value`: Value tensor of shape `[batch_size, num_heads, seq_len_k, val_dim]`
     /// - `mask`: Optional boolean mask of shape `[batch_size, num_heads, seq_len_q, seq_len_k]`,
-    ///   here `true` indicates positions to mask (i.e. set to -∞ before softmax).
+    ///   where `true` indicates positions to mask (i.e. set to -inf before softmax).
+    /// - `attn_bias`: Optional float tensor of shape `[batch_size, num_heads, seq_len_q, seq_len_k]`
+    ///   added to the attention scores before softmax (e.g. ALiBi, relative position biases).
+    /// - `options`: Additional attention options (custom scale, softcap, causal masking).
     ///
     /// # Returns
     /// A tensor of shape `[batch_size, num_heads, seq_len_q, val_dim]`
@@ -1011,8 +1030,10 @@ pub trait ModuleOps<B: Backend> {
         key: FloatTensor<B>,
         value: FloatTensor<B>,
         mask: Option<BoolTensor<B>>,
+        attn_bias: Option<FloatTensor<B>>,
+        options: AttentionOptions,
     ) -> FloatTensor<B> {
-        attention::naive_attention::<B>(query, key, value, mask)
+        attention::naive_attention::<B>(query, key, value, mask, attn_bias, options)
     }
 }
 

@@ -2,7 +2,7 @@ use crate::{
     CubeRuntime,
     kernel::{
         into_contiguous_aligned,
-        utils::{decompose_linear, shape_divmod},
+        utils::{address_type, decompose_linear, shape_divmod},
     },
     ops::{max_line_size, numeric::empty_device_dtype, permute_nchw_to_nhwc, permute_nhwc_to_nchw},
     tensor::CubeTensor,
@@ -12,7 +12,7 @@ use cubecl::{calculate_cube_count_elemwise, prelude::*, std::FastDivmod};
 
 use super::{PoolBackwardArgs, PoolBackwardArgsLaunch};
 
-#[cube(launch_unchecked)]
+#[cube(launch_unchecked, address_type = "dynamic")]
 fn max_pool2d_with_indices_backward_kernel<E: Numeric, I: Int>(
     grad: &Tensor<Line<E>>,
     indices: &Tensor<Line<I>>,
@@ -131,6 +131,7 @@ pub(crate) fn max_pool2d_with_indices_backward<R: CubeRuntime>(
             &x.client,
             cube_count,
             cube_dim,
+            address_type!(grad, indices, output),
             grad.as_tensor_arg(line_size),
             indices.as_tensor_arg(line_size),
             output.as_tensor_arg(line_size),
@@ -140,7 +141,7 @@ pub(crate) fn max_pool2d_with_indices_backward<R: CubeRuntime>(
                 ScalarArg::new(stride[0] as i32),
                 ScalarArg::new(stride[1] as i32),
                 ScalarArg::new(dilation[0] as i32),
-                ScalarArg::new(dilation[0] as i32),
+                ScalarArg::new(dilation[1] as i32),
                 ScalarArg::new(padding[0] as i32),
                 ScalarArg::new(padding[1] as i32),
             ),

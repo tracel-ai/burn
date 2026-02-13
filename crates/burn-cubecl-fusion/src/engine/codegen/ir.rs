@@ -1,21 +1,36 @@
-use burn_std::DType;
-use burn_std::quantization::{QuantScheme, QuantStore, QuantValue};
-use burn_std::{bf16, f16};
-use cubecl::ir::{ElemType, FloatKind, IntKind, StorageType, UIntKind};
-use cubecl::prelude::*;
-use serde::{Deserialize, Serialize};
-
 use super::tensor::GlobalTensor;
+use crate::engine::codegen::DYN_ELEM_ID;
+use burn_std::{
+    DType, bf16, f16,
+    quantization::{QuantScheme, QuantStore, QuantValue},
+};
+use core::fmt::Display;
+use cubecl::{
+    ir::{ElemType, FloatKind, IntKind, StorageType, UIntKind},
+    prelude::*,
+};
+use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
 /// Argument to a [fuse operation](FuseOp).
 pub enum FuseArg {
     /// A readonly input tensor.
     Input(usize, FuseType, LayoutInfo),
-    /// A temporary local variable.
-    Local(usize, FuseType),
     /// A readwrite output tensor.
     Output(usize, FuseType, LayoutInfo),
+    /// A temporary local variable within a single [block](FuseBlockConfig).
+    BlockLocal {
+        /// The position of the current variable relative to all local variables within a single block.
+        pos: usize,
+        /// The type of the current variable.
+        ty: FuseType,
+    },
+    /// A variable shared between multiple [block](FuseBlockConfig) that must have a compatible
+    /// scope.
+    MultiBlockLocal(MultiBlockPos, FuseType),
+    /// A variable shared between multiple [blocks](FuseBlockConfig) within a global accessible
+    /// scope.
+    MultiBlockGlobal(MultiBlockPos, FuseType),
     /// A global scalar.
     Scalar(usize, FuseType),
     /// A global scalar used in a reshape operation.
@@ -39,6 +54,15 @@ pub enum FuseArg {
     },
 }
 
+/// Metadata of a variable shared between blocks.
+#[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
+pub struct MultiBlockPos {
+    /// The block position in all blocks included in a fused trace.
+    pub block_pos: usize,
+    /// The [FuseArg::BlockLocal] position in the block where the variable is first initialized.
+    pub block_local_pos: usize,
+}
+
 #[derive(
     CubeType, Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord,
 )]
@@ -56,7 +80,9 @@ impl FuseArg {
     pub fn precision(&self) -> FuseType {
         *match self {
             FuseArg::Input(_, p, _) => p,
-            FuseArg::Local(_, p) => p,
+            FuseArg::BlockLocal { ty, .. } => ty,
+            FuseArg::MultiBlockLocal(_, p) => p,
+            FuseArg::MultiBlockGlobal(_, p) => p,
             FuseArg::Output(_, p, _) => p,
             FuseArg::Scalar(_, p) => p,
             FuseArg::Literal(_, p) => p,
@@ -143,6 +169,81 @@ pub enum FuseOp {
     },
 }
 
+impl Display for FuseOp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            FuseOp::Add(args) => write!(f, "{} = {} + {}", args.out, args.lhs, args.rhs),
+            FuseOp::Sub(args) => write!(f, "{} = {} - {}", args.out, args.lhs, args.rhs),
+            FuseOp::Mul(args) => write!(f, "{} = {} * {}", args.out, args.lhs, args.rhs),
+            FuseOp::Div(args) => write!(f, "{} = {} / {}", args.out, args.lhs, args.rhs),
+            FuseOp::Powf(args) => write!(f, "{} = powf({}, {})", args.out, args.lhs, args.rhs),
+            FuseOp::Abs(args) => write!(f, "{} = abs({})", args.out, args.input),
+            FuseOp::Exp(args) => write!(f, "{} = exp({})", args.out, args.input),
+            FuseOp::Log(args) => write!(f, "{} = log({})", args.out, args.input),
+            FuseOp::Log1p(args) => write!(f, "{} = log1p({})", args.out, args.input),
+            FuseOp::Cos(args) => write!(f, "{} = cos({})", args.out, args.input),
+            FuseOp::Sin(args) => write!(f, "{} = sin({})", args.out, args.input),
+            FuseOp::Tanh(args) => write!(f, "{} = tanh({})", args.out, args.input),
+            FuseOp::Erf(args) => write!(f, "{} = erf({})", args.out, args.input),
+            FuseOp::Sqrt(args) => write!(f, "{} = sqrt({})", args.out, args.input),
+            FuseOp::Recip(args) => write!(f, "{} = recip({})", args.out, args.input),
+            FuseOp::Assign(args) => write!(f, "{} = {}", args.out, args.input),
+            FuseOp::Equal(args) => write!(f, "{} = {} == {}", args.out, args.lhs, args.rhs),
+            FuseOp::Lower(args) => write!(f, "{} = {} < {}", args.out, args.lhs, args.rhs),
+            FuseOp::Greater(args) => write!(f, "{} = {} > {}", args.out, args.lhs, args.rhs),
+            FuseOp::LowerEqual(args) => write!(f, "{} = {} <= {}", args.out, args.lhs, args.rhs),
+            FuseOp::Rem(args) => write!(f, "{} = {} % {}", args.out, args.lhs, args.rhs),
+            FuseOp::GreaterEqual(args) => write!(f, "{} = {} >= {}", args.out, args.lhs, args.rhs),
+            FuseOp::Clamp {
+                input,
+                min,
+                max,
+                out,
+            } => write!(f, "{} = clamp({}, min={}, max={})", out, input, min, max),
+            FuseOp::ConditionalAssign {
+                cond,
+                lhs,
+                rhs,
+                out,
+            } => write!(
+                f,
+                "{} = select(cond={}, lhs={}, rhs={})",
+                out, cond, lhs, rhs
+            ),
+            FuseOp::Gather {
+                input,
+                indices,
+                output,
+                dim,
+            } => write!(
+                f,
+                "{} = gather(input={}, indices={}, dim={})",
+                output, input, indices, dim
+            ),
+            FuseOp::Select {
+                input,
+                indices,
+                output,
+                dim,
+            } => write!(
+                f,
+                "{} = select(input={}, indices={}, dim={})",
+                output, input, indices, dim
+            ),
+            FuseOp::Dequantize {
+                values,
+                params,
+                output,
+                scheme: _,
+            } => write!(
+                f,
+                "{} = dequantize(values={}, params={})",
+                output, values, params
+            ),
+        }
+    }
+}
+
 #[derive(
     CubeType, CubeLaunch, Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord,
 )]
@@ -194,9 +295,99 @@ impl FuseOp {
 #[derive(CubeType, CubeLaunch, Default, Clone)]
 /// Global arguments that are used for fusing [element wise operations](ElemTypewiseOp).
 pub struct GlobalArgs {
+    /// Tensors that are stored in global memory.
     pub tensors: Sequence<GlobalTensor>,
+    /// Scalars that are stored in global memory.
     pub scalars: Sequence<InputScalar>,
+    /// To be used to perform reshape inside a fused kernel.
     pub reshapes: Sequence<usize>,
+    /// When there are no metadata as a reference layout, we provide runtime shape/strides in this
+    /// sequence instead.
+    pub runtime_layouts: Sequence<usize>,
+    /// Variables shared between blocks.
+    pub variables: MultiBlockVariables,
+}
+
+impl<'a, R: Runtime> GlobalArgsLaunch<'a, R> {
+    pub fn required_address_type(&self) -> AddressType {
+        self.tensors
+            .values
+            .iter()
+            .map(|it| it.address_type)
+            .max()
+            .unwrap_or_default()
+    }
+}
+
+/// Variables shared between blocks.
+#[derive(CubeType, Default, Clone)]
+pub struct MultiBlockVariables {
+    variables: Registry<usize, Registry<usize, RuntimeCell<Line<NumericExpand<DYN_ELEM_ID>>>>>,
+}
+
+#[cube]
+impl MultiBlockVariables {
+    /// Initializes the variable with the given key and line size.
+    ///
+    /// # Notes
+    ///
+    /// The type of [`NumericExpand<DYN_ELEM_ID>`] must be set before calling this function.
+    pub fn init(&mut self, #[comptime] key: MultiBlockPos, #[comptime] line_size: usize) {
+        let mut registers = Registry::<
+            usize,
+            Registry<usize, RuntimeCell<Line<NumericExpand<DYN_ELEM_ID>>>>,
+        >::find_or_default::<usize>(&mut self.variables, key.block_pos);
+        let cell = RuntimeCell::new(Line::empty(line_size));
+        registers.insert(key.block_local_pos, cell);
+    }
+
+    /// Read the variable using the provided key.
+    ///
+    /// # Notes
+    ///
+    /// The variable must be initialized.
+    pub fn read(&self, #[comptime] key: MultiBlockPos) -> Line<NumericExpand<DYN_ELEM_ID>> {
+        let registers = self.variables.find(key.block_pos);
+        let cell = registers.find(key.block_local_pos);
+        cell.read()
+    }
+
+    /// Write to the variable using the provided key and value.
+    ///
+    /// # Notes
+    ///
+    /// The variable must be initialized.
+    pub fn write(
+        &mut self,
+        #[comptime] key: MultiBlockPos,
+        value: Line<NumericExpand<DYN_ELEM_ID>>,
+    ) {
+        let registers = self.variables.find(key.block_pos);
+        // Try find for local(visibility) registers.
+        let cell = registers.find(key.block_local_pos);
+        cell.store(value);
+    }
+}
+
+// Because we only create it DURING compilation, not as a real launch arg.
+unsafe impl Send for MultiBlockVariables {}
+unsafe impl Sync for MultiBlockVariables {}
+
+impl LaunchArg for MultiBlockVariables {
+    type RuntimeArg<'a, R: Runtime> = ();
+    type CompilationArg = ();
+
+    fn compilation_arg<R: Runtime>(_runtime_arg: &Self::RuntimeArg<'_, R>) -> Self::CompilationArg {
+    }
+
+    fn expand(
+        _arg: &Self::CompilationArg,
+        _builder: &mut KernelBuilder,
+    ) -> <Self as CubeType>::ExpandType {
+        MultiBlockVariablesExpand {
+            variables: Default::default(),
+        }
+    }
 }
 
 impl<R: Runtime> Default for GlobalArgsLaunch<'_, R> {
@@ -205,6 +396,8 @@ impl<R: Runtime> Default for GlobalArgsLaunch<'_, R> {
             tensors: Default::default(),
             scalars: Default::default(),
             reshapes: Default::default(),
+            variables: Default::default(),
+            runtime_layouts: Default::default(),
             _phantom_runtime: std::marker::PhantomData,
             _phantom_a: std::marker::PhantomData,
         }
@@ -249,6 +442,14 @@ impl<R: Runtime> GlobalArgsLaunch<'_, R> {
                         .collect()
                 }
                 VirtualLayout::Shape(original, _) => self.shape(original),
+                VirtualLayout::Runtime { pos } => {
+                    let start = (*pos * 2) * rank;
+                    let end = start + rank;
+                    self.runtime_layouts.values[start..end]
+                        .iter()
+                        .map(|s| s.elem)
+                        .collect()
+                }
             },
         }
     }
@@ -410,6 +611,136 @@ pub struct FuseBlockConfig {
     pub width: LineSize,
 }
 
+impl FuseBlockConfig {
+    pub fn multi_block_variables(&self, registers: &mut Vec<(MultiBlockPos, StorageType)>) {
+        for op in self.ops.iter() {
+            op.multi_block_variables(registers);
+        }
+    }
+}
+
+impl FuseArg {
+    pub fn multi_block_variable(&self, registers: &mut Vec<(MultiBlockPos, StorageType)>) {
+        match self {
+            FuseArg::MultiBlockGlobal(arg, fuse_type)
+                // TODO: we need to init the multi-block local, but at some point we could avoid
+                // that for performance (easier for the underlying compiler).
+            | FuseArg::MultiBlockLocal(arg, fuse_type) => {
+                registers.push((arg.clone(), fuse_type.into_type()))
+            }
+            _ => {}
+        };
+    }
+}
+
+impl FuseOp {
+    pub fn multi_block_variables(&self, registers: &mut Vec<(MultiBlockPos, StorageType)>) {
+        match self {
+            FuseOp::Add(binary_fuse_args)
+            | FuseOp::Sub(binary_fuse_args)
+            | FuseOp::Mul(binary_fuse_args)
+            | FuseOp::Div(binary_fuse_args)
+            | FuseOp::Powf(binary_fuse_args)
+            | FuseOp::Equal(binary_fuse_args)
+            | FuseOp::Lower(binary_fuse_args)
+            | FuseOp::Greater(binary_fuse_args)
+            | FuseOp::LowerEqual(binary_fuse_args)
+            | FuseOp::Rem(binary_fuse_args)
+            | FuseOp::GreaterEqual(binary_fuse_args) => {
+                binary_fuse_args.lhs.multi_block_variable(registers);
+                binary_fuse_args.rhs.multi_block_variable(registers);
+                binary_fuse_args.out.multi_block_variable(registers);
+            }
+            FuseOp::Abs(unary_fuse_args)
+            | FuseOp::Exp(unary_fuse_args)
+            | FuseOp::Log(unary_fuse_args)
+            | FuseOp::Log1p(unary_fuse_args)
+            | FuseOp::Cos(unary_fuse_args)
+            | FuseOp::Sin(unary_fuse_args)
+            | FuseOp::Tanh(unary_fuse_args)
+            | FuseOp::Erf(unary_fuse_args)
+            | FuseOp::Sqrt(unary_fuse_args)
+            | FuseOp::Recip(unary_fuse_args)
+            | FuseOp::Assign(unary_fuse_args) => {
+                unary_fuse_args.input.multi_block_variable(registers);
+                unary_fuse_args.out.multi_block_variable(registers);
+            }
+            FuseOp::Clamp {
+                input,
+                min,
+                max,
+                out,
+            } => {
+                input.multi_block_variable(registers);
+                min.multi_block_variable(registers);
+                max.multi_block_variable(registers);
+                out.multi_block_variable(registers);
+            }
+            FuseOp::ConditionalAssign {
+                cond,
+                lhs,
+                rhs,
+                out,
+            } => {
+                cond.multi_block_variable(registers);
+                lhs.multi_block_variable(registers);
+                rhs.multi_block_variable(registers);
+                out.multi_block_variable(registers);
+            }
+            FuseOp::Gather {
+                input,
+                indices,
+                output,
+                dim: _,
+            } => {
+                input.multi_block_variable(registers);
+                indices.multi_block_variable(registers);
+                output.multi_block_variable(registers);
+            }
+            FuseOp::Select {
+                input,
+                indices,
+                output,
+                dim: _,
+            } => {
+                input.multi_block_variable(registers);
+                indices.multi_block_variable(registers);
+                output.multi_block_variable(registers);
+            }
+            FuseOp::Dequantize {
+                values,
+                params,
+                output,
+                scheme: _,
+            } => {
+                values.multi_block_variable(registers);
+                params.multi_block_variable(registers);
+                output.multi_block_variable(registers);
+            }
+        }
+    }
+}
+
+#[cube]
+/// Initializes block variables, both globals and locals.
+pub fn multi_block_variables_init(
+    #[comptime] block: &FuseBlockConfig,
+    variables: &mut MultiBlockVariables,
+) {
+    let output = comptime! {
+        let mut output = Vec::<(MultiBlockPos, StorageType)>::new();
+        block.multi_block_variables(&mut output);
+        output
+    };
+
+    #[unroll]
+    for i in 0..comptime!(output.len()) {
+        let (key, dtype) = comptime!(output.get(i).unwrap().clone());
+        set_polyfill::<NumericExpand<DYN_ELEM_ID>>(dtype);
+        variables.init(key, block.width);
+    }
+}
+
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 /// A reference layout determines how a fuse execution will access elements in tensors.
 ///
@@ -433,6 +764,8 @@ pub enum VirtualLayout {
     SwapDims(FuseArg, (usize, usize)),
     /// Virtual tensor with the same shape as the given input, but with contiguous strides.
     Shape(FuseArg, usize),
+    /// We don't have access to global metadata, they are passed as runtime values.
+    Runtime { pos: usize },
 }
 
 impl FuseArg {
@@ -552,5 +885,32 @@ impl From<DType> for FuseType {
                 },
             },
         }
+    }
+}
+
+impl Display for FuseArg {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            FuseArg::Input(pos, ..) => write!(f, "input({pos})"),
+            FuseArg::Output(pos, ..) => write!(f, "output({pos})"),
+            FuseArg::BlockLocal { pos, ty } => write!(f, "local({pos}, {ty:?})"),
+            FuseArg::MultiBlockLocal(mbp, ..) => write!(f, "{mbp}"),
+            FuseArg::MultiBlockGlobal(mbp, ..) => write!(f, "global_{mbp}"),
+            FuseArg::Scalar(pos, ..) => write!(f, "scalar({pos})"),
+            FuseArg::ScalarShape(pos) => write!(f, "scalar_shape({pos})"),
+            FuseArg::Literal(val, ..) => write!(f, "literal_{val}"),
+            FuseArg::InputReshaped { original, .. } => write!(f, "input_reshaped_{original}"),
+            FuseArg::InputSwapDims { original, .. } => write!(f, "input_swap_dims_{original}"),
+        }
+    }
+}
+
+impl Display for MultiBlockPos {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "block_local({}-{})",
+            self.block_pos, self.block_local_pos
+        )
     }
 }

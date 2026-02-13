@@ -29,7 +29,7 @@ pub struct FusionTensor<R: FusionRuntime> {
 
 impl<R: FusionRuntime> Clone for FusionTensor<R> {
     fn clone(&self) -> Self {
-        self.count.fetch_add(1, Ordering::Relaxed);
+        self.count.fetch_add(1, Ordering::Acquire);
 
         Self {
             id: self.id,
@@ -108,7 +108,7 @@ impl<R: FusionRuntime> FusionTensor<R> {
 
     /// Intermediate representation to be used when using an initialized tensor used as input.
     pub fn into_ir(mut self) -> TensorIr {
-        let count = self.count.load(Ordering::Relaxed);
+        let count = self.count.load(Ordering::Acquire);
         let status = self.status(count);
 
         let mut shape_out = Shape::from(Vec::<usize>::new());
@@ -119,7 +119,7 @@ impl<R: FusionRuntime> FusionTensor<R> {
             //
             // Since `drop` is called after `into_ir`, we must not register a drop if the tensor
             // was consumed with a `ReadWrite` status.
-            self.count.fetch_add(1, Ordering::Relaxed);
+            self.count.fetch_add(1, Ordering::Acquire);
         }
 
         TensorIr {
@@ -188,7 +188,7 @@ impl<RO: FusionRuntime> Operation<RO> for DropOp {
 
 impl<R: FusionRuntime> Drop for FusionTensor<R> {
     fn drop(&mut self) {
-        let count = self.count.fetch_sub(1, Ordering::Relaxed);
+        let count = self.count.fetch_sub(1, Ordering::Acquire);
 
         // Workaround to prevent segfaults when an operation panics
         if std::thread::panicking() {

@@ -1,6 +1,6 @@
 use crate::{
     CubeRuntime,
-    kernel::utils::{linear_view, shape_divmod},
+    kernel::utils::{address_type, linear_view, shape_divmod},
     tensor::CubeTensor,
 };
 use cubecl::{
@@ -9,7 +9,7 @@ use cubecl::{
     std::{FastDivmod, FastDivmodArgs, tensor::layout::linear::LinearView},
 };
 
-#[cube(launch_unchecked)]
+#[cube(launch_unchecked, address_type = "dynamic")]
 fn slice_assign_kernel<E: Numeric>(
     input: &mut Tensor<Line<E>>,
     value: &LinearView<Line<E>>,
@@ -45,7 +45,7 @@ fn slice_assign_kernel<E: Numeric>(
 }
 
 /// Kernel for slice assign with steps
-#[cube(launch_unchecked)]
+#[cube(launch_unchecked, address_type = "dynamic")]
 fn slice_assign_with_steps_kernel<E: Numeric>(
     input: &mut Tensor<E>,
     value: &LinearView<E>,
@@ -168,6 +168,7 @@ pub(crate) fn slice_assign<R: CubeRuntime>(
             &tensor.client,
             cube_count,
             cube_dim,
+            address_type!(tensor, value),
             tensor.as_tensor_arg(line_size),
             linear_view(&value, line_size),
             shape,
@@ -228,6 +229,7 @@ pub(crate) fn slice_assign_with_steps<R: CubeRuntime>(
             &tensor.client,
             cube_count,
             cube_dim,
+            address_type!(tensor, value),
             tensor.as_tensor_arg(1),
             linear_view(&value, 1),
             shape_divmod(&value),

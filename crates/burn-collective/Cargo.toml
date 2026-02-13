@@ -30,12 +30,12 @@ test-metal = []
 test-vulkan = []
 
 [dependencies]
-burn-tensor = { path = "../burn-tensor", version = "=0.21.0", default-features = true }
-burn-std = { path = "../burn-std", version = "=0.21.0", default-features = true }
+burn-tensor = { path = "../burn-tensor", version = "=0.21.0-pre.1", default-features = true }
+burn-std = { path = "../burn-std", version = "=0.21.0-pre.1", default-features = true }
 
 log = { workspace = true }
 
-burn-communication = { path = "../burn-communication", version = "=0.21.0", features = [
+burn-communication = { path = "../burn-communication", version = "=0.21.0-pre.1", features = [
     "data-service",
     "websocket",
 ] }

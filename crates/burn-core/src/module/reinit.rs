@@ -4,7 +4,7 @@ use burn_tensor::{
     backend::Backend,
     ops::{FloatElem, IntElem},
 };
-use rand::{Rng, SeedableRng};
+use rand::{RngExt, SeedableRng};
 
 #[derive(Debug)]
 /// Overrides float and int tensors of [burn modules](super::Module).

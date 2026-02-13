@@ -1,5 +1,8 @@
 use crate::{
-    CubeRuntime, kernel::utils::shape_divmod, ops::numeric::empty_device_dtype, tensor::CubeTensor,
+    CubeRuntime,
+    kernel::utils::{address_type, shape_divmod},
+    ops::numeric::empty_device_dtype,
+    tensor::CubeTensor,
 };
 use cubecl::{
     calculate_cube_count_elemwise,
@@ -7,7 +10,7 @@ use cubecl::{
     std::{FastDivmod, FastDivmodArgs},
 };
 
-#[cube(launch_unchecked)]
+#[cube(launch_unchecked, address_type = "dynamic")]
 fn repeat_dim_kernel<E: Numeric>(
     input: &Tensor<E>,
     output: &mut Tensor<E>,
@@ -75,6 +78,7 @@ pub(crate) fn repeat_dim<R: CubeRuntime>(
             &input.client,
             cube_count,
             cube_dim,
+            address_type!(input, output),
             input.as_tensor_arg(1),
             output.as_tensor_arg(1),
             shape_divmod(&output),

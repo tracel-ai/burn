@@ -28,7 +28,7 @@ pub(crate) async fn into_data<R: CubeRuntime>(
     let tensor = kernel::into_contiguous_aligned(tensor);
 
     let elem_size = tensor.elem_size();
-    let shape = &tensor.shape.dims;
+    let shape = &tensor.shape;
     let binding = CopyDescriptor::new(tensor.handle.binding(), shape, &tensor.strides, elem_size);
     let bytes = tensor
         .client
@@ -70,7 +70,7 @@ pub(crate) fn empty<R: CubeRuntime>(
     dtype: DType,
 ) -> CubeTensor<R> {
     let client = R::client(device);
-    let alloc = client.empty_tensor(&shape.dims, dtype.size());
+    let alloc = client.empty_tensor(&shape, dtype.size());
 
     CubeTensor::new(
         client,
@@ -104,7 +104,7 @@ pub(crate) fn swap_dims<R: CubeRuntime>(
             panic!("Swapped block size would exceed max dims");
         }
 
-        qparams.scales.shape.dims.swap(dim1, dim2);
+        qparams.scales.shape.inner_mut().swap(dim1, dim2);
         qparams.scales.strides.swap(dim1, dim2);
 
         tensor.dtype = DType::QFloat(scheme.with_level(QuantLevel::Block(block_size)))
@@ -280,7 +280,7 @@ pub(crate) fn expand<R: CubeRuntime>(tensor: CubeTensor<R>, target_shape: Shape)
 
 /// Reshape a jit tensor to a new shape
 pub fn reshape<R: CubeRuntime>(mut tensor: CubeTensor<R>, shape: Shape) -> CubeTensor<R> {
-    let analysis = reshape_action(&tensor.shape.dims, &tensor.strides, &shape.dims);
+    let analysis = reshape_action(&tensor.shape, &tensor.strides, &shape);
 
     match analysis {
         ReshapeAction::UpdateStrides { strides } => {
@@ -323,8 +323,8 @@ pub fn q_reshape<R: CubeRuntime>(mut tensor: CubeTensor<R>, shape: Shape) -> Cub
     let shape_scales = params_shape(&shape, scheme.level);
     let (values, scales) = tensor.quantized_handles().unwrap();
 
-    let analysis_values = reshape_action(&values.shape.dims, &values.strides, &shape_values.dims);
-    let analysis_scales = reshape_action(&scales.shape.dims, &scales.strides, &shape_scales.dims);
+    let analysis_values = reshape_action(&values.shape, &values.strides, &shape_values);
+    let analysis_scales = reshape_action(&scales.shape, &scales.strides, &shape_scales);
 
     match (analysis_values, analysis_scales) {
         (
@@ -360,11 +360,11 @@ pub fn q_reshape<R: CubeRuntime>(mut tensor: CubeTensor<R>, shape: Shape) -> Cub
         _ => {
             tensor = kernel::into_contiguous(tensor);
             tensor.shape = shape;
-            tensor.strides = contiguous_strides(&shape_values.dims);
+            tensor.strides = contiguous_strides(&shape_values);
 
             let qparams = tensor.qparams.as_mut().unwrap();
 
-            qparams.scales.strides = contiguous_strides(&shape_scales.dims);
+            qparams.scales.strides = contiguous_strides(&shape_scales);
             qparams.scales.shape = shape_scales;
         }
     }

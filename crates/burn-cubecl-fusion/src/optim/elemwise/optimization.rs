@@ -3,7 +3,10 @@ use crate::{
     engine::{
         codegen::{
             io::ref_len,
-            ir::{FuseArg, FuseBlockConfig, GlobalArgs, GlobalArgsLaunch, RefLayout},
+            ir::{
+                FuseArg, FuseBlockConfig, GlobalArgs, GlobalArgsLaunch, RefLayout,
+                multi_block_variables_init,
+            },
             kernel::{fuse_on_write, init_locals},
         },
         launch::{
@@ -20,7 +23,7 @@ use serde::{Deserialize, Serialize};
 #[derive(new)]
 /// Fuse element wise operations into a single kernel.
 pub struct ElemwiseOptimization<R: Runtime> {
-    trace: FuseTrace,
+    pub(crate) trace: FuseTrace,
     client: ComputeClient<R>,
     device: R::Device,
     len: usize,
@@ -35,7 +38,7 @@ pub struct ElemwiseOptimizationState {
 
 impl<R: Runtime> ElemwiseOptimization<R> {
     /// Execute the optimization.
-    pub fn execute<BT: CubeElement>(&mut self, context: &mut Context<'_, CubeFusionHandle<R>>) {
+    pub fn execute<BT: CubeElement>(&self, context: &mut Context<'_, CubeFusionHandle<R>>) {
         let launcher = FuseTraceLauncher::new(&self.trace, &ElemwiseRunner);
 
         match launcher.launch::<BT>(&self.client, &self.device, context) {
@@ -95,12 +98,16 @@ impl<R: Runtime> TraceRunner<R> for ElemwiseRunner {
         let working_units = shape.iter().product::<usize>() / config.width;
         let cube_dim = CubeDim::new(client, working_units);
         let cube_count = calculate_cube_count_elemwise(client, working_units, cube_dim);
+        let address_type = inputs
+            .required_address_type()
+            .max(outputs.required_address_type());
 
         unsafe {
             elemwise_fuse::launch_unchecked(
                 client,
                 cube_count,
                 cube_dim,
+                address_type,
                 inputs,
                 outputs,
                 config.clone(),
@@ -111,7 +118,7 @@ impl<R: Runtime> TraceRunner<R> for ElemwiseRunner {
     }
 }
 
-#[cube(launch_unchecked)]
+#[cube(launch_unchecked, address_type = "dynamic")]
 fn elemwise_fuse(
     inputs: &GlobalArgs,
     outputs: &mut GlobalArgs,
@@ -121,6 +128,8 @@ fn elemwise_fuse(
     let values = Registry::<FuseArg, Line<f32>>::new();
     let args = comptime![Vec::<FuseArg>::new()];
     let pos = ABSOLUTE_POS;
+
+    multi_block_variables_init(config, &mut outputs.variables);
 
     let mut locals = init_locals(inputs, outputs, config);
     let length = ref_len(inputs, outputs, &locals, config);

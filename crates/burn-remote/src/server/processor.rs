@@ -112,10 +112,12 @@ where
                     }
                     ProcessorTask::Seed(seed) => runner.seed(seed),
                     ProcessorTask::SupportsDType(id, dtype, callback) => {
-                        let result = runner.dtype_usage(dtype);
+                        let _result = runner.dtype_usage(dtype);
                         callback
                             .send(TaskResponse {
-                                content: TaskResponseContent::SupportsDType(result),
+                                // content: TaskResponseContent::SupportsDType(result),
+                                // TODO: Update to result.
+                                content: TaskResponseContent::SupportsDType(()),
                                 id,
                             })
                             .await

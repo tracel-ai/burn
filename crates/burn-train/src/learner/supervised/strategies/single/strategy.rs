@@ -7,10 +7,10 @@ use burn_core::{data::dataloader::Progress, tensor::Device};
 
 /// Simplest learning strategy possible, with only a single devices doing both the training and
 /// validation.
-pub struct SingleDevicetrainingStrategy<LC: LearningComponentsTypes> {
+pub struct SingleDeviceTrainingStrategy<LC: LearningComponentsTypes> {
     device: Device<TrainingBackend<LC>>,
 }
-impl<LC: LearningComponentsTypes> SingleDevicetrainingStrategy<LC> {
+impl<LC: LearningComponentsTypes> SingleDeviceTrainingStrategy<LC> {
     pub fn new(device: Device<TrainingBackend<LC>>) -> Self {
         Self { device }
     }
@@ -42,7 +42,7 @@ impl Iterator for TrainingLoop {
 }
 
 impl<LC: LearningComponentsTypes> SupervisedLearningStrategy<LC>
-    for SingleDevicetrainingStrategy<LC>
+    for SingleDeviceTrainingStrategy<LC>
 {
     fn fit(
         &self,

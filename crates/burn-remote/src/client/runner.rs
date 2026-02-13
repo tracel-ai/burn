@@ -119,10 +119,7 @@ impl RunnerClient for RemoteClient {
         let fut = self.sender.send_async(ComputeTask::SupportsDType(dtype));
 
         match self.runtime.block_on(fut) {
-            Ok(response) => match response {
-                TaskResponseContent::SupportsDType(res) => res,
-                _ => panic!("Invalid message type"),
-            },
+            Ok(_response) => panic!("Invalid message type"),
             Err(e) => panic!("Failed to check dtype support: {:?}", e),
         }
     }

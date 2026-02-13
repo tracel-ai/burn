@@ -6,7 +6,10 @@ use super::tune::fused_reduce_autotune;
 use crate::{
     CubeFusionHandle, FallbackOperation,
     engine::{
-        codegen::ir::{FuseArg, FuseBlockConfig, FuseType, GlobalArgsLaunch, RefLayout},
+        codegen::ir::{
+            FuseArg, FuseBlockConfig, FuseType, GlobalArgsLaunch, RefLayout,
+            multi_block_variables_init,
+        },
         launch::{
             FuseTraceLauncher,
             runner::{TraceRunner, Vectorization},
@@ -36,7 +39,7 @@ use std::sync::Arc;
 use cubek::reduce::routines::{BlueprintStrategy, unit::UnitStrategy};
 
 pub struct ReduceOptimization<R: Runtime> {
-    info: Arc<ReduceOptimizationInfo<R>>,
+    pub(crate) info: Arc<ReduceOptimizationInfo<R>>,
 }
 
 pub(crate) struct ReduceOptimizationInfo<R: Runtime> {
@@ -48,11 +51,61 @@ pub(crate) struct ReduceOptimizationInfo<R: Runtime> {
     pub(crate) len: usize,
     pub(crate) len_read: usize,
     pub(crate) reduce: FusedReduce,
+    settings: ReduceSettings,
+}
+
+impl<R: Runtime> ReduceOptimizationInfo<R> {
+    pub fn from_state(device: &R::Device, state: ReduceOptimizationState) -> Self {
+        let client = R::client(device);
+
+        Self {
+            trace: state.trace,
+            trace_read_fallback: state.trace_read_fallback,
+            trace_write_fallback: state.trace_write_fallback,
+            client,
+            device: device.clone(),
+            len: state.len,
+            len_read: state.len_read,
+            reduce: state.reduce,
+            settings: state.settings,
+        }
+    }
+    pub fn to_state(&self) -> ReduceOptimizationState {
+        ReduceOptimizationState {
+            trace: self.trace.clone(),
+            trace_read_fallback: self.trace_read_fallback.clone(),
+            trace_write_fallback: self.trace_write_fallback.clone(),
+            len: self.len,
+            len_read: self.len_read,
+            reduce: self.reduce.clone(),
+            settings: self.settings,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Copy, Clone)]
+pub enum ReduceSettings {
+    Always,
+    /// We only activate fuse-on-write when the reduction isn't on the last dimension, otherwise
+    /// vectorization is impossible. Only [LineMode::Perpendicular] supports vectorization.
+    ///
+    /// We could still fuse some output operations, but it would probably lead to worse performance.
+    OnlyParallel,
+    Never,
 }
 
 pub(crate) struct ReduceOptimizationTuneArg<R: Runtime> {
     pub(crate) info: Arc<ReduceOptimizationInfo<R>>,
-    pub(crate) fallback: Box<dyn FallbackOperation<R>>,
+    pub(crate) fallback: Arc<Box<dyn FallbackOperation<R>>>,
+}
+
+impl<R: Runtime> Clone for ReduceOptimizationTuneArg<R> {
+    fn clone(&self) -> Self {
+        Self {
+            info: self.info.clone(),
+            fallback: self.fallback.clone(),
+        }
+    }
 }
 
 #[derive(Clone, Copy, Serialize, Deserialize, Debug)]
@@ -73,12 +126,13 @@ pub trait ReduceFallbackFn<R: Runtime>: Send + Sync {
 
 #[derive(Serialize, Deserialize)]
 pub struct ReduceOptimizationState {
-    trace: FuseTrace,
-    trace_read_fallback: FuseTrace,
-    trace_write_fallback: FuseTrace,
+    pub(crate) trace: FuseTrace,
+    pub(crate) trace_read_fallback: FuseTrace,
+    pub(crate) trace_write_fallback: FuseTrace,
     pub(crate) reduce: FusedReduce,
-    len: usize,
-    len_read: usize,
+    pub(crate) len: usize,
+    pub(crate) len_read: usize,
+    pub(crate) settings: ReduceSettings,
 }
 
 impl core::fmt::Debug for ReduceOptimizationState {
@@ -179,6 +233,7 @@ impl<R: Runtime> ReduceOptimization<R> {
         len: usize,
         len_read: usize,
         reduce: FusedReduce,
+        settings: ReduceSettings,
     ) -> Self {
         let info = ReduceOptimizationInfo {
             trace,
@@ -189,6 +244,7 @@ impl<R: Runtime> ReduceOptimization<R> {
             len,
             len_read,
             reduce,
+            settings,
         };
 
         Self {
@@ -205,7 +261,7 @@ impl<R: Runtime> ReduceOptimization<R> {
         let fallback = fallback(self.info.len_read);
         let arg = ReduceOptimizationTuneArg {
             info: self.info.clone(),
-            fallback,
+            fallback: Arc::new(fallback),
         };
 
         #[cfg(feature = "autotune")]
@@ -235,6 +291,7 @@ impl<R: Runtime> ReduceOptimization<R> {
             reduce: self.info.reduce.clone(),
             len: self.info.len,
             len_read: self.info.len_read,
+            settings: self.info.settings,
         }
     }
 
@@ -250,6 +307,7 @@ impl<R: Runtime> ReduceOptimization<R> {
             len_read: state.len_read,
             client,
             device: device.clone(),
+            settings: state.settings,
         };
 
         Self {
@@ -293,6 +351,9 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceLaunch<'_> {
             true => LineMode::Parallel,
             false => LineMode::Perpendicular,
         };
+        let address_type = inputs
+            .required_address_type()
+            .max(outputs.required_address_type());
 
         let settings = ReduceLineSettings {
             line_mode,
@@ -308,6 +369,7 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceLaunch<'_> {
                 output: self.reduce.op.out.dtype.into(),
                 accumulation: self.reduce.acc.into_elem().into(),
             },
+            address_type,
         };
 
         let (blueprint, settings) = match self.strategy.clone() {
@@ -393,10 +455,11 @@ fn launch_reduce<Run: Runtime>(
     dtype_acc: DType,
 ) -> Result<(), LaunchError> {
     unsafe {
-        reduce_kernel::launch_unchecked::<Run>(
+        reduce_kernel_fused::launch_unchecked::<Run>(
             kwargs.client,
             kwargs.settings.cube_count,
             kwargs.settings.cube_dim,
+            kwargs.settings.address_type,
             FusedReduceInputLaunch::new(kwargs.inputs, kwargs.config_fuse_read, kwargs.input),
             FusedReduceOutputLaunch::new(kwargs.outputs, kwargs.config_fuse_write, kwargs.output),
             ScalarArg::new(kwargs.axis),
@@ -409,8 +472,8 @@ fn launch_reduce<Run: Runtime>(
     }
 }
 
-#[cube(launch_unchecked)]
-pub fn reduce_kernel<In: Numeric, Out: Numeric, Acc: Numeric>(
+#[cube(launch_unchecked, address_type = "dynamic")]
+pub fn reduce_kernel_fused<In: Numeric, Out: Numeric, Acc: Numeric>(
     input: &FusedReduceInput,
     output: &mut FusedReduceOutput,
     axis_reduce: usize,
@@ -420,6 +483,9 @@ pub fn reduce_kernel<In: Numeric, Out: Numeric, Acc: Numeric>(
     #[define(Out)] _output_dtype: StorageType,
     #[define(Acc)] _acc_dtype: StorageType,
 ) {
+    multi_block_variables_init(&input.config, &mut output.global.variables);
+    multi_block_variables_init(&output.config, &mut output.global.variables);
+
     let (input, mut output) = init_tensors::<FusedReduceArgs, In, Out>(input, output);
 
     reduce_kernel_virtual::<In, Out, Acc>(&input, &mut output, axis_reduce, blueprint, config);

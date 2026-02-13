@@ -30,7 +30,6 @@ mod neg;
 mod permute;
 mod powf;
 mod powf_scalar;
-mod quantize;
 mod recip;
 mod remainder;
 mod repeat_dim;

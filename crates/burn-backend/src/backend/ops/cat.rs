@@ -14,7 +14,7 @@ pub(crate) fn cat_with_slice_assign<B: Backend, K: TensorKind<B> + BasicOps<B>>(
     let device = K::device(first_tensor);
     let dtype = first_tensor.dtype();
 
-    let output_dim_length: usize = tensors.iter().map(|tensor| tensor.shape().dims[dim]).sum();
+    let output_dim_length: usize = tensors.iter().map(|tensor| tensor.shape()[dim]).sum();
     shape[dim] = output_dim_length;
 
     let mut tensor_output = K::empty(shape.clone(), &device, dtype);
@@ -24,7 +24,7 @@ pub(crate) fn cat_with_slice_assign<B: Backend, K: TensorKind<B> + BasicOps<B>>(
     let mut output_index = 0;
     for tensor in tensors {
         let mut indices = indices_select_all.clone();
-        let tensor_dim_length = tensor.shape().dims[dim];
+        let tensor_dim_length = tensor.shape()[dim];
         indices[dim] = output_index..output_index + tensor_dim_length;
         output_index += tensor_dim_length;
 

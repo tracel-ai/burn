@@ -227,10 +227,10 @@ impl<B: Backend> Applier<B> {
         };
 
         // Validate shape
-        if data.shape != target_shape.dims {
+        if data.shape != *target_shape {
             self.errors.push(ApplyError::ShapeMismatch {
                 path: path.clone(),
-                expected: target_shape.dims,
+                expected: target_shape.to_vec(),
                 found: data.shape.clone(),
             });
             return None; // Signal caller to fall back to initialization

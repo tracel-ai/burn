@@ -1,4 +1,7 @@
-use super::optimization::{FusedReduce, ReduceInstruction, ReduceOptimization};
+use super::{
+    ReduceSettings,
+    optimization::{FusedReduce, ReduceInstruction, ReduceOptimization},
+};
 use crate::{
     engine::{
         codegen::ir::FuseType,
@@ -9,16 +12,18 @@ use crate::{
 };
 use burn_fusion::{FuserStatus, OperationFuser};
 use burn_ir::{NumericOperationIr, OperationIr, ReduceDimOpIr};
+use burn_std::Shape;
 use cubecl::Runtime;
 
 /// Fuses element wise operations around a reduce operation.
 pub struct ReduceFuser<R: Runtime> {
-    fuser: TraceOperationFuser,
-    fuser_read_fallback: TraceOperationFuser,
+    pub(crate) fuser: TraceOperationFuser,
+    pub(crate) fuser_read_fallback: TraceOperationFuser,
     fuser_write_fallback: TraceOperationFuser,
     settings_write: FuseSettings,
-    device: R::Device,
-    reduce: Option<FusedReduce>,
+    pub(crate) device: R::Device,
+    pub(crate) reduce: Option<FusedReduce>,
+    settings: ReduceSettings,
 }
 
 impl<R: Runtime> Clone for ReduceFuser<R> {
@@ -30,25 +35,36 @@ impl<R: Runtime> Clone for ReduceFuser<R> {
             settings_write: self.settings_write,
             device: self.device.clone(),
             reduce: self.reduce.clone(),
+            settings: self.settings,
         }
     }
 }
 
+#[derive(Debug)]
+pub enum ReduceFuserInfo {
+    FusedReduce { shape_input_id: Shape, axis: usize },
+    FusedElemwise { shape_id: Shape },
+}
+
 impl<R: Runtime> ReduceFuser<R> {
-    pub fn new(device: R::Device, bool_precision: FuseType) -> Self {
+    pub fn new(device: R::Device, bool_precision: FuseType, settings: ReduceSettings) -> Self {
         let client = R::client(&device);
         let props = client.properties();
         let max_bindings = props.hardware.max_bindings;
         let settings_read = FuseSettings {
-            inplace: false,
+            // Inplace would work, but not when we have a concrete output to write too.
+            inplace: true,
             ref_layout: RefLayoutSetting::OnlyContiguous,
-            ..Default::default()
+            broadcast: false,
+            output_shape_updates: true,
+            vectorization: VectorizationSetting::Activated,
         };
         let settings_write = FuseSettings {
+            inplace: false,
             output_shape_updates: false,
-            // TODO: Fusion axis should be on the reduce_axis - 1.
-            vectorization: VectorizationSetting::SmallerOrEqualThanPreviousBlock,
-            ..Default::default()
+            vectorization: VectorizationSetting::SmallerOrEqualThanPreviousBlock { block_pos: 0 },
+            broadcast: false,
+            ref_layout: RefLayoutSetting::OnlyContiguous,
         };
         let settings_fallback = FuseSettings::default();
 
@@ -67,30 +83,56 @@ impl<R: Runtime> ReduceFuser<R> {
             settings_write,
             device,
             reduce: None,
+            settings,
         }
     }
 
+    pub fn reduce_info(&self) -> ReduceFuserInfo {
+        match &self.reduce {
+            Some(reduce) => {
+                let shape_input_id = reduce.op.input.shape.clone();
+                let axis = reduce.axis;
+
+                ReduceFuserInfo::FusedReduce {
+                    shape_input_id,
+                    axis,
+                }
+            }
+            None => {
+                let shape_id = self.fuser_read_fallback.current_output_shape.clone();
+                ReduceFuserInfo::FusedElemwise { shape_id }
+            }
+        }
+    }
     fn on_reduce(&mut self, op: &ReduceDimOpIr, inst: ReduceInstruction) {
-        if self.fuser.current_output_shape != op.input.shape.dims {
+        // TODO: Fix: we need to have fuse-on-read with an identity block.
+        //
+        // if self.fuser.num_ops == 0 && false {
+        //     self.fuser.current_output_shape = op.input.shape.dims.clone();
+        // } else if self.fuser.current_output_shape != op.input.shape.dims {
+
+        if self.fuser.current_output_shape != op.input.shape {
             self.fuser.close();
             self.fuser_read_fallback.close();
             return;
         }
 
-        let Some([input]) = self.fuser.next_block([&op.input], self.settings_write) else {
-            self.fuser.close();
-            self.fuser_read_fallback.close();
-            return;
-        };
+        let [input] = self
+            .fuser
+            .next_block([&op.input], self.settings_write, false);
 
         let output = self.fuser.output_unhandled(&op.out);
         let axis = op.axis;
 
-        // We only activate fuse-on-write when the reduction isn't on the last dimension, otherwise
-        // vectorization is impossible. Only [LineMode::Perpendicular] supports vectorization.
-        //
-        // We could still fuse some output operations, but it would probably lead to worse performance.
-        let fuse_on_write_activated = axis != op.input.shape.rank() - 1;
+        let fuse_on_write_activated = match self.settings {
+            ReduceSettings::Always => true,
+            // We only activate fuse-on-write when the reduction isn't on the last dimension, otherwise
+            // vectorization is impossible. Only [LineMode::Perpendicular] supports vectorization.
+            //
+            // We could still fuse some output operations, but it would probably lead to worse performance.
+            ReduceSettings::OnlyParallel => axis != op.input.shape.rank() - 1,
+            ReduceSettings::Never => false,
+        };
 
         if !fuse_on_write_activated {
             self.fuser.close();
@@ -230,7 +272,7 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceFuser<R> {
         }
     }
 
-    fn finish(&self) -> CubeOptimization<R> {
+    fn finish(&mut self) -> CubeOptimization<R> {
         let client = R::client(&self.device);
         let trace = self.fuser.finish();
         let trace_read_fallback = self.fuser_read_fallback.finish();
@@ -246,6 +288,7 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceFuser<R> {
             self.len(),
             self.fuser_read_fallback.len(),
             fuse_reduce.clone(),
+            self.settings,
         );
 
         CubeOptimization::Reduce(reduce)

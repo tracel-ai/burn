@@ -8,14 +8,14 @@ use crate::{
         codegen::ir::{FuseArg, FuseOp, LayoutInfo},
         launch::HandleInput,
         settings::RefLayoutSetting,
-        trace::{FuseResources, RegisterTensor, TensorView, block::FuseBlock},
+        trace::{FuseResources, RegisterTensor, RuntimeLayout, TensorView, block::FuseBlock},
     },
     strides_dyn_rank,
 };
 use burn_fusion::stream::Context;
 use burn_ir::{TensorId, TensorIr};
-use burn_std::DType;
 use burn_std::tensor::{ReshapeAction, contiguous_strides, is_contiguous, reshape_action};
+use burn_std::{DType, Shape};
 use cubecl::{CubeElement, Runtime, client::ComputeClient, ir::StorageType};
 
 /// Create or reuse handles for the outputs.
@@ -105,7 +105,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                 .get(&output.tensor_relative.id)
                 .unwrap()
                 .clone();
-            let strides = strides_dyn_rank(&tensor_global.shape.dims);
+            let strides = strides_dyn_rank(&tensor_global.shape);
             let (kind, block_idx) = self.output_kind(plan, &tensor_global, &output, &strides);
 
             match kind {
@@ -158,15 +158,39 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             plan.global_outputs.push(global.unwrap());
         }
 
-        for (i, block) in plan.blocks.iter_mut().enumerate() {
-            if !block.reference.is_found() {
-                Self::select_reference_from_inputs(
-                    self.blocks[i].settings.ref_layout,
-                    block,
-                    &plan.handle_inputs,
-                );
+        for i in 0..plan.blocks.len() {
+            if !plan.blocks[i].reference.is_found() {
+                match self.blocks[i].settings.ref_layout {
+                    RefLayoutSetting::SameAsBlock { block_pos } => {
+                        plan.blocks[i].reference =
+                            plan.blocks[block_pos as usize].reference.clone();
+                    }
+                    _ => {
+                        let new_runtime = Self::select_reference_from_inputs(
+                            &self.blocks[i],
+                            &mut plan.blocks[i],
+                            &plan.handle_inputs,
+                        );
+
+                        if let Some(shape) = new_runtime {
+                            let pos = plan.runtime_layouts.len();
+                            let mut shape_global = shape.clone();
+                            for (i, s) in shape.iter().enumerate() {
+                                shape_global[i] = *context.shapes_relative2global.get(s).unwrap();
+                            }
+
+                            let strides = strides_dyn_rank(&shape_global);
+
+                            plan.blocks[i].reference = ReferenceSelection::Runtime { pos };
+                            plan.runtime_layouts.push(RuntimeLayout {
+                                shape: shape_global,
+                                strides,
+                            });
+                        }
+                    }
+                };
             } else {
-                Self::add_layout_info_inputs(block, &plan.handle_inputs);
+                Self::add_layout_info_inputs(&mut plan.blocks[i], &plan.handle_inputs);
             }
         }
 
@@ -182,11 +206,11 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
     }
 
     fn select_reference_from_inputs(
-        ref_layout_setting: RefLayoutSetting,
-        block: &mut BlockPlan<'_>,
+        block: &FuseBlock,
+        block_plan: &mut BlockPlan<'_>,
         handle_inputs: &[HandleInput<R>],
-    ) {
-        if let Some(input_ref) = block.potential_reference_input.take() {
+    ) -> Option<Shape> {
+        if let Some(input_ref) = block_plan.potential_reference_input.take() {
             match input_ref {
                 InputReference::Normal { input_pos } => {
                     let reference = handle_inputs
@@ -202,7 +226,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                                 reference.precision,
                                 LayoutInfo::IsRef,
                             ),
-                            shape: reference.global_ir.shape.dims.clone(),
+                            shape: reference.global_ir.shape.clone(),
                             strides: reference.handle.strides.clone(),
                         };
                     };
@@ -214,26 +238,27 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                                 reference.precision,
                                 LayoutInfo::Unknown,
                             ),
-                            shape: reference.global_ir.shape.dims.clone(),
-                            strides: contiguous_strides(&reference.global_ir.shape.dims),
+                            shape: reference.global_ir.shape.clone(),
+                            strides: contiguous_strides(&reference.global_ir.shape),
                         };
                     };
 
-                    match ref_layout_setting {
-                        RefLayoutSetting::Any => set_ref_as_concrete(block),
+                    match block.settings.ref_layout {
+                        RefLayoutSetting::Any => set_ref_as_concrete(block_plan),
+                        RefLayoutSetting::SameAsBlock { .. } => {
+                            // Skip set ref.
+                        }
                         RefLayoutSetting::OnlyContiguous => {
-                            if is_contiguous(
-                                &reference.global_ir.shape.dims,
-                                &reference.handle.strides,
-                            ) {
-                                set_ref_as_concrete(block)
+                            if is_contiguous(&reference.global_ir.shape, &reference.handle.strides)
+                            {
+                                set_ref_as_concrete(block_plan)
                             } else {
-                                set_ref_as_virtual(block)
+                                set_ref_as_virtual(block_plan)
                             }
                         }
                     }
 
-                    Self::add_layout_info_inputs(block, handle_inputs);
+                    Self::add_layout_info_inputs(block_plan, handle_inputs);
                 }
                 InputReference::SwapDims { original_pos, dims } => {
                     let reference = handle_inputs
@@ -241,7 +266,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                         .unwrap()
                         .as_normal()
                         .expect("Quant can't be used in swap dims operation");
-                    block.reference = ReferenceSelection::SwapDims {
+                    block_plan.reference = ReferenceSelection::SwapDims {
                         original: FuseArg::Input(
                             original_pos,
                             reference.precision,
@@ -251,11 +276,12 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                     };
                 }
                 InputReference::Reshaped { reshape_pos } => {
-                    block.reference = ReferenceSelection::Reshaped { reshape_pos };
+                    block_plan.reference = ReferenceSelection::Reshaped { reshape_pos };
                 }
             };
+            None
         } else {
-            block.reference = ReferenceSelection::NotFound;
+            Some(block.shape_ref.clone())
         }
     }
 
@@ -271,7 +297,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             };
 
             if strides == &hi.handle.strides
-                && shape == &hi.global_ir.shape.dims
+                && shape == &hi.global_ir.shape
                 && let Some(ops) = block.reads.get_mut(&hi.relative_id)
             {
                 for op in ops.iter_mut() {
@@ -341,7 +367,12 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             }
         };
 
-        if !block.reference.is_found() {
+        if !block.reference.is_found()
+            && !matches!(
+                self.blocks[block_idx].settings.ref_layout,
+                RefLayoutSetting::SameAsBlock { .. }
+            )
+        {
             let index_input = self
                 .resources
                 .inputs
@@ -350,7 +381,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
 
             block.reference = ReferenceSelection::Concrete {
                 layout: FuseArg::Input(index_input, output.precision, LayoutInfo::IsRef),
-                shape: tensor_global.shape.dims.clone(),
+                shape: tensor_global.shape.clone(),
                 strides: handle_input.handle.strides.clone(),
             };
 
@@ -358,17 +389,28 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                 for op in ops.iter_mut() {
                     if let FuseOp::Assign(op) = op {
                         op.input.add_layout_info(LayoutInfo::IsRef);
+                        break;
                     };
                 }
             }
 
-            if let Some(FuseOp::Assign(op)) = block.writes.get_mut(&output.tensor_relative.id) {
-                op.out.add_layout_info(LayoutInfo::IsRef);
+            if let Some(ops) = block.writes.get_mut(&output.tensor_relative.id) {
+                for op in ops {
+                    if let FuseOp::Assign(op) = op {
+                        op.out.add_layout_info(LayoutInfo::IsRef);
+                        break;
+                    }
+                }
             };
         } else {
             // Already validated, necessary for correctness.
-            if let Some(FuseOp::Assign(op)) = block.writes.get_mut(&output.tensor_relative.id) {
-                op.out.add_layout_info(LayoutInfo::SameAsRef);
+            if let Some(ops) = block.writes.get_mut(&output.tensor_relative.id) {
+                for op in ops {
+                    if let FuseOp::Assign(op) = op {
+                        op.out.add_layout_info(LayoutInfo::SameAsRef);
+                        break;
+                    }
+                }
             };
         }
 
@@ -404,17 +446,26 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         let block = &mut plan.blocks[block_idx];
 
         if !block.reference.is_found()
-            && self.blocks[block_idx].shape_ref == output.tensor_relative.shape.dims
+            && self.blocks[block_idx].shape_ref == output.tensor_relative.shape
+            && !matches!(
+                self.blocks[block_idx].settings.ref_layout,
+                RefLayoutSetting::SameAsBlock { .. }
+            )
         {
             block.reference = ReferenceSelection::Concrete {
                 layout: FuseArg::Output(output.pos_original, output.precision, LayoutInfo::IsRef),
-                shape: tensor_global.shape.dims.clone(),
+                shape: tensor_global.shape.clone(),
                 strides: strides.clone(),
             };
 
             // Sometimes outputs that are manually handled don't have any write registered.
-            if let Some(FuseOp::Assign(op)) = block.writes.get_mut(&output.tensor_relative.id) {
-                op.out.add_layout_info(LayoutInfo::IsRef);
+            if let Some(ops) = block.writes.get_mut(&output.tensor_relative.id) {
+                for op in ops {
+                    if let FuseOp::Assign(op) = op {
+                        op.out.add_layout_info(LayoutInfo::IsRef);
+                        break;
+                    }
+                }
             };
         } else if let ReferenceSelection::Concrete {
             shape: ref_shape,
@@ -422,10 +473,15 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             ..
         } = &block.reference
             && ref_strides == &strides
-            && ref_shape == &tensor_global.shape.dims
-            && let FuseOp::Assign(op) = block.writes.get_mut(&output.tensor_relative.id).unwrap()
+            && ref_shape == &tensor_global.shape
+            && let Some(ops) = block.writes.get_mut(&output.tensor_relative.id)
         {
-            op.out.add_layout_info(LayoutInfo::SameAsRef);
+            for op in ops {
+                if let FuseOp::Assign(op) = op {
+                    op.out.add_layout_info(LayoutInfo::SameAsRef);
+                    break;
+                }
+            }
         };
 
         // We encode bool tensors as `B`.
@@ -452,7 +508,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         self.handles[output.pos_original] = Some(HandleOutput::Owned {
             precision: output.precision,
             handle,
-            global_shape: tensor_global.shape.dims.clone(),
+            global_shape: tensor_global.shape.clone(),
             global_id: tensor_global.id,
             relative_id: output.tensor_relative.id,
             vectorization: 1,
@@ -484,9 +540,9 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         };
 
         let action = reshape_action(
-            &original_handle.global_ir.shape.dims,
+            &original_handle.global_ir.shape,
             &original_handle.handle.strides,
-            &tensor_global.shape.dims,
+            &tensor_global.shape,
         );
 
         let update = match action {
@@ -497,7 +553,8 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
 
         match update {
             Some(strides) => {
-                block.writes.remove(&output.tensor_relative.id);
+                // We modify the metadata instead.
+                remove_concrete_write(block, output.tensor_relative.id, output.pos_original);
 
                 let handle = CubeFusionHandle {
                     client: client.clone(),
@@ -562,7 +619,9 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         };
 
         // TODO: Check if we can also remove the read, if we have a dead partial graph.
-        block.writes.remove(&output.tensor_relative.id);
+        //
+        // We modify the metadata instead.
+        remove_concrete_write(block, output.tensor_relative.id, output.pos_original);
 
         let strides = original_handle.handle.strides.clone();
 
@@ -609,5 +668,26 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                 _ => None, // Quant tensor can't be reshaped.
             })
             .unwrap()
+    }
+}
+
+fn remove_concrete_write(block: &mut BlockPlan, id: TensorId, output_pos: usize) {
+    let ops = block.writes.remove(&id);
+
+    if let Some(ops) = ops {
+        let mut keep = Vec::with_capacity(ops.len());
+
+        for op in ops {
+            if let FuseOp::Assign(args) = &op {
+                if let FuseArg::Output(pos, ..) = args.out {
+                    if pos != output_pos {
+                        keep.push(op);
+                    }
+                } else {
+                    keep.push(op);
+                }
+            }
+        }
+        block.writes.insert(id, keep);
     }
 }

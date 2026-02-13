@@ -27,15 +27,10 @@ pub(crate) fn create_unfolding_weight<B: Backend>(
 
     let mut strides = [0; 4];
     let mut current = 1;
-    shape
-        .dims
-        .iter()
-        .enumerate()
-        .rev()
-        .for_each(|(index, val)| {
-            strides[index] = current;
-            current *= val;
-        });
+    shape.iter().enumerate().rev().for_each(|(index, val)| {
+        strides[index] = current;
+        current *= val;
+    });
 
     let num_elements = shape.num_elements();
 

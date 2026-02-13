@@ -16,6 +16,7 @@ use burn_std::DType;
 use cubecl::{
     CubeElement, Runtime,
     client::ComputeClient,
+    ir::AddressType,
     prelude::{InputScalar, ScalarArg, TensorArg},
 };
 use std::marker::PhantomData;
@@ -52,7 +53,9 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
     ) -> Result<TuneOutput<R>, ExecutionError<R, Runner>> {
         let mut num_writes = 0;
         for b in plan.blocks.iter() {
-            num_writes += b.writes.len();
+            for writes in b.writes.values() {
+                num_writes += writes.len();
+            }
         }
 
         #[cfg(feature = "autotune-checks")]
@@ -80,6 +83,15 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
         );
         register_outputs::<BT, R>(&plan.handle_outputs, &mut outputs, &mut tune_output);
 
+        for layout in plan.runtime_layouts {
+            for s in layout.shape.iter() {
+                inputs.runtime_layouts.push(ScalarArg::new(*s));
+            }
+            for s in layout.strides {
+                inputs.runtime_layouts.push(ScalarArg::new(s));
+            }
+        }
+
         let mut configs = Vec::with_capacity(plan.blocks.len());
 
         for (block_plan, block) in plan.blocks.into_iter().zip(self.blocks) {
@@ -97,7 +109,10 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
                         line_size: block_plan.width,
                     })
                 }
-                ReferenceSelection::NotFound | ReferenceSelection::Searching => {
+                ReferenceSelection::Runtime { pos } => {
+                    RefLayout::Virtual(VirtualLayout::Runtime { pos })
+                }
+                ReferenceSelection::Searching => {
                     return Err(ExecutionError::new(
                         TraceError::ReferenceNotFound,
                         plan.handle_inputs,
@@ -118,8 +133,10 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
                 ops.push(op.clone());
             }
 
-            for op in block_plan.writes.into_values() {
-                ops.push(op);
+            for opsw in block_plan.writes.into_values() {
+                for op in opsw {
+                    ops.push(op);
+                }
             }
 
             let config = FuseBlockConfig {
@@ -150,28 +167,31 @@ fn register_inputs<'h, R: Runtime>(
     for hi in handle_inputs.iter() {
         match hi {
             HandleInput::Normal(hi) => {
-                let arg = hi
-                    .handle
-                    .as_tensor_arg(&hi.global_ir.shape.dims, hi.line_size);
+                let arg = hi.handle.as_tensor_arg(&hi.global_ir.shape, hi.line_size);
                 inputs.tensors.push(GlobalTensorArg::new(
                     arg,
                     hi.precision.into_elem(),
                     hi.broadcated,
+                    hi.handle.required_address_type(),
                 ));
             }
             HandleInput::QuantValues(hi) => {
-                let arg = hi
-                    .handle
-                    .as_tensor_arg(&hi.global_ir.shape.dims, hi.line_size);
-                inputs
-                    .tensors
-                    .push(GlobalTensorArg::new(arg, hi.precision.into_elem(), false));
+                let arg = hi.handle.as_tensor_arg(&hi.global_ir.shape, hi.line_size);
+                inputs.tensors.push(GlobalTensorArg::new(
+                    arg,
+                    hi.precision.into_elem(),
+                    false,
+                    hi.handle.required_address_type(),
+                ));
             }
             HandleInput::QuantParams(hi) => {
                 let arg = hi.handle.as_tensor_arg(&hi.shape, 1);
-                inputs
-                    .tensors
-                    .push(GlobalTensorArg::new(arg, hi.precision.into_elem(), false));
+                inputs.tensors.push(GlobalTensorArg::new(
+                    arg,
+                    hi.precision.into_elem(),
+                    false,
+                    hi.handle.required_address_type(),
+                ));
             }
         }
     }
@@ -194,6 +214,7 @@ fn register_outputs<'s, BT: CubeElement, R: Runtime>(
                     TensorArg::alias(*input_pos),
                     precision.into_elem(),
                     false,
+                    AddressType::default(),
                 ));
 
                 #[cfg(feature = "autotune-checks")]
@@ -229,7 +250,12 @@ fn register_outputs<'s, BT: CubeElement, R: Runtime>(
                     handles.insert(*relative_id, (global_shape.clone(), handle.clone()));
                 }
 
-                outputs.tensors.push(GlobalTensorArg::new(arg, elem, false));
+                outputs.tensors.push(GlobalTensorArg::new(
+                    arg,
+                    elem,
+                    false,
+                    handle.required_address_type(),
+                ));
             }
         }
     }

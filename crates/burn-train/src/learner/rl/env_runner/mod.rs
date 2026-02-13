@@ -98,9 +98,7 @@ pub(crate) mod tests {
     impl PolicyState<TestAutodiffBackend> for MockPolicyState {
         type Record = ();
 
-        fn into_record(self) -> Self::Record {
-            ()
-        }
+        fn into_record(self) -> Self::Record {}
 
         fn load_record(&self, _record: Self::Record) -> Self {
             self.clone()

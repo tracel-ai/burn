@@ -3,12 +3,12 @@ use cubecl::{calculate_cube_count_elemwise, prelude::*, std::tensor::layout::lin
 
 use crate::{
     CubeRuntime,
-    kernel::utils::{linear_view, linear_view_alias, linear_view_ref},
+    kernel::utils::{address_type, linear_view, linear_view_alias, linear_view_ref},
     ops::{max_line_size_many, numeric::empty_device_dtype},
     tensor::CubeTensor,
 };
 
-#[cube(launch_unchecked)]
+#[cube(launch_unchecked, address_type = "dynamic")]
 fn mask_fill_kernel<T: Numeric, B: Int>(
     input: &LinearView<Line<T>>,
     mask: &LinearView<Line<B>>,
@@ -74,6 +74,7 @@ pub fn mask_fill<R: CubeRuntime>(
             &input.client,
             cube_count,
             cube_dim,
+            address_type!(input, mask, output),
             linear_view(&input, line_size),
             linear_view_ref(&mask, &input, line_size),
             out_arg,
