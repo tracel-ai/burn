@@ -301,20 +301,15 @@ where
         attn_bias: Option<FloatTensor<Self>>,
         options: AttentionOptions,
     ) -> FloatTensor<Self> {
-        // Fall back to naive attention for features the flash kernel doesn't reliably support.
-        // is_causal: flash kernel returns incorrect results on some Metal GPUs (#4484).
-        if attn_bias.is_some()
-            || options.softcap.is_some()
-            || options.scale.is_some()
-            || options.is_causal
-        {
+        // Fall back to naive attention for features the flash kernel doesn't support.
+        if attn_bias.is_some() || options.softcap.is_some() || options.scale.is_some() {
             return burn_backend::ops::attention::naive_attention::<Self>(
                 query, key, value, mask, attn_bias, options,
             );
         }
 
         let out_dtype = query.dtype;
-        kernel::attention::flash_attention(query, key, value, mask, false, out_dtype)
+        kernel::attention::flash_attention(query, key, value, mask, options.is_causal, out_dtype)
             .expect("Kernel to never fail")
     }
 }
