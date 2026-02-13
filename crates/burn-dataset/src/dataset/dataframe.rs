@@ -200,6 +200,40 @@ impl<'de, 'a> SeqAccess<'de> for RowDeserializer<'a> {
     }
 }
 
+struct FieldExtractor {
+    fields: Vec<&'static str>,
+}
+
+impl<'de> Deserializer<'de> for &mut FieldExtractor {
+    type Error = de::value::Error;
+
+    fn deserialize_any<V>(self, _visitor: V) -> core::result::Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        Err(de::Error::custom("Field extractor"))
+    }
+
+    fn deserialize_struct<V>(
+        self,
+        _name: &'static str,
+        fields: &'static [&'static str],
+        _visitor: V,
+    ) -> core::result::Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        self.fields.extend_from_slice(fields);
+        Err(de::Error::custom("Field extractor"))
+    }
+
+    forward_to_deserialize_any! {
+        bool i8 i16 i32 i64 u8 u16 u32 u64 f32 f64 char str string bytes
+        byte_buf option unit unit_struct newtype_struct seq tuple
+        tuple_struct map enum identifier ignored_any
+    }
+}
+
 /// Extract field names from a type T that implements Deserialize
 ///
 /// # Returns
@@ -209,40 +243,6 @@ fn extract_field_names<'de, T>() -> Vec<&'static str>
 where
     T: Deserialize<'de>,
 {
-    struct FieldExtractor {
-        fields: Vec<&'static str>,
-    }
-
-    impl<'de> Deserializer<'de> for &mut FieldExtractor {
-        type Error = de::value::Error;
-
-        fn deserialize_any<V>(self, _visitor: V) -> core::result::Result<V::Value, Self::Error>
-        where
-            V: Visitor<'de>,
-        {
-            Err(de::Error::custom("Field extractor"))
-        }
-
-        fn deserialize_struct<V>(
-            self,
-            _name: &'static str,
-            fields: &'static [&'static str],
-            _visitor: V,
-        ) -> core::result::Result<V::Value, Self::Error>
-        where
-            V: Visitor<'de>,
-        {
-            self.fields.extend_from_slice(fields);
-            Err(de::Error::custom("Field extractor"))
-        }
-
-        forward_to_deserialize_any! {
-            bool i8 i16 i32 i64 u8 u16 u32 u64 f32 f64 char str string bytes
-            byte_buf option unit unit_struct newtype_struct seq tuple
-            tuple_struct map enum identifier ignored_any
-        }
-    }
-
     let mut extractor = FieldExtractor { fields: Vec::new() };
     let _ = T::deserialize(&mut extractor);
     extractor.fields
@@ -284,7 +284,7 @@ mod tests {
         let binary_data: Vec<&[u8]> = vec![&[1, 2, 3], &[4, 5, 6], &[7, 8, 9]];
 
         let s13 = Column::new("binary".into(), binary_data);
-        DataFrame::new(vec![s0, s1, s2, s3, s6, s8, s9, s10, s11, s12, s13]).unwrap()
+        DataFrame::new_infer_height(vec![s0, s1, s2, s3, s6, s8, s9, s10, s11, s12, s13]).unwrap()
     }
 
     #[test]
