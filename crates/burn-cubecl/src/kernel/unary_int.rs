@@ -102,6 +102,7 @@ pub(crate) mod unary_basic_int {
     #[derive(Clone, Copy, Debug, Hash, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
     pub enum BasicIntUnaryKind {
         BitwiseNot,
+        Sign,
     }
 
     #[derive(CubeLaunch, CubeType)]
@@ -118,6 +119,17 @@ pub(crate) mod unary_basic_int {
         fn execute(input: Line<I>, options: &Self::Options) -> Line<I> {
             match comptime![options.kind] {
                 BasicIntUnaryKind::BitwiseNot => !input,
+                BasicIntUnaryKind::Sign => {
+                    let zero = Line::new(I::new(0));
+                    let one = Line::new(I::new(1));
+                    let minus_one = Line::new(I::new(-1));
+
+                    let is_positive = input.greater_than(zero);
+                    let is_negative = input.less_than(zero);
+                    let sign = select_many(is_negative, minus_one, zero);
+
+                    select_many(is_positive, one, sign)
+                }
             }
         }
     }
