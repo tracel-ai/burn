@@ -35,10 +35,11 @@ pub fn interpolate<R: CubeRuntime>(
         input.dtype,
     );
 
+    let align_corners = options.align_corners;
     let output = match options.mode {
         InterpolateMode::Nearest => interpolate_nearest_launch(input, output),
-        InterpolateMode::Bilinear => interpolate_bilinear_launch(input, output),
-        InterpolateMode::Bicubic => interpolate_bicubic_launch(input, output),
+        InterpolateMode::Bilinear => interpolate_bilinear_launch(input, output, align_corners),
+        InterpolateMode::Bicubic => interpolate_bicubic_launch(input, output, align_corners),
     };
 
     permute_nhwc_to_nchw(output)

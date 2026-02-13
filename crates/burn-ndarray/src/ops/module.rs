@@ -288,16 +288,20 @@ where
                 .into())
             }
             InterpolateMode::Bilinear => {
+                let align_corners = options.align_corners;
                 module_op!(inp(x), opt(), E, |x| bilinear_interpolate::<E>(
                     x,
-                    output_size
+                    output_size,
+                    align_corners
                 )
                 .into())
             }
             InterpolateMode::Bicubic => {
+                let align_corners = options.align_corners;
                 module_op!(inp(x), opt(), E, |x| bicubic_interpolate::<E>(
                     x,
-                    output_size
+                    output_size,
+                    align_corners
                 )
                 .into())
             }
