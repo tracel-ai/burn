@@ -378,7 +378,7 @@ macro_rules! module_op_arms {
 /// Handles variable numbers of required/optional inputs and wraps multiple outputs.
 ///
 /// Usage:
-/// ```rust
+/// ```ignore
 /// module_op!(
 ///     inputs[(x, float), (weight, float)],
 ///     opt_inputs[bias] =>
