@@ -58,7 +58,7 @@ impl Default for Device {
         // TODO: which priority?
 
         #[cfg(feature = "cpu")]
-        return Self::Cpu(CpuDevice::default());
+        return Self::Cpu(CpuDevice);
 
         #[cfg(feature = "cuda")]
         return Self::Cuda(CudaDevice::default());
