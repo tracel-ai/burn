@@ -5310,7 +5310,6 @@ version = "0.21.0-pre.1"
 dependencies = [
  "burn",
  "console_error_panic_hook",
- "getrandom 0.4.1",
  "js-sys",
  "serde",
  "wasm-bindgen",
