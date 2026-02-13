@@ -1559,23 +1559,23 @@ where
     ///
     ///     // Simple range slicing
     ///     let sliced = tensor.clone().slice_dim(1, 1..3);
-    ///     assert_eq!(sliced.shape().dims, [3, 2, 5]);
+    ///     assert_eq!(sliced.shape().as_slice(), [3, 2, 5]);
     ///
     ///     // Slicing with step - take every 2nd element
     ///     let sliced = tensor.clone().slice_dim(2, s![0..5;2]);
-    ///     assert_eq!(sliced.shape().dims, [3, 4, 3]); // Takes indices 0, 2, 4
+    ///     assert_eq!(sliced.shape().as_slice(), [3, 4, 3]); // Takes indices 0, 2, 4
     ///
     ///     // Reverse slicing with negative step
     ///     let sliced = tensor.clone().slice_dim(1, s![..;-1]);
-    ///     assert_eq!(sliced.shape().dims, [3, 4, 5]); // Reverses dimension 1
+    ///     assert_eq!(sliced.shape().as_slice(), [3, 4, 5]); // Reverses dimension 1
     ///
     ///     // Select from index 2 with step 3
     ///     let sliced = tensor.clone().slice_dim(0, s![2..;3]);
-    ///     assert_eq!(sliced.shape().dims, [1, 4, 5]); // Takes only index 2
+    ///     assert_eq!(sliced.shape().as_slice(), [1, 4, 5]); // Takes only index 2
     ///
     ///     // Select single index (reduces dimension to size 1)
     ///     let sliced = tensor.slice_dim(0, 1);
-    ///     assert_eq!(sliced.shape().dims, [1, 4, 5]);
+    ///     assert_eq!(sliced.shape().as_slice(), [1, 4, 5]);
     /// # }
     /// ```
     ///
