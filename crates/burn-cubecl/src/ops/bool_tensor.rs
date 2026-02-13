@@ -8,7 +8,7 @@ use burn_backend::{
     ops::BoolTensorOps,
     tensor::{BoolTensor, Device, FloatTensor, IntTensor},
 };
-use burn_backend::{Shape, TensorData, tensor::BoolElem};
+use burn_backend::{Scalar, Shape, TensorData};
 use cubecl::prelude::InputScalar;
 use std::ops::Range;
 
@@ -171,7 +171,7 @@ where
     fn bool_mask_fill(
         tensor: BoolTensor<Self>,
         mask: BoolTensor<Self>,
-        value: BoolElem<Self>,
+        value: Scalar,
     ) -> BoolTensor<Self> {
         let dtype = tensor.dtype;
         kernel::mask_fill_auto(tensor, mask, InputScalar::new(value, dtype), dtype)
@@ -194,7 +194,7 @@ where
         kernel::scatter(dim, tensor, indices, value, true)
     }
 
-    fn bool_equal_elem(lhs: BoolTensor<Self>, rhs: BoolElem<Self>) -> BoolTensor<Self> {
+    fn bool_equal_elem(lhs: BoolTensor<Self>, rhs: Scalar) -> BoolTensor<Self> {
         let dtype = lhs.dtype;
         kernel::equal_elem(lhs, InputScalar::new(rhs, dtype), dtype)
     }

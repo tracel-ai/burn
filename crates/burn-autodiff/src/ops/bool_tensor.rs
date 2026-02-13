@@ -2,7 +2,7 @@ use crate::{Autodiff, checkpoint::strategy::CheckpointStrategy, tensor::Autodiff
 use alloc::vec::Vec;
 
 use burn_backend::{
-    Backend, ExecutionError, TensorData,
+    Backend, ExecutionError, Scalar, TensorData,
     ops::BoolTensorOps,
     tensor::{BoolTensor, Device, IntTensor},
 };
@@ -133,7 +133,7 @@ impl<B: Backend, C: CheckpointStrategy> BoolTensorOps<Self> for Autodiff<B, C> {
     fn bool_mask_fill(
         tensor: BoolTensor<Self>,
         mask: BoolTensor<Self>,
-        value: B::BoolElem,
+        value: Scalar,
     ) -> BoolTensor<Self> {
         B::bool_mask_fill(tensor, mask, value)
     }
@@ -155,7 +155,7 @@ impl<B: Backend, C: CheckpointStrategy> BoolTensorOps<Self> for Autodiff<B, C> {
         B::bool_scatter_or(dim, tensor, indices, value)
     }
 
-    fn bool_equal_elem(lhs: BoolTensor<Self>, rhs: B::BoolElem) -> BoolTensor<Self> {
+    fn bool_equal_elem(lhs: BoolTensor<Self>, rhs: Scalar) -> BoolTensor<Self> {
         B::bool_equal_elem(lhs, rhs)
     }
 }
