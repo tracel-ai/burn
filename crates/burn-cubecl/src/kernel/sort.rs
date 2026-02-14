@@ -19,20 +19,18 @@ pub fn sort<R: CubeRuntime>(
     let keys = tensor.as_handle_ref();
 
     let output = match tensor.dtype {
-        DType::U8 => cubek_sort::<R, u8>(client, keys, SortValues::None, num_items, order),
-        DType::I8 => cubek_sort::<R, i8>(client, keys, SortValues::None, num_items, order),
-        DType::U16 => cubek_sort::<R, u16>(client, keys, SortValues::None, num_items, order),
-        DType::I16 => cubek_sort::<R, i16>(client, keys, SortValues::None, num_items, order),
-        DType::U32 => cubek_sort::<R, u32>(client, keys, SortValues::None, num_items, order),
-        DType::I32 => cubek_sort::<R, i32>(client, keys, SortValues::None, num_items, order),
-        DType::U64 => cubek_sort::<R, u64>(client, keys, SortValues::None, num_items, order),
-        DType::I64 => cubek_sort::<R, i64>(client, keys, SortValues::None, num_items, order),
-        DType::F16 => cubek_sort::<R, f16>(client, keys, SortValues::None, num_items, order),
-        DType::BF16 => cubek_sort::<R, bf16>(client, keys, SortValues::None, num_items, order),
-        DType::Flex32 | DType::F32 => {
-            cubek_sort::<R, f32>(client, keys, SortValues::None, num_items, order)
-        }
-        DType::F64 => cubek_sort::<R, f64>(client, keys, SortValues::None, num_items, order),
+        DType::U8 => cubek_sort::<R, u8>(client, keys, SortValues::None, order),
+        DType::I8 => cubek_sort::<R, i8>(client, keys, SortValues::None, order),
+        DType::U16 => cubek_sort::<R, u16>(client, keys, SortValues::None, order),
+        DType::I16 => cubek_sort::<R, i16>(client, keys, SortValues::None, order),
+        DType::U32 => cubek_sort::<R, u32>(client, keys, SortValues::None, order),
+        DType::I32 => cubek_sort::<R, i32>(client, keys, SortValues::None, order),
+        DType::U64 => cubek_sort::<R, u64>(client, keys, SortValues::None, order),
+        DType::I64 => cubek_sort::<R, i64>(client, keys, SortValues::None, order),
+        DType::F16 => cubek_sort::<R, f16>(client, keys, SortValues::None, order),
+        DType::BF16 => cubek_sort::<R, bf16>(client, keys, SortValues::None, order),
+        DType::Flex32 | DType::F32 => cubek_sort::<R, f32>(client, keys, SortValues::None, order),
+        DType::F64 => cubek_sort::<R, f64>(client, keys, SortValues::None, order),
         DType::Bool | DType::QFloat(_) => {
             unreachable!("Bool and QFloat tensors should not get here.")
         }
@@ -66,20 +64,20 @@ pub fn sort_with_indices<R: CubeRuntime>(
 
     // Use SortValues::Indices - generates [0, 1, 2, ...] implicitly in the kernel
     let output = match tensor.dtype {
-        DType::U8 => cubek_sort::<R, u8>(client, keys, SortValues::Indices, num_items, order),
-        DType::I8 => cubek_sort::<R, i8>(client, keys, SortValues::Indices, num_items, order),
-        DType::U16 => cubek_sort::<R, u16>(client, keys, SortValues::Indices, num_items, order),
-        DType::I16 => cubek_sort::<R, i16>(client, keys, SortValues::Indices, num_items, order),
-        DType::U32 => cubek_sort::<R, u32>(client, keys, SortValues::Indices, num_items, order),
-        DType::I32 => cubek_sort::<R, i32>(client, keys, SortValues::Indices, num_items, order),
-        DType::U64 => cubek_sort::<R, u64>(client, keys, SortValues::Indices, num_items, order),
-        DType::I64 => cubek_sort::<R, i64>(client, keys, SortValues::Indices, num_items, order),
-        DType::F16 => cubek_sort::<R, f16>(client, keys, SortValues::Indices, num_items, order),
-        DType::BF16 => cubek_sort::<R, bf16>(client, keys, SortValues::Indices, num_items, order),
+        DType::U8 => cubek_sort::<R, u8>(client, keys, SortValues::Indices, order),
+        DType::I8 => cubek_sort::<R, i8>(client, keys, SortValues::Indices, order),
+        DType::U16 => cubek_sort::<R, u16>(client, keys, SortValues::Indices, order),
+        DType::I16 => cubek_sort::<R, i16>(client, keys, SortValues::Indices, order),
+        DType::U32 => cubek_sort::<R, u32>(client, keys, SortValues::Indices, order),
+        DType::I32 => cubek_sort::<R, i32>(client, keys, SortValues::Indices, order),
+        DType::U64 => cubek_sort::<R, u64>(client, keys, SortValues::Indices, order),
+        DType::I64 => cubek_sort::<R, i64>(client, keys, SortValues::Indices, order),
+        DType::F16 => cubek_sort::<R, f16>(client, keys, SortValues::Indices, order),
+        DType::BF16 => cubek_sort::<R, bf16>(client, keys, SortValues::Indices, order),
         DType::Flex32 | DType::F32 => {
-            cubek_sort::<R, f32>(client, keys, SortValues::Indices, num_items, order)
+            cubek_sort::<R, f32>(client, keys, SortValues::Indices, order)
         }
-        DType::F64 => cubek_sort::<R, f64>(client, keys, SortValues::Indices, num_items, order),
+        DType::F64 => cubek_sort::<R, f64>(client, keys, SortValues::Indices, order),
         DType::Bool | DType::QFloat(_) => {
             unreachable!("Bool and QFloat tensors should not get here.")
         }
