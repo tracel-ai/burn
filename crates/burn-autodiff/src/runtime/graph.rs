@@ -52,7 +52,7 @@ pub struct GraphLocator {
 ///
 /// Each `Graph` contains an [AutodiffServer] and the original [NodeId] where the server was
 /// first created.
-pub(crate) struct Graph {
+struct Graph {
     origin: NodeId,
     state: Mutex<GraphState>,
 }
@@ -121,12 +121,12 @@ impl AutodiffClient for GraphMutexClient {
     }
 }
 
-struct GraphCleaner<'a> {
+pub(crate) struct GraphCleaner<'a> {
     guard: MutexGuard<'a, Option<GraphLocator>>,
 }
 
 impl<'a> GraphCleaner<'a> {
-    fn cleanup_orphaned_entries() {
+    pub(crate) fn cleanup_orphaned_entries() {
         let graphs = {
             // Get the available graphs and release the lock
             match STATE.lock().as_ref() {
@@ -185,7 +185,7 @@ impl GraphLocator {
     /// # Returns
     ///
     /// An `Arc<Graph>` representing the selected or merged graph.
-    pub(crate) fn select(&mut self, node: NodeId, parents: &[Parent]) -> Arc<Graph> {
+    fn select(&mut self, node: NodeId, parents: &[Parent]) -> Arc<Graph> {
         match self.analyse(node, parents) {
             GraphAnalysis::NoCollision(graph) => {
                 if graph.origin != node {
