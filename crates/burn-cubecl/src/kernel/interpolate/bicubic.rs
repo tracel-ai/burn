@@ -46,10 +46,10 @@ fn interpolate_bicubic_kernel<F: Float>(
     let yw = Line::empty(line_size).fill(F::cast_from(frac - y_in_f));
 
     // Clamp indices in float space to handle negative coordinates from half_pixel
-    let y0 = f32::clamp(y_in_f - 1.0, 0.0, input_height_f) as usize;
-    let y1 = f32::clamp(y_in_f, 0.0, input_height_f) as usize;
-    let y2 = f32::clamp(y_in_f + 1.0, 0.0, input_height_f) as usize;
-    let y3 = f32::clamp(y_in_f + 2.0, 0.0, input_height_f) as usize;
+    let y0 = clamp(y_in_f - 1.0, 0.0, input_height_f) as usize;
+    let y1 = clamp(y_in_f, 0.0, input_height_f) as usize;
+    let y2 = clamp(y_in_f + 1.0, 0.0, input_height_f) as usize;
+    let y3 = clamp(y_in_f + 2.0, 0.0, input_height_f) as usize;
 
     let input_width = input.shape(2) - 1;
     let input_width_f = input_width as f32;
@@ -66,10 +66,10 @@ fn interpolate_bicubic_kernel<F: Float>(
     let xw = Line::empty(line_size).fill(F::cast_from(frac - x_in_f));
 
     // Clamp indices in float space to handle negative coordinates from half_pixel
-    let x0 = f32::clamp(x_in_f - 1.0, 0.0, input_width_f) as usize;
-    let x1 = f32::clamp(x_in_f, 0.0, input_width_f) as usize;
-    let x2 = f32::clamp(x_in_f + 1.0, 0.0, input_width_f) as usize;
-    let x3 = f32::clamp(x_in_f + 2.0, 0.0, input_width_f) as usize;
+    let x0 = clamp(x_in_f - 1.0, 0.0, input_width_f) as usize;
+    let x1 = clamp(x_in_f, 0.0, input_width_f) as usize;
+    let x2 = clamp(x_in_f + 1.0, 0.0, input_width_f) as usize;
+    let x3 = clamp(x_in_f + 2.0, 0.0, input_width_f) as usize;
 
     let index_base = b * input.stride(0) + c * input.stride(3);
     let in_stride_y = input.stride(1);
