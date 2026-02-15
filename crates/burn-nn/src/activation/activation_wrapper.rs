@@ -383,7 +383,7 @@ mod tests {
         let device = Default::default();
         let input = make_input::<TestBackend>(&device);
 
-        let d_input = input.shape().dims[1];
+        let d_input = input.shape()[1];
         let d_output = 2 * d_input;
 
         let inner_config = SwiGluConfig::new(d_input, d_output);

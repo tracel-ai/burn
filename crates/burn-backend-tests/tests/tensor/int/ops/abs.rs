@@ -11,3 +11,14 @@ fn should_support_abs_ops_int() {
         .into_data()
         .assert_eq(&TensorData::from([[0, 1, 2], [3, 4, 5]]), false);
 }
+
+#[test]
+fn should_support_abs_ops_int_signed_min() {
+    let tensor = TestTensorInt::<2>::from([[IntElem::MIN]]);
+
+    let output = tensor.abs();
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([[IntElem::MIN]]), false);
+}

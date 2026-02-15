@@ -72,13 +72,13 @@ pub fn empty(shape: Shape, device: &CandleDevice, dtype: candle_core::DType) -> 
 
 pub fn zeros(shape: Shape, device: &CandleDevice, dtype: candle_core::DType) -> CandleTensor {
     CandleTensor::new(
-        candle_core::Tensor::zeros(shape.dims, dtype, &(device.clone()).into()).unwrap(),
+        candle_core::Tensor::zeros(shape.to_vec(), dtype, &(device.clone()).into()).unwrap(),
     )
 }
 
 pub fn ones(shape: Shape, device: &CandleDevice, dtype: candle_core::DType) -> CandleTensor {
     CandleTensor::new(
-        candle_core::Tensor::ones(shape.dims, dtype, &(device.clone()).into()).unwrap(),
+        candle_core::Tensor::ones(shape.to_vec(), dtype, &(device.clone()).into()).unwrap(),
     )
 }
 
@@ -111,7 +111,7 @@ pub fn flip(tensor: CandleTensor, axes: &[usize]) -> CandleTensor {
 }
 
 pub fn reshape(tensor: CandleTensor, shape: Shape) -> CandleTensor {
-    CandleTensor::new(tensor.tensor.reshape(shape.dims).unwrap())
+    CandleTensor::new(tensor.tensor.reshape(shape.to_vec()).unwrap())
 }
 
 pub fn device(tensor: &CandleTensor) -> CandleDevice {
@@ -225,7 +225,7 @@ fn slice_assign_with_steps_workaround(
     let device = tensor.tensor.device();
 
     // Generate indices for each dimension based on slice specifications
-    let indices_per_dim = generate_slice_indices(slices, &shape.dims);
+    let indices_per_dim = generate_slice_indices(slices, &shape);
 
     // Early return if no elements to assign
     let total_elements: usize = indices_per_dim.iter().map(|v| v.len()).product();
@@ -359,7 +359,7 @@ pub fn chunk(tensor: CandleTensor, chunks: usize, dim: usize) -> Vec<CandleTenso
 }
 
 pub fn expand(tensor: CandleTensor, shape: Shape) -> CandleTensor {
-    CandleTensor::new(tensor.tensor.broadcast_as(shape.dims).unwrap())
+    CandleTensor::new(tensor.tensor.broadcast_as(shape.to_vec()).unwrap())
 }
 
 pub fn unfold(tensor: CandleTensor, dim: usize, size: usize, step: usize) -> CandleTensor {
@@ -426,10 +426,10 @@ pub fn cross(lhs: CandleTensor, rhs: CandleTensor, dim: usize) -> CandleTensor {
     let mut broadcast_shape = vec![0; ndims];
     for (i, item) in broadcast_shape.iter_mut().enumerate().take(ndims) {
         if i == dim {
-            *item = shape_lhs.dims[i];
+            *item = shape_lhs[i];
         } else {
-            let l = shape_lhs.dims[i];
-            let r = shape_rhs.dims[i];
+            let l = shape_lhs[i];
+            let r = shape_rhs[i];
             if l == r {
                 *item = l;
             } else if l == 1 {

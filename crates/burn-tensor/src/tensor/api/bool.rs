@@ -239,7 +239,7 @@ where
             return vec![];
         }
 
-        let dims = indices.shape().dims;
+        let dims = indices.shape();
         indices
             .chunk(dims[1], 1)
             .into_iter()

@@ -76,9 +76,7 @@ pub(crate) mod tests {
             (MockAction::batch(actions), contexts)
         }
 
-        fn update(&mut self, _update: Self::PolicyState) {
-            ()
-        }
+        fn update(&mut self, _update: Self::PolicyState) {}
 
         fn state(&self) -> Self::PolicyState {
             MockPolicyState

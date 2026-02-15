@@ -2,6 +2,7 @@ use burn_backend::{
     DType,
     ops::{ConvOptions, conv::calculate_conv_output_sizes},
 };
+use burn_std::Shape;
 use core::iter;
 use cubecl::{
     prelude::*,
@@ -99,13 +100,13 @@ pub fn conv_im2col_1x1<R: CubeRuntime, const N: usize>(
     // Efficient permutation that takes the stride required for TMA into account
     let weight = if weight.strides[dim_c] != 1 {
         // Remove kernel dims so padded dim is channels
-        weight.shape.dims = vec![out_channels, in_channels]; // [N, K]
+        weight.shape = Shape::new([out_channels, in_channels]); // [N, K]
         weight.strides = vec![weight.strides[0], weight.strides[dim_c]];
         // Pitched contiguous to skip running another kernel for TMA
         into_contiguous_aligned(weight)
     } else {
         // Already compatible, skip initial reshape
-        weight.shape.dims = vec![out_channels, in_channels]; // [N, K]
+        weight.shape = Shape::new([out_channels, in_channels]); // [N, K]
         weight.strides = vec![weight.strides[0], 1];
         weight
     };
@@ -145,7 +146,7 @@ fn reshape_input<R: CubeRuntime>(mut input: CubeTensor<R>) -> CubeTensor<R> {
                 .expect("Kernel to never fail");
         input = from_handle(&input.client, &input.device, contiguous, dtype);
     }
-    input.shape.dims = vec![batch_size * in_shape.iter().product::<usize>(), in_c]; // [M, K]
+    input.shape = Shape::new([batch_size * in_shape.iter().product::<usize>(), in_c]); // [M, K]
     input.strides = vec![input.strides[dim_c - 1], input.strides[dim_c]];
     input
 }

@@ -9,7 +9,7 @@ use burn_ir::{
     BaseOperationIr, BinaryOpIr, FloatOperationIr, NumericOperationIr, OperationIr, ScalarOpIr,
     TensorIr, UnaryOpIr,
 };
-use burn_std::DType;
+use burn_std::{DType, Shape};
 use cubecl::ir::ElemType;
 
 /// The base operation fuser that can be used to fuse [all supported fuse operations](FuseOp).
@@ -29,7 +29,7 @@ use cubecl::ir::ElemType;
 pub(crate) struct TraceOperationFuser {
     fuser: TryTraceFuser,
     pub(crate) settings: FuseSettings,
-    pub(crate) current_output_shape: Vec<usize>,
+    pub(crate) current_output_shape: Shape,
     status: FuserStatus,
     pub(crate) num_ops: usize,
     pub(crate) num_views: usize,
@@ -120,13 +120,14 @@ impl OperationFuser<FuseTrace> for TraceOperationFuser {
 
     fn reset(&mut self) {
         self.num_ops = 0;
+        self.num_views = 0;
         self.status = FuserStatus::Open;
         self.fuser = TryTraceFuser::new(
             self.max_bindings,
             self.fuser.fuser.bool_precision,
             self.settings,
         );
-        self.current_output_shape.clear();
+        self.current_output_shape = Shape::new([]);
     }
 
     fn status(&self) -> FuserStatus {
@@ -156,7 +157,7 @@ impl TraceOperationFuser {
             num_ops: 0,
             num_views: 0,
             max_bindings,
-            current_output_shape: Vec::new(),
+            current_output_shape: Shape::new([]),
             status: FuserStatus::Open,
         }
     }
@@ -199,10 +200,10 @@ impl TraceOperationFuser {
     /// - The argument that maps to the tensor to be used during kernel expansion.
     pub fn output_unhandled(&mut self, tensor: &TensorIr) -> FuseArg {
         if self.current_output_shape.is_empty() {
-            self.current_output_shape = tensor.shape.dims.clone();
+            self.current_output_shape = tensor.shape.clone();
         } else if self.current_output_shape.iter().sum::<usize>() < tensor.shape.iter().sum() {
             // The larguest shape win.
-            self.current_output_shape = tensor.shape.dims.clone();
+            self.current_output_shape = tensor.shape.clone();
         }
 
         self.fuser.fuser.output_unhandled(tensor)
@@ -226,7 +227,8 @@ impl TraceOperationFuser {
         global: bool,
     ) -> [FuseArg; N] {
         let block_pos = self.fuser.fuser.num_previous_blocks();
-        let current_output_shape = core::mem::take(&mut self.current_output_shape);
+        let current_output_shape =
+            core::mem::replace(&mut self.current_output_shape, Shape::new([]));
 
         self.fuser.fuser.next_block(current_output_shape, settings);
 
@@ -656,7 +658,7 @@ impl TraceOperationFuser {
 
     fn output_is_compatible(&mut self, out: &TensorIr) -> bool {
         if self.current_output_shape.is_empty() {
-            self.current_output_shape.clone_from(&out.shape.dims);
+            self.current_output_shape.clone_from(&out.shape);
             return true;
         }
 
@@ -701,11 +703,11 @@ impl TraceOperationFuser {
 
         if should_update {
             // For now forced to have exact shape.
-            if updated != out.shape.dims {
+            if updated != out.shape {
                 return false;
             }
 
-            self.current_output_shape.clone_from_slice(&out.shape.dims);
+            self.current_output_shape.clone_from_slice(&out.shape);
         }
 
         true
@@ -761,7 +763,7 @@ impl TryTraceFuser {
         true
     }
 
-    fn finish(&mut self, shape: Vec<usize>) -> FuseTrace {
+    fn finish(&mut self, shape: Shape) -> FuseTrace {
         self.fuser.finish(shape)
     }
 }

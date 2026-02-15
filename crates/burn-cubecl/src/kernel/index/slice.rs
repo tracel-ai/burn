@@ -1,6 +1,6 @@
 use crate::{
     CubeRuntime,
-    kernel::utils::{linear_view, shape_divmod},
+    kernel::utils::{address_type, linear_view, shape_divmod},
     ops::numeric::empty_device_dtype,
     tensor::CubeTensor,
 };
@@ -54,7 +54,7 @@ pub fn slice<R: CubeRuntime>(tensor: CubeTensor<R>, indices: &[Range<usize>]) ->
     }
 }
 
-#[cube(launch_unchecked)]
+#[cube(launch_unchecked, address_type = "dynamic")]
 fn slice_kernel<E: Numeric>(
     input: &Tensor<E>,
     output: &mut LinearView<E, ReadWrite>,
@@ -109,6 +109,7 @@ pub(crate) fn slice_on_output<R: CubeRuntime>(
             &tensor.client,
             cube_count,
             cube_dim,
+            address_type!(tensor, output),
             tensor.as_tensor_arg(1),
             linear_view(&output, 1),
             shape_divmod(&output),
@@ -122,7 +123,7 @@ pub(crate) fn slice_on_output<R: CubeRuntime>(
 }
 
 /// Kernel for slicing with steps
-#[cube(launch_unchecked)]
+#[cube(launch_unchecked, address_type = "dynamic")]
 fn slice_with_steps_kernel<E: Numeric>(
     input: &Tensor<E>,
     output: &mut LinearView<E, ReadWrite>,
@@ -223,6 +224,7 @@ pub fn slice_with_steps<R: CubeRuntime>(tensor: CubeTensor<R>, slices: &[Slice])
             &tensor.client,
             cube_count,
             cube_dim,
+            address_type!(tensor, output),
             tensor.as_tensor_arg(1),
             linear_view(&output, 1),
             shape_divmod(&output),

@@ -77,7 +77,6 @@ pub(crate) fn all_reduce_sum_ring<B: Backend>(
 pub(crate) fn get_slice_dim(shape: &Shape) -> usize {
     // get dimension with the greatest size.
     shape
-        .dims
         .iter()
         .enumerate()
         .max_by(|(_, a), (_, b)| a.cmp(b))
@@ -115,7 +114,6 @@ fn ring_cycles<B: Backend>(
             } else {
                 let slices: Vec<Slice> = dest_slice
                     .shape()
-                    .dims
                     .iter()
                     .map(|&d| Slice::new(0, Some(d as isize), 1))
                     .collect();
@@ -151,7 +149,6 @@ fn slice_tensors<B: Backend>(
         let mut slices = vec![];
         for range in &ranges {
             let full_range = shape
-                .dims
                 .iter()
                 .enumerate()
                 .map(|(dim_idx, dim)| {

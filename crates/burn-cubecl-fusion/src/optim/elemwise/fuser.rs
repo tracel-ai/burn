@@ -8,6 +8,7 @@ use crate::{
     optim::CubeOptimization,
 };
 use burn_fusion::OperationFuser;
+use burn_std::Shape;
 use cubecl::Runtime;
 
 /// Fuses element wise operations.
@@ -26,7 +27,7 @@ impl<R: Runtime> Clone for ElementWiseFuser<R> {
 }
 
 impl<R: Runtime> ElementWiseFuser<R> {
-    pub fn shape_id(&self) -> Vec<usize> {
+    pub fn shape_id(&self) -> Shape {
         self.fuser.current_output_shape.clone()
     }
     pub fn new(device: R::Device, bool_precision: FuseType) -> Self {

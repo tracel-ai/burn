@@ -11,7 +11,7 @@ pub fn var_with_mean<B: Backend, const D: usize>(
     mean: Tensor<B, D>,
     dim: usize,
 ) -> Tensor<B, D> {
-    let n = tensor.shape().dims[dim] - 1;
+    let n = tensor.shape()[dim] - 1;
     var_with_mean_n(tensor, mean, dim, n)
 }
 
@@ -25,7 +25,7 @@ pub fn var_with_mean_bias<B: Backend, const D: usize>(
     mean: Tensor<B, D>,
     dim: usize,
 ) -> Tensor<B, D> {
-    let n = tensor.shape().dims[dim];
+    let n = tensor.shape()[dim];
     var_with_mean_n(tensor, mean, dim, n)
 }
 

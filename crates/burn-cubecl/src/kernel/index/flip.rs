@@ -1,6 +1,6 @@
 use crate::{
     CubeRuntime,
-    kernel::utils::{linear_view, shape_divmod},
+    kernel::utils::{address_type, linear_view, shape_divmod},
     ops::numeric::empty_device_dtype,
     tensor::CubeTensor,
 };
@@ -11,7 +11,7 @@ use cubecl::{
     std::{FastDivmod, tensor::layout::linear::LinearView},
 };
 
-#[cube(launch_unchecked)]
+#[cube(launch_unchecked, address_type = "dynamic")]
 fn flip_kernel<E: Numeric, Bool: Int>(
     input: &Tensor<E>,
     output: &mut LinearView<E, ReadWrite>,
@@ -85,6 +85,7 @@ pub(crate) fn flip_on_output<R: CubeRuntime>(
             &tensor.client,
             cube_count,
             cube_dim,
+            address_type!(tensor, output),
             tensor.as_tensor_arg(1),
             linear_view(&output, 1),
             shape_divmod(&tensor),

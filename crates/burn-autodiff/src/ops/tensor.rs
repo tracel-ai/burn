@@ -1747,7 +1747,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
 
                     let shape = input.shape();
                     let device = B::float_device(&input);
-                    let dim_size = shape.dims[dim] as i64;
+                    let dim_size = shape[dim] as i64;
 
                     // Create indices [0, 1, 2, ...] along the dimension
                     let arange_1d = B::int_arange(0..dim_size, &device);
@@ -1812,7 +1812,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
 
                     let shape = input.shape();
                     let device = B::float_device(&input);
-                    let dim_size = shape.dims[dim] as i64;
+                    let dim_size = shape[dim] as i64;
 
                     // Create indices [0, 1, 2, ...] along the dimension
                     let arange_1d = B::int_arange(0..dim_size, &device);
@@ -2912,7 +2912,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         let mut dim_sizes = Vec::with_capacity(tensors.len());
 
         tensors.into_iter().for_each(|tensor| {
-            dim_sizes.push(tensor.primitive.shape().dims[dim]);
+            dim_sizes.push(tensor.primitive.shape()[dim]);
             nodes.push(tensor.node);
             primitives.push(tensor.primitive);
         });
@@ -3174,7 +3174,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                 debug_assert!(ndims_out >= ndims_in);
 
                 for i in 0..ndims_in {
-                    shape_expanded[i + (ndims_out - ndims_in)] = shape_in.dims[i];
+                    shape_expanded[i + (ndims_out - ndims_in)] = shape_in[i];
                 }
 
                 unary::<B, _>(ops.parents, ops.node, grads, |grad| {
@@ -3183,7 +3183,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
 
                     #[allow(clippy::needless_range_loop)]
                     for i in 0..ndims_out {
-                        if shape_expanded[i] == 1 && shape_grad.dims[i] != 1 {
+                        if shape_expanded[i] == 1 && shape_grad[i] != 1 {
                             grad = B::float_sum_dim(grad, i);
                         }
                     }
@@ -3456,7 +3456,7 @@ impl BinaryOpsBroadcast {
         let ndims = shape_lhs.num_dims();
 
         for i in 0..ndims {
-            if shape_rhs.dims[i] != shape_lhs.dims[i] {
+            if shape_rhs[i] != shape_lhs[i] {
                 return Self::Broadcasted(shape_lhs, shape_rhs);
             }
         }

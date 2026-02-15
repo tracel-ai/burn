@@ -4,7 +4,6 @@ use super::indexing::ravel_index;
 use super::{AsIndex, Slice, SliceArg};
 use alloc::format;
 use alloc::string::{String, ToString};
-use alloc::vec;
 use alloc::vec::Vec;
 use core::fmt::{Debug, Display, Formatter};
 use core::str::FromStr;
@@ -13,6 +12,7 @@ use core::{
     slice::{Iter, IterMut, SliceIndex},
 };
 use serde::{Deserialize, Serialize};
+use smallvec::{SmallVec, smallvec};
 
 pub use crate::errors::ExpressionError;
 pub use crate::tensor::index_conversion::AsSize;
@@ -21,7 +21,7 @@ pub use crate::tensor::index_conversion::AsSize;
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Shape {
     /// The dimensions of the tensor.
-    pub dims: Vec<usize>,
+    dims: SmallVec<[usize; 5]>,
 }
 
 #[allow(missing_docs)]
@@ -57,7 +57,7 @@ impl Shape {
     pub fn new<const D: usize>(dims: [usize; D]) -> Self {
         // For backward compat
         Self {
-            dims: dims.to_vec(),
+            dims: SmallVec::from_slice(&dims),
         }
     }
 
@@ -90,7 +90,7 @@ impl Shape {
 
     /// Change the shape to one dimensional with the same number of elements.
     pub fn flatten(mut self) -> Self {
-        self.dims = [self.num_elements()].into();
+        self.dims = SmallVec::from_slice(&[self.num_elements()]);
         self
     }
 
@@ -138,7 +138,7 @@ impl Shape {
         let flattened_size = existing[start..=end].iter().product();
 
         let new_rank = rank - (end - start);
-        let mut dims = vec![0; new_rank];
+        let mut dims = smallvec![0; new_rank];
         dims[..start].copy_from_slice(&existing[..start]);
         dims[start] = flattened_size;
         dims[start + 1..].copy_from_slice(&existing[end + 1..]);
@@ -236,7 +236,7 @@ impl Shape {
 
     /// Construct a vector of the dims.
     pub fn to_vec(&self) -> Vec<usize> {
-        self.dims.clone()
+        self.dims.to_vec()
     }
 
     /// Returns an iterator over the shape dimensions.
@@ -536,6 +536,12 @@ impl Shape {
 
         Ok(dims.into())
     }
+
+    /// Returns the raw inner storage of the shape. Avoid using this where possible, since the storage
+    /// may change at any time.
+    pub fn inner_mut(&mut self) -> &mut SmallVec<[usize; 5]> {
+        &mut self.dims
+    }
 }
 
 /// Compute the output shape for matrix multiplication with broadcasting support.
@@ -611,7 +617,7 @@ impl FromStr for Shape {
                         }
                     })
                 })
-                .collect::<Result<Vec<usize>, crate::ExpressionError>>()?;
+                .collect::<Result<SmallVec<_>, crate::ExpressionError>>()?;
 
         if dims.is_empty() {
             unreachable!("Split should have returned at least one element");
@@ -668,7 +674,7 @@ impl AsRef<[usize]> for Shape {
 
 impl From<Shape> for Vec<usize> {
     fn from(shape: Shape) -> Self {
-        shape.dims
+        shape.dims.to_vec()
     }
 }
 
@@ -874,7 +880,7 @@ mod tests {
             *d += 1;
         }
 
-        assert_eq!(&shape.dims, &[3, 4, 5, 6]);
+        assert_eq!(shape.as_slice(), &[3, 4, 5, 6]);
     }
 
     #[test]
@@ -914,7 +920,7 @@ mod tests {
 
         let shape = shape.flatten();
         assert_eq!(shape.num_elements(), 120);
-        assert_eq!(&shape.dims, &[120]);
+        assert_eq!(shape.as_slice(), &[120]);
     }
 
     #[test]
@@ -951,7 +957,7 @@ mod tests {
         let shape = Shape::new(dims);
         let shape = shape.swap(1, 2).unwrap();
 
-        assert_eq!(&shape.dims, &[2, 4, 3, 5]);
+        assert_eq!(shape.as_slice(), &[2, 4, 3, 5]);
 
         let shape = shape.permute(&[0, 2, 1, 3]).unwrap();
         assert_eq!(shape, Shape::new(dims));

@@ -1,13 +1,13 @@
 use crate::{
     CubeRuntime,
-    kernel::utils::{broadcast_shape, linear_view, linear_view_ref},
+    kernel::utils::{address_type, broadcast_shape, linear_view, linear_view_ref},
     ops::numeric::empty_device_dtype,
     tensor::CubeTensor,
 };
 use cubecl::std::tensor::layout::linear::LinearView;
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
-#[cube(launch_unchecked)]
+#[cube(launch_unchecked, address_type = "dynamic")]
 fn cross_kernel<E: Float>(
     lhs: &LinearView<Line<E>>,
     rhs: &LinearView<Line<E>>,
@@ -86,6 +86,7 @@ pub(crate) fn cross<R: CubeRuntime>(
             &lhs.client,
             cube_count,
             cube_dim,
+            address_type!(lhs, rhs, output),
             linear_view_ref(&lhs, &output, line_size),
             linear_view_ref(&rhs, &output, line_size),
             linear_view(&output, line_size),

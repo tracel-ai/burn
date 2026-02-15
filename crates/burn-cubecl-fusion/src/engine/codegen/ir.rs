@@ -308,6 +308,17 @@ pub struct GlobalArgs {
     pub variables: MultiBlockVariables,
 }
 
+impl<'a, R: Runtime> GlobalArgsLaunch<'a, R> {
+    pub fn required_address_type(&self) -> AddressType {
+        self.tensors
+            .values
+            .iter()
+            .map(|it| it.address_type)
+            .max()
+            .unwrap_or_default()
+    }
+}
+
 /// Variables shared between blocks.
 #[derive(CubeType, Default, Clone)]
 pub struct MultiBlockVariables {

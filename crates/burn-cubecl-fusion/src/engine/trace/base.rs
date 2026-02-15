@@ -3,6 +3,7 @@ use crate::engine::{
     trace::block::FuseBlock,
 };
 use burn_ir::{TensorId, TensorIr};
+use burn_std::Shape;
 use cubecl::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -191,10 +192,19 @@ pub struct FuseResources {
     pub registers: BTreeMap<TensorId, FuseArg>,
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug, Default)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct RuntimeLayout {
-    pub shape: Vec<usize>,
+    pub shape: Shape,
     pub strides: Vec<usize>,
+}
+
+impl Default for RuntimeLayout {
+    fn default() -> Self {
+        Self {
+            shape: Shape::new([]),
+            strides: Default::default(),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -209,7 +219,7 @@ pub enum TensorView {
         reshaped: TensorId,
         original: TensorId,
         reshape_pos: usize,
-        shape_relative: Vec<usize>,
+        shape_relative: Shape,
     },
     SwapDims {
         swapped: TensorId,

@@ -681,6 +681,11 @@ where
     ///   // [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
     /// }
     /// ```
+    ///
+    /// # Notes
+    ///
+    /// For signed integer dtypes, this operation uses two's-complement wraparound semantics, similar to
+    /// `x.wrapping_abs()`. For example, `abs(i64::MIN) == i64::MIN`.
     pub fn abs(self) -> Self {
         Self::new(K::abs(self.primitive))
     }
@@ -723,7 +728,7 @@ where
         check!(TensorCheck::tri::<{ D }>());
 
         // last two dimensions
-        let shape = &self.shape().dims[D - 2..].to_owned();
+        let shape = &self.shape()[D - 2..].to_owned();
 
         let mask = Tensor::<B, 2, Bool>::triu_mask(shape, diagonal, &self.device()).unsqueeze();
         self.mask_fill(mask, 0)
@@ -768,7 +773,7 @@ where
         check!(TensorCheck::tri::<{ D }>());
 
         // last two dimensions
-        let shape = &self.shape().dims[D - 2..].to_owned();
+        let shape = &self.shape()[D - 2..].to_owned();
         let mask = Tensor::<B, 2, Bool>::tril_mask(shape, diagonal, &self.device()).unsqueeze();
 
         self.mask_fill(mask, 0)

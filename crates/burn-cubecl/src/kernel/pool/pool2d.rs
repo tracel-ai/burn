@@ -69,7 +69,7 @@ pub struct Pool2dDirectArgs {
     pub padding_1: u32,
 }
 
-#[cube(launch)]
+#[cube(launch, address_type = "dynamic")]
 pub fn pool2d_direct<E: Numeric, S: Pool2dDirectStrategyFamily>(
     input: &Tensor<Line<E>>,
     output: &mut View<Line<E>, Position, ReadWrite>,
@@ -137,7 +137,7 @@ pub(super) fn view4d<R: CubeRuntime>(
     tensor: &CubeTensor<R>,
     line_size: LineSize,
 ) -> ViewArg<'_, Position, R> {
-    let shape = &tensor.shape.dims;
+    let shape = &tensor.shape;
     let shape = (
         ScalarArg::new(shape[0]),
         ScalarArg::new(shape[1]),

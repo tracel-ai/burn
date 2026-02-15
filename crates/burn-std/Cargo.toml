@@ -19,10 +19,7 @@ cubecl = ["dep:cubecl"]
 default = ["std", "cubecl-common/default"]
 doc = ["default"]
 std = ["cubecl-common/std", "num-traits/std"]
-tracing = [
-    "cubecl?/tracing",
-    "cubecl-common/tracing",
-]
+tracing = ["cubecl?/tracing", "cubecl-common/tracing"]
 
 network = ["dep:indicatif", "dep:reqwest", "dep:tokio"]
 
@@ -31,6 +28,7 @@ bytemuck = { workspace = true, features = ["extern_crate_alloc"] }
 half = { workspace = true, features = ["bytemuck"] }
 num-traits = { workspace = true }
 serde = { workspace = true }
+smallvec = { workspace = true, features = ["serde"] }
 
 cubecl = { workspace = true, optional = true, default-features = false }
 cubecl-common = { workspace = true, default-features = false, features = [
