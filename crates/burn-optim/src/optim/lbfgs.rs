@@ -33,7 +33,7 @@ fn cubic_interpolate(
     let (min_bound, max_bound) = bounds.unwrap_or(if x1 <= x2 { (x1, x2) } else { (x2, x1) });
     // Code for most common case: cubic interpolation of 2 points
     // with function and derivative values for both
-    // Soulution in this case (where x2 is the farthest point)
+    // Solution in this case (where x2 is the farthest point)
     // d1 = g1 + g2 - 3*(f1 - f2) / (x1-x2);
     // d2 = sqrt(d1^2 - g1 * g2);
     // min_pos = x2 - (x2 - x1)*((g2 + d2 - d1)/(g2 - g1 + 2*d2));
@@ -317,22 +317,22 @@ pub enum LineSearchFn {
 /// LBFGS Configuration.
 #[derive(Config, Debug)]
 pub struct LBFGSConfig {
-    /// maximal number of iterations per optimization step (default: 20)
+    /// Maximal number of iterations per optimization step (default: 20)
     #[config(default = 20)]
     pub max_iter: usize,
-    /// update history size (default: 100).
+    /// Update history size (default: 100).
     #[config(default = 100)]
     pub history_size: usize,
-    /// ermination tolerance on first order optimality (default: 1e-7).
+    /// Termination tolerance on first order optimality (default: 1e-7).
     #[config(default = 1e-7)]
     pub tolerance_grad: f64,
-    /// termination tolerance on function value/parameter changes (default: 1e-9).
+    /// Termination tolerance on function value/parameter changes (default: 1e-9).
     #[config(default = 1e-9)]
     pub tolerance_change: f64,
-    /// maximal number of function evaluations per optimization step (default: max_iter * 1.25).
+    /// Maximal number of function evaluations per optimization step (default: max_iter * 1.25).
     #[config(default = "None")]
     pub max_eval: Option<usize>,
-    ///  either ‘strong_wolfe’ or None (default: None).
+    /// Either ‘strong_wolfe’ or None (default: None).
     #[config(default = "LineSearchFn::None")]
     pub line_search_fn: LineSearchFn,
 }
@@ -464,6 +464,16 @@ pub struct LBFGSState<B: Backend> {
     pub history_s: Vec<Tensor<B, 1>>,
     /// Historical gradient difference vectors
     pub history_y: Vec<Tensor<B, 1>>,
+    /// 搜索方向
+    pub d: Option<Tensor<B, 1>>,
+    /// 上一次的步长 t
+    pub t: Option<f64>,
+    /// 上一次的扁平梯度
+    pub prev_flat_grad: Option<Tensor<B, 1>>,
+    /// 上一次的 Loss (用于断点检查)
+    pub prev_loss: Option<f64>,
+    /// 全局迭代次数 (用于判断是否需要执行初次初始化)
+    pub g_iter: usize,
 }
 
 impl<B: Backend> LBFGSState<B> {
@@ -480,6 +490,11 @@ impl<B: Backend> LBFGSState<B> {
                 .into_iter()
                 .map(|t| t.to_device(device))
                 .collect(),
+            d: self.d.map(|t| t.to_device(device)),
+            t: self.t,
+            prev_flat_grad: self.prev_flat_grad.map(|t| t.to_device(device)),
+            prev_loss: self.prev_loss,
+            g_iter: self.g_iter,
         }
     }
 }
@@ -488,11 +503,24 @@ impl<B: Backend> Default for LBFGSState<B> {
         Self {
             history_s: Vec::new(),
             history_y: Vec::new(),
+            d: None,
+            t: Some(1.0),
+            prev_flat_grad: None,
+            prev_loss: None,
+            g_iter: 0,
         }
     }
 }
 
 /// L-BFGS optimizer.
+///
+/// Ported from [pytorch](https://github.com/pytorch/pytorch/torch/optim/lbfgs.py). Heavily inspired by [miniFunc](https://www.cs.ubc.ca/~schmidtm/Software/minFunc.html)
+///
+/// See also:
+/// - [L-BFGS](https://en.wikipedia.org/wiki/Limited-memory_BFGS)
+///
+/// # Note
+/// This optimizer is memory intensive
 #[derive(Clone)]
 pub struct LBFGS<B: Backend + AutodiffBackend> {
     config: LBFGSConfig,
@@ -520,19 +548,25 @@ impl<B: Backend + AutodiffBackend> LBFGS<B> {
             return (module, loss);
         }
 
-        // tensors cached in state (for tracing)
-        let mut d = flat_grad.clone().neg();
-        let mut t = lr;
-        let mut prev_flat_grad: Option<Tensor<B::InnerBackend, 1>> = None;
+        // tensors cached in state
+        let mut d = self
+            .state
+            .d
+            .take()
+            .unwrap_or_else(|| flat_grad.clone().neg());
+        let mut t = self.state.t.unwrap_or(lr);
+        let mut prev_flat_grad = self.state.prev_flat_grad.take();
+
         let mut n_iter = 0;
 
         // optimize for a max of max_iter iterations
         while n_iter < self.config.max_iter {
             // keep track of nb of iterations
             n_iter += 1;
+            self.state.g_iter += 1;
 
             // compute gradient descent direction
-            if n_iter == 1 {
+            if self.state.g_iter == 1 {
                 d = flat_grad.clone().neg();
                 self.state.history_s.clear();
                 self.state.history_y.clear();
@@ -600,10 +634,10 @@ impl<B: Backend + AutodiffBackend> LBFGS<B> {
             }
 
             prev_flat_grad = Some(flat_grad.clone());
-            let prev_loss = loss;
+            let prev_loss_iter = loss;
 
             // compute step len
-            if n_iter == 1 {
+            if self.state.g_iter == 1 {
                 let grad_l1 = flat_grad.clone().abs().sum().into_scalar().to_f64();
                 t = (1.0f64 / grad_l1).min(1.0) * lr;
             } else {
@@ -686,11 +720,14 @@ impl<B: Backend + AutodiffBackend> LBFGS<B> {
                 break;
             }
 
-            if (loss - prev_loss).abs() < self.config.tolerance_change {
+            if (loss - prev_loss_iter).abs() < self.config.tolerance_change {
                 break;
             }
         }
-
+        self.state.d = Some(d);
+        self.state.t = Some(t);
+        self.state.prev_flat_grad = prev_flat_grad;
+        self.state.prev_loss = Some(loss);
         (module, loss)
     }
     /// Moves the optimizer state to the specified device.
