@@ -374,9 +374,7 @@ pub fn q_reshape<R: CubeRuntime>(mut tensor: CubeTensor<R>, shape: Shape) -> Cub
 
 pub(crate) fn max_line_size<R: CubeRuntime>(tensor: &CubeTensor<R>) -> LineSize {
     tensor_line_size_parallel(
-        tensor
-            .client
-            .io_optimized_line_sizes_unchecked(tensor.dtype.size()),
+        tensor.client.io_optimized_line_sizes(tensor.dtype.size()),
         &tensor.shape,
         &tensor.strides,
         tensor.shape.len() - 1,
@@ -391,9 +389,7 @@ pub(crate) fn max_line_size_many<R: CubeRuntime>(
         .iter()
         .map(|tensor| {
             tensor_line_size_parallel(
-                tensor
-                    .client
-                    .io_optimized_line_sizes_unchecked(tensor.dtype.size()),
+                tensor.client.io_optimized_line_sizes(tensor.dtype.size()),
                 &tensor.shape,
                 &tensor.strides,
                 axis,

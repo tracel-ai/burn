@@ -127,17 +127,16 @@ pub(crate) fn slice_assign<R: CubeRuntime>(
         let end = last.end.unwrap_or(tensor.shape[ndims - 1] as isize);
         let shape = (end - last.start) as usize;
         let offset = last.start as usize;
-        *R::supported_line_sizes()
-            .iter()
-            .filter(|it| {
-                let it = **it;
+        client
+            .io_optimized_line_sizes(tensor.dtype.size())
+            .filter(|&it| {
                 shape.is_multiple_of(it)
                     && strides_compatible(&tensor.strides, it)
                     && strides_compatible(&value.strides, it)
                     && offset.is_multiple_of(it)
             })
             .max()
-            .unwrap_or(&1)
+            .unwrap_or(1)
     } else {
         1
     };
