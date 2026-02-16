@@ -120,9 +120,9 @@ pub(crate) mod unary_basic_int {
             match comptime![options.kind] {
                 BasicIntUnaryKind::BitwiseNot => !input,
                 BasicIntUnaryKind::Sign => {
-                    let zero = Line::new(I::new(0));
-                    let one = Line::new(I::new(1));
-                    let minus_one = Line::new(I::new(-1));
+                    let zero = Line::cast_from(0);
+                    let one = Line::cast_from(1);
+                    let minus_one = Line::cast_from(-1);
 
                     let is_positive = input.greater_than(zero);
                     let is_negative = input.less_than(zero);
