@@ -299,6 +299,7 @@ Burn comes with built-in modules that you can use to build your own modules.
 | `BinaryCrossEntropyLoss` | `nn.BCELoss`             |
 | `CosineEmbeddingLoss`    | `nn.CosineEmbeddingLoss` |
 | `CrossEntropyLoss`       | `nn.CrossEntropyLoss`    |
+| `CTCLoss`                | `nn.CTCLoss`             |
 | `HuberLoss`              | `nn.HuberLoss`           |
 | `Lpips`                  | `lpips.LPIPS`            |
 | `LpLoss`                 | _No direct equivalent_   |
