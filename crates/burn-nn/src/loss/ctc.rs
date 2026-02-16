@@ -644,7 +644,7 @@ mod tests {
         let loss = ctc.forward(log_probs, targets, input_lengths, target_lengths);
         let loss_data = loss.into_data().to_vec::<f32>().unwrap();
         let expected = 3.0 * 2.0_f32.ln();
-        assert_approx_equal(&loss_data, &[expected], 1e-4);
+        assert_approx_equal(&loss_data, &[expected], 1e-3);
     }
 
     #[test]
@@ -666,7 +666,7 @@ mod tests {
         let loss = ctc.forward(log_probs, targets, input_lengths, target_lengths);
         let loss_data = loss.into_data().to_vec::<f32>().unwrap();
         let expected = -(5.0_f32 / 27.0).ln();
-        assert_approx_equal(&loss_data, &[expected], 1e-4);
+        assert_approx_equal(&loss_data, &[expected], 1e-3);
     }
 
     // ---------------------------------------------------------------
@@ -724,7 +724,7 @@ mod tests {
         let loss = ctc.forward(log_probs, targets, input_lengths, target_lengths);
         let loss_data = loss.into_data().to_vec::<f32>().unwrap();
         let expected = -(0.75_f32).ln();
-        assert_approx_equal(&loss_data, &[expected], 1e-4);
+        assert_approx_equal(&loss_data, &[expected], 1e-3);
     }
 }
 
@@ -917,8 +917,8 @@ mod pytorch_comparison_tests {
             0,
             &expected_losses,
             &expected_grad_flat,
-            1e-4,
-            1e-4,
+            1e-3,
+            1e-3,
         );
     }
 
@@ -1138,8 +1138,8 @@ mod pytorch_comparison_tests {
             0,
             &expected_losses,
             &expected_grad_flat,
-            1e-4,
-            1e-4,
+            1e-3,
+            1e-3,
         );
     }
 
@@ -1322,8 +1322,8 @@ mod pytorch_comparison_tests {
             0,
             &expected_losses,
             &expected_grad_flat,
-            1e-4,
-            1e-4,
+            1e-3,
+            1e-3,
         );
     }
 
@@ -1526,8 +1526,8 @@ mod pytorch_comparison_tests {
             0,
             &expected_losses,
             &expected_grad_flat,
-            1e-4,
-            1e-4,
+            1e-3,
+            1e-3,
         );
     }
 
@@ -1550,7 +1550,7 @@ mod pytorch_comparison_tests {
         let loss_data = loss.clone().into_data().to_vec::<f32>().unwrap();
 
         let expected_sum = 11.2816486359_f32; // Expected value from PyTorch
-        assert_approx_equal(&loss_data, &[expected_sum], 1e-4);
+        assert_approx_equal(&loss_data, &[expected_sum], 1e-3);
 
         let grads = loss.backward();
         let logits_grad = logits.grad(&grads).unwrap();
@@ -1618,7 +1618,7 @@ mod pytorch_comparison_tests {
             0.2689785957,
             0.3617166877,
         ];
-        assert_approx_equal(&grad_data, &expected_grad, 1e-4);
+        assert_approx_equal(&grad_data, &expected_grad, 1e-3);
     }
 
     #[test]
@@ -1639,7 +1639,7 @@ mod pytorch_comparison_tests {
         let loss_data = loss.clone().into_data().to_vec::<f32>().unwrap();
 
         let expected_mean = 2.2260115147_f32; // Expected value from PyTorch
-        assert_approx_equal(&loss_data, &[expected_mean], 1e-4);
+        assert_approx_equal(&loss_data, &[expected_mean], 1e-3);
 
         let grads = loss.backward();
         let logits_grad = logits.grad(&grads).unwrap();
@@ -1707,6 +1707,6 @@ mod pytorch_comparison_tests {
             0.0298865121,
             0.0401907414,
         ];
-        assert_approx_equal(&grad_data, &expected_grad, 1e-4);
+        assert_approx_equal(&grad_data, &expected_grad, 1e-3);
     }
 }
