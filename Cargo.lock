@@ -817,6 +817,7 @@ dependencies = [
  "ahash",
  "bincode",
  "burn-autodiff",
+ "burn-collective",
  "burn-cuda",
  "burn-dataset",
  "burn-derive",

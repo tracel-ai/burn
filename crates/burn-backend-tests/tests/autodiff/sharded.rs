@@ -13,13 +13,13 @@ use serial_test::serial;
 pub type TestBackend = burn_ndarray::NdArray<f32>;
 pub type TestAutodiffBackend = Autodiff<TestBackend>;
 
-pub fn run_peer_sharded<B>(
+pub fn run_peer_sharded<B, const D_OUT: usize>(
     id: PeerId,
     config: CollectiveConfig,
     input: TensorData,
     op: ReduceOperation,
     output: SyncSender<Tensor<<B as AutodiffBackend>::InnerBackend, 1>>,
-    transformation: fn(Tensor<B, 1>) -> Tensor<B, 1>,
+    transformation: fn(Tensor<B, 1>) -> Tensor<B, D_OUT>,
 ) where
     B: AutodiffBackend,
 {
@@ -38,11 +38,11 @@ pub fn run_peer_sharded<B>(
     output.send(tensor_grad).unwrap();
 }
 
-fn generate_random_input_autodiff<B>(
+fn generate_random_input_autodiff<B, const D_OUT: usize>(
     shape: Vec<usize>,
     op: ReduceOperation,
     thread_count: usize,
-    transformation: fn(Tensor<B, 1>) -> Tensor<B, 1>,
+    transformation: fn(Tensor<B, 1>) -> Tensor<B, D_OUT>,
 ) -> (Vec<TensorData>, TensorData)
 where
     B: AutodiffBackend,
@@ -77,16 +77,15 @@ where
     (input, expected)
 }
 
-fn test_all_reduce<B>(
-    device_count: usize,
+fn test_sharded_backward<B, const D_OUT: usize>(
     op: ReduceOperation,
-    strategy: AllReduceStrategy,
     tensor_size: usize,
-    transformation: fn(Tensor<B, 1>) -> Tensor<B, 1>,
+    transformation: fn(Tensor<B, 1>) -> Tensor<B, D_OUT>,
 ) where
     B: AutodiffBackend,
 {
     reset_collective::<<TestAutodiffBackend as AutodiffBackend>::InnerBackend>();
+    let device_count = 4;
 
     let (send, recv) = std::sync::mpsc::sync_channel(32);
 
@@ -96,7 +95,7 @@ fn test_all_reduce<B>(
 
     let config = CollectiveConfig::default()
         .with_num_devices(device_count)
-        .with_local_all_reduce_strategy(strategy);
+        .with_local_all_reduce_strategy(AllReduceStrategy::Centralized);
 
     for id in 0..device_count {
         let send = send.clone();
@@ -104,7 +103,7 @@ fn test_all_reduce<B>(
 
         std::thread::spawn({
             let config = config.clone();
-            move || run_peer_sharded::<B>(id.into(), config, input, op, send, transformation)
+            move || run_peer_sharded::<B, _>(id.into(), config, input, op, send, transformation)
         });
     }
 
@@ -120,109 +119,122 @@ fn test_all_reduce<B>(
 
 #[test]
 #[serial]
-pub fn test_all_reduce_centralized_sum() {
-    test_all_reduce::<TestAutodiffBackend>(
-        4,
-        ReduceOperation::Sum,
-        AllReduceStrategy::Centralized,
-        4,
-        |tensor| tensor,
-    );
+pub fn test_sharded_backward_sum_identity() {
+    test_sharded_backward::<TestAutodiffBackend, _>(ReduceOperation::Sum, 4, |tensor| tensor);
 }
 
 #[test]
 #[serial]
-pub fn test_all_reduce_centralized_mean() {
-    test_all_reduce::<TestAutodiffBackend>(
-        4,
-        ReduceOperation::Mean,
-        AllReduceStrategy::Centralized,
-        4,
-        |tensor| tensor,
-    );
+pub fn test_sharded_backward_mean_identity() {
+    test_sharded_backward::<TestAutodiffBackend, _>(ReduceOperation::Mean, 4, |tensor| tensor);
 }
 
 #[test]
 #[serial]
-pub fn test_all_reduce_binary_tree_sum() {
-    test_all_reduce::<TestAutodiffBackend>(
-        4,
-        ReduceOperation::Sum,
-        AllReduceStrategy::Tree(2),
-        4,
-        |tensor| tensor,
-    );
+pub fn test_sharded_backward_sum_mul_scalar() {
+    test_sharded_backward::<TestAutodiffBackend, _>(ReduceOperation::Sum, 4, |tensor| {
+        tensor.mul_scalar(3)
+    });
 }
 
 #[test]
 #[serial]
-pub fn test_all_reduce_binary_tree_mean() {
-    test_all_reduce::<TestAutodiffBackend>(
-        4,
-        ReduceOperation::Mean,
-        AllReduceStrategy::Tree(2),
-        4,
-        |tensor| tensor,
-    );
+pub fn test_sharded_backward_mean_mul_scalar() {
+    test_sharded_backward::<TestAutodiffBackend, _>(ReduceOperation::Mean, 4, |tensor| {
+        tensor.mul_scalar(3)
+    });
 }
 
 #[test]
 #[serial]
-pub fn test_all_reduce_5_tree_sum() {
-    test_all_reduce::<TestAutodiffBackend>(
-        4,
-        ReduceOperation::Sum,
-        AllReduceStrategy::Tree(5),
-        4,
-        |tensor| tensor,
-    );
+pub fn test_sharded_backward_sum_multi_node_1() {
+    test_sharded_backward::<TestAutodiffBackend, _>(ReduceOperation::Sum, 4, |tensor| {
+        let tensor1 = tensor.clone().mul_scalar(3);
+        let tensor2 = tensor.mul_scalar(2);
+        Tensor::cat(vec![tensor1, tensor2], 0)
+    });
 }
 
 #[test]
 #[serial]
-pub fn test_all_reduce_5_tree_mean() {
-    test_all_reduce::<TestAutodiffBackend>(
-        4,
-        ReduceOperation::Mean,
-        AllReduceStrategy::Tree(5),
-        4,
-        |tensor| tensor,
-    );
+pub fn test_sharded_backward_mean_multi_node_1() {
+    test_sharded_backward::<TestAutodiffBackend, _>(ReduceOperation::Mean, 4, |tensor| {
+        let tensor1 = tensor.clone().mul_scalar(3);
+        let tensor2 = tensor.mul_scalar(2);
+        Tensor::cat(vec![tensor1, tensor2], 0)
+    });
 }
 
 #[test]
 #[serial]
-pub fn test_all_reduce_ring_sum() {
-    test_all_reduce::<TestAutodiffBackend>(
-        3,
-        ReduceOperation::Sum,
-        AllReduceStrategy::Ring,
-        3,
-        |tensor| tensor,
-    );
+pub fn test_sharded_backward_sum_residual() {
+    test_sharded_backward::<TestAutodiffBackend, _>(ReduceOperation::Sum, 4, |tensor| {
+        let path1 = tensor.clone().mul_scalar(2.0);
+        let path2 = tensor;
+        path1.add(path2)
+    });
 }
 
 #[test]
 #[serial]
-pub fn test_all_reduce_ring_mean() {
-    test_all_reduce::<TestAutodiffBackend>(
-        3,
-        ReduceOperation::Mean,
-        AllReduceStrategy::Ring,
-        3,
-        |tensor| tensor,
-    );
+pub fn test_sharded_backward_mean_residual() {
+    test_sharded_backward::<TestAutodiffBackend, _>(ReduceOperation::Mean, 4, |tensor| {
+        let path1 = tensor.clone().mul_scalar(2.0);
+        let path2 = tensor;
+        path1.add(path2)
+    });
 }
 
 #[test]
 #[serial]
-pub fn test_all_reduce_ring_irregular_sum() {
-    // this should trigger the fallback algorithm when the tensor is too small.
-    test_all_reduce::<TestAutodiffBackend>(
-        4,
-        ReduceOperation::Sum,
-        AllReduceStrategy::Ring,
-        3,
-        |tensor| tensor,
-    );
+pub fn test_sharded_backward_sum_reshape() {
+    test_sharded_backward::<TestAutodiffBackend, 2>(ReduceOperation::Sum, 4, |tensor| {
+        tensor.reshape([2, 2])
+    });
+}
+
+#[test]
+#[serial]
+pub fn test_sharded_backward_mean_reshape() {
+    test_sharded_backward::<TestAutodiffBackend, 2>(ReduceOperation::Mean, 4, |tensor| {
+        tensor.reshape([2, 2])
+    });
+}
+
+#[test]
+#[serial]
+pub fn test_sharded_backward_sum_activation() {
+    test_sharded_backward::<TestAutodiffBackend, _>(ReduceOperation::Sum, 4, |tensor| {
+        burn_tensor::activation::relu(tensor)
+    });
+}
+
+#[test]
+#[serial]
+pub fn test_sharded_backward_mean_activation() {
+    test_sharded_backward::<TestAutodiffBackend, _>(ReduceOperation::Mean, 4, |tensor| {
+        burn_tensor::activation::relu(tensor)
+    });
+}
+
+#[test]
+#[serial]
+pub fn test_sharded_backward_sum_diamond_graph() {
+    test_sharded_backward::<TestAutodiffBackend, _>(ReduceOperation::Sum, 4, |tensor| {
+        let root = tensor.mul_scalar(0.5);
+        let left = root.clone().exp();
+        let right = root.mul_scalar(4.0);
+        Tensor::cat(vec![left, right], 0)
+    });
+}
+
+#[test]
+#[serial]
+pub fn test_sharded_backward_mean_diamond_graph() {
+    test_sharded_backward::<TestAutodiffBackend, _>(ReduceOperation::Mean, 4, |tensor| {
+        let root = tensor.mul_scalar(0.5);
+        let left = root.clone().exp();
+        let right = root.mul_scalar(4.0);
+        Tensor::cat(vec![left, right], 0)
+    });
 }

@@ -270,7 +270,17 @@ mod num_params {
 
 #[cfg(feature = "std")]
 mod require_grad {
-    use burn_tensor::backend::AutodiffBackend;
+    use std::sync::mpsc::SyncSender;
+
+    use burn_collective::{AllReduceStrategy, CollectiveConfig, register};
+    use burn_tensor::{
+        TensorData,
+        backend::{AutodiffBackend, PeerId, ReduceOperation},
+    };
+    use rand::{
+        SeedableRng,
+        rngs::{StdRng, SysRng},
+    };
 
     use super::*;
 
@@ -280,9 +290,7 @@ mod require_grad {
     fn should_have_grad_by_default() {
         let device = <TestBackend as Backend>::Device::default();
         let module = ModuleBasic::<TestAutodiffBackend>::new(&device);
-        let mut grads = calculate_grads(&module);
-
-        let grad_x = module.weight_basic.grad_remove(&mut grads);
+        let grad_x = calculate_grads(&module);
 
         assert!(grad_x.is_some());
     }
@@ -291,9 +299,7 @@ mod require_grad {
     fn should_have_no_grad_after_no_grad() {
         let device = <TestAutodiffBackend as Backend>::Device::default();
         let module = ModuleBasic::<TestAutodiffBackend>::new(&device).no_grad();
-        let mut grads = calculate_grads(&module);
-
-        let grad_x = module.weight_basic.grad_remove(&mut grads);
+        let grad_x = calculate_grads(&module);
 
         assert!(grad_x.is_none());
     }
@@ -306,20 +312,83 @@ mod require_grad {
             weight_basic: module.weight_basic.clone(), // Even when param is no_grad,
         };
         let module = module.load_record(record);
-        let mut grads = calculate_grads(&module);
-
-        let grad_x = module.weight_basic.grad_remove(&mut grads);
+        let grad_x = calculate_grads(&module);
 
         assert!(grad_x.is_some());
     }
 
+    #[test]
+    fn grad_sharded_module_should_sync_gradients() {
+        let device = <TestBackend as Backend>::Device::default();
+        let module = ModuleBasic::<TestAutodiffBackend>::new(&device);
+        let config = CollectiveConfig::default()
+            .with_num_devices(2)
+            .with_local_all_reduce_strategy(AllReduceStrategy::Centralized);
+
+        let mut recvs = vec![];
+        for i in 0..2 {
+            let (send, recv) = std::sync::mpsc::sync_channel(32);
+            recvs.push(recv);
+            std::thread::spawn({
+                let config_thread = config.clone();
+                let module_thread = module.clone();
+                move || {
+                    run_peer_sharded(
+                        &module_thread,
+                        PeerId::from(i),
+                        config_thread,
+                        ReduceOperation::Sum,
+                        send,
+                    )
+                }
+            });
+        }
+
+        let grad_x1 = recvs[0].recv().unwrap();
+        grad_x1
+            .unwrap()
+            .to_data()
+            .assert_eq(&recvs[1].recv().unwrap().unwrap().to_data(), true);
+    }
+
+    pub fn run_peer_sharded(
+        module: &ModuleBasic<TestAutodiffBackend>,
+        id: PeerId,
+        config: CollectiveConfig,
+        op: ReduceOperation,
+        output: SyncSender<
+            Option<Tensor<<TestAutodiffBackend as AutodiffBackend>::InnerBackend, 2>>,
+        >,
+    ) {
+        let device = <TestAutodiffBackend as Backend>::Device::default();
+        let module = module.clone().fork(&device);
+
+        register::<<TestAutodiffBackend as AutodiffBackend>::InnerBackend>(
+            id,
+            device.clone(),
+            config,
+        )
+        .unwrap();
+
+        let module = module.grad_sharded(id, op);
+        let grads_x = calculate_grads(&module);
+
+        output.send(grads_x).unwrap();
+    }
+
     fn calculate_grads(
         module: &ModuleBasic<TestAutodiffBackend>,
-    ) -> <TestAutodiffBackend as AutodiffBackend>::Gradients {
+    ) -> Option<Tensor<<TestAutodiffBackend as AutodiffBackend>::InnerBackend, 2>> {
         let device = module.weight_basic.device();
-        let x = Tensor::ones([20, 20], &device).require_grad();
+        let data = TensorData::random::<f32, _, _>(
+            module.weight_basic.shape(),
+            burn_tensor::Distribution::Default,
+            &mut StdRng::try_from_rng(&mut SysRng).unwrap(),
+        );
+        let x = Tensor::from_data(data, &device).require_grad();
         let y = module.weight_basic.val().matmul(x);
 
-        y.backward()
+        let mut grads = y.backward();
+        module.weight_basic.grad_remove(&mut grads)
     }
 }
