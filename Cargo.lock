@@ -1147,7 +1147,7 @@ dependencies = [
  "divan",
  "half",
  "hashbrown 0.16.1",
- "lzma-rust2 0.15.7",
+ "lzma-rust2 0.16.1",
  "memmap2",
  "regex",
  "safetensors 0.7.0",
@@ -5042,6 +5042,16 @@ name = "lzma-rust2"
 version = "0.15.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1670343e58806300d87950e3401e820b519b9384281bbabfb15e3636689ffd69"
+dependencies = [
+ "crc",
+ "sha2",
+]
+
+[[package]]
+name = "lzma-rust2"
+version = "0.16.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d673a11333485e7d8b93d62a9a5b07b22daf5e8a8655a44c1bb18aa4bf3d1524"
 dependencies = [
  "crc",
  "sha2",
