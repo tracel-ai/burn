@@ -32,6 +32,11 @@ pub struct Interpolate2dConfig {
     /// Determines how the output values are calculated.
     #[config(default = "InterpolateMode::Nearest")]
     pub mode: InterpolateMode,
+
+    /// If `true`, the input and output tensors are aligned by their corner pixels.
+    /// If `false`, half-pixel coordinate mapping is used instead.
+    #[config(default = true)]
+    pub align_corners: bool,
 }
 
 /// Interpolate module for resizing tensors with shape [N, C, H, W].
@@ -58,6 +63,9 @@ pub struct Interpolate2d {
 
     /// Interpolation mode used for resizing
     pub mode: Ignored<InterpolateMode>,
+
+    /// Whether to align corner pixels
+    pub align_corners: bool,
 }
 
 impl Interpolate2dConfig {
@@ -67,6 +75,7 @@ impl Interpolate2dConfig {
             output_size: self.output_size,
             scale_factor: self.scale_factor,
             mode: Ignored(self.mode),
+            align_corners: self.align_corners,
         }
     }
 }
@@ -97,7 +106,8 @@ impl Interpolate2d {
         interpolate(
             input,
             output_size,
-            InterpolateOptions::new(self.mode.0.clone().into()),
+            InterpolateOptions::new(self.mode.0.clone().into())
+                .with_align_corners(self.align_corners),
         )
     }
 }

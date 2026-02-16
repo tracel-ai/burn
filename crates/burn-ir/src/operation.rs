@@ -1564,6 +1564,7 @@ pub enum InterpolateModeIr {
 #[allow(missing_docs)]
 pub struct InterpolateOptionsIr {
     pub mode: InterpolateModeIr,
+    pub align_corners: bool,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
@@ -1587,9 +1588,7 @@ impl From<InterpolateModeIr> for InterpolateMode {
 
 impl From<InterpolateOptionsIr> for InterpolateOptions {
     fn from(val: InterpolateOptionsIr) -> Self {
-        Self {
-            mode: val.mode.into(),
-        }
+        Self::new(val.mode.into()).with_align_corners(val.align_corners)
     }
 }
 
@@ -1607,6 +1606,7 @@ impl From<InterpolateOptions> for InterpolateOptionsIr {
     fn from(val: InterpolateOptions) -> Self {
         Self {
             mode: val.mode.into(),
+            align_corners: val.align_corners,
         }
     }
 }
