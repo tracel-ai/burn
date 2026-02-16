@@ -68,6 +68,12 @@ impl<LC: LearningComponentsTypes> SupervisedLearningStrategy<LC>
                 break;
             }
 
+            // After OptimSharded training, model parameters are scattered across
+            // devices. Fork back to main_device before single-device validation.
+            if matches!(self.optim, MultiDeviceOptim::OptimSharded) {
+                learner.fork(main_device);
+            }
+
             epoch_valid.run(
                 &learner,
                 &training_progress,
