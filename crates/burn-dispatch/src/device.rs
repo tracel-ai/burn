@@ -252,65 +252,65 @@ impl burn_std::device::Device for Device {
     }
 }
 
-// #[cfg(feature = "cpu")]
-// impl From<CpuDevice> for Device {
-//     fn from(device: CpuDevice) -> Self {
-//         Device::Cpu(device)
-//     }
-// }
+#[cfg(feature = "cpu")]
+impl From<CpuDevice> for Device {
+    fn from(device: CpuDevice) -> Self {
+        Device::Cpu(device)
+    }
+}
 
-// #[cfg(feature = "cuda")]
-// impl From<CudaDevice> for Device {
-//     fn from(device: CudaDevice) -> Self {
-//         Device::Cuda(device)
-//     }
-// }
+#[cfg(feature = "cuda")]
+impl From<CudaDevice> for Device {
+    fn from(device: CudaDevice) -> Self {
+        Device::Cuda(device)
+    }
+}
 
-// #[cfg(wgpu_metal)]
-// impl From<WgpuDevice> for Device {
-//     fn from(device: WgpuDevice) -> Self {
-//         Device::Metal(device)
-//     }
-// }
+#[cfg(wgpu_metal)]
+impl From<WgpuDevice> for Device {
+    fn from(device: WgpuDevice) -> Self {
+        Device::Metal(device)
+    }
+}
 
-// #[cfg(feature = "rocm")]
-// impl From<RocmDevice> for Device {
-//     fn from(device: RocmDevice) -> Self {
-//         Device::Rocm(device)
-//     }
-// }
+#[cfg(feature = "rocm")]
+impl From<RocmDevice> for Device {
+    fn from(device: RocmDevice) -> Self {
+        Device::Rocm(device)
+    }
+}
 
-// #[cfg(wgpu_vulkan)]
-// impl From<WgpuDevice> for Device {
-//     fn from(device: WgpuDevice) -> Self {
-//         Device::Vulkan(device)
-//     }
-// }
+#[cfg(wgpu_vulkan)]
+impl From<WgpuDevice> for Device {
+    fn from(device: WgpuDevice) -> Self {
+        Device::Vulkan(device)
+    }
+}
 
-// #[cfg(wgpu_webgpu)]
-// impl From<WgpuDevice> for Device {
-//     fn from(device: WgpuDevice) -> Self {
-//         Device::WebGpu(device)
-//     }
-// }
+#[cfg(wgpu_webgpu)]
+impl From<WgpuDevice> for Device {
+    fn from(device: WgpuDevice) -> Self {
+        Device::WebGpu(device)
+    }
+}
 
-// #[cfg(feature = "ndarray")]
-// impl From<NdArrayDevice> for Device {
-//     fn from(device: NdArrayDevice) -> Self {
-//         Device::NdArray(device)
-//     }
-// }
+#[cfg(feature = "ndarray")]
+impl From<NdArrayDevice> for Device {
+    fn from(device: NdArrayDevice) -> Self {
+        Device::NdArray(device)
+    }
+}
 
-// #[cfg(feature = "tch")]
-// impl From<LibTorchDevice> for Device {
-//     fn from(device: LibTorchDevice) -> Self {
-//         Device::LibTorch(device)
-//     }
-// }
+#[cfg(feature = "tch")]
+impl From<LibTorchDevice> for Device {
+    fn from(device: LibTorchDevice) -> Self {
+        Device::LibTorch(device)
+    }
+}
 
-// #[cfg(feature = "tch")]
-// impl From<LibTorchDevice> for Device {
-//     fn from(device: LibTorchDevice) -> Self {
-//         Device::LibTorch(device)
-//     }
-// }
+#[cfg(feature = "tch")]
+impl From<LibTorchDevice> for Device {
+    fn from(device: LibTorchDevice) -> Self {
+        Device::LibTorch(device)
+    }
+}
