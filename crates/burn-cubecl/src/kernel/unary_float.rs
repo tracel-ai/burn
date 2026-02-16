@@ -151,9 +151,9 @@ pub(crate) mod unary_basic {
                 BasicFloatUnaryKind::Sqrt => Line::sqrt(input),
                 BasicFloatUnaryKind::Abs => Line::abs(input),
                 BasicFloatUnaryKind::Sign => {
-                    let zero = Line::cast_from(0.0);
-                    let one = Line::cast_from(1.0);
-                    let minus_one = Line::cast_from(-1.0);
+                    let zero = Line::new(F::new(0.0));
+                    let one = Line::new(F::new(1.0));
+                    let minus_one = Line::new(F::new(-1.0));
 
                     let is_positive = input.greater_than(zero);
                     let is_negative = input.less_than(zero);
