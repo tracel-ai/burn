@@ -221,6 +221,10 @@ struct InterpolateTestCase {
 
 impl InterpolateTestCase {
     fn assert_output(self, y: TestTensor<4>) {
+        self.assert_output_with_align_corners(y, true);
+    }
+
+    fn assert_output_with_align_corners(self, y: TestTensor<4>, align_corners: bool) {
         let shape_x = Shape::new([self.batch_size, self.channels, self.height, self.width]);
         let x = TestTensor::from(
             TestTensorInt::arange(0..shape_x.num_elements() as i64, &y.device())
@@ -230,11 +234,37 @@ impl InterpolateTestCase {
         let output = interpolate(
             x,
             [self.height_out, self.width_out],
-            InterpolateOptions::new(InterpolateMode::Bilinear),
+            InterpolateOptions::new(InterpolateMode::Bilinear).with_align_corners(align_corners),
         );
 
         let tolerance = Tolerance::permissive();
         y.to_data()
             .assert_approx_eq::<FloatElem>(&output.into_data(), tolerance);
     }
+}
+
+#[test]
+fn test_upsample_half_pixel() {
+    let test = InterpolateTestCase {
+        batch_size: 1,
+        channels: 1,
+        height: 4,
+        width: 4,
+        height_out: 8,
+        width_out: 8,
+    };
+
+    test.assert_output_with_align_corners(
+        TestTensor::from([[[
+            [0.0, 0.25, 0.75, 1.25, 1.75, 2.25, 2.75, 3.0],
+            [1.0, 1.25, 1.75, 2.25, 2.75, 3.25, 3.75, 4.0],
+            [3.0, 3.25, 3.75, 4.25, 4.75, 5.25, 5.75, 6.0],
+            [5.0, 5.25, 5.75, 6.25, 6.75, 7.25, 7.75, 8.0],
+            [7.0, 7.25, 7.75, 8.25, 8.75, 9.25, 9.75, 10.0],
+            [9.0, 9.25, 9.75, 10.25, 10.75, 11.25, 11.75, 12.0],
+            [11.0, 11.25, 11.75, 12.25, 12.75, 13.25, 13.75, 14.0],
+            [12.0, 12.25, 12.75, 13.25, 13.75, 14.25, 14.75, 15.0],
+        ]]]),
+        false,
+    );
 }
