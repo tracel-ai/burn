@@ -17,9 +17,7 @@ fn main() {
     // In workspace builds with multiple features, we emit a warning and disable all WGPU backends.
     if enabled.len() > 1 {
         println!(
-            "cargo:warning=Only one WGPU backend can be enabled at once. Detected: [{}].\n\
-             No WGPU backend will be available in this build.\n\
-             This is expected in workspace builds. For production, enable only one of: metal, vulkan, or webgpu.",
+            "cargo:warning=Only one WGPU backend can be enabled at once. Detected: [{}]. No WGPU backend will be available in this build. This is expected in workspace builds. For production, enable only one of: metal, vulkan, or webgpu.",
             enabled.join(", ")
         );
         return;
