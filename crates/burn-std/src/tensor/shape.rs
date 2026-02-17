@@ -6,7 +6,7 @@ use core::ops::Range;
 
 pub use crate::errors::ExpressionError;
 
-pub use cubecl_zspace::{Shape, ShapeError, calculate_matmul_output, shape};
+pub use cubecl_zspace::{MetadataError, Shape, calculate_matmul_output, shape};
 
 /// Slice-relatedo ops on [`Shape`]
 pub trait SliceOps: Sized {
@@ -75,7 +75,7 @@ pub trait SliceOps: Sized {
     where
         S: SliceArg;
     /// Compute the output shape from the given slices.
-    fn slice(self, slices: &[Slice]) -> Result<Self, ShapeError>;
+    fn slice(self, slices: &[Slice]) -> Result<Self, MetadataError>;
 }
 
 impl SliceOps for Shape {
@@ -90,9 +90,9 @@ impl SliceOps for Shape {
         slices.into_slices(&self)
     }
 
-    fn slice(mut self, slices: &[Slice]) -> Result<Self, ShapeError> {
+    fn slice(mut self, slices: &[Slice]) -> Result<Self, MetadataError> {
         if slices.len() > self.rank() {
-            return Err(ShapeError::RankMismatch {
+            return Err(MetadataError::RankMismatch {
                 left: self.rank(),
                 right: slices.len(),
             });
