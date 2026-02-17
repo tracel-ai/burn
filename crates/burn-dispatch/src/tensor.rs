@@ -23,7 +23,9 @@ impl<B: Backend> BackendTensor<B> {
     pub(crate) fn float(self) -> B::FloatTensorPrimitive {
         match self {
             BackendTensor::Float(tensor) => tensor,
-            _ => unreachable!(),
+            BackendTensor::Int(_) => panic!("Should be float, got int"),
+            BackendTensor::Bool(_) => panic!("Should be float, got bool"),
+            BackendTensor::Quantized(_) => panic!("Should be float, got quantized"),
         }
     }
 
@@ -31,7 +33,9 @@ impl<B: Backend> BackendTensor<B> {
     pub(crate) fn int(self) -> B::IntTensorPrimitive {
         match self {
             BackendTensor::Int(tensor) => tensor,
-            _ => unreachable!(),
+            BackendTensor::Float(_) => panic!("Should be int, got float"),
+            BackendTensor::Bool(_) => panic!("Should be int, got bool"),
+            BackendTensor::Quantized(_) => panic!("Should be int, got quantized"),
         }
     }
 
@@ -39,7 +43,9 @@ impl<B: Backend> BackendTensor<B> {
     pub(crate) fn bool(self) -> B::BoolTensorPrimitive {
         match self {
             BackendTensor::Bool(tensor) => tensor,
-            _ => unreachable!(),
+            BackendTensor::Float(_) => panic!("Should be bool, got float"),
+            BackendTensor::Int(_) => panic!("Should be bool, got int"),
+            BackendTensor::Quantized(_) => panic!("Should be bool, got quantized"),
         }
     }
 

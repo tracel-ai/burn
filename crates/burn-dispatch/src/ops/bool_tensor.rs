@@ -22,7 +22,7 @@ impl BoolTensorOps<Self> for Dispatch {
     }
 
     async fn bool_into_data(tensor: BoolTensor<Self>) -> Result<TensorData, ExecutionError> {
-        unary_op!(tensor, float, |tensor| B::bool_into_data(tensor).await)
+        unary_op!(tensor, bool, |tensor| B::bool_into_data(tensor).await)
     }
 
     fn bool_from_data(data: TensorData, device: &Device) -> BoolTensor<Self> {
@@ -120,7 +120,7 @@ impl BoolTensorOps<Self> for Dispatch {
     }
 
     fn bool_equal_elem(lhs: BoolTensor<Self>, rhs: Scalar) -> BoolTensor<Self> {
-        unary_op!(lhs, float, |lhs| B::bool_equal_elem(lhs, rhs) => Bool)
+        unary_op!(lhs, bool, |lhs| B::bool_equal_elem(lhs, rhs) => Bool)
     }
 
     fn bool_not(tensor: BoolTensor<Self>) -> BoolTensor<Self> {

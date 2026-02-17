@@ -407,13 +407,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "backend-dispatch"
-version = "0.21.0-pre.1"
-dependencies = [
- "burn",
-]
-
-[[package]]
 name = "backtrace"
 version = "0.3.76"
 source = "registry+https://github.com/rust-lang/crates.io-index"

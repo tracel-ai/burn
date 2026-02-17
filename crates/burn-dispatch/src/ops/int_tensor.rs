@@ -13,8 +13,8 @@ impl IntTensorOps<Self> for Dispatch {
         creation_op!(Int, device, |device| B::int_empty(shape, device, dtype))
     }
 
-    async fn int_into_data(tensor: FloatTensor<Self>) -> Result<TensorData, ExecutionError> {
-        unary_op!(tensor, float, |tensor| B::int_into_data(tensor).await)
+    async fn int_into_data(tensor: IntTensor<Self>) -> Result<TensorData, ExecutionError> {
+        unary_op!(tensor, int, |tensor| B::int_into_data(tensor).await)
     }
 
     fn int_from_data(data: TensorData, device: &Device) -> IntTensor<Self> {
@@ -122,7 +122,7 @@ impl IntTensorOps<Self> for Dispatch {
     }
 
     fn int_equal_elem(lhs: IntTensor<Self>, rhs: Scalar) -> BoolTensor<Self> {
-        unary_op!(lhs, float, |lhs| B::int_equal_elem(lhs, rhs) => Bool)
+        unary_op!(lhs, int, |lhs| B::int_equal_elem(lhs, rhs) => Bool)
     }
 
     fn int_greater(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> BoolTensor<Self> {
@@ -130,7 +130,7 @@ impl IntTensorOps<Self> for Dispatch {
     }
 
     fn int_greater_elem(lhs: IntTensor<Self>, rhs: Scalar) -> BoolTensor<Self> {
-        unary_op!(lhs, float, |lhs| B::int_greater_elem(lhs, rhs) => Bool)
+        unary_op!(lhs, int, |lhs| B::int_greater_elem(lhs, rhs) => Bool)
     }
 
     fn int_greater_equal(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> BoolTensor<Self> {
@@ -138,7 +138,7 @@ impl IntTensorOps<Self> for Dispatch {
     }
 
     fn int_greater_equal_elem(lhs: IntTensor<Self>, rhs: Scalar) -> BoolTensor<Self> {
-        unary_op!(lhs, float, |lhs| B::int_greater_equal_elem(lhs, rhs) => Bool)
+        unary_op!(lhs, int, |lhs| B::int_greater_equal_elem(lhs, rhs) => Bool)
     }
 
     fn int_lower(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> BoolTensor<Self> {
@@ -146,7 +146,7 @@ impl IntTensorOps<Self> for Dispatch {
     }
 
     fn int_lower_elem(lhs: IntTensor<Self>, rhs: Scalar) -> BoolTensor<Self> {
-        unary_op!(lhs, float, |lhs| B::int_lower_elem(lhs, rhs) => Bool)
+        unary_op!(lhs, int, |lhs| B::int_lower_elem(lhs, rhs) => Bool)
     }
 
     fn int_lower_equal(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> BoolTensor<Self> {
@@ -154,7 +154,7 @@ impl IntTensorOps<Self> for Dispatch {
     }
 
     fn int_lower_equal_elem(lhs: IntTensor<Self>, rhs: Scalar) -> BoolTensor<Self> {
-        unary_op!(lhs, float, |lhs| B::int_lower_equal_elem(lhs, rhs) => Bool)
+        unary_op!(lhs, int, |lhs| B::int_lower_equal_elem(lhs, rhs) => Bool)
     }
 
     fn int_add(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
@@ -162,7 +162,7 @@ impl IntTensorOps<Self> for Dispatch {
     }
 
     fn int_add_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
-        unary_op!(lhs, float, |lhs| B::int_add_scalar(lhs, rhs) => Int)
+        unary_op!(lhs, int, |lhs| B::int_add_scalar(lhs, rhs) => Int)
     }
 
     fn int_sub(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
@@ -170,7 +170,7 @@ impl IntTensorOps<Self> for Dispatch {
     }
 
     fn int_sub_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
-        unary_op!(lhs, float, |lhs| B::int_sub_scalar(lhs, rhs) => Int)
+        unary_op!(lhs, int, |lhs| B::int_sub_scalar(lhs, rhs) => Int)
     }
 
     fn int_mul(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
@@ -178,7 +178,7 @@ impl IntTensorOps<Self> for Dispatch {
     }
 
     fn int_mul_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
-        unary_op!(lhs, float, |lhs| B::int_mul_scalar(lhs, rhs) => Int)
+        unary_op!(lhs, int, |lhs| B::int_mul_scalar(lhs, rhs) => Int)
     }
 
     fn int_div(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
@@ -186,7 +186,7 @@ impl IntTensorOps<Self> for Dispatch {
     }
 
     fn int_div_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
-        unary_op!(lhs, float, |lhs| B::int_div_scalar(lhs, rhs) => Int)
+        unary_op!(lhs, int, |lhs| B::int_div_scalar(lhs, rhs) => Int)
     }
 
     fn int_remainder(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
@@ -194,7 +194,7 @@ impl IntTensorOps<Self> for Dispatch {
     }
 
     fn int_remainder_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
-        unary_op!(lhs, float, |lhs| B::int_remainder_scalar(lhs, rhs) => Int)
+        unary_op!(lhs, int, |lhs| B::int_remainder_scalar(lhs, rhs) => Int)
     }
 
     fn int_matmul(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
@@ -280,7 +280,7 @@ impl IntTensorOps<Self> for Dispatch {
     }
 
     fn bitwise_and_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
-        unary_op!(lhs, float, |lhs| B::bitwise_and_scalar(lhs, rhs) => Int)
+        unary_op!(lhs, int, |lhs| B::bitwise_and_scalar(lhs, rhs) => Int)
     }
 
     fn bitwise_or(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
@@ -288,7 +288,7 @@ impl IntTensorOps<Self> for Dispatch {
     }
 
     fn bitwise_or_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
-        unary_op!(lhs, float, |lhs| B::bitwise_or_scalar(lhs, rhs) => Int)
+        unary_op!(lhs, int, |lhs| B::bitwise_or_scalar(lhs, rhs) => Int)
     }
 
     fn bitwise_xor(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
@@ -296,7 +296,7 @@ impl IntTensorOps<Self> for Dispatch {
     }
 
     fn bitwise_xor_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
-        unary_op!(lhs, float, |lhs| B::bitwise_xor_scalar(lhs, rhs) => Int)
+        unary_op!(lhs, int, |lhs| B::bitwise_xor_scalar(lhs, rhs) => Int)
     }
 
     fn bitwise_not(tensor: IntTensor<Self>) -> IntTensor<Self> {
@@ -308,7 +308,7 @@ impl IntTensorOps<Self> for Dispatch {
     }
 
     fn bitwise_left_shift_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
-        unary_op!(lhs, float, |lhs| B::bitwise_left_shift_scalar(lhs, rhs) => Int)
+        unary_op!(lhs, int, |lhs| B::bitwise_left_shift_scalar(lhs, rhs) => Int)
     }
 
     fn bitwise_right_shift(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
@@ -316,7 +316,7 @@ impl IntTensorOps<Self> for Dispatch {
     }
 
     fn bitwise_right_shift_scalar(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
-        unary_op!(lhs, float, |lhs| B::bitwise_right_shift_scalar(lhs, rhs) => Int)
+        unary_op!(lhs, int, |lhs| B::bitwise_right_shift_scalar(lhs, rhs) => Int)
     }
 
     fn int_cast(tensor: IntTensor<Self>, dtype: IntDType) -> IntTensor<Self> {

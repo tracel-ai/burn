@@ -209,7 +209,7 @@ impl ModuleOps<Self> for Dispatch {
     ) -> MaxPool2dWithIndices<Self> {
         let (out, indices) = module_op!(
             inputs[(x, float)],
-            outputs[out, indices],
+            outputs[(out, Float), (indices, Int)],
             {
                 let res = B::max_pool2d_with_indices(x, kernel_size, stride, padding, dilation, ceil_mode);
                 (res.output, res.indices)
