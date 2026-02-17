@@ -355,7 +355,6 @@ macro_rules! module_op_arms {
         $body:expr;
         $( [$Backend:ident, $cfg:meta] ),*
     ) => {
-        // #[allow(unused_parens, unreachable_patterns)]
         match first_input!($inputs) {
             $(
                 #[cfg($cfg)]
@@ -417,7 +416,7 @@ macro_rules! module_op {
             opt_inputs[ $($opt_in),* ],
             outputs[ $(($out, Float)),+ ],
             opt_outputs[],
-            $body  // Don't wrap - pass through as-is
+            $body
         )
     };
 
@@ -431,7 +430,7 @@ macro_rules! module_op {
             opt_inputs[],
             outputs[ $(($out, $out_kind)),+ ],
             opt_outputs[],
-            $body  // Don't wrap - pass through as-is
+            $body
         )
     };
 
@@ -445,7 +444,55 @@ macro_rules! module_op {
             opt_inputs[],
             outputs[ $(($out, Float)),+ ],
             opt_outputs[],
-            $body  // Don't wrap - pass through as-is
+            $body
         )
+    };
+}
+
+/// Match arm generator for `transaction_op`.
+macro_rules! transaction_op_arms {
+    ($tx:ident, $first:expr; $([$Backend:ident, $cfg:meta]),*) => {
+        match $first {
+            $(
+                #[cfg($cfg)]
+                $crate::DispatchTensor::$Backend(_) => {
+                    type B = $Backend<f32>;
+
+                    // Unwrap Floats
+                    let floats = $tx.read_floats.into_iter().map(|t| match t {
+                        $crate::DispatchTensor::$Backend(inner) => inner.float(),
+                        _ => panic!("Transaction float tensor is on a different backend."),
+                    }).collect();
+
+                    // Unwrap Ints
+                    let ints = $tx.read_ints.into_iter().map(|t| match t {
+                        $crate::DispatchTensor::$Backend(inner) => inner.int(),
+                        _ => panic!("Transaction int tensor is on a different backend."),
+                    }).collect();
+
+                    // Unwrap Bools
+                    let bools = $tx.read_bools.into_iter().map(|t| match t {
+                        $crate::DispatchTensor::$Backend(inner) => inner.bool(),
+                        _ => panic!("Transaction bool tensor is on a different backend."),
+                    }).collect();
+
+                    // Quantization Placeholder (as requested)
+                    let qfloats = $tx.read_qfloats.into_iter().map(|_t| todo!("Quantization not supported yet")).collect();
+
+                    // Reconstruct the transaction for the specific backend
+                    let inner_tx = TransactionPrimitive::new(floats, qfloats, ints, bools);
+
+                    // Execute
+                    B::tr_execute(inner_tx).await
+                }
+            )*
+        }
+    };
+}
+
+/// Helper to dispatch a transaction based on the first available tensor.
+macro_rules! transaction_op {
+    ($tx:ident, $first:expr) => {
+        backend_list!(transaction_op_arms, $tx, $first)
     };
 }
