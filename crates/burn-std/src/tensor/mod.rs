@@ -11,8 +11,6 @@ pub use slice::*;
 pub use cubecl_zspace::indexing::{self, *};
 pub use cubecl_zspace::{Strides, metadata::Metadata, strides};
 
-use alloc::vec;
-
 /// Check if the current tensor is contiguous.
 ///
 /// A tensor is considered contiguous if its elements are stored in memory
@@ -187,7 +185,7 @@ pub fn reshape_analysis(
     match n_new_batch > 0 {
         true => {
             if shape == &shape_new[n_new_batch..shape_new_rank]
-                && shape_new[0..n_new_batch] == vec![1; n_new_batch]
+                && shape_new[0..n_new_batch].iter().all(|it| *it == 1)
             {
                 return ReshapeAnalysis::Broadcasted;
             } else {

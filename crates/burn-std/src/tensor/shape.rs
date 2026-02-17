@@ -8,7 +8,7 @@ pub use crate::errors::ExpressionError;
 
 pub use cubecl_zspace::{MetadataError, Shape, calculate_matmul_output, shape};
 
-/// Slice-relatedo ops on [`Shape`]
+/// Slice-related ops on [`Shape`]
 pub trait SliceOps: Sized {
     /// Convert shape dimensions to full covering ranges (0..dim) for each dimension.
     fn into_ranges(self) -> Vec<Range<usize>>;

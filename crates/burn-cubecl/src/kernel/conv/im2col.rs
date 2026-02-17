@@ -2,7 +2,7 @@ use burn_backend::{
     DType,
     ops::{ConvOptions, conv::calculate_conv_output_sizes},
 };
-use burn_std::Metadata;
+use burn_std::{Metadata, Shape};
 use core::iter;
 use cubecl::{
     prelude::*,
@@ -139,7 +139,7 @@ fn reshape_input<R: CubeRuntime>(mut input: CubeTensor<R>) -> CubeTensor<R> {
 
     let batch_size = input.meta.shape()[0];
     let in_c: usize = input.meta.shape()[dim_c];
-    let in_shape = input.meta.shape()[1..dim_c].to_vec();
+    let in_shape: Shape = input.meta.shape()[1..dim_c].into();
 
     if !is_spatial_contiguous(input.meta.shape(), input.meta.strides()) {
         let contiguous =
@@ -148,7 +148,7 @@ fn reshape_input<R: CubeRuntime>(mut input: CubeTensor<R>) -> CubeTensor<R> {
         input = from_handle(&input.client, &input.device, contiguous, dtype);
     }
     *input.meta = Metadata::new(
-        [batch_size * in_shape.iter().product::<usize>(), in_c], // [M, K]
+        [batch_size * in_shape.num_elements(), in_c], // [M, K]
         [input.meta.strides()[dim_c - 1], input.meta.strides()[dim_c]],
     );
     input
