@@ -76,7 +76,7 @@ pub fn params_shape(data_shape: &Shape, level: QuantLevel) -> Shape {
             let mut params_shape = data_shape.clone();
             let block_size = block_size.to_dim_vec(data_shape.num_dims());
 
-            for (shape, block_size) in params_shape.dims.iter_mut().zip(block_size) {
+            for (shape, block_size) in params_shape.iter_mut().zip(block_size) {
                 *shape = (*shape).div_ceil(block_size as usize);
             }
 

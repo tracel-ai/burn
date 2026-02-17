@@ -135,6 +135,10 @@ struct InterpolateTestCase {
 
 impl InterpolateTestCase {
     fn assert_output(self, y: TestTensor<4>) {
+        self.assert_output_with_align_corners(y, true);
+    }
+
+    fn assert_output_with_align_corners(self, y: TestTensor<4>, align_corners: bool) {
         let shape_x = Shape::new([self.batch_size, self.channels, self.height, self.width]);
         let x = TestTensor::from(
             TestTensorInt::arange(0..shape_x.num_elements() as i64, &y.device())
@@ -144,11 +148,49 @@ impl InterpolateTestCase {
         let output = interpolate(
             x,
             [self.height_out, self.width_out],
-            InterpolateOptions::new(InterpolateMode::Bicubic),
+            InterpolateOptions::new(InterpolateMode::Bicubic).with_align_corners(align_corners),
         );
 
         let tolerance = Tolerance::permissive();
         y.to_data()
             .assert_approx_eq::<FloatElem>(&output.into_data(), tolerance);
     }
+}
+
+#[test]
+fn test_upsample_half_pixel() {
+    let test = InterpolateTestCase {
+        batch_size: 1,
+        channels: 1,
+        height: 4,
+        width: 4,
+        height_out: 8,
+        width_out: 8,
+    };
+
+    test.assert_output_with_align_corners(
+        TestTensor::from([[[
+            [
+                -0.5273, -0.2305, 0.2461, 0.875, 1.2812, 1.9102, 2.3867, 2.6836,
+            ],
+            [
+                0.6602, 0.957, 1.4336, 2.0625, 2.4688, 3.0977, 3.5742, 3.8711,
+            ],
+            [
+                2.5664, 2.8633, 3.3398, 3.9688, 4.375, 5.0039, 5.4805, 5.7773,
+            ],
+            [5.082, 5.3789, 5.8555, 6.4844, 6.8906, 7.5195, 7.9961, 8.293],
+            [6.707, 7.0039, 7.4805, 8.1094, 8.5156, 9.1445, 9.6211, 9.918],
+            [
+                9.2227, 9.5195, 9.9961, 10.625, 11.0312, 11.6602, 12.1367, 12.4336,
+            ],
+            [
+                11.1289, 11.4258, 11.9023, 12.5312, 12.9375, 13.5664, 14.043, 14.3398,
+            ],
+            [
+                12.3164, 12.6133, 13.0898, 13.7188, 14.125, 14.7539, 15.2305, 15.5273,
+            ],
+        ]]]),
+        false,
+    );
 }

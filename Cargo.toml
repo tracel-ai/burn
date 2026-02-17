@@ -65,7 +65,7 @@ insta = "1.45.0"
 js-sys = "0.3.77"
 libm = "0.2.15"
 log = { default-features = false, version = "0.4.29" }
-lzma-rust2 = "0.15.7"
+lzma-rust2 = "0.16.1"
 opentelemetry = "0.31.0"
 opentelemetry-aws = "0.19.0"
 opentelemetry-otlp = "0.31.0"
@@ -115,7 +115,7 @@ tracing-appender = "0.2.3"
 tracing-core = { version = "0.1.36", default-features = false }
 tracing-opentelemetry = "0.32.0"
 tracing-subscriber = "0.3.20"
-zip = "7.4.0"
+zip = "8.1.0"
 
 # Persist related
 memmap2 = { version = "0.9" }
@@ -163,10 +163,11 @@ serde = { version = "1.0.228", default-features = false, features = [
     "alloc",
 ] } # alloc is for no_std, derive is needed
 serde_json = { version = "1.0.148", default-features = false }
-uuid = { version = "1.20.0", default-features = false }
+smallvec = { version = "1", features = ["const_generics", "const_new"] }
+uuid = { version = "1.21.0", default-features = false }
 
 byteorder = { version = "1.5.0", default-features = false }
-libc = "0.2.179"
+libc = "0.2.182"
 nvml-wrapper = "0.11.0"
 sysinfo = "0.38.0"
 systemstat = "0.2.5"

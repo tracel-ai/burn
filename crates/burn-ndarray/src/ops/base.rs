@@ -113,8 +113,8 @@ where
             indices.swap_axes(ndims - 1, dim);
         }
         let (shape_tensor, shape_indices) = (tensor.shape(), indices.shape().into_shape());
-        let (size_tensor, size_index) = (shape_tensor[ndims - 1], shape_indices.dims[ndims - 1]);
-        let batch_size = Self::gather_batch_size(shape_tensor, &shape_indices.dims);
+        let (size_tensor, size_index) = (shape_tensor[ndims - 1], shape_indices[ndims - 1]);
+        let batch_size = Self::gather_batch_size(shape_tensor, &shape_indices);
 
         let indices = NdArrayOps::reshape(indices, Shape::new([batch_size, size_index]));
         let tensor = NdArrayOps::reshape(tensor, Shape::new([batch_size, size_tensor]));
@@ -152,11 +152,11 @@ where
         let (shape_tensor, shape_indices, shape_value) =
             (tensor.shape().into_shape(), indices.shape(), value.shape());
         let (size_tensor, size_index, size_value) = (
-            shape_tensor.dims[ndims - 1],
+            shape_tensor[ndims - 1],
             shape_indices[ndims - 1],
             shape_value[ndims - 1],
         );
-        let batch_size = Self::gather_batch_size(&shape_tensor.dims, shape_indices);
+        let batch_size = Self::gather_batch_size(&shape_tensor, shape_indices);
 
         if shape_value != shape_indices {
             panic!(
@@ -289,7 +289,7 @@ where
     /// Broadcasts the tensor to the given shape
     pub(crate) fn expand(tensor: SharedArray<E>, shape: Shape) -> SharedArray<E> {
         tensor
-            .broadcast(shape.dims.into_dimension())
+            .broadcast(shape.into_dimension())
             .expect("The shapes should be broadcastable")
             // need to convert view to owned array because NdArrayTensor expects owned array
             // and try_into_owned_nocopy() panics for broadcasted arrays (zero strides)

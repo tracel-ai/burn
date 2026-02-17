@@ -198,11 +198,11 @@ impl<B: Backend> Normalization<B> {
     /// Get the number of features.
     pub fn num_features(&self) -> usize {
         match self {
-            Normalization::Batch(norm) => norm.gamma.shape().dims[0],
+            Normalization::Batch(norm) => norm.gamma.shape()[0],
             Normalization::Group(norm) => norm.num_channels,
             Normalization::Instance(norm) => norm.num_channels,
-            Normalization::Layer(norm) => norm.gamma.shape().dims[0],
-            Normalization::Rms(norm) => norm.gamma.shape().dims[0],
+            Normalization::Layer(norm) => norm.gamma.shape()[0],
+            Normalization::Rms(norm) => norm.gamma.shape()[0],
         }
     }
 }

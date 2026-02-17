@@ -302,10 +302,30 @@ pub enum InterpolateMode {
 }
 
 /// Interpolation options.
-#[derive(new, Debug, Clone)]
+#[derive(Debug, Clone)]
 pub struct InterpolateOptions {
     /// Algorithm used for upsampling.
     pub mode: InterpolateMode,
+    /// If `true`, the input and output tensors are aligned by their corner pixels.
+    /// If `false`, half-pixel coordinate mapping is used instead.
+    pub align_corners: bool,
+}
+
+impl InterpolateOptions {
+    /// Create new interpolate options with the given mode.
+    /// Defaults to `align_corners = true`.
+    pub fn new(mode: InterpolateMode) -> Self {
+        Self {
+            mode,
+            align_corners: true,
+        }
+    }
+
+    /// Set align_corners.
+    pub fn with_align_corners(mut self, align_corners: bool) -> Self {
+        self.align_corners = align_corners;
+        self
+    }
 }
 
 /// Padding mode for grid sampling when coordinates are out of bounds.
@@ -780,7 +800,7 @@ pub trait ModuleOps<B: Backend> {
             // batch, channels, h_blocks, w_blocks, h_kern, w_kern
 
             let blocks = B::float_permute(blocks, &[0, 1, 4, 5, 2, 3]);
-            let shape = &blocks.shape().dims;
+            let shape = blocks.shape();
 
             // batch, channels, h_kern, w_kern, h_blocks, w_blocks
 

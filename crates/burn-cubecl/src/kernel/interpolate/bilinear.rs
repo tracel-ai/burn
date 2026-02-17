@@ -17,6 +17,7 @@ fn interpolate_bilinear_kernel<F: Float>(
     output: &mut Tensor<Line<F>>,
     shape_out: Sequence<FastDivmod<usize>>,
     out_layout: LinearLayout,
+    #[comptime] align_corners: bool,
     #[define(F)] _dtype: StorageType,
 ) {
     if ABSOLUTE_POS >= output.len() {
@@ -30,11 +31,19 @@ fn interpolate_bilinear_kernel<F: Float>(
     let (rem, x) = shape_out[2].div_mod(rem);
     let (b, y) = shape_out[1].div_mod(rem);
 
-    let numerator = (input.shape(1) - 1) as f32;
-    let denominator = clamp_min(output.shape(1) - 1, 1) as f32;
-    let factor = y as f32;
-
-    let frac = factor * (numerator / denominator);
+    let frac = if align_corners {
+        let numerator = (input.shape(1) - 1) as f32;
+        let denominator = clamp_min(output.shape(1) - 1, 1) as f32;
+        y as f32 * (numerator / denominator)
+    } else {
+        let in_size = input.shape(1) as f32;
+        let out_size = output.shape(1) as f32;
+        clamp(
+            (y as f32 + 0.5) * (in_size / out_size) - 0.5,
+            0.0,
+            in_size - 1.0,
+        )
+    };
 
     let v0 = frac.floor();
     let v1 = frac.ceil();
@@ -45,10 +54,19 @@ fn interpolate_bilinear_kernel<F: Float>(
     let y0 = v0 as usize;
     let y1 = v1 as usize;
 
-    let numerator = (input.shape(2) - 1) as f32;
-    let denominator = clamp_min(output.shape(2) - 1, 1) as f32;
-    let factor = x as f32;
-    let frac = factor * (numerator / denominator);
+    let frac = if align_corners {
+        let numerator = (input.shape(2) - 1) as f32;
+        let denominator = clamp_min(output.shape(2) - 1, 1) as f32;
+        x as f32 * (numerator / denominator)
+    } else {
+        let in_size = input.shape(2) as f32;
+        let out_size = output.shape(2) as f32;
+        clamp(
+            (x as f32 + 0.5) * (in_size / out_size) - 0.5,
+            0.0,
+            in_size - 1.0,
+        )
+    };
     let v0 = frac.floor();
     let v1 = frac.ceil();
     let xw = F::cast_from(frac - v0);
@@ -103,6 +121,7 @@ fn interpolate_bilinear_kernel<F: Float>(
 pub(crate) fn interpolate_bilinear_launch<R: CubeRuntime>(
     input: CubeTensor<R>,
     output: CubeTensor<R>,
+    align_corners: bool,
 ) -> CubeTensor<R> {
     let line_size = max_line_size(&input);
     let out_shape = shape_divmod(&output);
@@ -121,6 +140,7 @@ pub(crate) fn interpolate_bilinear_launch<R: CubeRuntime>(
         output.as_tensor_arg(line_size),
         out_shape,
         out_layout,
+        align_corners,
         output.dtype.into(),
     )
     .expect("Kernel to never fail");

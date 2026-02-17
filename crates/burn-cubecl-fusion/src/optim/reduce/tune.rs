@@ -136,7 +136,7 @@ pub(crate) fn create_key<R: Runtime>(
         input_tensor.dtype.into(),
         out_tensor.dtype.into(),
         acc,
-        &input_tensor.shape.dims,
+        &input_tensor.shape,
         opt.info.reduce.axis == input_tensor.shape.rank() - 1,
         opt.info.reduce.axis,
     );

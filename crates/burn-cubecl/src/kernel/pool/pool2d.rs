@@ -137,7 +137,7 @@ pub(super) fn view4d<R: CubeRuntime>(
     tensor: &CubeTensor<R>,
     line_size: LineSize,
 ) -> ViewArg<'_, Position, R> {
-    let shape = &tensor.shape.dims;
+    let shape = &tensor.shape;
     let shape = (
         ScalarArg::new(shape[0]),
         ScalarArg::new(shape[1]),

@@ -512,7 +512,7 @@ pub trait BoolTensorOps<B: Backend> {
     /// where the size is 1. The elem in the `dim` axis is True if all elements along this dim in the input
     /// evaluates to True, False otherwise.
     fn bool_all_dim(tensor: BoolTensor<B>, dim: usize) -> BoolTensor<B> {
-        let num_elems = tensor.shape().dims[dim] as i64;
+        let num_elems = tensor.shape()[dim] as i64;
         let sum = B::int_sum_dim(B::bool_into_int(tensor), dim);
         B::int_equal_elem(sum, num_elems.into())
     }

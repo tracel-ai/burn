@@ -208,7 +208,7 @@ pub fn init_reduce_output<Run: CubeRuntime>(
 ) -> Option<CubeTensor<Run>> {
     (dim < input.shape.num_dims()).then(|| {
         let mut shape_out = input.shape.clone();
-        shape_out.dims[dim] = 1;
+        shape_out[dim] = 1;
         empty_device_contiguous_dtype(
             input.client.clone(),
             input.device.clone(),

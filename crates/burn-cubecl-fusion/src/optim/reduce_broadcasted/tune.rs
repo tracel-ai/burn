@@ -130,7 +130,7 @@ fn generate_reduce_autotune_key<R: Runtime>(
         input.dtype.into(),
         out.dtype.into(),
         acc,
-        &input.shape.dims,
+        &input.shape,
         info.reduce.axis == input.shape.rank() - 1, // Is it the last dimension?
         info.reduce.axis,
     )

@@ -124,7 +124,7 @@ pub fn empty_device<R: CubeRuntime, E: CubeElement>(
     device: R::Device,
     shape: Shape,
 ) -> CubeTensor<R> {
-    let Allocation { handle, strides } = client.empty_tensor(&shape.dims, size_of::<E>());
+    let Allocation { handle, strides } = client.empty_tensor(&shape, size_of::<E>());
 
     CubeTensor::new(client, handle, shape, device, strides, E::dtype())
 }
@@ -136,7 +136,7 @@ pub fn empty_device_dtype<R: CubeRuntime>(
     shape: Shape,
     dtype: DType,
 ) -> CubeTensor<R> {
-    let Allocation { handle, strides } = client.empty_tensor(&shape.dims, dtype.size());
+    let Allocation { handle, strides } = client.empty_tensor(&shape, dtype.size());
 
     CubeTensor::new(client, handle, shape, device, strides, dtype)
 }
@@ -148,7 +148,7 @@ pub fn empty_device_contiguous_dtype<R: CubeRuntime>(
     shape: Shape,
     dtype: DType,
 ) -> CubeTensor<R> {
-    let descriptor = AllocationDescriptor::contiguous(&shape.dims, dtype.size());
+    let descriptor = AllocationDescriptor::contiguous(&shape, dtype.size());
     let Allocation { handle, strides } = client.empty_tensors(vec![descriptor]).remove(0);
 
     CubeTensor::new(client, handle, shape, device, strides, dtype)

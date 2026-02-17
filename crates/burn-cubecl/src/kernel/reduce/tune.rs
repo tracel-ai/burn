@@ -167,7 +167,7 @@ pub(crate) fn create_key<Run: CubeRuntime>(
         elem_input,
         elem_output,
         elem_acc,
-        &input.shape.dims,
+        &input.shape,
         input.strides[*axis] == 1,
         *axis,
     )

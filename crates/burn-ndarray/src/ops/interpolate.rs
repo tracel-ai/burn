@@ -95,14 +95,12 @@ pub(crate) fn ceil_clamp(frac: f64, max: usize) -> f64 {
 pub(crate) fn bilinear_interpolate<E: FloatNdArrayElement>(
     x: SharedArray<E>,
     output_size: [usize; 2],
+    align_corners: bool,
 ) -> SharedArray<E> {
     let x = x.into_dimensionality::<ndarray::Ix4>().unwrap();
 
     let (batch_size, channels, in_height, in_width) = x.dim();
     let [out_height, out_width] = output_size;
-
-    let y_ratio = ((in_height - 1) as f64) / (core::cmp::max(out_height - 1, 1) as f64);
-    let x_ratio = ((in_width - 1) as f64) / (core::cmp::max(out_width - 1, 1) as f64);
 
     let out_element_num = batch_size * channels * out_height * out_width;
     let strides = (
@@ -123,9 +121,18 @@ pub(crate) fn bilinear_interpolate<E: FloatNdArrayElement>(
                 id % strides.2,
             );
 
-            // We convert everything to `f64` for calculations and then back to `E` at the end.
-            let y_frac = y_ratio * h as f64;
-            let x_frac = x_ratio * w as f64;
+            let (y_frac, x_frac) = if align_corners {
+                let y_ratio = ((in_height - 1) as f64) / (core::cmp::max(out_height - 1, 1) as f64);
+                let x_ratio = ((in_width - 1) as f64) / (core::cmp::max(out_width - 1, 1) as f64);
+                (y_ratio * h as f64, x_ratio * w as f64)
+            } else {
+                let y_frac = (h as f64 + 0.5) * (in_height as f64 / out_height as f64) - 0.5;
+                let x_frac = (w as f64 + 0.5) * (in_width as f64 / out_width as f64) - 0.5;
+                (
+                    y_frac.clamp(0.0, (in_height - 1) as f64),
+                    x_frac.clamp(0.0, (in_width - 1) as f64),
+                )
+            };
             let val =
                 bilinear_interpolate_single(&x, b, c, x_frac, y_frac, in_width - 1, in_height - 1);
 
@@ -142,6 +149,7 @@ pub(crate) fn bilinear_interpolate<E: FloatNdArrayElement>(
 pub(crate) fn bicubic_interpolate<E: FloatNdArrayElement>(
     x: SharedArray<E>,
     output_size: [usize; 2],
+    align_corners: bool,
 ) -> SharedArray<E> {
     fn cubic_interp1d(x0: f64, x1: f64, x2: f64, x3: f64, t: f64) -> f64 {
         fn cubic_convolution1(x: f64, a: f64) -> f64 {
@@ -167,9 +175,6 @@ pub(crate) fn bicubic_interpolate<E: FloatNdArrayElement>(
     let (batch_size, channels, in_height, in_width) = x.dim();
     let [out_height, out_width] = output_size;
 
-    let y_ratio = ((in_height - 1) as f64) / (core::cmp::max(out_height - 1, 1) as f64);
-    let x_ratio = ((in_width - 1) as f64) / (core::cmp::max(out_width - 1, 1) as f64);
-
     let out_element_num = batch_size * channels * out_height * out_width;
     let strides = (
         channels * out_height * out_width,
@@ -189,31 +194,39 @@ pub(crate) fn bicubic_interpolate<E: FloatNdArrayElement>(
                 id % strides.2,
             );
 
-            let y_frac = y_ratio * h as f64;
+            let (y_frac, x_frac) = if align_corners {
+                let y_ratio = ((in_height - 1) as f64) / (core::cmp::max(out_height - 1, 1) as f64);
+                let x_ratio = ((in_width - 1) as f64) / (core::cmp::max(out_width - 1, 1) as f64);
+                (y_ratio * h as f64, x_ratio * w as f64)
+            } else {
+                let y_frac = (h as f64 + 0.5) * (in_height as f64 / out_height as f64) - 0.5;
+                let x_frac = (w as f64 + 0.5) * (in_width as f64 / out_width as f64) - 0.5;
+                (y_frac, x_frac)
+            };
             let y0 = y_frac.floor();
             let yw = y_frac - y0;
-            let y_in = y0 as usize;
+            let y_in = y0 as isize;
 
-            let x_frac = x_ratio * w as f64;
             let x0 = x_frac.floor();
             let xw = x_frac - x0;
-            let x_in = x0 as usize;
+            let x_in = x0 as isize;
+
+            let max_h = (in_height - 1) as isize;
+            let max_w = (in_width - 1) as isize;
 
             let ys_in = [
-                if y_in == 0 { 0 } else { y_in - 1 },
-                y_in,
-                y_in + 1,
-                y_in + 2,
-            ]
-            .map(|y| y.min(in_height - 1));
+                (y_in - 1).clamp(0, max_h) as usize,
+                y_in.clamp(0, max_h) as usize,
+                (y_in + 1).clamp(0, max_h) as usize,
+                (y_in + 2).clamp(0, max_h) as usize,
+            ];
 
             let xs_in = [
-                if x_in == 0 { 0 } else { x_in - 1 },
-                x_in,
-                x_in + 1,
-                x_in + 2,
-            ]
-            .map(|x| x.min(in_width - 1));
+                (x_in - 1).clamp(0, max_w) as usize,
+                x_in.clamp(0, max_w) as usize,
+                (x_in + 1).clamp(0, max_w) as usize,
+                (x_in + 2).clamp(0, max_w) as usize,
+            ];
 
             let coefficients = ys_in.map(|y| {
                 cubic_interp1d(
