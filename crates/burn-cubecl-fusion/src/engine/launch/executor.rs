@@ -71,6 +71,8 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
             return Ok(tune_output);
         }
 
+        let mut configs = Vec::with_capacity(plan.blocks.len());
+
         let mut inputs = GlobalArgsLaunch::default();
         let mut outputs = GlobalArgsLaunch::default();
 
@@ -87,12 +89,10 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
             for s in layout.shape.iter() {
                 inputs.runtime_layouts.push(ScalarArg::new(*s));
             }
-            for s in layout.strides {
-                inputs.runtime_layouts.push(ScalarArg::new(s));
+            for s in layout.strides.iter() {
+                inputs.runtime_layouts.push(ScalarArg::new(*s));
             }
         }
-
-        let mut configs = Vec::with_capacity(plan.blocks.len());
 
         for (block_plan, block) in plan.blocks.into_iter().zip(self.blocks) {
             let reference = match block_plan.reference {
@@ -113,6 +113,8 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
                     RefLayout::Virtual(VirtualLayout::Runtime { pos })
                 }
                 ReferenceSelection::Searching => {
+                    drop(inputs);
+                    drop(outputs);
                     return Err(ExecutionError::new(
                         TraceError::ReferenceNotFound,
                         plan.handle_inputs,

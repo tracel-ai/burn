@@ -1,5 +1,6 @@
 use burn_backend::{
-    Bytes, DType, ExecutionError, QTensorPrimitive, Shape, Slice, TensorData, TensorPrimitive,
+    Bytes, DType, ExecutionError, QTensorPrimitive, Shape, Slice, TensorData, TensorMetadata,
+    TensorPrimitive,
     ops::QTensorOps,
     quantization::{
         QParamTensor, QuantLevel, QuantMode, QuantParam, QuantPropagation, QuantScheme, QuantValue,
@@ -7,6 +8,7 @@ use burn_backend::{
     },
     tensor::{Device, FloatElem, FloatTensor, IntTensor, QuantizedTensor},
 };
+use burn_std::Metadata;
 use cubecl::server::{Allocation, AllocationDescriptor, AllocationKind};
 use cubecl::{e2m1x2, quant::scheme::QuantStore};
 
@@ -136,8 +138,7 @@ fn new_quantized<R: CubeRuntime>(
     let scales = QParamTensor {
         offset_start: scales_handle.offset_start.unwrap_or(0) as usize,
         offset_end: scales_handle.offset_end.unwrap_or(0) as usize,
-        shape: scales_shape,
-        strides: scales_strides,
+        metadata: Metadata::new(scales_shape, scales_strides),
         dtype: scales_dtype,
     };
     let qparams = QParams { scales };
@@ -221,7 +222,7 @@ where
             return into_data(tensor).await;
         }
 
-        let (shape, dtype) = (tensor.shape.clone(), tensor.dtype);
+        let (shape, dtype) = (tensor.shape(), tensor.dtype);
         let (values, params) = tensor.quantized_handles().unwrap();
 
         let mut data_values = into_data(values).await?;

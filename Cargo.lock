@@ -1120,6 +1120,7 @@ dependencies = [
  "bytes",
  "cubecl",
  "cubecl-common",
+ "cubecl-zspace",
  "dashmap",
  "half",
  "indicatif 0.18.3",
@@ -2302,6 +2303,7 @@ dependencies = [
  "cfg_aliases",
  "cubecl-common",
  "cubecl-ir",
+ "cubecl-zspace",
  "derive-new",
  "derive_more",
  "dirs",
@@ -2380,6 +2382,7 @@ dependencies = [
 name = "cubecl-zspace"
 version = "0.10.0-pre.1"
 dependencies = [
+ "derive-new",
  "serde",
  "smallvec",
 ]

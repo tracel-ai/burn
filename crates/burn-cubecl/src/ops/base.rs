@@ -4,7 +4,10 @@ use burn_backend::{
     quantization::{QuantLevel, QuantStore, params_shape},
 };
 use burn_backend::{TensorMetadata, ops::unfold::calculate_unfold_shape};
-use burn_std::tensor::{ReshapeAction, contiguous_strides, reshape_action};
+use burn_std::{
+    Metadata, strides,
+    tensor::{ReshapeAction, contiguous_strides, reshape_action},
+};
 use cubecl::{ir::LineSize, server::CopyDescriptor};
 use cubecl::{quant::scheme::BlockSize, tensor_line_size_parallel};
 
@@ -15,9 +18,8 @@ pub(crate) fn from_data<R: CubeRuntime>(data: TensorData, device: &R::Device) ->
     CubeTensor::new(
         client,
         alloc.handle,
-        shape,
+        Metadata::new(shape, alloc.strides),
         device.clone(),
-        alloc.strides,
         data.dtype,
     )
 }
@@ -28,8 +30,9 @@ pub(crate) async fn into_data<R: CubeRuntime>(
     let tensor = kernel::into_contiguous_aligned(tensor);
 
     let elem_size = tensor.elem_size();
-    let shape = &tensor.shape;
-    let binding = CopyDescriptor::new(tensor.handle.binding(), shape, &tensor.strides, elem_size);
+    let shape = tensor.meta.shape();
+    let strides = tensor.meta.strides();
+    let binding = CopyDescriptor::new(tensor.handle.binding(), shape, strides, elem_size);
     let bytes = tensor
         .client
         .read_one_tensor_async(binding)
@@ -38,7 +41,11 @@ pub(crate) async fn into_data<R: CubeRuntime>(
             reason: format!("{err}"),
         })?;
 
-    Ok(TensorData::from_bytes(bytes, tensor.shape, tensor.dtype))
+    Ok(TensorData::from_bytes(
+        bytes,
+        tensor.meta.shape,
+        tensor.dtype,
+    ))
 }
 
 /// Read data from a `CubeTensor` synchronously
@@ -75,9 +82,8 @@ pub(crate) fn empty<R: CubeRuntime>(
     CubeTensor::new(
         client,
         alloc.handle,
-        shape,
+        Metadata::new(shape, alloc.strides),
         device.clone(),
-        alloc.strides,
         dtype,
     )
 }
@@ -87,8 +93,7 @@ pub(crate) fn swap_dims<R: CubeRuntime>(
     dim1: usize,
     dim2: usize,
 ) -> CubeTensor<R> {
-    tensor.strides.swap(dim1, dim2);
-    tensor.shape = tensor.shape.swap(dim1, dim2).unwrap();
+    tensor.meta.swap(dim1, dim2);
 
     if let DType::QFloat(scheme) = tensor.dtype
         && let QuantLevel::Block(block_size) = scheme.level
@@ -104,8 +109,7 @@ pub(crate) fn swap_dims<R: CubeRuntime>(
             panic!("Swapped block size would exceed max dims");
         }
 
-        qparams.scales.shape.inner_mut().swap(dim1, dim2);
-        qparams.scales.strides.swap(dim1, dim2);
+        qparams.scales.metadata.swap(dim1, dim2);
 
         tensor.dtype = DType::QFloat(scheme.with_level(QuantLevel::Block(block_size)))
     }
@@ -114,7 +118,7 @@ pub(crate) fn swap_dims<R: CubeRuntime>(
         && let QuantStore::PackedU32(packed_dim) | QuantStore::PackedNative(packed_dim) =
             &mut scheme.store
     {
-        let rank = tensor.shape.len();
+        let rank = tensor.meta.num_dims();
 
         if *packed_dim == rank - dim1 - 1 {
             *packed_dim = rank - dim2 - 1;
@@ -128,11 +132,7 @@ pub(crate) fn swap_dims<R: CubeRuntime>(
 
 /// Permute a tensor's dimensions
 pub fn permute<R: CubeRuntime>(mut tensor: CubeTensor<R>, axes: &[usize]) -> CubeTensor<R> {
-    // remap strides
-    tensor.strides = axes.iter().map(|i| tensor.strides[*i]).collect();
-
-    // remap shape
-    tensor.shape = tensor.shape.permute(axes).unwrap();
+    tensor.meta.permute(axes).unwrap();
 
     if let DType::QFloat(scheme) = tensor.dtype
         && let QuantLevel::Block(block_size) = scheme.level
@@ -152,8 +152,7 @@ pub fn permute<R: CubeRuntime>(mut tensor: CubeTensor<R>, axes: &[usize]) -> Cub
             panic!("Swapped block size would exceed max dims");
         }
 
-        qparams.scales.strides = axes.iter().map(|i| qparams.scales.strides[*i]).collect();
-        qparams.scales.shape = qparams.scales.shape.clone().permute(axes).unwrap();
+        qparams.scales.metadata.permute(axes).unwrap();
 
         tensor.dtype = DType::QFloat(scheme.with_level(QuantLevel::block(&block_size)))
     }
@@ -161,7 +160,7 @@ pub fn permute<R: CubeRuntime>(mut tensor: CubeTensor<R>, axes: &[usize]) -> Cub
     if let DType::QFloat(scheme) = &mut tensor.dtype
         && let QuantStore::PackedU32(packed_dim) = &mut scheme.store
     {
-        let rank = tensor.shape.len();
+        let rank = tensor.meta.num_dims();
         let new_pos = axes
             .iter()
             .position(|axis| *axis == rank - *packed_dim - 1)
@@ -174,7 +173,7 @@ pub fn permute<R: CubeRuntime>(mut tensor: CubeTensor<R>, axes: &[usize]) -> Cub
 
 /// Permute a tensor's dimensions from NCHW to NHWC, or the N-dimensional equivalent
 pub fn permute_nchw_to_nhwc<R: CubeRuntime>(tensor: CubeTensor<R>) -> CubeTensor<R> {
-    let rank = tensor.shape.num_dims();
+    let rank = tensor.meta.num_dims();
     let c_dim = 1;
 
     let mut dims = vec![0];
@@ -193,12 +192,12 @@ pub fn permute_nchw_to_nhwc_shape(shape: Shape) -> Shape {
     dims.extend(2..rank);
     dims.push(c_dim);
 
-    shape.permute(&dims).expect("Shape permute should succeed")
+    shape.permuted(&dims).expect("Shape permute should succeed")
 }
 
 /// Permute a tensor's dimensions from NHWC to NCHW, or the N-dimensional equivalent
 pub fn permute_nhwc_to_nchw<R: CubeRuntime>(tensor: CubeTensor<R>) -> CubeTensor<R> {
-    let rank = tensor.shape.num_dims();
+    let rank = tensor.meta.num_dims();
     let c_dim = rank - 1;
 
     let mut dims = vec![0];
@@ -217,28 +216,28 @@ pub fn permute_nhwc_to_nchw_shape(shape: Shape) -> Shape {
     dims.push(c_dim);
     dims.extend(1..c_dim);
 
-    shape.permute(&dims).expect("Shape permute should succeed")
+    shape.permuted(&dims).expect("Shape permute should succeed")
 }
 
 pub(crate) fn expand<R: CubeRuntime>(tensor: CubeTensor<R>, target_shape: Shape) -> CubeTensor<R> {
-    let ndims_in = tensor.shape.num_dims();
+    let ndims_in = tensor.meta.shape().num_dims();
     let ndims_out = target_shape.num_dims();
 
     // Initialize new strides with zeros
-    let mut new_strides = vec![0usize; ndims_out];
+    let mut new_strides = strides![0usize; ndims_out];
 
     // Calculate the difference in dimensions
     let dim_diff = ndims_out.saturating_sub(ndims_in);
 
     // Compare dimensions from the end, setting strides for matching dimensions or broadcasted ones
-    let mut tensor_dim_iter = tensor.shape.iter().rev();
+    let mut tensor_dim_iter = tensor.meta.shape().iter().rev();
     for i in (0..ndims_out).rev() {
         if i >= dim_diff {
             if let Some(&tensor_dim) = tensor_dim_iter.next() {
                 if tensor_dim == target_shape[i] || tensor_dim == 1 {
                     // Copy stride for non-broadcast dimensions or set to 0 for broadcast ones
                     new_strides[i] = if tensor_dim == target_shape[i] {
-                        tensor.strides[i - dim_diff]
+                        tensor.meta.strides()[i - dim_diff]
                     } else {
                         0
                     };
@@ -270,8 +269,7 @@ pub(crate) fn expand<R: CubeRuntime>(tensor: CubeTensor<R>, target_shape: Shape)
     CubeTensor {
         client: tensor.client,
         device: tensor.device,
-        shape: target_shape,
-        strides: new_strides,
+        meta: Box::new(Metadata::new(target_shape, new_strides)),
         handle: tensor.handle,
         dtype: tensor.dtype,
         qparams: tensor.qparams,
@@ -280,12 +278,11 @@ pub(crate) fn expand<R: CubeRuntime>(tensor: CubeTensor<R>, target_shape: Shape)
 
 /// Reshape a jit tensor to a new shape
 pub fn reshape<R: CubeRuntime>(mut tensor: CubeTensor<R>, shape: Shape) -> CubeTensor<R> {
-    let analysis = reshape_action(&tensor.shape, &tensor.strides, &shape);
+    let analysis = reshape_action(tensor.meta.shape(), tensor.meta.strides(), &shape);
 
     match analysis {
         ReshapeAction::UpdateStrides { strides } => {
-            tensor.shape = shape;
-            tensor.strides = strides;
+            *tensor.meta = Metadata::new(shape, strides);
             return tensor;
         }
         ReshapeAction::NoChange => return tensor,
@@ -323,8 +320,8 @@ pub fn q_reshape<R: CubeRuntime>(mut tensor: CubeTensor<R>, shape: Shape) -> Cub
     let shape_scales = params_shape(&shape, scheme.level);
     let (values, scales) = tensor.quantized_handles().unwrap();
 
-    let analysis_values = reshape_action(&values.shape, &values.strides, &shape_values);
-    let analysis_scales = reshape_action(&scales.shape, &scales.strides, &shape_scales);
+    let analysis_values = reshape_action(values.meta.shape(), values.meta.strides(), &shape_values);
+    let analysis_scales = reshape_action(scales.meta.shape(), scales.meta.strides(), &shape_scales);
 
     match (analysis_values, analysis_scales) {
         (
@@ -335,15 +332,11 @@ pub fn q_reshape<R: CubeRuntime>(mut tensor: CubeTensor<R>, shape: Shape) -> Cub
         ) => {
             let qparams = tensor.qparams.as_mut().unwrap();
 
-            tensor.shape = shape;
-            tensor.strides = strides;
-
-            qparams.scales.shape = shape_scales;
-            qparams.scales.strides = scales_strides;
+            *tensor.meta = Metadata::new(shape, strides);
+            qparams.scales.metadata = Metadata::new(shape_scales, scales_strides);
         }
         (ReshapeAction::UpdateStrides { strides }, ReshapeAction::NoChange) => {
-            tensor.shape = shape;
-            tensor.strides = strides;
+            *tensor.meta = Metadata::new(shape, strides);
         }
         (
             ReshapeAction::NoChange,
@@ -353,19 +346,17 @@ pub fn q_reshape<R: CubeRuntime>(mut tensor: CubeTensor<R>, shape: Shape) -> Cub
         ) => {
             let qparams = tensor.qparams.as_mut().unwrap();
 
-            qparams.scales.shape = shape_scales;
-            qparams.scales.strides = scales_strides;
+            qparams.scales.metadata = Metadata::new(shape_scales, scales_strides);
         }
         (ReshapeAction::NoChange, ReshapeAction::NoChange) => {}
         _ => {
             tensor = kernel::into_contiguous(tensor);
-            tensor.shape = shape;
-            tensor.strides = contiguous_strides(&shape_values);
+            *tensor.meta = Metadata::new(shape, contiguous_strides(&shape_values));
 
             let qparams = tensor.qparams.as_mut().unwrap();
 
-            qparams.scales.strides = contiguous_strides(&shape_scales);
-            qparams.scales.shape = shape_scales;
+            let strides = contiguous_strides(&shape_scales);
+            qparams.scales.metadata = Metadata::new(shape_scales, strides);
         }
     }
 
@@ -375,9 +366,9 @@ pub fn q_reshape<R: CubeRuntime>(mut tensor: CubeTensor<R>, shape: Shape) -> Cub
 pub(crate) fn max_line_size<R: CubeRuntime>(tensor: &CubeTensor<R>) -> LineSize {
     tensor_line_size_parallel(
         tensor.client.io_optimized_line_sizes(tensor.dtype.size()),
-        &tensor.shape,
-        &tensor.strides,
-        tensor.shape.len() - 1,
+        tensor.meta.shape(),
+        tensor.meta.strides(),
+        tensor.meta.num_dims() - 1,
     )
 }
 
@@ -390,8 +381,8 @@ pub(crate) fn max_line_size_many<R: CubeRuntime>(
         .map(|tensor| {
             tensor_line_size_parallel(
                 tensor.client.io_optimized_line_sizes(tensor.dtype.size()),
-                &tensor.shape,
-                &tensor.strides,
+                tensor.meta.shape(),
+                tensor.meta.strides(),
                 axis,
             )
         })
@@ -427,16 +418,15 @@ pub fn unfold<R: CubeRuntime>(
     size: usize,
     step: usize,
 ) -> CubeTensor<R> {
-    let shape = calculate_unfold_shape(tensor.shape, dim, size, step);
+    let shape = calculate_unfold_shape(tensor.shape(), dim, size, step);
 
-    let d_stride = tensor.strides[dim];
-    let mut strides = tensor.strides.clone();
+    let d_stride = tensor.meta.strides()[dim];
+    let mut strides = tensor.meta.strides.clone();
     strides[dim] = step * d_stride;
     strides.push(d_stride);
 
     CubeTensor {
-        shape,
-        strides,
+        meta: Box::new(Metadata::new(shape, strides)),
         ..tensor
     }
 }

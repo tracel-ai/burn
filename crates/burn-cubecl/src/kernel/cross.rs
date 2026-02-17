@@ -46,13 +46,15 @@ pub(crate) fn cross<R: CubeRuntime>(
     rhs: CubeTensor<R>,
     dim: usize,
 ) -> CubeTensor<R> {
-    let ndims = lhs.shape.num_dims();
+    let ndims = lhs.meta.num_dims();
 
     // Validate that the cross dimension has size 3
-    if lhs.shape[dim] != 3 || rhs.shape[dim] != 3 {
+    if lhs.meta.shape()[dim] != 3 || rhs.meta.shape()[dim] != 3 {
         panic!(
             "Cross product requires dimension {} to have size 3, but got {} and {}",
-            dim, lhs.shape[dim], rhs.shape[dim]
+            dim,
+            lhs.meta.shape()[dim],
+            rhs.meta.shape()[dim]
         );
     }
 

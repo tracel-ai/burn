@@ -1,4 +1,4 @@
-use burn_backend::DType;
+use burn_backend::{DType, TensorMetadata};
 use cubecl::{calculate_cube_count_elemwise, prelude::*, std::tensor::layout::linear::LinearView};
 
 use crate::{
@@ -48,19 +48,19 @@ pub fn mask_fill<R: CubeRuntime>(
     strategy: MaskFillStrategy,
     dtype_bool: DType,
 ) -> CubeTensor<R> {
-    let ndims = input.shape.num_dims();
+    let ndims = input.meta.num_dims();
     let output = match strategy {
         MaskFillStrategy::Readonly => empty_device_dtype(
             input.client.clone(),
             input.device.clone(),
-            input.shape.clone(),
+            input.shape(),
             input.dtype,
         ),
         MaskFillStrategy::Inplace => input.clone(),
     };
 
     let line_size = max_line_size_many(&[&input, &mask], ndims - 1);
-    let working_units = input.shape.num_elements() / line_size as usize;
+    let working_units = input.meta.num_elements() / line_size as usize;
     let cube_dim = CubeDim::new(&input.client, working_units);
     let cube_count = calculate_cube_count_elemwise(&input.client, working_units, cube_dim);
 

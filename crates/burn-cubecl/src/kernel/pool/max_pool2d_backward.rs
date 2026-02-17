@@ -108,12 +108,12 @@ pub(crate) fn max_pool2d_with_indices_backward<R: CubeRuntime>(
     dilation: [usize; 2],
     _ceil_mode: bool,
 ) -> CubeTensor<R> {
-    let [batches, channels, height, width] = x.shape.dims();
+    let [batches, channels, height, width] = x.meta.shape().dims();
 
     let grad = into_contiguous_aligned(permute_nchw_to_nhwc(grad));
     let indices = into_contiguous_aligned(permute_nchw_to_nhwc(indices));
 
-    let line_size = if grad.strides[3] == indices.strides[3] {
+    let line_size = if grad.meta.strides()[3] == indices.meta.strides()[3] {
         max_line_size(&grad)
     } else {
         1
@@ -122,7 +122,7 @@ pub(crate) fn max_pool2d_with_indices_backward<R: CubeRuntime>(
     let out_shape = Shape::new([batches, height, width, channels]);
     let output = empty_device_dtype(x.client.clone(), x.device.clone(), out_shape, x.dtype);
 
-    let working_units = output.shape.num_elements() / line_size as usize;
+    let working_units = output.meta.num_elements() / line_size as usize;
     let cube_dim = CubeDim::new(&x.client, working_units);
     let cube_count = calculate_cube_count_elemwise(&x.client, working_units, cube_dim);
 

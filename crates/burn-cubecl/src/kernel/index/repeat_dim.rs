@@ -53,13 +53,13 @@ pub(crate) fn repeat_dim<R: CubeRuntime>(
     dim: usize,
     times: usize,
 ) -> CubeTensor<R> {
-    if input.shape[dim] == 1 {
-        input.strides[dim] = 0;
-        input.shape = input.shape.repeat(dim, times).unwrap();
+    if input.meta.shape()[dim] == 1 {
+        input.meta.strides[dim] = 0;
+        input.meta.shape = input.meta.shape.repeat(dim, times).unwrap();
         return input;
     }
 
-    let shape = input.shape.clone().repeat(dim, times).unwrap();
+    let shape = input.meta.shape.clone().repeat(dim, times).unwrap();
 
     // Create output handle
     let output = empty_device_dtype(
@@ -69,7 +69,7 @@ pub(crate) fn repeat_dim<R: CubeRuntime>(
         input.dtype,
     );
 
-    let working_units = output.shape.num_elements();
+    let working_units = output.meta.num_elements();
     let cube_dim = CubeDim::new(&input.client, working_units);
     let cube_count = calculate_cube_count_elemwise(&input.client, working_units, cube_dim);
 
@@ -82,7 +82,7 @@ pub(crate) fn repeat_dim<R: CubeRuntime>(
             input.as_tensor_arg(1),
             output.as_tensor_arg(1),
             shape_divmod(&output),
-            FastDivmodArgs::new(&input.client, input.shape[dim]),
+            FastDivmodArgs::new(&input.client, input.meta.shape()[dim]),
             dim,
             output.dtype.into(),
         )

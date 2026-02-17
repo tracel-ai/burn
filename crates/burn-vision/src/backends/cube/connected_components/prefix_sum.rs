@@ -1,4 +1,4 @@
-use burn_tensor::Shape;
+use burn_tensor::{Shape, TensorMetadata};
 use cubecl::prelude::*;
 
 use burn_cubecl::{
@@ -220,12 +220,12 @@ fn count_trailing_zeros(num: u32) -> u32 {
 pub fn prefix_sum<R: CubeRuntime, I: IntElement>(input: CubeTensor<R>) -> CubeTensor<R> {
     let client = input.client.clone();
     let device = input.device.clone();
-    let num_elems = input.shape.num_elements();
-    let numbers = *input.shape.last().unwrap();
+    let num_elems = input.meta.num_elements();
+    let numbers = *input.meta.shape().last().unwrap();
     let batches = num_elems / numbers;
 
     let input = reshape(input, Shape::new([batches, numbers]));
-    let out = empty_device::<R, I>(client.clone(), device.clone(), input.shape.clone());
+    let out = empty_device::<R, I>(client.clone(), device.clone(), input.shape());
 
     let cubes = numbers.div_ceil(PART_SIZE);
     let cube_dim = CubeDim::new_1d(CUBE_SIZE as u32);

@@ -19,6 +19,7 @@ use burn_fusion::{
     stream::{Operation, OrderedExecution},
 };
 use burn_ir::{BackendIr, TensorHandle};
+use burn_std::Metadata;
 use core::marker::PhantomData;
 use std::sync::Arc;
 
@@ -184,8 +185,7 @@ fn into_tensor<R: CubeRuntime>(handle: CubeFusionHandle<R>, shape: Shape) -> Cub
         client: handle.client,
         handle: handle.handle,
         device: handle.device,
-        shape,
-        strides: handle.strides,
+        meta: Box::new(Metadata::new(shape, handle.strides)),
         dtype: handle.dtype,
         qparams: handle.qparams,
     }
@@ -197,7 +197,7 @@ impl<R: CubeRuntime> From<CubeTensor<R>> for CubeFusionHandle<R> {
             client: value.client,
             handle: value.handle,
             device: value.device,
-            strides: value.strides,
+            strides: value.meta.strides,
             dtype: value.dtype,
             qparams: value.qparams,
         }

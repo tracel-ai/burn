@@ -4,6 +4,7 @@ use crate::{
     ops::{max_line_size, numeric::empty_device_dtype},
     tensor::CubeTensor,
 };
+use burn_backend::TensorMetadata;
 use cubecl::{calculate_cube_count_elemwise, prelude::*, std::tensor::layout::linear::LinearView};
 
 pub(crate) trait NumericUnaryOpFamily: 'static + Send + Sync {
@@ -42,7 +43,7 @@ where
 {
     let line_size = max_line_size(&tensor);
     let client = tensor.client.clone();
-    let num_elems = tensor.shape.num_elements();
+    let num_elems = tensor.meta.num_elements();
 
     let working_units = num_elems / line_size as usize;
     let cube_dim = CubeDim::new(&tensor.client, working_units);
@@ -67,7 +68,7 @@ where
             let output = empty_device_dtype(
                 tensor.client.clone(),
                 tensor.device.clone(),
-                tensor.shape.clone(),
+                tensor.shape(),
                 tensor.dtype,
             );
 

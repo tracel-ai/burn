@@ -8,7 +8,10 @@ use crate::{
     tensor::CubeTensor,
 };
 use crate::{kernel::utils::decompose_linear, ops::numeric::empty_device_dtype};
-use burn_backend::ops::{ConvOptions, conv::calculate_conv_output_sizes};
+use burn_backend::{
+    TensorMetadata,
+    ops::{ConvOptions, conv::calculate_conv_output_sizes},
+};
 use cubecl::std::{CubeOption, CubeOptionExpand, FastDivmod, FastDivmodArgs};
 use cubecl::{
     calculate_cube_count_elemwise, prelude::*, std::tensor::layout::linear::LinearView,
@@ -227,21 +230,21 @@ pub fn conv_direct<R: CubeRuntime, const N: usize>(
 ) -> Result<CubeTensor<R>, ConvSetupError> {
     let client = input.client.clone();
     let out_dtype = input.dtype;
-    let rank = input.shape.num_dims();
+    let rank = input.meta.shape().num_dims();
     let dim_c = rank - 1;
 
     // We only care about the channels here, everything else can be permuted
-    if input.strides[dim_c] != 1 {
+    if input.meta.strides()[dim_c] != 1 {
         input = into_contiguous_aligned(input);
     }
-    if weight.strides[dim_c] != 1 {
+    if weight.meta.strides()[dim_c] != 1 {
         weight = into_contiguous_aligned(weight);
     }
 
-    let batch_size = input.shape[0];
-    let in_shape = &input.shape[1..dim_c];
-    let out_channels = weight.shape[0];
-    let kernel_shape = &weight.shape[1..dim_c];
+    let batch_size = input.meta.shape()[0];
+    let in_shape = &input.meta.shape()[1..dim_c];
+    let out_channels = weight.meta.shape()[0];
+    let kernel_shape = &weight.meta.shape()[1..dim_c];
 
     let channels_per_group = out_channels / options.groups;
 
@@ -266,18 +269,18 @@ pub fn conv_direct<R: CubeRuntime, const N: usize>(
 
     // Need custom line size calculation here to account for the groups division. Need to vectorize
     // over `channels_per_group` instead.
-    let mut grouped_out_shape = output.shape.clone();
+    let mut grouped_out_shape = output.shape();
     grouped_out_shape[dim_c] = channels_per_group;
     let line_size_out = tensor_line_size_parallel(
         input.client.io_optimized_line_sizes(input.dtype.size()),
         &grouped_out_shape,
-        &output.strides,
+        output.meta.strides(),
         dim_c,
     );
     // Use channels_per_group instead of in_channels to avoid issues here
     let line_size_in = max_line_size(&weight);
 
-    let shape_out = output.shape[1..dim_c]
+    let shape_out = output.meta.shape()[1..dim_c]
         .iter()
         .map(|s| FastDivmodArgs::<u32>::new(&client, *s as u32))
         .collect();
@@ -293,7 +296,7 @@ pub fn conv_direct<R: CubeRuntime, const N: usize>(
         ));
     }
 
-    let working_units = output.shape.num_elements() / line_size_out;
+    let working_units = output.meta.num_elements() / line_size_out;
     let cube_dim = CubeDim::new(&input.client, working_units);
     let cube_count = calculate_cube_count_elemwise(&input.client, working_units, cube_dim);
 

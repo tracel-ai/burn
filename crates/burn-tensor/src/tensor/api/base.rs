@@ -11,7 +11,7 @@ use alloc::format;
 use alloc::string::String;
 use alloc::vec;
 
-use burn_std::stub::RwLock;
+use burn_std::{SliceOps, stub::RwLock};
 use core::iter::repeat;
 use core::{fmt::Debug, ops::Range};
 use serde::{Deserialize, Deserializer};
@@ -3184,6 +3184,8 @@ where
 
 #[cfg(test)]
 mod tests {
+    use burn_std::SliceOps;
+
     use crate::{Shape, s};
 
     #[test]
