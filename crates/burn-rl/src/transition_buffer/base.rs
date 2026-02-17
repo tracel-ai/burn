@@ -1,28 +1,31 @@
 use burn_core::{Tensor, prelude::Backend, tensor::Distribution};
+use derive_new::new;
+
+use super::SliceAccess;
 
 /// A state transition in an environment.
-#[derive(Clone)]
-pub struct Transition<B: Backend> {
+#[derive(Clone, new)]
+pub struct Transition<B: Backend, S, A> {
     /// The initial state.
-    pub state: Tensor<B, 1>,
+    pub state: S,
     /// The state after the step was taken.
-    pub next_state: Tensor<B, 1>,
+    pub next_state: S,
     /// The action taken in the step.
-    pub action: Tensor<B, 1>,
+    pub action: A,
     /// The reward.
-    pub reward: f32,
+    pub reward: Tensor<B, 1>,
     /// If the environment has reached a terminal state.
-    pub done: bool,
+    pub done: Tensor<B, 1>,
 }
 
 /// A batch of transitions.
-pub struct TransitionBatch<B: Backend> {
+pub struct TransitionBatch<B: Backend, SB, AB> {
     /// Batched initial states.
-    pub states: Tensor<B, 2>,
+    pub states: SB,
     /// Batched resulting states.
-    pub next_states: Tensor<B, 2>,
+    pub next_states: SB,
     /// Batched actions.
-    pub actions: Tensor<B, 2>,
+    pub actions: AB,
     /// Batched rewards.
     pub rewards: Tensor<B, 2>,
     /// Batched flags for terminal states.
@@ -30,27 +33,31 @@ pub struct TransitionBatch<B: Backend> {
 }
 
 /// A tensor-backed circular buffer for transitions.
-pub struct TransitionBuffer<B: Backend> {
-    states: Tensor<B, 2>,
-    next_states: Tensor<B, 2>,
-    actions: Tensor<B, 2>,
-    rewards: Tensor<B, 2>,
-    dones: Tensor<B, 2>,
+///
+/// Uses [`SliceAccess`] to store state and action batches in contiguous
+/// tensor storage, enabling efficient random sampling via `select`.
+/// The buffer lazily initializes its storage on the first `push` call.
+pub struct TransitionBuffer<B: Backend, SB: SliceAccess<B>, AB: SliceAccess<B>> {
+    states: Option<SB>,
+    next_states: Option<SB>,
+    actions: Option<AB>,
+    rewards: Option<Tensor<B, 2>>,
+    dones: Option<Tensor<B, 2>>,
     capacity: usize,
     write_head: usize,
     len: usize,
     device: B::Device,
 }
 
-impl<B: Backend> TransitionBuffer<B> {
-    /// Creates a new buffer with pre-allocated tensors.
-    pub fn new(capacity: usize, state_dim: usize, action_dim: usize, device: &B::Device) -> Self {
+impl<B: Backend, SB: SliceAccess<B>, AB: SliceAccess<B>> TransitionBuffer<B, SB, AB> {
+    /// Creates a new buffer. Storage is lazily allocated on the first `push`.
+    pub fn new(capacity: usize, device: &B::Device) -> Self {
         Self {
-            states: Tensor::zeros([capacity, state_dim], device),
-            next_states: Tensor::zeros([capacity, state_dim], device),
-            actions: Tensor::zeros([capacity, action_dim], device),
-            rewards: Tensor::zeros([capacity, 1], device),
-            dones: Tensor::zeros([capacity, 1], device),
+            states: None,
+            next_states: None,
+            actions: None,
+            rewards: None,
+            dones: None,
             capacity,
             write_head: 0,
             len: 0,
@@ -58,28 +65,47 @@ impl<B: Backend> TransitionBuffer<B> {
         }
     }
 
+    fn ensure_init(&mut self, state: &SB, next_state: &SB, action: &AB) {
+        if self.states.is_none() {
+            self.states = Some(SB::zeros_like(state, self.capacity, &self.device));
+            self.next_states = Some(SB::zeros_like(next_state, self.capacity, &self.device));
+            self.actions = Some(AB::zeros_like(action, self.capacity, &self.device));
+            self.rewards = Some(Tensor::zeros([self.capacity, 1], &self.device));
+            self.dones = Some(Tensor::zeros([self.capacity, 1], &self.device));
+        }
+    }
+
     /// Add a transition, overwriting the oldest if full.
-    pub fn push(&mut self, transition: Transition<B>) {
+    pub fn push(&mut self, state: SB, next_state: SB, action: AB, reward: f32, done: bool) {
+        self.ensure_init(&state, &next_state, &action);
+
         let idx = self.write_head % self.capacity;
 
         self.states
-            .inplace(|states| states.slice_assign(idx..idx + 1, transition.state.unsqueeze_dim(0)));
+            .as_mut()
+            .unwrap()
+            .slice_assign_inplace(idx, state);
+        self.next_states
+            .as_mut()
+            .unwrap()
+            .slice_assign_inplace(idx, next_state);
+        self.actions
+            .as_mut()
+            .unwrap()
+            .slice_assign_inplace(idx, action);
 
-        self.next_states.inplace(|next_states| {
-            next_states.slice_assign(idx..idx + 1, transition.next_state.unsqueeze_dim(0))
-        });
-
-        self.actions.inplace(|actions| {
-            actions.slice_assign(idx..idx + 1, transition.action.unsqueeze_dim(0))
-        });
-
-        let reward = Tensor::from_data([[transition.reward]], &self.device);
+        let reward = Tensor::from_data([[reward]], &self.device);
         self.rewards
-            .inplace(|rewards| rewards.slice_assign(idx..idx + 1, reward));
+            .as_mut()
+            .unwrap()
+            .inplace(|r| r.slice_assign(idx..idx + 1, reward));
 
-        let done = Tensor::from_data([[if transition.done { 1.0 } else { 0.0 }]], &self.device);
+        let done_val = if done { 1.0f32 } else { 0.0 };
+        let done = Tensor::from_data([[done_val]], &self.device);
         self.dones
-            .inplace(|dones| dones.slice_assign(idx..idx + 1, done));
+            .as_mut()
+            .unwrap()
+            .inplace(|d| d.slice_assign(idx..idx + 1, done));
 
         self.write_head += 1;
         if self.len < self.capacity {
@@ -88,7 +114,7 @@ impl<B: Backend> TransitionBuffer<B> {
     }
 
     /// Sample a random batch of transitions.
-    pub fn sample(&self, batch_size: usize) -> TransitionBatch<B> {
+    pub fn sample(&self, batch_size: usize) -> TransitionBatch<B, SB, AB> {
         assert!(batch_size <= self.len, "batch_size exceeds buffer length");
 
         let indices = Tensor::<B, 1>::random(
@@ -99,11 +125,31 @@ impl<B: Backend> TransitionBuffer<B> {
         .int();
 
         TransitionBatch {
-            states: self.states.clone().select(0, indices.clone()),
-            next_states: self.next_states.clone().select(0, indices.clone()),
-            actions: self.actions.clone().select(0, indices.clone()),
-            rewards: self.rewards.clone().select(0, indices.clone()),
-            dones: self.dones.clone().select(0, indices),
+            states: self
+                .states
+                .as_ref()
+                .unwrap()
+                .clone()
+                .select(0, indices.clone()),
+            next_states: self
+                .next_states
+                .as_ref()
+                .unwrap()
+                .clone()
+                .select(0, indices.clone()),
+            actions: self
+                .actions
+                .as_ref()
+                .unwrap()
+                .clone()
+                .select(0, indices.clone()),
+            rewards: self
+                .rewards
+                .as_ref()
+                .unwrap()
+                .clone()
+                .select(0, indices.clone()),
+            dones: self.dones.as_ref().unwrap().clone().select(0, indices),
         }
     }
 
@@ -128,41 +174,41 @@ mod tests {
     use super::*;
     use crate::TestBackend;
 
-    fn make_transition(
+    type TB = Tensor<TestBackend, 2>;
+
+    fn push_transition(
+        buffer: &mut TransitionBuffer<TestBackend, TB, TB>,
         device: &<TestBackend as Backend>::Device,
         val: f32,
-    ) -> Transition<TestBackend> {
-        Transition {
-            state: Tensor::from_data([val, val], device),
-            next_state: Tensor::from_data([val + 1.0, val + 1.0], device),
-            action: Tensor::from_data([val], device),
-            reward: val,
-            done: false,
-        }
+    ) {
+        let state = Tensor::<TestBackend, 2>::from_data([[val, val]], device);
+        let next_state = Tensor::<TestBackend, 2>::from_data([[val + 1.0, val + 1.0]], device);
+        let action = Tensor::<TestBackend, 2>::from_data([[val]], device);
+        buffer.push(state, next_state, action, val, false);
     }
 
     #[test]
     fn push_increment_len() {
         let device = Default::default();
-        let mut buffer = TransitionBuffer::<TestBackend>::new(5, 2, 1, &device);
+        let mut buffer = TransitionBuffer::<TestBackend, TB, TB>::new(5, &device);
 
         assert_eq!(buffer.len(), 0);
         assert!(buffer.is_empty());
 
-        buffer.push(make_transition(&device, 1.0));
+        push_transition(&mut buffer, &device, 1.0);
         assert_eq!(buffer.len(), 1);
 
-        buffer.push(make_transition(&device, 2.0));
+        push_transition(&mut buffer, &device, 2.0);
         assert_eq!(buffer.len(), 2);
     }
 
     #[test]
     fn push_overwrites_when_full() {
         let device = Default::default();
-        let mut buffer = TransitionBuffer::<TestBackend>::new(3, 2, 1, &device);
+        let mut buffer = TransitionBuffer::<TestBackend, TB, TB>::new(3, &device);
 
         for i in 0..5 {
-            buffer.push(make_transition(&device, i as f32));
+            push_transition(&mut buffer, &device, i as f32);
         }
 
         assert_eq!(buffer.len(), 3);
@@ -172,27 +218,27 @@ mod tests {
     #[test]
     fn sample_returns_correct_shapes() {
         let device = Default::default();
-        let mut buffer = TransitionBuffer::<TestBackend>::new(10, 2, 1, &device);
+        let mut buffer = TransitionBuffer::<TestBackend, TB, TB>::new(10, &device);
 
         for i in 0..5 {
-            buffer.push(make_transition(&device, i as f32));
+            push_transition(&mut buffer, &device, i as f32);
         }
 
         let batch = buffer.sample(3);
-        assert_eq!(batch.states.shape().dims, [3, 2]);
-        assert_eq!(batch.next_states.shape().dims, [3, 2]);
-        assert_eq!(batch.actions.shape().dims, [3, 1]);
-        assert_eq!(batch.rewards.shape().dims, [3, 1]);
-        assert_eq!(batch.dones.shape().dims, [3, 1]);
+        assert_eq!(batch.states.dims(), [3, 2]);
+        assert_eq!(batch.next_states.dims(), [3, 2]);
+        assert_eq!(batch.actions.dims(), [3, 1]);
+        assert_eq!(batch.rewards.dims(), [3, 1]);
+        assert_eq!(batch.dones.dims(), [3, 1]);
     }
 
     #[test]
     #[should_panic(expected = "batch_size exceeds buffer length")]
     fn sample_panics_when_batch_too_large() {
         let device = Default::default();
-        let mut buffer = TransitionBuffer::<TestBackend>::new(5, 2, 1, &device);
+        let mut buffer = TransitionBuffer::<TestBackend, TB, TB>::new(5, &device);
 
-        buffer.push(make_transition(&device, 1.0));
+        push_transition(&mut buffer, &device, 1.0);
         buffer.sample(5);
     }
 }
