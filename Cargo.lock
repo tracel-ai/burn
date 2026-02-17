@@ -933,7 +933,7 @@ dependencies = [
  "tar",
  "tempfile",
  "thiserror 2.0.18",
- "zip 7.4.0",
+ "zip 8.1.0",
 ]
 
 [[package]]
@@ -1155,7 +1155,7 @@ dependencies = [
  "serde",
  "tempfile",
  "textdistance",
- "zip 7.4.0",
+ "zip 8.1.0",
 ]
 
 [[package]]
@@ -5016,16 +5016,6 @@ name = "lzma-rust2"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c60a23ffb90d527e23192f1246b14746e2f7f071cb84476dd879071696c18a4a"
-dependencies = [
- "crc",
- "sha2",
-]
-
-[[package]]
-name = "lzma-rust2"
-version = "0.15.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1670343e58806300d87950e3401e820b519b9384281bbabfb15e3636689ffd69"
 dependencies = [
  "crc",
  "sha2",
@@ -10745,6 +10735,18 @@ version = "7.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cc12baa6db2b15a140161ce53d72209dacea594230798c24774139b54ecaa980"
 dependencies = [
+ "crc32fast",
+ "indexmap",
+ "memchr",
+ "typed-path",
+]
+
+[[package]]
+name = "zip"
+version = "8.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6e499faf5c6b97a0d086f4a8733de6d47aee2252b8127962439d8d4311a73f72"
+dependencies = [
  "aes",
  "bzip2 0.6.1",
  "constant_time_eq 0.4.2",
@@ -10754,7 +10756,7 @@ dependencies = [
  "getrandom 0.4.1",
  "hmac",
  "indexmap",
- "lzma-rust2 0.15.7",
+ "lzma-rust2 0.16.1",
  "memchr",
  "pbkdf2 0.12.2",
  "ppmd-rust",

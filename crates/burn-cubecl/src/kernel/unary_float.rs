@@ -112,6 +112,7 @@ pub(crate) mod unary_basic {
         Log1p,
         Sqrt,
         Abs,
+        Sign,
         ArcCos,
         ArcCosh,
         ArcSin,
@@ -150,6 +151,17 @@ pub(crate) mod unary_basic {
                 BasicFloatUnaryKind::Log1p => Line::log1p(input),
                 BasicFloatUnaryKind::Sqrt => Line::sqrt(input),
                 BasicFloatUnaryKind::Abs => Line::abs(input),
+                BasicFloatUnaryKind::Sign => {
+                    let zero = Line::new(F::new(0.0));
+                    let one = Line::new(F::new(1.0));
+                    let minus_one = Line::new(F::new(-1.0));
+
+                    let is_positive = input.greater_than(zero);
+                    let is_negative = input.less_than(zero);
+                    let sign = select_many(is_negative, minus_one, zero);
+
+                    select_many(is_positive, one, sign)
+                }
                 BasicFloatUnaryKind::Cos => Line::cos(input),
                 BasicFloatUnaryKind::Sin => Line::sin(input),
                 BasicFloatUnaryKind::Tan => Line::tan(input),

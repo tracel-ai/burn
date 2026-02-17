@@ -434,6 +434,10 @@ where
         launch_unary_numeric::<R, Abs, _>(tensor, |_| ())
     }
 
+    fn int_sign(tensor: IntTensor<Self>) -> IntTensor<Self> {
+        unary_basic_int::launch::<R, _>(tensor, |_| BasicIntUnaryKind::Sign)
+    }
+
     fn int_into_float(tensor: IntTensor<Self>) -> FloatTensor<Self> {
         kernel::cast(tensor, F::dtype())
     }

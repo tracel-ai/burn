@@ -454,6 +454,10 @@ where
         unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::Abs)
     }
 
+    fn float_sign(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::Sign)
+    }
+
     fn float_cos(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::Cos)
     }
