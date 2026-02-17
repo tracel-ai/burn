@@ -11,7 +11,6 @@ extend-exclude = [
     "*.onnx",
     "*.proto",
     "assets/ModuleSerialization.xml",
-    "examples/image-classification-web/src/model/label.txt",
 ]
 
 [default.extend-words]
