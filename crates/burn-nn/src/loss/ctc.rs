@@ -199,7 +199,8 @@ impl CTCLoss {
     /// - `target_lengths`: A 1D tensor containing the actual length of the target sequence for each target
     ///   sequence in `targets`.
     /// - `reduction`: The reduction stratey to apply to the loss tensor containing the CTC loss values for
-    ///   each sample (e.g., mean, sum).
+    ///   each sample (e.g., mean, sum). For the mean reduction strategy, the output losses will be divided 
+    ///   by the target lengths and then the mean over the batch is taken. This follows PyTorch's behavior. 
     ///
     /// # Returns
     ///
