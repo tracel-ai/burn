@@ -139,8 +139,12 @@ impl CTCLoss {
             log_alpha_t_s,
         );
 
-        let l_prime_combined_mask =
-            self.create_l_prime_mask(blank_inserted_targets.clone(), &device);
+        let l_prime_combined_mask = self.create_l_prime_mask(
+            blank_inserted_targets.clone(),
+            batch_size,
+            max_l_prime_len,
+            &device,
+        );
         let s_mask =
             self.create_s_mask(max_l_prime_len, batch_size, target_lengths.clone(), &device);
 
@@ -199,8 +203,8 @@ impl CTCLoss {
     /// - `target_lengths`: A 1D tensor containing the actual length of the target sequence for each target
     ///   sequence in `targets`.
     /// - `reduction`: The reduction stratey to apply to the loss tensor containing the CTC loss values for
-    ///   each sample (e.g., mean, sum). For the mean reduction strategy, the output losses will be divided 
-    ///   by the target lengths and then the mean over the batch is taken. This follows PyTorch's behavior. 
+    ///   each sample (e.g., mean, sum). For the mean reduction strategy, the output losses will be divided
+    ///   by the target lengths and then the mean over the batch is taken. This follows PyTorch's behavior.
     ///
     /// # Returns
     ///
@@ -349,18 +353,28 @@ impl CTCLoss {
     fn create_l_prime_mask<B: Backend>(
         &self,
         blank_inserted_targets: Tensor<B, 2, Int>,
+        batch_size: usize,
+        max_l_prime_len: usize,
         device: &B::Device,
     ) -> Tensor<B, 2, Bool> {
         let l_prime_s = blank_inserted_targets.clone();
-        let l_prime_s_minus_2 =
-            self.right_shift_2d_tensor(blank_inserted_targets.clone(), 2, device);
+        let l_prime_s_minus_2 = self.right_shift_2d_tensor(blank_inserted_targets, 2, device);
 
         // Create a single mask that is true for entries where alpha_{t-1}(s - 2) should also
         // be added to compute alpha_{t}(s)
         let s_is_not_blank_mask = l_prime_s.clone().not_equal_elem(self.blank as i64);
         let s_not_equal_s_minus_2_mask = l_prime_s.not_equal(l_prime_s_minus_2);
 
-        s_is_not_blank_mask.bool_and(s_not_equal_s_minus_2_mask)
+        // The 2 leftmost columns of temp_l_prime_mask should only contain false.
+        // These are invalid positions since s - 2 is a valid index only when s >= 2.
+        let col_indices = Tensor::<B, 1, Int>::arange(0..(max_l_prime_len as i64), device)
+            .reshape([1, max_l_prime_len])
+            .expand([batch_size, max_l_prime_len]);
+        let s_greater_than_1_mask = col_indices.greater_equal_elem(2);
+
+        s_is_not_blank_mask
+            .bool_and(s_not_equal_s_minus_2_mask)
+            .bool_and(s_greater_than_1_mask)
     }
 
     fn create_s_mask<B: Backend>(
