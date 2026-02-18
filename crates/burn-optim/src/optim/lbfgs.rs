@@ -53,7 +53,7 @@ fn cubic_interpolate(
         (min_bound + max_bound) / 2.0
     }
 }
-/// Auxiliray Struct For Strong_Wolfe
+/// Auxiliary Struct For Strong_Wolfe
 struct LineSearchSample<B: Backend> {
     // step size
     t: f64,
@@ -464,15 +464,15 @@ pub struct LBFGSState<B: Backend> {
     pub history_s: Vec<Tensor<B, 1>>,
     /// Historical gradient difference vectors
     pub history_y: Vec<Tensor<B, 1>>,
-    /// 搜索方向
+    /// Search direction
     pub d: Option<Tensor<B, 1>>,
-    /// 上一次的步长 t
+    /// Step size from the previous iteration
     pub t: Option<f64>,
-    /// 上一次的扁平梯度
+    /// Flattened gradient from the previous iteration
     pub prev_flat_grad: Option<Tensor<B, 1>>,
-    /// 上一次的 Loss (用于断点检查)
+    /// Loss value from the previous iteration
     pub prev_loss: Option<f64>,
-    /// 全局迭代次数 (用于判断是否需要执行初次初始化)
+    /// Global iteration count
     pub g_iter: usize,
 }
 
@@ -594,7 +594,8 @@ impl<B: Backend + AutodiffBackend> LBFGS<B> {
                 // multiplied by the gradient
                 let num_old = self.state.history_s.len();
                 let mut q = flat_grad.clone().neg();
-                let mut alphas = vec![0.0; num_old];
+                let mut alphas: Vec<Tensor<B::InnerBackend, 1>> =
+                    vec![Tensor::zeros([1], &flat_grad.device()); num_old];
 
                 if num_old > 0 {
                     // multiply by initial Hessian
@@ -602,30 +603,33 @@ impl<B: Backend + AutodiffBackend> LBFGS<B> {
                     for i in (0..num_old).rev() {
                         let s = &self.state.history_s[i];
                         let y = &self.state.history_y[i];
-                        let rho = 1.0 / y.clone().dot(s.clone()).into_scalar().to_f64();
-                        alphas[i] = rho * s.clone().dot(q.clone()).into_scalar().to_f64();
-                        q = q.sub(y.clone().mul_scalar(alphas[i]));
+                        let rho = y.clone().dot(s.clone()).powf_scalar(-1.0);
+                        let alpha = rho.clone().mul(s.clone().dot(q.clone()));
+                        alphas[i] = alpha.clone();
+                        q = q.sub(y.clone().mul(alpha));
                     }
 
                     let last_s = &self.state.history_s[num_old - 1];
                     let last_y = &self.state.history_y[num_old - 1];
-                    let ys = last_y.clone().dot(last_s.clone()).into_scalar().to_f64();
-                    let yy = last_y.clone().dot(last_y.clone()).into_scalar().to_f64();
-                    let h_diag = ys / yy;
+                    let ys = last_y.clone().dot(last_s.clone());
+                    let yy = last_y.clone().dot(last_y.clone());
+                    let h_diag = ys.div(yy);
 
-                    let mut r = q.mul_scalar(h_diag);
+                    let mut r = q.mul(h_diag);
 
-                    for ((s, y), &alpha) in self
+                    for ((s, y), alpha) in self
                         .state
                         .history_s
                         .iter()
                         .zip(self.state.history_y.iter())
-                        .zip(alphas.iter())
+                        .zip(alphas.into_iter())
                         .take(num_old)
                     {
-                        let rho = 1.0 / y.clone().dot(s.clone()).into_scalar().to_f64();
-                        let beta = rho * y.clone().dot(r.clone()).into_scalar().to_f64();
-                        r = r.add(s.clone().mul_scalar(alpha - beta));
+                        let rho = y.clone().dot(s.clone()).powf_scalar(-1.0);
+
+                        let beta = rho.mul(y.clone().dot(r.clone()));
+
+                        r = r.add(s.clone().mul(alpha.sub(beta)));
                     }
                     d = r;
                 } else {
