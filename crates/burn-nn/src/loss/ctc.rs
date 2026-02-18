@@ -365,7 +365,7 @@ impl CTCLoss {
         let s_is_not_blank_mask = l_prime_s.clone().not_equal_elem(self.blank as i64);
         let s_not_equal_s_minus_2_mask = l_prime_s.not_equal(l_prime_s_minus_2);
 
-        // The 2 leftmost columns of temp_l_prime_mask should only contain false.
+        // The 2 leftmost columns of the returned mask should only contain false.
         // These are invalid positions since s - 2 is a valid index only when s >= 2.
         let col_indices = Tensor::<B, 1, Int>::arange(0..(max_l_prime_len as i64), device)
             .reshape([1, max_l_prime_len])
