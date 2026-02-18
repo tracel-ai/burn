@@ -42,7 +42,7 @@ pub trait SliceOps: Sized {
     /// # Examples
     ///
     /// ```rust
-    /// use burn_std::{Shape, Slice, s};
+    /// use burn_std::{Shape, Slice, s, SliceOps};
     ///
     /// fn example() {
     ///     // 1D slicing
