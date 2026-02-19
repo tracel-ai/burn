@@ -20,6 +20,9 @@ burn = { path = "../../crates/burn", features = [
     "vision",
 ], default-features = false }
 
+[target.'cfg(not(target_os = "macos"))'.dependencies]
+burn = { path = "../../crates/burn", features = ["vulkan"] }
+
 # Serialization
 log = { workspace = true }
 serde = { workspace = true, features = ["std", "derive"] }
