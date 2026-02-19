@@ -17,7 +17,7 @@ use burn_backend::{
 use cubecl::{
     calculate_cube_count_elemwise,
     prelude::*,
-    std::{CubeOption, CubeOptionExpand, FastDivmod, tensor::layout::linear::LinearView},
+    std::{FastDivmod, tensor::layout::linear::LinearView},
 };
 use cubek::convolution::components::ConvSetupError;
 
@@ -240,7 +240,7 @@ struct Col2ImArgs {
 #[cube(launch_unchecked, address_type = "dynamic")]
 fn col2im_kernel<E: Numeric>(
     columns: &Tensor<E>,
-    bias: &CubeOption<Tensor<E>>,
+    bias: &Option<Tensor<E>>,
     image: &mut LinearView<E, ReadWrite>,
     image_shape: Sequence<FastDivmod<usize>>,
     args: &Col2ImArgs,
@@ -296,7 +296,7 @@ fn col2im_kernel<E: Numeric>(
     }
 
     match bias {
-        CubeOption::Some(bias) => image[ABSOLUTE_POS] = val + bias[ch_im],
-        CubeOption::None => image[ABSOLUTE_POS] = val,
+        Some(bias) => image[ABSOLUTE_POS] = val + bias[ch_im],
+        None => image[ABSOLUTE_POS] = val,
     }
 }

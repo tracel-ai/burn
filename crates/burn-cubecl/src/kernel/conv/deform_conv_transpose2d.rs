@@ -20,10 +20,7 @@ use cubecl::{
     features::TypeUsage,
     ir::FloatKind,
     prelude::*,
-    std::{
-        CubeOption, CubeOptionExpand, FastDivmod, FastDivmodArgs,
-        tensor::layout::linear::LinearView,
-    },
+    std::{FastDivmod, FastDivmodArgs, tensor::layout::linear::LinearView},
 };
 use cubek::{
     convolution::components::ConvSetupError,
@@ -302,14 +299,15 @@ struct DeformConv2dCol2ImgCoordArgs {
     kernel_width: usize,
 }
 
+#[allow(clippy::collapsible_if)]
 #[cube(launch_unchecked, address_type = "dynamic")]
 fn deform_col2img_coord_kernel<F: Float>(
     image: &Tensor<F>,
     offset: &Tensor<F>,
-    mask: &CubeOption<Tensor<F>>,
+    mask: &Option<Tensor<F>>,
     columns: &Tensor<F>,
     grad_offset: &mut LinearView<F, ReadWrite>,
-    grad_mask: &mut CubeOption<Tensor<F>>,
+    grad_mask: &mut Option<Tensor<F>>,
     pos_shape: Sequence<FastDivmod<usize>>,
     args: &DeformConv2dCol2ImgCoordArgs,
     #[define(F)] _dtype: StorageType,
@@ -363,14 +361,14 @@ fn deform_col2img_coord_kernel<F: Float>(
 
     let mask_pos_1 = offset_group * kernel_h * kernel_w + kernel_y * kernel_w + kernel_x;
     let mask_value = match &mask {
-        CubeOption::Some(mask) => {
+        Some(mask) => {
             let mask_idx = batch * mask.stride(0)
                 + mask_pos_1 * mask.stride(1)
                 + out_y * mask.stride(2)
                 + out_x * mask.stride(3);
             mask[mask_idx]
         }
-        CubeOption::None => F::new(1.0),
+        None => F::new(1.0),
     };
 
     let is_y_direction = dir == 0;
@@ -401,18 +399,15 @@ fn deform_col2img_coord_kernel<F: Float>(
 
     grad_offset[ABSOLUTE_POS] = grad_offset_val;
 
-    match grad_mask {
-        CubeOption::Some(grad_mask) => {
-            if is_y_direction {
-                let idx = batch * grad_mask.stride(0)
-                    + mask_pos_1 * grad_mask.stride(1)
-                    + out_y * grad_mask.stride(2)
-                    + out_x * grad_mask.stride(3);
+    if let Some(grad_mask) = grad_mask {
+        if is_y_direction {
+            let idx = batch * grad_mask.stride(0)
+                + mask_pos_1 * grad_mask.stride(1)
+                + out_y * grad_mask.stride(2)
+                + out_x * grad_mask.stride(3);
 
-                grad_mask[idx] = grad_mask_val
-            }
+            grad_mask[idx] = grad_mask_val
         }
-        CubeOption::None => {}
     }
 }
 
@@ -574,7 +569,7 @@ struct DeformConv2dCol2ImgArgs {
 #[cube(launch_unchecked, address_type = "dynamic")]
 fn deform_col2img_kernel<F: Float, FP: Float, FAdd: FloatAtomicAddFamily>(
     offset: &Tensor<F>,
-    mask: &CubeOption<Tensor<F>>,
+    mask: &Option<Tensor<F>>,
     columns: &LinearView<F>,
     grad_input: &mut Tensor<Atomic<ProxyType<FAdd, FP>>>,
     pos_shape: Sequence<FastDivmod<usize>>,
@@ -615,14 +610,14 @@ fn deform_col2img_kernel<F: Float, FP: Float, FAdd: FloatAtomicAddFamily>(
     let offset_x = offset[offset_x_idx];
 
     let mask_value = match mask {
-        CubeOption::Some(mask) => {
+        Some(mask) => {
             let mask_pos_1 = offset_group * kernel_h * kernel_w + kernel_y * kernel_w + kernel_x;
             mask[batch * mask.stride(0)
                 + mask_pos_1 * mask.stride(1)
                 + out_y * mask.stride(2)
                 + out_x * mask.stride(3)]
         }
-        CubeOption::None => F::new(1.0),
+        None => F::new(1.0),
     };
 
     let y = F::cast_from(out_y * args.stride_h + kernel_y * args.dilation_h)
