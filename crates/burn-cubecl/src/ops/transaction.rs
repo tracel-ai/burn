@@ -3,6 +3,7 @@ use burn_backend::{
     backend::ExecutionError,
     ops::{TransactionOps, TransactionPrimitive, TransactionPrimitiveData},
 };
+use burn_std::{Shape, Strides};
 use cubecl::server::{Binding, CopyDescriptor};
 
 use crate::{CubeBackend, CubeRuntime, FloatElement, IntElement, element::BoolElement};
@@ -30,8 +31,8 @@ where
             index: usize,
             kind: Kind,
             handle: Option<Binding>,
-            shape: Vec<usize>,
-            strides: Vec<usize>,
+            shape: Shape,
+            strides: Strides,
             dtype: DType,
         }
 
@@ -49,8 +50,8 @@ where
                 num_bindings,
                 Kind::Float,
                 Some(t.handle.binding()),
-                t.shape.into(),
-                t.strides,
+                t.meta.shape,
+                t.meta.strides,
                 t.dtype,
             );
 
@@ -67,8 +68,8 @@ where
                 num_bindings,
                 Kind::Int,
                 Some(t.handle.binding()),
-                t.shape.into(),
-                t.strides,
+                t.meta.shape,
+                t.meta.strides,
                 t.dtype,
             );
 
@@ -85,8 +86,8 @@ where
                 num_bindings,
                 Kind::Bool,
                 Some(t.handle.binding()),
-                t.shape.into(),
-                t.strides,
+                t.meta.shape,
+                t.meta.strides,
                 t.dtype,
             );
 

@@ -1,18 +1,15 @@
 pub mod dtype;
-pub mod index_conversion;
-pub mod indexing;
 pub mod quantization;
 pub mod shape;
 pub mod slice;
 
 pub use dtype::*;
-pub use index_conversion::*;
-pub use indexing::*;
 pub use quantization::*;
 pub use shape::*;
 pub use slice::*;
 
-use alloc::{vec, vec::Vec};
+pub use cubecl_zspace::indexing::{self, *};
+pub use cubecl_zspace::{Strides, metadata::Metadata, strides};
 
 /// Check if the current tensor is contiguous.
 ///
@@ -26,7 +23,7 @@ pub fn is_contiguous(shape: &[usize], strides: &[usize]) -> bool {
         return true;
     }
 
-    for (expected, &stride) in contiguous_strides(shape).into_iter().zip(strides) {
+    for (&expected, &stride) in contiguous_strides(shape).iter().zip(strides) {
         if expected != stride {
             return false;
         }
@@ -39,16 +36,15 @@ pub fn is_contiguous(shape: &[usize], strides: &[usize]) -> bool {
 ///
 /// In a contiguous row-major tensor, the stride for each dimension
 /// equals the product of all dimension sizes to its right.
-pub fn contiguous_strides(shape: &[usize]) -> Vec<usize> {
-    let mut strides = Vec::with_capacity(shape.len());
+pub fn contiguous_strides(shape: &[usize]) -> Strides {
+    let mut strides = strides![0; shape.len()];
     let mut current = 1;
 
-    for &dim in shape.iter().rev() {
-        strides.push(current);
+    for (i, &dim) in shape.iter().enumerate().rev() {
+        strides[i] = current;
         current *= dim;
     }
 
-    strides.reverse();
     strides
 }
 
@@ -58,7 +54,7 @@ pub enum ReshapeAction {
     /// Updating the strides is sufficient to handle the reshape.
     UpdateStrides {
         /// The new strides.
-        strides: Vec<usize>,
+        strides: Strides,
     },
     /// The strides are not compatible, we should recompute the buffer.
     Recompute,
@@ -127,8 +123,8 @@ pub fn broadcast_strides(
     rank_prev: usize,
     num_elems: usize,
     strides: &[usize],
-) -> Vec<usize> {
-    let mut strides_new = vec![num_elems; rank_prev + n_new_batch];
+) -> Strides {
+    let mut strides_new = strides![num_elems; rank_prev + n_new_batch];
 
     for (i, s) in strides.iter().enumerate() {
         strides_new[i + n_new_batch] = *s;
@@ -138,8 +134,8 @@ pub fn broadcast_strides(
 }
 
 /// Calculate the new strides given added split dimensions.
-pub fn split_strides(shape: &[usize], strides: &[usize], shape_new: &[usize]) -> Vec<usize> {
-    let mut strides_new = vec![1; shape_new.len()];
+pub fn split_strides(shape: &[usize], strides: &[usize], shape_new: &[usize]) -> Strides {
+    let mut strides_new = strides![1; shape_new.len()];
 
     let mut old_idx = shape.len() - 1;
     let mut current_stride = strides[old_idx];
@@ -189,7 +185,7 @@ pub fn reshape_analysis(
     match n_new_batch > 0 {
         true => {
             if shape == &shape_new[n_new_batch..shape_new_rank]
-                && shape_new[0..n_new_batch] == vec![1; n_new_batch]
+                && shape_new[0..n_new_batch].iter().all(|it| *it == 1)
             {
                 return ReshapeAnalysis::Broadcasted;
             } else {

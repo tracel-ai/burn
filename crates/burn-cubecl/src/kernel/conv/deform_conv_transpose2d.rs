@@ -14,7 +14,7 @@ use crate::{
     },
     tensor::CubeTensor,
 };
-use burn_backend::{DType, Shape, ops::DeformConvOptions};
+use burn_backend::{DType, Shape, TensorMetadata, ops::DeformConvOptions};
 use cubecl::{
     CubeDim, CubeLaunch, calculate_cube_count_elemwise, cube,
     features::TypeUsage,
@@ -55,8 +55,8 @@ pub(crate) fn deform_conv2d_backward<R: CubeRuntime>(
     ),
     ConvSetupError,
 > {
-    let [_, _, out_h, out_w] = out_grad.shape.dims();
-    let [_, _, kernel_h, kernel_w] = weight.shape.dims();
+    let [_, _, out_h, out_w] = out_grad.meta.shape().dims();
+    let [_, _, kernel_h, kernel_w] = weight.meta.shape().dims();
 
     let gradient_bias = bias.map(|bias| {
         let grad = reduce_dim(
@@ -84,7 +84,7 @@ pub(crate) fn deform_conv2d_backward<R: CubeRuntime>(
         )
         .unwrap();
 
-        reshape(grad, bias.shape)
+        reshape(grad, bias.meta.shape)
     });
 
     let input = into_contiguous_aligned(input);
@@ -130,8 +130,8 @@ fn compute_weight_grad<R: CubeRuntime>(
     kernel_dims: (usize, usize),
     out_dims: (usize, usize),
 ) -> Result<CubeTensor<R>, ConvSetupError> {
-    let [_, in_channels, _, _] = input.shape.dims();
-    let [_, out_channels, _, _] = out_grad.shape.dims();
+    let [_, in_channels, _, _] = input.meta.shape().dims();
+    let [_, out_channels, _, _] = out_grad.meta.shape().dims();
     let (kernel_h, kernel_w) = kernel_dims;
     let groups = options.weight_groups;
     let dtype = input.dtype;
@@ -140,7 +140,7 @@ fn compute_weight_grad<R: CubeRuntime>(
     let out_c_per_group = out_channels / groups;
 
     let columns = deform_im2col(input, offset, mask, options, out_dims, kernel_dims)?;
-    let [col_size_0, col_size_1] = columns.shape.dims();
+    let [col_size_0, col_size_1] = columns.meta.shape().dims();
     let col_size_0 = col_size_0 / groups;
 
     let out_grad = swap_dims(out_grad, 0, 1);
@@ -171,8 +171,8 @@ fn backward_gradient_inputs<R: CubeRuntime>(
     let client = out_grad.client.clone();
     let device = out_grad.device.clone();
 
-    let [out_channels, in_c_per_group, kernel_h, kernel_w] = weight.shape.dims();
-    let [batch_size, _, out_h, out_w] = out_grad.shape.dims();
+    let [out_channels, in_c_per_group, kernel_h, kernel_w] = weight.meta.shape().dims();
+    let [batch_size, _, out_h, out_w] = out_grad.meta.shape().dims();
 
     let groups = options.weight_groups;
     let out_c_per_group = out_channels / groups;
@@ -207,7 +207,7 @@ fn backward_gradient_inputs<R: CubeRuntime>(
 
     let columns = reshape(columns, Shape::new([col_shape_0 * groups, col_shape_1]));
 
-    let input_shape = image.shape.clone();
+    let input_shape = image.shape();
     let (offset_gradient, mask_gradient) = compute_offset_and_mask_gradient(
         columns.clone(),
         image,
@@ -235,7 +235,7 @@ fn compute_offset_and_mask_gradient<R: CubeRuntime>(
     let device = offset.device.clone();
     let (kernel_h, kernel_w) = kernel_dims;
 
-    let [batches, _, out_h, out_w] = offset.shape.dims();
+    let [batches, _, out_h, out_w] = offset.meta.shape().dims();
     let offset_groups = options.offset_groups;
 
     let pos_shape = [batches, offset_groups, kernel_h, kernel_w, 2, out_h, out_w];
@@ -244,22 +244,13 @@ fn compute_offset_and_mask_gradient<R: CubeRuntime>(
         .map(|s| FastDivmodArgs::new(&client, s))
         .collect();
 
-    let grad_offset = empty_device_dtype(
-        client.clone(),
-        device.clone(),
-        offset.shape.clone(),
-        offset.dtype,
-    );
-    let grad_mask = mask.as_ref().map(|mask| {
-        empty_device_dtype(
-            client.clone(),
-            device.clone(),
-            mask.shape.clone(),
-            mask.dtype,
-        )
-    });
+    let grad_offset =
+        empty_device_dtype(client.clone(), device.clone(), offset.shape(), offset.dtype);
+    let grad_mask = mask
+        .as_ref()
+        .map(|mask| empty_device_dtype(client.clone(), device.clone(), mask.shape(), mask.dtype));
 
-    let num_elements_offset = offset.shape.num_elements();
+    let num_elements_offset = offset.meta.num_elements();
     let cube_dim = CubeDim::new(&image.client, num_elements_offset);
     let cube_count = calculate_cube_count_elemwise(&image.client, num_elements_offset, cube_dim);
 
@@ -502,7 +493,7 @@ fn compute_input_grad<R: CubeRuntime>(
         .contains(TypeUsage::AtomicAdd);
 
     let [batches, in_channels, height, width] = input_shape.dims();
-    let [_, _, out_h, out_w] = offset.shape.dims();
+    let [_, _, out_h, out_w] = offset.meta.shape().dims();
     let (kernel_h, kernel_w) = kernel_dims;
 
     let pos_shape = [in_channels, kernel_h, kernel_w, batches, out_h, out_w];
@@ -520,7 +511,7 @@ fn compute_input_grad<R: CubeRuntime>(
     };
     let grad_arg = grad_in.as_tensor_arg(1);
 
-    let num_elements = columns.shape.num_elements();
+    let num_elements = columns.meta.num_elements();
     let cube_dim = CubeDim::new(&offset.client, num_elements);
     let cube_count = calculate_cube_count_elemwise(&offset.client, num_elements, cube_dim);
 

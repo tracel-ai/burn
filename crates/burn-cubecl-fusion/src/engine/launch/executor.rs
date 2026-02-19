@@ -87,8 +87,8 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
             for s in layout.shape.iter() {
                 inputs.runtime_layouts.push(ScalarArg::new(*s));
             }
-            for s in layout.strides {
-                inputs.runtime_layouts.push(ScalarArg::new(s));
+            for s in layout.strides.iter() {
+                inputs.runtime_layouts.push(ScalarArg::new(*s));
             }
         }
 

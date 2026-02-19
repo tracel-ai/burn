@@ -4,6 +4,7 @@ use crate::{
     ops::numeric::empty_device_dtype,
     tensor::CubeTensor,
 };
+use burn_backend::TensorMetadata;
 use cubecl::frontend::{ABSOLUTE_POS, Numeric, Tensor};
 use cubecl::std::{FastDivmod, tensor::index_offset_contiguous_fastdivmod};
 use cubecl::{CubeDim, std::tensor::layout::linear::LinearView};
@@ -40,7 +41,7 @@ pub(crate) fn gather<R: CubeRuntime>(
     tensor: CubeTensor<R>,
     indices: CubeTensor<R>,
 ) -> CubeTensor<R> {
-    let shape_output = indices.shape.clone();
+    let shape_output = indices.shape();
     let total_elem = shape_output.num_elements();
     let output = empty_device_dtype(
         tensor.client.clone(),

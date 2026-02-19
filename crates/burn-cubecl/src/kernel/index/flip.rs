@@ -4,7 +4,7 @@ use crate::{
     ops::numeric::empty_device_dtype,
     tensor::CubeTensor,
 };
-use burn_backend::DType;
+use burn_backend::{DType, TensorMetadata};
 use cubecl::{
     calculate_cube_count_elemwise,
     prelude::*,
@@ -53,7 +53,7 @@ pub(crate) fn flip<R: CubeRuntime>(
     let output = empty_device_dtype(
         tensor.client.clone(),
         tensor.device.clone(),
-        tensor.shape.clone(),
+        tensor.shape(),
         tensor.dtype,
     );
     flip_on_output(tensor, output, indices, dtype_bool)
@@ -66,7 +66,7 @@ pub(crate) fn flip_on_output<R: CubeRuntime>(
     dtype_bool: DType,
 ) -> CubeTensor<R> {
     let dtype_input = tensor.dtype;
-    let ndims = tensor.shape.num_dims();
+    let ndims = tensor.meta.num_dims();
     let mut indices_sequence = SequenceArg::<'_, R, InputScalar>::new();
 
     for i in 0..ndims {
@@ -76,7 +76,7 @@ pub(crate) fn flip_on_output<R: CubeRuntime>(
         });
     }
 
-    let num_elements = output.shape.num_elements();
+    let num_elements = output.meta.num_elements();
     let cube_dim = CubeDim::new(&tensor.client, num_elements);
     let cube_count = calculate_cube_count_elemwise(&tensor.client, num_elements, cube_dim);
 

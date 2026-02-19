@@ -33,8 +33,8 @@ pub fn conv_transpose2d_col2im<R: CubeRuntime>(
     bias: Option<CubeTensor<R>>,
     options: ConvTransposeOptions<2>,
 ) -> Result<CubeTensor<R>, ConvSetupError> {
-    let [input_channels, im_ch_per_group, kernel_h, kernel_w] = weight.shape.dims();
-    let [batch_size, _, input_h, input_w] = input.shape.dims();
+    let [input_channels, im_ch_per_group, kernel_h, kernel_w] = weight.meta.shape().dims();
+    let [batch_size, _, input_h, input_w] = input.meta.shape().dims();
     let groups = options.groups;
     let input_ch_per_group = input_channels / groups;
     let ConvTransposeOptions {
@@ -135,12 +135,11 @@ pub fn conv_transpose2d_col2im<R: CubeRuntime>(
 pub(crate) fn index<R: CubeRuntime>(tensor: CubeTensor<R>, i: usize) -> CubeTensor<R> {
     #[allow(clippy::single_range_in_vec_init)]
     let mut indices = vec![i..i + 1];
-    for dim in tensor.shape[1..].iter() {
+    for dim in tensor.meta.shape()[1..].iter() {
         indices.push(0..*dim);
     }
     let mut tensor = slice(tensor, &indices);
-    tensor.shape.remove(0);
-    tensor.strides.remove(0);
+    tensor.meta.remove(0);
     tensor
 }
 
@@ -154,8 +153,8 @@ fn execute<R: CubeRuntime>(
     kernel_h: usize,
     kernel_w: usize,
 ) -> Result<(), ConvSetupError> {
-    let [batch_size, _, input_h, input_w] = input.shape.dims();
-    let [groups, col_shape_0, input_ch_per_group] = weight.shape.dims();
+    let [batch_size, _, input_h, input_w] = input.meta.shape().dims();
+    let [groups, col_shape_0, input_ch_per_group] = weight.meta.shape().dims();
 
     let col_shape_1 = batch_size * input_h * input_w;
 
@@ -190,7 +189,7 @@ fn col2im<R: CubeRuntime>(
     let columns = into_contiguous_aligned(columns);
     let bias = bias.map(into_contiguous_aligned);
 
-    let num_elems = out.shape.num_elements();
+    let num_elems = out.meta.num_elements();
 
     let cube_dim = CubeDim::new(&columns.client, num_elems);
     let cube_count = calculate_cube_count_elemwise(&columns.client, num_elems, cube_dim);

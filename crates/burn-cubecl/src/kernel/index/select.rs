@@ -3,6 +3,7 @@ use crate::{
     kernel::utils::{linear_view, shape_divmod},
     ops::numeric::empty_device_dtype,
 };
+use burn_backend::TensorMetadata;
 use cubecl::{CubeDim, calculate_cube_count_elemwise, std::tensor::layout::linear::LinearView};
 use cubecl::{prelude::*, std::FastDivmod};
 
@@ -47,8 +48,8 @@ pub(crate) fn select<R: CubeRuntime>(
     dim: usize,
     indices: CubeTensor<R>,
 ) -> CubeTensor<R> {
-    let mut shape_output = tensor.shape.clone();
-    shape_output[dim] = indices.shape[0];
+    let mut shape_output = tensor.shape();
+    shape_output[dim] = indices.meta.shape()[0];
     let total_elem = shape_output.num_elements();
 
     let output = empty_device_dtype(

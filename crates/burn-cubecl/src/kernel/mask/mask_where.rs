@@ -49,9 +49,9 @@ pub fn mask_where<R: CubeRuntime>(
     strategy: MaskWhereStrategy,
     dtype_bool: DType,
 ) -> CubeTensor<R> {
-    let line_size = max_line_size_many(&[&input, &mask, &value], input.shape.num_dims() - 1);
+    let line_size = max_line_size_many(&[&input, &mask, &value], input.meta.num_dims() - 1);
 
-    let working_units = input.shape.num_elements() / line_size as usize;
+    let working_units = input.meta.num_elements() / line_size as usize;
     let cube_dim = CubeDim::new(&input.client, working_units);
     let cube_count = calculate_cube_count_elemwise(&input.client, working_units, cube_dim);
 
