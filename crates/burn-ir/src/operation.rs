@@ -1601,8 +1601,8 @@ impl From<AttentionOptionsIr> for AttentionOptions {
 impl From<AttentionOptions> for AttentionOptionsIr {
     fn from(ir: AttentionOptions) -> Self {
         AttentionOptionsIr {
-            scale: ir.scale.map(|s| ScalarIr::Float),
-            softcap: ir.softcap.map(|s| ScalarIr::Float),
+            scale: ir.scale.map(ScalarIr::Float),
+            softcap: ir.softcap.map(ScalarIr::Float),
             is_causal: ir.is_causal,
         }
     }
