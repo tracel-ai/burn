@@ -64,6 +64,7 @@ impl CustomOpIr {
 
 /// Describe all tensor operations possible.
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(clippy::large_enum_variant)]
 pub enum OperationIr {
     /// Basic operation on a float tensor.
     BaseFloat(BaseOperationIr),
@@ -1600,8 +1601,8 @@ impl From<AttentionOptionsIr> for AttentionOptions {
 impl From<AttentionOptions> for AttentionOptionsIr {
     fn from(ir: AttentionOptions) -> Self {
         AttentionOptionsIr {
-            scale: ir.scale.map(|s| ScalarIr::Float(s)),
-            softcap: ir.softcap.map(|s| ScalarIr::Float(s)),
+            scale: ir.scale.map(|s| ScalarIr::Float),
+            softcap: ir.softcap.map(|s| ScalarIr::Float),
             is_causal: ir.is_causal,
         }
     }
@@ -2653,18 +2654,14 @@ impl ModuleOperationIr {
             ModuleOperationIr::Attention(repr) => {
                 if let Some(mask) = &repr.mask {
                     if let Some(attn_bias) = &repr.attn_bias {
-                        Box::new(
-                            [&repr.query, &repr.key, &repr.value, &mask, &attn_bias].into_iter(),
-                        )
+                        Box::new([&repr.query, &repr.key, &repr.value, mask, attn_bias].into_iter())
                     } else {
-                        Box::new([&repr.query, &repr.key, &repr.value, &mask].into_iter())
+                        Box::new([&repr.query, &repr.key, &repr.value, mask].into_iter())
                     }
+                } else if let Some(attn_bias) = &repr.attn_bias {
+                    Box::new([&repr.query, &repr.key, &repr.value, attn_bias].into_iter())
                 } else {
-                    if let Some(attn_bias) = &repr.attn_bias {
-                        Box::new([&repr.query, &repr.key, &repr.value, &attn_bias].into_iter())
-                    } else {
-                        Box::new([&repr.query, &repr.key, &repr.value].into_iter())
-                    }
+                    Box::new([&repr.query, &repr.key, &repr.value].into_iter())
                 }
             }
         }
