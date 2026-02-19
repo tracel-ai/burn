@@ -466,7 +466,7 @@ impl<E: TchElement> ModuleOps<Self> for LibTorch<E> {
             mask.map(|m| m.tensor),
             0.,
             options.is_causal,
-            None,
+            options.scale,
             false,
         ))
     }
