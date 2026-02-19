@@ -11,6 +11,7 @@ workspace = true
 
 [features]
 default = ["burn/default", "burn/tui"]
+# Opt-in for macOS users with the Vulkan SDK installed (enabled by default on other platforms)
 vulkan = ["burn/vulkan"]
 
 [dependencies]
