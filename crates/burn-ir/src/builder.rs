@@ -943,6 +943,19 @@ impl_ir_create!(
     dtype = DType::QFloat(scheme)
 );
 
+impl_ir_create!(
+    AttentionOpIr {
+        query: TensorIr,
+        key: TensorIr,
+        value: TensorIr,
+        mask: Option<TensorIr>,
+        attn_bias: Option<TensorIr>,
+        options: AttentionOptionsIr,
+    },
+    shape = Shape::new([query.shape[0], query.shape[1], query.shape[2], value.shape[3]]),
+    dtype = query.dtype
+);
+
 impl DequantizeOpIr {
     pub fn create(input: TensorIr, dtype: DType, new_id: impl FnOnce() -> TensorId) -> Self {
         let out = TensorIr::uninit(new_id(), input.shape.clone(), dtype);

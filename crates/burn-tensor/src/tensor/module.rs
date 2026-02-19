@@ -533,8 +533,8 @@ pub fn attention<B: Backend>(
     )))
 }
 
-/// Exports naive attention to test backend's attention against.
-pub fn naive_attention<B: Backend>(
+/// Exports attention fallback to test backend's attention against.
+pub fn attention_fallback<B: Backend>(
     query: Tensor<B, 4>,
     key: Tensor<B, 4>,
     value: Tensor<B, 4>,
@@ -543,7 +543,7 @@ pub fn naive_attention<B: Backend>(
     options: AttentionOptions,
 ) -> Tensor<B, 4> {
     Tensor::new(TensorPrimitive::Float(
-        crate::ops::attention::naive_attention::<B>(
+        crate::ops::attention::attention_fallback::<B>(
             query.primitive.tensor(),
             key.primitive.tensor(),
             value.primitive.tensor(),
