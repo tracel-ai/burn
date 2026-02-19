@@ -217,3 +217,308 @@ impl SmoothL1Loss {
         result
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::TestBackend;
+    use burn::tensor::TensorData;
+    use burn::tensor::{Tolerance, ops::FloatElem};
+
+    type FT = FloatElem<TestBackend>;
+
+    // =========================================================================
+    // Configuration Tests
+    // =========================================================================
+
+    #[test]
+    fn test_smooth_l1_config_default_beta() {
+        let loss = SmoothL1LossConfig::new().init();
+        assert_eq!(loss.beta, 1.0);
+    }
+
+    #[test]
+    fn test_smooth_l1_config_custom_beta() {
+        let loss = SmoothL1LossConfig::new().with_beta(2.5).init();
+        assert_eq!(loss.beta, 2.5);
+    }
+
+    #[test]
+    #[should_panic(expected = "The parameter beta must be positive")]
+    fn test_smooth_l1_config_beta_zero_panics() {
+        SmoothL1LossConfig::new().with_beta(0.0).init();
+    }
+
+    #[test]
+    #[should_panic(expected = "The parameter beta must be positive")]
+    fn test_smooth_l1_config_beta_negative_panics() {
+        SmoothL1LossConfig::new().with_beta(-1.0).init();
+    }
+
+    // =========================================================================
+    // Forward Pass (Element-wise) Tests
+    // =========================================================================
+
+    #[test]
+    fn test_smooth_l1_forward_l2_region() {
+        // Beta = 1.0, errors = 0.0 and 0.5 (both < beta, use L2 formula)
+        // L2 formula: 0.5 * error^2 / beta
+        // error = 0.0  ->  loss = 0.5 * 0.0 / 1.0 = 0.0
+        // error = 0.5  ->  loss = 0.5 * 0.25 / 1.0 = 0.125
+        let device = Default::default();
+        let loss = SmoothL1LossConfig::new().init();
+
+        let predictions =
+            Tensor::<TestBackend, 2>::from_data(TensorData::from([[0.0_f32, 0.5]]), &device);
+        let targets =
+            Tensor::<TestBackend, 2>::from_data(TensorData::from([[0.0_f32, 0.0]]), &device);
+
+        let output = loss.forward(predictions, targets);
+        let expected = TensorData::from([[0.0_f32, 0.125]]);
+        output.into_data().assert_eq(&expected, false);
+    }
+
+    #[test]
+    fn test_smooth_l1_forward_l1_region() {
+        // Beta = 1.0, errors = 0.0 and 2.0 (2.0 >= beta, use L1 formula)
+        // L1 formula: |error| - 0.5 * beta
+        // L2 formula: 0.5 * (error)^2 / beta
+        // error = 0.0  ->  loss = 0.0
+        // error = 2.0  ->  loss = 2.0 - 0.5 = 1.5
+        let device = Default::default();
+        let loss = SmoothL1LossConfig::new().init();
+
+        let predictions =
+            Tensor::<TestBackend, 2>::from_data(TensorData::from([[0.0_f32, 2.0]]), &device);
+        let targets =
+            Tensor::<TestBackend, 2>::from_data(TensorData::from([[0.0_f32, 0.0]]), &device);
+
+        let output = loss.forward(predictions, targets);
+        let expected = TensorData::from([[0.0_f32, 1.5]]);
+        output.into_data().assert_eq(&expected, false);
+    }
+
+    #[test]
+    fn test_smooth_l1_forward_zero_error() {
+        let device = Default::default();
+        let loss = SmoothL1LossConfig::new().init();
+
+        let predictions =
+            Tensor::<TestBackend, 2>::from_data(TensorData::from([[1.0_f32, 2.0, 3.0]]), &device);
+        let targets = predictions.clone();
+
+        let output = loss.forward(predictions, targets);
+        let expected = TensorData::from([[0.0_f32, 0.0, 0.0]]);
+        output.into_data().assert_eq(&expected, false);
+    }
+
+    #[test]
+    fn test_smooth_l1_forward_negative_errors() {
+        // Ensure absolute value is used correctly
+        // L1 formula: |error| - 0.5 * beta
+        // L2 formula: 0.5 * (error)^2 / beta
+        // Beta = 1.0, error = -3.0 (L1: 3.0 - 0.5 = 2.5)
+        let device = Default::default();
+        let loss = SmoothL1LossConfig::new().init();
+
+        let predictions =
+            Tensor::<TestBackend, 1>::from_data(TensorData::from([-3.0_f32]), &device);
+        let targets = Tensor::<TestBackend, 1>::zeros([1], &device);
+
+        let output = loss.forward(predictions, targets);
+        let expected = TensorData::from([2.5_f32]);
+        output.into_data().assert_eq(&expected, false);
+    }
+
+    #[test]
+    fn test_smooth_l1_forward_mixed_regions() {
+        // Test with errors in both L1 and L2 regions
+        // Beta = 1.0
+        // L1 formula: |error| - 0.5 * beta
+        // L2 formula: 0.5 * (error)^2 / beta
+        // error = 0.5 -> L2: 0.5 * 0.25 / 1 = 0.125
+        // error = 1.5 -> L1: 1.5 - 0.5 = 1.0
+        // error = 3.0 -> L1: 3.0 - 0.5 = 2.5
+        let device = Default::default();
+        let loss = SmoothL1LossConfig::new().init();
+
+        let predictions =
+            Tensor::<TestBackend, 1>::from_data(TensorData::from([0.5_f32, 1.5, 3.0]), &device);
+        let targets = Tensor::<TestBackend, 1>::zeros([3], &device);
+
+        let output = loss.forward(predictions, targets);
+        let expected = TensorData::from([0.125_f32, 1.0, 2.5]);
+        output.into_data().assert_eq(&expected, false);
+    }
+
+    #[test]
+    fn test_smooth_l1_custom_beta_values() {
+        // Test with beta = 0.5
+        // error = 0.25 (< beta): L2 = 0.5 * 0.0625 / 0.5 = 0.0625
+        // error = 1.0 (>= beta): L1 = 1.0 - 0.25 = 0.75
+        let device = Default::default();
+        let loss = SmoothL1LossConfig::new().with_beta(0.5).init();
+
+        let predictions =
+            Tensor::<TestBackend, 1>::from_data(TensorData::from([0.25_f32, 1.0]), &device);
+        let targets = Tensor::<TestBackend, 1>::zeros([2], &device);
+
+        let output = loss.forward(predictions, targets);
+        let expected = TensorData::from([0.0625_f32, 0.75]);
+        output.into_data().assert_eq(&expected, false);
+    }
+
+    // =========================================================================
+    // forward_with_reduction Tests
+    // =========================================================================
+
+    #[test]
+    fn test_smooth_l1_reduction_mean() {
+        // Errors: 0.5 (L2: 0.125), 2.0 (L1: 1.5)
+        // Mean: (0.125 + 1.5) / 2 = 0.8125
+        let device = Default::default();
+        let loss = SmoothL1LossConfig::new().init();
+
+        let predictions =
+            Tensor::<TestBackend, 2>::from_data(TensorData::from([[0.5_f32, 2.0]]), &device);
+        let targets =
+            Tensor::<TestBackend, 2>::from_data(TensorData::from([[0.0_f32, 0.0]]), &device);
+
+        let output = loss.forward_with_reduction(predictions, targets, Reduction::Mean);
+        let expected = TensorData::from([0.8125_f32]);
+        output.into_data().assert_eq(&expected, false);
+    }
+
+    #[test]
+    fn test_smooth_l1_reduction_sum() {
+        // Errors: 0.5 (L2: 0.125), 2.0 (L1: 1.5)
+        // Sum: 1.625
+        let device = Default::default();
+        let loss = SmoothL1LossConfig::new().init();
+
+        let predictions =
+            Tensor::<TestBackend, 2>::from_data(TensorData::from([[0.5_f32, 2.0]]), &device);
+        let targets =
+            Tensor::<TestBackend, 2>::from_data(TensorData::from([[0.0_f32, 0.0]]), &device);
+
+        let output = loss.forward_with_reduction(predictions, targets, Reduction::Sum);
+        let expected = TensorData::from([1.625_f32]);
+        output.into_data().assert_eq(&expected, false);
+    }
+
+    #[test]
+    fn test_smooth_l1_reduction_auto_equals_mean() {
+        let device = Default::default();
+        let loss = SmoothL1LossConfig::new().init();
+
+        let predictions = Tensor::<TestBackend, 1>::from_data(TensorData::from([2.0_f32]), &device);
+        let targets = Tensor::<TestBackend, 1>::zeros([1], &device);
+
+        let mean_out =
+            loss.forward_with_reduction(predictions.clone(), targets.clone(), Reduction::Mean);
+        let auto_out = loss.forward_with_reduction(predictions, targets, Reduction::Auto);
+
+        mean_out.into_data().assert_eq(&auto_out.into_data(), false);
+    }
+
+    // =========================================================================
+    // Dimension Reduction Tests
+    // =========================================================================
+
+    #[test]
+    fn test_smooth_l1_forward_reduce_dims_single_dim() {
+        // Beta = 2.0
+        // L1 formula: |error| - 0.5 * beta
+        // L2 formula: 0.5 * (error)^2 / beta
+        // Row 0: errors [0.0, 1.0, 4.0]
+        //   error = 0.0 -> L2: 0.0
+        //   error = 1.0 -> L2: 0.5 * 1.0 / 2.0 = 0.25
+        //   error = 4.0 -> L1: 4.0 - 1.0 = 3.0
+        //   Mean = 3.25 / 3 = 1.083333...
+        // Row 1: errors [0.0, 0.0, 0.0] -> Mean = 0.0
+        let device = Default::default();
+        let loss = SmoothL1LossConfig::new().with_beta(2.0).init();
+
+        let predictions = Tensor::<TestBackend, 2>::from_data(
+            TensorData::from([[0.0_f32, 1.0, 4.0], [5.0_f32, 5.0, 5.0]]),
+            &device,
+        );
+        let targets = Tensor::<TestBackend, 2>::from_data(
+            TensorData::from([[0.0_f32, 0.0, 0.0], [5.0_f32, 5.0, 5.0]]),
+            &device,
+        );
+
+        let output = loss.forward_reduce_dims(predictions, targets, &[1]);
+        let expected = TensorData::from([[3.25_f32 / 3.0], [0.0]]); // 3.25/3 = 1.0833...
+        output
+            .into_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
+    }
+
+    #[test]
+    fn test_smooth_l1_forward_reduce_dims_image_batch() {
+        // Simulate per-image Smooth L1 loss for [batch, C, H, W] tensor
+        // (common in object detection like Fast R-CNN)
+        let device = Default::default();
+        let loss = SmoothL1LossConfig::new().init(); // beta = 1.0
+
+        // Shape: [2, 1, 2, 2] (batch=2, C=1, H=2, W=2)
+        let predictions = Tensor::<TestBackend, 4>::from_data(
+            TensorData::from([
+                [[[0.5_f32, 2.0], [0.0, 3.0]]], // Image 1
+                [[[1.0_f32, 0.0], [0.5, 1.5]]], // Image 2
+            ]),
+            &device,
+        );
+        let targets = Tensor::<TestBackend, 4>::zeros([2, 1, 2, 2], &device);
+
+        // Reduce over C, H, W (dims 1, 2, 3) to get per-image loss
+        let output = loss.forward_reduce_dims(predictions, targets, &[1, 2, 3]);
+
+        // Image 1: losses [[0.125, 1.5], [0.0, 2.5]] -> mean: 4.125 / 4 = 1.03125
+        // Image 2: losses [[0.5, 0.0], [0.125, 1.0]] -> mean: 1.625 / 4 = 0.40625
+        let expected = TensorData::from([[[[1.03125_f32]]], [[[0.40625_f32]]]]);
+        output.into_data().assert_eq(&expected, false);
+    }
+
+    #[test]
+    fn test_smooth_l1_forward_reduce_dims_unsorted() {
+        // Test that unsorted dimensions are handled correctly (sorted internally)
+        let device = Default::default();
+        let loss = SmoothL1LossConfig::new().init();
+
+        let predictions = Tensor::<TestBackend, 3>::from_data(
+            TensorData::from([[[1.0_f32, 2.0], [3.0, 4.0]], [[5.0_f32, 6.0], [7.0, 8.0]]]),
+            &device,
+        );
+        let targets = Tensor::<TestBackend, 3>::zeros([2, 2, 2], &device);
+
+        // Pass dims in reverse order
+        let output = loss.forward_reduce_dims(predictions.clone(), targets.clone(), &[2, 1]);
+        let expected_output = loss.forward_reduce_dims(predictions, targets, &[1, 2]);
+
+        output
+            .into_data()
+            .assert_eq(&expected_output.into_data(), false);
+    }
+
+    #[test]
+    fn test_smooth_l1_forward_reduce_dims_empty_dims() {
+        // Reducing over no dimensions should return the unreduced loss
+        let device = Default::default();
+        let loss = SmoothL1LossConfig::new().init();
+
+        let predictions = Tensor::<TestBackend, 2>::from_data(
+            TensorData::from([[0.5_f32, 2.0], [0.0, 3.0]]),
+            &device,
+        );
+        let targets = Tensor::<TestBackend, 2>::zeros([2, 2], &device);
+
+        let loss_reduce_dims = loss.forward_reduce_dims(predictions.clone(), targets.clone(), &[]);
+        let loss_no_reduction = loss.forward(predictions, targets);
+
+        loss_reduce_dims
+            .into_data()
+            .assert_eq(&loss_no_reduction.into_data(), false);
+    }
+}
