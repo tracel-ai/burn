@@ -2,7 +2,7 @@ use alloc::boxed::Box;
 
 use burn_backend::Element;
 use burn_backend::ops::{
-    AttentionOptions, ConvOptions, ConvTransposeOptions, DeformConv2dBackward, DeformConvOptions,
+    AttentionModuleOptions, ConvOptions, ConvTransposeOptions, DeformConv2dBackward, DeformConvOptions,
     InterpolateOptions, MaxPool1dBackward, MaxPool1dWithIndices, MaxPool2dBackward,
     MaxPool2dWithIndices, ModuleOps,
 };
@@ -776,7 +776,7 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
         value: FloatTensor<Self>,
         mask: Option<BoolTensor<Self>>,
         attn_bias: Option<FloatTensor<Self>>,
-        options: AttentionOptions,
+        options: AttentionModuleOptions,
     ) -> FloatTensor<Self> {
         let client = query.client.clone();
         let desc = AttentionOpIr::create(
