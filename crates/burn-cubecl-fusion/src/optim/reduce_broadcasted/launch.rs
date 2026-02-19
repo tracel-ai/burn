@@ -10,9 +10,8 @@ use crate::{
 use cubecl::{
     Runtime,
     ir::{ElemType, FloatKind, StorageType},
-    prelude::{ComputeClient, ScalarArg, SequenceArg},
+    prelude::*,
     server::LaunchError,
-    std::CubeOptionArgs,
 };
 use cubek::reduce::{
     LineMode, ReduceDtypes,
@@ -113,10 +112,10 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceBroadcastedLaunch<'_> {
         }
 
         let block_end = match configs.len() > index {
-            true => CubeOptionArgs::Some(ElemwiseFuseBlockLaunch::new(
+            true => OptionArgs::Some(ElemwiseFuseBlockLaunch::new(
                 configs.last().cloned().unwrap(),
             )),
-            false => CubeOptionArgs::None,
+            false => OptionArgs::None,
         };
 
         // TODO: Ensure parallel is selected.

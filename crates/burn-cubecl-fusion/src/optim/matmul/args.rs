@@ -9,7 +9,7 @@ use cubecl::{
     prelude::*,
     quant::scheme::{QuantLevel, QuantScheme},
     std::{
-        CubeOption, CubeOptionExpand, FastDivmod,
+        FastDivmod,
         quant::{
             RunWithQuantType,
             view::{QuantizedView, run_with_quant_type},
@@ -91,13 +91,13 @@ impl MatmulArgs for FusedMatmulArgs {
             comptime![inputs.config.clone()],
         );
         let batch_acc = match comptime![inputs.c.clone()] {
-            Option::Some(c) => CubeOption::new_Some(input_batch_layout(
+            Some(c) => Option::Some(input_batch_layout(
                 &inputs.global,
                 &batch_shape,
                 comptime![c],
                 comptime![inputs.config.clone()],
             )),
-            Option::None => CubeOption::new_None(),
+            None => Option::new_None(),
         };
         let batch_out = BatchLayout::new(batch_strides_out, batch_shape.clone());
 
@@ -159,9 +159,9 @@ impl MatmulArgs for FusedMatmulArgs {
 
     fn view_acc<Lhs: Numeric, Rhs: Numeric, EO: Numeric>(
         state: &Self::State<Lhs, Rhs, EO>,
-    ) -> CubeOption<View<Line<EO>, BatchedCoords>> {
+    ) -> Option<View<Line<EO>, BatchedCoords>> {
         match comptime![state.c.clone()] {
-            Option::Some(c) => {
+            Some(c) => {
                 let view = global_view(
                     &state.inputs,
                     &state.locals,
@@ -170,9 +170,9 @@ impl MatmulArgs for FusedMatmulArgs {
                     comptime![state.config.clone()],
                     comptime![state.out_layout_config],
                 );
-                CubeOption::new_Some(view)
+                Option::Some(view)
             }
-            Option::None => CubeOption::new_None(),
+            None => Option::new_None(),
         }
     }
 
@@ -181,8 +181,8 @@ impl MatmulArgs for FusedMatmulArgs {
         batch: usize,
     ) -> usize {
         match state.c_batch {
-            CubeOption::Some(c_batch) => c_batch.to_source_pos(batch),
-            CubeOption::None => batch,
+            Some(c_batch) => c_batch.to_source_pos(batch),
+            None => batch,
         }
     }
 
@@ -453,7 +453,7 @@ pub struct FusedMatmulState {
     locals: LocalArgs,
     a_batch: VirtualLayout<Coords1d, Coords1d>,
     b_batch: VirtualLayout<Coords1d, Coords1d>,
-    c_batch: CubeOption<VirtualLayout<Coords1d, Coords1d>>,
+    c_batch: Option<VirtualLayout<Coords1d, Coords1d>>,
     out_batch: VirtualLayout<Coords1d, Coords1d>,
     #[cube(comptime)]
     config: FuseBlockConfig,
@@ -483,7 +483,7 @@ impl FusedMatmulState {
         locals: &mut LocalArgs,
         a_batch: VirtualLayout<usize, usize>,
         b_batch: VirtualLayout<usize, usize>,
-        c_batch: CubeOption<VirtualLayout<usize, usize>>,
+        c_batch: Option<VirtualLayout<usize, usize>>,
         out_batch: VirtualLayout<usize, usize>,
         batch_shape: Sequence<FastDivmod<u32>>,
         #[comptime] config: &FuseBlockConfig,
