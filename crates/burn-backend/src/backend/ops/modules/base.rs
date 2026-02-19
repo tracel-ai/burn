@@ -1,5 +1,4 @@
 use super::{conv, pool};
-use crate::ops::attention;
 use crate::ops::unfold::unfold4d_using_conv2d;
 use crate::tensor::{BoolTensor, FloatTensor, IntTensor};
 use crate::{Backend, ElementConversion, TensorMetadata};
@@ -1052,9 +1051,7 @@ pub trait ModuleOps<B: Backend> {
         mask: Option<BoolTensor<B>>,
         attn_bias: Option<FloatTensor<B>>,
         options: AttentionOptions,
-    ) -> FloatTensor<B> {
-        attention::naive_attention::<B>(query, key, value, mask, attn_bias, options)
-    }
+    ) -> FloatTensor<B>;
 }
 
 #[cfg(test)]

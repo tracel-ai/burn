@@ -12,7 +12,7 @@ use crate::{
 
 /// Computes softmax(QKᵗ * scale) · V using separate kernels.
 /// Serves as a fallback when FlashAttention is not used.
-pub fn naive_attention<B: Backend>(
+pub fn attention_fallback<B: Backend>(
     query: FloatTensor<B>,
     key: FloatTensor<B>,
     value: FloatTensor<B>,

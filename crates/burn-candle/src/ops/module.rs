@@ -3,7 +3,7 @@ use burn_backend::{
     ops::{
         ConvOptions, ConvTransposeOptions, DeformConv2dBackward, DeformConvOptions,
         InterpolateMode, InterpolateOptions, MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps,
-        UnfoldOptions,
+        UnfoldOptions, attention::attention_fallback,
     },
     tensor::{FloatTensor, IntTensor},
 };
@@ -312,5 +312,16 @@ impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<Self> for Candle<F, I
         options: InterpolateOptions,
     ) -> FloatTensor<Self> {
         panic!("interpolate_backward is not supported by Candle")
+    }
+
+    fn attention(
+        query: FloatTensor<Self>,
+        key: FloatTensor<Self>,
+        value: FloatTensor<Self>,
+        mask: Option<burn_backend::tensor::BoolTensor<Self>>,
+        attn_bias: Option<FloatTensor<Self>>,
+        options: burn_backend::ops::AttentionOptions,
+    ) -> FloatTensor<Self> {
+        attention_fallback::<Self>(query, key, value, mask, attn_bias, options)
     }
 }
