@@ -10,7 +10,8 @@ version.workspace = true
 workspace = true
 
 [features]
-default = ["burn/default", "burn/tui", "burn/vulkan"]
+default = ["burn/default", "burn/tui"]
+vulkan = ["burn/vulkan"]
 
 [dependencies]
 burn = { path = "../../crates/burn", features = [
