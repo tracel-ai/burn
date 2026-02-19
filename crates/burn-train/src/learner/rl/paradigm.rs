@@ -16,7 +16,7 @@ use crate::{
 use crate::{EpisodeSummary, RLStrategies};
 use burn_core::record::FileRecorder;
 use burn_core::tensor::backend::AutodiffBackend;
-use burn_rl::{Batchable, Environment, EnvironmentInit, Policy, PolicyLearner};
+use burn_rl::{Batchable, Environment, EnvironmentInit, Policy, PolicyLearner, SliceAccess};
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -311,7 +311,11 @@ impl<RLC: RLComponentsTypes + 'static> RLTraining<RLC> {
     }
 
     /// Launch the training with the specified [PolicyLearner](PolicyLearner) on the specified environment.
-    pub fn launch(mut self, learner_agent: RLC::LearningAgent) -> RLResult<RLC::Policy> {
+    pub fn launch(mut self, learner_agent: RLC::LearningAgent) -> RLResult<RLC::Policy>
+    where
+        RLC::PolicyObs: SliceAccess<RLC::Backend>,
+        RLC::PolicyAction: SliceAccess<RLC::Backend>,
+    {
         if self.tracing_logger.is_some()
             && let Err(e) = self.tracing_logger.as_ref().unwrap().install()
         {
