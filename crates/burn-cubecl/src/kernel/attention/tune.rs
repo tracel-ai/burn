@@ -130,6 +130,8 @@ fn create_key<R: CubeRuntime>(
     )
 }
 
+#[allow(clippy::type_complexity)]
+#[allow(clippy::too_many_arguments)]
 fn input_gen<R: CubeRuntime>(
     _key: &AttentionAutotuneKey,
     query: &CubeTensor<R>,
@@ -152,9 +154,9 @@ fn input_gen<R: CubeRuntime>(
         query.clone(),
         key.clone(),
         value.clone(),
-        mask.as_ref().map(|m| m.clone()),
-        attn_bias.as_ref().map(|ab| ab.clone()),
+        mask.clone(),
+        attn_bias.clone(),
         out.copy(),
-        options.clone(),
+        *options,
     )
 }

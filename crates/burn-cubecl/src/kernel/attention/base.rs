@@ -40,6 +40,7 @@ impl Default for AttentionStrategy {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 /// Launch an attention kernel with given strategy
 pub fn attention<R: CubeRuntime>(
     query: CubeTensor<R>,
@@ -87,6 +88,7 @@ pub fn attention<R: CubeRuntime>(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 /// Launch a flash attention kernel
 pub fn flash_attention<R: CubeRuntime>(
     query: CubeTensor<R>,
