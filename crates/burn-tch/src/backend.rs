@@ -123,6 +123,8 @@ impl<E: TchElement> Backend for LibTorch<E> {
     type BoolElem = bool;
 
     type QuantizedTensorPrimitive = TchTensor;
+    // TODO:
+    type CommunicationTensorPrimitive = TchTensor;
 
     fn seed(_device: &Self::Device, seed: u64) {
         tch::manual_seed(seed as i64);

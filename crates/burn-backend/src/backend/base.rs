@@ -66,6 +66,7 @@ pub trait Backend:
     FloatTensorOps<Self>
     + BoolTensorOps<Self>
     + IntTensorOps<Self>
+    + CommunicationTensorOps<Self>
     + ModuleOps<Self>
     + ActivationOps<Self>
     + QTensorOps<Self>
@@ -98,6 +99,9 @@ pub trait Backend:
 
     /// Tensor primitive to be used for all quantized operations.
     type QuantizedTensorPrimitive: TensorMetadata + QTensorPrimitive + 'static;
+
+    /// Tensor primitive to be used for communication operations.
+    type CommunicationTensorPrimitive: TensorMetadata + 'static;
 
     /// If autodiff is enabled.
     fn ad_enabled() -> bool {

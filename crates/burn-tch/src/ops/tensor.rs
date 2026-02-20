@@ -536,4 +536,10 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
     fn float_is_inf(tensor: FloatTensor<Self>) -> BoolTensor<Self> {
         TchTensor::new(tensor.tensor.isinf())
     }
+
+    fn comm_duplicated(
+        tensor: &mut FloatTensor<Self>,
+    ) -> burn_backend::tensor::CommunicationTensor<Self> {
+        todo!()
+    }
 }

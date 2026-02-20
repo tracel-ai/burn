@@ -19,6 +19,15 @@ impl<B: Backend> TensorPrimitive<B> {
             Self::Float(tensor) => tensor,
         }
     }
+
+    /// Returns a mutable reference to the full tensor representation.
+    pub fn get_mut_ref(&mut self) -> &mut B::FloatTensorPrimitive {
+        match self {
+            // Self::QFloat(tensor) => B::dequantize(tensor),
+            Self::QFloat(_tensor) => todo!(),
+            Self::Float(tensor) => tensor,
+        }
+    }
 }
 
 impl<B: Backend> TensorMetadata for TensorPrimitive<B> {

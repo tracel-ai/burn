@@ -74,6 +74,7 @@ where
     type BoolElem = bool;
 
     type QuantizedTensorPrimitive = NdArrayQTensor;
+    type CommunicationTensorPrimitive = NdArrayTensor;
 
     fn ad_enabled() -> bool {
         false

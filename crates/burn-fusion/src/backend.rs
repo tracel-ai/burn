@@ -39,6 +39,9 @@ impl<B: FusionBackend> Backend for Fusion<B> {
 
     type QuantizedTensorPrimitive = FusionTensor<B::FusionRuntime>;
 
+    // TODO:
+    type CommunicationTensorPrimitive = FusionTensor<B::FusionRuntime>;
+
     fn name(device: &Self::Device) -> String {
         format!("fusion<{}>", B::name(device))
     }

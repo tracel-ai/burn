@@ -24,6 +24,7 @@ pub mod ops;
 pub(crate) mod graph;
 // Exported for backend extension
 pub use graph::NodeId;
+pub(crate) mod grad_sync;
 pub(crate) mod tensor;
 pub(crate) mod utils;
 
@@ -32,6 +33,7 @@ mod backend;
 pub(crate) mod runtime;
 
 pub use backend::*;
+pub use grad_sync::api::start_gradient_sync_server;
 
 /// A facade around for HashMap and HashSet.
 /// This avoids elaborate import wrangling having to happen in every module.

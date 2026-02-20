@@ -1,3 +1,5 @@
+use crate::grad_sync::api::get_gradient_sync_client;
+
 use burn_backend::{
     Backend, TensorMetadata, TensorPrimitive,
     tensor::{FloatTensor, TensorContainer},
@@ -71,15 +73,21 @@ impl Gradients {
     /// Register a grad tensor in the container.
     ///
     /// If the tensor already exists, add both tensors together before saving the result.
+    ///
+    /// If the registered tensor is sharded across multiple device, performs an all_reduce operation on the gradient.
     pub fn register<B: Backend>(&mut self, node_id: NodeId, value: FloatTensor<B>) {
-        if let Some(tensor_old) = self.container.remove::<B>(&node_id.value) {
-            self.container.register::<B>(
-                node_id.value,
-                TensorPrimitive::Float(B::float_add(value, tensor_old.tensor())),
-            );
+        let out = if let Some(tensor_old) = self.container.remove::<B>(&node_id.value) {
+            B::float_add(value, tensor_old.tensor())
         } else {
-            self.container
-                .register::<B>(node_id.value, TensorPrimitive::Float(value));
-        }
+            value
+        };
+
+        self.container
+            .register::<B>(node_id.value, TensorPrimitive::Float(out));
+
+        if let Some(sync_client) = get_gradient_sync_client::<B>() {
+            let tensor_ref = self.container.get_mut_ref::<B>(&node_id.value).unwrap();
+            sync_client.on_register(node_id, tensor_ref.get_mut_ref());
+        };
     }
 }

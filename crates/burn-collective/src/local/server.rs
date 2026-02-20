@@ -1,5 +1,5 @@
 use crate::{
-    CollectiveConfig, CollectiveError, PeerId, ReduceOperation,
+    CollectiveConfig, CollectiveError,
     global::node::base::Node,
     local::{
         AllReduceOp, AllReduceResult, BroadcastOp, BroadcastResult, ReduceOp, ReduceResult,
@@ -7,7 +7,10 @@ use crate::{
     },
 };
 use burn_communication::websocket::{WebSocket, WsServer};
-use burn_tensor::{TensorMetadata, backend::Backend};
+use burn_tensor::{
+    TensorMetadata,
+    backend::{Backend, PeerId, ReduceOperation},
+};
 use std::sync::{MutexGuard, OnceLock};
 use std::{
     any::{Any, TypeId},

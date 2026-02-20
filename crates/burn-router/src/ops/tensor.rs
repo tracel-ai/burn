@@ -1245,4 +1245,10 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
             .register(OperationIr::BaseFloat(BaseOperationIr::Unfold(desc)))
             .output()
     }
+
+    fn comm_duplicated(
+        tensor: &mut FloatTensor<Self>,
+    ) -> burn_backend::tensor::CommunicationTensor<Self> {
+        todo!()
+    }
 }
