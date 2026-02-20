@@ -16,7 +16,7 @@ members = [
 exclude = [
     "examples/notebook",
     "examples/raspberry-pi-pico",
-    "examples/dqn-agent", # gym-rs
+    "examples/dqn-agent",         # gym-rs
 ]
 
 [workspace.package]
@@ -115,7 +115,7 @@ tracing-appender = "0.2.3"
 tracing-core = { version = "0.1.36", default-features = false }
 tracing-opentelemetry = "0.32.0"
 tracing-subscriber = "0.3.20"
-zip = "7.4.0"
+zip = "8.1.0"
 
 # Persist related
 memmap2 = { version = "0.9" }
@@ -179,12 +179,14 @@ portable-atomic = { version = "1.13.1" }
 portable-atomic-util = { version = "0.2.5", features = ["alloc"] }
 
 ### For the main burn branch. ###
-cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "11c32460621652077898d3309430711ab3d7944d" }
-cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "11c32460621652077898d3309430711ab3d7944d" }
-cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "b121ed35e19bf9e0935dd563e97cab6e7a76005e" }
+cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "b19859ee693bb02a25e4da2ca53797bb164be140" }
+cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "b19859ee693bb02a25e4da2ca53797bb164be140" }
+cubecl-zspace = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "b19859ee693bb02a25e4da2ca53797bb164be140" }
+cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "75669db878e78c762ed44f91a1e4c6b8e2b84b2a" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }
+# cubecl-zspace = { path = "../cubecl/crates/cubecl-zspace", default-features = false }
 # cubek = { path = "../cubek/crates/cubek", default-features = false }
 ### For the release. ###
 # cubecl = { version = "=0.10.0-pre.1", default-features = false }

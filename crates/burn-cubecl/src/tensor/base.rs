@@ -3,7 +3,7 @@ use crate::element::CubeElement;
 use crate::kernel::{NumericUnaryOp, NumericUnaryOpFamily, launch_unary_numeric};
 use burn_backend::quantization::QuantScheme;
 use burn_backend::{DType, QTensorPrimitive, Shape, TensorMetadata};
-use burn_std::tensor::is_contiguous;
+use burn_std::{Metadata, strides, tensor::is_contiguous};
 use cubecl::client::ComputeClient;
 use cubecl::frontend::Numeric;
 use cubecl::prelude::{TensorHandleRef, *};
@@ -19,12 +19,10 @@ pub struct CubeTensor<R: CubeRuntime> {
     pub client: ComputeClient<R>,
     /// The buffer where the data are stored.
     pub handle: Handle,
-    /// The shape of the tensor.
-    pub shape: Shape,
+    /// The metadata of the tensor.
+    pub meta: Box<Metadata>,
     /// The device of the tensor.
     pub device: R::Device,
-    /// The strides of the tensor.
-    pub strides: Vec<usize>,
     /// The datatype of the tensor.
     pub dtype: DType,
     /// Runtime quantization parameters, if applicable
@@ -35,8 +33,8 @@ impl<R: CubeRuntime> From<CubeTensor<R>> for TensorHandle<R> {
     fn from(val: CubeTensor<R>) -> Self {
         TensorHandle::new(
             val.handle,
-            val.shape.to_vec(),
-            val.strides.to_vec(),
+            val.meta.shape().clone(),
+            val.meta.strides().clone(),
             val.dtype.into(),
         )
     }
@@ -61,9 +59,9 @@ where
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_fmt(format_args!(
             "CubeTensor {{ shape: {:?}, device: {:?}, strides: {:?}, elem: {}, runtime: {}}}",
-            self.shape,
+            self.meta.shape(),
             self.device,
-            self.strides,
+            self.meta.strides(),
             self.dtype.name(),
             R::name(&self.client),
         ))
@@ -78,9 +76,8 @@ where
         Self {
             client: self.client.clone(),
             handle: self.handle.clone(),
-            shape: self.shape.clone(),
+            meta: self.meta.clone(),
             device: self.device.clone(),
-            strides: self.strides.clone(),
             dtype: self.dtype,
             qparams: self.qparams.clone(),
         }
@@ -93,11 +90,11 @@ impl<R: CubeRuntime> TensorMetadata for CubeTensor<R> {
     }
 
     fn shape(&self) -> Shape {
-        self.shape.clone()
+        self.meta.shape().clone()
     }
 
     fn rank(&self) -> usize {
-        self.shape.num_dims()
+        self.meta.rank()
     }
 }
 
@@ -122,17 +119,15 @@ where
     pub fn new(
         client: ComputeClient<R>,
         handle: Handle,
-        shape: Shape,
+        metadata: Metadata,
         device: R::Device,
-        strides: Vec<usize>,
         dtype: DType,
     ) -> Self {
         CubeTensor {
             client,
             handle,
-            shape,
+            meta: Box::new(metadata),
             device,
-            strides,
             dtype,
             qparams: None,
         }
@@ -147,7 +142,7 @@ where
         dtype: DType,
     ) -> Self {
         let ndims = shape.num_dims();
-        let mut strides = vec![0; ndims];
+        let mut strides = strides![0; ndims];
         let mut current = 1;
 
         shape.iter().enumerate().rev().for_each(|(index, val)| {
@@ -158,8 +153,7 @@ where
         Self {
             client,
             handle,
-            shape,
-            strides,
+            meta: Box::new(Metadata::new(shape, strides)),
             device,
             dtype,
             qparams: None,
@@ -168,17 +162,16 @@ where
 
     /// Change the context of the current tensor and return the newly transferred tensor.
     pub fn to_client(&self, client: ComputeClient<R>, device: R::Device) -> Self {
-        let desc = self
-            .handle
-            .copy_descriptor(&self.shape, &self.strides, self.elem_size());
+        let desc =
+            self.handle
+                .copy_descriptor(self.meta.shape(), self.meta.strides(), self.elem_size());
         let alloc = self.client.to_client_tensor(desc, &client);
 
         Self {
             client,
             handle: alloc.handle,
-            shape: self.shape.clone(),
+            meta: Box::new(Metadata::new(self.shape(), alloc.strides)),
             device,
-            strides: alloc.strides,
             dtype: self.dtype,
             qparams: self.qparams.clone(),
         }
@@ -188,8 +181,8 @@ where
     pub fn as_handle_ref(&self) -> TensorHandleRef<'_, R> {
         TensorHandleRef {
             handle: &self.handle,
-            strides: &self.strides,
-            shape: &self.shape,
+            strides: self.meta.strides(),
+            shape: self.meta.shape(),
             runtime: PhantomData,
             elem_size: self.elem_size(),
         }
@@ -250,11 +243,11 @@ where
         if !self.handle.can_mut() || !self.is_nonoverlapping() {
             return false;
         }
-        let ndims = self.shape.num_dims();
+        let ndims = self.meta.num_dims();
 
         for i in 0..ndims {
-            let shape_lhs = self.shape[i];
-            let shape_rhs = rhs.shape[i];
+            let shape_lhs = self.meta.shape()[i];
+            let shape_rhs = rhs.meta.shape()[i];
 
             // Output tensor will be different from the mutable tensor.
             if shape_lhs < shape_rhs {
@@ -309,23 +302,26 @@ where
     /// strides at position k is equal to the product of the shapes
     /// at all positions greater than k. However, all axes with a shape of 1 are ignored.
     pub fn is_contiguous(&self) -> bool {
-        is_contiguous(&self.shape, &self.strides)
+        is_contiguous(self.meta.shape(), self.meta.strides())
     }
 
     /// Check if the current tensor has a contiguous backing buffer (no overlap and no empty memory
     /// regions within the shape).
     pub fn is_contiguous_buffer(&self) -> bool {
-        self.shape.num_elements() * self.dtype.size() == self.handle.size() as usize
+        self.meta.shape().num_elements() * self.dtype.size() == self.handle.size() as usize
     }
 
     /// Checks if the tensor is non-overlapping (can be safely written to).
     pub fn is_nonoverlapping(&self) -> bool {
-        if self.strides.contains(&0) {
+        let shape = self.meta.shape();
+        let strides = self.meta.strides();
+
+        if strides.contains(&0) {
             return false;
         }
         let rank = self.rank();
         if rank > 1 {
-            let mut dims = self.shape.iter().zip(&self.strides).collect::<Vec<_>>();
+            let mut dims = shape.iter().zip(strides.iter()).collect::<Vec<_>>();
             dims.sort_by_key(|(_, stride)| **stride);
 
             let mut max_offset = 0;

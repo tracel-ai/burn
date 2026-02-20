@@ -134,8 +134,8 @@ pub fn conv_transpose2d_direct<R: CubeRuntime>(
     bias: Option<CubeTensor<R>>,
     options: ConvTransposeOptions<2>,
 ) -> Result<CubeTensor<R>, ConvSetupError> {
-    let [batch_size, _, in_height, in_width] = input.shape.dims();
-    let [_, out_channels, kernel_0, kernel_1] = weight.shape.dims();
+    let [batch_size, _, in_height, in_width] = input.meta.shape().dims();
+    let [_, out_channels, kernel_0, kernel_1] = weight.meta.shape().dims();
 
     let out_0 = (in_height - 1) * options.stride[0]
         + options.dilation[0] * (kernel_0 - 1)
@@ -157,7 +157,7 @@ pub fn conv_transpose2d_direct<R: CubeRuntime>(
         input.dtype,
     );
 
-    let num_elems = output.shape.num_elements();
+    let num_elems = output.meta.num_elements();
     let cube_dim = CubeDim::new(&input.client, num_elems);
     let cube_count = calculate_cube_count_elemwise(&input.client, num_elems, cube_dim);
 

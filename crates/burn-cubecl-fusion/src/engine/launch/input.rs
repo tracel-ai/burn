@@ -225,7 +225,11 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
                 }
 
                 if original == &tensor_relative.id {
-                    let shape = tensor_relative.shape.clone().swap(dims.0, dims.1).unwrap();
+                    let shape = tensor_relative
+                        .shape
+                        .clone()
+                        .swapped(dims.0, dims.1)
+                        .unwrap();
 
                     if block_plan.potential_reference_input.is_none() && shape == block.shape_ref {
                         block_plan.potential_reference_input = Some(InputReference::SwapDims {

@@ -3,7 +3,7 @@ use crate::engine::{
     trace::block::FuseBlock,
 };
 use burn_ir::{TensorId, TensorIr};
-use burn_std::Shape;
+use burn_std::{Shape, Strides};
 use cubecl::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -195,14 +195,14 @@ pub struct FuseResources {
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct RuntimeLayout {
     pub shape: Shape,
-    pub strides: Vec<usize>,
+    pub strides: Strides,
 }
 
 impl Default for RuntimeLayout {
     fn default() -> Self {
         Self {
             shape: Shape::new([]),
-            strides: Default::default(),
+            strides: Strides::new(&[]),
         }
     }
 }

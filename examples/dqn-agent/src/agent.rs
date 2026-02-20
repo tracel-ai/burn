@@ -5,8 +5,9 @@ use burn::module::Module;
 use burn::record::Record;
 use burn::rl::{
     Batchable, LearnerTransitionBatch, Policy, PolicyLearner, PolicyState, RLTrainOutput,
+    SliceAccess,
 };
-use burn::tensor::Transaction;
+use burn::tensor::{Int, Transaction};
 use burn::tensor::activation::softmax;
 use burn::train::ItemLazy;
 use burn::train::metric::{Adaptor, LossInput};
@@ -96,6 +97,26 @@ impl<B: Backend, const D: usize> Batchable for ObservationTensor<B, D> {
             .iter()
             .map(|s| ObservationTensor { state: s.clone() })
             .collect()
+    }
+}
+
+impl<B: Backend> SliceAccess<B> for ObservationTensor<B, 2> {
+    fn zeros_like(sample: &Self, capacity: usize, device: &B::Device) -> Self {
+        let feature_dim = sample.state.dims()[1];
+        Self {
+            state: Tensor::zeros([capacity, feature_dim], device),
+        }
+    }
+
+    fn select(self, dim: usize, indices: Tensor<B, 1, Int>) -> Self {
+        Self {
+            state: Tensor::select(self.state, dim, indices),
+        }
+    }
+
+    fn slice_assign_inplace(&mut self, index: usize, value: Self) {
+        self.state
+            .inplace(|t| t.slice_assign(index..index + 1, value.state));
     }
 }
 
@@ -241,6 +262,26 @@ impl<B: Backend, const D: usize> Batchable for DiscreteActionTensor<B, D> {
             .iter()
             .map(|a| DiscreteActionTensor { actions: a.clone() })
             .collect()
+    }
+}
+
+impl<B: Backend> SliceAccess<B> for DiscreteActionTensor<B, 2> {
+    fn zeros_like(sample: &Self, capacity: usize, device: &B::Device) -> Self {
+        let feature_dim = sample.actions.dims()[1];
+        Self {
+            actions: Tensor::zeros([capacity, feature_dim], device),
+        }
+    }
+
+    fn select(self, dim: usize, indices: Tensor<B, 1, Int>) -> Self {
+        Self {
+            actions: Tensor::select(self.actions, dim, indices),
+        }
+    }
+
+    fn slice_assign_inplace(&mut self, index: usize, value: Self) {
+        self.actions
+            .inplace(|t| t.slice_assign(index..index + 1, value.actions));
     }
 }
 

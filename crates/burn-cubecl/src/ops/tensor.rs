@@ -62,7 +62,7 @@ where
     #[cfg_attr(feature = "tracing", tracing::instrument(
         level="trace",
         skip(tensor),
-        fields(from = ?tensor.device, shape = ?tensor.shape, dtype = ?tensor.dtype)
+        fields(from = ?tensor.device, meta = ?tensor.meta, dtype = ?tensor.dtype)
     ))]
     async fn float_into_data(tensor: FloatTensor<Self>) -> Result<TensorData, ExecutionError> {
         super::into_data(tensor).await
@@ -75,7 +75,7 @@ where
     #[cfg_attr(feature = "tracing", tracing::instrument(
         level="trace",
         skip(tensor),
-        fields(from = ?tensor.device, shape = ?tensor.shape, dtype = ?tensor.dtype)
+        fields(from = ?tensor.device, meta = ?tensor.meta, dtype = ?tensor.dtype)
     ))]
     fn float_to_device(tensor: FloatTensor<Self>, device: &Device<Self>) -> FloatTensor<Self> {
         super::to_device(tensor, device)
@@ -222,7 +222,7 @@ where
             let simple_ranges: Vec<Range<usize>> = slices
                 .iter()
                 .enumerate()
-                .map(|(i, slice)| slice.to_range(tensor.shape[i]))
+                .map(|(i, slice)| slice.to_range(tensor.meta.shape()[i]))
                 .collect();
 
             kernel::slice(tensor, &simple_ranges)

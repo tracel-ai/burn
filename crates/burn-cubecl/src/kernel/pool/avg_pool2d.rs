@@ -100,7 +100,7 @@ pub(crate) fn avg_pool2d<R: CubeRuntime>(
     count_include_pad: bool,
     ceil_mode: bool,
 ) -> CubeTensor<R> {
-    let [batch_size, channels, in_h, in_w] = x.shape.dims();
+    let [batch_size, channels, in_h, in_w] = x.meta.shape().dims();
     let dilation = 1;
 
     let size_0 = calculate_pool_output_size(
@@ -130,7 +130,7 @@ pub(crate) fn avg_pool2d<R: CubeRuntime>(
     let shape_out = Shape::new([batch_size, size_0, size_1, channels]);
     let output = empty_device_dtype(x.client.clone(), x.device.clone(), shape_out, x.dtype);
 
-    let working_units = output.shape.num_elements() / line_size as usize;
+    let working_units = output.meta.num_elements() / line_size as usize;
     let cube_dim = CubeDim::new(&x.client, working_units);
     let cube_count = calculate_cube_count_elemwise(&x.client, working_units, cube_dim);
 

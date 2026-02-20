@@ -7,7 +7,7 @@ use crate::{
     },
 };
 use burn_ir::{TensorId, TensorIr};
-use burn_std::Shape;
+use burn_std::{Shape, Strides};
 use cubecl::{Runtime, ir::LineSize};
 use std::collections::BTreeMap;
 
@@ -81,7 +81,7 @@ pub enum ReferenceSelection {
     Concrete {
         layout: FuseArg,
         shape: Shape,
-        strides: Vec<usize>,
+        strides: Strides,
     },
     /// Layout from a swapped dim tensor.
     SwapDims {
@@ -94,7 +94,7 @@ pub enum ReferenceSelection {
     VirtualShape {
         original: FuseArg,
         shape: Shape,
-        strides: Vec<usize>,
+        strides: Strides,
     },
     /// The layout is provided dynamically by the host at runtime.
     Runtime { pos: usize },
@@ -141,7 +141,7 @@ impl<R: Runtime> LaunchPlan<'_, R> {
 pub struct HandleOutputAliasDebugInfo<R: Runtime> {
     pub handle: CubeFusionHandle<R>,
     pub relative_id: TensorId,
-    pub global_shape: Vec<usize>,
+    pub global_shape: Shape,
 }
 
 /// Represents the output of a fused kernel execution.
@@ -178,7 +178,7 @@ pub struct NormalHandleInput<R: Runtime> {
     pub line_size: LineSize,
     pub broadcated: bool,
     /// Stores the original strides of the handle for restoration during plan rollback.
-    pub orig_strides: Vec<usize>,
+    pub orig_strides: Strides,
 }
 
 /// An input handle containing values for a quantized tensor.
@@ -224,7 +224,7 @@ impl<R: Runtime> NormalHandleInput<R> {
         tensor_relative: &TensorIr,
         precision: FuseType,
         mut handle: CubeFusionHandle<R>,
-        mut strides: Vec<usize>,
+        mut strides: Strides,
     ) -> Self {
         // Swap current handle strides with provided strides to track the original state for rollback.
         core::mem::swap(&mut handle.strides, &mut strides);
@@ -256,7 +256,7 @@ pub struct PotentialInplace<'a> {
     /// Reference to the IR of the relative tensor.
     pub tensor_relative: &'a TensorIr,
     /// Current strides of the potential in-place candidate.
-    pub strides: Vec<usize>,
+    pub strides: Strides,
 }
 
 impl ReferenceSelection {
@@ -266,7 +266,7 @@ impl ReferenceSelection {
 
     pub fn compatible_strides_for_inplace(&self, strides_inplace: &[usize]) -> bool {
         match self {
-            ReferenceSelection::Concrete { strides, .. } => strides == strides_inplace,
+            ReferenceSelection::Concrete { strides, .. } => &**strides == strides_inplace,
             _ => false,
         }
     }

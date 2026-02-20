@@ -203,7 +203,7 @@ pub(crate) fn deform_im2col<R: CubeRuntime>(
     let device = input.device.clone();
     let dtype = input.dtype;
 
-    let [batch_size, in_channels, _, _] = input.shape.dims();
+    let [batch_size, in_channels, _, _] = input.meta.shape().dims();
     let (out_height, out_width) = out_dims;
     let (kernel_height, kernel_width) = kernel_dims;
 
@@ -274,8 +274,8 @@ pub(crate) fn deform_conv2d<R: CubeRuntime>(
     let mask = mask.map(|it| into_contiguous_aligned(it));
     let bias = bias.map(|it| into_contiguous_aligned(it));
 
-    let [batch_size, _, in_height, in_width] = input.shape.dims();
-    let [out_channels, _, kernel_h, kernel_w] = weight.shape.dims();
+    let [batch_size, _, in_height, in_width] = input.meta.shape().dims();
+    let [out_channels, _, kernel_h, kernel_w] = weight.meta.shape().dims();
     let groups = options.weight_groups;
 
     let out_h = calculate_conv_output_size(
@@ -296,7 +296,7 @@ pub(crate) fn deform_conv2d<R: CubeRuntime>(
 
     let columns = deform_im2col(input, offset, mask, options, out_dims, (kernel_h, kernel_w))?;
 
-    let [col_size_0, col_size_1] = columns.shape.dims();
+    let [col_size_0, col_size_1] = columns.meta.shape().dims();
     let col_size_0 = col_size_0 / groups;
     let out_c_per_group = out_channels / groups;
 

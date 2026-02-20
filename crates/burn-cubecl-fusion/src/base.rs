@@ -1,5 +1,5 @@
 use burn_fusion::stream::Context;
-use burn_std::{DType, quantization::QParamTensor};
+use burn_std::{DType, Strides, quantization::QParamTensor, strides};
 use cubecl::{
     CubeElement, Runtime,
     client::ComputeClient,
@@ -33,7 +33,7 @@ pub struct CubeFusionHandle<R: Runtime> {
     /// The element type of the tensor.
     pub dtype: DType,
     /// The strides of the tensor.
-    pub strides: Vec<usize>,
+    pub strides: Strides,
     /// Quantization runtime parameters, if applicable
     pub qparams: Option<QParams>,
 }
@@ -121,14 +121,14 @@ impl<R: Runtime> CubeFusionHandle<R> {
                 QuantParam::BF16 => DType::BF16,
                 QuantParam::UE8M0 | QuantParam::UE4M3 => unimplemented!("Not yet supported"),
             },
-            strides: qparams.scales.strides.clone(),
+            strides: qparams.scales.metadata.strides().clone(),
             qparams: None,
         })
     }
 }
 
-pub(crate) fn strides_dyn_rank(shape: &[usize]) -> Vec<usize> {
-    let mut strides = vec![0; shape.len()];
+pub(crate) fn strides_dyn_rank(shape: &[usize]) -> Strides {
+    let mut strides = strides![0; shape.len()];
 
     let mut current = 1;
     shape.iter().enumerate().rev().for_each(|(index, val)| {

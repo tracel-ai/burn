@@ -4,7 +4,8 @@ use crate::{
     ops::numeric::empty_device_dtype,
     tensor::CubeTensor,
 };
-use burn_backend::Slice;
+use burn_backend::{Slice, TensorMetadata};
+use burn_std::{Metadata, SliceOps};
 use cubecl::{
     calculate_cube_count_elemwise, intrinsic,
     prelude::*,
@@ -14,13 +15,13 @@ use std::ops::Range;
 
 /// Slice a jit tensor with a set of ranges
 pub fn slice<R: CubeRuntime>(tensor: CubeTensor<R>, indices: &[Range<usize>]) -> CubeTensor<R> {
-    let mut dims = tensor.shape.clone();
+    let mut dims = tensor.shape();
     let mut offset_start = 0u64;
     let mut offset_end = 0u64;
 
     for i in 0..indices.len() {
-        offset_start += (tensor.strides[i] * indices[i].start) as u64;
-        offset_end += (tensor.strides[i] * (dims[i] - indices[i].end)) as u64;
+        offset_start += (tensor.meta.strides()[i] * indices[i].start) as u64;
+        offset_end += (tensor.meta.strides()[i] * (dims[i] - indices[i].end)) as u64;
         dims[i] = indices[i].end - indices[i].start;
     }
 
@@ -38,9 +39,8 @@ pub fn slice<R: CubeRuntime>(tensor: CubeTensor<R>, indices: &[Range<usize>]) ->
                 .handle
                 .offset_start(offset_start)
                 .offset_end(offset_end),
-            dims,
+            Metadata::new(dims, tensor.meta.strides),
             tensor.device,
-            tensor.strides,
             tensor.dtype,
         )
     } else {
@@ -92,7 +92,7 @@ pub(crate) fn slice_on_output<R: CubeRuntime>(
     output: CubeTensor<R>,
     indices: &[Range<usize>],
 ) -> CubeTensor<R> {
-    let ndims = tensor.shape.num_dims();
+    let ndims = tensor.meta.num_dims();
     let mut indices_sequence = SequenceArg::<R, usize>::new();
 
     for i in 0..ndims {
@@ -100,7 +100,7 @@ pub(crate) fn slice_on_output<R: CubeRuntime>(
         indices_sequence.push(ScalarArg::new(start));
     }
 
-    let working_units = output.shape.num_elements();
+    let working_units = output.meta.num_elements();
     let cube_dim = CubeDim::new(&tensor.client, working_units);
     let cube_count = calculate_cube_count_elemwise(&tensor.client, working_units, cube_dim);
 
@@ -179,13 +179,13 @@ pub fn slice_with_steps<R: CubeRuntime>(tensor: CubeTensor<R>, slices: &[Slice])
         let simple_ranges: Vec<Range<usize>> = slices
             .iter()
             .enumerate()
-            .map(|(i, slice)| slice.to_range(tensor.shape[i]))
+            .map(|(i, slice)| slice.to_range(tensor.meta.shape()[i]))
             .collect();
         return slice(tensor, &simple_ranges);
     }
 
     // Calculate output shape
-    let shape_output = tensor.shape.clone().slice(slices).unwrap();
+    let shape_output = tensor.shape().slice(slices).unwrap();
 
     // Create output tensor
     let output = empty_device_dtype(
@@ -201,16 +201,16 @@ pub fn slice_with_steps<R: CubeRuntime>(tensor: CubeTensor<R>, slices: &[Slice])
     let mut steps = SequenceArg::<R, i32>::new();
 
     for (dim, slice) in slices.iter().enumerate() {
-        let range = slice.to_range(tensor.shape[dim]);
+        let range = slice.to_range(tensor.meta.shape()[dim]);
         starts.push(ScalarArg::new(range.start));
         ends.push(ScalarArg::new(range.end));
         steps.push(ScalarArg::new(slice.step as i32));
     }
 
     // Pad with default values if needed to match tensor dimensions
-    for dim in slices.len()..tensor.shape.num_dims() {
+    for dim in slices.len()..tensor.meta.num_dims() {
         starts.push(ScalarArg::new(0));
-        ends.push(ScalarArg::new(tensor.shape[dim]));
+        ends.push(ScalarArg::new(tensor.meta.shape()[dim]));
         steps.push(ScalarArg::new(1));
     }
 

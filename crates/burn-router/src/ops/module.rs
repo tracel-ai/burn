@@ -2,10 +2,11 @@ use alloc::boxed::Box;
 
 use burn_backend::Element;
 use burn_backend::ops::{
-    ConvOptions, ConvTransposeOptions, DeformConv2dBackward, DeformConvOptions, InterpolateOptions,
-    MaxPool1dBackward, MaxPool1dWithIndices, MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps,
+    AttentionOptions, ConvOptions, ConvTransposeOptions, DeformConv2dBackward, DeformConvOptions,
+    InterpolateOptions, MaxPool1dBackward, MaxPool1dWithIndices, MaxPool2dBackward,
+    MaxPool2dWithIndices, ModuleOps,
 };
-use burn_backend::tensor::{FloatTensor, IntElem, IntTensor};
+use burn_backend::tensor::{BoolTensor, FloatTensor, IntElem, IntTensor};
 use burn_ir::*;
 
 use crate::{BackendRouter, RunnerChannel, RunnerClient};
@@ -767,5 +768,29 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
         let bias_grad = has_bias.then(|| outputs.next().unwrap());
 
         DeformConv2dBackward::new(input_grad, offset_grad, weight_grad, mask_grad, bias_grad)
+    }
+
+    fn attention(
+        query: FloatTensor<Self>,
+        key: FloatTensor<Self>,
+        value: FloatTensor<Self>,
+        mask: Option<BoolTensor<Self>>,
+        attn_bias: Option<FloatTensor<Self>>,
+        options: AttentionOptions,
+    ) -> FloatTensor<Self> {
+        let client = query.client.clone();
+        let desc = AttentionOpIr::create(
+            query.into_ir(),
+            key.into_ir(),
+            value.into_ir(),
+            mask.map(|m: BoolTensor<Self>| m.into_ir()),
+            attn_bias.map(|ab| ab.into_ir()),
+            options.into(),
+            || client.create_empty_handle(),
+        );
+
+        client
+            .register(OperationIr::Module(ModuleOperationIr::Attention(desc)))
+            .output()
     }
 }

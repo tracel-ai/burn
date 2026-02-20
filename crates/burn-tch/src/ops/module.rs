@@ -2,9 +2,9 @@ use crate::{LibTorch, TchTensor, element::TchElement};
 use burn_backend::{
     TensorMetadata,
     ops::{
-        ConvOptions, ConvTransposeOptions, DeformConv2dBackward, DeformConvOptions,
-        InterpolateMode, InterpolateOptions, MaxPool1dWithIndices, MaxPool2dBackward,
-        MaxPool2dWithIndices, ModuleOps,
+        AttentionOptions, ConvOptions, ConvTransposeOptions, DeformConv2dBackward,
+        DeformConvOptions, InterpolateMode, InterpolateOptions, MaxPool1dWithIndices,
+        MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps, attention::attention_fallback,
     },
 };
 
@@ -445,5 +445,29 @@ impl<E: TchElement> ModuleOps<Self> for LibTorch<E> {
         };
 
         TchTensor::new(tensor)
+    }
+
+    fn attention(
+        query: TchTensor,
+        key: TchTensor,
+        value: TchTensor,
+        mask: Option<TchTensor>,
+        attn_bias: Option<TchTensor>,
+        options: AttentionOptions,
+    ) -> TchTensor {
+        if attn_bias.is_some() {
+            return attention_fallback::<Self>(query, key, value, mask, attn_bias, options);
+        }
+
+        TchTensor::new(tch::Tensor::scaled_dot_product_attention(
+            &query.tensor,
+            &key.tensor,
+            &value.tensor,
+            mask.map(|m| m.tensor),
+            0.,
+            options.is_causal,
+            options.scale,
+            false,
+        ))
     }
 }

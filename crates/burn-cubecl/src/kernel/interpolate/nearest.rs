@@ -54,7 +54,7 @@ pub(crate) fn interpolate_nearest_launch<R: CubeRuntime>(
 
     let line_size = max_line_size(&input);
 
-    let working_units = output.shape.num_elements() / line_size as usize;
+    let working_units = output.meta.num_elements() / line_size as usize;
     let cube_dim = CubeDim::new(&input.client, working_units);
     let cube_count = calculate_cube_count_elemwise(&input.client, working_units, cube_dim);
 

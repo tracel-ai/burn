@@ -1440,11 +1440,11 @@ pub(crate) mod macros {
     pub(crate) use check;
 }
 
-pub(crate) fn unwrap_shape_reshape(result: Result<Shape, burn_std::ShapeError>) -> Shape {
+pub(crate) fn unwrap_shape_reshape(result: Result<Shape, burn_std::MetadataError>) -> Shape {
     match result {
         Ok(shape) => shape,
-        // `shape.reshape(new_shape)` should only return `ShapeError::Invalid`.
-        Err(burn_std::ShapeError::Invalid { reason }) => {
+        // `shape.reshape(new_shape)` should only return `MetadataError::Invalid`.
+        Err(burn_std::MetadataError::Invalid { reason }) => {
             macros::check!({
                 TensorCheck::Ok.register("Reshape", crate::check::TensorError::new(reason))
             });
