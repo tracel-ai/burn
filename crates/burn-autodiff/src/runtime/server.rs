@@ -6,6 +6,7 @@ use crate::{
         builder::CheckpointerBuilder,
     },
     collections::HashMap,
+    grad_sync::api::get_gradient_sync_client,
     grads::Gradients,
     graph::{
         NodeRef, StepBoxed,
@@ -70,13 +71,16 @@ impl AutodiffServer {
         let mut consumed = Vec::new();
         let tape_result = self.build_tape(node_id, step, builder, &mut consumed);
 
-        let grads = Gradients::new::<B>(
-            root_node.clone(),
-            root_tensor,
-            tape_result.n_required_map,
-            tape_result.sharded_params,
-        );
+        if let Some(sync_client) = get_gradient_sync_client::<B>() {
+            sync_client.register_device(tape_result.n_required_map, tape_result.sharded_params);
+        };
+
+        let grads = Gradients::new::<B>(root_node.clone(), root_tensor);
         let gradients = Self::execute_steps(tape_result.tape, grads, tape_result.checkpointer);
+
+        if let Some(sync_client) = get_gradient_sync_client::<B>() {
+            sync_client.wait_gradients_sync();
+        };
 
         // Cleanup
         let mut cleaner = NC::init();

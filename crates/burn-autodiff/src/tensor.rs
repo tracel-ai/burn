@@ -5,7 +5,9 @@ use crate::{
     runtime::{AutodiffClient, AutodiffClientImpl},
 };
 use alloc::{boxed::Box, sync::Arc, vec};
-use burn_backend::{Backend, PeerId, ReduceOperation, ShardedParams, TensorMetadata};
+use burn_backend::{
+    Backend, ModuleParamId, PeerId, ReduceOperation, ShardedParams, TensorMetadata,
+};
 
 #[derive(Debug, Clone)]
 pub struct AutodiffTensor<B: Backend> {
@@ -113,7 +115,12 @@ impl<B: Backend> AutodiffTensor<B> {
     }
 
     /// Mark the tensor as sharded.
-    pub fn grad_sharded(mut self, peer_id: PeerId, op: ReduceOperation) -> Self {
+    pub fn grad_sharded(
+        mut self,
+        peer_id: PeerId,
+        op: ReduceOperation,
+        param_id: Option<ModuleParamId>,
+    ) -> Self {
         self.node = Node::new(
             vec![],
             0,
@@ -121,7 +128,11 @@ impl<B: Backend> AutodiffTensor<B> {
             self.node.requirement,
             self.node.properties.clone(),
             self.node.client.clone(),
-            Some(ShardedParams { peer_id, op }),
+            Some(ShardedParams {
+                peer_id,
+                op,
+                param_id,
+            }),
         )
         .into();
         let step = RootStep::new(self.node.clone());

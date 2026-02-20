@@ -1,6 +1,6 @@
 use crate::local::tensor_map::{CollectiveTensorMap, get_peer_devices};
 use crate::{
-    AllReduceStrategy, CollectiveConfig, CollectiveError,
+    CollectiveConfig, CollectiveError,
     local::{
         all_reduce_sum_centralized, all_reduce_sum_ring, all_reduce_sum_tree,
         broadcast_centralized, broadcast_tree, reduce_sum_centralized, reduce_sum_tree,
@@ -8,7 +8,7 @@ use crate::{
     node::base::Node,
 };
 use burn_communication::Protocol;
-use burn_tensor::backend::{Backend, ReduceOperation};
+use burn_tensor::backend::{AllReduceStrategy, Backend, ReduceOperation};
 
 #[cfg(feature = "tracing")]
 use tracing::Instrument;

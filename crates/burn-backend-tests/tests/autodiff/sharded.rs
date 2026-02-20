@@ -1,10 +1,10 @@
 use std::sync::mpsc::SyncSender;
 
 use burn_autodiff::Autodiff;
-use burn_collective::{AllReduceStrategy, CollectiveConfig, register, reset_collective};
+use burn_collective::{CollectiveConfig, register, reset_collective};
 use burn_tensor::{
     Tensor, TensorData, Tolerance,
-    backend::{AutodiffBackend, Backend, PeerId, ReduceOperation},
+    backend::{AllReduceStrategy, AutodiffBackend, Backend, PeerId, ReduceOperation},
 };
 use rand::rngs::StdRng;
 use rand::{SeedableRng, rngs::SysRng};
@@ -12,6 +12,8 @@ use serial_test::serial;
 
 pub type TestBackend = burn_ndarray::NdArray<f32>;
 pub type TestAutodiffBackend = Autodiff<TestBackend>;
+
+// TODO: Tests still relevant?
 
 pub fn run_peer_sharded<B, const D_OUT: usize>(
     id: PeerId,
@@ -29,7 +31,7 @@ pub fn run_peer_sharded<B, const D_OUT: usize>(
 
     let input_tensor = Tensor::<B, 1>::from_data(input, &device)
         .require_grad()
-        .set_sharded_params(id, op);
+        .set_sharded_params(id, op, None);
     let out_tensor = transformation(input_tensor.clone());
     let grads = out_tensor.backward();
 

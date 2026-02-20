@@ -1,7 +1,7 @@
 use std::fmt::Display;
 
 use burn_communication::Address;
-use burn_tensor::backend::ReduceOperation;
+use burn_tensor::backend::{AllReduceStrategy, ReduceOperation};
 use serde::{Deserialize, Serialize};
 
 /// Parameter struct for setting up and getting parameters for collective operations.
@@ -256,27 +256,6 @@ pub struct SharedBroadcastParams {
     pub op: ReduceOperation,
     pub local_strategy: BroadcastStrategy,
     pub global_strategy: Option<BroadcastStrategy>,
-}
-
-/// All reduce can be implemented with different algorithms, which all have the same result.
-#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize)]
-pub enum AllReduceStrategy {
-    /// One device is the "central". The other devices, "peripherals", send their tensors to the
-    /// central. The central does the reduction, and sends the result back to each peripheral.  
-    Centralized,
-
-    /// Devices are organized in a tree structure (with a given arity). Each node reduces its
-    /// children's tensors with its own, and sends the result to its parent. Leaf nodes will
-    /// simply send their tensors to their parents.
-    /// When the root node calculates the result, it is propagated down the tree.
-    Tree(u32),
-
-    /// Devices are organized in a ring. The tensors are split into N slices, where N is the
-    /// number of devices participating. The slices are progressively sent around the ring until
-    /// every device has one fully reduced slice of the tensor. Then, the resulting slices are sent
-    /// around until every device has the full result.
-    /// See `ring.rs` for details.
-    Ring,
 }
 
 /// Reduce can be implemented with different algorithms, which all have the same result.

@@ -1,10 +1,10 @@
 mod base;
-mod collective;
+mod communication;
 mod device;
 mod primitive;
 
 pub use base::*;
-pub use collective::*;
+pub use communication::*;
 pub use device::*;
 pub use primitive::*;
 

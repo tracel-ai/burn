@@ -1,5 +1,6 @@
 use super::{Param, ParamId, Quantizer};
 use crate::{
+    module::ModuleSharder,
     record::Record,
     tensor::backend::{AutodiffBackend, Backend},
 };
@@ -7,7 +8,7 @@ use alloc::{string::String, vec::Vec};
 pub use burn_derive::Module;
 use burn_tensor::{
     Bool, Int, Tensor,
-    backend::{PeerId, ReduceOperation, ShardedParams},
+    backend::{PeerId, ReduceOperation},
     ops::Device,
 };
 
@@ -163,19 +164,15 @@ pub trait Module<B: Backend>: Clone + Send + core::fmt::Debug {
         <Self as HasAutodiffModule<AB>>::TrainModule::from_inner(self)
     }
 
-    /// Each tensor in the module tree will be marked as sharded across multiple devices.
+    /// Each parameter in the module tree will be marked as sharded across multiple devices.
     ///
     /// # Arguments
     ///
     /// * `peer_id` - The device's [PeerId](PeerId).
     /// * `op` - The reduce operation.
     fn grad_sharded(self, peer_id: PeerId, op: ReduceOperation) -> Self {
-        module!(
-            map = self,
-            ops =
-                |tensor: Tensor<B, D>, p: ShardedParams| tensor.set_sharded_params(p.peer_id, p.op),
-            ops_arg = (args: ShardedParams = ShardedParams { peer_id, op })
-        )
+        let mut sharder = ModuleSharder { peer_id, op };
+        self.map(&mut sharder)
     }
 
     /// Get the number of parameters the module has, including all of its sub-modules.

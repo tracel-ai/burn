@@ -10,6 +10,7 @@ use crate::tensor::backend::Backend;
 use crate::tensor::stats;
 use crate::tensor::{Distribution, TensorData};
 use crate::{Bool, Int, TensorPrimitive};
+use burn_backend::ModuleParamId;
 use burn_backend::PeerId;
 use burn_backend::ReduceOperation;
 use burn_backend::ShardedParams;
@@ -663,10 +664,15 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// The gradients will be aggregated during the backward pass.
     ///
     /// This function does nothing when autodiff is not enabled.
-    pub fn set_sharded_params(self, peer_id: PeerId, op: ReduceOperation) -> Self {
+    pub fn set_sharded_params(
+        self,
+        peer_id: PeerId,
+        op: ReduceOperation,
+        param_id: Option<ModuleParamId>,
+    ) -> Self {
         let primitive = match self.primitive {
             TensorPrimitive::Float(tensor) => {
-                TensorPrimitive::Float(B::float_set_sharded_params(tensor, peer_id, op))
+                TensorPrimitive::Float(B::float_set_sharded_params(tensor, peer_id, op, param_id))
             }
             TensorPrimitive::QFloat(_tensor) => {
                 todo!()

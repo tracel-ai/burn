@@ -20,9 +20,10 @@ use crate::{
 };
 
 use burn_backend::{
-    Backend, ExecutionError, PeerId, ReduceOperation, ShardedParams, TensorData, TensorMetadata,
+    Backend, ExecutionError, ModuleParamId, PeerId, ReduceOperation, ShardedParams, TensorData,
+    TensorMetadata,
     ops::FloatTensorOps,
-    tensor::{BoolTensor, Device, FloatTensor, IntTensor},
+    tensor::{BoolTensor, CommunicationTensor, Device, FloatTensor, IntTensor},
 };
 use burn_backend::{Scalar, ops::unfold::calculate_unfold_windows};
 use burn_std::{FloatDType, Shape, Slice};
@@ -1477,7 +1478,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             tensor = tensor.require_grad();
         }
         if let Some(params) = sharded_params {
-            tensor = tensor.grad_sharded(params.peer_id, params.op);
+            tensor = tensor.grad_sharded(params.peer_id, params.op, params.param_id);
         }
         tensor
     }
@@ -1498,8 +1499,9 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         tensor: FloatTensor<Self>,
         peer_id: PeerId,
         op: ReduceOperation,
+        param_id: Option<ModuleParamId>,
     ) -> FloatTensor<Self> {
-        tensor.grad_sharded(peer_id, op)
+        tensor.grad_sharded(peer_id, op, param_id)
     }
 
     fn float_sharded_params(tensor: &FloatTensor<Self>) -> Option<ShardedParams> {
@@ -3460,6 +3462,10 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                 prep.finish(B::float_unfold(tensor.primitive, dim, size, step))
             }
         }
+    }
+
+    fn comm_duplicated(tensor: &mut FloatTensor<Self>) -> CommunicationTensor<Self> {
+        B::comm_duplicated(&mut tensor.primitive)
     }
 }
 

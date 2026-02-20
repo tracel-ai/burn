@@ -5,9 +5,7 @@ use crate::{
     Learner, LearningCheckpointer, LearningComponentsTypes, SupervisedTrainingEventProcessor,
     TrainLoader, TrainingBackend, ValidLoader,
 };
-use burn_collective::{self, CollectiveConfig};
 use burn_core::tensor::Device;
-use burn_core::tensor::backend::AutodiffBackend;
 use burn_core::tensor::backend::PeerId;
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
@@ -26,7 +24,6 @@ where
     checkpointer: Option<LearningCheckpointer<LC>>,
     dataloader_train: TrainLoader<LC>,
     dataloader_valid: Option<ValidLoader<LC>>,
-    collective_config: CollectiveConfig,
     starting_epoch: usize,
     peer_count: usize,
     is_main: bool,
@@ -47,7 +44,6 @@ where
         checkpointer: Option<LearningCheckpointer<LC>>,
         dataloader_train: TrainLoader<LC>,
         dataloader_valid: Option<ValidLoader<LC>>,
-        collective_config: CollectiveConfig,
         starting_epoch: usize,
         peer_count: usize,
         is_main: bool,
@@ -61,7 +57,6 @@ where
             checkpointer,
             dataloader_train,
             dataloader_valid,
-            collective_config,
             starting_epoch,
             peer_count,
             is_main,
@@ -72,13 +67,6 @@ where
 
     /// Fits the model,
     pub fn fit(mut self) -> <LC as LearningComponentsTypes>::TrainingModel {
-        burn_collective::register::<<TrainingBackend<LC> as AutodiffBackend>::InnerBackend>(
-            self.peer_id,
-            self.device.clone(),
-            self.collective_config.clone(),
-        )
-        .expect("Couldn't register for collective operations!");
-
         let num_epochs = self.components.num_epochs;
         let interrupter = self.components.interrupter;
 

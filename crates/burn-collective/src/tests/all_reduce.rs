@@ -4,7 +4,7 @@ mod tests {
     use burn_std::rand::get_seeded_rng;
     use burn_tensor::{
         Tensor, TensorData, TensorPrimitive, Tolerance,
-        backend::{Backend, PeerId, ReduceOperation},
+        backend::{AllReduceStrategy, Backend, PeerId, ReduceOperation},
     };
 
     use serial_test::serial;
@@ -29,7 +29,7 @@ mod tests {
     #[cfg(feature = "test-vulkan")]
     pub type TestBackend = burn_wgpu::Wgpu<f32>;
 
-    use crate::{AllReduceStrategy, CollectiveConfig, all_reduce, register, reset_collective};
+    use crate::{CollectiveConfig, all_reduce, register, reset_collective};
 
     pub fn run_peer<B: Backend>(
         id: PeerId,
