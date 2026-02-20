@@ -20,6 +20,7 @@ pub(crate) async fn tree_all_reduce_sum<B, P>(
     sync_service: Arc<SyncService<P>>,
     tensor: B::FloatTensorPrimitive,
     arity: u32,
+    base_id: u64,
 ) -> Result<B::FloatTensorPrimitive, GlobalCollectiveError>
 where
     B: Backend,
@@ -42,7 +43,7 @@ where
                 let data_service = data_service.clone();
                 async move {
                     let data = data_service
-                        .download_tensor(child_addr.clone(), 0.into())
+                        .download_tensor(child_addr.clone(), base_id.into())
                         .await
                         .ok_or(GlobalCollectiveError::PeerLost(*child))?;
                     Ok::<B::FloatTensorPrimitive, GlobalCollectiveError>(B::float_from_data(
@@ -63,12 +64,12 @@ where
 
     // Transfer 2: Expose result to parent and download final result if not root
     if let Some(parent) = strategy.parents.get(&node) {
-        data_service.expose(result.clone(), 1, 0.into()).await;
+        data_service.expose(result.clone(), 1, base_id.into()).await;
 
         let parent_addr = nodes.get(parent).unwrap().clone();
 
         let data = data_service
-            .download_tensor(parent_addr.clone(), 1.into())
+            .download_tensor(parent_addr.clone(), (base_id + 1).into())
             .await
             .ok_or(GlobalCollectiveError::PeerLost(*parent))?;
 
@@ -84,7 +85,7 @@ where
         && !children.is_empty()
     {
         data_service
-            .expose(result.clone(), children.len() as u32, 1.into())
+            .expose(result.clone(), children.len() as u32, (base_id + 1).into())
             .await;
     }
 

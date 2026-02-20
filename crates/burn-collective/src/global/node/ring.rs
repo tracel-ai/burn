@@ -56,6 +56,7 @@ pub(crate) async fn ring_all_reduce_sum<B, P>(
     data_service: Arc<TensorDataService<B, P>>,
     sync_service: Arc<SyncService<P>>,
     tensor: B::FloatTensorPrimitive,
+    base_id: u64,
 ) -> Result<B::FloatTensorPrimitive, GlobalCollectiveError>
 where
     B: Backend,
@@ -80,7 +81,7 @@ where
         .expect("Node is in ring");
     let prev_node_idx = (send_slice_idx + ring.len() - 1) % ring.len(); // +ring.len for overflow
     let prev_node = nodes.get(&ring[prev_node_idx]).unwrap();
-    let mut transfer_counter: u64 = 0;
+    let mut transfer_counter: u64 = base_id;
 
     // Phase 1: add
     do_cycles::<B, P>(

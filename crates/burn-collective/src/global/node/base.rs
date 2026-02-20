@@ -3,6 +3,7 @@ use burn_communication::data_service::TensorDataServer;
 use burn_communication::{Address, ProtocolServer, data_service::TensorDataService};
 use burn_tensor::backend::Backend;
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::{marker::PhantomData, sync::Arc};
 use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
@@ -42,6 +43,9 @@ where
     data_service: Arc<TensorDataService<B, P>>,
     sync_service: Arc<SyncService<P>>,
     worker: GlobalClientWorker<P::Client>,
+    /// Monotonically increasing counter for unique transfer IDs across all collective operations.
+    /// Ensures sequential `all_reduce` calls don't collide on the data service.
+    transfer_counter: Arc<AtomicU64>,
     _n: PhantomData<P>,
 }
 
@@ -79,6 +83,7 @@ where
             data_service,
             sync_service,
             worker,
+            transfer_counter: Arc::new(AtomicU64::new(0)),
             _n: PhantomData,
         }
     }
@@ -136,16 +141,19 @@ where
 
         let mut result = match strategy {
             AllReduceStrategy::Centralized => {
+                let base_id = self.transfer_counter.fetch_add(2, Ordering::Relaxed);
                 centralized_all_reduce_sum(
                     node,
                     nodes,
                     &self.data_service,
                     self.sync_service.clone(),
                     tensor,
+                    base_id,
                 )
                 .await?
             }
             AllReduceStrategy::Tree(arity) => {
+                let base_id = self.transfer_counter.fetch_add(2, Ordering::Relaxed);
                 tree_all_reduce_sum(
                     node,
                     nodes,
@@ -153,16 +161,23 @@ where
                     self.sync_service.clone(),
                     tensor,
                     arity,
+                    base_id,
                 )
                 .await?
             }
             AllReduceStrategy::Ring => {
+                let num_nodes = nodes.len() as u64;
+                let ids_needed = 2 * (num_nodes - 1);
+                let base_id = self
+                    .transfer_counter
+                    .fetch_add(ids_needed, Ordering::Relaxed);
                 ring_all_reduce_sum(
                     node,
                     nodes,
                     self.data_service.clone(),
                     self.sync_service.clone(),
                     tensor,
+                    base_id,
                 )
                 .await?
             }

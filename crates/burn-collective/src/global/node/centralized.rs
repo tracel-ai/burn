@@ -17,6 +17,7 @@ pub(crate) async fn centralized_all_reduce_sum<B, P>(
     data_service: &Arc<TensorDataService<B, P>>,
     sync_service: Arc<SyncService<P>>,
     tensor: B::FloatTensorPrimitive,
+    base_id: u64,
 ) -> Result<B::FloatTensorPrimitive, GlobalCollectiveError>
 where
     B: Backend,
@@ -39,9 +40,11 @@ where
                 let data_service = data_service.clone();
                 async move {
                     let data = data_service
-                        .download_tensor((*address).clone(), 0.into())
+                        .download_tensor((*address).clone(), base_id.into())
                         .await
-                        .expect("Couldn't find the tensor for transfer id 0");
+                        .unwrap_or_else(|| {
+                            panic!("Couldn't find the tensor for transfer id {base_id}")
+                        });
                     B::float_from_data(data, &device)
                 }
             })
@@ -59,20 +62,20 @@ where
         // Transfer 2: Expose result
         let other_nodes_count = ids.len() as u32 - 1;
         data_service
-            .expose(sum.clone(), other_nodes_count, 1.into())
+            .expose(sum.clone(), other_nodes_count, (base_id + 1).into())
             .await;
 
         sum
     } else {
         // Transfer 1: Expose input
-        data_service.expose(tensor, 1, 0.into()).await;
+        data_service.expose(tensor, 1, base_id.into()).await;
 
         // Transfer 2: Download result
         let central_addr = nodes.get(&central).unwrap().clone();
         let data = data_service
-            .download_tensor(central_addr, 1.into())
+            .download_tensor(central_addr, (base_id + 1).into())
             .await
-            .expect("Couldn't find the tensor for transfer id 1");
+            .unwrap_or_else(|| panic!("Couldn't find the tensor for transfer id {}", base_id + 1));
 
         let res = B::float_from_data(data, device);
         if shape != res.shape() {
