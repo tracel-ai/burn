@@ -1505,7 +1505,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         value: FloatTensor<Fusion<B>>,
         mask: Option<burn_backend::tensor::BoolTensor<Fusion<B>>>,
         attn_bias: Option<FloatTensor<Fusion<B>>>,
-        options: burn_backend::ops::AttentionOptions,
+        options: burn_backend::ops::AttentionModuleOptions,
     ) -> FloatTensor<Fusion<B>> {
         make_ops!(
             AttentionOps,

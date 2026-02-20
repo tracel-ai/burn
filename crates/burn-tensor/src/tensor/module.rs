@@ -4,7 +4,7 @@ use crate::{
     check,
     check::TensorCheck,
     ops::{
-        AttentionOptions, ConvOptions, ConvTransposeOptions, InterpolateOptions, PadMode,
+        AttentionModuleOptions, ConvOptions, ConvTransposeOptions, InterpolateOptions, PadMode,
         PaddedConvOptions, UnfoldOptions,
     },
 };
@@ -521,7 +521,7 @@ pub fn attention<B: Backend>(
     value: Tensor<B, 4>,
     mask: Option<Tensor<B, 4, Bool>>,
     attn_bias: Option<Tensor<B, 4>>,
-    options: AttentionOptions,
+    options: AttentionModuleOptions,
 ) -> Tensor<B, 4> {
     Tensor::new(TensorPrimitive::Float(B::attention(
         query.primitive.tensor(),
@@ -540,7 +540,7 @@ pub fn attention_fallback<B: Backend>(
     value: Tensor<B, 4>,
     mask: Option<Tensor<B, 4, Bool>>,
     attn_bias: Option<Tensor<B, 4>>,
-    options: AttentionOptions,
+    options: AttentionModuleOptions,
 ) -> Tensor<B, 4> {
     Tensor::new(TensorPrimitive::Float(
         crate::ops::attention::attention_fallback::<B>(
