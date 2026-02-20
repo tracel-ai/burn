@@ -337,6 +337,7 @@ where
             attn_bias,
             options,
             &Default::default(),
+            None,
         )
         .expect("Kernel to never fail")
     }

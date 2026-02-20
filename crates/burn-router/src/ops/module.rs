@@ -2,9 +2,9 @@ use alloc::boxed::Box;
 
 use burn_backend::Element;
 use burn_backend::ops::{
-    AttentionModuleOptions, ConvOptions, ConvTransposeOptions, DeformConv2dBackward, DeformConvOptions,
-    InterpolateOptions, MaxPool1dBackward, MaxPool1dWithIndices, MaxPool2dBackward,
-    MaxPool2dWithIndices, ModuleOps,
+    AttentionModuleOptions, ConvOptions, ConvTransposeOptions, DeformConv2dBackward,
+    DeformConvOptions, InterpolateOptions, MaxPool1dBackward, MaxPool1dWithIndices,
+    MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps,
 };
 use burn_backend::tensor::{BoolTensor, FloatTensor, IntElem, IntTensor};
 use burn_ir::*;
