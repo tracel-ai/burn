@@ -1,9 +1,9 @@
 use super::{
     argwhere::argwhere_data, cat::cat_with_slice_assign, repeat_dim::repeat_with_slice_assign,
 };
-use crate::ExecutionError;
-use crate::tensor::{Bool, BoolElem, BoolTensor, Device, FloatTensor, IntTensor};
+use crate::tensor::{Bool, BoolTensor, Device, FloatTensor, IntTensor};
 use crate::{Backend, TensorData, TensorMetadata};
+use crate::{ExecutionError, Scalar};
 use alloc::vec::Vec;
 use burn_std::{Shape, Slice};
 use core::future::Future;
@@ -191,11 +191,7 @@ pub trait BoolTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The tensor with the values filled.
-    fn bool_mask_fill(
-        tensor: BoolTensor<B>,
-        mask: BoolTensor<B>,
-        value: BoolElem<B>,
-    ) -> BoolTensor<B>;
+    fn bool_mask_fill(tensor: BoolTensor<B>, mask: BoolTensor<B>, value: Scalar) -> BoolTensor<B>;
 
     /// Gather elements from the tensor at the given indices.
     ///
@@ -342,7 +338,7 @@ pub trait BoolTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The boolean tensor with the result of the comparison.
-    fn bool_equal_elem(lhs: BoolTensor<B>, rhs: BoolElem<B>) -> BoolTensor<B>;
+    fn bool_equal_elem(lhs: BoolTensor<B>, rhs: Scalar) -> BoolTensor<B>;
 
     /// Element-wise non-equality comparison with a scalar.
     ///
@@ -354,7 +350,7 @@ pub trait BoolTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The boolean tensor with the result of the comparison.
-    fn bool_not_equal_elem(lhs: BoolTensor<B>, rhs: BoolElem<B>) -> BoolTensor<B> {
+    fn bool_not_equal_elem(lhs: BoolTensor<B>, rhs: Scalar) -> BoolTensor<B> {
         let equal_tensor = B::bool_equal_elem(lhs, rhs);
         B::bool_not(equal_tensor)
     }

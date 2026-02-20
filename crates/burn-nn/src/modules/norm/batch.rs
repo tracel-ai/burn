@@ -100,7 +100,7 @@ impl<B: Backend> BatchNorm<B> {
             );
         }
 
-        match B::ad_enabled() {
+        match B::ad_enabled(&input.device()) {
             true => self.forward_train(input),
             false => self.forward_inference(input),
         }

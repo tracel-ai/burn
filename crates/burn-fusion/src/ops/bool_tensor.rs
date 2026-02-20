@@ -3,14 +3,14 @@ use crate::{
     stream::{OperationStreams, execution::Operation},
 };
 use burn_backend::{
-    Element, ExecutionError, Shape, Slice, TensorData,
+    Element, ExecutionError, Scalar, Shape, Slice, TensorData,
     ops::BoolTensorOps,
-    tensor::{BoolElem, BoolTensor, Device, FloatTensor, IndexingUpdateOp, IntTensor},
+    tensor::{BoolTensor, Device, FloatTensor, IndexingUpdateOp, IntTensor},
 };
 use burn_ir::{
     BaseOperationIr, BinaryOpIr, BoolOperationIr, CastOpIr, CatOpIr, CreationOpIr, FlipOpIr,
     GatherOpIr, HandleContainer, InitOperationIr, MaskFillOpIr, MaskWhereOpIr, OperationIr,
-    OperationOutput, PermuteOpIr, RepeatDimOpIr, ScalarIr, ScalarOpIr, ScatterOpIr, ShapeOpIr,
+    OperationOutput, PermuteOpIr, RepeatDimOpIr, ScalarOpIr, ScatterOpIr, ShapeOpIr,
     SliceAssignOpIr, SliceOpIr, SwapDimsOpIr, TensorIr, UnaryOpIr, UnfoldOpIr,
 };
 use std::marker::PhantomData;
@@ -705,7 +705,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
     fn bool_mask_fill(
         tensor: BoolTensor<Self>,
         mask: BoolTensor<Self>,
-        value: BoolElem<Self>,
+        value: Scalar,
     ) -> BoolTensor<Self> {
         #[derive(new, Debug)]
         struct MaskFillOps<B: FusionBackend> {
@@ -718,7 +718,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
                 let tensor = handles.get_bool_tensor::<B>(&self.desc.tensor);
                 let mask = handles.get_bool_tensor::<B>(&self.desc.mask);
 
-                let output = B::bool_mask_fill(tensor, mask, self.desc.value.elem());
+                let output = B::bool_mask_fill(tensor, mask, self.desc.value.into());
 
                 handles.register_bool_tensor::<B>(&self.desc.out.id, output);
             }
@@ -727,7 +727,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         let streams = OperationStreams::with_inputs([&tensor, &mask]);
 
         let client = tensor.client.clone();
-        let value = ScalarIr::new(value, &tensor.dtype);
+        let value = value.into();
         let desc = MaskFillOpIr::create(tensor.into_ir(), mask.into_ir(), value, || {
             client.create_empty_handle()
         });
@@ -823,7 +823,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             .output()
     }
 
-    fn bool_equal_elem(lhs: BoolTensor<Self>, rhs: BoolElem<Self>) -> BoolTensor<Self> {
+    fn bool_equal_elem(lhs: BoolTensor<Self>, rhs: Scalar) -> BoolTensor<Self> {
         #[derive(new, Debug)]
         struct EqualElemOps<B: FusionBackend> {
             desc: ScalarOpIr,
@@ -832,7 +832,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         impl<B: FusionBackend> Operation<B::FusionRuntime> for EqualElemOps<B> {
             fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let lhs = handles.get_bool_tensor::<B>(&self.desc.lhs);
-                let output = B::bool_equal_elem(lhs, self.desc.rhs.elem());
+                let output = B::bool_equal_elem(lhs, self.desc.rhs.into());
                 handles.register_bool_tensor::<B>(&self.desc.out.id, output);
             }
         }
@@ -840,7 +840,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         let streams = OperationStreams::with_inputs([&lhs]);
 
         let client = lhs.client.clone();
-        let rhs = ScalarIr::new(rhs, &lhs.dtype);
+        let rhs = rhs.into();
         let desc = ScalarOpIr::create_comparison(lhs.into_ir(), rhs, B::BoolElem::dtype(), || {
             client.create_empty_handle()
         });
