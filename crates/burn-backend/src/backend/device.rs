@@ -6,4 +6,11 @@ pub trait DeviceOps: Clone + Default + PartialEq + Send + Sync + core::fmt::Debu
     fn id(&self) -> DeviceId {
         self.to_id()
     }
+
+    // TODO: is this required? Might want to rethink about the InnerBackend / device association with Dispatch
+
+    /// Returns the inner device.
+    fn inner(&self) -> &Self {
+        self
+    }
 }

@@ -64,6 +64,9 @@ extern crate alloc;
 
 /// Backends and devices used.
 pub(crate) mod backends {
+    #[cfg(feature = "autodiff")]
+    pub use burn_autodiff::Autodiff;
+
     #[cfg(feature = "cpu")]
     pub use burn_cpu::{Cpu, CpuDevice};
     #[cfg(feature = "cuda")]

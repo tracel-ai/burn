@@ -44,5 +44,16 @@ fn select_device() -> Device {
 
 fn main() {
     let device = select_device();
-    training::run::<Autodiff<Dispatch>>(device);
+
+    // match device {
+    //     #[cfg(feature = "cuda")]
+    //     Device::Cuda(device) => training::run::<Autodiff<burn::backend::Cuda>>(device),
+    //     #[cfg(feature = "vulkan")]
+    //     Device::Vulkan(device) => training::run::<Autodiff<burn::backend::Vulkan>>(device),
+    //     #[cfg(feature = "ndarray")]
+    //     Device::NdArray(device) => training::run::<Autodiff<burn::backend::NdArray>>(device),
+    //     _ => todo!(),
+    // }
+    let device = Device::Autodiff(Box::new(device));
+    training::run::<Dispatch>(device);
 }

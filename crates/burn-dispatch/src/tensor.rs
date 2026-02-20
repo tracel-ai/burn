@@ -1,4 +1,4 @@
-use burn_backend::{Backend, QTensorPrimitive, TensorMetadata};
+use burn_backend::{Backend, QTensorPrimitive, TensorMetadata, tensor::FloatTensor};
 
 use crate::backends::*;
 
@@ -16,6 +16,9 @@ pub enum BackendTensor<B: Backend> {
     Bool(B::BoolTensorPrimitive),
     /// Quantized tensor handle.
     Quantized(B::QuantizedTensorPrimitive),
+    #[cfg(feature = "autodiff")]
+    /// Autodiff float tensor handle.
+    Autodiff(FloatTensor<Autodiff<B>>),
 }
 
 impl<B: Backend> BackendTensor<B> {
@@ -26,6 +29,19 @@ impl<B: Backend> BackendTensor<B> {
             BackendTensor::Int(_) => panic!("Should be float, got int"),
             BackendTensor::Bool(_) => panic!("Should be float, got bool"),
             BackendTensor::Quantized(_) => panic!("Should be float, got quantized"),
+            #[cfg(feature = "autodiff")]
+            BackendTensor::Autodiff(_) => panic!("Should be float, got autodiff"),
+        }
+    }
+    /// Returns the inner float tensor primitive.
+    pub(crate) fn as_float(&self) -> &B::FloatTensorPrimitive {
+        match self {
+            BackendTensor::Float(tensor) => tensor,
+            BackendTensor::Int(_) => panic!("Should be float, got int"),
+            BackendTensor::Bool(_) => panic!("Should be float, got bool"),
+            BackendTensor::Quantized(_) => panic!("Should be float, got quantized"),
+            #[cfg(feature = "autodiff")]
+            BackendTensor::Autodiff(_) => panic!("Should be float, got autodiff"),
         }
     }
 
@@ -36,6 +52,8 @@ impl<B: Backend> BackendTensor<B> {
             BackendTensor::Float(_) => panic!("Should be int, got float"),
             BackendTensor::Bool(_) => panic!("Should be int, got bool"),
             BackendTensor::Quantized(_) => panic!("Should be int, got quantized"),
+            #[cfg(feature = "autodiff")]
+            BackendTensor::Autodiff(_) => panic!("Should be int, got autodiff"),
         }
     }
 
@@ -46,6 +64,8 @@ impl<B: Backend> BackendTensor<B> {
             BackendTensor::Float(_) => panic!("Should be bool, got float"),
             BackendTensor::Int(_) => panic!("Should be bool, got int"),
             BackendTensor::Quantized(_) => panic!("Should be bool, got quantized"),
+            #[cfg(feature = "autodiff")]
+            BackendTensor::Autodiff(_) => panic!("Should be bool, got autodiff"),
         }
     }
 
@@ -57,6 +77,34 @@ impl<B: Backend> BackendTensor<B> {
         }
     }
 
+    #[cfg(feature = "autodiff")]
+    /// Returns the inner autodiff tensor primitive.
+    pub(crate) fn autodiff(self) -> FloatTensor<Autodiff<B>> {
+        match self {
+            BackendTensor::Autodiff(tensor) => tensor,
+            // NOTE: this is the panicking code reached in tensor.rs:74:18:
+            _ => unreachable!(),
+        }
+    }
+
+    #[cfg(feature = "autodiff")]
+    /// Returns the inner autodiff tensor primitive.
+    pub(crate) fn as_autodiff(&self) -> &FloatTensor<Autodiff<B>> {
+        match self {
+            BackendTensor::Autodiff(tensor) => tensor,
+            _ => unreachable!(),
+        }
+    }
+
+    #[cfg(feature = "autodiff")]
+    /// Returns the inner autodiff tensor primitive.
+    pub(crate) fn autodiff_inner(self) -> B::FloatTensorPrimitive {
+        match self {
+            BackendTensor::Autodiff(tensor) => tensor.primitive,
+            _ => unreachable!(),
+        }
+    }
+
     /// Returns the backend device.
     pub(crate) fn device(&self) -> B::Device {
         match self {
@@ -64,6 +112,8 @@ impl<B: Backend> BackendTensor<B> {
             BackendTensor::Int(tensor) => B::int_device(tensor),
             BackendTensor::Bool(tensor) => B::bool_device(tensor),
             BackendTensor::Quantized(tensor) => B::q_device(tensor),
+            #[cfg(feature = "autodiff")]
+            BackendTensor::Autodiff(tensor) => B::float_device(&tensor.primitive),
         }
     }
 }
@@ -75,6 +125,8 @@ impl<B: Backend> TensorMetadata for BackendTensor<B> {
             BackendTensor::Int(tensor) => tensor.dtype(),
             BackendTensor::Bool(tensor) => tensor.dtype(),
             BackendTensor::Quantized(tensor) => tensor.dtype(),
+            #[cfg(feature = "autodiff")]
+            BackendTensor::Autodiff(tensor) => tensor.dtype(),
         }
     }
 
@@ -84,6 +136,8 @@ impl<B: Backend> TensorMetadata for BackendTensor<B> {
             BackendTensor::Int(tensor) => tensor.shape(),
             BackendTensor::Bool(tensor) => tensor.shape(),
             BackendTensor::Quantized(tensor) => tensor.shape(),
+            #[cfg(feature = "autodiff")]
+            BackendTensor::Autodiff(tensor) => tensor.shape(),
         }
     }
 }
@@ -137,6 +191,10 @@ pub enum DispatchTensor {
     /// The [LibTorch backend](LibTorch) tensor.
     #[cfg(feature = "tch")]
     LibTorch(BackendTensor<LibTorch>),
+
+    /// The [autodiff enabled backend](Autodiff) tensor.
+    #[cfg(feature = "autodiff")]
+    Autodiff(Box<DispatchTensor>),
 }
 
 impl TensorMetadata for DispatchTensor {
@@ -158,6 +216,8 @@ impl TensorMetadata for DispatchTensor {
             DispatchTensor::NdArray(tensor) => tensor.dtype(),
             #[cfg(feature = "tch")]
             DispatchTensor::LibTorch(tensor) => tensor.dtype(),
+            #[cfg(feature = "autodiff")]
+            DispatchTensor::Autodiff(tensor) => tensor.dtype(),
         }
     }
 
@@ -179,6 +239,8 @@ impl TensorMetadata for DispatchTensor {
             DispatchTensor::NdArray(tensor) => tensor.shape(),
             #[cfg(feature = "tch")]
             DispatchTensor::LibTorch(tensor) => tensor.shape(),
+            #[cfg(feature = "autodiff")]
+            DispatchTensor::Autodiff(tensor) => tensor.shape(),
         }
     }
 }
@@ -202,6 +264,8 @@ impl QTensorPrimitive for DispatchTensor {
             DispatchTensor::NdArray(tensor) => tensor.scheme(),
             #[cfg(feature = "tch")]
             DispatchTensor::LibTorch(tensor) => tensor.scheme(),
+            #[cfg(feature = "autodiff")]
+            DispatchTensor::Autodiff(tensor) => tensor.scheme(),
         }
     }
 }

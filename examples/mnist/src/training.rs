@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Instant};
 
 use crate::{
     data::{MnistBatcher, MnistItemPrepared, MnistMapper, Transform},
@@ -18,11 +18,13 @@ use burn::{
         composed::ComposedLrSchedulerConfig, cosine::CosineAnnealingLrSchedulerConfig,
         linear::LinearLrSchedulerConfig,
     },
+    module::Param,
+    optim::{AdamConfig, GradientsParams, Optimizer},
     prelude::*,
     record::{CompactRecorder, NoStdTrainingRecorder},
-    tensor::backend::AutodiffBackend,
+    tensor::{Distribution, backend::AutodiffBackend},
     train::{
-        EvaluatorBuilder, Learner, MetricEarlyStoppingStrategy, StoppingCondition,
+        EvaluatorBuilder, InferenceStep, Learner, MetricEarlyStoppingStrategy, StoppingCondition,
         metric::{
             AccuracyMetric, LearningRateMetric, LossMetric,
             store::{Aggregate, Direction, Split},
@@ -66,6 +68,7 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
 
     let config = MnistTrainingConfig::new(config_optimizer);
     B::seed(&device, config.seed);
+    // println!("Running on device: {device:?}");
 
     let model = Model::<B>::new(&device);
 
@@ -108,42 +111,93 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         .num_epochs(config.num_epochs)
         .summary();
 
-    let result = training.launch(Learner::new(
-        model,
-        config.optimizer.init(),
-        lr_scheduler.init().unwrap(),
-    ));
-
-    let dataset_test_plain = Arc::new(MnistDataset::test());
-    let mut renderer = result.renderer;
-
-    let idents_tests = generate_idents(None);
-
-    for (ident, _) in idents_tests {
-        let name = ident.to_string();
-        renderer = evaluate::<B::InnerBackend>(
-            name.as_str(),
-            ident,
-            result.model.clone(),
-            renderer,
-            dataset_test_plain.clone(),
-            config.batch_size,
-        );
+    let now = Instant::now();
+    {
+        let _result = training.launch(Learner::new(
+            model,
+            config.optimizer.init(),
+            lr_scheduler.init().unwrap(),
+        ));
     }
 
-    result
-        .model
-        .save_file(
-            format!("{ARTIFACT_DIR}/model"),
-            &NoStdTrainingRecorder::new(),
-        )
-        .expect("Failed to save trained model");
+    // let dataloader_valid = dataloader_valid.to_device(&device);
+    // let now = Instant::now();
+    // let mut optim = config.optimizer.init();
+    // let mut model = model;
+    // let mut iteration = 0;
+    // for _ in 0..1 {
+    //     let mut iterator = dataloader_valid.iter();
+    //     while let Some(item) = iterator.next() {
+    //         let item = model.step(item);
 
-    config
-        .save(format!("{ARTIFACT_DIR}/config.json").as_str())
-        .unwrap();
+    //         println!("Loss {iteration}: {}", item.loss.to_data());
+    //         let grads = item.loss.backward();
 
-    renderer.manual_close();
+    //         // let weight_grad = model.conv1.conv.weight.grad(&grads);
+
+    //         // if let Some(g) = weight_grad {
+    //         //     println!("weight_grad: {g}");
+    //         // } else {
+    //         //     panic!("NO GRAD");
+    //         // }
+    //         let grads = GradientsParams::from_grads(grads, &model);
+
+    //         // println!("grads: {grads:?}");
+    //         model = optim.step(1e-3, model, grads);
+    //         iteration += 1;
+    //         // let item = TrainingItem::new(
+    //         //     item,
+    //         //     progress,
+    //         //     global_progress.clone(),
+    //         //     Some(iteration),
+    //         //     None,
+    //         // );
+    //     }
+    // }
+
+    let elapsed = now.elapsed().as_secs();
+    println!("Training completed in {}m{}s", (elapsed / 60), elapsed % 60);
+    println!("Executed on device: {device:?}");
+
+    // Training completed in 3m4s (main, 2 epochs)
+    // Training completed in 4m16s (dispatch, 2 epochs)
+    // Training completed in 7m52s (main)
+
+    // let dataset_test_plain = Arc::new(MnistDataset::test());
+    // let mut renderer = result.renderer;
+
+    // let idents_tests = generate_idents(None);
+
+    // for (ident, _) in idents_tests {
+    //     let name = ident.to_string();
+    //     renderer = evaluate::<B::InnerBackend>(
+    //         name.as_str(),
+    //         ident,
+    //         result.model.clone(),
+    //         renderer,
+    //         dataset_test_plain.clone(),
+    //         config.batch_size,
+    //     );
+    // }
+
+    // result
+    //     .model
+    //     .save_file(
+    //         format!("{ARTIFACT_DIR}/model"),
+    //         &NoStdTrainingRecorder::new(),
+    //     )
+    //     .expect("Failed to save trained model");
+
+    // config
+    //     .save(format!("{ARTIFACT_DIR}/config.json").as_str())
+    //     .unwrap();
+
+    // renderer.manual_close();
+}
+
+fn cost<B: Backend>(params: Tensor<B, 1>) -> Tensor<B, 1> {
+    let squared = params.powf_scalar(2.0);
+    squared.sum()
 }
 
 fn evaluate<B: Backend>(

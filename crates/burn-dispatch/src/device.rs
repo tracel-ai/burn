@@ -17,7 +17,7 @@ use crate::backends::*;
 /// #[cfg(feature = "cuda")]
 /// let cuda_device = Device::Cuda(Default::default());
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Eq)]
 pub enum Device {
     /// The [CPU backend](Cpu) device.
     #[cfg(feature = "cpu")]
@@ -50,6 +50,10 @@ pub enum Device {
     /// The [LibTorch backend](LibTorch) device.
     #[cfg(feature = "tch")]
     LibTorch(LibTorchDevice),
+
+    /// The [autodiff enabled backend](Autodiff) device.
+    #[cfg(feature = "autodiff")]
+    Autodiff(Box<Device>),
 }
 
 impl Default for Device {
@@ -83,6 +87,36 @@ impl Default for Device {
     }
 }
 
+impl PartialEq for Device {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            // If both are Autodiff, compare the inner devices
+            (Device::Autodiff(a), Device::Autodiff(b)) => a == b,
+            // If one is Autodiff, compare it to the raw device
+            (Device::Autodiff(a), b) => a.as_ref() == b,
+            (a, Device::Autodiff(b)) => a == b.as_ref(),
+            #[cfg(feature = "cpu")]
+            (Self::Cpu(a), Self::Cpu(b)) => a == b,
+            #[cfg(feature = "cuda")]
+            (Self::Cuda(a), Self::Cuda(b)) => a == b,
+            #[cfg(wgpu_metal)]
+            (Self::Metal(a), Self::Metal(b)) => a == b,
+            #[cfg(feature = "rocm")]
+            (Self::Rocm(a), Self::Rocm(b)) => a == b,
+            #[cfg(wgpu_vulkan)]
+            (Self::Vulkan(a), Self::Vulkan(b)) => a == b,
+            #[cfg(wgpu_webgpu)]
+            (Self::WebGpu(a), Self::WebGpu(b)) => a == b,
+            #[cfg(feature = "ndarray")]
+            (Self::NdArray(a), Self::NdArray(b)) => a == b,
+            #[cfg(feature = "tch")]
+            (Self::LibTorch(a), Self::LibTorch(b)) => a == b,
+            #[allow(unreachable_patterns)]
+            (_, _) => false,
+        }
+    }
+}
+
 /// Base multiplier to avoid type_id clashes between backends.
 /// Limits the number of device types per backend, but this is a sensible limit.
 const TYPE_ID_BASE: u16 = 10;
@@ -107,6 +141,8 @@ impl Device {
             Self::NdArray(_) => BackendId::NdArray,
             #[cfg(feature = "tch")]
             Self::LibTorch(_) => BackendId::LibTorch,
+            #[cfg(feature = "autodiff")]
+            Self::Autodiff(device) => device.backend_id(),
         }
     }
 
@@ -179,7 +215,15 @@ impl TryFrom<u16> for BackendId {
     }
 }
 
-impl DeviceOps for Device {}
+impl DeviceOps for Device {
+    fn inner(&self) -> &Self {
+        match self {
+            #[cfg(feature = "autodiff")]
+            Device::Autodiff(device) => &*device,
+            device => device,
+        }
+    }
+}
 
 impl burn_std::device::Device for Device {
     fn from_id(mut device_id: DeviceId) -> Self {
@@ -224,6 +268,8 @@ impl burn_std::device::Device for Device {
             Self::NdArray(device) => device.to_id(),
             #[cfg(feature = "tch")]
             Self::LibTorch(device) => device.to_id(),
+            #[cfg(feature = "autodiff")]
+            Self::Autodiff(device) => device.to_id(),
         };
         device_id.type_id = self.encode_type_id(device_id.type_id);
         device_id

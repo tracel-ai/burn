@@ -55,7 +55,7 @@ impl<B: FusionBackend> Backend for Fusion<B> {
         B::sync(device)
     }
 
-    fn ad_enabled() -> bool {
+    fn ad_enabled(_device: &Self::Device) -> bool {
         false
     }
 
