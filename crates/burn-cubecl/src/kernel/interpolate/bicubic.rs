@@ -17,6 +17,7 @@ fn interpolate_bicubic_kernel<F: Float>(
     output: &mut Tensor<Line<F>>,
     shape_out: Sequence<FastDivmod<usize>>,
     out_layout: LinearLayout,
+    #[comptime] align_corners: bool,
     #[define(F)] _dtype: StorageType,
 ) {
     if ABSOLUTE_POS >= output.len() {
@@ -31,31 +32,44 @@ fn interpolate_bicubic_kernel<F: Float>(
     let (b, y) = shape_out[1].div_mod(rem);
 
     let input_height = input.shape(1) - 1;
-    let output_height = clamp_min(output.shape(1) - 1, 1) as f32;
-    let numerator = (y * input_height) as f32;
+    let input_height_f = input_height as f32;
 
-    let frac = (numerator / output_height) as f32;
+    let frac = if align_corners {
+        let output_height = clamp_min(output.shape(1) - 1, 1) as f32;
+        (y * input_height) as f32 / output_height
+    } else {
+        let in_size = (input_height + 1) as f32;
+        let out_size = output.shape(1) as f32;
+        (y as f32 + 0.5) * (in_size / out_size) - 0.5
+    };
     let y_in_f = frac.floor();
-    let y_in = y_in_f as usize;
     let yw = Line::empty(line_size).fill(F::cast_from(frac - y_in_f));
 
-    let y0 = select(y_in != 0, y_in - 1, 0);
-    let y1 = y_in;
-    let y2 = clamp_max(y_in + 1, input_height);
-    let y3 = clamp_max(y_in + 2, input_height);
+    // Clamp indices in float space to handle negative coordinates from half_pixel
+    let y0 = clamp(y_in_f - 1.0, 0.0, input_height_f) as usize;
+    let y1 = clamp(y_in_f, 0.0, input_height_f) as usize;
+    let y2 = clamp(y_in_f + 1.0, 0.0, input_height_f) as usize;
+    let y3 = clamp(y_in_f + 2.0, 0.0, input_height_f) as usize;
 
     let input_width = input.shape(2) - 1;
-    let output_width = clamp_min(output.shape(2) - 1, 1) as f32;
-    let numerator = (x * input_width) as f32;
-    let frac = numerator / output_width;
+    let input_width_f = input_width as f32;
+
+    let frac = if align_corners {
+        let output_width = clamp_min(output.shape(2) - 1, 1) as f32;
+        (x * input_width) as f32 / output_width
+    } else {
+        let in_size = (input_width + 1) as f32;
+        let out_size = output.shape(2) as f32;
+        (x as f32 + 0.5) * (in_size / out_size) - 0.5
+    };
     let x_in_f = frac.floor();
-    let x_in = x_in_f as usize;
     let xw = Line::empty(line_size).fill(F::cast_from(frac - x_in_f));
 
-    let x0 = select(x_in != 0, x_in - 1, 0);
-    let x1 = x_in;
-    let x2 = clamp_max(x_in + 1, input_width);
-    let x3 = clamp_max(x_in + 2, input_width);
+    // Clamp indices in float space to handle negative coordinates from half_pixel
+    let x0 = clamp(x_in_f - 1.0, 0.0, input_width_f) as usize;
+    let x1 = clamp(x_in_f, 0.0, input_width_f) as usize;
+    let x2 = clamp(x_in_f + 1.0, 0.0, input_width_f) as usize;
+    let x3 = clamp(x_in_f + 2.0, 0.0, input_width_f) as usize;
 
     let index_base = b * input.stride(0) + c * input.stride(3);
     let in_stride_y = input.stride(1);
@@ -152,12 +166,13 @@ fn lined<F: Float>(x: &Line<F>, #[comptime] v: f32) -> Line<F> {
 pub(crate) fn interpolate_bicubic_launch<R: CubeRuntime>(
     input: CubeTensor<R>,
     output: CubeTensor<R>,
+    align_corners: bool,
 ) -> CubeTensor<R> {
     let line_size = max_line_size(&input);
     let out_shape = shape_divmod(&output);
     let out_layout = linear_layout(&output, line_size);
 
-    let working_units = output.shape.num_elements() / line_size as usize;
+    let working_units = output.meta.num_elements() / line_size as usize;
     let cube_dim = CubeDim::new(&input.client, working_units);
     let cube_count = calculate_cube_count_elemwise(&input.client, working_units, cube_dim);
 
@@ -170,6 +185,7 @@ pub(crate) fn interpolate_bicubic_launch<R: CubeRuntime>(
         output.as_tensor_arg(line_size),
         out_shape,
         out_layout,
+        align_corners,
         output.dtype.into(),
     )
     .expect("Kernel to never fail");

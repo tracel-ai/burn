@@ -6,7 +6,7 @@ use crate::{
     ops::{max_line_size, numeric::empty_device_dtype},
     tensor::CubeTensor,
 };
-use burn_backend::DType;
+use burn_backend::{DType, TensorMetadata};
 use cubecl::{calculate_cube_count_elemwise, prelude::*, std::tensor::layout::linear::LinearView};
 
 #[cube]
@@ -150,14 +150,7 @@ pub(crate) fn launch_cmp<R: CubeRuntime, O: ComparisonOpFamily>(
             .expect("Kernel to never fail");
         }
 
-        CubeTensor::new(
-            lhs.client,
-            lhs.handle,
-            lhs.shape,
-            lhs.device,
-            lhs.strides,
-            dtype_bool,
-        )
+        CubeTensor::new(lhs.client, lhs.handle, *lhs.meta, lhs.device, dtype_bool)
     } else if same_tensor_type && rhs.can_mut_broadcast(&lhs) {
         unsafe {
             kernel_cmp::launch_unchecked::<O, R>(
@@ -173,14 +166,7 @@ pub(crate) fn launch_cmp<R: CubeRuntime, O: ComparisonOpFamily>(
             .expect("Kernel to never fail");
         };
 
-        CubeTensor::new(
-            rhs.client,
-            rhs.handle,
-            rhs.shape,
-            rhs.device,
-            rhs.strides,
-            dtype_bool,
-        )
+        CubeTensor::new(rhs.client, rhs.handle, *rhs.meta, rhs.device, dtype_bool)
     } else {
         let output = empty_device_dtype(
             lhs.client.clone(),
@@ -214,7 +200,7 @@ pub(crate) fn launch_scalar_cmp<R: CubeRuntime, O: ComparisonOpFamily>(
 ) -> CubeTensor<R> {
     let line_size = max_line_size(&tensor);
     let client = tensor.client.clone();
-    let num_elems = tensor.shape.num_elements();
+    let num_elems = tensor.meta.num_elements();
 
     let working_units = num_elems / line_size as usize;
     let cube_dim = CubeDim::new(&tensor.client, working_units);
@@ -241,16 +227,15 @@ pub(crate) fn launch_scalar_cmp<R: CubeRuntime, O: ComparisonOpFamily>(
         CubeTensor::new(
             tensor.client,
             tensor.handle,
-            tensor.shape,
+            *tensor.meta,
             tensor.device,
-            tensor.strides,
             dtype_bool,
         )
     } else {
         let output = empty_device_dtype(
             tensor.client.clone(),
             tensor.device.clone(),
-            tensor.shape.clone(),
+            tensor.shape(),
             dtype_bool,
         );
 
@@ -408,7 +393,7 @@ pub(crate) fn launch_predicate<R: CubeRuntime, O: PredicateOpFamily>(
     let line_size = max_line_size(&tensor);
 
     let client = tensor.client.clone();
-    let num_elems = tensor.shape.num_elements();
+    let num_elems = tensor.meta.num_elements();
 
     let dtypes = [tensor.dtype.into(), dtype_bool.into()];
     let working_units = num_elems / line_size as usize;
@@ -418,7 +403,7 @@ pub(crate) fn launch_predicate<R: CubeRuntime, O: PredicateOpFamily>(
     let output = empty_device_dtype(
         tensor.client.clone(),
         tensor.device.clone(),
-        tensor.shape.clone(),
+        tensor.shape(),
         dtype_bool,
     );
 

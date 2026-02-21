@@ -5,7 +5,7 @@ use crate::{
     tensor::CubeTensor,
 };
 use burn_backend::{
-    Shape,
+    Shape, TensorMetadata,
     ops::{InterpolateMode, InterpolateOptions},
 };
 
@@ -22,7 +22,7 @@ pub fn interpolate<R: CubeRuntime>(
     output_size: [usize; 2],
     options: InterpolateOptions,
 ) -> CubeTensor<R> {
-    let [batch_size, channels, _, _] = input.shape.dims();
+    let [batch_size, channels, _, _] = input.meta.shape().dims();
     let [out_height, out_width] = output_size;
 
     let input = into_contiguous(permute_nchw_to_nhwc(input));
@@ -35,10 +35,11 @@ pub fn interpolate<R: CubeRuntime>(
         input.dtype,
     );
 
+    let align_corners = options.align_corners;
     let output = match options.mode {
         InterpolateMode::Nearest => interpolate_nearest_launch(input, output),
-        InterpolateMode::Bilinear => interpolate_bilinear_launch(input, output),
-        InterpolateMode::Bicubic => interpolate_bicubic_launch(input, output),
+        InterpolateMode::Bilinear => interpolate_bilinear_launch(input, output, align_corners),
+        InterpolateMode::Bicubic => interpolate_bicubic_launch(input, output, align_corners),
     };
 
     permute_nhwc_to_nchw(output)
@@ -56,7 +57,7 @@ pub fn interpolate_backward<R: CubeRuntime>(
     let input = permute_nchw_to_nhwc(input);
     let out_grad = permute_nchw_to_nhwc(out_grad);
 
-    let output_shape = input.shape.clone();
+    let output_shape = input.shape();
     let output = empty_device_dtype(
         input.client.clone(),
         input.device.clone(),

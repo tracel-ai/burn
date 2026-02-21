@@ -3,11 +3,14 @@ use crate::{
     element::BoolElement,
     kernel::{self, conv::ConvTranspose2dStrategy},
 };
-use burn_backend::ops::{
-    AttentionOptions, ConvOptions, ConvTransposeOptions, DeformConv2dBackward, DeformConvOptions,
-    InterpolateOptions, MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps,
-};
 use burn_backend::tensor::{BoolTensor, FloatTensor, IntTensor};
+use burn_backend::{
+    TensorMetadata,
+    ops::{
+        AttentionModuleOptions, ConvOptions, ConvTransposeOptions, DeformConv2dBackward,
+        DeformConvOptions, InterpolateOptions, MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps,
+    },
+};
 
 impl<R, F, I, BT> ModuleOps<Self> for CubeBackend<R, F, I, BT>
 where
@@ -31,8 +34,14 @@ where
         output_grad: FloatTensor<Self>,
         options: ConvOptions<1>,
     ) -> FloatTensor<Self> {
-        kernel::conv::conv_data_backward(output_grad, weight, x.shape, options, Default::default())
-            .unwrap()
+        kernel::conv::conv_data_backward(
+            output_grad,
+            weight,
+            x.shape(),
+            options,
+            Default::default(),
+        )
+        .unwrap()
     }
 
     fn conv1d_weight_backward(
@@ -44,7 +53,7 @@ where
         kernel::conv::conv_weight_backward::<R, 1>(
             x,
             output_grad,
-            weight.shape.clone(),
+            weight.shape(),
             options,
             Default::default(),
         )
@@ -66,8 +75,14 @@ where
         output_grad: FloatTensor<Self>,
         options: ConvOptions<2>,
     ) -> FloatTensor<Self> {
-        kernel::conv::conv_data_backward(output_grad, weight, x.shape, options, Default::default())
-            .unwrap()
+        kernel::conv::conv_data_backward(
+            output_grad,
+            weight,
+            x.shape(),
+            options,
+            Default::default(),
+        )
+        .unwrap()
     }
 
     fn conv2d_weight_backward(
@@ -79,7 +94,7 @@ where
         kernel::conv::conv_weight_backward::<R, 2>(
             x,
             output_grad,
-            weight.shape.clone(),
+            weight.shape(),
             options,
             Default::default(),
         )
@@ -134,8 +149,14 @@ where
         output_grad: FloatTensor<Self>,
         options: ConvOptions<3>,
     ) -> FloatTensor<Self> {
-        kernel::conv::conv_data_backward(output_grad, weight, x.shape, options, Default::default())
-            .unwrap()
+        kernel::conv::conv_data_backward(
+            output_grad,
+            weight,
+            x.shape(),
+            options,
+            Default::default(),
+        )
+        .unwrap()
     }
 
     fn conv3d_weight_backward(
@@ -147,7 +168,7 @@ where
         kernel::conv::conv_weight_backward::<R, 3>(
             x,
             output_grad,
-            weight.shape.clone(),
+            weight.shape(),
             options,
             Default::default(),
         )
@@ -299,17 +320,25 @@ where
         value: FloatTensor<Self>,
         mask: Option<BoolTensor<Self>>,
         attn_bias: Option<FloatTensor<Self>>,
-        options: AttentionOptions,
+        options: AttentionModuleOptions,
     ) -> FloatTensor<Self> {
         // Fall back to naive attention for features the flash kernel doesn't support.
         if attn_bias.is_some() || options.softcap.is_some() || options.scale.is_some() {
-            return burn_backend::ops::attention::naive_attention::<Self>(
+            return burn_backend::ops::attention::attention_fallback::<Self>(
                 query, key, value, mask, attn_bias, options,
             );
         }
 
-        let out_dtype = query.dtype;
-        kernel::attention::flash_attention(query, key, value, mask, options.is_causal, out_dtype)
-            .expect("Kernel to never fail")
+        kernel::attention::attention(
+            query,
+            key,
+            value,
+            mask,
+            attn_bias,
+            options,
+            &Default::default(),
+            None,
+        )
+        .expect("Kernel to never fail")
     }
 }

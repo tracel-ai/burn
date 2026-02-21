@@ -10,7 +10,8 @@ use crate::{
     },
     ops::max_line_size,
 };
-use burn_backend::{DType, Shape};
+use burn_backend::{DType, Shape, TensorMetadata};
+use burn_std::Metadata;
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 use cubecl::{client::ComputeClient, server::Allocation};
 use cubecl::{
@@ -63,7 +64,7 @@ pub fn full_device_dtype<R: CubeRuntime>(
         tensor[ABSOLUTE_POS] = value.get::<C>();
     }
 
-    let num_elems = empty.shape.num_elements();
+    let num_elems = empty.meta.num_elements();
     let line_size = max_line_size(&empty);
 
     let working_units = num_elems / line_size as usize;
@@ -126,7 +127,13 @@ pub fn empty_device<R: CubeRuntime, E: CubeElement>(
 ) -> CubeTensor<R> {
     let Allocation { handle, strides } = client.empty_tensor(&shape, size_of::<E>());
 
-    CubeTensor::new(client, handle, shape, device, strides, E::dtype())
+    CubeTensor::new(
+        client,
+        handle,
+        Metadata::new(shape, strides),
+        device,
+        E::dtype(),
+    )
 }
 
 /// Create a tensor with uninitialized memory
@@ -138,7 +145,7 @@ pub fn empty_device_dtype<R: CubeRuntime>(
 ) -> CubeTensor<R> {
     let Allocation { handle, strides } = client.empty_tensor(&shape, dtype.size());
 
-    CubeTensor::new(client, handle, shape, device, strides, dtype)
+    CubeTensor::new(client, handle, Metadata::new(shape, strides), device, dtype)
 }
 
 /// Create a contiguous tensor with uninitialized memory
@@ -151,7 +158,7 @@ pub fn empty_device_contiguous_dtype<R: CubeRuntime>(
     let descriptor = AllocationDescriptor::contiguous(&shape, dtype.size());
     let Allocation { handle, strides } = client.empty_tensors(vec![descriptor]).remove(0);
 
-    CubeTensor::new(client, handle, shape, device, strides, dtype)
+    CubeTensor::new(client, handle, Metadata::new(shape, strides), device, dtype)
 }
 
 /// Add two tensors
@@ -409,9 +416,9 @@ fn cumulative_op<R: CubeRuntime, O: CumulativeOpFamily>(
     let client = input.client.clone();
     let device = input.device.clone();
 
-    let output = empty_device_dtype(client.clone(), device, input.shape.clone(), input.dtype);
+    let output = empty_device_dtype(client.clone(), device, input.shape(), input.dtype);
 
-    let num_elems = output.shape.num_elements();
+    let num_elems = output.meta.num_elements();
     let working_units = num_elems;
     let cube_dim = CubeDim::new(&client, working_units);
     let cube_count = calculate_cube_count_elemwise(&client, working_units, cube_dim);

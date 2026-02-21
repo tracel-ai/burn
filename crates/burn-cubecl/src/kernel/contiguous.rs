@@ -1,4 +1,4 @@
-use burn_backend::{DType, QTensorPrimitive};
+use burn_backend::{DType, QTensorPrimitive, TensorMetadata};
 use cubecl::quant::scheme::{QuantStore, QuantValue};
 use cubecl::server::AllocationKind;
 
@@ -24,9 +24,8 @@ pub fn into_contiguous<R: CubeRuntime>(tensor: CubeTensor<R>) -> CubeTensor<R> {
     CubeTensor::new(
         tensor.client,
         output.handle,
-        output.shape.into(),
+        *output.metadata,
         tensor.device,
-        output.strides,
         tensor.dtype,
     )
 }
@@ -38,7 +37,7 @@ pub fn into_contiguous<R: CubeRuntime>(tensor: CubeTensor<R>) -> CubeTensor<R> {
     tracing::instrument(level = "trace", skip(tensor))
 )]
 pub fn into_contiguous_aligned<R: CubeRuntime>(tensor: CubeTensor<R>) -> CubeTensor<R> {
-    if R::can_read_tensor(&tensor.shape, &tensor.strides) {
+    if R::can_read_tensor(tensor.meta.shape(), tensor.meta.strides()) {
         return tensor;
     }
 
@@ -56,9 +55,8 @@ pub fn into_contiguous_aligned<R: CubeRuntime>(tensor: CubeTensor<R>) -> CubeTen
     CubeTensor::new(
         tensor.client,
         output.handle,
-        output.shape.into(),
+        *output.metadata,
         tensor.device,
-        output.strides,
         tensor.dtype,
     )
 }
@@ -72,7 +70,7 @@ fn into_contiguous_quantized<R: CubeRuntime>(
     kind: AllocationKind,
 ) -> CubeTensor<R> {
     let scheme = tensor.scheme();
-    let output = empty_qtensor(tensor.shape.clone(), *tensor.scheme(), &tensor.device, kind);
+    let output = empty_qtensor(tensor.shape(), *tensor.scheme(), &tensor.device, kind);
     let (values, scales) = tensor.quantized_handles().unwrap();
     let (out_values, out_scales) = output.quantized_handles().unwrap();
 
@@ -83,7 +81,7 @@ fn into_contiguous_quantized<R: CubeRuntime>(
                 &values.as_handle_ref(),
                 &out_values.as_handle_ref(),
                 packed_dim,
-                &tensor.shape,
+                tensor.meta.shape(),
                 scheme.num_quants(),
                 DType::U32.into(),
             )
@@ -97,7 +95,7 @@ fn into_contiguous_quantized<R: CubeRuntime>(
                 &values.as_handle_ref(),
                 &out_values.as_handle_ref(),
                 packed_dim,
-                &tensor.shape,
+                tensor.meta.shape(),
                 scheme.num_quants(),
                 DType::U8.into(),
             )

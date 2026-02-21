@@ -4,7 +4,7 @@ use crate::{
     ops::{max_line_size, numeric::empty_device_dtype},
     tensor::CubeTensor,
 };
-use burn_backend::DType;
+use burn_backend::{DType, TensorMetadata};
 use cubecl::std::tensor::layout::linear::LinearView;
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
@@ -42,7 +42,7 @@ pub fn cast<R: CubeRuntime>(input: CubeTensor<R>, dtype: DType) -> CubeTensor<R>
 
     let line_size = max_line_size(&input);
 
-    let num_elems: usize = input.shape.num_elements();
+    let num_elems: usize = input.meta.num_elements();
 
     let working_units = num_elems / line_size as usize;
     let cube_dim = CubeDim::new(&client, working_units);
@@ -51,7 +51,7 @@ pub fn cast<R: CubeRuntime>(input: CubeTensor<R>, dtype: DType) -> CubeTensor<R>
     let output = empty_device_dtype(
         client.clone(),
         input.device.clone(),
-        input.shape.clone(),
+        input.shape(),
         dtype, // We take the same dtype as passed as input (Flex32 not F32)
     );
 

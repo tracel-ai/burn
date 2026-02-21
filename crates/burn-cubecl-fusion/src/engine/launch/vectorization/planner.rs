@@ -126,7 +126,7 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
             // compare to ref elem.
             Some(line_sizes) => line_sizes,
             None => client
-                .io_optimized_line_sizes_unchecked(ref_elem.0.size())
+                .io_optimized_line_sizes(ref_elem.0.size())
                 .collect::<Vec<_>>(),
         };
 
@@ -388,7 +388,7 @@ fn line_sizes_quants<R: Runtime>(
             | QuantValue::E5M2
             | QuantValue::E2M1 => {
                 let line_sizes = client
-                    .io_optimized_line_sizes_unchecked(size_of::<i8>())
+                    .io_optimized_line_sizes(size_of::<i8>())
                     .collect::<Vec<_>>();
 
                 match &quants_line_sizes {
@@ -408,7 +408,7 @@ fn line_sizes_quants<R: Runtime>(
         },
         QuantStore::PackedU32(_) => {
             let mut line_sizes = client
-                .io_optimized_line_sizes_unchecked(size_of::<u32>())
+                .io_optimized_line_sizes(size_of::<u32>())
                 .collect::<Vec<_>>();
             for val in line_sizes.iter_mut() {
                 *val *= scheme.num_quants();

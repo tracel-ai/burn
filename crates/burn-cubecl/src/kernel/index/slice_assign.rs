@@ -113,31 +113,31 @@ pub(crate) fn slice_assign<R: CubeRuntime>(
         true => tensor,
         false => tensor.copy(),
     };
-    let ndims = tensor.shape.num_dims();
+    let ndims = tensor.meta.num_dims();
 
-    let line_size = if tensor.strides[ndims - 1] == 1 && value.strides[ndims - 1] == 1 {
+    let line_size = if tensor.meta.strides()[ndims - 1] == 1 && value.meta.strides()[ndims - 1] == 1
+    {
         let last = indices
             .get(ndims - 1)
             .cloned()
             .unwrap_or(burn_backend::Slice {
                 start: 0,
-                end: Some(tensor.shape[ndims - 1] as isize),
+                end: Some(tensor.meta.shape()[ndims - 1] as isize),
                 step: 1,
             });
-        let end = last.end.unwrap_or(tensor.shape[ndims - 1] as isize);
+        let end = last.end.unwrap_or(tensor.meta.shape()[ndims - 1] as isize);
         let shape = (end - last.start) as usize;
         let offset = last.start as usize;
-        *R::supported_line_sizes()
-            .iter()
-            .filter(|it| {
-                let it = **it;
+        client
+            .io_optimized_line_sizes(tensor.dtype.size())
+            .filter(|&it| {
                 shape.is_multiple_of(it)
-                    && strides_compatible(&tensor.strides, it)
-                    && strides_compatible(&value.strides, it)
+                    && strides_compatible(tensor.meta.strides(), it)
+                    && strides_compatible(value.meta.strides(), it)
                     && offset.is_multiple_of(it)
             })
             .max()
-            .unwrap_or(&1)
+            .unwrap_or(1)
     } else {
         1
     };
@@ -148,18 +148,18 @@ pub(crate) fn slice_assign<R: CubeRuntime>(
     for i in 0..ndims {
         let slice = indices.get(i).cloned().unwrap_or(burn_backend::Slice {
             start: 0,
-            end: Some(tensor.shape[i] as isize),
+            end: Some(tensor.meta.shape()[i] as isize),
             step: 1,
         });
         let start = slice.start as usize;
-        let end = slice.end.unwrap_or(tensor.shape[i] as isize);
+        let end = slice.end.unwrap_or(tensor.meta.shape()[i] as isize);
         let length = (end - slice.start) as usize;
 
         shape.push(FastDivmodArgs::<usize>::new(&client, length));
         offsets.push(ScalarArg::new(start));
     }
 
-    let working_units = value.shape.num_elements() / line_size;
+    let working_units = value.meta.num_elements() / line_size;
     let cube_dim = CubeDim::new(&tensor.client, working_units);
     let cube_count = calculate_cube_count_elemwise(&tensor.client, working_units, cube_dim);
 
@@ -206,21 +206,21 @@ pub(crate) fn slice_assign_with_steps<R: CubeRuntime>(
     let mut steps = SequenceArg::<R, i32>::new();
 
     for (dim, slice) in slices.iter().enumerate() {
-        let range = slice.to_range(tensor.shape[dim]);
+        let range = slice.to_range(tensor.meta.shape()[dim]);
         starts.push(ScalarArg::new(range.start));
         ends.push(ScalarArg::new(range.end));
         steps.push(ScalarArg::new(slice.step as i32));
     }
 
     // Pad with default values if needed to match tensor dimensions
-    for dim in slices.len()..tensor.shape.num_dims() {
+    for dim in slices.len()..tensor.meta.num_dims() {
         starts.push(ScalarArg::new(0));
-        ends.push(ScalarArg::new(tensor.shape[dim]));
+        ends.push(ScalarArg::new(tensor.meta.shape()[dim]));
         steps.push(ScalarArg::new(1));
     }
 
     // Launch kernel
-    let working_units = value.shape.num_elements();
+    let working_units = value.meta.num_elements();
     let cube_dim = CubeDim::new(&tensor.client, working_units);
     let cube_count = calculate_cube_count_elemwise(&tensor.client, working_units, cube_dim);
 

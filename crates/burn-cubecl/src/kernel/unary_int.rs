@@ -4,6 +4,7 @@ use crate::{
     ops::{max_line_size, numeric::empty_device_dtype},
     tensor::CubeTensor,
 };
+use burn_backend::TensorMetadata;
 use cubecl::{calculate_cube_count_elemwise, prelude::*, std::tensor::layout::linear::LinearView};
 
 pub(crate) trait IntUnaryOpFamily: 'static + Send + Sync {
@@ -40,7 +41,7 @@ where
 {
     let line_size = max_line_size(&tensor);
     let client = tensor.client.clone();
-    let num_elems = tensor.shape.num_elements();
+    let num_elems = tensor.meta.num_elements();
 
     let working_units = num_elems / line_size as usize;
     let cube_dim = CubeDim::new(&tensor.client, working_units);
@@ -65,7 +66,7 @@ where
             let output = empty_device_dtype(
                 tensor.client.clone(),
                 tensor.device.clone(),
-                tensor.shape.clone(),
+                tensor.shape(),
                 tensor.dtype,
             );
 
@@ -102,6 +103,7 @@ pub(crate) mod unary_basic_int {
     #[derive(Clone, Copy, Debug, Hash, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
     pub enum BasicIntUnaryKind {
         BitwiseNot,
+        Sign,
     }
 
     #[derive(CubeLaunch, CubeType)]
@@ -118,6 +120,17 @@ pub(crate) mod unary_basic_int {
         fn execute(input: Line<I>, options: &Self::Options) -> Line<I> {
             match comptime![options.kind] {
                 BasicIntUnaryKind::BitwiseNot => !input,
+                BasicIntUnaryKind::Sign => {
+                    let zero = Line::new(I::new(0));
+                    let one = Line::new(I::new(1));
+                    let minus_one = Line::new(I::new(-1));
+
+                    let is_positive = input.greater_than(zero);
+                    let is_negative = input.less_than(zero);
+                    let sign = select_many(is_negative, minus_one, zero);
+
+                    select_many(is_positive, one, sign)
+                }
             }
         }
     }

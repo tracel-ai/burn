@@ -16,7 +16,7 @@ members = [
 exclude = [
     "examples/notebook",
     "examples/raspberry-pi-pico",
-    "examples/dqn-agent", # gym-rs
+    "examples/dqn-agent",         # gym-rs
 ]
 
 [workspace.package]
@@ -65,7 +65,7 @@ insta = "1.45.0"
 js-sys = "0.3.77"
 libm = "0.2.15"
 log = { default-features = false, version = "0.4.29" }
-lzma-rust2 = "0.15.7"
+lzma-rust2 = "0.16.1"
 opentelemetry = "0.31.0"
 opentelemetry-aws = "0.19.0"
 opentelemetry-otlp = "0.31.0"
@@ -115,7 +115,7 @@ tracing-appender = "0.2.3"
 tracing-core = { version = "0.1.36", default-features = false }
 tracing-opentelemetry = "0.32.0"
 tracing-subscriber = "0.3.20"
-zip = "7.4.0"
+zip = "8.1.0"
 
 # Persist related
 memmap2 = { version = "0.9" }
@@ -164,10 +164,10 @@ serde = { version = "1.0.228", default-features = false, features = [
 ] } # alloc is for no_std, derive is needed
 serde_json = { version = "1.0.148", default-features = false }
 smallvec = { version = "1", features = ["const_generics", "const_new"] }
-uuid = { version = "1.20.0", default-features = false }
+uuid = { version = "1.21.0", default-features = false }
 
 byteorder = { version = "1.5.0", default-features = false }
-libc = "0.2.179"
+libc = "0.2.182"
 nvml-wrapper = "0.11.0"
 sysinfo = "0.38.0"
 systemstat = "0.2.5"
@@ -179,12 +179,14 @@ portable-atomic = { version = "1.13.1" }
 portable-atomic-util = { version = "0.2.5", features = ["alloc"] }
 
 ### For the main burn branch. ###
-cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "11c32460621652077898d3309430711ab3d7944d" }
-cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "11c32460621652077898d3309430711ab3d7944d" }
-cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "b121ed35e19bf9e0935dd563e97cab6e7a76005e" }
+cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "b19859ee693bb02a25e4da2ca53797bb164be140" }
+cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "b19859ee693bb02a25e4da2ca53797bb164be140" }
+cubecl-zspace = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "b19859ee693bb02a25e4da2ca53797bb164be140" }
+cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "1161040639c1b9819820b337236bd0d265701b5b" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }
+# cubecl-zspace = { path = "../cubecl/crates/cubecl-zspace", default-features = false }
 # cubek = { path = "../cubek/crates/cubek", default-features = false }
 ### For the release. ###
 # cubecl = { version = "=0.10.0-pre.1", default-features = false }

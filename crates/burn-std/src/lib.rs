@@ -17,8 +17,7 @@ pub mod tensor;
 pub use tensor::*;
 
 /// Common Errors.
-pub mod errors;
-pub use errors::*;
+pub use cubecl_zspace::errors::{self, *};
 
 /// Network utilities.
 #[cfg(feature = "network")]

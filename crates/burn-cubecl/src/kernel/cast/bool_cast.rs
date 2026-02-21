@@ -4,6 +4,7 @@ use crate::{
     ops::{max_line_size, numeric::empty_device},
     tensor::CubeTensor,
 };
+use burn_backend::TensorMetadata;
 use cubecl::{
     CubeDim, calculate_cube_count_elemwise, prelude::*, std::tensor::layout::linear::LinearView,
 };
@@ -28,14 +29,11 @@ fn bool_cast_kernel<B: Int, T: Numeric>(
 /// it may hold an uncanny bit combination. Naively casting it would not
 /// necessarily yield 0 or 1.
 pub fn bool_cast<R: CubeRuntime, EO: CubeElement>(tensor: CubeTensor<R>) -> CubeTensor<R> {
-    let output = empty_device::<R, EO>(
-        tensor.client.clone(),
-        tensor.device.clone(),
-        tensor.shape.clone(),
-    );
+    let output =
+        empty_device::<R, EO>(tensor.client.clone(), tensor.device.clone(), tensor.shape());
 
     let line_size = max_line_size(&tensor);
-    let num_elems = tensor.shape.num_elements();
+    let num_elems = tensor.meta.num_elements();
     let working_units = num_elems / line_size as usize;
     let cube_dim = CubeDim::new(&tensor.client, working_units);
     let cube_count = calculate_cube_count_elemwise(&tensor.client, working_units, cube_dim);
