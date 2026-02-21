@@ -10,30 +10,28 @@ use burn::tensor::backend::Backend;
 /// Hard Shrink layer.
 ///
 /// Applies the Hard Shrink function element-wise:
-/// `hard_shrink(x) = x if |x| > lambda else 0`
+/// `hard_shrink(x) = x if |x| > lambd else 0`
 ///
 /// Should be created with [HardShrinkConfig](HardShrinkConfig).
 #[derive(Module, Clone, Debug)]
 #[module(custom_display)]
 pub struct HardShrink {
-    /// The lambda value for the Hard Shrink formulation.
-    pub lambda: f64,
+    /// The lambd value for the Hard Shrink formulation.
+    pub lambd: f64,
 }
 
 /// Configuration to create a [HardShrink](HardShrink) layer using the [init function](HardShrinkConfig::init).
 #[derive(Config, Debug)]
 pub struct HardShrinkConfig {
-    /// The lambda value for the Hard Shrink formulation. Default is 0.5
+    /// The lambd value for the Hard Shrink formulation. Default is 0.5
     #[config(default = "0.5")]
-    pub lambda: f64,
+    pub lambd: f64,
 }
 
 impl HardShrinkConfig {
     /// Initialize a new [HardShrink](HardShrink) Layer
     pub fn init(&self) -> HardShrink {
-        HardShrink {
-            lambda: self.lambda,
-        }
+        HardShrink { lambd: self.lambd }
     }
 }
 
@@ -45,7 +43,7 @@ impl ModuleDisplay for HardShrink {
     }
 
     fn custom_content(&self, content: Content) -> Option<Content> {
-        content.add("lambda", &self.lambda).optional()
+        content.add("lambd", &self.lambd).optional()
     }
 }
 
@@ -58,7 +56,7 @@ impl HardShrink {
     /// - input: `[..., any]`
     /// - output: `[..., any]`
     pub fn forward<B: Backend, const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
-        hard_shrink(input, self.lambda)
+        hard_shrink(input, self.lambd)
     }
 }
 
@@ -82,9 +80,9 @@ mod tests {
     }
 
     #[test]
-    fn test_hard_shrink_with_lambda() {
+    fn test_hard_shrink_with_lambd() {
         let device = <TestBackend as Backend>::Device::default();
-        let model: HardShrink = HardShrinkConfig::new().with_lambda(0.2).init();
+        let model: HardShrink = HardShrinkConfig::new().with_lambd(0.2).init();
         let input = Tensor::<TestBackend, 2>::from_floats(
             TensorData::from([[0.1, -0.1, -0.3], [0.5, 0.1, 0.0]]),
             &device,
@@ -97,6 +95,6 @@ mod tests {
     #[test]
     fn display() {
         let config = HardShrinkConfig::new().init();
-        assert_eq!(alloc::format!("{config}"), "HardShrink {lambda: 0.5}");
+        assert_eq!(alloc::format!("{config}"), "HardShrink {lambd: 0.5}");
     }
 }
