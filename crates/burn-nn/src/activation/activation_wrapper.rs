@@ -1,9 +1,10 @@
 use burn_core as burn;
 
 use crate::activation::{
-    Celu, CeluConfig, Elu, EluConfig, Gelu, HardSigmoid, HardSigmoidConfig, HardSwish, LeakyRelu,
-    LeakyReluConfig, PRelu, PReluConfig, Relu, Selu, Sigmoid, Softplus, SoftplusConfig, Softsign,
-    SwiGlu, SwiGluConfig, Tanh, ThresholdedRelu, ThresholdedReluConfig,
+    Celu, CeluConfig, Elu, EluConfig, Gelu, HardShrink, HardShrinkConfig, HardSigmoid,
+    HardSigmoidConfig, HardSwish, LeakyRelu, LeakyReluConfig, PRelu, PReluConfig, Relu, Selu,
+    Sigmoid, Softplus, SoftplusConfig, Softsign, SwiGlu, SwiGluConfig, Tanh, ThresholdedRelu,
+    ThresholdedReluConfig,
 };
 use burn::config::Config;
 use burn::module::Module;
@@ -61,6 +62,9 @@ pub enum ActivationConfig {
 
     /// [`ThresholdedRelu`] activation layer.
     ThresholdedRelu(ThresholdedReluConfig),
+
+    /// [`HardShrink`] activation layer.
+    HardShrink(HardShrinkConfig),
 }
 
 impl From<PReluConfig> for ActivationConfig {
@@ -111,6 +115,12 @@ impl From<ThresholdedReluConfig> for ActivationConfig {
     }
 }
 
+impl From<HardShrinkConfig> for ActivationConfig {
+    fn from(config: HardShrinkConfig) -> Self {
+        Self::HardShrink(config)
+    }
+}
+
 impl ActivationConfig {
     /// Initialize a wrapped activation layer.
     pub fn init<B: Backend>(&self, device: &B::Device) -> Activation<B> {
@@ -130,6 +140,7 @@ impl ActivationConfig {
             ActivationConfig::Softsign => Softsign.into(),
             ActivationConfig::Elu(conf) => conf.init().into(),
             ActivationConfig::Celu(conf) => conf.init().into(),
+            ActivationConfig::HardShrink(conf) => conf.init().into(),
             ActivationConfig::ThresholdedRelu(conf) => conf.init().into(),
         }
     }
@@ -186,6 +197,9 @@ pub enum Activation<B: Backend> {
 
     /// [`ThresholdedRelu`] activation layer.
     ThresholdedRelu(ThresholdedRelu),
+
+    /// [`HardShrink`] activation layer.
+    HardShrink(HardShrink),
 }
 
 impl<B: Backend> From<Gelu> for Activation<B> {
@@ -278,6 +292,12 @@ impl<B: Backend> From<ThresholdedRelu> for Activation<B> {
     }
 }
 
+impl<B: Backend> From<HardShrink> for Activation<B> {
+    fn from(layer: HardShrink) -> Self {
+        Self::HardShrink(layer)
+    }
+}
+
 impl<B: Backend> Activation<B> {
     /// Forward pass.
     pub fn forward<const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
@@ -297,6 +317,7 @@ impl<B: Backend> Activation<B> {
             Activation::Elu(layer) => layer.forward(input),
             Activation::Celu(layer) => layer.forward(input),
             Activation::ThresholdedRelu(layer) => layer.forward(input),
+            Activation::HardShrink(layer) => layer.forward(input),
         }
     }
 }
@@ -497,6 +518,17 @@ mod tests {
         let input = make_input::<TestBackend>(&device);
 
         let inner_config = ThresholdedReluConfig::new();
+        let expected = inner_config.init().forward(input.clone());
+
+        check_stateless_config_output(inner_config.into(), input, expected, &device)
+    }
+
+    #[test]
+    fn test_hard_shrink() {
+        let device = Default::default();
+        let input = make_input::<TestBackend>(&device);
+
+        let inner_config = HardShrinkConfig::new();
         let expected = inner_config.init().forward(input.clone());
 
         check_stateless_config_output(inner_config.into(), input, expected, &device)
