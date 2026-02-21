@@ -93,7 +93,7 @@ pub struct MsSsimMetricConfig {
     pub channels: usize,
     /// The weights/betas for each scale in the MS-SSIM computation. We
     /// The length of this vector determines the number of scales.
-    /// Default is [0.0448, 0.2856, 0.3001, 0.2363, 0.1333] (5 scales).
+    /// Default is \[0.0448, 0.2856, 0.3001, 0.2363, 0.1333\] (5 scales).
     pub betas: Vec<f32>,
 }
 
@@ -209,6 +209,14 @@ impl MsSsimMetricConfig {
     /// - If `betas` is empty.
     pub fn with_betas(mut self, betas: Vec<f32>) -> Self {
         assert!(!betas.is_empty(), "betas vector cannot be empty");
+
+        let sum: f32 = betas.iter().sum();
+        assert!(
+            (sum - 1.0).abs() < 1e-4,
+            "The sum of the betas must be 1.0, but got {}",
+            sum
+        );
+
         self.betas = betas;
         self
     }
@@ -244,8 +252,7 @@ impl MsSsimMetricConfig {
 ///
 /// - This implementation uses separable Gaussian convolution for efficiency (reduces complexity from O(K^2) to O(2K) per pixel)
 /// - Gaussian kernels are pre-computed during initialization to avoid redundant computation
-/// - The metric requires images to be large enough to survive 4 successive downsampling operations
-///   (176 pixels minimum dimension)
+/// - The metric requires images to be large enough to survive the downsampling operations
 ///
 /// # Value Range
 ///
@@ -765,6 +772,12 @@ mod tests {
     #[should_panic(expected = "betas vector cannot be empty")]
     fn test_ms_ssim_empty_betas() {
         let _ = MsSsimMetricConfig::new(1.0).with_betas(vec![]);
+    }
+
+    #[test]
+    #[should_panic(expected = "The sum of the betas must be 1.0")]
+    fn test_ms_ssim_invalid_betas_sum() {
+        let _ = MsSsimMetricConfig::new(1.0).with_betas(vec![0.5, 0.3]);
     }
 
     #[test]
