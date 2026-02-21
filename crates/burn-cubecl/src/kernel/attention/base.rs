@@ -82,6 +82,7 @@ pub fn attention<R: CubeRuntime>(
             );
             Ok(out)
         }
+        #[cfg(feature = "autotune")]
         AttentionStrategy::Autotune => {
             attention_autotune(query, key, value, mask, attn_bias, options, out)
         }
