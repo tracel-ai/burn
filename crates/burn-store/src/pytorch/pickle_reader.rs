@@ -735,7 +735,7 @@ fn rebuild_tensor_v2(
             }
         }),
         dtype,
-        shape,
+        shape.into(),
         vec![],         // path_stack
         vec![],         // container_stack
         ParamId::new(), // tensor_id

@@ -12,7 +12,7 @@ use alloc::string::ToString;
 use alloc::vec;
 use alloc::vec::Vec;
 use burn_core::module::ParamId;
-use burn_tensor::{Bytes, TensorData};
+use burn_tensor::{Bytes, Shape, TensorData};
 
 #[cfg(feature = "std")]
 use std::cell::RefCell;
@@ -544,7 +544,7 @@ impl BurnpackReader {
         for (name, descriptor) in &self.metadata.tensors {
             // Clone metadata for use in closure
             // Convert shape dimensions with overflow checking
-            let shape: Vec<usize> = descriptor
+            let shape: Shape = Shape::from(descriptor
                 .shape
                 .iter()
                 .map(|&s| {
@@ -555,7 +555,7 @@ impl BurnpackReader {
                         ))
                     })
                 })
-                .collect::<Result<Vec<usize>, BurnpackError>>()?;
+                .collect::<Result<Vec<usize>, BurnpackError>>()?);
 
             let dtype = descriptor.dtype;
 

@@ -3,8 +3,8 @@ use burn_core as burn;
 use crate::{ModuleSnapshot, SafetensorsStore};
 use burn_core::module::{Module, Param};
 use burn_nn::{Linear, LinearConfig};
-use burn_tensor::Tensor;
 use burn_tensor::backend::Backend;
+use burn_tensor::{Tensor, shape};
 
 type TestBackend = burn_ndarray::NdArray;
 
@@ -102,5 +102,5 @@ fn complex_module_round_trip() {
         .unwrap()
         .to_data()
         .unwrap();
-    assert_eq!(encoder_weight.shape, vec![2, 2, 2]);
+    assert_eq!(encoder_weight.shape, shape![2, 2, 2]);
 }

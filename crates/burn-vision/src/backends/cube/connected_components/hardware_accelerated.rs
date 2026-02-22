@@ -508,7 +508,6 @@ pub fn hardware_accelerated<R: CubeRuntime, F: FloatElement, I: IntElement, BT: 
             labels.as_tensor_arg(1),
             connectivity,
         )
-        .expect("Kernel to never fail");
     };
 
     let horizontal_warps = Ord::min((cols as u32).div_ceil(warp_size), 32);
@@ -527,7 +526,6 @@ pub fn hardware_accelerated<R: CubeRuntime, F: FloatElement, I: IntElement, BT: 
             labels.as_tensor_arg(1),
             connectivity,
         )
-        .expect("Kernel to never fail");
     };
 
     let cube_count = CubeCount::new_2d(
@@ -546,7 +544,6 @@ pub fn hardware_accelerated<R: CubeRuntime, F: FloatElement, I: IntElement, BT: 
                 img.as_tensor_arg(1),
                 labels.as_tensor_arg(1),
             )
-            .expect("Kernel to never fail");
         };
     } else {
         unsafe {
@@ -564,7 +561,6 @@ pub fn hardware_accelerated<R: CubeRuntime, F: FloatElement, I: IntElement, BT: 
                 stats.max_label.as_tensor_arg(1),
                 stats_opt,
             )
-            .expect("Kernel to never fail");
         };
         if stats_opt.compact_labels {
             let max_label = CubeBackend::<R, F, I, BT>::int_max(stats.max_label);
@@ -593,7 +589,6 @@ pub fn hardware_accelerated<R: CubeRuntime, F: FloatElement, I: IntElement, BT: 
                     relabel.as_tensor_arg(1),
                     stats.max_label.as_tensor_arg(1),
                 )
-                .expect("Kernel to never fail");
             };
 
             let cube_dim = CubeDim::new_1d(256);
@@ -615,7 +610,6 @@ pub fn hardware_accelerated<R: CubeRuntime, F: FloatElement, I: IntElement, BT: 
                     stats.bottom.as_tensor_arg(1),
                     relabel.as_tensor_arg(1),
                 )
-                .expect("Kernel to never fail");
             };
         }
     }

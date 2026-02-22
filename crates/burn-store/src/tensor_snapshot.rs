@@ -54,7 +54,7 @@ pub struct TensorSnapshot {
     /// Data type of the tensor (cached for efficient access)
     pub dtype: burn_tensor::DType,
     /// Shape of the tensor (cached for efficient access)
-    pub shape: Vec<usize>,
+    pub shape: Shape,
     /// Path stack representing the module hierarchy
     pub path_stack: Option<Vec<String>>,
     /// Container stack representing the container types at each level
@@ -72,7 +72,7 @@ impl TensorSnapshot {
         tensor_id: ParamId,
     ) -> Self {
         let dtype = tensor.dtype();
-        let shape = tensor.shape().to_vec();
+        let shape = tensor.shape().clone();
         let tensor = tensor.clone(); // Clone is cheap (reference counted)
         Self {
             data_fn: Rc::new(move || Ok(tensor.to_data())),
@@ -92,7 +92,7 @@ impl TensorSnapshot {
         tensor_id: ParamId,
     ) -> Self {
         let dtype = tensor.dtype();
-        let shape = tensor.shape().to_vec();
+        let shape = tensor.shape().clone();
         let tensor = tensor.clone(); // Clone is cheap (reference counted)
         Self {
             data_fn: Rc::new(move || Ok(tensor.to_data())),
@@ -112,7 +112,7 @@ impl TensorSnapshot {
         tensor_id: ParamId,
     ) -> Self {
         let dtype = tensor.dtype();
-        let shape = tensor.shape().to_vec();
+        let shape = tensor.shape().clone();
         let tensor = tensor.clone(); // Clone is cheap (reference counted)
         Self {
             data_fn: Rc::new(move || Ok(tensor.to_data())),
@@ -204,7 +204,7 @@ impl TensorSnapshot {
     pub fn from_closure(
         data_fn: Rc<dyn Fn() -> Result<TensorData, TensorSnapshotError>>,
         dtype: burn_tensor::DType,
-        shape: Vec<usize>,
+        shape: Shape,
         path_stack: Vec<String>,
         container_stack: Vec<String>,
         tensor_id: ParamId,
@@ -308,7 +308,7 @@ mod tests {
     use super::*;
     type TestBackend = burn_ndarray::NdArray;
     use alloc::string::ToString;
-    use burn_tensor::DType;
+    use burn_tensor::{DType, shape};
 
     #[test]
     fn tensor_view_float() {
@@ -324,13 +324,13 @@ mod tests {
 
         // Test metadata access without materialization
         assert_eq!(snapshot.dtype, DType::F32);
-        assert_eq!(snapshot.shape, vec![2, 2]);
+        assert_eq!(snapshot.shape, shape![2, 2]);
         assert_eq!(snapshot.full_path(), "test.weight");
         assert_eq!(snapshot.container_path(), "TestModule.Param");
 
         // Test data materialization
         let data = snapshot.to_data().unwrap();
-        assert_eq!(data.shape, vec![2, 2]);
+        assert_eq!(data.shape, shape![2, 2]);
         assert_eq!(data.dtype, DType::F32);
     }
 
@@ -349,10 +349,10 @@ mod tests {
         // Test metadata access without materialization
         // TestBackend uses I64 for integers
         assert_eq!(snapshot.dtype, DType::I64);
-        assert_eq!(snapshot.shape, vec![2, 2]);
+        assert_eq!(snapshot.shape, shape![2, 2]);
 
         let data = snapshot.to_data().unwrap();
-        assert_eq!(data.shape, vec![2, 2]);
+        assert_eq!(data.shape, shape![2, 2]);
         assert_eq!(data.dtype, DType::I64);
     }
 
@@ -371,10 +371,10 @@ mod tests {
 
         // Test metadata access without materialization
         assert_eq!(snapshot.dtype, DType::Bool);
-        assert_eq!(snapshot.shape, vec![2, 2]);
+        assert_eq!(snapshot.shape, shape![2, 2]);
 
         let data = snapshot.to_data().unwrap();
-        assert_eq!(data.shape, vec![2, 2]);
+        assert_eq!(data.shape, shape![2, 2]);
         assert_eq!(data.dtype, DType::Bool);
     }
 
@@ -432,13 +432,13 @@ mod tests {
 
         // Test metadata access
         assert_eq!(snapshot.dtype, DType::F32);
-        assert_eq!(snapshot.shape, vec![4]);
+        assert_eq!(snapshot.shape, shape![4]);
         assert_eq!(snapshot.full_path(), "model.layer");
         assert_eq!(snapshot.data_len(), 16); // 4 * 4 bytes
 
         // Test data materialization
         let materialized = snapshot.to_data().unwrap();
-        assert_eq!(materialized.shape, vec![4]);
+        assert_eq!(materialized.shape, shape![4]);
     }
 
     #[test]
@@ -475,7 +475,7 @@ mod tests {
         let snapshot = TensorSnapshot {
             data_fn: Rc::new(|| panic!("Test panic in data_fn")),
             dtype: DType::F32,
-            shape: vec![2, 2],
+            shape: shape![2, 2],
             path_stack: Some(vec!["test".to_string()]),
             container_stack: Some(vec!["Test".to_string()]),
             tensor_id: Some(ParamId::new()),
@@ -501,7 +501,7 @@ mod tests {
         let snapshot = TensorSnapshot::from_closure(
             Rc::new(|| Err(TensorSnapshotError::IoError("Simulated IO error".into()))),
             DType::F32,
-            vec![2, 2],
+            shape![2, 2],
             vec!["error_test".into()],
             vec![],
             ParamId::new(),

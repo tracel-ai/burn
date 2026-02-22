@@ -928,7 +928,7 @@ fn safetensors_to_snapshots_lazy(
     for (name, tensor_snapshot) in tensors.tensors() {
         // Extract metadata without materializing data
         let dtype = safetensor_dtype_to_burn(tensor_snapshot.dtype())?;
-        let shape = tensor_snapshot.shape().to_vec();
+        let shape = tensor_snapshot.shape().clone();
         let path_parts: Vec<String> = name.split('.').map(|s| s.to_string()).collect();
 
         // Create a lazy closure that will deserialize only this tensor when needed
@@ -958,7 +958,7 @@ fn safetensors_to_snapshots_lazy(
             let bytes = burn_tensor::Bytes::from_bytes_vec(tensor.data().to_vec());
             Ok(TensorData {
                 bytes,
-                shape: tensor.shape().to_vec(),
+                shape: tensor.shape().into(),
                 dtype: safetensor_dtype_to_burn(tensor.dtype())
                     .map_err(|_| crate::TensorSnapshotError::DataError("Invalid dtype".into()))?,
             })
@@ -967,7 +967,7 @@ fn safetensors_to_snapshots_lazy(
         let snapshot = TensorSnapshot::from_closure(
             data_fn,
             dtype,
-            shape,
+            shape.into(),
             path_parts,
             vec![], // Empty container_stack - will be filled during module traversal
             ParamId::new(),
@@ -1020,7 +1020,7 @@ fn safetensors_to_snapshots_lazy_file(
             // Only now do we actually copy the tensor data
             Ok(TensorData {
                 bytes: burn_tensor::Bytes::from_bytes_vec(tensor.data().to_vec()),
-                shape: tensor.shape().to_vec(),
+                shape: tensor.shape().into(),
                 dtype: safetensor_dtype_to_burn(tensor.dtype())
                     .map_err(|_| crate::TensorSnapshotError::DataError("Invalid dtype".into()))?,
             })
@@ -1029,7 +1029,7 @@ fn safetensors_to_snapshots_lazy_file(
         let snapshot = TensorSnapshot::from_closure(
             data_fn,
             dtype,
-            shape,
+            shape.into(),
             path_parts,
             vec![], // Empty container_stack - will be filled during module traversal
             ParamId::new(),

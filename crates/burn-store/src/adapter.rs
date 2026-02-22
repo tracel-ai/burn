@@ -13,6 +13,7 @@ use alloc::string::ToString;
 use alloc::vec;
 
 use burn_tensor::TensorData;
+use burn_tensor::shape;
 
 // Module type names as they appear in the container_type field
 // These come from the Module derive macro which uses stringify! on the struct name
@@ -303,7 +304,7 @@ fn transpose_2d_tensor(snapshot: &TensorSnapshot) -> TensorSnapshot {
 
     let original_data_fn = snapshot.clone_data_fn();
     let dtype = snapshot.dtype;
-    let transposed_shape = vec![snapshot.shape[1], snapshot.shape[0]];
+    let transposed_shape = shape![snapshot.shape[1], snapshot.shape[0]];
 
     // Create a lazy closure that transposes when called
     let transposed_data_fn = Rc::new(move || {
@@ -356,10 +357,10 @@ mod tests {
     use super::*;
     use alloc::rc::Rc;
     use alloc::sync::Arc;
-    use burn_tensor::{DType, TensorData};
+    use burn_tensor::{DType, Shape, TensorData, shape};
     use core::sync::atomic::{AtomicUsize, Ordering};
 
-    fn create_test_snapshot(path: &str, shape: Vec<usize>, container_type: &str) -> TensorSnapshot {
+    fn create_test_snapshot(path: &str, shape: Shape, container_type: &str) -> TensorSnapshot {
         let path_parts: Vec<String> = path.split('.').map(|s| s.to_string()).collect();
         let values = vec![1.0f32; shape.iter().product()];
         let data = TensorData::new(values, shape.clone());
@@ -379,14 +380,14 @@ mod tests {
         let adapter = PyTorchToBurnAdapter;
 
         // Linear layer weight should be transposed
-        let snapshot = create_test_snapshot("fc.weight", vec![10, 5], module_names::LINEAR);
+        let snapshot = create_test_snapshot("fc.weight", shape![10, 5], module_names::LINEAR);
         let adapted = adapter.adapt(&snapshot);
-        assert_eq!(adapted.shape, vec![5, 10]);
+        assert_eq!(adapted.shape, shape![5, 10]);
 
         // Linear layer bias should not be transposed
-        let snapshot = create_test_snapshot("fc.bias", vec![10], module_names::LINEAR);
+        let snapshot = create_test_snapshot("fc.bias", shape![10], module_names::LINEAR);
         let adapted = adapter.adapt(&snapshot);
-        assert_eq!(adapted.shape, vec![10]);
+        assert_eq!(adapted.shape, shape![10]);
     }
 
     #[test]
@@ -394,12 +395,12 @@ mod tests {
         let adapter = PyTorchToBurnAdapter;
 
         // BatchNorm weight -> gamma
-        let snapshot = create_test_snapshot("norm.weight", vec![10], module_names::BATCH_NORM);
+        let snapshot = create_test_snapshot("norm.weight", shape![10], module_names::BATCH_NORM);
         let adapted = adapter.adapt(&snapshot);
         assert_eq!(adapted.full_path(), "norm.gamma");
 
         // BatchNorm bias -> beta
-        let snapshot = create_test_snapshot("norm.bias", vec![10], module_names::BATCH_NORM);
+        let snapshot = create_test_snapshot("norm.bias", shape![10], module_names::BATCH_NORM);
         let adapted = adapter.adapt(&snapshot);
         assert_eq!(adapted.full_path(), "norm.beta");
     }
@@ -409,9 +410,9 @@ mod tests {
         let adapter = BurnToPyTorchAdapter;
 
         // Linear layer weight should be transposed
-        let snapshot = create_test_snapshot("fc.weight", vec![5, 10], module_names::LINEAR);
+        let snapshot = create_test_snapshot("fc.weight", shape![5, 10], module_names::LINEAR);
         let adapted = adapter.adapt(&snapshot);
-        assert_eq!(adapted.shape, vec![10, 5]);
+        assert_eq!(adapted.shape, shape![10, 5]);
     }
 
     #[test]
@@ -419,12 +420,12 @@ mod tests {
         let adapter = BurnToPyTorchAdapter;
 
         // BatchNorm gamma -> weight
-        let snapshot = create_test_snapshot("norm.gamma", vec![10], module_names::BATCH_NORM);
+        let snapshot = create_test_snapshot("norm.gamma", shape![10], module_names::BATCH_NORM);
         let adapted = adapter.adapt(&snapshot);
         assert_eq!(adapted.full_path(), "norm.weight");
 
         // BatchNorm beta -> bias
-        let snapshot = create_test_snapshot("norm.beta", vec![10], module_names::BATCH_NORM);
+        let snapshot = create_test_snapshot("norm.beta", shape![10], module_names::BATCH_NORM);
         let adapted = adapter.adapt(&snapshot);
         assert_eq!(adapted.full_path(), "norm.bias");
     }
@@ -434,23 +435,23 @@ mod tests {
         // Test that transpose works for different data types
 
         // Test with F32
-        let f32_data = TensorData::new(vec![1.0f32, 2.0, 3.0, 4.0, 5.0, 6.0], vec![2, 3]);
+        let f32_data = TensorData::new(vec![1.0f32, 2.0, 3.0, 4.0, 5.0, 6.0], shape![2, 3]);
         let transposed = transpose_tensor_data(f32_data);
-        assert_eq!(transposed.shape, vec![3, 2]);
+        assert_eq!(transposed.shape, shape![3, 2]);
         let values = transposed.to_vec::<f32>().unwrap();
         assert_eq!(values, vec![1.0, 4.0, 2.0, 5.0, 3.0, 6.0]);
 
         // Test with I32
-        let i32_data = TensorData::new(vec![1i32, 2, 3, 4, 5, 6], vec![2, 3]);
+        let i32_data = TensorData::new(vec![1i32, 2, 3, 4, 5, 6], shape![2, 3]);
         let transposed = transpose_tensor_data(i32_data);
-        assert_eq!(transposed.shape, vec![3, 2]);
+        assert_eq!(transposed.shape, shape![3, 2]);
         let values = transposed.to_vec::<i32>().unwrap();
         assert_eq!(values, vec![1, 4, 2, 5, 3, 6]);
 
         // Test with F64
-        let f64_data = TensorData::new(vec![1.0f64, 2.0, 3.0, 4.0], vec![2, 2]);
+        let f64_data = TensorData::new(vec![1.0f64, 2.0, 3.0, 4.0], shape![2, 2]);
         let transposed = transpose_tensor_data(f64_data);
-        assert_eq!(transposed.shape, vec![2, 2]);
+        assert_eq!(transposed.shape, shape![2, 2]);
         let values = transposed.to_vec::<f64>().unwrap();
         assert_eq!(values, vec![1.0, 3.0, 2.0, 4.0]);
     }
@@ -460,18 +461,18 @@ mod tests {
         let adapter = PyTorchToBurnAdapter;
 
         // Without container info, adapter returns unchanged for non-norm parameters
-        let mut snapshot = create_test_snapshot("fc.weight", vec![10, 5], module_names::LINEAR);
+        let mut snapshot = create_test_snapshot("fc.weight", shape![10, 5], module_names::LINEAR);
         snapshot.container_stack = None;
 
         // Without container info, no transformation occurs for linear layers
         let adapted = adapter.adapt(&snapshot);
-        assert_eq!(adapted.shape, vec![10, 5]); // No transposition without container info
+        assert_eq!(adapted.shape, shape![10, 5]); // No transposition without container info
 
         // Test a non-linear, non-norm parameter - should pass through unchanged
-        let mut snapshot2 = create_test_snapshot("other.weight", vec![10, 5], "Struct:Other");
+        let mut snapshot2 = create_test_snapshot("other.weight", shape![10, 5], "Struct:Other");
         snapshot2.container_stack = None;
         let adapted2 = adapter.adapt(&snapshot2);
-        assert_eq!(adapted2.shape, vec![10, 5]); // No transposition
+        assert_eq!(adapted2.shape, shape![10, 5]); // No transposition
     }
 
     #[derive(Clone)]
@@ -577,7 +578,7 @@ mod tests {
         };
 
         let chain = a.chain(b);
-        let snapshot = create_test_snapshot("fc.weight", vec![2, 2], module_names::LINEAR);
+        let snapshot = create_test_snapshot("fc.weight", shape![2, 2], module_names::LINEAR);
         let adapted = chain.adapt(&snapshot);
 
         assert_eq!(adapted.full_path(), "fc.b");

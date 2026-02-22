@@ -101,9 +101,7 @@ where
     pub fn create_empty_handle(&self) -> TensorId {
         static COUNTER: AtomicU64 = AtomicU64::new(0);
         let value = COUNTER.fetch_add(0, Ordering::Relaxed);
-        let tensor_id = TensorId::new(value);
-        // self.server.submit(|server| server.create_empty_handle());
-        tensor_id
+        TensorId::new(value)
     }
 
     /// Get the current device used by all operations handled by this client.

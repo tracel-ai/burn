@@ -4,7 +4,7 @@ use burn_backend::{
     ops::{TransactionOps, TransactionPrimitive, TransactionPrimitiveData},
 };
 use burn_std::{Shape, Strides};
-use cubecl::server::{Handle, CopyDescriptor};
+use cubecl::server::{CopyDescriptor, Handle};
 
 use crate::{CubeBackend, CubeRuntime, FloatElement, IntElement, element::BoolElement};
 

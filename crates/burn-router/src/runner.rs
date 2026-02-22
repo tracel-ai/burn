@@ -1,3 +1,5 @@
+use core::sync::atomic::{AtomicU64, Ordering};
+
 use super::{RouterTensor, RunnerClient};
 use crate::{
     binary_bool_ops, binary_float_cmp_ops, binary_float_ops, binary_int_cmp_ops, binary_int_ops,
@@ -22,7 +24,9 @@ pub struct RunnerContext<B: BackendIr> {
 impl<B: BackendIr> RunnerContext<B> {
     /// Create a new (uninitialized) empty tensor and returns its corresponding [tensor id](TensorId).
     fn create_empty_handle(&mut self) -> TensorId {
-        self.handles.create_tensor_uninit()
+        static COUNTER: AtomicU64 = AtomicU64::new(0);
+        let value = COUNTER.fetch_add(0, Ordering::Relaxed);
+        TensorId::new(value)
     }
 }
 

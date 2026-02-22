@@ -8,7 +8,7 @@ use crate::burnpack::{
 
 use super::*;
 use burn_core::module::ParamId;
-use burn_tensor::{DType, TensorData};
+use burn_tensor::{DType, TensorData, shape};
 use std::rc::Rc;
 
 #[test]
@@ -385,7 +385,8 @@ fn test_writer_all_dtypes_round_trip() {
             name
         );
         assert_eq!(
-            tensor_data.shape, expected_shape,
+            tensor_data.shape,
+            expected_shape.into(),
             "Shape mismatch for {}",
             name
         );
@@ -557,10 +558,10 @@ fn test_writer_lazy_snapshot_evaluation() {
     let snapshot = TensorSnapshot::from_closure(
         Rc::new(move || {
             let bytes: Vec<u8> = data_clone.iter().flat_map(|f| f.to_le_bytes()).collect();
-            Ok(TensorData::from_bytes_vec(bytes, vec![2, 2], DType::F32))
+            Ok(TensorData::from_bytes_vec(bytes, shape![2, 2], DType::F32))
         }),
         DType::F32,
-        vec![2, 2],
+        shape![2, 2],
         vec!["lazy".to_string()],
         vec![],
         ParamId::new(),

@@ -4,7 +4,7 @@ use alloc::string::String;
 use alloc::vec;
 use alloc::vec::Vec;
 
-use burn_tensor::DType;
+use burn_tensor::{DType, Shape};
 
 /// Error types that can occur during tensor application
 #[derive(Debug, Clone)]
@@ -14,9 +14,9 @@ pub enum ApplyError {
         /// Path of the tensor
         path: String,
         /// Expected shape
-        expected: Vec<usize>,
+        expected: Shape,
         /// Found shape
-        found: Vec<usize>,
+        found: Shape,
     },
     /// Data type mismatch between expected and actual tensor
     DTypeMismatch {

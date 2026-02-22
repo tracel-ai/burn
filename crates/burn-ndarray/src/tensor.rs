@@ -1,5 +1,3 @@
-use core::mem;
-
 use burn_backend::{
     DType, Element, QTensorPrimitive, Shape, TensorData, TensorMetadata,
     quantization::{QParams, QuantLevel, QuantMode, QuantScheme, QuantValue},
@@ -552,6 +550,7 @@ impl NdArrayTensor {
             shape,
             dtype,
         } = data;
+        let shape = shape.to_vec();
 
         macro_rules! try_borrow {
             ($ty:ty, $variant:ident, $bytes:expr, $shape:expr) => {
@@ -580,7 +579,7 @@ impl NdArrayTensor {
 
         Err(TensorData {
             bytes,
-            shape,
+            shape: shape.into(),
             dtype,
         })
     }
@@ -590,8 +589,8 @@ impl NdArrayTensor {
     /// This may or may not copy data depending on whether the underlying bytes
     /// can be reclaimed (via `try_into_vec`). If bytes are uniquely owned,
     /// no copy occurs; otherwise data is copied to a new allocation.
-    fn from_data_owned(mut data: TensorData) -> NdArrayTensor {
-        let shape = mem::take(&mut data.shape);
+    fn from_data_owned(data: TensorData) -> NdArrayTensor {
+        let shape = data.shape.to_vec();
 
         macro_rules! execute {
             ($data: expr, [$($dtype: ident => $ty: ty),*]) => {
