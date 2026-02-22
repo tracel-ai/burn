@@ -288,14 +288,13 @@ impl TarSource {
 
         // First, read the count of storages
         let mut cursor = Cursor::new(&storages_data[pos..]);
-        let storage_count = if let Ok(super::pickle_reader::Object::Int(count)) =
-            read_pickle(&mut cursor)
-        {
-            pos += cursor.position() as usize;
-            count as usize
-        } else {
-            0
-        };
+        let storage_count =
+            if let Ok(super::pickle_reader::Object::Int(count)) = read_pickle(&mut cursor) {
+                pos += cursor.position() as usize;
+                count as usize
+            } else {
+                0
+            };
 
         // Parse each storage entry
         for _i in 0..storage_count {
@@ -345,15 +344,19 @@ impl TarSource {
                 pos += 8;
 
                 // Determine element size from storage type
-                let element_size = if storage_type.contains("Double") || storage_type.contains("Long") {
-                    8
-                } else if storage_type.contains("Half") || storage_type.contains("Short") {
-                    2
-                } else if storage_type.contains("Byte") || storage_type.contains("Char") || storage_type.contains("Bool") {
-                    1
-                } else {
-                    4 // Default to float (4 bytes)
-                };
+                let element_size =
+                    if storage_type.contains("Double") || storage_type.contains("Long") {
+                        8
+                    } else if storage_type.contains("Half") || storage_type.contains("Short") {
+                        2
+                    } else if storage_type.contains("Byte")
+                        || storage_type.contains("Char")
+                        || storage_type.contains("Bool")
+                    {
+                        1
+                    } else {
+                        4 // Default to float (4 bytes)
+                    };
 
                 let data_size = num_elements * element_size;
 
@@ -378,10 +381,10 @@ impl TarSource {
         // Extract the storage key from paths like "data/0"
         let storage_key = key.split('/').next_back().unwrap_or(key);
 
-        if let Some(&(offset, size)) = self.storage_map.get(storage_key) {
-            if offset + size <= self.storages_data.len() {
-                return Ok(self.storages_data[offset..offset + size].to_vec());
-            }
+        if let Some(&(offset, size)) = self.storage_map.get(storage_key)
+            && offset + size <= self.storages_data.len()
+        {
+            return Ok(self.storages_data[offset..offset + size].to_vec());
         }
 
         Err(std::io::Error::new(

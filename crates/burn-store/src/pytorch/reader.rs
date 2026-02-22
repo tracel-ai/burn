@@ -913,10 +913,7 @@ fn load_tar_pytorch_file_with_metadata(
     }
 
     // Create TarSource for lazy loading
-    let data_source = Arc::new(LazyDataSource::from_tar(
-        &tensors_data,
-        &storages_data,
-    )?);
+    let data_source = Arc::new(LazyDataSource::from_tar(&tensors_data, &storages_data)?);
 
     // Parse the pickle (OrderedDict of name -> storage_key)
     let mut pickle_reader = BufReader::new(pickle_data.as_slice());
@@ -943,10 +940,10 @@ fn parse_tar_sys_info(data: &[u8]) -> Result<bool> {
     let mut reader = BufReader::new(data);
     let obj = read_pickle(&mut reader)?;
 
-    if let Object::Dict(dict) = obj {
-        if let Some(Object::Bool(little_endian)) = dict.get("little_endian") {
-            return Ok(*little_endian);
-        }
+    if let Object::Dict(dict) = obj
+        && let Some(Object::Bool(little_endian)) = dict.get("little_endian")
+    {
+        return Ok(*little_endian);
     }
 
     Ok(true) // Default assumption

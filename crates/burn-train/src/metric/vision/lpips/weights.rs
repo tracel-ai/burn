@@ -5,7 +5,7 @@ use burn_core as burn;
 use burn::tensor::backend::Backend;
 use burn_std::network::downloader::download_file_as_bytes;
 use burn_store::{ModuleSnapshot, PytorchStore};
-use std::fs::{create_dir_all, File};
+use std::fs::{File, create_dir_all};
 use std::io::Write;
 use std::path::PathBuf;
 
@@ -173,7 +173,10 @@ fn load_backbone_weights<B: Backend>(
                 .with_key_remapping(r"^features\.11\.", "extractor.fire7.")
                 .with_key_remapping(r"^features\.12\.", "extractor.fire8.");
             if let Err(e) = inner.load_from(&mut store) {
-                log::warn!("Some SqueezeNet backbone weights could not be loaded: {:?}", e);
+                log::warn!(
+                    "Some SqueezeNet backbone weights could not be loaded: {:?}",
+                    e
+                );
             }
             Lpips::Squeeze(inner)
         }
