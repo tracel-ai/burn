@@ -17,6 +17,8 @@ use zip::ZipArchive;
 pub enum LazyDataSource {
     /// ZIP archive with lazy loading
     Zip(Arc<Mutex<ZipSource>>),
+    /// TAR archive format (older torchvision models)
+    Tar(Arc<Mutex<TarSource>>),
     /// Legacy format with multiple storages in single blob
     LegacyMultiStorage(Arc<Mutex<LegacyMultiStorageSource>>),
 }
@@ -28,35 +30,31 @@ pub struct ZipSource {
     file_list: Vec<(String, u64, u64)>, // (name, offset, compressed_size)
 }
 
-/// Legacy multi-storage source for old PyTorch format (pre-1.6)
+/// TAR archive source for lazy loading (older torchvision models like AlexNet, SqueezeNet)
 ///
-/// ## Format Analysis
+/// Older PyTorch/torchvision models (pre-1.6) use TAR format instead of ZIP.
+/// The TAR archive contains:
+/// - `sys_info`: System info pickle (endianness, type sizes)
+/// - `pickle`: OrderedDict mapping tensor names to storage keys
+/// - `tensors`: Tensor metadata pickles (unused, metadata is embedded in pickle)
+/// - `storages`: Storage count + sequential (metadata pickle, element count, raw data)
+pub struct TarSource {
+    /// Cached storage map: storage_key -> (offset_in_storages, size_bytes)
+    storage_map: HashMap<String, (usize, usize)>,
+    /// The raw storages data (kept in memory for TAR format)
+    storages_data: Vec<u8>,
+}
+
+/// Legacy multi-storage source for old PyTorch format (0.1.10 - 1.5)
 ///
-/// Based on research into PyTorch's serialization.py and the legacy TAR format:
+/// Legacy format stores tensor data as concatenated raw binary without explicit
+/// storage boundaries. This source tracks storage usage during tensor parsing
+/// to build a storage map for lazy loading.
 ///
-/// 1. **Storage Layout**: PyTorch legacy format (0.1.10-1.5) stores data as:
-///    - Pickle metadata containing tensor definitions
-///    - A list of storage keys in order
-///    - Raw binary data with all storages concatenated
-///
-/// 2. **Boundary Detection Challenge**: After extensive research, I found that:
-///    - PyTorch does NOT store explicit storage boundaries in the file
-///    - Storages are concatenated in the order specified by the storage keys list
-///    - Each tensor references its storage by key and specifies offset/size
-///
-/// 3. **Why True Lazy Loading is Difficult**:
-///    - To determine storage boundaries, we would need to:
-///      a. Parse ALL tensor metadata to find which storage each uses
-///      b. Track the maximum extent of each storage based on tensor usage
-///      c. Infer boundaries from the gaps between storages
-///    - However, the TensorSnapshot abstraction hides storage keys in closures
-///    - This would require deep modifications to the pickle parsing logic
-///
-/// ## Current Implementation
-///
-/// This implementation provides a best-effort approach:
-/// - Supports setting a storage map if boundaries can be determined externally
-/// - Falls back to loading the entire blob if boundaries are unknown
+/// ## Storage Layout
+/// - Pickle metadata with tensor definitions
+/// - List of storage keys (determines concatenation order)
+/// - Raw binary blob with all storages concatenated
 pub struct LegacyMultiStorageSource {
     path: PathBuf,
     data_offset: u64,
@@ -186,6 +184,7 @@ impl LegacyMultiStorageSource {
             .or_insert(max_extent);
 
         // Try to build storage map if we have enough information
+        drop(usage);
         self.try_build_storage_map();
     }
 
@@ -247,6 +246,7 @@ impl LegacyMultiStorageSource {
             .storage_map
             .read()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
+
         if let Some(ref map) = *storage_map
             && let Some(&(offset, size)) = map.get(storage_key)
         {
@@ -271,11 +271,150 @@ impl LegacyMultiStorageSource {
     }
 }
 
+impl TarSource {
+    /// Create a new TAR source by parsing storages data.
+    ///
+    /// # Arguments
+    /// * `_tensors_data` - Unused; tensor metadata is embedded in the pickle entry
+    /// * `storages_data` - Raw storages blob with structure:
+    ///   - Count pickle (number of storages)
+    ///   - For each storage: metadata pickle + u64 num_elements + raw binary data
+    pub fn new(_tensors_data: &[u8], storages_data: Vec<u8>) -> std::io::Result<Self> {
+        use super::pickle_reader::read_pickle;
+        use std::io::Cursor;
+
+        let mut storage_map = HashMap::new();
+        let mut pos = 0usize;
+
+        // First, read the count of storages
+        let mut cursor = Cursor::new(&storages_data[pos..]);
+        let storage_count = if let Ok(super::pickle_reader::Object::Int(count)) =
+            read_pickle(&mut cursor)
+        {
+            pos += cursor.position() as usize;
+            count as usize
+        } else {
+            0
+        };
+
+        // Parse each storage entry
+        for _i in 0..storage_count {
+            if pos >= storages_data.len() {
+                break;
+            }
+
+            // Read the storage metadata pickle: (storage_key, device, storage_type)
+            let mut cursor = Cursor::new(&storages_data[pos..]);
+            if let Ok(obj) = read_pickle(&mut cursor) {
+                let pickle_size = cursor.position() as usize;
+                pos += pickle_size;
+
+                // Extract storage info from pickle tuple
+                let (storage_key, storage_type) = match obj {
+                    super::pickle_reader::Object::Tuple(tuple) if tuple.len() >= 3 => {
+                        let key = match &tuple[0] {
+                            super::pickle_reader::Object::Int(i) => i.to_string(),
+                            super::pickle_reader::Object::String(s) => s.clone(),
+                            _ => continue,
+                        };
+                        // tuple[1] is device (e.g., "cpu")
+                        // tuple[2] is storage type class
+                        let stype = match &tuple[2] {
+                            super::pickle_reader::Object::Class { name, .. } => name.clone(),
+                            _ => "FloatStorage".to_string(),
+                        };
+                        (key, stype)
+                    }
+                    _ => continue,
+                };
+
+                // Read the number of elements (u64 little-endian)
+                if pos + 8 > storages_data.len() {
+                    break;
+                }
+                let num_elements = u64::from_le_bytes([
+                    storages_data[pos],
+                    storages_data[pos + 1],
+                    storages_data[pos + 2],
+                    storages_data[pos + 3],
+                    storages_data[pos + 4],
+                    storages_data[pos + 5],
+                    storages_data[pos + 6],
+                    storages_data[pos + 7],
+                ]) as usize;
+                pos += 8;
+
+                // Determine element size from storage type
+                let element_size = if storage_type.contains("Double") || storage_type.contains("Long") {
+                    8
+                } else if storage_type.contains("Half") || storage_type.contains("Short") {
+                    2
+                } else if storage_type.contains("Byte") || storage_type.contains("Char") || storage_type.contains("Bool") {
+                    1
+                } else {
+                    4 // Default to float (4 bytes)
+                };
+
+                let data_size = num_elements * element_size;
+
+                // Store the offset to raw data and its size
+                storage_map.insert(storage_key, (pos, data_size));
+
+                // Skip the raw binary data
+                pos += data_size;
+            } else {
+                break;
+            }
+        }
+
+        Ok(Self {
+            storage_map,
+            storages_data,
+        })
+    }
+
+    /// Read data for a specific storage key
+    pub fn read(&self, key: &str) -> std::io::Result<Vec<u8>> {
+        // Extract the storage key from paths like "data/0"
+        let storage_key = key.split('/').next_back().unwrap_or(key);
+
+        if let Some(&(offset, size)) = self.storage_map.get(storage_key) {
+            if offset + size <= self.storages_data.len() {
+                return Ok(self.storages_data[offset..offset + size].to_vec());
+            }
+        }
+
+        Err(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            format!("Storage key '{}' not found in TAR archive", storage_key),
+        ))
+    }
+
+    /// Check if a storage key exists
+    pub fn contains(&self, key: &str) -> bool {
+        let storage_key = key.split('/').next_back().unwrap_or(key);
+        self.storage_map.contains_key(storage_key)
+    }
+
+    /// Get list of storage keys
+    pub fn keys(&self) -> Vec<String> {
+        self.storage_map.keys().cloned().collect()
+    }
+}
+
 impl LazyDataSource {
     /// Create from a ZIP file
     pub fn from_zip(path: impl AsRef<Path>) -> std::io::Result<Self> {
         Ok(Self::Zip(Arc::new(Mutex::new(ZipSource::new(
             path.as_ref().to_path_buf(),
+        )?))))
+    }
+
+    /// Create from a TAR archive's tensors and storages data
+    pub fn from_tar(tensors_data: &[u8], storages_data: &[u8]) -> std::io::Result<Self> {
+        Ok(Self::Tar(Arc::new(Mutex::new(TarSource::new(
+            tensors_data,
+            storages_data.to_vec(),
         )?))))
     }
 
@@ -301,6 +440,12 @@ impl LazyDataSource {
                     .unwrap_or_else(|poisoned| poisoned.into_inner());
                 source.read_file(key)
             }
+            Self::Tar(source) => {
+                let source = source
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner());
+                source.read(key)
+            }
             Self::LegacyMultiStorage(source) => {
                 let source = source
                     .lock()
@@ -318,6 +463,15 @@ impl LazyDataSource {
                     .lock()
                     .unwrap_or_else(|poisoned| poisoned.into_inner());
                 source.read_file_range(key, offset, length)
+            }
+            Self::Tar(source) => {
+                // For TAR format, read the full data and slice it
+                let source = source
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner());
+                let data = source.read(key)?;
+                let end = (offset + length).min(data.len());
+                Ok(data[offset..end].to_vec())
             }
             Self::LegacyMultiStorage(source) => {
                 // For legacy format, read only the requested range
@@ -367,6 +521,12 @@ impl LazyDataSource {
                     .unwrap_or_else(|poisoned| poisoned.into_inner());
                 source.contains(key)
             }
+            Self::Tar(source) => {
+                let source = source
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner());
+                source.contains(key)
+            }
             Self::LegacyMultiStorage(_) => true, // Legacy format has all data
         }
     }
@@ -379,6 +539,12 @@ impl LazyDataSource {
                     .lock()
                     .unwrap_or_else(|poisoned| poisoned.into_inner());
                 source.data_files()
+            }
+            Self::Tar(source) => {
+                let source = source
+                    .lock()
+                    .unwrap_or_else(|poisoned| poisoned.into_inner());
+                source.keys()
             }
             Self::LegacyMultiStorage(_) => vec![], // Legacy format doesn't have distinct keys
         }
