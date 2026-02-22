@@ -520,9 +520,11 @@ mod tests {
             .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
-    /// Different images should have LPIPS distance greater than 0.
+    /// Different images should have LPIPS distance != 0.
+    /// Note: With random weights, distance can be negative, so we only check != 0.
+    /// Non-negativity is tested with pretrained weights.
     #[test]
-    fn test_lpips_different_images_positive_distance() {
+    fn test_lpips_different_images_nonzero_distance() {
         let device = Default::default();
 
         let image1 = TestTensor::<4>::zeros([1, 3, 32, 32], &device);
@@ -533,8 +535,8 @@ mod tests {
 
         let distance_value = distance.into_data().to_vec::<f32>().unwrap()[0];
         assert!(
-            distance_value > 0.0,
-            "LPIPS should be > 0 for different images"
+            distance_value.abs() > 1e-6,
+            "LPIPS should be != 0 for different images"
         );
     }
 
@@ -730,11 +732,12 @@ mod tests {
         let image2 = TestTensor::<4>::ones([1, 3, 64, 64], &device);
         let distance = lpips.forward(image1, image2, Reduction::Mean);
         let distance_value = distance.into_data().to_vec::<f32>().unwrap()[0];
+        println!("LPIPS VGG distance (black vs white): {}", distance_value);
         assert!(
             distance_value > 0.0,
-            "Pretrained LPIPS (VGG) should be > 0 for different images"
+            "Pretrained LPIPS (VGG) should be > 0 for different images, got {}",
+            distance_value
         );
-        println!("LPIPS VGG distance (black vs white): {}", distance_value);
     }
 
     /// Test AlexNet pretrained weights download and loading.
@@ -777,6 +780,23 @@ mod tests {
             .with_net(LpipsNet::Squeeze)
             .init_pretrained(&device);
 
+        // Debug: print weight values to verify loading
+        if let Lpips::Squeeze(inner) = &lpips {
+            let conv1_weight = inner.extractor.conv1.weight.val();
+            let weight_data: Vec<f32> = conv1_weight.to_data().to_vec().unwrap();
+            println!("Conv1 weight [0]: {}", weight_data[0]);
+            println!("Conv1 weight [1]: {}", weight_data[1]);
+            println!("Conv1 weight [2]: {}", weight_data[2]);
+            // Expected from PyTorch: 0.120945, 0.178033, -0.015971
+
+            // Also check lin0 weight (from LPIPS weights)
+            let lin0_weight = inner.lin0.weight.val();
+            let lin0_data: Vec<f32> = lin0_weight.to_data().to_vec().unwrap();
+            println!("Lin0 weight [0]: {}", lin0_data[0]);
+            println!("Lin0 weight [1]: {}", lin0_data[1]);
+            println!("Lin0 weight sum: {}", lin0_data.iter().sum::<f32>());
+        }
+
         // Test with identical images
         let image = TestTensor::<4>::ones([1, 3, 64, 64], &device);
         let distance = lpips.forward(image.clone(), image, Reduction::Mean);
@@ -792,12 +812,13 @@ mod tests {
         let image2 = TestTensor::<4>::ones([1, 3, 64, 64], &device);
         let distance = lpips.forward(image1, image2, Reduction::Mean);
         let distance_value = distance.into_data().to_vec::<f32>().unwrap()[0];
-        assert!(
-            distance_value > 0.0,
-            "Pretrained LPIPS (Squeeze) should be > 0 for different images"
-        );
         println!(
             "LPIPS Squeeze distance (black vs white): {}",
+            distance_value
+        );
+        assert!(
+            distance_value > 0.0,
+            "Pretrained LPIPS (Squeeze) should be > 0 for different images, got {}",
             distance_value
         );
     }
