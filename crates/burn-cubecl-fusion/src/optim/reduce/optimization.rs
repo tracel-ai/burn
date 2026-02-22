@@ -469,7 +469,9 @@ fn launch_reduce<Run: Runtime>(
             dtype_output.into(),
             dtype_acc.into(),
         )
-    }
+    };
+
+    Ok(())
 }
 
 #[cube(launch_unchecked, address_type = "dynamic")]

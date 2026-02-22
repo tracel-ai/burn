@@ -167,7 +167,9 @@ fn register_inputs<'h, R: Runtime>(
     for hi in handle_inputs.iter() {
         match hi {
             HandleInput::Normal(hi) => {
-                let arg = hi.handle.as_tensor_arg(&hi.global_ir.shape, hi.line_size);
+                let arg = hi
+                    .handle
+                    .as_tensor_arg(hi.global_ir.shape.clone(), hi.line_size);
                 inputs.tensors.push(GlobalTensorArg::new(
                     arg,
                     hi.precision.into_elem(),
@@ -176,7 +178,9 @@ fn register_inputs<'h, R: Runtime>(
                 ));
             }
             HandleInput::QuantValues(hi) => {
-                let arg = hi.handle.as_tensor_arg(&hi.global_ir.shape, hi.line_size);
+                let arg = hi
+                    .handle
+                    .as_tensor_arg(hi.global_ir.shape.clone(), hi.line_size);
                 inputs.tensors.push(GlobalTensorArg::new(
                     arg,
                     hi.precision.into_elem(),
@@ -185,7 +189,7 @@ fn register_inputs<'h, R: Runtime>(
                 ));
             }
             HandleInput::QuantParams(hi) => {
-                let arg = hi.handle.as_tensor_arg(&hi.shape, 1);
+                let arg = hi.handle.as_tensor_arg(hi.shape.clone(), 1);
                 inputs.tensors.push(GlobalTensorArg::new(
                     arg,
                     hi.precision.into_elem(),
@@ -234,7 +238,7 @@ fn register_outputs<'s, BT: CubeElement, R: Runtime>(
                 relative_id,
                 ..
             } => {
-                let arg = handle.as_tensor_arg(global_shape, *line_size);
+                let arg = handle.as_tensor_arg(global_shape.clone(), *line_size);
 
                 let elem = match precision {
                     FuseType::Bool => match elem_dtype::<BT>() {

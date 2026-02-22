@@ -1,5 +1,5 @@
 use burn_fusion::stream::Context;
-use burn_std::{DType, Strides, quantization::QParamTensor, strides};
+use burn_std::{DType, Shape, Strides, quantization::QParamTensor, strides};
 use cubecl::{
     CubeElement, Runtime,
     client::ComputeClient,
@@ -66,10 +66,10 @@ unsafe impl<R: Runtime> Sync for CubeFusionHandle<R> {}
 
 impl<R: Runtime> CubeFusionHandle<R> {
     /// Return the reference to a tensor handle.
-    pub fn as_handle_ref<'a>(&'a self, shape: &'a [usize]) -> TensorHandleRef<'a, R> {
+    pub fn as_handle_ref<'a>(&'a self, shape: Shape) -> TensorHandleRef<'a, R> {
         TensorHandleRef {
             handle: &self.handle,
-            strides: &self.strides,
+            strides: self.strides.clone(),
             shape,
             runtime: PhantomData,
             elem_size: self.dtype.size(),
@@ -87,11 +87,7 @@ impl<R: Runtime> CubeFusionHandle<R> {
     }
 
     /// Return the reference to a tensor argument.
-    pub fn as_tensor_arg<'a>(
-        &'a self,
-        shape: &'a [usize],
-        line_size: LineSize,
-    ) -> TensorArg<'a, R> {
+    pub fn as_tensor_arg<'a>(&'a self, shape: Shape, line_size: LineSize) -> TensorArg<'a, R> {
         let handle: TensorHandleRef<'a, R> = self.as_handle_ref(shape);
 
         unsafe {
