@@ -146,8 +146,7 @@ pub(crate) fn launch_cmp<R: CubeRuntime, O: ComparisonOpFamily>(
                 linear_view_ref(&rhs, &lhs, line_size),
                 linear_view_alias(&lhs, line_size, 0),
                 dtypes,
-            )
-            .expect("Kernel to never fail");
+            );
         }
 
         CubeTensor::new(lhs.client, lhs.handle, *lhs.meta, lhs.device, dtype_bool)
@@ -162,8 +161,7 @@ pub(crate) fn launch_cmp<R: CubeRuntime, O: ComparisonOpFamily>(
                 linear_view(&rhs, line_size),
                 linear_view_alias(&rhs, line_size, 1),
                 dtypes,
-            )
-            .expect("Kernel to never fail");
+            );
         };
 
         CubeTensor::new(rhs.client, rhs.handle, *rhs.meta, rhs.device, dtype_bool)
@@ -185,8 +183,7 @@ pub(crate) fn launch_cmp<R: CubeRuntime, O: ComparisonOpFamily>(
                 linear_view_ref(&rhs, &output, line_size),
                 linear_view(&output, line_size),
                 dtypes,
-            )
-            .expect("Kernel to never fail");
+            );
         };
 
         output
@@ -220,8 +217,7 @@ pub(crate) fn launch_scalar_cmp<R: CubeRuntime, O: ComparisonOpFamily>(
                 scalar,
                 linear_view_alias(&tensor, line_size, 0),
                 dtypes,
-            )
-            .expect("Kernel to never fail");
+            );
         }
 
         CubeTensor::new(
@@ -249,8 +245,7 @@ pub(crate) fn launch_scalar_cmp<R: CubeRuntime, O: ComparisonOpFamily>(
                 scalar,
                 linear_view(&output, line_size),
                 dtypes,
-            )
-            .expect("Kernel to never fail");
+            );
         }
 
         output
@@ -416,8 +411,7 @@ pub(crate) fn launch_predicate<R: CubeRuntime, O: PredicateOpFamily>(
             linear_view_ref(&tensor, &output, line_size),
             linear_view(&output, line_size),
             dtypes,
-        )
-        .expect("Kernel to never fail");
+        );
     }
 
     output

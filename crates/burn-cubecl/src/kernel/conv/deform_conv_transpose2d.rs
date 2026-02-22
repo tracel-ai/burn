@@ -284,7 +284,7 @@ fn compute_offset_and_mask_gradient<R: CubeRuntime>(
             ),
             dtype,
         )
-    }?;
+    };
 
     Ok((grad_offset, grad_mask))
 }
@@ -549,7 +549,7 @@ fn compute_input_grad<R: CubeRuntime>(
             ),
             dtypes,
         )
-    }?;
+    };
 
     Ok(if !supports_same_type || !supports_fadd {
         cast(grad_in, dtype)

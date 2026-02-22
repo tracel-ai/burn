@@ -175,8 +175,7 @@ pub(crate) fn slice_assign<R: CubeRuntime>(
             offsets,
             tensor.dtype.into(),
         )
-        .expect("Kernel to never fail");
-    }
+    };
 
     tensor
 }
@@ -237,8 +236,7 @@ pub(crate) fn slice_assign_with_steps<R: CubeRuntime>(
             ends,
             steps,
             tensor.dtype.into(),
-        )
-        .expect("Kernel to never fail");
+        );
     }
 
     tensor

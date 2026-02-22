@@ -143,8 +143,7 @@ fn reshape_input<R: CubeRuntime>(mut input: CubeTensor<R>) -> CubeTensor<R> {
 
     if !is_spatial_contiguous(input.meta.shape(), input.meta.strides()) {
         let contiguous =
-            into_contiguous_pitched_ref(&input.client, &input.as_handle_ref(), dtype.into())
-                .expect("Kernel to never fail");
+            into_contiguous_pitched_ref(&input.client, &input.as_handle_ref(), dtype.into());
         input = from_handle(&input.client, &input.device, contiguous, dtype);
     }
     *input.meta = Metadata::new(

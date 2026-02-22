@@ -103,7 +103,6 @@ pub(crate) fn scatter<R: CubeRuntime>(
             dim,
             [tensor.dtype.into(), indices.dtype.into()],
         )
-        .expect("Kernel to never fail");
     }
     tensor
 }

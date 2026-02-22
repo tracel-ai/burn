@@ -80,8 +80,7 @@ pub fn mask_fill<R: CubeRuntime>(
             out_arg,
             value,
             [output.dtype.into(), dtype_bool.into()],
-        )
-        .expect("Kernel to never fail");
+        );
     }
 
     output

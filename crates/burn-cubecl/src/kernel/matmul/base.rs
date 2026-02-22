@@ -96,7 +96,7 @@ pub(crate) fn launch_matmul<R: CubeRuntime>(
             MatmulInputHandleRef::quantized(
                 data.as_handle_ref(),
                 scale.as_handle_ref(),
-                lhs.meta.shape(),
+                lhs.meta.shape().clone(),
                 lhs.scheme(),
                 data.dtype.into(),
                 scale.dtype.into(),
@@ -127,7 +127,7 @@ pub(crate) fn launch_matmul<R: CubeRuntime>(
                     MatmulInputHandleRef::quantized(
                         data.as_handle_ref(),
                         scale.as_handle_ref(),
-                        rhs.meta.shape(),
+                        rhs.meta.shape().clone(),
                         rhs.scheme(),
                         data.dtype.into(),
                         scale.dtype.into(),

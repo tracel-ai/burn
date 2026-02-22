@@ -175,8 +175,7 @@ pub(crate) fn max_pool2d<R: CubeRuntime>(
         (kernel_size[0] as u32, kernel_size[1] as u32),
         (),
         output.dtype.into(),
-    )
-    .expect("Kernel to never fail");
+    );
 
     permute_nhwc_to_nchw(output)
 }
@@ -246,8 +245,7 @@ pub(crate) fn max_pool2d_with_indices<R: CubeRuntime>(
         (kernel_size[0] as u32, kernel_size[1] as u32),
         (),
         output.dtype.into(),
-    )
-    .expect("Kernel to never fail");
+    );
 
     let output = permute_nhwc_to_nchw(output);
     let indices = permute_nhwc_to_nchw(indices);

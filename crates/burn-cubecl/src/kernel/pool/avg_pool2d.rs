@@ -159,8 +159,7 @@ pub(crate) fn avg_pool2d<R: CubeRuntime>(
             padded_w: padded_1 as u32,
         },
         output.dtype.into(),
-    )
-    .expect("Kernel to never fail");
+    );
 
     permute_nhwc_to_nchw(output)
 }

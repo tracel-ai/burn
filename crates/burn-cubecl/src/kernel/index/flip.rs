@@ -92,7 +92,6 @@ pub(crate) fn flip_on_output<R: CubeRuntime>(
             indices_sequence,
             [dtype_input.into(), dtype_bool.into()],
         )
-        .expect("Kernel to never fail");
     }
 
     output

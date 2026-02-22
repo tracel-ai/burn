@@ -112,8 +112,7 @@ pub(crate) fn adaptive_avg_pool2d_backward<R: CubeRuntime>(
         shape_divmod(&output),
         ScalarArg::new(working_units),
         output.dtype.into(),
-    )
-    .expect("Kernel to never fail");
+    );
 
     permute_nhwc_to_nchw(output)
 }

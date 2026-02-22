@@ -86,7 +86,6 @@ pub(crate) fn repeat_dim<R: CubeRuntime>(
             dim,
             output.dtype.into(),
         )
-        .expect("Kernel to never fail");
     };
 
     output

@@ -13,9 +13,9 @@ use crate::{
 use burn_backend::{DType, Shape, TensorMetadata};
 use burn_std::Metadata;
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
-use cubecl::{client::ComputeClient, server::Allocation};
+use cubecl::{client::ComputeClient, server::MemoryLayout};
 use cubecl::{
-    server::AllocationDescriptor,
+    server::MemoryLayoutDescriptor,
     std::{FastDivmod, tensor::layout::linear::LinearView},
 };
 
@@ -80,8 +80,7 @@ pub fn full_device_dtype<R: CubeRuntime>(
             linear_view(&empty, line_size),
             value,
             empty.dtype.into(),
-        )
-        .expect("Kernel to never fail");
+        );
     }
 
     empty
@@ -125,7 +124,7 @@ pub fn empty_device<R: CubeRuntime, E: CubeElement>(
     device: R::Device,
     shape: Shape,
 ) -> CubeTensor<R> {
-    let Allocation { handle, strides } = client.empty_tensor(&shape, size_of::<E>());
+    let MemoryLayout { handle, strides } = client.empty_tensor(shape.clone(), size_of::<E>());
 
     CubeTensor::new(
         client,
@@ -143,7 +142,7 @@ pub fn empty_device_dtype<R: CubeRuntime>(
     shape: Shape,
     dtype: DType,
 ) -> CubeTensor<R> {
-    let Allocation { handle, strides } = client.empty_tensor(&shape, dtype.size());
+    let MemoryLayout { handle, strides } = client.empty_tensor(shape.clone(), dtype.size());
 
     CubeTensor::new(client, handle, Metadata::new(shape, strides), device, dtype)
 }
@@ -155,8 +154,8 @@ pub fn empty_device_contiguous_dtype<R: CubeRuntime>(
     shape: Shape,
     dtype: DType,
 ) -> CubeTensor<R> {
-    let descriptor = AllocationDescriptor::contiguous(&shape, dtype.size());
-    let Allocation { handle, strides } = client.empty_tensors(vec![descriptor]).remove(0);
+    let descriptor = MemoryLayoutDescriptor::contiguous(shape.clone(), dtype.size());
+    let MemoryLayout { handle, strides } = client.empty_tensors(vec![descriptor]).remove(0);
 
     CubeTensor::new(client, handle, Metadata::new(shape, strides), device, dtype)
 }
@@ -434,8 +433,7 @@ fn cumulative_op<R: CubeRuntime, O: CumulativeOpFamily>(
             shape_divmod(&input),
             dim,
             output.dtype.into(),
-        )
-        .expect("Kernel to never fail");
+        );
     }
 
     output

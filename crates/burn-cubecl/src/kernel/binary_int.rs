@@ -137,8 +137,7 @@ pub(crate) fn launch_binop_int<R: CubeRuntime, O: BinaryOpIntFamily>(
                 linear_view_ref(&rhs, &lhs, line_size),
                 linear_view_alias(&lhs, line_size, 0),
                 lhs.dtype.into(),
-            )
-            .expect("Kernel to never fail");
+            );
 
             lhs
         } else if rhs.can_mut_broadcast(&lhs) {
@@ -151,8 +150,7 @@ pub(crate) fn launch_binop_int<R: CubeRuntime, O: BinaryOpIntFamily>(
                 linear_view(&rhs, line_size),
                 linear_view_alias(&rhs, line_size, 1),
                 lhs.dtype.into(),
-            )
-            .expect("Kernel to never fail");
+            );
 
             rhs
         } else {
@@ -168,8 +166,7 @@ pub(crate) fn launch_binop_int<R: CubeRuntime, O: BinaryOpIntFamily>(
                 linear_view_ref(&rhs, &output, line_size),
                 linear_view(&output, line_size),
                 lhs.dtype.into(),
-            )
-            .expect("Kernel to never fail");
+            );
 
             output
         }
@@ -199,8 +196,7 @@ pub(crate) fn launch_scalar_binop_int<R: CubeRuntime, O: BinaryOpIntFamily>(
                 scalar,
                 linear_view_alias(&tensor, line_size, 0),
                 tensor.dtype.into(),
-            )
-            .expect("Kernel to never fail");
+            );
 
             tensor
         } else {
@@ -220,8 +216,7 @@ pub(crate) fn launch_scalar_binop_int<R: CubeRuntime, O: BinaryOpIntFamily>(
                 scalar,
                 linear_view(&output, line_size),
                 tensor.dtype.into(),
-            )
-            .expect("Kernel to never fail");
+            );
 
             output
         }

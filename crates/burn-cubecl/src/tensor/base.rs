@@ -52,6 +52,17 @@ impl<R: CubeRuntime> cubecl::tune::AutotuneOutput for CubeTensor<R> {
     }
 }
 
+// TODO: Needed to cleanup leaves tensor.
+//
+// Maybe not needed when fusion is activated, since we have a detector there.
+// We could rely on basic GC strategy when not using fusion.
+//
+// impl<R: CubeRuntime> Drop for CubeTensor<R> {
+//     fn drop(&mut self) {
+//         todo!()
+//     }
+// }
+
 impl<R> core::fmt::Debug for CubeTensor<R>
 where
     R: CubeRuntime,
@@ -162,9 +173,11 @@ where
 
     /// Change the context of the current tensor and return the newly transferred tensor.
     pub fn to_client(&self, client: ComputeClient<R>, device: R::Device) -> Self {
-        let desc =
-            self.handle
-                .copy_descriptor(self.meta.shape(), self.meta.strides(), self.elem_size());
+        let desc = self.handle.clone().copy_descriptor(
+            self.meta.shape().clone(),
+            self.meta.strides().clone(),
+            self.elem_size(),
+        );
         let alloc = self.client.to_client_tensor(desc, &client);
 
         Self {
@@ -181,8 +194,8 @@ where
     pub fn as_handle_ref(&self) -> TensorHandleRef<'_, R> {
         TensorHandleRef {
             handle: &self.handle,
-            strides: self.meta.strides(),
-            shape: self.meta.shape(),
+            strides: self.meta.strides().clone(),
+            shape: self.meta.shape().clone(),
             runtime: PhantomData,
             elem_size: self.elem_size(),
         }

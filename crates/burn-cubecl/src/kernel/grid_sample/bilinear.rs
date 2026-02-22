@@ -170,8 +170,7 @@ pub(crate) fn grid_sample_bilinear_launch<R: CubeRuntime>(
         options.align_corners,
         padding_mode,
         input.dtype.into(),
-    )
-    .expect("Grid sample kernel failed");
+    );
 
     output
 }

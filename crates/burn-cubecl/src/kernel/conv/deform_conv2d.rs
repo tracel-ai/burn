@@ -255,7 +255,7 @@ pub(crate) fn deform_im2col<R: CubeRuntime>(
         Some(kernel_height),
         Some(kernel_width),
         dtype.into(),
-    )?;
+    );
 
     Ok(output)
 }

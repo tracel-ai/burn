@@ -48,8 +48,7 @@ pub fn bool_cast<R: CubeRuntime, EO: CubeElement>(tensor: CubeTensor<R>) -> Cube
             linear_view(&output, line_size),
             tensor.dtype.into(),
         )
-        .expect("Kernel to never fail");
-    }
+    };
 
     output
 }

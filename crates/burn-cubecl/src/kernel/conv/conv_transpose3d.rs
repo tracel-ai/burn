@@ -218,7 +218,7 @@ pub(crate) fn conv_transpose3d<R: CubeRuntime>(
             ScalarArg::new(options.groups),
         ),
         input.dtype.into(),
-    )?;
+    );
 
     Ok(output)
 }

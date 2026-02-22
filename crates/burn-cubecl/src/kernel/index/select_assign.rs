@@ -91,7 +91,6 @@ pub(crate) fn select_assign<R: CubeRuntime>(
             dim,
             [tensor.dtype.into(), indices.dtype.into()],
         )
-        .expect("Kernel to never fail");
     };
 
     tensor

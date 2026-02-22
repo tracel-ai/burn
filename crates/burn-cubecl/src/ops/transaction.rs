@@ -4,7 +4,7 @@ use burn_backend::{
     ops::{TransactionOps, TransactionPrimitive, TransactionPrimitiveData},
 };
 use burn_std::{Shape, Strides};
-use cubecl::server::{Binding, CopyDescriptor};
+use cubecl::server::{Handle, CopyDescriptor};
 
 use crate::{CubeBackend, CubeRuntime, FloatElement, IntElement, element::BoolElement};
 
@@ -30,7 +30,7 @@ where
         struct BindingData {
             index: usize,
             kind: Kind,
-            handle: Option<Binding>,
+            handle: Option<Handle>,
             shape: Shape,
             strides: Strides,
             dtype: DType,
@@ -49,7 +49,7 @@ where
             let binding = BindingData::new(
                 num_bindings,
                 Kind::Float,
-                Some(t.handle.binding()),
+                Some(t.handle),
                 t.meta.shape,
                 t.meta.strides,
                 t.dtype,
@@ -67,7 +67,7 @@ where
             let binding = BindingData::new(
                 num_bindings,
                 Kind::Int,
-                Some(t.handle.binding()),
+                Some(t.handle),
                 t.meta.shape,
                 t.meta.strides,
                 t.dtype,
@@ -85,7 +85,7 @@ where
             let binding = BindingData::new(
                 num_bindings,
                 Kind::Bool,
-                Some(t.handle.binding()),
+                Some(t.handle),
                 t.meta.shape,
                 t.meta.strides,
                 t.dtype,
@@ -102,8 +102,8 @@ where
             .map(|b| {
                 CopyDescriptor::new(
                     b.handle.take().unwrap(),
-                    &b.shape,
-                    &b.strides,
+                    b.shape.clone(),
+                    b.strides.clone(),
                     b.dtype.size(),
                 )
             })

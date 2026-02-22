@@ -73,7 +73,6 @@ pub(crate) fn interpolate_nearest_launch<R: CubeRuntime>(
             out_layout,
             output.dtype.into(),
         )
-        .expect("Kernel to never fail");
     };
 
     output

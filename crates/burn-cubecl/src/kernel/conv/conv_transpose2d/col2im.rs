@@ -218,7 +218,9 @@ fn col2im<R: CubeRuntime>(
             ),
             dtype.into(),
         )
-    }
+    };
+
+    Ok(())
 }
 
 #[derive(CubeLaunch, CubeType)]

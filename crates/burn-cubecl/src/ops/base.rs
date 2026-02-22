@@ -13,7 +13,7 @@ use cubecl::{quant::scheme::BlockSize, tensor_line_size_parallel};
 
 pub(crate) fn from_data<R: CubeRuntime>(data: TensorData, device: &R::Device) -> CubeTensor<R> {
     let client = R::client(device);
-    let alloc = client.create_tensor(data.bytes, &data.shape, data.dtype.size());
+    let alloc = client.create_tensor(data.bytes, data.shape.clone(), data.dtype.size());
     let shape: Shape = (&data.shape).into();
     CubeTensor::new(
         client,
@@ -30,9 +30,9 @@ pub(crate) async fn into_data<R: CubeRuntime>(
     let tensor = kernel::into_contiguous_aligned(tensor);
 
     let elem_size = tensor.elem_size();
-    let shape = tensor.meta.shape();
-    let strides = tensor.meta.strides();
-    let binding = CopyDescriptor::new(tensor.handle.binding(), shape, strides, elem_size);
+    let shape = tensor.meta.shape().clone();
+    let strides = tensor.meta.strides().clone();
+    let binding = CopyDescriptor::new(tensor.handle, shape, strides, elem_size);
     let bytes = tensor
         .client
         .read_one_tensor_async(binding)
@@ -77,7 +77,7 @@ pub(crate) fn empty<R: CubeRuntime>(
     dtype: DType,
 ) -> CubeTensor<R> {
     let client = R::client(device);
-    let alloc = client.empty_tensor(&shape, dtype.size());
+    let alloc = client.empty_tensor(shape.clone(), dtype.size());
 
     CubeTensor::new(
         client,
@@ -301,8 +301,7 @@ pub fn reshape<R: CubeRuntime>(mut tensor: CubeTensor<R>, shape: Shape) -> CubeT
         &tensor.as_handle_ref(),
         &out.as_handle_ref(),
         tensor.dtype.into(),
-    )
-    .expect("Kernel should not fail");
+    );
 
     out
 }
