@@ -25,6 +25,7 @@ pub mod network;
 
 // Re-exported types
 pub use cubecl_common::bytes::*;
+pub use cubecl_common::device_handle::DeviceHandle;
 pub use cubecl_common::*;
 pub use half::{bf16, f16};
 

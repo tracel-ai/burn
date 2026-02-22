@@ -2,18 +2,21 @@ use crate::{
     FusionBackend, FusionDevice, FusionHandle, FusionRuntime, FusionServer, FusionTensor,
     stream::{OperationStreams, StreamId, execution::Operation},
 };
-use burn_backend::{Device, DeviceContext, DeviceId, DeviceState};
+use burn_backend::{Device, DeviceHandle, DeviceId, DeviceService};
 use burn_backend::{TensorData, backend::ExecutionError};
 use burn_ir::{OperationIr, TensorId, TensorIr};
-use std::sync::Arc;
+use std::sync::{
+    Arc,
+    atomic::{AtomicU64, Ordering},
+};
 
 /// Use a mutex to communicate with the fusion server.
 pub struct GlobalFusionClient<R: FusionRuntime> {
-    server: DeviceContext<FusionServer<R>>,
+    server: DeviceHandle<FusionServer<R>>,
     device: FusionDevice<R>,
 }
 
-impl<R: FusionRuntime> DeviceState for FusionServer<R> {
+impl<R: FusionRuntime> DeviceService for FusionServer<R> {
     fn init(device_id: DeviceId) -> Self {
         let device = FusionDevice::<R>::from_id(device_id);
         FusionServer::new(device)
@@ -39,7 +42,7 @@ where
     pub fn load(device: &FusionDevice<R>) -> Self {
         Self {
             device: device.clone(),
-            server: DeviceContext::locate(device),
+            server: DeviceHandle::new(device.to_id()),
         }
     }
 }
@@ -52,7 +55,7 @@ where
     pub fn new(device: FusionDevice<R>) -> Self {
         Self {
             device: device.clone(),
-            server: DeviceContext::locate(&device),
+            server: DeviceHandle::new(device.to_id()),
         }
     }
 
@@ -83,8 +86,7 @@ where
             .collect();
 
         self.server
-            .lock()
-            .register(streams, repr, Arc::new(operation));
+            .submit(move |server| server.register(streams, repr, Arc::new(operation)));
 
         outputs
     }
@@ -92,12 +94,16 @@ where
     /// Register all lazy computation.
     pub fn drain(&self) {
         let id = StreamId::current();
-        self.server.lock().drain_stream(id);
+        self.server.submit(move |server| server.drain_stream(id));
     }
 
     /// Create a new (uninitialized) empty tensor handle and returns its corresponding [tensor id](TensorId).
     pub fn create_empty_handle(&self) -> TensorId {
-        self.server.lock().create_empty_handle()
+        static COUNTER: AtomicU64 = AtomicU64::new(0);
+        let value = COUNTER.fetch_add(0, Ordering::Relaxed);
+        let tensor_id = TensorId::new(value);
+        // self.server.submit(|server| server.create_empty_handle());
+        tensor_id
     }
 
     /// Get the current device used by all operations handled by this client.
@@ -107,10 +113,10 @@ where
 
     /// Create a tensor with the given handle and returns its corresponding [tensor id](TensorId).
     pub fn register_tensor_handle(&self, handle: FusionHandle<R>) -> TensorId {
-        let mut server = self.server.lock();
-        let id = server.create_empty_handle();
-        server.handles.register_handle(id, handle);
-        core::mem::drop(server);
+        let id = self.create_empty_handle();
+
+        self.server
+            .submit(move |server| server.handles.register_handle(id, handle));
 
         id
     }
@@ -124,19 +130,23 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
-        self.server.lock().read_float::<B>(tensor, stream)
+        self.server
+            .submit_blocking(move |server| server.read_float::<B>(tensor, stream))
+            .unwrap()
     }
 
     /// Read the values contained by an int tensor.
     pub fn read_tensor_int<B>(
         self,
         tensor: TensorIr,
-        id: StreamId,
+        stream: StreamId,
     ) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send
     where
         B: FusionBackend<FusionRuntime = R>,
     {
-        self.server.lock().read_int::<B>(tensor, id)
+        self.server
+            .submit_blocking(move |server| server.read_int::<B>(tensor, stream))
+            .unwrap()
     }
 
     /// Read the values contained by a bool tensor.
@@ -148,7 +158,9 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
-        self.server.lock().read_bool::<B>(tensor, stream)
+        self.server
+            .submit_blocking(move |server| server.read_bool::<B>(tensor, stream))
+            .unwrap()
     }
 
     /// Read the values contained by a quantized tensor.
@@ -160,7 +172,9 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
-        self.server.lock().read_quantized::<B>(tensor, stream)
+        self.server
+            .submit_blocking(move |server| server.read_quantized::<B>(tensor, stream))
+            .unwrap()
     }
 
     /// Change the client of the given float tensor.
@@ -173,23 +187,29 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
-        let guard = self.server.lock_device_kind();
-        let mut server_current = self.server.lock();
-        server_current.drain_stream(stream);
+        let dtype = tensor.dtype;
+        let client_cloned = client.clone();
+        let shape = tensor.shape.clone();
+        let id = self.create_empty_handle();
 
-        let mut server_other = client.server.lock();
-        let id = server_current.change_server_float::<B>(
-            &tensor,
-            stream,
-            &client.device,
-            &mut server_other,
-        );
+        self.server.submit(move |server| {
+            server.drain_stream(stream.clone());
+            // TODO: We could improve performance here by not requirering blocking.
+            client
+                .server
+                .clone()
+                .submit_blocking_scoped(move |server_other| {
+                    server_other.change_server_float::<B>(
+                        &tensor,
+                        id,
+                        stream,
+                        &client.device,
+                        server,
+                    )
+                })
+        });
 
-        core::mem::drop(server_current);
-        core::mem::drop(server_other);
-        core::mem::drop(guard);
-
-        FusionTensor::new(id, tensor.shape, tensor.dtype, client, StreamId::current())
+        FusionTensor::new(id, shape, dtype, client_cloned, StreamId::current())
     }
 
     /// Change the client of the given int tensor.
@@ -202,23 +222,23 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
-        let guard = self.server.lock_device_kind();
-        let mut server_current = self.server.lock();
-        server_current.drain_stream(stream);
+        let dtype = tensor.dtype;
+        let client_cloned = client.clone();
+        let shape = tensor.shape.clone();
+        let id = self.create_empty_handle();
 
-        let mut server_other = client.server.lock();
-        let id = server_current.change_server_int::<B>(
-            &tensor,
-            stream,
-            &client.device,
-            &mut server_other,
-        );
+        self.server.submit(move |server| {
+            server.drain_stream(stream.clone());
+            // TODO: We could improve performance here by not requirering blocking.
+            client
+                .server
+                .clone()
+                .submit_blocking_scoped(move |server_other| {
+                    server_other.change_server_int::<B>(&tensor, id, stream, &client.device, server)
+                })
+        });
 
-        core::mem::drop(server_other);
-        core::mem::drop(server_current);
-        core::mem::drop(guard);
-
-        FusionTensor::new(id, tensor.shape, tensor.dtype, client, StreamId::current())
+        FusionTensor::new(id, shape, dtype, client_cloned, StreamId::current())
     }
 
     /// Change the client of the given bool tensor.
@@ -231,23 +251,29 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
-        let guard = self.server.lock_device_kind();
-        let mut server_current = self.server.lock();
-        server_current.drain_stream(stream);
+        let dtype = tensor.dtype;
+        let client_cloned = client.clone();
+        let shape = tensor.shape.clone();
+        let id = self.create_empty_handle();
 
-        let mut server_other = client.server.lock();
-        let id = server_current.change_server_bool::<B>(
-            &tensor,
-            stream,
-            &client.device,
-            &mut server_other,
-        );
+        self.server.submit(move |server| {
+            server.drain_stream(stream.clone());
+            // TODO: We could improve performance here by not requirering blocking.
+            client
+                .server
+                .clone()
+                .submit_blocking_scoped(move |server_other| {
+                    server_other.change_server_bool::<B>(
+                        &tensor,
+                        id,
+                        stream,
+                        &client.device,
+                        server,
+                    )
+                })
+        });
 
-        core::mem::drop(server_other);
-        core::mem::drop(server_current);
-        core::mem::drop(guard);
-
-        FusionTensor::new(id, tensor.shape, tensor.dtype, client, StreamId::current())
+        FusionTensor::new(id, shape, dtype, client_cloned, StreamId::current())
     }
 
     /// Change the client of the given quantized tensor.
@@ -260,19 +286,23 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
-        let guard = self.server.lock_device_kind();
-        let mut server_current = self.server.lock();
-        server_current.drain_stream(stream);
+        let dtype = tensor.dtype;
+        let client_cloned = client.clone();
+        let shape = tensor.shape.clone();
+        let id = self.create_empty_handle();
 
-        let mut server_other = client.server.lock();
-        let id =
-            server_current.change_server_quantized::<B>(&tensor, &client.device, &mut server_other);
+        self.server.submit(move |server| {
+            server.drain_stream(stream.clone());
+            // TODO: We could improve performance here by not requirering blocking.
+            client
+                .server
+                .clone()
+                .submit_blocking_scoped(move |server_other| {
+                    server_other.change_server_quantized::<B>(&tensor, id, &client.device, server)
+                })
+        });
 
-        core::mem::drop(server_other);
-        core::mem::drop(server_current);
-        core::mem::drop(guard);
-
-        FusionTensor::new(id, tensor.shape, tensor.dtype, client, StreamId::current())
+        FusionTensor::new(id, shape, dtype, client_cloned, StreamId::current())
     }
 
     /// Resolve the given float tensor to a primitive tensor.
@@ -280,9 +310,12 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
-        let mut server = self.server.lock();
-        server.drain_stream(tensor.stream);
-        server.resolve_server_float::<B>(&tensor.into_ir())
+        self.server
+            .submit_blocking(move |server| {
+                server.drain_stream(tensor.stream);
+                server.resolve_server_float::<B>(&tensor.into_ir())
+            })
+            .unwrap()
     }
 
     /// Resolve the given int tensor to a primitive tensor.
@@ -290,9 +323,12 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
-        let mut server = self.server.lock();
-        server.drain_stream(tensor.stream);
-        server.resolve_server_int::<B>(&tensor.into_ir())
+        self.server
+            .submit_blocking(move |server| {
+                server.drain_stream(tensor.stream);
+                server.resolve_server_int::<B>(&tensor.into_ir())
+            })
+            .unwrap()
     }
 
     /// Resolve the given bool tensor to a primitive tensor.
@@ -300,8 +336,11 @@ where
     where
         B: FusionBackend<FusionRuntime = R>,
     {
-        let mut server = self.server.lock();
-        server.drain_stream(tensor.stream);
-        server.resolve_server_bool::<B>(&tensor.into_ir())
+        self.server
+            .submit_blocking(move |server| {
+                server.drain_stream(tensor.stream);
+                server.resolve_server_bool::<B>(&tensor.into_ir())
+            })
+            .unwrap()
     }
 }
