@@ -134,11 +134,11 @@ pub(crate) fn avg_pool2d_backward<R: CubeRuntime>(
     count_include_pad: bool,
     _ceil_mode: bool,
 ) -> CubeTensor<R> {
-    let [batches, channels, height, width] = x.shape.dims();
+    let [batches, channels, height, width] = x.meta.shape().dims();
 
     let grad = permute_nchw_to_nhwc(grad);
 
-    let line_size = if x.strides[3] == grad.strides[3] {
+    let line_size = if x.meta.strides()[3] == grad.meta.strides()[3] {
         max_line_size(&x)
     } else {
         1
@@ -149,7 +149,7 @@ pub(crate) fn avg_pool2d_backward<R: CubeRuntime>(
     let out_shape = Shape::new([batches, height, width, channels]);
     let output = empty_device_dtype(x.client.clone(), x.device.clone(), out_shape, x.dtype);
 
-    let working_units = output.shape.num_elements() / line_size as usize;
+    let working_units = output.meta.num_elements() / line_size as usize;
     let cube_dim = CubeDim::new(&x.client, working_units);
     let cube_count = calculate_cube_count_elemwise(&x.client, working_units, cube_dim);
 

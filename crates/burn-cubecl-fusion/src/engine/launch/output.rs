@@ -14,8 +14,11 @@ use crate::{
 };
 use burn_fusion::stream::Context;
 use burn_ir::{TensorId, TensorIr};
-use burn_std::tensor::{ReshapeAction, contiguous_strides, is_contiguous, reshape_action};
 use burn_std::{DType, Shape};
+use burn_std::{
+    Strides,
+    tensor::{ReshapeAction, contiguous_strides, is_contiguous, reshape_action},
+};
 use cubecl::{CubeElement, Runtime, client::ComputeClient, ir::StorageType};
 
 /// Create or reuse handles for the outputs.
@@ -340,7 +343,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             .find(|(_pos, pi)| {
                 pi.tensor_relative.dtype == tensor_global.dtype
                     && pi.tensor_relative.shape == output.tensor_relative.shape
-                    && pi.strides == strides
+                    && &*pi.strides == strides
                     && block.reference.compatible_strides_for_inplace(strides)
             })
             .map(|(pos, _)| OutputKind::Inplace { input_pos: pos })
@@ -440,7 +443,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         plan: &mut LaunchPlan<'a, R>,
         output: OutputSorted,
         tensor_global: TensorIr,
-        strides: Vec<usize>,
+        strides: Strides,
         block_idx: usize,
     ) {
         let block = &mut plan.blocks[block_idx];
@@ -525,7 +528,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         plan: &mut LaunchPlan<'a, R>,
         output: OutputSorted,
         tensor_global: TensorIr,
-        strides: Vec<usize>,
+        strides: Strides,
         original: TensorId,
         block_idx: usize,
     ) {

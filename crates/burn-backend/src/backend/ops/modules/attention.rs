@@ -6,19 +6,19 @@ use burn_std::Shape;
 
 use crate::{
     Backend, TensorMetadata,
-    ops::AttentionOptions,
+    ops::AttentionModuleOptions,
     tensor::{BoolTensor, FloatTensor},
 };
 
 /// Computes softmax(QKᵗ * scale) · V using separate kernels.
 /// Serves as a fallback when FlashAttention is not used.
-pub fn naive_attention<B: Backend>(
+pub fn attention_fallback<B: Backend>(
     query: FloatTensor<B>,
     key: FloatTensor<B>,
     value: FloatTensor<B>,
     mask: Option<BoolTensor<B>>,
     attn_bias: Option<FloatTensor<B>>,
-    options: AttentionOptions,
+    options: AttentionModuleOptions,
 ) -> FloatTensor<B> {
     if let Some(softcap) = options.softcap {
         assert!(softcap > 0.0, "softcap must be positive, got {softcap}");

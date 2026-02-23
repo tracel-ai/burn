@@ -1,8 +1,9 @@
 use super::tensor::GlobalTensor;
 use crate::engine::codegen::DYN_ELEM_ID;
 use burn_std::{
-    DType, bf16, f16,
+    DType, Shape, Strides, bf16, f16,
     quantization::{QuantScheme, QuantStore, QuantValue},
+    strides,
 };
 use core::fmt::Display;
 use cubecl::{
@@ -416,15 +417,15 @@ impl<R: Runtime> GlobalArgsLaunch<'_, R> {
     /// # Panics
     ///
     /// If the argument doesn't have an handle.
-    pub fn shape(&self, arg: &FuseArg) -> Vec<usize> {
+    pub fn shape(&self, arg: &FuseArg) -> Shape {
         match self.resolve_arg(arg) {
-            TensorArg::Handle { handle, .. } => handle.shape.to_vec(),
+            TensorArg::Handle { handle, .. } => handle.shape.into(),
             TensorArg::Alias { .. } => panic!("Unsupported yet"),
         }
     }
 
     /// Shape used by the reference tensor.
-    pub fn shape_ref(&self, ref_layout: &RefLayout, rank: usize) -> Vec<usize> {
+    pub fn shape_ref(&self, ref_layout: &RefLayout, rank: usize) -> Shape {
         match ref_layout {
             RefLayout::Concrete(arg) => self.shape(arg),
             RefLayout::Virtual(layout) => match layout {
@@ -459,20 +460,20 @@ impl<R: Runtime> GlobalArgsLaunch<'_, R> {
     /// # Panics
     ///
     /// If the argument doesn't have an handle.
-    pub fn strides(&self, arg: &FuseArg) -> Vec<usize> {
+    pub fn strides(&self, arg: &FuseArg) -> Strides {
         match self.resolve_arg(arg) {
-            TensorArg::Handle { handle, .. } => handle.strides.to_vec(),
+            TensorArg::Handle { handle, .. } => handle.strides.into(),
             TensorArg::Alias { .. } => panic!("Unsupported yet"),
         }
     }
 
-    pub fn strides_ref(&self, ref_layout: &RefLayout, rank: usize) -> Vec<usize> {
+    pub fn strides_ref(&self, ref_layout: &RefLayout, rank: usize) -> Strides {
         match ref_layout {
             RefLayout::Concrete(arg) => self.strides(arg),
             // When not concrete, we operate on the contiguous layout.
             _ => {
                 let shape = self.shape_ref(ref_layout, rank);
-                let mut strides = vec![0; shape.len()];
+                let mut strides = strides![0; shape.len()];
 
                 let mut current = 1;
                 shape.iter().enumerate().rev().for_each(|(index, val)| {

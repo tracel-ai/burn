@@ -82,7 +82,7 @@ pub(crate) fn adaptive_avg_pool2d<R: CubeRuntime>(
     input: CubeTensor<R>,
     output_size: [usize; 2],
 ) -> CubeTensor<R> {
-    let [batch_size, channels, _, _] = input.shape.dims();
+    let [batch_size, channels, _, _] = input.meta.shape().dims();
 
     let input = into_contiguous_aligned(permute_nchw_to_nhwc(input));
     let line_size = max_line_size(&input);

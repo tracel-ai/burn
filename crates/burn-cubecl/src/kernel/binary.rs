@@ -6,7 +6,7 @@ use crate::{
     ops::{max_line_size, numeric::empty_device_dtype},
     tensor::CubeTensor,
 };
-use burn_backend::{bf16, f16};
+use burn_backend::{TensorMetadata, bf16, f16};
 use cubecl::{
     calculate_cube_count_elemwise, intrinsic, prelude::*, std::tensor::layout::linear::LinearView,
 };
@@ -254,7 +254,7 @@ pub(crate) fn launch_scalar_binop<R: CubeRuntime, O: BinaryOpFamily>(
     // Vectorization is only enabled when the last dimension is contiguous.
     let line_size = max_line_size(&tensor);
     let client = tensor.client.clone();
-    let num_elems = tensor.shape.num_elements();
+    let num_elems = tensor.meta.num_elements();
     let dtype = tensor.dtype;
 
     let working_units = num_elems / line_size as usize;
@@ -280,7 +280,7 @@ pub(crate) fn launch_scalar_binop<R: CubeRuntime, O: BinaryOpFamily>(
             let output = empty_device_dtype(
                 tensor.client.clone(),
                 tensor.device.clone(),
-                tensor.shape.clone(),
+                tensor.shape(),
                 dtype,
             );
 

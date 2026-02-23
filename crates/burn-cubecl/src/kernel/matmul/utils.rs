@@ -10,7 +10,7 @@ pub fn init_matmul_output<R: CubeRuntime>(
     empty_device_dtype(
         lhs.client.clone(),
         lhs.device.clone(),
-        calculate_matmul_output(&lhs.shape, &rhs.shape).unwrap(),
+        calculate_matmul_output(lhs.meta.shape(), rhs.meta.shape()).unwrap(),
         dtype,
     )
 }

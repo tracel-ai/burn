@@ -109,13 +109,13 @@ pub fn launch_convolution_forward<R: CubeRuntime, const N: usize>(
     }
 
     let out_dtype = input.dtype;
-    let rank = input.shape.num_dims();
-    let batch_size = input.shape[0];
+    let rank = input.meta.shape().num_dims();
+    let batch_size = input.meta.shape()[0];
     let dim_c = rank - 1;
-    let shape = &input.shape[1..dim_c];
+    let shape = &input.meta.shape()[1..dim_c];
 
-    let out_channels = weight.shape[0];
-    let weight_shape = &weight.shape[1..dim_c];
+    let out_channels = weight.meta.shape()[0];
+    let weight_shape = &weight.meta.shape()[1..dim_c];
 
     let mut out_shape = calculate_conv_output_sizes(
         weight_shape,

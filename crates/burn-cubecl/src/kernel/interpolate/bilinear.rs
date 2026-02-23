@@ -127,7 +127,7 @@ pub(crate) fn interpolate_bilinear_launch<R: CubeRuntime>(
     let out_shape = shape_divmod(&output);
     let out_layout = linear_layout(&output, line_size);
 
-    let working_units = output.shape.num_elements() / line_size as usize;
+    let working_units = output.meta.num_elements() / line_size as usize;
     let cube_dim = CubeDim::new(&input.client, working_units);
     let cube_count = calculate_cube_count_elemwise(&input.client, working_units, cube_dim);
 

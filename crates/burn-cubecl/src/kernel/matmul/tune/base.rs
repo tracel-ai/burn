@@ -396,10 +396,10 @@ fn create_key<R: CubeRuntime>(
 ) -> MatmulAutotuneKey {
     MatmulAutotuneKey::generate(
         &lhs.client,
-        &lhs.shape,
-        &rhs.shape,
-        &lhs.strides,
-        &rhs.strides,
+        lhs.meta.shape(),
+        rhs.meta.shape(),
+        lhs.meta.strides(),
+        rhs.meta.strides(),
         lhs.dtype.into(),
         rhs.dtype.into(),
         out.dtype.into(),

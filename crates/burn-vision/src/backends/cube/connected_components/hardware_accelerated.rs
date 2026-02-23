@@ -12,7 +12,7 @@ use burn_cubecl::{
     ops::{into_data_sync, numeric::zeros_client},
     tensor::CubeTensor,
 };
-use burn_tensor::{Shape, cast::ToElement, ops::IntTensorOps};
+use burn_tensor::{Shape, TensorMetadata, cast::ToElement, ops::IntTensorOps};
 use cubecl::{features::Plane, prelude::*};
 
 use super::prefix_sum::prefix_sum;
@@ -487,14 +487,9 @@ pub fn hardware_accelerated<R: CubeRuntime, F: FloatElement, I: IntElement, BT: 
         return Err("Requires plane size of at least 32".into());
     }
 
-    let [rows, cols] = img.shape.dims();
+    let [rows, cols] = img.meta.shape().dims();
 
-    let labels = zeros_client::<R>(
-        client.clone(),
-        device.clone(),
-        img.shape.clone(),
-        I::dtype(),
-    );
+    let labels = zeros_client::<R>(client.clone(), device.clone(), img.shape(), I::dtype());
 
     // Assume 32 wide warp. Currently, larger warps are handled by just exiting everything past 32.
     // This isn't ideal but we require CUBE_DIM_X == warp_size, and we can't query the actual warp

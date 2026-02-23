@@ -10,7 +10,9 @@ version.workspace = true
 workspace = true
 
 [features]
-default = ["burn/default", "burn/tui", "burn/vulkan"]
+default = ["burn/default", "burn/tui"]
+# Opt-in for macOS users with the Vulkan SDK installed (enabled by default on other platforms)
+vulkan = ["burn/vulkan"]
 
 [dependencies]
 burn = { path = "../../crates/burn", features = [
@@ -18,6 +20,9 @@ burn = { path = "../../crates/burn", features = [
     "train",
     "vision",
 ], default-features = false }
+
+[target.'cfg(not(target_os = "macos"))'.dependencies]
+burn = { path = "../../crates/burn", features = ["vulkan"] }
 
 # Serialization
 log = { workspace = true }

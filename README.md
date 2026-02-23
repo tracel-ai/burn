@@ -286,14 +286,14 @@ Inference in the Browser 🌐
 </summary>
 <br />
 
-Several of our backends can run in WebAssembly environments: NdArray for CPU execution,
-and WGPU for GPU acceleration via WebGPU. This means that you can run inference directly within a
-browser. We provide several examples of this:
+Several of our backends can run in WebAssembly environments: NdArray for CPU execution, and WGPU for
+GPU acceleration via WebGPU. This means that you can run inference directly within a browser. We
+provide several examples of this:
 
 - [MNIST](./examples/mnist-inference-web) where you can draw digits and a small convnet tries to
   find which one it is! 2️⃣ 7️⃣ 😰
-- [Image Classification](./examples/image-classification-web) where you can upload images and
-  classify them! 🌄
+- [Image Classification](https://github.com/tracel-ai/burn-onnx/tree/main/examples/image-classification-web)
+  where you can upload images and classify them! 🌄
 
 </details>
 

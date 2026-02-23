@@ -138,12 +138,10 @@ impl<B: Backend> BasicOps<B> for Bool {
         B::bool_from_data(data.convert::<B::BoolElem>(), device)
     }
 
-    fn from_data_dtype(data: TensorData, device: &Device<B>, dtype: DType) -> Self::Primitive {
-        // Backends only use one bool representation dtype
-        if dtype != B::BoolElem::dtype() {
-            panic!("Expected bool dtype, got {dtype:?}")
-        }
-        B::bool_from_data(data.convert_dtype(dtype), device)
+    fn from_data_dtype(data: TensorData, device: &Device<B>, _dtype: DType) -> Self::Primitive {
+        // Bool tensors have exactly one representation per backend, so the
+        // requested dtype is irrelevant. Convert to `B::BoolElem` directly.
+        B::bool_from_data(data.convert::<B::BoolElem>(), device)
     }
 
     fn repeat_dim(tensor: Self::Primitive, dim: usize, times: usize) -> Self::Primitive {

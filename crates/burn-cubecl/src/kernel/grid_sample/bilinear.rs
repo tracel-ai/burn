@@ -131,8 +131,8 @@ pub(crate) fn grid_sample_bilinear_launch<R: CubeRuntime>(
     grid: CubeTensor<R>,
     options: GridSampleOptions,
 ) -> CubeTensor<R> {
-    let [batch_size, channels, _h_in, _w_in] = input.shape.dims();
-    let [_n, h_out, w_out, two] = grid.shape.dims();
+    let [batch_size, channels, _h_in, _w_in] = input.meta.shape().dims();
+    let [_n, h_out, w_out, two] = grid.meta.shape().dims();
     assert_eq!(two, 2, "Grid last dimension must be 2");
 
     // Create output tensor [N, C, H_out, W_out]

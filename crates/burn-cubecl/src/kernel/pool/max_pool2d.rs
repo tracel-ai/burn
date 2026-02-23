@@ -124,14 +124,14 @@ pub(crate) fn max_pool2d<R: CubeRuntime>(
     dilation: [usize; 2],
     ceil_mode: bool,
 ) -> CubeTensor<R> {
-    let [batch_size, channels, _, _] = x.shape.dims();
+    let [batch_size, channels, height, width] = x.meta.shape().dims();
 
     let size_0 = calculate_pool_output_size(
         kernel_size[0],
         stride[0],
         padding[0],
         dilation[0],
-        x.shape[2],
+        height,
         ceil_mode,
     );
     let size_1 = calculate_pool_output_size(
@@ -139,7 +139,7 @@ pub(crate) fn max_pool2d<R: CubeRuntime>(
         stride[1],
         padding[1],
         dilation[1],
-        x.shape[3],
+        width,
         ceil_mode,
     );
 
@@ -150,7 +150,7 @@ pub(crate) fn max_pool2d<R: CubeRuntime>(
     let shape_out = Shape::new([batch_size, size_0, size_1, channels]);
     let output = empty_device_dtype(x.client.clone(), x.device.clone(), shape_out, x.dtype);
 
-    let working_units = output.shape.num_elements() / line_size as usize;
+    let working_units = output.meta.num_elements() / line_size as usize;
     let cube_dim = CubeDim::new(&x.client, working_units);
     let cube_count = calculate_cube_count_elemwise(&x.client, working_units, cube_dim);
 
@@ -190,14 +190,14 @@ pub(crate) fn max_pool2d_with_indices<R: CubeRuntime>(
     ceil_mode: bool,
     dtype_indices: DType,
 ) -> (CubeTensor<R>, CubeTensor<R>) {
-    let [batch_size, channels, _, _] = x.shape.dims();
+    let [batch_size, channels, size_0, size_1] = x.meta.shape().dims();
 
     let size_0 = calculate_pool_output_size(
         kernel_size[0],
         stride[0],
         padding[0],
         dilation[0],
-        x.shape[2],
+        size_0,
         ceil_mode,
     );
     let size_1 = calculate_pool_output_size(
@@ -205,7 +205,7 @@ pub(crate) fn max_pool2d_with_indices<R: CubeRuntime>(
         stride[1],
         padding[1],
         dilation[1],
-        x.shape[3],
+        size_1,
         ceil_mode,
     );
 
@@ -221,7 +221,7 @@ pub(crate) fn max_pool2d_with_indices<R: CubeRuntime>(
     );
     let indices = empty_device_dtype(x.client.clone(), x.device.clone(), shape_out, dtype_indices);
 
-    let working_units = output.shape.num_elements() / line_size as usize;
+    let working_units = output.meta.num_elements() / line_size as usize;
     let cube_dim = CubeDim::new(&x.client, working_units);
     let cube_count = calculate_cube_count_elemwise(&x.client, working_units, cube_dim);
 

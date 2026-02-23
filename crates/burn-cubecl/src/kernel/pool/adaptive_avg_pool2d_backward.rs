@@ -88,7 +88,7 @@ pub(crate) fn adaptive_avg_pool2d_backward<R: CubeRuntime>(
     x: CubeTensor<R>,
     out_grad: CubeTensor<R>,
 ) -> CubeTensor<R> {
-    let [batches, channels, height, width] = x.shape.dims();
+    let [batches, channels, height, width] = x.meta.shape().dims();
 
     let out_grad = into_contiguous_aligned(permute_nchw_to_nhwc(out_grad));
     let line_size = max_line_size(&out_grad);
@@ -96,7 +96,7 @@ pub(crate) fn adaptive_avg_pool2d_backward<R: CubeRuntime>(
     let out_shape = Shape::new([batches, height, width, channels]);
     let output = empty_device_dtype(x.client.clone(), x.device.clone(), out_shape, x.dtype);
 
-    let num_elems = output.shape.num_elements();
+    let num_elems = output.meta.num_elements();
 
     let working_units = num_elems / line_size as usize;
     let cube_dim = CubeDim::new(&x.client, working_units);

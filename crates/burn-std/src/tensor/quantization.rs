@@ -17,7 +17,7 @@ use core::any::TypeId;
 use num_traits::PrimInt;
 use serde::{Deserialize, Serialize};
 
-use crate::{DType, Shape, bytes::Bytes};
+use crate::{DType, Metadata, Shape, bytes::Bytes};
 
 #[derive(
     Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, Default,
@@ -60,10 +60,8 @@ pub struct QParamTensor {
     pub offset_start: usize,
     /// Offset of tensor end from the end of the buffer
     pub offset_end: usize,
-    /// Shape of the tensor
-    pub shape: Shape,
-    /// Strides of the tensor
-    pub strides: Vec<usize>,
+    /// Metadata of the tensor
+    pub metadata: Metadata,
     /// Data type of the tensor
     pub dtype: DType,
 }

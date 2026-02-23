@@ -97,14 +97,14 @@ fn create_key<R: CubeRuntime, const N: usize>(
     options: &ConvOptions<N>,
 ) -> CubeAutotuneKey {
     let dtype = out_grad.dtype;
-    let rank = out_grad.shape.num_dims();
+    let rank = out_grad.meta.num_dims();
     let dim_c = rank - 1;
 
-    let batch_size = out_grad.shape[0];
+    let batch_size = out_grad.meta.shape()[0];
     let in_channels = input_shape[dim_c];
-    let out_channels = out_grad.shape[dim_c];
+    let out_channels = out_grad.meta.shape()[dim_c];
 
-    let kernel_size = weights.shape[1..dim_c].to_vec();
+    let kernel_size = weights.meta.shape()[1..dim_c].to_vec();
     let in_shape = input_shape[1..dim_c]
         .iter()
         .map(|shape| anchor(*shape, None, None, None))
@@ -117,14 +117,14 @@ fn create_key<R: CubeRuntime, const N: usize>(
         groups,
     } = options.clone();
 
-    let lhs_stride_align = if out_grad.strides[dim_c] == 1 {
-        stride_align(&out_grad.strides, out_grad.dtype.into())
+    let lhs_stride_align = if out_grad.meta.strides()[dim_c] == 1 {
+        stride_align(out_grad.meta.strides(), out_grad.dtype.into())
     } else {
         0
     };
     let lhs_shape_align = pow2_factor(out_channels).min(lhs_stride_align);
-    let rhs_stride_align = if weights.strides[dim_c] == 1 {
-        stride_align(&weights.strides, weights.dtype.into())
+    let rhs_stride_align = if weights.meta.strides()[dim_c] == 1 {
+        stride_align(weights.meta.strides(), weights.dtype.into())
     } else {
         0
     };
