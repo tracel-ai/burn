@@ -7,7 +7,7 @@ use burn_backend::{
 use burn_std::{QuantPropagation, Shape, Slice};
 
 use crate::backends::*;
-use crate::{DispatchDevice, Dispatch};
+use crate::{Dispatch, DispatchDevice};
 
 impl QTensorOps<Self> for Dispatch {
     fn q_from_data(data: TensorData, device: &DispatchDevice) -> QuantizedTensor<Self> {
@@ -36,7 +36,10 @@ impl QTensorOps<Self> for Dispatch {
         tensor.device()
     }
 
-    fn q_to_device(tensor: QuantizedTensor<Self>, device: &DispatchDevice) -> QuantizedTensor<Self> {
+    fn q_to_device(
+        tensor: QuantizedTensor<Self>,
+        device: &DispatchDevice,
+    ) -> QuantizedTensor<Self> {
         to_device!(
             Quantized,
             quantized,
