@@ -168,7 +168,7 @@ uuid = { version = "1.21.0", default-features = false }
 
 byteorder = { version = "1.5.0", default-features = false }
 libc = "0.2.182"
-nvml-wrapper = "0.11.0"
+nvml-wrapper = "0.12.0"
 sysinfo = "0.38.0"
 systemstat = "0.2.5"
 tch = "0.22.0"
