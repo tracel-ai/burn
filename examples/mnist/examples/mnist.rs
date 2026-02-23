@@ -42,5 +42,5 @@ fn select_device() -> DispatchDevice {
 
 fn main() {
     let device = select_device();
-    training::run::<Dispatch>(DispatchDevice::new_autodiff(device));
+    training::run::<Dispatch>(DispatchDevice::autodiff(device));
 }

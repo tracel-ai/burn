@@ -59,7 +59,7 @@ pub enum DispatchDevice {
 // This tuple struct mainly restricts users from creating Autodiff(Autodiff) devices.
 /// A wrapper that enables automatic differentiation for a [`DispatchDevice`].
 ///
-/// Use [`DispatchDevice::new_autodiff`] to construct this type.
+/// Use [`DispatchDevice::autodiff`] to construct this type.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AutodiffDevice(pub(crate) Box<DispatchDevice>);
 
@@ -168,7 +168,7 @@ const TYPE_ID_BASE: u16 = 10;
 
 impl DispatchDevice {
     /// Creates a new [`DispatchDevice`] with [automatic differentiation](Autodiff) enabled.
-    pub fn new_autodiff(device: impl Into<DispatchDevice>) -> DispatchDevice {
+    pub fn autodiff(device: impl Into<DispatchDevice>) -> DispatchDevice {
         let device = device.into();
         DispatchDevice::Autodiff(AutodiffDevice(Box::new(device)))
     }

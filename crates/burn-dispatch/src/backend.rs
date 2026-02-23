@@ -386,7 +386,7 @@ impl DispatchTensor {
             #[cfg(feature = "tch")]
             DispatchTensor::LibTorch(tensor) => DispatchDevice::LibTorch(tensor.device()),
             #[cfg(feature = "autodiff")]
-            DispatchTensor::Autodiff(tensor) => DispatchDevice::new_autodiff(tensor.device()),
+            DispatchTensor::Autodiff(tensor) => DispatchDevice::autodiff(tensor.device()),
         }
     }
 }
