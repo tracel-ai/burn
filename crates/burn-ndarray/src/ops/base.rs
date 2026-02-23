@@ -733,42 +733,6 @@ where
         ArrayD::from_elem(IxDyn(&[1]), prod).into_shared()
     }
 
-    /// Max of all elements - zero-copy for borrowed storage.
-    pub fn max_view(view: ArrayView<'_, E, IxDyn>) -> SharedArray<E> {
-        let max = view
-            .iter()
-            .copied()
-            .reduce(|a, b| if a > b { a } else { b })
-            .expect("Cannot compute max of empty tensor");
-        ArrayD::from_elem(IxDyn(&[1]), max).into_shared()
-    }
-
-    /// Min of all elements - zero-copy for borrowed storage.
-    pub fn min_view(view: ArrayView<'_, E, IxDyn>) -> SharedArray<E> {
-        let min = view
-            .iter()
-            .copied()
-            .reduce(|a, b| if a < b { a } else { b })
-            .expect("Cannot compute min of empty tensor");
-        ArrayD::from_elem(IxDyn(&[1]), min).into_shared()
-    }
-
-    /// Argmax along dimension - zero-copy for borrowed storage.
-    pub fn argmax_view<I: NdArrayElement>(
-        view: ArrayView<'_, E, IxDyn>,
-        dim: usize,
-    ) -> SharedArray<I> {
-        arg_view(view, dim, CmpType::Max)
-    }
-
-    /// Argmin along dimension - zero-copy for borrowed storage.
-    pub fn argmin_view<I: NdArrayElement>(
-        view: ArrayView<'_, E, IxDyn>,
-        dim: usize,
-    ) -> SharedArray<I> {
-        arg_view(view, dim, CmpType::Min)
-    }
-
     pub fn mean_dim(tensor: SharedArray<E>, dim: usize) -> SharedArray<E> {
         let ndims = tensor.shape().num_dims();
         match ndims {
@@ -799,14 +763,6 @@ where
 
     pub fn cumprod(tensor: SharedArray<E>, dim: usize) -> SharedArray<E> {
         cumprod_dim(tensor, dim)
-    }
-
-    pub fn cummin(tensor: SharedArray<E>, dim: usize) -> SharedArray<E> {
-        cummin_dim(tensor, dim)
-    }
-
-    pub fn cummax(tensor: SharedArray<E>, dim: usize) -> SharedArray<E> {
-        cummax_dim(tensor, dim)
     }
 
     pub fn select<I: NdArrayElement>(
@@ -842,11 +798,146 @@ where
 
         output_array.into_shared()
     }
-    pub fn argmax<I: NdArrayElement>(tensor: SharedArray<E>, dim: usize) -> SharedArray<I> {
+
+    pub(crate) fn elementwise_op<OtherE>(
+        lhs: SharedArray<E>,
+        rhs: SharedArray<OtherE>,
+        var_name: impl FnMut(&E, &OtherE) -> E,
+    ) -> SharedArray<E> {
+        let lhs = lhs.broadcast(rhs.dim()).unwrap_or(lhs.view());
+        let rhs = rhs.broadcast(lhs.dim()).unwrap_or(rhs.view());
+
+        Zip::from(lhs).and(rhs).map_collect(var_name).into_shared()
+    }
+
+    pub(crate) fn elementwise_op_scalar(
+        lhs: SharedArray<E>,
+        var_name: impl FnMut(E) -> E,
+    ) -> SharedArray<E> {
+        lhs.mapv(var_name).into_shared()
+    }
+
+    pub(crate) fn abs(tensor: SharedArray<E>) -> SharedArray<E> {
+        let tensor = dispatch_unary_simd!(E, VecAbs, tensor, i8, i16, i32, f32, f64);
+
+        tensor.mapv_into(|a| a.abs_elem()).into_shared()
+    }
+
+    pub(crate) fn equal(lhs: SharedArray<E>, rhs: SharedArray<E>) -> SharedArray<bool> {
+        let (lhs, rhs) = dispatch_cmp_simd!(
+            E, VecEquals, lhs, rhs, u8, i8, u16, i16, u32, f32, i32, u64, i64, f64
+        );
+
+        // Use the helper to broadcast both arrays to a common shape
+        let (lhs_broadcast, rhs_broadcast) = broadcast_for_comparison(&lhs, &rhs);
+        // Now we can safely zip and compare
+        Zip::from(&lhs_broadcast)
+            .and(&rhs_broadcast)
+            .map_collect(|&lhs, &rhs| lhs == rhs)
+            .into_shared()
+    }
+
+    pub(crate) fn equal_elem(lhs: SharedArray<E>, rhs: E) -> SharedArray<bool> {
+        let lhs = dispatch_cmp_scalar_simd!(
+            E,
+            VecEquals,
+            lhs,
+            rhs.elem(),
+            u8,
+            i8,
+            u16,
+            i16,
+            u32,
+            f32,
+            i32,
+            u64,
+            i64,
+            f64
+        );
+
+        lhs.mapv(|a| a == rhs).into_shared()
+    }
+}
+
+impl<E> NdArrayMathOps<E>
+where
+    E: Copy + NdArrayElement + PartialOrd,
+{
+    /// Max of all elements - zero-copy for borrowed storage.
+    pub fn max_view(view: ArrayView<'_, E, IxDyn>) -> SharedArray<E> {
+        let max = view
+            .iter()
+            .copied()
+            .reduce(|a, b| if a > b { a } else { b })
+            .expect("Cannot compute max of empty tensor");
+        ArrayD::from_elem(IxDyn(&[1]), max).into_shared()
+    }
+
+    /// Min of all elements - zero-copy for borrowed storage.
+    pub fn min_view(view: ArrayView<'_, E, IxDyn>) -> SharedArray<E> {
+        let min = view
+            .iter()
+            .copied()
+            .reduce(|a, b| if a < b { a } else { b })
+            .expect("Cannot compute min of empty tensor");
+        ArrayD::from_elem(IxDyn(&[1]), min).into_shared()
+    }
+
+    /// Argmax along dimension - zero-copy for borrowed storage.
+    pub fn argmax_view<I: NdArrayElement + PartialOrd>(
+        view: ArrayView<'_, E, IxDyn>,
+        dim: usize,
+    ) -> SharedArray<I> {
+        arg_view(view, dim, CmpType::Max)
+    }
+
+    /// Argmin along dimension - zero-copy for borrowed storage.
+    pub fn argmin_view<I: NdArrayElement + PartialOrd>(
+        view: ArrayView<'_, E, IxDyn>,
+        dim: usize,
+    ) -> SharedArray<I> {
+        arg_view(view, dim, CmpType::Min)
+    }
+
+    pub fn cummin(tensor: SharedArray<E>, dim: usize) -> SharedArray<E> {
+        cummin_dim(tensor, dim)
+    }
+
+    pub fn cummax(tensor: SharedArray<E>, dim: usize) -> SharedArray<E> {
+        cummax_dim(tensor, dim)
+    }
+
+    pub fn argmax<I: NdArrayElement + PartialOrd>(
+        tensor: SharedArray<E>,
+        dim: usize,
+    ) -> SharedArray<I> {
         arg(tensor, dim, CmpType::Max)
     }
 
-    pub fn argmin<I: NdArrayElement>(tensor: SharedArray<E>, dim: usize) -> SharedArray<I> {
+    pub(crate) fn sign_op(tensor: SharedArray<E>) -> SharedArray<E>
+    where
+        E: Signed,
+    {
+        let zero = 0.elem();
+        let one = 1.elem::<E>();
+
+        tensor
+            .mapv(|x| {
+                if x > zero {
+                    one
+                } else if x < zero {
+                    -one
+                } else {
+                    zero
+                }
+            })
+            .into_shared()
+    }
+
+    pub fn argmin<I: NdArrayElement + PartialOrd>(
+        tensor: SharedArray<E>,
+        dim: usize,
+    ) -> SharedArray<I> {
         arg(tensor, dim, CmpType::Min)
     }
 
@@ -929,85 +1020,6 @@ where
         });
 
         tensor
-    }
-
-    pub(crate) fn elementwise_op<OtherE>(
-        lhs: SharedArray<E>,
-        rhs: SharedArray<OtherE>,
-        var_name: impl FnMut(&E, &OtherE) -> E,
-    ) -> SharedArray<E> {
-        let lhs = lhs.broadcast(rhs.dim()).unwrap_or(lhs.view());
-        let rhs = rhs.broadcast(lhs.dim()).unwrap_or(rhs.view());
-
-        Zip::from(lhs).and(rhs).map_collect(var_name).into_shared()
-    }
-
-    pub(crate) fn elementwise_op_scalar(
-        lhs: SharedArray<E>,
-        var_name: impl FnMut(E) -> E,
-    ) -> SharedArray<E> {
-        lhs.mapv(var_name).into_shared()
-    }
-
-    pub(crate) fn sign_op(tensor: SharedArray<E>) -> SharedArray<E>
-    where
-        E: Signed,
-    {
-        let zero = 0.elem();
-        let one = 1.elem::<E>();
-
-        tensor
-            .mapv(|x| {
-                if x > zero {
-                    one
-                } else if x < zero {
-                    -one
-                } else {
-                    zero
-                }
-            })
-            .into_shared()
-    }
-
-    pub(crate) fn abs(tensor: SharedArray<E>) -> SharedArray<E> {
-        let tensor = dispatch_unary_simd!(E, VecAbs, tensor, i8, i16, i32, f32, f64);
-
-        tensor.mapv_into(|a| a.abs_elem()).into_shared()
-    }
-
-    pub(crate) fn equal(lhs: SharedArray<E>, rhs: SharedArray<E>) -> SharedArray<bool> {
-        let (lhs, rhs) = dispatch_cmp_simd!(
-            E, VecEquals, lhs, rhs, u8, i8, u16, i16, u32, f32, i32, u64, i64, f64
-        );
-
-        // Use the helper to broadcast both arrays to a common shape
-        let (lhs_broadcast, rhs_broadcast) = broadcast_for_comparison(&lhs, &rhs);
-        // Now we can safely zip and compare
-        Zip::from(&lhs_broadcast)
-            .and(&rhs_broadcast)
-            .map_collect(|&lhs, &rhs| lhs == rhs)
-            .into_shared()
-    }
-
-    pub(crate) fn equal_elem(lhs: SharedArray<E>, rhs: E) -> SharedArray<bool> {
-        let lhs = dispatch_cmp_scalar_simd!(
-            E,
-            VecEquals,
-            lhs,
-            rhs.elem(),
-            u8,
-            i8,
-            u16,
-            i16,
-            u32,
-            f32,
-            i32,
-            u64,
-            i64,
-            f64
-        );
-
-        lhs.mapv(|a| a == rhs).into_shared()
     }
 
     pub(crate) fn greater(lhs: SharedArray<E>, rhs: SharedArray<E>) -> SharedArray<bool> {
@@ -1345,7 +1357,7 @@ enum CmpType {
     Max,
 }
 
-fn arg<E: NdArrayElement, I: NdArrayElement>(
+fn arg<E: NdArrayElement + PartialOrd, I: NdArrayElement + PartialOrd>(
     tensor: SharedArray<E>,
     dim: usize,
     cmp: CmpType,
@@ -1354,7 +1366,7 @@ fn arg<E: NdArrayElement, I: NdArrayElement>(
 }
 
 /// View-based argmax/argmin - zero-copy for borrowed storage.
-fn arg_view<E: NdArrayElement, I: NdArrayElement>(
+fn arg_view<E: NdArrayElement + PartialOrd, I: NdArrayElement + PartialOrd>(
     view: ArrayView<'_, E, IxDyn>,
     dim: usize,
     cmp: CmpType,
