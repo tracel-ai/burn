@@ -145,7 +145,7 @@ impl<LC: LearningComponentsTypes> SupervisedLearningStrategy<LC> for MyCustomLea
         starting_epoch: usize,
     ) -> (TrainingModel<LC>, SupervisedTrainingEventProcessor<LC>) {
         let dataloader_train = dataloader_train.to_device(&self.device);
-        let dataloader_valid = dataloader_valid.to_device(&self.device.inner());
+        let dataloader_valid = dataloader_valid.to_device(self.device.inner());
         learner.fork(&self.device);
         let mut event_processor = training_components.event_processor;
         let mut checkpointer = training_components.checkpointer;
