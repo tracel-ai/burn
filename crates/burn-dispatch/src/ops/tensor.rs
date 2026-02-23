@@ -11,8 +11,6 @@ use crate::{Device, Dispatch};
 // TODO: remove backend default elem type genericsnow that we have per-device defaults
 // https://github.com/tracel-ai/burn/issues/3642
 
-// DispatchTensor::Autodiff(DispatchTensor::$Backend(BackendTensor::Autodiff()))
-
 impl FloatTensorOps<Self> for Dispatch {
     fn float_from_data(data: burn_backend::TensorData, device: &Device) -> FloatTensor<Self> {
         creation_op!(Float, device, |device| B::float_from_data(data, device))
@@ -145,11 +143,9 @@ impl FloatTensorOps<Self> for Dispatch {
         indices: IntTensor<Self>,
         value: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
-        multi_tensor_op!(
-            (tensor, float),
-            (indices, int),
-            (value, float),
-            |tensor, indices, value| B::float_scatter_add(dim, tensor, indices, value) => Float
+        multi_op!(
+            inputs[(tensor, float), (indices, int), (value, float)], => Float,
+            B::float_scatter_add(dim, tensor, indices, value)
         )
     }
 
@@ -167,11 +163,9 @@ impl FloatTensorOps<Self> for Dispatch {
         indices: IntTensor<Self>,
         value: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
-        multi_tensor_op!(
-            (tensor, float),
-            (indices, int),
-            (value, float),
-            |tensor, indices, value| B::float_select_add(tensor, dim, indices, value) => Float
+        multi_op!(
+            inputs[(tensor, float), (indices, int), (value, float)], => Float,
+            B::float_select_add(tensor, dim, indices, value)
         )
     }
 
@@ -192,11 +186,9 @@ impl FloatTensorOps<Self> for Dispatch {
         mask: BoolTensor<Self>,
         value: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
-        multi_tensor_op!(
-            (tensor, float),
-            (mask, bool),
-            (value, float),
-            |tensor, mask, value| B::float_mask_where(tensor, mask, value) => Float
+        multi_op!(
+            inputs[(tensor, float), (mask, bool), (value, float)], => Float,
+            B::float_mask_where(tensor, mask, value)
         )
     }
 
@@ -412,117 +404,7 @@ impl FloatTensorOps<Self> for Dispatch {
     }
 
     fn float_is_require_grad(tensor: &FloatTensor<Self>) -> bool {
-        // unary_float!(tensor, float, |tensor| B::float_is_require_grad(&tensor))
-        // Recursive expansion of unary_float! macro
-        // ==========================================
-
-        {
-            match tensor {
-                #[cfg(feature = "autodiff")]
-                crate::DispatchTensor::Autodiff(inner) => match &**(inner) {
-                    #[cfg(feature = "cpu")]
-                    crate::DispatchTensor::Cpu(tensor) => {
-                        type B = Autodiff<Cpu<f32>>;
-                        let tensor = tensor.as_autodiff();
-                        { (B::float_is_require_grad(&tensor)) }
-                    }
-                    #[cfg(feature = "cuda")]
-                    crate::DispatchTensor::Cuda(tensor) => {
-                        type B = Autodiff<Cuda<f32>>;
-                        let tensor = tensor.as_autodiff();
-                        { (B::float_is_require_grad(&tensor)) }
-                    }
-                    #[cfg(wgpu_metal)]
-                    crate::DispatchTensor::Metal(tensor) => {
-                        type B = Autodiff<Metal<f32>>;
-                        let tensor = tensor.as_autodiff();
-                        { (B::float_is_require_grad(&tensor)) }
-                    }
-                    #[cfg(feature = "rocm")]
-                    crate::DispatchTensor::Rocm(tensor) => {
-                        type B = Autodiff<Rocm<f32>>;
-                        let tensor = tensor.as_autodiff();
-                        { (B::float_is_require_grad(&tensor)) }
-                    }
-                    #[cfg(wgpu_vulkan)]
-                    crate::DispatchTensor::Vulkan(tensor) => {
-                        type B = Autodiff<Vulkan<f32>>;
-                        let tensor = tensor.as_autodiff();
-                        { (B::float_is_require_grad(&tensor)) }
-                    }
-                    #[cfg(wgpu_webgpu)]
-                    crate::DispatchTensor::WebGpu(tensor) => {
-                        type B = Autodiff<WebGpu<f32>>;
-                        let tensor = tensor.as_autodiff();
-                        { (B::float_is_require_grad(&tensor)) }
-                    }
-                    #[cfg(feature = "ndarray")]
-                    crate::DispatchTensor::NdArray(tensor) => {
-                        type B = Autodiff<NdArray<f32>>;
-                        let tensor = tensor.as_autodiff();
-                        { (B::float_is_require_grad(&tensor)) }
-                    }
-                    #[cfg(feature = "tch")]
-                    crate::DispatchTensor::LibTorch(tensor) => {
-                        type B = Autodiff<LibTorch<f32>>;
-                        let tensor = tensor.as_autodiff();
-                        { (B::float_is_require_grad(&tensor)) }
-                    }
-                    #[cfg(feature = "autodiff")]
-                    crate::DispatchTensor::Autodiff(_) => {
-                        panic!("Autodiff should not wrap an autodiff tensor.");
-                    }
-                },
-                #[cfg(feature = "cpu")]
-                crate::DispatchTensor::Cpu(tensor) => {
-                    type B = Cpu<f32>;
-                    let tensor = tensor.as_float();
-                    { (B::float_is_require_grad(&tensor)) }
-                }
-                #[cfg(feature = "cuda")]
-                crate::DispatchTensor::Cuda(tensor) => {
-                    type B = Cuda<f32>;
-                    let tensor = tensor.as_float();
-                    { (B::float_is_require_grad(&tensor)) }
-                }
-                #[cfg(wgpu_metal)]
-                crate::DispatchTensor::Metal(tensor) => {
-                    type B = Metal<f32>;
-                    let tensor = tensor.as_float();
-                    { (B::float_is_require_grad(&tensor)) }
-                }
-                #[cfg(feature = "rocm")]
-                crate::DispatchTensor::Rocm(tensor) => {
-                    type B = Rocm<f32>;
-                    let tensor = tensor.as_float();
-                    { (B::float_is_require_grad(&tensor)) }
-                }
-                #[cfg(wgpu_vulkan)]
-                crate::DispatchTensor::Vulkan(tensor) => {
-                    type B = Vulkan<f32>;
-                    let tensor = tensor.as_float();
-                    { (B::float_is_require_grad(&tensor)) }
-                }
-                #[cfg(wgpu_webgpu)]
-                crate::DispatchTensor::WebGpu(tensor) => {
-                    type B = WebGpu<f32>;
-                    let tensor = tensor.as_float();
-                    { (B::float_is_require_grad(&tensor)) }
-                }
-                #[cfg(feature = "ndarray")]
-                crate::DispatchTensor::NdArray(tensor) => {
-                    type B = NdArray<f32>;
-                    let tensor = tensor.as_float();
-                    { (B::float_is_require_grad(&tensor)) }
-                }
-                #[cfg(feature = "tch")]
-                crate::DispatchTensor::LibTorch(tensor) => {
-                    type B = LibTorch<f32>;
-                    let tensor = tensor.as_float();
-                    { (B::float_is_require_grad(&tensor)) }
-                }
-            }
-        }
+        unary_float!(ref tensor, float, |tensor| B::float_is_require_grad(tensor))
     }
 
     // Default implementation
@@ -593,10 +475,6 @@ impl FloatTensorOps<Self> for Dispatch {
         binary_float!((lhs, float), (rhs, int), |lhs, rhs| B::float_powi(lhs, rhs) => Float)
     }
 
-    fn float_powi_scalar(lhs: FloatTensor<Self>, rhs: Scalar) -> FloatTensor<Self> {
-        unary_float!(lhs, float, |lhs| B::float_powi_scalar(lhs, rhs) => Float)
-    }
-
     fn float_powi_scalar_impl(lhs: FloatTensor<Self>, rhs: Scalar) -> FloatTensor<Self> {
         unary_float!(lhs, float, |lhs| B::float_powi_scalar_impl(lhs, rhs) => Float)
     }
@@ -605,9 +483,9 @@ impl FloatTensorOps<Self> for Dispatch {
         unary_float!(tensor, float, |tensor| B::float_powf_scalar(tensor, value) => Float)
     }
 
-    // fn float_cat(tensors: Vec<FloatTensor<Self>>, dim: usize) -> FloatTensor<Self> {
-    //     todo!()
-    // }
+    fn float_cat(tensors: Vec<FloatTensor<Self>>, dim: usize) -> FloatTensor<Self> {
+        vec_op!(tensors, float, |tensors| B::float_cat(tensors, dim) => Float)
+    }
 
     fn float_max(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         unary_float!(tensor, float, |tensor| B::float_max(tensor) => Float)
@@ -617,13 +495,16 @@ impl FloatTensorOps<Self> for Dispatch {
         unary_float!(tensor, float, |tensor| B::float_max_dim(tensor, dim) => Float)
     }
 
-    // fn float_max_dim_with_indices(
-    //     tensor: FloatTensor<Self>,
-    //     dim: usize,
-    // ) -> (FloatTensor<Self>, IntTensor<Self>) {
-    //     // unary_float!(tensor, float, |tensor| B::float_max_dim_with_indices(tensor, dim) => Float)
-    //     todo!()
-    // }
+    fn float_max_dim_with_indices(
+        tensor: FloatTensor<Self>,
+        dim: usize,
+    ) -> (FloatTensor<Self>, IntTensor<Self>) {
+        multi_op!(
+            inputs[(tensor, float)],
+            outputs[(out, Float), (indices, Int)],
+            B::float_max_dim_with_indices(tensor, dim)
+        )
+    }
 
     fn float_min(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         unary_float!(tensor, float, |tensor| B::float_min(tensor) => Float)
@@ -633,13 +514,16 @@ impl FloatTensorOps<Self> for Dispatch {
         unary_float!(tensor, float, |tensor| B::float_min_dim(tensor, dim) => Float)
     }
 
-    // fn float_min_dim_with_indices(
-    //     tensor: FloatTensor<Self>,
-    //     dim: usize,
-    // ) -> (FloatTensor<Self>, IntTensor<Self>) {
-    //     // unary_float!(tensor, float, |tensor| B::float_min_dim_with_indices(tensor, dim) => Float)
-    //     todo!()
-    // }
+    fn float_min_dim_with_indices(
+        tensor: FloatTensor<Self>,
+        dim: usize,
+    ) -> (FloatTensor<Self>, IntTensor<Self>) {
+        multi_op!(
+            inputs[(tensor, float)],
+            outputs[(out, Float), (indices, Int)],
+            B::float_min_dim_with_indices(tensor, dim)
+        )
+    }
 
     fn float_max_abs(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         unary_float!(tensor, float, |tensor| B::float_max_abs(tensor) => Float)
@@ -673,17 +557,21 @@ impl FloatTensorOps<Self> for Dispatch {
         unary_float!(tensor, float, |tensor| B::float_sort(tensor, dim, descending) => Float)
     }
 
-    // fn float_sort_with_indices(
-    //     tensor: FloatTensor<Self>,
-    //     dim: usize,
-    //     descending: bool,
-    // ) -> (FloatTensor<Self>, IntTensor<Self>) {
-    //     todo!()
-    // }
+    fn float_sort_with_indices(
+        tensor: FloatTensor<Self>,
+        dim: usize,
+        descending: bool,
+    ) -> (FloatTensor<Self>, IntTensor<Self>) {
+        multi_op!(
+            inputs[(tensor, float)],
+            outputs[(out, Float), (indices, Int)],
+            B::float_sort_with_indices(tensor, dim, descending)
+        )
+    }
 
-    // fn float_argsort(tensor: FloatTensor<Self>, dim: usize, descending: bool) -> IntTensor<Self> {
-    //     todo!()
-    // }
+    fn float_argsort(tensor: FloatTensor<Self>, dim: usize, descending: bool) -> IntTensor<Self> {
+        unary_float!(tensor, float, |tensor| B::float_argsort(tensor, dim, descending) => Int)
+    }
 
     fn float_grid_sample_2d(
         tensor: FloatTensor<Self>,

@@ -76,6 +76,9 @@ burn-tch = { path = "../burn-tch", version = "=0.21.0-pre.1", optional = true, d
 burn-rocm = { path = "../burn-rocm", version = "=0.21.0-pre.1", optional = true, default-features = false }
 burn-wgpu = { path = "../burn-wgpu", version = "=0.21.0-pre.1", optional = true, default-features = false }
 
+# Op macros with `.as_$inner_kind()`
+paste = { workspace = true }
+
 [package.metadata.docs.rs]
 features = ["doc"]
 rustdoc-args = ["--cfg", "docsrs"]

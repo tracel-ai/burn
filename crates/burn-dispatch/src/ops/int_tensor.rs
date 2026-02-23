@@ -57,11 +57,9 @@ impl IntTensorOps<Self> for Dispatch {
         mask: BoolTensor<Self>,
         value: IntTensor<Self>,
     ) -> IntTensor<Self> {
-        multi_tensor_op!(
-            (tensor, int),
-            (mask, bool),
-            (value, int),
-            |tensor, mask, value| B::int_mask_where(tensor, mask, value) => Int
+        multi_op!(
+            inputs[(tensor, int), (mask, bool), (value, int)], => Int,
+            B::int_mask_where(tensor, mask, value)
         )
     }
 
@@ -87,11 +85,9 @@ impl IntTensorOps<Self> for Dispatch {
         indices: IntTensor<Self>,
         value: IntTensor<Self>,
     ) -> IntTensor<Self> {
-        multi_tensor_op!(
-            (tensor, int),
-            (indices, int),
-            (value, int),
-            |tensor, indices, value| B::int_scatter_add(dim, tensor, indices, value) => Int
+        multi_op!(
+            inputs[(tensor, int), (indices, int), (value, int)], => Int,
+            B::int_scatter_add(dim, tensor, indices, value)
         )
     }
 
@@ -109,11 +105,9 @@ impl IntTensorOps<Self> for Dispatch {
         indices: IntTensor<Self>,
         value: IntTensor<Self>,
     ) -> IntTensor<Self> {
-        multi_tensor_op!(
-            (tensor, int),
-            (indices, int),
-            (value, int),
-            |tensor, indices, value| B::int_select_add(tensor, dim, indices, value) => Int
+        multi_op!(
+            inputs[(tensor, int), (indices, int), (value, int)], => Int,
+            B::int_select_add(tensor, dim, indices, value)
         )
     }
 
@@ -330,5 +324,191 @@ impl IntTensorOps<Self> for Dispatch {
         step: usize,
     ) -> IntTensor<Self> {
         unary_op!(tensor, int, |tensor| B::int_unfold(tensor, dim, size, step) => Int)
+    }
+
+    fn int_repeat_dim(tensor: IntTensor<Self>, dim: usize, times: usize) -> IntTensor<Self> {
+        unary_op!(tensor, int, |tensor| B::int_repeat_dim(tensor, dim, times) => Int)
+    }
+
+    fn int_cat(tensors: Vec<IntTensor<Self>>, dim: usize) -> IntTensor<Self> {
+        vec_op!(tensors, int, |tensors| B::int_cat(tensors, dim) => Int)
+    }
+
+    fn int_not_equal(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> BoolTensor<Self> {
+        binary_op!((lhs, int), (rhs, int), |lhs, rhs| B::int_not_equal(lhs, rhs) => Bool)
+    }
+
+    fn int_not_equal_elem(lhs: IntTensor<Self>, rhs: Scalar) -> BoolTensor<Self> {
+        unary_op!(lhs, int, |lhs| B::int_not_equal_elem(lhs, rhs) => Bool)
+    }
+
+    fn int_powi(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+        binary_op!((lhs, int), (rhs, int), |lhs, rhs| B::int_powi(lhs, rhs) => Int)
+    }
+
+    fn int_powf(lhs: IntTensor<Self>, rhs: FloatTensor<Self>) -> IntTensor<Self> {
+        binary_op!((lhs, int), (rhs, int), |lhs, rhs| B::int_powf(lhs, rhs) => Int)
+    }
+
+    fn int_powi_scalar_impl(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
+        unary_op!(lhs, int, |lhs| B::int_powi_scalar_impl(lhs, rhs) => Int)
+    }
+
+    fn int_powf_scalar_impl(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
+        unary_op!(lhs, int, |lhs| B::int_powf_scalar_impl(lhs, rhs) => Int)
+    }
+
+    fn int_clamp_min(tensor: IntTensor<Self>, min: Scalar) -> IntTensor<Self> {
+        unary_op!(tensor, int, |tensor| B::int_clamp_min(tensor, min) => Int)
+    }
+
+    fn int_clamp_max(tensor: IntTensor<Self>, max: Scalar) -> IntTensor<Self> {
+        unary_op!(tensor, int, |tensor| B::int_clamp_max(tensor, max) => Int)
+    }
+
+    fn int_clamp(tensor: IntTensor<Self>, min: Scalar, max: Scalar) -> IntTensor<Self> {
+        unary_op!(tensor, int, |tensor| B::int_clamp(tensor, min, max) => Int)
+    }
+
+    fn int_neg(tensor: IntTensor<Self>) -> IntTensor<Self> {
+        unary_op!(tensor, int, |tensor| B::int_neg(tensor) => Int)
+    }
+
+    fn int_zeros(
+        shape: Shape,
+        device: &burn_backend::tensor::Device<Self>,
+        dtype: IntDType,
+    ) -> IntTensor<Self> {
+        creation_op!(Int, device, |device| B::int_zeros(shape, device, dtype))
+    }
+
+    fn int_ones(
+        shape: Shape,
+        device: &burn_backend::tensor::Device<Self>,
+        dtype: IntDType,
+    ) -> IntTensor<Self> {
+        creation_op!(Int, device, |device| B::int_ones(shape, device, dtype))
+    }
+
+    fn int_full(
+        shape: Shape,
+        fill_value: Scalar,
+        device: &burn_backend::tensor::Device<Self>,
+        dtype: IntDType,
+    ) -> IntTensor<Self> {
+        creation_op!(Int, device, |device| B::int_full(
+            shape, fill_value, device, dtype
+        ))
+    }
+
+    fn int_mean(tensor: IntTensor<Self>) -> IntTensor<Self> {
+        unary_op!(tensor, int, |tensor| B::int_mean(tensor) => Int)
+    }
+
+    fn int_max(tensor: IntTensor<Self>) -> IntTensor<Self> {
+        unary_op!(tensor, int, |tensor| B::int_max(tensor) => Int)
+    }
+
+    fn int_max_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
+        unary_op!(tensor, int, |tensor| B::int_max_dim(tensor, dim) => Int)
+    }
+
+    fn int_max_dim_with_indices(
+        tensor: IntTensor<Self>,
+        dim: usize,
+    ) -> (IntTensor<Self>, IntTensor<Self>) {
+        multi_op!(
+            inputs[(tensor, int)],
+            outputs[(out, Int), (indices, Int)],
+            B::int_max_dim_with_indices(tensor, dim)
+        )
+    }
+
+    fn int_max_abs(tensor: IntTensor<Self>) -> IntTensor<Self> {
+        unary_op!(tensor, int, |tensor| B::int_max_abs(tensor) => Int)
+    }
+
+    fn int_max_abs_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
+        unary_op!(tensor, int, |tensor| B::int_max_abs_dim(tensor, dim) => Int)
+    }
+
+    fn int_min(tensor: IntTensor<Self>) -> IntTensor<Self> {
+        unary_op!(tensor, int, |tensor| B::int_min(tensor) => Int)
+    }
+
+    fn int_min_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
+        unary_op!(tensor, int, |tensor| B::int_min_dim(tensor, dim) => Int)
+    }
+
+    fn int_min_dim_with_indices(
+        tensor: IntTensor<Self>,
+        dim: usize,
+    ) -> (IntTensor<Self>, IntTensor<Self>) {
+        multi_op!(
+            inputs[(tensor, int)],
+            outputs[(out, Int), (indices, Int)],
+            B::int_min_dim_with_indices(tensor, dim)
+        )
+    }
+
+    fn int_transpose(tensor: IntTensor<Self>) -> IntTensor<Self> {
+        unary_op!(tensor, int, |tensor| B::int_transpose(tensor) => Int)
+    }
+
+    fn int_arange_step(
+        range: std::ops::Range<i64>,
+        step: usize,
+        device: &burn_backend::tensor::Device<Self>,
+    ) -> IntTensor<Self> {
+        creation_op!(Int, device, |device| B::int_arange_step(
+            range, step, device
+        ))
+    }
+
+    fn int_arange(
+        range: std::ops::Range<i64>,
+        device: &burn_backend::tensor::Device<Self>,
+    ) -> IntTensor<Self> {
+        creation_op!(Int, device, |device| B::int_arange(range, device))
+    }
+
+    fn int_any(tensor: IntTensor<Self>) -> BoolTensor<Self> {
+        unary_op!(tensor, int, |tensor| B::int_any(tensor) => Bool)
+    }
+
+    fn int_any_dim(tensor: IntTensor<Self>, dim: usize) -> BoolTensor<Self> {
+        unary_op!(tensor, int, |tensor| B::int_any_dim(tensor, dim) => Bool)
+    }
+
+    fn int_all(tensor: IntTensor<Self>) -> BoolTensor<Self> {
+        unary_op!(tensor, int, |tensor| B::int_all(tensor) => Bool)
+    }
+
+    fn int_all_dim(tensor: IntTensor<Self>, dim: usize) -> BoolTensor<Self> {
+        unary_op!(tensor, int, |tensor| B::int_all_dim(tensor, dim) => Bool)
+    }
+
+    fn int_sign(tensor: IntTensor<Self>) -> IntTensor<Self> {
+        unary_op!(tensor, int, |tensor| B::int_sign(tensor) => Int)
+    }
+
+    fn int_sort(tensor: IntTensor<Self>, dim: usize, descending: bool) -> IntTensor<Self> {
+        unary_op!(tensor, int, |tensor| B::int_sort(tensor, dim, descending) => Int)
+    }
+
+    fn int_sort_with_indices(
+        tensor: IntTensor<Self>,
+        dim: usize,
+        descending: bool,
+    ) -> (IntTensor<Self>, IntTensor<Self>) {
+        multi_op!(
+            inputs[(tensor, int)],
+            outputs[(out, Int), (indices, Int)],
+            B::int_sort_with_indices(tensor, dim, descending)
+        )
+    }
+
+    fn int_argsort(tensor: IntTensor<Self>, dim: usize, descending: bool) -> IntTensor<Self> {
+        unary_op!(tensor, int, |tensor| B::int_argsort(tensor, dim, descending) => Int)
     }
 }

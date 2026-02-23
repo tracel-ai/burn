@@ -960,6 +960,7 @@ dependencies = [
  "burn-std",
  "burn-tch",
  "burn-wgpu",
+ "paste",
 ]
 
 [[package]]

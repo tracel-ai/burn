@@ -22,7 +22,7 @@ fn select_device() -> Device {
     return NdArrayDevice::Cpu.into();
 
     #[cfg(all(feature = "tch-gpu", not(target_os = "macos")))]
-    LibTorchDevice::Cuda(0).into();
+    return LibTorchDevice::Cuda(0).into();
 
     #[cfg(all(feature = "tch-gpu", target_os = "macos"))]
     return LibTorchDevice::Mps.into();

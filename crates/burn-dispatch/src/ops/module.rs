@@ -16,15 +16,12 @@ impl ModuleOps<Self> for Dispatch {
         bias: Option<FloatTensor<Self>>,
         options: burn_backend::ops::ConvOptions<2>,
     ) -> FloatTensor<Self> {
-        module_op!(
+        multi_op!(
             inputs[(x, float), (weight, float)],
-            opt_inputs[bias],
-            outputs[out],
-            {
-                (B::conv2d(x, weight, bias, options),)
-            }
+            opt_inputs[(bias, float)],
+            => Float,
+            B::conv2d(x, weight, bias, options)
         )
-        .0
     }
 
     fn deform_conv2d(
@@ -35,15 +32,12 @@ impl ModuleOps<Self> for Dispatch {
         bias: Option<FloatTensor<Self>>,
         options: burn_backend::ops::DeformConvOptions<2>,
     ) -> FloatTensor<Self> {
-        module_op!(
+        multi_op!(
             inputs[(x, float), (offset, float), (weight, float)],
-            opt_inputs[mask, bias],
-            outputs[out],
-            {
-                (B::deform_conv2d(x, offset, weight, mask, bias, options),)
-            }
+            opt_inputs[(mask, float), (bias, float)],
+            => Float,
+            B::deform_conv2d(x, offset, weight, mask, bias, options)
         )
-        .0
     }
 
     fn deform_conv2d_backward(
@@ -55,9 +49,9 @@ impl ModuleOps<Self> for Dispatch {
         output_grad: FloatTensor<Self>,
         options: burn_backend::ops::DeformConvOptions<2>,
     ) -> DeformConv2dBackward<Self> {
-        let (x_grad, offset_grad, weight_grad, mask_grad, bias_grad) = module_op!(
+        let (x_grad, offset_grad, weight_grad, mask_grad, bias_grad) = multi_op!(
             inputs[(x, float), (offset, float), (weight, float), (output_grad, float)],
-            opt_inputs[mask, bias],
+            opt_inputs[(mask, float), (bias, float)],
             outputs[(x_grad, Float), (offset_grad, Float), (weight_grad, Float)],
             opt_outputs[mask_grad, bias_grad],
             {
@@ -74,15 +68,12 @@ impl ModuleOps<Self> for Dispatch {
         bias: Option<FloatTensor<Self>>,
         options: burn_backend::ops::ConvOptions<3>,
     ) -> FloatTensor<Self> {
-        module_op!(
+        multi_op!(
             inputs[(x, float), (weight, float)],
-            opt_inputs[bias],
-            outputs[out],
-            {
-                (B::conv3d(x, weight, bias, options),)
-            }
+            opt_inputs[(bias, float)],
+            => Float,
+            B::conv3d(x, weight, bias, options)
         )
-        .0
     }
 
     fn conv_transpose2d(
@@ -91,15 +82,12 @@ impl ModuleOps<Self> for Dispatch {
         bias: Option<FloatTensor<Self>>,
         options: burn_backend::ops::ConvTransposeOptions<2>,
     ) -> FloatTensor<Self> {
-        module_op!(
+        multi_op!(
             inputs[(x, float), (weight, float)],
-            opt_inputs[bias],
-            outputs[out],
-            {
-                (B::conv_transpose2d(x, weight, bias, options),)
-            }
+            opt_inputs[(bias, float)],
+            => Float,
+            B::conv_transpose2d(x, weight, bias, options)
         )
-        .0
     }
 
     fn conv_transpose3d(
@@ -108,15 +96,12 @@ impl ModuleOps<Self> for Dispatch {
         bias: Option<FloatTensor<Self>>,
         options: burn_backend::ops::ConvTransposeOptions<3>,
     ) -> FloatTensor<Self> {
-        module_op!(
+        multi_op!(
             inputs[(x, float), (weight, float)],
-            opt_inputs[bias],
-            outputs[out],
-            {
-                (B::conv_transpose3d(x, weight, bias, options),)
-            }
+            opt_inputs[(bias, float)],
+            => Float,
+            B::conv_transpose3d(x, weight, bias, options)
         )
-        .0
     }
 
     fn avg_pool2d(
@@ -127,17 +112,10 @@ impl ModuleOps<Self> for Dispatch {
         count_include_pad: bool,
         ceil_mode: bool,
     ) -> FloatTensor<Self> {
-        module_op!(inputs[(x, float)], outputs[out], {
-            (B::avg_pool2d(
-                x,
-                kernel_size,
-                stride,
-                padding,
-                count_include_pad,
-                ceil_mode,
-            ),)
-        })
-        .0
+        multi_op!(inputs[(x, float)],
+            => Float,
+            B::avg_pool2d(x, kernel_size, stride, padding, count_include_pad, ceil_mode)
+        )
     }
 
     fn avg_pool2d_backward(
@@ -149,35 +127,30 @@ impl ModuleOps<Self> for Dispatch {
         count_include_pad: bool,
         ceil_mode: bool,
     ) -> FloatTensor<Self> {
-        module_op!(
+        multi_op!(
             inputs[(x, float), (grad, float)],
-            outputs[out],
-            {
-                (B::avg_pool2d_backward(x, grad, kernel_size, stride, padding, count_include_pad, ceil_mode),)
-            }
+            => Float,
+            B::avg_pool2d_backward(x, grad, kernel_size, stride, padding, count_include_pad, ceil_mode)
         )
-        .0
     }
 
     fn adaptive_avg_pool2d(x: FloatTensor<Self>, output_size: [usize; 2]) -> FloatTensor<Self> {
-        module_op!(inputs[(x, float)], outputs[out], {
-            (B::adaptive_avg_pool2d(x, output_size),)
-        })
-        .0
+        multi_op!(
+            inputs[(x, float)],
+            => Float,
+            B::adaptive_avg_pool2d(x, output_size)
+        )
     }
 
     fn adaptive_avg_pool2d_backward(
         x: FloatTensor<Self>,
         grad: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
-        module_op!(
+        multi_op!(
             inputs[(x, float), (grad, float)],
-            outputs[out],
-            {
-                (B::adaptive_avg_pool2d_backward(x, grad),)
-            }
+            => Float,
+            B::adaptive_avg_pool2d_backward(x, grad)
         )
-        .0
     }
 
     fn max_pool2d(
@@ -188,17 +161,11 @@ impl ModuleOps<Self> for Dispatch {
         dilation: [usize; 2],
         ceil_mode: bool,
     ) -> FloatTensor<Self> {
-        module_op!(inputs[(x, float)], outputs[out], {
-            (B::max_pool2d(
-                x,
-                kernel_size,
-                stride,
-                padding,
-                dilation,
-                ceil_mode,
-            ),)
-        })
-        .0
+        multi_op!(
+            inputs[(x, float)],
+            => Float,
+            B::max_pool2d(x, kernel_size, stride, padding, dilation, ceil_mode)
+        )
     }
 
     fn max_pool2d_with_indices(
@@ -209,7 +176,7 @@ impl ModuleOps<Self> for Dispatch {
         dilation: [usize; 2],
         ceil_mode: bool,
     ) -> MaxPool2dWithIndices<Self> {
-        let (out, indices) = module_op!(
+        let (out, indices) = multi_op!(
             inputs[(x, float)],
             outputs[(out, Float), (indices, Int)],
             {
@@ -230,15 +197,14 @@ impl ModuleOps<Self> for Dispatch {
         output_grad: FloatTensor<Self>,
         indices: IntTensor<Self>,
     ) -> MaxPool2dBackward<Self> {
-        let x_grad = module_op!(
+        let x_grad = multi_op!(
             inputs[(x, float), (output_grad, float), (indices, int)],
-            outputs[out],
+            => Float,
             {
                 let res = B::max_pool2d_with_indices_backward(x, kernel_size, stride, padding, dilation, ceil_mode, output_grad, indices);
-                (res.x_grad,)
+                res.x_grad
             }
-        )
-        .0;
+        );
         MaxPool2dBackward::new(x_grad)
     }
 
@@ -247,10 +213,11 @@ impl ModuleOps<Self> for Dispatch {
         output_size: [usize; 2],
         options: burn_backend::ops::InterpolateOptions,
     ) -> FloatTensor<Self> {
-        module_op!(inputs[(x, float)], outputs[out], {
-            (B::interpolate(x, output_size, options),)
-        })
-        .0
+        multi_op!(
+            inputs[(x, float)],
+            => Float,
+            B::interpolate(x, output_size, options)
+        )
     }
 
     fn interpolate_backward(
@@ -259,25 +226,19 @@ impl ModuleOps<Self> for Dispatch {
         output_size: [usize; 2],
         options: burn_backend::ops::InterpolateOptions,
     ) -> FloatTensor<Self> {
-        module_op!(
+        multi_op!(
             inputs[(x, float), (grad, float)],
-            outputs[out],
-            {
-                (B::interpolate_backward(x, grad, output_size, options),)
-            }
+            => Float,
+            B::interpolate_backward(x, grad, output_size, options)
         )
-        .0
     }
 
     fn embedding(weights: FloatTensor<Self>, indices: IntTensor<Self>) -> FloatTensor<Self> {
-        module_op!(
+        multi_op!(
             inputs[(weights, float), (indices, int)],
-            outputs[out],
-            {
-                (B::embedding(weights, indices),)
-            }
+            => Float,
+            B::embedding(weights, indices)
         )
-        .0
     }
 
     fn embedding_backward(
@@ -285,14 +246,11 @@ impl ModuleOps<Self> for Dispatch {
         output_grad: FloatTensor<Self>,
         indices: IntTensor<Self>,
     ) -> FloatTensor<Self> {
-        module_op!(
+        multi_op!(
             inputs[(weights, float), (output_grad, float), (indices, int)],
-            outputs[out],
-            {
-                (B::embedding_backward(weights, output_grad, indices),)
-            }
+            => Float,
+            B::embedding_backward(weights, output_grad, indices)
         )
-        .0
     }
 
     fn conv1d(
@@ -301,15 +259,12 @@ impl ModuleOps<Self> for Dispatch {
         bias: Option<FloatTensor<Self>>,
         options: burn_backend::ops::ConvOptions<1>,
     ) -> FloatTensor<Self> {
-        module_op!(
+        multi_op!(
             inputs[(x, float), (weight, float)],
-            opt_inputs[bias],
-            outputs[out],
-            {
-                (B::conv1d(x, weight, bias, options),)
-            }
+            opt_inputs[(bias, float)],
+            => Float,
+            B::conv1d(x, weight, bias, options)
         )
-        .0
     }
 
     fn conv1d_x_backward(
@@ -318,14 +273,11 @@ impl ModuleOps<Self> for Dispatch {
         output_grad: FloatTensor<Self>,
         options: burn_backend::ops::ConvOptions<1>,
     ) -> FloatTensor<Self> {
-        module_op!(
+        multi_op!(
             inputs[(x, float), (weight, float), (output_grad, float)],
-            outputs[out],
-            {
-                (B::conv1d_x_backward(x, weight, output_grad, options),)
-            }
+            => Float,
+            B::conv1d_x_backward(x, weight, output_grad, options)
         )
-        .0
     }
 
     fn conv1d_weight_backward(
@@ -334,14 +286,11 @@ impl ModuleOps<Self> for Dispatch {
         output_grad: FloatTensor<Self>,
         options: burn_backend::ops::ConvOptions<1>,
     ) -> FloatTensor<Self> {
-        module_op!(
+        multi_op!(
             inputs[(x, float), (weight, float), (output_grad, float)],
-            outputs[out],
-            {
-                (B::conv1d_weight_backward(x, weight, output_grad, options),)
-            }
+            => Float,
+            B::conv1d_weight_backward(x, weight, output_grad, options)
         )
-        .0
     }
 
     fn conv1d_bias_backward(
@@ -349,14 +298,11 @@ impl ModuleOps<Self> for Dispatch {
         bias: FloatTensor<Self>,
         output_grad: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
-        module_op!(
+        multi_op!(
             inputs[(x, float), (bias, float), (output_grad, float)],
-            outputs[out],
-            {
-                (B::conv1d_bias_backward(x, bias, output_grad),)
-            }
+            => Float,
+            B::conv1d_bias_backward(x, bias, output_grad)
         )
-        .0
     }
 
     fn conv2d_x_backward(
@@ -365,14 +311,11 @@ impl ModuleOps<Self> for Dispatch {
         output_grad: FloatTensor<Self>,
         options: burn_backend::ops::ConvOptions<2>,
     ) -> FloatTensor<Self> {
-        module_op!(
+        multi_op!(
             inputs[(x, float), (weight, float), (output_grad, float)],
-            outputs[out],
-            {
-                (B::conv2d_x_backward(x, weight, output_grad, options),)
-            }
+            => Float,
+            B::conv2d_x_backward(x, weight, output_grad, options)
         )
-        .0
     }
 
     fn conv2d_weight_backward(
@@ -381,14 +324,11 @@ impl ModuleOps<Self> for Dispatch {
         output_grad: FloatTensor<Self>,
         options: burn_backend::ops::ConvOptions<2>,
     ) -> FloatTensor<Self> {
-        module_op!(
+        multi_op!(
             inputs[(x, float), (weight, float), (output_grad, float)],
-            outputs[out],
-            {
-                (B::conv2d_weight_backward(x, weight, output_grad, options),)
-            }
+            => Float,
+            B::conv2d_weight_backward(x, weight, output_grad, options)
         )
-        .0
     }
 
     fn conv2d_bias_backward(
@@ -396,14 +336,11 @@ impl ModuleOps<Self> for Dispatch {
         bias: FloatTensor<Self>,
         output_grad: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
-        module_op!(
+        multi_op!(
             inputs[(x, float), (bias, float), (output_grad, float)],
-            outputs[out],
-            {
-                (B::conv2d_bias_backward(x, bias, output_grad),)
-            }
+            => Float,
+            B::conv2d_bias_backward(x, bias, output_grad)
         )
-        .0
     }
 
     fn conv3d_x_backward(
@@ -412,14 +349,11 @@ impl ModuleOps<Self> for Dispatch {
         output_grad: FloatTensor<Self>,
         options: burn_backend::ops::ConvOptions<3>,
     ) -> FloatTensor<Self> {
-        module_op!(
+        multi_op!(
             inputs[(x, float), (weight, float), (output_grad, float)],
-            outputs[out],
-            {
-                (B::conv3d_x_backward(x, weight, output_grad, options),)
-            }
+            => Float,
+            B::conv3d_x_backward(x, weight, output_grad, options)
         )
-        .0
     }
 
     fn conv3d_weight_backward(
@@ -428,14 +362,11 @@ impl ModuleOps<Self> for Dispatch {
         output_grad: FloatTensor<Self>,
         options: burn_backend::ops::ConvOptions<3>,
     ) -> FloatTensor<Self> {
-        module_op!(
+        multi_op!(
             inputs[(x, float), (weight, float), (output_grad, float)],
-            outputs[out],
-            {
-                (B::conv3d_weight_backward(x, weight, output_grad, options),)
-            }
+            => Float,
+            B::conv3d_weight_backward(x, weight, output_grad, options)
         )
-        .0
     }
 
     fn conv3d_bias_backward(
@@ -443,14 +374,11 @@ impl ModuleOps<Self> for Dispatch {
         bias: FloatTensor<Self>,
         output_grad: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
-        module_op!(
+        multi_op!(
             inputs[(x, float), (bias, float), (output_grad, float)],
-            outputs[out],
-            {
-                (B::conv3d_bias_backward(x, bias, output_grad),)
-            }
+            => Float,
+            B::conv3d_bias_backward(x, bias, output_grad)
         )
-        .0
     }
 
     fn conv_transpose1d(
@@ -459,15 +387,12 @@ impl ModuleOps<Self> for Dispatch {
         bias: Option<FloatTensor<Self>>,
         options: burn_backend::ops::ConvTransposeOptions<1>,
     ) -> FloatTensor<Self> {
-        module_op!(
+        multi_op!(
             inputs[(x, float), (weight, float)],
-            opt_inputs[bias],
-            outputs[out],
-            {
-                (B::conv_transpose1d(x, weight, bias, options),)
-            }
+            opt_inputs[(bias, float)],
+            => Float,
+            B::conv_transpose1d(x, weight, bias, options)
         )
-        .0
     }
 
     fn conv_transpose1d_x_backward(
@@ -475,14 +400,11 @@ impl ModuleOps<Self> for Dispatch {
         output_grad: FloatTensor<Self>,
         options: burn_backend::ops::ConvTransposeOptions<1>,
     ) -> FloatTensor<Self> {
-        module_op!(
+        multi_op!(
             inputs[(weight, float), (output_grad, float)],
-            outputs[out],
-            {
-                (B::conv_transpose1d_x_backward(weight, output_grad, options),)
-            }
+            => Float,
+            B::conv_transpose1d_x_backward(weight, output_grad, options)
         )
-        .0
     }
 
     fn conv_transpose1d_weight_backward(
@@ -491,14 +413,11 @@ impl ModuleOps<Self> for Dispatch {
         output_grad: FloatTensor<Self>,
         options: burn_backend::ops::ConvTransposeOptions<1>,
     ) -> FloatTensor<Self> {
-        module_op!(
+        multi_op!(
             inputs[(x, float), (weight, float), (output_grad, float)],
-            outputs[out],
-            {
-                (B::conv_transpose1d_weight_backward(x, weight, output_grad, options),)
-            }
+            => Float,
+            B::conv_transpose1d_weight_backward(x, weight, output_grad, options)
         )
-        .0
     }
 
     fn conv_transpose1d_bias_backward(
@@ -506,14 +425,11 @@ impl ModuleOps<Self> for Dispatch {
         bias: FloatTensor<Self>,
         output_grad: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
-        module_op!(
+        multi_op!(
             inputs[(x, float), (bias, float), (output_grad, float)],
-            outputs[out],
-            {
-                (B::conv_transpose1d_bias_backward(x, bias, output_grad),)
-            }
+            => Float,
+            B::conv_transpose1d_bias_backward(x, bias, output_grad)
         )
-        .0
     }
 
     fn conv_transpose2d_x_backward(
@@ -521,14 +437,11 @@ impl ModuleOps<Self> for Dispatch {
         output_grad: FloatTensor<Self>,
         options: burn_backend::ops::ConvTransposeOptions<2>,
     ) -> FloatTensor<Self> {
-        module_op!(
+        multi_op!(
             inputs[(weight, float), (output_grad, float)],
-            outputs[out],
-            {
-                (B::conv_transpose2d_x_backward(weight, output_grad, options),)
-            }
+            => Float,
+            B::conv_transpose2d_x_backward(weight, output_grad, options)
         )
-        .0
     }
 
     fn conv_transpose2d_weight_backward(
@@ -537,14 +450,11 @@ impl ModuleOps<Self> for Dispatch {
         output_grad: FloatTensor<Self>,
         options: burn_backend::ops::ConvTransposeOptions<2>,
     ) -> FloatTensor<Self> {
-        module_op!(
+        multi_op!(
             inputs[(x, float), (weight, float), (output_grad, float)],
-            outputs[out],
-            {
-                (B::conv_transpose2d_weight_backward(x, weight, output_grad, options),)
-            }
+            => Float,
+            B::conv_transpose2d_weight_backward(x, weight, output_grad, options)
         )
-        .0
     }
 
     fn conv_transpose2d_bias_backward(
@@ -552,14 +462,11 @@ impl ModuleOps<Self> for Dispatch {
         bias: FloatTensor<Self>,
         output_grad: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
-        module_op!(
+        multi_op!(
             inputs[(x, float), (bias, float), (output_grad, float)],
-            outputs[out],
-            {
-                (B::conv_transpose2d_bias_backward(x, bias, output_grad),)
-            }
+            => Float,
+            B::conv_transpose2d_bias_backward(x, bias, output_grad)
         )
-        .0
     }
 
     fn conv_transpose3d_x_backward(
@@ -567,14 +474,11 @@ impl ModuleOps<Self> for Dispatch {
         output_grad: FloatTensor<Self>,
         options: burn_backend::ops::ConvTransposeOptions<3>,
     ) -> FloatTensor<Self> {
-        module_op!(
+        multi_op!(
             inputs[(weight, float), (output_grad, float)],
-            outputs[out],
-            {
-                (B::conv_transpose3d_x_backward(weight, output_grad, options),)
-            }
+            => Float,
+            B::conv_transpose3d_x_backward(weight, output_grad, options)
         )
-        .0
     }
 
     fn conv_transpose3d_weight_backward(
@@ -583,14 +487,11 @@ impl ModuleOps<Self> for Dispatch {
         output_grad: FloatTensor<Self>,
         options: burn_backend::ops::ConvTransposeOptions<3>,
     ) -> FloatTensor<Self> {
-        module_op!(
+        multi_op!(
             inputs[(x, float), (weight, float), (output_grad, float)],
-            outputs[out],
-            {
-                (B::conv_transpose3d_weight_backward(x, weight, output_grad, options),)
-            }
+            => Float,
+            B::conv_transpose3d_weight_backward(x, weight, output_grad, options)
         )
-        .0
     }
 
     fn conv_transpose3d_bias_backward(
@@ -598,14 +499,11 @@ impl ModuleOps<Self> for Dispatch {
         bias: FloatTensor<Self>,
         output_grad: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
-        module_op!(
+        multi_op!(
             inputs[(x, float), (bias, float), (output_grad, float)],
-            outputs[out],
-            {
-                (B::conv_transpose3d_bias_backward(x, bias, output_grad),)
-            }
+            => Float,
+            B::conv_transpose3d_bias_backward(x, bias, output_grad)
         )
-        .0
     }
 
     fn unfold4d(
@@ -613,10 +511,7 @@ impl ModuleOps<Self> for Dispatch {
         kernel_size: [usize; 2],
         options: burn_backend::ops::UnfoldOptions,
     ) -> FloatTensor<Self> {
-        module_op!(inputs[(x, float)], outputs[out], {
-            (B::unfold4d(x, kernel_size, options),)
-        })
-        .0
+        multi_op!(inputs[(x, float)], => Float, B::unfold4d(x, kernel_size, options))
     }
 
     fn avg_pool1d(
@@ -627,17 +522,9 @@ impl ModuleOps<Self> for Dispatch {
         count_include_pad: bool,
         ceil_mode: bool,
     ) -> FloatTensor<Self> {
-        module_op!(inputs[(x, float)], outputs[out], {
-            (B::avg_pool1d(
-                x,
-                kernel_size,
-                stride,
-                padding,
-                count_include_pad,
-                ceil_mode,
-            ),)
-        })
-        .0
+        multi_op!(inputs[(x, float)], => Float,
+            B::avg_pool1d(x, kernel_size, stride, padding, count_include_pad, ceil_mode)
+        )
     }
 
     fn avg_pool1d_backward(
@@ -649,35 +536,26 @@ impl ModuleOps<Self> for Dispatch {
         count_include_pad: bool,
         ceil_mode: bool,
     ) -> FloatTensor<Self> {
-        module_op!(
+        multi_op!(
             inputs[(x, float), (grad, float)],
-            outputs[out],
-            {
-                (B::avg_pool1d_backward(x, grad, kernel_size, stride, padding, count_include_pad, ceil_mode),)
-            }
+            => Float,
+            B::avg_pool1d_backward(x, grad, kernel_size, stride, padding, count_include_pad, ceil_mode)
         )
-        .0
     }
 
     fn adaptive_avg_pool1d(x: FloatTensor<Self>, output_size: usize) -> FloatTensor<Self> {
-        module_op!(inputs[(x, float)], outputs[out], {
-            (B::adaptive_avg_pool1d(x, output_size),)
-        })
-        .0
+        multi_op!(inputs[(x, float)], => Float, B::adaptive_avg_pool1d(x, output_size))
     }
 
     fn adaptive_avg_pool1d_backward(
         x: FloatTensor<Self>,
         grad: FloatTensor<Self>,
     ) -> FloatTensor<Self> {
-        module_op!(
+        multi_op!(
             inputs[(x, float), (grad, float)],
-            outputs[out],
-            {
-                (B::adaptive_avg_pool1d_backward(x, grad),)
-            }
+            => Float,
+            B::adaptive_avg_pool1d_backward(x, grad)
         )
-        .0
     }
 
     fn max_pool1d(
@@ -688,17 +566,8 @@ impl ModuleOps<Self> for Dispatch {
         dilation: usize,
         ceil_mode: bool,
     ) -> FloatTensor<Self> {
-        module_op!(inputs[(x, float)], outputs[out], {
-            (B::max_pool1d(
-                x,
-                kernel_size,
-                stride,
-                padding,
-                dilation,
-                ceil_mode,
-            ),)
-        })
-        .0
+        multi_op!(inputs[(x, float)], => Float,
+            B::max_pool1d(x, kernel_size, stride, padding, dilation, ceil_mode))
     }
 
     fn max_pool1d_with_indices(
@@ -709,7 +578,7 @@ impl ModuleOps<Self> for Dispatch {
         dilation: usize,
         ceil_mode: bool,
     ) -> MaxPool1dWithIndices<Self> {
-        let (out, indices) = module_op!(
+        let (out, indices) = multi_op!(
             inputs[(x, float)],
             outputs[(out, Float), (indices, Int)],
             {
@@ -730,15 +599,14 @@ impl ModuleOps<Self> for Dispatch {
         output_grad: FloatTensor<Self>,
         indices: IntTensor<Self>,
     ) -> MaxPool1dBackward<Self> {
-        let x_grad = module_op!(
+        let x_grad = multi_op!(
             inputs[(x, float), (output_grad, float), (indices, int)],
-            outputs[out],
+            => Float,
             {
                 let res = B::max_pool1d_with_indices_backward(x, kernel_size, stride, padding, dilation, ceil_mode, output_grad, indices);
-                (res.x_grad,)
+                res.x_grad
             }
-        )
-        .0;
+        );
         MaxPool1dBackward::new(x_grad)
     }
 
@@ -750,15 +618,11 @@ impl ModuleOps<Self> for Dispatch {
         attn_bias: Option<FloatTensor<Self>>,
         options: burn_backend::ops::AttentionOptions,
     ) -> FloatTensor<Self> {
-        // module_op!(
-        //     inputs[(queryt, float), (key, float), (value, float)],
-        //     opt_inputs[bias], // TODO: bool opt
-        //     outputs[out],
-        //     {
-        //         (B::conv2d(x, weight, bias, options),)
-        //     }
-        // )
-        // .0
-        todo!()
+        multi_op!(
+            inputs[(query, float), (key, float), (value, float)],
+            opt_inputs[(mask, bool), (attn_bias, float)],
+            => Float,
+            B::attention(query, key, value, mask, attn_bias, options)
+        )
     }
 }
