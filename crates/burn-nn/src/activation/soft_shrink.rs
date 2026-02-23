@@ -82,10 +82,8 @@ mod tests {
     fn test_soft_shrink_forward() {
         let device = <TestBackend as Backend>::Device::default();
         let model: SoftShrink = SoftShrinkConfig::new().init();
-        let input = Tensor::<TestBackend, 2>::from_data(
-            [[0.5, -0.5, -1.0], [8.0, 0.3, 0.0]],
-            &device,
-        );
+        let input =
+            Tensor::<TestBackend, 2>::from_data([[0.5, -0.5, -1.0], [8.0, 0.3, 0.0]], &device);
         let out = model.forward(input);
         let expected = TensorData::from([[0.0_f32, 0.0, -0.5], [7.5, 0.0, 0.0]]);
         assert_eq!(out.into_data(), expected);
@@ -98,10 +96,8 @@ mod tests {
             .with_lambda(0.25)
             .with_bias(0.125)
             .init();
-        let input = Tensor::<TestBackend, 2>::from_data(
-            [[0.125, -0.125, -0.5], [0.75, 0.1, 0.0]],
-            &device,
-        );
+        let input =
+            Tensor::<TestBackend, 2>::from_data([[0.125, -0.125, -0.5], [0.75, 0.1, 0.0]], &device);
         let out = model.forward(input);
         let expected = TensorData::from([[0.0_f32, 0.0, -0.375], [0.625, 0.0, 0.0]]);
         assert_eq!(out.into_data(), expected);

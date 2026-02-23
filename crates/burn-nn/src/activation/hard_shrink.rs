@@ -31,7 +31,9 @@ pub struct HardShrinkConfig {
 impl HardShrinkConfig {
     /// Initialize a new [HardShrink](HardShrink) Layer
     pub fn init(&self) -> HardShrink {
-        HardShrink { lambda: self.lambda }
+        HardShrink {
+            lambda: self.lambda,
+        }
     }
 }
 
@@ -70,10 +72,8 @@ mod tests {
     fn test_hard_shrink_forward() {
         let device = <TestBackend as Backend>::Device::default();
         let model: HardShrink = HardShrinkConfig::new().init();
-        let input = Tensor::<TestBackend, 2>::from_data(
-            [[0.5, -0.5, -1.0], [8.0, 0.3, 0.0]],
-            &device,
-        );
+        let input =
+            Tensor::<TestBackend, 2>::from_data([[0.5, -0.5, -1.0], [8.0, 0.3, 0.0]], &device);
         let out = model.forward(input);
         let expected = TensorData::from([[0.0_f32, 0.0, -1.0], [8.0, 0.0, 0.0]]);
         assert_eq!(out.into_data(), expected);
@@ -83,10 +83,8 @@ mod tests {
     fn test_hard_shrink_with_lambda() {
         let device = <TestBackend as Backend>::Device::default();
         let model: HardShrink = HardShrinkConfig::new().with_lambda(0.2).init();
-        let input = Tensor::<TestBackend, 2>::from_data(
-            [[0.1, -0.1, -0.3], [0.5, 0.1, 0.0]],
-            &device,
-        );
+        let input =
+            Tensor::<TestBackend, 2>::from_data([[0.1, -0.1, -0.3], [0.5, 0.1, 0.0]], &device);
         let out = model.forward(input);
         let expected = TensorData::from([[0.0_f32, 0.0, -0.3], [0.5, 0.0, 0.0]]);
         assert_eq!(out.into_data(), expected);
