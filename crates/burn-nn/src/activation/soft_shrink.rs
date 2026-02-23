@@ -87,7 +87,7 @@ mod tests {
             &device,
         );
         let out = model.forward(input);
-        let expected = TensorData::from_data([[0.0, 0.0, -0.5], [7.5, 0.0, 0.0]], &device);
+        let expected = TensorData::from([[0.0_f32, 0.0, -0.5], [7.5, 0.0, 0.0]]);
         assert_eq!(out.into_data(), expected);
     }
 
@@ -103,7 +103,7 @@ mod tests {
             &device,
         );
         let out = model.forward(input);
-        let expected = TensorData::from_data([[0.0, 0.0, -0.375], [0.625, 0.0, 0.0]], &device);
+        let expected = TensorData::from([[0.0_f32, 0.0, -0.375], [0.625, 0.0, 0.0]]);
         assert_eq!(out.into_data(), expected);
     }
 
