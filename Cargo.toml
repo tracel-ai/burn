@@ -65,7 +65,7 @@ insta = "1.45.0"
 js-sys = "0.3.77"
 libm = "0.2.15"
 log = { default-features = false, version = "0.4.29" }
-lzma-rust2 = "0.16.1"
+lzma-rust2 = "0.16.2"
 opentelemetry = "0.31.0"
 opentelemetry-aws = "0.19.0"
 opentelemetry-otlp = "0.31.0"
