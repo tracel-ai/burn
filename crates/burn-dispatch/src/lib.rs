@@ -9,16 +9,17 @@
 //!
 //! The dispatch backend supports the following variants, each enabled via cargo features:
 //!
-//! | Backend    | Feature   | Description |
-//! |------------|-----------|-------------|
-//! | `Cpu`      | `cpu`     | Rust CPU backend (MLIR + LLVM) |
-//! | `Cuda`     | `cuda`    | NVIDIA CUDA backend |
-//! | `Metal`    | `metal`   | Apple Metal backend via `wgpu` (MSL) |
-//! | `Rocm`     | `rocm`    | AMD ROCm backend |
-//! | `Vulkan`   | `vulkan`  | Vulkan backend via `wgpu` (SPIR-V) |
-//! | `WebGpu`   | `webgpu`  | WebGPU backend via `wgpu` (WGSL) |
-//! | `NdArray`  | `ndarray` | Pure Rust CPU backend using `ndarray` |
-//! | `LibTorch` | `tch`     | Libtorch backend via `tch` |
+//! | Backend    | Feature    | Description |
+//! |------------|------------|-------------|
+//! | `Cpu`      | `cpu`      | Rust CPU backend (MLIR + LLVM) |
+//! | `Cuda`     | `cuda`     | NVIDIA CUDA backend |
+//! | `Metal`    | `metal`    | Apple Metal backend via `wgpu` (MSL) |
+//! | `Rocm`     | `rocm`     | AMD ROCm backend |
+//! | `Vulkan`   | `vulkan`   | Vulkan backend via `wgpu` (SPIR-V) |
+//! | `WebGpu`   | `webgpu`   | WebGPU backend via `wgpu` (WGSL) |
+//! | `NdArray`  | `ndarray`  | Pure Rust CPU backend using `ndarray` |
+//! | `LibTorch` | `tch`      | Libtorch backend via `tch` |
+//! | `Autodiff` | `autodiff` | Autodiff-enabled backend (used in combination with any of the backends above) |
 //!
 //! **Note:** WGPU-based backends (`metal`, `vulkan`, `webgpu`) are mutually exclusive.
 //! All other backends can be combined freely.

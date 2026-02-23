@@ -22,7 +22,6 @@ pub struct MnistBatch<B: Backend> {
 
 impl<B: Backend> Batcher<B, MnistItemPrepared, MnistBatch<B>> for MnistBatcher {
     fn batch(&self, items: Vec<MnistItemPrepared>, device: &B::Device) -> MnistBatch<B> {
-        // println!("batch items on {device:?}");
         let images = items.iter().map(|item| item.image.clone()).collect();
 
         let targets = items
@@ -40,7 +39,6 @@ impl<B: Backend> Batcher<B, MnistItemPrepared, MnistBatch<B>> for MnistBatcher {
 
         let targets = Tensor::cat(targets, 0);
         let targets = Tensor::from_data(targets.into_data(), device);
-        // println!("batch targets {:?}", targets.device());
 
         MnistBatch { images, targets }
     }
