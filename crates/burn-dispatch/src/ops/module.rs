@@ -616,7 +616,7 @@ impl ModuleOps<Self> for Dispatch {
         value: FloatTensor<Self>,
         mask: Option<burn_backend::tensor::BoolTensor<Self>>,
         attn_bias: Option<FloatTensor<Self>>,
-        options: burn_backend::ops::AttentionOptions,
+        options: burn_backend::ops::AttentionModuleOptions,
     ) -> FloatTensor<Self> {
         multi_op!(
             inputs[(query, float), (key, float), (value, float)],
