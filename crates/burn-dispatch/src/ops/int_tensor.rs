@@ -6,10 +6,10 @@ use burn_backend::{
 use burn_std::{IntDType, Shape, Slice};
 
 use crate::backends::*;
-use crate::{Device, Dispatch};
+use crate::{Dispatch, DispatchDevice};
 
 impl IntTensorOps<Self> for Dispatch {
-    fn int_empty(shape: Shape, device: &Device, dtype: IntDType) -> IntTensor<Self> {
+    fn int_empty(shape: Shape, device: &DispatchDevice, dtype: IntDType) -> IntTensor<Self> {
         creation_op!(Int, device, |device| B::int_empty(shape, device, dtype))
     }
 
@@ -17,15 +17,15 @@ impl IntTensorOps<Self> for Dispatch {
         unary_op!(tensor, int, |tensor| B::int_into_data(tensor).await)
     }
 
-    fn int_from_data(data: TensorData, device: &Device) -> IntTensor<Self> {
+    fn int_from_data(data: TensorData, device: &DispatchDevice) -> IntTensor<Self> {
         creation_op!(Int, device, |device| B::int_from_data(data, device))
     }
 
-    fn int_device(tensor: &IntTensor<Self>) -> Device {
+    fn int_device(tensor: &IntTensor<Self>) -> DispatchDevice {
         tensor.device()
     }
 
-    fn int_to_device(tensor: IntTensor<Self>, device: &Device) -> IntTensor<Self> {
+    fn int_to_device(tensor: IntTensor<Self>, device: &DispatchDevice) -> IntTensor<Self> {
         to_device!(Int, int, tensor, device, int_to_device, |inner, device| {
             let data = burn_backend::read_sync(B1::int_into_data(inner)).expect("Should read data");
             B2::int_from_data(data, device)
@@ -258,7 +258,7 @@ impl IntTensorOps<Self> for Dispatch {
     fn int_random(
         shape: Shape,
         distribution: burn_backend::Distribution,
-        device: &Device,
+        device: &DispatchDevice,
     ) -> IntTensor<Self> {
         creation_op!(Int, device, |device| {
             B::int_random(shape, distribution, device)
@@ -374,26 +374,18 @@ impl IntTensorOps<Self> for Dispatch {
         unary_op!(tensor, int, |tensor| B::int_neg(tensor) => Int)
     }
 
-    fn int_zeros(
-        shape: Shape,
-        device: &burn_backend::tensor::Device<Self>,
-        dtype: IntDType,
-    ) -> IntTensor<Self> {
+    fn int_zeros(shape: Shape, device: &DispatchDevice, dtype: IntDType) -> IntTensor<Self> {
         creation_op!(Int, device, |device| B::int_zeros(shape, device, dtype))
     }
 
-    fn int_ones(
-        shape: Shape,
-        device: &burn_backend::tensor::Device<Self>,
-        dtype: IntDType,
-    ) -> IntTensor<Self> {
+    fn int_ones(shape: Shape, device: &DispatchDevice, dtype: IntDType) -> IntTensor<Self> {
         creation_op!(Int, device, |device| B::int_ones(shape, device, dtype))
     }
 
     fn int_full(
         shape: Shape,
         fill_value: Scalar,
-        device: &burn_backend::tensor::Device<Self>,
+        device: &DispatchDevice,
         dtype: IntDType,
     ) -> IntTensor<Self> {
         creation_op!(Int, device, |device| B::int_full(
@@ -458,17 +450,14 @@ impl IntTensorOps<Self> for Dispatch {
     fn int_arange_step(
         range: std::ops::Range<i64>,
         step: usize,
-        device: &burn_backend::tensor::Device<Self>,
+        device: &DispatchDevice,
     ) -> IntTensor<Self> {
         creation_op!(Int, device, |device| B::int_arange_step(
             range, step, device
         ))
     }
 
-    fn int_arange(
-        range: std::ops::Range<i64>,
-        device: &burn_backend::tensor::Device<Self>,
-    ) -> IntTensor<Self> {
+    fn int_arange(range: std::ops::Range<i64>, device: &DispatchDevice) -> IntTensor<Self> {
         creation_op!(Int, device, |device| B::int_arange(range, device))
     }
 

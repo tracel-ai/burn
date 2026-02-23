@@ -6,18 +6,18 @@ use burn_backend::{
 use burn_std::{Shape, Slice};
 
 use crate::backends::*;
-use crate::{Device, Dispatch};
+use crate::{Dispatch, DispatchDevice};
 
 impl BoolTensorOps<Self> for Dispatch {
-    fn bool_empty(shape: Shape, device: &Device) -> BoolTensor<Self> {
+    fn bool_empty(shape: Shape, device: &DispatchDevice) -> BoolTensor<Self> {
         creation_op!(Bool, device, |device| B::bool_empty(shape, device))
     }
 
-    fn bool_zeros(shape: Shape, device: &Device) -> BoolTensor<Self> {
+    fn bool_zeros(shape: Shape, device: &DispatchDevice) -> BoolTensor<Self> {
         creation_op!(Bool, device, |device| B::bool_zeros(shape, device))
     }
 
-    fn bool_ones(shape: Shape, device: &Device) -> BoolTensor<Self> {
+    fn bool_ones(shape: Shape, device: &DispatchDevice) -> BoolTensor<Self> {
         creation_op!(Bool, device, |device| B::bool_ones(shape, device))
     }
 
@@ -25,7 +25,7 @@ impl BoolTensorOps<Self> for Dispatch {
         unary_op!(tensor, bool, |tensor| B::bool_into_data(tensor).await)
     }
 
-    fn bool_from_data(data: TensorData, device: &Device) -> BoolTensor<Self> {
+    fn bool_from_data(data: TensorData, device: &DispatchDevice) -> BoolTensor<Self> {
         creation_op!(Bool, device, |device| B::bool_from_data(data, device))
     }
 
@@ -37,11 +37,11 @@ impl BoolTensorOps<Self> for Dispatch {
         unary_op!(tensor, bool, |tensor| B::bool_into_float(tensor) => Float)
     }
 
-    fn bool_device(tensor: &BoolTensor<Self>) -> Device {
+    fn bool_device(tensor: &BoolTensor<Self>) -> DispatchDevice {
         tensor.device()
     }
 
-    fn bool_to_device(tensor: BoolTensor<Self>, device: &Device) -> BoolTensor<Self> {
+    fn bool_to_device(tensor: BoolTensor<Self>, device: &DispatchDevice) -> BoolTensor<Self> {
         to_device!(
             Bool,
             bool,

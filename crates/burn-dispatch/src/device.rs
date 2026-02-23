@@ -9,16 +9,16 @@ use crate::backends::*;
 /// # Example
 ///
 /// ```ignore
-/// use burn::Device;
+/// use burn::DispatchDevice;
 ///
 /// #[cfg(feature = "cpu")]
-/// let cpu_device = Device::Cpu(Default::default());
+/// let cpu_device = DispatchDevice::Cpu(Default::default());
 ///
 /// #[cfg(feature = "cuda")]
-/// let cuda_device = Device::Cuda(Default::default());
+/// let cuda_device = DispatchDevice::Cuda(Default::default());
 /// ```
 #[derive(Debug, Clone, Eq)]
-pub enum Device {
+pub enum DispatchDevice {
     /// The [CPU backend](Cpu) device.
     #[cfg(feature = "cpu")]
     Cpu(CpuDevice),
@@ -53,10 +53,10 @@ pub enum Device {
 
     /// The [autodiff enabled backend](Autodiff) device.
     #[cfg(feature = "autodiff")]
-    Autodiff(Box<Device>),
+    Autodiff(Box<DispatchDevice>),
 }
 
-impl Default for Device {
+impl Default for DispatchDevice {
     #[allow(unreachable_code)]
     fn default() -> Self {
         // TODO: which priority?
@@ -87,14 +87,14 @@ impl Default for Device {
     }
 }
 
-impl PartialEq for Device {
+impl PartialEq for DispatchDevice {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             // If both are Autodiff, compare the inner devices
-            (Device::Autodiff(a), Device::Autodiff(b)) => a == b,
+            (DispatchDevice::Autodiff(a), DispatchDevice::Autodiff(b)) => a == b,
             // If one is Autodiff, compare it to the raw device
-            (Device::Autodiff(a), b) => a.as_ref() == b,
-            (a, Device::Autodiff(b)) => a == b.as_ref(),
+            (DispatchDevice::Autodiff(a), b) => a.as_ref() == b,
+            (a, DispatchDevice::Autodiff(b)) => a == b.as_ref(),
             #[cfg(feature = "cpu")]
             (Self::Cpu(a), Self::Cpu(b)) => a == b,
             #[cfg(feature = "cuda")]
@@ -121,7 +121,7 @@ impl PartialEq for Device {
 /// Limits the number of device types per backend, but this is a sensible limit.
 const TYPE_ID_BASE: u16 = 10;
 
-impl Device {
+impl DispatchDevice {
     /// Returns a unique number per variant to encode into type_id.
     fn backend_id(&self) -> BackendId {
         match self {
@@ -156,7 +156,7 @@ impl Device {
         let variant = type_id / TYPE_ID_BASE;
         let backend_type_id = type_id % TYPE_ID_BASE;
         (
-            BackendId::try_from(variant).expect("Unknown Device variant"),
+            BackendId::try_from(variant).expect("Unknown DispatchDevice variant"),
             backend_type_id,
         )
     }
@@ -215,17 +215,17 @@ impl TryFrom<u16> for BackendId {
     }
 }
 
-impl DeviceOps for Device {
+impl DeviceOps for DispatchDevice {
     fn inner(&self) -> &Self {
         match self {
             #[cfg(feature = "autodiff")]
-            Device::Autodiff(device) => &*device,
+            DispatchDevice::Autodiff(device) => &*device,
             device => device,
         }
     }
 }
 
-impl burn_std::device::Device for Device {
+impl burn_std::device::Device for DispatchDevice {
     fn from_id(mut device_id: DeviceId) -> Self {
         let (dispatch_id, backend_type_id) = Self::decode_type_id(device_id.type_id);
         device_id.type_id = backend_type_id;
@@ -299,64 +299,64 @@ impl burn_std::device::Device for Device {
 }
 
 #[cfg(feature = "cpu")]
-impl From<CpuDevice> for Device {
+impl From<CpuDevice> for DispatchDevice {
     fn from(device: CpuDevice) -> Self {
-        Device::Cpu(device)
+        DispatchDevice::Cpu(device)
     }
 }
 
 #[cfg(feature = "cuda")]
-impl From<CudaDevice> for Device {
+impl From<CudaDevice> for DispatchDevice {
     fn from(device: CudaDevice) -> Self {
-        Device::Cuda(device)
+        DispatchDevice::Cuda(device)
     }
 }
 
 #[cfg(wgpu_metal)]
-impl From<WgpuDevice> for Device {
+impl From<WgpuDevice> for DispatchDevice {
     fn from(device: WgpuDevice) -> Self {
-        Device::Metal(device)
+        DispatchDevice::Metal(device)
     }
 }
 
 #[cfg(feature = "rocm")]
-impl From<RocmDevice> for Device {
+impl From<RocmDevice> for DispatchDevice {
     fn from(device: RocmDevice) -> Self {
-        Device::Rocm(device)
+        DispatchDevice::Rocm(device)
     }
 }
 
 #[cfg(wgpu_vulkan)]
-impl From<WgpuDevice> for Device {
+impl From<WgpuDevice> for DispatchDevice {
     fn from(device: WgpuDevice) -> Self {
-        Device::Vulkan(device)
+        DispatchDevice::Vulkan(device)
     }
 }
 
 #[cfg(wgpu_webgpu)]
-impl From<WgpuDevice> for Device {
+impl From<WgpuDevice> for DispatchDevice {
     fn from(device: WgpuDevice) -> Self {
-        Device::WebGpu(device)
+        DispatchDevice::WebGpu(device)
     }
 }
 
 #[cfg(feature = "ndarray")]
-impl From<NdArrayDevice> for Device {
+impl From<NdArrayDevice> for DispatchDevice {
     fn from(device: NdArrayDevice) -> Self {
-        Device::NdArray(device)
+        DispatchDevice::NdArray(device)
     }
 }
 
 #[cfg(feature = "tch")]
-impl From<LibTorchDevice> for Device {
+impl From<LibTorchDevice> for DispatchDevice {
     fn from(device: LibTorchDevice) -> Self {
-        Device::LibTorch(device)
+        DispatchDevice::LibTorch(device)
     }
 }
 
 #[cfg(feature = "tch")]
-impl From<LibTorchDevice> for Device {
+impl From<LibTorchDevice> for DispatchDevice {
     fn from(device: LibTorchDevice) -> Self {
-        Device::LibTorch(device)
+        DispatchDevice::LibTorch(device)
     }
 }

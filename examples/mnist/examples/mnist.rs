@@ -1,6 +1,6 @@
 #![recursion_limit = "256"]
 
-use burn::{Device, Dispatch, backend::Autodiff};
+use burn::{Dispatch, DispatchDevice};
 use mnist::training;
 
 #[cfg(feature = "cuda")]
@@ -14,10 +14,8 @@ use burn::backend::rocm::RocmDevice;
 #[cfg(any(feature = "wgpu", feature = "metal", feature = "vulkan"))]
 use burn::backend::wgpu::WgpuDevice;
 
-// TODO: refactor lib to use Dispatch
-
 #[allow(unreachable_code)]
-fn select_device() -> Device {
+fn select_device() -> DispatchDevice {
     #[cfg(feature = "ndarray")]
     return NdArrayDevice::Cpu.into();
 
@@ -45,15 +43,6 @@ fn select_device() -> Device {
 fn main() {
     let device = select_device();
 
-    // match device {
-    //     #[cfg(feature = "cuda")]
-    //     Device::Cuda(device) => training::run::<Autodiff<burn::backend::Cuda>>(device),
-    //     #[cfg(feature = "vulkan")]
-    //     Device::Vulkan(device) => training::run::<Autodiff<burn::backend::Vulkan>>(device),
-    //     #[cfg(feature = "ndarray")]
-    //     Device::NdArray(device) => training::run::<Autodiff<burn::backend::NdArray>>(device),
-    //     _ => todo!(),
-    // }
-    let device = Device::Autodiff(Box::new(device));
+    let device = DispatchDevice::Autodiff(Box::new(device));
     training::run::<Dispatch>(device);
 }

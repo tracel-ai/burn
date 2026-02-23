@@ -6,20 +6,23 @@ use burn_backend::{
 use burn_std::{FloatDType, Shape, Slice};
 
 use crate::backends::*;
-use crate::{Device, Dispatch};
+use crate::{Dispatch, DispatchDevice};
 
 // TODO: remove backend default elem type genericsnow that we have per-device defaults
 // https://github.com/tracel-ai/burn/issues/3642
 
 impl FloatTensorOps<Self> for Dispatch {
-    fn float_from_data(data: burn_backend::TensorData, device: &Device) -> FloatTensor<Self> {
+    fn float_from_data(
+        data: burn_backend::TensorData,
+        device: &DispatchDevice,
+    ) -> FloatTensor<Self> {
         creation_op!(Float, device, |device| B::float_from_data(data, device))
     }
 
     fn float_random(
         shape: Shape,
         distribution: burn_backend::Distribution,
-        device: &Device,
+        device: &DispatchDevice,
     ) -> FloatTensor<Self> {
         creation_op!(Float, device, |device| {
             B::float_random(shape, distribution, device)
@@ -30,11 +33,11 @@ impl FloatTensorOps<Self> for Dispatch {
         unary_float!(tensor, float, |tensor| B::float_into_data(tensor).await)
     }
 
-    fn float_device(tensor: &FloatTensor<Self>) -> Device {
+    fn float_device(tensor: &FloatTensor<Self>) -> DispatchDevice {
         tensor.device()
     }
 
-    fn float_to_device(tensor: FloatTensor<Self>, device: &Device) -> FloatTensor<Self> {
+    fn float_to_device(tensor: FloatTensor<Self>, device: &DispatchDevice) -> FloatTensor<Self> {
         float_to_device!(
             Float,
             float,
@@ -53,7 +56,7 @@ impl FloatTensorOps<Self> for Dispatch {
         unary_float!(tensor, float, |tensor| B::float_into_int(tensor) => Int)
     }
 
-    fn float_empty(shape: Shape, device: &Device, dtype: FloatDType) -> FloatTensor<Self> {
+    fn float_empty(shape: Shape, device: &DispatchDevice, dtype: FloatDType) -> FloatTensor<Self> {
         creation_op!(Float, device, |device| B::float_empty(shape, device, dtype))
     }
 
@@ -408,18 +411,18 @@ impl FloatTensorOps<Self> for Dispatch {
     }
 
     // Default implementation
-    fn float_zeros(shape: Shape, device: &Device, dtype: FloatDType) -> FloatTensor<Self> {
+    fn float_zeros(shape: Shape, device: &DispatchDevice, dtype: FloatDType) -> FloatTensor<Self> {
         creation_op!(Float, device, |device| B::float_zeros(shape, device, dtype))
     }
 
-    fn float_ones(shape: Shape, device: &Device, dtype: FloatDType) -> FloatTensor<Self> {
+    fn float_ones(shape: Shape, device: &DispatchDevice, dtype: FloatDType) -> FloatTensor<Self> {
         creation_op!(Float, device, |device| B::float_ones(shape, device, dtype))
     }
 
     fn float_full(
         shape: Shape,
         fill_value: Scalar,
-        device: &Device,
+        device: &DispatchDevice,
         dtype: FloatDType,
     ) -> FloatTensor<Self> {
         creation_op!(Float, device, |device| B::float_full(

@@ -11,7 +11,7 @@ use burn_autodiff::grads::Gradients;
 use burn_backend::AutodiffBackend;
 
 use crate::backends::*;
-use crate::{Device, DispatchTensor};
+use crate::{DispatchDevice, DispatchTensor};
 
 /// The main execution backend in Burn.
 ///
@@ -29,10 +29,10 @@ use crate::{Device, DispatchTensor};
 ///
 /// ```ignore
 /// use burn::Dispatch;
-/// use burn::Device;
+/// use burn::DispatchDevice;
 ///
 /// // Select the device to execute operations on
-/// let device = Device::Cuda(Default::default());
+/// let device = DispatchDevice::Cuda(Default::default());
 ///
 /// // Create a tensor using the global backend
 /// let t = Tensor::<Dispatch, 2>::zeros([128, 128], &device);
@@ -41,7 +41,7 @@ use crate::{Device, DispatchTensor};
 pub struct Dispatch;
 
 impl Backend for Dispatch {
-    type Device = Device;
+    type Device = DispatchDevice;
 
     type FloatTensorPrimitive = DispatchTensor;
 
@@ -78,7 +78,7 @@ impl Backend for Dispatch {
     fn ad_enabled(device: &Self::Device) -> bool {
         match device {
             #[cfg(feature = "autodiff")]
-            Device::Autodiff(_) => true,
+            DispatchDevice::Autodiff(_) => true,
             _ => false,
         }
     }
@@ -367,26 +367,26 @@ impl AutodiffBackend for Dispatch {
 }
 
 impl DispatchTensor {
-    pub(crate) fn device(&self) -> Device {
+    pub(crate) fn device(&self) -> DispatchDevice {
         match self {
             #[cfg(feature = "cpu")]
-            DispatchTensor::Cpu(tensor) => Device::Cpu(tensor.device()),
+            DispatchTensor::Cpu(tensor) => DispatchDevice::Cpu(tensor.device()),
             #[cfg(feature = "cuda")]
-            DispatchTensor::Cuda(tensor) => Device::Cuda(tensor.device()),
+            DispatchTensor::Cuda(tensor) => DispatchDevice::Cuda(tensor.device()),
             #[cfg(wgpu_metal)]
-            DispatchTensor::Metal(tensor) => Device::Metal(tensor.device()),
+            DispatchTensor::Metal(tensor) => DispatchDevice::Metal(tensor.device()),
             #[cfg(feature = "rocm")]
-            DispatchTensor::Rocm(tensor) => Device::Rocm(tensor.device()),
+            DispatchTensor::Rocm(tensor) => DispatchDevice::Rocm(tensor.device()),
             #[cfg(wgpu_vulkan)]
-            DispatchTensor::Vulkan(tensor) => Device::Vulkan(tensor.device()),
+            DispatchTensor::Vulkan(tensor) => DispatchDevice::Vulkan(tensor.device()),
             #[cfg(wgpu_webgpu)]
-            DispatchTensor::WebGpu(tensor) => Device::WebGpu(tensor.device()),
+            DispatchTensor::WebGpu(tensor) => DispatchDevice::WebGpu(tensor.device()),
             #[cfg(feature = "ndarray")]
-            DispatchTensor::NdArray(tensor) => Device::NdArray(tensor.device()),
+            DispatchTensor::NdArray(tensor) => DispatchDevice::NdArray(tensor.device()),
             #[cfg(feature = "tch")]
-            DispatchTensor::LibTorch(tensor) => Device::LibTorch(tensor.device()),
+            DispatchTensor::LibTorch(tensor) => DispatchDevice::LibTorch(tensor.device()),
             #[cfg(feature = "autodiff")]
-            DispatchTensor::Autodiff(tensor) => Device::Autodiff(Box::new(tensor.device())),
+            DispatchTensor::Autodiff(tensor) => DispatchDevice::Autodiff(Box::new(tensor.device())),
         }
     }
 }

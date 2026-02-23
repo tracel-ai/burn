@@ -44,7 +44,7 @@ macro_rules! dispatch_device_arms {
         match $device {
             // Autodiff arm first
             #[cfg(feature = "autodiff")]
-            $crate::Device::Autodiff(inner) => {
+            $crate::DispatchDevice::Autodiff(inner) => {
                 // Recursively dispatch on inner
                 dispatch_device_arms!(
                     @autodiff
@@ -55,7 +55,7 @@ macro_rules! dispatch_device_arms {
             },
             $(
                 #[cfg($cfg)]
-                $crate::Device::$Backend($inner) => {
+                $crate::DispatchDevice::$Backend($inner) => {
                     type B = $Backend<f32>;
                     $body
                 }
@@ -71,12 +71,12 @@ macro_rules! dispatch_device_arms {
         match $device {
             $(
                 #[cfg($cfg)]
-                $crate::Device::$Backend($inner) => {
+                $crate::DispatchDevice::$Backend($inner) => {
                     type B = Autodiff<$Backend<f32>>;
                     $body
                 }
             )*
-            $crate::Device::Autodiff(_) => panic!("Autodiff should not wrap an autodiff device.")
+            $crate::DispatchDevice::Autodiff(_) => panic!("Autodiff should not wrap an autodiff device.")
         }
     };
 }
@@ -100,7 +100,7 @@ macro_rules! to_device_arms {
             // --- Same backend to_device ---
             $(
                 #[cfg($src_cfg)]
-                ($crate::DispatchTensor::$B1(tensor), $crate::Device::$B1(d)) => {
+                ($crate::DispatchTensor::$B1(tensor), $crate::DispatchDevice::$B1(d)) => {
                     $crate::DispatchTensor::$B1($crate::BackendTensor::$kind(
                         $B1::<f32>::$to_device(tensor.$inner_fn(), d)
                     ))
@@ -112,7 +112,7 @@ macro_rules! to_device_arms {
             $(
                 $(
                     #[cfg(all($src_cfg, $dst_cfg))]
-                    ($crate::DispatchTensor::$B1(tensor), $crate::Device::$B2($device_ident)) => {
+                    ($crate::DispatchTensor::$B1(tensor), $crate::DispatchDevice::$B2($device_ident)) => {
                         type B1 = $B1<f32>;
                         type B2 = $B2<f32>;
                         let $inner = tensor.$inner_fn();
@@ -124,7 +124,7 @@ macro_rules! to_device_arms {
                 )+
             )*
             #[cfg(feature = "autodiff")]
-            (_, $crate::Device::Autodiff(_)) | ($crate::DispatchTensor::Autodiff(_), _) => panic!("Operation not marked for autodiff.")
+            (_, $crate::DispatchDevice::Autodiff(_)) | ($crate::DispatchTensor::Autodiff(_), _) => panic!("Operation not marked for autodiff.")
         }
     };
 }
@@ -155,7 +155,7 @@ macro_rules! float_to_device_arms {
     ) => {
         match ($tensor, $device) {
             #[cfg(feature = "autodiff")]
-            ($crate::DispatchTensor::Autodiff(tensor), $crate::Device::Autodiff(device)) => {
+            ($crate::DispatchTensor::Autodiff(tensor), $crate::DispatchDevice::Autodiff(device)) => {
                 float_to_device_arms!(
                     @autodiff
                     *tensor, &**device, $to_device;
@@ -166,7 +166,7 @@ macro_rules! float_to_device_arms {
             // --- Same backend to_device ---
             $(
                 #[cfg($src_cfg)]
-                ($crate::DispatchTensor::$B1(tensor), $crate::Device::$B1(d)) => {
+                ($crate::DispatchTensor::$B1(tensor), $crate::DispatchDevice::$B1(d)) => {
                     $crate::DispatchTensor::$B1($crate::BackendTensor::Float(
                         $B1::<f32>::$to_device(tensor.float(), d)
                     ))
@@ -178,7 +178,7 @@ macro_rules! float_to_device_arms {
             $(
                 $(
                     #[cfg(all($src_cfg, $dst_cfg))]
-                    ($crate::DispatchTensor::$B1(tensor), $crate::Device::$B2($device_ident)) => {
+                    ($crate::DispatchTensor::$B1(tensor), $crate::DispatchDevice::$B2($device_ident)) => {
                         type B1 = $B1<f32>;
                         type B2 = $B2<f32>;
                         let $inner = tensor.float();
@@ -191,7 +191,7 @@ macro_rules! float_to_device_arms {
             )*
             // TODO: maybe?
             #[cfg(feature = "autodiff")]
-            ($crate::DispatchTensor::Autodiff(_), _) | (_, $crate::Device::Autodiff(_)) => panic!("Cannot move between autodiff and non-autodiff instances.")
+            ($crate::DispatchTensor::Autodiff(_), _) | (_, $crate::DispatchDevice::Autodiff(_)) => panic!("Cannot move between autodiff and non-autodiff instances.")
         }
     };
 
@@ -205,7 +205,7 @@ macro_rules! float_to_device_arms {
             // --- Same backend to_device ---
             $(
                 #[cfg($src_cfg)]
-                ($crate::DispatchTensor::$B1(tensor), $crate::Device::$B1(d)) => {
+                ($crate::DispatchTensor::$B1(tensor), $crate::DispatchDevice::$B1(d)) => {
                     $crate::DispatchTensor::Autodiff(Box::new($crate::DispatchTensor::$B1($crate::BackendTensor::Autodiff(
                         Autodiff::<$B1<f32>>::$to_device(tensor.autodiff(), d)
                     ))))
@@ -250,7 +250,7 @@ macro_rules! creation_op_arms {
         match $device {
             // Autodiff arm first
             #[cfg(feature = "autodiff")]
-            $crate::Device::Autodiff(inner) => {
+            $crate::DispatchDevice::Autodiff(inner) => {
                 // Recursively dispatch on inner
                 creation_op_arms!(
                     @autodiff
@@ -262,7 +262,7 @@ macro_rules! creation_op_arms {
             },
             $(
                 #[cfg($cfg)]
-                $crate::Device::$Backend($inner) => {
+                $crate::DispatchDevice::$Backend($inner) => {
                     type B = $Backend<f32>;
                     $crate::DispatchTensor::$Backend(
                         $crate::BackendTensor::$kind($body)
@@ -282,7 +282,7 @@ macro_rules! creation_op_arms {
         match $device {
             $(
                 #[cfg($cfg)]
-                $crate::Device::$Backend($inner) => {
+                $crate::DispatchDevice::$Backend($inner) => {
                     type B = Autodiff<$Backend<f32>>;
                     wrap_float!(
                         @wrap_autodiff
@@ -292,7 +292,7 @@ macro_rules! creation_op_arms {
                     )
                 }
             )*
-            $crate::Device::Autodiff(_) => panic!("Autodiff should not wrap an autodiff device.")
+            $crate::DispatchDevice::Autodiff(_) => panic!("Autodiff should not wrap an autodiff device.")
         }
     }};
 }
