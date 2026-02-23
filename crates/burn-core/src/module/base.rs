@@ -171,6 +171,7 @@ pub trait Module<B: Backend>: Clone + Send + core::fmt::Debug {
     /// * `peer_id` - The device's [PeerId](PeerId).
     /// * `op` - The reduce operation.
     fn grad_sharded(self, peer_id: PeerId, op: ReduceOperation) -> Self {
+        // TODO: remove PeerId
         let mut sharder = ModuleSharder { peer_id, op };
         self.map(&mut sharder)
     }

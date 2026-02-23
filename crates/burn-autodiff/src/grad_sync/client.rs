@@ -7,6 +7,11 @@ use burn_backend::{
 
 use crate::{NodeId, collections::HashMap, grad_sync::server::GradientSyncServer};
 
+pub(crate) enum MessageAction<B: Backend> {
+    Message(GradientSyncMessage<B>),
+    Close(),
+}
+
 pub(crate) enum GradientSyncMessage<B: Backend> {
     RegisterDevice((HashMap<NodeId, usize>, HashMap<NodeId, ShardedParams>)),
     Register((NodeId, CommunicationTensor<B>)),
@@ -15,20 +20,22 @@ pub(crate) enum GradientSyncMessage<B: Backend> {
 
 #[derive(Clone)]
 pub struct GradientSyncClient<B: Backend> {
-    sender: Sender<GradientSyncMessage<B>>,
+    sender: Sender<MessageAction<B>>,
 }
 
 impl<B: Backend> GradientSyncClient<B> {
-    pub(crate) fn new() -> Self {
+    pub(crate) fn new(num_devices: usize) -> Self {
         let (tx, rx) = std::sync::mpsc::channel();
-        let mut server = GradientSyncServer::default();
+        let mut server = GradientSyncServer::new(num_devices);
         spawn(move || {
             loop {
                 match rx.recv() {
-                    Ok(msg) => server.process_message(msg),
+                    Ok(action) => match action {
+                        MessageAction::Message(msg) => server.process_message(msg),
+                        MessageAction::Close() => break,
+                    },
                     Err(err) => panic!("Gradient sync server failed to receive message: {err}."),
                 }
-                // TODO: server_stop in api.
             }
         });
         Self { sender: tx }
@@ -40,19 +47,18 @@ impl<B: Backend> GradientSyncClient<B> {
         sharded_params_map: HashMap<NodeId, ShardedParams>,
     ) {
         self.sender
-            .send(GradientSyncMessage::RegisterDevice((
-                n_required_map,
-                sharded_params_map,
+            .send(MessageAction::Message(GradientSyncMessage::RegisterDevice(
+                (n_required_map, sharded_params_map),
             )))
             .unwrap();
     }
 
     pub fn on_register(&self, id: NodeId, tensor: &mut FloatTensor<B>) {
         self.sender
-            .send(GradientSyncMessage::Register((
+            .send(MessageAction::Message(GradientSyncMessage::Register((
                 id,
                 B::comm_duplicated(tensor),
-            )))
+            ))))
             .unwrap();
     }
 
@@ -61,11 +67,17 @@ impl<B: Backend> GradientSyncClient<B> {
         // TODO: Efficiency?
         loop {
             self.sender
-                .send(GradientSyncMessage::IsFinished(tx.clone()))
+                .send(MessageAction::Message(GradientSyncMessage::IsFinished(
+                    tx.clone(),
+                )))
                 .unwrap();
             if rx.recv().unwrap() {
                 break;
             }
         }
+    }
+
+    pub(crate) fn close(&self) {
+        self.sender.send(MessageAction::Close()).unwrap();
     }
 }

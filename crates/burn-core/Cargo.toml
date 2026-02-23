@@ -147,6 +147,13 @@ burn-dataset = { path = "../burn-dataset", version = "=0.21.0-pre.1", features =
 burn-collective = { path = "../burn-collective", version = "=0.21.0-pre.1" }
 rstest = { workspace = true }
 
+burn-cubecl = { path = "../burn-cubecl", version = "=0.21.0-pre.1", default-features = false }
+burn-backend = { path = "../burn-backend", version = "=0.21.0-pre.1", default-features = false, features = [
+    "cubecl-cuda",
+] }
+cubecl = { workspace = true, features = ["cuda"] }
+serial_test = { workspace = true }
+
 [package.metadata.docs.rs]
 features = ["doc"]
 rustdoc-args = ["--cfg", "docsrs"]

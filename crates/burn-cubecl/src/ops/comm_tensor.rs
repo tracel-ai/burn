@@ -13,7 +13,9 @@ pub(crate) fn reduce_sum_centralized<B: Backend>(
 ) -> B::FloatTensorPrimitive {
     let mut central_tensor = B::float_data_from_comm(&tensors.get(0).unwrap());
     for tensor in tensors {
-        let rhs = B::float_to_device(B::float_data_from_comm(tensor), &central_device);
+        // Is this necessary?
+        // let rhs = B::float_to_device(B::float_data_from_comm(tensor), &central_device);
+        let rhs = B::float_data_from_comm(tensor);
         central_tensor = B::float_add(central_tensor, rhs);
     }
 

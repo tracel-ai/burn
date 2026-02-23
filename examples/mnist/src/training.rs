@@ -6,6 +6,7 @@ use crate::{
 };
 
 use burn::{
+    collective::CollectiveConfig,
     data::{
         dataloader::DataLoaderBuilder,
         dataset::{
@@ -20,7 +21,7 @@ use burn::{
     },
     prelude::*,
     record::{CompactRecorder, NoStdTrainingRecorder},
-    tensor::backend::AutodiffBackend,
+    tensor::backend::{AllReduceStrategy, AutodiffBackend},
     train::{
         EvaluatorBuilder, Learner, MetricEarlyStoppingStrategy, StoppingCondition,
         metric::{
@@ -94,6 +95,10 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         .linear(LinearLrSchedulerConfig::new(1e-8, 1.0, 2000))
         .linear(LinearLrSchedulerConfig::new(1e-2, 1e-6, 10000));
 
+    let device2 = Default::default();
+    let collective_config =
+        CollectiveConfig::default().with_local_all_reduce_strategy(AllReduceStrategy::Tree(2));
+
     let training = SupervisedTraining::new(ARTIFACT_DIR, dataloader_train, dataloader_valid)
         .metrics((AccuracyMetric::new(), LossMetric::new()))
         .metric_train_numeric(LearningRateMetric::new())
@@ -106,7 +111,11 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
             StoppingCondition::NoImprovementSince { n_epochs: 5 },
         ))
         .num_epochs(config.num_epochs)
-        .summary();
+        .summary()
+        .with_training_strategy(burn::train::TrainingStrategy::DistributedDataParallel {
+            devices: vec![device, device2],
+            config: collective_config,
+        });
 
     let result = training.launch(Learner::new(
         model,

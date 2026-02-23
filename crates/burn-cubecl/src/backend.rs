@@ -1,7 +1,7 @@
 use crate::{
     CubeRuntime, FloatElement, IntElement,
     element::BoolElement,
-    tensor::{CubeInplaceTensor, CubeTensor},
+    tensor::{CubeCommTensor, CubeTensor},
 };
 use burn_backend::{Backend, DTypeUsage, DTypeUsageSet, DeviceOps, ExecutionError, TensorData};
 use burn_std::DType;
@@ -44,7 +44,7 @@ where
     type IntTensorPrimitive = CubeTensor<R>;
     type BoolTensorPrimitive = CubeTensor<R>;
     type QuantizedTensorPrimitive = CubeTensor<R>;
-    type CommunicationTensorPrimitive = CubeInplaceTensor<R>;
+    type CommunicationTensorPrimitive = CubeCommTensor<R>;
 
     fn name(device: &Self::Device) -> String {
         let client = R::client(device);

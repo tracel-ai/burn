@@ -38,17 +38,35 @@ pub(crate) fn get_gradient_sync_client<B: Backend>() -> Option<GradientSyncClien
     }
 }
 
-// TODO: pass number of devices so the server waits for all of them ro register_device. Right now it works but idk why?
+/// Remove the client form the map for the given [`Backend`].
+pub(crate) fn remove_gradient_sync_client<B: Backend>() {
+    let typeid = TypeId::of::<B>();
+    let mut state_map = get_backend_client_map();
+    state_map.remove(&typeid);
+}
+
 /// Starts the server used to sync the gradients of parameters sharded across multiple devices.
-pub fn start_gradient_sync_server<B: Backend>() {
+pub fn start_gradient_sync_server<B: Backend>(num_devices: usize) {
     log::info!("Starting gradient sync server.");
     match get_gradient_sync_client::<B>() {
         Some(_) => log::warn!("Client was already started"),
         None => {
             let typeid = TypeId::of::<B>();
             let mut state_map = get_backend_client_map();
-            let client = GradientSyncClient::<B>::new();
+            let client = GradientSyncClient::<B>::new(num_devices);
             state_map.insert(typeid, Box::new(client.clone()));
         }
+    }
+}
+
+/// Close the gradient syncing server.
+pub fn close_gradient_sync_server<B: Backend>() {
+    log::info!("Closing gradient sync server.");
+    match get_gradient_sync_client::<B>() {
+        Some(client) => {
+            client.close();
+            remove_gradient_sync_client::<B>();
+        }
+        None => log::warn!("Client does not exist"),
     }
 }

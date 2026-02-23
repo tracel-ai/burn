@@ -33,7 +33,7 @@ mod backend;
 pub(crate) mod runtime;
 
 pub use backend::*;
-pub use grad_sync::api::start_gradient_sync_server;
+pub use grad_sync::api::{close_gradient_sync_server, start_gradient_sync_server};
 
 /// A facade around for HashMap and HashSet.
 /// This avoids elaborate import wrangling having to happen in every module.

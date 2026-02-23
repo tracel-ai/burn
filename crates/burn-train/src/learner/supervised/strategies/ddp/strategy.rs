@@ -1,7 +1,7 @@
 use core::panic;
 use std::sync::{Arc, Mutex};
 
-use burn_autodiff::start_gradient_sync_server;
+use burn_autodiff::{close_gradient_sync_server, start_gradient_sync_server};
 use burn_collective::CollectiveConfig;
 use burn_core::tensor::Device;
 use burn_core::tensor::backend::AutodiffBackend;
@@ -71,7 +71,7 @@ impl<LC: LearningComponentsTypes + Send + 'static> SupervisedLearningStrategy<LC
             event_store: training_components.event_store,
         };
 
-        start_gradient_sync_server::<<LC::Backend as AutodiffBackend>::InnerBackend>();
+        start_gradient_sync_server::<<LC::Backend as AutodiffBackend>::InnerBackend>(peer_count);
 
         // Start worker for main device
         // First training dataloader corresponds to main device
@@ -118,6 +118,9 @@ impl<LC: LearningComponentsTypes + Send + 'static> SupervisedLearningStrategy<LC
                 .join()
                 .expect("Distributed data parallel worker failed");
         }
+
+        close_gradient_sync_server::<<LC::Backend as AutodiffBackend>::InnerBackend>();
+
         // Main worker had the event processor
         let model = main_handle
             .join()

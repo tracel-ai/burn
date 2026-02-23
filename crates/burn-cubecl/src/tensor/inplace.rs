@@ -7,9 +7,9 @@ use crate::{CubeRuntime, tensor::CubeTensor};
 
 // TODO: This is highly unsafe and inefficient. Should work with handles or whatever.
 #[derive(Debug)]
-pub struct CubeInplaceTensor<R: CubeRuntime>(pub Arc<*mut CubeTensor<R>>);
+pub struct CubeCommTensor<R: CubeRuntime>(pub Arc<*mut CubeTensor<R>>);
 
-impl<R> From<&mut CubeTensor<R>> for CubeInplaceTensor<R>
+impl<R> From<&mut CubeTensor<R>> for CubeCommTensor<R>
 where
     R: CubeRuntime,
 {
@@ -18,7 +18,7 @@ where
     }
 }
 
-impl<R> Clone for CubeInplaceTensor<R>
+impl<R> Clone for CubeCommTensor<R>
 where
     R: CubeRuntime,
 {
@@ -27,10 +27,10 @@ where
     }
 }
 
-unsafe impl<R> Sync for CubeInplaceTensor<R> where R: CubeRuntime {}
-unsafe impl<R> Send for CubeInplaceTensor<R> where R: CubeRuntime {}
+unsafe impl<R> Sync for CubeCommTensor<R> where R: CubeRuntime {}
+unsafe impl<R> Send for CubeCommTensor<R> where R: CubeRuntime {}
 
-impl<R: CubeRuntime> TensorMetadata for CubeInplaceTensor<R> {
+impl<R: CubeRuntime> TensorMetadata for CubeCommTensor<R> {
     fn dtype(&self) -> DType {
         unsafe { (**self.0).dtype() }
     }
