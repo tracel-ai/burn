@@ -297,13 +297,6 @@ macro_rules! creation_op_arms {
     }};
 }
 
-/// Dispatches a float tensor creation operation (that might support autodiff).
-// macro_rules! creation_float {
-//     ($kind:ident, $device:expr, |$inner:ident| $body:expr) => {
-//         backend_list!(creation_float_arms, $kind, $device, |$inner| $body)
-//     };
-// }
-
 /// Wrap the result in the backend tensor kind, handling float -> autodiff.
 macro_rules! wrap_float {
     (

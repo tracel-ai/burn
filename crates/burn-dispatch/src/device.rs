@@ -17,7 +17,7 @@ use crate::backends::*;
 /// #[cfg(feature = "cuda")]
 /// let cuda_device = DispatchDevice::Cuda(Default::default());
 /// ```
-#[derive(Debug, Clone, Eq)]
+#[derive(Clone, Eq)]
 pub enum DispatchDevice {
     /// The [CPU backend](Cpu) device.
     #[cfg(feature = "cpu")]
@@ -53,7 +53,49 @@ pub enum DispatchDevice {
 
     /// The [autodiff enabled backend](Autodiff) device.
     #[cfg(feature = "autodiff")]
-    Autodiff(Box<DispatchDevice>),
+    Autodiff(AutodiffDevice),
+}
+
+// This tuple struct mainly restricts users from creating Autodiff(Autodiff) devices.
+/// A wrapper that enables automatic differentiation for a [`DispatchDevice`].
+///
+/// Use [`DispatchDevice::with_autodiff`] to construct this type.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AutodiffDevice(pub(crate) Box<DispatchDevice>);
+
+// Useful for match in dispatch macros
+impl core::ops::Deref for AutodiffDevice {
+    type Target = DispatchDevice;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl core::fmt::Debug for DispatchDevice {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            #[cfg(feature = "cpu")]
+            Self::Cpu(device) => f.debug_tuple("Cpu").field(device).finish(),
+            #[cfg(feature = "cuda")]
+            Self::Cuda(device) => f.debug_tuple("Cuda").field(device).finish(),
+            #[cfg(wgpu_metal)]
+            Self::Metal(device) => f.debug_tuple("Metal").field(device).finish(),
+            #[cfg(feature = "rocm")]
+            Self::Rocm(device) => f.debug_tuple("Rocm").field(device).finish(),
+            #[cfg(wgpu_vulkan)]
+            Self::Vulkan(device) => f.debug_tuple("Vulkan").field(device).finish(),
+            #[cfg(wgpu_webgpu)]
+            Self::WebGpu(device) => f.debug_tuple("WebGpu").field(device).finish(),
+            #[cfg(feature = "ndarray")]
+            Self::NdArray(device) => f.debug_tuple("NdArray").field(device).finish(),
+            #[cfg(feature = "tch")]
+            Self::LibTorch(device) => f.debug_tuple("LibTorch").field(device).finish(),
+            #[cfg(feature = "autodiff")]
+            // Format without `AutodiffDevice` wrapper
+            Self::Autodiff(device) => f.debug_tuple("Autodiff").field(&device.0).finish(),
+        }
+    }
 }
 
 impl Default for DispatchDevice {
@@ -91,10 +133,13 @@ impl PartialEq for DispatchDevice {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             // If both are Autodiff, compare the inner devices
+            #[cfg(feature = "autodiff")]
             (DispatchDevice::Autodiff(a), DispatchDevice::Autodiff(b)) => a == b,
             // If one is Autodiff, compare it to the raw device
-            (DispatchDevice::Autodiff(a), b) => a.as_ref() == b,
-            (a, DispatchDevice::Autodiff(b)) => a == b.as_ref(),
+            #[cfg(feature = "autodiff")]
+            (DispatchDevice::Autodiff(a), b) => a.0.as_ref() == b,
+            #[cfg(feature = "autodiff")]
+            (a, DispatchDevice::Autodiff(b)) => a == b.0.as_ref(),
             #[cfg(feature = "cpu")]
             (Self::Cpu(a), Self::Cpu(b)) => a == b,
             #[cfg(feature = "cuda")]
@@ -122,6 +167,12 @@ impl PartialEq for DispatchDevice {
 const TYPE_ID_BASE: u16 = 10;
 
 impl DispatchDevice {
+    /// Creates a new [`DispatchDevice`] with [automatic differentiation](Autodiff) enabled.
+    pub fn new_autodiff(device: impl Into<DispatchDevice>) -> DispatchDevice {
+        let device = device.into();
+        DispatchDevice::Autodiff(AutodiffDevice(Box::new(device)))
+    }
+
     /// Returns a unique number per variant to encode into type_id.
     fn backend_id(&self) -> BackendId {
         match self {
@@ -142,7 +193,7 @@ impl DispatchDevice {
             #[cfg(feature = "tch")]
             Self::LibTorch(_) => BackendId::LibTorch,
             #[cfg(feature = "autodiff")]
-            Self::Autodiff(device) => device.backend_id(),
+            Self::Autodiff(device) => device.0.backend_id(),
         }
     }
 
@@ -219,7 +270,7 @@ impl DeviceOps for DispatchDevice {
     fn inner(&self) -> &Self {
         match self {
             #[cfg(feature = "autodiff")]
-            DispatchDevice::Autodiff(device) => &*device,
+            DispatchDevice::Autodiff(device) => &*device.0,
             device => device,
         }
     }
@@ -269,7 +320,7 @@ impl burn_std::device::Device for DispatchDevice {
             #[cfg(feature = "tch")]
             Self::LibTorch(device) => device.to_id(),
             #[cfg(feature = "autodiff")]
-            Self::Autodiff(device) => device.to_id(),
+            Self::Autodiff(device) => device.0.to_id(),
         };
         device_id.type_id = self.encode_type_id(device_id.type_id);
         device_id
