@@ -65,7 +65,7 @@ insta = "1.45.0"
 js-sys = "0.3.77"
 libm = "0.2.15"
 log = { default-features = false, version = "0.4.29" }
-lzma-rust2 = "0.16.1"
+lzma-rust2 = "0.16.2"
 opentelemetry = "0.31.0"
 opentelemetry-aws = "0.19.0"
 opentelemetry-otlp = "0.31.0"
@@ -168,9 +168,9 @@ uuid = { version = "1.21.0", default-features = false }
 
 byteorder = { version = "1.5.0", default-features = false }
 libc = "0.2.182"
-nvml-wrapper = "0.11.0"
+nvml-wrapper = "0.12.0"
 sysinfo = "0.38.0"
-systemstat = "0.2.5"
+systemstat = "0.2.6"
 tch = "0.22.0"
 torch-sys = "0.22.0"                                        # matches what tch is using, required for lib detection
 
@@ -194,7 +194,7 @@ cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, 
 # cubek = { version = "=0.2.0-pre.1", default-features = false }
 
 ### For xtask crate ###
-tracel-xtask = "=4.13.1"
+tracel-xtask = "=4.13.3"
 # ### For local development. ###
 # tracel-xtask = { path = "../xtask/crates/tracel-xtask", default-features = false }
 
