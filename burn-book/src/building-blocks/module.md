@@ -247,6 +247,7 @@ Burn comes with built-in modules that you can use to build your own modules.
 | `Selu`            | `nn.SELU`                                     |
 | `SoftShrink`      | `nn.Softshrink`                               |
 | `Softsign`        | `nn.Softsign`                                 |
+| `Shrink`          | _No direct equivalent_                        |
 | `RmsNorm`         | _No direct equivalent_                        |
 | `SwiGlu`          | _No direct equivalent_                        |
 | `ThresholdedRelu` | _No direct equivalent_                        |

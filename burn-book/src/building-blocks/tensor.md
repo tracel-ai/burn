@@ -397,7 +397,8 @@ strategies.
 | `activation::prelu(tensor,alpha)`                | `nn.functional.prelu(tensor,weight)`               |
 | `activation::quiet_softmax(tensor, dim)`         | `nn.functional.quiet_softmax(tensor, dim)`         |
 | `activation::relu(tensor)`                       | `nn.functional.relu(tensor)`                       |
-| `activation::soft_shrink(tensor, lambda, bias)`  | `nn.functional.softshrink(tensor, lambd)`          |
+| `activation::shrink(tensor, lambda, bias)`       | _No direct equivalent_                             |
+| `activation::soft_shrink(tensor, lambda)`        | `nn.functional.softshrink(tensor, lambd)`          |
 | `activation::sigmoid(tensor)`                    | `nn.functional.sigmoid(tensor)`                    |
 | `activation::selu(tensor)`                       | `nn.functional.selu(tensor)`                       |
 | `activation::silu(tensor)`                       | `nn.functional.silu(tensor)`                       |

@@ -595,6 +595,31 @@ pub fn hard_shrink<const D: usize, B: Backend>(tensor: Tensor<B, D>, lambda: f64
 $$
 \text{soft\_shrink}(x) =
  \begin{cases}
+     x - \lambda & \text{if } x > \lambda \newline
+     x + \lambda & \text{if } x < -\lambda \newline
+     0 & \text{otherwise}
+ \end{cases}
+$$
+"#
+)]
+#[cfg_attr(
+    not(doc),
+    doc = "`soft_shrink(x) = x - lambda if x > lambda, x + lambda if x < -lambda, 0 otherwise`"
+)]
+/// # Arguments
+/// - `lambda`: the lambda value for the Soft Shrink formulation. Default is 0.5.
+pub fn soft_shrink<const D: usize, B: Backend>(tensor: Tensor<B, D>, lambda: f64) -> Tensor<B, D> {
+    shrink(tensor, lambda, lambda)
+}
+
+/// Applies the Shrink function element-wise.
+///
+#[cfg_attr(
+    doc,
+    doc = r#"
+$$
+\text{shrink}(x) =
+ \begin{cases}
      x - \text{bias} & \text{if } x > \lambda \newline
      x + \text{bias} & \text{if } x < -\lambda \newline
      0 & \text{otherwise}
@@ -604,12 +629,12 @@ $$
 )]
 #[cfg_attr(
     not(doc),
-    doc = "`soft_shrink(x) = x - bias if x > lambda, x + bias if x < -lambda, 0 otherwise`"
+    doc = "`shrink(x) = x - bias if x > lambda, x + bias if x < -lambda, 0 otherwise`"
 )]
 /// # Arguments
-/// - `lambda`: the lambda value for the Soft Shrink formulation. Default is 0.5.
-/// - `bias`: the bias value for the Soft Shrink formulation. Usually bias is equal to lambda.
-pub fn soft_shrink<const D: usize, B: Backend>(
+/// - `lambda`: the lambda value for the Shrink formulation.
+/// - `bias`: the bias value for the Shrink formulation.
+pub fn shrink<const D: usize, B: Backend>(
     tensor: Tensor<B, D>,
     lambda: f64,
     bias: f64,

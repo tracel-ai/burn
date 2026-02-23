@@ -10,7 +10,7 @@ use burn::tensor::backend::Backend;
 /// Soft Shrink layer.
 ///
 /// Applies the Soft Shrink function element-wise:
-/// `soft_shrink(x) = x - bias if x > lambda, x + bias if x < -lambda, 0 otherwise`
+/// `soft_shrink(x) = x - lambda if x > lambda, x + lambda if x < -lambda, 0 otherwise`
 ///
 /// Should be created with [SoftShrinkConfig](SoftShrinkConfig).
 #[derive(Module, Clone, Debug)]
@@ -18,9 +18,6 @@ use burn::tensor::backend::Backend;
 pub struct SoftShrink {
     /// The lambda value for the Soft Shrink formulation.
     pub lambda: f64,
-    /// The bias value for the Soft Shrink formulation.
-    // Usually bias = lambda, but need this to handle onnx spec https://onnx.ai/onnx/operators/onnx__Shrink.html
-    pub bias: f64,
 }
 
 /// Configuration to create a [SoftShrink](SoftShrink) layer using the [init function](SoftShrinkConfig::init).
@@ -29,9 +26,6 @@ pub struct SoftShrinkConfig {
     /// The lambda value for the Soft Shrink formulation. Default is 0.5
     #[config(default = "0.5")]
     pub lambda: f64,
-    /// The bias value for the Soft Shrink formulation. Default is 0.5.
-    #[config(default = "0.5")]
-    pub bias: f64,
 }
 
 impl SoftShrinkConfig {
@@ -39,7 +33,6 @@ impl SoftShrinkConfig {
     pub fn init(&self) -> SoftShrink {
         SoftShrink {
             lambda: self.lambda,
-            bias: self.bias,
         }
     }
 }
@@ -52,10 +45,7 @@ impl ModuleDisplay for SoftShrink {
     }
 
     fn custom_content(&self, content: Content) -> Option<Content> {
-        content
-            .add("lambda", &self.lambda)
-            .add("bias", &self.bias)
-            .optional()
+        content.add("lambda", &self.lambda).optional()
     }
 }
 
@@ -68,7 +58,7 @@ impl SoftShrink {
     /// - input: `[..., any]`
     /// - output: `[..., any]`
     pub fn forward<B: Backend, const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
-        soft_shrink(input, self.lambda, self.bias)
+        soft_shrink(input, self.lambda)
     }
 }
 
@@ -90,25 +80,19 @@ mod tests {
     }
 
     #[test]
-    fn test_soft_shrink_with_lambda_and_bias() {
+    fn test_soft_shrink_with_lambda() {
         let device = <TestBackend as Backend>::Device::default();
-        let model: SoftShrink = SoftShrinkConfig::new()
-            .with_lambda(0.25)
-            .with_bias(0.125)
-            .init();
+        let model: SoftShrink = SoftShrinkConfig::new().with_lambda(0.25).init();
         let input =
             Tensor::<TestBackend, 2>::from_data([[0.125, -0.125, -0.5], [0.75, 0.1, 0.0]], &device);
         let out = model.forward(input);
-        let expected = TensorData::from([[0.0_f32, 0.0, -0.375], [0.625, 0.0, 0.0]]);
+        let expected = TensorData::from([[0.0_f32, 0.0, -0.25], [0.5, 0.0, 0.0]]);
         assert_eq!(out.into_data(), expected);
     }
 
     #[test]
     fn display() {
         let config = SoftShrinkConfig::new().init();
-        assert_eq!(
-            alloc::format!("{config}"),
-            "SoftShrink {lambda: 0.5, bias: 0.5}"
-        );
+        assert_eq!(alloc::format!("{config}"), "SoftShrink {lambda: 0.5}");
     }
 }
