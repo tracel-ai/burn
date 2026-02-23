@@ -270,7 +270,7 @@ impl DeviceOps for DispatchDevice {
     fn inner(&self) -> &Self {
         match self {
             #[cfg(feature = "autodiff")]
-            DispatchDevice::Autodiff(device) => &*device.0,
+            DispatchDevice::Autodiff(device) => &device.0,
             device => device,
         }
     }

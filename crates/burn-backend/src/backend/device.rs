@@ -7,9 +7,10 @@ pub trait DeviceOps: Clone + Default + PartialEq + Send + Sync + core::fmt::Debu
         self.to_id()
     }
 
-    // TODO: is this required? Might want to rethink about the InnerBackend / device association with Dispatch
-
-    /// Returns the inner device.
+    /// Returns the inner device without autodiff enabled.
+    ///
+    /// For most devices this is a no-op that returns `self`. For autodiff-enabled
+    /// devices, this returns the underlying inner device.
     fn inner(&self) -> &Self {
         self
     }
