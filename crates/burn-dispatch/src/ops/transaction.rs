@@ -6,9 +6,6 @@ use burn_backend::{
 use crate::Dispatch;
 use crate::backends::*;
 
-// TODO: maybe remove the double dispatch layer and have Autodiff(Box<BackendTensor>)
-// DispatchTensor::Autodiff(DispatchTensor::$Backend(BackendTensor::Autodiff()))
-
 impl TransactionOps<Self> for Dispatch {
     async fn tr_execute(
         transaction: TransactionPrimitive<Self>,

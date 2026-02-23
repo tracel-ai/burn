@@ -189,7 +189,6 @@ macro_rules! float_to_device_arms {
                     }
                 )+
             )*
-            // TODO: maybe?
             #[cfg(feature = "autodiff")]
             ($crate::DispatchTensor::Autodiff(_), _) | (_, $crate::DispatchDevice::Autodiff(_)) => panic!("Cannot move between autodiff and non-autodiff instances.")
         }
