@@ -569,8 +569,8 @@ pub fn softsign<const D: usize, B: Backend>(tensor: Tensor<B, D>) -> Tensor<B, D
 $$
 \text{hard\_shrink}(x) =
  \begin{cases}
-     x & \text{if } x > \lambd \newline
-     x & \text{if } x < -\lambd \newline
+     x & \text{if } x > \lambda \newline
+     x & \text{if } x < -\lambda \newline
      0 & \text{otherwise}
  \end{cases}
 $$
@@ -578,16 +578,16 @@ $$
 )]
 #[cfg_attr(
     not(doc),
-    doc = "`hard_shrink(x) = x if x > lambd, x if x < -lambd, 0 otherwise`"
+    doc = "`hard_shrink(x) = x if x > lambda, x if x < -lambda, 0 otherwise`"
 )]
 /// # Arguments
-/// - `lambd`: the lambd value for the Hard Shrink formulation. Default is 0.5.
-pub fn hard_shrink<const D: usize, B: Backend>(tensor: Tensor<B, D>, lambd: f64) -> Tensor<B, D> {
-    let mask = tensor.clone().abs().lower_equal_elem(lambd);
+/// - `lambda`: the lambda value for the Hard Shrink formulation. Default is 0.5.
+pub fn hard_shrink<const D: usize, B: Backend>(tensor: Tensor<B, D>, lambda: f64) -> Tensor<B, D> {
+    let mask = tensor.clone().abs().lower_equal_elem(lambda);
     tensor.mask_fill(mask, 0)
 }
 
-// Applies the SoftShrink function element-wise.
+/// Applies the SoftShrink function element-wise.
 ///
 #[cfg_attr(
     doc,
@@ -595,8 +595,8 @@ pub fn hard_shrink<const D: usize, B: Backend>(tensor: Tensor<B, D>, lambd: f64)
 $$
 \text{soft\_shrink}(x) =
  \begin{cases}
-     x - \bias & \text{if } x > \lambd \newline
-     x + \bias & \text{if } x < -\lambd \newline
+     x - \text{bias} & \text{if } x > \lambda \newline
+     x + \text{bias} & \text{if } x < -\lambda \newline
      0 & \text{otherwise}
  \end{cases}
 $$
@@ -604,27 +604,19 @@ $$
 )]
 #[cfg_attr(
     not(doc),
-    doc = "`soft_shrink(x) = x - bias if x > lambd, x + bias if x < -lambd, 0 otherwise`"
+    doc = "`soft_shrink(x) = x - bias if x > lambda, x + bias if x < -lambda, 0 otherwise`"
 )]
 /// # Arguments
-/// - `lambd`: the lambd value for the Soft Shrink formulation. Default is 0.5.
-/// - `bias`: the bias value for the Soft Shrink formulation. Usually bias is equal to lambd.
+/// - `lambda`: the lambda value for the Soft Shrink formulation. Default is 0.5.
+/// - `bias`: the bias value for the Soft Shrink formulation. Usually bias is equal to lambda.
 pub fn soft_shrink<const D: usize, B: Backend>(
     tensor: Tensor<B, D>,
-    lambd: f64,
+    lambda: f64,
     bias: f64,
 ) -> Tensor<B, D> {
-    // [0.7, -0.7, 0.3, -0.3, 0.5, -0.5], lambda=0.5, bias=0.3
-    // abs_tensor = [0.7, 0.7, 0.3, 0.3, 0.5, 0.5]
     let abs_tensor = tensor.clone().abs();
-    // sign = [1, -1, 1, -1, 1, -1]
     let sign = tensor.clone().sign();
-    // first element: 0.7 - 1*0.3 = 0.4
-    // second element: -0.7 - (-1)*0.3 = -0.4
-    // shrunk = [0.4, -0.4, 0, 0, 0.2, -0.2]
-    let shrunk = tensor.clone().sub(sign.mul_scalar(bias));
-    // mask = [false, false, true, true, true, true]
-    let mask = abs_tensor.lower_equal_elem(lambd);
-    // output = [0.4, -0.4, 0, 0, 0, 0]
+    let shrunk = tensor.sub(sign.mul_scalar(bias));
+    let mask = abs_tensor.lower_equal_elem(lambda);
     shrunk.mask_fill(mask, 0)
 }
