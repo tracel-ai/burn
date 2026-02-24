@@ -51,8 +51,8 @@ blocked.
    ignore existing patterns will be rejected. The
    [Contributor Book](https://burn.dev/contributor-book/) covers architecture, environment setup,
    and guides for common tasks.
-4. **Run validation.** Run `cargo run-checks` before you submit. This runs formatting, linting,
-   and the full test suite. All checks must pass.
+4. **Run validation.** Run `cargo run-checks` before you submit. This runs formatting, linting, and
+   the full test suite. All checks must pass.
 5. **Write a clear PR description.** Explain _what_ you changed, _why_ you changed it, and _how_ you
    verified it works. Link the relevant issue.
 
