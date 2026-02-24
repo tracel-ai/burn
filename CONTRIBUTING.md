@@ -1,143 +1,109 @@
-# Contributing to the Burn Project
+# Contributing to Burn
 
-Welcome to the Burn project! We're thrilled that you're considering contributing to our project.
-Every contribution helps, and we're delighted to have you on board.
+Thank you for your interest in contributing! We welcome contributions from the community, but we
+hold every contributor to a high standard of ownership and quality. Please read this guide carefully
+before opening a pull request.
 
-## How to Contribute?
+## The Golden Rule: Own Your Work
 
-Here are some steps to guide you through the process of contributing to the Burn project:
+Every line of code you submit must be code you **understand and can defend**. If you cannot explain
+why a change was made, how it works, and what trade-offs were considered, the PR will be closed.
 
-### Step 1: Review the Issue Tickets
+We recognize that AI coding assistants (Copilot, Cursor, Claude, ChatGPT, etc.) are part of modern
+development workflows, and we do not ban their use. However, **you are the author, not your AI
+agent**. Using an AI tool does not absolve you of the responsibility to understand, verify, and
+stand behind every change in your PR.
 
-Before you start working on a contribution, please take a moment to look through the open issues in
-the [issue tracker](https://github.com/tracel-ai/burn/issues) for this project. This will give you an
-idea of what kind of work is currently being planned or is in progress.
+## AI-Assisted Contributions Policy
 
-### Step 2: Get Familiar with the Project Architecture
+### What we expect
 
-It's crucial to have an understanding of the [project's architecture](https://github.com/tracel-ai/burn/tree/main/contributor-book/src/project-architecture). Familiarize
-yourself with the structure of the project, the purpose of different components, and how they
-interact with each other. This will give you the context needed to make meaningful contributions.
+- You have **read and understood** every line of code in your PR before submitting it.
+- You can explain the **rationale** behind each change if asked during review.
+- You have **tested your changes** locally and confirmed they work as intended.
+- You have reviewed AI-generated code for correctness, style consistency, and relevance to the issue
+  at hand.
+- You treat AI tools as assistants, not authors. The intellectual ownership is yours.
 
-### Step 3: Fork and Clone the Repository
+### What will get your PR closed
 
-Before you can start making changes, you'll need to fork the Burn repository and clone it to your
-local machine. This can be done via the GitHub website or the GitHub Desktop application. Here are
-the steps:
+- Submitting large, AI-generated diffs with no evidence of human review or comprehension.
+- Inability to answer reviewer questions about your own code.
+- PRs that "shotgun" changes across unrelated files with no clear rationale.
+- Superficial or cosmetic-only changes disguised as meaningful contributions (e.g., mass
+  reformatting, trivial comment rewording, renaming without purpose).
+- Copy-pasting AI output that introduces hallucinated APIs, incorrect logic, or irrelevant code.
+- Repeatedly submitting low-quality PRs that waste reviewer time.
 
-1. Click the "Fork" button at the top-right of this page to create a copy of this project in your
-   GitHub account.
-2. Clone the repository to your local machine. You can do this by clicking the "Code" button on the
-   GitHub website and copying the URL. Then open a terminal on your local machine and type
-   `git clone [the URL you copied]`.
+### Reviewer discretion
 
-### Step 4: Create a New Branch
+Maintainers reserve the right to ask clarifying questions about any part of your PR to verify
+understanding. If your answers suggest you do not understand the changes you submitted, the PR will
+be closed. Repeat offenses may result in future PRs being deprioritized or the contributor being
+blocked.
 
-It's a good practice to create a new branch for each contribution you make. This keeps your changes
-organized and separated from the main project, which can make the process of reviewing and merging
-your changes easier. You can create a new branch by using the command
-`git checkout -b [branch-name]`.
+## Before You Open a PR
 
-### Step 5: Make Your Changes
+1. **Check for an existing issue.** If there isn't one, open an issue first to discuss the approach.
+   Do not surprise reviewers with unsolicited large refactors.
+2. **Keep it focused.** One PR should address one concern. Do not bundle unrelated changes together.
+3. **Read the codebase.** Understand the architecture and conventions already in place. PRs that
+   ignore existing patterns will be rejected. The
+   [Contributor Book](https://burn.dev/contributor-book/) covers architecture, environment setup,
+   and guides for common tasks.
+4. **Run validation.** Run `cargo run-checks` before you submit. This runs formatting, linting,
+   and the full test suite. All checks must pass.
+5. **Write a clear PR description.** Explain _what_ you changed, _why_ you changed it, and _how_ you
+   verified it works. Link the relevant issue.
 
-Once you have set up your local repository and created a new branch, you can start making changes.
-Be sure to follow the coding standards and guidelines used in the rest of the project.
+## PR Requirements
 
-### Step 6: Validate code before opening a Pull Request
+Every pull request must include:
 
-Before you open a pull request, please run [`cargo run-checks`]. This
-will ensure that your changes are in line with our project's standards and guidelines. You can run
-the validation checks by opening a terminal, navigating to your local project directory, and typing
-`cargo run-checks`.
+- **A descriptive title** that summarizes the change (not "Fix stuff" or "Update code").
+- **A description** that covers:
+  - The problem being solved or feature being added.
+  - The approach taken and why.
+  - Any trade-offs or alternatives considered.
+  - How the change was tested.
+- **Passing CI checks.** Do not ask reviewers to look at a red build.
+- **Minimal scope.** No drive-by changes. If you spot an unrelated issue, open a separate PR for it.
 
-> [!TIP]
-> Want more detailed macro error diagnostics? This is especially useful for debugging tensor-related tests:
->
-> ```bash
-> RUSTC_BOOTSTRAP=1 RUSTFLAGS="-Zmacro-backtrace" cargo run-checks
-> ```
+## Code Quality Standards
 
-Note that under the hood `run-checks` runs the `cargo xtask validate` command which is powered by
-the [tracel-xtask crate](https://github.com/tracel-ai/xtask). It is recommended to get familiar with
-it as it provides a wide variety of commands to help you work with the code base.
+- Follow the existing code style and project conventions.
+- Write idiomatic Rust. If you are unfamiliar with Rust conventions, please study the existing
+  codebase before contributing.
+- Keep dependencies minimal. Do not introduce new crates without discussion.
+- Document public APIs. Non-trivial logic should have comments explaining _why_, not just _what_.
+- Prefer clarity over cleverness.
+- Bug fixes must include a regression test.
 
-If you have an error related to `torch` installation, see [Burn Torch Backend Installation](./crates/burn-tch/README.md#Installation)
+## Review Process
 
-Format and lint errors can often be fixed automatically using the command `cargo xtask fix all`.
+- Maintainers will review PRs as time allows. Please be patient.
+- Be responsive to feedback. If changes are requested, address them or explain your reasoning.
+- Do not force-push to rewrite history during an active review without notice.
+- If a PR goes stale for more than 14 days without response from the author, it may be closed.
 
-### Step 7: Submit a Pull Request
+## A Note on Contribution Quality vs. Quantity
 
-After you've made your changes and run the pre-pull request script, you're ready to submit a pull
-request. This can be done through the GitHub website or the
-[GitHub Desktop application](https://desktop.github.com/).
+We value **meaningful contributions** over PR count. One well-crafted, well-understood PR is worth
+more than ten sloppy ones. We are a small project with limited reviewer bandwidth, and every
+low-quality PR takes time away from actual development. Please respect that time.
 
-When submitting your pull request, please provide a brief description of the changes you've made and
-the issue or issues that your changes address.
+If your goal is to pad a contribution graph rather than to genuinely improve this project, this is
+not the repo for you.
 
-### Optional step for VS Code: Setting up environment
+## Getting Help
 
-1. Install the following extensions:
+If you're unsure about an approach, open an issue or start a discussion first. We are happy to guide
+contributors who are genuinely engaged. Asking questions is a sign of strength, not weakness.
 
-- [rust-lang.rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
-- [tamasfe.even-better-toml](https://marketplace.visualstudio.com/items?itemName=tamasfe.even-better-toml)
-- [fill-labs.dependi](https://marketplace.visualstudio.com/items?itemName=fill-labs.dependi)
-- [vadimcn.vscode-lldb](https://marketplace.visualstudio.com/items?itemName=vadimcn.vscode-lldb)
-
-2. Open `Command Palette` with Ctrl+Shift+P or F1 and type `LLDB: Generate Launch Configurations from Cargo.toml` then select it, this will generate a file that should be saved as `.vscode/launch.json`.
-You may also want to enable debugging by creating a `.vscode/settings.json` file:
-   ```json
-   {
-   "rust-analyzer.runnables.extraEnv": {
-      "CARGO_PROFILE_DEV_DEBUG": true
-   }
-   }
-   ```
-   since this repo has `debug = 0` in the root `Cargo.toml` to speed up compilation.
-
-3. Now you can enable breakpoint on code through IDE and then start debugging the library/binary you want, such as the following example:
-
-<div align="center">
-<img src="./contributor-book/src/getting-started/debug-options-vscode.png" width="700px"/>
-<div align="left">
-
-4. If you're creating a new library or binary, keep in mind to repeat the step 2 to always keep a fresh list of targets.
-
-## Code Guidelines
-
-We believe in clean and efficient code. While we don't enforce strict coding guidelines, we trust
-and use tools like `cargo fmt` and `cargo clippy` to maintain code quality. These are integrated
-into the `run-checks` command, ensuring consistency across our codebase.
-
-### Writing Expect Messages
-
-In Rust, the `expect()` function is a crucial tool for handling errors. However, the power of
-`expect()` lies in its ability to convey clear, actionable messages. When you use `expect()`, your
-message should describe the successful outcome of the function rather than focusing on the error.
-
-Here's a helpful tip from the [Rust documentation](https://doc.rust-lang.org/std/result/enum.Result.html#recommended-message-style):
-
-_Think of `expect()` messages as guidelines for future you and other developers. Frame them with the word “should” like “The ENV variable should be set by X function” or “The binary should be accessible and executable by the current user.”_
-
-This approach ensures that `expect()` messages are informative and aligned with the intended
-function outcomes, making debugging and maintenance more straightforward for everyone.
-
-### Writing integration tests
-
-[Integration tests](https://doc.rust-lang.org/rust-by-example/testing/integration_testing.html) should be in a directory called `tests`
-besides the `src` directory of a crate. Per convention, they must be implemented in files whose name start with the `test_` prefix.
-
-## Others
-
-To bump for the next version, install `cargo-edit` if its not on your system, and use this command:
-
-```
-cargo set-version --bump minor
-```
+For questions and discussions, join us on [Discord](https://discord.gg/uPEBbYYDB6).
 
 ---
 
-We look forward to seeing your contributions to the Burn project. Happy coding!
-
-If you have any questions and would like to get in touch with us, please feel free to join our
-discord server:
-[![Discord](https://img.shields.io/discord/1038839012602941528.svg?color=7289da&&logo=discord)](https://discord.gg/uPEBbYYDB6)
+By submitting a pull request, you confirm that you have read these guidelines, that you understand
+and can explain the code you are submitting, and that you are the intellectual owner of the
+contribution.

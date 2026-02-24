@@ -542,12 +542,9 @@ any background. You can ask your questions and share what you built with the com
 
 **Contributing**
 
-Before contributing, please take a moment to review our
-[code of conduct](https://github.com/tracel-ai/burn/tree/main/CODE-OF-CONDUCT.md). It's also highly
-recommended to read the
-[architecture overview](https://github.com/tracel-ai/burn/tree/main/contributor-book/src/project-architecture),
-which explains some of our architectural decisions. Refer to our
-[contributing guide](/CONTRIBUTING.md) for more details.
+Before contributing, please read the [Contributing Guidelines](CONTRIBUTING.md) and our
+[Code of Conduct](CODE-OF-CONDUCT.md). The [Contributor Book](https://burn.dev/contributor-book/)
+covers architecture, environment setup, and guides for common tasks.
 
 ## Status
 
