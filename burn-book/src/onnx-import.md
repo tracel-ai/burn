@@ -53,6 +53,17 @@ with older opset versions may work, opset 16+ ensures access to all supported op
 latest behavior. If you encounter issues with an older model, consider upgrading it using the ONNX
 version converter.
 
+### Quantized Operator Semantics
+
+For ONNX quantized linear operators (`QLinearMatMul`, `QLinearConv`, `ConvInteger`), Burn backends
+now expose integer primitives designed to match ONNX math:
+
+- Accumulation is performed in `i32` after zero-point correction: `(x - zp_x)` and `(w - zp_w)`.
+- Requantization uses deterministic **round-to-nearest ties-to-even**.
+- Casting back to integer output dtypes uses **saturating clamp** to the dtype range.
+
+These rules are part of the backend contract and are intended to be consistent across backends.
+
 ### Upgrading ONNX Models
 
 There are two simple ways to upgrade your ONNX models to the recommended opset version:

@@ -28,6 +28,7 @@ mod mul;
 mod one_hot;
 mod permute;
 mod random;
+mod quantized_primitives;
 mod remainder;
 mod repeat;
 mod repeat_dim;

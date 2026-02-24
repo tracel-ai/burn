@@ -1,6 +1,7 @@
 use super::cat::cat_with_slice_assign;
 use super::repeat_dim::repeat_with_slice_assign;
 use super::sort::{argsort, sort, sort_with_indices};
+use super::ConvOptions;
 use crate::tensor::{BoolTensor, Device, FloatTensor, Int, IntElem, IntTensor};
 use crate::{Backend, Distribution, TensorData, TensorMetadata, element::ElementConversion};
 use crate::{ExecutionError, Scalar};
@@ -703,6 +704,109 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// The result of multiplying the two tensors together using matrix multiplication.
     fn int_matmul(lhs: IntTensor<B>, rhs: IntTensor<B>) -> IntTensor<B>;
+
+    /// Matrix multiplication with quantized zero-point aware semantics and i32 accumulation.
+    ///
+    /// Applies `(lhs - lhs_zero_point)` and `(rhs - rhs_zero_point)` with broadcasting support
+    /// before matrix multiplication. The output is cast to i32.
+    fn int_matmul_accum(
+        lhs: IntTensor<B>,
+        lhs_zero_point: IntTensor<B>,
+        rhs: IntTensor<B>,
+        rhs_zero_point: IntTensor<B>,
+    ) -> IntTensor<B> {
+        let lhs = B::int_sub(
+            B::int_cast(lhs, IntDType::I32),
+            B::int_cast(lhs_zero_point, IntDType::I32),
+        );
+        let rhs = B::int_sub(
+            B::int_cast(rhs, IntDType::I32),
+            B::int_cast(rhs_zero_point, IntDType::I32),
+        );
+
+        B::int_cast(B::int_matmul(lhs, rhs), IntDType::I32)
+    }
+
+    /// 2D convolution with quantized zero-point aware semantics and i32 accumulation.
+    ///
+    /// Applies `(x - x_zero_point)` and `(weight - weight_zero_point)` with broadcasting support
+    /// before convolution. Optional `bias` is interpreted in integer accumulation space.
+    ///
+    /// The default implementation dequantizes to float for compatibility; backends should
+    /// override this to provide a native integer kernel path.
+    fn int_conv2d_accum(
+        x: IntTensor<B>,
+        x_zero_point: IntTensor<B>,
+        weight: IntTensor<B>,
+        weight_zero_point: IntTensor<B>,
+        bias: Option<IntTensor<B>>,
+        options: ConvOptions<2>,
+    ) -> IntTensor<B> {
+        let x = B::int_sub(
+            B::int_cast(x, IntDType::I32),
+            B::int_cast(x_zero_point, IntDType::I32),
+        );
+        let weight = B::int_sub(
+            B::int_cast(weight, IntDType::I32),
+            B::int_cast(weight_zero_point, IntDType::I32),
+        );
+
+        let output = B::conv2d(
+            B::int_into_float(x),
+            B::int_into_float(weight),
+            bias.map(|bias| B::int_into_float(B::int_cast(bias, IntDType::I32))),
+            options,
+        );
+
+        B::int_cast(B::float_into_int(B::float_round(output)), IntDType::I32)
+    }
+
+    /// Requantize integer accumulation values into a target integer dtype.
+    ///
+    /// Computes `scaled = tensor * scale`, applies deterministic round-to-nearest ties-to-even,
+    /// adds `zero_point`, applies saturating clamp to the target dtype range, and casts to
+    /// `dtype`.
+    fn int_requantize(
+        tensor: IntTensor<B>,
+        scale: FloatTensor<B>,
+        zero_point: IntTensor<B>,
+        dtype: IntDType,
+    ) -> IntTensor<B> {
+        let tensor = B::int_into_float(B::int_cast(tensor, IntDType::I32));
+        let zero_point = B::int_cast(zero_point, IntDType::I32);
+        let scaled = B::float_mul(tensor, scale);
+
+        // Deterministic rounding: nearest, ties-to-even.
+        let floor = B::float_floor(scaled.clone());
+        let frac = B::float_sub(scaled, floor.clone());
+        let rounded_up = B::float_add_scalar(floor.clone(), 1.into());
+
+        // Round to nearest for non-tie cases.
+        let gt_half = B::float_greater_elem(frac.clone(), 0.5.into());
+        let eq_half = B::float_equal_elem(frac, 0.5.into());
+        let rounded_nearest = B::float_mask_where(floor.clone(), gt_half, rounded_up.clone());
+
+        // Tie handling: if floor is odd, round up; if floor is even, stay on floor.
+        let floor_i32 = B::float_into_int(floor);
+        let floor_mod2 = B::int_remainder_scalar(floor_i32, 2.into());
+        let floor_odd = B::int_not_equal_elem(floor_mod2, 0.into());
+        let tie_round_up = B::bool_and(eq_half, floor_odd);
+        let rounded = B::float_mask_where(rounded_nearest, tie_round_up, rounded_up);
+
+        let shifted = B::int_add(B::float_into_int(rounded), zero_point);
+        let clamped = match dtype {
+            IntDType::I8 => B::int_clamp(shifted, (i8::MIN as i32).into(), (i8::MAX as i32).into()),
+            IntDType::U8 => B::int_clamp(shifted, (u8::MIN as i32).into(), (u8::MAX as i32).into()),
+            IntDType::I16 => {
+                B::int_clamp(shifted, (i16::MIN as i32).into(), (i16::MAX as i32).into())
+            }
+            IntDType::U16 => B::int_clamp(shifted, (u16::MIN as i32).into(), (u16::MAX as i32).into()),
+            IntDType::U32 | IntDType::U64 => B::int_clamp_min(shifted, 0.into()),
+            IntDType::I32 | IntDType::I64 => shifted,
+        };
+
+        B::int_cast(clamped, dtype)
+    }
 
     /// Element-wise negation.
     ///
