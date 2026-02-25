@@ -1,7 +1,10 @@
+use std::sync::Arc;
+
 use crate::grad_sync::api::get_gradient_sync_client;
 
 use burn_backend::{
     Backend, TensorMetadata, TensorPrimitive,
+    ops::TensorRef,
     tensor::{FloatTensor, TensorContainer},
 };
 
@@ -87,7 +90,7 @@ impl Gradients {
 
         if let Some(sync_client) = get_gradient_sync_client::<B>() {
             let tensor_ref = self.container.get_mut_ref::<B>(&node_id.value).unwrap();
-            sync_client.on_register(node_id, tensor_ref.get_mut_ref());
+            sync_client.on_register(node_id, TensorRef(Arc::new(tensor_ref.get_mut_ref())));
         };
     }
 }

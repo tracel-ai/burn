@@ -97,7 +97,7 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
 
     let device2 = Default::default();
     let collective_config =
-        CollectiveConfig::default().with_local_all_reduce_strategy(AllReduceStrategy::Tree(2));
+        CollectiveConfig::default().with_local_all_reduce_strategy(AllReduceStrategy::Centralized);
 
     let training = SupervisedTraining::new(ARTIFACT_DIR, dataloader_train, dataloader_valid)
         .metrics((AccuracyMetric::new(), LossMetric::new()))

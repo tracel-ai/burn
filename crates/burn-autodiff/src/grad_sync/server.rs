@@ -1,6 +1,6 @@
-use std::sync::mpsc::Sender;
+use std::sync::{Arc, Condvar, Mutex};
 
-use burn_backend::tensor::CommunicationTensor;
+use burn_backend::ops::TensorRef;
 use burn_backend::{Backend, ModuleParamId, ShardedParams};
 
 use crate::NodeId;
@@ -16,21 +16,23 @@ struct SyncParams {
 
 pub(crate) struct GradientSyncServer<B: Backend> {
     nodes_sync_parameters: HashMap<NodeId, SyncParams>,
-    all_reduce_ops_queue: HashMap<ModuleParamId, Vec<CommunicationTensor<B>>>,
+    all_reduce_ops_queue: HashMap<ModuleParamId, Vec<TensorRef<B>>>,
     param_required_map: HashMap<ModuleParamId, usize>,
     num_devices: usize,
     devices_registered: usize,
+    is_finished_fence: Arc<(Mutex<bool>, Condvar)>,
 }
 
 impl<B: Backend> GradientSyncServer<B> {
     /// Create a new gradient syncer serveer instance.
-    pub(crate) fn new(num_devices: usize) -> Self {
+    pub(crate) fn new(num_devices: usize, is_finished_fence: Arc<(Mutex<bool>, Condvar)>) -> Self {
         Self {
             nodes_sync_parameters: HashMap::default(),
             all_reduce_ops_queue: HashMap::default(),
             param_required_map: HashMap::default(),
             num_devices,
             devices_registered: 0,
+            is_finished_fence,
         }
     }
 
@@ -41,7 +43,6 @@ impl<B: Backend> GradientSyncServer<B> {
                 self.register_device(n_required_map, sharded_params_map)
             }
             GradientSyncMessage::Register((id, tensor)) => self.on_register(id, tensor),
-            GradientSyncMessage::IsFinished(sender) => self.is_finished(sender),
         }
     }
 
@@ -51,6 +52,10 @@ impl<B: Backend> GradientSyncServer<B> {
         n_required_map: HashMap<NodeId, usize>,
         sharded_params_map: HashMap<NodeId, ShardedParams>,
     ) {
+        let (lock, _) = &*self.is_finished_fence;
+        let mut finished = lock.lock().unwrap();
+        *finished = false;
+
         sharded_params_map.iter().for_each(|(k, v)| {
             self.nodes_sync_parameters.insert(
                 *k,
@@ -68,7 +73,7 @@ impl<B: Backend> GradientSyncServer<B> {
     }
 
     /// Called on registration of a gradient. Calls the all_reduce operation for any parameter that is no longer required in the autodiff graph.
-    fn on_register(&mut self, id: NodeId, tensor: CommunicationTensor<B>) {
+    fn on_register(&mut self, id: NodeId, tensor: TensorRef<B>) {
         if let Some(sync_params) = self.nodes_sync_parameters.get_mut(&id) {
             sync_params.n_required -= 1;
             if sync_params.n_required == 0 {
@@ -91,11 +96,13 @@ impl<B: Backend> GradientSyncServer<B> {
 
                 if num_tensors == all_reduce_ops_queue.len() {
                     // println!("execute : {:?}", param_id);
-                    B::all_reduce_inplace(
-                        all_reduce_ops_queue.to_vec(),
-                        burn_backend::AllReduceStrategy::Centralized,
-                        burn_backend::ReduceOperation::Mean,
-                    );
+                    unsafe {
+                        B::all_reduce_inplace(
+                            all_reduce_ops_queue.to_vec(),
+                            burn_backend::AllReduceStrategy::Centralized,
+                            burn_backend::ReduceOperation::Mean,
+                        );
+                    }
                     self.all_reduce_ops_queue.remove(&param_id).unwrap();
                     self.param_required_map.remove(&param_id).unwrap();
                 }
@@ -103,15 +110,15 @@ impl<B: Backend> GradientSyncServer<B> {
         }
     }
 
-    fn is_finished(&mut self, sender: Sender<bool>) {
+    pub(crate) fn is_finished(&mut self) -> bool {
         if self.param_required_map.is_empty() {
             if !self.all_reduce_ops_queue.is_empty() {
                 log::warn!("All reduce operations left hanging.")
             }
             self.devices_registered = 0;
-            sender.send(true).expect("Is finished channel open.")
+            true
         } else {
-            sender.send(false).expect("Is finished channel open.")
+            false
         }
     }
 }
