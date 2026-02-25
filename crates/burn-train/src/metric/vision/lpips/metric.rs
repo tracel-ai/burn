@@ -732,7 +732,6 @@ mod tests {
         let image2 = TestTensor::<4>::ones([1, 3, 64, 64], &device);
         let distance = lpips.forward(image1, image2, Reduction::Mean);
         let distance_value = distance.into_data().to_vec::<f32>().unwrap()[0];
-        println!("LPIPS VGG distance (black vs white): {}", distance_value);
         assert!(
             distance_value > 0.0,
             "Pretrained LPIPS (VGG) should be > 0 for different images, got {}",
@@ -768,7 +767,6 @@ mod tests {
             distance_value > 0.0,
             "Pretrained LPIPS (Alex) should be > 0 for different images"
         );
-        println!("LPIPS Alex distance (black vs white): {}", distance_value);
     }
 
     /// Test SqueezeNet pretrained weights download and loading.
@@ -779,23 +777,6 @@ mod tests {
         let lpips: Lpips<TestBackend> = LpipsConfig::new()
             .with_net(LpipsNet::Squeeze)
             .init_pretrained(&device);
-
-        // Debug: print weight values to verify loading
-        if let Lpips::Squeeze(inner) = &lpips {
-            let conv1_weight = inner.extractor.conv1.weight.val();
-            let weight_data: Vec<f32> = conv1_weight.to_data().to_vec().unwrap();
-            println!("Conv1 weight [0]: {}", weight_data[0]);
-            println!("Conv1 weight [1]: {}", weight_data[1]);
-            println!("Conv1 weight [2]: {}", weight_data[2]);
-            // Expected from PyTorch: 0.120945, 0.178033, -0.015971
-
-            // Also check lin0 weight (from LPIPS weights)
-            let lin0_weight = inner.lin0.weight.val();
-            let lin0_data: Vec<f32> = lin0_weight.to_data().to_vec().unwrap();
-            println!("Lin0 weight [0]: {}", lin0_data[0]);
-            println!("Lin0 weight [1]: {}", lin0_data[1]);
-            println!("Lin0 weight sum: {}", lin0_data.iter().sum::<f32>());
-        }
 
         // Test with identical images
         let image = TestTensor::<4>::ones([1, 3, 64, 64], &device);
@@ -812,10 +793,6 @@ mod tests {
         let image2 = TestTensor::<4>::ones([1, 3, 64, 64], &device);
         let distance = lpips.forward(image1, image2, Reduction::Mean);
         let distance_value = distance.into_data().to_vec::<f32>().unwrap()[0];
-        println!(
-            "LPIPS Squeeze distance (black vs white): {}",
-            distance_value
-        );
         assert!(
             distance_value > 0.0,
             "Pretrained LPIPS (Squeeze) should be > 0 for different images, got {}",

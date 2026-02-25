@@ -107,20 +107,16 @@ pub fn load_pretrained_weights<B: Backend>(mut lpips: Lpips<B>, net: LpipsNet) -
     download_if_needed(lpips_url, &lpips_cache_path, lpips_message);
 
     // Load backbone weights first
-    lpips = load_backbone_weights(lpips, net, &backbone_cache_path);
+    lpips = load_backbone_weights(lpips, &backbone_cache_path);
 
     // Then load LPIPS linear layer weights
-    lpips = load_lpips_weights(lpips, net, &lpips_cache_path);
+    lpips = load_lpips_weights(lpips, &lpips_cache_path);
 
     lpips
 }
 
 /// Load ImageNet pretrained backbone weights.
-fn load_backbone_weights<B: Backend>(
-    lpips: Lpips<B>,
-    _net: LpipsNet,
-    cache_path: &PathBuf,
-) -> Lpips<B> {
+fn load_backbone_weights<B: Backend>(lpips: Lpips<B>, cache_path: &PathBuf) -> Lpips<B> {
     // Load directly into the inner struct to avoid enum variant issues
     match lpips {
         Lpips::Vgg(mut inner) => {
@@ -184,11 +180,7 @@ fn load_backbone_weights<B: Backend>(
 }
 
 /// Load LPIPS trained linear layer weights.
-fn load_lpips_weights<B: Backend>(
-    lpips: Lpips<B>,
-    _net: LpipsNet,
-    cache_path: &PathBuf,
-) -> Lpips<B> {
+fn load_lpips_weights<B: Backend>(lpips: Lpips<B>, cache_path: &PathBuf) -> Lpips<B> {
     // Load directly into the inner struct to avoid enum variant issues
     match lpips {
         Lpips::Vgg(mut inner) => {

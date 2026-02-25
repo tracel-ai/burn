@@ -70,7 +70,7 @@ impl<B: Backend> FireModule<B> {
 #[derive(Module, Debug)]
 pub struct SqueezeFeatureExtractor<B: Backend> {
     /// Conv1: 3 -> 64, kernel 3x3, stride 2
-    pub conv1: Conv2d<B>,
+    conv1: Conv2d<B>,
     /// Fire1: 64 -> 128 (squeeze=16, expand=64+64)
     fire1: FireModule<B>,
     /// Fire2: 128 -> 128 (squeeze=16, expand=64+64)
