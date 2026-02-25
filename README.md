@@ -542,8 +542,8 @@ any background. You can ask your questions and share what you built with the com
 
 **Contributing**
 
-Before contributing, please read the [Contributing Guidelines](CONTRIBUTING.md) and our
-[Code of Conduct](CODE-OF-CONDUCT.md). The [Contributor Book](https://burn.dev/contributor-book/)
+Before contributing, please read the [Contributing Guidelines](./CONTRIBUTING.md) and our
+[Code of Conduct](./CODE-OF-CONDUCT.md). The [Contributor Book](https://burn.dev/contributor-book/)
 covers architecture, environment setup, and guides for common tasks.
 
 ## Status
