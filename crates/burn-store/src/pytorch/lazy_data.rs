@@ -275,12 +275,11 @@ impl TarSource {
     /// Create a new TAR source by parsing storages data.
     ///
     /// # Arguments
-    /// * `_tensors_data` - Unused; tensor metadata is embedded in the pickle entry
     /// * `storages_data` - Raw storages blob with structure:
     ///   - Count pickle (number of storages)
     ///   - For each storage: metadata pickle + u64 num_elements + raw binary data
-    pub fn new(_tensors_data: &[u8], storages_data: Vec<u8>) -> std::io::Result<Self> {
-        use super::pickle_reader::read_pickle;
+    pub fn new(storages_data: Vec<u8>) -> std::io::Result<Self> {
+        use super::pickle_reader::{read_pickle, storage_type_to_element_size};
         use std::io::Cursor;
 
         let mut storage_map = HashMap::new();
@@ -320,7 +319,15 @@ impl TarSource {
                         // tuple[2] is storage type class
                         let stype = match &tuple[2] {
                             super::pickle_reader::Object::Class { name, .. } => name.clone(),
-                            _ => "FloatStorage".to_string(),
+                            other => {
+                                return Err(std::io::Error::new(
+                                    std::io::ErrorKind::InvalidData,
+                                    format!(
+                                        "Expected Class for storage type, got {:?}",
+                                        other
+                                    ),
+                                ));
+                            }
                         };
                         (key, stype)
                     }
@@ -344,19 +351,9 @@ impl TarSource {
                 pos += 8;
 
                 // Determine element size from storage type
-                let element_size =
-                    if storage_type.contains("Double") || storage_type.contains("Long") {
-                        8
-                    } else if storage_type.contains("Half") || storage_type.contains("Short") {
-                        2
-                    } else if storage_type.contains("Byte")
-                        || storage_type.contains("Char")
-                        || storage_type.contains("Bool")
-                    {
-                        1
-                    } else {
-                        4 // Default to float (4 bytes)
-                    };
+                let element_size = storage_type_to_element_size(&storage_type).map_err(|e| {
+                    std::io::Error::new(std::io::ErrorKind::InvalidData, e)
+                })?;
 
                 let data_size = num_elements * element_size;
 
@@ -377,7 +374,7 @@ impl TarSource {
     }
 
     /// Read data for a specific storage key
-    pub fn read(&self, key: &str) -> std::io::Result<Vec<u8>> {
+    pub fn read_file(&self, key: &str) -> std::io::Result<Vec<u8>> {
         // Extract the storage key from paths like "data/0"
         let storage_key = key.split('/').next_back().unwrap_or(key);
 
@@ -385,6 +382,24 @@ impl TarSource {
             && offset + size <= self.storages_data.len()
         {
             return Ok(self.storages_data[offset..offset + size].to_vec());
+        }
+
+        Err(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            format!("Storage key '{}' not found in TAR archive", storage_key),
+        ))
+    }
+
+    /// Read a range of data for a specific storage key (avoids double allocation)
+    pub fn read_file_range(&self, key: &str, offset: usize, length: usize) -> std::io::Result<Vec<u8>> {
+        let storage_key = key.split('/').next_back().unwrap_or(key);
+
+        if let Some(&(storage_offset, storage_size)) = self.storage_map.get(storage_key)
+            && storage_offset + storage_size <= self.storages_data.len()
+        {
+            let start = storage_offset + offset;
+            let end = (storage_offset + offset + length).min(storage_offset + storage_size);
+            return Ok(self.storages_data[start..end].to_vec());
         }
 
         Err(std::io::Error::new(
@@ -413,10 +428,9 @@ impl LazyDataSource {
         )?))))
     }
 
-    /// Create from a TAR archive's tensors and storages data
-    pub fn from_tar(tensors_data: &[u8], storages_data: &[u8]) -> std::io::Result<Self> {
+    /// Create from a TAR archive's storages data
+    pub fn from_tar(storages_data: &[u8]) -> std::io::Result<Self> {
         Ok(Self::Tar(Arc::new(Mutex::new(TarSource::new(
-            tensors_data,
             storages_data.to_vec(),
         )?))))
     }
@@ -447,7 +461,7 @@ impl LazyDataSource {
                 let source = source
                     .lock()
                     .unwrap_or_else(|poisoned| poisoned.into_inner());
-                source.read(key)
+                source.read_file(key)
             }
             Self::LegacyMultiStorage(source) => {
                 let source = source
@@ -468,13 +482,10 @@ impl LazyDataSource {
                 source.read_file_range(key, offset, length)
             }
             Self::Tar(source) => {
-                // For TAR format, read the full data and slice it
                 let source = source
                     .lock()
                     .unwrap_or_else(|poisoned| poisoned.into_inner());
-                let data = source.read(key)?;
-                let end = (offset + length).min(data.len());
-                Ok(data[offset..end].to_vec())
+                source.read_file_range(key, offset, length)
             }
             Self::LegacyMultiStorage(source) => {
                 // For legacy format, read only the requested range

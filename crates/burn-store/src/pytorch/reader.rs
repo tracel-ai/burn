@@ -844,7 +844,6 @@ fn load_tar_pytorch_file_with_metadata(
     // Extract the main entries from the TAR archive
     let mut sys_info_data: Option<Vec<u8>> = None;
     let mut pickle_data: Option<Vec<u8>> = None;
-    let mut tensors_data: Option<Vec<u8>> = None;
     let mut storages_data: Option<Vec<u8>> = None;
 
     for entry in archive.entries().map_err(PytorchError::Tar)? {
@@ -874,11 +873,6 @@ fn load_tar_pytorch_file_with_metadata(
                 entry.read_to_end(&mut data).map_err(PytorchError::Tar)?;
                 pickle_data = Some(data);
             }
-            "tensors" => {
-                let mut data = Vec::new();
-                entry.read_to_end(&mut data).map_err(PytorchError::Tar)?;
-                tensors_data = Some(data);
-            }
             "storages" => {
                 let mut data = Vec::new();
                 entry.read_to_end(&mut data).map_err(PytorchError::Tar)?;
@@ -891,9 +885,6 @@ fn load_tar_pytorch_file_with_metadata(
     // Validate required entries
     let pickle_data = pickle_data.ok_or_else(|| {
         PytorchError::InvalidFormat("TAR file missing 'pickle' entry".to_string())
-    })?;
-    let tensors_data = tensors_data.ok_or_else(|| {
-        PytorchError::InvalidFormat("TAR file missing 'tensors' entry".to_string())
     })?;
     let storages_data = storages_data.ok_or_else(|| {
         PytorchError::InvalidFormat("TAR file missing 'storages' entry".to_string())
@@ -913,7 +904,7 @@ fn load_tar_pytorch_file_with_metadata(
     }
 
     // Create TarSource for lazy loading
-    let data_source = Arc::new(LazyDataSource::from_tar(&tensors_data, &storages_data)?);
+    let data_source = Arc::new(LazyDataSource::from_tar(&storages_data)?);
 
     // Parse the pickle (OrderedDict of name -> storage_key)
     let mut pickle_reader = BufReader::new(pickle_data.as_slice());
