@@ -180,6 +180,7 @@ impl MatmulArgs for FusedMatmulArgs {
         state: &Self::State<Lhs, Rhs, EO>,
         batch: usize,
     ) -> usize {
+        #[comptime]
         match state.c_batch {
             Some(c_batch) => c_batch.to_source_pos(batch),
             None => batch,

@@ -360,6 +360,7 @@ fn deform_col2img_coord_kernel<F: Float>(
     let offset_x = offset[offset_x_idx];
 
     let mask_pos_1 = offset_group * kernel_h * kernel_w + kernel_y * kernel_w + kernel_x;
+    #[comptime]
     let mask_value = match &mask {
         Some(mask) => {
             let mask_idx = batch * mask.stride(0)
@@ -609,6 +610,7 @@ fn deform_col2img_kernel<F: Float, FP: Float, FAdd: FloatAtomicAddFamily>(
     let offset_y = offset[offset_y_idx];
     let offset_x = offset[offset_x_idx];
 
+    #[comptime]
     let mask_value = match mask {
         Some(mask) => {
             let mask_pos_1 = offset_group * kernel_h * kernel_w + kernel_y * kernel_w + kernel_x;

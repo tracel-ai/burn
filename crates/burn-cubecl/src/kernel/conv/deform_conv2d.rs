@@ -112,6 +112,7 @@ fn deform_im2col_kernel<F: Float>(
                 + offset_x;
 
             let interpolated = bilinear_interpolate(input, height, width, y, x, input_base_idx);
+            #[comptime]
             let value = match mask.zip::<usize>(mask_base_idx) {
                 Some((mask, base_idx)) => {
                     let mask_value = mask[base_idx

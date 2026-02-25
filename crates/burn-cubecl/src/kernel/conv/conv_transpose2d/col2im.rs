@@ -295,6 +295,7 @@ fn col2im_kernel<E: Numeric>(
         }
     }
 
+    #[comptime]
     match bias {
         Some(bias) => image[ABSOLUTE_POS] = val + bias[ch_im],
         None => image[ABSOLUTE_POS] = val,
