@@ -15,7 +15,7 @@ pub(crate) mod shared;
 // TODO: change nn modules `#[module(skip)]` (currently used for backward compat)
 // to `#[module(constant)` for persistent non-parameter fields.
 
-/// Derive macro for the [`Module`](burn::module::Module) trait.
+/// Derive macro for the `Module` trait.
 ///
 /// # Field Attributes
 ///

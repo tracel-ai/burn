@@ -15,26 +15,10 @@ pub(crate) struct StructModuleRecordCodegen {
 
 impl ModuleRecordCodegen for StructModuleRecordCodegen {
     fn gen_record_type(&self, record_name: &Ident, generics: &Generics) -> (TokenStream, Generics) {
-        // TODO: generics should be filtered based on skip. When a field `m: M` is marked as skip,
-        // the generics should not carry over to the ModuleRecord because `m` will be an `EmptyRecord`
-        //, so nothing captures the generic
-
         let mut fields = quote! {};
         let vis = &self.vis;
 
         let mut used_generics = HashSet::new();
-
-        // for field in self.fields.iter() {
-        //     match field.field_type.attr {
-        //         Some(ModuleFieldAttribute::Skip) => continue,
-        //         None => continue, // becomes EmptyRecord
-        //         _ => {}
-        //     }
-
-        //     for ident in &field.field_type.generic_idents {
-        //         used_generics.insert(ident.clone());
-        //     }
-        // }
 
         for field in self.fields.iter() {
             let ty = &field.field.ty;
