@@ -384,7 +384,13 @@ fn rebuild_tensor(
     };
     let shape = parse_shape_arg(&args[2], "rebuild_tensor")?;
 
-    rebuild_tensor_impl(storage_info, storage_tuple, storage_offset, shape, data_source)
+    rebuild_tensor_impl(
+        storage_info,
+        storage_tuple,
+        storage_offset,
+        shape,
+        data_source,
+    )
 }
 
 /// Modern _rebuild_tensor_v2 function for PyTorch >= 1.6.
@@ -420,7 +426,13 @@ fn rebuild_tensor_v2(
     // args[4] is requires_grad (unused)
     // args[5] is backward_hooks (unused)
 
-    rebuild_tensor_impl(storage_info, storage_tuple, storage_offset, shape, data_source)
+    rebuild_tensor_impl(
+        storage_info,
+        storage_tuple,
+        storage_offset,
+        shape,
+        data_source,
+    )
 }
 
 /// Helper to convert storage type name to DType.

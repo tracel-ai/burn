@@ -322,10 +322,7 @@ impl TarSource {
                             other => {
                                 return Err(std::io::Error::new(
                                     std::io::ErrorKind::InvalidData,
-                                    format!(
-                                        "Expected Class for storage type, got {:?}",
-                                        other
-                                    ),
+                                    format!("Expected Class for storage type, got {:?}", other),
                                 ));
                             }
                         };
@@ -351,9 +348,8 @@ impl TarSource {
                 pos += 8;
 
                 // Determine element size from storage type
-                let element_size = storage_type_to_element_size(&storage_type).map_err(|e| {
-                    std::io::Error::new(std::io::ErrorKind::InvalidData, e)
-                })?;
+                let element_size = storage_type_to_element_size(&storage_type)
+                    .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
 
                 let data_size = num_elements * element_size;
 
@@ -391,7 +387,12 @@ impl TarSource {
     }
 
     /// Read a range of data for a specific storage key (avoids double allocation)
-    pub fn read_file_range(&self, key: &str, offset: usize, length: usize) -> std::io::Result<Vec<u8>> {
+    pub fn read_file_range(
+        &self,
+        key: &str,
+        offset: usize,
+        length: usize,
+    ) -> std::io::Result<Vec<u8>> {
         let storage_key = key.split('/').next_back().unwrap_or(key);
 
         if let Some(&(storage_offset, storage_size)) = self.storage_map.get(storage_key)
