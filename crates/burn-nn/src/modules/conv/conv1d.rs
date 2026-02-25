@@ -6,7 +6,7 @@ use crate::{PaddingConfig1d, conv::checks};
 use burn::tensor::{Tensor, backend::Backend, module::conv1d, ops::PaddedConvOptions};
 use burn::{
     config::Config,
-    module::{Content, DisplaySettings, Ignored, Initializer, Module, ModuleDisplay, Param},
+    module::{Content, DisplaySettings, Initializer, Module, ModuleDisplay, Param},
 };
 
 /// Configuration to create a [1D convolution](Conv1d) layer using the [init function](Conv1dConfig::init).
@@ -62,7 +62,8 @@ pub struct Conv1d<B: Backend> {
     /// Controls the connections between input and output channels.
     pub groups: usize,
     /// Padding configuration.
-    pub padding: Ignored<PaddingConfig1d>,
+    #[module(skip)]
+    pub padding: PaddingConfig1d,
 }
 
 impl<B: Backend> ModuleDisplay for Conv1d<B> {
@@ -73,9 +74,6 @@ impl<B: Backend> ModuleDisplay for Conv1d<B> {
     }
 
     fn custom_content(&self, content: Content) -> Option<Content> {
-        // Format padding
-        let padding_formatted = format!("{}", &self.padding);
-
         // Format stride/dilation as strings
         let stride = format!("{:?}", self.stride);
         let kernel_size = format!("{:?}", self.kernel_size);
@@ -94,7 +92,7 @@ impl<B: Backend> ModuleDisplay for Conv1d<B> {
             .add("kernel_size", &kernel_size)
             .add("dilation", &dilation)
             .add("groups", &self.groups)
-            .add("padding", &padding_formatted)
+            .add_debug_attribute("padding", &self.padding)
             .optional()
     }
 }
@@ -128,7 +126,7 @@ impl Conv1dConfig {
             bias,
             stride: self.stride,
             kernel_size: self.kernel_size,
-            padding: Ignored(self.padding.clone()),
+            padding: self.padding.clone(),
             dilation: self.dilation,
             groups: self.groups,
         }

@@ -14,13 +14,16 @@ pub(crate) fn derive_impl(ast: &syn::DeriveInput) -> TokenStream {
         .unwrap_or(false);
 
     match &ast.data {
-        syn::Data::Struct(_) => {
-            if has_backend {
-                generate_module_standard(ast, StructModuleCodegen::from_ast(ast))
-            } else {
-                generate_module_const(ast)
+        syn::Data::Struct(_) => match StructModuleCodegen::from_ast(ast) {
+            Ok(struct_codegen) => {
+                if has_backend {
+                    generate_module_standard(ast, struct_codegen)
+                } else {
+                    generate_module_const(ast)
+                }
             }
-        }
+            Err(err) => err.to_compile_error(),
+        },
         syn::Data::Enum(_data) => match EnumModuleCodegen::from_ast(ast) {
             Ok(enum_codegen) => {
                 if has_backend {

@@ -1,6 +1,10 @@
 use quote::quote;
 
+use crate::module::{codegen_struct::parse_module_field_type, generics::parse_module_generics};
+
+// Only used for "const" modules
 pub fn attributes_fn(ast: &syn::DeriveInput) -> proc_macro2::TokenStream {
+    let mut generics = parse_module_generics(&ast.generics);
     match &ast.data {
         syn::Data::Struct(data_struct) => {
             let fields = match &data_struct.fields {
@@ -10,7 +14,16 @@ pub fn attributes_fn(ast: &syn::DeriveInput) -> proc_macro2::TokenStream {
             };
             let field_prints = fields.iter().map(|field| {
                 let field_name = &field.ident;
-                quote! { .add(stringify!(#field_name), &self.#field_name) }
+                let field_type = parse_module_field_type(field, &mut generics).unwrap();
+                if field_type.is_module || field_type.maybe_generic_module() {
+                    // Standard module type, use underlying `ModuleDisplay` impl
+                    quote! { .add(stringify!(#field_name), &self.#field_name) }
+                } else {
+                    // Not a module, use the debug implementation
+                    quote! {
+                        .add_debug_attribute(stringify!(#field_name), &self.#field_name)
+                    }
+                }
             });
             let struct_name = &ast.ident;
             quote! {

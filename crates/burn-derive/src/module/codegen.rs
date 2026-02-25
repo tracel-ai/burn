@@ -1,5 +1,5 @@
 use super::{display, record::ModuleRecordCodegen};
-use crate::shared::generics::GenericsHelper;
+use crate::{module::generics::ModuleGenerics, shared::generics::GenericsHelper};
 use proc_macro2::{Ident, TokenStream};
 use quote::quote;
 use syn::{Attribute, Generics, parse_quote};
@@ -21,6 +21,10 @@ pub(crate) trait ModuleCodegen {
     fn gen_clone(&self) -> TokenStream;
 
     fn record_codegen(self) -> Self::RecordCodegen;
+
+    fn gen_display(&self) -> TokenStream;
+
+    fn module_generics(&self) -> &ModuleGenerics;
 }
 
 pub(crate) fn generate_module_standard<Codegen: ModuleCodegen>(
@@ -29,10 +33,11 @@ pub(crate) fn generate_module_standard<Codegen: ModuleCodegen>(
 ) -> TokenStream {
     let name = &ast.ident;
 
-    let generics = GenericsParser::from_ast(&ast.generics);
+    let generics = GenericsParser::from_ast(&ast.generics, codegen.module_generics());
 
     let display_fn = display::display_fn(ast);
-    let attributes_fn = display::attributes_fn(ast);
+    // let attributes_fn = display::attributes_fn(ast);
+    let attributes_fn = codegen.gen_display();
     let num_params_fn = codegen.gen_num_params();
     let visit = codegen.gen_visit();
     let map_mut = codegen.gen_map();
@@ -47,7 +52,7 @@ pub(crate) fn generate_module_standard<Codegen: ModuleCodegen>(
 
     let record = codegen.record_codegen();
     let record_name = Ident::new(format!("{name}Record").as_str(), name.span());
-    let record_type = record.gen_record_type(&record_name, &generics.module);
+    let (record_type, record_generics) = record.gen_record_type(&record_name, &generics.module);
 
     let (generics_module, generics_ty_module, generics_where_module) =
         generics.module.split_for_impl();
@@ -55,6 +60,7 @@ pub(crate) fn generate_module_standard<Codegen: ModuleCodegen>(
         generics.module_autodiff.split_for_impl();
     let (generics_module_has_autodiff, _generics_ty, generics_where_module_has_autodiff) =
         generics.module_has_autodiff.split_for_impl();
+    let (_, generics_ty_record, _) = record_generics.split_for_impl();
 
     let generics_ty_inner_module = generics.inner_module_ty;
     let generics_ty_train_module = generics.train_module_ty;
@@ -62,7 +68,7 @@ pub(crate) fn generate_module_standard<Codegen: ModuleCodegen>(
 
     let mut codegen = quote! {
         impl #generics_module burn::module::Module<B> for #name #generics_ty_module #generics_where_module {
-            type Record = #record_name #generics_ty_module;
+            type Record = #record_name #generics_ty_record;
 
             #load_record_fn
             #into_record_fn
@@ -123,6 +129,8 @@ pub(crate) fn generate_module_standard<Codegen: ModuleCodegen>(
     codegen
 }
 
+// TODO: wait that means nothing is persistent... (empty!)
+
 // When there is no backend in the generic parameter, the type is considered as a constant.
 pub(crate) fn generate_module_const(ast: &syn::DeriveInput) -> TokenStream {
     let name = &ast.ident;
@@ -148,12 +156,12 @@ pub(crate) fn generate_module_const(ast: &syn::DeriveInput) -> TokenStream {
 
     let mut codegen = quote! {
         impl #generics_module burn::module::Module<B> for #name #generics_ty #generics_where {
-            burn::constant!(module);
+            burn::empty!(module);
         }
 
         impl #generics_module_ad burn::module::AutodiffModule<B>
             for #name #generics_ty #generics_where {
-            burn::constant!(ad_module, #name #generics_ty);
+            burn::empty!(ad_module, #name #generics_ty);
         }
 
         impl #generics core::fmt::Display for #name #generics_ty #generics_where {
@@ -188,7 +196,7 @@ struct GenericsParser {
 }
 
 impl GenericsParser {
-    fn from_ast(generics: &Generics) -> Self {
+    fn from_ast(generics: &Generics, module_generics: &ModuleGenerics) -> Self {
         let mut module = GenericsHelper::new(generics.clone());
         let mut module_autodiff = GenericsHelper::new(generics.clone());
         let mut module_has_autodiff = GenericsHelper::new(generics.clone());
@@ -220,69 +228,88 @@ impl GenericsParser {
         .into_iter()
         .filter(|ident| ident != "B")
         .for_each(|ident| {
-            module.add_predicate(
-                parse_quote! {
-                    #ident: burn::module::Module<B>
-                }
-            );
+            // By default, require module bound
+            let mut requires_module_bound = true;
+            if !module_generics.is_empty() {
+                let has_module_bound = module_generics.is_bounded_module(&ident);
+                let maybe_module = module_generics.is_plain_type(&ident);
 
-            module.add_predicate(
-                parse_quote! {
-                    #ident: burn::module::ModuleDisplay
-                }
-            );
+                requires_module_bound = has_module_bound || maybe_module;
+            }
 
-            module_autodiff.add_predicate(
-                parse_quote! {
-                    #ident: burn::module::AutodiffModule<B>
-                }
-            );
+            eprintln!("requires_module_bound: {requires_module_bound}");
+            eprintln!("module generics: {module_generics:?}");
 
-            module_autodiff.add_predicate(
-                parse_quote! {
-                    <#ident as burn::module::AutodiffModule<B>>::InnerModule: burn::module::Module<B::InnerBackend>
-                }
-            );
+            if requires_module_bound {
+                module.add_predicate(
+                    parse_quote! {
+                        #ident: burn::module::Module<B>
+                    }
+                );
 
-            module_autodiff.add_predicate(
-                parse_quote! {
-                    <#ident as burn::module::AutodiffModule<B>>::InnerModule: burn::module::ModuleDisplay
-                }
-            );
+                module.add_predicate(
+                    parse_quote! {
+                        #ident: burn::module::ModuleDisplay
+                    }
+                );
 
-            generics_names_except_backend.extend(quote! { <#ident as burn::module::AutodiffModule<B>>::InnerModule, });
+                module_autodiff.add_predicate(
+                    parse_quote! {
+                        #ident: burn::module::AutodiffModule<B>
+                    }
+                );
 
-            module_autodiff.add_predicate(
-                parse_quote! {
-                    #ident: burn::module::ModuleDisplay
-                }
-            );
+                module_autodiff.add_predicate(
+                    parse_quote! {
+                        <#ident as burn::module::AutodiffModule<B>>::InnerModule: burn::module::Module<B::InnerBackend>
+                    }
+                );
 
-            module_has_autodiff.add_predicate(
-                parse_quote! {
-                    #ident: burn::module::Module<B::InnerBackend>
-                }
-            );
+                module_autodiff.add_predicate(
+                    parse_quote! {
+                        <#ident as burn::module::AutodiffModule<B>>::InnerModule: burn::module::ModuleDisplay
+                    }
+                );
 
-            module_has_autodiff.add_predicate(
-                parse_quote! {
-                    #ident: burn::module::ModuleDisplay
-                }
-            );
+                generics_names_except_backend.extend(quote! { <#ident as burn::module::AutodiffModule<B>>::InnerModule, });
 
-            module_has_autodiff.add_predicate(
-                parse_quote! {
-                    #ident: burn::module::HasAutodiffModule<B>
-                }
-            );
+                module_autodiff.add_predicate(
+                    parse_quote! {
+                        #ident: burn::module::ModuleDisplay
+                    }
+                );
 
-            module_has_autodiff.add_predicate(
-                parse_quote! {
-                    #ident::TrainModule: burn::module::ModuleDisplay
-                }
-            );
-            train_generics_names_except_backend.extend(quote! { #ident, });
-            train_inner_generics_names_except_backend.extend(quote! { #ident::TrainModule, });
+                module_has_autodiff.add_predicate(
+                    parse_quote! {
+                        #ident: burn::module::Module<B::InnerBackend>
+                    }
+                );
+
+                module_has_autodiff.add_predicate(
+                    parse_quote! {
+                        #ident: burn::module::ModuleDisplay
+                    }
+                );
+
+                module_has_autodiff.add_predicate(
+                    parse_quote! {
+                        #ident: burn::module::HasAutodiffModule<B>
+                    }
+                );
+
+                module_has_autodiff.add_predicate(
+                    parse_quote! {
+                        #ident::TrainModule: burn::module::ModuleDisplay
+                    }
+                );
+                train_generics_names_except_backend.extend(quote! { #ident, });
+                train_inner_generics_names_except_backend.extend(quote! { #ident::TrainModule, });
+            } else {
+                // Pass through
+                generics_names_except_backend.extend(quote! { #ident, });
+                train_generics_names_except_backend.extend(quote! { #ident, });
+                train_inner_generics_names_except_backend.extend(quote! { #ident, });
+            }
 
         });
 
