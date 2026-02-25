@@ -663,6 +663,7 @@ dependencies = [
  "burn-core",
  "burn-cpu",
  "burn-cuda",
+ "burn-dispatch",
  "burn-ir",
  "burn-ndarray",
  "burn-nn",
@@ -944,6 +945,22 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.115",
+]
+
+[[package]]
+name = "burn-dispatch"
+version = "0.21.0-pre.1"
+dependencies = [
+ "burn-autodiff",
+ "burn-backend",
+ "burn-cpu",
+ "burn-cuda",
+ "burn-ndarray",
+ "burn-rocm",
+ "burn-std",
+ "burn-tch",
+ "burn-wgpu",
+ "paste",
 ]
 
 [[package]]

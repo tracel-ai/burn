@@ -128,7 +128,7 @@ impl<E: TchElement> Backend for LibTorch<E> {
         tch::manual_seed(seed as i64);
     }
 
-    fn ad_enabled() -> bool {
+    fn ad_enabled(_device: &Self::Device) -> bool {
         false
     }
 

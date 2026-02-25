@@ -4,6 +4,7 @@ use crate::{
     reduce_float_dim_ops, reduce_float2int_dim_ops, reduce_int_dim_ops, scalar_float_cmp_ops,
     scalar_float_ops, scalar_int_cmp_ops, scalar_int_ops, unary_float_ops, unary_int_ops,
 };
+use alloc::boxed::Box;
 use alloc::sync::Arc;
 use burn_backend::{Backend, DType, ExecutionError, Shape, TensorData, tensor::IndexingUpdateOp};
 use burn_ir::{
@@ -34,6 +35,14 @@ pub struct Runner<B: BackendIr> {
     device: B::Device,
 }
 
+impl<B: BackendIr> core::fmt::Debug for Runner<B> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("Runner")
+            .field("device", &self.device)
+            .finish()
+    }
+}
+
 impl<B: BackendIr> Runner<B> {
     /// Create a new runner.
     pub fn new(device: B::Device) -> Self {
@@ -46,13 +55,13 @@ impl<B: BackendIr> Runner<B> {
     }
 
     /// Get the tensor handle for the given [tensor representation](TensorIr).
-    pub(crate) fn get_tensor_handle(&self, tensor: &TensorIr) -> B::Handle {
+    pub fn get_tensor_handle(&self, tensor: &TensorIr) -> B::Handle {
         let handles = &mut self.context.lock().unwrap().handles;
         handles.get_tensor_handle(tensor).handle
     }
 
     /// Create a tensor with the given handle and shape.
-    pub(crate) fn register_tensor<C: RunnerClient>(
+    pub fn register_tensor<C: RunnerClient>(
         &self,
         handle: B::Handle,
         shape: Shape,
@@ -120,6 +129,7 @@ impl<B: BackendIr> Runner<B> {
     }
 }
 
+// This is a Remote Runner
 impl<B: BackendIr> RunnerClient for Runner<B> {
     type Device = B::Device;
 
@@ -519,7 +529,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     let tensor = handles.get_bool_tensor::<B>(&desc.tensor);
                     let mask = handles.get_bool_tensor::<B>(&desc.mask);
 
-                    let output = B::bool_mask_fill(tensor, mask, desc.value.elem());
+                    let output = B::bool_mask_fill(tensor, mask, desc.value.into());
                     handles.register_bool_tensor::<B>(&desc.out.id, output);
                 }
                 BaseOperationIr::Equal(desc) => {
@@ -532,7 +542,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                 BaseOperationIr::EqualElem(desc) => {
                     let lhs = handles.get_bool_tensor::<B>(&desc.lhs);
 
-                    let output = B::bool_equal_elem(lhs, desc.rhs.elem());
+                    let output = B::bool_equal_elem(lhs, desc.rhs.into());
                     handles.register_bool_tensor::<B>(&desc.out.id, output);
                 }
                 BaseOperationIr::RepeatDim(desc) => {

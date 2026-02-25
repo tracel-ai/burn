@@ -1,8 +1,7 @@
 use super::TchOps;
 use crate::{LibTorch, LibTorchDevice, TchShape, TchTensor, element::TchElement};
-use burn_backend::ElementConversion;
 use burn_backend::ExecutionError;
-use burn_backend::tensor::BoolElem;
+use burn_backend::Scalar;
 use burn_backend::tensor::BoolTensor;
 use burn_backend::tensor::IntTensor;
 use burn_backend::{Shape, TensorData, TensorMetadata, ops::BoolTensorOps};
@@ -181,7 +180,7 @@ impl<E: TchElement> BoolTensorOps<Self> for LibTorch<E> {
     fn bool_mask_fill(
         tensor: BoolTensor<Self>,
         mask: BoolTensor<Self>,
-        value: BoolElem<Self>,
+        value: Scalar,
     ) -> BoolTensor<Self> {
         tensor.unary_ops(
             |mut tensor| {
@@ -214,7 +213,7 @@ impl<E: TchElement> BoolTensorOps<Self> for LibTorch<E> {
         TchOps::scatter(dim, tensor, indices, value)
     }
 
-    fn bool_equal_elem(lhs: BoolTensor<Self>, rhs: BoolElem<Self>) -> BoolTensor<Self> {
+    fn bool_equal_elem(lhs: BoolTensor<Self>, rhs: Scalar) -> BoolTensor<Self> {
         TchOps::equal_elem(lhs, rhs.elem::<i64>())
     }
 }

@@ -10,30 +10,26 @@ version.workspace = true
 workspace = true
 
 [features]
-default = ["burn/tui"]
+default = ["burn/default", "burn/tui"]
 ndarray = ["burn/ndarray"]
-ndarray-blas-accelerate = ["burn/ndarray", "burn/accelerate"]
-ndarray-blas-netlib = ["burn/ndarray", "burn/blas-netlib"]
-ndarray-blas-openblas = ["burn/ndarray", "burn/openblas"]
+ndarray-blas-accelerate = ["ndarray", "burn/accelerate"]
+ndarray-blas-netlib = ["ndarray", "burn/blas-netlib"]
+ndarray-blas-openblas = ["ndarray", "burn/openblas"]
 tch-cpu = ["burn/tch"]
 tch-gpu = ["burn/tch"]
-remote = ["burn/remote"]
-wgpu = ["burn/wgpu", "burn/default"]
-metal = ["burn/metal", "burn/default"]
-cuda = ["burn/cuda", "burn/default"]
-vulkan = ["burn/vulkan", "burn/default"]
-rocm = ["burn/rocm", "burn/default"]
+wgpu = ["burn/wgpu"]
+metal = ["burn/metal"]
+cuda = ["burn/cuda"]
+vulkan = ["burn/vulkan"]
+rocm = ["burn/rocm"]
 
 [dependencies]
-# Disable autotune default for now (convolutions not optimized)
 burn = { path = "../../crates/burn", features = [
     "train",
     "vision",
     "metrics",
-    "std",
-    "fusion",
+    "dispatch",
     "ndarray",
-    "autotune",
 ], default-features = false }
 
 # Serialization
