@@ -520,9 +520,11 @@ mod tests {
             .assert_approx_eq::<FT>(&expected, Tolerance::default());
     }
 
-    /// Different images should have LPIPS distance greater than 0.
+    /// Different images should have LPIPS distance != 0.
+    /// Note: With random weights, distance can be negative, so we only check != 0.
+    /// Non-negativity is tested with pretrained weights.
     #[test]
-    fn test_lpips_different_images_positive_distance() {
+    fn test_lpips_different_images_nonzero_distance() {
         let device = Default::default();
 
         let image1 = TestTensor::<4>::zeros([1, 3, 32, 32], &device);
@@ -533,8 +535,8 @@ mod tests {
 
         let distance_value = distance.into_data().to_vec::<f32>().unwrap()[0];
         assert!(
-            distance_value > 0.0,
-            "LPIPS should be > 0 for different images"
+            distance_value.abs() > 1e-6,
+            "LPIPS should be != 0 for different images"
         );
     }
 
@@ -732,9 +734,9 @@ mod tests {
         let distance_value = distance.into_data().to_vec::<f32>().unwrap()[0];
         assert!(
             distance_value > 0.0,
-            "Pretrained LPIPS (VGG) should be > 0 for different images"
+            "Pretrained LPIPS (VGG) should be > 0 for different images, got {}",
+            distance_value
         );
-        println!("LPIPS VGG distance (black vs white): {}", distance_value);
     }
 
     /// Test AlexNet pretrained weights download and loading.
@@ -765,7 +767,6 @@ mod tests {
             distance_value > 0.0,
             "Pretrained LPIPS (Alex) should be > 0 for different images"
         );
-        println!("LPIPS Alex distance (black vs white): {}", distance_value);
     }
 
     /// Test SqueezeNet pretrained weights download and loading.
@@ -794,10 +795,7 @@ mod tests {
         let distance_value = distance.into_data().to_vec::<f32>().unwrap()[0];
         assert!(
             distance_value > 0.0,
-            "Pretrained LPIPS (Squeeze) should be > 0 for different images"
-        );
-        println!(
-            "LPIPS Squeeze distance (black vs white): {}",
+            "Pretrained LPIPS (Squeeze) should be > 0 for different images, got {}",
             distance_value
         );
     }

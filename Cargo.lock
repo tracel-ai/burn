@@ -1153,6 +1153,7 @@ dependencies = [
  "regex",
  "safetensors 0.7.0",
  "serde",
+ "tar",
  "tempfile",
  "textdistance",
  "zip 8.1.0",
