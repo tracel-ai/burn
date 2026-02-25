@@ -1,6 +1,5 @@
-use burn_tensor::backend::Backend;
+use burn_tensor::backend::{Backend, PeerId};
 
-use crate::PeerId;
 use crate::local::tensor_map::CollectiveTensorMap;
 
 #[cfg(feature = "tracing")]

@@ -22,18 +22,12 @@ tracing = [
     "burn-std/tracing",
     "burn-tensor/tracing",
     "burn-communication/tracing",
-    "burn-ndarray?/tracing",
-    "burn-wgpu?/tracing",
-    "burn-cuda?/tracing",
 ]
 orchestrator = ["burn-communication/websocket"]
-
-# Backends for testing
-test-ndarray = ["burn-ndarray"]
-test-wgpu = ["burn-wgpu", "burn-wgpu/webgpu"]
-test-metal = ["burn-wgpu", "burn-wgpu/metal"]
-test-vulkan = ["burn-wgpu", "burn-wgpu/vulkan"]
-test-cuda = ["burn-cuda"]
+test-cuda = []
+test-wgpu = []
+test-metal = []
+test-vulkan = []
 
 [dependencies]
 burn-tensor = { path = "../burn-tensor", version = "=0.21.0-pre.1", default-features = true }
@@ -59,13 +53,12 @@ futures = { workspace = true }
 tokio-util = { workspace = true }
 tracing = { workspace = true, optional = true }
 
-# Tests
-burn-ndarray = { path = "../burn-ndarray", version = "=0.21.0-pre.1", optional = true }
-burn-wgpu = { path = "../burn-wgpu", version = "=0.21.0-pre.1", optional = true }
-burn-cuda = { path = "../burn-cuda", version = "=0.21.0-pre.1", optional = true }
-
 [dev-dependencies]
 serial_test = { workspace = true }
+# Tests
+burn-ndarray = { path = "../burn-ndarray", version = "=0.21.0-pre.1" }
+burn-wgpu = { path = "../burn-wgpu", version = "=0.21.0-pre.1" }
+burn-cuda = { path = "../burn-cuda", version = "=0.21.0-pre.1" }
 
 
 [package.metadata.docs.rs]

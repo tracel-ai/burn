@@ -1,7 +1,9 @@
 use burn_core as burn;
 
 #[cfg(feature = "collective")]
-use burn_collective::{CollectiveError, PeerId, ReduceOperation, all_reduce};
+use burn_collective::{CollectiveError, all_reduce};
+#[cfg(feature = "collective")]
+use burn_core::tensor::backend::{PeerId, ReduceOperation};
 
 use burn::{
     Tensor,

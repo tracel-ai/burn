@@ -1,8 +1,10 @@
 use core::panic;
 use std::sync::{Arc, Mutex};
 
+use burn_autodiff::{close_gradient_sync_server, start_gradient_sync_server};
 use burn_collective::CollectiveConfig;
 use burn_core::tensor::Device;
+use burn_core::tensor::backend::AutodiffBackend;
 
 use crate::ddp::worker::DdpWorker;
 use crate::metric::store::EventStoreClient;
@@ -29,12 +31,11 @@ pub(crate) struct WorkerComponents {
 
 pub struct DdpTrainingStrategy<LC: LearningComponentsTypes> {
     devices: Vec<Device<TrainingBackend<LC>>>,
-    config: CollectiveConfig,
 }
 impl<LC: LearningComponentsTypes> DdpTrainingStrategy<LC> {
     pub fn new(devices: Vec<Device<TrainingBackend<LC>>>, config: CollectiveConfig) -> Self {
-        let config = config.with_num_devices(devices.len());
-        Self { devices, config }
+        // let config = config.with_num_devices(devices.len());
+        Self { devices }
     }
 }
 
@@ -70,6 +71,8 @@ impl<LC: LearningComponentsTypes + Send + 'static> SupervisedLearningStrategy<LC
             event_store: training_components.event_store,
         };
 
+        start_gradient_sync_server::<<LC::Backend as AutodiffBackend>::InnerBackend>(peer_count);
+
         // Start worker for main device
         // First training dataloader corresponds to main device
         let main_handle = DdpWorker::<LC>::start(
@@ -81,7 +84,6 @@ impl<LC: LearningComponentsTypes + Send + 'static> SupervisedLearningStrategy<LC
             training_components.checkpointer,
             dataloaders_train.remove(0),
             Some(dataloader_valid),
-            self.config.clone(),
             starting_epoch,
             peer_count,
             true,
@@ -100,7 +102,6 @@ impl<LC: LearningComponentsTypes + Send + 'static> SupervisedLearningStrategy<LC
                 None,
                 dataloaders_train.remove(0),
                 None,
-                self.config.clone(),
                 starting_epoch,
                 peer_count,
                 false,
@@ -117,6 +118,9 @@ impl<LC: LearningComponentsTypes + Send + 'static> SupervisedLearningStrategy<LC
                 .join()
                 .expect("Distributed data parallel worker failed");
         }
+
+        close_gradient_sync_server::<<LC::Backend as AutodiffBackend>::InnerBackend>();
+
         // Main worker had the event processor
         let model = main_handle
             .join()

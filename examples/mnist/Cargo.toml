@@ -31,9 +31,10 @@ burn = { path = "../../crates/burn", features = [
     "vision",
     "metrics",
     "std",
-    "fusion",
+    # "fusion",
     "ndarray",
-    "autotune",
+    # "autotune",
+    "collective"
 ], default-features = false }
 
 # Serialization

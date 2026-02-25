@@ -1,6 +1,5 @@
-use crate::PeerId;
 use crate::local::tensor_map::CollectiveTensorMap;
-use burn_tensor::backend::{Backend, DeviceOps};
+use burn_tensor::backend::{Backend, DeviceOps, PeerId};
 use std::collections::HashMap;
 
 /// Performs an all-reduce on the provided tensors in a b-tree structure with `arity`.

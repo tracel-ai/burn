@@ -1,8 +1,8 @@
 use std::borrow::Borrow;
 
 use burn_backend::{
-    DType, Distribution, ElementConversion, ExecutionError, FloatDType, Scalar, Shape, Slice,
-    TensorData, bf16, f16,
+    AllReduceStrategy, DType, Distribution, ElementConversion, ExecutionError, FloatDType,
+    ReduceOperation, Scalar, Shape, Slice, TensorData, bf16, f16,
     ops::FloatTensorOps,
     tensor::{BoolTensor, Device, FloatElem, FloatTensor, IntTensor},
 };
@@ -608,5 +608,11 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         } else {
             CandleTensor::new(tensor.tensor.to_dtype(dtype).unwrap())
         }
+    }
+
+    fn comm_duplicated(
+        tensor: &mut FloatTensor<Self>,
+    ) -> burn_backend::tensor::CommunicationTensor<Self> {
+        todo!()
     }
 }

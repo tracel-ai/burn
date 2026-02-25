@@ -21,3 +21,5 @@ pub type IntTensor<B> = <B as Backend>::IntTensorPrimitive;
 pub type BoolTensor<B> = <B as Backend>::BoolTensorPrimitive;
 /// Quantized tensor primitive type used by the backend.
 pub type QuantizedTensor<B> = <B as Backend>::QuantizedTensorPrimitive;
+/// Communication tensor primitive type used by the backend.
+pub type CommunicationTensor<B> = <B as Backend>::CommunicationTensorPrimitive;

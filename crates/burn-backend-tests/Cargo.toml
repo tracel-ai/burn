@@ -113,8 +113,11 @@ burn-cubecl = { path = "../burn-cubecl", version = "=0.21.0-pre.1", optional = t
     "fusion",
 ] }
 
+burn-collective = { path = "../burn-collective", version = "=0.21.0-pre.1", default-features = false }
+
 num-traits = { workspace = true }
 serial_test = { workspace = true }
 
 cubecl = { workspace = true, optional = true }
 cubek = { workspace = true, features = ["random"], optional = true }
+rand.workspace = true

@@ -1,6 +1,7 @@
 use super::NodeId;
 use crate::{checkpoint::base::Checkpointer, grads::Gradients, graph::Parent};
 use alloc::boxed::Box;
+use burn_backend::ShardedParams;
 
 /// Backward step for reverse mode autodiff.
 pub trait Step: Send + core::fmt::Debug {
@@ -12,6 +13,8 @@ pub trait Step: Send + core::fmt::Debug {
     fn node(&self) -> NodeId;
     /// The parents of the node associated to the step.
     fn parents(&self) -> &[Parent];
+    /// The sharded parameters of the node, if sharded.
+    fn sharded_params(&self) -> Option<ShardedParams>;
 }
 
 pub type StepBoxed = Box<dyn Step>;

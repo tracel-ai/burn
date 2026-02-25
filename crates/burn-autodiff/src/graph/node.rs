@@ -1,4 +1,5 @@
 use alloc::{sync::Arc, vec::Vec};
+use burn_backend::ShardedParams;
 
 #[cfg(target_has_atomic = "64")]
 use core::sync::atomic::{AtomicU64, Ordering};
@@ -37,6 +38,7 @@ pub struct Node {
     pub requirement: Requirement,
     pub properties: ComputingProperty,
     pub client: AutodiffClientImpl,
+    pub sharded_params: Option<ShardedParams>,
 }
 pub type NodeRef = Arc<Node>;
 

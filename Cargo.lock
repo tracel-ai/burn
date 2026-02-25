@@ -683,6 +683,7 @@ name = "burn-autodiff"
 version = "0.21.0-pre.1"
 dependencies = [
  "burn-backend",
+ "burn-collective",
  "burn-std",
  "derive-new",
  "hashbrown 0.16.1",
@@ -717,6 +718,7 @@ name = "burn-backend-tests"
 version = "0.21.0-pre.1"
 dependencies = [
  "burn-autodiff",
+ "burn-collective",
  "burn-cpu",
  "burn-cubecl",
  "burn-cuda",
@@ -731,6 +733,7 @@ dependencies = [
  "cubecl",
  "cubek",
  "num-traits",
+ "rand 0.10.0",
  "serial_test",
 ]
 
@@ -814,6 +817,9 @@ dependencies = [
  "ahash",
  "bincode",
  "burn-autodiff",
+ "burn-backend",
+ "burn-collective",
+ "burn-cubecl",
  "burn-cuda",
  "burn-dataset",
  "burn-derive",
@@ -827,6 +833,7 @@ dependencies = [
  "burn-tensor",
  "burn-vision",
  "burn-wgpu",
+ "cubecl",
  "data-encoding",
  "derive-new",
  "flate2",
@@ -842,6 +849,7 @@ dependencies = [
  "rstest",
  "serde",
  "serde_json",
+ "serial_test",
  "spin",
  "thiserror 2.0.18",
  "uuid",

@@ -5,13 +5,16 @@ use crate::kernel::unary_basic::BasicFloatUnaryKind;
 use crate::kernel::{
     self, FloatUnaryOp, FloatUnaryOpFamily, launch_unary_float, reduce, unary_basic,
 };
+use crate::tensor::CubeCommTensor;
 use crate::{CubeRuntime, FloatElement, IntElement};
 use crate::{
     element::BoolElement,
     kernel::matmul::{MatmulStrategy, matmul},
 };
 use burn_backend::ops::GridSampleOptions;
-use burn_backend::tensor::{BoolTensor, Device, FloatElem, FloatTensor, IntTensor};
+use burn_backend::tensor::{
+    BoolTensor, CommunicationTensor, Device, FloatElem, FloatTensor, IntTensor,
+};
 use burn_backend::{Backend, ExecutionError, Scalar};
 use burn_backend::{DType, ElementConversion, FloatDType, Slice};
 use burn_backend::{Distribution, Shape, TensorData, ops::FloatTensorOps};
@@ -616,5 +619,9 @@ where
         options: GridSampleOptions,
     ) -> FloatTensor<Self> {
         kernel::grid_sample::grid_sample(tensor, grid, options)
+    }
+
+    fn comm_duplicated(tensor: &mut FloatTensor<Self>) -> CommunicationTensor<Self> {
+        CubeCommTensor::from(tensor)
     }
 }
