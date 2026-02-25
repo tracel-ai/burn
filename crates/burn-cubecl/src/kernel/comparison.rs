@@ -149,7 +149,13 @@ pub(crate) fn launch_cmp<R: CubeRuntime, O: ComparisonOpFamily>(
             );
         }
 
-        CubeTensor::new(lhs.client, lhs.handle, *lhs.meta, lhs.device, dtype_bool)
+        CubeTensor::new(
+            lhs.client.clone(),
+            lhs.handle.clone(),
+            *lhs.meta.clone(),
+            lhs.device.clone(),
+            dtype_bool,
+        )
     } else if same_tensor_type && rhs.can_mut_broadcast(&lhs) {
         unsafe {
             kernel_cmp::launch_unchecked::<O, R>(
@@ -164,7 +170,13 @@ pub(crate) fn launch_cmp<R: CubeRuntime, O: ComparisonOpFamily>(
             );
         };
 
-        CubeTensor::new(rhs.client, rhs.handle, *rhs.meta, rhs.device, dtype_bool)
+        CubeTensor::new(
+            rhs.client.clone(),
+            rhs.handle.clone(),
+            *rhs.meta.clone(),
+            rhs.device.clone(),
+            dtype_bool,
+        )
     } else {
         let output = empty_device_dtype(
             lhs.client.clone(),
@@ -221,10 +233,10 @@ pub(crate) fn launch_scalar_cmp<R: CubeRuntime, O: ComparisonOpFamily>(
         }
 
         CubeTensor::new(
-            tensor.client,
-            tensor.handle,
-            *tensor.meta,
-            tensor.device,
+            tensor.client.clone(),
+            tensor.handle.clone(),
+            *tensor.meta.clone(),
+            tensor.device.clone(),
             dtype_bool,
         )
     } else {

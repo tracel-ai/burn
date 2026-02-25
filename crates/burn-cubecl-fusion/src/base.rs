@@ -38,6 +38,14 @@ pub struct CubeFusionHandle<R: Runtime> {
     pub qparams: Option<QParams>,
 }
 
+impl<R: Runtime> Drop for CubeFusionHandle<R> {
+    fn drop(&mut self) {
+        if self.handle.can_mut() {
+            self.client.free(self.handle.clone());
+        }
+    }
+}
+
 impl<R: Runtime> core::fmt::Debug for CubeFusionHandle<R> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_fmt(format_args!(

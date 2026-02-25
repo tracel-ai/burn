@@ -29,10 +29,23 @@ pub struct CubeTensor<R: CubeRuntime> {
     pub qparams: Option<QParams>,
 }
 
+// TODO: Group the handle and the ComputeClient together, to write drop for that thing alone, so we
+// can reuse some parts of the cube tensor.
+impl<R: CubeRuntime> Drop for CubeTensor<R> {
+    fn drop(&mut self) {
+        // Doesn't work since we can clone the handle and pass it to the launching function.
+        //
+        // Meaning we drop the tensor BEFORE we can detec it is the last time used.
+        if self.handle.can_mut() {
+            self.client.free(self.handle.clone());
+        }
+    }
+}
+
 impl<R: CubeRuntime> From<CubeTensor<R>> for TensorHandle<R> {
     fn from(val: CubeTensor<R>) -> Self {
         TensorHandle::new(
-            val.handle,
+            val.handle.clone(),
             val.meta.shape().clone(),
             val.meta.strides().clone(),
             val.dtype.into(),

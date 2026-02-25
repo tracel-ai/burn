@@ -21,10 +21,10 @@ pub fn into_contiguous<R: CubeRuntime>(tensor: CubeTensor<R>) -> CubeTensor<R> {
     );
 
     CubeTensor::new(
-        tensor.client,
+        tensor.client.clone(),
         output.handle,
         *output.metadata,
-        tensor.device,
+        tensor.device.clone(),
         tensor.dtype,
     )
 }
@@ -51,10 +51,10 @@ pub fn into_contiguous_aligned<R: CubeRuntime>(tensor: CubeTensor<R>) -> CubeTen
     );
 
     CubeTensor::new(
-        tensor.client,
+        tensor.client.clone(),
         output.handle,
         *output.metadata,
-        tensor.device,
+        tensor.device.clone(),
         tensor.dtype,
     )
 }

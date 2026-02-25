@@ -55,7 +55,7 @@ pub(crate) fn repeat_dim<R: CubeRuntime>(
 ) -> CubeTensor<R> {
     if input.meta.shape()[dim] == 1 {
         input.meta.strides[dim] = 0;
-        input.meta.shape = input.meta.shape.repeat(dim, times).unwrap();
+        input.meta.shape = input.meta.shape.clone().repeat(dim, times).unwrap();
         return input;
     }
 

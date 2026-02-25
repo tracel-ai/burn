@@ -49,9 +49,9 @@ where
             let binding = BindingData::new(
                 num_bindings,
                 Kind::Float,
-                Some(t.handle),
-                t.meta.shape,
-                t.meta.strides,
+                Some(t.handle.clone()),
+                t.meta.shape.clone(),
+                t.meta.strides.clone(),
                 t.dtype,
             );
 
@@ -67,9 +67,9 @@ where
             let binding = BindingData::new(
                 num_bindings,
                 Kind::Int,
-                Some(t.handle),
-                t.meta.shape,
-                t.meta.strides,
+                Some(t.handle.clone()),
+                t.meta.shape.clone(),
+                t.meta.strides.clone(),
                 t.dtype,
             );
 
@@ -85,9 +85,9 @@ where
             let binding = BindingData::new(
                 num_bindings,
                 Kind::Bool,
-                Some(t.handle),
-                t.meta.shape,
-                t.meta.strides,
+                Some(t.handle.clone()),
+                t.meta.shape.clone(),
+                t.meta.strides.clone(),
                 t.dtype,
             );
 

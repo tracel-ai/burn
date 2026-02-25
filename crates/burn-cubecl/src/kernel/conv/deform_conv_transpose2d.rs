@@ -84,7 +84,7 @@ pub(crate) fn deform_conv2d_backward<R: CubeRuntime>(
         )
         .unwrap();
 
-        reshape(grad, bias.meta.shape)
+        reshape(grad, bias.meta.shape.clone())
     });
 
     let input = into_contiguous_aligned(input);

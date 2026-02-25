@@ -47,6 +47,8 @@ where
     }
 }
 
+static COUNTER: AtomicU64 = AtomicU64::new(0);
+
 impl<R> GlobalFusionClient<R>
 where
     R: FusionRuntime + 'static,
@@ -85,8 +87,9 @@ where
             })
             .collect();
 
-        self.server
-            .submit(move |server| server.register(streams, repr, Arc::new(operation)));
+        self.server.submit(move |server| {
+            server.register(streams, repr, Arc::new(operation));
+        });
 
         outputs
     }
@@ -99,8 +102,7 @@ where
 
     /// Create a new (uninitialized) empty tensor handle and returns its corresponding [tensor id](TensorId).
     pub fn create_empty_handle(&self) -> TensorId {
-        static COUNTER: AtomicU64 = AtomicU64::new(0);
-        let value = COUNTER.fetch_add(0, Ordering::Relaxed);
+        let value = COUNTER.fetch_add(1, Ordering::Relaxed);
         TensorId::new(value)
     }
 

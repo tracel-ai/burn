@@ -182,24 +182,24 @@ impl<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolElement> FusionBack
 
 fn into_tensor<R: CubeRuntime>(handle: CubeFusionHandle<R>, shape: Shape) -> CubeTensor<R> {
     CubeTensor {
-        client: handle.client,
-        handle: handle.handle,
-        device: handle.device,
-        meta: Box::new(Metadata::new(shape, handle.strides)),
+        client: handle.client.clone(),
+        handle: handle.handle.clone(),
+        device: handle.device.clone(),
+        meta: Box::new(Metadata::new(shape, handle.strides.clone())),
         dtype: handle.dtype,
-        qparams: handle.qparams,
+        qparams: handle.qparams.clone(),
     }
 }
 
 impl<R: CubeRuntime> From<CubeTensor<R>> for CubeFusionHandle<R> {
     fn from(value: CubeTensor<R>) -> Self {
         Self {
-            client: value.client,
-            handle: value.handle,
-            device: value.device,
-            strides: value.meta.strides,
-            dtype: value.dtype,
-            qparams: value.qparams,
+            client: value.client.clone(),
+            handle: value.handle.clone(),
+            device: value.device.clone(),
+            strides: value.meta.strides.clone(),
+            dtype: value.dtype.clone(),
+            qparams: value.qparams.clone(),
         }
     }
 }

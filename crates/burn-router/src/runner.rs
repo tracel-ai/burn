@@ -21,11 +21,12 @@ pub struct RunnerContext<B: BackendIr> {
     handles: HandleContainer<B::Handle>,
 }
 
+static COUNTER: AtomicU64 = AtomicU64::new(0);
+
 impl<B: BackendIr> RunnerContext<B> {
     /// Create a new (uninitialized) empty tensor and returns its corresponding [tensor id](TensorId).
     fn create_empty_handle(&mut self) -> TensorId {
-        static COUNTER: AtomicU64 = AtomicU64::new(0);
-        let value = COUNTER.fetch_add(0, Ordering::Relaxed);
+        let value = COUNTER.fetch_add(1, Ordering::Relaxed);
         TensorId::new(value)
     }
 }

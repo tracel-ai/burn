@@ -2121,6 +2121,7 @@ dependencies = [
  "serde",
  "serde_bytes",
  "serde_json",
+ "smallbox",
  "spin",
  "tracing",
  "wasm-bindgen-futures",
@@ -8203,6 +8204,12 @@ dependencies = [
  "deunicode",
  "wasm-bindgen",
 ]
+
+[[package]]
+name = "smallbox"
+version = "0.8.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "aca054fd9f8c2ebe8557a2433f307e038c0716124efd045daa0388afa5172189"
 
 [[package]]
 name = "smallvec"

@@ -34,13 +34,14 @@ pub fn slice<R: CubeRuntime>(tensor: CubeTensor<R>, indices: &[Range<usize>]) ->
         && offset_end.is_multiple_of(memory_offset_alignment)
     {
         CubeTensor::new(
-            tensor.client,
+            tensor.client.clone(),
             tensor
                 .handle
+                .clone()
                 .offset_start(offset_start)
                 .offset_end(offset_end),
-            Metadata::new(dims, tensor.meta.strides),
-            tensor.device,
+            Metadata::new(dims, tensor.meta.strides.clone()),
+            tensor.device.clone(),
             tensor.dtype,
         )
     } else {

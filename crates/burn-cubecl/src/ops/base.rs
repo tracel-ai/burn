@@ -32,7 +32,7 @@ pub(crate) async fn into_data<R: CubeRuntime>(
     let elem_size = tensor.elem_size();
     let shape = tensor.meta.shape().clone();
     let strides = tensor.meta.strides().clone();
-    let binding = CopyDescriptor::new(tensor.handle, shape, strides, elem_size);
+    let binding = CopyDescriptor::new(tensor.handle.clone(), shape, strides, elem_size);
     let bytes = tensor
         .client
         .read_one_tensor_async(binding)
@@ -43,7 +43,7 @@ pub(crate) async fn into_data<R: CubeRuntime>(
 
     Ok(TensorData::from_bytes(
         bytes,
-        tensor.meta.shape,
+        tensor.meta.shape.clone(),
         tensor.dtype,
     ))
 }
@@ -267,12 +267,12 @@ pub(crate) fn expand<R: CubeRuntime>(tensor: CubeTensor<R>, target_shape: Shape)
     }
 
     CubeTensor {
-        client: tensor.client,
-        device: tensor.device,
+        client: tensor.client.clone(),
+        device: tensor.device.clone(),
         meta: Box::new(Metadata::new(target_shape, new_strides)),
-        handle: tensor.handle,
+        handle: tensor.handle.clone(),
         dtype: tensor.dtype,
-        qparams: tensor.qparams,
+        qparams: tensor.qparams.clone(),
     }
 }
 
@@ -426,6 +426,10 @@ pub fn unfold<R: CubeRuntime>(
 
     CubeTensor {
         meta: Box::new(Metadata::new(shape, strides)),
-        ..tensor
+        client: tensor.client.clone(),
+        handle: tensor.handle.clone(),
+        device: tensor.device.clone(),
+        dtype: tensor.dtype,
+        qparams: tensor.qparams.clone(),
     }
 }
