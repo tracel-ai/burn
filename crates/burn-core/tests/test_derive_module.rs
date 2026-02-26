@@ -86,6 +86,23 @@ impl<B: Backend> ModuleComposed<B> {
     }
 }
 
+#[derive(Module, Debug)]
+pub struct ModuleWithAttributes<B: Backend, M: Module<B>> {
+    /// A normal parameter.
+    weights: Param<Tensor<B, 2>>,
+    /// A nested module.
+    nested: ModuleEnumWithGenericModule<B, M>,
+    /// A persistent config value.
+    #[module(constant)]
+    dropout_prob: f64,
+    /// A field that is recomputed at runtime.
+    #[module(skip)]
+    cached_mask: Option<Tensor<B, 2>>,
+    /// A field that contains some debug state.
+    #[module(skip)]
+    debug_state: String,
+}
+
 #[allow(dead_code)]
 mod compiletime_clone_impl_check {
     use burn_core::{

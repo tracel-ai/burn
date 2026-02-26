@@ -39,6 +39,10 @@ impl ModuleGenerics {
     pub fn update(&mut self, ident: &Ident, kind: GenericKind) {
         self.kinds.insert(ident.clone(), kind);
     }
+
+    pub fn contains(&self, ident: &Ident) -> bool {
+        self.kinds.contains_key(ident)
+    }
 }
 
 pub fn parse_module_generics(generics: &Generics) -> ModuleGenerics {
@@ -80,43 +84,53 @@ pub fn parse_module_generics(generics: &Generics) -> ModuleGenerics {
     ModuleGenerics { kinds }
 }
 
+// TODO: remove special cases for `ident == "B"`, this could be used to check for `Backend` bound.
+
 /// Helper to check if a list of bounds contains "Module".
 fn has_module_bound(
     bounds: &syn::punctuated::Punctuated<TypeParamBound, syn::token::Plus>,
+) -> bool {
+    has_bound(bounds, "Module")
+}
+
+/// Helper to check if a list of bounds contains the specified bound.
+fn has_bound(
+    bounds: &syn::punctuated::Punctuated<TypeParamBound, syn::token::Plus>,
+    ident: &str,
 ) -> bool {
     bounds.iter().any(|bound| {
         if let TypeParamBound::Trait(trait_bound) = bound
             && let Some(segment) = trait_bound.path.segments.last()
         {
-            return segment.ident == "Module";
+            return segment.ident == ident;
         }
         false
     })
 }
 
-pub fn parse_ty_generics(ty: &Type) -> HashSet<Ident> {
-    struct Collector {
+pub fn parse_ty_generics(ty: &Type, declared: &ModuleGenerics) -> HashSet<Ident> {
+    struct Collector<'a> {
         generics: HashSet<Ident>,
+        declared: &'a ModuleGenerics,
     }
 
-    impl<'ast> Visit<'ast> for Collector {
+    impl<'ast, 'a> Visit<'ast> for Collector<'a> {
         fn visit_type_path(&mut self, type_path: &'ast syn::TypePath) {
-            // Capture generic identifiers like `M`, `B`, etc.
             if type_path.qself.is_none()
                 && let Some(ident) = type_path.path.get_ident()
+                && (self.declared.contains(ident) || ident == "B")
             {
                 self.generics.insert(ident.clone());
             }
 
-            // Continue recursion
             syn::visit::visit_type_path(self, type_path);
         }
     }
 
     let mut collector = Collector {
         generics: HashSet::new(),
+        declared,
     };
     collector.visit_type(ty);
-
     collector.generics
 }
