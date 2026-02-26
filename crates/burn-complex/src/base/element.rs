@@ -8,9 +8,15 @@ use burn_tensor::{
 
 use core::ops::{AddAssign, Rem};
 use num_traits::FromPrimitive;
+use num_traits::Num;
+use num_traits::One;
+use num_traits::Pow;
+use num_traits::Zero;
+use num_traits::float::FloatCore;
 use num_traits::identities::ConstZero;
 use rand::Rng;
 
+use std::ops::Div;
 pub trait ToComplex<C> {
     fn to_complex(&self) -> C;
 }
@@ -106,6 +112,211 @@ macro_rules! make_complex {
             #[inline]
             pub fn dtype() -> DType {
                 DType::$type
+            }
+
+            // The below methods are copied from num_complex 0.4.6, since we can't implement the required element traits for num_complex::Complex.
+            // link to the docs: https://docs.rs/num-complex/0.4.6/num_complex/
+            // Credit to https://github.com/cuviper for the original implementations.
+
+            /// Computes `e^(self)`, where `e` is the base of the natural logarithm.
+            #[inline]
+            pub fn exp(self) -> Self {
+                // formula: e^(a + bi) = e^a (cos(b) + i*sin(b)) = from_polar(e^a, b)
+
+                let $type { real, mut imag } = self;
+                // Treat the corner cases +∞, -∞, and NaN
+                if real.is_infinite() {
+                    if real < $inner::zero() {
+                        if !imag.is_finite() {
+                            return Self::new($inner::zero(), $inner::zero());
+                        }
+                    } else if imag == $inner::zero() || !imag.is_finite() {
+                        if imag.is_infinite() {
+                            imag = $inner::nan();
+                        }
+                        return Self::new(real, imag);
+                    }
+                } else if real.is_nan() && imag == $inner::zero() {
+                    return self;
+                }
+
+                Self::from_polar(real.exp(), imag)
+            }
+            /// Convert a polar representation into a complex number.
+            #[inline]
+            pub fn from_polar(r: $inner, theta: $inner) -> Self {
+                Self::new(r * theta.cos(), r * theta.sin())
+
+            }
+
+            /// Calculate |self|
+            #[inline]
+            pub fn norm(self) -> $inner {
+                self.real.hypot(self.imag)
+            }
+
+            /// Convert to polar form (r, theta), such that
+            /// `self = r * exp(i * theta)`
+            #[inline]
+            pub fn to_polar(self) -> ($inner, $inner) {
+                (self.norm(), self.arg())
+            }
+
+            /// Calculate the principal Arg of self.
+            #[inline]
+            pub fn arg(self) -> $inner {
+                self.imag.atan2(self.real)
+            }
+
+            /// Returns the logarithm of `self` with respect to an arbitrary base.
+            #[inline]
+            pub fn log(self, base: $inner) -> Self {
+                // formula: log_y(x) = log_y(ρ e^(i θ))
+                // = log_y(ρ) + log_y(e^(i θ)) = log_y(ρ) + ln(e^(i θ)) / ln(y)
+                // = log_y(ρ) + i θ / ln(y)
+                let (r, theta) = self.to_polar();
+                Self::new(r.log(base), theta / base.ln())
+            }
+
+            /// Computes the principal value of the inverse tangent of `self`.
+            ///
+            /// This function has two branch cuts:
+            ///
+            /// * `(-∞i, -i]`, continuous from the left.
+            /// * `[i, ∞i)`, continuous from the right.
+            ///
+            /// The branch satisfies `-π/2 ≤ Re(atan(z)) ≤ π/2`.
+            #[inline]
+            pub fn atan(self) -> Self {
+                // formula: arctan(z) = (ln(1+iz) - ln(1-iz))/(2i)
+                let i = Self::i();
+                let one = Self::one();
+                let two = one + one;
+                if self == i {
+                    return Self::new($inner::zero(), $inner::infinity());
+                } else if self == -i {
+                    return Self::new($inner::zero(), -$inner::infinity());
+                }
+                ((one + i * self).ln() - (one - i * self).ln()) / (two * i)
+            }
+
+            /// Computes the principal value of natural logarithm of `self`.
+            ///
+            /// This function has one branch cut:
+            ///
+            /// * `(-∞, 0]`, continuous from above.
+            ///
+            /// The branch satisfies `-π ≤ arg(ln(z)) ≤ π`.
+            #[inline]
+            pub fn ln(self) -> Self {
+                // formula: ln(z) = ln|z| + i*arg(z)
+                let (r, theta) = self.to_polar();
+                Self::new(r.ln(), theta)
+            }
+
+            #[inline]
+            fn one() -> Self {
+                Self::new($inner::one(), $inner::zero())
+            }
+
+            /// Returns the imaginary unit.
+            ///
+            /// See also [`Complex::I`].
+            #[inline]
+            pub fn i() -> Self {
+                Self::new($inner::zero(), $inner::one())
+            }
+
+            /// Returns the square of the norm (since `T` doesn't necessarily
+            /// have a sqrt function), i.e. `re^2 + im^2`.
+            #[inline]
+            pub fn norm_sqr(&self) -> $inner {
+                self.real.clone() * self.real.clone() + self.imag.clone() * self.imag.clone()
+            }
+
+            /// Raises `self` to a floating point power.
+            #[inline]
+            pub fn powf(self, exp: $inner) -> Self {
+            if exp.is_zero() {
+                return Self::one();
+            }
+            // formula: x^y = (ρ e^(i θ))^y = ρ^y e^(i θ y)
+            // = from_polar(ρ^y, θ y)
+            let (r, theta) = self.to_polar();
+            Self::from_polar(r.powf(exp), theta * exp)
+            }
+
+            /// Raises `self` to a complex power.
+            #[inline]
+            pub fn powc(self, exp: Self) -> Self {
+                if exp == $type::new($inner::zero(), $inner::zero()) {
+                    return Self::one();
+                }
+                // formula: x^y = exp(y * ln(x))
+                (exp * self.ln()).exp()
+            }
+
+            /// Computes the principal value of the square root of `self`.
+    ///
+    /// This function has one branch cut:
+    ///
+    /// * `(-∞, 0)`, continuous from above.
+    ///
+    /// The branch satisfies `-π/2 ≤ arg(sqrt(z)) ≤ π/2`.
+    #[inline]
+    pub fn sqrt(self) -> Self {
+        if self.imag.is_zero() {
+            if self.real.is_sign_positive() {
+                // simple positive real √r, and copy `im` for its sign
+                Self::new(self.real.sqrt(), self.imag)
+            } else {
+                // √(r e^(iπ)) = √r e^(iπ/2) = i√r
+                // √(r e^(-iπ)) = √r e^(-iπ/2) = -i√r
+                let re = $inner::zero();
+                let im = (-self.real).sqrt();
+                if self.imag.is_sign_positive() {
+                    Self::new(re, im)
+                } else {
+                    Self::new(re, -im)
+                }
+            }
+        } else if self.real.is_zero() {
+            // √(r e^(iπ/2)) = √r e^(iπ/4) = √(r/2) + i√(r/2)
+            // √(r e^(-iπ/2)) = √r e^(-iπ/4) = √(r/2) - i√(r/2)
+            let one = $inner::one();
+            let two = one + one;
+            let x = (self.imag.abs() / two).sqrt();
+            if self.imag.is_sign_positive() {
+                Self::new(x, x)
+            } else {
+                Self::new(x, -x)
+            }
+        } else {
+            // formula: sqrt(r e^(it)) = sqrt(r) e^(it/2)
+            let one = $inner::one();
+            let two = one + one;
+            let (r, theta) = self.to_polar();
+            Self::from_polar(r.sqrt(), theta / two)
+        }
+    }
+
+
+
+        }
+
+
+
+        // (a + i b) / (c + i d) == [(a + i b) * (c - i d)] / (c*c + d*d)
+        //   == [(a*c + b*d) / (c*c + d*d)] + i [(b*c - a*d) / (c*c + d*d)]
+        impl Div<$type> for $type {
+            type Output = Self;
+
+            #[inline]
+            fn div(self, other: Self) -> Self::Output {
+                let norm_sqr = other.norm_sqr();
+                let re = self.real.clone() * other.real + self.imag.clone() * other.imag;
+                let im = self.imag * other.real - self.real * other.imag;
+                Self::Output::new(re / norm_sqr.clone(), im / norm_sqr)
             }
         }
 

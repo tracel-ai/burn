@@ -549,7 +549,6 @@ impl TensorData {
     pub fn into_bytes(self) -> Bytes {
         self.bytes
     }
-
 }
 
 impl<E: Element, const A: usize> From<[E; A]> for TensorData {

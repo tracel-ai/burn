@@ -1,5 +1,5 @@
-use crate::execute_with_complex_dtype;
 use crate::ops::{NdArrayMathOps, NdArrayOps};
+use crate::{execute_with_complex_dtype, execute_with_float_dtype};
 use burn_common::rand::get_seeded_rng;
 use burn_complex::base::ComplexElem;
 use burn_complex::base::element::ToComplex;
@@ -38,34 +38,35 @@ where
     fn real(tensor: ComplexTensor<Self>) -> NdArrayTensor {
         {
             {
-    {
-    match tensor {
-        crate::NdArrayTensor::Complex32(storage) => {
-            #[allow(unused)]
-            
-            (|array:SharedArray<ComplexElem<Self>>|{
-                array.mapv_into(|a|a.real)
-            })(storage.into_shared()).into()
+                {
+                    match tensor {
+                        crate::NdArrayTensor::Complex32(storage) =>
+                        {
+                            #[allow(unused)]
+                            (|array: SharedArray<ComplexElem<Self>>| array.mapv_into(|a| a.real))(
+                                storage.into_shared(),
+                            )
+                            .into()
+                        }
+
+                        crate::NdArrayTensor::Complex64(storage) =>
+                        {
+                            #[allow(unused)]
+                            (|array: SharedArray<ComplexElem<Self>>| array.mapv_into(|a| a.real))(
+                                storage.into_shared(),
+                            )
+                            .into()
+                        }
+                        #[allow(unreachable_patterns)]
+                        other => unimplemented!("unsupported dtype: {:?}", other.dtype()),
+                    }
+                }
+            }
         }
-        
-        crate::NdArrayTensor::Complex64(storage) => {
-            #[allow(unused)]
-            
-            (|array:SharedArray<ComplexElem<Self>>|{
-                array.mapv_into(|a|a.real)
-            })(storage.into_shared()).into()
-        }
-        #[allow(unreachable_patterns)]
-        other => unimplemented!("unsupported dtype: {:?}",other.dtype())
-    
-        }
-}
-}
-}
     }
 
     fn imag(tensor: ComplexTensor<Self>) -> NdArrayTensor {
-        tensor.int
+        //tensor.int
         execute_with_complex_dtype!(tensor, |array: SharedArray<ComplexElem<Self>>| {
             array.mapv_into(|a: ComplexElem<Self>| a.imag).into_shared()
         })
