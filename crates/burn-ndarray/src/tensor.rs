@@ -153,11 +153,13 @@ impl_from!(
 /// floating point precision data types will panic with a data type mismatch.
 #[macro_export]
 macro_rules! execute_with_dtype {
-    (($lhs:expr, $rhs:expr),$element:ident,  $op:expr, [$($dtype: ident => $ty: ty),*]) => {{
+    // 1. Binary op with explicit list
+    (($lhs:expr, $rhs:expr), $element:ident, $op:expr, [$( $(#[$meta:meta])* $dtype:ident => $ty:ty ),*]) => {{
         let lhs_dtype = burn_backend::TensorMetadata::dtype(&$lhs);
         let rhs_dtype = burn_backend::TensorMetadata::dtype(&$rhs);
         match ($lhs, $rhs) {
             $(
+                $(#[$meta])*
                 ($crate::NdArrayTensor::$dtype(lhs), $crate::NdArrayTensor::$dtype(rhs)) => {
                     #[allow(unused)]
                     type $element = $ty;
@@ -171,24 +173,31 @@ macro_rules! execute_with_dtype {
             ),
         }
     }};
-    // Binary op: type automatically inferred by the compiler
+
+    // 2. Binary op: type automatically inferred
     (($lhs:expr, $rhs:expr), $op:expr) => {{
         $crate::execute_with_dtype!(($lhs, $rhs), E, $op)
     }};
 
-    // Binary op: generic type cannot be inferred for an operation
+    // 3. Binary op: default list (updated to include complex)
     (($lhs:expr, $rhs:expr), $element:ident, $op:expr) => {{
         $crate::execute_with_dtype!(($lhs, $rhs), $element, $op, [
             F64 => f64, F32 => f32,
             I64 => i64, I32 => i32, I16 => i16, I8 => i8,
             U64 => u64, U32 => u32, U16 => u16, U8 => u8,
-            Bool => bool
+            Bool => bool,
+            #[cfg(feature = "complex")]
+            Complex32 => burn_complex::base::element::Complex32,
+            #[cfg(feature = "complex")]
+            Complex64 => burn_complex::base::element::Complex64
         ])
     }};
 
-    ($tensor:expr, $element:ident, $op:expr, [$($dtype: ident => $ty: ty),*]) => {{
+    // 4. Unary op with explicit list
+    ($tensor:expr, $element:ident, $op:expr, [$( $(#[$meta:meta])* $dtype:ident => $ty:ty ),*]) => {{
         match $tensor {
             $(
+                $(#[$meta])*
                 $crate::NdArrayTensor::$dtype(storage) => {
                     #[allow(unused)]
                     type $element = $ty;
@@ -200,18 +209,23 @@ macro_rules! execute_with_dtype {
             other => unimplemented!("unsupported dtype: {:?}", other.dtype())
         }
     }};
-    // Unary op: type automatically inferred by the compiler
+
+    // 5. Unary op: type automatically inferred
     ($tensor:expr, $op:expr) => {{
         $crate::execute_with_dtype!($tensor, E, $op)
     }};
 
-    // Unary op: generic type cannot be inferred for an operation
+    // 6. Unary op: default list (updated to include complex)
     ($tensor:expr, $element:ident, $op:expr) => {{
         $crate::execute_with_dtype!($tensor, $element, $op, [
             F64 => f64, F32 => f32,
             I64 => i64, I32 => i32, I16 => i16, I8 => i8,
             U64 => u64, U32 => u32, U16 => u16, U8 => u8,
-            Bool => bool
+            Bool => bool,
+            #[cfg(feature = "complex")]
+            Complex32 => burn_complex::base::element::Complex32,
+            #[cfg(feature = "complex")]
+            Complex64 => burn_complex::base::element::Complex64
         ])
     }};
 }
@@ -623,11 +637,23 @@ macro_rules! reshape {
 #[macro_export]
 macro_rules! slice {
     ($tensor:expr, $slices:expr) => {
-        slice!($tensor, $slices, F64, F32, I64, I32, I16, I8, U64, U32, U16, U8, Bool)
+        slice!(
+            $tensor,
+            $slices,
+            F64, F32, I64, I32, I16, I8, U64, U32, U16, U8, Bool,
+            #[cfg(feature = "complex")]
+            Complex32,
+            #[cfg(feature = "complex")]
+            Complex64
+        )
     };
-    ($tensor:expr, $slices:expr, $($variant:ident),*) => {
+
+
+    ($tensor:expr, $slices:expr, $( $(#[$meta:meta])* $variant:ident ),*) => {
         match $tensor {
-            $(NdArrayTensor::$variant(s) => { NdArrayOps::slice(s.view(), $slices).into() })*
+            $(
+                $(#[$meta])* NdArrayTensor::$variant(s) => { NdArrayOps::slice(s.view(), $slices).into() }
+            )*
         }
     };
 }

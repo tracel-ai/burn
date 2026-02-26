@@ -1,3 +1,4 @@
+#![allow(unused)]
 pub mod element;
 /*
 The base implementation for complex tensors, contains everything that would be in burn-tensor.

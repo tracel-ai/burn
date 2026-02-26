@@ -6,8 +6,11 @@ use burn_tensor::{
     cast::ToElement,
 };
 
+use core::ops::{AddAssign, Rem};
+use num_traits::FromPrimitive;
 use num_traits::identities::ConstZero;
 use rand::Rng;
+
 pub trait ToComplex<C> {
     fn to_complex(&self) -> C;
 }
@@ -20,6 +23,20 @@ pub trait ToComplexElement: ToElement + ToComplex<Complex32> + ToComplex<Complex
         self.to_complex()
     }
 }
+
+// will attempt after I get ndarray to compile
+
+// pub struct Complex<C> {
+//     pub real: C,
+//     pub imag: C,
+// }
+
+// impl<C> Complex<C> {
+//     #[inline]
+//     pub fn new(real: C, imag: C) -> Self {
+//         Self { real, imag }
+//     }
+// }
 
 /// Macro to implement the element trait for a type.
 #[macro_export]
@@ -228,6 +245,39 @@ macro_rules! make_complex {
         impl Element for $type {
             fn dtype() -> DType {
                 $dtype
+            }
+        }
+
+        impl AddAssign for $type {
+            fn add_assign(&mut self, rhs: Self) {
+                self.real += rhs.real;
+                self.imag += rhs.imag;
+            }
+        }
+
+        impl Rem for $type {
+            type Output = Self;
+
+            fn rem(self, rhs: Self) -> Self::Output {
+                Self {
+                    real: self.real % rhs.real,
+                    imag: self.imag % rhs.imag,
+                }
+            }
+        }
+
+        impl FromPrimitive for $type {
+            fn from_i64(n: i64) -> Option<Self> {
+                Some(Self::from_real(n as $inner))
+            }
+            fn from_u64(n: u64) -> Option<Self> {
+                Some(Self::from_real(n as $inner))
+            }
+            fn from_f32(n: f32) -> Option<Self> {
+                Some(Self::from_real(n as $inner))
+            }
+            fn from_f64(n: f64) -> Option<Self> {
+                Some(Self::from_real(n as $inner))
             }
         }
     };
