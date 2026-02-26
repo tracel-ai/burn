@@ -70,7 +70,7 @@ impl ModuleDisplay for AvgPool1d {
         content
             .add("kernel_size", &self.kernel_size)
             .add("stride", &self.stride)
-            .add_debug_attribute(&"padding", &self.padding)
+            .add_debug_attribute("padding", &self.padding)
             .add("count_include_pad", &self.count_include_pad)
             .add("ceil_mode", &self.ceil_mode)
             .optional()

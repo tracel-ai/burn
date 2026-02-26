@@ -237,9 +237,6 @@ impl GenericsParser {
                 requires_module_bound = has_module_bound || maybe_module;
             }
 
-            eprintln!("requires_module_bound: {requires_module_bound}");
-            eprintln!("module generics: {module_generics:?}");
-
             if requires_module_bound {
                 module.add_predicate(
                     parse_quote! {

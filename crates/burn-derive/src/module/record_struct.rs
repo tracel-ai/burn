@@ -56,8 +56,6 @@ impl ModuleRecordCodegen for StructModuleRecordCodegen {
             }
         }
 
-        // eprintln!("All generics: {generics:?}");
-        // eprintln!("Used generics: {used_generics:?}");
         let mut filtered_generics = generics.clone();
         filtered_generics.params = generics
             .params
@@ -69,7 +67,6 @@ impl ModuleRecordCodegen for StructModuleRecordCodegen {
             })
             .cloned()
             .collect();
-        // eprintln!("Filtered generics: {filtered_generics:?}");
 
         let (impl_generics, _generics_ty, generics_where) = filtered_generics.split_for_impl();
 

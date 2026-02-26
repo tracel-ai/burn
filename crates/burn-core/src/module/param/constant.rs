@@ -387,11 +387,9 @@ impl<T> ValueRecord<T> {
     }
 }
 
-unsafe impl<T> Send for ValueRecord<T> {}
-
 impl<B: Backend, T> Record<B> for ValueRecord<T>
 where
-    T: Serialize + DeserializeOwned + Clone, // Record and item
+    T: Send + Serialize + DeserializeOwned + Clone, // Record and item
 {
     // The Item is the type T itself, as it already satisfies the bounds
     type Item<S: PrecisionSettings> = T;
