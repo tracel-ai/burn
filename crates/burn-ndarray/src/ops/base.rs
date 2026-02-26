@@ -857,6 +857,27 @@ where
 
         lhs.mapv(|a| a == rhs).into_shared()
     }
+
+    pub(crate) fn sign_op(tensor: SharedArray<E>) -> SharedArray<E>
+    where
+        E: Signed,
+    {
+        let zero = 0.elem();
+        let one = 1.elem::<E>();
+
+        tensor
+            .mapv(|x| {
+                if x == zero {
+                    zero
+                } else {
+                    match x.is_positive() {
+                        true => one,
+                        false => -one,
+                    }
+                }
+            })
+            .into_shared()
+    }
 }
 
 impl<E> NdArrayMathOps<E>
@@ -912,26 +933,6 @@ where
         dim: usize,
     ) -> SharedArray<I> {
         arg(tensor, dim, CmpType::Max)
-    }
-
-    pub(crate) fn sign_op(tensor: SharedArray<E>) -> SharedArray<E>
-    where
-        E: Signed,
-    {
-        let zero = 0.elem();
-        let one = 1.elem::<E>();
-
-        tensor
-            .mapv(|x| {
-                if x > zero {
-                    one
-                } else if x < zero {
-                    -one
-                } else {
-                    zero
-                }
-            })
-            .into_shared()
     }
 
     pub fn argmin<I: NdArrayElement + PartialOrd>(
