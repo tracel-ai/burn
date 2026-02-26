@@ -28,6 +28,10 @@ pub(crate) mod shared;
 ///
 /// Use this for configuration or other persistent metadata that should be saved and loaded with the module.
 ///
+/// ### Requirements
+///
+/// The field must implement: `Debug + Clone + Send + Serialize + DeserializeOwned`.
+///
 /// ## `#[module(skip)]`
 ///
 /// Marks the field to be skipped by the module system. Skipped fields are
@@ -37,6 +41,10 @@ pub(crate) mod shared;
 /// such as markers, caches or other auxiliary runtime state.
 ///
 /// This is equivalent to the deprecated `Ignored<T>` wrapper.
+///
+/// ### Requirements
+///
+/// The field must implement: `Debug + Clone + Send`.
 ///
 /// # Example
 ///

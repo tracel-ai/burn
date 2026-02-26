@@ -1,5 +1,8 @@
 use super::{display, record::ModuleRecordCodegen};
-use crate::{module::generics::ModuleGenerics, shared::generics::GenericsHelper};
+use crate::{
+    module::generics::{GenericKind, ModuleGenerics},
+    shared::generics::GenericsHelper,
+};
 use proc_macro2::{Ident, TokenStream};
 use quote::quote;
 use syn::{Attribute, Generics, parse_quote};
@@ -36,7 +39,6 @@ pub(crate) fn generate_module_standard<Codegen: ModuleCodegen>(
     let generics = GenericsParser::from_ast(&ast.generics, codegen.module_generics());
 
     let display_fn = display::display_fn(ast);
-    // let attributes_fn = display::attributes_fn(ast);
     let attributes_fn = codegen.gen_display();
     let num_params_fn = codegen.gen_num_params();
     let visit = codegen.gen_visit();
@@ -230,11 +232,13 @@ impl GenericsParser {
         .for_each(|ident| {
             // By default, require module bound
             let mut requires_module_bound = true;
+            let mut generic_kind = None;
             if !module_generics.is_empty() {
-                let has_module_bound = module_generics.is_bounded_module(&ident);
-                let maybe_module = module_generics.is_plain_type(&ident);
+                generic_kind = module_generics.get_generic_kind(&ident);
+                let has_module_bound = matches!(generic_kind, Some(GenericKind::Module));
+                let is_unbounded = matches!(generic_kind, Some(GenericKind::Plain));
 
-                requires_module_bound = has_module_bound || maybe_module;
+                requires_module_bound = has_module_bound || is_unbounded;
             }
 
             if requires_module_bound {
@@ -301,7 +305,27 @@ impl GenericsParser {
                 );
                 train_generics_names_except_backend.extend(quote! { #ident, });
                 train_inner_generics_names_except_backend.extend(quote! { #ident::TrainModule, });
-            } else {
+            }
+            else {
+                match generic_kind {
+                    // Add required bounds at a higher level to make error message more explicit
+                    Some(GenericKind::Constant) => {
+                        module_autodiff.add_predicate(
+                            parse_quote! {
+                                #ident: Clone + core::fmt::Debug + Send + burn::serde::Serialize + burn::serde::de::DeserializeOwned
+                            }
+                        );
+                    },
+                    Some(GenericKind::Skip) => {
+                        module_autodiff.add_predicate(
+                            parse_quote! {
+                                #ident: Clone + core::fmt::Debug + Send
+                            }
+                        );
+                    },
+                    _ => {}
+                }
+
                 // Pass through
                 generics_names_except_backend.extend(quote! { #ident, });
                 train_generics_names_except_backend.extend(quote! { #ident, });

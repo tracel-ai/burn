@@ -25,17 +25,14 @@ impl ModuleGenerics {
         self.kinds.is_empty()
     }
 
+    pub fn get_generic_kind(&self, ident: &Ident) -> Option<&GenericKind> {
+        self.kinds.get(ident)
+    }
+
     pub fn is_bounded_module(&self, ident: &Ident) -> bool {
         self.kinds
             .get(ident)
             .map(|kind| matches!(kind, GenericKind::Module))
-            .unwrap_or(false)
-    }
-
-    pub fn is_plain_type(&self, ident: &Ident) -> bool {
-        self.kinds
-            .get(ident)
-            .map(|kind| matches!(kind, GenericKind::Plain))
             .unwrap_or(false)
     }
 

@@ -443,7 +443,7 @@ pub(crate) fn parse_module_field_type(
                 }?;
 
                 if is_param && field_type.attr.is_some() {
-                    Err(meta.error("Fields of type 'Param' cannot be marked as 'constant' or 'skip'. Use a 'Tensor' instead."))
+                    Err(meta.error("Fields of type 'Param' should not be marked as 'constant' or 'skip'. Use a 'Tensor' instead."))
                 } else {
                     Ok(())
                 }
