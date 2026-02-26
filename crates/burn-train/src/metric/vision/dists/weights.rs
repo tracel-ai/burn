@@ -14,7 +14,7 @@ use super::metric::Dists;
 /// URL for pretrained DISTS alpha/beta weights from the official repository.
 /// Reference: https://github.com/dingkeyan93/DISTS
 const DISTS_WEIGHTS_URL: &str =
-    "https://github.com/dingkeyan93/DISTS/raw/master/DISTS_pytorch/weights/DISTS.pt";
+    "https://github.com/dingkeyan93/DISTS/raw/master/DISTS_pytorch/weights.pt";
 
 /// URL for ImageNet pretrained VGG16 backbone weights from PyTorch.
 const VGG16_IMAGENET_URL: &str = "https://download.pytorch.org/models/vgg16-397923af.pth";
