@@ -1,7 +1,7 @@
 // Language
 use alloc::vec;
 use alloc::vec::Vec;
-use burn_backend::tensor::BoolElem;
+use burn_backend::Scalar;
 use burn_backend::{ElementConversion, TensorMetadata, tensor::FloatTensor};
 use burn_backend::{
     backend::ExecutionError,
@@ -171,7 +171,7 @@ where
     fn bool_mask_fill(
         tensor: BoolTensor<Self>,
         mask: BoolTensor<Self>,
-        value: BoolElem<Self>,
+        value: Scalar,
     ) -> BoolTensor<Self> {
         NdArrayOps::mask_fill(tensor.bool(), mask.bool(), value.elem()).into()
     }
@@ -202,8 +202,8 @@ where
         ))
     }
 
-    fn bool_equal_elem(lhs: BoolTensor<Self>, rhs: BoolElem<Self>) -> BoolTensor<Self> {
-        NdArrayBoolOps::equal_elem(lhs.bool(), rhs).into()
+    fn bool_equal_elem(lhs: BoolTensor<Self>, rhs: Scalar) -> BoolTensor<Self> {
+        NdArrayBoolOps::equal_elem(lhs.bool(), rhs.elem()).into()
     }
 
     fn bool_any(tensor: BoolTensor<Self>) -> BoolTensor<Self> {

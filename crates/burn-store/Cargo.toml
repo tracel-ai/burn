@@ -49,7 +49,7 @@ wgpu = ["burn-wgpu"]
 
 safetensors = ["dep:safetensors"]
 
-pytorch = ["burn-core/record-item-custom-serde", "zip", "serde"]
+pytorch = ["burn-core/record-item-custom-serde", "zip", "serde", "tar"]
 
 [dependencies]
 burn-core = { path = "../burn-core", version = "=0.21.0-pre.1", default-features = false }
@@ -67,6 +67,7 @@ regex = { workspace = true, optional = true }
 serde = { workspace = true, optional = true }
 textdistance = { workspace = true }
 zip = { workspace = true, optional = true }
+tar = { workspace = true, optional = true }
 
 # Workaround to force broken minor version to update
 lzma-rust2 = { workspace = true, optional = true }

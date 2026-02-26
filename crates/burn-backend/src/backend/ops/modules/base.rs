@@ -1,5 +1,4 @@
 use super::{conv, pool};
-use crate::ops::attention;
 use crate::ops::unfold::unfold4d_using_conv2d;
 use crate::tensor::{BoolTensor, FloatTensor, IntTensor};
 use crate::{Backend, ElementConversion, TensorMetadata};
@@ -452,7 +451,7 @@ pub struct InterpolateBackward<B: Backend> {
 
 /// Options for [attention](ModuleOps::attention).
 #[derive(Debug, Clone, Copy, Default, PartialEq, serde::Deserialize, serde::Serialize)]
-pub struct AttentionOptions {
+pub struct AttentionModuleOptions {
     /// Custom scale factor applied to QK^T. When `None`, defaults to `1/sqrt(head_dim)`.
     pub scale: Option<f64>,
 
@@ -1051,10 +1050,8 @@ pub trait ModuleOps<B: Backend> {
         value: FloatTensor<B>,
         mask: Option<BoolTensor<B>>,
         attn_bias: Option<FloatTensor<B>>,
-        options: AttentionOptions,
-    ) -> FloatTensor<B> {
-        attention::naive_attention::<B>(query, key, value, mask, attn_bias, options)
-    }
+        options: AttentionModuleOptions,
+    ) -> FloatTensor<B>;
 }
 
 #[cfg(test)]

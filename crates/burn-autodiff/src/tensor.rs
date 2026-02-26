@@ -167,4 +167,23 @@ impl<B: Backend> AutodiffTensor<B> {
     pub fn into_primitive(self) -> B::FloatTensorPrimitive {
         self.primitive
     }
+
+    pub fn backward(self) -> Gradients {
+        let client = self.node.client.clone();
+
+        AutodiffClient::backward::<B>(&client, self)
+    }
+
+    pub fn grad(&self, grads: &Gradients) -> Option<B::FloatTensorPrimitive> {
+        grads.get::<B>(self)
+    }
+
+    pub fn grad_remove(&self, grads: &mut Gradients) -> Option<B::FloatTensorPrimitive> {
+        grads.remove::<B>(self)
+    }
+
+    pub fn grad_replace(&self, grads: &mut Gradients, grad: B::FloatTensorPrimitive) {
+        grads.remove::<B>(self);
+        grads.register::<B>(self.node.id, grad);
+    }
 }

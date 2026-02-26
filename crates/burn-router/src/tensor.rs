@@ -1,5 +1,6 @@
 use core::sync::atomic::{AtomicU32, Ordering};
 
+use alloc::format;
 use alloc::{sync::Arc, vec::Vec};
 
 use super::RunnerClient;
