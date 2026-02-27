@@ -201,25 +201,22 @@ impl MsSsimMetricConfig {
 
     /// Sets custom betas for the scales. The length of the betas vector
     /// determines the number of scales used in the MS-SSIM computation.
+    /// If you to make different parameter settings comparable, the betas
+    /// vector should sum to 1 as per the original paper. However, note 
+    /// that this is not a strict requirement.
     ///
     /// # Default value
     /// - betas: `[0.0448, 0.2856, 0.3001, 0.2363, 0.1333]` (5 scales)
     ///
     /// # Panics
     /// - If `betas` is empty.
+    /// - If not all values in `betas` are positive.
     pub fn with_betas(mut self, betas: Vec<f32>) -> Self {
         assert!(!betas.is_empty(), "betas vector cannot be empty");
 
         assert!(
             betas.iter().all(|&b| b >= 0.0),
             "All beta values must be non-negative"
-        );
-
-        let sum: f32 = betas.iter().sum();
-        assert!(
-            (sum - 1.0).abs() < 1e-3,
-            "The sum of the betas must be 1.0, but got {}",
-            sum
         );
 
         self.betas = betas;
