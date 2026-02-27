@@ -30,13 +30,13 @@ use core::marker::PhantomData;
 /// # Example
 /// ```rust,ignore
 /// // Create input for RGB images
-/// let preds: Tensor<B, 4> = /* tensor */;
+/// let outputs: Tensor<B, 4> = /* tensor */;
 /// let targets: Tensor<B, 4> = /* tensor */;
 /// let input = MsSsimInput::new(outputs, targets);
 /// ```
 pub struct MsSsimInput<B: Backend> {
-    /// Model predictions with shape [N, C, H, W].
-    preds: Tensor<B, 4>,
+    /// Model outputs with shape [N, C, H, W].
+    outputs: Tensor<B, 4>,
     /// Ground truth targets with shape [N, C, H, W].
     targets: Tensor<B, 4>,
 }
@@ -45,22 +45,22 @@ impl<B: Backend> MsSsimInput<B> {
     /// Creates a new MsSsimInput with the given outputs and targets.
     ///
     /// # Arguments
-    /// - `preds`: The model prediction images with shape [N, C, H, W].
+    /// - `outputs`: The model output images with shape [N, C, H, W].
     /// - `targets`: The ground truth images with shape [N, C, H, W].
     ///
     /// # Returns
     /// A new instance of `MsSsimInput`.
     ///
     /// # Panics
-    /// - If `preds` and `targets` do not have the same shape.
-    pub fn new(preds: Tensor<B, 4>, targets: Tensor<B, 4>) -> Self {
+    /// - If `outputs` and `targets` do not have the same shape.
+    pub fn new(outputs: Tensor<B, 4>, targets: Tensor<B, 4>) -> Self {
         assert!(
-            preds.dims() == targets.dims(),
-            "Shape mismatch: preds {:?} targets {:?}",
-            preds.dims(),
+            outputs.dims() == targets.dims(),
+            "Shape mismatch: outputs {:?} targets {:?}",
+            outputs.dims(),
             targets.dims()
         );
-        Self { preds, targets }
+        Self { outputs, targets }
     }
 }
 
@@ -83,7 +83,7 @@ pub struct MsSsimMetricConfig {
     /// - For 8-bit images in range [0, 255], it should be set to `255.0 - 0.0 = 255.0`
     pub pixel_range: f32,
     /// The MS-SSIM metric involves applying convolution to the input tensors using a Gaussian kernel.
-    /// This is the kernel/kernel size of the Gaussian kernel. Default is 11.
+    /// This is the kernel size of the Gaussian kernel. Default is 11.
     pub kernel_size: usize,
     /// The MS-SSIM metric involves applying convolution to the input tensors using a Gaussian kernel.
     /// This is the standard deviation of the Gaussian kernel. Default is 1.5.
@@ -390,7 +390,7 @@ impl<B: Backend> Metric for MsSsimMetric<B> {
     }
 
     fn update(&mut self, item: &Self::Input, _metadata: &MetricMetadata) -> SerializedEntry {
-        let dims = item.preds.dims();
+        let dims = item.outputs.dims();
         let scales = self.config.betas.len();
 
         assert_eq!(
@@ -417,7 +417,7 @@ impl<B: Backend> Metric for MsSsimMetric<B> {
             self.config.kernel_size
         );
 
-        let mut x = item.preds.clone();
+        let mut x = item.outputs.clone();
         let mut y = item.targets.clone();
         let betas = &self.config.betas;
 
@@ -429,7 +429,7 @@ impl<B: Backend> Metric for MsSsimMetric<B> {
         // Shape: [N, C]
         let batch_size = dims[0];
         let channels = dims[1];
-        let mut ms_ssim_tensor = Tensor::<B, 2>::ones([batch_size, channels], &item.preds.device());
+        let mut ms_ssim_tensor = Tensor::<B, 2>::ones([batch_size, channels], &item.outputs.device());
 
         for i in 0..betas.len() {
             // Compute mu_x and mu_y
