@@ -1,3 +1,5 @@
+#![allow(clippy::excessive_precision)]
+
 use burn_core as burn;
 
 use super::GradientsParams;
