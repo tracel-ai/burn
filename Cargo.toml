@@ -65,7 +65,7 @@ insta = "1.45.0"
 js-sys = "0.3.77"
 libm = "0.2.15"
 log = { default-features = false, version = "0.4.29" }
-lzma-rust2 = "0.16.1"
+lzma-rust2 = "0.16.2"
 opentelemetry = "0.31.0"
 opentelemetry-aws = "0.19.0"
 opentelemetry-otlp = "0.31.0"
@@ -168,9 +168,9 @@ uuid = { version = "1.21.0", default-features = false }
 
 byteorder = { version = "1.5.0", default-features = false }
 libc = "0.2.182"
-nvml-wrapper = "0.11.0"
+nvml-wrapper = "0.12.0"
 sysinfo = "0.38.0"
-systemstat = "0.2.5"
+systemstat = "0.2.6"
 tch = "0.22.0"
 torch-sys = "0.22.0"                                        # matches what tch is using, required for lib detection
 
@@ -179,10 +179,10 @@ portable-atomic = { version = "1.13.1" }
 portable-atomic-util = { version = "0.2.5", features = ["alloc"] }
 
 ### For the main burn branch. ###
-cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "b19859ee693bb02a25e4da2ca53797bb164be140" }
-cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "b19859ee693bb02a25e4da2ca53797bb164be140" }
-cubecl-zspace = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "b19859ee693bb02a25e4da2ca53797bb164be140" }
-cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "75669db878e78c762ed44f91a1e4c6b8e2b84b2a" }
+cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "0400cc7d6c0758f54c9485558d78585ddd22da78" }
+cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "0400cc7d6c0758f54c9485558d78585ddd22da78" }
+cubecl-zspace = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "0400cc7d6c0758f54c9485558d78585ddd22da78" }
+cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "50c0d5797d97c378b3a52e048fd52cfcb74720f1" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }
@@ -194,7 +194,7 @@ cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, 
 # cubek = { version = "=0.2.0-pre.1", default-features = false }
 
 ### For xtask crate ###
-tracel-xtask = "=4.13.1"
+tracel-xtask = "=4.13.3"
 # ### For local development. ###
 # tracel-xtask = { path = "../xtask/crates/tracel-xtask", default-features = false }
 

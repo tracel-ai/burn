@@ -84,7 +84,10 @@ pub(crate) fn cumprod_dim<E: NdArrayElement>(tensor: SharedArray<E>, dim: usize)
     cumulative_with_op(tensor, dim, |c, &p| *c = c.mul(p.elem()))
 }
 
-pub(crate) fn cummin_dim<E: NdArrayElement>(tensor: SharedArray<E>, dim: usize) -> SharedArray<E> {
+pub(crate) fn cummin_dim<E: NdArrayElement + core::cmp::PartialOrd<E>>(
+    tensor: SharedArray<E>,
+    dim: usize,
+) -> SharedArray<E> {
     cumulative_with_op(tensor, dim, |c, &p| {
         if p < *c {
             *c = p;
@@ -92,7 +95,10 @@ pub(crate) fn cummin_dim<E: NdArrayElement>(tensor: SharedArray<E>, dim: usize) 
     })
 }
 
-pub(crate) fn cummax_dim<E: NdArrayElement>(tensor: SharedArray<E>, dim: usize) -> SharedArray<E> {
+pub(crate) fn cummax_dim<E: NdArrayElement + core::cmp::PartialOrd<E>>(
+    tensor: SharedArray<E>,
+    dim: usize,
+) -> SharedArray<E> {
     cumulative_with_op(tensor, dim, |c, &p| {
         if p > *c {
             *c = p;

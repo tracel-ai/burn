@@ -387,6 +387,7 @@ strategies.
 | `activation::celu(tensor, alpha)`                | `nn.functional.celu(tensor, alpha)`                |
 | `activation::elu(tensor, alpha)`                 | `nn.functional.elu(tensor, alpha)`                 |
 | `activation::gelu(tensor)`                       | `nn.functional.gelu(tensor)`                       |
+| `activation::hard_shrink(tensor, lambda)`        | `nn.functional.hardshrink(tensor, lambd)`          |
 | `activation::hard_sigmoid(tensor, alpha, beta)`  | `nn.functional.hardsigmoid(tensor)`                |
 | `activation::hard_swish(tensor)`                 | `nn.functional.hardswish(tensor)`                  |
 | `activation::leaky_relu(tensor, negative_slope)` | `nn.functional.leaky_relu(tensor, negative_slope)` |
@@ -396,6 +397,8 @@ strategies.
 | `activation::prelu(tensor,alpha)`                | `nn.functional.prelu(tensor,weight)`               |
 | `activation::quiet_softmax(tensor, dim)`         | `nn.functional.quiet_softmax(tensor, dim)`         |
 | `activation::relu(tensor)`                       | `nn.functional.relu(tensor)`                       |
+| `activation::shrink(tensor, lambda, bias)`       | _No direct equivalent_                             |
+| `activation::soft_shrink(tensor, lambda)`        | `nn.functional.softshrink(tensor, lambd)`          |
 | `activation::sigmoid(tensor)`                    | `nn.functional.sigmoid(tensor)`                    |
 | `activation::selu(tensor)`                       | `nn.functional.selu(tensor)`                       |
 | `activation::silu(tensor)`                       | `nn.functional.silu(tensor)`                       |

@@ -9,14 +9,21 @@
 //! - `data.pkl` or `archive/data.pkl`: Pickled tensor metadata
 //! - `data/` directory: Binary tensor data files
 //!
-//! ## 2. Legacy Pickle Format (PyTorch 0.1.10 - 1.5)
+//! ## 2. TAR Format (older torchvision models like AlexNet, SqueezeNet)
+//! TAR archives containing:
+//! - `sys_info`: System info pickle (endianness, type sizes)
+//! - `pickle`: OrderedDict mapping tensor names to storage keys
+//! - `tensors`: Tensor metadata (unused, metadata is in pickle)
+//! - `storages`: Count pickle + sequential (metadata, num_elements, raw data)
+//!
+//! ## 3. Legacy Pickle Format (PyTorch 0.1.10 - 1.5)
 //! Sequential pickle streams with the structure:
 //! - Magic number pickle (0x1950a86a20f9469cfc6c)
 //! - Protocol version pickle (e.g., 1001)
 //! - System info pickle (endianness, type sizes)
 //! - Model data pickle (state_dict or full model)
 //!
-//! ## 3. Simple Pickle Format
+//! ## 4. Simple Pickle Format
 //! Direct pickle file with a dictionary at the root, commonly used for
 //! manually saved state_dicts.
 //!
@@ -50,6 +57,8 @@ pub enum PytorchError {
     Pickle(PickleError),
     /// Zip archive error
     Zip(zip::result::ZipError),
+    /// TAR archive error
+    Tar(std::io::Error),
     /// Invalid file format
     InvalidFormat(String),
     /// Key not found
@@ -92,6 +101,7 @@ impl std::fmt::Display for PytorchError {
                 e
             ),
             PytorchError::Zip(e) => write!(f, "Zip archive error: {}", e),
+            PytorchError::Tar(e) => write!(f, "TAR archive error: {}", e),
             PytorchError::InvalidFormat(msg) => write!(f, "Invalid PyTorch file format: {}", msg),
             PytorchError::KeyNotFound(key) => write!(
                 f,
@@ -146,6 +156,8 @@ impl PytorchMetadata {
 pub enum FileFormat {
     /// ZIP-based format (PyTorch 1.6+)
     Zip,
+    /// TAR-based format (older torchvision models)
+    Tar,
     /// Legacy format (PyTorch 0.1.10 - 1.5)
     Legacy,
     /// Simple pickle file
@@ -522,7 +534,12 @@ fn load_pytorch_file_with_metadata(
         return Ok((tensors, metadata));
     }
 
-    // If not a zip or zip reading failed, try reading as a plain pickle file
+    // If not a zip or zip reading failed, try TAR format
+    if is_tar_file(path) {
+        return load_tar_pytorch_file_with_metadata(path, top_level_key);
+    }
+
+    // Try reading as a plain pickle file
     let mut file = File::open(path)?;
 
     // Check for PyTorch legacy format (starts with magic number as pickled integer)
@@ -748,7 +765,15 @@ fn load_legacy_pytorch_file_with_metadata(
         _ => vec![],
     };
 
-    // 6. Raw binary data starts here
+    // 6. Skip 8-byte header before raw binary data
+    // PyTorch legacy format has an 8-byte header (possibly protocol version or alignment)
+    // between the storage keys list and the actual tensor data
+    let mut header = [0u8; 8];
+    if reader.read(&mut header).is_ok() {
+        // Header read successfully, data starts after this
+    }
+
+    // 7. Raw binary data starts here
     let data_start_pos = reader.stream_position()?;
     let file_size = reader.seek(SeekFrom::End(0))?;
     let data_size = file_size - data_start_pos;
@@ -760,12 +785,9 @@ fn load_legacy_pytorch_file_with_metadata(
         data_size,
     ));
 
-    // Now re-read the main pickle with lazy data source
-    reader.seek(SeekFrom::Start(main_pickle_pos))?;
-    let main_obj = read_pickle_with_data(&mut reader, data_source.clone())?;
-
-    // Set storage keys for lazy boundary detection
-    // The boundaries will be calculated automatically as tensors are accessed
+    // Set storage keys BEFORE parsing the main pickle
+    // This is critical because track_storage_usage() is called during parsing
+    // and it needs storage_keys to build the storage map
     if let LazyDataSource::LegacyMultiStorage(ref source) = *data_source
         && !storage_keys.is_empty()
     {
@@ -774,6 +796,10 @@ fn load_legacy_pytorch_file_with_metadata(
             .unwrap_or_else(|poisoned| poisoned.into_inner());
         source.set_storage_keys(storage_keys.clone());
     }
+
+    // Now re-read the main pickle with lazy data source
+    reader.seek(SeekFrom::Start(main_pickle_pos))?;
+    let main_obj = read_pickle_with_data(&mut reader, data_source.clone())?;
 
     // Extract tensors normally
     let tensors = extract_tensors_with_data(main_obj, top_level_key)?;
@@ -790,6 +816,128 @@ fn load_legacy_pytorch_file_with_metadata(
     };
 
     Ok((tensors, metadata))
+}
+
+/// Check if a file is a TAR archive
+fn is_tar_file(path: &Path) -> bool {
+    if let Ok(mut file) = File::open(path) {
+        // TAR files have "ustar" magic at offset 257
+        let mut header = [0u8; 263];
+        if file.read_exact(&mut header).is_ok() {
+            // Check for "ustar" magic at offset 257
+            return &header[257..262] == b"ustar";
+        }
+    }
+    false
+}
+
+/// Load a TAR format PyTorch file with metadata
+fn load_tar_pytorch_file_with_metadata(
+    path: &Path,
+    top_level_key: Option<&str>,
+) -> Result<(HashMap<String, TensorSnapshot>, PytorchMetadata)> {
+    use tar::Archive;
+
+    let file = File::open(path)?;
+    let mut archive = Archive::new(BufReader::new(file));
+
+    // Extract the main entries from the TAR archive
+    let mut sys_info_data: Option<Vec<u8>> = None;
+    let mut pickle_data: Option<Vec<u8>> = None;
+    let mut storages_data: Option<Vec<u8>> = None;
+
+    for entry in archive.entries().map_err(PytorchError::Tar)? {
+        let mut entry = entry.map_err(PytorchError::Tar)?;
+        let entry_path = entry
+            .path()
+            .map_err(PytorchError::Tar)?
+            .to_string_lossy()
+            .to_string();
+
+        // Skip PAX headers
+        if entry_path.contains("@PaxHeader") {
+            continue;
+        }
+
+        // Normalize path (remove ./ prefix if present)
+        let normalized = entry_path.trim_start_matches("./");
+
+        match normalized {
+            "sys_info" => {
+                let mut data = Vec::new();
+                entry.read_to_end(&mut data).map_err(PytorchError::Tar)?;
+                sys_info_data = Some(data);
+            }
+            "pickle" => {
+                let mut data = Vec::new();
+                entry.read_to_end(&mut data).map_err(PytorchError::Tar)?;
+                pickle_data = Some(data);
+            }
+            "storages" => {
+                let mut data = Vec::new();
+                entry.read_to_end(&mut data).map_err(PytorchError::Tar)?;
+                storages_data = Some(data);
+            }
+            _ => {}
+        }
+    }
+
+    // Validate required entries
+    let pickle_data = pickle_data.ok_or_else(|| {
+        PytorchError::InvalidFormat("TAR file missing 'pickle' entry".to_string())
+    })?;
+    let storages_data = storages_data.ok_or_else(|| {
+        PytorchError::InvalidFormat("TAR file missing 'storages' entry".to_string())
+    })?;
+
+    // Parse sys_info to check endianness
+    let is_little_endian = if let Some(ref data) = sys_info_data {
+        parse_tar_sys_info(data)?
+    } else {
+        true // Default to little-endian
+    };
+
+    if !is_little_endian {
+        return Err(PytorchError::InvalidFormat(
+            "Big-endian TAR PyTorch files are not supported".to_string(),
+        ));
+    }
+
+    // Create TarSource for lazy loading
+    let data_source = Arc::new(LazyDataSource::from_tar(&storages_data)?);
+
+    // Parse the pickle (OrderedDict of name -> storage_key)
+    let mut pickle_reader = BufReader::new(pickle_data.as_slice());
+    let obj = read_pickle_with_data(&mut pickle_reader, data_source)?;
+
+    // Extract tensors
+    let tensors = extract_tensors_with_data(obj, top_level_key)?;
+
+    let metadata = PytorchMetadata {
+        format_version: None,
+        format_type: FileFormat::Tar,
+        byte_order: ByteOrder::LittleEndian,
+        has_storage_alignment: false,
+        pytorch_version: None,
+        tensor_count: tensors.len(),
+        total_data_size: Some(storages_data.len()),
+    };
+
+    Ok((tensors, metadata))
+}
+
+/// Parse sys_info pickle from TAR format to extract endianness
+fn parse_tar_sys_info(data: &[u8]) -> Result<bool> {
+    let mut reader = BufReader::new(data);
+    let obj = read_pickle(&mut reader)?;
+
+    if let Object::Dict(dict) = obj
+        && let Some(Object::Bool(little_endian)) = dict.get("little_endian")
+    {
+        return Ok(*little_endian);
+    }
+
+    Ok(true) // Default assumption
 }
 
 /// Read pickle data from a PyTorch file as a simplified value

@@ -12,7 +12,7 @@ use burn_backend::{
     TensorMetadata,
     ops::{ConvOptions, conv::calculate_conv_output_sizes},
 };
-use cubecl::std::{CubeOption, CubeOptionExpand, FastDivmod, FastDivmodArgs};
+use cubecl::std::{FastDivmod, FastDivmodArgs};
 use cubecl::{
     calculate_cube_count_elemwise, prelude::*, std::tensor::layout::linear::LinearView,
     tensor_line_size_parallel,
@@ -36,7 +36,7 @@ struct Conv2dArgs {
 fn direct_conv2d_kernel<E: Numeric>(
     input: &Tensor<Line<E>>,
     weight: &Tensor<Line<E>>,
-    bias: CubeOption<Tensor<Line<E>>>,
+    bias: Option<Tensor<Line<E>>>,
     output: &mut LinearView<Line<E>, ReadWrite>,
     args: Conv2dArgs,
     shape_out: Sequence<FastDivmod<u32>>,
@@ -61,10 +61,8 @@ fn direct_conv2d_kernel<E: Numeric>(
     let g = out_c / args.channels_per_group;
     let ic_start = in_c_per_group * g;
 
-    let mut sum = match bias {
-        CubeOption::Some(bias) => bias[out_c as usize / line_size_out],
-        CubeOption::None => Line::empty(line_size_out).fill(E::from_int(0)),
-    };
+    let bias: Option<Line<E>> = bias.map(|bias| bias[out_c as usize / line_size_out]);
+    let mut sum = bias.unwrap_or_else(|| Line::empty(line_size_out).fill(E::from_int(0)));
 
     let in_offs = b as usize * input.stride(0) + ic_start as usize;
 
