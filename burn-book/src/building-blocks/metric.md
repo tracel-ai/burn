@@ -24,11 +24,13 @@ throughout the training process. We currently offer a restricted range of metric
 | Learning Rate       | Fetch the current learning rate for each optimizer step                                     |
 | CUDA                | Fetch general CUDA metrics such as utilization                                              |
 
-| Vision Metric | Description                                                                              |
-| ------------- | ---------------------------------------------------------------------------------------- |
-| Dice          | Computes the Dice-Sorenson coefficient (DSC) for evaluating overlap between binary masks |
-| PSNR          | Computes the peak signal-to-noise-ratio (PSNR) for image quality assessment              |
-| SSIM          | Computes the structural similarity index measure (SSIM) for image quality assessment     |
+| Vision Metric | Description                                                                                         |
+| ------------- | --------------------------------------------------------------------------------------------------- |
+| Dice          | Computes the Dice-Sorenson coefficient (DSC) for evaluating overlap between binary masks            |
+| LPIPS         | Computes the Learned Perceptual Image Patch Similarity (LPIPS) for image quality assessment         |
+| MS-SSIM       | Computes the Multi-scale Structural Similarity index measure (MS-SSIM) for image quality assessment |
+| PSNR          | Computes the Peak Signal-to-Noise Ratio (PSNR) for image quality assessment                         |
+| SSIM          | Computes the Structural Similarity index measure (SSIM) for image quality assessment                |
 
 ## Using Metrics with the Learner
 
