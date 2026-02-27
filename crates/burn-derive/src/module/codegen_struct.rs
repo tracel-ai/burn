@@ -400,7 +400,7 @@ pub(crate) fn parse_module_field_type(
     // Check for generics
     let mut has_backend = false;
     let mut has_module_bound = false;
-    let field_generics = parse_ty_generics(&field.ty, &generics)
+    let field_generics = parse_ty_generics(&field.ty, generics)
         .into_iter()
         .filter_map(|ident| {
             if ident == "B" {
