@@ -4,9 +4,9 @@ Welcome to the Burn community! We're glad you're interested in contributing.
 
 ## How to Contribute
 
-The best way to get started is to look at
-[open issues](https://github.com/tracel-ai/burn/issues) and find one that interests you. Issues
-labeled `good first issue` are a great starting point for new contributors.
+The best way to get started is to look at [open issues](https://github.com/tracel-ai/burn/issues)
+and find one that interests you. Issues labeled `good first issue` are a great starting point for
+new contributors.
 
 If you have an idea that isn't covered by an existing issue, open one first to discuss the approach.
 This helps align expectations and avoids wasted effort on both sides.
