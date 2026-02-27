@@ -131,10 +131,10 @@ fn new_quantized<R: CubeRuntime>(
         None => client.empty_tensors(vec![data_desc, scales_desc]),
     };
     let MemoryLayout {
-        handle: scales_handle,
+        memory: scales_handle,
         strides: scales_strides,
     } = tensors.remove(1);
-    let MemoryLayout { handle, strides } = tensors.remove(0);
+    let MemoryLayout { memory, strides } = tensors.remove(0);
 
     let scales = QParamTensor {
         offset_start: scales_handle.offset_start.unwrap_or(0) as usize,
@@ -146,7 +146,7 @@ fn new_quantized<R: CubeRuntime>(
 
     CubeTensor::new_quantized(
         client,
-        handle,
+        memory,
         shape,
         device.clone(),
         strides,

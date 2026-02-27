@@ -60,8 +60,8 @@ pub fn cast<R: CubeRuntime>(input: CubeTensor<R>, dtype: DType) -> CubeTensor<R>
         cube_count,
         cube_dim,
         address_type!(input, output),
-        linear_view(&input, line_size),
-        linear_view(&output, line_size),
+        linear_view(input, line_size),
+        linear_view(output.clone(), line_size),
         [dtype_input.into(), dtype_output.into()],
     );
 

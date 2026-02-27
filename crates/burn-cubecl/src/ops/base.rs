@@ -17,7 +17,7 @@ pub(crate) fn from_data<R: CubeRuntime>(data: TensorData, device: &R::Device) ->
     let shape: Shape = (&data.shape).into();
     CubeTensor::new(
         client,
-        alloc.handle,
+        alloc.memory,
         Metadata::new(shape, alloc.strides),
         device.clone(),
         data.dtype,
@@ -32,7 +32,7 @@ pub(crate) async fn into_data<R: CubeRuntime>(
     let elem_size = tensor.elem_size();
     let shape = tensor.meta.shape().clone();
     let strides = tensor.meta.strides().clone();
-    let binding = CopyDescriptor::new(tensor.handle.clone(), shape, strides, elem_size);
+    let binding = CopyDescriptor::new(tensor.handle.binding(), shape, strides, elem_size);
     let bytes = tensor
         .client
         .read_one_tensor_async(binding)
@@ -81,7 +81,7 @@ pub(crate) fn empty<R: CubeRuntime>(
 
     CubeTensor::new(
         client,
-        alloc.handle,
+        alloc.memory,
         Metadata::new(shape, alloc.strides),
         device.clone(),
         dtype,
@@ -297,10 +297,10 @@ pub fn reshape<R: CubeRuntime>(mut tensor: CubeTensor<R>, shape: Shape) -> CubeT
     );
 
     cubecl::std::tensor::copy_into(
-        &tensor.client,
-        &tensor.as_handle_ref(),
-        &out.as_handle_ref(),
-        tensor.dtype.into(),
+        &out.client,
+        tensor.binding(),
+        out.clone().binding(),
+        out.dtype.into(),
     );
 
     out

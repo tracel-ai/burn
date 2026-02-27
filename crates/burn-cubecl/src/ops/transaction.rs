@@ -27,10 +27,10 @@ where
         }
 
         #[derive(new)]
-        struct BindingData {
+        struct BindingData<R: CubeRuntime> {
             index: usize,
             kind: Kind,
-            handle: Option<Handle>,
+            handle: Option<Handle<R>>,
             shape: Shape,
             strides: Strides,
             dtype: DType,
@@ -101,7 +101,7 @@ where
             .iter_mut()
             .map(|b| {
                 CopyDescriptor::new(
-                    b.handle.take().unwrap(),
+                    b.handle.take().unwrap().binding(),
                     b.shape.clone(),
                     b.strides.clone(),
                     b.dtype.size(),

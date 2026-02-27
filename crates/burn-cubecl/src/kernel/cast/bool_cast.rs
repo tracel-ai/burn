@@ -38,15 +38,17 @@ pub fn bool_cast<R: CubeRuntime, EO: CubeElement>(tensor: CubeTensor<R>) -> Cube
     let cube_dim = CubeDim::new(&tensor.client, working_units);
     let cube_count = calculate_cube_count_elemwise(&tensor.client, working_units, cube_dim);
 
+    let dtype = tensor.dtype;
+
     unsafe {
         bool_cast_kernel::launch_unchecked::<EO, R>(
-            &tensor.client,
+            &output.client,
             cube_count,
             cube_dim,
             address_type!(tensor, output),
-            linear_view(&tensor, line_size),
-            linear_view(&output, line_size),
-            tensor.dtype.into(),
+            linear_view(tensor, line_size),
+            linear_view(output.clone(), line_size),
+            dtype.into(),
         )
     };
 

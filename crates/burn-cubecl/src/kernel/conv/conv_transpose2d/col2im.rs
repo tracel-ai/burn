@@ -194,16 +194,17 @@ fn col2im<R: CubeRuntime>(
     let cube_dim = CubeDim::new(&columns.client, num_elems);
     let cube_count = calculate_cube_count_elemwise(&columns.client, num_elems, cube_dim);
 
+    let shape = shape_divmod(&out);
     unsafe {
         col2im_kernel::launch_unchecked(
-            &columns.client,
+            &columns.client.clone(),
             cube_count,
             cube_dim,
             address_type!(columns, bias, out),
-            columns.as_tensor_arg(1),
-            bias.as_ref().map(|bias| bias.as_tensor_arg(1)).into(),
-            linear_view(&out, 1),
-            shape_divmod(&out),
+            columns.into_tensor_arg(1),
+            bias.map(|bias| bias.into_tensor_arg(1)).into(),
+            linear_view(out, 1),
+            shape,
             Col2ImArgsLaunch::new(
                 ScalarArg::new(out_h),
                 ScalarArg::new(out_w),

@@ -158,16 +158,17 @@ pub fn conv_transpose2d_direct<R: CubeRuntime>(
     let num_elems = output.meta.num_elements();
     let cube_dim = CubeDim::new(&input.client, num_elems);
     let cube_count = calculate_cube_count_elemwise(&input.client, num_elems, cube_dim);
+    let dtype = input.dtype;
 
     conv_transpose2d_direct_kernel::launch(
-        &input.client,
+        &output.client,
         cube_count,
         cube_dim,
         address_type!(input, weight, bias, output),
-        input.as_tensor_arg(1),
-        weight.as_tensor_arg(1),
-        bias.as_ref().map(|bias| bias.as_tensor_arg(1)).into(),
-        linear_view(&output, 1),
+        input.into_tensor_arg(1),
+        weight.into_tensor_arg(1),
+        bias.map(|bias| bias.into_tensor_arg(1)).into(),
+        linear_view(output.clone(), 1),
         shape_divmod(&output),
         ConvArgsLaunch::new(
             ScalarArg::new(options.stride[0]),
@@ -178,7 +179,7 @@ pub fn conv_transpose2d_direct<R: CubeRuntime>(
             ScalarArg::new(options.padding[1]),
             ScalarArg::new(options.groups),
         ),
-        input.dtype.into(),
+        dtype.into(),
     );
 
     Ok(output)
