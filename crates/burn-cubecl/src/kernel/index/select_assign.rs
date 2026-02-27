@@ -77,19 +77,22 @@ pub(crate) fn select_assign<R: CubeRuntime>(
         false => select_assign_kernel::launch_unchecked::<AddOp, R>,
     };
 
+    let (tensor_dtype, indices_dtype) = (tensor.dtype, indices.dtype);
+
+    let shape = shape_divmod(&value);
     unsafe {
         launch(
             &tensor.client,
             cube_count,
             cube_dim,
             address_type!(tensor, indices, value),
-            tensor.as_tensor_arg(1),
-            linear_view(&indices, 1),
-            value.as_tensor_arg(1),
-            shape_divmod(&value),
+            tensor.clone().into_tensor_arg(1),
+            linear_view(indices, 1),
+            value.into_tensor_arg(1),
+            shape,
             ScalarArg::new(num_elems),
             dim,
-            [tensor.dtype.into(), indices.dtype.into()],
+            [tensor_dtype.into(), indices_dtype.into()],
         )
     };
 

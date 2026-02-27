@@ -90,18 +90,20 @@ pub(crate) fn scatter<R: CubeRuntime>(
         false => scatter_kernel::launch_unchecked::<AddOp, R>,
     };
 
+    let (tensor_dtype, indices_dtype) = (tensor.dtype, indices.dtype);
+
     unsafe {
         launch(
-            &indices.client.clone(),
+            &tensor.client.clone(),
             cube_count,
             cube_dim,
             address_type!(tensor, indices, value),
-            tensor.as_tensor_arg(1),
-            indices.as_tensor_arg(1),
-            value.as_tensor_arg(1),
+            tensor.clone().into_tensor_arg(1),
+            indices.into_tensor_arg(1),
+            value.into_tensor_arg(1),
             shape_divmod(&tensor),
             dim,
-            [tensor.dtype.into(), indices.dtype.into()],
+            [tensor_dtype.into(), indices_dtype.into()],
         )
     }
     tensor

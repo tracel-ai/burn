@@ -55,19 +55,21 @@ pub(crate) fn gather<R: CubeRuntime>(
     let mut in_strides = broadcast_strides(&output, &tensor);
     in_strides.values[dim] = ScalarArg::new(0); // Zero `dim` to exclude it from the indexing
 
+    let (dtype, indices_dtype) = (tensor.dtype, indices.dtype);
+
     unsafe {
         gather_kernel::launch_unchecked(
-            &tensor.client,
+            &output.client,
             cube_count,
             cube_dim,
             address_type!(tensor, indices, output),
-            tensor.as_tensor_arg(1),
-            linear_view(&indices, 1),
-            linear_view(&output, 1),
+            tensor.into_tensor_arg(1),
+            linear_view(indices, 1),
+            linear_view(output.clone(), 1),
             in_strides,
             shape_divmod(&output),
             ScalarArg::new(dim),
-            [tensor.dtype.into(), indices.dtype.into()],
+            [dtype.into(), indices_dtype.into()],
         )
     }
 

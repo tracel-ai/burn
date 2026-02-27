@@ -300,14 +300,14 @@ pub fn conv_direct<R: CubeRuntime, const N: usize>(
 
     unsafe {
         direct_conv2d_kernel::launch_unchecked(
-            &input.client,
+            &output.client,
             cube_count,
             cube_dim,
             address_type!(input, weight, bias, output),
-            input.as_tensor_arg(line_size_in),
-            weight.as_tensor_arg(line_size_in),
-            bias.as_ref().map(|b| b.as_tensor_arg(line_size_out)).into(),
-            linear_view(&output, line_size_out),
+            input.into_tensor_arg(line_size_in),
+            weight.into_tensor_arg(line_size_in),
+            bias.map(|b| b.into_tensor_arg(line_size_out)).into(),
+            linear_view(output.clone(), line_size_out),
             Conv2dArgsLaunch::new(conv_params, ScalarArg::new(channels_per_group as u32)),
             shape_out,
             shape_out_c,

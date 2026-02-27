@@ -80,15 +80,16 @@ pub(crate) fn flip_on_output<R: CubeRuntime>(
     let cube_dim = CubeDim::new(&tensor.client, num_elements);
     let cube_count = calculate_cube_count_elemwise(&tensor.client, num_elements, cube_dim);
 
+    let shape = shape_divmod(&tensor);
     unsafe {
         flip_kernel::launch_unchecked(
-            &tensor.client,
+            &output.client,
             cube_count,
             cube_dim,
             address_type!(tensor, output),
             tensor.into_tensor_arg(1),
-            linear_view(&output, 1),
-            shape_divmod(&tensor),
+            linear_view(output.clone(), 1),
+            shape,
             indices_sequence,
             [dtype_input.into(), dtype_bool.into()],
         )

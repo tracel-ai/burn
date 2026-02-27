@@ -7,7 +7,7 @@ use cubek::{
     },
     matmul::{
         definition::{MatmulElems, MatmulGlobalElems},
-        launch::MatmulInputHandleRef,
+        launch::MatmulInputBinding,
     },
 };
 

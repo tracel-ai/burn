@@ -104,18 +104,19 @@ pub(crate) fn slice_on_output<R: CubeRuntime>(
     let working_units = output.meta.num_elements();
     let cube_dim = CubeDim::new(&tensor.client, working_units);
     let cube_count = calculate_cube_count_elemwise(&tensor.client, working_units, cube_dim);
+    let dtype = tensor.dtype;
 
     unsafe {
         slice_kernel::launch_unchecked(
-            &tensor.client,
+            &output.client,
             cube_count,
             cube_dim,
             address_type!(tensor, output),
-            tensor.as_tensor_arg(1),
-            linear_view(&output, 1),
+            tensor.into_tensor_arg(1),
+            linear_view(output.clone(), 1),
             shape_divmod(&output),
             indices_sequence,
-            tensor.dtype.into(),
+            dtype.into(),
         )
     };
 
@@ -218,20 +219,21 @@ pub fn slice_with_steps<R: CubeRuntime>(tensor: CubeTensor<R>, slices: &[Slice])
     let working_units = shape_output.num_elements();
     let cube_dim = CubeDim::new(&tensor.client, working_units);
     let cube_count = calculate_cube_count_elemwise(&tensor.client, working_units, cube_dim);
+    let dtype = tensor.dtype;
 
     unsafe {
         slice_with_steps_kernel::launch_unchecked(
-            &tensor.client,
+            &output.client,
             cube_count,
             cube_dim,
             address_type!(tensor, output),
-            tensor.as_tensor_arg(1),
-            linear_view(&output, 1),
+            tensor.into_tensor_arg(1),
+            linear_view(output.clone(), 1),
             shape_divmod(&output),
             starts,
             ends,
             steps,
-            tensor.dtype.into(),
+            dtype.into(),
         );
     }
 

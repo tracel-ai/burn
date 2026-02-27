@@ -122,7 +122,7 @@ pub fn broadcast_shape<R: CubeRuntime>(tensors: &[&CubeTensor<R>]) -> Shape {
 
 pub fn broadcast_strides<'a, R: CubeRuntime>(
     reference: &CubeTensor<R>,
-    tensor: &'a CubeTensor<R>,
+    tensor: &CubeTensor<R>,
 ) -> SequenceArg<'a, R, usize> {
     if reference.meta.shape() != tensor.meta.shape() {
         tensor

@@ -158,18 +158,20 @@ pub(crate) fn grid_sample_bilinear_launch<R: CubeRuntime>(
 
     let padding_mode: PaddingMode = options.padding_mode.into();
 
+    let dtype = input.dtype;
+
     grid_sample_bilinear_kernel::launch(
-        &input.client,
+        &output.client,
         cube_count,
         cube_dim,
         address_type!(input, grid, output),
-        input.as_tensor_arg(1),
-        grid.as_tensor_arg(1),
-        output.as_tensor_arg(1),
+        input.into_tensor_arg(1),
+        grid.into_tensor_arg(1),
+        output.clone().into_tensor_arg(1),
         shape_spatial,
         options.align_corners,
         padding_mode,
-        input.dtype.into(),
+        dtype.into(),
     );
 
     output

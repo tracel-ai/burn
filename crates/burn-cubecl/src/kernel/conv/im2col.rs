@@ -6,7 +6,7 @@ use burn_std::{Metadata, Shape};
 use core::iter;
 use cubecl::{
     prelude::*,
-    std::tensor::{TensorHandle, into_contiguous_pitched_ref},
+    std::tensor::{TensorHandle, into_contiguous_pitched},
 };
 use cubek::convolution::components::ConvSetupError;
 
@@ -132,7 +132,7 @@ pub fn conv_im2col_1x1<R: CubeRuntime, const N: usize>(
 }
 
 /// Reshapes NHWC input to [(N, H, W), C]
-fn reshape_input<R: CubeRuntime>(mut input: CubeTensor<R>) -> CubeTensor<R> {
+fn reshape_input<R: CubeRuntime>(input: CubeTensor<R>) -> CubeTensor<R> {
     let rank = input.meta.num_dims();
     let dim_c = rank - 1;
     let dtype = input.dtype;
@@ -141,11 +141,14 @@ fn reshape_input<R: CubeRuntime>(mut input: CubeTensor<R>) -> CubeTensor<R> {
     let in_c: usize = input.meta.shape()[dim_c];
     let in_shape: Shape = input.meta.shape()[1..dim_c].into();
 
-    if !is_spatial_contiguous(input.meta.shape(), input.meta.strides()) {
-        let contiguous =
-            into_contiguous_pitched_ref(&input.client, &input.as_handle_ref(), dtype.into());
-        input = from_handle(&input.client, &input.device, contiguous, dtype);
-    }
+    let mut input = if !is_spatial_contiguous(input.meta.shape(), input.meta.strides()) {
+        let (client, device) = (input.client.clone(), input.device.clone());
+        let contiguous = into_contiguous_pitched(&client, input.binding(), dtype.into());
+        from_handle(client, device, contiguous, dtype)
+    } else {
+        input
+    };
+
     *input.meta = Metadata::new(
         [batch_size * in_shape.num_elements(), in_c], // [M, K]
         [input.meta.strides()[dim_c - 1], input.meta.strides()[dim_c]],
@@ -171,8 +174,8 @@ fn is_spatial_contiguous(shape: &[usize], strides: &[usize]) -> bool {
 }
 
 fn from_handle<R: CubeRuntime>(
-    client: &ComputeClient<R>,
-    device: &R::Device,
+    client: ComputeClient<R>,
+    device: R::Device,
     handle: TensorHandle<R>,
     dtype: DType,
 ) -> CubeTensor<R> {

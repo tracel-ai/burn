@@ -221,14 +221,14 @@ pub(crate) fn deform_im2col<R: CubeRuntime>(
     let cube_count = calculate_cube_count_elemwise(&input.client, num_kernels, cube_dim);
 
     deform_im2col_kernel::launch(
-        &input.client,
+        &output.client,
         cube_count,
         cube_dim,
         address_type!(input, offset, mask, output),
-        input.as_tensor_arg(1),
-        offset.as_tensor_arg(1),
-        mask.as_ref().map(|mask| mask.as_tensor_arg(1)).into(),
-        output.as_handle_ref().as_tensor_arg(1),
+        input.into_tensor_arg(1),
+        offset.into_tensor_arg(1),
+        mask.map(|mask| mask.into_tensor_arg(1)).into(),
+        output.clone().binding().into_tensor_arg(1),
         pos_shape,
         DeformConv2dArgsLaunch::new(
             ScalarArg::new(options.stride[0]),
