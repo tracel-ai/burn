@@ -1,7 +1,6 @@
 use crate::{
     checkpoint::strategy::{CheckpointStrategy, NoCheckpointing},
     grads::Gradients,
-    runtime::AutodiffClient,
     tensor::AutodiffTensor,
 };
 use alloc::{format, string::String};
@@ -35,7 +34,7 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
 
     type QuantizedTensorPrimitive = B::QuantizedTensorPrimitive;
 
-    fn ad_enabled() -> bool {
+    fn ad_enabled(_device: &Self::Device) -> bool {
         true
     }
 
@@ -88,20 +87,18 @@ impl<B: Backend, C: CheckpointStrategy> AutodiffBackend for Autodiff<B, C> {
     type Gradients = Gradients;
 
     fn backward(tensor: AutodiffTensor<B>) -> Gradients {
-        let client = tensor.node.client.clone();
-
-        AutodiffClient::backward::<B>(&client, tensor)
+        tensor.backward()
     }
 
     fn grad(tensor: &AutodiffTensor<B>, grads: &Gradients) -> Option<B::FloatTensorPrimitive> {
-        grads.get::<B>(tensor)
+        tensor.grad(grads)
     }
 
     fn grad_remove(
         tensor: &AutodiffTensor<B>,
         grads: &mut Gradients,
     ) -> Option<B::FloatTensorPrimitive> {
-        grads.remove::<B>(tensor)
+        tensor.grad_remove(grads)
     }
     fn inner(tensor: AutodiffTensor<B>) -> B::FloatTensorPrimitive {
         tensor.primitive
@@ -116,8 +113,7 @@ impl<B: Backend, C: CheckpointStrategy> AutodiffBackend for Autodiff<B, C> {
         grads: &mut Self::Gradients,
         grad: B::FloatTensorPrimitive,
     ) {
-        grads.remove::<B>(tensor);
-        grads.register::<B>(tensor.node.id, grad);
+        tensor.grad_replace(grads, grad);
     }
 
     fn int_inner(tensor: IntTensor<Self>) -> IntTensor<Self::InnerBackend> {

@@ -85,6 +85,22 @@ impl std::error::Error for PickleError {}
 
 type Result<T> = std::result::Result<T, PickleError>;
 
+/// Convert PyTorch storage type name to element size in bytes.
+///
+/// This is used to calculate storage sizes for lazy loading.
+/// The storage type names follow PyTorch's naming convention (e.g., "FloatStorage", "BFloat16Storage").
+///
+/// Returns an error for unknown storage types to avoid silently loading garbage data.
+pub fn storage_type_to_element_size(storage_type: &str) -> std::result::Result<usize, String> {
+    match storage_type {
+        "DoubleStorage" | "LongStorage" | "ComplexFloatStorage" => Ok(8),
+        "FloatStorage" | "IntStorage" | "ComplexHalfStorage" => Ok(4),
+        "HalfStorage" | "BFloat16Storage" | "ShortStorage" => Ok(2),
+        "ByteStorage" | "CharStorage" | "BoolStorage" => Ok(1),
+        _ => Err(format!("Unknown storage type: {}", storage_type)),
+    }
+}
+
 // https://docs.juliahub.com/Pickle/LAUNc/0.1.0/opcode/
 #[repr(u8)]
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -251,6 +267,10 @@ fn rebuild_from_type_v2(
             };
             if module_name == "torch._utils" && name == "_rebuild_tensor_v2" {
                 rebuild_tensor_v2(actual_args, memo, data_source)
+            } else if module_name == "torch._utils" && name == "_rebuild_tensor" {
+                // Legacy _rebuild_tensor (PyTorch < 1.6)
+                // Same as v2 but with fewer arguments: (storage, storage_offset, size, stride)
+                rebuild_tensor(actual_args, memo, data_source)
             } else if module_name == "torch._tensor" && name == "_rebuild_from_type_v2" {
                 rebuild_from_type_v2(actual_args, memo, data_source)
             } else if module_name == "torch._utils" && name == "_rebuild_parameter" {
@@ -301,12 +321,85 @@ fn rebuild_parameter(
     Ok(tensor)
 }
 
+/// Parse storage argument and extract storage info and tuple.
+fn parse_storage_arg(arg: &Object, fn_name: &str) -> Result<(Vec<u8>, Option<Vec<Object>>)> {
+    match arg {
+        Object::Persistent(data) => Ok((data.clone(), None)),
+        Object::PersistentTuple(tuple) => Ok((vec![], Some(tuple.clone()))),
+        // Also accept regular Tuple for TAR format compatibility
+        Object::Tuple(tuple) => Ok((vec![], Some(tuple.clone()))),
+        _ => Err(PickleError::InvalidData(format!(
+            "{}: expected persistent id got {:?}",
+            fn_name, arg
+        ))),
+    }
+}
+
+/// Parse shape argument.
+fn parse_shape_arg(arg: &Object, fn_name: &str) -> Result<Vec<usize>> {
+    match arg {
+        Object::Tuple(shape) => shape
+            .iter()
+            .map(|x| match x {
+                Object::Int(i) => Ok(*i as usize),
+                _ => Err(PickleError::InvalidData(
+                    "shape must contain ints".to_string(),
+                )),
+            })
+            .collect::<Result<Vec<_>>>(),
+        _ => Err(PickleError::InvalidData(format!(
+            "{}: expected shape tuple got {:?}",
+            fn_name, arg
+        ))),
+    }
+}
+
+/// Legacy _rebuild_tensor function for PyTorch < 1.6.
+/// Thin wrapper that parses 4 arguments and calls rebuild_tensor_impl.
+fn rebuild_tensor(
+    args: Object,
+    _memo: &mut HashMap<u32, Object>,
+    data_source: &Option<Arc<LazyDataSource>>,
+) -> Result<Object> {
+    let args = if let Object::Tuple(args) = args {
+        args
+    } else {
+        return Err(PickleError::InvalidData(format!(
+            "rebuild_tensor: expected tuple got {:?}",
+            args
+        )));
+    };
+
+    if args.len() < 4 {
+        return Err(PickleError::InvalidData(format!(
+            "rebuild_tensor: expected at least 4 args, got {}",
+            args.len()
+        )));
+    }
+
+    let (storage_info, storage_tuple) = parse_storage_arg(&args[0], "rebuild_tensor")?;
+    let storage_offset = match &args[1] {
+        Object::Int(offset) => *offset as usize,
+        _ => 0,
+    };
+    let shape = parse_shape_arg(&args[2], "rebuild_tensor")?;
+
+    rebuild_tensor_impl(
+        storage_info,
+        storage_tuple,
+        storage_offset,
+        shape,
+        data_source,
+    )
+}
+
+/// Modern _rebuild_tensor_v2 function for PyTorch >= 1.6.
+/// Thin wrapper that parses 5+ arguments and calls rebuild_tensor_impl.
 fn rebuild_tensor_v2(
     args: Object,
     _memo: &mut HashMap<u32, Object>,
     data_source: &Option<Arc<LazyDataSource>>,
 ) -> Result<Object> {
-    // args is (storage, storage_offset, shape, stride, requires_grad, backward_hooks)
     let args = if let Object::Tuple(args) = args {
         args
     } else {
@@ -323,46 +416,54 @@ fn rebuild_tensor_v2(
         )));
     }
 
-    // First argument is the storage (persistent ID)
-    let (storage_info, storage_tuple) = match &args[0] {
-        Object::Persistent(data) => (data.clone(), None),
-        Object::PersistentTuple(tuple) => (vec![], Some(tuple.clone())),
-        _ => {
-            return Err(PickleError::InvalidData(format!(
-                "rebuild_tensor_v2: expected persistent id got {:?}",
-                args[0]
-            )));
-        }
-    };
-
-    // Second argument is storage offset
+    let (storage_info, storage_tuple) = parse_storage_arg(&args[0], "rebuild_tensor_v2")?;
     let storage_offset = match &args[1] {
         Object::Int(offset) => *offset as usize,
         _ => 0,
     };
+    let shape = parse_shape_arg(&args[2], "rebuild_tensor_v2")?;
+    // args[3] is stride (unused)
+    // args[4] is requires_grad (unused)
+    // args[5] is backward_hooks (unused)
 
-    // Third argument is shape
-    let shape = match &args[2] {
-        Object::Tuple(shape) => shape
-            .iter()
-            .map(|x| match x {
-                Object::Int(i) => Ok(*i as usize),
-                _ => Err(PickleError::InvalidData(
-                    "shape must contain ints".to_string(),
-                )),
-            })
-            .collect::<Result<Vec<_>>>()?,
-        _ => {
-            return Err(PickleError::InvalidData(format!(
-                "rebuild_tensor_v2: expected shape tuple got {:?}",
-                args[2]
-            )));
-        }
-    };
+    rebuild_tensor_impl(
+        storage_info,
+        storage_tuple,
+        storage_offset,
+        shape,
+        data_source,
+    )
+}
 
-    // Fourth argument is stride (we don't use it but validate it exists)
-    let _stride = matches!(&args[3], Object::Tuple(_));
+/// Helper to convert storage type name to DType.
+fn storage_type_to_dtype(storage_type: &str) -> Result<DType> {
+    match storage_type {
+        "FloatStorage" => Ok(DType::F32),
+        "DoubleStorage" => Ok(DType::F64),
+        "HalfStorage" => Ok(DType::F16),
+        "BFloat16Storage" => Ok(DType::BF16),
+        "LongStorage" => Ok(DType::I64),
+        "IntStorage" => Ok(DType::I32),
+        "ShortStorage" => Ok(DType::I16),
+        "CharStorage" => Ok(DType::I8),
+        "ByteStorage" => Ok(DType::U8),
+        "BoolStorage" => Ok(DType::Bool),
+        _ => Err(PickleError::InvalidData(format!(
+            "Unknown storage type: {}",
+            storage_type
+        ))),
+    }
+}
 
+/// Core implementation for rebuilding tensors.
+/// Shared by both rebuild_tensor (legacy) and rebuild_tensor_v2 (modern).
+fn rebuild_tensor_impl(
+    storage_info: Vec<u8>,
+    storage_tuple: Option<Vec<Object>>,
+    storage_offset: usize,
+    shape: Vec<usize>,
+    data_source: &Option<Arc<LazyDataSource>>,
+) -> Result<Object> {
     // Parse the storage info to extract dtype and storage key
     // The persistent ID is typically a tuple like: ('storage', 'FloatStorage', '0', 'cpu', 4)
     let (dtype, storage_key) = if let Some(tuple) = storage_tuple {
@@ -374,28 +475,29 @@ fn rebuild_tensor_v2(
                     module_name: _,
                     name,
                 } => name.as_str(),
-                _ => "FloatStorage",
+                other => {
+                    return Err(PickleError::InvalidData(format!(
+                        "Expected storage type as String or Class, got {:?}",
+                        other
+                    )));
+                }
             };
-            let dtype = match storage_type {
-                "FloatStorage" => DType::F32,
-                "DoubleStorage" => DType::F64,
-                "HalfStorage" => DType::F16,
-                "BFloat16Storage" => DType::BF16,
-                "LongStorage" => DType::I64,
-                "IntStorage" => DType::I32,
-                "ShortStorage" => DType::I16,
-                "CharStorage" => DType::I8,
-                "ByteStorage" => DType::U8,
-                "BoolStorage" => DType::Bool,
-                _ => DType::F32, // Default to F32
-            };
+            let dtype = storage_type_to_dtype(storage_type)?;
             let key = match &tuple[2] {
                 Object::String(s) => s.clone(),
-                _ => "0".to_string(),
+                other => {
+                    return Err(PickleError::InvalidData(format!(
+                        "Expected storage key as String, got {:?}",
+                        other
+                    )));
+                }
             };
             (dtype, key)
         } else {
-            (DType::F32, "0".to_string())
+            return Err(PickleError::InvalidData(format!(
+                "Storage tuple too short, expected at least 3 elements, got {}",
+                tuple.len()
+            )));
         }
     } else if !storage_info.is_empty() {
         // Legacy string-based parsing
@@ -420,27 +522,24 @@ fn rebuild_tensor_v2(
                 .collect();
 
             if parts.len() >= 3 {
-                let dtype = match parts[1] {
-                    "FloatStorage" => DType::F32,
-                    "DoubleStorage" => DType::F64,
-                    "HalfStorage" => DType::F16,
-                    "BFloat16Storage" => DType::BF16,
-                    "LongStorage" => DType::I64,
-                    "IntStorage" => DType::I32,
-                    "ShortStorage" => DType::I16,
-                    "CharStorage" => DType::I8,
-                    "ByteStorage" => DType::U8,
-                    _ => DType::F32, // Default to F32
-                };
+                let dtype = storage_type_to_dtype(parts[1])?;
                 (dtype, parts[2].to_string())
             } else {
-                (DType::F32, "0".to_string())
+                return Err(PickleError::InvalidData(format!(
+                    "Storage info tuple too short, expected at least 3 parts, got {}",
+                    parts.len()
+                )));
             }
         } else {
-            (DType::F32, "0".to_string())
+            return Err(PickleError::InvalidData(format!(
+                "Invalid storage info format: {}",
+                storage_str
+            )));
         }
     } else {
-        (DType::F32, "0".to_string())
+        return Err(PickleError::InvalidData(
+            "No storage information available".to_string(),
+        ));
     };
 
     // If no data source, we can't load tensor data
@@ -487,7 +586,6 @@ fn rebuild_tensor_v2(
     }
 
     // Create a TensorSnapshot with a closure that loads the actual data on-demand
-    // TODO extract this long code into stand along function (part of a bigger refactor)
     Ok(Object::TorchParam(TensorSnapshot::from_closure(
         Rc::new(move || {
             // Load data only when needed
@@ -924,25 +1022,77 @@ pub fn skip_pickle<R: BufRead>(r: &mut R) -> Result<()> {
         // PROTO marker - read protocol version
         let mut proto_version = [0u8; 1];
         r.read_exact(&mut proto_version)?;
-    } else {
-        // Not a PROTO marker, we need to handle this byte
-        // Put it back by using a small state machine
-        // For now, we'll track that we've seen a non-proto byte
     }
+    // If not PROTO, the first byte is an opcode - continue to main loop
+
+    // Helper to skip until newline
+    fn skip_line<R: BufRead>(r: &mut R) -> Result<()> {
+        let mut buf = Vec::new();
+        r.read_until(b'\n', &mut buf)?;
+        Ok(())
+    }
+
+    // Helper to skip length-prefixed data
+    fn skip_length_prefixed<R: BufRead>(r: &mut R, length: usize) -> Result<()> {
+        let mut skip_buf = vec![0u8; length.min(8192)];
+        let mut skipped = 0;
+        while skipped < length {
+            let to_skip = (length - skipped).min(skip_buf.len());
+            r.read_exact(&mut skip_buf[..to_skip])?;
+            skipped += to_skip;
+        }
+        Ok(())
+    }
+
+    // Process first byte if it wasn't PROTO
+    let mut pending_byte = if first_byte[0] != 0x80 {
+        Some(first_byte[0])
+    } else {
+        None
+    };
 
     // Scan until we find STOP (0x2e) opcode
     loop {
-        let mut byte = [0u8; 1];
-        r.read_exact(&mut byte)?;
+        let byte = if let Some(b) = pending_byte.take() {
+            b
+        } else {
+            let mut byte = [0u8; 1];
+            r.read_exact(&mut byte)?;
+            byte[0]
+        };
 
-        match byte[0] {
+        match byte {
             0x2e => {
                 // STOP - end of pickle
                 break;
             }
+            // === Newline-terminated string opcodes ===
+            0x63 => {
+                // GLOBAL - two newline-terminated strings (module\nname\n)
+                skip_line(r)?;
+                skip_line(r)?;
+            }
+            0x69 => {
+                // INST - two newline-terminated strings
+                skip_line(r)?;
+                skip_line(r)?;
+            }
+            0x53 => {
+                // STRING - quoted string ending with newline
+                skip_line(r)?;
+            }
+            0x46 | 0x49 | 0x4c => {
+                // FLOAT, INT, LONG - newline-terminated ASCII
+                skip_line(r)?;
+            }
+            0x50 => {
+                // PERSID - newline-terminated persistent ID
+                skip_line(r)?;
+            }
+            // === Length-prefixed binary opcodes ===
             0x58 | 0x42 | 0x43 | 0x54 | 0x55 | 0x56 | 0x8c | 0x8d | 0x8e => {
                 // String/bytes opcodes with length prefixes
-                let length = match byte[0] {
+                let length = match byte {
                     0x43 | 0x55 | 0x8c => {
                         // SHORT versions - 1 byte length
                         let mut len_byte = [0u8; 1];
@@ -963,61 +1113,94 @@ pub fn skip_pickle<R: BufRead>(r: &mut R) -> Result<()> {
                     }
                     _ => 0,
                 };
-
-                // Skip the actual data
-                let mut skip_buf = vec![0u8; length.min(8192)];
-                let mut skipped = 0;
-                while skipped < length {
-                    let to_skip = (length - skipped).min(skip_buf.len());
-                    r.read_exact(&mut skip_buf[..to_skip])?;
-                    skipped += to_skip;
-                }
+                skip_length_prefixed(r, length)?;
             }
-            0x4b | 0x4d | 0x4e => {
-                // BININT1, BININT2, BININT4 - skip the integer bytes
-                let skip_count = match byte[0] {
-                    0x4b => 1,
-                    0x4d => 2,
-                    0x4e => 4,
-                    _ => 0,
-                };
-                let mut skip_buf = vec![0u8; skip_count];
-                r.read_exact(&mut skip_buf)?;
+            // === Fixed-size integer opcodes ===
+            0x4b => {
+                // BININT1 - 1 byte
+                let mut buf = [0u8; 1];
+                r.read_exact(&mut buf)?;
             }
-            0x47 => {
-                // BINFLOAT - skip 8 bytes
-                let mut skip_buf = [0u8; 8];
-                r.read_exact(&mut skip_buf)?;
+            0x4d => {
+                // BININT2 - 2 bytes
+                let mut buf = [0u8; 2];
+                r.read_exact(&mut buf)?;
             }
             0x4a => {
-                // BININT - skip 4 bytes (signed)
-                let mut skip_buf = [0u8; 4];
-                r.read_exact(&mut skip_buf)?;
+                // BININT - 4 bytes (signed int)
+                let mut buf = [0u8; 4];
+                r.read_exact(&mut buf)?;
             }
+            0x47 => {
+                // BINFLOAT - 8 bytes
+                let mut buf = [0u8; 8];
+                r.read_exact(&mut buf)?;
+            }
+            // === Variable-length integer opcodes ===
             0x8a => {
                 // LONG1 - 1 byte length, then that many bytes
                 let mut len_byte = [0u8; 1];
                 r.read_exact(&mut len_byte)?;
                 let length = len_byte[0] as usize;
-                let mut skip_buf = vec![0u8; length];
-                r.read_exact(&mut skip_buf)?;
+                skip_length_prefixed(r, length)?;
             }
             0x8b => {
                 // LONG4 - 4 byte length, then that many bytes
                 let mut len_bytes = [0u8; 4];
                 r.read_exact(&mut len_bytes)?;
                 let length = u32::from_le_bytes(len_bytes) as usize;
-                let mut skip_buf = vec![0u8; length.min(8192)];
-                let mut skipped = 0;
-                while skipped < length {
-                    let to_skip = (length - skipped).min(skip_buf.len());
-                    r.read_exact(&mut skip_buf[..to_skip])?;
-                    skipped += to_skip;
-                }
+                skip_length_prefixed(r, length)?;
+            }
+            // === Memo opcodes ===
+            0x71 | 0x68 => {
+                // BINPUT, BINGET - 1 byte index
+                let mut buf = [0u8; 1];
+                r.read_exact(&mut buf)?;
+            }
+            0x72 | 0x6a => {
+                // LONG_BINPUT, LONG_BINGET - 4 byte index
+                let mut buf = [0u8; 4];
+                r.read_exact(&mut buf)?;
+            }
+            0x67 | 0x70 => {
+                // GET, PUT - newline-terminated decimal index
+                skip_line(r)?;
+            }
+            // === Extension opcodes ===
+            0x82 => {
+                // EXT1 - 1 byte code
+                let mut buf = [0u8; 1];
+                r.read_exact(&mut buf)?;
+            }
+            0x83 => {
+                // EXT2 - 2 byte code
+                let mut buf = [0u8; 2];
+                r.read_exact(&mut buf)?;
+            }
+            0x84 => {
+                // EXT4 - 4 byte code
+                let mut buf = [0u8; 4];
+                r.read_exact(&mut buf)?;
+            }
+            // === Frame opcode (protocol 4+) ===
+            0x95 => {
+                // FRAME - 8 byte frame size (we don't actually use framing, just skip the size)
+                let mut buf = [0u8; 8];
+                r.read_exact(&mut buf)?;
+            }
+            // === Opcodes with no additional data ===
+            // These just manipulate the stack or are markers
+            0x28 | 0x29 | 0x30 | 0x31 | 0x32 | // MARK, TUPLE, POP, POP_MARK, DUP
+            0x4e | 0x52 | 0x5d | 0x5b | 0x7d | // NONE, REDUCE, LIST, EMPTY_LIST, EMPTY_DICT
+            0x61 | 0x62 | 0x64 | 0x65 | 0x73 | // APPEND, BUILD, DICT, APPENDS, SETITEM
+            0x74 | 0x75 | 0x85 | 0x86 | 0x87 | // TUPLE, SETITEMS, TUPLE1, TUPLE2, TUPLE3
+            0x88 | 0x89 | 0x8f | 0x90 | 0x91 | // NEWTRUE, NEWFALSE, STACK_GLOBAL, MEMOIZE, EMPTY_SET
+            0x92 | 0x93 | 0x94 | 0x51 | 0x81 => { // ADDITEMS, FROZENSET, NEWOBJ, BINPERSID, NEWOBJ_EX
+                // No additional data to skip
             }
             _ => {
-                // Other opcodes - most don't have additional data
-                // or are stack manipulation opcodes we can ignore
+                // Unknown opcode - assume no additional data
+                // This is a best-effort approach
             }
         }
     }
@@ -1196,8 +1379,38 @@ pub fn read_pickle_with_optional_data<R: BufRead>(
                 // Check if this is an OrderedDict
                 if let Object::Class { module_name, name } = &callable {
                     if module_name == "collections" && name == "OrderedDict" {
-                        // OrderedDict is created with empty args, just push an empty dict
-                        stack.push(Object::Dict(HashMap::new()));
+                        // OrderedDict can be created with items: OrderedDict([(key1, val1), ...])
+                        // The args is typically a tuple containing a list of [key, value] pairs
+                        let mut dict = HashMap::new();
+
+                        // Extract items from args
+                        let items = match &args {
+                            Object::Tuple(tuple) if !tuple.is_empty() => {
+                                // Args is a tuple, get the first element (the list of items)
+                                match &tuple[0] {
+                                    Object::List(list) => Some(list.clone()),
+                                    _ => None,
+                                }
+                            }
+                            Object::List(list) => Some(list.clone()),
+                            _ => None,
+                        };
+
+                        if let Some(items) = items {
+                            for item in items {
+                                // Each item is a list/tuple of [key, value]
+                                match item {
+                                    Object::List(pair) | Object::Tuple(pair) if pair.len() >= 2 => {
+                                        if let Object::String(key) = &pair[0] {
+                                            dict.insert(key.clone(), pair[1].clone());
+                                        }
+                                    }
+                                    _ => {}
+                                }
+                            }
+                        }
+
+                        stack.push(Object::Dict(dict));
                     } else {
                         let _obj = Object::Reduce {
                             callable: Box::new(callable.clone()),

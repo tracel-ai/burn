@@ -100,7 +100,7 @@ pub trait Backend:
     type QuantizedTensorPrimitive: TensorMetadata + QTensorPrimitive + 'static;
 
     /// If autodiff is enabled.
-    fn ad_enabled() -> bool {
+    fn ad_enabled(_device: &Self::Device) -> bool {
         false
     }
 

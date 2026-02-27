@@ -13,7 +13,7 @@ pub type SharedArray<E> = ArcArray<E, IxDyn>;
 
 /// Tensor primitive used by the [ndarray backend](crate::NdArray).
 ///
-/// Supports both owned and borrowed (zero-copy) data via [`NdArrayStorage`].
+/// Supports both owned and borrowed (zero-copy) data via `NdArrayStorage`.
 /// When data is borrowed from external sources (like burnpack files),
 /// it remains zero-copy until a mutating operation is performed.
 #[derive(Debug, Clone)]

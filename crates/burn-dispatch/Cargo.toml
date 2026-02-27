@@ -1,0 +1,84 @@
+[package]
+authors = [
+    "laggui <lagrange.guillaume.1@gmail.com>",
+    "nathanielsimard <nathaniel.simard.42@gmail.com>",
+]
+categories = ["science"]
+description = "Backend dispatch for the Burn framework"
+edition.workspace = true
+keywords = ["deep-learning", "machine-learning", "data"]
+license.workspace = true
+name = "burn-dispatch"
+readme.workspace = true
+repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-dispatch"
+documentation = "https://docs.rs/burn-dispatch"
+version.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+default = [
+    "std",
+    "autodiff",
+    "burn-autodiff?/default",
+    "burn-cpu?/default",
+    "burn-cuda?/default",
+    "burn-ndarray?/default",
+    "burn-rocm?/default",
+    "burn-tch?/default",
+    "burn-wgpu?/default",
+]
+doc = ["default"]
+std = [
+    "burn-backend/std",
+    "burn-std/std",
+    "burn-autodiff?/std",
+    "burn-cpu?/std",
+    "burn-cuda?/std",
+    "burn-ndarray?/std",
+    "burn-rocm?/std",
+    "burn-tch?/std",
+    "burn-wgpu?/std",
+]
+tracing = [
+    "burn-autodiff?/tracing",
+    "burn-cpu?/tracing",
+    "burn-cuda?/tracing",
+    "burn-ndarray?/tracing",
+    "burn-rocm?/tracing",
+    "burn-tch?/tracing",
+    "burn-wgpu?/tracing",
+]
+
+# Backends
+cuda = ["burn-cuda"]
+rocm = ["burn-rocm"]
+ndarray = ["burn-ndarray"]
+tch = ["burn-tch"]
+vulkan = ["wgpu", "burn-wgpu/vulkan"]
+webgpu = ["wgpu", "burn-wgpu/webgpu"]
+metal = ["wgpu", "burn-wgpu/metal"]
+wgpu = ["burn-wgpu"]
+cpu = ["burn-cpu"]
+autodiff = ["burn-autodiff"]
+
+[dependencies]
+burn-backend = { path = "../burn-backend", version = "=0.21.0-pre.1", default-features = false }
+burn-std = { path = "../burn-std", version = "=0.21.0-pre.1", default-features = false }
+
+# Backends
+burn-autodiff = { path = "../burn-autodiff", version = "=0.21.0-pre.1", optional = true, default-features = false }
+burn-cpu = { path = "../burn-cpu", version = "=0.21.0-pre.1", optional = true, default-features = false }
+burn-cuda = { path = "../burn-cuda", version = "=0.21.0-pre.1", optional = true, default-features = false }
+burn-ndarray = { path = "../burn-ndarray", version = "=0.21.0-pre.1", optional = true, default-features = false }
+burn-tch = { path = "../burn-tch", version = "=0.21.0-pre.1", optional = true, default-features = false }
+burn-rocm = { path = "../burn-rocm", version = "=0.21.0-pre.1", optional = true, default-features = false }
+burn-wgpu = { path = "../burn-wgpu", version = "=0.21.0-pre.1", optional = true, default-features = false }
+
+# Op macros with `.as_$inner_kind()`
+paste = { workspace = true }
+
+[package.metadata.docs.rs]
+features = ["doc"]
+rustdoc-args = ["--cfg", "docsrs"]

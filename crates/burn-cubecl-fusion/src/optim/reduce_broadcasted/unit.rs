@@ -5,11 +5,7 @@ use crate::{
     },
     optim::reduce::args::{FusedReduceArgs, FusedReduceInput, FusedReduceOutput},
 };
-use cubecl::{
-    Runtime,
-    prelude::*,
-    std::{CubeOption, CubeOptionExpand, tensor::r#virtual::VirtualTensor},
-};
+use cubecl::{Runtime, prelude::*, std::tensor::r#virtual::VirtualTensor};
 use cubek::reduce::{
     LineMode, ReduceInstruction, ReducePrecision,
     components::{
@@ -66,7 +62,7 @@ pub fn reduce_kernel_broadcasted(
     outputs: &mut GlobalArgs,
     reduce_axis: usize,
     blocks: Sequence<ReduceFuseBlock>,
-    block_end: CubeOption<ElemwiseFuseBlock>,
+    block_end: Option<ElemwiseFuseBlock>,
 ) {
     #[unroll]
     for i in 0..blocks.len() {
@@ -122,7 +118,7 @@ fn reduce_many(
     outputs: &mut GlobalArgs,
     reduce_axis: usize,
     blocks: Sequence<ReduceFuseBlock>,
-    block_end: CubeOption<ElemwiseFuseBlock>,
+    block_end: Option<ElemwiseFuseBlock>,
 ) {
     let mut axis_size = 0;
 
@@ -155,31 +151,28 @@ fn reduce_many(
         );
     }
 
-    match block_end {
-        CubeOption::Some(block) => {
-            let global_index = ABSOLUTE_POS;
-            let width = comptime!(block.config.width as u32);
-            let num_iter = axis_size / usize::cast_from(width);
+    if let Some(block) = block_end {
+        let global_index = ABSOLUTE_POS;
+        let width = comptime!(block.config.width as u32);
+        let num_iter = axis_size / usize::cast_from(width);
 
-            for i in 0..num_iter {
-                // Register block local inputs.
-                let values = Registry::<FuseArg, Line<f32>>::new();
-                let args = comptime![Vec::<FuseArg>::new()];
-                let index = global_index * num_iter + i;
-                let mut locals = init_locals(inputs, outputs, &block.config);
+        for i in 0..num_iter {
+            // Register block local inputs.
+            let values = Registry::<FuseArg, Line<f32>>::new();
+            let args = comptime![Vec::<FuseArg>::new()];
+            let index = global_index * num_iter + i;
+            let mut locals = init_locals(inputs, outputs, &block.config);
 
-                fuse_on_write::<f32>(
-                    inputs,
-                    outputs,
-                    &mut locals,
-                    index,
-                    values,
-                    args,
-                    &block.config.clone(),
-                )
-            }
+            fuse_on_write::<f32>(
+                inputs,
+                outputs,
+                &mut locals,
+                index,
+                values,
+                args,
+                &block.config.clone(),
+            )
         }
-        CubeOption::None => {}
     }
 }
 

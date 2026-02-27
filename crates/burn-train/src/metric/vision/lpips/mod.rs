@@ -13,7 +13,7 @@ mod vgg;
 mod weights;
 
 pub use metric::{Lpips, LpipsAlex, LpipsConfig, LpipsNet, LpipsSqueeze, LpipsVgg};
-pub use weights::{get_weights_url, load_pretrained_weights};
+pub use weights::{get_backbone_weights_url, get_lpips_weights_url, load_pretrained_weights};
 
 // Re-export feature extractors for advanced use cases
 pub use alexnet::AlexFeatureExtractor;

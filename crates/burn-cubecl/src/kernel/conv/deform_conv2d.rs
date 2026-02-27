@@ -1,7 +1,7 @@
 use cubecl::{
     calculate_cube_count_elemwise,
     prelude::*,
-    std::{CubeOption, CubeOptionExpand, FastDivmod, FastDivmodArgs},
+    std::{FastDivmod, FastDivmodArgs},
 };
 use cubek::convolution::components::ConvSetupError;
 
@@ -41,7 +41,7 @@ struct DeformConv2dArgs {
 fn deform_im2col_kernel<F: Float>(
     input: &Tensor<F>,
     offset: &Tensor<F>,
-    mask: &CubeOption<Tensor<F>>,
+    mask: &Option<Tensor<F>>,
     columns: &mut Tensor<F>,
     pos_shape: Sequence<FastDivmod<usize>>,
     args: &DeformConv2dArgs,
@@ -85,12 +85,9 @@ fn deform_im2col_kernel<F: Float>(
     let offset_base_idx = batch * offset.stride(0)
         + group_index * kernel_height * kernel_width * 2 * offset.stride(1);
 
-    let mask_base_idx = match &mask {
-        CubeOption::Some(mask) => {
-            batch * mask.stride(0) + group_index * kernel_height * kernel_width * mask.stride(1)
-        }
-        CubeOption::None => 0,
-    };
+    let mask_base_idx = mask.as_ref().map(|mask| {
+        batch * mask.stride(0) + group_index * kernel_height * kernel_width * mask.stride(1)
+    });
 
     #[unroll(unroll_h)]
     for kernel_y in 0..kernel_height {
@@ -115,15 +112,15 @@ fn deform_im2col_kernel<F: Float>(
                 + offset_x;
 
             let interpolated = bilinear_interpolate(input, height, width, y, x, input_base_idx);
-            let value = match mask {
-                CubeOption::Some(mask) => {
-                    let mask_value = mask[mask_base_idx
+            let value = match mask.zip::<usize>(mask_base_idx) {
+                Some((mask, base_idx)) => {
+                    let mask_value = mask[base_idx
                         + mask_index * mask.stride(1)
                         + out_y * mask.stride(2)
                         + out_x * mask.stride(3)];
                     mask_value * interpolated
                 }
-                CubeOption::None => interpolated,
+                None => interpolated,
             };
 
             columns[col_base_idx] = value;
