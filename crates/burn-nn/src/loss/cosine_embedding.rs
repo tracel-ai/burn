@@ -6,8 +6,8 @@ use burn_core as burn;
 
 use crate::loss::reduction::Reduction;
 use burn::config::Config;
+use burn::module::Module;
 use burn::module::{Content, DisplaySettings, ModuleDisplay};
-use burn::module::{Ignored, Module};
 use burn::tensor::{Int, Tensor, activation::relu, backend::Backend};
 
 /// Configuration for CosineEmbeddingLoss.
@@ -27,10 +27,12 @@ impl CosineEmbeddingLossConfig {
     pub fn init(&self) -> CosineEmbeddingLoss {
         CosineEmbeddingLoss {
             margin: self.margin,
-            reduction: Ignored(self.reduction.clone()),
+            reduction: self.reduction.clone(),
         }
     }
 }
+
+// TODO: remove `Ignored(type)` for module derive
 
 /// Cosine embedding loss between two tensors.
 ///
@@ -43,7 +45,8 @@ pub struct CosineEmbeddingLoss {
     pub margin: f32,
 
     /// Reduction method
-    pub reduction: Ignored<Reduction>,
+    #[module(skip)]
+    pub reduction: Reduction,
 }
 
 impl Default for CosineEmbeddingLoss {
@@ -62,7 +65,7 @@ impl ModuleDisplay for CosineEmbeddingLoss {
     fn custom_content(&self, content: Content) -> Option<Content> {
         content
             .add("margin", &self.margin)
-            .add("reduction", format!("{:?}", &self.reduction.0).as_str())
+            .add("reduction", format!("{:?}", &self.reduction).as_str())
             .optional()
     }
 }
@@ -91,7 +94,7 @@ impl CosineEmbeddingLoss {
         target: Tensor<B, 1, Int>,
     ) -> Tensor<B, 1> {
         let tensor = self.forward_no_reduction(input1, input2, target);
-        match &self.reduction.0 {
+        match &self.reduction {
             Reduction::Mean | Reduction::Auto => tensor.mean(),
             Reduction::Sum => tensor.sum(),
             other => panic!("{other:?} reduction is not supported"),

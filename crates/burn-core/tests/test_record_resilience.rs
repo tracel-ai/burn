@@ -43,6 +43,7 @@ mod tests {
         linear1: Linear<B>,
         array_const: [usize; 2],
         linear2: Linear<B>,
+        array_lin: [Linear<B>; 2],
     }
 
     #[derive(Module, Debug)]
@@ -51,6 +52,7 @@ mod tests {
         linear1: Linear<B>,
         array_const: [usize; 2],
         linear2: Linear<B>,
+        array_lin: [Linear<B>; 2],
         new_field: Option<usize>,
     }
 
@@ -60,6 +62,7 @@ mod tests {
         linear1: Linear<B>,
         array_const: [usize; 2],
         linear2: Linear<B>,
+        array_lin: [Linear<B>; 2],
         new_field: usize,
     }
 
@@ -69,6 +72,7 @@ mod tests {
         array_const: [usize; 2],
         linear2: Linear<B>,
         single_const: f32,
+        array_lin: [Linear<B>; 2],
         linear1: Linear<B>,
     }
 
@@ -162,8 +166,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
-    fn deserialize_with_new_optional_field_doesnt_works_with_bin_file_recorder() {
+    fn deserialize_with_new_optional_field_works_with_bin_file_recorder() {
         deserialize_with_new_optional_field("bin", BinFileRecorder::<FullPrecisionSettings>::new())
             .unwrap();
     }
@@ -193,7 +196,6 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
     fn deserialize_with_new_field_order_works_with_bin_file_recorder() {
         deserialize_with_new_field_order("bin", BinFileRecorder::<FullPrecisionSettings>::new())
             .unwrap();
@@ -224,6 +226,10 @@ mod tests {
             linear1: Linear::<TestBackend>::new(20, 20, &device),
             array_const: [2, 2],
             linear2: Linear::<TestBackend>::new(20, 20, &device),
+            array_lin: [
+                Linear::<TestBackend>::new(20, 20, &device),
+                Linear::<TestBackend>::new(20, 20, &device),
+            ],
         };
 
         recorder
@@ -252,6 +258,10 @@ mod tests {
             linear1: Linear::<TestBackend>::new(20, 20, &device),
             array_const: [2, 2],
             linear2: Linear::<TestBackend>::new(20, 20, &device),
+            array_lin: [
+                Linear::<TestBackend>::new(20, 20, &device),
+                Linear::<TestBackend>::new(20, 20, &device),
+            ],
             new_field: None,
         };
 
@@ -276,6 +286,10 @@ mod tests {
             array_const: [2, 2],
             linear1: Linear::<TestBackend>::new(20, 20, &device),
             linear2: Linear::<TestBackend>::new(20, 20, &device),
+            array_lin: [
+                Linear::<TestBackend>::new(20, 20, &device),
+                Linear::<TestBackend>::new(20, 20, &device),
+            ],
         };
 
         recorder
@@ -304,6 +318,10 @@ mod tests {
             array_const: [2, 2],
             linear1: Linear::<TestBackend>::new(20, 20, &device),
             linear2: Linear::<TestBackend>::new(20, 20, &device),
+            array_lin: [
+                Linear::<TestBackend>::new(20, 20, &device),
+                Linear::<TestBackend>::new(20, 20, &device),
+            ],
             new_field: 0,
         };
 
@@ -328,6 +346,10 @@ mod tests {
             single_const: 32.0,
             linear1: Linear::<TestBackend>::new(20, 20, &device),
             linear2: Linear::<TestBackend>::new(20, 20, &device),
+            array_lin: [
+                Linear::<TestBackend>::new(20, 20, &device),
+                Linear::<TestBackend>::new(20, 20, &device),
+            ],
         };
 
         recorder

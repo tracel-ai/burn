@@ -12,7 +12,7 @@ pub(crate) struct EnumModuleRecordCodegen {
 }
 
 impl ModuleRecordCodegen for EnumModuleRecordCodegen {
-    fn gen_record_type(&self, record_name: &Ident, generics: &Generics) -> TokenStream {
+    fn gen_record_type(&self, record_name: &Ident, generics: &Generics) -> (TokenStream, Generics) {
         let mut variants = quote! {};
         let vis = &self.vis;
 
@@ -27,15 +27,18 @@ impl ModuleRecordCodegen for EnumModuleRecordCodegen {
             });
         }
 
-        let (generics, _generics_ty, generics_where) = generics.split_for_impl();
+        let (impl_generics, _generics_ty, generics_where) = generics.split_for_impl();
 
-        quote! {
+        (
+            quote! {
 
-            /// The record type for the module.
-            #[derive(burn::record::Record)]
-            #vis enum #record_name #generics #generics_where {
-                #variants
-            }
-        }
+                /// The record type for the module.
+                #[derive(burn::record::Record)]
+                #vis enum #record_name #impl_generics #generics_where {
+                    #variants
+                }
+            },
+            generics.clone(),
+        )
     }
 }

@@ -317,6 +317,7 @@ impl<S: PrecisionSettings, B: Backend> Recorder<B> for NamedMpkFileRecorder<S> {
     }
 }
 
+#[allow(deprecated)]
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -329,13 +330,12 @@ mod tests {
         module::Module,
         record::{BinBytesRecorder, FullPrecisionSettings},
     };
+    use burn_tensor::Tensor;
     use burn_tensor::backend::Backend;
 
     #[inline(always)]
-    fn file_path() -> PathBuf {
-        std::env::temp_dir()
-            .as_path()
-            .join("burn_test_file_recorder")
+    fn file_path(file: &str) -> PathBuf {
+        std::env::temp_dir().as_path().join(file)
     }
 
     #[test]
@@ -372,14 +372,30 @@ mod tests {
     where
         Recorder: FileRecorder<TestBackend>,
     {
+        let filename = "burn_test_file_recorder";
+
         let device = Default::default();
-        let model_before = create_model(&device);
+        let mut model_before = create_model(&device);
+
+        // NOTE: Non-module fields currently act like `#[module(skip)]`, meaning their state
+        // is not persistent. These fields hold `EmptyRecord`s.
+        // So `model_bytes_after == model_bytes_before` because the changes do not persist in the record.
+        model_before.tensor = Tensor::full([4], 2., &device);
+        model_before.arr = [3, 3];
+        model_before.int = 1;
+        model_before.ignore = Ignored(PaddingConfig2d::Valid);
+
         recorder
-            .record(model_before.clone().into_record(), file_path())
+            .record(model_before.clone().into_record(), file_path(filename))
             .unwrap();
 
         let model_after =
-            create_model(&device).load_record(recorder.load(file_path(), &device).unwrap());
+            create_model(&device).load_record(recorder.load(file_path(filename), &device).unwrap());
+
+        // State is not persisted for empty record fields
+        assert_eq!(model_after.arr, [2, 2]);
+        assert_eq!(model_after.int, 0);
+        assert_eq!(model_after.ignore.0, PaddingConfig2d::Same);
 
         let byte_recorder = BinBytesRecorder::<FullPrecisionSettings>::default();
         let model_bytes_before = byte_recorder
@@ -390,7 +406,7 @@ mod tests {
         assert_eq!(model_bytes_after, model_bytes_before);
     }
 
-    #[derive(Config, Debug)]
+    #[derive(Config, Debug, PartialEq, Eq)]
     pub enum PaddingConfig2d {
         Same,
         Valid,
@@ -402,6 +418,7 @@ mod tests {
     pub struct Model<B: Backend> {
         linear1: SimpleLinear<B>,
         phantom: PhantomData<B>,
+        tensor: Tensor<B, 1>,
         arr: [usize; 2],
         int: usize,
         ignore: Ignored<PaddingConfig2d>,
@@ -413,9 +430,79 @@ mod tests {
         Model {
             linear1,
             phantom: PhantomData,
+            tensor: Tensor::zeros([2], device),
             arr: [2, 2],
             int: 0,
             ignore: Ignored(PaddingConfig2d::Same),
         }
+    }
+
+    #[derive(Module, Debug)]
+    pub struct ModelComposed<B: Backend> {
+        linear1: SimpleLinear<B>,
+        phantom: PhantomData<B>,
+        tensor: Tensor<B, 1>,
+        arr: [usize; 2],
+        int: usize,
+        #[module(skip)] // same as Ignored
+        skip: PaddingConfig2d,
+        #[module(constant)]
+        constant: PaddingConfig2d,
+    }
+
+    impl<B: Backend> ModelComposed<B> {
+        fn new(device: &B::Device) -> Self {
+            Self {
+                linear1: SimpleLinear::new(32, 32, device),
+                phantom: PhantomData,
+                tensor: Tensor::zeros([2], device),
+                arr: [2, 2],
+                int: 0,
+                skip: PaddingConfig2d::Same,
+                constant: PaddingConfig2d::Same,
+            }
+        }
+    }
+
+    fn test_can_save_and_load_constants<Recorder>(recorder: Recorder)
+    where
+        Recorder: FileRecorder<TestBackend>,
+    {
+        let filename = "burn_test_file_recorder_constants";
+
+        let device = Default::default();
+        let mut model_before = ModelComposed::new(&device);
+
+        // NOTE: Only `#[module(constant)]` fields persist
+        model_before.tensor = Tensor::full([4], 2., &device);
+        model_before.arr = [3, 3];
+        model_before.int = 1;
+        model_before.skip = PaddingConfig2d::Valid;
+        model_before.constant = PaddingConfig2d::Valid;
+
+        recorder
+            .record(model_before.clone().into_record(), file_path(filename))
+            .unwrap();
+
+        let model_after = ModelComposed::new(&device)
+            .load_record(recorder.load(file_path(filename), &device).unwrap());
+
+        // `#[module(skip)]` does not persist, the initial value remains
+        assert_eq!(model_after.skip, PaddingConfig2d::Same);
+        // `#[module(constant)]` does persist, the saved value is loaded
+        assert_eq!(model_after.constant, PaddingConfig2d::Valid);
+
+        let byte_recorder = BinBytesRecorder::<FullPrecisionSettings>::default();
+        let model_bytes_before = byte_recorder
+            .record(model_before.into_record(), ())
+            .unwrap();
+        let model_bytes_after = byte_recorder.record(model_after.into_record(), ()).unwrap();
+
+        assert_eq!(model_bytes_after, model_bytes_before);
+    }
+
+    #[test]
+    fn test_can_save_and_load_constants_mpk_format() {
+        test_can_save_and_load_constants(NamedMpkFileRecorder::<FullPrecisionSettings>::default())
     }
 }

@@ -2,7 +2,7 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![allow(unused)] // TODO remove when backend filled
 #![deprecated(
-    since = "0.21.0-pre.1",
+    since = "0.21.0",
     note = "burn-candle is deprecated and will be removed in a future release. Use burn-cubecl (CUDA/ROCm/Vulkan/Metal/WebGPU), burn-ndarray, or burn-tch instead."
 )]
 

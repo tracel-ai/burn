@@ -2,8 +2,8 @@ use burn_core as burn;
 
 use crate::PaddingConfig2d;
 use burn::config::Config;
+use burn::module::Module;
 use burn::module::{Content, DisplaySettings, ModuleDisplay};
-use burn::module::{Ignored, Module};
 use burn::tensor::Tensor;
 use burn::tensor::backend::Backend;
 use burn::tensor::ops::PadMode;
@@ -43,7 +43,8 @@ pub struct MaxPool2d {
     /// The size of the kernel.
     pub kernel_size: [usize; 2],
     /// The padding configuration.
-    pub padding: Ignored<PaddingConfig2d>,
+    #[module(skip)]
+    pub padding: PaddingConfig2d,
     /// The dilation.
     pub dilation: [usize; 2],
     /// If true, use ceiling instead of floor for output size calculation.
@@ -61,7 +62,7 @@ impl ModuleDisplay for MaxPool2d {
         content
             .add("kernel_size", &alloc::format!("{:?}", &self.kernel_size))
             .add("stride", &alloc::format!("{:?}", &self.stride))
-            .add("padding", &self.padding)
+            .add_debug_attribute("padding", &self.padding)
             .add("dilation", &alloc::format!("{:?}", &self.dilation))
             .add("ceil_mode", &self.ceil_mode)
             .optional()
@@ -74,7 +75,7 @@ impl MaxPool2dConfig {
         MaxPool2d {
             stride: self.strides,
             kernel_size: self.kernel_size,
-            padding: Ignored(self.padding.clone()),
+            padding: self.padding.clone(),
             dilation: self.dilation,
             ceil_mode: self.ceil_mode,
         }

@@ -5,7 +5,7 @@ use burn::tensor::module::interpolate;
 use burn_core as burn;
 
 use burn::config::Config;
-use burn::module::{Content, DisplaySettings, Ignored, Module, ModuleDisplay};
+use burn::module::{Content, DisplaySettings, Module, ModuleDisplay};
 use burn::tensor::Tensor;
 use burn::tensor::backend::Backend;
 use burn::tensor::ops::InterpolateOptions;
@@ -62,7 +62,8 @@ pub struct Interpolate2d {
     pub scale_factor: Option<[f32; 2]>,
 
     /// Interpolation mode used for resizing
-    pub mode: Ignored<InterpolateMode>,
+    #[module(skip)]
+    pub mode: InterpolateMode,
 
     /// Whether to align corner pixels
     pub align_corners: bool,
@@ -74,7 +75,7 @@ impl Interpolate2dConfig {
         Interpolate2d {
             output_size: self.output_size,
             scale_factor: self.scale_factor,
-            mode: Ignored(self.mode),
+            mode: self.mode,
             align_corners: self.align_corners,
         }
     }
@@ -106,7 +107,7 @@ impl Interpolate2d {
         interpolate(
             input,
             output_size,
-            InterpolateOptions::new(self.mode.0.clone().into())
+            InterpolateOptions::new(self.mode.clone().into())
                 .with_align_corners(self.align_corners),
         )
     }
@@ -169,7 +170,7 @@ impl ModuleDisplay for Interpolate2d {
 
     fn custom_content(&self, content: Content) -> Option<Content> {
         content
-            .add("mode", &self.mode)
+            .add_debug_attribute("mode", &self.mode)
             .add("output_size", &format!("{:?}", self.output_size))
             .add("scale_factor", &self.scale_factor)
             .optional()

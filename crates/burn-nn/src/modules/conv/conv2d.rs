@@ -5,7 +5,7 @@ use burn_core as burn;
 use crate::PaddingConfig2d;
 use burn::config::Config;
 use burn::module::Initializer;
-use burn::module::{Content, DisplaySettings, Ignored, Module, ModuleDisplay, Param};
+use burn::module::{Content, DisplaySettings, Module, ModuleDisplay, Param};
 use burn::tensor::Tensor;
 use burn::tensor::backend::Backend;
 use burn::tensor::module::conv2d;
@@ -64,7 +64,8 @@ pub struct Conv2d<B: Backend> {
     /// Controls the connections between input and output channels.
     pub groups: usize,
     /// The padding configuration.
-    pub padding: Ignored<PaddingConfig2d>,
+    #[module(skip)]
+    pub padding: PaddingConfig2d,
 }
 
 impl Conv2dConfig {
@@ -103,7 +104,7 @@ impl Conv2dConfig {
             stride: self.stride,
             kernel_size: self.kernel_size,
             dilation: self.dilation,
-            padding: Ignored(self.padding.clone()),
+            padding: self.padding.clone(),
             groups: self.groups,
         }
     }
@@ -117,9 +118,6 @@ impl<B: Backend> ModuleDisplay for Conv2d<B> {
     }
 
     fn custom_content(&self, content: Content) -> Option<Content> {
-        // Since padding does not implement ModuleDisplay, we need to format it manually.
-        let padding_formatted = format!("{}", &self.padding);
-
         // Format the stride, kernel_size and dilation as strings, formatted as arrays instead of indexed.
         let stride = format!("{:?}", self.stride);
         let kernel_size = format!("{:?}", self.kernel_size);
@@ -135,7 +133,7 @@ impl<B: Backend> ModuleDisplay for Conv2d<B> {
             .add("kernel_size", &kernel_size)
             .add("dilation", &dilation)
             .add("groups", &self.groups)
-            .add("padding", &padding_formatted)
+            .add_debug_attribute("padding", &self.padding)
             .optional()
     }
 }
