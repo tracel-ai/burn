@@ -244,7 +244,6 @@ impl MetricLogger for FileMetricLogger {
             value.sync()
         }
 
-        // TODO: should also handle tagged metrics
         let file_path = self.file_path(name, Some(epoch), split);
 
         let mut errors = false;
