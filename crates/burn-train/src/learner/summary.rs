@@ -60,7 +60,10 @@ pub struct SummaryMetrics {
     pub train: Vec<MetricSummary>,
     /// Validation metrics summary.
     pub valid: Vec<MetricSummary>,
-    /// Test metrics summary.
+    /// Test metrics summary per test split tag.
+    ///
+    /// Each key corresponds to a `Split::Test(Some(tag))`.
+    /// The empty string represents `Split::Test(None)`.
     pub test: HashMap<String, Vec<MetricSummary>>,
 }
 
