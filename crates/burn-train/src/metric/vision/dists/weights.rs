@@ -117,10 +117,7 @@ fn load_vgg16_backbone_weights<B: Backend>(mut dists: Dists<B>, cache_path: &Pat
 fn load_dists_weights<B: Backend>(mut dists: Dists<B>, cache_path: &PathBuf) -> Dists<B> {
     let mut store = PytorchStore::from_file(cache_path)
         .allow_partial(true)
-        .skip_enum_variants(true)
-        // Alpha and beta weights
-        .with_key_remapping(r"^alpha$", "alpha")
-        .with_key_remapping(r"^beta$", "beta");
+        .skip_enum_variants(true);
 
     let result = dists.load_from(&mut store);
     if let Err(e) = result {

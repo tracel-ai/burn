@@ -34,11 +34,11 @@ pub struct DistsConfig {
 }
 
 impl DistsConfig {
-    /// Initialize a DISTS module with random weights.
+    /// Initialize a DISTS module with default weights.
     pub fn init<B: Backend>(&self, device: &B::Device) -> Dists<B> {
         let total_channels: usize = CHANNELS.iter().sum();
 
-        // Initialize alpha and beta with normal distribution (mean=0.1, std=0.01)
+        // Initialize alpha and beta with constant value 0.1 for all channels
         let alpha_data: Vec<f32> = (0..total_channels).map(|_| 0.1).collect();
         let beta_data: Vec<f32> = (0..total_channels).map(|_| 0.1).collect();
 
