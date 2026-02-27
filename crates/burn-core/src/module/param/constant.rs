@@ -30,7 +30,7 @@ pub type ConstantRecord = EmptyRecord;
 /// or modules without parameters).
 ///
 /// This record contains no fields and serializes to `None`.
-#[derive(Debug, Clone, Copy, new, Default)]
+#[derive(Debug, Clone, Copy, new, Default, PartialEq, Eq)]
 pub struct EmptyRecord;
 
 impl serde::Serialize for EmptyRecord {
@@ -378,6 +378,12 @@ impl<T> core::ops::Deref for Ignored<T> {
 #[derive(Debug, Clone, Copy, new)]
 pub struct ValueRecord<T> {
     value: T,
+}
+
+impl<T: PartialEq> PartialEq for ValueRecord<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.value == other.value
+    }
 }
 
 impl<T> ValueRecord<T> {
