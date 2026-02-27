@@ -25,11 +25,11 @@ impl NumericMetricsAggregate {
         &mut self,
         name: &str,
         epoch: usize,
-        split: Split,
+        split: &Split,
         aggregate: Aggregate,
         loggers: &mut [Box<dyn MetricLogger>],
     ) -> Option<f64> {
-        let key = Key::new(name.to_string(), epoch, split, aggregate);
+        let key = Key::new(name.to_string(), epoch, split.clone(), aggregate);
 
         if let Some(value) = self.value_for_each_epoch.get(&key) {
             return Some(*value);
@@ -79,7 +79,7 @@ impl NumericMetricsAggregate {
     pub(crate) fn find_epoch(
         &mut self,
         name: &str,
-        split: Split,
+        split: &Split,
         aggregate: Aggregate,
         direction: Direction,
         loggers: &mut [Box<dyn MetricLogger>],
@@ -153,8 +153,7 @@ mod tests {
             );
             let entries = Vec::from([entry]);
             let metrics_update = MetricsUpdate::new(entries, vec![]);
-            self.logger
-                .log(metrics_update, self.epoch, Split::Train, None);
+            self.logger.log(metrics_update, self.epoch, &Split::Train);
         }
         fn log_definition(&mut self) {
             let definition = MetricDefinition {
@@ -187,7 +186,7 @@ mod tests {
         let value = aggregate
             .find_epoch(
                 NAME,
-                Split::Train,
+                &Split::Train,
                 Aggregate::Mean,
                 Direction::Lowest,
                 &mut [Box::new(logger.logger)],
@@ -220,7 +219,7 @@ mod tests {
         );
         let entries = Vec::from([entry]);
         let metrics_update = MetricsUpdate::new(entries, vec![]);
-        logger.log(metrics_update, 1, Split::Train, None);
+        logger.log(metrics_update, 1, &Split::Train);
         let entry = MetricEntry::new(
             metric_id.clone(),
             SerializedEntry::new(
@@ -234,13 +233,13 @@ mod tests {
         );
         let entries = Vec::from([entry]);
         let metrics_update = MetricsUpdate::new(entries, vec![]);
-        logger.log(metrics_update, 1, Split::Train, None);
+        logger.log(metrics_update, 1, &Split::Train);
 
         let value = aggregate
             .aggregate(
                 &metric_name,
                 1,
-                Split::Train,
+                &Split::Train,
                 Aggregate::Mean,
                 &mut [Box::new(logger)],
             )

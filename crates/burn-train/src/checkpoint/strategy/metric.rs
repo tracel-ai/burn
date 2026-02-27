@@ -39,7 +39,7 @@ impl CheckpointingStrategy for MetricCheckpointingStrategy {
         store: &EventStoreClient,
     ) -> Vec<CheckpointingAction> {
         let best_epoch =
-            match store.find_epoch(&self.name, self.aggregate, self.direction, self.split) {
+            match store.find_epoch(&self.name, self.aggregate, self.direction, &self.split) {
                 Some(epoch_best) => epoch_best,
                 None => epoch,
             };

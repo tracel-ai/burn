@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::collections::HashMap;
 
 use super::{Aggregate, Direction, Event, EventStore, Split, aggregate::NumericMetricsAggregate};
 use crate::logger::MetricLogger;
@@ -11,8 +11,8 @@ pub(crate) struct LogEventStore {
 }
 
 impl EventStore for LogEventStore {
-    fn add_event(&mut self, event: Event, split: Split, tag: Option<Arc<String>>) {
-        let epoch = *self.epochs.entry(split).or_insert(1);
+    fn add_event(&mut self, event: Event, split: Split) {
+        let epoch = *self.epochs.entry(split.clone()).or_insert(1);
 
         match event {
             Event::MetricsInit(definitions) => {
@@ -25,7 +25,7 @@ impl EventStore for LogEventStore {
             Event::MetricsUpdate(update) => {
                 self.loggers
                     .iter_mut()
-                    .for_each(|logger| logger.log(update.clone(), epoch, split, tag.clone()));
+                    .for_each(|logger| logger.log(update.clone(), epoch, &split));
             }
             Event::EndEpoch(summary) => {
                 self.epochs.insert(split, summary.epoch_number + 1);
@@ -41,7 +41,7 @@ impl EventStore for LogEventStore {
         name: &str,
         aggregate: Aggregate,
         direction: Direction,
-        split: Split,
+        split: &Split,
     ) -> Option<usize> {
         self.aggregate
             .find_epoch(name, split, aggregate, direction, &mut self.loggers)
@@ -52,7 +52,7 @@ impl EventStore for LogEventStore {
         name: &str,
         epoch: usize,
         aggregate: Aggregate,
-        split: Split,
+        split: &Split,
     ) -> Option<f64> {
         self.aggregate
             .aggregate(name, epoch, split, aggregate, &mut self.loggers)
