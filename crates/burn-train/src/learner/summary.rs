@@ -1,5 +1,6 @@
 use core::cmp::Ordering;
 use std::{
+    collections::{HashMap, hash_map::Entry},
     fmt::Display,
     path::{Path, PathBuf},
 };
@@ -10,6 +11,7 @@ use crate::{
 };
 
 /// Contains the metric value at a given time.
+#[derive(Debug)]
 pub struct MetricEntry {
     /// The step at which the metric was recorded (i.e., epoch).
     pub step: usize,
@@ -18,6 +20,7 @@ pub struct MetricEntry {
 }
 
 /// Contains the summary of recorded values for a given metric.
+#[derive(Debug)]
 pub struct MetricSummary {
     /// The metric name.
     pub name: String,
@@ -26,10 +29,10 @@ pub struct MetricSummary {
 }
 
 impl MetricSummary {
-    fn new<E: EventStore>(
+    fn collect<E: EventStore>(
         event_store: &mut E,
         metric: &str,
-        split: Split,
+        split: &Split,
         num_epochs: usize,
     ) -> Option<Self> {
         let entries = (1..=num_epochs)
@@ -57,6 +60,8 @@ pub struct SummaryMetrics {
     pub train: Vec<MetricSummary>,
     /// Validation metrics summary.
     pub valid: Vec<MetricSummary>,
+    /// Test metrics summary.
+    pub test: HashMap<String, Vec<MetricSummary>>,
 }
 
 /// Detailed training summary.
@@ -86,11 +91,17 @@ impl LearnerSummary {
         }
 
         let mut event_store = LogEventStore::default();
+        let train_split = Split::Train;
+        let valid_split = Split::Valid;
 
         let logger = FileMetricLogger::new(directory);
-        if !logger.split_exists(Split::Train) && !logger.split_exists(Split::Valid) {
+        let test_split_root = logger.split_dir(&Split::Test(None));
+        if !logger.split_exists(&train_split)
+            && !logger.split_exists(&valid_split)
+            && test_split_root.is_none()
+        {
             return Err(format!(
-                "No training or validation artifacts found at: {}",
+                "No training, validation or test artifacts found at: {}",
                 directory.display()
             ));
         }
@@ -103,22 +114,28 @@ impl LearnerSummary {
         let train_summary = metrics
             .iter()
             .filter_map(|metric| {
-                MetricSummary::new(&mut event_store, metric.as_ref(), Split::Train, epochs)
+                MetricSummary::collect(&mut event_store, metric.as_ref(), &train_split, epochs)
             })
             .collect::<Vec<_>>();
 
         let valid_summary = metrics
             .iter()
             .filter_map(|metric| {
-                MetricSummary::new(&mut event_store, metric.as_ref(), Split::Valid, epochs)
+                MetricSummary::collect(&mut event_store, metric.as_ref(), &valid_split, epochs)
             })
             .collect::<Vec<_>>();
+
+        let test_summary = match test_split_root {
+            Some(root) => collect_test_split_metrics(root, metrics, &mut event_store, epochs),
+            None => Default::default(),
+        };
 
         Ok(Self {
             epochs,
             metrics: SummaryMetrics {
                 train: train_summary,
                 valid: valid_summary,
+                test: test_summary,
             },
             model: None,
         })
@@ -128,20 +145,139 @@ impl LearnerSummary {
         self.model = Some(name);
         self
     }
+
+    /// Merges another summary into this one, combining all metric entries.
+    pub(crate) fn merge(mut self, other: LearnerSummary) -> Self {
+        fn merge_metrics(
+            base: Vec<MetricSummary>,
+            incoming: Vec<MetricSummary>,
+        ) -> Vec<MetricSummary> {
+            let mut map: HashMap<String, MetricSummary> =
+                base.into_iter().map(|m| (m.name.clone(), m)).collect();
+
+            for metric in incoming {
+                match map.entry(metric.name.clone()) {
+                    Entry::Occupied(mut entry) => {
+                        entry.get_mut().entries.extend(metric.entries);
+                    }
+                    Entry::Vacant(entry) => {
+                        entry.insert(metric);
+                    }
+                }
+            }
+            map.into_values().collect()
+        }
+
+        self.metrics.train = merge_metrics(self.metrics.train, other.metrics.train);
+        self.metrics.valid = merge_metrics(self.metrics.valid, other.metrics.valid);
+
+        for (tag, metrics) in other.metrics.test {
+            match self.metrics.test.entry(tag) {
+                Entry::Occupied(mut entry) => {
+                    let current = std::mem::take(entry.get_mut());
+                    let merged = merge_metrics(current, metrics);
+                    *entry.get_mut() = merged;
+                }
+                Entry::Vacant(entry) => {
+                    entry.insert(metrics);
+                }
+            }
+        }
+
+        if self.model != other.model {
+            self.model = None;
+        }
+
+        self
+    }
+}
+
+fn collect_test_split_metrics<P: AsRef<Path>, S: AsRef<str>>(
+    root: P,
+    metrics: &[S],
+    event_store: &mut LogEventStore,
+    epochs: usize,
+) -> HashMap<String, Vec<MetricSummary>> {
+    // Collect immediate child directories
+    let dirs = match std::fs::read_dir(root) {
+        Ok(entries) => entries
+            .filter_map(|entry| {
+                let entry = entry.ok()?;
+                let file_type = entry.file_type().ok()?;
+                if file_type.is_dir() {
+                    Some(entry.file_name().to_string_lossy().to_string())
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>(),
+        Err(_) => Vec::new(),
+    };
+
+    let mut map = HashMap::new();
+
+    if dirs.is_empty() {
+        return map;
+    }
+
+    // Detect if all directories are epoch directories
+    let all_epochs = dirs.iter().all(FileMetricLogger::is_epoch_dir);
+
+    if all_epochs {
+        // Single untagged test split
+        let split = Split::Test(None);
+
+        let summaries = metrics
+            .iter()
+            .filter_map(|metric| {
+                MetricSummary::collect(event_store, metric.as_ref(), &split, epochs)
+            })
+            .collect::<Vec<_>>();
+
+        // Untagged marked with empty string
+        map.insert("".to_string(), summaries);
+    } else {
+        // Tagged splits
+        for tag in dirs {
+            let split = Split::Test(Some(tag.clone().into()));
+
+            let summaries = metrics
+                .iter()
+                .filter_map(|metric| {
+                    MetricSummary::collect(event_store, metric.as_ref(), &split, epochs)
+                })
+                .collect::<Vec<_>>();
+
+            map.insert(tag, summaries);
+        }
+    }
+
+    map
 }
 
 impl Display for LearnerSummary {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // Compute the max length for each column
-        let split_train = "Train";
-        let split_valid = "Valid";
-        let max_split_len = "Split".len().max(split_train.len()).max(split_valid.len());
+        let mut max_split_len = 5; // "Train"
         let mut max_metric_len = "Metric".len();
         for metric in self.metrics.train.iter() {
             max_metric_len = max_metric_len.max(metric.name.len());
         }
         for metric in self.metrics.valid.iter() {
             max_metric_len = max_metric_len.max(metric.name.len());
+        }
+        for (tag, metrics) in self.metrics.test.iter() {
+            let split_name = if tag.is_empty() {
+                "Test".to_string()
+            } else {
+                format!("Test ({tag})")
+            };
+
+            max_split_len = max_split_len.max(split_name.len());
+
+            for metric in metrics {
+                max_metric_len = max_metric_len.max(metric.name.len());
+            }
         }
 
         // Summary header
@@ -190,7 +326,7 @@ impl Display for LearnerSummary {
         }
 
         let mut write_metrics_summary =
-            |metrics: &[MetricSummary], split: &str| -> std::fmt::Result {
+            |metrics: &[MetricSummary], split: String| -> std::fmt::Result {
                 for metric in metrics.iter() {
                     if metric.entries.is_empty() {
                         continue; // skip metrics with no recorded values
@@ -225,12 +361,24 @@ impl Display for LearnerSummary {
                 Ok(())
             };
 
-        write_metrics_summary(&self.metrics.train, split_train)?;
-        write_metrics_summary(&self.metrics.valid, split_valid)?;
+        write_metrics_summary(&self.metrics.train, format!("{:?}", Split::Train))?;
+        write_metrics_summary(&self.metrics.valid, format!("{:?}", Split::Valid))?;
+
+        for (tag, metrics) in &self.metrics.test {
+            let split_name = if tag.is_empty() {
+                "Test".to_string()
+            } else {
+                format!("Test ({tag})")
+            };
+
+            write_metrics_summary(metrics, split_name)?;
+        }
 
         Ok(())
     }
 }
+
+// TODO: rename to `ExperimentSummary`? Used in learner + evaluator.
 
 #[derive(Clone)]
 /// Learning summary config.

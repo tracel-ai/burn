@@ -60,7 +60,7 @@ pub struct MetricEarlyStoppingStrategy {
 impl EarlyStoppingStrategy for MetricEarlyStoppingStrategy {
     fn should_stop(&mut self, epoch: usize, store: &EventStoreClient) -> bool {
         let current_value =
-            match store.find_metric(&self.metric_name, epoch, self.aggregate, self.split) {
+            match store.find_metric(&self.metric_name, epoch, self.aggregate, &self.split) {
                 Some(value) => value,
                 None => {
                     log::warn!("Can't find metric for early stopping.");

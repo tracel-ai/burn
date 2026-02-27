@@ -7,7 +7,6 @@ use std::{
     collections::HashMap,
     fs,
     path::{Path, PathBuf},
-    sync::Arc,
 };
 
 const EPOCH_PREFIX: &str = "epoch-";
@@ -21,16 +20,14 @@ pub trait MetricLogger: Send {
     /// * `update` - Update information for all registered metrics.
     /// * `epoch` - Current epoch.
     /// * `split` - Current dataset split.
-    /// * `iteration` - Current iteration.
-    /// * `tag` - Optional, additional tag for the split.
-    fn log(&mut self, update: MetricsUpdate, epoch: usize, split: Split, tag: Option<Arc<String>>);
+    fn log(&mut self, update: MetricsUpdate, epoch: usize, split: &Split);
 
     /// Read the logs for an epoch.
     fn read_numeric(
         &mut self,
         name: &str,
         epoch: usize,
-        split: Split,
+        split: &Split,
     ) -> Result<Vec<NumericEntry>, String>;
 
     /// Logs the metric definition information (name, description, unit, etc.)
@@ -88,9 +85,20 @@ impl FileMetricLogger {
         }
     }
 
-    pub(crate) fn split_exists(&self, split: Split) -> bool {
-        let split_path = self.directory.join(split.to_string());
-        split_path.exists() && split_path.is_dir()
+    pub(crate) fn split_exists(&self, split: &Split) -> bool {
+        self.split_dir(split).is_some()
+    }
+
+    pub(crate) fn split_dir(&self, split: &Split) -> Option<PathBuf> {
+        let split_path = match split {
+            Split::Test(Some(tag)) => self.directory.join(split.to_string()).join(tag.as_str()),
+            other => self.directory.join(other.to_string()),
+        };
+        (split_path.exists() && split_path.is_dir()).then_some(split_path)
+    }
+
+    pub(crate) fn is_epoch_dir<P: AsRef<str>>(dirname: P) -> bool {
+        dirname.as_ref().starts_with(EPOCH_PREFIX)
     }
 
     /// Number of epochs recorded.
@@ -132,55 +140,48 @@ impl FileMetricLogger {
         max_epoch
     }
 
-    fn train_directory(&self, tag: Option<&String>, epoch: usize, split: Split) -> PathBuf {
+    fn train_directory(&self, epoch: usize, split: &Split) -> PathBuf {
         let name = format!("{EPOCH_PREFIX}{epoch}");
 
-        match tag {
-            Some(tag) => self.directory.join(split.to_string()).join(tag).join(name),
-            None => self.directory.join(split.to_string()).join(name),
+        match split {
+            Split::Train | Split::Valid | Split::Test(None) => {
+                self.directory.join(split.to_string()).join(name)
+            }
+            Split::Test(Some(tag)) => {
+                let tag = format_tag(tag);
+                self.directory.join(split.to_string()).join(tag).join(name)
+            }
         }
     }
 
-    fn eval_directory(&self, tag: Option<&String>, split: Split) -> PathBuf {
-        match tag {
-            Some(tag) => self.directory.join(split.to_string()).join(tag),
-            None => self.directory.clone(),
+    fn eval_directory(&self, split: &Split) -> PathBuf {
+        match split {
+            Split::Train | Split::Valid | Split::Test(None) => self.directory.clone(),
+            Split::Test(Some(tag)) => self.directory.join(split.to_string()).join(format_tag(tag)),
         }
     }
 
-    fn file_path(
-        &self,
-        tag: Option<&String>,
-        name: &str,
-        epoch: Option<usize>,
-        split: Split,
-    ) -> PathBuf {
+    fn file_path(&self, name: &str, epoch: Option<usize>, split: &Split) -> PathBuf {
         let directory = match epoch {
-            Some(epoch) => self.train_directory(tag, epoch, split),
-            None => self.eval_directory(tag, split),
+            Some(epoch) => self.train_directory(epoch, split),
+            None => self.eval_directory(split),
         };
         let name = name.replace(' ', "_");
         let name = format!("{name}.log");
         directory.join(name)
     }
 
-    fn create_directory(&self, tag: Option<&String>, epoch: Option<usize>, split: Split) {
+    fn create_directory(&self, epoch: Option<usize>, split: &Split) {
         let directory = match epoch {
-            Some(epoch) => self.train_directory(tag, epoch, split),
-            None => self.eval_directory(tag, split),
+            Some(epoch) => self.train_directory(epoch, split),
+            None => self.eval_directory(split),
         };
         std::fs::create_dir_all(directory).ok();
     }
 }
 
 impl FileMetricLogger {
-    fn log_item(
-        &mut self,
-        tag: Option<&String>,
-        item: &MetricEntry,
-        epoch: Option<usize>,
-        split: Split,
-    ) {
+    fn log_item(&mut self, item: &MetricEntry, epoch: Option<usize>, split: &Split) {
         let name = &self.metric_definitions.get(&item.metric_id).unwrap().name;
         let key = logger_key(name, split);
         let value = &item.serialized_entry.serialized;
@@ -188,9 +189,9 @@ impl FileMetricLogger {
         let logger = match self.loggers.get_mut(&key) {
             Some(val) => val,
             None => {
-                self.create_directory(tag, epoch, split);
+                self.create_directory(epoch, split);
 
-                let file_path = self.file_path(tag, name, epoch, split);
+                let file_path = self.file_path(name, epoch, split);
                 let logger = FileLogger::new(file_path);
                 let logger = AsyncLogger::new(logger);
 
@@ -205,8 +206,12 @@ impl FileMetricLogger {
     }
 }
 
+fn format_tag(tag: &str) -> String {
+    tag.trim().replace(' ', "-").to_lowercase()
+}
+
 impl MetricLogger for FileMetricLogger {
-    fn log(&mut self, update: MetricsUpdate, epoch: usize, split: Split, tag: Option<Arc<String>>) {
+    fn log(&mut self, update: MetricsUpdate, epoch: usize, split: &Split) {
         if !self.is_eval && self.last_epoch != Some(epoch) {
             self.loggers.clear();
             self.last_epoch = Some(epoch);
@@ -225,13 +230,7 @@ impl MetricLogger for FileMetricLogger {
             .collect();
 
         for item in entries.iter() {
-            match tag {
-                Some(ref tag) => {
-                    let tag = tag.trim().replace(' ', "-").to_lowercase();
-                    self.log_item(Some(&tag), item, Some(epoch), split);
-                }
-                None => self.log_item(None, item, Some(epoch), split),
-            }
+            self.log_item(item, Some(epoch), split);
         }
     }
 
@@ -239,13 +238,14 @@ impl MetricLogger for FileMetricLogger {
         &mut self,
         name: &str,
         epoch: usize,
-        split: Split,
+        split: &Split,
     ) -> Result<Vec<NumericEntry>, String> {
         if let Some(value) = self.loggers.get(name) {
             value.sync()
         }
 
-        let file_path = self.file_path(None, name, Some(epoch), split);
+        // TODO: should also handle tagged metrics
+        let file_path = self.file_path(name, Some(epoch), split);
 
         let mut errors = false;
 
@@ -287,7 +287,7 @@ impl MetricLogger for FileMetricLogger {
     }
 }
 
-fn logger_key(name: &str, split: Split) -> String {
+fn logger_key(name: &str, split: &Split) -> String {
     format!("{name}_{split}")
 }
 
@@ -307,13 +307,7 @@ impl InMemoryMetricLogger {
 }
 
 impl MetricLogger for InMemoryMetricLogger {
-    fn log(
-        &mut self,
-        update: MetricsUpdate,
-        epoch: usize,
-        split: Split,
-        _tag: Option<Arc<String>>,
-    ) {
+    fn log(&mut self, update: MetricsUpdate, epoch: usize, split: &Split) {
         if self.last_epoch != Some(epoch) {
             self.values
                 .values_mut()
@@ -355,7 +349,7 @@ impl MetricLogger for InMemoryMetricLogger {
         &mut self,
         name: &str,
         epoch: usize,
-        split: Split,
+        split: &Split,
     ) -> Result<Vec<NumericEntry>, String> {
         let key = logger_key(name, split);
         let values = match self.values.get(&key) {

@@ -1,6 +1,6 @@
 use crate::{
     ApplicationLoggerInstaller, Evaluator, FileApplicationLoggerInstaller, InferenceStep,
-    Interrupter, TestOutput,
+    Interrupter, LearnerSummaryConfig, TestOutput,
     evaluator::components::{EvaluatorComponentTypes, EvaluatorComponentTypesMarker},
     logger::FileMetricLogger,
     metric::{
@@ -129,7 +129,7 @@ impl<EC: EvaluatorComponentTypes> EvaluatorBuilder<EC> {
             .unwrap_or_else(|| default_renderer(self.interrupter.clone(), None));
 
         self.event_store
-            .register_logger(FileMetricLogger::new_eval(self.directory));
+            .register_logger(FileMetricLogger::new_eval(self.directory.clone()));
         let event_store = Arc::new(EventStoreClient::new(self.event_store));
 
         let event_processor = AsyncProcessorEvaluation::new(FullEventProcessorEvaluation::new(
@@ -138,10 +138,20 @@ impl<EC: EvaluatorComponentTypes> EvaluatorBuilder<EC> {
             event_store,
         ));
 
+        let summary = if self.summary {
+            Some(LearnerSummaryConfig {
+                directory: self.directory,
+                metrics: self.summary_metrics.into_iter().collect::<Vec<_>>(),
+            })
+        } else {
+            None
+        };
+
         Evaluator {
             model,
             interrupter: self.interrupter,
             event_processor,
+            summary,
         }
     }
 }
