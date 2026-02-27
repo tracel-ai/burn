@@ -246,13 +246,13 @@ pub fn prefix_sum<R: CubeRuntime, I: IntElement>(input: CubeTensor<R>) -> CubeTe
 
     unsafe {
         prefix_sum_kernel::launch_unchecked::<I, R>(
-            &input.client,
+            &out.client,
             cube_count,
             cube_dim,
-            input.as_tensor_arg(4),
-            out.as_tensor_arg(4),
-            bump.as_tensor_arg(1),
-            reduction.as_tensor_arg(1),
+            input.into_tensor_arg(4),
+            out.clone().into_tensor_arg(4),
+            bump.into_tensor_arg(1),
+            reduction.into_tensor_arg(1),
             ScalarArg::new(cubes),
         )
     };
