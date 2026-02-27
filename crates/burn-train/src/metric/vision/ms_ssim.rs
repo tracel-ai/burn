@@ -201,8 +201,8 @@ impl MsSsimMetricConfig {
 
     /// Sets custom betas for the scales. The length of the betas vector
     /// determines the number of scales used in the MS-SSIM computation.
-    /// If you to make different parameter settings comparable, the betas
-    /// vector should sum to 1 as per the original paper. However, note 
+    /// If you want to make different parameter settings comparable, the betas
+    /// vector should sum to 1 as per the original paper. However, note
     /// that this is not a strict requirement.
     ///
     /// # Default value
@@ -426,9 +426,10 @@ impl<B: Backend> Metric for MsSsimMetric<B> {
         // Shape: [N, C]
         let batch_size = dims[0];
         let channels = dims[1];
-        let mut ms_ssim_tensor = Tensor::<B, 2>::ones([batch_size, channels], &item.outputs.device());
+        let mut ms_ssim_tensor =
+            Tensor::<B, 2>::ones([batch_size, channels], &item.outputs.device());
 
-        for i in 0..betas.len() {
+        for (j, beta_j) in betas.iter().enumerate() {
             // Compute mu_x and mu_y
             let mu_x = self.gaussian_separable_conv(x.clone());
             let mu_y = self.gaussian_separable_conv(y.clone());
@@ -448,10 +449,9 @@ impl<B: Backend> Metric for MsSsimMetric<B> {
             // Compute cs_map = (2σxy + C2) / (σx² + σy² + C2)
             // This is mathematically equivalent to c(x,y) * s(x,y) when C3 = C2 / 2
             let contrast_structure = (cov_xy * 2.0 + c2) / (var_x + var_y + c2);
-            let beta_j = betas[i];
 
             // Include luminance at the last scale
-            if i == betas.len() - 1 {
+            if j == betas.len() - 1 {
                 // Compute l(x, y) = (2μxμy + C1) / (μx² + μy² + C1)
                 let luminance: Tensor<B, 4> =
                     (2 * mu_x * mu_y + c1) / (square_of_mu_x + square_of_mu_y + c1);
@@ -459,14 +459,14 @@ impl<B: Backend> Metric for MsSsimMetric<B> {
                 let ssim_spatial_mean = ssim.mean_dims(&[2, 3]).reshape([batch_size, channels]);
                 // Clamp to avoid negative values before raising to power (prevents NaNs)
                 let ssim_mean_clamped = ssim_spatial_mean.clamp_min(0.0);
-                ms_ssim_tensor = ms_ssim_tensor * ssim_mean_clamped.powf_scalar(beta_j);
+                ms_ssim_tensor = ms_ssim_tensor * ssim_mean_clamped.powf_scalar(*beta_j);
             } else {
                 let contrast_structure_spatial_mean = contrast_structure
                     .mean_dims(&[2, 3])
                     .reshape([batch_size, channels]);
                 // Clamp to avoid negative values before raising to power (prevents NaNs)
                 let c_s_mean_clamped = contrast_structure_spatial_mean.clamp_min(0.0);
-                ms_ssim_tensor = ms_ssim_tensor * c_s_mean_clamped.powf_scalar(beta_j);
+                ms_ssim_tensor = ms_ssim_tensor * c_s_mean_clamped.powf_scalar(*beta_j);
 
                 x = avg_pool2d(x, [2, 2], [2, 2], [0, 0], false, false);
                 y = avg_pool2d(y, [2, 2], [2, 2], [0, 0], false, false);
@@ -861,12 +861,6 @@ mod tests {
     #[should_panic(expected = "All beta values must be non-negative")]
     fn test_ms_ssim_negative_betas() {
         let _ = MsSsimMetricConfig::new(1.0).with_betas(vec![0.3, 0.3, -0.1, 0.5]);
-    }
-
-    #[test]
-    #[should_panic(expected = "The sum of the betas must be 1.0")]
-    fn test_ms_ssim_invalid_betas_sum() {
-        let _ = MsSsimMetricConfig::new(1.0).with_betas(vec![0.5, 0.3]);
     }
 
     #[test]
