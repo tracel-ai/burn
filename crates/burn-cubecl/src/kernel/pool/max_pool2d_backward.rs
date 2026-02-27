@@ -125,16 +125,18 @@ pub(crate) fn max_pool2d_with_indices_backward<R: CubeRuntime>(
     let working_units = output.meta.num_elements() / line_size as usize;
     let cube_dim = CubeDim::new(&x.client, working_units);
     let cube_count = calculate_cube_count_elemwise(&x.client, working_units, cube_dim);
+    let indices_dtype = indices.dtype;
+    let x_dtype = x.dtype;
 
     unsafe {
         max_pool2d_with_indices_backward_kernel::launch_unchecked(
-            &x.client,
+            &output.client,
             cube_count,
             cube_dim,
             address_type!(grad, indices, output),
-            grad.as_tensor_arg(line_size),
-            indices.as_tensor_arg(line_size),
-            output.as_tensor_arg(line_size),
+            grad.into_tensor_arg(line_size),
+            indices.into_tensor_arg(line_size),
+            output.clone().into_tensor_arg(line_size),
             shape_divmod(&output),
             ScalarArg::new(working_units),
             PoolBackwardArgsLaunch::new(
@@ -147,7 +149,7 @@ pub(crate) fn max_pool2d_with_indices_backward<R: CubeRuntime>(
             ),
             kernel_size[0] as i32,
             kernel_size[1] as i32,
-            [x.dtype.into(), indices.dtype.into()],
+            [x_dtype.into(), indices_dtype.into()],
         )
     };
 

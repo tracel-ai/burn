@@ -103,12 +103,12 @@ pub(crate) fn adaptive_avg_pool2d_backward<R: CubeRuntime>(
     let cube_count = calculate_cube_count_elemwise(&x.client, working_units, cube_dim);
 
     adaptive_avg_pool2d_backward_direct::launch(
-        &x.client,
+        &output.client,
         cube_count,
         cube_dim,
         address_type!(out_grad, output),
-        out_grad.as_tensor_arg(line_size),
-        view4d(&output, line_size),
+        out_grad.into_tensor_arg(line_size),
+        view4d(output.clone(), line_size),
         shape_divmod(&output),
         ScalarArg::new(working_units),
         output.dtype.into(),

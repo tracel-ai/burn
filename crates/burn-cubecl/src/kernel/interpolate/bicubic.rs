@@ -177,12 +177,12 @@ pub(crate) fn interpolate_bicubic_launch<R: CubeRuntime>(
     let cube_count = calculate_cube_count_elemwise(&input.client, working_units, cube_dim);
 
     interpolate_bicubic_kernel::launch(
-        &input.client,
+        &output.client,
         cube_count,
         cube_dim,
         address_type!(input, output),
-        input.as_tensor_arg(line_size),
-        output.as_tensor_arg(line_size),
+        input.into_tensor_arg(line_size),
+        output.clone().into_tensor_arg(line_size),
         out_shape,
         out_layout,
         align_corners,

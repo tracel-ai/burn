@@ -14,18 +14,20 @@ pub fn into_contiguous<R: CubeRuntime>(tensor: CubeTensor<R>) -> CubeTensor<R> {
         return into_contiguous_quantized(tensor, MemoryLayoutStrategy::Contiguous);
     }
 
-    let output = cubecl::std::tensor::into_contiguous_ref(
-        &tensor.client,
-        &tensor.as_handle_ref(),
-        tensor.dtype.into(),
+    let (client, device, dtype) = (
+        tensor.client.clone(),
+        tensor.device.clone(),
+        tensor.dtype.clone(),
     );
 
+    let output = cubecl::std::tensor::into_contiguous(&client, tensor.binding(), dtype.into());
+
     CubeTensor::new(
-        tensor.client.clone(),
+        client.clone(),
         output.handle,
         *output.metadata,
-        tensor.device.clone(),
-        tensor.dtype,
+        device,
+        dtype,
     )
 }
 
@@ -44,18 +46,21 @@ pub fn into_contiguous_aligned<R: CubeRuntime>(tensor: CubeTensor<R>) -> CubeTen
         return into_contiguous_quantized(tensor, MemoryLayoutStrategy::Optimized);
     }
 
-    let output = cubecl::std::tensor::into_contiguous_pitched_ref(
-        &tensor.client,
-        &tensor.as_handle_ref(),
-        tensor.dtype.into(),
+    let (client, device, dtype) = (
+        tensor.client.clone(),
+        tensor.device.clone(),
+        tensor.dtype.clone(),
     );
 
+    let output =
+        cubecl::std::tensor::into_contiguous_pitched(&client, tensor.binding(), dtype.into());
+
     CubeTensor::new(
-        tensor.client.clone(),
+        client.clone(),
         output.handle,
         *output.metadata,
-        tensor.device.clone(),
-        tensor.dtype,
+        device,
+        dtype,
     )
 }
 
@@ -72,12 +77,18 @@ fn into_contiguous_quantized<R: CubeRuntime>(
     let (values, scales) = tensor.quantized_handles().unwrap();
     let (out_values, out_scales) = output.quantized_handles().unwrap();
 
+    let (client, dtype_scales, dtype_value) = (
+        scales.client.clone(),
+        scales.dtype.clone(),
+        values.dtype.clone(),
+    );
+
     match scheme.store {
         QuantStore::PackedU32(packed_dim) => {
             cubecl::std::tensor::into_contiguous_packed_ref(
-                &values.client,
-                &values.as_handle_ref(),
-                &out_values.as_handle_ref(),
+                &client,
+                values.binding(),
+                out_values.binding(),
                 packed_dim,
                 tensor.meta.shape(),
                 scheme.num_quants(),
@@ -88,9 +99,9 @@ fn into_contiguous_quantized<R: CubeRuntime>(
         // It's internally stored as `u8` with a packing factor of 2.
         QuantStore::PackedNative(packed_dim) if scheme.value == QuantValue::E2M1 => {
             cubecl::std::tensor::into_contiguous_packed_ref(
-                &values.client,
-                &values.as_handle_ref(),
-                &out_values.as_handle_ref(),
+                &client,
+                values.binding(),
+                out_values.binding(),
                 packed_dim,
                 tensor.meta.shape(),
                 scheme.num_quants(),
@@ -99,19 +110,19 @@ fn into_contiguous_quantized<R: CubeRuntime>(
         }
         _ => {
             cubecl::std::tensor::copy_into(
-                &values.client,
-                &values.as_handle_ref(),
-                &out_values.as_handle_ref(),
-                values.dtype.into(),
+                &client,
+                values.binding(),
+                out_values.binding(),
+                dtype_value.into(),
             );
         }
     }
 
     cubecl::std::tensor::copy_into(
-        &scales.client,
-        &scales.as_handle_ref(),
-        &out_scales.as_handle_ref(),
-        scales.dtype.into(),
+        &client,
+        scales.binding(),
+        out_scales.binding(),
+        dtype_scales.into(),
     );
 
     output

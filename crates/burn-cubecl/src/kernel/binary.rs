@@ -204,8 +204,8 @@ pub(crate) fn launch_binop<R: CubeRuntime, O: BinaryOpFamily>(
                 cube_count,
                 cube_dim,
                 address_type!(lhs, rhs),
-                linear_view(&lhs, line_size),
-                linear_view_ref(&rhs, &lhs, line_size),
+                linear_view(lhs.clone(), line_size),
+                linear_view_ref(rhs, &lhs, line_size),
                 linear_view_alias(&lhs, line_size, 0),
                 dtype.into(),
             );
@@ -217,8 +217,8 @@ pub(crate) fn launch_binop<R: CubeRuntime, O: BinaryOpFamily>(
                 cube_count,
                 cube_dim,
                 address_type!(lhs, rhs),
-                linear_view_ref(&lhs, &rhs, line_size),
-                linear_view(&rhs, line_size),
+                linear_view_ref(lhs, &rhs, line_size),
+                linear_view(rhs.clone(), line_size),
                 linear_view_alias(&rhs, line_size, 1),
                 dtype.into(),
             );
@@ -233,9 +233,9 @@ pub(crate) fn launch_binop<R: CubeRuntime, O: BinaryOpFamily>(
                 cube_count,
                 cube_dim,
                 address_type!(lhs, rhs, output),
-                linear_view_ref(&lhs, &output, line_size),
-                linear_view_ref(&rhs, &output, line_size),
-                linear_view(&output, line_size),
+                linear_view_ref(lhs, &output, line_size),
+                linear_view_ref(rhs, &output, line_size),
+                linear_view(output.clone(), line_size),
                 dtype.into(),
             );
 
@@ -265,7 +265,7 @@ pub(crate) fn launch_scalar_binop<R: CubeRuntime, O: BinaryOpFamily>(
                 cube_count,
                 cube_dim,
                 address_type!(tensor),
-                linear_view(&tensor, line_size),
+                linear_view(tensor.clone(), line_size),
                 scalar,
                 linear_view_alias(&tensor, line_size, 0),
                 dtype.into(),
@@ -285,9 +285,9 @@ pub(crate) fn launch_scalar_binop<R: CubeRuntime, O: BinaryOpFamily>(
                 cube_count,
                 cube_dim,
                 address_type!(tensor, output),
-                linear_view(&tensor, line_size),
+                linear_view(tensor, line_size),
                 scalar,
-                linear_view(&output, line_size),
+                linear_view(output.clone(), line_size),
                 dtype.into(),
             );
 

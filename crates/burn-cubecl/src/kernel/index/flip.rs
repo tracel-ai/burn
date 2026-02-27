@@ -86,7 +86,7 @@ pub(crate) fn flip_on_output<R: CubeRuntime>(
             cube_count,
             cube_dim,
             address_type!(tensor, output),
-            tensor.as_tensor_arg(1),
+            tensor.into_tensor_arg(1),
             linear_view(&output, 1),
             shape_divmod(&tensor),
             indices_sequence,

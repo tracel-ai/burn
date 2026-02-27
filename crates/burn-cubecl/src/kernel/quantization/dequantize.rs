@@ -21,10 +21,10 @@ where
     let (values, params) = tensor.quantized_handles().unwrap();
 
     cubek::quantization::dequantize::launch_ref(
-        &values.client,
-        &values.as_handle_ref(),
-        &output.as_handle_ref(),
-        &params.as_handle_ref(),
+        &output.client,
+        values.binding(),
+        output.clone().binding(),
+        params.binding(),
         &scheme,
         dtype.into(),
     )

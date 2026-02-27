@@ -15,7 +15,7 @@ impl<R: CubeRuntime> CubeTensor<R> {
     /// Create a new quantized tensor
     pub fn new_quantized(
         client: ComputeClient<R>,
-        handle: Handle,
+        handle: Handle<R>,
         shape: Shape,
         device: R::Device,
         strides: Strides,

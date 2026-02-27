@@ -65,12 +65,14 @@ pub fn sum<Run: CubeRuntime>(
     match strategy {
         SumStrategy::OneShot(cube_count) => {
             let output = zeros_client(client.clone(), device, [1].into(), tensor.dtype);
+            let dtype = tensor.dtype;
+
             shared_sum::<Run>(
                 &client,
-                tensor.as_handle_ref(),
-                output.as_handle_ref(),
+                tensor.binding(),
+                output.clone().binding(),
                 cube_count,
-                tensor.dtype.into(),
+                dtype.into(),
             )?;
 
             Ok(output)
@@ -169,8 +171,8 @@ pub fn reduce_dim<Run: CubeRuntime>(
     let result = match strategy {
         KernelReduceStrategy::Unspecified => cubek::reduce::reduce::<Run>(
             &client,
-            input.as_handle_ref(),
-            output.as_handle_ref(),
+            input.binding(),
+            output.clone().binding(),
             dim,
             ReduceStrategy {
                 routine: RoutineStrategy::Unit(BlueprintStrategy::Inferred(UnitStrategy)),
@@ -183,8 +185,8 @@ pub fn reduce_dim<Run: CubeRuntime>(
         ),
         KernelReduceStrategy::Specific(strategy) => cubek::reduce::reduce::<Run>(
             &client,
-            input.as_handle_ref(),
-            output.as_handle_ref(),
+            input.binding(),
+            output.clone().binding(),
             dim,
             strategy,
             config,

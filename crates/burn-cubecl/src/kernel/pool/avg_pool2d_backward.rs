@@ -155,12 +155,12 @@ pub(crate) fn avg_pool2d_backward<R: CubeRuntime>(
 
     unsafe {
         avg_pool2d_backward_kernel::launch_unchecked(
-            &grad.client,
+            &output.client,
             cube_count,
             cube_dim,
             address_type!(grad, output),
-            grad.as_tensor_arg(line_size),
-            view4d(&output, line_size),
+            grad.into_tensor_arg(line_size),
+            view4d(output.clone(), line_size),
             shape_divmod(&output),
             ScalarArg::new(working_units),
             PoolBackwardArgsLaunch::new(

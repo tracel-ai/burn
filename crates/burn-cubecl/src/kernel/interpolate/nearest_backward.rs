@@ -86,12 +86,12 @@ pub(crate) fn interpolate_nearest_backward_launch<R: CubeRuntime>(
 
     unsafe {
         interpolate_nearest_backward_kernel::launch_unchecked(
-            &out_grad.client,
+            &output.client,
             cube_count,
             cube_dim,
             address_type!(out_grad, output),
-            out_grad.as_tensor_arg(line_size),
-            output.as_tensor_arg(line_size),
+            out_grad.into_tensor_arg(line_size),
+            output.clone().into_tensor_arg(line_size),
             out_shape,
             out_layout,
             output.dtype.into(),

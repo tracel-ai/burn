@@ -101,12 +101,12 @@ pub(crate) fn adaptive_avg_pool2d<R: CubeRuntime>(
     let cube_count = calculate_cube_count_elemwise(&input.client, working_units, cube_dim);
 
     adaptive_avg_pool2d_direct::launch(
-        &input.client,
+        &output.client,
         cube_count,
         cube_dim,
         address_type!(input, output),
-        input.as_tensor_arg(line_size),
-        view4d(&output, line_size),
+        input.into_tensor_arg(line_size),
+        view4d(output.clone(), line_size),
         shape_divmod(&output),
         ScalarArg::new(working_units),
         output.dtype.into(),

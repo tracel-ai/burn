@@ -125,6 +125,7 @@ pub(crate) fn launch_binop_int<R: CubeRuntime, O: BinaryOpIntFamily>(
     let working_units = num_elems / line_size as usize;
     let cube_dim = CubeDim::new(&lhs.client, working_units);
     let cube_count = calculate_cube_count_elemwise(&lhs.client, working_units, cube_dim);
+    let dtype = lhs.dtype;
 
     unsafe {
         if lhs.can_mut_broadcast(&rhs) {
@@ -133,10 +134,10 @@ pub(crate) fn launch_binop_int<R: CubeRuntime, O: BinaryOpIntFamily>(
                 cube_count,
                 cube_dim,
                 address_type!(lhs, rhs),
-                linear_view(&lhs, line_size),
-                linear_view_ref(&rhs, &lhs, line_size),
+                linear_view(lhs.clone(), line_size),
+                linear_view_ref(rhs, &lhs, line_size),
                 linear_view_alias(&lhs, line_size, 0),
-                lhs.dtype.into(),
+                dtype.into(),
             );
 
             lhs
@@ -146,10 +147,10 @@ pub(crate) fn launch_binop_int<R: CubeRuntime, O: BinaryOpIntFamily>(
                 cube_count,
                 cube_dim,
                 address_type!(lhs, rhs),
-                linear_view_ref(&lhs, &rhs, line_size),
-                linear_view(&rhs, line_size),
+                linear_view_ref(lhs, &rhs, line_size),
+                linear_view(rhs.clone(), line_size),
                 linear_view_alias(&rhs, line_size, 1),
-                lhs.dtype.into(),
+                dtype.into(),
             );
 
             rhs
@@ -162,10 +163,10 @@ pub(crate) fn launch_binop_int<R: CubeRuntime, O: BinaryOpIntFamily>(
                 cube_count,
                 cube_dim,
                 address_type!(lhs, rhs, output),
-                linear_view_ref(&lhs, &output, line_size),
-                linear_view_ref(&rhs, &output, line_size),
-                linear_view(&output, line_size),
-                lhs.dtype.into(),
+                linear_view_ref(lhs, &output, line_size),
+                linear_view_ref(rhs, &output, line_size),
+                linear_view(output.clone(), line_size),
+                dtype.into(),
             );
 
             output
@@ -192,7 +193,7 @@ pub(crate) fn launch_scalar_binop_int<R: CubeRuntime, O: BinaryOpIntFamily>(
                 cube_count,
                 cube_dim,
                 address_type!(tensor),
-                linear_view(&tensor, line_size),
+                linear_view(tensor.clone(), line_size),
                 scalar,
                 linear_view_alias(&tensor, line_size, 0),
                 tensor.dtype.into(),
@@ -212,10 +213,10 @@ pub(crate) fn launch_scalar_binop_int<R: CubeRuntime, O: BinaryOpIntFamily>(
                 cube_count,
                 cube_dim,
                 address_type!(tensor, output),
-                linear_view(&tensor, line_size),
+                linear_view(tensor, line_size),
                 scalar,
-                linear_view(&output, line_size),
-                tensor.dtype.into(),
+                linear_view(output.clone(), line_size),
+                output.dtype.into(),
             );
 
             output

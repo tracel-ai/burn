@@ -135,12 +135,12 @@ pub(crate) fn avg_pool2d<R: CubeRuntime>(
     let cube_count = calculate_cube_count_elemwise(&x.client, working_units, cube_dim);
 
     pool2d_direct::launch::<AvgPoolStrategy, R>(
-        &x.client,
+        &output.client,
         cube_count,
         cube_dim,
         address_type!(x, output),
-        x.as_tensor_arg(line_size),
-        view4d(&output, line_size),
+        x.into_tensor_arg(line_size),
+        view4d(output.clone(), line_size),
         (),
         shape_divmod(&output),
         ScalarArg::new(working_units),

@@ -74,14 +74,14 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
         let mut inputs = GlobalArgsLaunch::default();
         let mut outputs = GlobalArgsLaunch::default();
 
-        register_inputs(&plan.handle_inputs, &mut inputs);
+        register_inputs(plan.handle_inputs.clone(), &mut inputs);
         register_scalars(
             self.resources.scalars.iter(),
             self.resources.views.iter(),
             context,
             &mut inputs,
         );
-        register_outputs::<BT, R>(&plan.handle_outputs, &mut outputs, &mut tune_output);
+        register_outputs::<BT, R>(plan.handle_outputs.clone(), &mut outputs, &mut tune_output);
 
         for layout in plan.runtime_layouts {
             for s in layout.shape.iter() {
@@ -161,40 +161,43 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
 }
 
 fn register_inputs<'h, R: Runtime>(
-    handle_inputs: &'h [HandleInput<R>],
+    handle_inputs: Vec<HandleInput<R>>,
     inputs: &mut GlobalArgsLaunch<'h, R>,
 ) {
-    for hi in handle_inputs.iter() {
+    for hi in handle_inputs {
         match hi {
             HandleInput::Normal(hi) => {
+                let at = hi.handle.required_address_type();
                 let arg = hi
                     .handle
-                    .as_tensor_arg(hi.global_ir.shape.clone(), hi.line_size);
+                    .into_tensor_arg(hi.global_ir.shape.clone(), hi.line_size);
                 inputs.tensors.push(GlobalTensorArg::new(
                     arg,
                     hi.precision.into_elem(),
                     hi.broadcated,
-                    hi.handle.required_address_type(),
+                    at,
                 ));
             }
             HandleInput::QuantValues(hi) => {
+                let at = hi.handle.required_address_type();
                 let arg = hi
                     .handle
-                    .as_tensor_arg(hi.global_ir.shape.clone(), hi.line_size);
+                    .into_tensor_arg(hi.global_ir.shape.clone(), hi.line_size);
                 inputs.tensors.push(GlobalTensorArg::new(
                     arg,
                     hi.precision.into_elem(),
                     false,
-                    hi.handle.required_address_type(),
+                    at,
                 ));
             }
             HandleInput::QuantParams(hi) => {
-                let arg = hi.handle.as_tensor_arg(hi.shape.clone(), 1);
+                let at = hi.handle.required_address_type();
+                let arg = hi.handle.into_tensor_arg(hi.shape.clone(), 1);
                 inputs.tensors.push(GlobalTensorArg::new(
                     arg,
                     hi.precision.into_elem(),
                     false,
-                    hi.handle.required_address_type(),
+                    at,
                 ));
             }
         }
@@ -202,11 +205,11 @@ fn register_inputs<'h, R: Runtime>(
 }
 
 fn register_outputs<'s, BT: CubeElement, R: Runtime>(
-    handle_outputs: &'s [HandleOutput<R>],
+    handle_outputs: Vec<HandleOutput<R>>,
     outputs: &mut GlobalArgsLaunch<'s, R>,
     #[allow(unused_variables)] tune_output: &mut TuneOutput<R>,
 ) {
-    for item in handle_outputs.iter() {
+    for item in handle_outputs {
         match item {
             HandleOutput::Alias {
                 input_pos,
@@ -215,7 +218,7 @@ fn register_outputs<'s, BT: CubeElement, R: Runtime>(
                 debug_info,
             } => {
                 outputs.tensors.push(GlobalTensorArg::new(
-                    TensorArg::alias(*input_pos),
+                    TensorArg::alias(input_pos),
                     precision.into_elem(),
                     false,
                     AddressType::default(),
@@ -238,7 +241,8 @@ fn register_outputs<'s, BT: CubeElement, R: Runtime>(
                 relative_id,
                 ..
             } => {
-                let arg = handle.as_tensor_arg(global_shape.clone(), *line_size);
+                let at = handle.required_address_type();
+                let arg = handle.into_tensor_arg(global_shape.clone(), line_size);
 
                 let elem = match precision {
                     FuseType::Bool => match elem_dtype::<BT>() {
@@ -254,12 +258,9 @@ fn register_outputs<'s, BT: CubeElement, R: Runtime>(
                     handles.insert(*relative_id, (global_shape.clone(), handle.clone()));
                 }
 
-                outputs.tensors.push(GlobalTensorArg::new(
-                    arg,
-                    elem,
-                    false,
-                    handle.required_address_type(),
-                ));
+                outputs
+                    .tensors
+                    .push(GlobalTensorArg::new(arg, elem, false, at));
             }
         }
     }

@@ -503,7 +503,7 @@ impl<R: Runtime> GlobalArgsLaunch<'_, R> {
     /// # Panics
     ///
     /// If the argument isn't a global input or output tensor.
-    pub fn resolve_arg(&self, arg: &FuseArg) -> &TensorArg<'_, R> {
+    pub fn resolve_arg(&self, arg: &FuseArg) -> &TensorArg<R> {
         match arg {
             FuseArg::Input(pos, _, _) => &self.tensors.values[*pos].tensor,
             FuseArg::Output(pos, _, _) => &self.tensors.values[*pos].tensor,

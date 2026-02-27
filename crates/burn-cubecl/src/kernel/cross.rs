@@ -82,17 +82,18 @@ pub(crate) fn cross<R: CubeRuntime>(
 
     let cube_dim = CubeDim::new(&lhs.client, num_vectors);
     let cube_count = calculate_cube_count_elemwise(&lhs.client, num_vectors, cube_dim);
+    let dtype = lhs.dtype;
 
     unsafe {
         cross_kernel::launch_unchecked(
-            &lhs.client,
+            &output.client,
             cube_count,
             cube_dim,
             address_type!(lhs, rhs, output),
-            linear_view_ref(&lhs, &output, line_size),
-            linear_view_ref(&rhs, &output, line_size),
-            linear_view(&output, line_size),
-            lhs.dtype.into(),
+            linear_view_ref(lhs, &output, line_size),
+            linear_view_ref(rhs, &output, line_size),
+            linear_view(output.clone(), line_size),
+            dtype.into(),
         );
     };
 

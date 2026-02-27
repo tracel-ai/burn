@@ -65,18 +65,21 @@ pub fn mask_fill<R: CubeRuntime>(
     let cube_count = calculate_cube_count_elemwise(&input.client, working_units, cube_dim);
 
     let out_arg = match strategy {
-        MaskFillStrategy::Readonly => linear_view(&output, line_size),
+        MaskFillStrategy::Readonly => linear_view(output.clone(), line_size),
         MaskFillStrategy::Inplace => linear_view_alias(&output, line_size, 0),
     };
 
+    let at = address_type!(input, mask, output);
+    let mask = linear_view_ref(mask, &input, line_size);
+
     unsafe {
         mask_fill_kernel::launch_unchecked(
-            &input.client,
+            &output.client,
             cube_count,
             cube_dim,
-            address_type!(input, mask, output),
-            linear_view(&input, line_size),
-            linear_view_ref(&mask, &input, line_size),
+            at,
+            linear_view(input, line_size),
+            mask,
             out_arg,
             value,
             [output.dtype.into(), dtype_bool.into()],

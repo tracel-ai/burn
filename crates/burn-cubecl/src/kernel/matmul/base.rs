@@ -4,7 +4,7 @@ use burn_backend::{DType, QTensorPrimitive};
 use burn_std::QuantLevel;
 use cubek::matmul::{
     definition::{MatmulElems, MatmulGlobalElems, MatmulSetupError},
-    launch::{MatmulInputHandleRef, Strategy},
+    launch::{MatmulInputBinding, Strategy},
 };
 
 #[cfg(feature = "autotune")]
@@ -81,56 +81,68 @@ pub(crate) fn launch_matmul<R: CubeRuntime>(
     mut rhs: CubeTensor<R>,
     out: CubeTensor<R>,
 ) -> Result<(), MatmulSetupError> {
-    let client = &lhs.client;
+    let client = &out.client;
 
     let lhs_quant_handles = lhs.quantized_handles();
     let out_dtype: DType = out.dtype;
 
-    let (lhs_dtype, lhs_handle) = match &lhs_quant_handles {
-        None => (
-            lhs.dtype,
-            MatmulInputHandleRef::new(lhs.as_handle_ref(), lhs.dtype.into()),
-        ),
-        Some((data, scale)) => (
-            out_dtype,
-            MatmulInputHandleRef::quantized(
-                data.as_handle_ref(),
-                scale.as_handle_ref(),
-                lhs.meta.shape().clone(),
-                lhs.scheme(),
-                data.dtype.into(),
-                scale.dtype.into(),
-            ),
-        ),
+    let (lhs_dtype, lhs_handle) = match lhs_quant_handles {
+        None => {
+            let lhs_dtype = lhs.dtype;
+            (
+                lhs_dtype,
+                MatmulInputBinding::new(lhs.binding(), lhs_dtype.into()),
+            )
+        }
+        Some((data, scale)) => {
+            let scheme = lhs.scheme().clone();
+            let data_dtype = data.dtype;
+            let scale_dtype = scale.dtype;
+            (
+                out_dtype,
+                MatmulInputBinding::quantized(
+                    data.binding(),
+                    scale.binding(),
+                    lhs.meta.shape().clone(),
+                    scheme,
+                    data_dtype.into(),
+                    scale_dtype.into(),
+                ),
+            )
+        }
     };
 
     let rhs_quant_handles = rhs.quantized_handles();
 
-    let (rhs_dtype, rhs_handle) = match &rhs_quant_handles {
+    let (rhs_dtype, rhs_handle) = match rhs_quant_handles {
         None => (
-            lhs.dtype,
-            MatmulInputHandleRef::new(rhs.as_handle_ref(), lhs.dtype.into()),
+            lhs_dtype,
+            MatmulInputBinding::new(rhs.binding(), lhs_dtype.into()),
         ),
         Some((data, scale)) => {
             // Extremely hacky fix to ensure naive can run in every case
             if matches!(strategy, Strategy::Naive)
                 && matches!(rhs.scheme().level, QuantLevel::Block(_))
             {
-                rhs = dequantize(rhs.clone(), lhs.dtype);
+                rhs = dequantize(rhs.clone(), lhs_dtype);
+                let rhs_dtype = rhs.dtype;
                 (
-                    lhs.dtype,
-                    MatmulInputHandleRef::new(rhs.as_handle_ref(), rhs.dtype.into()),
+                    lhs_dtype,
+                    MatmulInputBinding::new(rhs.binding(), rhs_dtype.into()),
                 )
             } else {
+                let scheme = rhs.scheme().clone();
+                let data_dtype = data.dtype;
+                let scale_dtype = scale.dtype;
                 (
                     out_dtype,
-                    MatmulInputHandleRef::quantized(
-                        data.as_handle_ref(),
-                        scale.as_handle_ref(),
+                    MatmulInputBinding::quantized(
+                        data.binding(),
+                        scale.binding(),
                         rhs.meta.shape().clone(),
-                        rhs.scheme(),
-                        data.dtype.into(),
-                        scale.dtype.into(),
+                        scheme,
+                        data_dtype.into(),
+                        scale_dtype.into(),
                     ),
                 )
             }
@@ -142,12 +154,13 @@ pub(crate) fn launch_matmul<R: CubeRuntime>(
         rhs: rhs_dtype.into(),
         out: out_dtype.into(),
     });
+
     cubek::matmul::launch::launch_ref(
         strategy,
         client,
-        &lhs_handle,
-        &rhs_handle,
-        &out.as_handle_ref(),
+        lhs_handle,
+        rhs_handle,
+        out.clone().binding(),
         &mut dtypes,
     )?;
 

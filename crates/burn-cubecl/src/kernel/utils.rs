@@ -22,7 +22,7 @@ pub fn shape_divmod<'a, R: CubeRuntime>(
 }
 
 pub fn linear_layout<'a, R: CubeRuntime>(
-    tensor: &'a CubeTensor<R>,
+    tensor: &CubeTensor<R>,
     line_size: LineSize,
 ) -> LinearLayoutArgs<'a, R> {
     LinearLayoutArgs::from_shape_strides(
@@ -34,8 +34,8 @@ pub fn linear_layout<'a, R: CubeRuntime>(
 }
 
 pub fn linear_layout_ref<'a, R: CubeRuntime>(
-    tensor: &'a CubeTensor<R>,
-    reference: &'a CubeTensor<R>,
+    tensor: &CubeTensor<R>,
+    reference: &CubeTensor<R>,
     line_size: LineSize,
 ) -> LinearLayoutArgs<'a, R> {
     LinearLayoutArgs::from_shape_strides_with_reference(
@@ -48,32 +48,32 @@ pub fn linear_layout_ref<'a, R: CubeRuntime>(
 }
 
 pub fn linear_view<'a, R: CubeRuntime>(
-    tensor: &'a CubeTensor<R>,
+    tensor: CubeTensor<R>,
     line_size: LineSize,
 ) -> LinearViewLaunch<'a, R> {
     let len = tensor.meta.num_elements();
-    let layout = linear_layout(tensor, line_size);
-    let buffer = unsafe {
-        ArrayArg::from_raw_parts_and_size(&tensor.handle, len, line_size, tensor.elem_size())
-    };
+    let layout = linear_layout(&tensor, line_size);
+    let elem_size = tensor.elem_size();
+    let buffer =
+        unsafe { ArrayArg::from_raw_parts_and_size(tensor.handle, len, line_size, elem_size) };
     LinearViewLaunch::new::<LinearLayout>(buffer, layout)
 }
 
 pub fn linear_view_ref<'a, R: CubeRuntime>(
-    tensor: &'a CubeTensor<R>,
-    reference: &'a CubeTensor<R>,
+    tensor: CubeTensor<R>,
+    reference: &CubeTensor<R>,
     line_size: LineSize,
 ) -> LinearViewLaunch<'a, R> {
     let len = tensor.meta.num_elements();
-    let layout = linear_layout_ref(tensor, reference, line_size);
-    let buffer = unsafe {
-        ArrayArg::from_raw_parts_and_size(&tensor.handle, len, line_size, tensor.elem_size())
-    };
+    let layout = linear_layout_ref(&tensor, reference, line_size);
+    let elem_size = tensor.elem_size();
+    let buffer =
+        unsafe { ArrayArg::from_raw_parts_and_size(tensor.handle, len, line_size, elem_size) };
     LinearViewLaunch::new::<LinearLayout>(buffer, layout)
 }
 
 pub fn linear_view_alias<'a, R: CubeRuntime>(
-    tensor: &'a CubeTensor<R>,
+    tensor: &CubeTensor<R>,
     line_size: LineSize,
     pos: usize,
 ) -> LinearViewLaunch<'a, R> {
