@@ -21,7 +21,7 @@ use burn::{
     },
     prelude::*,
     record::{CompactRecorder, NoStdTrainingRecorder},
-    tensor::backend::{AllReduceStrategy, AutodiffBackend},
+    tensor::backend::{AllReduceStrategy, AutodiffBackend, DeviceId},
     train::{
         EvaluatorBuilder, Learner, MetricEarlyStoppingStrategy, StoppingCondition,
         metric::{
@@ -33,7 +33,7 @@ use burn::{
 };
 use burn::{optim::AdamWConfig, train::SupervisedTraining};
 
-static ARTIFACT_DIR: &str = "/tmp/burn-example-mnist";
+static ARTIFACT_DIR: &str = "/home/charles/burn-example-mnist";
 
 #[derive(Config, Debug)]
 pub struct MnistTrainingConfig {
@@ -65,6 +65,13 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         .with_cautious_weight_decay(true)
         .with_weight_decay(5e-5);
 
+    let type_id = 0;
+    let num_devices = B::Device::device_count(type_id);
+    let devices: Vec<<B as Backend>::Device> = (0..2)
+        .map(|i| B::Device::from_id(DeviceId::new(type_id, i as u32)))
+        .collect();
+    let device = devices[0].clone();
+
     let config = MnistTrainingConfig::new(config_optimizer);
     B::seed(&device, config.seed);
 
@@ -95,7 +102,7 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         .linear(LinearLrSchedulerConfig::new(1e-8, 1.0, 2000))
         .linear(LinearLrSchedulerConfig::new(1e-2, 1e-6, 10000));
 
-    let device2 = Default::default();
+    // let device2 = Default::default();
     let collective_config =
         CollectiveConfig::default().with_local_all_reduce_strategy(AllReduceStrategy::Tree(2));
 
@@ -113,7 +120,7 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         .num_epochs(config.num_epochs)
         .summary()
         .with_training_strategy(burn::train::TrainingStrategy::DistributedDataParallel {
-            devices: vec![device, device2],
+            devices: devices,
             config: collective_config,
         });
 
