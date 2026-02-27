@@ -217,7 +217,7 @@ impl MsSsimMetricConfig {
 
         let sum: f32 = betas.iter().sum();
         assert!(
-            (sum - 1.0).abs() < 1e-4,
+            (sum - 1.0).abs() < 1e-3,
             "The sum of the betas must be 1.0, but got {}",
             sum
         );
