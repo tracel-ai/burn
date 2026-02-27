@@ -1,10 +1,19 @@
 # Contributing to Burn
 
-Welcome to the Burn community! We're glad you're interested in contributing. This guide covers our
-expectations and process for pull requests.
+Welcome to the Burn community! We're glad you're interested in contributing.
 
-For technical details like architecture, environment setup, and development guides, see the
-[Contributor Book](https://burn.dev/contributor-book/).
+## How to Contribute
+
+The best way to get started is to look at
+[open issues](https://github.com/tracel-ai/burn/issues) and find one that interests you. Issues
+labeled `good first issue` are a great starting point for new contributors.
+
+If you have an idea that isn't covered by an existing issue, open one first to discuss the approach.
+This helps align expectations and avoids wasted effort on both sides.
+
+For questions, discussions, or just to say hello, join us on
+[Discord](https://discord.gg/uPEBbYYDB6). The [Contributor Book](https://burn.dev/contributor-book/)
+covers architecture, environment setup, and guides for common tasks.
 
 ## Change Ownership
 
@@ -82,7 +91,5 @@ approach before you invest too much time.
 
 ## Getting Help
 
-If you're unsure about an approach, open an issue or start a discussion first. We're happy to guide
-contributors who are genuinely engaged. Asking questions is a sign of strength, not weakness.
-
-For questions and discussions, join us on [Discord](https://discord.gg/uPEBbYYDB6).
+If you're stuck or unsure about something, don't hesitate to ask. Open an issue, start a discussion,
+or reach out on [Discord](https://discord.gg/uPEBbYYDB6). We're happy to help.
