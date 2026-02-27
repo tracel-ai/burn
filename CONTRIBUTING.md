@@ -1,143 +1,95 @@
-# Contributing to the Burn Project
+# Contributing to Burn
 
-Welcome to the Burn project! We're thrilled that you're considering contributing to our project.
-Every contribution helps, and we're delighted to have you on board.
+Welcome to the Burn community! We're glad you're interested in contributing.
 
-## How to Contribute?
+## How to Contribute
 
-Here are some steps to guide you through the process of contributing to the Burn project:
+The best way to get started is to look at [open issues](https://github.com/tracel-ai/burn/issues)
+and find one that interests you. Issues labeled `good first issue` are a great starting point for
+new contributors.
 
-### Step 1: Review the Issue Tickets
+If you have an idea that isn't covered by an existing issue, open one first to discuss the approach.
+This helps align expectations and avoids wasted effort on both sides.
 
-Before you start working on a contribution, please take a moment to look through the open issues in
-the [issue tracker](https://github.com/tracel-ai/burn/issues) for this project. This will give you an
-idea of what kind of work is currently being planned or is in progress.
+For questions, discussions, or just to say hello, join us on
+[Discord](https://discord.gg/uPEBbYYDB6). The [Contributor Book](https://burn.dev/contributor-book/)
+covers architecture, environment setup, and guides for common tasks.
 
-### Step 2: Get Familiar with the Project Architecture
+## Change Ownership
 
-It's crucial to have an understanding of the [project's architecture](https://github.com/tracel-ai/burn/tree/main/contributor-book/src/project-architecture). Familiarize
-yourself with the structure of the project, the purpose of different components, and how they
-interact with each other. This will give you the context needed to make meaningful contributions.
+The core principle behind all contributions: **PR authors must understand, justify, and explain
+every change they propose.** After a PR is accepted, both the reviewer and the author should be
+confident it improves the codebase.
 
-### Step 3: Fork and Clone the Repository
+This applies equally whether you wrote the code from scratch, adapted it from another project, or
+used AI tools to help generate it. The origin of the code doesn't matter; what matters is that you
+own it intellectually and can stand behind it during review.
 
-Before you can start making changes, you'll need to fork the Burn repository and clone it to your
-local machine. This can be done via the GitHub website or the GitHub Desktop application. Here are
-the steps:
+## AI-Assisted Contributions
 
-1. Click the "Fork" button at the top-right of this page to create a copy of this project in your
-   GitHub account.
-2. Clone the repository to your local machine. You can do this by clicking the "Code" button on the
-   GitHub website and copying the URL. Then open a terminal on your local machine and type
-   `git clone [the URL you copied]`.
+Using AI coding tools (Copilot, Cursor, Claude, ChatGPT, etc.) is fine. Many contributors use them,
+and we don't ban or discourage their use.
 
-### Step 4: Create a New Branch
+That said, the [Change Ownership](#change-ownership) principle applies fully. You are the author,
+not your AI tool. This means:
 
-It's a good practice to create a new branch for each contribution you make. This keeps your changes
-organized and separated from the main project, which can make the process of reviewing and merging
-your changes easier. You can create a new branch by using the command
-`git checkout -b [branch-name]`.
+- Read and understand every line before submitting.
+- Review AI-generated code for correctness, style consistency, and relevance.
+- Test your changes locally and confirm they work as intended.
+- Be prepared to explain the rationale behind any change during review.
 
-### Step 5: Make Your Changes
+Do not use "AI generated" as a justification for low-quality code.
 
-Once you have set up your local repository and created a new branch, you can start making changes.
-Be sure to follow the coding standards and guidelines used in the rest of the project.
+## Before You Open a PR
 
-### Step 6: Validate code before opening a Pull Request
+1. **Check for an existing issue.** If there isn't one, open an issue first to discuss the approach.
+   This is especially important for large changes or refactors.
+2. **Read the codebase.** Understand the architecture and conventions already in place. The
+   [Contributor Book](https://burn.dev/contributor-book/) covers architecture, environment setup,
+   and guides for common tasks.
+3. **Keep it focused.** One PR should address one concern. If you spot an unrelated issue while
+   working, open a separate PR for it.
+4. **Run validation.** Run `cargo run-checks` before submitting. This runs formatting, linting, and
+   the full test suite. All checks must pass.
 
-Before you open a pull request, please run [`cargo run-checks`]. This
-will ensure that your changes are in line with our project's standards and guidelines. You can run
-the validation checks by opening a terminal, navigating to your local project directory, and typing
-`cargo run-checks`.
+## PR Requirements
 
-> [!TIP]
-> Want more detailed macro error diagnostics? This is especially useful for debugging tensor-related tests:
->
-> ```bash
-> RUSTC_BOOTSTRAP=1 RUSTFLAGS="-Zmacro-backtrace" cargo run-checks
-> ```
+Every pull request should include:
 
-Note that under the hood `run-checks` runs the `cargo xtask validate` command which is powered by
-the [tracel-xtask crate](https://github.com/tracel-ai/xtask). It is recommended to get familiar with
-it as it provides a wide variety of commands to help you work with the code base.
+- **A descriptive title** that summarizes the change.
+- **A description** covering what you changed, why, how you tested it, and a link to the relevant
+  issue.
+- **Passing CI checks.** Please don't ask reviewers to look at a red build.
+- **Minimal scope.** Avoid bundling unrelated changes together.
 
-If you have an error related to `torch` installation, see [Burn Torch Backend Installation](./crates/burn-tch/README.md#Installation)
+## Code Quality Standards
 
-Format and lint errors can often be fixed automatically using the command `cargo xtask fix all`.
+- Follow existing code style and project conventions.
+- Write idiomatic Rust. If you are new to the codebase, study existing patterns before contributing.
+- Keep dependencies minimal. Don't introduce new crates without discussion.
+- Document public APIs. Non-trivial logic should have comments explaining _why_, not just _what_.
+- Prefer clarity over cleverness.
+- Bug fixes should include a regression test.
 
-### Step 7: Submit a Pull Request
+## Large Pull Requests
 
-After you've made your changes and run the pre-pull request script, you're ready to submit a pull
-request. This can be done through the GitHub website or the
-[GitHub Desktop application](https://desktop.github.com/).
+Large, complex PRs are harder to review effectively and carry more risk. To help both yourself and
+reviewers, consider breaking substantial changes into smaller, incremental PRs. Each should be
+valuable on its own, even if the full picture spans multiple PRs.
 
-When submitting your pull request, please provide a brief description of the changes you've made and
-the issue or issues that your changes address.
+If you're planning a large effort, open an issue or start a discussion first so we can align on the
+approach before you invest too much time.
 
-### Optional step for VS Code: Setting up environment
+## Review Process
 
-1. Install the following extensions:
+- Maintainers review PRs as time allows. Please be patient.
+- Be responsive to feedback. If changes are requested, address them or explain your reasoning.
+- Reviewers may ask clarifying questions about any part of your PR. This is a normal part of
+  collaborative review and helps ensure shared understanding.
+- Don't force-push to rewrite history during an active review without notice.
+- If a PR goes stale for more than 14 days without a response from the author, it may be closed.
 
-- [rust-lang.rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
-- [tamasfe.even-better-toml](https://marketplace.visualstudio.com/items?itemName=tamasfe.even-better-toml)
-- [fill-labs.dependi](https://marketplace.visualstudio.com/items?itemName=fill-labs.dependi)
-- [vadimcn.vscode-lldb](https://marketplace.visualstudio.com/items?itemName=vadimcn.vscode-lldb)
+## Getting Help
 
-2. Open `Command Palette` with Ctrl+Shift+P or F1 and type `LLDB: Generate Launch Configurations from Cargo.toml` then select it, this will generate a file that should be saved as `.vscode/launch.json`.
-You may also want to enable debugging by creating a `.vscode/settings.json` file:
-   ```json
-   {
-   "rust-analyzer.runnables.extraEnv": {
-      "CARGO_PROFILE_DEV_DEBUG": true
-   }
-   }
-   ```
-   since this repo has `debug = 0` in the root `Cargo.toml` to speed up compilation.
-
-3. Now you can enable breakpoint on code through IDE and then start debugging the library/binary you want, such as the following example:
-
-<div align="center">
-<img src="./contributor-book/src/getting-started/debug-options-vscode.png" width="700px"/>
-<div align="left">
-
-4. If you're creating a new library or binary, keep in mind to repeat the step 2 to always keep a fresh list of targets.
-
-## Code Guidelines
-
-We believe in clean and efficient code. While we don't enforce strict coding guidelines, we trust
-and use tools like `cargo fmt` and `cargo clippy` to maintain code quality. These are integrated
-into the `run-checks` command, ensuring consistency across our codebase.
-
-### Writing Expect Messages
-
-In Rust, the `expect()` function is a crucial tool for handling errors. However, the power of
-`expect()` lies in its ability to convey clear, actionable messages. When you use `expect()`, your
-message should describe the successful outcome of the function rather than focusing on the error.
-
-Here's a helpful tip from the [Rust documentation](https://doc.rust-lang.org/std/result/enum.Result.html#recommended-message-style):
-
-_Think of `expect()` messages as guidelines for future you and other developers. Frame them with the word “should” like “The ENV variable should be set by X function” or “The binary should be accessible and executable by the current user.”_
-
-This approach ensures that `expect()` messages are informative and aligned with the intended
-function outcomes, making debugging and maintenance more straightforward for everyone.
-
-### Writing integration tests
-
-[Integration tests](https://doc.rust-lang.org/rust-by-example/testing/integration_testing.html) should be in a directory called `tests`
-besides the `src` directory of a crate. Per convention, they must be implemented in files whose name start with the `test_` prefix.
-
-## Others
-
-To bump for the next version, install `cargo-edit` if its not on your system, and use this command:
-
-```
-cargo set-version --bump minor
-```
-
----
-
-We look forward to seeing your contributions to the Burn project. Happy coding!
-
-If you have any questions and would like to get in touch with us, please feel free to join our
-discord server:
-[![Discord](https://img.shields.io/discord/1038839012602941528.svg?color=7289da&&logo=discord)](https://discord.gg/uPEBbYYDB6)
+If you're stuck or unsure about something, don't hesitate to ask. Open an issue, start a discussion,
+or reach out on [Discord](https://discord.gg/uPEBbYYDB6). We're happy to help.
