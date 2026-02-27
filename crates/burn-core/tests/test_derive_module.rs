@@ -94,7 +94,7 @@ pub struct ModuleWithAttributes<B: Backend, M: Module<B>> {
     nested: ModuleEnumWithGenericModule<B, M>,
     /// By default, primitives were not persistent (same as `#[module(skip)]`).
     other_prob: f64,
-    /// By default, tensors were not persistent (same as `#[module(skip)]`).
+    /// By default, tensors were not persistent and not visited/mapped (same as `#[module(skip)]`).
     tensor: Tensor<B, 1>,
     /// A persistent config value.
     #[module(constant)]
@@ -105,6 +105,10 @@ pub struct ModuleWithAttributes<B: Backend, M: Module<B>> {
     /// A field that contains some debug state.
     #[module(skip)]
     debug_state: String,
+    // TODO: constant tensor (currently not supported due to default empty record behavior)
+    // /// A constant tensor (persisted, but not visited/mapped since it's not a param).
+    // #[module(constant)]
+    // tensor_const: Tensor<B, 1>,
 }
 
 impl<B: Backend> ModuleWithAttributes<B, ModuleBasic<B>> {
@@ -375,6 +379,13 @@ mod num_params {
 
         let module = ModuleEnum::Composed(ModuleComposed::<TestBackend>::new(&device));
         assert_eq!(4 * 20 * 20, module.num_params());
+    }
+
+    #[test]
+    fn should_calculate_num_params_based_on_attributes() {
+        let device = <TestBackend as Backend>::Device::default();
+        let module = ModuleWithAttributes::<TestBackend, _>::new(&device);
+        assert_eq!(20 * 20 * 2, module.num_params());
     }
 }
 

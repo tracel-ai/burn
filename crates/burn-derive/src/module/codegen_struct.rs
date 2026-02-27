@@ -422,12 +422,16 @@ pub(crate) fn parse_module_field_type(
         if attr.path().is_ident("module") {
             attr.parse_nested_meta(|meta| {
                 if meta.path.is_ident("constant") {
-                    // Mark field attribute and generic
-                    field_type.attr = Some(ModuleFieldAttribute::Constant);
-                    for ty in &field_generics {
-                        generics.update(ty, GenericKind::Constant);
+                    if is_tensor {
+                        Err(meta.error("Fields of type 'Tensor' cannot be marked as 'constant' due to the current default behavior."))
+                    } else {
+                        // Mark field attribute and generic
+                        field_type.attr = Some(ModuleFieldAttribute::Constant);
+                        for ty in &field_generics {
+                            generics.update(ty, GenericKind::Constant);
+                        }
+                        Ok(())
                     }
-                    Ok(())
                 } else if meta.path.is_ident("skip") {
                     // Mark field attribute and generic
                     field_type.attr = Some(ModuleFieldAttribute::Skip);
