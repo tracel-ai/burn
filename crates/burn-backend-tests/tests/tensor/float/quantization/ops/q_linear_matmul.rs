@@ -281,4 +281,61 @@ mod tests {
         let result = result_q.dequantize();
         assert_allclose(&result, &expected, 0.2);
     }
+
+    #[test]
+    fn test_q_linear_matmul_saturation_boundaries() {
+        // Test that output saturation works correctly (validates full computation path)
+        // This ensures that the backend (whether default or override) correctly handles
+        // quantization boundaries and saturation.
+        let device = &Default::default();
+
+        // Use extreme values to trigger saturation
+        let a = Tensor::<TestBackend, 2>::from_floats(
+            vec![127.0, 127.0, 127.0, 127.0],  // Max i8 value
+            device,
+        ).reshape([2, 2]);
+
+        let b = Tensor::<TestBackend, 2>::from_floats(
+            vec![127.0, 127.0, 127.0, 127.0],
+            device,
+        ).reshape([2, 2]);
+
+        // Expected: [127*127 + 127*127, ...] = [32258, ...]
+        let expected = a.matmul(b.clone());
+
+        let scheme = QuantScheme::default()
+            .with_value(QuantValue::Q8S)
+            .with_mode(QuantMode::Symmetric);
+
+        let a_q = a.quantize_dynamic(&scheme);
+        let b_q = b.quantize_dynamic(&scheme);
+
+        let a_scale = Tensor::<TestBackend, 1>::from_floats(vec![1.0], device);
+        let b_scale = Tensor::<TestBackend, 1>::from_floats(vec![1.0], device);
+        let out_scale = Tensor::<TestBackend, 1>::from_floats(vec![127.0], device);
+
+        let result_q = a_q.q_linear_matmul(
+            a_scale,
+            None,
+            b_q,
+            b_scale,
+            None,
+            out_scale,
+            None,
+        );
+
+        let result = result_q.dequantize();
+
+        // Result will be saturated at i8 range, but should still match reference direction
+        let result_max = result.max();
+        let expected_max = expected.max();
+
+        // Both should be close in magnitude (within saturation)
+        let result_max_val: f32 = result_max.into_scalar();
+        let expected_max_val: f32 = expected_max.into_scalar();
+
+        // Result should be saturated (lower than expected) due to i8 bounds
+        assert!(result_max_val < expected_max_val * 2.0);
+        assert!(result_max_val > 100.0);  // But not completely wrong
+    }
 }

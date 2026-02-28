@@ -677,6 +677,14 @@ pub trait QTensorOps<B: Backend> {
     /// # Implementation Note
     /// Default placeholder: **Backends MUST override this method.**
     /// See burn-ndarray and burn-cubecl for reference implementations.
+    ///
+    /// # ONNX Compliance Requirements
+    /// Backend implementations MUST:
+    /// - Use round-half-to-even (banker's rounding) for deterministic results
+    /// - For GPU: Use hardware round-to-nearest-even (CUDA `rint()`, GLSL `roundEven()`)
+    /// - Clamp before cast (not wraparound) for saturation
+    /// - Apply all zero-points correctly for asymmetric quantization
+    /// - Produce bit-exact results across platforms
     fn requantize(
         _tensor: IntTensor<B>,
         _in_scale: FloatTensor<B>,
@@ -691,7 +699,7 @@ pub trait QTensorOps<B: Backend> {
         // It cannot be implemented at the trait level due to type constraints (IntTensor).
         //
         // Formula (ONNX QuantizeLinear):
-        // output = saturate(round((input * in_scale) / out_scale) + zero_point)
+        // output = saturate(round_half_to_even((input * in_scale) / out_scale) + zero_point)
         //
         // Backend implementations should:
         // 1. Convert i32 accumulator to float/fixed-point
