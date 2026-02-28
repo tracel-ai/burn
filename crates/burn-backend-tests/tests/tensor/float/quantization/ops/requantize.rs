@@ -2,6 +2,11 @@
 mod tests {
     use burn::tensor::Tensor;
 
+    // NOTE: These tests validate the quantization round-trip behavior (quantize → dequantize).
+    // The backend-specific requantize() method is an internal trait operation (not exposed
+    // in public API) used internally by q_linear_matmul and q_linear_conv.
+    // These tests ensure correctness of the quantization pipeline that requantize is part of.
+
     fn assert_allclose_1d(actual: &Tensor<TestBackend, 1>, expected: &Tensor<TestBackend, 1>, tolerance: f32) {
         let diff = actual.sub(expected).abs();
         let max_diff = diff.max();

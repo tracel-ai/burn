@@ -72,11 +72,11 @@ pub fn integer_matmul_kernel<F: Float>(
     output[m_idx * output.shape(1) + n_idx] = F::from_f32(acc as f32);
 }
 
-/// Shared memory tiled integer matmul for better performance
+/// Tiled integer matmul kernel (Phase 5 candidate for shared memory optimization)
 ///
-/// Uses shared memory to reduce main memory bandwidth and improve cache efficiency.
-/// Threads cooperatively load tiles of A and B into shared memory, then compute
-/// partial products.
+/// This kernel uses tiling to structure computation across K dimension for cache locality.
+/// Current implementation: Global memory access per element
+/// Phase 5 optimization: Add cooperative shared memory loading for reduced bandwidth
 #[cube(launch_unchecked, address_type = "dynamic")]
 pub fn integer_matmul_tiled_kernel<F: Float>(
     lhs: &Tensor<F>,                              // [M, K]
@@ -107,8 +107,9 @@ pub fn integer_matmul_tiled_kernel<F: Float>(
     while k_block < k_total {
         let k_end = (k_block + tile_k).min(k_total);
 
-        // Load from global into registers and accumulate
-        // (In practice, would use shared memory for efficiency)
+        // Load from global memory and accumulate
+        // NOTE: Current implementation reads from global memory per element.
+        // Phase 5 optimization: Use shared memory for tile reuse + cooperative loading.
         let mut k = k_block;
         while k < k_end {
             let lhs_val = lhs[m * k_total + k].to_f32() as i32;
