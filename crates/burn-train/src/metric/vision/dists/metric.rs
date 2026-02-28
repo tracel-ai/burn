@@ -232,19 +232,21 @@ impl<B: Backend> Dists<B> {
             );
 
         // Compute variances and covariance
-        // var_x = E[x^2] - E[x]^2
+        // var_x = E[x^2] - E[x]^2, clamped at 0 for numerical stability
         let var_x = x
             .clone()
             .mul(x.clone())
             .mean_dim(2)
             .squeeze_dim::<2>(2)
-            .sub(mean_x.clone().mul(mean_x.clone()));
+            .sub(mean_x.clone().mul(mean_x.clone()))
+            .clamp_min(0.0);
         let var_y = y
             .clone()
             .mul(y.clone())
             .mean_dim(2)
             .squeeze_dim::<2>(2)
-            .sub(mean_y.clone().mul(mean_y.clone()));
+            .sub(mean_y.clone().mul(mean_y.clone()))
+            .clamp_min(0.0);
 
         // cov_xy = E[xy] - E[x]E[y]
         let cov_xy = x
@@ -266,35 +268,43 @@ impl<B: Backend> Dists<B> {
 
         // Apply weights: [batch, channels] * [channels] -> [batch, channels]
         // Then sum over channels -> [batch]
-        let alpha_expanded = alpha.unsqueeze_dim::<2>(0).repeat_dim(0, batch);
-        let beta_expanded = beta.unsqueeze_dim::<2>(0).repeat_dim(0, batch);
-
         let weighted_structure = structure_dist
-            .mul(alpha_expanded)
+            .mul(alpha.unsqueeze_dim::<2>(0))
             .sum_dim(1)
             .squeeze_dim::<1>(1);
         let weighted_texture = texture_dist
-            .mul(beta_expanded)
+            .mul(beta.unsqueeze_dim::<2>(0))
             .sum_dim(1)
             .squeeze_dim::<1>(1);
 
         (weighted_structure, weighted_texture)
     }
 
-    /// Preprocess input images.
+    /// Preprocess input images using ImageNet normalization.
     fn preprocess(
         &self,
         input: Tensor<B, 4>,
         target: Tensor<B, 4>,
     ) -> (Tensor<B, 4>, Tensor<B, 4>) {
         if self.normalize {
-            // Normalize from [0, 1] to [-1, 1]
-            let input = input.mul_scalar(2.0).sub_scalar(1.0);
-            let target = target.mul_scalar(2.0).sub_scalar(1.0);
+            // ImageNet normalization: (x - mean) / std
+            let input = Self::imagenet_normalize(input);
+            let target = Self::imagenet_normalize(target);
             (input, target)
         } else {
             (input, target)
         }
+    }
+
+    /// Apply ImageNet normalization to a tensor.
+    /// mean = [0.485, 0.456, 0.406], std = [0.229, 0.224, 0.225]
+    fn imagenet_normalize(x: Tensor<B, 4>) -> Tensor<B, 4> {
+        // Normalize each channel: (x - mean) / std
+        let r = x.clone().narrow(1, 0, 1).sub_scalar(0.485).div_scalar(0.229);
+        let g = x.clone().narrow(1, 1, 1).sub_scalar(0.456).div_scalar(0.224);
+        let b = x.narrow(1, 2, 1).sub_scalar(0.406).div_scalar(0.225);
+
+        Tensor::cat(vec![r, g, b], 1)
     }
 }
 
@@ -315,7 +325,8 @@ mod tests {
     #[test]
     fn test_dists_identical_images_zero_distance() {
         let device = Default::default();
-        let image = TestTensor::<4>::ones([1, 3, 64, 64], &device);
+        // Use random image instead of constant to avoid numerical edge cases
+        let image = TestTensor::<4>::random([1, 3, 64, 64], burn_core::tensor::Distribution::Uniform(0.0, 1.0), &device);
 
         let dists: Dists<TestBackend> = DistsConfig::new().init(&device);
         let distance = dists.forward(image.clone(), image, Reduction::Mean);
@@ -408,7 +419,12 @@ mod tests {
         let dists: Dists<TestBackend> = DistsConfig::new().init_pretrained(&device);
 
         // Test with identical images - should be ~0
-        let image = TestTensor::<4>::ones([1, 3, 64, 64], &device);
+        // Use random image to avoid numerical edge cases with constant images
+        let image = TestTensor::<4>::random(
+            [1, 3, 64, 64],
+            burn_core::tensor::Distribution::Uniform(0.0, 1.0),
+            &device,
+        );
         let distance = dists.forward(image.clone(), image, Reduction::Mean);
         let distance_value = distance.into_data().to_vec::<f32>().unwrap()[0];
         assert!(
@@ -418,8 +434,16 @@ mod tests {
         );
 
         // Test with different images - should be positive
-        let image1 = TestTensor::<4>::zeros([1, 3, 64, 64], &device);
-        let image2 = TestTensor::<4>::ones([1, 3, 64, 64], &device);
+        let image1 = TestTensor::<4>::random(
+            [1, 3, 64, 64],
+            burn_core::tensor::Distribution::Uniform(0.0, 0.3),
+            &device,
+        );
+        let image2 = TestTensor::<4>::random(
+            [1, 3, 64, 64],
+            burn_core::tensor::Distribution::Uniform(0.7, 1.0),
+            &device,
+        );
         let distance = dists.forward(image1, image2, Reduction::Mean);
         let distance_value = distance.into_data().to_vec::<f32>().unwrap()[0];
         assert!(
