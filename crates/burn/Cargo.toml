@@ -128,7 +128,7 @@ rl = ["dep:burn-rl", "burn-train?/rl"]
 
 # Backend
 ir = ["burn-ir"]
-autodiff = ["burn-autodiff"]
+autodiff = ["burn-autodiff", "burn-dispatch?/autodiff"]
 fusion = [
     "ir",
     "burn-wgpu?/fusion",
@@ -204,4 +204,3 @@ burn-ir = { path = "../burn-ir", version = "=0.21.0-pre.1", optional = true, def
 burn-dispatch = { path = "../burn-dispatch", version = "=0.21.0-pre.1", optional = true, default-features = false }
 
 cubecl = { workspace = true, default-features = false, optional = true }
-

@@ -168,6 +168,7 @@ const TYPE_ID_BASE: u16 = 10;
 
 impl DispatchDevice {
     /// Creates a new [`DispatchDevice`] with [automatic differentiation](Autodiff) enabled.
+    #[cfg(feature = "autodiff")]
     pub fn autodiff(device: impl Into<DispatchDevice>) -> DispatchDevice {
         let device = device.into();
         DispatchDevice::Autodiff(AutodiffDevice(Box::new(device)))

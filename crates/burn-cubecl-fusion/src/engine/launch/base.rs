@@ -14,6 +14,9 @@ use cubecl::{CubeElement, Runtime, client::ComputeClient};
 use std::marker::PhantomData;
 
 /// The launcher is responsible to launch a fused kernel using the [TraceRunner] and a [FuseTrace].
+///
+/// TODO: We can reuse the same launcher between runs and avoid a lot of allocation, by simply
+/// resetting the state.
 pub struct FuseTraceLauncher<'a, R: Runtime, Runner: TraceRunner<R>> {
     trace: &'a FuseTrace,
     runner: &'a Runner,

@@ -1,0 +1,18 @@
+[profiling]
+logger = { log = "info", level = "disabled" }
+
+[autotune]
+level = "balanced"
+cache = "target"
+logger = { file = "/tmp/autotune.log", level = "disabled" }
+
+[compilation]
+logger = { level = "disabled" }
+cache = "target"
+
+[memory]
+logger = { level = "full", file = "/tmp/memory.log" }
+persistent_memory = "enabled"
+
+[streaming]
+max_streams = 8
