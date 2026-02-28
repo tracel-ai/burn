@@ -631,8 +631,8 @@ pub trait QTensorOps<B: Backend> {
     /// Default implementation accumulates through float32. Phase 4 will provide fixed-point
     /// backend-specific implementations for deterministic, high-precision computation.
     fn requantize(
-        tensor: IntTensor<B>,
-        in_scale: FloatTensor<B>,
+        _tensor: IntTensor<B>,
+        _in_scale: FloatTensor<B>,
         _in_zero_point: Option<IntTensor<B>>,
         out_scale: FloatTensor<B>,
         _out_zero_point: Option<IntTensor<B>>,
@@ -737,7 +737,7 @@ pub trait QTensorOps<B: Backend> {
 
         let scheme = x.scheme().clone();
         let x_dequant = Self::dequantize(x);
-        let w_dequant = Self::dequantize(w);
+        let _w_dequant = Self::dequantize(w);
 
         // In a real implementation, would call dequantized conv here
         // For now, just return quantized version of dequantized input*weight
