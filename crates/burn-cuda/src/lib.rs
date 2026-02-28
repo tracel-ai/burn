@@ -12,7 +12,7 @@ pub type Cuda<F = f32, I = i32> = CubeBackend<CudaRuntime, F, I, u8>;
 #[cfg(feature = "fusion")]
 pub type Cuda<F = f32, I = i32> = burn_fusion::Fusion<CubeBackend<CudaRuntime, F, I, u8>>;
 
-#[cfg(test)]
+#[cfg(all(test, not(target_os = "macos")))]
 mod tests {
     use super::*;
     use burn_backend::{Backend, DType, QTensorPrimitive};

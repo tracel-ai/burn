@@ -1054,3 +1054,170 @@ fn test_pickle_value_conversion() {
         _ => panic!("Unexpected root type"),
     }
 }
+
+// ============================================================================
+// TAR Format Tests
+// ============================================================================
+// The TAR format was used by very early versions of PyTorch (pre 0.1.10).
+// These tests verify that we can correctly load models saved in this format.
+
+#[test]
+fn test_tar_format_detection() {
+    // Test that is_tar_file correctly detects TAR files
+    let tar_path = test_data_path("tar_float32.tar");
+    let zip_path = test_data_path("float32.pt");
+
+    // TAR file should be detected as TAR
+    let reader = PytorchReader::new(&tar_path).expect("Failed to load TAR file");
+    let metadata = reader.metadata();
+    assert_eq!(metadata.format_type, FileFormat::Tar);
+
+    // ZIP file should NOT be detected as TAR
+    let reader = PytorchReader::new(&zip_path).expect("Failed to load ZIP file");
+    let metadata = reader.metadata();
+    assert_ne!(metadata.format_type, FileFormat::Tar);
+}
+
+#[test]
+fn test_tar_float32_tensor() {
+    let path = test_data_path("tar_float32.tar");
+    let reader = PytorchReader::new(&path).expect("Failed to load tar_float32.tar");
+
+    let tensor = reader.get("tensor").expect("tensor key not found");
+    assert_eq!(tensor.dtype, DType::F32);
+    assert_eq!(tensor.shape, vec![4]);
+
+    let data = tensor.to_data().unwrap();
+    let values = data.as_slice::<f32>().unwrap();
+    assert_eq!(values.len(), 4);
+    assert!((values[0] - 1.0).abs() < 1e-6);
+    assert!((values[1] - 2.5).abs() < 1e-6);
+    assert!((values[2] - (-3.7)).abs() < 1e-6);
+    assert!((values[3] - 0.0).abs() < 1e-6);
+}
+
+#[test]
+fn test_tar_float64_tensor() {
+    let path = test_data_path("tar_float64.tar");
+    let reader = PytorchReader::new(&path).expect("Failed to load tar_float64.tar");
+
+    let tensor = reader.get("tensor").expect("tensor key not found");
+    assert_eq!(tensor.dtype, DType::F64);
+    assert_eq!(tensor.shape, vec![3]);
+
+    let data = tensor.to_data().unwrap();
+    let values = data.as_slice::<f64>().unwrap();
+    assert_eq!(values.len(), 3);
+    assert!((values[0] - 1.1).abs() < 1e-10);
+    assert!((values[1] - 2.2).abs() < 1e-10);
+    assert!((values[2] - 3.3).abs() < 1e-10);
+}
+
+#[test]
+fn test_tar_int64_tensor() {
+    let path = test_data_path("tar_int64.tar");
+    let reader = PytorchReader::new(&path).expect("Failed to load tar_int64.tar");
+
+    let tensor = reader.get("tensor").expect("tensor key not found");
+    assert_eq!(tensor.dtype, DType::I64);
+    assert_eq!(tensor.shape, vec![4]);
+
+    let data = tensor.to_data().unwrap();
+    let values = data.as_slice::<i64>().unwrap();
+    assert_eq!(values, &[100, -200, 300, 0]);
+}
+
+#[test]
+fn test_tar_multiple_tensors() {
+    // Test loading multiple tensors (weight + bias) with correct shapes
+    let path = test_data_path("tar_weight_bias.tar");
+    let reader = PytorchReader::new(&path).expect("Failed to load tar_weight_bias.tar");
+
+    // Check weight tensor (2x3 matrix)
+    let weight = reader.get("weight").expect("weight key not found");
+    assert_eq!(weight.dtype, DType::F32);
+    assert_eq!(weight.shape, vec![2, 3]);
+
+    let data = weight.to_data().unwrap();
+    let values = data.as_slice::<f32>().unwrap();
+    assert_eq!(values.len(), 6);
+    assert!((values[0] - 0.1).abs() < 1e-6);
+    assert!((values[1] - 0.2).abs() < 1e-6);
+    assert!((values[5] - 0.6).abs() < 1e-6);
+
+    // Check bias tensor (2-element vector)
+    let bias = reader.get("bias").expect("bias key not found");
+    assert_eq!(bias.dtype, DType::F32);
+    assert_eq!(bias.shape, vec![2]);
+
+    let data = bias.to_data().unwrap();
+    let values = data.as_slice::<f32>().unwrap();
+    assert_eq!(values.len(), 2);
+    assert!((values[0] - 0.01).abs() < 1e-6);
+    assert!((values[1] - 0.02).abs() < 1e-6);
+}
+
+#[test]
+fn test_tar_multi_dtype() {
+    // Test loading different dtypes from the same TAR file
+    let path = test_data_path("tar_multi_dtype.tar");
+    let reader = PytorchReader::new(&path).expect("Failed to load tar_multi_dtype.tar");
+
+    // Float32 tensor
+    let float_tensor = reader
+        .get("float_tensor")
+        .expect("float_tensor key not found");
+    assert_eq!(float_tensor.dtype, DType::F32);
+    let data = float_tensor.to_data().unwrap();
+    let values = data.as_slice::<f32>().unwrap();
+    assert!((values[0] - 1.5).abs() < 1e-6);
+
+    // Float64 tensor
+    let double_tensor = reader
+        .get("double_tensor")
+        .expect("double_tensor key not found");
+    assert_eq!(double_tensor.dtype, DType::F64);
+    let data = double_tensor.to_data().unwrap();
+    let values = data.as_slice::<f64>().unwrap();
+    assert!((values[0] - 1.111).abs() < 1e-10);
+
+    // Int64 tensor
+    let int_tensor = reader.get("int_tensor").expect("int_tensor key not found");
+    assert_eq!(int_tensor.dtype, DType::I64);
+    let data = int_tensor.to_data().unwrap();
+    let values = data.as_slice::<i64>().unwrap();
+    assert_eq!(values, &[10, 20, 30, 40]);
+}
+
+#[test]
+fn test_tar_2d_tensor_shape() {
+    // Test that 2D tensor shapes are correctly preserved
+    let path = test_data_path("tar_2d_tensor.tar");
+    let reader = PytorchReader::new(&path).expect("Failed to load tar_2d_tensor.tar");
+
+    let matrix = reader.get("matrix").expect("matrix key not found");
+    assert_eq!(matrix.dtype, DType::F32);
+    assert_eq!(matrix.shape, vec![3, 4]); // 3 rows, 4 columns
+
+    let data = matrix.to_data().unwrap();
+    let values = data.as_slice::<f32>().unwrap();
+    assert_eq!(values.len(), 12);
+
+    // Verify values in row-major order
+    for i in 0..12 {
+        assert!((values[i] - (i as f32 + 1.0)).abs() < 1e-6);
+    }
+}
+
+#[test]
+fn test_tar_metadata() {
+    // Test that TAR metadata is correctly populated
+    let path = test_data_path("tar_float32.tar");
+    let reader = PytorchReader::new(&path).expect("Failed to load tar_float32.tar");
+
+    let metadata = reader.metadata();
+    assert_eq!(metadata.format_type, FileFormat::Tar);
+    assert_eq!(metadata.byte_order, ByteOrder::LittleEndian);
+    assert_eq!(metadata.tensor_count, 1);
+    assert!(metadata.total_data_size.is_some());
+}

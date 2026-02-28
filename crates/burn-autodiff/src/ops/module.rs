@@ -7,6 +7,7 @@ use crate::ops::{Backward, Ops, unary};
 use crate::tensor::AutodiffTensor;
 
 use burn_backend::Backend;
+use burn_backend::ops::attention::attention_fallback;
 use burn_backend::ops::*;
 use burn_backend::tensor::{FloatTensor, IntTensor};
 
@@ -1736,6 +1737,17 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         _options: InterpolateOptions,
     ) -> <Autodiff<B> as Backend>::FloatTensorPrimitive {
         panic!("Can't differentiate interpolate backward.");
+    }
+
+    fn attention(
+        query: FloatTensor<Autodiff<B, C>>,
+        key: FloatTensor<Autodiff<B, C>>,
+        value: FloatTensor<Autodiff<B, C>>,
+        mask: Option<burn_backend::tensor::BoolTensor<Autodiff<B, C>>>,
+        attn_bias: Option<FloatTensor<Autodiff<B, C>>>,
+        options: AttentionModuleOptions,
+    ) -> FloatTensor<Autodiff<B, C>> {
+        attention_fallback::<Self>(query, key, value, mask, attn_bias, options)
     }
 }
 

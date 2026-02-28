@@ -99,9 +99,7 @@ impl<B: Backend> BasicOps<B> for Bool {
         mask: B::BoolTensorPrimitive,
         value: Scalar,
     ) -> Self::Primitive {
-        // NOTE: we currently only support one one element type for bool, so the contract reflects that
-        // via `BoolElem<B>` instead of `Scalar` in the trait methods.
-        B::bool_mask_fill(tensor, mask, value.elem())
+        B::bool_mask_fill(tensor, mask, value)
     }
 
     fn gather(
@@ -140,12 +138,10 @@ impl<B: Backend> BasicOps<B> for Bool {
         B::bool_from_data(data.convert::<B::BoolElem>(), device)
     }
 
-    fn from_data_dtype(data: TensorData, device: &Device<B>, dtype: DType) -> Self::Primitive {
-        // Backends only use one bool representation dtype
-        if dtype != B::BoolElem::dtype() {
-            panic!("Expected bool dtype, got {dtype:?}")
-        }
-        B::bool_from_data(data.convert_dtype(dtype), device)
+    fn from_data_dtype(data: TensorData, device: &Device<B>, _dtype: DType) -> Self::Primitive {
+        // Bool tensors have exactly one representation per backend, so the
+        // requested dtype is irrelevant. Convert to `B::BoolElem` directly.
+        B::bool_from_data(data.convert::<B::BoolElem>(), device)
     }
 
     fn repeat_dim(tensor: Self::Primitive, dim: usize, times: usize) -> Self::Primitive {
@@ -161,11 +157,11 @@ impl<B: Backend> BasicOps<B> for Bool {
     }
 
     fn equal_elem(lhs: Self::Primitive, rhs: Scalar) -> B::BoolTensorPrimitive {
-        B::bool_equal_elem(lhs, rhs.elem())
+        B::bool_equal_elem(lhs, rhs)
     }
 
     fn not_equal_elem(lhs: Self::Primitive, rhs: Scalar) -> B::BoolTensorPrimitive {
-        B::bool_not_equal_elem(lhs, rhs.elem())
+        B::bool_not_equal_elem(lhs, rhs)
     }
 
     fn cat(vectors: Vec<Self::Primitive>, dim: usize) -> Self::Primitive {

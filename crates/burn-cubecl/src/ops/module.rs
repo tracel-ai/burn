@@ -7,7 +7,7 @@ use burn_backend::tensor::{BoolTensor, FloatTensor, IntTensor};
 use burn_backend::{
     TensorMetadata,
     ops::{
-        AttentionOptions, ConvOptions, ConvTransposeOptions, DeformConv2dBackward,
+        AttentionModuleOptions, ConvOptions, ConvTransposeOptions, DeformConv2dBackward,
         DeformConvOptions, InterpolateOptions, MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps,
     },
 };
@@ -320,17 +320,25 @@ where
         value: FloatTensor<Self>,
         mask: Option<BoolTensor<Self>>,
         attn_bias: Option<FloatTensor<Self>>,
-        options: AttentionOptions,
+        options: AttentionModuleOptions,
     ) -> FloatTensor<Self> {
         // Fall back to naive attention for features the flash kernel doesn't support.
         if attn_bias.is_some() || options.softcap.is_some() || options.scale.is_some() {
-            return burn_backend::ops::attention::naive_attention::<Self>(
+            return burn_backend::ops::attention::attention_fallback::<Self>(
                 query, key, value, mask, attn_bias, options,
             );
         }
 
-        let out_dtype = query.dtype;
-        kernel::attention::flash_attention(query, key, value, mask, options.is_causal, out_dtype)
-            .expect("Kernel to never fail")
+        kernel::attention::attention(
+            query,
+            key,
+            value,
+            mask,
+            attn_bias,
+            options,
+            &Default::default(),
+            None,
+        )
+        .expect("Kernel to never fail")
     }
 }

@@ -18,7 +18,11 @@ use crate::{
     element::{IntNdArrayElement, QuantElement},
     ops::interpolate::nearest_interpolate_backward,
 };
-use burn_backend::{ElementConversion, TensorMetadata, ops::*, tensor::FloatTensor};
+use burn_backend::{
+    ElementConversion, TensorMetadata,
+    ops::{attention::attention_fallback, *},
+    tensor::FloatTensor,
+};
 
 macro_rules! module_op {
     // Module op with inputs (inp), optional (opt) and arguments (args).
@@ -348,5 +352,16 @@ where
         module_op!(inp(x, weight), opt(bias), E, |x, weight, bias| {
             conv_transpose3d::<E>(x, weight, bias, options).into()
         })
+    }
+
+    fn attention(
+        query: FloatTensor<Self>,
+        key: FloatTensor<Self>,
+        value: FloatTensor<Self>,
+        mask: Option<burn_backend::tensor::BoolTensor<Self>>,
+        attn_bias: Option<FloatTensor<Self>>,
+        options: AttentionModuleOptions,
+    ) -> FloatTensor<Self> {
+        attention_fallback::<Self>(query, key, value, mask, attn_bias, options)
     }
 }
