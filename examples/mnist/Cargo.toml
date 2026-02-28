@@ -26,9 +26,9 @@ rocm = ["burn/rocm"]
 [dependencies]
 burn = { path = "../../crates/burn", features = [
     "train",
-    "std",
     "vision",
     "metrics",
+    "fusion",
     "dispatch",
     "ndarray",
 ], default-features = false }

@@ -15,4 +15,4 @@ logger = { level = "disabled", file = "/tmp/memory.log" }
 persistent_memory = "enabled"
 
 [streaming]
-max_streams = 8
+max_streams = 1
