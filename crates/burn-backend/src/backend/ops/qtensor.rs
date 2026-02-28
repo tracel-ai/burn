@@ -574,24 +574,33 @@ pub trait QTensorOps<B: Backend> {
 
     /// QLinear matrix multiplication with explicit zero-points (ONNX QLinearMatMul).
     ///
-    /// Computes: `Y = saturate((A - a_zero_point) * a_scale * (B - b_zero_point) * b_scale / y_scale + y_zero_point)`
-    ///
-    /// This is a placeholder operation. In production, backends should implement native integer
-    /// paths for efficient computation. Current default uses the existing dequant-compute-quant pattern.
+    /// Computes: `Y = saturate((A - a_zero_point) * a_scale @ (B - b_zero_point) * b_scale / y_scale + y_zero_point)`
     ///
     /// # Arguments
     /// * `lhs` - Left operand (quantized)
-    /// * `lhs_scale` - Scale factor for lhs
+    /// * `lhs_scale` - Scale factor for lhs (overrides tensor's stored scale)
     /// * `lhs_zero_point` - Zero-point for lhs (optional for symmetric quantization)
     /// * `rhs` - Right operand (quantized)
-    /// * `rhs_scale` - Scale factor for rhs
+    /// * `rhs_scale` - Scale factor for rhs (overrides tensor's stored scale)
     /// * `rhs_zero_point` - Zero-point for rhs (optional for symmetric quantization)
     /// * `out_scale` - Scale factor for output
     /// * `out_zero_point` - Zero-point for output (optional for symmetric quantization)
     ///
-    /// # Note
-    /// Zero-point tensors are currently unused in this default implementation.
-    /// Phase 4 will add native integer kernel support where zero-points are critical for performance.
+    /// # Note on Implementation
+    /// This default implementation uses dequantize-compute-quantize pattern:
+    /// 1. Dequantize LHS and RHS using their stored scales
+    /// 2. Apply matmul
+    /// 3. Scale result by (lhs_scale * rhs_scale) [for ONNX compliance]
+    /// 4. Divide by output scale and quantize
+    ///
+    /// **Important:** For correct results, the tensor's stored scales should match the passed scale parameters.
+    /// This is the case when tensors are quantized directly before use.
+    ///
+    /// Backends should override with native integer paths (i8×i8→i32) that:
+    /// - Extract raw quantized values (bypass stored scales)
+    /// - Apply zero-point subtraction
+    /// - Use passed scales directly
+    /// - Avoid float conversion entirely
     fn q_linear_matmul(
         lhs: QuantizedTensor<B>,
         lhs_scale: FloatTensor<B>,
@@ -633,20 +642,26 @@ pub trait QTensorOps<B: Backend> {
     ///
     /// Formula: `saturate(round_half_to_even((value * scale_in) / scale_out) + zero_point_out)`
     ///
-    /// This is a placeholder operation that accumulates in float32. In production, backends
-    /// should use fixed-point arithmetic for determinism and efficiency.
+    /// Converts i32 accumulators (from matmul/conv) back to quantized (i8/u8) output with proper rounding.
     ///
     /// # Arguments
     /// * `tensor` - The i32 accumulator tensor to requantize
     /// * `in_scale` - Input scale factor
-    /// * `in_zero_point` - Input zero-point (currently unused in default impl)
+    /// * `in_zero_point` - Input zero-point (for asymmetric quantization; None for symmetric)
     /// * `out_scale` - Output scale factor
-    /// * `out_zero_point` - Output zero-point (currently unused in default impl)
+    /// * `out_zero_point` - Output zero-point (for asymmetric quantization; None for symmetric)
     /// * `scheme` - Target quantization scheme (determines output dtype)
     ///
-    /// # Note
-    /// Default implementation accumulates through float32. Phase 4 will provide fixed-point
-    /// backend-specific implementations for deterministic, high-precision computation.
+    /// # Note on Zero-Points
+    /// Zero-point parameters are exposed in the trait signature (supporting both symmetric and asymmetric
+    /// quantization) even though this default implementation doesn't use them. Backend implementations
+    /// **must** handle zero-points for ONNX compliance. This enables:
+    /// - Symmetric quantization (zp=None): zero-cost, no zero-point computation
+    /// - Asymmetric quantization (zp=Some): required for int8 activations and uint8 inputs
+    ///
+    /// # Implementation Note
+    /// Default placeholder: **Backends MUST override this method.**
+    /// See burn-ndarray and burn-cubecl for reference implementations.
     fn requantize(
         _tensor: IntTensor<B>,
         _in_scale: FloatTensor<B>,

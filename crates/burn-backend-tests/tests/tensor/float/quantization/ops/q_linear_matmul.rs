@@ -62,8 +62,8 @@ mod tests {
         // Dequantize and compare
         let result = result_q.dequantize();
 
-        // Allow 10% tolerance due to quantization
-        assert_allclose(&result, &expected, 10.0);
+        // Allow 0.2 absolute tolerance due to quantization precision loss
+        assert_allclose(&result, &expected, 0.2);
     }
 
     #[test]
@@ -107,8 +107,8 @@ mod tests {
 
         let result = result_q.dequantize();
 
-        // With good scale choices, should be within 5%
-        assert_allclose(&result, &expected, 5.0);
+        // With good scale choices, should be within 0.3 absolute tolerance
+        assert_allclose(&result, &expected, 0.3);
     }
 
     #[test]
@@ -187,7 +187,7 @@ mod tests {
 
         let result = result_q.dequantize();
 
-        assert_allclose(&result, &expected, 5.0);
+        assert_allclose(&result, &expected, 0.3);
     }
 
     #[test]

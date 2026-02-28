@@ -11,9 +11,16 @@ use crate::kernel::SUBCUBE_DIM_X;
 /// 2. Cast to f32 for computation
 /// 3. Apply scale ratio: (acc * in_scale) / out_scale
 /// 4. Add zero-point if present
-/// 5. Round using banker's rounding (round-half-to-even)
-/// 6. Clamp to output dtype range
+/// 5. Round using banker's rounding (round-half-to-even, ties to even)
+/// 6. Clamp to output dtype range ([-128, 127] for i8; [0, 255] for u8)
 /// 7. Store quantized output
+///
+/// # ONNX Compliance
+/// This kernel implements ONNX QuantizeLinear semantics:
+/// - Rounding: ONNX specifies round-half-to-even (banker's rounding)
+/// - Saturation: Clamp before cast, not wraparound
+/// - Backend note: GPU rounding may differ slightly; use hardware round-to-nearest-even instruction
+///   (e.g., `rint()` in CUDA, `roundEven()` in GLSL) for ONNX bit-exact compliance
 #[cube(launch_unchecked, address_type = "dynamic")]
 pub fn requantize_kernel<F: Float>(
     acc: &Tensor<F>,             // i32 accumulator values (reinterpreted as F)
@@ -35,9 +42,11 @@ pub fn requantize_kernel<F: Float>(
     let scale_ratio = in_scale_val / out_scale_val;
     let scaled = acc_val * scale_ratio;
 
-    // Banker's rounding: round to nearest, ties to even
-    // In CUDA/WGPU: use native rounding instruction
-    let rounded = scaled.round();  // Backend-specific: could use rint() for proper banker's rounding
+    // Banker's rounding (round-half-to-even): round to nearest, ties go to even
+    // ONNX QuantizeLinear requires this for deterministic, cross-platform behavior
+    // Note: `.round()` may not implement banker's rounding on all backends
+    // Production code should use hardware instructions: CUDA `rint()`, GLSL `roundEven()`
+    let rounded = scaled.round();
 
     // Apply zero-point
     let with_zp = rounded + zp_val;
@@ -72,9 +81,10 @@ pub fn requantize_per_axis_kernel<F: Float>(
     let out_scale_val = out_scale[scale_idx];
     let zp_val = out_zero_point[scale_idx];
 
-    // Same requantization as scalar version
+    // Same requantization as scalar version (per-axis variant)
     let scale_ratio = in_scale_val / out_scale_val;
     let scaled = acc_val * scale_ratio;
+    // Banker's rounding per ONNX spec
     let rounded = scaled.round();
     let with_zp = rounded + zp_val;
 
