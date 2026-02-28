@@ -230,4 +230,55 @@ mod tests {
             assert_eq!(result_shape, [m, n], "Shape mismatch for {}x{} @ {}x{}", m, k, k, n);
         }
     }
+
+    #[test]
+    fn test_q_linear_matmul_zero_point_parameter_signature() {
+        // Test that zero-point parameters are accepted by q_linear_matmul
+        //
+        // NOTE: Current default implementation (dequant-compute-quant) passes None for
+        // zero-points. Proper asymmetric quantization (with non-zero zero-points)
+        // requires backend override using native integer kernels.
+        //
+        // This test validates the API signature and that symmetric path (zp=None) works.
+        // ONNX compliance for asymmetric quantization (zp != 0) is Phase 5 work.
+
+        let device = &Default::default();
+
+        let a = Tensor::<TestBackend, 2>::from_floats(
+            vec![1.0, 2.0, 3.0, 4.0],
+            device,
+        ).reshape([2, 2]);
+
+        let b = Tensor::<TestBackend, 2>::from_floats(
+            vec![5.0, 6.0, 7.0, 8.0],
+            device,
+        ).reshape([2, 2]);
+
+        let expected = a.matmul(b.clone());
+
+        let scheme = QuantScheme::default()
+            .with_value(QuantValue::Q8S)
+            .with_mode(QuantMode::Symmetric);
+
+        let a_q = a.quantize_dynamic(&scheme);
+        let b_q = b.quantize_dynamic(&scheme);
+
+        let a_scale = Tensor::<TestBackend, 1>::from_floats(vec![0.031496], device);
+        let b_scale = Tensor::<TestBackend, 1>::from_floats(vec![0.062992], device);
+        let out_scale = Tensor::<TestBackend, 1>::from_floats(vec![0.3937], device);
+
+        // Test with None zero-points (symmetric quantization - currently supported)
+        let result_q = a_q.q_linear_matmul(
+            a_scale,
+            None,  // Symmetric: no zero-point
+            b_q,
+            b_scale,
+            None,  // Symmetric: no zero-point
+            out_scale,
+            None,  // Symmetric: no output zero-point
+        );
+
+        let result = result_q.dequantize();
+        assert_allclose(&result, &expected, 0.2);
+    }
 }

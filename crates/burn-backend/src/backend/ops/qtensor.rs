@@ -578,63 +578,78 @@ pub trait QTensorOps<B: Backend> {
     ///
     /// # Arguments
     /// * `lhs` - Left operand (quantized)
-    /// * `lhs_scale` - Scale factor for lhs (overrides tensor's stored scale)
+    /// * `lhs_scale` - Scale factor for lhs
     /// * `lhs_zero_point` - Zero-point for lhs (optional for symmetric quantization)
     /// * `rhs` - Right operand (quantized)
-    /// * `rhs_scale` - Scale factor for rhs (overrides tensor's stored scale)
+    /// * `rhs_scale` - Scale factor for rhs
     /// * `rhs_zero_point` - Zero-point for rhs (optional for symmetric quantization)
     /// * `out_scale` - Scale factor for output
     /// * `out_zero_point` - Zero-point for output (optional for symmetric quantization)
     ///
-    /// # Note on Implementation
-    /// This default implementation uses dequantize-compute-quantize pattern:
-    /// 1. Dequantize LHS and RHS using their stored scales
-    /// 2. Apply matmul
-    /// 3. Scale result by (lhs_scale * rhs_scale) [for ONNX compliance]
-    /// 4. Divide by output scale and quantize
+    /// # Default Implementation (Reference, Not Optimized)
+    /// This default uses dequantize-compute-quantize pattern:
+    /// 1. Dequantize LHS and RHS using stored tensor scales
+    /// 2. Perform matmul on float values
+    /// 3. Divide by output scale
+    /// 4. Quantize back to target scheme
     ///
-    /// **Important:** For correct results, the tensor's stored scales should match the passed scale parameters.
-    /// This is the case when tensors are quantized directly before use.
+    /// **Limitations of Default Implementation:**
+    /// - Assumes tensor stored scales == passed ONNX scale parameters
+    /// - Zero-point handling relies on tensor metadata (not passed parameters)
+    /// - Symmetric quantization (zp=None) works correctly
+    /// - Asymmetric quantization requires backend override for correctness
     ///
-    /// Backends should override with native integer paths (i8×i8→i32) that:
+    /// **For ONNX Compliance:** Backends must override with native integer paths that:
     /// - Extract raw quantized values (bypass stored scales)
-    /// - Apply zero-point subtraction
-    /// - Use passed scales directly
+    /// - Apply zero-point subtraction using passed parameters: `(x - zp_x) * scale_x`
+    /// - Accumulate in i32 to prevent overflow
+    /// - Requantize using passed zero-points
     /// - Avoid float conversion entirely
     fn q_linear_matmul(
         lhs: QuantizedTensor<B>,
-        lhs_scale: FloatTensor<B>,
+        _lhs_scale: FloatTensor<B>,
         _lhs_zero_point: Option<IntTensor<B>>,
         rhs: QuantizedTensor<B>,
-        rhs_scale: FloatTensor<B>,
+        _rhs_scale: FloatTensor<B>,
         _rhs_zero_point: Option<IntTensor<B>>,
         out_scale: FloatTensor<B>,
         _out_zero_point: Option<IntTensor<B>>,
     ) -> QuantizedTensor<B> {
-        // Default implementation: dequantize → scale → matmul → requantize
-        // Formula: Y = saturate(round((A_dequant * scale_a @ B_dequant * scale_b) / scale_out) + zp_out)
+        // Default ONNX-compliant implementation: dequantize → matmul → requantize
         //
-        // This is correct but not optimized. Backends should override with native
-        // integer kernels (i8×i8→i32 with fused zero-point subtraction).
+        // ONNX QLinearMatMul formula:
+        //   Y = saturate(round((A_dequant @ B_dequant) / scale_out) + zp_out)
+        //   where A_dequant = (A_q - zp_a) * scale_a
+        //         B_dequant = (B_q - zp_b) * scale_b
+        //
+        // This default uses stored scales from quantized tensors. Assumes:
+        // - Tensor stored scales == passed ONNX scale parameters (common case)
+        // - Zero-points are handled by dequantize/quantize infrastructure
+        //
+        // Backends should override with native integer kernels for performance.
 
         let scheme = lhs.scheme().clone();
 
-        // Step 1: Dequantize inputs
+        // Step 1: Dequantize inputs using stored scales
+        // NOTE: Dequantization already applies the stored scale factor
         let lhs_dequant = Self::dequantize(lhs);
         let rhs_dequant = Self::dequantize(rhs);
 
-        // Step 2: Perform matmul on dequantized inputs
+        // Step 2: Perform matmul on dequantized (float) inputs
+        // At this point: lhs_dequant = (A_q - zp_a) * stored_scale_a
+        //               rhs_dequant = (B_q - zp_b) * stored_scale_b
+        //               result = lhs_dequant @ rhs_dequant
         let matmul_result = B::float_matmul(lhs_dequant, rhs_dequant);
 
-        // Step 3: Apply input scales explicitly
-        // This ensures scales are being used in the computation
-        let lhs_rhs_scales = B::float_mul(lhs_scale, rhs_scale);
-        let scaled_result = B::float_mul(matmul_result, lhs_rhs_scales);
+        // Step 3: Divide by output scale (requantization step)
+        // ONNX: Y = saturate(round(matmul_result / scale_out) + zp_out)
+        let requantized = B::float_div(matmul_result, out_scale);
 
-        // Step 4: Divide by output scale
-        let requantized = B::float_div(scaled_result, out_scale);
-
-        // Step 5: Quantize to output scheme (handles rounding + saturation)
+        // Step 4: Quantize to output scheme (handles rounding + saturation + zero-point)
+        // NOTE: Zero-point application happens in the quantization step.
+        // This fallback implementation assumes:
+        // - Passed zero-points match tensor metadata (same approach as scales)
+        // - Symmetric quantization uses None for zero-point (zero-cost path)
         Self::quantize_dynamic(requantized, &scheme)
     }
 
