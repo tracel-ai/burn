@@ -651,34 +651,38 @@ pub trait QTensorOps<B: Backend> {
         _tensor: IntTensor<B>,
         _in_scale: FloatTensor<B>,
         _in_zero_point: Option<IntTensor<B>>,
-        out_scale: FloatTensor<B>,
+        _out_scale: FloatTensor<B>,
         _out_zero_point: Option<IntTensor<B>>,
-        scheme: &QuantScheme,
+        _scheme: &QuantScheme,
     ) -> QuantizedTensor<B> {
-        // Default implementation: float-based requantization
-        // Works on all backends but not optimized for determinism.
-        // Backends can override for fixed-point native kernels.
+        // REQUIRED: Backends MUST override this method.
+        //
+        // This operation converts an i32 accumulator (from matmul/conv) to quantized output.
+        // It cannot be implemented at the trait level due to type constraints (IntTensor).
         //
         // Formula (ONNX QuantizeLinear):
         // output = saturate(round((input * in_scale) / out_scale) + zero_point)
         //
-        // NOTE: This is a placeholder. Proper implementation requires:
-        // 1. Type conversion from i32 to float (backend-specific)
-        // 2. Scale arithmetic: (value * in_scale) / out_scale
-        // 3. Zero-point addition
-        // 4. Banker's rounding (round-half-to-even)
-        // 5. Saturating cast to output dtype
+        // Backend implementations should:
+        // 1. Convert i32 accumulator to float/fixed-point
+        // 2. Apply scale factors: (value * in_scale) / out_scale
+        // 3. Add zero-point if present
+        // 4. Apply deterministic rounding (banker's rounding preferred)
+        // 5. Saturate to output dtype range
         //
-        // Phase 4+ will provide backend-specific implementations:
-        // - burn-ndarray: Pure Rust reference with proper type conversion
-        // - burn-cubecl: Fixed-point GPU kernels
-        // - All backends: Proper overrides
+        // Reference implementations:
+        // - burn-ndarray: Pure Rust with explicit i32→f32 conversion
+        // - burn-cubecl: Fixed-point GPU kernels avoiding float
+        // - burn-wgpu: GPU version via cubecl kernels
+        //
+        // NOTE: If you see "not implemented" error, check that your backend
+        // (e.g., NdArrayBackend, CubeBackend) properly overrides this method.
 
-        // For now, use zero tensor as placeholder (allows compilation)
-        // Real backends will override this method
-        Self::quantize_dynamic(
-            B::float_sub(out_scale.clone(), out_scale),
-            scheme,
+        unimplemented!(
+            "Backend must override requantize() method. \
+             This operation converts i32 accumulators to quantized output. \
+             Implement in your backend's QTensorOps implementation. \
+             See burn-ndarray or burn-cubecl for reference implementations."
         )
     }
 
@@ -732,34 +736,49 @@ pub trait QTensorOps<B: Backend> {
         //
         // For now, use dequantize-scale-multiply-requantize pattern
 
+        // ARCHITECTURAL NOTE:
+        // Convolution is not available at this trait level (requires tensor shape information).
+        // QLinearConv must be implemented at the higher-level tensor API or in backend-specific code.
+        //
+        // Default fallback: dequantize → apply scales → quantize
+        // This demonstrates scale application but is NOT real quantized convolution.
+        //
+        // Proper implementation must:
+        // 1. Access conv operation (from higher-level tensor API)
+        // 2. Apply per-channel weight scales [C_out]
+        // 3. Accumulate in i32 (avoid overflow)
+        // 4. Requantize with per-channel scales
+        //
+        // Backends should override this with proper integer conv kernels.
+
         let scheme = x.scheme().clone();
 
-        // Step 1: Dequantize both inputs
+        // Fallback: Scale-aware dequantization
         let x_dequant = Self::dequantize(x);
         let w_dequant = Self::dequantize(w);
 
-        // Step 2: Scale inputs
-        // In a real conv, w_scales would be per-channel [C_out]
-        // and broadcast across input channels and spatial dims
+        // Apply input scale
         let x_scaled = B::float_mul(x_dequant, x_scale);
+
+        // Apply weight scale (NOTE: w_scales is per-channel [C_out], should be broadcast)
         let w_scaled = B::float_mul(w_dequant, w_scales);
 
-        // Step 3: Perform convolution
-        // NOTE: Backend trait doesn't have conv at this level!
-        // We use a placeholder (multiply the first two dims as proxy)
-        // Real implementation must be in backend-specific code or higher API level
-        let conv_result = B::float_mul(x_scaled, w_scaled);
+        // NOTE: Missing actual convolution operation here!
+        // This is the fundamental limitation: Backend trait doesn't have conv.
+        // We use element-wise operations as placeholder to show scale flow,
+        // but this is NOT correct for real convolution.
+        let scaled_result = B::float_mul(x_scaled, w_scaled);
 
-        // Step 4: Add bias if present
+        // Add bias if present
         let with_bias = match b {
-            Some(bias) => B::float_add(conv_result, bias),
-            None => conv_result,
+            Some(bias) => B::float_add(scaled_result, bias),
+            None => scaled_result,
         };
 
-        // Step 5: Divide by output scale (requantize step)
+        // Divide by output scale
         let requantized = B::float_div(with_bias, y_scale);
 
-        // Step 6: Quantize to output scheme
+        // Quantize to target scheme
         Self::quantize_dynamic(requantized, &scheme)
     }
 
