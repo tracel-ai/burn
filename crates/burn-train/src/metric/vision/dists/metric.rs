@@ -300,8 +300,16 @@ impl<B: Backend> Dists<B> {
     /// mean = [0.485, 0.456, 0.406], std = [0.229, 0.224, 0.225]
     fn imagenet_normalize(x: Tensor<B, 4>) -> Tensor<B, 4> {
         // Normalize each channel: (x - mean) / std
-        let r = x.clone().narrow(1, 0, 1).sub_scalar(0.485).div_scalar(0.229);
-        let g = x.clone().narrow(1, 1, 1).sub_scalar(0.456).div_scalar(0.224);
+        let r = x
+            .clone()
+            .narrow(1, 0, 1)
+            .sub_scalar(0.485)
+            .div_scalar(0.229);
+        let g = x
+            .clone()
+            .narrow(1, 1, 1)
+            .sub_scalar(0.456)
+            .div_scalar(0.224);
         let b = x.narrow(1, 2, 1).sub_scalar(0.406).div_scalar(0.225);
 
         Tensor::cat(vec![r, g, b], 1)
@@ -326,7 +334,11 @@ mod tests {
     fn test_dists_identical_images_zero_distance() {
         let device = Default::default();
         // Use random image instead of constant to avoid numerical edge cases
-        let image = TestTensor::<4>::random([1, 3, 64, 64], burn_core::tensor::Distribution::Uniform(0.0, 1.0), &device);
+        let image = TestTensor::<4>::random(
+            [1, 3, 64, 64],
+            burn_core::tensor::Distribution::Uniform(0.0, 1.0),
+            &device,
+        );
 
         let dists: Dists<TestBackend> = DistsConfig::new().init(&device);
         let distance = dists.forward(image.clone(), image, Reduction::Mean);
