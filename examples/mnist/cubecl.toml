@@ -13,6 +13,3 @@ cache = "target"
 [memory]
 logger = { level = "disabled", file = "/tmp/memory.log" }
 persistent_memory = "enabled"
-
-[streaming]
-max_streams = 1
