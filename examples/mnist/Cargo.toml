@@ -10,7 +10,7 @@ version.workspace = true
 workspace = true
 
 [features]
-default = ["burn/tui"]
+default = ["burn/default", "burn/tui"]
 ndarray = ["burn/ndarray"]
 ndarray-blas-accelerate = ["ndarray", "burn/accelerate"]
 ndarray-blas-netlib = ["ndarray", "burn/blas-netlib"]

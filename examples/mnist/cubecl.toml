@@ -11,7 +11,7 @@ logger = { level = "disabled" }
 cache = "target"
 
 [memory]
-logger = { level = "full", file = "/tmp/memory.log" }
+logger = { level = "disabled", file = "/tmp/memory.log" }
 persistent_memory = "enabled"
 
 [streaming]
