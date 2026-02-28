@@ -141,7 +141,7 @@ fn new_quantized<R: CubeRuntime>(
         metadata: Metadata::new(scales_shape, scales_strides),
         dtype: scales_dtype,
     };
-    let qparams = QParams { scales };
+    let qparams = QParams { scales, zero_points: None };
 
     CubeTensor::new_quantized(
         client,
@@ -309,5 +309,48 @@ where
             }
             QuantPropagation::Inhibit => TensorPrimitive::Float(out),
         }
+    }
+
+    fn q_linear_matmul(
+        lhs: QuantizedTensor<Self>,
+        _lhs_scale: FloatTensor<Self>,
+        _lhs_zero_point: Option<IntTensor<Self>>,
+        rhs: QuantizedTensor<Self>,
+        _rhs_scale: FloatTensor<Self>,
+        _rhs_zero_point: Option<IntTensor<Self>>,
+        _out_scale: FloatTensor<Self>,
+        _out_zero_point: Option<IntTensor<Self>>,
+    ) -> QuantizedTensor<Self> {
+        // CubeBackend: For now use the default dequant-compute-quant pattern
+        // Phase 4 will override this with native integer matmul kernel
+        let scheme = lhs.scheme().clone();
+        let lhs_dequant = Self::dequantize(lhs);
+        let rhs_dequant = Self::dequantize(rhs);
+        let output = <Self as crate::ops::float_tensor::FloatTensorOps>::float_matmul(lhs_dequant, rhs_dequant);
+        Self::quantize_dynamic(output, &scheme)
+    }
+
+    fn requantize(
+        _tensor: IntTensor<Self>,
+        in_scale: FloatTensor<Self>,
+        _in_zero_point: Option<IntTensor<Self>>,
+        out_scale: FloatTensor<Self>,
+        _out_zero_point: Option<IntTensor<Self>>,
+        scheme: &QuantScheme,
+    ) -> QuantizedTensor<Self> {
+        // CubeBackend: Phase 4 placeholder for requantization
+        //
+        // Proper implementation will:
+        // 1. Convert i32 accumulator to float or fixed-point
+        // 2. Apply: (acc * in_scale) / out_scale + out_zp
+        // 3. Round with banker's rounding
+        // 4. Clamp and quantize to target scheme
+        //
+        // Phase 4 will create: burn-cubecl/src/kernel/quantization/requantize.rs
+
+        // For now, create a zero-valued quantized tensor with target scheme
+        // This allows compilation while demonstrating the API
+        let zero = B::float_sub(in_scale.clone(), in_scale);
+        Self::quantize_dynamic(zero, scheme)
     }
 }

@@ -23,7 +23,7 @@ impl QTensorOps<Self> for Dispatch {
             (tensor, float),
             (qparams.scales, float),
             |tensor, scales| {
-                B::quantize(tensor, scheme, QuantizationParametersPrimitive { scales })
+                B::quantize(tensor, scheme, QuantizationParametersPrimitive { scales, zero_points: None })
             } => Quantized
         )
     }

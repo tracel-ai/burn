@@ -12,4 +12,7 @@ pub use burn_std::quantization::{QParamTensor, QParams};
 pub struct QuantizationParametersPrimitive<B: Backend> {
     /// The scaling factor.
     pub scales: B::FloatTensorPrimitive,
+    /// Optional zero-points for asymmetric quantization.
+    /// Used in dequantization: `(q - zero_point) * scale`
+    pub zero_points: Option<B::IntTensorPrimitive>,
 }

@@ -54,7 +54,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
                 let tensor = handles.get_float_tensor::<B>(&self.desc.tensor);
                 let scales = handles.get_float_tensor::<B>(&self.desc.qparams.scales);
 
-                let qparams = QuantizationParametersPrimitive { scales };
+                let qparams = QuantizationParametersPrimitive { scales, zero_points: None };
                 let output = B::quantize(tensor, &self.desc.scheme, qparams);
                 handles.register_quantized_tensor::<B>(&self.desc.out.id, output);
             }

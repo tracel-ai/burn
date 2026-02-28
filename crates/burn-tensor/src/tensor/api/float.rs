@@ -696,7 +696,7 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
             self.primitive.tensor(),
             scheme,
             QuantizationParametersPrimitive {
-                scales: qparams.scales.primitive.tensor(),
+                scales: qparams.scales.primitive.tensor(), zero_points: None,
             },
         )))
     }

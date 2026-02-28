@@ -64,6 +64,7 @@ pub fn compute_q_params<B: Backend>(
 
             QuantizationParametersPrimitive {
                 scales: B::float_div_scalar(values_range, (b - a).into()),
+                zero_points: None,
             }
         }
     }

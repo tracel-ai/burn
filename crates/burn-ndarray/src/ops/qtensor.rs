@@ -52,7 +52,7 @@ where
                         let qparams = qparams
                             .scales
                             .into_iter()
-                            .map(|scales| QParams { scales })
+                            .map(|scales| QParams { scales, zero_points: None })
                             .collect();
 
                         NdArrayQTensor {
@@ -117,7 +117,7 @@ where
                 let values = strategy.quantize(data_f.as_slice().unwrap());
                 (
                     TensorData::quantized(values, shape.clone(), *scheme, &[scales]),
-                    vec![QParams { scales }],
+                    vec![QParams { scales, zero_points: None }],
                 )
             }
             QuantScheme {
@@ -142,7 +142,7 @@ where
                     .map(|&s| {
                         (
                             SymmetricQuantization::init(s, scheme.value),
-                            QParams { scales: s },
+                            QParams { scales: s, zero_points: None },
                         )
                     })
                     .unzip();

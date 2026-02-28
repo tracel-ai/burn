@@ -51,6 +51,10 @@ pub enum QuantPropagation {
 pub struct QParams<S> {
     /// The scaling factor.
     pub scales: S,
+    /// Optional zero-points for asymmetric quantization.
+    /// Used in dequantization: `(q - zero_point) * scale`
+    /// Present when using asymmetric quantization schemes.
+    pub zero_points: Option<S>,
 }
 
 /// A quantization parameter tensor descriptor.
@@ -155,7 +159,7 @@ impl QuantizedBytes {
 
         let scales = bytemuck::cast_slice(&qparams_bytes[total_bytes - scales_size..]).to_vec();
 
-        (values, QParams { scales })
+        (values, QParams { scales, zero_points: None })
     }
 
     fn split_i8_values(self, num_params: usize) -> (Vec<i8>, Vec<u32>) {
