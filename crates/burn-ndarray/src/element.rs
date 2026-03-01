@@ -1,9 +1,7 @@
 use burn_backend::Element;
-use burn_complex::base::{
-    Complex,
-    element::{Complex32, Complex64},
-};
-use ndarray::ScalarOperand;
+#[cfg(feature = "complex")]
+use burn_complex::base::element::{Complex32, Complex64};
+
 use num_traits::Signed;
 
 #[cfg(not(feature = "std"))]
@@ -88,14 +86,23 @@ impl ExpElement for Complex32 {
         self.ln()
     }
 
-    fn log1p_elem(self) -> Self {}
+    fn log1p_elem(self) -> Self {
+        // Credit to soumyasen1809
+        // https://github.com/rust-num/num-complex/pull/131
+        (Self::one() + self).ln()
+    }
 
     fn powf_elem(self, value: f32) -> Self {
         self.powf(value)
     }
 
+    // I have no idea if this is right or why one would even use powi with a complex number, I'll circle back
+    // once everything else is working
     fn powi_elem(self, value: i32) -> Self {
-        todo!()
+        let mut output = self.powf(value as f32);
+        output.real.floor();
+        output.imag.floor();
+        output
     }
 
     fn sqrt_elem(self) -> Self {
@@ -118,13 +125,22 @@ impl ExpElement for Complex64 {
         self.ln()
     }
 
-    fn log1p_elem(self) -> Self {}
+    fn log1p_elem(self) -> Self {
+        // Credit to soumyasen1809
+        // https://github.com/rust-num/num-complex/pull/131
+        (Self::one() + self).ln()
+    }
 
     fn powf_elem(self, value: f32) -> Self {
         self.powf(value.into())
     }
 
-    fn powi_elem(self, value: i32) -> Self {}
+    fn powi_elem(self, value: i32) -> Self {
+        let mut output = self.powf(value as f64);
+        output.real.floor();
+        output.imag.floor();
+        output
+    }
 
     fn sqrt_elem(self) -> Self {
         self.sqrt()
@@ -136,8 +152,7 @@ impl ExpElement for Complex64 {
 }
 
 ///Mother fucker
-impl ScalarOperand for Complex32 {}
-impl ScalarOperand for Complex64 {}
+
 /// A quantized element for the ndarray backend.
 pub trait QuantElement: NdArrayElement {}
 

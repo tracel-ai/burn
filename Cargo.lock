@@ -813,7 +813,6 @@ name = "burn-complex"
 version = "0.21.0-pre.1"
 dependencies = [
  "bon",
- "burn-ndarray",
  "burn-std",
  "burn-tensor",
  "bytemuck",
@@ -826,6 +825,7 @@ dependencies = [
  "num-traits",
  "paste",
  "rand 0.10.0",
+ "tch",
 ]
 
 [[package]]

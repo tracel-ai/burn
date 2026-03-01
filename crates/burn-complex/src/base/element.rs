@@ -15,12 +15,29 @@ use num_traits::Zero;
 use num_traits::float::FloatCore;
 use num_traits::identities::ConstZero;
 use rand::Rng;
+#[cfg(feature = "ndarray")]
+mod ndarray {
+    use super::{Complex32, Complex64};
+    use ndarray::ScalarOperand;
+    impl ScalarOperand for Complex32 {}
+    impl ScalarOperand for Complex64 {}
+}
+
+#[cfg(feature = "tch")]
+mod tch {
+    use super::{Complex32, Complex64};
+    use tch::kind::Element as TchElement;
+    impl TchElement for Complex32 {}
+    impl TchElement for Complex64 {}
+}
 
 use std::ops::Div;
 pub trait ToComplex<C> {
     fn to_complex(&self) -> C;
 }
 use paste::paste;
+
+use crate::base::ComplexTensorOps;
 pub trait ToComplexElement: ToElement + ToComplex<Complex32> + ToComplex<Complex64> {
     fn to_complex32(&self) -> Complex32 {
         self.to_complex()
@@ -215,7 +232,7 @@ macro_rules! make_complex {
             }
 
             #[inline]
-            fn one() -> Self {
+            pub fn one() -> Self {
                 Self::new($inner::one(), $inner::zero())
             }
 
@@ -257,80 +274,81 @@ macro_rules! make_complex {
             }
 
             /// Computes the principal value of the square root of `self`.
-    ///
-    /// This function has one branch cut:
-    ///
-    /// * `(-∞, 0)`, continuous from above.
-    ///
-    /// The branch satisfies `-π/2 ≤ arg(sqrt(z)) ≤ π/2`.
-    #[inline]
-    pub fn sqrt(self) -> Self {
-        if self.imag.is_zero() {
-            if self.real.is_sign_positive() {
-                // simple positive real √r, and copy `im` for its sign
-                Self::new(self.real.sqrt(), self.imag)
-            } else {
-                // √(r e^(iπ)) = √r e^(iπ/2) = i√r
-                // √(r e^(-iπ)) = √r e^(-iπ/2) = -i√r
-                let re = $inner::zero();
-                let im = (-self.real).sqrt();
-                if self.imag.is_sign_positive() {
-                    Self::new(re, im)
+            ///
+            /// This function has one branch cut:
+            ///
+            /// * `(-∞, 0)`, continuous from above.
+            ///
+            /// The branch satisfies `-π/2 ≤ arg(sqrt(z)) ≤ π/2`.
+            #[inline]
+            pub fn sqrt(self) -> Self {
+                if self.imag.is_zero() {
+                    if self.real.is_sign_positive() {
+                        // simple positive real √r, and copy `im` for its sign
+                        Self::new(self.real.sqrt(), self.imag)
+                    } else {
+                        // √(r e^(iπ)) = √r e^(iπ/2) = i√r
+                        // √(r e^(-iπ)) = √r e^(-iπ/2) = -i√r
+                        let re = $inner::zero();
+                        let im = (-self.real).sqrt();
+                        if self.imag.is_sign_positive() {
+                            Self::new(re, im)
+                        } else {
+                            Self::new(re, -im)
+                        }
+                    }
+                } else if self.real.is_zero() {
+                    // √(r e^(iπ/2)) = √r e^(iπ/4) = √(r/2) + i√(r/2)
+                    // √(r e^(-iπ/2)) = √r e^(-iπ/4) = √(r/2) - i√(r/2)
+                    let one = $inner::one();
+                    let two = one + one;
+                    let x = (self.imag.abs() / two).sqrt();
+                    if self.imag.is_sign_positive() {
+                        Self::new(x, x)
+                    } else {
+                        Self::new(x, -x)
+                    }
                 } else {
-                    Self::new(re, -im)
+                    // formula: sqrt(r e^(it)) = sqrt(r) e^(it/2)
+                    let one = $inner::one();
+                    let two = one + one;
+                    let (r, theta) = self.to_polar();
+                    Self::from_polar(r.sqrt(), theta / two)
                 }
             }
-        } else if self.real.is_zero() {
-            // √(r e^(iπ/2)) = √r e^(iπ/4) = √(r/2) + i√(r/2)
-            // √(r e^(-iπ/2)) = √r e^(-iπ/4) = √(r/2) - i√(r/2)
-            let one = $inner::one();
-            let two = one + one;
-            let x = (self.imag.abs() / two).sqrt();
-            if self.imag.is_sign_positive() {
-                Self::new(x, x)
-            } else {
-                Self::new(x, -x)
-            }
-        } else {
-            // formula: sqrt(r e^(it)) = sqrt(r) e^(it/2)
-            let one = $inner::one();
-            let two = one + one;
-            let (r, theta) = self.to_polar();
-            Self::from_polar(r.sqrt(), theta / two)
-        }
-    }
-
 
 
         }
 
 
-
-        // (a + i b) / (c + i d) == [(a + i b) * (c - i d)] / (c*c + d*d)
-        //   == [(a*c + b*d) / (c*c + d*d)] + i [(b*c - a*d) / (c*c + d*d)]
-        impl Div<$type> for $type {
-            type Output = Self;
-
-            #[inline]
-            fn div(self, other: Self) -> Self::Output {
-                let norm_sqr = other.norm_sqr();
-                let re = self.real.clone() * other.real + self.imag.clone() * other.imag;
-                let im = self.imag * other.real - self.real * other.imag;
-                Self::Output::new(re / norm_sqr.clone(), im / norm_sqr)
+        impl One for $type {
+            fn one() -> Self {
+                Self::one()
             }
         }
 
-        impl ToComplex<Complex32> for $type {
-            fn to_complex(&self) -> Complex32 {
-                Complex32::new(self.real as f32, self.imag as f32)
+        impl Zero for $type {
+            fn zero() -> Self {
+                Self::new($inner::zero(), $inner::zero())
+            }
+            fn is_zero(&self) -> bool {
+                self.real.is_zero() && self.imag.is_zero()
             }
         }
 
-        impl ToComplex<Complex64> for $type {
-            fn to_complex(&self) -> Complex64 {
-                Complex64::new(self.real as f64, self.imag as f64)
-            }
-        }
+
+
+        // impl<$type> ToComplex<Complex32> for $type {
+        //     fn to_complex(&self) -> Complex32 {
+        //         Complex32::new(self.real as f32, self.imag as f32)
+        //     }
+        // }
+
+        // impl ToComplex<Complex64> for $type {
+        //     fn to_complex(&self) -> Complex64 {
+        //         Complex64::new(self.real as f64, self.imag as f64)
+        //     }
+        // }
 
         impl core::fmt::Display for $type {
             fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -564,6 +582,61 @@ make_complex!(
 
 );
 
+// (a + i b) / (c + i d) == [(a + i b) * (c - i d)] / (c*c + d*d)
+//   == [(a*c + b*d) / (c*c + d*d)] + i [(b*c - a*d) / (c*c + d*d)]
+impl Div<Complex32> for Complex32 {
+    type Output = Self;
+
+    #[inline]
+    fn div(self, other: Self) -> Self::Output {
+        let norm_sqr = other.norm_sqr();
+        let re = self.real.clone() * other.real + self.imag.clone() * other.imag;
+        let im = self.imag * other.real - self.real * other.imag;
+        Self::Output::new(re / norm_sqr.clone(), im / norm_sqr)
+    }
+}
+
+// (a + i b) / (c + i d) == [(a + i b) * (c - i d)] / (c*c + d*d)
+//   == [(a*c + b*d) / (c*c + d*d)] + i [(b*c - a*d) / (c*c + d*d)]
+impl Div<Complex64> for Complex64 {
+    type Output = Self;
+
+    #[inline]
+    fn div(self, other: Self) -> Self::Output {
+        let norm_sqr = other.norm_sqr();
+        let re = self.real.clone() * other.real + self.imag.clone() * other.imag;
+        let im = self.imag * other.real - self.real * other.imag;
+        Self::Output::new(re / norm_sqr.clone(), im / norm_sqr)
+    }
+}
+
+impl ToComplex<Complex32> for Complex64 {
+    #[inline]
+    fn to_complex(&self) -> Complex32 {
+        Complex32::new(self.real as f32, self.imag as f32)
+    }
+}
+
+impl ToComplex<Complex64> for Complex32 {
+    #[inline]
+    fn to_complex(&self) -> Complex64 {
+        Complex64::new(self.real as f64, self.imag as f64)
+    }
+}
+
+impl ToComplex<Complex32> for Complex32 {
+    #[inline]
+    fn to_complex(&self) -> Complex32 {
+        *self
+    }
+}
+
+impl ToComplex<Complex64> for Complex64 {
+    #[inline]
+    fn to_complex(&self) -> Complex64 {
+        *self
+    }
+}
 #[cfg(test)]
 pub(crate) mod tests {
     use burn_tensor::DType;

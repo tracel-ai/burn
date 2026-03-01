@@ -60,9 +60,11 @@ burn-autodiff = { path = "../burn-autodiff", version = "=0.21.0-pre.1", default-
 burn-std = { path = "../burn-std", version = "=0.21.0-pre.1", default-features = false }
 burn-ir = { path = "../burn-ir", version = "=0.21.0-pre.1", default-features = false }
 burn-backend = { path = "../burn-backend", version = "=0.21.0-pre.1", default-features = false }
-burn-complex = { path = "../burn-complex", version = "=0.21.0-pre.1", default-features = false, optional = true }
+burn-complex = { path = "../burn-complex", version = "=0.21.0-pre.1", default-features = false, features = [
+    "ndarray",
+], optional = true }
 atomic_float = { workspace = true }
-blas-src = { workspace = true, default-features = false, optional = true }                                          # no-std compatible
+blas-src = { workspace = true, default-features = false, optional = true } # no-std compatible
 const-random = { workspace = true }
 libm = { workspace = true }
 matrixmultiply = { workspace = true, default-features = false }
