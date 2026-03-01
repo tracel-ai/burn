@@ -13,7 +13,8 @@ use burn_std::stub::Mutex;
 use core::marker::PhantomData;
 use rand::SeedableRng;
 
-pub(crate) static SEED: Mutex<Option<NdArrayRng>> = Mutex::new(None);
+/// The seed for the ndarray backend.
+pub static SEED: Mutex<Option<NdArrayRng>> = Mutex::new(None);
 
 /// The device type for the ndarray backend.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
@@ -127,6 +128,11 @@ where
                     _scheme => burn_backend::DTypeUsageSet::empty(),
                 }
             }
+            #[cfg(feature = "complex")]
+            DType::Complex32 | DType::Complex64 => burn_backend::DTypeUsage::general(),
+            //Is this the right behavior or should this panic?
+            #[cfg(not(feature = "complex"))]
+            DType::Complex32 | DType::Complex64 => burn_backend::DTypeUsageSet::empty(),
         }
     }
 }
@@ -181,6 +187,17 @@ where
     fn quantized_tensor_handle(tensor: QuantizedTensor<Self>) -> Self::Handle {
         HandleKind::Quantized(tensor)
     }
+
+    // fn complex_tensor(handle: TensorHandle<Self::Handle>) -> ComplexTensor<Self> {
+    //     match handle.handle {
+    //         HandleKind::Complex(handle) => handle,
+    //         _ => panic!("Expected complex handle, got {}", handle.handle.name()),
+    //     }
+    // }
+
+    // fn complex_tensor_handle(tensor: ComplexTensor<Self>) -> Self::Handle {
+    //     HandleKind::Complex(tensor)
+    // }
 }
 
 #[cfg(test)]

@@ -1,4 +1,7 @@
 use burn_backend::Element;
+#[cfg(feature = "complex")]
+use burn_complex::base::element::{Complex32, Complex64};
+
 use num_traits::Signed;
 
 #[cfg(not(feature = "std"))]
@@ -35,6 +38,7 @@ pub trait NdArrayElement:
 
 /// A element for ndarray backend that supports exp ops.
 pub trait ExpElement {
+    type AbsOutput;
     /// Exponent
     fn exp_elem(self) -> Self;
     /// Log
@@ -48,7 +52,7 @@ pub trait ExpElement {
     /// Sqrt
     fn sqrt_elem(self) -> Self;
     /// Abs
-    fn abs_elem(self) -> Self;
+    fn abs_elem(self) -> Self::AbsOutput;
 }
 
 /// The addition assignment operator implemented for ndarray elements.
@@ -71,10 +75,92 @@ impl AddAssignElement for bool {
     }
 }
 
+impl ExpElement for Complex32 {
+    type AbsOutput = f32;
+
+    fn exp_elem(self) -> Self {
+        self.exp()
+    }
+
+    fn log_elem(self) -> Self {
+        self.ln()
+    }
+
+    fn log1p_elem(self) -> Self {
+        // Credit to soumyasen1809
+        // https://github.com/rust-num/num-complex/pull/131
+        (Self::one() + self).ln()
+    }
+
+    fn powf_elem(self, value: f32) -> Self {
+        self.powf(value)
+    }
+
+    // I have no idea if this is right or why one would even use powi with a complex number, I'll circle back
+    // once everything else is working
+    fn powi_elem(self, value: i32) -> Self {
+        let mut output = self.powf(value as f32);
+        output.real.floor();
+        output.imag.floor();
+        output
+    }
+
+    fn sqrt_elem(self) -> Self {
+        self.sqrt()
+    }
+
+    fn abs_elem(self) -> Self::AbsOutput {
+        self.abs()
+    }
+}
+
+impl ExpElement for Complex64 {
+    type AbsOutput = f64;
+
+    fn exp_elem(self) -> Self {
+        self.exp()
+    }
+
+    fn log_elem(self) -> Self {
+        self.ln()
+    }
+
+    fn log1p_elem(self) -> Self {
+        // Credit to soumyasen1809
+        // https://github.com/rust-num/num-complex/pull/131
+        (Self::one() + self).ln()
+    }
+
+    fn powf_elem(self, value: f32) -> Self {
+        self.powf(value.into())
+    }
+
+    fn powi_elem(self, value: i32) -> Self {
+        let mut output = self.powf(value as f64);
+        output.real.floor();
+        output.imag.floor();
+        output
+    }
+
+    fn sqrt_elem(self) -> Self {
+        self.sqrt()
+    }
+
+    fn abs_elem(self) -> Self::AbsOutput {
+        self.abs()
+    }
+}
+
+///Mother fucker
+
 /// A quantized element for the ndarray backend.
 pub trait QuantElement: NdArrayElement {}
 
 impl QuantElement for i8 {}
+#[cfg(feature = "complex")]
+impl NdArrayElement for burn_complex::base::element::Complex64 {}
+#[cfg(feature = "complex")]
+impl NdArrayElement for burn_complex::base::element::Complex32 {}
 
 impl FloatNdArrayElement for f64 {}
 impl FloatNdArrayElement for f32 {}
@@ -98,6 +184,7 @@ macro_rules! make_float {
 
         #[allow(clippy::cast_abs_to_unsigned)]
         impl ExpElement for $ty {
+            type AbsOutput = Self;
             #[inline(always)]
             fn exp_elem(self) -> Self {
                 self.exp()
@@ -150,6 +237,7 @@ macro_rules! make_int {
 
         #[allow(clippy::cast_abs_to_unsigned)]
         impl ExpElement for $ty {
+            type AbsOutput = Self;
             #[inline(always)]
             fn exp_elem(self) -> Self {
                 (self as f32).exp() as $ty
@@ -187,7 +275,7 @@ macro_rules! make_int {
             }
 
             #[inline(always)]
-            fn abs_elem(self) -> Self {
+            fn abs_elem(self) -> Self::AbsOutput {
                 $abs(self)
             }
         }

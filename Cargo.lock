@@ -809,6 +809,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "burn-complex"
+version = "0.21.0-pre.1"
+dependencies = [
+ "bon",
+ "burn-std",
+ "burn-tensor",
+ "bytemuck",
+ "cubecl",
+ "derive-new",
+ "half",
+ "macerator",
+ "ndarray 0.17.2",
+ "num-complex",
+ "num-traits",
+ "paste",
+ "rand 0.10.0",
+ "tch",
+]
+
+[[package]]
 name = "burn-core"
 version = "0.21.0-pre.1"
 dependencies = [
@@ -994,6 +1014,7 @@ dependencies = [
  "blas-src",
  "burn-autodiff",
  "burn-backend",
+ "burn-complex",
  "burn-ir",
  "burn-std",
  "bytemuck",

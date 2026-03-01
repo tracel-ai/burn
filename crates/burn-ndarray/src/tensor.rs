@@ -32,6 +32,10 @@ pub enum NdArrayTensor {
     U16(NdArrayStorage<u16>),
     U8(NdArrayStorage<u8>),
     Bool(NdArrayStorage<bool>),
+    #[cfg(feature = "complex")]
+    Complex32(NdArrayStorage<burn_complex::base::element::Complex32>),
+    #[cfg(feature = "complex")]
+    Complex64(NdArrayStorage<burn_complex::base::element::Complex64>),
 }
 
 impl NdArrayTensor {
@@ -44,16 +48,36 @@ impl NdArrayTensor {
     }
 
     /// Returns true if this tensor uses borrowed (zero-copy) storage.
+    #[cfg(not(feature = "complex"))]
     #[inline]
     pub fn is_borrowed(&self) -> bool {
         macro_rules! check {
-            ($($variant:ident),*) => {
+            ($( $(#[$meta:meta])* $variant:ident ),*) => {
                 match self {
-                    $(NdArrayTensor::$variant(s) => s.is_borrowed(),)*
+                    $(
+                        $(#[$meta])*
+                        NdArrayTensor::$variant(storage) => storage.is_borrowed(),
+                    )*
                 }
             };
         }
-        check!(F64, F32, I64, I32, I16, I8, U64, U32, U16, U8, Bool)
+        check!(
+            F64,
+            F32,
+            I64,
+            I32,
+            I16,
+            I8,
+            U64,
+            U32,
+            U16,
+            U8,
+            Bool,
+            #[cfg(feature = "complex")]
+            Complex32,
+            #[cfg(feature = "complex")]
+            Complex64
+        )
     }
 }
 
@@ -82,6 +106,10 @@ where
         DType::U16 => cast::<E1, u16>(array).into(),
         DType::U8 => cast::<E1, u8>(array).into(),
         DType::Bool => cast::<E1, bool>(array).into(),
+        #[cfg(feature = "complex")]
+        DType::Complex32 => cast::<E1, burn_complex::base::element::Complex32>(array).into(),
+        #[cfg(feature = "complex")]
+        DType::Complex64 => cast::<E1, burn_complex::base::element::Complex64>(array).into(),
         dtype => panic!("Unsupported dtype: {dtype:?}"),
     }
 }
@@ -110,6 +138,11 @@ impl_from!(
     u64 => U64, u32 => U32, u16 => U16, u8 => U8,
     bool => Bool
 );
+#[cfg(feature = "complex")]
+impl_from!(
+    burn_complex::base::element::Complex32 => Complex32,
+    burn_complex::base::element::Complex64 => Complex64
+);
 
 /// Macro to execute an operation on a given element type.
 ///
@@ -120,11 +153,13 @@ impl_from!(
 /// floating point precision data types will panic with a data type mismatch.
 #[macro_export]
 macro_rules! execute_with_dtype {
-    (($lhs:expr, $rhs:expr),$element:ident,  $op:expr, [$($dtype: ident => $ty: ty),*]) => {{
+    // 1. Binary op with explicit list
+    (($lhs:expr, $rhs:expr), $element:ident, $op:expr, [$( $(#[$meta:meta])* $dtype:ident => $ty:ty ),*]) => {{
         let lhs_dtype = burn_backend::TensorMetadata::dtype(&$lhs);
         let rhs_dtype = burn_backend::TensorMetadata::dtype(&$rhs);
         match ($lhs, $rhs) {
             $(
+                $(#[$meta])*
                 ($crate::NdArrayTensor::$dtype(lhs), $crate::NdArrayTensor::$dtype(rhs)) => {
                     #[allow(unused)]
                     type $element = $ty;
@@ -138,24 +173,31 @@ macro_rules! execute_with_dtype {
             ),
         }
     }};
-    // Binary op: type automatically inferred by the compiler
+
+    // 2. Binary op: type automatically inferred
     (($lhs:expr, $rhs:expr), $op:expr) => {{
         $crate::execute_with_dtype!(($lhs, $rhs), E, $op)
     }};
 
-    // Binary op: generic type cannot be inferred for an operation
+    // 3. Binary op: default list (updated to include complex)
     (($lhs:expr, $rhs:expr), $element:ident, $op:expr) => {{
         $crate::execute_with_dtype!(($lhs, $rhs), $element, $op, [
             F64 => f64, F32 => f32,
             I64 => i64, I32 => i32, I16 => i16, I8 => i8,
             U64 => u64, U32 => u32, U16 => u16, U8 => u8,
-            Bool => bool
+            Bool => bool,
+            #[cfg(feature = "complex")]
+            Complex32 => burn_complex::base::element::Complex32,
+            #[cfg(feature = "complex")]
+            Complex64 => burn_complex::base::element::Complex64
         ])
     }};
 
-    ($tensor:expr, $element:ident, $op:expr, [$($dtype: ident => $ty: ty),*]) => {{
+    // 4. Unary op with explicit list
+    ($tensor:expr, $element:ident, $op:expr, [$( $(#[$meta:meta])* $dtype:ident => $ty:ty ),*]) => {{
         match $tensor {
             $(
+                $(#[$meta])*
                 $crate::NdArrayTensor::$dtype(storage) => {
                     #[allow(unused)]
                     type $element = $ty;
@@ -167,18 +209,23 @@ macro_rules! execute_with_dtype {
             other => unimplemented!("unsupported dtype: {:?}", other.dtype())
         }
     }};
-    // Unary op: type automatically inferred by the compiler
+
+    // 5. Unary op: type automatically inferred
     ($tensor:expr, $op:expr) => {{
         $crate::execute_with_dtype!($tensor, E, $op)
     }};
 
-    // Unary op: generic type cannot be inferred for an operation
+    // 6. Unary op: default list (updated to include complex)
     ($tensor:expr, $element:ident, $op:expr) => {{
         $crate::execute_with_dtype!($tensor, $element, $op, [
             F64 => f64, F32 => f32,
             I64 => i64, I32 => i32, I16 => i16, I8 => i8,
             U64 => u64, U32 => u32, U16 => u16, U8 => u8,
-            Bool => bool
+            Bool => bool,
+            #[cfg(feature = "complex")]
+            Complex32 => burn_complex::base::element::Complex32,
+            #[cfg(feature = "complex")]
+            Complex64 => burn_complex::base::element::Complex64
         ])
     }};
 }
@@ -318,6 +365,14 @@ macro_rules! cat_with_dtype {
     };
 }
 
+// Use storage's shape method (works for both borrowed and owned)
+macro_rules! get_shape {
+    ($($variant:ident),*) => {
+        match self {
+            $(NdArrayTensor::$variant(storage) => Shape::from(storage.shape().to_vec()),)*
+        }
+    };
+}
 impl TensorMetadata for NdArrayTensor {
     fn dtype(&self) -> DType {
         match self {
@@ -332,19 +387,41 @@ impl TensorMetadata for NdArrayTensor {
             NdArrayTensor::U16(_) => DType::U16,
             NdArrayTensor::U8(_) => DType::U8,
             NdArrayTensor::Bool(_) => DType::Bool,
+            #[cfg(feature = "complex")]
+            NdArrayTensor::Complex32(_) => DType::Complex32,
+            #[cfg(feature = "complex")]
+            NdArrayTensor::Complex64(_) => DType::Complex64,
         }
     }
 
     fn shape(&self) -> Shape {
         // Use storage's shape method (works for both borrowed and owned)
         macro_rules! get_shape {
-            ($($variant:ident),*) => {
+            ($( $(#[$meta:meta])* $variant:ident ),*) => {
                 match self {
-                    $(NdArrayTensor::$variant(storage) => Shape::from(storage.shape().to_vec()),)*
+                    $(
+                        $(#[$meta])* NdArrayTensor::$variant(storage) => Shape::from(storage.shape().to_vec()),
+                    )*
                 }
             };
         }
-        get_shape!(F64, F32, I64, I32, I16, I8, U64, U32, U16, U8, Bool)
+        get_shape!(
+            F64,
+            F32,
+            I64,
+            I32,
+            I16,
+            I8,
+            U64,
+            U32,
+            U16,
+            U8,
+            Bool,
+            #[cfg(feature = "complex")]
+            Complex32,
+            #[cfg(feature = "complex")]
+            Complex64
+        )
     }
 
     fn rank(&self) -> usize {
@@ -378,6 +455,34 @@ impl ShapeOps for &[usize] {
 }
 
 mod utils {
+    // For borrowed data, we assume it's contiguous (it came from TensorData which is contiguous)
+    // For owned data, we check the strides
+    macro_rules! check_contiguous {
+        ($($variant:ident),*) => {
+            match self {
+                $(NdArrayTensor::$variant(storage) => {
+                    match storage {
+                        NdArrayStorage::Borrowed { .. } => {
+                            // Borrowed storage requires contiguous row-major data
+                            // (see NdArrayStorage::from_borrowed documentation)
+                            true
+                        }
+                        NdArrayStorage::Owned(array) => {
+                            let shape = array.shape();
+                            let mut strides = Vec::with_capacity(array.strides().len());
+                            for &stride in array.strides() {
+                                if stride <= 0 {
+                                    return false;
+                                }
+                                strides.push(stride as usize);
+                            }
+                            is_contiguous(shape, &strides)
+                        }
+                    }
+                })*
+            }
+        };
+    }
     use burn_std::tensor::is_contiguous;
 
     use super::*;
@@ -421,32 +526,51 @@ mod utils {
             // For borrowed data, we assume it's contiguous (it came from TensorData which is contiguous)
             // For owned data, we check the strides
             macro_rules! check_contiguous {
-                ($($variant:ident),*) => {
+                ($( $(#[$meta:meta])* $variant:ident ),*) => {
                     match self {
-                        $(NdArrayTensor::$variant(storage) => {
-                            match storage {
-                                NdArrayStorage::Borrowed { .. } => {
-                                    // Borrowed storage requires contiguous row-major data
-                                    // (see NdArrayStorage::from_borrowed documentation)
-                                    true
-                                }
-                                NdArrayStorage::Owned(array) => {
-                                    let shape = array.shape();
-                                    let mut strides = Vec::with_capacity(array.strides().len());
-                                    for &stride in array.strides() {
-                                        if stride <= 0 {
-                                            return false;
-                                        }
-                                        strides.push(stride as usize);
+                        $(
+                            $(#[$meta])*
+                            NdArrayTensor::$variant(storage) => {
+                                match storage {
+                                    NdArrayStorage::Borrowed { .. } => {
+                                        // Borrowed storage requires contiguous row-major data
+                                        // (see NdArrayStorage::from_borrowed documentation)
+                                        true
                                     }
-                                    is_contiguous(shape, &strides)
+                                    NdArrayStorage::Owned(array) => {
+                                        let shape = array.shape();
+                                        let mut strides = Vec::with_capacity(array.strides().len());
+                                        for &stride in array.strides() {
+                                            if stride <= 0 {
+                                                return false;
+                                            }
+                                            strides.push(stride as usize);
+                                        }
+                                        is_contiguous(shape, &strides)
+                                    }
                                 }
                             }
-                        })*
+                        )*
                     }
                 };
             }
-            check_contiguous!(F64, F32, I64, I32, I16, I8, U64, U32, U16, U8, Bool)
+            check_contiguous!(
+                F64,
+                F32,
+                I64,
+                I32,
+                I16,
+                I8,
+                U64,
+                U32,
+                U16,
+                U8,
+                Bool,
+                #[cfg(feature = "complex")]
+                Complex32,
+                #[cfg(feature = "complex")]
+                Complex64
+            )
         }
     }
 }
@@ -513,11 +637,23 @@ macro_rules! reshape {
 #[macro_export]
 macro_rules! slice {
     ($tensor:expr, $slices:expr) => {
-        slice!($tensor, $slices, F64, F32, I64, I32, I16, I8, U64, U32, U16, U8, Bool)
+        slice!(
+            $tensor,
+            $slices,
+            F64, F32, I64, I32, I16, I8, U64, U32, U16, U8, Bool,
+            #[cfg(feature = "complex")]
+            Complex32,
+            #[cfg(feature = "complex")]
+            Complex64
+        )
     };
-    ($tensor:expr, $slices:expr, $($variant:ident),*) => {
+
+
+    ($tensor:expr, $slices:expr, $( $(#[$meta:meta])* $variant:ident ),*) => {
         match $tensor {
-            $(NdArrayTensor::$variant(s) => { NdArrayOps::slice(s.view(), $slices).into() })*
+            $(
+                $(#[$meta])* NdArrayTensor::$variant(s) => { NdArrayOps::slice(s.view(), $slices).into() }
+            )*
         }
     };
 }
@@ -607,13 +743,26 @@ impl NdArrayTensor {
                 }
             };
         }
-
-        execute!(data, [
-            F64 => f64, F32 => f32,
-            I64 => i64, I32 => i32, I16 => i16, I8 => i8,
-            U64 => u64, U32 => u32, U16 => u16, U8 => u8,
-            Bool => bool
-        ])
+        #[cfg(feature = "complex")]
+        {
+            execute!(data, [
+                F64 => f64, F32 => f32,
+                I64 => i64, I32 => i32, I16 => i16, I8 => i8,
+                U64 => u64, U32 => u32, U16 => u16, U8 => u8,
+                Bool => bool,
+                Complex32 => burn_complex::base::element::Complex32,
+                Complex64 => burn_complex::base::element::Complex64
+            ])
+        }
+        #[cfg(not(feature = "complex"))]
+        {
+            execute!(data, [
+                F64 => f64, F32 => f32,
+                I64 => i64, I32 => i32, I16 => i16, I8 => i8,
+                U64 => u64, U32 => u32, U16 => u16, U8 => u8,
+                Bool => bool
+            ])
+        }
     }
 }
 

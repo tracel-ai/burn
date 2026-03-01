@@ -21,6 +21,8 @@ pub trait RunnerChannel: Clone + Send + Sync + 'static + Sized {
     type IntElem: Element;
     /// Bool element type.
     type BoolElem: Element;
+    // /// Complex element type.
+    // type ComplexElem: Element;
 
     /// Name of the channel.
     fn name(device: &Self::Device) -> String;

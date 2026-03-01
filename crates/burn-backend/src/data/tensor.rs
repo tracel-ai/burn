@@ -103,6 +103,12 @@ impl TensorData {
                         .map_err(DataError::CastError)?;
                     Ok(unsafe { core::mem::transmute::<&[u8], &[E]>(slice) })
                 }
+                DType::Complex32 => {
+                    bytemuck::checked::try_cast_slice(&self.bytes).map_err(DataError::CastError)
+                }
+                DType::Complex64 => {
+                    bytemuck::checked::try_cast_slice(&self.bytes).map_err(DataError::CastError)
+                }
                 _ => bytemuck::checked::try_cast_slice(&self.bytes).map_err(DataError::CastError),
             }
         } else {
@@ -129,6 +135,10 @@ impl TensorData {
                         .map_err(DataError::CastError)?;
                     Ok(unsafe { core::mem::transmute::<&mut [u8], &mut [E]>(slice) })
                 }
+                DType::Complex32 => bytemuck::checked::try_cast_slice_mut(&mut self.bytes)
+                    .map_err(DataError::CastError),
+                DType::Complex64 => bytemuck::checked::try_cast_slice_mut(&mut self.bytes)
+                    .map_err(DataError::CastError),
                 _ => bytemuck::checked::try_cast_slice_mut(&mut self.bytes)
                     .map_err(DataError::CastError),
             }
@@ -165,6 +175,8 @@ impl TensorData {
                 let vec = self.into_vec_unchecked::<u8>()?;
                 Ok(unsafe { core::mem::transmute::<Vec<u8>, Vec<E>>(vec) })
             }
+            DType::Complex32 => self.into_vec_unchecked(),
+            DType::Complex64 => self.into_vec_unchecked(),
             _ => self.into_vec_unchecked(),
         }
     }
@@ -248,6 +260,18 @@ impl TensorData {
                 ),
                 // bool is a byte value equal to either 0 or 1
                 DType::Bool => Box::new(self.bytes.iter().map(|e| e.elem::<E>())),
+                // DType::Complex32 => Box::new(
+                //     bytemuck::checked::cast_slice(&self.bytes)
+                //         .iter()
+                //         .map(|e: &Complex32| e.elem::<E>()),
+                // ),
+                // DType::Complex64 => Box::new(
+                //     bytemuck::checked::cast_slice(&self.bytes)
+                //         .iter()
+                //         .map(|e: &Complex64| e.elem::<E>()),
+                // ),
+                DType::Complex32 => unimplemented!("TensorData isn't used for Dtype Complex32"),
+                DType::Complex64 => unimplemented!("TensorData isn't used for Dtype Complex64"),
                 DType::QFloat(scheme) => match scheme {
                     QuantScheme {
                         level: QuantLevel::Tensor | QuantLevel::Block(_),
@@ -383,6 +407,8 @@ impl TensorData {
             DType::U8 => Self::full::<u8, _>(shape, fill_value.elem()),
             DType::Bool => Self::full::<bool, _>(shape, fill_value.elem()),
             DType::QFloat(_) => unreachable!(),
+            DType::Complex64 => unreachable!("existence is pain"),
+            DType::Complex32 => unreachable!(),
         }
     }
 
@@ -412,6 +438,10 @@ impl TensorData {
                 DType::U32 => self.convert_inplace_dtype::<u32>(dtype),
                 DType::U16 => self.convert_inplace_dtype::<u16>(dtype),
                 DType::U8 => self.convert_inplace_dtype::<u8>(dtype),
+                // DType::Complex32 => self.convert_inplace_dtype::<Complex32>(dtype),
+                // DType::Complex64 => self.convert_inplace_dtype::<Complex64>(dtype),
+                DType::Complex32 => unimplemented!("TensorData isn't used for Dtype Complex32"),
+                DType::Complex64 => unimplemented!("TensorData isn't used for Dtype Complex64"),
                 DType::Bool | DType::QFloat(_) => unreachable!(),
             }
         } else {
@@ -429,6 +459,10 @@ impl TensorData {
                 DType::U16 => self.convert_clone_dtype::<u16>(dtype),
                 DType::U8 => self.convert_clone_dtype::<u8>(dtype),
                 DType::Bool => self.convert_clone_dtype::<bool>(dtype),
+                // DType::Complex32 => self.convert_clone_dtype::<Complex32>(dtype),
+                // DType::Complex64 => self.convert_clone_dtype::<Complex64>(dtype),
+                DType::Complex32 => unimplemented!("TensorData isn't used for Dtype Complex32"),
+                DType::Complex64 => unimplemented!("TensorData isn't used for Dtype Complex64"),
                 DType::QFloat(_) => unreachable!(),
             }
         }
@@ -448,6 +482,10 @@ impl TensorData {
             DType::U32 => self.convert_inplace::<Current, u32>(),
             DType::U16 => self.convert_inplace::<Current, u16>(),
             DType::U8 => self.convert_inplace::<Current, u8>(),
+            // DType::Complex32 => self.convert_inplace::<Current, Complex32>(),
+            // DType::Complex64 => self.convert_inplace::<Current, Complex64>(),
+            DType::Complex32 => unimplemented!("TensorData isn't used for Dtype Complex32"),
+            DType::Complex64 => unimplemented!("TensorData isn't used for Dtype Complex64"),
             DType::Bool | DType::QFloat(_) => unreachable!(),
         }
     }
@@ -481,6 +519,10 @@ impl TensorData {
             DType::U16 => self.convert_clone::<Current, u16>(),
             DType::U8 => self.convert_clone::<Current, u8>(),
             DType::Bool => self.convert_clone::<Current, bool>(),
+            // DType::Complex32 => self.convert_clone::<Current, Complex32>(),
+            // DType::Complex64 => self.convert_clone::<Current, Complex64>(),
+            DType::Complex32 => unimplemented!("TensorData isn't used for Dtype Complex32"),
+            DType::Complex64 => unimplemented!("TensorData isn't used for Dtype Complex64"),
             DType::QFloat(_) => unreachable!(),
         }
     }
@@ -631,6 +673,10 @@ impl core::fmt::Display for TensorData {
             DType::U16 => format!("{:?}", self.as_slice::<u16>().unwrap()),
             DType::U8 => format!("{:?}", self.as_slice::<u8>().unwrap()),
             DType::Bool => format!("{:?}", self.as_slice::<bool>().unwrap()),
+            // DType::Complex32 => format!("{:?}", self.as_slice::<Complex32>().unwrap()),
+            // DType::Complex64 => format!("{:?}", self.as_slice::<Complex64>().unwrap()),
+            DType::Complex32 => unimplemented!("TensorData isn't used for Dtype Complex32"),
+            DType::Complex64 => unimplemented!("TensorData isn't used for Dtype Complex64"),
             DType::QFloat(scheme) => match scheme {
                 QuantScheme {
                     level: QuantLevel::Tensor | QuantLevel::Block(_),

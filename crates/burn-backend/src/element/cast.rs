@@ -2,6 +2,8 @@ use core::mem::size_of;
 
 use burn_std::{bf16, f16};
 
+//use crate::complex::{Complex32, Complex64};
+
 /// A generic trait for converting a value to a number.
 /// Adapted from num_traits::ToPrimitive to support [bool].
 ///
@@ -131,6 +133,20 @@ pub trait ToElement {
     fn to_bool(&self) -> bool {
         ToElement::to_bool(&self.to_u64())
     }
+
+    // /// Converts the value of `self` to a `Complex32`.
+    // /// For real numbers, the imaginary part will be zero.
+    // #[inline]
+    // fn to_complex32(&self) -> Complex32 {
+    //     Complex32::from_real(self.to_f32())
+    // }
+
+    // /// Converts the value of `self` to a `Complex64`.
+    // /// For real numbers, the imaginary part will be zero.
+    // #[inline]
+    // fn to_complex64(&self) -> Complex64 {
+    //     Complex64::from_real(self.to_f64())
+    // }
 }
 
 macro_rules! impl_to_element_int_to_int {
