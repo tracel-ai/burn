@@ -369,7 +369,7 @@ mod tests {
         assert_eq!(module_names::GROUP_NORM, "Struct:GroupNorm");
     }
 
-    fn create_test_snapshot(path: &str, shape: Vec<usize>, container_type: &str) -> TensorSnapshot {
+    fn create_test_snapshot(path: &str, shape: Shape, container_type: &str) -> TensorSnapshot {
         let path_parts: Vec<String> = path.split('.').map(|s| s.to_string()).collect();
         let values = vec![1.0f32; shape.iter().product()];
         let data = TensorData::new(values, shape.clone());

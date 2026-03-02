@@ -8,7 +8,7 @@ use burn::{
     },
     tensor::Shape,
 };
-use cubecl::{CubeCount, CubeDim, prelude::KernelId, server::Bindings};
+use cubecl::{CubeCount, CubeDim, prelude::KernelId, server::KernelArguments};
 use derive_new::new;
 use std::marker::PhantomData;
 
@@ -107,12 +107,12 @@ impl<F: FloatElement, I: IntElement, BT: BoolElement> Backend
         lhs.client.launch(
             Box::new(SourceKernel::new(kernel, cube_dim)),
             cube_count,
-            Bindings::new().with_buffers(vec![
-                lhs.handle,
-                rhs.handle,
-                bias.handle,
-                output.handle.clone(),
-                info_handle,
+            KernelArguments::new().with_buffers(vec![
+                lhs.handle.binding(),
+                rhs.handle.binding(),
+                bias.handle.binding(),
+                output.handle.clone().binding(),
+                info_handle.binding(),
             ]),
         );
 
