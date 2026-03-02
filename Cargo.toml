@@ -101,7 +101,7 @@ spin = { version = "0.10.0", features = [
     "spin_mutex",
     "portable-atomic",
 ] }
-strum = { version = "0.27.2", features = ["derive"] }
+strum = { version = "0.28.0", features = ["derive"] }
 syn = { version = "2.0.111", features = ["full", "extra-traits"] }
 tar = "0.4.44"
 tempfile = "3.24.0"
