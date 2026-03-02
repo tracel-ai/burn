@@ -1085,7 +1085,7 @@ fn test_tar_float32_tensor() {
 
     let tensor = reader.get("tensor").expect("tensor key not found");
     assert_eq!(tensor.dtype, DType::F32);
-    assert_eq!(tensor.shape, vec![4]);
+    assert_eq!(tensor.shape, shape![4]);
 
     let data = tensor.to_data().unwrap();
     let values = data.as_slice::<f32>().unwrap();
@@ -1103,7 +1103,7 @@ fn test_tar_float64_tensor() {
 
     let tensor = reader.get("tensor").expect("tensor key not found");
     assert_eq!(tensor.dtype, DType::F64);
-    assert_eq!(tensor.shape, vec![3]);
+    assert_eq!(tensor.shape, shape![3]);
 
     let data = tensor.to_data().unwrap();
     let values = data.as_slice::<f64>().unwrap();
@@ -1120,7 +1120,7 @@ fn test_tar_int64_tensor() {
 
     let tensor = reader.get("tensor").expect("tensor key not found");
     assert_eq!(tensor.dtype, DType::I64);
-    assert_eq!(tensor.shape, vec![4]);
+    assert_eq!(tensor.shape, shape![4]);
 
     let data = tensor.to_data().unwrap();
     let values = data.as_slice::<i64>().unwrap();
@@ -1136,7 +1136,7 @@ fn test_tar_multiple_tensors() {
     // Check weight tensor (2x3 matrix)
     let weight = reader.get("weight").expect("weight key not found");
     assert_eq!(weight.dtype, DType::F32);
-    assert_eq!(weight.shape, vec![2, 3]);
+    assert_eq!(weight.shape, shape![2, 3]);
 
     let data = weight.to_data().unwrap();
     let values = data.as_slice::<f32>().unwrap();
@@ -1148,7 +1148,7 @@ fn test_tar_multiple_tensors() {
     // Check bias tensor (2-element vector)
     let bias = reader.get("bias").expect("bias key not found");
     assert_eq!(bias.dtype, DType::F32);
-    assert_eq!(bias.shape, vec![2]);
+    assert_eq!(bias.shape, shape![2]);
 
     let data = bias.to_data().unwrap();
     let values = data.as_slice::<f32>().unwrap();
@@ -1197,7 +1197,7 @@ fn test_tar_2d_tensor_shape() {
 
     let matrix = reader.get("matrix").expect("matrix key not found");
     assert_eq!(matrix.dtype, DType::F32);
-    assert_eq!(matrix.shape, vec![3, 4]); // 3 rows, 4 columns
+    assert_eq!(matrix.shape, shape![3, 4]); // 3 rows, 4 columns
 
     let data = matrix.to_data().unwrap();
     let values = data.as_slice::<f32>().unwrap();
