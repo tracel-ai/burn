@@ -1,7 +1,7 @@
 #[cfg(feature = "std")]
 use crate::KeyRemapper;
 use crate::burnpack::store::BurnpackStore;
-use crate::{ModuleSnapshot, ModuleStore, PathFilter};
+use crate::{ModuleAdapter, ModuleSnapshot, ModuleStore, PathFilter};
 
 use burn_core as burn;
 use burn_core::module::{Module, Param};
@@ -1120,6 +1120,200 @@ fn test_store_quantized_module_round_trip() {
         .to_data()
         .expect("Failed to load tensor data");
     assert_eq!(weight_data.shape, vec![512, 512]);
+}
+
+/// Test HalfPrecisionAdapter bidirectional round-trip: same adapter for save and load.
+#[test]
+fn test_store_half_precision_round_trip() {
+    use crate::HalfPrecisionAdapter;
+    use burn_nn::{Linear, LinearConfig};
+    use burn_tensor::DType;
+
+    #[derive(Module, Debug)]
+    struct HalfModel<B: Backend> {
+        linear: Linear<B>,
+    }
+
+    let device = Default::default();
+    let model = HalfModel::<TestBackend> {
+        linear: LinearConfig::new(4, 2).with_bias(true).init(&device),
+    };
+
+    // Save with HalfPrecisionAdapter (F32 -> F16)
+    let adapter = HalfPrecisionAdapter::new();
+    let mut save_store = BurnpackStore::from_bytes(None).with_to_adapter(adapter.clone());
+    save_store.collect_from(&model).unwrap();
+    let bytes = save_store.get_bytes().unwrap();
+
+    // Verify stored tensors are F16
+    let mut inspect_store = BurnpackStore::from_bytes(Some(bytes.clone()));
+    let snapshots = inspect_store.get_all_snapshots().unwrap();
+    for (_, snapshot) in snapshots.iter() {
+        assert_eq!(snapshot.dtype, DType::F16, "Expected F16 in stored data");
+    }
+
+    // Load back with same adapter instance (F16 -> F32)
+    let mut load_store = BurnpackStore::from_bytes(Some(bytes))
+        .with_from_adapter(adapter)
+        .validate(false);
+    let mut model2 = HalfModel::<TestBackend> {
+        linear: LinearConfig::new(4, 2).with_bias(true).init(&device),
+    };
+    let result = load_store.apply_to(&mut model2).unwrap();
+    assert!(result.is_success());
+
+    // Verify values are close (F32 -> F16 -> F32 has rounding)
+    let w1 = model.linear.weight.val().to_data().to_vec::<f32>().unwrap();
+    let w2 = model2
+        .linear
+        .weight
+        .val()
+        .to_data()
+        .to_vec::<f32>()
+        .unwrap();
+    for (a, b) in w1.iter().zip(w2.iter()) {
+        assert!(
+            (a - b).abs() < 0.01,
+            "Weight values differ too much after F16 round-trip: {} vs {}",
+            a,
+            b
+        );
+    }
+}
+
+/// Test HalfPrecisionAdapter: BatchNorm excluded by default.
+#[test]
+fn test_store_half_precision_batch_norm_excluded() {
+    use crate::HalfPrecisionAdapter;
+    use burn_nn::{BatchNorm, BatchNormConfig, Linear, LinearConfig};
+    use burn_tensor::DType;
+
+    #[derive(Module, Debug)]
+    struct BnModel<B: Backend> {
+        linear: Linear<B>,
+        bn: BatchNorm<B>,
+    }
+
+    let device = Default::default();
+    let model = BnModel::<TestBackend> {
+        linear: LinearConfig::new(4, 2).with_bias(true).init(&device),
+        bn: BatchNormConfig::new(2).init(&device),
+    };
+
+    let adapter = HalfPrecisionAdapter::new();
+    let mut save_store = BurnpackStore::from_bytes(None).with_to_adapter(adapter);
+    save_store.collect_from(&model).unwrap();
+    let bytes = save_store.get_bytes().unwrap();
+
+    // Verify: Linear tensors are F16, BatchNorm tensors remain F32
+    let mut inspect_store = BurnpackStore::from_bytes(Some(bytes));
+    let snapshots = inspect_store.get_all_snapshots().unwrap();
+    for (name, snapshot) in snapshots.iter() {
+        if name.starts_with("linear") {
+            assert_eq!(
+                snapshot.dtype,
+                DType::F16,
+                "Linear tensor '{}' should be F16",
+                name
+            );
+        } else if name.starts_with("bn") {
+            assert_eq!(
+                snapshot.dtype,
+                DType::F32,
+                "BatchNorm tensor '{}' should stay F32",
+                name
+            );
+        }
+    }
+}
+
+/// Test HalfPrecisionAdapter with without_module customization.
+#[test]
+fn test_store_half_precision_without_module() {
+    use crate::HalfPrecisionAdapter;
+    use burn_nn::{LayerNorm, LayerNormConfig, Linear, LinearConfig};
+    use burn_tensor::DType;
+
+    #[derive(Module, Debug)]
+    struct MixedModel<B: Backend> {
+        linear: Linear<B>,
+        norm: LayerNorm<B>,
+    }
+
+    let device = Default::default();
+    let model = MixedModel::<TestBackend> {
+        linear: LinearConfig::new(4, 2).with_bias(true).init(&device),
+        norm: LayerNormConfig::new(2).init(&device),
+    };
+
+    // Remove LayerNorm from half-precision conversion
+    let adapter = HalfPrecisionAdapter::new().without_module("LayerNorm");
+    let mut save_store = BurnpackStore::from_bytes(None).with_to_adapter(adapter);
+    save_store.collect_from(&model).unwrap();
+    let bytes = save_store.get_bytes().unwrap();
+
+    let mut inspect_store = BurnpackStore::from_bytes(Some(bytes));
+    let snapshots = inspect_store.get_all_snapshots().unwrap();
+    for (name, snapshot) in snapshots.iter() {
+        if name.starts_with("linear") {
+            assert_eq!(
+                snapshot.dtype,
+                DType::F16,
+                "Linear tensor '{}' should be F16",
+                name
+            );
+        } else if name.starts_with("norm") {
+            assert_eq!(
+                snapshot.dtype,
+                DType::F32,
+                "LayerNorm tensor '{}' should stay F32",
+                name
+            );
+        }
+    }
+}
+
+/// Test HalfPrecisionAdapter chained with PyTorch adapter.
+#[test]
+fn test_store_half_precision_chained_with_pytorch() {
+    use crate::{HalfPrecisionAdapter, PyTorchToBurnAdapter};
+    use burn_nn::{Linear, LinearConfig};
+    use burn_tensor::DType;
+
+    #[derive(Module, Debug)]
+    struct ChainModel<B: Backend> {
+        linear: Linear<B>,
+    }
+
+    let device = Default::default();
+    let model = ChainModel::<TestBackend> {
+        linear: LinearConfig::new(4, 2).with_bias(true).init(&device),
+    };
+
+    // Save with chained adapter: BurnToPyTorch then half-precision
+    let adapter = crate::BurnToPyTorchAdapter.chain(HalfPrecisionAdapter::new());
+    let mut save_store = BurnpackStore::from_bytes(None).with_to_adapter(adapter);
+    save_store.collect_from(&model).unwrap();
+    let bytes = save_store.get_bytes().unwrap();
+
+    // Verify stored tensors are F16 and transposed
+    let mut inspect_store = BurnpackStore::from_bytes(Some(bytes.clone()));
+    let snapshots = inspect_store.get_all_snapshots().unwrap();
+    let weight = snapshots.get("linear.weight").unwrap();
+    assert_eq!(weight.dtype, DType::F16);
+    // Weight should be transposed: [4, 2] original -> [2, 4] after BurnToPyTorch
+    assert_eq!(weight.shape, vec![2, 4]);
+
+    // Load back with reverse chain: half-precision (F16 -> F32) then PyTorchToBurn
+    let adapter = HalfPrecisionAdapter::new().chain(PyTorchToBurnAdapter);
+    let mut load_store = BurnpackStore::from_bytes(Some(bytes))
+        .with_from_adapter(adapter)
+        .validate(false);
+    let mut model2 = ChainModel::<TestBackend> {
+        linear: LinearConfig::new(4, 2).with_bias(true).init(&device),
+    };
+    let result = load_store.apply_to(&mut model2).unwrap();
+    assert!(result.is_success());
 }
 
 /// Test storing quantized weights with block-level quantization.

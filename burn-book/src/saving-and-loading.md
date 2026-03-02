@@ -323,6 +323,40 @@ let mut store = BurnpackStore::from_file("large_model.bpk")
 model.load_from(&mut store)?;
 ```
 
+#### Half-Precision Storage
+
+Save models at half precision (F16) to reduce file size by ~50%, then load back at full precision:
+
+```rust, ignore
+use burn_store::{ModuleSnapshot, BurnpackStore, HalfPrecisionAdapter};
+
+let adapter = HalfPrecisionAdapter::new();
+
+// Save: F32 -> F16 (same adapter for both directions)
+let mut store = BurnpackStore::from_file("model_f16.bpk")
+    .with_to_adapter(adapter.clone());
+model.save_into(&mut store)?;
+
+// Load: F16 -> F32
+let mut store = BurnpackStore::from_file("model_f16.bpk")
+    .with_from_adapter(adapter);
+model.load_from(&mut store)?;
+```
+
+By default, weights in Linear, Embedding, Conv\*, LayerNorm, GroupNorm, InstanceNorm, RmsNorm, and
+PRelu modules are converted. BatchNorm is excluded because its running variance can underflow in
+F16. Customize with `with_module()` and `without_module()`:
+
+```rust, ignore
+// Keep LayerNorm at full precision
+let adapter = HalfPrecisionAdapter::new()
+    .without_module("LayerNorm");
+
+// Add a custom module to the conversion set
+let adapter = HalfPrecisionAdapter::new()
+    .with_module("CustomLayer");
+```
+
 #### Direct Tensor Access
 
 Inspect tensors without loading into a model:
@@ -371,6 +405,7 @@ model2.apply(snapshots, Some(filter), None, false);
 |               | `remap(KeyRemapper)`           | Complex remapping rules      |
 | **Adapters**  | `with_from_adapter(adapter)`   | Loading transformations      |
 |               | `with_to_adapter(adapter)`     | Saving transformations       |
+|               | `HalfPrecisionAdapter::new()`  | F32/F16 mixed-precision      |
 | **Config**    | `allow_partial(bool)`          | Continue on missing tensors  |
 |               | `with_top_level_key(key)`      | Access nested dict (PyTorch) |
 |               | `skip_enum_variants(bool)`     | Skip enum variants in paths  |
