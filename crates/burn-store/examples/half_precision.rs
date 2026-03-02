@@ -38,32 +38,35 @@ fn main() {
     let model = DemoModel::<B>::new(&device);
 
     // 1) Save at full F32 precision (baseline)
-    let path_f32 = "/tmp/model_f32";
-    let mut store = BurnpackStore::from_file(path_f32).overwrite(true);
+    let dir = tempfile::tempdir().expect("Failed to create temp dir");
+    let path_f32 = dir.path().join("model_f32");
+    let path_f16 = dir.path().join("model_f16");
+    let path_mixed = dir.path().join("model_mixed");
+
+    let mut store =
+        BurnpackStore::from_file(path_f32.to_str().unwrap()).overwrite(true);
     model.save_into(&mut store).expect("Failed to save F32");
-    let size_f32 = std::fs::metadata(format!("{}.bpk", path_f32))
+    let size_f32 = std::fs::metadata(format!("{}.bpk", path_f32.display()))
         .map(|m| m.len())
         .unwrap_or(0);
 
     // 2) Save with default half-precision (all default modules get F16)
-    let path_f16 = "/tmp/model_f16";
     let adapter = HalfPrecisionAdapter::new();
-    let mut store = BurnpackStore::from_file(path_f16)
+    let mut store = BurnpackStore::from_file(path_f16.to_str().unwrap())
         .overwrite(true)
         .with_to_adapter(adapter.clone());
     model.save_into(&mut store).expect("Failed to save F16");
-    let size_f16 = std::fs::metadata(format!("{}.bpk", path_f16))
+    let size_f16 = std::fs::metadata(format!("{}.bpk", path_f16.display()))
         .map(|m| m.len())
         .unwrap_or(0);
 
     // 3) Save with without_module: keep LayerNorm at F32
-    let path_mixed = "/tmp/model_mixed";
     let adapter_no_norm = HalfPrecisionAdapter::new().without_module("LayerNorm");
-    let mut store = BurnpackStore::from_file(path_mixed)
+    let mut store = BurnpackStore::from_file(path_mixed.to_str().unwrap())
         .overwrite(true)
         .with_to_adapter(adapter_no_norm);
     model.save_into(&mut store).expect("Failed to save mixed");
-    let size_mixed = std::fs::metadata(format!("{}.bpk", path_mixed))
+    let size_mixed = std::fs::metadata(format!("{}.bpk", path_mixed.display()))
         .map(|m| m.len())
         .unwrap_or(0);
 
@@ -76,9 +79,8 @@ fn main() {
     );
 
     // 4) Round-trip: load the F16 file back to F32 with the same adapter
-    let mut load_store = BurnpackStore::from_file(path_f16)
-        .with_from_adapter(adapter)
-        .validate(false);
+    let mut load_store = BurnpackStore::from_file(path_f16.to_str().unwrap())
+        .with_from_adapter(adapter);
     let mut model2 = DemoModel::<B>::new(&device);
     let result = model2.load_from(&mut load_store).expect("Failed to load");
     println!(

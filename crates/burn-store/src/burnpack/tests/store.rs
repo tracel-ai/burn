@@ -1153,9 +1153,7 @@ fn test_store_half_precision_round_trip() {
     }
 
     // Load back with same adapter instance (F16 -> F32)
-    let mut load_store = BurnpackStore::from_bytes(Some(bytes))
-        .with_from_adapter(adapter)
-        .validate(false);
+    let mut load_store = BurnpackStore::from_bytes(Some(bytes)).with_from_adapter(adapter);
     let mut model2 = HalfModel::<TestBackend> {
         linear: LinearConfig::new(4, 2).with_bias(true).init(&device),
     };
@@ -1306,9 +1304,7 @@ fn test_store_half_precision_chained_with_pytorch() {
 
     // Load back with reverse chain: half-precision (F16 -> F32) then PyTorchToBurn
     let adapter = HalfPrecisionAdapter::new().chain(PyTorchToBurnAdapter);
-    let mut load_store = BurnpackStore::from_bytes(Some(bytes))
-        .with_from_adapter(adapter)
-        .validate(false);
+    let mut load_store = BurnpackStore::from_bytes(Some(bytes)).with_from_adapter(adapter);
     let mut model2 = ChainModel::<TestBackend> {
         linear: LinearConfig::new(4, 2).with_bias(true).init(&device),
     };

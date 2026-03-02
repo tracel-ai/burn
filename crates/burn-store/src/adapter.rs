@@ -228,6 +228,9 @@ impl HalfPrecisionAdapter {
 
     /// Add a module type to convert. Accepts both short (`"MyLayer"`) and
     /// qualified (`"Struct:MyLayer"`) forms.
+    ///
+    /// Note: short names are mapped to `"Struct:Name"`. If you have an Enum-based
+    /// module, use the qualified form `"Enum:MyModule"` explicitly.
     pub fn with_module(mut self, module_type: impl Into<String>) -> Self {
         let name = module_type.into();
         if name.contains(':') {
@@ -246,7 +249,7 @@ impl HalfPrecisionAdapter {
         } else {
             format!("Struct:{}", name)
         };
-        debug_assert!(
+        assert!(
             self.modules.contains(&key),
             "without_module called with '{}' which is not in the module set",
             key
