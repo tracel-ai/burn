@@ -18,13 +18,7 @@ use burn_tensor::TensorData;
 // These come from the Module derive macro which uses stringify! on the struct name
 // Format: "Struct:TypeName" for user-defined structs
 mod module_names {
-    // Import the types to ensure they exist at compile time
-    // If these types are renamed or moved, we'll get a compile error
-    #[allow(unused_imports)]
-    use burn_nn::{BatchNorm, GroupNorm, LayerNorm, Linear};
-
     // The actual string constants that match what the Module derive macro produces
-    // The imports above ensure these types exist at compile-time
     pub const LINEAR: &str = "Struct:Linear";
     pub const BATCH_NORM: &str = "Struct:BatchNorm";
     pub const LAYER_NORM: &str = "Struct:LayerNorm";
@@ -358,6 +352,21 @@ mod tests {
     use alloc::sync::Arc;
     use burn_tensor::{DType, TensorData};
     use core::sync::atomic::{AtomicUsize, Ordering};
+
+    #[test]
+    fn test_module_names_match_burn_nn() {
+        // If these types are renamed or moved in `burn-nn`, this test will fail to compile.
+        // This use statement replicates the previous check/alarm system.
+        #[allow(unused_imports)]
+        use burn_nn::{BatchNorm, GroupNorm, LayerNorm, Linear};
+
+        // These assert statements work as extra checks that should remind maintainers more
+        // clearly that the hardcoded strings needs get updated.
+        assert_eq!(module_names::LINEAR, "Struct:Linear");
+        assert_eq!(module_names::BATCH_NORM, "Struct:BatchNorm");
+        assert_eq!(module_names::LAYER_NORM, "Struct:LayerNorm");
+        assert_eq!(module_names::GROUP_NORM, "Struct:GroupNorm");
+    }
 
     fn create_test_snapshot(path: &str, shape: Vec<usize>, container_type: &str) -> TensorSnapshot {
         let path_parts: Vec<String> = path.split('.').map(|s| s.to_string()).collect();

@@ -6,7 +6,7 @@ use burn_std::Shape;
 
 use crate::{
     Backend, TensorMetadata,
-    ops::AttentionOptions,
+    ops::AttentionModuleOptions,
     tensor::{BoolTensor, FloatTensor},
 };
 
@@ -18,7 +18,7 @@ pub fn attention_fallback<B: Backend>(
     value: FloatTensor<B>,
     mask: Option<BoolTensor<B>>,
     attn_bias: Option<FloatTensor<B>>,
-    options: AttentionOptions,
+    options: AttentionModuleOptions,
 ) -> FloatTensor<B> {
     if let Some(softcap) = options.softcap {
         assert!(softcap > 0.0, "softcap must be positive, got {softcap}");

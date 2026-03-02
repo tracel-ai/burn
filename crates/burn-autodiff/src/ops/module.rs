@@ -1745,7 +1745,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         value: FloatTensor<Autodiff<B, C>>,
         mask: Option<burn_backend::tensor::BoolTensor<Autodiff<B, C>>>,
         attn_bias: Option<FloatTensor<Autodiff<B, C>>>,
-        options: AttentionOptions,
+        options: AttentionModuleOptions,
     ) -> FloatTensor<Autodiff<B, C>> {
         attention_fallback::<Self>(query, key, value, mask, attn_bias, options)
     }

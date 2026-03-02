@@ -5,6 +5,7 @@ use burn_autodiff::{close_gradient_sync_server, start_gradient_sync_server};
 use burn_collective::CollectiveConfig;
 use burn_core::tensor::Device;
 use burn_core::tensor::backend::AutodiffBackend;
+use burn_core::tensor::backend::DeviceOps;
 
 use crate::ddp::worker::DdpWorker;
 use crate::metric::store::EventStoreClient;
@@ -56,7 +57,7 @@ impl<LC: LearningComponentsTypes + Send + 'static> SupervisedLearningStrategy<LC
         // for each (worker) data loader. This matches the expected device on the worker, so we
         // don't have to move the data between devices.
         let mut dataloaders_train = split_dataloader(dataloader_train, &self.devices);
-        let dataloader_valid = dataloader_valid.to_device(main_device);
+        let dataloader_valid = dataloader_valid.to_device(main_device.inner());
 
         let main_device = self.devices[0].clone();
         let peer_count = self.devices.len();

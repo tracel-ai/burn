@@ -229,11 +229,7 @@ impl LpLoss {
         sorted_dims.sort();
 
         // Reduce over specified dimensions
-        let mut result = error;
-        for &dim in sorted_dims.iter().rev() {
-            result = result.mean_dim(dim);
-        }
-        result
+        error.mean_dims(sorted_dims.as_slice())
     }
 }
 

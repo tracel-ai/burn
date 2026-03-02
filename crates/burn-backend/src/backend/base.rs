@@ -104,7 +104,7 @@ pub trait Backend:
     type CommunicationTensorPrimitive: TensorMetadata + 'static;
 
     /// If autodiff is enabled.
-    fn ad_enabled() -> bool {
+    fn ad_enabled(_device: &Self::Device) -> bool {
         false
     }
 

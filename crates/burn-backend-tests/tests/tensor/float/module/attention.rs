@@ -3,7 +3,7 @@ use burn_tensor::Distribution;
 use burn_tensor::Tolerance;
 use burn_tensor::module::attention;
 use burn_tensor::module::attention_fallback;
-use burn_tensor::ops::AttentionOptions;
+use burn_tensor::ops::AttentionModuleOptions;
 
 #[test]
 fn test_attention_no_mask() {
@@ -75,7 +75,7 @@ fn test_attention_custom_scale() {
         &Default::default(),
     );
 
-    let options = AttentionOptions {
+    let options = AttentionModuleOptions {
         scale: Some(0.1),
         ..Default::default()
     };
@@ -160,7 +160,7 @@ fn test_attention_softcap() {
         &Default::default(),
     );
 
-    let options = AttentionOptions {
+    let options = AttentionModuleOptions {
         softcap: Some(50.0),
         ..Default::default()
     };
@@ -202,7 +202,7 @@ fn test_attention_is_causal() {
         &Default::default(),
     );
 
-    let options = AttentionOptions {
+    let options = AttentionModuleOptions {
         is_causal: true,
         ..Default::default()
     };
@@ -250,7 +250,7 @@ fn test_attention_cross_attention_with_bias() {
         &Default::default(),
     );
 
-    let options = AttentionOptions {
+    let options = AttentionModuleOptions {
         is_causal: true,
         ..Default::default()
     };
@@ -296,7 +296,7 @@ fn test_attention_softcap_preserves_causal_mask() {
         &Default::default(),
     );
 
-    let options = AttentionOptions {
+    let options = AttentionModuleOptions {
         softcap: Some(20.0),
         is_causal: true,
         ..Default::default()
@@ -347,7 +347,7 @@ fn test_attention_all_options() {
     )
     .greater_elem(0.7);
 
-    let options = AttentionOptions {
+    let options = AttentionModuleOptions {
         scale: Some(0.05),
         softcap: Some(30.0),
         is_causal: true,

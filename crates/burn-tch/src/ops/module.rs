@@ -2,7 +2,7 @@ use crate::{LibTorch, TchTensor, element::TchElement};
 use burn_backend::{
     TensorMetadata,
     ops::{
-        AttentionOptions, ConvOptions, ConvTransposeOptions, DeformConv2dBackward,
+        AttentionModuleOptions, ConvOptions, ConvTransposeOptions, DeformConv2dBackward,
         DeformConvOptions, InterpolateMode, InterpolateOptions, MaxPool1dWithIndices,
         MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps, attention::attention_fallback,
     },
@@ -453,7 +453,7 @@ impl<E: TchElement> ModuleOps<Self> for LibTorch<E> {
         value: TchTensor,
         mask: Option<TchTensor>,
         attn_bias: Option<TchTensor>,
-        options: AttentionOptions,
+        options: AttentionModuleOptions,
     ) -> TchTensor {
         if attn_bias.is_some() {
             return attention_fallback::<Self>(query, key, value, mask, attn_bias, options);

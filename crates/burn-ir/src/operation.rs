@@ -1,4 +1,4 @@
-use burn_backend::ops::AttentionOptions;
+use burn_backend::ops::AttentionModuleOptions;
 use burn_backend::tensor::IndexingUpdateOp;
 use core::hash::Hash;
 use serde::{Deserialize, Serialize};
@@ -1588,9 +1588,9 @@ pub struct AttentionOptionsIr {
     pub is_causal: bool,
 }
 
-impl From<AttentionOptionsIr> for AttentionOptions {
+impl From<AttentionOptionsIr> for AttentionModuleOptions {
     fn from(ir: AttentionOptionsIr) -> Self {
-        AttentionOptions {
+        AttentionModuleOptions {
             scale: ir.scale.map(|s| s.elem()),
             softcap: ir.softcap.map(|s| s.elem()),
             is_causal: ir.is_causal,
@@ -1598,8 +1598,8 @@ impl From<AttentionOptionsIr> for AttentionOptions {
     }
 }
 
-impl From<AttentionOptions> for AttentionOptionsIr {
-    fn from(ir: AttentionOptions) -> Self {
+impl From<AttentionModuleOptions> for AttentionOptionsIr {
+    fn from(ir: AttentionModuleOptions) -> Self {
         AttentionOptionsIr {
             scale: ir.scale.map(ScalarIr::Float),
             softcap: ir.softcap.map(ScalarIr::Float),

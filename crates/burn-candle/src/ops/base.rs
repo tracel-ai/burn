@@ -49,7 +49,6 @@ pub fn into_data(tensor: CandleTensor) -> Result<TensorData, ExecutionError> {
     }
 
     match tensor.tensor.dtype() {
-        other => todo!("{other:?} not yet supported"),
         candle_core::DType::BF16 => tensor_data_from_dtype::<bf16>(&tensor),
         candle_core::DType::F16 => tensor_data_from_dtype::<f16>(&tensor),
         candle_core::DType::F32 => tensor_data_from_dtype::<f32>(&tensor),
@@ -59,6 +58,7 @@ pub fn into_data(tensor: CandleTensor) -> Result<TensorData, ExecutionError> {
         candle_core::DType::I16 => tensor_data_from_dtype::<i16>(&tensor),
         candle_core::DType::I32 => tensor_data_from_dtype::<i32>(&tensor),
         candle_core::DType::I64 => tensor_data_from_dtype::<i64>(&tensor),
+        other => todo!("{other:?} not yet supported"),
     }
 }
 

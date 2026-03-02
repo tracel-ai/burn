@@ -451,7 +451,7 @@ pub struct InterpolateBackward<B: Backend> {
 
 /// Options for [attention](ModuleOps::attention).
 #[derive(Debug, Clone, Copy, Default, PartialEq, serde::Deserialize, serde::Serialize)]
-pub struct AttentionOptions {
+pub struct AttentionModuleOptions {
     /// Custom scale factor applied to QK^T. When `None`, defaults to `1/sqrt(head_dim)`.
     pub scale: Option<f64>,
 
@@ -1050,7 +1050,7 @@ pub trait ModuleOps<B: Backend> {
         value: FloatTensor<B>,
         mask: Option<BoolTensor<B>>,
         attn_bias: Option<FloatTensor<B>>,
-        options: AttentionOptions,
+        options: AttentionModuleOptions,
     ) -> FloatTensor<B>;
 }
 

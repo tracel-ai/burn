@@ -1,3 +1,5 @@
+#![allow(clippy::excessive_precision)]
+
 use super::Reduction;
 use alloc::vec;
 use burn::config::Config;
@@ -805,6 +807,7 @@ mod pytorch_comparison_tests {
     ///
     /// - `expected_losses`: per-sample loss values from PyTorch (reduction='none').
     /// - `expected_grad_flat`: flattened gradient of sum(loss) w.r.t. logits.
+    #[allow(clippy::too_many_arguments)]
     fn run_comparison(
         label: &str,
         t_size: usize,

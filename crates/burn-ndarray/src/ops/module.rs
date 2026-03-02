@@ -360,7 +360,7 @@ where
         value: FloatTensor<Self>,
         mask: Option<burn_backend::tensor::BoolTensor<Self>>,
         attn_bias: Option<FloatTensor<Self>>,
-        options: AttentionOptions,
+        options: AttentionModuleOptions,
     ) -> FloatTensor<Self> {
         attention_fallback::<Self>(query, key, value, mask, attn_bias, options)
     }

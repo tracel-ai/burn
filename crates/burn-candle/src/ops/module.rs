@@ -320,7 +320,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<Self> for Candle<F, I
         value: FloatTensor<Self>,
         mask: Option<burn_backend::tensor::BoolTensor<Self>>,
         attn_bias: Option<FloatTensor<Self>>,
-        options: burn_backend::ops::AttentionOptions,
+        options: burn_backend::ops::AttentionModuleOptions,
     ) -> FloatTensor<Self> {
         attention_fallback::<Self>(query, key, value, mask, attn_bias, options)
     }
