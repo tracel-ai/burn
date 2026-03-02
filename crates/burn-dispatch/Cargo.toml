@@ -20,7 +20,7 @@ workspace = true
 [features]
 default = [
     "std",
-    "autodiff",
+    "ndarray",
     "burn-autodiff?/default",
     "burn-cpu?/default",
     "burn-cuda?/default",
