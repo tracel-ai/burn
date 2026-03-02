@@ -193,7 +193,7 @@ where
         let id = self.create_empty_handle();
 
         self.server.submit(move |server| {
-            server.drain_stream(stream.clone());
+            server.drain_stream(stream);
             // TODO: We could improve performance here by not requirering blocking.
             client
                 .server
@@ -228,7 +228,7 @@ where
         let id = self.create_empty_handle();
 
         self.server.submit(move |server| {
-            server.drain_stream(stream.clone());
+            server.drain_stream(stream);
             // TODO: We could improve performance here by not requirering blocking.
             client
                 .server
@@ -257,7 +257,7 @@ where
         let id = self.create_empty_handle();
 
         self.server.submit(move |server| {
-            server.drain_stream(stream.clone());
+            server.drain_stream(stream);
             // TODO: We could improve performance here by not requirering blocking.
             client
                 .server
@@ -292,7 +292,7 @@ where
         let id = self.create_empty_handle();
 
         self.server.submit(move |server| {
-            server.drain_stream(stream.clone());
+            server.drain_stream(stream);
             // TODO: We could improve performance here by not requirering blocking.
             client
                 .server

@@ -95,7 +95,7 @@ pub(crate) fn launch_matmul<R: CubeRuntime>(
             )
         }
         Some((data, scale)) => {
-            let scheme = lhs.scheme().clone();
+            let scheme = *lhs.scheme();
             let data_dtype = data.dtype;
             let scale_dtype = scale.dtype;
             (
@@ -131,7 +131,7 @@ pub(crate) fn launch_matmul<R: CubeRuntime>(
                     MatmulInputBinding::new(rhs.binding(), rhs_dtype.into()),
                 )
             } else {
-                let scheme = rhs.scheme().clone();
+                let scheme = *rhs.scheme();
                 let data_dtype = data.dtype;
                 let scale_dtype = scale.dtype;
                 (

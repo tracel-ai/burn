@@ -233,7 +233,7 @@ where
 
         Ok(TensorData {
             bytes: data_values.bytes,
-            shape: shape,
+            shape,
             dtype,
         })
     }

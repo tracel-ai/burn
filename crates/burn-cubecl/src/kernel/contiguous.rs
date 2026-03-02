@@ -14,11 +14,7 @@ pub fn into_contiguous<R: CubeRuntime>(tensor: CubeTensor<R>) -> CubeTensor<R> {
         return into_contiguous_quantized(tensor, MemoryLayoutStrategy::Contiguous);
     }
 
-    let (client, device, dtype) = (
-        tensor.client.clone(),
-        tensor.device.clone(),
-        tensor.dtype.clone(),
-    );
+    let (client, device, dtype) = (tensor.client.clone(), tensor.device.clone(), tensor.dtype);
 
     let output = cubecl::std::tensor::into_contiguous(&client, tensor.binding(), dtype.into());
 
@@ -46,11 +42,7 @@ pub fn into_contiguous_aligned<R: CubeRuntime>(tensor: CubeTensor<R>) -> CubeTen
         return into_contiguous_quantized(tensor, MemoryLayoutStrategy::Optimized);
     }
 
-    let (client, device, dtype) = (
-        tensor.client.clone(),
-        tensor.device.clone(),
-        tensor.dtype.clone(),
-    );
+    let (client, device, dtype) = (tensor.client.clone(), tensor.device.clone(), tensor.dtype);
 
     let output =
         cubecl::std::tensor::into_contiguous_pitched(&client, tensor.binding(), dtype.into());
@@ -77,11 +69,7 @@ fn into_contiguous_quantized<R: CubeRuntime>(
     let (values, scales) = tensor.quantized_handles().unwrap();
     let (out_values, out_scales) = output.quantized_handles().unwrap();
 
-    let (client, dtype_scales, dtype_value) = (
-        scales.client.clone(),
-        scales.dtype.clone(),
-        values.dtype.clone(),
-    );
+    let (client, dtype_scales, dtype_value) = (scales.client.clone(), scales.dtype, values.dtype);
 
     match scheme.store {
         QuantStore::PackedU32(packed_dim) => {

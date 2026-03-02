@@ -198,7 +198,7 @@ impl<R: CubeRuntime> From<CubeTensor<R>> for CubeFusionHandle<R> {
             handle: value.handle.clone(),
             device: value.device.clone(),
             strides: value.meta.strides.clone(),
-            dtype: value.dtype.clone(),
+            dtype: value.dtype,
             qparams: value.qparams.clone(),
         }
     }

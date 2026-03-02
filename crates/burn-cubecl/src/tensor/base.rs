@@ -182,7 +182,7 @@ where
 
         Self {
             client,
-            handle: handle,
+            handle,
             meta: Box::new(Metadata::new(self.shape(), self.meta.strides().clone())),
             device,
             dtype: self.dtype,
