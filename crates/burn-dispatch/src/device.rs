@@ -56,6 +56,7 @@ pub enum DispatchDevice {
     Autodiff(AutodiffDevice),
 }
 
+#[cfg(feature = "autodiff")]
 // This tuple struct mainly restricts users from creating Autodiff(Autodiff) devices.
 /// A wrapper that enables automatic differentiation for a [`DispatchDevice`].
 ///
