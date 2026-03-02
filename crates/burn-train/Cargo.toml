@@ -32,18 +32,18 @@ rl = ["burn-rl"]
 ddp = ["burn-collective", "burn-optim/collective"]
 
 [dependencies]
-burn-core = { path = "../burn-core", version = "=0.21.0-pre.1", features = [
+burn-core = { path = "../burn-core", version = "=0.21.0-pre.2", features = [
     "dataset",
     "std",
 ], default-features = false }
-burn-optim = { path = "../burn-optim", version = "=0.21.0-pre.1", features = [
+burn-optim = { path = "../burn-optim", version = "=0.21.0-pre.2", features = [
     "std",
 ], default-features = false }
-burn-rl = { path = "../burn-rl", version = "=0.21.0-pre.1", optional = true, default-features = false }
-burn-collective = { path = "../burn-collective", version = "=0.21.0-pre.1", optional = true }
-burn-nn = { path = "../burn-nn", version = "=0.21.0-pre.1", optional = true, default-features = false, features = ["std"] }
-burn-store = { path = "../burn-store", version = "=0.21.0-pre.1", optional = true, default-features = false, features = ["std"] }
-burn-std = { path = "../burn-std", version = "=0.21.0-pre.1", optional = true, default-features = false, features = ["std"] }
+burn-rl = { path = "../burn-rl", version = "=0.21.0-pre.2", optional = true, default-features = false }
+burn-collective = { path = "../burn-collective", version = "=0.21.0-pre.2", optional = true }
+burn-nn = { path = "../burn-nn", version = "=0.21.0-pre.2", optional = true, default-features = false, features = ["std"] }
+burn-store = { path = "../burn-store", version = "=0.21.0-pre.2", optional = true, default-features = false, features = ["std"] }
+burn-std = { path = "../burn-std", version = "=0.21.0-pre.2", optional = true, default-features = false, features = ["std"] }
 dirs = { workspace = true, optional = true }
 
 log = { workspace = true }
@@ -66,14 +66,14 @@ ratatui = { workspace = true, optional = true, features = [
 derive-new = { workspace = true }
 serde = { workspace = true, features = ["std", "derive"] }
 async-channel = { workspace = true }
-burn-ndarray = { path = "../burn-ndarray", version = "=0.21.0-pre.1" }
+burn-ndarray = { path = "../burn-ndarray", version = "=0.21.0-pre.2" }
 rstest.workspace = true
 thiserror.workspace = true
 rand.workspace = true
 
 [dev-dependencies]
-burn-ndarray = { path = "../burn-ndarray", version = "=0.21.0-pre.1" }
-burn-autodiff = { path = "../burn-autodiff", version = "=0.21.0-pre.1" }
+burn-ndarray = { path = "../burn-ndarray", version = "=0.21.0-pre.2" }
+burn-autodiff = { path = "../burn-autodiff", version = "=0.21.0-pre.2" }
 
 [package.metadata.docs.rs]
 features = ["doc"]

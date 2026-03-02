@@ -167,6 +167,7 @@ impl PartialEq for DispatchDevice {
 const TYPE_ID_BASE: u16 = 10;
 
 impl DispatchDevice {
+    #[cfg(feature = "autodiff")]
     /// Creates a new [`DispatchDevice`] with [automatic differentiation](Autodiff) enabled.
     #[cfg(feature = "autodiff")]
     pub fn autodiff(device: impl Into<DispatchDevice>) -> DispatchDevice {
