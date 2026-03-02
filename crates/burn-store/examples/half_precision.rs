@@ -43,8 +43,7 @@ fn main() {
     let path_f16 = dir.path().join("model_f16");
     let path_mixed = dir.path().join("model_mixed");
 
-    let mut store =
-        BurnpackStore::from_file(path_f32.to_str().unwrap()).overwrite(true);
+    let mut store = BurnpackStore::from_file(path_f32.to_str().unwrap()).overwrite(true);
     model.save_into(&mut store).expect("Failed to save F32");
     let size_f32 = std::fs::metadata(format!("{}.bpk", path_f32.display()))
         .map(|m| m.len())
@@ -79,8 +78,8 @@ fn main() {
     );
 
     // 4) Round-trip: load the F16 file back to F32 with the same adapter
-    let mut load_store = BurnpackStore::from_file(path_f16.to_str().unwrap())
-        .with_from_adapter(adapter);
+    let mut load_store =
+        BurnpackStore::from_file(path_f16.to_str().unwrap()).with_from_adapter(adapter);
     let mut model2 = DemoModel::<B>::new(&device);
     let result = model2.load_from(&mut load_store).expect("Failed to load");
     println!(
