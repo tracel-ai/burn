@@ -27,7 +27,7 @@ struct ConvArgs {
 fn conv_transpose2d_direct_kernel<E: Numeric>(
     input: &Tensor<E>,
     weight: &Tensor<E>,
-    bias: &Option<Tensor<E>>,
+    bias: &ComptimeOption<Tensor<E>>,
     output: &mut LinearView<E, ReadWrite>,
     out_shape: Sequence<FastDivmod<usize>>,
     args: ConvArgs,
@@ -71,7 +71,7 @@ fn conv_transpose2d_direct_kernel<E: Numeric>(
     let idx_input_batch = batch * input.stride(0);
     let idx_weight_oc = out_c * weight.stride(1);
 
-    let bias: Option<E> = bias.map(|bias| bias[oc_out]);
+    let bias: ComptimeOption<E> = bias.map(|bias| bias[oc_out]);
     let mut sum = bias.unwrap_or_default();
 
     let numerator_h_base = out_y + args.padding_0;
