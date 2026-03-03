@@ -185,14 +185,6 @@ impl<H: Clone> HandleContainer<H> {
         self.handles.insert(*id, Handle::Existing(handle));
     }
 
-    /// Lazily create a new empty tensor and return its corresponding [tensor id](TensorId).
-    pub fn create_tensor_uninit(&mut self) -> TensorId {
-        let id = TensorId::new(self.counter);
-        self.counter += 1;
-        self.handles.insert(id, Handle::NotInit);
-        id
-    }
-
     /// Remove tensor handle from container.
     pub fn remove_handle(&mut self, id: TensorId) -> Option<Handle<H>> {
         self.handles.remove(&id)

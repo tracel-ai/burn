@@ -12,7 +12,9 @@ use crate::Scalar;
 use crate::distribution::Distribution;
 use crate::element::{Element, ElementConversion};
 use burn_std::tensor::DType;
-use burn_std::{Bytes, QuantLevel, QuantMode, QuantScheme, QuantValue, QuantizedBytes, bf16, f16};
+use burn_std::{
+    Bytes, QuantLevel, QuantMode, QuantScheme, QuantValue, QuantizedBytes, Shape, bf16, f16,
+};
 
 /// Data structure for tensors.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -21,7 +23,7 @@ pub struct TensorData {
     pub bytes: Bytes,
 
     /// The shape of the tensor.
-    pub shape: Vec<usize>,
+    pub shape: Shape,
 
     /// The data type of the tensor.
     pub dtype: DType,
@@ -29,7 +31,7 @@ pub struct TensorData {
 
 impl TensorData {
     /// Creates a new tensor data structure.
-    pub fn new<E: Element, S: Into<Vec<usize>>>(value: Vec<E>, shape: S) -> Self {
+    pub fn new<E: Element, S: Into<Shape>>(value: Vec<E>, shape: S) -> Self {
         // Ensure shape is valid
         let shape = shape.into();
         Self::check_data_len(&value, &shape);
@@ -42,7 +44,7 @@ impl TensorData {
     }
 
     /// Creates a new quantized tensor data structure.
-    pub fn quantized<E: Element, S: Into<Vec<usize>>>(
+    pub fn quantized<E: Element, S: Into<Shape>>(
         value: Vec<E>,
         shape: S,
         scheme: QuantScheme,
@@ -61,7 +63,7 @@ impl TensorData {
     }
 
     /// Creates a new tensor data structure from raw bytes.
-    pub fn from_bytes<S: Into<Vec<usize>>>(bytes: Bytes, shape: S, dtype: DType) -> Self {
+    pub fn from_bytes<S: Into<Shape>>(bytes: Bytes, shape: S, dtype: DType) -> Self {
         Self {
             bytes,
             shape: shape.into(),
@@ -73,7 +75,7 @@ impl TensorData {
     ///
     /// Prefer [`TensorData::new`] or [`TensorData::quantized`] over this method unless you are
     /// certain that the bytes representation is valid.
-    pub fn from_bytes_vec<S: Into<Vec<usize>>>(bytes: Vec<u8>, shape: S, dtype: DType) -> Self {
+    pub fn from_bytes_vec<S: Into<Shape>>(bytes: Vec<u8>, shape: S, dtype: DType) -> Self {
         Self {
             bytes: Bytes::from_bytes_vec(bytes),
             shape: shape.into(),
@@ -82,7 +84,7 @@ impl TensorData {
     }
 
     // Check that the input vector contains a correct number of elements
-    fn check_data_len<E: Element>(data: &[E], shape: &Vec<usize>) {
+    fn check_data_len<E: Element>(data: &[E], shape: &Shape) {
         let expected_data_len = Self::numel(shape);
         let num_data = data.len();
         assert_eq!(
@@ -677,6 +679,7 @@ pub enum DataError {
 mod tests {
     use super::*;
     use alloc::vec;
+    use burn_std::shape;
     use rand::{
         SeedableRng,
         rngs::{StdRng, SysRng},
@@ -739,13 +742,13 @@ mod tests {
     #[test]
     fn should_have_right_shape() {
         let data = TensorData::from([[3.0, 5.0, 6.0]]);
-        assert_eq!(data.shape, vec![1, 3]);
+        assert_eq!(data.shape, shape![1, 3]);
 
         let data = TensorData::from([[4.0, 5.0, 8.0], [3.0, 5.0, 6.0]]);
-        assert_eq!(data.shape, vec![2, 3]);
+        assert_eq!(data.shape, shape![2, 3]);
 
         let data = TensorData::from([3.0, 5.0, 6.0]);
-        assert_eq!(data.shape, vec![3]);
+        assert_eq!(data.shape, shape![3]);
     }
 
     #[test]

@@ -240,6 +240,7 @@ mod tests {
     use alloc::string::String;
     use burn_core::module::{Module, Param};
     use burn_nn::LinearConfig;
+    use burn_tensor::shape;
 
     #[test]
     fn tensor_snapshot_collector() {
@@ -258,7 +259,7 @@ mod tests {
         // Verify the tensor can be converted to data
         let view = &collector.tensors[0];
         let data = view.to_data().unwrap();
-        assert_eq!(data.shape, vec![2, 2]);
+        assert_eq!(data.shape, shape![2, 2]);
     }
 
     #[test]
@@ -737,7 +738,7 @@ mod tests {
             .find(|v| v.full_path() == "backbone.encoder.block1.layer.weight")
             .unwrap();
         let data = view.to_data().unwrap();
-        assert_eq!(data.shape, vec![2, 2]);
+        assert_eq!(data.shape, shape![2, 2]);
     }
 
     #[test]

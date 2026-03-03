@@ -5,7 +5,7 @@ use crate::{ModuleSnapshot, ModuleStore, PathFilter};
 
 use burn_core as burn;
 use burn_core::module::{Module, Param};
-use burn_tensor::{Tensor, backend::Backend};
+use burn_tensor::{Tensor, backend::Backend, shape};
 
 type TestBackend = burn_ndarray::NdArray;
 
@@ -897,7 +897,7 @@ fn test_store_get_snapshot_existing() {
     assert!(snapshot.is_some());
     let snapshot = snapshot.unwrap();
     assert_eq!(snapshot.full_path(), "weight");
-    assert_eq!(snapshot.shape, vec![2, 2]);
+    assert_eq!(snapshot.shape, shape![2, 2]);
 
     // Verify data can be loaded
     let data = snapshot.to_data().unwrap();
@@ -921,7 +921,7 @@ fn test_store_get_snapshot_nested() {
     assert!(snapshot.is_some());
     let snapshot = snapshot.unwrap();
     assert_eq!(snapshot.full_path(), "nested.gamma");
-    assert_eq!(snapshot.shape, vec![2]);
+    assert_eq!(snapshot.shape, shape![2]);
 }
 
 #[test]
@@ -1113,13 +1113,13 @@ fn test_store_quantized_module_round_trip() {
 
     // Verify the tensor metadata
     let weight_snapshot = snapshots.get("weight").unwrap();
-    assert_eq!(weight_snapshot.shape, vec![512, 512]);
+    assert_eq!(weight_snapshot.shape, shape![512, 512]);
 
     // Verify we can load the tensor data
     let weight_data = weight_snapshot
         .to_data()
         .expect("Failed to load tensor data");
-    assert_eq!(weight_data.shape, vec![512, 512]);
+    assert_eq!(weight_data.shape, shape![512, 512]);
 }
 
 /// Test storing quantized weights with block-level quantization.
@@ -1171,5 +1171,5 @@ fn test_store_quantized_module_block_level() {
 
     assert_eq!(snapshots.len(), 1);
     let weight_snapshot = snapshots.get("weight").unwrap();
-    assert_eq!(weight_snapshot.shape, vec![128, 128]);
+    assert_eq!(weight_snapshot.shape, shape![128, 128]);
 }

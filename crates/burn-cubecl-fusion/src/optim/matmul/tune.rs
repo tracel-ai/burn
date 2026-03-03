@@ -204,11 +204,13 @@ pub(crate) fn create_key<R: Runtime>(
     let lhs_strides = context
         .handles
         .get_handle(&lhs.id, &burn_ir::TensorStatus::ReadOnly)
-        .strides;
+        .strides
+        .clone();
     let rhs_strides = context
         .handles
         .get_handle(&rhs.id, &burn_ir::TensorStatus::ReadOnly)
-        .strides;
+        .strides
+        .clone();
 
     let key = MatmulAutotuneKey::generate(
         &opt.info.client,

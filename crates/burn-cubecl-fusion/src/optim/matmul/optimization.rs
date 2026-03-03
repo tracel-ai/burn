@@ -462,7 +462,7 @@ impl FusedMatmulLaunch<'_> {
             address_type,
             self.matmul.lhs.scheme(),
             self.matmul.rhs.scheme(),
-        );
+        )?;
 
         match self.selector {
             FusedMatmulSelector::Simple {

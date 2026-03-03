@@ -27,7 +27,8 @@ pub mod tensor;
 // Re-exported types
 pub use burn_std::reader::*; // Useful so that backends don't have to add `burn_std` as a dependency.
 pub use burn_std::{
-    AllocationProperty, Bytes, DType, FloatDType, IntDType, bf16, f16, stream_id::StreamId,
+    AllocationProperty, Bytes, DType, DeviceHandle, FloatDType, IntDType, bf16, f16,
+    stream_id::StreamId,
 };
 
 /// Shape definition.

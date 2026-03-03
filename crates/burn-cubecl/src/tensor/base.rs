@@ -6,7 +6,7 @@ use burn_backend::{DType, QTensorPrimitive, Shape, TensorMetadata};
 use burn_std::{Metadata, strides, tensor::is_contiguous};
 use cubecl::client::ComputeClient;
 use cubecl::frontend::Numeric;
-use cubecl::prelude::{TensorHandleRef, *};
+use cubecl::prelude::{TensorBinding, *};
 use cubecl::server::Handle;
 use cubecl::std::tensor::TensorHandle;
 use std::marker::PhantomData;
@@ -18,7 +18,7 @@ pub struct CubeTensor<R: CubeRuntime> {
     /// Compute client for the [runtime](CubeRuntime).
     pub client: ComputeClient<R>,
     /// The buffer where the data are stored.
-    pub handle: Handle,
+    pub handle: Handle<R>,
     /// The metadata of the tensor.
     pub meta: Box<Metadata>,
     /// The device of the tensor.
@@ -32,7 +32,7 @@ pub struct CubeTensor<R: CubeRuntime> {
 impl<R: CubeRuntime> From<CubeTensor<R>> for TensorHandle<R> {
     fn from(val: CubeTensor<R>) -> Self {
         TensorHandle::new(
-            val.handle,
+            val.handle.clone(),
             val.meta.shape().clone(),
             val.meta.strides().clone(),
             val.dtype.into(),
@@ -51,6 +51,17 @@ impl<R: CubeRuntime> cubecl::tune::AutotuneOutput for CubeTensor<R> {
         expected.assert_approx_eq::<f32>(&actual, Tolerance::permissive());
     }
 }
+
+// TODO: Needed to cleanup leaves tensor.
+//
+// Maybe not needed when fusion is activated, since we have a detector there.
+// We could rely on basic GC strategy when not using fusion.
+//
+// impl<R: CubeRuntime> Drop for CubeTensor<R> {
+//     fn drop(&mut self) {
+//         todo!()
+//     }
+// }
 
 impl<R> core::fmt::Debug for CubeTensor<R>
 where
@@ -118,7 +129,7 @@ where
     /// Create a new standard tensor
     pub fn new(
         client: ComputeClient<R>,
-        handle: Handle,
+        handle: Handle<R>,
         metadata: Metadata,
         device: R::Device,
         dtype: DType,
@@ -138,7 +149,7 @@ where
         client: ComputeClient<R>,
         device: R::Device,
         shape: Shape,
-        handle: Handle,
+        handle: Handle<R>,
         dtype: DType,
     ) -> Self {
         let ndims = shape.num_dims();
@@ -162,15 +173,17 @@ where
 
     /// Change the context of the current tensor and return the newly transferred tensor.
     pub fn to_client(&self, client: ComputeClient<R>, device: R::Device) -> Self {
-        let desc =
-            self.handle
-                .copy_descriptor(self.meta.shape(), self.meta.strides(), self.elem_size());
-        let alloc = self.client.to_client_tensor(desc, &client);
+        let desc = self.handle.clone().copy_descriptor(
+            self.meta.shape().clone(),
+            self.meta.strides().clone(),
+            self.elem_size(),
+        );
+        let handle = self.client.to_client_tensor(desc, &client);
 
         Self {
             client,
-            handle: alloc.handle,
-            meta: Box::new(Metadata::new(self.shape(), alloc.strides)),
+            handle,
+            meta: Box::new(Metadata::new(self.shape(), self.meta.strides().clone())),
             device,
             dtype: self.dtype,
             qparams: self.qparams.clone(),
@@ -178,13 +191,13 @@ where
     }
 
     /// Return the reference to a tensor handle.
-    pub fn as_handle_ref(&self) -> TensorHandleRef<'_, R> {
-        TensorHandleRef {
-            handle: &self.handle,
-            strides: self.meta.strides(),
-            shape: self.meta.shape(),
+    pub fn binding(self) -> TensorBinding<R> {
+        TensorBinding {
+            handle: self.handle.binding(),
+            strides: self.meta.strides,
+            shape: self.meta.shape,
             runtime: PhantomData,
-            elem_size: self.elem_size(),
+            elem_size: self.dtype.size(),
         }
     }
 
@@ -194,30 +207,13 @@ where
     }
 
     /// Return the reference to a tensor argument.
-    pub fn as_tensor_arg<'a>(&'a self, line_size: LineSize) -> TensorArg<'a, R> {
-        let size = self.dtype.size();
-        let handle: TensorHandleRef<'a, R> = self.as_handle_ref();
-
-        unsafe {
-            TensorArg::from_raw_parts_and_size(
-                handle.handle,
-                handle.strides,
-                handle.shape,
-                line_size,
-                size,
-            )
-        }
+    pub fn into_tensor_arg(self, line_size: LineSize) -> TensorArg<R> {
+        self.binding().into_tensor_arg(line_size)
     }
 
     /// Return the reference to an array argument.
-    pub fn as_array_arg<E: CubeElement>(&self, line_size: LineSize) -> ArrayArg<'_, R> {
-        unsafe {
-            ArrayArg::from_raw_parts::<E>(
-                &self.handle,
-                self.handle.size() as usize / core::mem::size_of::<E>(),
-                line_size,
-            )
-        }
+    pub fn into_array_arg<E: CubeElement>(self, line_size: LineSize) -> ArrayArg<R> {
+        self.into_tensor_arg(line_size).into_array_arg()
     }
 
     /// Returns the address type required to index this tensor
