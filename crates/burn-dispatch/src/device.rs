@@ -56,6 +56,7 @@ pub enum DispatchDevice {
     Autodiff(AutodiffDevice),
 }
 
+#[cfg(feature = "autodiff")]
 // This tuple struct mainly restricts users from creating Autodiff(Autodiff) devices.
 /// A wrapper that enables automatic differentiation for a [`DispatchDevice`].
 ///
@@ -167,6 +168,7 @@ impl PartialEq for DispatchDevice {
 const TYPE_ID_BASE: u16 = 10;
 
 impl DispatchDevice {
+    #[cfg(feature = "autodiff")]
     /// Creates a new [`DispatchDevice`] with [automatic differentiation](Autodiff) enabled.
     pub fn autodiff(device: impl Into<DispatchDevice>) -> DispatchDevice {
         let device = device.into();

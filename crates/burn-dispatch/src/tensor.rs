@@ -1,6 +1,9 @@
-use burn_backend::{Backend, QTensorPrimitive, TensorMetadata, tensor::FloatTensor};
+use burn_backend::{Backend, QTensorPrimitive, TensorMetadata};
 
 use crate::backends::*;
+
+#[cfg(feature = "autodiff")]
+use burn_backend::tensor::FloatTensor;
 
 // TODO: if we reduce the different associated types for float/int/bool/quantized tensor primitives down to a single
 // `B::TensorPrimitive` we can simplify this.
