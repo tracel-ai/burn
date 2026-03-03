@@ -15,7 +15,19 @@ For questions, discussions, or just to say hello, join us on
 [Discord](https://discord.gg/uPEBbYYDB6). The [Contributor Book](https://burn.dev/contributor-book/)
 covers architecture, environment setup, and guides for common tasks.
 
-## Change Ownership
+## Pull Requests
+
+Every pull request should have a descriptive title, a description covering what you changed, why,
+how you tested it, and a link to the relevant issue (if applicable). Prefer small, focused PRs over
+large ones that bundle unrelated changes.
+
+Draft pull requests are considered not yet ready for review.
+
+CI checks should pass before requesting review, though the signal isn't always accurate. If you have
+questions or need early feedback, let us know on the PR or on
+[Discord](https://discord.gg/uPEBbYYDB6).
+
+### Change Ownership
 
 The core principle behind all contributions: **PR authors must understand, justify, and explain
 every change they propose.** After a PR is accepted, both the reviewer and the author should be
@@ -25,10 +37,9 @@ This applies equally whether you wrote the code from scratch, adapted it from an
 used AI tools to help generate it. The origin of the code doesn't matter; what matters is that you
 own it intellectually and can stand behind it during review.
 
-## AI-Assisted Contributions
+### AI-Assisted Contributions
 
-Using AI coding tools (Copilot, Cursor, Claude, ChatGPT, etc.) is fine. Many contributors use them,
-and we don't ban or discourage their use.
+Using LLMs and AI tools to generate code that is part of a contribution is allowed.
 
 That said, the [Change Ownership](#change-ownership) principle applies fully. You are the author,
 not your AI tool. This means:
@@ -40,7 +51,7 @@ not your AI tool. This means:
 
 Do not use "AI generated" as a justification for low-quality code.
 
-## Before You Open a PR
+### Before You Open a PR
 
 1. **Check for an existing issue.** If there isn't one, open an issue first to discuss the approach.
    This is especially important for large changes or refactors.
@@ -52,17 +63,7 @@ Do not use "AI generated" as a justification for low-quality code.
 4. **Run validation.** Run `cargo run-checks` before submitting. This runs formatting, linting, and
    the full test suite. All checks must pass.
 
-## PR Requirements
-
-Every pull request should include:
-
-- **A descriptive title** that summarizes the change.
-- **A description** covering what you changed, why, how you tested it, and a link to the relevant
-  issue.
-- **Passing CI checks.** Please don't ask reviewers to look at a red build.
-- **Minimal scope.** Avoid bundling unrelated changes together.
-
-## Code Quality Standards
+### Code Quality Standards
 
 - Follow existing code style and project conventions.
 - Write idiomatic Rust. If you are new to the codebase, study existing patterns before contributing.
@@ -71,16 +72,17 @@ Every pull request should include:
 - Prefer clarity over cleverness.
 - Bug fixes should include a regression test.
 
-## Large Pull Requests
+### Large Pull Requests
 
 Large, complex PRs are harder to review effectively and carry more risk. To help both yourself and
 reviewers, consider breaking substantial changes into smaller, incremental PRs. Each should be
 valuable on its own, even if the full picture spans multiple PRs.
 
-If you're planning a large effort, open an issue or start a discussion first so we can align on the
-approach before you invest too much time.
+Large efforts that are ultimately rejected are frustrating for everyone involved. If you're planning
+a substantial change, open an issue or start a discussion first. It's much easier to course-correct
+early than after the work is done.
 
-## Review Process
+### Review Process
 
 - Maintainers review PRs as time allows. Please be patient.
 - Be responsive to feedback. If changes are requested, address them or explain your reasoning.
