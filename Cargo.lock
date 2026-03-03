@@ -1026,8 +1026,11 @@ dependencies = [
  "burn-remote",
  "burn-rocm",
  "burn-router",
+ "burn-std",
+ "burn-store",
  "burn-tch",
  "burn-wgpu",
+ "dirs",
  "num-traits",
  "rstest",
 ]
