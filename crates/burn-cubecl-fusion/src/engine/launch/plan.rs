@@ -145,7 +145,7 @@ pub struct HandleOutputAliasDebugInfo<R: Runtime> {
 }
 
 /// Represents the output of a fused kernel execution.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[allow(clippy::large_enum_variant)]
 pub enum HandleOutput<R: Runtime> {
     /// An output that reuses the memory of an input tensor (In-place).
@@ -169,7 +169,7 @@ pub enum HandleOutput<R: Runtime> {
 }
 
 /// A standard input handle with associated layout and vectorization metadata.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct NormalHandleInput<R: Runtime> {
     pub relative_id: TensorId,
     pub global_ir: TensorIr,
@@ -182,7 +182,7 @@ pub struct NormalHandleInput<R: Runtime> {
 }
 
 /// An input handle containing values for a quantized tensor.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct QuantValuesHandleInput<R: Runtime> {
     pub relative_id: TensorId,
     pub global_ir: TensorIr,
@@ -192,7 +192,7 @@ pub struct QuantValuesHandleInput<R: Runtime> {
 }
 
 /// An input handle containing parameters (scales/offsets) for quantization.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct QuantParamsHandleInput<R: Runtime> {
     pub precision: FuseType,
     pub handle: CubeFusionHandle<R>,
@@ -200,7 +200,7 @@ pub struct QuantParamsHandleInput<R: Runtime> {
 }
 
 /// Different types of inputs that can be passed to a fused kernel.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum HandleInput<R: Runtime> {
     Normal(NormalHandleInput<R>),
     QuantValues(QuantValuesHandleInput<R>),

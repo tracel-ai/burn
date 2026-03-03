@@ -1,10 +1,10 @@
 use burn_fusion::stream::Context;
-use burn_std::{DType, Strides, quantization::QParamTensor, strides};
+use burn_std::{DType, Shape, Strides, quantization::QParamTensor, strides};
 use cubecl::{
     CubeElement, Runtime,
     client::ComputeClient,
     ir::{AddressType, ElemType},
-    prelude::{TensorArg, TensorHandleRef},
+    prelude::{TensorArg, TensorBinding},
 };
 use cubecl::{
     ir::LineSize,
@@ -27,7 +27,7 @@ pub struct CubeFusionHandle<R: Runtime> {
     /// Compute client for jit.
     pub client: ComputeClient<R>,
     /// The buffer where the data are stored.
-    pub handle: cubecl::server::Handle,
+    pub handle: cubecl::server::Handle<R>,
     /// The device of the current tensor.
     pub device: R::Device,
     /// The element type of the tensor.
@@ -66,10 +66,10 @@ unsafe impl<R: Runtime> Sync for CubeFusionHandle<R> {}
 
 impl<R: Runtime> CubeFusionHandle<R> {
     /// Return the reference to a tensor handle.
-    pub fn as_handle_ref<'a>(&'a self, shape: &'a [usize]) -> TensorHandleRef<'a, R> {
-        TensorHandleRef {
-            handle: &self.handle,
-            strides: &self.strides,
+    pub fn binding(self, shape: Shape) -> TensorBinding<R> {
+        TensorBinding {
+            handle: self.handle.binding(),
+            strides: self.strides.clone(),
             shape,
             runtime: PhantomData,
             elem_size: self.dtype.size(),
@@ -87,23 +87,11 @@ impl<R: Runtime> CubeFusionHandle<R> {
     }
 
     /// Return the reference to a tensor argument.
-    pub fn as_tensor_arg<'a>(
-        &'a self,
-        shape: &'a [usize],
-        line_size: LineSize,
-    ) -> TensorArg<'a, R> {
-        let handle: TensorHandleRef<'a, R> = self.as_handle_ref(shape);
-
-        unsafe {
-            TensorArg::from_raw_parts_and_size(
-                handle.handle,
-                handle.strides,
-                handle.shape,
-                line_size,
-                self.dtype.size(),
-            )
-        }
+    pub fn into_tensor_arg(self, shape: Shape, line_size: LineSize) -> TensorArg<R> {
+        let handle = self.binding(shape);
+        handle.into_tensor_arg(line_size)
     }
+
     /// Construct a separate tensor for the quantization scales, if present
     pub fn params(&self, scheme: QuantScheme) -> Option<Self> {
         let qparams = self.qparams.as_ref()?;

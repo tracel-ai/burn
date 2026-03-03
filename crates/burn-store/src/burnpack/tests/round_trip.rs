@@ -3,7 +3,7 @@ use crate::burnpack::{reader::BurnpackReader, writer::BurnpackWriter};
 use super::*;
 use alloc::collections::BTreeMap;
 use alloc::string::String;
-use burn_tensor::{DType, TensorData};
+use burn_tensor::{DType, TensorData, shape};
 
 /// Helper function to perform round-trip test
 fn round_trip_test<F>(setup: F)
@@ -418,7 +418,7 @@ fn test_round_trip_empty_shapes() {
         let scalar = [42.0f32];
         let scalar_bytes: Vec<u8> = scalar.iter().flat_map(|f| f.to_le_bytes()).collect();
         let scalar_snapshot = TensorSnapshot::from_data(
-            TensorData::from_bytes_vec(scalar_bytes, vec![], DType::F32),
+            TensorData::from_bytes_vec(scalar_bytes, shape![], DType::F32),
             vec!["scalar".to_string()],
             vec![],
             burn_core::module::ParamId::new(),
@@ -427,7 +427,7 @@ fn test_round_trip_empty_shapes() {
 
         // Empty tensor
         let empty_snapshot = TensorSnapshot::from_data(
-            TensorData::from_bytes_vec(vec![], vec![0], DType::F32),
+            TensorData::from_bytes_vec(vec![], shape![0], DType::F32),
             vec!["empty".to_string()],
             vec![],
             burn_core::module::ParamId::new(),

@@ -179,20 +179,20 @@ portable-atomic = { version = "1.13.1" }
 portable-atomic-util = { version = "0.2.5", features = ["alloc"] }
 
 ### For the main burn branch. ###
-# cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "0400cc7d6c0758f54c9485558d78585ddd22da78" }
-# cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "0400cc7d6c0758f54c9485558d78585ddd22da78" }
-# cubecl-zspace = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "0400cc7d6c0758f54c9485558d78585ddd22da78" }
-# cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "50c0d5797d97c378b3a52e048fd52cfcb74720f1" }
+# cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "ad5308ce09b5e80adc1298c5427d2f62b138321d" }
+# cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "ad5308ce09b5e80adc1298c5427d2f62b138321d" }
+# cubecl-zspace = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "ad5308ce09b5e80adc1298c5427d2f62b138321d" }
+# cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "98691b54b517463ae6b22a01e47267d77c38cbdd" }
 ### For local development. ###
 cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
 cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }
 cubecl-zspace = { path = "../cubecl/crates/cubecl-zspace", default-features = false }
 cubek = { path = "../cubek/crates/cubek", default-features = false }
 ### For the release. ###
-cubecl = { version = "=0.10.0-pre.2", default-features = false }
-cubecl-common = { version = "=0.10.0-pre.2", default-features = false }
-cubecl-zspace = { version = "=0.10.0-pre.2", default-features = false }
-cubek = { version = "=0.2.0-pre.2", default-features = false }
+# cubecl = { version = "=0.10.0-pre.2", default-features = false }
+# cubecl-common = { version = "=0.10.0-pre.2", default-features = false }
+# cubecl-zspace = { version = "=0.10.0-pre.2", default-features = false }
+# cubek = { version = "=0.2.0-pre.2", default-features = false }
 
 ### For xtask crate ###
 tracel-xtask = "=4.13.3"

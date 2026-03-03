@@ -13,9 +13,9 @@ use crate::{
 use burn_backend::{DType, Shape, TensorMetadata};
 use burn_std::Metadata;
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
-use cubecl::{client::ComputeClient, server::Allocation};
+use cubecl::{client::ComputeClient, server::MemoryLayout};
 use cubecl::{
-    server::AllocationDescriptor,
+    server::MemoryLayoutDescriptor,
     std::{FastDivmod, tensor::layout::linear::LinearView},
 };
 
@@ -77,11 +77,10 @@ pub fn full_device_dtype<R: CubeRuntime>(
             cube_count,
             cube_dim,
             address_type!(empty),
-            linear_view(&empty, line_size),
+            linear_view(empty.clone(), line_size),
             value,
             empty.dtype.into(),
-        )
-        .expect("Kernel to never fail");
+        );
     }
 
     empty
@@ -125,11 +124,11 @@ pub fn empty_device<R: CubeRuntime, E: CubeElement>(
     device: R::Device,
     shape: Shape,
 ) -> CubeTensor<R> {
-    let Allocation { handle, strides } = client.empty_tensor(&shape, size_of::<E>());
+    let MemoryLayout { memory, strides } = client.empty_tensor(shape.clone(), size_of::<E>());
 
     CubeTensor::new(
         client,
-        handle,
+        memory,
         Metadata::new(shape, strides),
         device,
         E::dtype(),
@@ -143,9 +142,9 @@ pub fn empty_device_dtype<R: CubeRuntime>(
     shape: Shape,
     dtype: DType,
 ) -> CubeTensor<R> {
-    let Allocation { handle, strides } = client.empty_tensor(&shape, dtype.size());
+    let MemoryLayout { memory, strides } = client.empty_tensor(shape.clone(), dtype.size());
 
-    CubeTensor::new(client, handle, Metadata::new(shape, strides), device, dtype)
+    CubeTensor::new(client, memory, Metadata::new(shape, strides), device, dtype)
 }
 
 /// Create a contiguous tensor with uninitialized memory
@@ -155,10 +154,10 @@ pub fn empty_device_contiguous_dtype<R: CubeRuntime>(
     shape: Shape,
     dtype: DType,
 ) -> CubeTensor<R> {
-    let descriptor = AllocationDescriptor::contiguous(&shape, dtype.size());
-    let Allocation { handle, strides } = client.empty_tensors(vec![descriptor]).remove(0);
+    let descriptor = MemoryLayoutDescriptor::contiguous(shape.clone(), dtype.size());
+    let MemoryLayout { memory, strides } = client.empty_tensors(vec![descriptor]).remove(0);
 
-    CubeTensor::new(client, handle, Metadata::new(shape, strides), device, dtype)
+    CubeTensor::new(client, memory, Metadata::new(shape, strides), device, dtype)
 }
 
 /// Add two tensors
@@ -422,6 +421,7 @@ fn cumulative_op<R: CubeRuntime, O: CumulativeOpFamily>(
     let working_units = num_elems;
     let cube_dim = CubeDim::new(&client, working_units);
     let cube_count = calculate_cube_count_elemwise(&client, working_units, cube_dim);
+    let shape = shape_divmod(&input);
 
     unsafe {
         cumulative_kernel::launch_unchecked::<O, R>(
@@ -429,13 +429,12 @@ fn cumulative_op<R: CubeRuntime, O: CumulativeOpFamily>(
             cube_count,
             cube_dim,
             address_type!(input, output),
-            input.as_tensor_arg(1),
-            linear_view(&output, 1),
-            shape_divmod(&input),
+            input.into_tensor_arg(1),
+            linear_view(output.clone(), 1),
+            shape,
             dim,
             output.dtype.into(),
-        )
-        .expect("Kernel to never fail");
+        );
     }
 
     output

@@ -833,7 +833,7 @@ fn rebuild_tensor_impl(
             }
         }),
         dtype,
-        shape,
+        shape.into(),
         vec![],         // path_stack
         vec![],         // container_stack
         ParamId::new(), // tensor_id

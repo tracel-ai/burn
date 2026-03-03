@@ -131,7 +131,7 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceBroadcastedLaunch<'_> {
                 ScalarArg::new(self.reduce_axis),
                 blocks,
                 block_end,
-            )?;
+            );
         }
 
         Ok(())

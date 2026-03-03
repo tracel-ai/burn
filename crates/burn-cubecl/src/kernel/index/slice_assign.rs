@@ -169,14 +169,13 @@ pub(crate) fn slice_assign<R: CubeRuntime>(
             cube_count,
             cube_dim,
             address_type!(tensor, value),
-            tensor.as_tensor_arg(line_size),
-            linear_view(&value, line_size),
+            tensor.clone().into_tensor_arg(line_size),
+            linear_view(value, line_size),
             shape,
             offsets,
             tensor.dtype.into(),
         )
-        .expect("Kernel to never fail");
-    }
+    };
 
     tensor
 }
@@ -224,21 +223,21 @@ pub(crate) fn slice_assign_with_steps<R: CubeRuntime>(
     let cube_dim = CubeDim::new(&tensor.client, working_units);
     let cube_count = calculate_cube_count_elemwise(&tensor.client, working_units, cube_dim);
 
+    let shape = shape_divmod(&value);
     unsafe {
         slice_assign_with_steps_kernel::launch_unchecked(
             &tensor.client,
             cube_count,
             cube_dim,
             address_type!(tensor, value),
-            tensor.as_tensor_arg(1),
-            linear_view(&value, 1),
-            shape_divmod(&value),
+            tensor.clone().into_tensor_arg(1),
+            linear_view(value, 1),
+            shape,
             starts,
             ends,
             steps,
             tensor.dtype.into(),
-        )
-        .expect("Kernel to never fail");
+        );
     }
 
     tensor

@@ -102,9 +102,9 @@ pub fn autotune_reduce<R: CubeRuntime>(
                             line_size,
                         };
                         cubek::reduce::reduce::<R>(
-                            &input.client,
-                            input.as_handle_ref(),
-                            output.as_handle_ref(),
+                            &output.client,
+                            input.binding(),
+                            output.clone().binding(),
                             axis,
                             strategy,
                             config,
@@ -259,13 +259,14 @@ mod sum_ops {
         let client = input.client.clone();
         let device = input.device.clone();
         let output = zeros_client(client.clone(), device, [1].into(), input.dtype);
+        let dtype = input.dtype;
 
         cubek::reduce::shared_sum::<Run>(
-            &input.client,
-            input.as_handle_ref(),
-            output.as_handle_ref(),
+            &output.client,
+            input.binding(),
+            output.clone().binding(),
             C,
-            input.dtype.into(),
+            dtype.into(),
         )
         .map_err(|e| e.to_string())
         .map(|_| output)

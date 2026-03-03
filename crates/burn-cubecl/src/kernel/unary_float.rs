@@ -49,6 +49,7 @@ where
     let working_units = num_elems / line_size as usize;
     let cube_dim = CubeDim::new(&tensor.client, working_units);
     let cube_count = calculate_cube_count_elemwise(&tensor.client, working_units, cube_dim);
+    let dtype = tensor.dtype;
 
     unsafe {
         if tensor.can_mut() && tensor.is_nonoverlapping() {
@@ -57,12 +58,11 @@ where
                 cube_count,
                 cube_dim,
                 address_type!(tensor),
-                linear_view(&tensor, line_size),
+                linear_view(tensor.clone(), line_size),
                 linear_view_alias(&tensor, line_size, 0),
                 args(&()),
-                tensor.dtype.into(),
-            )
-            .expect("Kernel to never fail");
+                dtype.into(),
+            );
 
             tensor
         } else {
@@ -78,12 +78,11 @@ where
                 cube_count,
                 cube_dim,
                 address_type!(tensor, output),
-                linear_view(&tensor, line_size),
-                linear_view(&output, line_size),
+                linear_view(tensor, line_size),
+                linear_view(output.clone(), line_size),
                 args(&()),
-                tensor.dtype.into(),
-            )
-            .expect("Kernel to never fail");
+                dtype.into(),
+            );
 
             output
         }

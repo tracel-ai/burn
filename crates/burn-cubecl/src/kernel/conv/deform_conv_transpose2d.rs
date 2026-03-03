@@ -81,7 +81,7 @@ pub(crate) fn deform_conv2d_backward<R: CubeRuntime>(
         )
         .unwrap();
 
-        reshape(grad, bias.meta.shape)
+        reshape(grad, bias.meta.shape.clone())
     });
 
     let input = into_contiguous_aligned(input);
@@ -254,18 +254,18 @@ fn compute_offset_and_mask_gradient<R: CubeRuntime>(
     let dtype: StorageType = image.dtype.into();
     unsafe {
         deform_col2img_coord_kernel::launch_unchecked(
-            &image.client,
+            &grad_offset.client,
             cube_count,
             cube_dim,
             address_type!(image, offset, mask, grad_offset, grad_mask),
-            image.as_tensor_arg(1),
-            offset.as_tensor_arg(1),
-            mask.as_ref().map(|mask| mask.as_tensor_arg(1)).into(),
-            columns.as_tensor_arg(1),
-            linear_view(&grad_offset, 1),
+            image.into_tensor_arg(1),
+            offset.into_tensor_arg(1),
+            mask.map(|mask| mask.into_tensor_arg(1)).into(),
+            columns.into_tensor_arg(1),
+            linear_view(grad_offset.clone(), 1),
             grad_mask
-                .as_ref()
-                .map(|grad_mask| grad_mask.as_tensor_arg(1))
+                .clone()
+                .map(|grad_mask| grad_mask.into_tensor_arg(1))
                 .into(),
             pos_shape,
             DeformConv2dCol2ImgCoordArgsLaunch::new(
@@ -281,7 +281,7 @@ fn compute_offset_and_mask_gradient<R: CubeRuntime>(
             ),
             dtype,
         )
-    }?;
+    };
 
     Ok((grad_offset, grad_mask))
 }
@@ -506,7 +506,7 @@ fn compute_input_grad<R: CubeRuntime>(
         // Force `f32` to enable bitcasting as `u32`, or use intrinsic when supported
         false => zeros_client(client.clone(), device.clone(), shape, DType::F32),
     };
-    let grad_arg = grad_in.as_tensor_arg(1);
+    let grad_arg = grad_in.clone().into_tensor_arg(1);
 
     let num_elements = columns.meta.num_elements();
     let cube_dim = CubeDim::new(&offset.client, num_elements);
@@ -524,13 +524,13 @@ fn compute_input_grad<R: CubeRuntime>(
 
     unsafe {
         launch(
-            &offset.client,
+            &grad_in.client,
             cube_count,
             cube_dim,
             address_type!(offset, mask, columns, grad_in),
-            offset.as_tensor_arg(1),
-            mask.as_ref().map(|mask| mask.as_tensor_arg(1)).into(),
-            linear_view(&columns, 1),
+            offset.into_tensor_arg(1),
+            mask.map(|mask| mask.into_tensor_arg(1)).into(),
+            linear_view(columns, 1),
             grad_arg,
             pos_shape,
             DeformConv2dCol2ImgArgsLaunch::new(
@@ -546,7 +546,7 @@ fn compute_input_grad<R: CubeRuntime>(
             ),
             dtypes,
         )
-    }?;
+    };
 
     Ok(if !supports_same_type || !supports_fadd {
         cast(grad_in, dtype)
