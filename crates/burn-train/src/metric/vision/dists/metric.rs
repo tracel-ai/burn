@@ -25,10 +25,55 @@ const C1: f32 = 1e-6;
 /// Small constant for numerical stability in texture similarity.
 const C2: f32 = 1e-6;
 
+/// ImageNet normalization constants.
+const IMAGENET_MEAN: [f32; 3] = [0.485, 0.456, 0.406];
+const IMAGENET_STD: [f32; 3] = [0.229, 0.224, 0.225];
+
+/// Image normalizer with pre-initialized mean and std tensors.
+///
+/// This struct holds the mean and std tensors for normalization,
+/// avoiding the need to create them on each forward pass.
+#[derive(Module, Debug)]
+pub struct Normalizer<B: Backend> {
+    /// Mean tensor of shape [1, 3, 1, 1] for broadcasting.
+    pub mean: Tensor<B, 4>,
+    /// Std tensor of shape [1, 3, 1, 1] for broadcasting.
+    pub std: Tensor<B, 4>,
+}
+
+impl<B: Backend> Normalizer<B> {
+    /// Create a new ImageNet normalizer.
+    pub fn imagenet(device: &B::Device) -> Self {
+        // Shape: [1, 3, 1, 1] for broadcasting over [batch, channels, height, width]
+        let mean = Tensor::from_floats(
+            [[
+                [[IMAGENET_MEAN[0]]],
+                [[IMAGENET_MEAN[1]]],
+                [[IMAGENET_MEAN[2]]],
+            ]],
+            device,
+        );
+        let std = Tensor::from_floats(
+            [[
+                [[IMAGENET_STD[0]]],
+                [[IMAGENET_STD[1]]],
+                [[IMAGENET_STD[2]]],
+            ]],
+            device,
+        );
+        Self { mean, std }
+    }
+
+    /// Normalize a tensor: (x - mean) / std
+    pub fn normalize(&self, x: Tensor<B, 4>) -> Tensor<B, 4> {
+        x.sub(self.mean.clone()).div(self.std.clone())
+    }
+}
+
 /// Configuration for DISTS metric.
 #[derive(Config, Debug)]
 pub struct DistsConfig {
-    /// Whether to normalize input from [0,1] to [-1,1].
+    /// Whether to apply ImageNet normalization to input images.
     #[config(default = true)]
     pub normalize: bool,
 }
@@ -42,11 +87,17 @@ impl DistsConfig {
         let alpha_data: Vec<f32> = (0..total_channels).map(|_| 0.1).collect();
         let beta_data: Vec<f32> = (0..total_channels).map(|_| 0.1).collect();
 
+        let normalizer = if self.normalize {
+            Some(Normalizer::imagenet(device))
+        } else {
+            None
+        };
+
         Dists {
             extractor: Vgg16L2PoolExtractor::new(device),
             alpha: Param::from_tensor(Tensor::from_floats(alpha_data.as_slice(), device)),
             beta: Param::from_tensor(Tensor::from_floats(beta_data.as_slice(), device)),
-            normalize: self.normalize,
+            normalizer,
         }
     }
 
@@ -85,8 +136,8 @@ pub struct Dists<B: Backend> {
     pub(crate) alpha: Param<Tensor<B, 1>>,
     /// Learned weights for texture similarity (per channel)
     pub(crate) beta: Param<Tensor<B, 1>>,
-    /// Whether to normalize input
-    pub(crate) normalize: bool,
+    /// Optional normalizer for input preprocessing
+    pub(crate) normalizer: Option<Normalizer<B>>,
 }
 
 impl<B: Backend> ModuleDisplay for Dists<B> {
@@ -99,7 +150,7 @@ impl<B: Backend> ModuleDisplay for Dists<B> {
     fn custom_content(&self, content: Content) -> Option<Content> {
         content
             .add("backbone", &"VGG16-L2Pool".to_string())
-            .add("normalize", &self.normalize.to_string())
+            .add("normalize", &self.normalizer.is_some().to_string())
             .optional()
     }
 }
@@ -280,39 +331,20 @@ impl<B: Backend> Dists<B> {
         (weighted_structure, weighted_texture)
     }
 
-    /// Preprocess input images using ImageNet normalization.
+    /// Preprocess input images using the configured normalizer.
     fn preprocess(
         &self,
         input: Tensor<B, 4>,
         target: Tensor<B, 4>,
     ) -> (Tensor<B, 4>, Tensor<B, 4>) {
-        if self.normalize {
-            // ImageNet normalization: (x - mean) / std
-            let input = Self::imagenet_normalize(input);
-            let target = Self::imagenet_normalize(target);
-            (input, target)
-        } else {
-            (input, target)
+        match &self.normalizer {
+            Some(normalizer) => {
+                let input = normalizer.normalize(input);
+                let target = normalizer.normalize(target);
+                (input, target)
+            }
+            None => (input, target),
         }
-    }
-
-    /// Apply ImageNet normalization to a tensor.
-    /// mean = [0.485, 0.456, 0.406], std = [0.229, 0.224, 0.225]
-    fn imagenet_normalize(x: Tensor<B, 4>) -> Tensor<B, 4> {
-        // Normalize each channel: (x - mean) / std
-        let r = x
-            .clone()
-            .narrow(1, 0, 1)
-            .sub_scalar(0.485)
-            .div_scalar(0.229);
-        let g = x
-            .clone()
-            .narrow(1, 1, 1)
-            .sub_scalar(0.456)
-            .div_scalar(0.224);
-        let b = x.narrow(1, 2, 1).sub_scalar(0.406).div_scalar(0.225);
-
-        Tensor::cat(vec![r, g, b], 1)
     }
 }
 
