@@ -89,7 +89,6 @@ impl<R: Runtime> MatmulOptimizationTuneArg<R> {
         context: &mut Context<'_, CubeFusionHandle<R>>,
         selector: FusedMatmulSelector,
     ) -> Result<TuneOutput<R>, TraceError<FusedMatmulError>> {
-        std::println!("EXECUTE FUSED");
         let launch = FusedMatmulLaunch::new(&self.info.matmul, selector);
         let launcher = FuseTraceLauncher::new(&self.info.trace, &launch);
 
@@ -100,7 +99,6 @@ impl<R: Runtime> MatmulOptimizationTuneArg<R> {
         &self,
         context: &mut Context<'_, CubeFusionHandle<R>>,
     ) -> TuneOutput<R> {
-        std::println!("EXECUTE FALLBACK");
         self.fallback.run(context);
 
         #[cfg(feature = "autotune-checks")]
