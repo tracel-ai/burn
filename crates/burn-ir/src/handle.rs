@@ -93,7 +93,10 @@ impl<H: Clone> HandleContainer<H> {
                     self.handles.insert(id, Handle::Existing(handle.clone()));
                     handle
                 }
-                TensorStatus::ReadWrite => handle,
+                TensorStatus::ReadWrite => {
+                    std::println!("Removed handle form the map");
+                    handle
+                }
                 TensorStatus::NotInit => panic!(
                     "Cannot get uninitialized tensor {id:?}. Tensor exist but with wrong status"
                 ),

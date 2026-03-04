@@ -30,6 +30,7 @@ pub fn fused_matmul_autotune<R: Runtime, BT: CubeElement>(
     optimization: MatmulOptimizationTuneArg<R>,
     context: &mut Context<CubeFusionHandle<R>>,
 ) {
+    std::println!("AAAAAAAAAAAAAAAAAaa");
     static TUNER: LocalTuner<FusedMatmulAutotuneKey, CubeTuneId> = local_tuner!();
 
     let tunables = TUNER.init(|| {
@@ -242,14 +243,21 @@ fn tune_fused<R: Runtime, BT: CubeElement>(
     let context = input.context();
 
     match context {
-        TuneContext::Original(context) => match optimization.execute_fused::<BT>(context, selector)
-        {
-            Ok(out) => Ok(out),
-            Err(_) => {
-                return tune_fallback::<R, BT>(input);
+        TuneContext::Original(context) => {
+            std::println!("Autotune prod.");
+            match optimization.execute_fused::<BT>(context, selector) {
+                Ok(out) => {
+                    std::println!("Autotune worked.");
+                    Ok(out)
+                }
+                Err(_) => {
+                    std::println!("Tune on error");
+                    return tune_fallback::<R, BT>(input);
+                }
             }
-        },
+        }
         TuneContext::Fork(mut context_owned) => {
+            std::println!("Tune fused");
             optimization.execute_fused::<BT>(&mut context_owned.as_context(), selector)
         }
     }
@@ -263,8 +271,12 @@ fn tune_fallback<R: Runtime, BT: CubeElement>(
     let context = input.context();
 
     Ok(match context {
-        TuneContext::Original(context) => optimization.execute_fallback::<BT>(context),
+        TuneContext::Original(context) => {
+            std::println!("Autotune fallback origin.");
+            optimization.execute_fallback::<BT>(context)
+        }
         TuneContext::Fork(mut context_owned) => {
+            std::println!("Tune fallback");
             optimization.execute_fallback::<BT>(&mut context_owned.as_context())
         }
     })

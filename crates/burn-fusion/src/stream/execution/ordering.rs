@@ -65,7 +65,9 @@ impl<R: FusionRuntime> OrderedExecution<R> {
 
         for id in ordering {
             let op = &self.operations[*id];
+            std::println!("EXECUTE OPERATION {op:?}");
             op.execute(handles);
+            std::println!("EXECUTE OPERATION DONE");
         }
     }
 }
