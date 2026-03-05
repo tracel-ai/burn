@@ -54,14 +54,14 @@ impl<B: Backend> SsimInput<B> {
 #[derive(Debug, Clone, Copy)]
 pub struct SsimMetricConfig {
     /// The range of the pixel values in images which can be computed as following:
-    /// `let data_range = max_pixel_val - min_pixel_val;`
+    /// `let pixel_range = max_pixel_val - min_pixel_val;`
     /// where `max_pixel_val` is the maximum possible pixel value and `min_pixel_val`
     /// is the minimum possible pixel value.
     ///
     /// - For normalized images in range [0, 1], it should be set to `1.0 - 0.0 = 1.0`
     /// - For normalized images in range [-1, 1], it should be set to `1.0 - (-1.0) = 2.0`
     /// - For 8-bit images in range [0, 255], it should be set to `255.0 - 0.0 = 255.0`
-    pub data_range: f64,
+    pub pixel_range: f64,
     /// A parameter of SSIM used to stabilize the luminance comparison.
     /// Default is 0.01.
     pub k1: f64,
@@ -69,8 +69,8 @@ pub struct SsimMetricConfig {
     /// Default is 0.03.
     pub k2: f64,
     /// The SSIM metric involves applying convolution to the input tensors using a Gaussian kernel.
-    /// This is the window/kernel size of the Gaussian kernel. Default is 11.
-    pub window_size: usize,
+    /// This is the kernel size of the Gaussian kernel. Default is 11.
+    pub kernel_size: usize,
     /// The SSIM metric involves applying convolution to the input tensors using a Gaussian kernel.
     /// This is the standard deviation of the Gaussian kernel. Default is 1.5.
     pub sigma: f64,
@@ -82,11 +82,11 @@ impl SsimMetricConfig {
     /// # Default parameters
     /// - k1: 0.01
     /// - k2: 0.03
-    /// - window_size: 11
+    /// - kernel_size: 11
     /// - sigma: 1.5
     ///
     /// # Panics
-    /// - If `data_range` is not positive.
+    /// - If `pixel_range` is not positive.
     ///
     /// # Example
     /// ```ignore
@@ -100,15 +100,15 @@ impl SsimMetricConfig {
     /// let config3 = SsimMetricConfig::new(1.0).with_k1_k2(0.015, 0.025);
     ///
     /// // Also set a custom value for window size
-    /// config3.with_window_size(13);
+    /// config3.with_kernel_size(13);
     /// ```
-    pub fn new(data_range: f64) -> Self {
-        assert!(data_range > 0.0, "data_range must be positive");
+    pub fn new(pixel_range: f64) -> Self {
+        assert!(pixel_range > 0.0, "pixel_range must be positive");
         Self {
-            data_range,
+            pixel_range: pixel_range,
             k1: 0.01,
             k2: 0.03,
-            window_size: 11,
+            kernel_size: 11,
             sigma: 1.5,
         }
     }
@@ -134,16 +134,16 @@ impl SsimMetricConfig {
     /// window size must be a positive odd number.
     ///
     /// # Default value
-    /// - window_size: 11
+    /// - kernel_size: 11
     ///
     /// # Panics
-    /// - If `window_size` is not a positive odd number.
-    pub fn with_window_size(mut self, window_size: usize) -> Self {
+    /// - If `kernel_size` is not a positive odd number.
+    pub fn with_kernel_size(mut self, kernel_size: usize) -> Self {
         assert!(
-            window_size > 0 && window_size % 2 == 1,
-            "window_size must be positive and an odd number"
+            kernel_size > 0 && kernel_size % 2 == 1,
+            "kernel_size must be positive and an odd number"
         );
-        self.window_size = window_size;
+        self.kernel_size = kernel_size;
         self
     }
 
@@ -206,7 +206,7 @@ impl<B: Backend> SsimMetric<B> {
         Self {
             name: MetricName::new(format!(
                 "SSIM (dr={}, w={}, σ={})",
-                config.data_range, config.window_size, config.sigma,
+                config.pixel_range, config.kernel_size, config.sigma,
             )),
             state: NumericMetricState::default(),
             config,
@@ -226,7 +226,7 @@ impl<B: Backend> SsimMetric<B> {
     /// The returned kernel will be reshaped by the `gaussian_conv_separable`
     /// associated function later.
     fn create_1d_gaussian_kernel(&self) -> Vec<f32> {
-        let size = self.config.window_size;
+        let size = self.config.kernel_size;
         let sigma = self.config.sigma;
         let center = (size / 2) as f64;
 
@@ -261,7 +261,7 @@ impl<B: Backend> SsimMetric<B> {
         channels: usize,
         device: &B::Device,
     ) -> Tensor<B, 4> {
-        let size = self.config.window_size;
+        let size = self.config.kernel_size;
         let padding = size / 2;
 
         // Create horizontal kernel: shape [C, 1, 1, K]
@@ -305,16 +305,16 @@ impl<B: Backend> Metric for SsimMetric<B> {
         let img_height = dims[2];
         let img_width = dims[3];
         assert!(
-            img_height >= self.config.window_size && img_width >= self.config.window_size,
-            "Image dimensions (H={}, W={}) must be >= window_size ({})",
+            img_height >= self.config.kernel_size && img_width >= self.config.kernel_size,
+            "Image dimensions (H={}, W={}) must be >= kernel_size ({})",
             img_height,
             img_width,
-            self.config.window_size
+            self.config.kernel_size
         );
 
         // Constants in SSIM formula used for numerical stability
-        let c1 = (self.config.k1 * self.config.data_range).powi(2);
-        let c2 = (self.config.k2 * self.config.data_range).powi(2);
+        let c1 = (self.config.k1 * self.config.pixel_range).powi(2);
+        let c2 = (self.config.k2 * self.config.pixel_range).powi(2);
 
         // Create 1D Gaussian kernel to apply separable convolutions twice (horizontally and vertically)
         let kernel_1d = self.create_1d_gaussian_kernel();
@@ -394,7 +394,7 @@ mod tests {
 
     fn test_config() -> SsimMetricConfig {
         SsimMetricConfig::new(1.0)
-            .with_window_size(3)
+            .with_kernel_size(3)
             .with_sigma(1.0)
     }
 
@@ -712,7 +712,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ssim_data_range_255() {
+    fn test_ssim_pixel_range_255() {
         // Test with 8-bit image range [0, 255]
         let device = Default::default();
         let shape = Shape::new([1, 1, 10, 10]);
@@ -720,7 +720,7 @@ mod tests {
         let outputs = Tensor::<TestBackend, 4>::random(shape.clone(), distribution, &device);
         let targets = outputs.clone();
 
-        let config = SsimMetricConfig::new(255.0).with_window_size(3);
+        let config = SsimMetricConfig::new(255.0).with_kernel_size(3);
         let mut metric = SsimMetric::<TestBackend>::new(config);
         let input = SsimInput::new(outputs, targets);
         let _entry = metric.update(&input, &MetricMetadata::fake());
@@ -754,15 +754,15 @@ mod tests {
     }
 
     #[test]
-    fn test_ssim_default_window_size() {
-        // Test with default window_size=11, need images >= 11x11
+    fn test_ssim_default_kernel_size() {
+        // Test with default kernel_size=11, need images >= 11x11
         let device = Default::default();
         let shape = Shape::new([1, 1, 1080, 1920]);
         let distribution = Distribution::Uniform(0.0, 1.0);
         let outputs = Tensor::<TestBackend, 4>::random(shape, distribution, &device);
         let targets = outputs.clone();
 
-        let config = SsimMetricConfig::new(1.0); // default window_size=11
+        let config = SsimMetricConfig::new(1.0); // default kernel_size=11
         let mut metric = SsimMetric::<TestBackend>::new(config);
         let input = SsimInput::new(outputs, targets);
         let _entry = metric.update(&input, &MetricMetadata::fake());
@@ -801,13 +801,13 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Image dimensions (H=4, W=4) must be >= window_size (11)")]
+    #[should_panic(expected = "Image dimensions (H=4, W=4) must be >= kernel_size (11)")]
     fn test_ssim_image_too_small() {
         let device = Default::default();
         let outputs = Tensor::<TestBackend, 4>::zeros([1, 1, 4, 4], &device);
         let targets = outputs.clone();
 
-        // Default window_size=11, but image is only 4x4
+        // Default kernel_size=11, but image is only 4x4
         let config = SsimMetricConfig::new(1.0);
         let mut metric = SsimMetric::<TestBackend>::new(config);
         let input = SsimInput::new(outputs, targets);
@@ -826,14 +826,14 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "data_range must be positive")]
-    fn test_ssim_negative_data_range() {
+    #[should_panic(expected = "pixel_range must be positive")]
+    fn test_ssim_negative_pixel_range() {
         let _ = SsimMetricConfig::new(-1.0);
     }
 
     #[test]
-    #[should_panic(expected = "data_range must be positive")]
-    fn test_ssim_zero_data_range() {
+    #[should_panic(expected = "pixel_range must be positive")]
+    fn test_ssim_zero_pixel_range() {
         let _ = SsimMetricConfig::new(0.0);
     }
 
@@ -850,15 +850,15 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "window_size must be positive and an odd number")]
-    fn test_ssim_even_window_size() {
-        let _ = SsimMetricConfig::new(1.0).with_window_size(10);
+    #[should_panic(expected = "kernel_size must be positive and an odd number")]
+    fn test_ssim_even_kernel_size() {
+        let _ = SsimMetricConfig::new(1.0).with_kernel_size(10);
     }
 
     #[test]
-    #[should_panic(expected = "window_size must be positive and an odd number")]
-    fn test_ssim_zero_window_size() {
-        let _ = SsimMetricConfig::new(1.0).with_window_size(0);
+    #[should_panic(expected = "kernel_size must be positive and an odd number")]
+    fn test_ssim_zero_kernel_size() {
+        let _ = SsimMetricConfig::new(1.0).with_kernel_size(0);
     }
 
     #[test]
