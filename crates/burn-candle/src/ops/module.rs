@@ -300,6 +300,9 @@ impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<Self> for Candle<F, I
             InterpolateMode::Bicubic => {
                 panic!("bicubic interpolation is not supported by Candle")
             }
+            InterpolateMode::Lanczos3 => {
+                panic!("lanczos3 interpolation is not supported by Candle")
+            }
         };
 
         CandleTensor::new(tensor)

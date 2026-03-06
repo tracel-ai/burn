@@ -257,6 +257,89 @@ pub(crate) fn bicubic_interpolate<E: FloatNdArrayElement>(
     output.into_dyn().into_shared()
 }
 
+pub(crate) fn lanczos3_interpolate<E: FloatNdArrayElement>(
+    x: SharedArray<E>,
+    output_size: [usize; 2],
+    align_corners: bool,
+) -> SharedArray<E> {
+    fn lanczos3_weight(x: f64) -> f64 {
+        if x == 0.0 {
+            return 1.0;
+        }
+        let abs_x = x.abs();
+        if abs_x >= 3.0 {
+            return 0.0;
+        }
+        let pi = core::f64::consts::PI;
+        let pi_x = pi * x;
+        let pi_x_over_3 = pi_x / 3.0;
+        (pi_x.sin() * pi_x_over_3.sin()) / (pi_x * pi_x_over_3)
+    }
+
+    let x = x.into_dimensionality::<ndarray::Ix4>().unwrap();
+
+    let (batch_size, channels, in_height, in_width) = x.dim();
+    let [out_height, out_width] = output_size;
+
+    let out_element_num = batch_size * channels * out_height * out_width;
+    let strides = (
+        channels * out_height * out_width,
+        out_height * out_width,
+        out_width,
+    );
+
+    let mut output = Array4::zeros((batch_size, channels, out_height, out_width));
+    let unsafe_shared_out = UnsafeSharedRef::new(&mut output);
+
+    run_par!(|| {
+        iter_range_par!(0, out_element_num).for_each(|id| {
+            let (b, c, h, w) = (
+                id / strides.0,
+                id % strides.0 / strides.1,
+                id % strides.1 / strides.2,
+                id % strides.2,
+            );
+
+            let (y_frac, x_frac) = if align_corners {
+                let y_ratio =
+                    ((in_height - 1) as f64) / (core::cmp::max(out_height - 1, 1) as f64);
+                let x_ratio =
+                    ((in_width - 1) as f64) / (core::cmp::max(out_width - 1, 1) as f64);
+                (y_ratio * h as f64, x_ratio * w as f64)
+            } else {
+                let y_frac = (h as f64 + 0.5) * (in_height as f64 / out_height as f64) - 0.5;
+                let x_frac = (w as f64 + 0.5) * (in_width as f64 / out_width as f64) - 0.5;
+                (y_frac, x_frac)
+            };
+
+            let y0 = y_frac.floor();
+            let x0 = x_frac.floor();
+            let max_h = (in_height - 1) as isize;
+            let max_w = (in_width - 1) as isize;
+
+            // 6x6 separable Lanczos3 filter
+            let mut result = 0.0;
+            for ky in -2..=3 {
+                let y_idx = ((y0 as isize + ky).clamp(0, max_h)) as usize;
+                let wy = lanczos3_weight(y_frac - (y0 + ky as f64));
+                for kx in -2..=3 {
+                    let x_idx = ((x0 as isize + kx).clamp(0, max_w)) as usize;
+                    let wx = lanczos3_weight(x_frac - (x0 + kx as f64));
+                    let pixel: f64 = x[(b, c, y_idx, x_idx)].elem();
+                    result += pixel * wy * wx;
+                }
+            }
+
+            unsafe {
+                let output = unsafe_shared_out.get();
+                output[(b, c, h, w)] = result.elem();
+            }
+        });
+    });
+
+    output.into_dyn().into_shared()
+}
+
 /// Sample an element of the source array with bilinear interpolation
 ///
 /// * `source` - The tensor to read from. Has shape (batch_size, channels, height, width)

@@ -14,6 +14,7 @@ mod conv_transpose1d;
 mod conv_transpose2d;
 mod conv_transpose3d;
 mod deform_conv2d;
+mod lanczos3_interpolate;
 mod forward;
 mod linear;
 mod maxpool1d;
