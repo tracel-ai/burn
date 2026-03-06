@@ -8,7 +8,7 @@ use crate::burnpack::{
 
 use super::*;
 use burn_core::module::ParamId;
-use burn_tensor::{DType, TensorData};
+use burn_tensor::{DType, TensorData, shape};
 use std::rc::Rc;
 
 #[test]
@@ -250,7 +250,7 @@ fn test_writer_all_dtypes_round_trip() {
                 .iter()
                 .flat_map(|v| v.to_le_bytes())
                 .collect::<Vec<u8>>(),
-            vec![4],
+            shape![4],
         ),
         (
             "f32_tensor",
@@ -259,7 +259,7 @@ fn test_writer_all_dtypes_round_trip() {
                 .iter()
                 .flat_map(|v| v.to_le_bytes())
                 .collect::<Vec<u8>>(),
-            vec![2, 2],
+            shape![2, 2],
         ),
         (
             "f16_tensor",
@@ -268,7 +268,7 @@ fn test_writer_all_dtypes_round_trip() {
                 .iter()
                 .flat_map(|v| v.to_le_bytes())
                 .collect::<Vec<u8>>(),
-            vec![2],
+            shape![2],
         ),
         (
             "bf16_tensor",
@@ -277,7 +277,7 @@ fn test_writer_all_dtypes_round_trip() {
                 .iter()
                 .flat_map(|v| v.to_le_bytes())
                 .collect::<Vec<u8>>(),
-            vec![2],
+            shape![2],
         ),
         // Signed integers
         (
@@ -287,7 +287,7 @@ fn test_writer_all_dtypes_round_trip() {
                 .iter()
                 .flat_map(|v| v.to_le_bytes())
                 .collect::<Vec<u8>>(),
-            vec![4],
+            shape![4],
         ),
         (
             "i32_tensor",
@@ -296,7 +296,7 @@ fn test_writer_all_dtypes_round_trip() {
                 .iter()
                 .flat_map(|v| v.to_le_bytes())
                 .collect::<Vec<u8>>(),
-            vec![2, 2],
+            shape![2, 2],
         ),
         (
             "i16_tensor",
@@ -305,7 +305,7 @@ fn test_writer_all_dtypes_round_trip() {
                 .iter()
                 .flat_map(|v| v.to_le_bytes())
                 .collect::<Vec<u8>>(),
-            vec![4],
+            shape![4],
         ),
         (
             "i8_tensor",
@@ -314,7 +314,7 @@ fn test_writer_all_dtypes_round_trip() {
                 .iter()
                 .flat_map(|v| v.to_le_bytes())
                 .collect::<Vec<u8>>(),
-            vec![2, 2],
+            shape![2, 2],
         ),
         // Unsigned integers
         (
@@ -324,7 +324,7 @@ fn test_writer_all_dtypes_round_trip() {
                 .iter()
                 .flat_map(|v| v.to_le_bytes())
                 .collect::<Vec<u8>>(),
-            vec![4],
+            shape![4],
         ),
         (
             "u32_tensor",
@@ -333,7 +333,7 @@ fn test_writer_all_dtypes_round_trip() {
                 .iter()
                 .flat_map(|v| v.to_le_bytes())
                 .collect::<Vec<u8>>(),
-            vec![2, 2],
+            shape![2, 2],
         ),
         (
             "u16_tensor",
@@ -342,15 +342,15 @@ fn test_writer_all_dtypes_round_trip() {
                 .iter()
                 .flat_map(|v| v.to_le_bytes())
                 .collect::<Vec<u8>>(),
-            vec![4],
+            shape![4],
         ),
-        ("u8_tensor", DType::U8, vec![1u8, 2, 3, 4], vec![2, 2]),
+        ("u8_tensor", DType::U8, vec![1u8, 2, 3, 4], shape![2, 2]),
         // Boolean
-        ("bool_tensor", DType::Bool, vec![1u8, 0, 1, 0], vec![4]),
+        ("bool_tensor", DType::Bool, vec![1u8, 0, 1, 0], shape![4]),
     ];
 
     let mut snapshots = vec![];
-    let mut expected_results: Vec<(&str, DType, Vec<u8>, Vec<usize>)> = vec![];
+    let mut expected_results: Vec<(&str, DType, Vec<u8>, _)> = vec![];
 
     for (name, dtype, data, shape) in test_cases.into_iter() {
         let snapshot = TensorSnapshot::from_data(
@@ -560,7 +560,7 @@ fn test_writer_lazy_snapshot_evaluation() {
             Ok(TensorData::from_bytes_vec(bytes, vec![2, 2], DType::F32))
         }),
         DType::F32,
-        vec![2, 2],
+        shape![2, 2],
         vec!["lazy".to_string()],
         vec![],
         ParamId::new(),
