@@ -8,7 +8,7 @@ use crate::burnpack::{
 };
 
 use super::*;
-use burn_tensor::{Bytes, DType, TensorData};
+use burn_tensor::{Bytes, DType, TensorData, shape};
 
 #[test]
 fn test_reader_from_bytes_empty() {
@@ -125,11 +125,11 @@ fn test_reader_get_tensor_snapshot() {
     // Verify snapshot metadata
     assert_eq!(loaded_snapshot.full_path(), "weights");
     assert_eq!(loaded_snapshot.dtype, DType::F32);
-    assert_eq!(loaded_snapshot.shape, vec![2, 2]);
+    assert_eq!(loaded_snapshot.shape, shape![2, 2]);
 
     // Verify data through closure
     let tensor_data = loaded_snapshot.to_data().unwrap();
-    assert_eq!(tensor_data.shape, vec![2, 2]);
+    assert_eq!(tensor_data.shape, shape![2, 2]);
 }
 
 #[test]
@@ -244,7 +244,7 @@ fn test_reader_empty_tensor() {
     assert_eq!(data.len(), 0);
 
     let snapshot = reader.get_tensor_snapshot("empty").unwrap();
-    assert_eq!(snapshot.shape, vec![0]);
+    assert_eq!(snapshot.shape, shape![0]);
 }
 
 #[cfg(feature = "std")]

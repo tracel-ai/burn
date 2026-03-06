@@ -710,6 +710,7 @@ dependencies = [
  "rand 0.10.0",
  "rand_distr 0.6.0",
  "serde",
+ "serde_json",
  "thiserror 2.0.18",
 ]
 

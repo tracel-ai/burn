@@ -1,6 +1,6 @@
 use super::{RemoteChannel, RemoteClient};
 use crate::shared::{ComputeTask, TaskResponseContent, TensorRemote};
-use burn_backend::{DeviceId, DeviceOps, ExecutionError, Shape, TensorData};
+use burn_backend::{DeviceId, DeviceOps, ExecutionError, TensorData};
 use burn_communication::{Address, ProtocolClient, data_service::TensorTransferId};
 use burn_ir::TensorIr;
 use burn_router::{MultiBackendBridge, RouterTensor, RunnerClient, get_client};
@@ -84,7 +84,7 @@ impl RunnerClient for RemoteClient {
 
         self.sender.send(ComputeTask::RegisterTensor(id, data));
 
-        RouterTensor::new(id, Shape::from(shape), dtype, self.clone())
+        RouterTensor::new(id, shape, dtype, self.clone())
     }
 
     fn device(&self) -> Self::Device {
