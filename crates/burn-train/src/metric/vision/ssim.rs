@@ -61,19 +61,19 @@ pub struct SsimMetricConfig {
     /// - For normalized images in range [0, 1], it should be set to `1.0 - 0.0 = 1.0`
     /// - For normalized images in range [-1, 1], it should be set to `1.0 - (-1.0) = 2.0`
     /// - For 8-bit images in range [0, 255], it should be set to `255.0 - 0.0 = 255.0`
-    pub pixel_range: f64,
+    pub pixel_range: f32,
     /// A parameter of SSIM used to stabilize the luminance comparison.
     /// Default is 0.01.
-    pub k1: f64,
+    pub k1: f32,
     /// A parameter of SSIM used to stabilize the contrast comparison.
     /// Default is 0.03.
-    pub k2: f64,
+    pub k2: f32,
     /// The SSIM metric involves applying convolution to the input tensors using a Gaussian kernel.
     /// This is the kernel size of the Gaussian kernel. Default is 11.
     pub kernel_size: usize,
     /// The SSIM metric involves applying convolution to the input tensors using a Gaussian kernel.
     /// This is the standard deviation of the Gaussian kernel. Default is 1.5.
-    pub sigma: f64,
+    pub sigma: f32,
 }
 
 impl SsimMetricConfig {
@@ -102,7 +102,7 @@ impl SsimMetricConfig {
     /// // Also set a custom value for window size
     /// config3.with_kernel_size(13);
     /// ```
-    pub fn new(pixel_range: f64) -> Self {
+    pub fn new(pixel_range: f32) -> Self {
         assert!(pixel_range > 0.0, "pixel_range must be positive");
         Self {
             pixel_range: pixel_range,
@@ -122,7 +122,7 @@ impl SsimMetricConfig {
     ///
     /// # Panics
     /// - If `k1` or `k2` is not positive.
-    pub fn with_k1_k2(mut self, k1: f64, k2: f64) -> Self {
+    pub fn with_k1_k2(mut self, k1: f32, k2: f32) -> Self {
         assert!(k1 > 0.0, "k1 must be positive");
         assert!(k2 > 0.0, "k2 must be positive");
         self.k1 = k1;
@@ -154,7 +154,7 @@ impl SsimMetricConfig {
     ///
     /// # Panics
     /// - If `sigma` is not positive.
-    pub fn with_sigma(mut self, sigma: f64) -> Self {
+    pub fn with_sigma(mut self, sigma: f32) -> Self {
         assert!(sigma > 0.0, "sigma must be positive");
         self.sigma = sigma;
         self
@@ -228,21 +228,21 @@ impl<B: Backend> SsimMetric<B> {
     fn create_1d_gaussian_kernel(&self) -> Vec<f32> {
         let size = self.config.kernel_size;
         let sigma = self.config.sigma;
-        let center = (size / 2) as f64;
+        let center = (size / 2) as f32;
 
         let mut kernel = vec![0.0f32; size];
-        let mut sum = 0.0f64;
+        let mut sum = 0.0f32;
 
         for (i, v) in kernel.iter_mut().enumerate() {
-            let x = i as f64 - center;
+            let x = i as f32 - center;
             let value = (-(x * x) / (2.0 * sigma * sigma)).exp();
-            *v = value as f32;
+            *v = value;
             sum += value;
         }
 
         // Normalize so values sum to 1
         for v in kernel.iter_mut() {
-            *v /= sum as f32;
+            *v /= sum;
         }
 
         kernel
@@ -346,7 +346,7 @@ impl<B: Backend> Metric for SsimMetric<B> {
 
         // Compute SSIM:
         // SSIM(x, y) = (2μxμy + C1)(2σxy + C2) / (μx² + μy² + C1)(σx² + σy² + C2)
-        let numerator = (mu_x_mu_y.mul_scalar(2.0) + c1) * (sigma_xy.mul_scalar(2.0) + c2);
+        let numerator = (mu_x_mu_y.mul_scalar(2.0_f32) + c1) * (sigma_xy.mul_scalar(2.0_f32) + c2);
         let denominator = (square_of_mu_x + square_of_mu_y + c1) * (var_x + var_y + c2);
         let ssim_tensor = numerator / denominator;
 
