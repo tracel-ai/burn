@@ -242,7 +242,7 @@ impl<E: Element> From<ArcArray<E, IxDyn>> for NdArrayStorage<E> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloc::vec;
+    use alloc::{vec, vec::Vec};
     use burn_std::Bytes;
 
     #[test]
