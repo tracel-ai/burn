@@ -251,8 +251,6 @@ Burn comes with built-in modules that you can use to build your own modules.
 | `RmsNorm`         | _No direct equivalent_                        |
 | `SwiGlu`          | _No direct equivalent_                        |
 | `ThresholdedRelu` | _No direct equivalent_                        |
-| `Interpolate1d`   | `nn.Upsample`                                 |
-| `Interpolate2d`   | `nn.Upsample`                                 |
 
 ### Convolutions
 
@@ -276,6 +274,31 @@ Burn comes with built-in modules that you can use to build your own modules.
 | `AvgPool2d`         | `nn.AvgPool2d`         |
 | `MaxPool1d`         | `nn.MaxPool1d`         |
 | `MaxPool2d`         | `nn.MaxPool2d`         |
+
+### Interpolation
+
+| Burn API        | PyTorch Equivalent |
+| --------------- | ------------------ |
+| `Interpolate1d` | `nn.Upsample`     |
+| `Interpolate2d` | `nn.Upsample`     |
+
+Interpolation modules resize tensors using one of the available `InterpolateMode` options:
+
+| Mode      | Description                                              |
+| --------- | -------------------------------------------------------- |
+| `Nearest` | Nearest-neighbor interpolation                           |
+| `Linear`  | Linear interpolation (bilinear for 2D)                   |
+| `Cubic`   | Cubic interpolation (bicubic for 2D)                     |
+| `Lanczos` | Lanczos3 resampling (6-tap sinc-based filter, a=3)       |
+
+Configuration is done via `Interpolate1dConfig` / `Interpolate2dConfig` with these options:
+
+| Option          | Type                                     | Default   | Description                                              |
+| --------------- |------------------------------------------| --------- | -------------------------------------------------------- |
+| `output_size`   | `Option<usize>` / `Option<[usize; 2]>`   | `None`    | Target output size (takes precedence over scale_factor)  |
+| `scale_factor`  | `Option<f32>` / `Option<[f32; 2]>`       | `None`    | Scale factor for resizing                                |
+| `mode`          | `InterpolateMode`                        | `Nearest` | Interpolation algorithm                                  |
+| `align_corners` | `bool`                                   | `true`    | Align input/output corner pixels                         |
 
 ### RNNs
 
