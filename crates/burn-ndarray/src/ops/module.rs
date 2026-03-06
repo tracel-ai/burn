@@ -3,7 +3,9 @@ use super::{
     avgpool::{avg_pool2d, avg_pool2d_backward},
     conv::{conv_transpose2d, conv_transpose3d, conv2d, conv3d},
     deform_conv::{backward::deform_conv2d_backward, deform_conv2d},
-    interpolate::{bicubic_interpolate, bilinear_interpolate, lanczos3_interpolate, nearest_interpolate},
+    interpolate::{
+        bicubic_interpolate, bilinear_interpolate, lanczos3_interpolate, nearest_interpolate,
+    },
     maxpool::{max_pool2d, max_pool2d_backward, max_pool2d_with_indices},
 };
 #[cfg(feature = "simd")]

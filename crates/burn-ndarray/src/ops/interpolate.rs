@@ -301,10 +301,8 @@ pub(crate) fn lanczos3_interpolate<E: FloatNdArrayElement>(
             );
 
             let (y_frac, x_frac) = if align_corners {
-                let y_ratio =
-                    ((in_height - 1) as f64) / (core::cmp::max(out_height - 1, 1) as f64);
-                let x_ratio =
-                    ((in_width - 1) as f64) / (core::cmp::max(out_width - 1, 1) as f64);
+                let y_ratio = ((in_height - 1) as f64) / (core::cmp::max(out_height - 1, 1) as f64);
+                let x_ratio = ((in_width - 1) as f64) / (core::cmp::max(out_width - 1, 1) as f64);
                 (y_ratio * h as f64, x_ratio * w as f64)
             } else {
                 let y_frac = (h as f64 + 0.5) * (in_height as f64 / out_height as f64) - 0.5;
