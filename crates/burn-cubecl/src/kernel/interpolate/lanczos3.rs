@@ -63,6 +63,7 @@ fn interpolate_lanczos3_kernel<F: Float>(
 
     let zero = Line::empty(line_size).fill(F::new(0.0));
     let mut result = zero;
+    let mut weight_sum = 0.0f32;
 
     // 6-tap separable Lanczos3 filter: ky in -2..=3, kx in -2..=3
     #[unroll]
@@ -77,11 +78,18 @@ fn interpolate_lanczos3_kernel<F: Float>(
             let x_idx = clamp(x_pos, 0.0, input_width_f) as usize;
             let wx = lanczos3_weight(x_frac - x_pos);
 
+            let wt = wy * wx;
             let idx = index_base + y_idx * in_stride_y + x_idx * in_stride_x;
             let pixel = input[idx / line_size];
-            let w = Line::empty(line_size).fill(F::cast_from(wy * wx));
+            let w = Line::empty(line_size).fill(F::cast_from(wt));
             result += pixel * w;
+            weight_sum += wt;
         }
+    }
+
+    if weight_sum != 0.0 {
+        let inv_w = Line::empty(line_size).fill(F::cast_from(1.0 / weight_sum));
+        result *= inv_w;
     }
 
     output[out_idx] = result;

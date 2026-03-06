@@ -317,15 +317,21 @@ pub(crate) fn lanczos3_interpolate<E: FloatNdArrayElement>(
 
             // 6x6 separable Lanczos3 filter
             let mut result = 0.0;
+            let mut weight_sum = 0.0;
             for ky in -2..=3 {
                 let y_idx = ((y0 as isize + ky).clamp(0, max_h)) as usize;
                 let wy = lanczos3_weight(y_frac - (y0 + ky as f64));
                 for kx in -2..=3 {
                     let x_idx = ((x0 as isize + kx).clamp(0, max_w)) as usize;
                     let wx = lanczos3_weight(x_frac - (x0 + kx as f64));
+                    let w = wy * wx;
                     let pixel: f64 = x[(b, c, y_idx, x_idx)].elem();
-                    result += pixel * wy * wx;
+                    result += pixel * w;
+                    weight_sum += w;
                 }
+            }
+            if weight_sum != 0.0 {
+                result /= weight_sum;
             }
 
             unsafe {
