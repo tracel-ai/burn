@@ -251,8 +251,8 @@ Burn comes with built-in modules that you can use to build your own modules.
 | `RmsNorm`         | _No direct equivalent_                        |
 | `SwiGlu`          | _No direct equivalent_                        |
 | `ThresholdedRelu` | _No direct equivalent_                        |
-| `Interpolate1d`   | _No direct equivalent_                        |
-| `Interpolate2d`   | _No direct equivalent_                        |
+| `Interpolate1d`   | `nn.Upsample`                                 |
+| `Interpolate2d`   | `nn.Upsample`                                 |
 
 ### Convolutions
 
