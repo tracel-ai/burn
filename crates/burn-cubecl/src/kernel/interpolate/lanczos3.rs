@@ -69,13 +69,13 @@ fn interpolate_lanczos3_kernel<F: Float>(
     for ky in -2..4i32 {
         let y_pos = y0 + ky as f32;
         let y_idx = clamp(y_pos, 0.0, input_height_f) as usize;
-        let wy = lanczos3_weight::<F>(y_frac - y_pos);
+        let wy = lanczos3_weight(y_frac - y_pos);
 
         #[unroll]
         for kx in -2..4i32 {
             let x_pos = x0 + kx as f32;
             let x_idx = clamp(x_pos, 0.0, input_width_f) as usize;
-            let wx = lanczos3_weight::<F>(x_frac - x_pos);
+            let wx = lanczos3_weight(x_frac - x_pos);
 
             let idx = index_base + y_idx * in_stride_y + x_idx * in_stride_x;
             let pixel = input[idx / line_size];
@@ -88,13 +88,13 @@ fn interpolate_lanczos3_kernel<F: Float>(
 }
 
 #[cube]
-fn lanczos3_weight<F: Float>(x: f32) -> f32 {
+fn lanczos3_weight(x: f32) -> f32 {
     let abs_x = f32::abs(x);
     let mut result = 0.0f32;
     if abs_x < 1e-7 {
         result = 1.0;
     } else if abs_x < 3.0 {
-        let pi = 3.14159265358979323846;
+        let pi = core::f32::consts::PI;
         let pi_x = pi * x;
         let pi_x_over_3 = pi_x / 3.0;
         result = (f32::sin(pi_x) * f32::sin(pi_x_over_3)) / (pi_x * pi_x_over_3);
