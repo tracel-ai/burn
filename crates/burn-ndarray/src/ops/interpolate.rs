@@ -315,14 +315,22 @@ pub(crate) fn lanczos3_interpolate<E: FloatNdArrayElement>(
             let max_h = (in_height - 1) as isize;
             let max_w = (in_width - 1) as isize;
 
-            // 6x6 separable Lanczos3 filter
+            // 6x6 separable Lanczos3 filter (skip out-of-bounds positions)
             let mut result = 0.0;
             let mut weight_sum = 0.0;
             for ky in -2..=3 {
-                let y_idx = ((y0 as isize + ky).clamp(0, max_h)) as usize;
+                let yi = y0 as isize + ky;
+                if yi < 0 || yi > max_h {
+                    continue;
+                }
+                let y_idx = yi as usize;
                 let wy = lanczos3_weight(y_frac - (y0 + ky as f64));
                 for kx in -2..=3 {
-                    let x_idx = ((x0 as isize + kx).clamp(0, max_w)) as usize;
+                    let xi = x0 as isize + kx;
+                    if xi < 0 || xi > max_w {
+                        continue;
+                    }
+                    let x_idx = xi as usize;
                     let wx = lanczos3_weight(x_frac - (x0 + kx as f64));
                     let w = wy * wx;
                     let pixel: f64 = x[(b, c, y_idx, x_idx)].elem();

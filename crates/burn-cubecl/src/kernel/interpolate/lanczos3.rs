@@ -66,24 +66,29 @@ fn interpolate_lanczos3_kernel<F: Float>(
     let mut weight_sum = 0.0f32;
 
     // 6-tap separable Lanczos3 filter: ky in -2..=3, kx in -2..=3
+    // Skip out-of-bounds positions instead of clamping (matches TF/JAX/PIL)
     #[unroll]
     for ky in -2..4i32 {
         let y_pos = y0 + ky as f32;
-        let y_idx = clamp(y_pos, 0.0, input_height_f) as usize;
-        let wy = lanczos3_weight(y_frac - y_pos);
+        if y_pos >= 0.0 && y_pos <= input_height_f {
+            let y_idx = y_pos as usize;
+            let wy = lanczos3_weight(y_frac - y_pos);
 
-        #[unroll]
-        for kx in -2..4i32 {
-            let x_pos = x0 + kx as f32;
-            let x_idx = clamp(x_pos, 0.0, input_width_f) as usize;
-            let wx = lanczos3_weight(x_frac - x_pos);
+            #[unroll]
+            for kx in -2..4i32 {
+                let x_pos = x0 + kx as f32;
+                if x_pos >= 0.0 && x_pos <= input_width_f {
+                    let x_idx = x_pos as usize;
+                    let wx = lanczos3_weight(x_frac - x_pos);
 
-            let wt = wy * wx;
-            let idx = index_base + y_idx * in_stride_y + x_idx * in_stride_x;
-            let pixel = input[idx / line_size];
-            let w = Line::empty(line_size).fill(F::cast_from(wt));
-            result += pixel * w;
-            weight_sum += wt;
+                    let wt = wy * wx;
+                    let idx = index_base + y_idx * in_stride_y + x_idx * in_stride_x;
+                    let pixel = input[idx / line_size];
+                    let w = Line::empty(line_size).fill(F::cast_from(wt));
+                    result += pixel * w;
+                    weight_sum += wt;
+                }
+            }
         }
     }
 
