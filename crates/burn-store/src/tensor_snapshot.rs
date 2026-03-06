@@ -259,8 +259,7 @@ impl TensorSnapshot {
                     num_storage_elements * (scheme.size_bits_stored() / BITS_PER_BYTE);
 
                 // Calculate number of quantization parameters (scales)
-                let num_params =
-                    params_shape(&Shape::from(self.shape.clone()), scheme.level).num_elements();
+                let num_params = params_shape(&self.shape, scheme.level).num_elements();
 
                 let aligned_value_bytes = value_bytes.div_ceil(QPARAM_ALIGN) * QPARAM_ALIGN;
                 let scale_bytes = num_params * quant_param_size(scheme.param);
