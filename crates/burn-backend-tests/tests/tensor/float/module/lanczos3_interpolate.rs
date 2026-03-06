@@ -126,6 +126,42 @@ fn test_upsample_half_pixel() {
     );
 }
 
+#[test]
+fn test_1d_lanczos3() {
+    let device = Default::default();
+
+    let input = TestTensor::<3>::from_floats(
+        [[[1.5410, -0.2934, -2.1788, 0.5684, -1.0845, -1.3986]]],
+        &device,
+    );
+
+    let input = input.unsqueeze_dim(2);
+
+    let output = interpolate(
+        input,
+        [1, 9],
+        InterpolateOptions::new(InterpolateMode::Lanczos3),
+    );
+    assert_eq!(output.dims(), [1, 1, 1, 9]);
+
+    assert!(
+        !output
+            .clone()
+            .to_data()
+            .as_slice::<FloatElem>()
+            .unwrap()
+            .iter()
+            .any(|&x| x.is_nan()),
+        "interpolate output contains NaN"
+    );
+
+    TestTensor::<4>::from([[[[
+        1.5410, 0.6498, -1.0548, -2.2672, -0.7894, 0.6408, -0.5223, -1.4650, -1.3986,
+    ]]]])
+    .to_data()
+    .assert_approx_eq::<FloatElem>(&output.into_data(), Tolerance::permissive());
+}
+
 struct InterpolateTestCase {
     batch_size: usize,
     channels: usize,
