@@ -17,7 +17,7 @@ use super::{
 
 /// Interpolate operation
 ///
-/// Supports nearest, bilinear and bicubic modes
+/// Supports nearest, bilinear, bicubic and lanczos3 modes
 pub fn interpolate<R: CubeRuntime>(
     input: CubeTensor<R>,
     output_size: [usize; 2],
