@@ -5,7 +5,12 @@ use crate::{ModuleSnapshot, ModuleStore, PathFilter};
 
 use burn_core as burn;
 use burn_core::module::{Module, Param};
+<<<<<<< HEAD
 use burn_tensor::{Tensor, backend::Backend, shape};
+=======
+use burn_tensor::shape;
+use burn_tensor::{Tensor, backend::Backend};
+>>>>>>> main
 
 type TestBackend = burn_ndarray::NdArray;
 

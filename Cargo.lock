@@ -710,6 +710,7 @@ dependencies = [
  "rand 0.10.0",
  "rand_distr 0.6.0",
  "serde",
+ "serde_json",
  "thiserror 2.0.18",
 ]
 
@@ -2428,6 +2429,7 @@ dependencies = [
  "cubecl-common",
  "cubek-matmul",
  "cubek-random",
+ "cubek-std",
  "half",
  "serde",
 ]
@@ -2440,6 +2442,7 @@ dependencies = [
  "cubecl",
  "cubecl-common",
  "cubek-matmul",
+ "cubek-std",
  "derive-new",
  "enumset",
  "half",
@@ -2453,6 +2456,7 @@ dependencies = [
  "bytemuck",
  "cubecl",
  "cubecl-common",
+ "cubek-std",
  "half",
  "serde",
 ]
@@ -2488,6 +2492,15 @@ dependencies = [
  "num-traits",
  "serde",
  "thiserror 2.0.18",
+]
+
+[[package]]
+name = "cubek-std"
+version = "0.2.0-pre.2"
+dependencies = [
+ "cubecl",
+ "cubecl-common",
+ "half",
 ]
 
 [[package]]
