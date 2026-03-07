@@ -155,40 +155,76 @@ fn main() {
 The `ModelGen` struct provides configuration options:
 
 ```rust, ignore
+use burn_onnx::{ModelGen, LoadStrategy};
+
 ModelGen::new()
     .input("path/to/model.onnx")
     .out_dir("model/")
-    .development(true)   // Enable development mode for debugging
-    .embed_states(true)  // Embed weights in the binary (for WASM)
+    .development(true)                       // Enable development mode for debugging
+    .load_strategy(LoadStrategy::Embedded)   // Embed weights in the binary
     .run_from_script();
 ```
 
 - `input`: Path to the ONNX model file
 - `out_dir`: Output directory for generated code and weights
 - `development`: When enabled, generates additional debug files (`.onnx.txt`, `.graph.txt`)
-- `embed_states`: When enabled, embeds model weights in the binary using `include_bytes!`. Useful
-  for WebAssembly or single-binary deployments. Not recommended for large models.
+- `load_strategy`: Controls which weight-loading constructors are generated on the `Model` struct
+  (see below)
 
 Model weights are stored in Burnpack format (`.bpk`), which provides efficient serialization and
 loading.
 
+### Load Strategy
+
+The `LoadStrategy` enum controls how the generated model loads its weights:
+
+| Strategy   | Generated constructors                          | `Default` impl | Use case                                  |
+|------------|------------------------------------------------|-----------------|-------------------------------------------|
+| `File`     | `from_file()`, `from_bytes()`                  | Yes             | Standard desktop/server (default)         |
+| `Embedded` | `from_embedded()`, `from_bytes()`              | Yes             | Single binary, small models               |
+| `Bytes`    | `from_bytes()`                                 | No              | WASM, embedded, custom loaders            |
+| `None`     | (none)                                         | No              | Manual weight management                  |
+
+The default strategy is `File`, which keeps weights in a separate `.bpk` file and generates a
+`from_file()` constructor.
+
+For WebAssembly or environments without filesystem access, use `LoadStrategy::Bytes`:
+
+```rust, ignore
+ModelGen::new()
+    .input("model.onnx")
+    .out_dir("model/")
+    .load_strategy(LoadStrategy::Bytes)
+    .run_from_script();
+```
+
+Then load weights at runtime from any byte source (e.g., a network fetch):
+
+```rust, ignore
+let model = Model::<Backend>::from_bytes(weight_bytes, &device);
+```
+
 ## Loading and Using Models
 
-You can load models in several ways:
+You can load models in several ways, depending on the `LoadStrategy` used during code generation:
 
 ```rust, ignore
 // Load from the output directory with default device (recommended for most use cases)
 // This automatically loads weights from the .bpk file
+// Available with LoadStrategy::File or LoadStrategy::Embedded
 let model = Model::<Backend>::default();
 
 // Create a new model instance with a specific device
 // (initializes weights randomly; load weights via `load_from` afterward)
 let model = Model::<Backend>::new(&device);
 
-// Load from a specific .bpk file
+// Load from a specific .bpk file (LoadStrategy::File)
 let model = Model::<Backend>::from_file("path/to/weights.bpk", &device);
 
-// Load from embedded weights (if embed_states was true)
+// Load from in-memory bytes (LoadStrategy::File, Embedded, or Bytes)
+let model = Model::<Backend>::from_bytes(weight_bytes, &device);
+
+// Load from embedded weights (LoadStrategy::Embedded)
 let model = Model::<Backend>::from_embedded(&device);
 ```
 
