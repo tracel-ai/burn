@@ -385,8 +385,7 @@ fn test_writer_all_dtypes_round_trip() {
             name
         );
         assert_eq!(
-            tensor_data.shape,
-            expected_shape.into(),
+            tensor_data.shape, expected_shape,
             "Shape mismatch for {}",
             name
         );

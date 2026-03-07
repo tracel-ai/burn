@@ -19,7 +19,7 @@ use std::collections::HashMap;
 use std::panic::{set_hook, take_hook};
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex, mpsc};
-use std::thread::{JoinHandle, spawn};
+use std::thread::JoinHandle;
 use std::{
     error::Error,
     io::{self, Stdout},
@@ -70,34 +70,39 @@ impl TuiMetricsRendererWrapper {
         let (kill_signal_sender, kill_signal_receiver) = mpsc::channel();
 
         let interrupter_clone = interrupter.clone();
-        let handle_join = spawn(move || {
-            let mut renderer =
-                TuiMetricsRenderer::new(interrupter_clone, checkpoint, kill_signal_sender);
+        let handle_join = std::thread::Builder::new()
+            .name("train-renderer".into())
+            .spawn(move || {
+                let mut renderer =
+                    TuiMetricsRenderer::new(interrupter_clone, checkpoint, kill_signal_sender);
 
-            let tick_rate = Duration::from_millis(MAX_REFRESH_RATE_MILLIS);
-            loop {
-                match receiver.try_recv() {
-                    Ok(event) => renderer.handle_event(event),
-                    Err(mpsc::TryRecvError::Empty) => (),
-                    Err(mpsc::TryRecvError::Disconnected) => {
-                        log::error!("Renderer thread disconnected.");
+                let tick_rate = Duration::from_millis(MAX_REFRESH_RATE_MILLIS);
+                loop {
+                    match receiver.try_recv() {
+                        Ok(event) => renderer.handle_event(event),
+                        Err(mpsc::TryRecvError::Empty) => (),
+                        Err(mpsc::TryRecvError::Disconnected) => {
+                            log::error!("Renderer thread disconnected.");
+                            break;
+                        }
+                    }
+
+                    // Render
+                    if renderer.last_update.elapsed() >= tick_rate
+                        && let Err(err) = renderer.render()
+                    {
+                        log::error!("Render error: {err}");
+                        break;
+                    }
+
+                    if (renderer.manual_close && renderer.interrupter.should_stop())
+                        || renderer.close
+                    {
                         break;
                     }
                 }
-
-                // Render
-                if renderer.last_update.elapsed() >= tick_rate
-                    && let Err(err) = renderer.render()
-                {
-                    log::error!("Render error: {err}");
-                    break;
-                }
-
-                if (renderer.manual_close && renderer.interrupter.should_stop()) || renderer.close {
-                    break;
-                }
-            }
-        });
+            })
+            .unwrap();
 
         Self {
             sender,

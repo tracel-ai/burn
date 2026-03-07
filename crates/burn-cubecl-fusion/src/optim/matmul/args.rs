@@ -20,13 +20,15 @@ use cubecl::{
         },
     },
 };
-use cubek::matmul::{
-    components::global::memory::{
-        BatchLayout, BlockScaledLayout, GlobalLayout, GlobalLayoutConfig, GlobalLayoutExpand,
-        GlobalScaleLayout, GlobalScaleLayoutExpand, NoopLayout,
+use cubek::{
+    matmul::{
+        components::global::memory::{
+            BatchLayout, BlockScaledLayout, GlobalLayout, GlobalLayoutConfig, GlobalLayoutExpand,
+            GlobalScaleLayout, GlobalScaleLayoutExpand, NoopLayout,
+        },
+        launch::{BatchedCoords, MatmulArgs},
     },
-    definition::MatrixLayout,
-    launch::{BatchedCoords, MatmulArgs},
+    std::MatrixLayout,
 };
 use serde::{Deserialize, Serialize};
 use std::marker::PhantomData;

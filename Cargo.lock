@@ -2436,6 +2436,7 @@ dependencies = [
  "cubek-quant",
  "cubek-random",
  "cubek-reduce",
+ "cubek-std",
 ]
 
 [[package]]
