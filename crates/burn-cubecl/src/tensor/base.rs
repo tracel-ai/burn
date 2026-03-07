@@ -18,7 +18,7 @@ pub struct CubeTensor<R: CubeRuntime> {
     /// Compute client for the [runtime](CubeRuntime).
     pub client: ComputeClient<R>,
     /// The buffer where the data are stored.
-    pub handle: Handle<R>,
+    pub handle: Handle,
     /// The metadata of the tensor.
     pub meta: Box<Metadata>,
     /// The device of the tensor.
@@ -129,7 +129,7 @@ where
     /// Create a new standard tensor
     pub fn new(
         client: ComputeClient<R>,
-        handle: Handle<R>,
+        handle: Handle,
         metadata: Metadata,
         device: R::Device,
         dtype: DType,
@@ -149,7 +149,7 @@ where
         client: ComputeClient<R>,
         device: R::Device,
         shape: Shape,
-        handle: Handle<R>,
+        handle: Handle,
         dtype: DType,
     ) -> Self {
         let ndims = shape.num_dims();
