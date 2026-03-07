@@ -4,7 +4,7 @@ use crate::{ModuleSnapshot, SafetensorsStore};
 use burn_core::module::{Module, Param};
 use burn_nn::{Linear, LinearConfig};
 use burn_tensor::backend::Backend;
-use burn_tensor::{Tensor, shape};
+use burn_tensor::shape;
 
 type TestBackend = burn_ndarray::NdArray;
 

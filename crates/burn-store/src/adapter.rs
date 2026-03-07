@@ -351,7 +351,7 @@ mod tests {
     use super::*;
     use alloc::rc::Rc;
     use alloc::sync::Arc;
-    use burn_tensor::{DType, Shape, TensorData, shape};
+    use burn_tensor::{DType, Shape, TensorData};
     use core::sync::atomic::{AtomicUsize, Ordering};
 
     #[test]
@@ -444,21 +444,21 @@ mod tests {
         // Test that transpose works for different data types
 
         // Test with F32
-        let f32_data = TensorData::new(vec![1.0f32, 2.0, 3.0, 4.0, 5.0, 6.0], shape![2, 3]);
+        let f32_data = TensorData::new(vec![1.0f32, 2.0, 3.0, 4.0, 5.0, 6.0], [2, 3]);
         let transposed = transpose_tensor_data(f32_data);
         assert_eq!(transposed.shape, shape![3, 2]);
         let values = transposed.to_vec::<f32>().unwrap();
         assert_eq!(values, vec![1.0, 4.0, 2.0, 5.0, 3.0, 6.0]);
 
         // Test with I32
-        let i32_data = TensorData::new(vec![1i32, 2, 3, 4, 5, 6], shape![2, 3]);
+        let i32_data = TensorData::new(vec![1i32, 2, 3, 4, 5, 6], [2, 3]);
         let transposed = transpose_tensor_data(i32_data);
         assert_eq!(transposed.shape, shape![3, 2]);
         let values = transposed.to_vec::<i32>().unwrap();
         assert_eq!(values, vec![1, 4, 2, 5, 3, 6]);
 
         // Test with F64
-        let f64_data = TensorData::new(vec![1.0f64, 2.0, 3.0, 4.0], shape![2, 2]);
+        let f64_data = TensorData::new(vec![1.0f64, 2.0, 3.0, 4.0], [2, 2]);
         let transposed = transpose_tensor_data(f64_data);
         assert_eq!(transposed.shape, shape![2, 2]);
         let values = transposed.to_vec::<f64>().unwrap();

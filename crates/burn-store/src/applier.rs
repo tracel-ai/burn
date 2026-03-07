@@ -230,8 +230,8 @@ impl<B: Backend> Applier<B> {
         if data.shape != target_shape {
             self.errors.push(ApplyError::ShapeMismatch {
                 path: path.clone(),
-                expected: target_shape.clone(),
-                found: data.shape.clone(),
+                expected: target_shape,
+                found: data.shape,
             });
             return None; // Signal caller to fall back to initialization
         }

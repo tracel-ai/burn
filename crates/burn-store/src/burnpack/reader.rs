@@ -666,7 +666,7 @@ impl BurnpackReader {
             let snapshot = TensorSnapshot::from_closure(
                 data_fn,
                 dtype,
-                shape,
+                shape.into(),
                 name.split('.').map(|s| s.to_string()).collect(),
                 vec![],    // empty container_stack
                 tensor_id, // restored or newly generated param id

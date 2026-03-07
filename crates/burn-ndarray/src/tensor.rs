@@ -590,7 +590,7 @@ impl NdArrayTensor {
     /// can be reclaimed (via `try_into_vec`). If bytes are uniquely owned,
     /// no copy occurs; otherwise data is copied to a new allocation.
     fn from_data_owned(data: TensorData) -> NdArrayTensor {
-        let shape = data.shape.to_vec();
+        let shape = data.shape.to_vec(); // TODO: into_vec
 
         macro_rules! execute {
             ($data: expr, [$($dtype: ident => $ty: ty),*]) => {
