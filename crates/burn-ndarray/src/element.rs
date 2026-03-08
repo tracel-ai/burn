@@ -38,7 +38,7 @@ pub trait NdArrayElement:
 
 /// A element for ndarray backend that supports exp ops.
 pub trait ExpElement {
-    type AbsOutput;
+    type AbsOutput: Element;
     /// Exponent
     fn exp_elem(self) -> Self;
     /// Log

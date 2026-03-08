@@ -1,6 +1,6 @@
 use crate::ops::{NdArrayMathOps, NdArrayOps};
 use crate::{execute_with_complex_dtype, execute_with_float_dtype};
-use burn_common::rand::get_seeded_rng;
+
 use burn_complex::base::ComplexElem;
 use burn_complex::base::element::ToComplex;
 use burn_complex::base::{
@@ -12,7 +12,7 @@ use crate::{
     FloatNdArrayElement, IntNdArrayElement, NdArray, NdArrayDevice, NdArrayTensor, QuantElement,
     SEED, SharedArray,
 };
-use burn_tensor::{Distribution, Shape, TensorData, TensorMetadata, backend::Backend};
+use burn_backend::{Distribution, Shape, TensorData, TensorMetadata, backend::Backend};
 
 impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> ComplexTensorBackend
     for NdArray<E, I, Q>
@@ -36,39 +36,21 @@ where
 {
     type Layout = burn_complex::base::InterleavedLayout;
     fn real(tensor: ComplexTensor<Self>) -> NdArrayTensor {
-        {
-            {
-                {
-                    match tensor {
-                        crate::NdArrayTensor::Complex32(storage) =>
-                        {
-                            #[allow(unused)]
-                            (|array: SharedArray<ComplexElem<Self>>| array.mapv_into(|a| a.real))(
-                                storage.into_shared(),
-                            )
-                            .into()
-                        }
-
-                        crate::NdArrayTensor::Complex64(storage) =>
-                        {
-                            #[allow(unused)]
-                            (|array: SharedArray<ComplexElem<Self>>| array.mapv_into(|a| a.real))(
-                                storage.into_shared(),
-                            )
-                            .into()
-                        }
-                        #[allow(unreachable_patterns)]
-                        other => unimplemented!("unsupported dtype: {:?}", other.dtype()),
-                    }
-                }
-            }
-        }
+        // let real_data: Vec<f32> = tensor.array.iter().map(|c| c.real).collect();
+        // let shape = tensor.shape();
+        // let array = ArrayD::from_shape_vec(IxDyn(shape.dims().as_slice()), real_data).unwrap();
+        // let real_tensor = NdArrayTensor::
+        // new(array.into_shared());
+        // real_tensor.into()
+        execute_with_complex_dtype!(tensor, |array: SharedArray<ComplexElem<Self>>| {
+            array.mapv(|a: ComplexElem<Self>| a.real).into_shared()
+        })
     }
 
     fn imag(tensor: ComplexTensor<Self>) -> NdArrayTensor {
         //tensor.int
         execute_with_complex_dtype!(tensor, |array: SharedArray<ComplexElem<Self>>| {
-            array.mapv_into(|a: ComplexElem<Self>| a.imag).into_shared()
+            array.mapv(|a: ComplexElem<Self>| a.imag).into_shared()
         })
     }
     //NOTE: May want to change complex types from ComplexE to Complex<E> in the future to match the element type (and allow quantized complex tensors)
