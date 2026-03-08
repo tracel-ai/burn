@@ -1,6 +1,7 @@
 use super::*;
 use burn_tensor::Tolerance;
-use burn_tensor::{Distribution, Tensor, module};
+use burn_tensor::ops::{ConvOptions, ModuleOps};
+use burn_tensor::{Distribution, Tensor, TensorPrimitive, module};
 
 #[test]
 fn conv2d_should_match_reference_backend() {
@@ -16,7 +17,7 @@ fn conv2d_should_match_reference_backend() {
     let weight_ref = Tensor::<ReferenceBackend, 4>::from_data(weight.to_data(), &ref_device);
     let bias_ref = Tensor::<ReferenceBackend, 1>::from_data(bias.to_data(), &ref_device);
 
-    let options = burn_tensor::ops::ConvOptions::new([2, 3], [2, 3], [2, 3], 2);
+    let options = ConvOptions::new([2, 3], [2, 3], [2, 3], 2);
 
     let output = module::conv2d(input, weight, Some(bias), options.clone());
     let output_ref = module::conv2d(input_ref, weight_ref, Some(bias_ref), options);
@@ -40,7 +41,7 @@ fn conv2d_should_match_reference_backend_implicit() {
     let weight_ref = Tensor::<ReferenceBackend, 4>::from_data(weight.to_data(), &ref_device);
     let bias_ref = Tensor::<ReferenceBackend, 1>::from_data(bias.to_data(), &ref_device);
 
-    let options = burn_tensor::ops::ConvOptions::new([1, 1], [2, 2], [1, 1], 1);
+    let options = ConvOptions::new([1, 1], [2, 2], [1, 1], 1);
 
     let output = module::conv2d(input, weight, Some(bias), options.clone());
     let output_ref = module::conv2d(input_ref, weight_ref, Some(bias_ref), options);
@@ -65,7 +66,7 @@ fn conv2d_should_match_reference_backend_bias_regression() {
     let weight_ref = Tensor::<ReferenceBackend, 4>::from_data(weight.to_data(), &ref_device);
     let bias_ref = Tensor::<ReferenceBackend, 1>::from_data(bias.to_data(), &ref_device);
 
-    let options = burn_tensor::ops::ConvOptions::new([1, 1], [1, 1], [1, 1], 1);
+    let options = ConvOptions::new([1, 1], [1, 1], [1, 1], 1);
 
     let output = module::conv2d(input, weight, Some(bias), options.clone()).permute([0, 2, 3, 1]);
     let output_ref =
@@ -75,4 +76,48 @@ fn conv2d_should_match_reference_backend_bias_regression() {
     output
         .into_data()
         .assert_approx_eq::<FloatElem>(&output_ref.into_data(), tolerance);
+}
+
+#[test]
+fn conv2d_weight_backward_should_run() {
+    // https://github.com/tracel-ai/burn/issues/4226#issuecomment-3911335769
+    let device = Default::default();
+    let options = ConvOptions::new([1, 1], [0, 0], [1, 1], 1);
+    let x = Tensor::<TestBackend, 4>::random([1, 1, 1, 672], Distribution::Default, &device);
+    // let x = x.permute([0, 3, 1, 2]);
+
+    let output_grad =
+        Tensor::<TestBackend, 4>::random([1, 168, 1, 1], Distribution::Default, &device);
+    let weight = Tensor::<TestBackend, 4>::random([168, 672, 1, 1], Distribution::Default, &device);
+
+    let ref_device = Default::default();
+    let x_ref = Tensor::<ReferenceBackend, 4>::from_data(x.to_data(), &ref_device);
+    let output_grad_ref =
+        Tensor::<ReferenceBackend, 4>::from_data(output_grad.to_data(), &ref_device);
+    let weight_ref = Tensor::<ReferenceBackend, 4>::from_data(weight.to_data(), &ref_device);
+
+    // Input shape [672, 1] and strides [672, 672] should be valid
+    let output = TestBackend::conv2d_weight_backward(
+        x.permute([0, 3, 1, 2]).into_primitive().tensor(),
+        weight.into_primitive().tensor(),
+        output_grad.into_primitive().tensor(),
+        options.clone(),
+    );
+
+    // Input shape [672, 1] and strides [672, 672] should be valid
+    let output_ref = ReferenceBackend::conv2d_weight_backward(
+        x_ref.permute([0, 3, 1, 2]).into_primitive().tensor(),
+        weight_ref.into_primitive().tensor(),
+        output_grad_ref.into_primitive().tensor(),
+        options,
+    );
+
+    let tolerance = Tolerance::default();
+    Tensor::<TestBackend, 4>::from_primitive(TensorPrimitive::Float(output))
+        .into_data()
+        .assert_approx_eq::<FloatElem>(
+            &Tensor::<ReferenceBackend, 4>::from_primitive(TensorPrimitive::Float(output_ref))
+                .into_data(),
+            tolerance,
+        );
 }

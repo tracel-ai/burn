@@ -46,9 +46,7 @@ pub trait MetricsRendererTraining: Send + Sync {
         &mut self,
         summary: Option<LearnerSummary>,
     ) -> Result<(), Box<dyn core::error::Error>> {
-        if let Some(summary) = summary {
-            println!("{summary}");
-        }
+        default_summary_action(summary);
         Ok(())
     }
 }
@@ -110,7 +108,11 @@ pub trait MetricsRendererEvaluation: Send + Sync {
     /// # Returns
     ///
     /// A result indicating whether the end-of-testing actions were successful.
-    fn on_test_end(&mut self) -> Result<(), Box<dyn core::error::Error>> {
+    fn on_test_end(
+        &mut self,
+        summary: Option<LearnerSummary>,
+    ) -> Result<(), Box<dyn core::error::Error>> {
+        default_summary_action(summary);
         Ok(())
     }
 }
@@ -187,4 +189,10 @@ pub enum ProgressType {
         /// The value.
         value: usize,
     },
+}
+
+fn default_summary_action(summary: Option<LearnerSummary>) {
+    if let Some(summary) = summary {
+        println!("{summary}");
+    }
 }

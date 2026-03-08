@@ -331,12 +331,12 @@ fn remap_all_indices_with_original_prefix(
 mod tests {
     use super::*;
     use burn_core::module::ParamId;
-    use burn_tensor::TensorData;
+    use burn_tensor::{TensorData, shape};
 
     fn create_test_tensor_snapshot(name: &str) -> TensorSnapshot {
         let data = TensorData {
             bytes: burn_tensor::Bytes::from_bytes_vec(vec![1, 2, 3, 4]),
-            shape: vec![2, 2],
+            shape: shape![2, 2],
             dtype: burn_tensor::DType::F32,
         };
         let path_parts: Vec<String> = name.split('.').map(|s| s.to_string()).collect();

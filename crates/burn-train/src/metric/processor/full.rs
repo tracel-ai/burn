@@ -141,8 +141,8 @@ impl<T: ItemLazy> EventProcessorEvaluation for FullEventProcessorEvaluation<T> {
                 let indicators = self.progress_indicators(&progress);
                 self.renderer.render_test(progress, indicators);
             }
-            EvaluatorEvent::End => {
-                self.renderer.on_test_end().ok();
+            EvaluatorEvent::End(summary) => {
+                self.renderer.on_test_end(summary).ok();
             }
         }
     }

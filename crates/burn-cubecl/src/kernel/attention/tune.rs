@@ -107,11 +107,11 @@ pub fn attention_autotune<R: CubeRuntime>(
 
 fn create_key<R: CubeRuntime>(
     query: &CubeTensor<R>,
-    _key: &CubeTensor<R>,
+    key: &CubeTensor<R>,
     value: &CubeTensor<R>,
     mask: &Option<CubeTensor<R>>,
     _attn_bias: &Option<CubeTensor<R>>,
-    _out: &CubeTensor<R>,
+    out: &CubeTensor<R>,
     _options: &AttentionModuleOptions,
 ) -> AttentionAutotuneKey {
     let total_batches = query.meta.shape[0] * query.meta.shape[1];
@@ -121,6 +121,10 @@ fn create_key<R: CubeRuntime>(
     let val_dim = value.meta.shape[3];
 
     AttentionAutotuneKey::generate(
+        query.dtype.into(),
+        key.dtype.into(),
+        value.dtype.into(),
+        out.dtype.into(),
         total_batches,
         seq_q,
         head_dim,

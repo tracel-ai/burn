@@ -1,6 +1,6 @@
 use crate::{
     AsyncProcessorEvaluation, EvaluationItem, FullEventProcessorEvaluation, InferenceStep,
-    Interrupter,
+    Interrupter, LearnerSummaryConfig,
     evaluator::components::EvaluatorComponentTypes,
     metric::processor::{EvaluatorEvent, EventProcessorEvaluation},
     renderer::{EvaluationName, MetricsRenderer},
@@ -20,6 +20,8 @@ pub struct Evaluator<EC: EvaluatorComponentTypes> {
     pub(crate) interrupter: Interrupter,
     pub(crate) event_processor:
         AsyncProcessorEvaluation<FullEventProcessorEvaluation<TestOutput<EC>>>,
+    /// Config for creating a summary of the evaluation
+    pub summary: Option<LearnerSummaryConfig>,
 }
 
 impl<EC: EvaluatorComponentTypes> Evaluator<EC> {
@@ -54,6 +56,16 @@ impl<EC: EvaluatorComponentTypes> Evaluator<EC> {
                 break;
             }
         }
+
+        let summary = self.summary.and_then(|summary| {
+            summary
+                .init()
+                .map(|summary| summary.with_model(self.model.to_string()))
+                .ok()
+        });
+
+        self.event_processor
+            .process_test(EvaluatorEvent::End(summary));
 
         self.event_processor.renderer()
     }

@@ -164,6 +164,7 @@ fn evaluate<B: Backend>(
     let evaluator = EvaluatorBuilder::new(ARTIFACT_DIR)
         .renderer(renderer)
         .metrics((AccuracyMetric::new(), LossMetric::new()))
+        .summary()
         .build(model);
 
     evaluator.eval(name, dataloader_test)
