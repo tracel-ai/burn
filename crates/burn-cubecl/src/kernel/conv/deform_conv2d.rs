@@ -41,7 +41,7 @@ struct DeformConv2dArgs {
 fn deform_im2col_kernel<F: Float>(
     input: &Tensor<F>,
     offset: &Tensor<F>,
-    mask: &Option<Tensor<F>>,
+    mask: &ComptimeOption<Tensor<F>>,
     columns: &mut Tensor<F>,
     pos_shape: Sequence<FastDivmod<usize>>,
     args: &DeformConv2dArgs,
@@ -112,15 +112,16 @@ fn deform_im2col_kernel<F: Float>(
                 + offset_x;
 
             let interpolated = bilinear_interpolate(input, height, width, y, x, input_base_idx);
+            #[comptime]
             let value = match mask.zip::<usize>(mask_base_idx) {
-                Some((mask, base_idx)) => {
+                ComptimeOption::Some((mask, base_idx)) => {
                     let mask_value = mask[base_idx
                         + mask_index * mask.stride(1)
                         + out_y * mask.stride(2)
                         + out_x * mask.stride(3)];
                     mask_value * interpolated
                 }
-                None => interpolated,
+                ComptimeOption::None => interpolated,
             };
 
             columns[col_base_idx] = value;
@@ -221,14 +222,14 @@ pub(crate) fn deform_im2col<R: CubeRuntime>(
     let cube_count = calculate_cube_count_elemwise(&input.client, num_kernels, cube_dim);
 
     deform_im2col_kernel::launch(
-        &input.client,
+        &output.client,
         cube_count,
         cube_dim,
         address_type!(input, offset, mask, output),
-        input.as_tensor_arg(1),
-        offset.as_tensor_arg(1),
-        mask.as_ref().map(|mask| mask.as_tensor_arg(1)).into(),
-        output.as_handle_ref().as_tensor_arg(1),
+        input.into_tensor_arg(1),
+        offset.into_tensor_arg(1),
+        mask.map(|mask| mask.into_tensor_arg(1)).into(),
+        output.clone().binding().into_tensor_arg(1),
         pos_shape,
         DeformConv2dArgsLaunch::new(
             ScalarArg::new(options.stride[0]),
@@ -252,7 +253,7 @@ pub(crate) fn deform_im2col<R: CubeRuntime>(
         Some(kernel_height),
         Some(kernel_width),
         dtype.into(),
-    )?;
+    );
 
     Ok(output)
 }

@@ -13,15 +13,16 @@ where
 {
     let output = empty_qtensor_optimized(tensor.shape(), *scheme, &tensor.device);
     let (out_values, out_params) = output.clone().quantized_handles().unwrap();
+    let dtype = tensor.dtype;
 
     cubek::quantization::quantize::launch_ref(
-        &tensor.client,
-        &tensor.as_handle_ref(),
-        &out_values.as_handle_ref(),
-        &scale.as_handle_ref(),
-        &out_params.as_handle_ref(),
+        &output.client,
+        tensor.binding(),
+        out_values.binding(),
+        scale.binding(),
+        out_params.binding(),
         scheme,
-        tensor.dtype.into(),
+        dtype.into(),
     )
     .expect("Kernel to never fail");
 

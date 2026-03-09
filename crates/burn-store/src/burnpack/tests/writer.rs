@@ -557,7 +557,7 @@ fn test_writer_lazy_snapshot_evaluation() {
     let snapshot = TensorSnapshot::from_closure(
         Rc::new(move || {
             let bytes: Vec<u8> = data_clone.iter().flat_map(|f| f.to_le_bytes()).collect();
-            Ok(TensorData::from_bytes_vec(bytes, vec![2, 2], DType::F32))
+            Ok(TensorData::from_bytes_vec(bytes, shape![2, 2], DType::F32))
         }),
         DType::F32,
         shape![2, 2],

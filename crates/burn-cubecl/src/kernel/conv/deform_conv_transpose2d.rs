@@ -81,7 +81,7 @@ pub(crate) fn deform_conv2d_backward<R: CubeRuntime>(
         )
         .unwrap();
 
-        reshape(grad, bias.meta.shape)
+        reshape(grad, bias.meta.shape.clone())
     });
 
     let input = into_contiguous_aligned(input);
@@ -254,18 +254,18 @@ fn compute_offset_and_mask_gradient<R: CubeRuntime>(
     let dtype: StorageType = image.dtype.into();
     unsafe {
         deform_col2img_coord_kernel::launch_unchecked(
-            &image.client,
+            &grad_offset.client,
             cube_count,
             cube_dim,
             address_type!(image, offset, mask, grad_offset, grad_mask),
-            image.as_tensor_arg(1),
-            offset.as_tensor_arg(1),
-            mask.as_ref().map(|mask| mask.as_tensor_arg(1)).into(),
-            columns.as_tensor_arg(1),
-            linear_view(&grad_offset, 1),
+            image.into_tensor_arg(1),
+            offset.into_tensor_arg(1),
+            mask.map(|mask| mask.into_tensor_arg(1)).into(),
+            columns.into_tensor_arg(1),
+            linear_view(grad_offset.clone(), 1),
             grad_mask
-                .as_ref()
-                .map(|grad_mask| grad_mask.as_tensor_arg(1))
+                .clone()
+                .map(|grad_mask| grad_mask.into_tensor_arg(1))
                 .into(),
             pos_shape,
             DeformConv2dCol2ImgCoordArgsLaunch::new(
@@ -281,7 +281,7 @@ fn compute_offset_and_mask_gradient<R: CubeRuntime>(
             ),
             dtype,
         )
-    }?;
+    };
 
     Ok((grad_offset, grad_mask))
 }
@@ -304,10 +304,10 @@ struct DeformConv2dCol2ImgCoordArgs {
 fn deform_col2img_coord_kernel<F: Float>(
     image: &Tensor<F>,
     offset: &Tensor<F>,
-    mask: &Option<Tensor<F>>,
+    mask: &ComptimeOption<Tensor<F>>,
     columns: &Tensor<F>,
     grad_offset: &mut LinearView<F, ReadWrite>,
-    grad_mask: &mut Option<Tensor<F>>,
+    grad_mask: &mut ComptimeOption<Tensor<F>>,
     pos_shape: Sequence<FastDivmod<usize>>,
     args: &DeformConv2dCol2ImgCoordArgs,
     #[define(F)] _dtype: StorageType,
@@ -360,15 +360,16 @@ fn deform_col2img_coord_kernel<F: Float>(
     let offset_x = offset[offset_x_idx];
 
     let mask_pos_1 = offset_group * kernel_h * kernel_w + kernel_y * kernel_w + kernel_x;
+    #[comptime]
     let mask_value = match &mask {
-        Some(mask) => {
+        ComptimeOption::Some(mask) => {
             let mask_idx = batch * mask.stride(0)
                 + mask_pos_1 * mask.stride(1)
                 + out_y * mask.stride(2)
                 + out_x * mask.stride(3);
             mask[mask_idx]
         }
-        None => F::new(1.0),
+        ComptimeOption::None => F::new(1.0),
     };
 
     let is_y_direction = dir == 0;
@@ -399,7 +400,8 @@ fn deform_col2img_coord_kernel<F: Float>(
 
     grad_offset[ABSOLUTE_POS] = grad_offset_val;
 
-    if let Some(grad_mask) = grad_mask {
+    #[comptime]
+    if let ComptimeOption::Some(grad_mask) = grad_mask {
         if is_y_direction {
             let idx = batch * grad_mask.stride(0)
                 + mask_pos_1 * grad_mask.stride(1)
@@ -504,7 +506,7 @@ fn compute_input_grad<R: CubeRuntime>(
         // Force `f32` to enable bitcasting as `u32`, or use intrinsic when supported
         false => zeros_client(client.clone(), device.clone(), shape, DType::F32),
     };
-    let grad_arg = grad_in.as_tensor_arg(1);
+    let grad_arg = grad_in.clone().into_tensor_arg(1);
 
     let num_elements = columns.meta.num_elements();
     let cube_dim = CubeDim::new(&offset.client, num_elements);
@@ -522,13 +524,13 @@ fn compute_input_grad<R: CubeRuntime>(
 
     unsafe {
         launch(
-            &offset.client,
+            &grad_in.client,
             cube_count,
             cube_dim,
             address_type!(offset, mask, columns, grad_in),
-            offset.as_tensor_arg(1),
-            mask.as_ref().map(|mask| mask.as_tensor_arg(1)).into(),
-            linear_view(&columns, 1),
+            offset.into_tensor_arg(1),
+            mask.map(|mask| mask.into_tensor_arg(1)).into(),
+            linear_view(columns, 1),
             grad_arg,
             pos_shape,
             DeformConv2dCol2ImgArgsLaunch::new(
@@ -544,7 +546,7 @@ fn compute_input_grad<R: CubeRuntime>(
             ),
             dtypes,
         )
-    }?;
+    };
 
     Ok(if !supports_same_type || !supports_fadd {
         cast(grad_in, dtype)
@@ -569,7 +571,7 @@ struct DeformConv2dCol2ImgArgs {
 #[cube(launch_unchecked, address_type = "dynamic")]
 fn deform_col2img_kernel<F: Float, FP: Float, FAdd: FloatAtomicAddFamily>(
     offset: &Tensor<F>,
-    mask: &Option<Tensor<F>>,
+    mask: &ComptimeOption<Tensor<F>>,
     columns: &LinearView<F>,
     grad_input: &mut Tensor<Atomic<ProxyType<FAdd, FP>>>,
     pos_shape: Sequence<FastDivmod<usize>>,
@@ -609,15 +611,16 @@ fn deform_col2img_kernel<F: Float, FP: Float, FAdd: FloatAtomicAddFamily>(
     let offset_y = offset[offset_y_idx];
     let offset_x = offset[offset_x_idx];
 
+    #[comptime]
     let mask_value = match mask {
-        Some(mask) => {
+        ComptimeOption::Some(mask) => {
             let mask_pos_1 = offset_group * kernel_h * kernel_w + kernel_y * kernel_w + kernel_x;
             mask[batch * mask.stride(0)
                 + mask_pos_1 * mask.stride(1)
                 + out_y * mask.stride(2)
                 + out_x * mask.stride(3)]
         }
-        None => F::new(1.0),
+        ComptimeOption::None => F::new(1.0),
     };
 
     let y = F::cast_from(out_y * args.stride_h + kernel_y * args.dilation_h)

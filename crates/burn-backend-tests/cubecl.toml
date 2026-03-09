@@ -1,0 +1,15 @@
+[profiling]
+logger = { file = "target/profiling.log", level = "disabled" }
+
+[autotune]
+logger = { file = "target/autotune.log", level = "disabled" }
+
+[compilation]
+cache = "target"
+logger = { file = "target/compilation.log", level = "disabled" }
+
+[memory]
+logger = { file = "target/memory.log", level = "disabled" }
+
+[streaming]
+max_streams = 4

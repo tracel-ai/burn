@@ -111,7 +111,7 @@ impl<R: Runtime> TraceRunner<R> for ElemwiseRunner {
                 inputs,
                 outputs,
                 config.clone(),
-            )?;
+            );
         };
 
         Ok(())

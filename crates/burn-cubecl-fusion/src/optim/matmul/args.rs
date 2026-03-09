@@ -20,13 +20,15 @@ use cubecl::{
         },
     },
 };
-use cubek::matmul::{
-    components::global::memory::{
-        BatchLayout, BlockScaledLayout, GlobalLayout, GlobalLayoutConfig, GlobalLayoutExpand,
-        GlobalScaleLayout, GlobalScaleLayoutExpand, NoopLayout,
+use cubek::{
+    matmul::{
+        components::global::memory::{
+            BatchLayout, BlockScaledLayout, GlobalLayout, GlobalLayoutConfig, GlobalLayoutExpand,
+            GlobalScaleLayout, GlobalScaleLayoutExpand, NoopLayout,
+        },
+        launch::{BatchedCoords, MatmulArgs},
     },
-    definition::MatrixLayout,
-    launch::{BatchedCoords, MatmulArgs},
+    std::MatrixLayout,
 };
 use serde::{Deserialize, Serialize};
 use std::marker::PhantomData;
@@ -91,13 +93,13 @@ impl MatmulArgs for FusedMatmulArgs {
             comptime![inputs.config.clone()],
         );
         let batch_acc = match comptime![inputs.c.clone()] {
-            Some(c) => Option::Some(input_batch_layout(
+            Some(c) => ComptimeOption::Some(input_batch_layout(
                 &inputs.global,
                 &batch_shape,
                 comptime![c],
                 comptime![inputs.config.clone()],
             )),
-            None => Option::new_None(),
+            None => ComptimeOption::new_None(),
         };
         let batch_out = BatchLayout::new(batch_strides_out, batch_shape.clone());
 
@@ -159,7 +161,7 @@ impl MatmulArgs for FusedMatmulArgs {
 
     fn view_acc<Lhs: Numeric, Rhs: Numeric, EO: Numeric>(
         state: &Self::State<Lhs, Rhs, EO>,
-    ) -> Option<View<Line<EO>, BatchedCoords>> {
+    ) -> ComptimeOption<View<Line<EO>, BatchedCoords>> {
         match comptime![state.c.clone()] {
             Some(c) => {
                 let view = global_view(
@@ -170,9 +172,9 @@ impl MatmulArgs for FusedMatmulArgs {
                     comptime![state.config.clone()],
                     comptime![state.out_layout_config],
                 );
-                Option::Some(view)
+                ComptimeOption::Some(view)
             }
-            None => Option::new_None(),
+            None => ComptimeOption::new_None(),
         }
     }
 
@@ -180,9 +182,10 @@ impl MatmulArgs for FusedMatmulArgs {
         state: &Self::State<Lhs, Rhs, EO>,
         batch: usize,
     ) -> usize {
+        #[comptime]
         match state.c_batch {
-            Some(c_batch) => c_batch.to_source_pos(batch),
-            None => batch,
+            ComptimeOption::Some(c_batch) => c_batch.to_source_pos(batch),
+            ComptimeOption::None => batch,
         }
     }
 
@@ -453,7 +456,7 @@ pub struct FusedMatmulState {
     locals: LocalArgs,
     a_batch: VirtualLayout<Coords1d, Coords1d>,
     b_batch: VirtualLayout<Coords1d, Coords1d>,
-    c_batch: Option<VirtualLayout<Coords1d, Coords1d>>,
+    c_batch: ComptimeOption<VirtualLayout<Coords1d, Coords1d>>,
     out_batch: VirtualLayout<Coords1d, Coords1d>,
     #[cube(comptime)]
     config: FuseBlockConfig,
@@ -483,7 +486,7 @@ impl FusedMatmulState {
         locals: &mut LocalArgs,
         a_batch: VirtualLayout<usize, usize>,
         b_batch: VirtualLayout<usize, usize>,
-        c_batch: Option<VirtualLayout<usize, usize>>,
+        c_batch: ComptimeOption<VirtualLayout<usize, usize>>,
         out_batch: VirtualLayout<usize, usize>,
         batch_shape: Sequence<FastDivmod<u32>>,
         #[comptime] config: &FuseBlockConfig,

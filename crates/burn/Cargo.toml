@@ -204,4 +204,3 @@ burn-ir = { path = "../burn-ir", version = "=0.21.0-pre.2", optional = true, def
 burn-dispatch = { path = "../burn-dispatch", version = "=0.21.0-pre.2", optional = true, default-features = false }
 
 cubecl = { workspace = true, default-features = false, optional = true }
-

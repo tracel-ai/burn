@@ -4,7 +4,7 @@ logger = { log = "info", level = "disabled" }
 [autotune]
 level = "balanced"
 cache = "target"
-logger = { info = true, level = "full" }
+logger = { file = "/tmp/autotune.log", level = "disabled" }
 
 [compilation]
 logger = { level = "disabled" }
@@ -13,6 +13,3 @@ cache = "target"
 [memory]
 logger = { level = "disabled", file = "/tmp/memory.log" }
 persistent_memory = "enabled"
-
-[streaming]
-max_streams = 8

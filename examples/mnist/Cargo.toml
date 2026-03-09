@@ -28,6 +28,7 @@ burn = { path = "../../crates/burn", features = [
     "train",
     "vision",
     "metrics",
+    "fusion",
     "dispatch",
     "ndarray",
 ], default-features = false }

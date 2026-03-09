@@ -62,7 +62,7 @@ pub fn reduce_kernel_broadcasted(
     outputs: &mut GlobalArgs,
     reduce_axis: usize,
     blocks: Sequence<ReduceFuseBlock>,
-    block_end: Option<ElemwiseFuseBlock>,
+    block_end: ComptimeOption<ElemwiseFuseBlock>,
 ) {
     #[unroll]
     for i in 0..blocks.len() {
@@ -118,7 +118,7 @@ fn reduce_many(
     outputs: &mut GlobalArgs,
     reduce_axis: usize,
     blocks: Sequence<ReduceFuseBlock>,
-    block_end: Option<ElemwiseFuseBlock>,
+    block_end: ComptimeOption<ElemwiseFuseBlock>,
 ) {
     let mut axis_size = 0;
 
@@ -151,7 +151,8 @@ fn reduce_many(
         );
     }
 
-    if let Some(block) = block_end {
+    #[comptime]
+    if let ComptimeOption::Some(block) = block_end {
         let global_index = ABSOLUTE_POS;
         let width = comptime!(block.config.width as u32);
         let num_iter = axis_size / usize::cast_from(width);
