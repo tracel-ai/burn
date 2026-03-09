@@ -66,10 +66,10 @@ impl ModuleRecordCodegen for StructModuleRecordCodegen {
                     match pred {
                         syn::WherePredicate::Type(ty) => {
                             // Check if the bounded type is one of our remaining generics
-                            if let syn::Type::Path(p) = &ty.bounded_ty {
-                                if let Some(ident) = p.path.get_ident() {
-                                    return ident == "B" || used_generics.contains(ident);
-                                }
+                            if let syn::Type::Path(p) = &ty.bounded_ty
+                                && let Some(ident) = p.path.get_ident()
+                            {
+                                return ident == "B" || used_generics.contains(ident);
                             }
                             true
                         }

@@ -307,26 +307,23 @@ impl GenericsParser {
                 train_inner_generics_names_except_backend.extend(quote! { #ident::TrainModule, });
             }
             else {
-                match generic_kind {
-                    // Add required bounds to impl
-                    Some(GenericKind::Skip) => {
-                        module.add_predicate(
-                            parse_quote! {
-                                #ident: Clone + core::fmt::Debug + Send
-                            }
-                        );
-                        module_autodiff.add_predicate(
-                            parse_quote! {
-                                #ident: Clone + core::fmt::Debug + Send
-                            }
-                        );
-                        module_has_autodiff.add_predicate(
-                            parse_quote! {
-                                #ident: Clone + core::fmt::Debug + Send
-                            }
-                        );
-                    },
-                    _ => {}
+                // Add required bounds to impl
+                if let Some(GenericKind::Skip) = generic_kind {
+                    module.add_predicate(
+                        parse_quote! {
+                            #ident: Clone + core::fmt::Debug + Send
+                        }
+                    );
+                    module_autodiff.add_predicate(
+                        parse_quote! {
+                            #ident: Clone + core::fmt::Debug + Send
+                        }
+                    );
+                    module_has_autodiff.add_predicate(
+                        parse_quote! {
+                            #ident: Clone + core::fmt::Debug + Send
+                        }
+                    );
                 }
 
                 // Pass through
