@@ -46,7 +46,7 @@ pub struct EpochSummary {
 /// This trait also exposes methods that uses the collected data to compute useful information.
 pub trait EventStore: Send {
     /// Collect a training/validation event.
-    fn add_event(&mut self, event: Event, split: Split, tag: Option<Arc<String>>);
+    fn add_event(&mut self, event: Event, split: Split);
 
     /// Find the epoch following the given criteria from the collected data.
     fn find_epoch(
@@ -54,7 +54,7 @@ pub trait EventStore: Send {
         name: &str,
         aggregate: Aggregate,
         direction: Direction,
-        split: Split,
+        split: &Split,
     ) -> Option<usize>;
 
     /// Find the metric value for the current epoch following the given criteria.
@@ -63,7 +63,7 @@ pub trait EventStore: Send {
         name: &str,
         epoch: usize,
         aggregate: Aggregate,
-        split: Split,
+        split: &Split,
     ) -> Option<f64>;
 }
 
@@ -74,15 +74,15 @@ pub enum Aggregate {
     Mean,
 }
 
-#[derive(Copy, Clone, Debug, Hash, PartialEq, Eq)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 /// The split to use.
 pub enum Split {
     /// The training split.
     Train,
     /// The validation split.
     Valid,
-    /// The testing split.
-    Test,
+    /// The testing split, which might be tagged.
+    Test(Option<Arc<String>>),
 }
 
 impl std::fmt::Display for Split {
@@ -90,7 +90,7 @@ impl std::fmt::Display for Split {
         match self {
             Split::Train => write!(f, "train"),
             Split::Valid => write!(f, "valid"),
-            Split::Test => write!(f, "test"),
+            Split::Test(_) => write!(f, "test"),
         }
     }
 }

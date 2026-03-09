@@ -228,6 +228,15 @@ pub(crate) fn handle_command(
                         None,
                         "std cpu",
                     )?;
+
+                    // burn-train vision (LPIPS, DISTS metrics)
+                    helpers::custom_crates_tests(
+                        vec!["burn-train"],
+                        handle_test_args(&["--features", "vision"], args.release),
+                        None,
+                        None,
+                        "std vision",
+                    )?;
                 }
                 CiTestType::GcpCudaRunner => (),
                 CiTestType::GcpVulkanRunner | CiTestType::GcpWgpuRunner => (), // handled in tests above
@@ -239,6 +248,15 @@ pub(crate) fn handle_command(
                         None,
                         None,
                         "std blas-accelerate",
+                    )?;
+
+                    // burn-train vision (LPIPS, DISTS metrics)
+                    helpers::custom_crates_tests(
+                        vec!["burn-train"],
+                        handle_test_args(&["--features", "vision"], args.release),
+                        None,
+                        None,
+                        "std vision",
                     )?;
                     helpers::custom_crates_tests(
                         vec!["burn-core"],

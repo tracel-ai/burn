@@ -227,29 +227,32 @@ Burn comes with built-in modules that you can use to build your own modules.
 
 ### General
 
-| Burn API        | PyTorch Equivalent                            |
-| --------------- | --------------------------------------------- |
-| `BatchNorm`     | `nn.BatchNorm1d`, `nn.BatchNorm2d` etc.       |
-| `Celu`          | `nn.CELU`                                     |
-| `Dropout`       | `nn.Dropout`                                  |
-| `Elu`           | `nn.ELU`                                      |
-| `Embedding`     | `nn.Embedding`                                |
-| `Gelu`          | `nn.Gelu`                                     |
-| `GroupNorm`     | `nn.GroupNorm`                                |
-| `HardSigmoid`   | `nn.Hardsigmoid`                              |
-| `InstanceNorm`  | `nn.InstanceNorm1d`, `nn.InstanceNorm2d` etc. |
-| `LayerNorm`     | `nn.LayerNorm`                                |
-| `LeakyRelu`     | `nn.LeakyReLU`                                |
-| `Linear`        | `nn.Linear`                                   |
-| `Prelu`         | `nn.PReLu`                                    |
-| `Relu`          | `nn.ReLU`                                     |
-| `Selu`          | `nn.SELU`                                     |
-| `Softsign`      | `nn.Softsign`                                 |
-| `RmsNorm`       | _No direct equivalent_                        |
-| `SwiGlu`        | _No direct equivalent_                        |
-| `ThresholdedRelu` | _No direct equivalent_                      |
-| `Interpolate1d` | _No direct equivalent_                        |
-| `Interpolate2d` | _No direct equivalent_                        |
+| Burn API          | PyTorch Equivalent                            |
+| ----------------- | --------------------------------------------- |
+| `BatchNorm`       | `nn.BatchNorm1d`, `nn.BatchNorm2d` etc.       |
+| `Celu`            | `nn.CELU`                                     |
+| `Dropout`         | `nn.Dropout`                                  |
+| `Elu`             | `nn.ELU`                                      |
+| `Embedding`       | `nn.Embedding`                                |
+| `Gelu`            | `nn.Gelu`                                     |
+| `GroupNorm`       | `nn.GroupNorm`                                |
+| `HardShrink`      | `nn.Hardshrink`                               |
+| `HardSigmoid`     | `nn.Hardsigmoid`                              |
+| `InstanceNorm`    | `nn.InstanceNorm1d`, `nn.InstanceNorm2d` etc. |
+| `LayerNorm`       | `nn.LayerNorm`                                |
+| `LeakyRelu`       | `nn.LeakyReLU`                                |
+| `Linear`          | `nn.Linear`                                   |
+| `Prelu`           | `nn.PReLu`                                    |
+| `Relu`            | `nn.ReLU`                                     |
+| `Selu`            | `nn.SELU`                                     |
+| `SoftShrink`      | `nn.Softshrink`                               |
+| `Softsign`        | `nn.Softsign`                                 |
+| `Shrink`          | _No direct equivalent_                        |
+| `RmsNorm`         | _No direct equivalent_                        |
+| `SwiGlu`          | _No direct equivalent_                        |
+| `ThresholdedRelu` | _No direct equivalent_                        |
+| `Interpolate1d`   | _No direct equivalent_                        |
+| `Interpolate2d`   | _No direct equivalent_                        |
 
 ### Convolutions
 

@@ -2,8 +2,8 @@ use burn_core as burn;
 
 use crate::{ModuleStore, SafetensorsStore};
 use burn_core::module::{Module, Param};
-use burn_tensor::Tensor;
 use burn_tensor::backend::Backend;
+use burn_tensor::{Tensor, shape};
 
 type TestBackend = burn_ndarray::NdArray;
 
@@ -73,7 +73,7 @@ fn test_memory_get_snapshot_existing() {
     assert!(snapshot.is_some());
 
     let snapshot = snapshot.unwrap();
-    assert_eq!(snapshot.shape, vec![2, 2]);
+    assert_eq!(snapshot.shape, shape![2, 2]);
 
     // Verify data
     let data = snapshot.to_data().unwrap();
@@ -208,7 +208,7 @@ fn test_file_get_snapshot_existing() {
     assert!(snapshot.is_some());
 
     let snapshot = snapshot.unwrap();
-    assert_eq!(snapshot.shape, vec![2, 2]);
+    assert_eq!(snapshot.shape, shape![2, 2]);
 
     let data = snapshot.to_data().unwrap();
     let values: Vec<f32> = data.to_vec().unwrap();

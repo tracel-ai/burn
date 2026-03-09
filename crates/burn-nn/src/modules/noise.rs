@@ -49,7 +49,7 @@ impl GaussianNoise {
     /// - input: `[..., any]`
     /// - output: `[..., any]`
     pub fn forward<B: Backend, const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
-        if B::ad_enabled() && self.std != 0.0 {
+        if B::ad_enabled(&input.device()) && self.std != 0.0 {
             let noise = Tensor::random(
                 input.shape(),
                 Distribution::Normal(0.0, self.std),

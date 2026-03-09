@@ -1,7 +1,7 @@
 use cubecl::{
     calculate_cube_count_elemwise,
     prelude::*,
-    std::{CubeOption, CubeOptionExpand, FastDivmod, tensor::layout::linear::LinearView},
+    std::{FastDivmod, tensor::layout::linear::LinearView},
 };
 
 use crate::{
@@ -30,7 +30,7 @@ struct ConvArgs {
 fn conv_transpose3d_kernel<E: Numeric>(
     input: &Tensor<E>,
     weight: &Tensor<E>,
-    bias: &CubeOption<Tensor<E>>,
+    bias: &Option<Tensor<E>>,
     output: &mut LinearView<E, ReadWrite>,
     out_shape: Sequence<FastDivmod<usize>>,
     args: ConvArgs,
@@ -80,10 +80,8 @@ fn conv_transpose3d_kernel<E: Numeric>(
     let index_input_batch = batch * input.stride(0);
     let index_weight_out_c = out_channel * weight.stride(1);
 
-    let mut sum = match bias {
-        CubeOption::Some(bias) => bias[out_c_out],
-        CubeOption::None => E::from_int(0),
-    };
+    let bias: Option<E> = bias.map(|bias| bias[out_c_out]);
+    let mut sum = bias.unwrap_or_default();
 
     let numerator_d_base = out_z + args.padding_0;
     let numerator_h_base = out_y + args.padding_1;

@@ -1,5 +1,3 @@
-use core::mem;
-
 use burn_backend::{
     DType, Element, QTensorPrimitive, Shape, TensorData, TensorMetadata,
     quantization::{QParams, QuantLevel, QuantMode, QuantScheme, QuantValue},
@@ -15,7 +13,7 @@ pub type SharedArray<E> = ArcArray<E, IxDyn>;
 
 /// Tensor primitive used by the [ndarray backend](crate::NdArray).
 ///
-/// Supports both owned and borrowed (zero-copy) data via [`NdArrayStorage`].
+/// Supports both owned and borrowed (zero-copy) data via `NdArrayStorage`.
 /// When data is borrowed from external sources (like burnpack files),
 /// it remains zero-copy until a mutating operation is performed.
 #[derive(Debug, Clone)]
@@ -590,8 +588,8 @@ impl NdArrayTensor {
     /// This may or may not copy data depending on whether the underlying bytes
     /// can be reclaimed (via `try_into_vec`). If bytes are uniquely owned,
     /// no copy occurs; otherwise data is copied to a new allocation.
-    fn from_data_owned(mut data: TensorData) -> NdArrayTensor {
-        let shape = mem::take(&mut data.shape);
+    fn from_data_owned(data: TensorData) -> NdArrayTensor {
+        let shape = data.shape.to_vec(); // TODO: into_vec
 
         macro_rules! execute {
             ($data: expr, [$($dtype: ident => $ty: ty),*]) => {

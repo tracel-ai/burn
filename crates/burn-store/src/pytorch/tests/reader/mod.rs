@@ -8,7 +8,7 @@
 use crate::pytorch::PytorchReader;
 // Import internal types for testing only
 use crate::pytorch::reader::{ByteOrder, FileFormat};
-use burn_tensor::DType;
+use burn_tensor::{DType, shape};
 use std::path::PathBuf;
 
 fn test_data_path(filename: &str) -> PathBuf {
@@ -28,7 +28,7 @@ fn test_float32_tensor() {
     let reader = PytorchReader::new(&path).expect("Failed to load float32.pt");
     let tensor = reader.get("tensor").expect("tensor key not found");
     assert_eq!(tensor.dtype, DType::F32);
-    assert_eq!(tensor.shape, vec![4]);
+    assert_eq!(tensor.shape, shape![4]);
 
     let data = tensor.to_data().unwrap();
     let values = data.as_slice::<f32>().unwrap();
@@ -45,7 +45,7 @@ fn test_float64_tensor() {
     let reader = PytorchReader::new(&path).expect("Failed to load float64.pt");
     let tensor = reader.get("tensor").expect("tensor key not found");
     assert_eq!(tensor.dtype, DType::F64);
-    assert_eq!(tensor.shape, vec![3]);
+    assert_eq!(tensor.shape, shape![3]);
 
     let data = tensor.to_data().unwrap();
     let values = data.as_slice::<f64>().unwrap();
@@ -61,7 +61,7 @@ fn test_int64_tensor() {
     let reader = PytorchReader::new(&path).expect("Failed to load int64.pt");
     let tensor = reader.get("tensor").expect("tensor key not found");
     assert_eq!(tensor.dtype, DType::I64);
-    assert_eq!(tensor.shape, vec![4]);
+    assert_eq!(tensor.shape, shape![4]);
 
     let data = tensor.to_data().unwrap();
     let values = data.as_slice::<i64>().unwrap();
@@ -74,7 +74,7 @@ fn test_int32_tensor() {
     let reader = PytorchReader::new(&path).expect("Failed to load int32.pt");
     let tensor = reader.get("tensor").expect("tensor key not found");
     assert_eq!(tensor.dtype, DType::I32);
-    assert_eq!(tensor.shape, vec![3]);
+    assert_eq!(tensor.shape, shape![3]);
 
     let data = tensor.to_data().unwrap();
     // Convert to the appropriate element type
@@ -89,7 +89,7 @@ fn test_int16_tensor() {
     let reader = PytorchReader::new(&path).expect("Failed to load int16.pt");
     let tensor = reader.get("tensor").expect("tensor key not found");
     assert_eq!(tensor.dtype, DType::I16);
-    assert_eq!(tensor.shape, vec![3]);
+    assert_eq!(tensor.shape, shape![3]);
 
     let data = tensor.to_data().unwrap();
     let data_converted = data.convert::<i16>();
@@ -103,7 +103,7 @@ fn test_int8_tensor() {
     let reader = PytorchReader::new(&path).expect("Failed to load int8.pt");
     let tensor = reader.get("tensor").expect("tensor key not found");
     assert_eq!(tensor.dtype, DType::I8);
-    assert_eq!(tensor.shape, vec![4]);
+    assert_eq!(tensor.shape, shape![4]);
 
     let data = tensor.to_data().unwrap();
     let data_converted = data.convert::<i8>();
@@ -117,7 +117,7 @@ fn test_bool_tensor() {
     let reader = PytorchReader::new(&path).expect("Failed to load bool.pt");
     let tensor = reader.get("tensor").expect("tensor key not found");
     assert_eq!(tensor.dtype, DType::Bool);
-    assert_eq!(tensor.shape, vec![5]);
+    assert_eq!(tensor.shape, shape![5]);
 
     let data = tensor.to_data().unwrap();
     let values = data.as_slice::<bool>().unwrap();
@@ -131,7 +131,7 @@ fn test_uint8_tensor() {
     let reader = PytorchReader::new(&path).expect("Failed to load uint8.pt");
     let tensor = reader.get("tensor").expect("tensor key not found");
     assert_eq!(tensor.dtype, DType::U8);
-    assert_eq!(tensor.shape, vec![4]);
+    assert_eq!(tensor.shape, shape![4]);
 
     // Verify actual U8 values [0, 128, 255, 42] from test_data.py
     let data = tensor.to_data().unwrap();
@@ -147,11 +147,11 @@ fn test_float16_tensor() {
     let reader = PytorchReader::new(&path).expect("Failed to load float16.pt");
     let tensor = reader.get("tensor").expect("tensor key not found");
     assert_eq!(tensor.dtype, DType::F16);
-    assert_eq!(tensor.shape, vec![3]);
+    assert_eq!(tensor.shape, shape![3]);
 
     // Verify actual F16 values [1.5, -2.25, 3.125] from test_data.py
     let data = tensor.to_data().unwrap();
-    assert_eq!(data.shape, vec![3]);
+    assert_eq!(data.shape, shape![3]);
     let values = data.as_slice::<f16>().unwrap();
     assert_eq!(values.len(), 3);
     assert!((values[0].to_f32() - 1.5).abs() < 1e-2);
@@ -167,11 +167,11 @@ fn test_bfloat16_tensor() {
     let reader = PytorchReader::new(&path).expect("Failed to load bfloat16.pt");
     let tensor = reader.get("tensor").expect("tensor key not found");
     assert_eq!(tensor.dtype, DType::BF16);
-    assert_eq!(tensor.shape, vec![3]);
+    assert_eq!(tensor.shape, shape![3]);
 
     // Verify actual BF16 values [1.5, -2.5, 3.5] from test_data.py
     let data = tensor.to_data().unwrap();
-    assert_eq!(data.shape, vec![3]);
+    assert_eq!(data.shape, shape![3]);
     let values = data.as_slice::<bf16>().unwrap();
     assert_eq!(values.len(), 3);
     assert!((values[0].to_f32() - 1.5).abs() < 1e-2);
@@ -185,7 +185,7 @@ fn test_2d_tensor() {
     let reader = PytorchReader::new(&path).expect("Failed to load tensor_2d.pt");
     let tensor = reader.get("tensor").expect("tensor key not found");
     assert_eq!(tensor.dtype, DType::F32);
-    assert_eq!(tensor.shape, vec![3, 2]);
+    assert_eq!(tensor.shape, shape![3, 2]);
 
     let data = tensor.to_data().unwrap();
     let values = data.as_slice::<f32>().unwrap();
@@ -202,10 +202,10 @@ fn test_3d_tensor() {
     let reader = PytorchReader::new(&path).expect("Failed to load tensor_3d.pt");
     let tensor = reader.get("tensor").expect("tensor key not found");
     assert_eq!(tensor.dtype, DType::F32);
-    assert_eq!(tensor.shape, vec![2, 3, 4]);
+    assert_eq!(tensor.shape, shape![2, 3, 4]);
 
     let data = tensor.to_data().unwrap();
-    assert_eq!(data.shape, vec![2, 3, 4]);
+    assert_eq!(data.shape, shape![2, 3, 4]);
     let values = data.as_slice::<f32>().unwrap();
     assert_eq!(values.len(), 24);
 }
@@ -216,10 +216,10 @@ fn test_4d_tensor() {
     let reader = PytorchReader::new(&path).expect("Failed to load tensor_4d.pt");
     let tensor = reader.get("tensor").expect("tensor key not found");
     assert_eq!(tensor.dtype, DType::F32);
-    assert_eq!(tensor.shape, vec![2, 3, 2, 2]);
+    assert_eq!(tensor.shape, shape![2, 3, 2, 2]);
 
     let data = tensor.to_data().unwrap();
-    assert_eq!(data.shape, vec![2, 3, 2, 2]);
+    assert_eq!(data.shape, shape![2, 3, 2, 2]);
     let values = data.as_slice::<f32>().unwrap();
     assert_eq!(values.len(), 24);
 }
@@ -238,24 +238,24 @@ fn test_state_dict() {
 
     // Check weight tensor
     let weight = reader.get("weight").unwrap();
-    assert_eq!(weight.shape, vec![3, 4]);
+    assert_eq!(weight.shape, shape![3, 4]);
     assert_eq!(weight.dtype, DType::F32);
 
     // Check bias tensor
     let bias = reader.get("bias").unwrap();
-    assert_eq!(bias.shape, vec![3]);
+    assert_eq!(bias.shape, shape![3]);
     assert_eq!(bias.dtype, DType::F32);
 
     // Check running_mean (should be zeros)
     let running_mean = reader.get("running_mean").unwrap();
-    assert_eq!(running_mean.shape, vec![3]);
+    assert_eq!(running_mean.shape, shape![3]);
     let mean_data = running_mean.to_data().unwrap();
     let mean_values = mean_data.as_slice::<f32>().unwrap();
     assert!(mean_values.iter().all(|&v| v.abs() < 1e-6));
 
     // Check running_var (should be ones)
     let running_var = reader.get("running_var").unwrap();
-    assert_eq!(running_var.shape, vec![3]);
+    assert_eq!(running_var.shape, shape![3]);
     let var_data = running_var.to_data().unwrap();
     let var_values = var_data.as_slice::<f32>().unwrap();
     assert!(var_values.iter().all(|&v| (v - 1.0).abs() < 1e-6));
@@ -275,7 +275,7 @@ fn test_nested_dict() {
 
     // Check layer1.weight and load data
     let layer1_weight = reader.get("layer1.weight").unwrap();
-    assert_eq!(layer1_weight.shape, vec![2, 3]);
+    assert_eq!(layer1_weight.shape, shape![2, 3]);
     assert_eq!(layer1_weight.dtype, DType::F32);
     let data = layer1_weight.to_data().unwrap();
     let values = data.as_slice::<f32>().unwrap();
@@ -283,7 +283,7 @@ fn test_nested_dict() {
 
     // Check layer2.weight and load data
     let layer2_weight = reader.get("layer2.weight").unwrap();
-    assert_eq!(layer2_weight.shape, vec![4, 2]);
+    assert_eq!(layer2_weight.shape, shape![4, 2]);
     assert_eq!(layer2_weight.dtype, DType::F32);
     let data = layer2_weight.to_data().unwrap();
     let values = data.as_slice::<f32>().unwrap();
@@ -304,14 +304,14 @@ fn test_checkpoint() {
 
     // Check fc1.weight dimensions and load data
     let fc1_weight = reader.get("model_state_dict.fc1.weight").unwrap();
-    assert_eq!(fc1_weight.shape, vec![10, 5]);
+    assert_eq!(fc1_weight.shape, shape![10, 5]);
     let data = fc1_weight.to_data().unwrap();
     let values = data.as_slice::<f32>().unwrap();
     assert_eq!(values.len(), 50); // 10x5 = 50 elements
 
     // Check fc2.weight dimensions and load data
     let fc2_weight = reader.get("model_state_dict.fc2.weight").unwrap();
-    assert_eq!(fc2_weight.shape, vec![3, 10]);
+    assert_eq!(fc2_weight.shape, shape![3, 10]);
     let data = fc2_weight.to_data().unwrap();
     let values = data.as_slice::<f32>().unwrap();
     assert_eq!(values.len(), 30); // 3x10 = 30 elements
@@ -322,7 +322,7 @@ fn test_empty_tensor() {
     let path = test_data_path("empty.pt");
     let reader = PytorchReader::new(&path).expect("Failed to load empty.pt");
     let tensor = reader.get("tensor").expect("tensor key not found");
-    assert_eq!(tensor.shape, vec![0]); // Empty tensor has shape [0]
+    assert_eq!(tensor.shape, shape![0]); // Empty tensor has shape [0]
     assert_eq!(tensor.dtype, DType::F32);
 
     // Note: Empty tensors cannot be loaded with to_data() due to TensorData validation
@@ -334,7 +334,7 @@ fn test_scalar_tensor() {
     let path = test_data_path("scalar.pt");
     let reader = PytorchReader::new(&path).expect("Failed to load scalar.pt");
     let tensor = reader.get("tensor").expect("tensor key not found");
-    assert_eq!(tensor.shape, Vec::<usize>::new()); // Scalar has empty shape
+    assert_eq!(tensor.shape, shape![]); // Scalar has empty shape
     assert_eq!(tensor.dtype, DType::F32);
 
     let data = tensor.to_data().unwrap();
@@ -348,7 +348,7 @@ fn test_large_shape() {
     let path = test_data_path("large_shape.pt");
     let reader = PytorchReader::new(&path).expect("Failed to load large_shape.pt");
     let tensor = reader.get("tensor").expect("tensor key not found");
-    assert_eq!(tensor.shape, vec![100, 100]);
+    assert_eq!(tensor.shape, shape![100, 100]);
     assert_eq!(tensor.dtype, DType::F32);
 
     let data = tensor.to_data().unwrap();
@@ -372,7 +372,7 @@ fn test_mixed_types() {
     // Check float32 tensor [1.0, 2.0] from test_data.py
     let float32 = reader.get("float32").unwrap();
     assert_eq!(float32.dtype, DType::F32);
-    assert_eq!(float32.shape, vec![2]);
+    assert_eq!(float32.shape, shape![2]);
     let data = float32.to_data().unwrap();
     let values = data.as_slice::<f32>().unwrap();
     assert!((values[0] - 1.0).abs() < 1e-6);
@@ -381,7 +381,7 @@ fn test_mixed_types() {
     // Check int64 tensor [100, 200] from test_data.py
     let int64 = reader.get("int64").unwrap();
     assert_eq!(int64.dtype, DType::I64);
-    assert_eq!(int64.shape, vec![2]);
+    assert_eq!(int64.shape, shape![2]);
     let data = int64.to_data().unwrap();
     let values = data.as_slice::<i64>().unwrap();
     assert_eq!(values, &[100, 200]);
@@ -389,7 +389,7 @@ fn test_mixed_types() {
     // Check bool tensor [True, False] from test_data.py
     let bool_tensor = reader.get("bool").unwrap();
     assert_eq!(bool_tensor.dtype, DType::Bool);
-    assert_eq!(bool_tensor.shape, vec![2]);
+    assert_eq!(bool_tensor.shape, shape![2]);
     let data = bool_tensor.to_data().unwrap();
     let values = data.as_slice::<bool>().unwrap();
     assert_eq!(values, &[true, false]);
@@ -397,7 +397,7 @@ fn test_mixed_types() {
     // Check float64 tensor [1.1, 2.2] from test_data.py
     let float64 = reader.get("float64").unwrap();
     assert_eq!(float64.dtype, DType::F64);
-    assert_eq!(float64.shape, vec![2]);
+    assert_eq!(float64.shape, shape![2]);
     let data = float64.to_data().unwrap();
     let values = data.as_slice::<f64>().unwrap();
     assert!((values[0] - 1.1).abs() < 1e-10);
@@ -410,7 +410,7 @@ fn test_special_values() {
     let reader = PytorchReader::new(&path).expect("Failed to load special_values.pt");
     let tensor = reader.get("tensor").expect("tensor key not found");
     assert_eq!(tensor.dtype, DType::F32);
-    assert_eq!(tensor.shape, vec![5]);
+    assert_eq!(tensor.shape, shape![5]);
 
     let data = tensor.to_data().unwrap();
     let values = data.as_slice::<f32>().unwrap();
@@ -430,7 +430,7 @@ fn test_extreme_values() {
     let reader = PytorchReader::new(&path).expect("Failed to load extreme_values.pt");
     let tensor = reader.get("tensor").expect("tensor key not found");
     assert_eq!(tensor.dtype, DType::F32);
-    assert_eq!(tensor.shape, vec![4]);
+    assert_eq!(tensor.shape, shape![4]);
 
     let data = tensor.to_data().unwrap();
     let values = data.as_slice::<f32>().unwrap();
@@ -455,7 +455,7 @@ fn test_parameter() {
     // nn.Parameter is typically saved as a regular tensor
     assert_eq!(tensors.len(), 1);
     let param = reader.get("param").unwrap();
-    assert_eq!(param.shape, vec![3, 3]);
+    assert_eq!(param.shape, shape![3, 3]);
     assert_eq!(param.dtype, DType::F32);
 
     let data = param.to_data().unwrap();
@@ -474,7 +474,7 @@ fn test_buffers() {
     // Check buffer1 (int32)
     let buffer1 = reader.get("buffer1").unwrap();
     assert_eq!(buffer1.dtype, DType::I32);
-    assert_eq!(buffer1.shape, vec![3]);
+    assert_eq!(buffer1.shape, shape![3]);
     let data1 = buffer1.to_data().unwrap();
     let data1_converted = data1.convert::<i32>();
     let values1 = data1_converted.as_slice::<i32>().unwrap();
@@ -483,7 +483,7 @@ fn test_buffers() {
     // Check buffer2 (bool)
     let buffer2 = reader.get("buffer2").unwrap();
     assert_eq!(buffer2.dtype, DType::Bool);
-    assert_eq!(buffer2.shape, vec![2]);
+    assert_eq!(buffer2.shape, shape![2]);
     let data2 = buffer2.to_data().unwrap();
     let values2 = data2.as_slice::<bool>().unwrap();
     assert_eq!(values2, &[true, false]);
@@ -505,14 +505,14 @@ fn test_complex_structure() {
 
     // Check encoder layer_0 weight and load data
     let layer0_weight = reader.get("state.encoder.layer_0.weight").unwrap();
-    assert_eq!(layer0_weight.shape, vec![4, 3]);
+    assert_eq!(layer0_weight.shape, shape![4, 3]);
     let data = layer0_weight.to_data().unwrap();
     let values = data.as_slice::<f32>().unwrap();
     assert_eq!(values.len(), 12); // 4x3 = 12 elements
 
     // Check decoder weight and load data
     let decoder_weight = reader.get("state.decoder.weight").unwrap();
-    assert_eq!(decoder_weight.shape, vec![3, 2]);
+    assert_eq!(decoder_weight.shape, shape![3, 2]);
     let data = decoder_weight.to_data().unwrap();
     let values = data.as_slice::<f32>().unwrap();
     assert_eq!(values.len(), 6); // 3x2 = 6 elements
@@ -532,7 +532,7 @@ fn test_read_pytorch_tensors_convenience() {
     // Check that data can be materialized
     let weight = reader.get("weight").unwrap();
     let weight_data = weight.to_data().unwrap();
-    assert_eq!(weight_data.shape, vec![3, 4]);
+    assert_eq!(weight_data.shape, shape![3, 4]);
     assert_eq!(weight_data.dtype, DType::F32);
 }
 
@@ -575,12 +575,12 @@ fn test_legacy_format() {
 
     // Check weight tensor
     let weight = reader.get("weight").expect("weight not found");
-    assert_eq!(weight.shape, vec![2, 3]);
+    assert_eq!(weight.shape, shape![2, 3]);
     assert_eq!(weight.dtype, DType::F32);
 
     // Check bias tensor
     let bias = reader.get("bias").expect("bias not found");
-    assert_eq!(bias.shape, vec![2]);
+    assert_eq!(bias.shape, shape![2]);
     assert_eq!(bias.dtype, DType::F32);
 
     // Verify bias values are all ones
@@ -591,7 +591,7 @@ fn test_legacy_format() {
 
     // Check running_mean tensor
     let running_mean = reader.get("running_mean").expect("running_mean not found");
-    assert_eq!(running_mean.shape, vec![2]);
+    assert_eq!(running_mean.shape, shape![2]);
     assert_eq!(running_mean.dtype, DType::F32);
 
     // Verify running_mean values are accessible
@@ -1053,4 +1053,171 @@ fn test_pickle_value_conversion() {
         }
         _ => panic!("Unexpected root type"),
     }
+}
+
+// ============================================================================
+// TAR Format Tests
+// ============================================================================
+// The TAR format was used by very early versions of PyTorch (pre 0.1.10).
+// These tests verify that we can correctly load models saved in this format.
+
+#[test]
+fn test_tar_format_detection() {
+    // Test that is_tar_file correctly detects TAR files
+    let tar_path = test_data_path("tar_float32.tar");
+    let zip_path = test_data_path("float32.pt");
+
+    // TAR file should be detected as TAR
+    let reader = PytorchReader::new(&tar_path).expect("Failed to load TAR file");
+    let metadata = reader.metadata();
+    assert_eq!(metadata.format_type, FileFormat::Tar);
+
+    // ZIP file should NOT be detected as TAR
+    let reader = PytorchReader::new(&zip_path).expect("Failed to load ZIP file");
+    let metadata = reader.metadata();
+    assert_ne!(metadata.format_type, FileFormat::Tar);
+}
+
+#[test]
+fn test_tar_float32_tensor() {
+    let path = test_data_path("tar_float32.tar");
+    let reader = PytorchReader::new(&path).expect("Failed to load tar_float32.tar");
+
+    let tensor = reader.get("tensor").expect("tensor key not found");
+    assert_eq!(tensor.dtype, DType::F32);
+    assert_eq!(tensor.shape, shape![4]);
+
+    let data = tensor.to_data().unwrap();
+    let values = data.as_slice::<f32>().unwrap();
+    assert_eq!(values.len(), 4);
+    assert!((values[0] - 1.0).abs() < 1e-6);
+    assert!((values[1] - 2.5).abs() < 1e-6);
+    assert!((values[2] - (-3.7)).abs() < 1e-6);
+    assert!((values[3] - 0.0).abs() < 1e-6);
+}
+
+#[test]
+fn test_tar_float64_tensor() {
+    let path = test_data_path("tar_float64.tar");
+    let reader = PytorchReader::new(&path).expect("Failed to load tar_float64.tar");
+
+    let tensor = reader.get("tensor").expect("tensor key not found");
+    assert_eq!(tensor.dtype, DType::F64);
+    assert_eq!(tensor.shape, shape![3]);
+
+    let data = tensor.to_data().unwrap();
+    let values = data.as_slice::<f64>().unwrap();
+    assert_eq!(values.len(), 3);
+    assert!((values[0] - 1.1).abs() < 1e-10);
+    assert!((values[1] - 2.2).abs() < 1e-10);
+    assert!((values[2] - 3.3).abs() < 1e-10);
+}
+
+#[test]
+fn test_tar_int64_tensor() {
+    let path = test_data_path("tar_int64.tar");
+    let reader = PytorchReader::new(&path).expect("Failed to load tar_int64.tar");
+
+    let tensor = reader.get("tensor").expect("tensor key not found");
+    assert_eq!(tensor.dtype, DType::I64);
+    assert_eq!(tensor.shape, shape![4]);
+
+    let data = tensor.to_data().unwrap();
+    let values = data.as_slice::<i64>().unwrap();
+    assert_eq!(values, &[100, -200, 300, 0]);
+}
+
+#[test]
+fn test_tar_multiple_tensors() {
+    // Test loading multiple tensors (weight + bias) with correct shapes
+    let path = test_data_path("tar_weight_bias.tar");
+    let reader = PytorchReader::new(&path).expect("Failed to load tar_weight_bias.tar");
+
+    // Check weight tensor (2x3 matrix)
+    let weight = reader.get("weight").expect("weight key not found");
+    assert_eq!(weight.dtype, DType::F32);
+    assert_eq!(weight.shape, shape![2, 3]);
+
+    let data = weight.to_data().unwrap();
+    let values = data.as_slice::<f32>().unwrap();
+    assert_eq!(values.len(), 6);
+    assert!((values[0] - 0.1).abs() < 1e-6);
+    assert!((values[1] - 0.2).abs() < 1e-6);
+    assert!((values[5] - 0.6).abs() < 1e-6);
+
+    // Check bias tensor (2-element vector)
+    let bias = reader.get("bias").expect("bias key not found");
+    assert_eq!(bias.dtype, DType::F32);
+    assert_eq!(bias.shape, shape![2]);
+
+    let data = bias.to_data().unwrap();
+    let values = data.as_slice::<f32>().unwrap();
+    assert_eq!(values.len(), 2);
+    assert!((values[0] - 0.01).abs() < 1e-6);
+    assert!((values[1] - 0.02).abs() < 1e-6);
+}
+
+#[test]
+fn test_tar_multi_dtype() {
+    // Test loading different dtypes from the same TAR file
+    let path = test_data_path("tar_multi_dtype.tar");
+    let reader = PytorchReader::new(&path).expect("Failed to load tar_multi_dtype.tar");
+
+    // Float32 tensor
+    let float_tensor = reader
+        .get("float_tensor")
+        .expect("float_tensor key not found");
+    assert_eq!(float_tensor.dtype, DType::F32);
+    let data = float_tensor.to_data().unwrap();
+    let values = data.as_slice::<f32>().unwrap();
+    assert!((values[0] - 1.5).abs() < 1e-6);
+
+    // Float64 tensor
+    let double_tensor = reader
+        .get("double_tensor")
+        .expect("double_tensor key not found");
+    assert_eq!(double_tensor.dtype, DType::F64);
+    let data = double_tensor.to_data().unwrap();
+    let values = data.as_slice::<f64>().unwrap();
+    assert!((values[0] - 1.111).abs() < 1e-10);
+
+    // Int64 tensor
+    let int_tensor = reader.get("int_tensor").expect("int_tensor key not found");
+    assert_eq!(int_tensor.dtype, DType::I64);
+    let data = int_tensor.to_data().unwrap();
+    let values = data.as_slice::<i64>().unwrap();
+    assert_eq!(values, &[10, 20, 30, 40]);
+}
+
+#[test]
+fn test_tar_2d_tensor_shape() {
+    // Test that 2D tensor shapes are correctly preserved
+    let path = test_data_path("tar_2d_tensor.tar");
+    let reader = PytorchReader::new(&path).expect("Failed to load tar_2d_tensor.tar");
+
+    let matrix = reader.get("matrix").expect("matrix key not found");
+    assert_eq!(matrix.dtype, DType::F32);
+    assert_eq!(matrix.shape, shape![3, 4]); // 3 rows, 4 columns
+
+    let data = matrix.to_data().unwrap();
+    let values = data.as_slice::<f32>().unwrap();
+    assert_eq!(values.len(), 12);
+
+    // Verify values in row-major order
+    for i in 0..12 {
+        assert!((values[i] - (i as f32 + 1.0)).abs() < 1e-6);
+    }
+}
+
+#[test]
+fn test_tar_metadata() {
+    // Test that TAR metadata is correctly populated
+    let path = test_data_path("tar_float32.tar");
+    let reader = PytorchReader::new(&path).expect("Failed to load tar_float32.tar");
+
+    let metadata = reader.metadata();
+    assert_eq!(metadata.format_type, FileFormat::Tar);
+    assert_eq!(metadata.byte_order, ByteOrder::LittleEndian);
+    assert_eq!(metadata.tensor_count, 1);
+    assert!(metadata.total_data_size.is_some());
 }

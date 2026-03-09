@@ -6,7 +6,7 @@ use core::ops::Range;
 
 pub use crate::errors::ExpressionError;
 
-pub use cubecl_zspace::{MetadataError, Shape, calculate_matmul_output, shape};
+pub use cubecl_zspace::{MetadataError, Shape, SmallVec, calculate_matmul_output, shape};
 
 /// Slice-related ops on [`Shape`]
 pub trait SliceOps: Sized {

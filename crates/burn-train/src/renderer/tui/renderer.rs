@@ -45,10 +45,14 @@ enum TuiRendererEvent {
     MetricsUpdate((TuiSplit, TuiGroup, MetricState)),
     StatusUpdateTrain((TuiSplit, TrainingProgress, Vec<ProgressType>)),
     StatusUpdateTest((EvaluationProgress, Vec<ProgressType>)),
-    TrainEnd(Option<LearnerSummary>),
-    ManualClose(),
-    Close(),
-    Persistent(),
+    ProcessEnd {
+        summary: Option<LearnerSummary>,
+        /// Interrupter reset.
+        reset: bool,
+    },
+    ManualClose,
+    Close,
+    Persistent,
 }
 
 /// The terminal UI metrics renderer.
@@ -114,7 +118,7 @@ impl TuiMetricsRendererWrapper {
 
     /// Set the renderer to persistent mode.
     pub fn persistent(self) -> Self {
-        self.send_event(TuiRendererEvent::Persistent());
+        self.send_event(TuiRendererEvent::Persistent);
         self
     }
 }
@@ -152,11 +156,20 @@ impl MetricsRendererEvaluation for TuiMetricsRendererWrapper {
             progress_indicators,
         )));
     }
+
+    fn on_test_end(&mut self, summary: Option<LearnerSummary>) -> Result<(), Box<dyn Error>> {
+        // Update the summary
+        self.send_event(TuiRendererEvent::ProcessEnd {
+            summary,
+            reset: false,
+        });
+        Ok(())
+    }
 }
 
 impl MetricsRenderer for TuiMetricsRendererWrapper {
     fn manual_close(&mut self) {
-        self.send_event(TuiRendererEvent::ManualClose());
+        self.send_event(TuiRendererEvent::ManualClose);
         let _ = self.handle_join.take().unwrap().join();
     }
 
@@ -202,7 +215,10 @@ impl MetricsRendererTraining for TuiMetricsRendererWrapper {
         // Reset for following steps.
         self.interrupter.reset();
         // Update the summary
-        self.send_event(TuiRendererEvent::TrainEnd(summary));
+        self.send_event(TuiRendererEvent::ProcessEnd {
+            summary,
+            reset: true,
+        });
         Ok(())
     }
 }
@@ -210,7 +226,7 @@ impl MetricsRendererTraining for TuiMetricsRendererWrapper {
 impl Drop for TuiMetricsRendererWrapper {
     fn drop(&mut self) {
         if !std::thread::panicking() {
-            self.send_event(TuiRendererEvent::Close());
+            self.send_event(TuiRendererEvent::Close);
             let _ = self.handle_join.take().unwrap().join();
         }
     }
@@ -312,13 +328,22 @@ impl TuiMetricsRenderer {
                 self.metrics_numeric.update_progress_test(&item);
                 self.status.update_test(status);
             }
-            TuiRendererEvent::TrainEnd(learner_summary) => {
-                self.interrupter.reset();
-                self.summary = learner_summary;
+            TuiRendererEvent::ProcessEnd { summary, reset } => {
+                match (self.summary.take(), summary) {
+                    (None, Some(summary)) => {
+                        self.summary = Some(summary);
+                    }
+                    (Some(current), Some(other)) => self.summary = Some(current.merge(other)),
+                    (_, _) => { /* nothing to update */ }
+                }
+
+                if reset {
+                    self.interrupter.reset();
+                }
             }
-            TuiRendererEvent::ManualClose() => self.manual_close = true,
-            TuiRendererEvent::Persistent() => self.persistent = true,
-            TuiRendererEvent::Close() => self.close = true,
+            TuiRendererEvent::ManualClose => self.manual_close = true,
+            TuiRendererEvent::Persistent => self.persistent = true,
+            TuiRendererEvent::Close => self.close = true,
         }
     }
 
