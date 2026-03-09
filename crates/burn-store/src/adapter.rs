@@ -848,11 +848,11 @@ mod tests {
     #[test]
     fn test_half_precision_f32_to_f16() {
         let adapter = HalfPrecisionAdapter::new();
-        let snapshot = create_test_snapshot("fc.weight", vec![2, 3], module_names::LINEAR);
+        let snapshot = create_test_snapshot("fc.weight", shape![2, 3], module_names::LINEAR);
 
         let adapted = adapter.adapt(&snapshot);
         assert_eq!(adapted.dtype, DType::F16);
-        assert_eq!(adapted.shape, vec![2, 3]);
+        assert_eq!(adapted.shape, shape![2, 3]);
 
         let data = adapted.to_data().unwrap();
         assert_eq!(data.dtype, DType::F16);
@@ -864,12 +864,12 @@ mod tests {
 
         // Create an F16 snapshot
         let values = vec![1.0f32; 6];
-        let data = TensorData::new(values, vec![2, 3]).convert_dtype(DType::F16);
+        let data = TensorData::new(values, shape![2, 3]).convert_dtype(DType::F16);
         let path_parts = vec!["fc".to_string(), "weight".to_string()];
         let snapshot = TensorSnapshot::from_closure(
             Rc::new(move || Ok(data.clone())),
             DType::F16,
-            vec![2, 3],
+            shape![2, 3],
             path_parts,
             vec![module_names::LINEAR.to_string()],
             burn_core::module::ParamId::new(),
@@ -884,7 +884,7 @@ mod tests {
         let adapter = HalfPrecisionAdapter::new();
 
         // BatchNorm is excluded by default
-        let snapshot = create_test_snapshot("norm.weight", vec![10], module_names::BATCH_NORM);
+        let snapshot = create_test_snapshot("norm.weight", shape![10], module_names::BATCH_NORM);
         let adapted = adapter.adapt(&snapshot);
         assert_eq!(adapted.dtype, DType::F32); // unchanged
     }
@@ -894,27 +894,27 @@ mod tests {
         let adapter = HalfPrecisionAdapter::new();
 
         // Linear
-        let snapshot = create_test_snapshot("fc.weight", vec![2, 3], module_names::LINEAR);
+        let snapshot = create_test_snapshot("fc.weight", shape![2, 3], module_names::LINEAR);
         assert_eq!(adapter.adapt(&snapshot).dtype, DType::F16);
 
         // Embedding
-        let snapshot = create_test_snapshot("emb.weight", vec![100, 64], module_names::EMBEDDING);
+        let snapshot = create_test_snapshot("emb.weight", shape![100, 64], module_names::EMBEDDING);
         assert_eq!(adapter.adapt(&snapshot).dtype, DType::F16);
 
         // Conv2d
-        let snapshot = create_test_snapshot("conv.weight", vec![3, 3, 3, 3], module_names::CONV2D);
+        let snapshot = create_test_snapshot("conv.weight", shape![3, 3, 3, 3], module_names::CONV2D);
         assert_eq!(adapter.adapt(&snapshot).dtype, DType::F16);
 
         // LayerNorm (included by default)
-        let snapshot = create_test_snapshot("norm.gamma", vec![10], module_names::LAYER_NORM);
+        let snapshot = create_test_snapshot("norm.gamma", shape![10], module_names::LAYER_NORM);
         assert_eq!(adapter.adapt(&snapshot).dtype, DType::F16);
 
         // GroupNorm
-        let snapshot = create_test_snapshot("gn.gamma", vec![10], module_names::GROUP_NORM);
+        let snapshot = create_test_snapshot("gn.gamma", shape![10], module_names::GROUP_NORM);
         assert_eq!(adapter.adapt(&snapshot).dtype, DType::F16);
 
         // RmsNorm
-        let snapshot = create_test_snapshot("rms.weight", vec![10], module_names::RMS_NORM);
+        let snapshot = create_test_snapshot("rms.weight", shape![10], module_names::RMS_NORM);
         assert_eq!(adapter.adapt(&snapshot).dtype, DType::F16);
     }
 
@@ -923,11 +923,11 @@ mod tests {
         let adapter = HalfPrecisionAdapter::new().without_module("LayerNorm");
 
         // LayerNorm removed from conversion set
-        let snapshot = create_test_snapshot("norm.gamma", vec![10], module_names::LAYER_NORM);
+        let snapshot = create_test_snapshot("norm.gamma", shape![10], module_names::LAYER_NORM);
         assert_eq!(adapter.adapt(&snapshot).dtype, DType::F32);
 
         // Linear still converted
-        let snapshot = create_test_snapshot("fc.weight", vec![2, 3], module_names::LINEAR);
+        let snapshot = create_test_snapshot("fc.weight", shape![2, 3], module_names::LINEAR);
         assert_eq!(adapter.adapt(&snapshot).dtype, DType::F16);
     }
 
@@ -936,7 +936,7 @@ mod tests {
         let adapter = HalfPrecisionAdapter::new().with_module("CustomLayer");
 
         // Custom module should now be converted
-        let snapshot = create_test_snapshot("custom.weight", vec![5], "Struct:CustomLayer");
+        let snapshot = create_test_snapshot("custom.weight", shape![5], "Struct:CustomLayer");
         assert_eq!(adapter.adapt(&snapshot).dtype, DType::F16);
     }
 
@@ -944,7 +944,7 @@ mod tests {
     fn test_half_precision_with_qualified_name() {
         let adapter = HalfPrecisionAdapter::new().with_module("Struct:CustomLayer");
 
-        let snapshot = create_test_snapshot("custom.weight", vec![5], "Struct:CustomLayer");
+        let snapshot = create_test_snapshot("custom.weight", shape![5], "Struct:CustomLayer");
         assert_eq!(adapter.adapt(&snapshot).dtype, DType::F16);
     }
 
@@ -952,18 +952,18 @@ mod tests {
     fn test_half_precision_chain() {
         let adapter = PyTorchToBurnAdapter.chain(HalfPrecisionAdapter::new());
 
-        let snapshot = create_test_snapshot("fc.weight", vec![10, 5], module_names::LINEAR);
+        let snapshot = create_test_snapshot("fc.weight", shape![10, 5], module_names::LINEAR);
         let adapted = adapter.adapt(&snapshot);
 
         // Should be both transposed and cast
-        assert_eq!(adapted.shape, vec![5, 10]);
+        assert_eq!(adapted.shape, shape![5, 10]);
         assert_eq!(adapted.dtype, DType::F16);
     }
 
     #[test]
     fn test_half_precision_skips_no_container() {
         let adapter = HalfPrecisionAdapter::new();
-        let mut snapshot = create_test_snapshot("fc.weight", vec![2, 3], module_names::LINEAR);
+        let mut snapshot = create_test_snapshot("fc.weight", shape![2, 3], module_names::LINEAR);
         snapshot.container_stack = None;
 
         // No module type info: skip
@@ -979,7 +979,7 @@ mod tests {
 
         // QFloat source: skip
         let qfloat_dtype = DType::QFloat(QuantScheme::default());
-        let snapshot = create_test_snapshot("fc.weight", vec![2, 3], module_names::LINEAR);
+        let snapshot = create_test_snapshot("fc.weight", shape![2, 3], module_names::LINEAR);
         let qfloat_snapshot = TensorSnapshot::from_closure(
             snapshot.clone_data_fn(),
             qfloat_dtype,
@@ -1004,7 +1004,7 @@ mod tests {
     fn test_half_precision_without_module_qualified() {
         let adapter = HalfPrecisionAdapter::new().without_module("Struct:LayerNorm");
 
-        let snapshot = create_test_snapshot("norm.gamma", vec![10], module_names::LAYER_NORM);
+        let snapshot = create_test_snapshot("norm.gamma", shape![10], module_names::LAYER_NORM);
         assert_eq!(adapter.adapt(&snapshot).dtype, DType::F32);
     }
 
@@ -1012,7 +1012,7 @@ mod tests {
     fn test_half_precision_with_module_batch_norm_opt_in() {
         let adapter = HalfPrecisionAdapter::new().with_module("BatchNorm");
 
-        let snapshot = create_test_snapshot("bn.weight", vec![10], module_names::BATCH_NORM);
+        let snapshot = create_test_snapshot("bn.weight", shape![10], module_names::BATCH_NORM);
         assert_eq!(adapter.adapt(&snapshot).dtype, DType::F16);
     }
 }

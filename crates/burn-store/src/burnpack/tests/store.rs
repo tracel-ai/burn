@@ -1301,7 +1301,7 @@ fn test_store_half_precision_chained_with_pytorch() {
     let weight = snapshots.get("linear.weight").unwrap();
     assert_eq!(weight.dtype, DType::F16);
     // Weight should be transposed: [4, 2] original -> [2, 4] after BurnToPyTorch
-    assert_eq!(weight.shape, vec![2, 4]);
+    assert_eq!(weight.shape, shape![2, 4]);
 
     // Load back with reverse chain: half-precision (F16 -> F32) then PyTorchToBurn
     let adapter = HalfPrecisionAdapter::new().chain(PyTorchToBurnAdapter);
