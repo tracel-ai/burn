@@ -195,7 +195,7 @@ cubecl-zspace = { version = "=0.10.0-pre.2", default-features = false }
 # cubek = { version = "=0.2.0-pre.2", default-features = false }
 
 ### For xtask crate ###
-tracel-xtask = "=4.13.3"
+tracel-xtask = "=4.13.4"
 # ### For local development. ###
 # tracel-xtask = { path = "../xtask/crates/tracel-xtask", default-features = false }
 
