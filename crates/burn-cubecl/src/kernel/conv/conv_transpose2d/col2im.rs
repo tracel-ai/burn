@@ -243,7 +243,7 @@ struct Col2ImArgs {
 #[cube(launch_unchecked, address_type = "dynamic")]
 fn col2im_kernel<E: Numeric>(
     columns: &Tensor<E>,
-    bias: &Option<Tensor<E>>,
+    bias: &ComptimeOption<Tensor<E>>,
     image: &mut LinearView<E, ReadWrite>,
     image_shape: Sequence<FastDivmod<usize>>,
     args: &Col2ImArgs,
@@ -298,8 +298,9 @@ fn col2im_kernel<E: Numeric>(
         }
     }
 
+    #[comptime]
     match bias {
-        Some(bias) => image[ABSOLUTE_POS] = val + bias[ch_im],
-        None => image[ABSOLUTE_POS] = val,
+        ComptimeOption::Some(bias) => image[ABSOLUTE_POS] = val + bias[ch_im],
+        ComptimeOption::None => image[ABSOLUTE_POS] = val,
     }
 }

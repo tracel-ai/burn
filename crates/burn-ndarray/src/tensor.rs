@@ -550,7 +550,6 @@ impl NdArrayTensor {
             shape,
             dtype,
         } = data;
-        let shape = shape.to_vec();
 
         macro_rules! try_borrow {
             ($ty:ty, $variant:ident, $bytes:expr, $shape:expr) => {
@@ -579,7 +578,7 @@ impl NdArrayTensor {
 
         Err(TensorData {
             bytes,
-            shape: shape.into(),
+            shape,
             dtype,
         })
     }

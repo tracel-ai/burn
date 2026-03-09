@@ -30,7 +30,7 @@ struct ConvArgs {
 fn conv_transpose3d_kernel<E: Numeric>(
     input: &Tensor<E>,
     weight: &Tensor<E>,
-    bias: &Option<Tensor<E>>,
+    bias: &ComptimeOption<Tensor<E>>,
     output: &mut LinearView<E, ReadWrite>,
     out_shape: Sequence<FastDivmod<usize>>,
     args: ConvArgs,
@@ -80,7 +80,7 @@ fn conv_transpose3d_kernel<E: Numeric>(
     let index_input_batch = batch * input.stride(0);
     let index_weight_out_c = out_channel * weight.stride(1);
 
-    let bias: Option<E> = bias.map(|bias| bias[out_c_out]);
+    let bias: ComptimeOption<E> = bias.map(|bias| bias[out_c_out]);
     let mut sum = bias.unwrap_or_default();
 
     let numerator_d_base = out_z + args.padding_0;

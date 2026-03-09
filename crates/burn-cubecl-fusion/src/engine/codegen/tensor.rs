@@ -84,7 +84,7 @@ impl LaunchArg for GlobalTensor {
 }
 
 impl<R: Runtime> ArgSettings<R> for GlobalTensorArg<'_, R> {
-    fn register(&self, launcher: &mut KernelLauncher<R>) {
-        launcher.register_tensor(&self.tensor)
+    fn register(self, launcher: &mut KernelLauncher<R>) {
+        launcher.register_tensor(self.tensor)
     }
 }

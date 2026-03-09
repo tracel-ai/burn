@@ -27,10 +27,10 @@ where
         }
 
         #[derive(new)]
-        struct BindingData<R: CubeRuntime> {
+        struct BindingData {
             index: usize,
             kind: Kind,
-            handle: Option<Handle<R>>,
+            handle: Option<Handle>,
             shape: Shape,
             strides: Strides,
             dtype: DType,

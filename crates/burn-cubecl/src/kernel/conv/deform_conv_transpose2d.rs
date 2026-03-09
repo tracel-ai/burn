@@ -304,10 +304,10 @@ struct DeformConv2dCol2ImgCoordArgs {
 fn deform_col2img_coord_kernel<F: Float>(
     image: &Tensor<F>,
     offset: &Tensor<F>,
-    mask: &Option<Tensor<F>>,
+    mask: &ComptimeOption<Tensor<F>>,
     columns: &Tensor<F>,
     grad_offset: &mut LinearView<F, ReadWrite>,
-    grad_mask: &mut Option<Tensor<F>>,
+    grad_mask: &mut ComptimeOption<Tensor<F>>,
     pos_shape: Sequence<FastDivmod<usize>>,
     args: &DeformConv2dCol2ImgCoordArgs,
     #[define(F)] _dtype: StorageType,
@@ -360,15 +360,16 @@ fn deform_col2img_coord_kernel<F: Float>(
     let offset_x = offset[offset_x_idx];
 
     let mask_pos_1 = offset_group * kernel_h * kernel_w + kernel_y * kernel_w + kernel_x;
+    #[comptime]
     let mask_value = match &mask {
-        Some(mask) => {
+        ComptimeOption::Some(mask) => {
             let mask_idx = batch * mask.stride(0)
                 + mask_pos_1 * mask.stride(1)
                 + out_y * mask.stride(2)
                 + out_x * mask.stride(3);
             mask[mask_idx]
         }
-        None => F::new(1.0),
+        ComptimeOption::None => F::new(1.0),
     };
 
     let is_y_direction = dir == 0;
@@ -399,7 +400,8 @@ fn deform_col2img_coord_kernel<F: Float>(
 
     grad_offset[ABSOLUTE_POS] = grad_offset_val;
 
-    if let Some(grad_mask) = grad_mask {
+    #[comptime]
+    if let ComptimeOption::Some(grad_mask) = grad_mask {
         if is_y_direction {
             let idx = batch * grad_mask.stride(0)
                 + mask_pos_1 * grad_mask.stride(1)
@@ -569,7 +571,7 @@ struct DeformConv2dCol2ImgArgs {
 #[cube(launch_unchecked, address_type = "dynamic")]
 fn deform_col2img_kernel<F: Float, FP: Float, FAdd: FloatAtomicAddFamily>(
     offset: &Tensor<F>,
-    mask: &Option<Tensor<F>>,
+    mask: &ComptimeOption<Tensor<F>>,
     columns: &LinearView<F>,
     grad_input: &mut Tensor<Atomic<ProxyType<FAdd, FP>>>,
     pos_shape: Sequence<FastDivmod<usize>>,
@@ -609,15 +611,16 @@ fn deform_col2img_kernel<F: Float, FP: Float, FAdd: FloatAtomicAddFamily>(
     let offset_y = offset[offset_y_idx];
     let offset_x = offset[offset_x_idx];
 
+    #[comptime]
     let mask_value = match mask {
-        Some(mask) => {
+        ComptimeOption::Some(mask) => {
             let mask_pos_1 = offset_group * kernel_h * kernel_w + kernel_y * kernel_w + kernel_x;
             mask[batch * mask.stride(0)
                 + mask_pos_1 * mask.stride(1)
                 + out_y * mask.stride(2)
                 + out_x * mask.stride(3)]
         }
-        None => F::new(1.0),
+        ComptimeOption::None => F::new(1.0),
     };
 
     let y = F::cast_from(out_y * args.stride_h + kernel_y * args.dilation_h)

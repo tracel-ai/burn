@@ -35,7 +35,12 @@ burn-std = { path = "../burn-std", version = "=0.21.0-pre.2", features = [
     "cubecl",
 ] }
 cubecl = { workspace = true }
-cubek = { workspace = true, features = ["matmul", "reduce", "quantization"] }
+cubek = { workspace = true, features = [
+    "matmul",
+    "reduce",
+    "quantization",
+    "stdlib",
+] }
 half = { workspace = true, optional = true }
 
 # Only for `TensorData` with autotune-checks

@@ -4,7 +4,7 @@ logger = { log = "info", level = "disabled" }
 [autotune]
 level = "balanced"
 cache = "target"
-logger = { file = "/tmp/autotune.log", level = "disabled" }
+logger = { info = true, level = "full" }
 
 [compilation]
 logger = { level = "disabled" }

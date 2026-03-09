@@ -112,10 +112,10 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceBroadcastedLaunch<'_> {
         }
 
         let block_end = match configs.len() > index {
-            true => OptionArgs::Some(ElemwiseFuseBlockLaunch::new(
+            true => ComptimeOptionArgs::Some(ElemwiseFuseBlockLaunch::new(
                 configs.last().cloned().unwrap(),
             )),
-            false => OptionArgs::None,
+            false => ComptimeOptionArgs::None,
         };
 
         // TODO: Ensure parallel is selected.
