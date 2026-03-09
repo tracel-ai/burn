@@ -76,7 +76,7 @@ planus = { version = "=1.1" }
 polars = { version = "0.53.0", features = ["lazy"] }
 pretty_assertions = "1.4.1"
 proc-macro2 = "1.0.106"
-quote = "1.0.42"
+quote = "1.0.45"
 r2d2 = "0.8.10"
 r2d2_sqlite = "0.31.0"
 rayon = "1.10.0"
