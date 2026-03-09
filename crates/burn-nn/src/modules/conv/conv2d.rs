@@ -64,7 +64,6 @@ pub struct Conv2d<B: Backend> {
     /// Controls the connections between input and output channels.
     pub groups: usize,
     /// The padding configuration.
-    #[module(skip)]
     pub padding: PaddingConfig2d,
 }
 

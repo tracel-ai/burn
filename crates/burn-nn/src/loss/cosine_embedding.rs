@@ -45,7 +45,6 @@ pub struct CosineEmbeddingLoss {
     pub margin: f32,
 
     /// Reduction method
-    #[module(skip)]
     pub reduction: Reduction,
 }
 

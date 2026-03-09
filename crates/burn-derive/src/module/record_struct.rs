@@ -33,16 +33,6 @@ impl ModuleRecordCodegen for StructModuleRecordCodegen {
                 used_generics.extend(&field.field_type.generic_idents);
             } else {
                 match field.field_type.attr {
-                    Some(ModuleFieldAttribute::Constant) => {
-                        // If constant, store the type directly in the record.
-                        // This assumes the type implements Clone and Serialize/Deserialize.
-                        fields.extend(quote! {
-                            #[allow(missing_docs)]
-                            #vis #name: burn::module::ValueRecord<#ty>,
-                        });
-
-                        used_generics.extend(&field.field_type.generic_idents);
-                    }
                     // Default (None) gets skipped
                     None | Some(ModuleFieldAttribute::Skip) => {
                         fields.extend(quote! {
@@ -67,6 +57,33 @@ impl ModuleRecordCodegen for StructModuleRecordCodegen {
             })
             .cloned()
             .collect();
+
+        if let Some(where_clause) = &mut filtered_generics.where_clause {
+            where_clause.predicates = where_clause
+                .predicates
+                .iter()
+                .filter(|pred| {
+                    match pred {
+                        syn::WherePredicate::Type(ty) => {
+                            // Check if the bounded type is one of our remaining generics
+                            if let syn::Type::Path(p) = &ty.bounded_ty {
+                                if let Some(ident) = p.path.get_ident() {
+                                    return ident == "B" || used_generics.contains(ident);
+                                }
+                            }
+                            true
+                        }
+                        _ => true,
+                    }
+                })
+                .cloned()
+                .collect();
+
+            // Remove the where clause entirely
+            if where_clause.predicates.is_empty() {
+                filtered_generics.where_clause = None;
+            }
+        }
 
         let (impl_generics, _generics_ty, generics_where) = filtered_generics.split_for_impl();
 

@@ -12,34 +12,28 @@ pub(crate) mod module;
 pub(crate) mod record;
 pub(crate) mod shared;
 
-// TODO: change nn modules `#[module(skip)]` (currently used for backward compat)
-// to `#[module(constant)` for persistent non-parameter fields.
-
 /// Derive macro for the `Module` trait.
+///
+/// # Sub-modules
+///
+/// By default, the macro automatically detects sub-modules and parameters as module types.
+///
+/// Any field not recognized as a module type is assumed to be a non-module
+/// and is skipped by the module system (not persistent, not visited).
+///
+/// ## Generics
+///
+/// Generic type parameters (e.g., `field: M`) are assumed to be sub-modules by default.
+/// If a generic field represents some other runtime state or configuration, you can use
+/// the `#[module(skip)]` attribute to provide a hint.
 ///
 /// # Field Attributes
 ///
-/// By default, every field in a `Module` is treated as a sub-module or a parameter.
-/// You can change this behavior using the `#[module]` attribute.
-///
-/// ## `#[module(constant)]`
-///
-/// Marks the field as a constant value. Constants are not parameters or modules, but are persistent.
-///
-/// Use this for configuration or other persistent metadata that should be saved and loaded with the module.
-///
-/// ### Requirements
-///
-/// The field must implement: `Debug + Clone + Send + Serialize + DeserializeOwned`.
-///
 /// ## `#[module(skip)]`
 ///
-/// Marks the field to be skipped by the module system. Skipped fields are
-/// not parameters, not modules, and are not persistent.
+/// Explicitly marks a field to be ignored by the module derive.
 ///
-/// Use this for fields that should not be saved or restored with the module,
-/// such as markers, caches or other auxiliary runtime state.
-///
+/// Skipped fields are not parameters, not modules, and are not persistent.
 /// This is equivalent to the deprecated `Ignored<T>` wrapper.
 ///
 /// ### Requirements
@@ -50,18 +44,20 @@ pub(crate) mod shared;
 ///
 /// ```ignore
 /// #[derive(Module, Debug)]
-/// pub struct MyModule<B: Backend> {
+/// pub struct MyModule<B: Backend, M, N: NonModuleTrait> {
 ///     /// A normal parameter.
 ///     weights: Param<Tensor<B, 2>>,
-///     /// A persistent config value.
-///     #[module(constant)]
+///     /// A field configured at runtime.
 ///     dropout_prob: f64,
 ///     /// A field that is recomputed at runtime.
-///     #[module(skip)]
 ///     cached_mask: Option<Tensor<B, 2>>,
 ///     /// A field that contains some debug state.
-///     #[module(skip)]
 ///     debug_state: String,
+///     /// Treated as a module (default for generics).
+///     inner: M,
+///     /// Hint required: this generic is NOT a module.
+///     #[module(skip)]
+///     other: N,
 /// }
 /// ```
 #[proc_macro_derive(Module, attributes(module))]

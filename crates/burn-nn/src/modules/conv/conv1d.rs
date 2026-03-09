@@ -62,7 +62,6 @@ pub struct Conv1d<B: Backend> {
     /// Controls the connections between input and output channels.
     pub groups: usize,
     /// Padding configuration.
-    #[module(skip)]
     pub padding: PaddingConfig1d,
 }
 

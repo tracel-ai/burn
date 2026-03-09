@@ -308,16 +308,19 @@ impl GenericsParser {
             }
             else {
                 match generic_kind {
-                    // Add required bounds at a higher level to make error message more explicit
-                    Some(GenericKind::Constant) => {
-                        module_autodiff.add_predicate(
+                    // Add required bounds to impl
+                    Some(GenericKind::Skip) => {
+                        module.add_predicate(
                             parse_quote! {
-                                #ident: Clone + core::fmt::Debug + Send + burn::serde::Serialize + burn::serde::de::DeserializeOwned
+                                #ident: Clone + core::fmt::Debug + Send
                             }
                         );
-                    },
-                    Some(GenericKind::Skip) => {
                         module_autodiff.add_predicate(
+                            parse_quote! {
+                                #ident: Clone + core::fmt::Debug + Send
+                            }
+                        );
+                        module_has_autodiff.add_predicate(
                             parse_quote! {
                                 #ident: Clone + core::fmt::Debug + Send
                             }

@@ -7,8 +7,6 @@ use syn::{GenericParam, Generics, Type, TypeParamBound, WherePredicate, visit::V
 pub enum GenericKind {
     /// A generic with `Module<B>` bound.
     Module,
-    /// A generic used in a field marked by `#[module(constant)]`.
-    Constant,
     /// A generic used in a field marked by `#[module(skip)]`.
     Skip,
     /// A plain generic that does not fit any of the above conditions.

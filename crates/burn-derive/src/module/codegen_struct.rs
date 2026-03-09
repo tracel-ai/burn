@@ -195,9 +195,6 @@ impl ModuleCodegen for StructModuleCodegen {
                 quote! { #name: burn::module::Module::<B>::into_record(self.#name), }
             } else {
                 match field_type.attr {
-                    Some(ModuleFieldAttribute::Constant) => {
-                        quote! { #name: burn::module::ValueRecord::new(self.#name), }
-                    }
                     // Default (None) gets skipped
                     None | Some(ModuleFieldAttribute::Skip) => {
                         quote! { #name: burn::module::EmptyRecord::new(), }
@@ -219,9 +216,6 @@ impl ModuleCodegen for StructModuleCodegen {
                 quote! { #name: burn::module::Module::<B>::load_record(self.#name, record.#name), }
             } else {
                 match field_type.attr {
-                    Some(ModuleFieldAttribute::Constant) => {
-                        quote! { #name: record.#name.consume(), }
-                    }
                     // Default (None) gets skipped
                     None | Some(ModuleFieldAttribute::Skip) => {
                         quote! { #name: self.#name, }
@@ -341,7 +335,6 @@ impl ModuleField {
 
 #[derive(Debug)]
 pub enum ModuleFieldAttribute {
-    Constant,
     Skip,
 }
 
@@ -418,21 +411,12 @@ pub(crate) fn parse_module_field_type(
     let is_param = is_param_type(&field.ty);
     let is_tensor = is_tensor_type(&field.ty);
 
+    let is_module = !is_primitive && (has_module_bound || is_param || is_tensor || has_backend);
+
     for attr in &field.attrs {
         if attr.path().is_ident("module") {
             attr.parse_nested_meta(|meta| {
-                if meta.path.is_ident("constant") {
-                    if is_tensor {
-                        Err(meta.error("Fields of type 'Tensor' cannot be marked as 'constant' due to the current default behavior."))
-                    } else {
-                        // Mark field attribute and generic
-                        field_type.attr = Some(ModuleFieldAttribute::Constant);
-                        for ty in &field_generics {
-                            generics.update(ty, GenericKind::Constant);
-                        }
-                        Ok(())
-                    }
-                } else if meta.path.is_ident("skip") {
+                if meta.path.is_ident("skip") {
                     // Mark field attribute and generic
                     field_type.attr = Some(ModuleFieldAttribute::Skip);
                     for ty in &field_generics {
@@ -445,7 +429,7 @@ pub(crate) fn parse_module_field_type(
                 }?;
 
                 if is_param && field_type.attr.is_some() {
-                    Err(meta.error("Fields of type 'Param' should not be marked as 'constant' or 'skip'. Use a 'Tensor' instead."))
+                    Err(meta.error("Fields of type 'Param' should not be marked as 'skip'. Use a 'Tensor' instead."))
                 } else {
                     Ok(())
                 }
@@ -453,8 +437,7 @@ pub(crate) fn parse_module_field_type(
         }
     }
 
-    field_type.is_module =
-        !is_primitive && (has_module_bound || is_param || is_tensor || has_backend);
+    field_type.is_module = is_module;
     field_type.generic_idents = field_generics;
 
     Ok(field_type)

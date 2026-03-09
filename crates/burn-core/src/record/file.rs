@@ -444,10 +444,7 @@ mod tests {
         tensor: Tensor<B, 1>,
         arr: [usize; 2],
         int: usize,
-        #[module(skip)] // same as Ignored
         skip: PaddingConfig2d,
-        #[module(constant)]
-        constant: PaddingConfig2d,
     }
 
     impl<B: Backend> ModelComposed<B> {
@@ -459,7 +456,6 @@ mod tests {
                 arr: [2, 2],
                 int: 0,
                 skip: PaddingConfig2d::Same,
-                constant: PaddingConfig2d::Same,
             }
         }
     }
@@ -473,12 +469,11 @@ mod tests {
         let device = Default::default();
         let mut model_before = ModelComposed::new(&device);
 
-        // NOTE: Only `#[module(constant)]` fields persist
+        // all skipped fields
         model_before.tensor = Tensor::full([4], 2., &device);
         model_before.arr = [3, 3];
         model_before.int = 1;
         model_before.skip = PaddingConfig2d::Valid;
-        model_before.constant = PaddingConfig2d::Valid;
 
         recorder
             .record(model_before.clone().into_record(), file_path(filename))
@@ -489,8 +484,6 @@ mod tests {
 
         // `#[module(skip)]` does not persist, the initial value remains
         assert_eq!(model_after.skip, PaddingConfig2d::Same);
-        // `#[module(constant)]` does persist, the saved value is loaded
-        assert_eq!(model_after.constant, PaddingConfig2d::Valid);
 
         let byte_recorder = BinBytesRecorder::<FullPrecisionSettings>::default();
         let model_bytes_before = byte_recorder

@@ -43,7 +43,6 @@ pub struct MaxPool2d {
     /// The size of the kernel.
     pub kernel_size: [usize; 2],
     /// The padding configuration.
-    #[module(skip)]
     pub padding: PaddingConfig2d,
     /// The dilation.
     pub dilation: [usize; 2],

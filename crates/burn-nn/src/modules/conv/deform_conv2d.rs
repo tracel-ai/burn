@@ -70,7 +70,6 @@ pub struct DeformConv2d<B: Backend> {
     /// Offset groups.
     pub offset_groups: usize,
     /// The padding configuration.
-    #[module(skip)]
     pub padding: PaddingConfig2d,
 }
 

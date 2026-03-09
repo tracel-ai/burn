@@ -1,6 +1,5 @@
 use alloc::{format, string::ToString};
 use core::{fmt::Display, marker::PhantomData};
-use serde::{Serialize, de::DeserializeOwned};
 
 use crate as burn;
 use crate::{
@@ -131,7 +130,7 @@ macro_rules! empty {
     };
 }
 
-// TODO: breaking change for these constant types (currently empty record, non-persistent)
+// TODO: breaking change for these constant types (currently empty record, non-persistent)?
 
 // General Types
 empty!(alloc::string::String);
@@ -280,7 +279,7 @@ impl<B: AutodiffBackend> AutodiffModule<B> for PhantomData<B> {
 #[derive(Clone, Debug)]
 #[deprecated(
     since = "0.21.0",
-    note = "Ignored<T> is deprecated. Use #[module(skip)] for non-persistent fields (same behavior) or #[module(constant)] for persistent fields."
+    note = "Ignored<T> is deprecated. Use #[module(skip)] for non-persistent fields (same behavior)."
 )]
 pub struct Ignored<T>(pub T);
 
@@ -369,43 +368,6 @@ impl<T> core::ops::Deref for Ignored<T> {
 
     fn deref(&self) -> &Self::Target {
         &self.0
-    }
-}
-
-/// A record that persists a simple value.
-///
-/// This is used for fields marked with `#[module(constant)]`.
-#[derive(Debug, Clone, Copy, new)]
-pub struct ValueRecord<T> {
-    value: T,
-}
-
-impl<T: PartialEq> PartialEq for ValueRecord<T> {
-    fn eq(&self, other: &Self) -> bool {
-        self.value == other.value
-    }
-}
-
-impl<T> ValueRecord<T> {
-    /// Gets the value while consuming the record.
-    pub fn consume(self) -> T {
-        self.value
-    }
-}
-
-impl<B: Backend, T> Record<B> for ValueRecord<T>
-where
-    T: Send + Serialize + DeserializeOwned + Clone, // Record and item
-{
-    // The Item is the type T itself, as it already satisfies the bounds
-    type Item<S: PrecisionSettings> = T;
-
-    fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
-        self.value
-    }
-
-    fn from_item<S: PrecisionSettings>(item: Self::Item<S>, _device: &B::Device) -> Self {
-        Self { value: item }
     }
 }
 

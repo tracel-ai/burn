@@ -51,7 +51,6 @@ pub struct AvgPool1d {
     /// The size of the kernel.
     pub kernel_size: usize,
     /// The padding configuration.
-    #[module(skip)]
     pub padding: PaddingConfig1d,
     /// If the padding is counted in the denominator when computing the average.
     pub count_include_pad: bool,

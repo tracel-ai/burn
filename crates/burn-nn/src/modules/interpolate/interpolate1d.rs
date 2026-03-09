@@ -61,7 +61,6 @@ pub struct Interpolate1d {
     pub scale_factor: Option<f32>,
 
     /// Interpolation mode used for resizing
-    #[module(skip)]
     pub mode: InterpolateMode,
 
     /// Whether to align corner pixels
