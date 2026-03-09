@@ -3,7 +3,7 @@ use std::{collections::HashMap, sync::atomic::AtomicU32};
 use crate::NodeId;
 use burn_communication::{Address, CommunicationError};
 use burn_std::id::IdGenerator;
-use burn_tensor::backend::PeerId;
+use burn_tensor::communication::PeerId;
 use serde::{Deserialize, Serialize};
 
 /// A unique identifier for each request made to a global orchestrator

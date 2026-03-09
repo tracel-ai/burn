@@ -8,7 +8,7 @@ use alloc::{string::String, vec::Vec};
 pub use burn_derive::Module;
 use burn_tensor::{
     Bool, Int, Tensor,
-    backend::{PeerId, ReduceOperation},
+    communication::{PeerId, ReduceOperation},
     ops::Device,
 };
 

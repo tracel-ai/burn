@@ -1,7 +1,8 @@
 use burn_communication::Protocol;
 use burn_communication::data_service::TensorDataServer;
 use burn_communication::{Address, ProtocolServer, data_service::TensorDataService};
-use burn_tensor::backend::{AllReduceStrategy, Backend, PeerId, ReduceOperation};
+use burn_tensor::backend::Backend;
+use burn_tensor::communication::{AllReduceStrategy, PeerId, ReduceOperation};
 use std::collections::HashMap;
 use std::{marker::PhantomData, sync::Arc};
 use tokio::sync::RwLock;

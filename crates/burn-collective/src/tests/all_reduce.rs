@@ -4,7 +4,8 @@ mod tests {
     use burn_std::rand::get_seeded_rng;
     use burn_tensor::{
         Tensor, TensorData, TensorPrimitive, Tolerance,
-        backend::{AllReduceStrategy, Backend, PeerId, ReduceOperation},
+        backend::Backend,
+        communication::{AllReduceStrategy, PeerId, ReduceOperation},
     };
 
     use serial_test::serial;

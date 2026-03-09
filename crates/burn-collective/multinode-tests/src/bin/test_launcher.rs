@@ -1,6 +1,6 @@
 use burn::tensor::{
     TensorData,
-    backend::{AllReduceStrategy, ReduceOperation},
+    communication::{AllReduceStrategy, ReduceOperation},
 };
 use burn_communication::Address;
 use futures::{SinkExt, StreamExt};

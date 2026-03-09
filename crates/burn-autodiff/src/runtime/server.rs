@@ -6,8 +6,7 @@ use crate::{
         builder::CheckpointerBuilder,
     },
     collections::HashMap,
-    grad_sync::api::get_gradient_sync_client,
-    grads::Gradients,
+    grads::{GradientSyncRegistration, Gradients},
     graph::{
         NodeRef, StepBoxed,
         traversal::{BreadthFirstSearch, TraversalItem},
@@ -15,7 +14,7 @@ use crate::{
     tensor::NodeRefCount,
 };
 use alloc::vec::Vec;
-use burn_backend::{Backend, ShardedParams, tensor::FloatTensor};
+use burn_backend::{Backend, DeviceOps, ShardedParams, tensor::FloatTensor};
 
 struct TapeResult {
     tape: Vec<Vec<StepBoxed>>,
@@ -62,6 +61,7 @@ impl AutodiffServer {
         root_tensor: FloatTensor<B>,
         node_id: NodeId,
     ) -> Gradients {
+        let device = &B::float_device(&root_tensor);
         let step = self.steps.remove(&node_id).expect(
             "Node should have a step registered, did you forget to call \
              `Tensor::register_grad` on the tensor where you need gradients?",
@@ -71,16 +71,26 @@ impl AutodiffServer {
         let mut consumed = Vec::new();
         let tape_result = self.build_tape(node_id, step, builder, &mut consumed);
 
-        if let Some(sync_client) = get_gradient_sync_client::<B>() {
-            sync_client.register_device(tape_result.n_required_map, tape_result.sharded_params);
-        };
-
-        let grads = Gradients::new::<B>(root_node.clone(), root_tensor);
+        // For DDP, we register the parameters used in the graph and the number of times they appear as nodes,
+        // to know when to sync the gradients across devices.
+        let mut sync_registration = None;
+        if !tape_result.sharded_params.is_empty() {
+            sync_registration = Some(GradientSyncRegistration::new(
+                tape_result.n_required_map,
+                tape_result.sharded_params.clone(),
+            ));
+            B::register_graph(
+                device,
+                tape_result.sharded_params.values().cloned().collect(),
+            );
+        }
+        let grads = Gradients::new::<B>(root_node.clone(), root_tensor, sync_registration);
         let gradients = Self::execute_steps(tape_result.tape, grads, tape_result.checkpointer);
 
-        if let Some(sync_client) = get_gradient_sync_client::<B>() {
-            sync_client.wait_gradients_sync();
-        };
+        // TODO: HEREEEEE.
+        // if let Some(sync_client) = get_gradient_sync_client::<B>(device) {
+        //     sync_client.wait_gradients_sync();
+        // };
 
         // Cleanup
         let mut cleaner = NC::init();

@@ -538,7 +538,7 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
     }
 
     fn comm_duplicated(
-        tensor: &mut FloatTensor<Self>,
+        _tensor: &mut FloatTensor<Self>,
     ) -> burn_backend::tensor::CommunicationTensor<Self> {
         todo!()
     }

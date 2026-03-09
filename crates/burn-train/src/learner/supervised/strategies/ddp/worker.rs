@@ -6,7 +6,7 @@ use crate::{
     TrainLoader, TrainingBackend, ValidLoader,
 };
 use burn_core::tensor::Device;
-use burn_core::tensor::backend::PeerId;
+use burn_core::tensor::communication::PeerId;
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 
@@ -81,7 +81,7 @@ where
         self.learner.fork(&self.device);
         self.learner.grad_sharded(
             self.peer_id,
-            burn_core::tensor::backend::ReduceOperation::Mean,
+            burn_core::tensor::communication::ReduceOperation::Mean,
         );
 
         for training_progress in TrainingLoop::new(self.starting_epoch, num_epochs) {

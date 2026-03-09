@@ -35,7 +35,7 @@ pub enum AllReduceStrategy {
 ///
 /// This is like the rank in NCCL
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct PeerId(u32);
+pub struct PeerId(pub u32);
 
 impl core::fmt::Display for PeerId {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {

@@ -591,4 +591,10 @@ impl FloatTensorOps<Self> for Dispatch {
     fn float_is_inf(tensor: FloatTensor<Self>) -> BoolTensor<Self> {
         unary_float!(tensor, float, |tensor| B::float_is_inf(tensor) => Bool)
     }
+
+    fn comm_duplicated(
+        _tensor: &mut FloatTensor<Self>,
+    ) -> burn_backend::tensor::CommunicationTensor<Self> {
+        todo!()
+    }
 }

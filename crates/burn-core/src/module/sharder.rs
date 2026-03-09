@@ -1,6 +1,7 @@
 use burn_tensor::{
     Tensor,
-    backend::{Backend, ModuleParamId, PeerId, ReduceOperation},
+    backend::Backend,
+    communication::{ModuleParamId, PeerId, ReduceOperation},
 };
 
 use crate::module::{ModuleMapper, Param};

@@ -6,6 +6,7 @@ use burn::tensor::backend::Backend;
 use burn::tensor::{Int, Tensor};
 use burn_core as burn;
 use burn_cubecl::CubeBackend;
+use burn_tensor::ops::CommunicationTensorOps;
 use cubecl::cuda::CudaRuntime;
 
 // pub type TestBackend = burn_ndarray::NdArray<f32>;
@@ -276,11 +277,16 @@ mod num_params {
 #[cfg(feature = "std")]
 mod require_grad {
     use std::sync::mpsc::SyncSender;
+    use std::thread;
+    use std::time::Duration;
 
-    use burn_autodiff::start_gradient_sync_server;
+    use burn_backend::Device;
+    use burn_backend::DeviceId;
+    use burn_backend::DeviceOps;
     use burn_tensor::{
         TensorData,
-        backend::{AutodiffBackend, PeerId, ReduceOperation},
+        backend::AutodiffBackend,
+        communication::{PeerId, ReduceOperation},
     };
     use rand::{
         SeedableRng,
@@ -401,28 +407,58 @@ mod require_grad {
             Tensor<TestAutodiffBackend, 2>,
         ) -> Tensor<TestAutodiffBackend, 2>,
     ) {
-        let num_devices = 4;
-        let device = <TestBackend as Backend>::Device::default();
-        let module = ModuleBasic::<TestAutodiffBackend>::new(&device);
+        let type_id = 0;
+        // let num_devices = <TestAutodiffBackend as Backend>::Device::device_count(type_id);
+        let num_devices = 2;
+        println!("num_devices: {num_devices}");
+        let devices: Vec<<TestAutodiffBackend as Backend>::Device> = (0..num_devices)
+            .map(|i| {
+                <TestAutodiffBackend as Backend>::Device::from_id(DeviceId::new(type_id, i as u32))
+            })
+            .collect();
+        println!("devices: {:?}", devices);
+        println!(
+            "devices id: {:?}",
+            devices.iter().map(|d| d.id()).collect::<Vec<DeviceId>>()
+        );
+
+        let module = ModuleBasic::<TestAutodiffBackend>::new(&devices[0]);
 
         let mut recvs = vec![];
-        start_gradient_sync_server::<TestBackend>(num_devices);
+        println!("gradient sync start");
+        // start_gradient_sync_server::<TestBackend>(devices.clone());
+        <TestBackend>::start_communication_server(devices.clone());
+        println!("gradient sync started");
         for i in 0..num_devices {
+            let device = devices[i].clone();
             let (send, recv) = std::sync::mpsc::sync_channel(32);
             recvs.push(recv);
-            std::thread::spawn({
-                let module_thread = module.clone();
-                move || run_peer_sharded(&module_thread, PeerId::from(i), op, send, transformation)
+            let module_thread = module.clone();
+            std::thread::spawn(move || {
+                run_peer_sharded(
+                    &module_thread,
+                    PeerId::from(i),
+                    op,
+                    send,
+                    transformation,
+                    device,
+                )
             });
         }
 
+        println!("all spawned");
+
+        thread::sleep(Duration::from_millis(5000));
+
         let grad_x1 = recvs[0].recv().unwrap();
         for i in 1..num_devices {
+            let new_tensor = &recvs[i].recv().unwrap().unwrap().to_data();
+            println!("new_tensor : {}", new_tensor);
             grad_x1
                 .clone()
                 .unwrap()
                 .to_data()
-                .assert_eq(&recvs[i].recv().unwrap().unwrap().to_data(), true);
+                .assert_eq(new_tensor, true);
         }
     }
 
@@ -437,8 +473,9 @@ mod require_grad {
             Tensor<TestAutodiffBackend, 2>,
             Tensor<TestAutodiffBackend, 2>,
         ) -> Tensor<TestAutodiffBackend, 2>,
+        device: <TestAutodiffBackend as Backend>::Device,
     ) {
-        let device = <TestAutodiffBackend as Backend>::Device::default();
+        println!("device run_poeer {:?}", device);
         let module = module.clone().fork(&device);
 
         let module = module.grad_sharded(id, op);

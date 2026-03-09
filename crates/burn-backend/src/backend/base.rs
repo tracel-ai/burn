@@ -1,3 +1,5 @@
+use std::any::TypeId;
+
 use burn_std::DType;
 pub use burn_std::backtrace::BackTrace;
 
@@ -128,6 +130,13 @@ pub trait Backend:
 
     /// Name of the backend.
     fn name(device: &Self::Device) -> String;
+
+    // TODO: remove
+    /// [TypeId] the backend.
+    fn type_id(_device: &Self::Device) -> TypeId {
+        println!("Default");
+        TypeId::of::<Self>()
+    }
 
     /// Seeds the backend on the specified device.
     ///

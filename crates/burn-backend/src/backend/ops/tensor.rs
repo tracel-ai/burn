@@ -1676,5 +1676,6 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The communication tensor with the same data as the float tensor.
+    /// // TODO: remove
     fn comm_duplicated(tensor: &mut FloatTensor<B>) -> CommunicationTensor<B>;
 }

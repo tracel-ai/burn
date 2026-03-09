@@ -1,5 +1,5 @@
 use burn_backend::{
-    AllReduceStrategy, Backend, ReduceOperation,
+    AllReduceStrategy, Backend, ReduceOperation, ShardedParams,
     ops::{CommunicationTensorOps, TensorRef},
     tensor::{CommunicationTensor, Device, FloatTensor},
 };
@@ -7,6 +7,18 @@ use burn_backend::{
 use crate::{Autodiff, checkpoint::strategy::CheckpointStrategy, tensor::AutodiffTensor};
 
 impl<B: Backend, C: CheckpointStrategy> CommunicationTensorOps<Self> for Autodiff<B, C> {
+    fn all_reduce_inplace(tensor: TensorRef<Self>, sharded_params: ShardedParams) {
+        todo!()
+    }
+
+    fn all_reduce_inplace_native(
+        tensor: TensorRef<Self>,
+        peer_id: burn_backend::PeerId,
+        all_ids: Vec<burn_backend::PeerId>,
+        op: ReduceOperation,
+    ) {
+        todo!()
+    }
     // unsafe fn all_reduce_inplace(
     //     tensors: Vec<TensorRef<Self>>,
     //     strategy: AllReduceStrategy,

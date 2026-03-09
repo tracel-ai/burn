@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     sync::{
         Arc, Condvar, Mutex,
         mpsc::{self, Sender},
@@ -6,9 +7,7 @@ use std::{
     thread::spawn,
 };
 
-use burn_backend::{Backend, ShardedParams, ops::TensorRef};
-
-use crate::{NodeId, collections::HashMap, grad_sync::server::GradientSyncServer};
+use crate::{Backend, ModuleParamId, ShardedParams, ops::TensorRef, server::GradientSyncServer};
 
 pub(crate) enum MessageAction<B: Backend> {
     Message(GradientSyncMessage<B>),
@@ -16,8 +15,9 @@ pub(crate) enum MessageAction<B: Backend> {
 }
 
 pub(crate) enum GradientSyncMessage<B: Backend> {
-    RegisterDevice((HashMap<NodeId, usize>, HashMap<NodeId, ShardedParams>)),
-    Register((NodeId, TensorRef<B>)),
+    RegisterDevice(Vec<ShardedParams>),
+    // RegisterDevice((HashMap<u64, usize>, HashMap<u64, ShardedParams>)),
+    Register((TensorRef<B>, ShardedParams)),
 }
 
 #[derive(Clone)]
@@ -27,11 +27,11 @@ pub struct GradientSyncClient<B: Backend> {
 }
 
 impl<B: Backend> GradientSyncClient<B> {
-    pub(crate) fn new(num_devices: usize) -> Self {
+    pub(crate) fn new(devices: Vec<B::Device>) -> Self {
         let (tx, rx) = std::sync::mpsc::channel();
         let is_finished_fence = Arc::new((Mutex::new(false), Condvar::new()));
 
-        let mut server = GradientSyncServer::new(num_devices, is_finished_fence.clone());
+        let mut server = GradientSyncServer::new(devices, is_finished_fence.clone());
         let fence_clone = is_finished_fence.clone();
         spawn(move || {
             loop {
@@ -60,22 +60,26 @@ impl<B: Backend> GradientSyncClient<B> {
         }
     }
 
+    // TODO: Might be more logical to let the autodiff graph/gradients struct decide when to register the gradients to the server.
+    // The "unused" parameters in the graph will just be sent right away with 0 gradients and the all_reduce is launched simply when the param_id count reaches num_devices.
     pub fn register_device(
         &self,
-        n_required_map: HashMap<NodeId, usize>,
-        sharded_params_map: HashMap<NodeId, ShardedParams>,
+        // n_required_map: HashMap<u64, usize>,
+        // sharded_params_map: HashMap<u64, ShardedParams>,
+        sharded_params: Vec<ShardedParams>,
     ) {
         self.sender
             .send(MessageAction::Message(GradientSyncMessage::RegisterDevice(
-                (n_required_map, sharded_params_map),
+                // (n_required_map, sharded_params_map),
+                sharded_params,
             )))
             .unwrap();
     }
 
-    pub fn on_register(&self, id: NodeId, tensor: TensorRef<B>) {
+    pub fn on_register(&self, tensor: TensorRef<B>, params: ShardedParams) {
         self.sender
             .send(MessageAction::Message(GradientSyncMessage::Register((
-                id, tensor,
+                tensor, params,
             ))))
             .unwrap();
     }

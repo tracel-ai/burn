@@ -113,7 +113,7 @@ burn-cubecl = { path = "../burn-cubecl", version = "=0.21.0-pre.2", optional = t
     "fusion",
 ] }
 
-burn-collective = { path = "../burn-collective", version = "=0.21.0-pre.1", default-features = false }
+burn-collective = { path = "../burn-collective", version = "=0.21.0-pre.2", default-features = false }
 
 num-traits = { workspace = true }
 serial_test = { workspace = true }

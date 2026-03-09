@@ -5,7 +5,6 @@ use crate::kernel::unary_basic::BasicFloatUnaryKind;
 use crate::kernel::{
     self, FloatUnaryOp, FloatUnaryOpFamily, launch_unary_float, reduce, unary_basic,
 };
-use crate::tensor::CubeCommTensor;
 use crate::{CubeRuntime, FloatElement, IntElement};
 use crate::{
     element::BoolElement,
@@ -621,7 +620,7 @@ where
         kernel::grid_sample::grid_sample(tensor, grid, options)
     }
 
-    fn comm_duplicated(tensor: &mut FloatTensor<Self>) -> CommunicationTensor<Self> {
-        CubeCommTensor::from(tensor)
+    fn comm_duplicated(_tensor: &mut FloatTensor<Self>) -> CommunicationTensor<Self> {
+        todo!()
     }
 }

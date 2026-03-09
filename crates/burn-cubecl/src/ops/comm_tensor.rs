@@ -4,8 +4,11 @@ use burn_backend::{
     ops::CommunicationTensorOps,
     tensor::{CommunicationTensor, Device, FloatTensor},
 };
+use burn_backend::{DeviceId, DeviceOps};
+use cubecl::Runtime;
 
-use crate::{BoolElement, CubeBackend, CubeRuntime, FloatElement, IntElement};
+use crate::tensor::CubeTensor;
+use crate::{BoolElement, CubeBackend, CubeRuntime, FloatElement, IntElement, kernel};
 
 // pub(crate) fn reduce_sum_centralized<B: Backend>(
 //     tensors: &Vec<B::CommunicationTensorPrimitive>,
@@ -45,6 +48,27 @@ use crate::{BoolElement, CubeBackend, CubeRuntime, FloatElement, IntElement};
 //     B::all_broadcast_inplace(central_tensor, tensors);
 // }
 
+// fn all_reduce_inplace<R: CubeRuntime>(inputs: Vec<&CubeTensor<R>>, outputs: Vec<&CubeTensor<R>>) {
+fn all_reduce_inplace<R: CubeRuntime>(tensors: Vec<&CubeTensor<R>>) {
+    println!("All reduce inplace");
+    // TODO: need a check for this in cubecl?
+    // TODO: All device IDs should be different or else we die.
+    let device_ids: Vec<burn_backend::DeviceId> =
+        tensors.iter().map(|tensor| tensor.device.id()).collect();
+    println!("Device ids {:?}", device_ids);
+    for tensor in tensors {
+        // let tensor = kernel::into_contiguous_aligned(*tensor);
+        let id = tensor.device.id();
+
+        println!("id {:?}", id);
+        tensor.client.all_reduce(
+            tensor.handle.clone(),
+            tensor.handle.clone(),
+            device_ids.clone(),
+        );
+    }
+}
+
 impl<R, F, I, BT> CommunicationTensorOps<Self> for CubeBackend<R, F, I, BT>
 where
     R: CubeRuntime,
@@ -52,6 +76,40 @@ where
     I: IntElement,
     BT: BoolElement,
 {
+    fn supports_native_communication(_device: &Device<Self>) -> bool {
+        true
+    }
+
+    fn all_reduce_inplace_native(
+        tensor: TensorRef<Self>,
+        _peer_id: burn_backend::PeerId,
+        all_ids: Vec<burn_backend::PeerId>,
+        _op: ReduceOperation,
+    ) {
+        unsafe {
+            let tensor = &**tensor.0;
+            let device = &tensor.device;
+            let client = R::client(device);
+            let mut all_ids = all_ids.iter().map(|p| p.0).collect::<Vec<u32>>();
+            all_ids.sort();
+            let all_ids = all_ids
+                .iter()
+                .map(|val| DeviceId::new(device.id().type_id, *val))
+                .collect();
+            client.all_reduce(tensor.handle.clone(), tensor.handle.clone(), all_ids);
+        }
+    }
+    // unsafe fn all_reduce_inplace(
+    //     tensors: Vec<TensorRef<Self>>,
+    //     strategy: AllReduceStrategy,
+    //     op: ReduceOperation,
+    // ) {
+    //     let tensors = tensors
+    //         .iter()
+    //         .map(|tensor| &**tensor.0)
+    //         .collect::<Vec<&CubeTensor<R>>>();
+    //     all_reduce_inplace(tensors);
+    // }
     // unsafe fn all_reduce_inplace(
     //     tensors: Vec<TensorRef<Self>>,
     //     strategy: AllReduceStrategy,

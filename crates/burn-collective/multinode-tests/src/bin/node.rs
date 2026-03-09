@@ -3,7 +3,7 @@ use burn::{
     prelude::Backend,
     tensor::{
         Tensor, TensorPrimitive, Tolerance,
-        backend::{PeerId, ReduceOperation},
+        communication::{PeerId, ReduceOperation},
     },
 };
 use burn_collective::{

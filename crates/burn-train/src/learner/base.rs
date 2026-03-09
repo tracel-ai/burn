@@ -11,7 +11,8 @@ use crate::{
 use burn_core::module::{AutodiffModule, Module};
 use burn_core::prelude::Backend;
 use burn_core::tensor::Device;
-use burn_core::tensor::backend::{AutodiffBackend, PeerId, ReduceOperation};
+use burn_core::tensor::backend::AutodiffBackend;
+use burn_core::tensor::communication::{PeerId, ReduceOperation};
 use burn_optim::lr_scheduler::LrScheduler;
 use burn_optim::{GradientsParams, MultiGradientsParams, Optimizer};
 use std::sync::atomic::{AtomicBool, Ordering};

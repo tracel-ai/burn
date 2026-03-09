@@ -6,7 +6,8 @@ use crate::{
         server::{FinishResult, Message, RegisterResult},
     },
 };
-use burn_tensor::backend::{Backend, PeerId, ReduceOperation};
+use burn_tensor::backend::Backend;
+use burn_tensor::communication::{PeerId, ReduceOperation};
 use std::sync::mpsc::{Receiver, SyncSender};
 
 /// Local client to communicate with the local server. Each thread has a client.

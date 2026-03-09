@@ -1,10 +1,7 @@
 use super::tree::all_reduce_sum_tree;
 use crate::local::tensor_map;
 use crate::local::tensor_map::CollectiveTensorMap;
-use burn_tensor::{
-    Shape, Slice, TensorMetadata,
-    backend::{Backend, PeerId},
-};
+use burn_tensor::{Shape, Slice, TensorMetadata, backend::Backend, communication::PeerId};
 use std::{collections::HashMap, ops::Range};
 
 /// Ring implementation of All-Reduce (Ring-Reduce)

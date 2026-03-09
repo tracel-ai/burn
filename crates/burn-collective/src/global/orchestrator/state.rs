@@ -6,7 +6,7 @@ use crate::global::{
     },
 };
 use burn_communication::Address;
-use burn_tensor::backend::PeerId;
+use burn_tensor::communication::PeerId;
 use std::collections::HashMap;
 use tokio::sync::mpsc::{Receiver, Sender};
 

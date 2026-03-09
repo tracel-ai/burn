@@ -1,7 +1,8 @@
 use burn_communication::Protocol;
 use burn_tensor::{
     Shape, TensorMetadata,
-    backend::{Backend, PeerId, ReduceOperation},
+    backend::Backend,
+    communication::{PeerId, ReduceOperation},
 };
 use std::sync::mpsc::SyncSender;
 

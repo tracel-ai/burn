@@ -1,4 +1,7 @@
-use burn_backend::ops::CommunicationTensorOps;
+use burn_backend::{
+    ReduceOperation,
+    ops::{CommunicationTensorOps, TensorRef},
+};
 
 use crate::{Candle, FloatCandleElement, IntCandleElement};
 

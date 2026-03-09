@@ -1,11 +1,13 @@
 use core::panic;
 use std::sync::{Arc, Mutex};
 
-use burn_autodiff::{close_gradient_sync_server, start_gradient_sync_server};
 use burn_collective::CollectiveConfig;
+use burn_core::prelude::Backend;
 use burn_core::tensor::Device;
 use burn_core::tensor::backend::AutodiffBackend;
 use burn_core::tensor::backend::DeviceOps;
+use burn_core::tensor::communication::start_gradient_sync_server;
+use burn_core::tensor::ops::CommunicationTensorOps;
 
 use crate::ddp::worker::DdpWorker;
 use crate::metric::store::EventStoreClient;
@@ -72,7 +74,19 @@ impl<LC: LearningComponentsTypes + Send + 'static> SupervisedLearningStrategy<LC
             event_store: training_components.event_store,
         };
 
-        start_gradient_sync_server::<<LC::Backend as AutodiffBackend>::InnerBackend>(peer_count);
+        let dev = self.devices[0].clone();
+        let id = dev.id();
+        println!("Device ID start : {}", id);
+        // TODO: start and close
+        // start_gradient_sync_server::<<LC::Backend as AutodiffBackend>::InnerBackend>(
+        //     self.devices.iter().map(|d| d.inner().clone()).collect(),
+        // );
+        // <<LC::Backend as AutodiffBackend>::InnerBackend as Backend>::
+        <<TrainingBackend<LC> as AutodiffBackend>::InnerBackend as CommunicationTensorOps<
+            <TrainingBackend<LC> as AutodiffBackend>::InnerBackend,
+        >>::start_communication_server(
+            self.devices.iter().map(|d| d.inner().clone()).collect()
+        );
 
         // Start worker for main device
         // First training dataloader corresponds to main device
@@ -120,7 +134,9 @@ impl<LC: LearningComponentsTypes + Send + 'static> SupervisedLearningStrategy<LC
                 .expect("Distributed data parallel worker failed");
         }
 
-        close_gradient_sync_server::<<LC::Backend as AutodiffBackend>::InnerBackend>();
+        // close_gradient_sync_server::<<LC::Backend as AutodiffBackend>::InnerBackend>(
+        //     &self.devices[0].inner(),
+        // );
 
         // Main worker had the event processor
         let model = main_handle

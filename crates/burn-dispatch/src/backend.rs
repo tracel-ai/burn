@@ -1,14 +1,26 @@
+use std::any::TypeId;
+
 use alloc::format;
 use alloc::string::String;
 
 use burn_backend::Backend;
 use burn_backend::ExecutionError;
+#[cfg(feature = "cpu")]
+use burn_cpu::Cpu;
+#[cfg(feature = "rocm")]
+use burn_rocm::Rocm;
 use burn_std::DType;
 
 #[cfg(feature = "autodiff")]
 use burn_autodiff::grads::Gradients;
 #[cfg(feature = "autodiff")]
 use burn_backend::AutodiffBackend;
+#[cfg(feature = "tch")]
+use burn_tch::LibTorch;
+#[cfg(wgpu_webgpu)]
+use burn_wgpu::Wgpu;
+#[cfg(wgpu_metal)]
+use burn_wgpu::graphics::Metal;
 
 use crate::backends::*;
 use crate::{DispatchDevice, DispatchTensor};
@@ -58,9 +70,42 @@ impl Backend for Dispatch {
 
     type QuantizedTensorPrimitive = DispatchTensor;
 
+    // TODO:
+    type CommunicationTensorPrimitive = DispatchTensor;
+
     fn name(device: &Self::Device) -> String {
         let inner = dispatch_device!(device, |device| B::name(device));
         format!("dispatch<{inner}>")
+    }
+
+    fn type_id(device: &Self::Device) -> TypeId {
+        println!("dispatch typeid");
+        match device {
+            #[cfg(feature = "cpu")]
+            DispatchDevice::Cpu(_) => TypeId::of::<Cpu>(),
+            #[cfg(feature = "cuda")]
+            DispatchDevice::Cuda(_) => {
+                println!("dispatch cuda");
+                TypeId::of::<Cuda>()
+            }
+            #[cfg(wgpu_metal)]
+            DispatchDevice::Metal(_) => TypeId::of::<Metal>(),
+            #[cfg(feature = "rocm")]
+            DispatchDevice::Rocm(_) => TypeId::of::<Rocm>(),
+            #[cfg(wgpu_vulkan)]
+            DispatchDevice::Vulkan(_) => TypeId::of::<Cuda>(),
+            #[cfg(wgpu_webgpu)]
+            DispatchDevice::WebGpu(_) => TypeId::of::<Wgpu>(),
+            #[cfg(feature = "ndarray")]
+            DispatchDevice::NdArray(_) => TypeId::of::<NdArray>(),
+            #[cfg(feature = "tch")]
+            DispatchDevice::LibTorch(_) => TypeId::of::<LibTorch>(),
+            #[cfg(feature = "autodiff")]
+            DispatchDevice::Autodiff(_) => {
+                println!("Dispatch autodiff");
+                TypeId::of::<Autodiff<<Self as AutodiffBackend>::InnerBackend>>() // TODO: Is this right?
+            }
+        }
     }
 
     fn seed(device: &Self::Device, seed: u64) {

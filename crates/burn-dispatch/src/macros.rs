@@ -88,6 +88,94 @@ macro_rules! dispatch_device {
     };
 }
 
+macro_rules! dispatch_devices_arms {
+    (
+        $device:expr,
+        $devices:expr,
+        |$inner_devices:ident| $body:expr;
+        $([$Backend:ident, $cfg:meta]),*
+    ) => {
+        match $device {
+            // Autodiff arm first
+            #[cfg(feature = "autodiff")]
+            $crate::DispatchDevice::Autodiff(inner) => {
+                // Recursively dispatch on inner
+                dispatch_devices_arms!(
+                    @autodiff
+                    &**inner,
+                    $devices,
+                    |$inner_devices| $body;
+                    $([$Backend, $cfg]),*
+                )
+            },
+            $(
+                #[cfg($cfg)]
+                $crate::DispatchDevice::$Backend(_) => {
+                    assert!(
+                        $devices
+                            .iter()
+                            .all(|d| discriminant(d) == discriminant($device)),
+                        "All devices are expected to be of the same variant."
+                    );
+                    type B = $Backend<f32>;
+                    let $inner_devices = $devices
+                        .iter()
+                        .map(|d| {
+                            let DispatchDevice::$Backend(dev) = d else {
+                                unreachable!()
+                            };
+                            dev.clone()
+                        })
+                        .collect();
+                    $body
+                }
+            )*
+        }
+    };
+    (
+        @autodiff
+        $device:expr,
+        $devices:expr,
+        |$inner_devices:ident| $body:expr;
+        $([$Backend:ident, $cfg:meta]),*
+    ) => {
+        match $device {
+            $(
+                #[cfg($cfg)]
+                $crate::DispatchDevice::$Backend(_) => {
+                    assert!(
+                        $devices
+                            .iter()
+                            .all(|d| discriminant(d) == discriminant($device)),
+                        "All devices are expected to be of the same variant."
+                    );
+                    type B = Autodiff<$Backend<f32>>;
+                    let $inner_devices = $devices
+                        .iter()
+                        .map(|d| {
+                            let DispatchDevice::$Backend(dev) = d else {
+                                unreachable!()
+                            };
+                            dev.clone()
+                        })
+                        .collect();
+                    $body
+                }
+            )*
+            $crate::DispatchDevice::Autodiff(_) => panic!("Autodiff should not wrap an autodiff device.")
+        }
+    };
+}
+
+/// Dispatches an operation body based on the provided device.
+macro_rules! dispatch_devices {
+    ($device:expr, $devices:expr, |$inner_devices:ident| $body:expr) => {
+        backend_list!(dispatch_devices_arms, $device, $devices, |$inner_devices| {
+            $body
+        })
+    };
+}
+
 /// Match arm generator for `to_device`.
 /// Handles the logic for same-backend transfers (fast path) and cross-backend
 /// transfers by generating a grid of all device combinations provided via `backend_matrix`.
@@ -367,6 +455,28 @@ macro_rules! unary_op_arms {
     }};
 }
 
+// TODO: Is this really useful?
+// macro_rules! ref_op_arms {
+//     // Operations that do not return a tensor kind
+//     (
+//         $tensor:expr,
+//         $body:expr;
+//         $([$Backend:ident, $cfg:meta]),*
+//     ) => {{
+//         match $tensor {
+//             $(
+//                 #[cfg($cfg)]
+//                 $crate::DispatchTensor::$Backend(_) => {
+//                     type B = $Backend<f32>;
+//                     $body
+//                 }
+//             )*
+//             #[cfg(feature = "autodiff")]
+//             $crate::DispatchTensor::Autodiff(_) => panic!("Operation not marked for autodiff.")
+//         }
+//     }};
+// }
+
 /// Backend dispatch for unary operations.
 ///
 /// When the return `=> Kind` is not provided, the operation output is not wrapped in a dispatch tensor (e.g., `into_data(..)`)
@@ -380,6 +490,13 @@ macro_rules! unary_op {
         backend_list!(unary_op_arms, $inner_kind, $tensor, |$inner| { $body })
     };
 }
+
+/// Backend dispatch for `TensorRef` operations.
+// macro_rules! ref_op {
+//     ($tensor:expr, $body:expr) => {
+//         backend_list!(ref_op_arms, $tensor, $body)
+//     };
+// }
 
 /// Match arm generator for `unary_float`.
 ///
