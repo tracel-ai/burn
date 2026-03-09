@@ -215,9 +215,6 @@ impl<B: Backend> GramMatrixLoss<B> {
         predictions: Tensor<B, 4>,
         targets: Tensor<B, 4>,
     ) -> Tensor<B, 1> {
-        let batch_size = predictions.dims()[0];
-        let device = &predictions.device();
-
         let pred_processed = self.preprocess_input(predictions);
         let target_processed = self.preprocess_input(targets);
 
@@ -233,15 +230,13 @@ impl<B: Backend> GramMatrixLoss<B> {
         
         let target_features = self.feat_extractor.forward(target_processed);
 
-        // Create final loss accumulator tensor
-        let mut final_loss = Tensor::<B, 1>::zeros([batch_size], device);
+        // Create vector which will hold loss tensors for each layer
+        let mut loss_tensors = Vec::with_capacity(pred_features.len());
 
         // Compute and add the weighted loss for each layer to the final loss tensor.
         // Note that the loss tensor for each layer and the final loss tensors
         // contains a loss value for each sample in the batch.
-        for (i, pred_f) in pred_features.iter().enumerate() {
-            let target_f = &target_features[i];
-
+        for (pred_f, target_f) in pred_features.into_iter().zip(target_features) {
             // Compute Gram matrix as G = F(F^T)
             // [N, C, H*W] times [N, H*W, C] equals [N, C, C]
             let pred_gram_matrices = pred_f.clone().matmul(pred_f.clone().transpose());
@@ -255,13 +250,18 @@ impl<B: Backend> GramMatrixLoss<B> {
             let loss = gram_matrices_diff_squared
                 .sum_dims(&[1, 2])
                 .squeeze_dims::<1>(&[1, 2]);
-            let normalized_loss = loss / pred_normalization_factors[i];
-
-            // Apply the layer weight to the normalized loss tensor
-            final_loss = final_loss + normalized_loss * self.layer_weights[i];
+            loss_tensors.push(loss);
         }
-
-        final_loss
+        
+        // Sum each layer's loss in the vector of loss tensors
+        let scaled_loss_tensors: Vec<Tensor<B, 1>> = loss_tensors
+            .into_iter()
+            .zip(pred_normalization_factors)
+            .zip(self.layer_weights.clone())
+            .map(|((loss_tensor, norm_factor), weight)|  loss_tensor.div_scalar(norm_factor).mul_scalar(weight))
+            .collect();
+        let stacked_loss_tensors = Tensor::stack::<2>(scaled_loss_tensors, 1);
+        stacked_loss_tensors.sum_dim(1).squeeze_dim(1)
     }
 
     /// Applies standard ImageNet normalization to the input tensor for the VGG19 network.
