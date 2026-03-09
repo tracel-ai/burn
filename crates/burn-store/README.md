@@ -67,7 +67,7 @@ For comprehensive documentation including:
 - Advanced features (filtering, remapping, partial loading, zero-copy)
 - API reference and troubleshooting
 
-See the **[Burn Book - Model Weights](https://burn.dev/book/import/model-weights.html)** chapter.
+See the **[Burn Book - Saving and Loading](../../burn-book/src/saving-and-loading.md)** chapter.
 
 ## Running Benchmarks
 
