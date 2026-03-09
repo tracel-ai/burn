@@ -935,7 +935,7 @@ dependencies = [
  "tar",
  "tempfile",
  "thiserror 2.0.18",
- "zip 8.1.0",
+ "zip 8.2.0",
 ]
 
 [[package]]
@@ -1174,7 +1174,7 @@ dependencies = [
  "tar",
  "tempfile",
  "textdistance",
- "zip 8.1.0",
+ "zip 8.2.0",
 ]
 
 [[package]]
@@ -7159,9 +7159,9 @@ dependencies = [
 
 [[package]]
 name = "quote"
-version = "1.0.44"
+version = "1.0.45"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "21b2ebcf727b7760c461f091f9f0f539b77b8e87f2fd88131e7f1b433b3cece4"
+checksum = "41f2619966050689382d2b44f664f4bc593e129785a36d6ee376ddf37259b924"
 dependencies = [
  "proc-macro2",
 ]
@@ -8861,9 +8861,9 @@ dependencies = [
 
 [[package]]
 name = "tokio"
-version = "1.49.0"
+version = "1.50.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "72a2903cd7736441aac9df9d7688bd0ce48edccaadf181c3b90be801e81d3d86"
+checksum = "27ad5e34374e03cfffefc301becb44e9dc3c17584f414349ebe29ed26661822d"
 dependencies = [
  "bytes",
  "libc",
@@ -9203,9 +9203,9 @@ dependencies = [
 
 [[package]]
 name = "tracel-xtask"
-version = "4.13.3"
+version = "4.13.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e9a7f64eecf414dac5cf16d64bdf3f8969519324e30310f69ae879a94110e240"
+checksum = "42084c169c1d4aedf68773d6e543f9781f2441c7c160c9b8cca4b55d8bb2239f"
 dependencies = [
  "anyhow",
  "clap",
@@ -9232,9 +9232,9 @@ dependencies = [
 
 [[package]]
 name = "tracel-xtask-macros"
-version = "4.13.3"
+version = "4.13.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a634f07b97b9a21a10c446d35541669bfa3f0ef75470734a09ed1f19864d4e85"
+checksum = "6068afbfd2bfb6d962af1717fa5202a522be5ad8ea973bff5df5cdd2e939a6a8"
 dependencies = [
  "heck",
  "proc-macro2",
@@ -9627,14 +9627,14 @@ checksum = "06abde3611657adf66d383f00b093d7faecc7fa57071cce2578660c9f1010821"
 
 [[package]]
 name = "uuid"
-version = "1.21.0"
+version = "1.22.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b672338555252d43fd2240c714dc444b8c6fb0a5c5335e65a07bba7742735ddb"
+checksum = "a68d3c8f01c0cfa54a75291d83601161799e4a89a39e0929f4b0354d88757a37"
 dependencies = [
  "atomic",
  "getrandom 0.4.1",
  "js-sys",
- "rand 0.9.2",
+ "rand 0.10.0",
  "serde_core",
  "wasm-bindgen",
 ]
@@ -10805,9 +10805,9 @@ dependencies = [
 
 [[package]]
 name = "zip"
-version = "8.1.0"
+version = "8.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6e499faf5c6b97a0d086f4a8733de6d47aee2252b8127962439d8d4311a73f72"
+checksum = "b680f2a0cd479b4cff6e1233c483fdead418106eae419dc60200ae9850f6d004"
 dependencies = [
  "aes",
  "bzip2 0.6.1",
