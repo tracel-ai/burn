@@ -297,6 +297,7 @@ macro_rules! creation_op_arms {
 }
 
 /// Wrap the result in the backend tensor kind, handling float -> autodiff.
+#[cfg(feature = "autodiff")]
 macro_rules! wrap_float {
     (
         @wrap_autodiff Float,
@@ -495,6 +496,7 @@ macro_rules! unary_float_arms {
 
 }
 
+#[cfg(feature = "autodiff")]
 /// Utility to pick a token based on mode
 macro_rules! if_mode {
     (ref, $if_ref:expr, $if_owned:expr) => {
@@ -553,6 +555,7 @@ macro_rules! binary_op_arms {
                     $crate::DispatchTensor::$Backend($crate::BackendTensor::$kind($body))
                 }
             )*
+            #[allow(unreachable_patterns)]
             (lhs, rhs) => {
                 panic!(
                     "The provided tensors are not on the same backend. Got backends {:?} and {:?}.", lhs, rhs
@@ -610,6 +613,7 @@ macro_rules! binary_float_arms {
                     $crate::DispatchTensor::$Backend($crate::BackendTensor::$kind($body))
                 }
             )*
+            #[allow(unreachable_patterns)]
             (lhs, rhs) => {
                 panic!(
                     "The provided tensors are not on the same backend. Got backends {:?} and {:?}.", lhs, rhs
@@ -656,6 +660,7 @@ macro_rules! binary_float_arms {
                     $crate::DispatchTensor::$Backend($crate::BackendTensor::$kind($body))
                 }
             )*
+            #[allow(unreachable_patterns)]
             (lhs, rhs) => {
                 panic!(
                     "The provided tensors are not on the same backend. Got backends {:?} and {:?}.", lhs, rhs
@@ -755,6 +760,7 @@ macro_rules! multi_op_arm {
         $(
             let $x = match $x {
                 $crate::DispatchTensor::$Backend(inner) => inner.$x_kind(),
+                #[allow(unreachable_patterns)]
                 _ => panic!("Input tensor {} is on the wrong device", stringify!($x)),
             };
         )+
@@ -763,6 +769,7 @@ macro_rules! multi_op_arm {
         $(
             let $opt_in = $opt_in.map(|o| match o {
                 $crate::DispatchTensor::$Backend(inner) => inner.$opt_kind(),
+                #[allow(unreachable_patterns)]
                 _ => panic!("Optional tensor {} is on the wrong device", stringify!($opt_in)),
             });
         )*
@@ -777,6 +784,7 @@ macro_rules! multi_op_arm {
     }};
 }
 
+#[cfg(feature = "autodiff")]
 macro_rules! wrap_input_autodiff {
     ($Backend:ident, $inner:expr, int) => {
         $inner.int()
@@ -790,6 +798,7 @@ macro_rules! wrap_input_autodiff {
     };
 }
 
+#[cfg(feature = "autodiff")]
 // DispatchTensor::Autodiff(DispatchTensor::$Backend(BackendTensor::Autodiff()))
 macro_rules! multi_op_arm_autodiff {
     (
@@ -1044,6 +1053,7 @@ macro_rules! unwrap_vec {
         $vec.into_iter()
             .map(|t| match t {
                 $crate::DispatchTensor::$Backend(inner) => inner.$kind(),
+                #[allow(unreachable_patterns)]
                 _ => panic!(
                     "Tensor is on the wrong backend (expected {}).",
                     stringify!($Backend)

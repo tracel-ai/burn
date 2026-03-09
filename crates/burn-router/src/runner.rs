@@ -122,7 +122,7 @@ impl<B: BackendIr> Runner<B> {
 
         TensorIr {
             id,
-            shape: Shape::from(shape),
+            shape,
             status: TensorStatus::ReadWrite,
             dtype,
         }

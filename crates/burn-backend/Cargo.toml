@@ -44,3 +44,4 @@ thiserror = { workspace = true }
 [dev-dependencies]
 rand = { workspace = true, features = ["thread_rng"] }
 paste = { workspace = true }
+serde_json = { workspace = true, features = ["alloc"]}

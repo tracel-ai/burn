@@ -128,7 +128,7 @@ rl = ["dep:burn-rl", "burn-train?/rl"]
 
 # Backend
 ir = ["burn-ir"]
-autodiff = ["burn-autodiff"]
+autodiff = ["burn-autodiff", "burn-dispatch?/autodiff"]
 fusion = [
     "ir",
     "burn-wgpu?/fusion",
