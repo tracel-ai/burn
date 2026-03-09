@@ -32,8 +32,6 @@ impl CosineEmbeddingLossConfig {
     }
 }
 
-// TODO: remove `Ignored(type)` for module derive
-
 /// Cosine embedding loss between two tensors.
 ///
 /// Measures cosine distance between tensors.
