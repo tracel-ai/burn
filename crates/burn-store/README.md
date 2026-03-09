@@ -23,12 +23,14 @@ interoperability, and advanced tensor management.
 - **Flexible Filtering** - Load/save specific model subsets with regex, exact paths, or custom
   predicates
 - **Tensor Remapping** - Rename tensors during load/save for framework compatibility
+- **Half-Precision Storage** - Automatic F32/F16 conversion with smart defaults for reduced model
+  file size
 - **No-std Support** - Burnpack and SafeTensors formats available in embedded and WASM environments
 
 ## Quick Start
 
 ```rust
-use burn_store::{ModuleSnapshot, PytorchStore, SafetensorsStore, BurnpackStore};
+use burn_store::{ModuleSnapshot, PytorchStore, SafetensorsStore, BurnpackStore, HalfPrecisionAdapter};
 
 // Load from PyTorch
 let mut store = PytorchStore::from_file("model.pt");
@@ -42,6 +44,17 @@ model.load_from(&mut store)?;
 // Save to Burnpack
 let mut store = BurnpackStore::from_file("model.bpk");
 model.save_into(&mut store)?;
+
+// Save with half-precision (F32 -> F16, ~50% smaller files)
+let adapter = HalfPrecisionAdapter::new();
+let mut store = BurnpackStore::from_file("model_f16.bpk")
+    .with_to_adapter(adapter.clone());
+model.save_into(&mut store)?;
+
+// Load half-precision back (F16 -> F32, same adapter)
+let mut store = BurnpackStore::from_file("model_f16.bpk")
+    .with_from_adapter(adapter);
+model.load_from(&mut store)?;
 ```
 
 ## Documentation

@@ -72,7 +72,7 @@ impl TensorSnapshot {
         tensor_id: ParamId,
     ) -> Self {
         let dtype = tensor.dtype();
-        let shape = tensor.shape().clone();
+        let shape = tensor.shape();
         let tensor = tensor.clone(); // Clone is cheap (reference counted)
         Self {
             data_fn: Rc::new(move || Ok(tensor.to_data())),
@@ -92,7 +92,7 @@ impl TensorSnapshot {
         tensor_id: ParamId,
     ) -> Self {
         let dtype = tensor.dtype();
-        let shape = tensor.shape().clone();
+        let shape = tensor.shape();
         let tensor = tensor.clone(); // Clone is cheap (reference counted)
         Self {
             data_fn: Rc::new(move || Ok(tensor.to_data())),
@@ -112,7 +112,7 @@ impl TensorSnapshot {
         tensor_id: ParamId,
     ) -> Self {
         let dtype = tensor.dtype();
-        let shape = tensor.shape().clone();
+        let shape = tensor.shape();
         let tensor = tensor.clone(); // Clone is cheap (reference counted)
         Self {
             data_fn: Rc::new(move || Ok(tensor.to_data())),
@@ -259,7 +259,7 @@ impl TensorSnapshot {
                     num_storage_elements * (scheme.size_bits_stored() / BITS_PER_BYTE);
 
                 // Calculate number of quantization parameters (scales)
-                let num_params = params_shape(&self.shape.clone(), scheme.level).num_elements();
+                let num_params = params_shape(&self.shape, scheme.level).num_elements();
 
                 let aligned_value_bytes = value_bytes.div_ceil(QPARAM_ALIGN) * QPARAM_ALIGN;
                 let scale_bytes = num_params * quant_param_size(scheme.param);

@@ -158,14 +158,14 @@ fn reshape_input<R: CubeRuntime>(input: CubeTensor<R>) -> CubeTensor<R> {
 
 fn is_spatial_contiguous(shape: &[usize], strides: &[usize]) -> bool {
     let rank = shape.len();
+    let dim_c = rank - 1;
 
-    let mut ordered = strides.to_vec();
-    ordered.sort();
-    if ordered != strides {
+    // Channel must be contiguous for the [(N, H, W), C] reshape to be valid
+    if strides[dim_c] != 1 {
         return false;
     }
 
-    for i in (1..rank - 2).rev() {
+    for i in (1..dim_c).rev() {
         if strides[i + 1] * shape[i + 1] != strides[i] {
             return false;
         }
