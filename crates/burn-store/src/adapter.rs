@@ -902,7 +902,8 @@ mod tests {
         assert_eq!(adapter.adapt(&snapshot).dtype, DType::F16);
 
         // Conv2d
-        let snapshot = create_test_snapshot("conv.weight", shape![3, 3, 3, 3], module_names::CONV2D);
+        let snapshot =
+            create_test_snapshot("conv.weight", shape![3, 3, 3, 3], module_names::CONV2D);
         assert_eq!(adapter.adapt(&snapshot).dtype, DType::F16);
 
         // LayerNorm (included by default)
