@@ -223,9 +223,15 @@ impl<B: Backend> GramMatrixLoss<B> {
 
         // Both vectors contain 5 entries since there are 5 layers
         // Both feature map tensors already have the shape [N, C, H * W]
-        let (pred_features, pred_normalization_factors) =
-            self.feat_extractor.forward(pred_processed);
-        let (target_features, _) = self.feat_extractor.forward(target_processed);
+        let pred_features = self.feat_extractor.forward(pred_processed);
+        let mut pred_normalization_factors = Vec::with_capacity(5);
+        for feature_tensor in &pred_features {
+            let [_, c, h_times_w] = feature_tensor.dims();
+            let (c_f, hw_f) = (c as f32, h_times_w as f32);
+            pred_normalization_factors.push(4.0 * c_f * c_f * hw_f * hw_f);
+        }
+        
+        let target_features = self.feat_extractor.forward(target_processed);
 
         // Create final loss accumulator tensor
         let mut final_loss = Tensor::<B, 1>::zeros([batch_size], device);

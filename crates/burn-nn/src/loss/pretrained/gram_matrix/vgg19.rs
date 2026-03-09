@@ -103,7 +103,7 @@ impl<B: Backend> Vgg19<B> {
     ///    from one of the target layers. Shape of each tensor: `[batch_size, channels, height * width]`.
     /// - `normalization_factors`: A `Vec` of 5 `f32` values, representing the normalization
     ///    factor `4 * N^2 * M^2` for each layer, used to scale the Gram matrix loss.
-    pub fn forward(&self, x: Tensor<B, 4>) -> (Vec<Tensor<B, 3>>, Vec<f32>) {
+    pub fn forward(&self, x: Tensor<B, 4>) -> Vec<Tensor<B, 3>> {
         let pool_2d = |x| {
             if self.use_avg_pool {
                 avg_pool2d(x, [2, 2], [2, 2], [0, 0], false, false)
@@ -113,14 +113,10 @@ impl<B: Backend> Vgg19<B> {
         };
 
         let mut features = Vec::with_capacity(5);
-        let mut normalization_factors = Vec::with_capacity(5);
 
         // Block 1
         let x1_1 = relu(self.conv1_1.forward(x));
         let flattened_x1_1 = x1_1.clone().flatten(2, 3);
-        let [_, c, h_times_w] = flattened_x1_1.dims();
-        let (c_f, hw_f) = (c as f32, h_times_w as f32);
-        normalization_factors.push(4.0 * c_f * c_f * hw_f * hw_f);
         features.push(flattened_x1_1);
         let x1_2 = relu(self.conv1_2.forward(x1_1));
         let x1 = pool_2d(x1_2);
@@ -128,9 +124,6 @@ impl<B: Backend> Vgg19<B> {
         // Block 2
         let x2_1 = relu(self.conv2_1.forward(x1));
         let flattened_x2_1 = x2_1.clone().flatten(2, 3);
-        let [_, c, h_times_w] = flattened_x2_1.dims();
-        let (c_f, hw_f) = (c as f32, h_times_w as f32);
-        normalization_factors.push(4.0 * c_f * c_f * hw_f * hw_f);
         features.push(flattened_x2_1);
         let x2_2 = relu(self.conv2_2.forward(x2_1));
         let x2 = pool_2d(x2_2);
@@ -138,9 +131,6 @@ impl<B: Backend> Vgg19<B> {
         // Block 3
         let x3_1 = relu(self.conv3_1.forward(x2));
         let flattened_x3_1 = x3_1.clone().flatten(2, 3);
-        let [_, c, h_times_w] = flattened_x3_1.dims();
-        let (c_f, hw_f) = (c as f32, h_times_w as f32);
-        normalization_factors.push(4.0 * c_f * c_f * hw_f * hw_f);
         features.push(flattened_x3_1);
         let x3_2 = relu(self.conv3_2.forward(x3_1));
         let x3_3 = relu(self.conv3_3.forward(x3_2));
@@ -150,9 +140,6 @@ impl<B: Backend> Vgg19<B> {
         // Block 4
         let x4_1 = relu(self.conv4_1.forward(x3));
         let flattened_x4_1 = x4_1.clone().flatten(2, 3);
-        let [_, c, h_times_w] = flattened_x4_1.dims();
-        let (c_f, hw_f) = (c as f32, h_times_w as f32);
-        normalization_factors.push(4.0 * c_f * c_f * hw_f * hw_f);
         features.push(flattened_x4_1);
         let x4_2 = relu(self.conv4_2.forward(x4_1));
         let x4_3 = relu(self.conv4_3.forward(x4_2));
@@ -162,11 +149,8 @@ impl<B: Backend> Vgg19<B> {
         // Block 5
         let x5_1 = relu(self.conv5_1.forward(x4));
         let flattened_x5_1 = x5_1.flatten(2, 3);
-        let [_, c, h_times_w] = flattened_x5_1.dims();
-        let (c_f, hw_f) = (c as f32, h_times_w as f32);
-        normalization_factors.push(4.0 * c_f * c_f * hw_f * hw_f);
         features.push(flattened_x5_1);
 
-        (features, normalization_factors)
+        features
     }
 }
