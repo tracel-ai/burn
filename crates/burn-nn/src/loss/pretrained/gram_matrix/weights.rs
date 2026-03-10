@@ -16,13 +16,13 @@ const VGG19_URL: &str = "https://download.pytorch.org/models/vgg19-dcbb9e9d.pth"
 /// (or OS equivalent) if it does not already exist.
 fn get_cache_dir() -> PathBuf {
     let cache_dir = dirs::cache_dir()
-        .expect("Failed to get cache directory")
+        .expect("Failed to get cache directory for Gram Matrix Loss")
         .join("burn-pretrained-models")
         .join("loss")
         .join("vgg19");
 
     if !cache_dir.exists() {
-        create_dir_all(&cache_dir).expect("Failed to create cache directory for Burn");
+        create_dir_all(&cache_dir).expect("Failed to create cache directory for Gram Matrix Loss");
     }
 
     cache_dir
@@ -34,18 +34,18 @@ fn get_cache_dir() -> PathBuf {
 /// use the locally cached `.pth` file.
 fn download_weights_if_not_saved(cache_path: &PathBuf) {
     if !cache_path.exists() {
-        let bytes = download_file_as_bytes(VGG19_URL, "Downloading VGG19 ImageNet weights...");
+        let bytes = download_file_as_bytes(VGG19_URL, "Downloading VGG19 ImageNet weights for Gram Matrix Loss...");
 
-        // Write to a temporary file. If writing was completed, then rename to correct name.
-        // If writing is not completed, the file with the correct name will not exist so this
-        // code block will run again which is the desired behavior.
+        // Write to a temporary file. If writing gets completed, then rename to the actual/correct name.
+        // If writing is not completed, the file with the correct name (i.e. `cache_path`) will not exist 
+        // so this code block can run again which is the desired behavior.
         let temp_path = cache_path.with_extension("pth.tmp");
-        let mut file = File::create(&temp_path).expect("Failed to create VGG19 cache file");
+        let mut file = File::create(&temp_path).expect("Failed to create VGG19 cache file for Gram Matrix Loss");
         file.write_all(&bytes)
-            .expect("Failed to write VGG19 weights to the cache file");
+            .expect("Failed to write VGG19 weights to the cache file for Gram Matrix Loss");
 
         rename(temp_path, cache_path)
-            .expect("Failed to rename temporary file correct VGG19 cache file name");
+            .expect("Failed to rename temporary file to the actual VGG19 cache file name for Gram Matrix Loss");
     }
 }
 
