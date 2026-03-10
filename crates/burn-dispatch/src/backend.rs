@@ -78,36 +78,6 @@ impl Backend for Dispatch {
         format!("dispatch<{inner}>")
     }
 
-    fn type_id(device: &Self::Device) -> TypeId {
-        println!("dispatch typeid");
-        match device {
-            #[cfg(feature = "cpu")]
-            DispatchDevice::Cpu(_) => TypeId::of::<Cpu>(),
-            #[cfg(feature = "cuda")]
-            DispatchDevice::Cuda(_) => {
-                println!("dispatch cuda");
-                TypeId::of::<Cuda>()
-            }
-            #[cfg(wgpu_metal)]
-            DispatchDevice::Metal(_) => TypeId::of::<Metal>(),
-            #[cfg(feature = "rocm")]
-            DispatchDevice::Rocm(_) => TypeId::of::<Rocm>(),
-            #[cfg(wgpu_vulkan)]
-            DispatchDevice::Vulkan(_) => TypeId::of::<Cuda>(),
-            #[cfg(wgpu_webgpu)]
-            DispatchDevice::WebGpu(_) => TypeId::of::<Wgpu>(),
-            #[cfg(feature = "ndarray")]
-            DispatchDevice::NdArray(_) => TypeId::of::<NdArray>(),
-            #[cfg(feature = "tch")]
-            DispatchDevice::LibTorch(_) => TypeId::of::<LibTorch>(),
-            #[cfg(feature = "autodiff")]
-            DispatchDevice::Autodiff(_) => {
-                println!("Dispatch autodiff");
-                TypeId::of::<Autodiff<<Self as AutodiffBackend>::InnerBackend>>() // TODO: Is this right?
-            }
-        }
-    }
-
     fn seed(device: &Self::Device, seed: u64) {
         dispatch_device!(device, |device| B::seed(device, seed))
     }

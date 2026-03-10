@@ -1,8 +1,4 @@
-use crate::{
-    CubeRuntime, FloatElement, IntElement,
-    element::BoolElement,
-    tensor::{CubeCommTensor, CubeTensor},
-};
+use crate::{CubeRuntime, FloatElement, IntElement, element::BoolElement, tensor::CubeTensor};
 use burn_backend::{Backend, DTypeUsage, DTypeUsageSet, DeviceOps, ExecutionError, TensorData};
 use burn_std::DType;
 use cubecl::{

@@ -74,7 +74,8 @@ impl AutodiffServer {
         // For DDP, we register the parameters used in the graph and the number of times they appear as nodes,
         // to know when to sync the gradients across devices.
         let mut sync_registration = None;
-        if !tape_result.sharded_params.is_empty() {
+        let has_sharded_params = !tape_result.sharded_params.is_empty();
+        if has_sharded_params {
             sync_registration = Some(GradientSyncRegistration::new(
                 tape_result.n_required_map,
                 tape_result.sharded_params.clone(),
@@ -87,10 +88,9 @@ impl AutodiffServer {
         let grads = Gradients::new::<B>(root_node.clone(), root_tensor, sync_registration);
         let gradients = Self::execute_steps(tape_result.tape, grads, tape_result.checkpointer);
 
-        // TODO: HEREEEEE.
-        // if let Some(sync_client) = get_gradient_sync_client::<B>(device) {
-        //     sync_client.wait_gradients_sync();
-        // };
+        if has_sharded_params {
+            B::communication_sync(device);
+        }
 
         // Cleanup
         let mut cleaner = NC::init();

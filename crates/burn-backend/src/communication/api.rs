@@ -34,10 +34,7 @@ pub(crate) fn get_backend_client_map() -> MutexGuard<'static, HashMap<TypeId, Cl
 /// Get a [`GradientSyncClient`] for the given [`Backend`].
 pub fn get_gradient_sync_client<B: Backend>(device: &B::Device) -> Option<GradientSyncClient<B>> {
     let typeid = TypeId::of::<B>();
-    // let typeid = B::type_id(device);
-    println!("type_id get: {:?}", typeid);
     let state_map = get_backend_client_map();
-    println!("map : {:?}", state_map);
     match state_map.get(&typeid) {
         Some(val) => Some(val.downcast_ref().cloned().unwrap()),
         None => None,
@@ -46,8 +43,7 @@ pub fn get_gradient_sync_client<B: Backend>(device: &B::Device) -> Option<Gradie
 
 /// Remove the client form the map for the given [`Backend`].
 pub(crate) fn remove_gradient_sync_client<B: Backend>(device: &B::Device) {
-    // let typeid = TypeId::of::<B>();
-    let typeid = B::type_id(device);
+    let typeid = TypeId::of::<B>();
     let mut state_map = get_backend_client_map();
     state_map.remove(&typeid);
 }
@@ -56,12 +52,7 @@ pub(crate) fn remove_gradient_sync_client<B: Backend>(device: &B::Device) {
 pub fn start_gradient_sync_server<B: Backend>(devices: Vec<B::Device>) {
     if get_gradient_sync_client::<B>(&devices[0]).is_none() {
         let typeid = TypeId::of::<B>();
-        // let typeid = B::type_id(&devices[0]);
-        println!("type_id start: {:?}", typeid);
         let mut state_map = get_backend_client_map();
-        // let client = match typeid {
-        //     TypeId::of::<Cuda>() => GradientSyncClient::<Cuda>::new(devices),
-        // };
         let client = GradientSyncClient::<B>::new(devices);
         state_map.insert(typeid, Box::new(client.clone()));
     }

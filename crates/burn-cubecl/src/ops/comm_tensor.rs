@@ -99,6 +99,12 @@ where
             client.all_reduce(tensor.handle.clone(), tensor.handle.clone(), all_ids);
         }
     }
+
+    fn communication_sync_native(device: &Device<Self>) {
+        let client_loop = R::client(&device);
+        client_loop.sync_collective();
+    }
+
     // unsafe fn all_reduce_inplace(
     //     tensors: Vec<TensorRef<Self>>,
     //     strategy: AllReduceStrategy,

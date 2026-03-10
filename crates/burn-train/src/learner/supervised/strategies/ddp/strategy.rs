@@ -92,7 +92,7 @@ impl<LC: LearningComponentsTypes + Send + 'static> SupervisedLearningStrategy<LC
         // First training dataloader corresponds to main device
         let main_handle = DdpWorker::<LC>::start(
             0.into(),
-            main_device,
+            main_device.clone(),
             learner.clone(),
             event_processor.clone(),
             worker_components.clone(),
@@ -137,6 +137,10 @@ impl<LC: LearningComponentsTypes + Send + 'static> SupervisedLearningStrategy<LC
         // close_gradient_sync_server::<<LC::Backend as AutodiffBackend>::InnerBackend>(
         //     &self.devices[0].inner(),
         // );
+
+        <<TrainingBackend<LC> as AutodiffBackend>::InnerBackend as CommunicationTensorOps<
+            <TrainingBackend<LC> as AutodiffBackend>::InnerBackend,
+        >>::close_communication_server(main_device.inner());
 
         // Main worker had the event processor
         let model = main_handle

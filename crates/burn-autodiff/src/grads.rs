@@ -26,11 +26,11 @@ impl GradientSyncRegistration {
         n_required_map: HashMap<NodeId, usize>,
         sharded_parameters_map: HashMap<NodeId, ShardedParams>,
     ) -> Self {
-        println!("GradientSyncRegistration n_req : {:?}", n_required_map);
-        println!(
-            "GradientSyncRegistration sharded_params : {:?}",
-            sharded_parameters_map
-        );
+        // println!("GradientSyncRegistration n_req : {:?}", n_required_map);
+        // println!(
+        //     "GradientSyncRegistration sharded_params : {:?}",
+        //     sharded_parameters_map
+        // );
         Self {
             n_required_map,
             sharded_parameters_map,
@@ -38,17 +38,17 @@ impl GradientSyncRegistration {
     }
 
     pub(crate) fn on_register<B: Backend>(&mut self, id: NodeId, tensor: TensorRef<B>) {
-        println!("Registering {id}");
+        // println!("Registering {id}");
         if let Some(sharded_params) = self.sharded_parameters_map.get(&id) {
             let param_id = sharded_params
                 .param_id
                 .expect("Sharded param should have a parameter ID."); // TODO: Remove option.
-            println!("and param id {:?}", param_id);
+            // println!("and param id {:?}", param_id);
             let n_required = self.n_required_map.get_mut(&id).unwrap();
             *n_required -= 1;
 
             if *n_required == 0 {
-                println!("launch for node {id}, param {:?}", param_id);
+                // println!("launch for node {id}, param {:?}", param_id);
                 B::all_reduce_inplace(tensor, sharded_params.clone());
             }
         }

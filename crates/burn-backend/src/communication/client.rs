@@ -7,17 +7,21 @@ use std::{
     thread::spawn,
 };
 
-use crate::{Backend, ModuleParamId, ShardedParams, ops::TensorRef, server::GradientSyncServer};
+use crate::{
+    Backend, ModuleParamId, ShardedParams, ops::TensorRef, server::GradientSyncServer,
+    tensor::Device,
+};
 
 pub(crate) enum MessageAction<B: Backend> {
     Message(GradientSyncMessage<B>),
-    Close(),
+    Close(Sender<()>),
 }
 
 pub(crate) enum GradientSyncMessage<B: Backend> {
     RegisterDevice(Vec<ShardedParams>),
     // RegisterDevice((HashMap<u64, usize>, HashMap<u64, ShardedParams>)),
     Register((TensorRef<B>, ShardedParams)),
+    Sync(Device<B>),
 }
 
 #[derive(Clone)]
@@ -32,21 +36,24 @@ impl<B: Backend> GradientSyncClient<B> {
         let is_finished_fence = Arc::new((Mutex::new(false), Condvar::new()));
 
         let mut server = GradientSyncServer::new(devices, is_finished_fence.clone());
-        let fence_clone = is_finished_fence.clone();
+        // let fence_clone = is_finished_fence.clone();
         spawn(move || {
             loop {
                 match rx.try_recv() {
                     Ok(action) => match action {
                         MessageAction::Message(msg) => server.process_message(msg),
-                        MessageAction::Close() => break,
+                        MessageAction::Close(tx) => {
+                            server.close(tx);
+                            break;
+                        }
                     },
                     Err(mpsc::TryRecvError::Empty) => {
-                        if server.is_finished() {
-                            let (lock, cvar) = &*fence_clone;
-                            let mut finished = lock.lock().unwrap();
-                            *finished = true;
-                            cvar.notify_all();
-                        }
+                        // if server.is_finished() {
+                        //     let (lock, cvar) = &*fence_clone;
+                        //     let mut finished = lock.lock().unwrap();
+                        //     *finished = true;
+                        //     cvar.notify_all();
+                        // }
                     }
                     Err(mpsc::TryRecvError::Disconnected) => {
                         panic!("Gradient sync server disconnected.")
@@ -84,7 +91,11 @@ impl<B: Backend> GradientSyncClient<B> {
             .unwrap();
     }
 
-    pub fn wait_gradients_sync(&self) {
+    pub fn wait_gradients_sync(&self, device: Device<B>) {
+        self.sender
+            .send(MessageAction::Message(GradientSyncMessage::Sync(device)))
+            .unwrap();
+
         let (lock, cvar) = &*self.is_finished_fence;
         let mut finished = lock.lock().unwrap();
         while !*finished {
@@ -93,6 +104,9 @@ impl<B: Backend> GradientSyncClient<B> {
     }
 
     pub(crate) fn close(&self) {
-        self.sender.send(MessageAction::Close()).unwrap();
+        let (tx, rx) = std::sync::mpsc::channel();
+        self.sender.send(MessageAction::Close(tx)).unwrap();
+        rx.recv()
+            .expect("Should receive `closed` callback from server");
     }
 }

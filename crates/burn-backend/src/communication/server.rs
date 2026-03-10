@@ -3,13 +3,12 @@ use std::sync::mpsc::Sender;
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
 
-use cubecl::device::DeviceId;
-
 use crate::DeviceOps;
 use crate::all_reduce::all_reduce_inplace_sum_centralized;
 use crate::client::GradientSyncMessage;
 use crate::ops::TensorRef;
-use crate::worker::{AllReduceArgs, Worker};
+use crate::tensor::Device;
+use crate::worker::{AllReduceArgs, CollectiveOperationMessage, Worker};
 use crate::{Backend, ModuleParamId, PeerId, ShardedParams};
 
 #[derive(new, Debug)]
@@ -23,10 +22,12 @@ pub(crate) struct GradientSyncServer<B: Backend> {
     all_reduce_ops_queue: HashMap<ModuleParamId, Vec<TensorRef<B>>>,
     param_required_map: HashMap<ModuleParamId, usize>,
     sharded_params_map: HashMap<ModuleParamId, ShardedParams>,
+    devices: HashMap<PeerId, Device<B>>,
     num_devices: usize,
     devices_registered: usize,
+    waiting_devices: usize,
     is_finished_fence: Arc<(Mutex<bool>, Condvar)>,
-    task_senders: HashMap<PeerId, Sender<AllReduceArgs<B>>>,
+    task_senders: HashMap<PeerId, Sender<CollectiveOperationMessage<B>>>,
 }
 
 impl<B: Backend> GradientSyncServer<B> {
@@ -36,12 +37,14 @@ impl<B: Backend> GradientSyncServer<B> {
         is_finished_fence: Arc<(Mutex<bool>, Condvar)>,
     ) -> Self {
         let mut task_senders = HashMap::default();
-        println!("devices: {:?}", devices);
+        let mut devices_map = HashMap::default();
+        // println!("devices: {:?}", devices);
         for i in 0..devices.len() {
             let (tx, rx) = std::sync::mpsc::channel();
-            task_senders.insert(PeerId::from(i), tx);
+            let peer_id = PeerId::from(i);
+            task_senders.insert(peer_id, tx);
             let device = devices[i].clone();
-            let num_devices = devices.len();
+            devices_map.insert(peer_id, device.clone());
             thread::spawn(move || {
                 // // Fallback implementation of all_reduce for a backend uses `burn-collective`.
                 // register::<B>(
@@ -62,8 +65,10 @@ impl<B: Backend> GradientSyncServer<B> {
             sharded_params_map: HashMap::default(),
             all_reduce_ops_queue: HashMap::default(),
             param_required_map: HashMap::default(),
+            devices: devices_map,
             num_devices: devices.len(),
             devices_registered: 0,
+            waiting_devices: 0,
             is_finished_fence,
             task_senders,
         }
@@ -73,11 +78,21 @@ impl<B: Backend> GradientSyncServer<B> {
     pub(crate) fn process_message(&mut self, msg: GradientSyncMessage<B>) {
         match msg {
             GradientSyncMessage::RegisterDevice(params) => self.register_device(params),
-            // GradientSyncMessage::RegisterDevice((n_required_map, sharded_params_map)) => {
-            //     self.register_device(n_required_map, sharded_params_map)
-            // }
             GradientSyncMessage::Register((tensor, params)) => self.on_register(tensor, params),
+            GradientSyncMessage::Sync(device) => {
+                self.waiting_devices += 1;
+                if self.waiting_devices == self.num_devices {
+                    self.update_finished(&device);
+                }
+            }
         }
+    }
+
+    pub(crate) fn close(&mut self, callback: Sender<()>) {
+        for sender in self.task_senders.values() {
+            sender.send(CollectiveOperationMessage::Close()).unwrap();
+        }
+        callback.send(()).unwrap();
     }
 
     /// Called at the start of the backward process. Lets the device announce what parameters are nodes in the autodiff graph and how many times they are required.
@@ -128,39 +143,45 @@ impl<B: Backend> GradientSyncServer<B> {
                     .iter()
                     .map(|tensor| B::comm_device(tensor))
                     .collect();
-                println!("devices: {:?}", devices);
-                println!(
-                    "devices id: {:?}",
-                    devices.iter().map(|d| d.id()).collect::<Vec<DeviceId>>()
-                );
+                // println!("devices: {:?}", devices);
+                // println!(
+                //     "devices id: {:?}",
+                //     devices.iter().map(|d| d.id()).collect::<Vec<DeviceId>>()
+                // );
                 if num_tensors == all_reduce_ops_queue.len() {
-                    println!("All tensors queued, execute : {:?}", param_id);
+                    // println!("All tensors queued, execute : {:?}", param_id);
                     if B::supports_native_communication(&devices[0]) {
-                        println!("Supports native comm ops");
+                        // println!("Supports native comm ops");
                         let peer_ids: Vec<PeerId> = devices
                             .iter()
                             .map(|d| PeerId::from(d.id().index_id))
                             .collect();
                         for t in all_reduce_ops_queue.to_vec() {
                             let peer_id = PeerId::from(B::comm_device(&t).id().index_id);
-                            println!("sending to worker : {:?}", peer_ids);
-                            println!("sending to worker : {:?}", peer_id);
+                            // println!("sending to worker : {:?}", peer_ids);
+                            // println!("sending to worker : {:?}", peer_id);
                             self.task_senders
                                 .get(&peer_id)
                                 .expect("Peer ID was registered.")
-                                .send(AllReduceArgs {
+                                .send(CollectiveOperationMessage::AllReduce(AllReduceArgs {
                                     tensor: t,
                                     device_ids: peer_ids.clone(),
-                                })
+                                }))
                                 .expect("Can send to worker");
                         }
+                        if self.num_devices == self.waiting_devices {
+                            self.update_finished(&devices[0]);
+                        }
                     } else {
-                        println!("Dont support native comms");
+                        // println!("Dont support native comms");
                         // TODO: operation hard coded to mean.
                         all_reduce_inplace_sum_centralized(
                             all_reduce_ops_queue.to_vec(),
                             crate::ReduceOperation::Mean,
                         );
+                        if self.num_devices == self.waiting_devices {
+                            self.update_finished(&devices[0]);
+                        }
                     }
                     self.all_reduce_ops_queue.remove(&param_id).unwrap();
                     self.param_required_map.remove(&param_id).unwrap();
@@ -171,9 +192,9 @@ impl<B: Backend> GradientSyncServer<B> {
 
     /// Called on registration of a gradient. Calls the all_reduce operation for any parameter that is no longer required in the autodiff graph.
     fn on_register(&mut self, tensor: TensorRef<B>, sharded_params: ShardedParams) {
-        println!("On register");
+        // println!("On register");
         let peer_id = PeerId::from(B::comm_device(&tensor).id().index_id);
-        println!("peerid : {}", peer_id);
+        // println!("peerid : {}", peer_id);
         let param_id = sharded_params
             .param_id
             .expect("Sharded tensor should have a parameter ID.");
@@ -235,17 +256,42 @@ impl<B: Backend> GradientSyncServer<B> {
     //     }
     // }
 
-    pub(crate) fn is_finished(&mut self) -> bool {
-        if self.param_required_map.is_empty() {
-            // if !self.all_reduce_ops_queue.is_empty() {
-            //     log::warn!("All reduce operations left hanging.")
-            // }
-            self.devices_registered = 0;
-            true
+    pub(crate) fn update_finished(&mut self, device: &B::Device) {
+        let mut is_finished = false;
+        // println!("update_finished : {:?}", device);
+        if B::supports_native_communication(device) {
+            // TODO: right device.
+            if self.all_reduce_ops_queue.is_empty() {
+                B::communication_sync_native(device);
+                is_finished = true;
+            }
         } else {
-            false
+            if self.all_reduce_ops_queue.is_empty() {
+                is_finished = true;
+            }
+        }
+
+        if is_finished {
+            // println!("is_finished true");
+            let (lock, cvar) = &*self.is_finished_fence;
+            let mut finished = lock.lock().unwrap();
+            *finished = true;
+            cvar.notify_all();
+            // println!("notified all");
         }
     }
+
+    // pub(crate) fn is_finished(&mut self) -> bool {
+    //     if self.param_required_map.is_empty() {
+    //         // if !self.all_reduce_ops_queue.is_empty() {
+    //         //     log::warn!("All reduce operations left hanging.")
+    //         // }
+    //         self.devices_registered = 0;
+    //         true
+    //     } else {
+    //         false
+    //     }
+    // }
 }
 
 // TODO: Tests

@@ -85,8 +85,7 @@ pub trait CommunicationTensorOps<B: Backend> {
     /// TODO: ARGS and returns
     fn communication_sync(device: &B::Device) {
         if let Some(sync_client) = get_gradient_sync_client::<B>(device) {
-            println!("comm sync");
-            // sync_client.register_device(n_required_map, sharded_params_map);
+            sync_client.wait_gradients_sync(device.clone());
         };
     }
 
@@ -116,6 +115,10 @@ pub trait CommunicationTensorOps<B: Backend> {
         _all_ids: Vec<PeerId>,
         _op: ReduceOperation,
     ) {
+        unimplemented!()
+    }
+
+    fn communication_sync_native(device: &B::Device) {
         unimplemented!()
     }
 
