@@ -53,12 +53,12 @@ pub struct FusedMatmulInput {
 
 #[cube]
 impl MatmulArgs for FusedMatmulArgs {
-    type Output<EO: Numeric> = GlobalArgs;
-    type Input<Lhs: Numeric, Rhs: Numeric, EO: Numeric> = FusedMatmulInput;
-    type State<Lhs: Numeric, Rhs: Numeric, EO: Numeric> = FusedMatmulState;
+    type Output<EO: CubePrimitive> = GlobalArgs;
+    type Input<Lhs: CubePrimitive, Rhs: CubePrimitive, EO: CubePrimitive> = FusedMatmulInput;
+    type State<Lhs: CubePrimitive, Rhs: CubePrimitive, EO: CubePrimitive> = FusedMatmulState;
     type Config = ();
 
-    fn init_state<Lhs: Numeric, Rhs: Numeric, EO: Numeric>(
+    fn init_state<Lhs: CubePrimitive, Rhs: CubePrimitive, EO: CubePrimitive>(
         inputs: &Self::Input<Lhs, Rhs, EO>,
         outputs: &mut Self::Output<EO>,
         _config: (),
@@ -119,7 +119,7 @@ impl MatmulArgs for FusedMatmulArgs {
         )
     }
 
-    fn view_lhs<Lhs: Numeric, Rhs: Numeric, EO: Numeric>(
+    fn view_lhs<Lhs: CubePrimitive, Rhs: CubePrimitive, EO: CubePrimitive>(
         state: &Self::State<Lhs, Rhs, EO>,
     ) -> View<Line<Lhs>, BatchedCoords> {
         global_view(
@@ -132,14 +132,14 @@ impl MatmulArgs for FusedMatmulArgs {
         )
     }
 
-    fn batch_lhs<Lhs: Numeric, Rhs: Numeric, EO: Numeric>(
+    fn batch_lhs<Lhs: CubePrimitive, Rhs: CubePrimitive, EO: CubePrimitive>(
         state: &Self::State<Lhs, Rhs, EO>,
         batch: usize,
     ) -> usize {
         state.a_batch.to_source_pos(batch)
     }
 
-    fn view_rhs<Lhs: Numeric, Rhs: Numeric, EO: Numeric>(
+    fn view_rhs<Lhs: CubePrimitive, Rhs: CubePrimitive, EO: CubePrimitive>(
         state: &Self::State<Lhs, Rhs, EO>,
     ) -> View<Line<Rhs>, BatchedCoords> {
         global_view(

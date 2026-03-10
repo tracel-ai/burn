@@ -361,9 +361,9 @@ impl<R: Runtime> TraceRunner<R> for FusedMatmulLaunch<'_> {
         configs: &'a [FuseBlockConfig],
     ) -> Result<(), FusedMatmulError> {
         let global_elems = MatmulGlobalElems {
-            lhs: self.matmul.lhs.precision().into_type(),
-            rhs: self.matmul.rhs.precision().into_type(),
-            out: self.matmul.out.precision().into_type(),
+            lhs: self.matmul.lhs.precision().into_storage_type(),
+            rhs: self.matmul.rhs.precision().into_storage_type(),
+            out: self.matmul.out.precision().into_storage_type(),
         };
         let dtypes = MatmulElems::from_globals(&global_elems);
         self.matmul_fused(client, inputs, outputs, &configs[0], dtypes)

@@ -1,5 +1,5 @@
 use super::tensor::GlobalTensor;
-use crate::engine::codegen::DYN_ELEM_ID;
+use crate::engine::codegen::{DYN_ELEM_ID, DynSize};
 use burn_std::{
     DType, Shape, Strides, bf16, f16,
     quantization::{QuantScheme, QuantStore, QuantValue},
@@ -288,8 +288,8 @@ impl FuseOp {
     }
 
     /// Element type used for the computation.
-    pub(crate) fn cmp_type(&self) -> StorageType {
-        self.cmp_elem().into()
+    pub(crate) fn cmp_type(&self, line_size: usize) -> Type {
+        Type::new(self.cmp_elem().into()).line(line_size)
     }
 }
 
@@ -309,7 +309,7 @@ pub struct GlobalArgs {
     pub variables: MultiBlockVariables,
 }
 
-impl<'a, R: Runtime> GlobalArgsLaunch<'a, R> {
+impl<R: Runtime> GlobalArgsLaunch<R> {
     pub fn required_address_type(&self) -> AddressType {
         self.tensors
             .values
@@ -323,7 +323,8 @@ impl<'a, R: Runtime> GlobalArgsLaunch<'a, R> {
 /// Variables shared between blocks.
 #[derive(CubeType, Default, Clone)]
 pub struct MultiBlockVariables {
-    variables: Registry<usize, Registry<usize, RuntimeCell<Line<NumericExpand<DYN_ELEM_ID>>>>>,
+    variables:
+        Registry<usize, Registry<usize, RuntimeCell<Line<NumericExpand<DYN_ELEM_ID>, DynSize>>>>,
 }
 
 #[cube]
@@ -336,9 +337,9 @@ impl MultiBlockVariables {
     pub fn init(&mut self, #[comptime] key: MultiBlockPos, #[comptime] line_size: usize) {
         let mut registers = Registry::<
             usize,
-            Registry<usize, RuntimeCell<Line<NumericExpand<DYN_ELEM_ID>>>>,
+            Registry<usize, RuntimeCell<Line<NumericExpand<DYN_ELEM_ID>, DynSize>>>,
         >::find_or_default::<usize>(&mut self.variables, key.block_pos);
-        let cell = RuntimeCell::new(Line::empty(line_size));
+        let cell = RuntimeCell::new(Line::empty());
         registers.insert(key.block_local_pos, cell);
     }
 
@@ -347,7 +348,10 @@ impl MultiBlockVariables {
     /// # Notes
     ///
     /// The variable must be initialized.
-    pub fn read(&self, #[comptime] key: MultiBlockPos) -> Line<NumericExpand<DYN_ELEM_ID>> {
+    pub fn read(
+        &self,
+        #[comptime] key: MultiBlockPos,
+    ) -> Line<NumericExpand<DYN_ELEM_ID>, DynSize> {
         let registers = self.variables.find(key.block_pos);
         let cell = registers.find(key.block_local_pos);
         cell.read()
@@ -361,7 +365,7 @@ impl MultiBlockVariables {
     pub fn write(
         &mut self,
         #[comptime] key: MultiBlockPos,
-        value: Line<NumericExpand<DYN_ELEM_ID>>,
+        value: Line<NumericExpand<DYN_ELEM_ID>, DynSize>,
     ) {
         let registers = self.variables.find(key.block_pos);
         // Try find for local(visibility) registers.
@@ -375,11 +379,12 @@ unsafe impl Send for MultiBlockVariables {}
 unsafe impl Sync for MultiBlockVariables {}
 
 impl LaunchArg for MultiBlockVariables {
-    type RuntimeArg<'a, R: Runtime> = ();
+    type RuntimeArg<R: Runtime> = ();
     type CompilationArg = ();
 
-    fn compilation_arg<R: Runtime>(_runtime_arg: &Self::RuntimeArg<'_, R>) -> Self::CompilationArg {
-    }
+    fn compilation_arg<R: Runtime>(_runtime_arg: &Self::RuntimeArg<R>) -> Self::CompilationArg {}
+
+    fn register<R: Runtime>(_arg: Self::RuntimeArg<R>, _launcher: &mut KernelLauncher<R>) {}
 
     fn expand(
         _arg: &Self::CompilationArg,
@@ -391,7 +396,7 @@ impl LaunchArg for MultiBlockVariables {
     }
 }
 
-impl<R: Runtime> Default for GlobalArgsLaunch<'_, R> {
+impl<R: Runtime> Default for GlobalArgsLaunch<R> {
     fn default() -> Self {
         Self {
             tensors: Default::default(),
@@ -400,18 +405,17 @@ impl<R: Runtime> Default for GlobalArgsLaunch<'_, R> {
             variables: Default::default(),
             runtime_layouts: Default::default(),
             _phantom_runtime: std::marker::PhantomData,
-            _phantom_a: std::marker::PhantomData,
         }
     }
 }
 
-impl<R: Runtime> core::fmt::Debug for GlobalArgsLaunch<'_, R> {
+impl<R: Runtime> core::fmt::Debug for GlobalArgsLaunch<R> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "({:?})", self.tensors.values)
     }
 }
 
-impl<R: Runtime> GlobalArgsLaunch<'_, R> {
+impl<R: Runtime> GlobalArgsLaunch<R> {
     /// Get the shape of the given [argument](Arg).
     ///
     /// # Panics
@@ -492,9 +496,10 @@ impl<R: Runtime> GlobalArgsLaunch<'_, R> {
     ///
     /// If the argument doesn't have an handle.
     pub fn line_size(&self, arg: &FuseArg) -> LineSize {
-        match self.resolve_arg(arg) {
-            TensorArg::Handle { line_size, .. } => *line_size,
-            TensorArg::Alias { .. } => panic!("Unsupported yet"),
+        match arg {
+            FuseArg::Input(pos, _, _) => self.tensors.values[*pos].ty.line_size(),
+            FuseArg::Output(pos, _, _) => self.tensors.values[*pos].ty.line_size(),
+            other => panic!("Arg not found: {other:?}"),
         }
     }
 
@@ -516,19 +521,19 @@ impl<R: Runtime> GlobalArgsLaunch<'_, R> {
 /// Keep track of all local variables that are used as argument in fused
 /// [element wise operations](ElemwiseOp).
 pub struct LocalArgs {
-    pub l_f64: Registry<usize, Line<f64>>,
-    pub l_f32: Registry<usize, Line<f32>>,
-    pub l_f16: Registry<usize, Line<f16>>,
-    pub l_bf16: Registry<usize, Line<bf16>>,
-    pub l_i64: Registry<usize, Line<i64>>,
-    pub l_i32: Registry<usize, Line<i32>>,
-    pub l_i16: Registry<usize, Line<i16>>,
-    pub l_i8: Registry<usize, Line<i8>>,
-    pub l_u64: Registry<usize, Line<u64>>,
-    pub l_u32: Registry<usize, Line<u32>>,
-    pub l_u16: Registry<usize, Line<u16>>,
-    pub l_u8: Registry<usize, Line<u8>>,
-    pub l_bool: Registry<usize, Line<bool>>,
+    pub l_f64: Registry<usize, Line<f64, DynSize>>,
+    pub l_f32: Registry<usize, Line<f32, DynSize>>,
+    pub l_f16: Registry<usize, Line<f16, DynSize>>,
+    pub l_bf16: Registry<usize, Line<bf16, DynSize>>,
+    pub l_i64: Registry<usize, Line<i64, DynSize>>,
+    pub l_i32: Registry<usize, Line<i32, DynSize>>,
+    pub l_i16: Registry<usize, Line<i16, DynSize>>,
+    pub l_i8: Registry<usize, Line<i8, DynSize>>,
+    pub l_u64: Registry<usize, Line<u64, DynSize>>,
+    pub l_u32: Registry<usize, Line<u32, DynSize>>,
+    pub l_u16: Registry<usize, Line<u16, DynSize>>,
+    pub l_u8: Registry<usize, Line<u8, DynSize>>,
+    pub l_bool: Registry<usize, Line<bool, DynSize>>,
     pub ref_shape: Slice<usize>,
     pub ref_strides: Slice<usize>,
     #[cube(comptime)]
@@ -544,19 +549,19 @@ impl LocalArgs {
         #[comptime] ref_line_size: LineSize,
     ) -> LocalArgs {
         LocalArgs {
-            l_f64: Registry::<usize, Line<f64>>::new(),
-            l_f32: Registry::<usize, Line<f32>>::new(),
-            l_f16: Registry::<usize, Line<f16>>::new(),
-            l_bf16: Registry::<usize, Line<bf16>>::new(),
-            l_i64: Registry::<usize, Line<i64>>::new(),
-            l_i32: Registry::<usize, Line<i32>>::new(),
-            l_i16: Registry::<usize, Line<i16>>::new(),
-            l_i8: Registry::<usize, Line<i8>>::new(),
-            l_u64: Registry::<usize, Line<u64>>::new(),
-            l_u32: Registry::<usize, Line<u32>>::new(),
-            l_u16: Registry::<usize, Line<u16>>::new(),
-            l_u8: Registry::<usize, Line<u8>>::new(),
-            l_bool: Registry::<usize, Line<bool>>::new(),
+            l_f64: Registry::<usize, Line<f64, DynSize>>::new(),
+            l_f32: Registry::<usize, Line<f32, DynSize>>::new(),
+            l_f16: Registry::<usize, Line<f16, DynSize>>::new(),
+            l_bf16: Registry::<usize, Line<bf16, DynSize>>::new(),
+            l_i64: Registry::<usize, Line<i64, DynSize>>::new(),
+            l_i32: Registry::<usize, Line<i32, DynSize>>::new(),
+            l_i16: Registry::<usize, Line<i16, DynSize>>::new(),
+            l_i8: Registry::<usize, Line<i8, DynSize>>::new(),
+            l_u64: Registry::<usize, Line<u64, DynSize>>::new(),
+            l_u32: Registry::<usize, Line<u32, DynSize>>::new(),
+            l_u16: Registry::<usize, Line<u16, DynSize>>::new(),
+            l_u8: Registry::<usize, Line<u8, DynSize>>::new(),
+            l_bool: Registry::<usize, Line<bool, DynSize>>::new(),
             ref_shape,
             ref_strides,
             ref_line_size,
@@ -627,7 +632,7 @@ impl FuseArg {
                 // TODO: we need to init the multi-block local, but at some point we could avoid
                 // that for performance (easier for the underlying compiler).
             | FuseArg::MultiBlockLocal(arg, fuse_type) => {
-                registers.push((arg.clone(), fuse_type.into_type()))
+                registers.push((arg.clone(), fuse_type.into_storage_type()))
             }
             _ => {}
         };
@@ -737,7 +742,9 @@ pub fn multi_block_variables_init(
     #[unroll]
     for i in 0..comptime!(output.len()) {
         let (key, dtype) = comptime!(output.get(i).unwrap().clone());
-        set_polyfill::<NumericExpand<DYN_ELEM_ID>>(dtype);
+        set_polyfill::<NumericExpand<DYN_ELEM_ID>, DynSize>(comptime![
+            Type::new(dtype).line(block.width)
+        ]);
         variables.init(key, block.width);
     }
 }
@@ -843,8 +850,13 @@ impl FuseType {
     }
 
     /// Convert the [fused element type](FuseType) into the [cubecl storage type](StorageType).
-    pub fn into_type(self) -> StorageType {
+    pub fn into_storage_type(self) -> StorageType {
         self.into_elem().into()
+    }
+
+    /// Convert the [fused element type](FuseType) into the [cubecl type](Type)
+    pub fn into_type(self, line_size: LineSize) -> Type {
+        Type::new(self.into_storage_type()).line(line_size)
     }
 }
 

@@ -1,4 +1,6 @@
 //! This module declares input-output primitives to read and write values during kernel expansion.
+use crate::engine::codegen::DynSize;
+
 use super::{DYN_ELEM_ID, ir::*, tensor::GlobalTensor};
 use burn_std::quantization::QuantScheme;
 use cubecl::quant::scheme::QuantLevel;
@@ -35,14 +37,14 @@ pub enum Transform {
 /// This is because the [argument](FuseArg) might point to a global input, output or local variable
 /// created during kernel expansion.
 #[cube]
-pub fn read<C: CubePrimitive>(
+pub fn read<C: Scalar, N: Size>(
     inputs: &GlobalArgs,
     outputs: &GlobalArgs,
     locals: &LocalArgs,
     ref_pos: usize,
     #[comptime] arg: FuseArg,
     #[comptime] config: &FuseBlockConfig,
-) -> Line<C> {
+) -> Line<C, N> {
     match arg {
         FuseArg::Input(pos, _precision, layout) => {
             let global = inputs.tensors.index(pos);
@@ -192,14 +194,14 @@ fn index_offset_with_quant_layout(
 ///
 /// The values returned in the [Line] are not dequantized.
 #[cube]
-pub fn read_quantized<C: CubePrimitive>(
+pub fn read_quantized<C: Scalar, N: Size>(
     inputs: &GlobalArgs,
     locals: &LocalArgs,
     ref_pos: usize,
     #[comptime] arg: FuseArg,
     #[comptime] config: &FuseBlockConfig,
     #[comptime] scheme: QuantScheme,
-) -> Line<C> {
+) -> Line<C, N> {
     match arg {
         FuseArg::Input(pos, _precision, _layout) => {
             let global = inputs.tensors.index(pos);
@@ -215,7 +217,7 @@ pub fn read_quantized<C: CubePrimitive>(
 
 /// Reads a global scalar.
 #[cube]
-pub fn read_scalar<C: CubePrimitive>(inputs: &GlobalArgs, #[comptime] arg: FuseArg) -> C {
+pub fn read_scalar<C: Scalar>(inputs: &GlobalArgs, #[comptime] arg: FuseArg) -> C {
     match arg {
         FuseArg::Scalar(pos, _precision) => {
             let scalar = inputs.scalars.index(pos);
@@ -236,7 +238,7 @@ pub fn read_scalar_shape(inputs: &GlobalArgs, #[comptime] arg: FuseArg) -> usize
 
 /// Reads an input tensor.
 #[cube]
-pub fn read_input<C: CubePrimitive>(
+pub fn read_input<C: Scalar, N: Size>(
     inputs: &GlobalArgs,
     locals: &LocalArgs,
     #[comptime] pos: usize,
@@ -244,7 +246,7 @@ pub fn read_input<C: CubePrimitive>(
     #[comptime] layout: LayoutInfo,
     #[comptime] config: &FuseBlockConfig,
     #[comptime] transform: Option<Transform>,
-) -> Line<C> {
+) -> Line<C, N> {
     let tensor = inputs.tensors.index(pos);
     let offset = match layout {
         LayoutInfo::SameAsRef => ref_pos,
@@ -277,14 +279,14 @@ pub fn input_as_slice<C: CubePrimitive>(inputs: &GlobalArgs, #[comptime] pos: us
 
 /// Returns the input tensor as a quantized scale view.
 #[cube]
-pub fn input_as_scales_view<C: CubePrimitive>(
+pub fn input_as_scales_view<C: Scalar, N: Size>(
     inputs: &GlobalArgs,
     #[comptime] pos: usize,
     #[comptime] tensor_pos: usize,
     #[comptime] level: QuantLevel,
     #[comptime] config: &FuseBlockConfig,
 ) -> View<C, usize> {
-    set_polyfill_typed::<C, NumericExpand<DYN_ELEM_ID>>();
+    set_polyfill_typed::<Line<C, N>, NumericExpand<DYN_ELEM_ID>, DynSize>();
     let tensor = inputs.tensors.index(tensor_pos);
     let scales = inputs.tensors.index(pos);
     let tensor_len = tensor.tensor.len();
@@ -316,7 +318,7 @@ pub fn input_as_scales_view<C: CubePrimitive>(
 
 /// Reads the input tensor aligned.
 #[cube]
-pub fn read_input_aligned<C: CubePrimitive>(
+pub fn read_input_aligned<C: Scalar, N: Size>(
     inputs: &GlobalArgs,
     locals: &LocalArgs,
     #[comptime] pos: usize,
@@ -324,8 +326,8 @@ pub fn read_input_aligned<C: CubePrimitive>(
     #[comptime] layout: LayoutInfo,
     #[comptime] config: &FuseBlockConfig,
     #[comptime] transform: Option<Transform>,
-) -> Line<C> {
-    let mut result: Line<C> = Line::<C>::empty(config.width);
+) -> Line<C, N> {
+    let mut result = Line::<C, N>::empty();
     let tensor = inputs.tensors.index(pos);
 
     match transform.clone() {
@@ -403,7 +405,7 @@ pub fn get_offset_aligned(
 
 /// Reads an output tensor.
 #[cube]
-pub fn read_output<C: CubePrimitive>(
+pub fn read_output<C: Scalar, N: Size>(
     inputs: &GlobalArgs,
     outputs: &GlobalArgs,
     locals: &LocalArgs,
@@ -411,7 +413,7 @@ pub fn read_output<C: CubePrimitive>(
     ref_pos: usize,
     #[comptime] layout: LayoutInfo,
     #[comptime] config: &FuseBlockConfig,
-) -> Line<C> {
+) -> Line<C, N> {
     let tensor = outputs.tensors.index(pos);
     let offset = match layout {
         LayoutInfo::SameAsRef => ref_pos,
@@ -423,12 +425,12 @@ pub fn read_output<C: CubePrimitive>(
 
 #[cube]
 /// Write the given value at the [arg](Arg) position.
-pub fn write<C: CubePrimitive>(
+pub fn write<C: Scalar, N: Size>(
     inputs: &GlobalArgs,
     outputs: &mut GlobalArgs,
     locals: &mut LocalArgs,
     ref_pos: usize,
-    value: Line<C>,
+    value: Line<C, N>,
     #[comptime] arg: FuseArg,
     #[comptime] config: &FuseBlockConfig,
 ) {
@@ -443,11 +445,13 @@ pub fn write<C: CubePrimitive>(
                 }
             };
             let tensor = outputs.tensors.index_mut(pos);
-            set_polyfill::<NumericExpand<DYN_ELEM_ID>>(comptime![precision.into_type()]);
+            set_polyfill::<NumericExpand<DYN_ELEM_ID>, DynSize>(comptime![
+                precision.into_type(config.width)
+            ]);
 
             tensor.tensor[offset] = Line::cast_from(value);
         }
-        FuseArg::BlockLocal { .. } => write_scalar::<C>(locals, value, arg),
+        FuseArg::BlockLocal { .. } => write_scalar::<C, N>(locals, value, arg),
         FuseArg::MultiBlockLocal(key, _) | FuseArg::MultiBlockGlobal(key, _) => {
             outputs.variables.write(key, Line::cast_from(value))
         }
@@ -457,9 +461,9 @@ pub fn write<C: CubePrimitive>(
 
 #[cube]
 /// Write the given value at the [arg](Arg) position.
-pub fn write_scalar<C: CubePrimitive>(
+pub fn write_scalar<C: Scalar, N: Size>(
     locals: &mut LocalArgs,
-    value: Line<C>,
+    value: Line<C, N>,
     #[comptime] arg: FuseArg,
 ) {
     match arg {
@@ -741,8 +745,8 @@ fn reshaped_index(
 #[allow(unreachable_code)]
 #[cube]
 #[allow(clippy::clone_on_copy)]
-fn reshaped_index_to_original_index<C: CubePrimitive>(
-    original: &Tensor<Line<C>>,
+fn reshaped_index_to_original_index<C: Scalar, N: Size>(
+    original: &Tensor<Line<C, N>>,
     index_reshaped: usize,
     #[comptime] rank: usize,
 ) -> usize {
@@ -784,9 +788,9 @@ fn from_const_int<C: CubePrimitive>(#[comptime] value: usize) -> C {
 
 #[cube]
 #[allow(clippy::extra_unused_type_parameters)]
-fn set_polyfill_typed<C: CubePrimitive, Dyn: CubePrimitive>() {
+fn set_polyfill_typed<C: CubePrimitive, Dyn: Scalar, DynSize: Size>() {
     intrinsic!(|scope| {
         let elem_type = C::as_type(scope);
-        set_polyfill::expand::<Dyn>(scope, elem_type);
+        set_polyfill::expand::<Dyn, DynSize>(scope, elem_type);
     })
 }

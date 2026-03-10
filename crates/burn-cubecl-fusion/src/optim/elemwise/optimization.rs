@@ -2,6 +2,7 @@ use crate::{
     CubeFusionHandle,
     engine::{
         codegen::{
+            DynSize,
             io::ref_len,
             ir::{
                 FuseArg, FuseBlockConfig, GlobalArgs, GlobalArgsLaunch, RefLayout,
@@ -82,8 +83,8 @@ impl<R: Runtime> TraceRunner<R> for ElemwiseRunner {
     fn run<'a>(
         &'a self,
         client: &'a ComputeClient<R>,
-        inputs: GlobalArgsLaunch<'a, R>,
-        outputs: GlobalArgsLaunch<'a, R>,
+        inputs: GlobalArgsLaunch<R>,
+        outputs: GlobalArgsLaunch<R>,
         configs: &[FuseBlockConfig],
     ) -> Result<(), Self::Error> {
         let config = &configs[0];
@@ -125,7 +126,7 @@ fn elemwise_fuse(
     #[comptime] config: &FuseBlockConfig,
 ) {
     // We write no values for this fusion.
-    let values = Registry::<FuseArg, Line<f32>>::new();
+    let values = Registry::<FuseArg, Line<f32, DynSize>>::new();
     let args = comptime![Vec::<FuseArg>::new()];
     let pos = ABSOLUTE_POS;
 
@@ -135,6 +136,6 @@ fn elemwise_fuse(
     let length = ref_len(inputs, outputs, &locals, config);
 
     if pos < length {
-        fuse_on_write::<f32>(inputs, outputs, &mut locals, pos, values, args, config)
+        fuse_on_write::<f32, DynSize>(inputs, outputs, &mut locals, pos, values, args, config)
     }
 }

@@ -104,9 +104,9 @@ fn set_polyfill_block(block: &ReduceFuseBlock) {
         FuseType::Bool => FuseType::I32,
     });
 
-    set_polyfill::<In>(comptime!(input_precision.into_type()));
-    set_polyfill::<Out>(comptime!(output_precision.into_type()));
-    set_polyfill::<Acc>(comptime!(acc_precision.into_type()));
+    set_polyfill::<In>(comptime!(input_precision.into_storage_type()));
+    set_polyfill::<Out>(comptime!(output_precision.into_storage_type()));
+    set_polyfill::<Acc>(comptime!(acc_precision.into_storage_type()));
 }
 
 /// Internal logic for executing a sequence of reduction blocks followed by an optional

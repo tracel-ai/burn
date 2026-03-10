@@ -72,7 +72,6 @@ impl<R: Runtime> CubeFusionHandle<R> {
             strides: self.strides.clone(),
             shape,
             runtime: PhantomData,
-            elem_size: self.dtype.size(),
         }
     }
 
@@ -87,9 +86,9 @@ impl<R: Runtime> CubeFusionHandle<R> {
     }
 
     /// Return the reference to a tensor argument.
-    pub fn into_tensor_arg(self, shape: Shape, line_size: LineSize) -> TensorArg<R> {
+    pub fn into_tensor_arg(self, shape: Shape) -> TensorArg<R> {
         let handle = self.binding(shape);
-        handle.into_tensor_arg(line_size)
+        handle.into_tensor_arg()
     }
 
     /// Construct a separate tensor for the quantization scales, if present
