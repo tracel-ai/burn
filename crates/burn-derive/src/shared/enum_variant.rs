@@ -69,6 +69,15 @@ pub(crate) fn parse_variants(ast: &syn::DeriveInput) -> syn::Result<Vec<EnumVari
     let mut variants = Vec::new();
 
     for variant in enum_data.variants.iter() {
+        for attr in &variant.attrs {
+            if attr.path().is_ident("module") {
+                Err(syn::Error::new_spanned(
+                    variant,
+                    "Module attributes are not supported for enum variants.",
+                ))?;
+            }
+        }
+
         match &variant.fields {
             syn::Fields::Unnamed(fields) if fields.unnamed.len() == 1 => {
                 let field = &fields.unnamed[0];

@@ -157,7 +157,7 @@ impl LrScheduler for ComposedLrScheduler {
                         LrSchedulerRecord::Linear(item.to_record::<B>())
                     }
                     LrSchedulerItem::Cosine(item) => {
-                        LrSchedulerRecord::Linear(item.to_record::<B>())
+                        LrSchedulerRecord::Cosine(item.to_record::<B>())
                     }
                     LrSchedulerItem::Exponential(item) => {
                         LrSchedulerRecord::Exponential(item.to_record::<B>())
