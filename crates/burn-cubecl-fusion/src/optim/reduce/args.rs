@@ -53,13 +53,13 @@ pub struct FusedReduceStateExpand {
 
 #[cube]
 impl ReduceArgs for FusedReduceArgs {
-    type Input<E: Numeric> = FusedReduceInput;
-    type Output<E: Numeric> = FusedReduceOutput;
+    type Input<E: Numeric, S: Size> = FusedReduceInput;
+    type Output<E: Numeric, S: Size> = FusedReduceOutput;
     type State<P: ReduceDType> = FusedReduceState;
 
     fn init_state<P: ReduceDType>(
-        input: &Self::Input<P::In>,
-        output: &mut Self::Output<P::Out>,
+        input: &Self::Input<P::In, P::SizeIn>,
+        output: &mut Self::Output<P::Out, P::SizeOut>,
     ) -> Self::State<P> {
         let mut locals_read = init_locals(&input.global, &mut output.global, &input.config);
         let mut locals_write = init_locals(&input.global, &mut output.global, &output.config);
@@ -67,8 +67,8 @@ impl ReduceArgs for FusedReduceArgs {
         FusedReduceState::new(input, output, &mut locals_read, &mut locals_write)
     }
 
-    fn read_input<P: ReduceDType>(state: &Self::State<P>, index: usize) -> Line<P::In> {
-        let value = fuse_on_read::<P::In>(
+    fn read_input<P: ReduceDType>(state: &Self::State<P>, index: usize) -> Line<P::In, P::SizeIn> {
+        let value = fuse_on_read::<P::In, P::SizeIn>(
             unsafe { &(*state.inputs) },
             unsafe { &mut (*state.outputs) },
             unsafe { &mut (*state.locals_on_read) },
@@ -84,12 +84,19 @@ impl ReduceArgs for FusedReduceArgs {
         value
     }
 
-    fn read_output<P: ReduceDType>(_state: &Self::State<P>, _index: usize) -> Line<P::Out> {
-        Line::empty(1usize)
+    fn read_output<P: ReduceDType>(
+        _state: &Self::State<P>,
+        _index: usize,
+    ) -> Line<P::Out, P::SizeOut> {
+        Line::empty()
     }
 
-    fn write_output<P: ReduceDType>(state: &mut Self::State<P>, index: usize, value: Line<P::Out>) {
-        let mut values = Registry::<FuseArg, Line<P::Out>>::new();
+    fn write_output<P: ReduceDType>(
+        state: &mut Self::State<P>,
+        index: usize,
+        value: Line<P::Out, P::SizeOut>,
+    ) {
+        let mut values = Registry::<FuseArg, Line<P::Out, P::SizeOut>>::new();
         let mut args = comptime![Vec::<FuseArg>::new()];
 
         values.insert(comptime![state.out.clone()], value);

@@ -197,14 +197,14 @@ impl FusedOutput {
     }
 }
 
-impl<E: Scalar, N: Size> ViewOperations<Line<E, N>, Coords1d> for FusedOutput {}
-impl<E: Scalar, N: Size> ViewOperationsExpand<Line<E, N>, Coords1d> for FusedOutputExpand {
+impl<E: CubePrimitive> ViewOperations<E, Coords1d> for FusedOutput {}
+impl<E: CubePrimitive> ViewOperationsExpand<E, Coords1d> for FusedOutputExpand {
     #[allow(clippy::too_many_arguments)]
     fn __expand_read_method(
         &self,
         _scope: &mut Scope,
         _pos: ExpandElementTyped<usize>,
-    ) -> <Line<E, N> as CubeType>::ExpandType {
+    ) -> <E as CubeType>::ExpandType {
         todo!()
     }
 
@@ -213,7 +213,7 @@ impl<E: Scalar, N: Size> ViewOperationsExpand<Line<E, N>, Coords1d> for FusedOut
         &self,
         _scope: &mut Scope,
         _pos: ExpandElementTyped<usize>,
-    ) -> <Line<E, N> as CubeType>::ExpandType {
+    ) -> <E as CubeType>::ExpandType {
         todo!()
     }
 
@@ -222,8 +222,8 @@ impl<E: Scalar, N: Size> ViewOperationsExpand<Line<E, N>, Coords1d> for FusedOut
         &self,
         _scope: &mut Scope,
         _pos: ExpandElementTyped<usize>,
-        _value: <Line<E, N> as CubeType>::ExpandType,
-    ) -> <Line<E, N> as CubeType>::ExpandType {
+        _value: <E as CubeType>::ExpandType,
+    ) -> <E as CubeType>::ExpandType {
         todo!()
     }
 
@@ -232,7 +232,7 @@ impl<E: Scalar, N: Size> ViewOperationsExpand<Line<E, N>, Coords1d> for FusedOut
         &self,
         _scope: &mut Scope,
         _pos: ExpandElementTyped<usize>,
-    ) -> <Line<E, N> as CubeType>::ExpandType {
+    ) -> <E as CubeType>::ExpandType {
         todo!()
     }
 
@@ -242,7 +242,7 @@ impl<E: Scalar, N: Size> ViewOperationsExpand<Line<E, N>, Coords1d> for FusedOut
         _scope: &mut Scope,
         _pos: ExpandElementTyped<usize>,
         _size: ExpandElementTyped<usize>,
-    ) -> SliceExpand<Line<E, N>, ReadOnly> {
+    ) -> SliceExpand<E, ReadOnly> {
         todo!()
     }
 
@@ -251,7 +251,7 @@ impl<E: Scalar, N: Size> ViewOperationsExpand<Line<E, N>, Coords1d> for FusedOut
         &self,
         _scope: &mut Scope,
         _barrier: BarrierExpand,
-        _shared_memory: SliceExpand<Line<E, N>, ReadWrite>,
+        _shared_memory: SliceExpand<E, ReadWrite>,
         _pos: ExpandElementTyped<usize>,
     ) {
         panic!("Not a tensor map")
@@ -285,18 +285,19 @@ impl<E: Scalar, N: Size> ViewOperationsExpand<Line<E, N>, Coords1d> for FusedOut
     }
 }
 
-impl<E: Scalar, N: Size> ViewOperationsMut<Line<E, N>, Coords1d> for FusedOutput {}
-impl<E: Scalar, N: Size> ViewOperationsMutExpand<Line<E, N>, Coords1d> for FusedOutputExpand {
+impl<E: CubePrimitive> ViewOperationsMut<E, Coords1d> for FusedOutput {}
+impl<E: CubePrimitive> ViewOperationsMutExpand<E, Coords1d> for FusedOutputExpand {
     #[allow(clippy::too_many_arguments)]
     fn __expand_write_method(
         &self,
         scope: &mut Scope,
         pos: ExpandElementTyped<usize>,
-        value: <Line<E, N> as CubeType>::ExpandType,
+        value: <E as CubeType>::ExpandType,
     ) {
-        let values = Registry::<FuseArg, Line<E, N>>::__expand_new(scope);
+        let values = Registry::<FuseArg, Line<E::Scalar, DynSize>>::__expand_new(scope);
         let mut args = comptime![Vec::<FuseArg>::new()];
 
+        let value = Line::__expand_cast_from(scope, value);
         values
             .clone()
             .__expand_insert_method(scope, comptime![self.arg.clone()], value);
@@ -319,15 +320,15 @@ impl<E: Scalar, N: Size> ViewOperationsMutExpand<Line<E, N>, Coords1d> for Fused
         &self,
         scope: &mut Scope,
         pos: ExpandElementTyped<usize>,
-        value: <Line<E, N> as CubeType>::ExpandType,
+        value: <E as CubeType>::ExpandType,
     ) {
-        let in_bounds = ViewOperationsExpand::<Line<E, N>, Coords1d>::__expand_is_in_bounds_method(
+        let in_bounds = ViewOperationsExpand::<E, Coords1d>::__expand_is_in_bounds_method(
             self,
             scope,
             pos.clone(),
         );
         if_expand(scope, in_bounds.into(), |scope| {
-            self.__expand_write_method(scope, pos, value);
+            ViewOperationsMutExpand::<E, Coords1d>::__expand_write_method(self, scope, pos, value);
         })
     }
 
@@ -337,7 +338,7 @@ impl<E: Scalar, N: Size> ViewOperationsMutExpand<Line<E, N>, Coords1d> for Fused
         _scope: &mut Scope,
         _pos: ExpandElementTyped<usize>,
         _size: ExpandElementTyped<usize>,
-    ) -> SliceExpand<Line<E, N>, ReadWrite> {
+    ) -> SliceExpand<E, ReadWrite> {
         todo!("Not yet supported")
     }
 
@@ -345,7 +346,7 @@ impl<E: Scalar, N: Size> ViewOperationsMutExpand<Line<E, N>, Coords1d> for Fused
     fn __expand_tensor_map_store_method(
         &self,
         _scope: &mut Scope,
-        _shared_memory: SliceExpand<Line<E, N>, ReadOnly>,
+        _shared_memory: SliceExpand<E, ReadOnly>,
         _pos: ExpandElementTyped<usize>,
     ) {
         panic!("Not a tensor map")

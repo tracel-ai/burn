@@ -11,11 +11,11 @@ use crate::{
 };
 
 #[cube(launch, address_type = "dynamic")]
-fn mask_where_kernel<T: Numeric, B: Int>(
-    input: &LinearView<Line<T>>,
-    value: &LinearView<Line<T>>,
-    mask: &LinearView<Line<B>>,
-    output: &mut LinearView<Line<T>, ReadWrite>,
+fn mask_where_kernel<T: Numeric, B: Int, N: Size>(
+    input: &LinearView<Line<T, N>>,
+    value: &LinearView<Line<T, N>>,
+    mask: &LinearView<Line<B, N>>,
+    output: &mut LinearView<Line<T, N>, ReadWrite>,
     #[define(T, B)] _dtypes: [StorageType; 2],
 ) {
     let pos = ABSOLUTE_POS;
@@ -79,6 +79,7 @@ pub fn mask_where<R: CubeRuntime>(
         cube_count,
         cube_dim,
         address_type!(input, value, mask, output),
+        line_size,
         linear_view_ref(input, &output, line_size),
         linear_view_ref(value, &output, line_size),
         linear_view_ref(mask, &output, line_size),

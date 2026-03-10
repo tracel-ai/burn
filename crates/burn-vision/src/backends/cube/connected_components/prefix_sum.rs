@@ -17,9 +17,9 @@ const MAX_REDUCE_SIZE: usize = CUBE_SIZE / MIN_SUBGROUP_SIZE;
 const PART_SIZE: usize = 4096;
 
 #[cube(launch_unchecked)]
-fn prefix_sum_kernel<I: Int>(
-    scan_in: &Tensor<Line<I>>,
-    scan_out: &mut Tensor<Line<I>>,
+fn prefix_sum_kernel<I: Int, N: Size>(
+    scan_in: &Tensor<Line<I, N>>,
+    scan_out: &mut Tensor<Line<I, N>>,
     scan_bump: &Tensor<Atomic<I>>,
     reduction: &Tensor<Atomic<I>>,
     cube_count_x: usize,
@@ -56,7 +56,7 @@ fn prefix_sum_kernel<I: Int>(
     let red_offs = batch * reduction.stride(0);
     let scan_offs = batch * scan_in.stride(0);
 
-    let mut t_scan = Array::<Line<I>>::lined(line_spt, scan_in.line_size());
+    let mut t_scan = Array::<Line<I, N>>::new(line_spt);
     {
         let mut i = dev_offs + plane_offs + UNIT_POS_PLANE as usize;
 
@@ -249,10 +249,11 @@ pub fn prefix_sum<R: CubeRuntime, I: IntElement>(input: CubeTensor<R>) -> CubeTe
             &out.client,
             cube_count,
             cube_dim,
-            input.into_tensor_arg(4),
-            out.clone().into_tensor_arg(4),
-            bump.into_tensor_arg(1),
-            reduction.into_tensor_arg(1),
+            4,
+            input.into_tensor_arg(),
+            out.clone().into_tensor_arg(),
+            bump.into_tensor_arg(),
+            reduction.into_tensor_arg(),
             ScalarArg::new(cubes),
         )
     };

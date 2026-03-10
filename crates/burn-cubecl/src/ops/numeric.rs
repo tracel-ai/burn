@@ -52,8 +52,8 @@ pub fn full_device_dtype<R: CubeRuntime>(
     let empty = empty_device_dtype(client, device, shape, dtype);
 
     #[cube(launch_unchecked, address_type = "dynamic")]
-    pub fn full_kernel<C: Numeric>(
-        tensor: &mut LinearView<C, ReadWrite>,
+    pub fn full_kernel<C: Numeric, N: Size>(
+        tensor: &mut LinearView<Line<C, N>, ReadWrite>,
         value: InputScalar,
         #[define(C)] _dtype: StorageType,
     ) {
@@ -61,7 +61,7 @@ pub fn full_device_dtype<R: CubeRuntime>(
             terminate!();
         }
 
-        tensor[ABSOLUTE_POS] = value.get::<C>();
+        tensor[ABSOLUTE_POS] = Line::new(value.get::<C>());
     }
 
     let num_elems = empty.meta.num_elements();
@@ -77,6 +77,7 @@ pub fn full_device_dtype<R: CubeRuntime>(
             cube_count,
             cube_dim,
             address_type!(empty),
+            line_size,
             linear_view(empty.clone(), line_size),
             value,
             empty.dtype.into(),
@@ -291,7 +292,7 @@ impl<N: Numeric> CumulativeOp<N> for SumOp {
     }
 
     fn init_value(_first_element: N) -> N {
-        N::from_int(0)
+        N::zero()
     }
 }
 
@@ -429,7 +430,7 @@ fn cumulative_op<R: CubeRuntime, O: CumulativeOpFamily>(
             cube_count,
             cube_dim,
             address_type!(input, output),
-            input.into_tensor_arg(1),
+            input.into_tensor_arg(),
             linear_view(output.clone(), 1),
             shape,
             dim,

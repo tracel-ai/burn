@@ -356,8 +356,8 @@ impl<R: Runtime> TraceRunner<R> for FusedMatmulLaunch<'_> {
     fn run<'a>(
         &'a self,
         client: &'a ComputeClient<R>,
-        inputs: GlobalArgsLaunch<'a, R>,
-        outputs: GlobalArgsLaunch<'a, R>,
+        inputs: GlobalArgsLaunch<R>,
+        outputs: GlobalArgsLaunch<R>,
         configs: &'a [FuseBlockConfig],
     ) -> Result<(), FusedMatmulError> {
         let global_elems = MatmulGlobalElems {
@@ -397,8 +397,8 @@ impl FusedMatmulLaunch<'_> {
     fn matmul_fused<'a, R: Runtime>(
         &'a self,
         client: &'a ComputeClient<R>,
-        inputs: GlobalArgsLaunch<'a, R>,
-        outputs: GlobalArgsLaunch<'a, R>,
+        inputs: GlobalArgsLaunch<R>,
+        outputs: GlobalArgsLaunch<R>,
         config: &'a FuseBlockConfig,
         dtypes: MatmulElems,
     ) -> Result<(), FusedMatmulError> {
@@ -631,10 +631,10 @@ impl FusedMatmulLaunch<'_> {
     }
 }
 
-fn launch_inner_fix_dtype<'a, R: Runtime, A: Routine<()>>(
+fn launch_inner_fix_dtype<R: Runtime, A: Routine<()>>(
     client: &ComputeClient<R>,
-    input: FusedMatmulInputLaunch<'a, R>,
-    output: GlobalArgsLaunch<'a, R>,
+    input: FusedMatmulInputLaunch<R>,
+    output: GlobalArgsLaunch<R>,
     problem: MatmulProblem,
     line_sizes: MatmulLineSizes,
     blueprint_strategy: &BlueprintStrategy<(), A>,

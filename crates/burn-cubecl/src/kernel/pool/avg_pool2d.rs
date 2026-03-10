@@ -12,15 +12,15 @@ use crate::{
     tensor::CubeTensor,
 };
 use burn_backend::{Shape, ops::conv::calculate_pool_output_size};
-use cubecl::{CubeDim, calculate_cube_count_elemwise, prelude::ScalarArg};
+use cubecl::{CubeDim, calculate_cube_count_elemwise, num_traits::Zero, prelude::ScalarArg};
 use cubecl::{prelude::*, std::tensor::View};
 
 struct AvgPoolStrategy;
 
 impl Pool2dDirectStrategyFamily for AvgPoolStrategy {
-    type Indices = ();
+    type Indices<N: Size> = ();
     type Config = AvgPoolStrategyConfig;
-    type Pool2d<N: Numeric> = Self;
+    type Pool2d<T: Numeric, N: Size> = Self;
 }
 
 #[derive(CubeType, Debug, PartialEq, Eq, Hash, Clone, Copy)]
@@ -33,16 +33,13 @@ pub struct AvgPoolStrategyConfig {
 }
 
 #[cube]
-impl<N: Numeric> Pool2dDirectStrategy<N> for AvgPoolStrategy {
-    type Accumulator = (Line<N>, u32);
+impl<T: Numeric, N: Size> Pool2dDirectStrategy<T, N> for AvgPoolStrategy {
+    type Accumulator = (Line<T, N>, u32);
     type Config = AvgPoolStrategyConfig;
     type Indices = ();
 
-    fn initialize(
-        #[comptime] _config: &Self::Config,
-        #[comptime] line_size: LineSize,
-    ) -> Self::Accumulator {
-        let sum = Line::empty(line_size).fill(N::from_int(0));
+    fn initialize(#[comptime] _config: &Self::Config) -> Self::Accumulator {
+        let sum = Line::zero();
         // Count will be set dynamically: either by accumulate (count_include_pad=false)
         // or by set_padded_count (count_include_pad=true)
         let count = 0u32;
@@ -54,7 +51,7 @@ impl<N: Numeric> Pool2dDirectStrategy<N> for AvgPoolStrategy {
         #[comptime] config: &Self::Config,
         accumulator: &mut Self::Accumulator,
         _index: usize,
-        result: Line<N>,
+        result: Line<T, N>,
     ) {
         let (sum, count) = accumulator;
 
@@ -83,7 +80,7 @@ impl<N: Numeric> Pool2dDirectStrategy<N> for AvgPoolStrategy {
     fn store(
         #[comptime] _config: &Self::Config,
         position: Position,
-        output: &mut View<Line<N>, Position, ReadWrite>,
+        output: &mut View<Line<T, N>, Position, ReadWrite>,
         _output_indices: &mut (),
         accumulator: Self::Accumulator,
     ) {
@@ -139,7 +136,8 @@ pub(crate) fn avg_pool2d<R: CubeRuntime>(
         cube_count,
         cube_dim,
         address_type!(x, output),
-        x.into_tensor_arg(line_size),
+        line_size,
+        x.into_tensor_arg(),
         view4d(output.clone(), line_size),
         (),
         shape_divmod(&output),

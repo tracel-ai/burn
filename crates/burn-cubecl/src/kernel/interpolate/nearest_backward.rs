@@ -12,9 +12,9 @@ use crate::{
 };
 
 #[cube(launch_unchecked, address_type = "dynamic")]
-fn interpolate_nearest_backward_kernel<F: Float>(
-    grad: &Tensor<Line<F>>,
-    output: &mut Tensor<Line<F>>,
+fn interpolate_nearest_backward_kernel<F: Float, N: Size>(
+    grad: &Tensor<Line<F, N>>,
+    output: &mut Tensor<Line<F, N>>,
     shape_out: Sequence<FastDivmod<usize>>,
     out_layout: LinearLayout,
     #[define(F)] _dtype: StorageType,
@@ -42,7 +42,7 @@ fn interpolate_nearest_backward_kernel<F: Float>(
 
     let index_grad_base = b * grad.stride(0) + c * grad.stride(3);
 
-    let mut sum = Line::empty(line_size).fill(F::new(0.0));
+    let mut sum = Line::new(F::new(0.0));
 
     for grad_y in grad_y_start..grad_y_end {
         for grad_x in grad_x_start..grad_x_end {
@@ -90,8 +90,9 @@ pub(crate) fn interpolate_nearest_backward_launch<R: CubeRuntime>(
             cube_count,
             cube_dim,
             address_type!(out_grad, output),
-            out_grad.into_tensor_arg(line_size),
-            output.clone().into_tensor_arg(line_size),
+            line_size,
+            out_grad.into_tensor_arg(),
+            output.clone().into_tensor_arg(),
             out_shape,
             out_layout,
             output.dtype.into(),

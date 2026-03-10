@@ -199,9 +199,9 @@ pub(crate) fn conv_transpose3d<R: CubeRuntime>(
         cube_count,
         cube_dim,
         address_type!(input, weight, bias, output),
-        input.into_tensor_arg(1),
-        weight.into_tensor_arg(1),
-        bias.map(|bias| bias.into_tensor_arg(1)).into(),
+        input.into_tensor_arg(),
+        weight.into_tensor_arg(),
+        bias.map(|bias| bias.into_tensor_arg()).into(),
         linear_view(output.clone(), 1),
         shape_divmod(&output),
         ConvArgsLaunch::new(

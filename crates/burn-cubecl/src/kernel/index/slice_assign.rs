@@ -10,9 +10,9 @@ use cubecl::{
 };
 
 #[cube(launch_unchecked, address_type = "dynamic")]
-fn slice_assign_kernel<E: Numeric>(
-    input: &mut Tensor<Line<E>>,
-    value: &LinearView<Line<E>>,
+fn slice_assign_kernel<E: Numeric, N: Size>(
+    input: &mut Tensor<Line<E, N>>,
+    value: &LinearView<Line<E, N>>,
     slice_shape: Sequence<FastDivmod<usize>>,
     slice_offsets: Sequence<usize>,
     #[define(E)] _dtype: StorageType,
@@ -169,7 +169,8 @@ pub(crate) fn slice_assign<R: CubeRuntime>(
             cube_count,
             cube_dim,
             address_type!(tensor, value),
-            tensor.clone().into_tensor_arg(line_size),
+            line_size,
+            tensor.clone().into_tensor_arg(),
             linear_view(value, line_size),
             shape,
             offsets,
@@ -230,7 +231,7 @@ pub(crate) fn slice_assign_with_steps<R: CubeRuntime>(
             cube_count,
             cube_dim,
             address_type!(tensor, value),
-            tensor.clone().into_tensor_arg(1),
+            tensor.clone().into_tensor_arg(),
             linear_view(value, 1),
             shape,
             starts,

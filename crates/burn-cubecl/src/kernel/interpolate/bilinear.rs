@@ -12,9 +12,9 @@ use crate::{
 };
 
 #[cube(launch, address_type = "dynamic")]
-fn interpolate_bilinear_kernel<F: Float>(
-    input: &Tensor<Line<F>>,
-    output: &mut Tensor<Line<F>>,
+fn interpolate_bilinear_kernel<F: Float, N: Size>(
+    input: &Tensor<Line<F, N>>,
+    output: &mut Tensor<Line<F, N>>,
     shape_out: Sequence<FastDivmod<usize>>,
     out_layout: LinearLayout,
     #[comptime] align_corners: bool,
@@ -48,8 +48,8 @@ fn interpolate_bilinear_kernel<F: Float>(
     let v0 = frac.floor();
     let v1 = frac.ceil();
     let yw = F::cast_from(frac - v0);
-    let yw_ = Line::empty(line_size).fill(F::new(1.0) - yw);
-    let yw = Line::empty(line_size).fill(yw);
+    let yw_ = Line::new(F::new(1.0) - yw);
+    let yw = Line::new(yw);
     let y0_ok = v0 >= 0.0;
     let y0 = v0 as usize;
     let y1 = v1 as usize;
@@ -70,8 +70,8 @@ fn interpolate_bilinear_kernel<F: Float>(
     let v0 = frac.floor();
     let v1 = frac.ceil();
     let xw = F::cast_from(frac - v0);
-    let xw_ = Line::empty(line_size).fill(F::new(1.0) - xw);
-    let xw = Line::empty(line_size).fill(xw);
+    let xw_ = Line::new(F::new(1.0) - xw);
+    let xw = Line::new(xw);
     let x0_ok = v0 >= 0.0;
     let x0 = v0 as usize;
     let x1 = v1 as usize;
@@ -92,7 +92,7 @@ fn interpolate_bilinear_kernel<F: Float>(
     let y1_ok = y1 < height;
     let x1_ok = x1 < width;
 
-    let zero = Line::empty(line_size).fill(F::new(0.0));
+    let zero = Line::new(F::new(0.0));
 
     let p_a = select(
         x0_ok && y0_ok,
@@ -136,8 +136,9 @@ pub(crate) fn interpolate_bilinear_launch<R: CubeRuntime>(
         cube_count,
         cube_dim,
         address_type!(input, output),
-        input.into_tensor_arg(line_size),
-        output.clone().into_tensor_arg(line_size),
+        line_size,
+        input.into_tensor_arg(),
+        output.clone().into_tensor_arg(),
         out_shape,
         out_layout,
         align_corners,

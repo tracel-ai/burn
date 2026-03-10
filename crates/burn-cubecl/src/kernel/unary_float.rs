@@ -9,20 +9,20 @@ use cubecl::{calculate_cube_count_elemwise, prelude::*, std::tensor::layout::lin
 
 pub(crate) trait FloatUnaryOpFamily: 'static + Send + Sync {
     type Options: LaunchArg;
-    type Unary<F: Float>: FloatUnaryOp<F, Options = Self::Options>;
+    type Unary<F: Float, N: Size>: FloatUnaryOp<F, N, Options = Self::Options>;
 }
 
 #[cube]
-pub(crate) trait FloatUnaryOp<F: Float>: 'static + Send + Sync {
+pub(crate) trait FloatUnaryOp<F: Float, N: Size>: 'static + Send + Sync {
     type Options: LaunchArg;
 
-    fn execute(input: Line<F>, options: &Self::Options) -> Line<F>;
+    fn execute(input: Line<F, N>, options: &Self::Options) -> Line<F, N>;
 }
 
 #[cube(launch_unchecked, address_type = "dynamic")]
-pub(crate) fn unary_float<F: Float, O: FloatUnaryOpFamily>(
-    input: &LinearView<Line<F>>,
-    output: &mut LinearView<Line<F>, ReadWrite>,
+pub(crate) fn unary_float<F: Float, N: Size, O: FloatUnaryOpFamily>(
+    input: &LinearView<Line<F, N>>,
+    output: &mut LinearView<Line<F, N>, ReadWrite>,
     options: &O::Options,
     #[define(F)] _dtype: StorageType,
 ) {
@@ -30,14 +30,14 @@ pub(crate) fn unary_float<F: Float, O: FloatUnaryOpFamily>(
         terminate!();
     }
 
-    output[ABSOLUTE_POS] = O::Unary::<F>::execute(input[ABSOLUTE_POS], options);
+    output[ABSOLUTE_POS] = O::Unary::<F, N>::execute(input[ABSOLUTE_POS], options);
 }
 
 pub(crate) fn launch_unary_float<R, O, Args>(tensor: CubeTensor<R>, args: Args) -> CubeTensor<R>
 where
     // Magic fix for lifetime, the closure is supposed to capture everything required to create the
     // argument.
-    for<'a> Args: FnOnce(&'a ()) -> RuntimeArg<'a, O::Options, R>,
+    for<'a> Args: FnOnce(&'a ()) -> RuntimeArg<O::Options, R>,
     R: CubeRuntime,
     O: FloatUnaryOpFamily,
 {
@@ -58,6 +58,7 @@ where
                 cube_count,
                 cube_dim,
                 address_type!(tensor),
+                line_size,
                 linear_view(tensor.clone(), line_size),
                 linear_view_alias(&tensor, line_size, 0),
                 args(&()),
@@ -78,6 +79,7 @@ where
                 cube_count,
                 cube_dim,
                 address_type!(tensor, output),
+                line_size,
                 linear_view(tensor, line_size),
                 linear_view(output.clone(), line_size),
                 args(&()),
@@ -140,10 +142,10 @@ pub(crate) mod unary_basic {
     struct BasicFloatUnary;
 
     #[cube]
-    impl<F: Float> FloatUnaryOp<F> for BasicFloatUnary {
+    impl<F: Float, N: Size> FloatUnaryOp<F, N> for BasicFloatUnary {
         type Options = BasicFloatUnaryOptions;
 
-        fn execute(input: Line<F>, options: &Self::Options) -> Line<F> {
+        fn execute(input: Line<F, N>, options: &Self::Options) -> Line<F, N> {
             match comptime![options.kind] {
                 BasicFloatUnaryKind::Exp => Line::exp(input),
                 BasicFloatUnaryKind::Log => Line::ln(input),
@@ -185,6 +187,6 @@ pub(crate) mod unary_basic {
 
     impl FloatUnaryOpFamily for BasicFloatUnary {
         type Options = BasicFloatUnaryOptions;
-        type Unary<F: Float> = Self;
+        type Unary<F: Float, N: Size> = Self;
     }
 }

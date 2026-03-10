@@ -12,13 +12,13 @@ use cubecl::{
 };
 
 pub(crate) trait BinaryOpFamily: Send + Sync + 'static {
-    type BinaryOp<C: Numeric>: BinaryOp<C>;
+    type BinaryOp<C: Numeric, N: Size>: BinaryOp<C, N>;
 }
 
 #[cube]
-pub(crate) trait BinaryOp<C: Numeric>: 'static + Send + Sync {
+pub(crate) trait BinaryOp<C: Numeric, N: Size>: 'static + Send + Sync {
     /// Execute a binary operation.
-    fn execute(lhs: Line<C>, rhs: Line<C>) -> Line<C>;
+    fn execute(lhs: Line<C, N>, rhs: Line<C, N>) -> Line<C, N>;
 }
 
 pub(crate) struct AddOp;
@@ -31,130 +31,130 @@ pub(crate) struct OrOp;
 pub(crate) struct PowOp;
 
 impl BinaryOpFamily for AddOp {
-    type BinaryOp<C: Numeric> = Self;
+    type BinaryOp<C: Numeric, N: Size> = Self;
 }
 
 impl BinaryOpFamily for SubOp {
-    type BinaryOp<C: Numeric> = Self;
+    type BinaryOp<C: Numeric, N: Size> = Self;
 }
 
 impl BinaryOpFamily for MulOp {
-    type BinaryOp<C: Numeric> = Self;
+    type BinaryOp<C: Numeric, N: Size> = Self;
 }
 
 impl BinaryOpFamily for DivOp {
-    type BinaryOp<C: Numeric> = Self;
+    type BinaryOp<C: Numeric, N: Size> = Self;
 }
 
 impl BinaryOpFamily for RemainderOp {
-    type BinaryOp<C: Numeric> = Self;
+    type BinaryOp<C: Numeric, N: Size> = Self;
 }
 
 impl BinaryOpFamily for PowOp {
-    type BinaryOp<C: Numeric> = Self;
+    type BinaryOp<C: Numeric, N: Size> = Self;
 }
 
 impl BinaryOpFamily for AndOp {
-    type BinaryOp<C: Numeric> = Self;
+    type BinaryOp<C: Numeric, N: Size> = Self;
 }
 
 impl BinaryOpFamily for OrOp {
-    type BinaryOp<C: Numeric> = Self;
+    type BinaryOp<C: Numeric, N: Size> = Self;
 }
 
 #[cube]
-impl<N: Numeric> BinaryOp<N> for AddOp {
-    fn execute(lhs: Line<N>, rhs: Line<N>) -> Line<N> {
+impl<T: Numeric, N: Size> BinaryOp<T, N> for AddOp {
+    fn execute(lhs: Line<T, N>, rhs: Line<T, N>) -> Line<T, N> {
         lhs + rhs
     }
 }
 
 #[cube]
-impl<N: Numeric> BinaryOp<N> for SubOp {
-    fn execute(lhs: Line<N>, rhs: Line<N>) -> Line<N> {
+impl<T: Numeric, N: Size> BinaryOp<T, N> for SubOp {
+    fn execute(lhs: Line<T, N>, rhs: Line<T, N>) -> Line<T, N> {
         lhs - rhs
     }
 }
 
 #[cube]
-impl<N: Numeric> BinaryOp<N> for MulOp {
-    fn execute(lhs: Line<N>, rhs: Line<N>) -> Line<N> {
+impl<T: Numeric, N: Size> BinaryOp<T, N> for MulOp {
+    fn execute(lhs: Line<T, N>, rhs: Line<T, N>) -> Line<T, N> {
         lhs * rhs
     }
 }
 
 #[cube]
-impl<N: Numeric> BinaryOp<N> for DivOp {
-    fn execute(lhs: Line<N>, rhs: Line<N>) -> Line<N> {
+impl<T: Numeric, N: Size> BinaryOp<T, N> for DivOp {
+    fn execute(lhs: Line<T, N>, rhs: Line<T, N>) -> Line<T, N> {
         lhs / rhs
     }
 }
 
 #[cube]
-impl<N: Numeric> BinaryOp<N> for RemainderOp {
-    fn execute(lhs: Line<N>, rhs: Line<N>) -> Line<N> {
+impl<T: Numeric, N: Size> BinaryOp<T, N> for RemainderOp {
+    fn execute(lhs: Line<T, N>, rhs: Line<T, N>) -> Line<T, N> {
         Line::rem(lhs, rhs)
     }
 }
 
 #[cube]
-impl<N: Numeric> BinaryOp<N> for PowOp {
+impl<T: Numeric, N: Size> BinaryOp<T, N> for PowOp {
     #[allow(unused)]
-    fn execute(lhs: Line<N>, rhs: Line<N>) -> Line<N> {
+    fn execute(lhs: Line<T, N>, rhs: Line<T, N>) -> Line<T, N> {
         intrinsic!(|scope| {
-            let elem = N::as_type(scope).elem_type();
+            let elem = T::as_type(scope).elem_type();
 
             if let cubecl::ir::ElemType::Float(kind) = elem {
                 match kind {
                     cubecl::ir::FloatKind::F16 => {
-                        let lhs = <Line<f16> as Cast>::__expand_cast_from(scope, lhs);
-                        let rhs = <Line<f16> as Cast>::__expand_cast_from(scope, rhs);
+                        let lhs = <Line<f16, N> as Cast>::__expand_cast_from(scope, lhs);
+                        let rhs = <Line<f16, N> as Cast>::__expand_cast_from(scope, rhs);
                         let out = Line::__expand_powf(scope, lhs, rhs);
-                        return <Line<N> as Cast>::__expand_cast_from(scope, out);
+                        return <Line<T, N> as Cast>::__expand_cast_from(scope, out);
                     }
                     cubecl::ir::FloatKind::BF16 => {
-                        let lhs = <Line<bf16> as Cast>::__expand_cast_from(scope, lhs);
-                        let rhs = <Line<bf16> as Cast>::__expand_cast_from(scope, rhs);
+                        let lhs = <Line<bf16, N> as Cast>::__expand_cast_from(scope, lhs);
+                        let rhs = <Line<bf16, N> as Cast>::__expand_cast_from(scope, rhs);
                         let out = Line::__expand_powf(scope, lhs, rhs);
-                        return <Line<N> as Cast>::__expand_cast_from(scope, out);
+                        return <Line<T, N> as Cast>::__expand_cast_from(scope, out);
                     }
                     cubecl::ir::FloatKind::F64 => {
-                        let lhs = <Line<f64> as Cast>::__expand_cast_from(scope, lhs);
-                        let rhs = <Line<f64> as Cast>::__expand_cast_from(scope, rhs);
+                        let lhs = <Line<f64, N> as Cast>::__expand_cast_from(scope, lhs);
+                        let rhs = <Line<f64, N> as Cast>::__expand_cast_from(scope, rhs);
                         let out = Line::__expand_powf(scope, lhs, rhs);
-                        return <Line<N> as Cast>::__expand_cast_from(scope, out);
+                        return <Line<T, N> as Cast>::__expand_cast_from(scope, out);
                     }
                     _ => {}
                 }
             };
 
-            let lhs = <Line<f32> as Cast>::__expand_cast_from(scope, lhs);
-            let rhs = <Line<f32> as Cast>::__expand_cast_from(scope, rhs);
+            let lhs = <Line<f32, N> as Cast>::__expand_cast_from(scope, lhs);
+            let rhs = <Line<f32, N> as Cast>::__expand_cast_from(scope, rhs);
             let out = Line::__expand_powf(scope, lhs, rhs);
-            return <Line<N> as Cast>::__expand_cast_from(scope, out);
+            return <Line<T, N> as Cast>::__expand_cast_from(scope, out);
         })
     }
 }
 
 #[cube]
-impl<N: Numeric> BinaryOp<N> for AndOp {
-    fn execute(lhs: Line<N>, rhs: Line<N>) -> Line<N> {
-        Line::cast_from(Line::<bool>::cast_from(lhs).and(Line::<bool>::cast_from(rhs)))
+impl<T: Numeric, N: Size> BinaryOp<T, N> for AndOp {
+    fn execute(lhs: Line<T, N>, rhs: Line<T, N>) -> Line<T, N> {
+        Line::cast_from(Line::<bool, N>::cast_from(lhs).and(Line::<bool, N>::cast_from(rhs)))
     }
 }
 
 #[cube]
-impl<N: Numeric> BinaryOp<N> for OrOp {
-    fn execute(lhs: Line<N>, rhs: Line<N>) -> Line<N> {
-        Line::cast_from(Line::<bool>::cast_from(lhs).or(Line::<bool>::cast_from(rhs)))
+impl<T: Numeric, N: Size> BinaryOp<T, N> for OrOp {
+    fn execute(lhs: Line<T, N>, rhs: Line<T, N>) -> Line<T, N> {
+        Line::cast_from(Line::<bool, N>::cast_from(lhs).or(Line::<bool, N>::cast_from(rhs)))
     }
 }
 
 #[cube(launch_unchecked, address_type = "dynamic")]
-pub(crate) fn kernel_scalar_binop<C: Numeric, O: BinaryOpFamily>(
-    input: &LinearView<Line<C>>,
+pub(crate) fn kernel_scalar_binop<C: Numeric, N: Size, O: BinaryOpFamily>(
+    input: &LinearView<Line<C, N>>,
     scalar: InputScalar,
-    output: &mut LinearView<Line<C>, ReadWrite>,
+    output: &mut LinearView<Line<C, N>, ReadWrite>,
     #[define(C)] _dtype: StorageType,
 ) {
     if !output.is_in_bounds(ABSOLUTE_POS) {
@@ -162,21 +162,21 @@ pub(crate) fn kernel_scalar_binop<C: Numeric, O: BinaryOpFamily>(
     }
 
     output[ABSOLUTE_POS] =
-        O::BinaryOp::<C>::execute(input[ABSOLUTE_POS], Line::new(scalar.get::<C>()));
+        O::BinaryOp::<C, N>::execute(input[ABSOLUTE_POS], Line::new(scalar.get::<C>()));
 }
 
 #[cube(launch_unchecked, address_type = "dynamic")]
-pub(crate) fn kernel_binop<C: Numeric, O: BinaryOpFamily>(
-    lhs: &LinearView<Line<C>>,
-    rhs: &LinearView<Line<C>>,
-    out: &mut LinearView<Line<C>, ReadWrite>,
+pub(crate) fn kernel_binop<C: Numeric, N: Size, O: BinaryOpFamily>(
+    lhs: &LinearView<Line<C, N>>,
+    rhs: &LinearView<Line<C, N>>,
+    out: &mut LinearView<Line<C, N>, ReadWrite>,
     #[define(C)] _dtype: StorageType,
 ) {
     if !out.is_in_bounds(ABSOLUTE_POS) {
         terminate!();
     }
 
-    out[ABSOLUTE_POS] = O::BinaryOp::<C>::execute(lhs[ABSOLUTE_POS], rhs[ABSOLUTE_POS]);
+    out[ABSOLUTE_POS] = O::BinaryOp::<C, N>::execute(lhs[ABSOLUTE_POS], rhs[ABSOLUTE_POS]);
 }
 
 pub(crate) fn launch_binop<R: CubeRuntime, O: BinaryOpFamily>(
@@ -204,6 +204,7 @@ pub(crate) fn launch_binop<R: CubeRuntime, O: BinaryOpFamily>(
                 cube_count,
                 cube_dim,
                 address_type!(lhs, rhs),
+                line_size,
                 linear_view(lhs.clone(), line_size),
                 linear_view_ref(rhs, &lhs, line_size),
                 linear_view_alias(&lhs, line_size, 0),
@@ -217,6 +218,7 @@ pub(crate) fn launch_binop<R: CubeRuntime, O: BinaryOpFamily>(
                 cube_count,
                 cube_dim,
                 address_type!(lhs, rhs),
+                line_size,
                 linear_view_ref(lhs, &rhs, line_size),
                 linear_view(rhs.clone(), line_size),
                 linear_view_alias(&rhs, line_size, 1),
@@ -233,6 +235,7 @@ pub(crate) fn launch_binop<R: CubeRuntime, O: BinaryOpFamily>(
                 cube_count,
                 cube_dim,
                 address_type!(lhs, rhs, output),
+                line_size,
                 linear_view_ref(lhs, &output, line_size),
                 linear_view_ref(rhs, &output, line_size),
                 linear_view(output.clone(), line_size),
@@ -265,6 +268,7 @@ pub(crate) fn launch_scalar_binop<R: CubeRuntime, O: BinaryOpFamily>(
                 cube_count,
                 cube_dim,
                 address_type!(tensor),
+                line_size,
                 linear_view(tensor.clone(), line_size),
                 scalar,
                 linear_view_alias(&tensor, line_size, 0),
@@ -285,6 +289,7 @@ pub(crate) fn launch_scalar_binop<R: CubeRuntime, O: BinaryOpFamily>(
                 cube_count,
                 cube_dim,
                 address_type!(tensor, output),
+                line_size,
                 linear_view(tensor, line_size),
                 scalar,
                 linear_view(output.clone(), line_size),

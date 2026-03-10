@@ -1,14 +1,11 @@
 use burn_fusion::stream::Context;
 use burn_std::{DType, Shape, Strides, quantization::QParamTensor, strides};
+use cubecl::quant::scheme::{QuantParam, QuantScheme};
 use cubecl::{
     CubeElement, Runtime,
     client::ComputeClient,
     ir::{AddressType, ElemType},
     prelude::{TensorArg, TensorBinding},
-};
-use cubecl::{
-    ir::LineSize,
-    quant::scheme::{QuantParam, QuantScheme},
 };
 use std::marker::PhantomData;
 

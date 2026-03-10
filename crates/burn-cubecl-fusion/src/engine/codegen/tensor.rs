@@ -1,10 +1,7 @@
 use crate::engine::codegen::DynSize;
 
 use super::DYN_ELEM_ID;
-use cubecl::{
-    ir::{ElemType, Type},
-    prelude::*,
-};
+use cubecl::{ir::Type, prelude::*};
 use serde::{Deserialize, Serialize};
 use std::hash::Hash;
 

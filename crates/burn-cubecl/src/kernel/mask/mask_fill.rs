@@ -9,10 +9,10 @@ use crate::{
 };
 
 #[cube(launch_unchecked, address_type = "dynamic")]
-fn mask_fill_kernel<T: Numeric, B: Int>(
-    input: &LinearView<Line<T>>,
-    mask: &LinearView<Line<B>>,
-    output: &mut LinearView<Line<T>, ReadWrite>,
+fn mask_fill_kernel<T: Numeric, B: Int, N: Size>(
+    input: &LinearView<Line<T, N>>,
+    mask: &LinearView<Line<B, N>>,
+    output: &mut LinearView<Line<T, N>, ReadWrite>,
     value: InputScalar,
     #[define(T, B)] _dtypes: [StorageType; 2],
 ) {
@@ -78,6 +78,7 @@ pub fn mask_fill<R: CubeRuntime>(
             cube_count,
             cube_dim,
             at,
+            line_size,
             linear_view(input, line_size),
             mask,
             out_arg,

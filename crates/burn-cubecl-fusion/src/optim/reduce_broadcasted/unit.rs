@@ -5,10 +5,11 @@ use crate::{
     },
     optim::reduce::args::{FusedReduceArgs, FusedReduceInput, FusedReduceOutput},
 };
-use cubecl::{Runtime, prelude::*, std::tensor::r#virtual::VirtualTensor};
+use cubecl::{Runtime, define_size, prelude::*, std::tensor::r#virtual::VirtualTensor};
 use cubek::reduce::{
     LineMode, ReduceInstruction, ReducePrecision,
     components::{
+        args::NumericLine,
         global::unit::GlobalFullUnitReduce,
         instructions::{ReduceOperation, ReduceOperationConfig},
     },
@@ -74,13 +75,16 @@ pub fn reduce_kernel_broadcasted(
     reduce_many(inputs, outputs, reduce_axis, blocks, block_end);
 }
 
-const REDUCE_INPUT: u8 = 0;
-const REDUCE_ACC: u8 = 1;
-const REDUCE_OUT: u8 = 2;
+const REDUCE_INPUT: usize = 10000;
+const REDUCE_ACC: usize = 10001;
+const REDUCE_OUT: usize = 10002;
 
 type In = NumericExpand<REDUCE_INPUT>;
 type Acc = NumericExpand<REDUCE_ACC>;
 type Out = NumericExpand<REDUCE_OUT>;
+
+define_size!(InSize);
+define_size!(OutSize);
 
 /// Configures the precision polyfills for the reduction based on the block's `FuseType`.
 #[cube]
@@ -104,9 +108,13 @@ fn set_polyfill_block(block: &ReduceFuseBlock) {
         FuseType::Bool => FuseType::I32,
     });
 
-    set_polyfill::<In>(comptime!(input_precision.into_storage_type()));
-    set_polyfill::<Out>(comptime!(output_precision.into_storage_type()));
-    set_polyfill::<Acc>(comptime!(acc_precision.into_storage_type()));
+    set_polyfill::<In, InSize>(comptime!(
+        input_precision.into_type(block.config_input.width)
+    ));
+    set_polyfill::<Out, OutSize>(comptime!(
+        output_precision.into_type(block.config_output.width)
+    ));
+    set_polyfill::<Acc, InSize>(comptime!(acc_precision.into_type(block.config_input.width)));
 }
 
 /// Internal logic for executing a sequence of reduction blocks followed by an optional
@@ -140,9 +148,10 @@ fn reduce_many(
         };
 
         set_polyfill_block(block);
-        let (input, mut output) = init_tensors::<FusedReduceArgs, In, Out>(&input, &mut output);
+        let (input, mut output) =
+            init_tensors::<FusedReduceArgs, In, InSize, Out, OutSize>(&input, &mut output);
 
-        axis_size = reduce_step::<(In, Acc), Out, ReduceOperation>(
+        axis_size = reduce_step::<(In, InSize, Acc), (Out, OutSize), ReduceOperation>(
             &input,
             &mut output,
             reduce_axis,
@@ -154,17 +163,18 @@ fn reduce_many(
     #[comptime]
     if let ComptimeOption::Some(block) = block_end {
         let global_index = ABSOLUTE_POS;
-        let width = comptime!(block.config.width as u32);
-        let num_iter = axis_size / usize::cast_from(width);
+        let width = block.config.width;
+        let num_iter = axis_size / width;
+        let size!(N) = width;
 
         for i in 0..num_iter {
             // Register block local inputs.
-            let values = Registry::<FuseArg, Line<f32>>::new();
+            let values = Registry::<FuseArg, Line<f32, N>>::new();
             let args = comptime![Vec::<FuseArg>::new()];
             let index = global_index * num_iter + i;
             let mut locals = init_locals(inputs, outputs, &block.config);
 
-            fuse_on_write::<f32>(
+            fuse_on_write::<f32, N>(
                 inputs,
                 outputs,
                 &mut locals,
@@ -181,9 +191,9 @@ fn reduce_many(
 /// Executes a single reduction step using a specified instruction and blueprint.
 ///
 /// Returns the size of the axis that was reduced.
-fn reduce_step<P: ReducePrecision, Out: Numeric, I: ReduceInstruction<P>>(
-    input: &VirtualTensor<P::EI>,
-    output: &mut VirtualTensor<Out, ReadWrite>,
+fn reduce_step<P: ReducePrecision, Out: NumericLine, I: ReduceInstruction<P>>(
+    input: &VirtualTensor<P::EI, P::SI>,
+    output: &mut VirtualTensor<Out::T, Out::N, ReadWrite>,
     reduce_axis: usize,
     #[comptime] config: I::Config,
     #[comptime] blueprint: UnitReduceBlueprint,

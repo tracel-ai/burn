@@ -6,20 +6,21 @@ use crate::{
 };
 use burn_backend::TensorMetadata;
 use cubecl::{
-    CubeDim, calculate_cube_count_elemwise, prelude::*, std::tensor::layout::linear::LinearView,
+    CubeDim, calculate_cube_count_elemwise, num_traits::One, prelude::*,
+    std::tensor::layout::linear::LinearView,
 };
 
 #[cube(launch_unchecked, address_type = "dynamic")]
-fn bool_cast_kernel<B: Int, T: Numeric>(
-    input: &LinearView<Line<B>>,
-    output: &mut LinearView<Line<T>, ReadWrite>,
+fn bool_cast_kernel<B: Int, T: Numeric, N: Size>(
+    input: &LinearView<Line<B, N>>,
+    output: &mut LinearView<Line<T, N>, ReadWrite>,
     #[define(B)] _input_ty: StorageType,
 ) {
     if !output.is_in_bounds(ABSOLUTE_POS) {
         terminate!();
     }
 
-    output[ABSOLUTE_POS] = Line::cast_from(input[ABSOLUTE_POS] & Line::cast_from(1u32));
+    output[ABSOLUTE_POS] = Line::cast_from(input[ABSOLUTE_POS] & Line::one());
 }
 
 /// Cast a bool tensor to the given element type.
@@ -46,6 +47,7 @@ pub fn bool_cast<R: CubeRuntime, EO: CubeElement>(tensor: CubeTensor<R>) -> Cube
             cube_count,
             cube_dim,
             address_type!(tensor, output),
+            line_size,
             linear_view(tensor, line_size),
             linear_view(output.clone(), line_size),
             dtype.into(),

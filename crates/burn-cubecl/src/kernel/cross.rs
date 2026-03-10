@@ -9,9 +9,9 @@ use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
 #[cube(launch_unchecked, address_type = "dynamic")]
 fn cross_kernel<E: Float>(
-    lhs: &LinearView<Line<E>>,
-    rhs: &LinearView<Line<E>>,
-    output: &mut LinearView<Line<E>, ReadWrite>,
+    lhs: &LinearView<E>,
+    rhs: &LinearView<E>,
+    output: &mut LinearView<E, ReadWrite>,
     #[define(E)] _dtype: StorageType,
 ) {
     // Each thread processes one 3-element vector

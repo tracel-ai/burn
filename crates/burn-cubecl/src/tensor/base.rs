@@ -35,7 +35,7 @@ impl<R: CubeRuntime> From<CubeTensor<R>> for TensorHandle<R> {
             val.handle.clone(),
             val.meta.shape().clone(),
             val.meta.strides().clone(),
-            val.dtype.into(),
+            val.dtype,
         )
     }
 }
@@ -197,7 +197,6 @@ where
             strides: self.meta.strides,
             shape: self.meta.shape,
             runtime: PhantomData,
-            elem_size: self.dtype.size(),
         }
     }
 
@@ -207,13 +206,13 @@ where
     }
 
     /// Return the reference to a tensor argument.
-    pub fn into_tensor_arg(self, line_size: LineSize) -> TensorArg<R> {
-        self.binding().into_tensor_arg(line_size)
+    pub fn into_tensor_arg(self) -> TensorArg<R> {
+        self.binding().into_tensor_arg()
     }
 
     /// Return the reference to an array argument.
-    pub fn into_array_arg<E: CubeElement>(self, line_size: LineSize) -> ArrayArg<R> {
-        self.into_tensor_arg(line_size).into_array_arg()
+    pub fn into_array_arg<E: CubeElement>(self) -> ArrayArg<R> {
+        self.into_tensor_arg().into_array_arg()
     }
 
     /// Returns the address type required to index this tensor
@@ -259,17 +258,17 @@ where
         struct Copy;
 
         #[cube]
-        impl<N: Numeric> NumericUnaryOp<N> for Copy {
+        impl<T: Numeric, N: Size> NumericUnaryOp<T, N> for Copy {
             type Options = ();
 
-            fn execute(input: Line<N>, _options: &Self::Options) -> Line<N> {
+            fn execute(input: Line<T, N>, _options: &Self::Options) -> Line<T, N> {
                 input
             }
         }
 
         impl NumericUnaryOpFamily for Copy {
             type Options = ();
-            type Unary<N: Numeric> = Self;
+            type Unary<T: Numeric, N: Size> = Self;
         }
 
         let tensor = self.clone();

@@ -330,8 +330,8 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceLaunch<'_> {
     fn run<'a>(
         &'a self,
         client: &'a ComputeClient<R>,
-        inputs: GlobalArgsLaunch<'a, R>,
-        outputs: GlobalArgsLaunch<'a, R>,
+        inputs: GlobalArgsLaunch<R>,
+        outputs: GlobalArgsLaunch<R>,
         configs: &'a [FuseBlockConfig],
     ) -> Result<(), FusedReduceError> {
         let [config_read, config_write] = [&configs[0], &configs[1]];
@@ -414,10 +414,10 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceLaunch<'_> {
     }
 }
 
-struct ReduceKwArgs<'a, 'b, Run: Runtime> {
+struct ReduceKwArgs<'b, Run: Runtime> {
     client: &'b ComputeClient<Run>,
-    inputs: GlobalArgsLaunch<'a, Run>,
-    outputs: GlobalArgsLaunch<'a, Run>,
+    inputs: GlobalArgsLaunch<Run>,
+    outputs: GlobalArgsLaunch<Run>,
     axis: usize,
     blueprint: ReduceBlueprint,
     settings: ReduceLaunchSettings,
@@ -428,7 +428,7 @@ struct ReduceKwArgs<'a, 'b, Run: Runtime> {
 }
 
 fn launch_reduce_mixed_precision<Run: Runtime>(
-    kwargs: ReduceKwArgs<'_, '_, Run>,
+    kwargs: ReduceKwArgs<'_, Run>,
     instruction: ReduceInstruction,
     dtype_input: DType,
     dtype_output: DType,
@@ -448,7 +448,7 @@ fn launch_reduce_mixed_precision<Run: Runtime>(
 }
 
 fn launch_reduce<Run: Runtime>(
-    kwargs: ReduceKwArgs<'_, '_, Run>,
+    kwargs: ReduceKwArgs<'_, Run>,
     inst: ReduceOperationConfig,
     dtype_input: DType,
     dtype_output: DType,
@@ -460,6 +460,8 @@ fn launch_reduce<Run: Runtime>(
             kwargs.settings.cube_count,
             kwargs.settings.cube_dim,
             kwargs.settings.address_type,
+            kwargs.config_fuse_read.width,
+            kwargs.config_fuse_write.width,
             FusedReduceInputLaunch::new(kwargs.inputs, kwargs.config_fuse_read, kwargs.input),
             FusedReduceOutputLaunch::new(kwargs.outputs, kwargs.config_fuse_write, kwargs.output),
             ScalarArg::new(kwargs.axis),
@@ -475,7 +477,7 @@ fn launch_reduce<Run: Runtime>(
 }
 
 #[cube(launch_unchecked, address_type = "dynamic")]
-pub fn reduce_kernel_fused<In: Numeric, Out: Numeric, Acc: Numeric>(
+pub fn reduce_kernel_fused<In: Numeric, SizeIn: Size, Out: Numeric, SizeOut: Size, Acc: Numeric>(
     input: &FusedReduceInput,
     output: &mut FusedReduceOutput,
     axis_reduce: usize,
@@ -488,7 +490,14 @@ pub fn reduce_kernel_fused<In: Numeric, Out: Numeric, Acc: Numeric>(
     multi_block_variables_init(&input.config, &mut output.global.variables);
     multi_block_variables_init(&output.config, &mut output.global.variables);
 
-    let (input, mut output) = init_tensors::<FusedReduceArgs, In, Out>(input, output);
+    let (input, mut output) =
+        init_tensors::<FusedReduceArgs, In, SizeIn, Out, SizeOut>(input, output);
 
-    reduce_kernel_virtual::<In, Out, Acc>(&input, &mut output, axis_reduce, blueprint, config);
+    reduce_kernel_virtual::<In, SizeIn, Out, SizeOut, Acc>(
+        &input,
+        &mut output,
+        axis_reduce,
+        blueprint,
+        config,
+    );
 }

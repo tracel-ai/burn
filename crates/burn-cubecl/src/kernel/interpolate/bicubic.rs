@@ -12,9 +12,9 @@ use crate::{
 };
 
 #[cube(launch, address_type = "dynamic")]
-fn interpolate_bicubic_kernel<F: Float>(
-    input: &Tensor<Line<F>>,
-    output: &mut Tensor<Line<F>>,
+fn interpolate_bicubic_kernel<F: Float, N: Size>(
+    input: &Tensor<Line<F, N>>,
+    output: &mut Tensor<Line<F, N>>,
     shape_out: Sequence<FastDivmod<usize>>,
     out_layout: LinearLayout,
     #[comptime] align_corners: bool,
@@ -43,7 +43,7 @@ fn interpolate_bicubic_kernel<F: Float>(
         (y as f32 + 0.5) * (in_size / out_size) - 0.5
     };
     let y_in_f = frac.floor();
-    let yw = Line::empty(line_size).fill(F::cast_from(frac - y_in_f));
+    let yw = Line::new(F::cast_from(frac - y_in_f));
 
     // Clamp indices in float space to handle negative coordinates from half_pixel
     let y0 = clamp(y_in_f - 1.0, 0.0, input_height_f) as usize;
@@ -63,7 +63,7 @@ fn interpolate_bicubic_kernel<F: Float>(
         (x as f32 + 0.5) * (in_size / out_size) - 0.5
     };
     let x_in_f = frac.floor();
-    let xw = Line::empty(line_size).fill(F::cast_from(frac - x_in_f));
+    let xw = Line::new(F::cast_from(frac - x_in_f));
 
     // Clamp indices in float space to handle negative coordinates from half_pixel
     let x0 = clamp(x_in_f - 1.0, 0.0, input_width_f) as usize;
@@ -89,30 +89,30 @@ fn interpolate_bicubic_kernel<F: Float>(
     let inp_2 = input[(index_base + y0_stride + x2_stride) / line_size];
     let inp_3 = input[(index_base + y0_stride + x3_stride) / line_size];
 
-    let coefficients0 = cubic_interp_1d::<F>(inp_0, inp_1, inp_2, inp_3, xw);
+    let coefficients0 = cubic_interp_1d(inp_0, inp_1, inp_2, inp_3, xw);
 
     let inp_0 = input[(index_base + y1_stride + x0_stride) / line_size];
     let inp_1 = input[(index_base + y1_stride + x1_stride) / line_size];
     let inp_2 = input[(index_base + y1_stride + x2_stride) / line_size];
     let inp_3 = input[(index_base + y1_stride + x3_stride) / line_size];
 
-    let coefficients1 = cubic_interp_1d::<F>(inp_0, inp_1, inp_2, inp_3, xw);
+    let coefficients1 = cubic_interp_1d(inp_0, inp_1, inp_2, inp_3, xw);
 
     let inp_0 = input[(index_base + y2_stride + x0_stride) / line_size];
     let inp_1 = input[(index_base + y2_stride + x1_stride) / line_size];
     let inp_2 = input[(index_base + y2_stride + x2_stride) / line_size];
     let inp_3 = input[(index_base + y2_stride + x3_stride) / line_size];
 
-    let coefficients2 = cubic_interp_1d::<F>(inp_0, inp_1, inp_2, inp_3, xw);
+    let coefficients2 = cubic_interp_1d(inp_0, inp_1, inp_2, inp_3, xw);
 
     let inp_0 = input[(index_base + y3_stride + x0_stride) / line_size];
     let inp_1 = input[(index_base + y3_stride + x1_stride) / line_size];
     let inp_2 = input[(index_base + y3_stride + x2_stride) / line_size];
     let inp_3 = input[(index_base + y3_stride + x3_stride) / line_size];
 
-    let coefficients3 = cubic_interp_1d::<F>(inp_0, inp_1, inp_2, inp_3, xw);
+    let coefficients3 = cubic_interp_1d(inp_0, inp_1, inp_2, inp_3, xw);
 
-    let val = cubic_interp_1d::<F>(
+    let val = cubic_interp_1d(
         coefficients0,
         coefficients1,
         coefficients2,
@@ -124,43 +124,43 @@ fn interpolate_bicubic_kernel<F: Float>(
 }
 
 #[cube]
-fn cubic_interp_1d<F: Float>(
-    x0: Line<F>,
-    x1: Line<F>,
-    x2: Line<F>,
-    x3: Line<F>,
-    t: Line<F>,
-) -> Line<F> {
-    let a = lined(&x0, -0.75);
+fn cubic_interp_1d<F: Float, N: Size>(
+    x0: Line<F, N>,
+    x1: Line<F, N>,
+    x2: Line<F, N>,
+    x3: Line<F, N>,
+    t: Line<F, N>,
+) -> Line<F, N> {
+    let a = lined(-0.75);
 
-    let coeffs0 = cubic_convolution_2::<F>(t + lined(&x0, 1.0), a);
-    let coeffs1 = cubic_convolution_1::<F>(t, a);
-    let coeffs2 = cubic_convolution_1::<F>(lined(&x0, 1.0) - t, a);
-    let coeffs3 = cubic_convolution_2::<F>(lined(&x0, 2.0) - t, a);
+    let coeffs0 = cubic_convolution_2(t + lined(1.0), a);
+    let coeffs1 = cubic_convolution_1(t, a);
+    let coeffs2 = cubic_convolution_1(lined(1.0) - t, a);
+    let coeffs3 = cubic_convolution_2(lined(2.0) - t, a);
 
     x0 * coeffs0 + x1 * coeffs1 + x2 * coeffs2 + x3 * coeffs3
 }
 
 #[cube]
-fn cubic_convolution_1<F: Float>(x: Line<F>, a: Line<F>) -> Line<F> {
-    let conv = (a + lined(&x, 2.0)) * x;
-    let tmp = a + lined(&x, 3.0);
-    (conv - tmp) * x * x + lined(&x, 1.0)
+fn cubic_convolution_1<F: Float, N: Size>(x: Line<F, N>, a: Line<F, N>) -> Line<F, N> {
+    let conv = (a + lined(2.0)) * x;
+    let tmp = a + lined(3.0);
+    (conv - tmp) * x * x + lined(1.0)
 }
 
 #[cube]
-fn cubic_convolution_2<F: Float>(x: Line<F>, a: Line<F>) -> Line<F> {
+fn cubic_convolution_2<F: Float, N: Size>(x: Line<F, N>, a: Line<F, N>) -> Line<F, N> {
     let conv = a * x;
-    let conv = (conv - lined(&x, 5.0) * a) * x;
-    let tmp = lined(&x, 8.0) * a;
+    let conv = (conv - lined(5.0) * a) * x;
+    let tmp = lined(8.0) * a;
     let conv = (conv + tmp) * x;
 
-    conv - lined(&x, 4.0) * a
+    conv - lined(4.0) * a
 }
 
 #[cube]
-fn lined<F: Float>(x: &Line<F>, #[comptime] v: f32) -> Line<F> {
-    Line::empty(x.size()).fill(F::new(v))
+fn lined<F: Float, N: Size>(#[comptime] v: f32) -> Line<F, N> {
+    Line::new(F::new(v))
 }
 
 pub(crate) fn interpolate_bicubic_launch<R: CubeRuntime>(
@@ -181,8 +181,9 @@ pub(crate) fn interpolate_bicubic_launch<R: CubeRuntime>(
         cube_count,
         cube_dim,
         address_type!(input, output),
-        input.into_tensor_arg(line_size),
-        output.clone().into_tensor_arg(line_size),
+        line_size,
+        input.into_tensor_arg(),
+        output.clone().into_tensor_arg(),
         out_shape,
         out_layout,
         align_corners,

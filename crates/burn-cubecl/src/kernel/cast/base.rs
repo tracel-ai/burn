@@ -9,9 +9,9 @@ use cubecl::std::tensor::layout::linear::LinearView;
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
 #[cube(launch, address_type = "dynamic")]
-pub(crate) fn cast_element<I: Numeric, O: Numeric>(
-    input: &LinearView<Line<I>>,
-    output: &mut LinearView<Line<O>, ReadWrite>,
+pub(crate) fn cast_element<I: Numeric, O: Numeric, N: Size>(
+    input: &LinearView<Line<I, N>>,
+    output: &mut LinearView<Line<O, N>, ReadWrite>,
     #[define(I, O)] _dtypes: [StorageType; 2],
 ) {
     if !output.is_in_bounds(ABSOLUTE_POS) {
@@ -60,6 +60,7 @@ pub fn cast<R: CubeRuntime>(input: CubeTensor<R>, dtype: DType) -> CubeTensor<R>
         cube_count,
         cube_dim,
         address_type!(input, output),
+        line_size,
         linear_view(input, line_size),
         linear_view(output.clone(), line_size),
         [dtype_input.into(), dtype_output.into()],

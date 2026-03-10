@@ -11,14 +11,15 @@ use crate::{
 use burn_backend::Shape;
 use cubecl::{
     calculate_cube_count_elemwise,
+    num_traits::Zero,
     prelude::*,
     std::{FastDivmod, tensor::View},
 };
 
 #[cube(launch, address_type = "dynamic")]
-fn adaptive_avg_pool2d_backward_direct<E: Numeric>(
-    grad: &Tensor<Line<E>>,
-    output: &mut View<Line<E>, Position, ReadWrite>,
+fn adaptive_avg_pool2d_backward_direct<E: Numeric, N: Size>(
+    grad: &Tensor<Line<E, N>>,
+    output: &mut View<Line<E, N>, Position, ReadWrite>,
     out_shape: Sequence<FastDivmod<usize>>,
     working_units: usize,
     #[define(E)] _dtype: StorageType,
@@ -40,7 +41,7 @@ fn adaptive_avg_pool2d_backward_direct<E: Numeric>(
     let ow_start = start_index(iw, out_w, grad_w);
     let ow_end = end_index(iw, out_w, grad_w);
 
-    let mut grad_acc = Line::empty(grad.line_size()).fill(E::from_int(0));
+    let mut grad_acc = Line::zero();
 
     let index_base = b * grad.stride(0) + (c * grad.stride(3));
 
@@ -107,7 +108,8 @@ pub(crate) fn adaptive_avg_pool2d_backward<R: CubeRuntime>(
         cube_count,
         cube_dim,
         address_type!(out_grad, output),
-        out_grad.into_tensor_arg(line_size),
+        line_size,
+        out_grad.into_tensor_arg(),
         view4d(output.clone(), line_size),
         shape_divmod(&output),
         ScalarArg::new(working_units),

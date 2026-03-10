@@ -47,7 +47,7 @@ fn select_assign_kernel<F: Numeric, I: Numeric, Op: BinaryOpFamily>(
         let index_tensor = usize::cast_from(indices[i]) * strides_tensor_dim + offset_tensor;
         let index_value = i * strides_value_dim + offset_value;
 
-        let value = Op::BinaryOp::<F>::execute(
+        let value = Op::BinaryOp::<F, Const<1>>::execute(
             Line::cast_from(tensor[index_tensor]),
             Line::cast_from(value[index_value]),
         );
@@ -86,9 +86,9 @@ pub(crate) fn select_assign<R: CubeRuntime>(
             cube_count,
             cube_dim,
             address_type!(tensor, indices, value),
-            tensor.clone().into_tensor_arg(1),
+            tensor.clone().into_tensor_arg(),
             linear_view(indices, 1),
-            value.into_tensor_arg(1),
+            value.into_tensor_arg(),
             shape,
             ScalarArg::new(num_elems),
             dim,

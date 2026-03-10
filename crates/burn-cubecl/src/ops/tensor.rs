@@ -429,17 +429,17 @@ where
         struct Powf;
 
         #[cube]
-        impl<F: Float> FloatUnaryOp<F> for Powf {
+        impl<F: Float, N: Size> FloatUnaryOp<F, N> for Powf {
             type Options = InputScalar;
 
-            fn execute(input: Line<F>, options: &Self::Options) -> Line<F> {
+            fn execute(input: Line<F, N>, options: &Self::Options) -> Line<F, N> {
                 Line::powf(input, Line::new(options.get::<F>()))
             }
         }
 
         impl FloatUnaryOpFamily for Powf {
             type Options = InputScalar;
-            type Unary<F: Float> = Self;
+            type Unary<F: Float, N: Size> = Self;
         }
 
         let dtype = lhs.dtype;

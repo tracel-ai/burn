@@ -14,30 +14,27 @@ use cubecl::{
 use crate::{CubeRuntime, kernel::utils::decompose_linear, tensor::CubeTensor};
 
 pub trait Pool2dDirectStrategyFamily: Send + Sync + 'static {
-    type Indices: LaunchArg;
+    type Indices<N: Size>: LaunchArg;
     type Config: CubeType + Clone + Send + Sync + core::fmt::Debug + Hash + core::cmp::Eq;
-    type Pool2d<N: Numeric>: Pool2dDirectStrategy<N, Config = Self::Config, Indices = Self::Indices>;
+    type Pool2d<T: Numeric, N: Size>: Pool2dDirectStrategy<T, N, Config = Self::Config, Indices = Self::Indices<N>>;
 }
 
 pub(super) type Position = (usize, usize, usize, usize);
 
 #[cube]
-pub(crate) trait Pool2dDirectStrategy<N: Numeric>: Send + Sync + 'static {
+pub(crate) trait Pool2dDirectStrategy<T: Numeric, N: Size>: Send + Sync + 'static {
     type Accumulator: CubeType;
     type Config: CubeType + Clone + Send + Sync + core::fmt::Debug + Hash + core::cmp::Eq;
 
     type Indices: LaunchArg;
 
-    fn initialize(
-        #[comptime] config: &Self::Config,
-        #[comptime] line_size: LineSize,
-    ) -> Self::Accumulator;
+    fn initialize(#[comptime] config: &Self::Config) -> Self::Accumulator;
 
     fn accumulate(
         #[comptime] config: &Self::Config,
         accumulator: &mut Self::Accumulator,
         index: usize,
-        result: Line<N>,
+        result: Line<T, N>,
     );
 
     /// Count a position within the kernel window (for avg_pool count_include_pad).
@@ -53,7 +50,7 @@ pub(crate) trait Pool2dDirectStrategy<N: Numeric>: Send + Sync + 'static {
     fn store(
         #[comptime] config: &Self::Config,
         position: Position,
-        output: &mut View<Line<N>, Position, ReadWrite>,
+        output: &mut View<Line<T, N>, Position, ReadWrite>,
         output_indices: &mut Self::Indices,
         accumulator: Self::Accumulator,
     );
@@ -70,10 +67,10 @@ pub struct Pool2dDirectArgs {
 }
 
 #[cube(launch, address_type = "dynamic")]
-pub fn pool2d_direct<E: Numeric, S: Pool2dDirectStrategyFamily>(
-    input: &Tensor<Line<E>>,
-    output: &mut View<Line<E>, Position, ReadWrite>,
-    indices: &mut S::Indices,
+pub fn pool2d_direct<E: Numeric, N: Size, S: Pool2dDirectStrategyFamily>(
+    input: &Tensor<Line<E, N>>,
+    output: &mut View<Line<E, N>, Position, ReadWrite>,
+    indices: &mut S::Indices<N>,
     out_shape: Sequence<FastDivmod<usize>>,
     working_units: usize,
     args: &Pool2dDirectArgs,
@@ -91,7 +88,7 @@ pub fn pool2d_direct<E: Numeric, S: Pool2dDirectStrategyFamily>(
     let (in_stride_h, in_stride_w) = (input.stride(1), input.stride(2));
     let (in_h, in_w) = (input.shape(1) as u32, input.shape(2) as u32);
 
-    let mut accumulator = S::Pool2d::<E>::initialize(config, input.line_size());
+    let mut accumulator = S::Pool2d::<E, N>::initialize(config);
 
     let in_b_off = b * input.stride(0);
     let in_c_off = c * input.stride(3);
@@ -108,7 +105,7 @@ pub fn pool2d_direct<E: Numeric, S: Pool2dDirectStrategyFamily>(
             let within_padding_w = iw >= args.padding_1 && iw < border_right;
 
             // Let strategy handle position counting (only used by avg_pool)
-            S::Pool2d::<E>::count_position(config, &mut accumulator, ih, iw);
+            S::Pool2d::<E, N>::count_position(config, &mut accumulator, ih, iw);
 
             // Only accumulate values from valid input positions
             if within_padding_h && within_padding_w {
@@ -120,7 +117,7 @@ pub fn pool2d_direct<E: Numeric, S: Pool2dDirectStrategyFamily>(
 
                 let index_input = in_b_off + in_c_off + in_h_off + in_w_off;
 
-                S::Pool2d::<E>::accumulate(
+                S::Pool2d::<E, N>::accumulate(
                     config,
                     &mut accumulator,
                     ih_pad as usize * in_w as usize + iw_pad as usize,
@@ -130,13 +127,13 @@ pub fn pool2d_direct<E: Numeric, S: Pool2dDirectStrategyFamily>(
         }
     }
 
-    S::Pool2d::<E>::store(config, (b, oh, ow, c), output, indices, accumulator);
+    S::Pool2d::<E, N>::store(config, (b, oh, ow, c), output, indices, accumulator);
 }
 
-pub(super) fn view4d<'a, R: CubeRuntime>(
+pub(super) fn view4d<R: CubeRuntime>(
     tensor: CubeTensor<R>,
     line_size: LineSize,
-) -> ViewArg<'a, Position, R> {
+) -> ViewArg<Position, R> {
     let shape = tensor.meta.shape();
     let shape = (
         ScalarArg::new(shape[0]),
@@ -148,6 +145,6 @@ pub(super) fn view4d<'a, R: CubeRuntime>(
     let layout = FixedDimLayoutLaunch::<Position, R>::from_shape_handle_unchecked(
         &binding, shape, line_size,
     );
-    let buffer = binding.into_tensor_arg(line_size).into_array_arg();
+    let buffer = binding.into_tensor_arg().into_array_arg();
     ViewArg::new::<FixedDimLayout<Position>>(buffer, layout)
 }

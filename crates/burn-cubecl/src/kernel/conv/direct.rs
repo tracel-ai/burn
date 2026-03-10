@@ -12,10 +12,13 @@ use burn_backend::{
     TensorMetadata,
     ops::{ConvOptions, conv::calculate_conv_output_sizes},
 };
-use cubecl::std::{FastDivmod, FastDivmodArgs};
 use cubecl::{
     calculate_cube_count_elemwise, prelude::*, std::tensor::layout::linear::LinearView,
     tensor_line_size_parallel,
+};
+use cubecl::{
+    num_traits::Zero,
+    std::{FastDivmod, FastDivmodArgs},
 };
 use cubek::convolution::components::ConvSetupError;
 
@@ -33,11 +36,12 @@ struct Conv2dArgs {
 }
 
 #[cube(launch_unchecked, address_type = "dynamic")]
-fn direct_conv2d_kernel<E: Numeric>(
-    input: &Tensor<Line<E>>,
-    weight: &Tensor<Line<E>>,
-    bias: ComptimeOption<Tensor<Line<E>>>,
-    output: &mut LinearView<Line<E>, ReadWrite>,
+#[allow(clippy::redundant_closure)]
+fn direct_conv2d_kernel<E: Numeric, NIn: Size, NOut: Size>(
+    input: &Tensor<Line<E, NIn>>,
+    weight: &Tensor<Line<E, NIn>>,
+    bias: ComptimeOption<Tensor<Line<E, NOut>>>,
+    output: &mut LinearView<Line<E, NOut>, ReadWrite>,
     args: Conv2dArgs,
     shape_out: Sequence<FastDivmod<u32>>,
     shape_out_c: FastDivmod<u32>,
@@ -61,8 +65,8 @@ fn direct_conv2d_kernel<E: Numeric>(
     let g = out_c / args.channels_per_group;
     let ic_start = in_c_per_group * g;
 
-    let bias: ComptimeOption<Line<E>> = bias.map(|bias| bias[out_c as usize / line_size_out]);
-    let mut sum = bias.unwrap_or_else(|| Line::empty(line_size_out).fill(E::from_int(0)));
+    let bias: ComptimeOption<Line<E, NOut>> = bias.map(|bias| bias[out_c as usize / line_size_out]);
+    let mut sum = bias.unwrap_or_else(|| Line::zero());
 
     let in_offs = b as usize * input.stride(0) + ic_start as usize;
 
@@ -123,10 +127,10 @@ struct LoopParams {
 }
 
 #[cube]
-fn kernel_loop<E: Numeric>(
-    input: &Tensor<Line<E>>,
-    weight: &Tensor<Line<E>>,
-    sum: &mut Line<E>,
+fn kernel_loop<E: Numeric, NIn: Size, NOut: Size>(
+    input: &Tensor<Line<E, NIn>>,
+    weight: &Tensor<Line<E, NIn>>,
+    sum: &mut Line<E, NOut>,
     in_offs: usize,
     in_bounds: bool,
     weight_offs: usize,
@@ -178,10 +182,10 @@ fn kernel_loop<E: Numeric>(
 }
 
 #[cube]
-fn kernel_loop_inner<E: Numeric>(
-    input: &Tensor<Line<E>>,
-    weight: &Tensor<Line<E>>,
-    sum: &mut Line<E>,
+fn kernel_loop_inner<E: Numeric, NIn: Size, NOut: Size>(
+    input: &Tensor<Line<E, NIn>>,
+    weight: &Tensor<Line<E, NIn>>,
+    sum: &mut Line<E, NOut>,
     in_offs: usize,
     in_bounds: bool,
     weight_offs: usize,
@@ -304,9 +308,11 @@ pub fn conv_direct<R: CubeRuntime, const N: usize>(
             cube_count,
             cube_dim,
             address_type!(input, weight, bias, output),
-            input.into_tensor_arg(line_size_in),
-            weight.into_tensor_arg(line_size_in),
-            bias.map(|b| b.into_tensor_arg(line_size_out)).into(),
+            line_size_in,
+            line_size_out,
+            input.into_tensor_arg(),
+            weight.into_tensor_arg(),
+            bias.map(|b| b.into_tensor_arg()).into(),
             linear_view(output.clone(), line_size_out),
             Conv2dArgsLaunch::new(conv_params, ScalarArg::new(channels_per_group as u32)),
             shape_out,

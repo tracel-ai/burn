@@ -11,14 +11,15 @@ use crate::{
 use burn_backend::Shape;
 use cubecl::{
     calculate_cube_count_elemwise,
+    num_traits::Zero,
     prelude::*,
     std::{FastDivmod, tensor::View},
 };
 
 #[cube(launch, address_type = "dynamic")]
-fn adaptive_avg_pool2d_direct<E: Numeric>(
-    input: &Tensor<Line<E>>,
-    output: &mut View<Line<E>, Position, ReadWrite>,
+fn adaptive_avg_pool2d_direct<E: Numeric, N: Size>(
+    input: &Tensor<Line<E, N>>,
+    output: &mut View<Line<E, N>, Position, ReadWrite>,
     out_shape: Sequence<FastDivmod<usize>>,
     working_units: usize,
     #[define(E)] _dtype: StorageType,
@@ -40,7 +41,7 @@ fn adaptive_avg_pool2d_direct<E: Numeric>(
     let iw_start = start_index(ow, out_w, in_w);
     let iw_end = end_index(ow, out_w, in_w);
 
-    let mut sum = Line::empty(input.line_size()).fill(E::from_int(0));
+    let mut sum = Line::zero();
 
     let index_input_base = b * input.stride(0) + c * input.stride(3);
 
@@ -105,7 +106,8 @@ pub(crate) fn adaptive_avg_pool2d<R: CubeRuntime>(
         cube_count,
         cube_dim,
         address_type!(input, output),
-        input.into_tensor_arg(line_size),
+        line_size,
+        input.into_tensor_arg(),
         view4d(output.clone(), line_size),
         shape_divmod(&output),
         ScalarArg::new(working_units),

@@ -9,35 +9,35 @@ use cubecl::{calculate_cube_count_elemwise, prelude::*, std::tensor::layout::lin
 
 pub(crate) trait NumericUnaryOpFamily: 'static + Send + Sync {
     type Options: LaunchArg;
-    type Unary<N: Numeric>: NumericUnaryOp<N, Options = Self::Options>;
+    type Unary<T: Numeric, N: Size>: NumericUnaryOp<T, N, Options = Self::Options>;
 }
 
 #[cube]
-pub(crate) trait NumericUnaryOp<N: CubePrimitive>: 'static + Send + Sync {
+pub(crate) trait NumericUnaryOp<T: Scalar, N: Size>: 'static + Send + Sync {
     type Options: LaunchArg;
 
-    fn execute(input: Line<N>, options: &Self::Options) -> Line<N>;
+    fn execute(input: Line<T, N>, options: &Self::Options) -> Line<T, N>;
 }
 
 #[cube(launch_unchecked, address_type = "dynamic")]
-pub(crate) fn unary_numeric<N: Numeric, O: NumericUnaryOpFamily>(
-    input: &LinearView<Line<N>>,
-    output: &mut LinearView<Line<N>, ReadWrite>,
+pub(crate) fn unary_numeric<T: Numeric, N: Size, O: NumericUnaryOpFamily>(
+    input: &LinearView<Line<T, N>>,
+    output: &mut LinearView<Line<T, N>, ReadWrite>,
     options: &O::Options,
-    #[define(N)] _dtype: StorageType,
+    #[define(T)] _dtype: StorageType,
 ) {
     if !output.is_in_bounds(ABSOLUTE_POS) {
         terminate!();
     }
 
-    output[ABSOLUTE_POS] = O::Unary::<N>::execute(input[ABSOLUTE_POS], options);
+    output[ABSOLUTE_POS] = O::Unary::<T, N>::execute(input[ABSOLUTE_POS], options);
 }
 
 pub(crate) fn launch_unary_numeric<R, O, Args>(tensor: CubeTensor<R>, args: Args) -> CubeTensor<R>
 where
     // Magic fix for lifetime, the closure is supposed to capture everything required to create the
     // argument.
-    for<'a> Args: FnOnce(&'a ()) -> RuntimeArg<'a, O::Options, R>,
+    for<'a> Args: FnOnce(&'a ()) -> RuntimeArg<O::Options, R>,
     R: CubeRuntime,
     O: NumericUnaryOpFamily,
 {
@@ -57,6 +57,7 @@ where
                 cube_count,
                 cube_dim,
                 address_type!(tensor),
+                line_size,
                 linear_view(tensor.clone(), line_size),
                 linear_view_alias(&tensor, line_size, 0),
                 args(&()),
@@ -77,6 +78,7 @@ where
                 cube_count,
                 cube_dim,
                 address_type!(tensor, output),
+                line_size,
                 linear_view(tensor, line_size),
                 linear_view(output.clone(), line_size),
                 args(&()),

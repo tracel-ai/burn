@@ -11,13 +11,13 @@ use cubecl::{calculate_cube_count_elemwise, prelude::*, std::tensor::layout::lin
 
 #[cube]
 pub(crate) trait ComparisonOpFamily: 'static + Send + Sync {
-    type Operation<N: Numeric>: ComparisonOp<N>;
+    type Operation<T: Numeric, N: Size>: ComparisonOp<T, N>;
 }
 
 #[cube]
-pub(crate) trait ComparisonOp<C: Numeric>: 'static + Send + Sync {
+pub(crate) trait ComparisonOp<C: Numeric, N: Size>: 'static + Send + Sync {
     /// Execute a comparison operation.
-    fn execute(lhs: Line<C>, rhs: Line<C>) -> bool;
+    fn execute(lhs: Line<C, N>, rhs: Line<C, N>) -> bool;
 }
 
 struct EqualOp;
@@ -27,89 +27,89 @@ struct GreaterOp;
 struct LowerOp;
 
 impl ComparisonOpFamily for EqualOp {
-    type Operation<N: Numeric> = Self;
+    type Operation<T: Numeric, N: Size> = Self;
 }
 
 #[cube]
-impl<N: Numeric> ComparisonOp<N> for EqualOp {
-    fn execute(lhs: Line<N>, rhs: Line<N>) -> bool {
+impl<T: Numeric, N: Size> ComparisonOp<T, N> for EqualOp {
+    fn execute(lhs: Line<T, N>, rhs: Line<T, N>) -> bool {
         lhs == rhs
     }
 }
 
 impl ComparisonOpFamily for GreaterEqualOp {
-    type Operation<N: Numeric> = Self;
+    type Operation<T: Numeric, N: Size> = Self;
 }
 
 #[cube]
-impl<N: Numeric> ComparisonOp<N> for GreaterEqualOp {
-    fn execute(lhs: Line<N>, rhs: Line<N>) -> bool {
+impl<T: Numeric, N: Size> ComparisonOp<T, N> for GreaterEqualOp {
+    fn execute(lhs: Line<T, N>, rhs: Line<T, N>) -> bool {
         lhs >= rhs
     }
 }
 
 impl ComparisonOpFamily for LowerEqualOp {
-    type Operation<N: Numeric> = Self;
+    type Operation<T: Numeric, N: Size> = Self;
 }
 
 #[cube]
-impl<N: Numeric> ComparisonOp<N> for LowerEqualOp {
-    fn execute(lhs: Line<N>, rhs: Line<N>) -> bool {
+impl<T: Numeric, N: Size> ComparisonOp<T, N> for LowerEqualOp {
+    fn execute(lhs: Line<T, N>, rhs: Line<T, N>) -> bool {
         lhs <= rhs
     }
 }
 
 impl ComparisonOpFamily for GreaterOp {
-    type Operation<N: Numeric> = Self;
+    type Operation<T: Numeric, N: Size> = Self;
 }
 
 #[cube]
-impl<N: Numeric> ComparisonOp<N> for GreaterOp {
-    fn execute(lhs: Line<N>, rhs: Line<N>) -> bool {
+impl<T: Numeric, N: Size> ComparisonOp<T, N> for GreaterOp {
+    fn execute(lhs: Line<T, N>, rhs: Line<T, N>) -> bool {
         lhs > rhs
     }
 }
 
 impl ComparisonOpFamily for LowerOp {
-    type Operation<N: Numeric> = Self;
+    type Operation<T: Numeric, N: Size> = Self;
 }
 
 #[cube]
-impl<N: Numeric> ComparisonOp<N> for LowerOp {
-    fn execute(lhs: Line<N>, rhs: Line<N>) -> bool {
+impl<T: Numeric, N: Size> ComparisonOp<T, N> for LowerOp {
+    fn execute(lhs: Line<T, N>, rhs: Line<T, N>) -> bool {
         lhs < rhs
     }
 }
 
 #[cube(launch_unchecked, address_type = "dynamic")]
-pub(crate) fn kernel_scalar_cmp<N: Numeric, Bool: Numeric, O: ComparisonOpFamily>(
-    input: &LinearView<Line<N>>,
+pub(crate) fn kernel_scalar_cmp<T: Numeric, Bool: Numeric, N: Size, O: ComparisonOpFamily>(
+    input: &LinearView<Line<T, N>>,
     scalar: InputScalar,
-    output: &mut LinearView<Line<Bool>, ReadWrite>,
-    #[define(N, Bool)] _dtypes: [StorageType; 2],
+    output: &mut LinearView<Line<Bool, N>, ReadWrite>,
+    #[define(T, Bool)] _dtypes: [StorageType; 2],
 ) {
     if !output.is_in_bounds(ABSOLUTE_POS) {
         terminate!();
     }
 
-    output[ABSOLUTE_POS] = Line::cast_from(O::Operation::<N>::execute(
+    output[ABSOLUTE_POS] = Line::cast_from(O::Operation::<T, N>::execute(
         input[ABSOLUTE_POS],
-        Line::new(scalar.get::<N>()),
+        Line::new(scalar.get::<T>()),
     ));
 }
 
 #[cube(launch_unchecked, address_type = "dynamic")]
-pub(crate) fn kernel_cmp<N: Numeric, Bool: Numeric, O: ComparisonOpFamily>(
-    lhs: &LinearView<Line<N>>,
-    rhs: &LinearView<Line<N>>,
-    out: &mut LinearView<Line<Bool>, ReadWrite>,
-    #[define(N, Bool)] _dtype: [StorageType; 2],
+pub(crate) fn kernel_cmp<T: Numeric, Bool: Numeric, N: Size, O: ComparisonOpFamily>(
+    lhs: &LinearView<Line<T, N>>,
+    rhs: &LinearView<Line<T, N>>,
+    out: &mut LinearView<Line<Bool, N>, ReadWrite>,
+    #[define(T, Bool)] _dtype: [StorageType; 2],
 ) {
     if !out.is_in_bounds(ABSOLUTE_POS) {
         terminate!();
     }
 
-    out[ABSOLUTE_POS] = Line::cast_from(O::Operation::<N>::execute(
+    out[ABSOLUTE_POS] = Line::cast_from(O::Operation::<T, N>::execute(
         lhs[ABSOLUTE_POS],
         rhs[ABSOLUTE_POS],
     ));
@@ -142,6 +142,7 @@ pub(crate) fn launch_cmp<R: CubeRuntime, O: ComparisonOpFamily>(
                 cube_count,
                 cube_dim,
                 address_type!(lhs, rhs),
+                line_size,
                 linear_view(lhs.clone(), line_size),
                 linear_view_ref(rhs, &lhs, line_size),
                 linear_view_alias(&lhs, line_size, 0),
@@ -163,6 +164,7 @@ pub(crate) fn launch_cmp<R: CubeRuntime, O: ComparisonOpFamily>(
                 cube_count,
                 cube_dim,
                 address_type!(lhs, rhs),
+                line_size,
                 linear_view_ref(lhs, &rhs, line_size),
                 linear_view(rhs.clone(), line_size),
                 linear_view_alias(&rhs, line_size, 1),
@@ -191,6 +193,7 @@ pub(crate) fn launch_cmp<R: CubeRuntime, O: ComparisonOpFamily>(
                 cube_count,
                 cube_dim,
                 address_type!(lhs, rhs, output),
+                line_size,
                 linear_view_ref(lhs, &output, line_size),
                 linear_view_ref(rhs, &output, line_size),
                 linear_view(output.clone(), line_size),
@@ -225,6 +228,7 @@ pub(crate) fn launch_scalar_cmp<R: CubeRuntime, O: ComparisonOpFamily>(
                 cube_count,
                 cube_dim,
                 address_type!(tensor),
+                line_size,
                 linear_view(tensor.clone(), line_size),
                 scalar,
                 linear_view_alias(&tensor, line_size, 0),
@@ -253,6 +257,7 @@ pub(crate) fn launch_scalar_cmp<R: CubeRuntime, O: ComparisonOpFamily>(
                 cube_count,
                 cube_dim,
                 address_type!(tensor, output),
+                line_size,
                 linear_view(tensor, line_size),
                 scalar,
                 linear_view(output.clone(), line_size),
@@ -347,50 +352,50 @@ pub fn lower_equal_elem<R: CubeRuntime>(
 // Unary comparison / predicate / relational ops
 
 #[cube]
-pub(crate) trait PredicateOp<F: Float>: 'static + Send + Sync {
+pub(crate) trait PredicateOp<F: Float, N: Size>: 'static + Send + Sync {
     /// Execute a predicate operation.
-    fn execute(input: Line<F>) -> bool;
+    fn execute(input: Line<F, N>) -> Line<bool, N>;
 }
 
 pub(crate) trait PredicateOpFamily: 'static + Send + Sync {
-    type Operation<F: Float>: PredicateOp<F>;
+    type Operation<F: Float, N: Size>: PredicateOp<F, N>;
 }
 
 struct IsNanOp;
 struct IsInfOp;
 
 impl PredicateOpFamily for IsNanOp {
-    type Operation<F: Float> = Self;
+    type Operation<F: Float, N: Size> = Self;
 }
 
 #[cube]
-impl<F: Float> PredicateOp<F> for IsNanOp {
-    fn execute(input: Line<F>) -> bool {
+impl<F: Float, N: Size> PredicateOp<F, N> for IsNanOp {
+    fn execute(input: Line<F, N>) -> Line<bool, N> {
         Line::is_nan(input)
     }
 }
 
 impl PredicateOpFamily for IsInfOp {
-    type Operation<F: Float> = Self;
+    type Operation<F: Float, N: Size> = Self;
 }
 #[cube]
-impl<F: Float> PredicateOp<F> for IsInfOp {
-    fn execute(input: Line<F>) -> bool {
+impl<F: Float, N: Size> PredicateOp<F, N> for IsInfOp {
+    fn execute(input: Line<F, N>) -> Line<bool, N> {
         Line::is_inf(input)
     }
 }
 
 #[cube(launch_unchecked, address_type = "dynamic")]
-pub(crate) fn kernel_predicate<F: Float, Bool: Numeric, O: PredicateOpFamily>(
-    input: &LinearView<Line<F>>,
-    output: &mut LinearView<Line<Bool>, ReadWrite>,
+pub(crate) fn kernel_predicate<F: Float, Bool: Numeric, N: Size, O: PredicateOpFamily>(
+    input: &LinearView<Line<F, N>>,
+    output: &mut LinearView<Line<Bool, N>, ReadWrite>,
     #[define(F, Bool)] _dtypes: [StorageType; 2],
 ) {
     if !output.is_in_bounds(ABSOLUTE_POS) {
         terminate!();
     }
 
-    output[ABSOLUTE_POS] = Line::cast_from(O::Operation::<F>::execute(input[ABSOLUTE_POS]));
+    output[ABSOLUTE_POS] = Line::cast_from(O::Operation::<F, N>::execute(input[ABSOLUTE_POS]));
 }
 
 pub(crate) fn launch_predicate<R: CubeRuntime, O: PredicateOpFamily>(
@@ -420,6 +425,7 @@ pub(crate) fn launch_predicate<R: CubeRuntime, O: PredicateOpFamily>(
             cube_count,
             cube_dim,
             address_type!(tensor, output),
+            line_size,
             linear_view_ref(tensor, &output, line_size),
             linear_view(output.clone(), line_size),
             dtypes,

@@ -9,40 +9,40 @@ use crate::{
 use cubecl::{calculate_cube_count_elemwise, prelude::*, std::tensor::layout::linear::LinearView};
 
 pub(crate) trait BinaryOpFloatFamily: Send + Sync + 'static {
-    type BinaryOp<C: Float>: BinaryOpFloat<C>;
+    type BinaryOp<C: Float, N: Size>: BinaryOpFloat<C, N>;
 }
 
 #[cube]
-pub(crate) trait BinaryOpFloat<C: Float>: 'static + Send + Sync {
+pub(crate) trait BinaryOpFloat<C: Float, N: Size>: 'static + Send + Sync {
     /// Execute a binary operation.
-    fn execute(lhs: Line<C>, rhs: Line<C>) -> Line<C>;
+    fn execute(lhs: Line<C, N>, rhs: Line<C, N>) -> Line<C, N>;
 }
 
 pub(crate) struct ArcTan2Op;
 
 impl BinaryOpFloatFamily for ArcTan2Op {
-    type BinaryOp<C: Float> = Self;
+    type BinaryOp<C: Float, N: Size> = Self;
 }
 
 #[cube]
-impl<N: Float> BinaryOpFloat<N> for ArcTan2Op {
-    fn execute(lhs: Line<N>, rhs: Line<N>) -> Line<N> {
+impl<T: Float, N: Size> BinaryOpFloat<T, N> for ArcTan2Op {
+    fn execute(lhs: Line<T, N>, rhs: Line<T, N>) -> Line<T, N> {
         Line::atan2(lhs, rhs)
     }
 }
 
 #[cube(launch_unchecked, address_type = "dynamic")]
-pub(crate) fn kernel_binop<C: Float, O: BinaryOpFloatFamily>(
-    lhs: &LinearView<Line<C>>,
-    rhs: &LinearView<Line<C>>,
-    out: &mut LinearView<Line<C>, ReadWrite>,
+pub(crate) fn kernel_binop<C: Float, N: Size, O: BinaryOpFloatFamily>(
+    lhs: &LinearView<Line<C, N>>,
+    rhs: &LinearView<Line<C, N>>,
+    out: &mut LinearView<Line<C, N>, ReadWrite>,
     #[define(C)] _dtype: StorageType,
 ) {
     if !out.is_in_bounds(ABSOLUTE_POS) {
         terminate!();
     }
 
-    out[ABSOLUTE_POS] = O::BinaryOp::<C>::execute(lhs[ABSOLUTE_POS], rhs[ABSOLUTE_POS]);
+    out[ABSOLUTE_POS] = O::BinaryOp::<C, N>::execute(lhs[ABSOLUTE_POS], rhs[ABSOLUTE_POS]);
 }
 
 pub(crate) fn launch_binop_float<R: CubeRuntime, O: BinaryOpFloatFamily>(
@@ -70,6 +70,7 @@ pub(crate) fn launch_binop_float<R: CubeRuntime, O: BinaryOpFloatFamily>(
                 cube_count,
                 cube_dim,
                 address_type!(lhs, rhs),
+                line_size,
                 linear_view(lhs.clone(), line_size),
                 linear_view_ref(rhs, &lhs, line_size),
                 linear_view_alias(&lhs, line_size, 0),
@@ -83,6 +84,7 @@ pub(crate) fn launch_binop_float<R: CubeRuntime, O: BinaryOpFloatFamily>(
                 cube_count,
                 cube_dim,
                 address_type!(lhs, rhs),
+                line_size,
                 linear_view_ref(lhs, &rhs, line_size),
                 linear_view(rhs.clone(), line_size),
                 linear_view_alias(&rhs, line_size, 1),
@@ -99,6 +101,7 @@ pub(crate) fn launch_binop_float<R: CubeRuntime, O: BinaryOpFloatFamily>(
                 cube_count,
                 cube_dim,
                 address_type!(lhs, rhs, output),
+                line_size,
                 linear_view_ref(lhs, &output, line_size),
                 linear_view_ref(rhs, &output, line_size),
                 linear_view(output.clone(), line_size),

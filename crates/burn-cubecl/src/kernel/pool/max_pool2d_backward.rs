@@ -8,15 +8,15 @@ use crate::{
     tensor::CubeTensor,
 };
 use burn_backend::Shape;
-use cubecl::{calculate_cube_count_elemwise, prelude::*, std::FastDivmod};
+use cubecl::{calculate_cube_count_elemwise, num_traits::Zero, prelude::*, std::FastDivmod};
 
 use super::{PoolBackwardArgs, PoolBackwardArgsLaunch};
 
 #[cube(launch_unchecked, address_type = "dynamic")]
-fn max_pool2d_with_indices_backward_kernel<E: Numeric, I: Int>(
-    grad: &Tensor<Line<E>>,
-    indices: &Tensor<Line<I>>,
-    output: &mut Tensor<Line<E>>,
+fn max_pool2d_with_indices_backward_kernel<E: Numeric, I: Int, N: Size>(
+    grad: &Tensor<Line<E, N>>,
+    indices: &Tensor<Line<I, N>>,
+    output: &mut Tensor<Line<E, N>>,
     out_shape: Sequence<FastDivmod<usize>>,
     working_units: usize,
     args: &PoolBackwardArgs,
@@ -47,7 +47,7 @@ fn max_pool2d_with_indices_backward_kernel<E: Numeric, I: Int>(
         kernel_size_1,
     );
 
-    let mut grad_acc = Line::empty(grad.line_size()).fill(E::from_int(0));
+    let mut grad_acc = Line::zero();
 
     let grad_idx_base = batch * grad.stride(0) + channel * grad.stride(3);
     let ind_idx_base = batch * indices.stride(0) + channel * indices.stride(3);
@@ -58,12 +58,12 @@ fn max_pool2d_with_indices_backward_kernel<E: Numeric, I: Int>(
                 grad_idx_base + oh as usize * grad.stride(1) + ow as usize * grad.stride(2);
             let indices_index =
                 ind_idx_base + oh as usize * indices.stride(1) + ow as usize * indices.stride(2);
-            let index_max = Line::<u32>::cast_from(indices[indices_index / line_size]);
+            let index_max = Line::<u32, N>::cast_from(indices[indices_index / line_size]);
 
             grad_acc += select_many(
                 index_max.equal(Line::cast_from(index_current)),
                 grad[grad_index / line_size],
-                Line::new(E::from_int(0)),
+                Line::zero(),
             );
         }
     }
@@ -134,9 +134,10 @@ pub(crate) fn max_pool2d_with_indices_backward<R: CubeRuntime>(
             cube_count,
             cube_dim,
             address_type!(grad, indices, output),
-            grad.into_tensor_arg(line_size),
-            indices.into_tensor_arg(line_size),
-            output.clone().into_tensor_arg(line_size),
+            line_size,
+            grad.into_tensor_arg(),
+            indices.into_tensor_arg(),
+            output.clone().into_tensor_arg(),
             shape_divmod(&output),
             ScalarArg::new(working_units),
             PoolBackwardArgsLaunch::new(

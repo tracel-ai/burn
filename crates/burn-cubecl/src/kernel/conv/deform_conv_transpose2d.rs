@@ -258,14 +258,14 @@ fn compute_offset_and_mask_gradient<R: CubeRuntime>(
             cube_count,
             cube_dim,
             address_type!(image, offset, mask, grad_offset, grad_mask),
-            image.into_tensor_arg(1),
-            offset.into_tensor_arg(1),
-            mask.map(|mask| mask.into_tensor_arg(1)).into(),
-            columns.into_tensor_arg(1),
+            image.into_tensor_arg(),
+            offset.into_tensor_arg(),
+            mask.map(|mask| mask.into_tensor_arg()).into(),
+            columns.into_tensor_arg(),
             linear_view(grad_offset.clone(), 1),
             grad_mask
                 .clone()
-                .map(|grad_mask| grad_mask.into_tensor_arg(1))
+                .map(|grad_mask| grad_mask.into_tensor_arg())
                 .into(),
             pos_shape,
             DeformConv2dCol2ImgCoordArgsLaunch::new(
@@ -506,7 +506,7 @@ fn compute_input_grad<R: CubeRuntime>(
         // Force `f32` to enable bitcasting as `u32`, or use intrinsic when supported
         false => zeros_client(client.clone(), device.clone(), shape, DType::F32),
     };
-    let grad_arg = grad_in.clone().into_tensor_arg(1);
+    let grad_arg = grad_in.clone().into_tensor_arg();
 
     let num_elements = columns.meta.num_elements();
     let cube_dim = CubeDim::new(&offset.client, num_elements);
@@ -528,8 +528,8 @@ fn compute_input_grad<R: CubeRuntime>(
             cube_count,
             cube_dim,
             address_type!(offset, mask, columns, grad_in),
-            offset.into_tensor_arg(1),
-            mask.map(|mask| mask.into_tensor_arg(1)).into(),
+            offset.into_tensor_arg(),
+            mask.map(|mask| mask.into_tensor_arg()).into(),
             linear_view(columns, 1),
             grad_arg,
             pos_shape,

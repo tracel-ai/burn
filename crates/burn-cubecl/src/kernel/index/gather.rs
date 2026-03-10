@@ -12,9 +12,9 @@ use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
 #[cube(launch_unchecked, address_type = "dynamic")]
 fn gather_kernel<T: Numeric, I: Numeric>(
-    input: &Tensor<Line<T>>,
-    indices: &LinearView<Line<I>>,
-    output: &mut LinearView<Line<T>, ReadWrite>,
+    input: &Tensor<T>,
+    indices: &LinearView<I>,
+    output: &mut LinearView<T, ReadWrite>,
     in_strides: Sequence<usize>, // zeroed out for broadcast dims and `dim`
     out_shape: Sequence<FastDivmod<usize>>,
     dim: usize,
@@ -63,7 +63,7 @@ pub(crate) fn gather<R: CubeRuntime>(
             cube_count,
             cube_dim,
             address_type!(tensor, indices, output),
-            tensor.into_tensor_arg(1),
+            tensor.into_tensor_arg(),
             linear_view(indices, 1),
             linear_view(output.clone(), 1),
             in_strides,

@@ -9,20 +9,20 @@ use cubecl::{calculate_cube_count_elemwise, prelude::*, std::tensor::layout::lin
 
 pub(crate) trait IntUnaryOpFamily: 'static + Send + Sync {
     type Options: LaunchArg;
-    type Unary<I: Int>: IntUnaryOp<I, Options = Self::Options>;
+    type Unary<I: Int, N: Size>: IntUnaryOp<I, N, Options = Self::Options>;
 }
 
 #[cube]
-pub(crate) trait IntUnaryOp<I: CubePrimitive>: 'static + Send + Sync {
+pub(crate) trait IntUnaryOp<I: Scalar, N: Size>: 'static + Send + Sync {
     type Options: LaunchArg;
 
-    fn execute(input: Line<I>, options: &Self::Options) -> Line<I>;
+    fn execute(input: Line<I, N>, options: &Self::Options) -> Line<I, N>;
 }
 
 #[cube(launch_unchecked, address_type = "dynamic")]
-pub(crate) fn unary_int<I: Int, O: IntUnaryOpFamily>(
-    input: &LinearView<Line<I>>,
-    output: &mut LinearView<Line<I>, ReadWrite>,
+pub(crate) fn unary_int<I: Int, N: Size, O: IntUnaryOpFamily>(
+    input: &LinearView<Line<I, N>>,
+    output: &mut LinearView<Line<I, N>, ReadWrite>,
     options: &O::Options,
     #[define(I)] _dtype: StorageType,
 ) {
@@ -30,12 +30,12 @@ pub(crate) fn unary_int<I: Int, O: IntUnaryOpFamily>(
         terminate!();
     }
 
-    output[ABSOLUTE_POS] = O::Unary::<I>::execute(input[ABSOLUTE_POS], options);
+    output[ABSOLUTE_POS] = O::Unary::<I, N>::execute(input[ABSOLUTE_POS], options);
 }
 
 pub(crate) fn launch_unary_int<R, O, Args>(tensor: CubeTensor<R>, args: Args) -> CubeTensor<R>
 where
-    for<'a> Args: FnOnce(&'a ()) -> RuntimeArg<'a, O::Options, R>,
+    for<'a> Args: FnOnce(&'a ()) -> RuntimeArg<O::Options, R>,
     R: CubeRuntime,
     O: IntUnaryOpFamily,
 {
@@ -55,6 +55,7 @@ where
                 cube_count,
                 cube_dim,
                 address_type!(tensor),
+                line_size,
                 linear_view(tensor.clone(), line_size),
                 linear_view_alias(&tensor, line_size, 0),
                 args(&()),
@@ -75,6 +76,7 @@ where
                 cube_count,
                 cube_dim,
                 address_type!(tensor, output),
+                line_size,
                 linear_view(tensor, line_size),
                 linear_view(output.clone(), line_size),
                 args(&()),
@@ -87,6 +89,8 @@ where
 }
 
 pub(crate) mod unary_basic_int {
+
+    use cubecl::num_traits::{One, Zero};
 
     use super::*;
 
@@ -114,15 +118,15 @@ pub(crate) mod unary_basic_int {
     struct BasicIntUnary;
 
     #[cube]
-    impl<I: Int> IntUnaryOp<I> for BasicIntUnary {
+    impl<I: Int, N: Size> IntUnaryOp<I, N> for BasicIntUnary {
         type Options = BasicIntUnaryOptions;
 
-        fn execute(input: Line<I>, options: &Self::Options) -> Line<I> {
+        fn execute(input: Line<I, N>, options: &Self::Options) -> Line<I, N> {
             match comptime![options.kind] {
                 BasicIntUnaryKind::BitwiseNot => !input,
                 BasicIntUnaryKind::Sign => {
-                    let zero = Line::new(I::new(0));
-                    let one = Line::new(I::new(1));
+                    let zero = Line::zero();
+                    let one = Line::one();
                     let minus_one = Line::new(I::new(-1));
 
                     let is_positive = input.greater_than(zero);
@@ -137,6 +141,6 @@ pub(crate) mod unary_basic_int {
 
     impl IntUnaryOpFamily for BasicIntUnary {
         type Options = BasicIntUnaryOptions;
-        type Unary<I: Int> = Self;
+        type Unary<I: Int, N: Size> = Self;
     }
 }

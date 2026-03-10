@@ -334,7 +334,7 @@ impl MultiBlockVariables {
     /// # Notes
     ///
     /// The type of [`NumericExpand<DYN_ELEM_ID>`] must be set before calling this function.
-    pub fn init(&mut self, #[comptime] key: MultiBlockPos, #[comptime] line_size: usize) {
+    pub fn init(&mut self, #[comptime] key: MultiBlockPos) {
         let mut registers = Registry::<
             usize,
             Registry<usize, RuntimeCell<Line<NumericExpand<DYN_ELEM_ID>, DynSize>>>,
@@ -745,7 +745,7 @@ pub fn multi_block_variables_init(
         set_polyfill::<NumericExpand<DYN_ELEM_ID>, DynSize>(comptime![
             Type::new(dtype).line(block.width)
         ]);
-        variables.init(key, block.width);
+        variables.init(key);
     }
 }
 

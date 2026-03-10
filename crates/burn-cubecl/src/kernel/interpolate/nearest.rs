@@ -12,9 +12,9 @@ use crate::{
 };
 
 #[cube(launch_unchecked, address_type = "dynamic")]
-fn interpolate_nearest_kernel<F: Float>(
-    input: &Tensor<Line<F>>,
-    output: &mut Tensor<Line<F>>,
+fn interpolate_nearest_kernel<F: Float, N: Size>(
+    input: &Tensor<Line<F, N>>,
+    output: &mut Tensor<Line<F, N>>,
     shape_out: Sequence<FastDivmod<usize>>,
     out_layout: LinearLayout,
     #[define(F)] _dtype: StorageType,
@@ -67,8 +67,9 @@ pub(crate) fn interpolate_nearest_launch<R: CubeRuntime>(
             cube_count,
             cube_dim,
             address_type!(input, output),
-            input.into_tensor_arg(line_size),
-            output.clone().into_tensor_arg(line_size),
+            line_size,
+            input.into_tensor_arg(),
+            output.clone().into_tensor_arg(),
             shape_out,
             out_layout,
             output.dtype.into(),
