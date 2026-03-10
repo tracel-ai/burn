@@ -34,13 +34,17 @@ fn get_cache_dir() -> PathBuf {
 /// use the locally cached `.pth` file.
 fn download_weights_if_not_saved(cache_path: &PathBuf) {
     if !cache_path.exists() {
-        let bytes = download_file_as_bytes(VGG19_URL, "Downloading VGG19 ImageNet weights for Gram Matrix Loss...");
+        let bytes = download_file_as_bytes(
+            VGG19_URL,
+            "Downloading VGG19 ImageNet weights for Gram Matrix Loss...",
+        );
 
         // Write to a temporary file. If writing gets completed, then rename to the actual/correct name.
-        // If writing is not completed, the file with the correct name (i.e. `cache_path`) will not exist 
+        // If writing is not completed, the file with the correct name (i.e. `cache_path`) will not exist
         // so this code block can run again which is the desired behavior.
         let temp_path = cache_path.with_extension("pth.tmp");
-        let mut file = File::create(&temp_path).expect("Failed to create VGG19 cache file for Gram Matrix Loss");
+        let mut file = File::create(&temp_path)
+            .expect("Failed to create VGG19 cache file for Gram Matrix Loss");
         file.write_all(&bytes)
             .expect("Failed to write VGG19 weights to the cache file for Gram Matrix Loss");
 

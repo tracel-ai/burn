@@ -227,7 +227,7 @@ impl<B: Backend> GramMatrixLoss<B> {
             let (c_f, hw_f) = (c as f32, h_times_w as f32);
             pred_normalization_factors.push(4.0 * c_f * c_f * hw_f * hw_f);
         }
-        
+
         let target_features = self.feat_extractor.forward(target_processed);
 
         // Create vector which will hold loss tensors for each layer
@@ -252,13 +252,15 @@ impl<B: Backend> GramMatrixLoss<B> {
                 .squeeze_dims::<1>(&[1, 2]);
             loss_tensors.push(loss);
         }
-        
+
         // Sum each layer's loss in the vector of loss tensors
         let scaled_loss_tensors: Vec<Tensor<B, 1>> = loss_tensors
             .into_iter()
             .zip(pred_normalization_factors)
             .zip(self.layer_weights.clone())
-            .map(|((loss_tensor, norm_factor), weight)|  loss_tensor.div_scalar(norm_factor).mul_scalar(weight))
+            .map(|((loss_tensor, norm_factor), weight)| {
+                loss_tensor.div_scalar(norm_factor).mul_scalar(weight)
+            })
             .collect();
         let stacked_loss_tensors = Tensor::stack::<2>(scaled_loss_tensors, 1);
         stacked_loss_tensors.sum_dim(1).squeeze_dim(1)
