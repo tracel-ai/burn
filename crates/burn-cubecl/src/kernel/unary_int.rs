@@ -16,13 +16,13 @@ pub(crate) trait IntUnaryOpFamily: 'static + Send + Sync {
 pub(crate) trait IntUnaryOp<I: Scalar, N: Size>: 'static + Send + Sync {
     type Options: LaunchArg;
 
-    fn execute(input: Line<I, N>, options: &Self::Options) -> Line<I, N>;
+    fn execute(input: Vector<I, N>, options: &Self::Options) -> Vector<I, N>;
 }
 
 #[cube(launch_unchecked, address_type = "dynamic")]
 pub(crate) fn unary_int<I: Int, N: Size, O: IntUnaryOpFamily>(
-    input: &LinearView<Line<I, N>>,
-    output: &mut LinearView<Line<I, N>, ReadWrite>,
+    input: &LinearView<Vector<I, N>>,
+    output: &mut LinearView<Vector<I, N>, ReadWrite>,
     options: &O::Options,
     #[define(I)] _dtype: StorageType,
 ) {
@@ -121,13 +121,13 @@ pub(crate) mod unary_basic_int {
     impl<I: Int, N: Size> IntUnaryOp<I, N> for BasicIntUnary {
         type Options = BasicIntUnaryOptions;
 
-        fn execute(input: Line<I, N>, options: &Self::Options) -> Line<I, N> {
+        fn execute(input: Vector<I, N>, options: &Self::Options) -> Vector<I, N> {
             match comptime![options.kind] {
                 BasicIntUnaryKind::BitwiseNot => !input,
                 BasicIntUnaryKind::Sign => {
-                    let zero = Line::zero();
-                    let one = Line::one();
-                    let minus_one = Line::new(I::new(-1));
+                    let zero = Vector::zero();
+                    let one = Vector::one();
+                    let minus_one = Vector::new(I::new(-1));
 
                     let is_positive = input.greater_than(zero);
                     let is_negative = input.less_than(zero);

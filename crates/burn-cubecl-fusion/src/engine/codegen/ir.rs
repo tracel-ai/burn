@@ -324,7 +324,7 @@ impl<R: Runtime> GlobalArgsLaunch<R> {
 #[derive(CubeType, Default, Clone)]
 pub struct MultiBlockVariables {
     variables:
-        Registry<usize, Registry<usize, RuntimeCell<Line<NumericExpand<DYN_ELEM_ID>, DynSize>>>>,
+        Registry<usize, Registry<usize, RuntimeCell<Vector<NumericExpand<DYN_ELEM_ID>, DynSize>>>>,
 }
 
 #[cube]
@@ -337,9 +337,9 @@ impl MultiBlockVariables {
     pub fn init(&mut self, #[comptime] key: MultiBlockPos) {
         let mut registers = Registry::<
             usize,
-            Registry<usize, RuntimeCell<Line<NumericExpand<DYN_ELEM_ID>, DynSize>>>,
+            Registry<usize, RuntimeCell<Vector<NumericExpand<DYN_ELEM_ID>, DynSize>>>,
         >::find_or_default::<usize>(&mut self.variables, key.block_pos);
-        let cell = RuntimeCell::new(Line::empty());
+        let cell = RuntimeCell::new(Vector::empty());
         registers.insert(key.block_local_pos, cell);
     }
 
@@ -351,7 +351,7 @@ impl MultiBlockVariables {
     pub fn read(
         &self,
         #[comptime] key: MultiBlockPos,
-    ) -> Line<NumericExpand<DYN_ELEM_ID>, DynSize> {
+    ) -> Vector<NumericExpand<DYN_ELEM_ID>, DynSize> {
         let registers = self.variables.find(key.block_pos);
         let cell = registers.find(key.block_local_pos);
         cell.read()
@@ -365,7 +365,7 @@ impl MultiBlockVariables {
     pub fn write(
         &mut self,
         #[comptime] key: MultiBlockPos,
-        value: Line<NumericExpand<DYN_ELEM_ID>, DynSize>,
+        value: Vector<NumericExpand<DYN_ELEM_ID>, DynSize>,
     ) {
         let registers = self.variables.find(key.block_pos);
         // Try find for local(visibility) registers.
@@ -495,7 +495,7 @@ impl<R: Runtime> GlobalArgsLaunch<R> {
     /// # Panics
     ///
     /// If the argument doesn't have an handle.
-    pub fn line_size(&self, arg: &FuseArg) -> LineSize {
+    pub fn line_size(&self, arg: &FuseArg) -> VectorSize {
         match arg {
             FuseArg::Input(pos, _, _) => self.tensors.values[*pos].ty.line_size(),
             FuseArg::Output(pos, _, _) => self.tensors.values[*pos].ty.line_size(),
@@ -521,23 +521,23 @@ impl<R: Runtime> GlobalArgsLaunch<R> {
 /// Keep track of all local variables that are used as argument in fused
 /// [element wise operations](ElemwiseOp).
 pub struct LocalArgs {
-    pub l_f64: Registry<usize, Line<f64, DynSize>>,
-    pub l_f32: Registry<usize, Line<f32, DynSize>>,
-    pub l_f16: Registry<usize, Line<f16, DynSize>>,
-    pub l_bf16: Registry<usize, Line<bf16, DynSize>>,
-    pub l_i64: Registry<usize, Line<i64, DynSize>>,
-    pub l_i32: Registry<usize, Line<i32, DynSize>>,
-    pub l_i16: Registry<usize, Line<i16, DynSize>>,
-    pub l_i8: Registry<usize, Line<i8, DynSize>>,
-    pub l_u64: Registry<usize, Line<u64, DynSize>>,
-    pub l_u32: Registry<usize, Line<u32, DynSize>>,
-    pub l_u16: Registry<usize, Line<u16, DynSize>>,
-    pub l_u8: Registry<usize, Line<u8, DynSize>>,
-    pub l_bool: Registry<usize, Line<bool, DynSize>>,
+    pub l_f64: Registry<usize, Vector<f64, DynSize>>,
+    pub l_f32: Registry<usize, Vector<f32, DynSize>>,
+    pub l_f16: Registry<usize, Vector<f16, DynSize>>,
+    pub l_bf16: Registry<usize, Vector<bf16, DynSize>>,
+    pub l_i64: Registry<usize, Vector<i64, DynSize>>,
+    pub l_i32: Registry<usize, Vector<i32, DynSize>>,
+    pub l_i16: Registry<usize, Vector<i16, DynSize>>,
+    pub l_i8: Registry<usize, Vector<i8, DynSize>>,
+    pub l_u64: Registry<usize, Vector<u64, DynSize>>,
+    pub l_u32: Registry<usize, Vector<u32, DynSize>>,
+    pub l_u16: Registry<usize, Vector<u16, DynSize>>,
+    pub l_u8: Registry<usize, Vector<u8, DynSize>>,
+    pub l_bool: Registry<usize, Vector<bool, DynSize>>,
     pub ref_shape: Slice<usize>,
     pub ref_strides: Slice<usize>,
     #[cube(comptime)]
-    pub ref_line_size: LineSize,
+    pub ref_line_size: VectorSize,
 }
 
 #[cube]
@@ -546,22 +546,22 @@ impl LocalArgs {
     pub fn new(
         ref_shape: Slice<usize>,
         ref_strides: Slice<usize>,
-        #[comptime] ref_line_size: LineSize,
+        #[comptime] ref_line_size: VectorSize,
     ) -> LocalArgs {
         LocalArgs {
-            l_f64: Registry::<usize, Line<f64, DynSize>>::new(),
-            l_f32: Registry::<usize, Line<f32, DynSize>>::new(),
-            l_f16: Registry::<usize, Line<f16, DynSize>>::new(),
-            l_bf16: Registry::<usize, Line<bf16, DynSize>>::new(),
-            l_i64: Registry::<usize, Line<i64, DynSize>>::new(),
-            l_i32: Registry::<usize, Line<i32, DynSize>>::new(),
-            l_i16: Registry::<usize, Line<i16, DynSize>>::new(),
-            l_i8: Registry::<usize, Line<i8, DynSize>>::new(),
-            l_u64: Registry::<usize, Line<u64, DynSize>>::new(),
-            l_u32: Registry::<usize, Line<u32, DynSize>>::new(),
-            l_u16: Registry::<usize, Line<u16, DynSize>>::new(),
-            l_u8: Registry::<usize, Line<u8, DynSize>>::new(),
-            l_bool: Registry::<usize, Line<bool, DynSize>>::new(),
+            l_f64: Registry::<usize, Vector<f64, DynSize>>::new(),
+            l_f32: Registry::<usize, Vector<f32, DynSize>>::new(),
+            l_f16: Registry::<usize, Vector<f16, DynSize>>::new(),
+            l_bf16: Registry::<usize, Vector<bf16, DynSize>>::new(),
+            l_i64: Registry::<usize, Vector<i64, DynSize>>::new(),
+            l_i32: Registry::<usize, Vector<i32, DynSize>>::new(),
+            l_i16: Registry::<usize, Vector<i16, DynSize>>::new(),
+            l_i8: Registry::<usize, Vector<i8, DynSize>>::new(),
+            l_u64: Registry::<usize, Vector<u64, DynSize>>::new(),
+            l_u32: Registry::<usize, Vector<u32, DynSize>>::new(),
+            l_u16: Registry::<usize, Vector<u16, DynSize>>::new(),
+            l_u8: Registry::<usize, Vector<u8, DynSize>>::new(),
+            l_bool: Registry::<usize, Vector<bool, DynSize>>::new(),
             ref_shape,
             ref_strides,
             ref_line_size,
@@ -614,7 +614,7 @@ pub struct FuseBlockConfig {
     pub rank: usize,
     pub ref_layout: RefLayout,
     pub ops: Vec<FuseOp>,
-    pub width: LineSize,
+    pub width: VectorSize,
 }
 
 impl FuseBlockConfig {
@@ -765,7 +765,7 @@ pub enum VirtualLayout {
     /// Virtual tensor with the provided shape id and contiguous strides.
     Reshaped {
         reshape_pos: usize,
-        line_size: LineSize,
+        line_size: VectorSize,
     },
     /// Virtual tensor with the same shape as the given input, but with swap dims and contiguous
     /// strides.
@@ -855,7 +855,7 @@ impl FuseType {
     }
 
     /// Convert the [fused element type](FuseType) into the [cubecl type](Type)
-    pub fn into_type(self, line_size: LineSize) -> Type {
+    pub fn into_type(self, line_size: VectorSize) -> Type {
         Type::new(self.into_storage_type()).line(line_size)
     }
 }

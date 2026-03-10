@@ -15,7 +15,7 @@ pub(crate) trait BinaryOpFloatFamily: Send + Sync + 'static {
 #[cube]
 pub(crate) trait BinaryOpFloat<C: Float, N: Size>: 'static + Send + Sync {
     /// Execute a binary operation.
-    fn execute(lhs: Line<C, N>, rhs: Line<C, N>) -> Line<C, N>;
+    fn execute(lhs: Vector<C, N>, rhs: Vector<C, N>) -> Vector<C, N>;
 }
 
 pub(crate) struct ArcTan2Op;
@@ -26,16 +26,16 @@ impl BinaryOpFloatFamily for ArcTan2Op {
 
 #[cube]
 impl<T: Float, N: Size> BinaryOpFloat<T, N> for ArcTan2Op {
-    fn execute(lhs: Line<T, N>, rhs: Line<T, N>) -> Line<T, N> {
-        Line::atan2(lhs, rhs)
+    fn execute(lhs: Vector<T, N>, rhs: Vector<T, N>) -> Vector<T, N> {
+        Vector::atan2(lhs, rhs)
     }
 }
 
 #[cube(launch_unchecked, address_type = "dynamic")]
 pub(crate) fn kernel_binop<C: Float, N: Size, O: BinaryOpFloatFamily>(
-    lhs: &LinearView<Line<C, N>>,
-    rhs: &LinearView<Line<C, N>>,
-    out: &mut LinearView<Line<C, N>, ReadWrite>,
+    lhs: &LinearView<Vector<C, N>>,
+    rhs: &LinearView<Vector<C, N>>,
+    out: &mut LinearView<Vector<C, N>, ReadWrite>,
     #[define(C)] _dtype: StorageType,
 ) {
     if !out.is_in_bounds(ABSOLUTE_POS) {

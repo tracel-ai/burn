@@ -261,7 +261,7 @@ where
         impl<T: Numeric, N: Size> NumericUnaryOp<T, N> for Copy {
             type Options = ();
 
-            fn execute(input: Line<T, N>, _options: &Self::Options) -> Line<T, N> {
+            fn execute(input: Vector<T, N>, _options: &Self::Options) -> Vector<T, N> {
                 input
             }
         }

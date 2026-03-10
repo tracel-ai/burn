@@ -169,7 +169,7 @@ fn reduce_many(
 
         for i in 0..num_iter {
             // Register block local inputs.
-            let values = Registry::<FuseArg, Line<f32, N>>::new();
+            let values = Registry::<FuseArg, Vector<f32, N>>::new();
             let args = comptime![Vec::<FuseArg>::new()];
             let index = global_index * num_iter + i;
             let mut locals = init_locals(inputs, outputs, &block.config);

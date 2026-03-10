@@ -27,8 +27,8 @@ pub(crate) struct PoolBackwardArgs {
 
 #[cube(launch_unchecked, address_type = "dynamic")]
 fn avg_pool2d_backward_kernel<E: Numeric, N: Size>(
-    grad: &Tensor<Line<E, N>>,
-    output: &mut View<Line<E, N>, Position, ReadWrite>,
+    grad: &Tensor<Vector<E, N>>,
+    output: &mut View<Vector<E, N>, Position, ReadWrite>,
     out_shape: Sequence<FastDivmod<usize>>,
     working_units: usize,
     args: &PoolBackwardArgs,
@@ -41,14 +41,14 @@ fn avg_pool2d_backward_kernel<E: Numeric, N: Size>(
         terminate!();
     }
 
-    let line_size = grad.line_size();
+    let line_size = grad.vector_size();
 
-    let (_, pos) = decompose_linear(ABSOLUTE_POS * output.line_size(), &out_shape);
+    let (_, pos) = decompose_linear(ABSOLUTE_POS * output.vector_size(), &out_shape);
     let [batch, ih, iw, channel] = *pos else {
         unreachable!()
     };
 
-    let mut grad_acc = Line::zero();
+    let mut grad_acc = Vector::zero();
 
     let (oh_start, oh_end, ow_start, ow_end) = loop_ranges(
         ih as i32,
@@ -90,11 +90,11 @@ fn avg_pool2d_backward_kernel<E: Numeric, N: Size>(
                 if begin_w >= iw_start && (iw as u32) < iw_end {
                     if count_include_pad {
                         grad_acc += grad[index / line_size]
-                            / Line::cast_from(kernel_size_0 * kernel_size_1);
+                            / Vector::cast_from(kernel_size_0 * kernel_size_1);
                     } else {
                         let ih_diff = ih_end - ih_start;
                         let iw_diff = iw_end - iw_start;
-                        let count = Line::cast_from(ih_diff * iw_diff);
+                        let count = Vector::cast_from(ih_diff * iw_diff);
                         grad_acc += grad[index / line_size] / count;
                     }
                 }

@@ -23,11 +23,11 @@ pub(crate) fn clamp<R: CubeRuntime>(
     impl<T: Numeric, N: Size> NumericUnaryOp<T, N> for ClampOp {
         type Options = Options;
 
-        fn execute(input: Line<T, N>, options: &Self::Options) -> Line<T, N> {
+        fn execute(input: Vector<T, N>, options: &Self::Options) -> Vector<T, N> {
             cubecl::prelude::clamp(
                 input,
-                Line::new(options.min_value.get::<T>()),
-                Line::new(options.max_value.get::<T>()),
+                Vector::new(options.min_value.get::<T>()),
+                Vector::new(options.max_value.get::<T>()),
             )
         }
     }

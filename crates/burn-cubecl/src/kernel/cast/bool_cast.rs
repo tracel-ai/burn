@@ -12,15 +12,15 @@ use cubecl::{
 
 #[cube(launch_unchecked, address_type = "dynamic")]
 fn bool_cast_kernel<B: Int, T: Numeric, N: Size>(
-    input: &LinearView<Line<B, N>>,
-    output: &mut LinearView<Line<T, N>, ReadWrite>,
+    input: &LinearView<Vector<B, N>>,
+    output: &mut LinearView<Vector<T, N>, ReadWrite>,
     #[define(B)] _input_ty: StorageType,
 ) {
     if !output.is_in_bounds(ABSOLUTE_POS) {
         terminate!();
     }
 
-    output[ABSOLUTE_POS] = Line::cast_from(input[ABSOLUTE_POS] & Line::one());
+    output[ABSOLUTE_POS] = Vector::cast_from(input[ABSOLUTE_POS] & Vector::one());
 }
 
 /// Cast a bool tensor to the given element type.

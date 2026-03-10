@@ -21,7 +21,7 @@ use cubecl::{
     ir::{ElemType, StorageType, UIntKind},
 };
 use cubecl::{
-    ir::LineSize,
+    ir::VectorSize,
     quant::scheme::{QuantScheme, QuantStore, QuantValue},
 };
 use std::marker::PhantomData;
@@ -81,7 +81,7 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
         });
 
         let mut ref_elem = (ElemType::UInt(UIntKind::U64).into(), 8);
-        let mut quants_line_sizes: Option<Vec<LineSize>> = None;
+        let mut quants_line_sizes: Option<Vec<VectorSize>> = None;
 
         for input in plan.handle_inputs.iter() {
             let elem: StorageType = match input {
@@ -319,7 +319,7 @@ enum VectorizationAction {
 #[derive(Debug)]
 struct BlockVectorization {
     action: VectorizationAction,
-    potential: LineSize,
+    potential: VectorSize,
     broadcasted: bool,
 }
 
@@ -328,7 +328,7 @@ fn apply_vectorization_block<R: Runtime>(
     inputs: &mut [HandleInput<R>],
     outputs: &mut [HandleOutput<R>],
     block_plan: &mut BlockPlan,
-    max: LineSize,
+    max: VectorSize,
 ) {
     for item in block_vectorization {
         match item.action {
@@ -376,7 +376,7 @@ fn apply_vectorization_block<R: Runtime>(
 
 fn line_sizes_quants<R: Runtime>(
     client: &ComputeClient<R>,
-    quants_line_sizes: &mut Option<Vec<LineSize>>,
+    quants_line_sizes: &mut Option<Vec<VectorSize>>,
     scheme: QuantScheme,
 ) {
     match scheme.store {

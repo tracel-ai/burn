@@ -3,7 +3,7 @@ use crate::engine::codegen::DynSize;
 use super::{
     DYN_ELEM_ID,
     io::{
-        Transform, global_buffer_len, global_line_size, input_as_slice, read_input,
+        Transform, global_buffer_len, global_vector_size, input_as_slice, read_input,
         read_input_window, ref_buffer_len, ref_len,
     },
     ir::{FuseArg, FuseBlockConfig, GlobalArgs, LayoutInfo, LocalArgs},
@@ -159,11 +159,11 @@ impl<E: CubePrimitive> ViewOperationsExpand<E, Coords1d> for GlobalInputExpand {
     }
 }
 
-impl Lined for GlobalInput {}
-impl LinedExpand for GlobalInputExpand {
-    fn line_size(&self) -> LineSize {
+impl Vectorized for GlobalInput {}
+impl VectorizedExpand for GlobalInputExpand {
+    fn vector_size(&self) -> VectorSize {
         let mut temp_scope = Scope::root(false);
-        global_line_size::expand(&mut temp_scope, self.inputs.clone(), self.pos)
+        global_vector_size::expand(&mut temp_scope, self.inputs.clone(), self.pos)
     }
 }
 
@@ -294,10 +294,10 @@ impl<E: CubePrimitive> ViewOperationsMutExpand<E, Coords1d> for FusedOutputExpan
         pos: ExpandElementTyped<usize>,
         value: <E as CubeType>::ExpandType,
     ) {
-        let values = Registry::<FuseArg, Line<E::Scalar, DynSize>>::__expand_new(scope);
+        let values = Registry::<FuseArg, Vector<E::Scalar, DynSize>>::__expand_new(scope);
         let mut args = comptime![Vec::<FuseArg>::new()];
 
-        let value = Line::__expand_cast_from(scope, value);
+        let value = Vector::__expand_cast_from(scope, value);
         values
             .clone()
             .__expand_insert_method(scope, comptime![self.arg.clone()], value);
@@ -353,9 +353,9 @@ impl<E: CubePrimitive> ViewOperationsMutExpand<E, Coords1d> for FusedOutputExpan
     }
 }
 
-impl Lined for FusedOutput {}
-impl LinedExpand for FusedOutputExpand {
-    fn line_size(&self) -> LineSize {
+impl Vectorized for FusedOutput {}
+impl VectorizedExpand for FusedOutputExpand {
+    fn vector_size(&self) -> VectorSize {
         self.locals.ref_line_size
     }
 }

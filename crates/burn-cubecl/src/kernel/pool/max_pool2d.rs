@@ -26,26 +26,26 @@ impl Pool2dDirectStrategyFamily for MaxPoolStrategy {
 }
 
 impl Pool2dDirectStrategyFamily for MaxPoolWithIndicesStrategy {
-    type Indices<N: Size> = View<Line<i32, N>, Position, ReadWrite>;
+    type Indices<N: Size> = View<Vector<i32, N>, Position, ReadWrite>;
     type Config = ();
     type Pool2d<T: Numeric, N: Size> = Self;
 }
 
 #[cube]
 impl<T: Numeric, N: Size> Pool2dDirectStrategy<T, N> for MaxPoolStrategy {
-    type Accumulator = Line<T, N>;
+    type Accumulator = Vector<T, N>;
     type Config = ();
     type Indices = ();
 
     fn initialize(#[comptime] _config: &Self::Config) -> Self::Accumulator {
-        Line::new(T::min_value())
+        Vector::new(T::min_value())
     }
 
     fn accumulate(
         #[comptime] _config: &Self::Config,
         accumulator: &mut Self::Accumulator,
-        _index: LineSize,
-        result: Line<T, N>,
+        _index: VectorSize,
+        result: Vector<T, N>,
     ) {
         *accumulator = max(*accumulator, result);
     }
@@ -61,7 +61,7 @@ impl<T: Numeric, N: Size> Pool2dDirectStrategy<T, N> for MaxPoolStrategy {
     fn store(
         #[comptime] _config: &Self::Config,
         position: Position,
-        output: &mut View<Line<T, N>, Position, ReadWrite>,
+        output: &mut View<Vector<T, N>, Position, ReadWrite>,
         _output_indices: &mut (),
         accumulator: Self::Accumulator,
     ) {
@@ -71,13 +71,13 @@ impl<T: Numeric, N: Size> Pool2dDirectStrategy<T, N> for MaxPoolStrategy {
 
 #[cube]
 impl<T: Numeric, N: Size> Pool2dDirectStrategy<T, N> for MaxPoolWithIndicesStrategy {
-    type Accumulator = (Line<T, N>, Line<i32, N>);
+    type Accumulator = (Vector<T, N>, Vector<i32, N>);
     type Config = ();
-    type Indices = View<Line<i32, N>, Position, ReadWrite>;
+    type Indices = View<Vector<i32, N>, Position, ReadWrite>;
 
     fn initialize(#[comptime] _config: &Self::Config) -> Self::Accumulator {
-        let val = Line::new(T::min_value());
-        let idx = Line::zero();
+        let val = Vector::new(T::min_value());
+        let idx = Vector::zero();
         (val, idx)
     }
 
@@ -85,9 +85,9 @@ impl<T: Numeric, N: Size> Pool2dDirectStrategy<T, N> for MaxPoolWithIndicesStrat
         #[comptime] _config: &Self::Config,
         accumulator: &mut Self::Accumulator,
         index: usize,
-        result: Line<T, N>,
+        result: Vector<T, N>,
     ) {
-        let indices = Line::cast_from(index);
+        let indices = Vector::cast_from(index);
         accumulator.1 = select_many(result.greater_than(accumulator.0), indices, accumulator.1);
         accumulator.0 = max(result, accumulator.0);
     }
@@ -103,8 +103,8 @@ impl<T: Numeric, N: Size> Pool2dDirectStrategy<T, N> for MaxPoolWithIndicesStrat
     fn store(
         #[comptime] _config: &Self::Config,
         position: Position,
-        output: &mut View<Line<T, N>, Position, ReadWrite>,
-        output_indices: &mut View<Line<i32, N>, Position, ReadWrite>,
+        output: &mut View<Vector<T, N>, Position, ReadWrite>,
+        output_indices: &mut View<Vector<i32, N>, Position, ReadWrite>,
         accumulator: Self::Accumulator,
     ) {
         output[position] = accumulator.0;

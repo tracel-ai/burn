@@ -13,8 +13,8 @@ use crate::{
 
 #[cube(launch, address_type = "dynamic")]
 fn interpolate_bicubic_kernel<F: Float, N: Size>(
-    input: &Tensor<Line<F, N>>,
-    output: &mut Tensor<Line<F, N>>,
+    input: &Tensor<Vector<F, N>>,
+    output: &mut Tensor<Vector<F, N>>,
     shape_out: Sequence<FastDivmod<usize>>,
     out_layout: LinearLayout,
     #[comptime] align_corners: bool,
@@ -24,7 +24,7 @@ fn interpolate_bicubic_kernel<F: Float, N: Size>(
         terminate!();
     }
 
-    let line_size = input.line_size();
+    let line_size = input.vector_size();
     let out_idx = out_layout.to_source_pos(ABSOLUTE_POS);
 
     let (rem, c) = shape_out[3].div_mod(ABSOLUTE_POS * line_size);
@@ -43,7 +43,7 @@ fn interpolate_bicubic_kernel<F: Float, N: Size>(
         (y as f32 + 0.5) * (in_size / out_size) - 0.5
     };
     let y_in_f = frac.floor();
-    let yw = Line::new(F::cast_from(frac - y_in_f));
+    let yw = Vector::new(F::cast_from(frac - y_in_f));
 
     // Clamp indices in float space to handle negative coordinates from half_pixel
     let y0 = clamp(y_in_f - 1.0, 0.0, input_height_f) as usize;
@@ -63,7 +63,7 @@ fn interpolate_bicubic_kernel<F: Float, N: Size>(
         (x as f32 + 0.5) * (in_size / out_size) - 0.5
     };
     let x_in_f = frac.floor();
-    let xw = Line::new(F::cast_from(frac - x_in_f));
+    let xw = Vector::new(F::cast_from(frac - x_in_f));
 
     // Clamp indices in float space to handle negative coordinates from half_pixel
     let x0 = clamp(x_in_f - 1.0, 0.0, input_width_f) as usize;
@@ -125,12 +125,12 @@ fn interpolate_bicubic_kernel<F: Float, N: Size>(
 
 #[cube]
 fn cubic_interp_1d<F: Float, N: Size>(
-    x0: Line<F, N>,
-    x1: Line<F, N>,
-    x2: Line<F, N>,
-    x3: Line<F, N>,
-    t: Line<F, N>,
-) -> Line<F, N> {
+    x0: Vector<F, N>,
+    x1: Vector<F, N>,
+    x2: Vector<F, N>,
+    x3: Vector<F, N>,
+    t: Vector<F, N>,
+) -> Vector<F, N> {
     let a = lined(-0.75);
 
     let coeffs0 = cubic_convolution_2(t + lined(1.0), a);
@@ -142,14 +142,14 @@ fn cubic_interp_1d<F: Float, N: Size>(
 }
 
 #[cube]
-fn cubic_convolution_1<F: Float, N: Size>(x: Line<F, N>, a: Line<F, N>) -> Line<F, N> {
+fn cubic_convolution_1<F: Float, N: Size>(x: Vector<F, N>, a: Vector<F, N>) -> Vector<F, N> {
     let conv = (a + lined(2.0)) * x;
     let tmp = a + lined(3.0);
     (conv - tmp) * x * x + lined(1.0)
 }
 
 #[cube]
-fn cubic_convolution_2<F: Float, N: Size>(x: Line<F, N>, a: Line<F, N>) -> Line<F, N> {
+fn cubic_convolution_2<F: Float, N: Size>(x: Vector<F, N>, a: Vector<F, N>) -> Vector<F, N> {
     let conv = a * x;
     let conv = (conv - lined(5.0) * a) * x;
     let tmp = lined(8.0) * a;
@@ -159,8 +159,8 @@ fn cubic_convolution_2<F: Float, N: Size>(x: Line<F, N>, a: Line<F, N>) -> Line<
 }
 
 #[cube]
-fn lined<F: Float, N: Size>(#[comptime] v: f32) -> Line<F, N> {
-    Line::new(F::new(v))
+fn lined<F: Float, N: Size>(#[comptime] v: f32) -> Vector<F, N> {
+    Vector::new(F::new(v))
 }
 
 pub(crate) fn interpolate_bicubic_launch<R: CubeRuntime>(

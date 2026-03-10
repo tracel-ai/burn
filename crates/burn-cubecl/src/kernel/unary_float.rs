@@ -16,13 +16,13 @@ pub(crate) trait FloatUnaryOpFamily: 'static + Send + Sync {
 pub(crate) trait FloatUnaryOp<F: Float, N: Size>: 'static + Send + Sync {
     type Options: LaunchArg;
 
-    fn execute(input: Line<F, N>, options: &Self::Options) -> Line<F, N>;
+    fn execute(input: Vector<F, N>, options: &Self::Options) -> Vector<F, N>;
 }
 
 #[cube(launch_unchecked, address_type = "dynamic")]
 pub(crate) fn unary_float<F: Float, N: Size, O: FloatUnaryOpFamily>(
-    input: &LinearView<Line<F, N>>,
-    output: &mut LinearView<Line<F, N>, ReadWrite>,
+    input: &LinearView<Vector<F, N>>,
+    output: &mut LinearView<Vector<F, N>, ReadWrite>,
     options: &O::Options,
     #[define(F)] _dtype: StorageType,
 ) {
@@ -145,17 +145,17 @@ pub(crate) mod unary_basic {
     impl<F: Float, N: Size> FloatUnaryOp<F, N> for BasicFloatUnary {
         type Options = BasicFloatUnaryOptions;
 
-        fn execute(input: Line<F, N>, options: &Self::Options) -> Line<F, N> {
+        fn execute(input: Vector<F, N>, options: &Self::Options) -> Vector<F, N> {
             match comptime![options.kind] {
-                BasicFloatUnaryKind::Exp => Line::exp(input),
-                BasicFloatUnaryKind::Log => Line::ln(input),
-                BasicFloatUnaryKind::Log1p => Line::log1p(input),
-                BasicFloatUnaryKind::Sqrt => Line::sqrt(input),
-                BasicFloatUnaryKind::Abs => Line::abs(input),
+                BasicFloatUnaryKind::Exp => Vector::exp(input),
+                BasicFloatUnaryKind::Log => Vector::ln(input),
+                BasicFloatUnaryKind::Log1p => Vector::log1p(input),
+                BasicFloatUnaryKind::Sqrt => Vector::sqrt(input),
+                BasicFloatUnaryKind::Abs => Vector::abs(input),
                 BasicFloatUnaryKind::Sign => {
-                    let zero = Line::new(F::new(0.0));
-                    let one = Line::new(F::new(1.0));
-                    let minus_one = Line::new(F::new(-1.0));
+                    let zero = Vector::new(F::new(0.0));
+                    let one = Vector::new(F::new(1.0));
+                    let minus_one = Vector::new(F::new(-1.0));
 
                     let is_positive = input.greater_than(zero);
                     let is_negative = input.less_than(zero);
@@ -163,24 +163,24 @@ pub(crate) mod unary_basic {
 
                     select_many(is_positive, one, sign)
                 }
-                BasicFloatUnaryKind::Cos => Line::cos(input),
-                BasicFloatUnaryKind::Sin => Line::sin(input),
-                BasicFloatUnaryKind::Tan => Line::tan(input),
-                BasicFloatUnaryKind::Cosh => Line::cosh(input),
-                BasicFloatUnaryKind::Sinh => Line::sinh(input),
-                BasicFloatUnaryKind::Tanh => Line::tanh(input),
-                BasicFloatUnaryKind::Round => Line::round(input),
-                BasicFloatUnaryKind::Floor => Line::floor(input),
-                BasicFloatUnaryKind::Ceil => Line::ceil(input),
-                BasicFloatUnaryKind::Trunc => Line::trunc(input),
-                BasicFloatUnaryKind::Erf => Line::erf(input),
-                BasicFloatUnaryKind::Recip => Line::recip(input),
-                BasicFloatUnaryKind::ArcCos => Line::acos(input),
-                BasicFloatUnaryKind::ArcCosh => Line::acosh(input),
-                BasicFloatUnaryKind::ArcSin => Line::asin(input),
-                BasicFloatUnaryKind::ArcSinh => Line::asinh(input),
-                BasicFloatUnaryKind::ArcTan => Line::atan(input),
-                BasicFloatUnaryKind::ArcTanh => Line::atanh(input),
+                BasicFloatUnaryKind::Cos => Vector::cos(input),
+                BasicFloatUnaryKind::Sin => Vector::sin(input),
+                BasicFloatUnaryKind::Tan => Vector::tan(input),
+                BasicFloatUnaryKind::Cosh => Vector::cosh(input),
+                BasicFloatUnaryKind::Sinh => Vector::sinh(input),
+                BasicFloatUnaryKind::Tanh => Vector::tanh(input),
+                BasicFloatUnaryKind::Round => Vector::round(input),
+                BasicFloatUnaryKind::Floor => Vector::floor(input),
+                BasicFloatUnaryKind::Ceil => Vector::ceil(input),
+                BasicFloatUnaryKind::Trunc => Vector::trunc(input),
+                BasicFloatUnaryKind::Erf => Vector::erf(input),
+                BasicFloatUnaryKind::Recip => Vector::recip(input),
+                BasicFloatUnaryKind::ArcCos => Vector::acos(input),
+                BasicFloatUnaryKind::ArcCosh => Vector::acosh(input),
+                BasicFloatUnaryKind::ArcSin => Vector::asin(input),
+                BasicFloatUnaryKind::ArcSinh => Vector::asinh(input),
+                BasicFloatUnaryKind::ArcTan => Vector::atan(input),
+                BasicFloatUnaryKind::ArcTanh => Vector::atanh(input),
             }
         }
     }

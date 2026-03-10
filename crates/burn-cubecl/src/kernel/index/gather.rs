@@ -28,7 +28,7 @@ fn gather_kernel<T: Numeric, I: Numeric>(
         ABSOLUTE_POS,
         &out_shape,
         &in_strides,
-        input.line_size(),
+        input.vector_size(),
     );
 
     offset += usize::cast_from(indices[ABSOLUTE_POS]) * input.stride(dim);

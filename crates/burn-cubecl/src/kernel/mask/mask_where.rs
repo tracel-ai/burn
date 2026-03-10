@@ -12,10 +12,10 @@ use crate::{
 
 #[cube(launch, address_type = "dynamic")]
 fn mask_where_kernel<T: Numeric, B: Int, N: Size>(
-    input: &LinearView<Line<T, N>>,
-    value: &LinearView<Line<T, N>>,
-    mask: &LinearView<Line<B, N>>,
-    output: &mut LinearView<Line<T, N>, ReadWrite>,
+    input: &LinearView<Vector<T, N>>,
+    value: &LinearView<Vector<T, N>>,
+    mask: &LinearView<Vector<B, N>>,
+    output: &mut LinearView<Vector<T, N>, ReadWrite>,
     #[define(T, B)] _dtypes: [StorageType; 2],
 ) {
     let pos = ABSOLUTE_POS;
@@ -23,7 +23,7 @@ fn mask_where_kernel<T: Numeric, B: Int, N: Size>(
         terminate!();
     }
 
-    output[pos] = select_many(Line::cast_from(mask[pos]), value[pos], input[pos]);
+    output[pos] = select_many(Vector::cast_from(mask[pos]), value[pos], input[pos]);
 }
 
 #[derive(Clone, Copy, Debug)]

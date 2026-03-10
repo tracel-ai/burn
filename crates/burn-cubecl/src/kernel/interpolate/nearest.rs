@@ -13,8 +13,8 @@ use crate::{
 
 #[cube(launch_unchecked, address_type = "dynamic")]
 fn interpolate_nearest_kernel<F: Float, N: Size>(
-    input: &Tensor<Line<F, N>>,
-    output: &mut Tensor<Line<F, N>>,
+    input: &Tensor<Vector<F, N>>,
+    output: &mut Tensor<Vector<F, N>>,
     shape_out: Sequence<FastDivmod<usize>>,
     out_layout: LinearLayout,
     #[define(F)] _dtype: StorageType,
@@ -23,7 +23,7 @@ fn interpolate_nearest_kernel<F: Float, N: Size>(
         terminate!();
     }
 
-    let line_size = input.line_size();
+    let line_size = input.vector_size();
     let out_idx = out_layout.to_source_pos(ABSOLUTE_POS);
 
     let out_pos = ABSOLUTE_POS * line_size;

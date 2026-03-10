@@ -126,7 +126,7 @@ fn elemwise_fuse(
     #[comptime] config: &FuseBlockConfig,
 ) {
     // We write no values for this fusion.
-    let values = Registry::<FuseArg, Line<f32, DynSize>>::new();
+    let values = Registry::<FuseArg, Vector<f32, DynSize>>::new();
     let args = comptime![Vec::<FuseArg>::new()];
     let pos = ABSOLUTE_POS;
 

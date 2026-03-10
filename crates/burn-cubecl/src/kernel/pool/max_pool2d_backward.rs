@@ -14,9 +14,9 @@ use super::{PoolBackwardArgs, PoolBackwardArgsLaunch};
 
 #[cube(launch_unchecked, address_type = "dynamic")]
 fn max_pool2d_with_indices_backward_kernel<E: Numeric, I: Int, N: Size>(
-    grad: &Tensor<Line<E, N>>,
-    indices: &Tensor<Line<I, N>>,
-    output: &mut Tensor<Line<E, N>>,
+    grad: &Tensor<Vector<E, N>>,
+    indices: &Tensor<Vector<I, N>>,
+    output: &mut Tensor<Vector<E, N>>,
     out_shape: Sequence<FastDivmod<usize>>,
     working_units: usize,
     args: &PoolBackwardArgs,
@@ -28,12 +28,12 @@ fn max_pool2d_with_indices_backward_kernel<E: Numeric, I: Int, N: Size>(
         terminate!();
     }
 
-    let (_, pos) = decompose_linear(ABSOLUTE_POS * output.line_size(), &out_shape);
+    let (_, pos) = decompose_linear(ABSOLUTE_POS * output.vector_size(), &out_shape);
     let [batch, ih, iw, channel] = *pos else {
         unreachable!()
     };
 
-    let line_size = grad.line_size();
+    let line_size = grad.vector_size();
 
     let index_current = ih * output.shape(2) + iw;
 
@@ -47,7 +47,7 @@ fn max_pool2d_with_indices_backward_kernel<E: Numeric, I: Int, N: Size>(
         kernel_size_1,
     );
 
-    let mut grad_acc = Line::zero();
+    let mut grad_acc = Vector::zero();
 
     let grad_idx_base = batch * grad.stride(0) + channel * grad.stride(3);
     let ind_idx_base = batch * indices.stride(0) + channel * indices.stride(3);
@@ -58,12 +58,12 @@ fn max_pool2d_with_indices_backward_kernel<E: Numeric, I: Int, N: Size>(
                 grad_idx_base + oh as usize * grad.stride(1) + ow as usize * grad.stride(2);
             let indices_index =
                 ind_idx_base + oh as usize * indices.stride(1) + ow as usize * indices.stride(2);
-            let index_max = Line::<u32, N>::cast_from(indices[indices_index / line_size]);
+            let index_max = Vector::<u32, N>::cast_from(indices[indices_index / line_size]);
 
             grad_acc += select_many(
-                index_max.equal(Line::cast_from(index_current)),
+                index_max.equal(Vector::cast_from(index_current)),
                 grad[grad_index / line_size],
-                Line::zero(),
+                Vector::zero(),
             );
         }
     }
@@ -73,7 +73,7 @@ fn max_pool2d_with_indices_backward_kernel<E: Numeric, I: Int, N: Size>(
         + iw * output.stride(2)
         + channel * output.stride(3);
 
-    output[index_output / output.line_size()] = grad_acc;
+    output[index_output / output.vector_size()] = grad_acc;
 }
 
 #[cube]

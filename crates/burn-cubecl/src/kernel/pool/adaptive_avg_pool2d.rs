@@ -18,8 +18,8 @@ use cubecl::{
 
 #[cube(launch, address_type = "dynamic")]
 fn adaptive_avg_pool2d_direct<E: Numeric, N: Size>(
-    input: &Tensor<Line<E, N>>,
-    output: &mut View<Line<E, N>, Position, ReadWrite>,
+    input: &Tensor<Vector<E, N>>,
+    output: &mut View<Vector<E, N>, Position, ReadWrite>,
     out_shape: Sequence<FastDivmod<usize>>,
     working_units: usize,
     #[define(E)] _dtype: StorageType,
@@ -28,7 +28,7 @@ fn adaptive_avg_pool2d_direct<E: Numeric, N: Size>(
         terminate!();
     }
 
-    let (_, pos) = decompose_linear(ABSOLUTE_POS * output.line_size(), &out_shape);
+    let (_, pos) = decompose_linear(ABSOLUTE_POS * output.vector_size(), &out_shape);
     let [b, oh, ow, c] = *pos else { unreachable!() };
 
     let (_, out_h, out_w, _) = output.shape();
@@ -41,7 +41,7 @@ fn adaptive_avg_pool2d_direct<E: Numeric, N: Size>(
     let iw_start = start_index(ow, out_w, in_w);
     let iw_end = end_index(ow, out_w, in_w);
 
-    let mut sum = Line::zero();
+    let mut sum = Vector::zero();
 
     let index_input_base = b * input.stride(0) + c * input.stride(3);
 
@@ -52,14 +52,14 @@ fn adaptive_avg_pool2d_direct<E: Numeric, N: Size>(
             let index_input_3 = iw * in_stride_w;
 
             let index_input = index_input_base + index_input_2 + index_input_3;
-            sum += input[index_input / input.line_size()];
+            sum += input[index_input / input.vector_size()];
         }
     }
 
     let num_ih = ih_end - ih_start;
     let num_iw = iw_end - iw_start;
 
-    output[(b, oh, ow, c)] = sum / Line::cast_from(num_ih * num_iw);
+    output[(b, oh, ow, c)] = sum / Vector::cast_from(num_ih * num_iw);
 }
 
 #[cube]

@@ -48,8 +48,8 @@ fn select_assign_kernel<F: Numeric, I: Numeric, Op: BinaryOpFamily>(
         let index_value = i * strides_value_dim + offset_value;
 
         let value = Op::BinaryOp::<F, Const<1>>::execute(
-            Line::cast_from(tensor[index_tensor]),
-            Line::cast_from(value[index_value]),
+            Vector::cast_from(tensor[index_tensor]),
+            Vector::cast_from(value[index_value]),
         );
         tensor[index_tensor] = F::cast_from(value);
     }

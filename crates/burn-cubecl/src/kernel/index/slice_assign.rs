@@ -11,8 +11,8 @@ use cubecl::{
 
 #[cube(launch_unchecked, address_type = "dynamic")]
 fn slice_assign_kernel<E: Numeric, N: Size>(
-    input: &mut Tensor<Line<E, N>>,
-    value: &LinearView<Line<E, N>>,
+    input: &mut Tensor<Vector<E, N>>,
+    value: &LinearView<Vector<E, N>>,
     slice_shape: Sequence<FastDivmod<usize>>,
     slice_offsets: Sequence<usize>,
     #[define(E)] _dtype: StorageType,
@@ -23,7 +23,7 @@ fn slice_assign_kernel<E: Numeric, N: Size>(
 
     let rank = comptime!(slice_shape.len());
 
-    let line_size = input.line_size();
+    let line_size = input.vector_size();
     let mut offset_remainder = ABSOLUTE_POS * line_size;
     let mut offset_input = 0;
 

@@ -34,12 +34,12 @@ pub struct AvgPoolStrategyConfig {
 
 #[cube]
 impl<T: Numeric, N: Size> Pool2dDirectStrategy<T, N> for AvgPoolStrategy {
-    type Accumulator = (Line<T, N>, u32);
+    type Accumulator = (Vector<T, N>, u32);
     type Config = AvgPoolStrategyConfig;
     type Indices = ();
 
     fn initialize(#[comptime] _config: &Self::Config) -> Self::Accumulator {
-        let sum = Line::zero();
+        let sum = Vector::zero();
         // Count will be set dynamically: either by accumulate (count_include_pad=false)
         // or by set_padded_count (count_include_pad=true)
         let count = 0u32;
@@ -51,7 +51,7 @@ impl<T: Numeric, N: Size> Pool2dDirectStrategy<T, N> for AvgPoolStrategy {
         #[comptime] config: &Self::Config,
         accumulator: &mut Self::Accumulator,
         _index: usize,
-        result: Line<T, N>,
+        result: Vector<T, N>,
     ) {
         let (sum, count) = accumulator;
 
@@ -80,12 +80,12 @@ impl<T: Numeric, N: Size> Pool2dDirectStrategy<T, N> for AvgPoolStrategy {
     fn store(
         #[comptime] _config: &Self::Config,
         position: Position,
-        output: &mut View<Line<T, N>, Position, ReadWrite>,
+        output: &mut View<Vector<T, N>, Position, ReadWrite>,
         _output_indices: &mut (),
         accumulator: Self::Accumulator,
     ) {
         let (sum, count) = accumulator;
-        output[position] = sum / Line::cast_from(count);
+        output[position] = sum / Vector::cast_from(count);
     }
 }
 

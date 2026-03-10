@@ -29,7 +29,7 @@ pub fn fuse_on_write<E: Scalar, N: Size>(
     outputs: &mut GlobalArgs,
     locals: &mut LocalArgs,
     write_pos: usize,
-    write_values: Registry<FuseArg, Line<E, N>>,
+    write_values: Registry<FuseArg, Vector<E, N>>,
     #[comptime] write_args: Vec<FuseArg>,
     #[comptime] config: &FuseBlockConfig,
 ) {
@@ -69,7 +69,7 @@ pub fn fuse_on_read<E: Scalar, N: Size>(
     read_pos: usize,
     #[comptime] read_args: Sequence<FuseArg>,
     #[comptime] config: &FuseBlockConfig,
-) -> Sequence<Line<E, N>> {
+) -> Sequence<Vector<E, N>> {
     comment!("Fuse on read begin");
     fuse(inputs, outputs, locals, read_pos, config);
 
@@ -117,7 +117,7 @@ pub fn init_locals(
                 LocalArgs::new(
                     ref_shape.to_slice(),
                     ref_strides.to_slice(),
-                    layout.tensor.line_size(),
+                    layout.tensor.vector_size(),
                 )
             }
             FuseArg::Output(index, ..) => {
@@ -132,7 +132,7 @@ pub fn init_locals(
                 LocalArgs::new(
                     ref_shape.to_slice(),
                     ref_strides.to_slice(),
-                    layout.tensor.line_size(),
+                    layout.tensor.vector_size(),
                 )
             }
             _ => comptime![panic!("Invalid concrete ref layout.")],
@@ -163,7 +163,7 @@ pub fn init_locals(
                 LocalArgs::new(
                     ref_shape.to_slice(),
                     ref_strides.to_slice(),
-                    layout.tensor.line_size(),
+                    layout.tensor.vector_size(),
                 )
             }
             VirtualLayout::Reshaped {
@@ -376,7 +376,7 @@ macro_rules! comparison_op {
         ) {
             let lhs = read::<C, N>(inputs, outputs, &locals, write_pos, op.lhs, config);
             let rhs = read::<C, N>(inputs, outputs, &locals, write_pos, op.rhs, config);
-            let result = Line::new(lhs $op rhs);
+            let result = Vector::new(lhs $op rhs);
 
             write::<bool, N>(inputs, outputs, locals, write_pos, result, op.out, config);
         }
@@ -446,7 +446,7 @@ fn gather<C: Numeric, N: Size>(
     let stride_input_dim = global_stride(inputs, dim, pos_input);
 
     let mut index = 0;
-    let mut result = Line::<C, N>::empty();
+    let mut result = Vector::<C, N>::empty();
 
     if comptime![dim > 0] {
         let index_before = global_offset(
@@ -577,7 +577,7 @@ fn select_indices<C: Numeric, N: Size>(
     let stride_input_dim = global_stride(inputs, dim, pos_input);
 
     let mut index = 0;
-    let mut result = Line::empty();
+    let mut result = Vector::empty();
 
     if comptime![dim != config.rank - 1] {
         // In this scenario the select is actually broadcasted along the axis we're working on.
@@ -830,7 +830,7 @@ fn dequantize<C: Float, N: Size>(
     let line = if comptime!(q_line_size == 1) {
         result[0]
     } else {
-        let mut line = Line::empty();
+        let mut line = Vector::empty();
 
         #[unroll]
         for i in 0..q_line_size {
@@ -860,16 +860,16 @@ comparison_op!(greater_equal, >=);
 comparison_op!(lower, <);
 comparison_op!(lower_equal, <=);
 
-binary_func!(powf, Line::<C, N>::powf, Float);
-binary_func!(rem, Line::<C, N>::rem, Float);
+binary_func!(powf, Vector::<C, N>::powf, Float);
+binary_func!(rem, Vector::<C, N>::rem, Float);
 
-unary_func!(exp, Line::<C, N>::exp, Float);
-unary_func!(log, Line::<C, N>::ln, Float);
-unary_func!(log1p, Line::<C, N>::log1p, Float);
-unary_func!(sqrt, Line::<C, N>::sqrt, Float);
-unary_func!(cos, Line::<C, N>::cos, Float);
-unary_func!(sin, Line::<C, N>::sin, Float);
-unary_func!(tanh, Line::<C, N>::tanh, Float);
-unary_func!(erf, Line::<C, N>::erf, Float);
-unary_func!(recip, Line::<C, N>::recip, Float);
-unary_func!(abs, Line::<C, N>::abs, Numeric);
+unary_func!(exp, Vector::<C, N>::exp, Float);
+unary_func!(log, Vector::<C, N>::ln, Float);
+unary_func!(log1p, Vector::<C, N>::log1p, Float);
+unary_func!(sqrt, Vector::<C, N>::sqrt, Float);
+unary_func!(cos, Vector::<C, N>::cos, Float);
+unary_func!(sin, Vector::<C, N>::sin, Float);
+unary_func!(tanh, Vector::<C, N>::tanh, Float);
+unary_func!(erf, Vector::<C, N>::erf, Float);
+unary_func!(recip, Vector::<C, N>::recip, Float);
+unary_func!(abs, Vector::<C, N>::abs, Numeric);

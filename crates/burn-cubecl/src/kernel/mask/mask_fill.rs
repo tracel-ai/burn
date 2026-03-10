@@ -10,9 +10,9 @@ use crate::{
 
 #[cube(launch_unchecked, address_type = "dynamic")]
 fn mask_fill_kernel<T: Numeric, B: Int, N: Size>(
-    input: &LinearView<Line<T, N>>,
-    mask: &LinearView<Line<B, N>>,
-    output: &mut LinearView<Line<T, N>, ReadWrite>,
+    input: &LinearView<Vector<T, N>>,
+    mask: &LinearView<Vector<B, N>>,
+    output: &mut LinearView<Vector<T, N>, ReadWrite>,
     value: InputScalar,
     #[define(T, B)] _dtypes: [StorageType; 2],
 ) {
@@ -20,9 +20,9 @@ fn mask_fill_kernel<T: Numeric, B: Int, N: Size>(
         terminate!();
     }
 
-    let mask = Line::cast_from(mask[ABSOLUTE_POS]);
+    let mask = Vector::cast_from(mask[ABSOLUTE_POS]);
     let input = input[ABSOLUTE_POS];
-    let value = Line::new(value.get::<T>());
+    let value = Vector::new(value.get::<T>());
 
     output[ABSOLUTE_POS] = select_many(mask, value, input);
 }

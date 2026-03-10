@@ -10,15 +10,15 @@ use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
 #[cube(launch, address_type = "dynamic")]
 pub(crate) fn cast_element<I: Numeric, O: Numeric, N: Size>(
-    input: &LinearView<Line<I, N>>,
-    output: &mut LinearView<Line<O, N>, ReadWrite>,
+    input: &LinearView<Vector<I, N>>,
+    output: &mut LinearView<Vector<O, N>, ReadWrite>,
     #[define(I, O)] _dtypes: [StorageType; 2],
 ) {
     if !output.is_in_bounds(ABSOLUTE_POS) {
         terminate!();
     }
 
-    output[ABSOLUTE_POS] = Line::cast_from(input[ABSOLUTE_POS]);
+    output[ABSOLUTE_POS] = Vector::cast_from(input[ABSOLUTE_POS]);
 }
 
 /// Cast a tensor to the given element type.

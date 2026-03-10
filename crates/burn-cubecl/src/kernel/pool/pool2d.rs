@@ -34,7 +34,7 @@ pub(crate) trait Pool2dDirectStrategy<T: Numeric, N: Size>: Send + Sync + 'stati
         #[comptime] config: &Self::Config,
         accumulator: &mut Self::Accumulator,
         index: usize,
-        result: Line<T, N>,
+        result: Vector<T, N>,
     );
 
     /// Count a position within the kernel window (for avg_pool count_include_pad).
@@ -50,7 +50,7 @@ pub(crate) trait Pool2dDirectStrategy<T: Numeric, N: Size>: Send + Sync + 'stati
     fn store(
         #[comptime] config: &Self::Config,
         position: Position,
-        output: &mut View<Line<T, N>, Position, ReadWrite>,
+        output: &mut View<Vector<T, N>, Position, ReadWrite>,
         output_indices: &mut Self::Indices,
         accumulator: Self::Accumulator,
     );
@@ -68,8 +68,8 @@ pub struct Pool2dDirectArgs {
 
 #[cube(launch, address_type = "dynamic")]
 pub fn pool2d_direct<E: Numeric, N: Size, S: Pool2dDirectStrategyFamily>(
-    input: &Tensor<Line<E, N>>,
-    output: &mut View<Line<E, N>, Position, ReadWrite>,
+    input: &Tensor<Vector<E, N>>,
+    output: &mut View<Vector<E, N>, Position, ReadWrite>,
     indices: &mut S::Indices<N>,
     out_shape: Sequence<FastDivmod<usize>>,
     working_units: usize,
@@ -82,7 +82,7 @@ pub fn pool2d_direct<E: Numeric, N: Size, S: Pool2dDirectStrategyFamily>(
         terminate!();
     }
 
-    let (_, pos) = decompose_linear(ABSOLUTE_POS * output.line_size(), &out_shape);
+    let (_, pos) = decompose_linear(ABSOLUTE_POS * output.vector_size(), &out_shape);
     let [b, oh, ow, c] = *pos else { unreachable!() };
 
     let (in_stride_h, in_stride_w) = (input.stride(1), input.stride(2));
@@ -121,7 +121,7 @@ pub fn pool2d_direct<E: Numeric, N: Size, S: Pool2dDirectStrategyFamily>(
                     config,
                     &mut accumulator,
                     ih_pad as usize * in_w as usize + iw_pad as usize,
-                    input[index_input / input.line_size()],
+                    input[index_input / input.vector_size()],
                 );
             }
         }
@@ -132,7 +132,7 @@ pub fn pool2d_direct<E: Numeric, N: Size, S: Pool2dDirectStrategyFamily>(
 
 pub(super) fn view4d<R: CubeRuntime>(
     tensor: CubeTensor<R>,
-    line_size: LineSize,
+    line_size: VectorSize,
 ) -> ViewArg<Position, R> {
     let shape = tensor.meta.shape();
     let shape = (

@@ -67,7 +67,10 @@ impl ReduceArgs for FusedReduceArgs {
         FusedReduceState::new(input, output, &mut locals_read, &mut locals_write)
     }
 
-    fn read_input<P: ReduceDType>(state: &Self::State<P>, index: usize) -> Line<P::In, P::SizeIn> {
+    fn read_input<P: ReduceDType>(
+        state: &Self::State<P>,
+        index: usize,
+    ) -> Vector<P::In, P::SizeIn> {
         let value = fuse_on_read::<P::In, P::SizeIn>(
             unsafe { &(*state.inputs) },
             unsafe { &mut (*state.outputs) },
@@ -87,16 +90,16 @@ impl ReduceArgs for FusedReduceArgs {
     fn read_output<P: ReduceDType>(
         _state: &Self::State<P>,
         _index: usize,
-    ) -> Line<P::Out, P::SizeOut> {
-        Line::empty()
+    ) -> Vector<P::Out, P::SizeOut> {
+        Vector::empty()
     }
 
     fn write_output<P: ReduceDType>(
         state: &mut Self::State<P>,
         index: usize,
-        value: Line<P::Out, P::SizeOut>,
+        value: Vector<P::Out, P::SizeOut>,
     ) {
-        let mut values = Registry::<FuseArg, Line<P::Out, P::SizeOut>>::new();
+        let mut values = Registry::<FuseArg, Vector<P::Out, P::SizeOut>>::new();
         let mut args = comptime![Vec::<FuseArg>::new()];
 
         values.insert(comptime![state.out.clone()], value);
@@ -172,11 +175,11 @@ impl ReduceArgs for FusedReduceArgs {
         ref_stride(unsafe { &(*state.locals_on_write) }, dim)
     }
 
-    fn line_size_input<P: ReduceDType>(state: &Self::State<P>) -> comptime_type!(LineSize) {
+    fn line_size_input<P: ReduceDType>(state: &Self::State<P>) -> comptime_type!(VectorSize) {
         ref_line_size(unsafe { &(*state.locals_on_read) })
     }
 
-    fn line_size_output<P: ReduceDType>(state: &Self::State<P>) -> comptime_type!(LineSize) {
+    fn line_size_output<P: ReduceDType>(state: &Self::State<P>) -> comptime_type!(VectorSize) {
         ref_line_size(unsafe { &(*state.locals_on_write) })
     }
 }

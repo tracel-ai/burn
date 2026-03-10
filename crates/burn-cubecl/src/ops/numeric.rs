@@ -53,7 +53,7 @@ pub fn full_device_dtype<R: CubeRuntime>(
 
     #[cube(launch_unchecked, address_type = "dynamic")]
     pub fn full_kernel<C: Numeric, N: Size>(
-        tensor: &mut LinearView<Line<C, N>, ReadWrite>,
+        tensor: &mut LinearView<Vector<C, N>, ReadWrite>,
         value: InputScalar,
         #[define(C)] _dtype: StorageType,
     ) {
@@ -61,7 +61,7 @@ pub fn full_device_dtype<R: CubeRuntime>(
             terminate!();
         }
 
-        tensor[ABSOLUTE_POS] = Line::new(value.get::<C>());
+        tensor[ABSOLUTE_POS] = Vector::new(value.get::<C>());
     }
 
     let num_elems = empty.meta.num_elements();

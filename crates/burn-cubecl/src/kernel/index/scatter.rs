@@ -62,8 +62,8 @@ fn scatter_kernel<T: Numeric, I: Int, Op: BinaryOpFamily>(
         let input_idx = (stride_input * index) + offset_input;
 
         let value = Op::BinaryOp::<T, Const<1>>::execute(
-            Line::cast_from(input[input_idx]),
-            Line::cast_from(value),
+            Vector::cast_from(input[input_idx]),
+            Vector::cast_from(value),
         );
         input[input_idx] = value[0];
     }

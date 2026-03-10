@@ -16,13 +16,13 @@ pub(crate) trait NumericUnaryOpFamily: 'static + Send + Sync {
 pub(crate) trait NumericUnaryOp<T: Scalar, N: Size>: 'static + Send + Sync {
     type Options: LaunchArg;
 
-    fn execute(input: Line<T, N>, options: &Self::Options) -> Line<T, N>;
+    fn execute(input: Vector<T, N>, options: &Self::Options) -> Vector<T, N>;
 }
 
 #[cube(launch_unchecked, address_type = "dynamic")]
 pub(crate) fn unary_numeric<T: Numeric, N: Size, O: NumericUnaryOpFamily>(
-    input: &LinearView<Line<T, N>>,
-    output: &mut LinearView<Line<T, N>, ReadWrite>,
+    input: &LinearView<Vector<T, N>>,
+    output: &mut LinearView<Vector<T, N>, ReadWrite>,
     options: &O::Options,
     #[define(T)] _dtype: StorageType,
 ) {

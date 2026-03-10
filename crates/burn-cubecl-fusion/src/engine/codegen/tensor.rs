@@ -9,12 +9,12 @@ use std::hash::Hash;
 ///
 /// # Warning
 ///
-/// The `tensor` field type [Line<NumericExpand<DYN_ELEM_ID>>] must be set using polyfill before
+/// The `tensor` field type [Vector<NumericExpand<DYN_ELEM_ID>>] must be set using polyfill before
 /// use.
 #[derive(CubeType, Clone)]
 pub struct GlobalTensor {
     /// The global tensor type.
-    pub tensor: Tensor<Line<NumericExpand<DYN_ELEM_ID>, DynSize>>,
+    pub tensor: Tensor<Vector<NumericExpand<DYN_ELEM_ID>, DynSize>>,
     /// The element type of the tensor.
     #[cube(comptime)]
     pub ty: Type,
@@ -34,7 +34,7 @@ pub struct GlobalTensorCompilationArg {
 
 #[derive(new, Debug)]
 pub struct GlobalTensorArg<R: Runtime> {
-    pub tensor: <Tensor<Line<NumericExpand<DYN_ELEM_ID>, DynSize>> as LaunchArg>::RuntimeArg<R>,
+    pub tensor: <Tensor<Vector<NumericExpand<DYN_ELEM_ID>, DynSize>> as LaunchArg>::RuntimeArg<R>,
     pub ty: Type,
     pub broadcasted: bool,
     pub address_type: AddressType,
@@ -48,7 +48,7 @@ impl LaunchArg for GlobalTensor {
 
     fn compilation_arg<R: Runtime>(runtime_arg: &Self::RuntimeArg<R>) -> Self::CompilationArg {
         let tensor =
-            <Tensor<Line<NumericExpand<DYN_ELEM_ID>, DynSize>> as LaunchArg>::compilation_arg(
+            <Tensor<Vector<NumericExpand<DYN_ELEM_ID>, DynSize>> as LaunchArg>::compilation_arg(
                 &runtime_arg.tensor,
             );
         GlobalTensorCompilationArg {

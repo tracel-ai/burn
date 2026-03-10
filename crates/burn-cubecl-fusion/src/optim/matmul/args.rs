@@ -281,7 +281,7 @@ fn global_view<E: CubePrimitive>(
         batch_layout,
         arg.data().clone(),
         config.clone(),
-        data_tensor.tensor.line_size(),
+        data_tensor.tensor.vector_size(),
         layout_config,
         packing,
     );
@@ -323,7 +323,7 @@ fn global_view<E: CubePrimitive>(
             let scales_buf = GlobalInput::new(inputs, locals, scales, config, None);
 
             // Redefine because of `Numeric` bound, kinda hacky but I can't figure out a way to
-            // assert `Line<T: Numeric>::Scalar: Numeric`
+            // assert `Vector<T: Numeric>::Scalar: Numeric`
             let define!(T) = type_of::<E::Scalar>();
             let size!(N) = E::line_size();
             let view = create_quant_view_dynamic::<T, N>(
@@ -333,7 +333,7 @@ fn global_view<E: CubePrimitive>(
                 scales_layout,
                 scheme,
             );
-            // Safety: should be fine since `Line<E::Scalar, N>` is guaranteed equal to `E`
+            // Safety: should be fine since `Vector<E::Scalar, N>` is guaranteed equal to `E`
             comptime![unsafe { core::mem::transmute(view) }]
         }
     }
@@ -375,7 +375,7 @@ fn global_layout(
     batch_layout: VirtualLayout<usize, usize>,
     #[comptime] arg: FuseArg,
     #[comptime] config: FuseBlockConfig,
-    #[comptime] line_size: LineSize,
+    #[comptime] line_size: VectorSize,
     #[comptime] layout_config: GlobalLayoutConfig,
     #[comptime] packing: u32,
 ) -> GlobalLayout {
@@ -413,7 +413,7 @@ struct CreateQuantView<'a, E: Numeric, N: Size> {
 }
 
 impl<'a, E: Numeric, N: Size> RunWithQuantType for CreateQuantView<'a, E, N> {
-    type Output = ViewExpand<Line<E, N>, BatchedCoords>;
+    type Output = ViewExpand<Vector<E, N>, BatchedCoords>;
 
     fn execute<Q: Scalar, S: Scalar>(self) -> Self::Output {
         create_quant_view::expand::<E, N, Q, S>(
@@ -435,7 +435,7 @@ fn create_quant_view_dynamic<E: Numeric, N: Size>(
     scales_buf: GlobalInput,
     scales_layout: GlobalScaleLayout,
     #[comptime] scheme: QuantScheme,
-) -> View<Line<E, N>, BatchedCoords> {
+) -> View<Vector<E, N>, BatchedCoords> {
     intrinsic!(|scope| {
         let func = CreateQuantView {
             scope,
@@ -457,10 +457,10 @@ fn create_quant_view<E: Numeric, N: Size, Q: Scalar, S: Scalar>(
     scales_buf: GlobalInput,
     scales_layout: GlobalScaleLayout,
     #[comptime] scheme: QuantScheme,
-) -> View<Line<E, N>, BatchedCoords> {
+) -> View<Vector<E, N>, BatchedCoords> {
     let size!(NQ) = N::value().comptime() / scheme.num_quants();
 
-    let data_view: View<Line<Q, NQ>, BatchedCoords> =
+    let data_view: View<Vector<Q, NQ>, BatchedCoords> =
         View::new::<GlobalInput, Coords1d>(&data_buf, data_layout);
     let scales_view: View<S, BatchedCoords> =
         View::new::<GlobalInput, Coords1d>(&scales_buf, scales_layout);

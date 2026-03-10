@@ -421,8 +421,8 @@ where
         impl<T: Numeric, N: Size> NumericUnaryOp<T, N> for Abs {
             type Options = ();
 
-            fn execute(input: Line<T, N>, _options: &Self::Options) -> Line<T, N> {
-                Line::abs(input)
+            fn execute(input: Vector<T, N>, _options: &Self::Options) -> Vector<T, N> {
+                Vector::abs(input)
             }
         }
 

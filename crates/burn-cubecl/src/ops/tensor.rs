@@ -432,8 +432,8 @@ where
         impl<F: Float, N: Size> FloatUnaryOp<F, N> for Powf {
             type Options = InputScalar;
 
-            fn execute(input: Line<F, N>, options: &Self::Options) -> Line<F, N> {
-                Line::powf(input, Line::new(options.get::<F>()))
+            fn execute(input: Vector<F, N>, options: &Self::Options) -> Vector<F, N> {
+                Vector::powf(input, Vector::new(options.get::<F>()))
             }
         }
 

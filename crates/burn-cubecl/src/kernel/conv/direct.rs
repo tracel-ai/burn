@@ -38,10 +38,10 @@ struct Conv2dArgs {
 #[cube(launch_unchecked, address_type = "dynamic")]
 #[allow(clippy::redundant_closure)]
 fn direct_conv2d_kernel<E: Numeric, NIn: Size, NOut: Size>(
-    input: &Tensor<Line<E, NIn>>,
-    weight: &Tensor<Line<E, NIn>>,
-    bias: ComptimeOption<Tensor<Line<E, NOut>>>,
-    output: &mut LinearView<Line<E, NOut>, ReadWrite>,
+    input: &Tensor<Vector<E, NIn>>,
+    weight: &Tensor<Vector<E, NIn>>,
+    bias: ComptimeOption<Tensor<Vector<E, NOut>>>,
+    output: &mut LinearView<Vector<E, NOut>, ReadWrite>,
     args: Conv2dArgs,
     shape_out: Sequence<FastDivmod<u32>>,
     shape_out_c: FastDivmod<u32>,
@@ -54,7 +54,7 @@ fn direct_conv2d_kernel<E: Numeric, NIn: Size, NOut: Size>(
 
     let n_spatial = comptime![shape_out.len()];
 
-    let line_size_out = output.line_size();
+    let line_size_out = output.vector_size();
     let pos = ABSOLUTE_POS * line_size_out;
 
     let in_c_per_group = weight.shape(weight.rank() - 1) as u32;
@@ -65,8 +65,9 @@ fn direct_conv2d_kernel<E: Numeric, NIn: Size, NOut: Size>(
     let g = out_c / args.channels_per_group;
     let ic_start = in_c_per_group * g;
 
-    let bias: ComptimeOption<Line<E, NOut>> = bias.map(|bias| bias[out_c as usize / line_size_out]);
-    let mut sum = bias.unwrap_or_else(|| Line::zero());
+    let bias: ComptimeOption<Vector<E, NOut>> =
+        bias.map(|bias| bias[out_c as usize / line_size_out]);
+    let mut sum = bias.unwrap_or_else(|| Vector::zero());
 
     let in_offs = b as usize * input.stride(0) + ic_start as usize;
 
@@ -128,9 +129,9 @@ struct LoopParams {
 
 #[cube]
 fn kernel_loop<E: Numeric, NIn: Size, NOut: Size>(
-    input: &Tensor<Line<E, NIn>>,
-    weight: &Tensor<Line<E, NIn>>,
-    sum: &mut Line<E, NOut>,
+    input: &Tensor<Vector<E, NIn>>,
+    weight: &Tensor<Vector<E, NIn>>,
+    sum: &mut Vector<E, NOut>,
     in_offs: usize,
     in_bounds: bool,
     weight_offs: usize,
@@ -183,16 +184,16 @@ fn kernel_loop<E: Numeric, NIn: Size, NOut: Size>(
 
 #[cube]
 fn kernel_loop_inner<E: Numeric, NIn: Size, NOut: Size>(
-    input: &Tensor<Line<E, NIn>>,
-    weight: &Tensor<Line<E, NIn>>,
-    sum: &mut Line<E, NOut>,
+    input: &Tensor<Vector<E, NIn>>,
+    weight: &Tensor<Vector<E, NIn>>,
+    sum: &mut Vector<E, NOut>,
     in_offs: usize,
     in_bounds: bool,
     weight_offs: usize,
     in_c_per_group: u32,
     stride_oc: usize,
 ) {
-    let line_size_in = input.line_size();
+    let line_size_in = input.vector_size();
     let line_size_out = sum.size();
 
     if in_bounds {

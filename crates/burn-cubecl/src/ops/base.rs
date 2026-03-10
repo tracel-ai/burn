@@ -8,7 +8,7 @@ use burn_std::{
     Metadata, strides,
     tensor::{ReshapeAction, contiguous_strides, reshape_action},
 };
-use cubecl::{ir::LineSize, server::CopyDescriptor};
+use cubecl::{ir::VectorSize, server::CopyDescriptor};
 use cubecl::{quant::scheme::BlockSize, tensor_line_size_parallel};
 
 pub(crate) fn from_data<R: CubeRuntime>(data: TensorData, device: &R::Device) -> CubeTensor<R> {
@@ -362,7 +362,7 @@ pub fn q_reshape<R: CubeRuntime>(mut tensor: CubeTensor<R>, shape: Shape) -> Cub
     tensor
 }
 
-pub(crate) fn max_line_size<R: CubeRuntime>(tensor: &CubeTensor<R>) -> LineSize {
+pub(crate) fn max_line_size<R: CubeRuntime>(tensor: &CubeTensor<R>) -> VectorSize {
     tensor_line_size_parallel(
         tensor.client.io_optimized_line_sizes(tensor.dtype.size()),
         tensor.meta.shape(),
@@ -374,7 +374,7 @@ pub(crate) fn max_line_size<R: CubeRuntime>(tensor: &CubeTensor<R>) -> LineSize 
 pub(crate) fn max_line_size_many<R: CubeRuntime>(
     tensors: &[&CubeTensor<R>],
     axis: usize,
-) -> LineSize {
+) -> VectorSize {
     let vec = tensors
         .iter()
         .map(|tensor| {

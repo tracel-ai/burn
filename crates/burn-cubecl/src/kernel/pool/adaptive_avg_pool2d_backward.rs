@@ -18,8 +18,8 @@ use cubecl::{
 
 #[cube(launch, address_type = "dynamic")]
 fn adaptive_avg_pool2d_backward_direct<E: Numeric, N: Size>(
-    grad: &Tensor<Line<E, N>>,
-    output: &mut View<Line<E, N>, Position, ReadWrite>,
+    grad: &Tensor<Vector<E, N>>,
+    output: &mut View<Vector<E, N>, Position, ReadWrite>,
     out_shape: Sequence<FastDivmod<usize>>,
     working_units: usize,
     #[define(E)] _dtype: StorageType,
@@ -32,7 +32,7 @@ fn adaptive_avg_pool2d_backward_direct<E: Numeric, N: Size>(
     let (grad_stride_h, grad_stride_w) = (grad.stride(1), grad.stride(2));
     let (grad_h, grad_w) = (grad.shape(1), grad.shape(2));
 
-    let (_, pos) = decompose_linear(ABSOLUTE_POS * output.line_size(), &out_shape);
+    let (_, pos) = decompose_linear(ABSOLUTE_POS * output.vector_size(), &out_shape);
     let [b, ih, iw, c] = *pos else { unreachable!() };
 
     let oh_start = start_index(ih, out_h, grad_h);
@@ -41,7 +41,7 @@ fn adaptive_avg_pool2d_backward_direct<E: Numeric, N: Size>(
     let ow_start = start_index(iw, out_w, grad_w);
     let ow_end = end_index(iw, out_w, grad_w);
 
-    let mut grad_acc = Line::zero();
+    let mut grad_acc = Vector::zero();
 
     let index_base = b * grad.stride(0) + (c * grad.stride(3));
 
@@ -59,7 +59,8 @@ fn adaptive_avg_pool2d_backward_direct<E: Numeric, N: Size>(
                     let num_iw = iw_end - iw_start;
 
                     let index = index_base + (oh * grad_stride_h) + (ow * grad_stride_w);
-                    grad_acc += grad[index / grad.line_size()] / Line::cast_from(num_iw * num_ih);
+                    grad_acc +=
+                        grad[index / grad.vector_size()] / Vector::cast_from(num_iw * num_ih);
                 }
             }
         }

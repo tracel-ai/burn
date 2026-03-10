@@ -77,8 +77,8 @@ pub trait Vectorization<R: Runtime> {
         outputs: impl Iterator<Item = &'a TensorIr>,
         reshaped: impl Iterator<Item = (&'a TensorIr, &'a TensorIr, bool)>,
         swapped: impl Iterator<Item = (&'a TensorIr, &'a TensorIr, bool, &'a (usize, usize))>,
-        line_sizes: &[LineSize],
-        max: LineSize,
+        line_sizes: &[VectorSize],
+        max: VectorSize,
         axis: VectorizationAxis,
     ) {
         vectorization_default(

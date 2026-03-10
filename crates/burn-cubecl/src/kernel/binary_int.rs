@@ -16,7 +16,7 @@ pub(crate) trait BinaryOpIntFamily: Send + Sync + 'static {
 #[cube]
 pub(crate) trait BinaryOpInt<C: Int, N: Size>: 'static + Send + Sync {
     /// Execute a binary operation.
-    fn execute(lhs: Line<C, N>, rhs: Line<C, N>) -> Line<C, N>;
+    fn execute(lhs: Vector<C, N>, rhs: Vector<C, N>) -> Vector<C, N>;
 }
 
 pub(crate) struct BitwiseAndOp;
@@ -47,44 +47,44 @@ impl BinaryOpIntFamily for BitwiseShlOp {
 
 #[cube]
 impl<T: Int, N: Size> BinaryOpInt<T, N> for BitwiseAndOp {
-    fn execute(lhs: Line<T, N>, rhs: Line<T, N>) -> Line<T, N> {
+    fn execute(lhs: Vector<T, N>, rhs: Vector<T, N>) -> Vector<T, N> {
         lhs & rhs
     }
 }
 
 #[cube]
 impl<T: Int, N: Size> BinaryOpInt<T, N> for BitwiseOrOp {
-    fn execute(lhs: Line<T, N>, rhs: Line<T, N>) -> Line<T, N> {
+    fn execute(lhs: Vector<T, N>, rhs: Vector<T, N>) -> Vector<T, N> {
         lhs | rhs
     }
 }
 
 #[cube]
 impl<T: Int, N: Size> BinaryOpInt<T, N> for BitwiseXorOp {
-    fn execute(lhs: Line<T, N>, rhs: Line<T, N>) -> Line<T, N> {
+    fn execute(lhs: Vector<T, N>, rhs: Vector<T, N>) -> Vector<T, N> {
         lhs ^ rhs
     }
 }
 
 #[cube]
 impl<T: Int, N: Size> BinaryOpInt<T, N> for BitwiseShrOp {
-    fn execute(lhs: Line<T, N>, rhs: Line<T, N>) -> Line<T, N> {
+    fn execute(lhs: Vector<T, N>, rhs: Vector<T, N>) -> Vector<T, N> {
         lhs >> rhs
     }
 }
 
 #[cube]
 impl<T: Int, N: Size> BinaryOpInt<T, N> for BitwiseShlOp {
-    fn execute(lhs: Line<T, N>, rhs: Line<T, N>) -> Line<T, N> {
+    fn execute(lhs: Vector<T, N>, rhs: Vector<T, N>) -> Vector<T, N> {
         lhs << rhs
     }
 }
 
 #[cube(launch_unchecked, address_type = "dynamic")]
 pub(crate) fn kernel_scalar_binop_int<C: Int, N: Size, O: BinaryOpIntFamily>(
-    input: &LinearView<Line<C, N>>,
+    input: &LinearView<Vector<C, N>>,
     scalar: InputScalar,
-    output: &mut LinearView<Line<C, N>, ReadWrite>,
+    output: &mut LinearView<Vector<C, N>, ReadWrite>,
     #[define(C)] _dtype: StorageType,
 ) {
     if !output.is_in_bounds(ABSOLUTE_POS) {
@@ -92,14 +92,14 @@ pub(crate) fn kernel_scalar_binop_int<C: Int, N: Size, O: BinaryOpIntFamily>(
     }
 
     output[ABSOLUTE_POS] =
-        O::BinaryOp::<C, N>::execute(input[ABSOLUTE_POS], Line::new(scalar.get::<C>()));
+        O::BinaryOp::<C, N>::execute(input[ABSOLUTE_POS], Vector::new(scalar.get::<C>()));
 }
 
 #[cube(launch_unchecked, address_type = "dynamic")]
 pub(crate) fn kernel_binop_int<C: Int, N: Size, O: BinaryOpIntFamily>(
-    lhs: &LinearView<Line<C, N>>,
-    rhs: &LinearView<Line<C, N>>,
-    out: &mut LinearView<Line<C, N>, ReadWrite>,
+    lhs: &LinearView<Vector<C, N>>,
+    rhs: &LinearView<Vector<C, N>>,
+    out: &mut LinearView<Vector<C, N>, ReadWrite>,
     #[define(C)] _dtype: StorageType,
 ) {
     if !out.is_in_bounds(ABSOLUTE_POS) {
