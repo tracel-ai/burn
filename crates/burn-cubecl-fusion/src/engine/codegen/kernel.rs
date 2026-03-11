@@ -168,7 +168,7 @@ pub fn init_locals(
             }
             VirtualLayout::Reshaped {
                 reshape_pos,
-                line_size,
+                vector_size,
             } => {
                 let mut stride_curr = 1;
                 let start = reshape_pos * config.rank;
@@ -186,7 +186,7 @@ pub fn init_locals(
                     stride_curr *= ref_shape[comptime![reverse]];
                 }
 
-                LocalArgs::new(ref_shape.to_slice(), ref_strides.to_slice(), line_size)
+                LocalArgs::new(ref_shape.to_slice(), ref_strides.to_slice(), vector_size)
             }
             VirtualLayout::Runtime { pos } => {
                 let start_shape = (pos * 2) * config.rank;
@@ -203,7 +203,7 @@ pub fn init_locals(
 
                 LocalArgs::new(ref_shape.to_slice(), ref_strides.to_slice(), config.width)
             }
-            VirtualLayout::Shape(original, line_size) => {
+            VirtualLayout::Shape(original, vector_size) => {
                 let layout = match original.clone() {
                     FuseArg::Input(pos, ..) => inputs.tensors.index(pos),
                     FuseArg::Output(pos, ..) => outputs.tensors.index(pos),
@@ -223,7 +223,7 @@ pub fn init_locals(
                     stride_curr *= ref_shape[comptime![reverse]];
                 }
 
-                LocalArgs::new(ref_shape.to_slice(), ref_strides.to_slice(), line_size)
+                LocalArgs::new(ref_shape.to_slice(), ref_strides.to_slice(), vector_size)
             }
         },
     };
@@ -428,7 +428,7 @@ fn gather<C: Numeric, N: Size>(
     #[comptime] output: FuseArg,
     #[comptime] config: &FuseBlockConfig,
 ) {
-    let line_size = locals.ref_line_size;
+    let vector_size = locals.ref_vector_size;
 
     let pos_input = comptime! {
         match input {
@@ -487,7 +487,7 @@ fn gather<C: Numeric, N: Size>(
     if comptime![dim == config.rank - 1] {
         // Per-element indexing (along the dimension)
         #[unroll]
-        for i in 0..line_size {
+        for i in 0..vector_size {
             let offset = read_input::<u32, Const<1>>(
                 inputs,
                 locals,
@@ -511,8 +511,8 @@ fn gather<C: Numeric, N: Size>(
             result[i] = input[0];
         }
     } else {
-        // Shared index for whole line
-        let stride_input_line = global_stride(inputs, config.rank - 1, pos_input);
+        // Shared index for whole vector
+        let stride_input_vector = global_stride(inputs, config.rank - 1, pos_input);
 
         let offset = read_input::<u32, Const<1>>(
             inputs,
@@ -527,12 +527,12 @@ fn gather<C: Numeric, N: Size>(
         index += offset[0] as usize * stride_input_dim;
 
         #[unroll]
-        for i in 0..line_size {
+        for i in 0..vector_size {
             let input = read_input::<C, Const<1>>(
                 inputs,
                 locals,
                 pos_input,
-                index + i * stride_input_line,
+                index + i * stride_input_vector,
                 LayoutInfo::IsRef,
                 config,
                 None,
@@ -557,8 +557,8 @@ fn select_indices<C: Numeric, N: Size>(
     #[comptime] output: FuseArg,
     #[comptime] config: &FuseBlockConfig,
 ) {
-    let (line_size_ref, stride_dim_ref, shape_dim_ref) = (
-        locals.ref_line_size,
+    let (vector_size_ref, stride_dim_ref, shape_dim_ref) = (
+        locals.ref_vector_size,
         locals.ref_strides[dim],
         locals.ref_shape[dim],
     );
@@ -610,8 +610,8 @@ fn select_indices<C: Numeric, N: Size>(
             index += index_after;
         }
 
-        let stride_input_line = global_stride(inputs, comptime![config.rank - 1], pos_input);
-        let write_pos_input = write_pos * line_size_ref;
+        let stride_input_vector = global_stride(inputs, comptime![config.rank - 1], pos_input);
+        let write_pos_input = write_pos * vector_size_ref;
         let coordinate_dim = write_pos_input / stride_dim_ref % shape_dim_ref;
         let offset_dim = read_input::<u32, Const<1>>(
             inputs,
@@ -626,12 +626,12 @@ fn select_indices<C: Numeric, N: Size>(
         index += offset_dim[0] as usize * stride_input_dim;
 
         #[unroll]
-        for i in 0..line_size_ref {
+        for i in 0..vector_size_ref {
             let input = read_input::<C, Const<1>>(
                 inputs,
                 locals,
                 pos_input,
-                index + i * stride_input_line,
+                index + i * stride_input_vector,
                 LayoutInfo::IsRef,
                 config,
                 None,
@@ -670,10 +670,10 @@ fn select_indices<C: Numeric, N: Size>(
             index += index_after;
         }
 
-        let write_pos_indices = write_pos * line_size_ref;
+        let write_pos_indices = write_pos * vector_size_ref;
 
         #[unroll]
-        for i in 0..line_size_ref {
+        for i in 0..vector_size_ref {
             let coordinate_dim = (write_pos_indices + i) / stride_dim_ref % shape_dim_ref;
             let offset_dim = read_input::<u32, Const<1>>(
                 inputs,
@@ -789,10 +789,10 @@ fn dequantize<C: Float, N: Size>(
         cubecl::quant::scheme::QuantParam::UE4M3 =>
             StorageType::Scalar(ElemType::Float(FloatKind::E4M3)),
     }];
-    let q_line_size = N::value().comptime() / scheme.num_quants();
+    let q_vector_size = N::value().comptime() / scheme.num_quants();
 
     set_polyfill::<NumericExpand<Q_STORE_DYN_ELEM_ID>, DynQStoreSize>(comptime![
-        Type::new(quant_ty).line(q_line_size)
+        Type::new(quant_ty).with_vector_size(q_vector_size)
     ]);
     set_polyfill::<NumericExpand<Q_PARAM_DYN_ELEM_ID>, DynQParamSize>(comptime![Type::new(
         param_ty
@@ -827,26 +827,26 @@ fn dequantize<C: Float, N: Size>(
         DynQStoreSize,
     >(write_pos * num_quants, input, &scales, scheme);
 
-    let line = if comptime!(q_line_size == 1) {
+    let vector = if comptime!(q_vector_size == 1) {
         result[0]
     } else {
-        let mut line = Vector::empty();
+        let mut vector = Vector::empty();
 
         #[unroll]
-        for i in 0..q_line_size {
+        for i in 0..q_vector_size {
             let value = result[i];
 
             #[unroll]
             for j in 0..num_quants {
                 let index = i * num_quants + j;
-                line[index] = value[j];
+                vector[index] = value[j];
             }
         }
 
-        line
+        vector
     };
 
-    write::<C, N>(inputs, outputs, locals, write_pos, line, output, config);
+    write::<C, N>(inputs, outputs, locals, write_pos, vector, output, config);
 }
 
 binary_op!(add, +);

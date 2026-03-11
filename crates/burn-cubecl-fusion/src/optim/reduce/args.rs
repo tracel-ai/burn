@@ -1,5 +1,5 @@
 use crate::engine::codegen::{
-    io::{ref_buffer_len, ref_len, ref_line_size, ref_shape, ref_stride},
+    io::{ref_buffer_len, ref_len, ref_shape, ref_stride, ref_vector_size},
     ir::{FuseArg, FuseBlockConfig, GlobalArgs, GlobalArgsExpand, LocalArgs, LocalArgsExpand},
     kernel::{fuse_on_read, fuse_on_write, init_locals},
 };
@@ -175,12 +175,12 @@ impl ReduceArgs for FusedReduceArgs {
         ref_stride(unsafe { &(*state.locals_on_write) }, dim)
     }
 
-    fn line_size_input<P: ReduceDType>(state: &Self::State<P>) -> comptime_type!(VectorSize) {
-        ref_line_size(unsafe { &(*state.locals_on_read) })
+    fn vector_size_input<P: ReduceDType>(state: &Self::State<P>) -> comptime_type!(VectorSize) {
+        ref_vector_size(unsafe { &(*state.locals_on_read) })
     }
 
-    fn line_size_output<P: ReduceDType>(state: &Self::State<P>) -> comptime_type!(VectorSize) {
-        ref_line_size(unsafe { &(*state.locals_on_write) })
+    fn vector_size_output<P: ReduceDType>(state: &Self::State<P>) -> comptime_type!(VectorSize) {
+        ref_vector_size(unsafe { &(*state.locals_on_write) })
     }
 }
 

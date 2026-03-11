@@ -7,7 +7,7 @@ use crate::{
 };
 use cubecl::{Runtime, define_size, prelude::*, std::tensor::r#virtual::VirtualTensor};
 use cubek::reduce::{
-    LineMode, ReduceInstruction, ReducePrecision,
+    ReduceInstruction, ReducePrecision, VectorizationMode,
     components::{
         args::NumericLine,
         global::unit::GlobalFullUnitReduce,
@@ -206,7 +206,7 @@ fn reduce_step<P: ReducePrecision, Out: NumericLine, I: ReduceInstruction<P>>(
         output,
         reduce_axis,
         &inst,
-        LineMode::Parallel,
+        VectorizationMode::Parallel,
         comptime!(blueprint),
     );
     axis_size

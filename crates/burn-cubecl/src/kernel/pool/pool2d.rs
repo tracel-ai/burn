@@ -132,18 +132,15 @@ pub fn pool2d_direct<E: Numeric, N: Size, S: Pool2dDirectStrategyFamily>(
 
 pub(super) fn view4d<R: CubeRuntime>(
     tensor: CubeTensor<R>,
-    line_size: VectorSize,
+    vector_size: VectorSize,
 ) -> ViewArg<Position, R> {
     let shape = tensor.meta.shape();
-    let shape = (
-        ScalarArg::new(shape[0]),
-        ScalarArg::new(shape[1]),
-        ScalarArg::new(shape[2]),
-        ScalarArg::new(shape[3]),
-    );
+    let shape = (shape[0], shape[1], shape[2], shape[3]);
     let binding = tensor.binding();
     let layout = FixedDimLayoutLaunch::<Position, R>::from_shape_handle_unchecked(
-        &binding, shape, line_size,
+        &binding,
+        shape,
+        vector_size,
     );
     let buffer = binding.into_tensor_arg().into_array_arg();
     ViewArg::new::<FixedDimLayout<Position>>(buffer, layout)

@@ -14,11 +14,11 @@ use cubecl::{
     server::LaunchError,
 };
 use cubek::reduce::{
-    LineMode, ReduceDtypes,
+    ReduceDtypes, VectorizationMode,
     components::instructions::ReduceOperationConfig,
     launch::RoutineStrategy,
     routines::{
-        BlueprintStrategy, GlobalReduceBlueprint, ReduceLineSettings, ReduceProblem, Routine,
+        BlueprintStrategy, GlobalReduceBlueprint, ReduceProblem, ReduceVectorSettings, Routine,
         unit::{UnitRoutine, UnitStrategy},
     },
 };
@@ -81,16 +81,16 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceBroadcastedLaunch<'_> {
                     },
                     address_type,
                 },
-                ReduceLineSettings {
-                    line_mode: LineMode::Parallel,
-                    line_size_input: first_config.width,
-                    line_size_output: 1,
+                ReduceVectorSettings {
+                    vectorization_mode: VectorizationMode::Parallel,
+                    vector_size_input: first_config.width,
+                    vector_size_output: 1,
                 },
                 BlueprintStrategy::Inferred(UnitStrategy),
             )
             .unwrap();
 
-        assert_eq!(blueprint.line_mode, LineMode::Parallel);
+        assert_eq!(blueprint.vectorization_mode, VectorizationMode::Parallel);
 
         let mut blocks = SequenceArg::new();
         let mut index = 0;
@@ -128,7 +128,7 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceBroadcastedLaunch<'_> {
                 settings.address_type,
                 inputs,
                 outputs,
-                ScalarArg::new(self.reduce_axis),
+                self.reduce_axis,
                 blocks,
                 block_end,
             );

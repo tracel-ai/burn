@@ -175,7 +175,7 @@ pub struct NormalHandleInput<R: Runtime> {
     pub global_ir: TensorIr,
     pub precision: FuseType,
     pub handle: CubeFusionHandle<R>,
-    pub line_size: VectorSize,
+    pub vector_size: VectorSize,
     pub broadcated: bool,
     /// Stores the original strides of the handle for restoration during plan rollback.
     pub orig_strides: Strides,
@@ -188,7 +188,7 @@ pub struct QuantValuesHandleInput<R: Runtime> {
     pub global_ir: TensorIr,
     pub precision: FuseType,
     pub handle: CubeFusionHandle<R>,
-    pub line_size: VectorSize,
+    pub vector_size: VectorSize,
 }
 
 /// An input handle containing parameters (scales/offsets) for quantization.
@@ -233,7 +233,7 @@ impl<R: Runtime> NormalHandleInput<R> {
             handle,
             relative_id: tensor_relative.id,
             global_ir: tensor_global,
-            line_size: 1,
+            vector_size: 1,
             broadcated: false,
             orig_strides: strides,
         }

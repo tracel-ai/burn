@@ -1,5 +1,5 @@
 use crate::engine::codegen::{
-    io::ref_line_size,
+    io::ref_vector_size,
     ir::{FuseArg, FuseBlockConfig, FuseType, GlobalArgs, LocalArgs, multi_block_variables_init},
     kernel::init_locals,
     view::{FusedOutput, GlobalInput, GlobalInputExpand},
@@ -206,7 +206,7 @@ impl MatmulArgs for FusedMatmulArgs {
             shape_col,
             stride_row,
             stride_col,
-            ref_line_size(&state.locals),
+            ref_vector_size(&state.locals),
             1u32,
             state.out_layout_config,
         );
@@ -324,9 +324,8 @@ fn global_view<E: CubePrimitive>(
 
             // Redefine because of `Numeric` bound, kinda hacky but I can't figure out a way to
             // assert `Vector<T: Numeric>::Scalar: Numeric`
-            let define!(T) = type_of::<E::Scalar>();
-            let size!(N) = E::line_size();
-            let view = create_quant_view_dynamic::<T, N>(
+            let define!(T) = storage_type_of::<E::Scalar>();
+            let view = create_quant_view_dynamic::<T, E::Size>(
                 data_buf,
                 data_layout,
                 scales_buf,
@@ -375,7 +374,7 @@ fn global_layout(
     batch_layout: VirtualLayout<usize, usize>,
     #[comptime] arg: FuseArg,
     #[comptime] config: FuseBlockConfig,
-    #[comptime] line_size: VectorSize,
+    #[comptime] vector_size: VectorSize,
     #[comptime] layout_config: GlobalLayoutConfig,
     #[comptime] packing: u32,
 ) -> GlobalLayout {
@@ -396,7 +395,7 @@ fn global_layout(
         shape_col,
         stride_row,
         stride_col,
-        line_size,
+        vector_size,
         packing,
         layout_config,
     )

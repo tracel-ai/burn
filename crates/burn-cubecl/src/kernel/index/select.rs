@@ -75,7 +75,7 @@ pub(crate) fn select<R: CubeRuntime>(
             linear_view(indices, 1),
             linear_view(output.clone(), 1),
             shape_divmod(&output),
-            ScalarArg::new(dim),
+            dim,
             [tensor_dtype.into(), indices_dtype.into()],
         )
     };

@@ -6,7 +6,7 @@ use crate::{
     kernel::utils::{
         address_type, broadcast_shape, linear_view, linear_view_alias, linear_view_ref,
     },
-    ops::{max_line_size_many, numeric::empty_device_dtype},
+    ops::{max_vector_size_many, numeric::empty_device_dtype},
     tensor::CubeTensor,
 };
 
@@ -49,9 +49,9 @@ pub fn mask_where<R: CubeRuntime>(
     strategy: MaskWhereStrategy,
     dtype_bool: DType,
 ) -> CubeTensor<R> {
-    let line_size = max_line_size_many(&[&input, &mask, &value], input.meta.num_dims() - 1);
+    let vector_size = max_vector_size_many(&[&input, &mask, &value], input.meta.num_dims() - 1);
 
-    let working_units = input.meta.num_elements() / line_size as usize;
+    let working_units = input.meta.num_elements() / vector_size as usize;
     let cube_dim = CubeDim::new(&input.client, working_units);
     let cube_count = calculate_cube_count_elemwise(&input.client, working_units, cube_dim);
 
@@ -69,9 +69,9 @@ pub fn mask_where<R: CubeRuntime>(
     };
 
     let out = match strategy {
-        MaskWhereStrategy::Readonly => linear_view(output.clone(), line_size),
-        MaskWhereStrategy::InplaceLhs => linear_view_alias(&output, line_size, 0),
-        MaskWhereStrategy::InplaceRhs => linear_view_alias(&output, line_size, 1),
+        MaskWhereStrategy::Readonly => linear_view(output.clone(), vector_size),
+        MaskWhereStrategy::InplaceLhs => linear_view_alias(&output, vector_size, 0),
+        MaskWhereStrategy::InplaceRhs => linear_view_alias(&output, vector_size, 1),
     };
 
     mask_where_kernel::launch(
@@ -79,10 +79,10 @@ pub fn mask_where<R: CubeRuntime>(
         cube_count,
         cube_dim,
         address_type!(input, value, mask, output),
-        line_size,
-        linear_view_ref(input, &output, line_size),
-        linear_view_ref(value, &output, line_size),
-        linear_view_ref(mask, &output, line_size),
+        vector_size,
+        linear_view_ref(input, &output, vector_size),
+        linear_view_ref(value, &output, vector_size),
+        linear_view_ref(mask, &output, vector_size),
         out,
         [output.dtype.into(), dtype_bool.into()],
     );

@@ -17,7 +17,7 @@ use cubecl::{
     CubeElement, Runtime,
     client::ComputeClient,
     ir::{AddressType, Type},
-    prelude::{InputScalar, ScalarArg, TensorArg},
+    prelude::{InputScalar, TensorArg},
 };
 use std::marker::PhantomData;
 
@@ -85,10 +85,10 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
 
         for layout in plan.runtime_layouts {
             for s in layout.shape.iter() {
-                inputs.runtime_layouts.push(ScalarArg::new(*s));
+                inputs.runtime_layouts.push(*s);
             }
             for s in layout.strides.iter() {
-                inputs.runtime_layouts.push(ScalarArg::new(*s));
+                inputs.runtime_layouts.push(*s);
             }
         }
 
@@ -106,7 +106,7 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
                 ReferenceSelection::Reshaped { reshape_pos } => {
                     RefLayout::Virtual(VirtualLayout::Reshaped {
                         reshape_pos,
-                        line_size: block_plan.width,
+                        vector_size: block_plan.width,
                     })
                 }
                 ReferenceSelection::Runtime { pos } => {
@@ -171,7 +171,7 @@ fn register_inputs<R: Runtime>(
                 let arg = hi.handle.into_tensor_arg(hi.global_ir.shape.clone());
                 inputs.tensors.push(GlobalTensorArg::new(
                     arg,
-                    hi.precision.into_type(hi.line_size),
+                    hi.precision.into_type(hi.vector_size),
                     hi.broadcated,
                     at,
                 ));
@@ -181,7 +181,7 @@ fn register_inputs<R: Runtime>(
                 let arg = hi.handle.into_tensor_arg(hi.global_ir.shape.clone());
                 inputs.tensors.push(GlobalTensorArg::new(
                     arg,
-                    hi.precision.into_type(hi.line_size),
+                    hi.precision.into_type(hi.vector_size),
                     false,
                     at,
                 ));
@@ -232,7 +232,7 @@ fn register_outputs<BT: CubeElement, R: Runtime>(
                 precision,
                 handle,
                 global_shape,
-                vectorization: line_size,
+                vectorization: vector_size,
                 #[cfg(feature = "autotune-checks")]
                 relative_id,
                 ..
@@ -248,7 +248,7 @@ fn register_outputs<BT: CubeElement, R: Runtime>(
                     },
                     _ => precision.into_elem(),
                 };
-                let ty = Type::new(elem.into()).line(line_size);
+                let ty = Type::new(elem.into()).with_vector_size(vector_size);
 
                 #[cfg(feature = "autotune-checks")]
                 if let TuneOutput::Checked { handles, .. } = tune_output {
@@ -287,7 +287,7 @@ fn register_scalars<'h, R: Runtime>(
             let global = context.tensors.get(reshaped).unwrap();
 
             for shape in global.shape.iter() {
-                inputs.reshapes.push(ScalarArg::new(*shape));
+                inputs.reshapes.push(*shape);
             }
         }
     }

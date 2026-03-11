@@ -1,7 +1,7 @@
 use crate::{
     CubeRuntime,
     kernel::utils::{address_type, linear_view, linear_view_alias},
-    ops::{max_line_size, numeric::empty_device_dtype},
+    ops::{max_vector_size, numeric::empty_device_dtype},
     tensor::CubeTensor,
 };
 use burn_backend::TensorMetadata;
@@ -41,11 +41,11 @@ where
     R: CubeRuntime,
     O: NumericUnaryOpFamily,
 {
-    let line_size = max_line_size(&tensor);
+    let vector_size = max_vector_size(&tensor);
     let client = tensor.client.clone();
     let num_elems = tensor.meta.num_elements();
 
-    let working_units = num_elems / line_size as usize;
+    let working_units = num_elems / vector_size as usize;
     let cube_dim = CubeDim::new(&tensor.client, working_units);
     let cube_count = calculate_cube_count_elemwise(&tensor.client, working_units, cube_dim);
     let dtype = tensor.dtype;
@@ -57,9 +57,9 @@ where
                 cube_count,
                 cube_dim,
                 address_type!(tensor),
-                line_size,
-                linear_view(tensor.clone(), line_size),
-                linear_view_alias(&tensor, line_size, 0),
+                vector_size,
+                linear_view(tensor.clone(), vector_size),
+                linear_view_alias(&tensor, vector_size, 0),
                 args(&()),
                 dtype.into(),
             );
@@ -78,9 +78,9 @@ where
                 cube_count,
                 cube_dim,
                 address_type!(tensor, output),
-                line_size,
-                linear_view(tensor, line_size),
-                linear_view(output.clone(), line_size),
+                vector_size,
+                linear_view(tensor, vector_size),
+                linear_view(output.clone(), vector_size),
                 args(&()),
                 dtype.into(),
             );

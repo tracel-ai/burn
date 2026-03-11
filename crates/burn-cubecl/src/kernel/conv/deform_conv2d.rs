@@ -232,10 +232,10 @@ pub(crate) fn deform_im2col<R: CubeRuntime>(
         output.clone().binding().into_tensor_arg(),
         pos_shape,
         DeformConv2dArgsLaunch::new(
-            ScalarArg::new(options.stride[0]),
-            ScalarArg::new(options.stride[1]),
-            ScalarArg::new(options.dilation[0]),
-            ScalarArg::new(options.dilation[1]),
+            options.stride[0],
+            options.stride[1],
+            options.dilation[0],
+            options.dilation[1],
             {
                 let val = options.padding[0] as f32;
                 InputScalar::new(val, dtype)
@@ -244,11 +244,11 @@ pub(crate) fn deform_im2col<R: CubeRuntime>(
                 let val = options.padding[1] as f32;
                 InputScalar::new(val, dtype)
             },
-            ScalarArg::new(options.offset_groups),
-            ScalarArg::new(kernel_height),
-            ScalarArg::new(kernel_width),
-            ScalarArg::new(out_height),
-            ScalarArg::new(out_width),
+            options.offset_groups,
+            kernel_height,
+            kernel_width,
+            out_height,
+            out_width,
         ),
         Some(kernel_height),
         Some(kernel_width),

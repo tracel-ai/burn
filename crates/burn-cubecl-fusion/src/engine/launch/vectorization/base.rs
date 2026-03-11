@@ -15,7 +15,7 @@ pub enum Vect {
 }
 
 impl Vect {
-    pub fn line_size(&self) -> VectorSize {
+    pub fn vector_size(&self) -> VectorSize {
         match self {
             Vect::Broadcasted => 1,
             Vect::Aligned(val) => *val,
@@ -28,14 +28,14 @@ impl Vect {
 }
 
 #[derive(Default, Clone, Serialize, Deserialize, Debug)]
-pub struct LineSizeOverrides {
+pub struct VectorSizeOverrides {
     state: Option<BTreeMap<TensorId, Vec<VectorSize>>>,
     default: Option<Vec<VectorSize>>,
 }
 
 #[allow(unused)]
-impl LineSizeOverrides {
-    pub fn overrides(&mut self, tensor_id: &TensorId, line_sizes: Vec<VectorSize>) {
+impl VectorSizeOverrides {
+    pub fn overrides(&mut self, tensor_id: &TensorId, vector_sizes: Vec<VectorSize>) {
         let map = match &mut self.state {
             Some(val) => val,
             None => {
@@ -44,10 +44,10 @@ impl LineSizeOverrides {
             }
         };
 
-        map.insert(*tensor_id, line_sizes);
+        map.insert(*tensor_id, vector_sizes);
     }
-    pub fn overrides_default(&mut self, line_sizes: Vec<VectorSize>) {
-        self.default = Some(line_sizes);
+    pub fn overrides_default(&mut self, vector_sizes: Vec<VectorSize>) {
+        self.default = Some(vector_sizes);
     }
 
     pub fn mapping<R: Runtime>(&self, context: &Context<'_, CubeFusionHandle<R>>) -> Self {
@@ -98,8 +98,8 @@ pub(crate) fn vectorization_default<'a, R: Runtime>(
     outputs: impl Iterator<Item = &'a TensorIr>,
     reshaped: impl Iterator<Item = (&'a TensorIr, &'a TensorIr, bool)>,
     swapped: impl Iterator<Item = (&'a TensorIr, &'a TensorIr, bool, &'a (usize, usize))>,
-    line_sizes: &[VectorSize],
-    overrides: &LineSizeOverrides,
+    vector_sizes: &[VectorSize],
+    overrides: &VectorSizeOverrides,
     max: VectorSize,
     axis: &VectorizationAxis,
 ) {
@@ -123,7 +123,7 @@ pub(crate) fn vectorization_default<'a, R: Runtime>(
                 dims,
                 max,
                 axis,
-                line_sizes,
+                vector_sizes,
                 overrides.tensor(id),
             );
             multi_reads_vectorization_update(vectorizations, o.id, val);
@@ -134,7 +134,7 @@ pub(crate) fn vectorization_default<'a, R: Runtime>(
                         handle,
                         tensor_ir,
                         axis,
-                        line_sizes,
+                        vector_sizes,
                         overrides.tensor(&tensor_ir.id),
                     );
                     vectorizations.insert(tensor_ir.id, val);
@@ -144,7 +144,7 @@ pub(crate) fn vectorization_default<'a, R: Runtime>(
                         handle,
                         tensor_ir,
                         axis,
-                        line_sizes,
+                        vector_sizes,
                         overrides.tensor(&tensor_ir.id),
                     );
                     let num_quants = match tensor_ir.dtype {
@@ -170,7 +170,7 @@ pub(crate) fn vectorization_default<'a, R: Runtime>(
             original,
             multi_reads,
             axis,
-            line_sizes,
+            vector_sizes,
             max,
             overrides.tensor(&original.id),
         );
@@ -178,7 +178,13 @@ pub(crate) fn vectorization_default<'a, R: Runtime>(
     }
 
     for tensor in outputs {
-        let val = vectorization_output(tensor, axis, line_sizes, max, overrides.tensor(&tensor.id));
+        let val = vectorization_output(
+            tensor,
+            axis,
+            vector_sizes,
+            max,
+            overrides.tensor(&tensor.id),
+        );
         vectorizations.insert(tensor.id, val);
     }
 }
@@ -209,12 +215,12 @@ fn multi_reads_vectorization_update(
 }
 
 // The default version uses the last dimension as vectorization axis and assumes a
-// perpendicular contiguous line.
+// perpendicular contiguous vector.
 fn vectorization_input<R: Runtime>(
     handle: &CubeFusionHandle<R>,
     desc: &TensorIr,
     axis: &VectorizationAxis,
-    line_sizes: &[VectorSize],
+    vector_sizes: &[VectorSize],
     overrides: Option<&Vec<VectorSize>>,
 ) -> Vect {
     let axis = axis.get(desc.id, || handle.strides.len() - 1);
@@ -246,7 +252,7 @@ fn vectorization_input<R: Runtime>(
             }
         }
         None => {
-            for s in line_sizes {
+            for s in vector_sizes {
                 if let Some(val) = inner(*s) {
                     return val;
                 }
@@ -260,7 +266,7 @@ fn vectorization_input<R: Runtime>(
 fn vectorization_output(
     desc: &TensorIr,
     axis: &VectorizationAxis,
-    line_sizes: &[VectorSize],
+    vector_sizes: &[VectorSize],
     max: VectorSize,
     overrides: Option<&Vec<VectorSize>>,
 ) -> Vect {
@@ -283,7 +289,7 @@ fn vectorization_output(
             }
         }
         None => {
-            for s in line_sizes {
+            for s in vector_sizes {
                 if let Some(val) = inner(*s) {
                     return val;
                 }
@@ -299,7 +305,7 @@ fn vectorization_reshape(
     original: &TensorIr,
     multi_reads: bool,
     axis: &VectorizationAxis,
-    line_sizes: &[VectorSize],
+    vector_sizes: &[VectorSize],
     max: VectorSize,
     overrides: Option<&Vec<VectorSize>>,
 ) -> Vect {
@@ -353,7 +359,7 @@ fn vectorization_reshape(
             }
         }
         None => {
-            for s in line_sizes {
+            for s in vector_sizes {
                 if let Some(vect) = inner(*s) {
                     return vect;
                 }
@@ -373,7 +379,7 @@ fn vectorization_swapped<R: Runtime>(
     dims: &(usize, usize),
     max: VectorSize,
     axis: &VectorizationAxis,
-    line_sizes: &[VectorSize],
+    vector_sizes: &[VectorSize],
     overrides: Option<&Vec<VectorSize>>,
 ) -> Vect {
     let axis = axis.get(swapped.id, || swapped.shape.rank() - 1);
@@ -427,7 +433,7 @@ fn vectorization_swapped<R: Runtime>(
             }
         }
         None => {
-            for s in line_sizes {
+            for s in vector_sizes {
                 if let Some(val) = inner(*s) {
                     return val;
                 }

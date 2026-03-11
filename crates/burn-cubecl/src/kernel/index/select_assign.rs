@@ -90,7 +90,7 @@ pub(crate) fn select_assign<R: CubeRuntime>(
             linear_view(indices, 1),
             value.into_tensor_arg(),
             shape,
-            ScalarArg::new(num_elems),
+            num_elems,
             dim,
             [tensor_dtype.into(), indices_dtype.into()],
         )

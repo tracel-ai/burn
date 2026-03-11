@@ -4,7 +4,7 @@ use cubecl::{calculate_cube_count_elemwise, prelude::*, std::tensor::layout::lin
 use crate::{
     CubeRuntime,
     kernel::utils::{address_type, linear_view, linear_view_alias, linear_view_ref},
-    ops::{max_line_size_many, numeric::empty_device_dtype},
+    ops::{max_vector_size_many, numeric::empty_device_dtype},
     tensor::CubeTensor,
 };
 
@@ -59,18 +59,18 @@ pub fn mask_fill<R: CubeRuntime>(
         MaskFillStrategy::Inplace => input.clone(),
     };
 
-    let line_size = max_line_size_many(&[&input, &mask], ndims - 1);
-    let working_units = input.meta.num_elements() / line_size as usize;
+    let vector_size = max_vector_size_many(&[&input, &mask], ndims - 1);
+    let working_units = input.meta.num_elements() / vector_size as usize;
     let cube_dim = CubeDim::new(&input.client, working_units);
     let cube_count = calculate_cube_count_elemwise(&input.client, working_units, cube_dim);
 
     let out_arg = match strategy {
-        MaskFillStrategy::Readonly => linear_view(output.clone(), line_size),
-        MaskFillStrategy::Inplace => linear_view_alias(&output, line_size, 0),
+        MaskFillStrategy::Readonly => linear_view(output.clone(), vector_size),
+        MaskFillStrategy::Inplace => linear_view_alias(&output, vector_size, 0),
     };
 
     let at = address_type!(input, mask, output);
-    let mask = linear_view_ref(mask, &input, line_size);
+    let mask = linear_view_ref(mask, &input, vector_size);
 
     unsafe {
         mask_fill_kernel::launch_unchecked(
@@ -78,8 +78,8 @@ pub fn mask_fill<R: CubeRuntime>(
             cube_count,
             cube_dim,
             at,
-            line_size,
-            linear_view(input, line_size),
+            vector_size,
+            linear_view(input, vector_size),
             mask,
             out_arg,
             value,

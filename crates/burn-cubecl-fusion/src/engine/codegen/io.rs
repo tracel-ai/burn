@@ -48,9 +48,9 @@ pub fn read<C: Scalar, N: Size>(
     match arg {
         FuseArg::Input(pos, _precision, layout) => {
             let global = inputs.tensors.index(pos);
-            let line_size = global.tensor.vector_size();
+            let vector_size = global.tensor.vector_size();
 
-            if comptime![!global.broadcasted && line_size != config.width] {
+            if comptime![!global.broadcasted && vector_size != config.width] {
                 read_input_aligned(inputs, locals, pos, ref_pos, layout, config, None)
             } else {
                 read_input(inputs, locals, pos, ref_pos, layout, config, None)
@@ -93,9 +93,9 @@ pub fn read<C: Scalar, N: Size>(
         } => match comptime![original.as_ref().clone()] {
             FuseArg::Input(pos, _precision, layout) => {
                 let global = inputs.tensors.index(pos);
-                let line_size = global.tensor.vector_size();
+                let vector_size = global.tensor.vector_size();
 
-                if comptime![!broadcasted && line_size != config.width] {
+                if comptime![!broadcasted && vector_size != config.width] {
                     read_input_aligned(
                         inputs,
                         locals,
@@ -126,9 +126,9 @@ pub fn read<C: Scalar, N: Size>(
         } => match comptime![original.as_ref().clone()] {
             FuseArg::Input(pos, _precision, layout) => {
                 let global = inputs.tensors.index(pos);
-                let line_size = global.tensor.vector_size();
+                let vector_size = global.tensor.vector_size();
 
-                if comptime![!broadcasted && line_size != config.width] {
+                if comptime![!broadcasted && vector_size != config.width] {
                     read_input_aligned(
                         inputs,
                         locals,
@@ -170,7 +170,7 @@ fn index_offset_with_quant_layout(
     let (start, end) = (0, rank - 1);
     let num_quants = scheme.num_quants();
 
-    let offset_ref = index * locals.ref_line_size;
+    let offset_ref = index * locals.ref_vector_size;
     let mut offset = 0;
 
     #[unroll]
@@ -302,13 +302,13 @@ pub fn input_as_scales_view<C: Scalar, N: Size>(
                 tensor_shape.push(FastDivmod::new_Fallback(tensor.tensor.shape(i)));
                 scales_strides.push(scales.tensor.stride(i));
             }
-            let line_size = scales.tensor.vector_size();
+            let vector_size = scales.tensor.vector_size();
             let layout = BlockScaledLayout::new(
                 tensor_shape,
                 tensor_len,
                 scales_strides,
                 block_size,
-                line_size,
+                vector_size,
             );
             ScalesLayout::new_BlockScaled(layout)
         }
@@ -389,7 +389,7 @@ pub fn get_offset_aligned(
 ) -> usize {
     match layout {
         LayoutInfo::SameAsRef | LayoutInfo::IsRef => {
-            (ref_pos * locals.ref_line_size) / tensor.tensor.vector_size()
+            (ref_pos * locals.ref_vector_size) / tensor.tensor.vector_size()
         }
         LayoutInfo::Unknown => get_offset(
             inputs,
@@ -629,9 +629,9 @@ pub fn ref_stride(locals: &LocalArgs, axis: usize) -> usize {
 }
 
 #[cube]
-/// Gets the reference line size.
-pub fn ref_line_size(locals: &LocalArgs) -> comptime_type!(VectorSize) {
-    comptime![locals.ref_line_size]
+/// Gets the reference vector size.
+pub fn ref_vector_size(locals: &LocalArgs) -> comptime_type!(VectorSize) {
+    comptime![locals.ref_vector_size]
 }
 
 #[cube]
@@ -665,7 +665,7 @@ fn index_offset_with_layout(
                 "Can't get a range on a reshaped tensor."
             )];
 
-            let index = index * locals.ref_line_size;
+            let index = index * locals.ref_vector_size;
             let index = reshaped_index(inputs, locals, index, rank, shape);
             reshaped_index_to_original_index(&tensor.tensor, index, rank)
         }
@@ -675,7 +675,7 @@ fn index_offset_with_layout(
                 None => (0, rank),
             }};
 
-            let offset_ref = index * locals.ref_line_size;
+            let offset_ref = index * locals.ref_vector_size;
             let mut offset = 0;
 
             #[unroll]
@@ -693,7 +693,7 @@ fn index_offset_with_layout(
                 None => (0, rank),
             }};
 
-            let offset_ref = index * locals.ref_line_size;
+            let offset_ref = index * locals.ref_vector_size;
             let mut offset = 0;
 
             #[unroll]
@@ -791,7 +791,7 @@ fn from_const_int<C: CubePrimitive>(#[comptime] value: usize) -> C {
 
 #[cube]
 #[allow(clippy::extra_unused_type_parameters)]
-fn set_polyfill_typed<C: CubePrimitive, Dyn: Scalar, DynSize: Size>() {
+pub(crate) fn set_polyfill_typed<C: CubePrimitive, Dyn: Scalar, DynSize: Size>() {
     intrinsic!(|scope| {
         let elem_type = C::as_type(scope);
         set_polyfill::expand::<Dyn, DynSize>(scope, elem_type);

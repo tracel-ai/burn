@@ -8,7 +8,7 @@ use crate::{
         AddOp, BitwiseAndOp, BitwiseOrOp, BitwiseXorOp, DivOp, MulOp, PowOp, RemainderOp, SubOp,
         launch_binop, launch_binop_int, launch_scalar_binop, launch_scalar_binop_int,
     },
-    ops::max_line_size,
+    ops::max_vector_size,
 };
 use burn_backend::{DType, Shape, TensorMetadata};
 use burn_std::Metadata;
@@ -65,9 +65,9 @@ pub fn full_device_dtype<R: CubeRuntime>(
     }
 
     let num_elems = empty.meta.num_elements();
-    let line_size = max_line_size(&empty);
+    let vector_size = max_vector_size(&empty);
 
-    let working_units = num_elems / line_size as usize;
+    let working_units = num_elems / vector_size as usize;
     let cube_dim = CubeDim::new(&empty.client, working_units);
     let cube_count = calculate_cube_count_elemwise(&empty.client, working_units, cube_dim);
 
@@ -77,8 +77,8 @@ pub fn full_device_dtype<R: CubeRuntime>(
             cube_count,
             cube_dim,
             address_type!(empty),
-            line_size,
-            linear_view(empty.clone(), line_size),
+            vector_size,
+            linear_view(empty.clone(), vector_size),
             value,
             empty.dtype.into(),
         );

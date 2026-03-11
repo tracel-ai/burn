@@ -288,8 +288,8 @@ impl FuseOp {
     }
 
     /// Element type used for the computation.
-    pub(crate) fn cmp_type(&self, line_size: usize) -> Type {
-        Type::new(self.cmp_elem().into()).line(line_size)
+    pub(crate) fn cmp_type(&self, vector_size: usize) -> Type {
+        Type::new(self.cmp_elem().into()).with_vector_size(vector_size)
     }
 }
 
@@ -329,7 +329,7 @@ pub struct MultiBlockVariables {
 
 #[cube]
 impl MultiBlockVariables {
-    /// Initializes the variable with the given key and line size.
+    /// Initializes the variable with the given key and vector size.
     ///
     /// # Notes
     ///
@@ -441,10 +441,7 @@ impl<R: Runtime> GlobalArgsLaunch<R> {
                 VirtualLayout::Reshaped { reshape_pos, .. } => {
                     let start = *reshape_pos * rank;
                     let end = start + rank;
-                    self.reshapes.values[start..end]
-                        .iter()
-                        .map(|s| s.elem)
-                        .collect()
+                    self.reshapes.values[start..end].iter().copied().collect()
                 }
                 VirtualLayout::Shape(original, _) => self.shape(original),
                 VirtualLayout::Runtime { pos } => {
@@ -452,7 +449,7 @@ impl<R: Runtime> GlobalArgsLaunch<R> {
                     let end = start + rank;
                     self.runtime_layouts.values[start..end]
                         .iter()
-                        .map(|s| s.elem)
+                        .copied()
                         .collect()
                 }
             },
@@ -490,15 +487,15 @@ impl<R: Runtime> GlobalArgsLaunch<R> {
         }
     }
 
-    /// Get the line size of the given [argument](Arg).
+    /// Get the vector size of the given [argument](Arg).
     ///
     /// # Panics
     ///
     /// If the argument doesn't have an handle.
-    pub fn line_size(&self, arg: &FuseArg) -> VectorSize {
+    pub fn vector_size(&self, arg: &FuseArg) -> VectorSize {
         match arg {
-            FuseArg::Input(pos, _, _) => self.tensors.values[*pos].ty.line_size(),
-            FuseArg::Output(pos, _, _) => self.tensors.values[*pos].ty.line_size(),
+            FuseArg::Input(pos, _, _) => self.tensors.values[*pos].ty.vector_size(),
+            FuseArg::Output(pos, _, _) => self.tensors.values[*pos].ty.vector_size(),
             other => panic!("Arg not found: {other:?}"),
         }
     }
@@ -537,7 +534,7 @@ pub struct LocalArgs {
     pub ref_shape: Slice<usize>,
     pub ref_strides: Slice<usize>,
     #[cube(comptime)]
-    pub ref_line_size: VectorSize,
+    pub ref_vector_size: VectorSize,
 }
 
 #[cube]
@@ -546,7 +543,7 @@ impl LocalArgs {
     pub fn new(
         ref_shape: Slice<usize>,
         ref_strides: Slice<usize>,
-        #[comptime] ref_line_size: VectorSize,
+        #[comptime] ref_vector_size: VectorSize,
     ) -> LocalArgs {
         LocalArgs {
             l_f64: Registry::<usize, Vector<f64, DynSize>>::new(),
@@ -564,7 +561,7 @@ impl LocalArgs {
             l_bool: Registry::<usize, Vector<bool, DynSize>>::new(),
             ref_shape,
             ref_strides,
-            ref_line_size,
+            ref_vector_size,
         }
     }
 }
@@ -743,7 +740,7 @@ pub fn multi_block_variables_init(
     for i in 0..comptime!(output.len()) {
         let (key, dtype) = comptime!(output.get(i).unwrap().clone());
         set_polyfill::<NumericExpand<DYN_ELEM_ID>, DynSize>(comptime![
-            Type::new(dtype).line(block.width)
+            Type::new(dtype).with_vector_size(block.width)
         ]);
         variables.init(key);
     }
@@ -765,7 +762,7 @@ pub enum VirtualLayout {
     /// Virtual tensor with the provided shape id and contiguous strides.
     Reshaped {
         reshape_pos: usize,
-        line_size: VectorSize,
+        vector_size: VectorSize,
     },
     /// Virtual tensor with the same shape as the given input, but with swap dims and contiguous
     /// strides.
@@ -855,8 +852,8 @@ impl FuseType {
     }
 
     /// Convert the [fused element type](FuseType) into the [cubecl type](Type)
-    pub fn into_type(self, line_size: VectorSize) -> Type {
-        Type::new(self.into_storage_type()).line(line_size)
+    pub fn into_type(self, vector_size: VectorSize) -> Type {
+        Type::new(self.into_storage_type()).with_vector_size(vector_size)
     }
 }
 

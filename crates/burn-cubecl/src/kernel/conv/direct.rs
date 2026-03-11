@@ -4,7 +4,7 @@ use crate::{
         into_contiguous_aligned,
         utils::{address_type, linear_view},
     },
-    ops::max_line_size,
+    ops::max_vector_size,
     tensor::CubeTensor,
 };
 use crate::{kernel::utils::decompose_linear, ops::numeric::empty_device_dtype};
@@ -14,7 +14,7 @@ use burn_backend::{
 };
 use cubecl::{
     calculate_cube_count_elemwise, prelude::*, std::tensor::layout::linear::LinearView,
-    tensor_line_size_parallel,
+    tensor_vector_size_parallel,
 };
 use cubecl::{
     num_traits::Zero,
@@ -54,8 +54,8 @@ fn direct_conv2d_kernel<E: Numeric, NIn: Size, NOut: Size>(
 
     let n_spatial = comptime![shape_out.len()];
 
-    let line_size_out = output.vector_size();
-    let pos = ABSOLUTE_POS * line_size_out;
+    let vector_size_out = output.vector_size();
+    let pos = ABSOLUTE_POS * vector_size_out;
 
     let in_c_per_group = weight.shape(weight.rank() - 1) as u32;
 
@@ -66,7 +66,7 @@ fn direct_conv2d_kernel<E: Numeric, NIn: Size, NOut: Size>(
     let ic_start = in_c_per_group * g;
 
     let bias: ComptimeOption<Vector<E, NOut>> =
-        bias.map(|bias| bias[out_c as usize / line_size_out]);
+        bias.map(|bias| bias[out_c as usize / vector_size_out]);
     let mut sum = bias.unwrap_or_else(|| Vector::zero());
 
     let in_offs = b as usize * input.stride(0) + ic_start as usize;
@@ -193,23 +193,23 @@ fn kernel_loop_inner<E: Numeric, NIn: Size, NOut: Size>(
     in_c_per_group: u32,
     stride_oc: usize,
 ) {
-    let line_size_in = input.vector_size();
-    let line_size_out = sum.size();
+    let vector_size_in = input.vector_size();
+    let vector_size_out = sum.size();
 
     if in_bounds {
-        for in_c in range_stepped(0, in_c_per_group, line_size_in as u32) {
+        for in_c in range_stepped(0, in_c_per_group, vector_size_in as u32) {
             let in_pos = in_offs + in_c as usize;
             let mut weight_pos = weight_offs + in_c as usize;
 
-            let val = input[in_pos / line_size_in];
+            let val = input[in_pos / vector_size_in];
 
             #[unroll]
-            for v in 0..line_size_out {
-                let weight = weight[weight_pos / line_size_in];
+            for v in 0..vector_size_out {
+                let weight = weight[weight_pos / vector_size_in];
                 let val = val * weight;
 
                 #[unroll]
-                for i in 0..line_size_in {
+                for i in 0..vector_size_in {
                     sum[v] += val[i];
                 }
                 weight_pos += stride_oc;
@@ -270,18 +270,18 @@ pub fn conv_direct<R: CubeRuntime, const N: usize>(
         out_dtype,
     );
 
-    // Need custom line size calculation here to account for the groups division. Need to vectorize
+    // Need custom vector size calculation here to account for the groups division. Need to vectorize
     // over `channels_per_group` instead.
     let mut grouped_out_shape = output.shape();
     grouped_out_shape[dim_c] = channels_per_group;
-    let line_size_out = tensor_line_size_parallel(
-        input.client.io_optimized_line_sizes(input.dtype.size()),
+    let vector_size_out = tensor_vector_size_parallel(
+        input.client.io_optimized_vector_sizes(input.dtype.size()),
         &grouped_out_shape,
         output.meta.strides(),
         dim_c,
     );
     // Use channels_per_group instead of in_channels to avoid issues here
-    let line_size_in = max_line_size(&weight);
+    let vector_size_in = max_vector_size(&weight);
 
     let shape_out = output.meta.shape()[1..dim_c]
         .iter()
@@ -293,13 +293,13 @@ pub fn conv_direct<R: CubeRuntime, const N: usize>(
 
     for i in 0..kernel_shape.len() {
         conv_params.push(ConvParamLaunch::new(
-            ScalarArg::new(options.stride[i] as u32),
-            ScalarArg::new(options.dilation[i] as u32),
-            ScalarArg::new(options.padding[i] as i32),
+            options.stride[i] as u32,
+            options.dilation[i] as u32,
+            options.padding[i] as i32,
         ));
     }
 
-    let working_units = output.meta.num_elements() / line_size_out;
+    let working_units = output.meta.num_elements() / vector_size_out;
     let cube_dim = CubeDim::new(&input.client, working_units);
     let cube_count = calculate_cube_count_elemwise(&input.client, working_units, cube_dim);
 
@@ -309,13 +309,13 @@ pub fn conv_direct<R: CubeRuntime, const N: usize>(
             cube_count,
             cube_dim,
             address_type!(input, weight, bias, output),
-            line_size_in,
-            line_size_out,
+            vector_size_in,
+            vector_size_out,
             input.into_tensor_arg(),
             weight.into_tensor_arg(),
             bias.map(|b| b.into_tensor_arg()).into(),
-            linear_view(output.clone(), line_size_out),
-            Conv2dArgsLaunch::new(conv_params, ScalarArg::new(channels_per_group as u32)),
+            linear_view(output.clone(), vector_size_out),
+            Conv2dArgsLaunch::new(conv_params, channels_per_group as u32),
             shape_out,
             shape_out_c,
             options.padding.iter().any(|it| *it != 0),

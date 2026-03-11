@@ -255,7 +255,7 @@ pub fn prefix_sum<R: CubeRuntime, I: IntElement>(input: CubeTensor<R>) -> CubeTe
             out.clone().into_tensor_arg(),
             bump.into_tensor_arg(),
             reduction.into_tensor_arg(),
-            ScalarArg::new(cubes),
+            cubes,
         )
     };
 

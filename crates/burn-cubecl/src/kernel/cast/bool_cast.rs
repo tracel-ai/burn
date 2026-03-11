@@ -1,7 +1,7 @@
 use crate::{
     CubeElement, CubeRuntime,
     kernel::utils::{address_type, linear_view},
-    ops::{max_line_size, numeric::empty_device},
+    ops::{max_vector_size, numeric::empty_device},
     tensor::CubeTensor,
 };
 use burn_backend::TensorMetadata;
@@ -33,9 +33,9 @@ pub fn bool_cast<R: CubeRuntime, EO: CubeElement>(tensor: CubeTensor<R>) -> Cube
     let output =
         empty_device::<R, EO>(tensor.client.clone(), tensor.device.clone(), tensor.shape());
 
-    let line_size = max_line_size(&tensor);
+    let vector_size = max_vector_size(&tensor);
     let num_elems = tensor.meta.num_elements();
-    let working_units = num_elems / line_size as usize;
+    let working_units = num_elems / vector_size as usize;
     let cube_dim = CubeDim::new(&tensor.client, working_units);
     let cube_count = calculate_cube_count_elemwise(&tensor.client, working_units, cube_dim);
 
@@ -47,9 +47,9 @@ pub fn bool_cast<R: CubeRuntime, EO: CubeElement>(tensor: CubeTensor<R>) -> Cube
             cube_count,
             cube_dim,
             address_type!(tensor, output),
-            line_size,
-            linear_view(tensor, line_size),
-            linear_view(output.clone(), line_size),
+            vector_size,
+            linear_view(tensor, vector_size),
+            linear_view(output.clone(), vector_size),
             dtype.into(),
         )
     };

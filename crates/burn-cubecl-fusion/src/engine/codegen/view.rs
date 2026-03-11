@@ -1,4 +1,4 @@
-use crate::engine::codegen::DynSize;
+use crate::engine::codegen::{DynSize, io::set_polyfill_typed};
 
 use super::{
     DYN_ELEM_ID,
@@ -96,7 +96,7 @@ impl<E: CubePrimitive> ViewOperationsExpand<E, Coords1d> for GlobalInputExpand {
             scope,
             pos.clone(),
         );
-        scope.register_type::<NumericExpand<DYN_ELEM_ID>>(self.ty);
+        set_polyfill_typed::expand::<E, NumericExpand<DYN_ELEM_ID>, DynSize>(scope);
         let slice = input_as_slice::expand(scope, self.inputs.clone(), self.pos);
         read_masked::expand::<E>(scope, in_bounds, slice, pos, value)
     }
@@ -107,7 +107,8 @@ impl<E: CubePrimitive> ViewOperationsExpand<E, Coords1d> for GlobalInputExpand {
         scope: &mut Scope,
         pos: ExpandElementTyped<usize>,
     ) -> <E as CubeType>::ExpandType {
-        let value = read_input::expand::<E::Scalar, DynSize>(
+        set_polyfill_typed::expand::<E, NumericExpand<DYN_ELEM_ID>, DynSize>(scope);
+        let value = read_input::expand::<E::Scalar, E::Size>(
             scope,
             self.inputs.clone(),
             self.locals.clone(),
@@ -127,7 +128,7 @@ impl<E: CubePrimitive> ViewOperationsExpand<E, Coords1d> for GlobalInputExpand {
         pos: ExpandElementTyped<usize>,
         end: ExpandElementTyped<usize>,
     ) -> SliceExpand<E, ReadOnly> {
-        scope.register_type::<NumericExpand<DYN_ELEM_ID>>(self.ty);
+        set_polyfill_typed::expand::<E, NumericExpand<DYN_ELEM_ID>, DynSize>(scope);
         let end = add::expand(scope, end.clone(), 1.into());
         read_input_window::expand(scope, self.inputs.clone(), self.pos, pos, end)
     }
@@ -294,7 +295,7 @@ impl<E: CubePrimitive> ViewOperationsMutExpand<E, Coords1d> for FusedOutputExpan
         pos: ExpandElementTyped<usize>,
         value: <E as CubeType>::ExpandType,
     ) {
-        let values = Registry::<FuseArg, Vector<E::Scalar, DynSize>>::__expand_new(scope);
+        let values = Registry::<FuseArg, Vector<E::Scalar, E::Size>>::__expand_new(scope);
         let mut args = comptime![Vec::<FuseArg>::new()];
 
         let value = Vector::__expand_cast_from(scope, value);
@@ -356,6 +357,6 @@ impl<E: CubePrimitive> ViewOperationsMutExpand<E, Coords1d> for FusedOutputExpan
 impl Vectorized for FusedOutput {}
 impl VectorizedExpand for FusedOutputExpand {
     fn vector_size(&self) -> VectorSize {
-        self.locals.ref_line_size
+        self.locals.ref_vector_size
     }
 }

@@ -9,7 +9,7 @@ use burn_std::{
     tensor::{ReshapeAction, contiguous_strides, reshape_action},
 };
 use cubecl::{ir::VectorSize, server::CopyDescriptor};
-use cubecl::{quant::scheme::BlockSize, tensor_line_size_parallel};
+use cubecl::{quant::scheme::BlockSize, tensor_vector_size_parallel};
 
 pub(crate) fn from_data<R: CubeRuntime>(data: TensorData, device: &R::Device) -> CubeTensor<R> {
     let client = R::client(device);
@@ -362,24 +362,24 @@ pub fn q_reshape<R: CubeRuntime>(mut tensor: CubeTensor<R>, shape: Shape) -> Cub
     tensor
 }
 
-pub(crate) fn max_line_size<R: CubeRuntime>(tensor: &CubeTensor<R>) -> VectorSize {
-    tensor_line_size_parallel(
-        tensor.client.io_optimized_line_sizes(tensor.dtype.size()),
+pub(crate) fn max_vector_size<R: CubeRuntime>(tensor: &CubeTensor<R>) -> VectorSize {
+    tensor_vector_size_parallel(
+        tensor.client.io_optimized_vector_sizes(tensor.dtype.size()),
         tensor.meta.shape(),
         tensor.meta.strides(),
         tensor.meta.num_dims() - 1,
     )
 }
 
-pub(crate) fn max_line_size_many<R: CubeRuntime>(
+pub(crate) fn max_vector_size_many<R: CubeRuntime>(
     tensors: &[&CubeTensor<R>],
     axis: usize,
 ) -> VectorSize {
     let vec = tensors
         .iter()
         .map(|tensor| {
-            tensor_line_size_parallel(
-                tensor.client.io_optimized_line_sizes(tensor.dtype.size()),
+            tensor_vector_size_parallel(
+                tensor.client.io_optimized_vector_sizes(tensor.dtype.size()),
                 tensor.meta.shape(),
                 tensor.meta.strides(),
                 axis,

@@ -68,7 +68,7 @@ pub(crate) fn cross<R: CubeRuntime>(
     let output_shape = broadcast_shape(&[&lhs, &rhs]);
 
     // Since the cross dimension is forced to be size 3, line size would be restricted to 1 anyway
-    let line_size = 1;
+    let vector_size = 1;
 
     let output = empty_device_dtype(
         lhs.client.clone(),
@@ -90,9 +90,9 @@ pub(crate) fn cross<R: CubeRuntime>(
             cube_count,
             cube_dim,
             address_type!(lhs, rhs, output),
-            linear_view_ref(lhs, &output, line_size),
-            linear_view_ref(rhs, &output, line_size),
-            linear_view(output.clone(), line_size),
+            linear_view_ref(lhs, &output, vector_size),
+            linear_view_ref(rhs, &output, vector_size),
+            linear_view(output.clone(), vector_size),
             dtype.into(),
         );
     };

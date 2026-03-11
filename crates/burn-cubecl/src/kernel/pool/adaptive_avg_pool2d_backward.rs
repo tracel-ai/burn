@@ -5,7 +5,9 @@ use crate::{
         pool::pool2d::{Position, view4d},
         utils::{address_type, decompose_linear, shape_divmod},
     },
-    ops::{max_line_size, numeric::empty_device_dtype, permute_nchw_to_nhwc, permute_nhwc_to_nchw},
+    ops::{
+        max_vector_size, numeric::empty_device_dtype, permute_nchw_to_nhwc, permute_nhwc_to_nchw,
+    },
     tensor::CubeTensor,
 };
 use burn_backend::Shape;
@@ -93,14 +95,14 @@ pub(crate) fn adaptive_avg_pool2d_backward<R: CubeRuntime>(
     let [batches, channels, height, width] = x.meta.shape().dims();
 
     let out_grad = into_contiguous_aligned(permute_nchw_to_nhwc(out_grad));
-    let line_size = max_line_size(&out_grad);
+    let vector_size = max_vector_size(&out_grad);
 
     let out_shape = Shape::new([batches, height, width, channels]);
     let output = empty_device_dtype(x.client.clone(), x.device.clone(), out_shape, x.dtype);
 
     let num_elems = output.meta.num_elements();
 
-    let working_units = num_elems / line_size as usize;
+    let working_units = num_elems / vector_size as usize;
     let cube_dim = CubeDim::new(&x.client, working_units);
     let cube_count = calculate_cube_count_elemwise(&x.client, working_units, cube_dim);
 
@@ -109,11 +111,11 @@ pub(crate) fn adaptive_avg_pool2d_backward<R: CubeRuntime>(
         cube_count,
         cube_dim,
         address_type!(out_grad, output),
-        line_size,
+        vector_size,
         out_grad.into_tensor_arg(),
-        view4d(output.clone(), line_size),
+        view4d(output.clone(), vector_size),
         shape_divmod(&output),
-        ScalarArg::new(working_units),
+        working_units,
         output.dtype.into(),
     );
 

@@ -84,7 +84,7 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
                             global_ir: tensor_global,
                             precision,
                             handle,
-                            line_size: 1,
+                            vector_size: 1,
                         }));
 
                     plan.handle_inputs

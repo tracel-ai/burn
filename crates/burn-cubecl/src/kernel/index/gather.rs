@@ -53,7 +53,7 @@ pub(crate) fn gather<R: CubeRuntime>(
     let cube_dim = CubeDim::new(&tensor.client, total_elem);
     let cube_count = calculate_cube_count_elemwise(&tensor.client, total_elem, cube_dim);
     let mut in_strides = broadcast_strides(&output, &tensor);
-    in_strides.values[dim] = ScalarArg::new(0); // Zero `dim` to exclude it from the indexing
+    in_strides.values[dim] = 0; // Zero `dim` to exclude it from the indexing
 
     let (dtype, indices_dtype) = (tensor.dtype, indices.dtype);
 
@@ -68,7 +68,7 @@ pub(crate) fn gather<R: CubeRuntime>(
             linear_view(output.clone(), 1),
             in_strides,
             shape_divmod(&output),
-            ScalarArg::new(dim),
+            dim,
             [dtype.into(), indices_dtype.into()],
         )
     }
