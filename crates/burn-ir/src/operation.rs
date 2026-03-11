@@ -1562,6 +1562,7 @@ pub enum InterpolateModeIr {
     Nearest,
     Bilinear,
     Bicubic,
+    Lanczos3,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
@@ -1626,6 +1627,7 @@ impl From<InterpolateModeIr> for InterpolateMode {
             InterpolateModeIr::Nearest => Self::Nearest,
             InterpolateModeIr::Bilinear => Self::Bilinear,
             InterpolateModeIr::Bicubic => Self::Bicubic,
+            InterpolateModeIr::Lanczos3 => Self::Lanczos3,
         }
     }
 }
@@ -1642,6 +1644,7 @@ impl From<InterpolateMode> for InterpolateModeIr {
             InterpolateMode::Nearest => Self::Nearest,
             InterpolateMode::Bilinear => Self::Bilinear,
             InterpolateMode::Bicubic => Self::Bicubic,
+            InterpolateMode::Lanczos3 => Self::Lanczos3,
         }
     }
 }
