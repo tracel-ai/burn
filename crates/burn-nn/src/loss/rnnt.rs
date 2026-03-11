@@ -264,6 +264,14 @@ impl RNNTLoss {
 }
 
 #[cfg(test)]
+fn assert_close(actual: &[f32], expected: &[f32], tol: f32) {
+    assert_eq!(actual.len(), expected.len(), "length mismatch: {} vs {}", actual.len(), expected.len());
+    for (i, (a, e)) in actual.iter().zip(expected).enumerate() {
+        assert!((a - e).abs() < tol, "[{}] expected {:.6}, got {:.6} (diff {:.6})", i, e, a, (a - e).abs());
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use burn_ndarray::{NdArray, NdArrayDevice};
@@ -271,13 +279,6 @@ mod tests {
     type B = NdArray<f32>;
     const TOL: f32 = 1e-4;
     const NUM_LABELS: usize = 2; // vocab size for simple unit tests
-
-    fn assert_close(actual: &[f32], expected: &[f32], tol: f32) {
-        assert_eq!(actual.len(), expected.len(), "length mismatch: {} vs {}", actual.len(), expected.len());
-        for (i, (a, e)) in actual.iter().zip(expected).enumerate() {
-            assert!((a - e).abs() < tol, "[{}] expected {:.6}, got {:.6} (diff {:.6})", i, e, a, (a - e).abs());
-        }
-    }
 
     #[test]
     fn config_defaults() {
@@ -438,13 +439,6 @@ mod pytorch_comparison_tests {
     type B = Autodiff<NdArray<f32>>;
     const TOL: f32 = 1e-3;
 
-    fn assert_close(actual: &[f32], expected: &[f32], tol: f32) {
-        assert_eq!(actual.len(), expected.len(), "length mismatch: {} vs {}", actual.len(), expected.len());
-        for (i, (a, e)) in actual.iter().zip(expected).enumerate() {
-            assert!((a - e).abs() < tol, "[{}] expected {:.6}, got {:.6} (diff {:.6})", i, e, a, (a - e).abs());
-        }
-    }
-
     /// Deterministic logits matching the Python reference generator.
     /// Uses coprime coefficients to avoid repeating patterns across dimensions.
     fn make_logits(bs: usize, t: usize, u: usize, v: usize, dev: &NdArrayDevice) -> Tensor<B, 4> {
@@ -465,7 +459,7 @@ mod pytorch_comparison_tests {
     /// Checks that gradients along the vocab dim sum to ~0 at every (b, t, u) position.
     /// This must hold because fused_log_softmax applies log_softmax on the last dim,
     /// and the Jacobian of log_softmax has the property that each row sums to zero.
-    fn assert_grad_vocab_sums_zero(grad: &[f32], bs: usize, t: usize, up1: usize, v: usize) {
+    fn check_vocab_grad_sums(grad: &[f32], bs: usize, t: usize, up1: usize, v: usize) {
         for bi in 0..bs {
             for ti in 0..t {
                 for ui in 0..up1 {
@@ -507,7 +501,7 @@ mod pytorch_comparison_tests {
         assert_close(grad_at(&grad, 0, 0, 0, 4, 3, 3), &[-0.2041, -0.2246, 0.4287], TOL);
         assert_close(grad_at(&grad, 0, 2, 0, 4, 3, 3), &[0.0079, -0.0640, 0.0561], TOL);
         assert_close(grad_at(&grad, 0, 3, 2, 4, 3, 3), &[-0.6899, 0.3231, 0.3667], TOL);
-        assert_grad_vocab_sums_zero(&grad, 1, 4, 3, 3);
+        check_vocab_grad_sums(&grad, 1, 4, 3, 3);
     }
 
     #[test]
@@ -533,7 +527,7 @@ mod pytorch_comparison_tests {
         assert_close(grad_at(&grad, 1, 0, 0, 5, 4, 4), &[-0.2766, 0.2602, -0.2248, 0.2411], TOL);
         assert_close(grad_at(&grad, 0, 4, 3, 5, 4, 4), &[-0.8216, 0.2296, 0.2786, 0.3133], TOL);
         assert_close(grad_at(&grad, 1, 4, 3, 5, 4, 4), &[-0.7185, 0.2735, 0.2437, 0.2012], TOL);
-        assert_grad_vocab_sums_zero(&grad, 2, 5, 4, 4);
+        check_vocab_grad_sums(&grad, 2, 5, 4, 4);
     }
 
     #[test]
@@ -585,7 +579,7 @@ mod pytorch_comparison_tests {
                 "sample 2, t=5: grad[{}] = {} (expected 0)", i, grad[sample2_t5_start + i]);
         }
 
-        assert_grad_vocab_sums_zero(&grad, 3, 6, 4, 5);
+        check_vocab_grad_sums(&grad, 3, 6, 4, 5);
     }
 
     #[test]
