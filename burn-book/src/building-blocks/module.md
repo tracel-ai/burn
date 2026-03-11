@@ -234,10 +234,13 @@ Burn comes with built-in modules that you can use to build your own modules.
 | `Dropout`         | `nn.Dropout`                                  |
 | `Elu`             | `nn.ELU`                                      |
 | `Embedding`       | `nn.Embedding`                                |
+| `GaussianNoise`   | _No direct equivalent_                        |
 | `Gelu`            | `nn.Gelu`                                     |
+| `Glu`             | `nn.Glu`                                      |
 | `GroupNorm`       | `nn.GroupNorm`                                |
 | `HardShrink`      | `nn.Hardshrink`                               |
 | `HardSigmoid`     | `nn.Hardsigmoid`                              |
+| `HardSwish`       | `nn.Hardswish`                                |
 | `InstanceNorm`    | `nn.InstanceNorm1d`, `nn.InstanceNorm2d` etc. |
 | `LayerNorm`       | `nn.LayerNorm`                                |
 | `LeakyRelu`       | `nn.LeakyReLU`                                |
@@ -245,11 +248,14 @@ Burn comes with built-in modules that you can use to build your own modules.
 | `Prelu`           | `nn.PReLu`                                    |
 | `Relu`            | `nn.ReLU`                                     |
 | `Selu`            | `nn.SELU`                                     |
+| `Sigmoid`         | `nn.Sigmoid`                                  |
+| `Softplus`        | `nn.Softplus`                                 |
 | `SoftShrink`      | `nn.Softshrink`                               |
 | `Softsign`        | `nn.Softsign`                                 |
 | `Shrink`          | _No direct equivalent_                        |
 | `RmsNorm`         | _No direct equivalent_                        |
 | `SwiGlu`          | _No direct equivalent_                        |
+| `Tanh`            | `nn.Tanh`                                     |
 | `ThresholdedRelu` | _No direct equivalent_                        |
 
 ### Convolutions
@@ -328,7 +334,7 @@ Configuration is done via `Interpolate1dConfig` / `Interpolate2dConfig` with the
 | `CTCLoss`                | `nn.CTCLoss`             |
 | `GramMatrixLoss`         | _No direct equivalent_   |
 | `HuberLoss`              | `nn.HuberLoss`           |
-| `Lpips`                  | `lpips.LPIPS`            |
+| `KLDivLoss`              | `nn.KLDivLoss`           |
 | `LpLoss`                 | _No direct equivalent_   |
 | `MseLoss`                | `nn.MSELoss`             |
 | `PoissonNllLoss`         | `nn.PoissonNLLLoss`      |
