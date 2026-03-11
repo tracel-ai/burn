@@ -287,9 +287,8 @@ impl FuseOp {
         }
     }
 
-    /// Element type used for the computation.
-    pub(crate) fn cmp_type(&self, vector_size: usize) -> Type {
-        Type::new(self.cmp_elem().into()).with_vector_size(vector_size)
+    pub(crate) fn cmp_storage_ty(&self) -> StorageType {
+        self.cmp_elem().into()
     }
 }
 

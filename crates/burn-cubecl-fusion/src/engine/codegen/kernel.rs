@@ -1,6 +1,4 @@
-use crate::engine::codegen::{DynQParamSize, DynQStoreSize, DynSize};
-
-use super::{DYN_ELEM_ID, Q_PARAM_DYN_ELEM_ID, Q_STORE_DYN_ELEM_ID, io::*, ir::*};
+use super::{DYN_ELEM_ID, io::*, ir::*};
 use burn_std::quantization::{QuantScheme, QuantStore, QuantValue};
 use cubecl::{
     ir::{ElemType, FloatKind, StorageType, UIntKind},
@@ -241,12 +239,12 @@ fn fuse(
     #[comptime] config: &FuseBlockConfig,
 ) {
     type E = NumericExpand<DYN_ELEM_ID>;
-    type N = DynSize;
 
     #[unroll]
     for index in 0..config.ops.len() {
         let op = config.ops[index].clone();
-        set_polyfill::<E, N>(op.cmp_type(config.width));
+        let define!(E) = op.cmp_storage_ty();
+        let size!(N) = config.width;
 
         match op {
             FuseOp::Add(op) => add::<E, N>(inputs, outputs, locals, pos, op, config),
@@ -791,12 +789,10 @@ fn dequantize<C: Float, N: Size>(
     }];
     let q_vector_size = N::value().comptime() / scheme.num_quants();
 
-    set_polyfill::<NumericExpand<Q_STORE_DYN_ELEM_ID>, DynQStoreSize>(comptime![
-        Type::new(quant_ty).with_vector_size(q_vector_size)
-    ]);
-    set_polyfill::<NumericExpand<Q_PARAM_DYN_ELEM_ID>, DynQParamSize>(comptime![Type::new(
-        param_ty
-    )]);
+    let define!(QStoreType) = quant_ty;
+    let size!(QStoreSize) = q_vector_size;
+
+    let define!(QParamType) = param_ty;
 
     let tensor_pos = comptime!(match input {
         FuseArg::Input(pos, _, _) => pos,
@@ -806,26 +802,19 @@ fn dequantize<C: Float, N: Size>(
         FuseArg::Input(pos, ..) => pos,
         _ => unreachable!(""),
     });
-    let input = read_quantized::<NumericExpand<Q_STORE_DYN_ELEM_ID>, DynQStoreSize>(
-        inputs, locals, write_pos, input, config, scheme,
-    );
+    let input =
+        read_quantized::<QStoreType, QStoreSize>(inputs, locals, write_pos, input, config, scheme);
 
     let num_quants = scheme.num_quants();
 
-    let scales = input_as_scales_view::<NumericExpand<Q_PARAM_DYN_ELEM_ID>, DynQParamSize>(
-        inputs,
-        pos,
-        tensor_pos,
-        scheme.level,
-        config,
+    let scales =
+        input_as_scales_view::<QParamType, Const<1>>(inputs, pos, tensor_pos, scheme.level, config);
+    let result = dequantize_symmetric_packed_value_at::<C, N, QParamType, QStoreType, QStoreSize>(
+        write_pos * num_quants,
+        input,
+        &scales,
+        scheme,
     );
-    let result = dequantize_symmetric_packed_value_at::<
-        C,
-        N,
-        ElemExpand<Q_PARAM_DYN_ELEM_ID>,
-        ElemExpand<Q_STORE_DYN_ELEM_ID>,
-        DynQStoreSize,
-    >(write_pos * num_quants, input, &scales, scheme);
 
     let vector = if comptime!(q_vector_size == 1) {
         result[0]

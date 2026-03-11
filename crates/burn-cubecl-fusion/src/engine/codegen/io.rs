@@ -1,5 +1,5 @@
 //! This module declares input-output primitives to read and write values during kernel expansion.
-use crate::engine::codegen::DynSize;
+use crate::engine::codegen::{DynElem, DynSize};
 
 use super::{DYN_ELEM_ID, ir::*, tensor::GlobalTensor};
 use burn_std::quantization::QuantScheme;
@@ -45,6 +45,7 @@ pub fn read<C: Scalar, N: Size>(
     #[comptime] arg: FuseArg,
     #[comptime] config: &FuseBlockConfig,
 ) -> Vector<C, N> {
+    set_polyfill_typed::<Vector<C, N>, DynElem, DynSize>();
     match arg {
         FuseArg::Input(pos, _precision, layout) => {
             let global = inputs.tensors.index(pos);
@@ -204,6 +205,7 @@ pub fn read_quantized<C: Scalar, N: Size>(
 ) -> Vector<C, N> {
     match arg {
         FuseArg::Input(pos, _precision, _layout) => {
+            set_polyfill_typed::<Vector<C, N>, DynElem, DynSize>();
             let global = inputs.tensors.index(pos);
 
             let offset =
@@ -247,6 +249,7 @@ pub fn read_input<C: Scalar, N: Size>(
     #[comptime] config: &FuseBlockConfig,
     #[comptime] transform: Option<Transform>,
 ) -> Vector<C, N> {
+    set_polyfill_typed::<Vector<C, N>, DynElem, DynSize>();
     let tensor = inputs.tensors.index(pos);
     let offset = match layout {
         LayoutInfo::SameAsRef => ref_pos,
@@ -264,6 +267,7 @@ pub fn read_input_window<C: CubePrimitive>(
     start: usize,
     end: usize,
 ) -> Slice<C> {
+    set_polyfill_typed::<C, DynElem, DynSize>();
     let tensor = inputs.tensors.index(pos);
     let slice = tensor.tensor.slice(start, end);
     slice.downcast()
@@ -272,6 +276,7 @@ pub fn read_input_window<C: CubePrimitive>(
 /// Returns the input as a slice.
 #[cube]
 pub fn input_as_slice<C: CubePrimitive>(inputs: &GlobalArgs, #[comptime] pos: usize) -> Slice<C> {
+    set_polyfill_typed::<C, DynElem, DynSize>();
     let tensor = inputs.tensors.index(pos);
     let slice = tensor.tensor.to_slice();
     slice.downcast()
@@ -434,8 +439,10 @@ pub fn write<C: Scalar, N: Size>(
     #[comptime] arg: FuseArg,
     #[comptime] config: &FuseBlockConfig,
 ) {
+    set_polyfill_typed::<Vector<C, N>, DynElem, DynSize>();
+
     match arg {
-        FuseArg::Output(pos, precision, layout) => {
+        FuseArg::Output(pos, _, layout) => {
             let tensor = outputs.tensors.index(pos);
             let offset = match layout {
                 LayoutInfo::SameAsRef => ref_pos,
@@ -445,11 +452,10 @@ pub fn write<C: Scalar, N: Size>(
                 }
             };
             let tensor = outputs.tensors.index_mut(pos);
-            set_polyfill::<NumericExpand<DYN_ELEM_ID>, DynSize>(comptime![
-                precision.into_type(config.width)
-            ]);
 
-            tensor.tensor[offset] = Vector::cast_from(value);
+            let value = Vector::cast_from(value);
+
+            tensor.tensor[offset] = value;
         }
         FuseArg::BlockLocal { .. } => write_scalar::<C, N>(locals, value, arg),
         FuseArg::MultiBlockLocal(key, _) | FuseArg::MultiBlockGlobal(key, _) => {
