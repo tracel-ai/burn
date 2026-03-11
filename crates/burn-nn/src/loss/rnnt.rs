@@ -83,11 +83,12 @@ impl RNNTLoss {
         alpha = neg_inf.clone().mask_where(u_mask.clone(), alpha);
 
         for t in 1..max_t {
-            let new = self.step_alpha(&alpha, &lpb, &lpl, t, b, max_up1, &device);
+            let new = self.step_alpha(&alpha, &lpb, &lpl, t);
             let new = neg_inf.clone().mask_where(u_mask.clone(), new);
 
             // Keep old alpha for samples where t >= logit_lengths[b]
-            let valid = logit_lengths.clone()
+            let valid = logit_lengths
+                .clone()
                 .greater_elem(t as i64)
                 .reshape([b, 1])
                 .expand([b, max_up1]);
@@ -127,12 +128,21 @@ impl RNNTLoss {
         let vocab_dim = 3;
 
         // Blank probabilities: gather blank index across vocab dim
-        let blank_idx = Tensor::<B, 4, Int>::full([b, max_t, max_up1, 1], self.blank as i64, &device);
-        let lpb = log_probs.clone().gather(vocab_dim, blank_idx).squeeze_dim::<3>(vocab_dim);
+        let blank_idx =
+            Tensor::<B, 4, Int>::full([b, max_t, max_up1, 1], self.blank as i64, &device);
+        let lpb = log_probs
+            .clone()
+            .gather(vocab_dim, blank_idx)
+            .squeeze_dim::<3>(vocab_dim);
 
         // Label probabilities: gather target labels across vocab dim (only first U positions)
-        let tgt = targets.reshape([b, 1, max_u, 1]).expand([b, max_t, max_u, 1]);
-        let lpl = log_probs.slice(s![.., .., 0..max_u, 0..v]).gather(vocab_dim, tgt).squeeze_dim::<3>(vocab_dim);
+        let tgt = targets
+            .reshape([b, 1, max_u, 1])
+            .expand([b, max_t, max_u, 1]);
+        let lpl = log_probs
+            .slice(s![.., .., 0..max_u, 0..v])
+            .gather(vocab_dim, tgt)
+            .squeeze_dim::<3>(vocab_dim);
 
         (lpb, lpl)
     }
@@ -141,7 +151,8 @@ impl RNNTLoss {
     fn init_alpha<B: Backend>(
         &self,
         lpl: &Tensor<B, 3>,
-        b: usize, max_up1: usize,
+        b: usize,
+        max_up1: usize,
         device: &B::Device,
     ) -> Tensor<B, 2> {
         let mut alpha = Tensor::<B, 2>::full([b, max_up1], f32::NEG_INFINITY, device);
@@ -161,11 +172,13 @@ impl RNNTLoss {
     fn create_u_mask<B: Backend>(
         &self,
         target_lengths: &Tensor<B, 1, Int>,
-        b: usize, max_up1: usize,
+        b: usize,
+        max_up1: usize,
         device: &B::Device,
     ) -> Tensor<B, 2, Bool> {
         let indices = Tensor::<B, 1, Int>::arange(0..max_up1 as i64, device)
-            .reshape([1, max_up1]).expand([b, max_up1]);
+            .reshape([1, max_up1])
+            .expand([b, max_up1]);
         let lengths = target_lengths.clone().reshape([b, 1]).expand([b, max_up1]);
         indices.lower_equal(lengths)
     }
@@ -181,24 +194,34 @@ impl RNNTLoss {
         alpha: &Tensor<B, 2>,
         lpb: &Tensor<B, 3>,
         lpl: &Tensor<B, 3>,
-        t: usize, b: usize, max_up1: usize,
-        device: &B::Device,
+        t: usize,
     ) -> Tensor<B, 2> {
+        let [b, max_up1] = alpha.dims();
+        let device = alpha.device();
+
         // Blank transition: alpha(t-1, :) + blank_prob(t-1, :)
-        let blank_prob = lpb.clone().slice(s![.., (t-1)..t, ..]).squeeze_dim::<2>(1);
+        let blank_prob = lpb
+            .clone()
+            .slice(s![.., (t - 1)..t, ..])
+            .squeeze_dim::<2>(1);
         let from_blank = alpha.clone().add(blank_prob);
 
-        let mut new = Tensor::<B, 2>::full([b, max_up1], f32::NEG_INFINITY, device);
+        let mut new = Tensor::<B, 2>::full([b, max_up1], f32::NEG_INFINITY, &device);
         new = new.slice_assign(s![.., 0..1], from_blank.clone().slice(s![.., 0..1]));
 
         // Label probs at time t
-        let label_prob = lpl.clone().slice(s![.., t..(t+1), ..]).squeeze_dim::<2>(1);
+        let label_prob = lpl
+            .clone()
+            .slice(s![.., t..(t + 1), ..])
+            .squeeze_dim::<2>(1);
 
         for u in 1..max_up1 {
-            let via_blank = from_blank.clone().slice(s![.., u..(u+1)]);
-            let via_label = new.clone().slice(s![.., (u-1)..u])
-                .add(label_prob.clone().slice(s![.., (u-1)..u]));
-            new = new.slice_assign(s![.., u..(u+1)], self.log_sum_exp(via_blank, via_label));
+            let via_blank = from_blank.clone().slice(s![.., u..(u + 1)]);
+            let via_label = new
+                .clone()
+                .slice(s![.., (u - 1)..u])
+                .add(label_prob.clone().slice(s![.., (u - 1)..u]));
+            new = new.slice_assign(s![.., u..(u + 1)], self.log_sum_exp(via_blank, via_label));
         }
         new
     }
@@ -210,12 +233,15 @@ impl RNNTLoss {
         lpb: &Tensor<B, 3>,
         logit_lengths: Tensor<B, 1, Int>,
         target_lengths: Tensor<B, 1, Int>,
-        b: usize, max_up1: usize,
+        b: usize,
+        max_up1: usize,
     ) -> Tensor<B, 1> {
         let t_idx = logit_lengths.sub_scalar(1);
         let u_idx = target_lengths;
 
-        let alpha_tu = alpha.gather(1, u_idx.clone().reshape([b, 1])).squeeze_dim::<1>(1);
+        let alpha_tu = alpha
+            .gather(1, u_idx.clone().reshape([b, 1]))
+            .squeeze_dim::<1>(1);
 
         // Gather blank prob at (T_b, U_b)
         let t_exp = t_idx.reshape([b, 1, 1]).expand([b, 1, max_up1]);
@@ -227,17 +253,47 @@ impl RNNTLoss {
 
     fn check_inputs<B: Backend>(
         &self,
-        b: usize, v: usize,
+        b: usize,
+        v: usize,
         targets: &Tensor<B, 2, Int>,
         logit_lengths: &Tensor<B, 1, Int>,
         target_lengths: &Tensor<B, 1, Int>,
         max_u: usize,
     ) {
-        assert!(self.blank < v, "blank index {} must be less than vocab_size {}", self.blank, v);
-        assert_eq!(targets.dims()[0], b, "targets batch dimension {} must equal batch_size {}", targets.dims()[0], b);
-        assert_eq!(targets.dims()[1], max_u, "targets length dimension {} must equal max_target_len (max_u) {}", targets.dims()[1], max_u);
-        assert_eq!(logit_lengths.dims()[0], b, "logit_lengths length {} must equal batch_size {}", logit_lengths.dims()[0], b);
-        assert_eq!(target_lengths.dims()[0], b, "target_lengths length {} must equal batch_size {}", target_lengths.dims()[0], b);
+        assert!(
+            self.blank < v,
+            "blank index {} must be less than vocab_size {}",
+            self.blank,
+            v
+        );
+        assert_eq!(
+            targets.dims()[0],
+            b,
+            "targets batch dimension {} must equal batch_size {}",
+            targets.dims()[0],
+            b
+        );
+        assert_eq!(
+            targets.dims()[1],
+            max_u,
+            "targets length dimension {} must equal max_target_len (max_u) {}",
+            targets.dims()[1],
+            max_u
+        );
+        assert_eq!(
+            logit_lengths.dims()[0],
+            b,
+            "logit_lengths length {} must equal batch_size {}",
+            logit_lengths.dims()[0],
+            b
+        );
+        assert_eq!(
+            target_lengths.dims()[0],
+            b,
+            "target_lengths length {} must equal batch_size {}",
+            target_lengths.dims()[0],
+            b
+        );
     }
 
     /// Numerically stable `log(exp(a) + exp(b))`, handling `-inf` inputs.
@@ -265,9 +321,22 @@ impl RNNTLoss {
 
 #[cfg(test)]
 fn assert_close(actual: &[f32], expected: &[f32], tol: f32) {
-    assert_eq!(actual.len(), expected.len(), "length mismatch: {} vs {}", actual.len(), expected.len());
+    assert_eq!(
+        actual.len(),
+        expected.len(),
+        "length mismatch: {} vs {}",
+        actual.len(),
+        expected.len()
+    );
     for (i, (a, e)) in actual.iter().zip(expected).enumerate() {
-        assert!((a - e).abs() < tol, "[{}] expected {:.6}, got {:.6} (diff {:.6})", i, e, a, (a - e).abs());
+        assert!(
+            (a - e).abs() < tol,
+            "[{}] expected {:.6}, got {:.6} (diff {:.6})",
+            i,
+            e,
+            a,
+            (a - e).abs()
+        );
     }
 }
 
@@ -354,7 +423,11 @@ mod tests {
         let log_uniform = (1.0 / v).ln();
 
         let loss = rnnt.forward(
-            Tensor::<B, 4>::full([1, time_steps, target_len + 1, NUM_LABELS], log_uniform, &dev),
+            Tensor::<B, 4>::full(
+                [1, time_steps, target_len + 1, NUM_LABELS],
+                log_uniform,
+                &dev,
+            ),
             Tensor::<B, 2, Int>::from_data([[1_i64]], &dev),
             Tensor::<B, 1, Int>::from_data([time_steps as i64], &dev),
             Tensor::<B, 1, Int>::from_data([target_len as i64], &dev),
@@ -364,7 +437,11 @@ mod tests {
         let emissions_per_path = (time_steps + target_len) as f32;
         let total_prob = num_paths * v.powf(-emissions_per_path);
         let expected_loss = -total_prob.ln();
-        assert_close(&loss.into_data().to_vec::<f32>().unwrap(), &[expected_loss], TOL);
+        assert_close(
+            &loss.into_data().to_vec::<f32>().unwrap(),
+            &[expected_loss],
+            TOL,
+        );
     }
 
     #[test]
@@ -389,7 +466,11 @@ mod tests {
         );
         // T + U = T emissions total for U=0
         let expected_loss = -v.powf(-((time_steps + target_len) as f32)).ln();
-        assert_close(&loss.into_data().to_vec::<f32>().unwrap(), &[expected_loss], TOL);
+        assert_close(
+            &loss.into_data().to_vec::<f32>().unwrap(),
+            &[expected_loss],
+            TOL,
+        );
     }
 
     #[test]
@@ -403,18 +484,28 @@ mod tests {
 
         let data: Vec<f32> = (0..num_elements).map(|i| (i as f32 * 0.3).sin()).collect();
         let logits = Tensor::<B, 4>::from_data(
-            burn_core::tensor::TensorData::new(data, [bs, time_steps, up1, vocab]), &dev,
+            burn_core::tensor::TensorData::new(data, [bs, time_steps, up1, vocab]),
+            &dev,
         );
         let targets = Tensor::<B, 2, Int>::from_data([[1_i64, 2]], &dev);
         let logit_lengths = Tensor::<B, 1, Int>::from_data([time_steps as i64], &dev);
         let target_lengths = Tensor::<B, 1, Int>::from_data([target_len as i64], &dev);
 
         let vocab_dim = 3;
-        let fused = RNNTLossConfig::new().with_fused_log_softmax(true).init()
-            .forward(logits.clone(), targets.clone(), logit_lengths.clone(), target_lengths.clone());
+        let fused = RNNTLossConfig::new()
+            .with_fused_log_softmax(true)
+            .init()
+            .forward(
+                logits.clone(),
+                targets.clone(),
+                logit_lengths.clone(),
+                target_lengths.clone(),
+            );
 
         let log_probs = burn::tensor::activation::log_softmax(logits, vocab_dim);
-        let manual = RNNTLossConfig::new().with_fused_log_softmax(false).init()
+        let manual = RNNTLossConfig::new()
+            .with_fused_log_softmax(false)
+            .init()
             .forward(log_probs, targets, logit_lengths, target_lengths);
 
         assert_close(
@@ -465,16 +556,29 @@ mod pytorch_comparison_tests {
                 for ui in 0..up1 {
                     let base = ((bi * t + ti) * up1 + ui) * v;
                     let sum: f32 = (0..v).map(|vi| grad[base + vi]).sum();
-                    assert!(sum.abs() < TOL,
+                    assert!(
+                        sum.abs() < TOL,
                         "grad vocab sum at (b={}, t={}, u={}) = {:.6}, expected ~0",
-                        bi, ti, ui, sum);
+                        bi,
+                        ti,
+                        ui,
+                        sum
+                    );
                 }
             }
         }
     }
 
     /// Returns the V-sized gradient slice at position (b, t, u) in a flattened [B, T, U+1, V] grad.
-    fn grad_at(grad: &[f32], b: usize, t: usize, u: usize, max_t: usize, up1: usize, v: usize) -> &[f32] {
+    fn grad_at(
+        grad: &[f32],
+        b: usize,
+        t: usize,
+        u: usize,
+        max_t: usize,
+        up1: usize,
+        v: usize,
+    ) -> &[f32] {
         let base = ((b * max_t + t) * up1 + u) * v;
         &grad[base..base + v]
     }
@@ -492,15 +596,36 @@ mod pytorch_comparison_tests {
             Tensor::<B, 1, Int>::from_data([4_i64], &dev),
             Tensor::<B, 1, Int>::from_data([2_i64], &dev),
         );
-        assert_close(&loss.clone().into_data().to_vec::<f32>().unwrap(), &[4.4491], TOL);
+        assert_close(
+            &loss.clone().into_data().to_vec::<f32>().unwrap(),
+            &[4.4491],
+            TOL,
+        );
 
         let grads = loss.sum().backward();
-        let grad = logits.grad(&grads).unwrap().into_data().to_vec::<f32>().unwrap();
+        let grad = logits
+            .grad(&grads)
+            .unwrap()
+            .into_data()
+            .to_vec::<f32>()
+            .unwrap();
 
         // Spot-check first, middle, and last (t, u) positions against torchaudio
-        assert_close(grad_at(&grad, 0, 0, 0, 4, 3, 3), &[-0.2041, -0.2246, 0.4287], TOL);
-        assert_close(grad_at(&grad, 0, 2, 0, 4, 3, 3), &[0.0079, -0.0640, 0.0561], TOL);
-        assert_close(grad_at(&grad, 0, 3, 2, 4, 3, 3), &[-0.6899, 0.3231, 0.3667], TOL);
+        assert_close(
+            grad_at(&grad, 0, 0, 0, 4, 3, 3),
+            &[-0.2041, -0.2246, 0.4287],
+            TOL,
+        );
+        assert_close(
+            grad_at(&grad, 0, 2, 0, 4, 3, 3),
+            &[0.0079, -0.0640, 0.0561],
+            TOL,
+        );
+        assert_close(
+            grad_at(&grad, 0, 3, 2, 4, 3, 3),
+            &[-0.6899, 0.3231, 0.3667],
+            TOL,
+        );
         check_vocab_grad_sums(&grad, 1, 4, 3, 3);
     }
 
@@ -513,20 +638,48 @@ mod pytorch_comparison_tests {
 
         let loss = rnnt.forward(
             logits.clone(),
-            Tensor::<B, 2, Int>::from_data(TensorData::new(vec![1_i64, 2, 3, 2, 1, 3], [2, 3]), &dev),
+            Tensor::<B, 2, Int>::from_data(
+                TensorData::new(vec![1_i64, 2, 3, 2, 1, 3], [2, 3]),
+                &dev,
+            ),
             Tensor::<B, 1, Int>::from_data([5_i64, 5], &dev),
             Tensor::<B, 1, Int>::from_data([3_i64, 3], &dev),
         );
-        assert_close(&loss.clone().into_data().to_vec::<f32>().unwrap(), &[7.9356, 7.2033], TOL);
+        assert_close(
+            &loss.clone().into_data().to_vec::<f32>().unwrap(),
+            &[7.9356, 7.2033],
+            TOL,
+        );
 
         let grads = loss.sum().backward();
-        let grad = logits.grad(&grads).unwrap().into_data().to_vec::<f32>().unwrap();
+        let grad = logits
+            .grad(&grads)
+            .unwrap()
+            .into_data()
+            .to_vec::<f32>()
+            .unwrap();
 
         // Spot-check: first position of each sample, and last position
-        assert_close(grad_at(&grad, 0, 0, 0, 5, 4, 4), &[-0.3161, -0.3113, 0.2796, 0.3479], TOL);
-        assert_close(grad_at(&grad, 1, 0, 0, 5, 4, 4), &[-0.2766, 0.2602, -0.2248, 0.2411], TOL);
-        assert_close(grad_at(&grad, 0, 4, 3, 5, 4, 4), &[-0.8216, 0.2296, 0.2786, 0.3133], TOL);
-        assert_close(grad_at(&grad, 1, 4, 3, 5, 4, 4), &[-0.7185, 0.2735, 0.2437, 0.2012], TOL);
+        assert_close(
+            grad_at(&grad, 0, 0, 0, 5, 4, 4),
+            &[-0.3161, -0.3113, 0.2796, 0.3479],
+            TOL,
+        );
+        assert_close(
+            grad_at(&grad, 1, 0, 0, 5, 4, 4),
+            &[-0.2766, 0.2602, -0.2248, 0.2411],
+            TOL,
+        );
+        assert_close(
+            grad_at(&grad, 0, 4, 3, 5, 4, 4),
+            &[-0.8216, 0.2296, 0.2786, 0.3133],
+            TOL,
+        );
+        assert_close(
+            grad_at(&grad, 1, 4, 3, 5, 4, 4),
+            &[-0.7185, 0.2735, 0.2437, 0.2012],
+            TOL,
+        );
         check_vocab_grad_sums(&grad, 2, 5, 4, 4);
     }
 
@@ -541,42 +694,80 @@ mod pytorch_comparison_tests {
 
         let loss = rnnt.forward(
             logits.clone(),
-            Tensor::<B, 2, Int>::from_data(TensorData::new(vec![1_i64, 2, 3, 4, 1, 0, 2, 0, 0], [3, 3]), &dev),
+            Tensor::<B, 2, Int>::from_data(
+                TensorData::new(vec![1_i64, 2, 3, 4, 1, 0, 2, 0, 0], [3, 3]),
+                &dev,
+            ),
             Tensor::<B, 1, Int>::from_data([6_i64, 4, 5], &dev),
             Tensor::<B, 1, Int>::from_data([3_i64, 2, 1], &dev),
         );
-        assert_close(&loss.clone().into_data().to_vec::<f32>().unwrap(), &[10.7458, 8.0196, 8.3316], TOL);
+        assert_close(
+            &loss.clone().into_data().to_vec::<f32>().unwrap(),
+            &[10.7458, 8.0196, 8.3316],
+            TOL,
+        );
 
         let grads = loss.sum().backward();
-        let grad = logits.grad(&grads).unwrap().into_data().to_vec::<f32>().unwrap();
+        let grad = logits
+            .grad(&grads)
+            .unwrap()
+            .into_data()
+            .to_vec::<f32>()
+            .unwrap();
         let stride = 4 * 5; // U+1 * V per time step
 
         // Sample 0 (full length=6): spot-check first and last active positions
-        assert_close(grad_at(&grad, 0, 0, 0, 6, 4, 5), &[-0.4232, -0.3114, 0.1992, 0.2478, 0.2876], TOL);
-        assert_close(grad_at(&grad, 0, 5, 3, 6, 4, 5), &[-0.8016, 0.2170, 0.2172, 0.1991, 0.1683], TOL);
+        assert_close(
+            grad_at(&grad, 0, 0, 0, 6, 4, 5),
+            &[-0.4232, -0.3114, 0.1992, 0.2478, 0.2876],
+            TOL,
+        );
+        assert_close(
+            grad_at(&grad, 0, 5, 3, 6, 4, 5),
+            &[-0.8016, 0.2170, 0.2172, 0.1991, 0.1683],
+            TOL,
+        );
 
         // Sample 1 (logit_length=4): gradients beyond t=3 should be zero
-        assert_close(grad_at(&grad, 1, 0, 0, 6, 4, 5), &[-0.2502, 0.2160, 0.2173, 0.2002, -0.3833], TOL);
+        assert_close(
+            grad_at(&grad, 1, 0, 0, 6, 4, 5),
+            &[-0.2502, 0.2160, 0.2173, 0.2002, -0.3833],
+            TOL,
+        );
         let sample1_t4_start = 1 * 6 * stride + 4 * stride;
-        for i in 0..(2 * stride) { // t=4 and t=5 should all be zero
-            assert!(grad[sample1_t4_start + i].abs() < TOL,
-                "sample 1, t>=4: grad[{}] = {} (expected 0)", i, grad[sample1_t4_start + i]);
+        for i in 0..(2 * stride) {
+            // t=4 and t=5 should all be zero
+            assert!(
+                grad[sample1_t4_start + i].abs() < TOL,
+                "sample 1, t>=4: grad[{}] = {} (expected 0)",
+                i,
+                grad[sample1_t4_start + i]
+            );
         }
 
         // Sample 1 (target_length=2): u=3 positions should be zero within active time steps
         for ti in 0..4 {
             let slice = grad_at(&grad, 1, ti, 3, 6, 4, 5);
             for (vi, &val) in slice.iter().enumerate() {
-                assert!(val.abs() < TOL,
-                    "sample 1, t={}, u=3, v={}: grad = {} (expected 0)", ti, vi, val);
+                assert!(
+                    val.abs() < TOL,
+                    "sample 1, t={}, u=3, v={}: grad = {} (expected 0)",
+                    ti,
+                    vi,
+                    val
+                );
             }
         }
 
         // Sample 2 (logit_length=5): t=5 should be zero
         let sample2_t5_start = 2 * 6 * stride + 5 * stride;
         for i in 0..stride {
-            assert!(grad[sample2_t5_start + i].abs() < TOL,
-                "sample 2, t=5: grad[{}] = {} (expected 0)", i, grad[sample2_t5_start + i]);
+            assert!(
+                grad[sample2_t5_start + i].abs() < TOL,
+                "sample 2, t=5: grad[{}] = {} (expected 0)",
+                i,
+                grad[sample2_t5_start + i]
+            );
         }
 
         check_vocab_grad_sums(&grad, 3, 6, 4, 5);
@@ -587,16 +778,28 @@ mod pytorch_comparison_tests {
         let dev = NdArrayDevice::Cpu;
         let rnnt = RNNTLossConfig::new().init();
         let logits = make_logits(2, 5, 4, 4, &dev).require_grad();
-        let tgt = Tensor::<B, 2, Int>::from_data(TensorData::new(vec![1_i64, 2, 3, 2, 1, 3], [2, 3]), &dev);
+        let tgt = Tensor::<B, 2, Int>::from_data(
+            TensorData::new(vec![1_i64, 2, 3, 2, 1, 3], [2, 3]),
+            &dev,
+        );
         let il = Tensor::<B, 1, Int>::from_data([5_i64, 5], &dev);
         let tl = Tensor::<B, 1, Int>::from_data([3_i64, 3], &dev);
 
         let loss = rnnt.forward_with_reduction(logits.clone(), tgt, il, tl, Reduction::Sum);
         // 7.9356 + 7.2033 = 15.1389
-        assert_close(&loss.clone().into_data().to_vec::<f32>().unwrap(), &[15.1389], TOL);
+        assert_close(
+            &loss.clone().into_data().to_vec::<f32>().unwrap(),
+            &[15.1389],
+            TOL,
+        );
 
         let grads = loss.backward();
-        let g = logits.grad(&grads).unwrap().into_data().to_vec::<f32>().unwrap();
+        let g = logits
+            .grad(&grads)
+            .unwrap()
+            .into_data()
+            .to_vec::<f32>()
+            .unwrap();
         assert_close(&g[..4], &[-0.3161, -0.3113, 0.2796, 0.3479], TOL);
     }
 
@@ -605,17 +808,29 @@ mod pytorch_comparison_tests {
         let dev = NdArrayDevice::Cpu;
         let rnnt = RNNTLossConfig::new().init();
         let logits = make_logits(2, 5, 4, 4, &dev).require_grad();
-        let tgt = Tensor::<B, 2, Int>::from_data(TensorData::new(vec![1_i64, 2, 3, 2, 1, 3], [2, 3]), &dev);
+        let tgt = Tensor::<B, 2, Int>::from_data(
+            TensorData::new(vec![1_i64, 2, 3, 2, 1, 3], [2, 3]),
+            &dev,
+        );
         let il = Tensor::<B, 1, Int>::from_data([5_i64, 5], &dev);
         let tl = Tensor::<B, 1, Int>::from_data([3_i64, 3], &dev);
 
         let loss = rnnt.forward_with_reduction(logits.clone(), tgt, il, tl, Reduction::Mean);
         // 15.1389 / 2 = 7.5694
-        assert_close(&loss.clone().into_data().to_vec::<f32>().unwrap(), &[7.5694], TOL);
+        assert_close(
+            &loss.clone().into_data().to_vec::<f32>().unwrap(),
+            &[7.5694],
+            TOL,
+        );
 
         // Gradients should be half the sum-reduction gradients (mean over batch of 2)
         let grads = loss.backward();
-        let g = logits.grad(&grads).unwrap().into_data().to_vec::<f32>().unwrap();
+        let g = logits
+            .grad(&grads)
+            .unwrap()
+            .into_data()
+            .to_vec::<f32>()
+            .unwrap();
         assert_close(&g[..4], &[-0.1581, -0.1557, 0.1398, 0.1739], TOL);
     }
 }
