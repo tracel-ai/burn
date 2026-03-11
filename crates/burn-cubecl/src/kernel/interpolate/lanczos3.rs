@@ -7,14 +7,14 @@ use cubecl::{calculate_cube_count_elemwise, prelude::*};
 use crate::{
     CubeRuntime,
     kernel::utils::{address_type, linear_layout, shape_divmod},
-    ops::max_line_size,
+    ops::max_vector_size,
     tensor::CubeTensor,
 };
 
 #[cube(launch, address_type = "dynamic")]
-fn interpolate_lanczos3_kernel<F: Float>(
-    input: &Tensor<Line<F>>,
-    output: &mut Tensor<Line<F>>,
+fn interpolate_lanczos3_kernel<F: Float, N: Size>(
+    input: &Tensor<Vector<F, N>>,
+    output: &mut Tensor<Vector<F, N>>,
     shape_out: Sequence<FastDivmod<usize>>,
     out_layout: LinearLayout,
     #[comptime] align_corners: bool,
@@ -24,10 +24,10 @@ fn interpolate_lanczos3_kernel<F: Float>(
         terminate!();
     }
 
-    let line_size = input.line_size();
+    let vector_size = input.vector_size();
     let out_idx = out_layout.to_source_pos(ABSOLUTE_POS);
 
-    let (rem, c) = shape_out[3].div_mod(ABSOLUTE_POS * line_size);
+    let (rem, c) = shape_out[3].div_mod(ABSOLUTE_POS * vector_size);
     let (rem, x) = shape_out[2].div_mod(rem);
     let (b, y) = shape_out[1].div_mod(rem);
 
@@ -61,7 +61,7 @@ fn interpolate_lanczos3_kernel<F: Float>(
     let in_stride_y = input.stride(1);
     let in_stride_x = input.stride(2);
 
-    let zero = Line::empty(line_size).fill(F::new(0.0));
+    let zero = Vector::new(F::new(0.0));
     let mut result = zero;
     let mut weight_sum = 0.0f32;
 
@@ -83,8 +83,8 @@ fn interpolate_lanczos3_kernel<F: Float>(
 
                     let wt = wy * wx;
                     let idx = index_base + y_idx * in_stride_y + x_idx * in_stride_x;
-                    let pixel = input[idx / line_size];
-                    let w = Line::empty(line_size).fill(F::cast_from(wt));
+                    let pixel = input[idx / vector_size];
+                    let w = Vector::new(F::cast_from(wt));
                     result += pixel * w;
                     weight_sum += wt;
                 }
@@ -93,7 +93,7 @@ fn interpolate_lanczos3_kernel<F: Float>(
     }
 
     if weight_sum != 0.0 {
-        let inv_w = Line::empty(line_size).fill(F::cast_from(1.0 / weight_sum));
+        let inv_w = Vector::new(F::cast_from(1.0 / weight_sum));
         result *= inv_w;
     }
 
@@ -120,27 +120,28 @@ pub(crate) fn interpolate_lanczos3_launch<R: CubeRuntime>(
     output: CubeTensor<R>,
     align_corners: bool,
 ) -> CubeTensor<R> {
-    let line_size = max_line_size(&input);
+    let client = input.client.clone();
+    let vector_size = max_vector_size(&input);
     let out_shape = shape_divmod(&output);
-    let out_layout = linear_layout(&output, line_size);
+    let out_layout = linear_layout(&output, vector_size);
 
-    let working_units = output.meta.num_elements() / line_size as usize;
+    let working_units = output.meta.num_elements() / vector_size as usize;
     let cube_dim = CubeDim::new(&input.client, working_units);
     let cube_count = calculate_cube_count_elemwise(&input.client, working_units, cube_dim);
 
     interpolate_lanczos3_kernel::launch(
-        &input.client,
+        &client,
         cube_count,
         cube_dim,
         address_type!(input, output),
-        input.as_tensor_arg(line_size),
-        output.as_tensor_arg(line_size),
+        vector_size,
+        input.into_tensor_arg(),
+        output.clone().into_tensor_arg(),
         out_shape,
         out_layout,
         align_corners,
         output.dtype.into(),
-    )
-    .expect("Kernel to never fail");
+    );
 
     output
 }
