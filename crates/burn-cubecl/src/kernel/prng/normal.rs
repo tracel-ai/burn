@@ -11,9 +11,8 @@ pub fn random_normal<R: CubeRuntime>(
 ) -> CubeTensor<R> {
     let client = R::client(device);
     let output = empty_device_dtype(client.clone(), device.clone(), shape, dtype);
-    let output_handle = output.as_handle_ref();
 
-    cubek::random::random_normal(&client, mean, std, output_handle, dtype.into())
+    cubek::random::random_normal(&client, mean, std, output.clone().binding(), dtype.into())
         .expect("Kernel to never fail");
 
     output

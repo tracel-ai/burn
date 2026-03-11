@@ -155,12 +155,12 @@ pub(crate) fn max_pool2d<R: CubeRuntime>(
     let cube_count = calculate_cube_count_elemwise(&x.client, working_units, cube_dim);
 
     pool2d_direct::launch::<MaxPoolStrategy, R>(
-        &x.client,
+        &output.client,
         cube_count,
         cube_dim,
         address_type!(x, output),
-        x.as_tensor_arg(line_size),
-        view4d(&output, line_size),
+        x.into_tensor_arg(line_size),
+        view4d(output.clone(), line_size),
         (),
         shape_divmod(&output),
         ScalarArg::new(working_units),
@@ -175,8 +175,7 @@ pub(crate) fn max_pool2d<R: CubeRuntime>(
         (kernel_size[0] as u32, kernel_size[1] as u32),
         (),
         output.dtype.into(),
-    )
-    .expect("Kernel to never fail");
+    );
 
     permute_nhwc_to_nchw(output)
 }
@@ -226,13 +225,13 @@ pub(crate) fn max_pool2d_with_indices<R: CubeRuntime>(
     let cube_count = calculate_cube_count_elemwise(&x.client, working_units, cube_dim);
 
     pool2d_direct::launch::<MaxPoolWithIndicesStrategy, R>(
-        &x.client,
+        &output.client,
         cube_count,
         cube_dim,
         address_type!(x, output, indices),
-        x.as_tensor_arg(line_size),
-        view4d(&output, line_size),
-        view4d(&indices, line_size),
+        x.into_tensor_arg(line_size),
+        view4d(output.clone(), line_size),
+        view4d(indices.clone(), line_size),
         shape_divmod(&output),
         ScalarArg::new(working_units),
         Pool2dDirectArgsLaunch::new(
@@ -246,8 +245,7 @@ pub(crate) fn max_pool2d_with_indices<R: CubeRuntime>(
         (kernel_size[0] as u32, kernel_size[1] as u32),
         (),
         output.dtype.into(),
-    )
-    .expect("Kernel to never fail");
+    );
 
     let output = permute_nhwc_to_nchw(output);
     let indices = permute_nhwc_to_nchw(indices);

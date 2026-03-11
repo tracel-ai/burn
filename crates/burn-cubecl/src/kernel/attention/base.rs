@@ -101,7 +101,7 @@ pub fn flash_attention<R: CubeRuntime>(
     out: CubeTensor<R>,
     strategy: launch::Strategy,
 ) -> Result<CubeTensor<R>, AttentionSetupError> {
-    let client = &query.client;
+    let client = query.client.clone();
 
     let dtypes = AttentionGlobalTypes {
         query: query.dtype.into(),
@@ -113,12 +113,12 @@ pub fn flash_attention<R: CubeRuntime>(
 
     cubek::attention::launch::launch_ref::<R>(
         strategy,
-        client,
-        &query.as_handle_ref(),
-        &key.as_handle_ref(),
-        &value.as_handle_ref(),
-        &mask.as_ref().map(|mask| mask.as_handle_ref()),
-        &out.as_handle_ref(),
+        &client,
+        query.binding(),
+        key.binding(),
+        value.binding(),
+        mask.map(|mask| mask.binding()),
+        out.clone().binding(),
         &dtypes,
         AttentionOptions {
             causal: options.is_causal,

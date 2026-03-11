@@ -23,22 +23,24 @@ use cubecl::{
     prelude::*,
     std::tensor::{MatrixBatchLayout, matrix_batch_layout},
 };
-use cubek::matmul::{
-    components::tile::{cmma::CmmaMatmul, mma::MmaMatmul},
-    definition::{
-        MatmulElems, MatmulGlobalElems, MatmulLineSizes, MatmulProblem, MatmulSetupError,
-        MatrixLayout,
+use cubek::{
+    matmul::{
+        components::tile::{cmma::CmmaMatmul, mma::MmaMatmul},
+        definition::{
+            MatmulElems, MatmulGlobalElems, MatmulLineSizes, MatmulProblem, MatmulSetupError,
+        },
+        launch::launch_kernel_virtual,
+        routines::{
+            BlueprintStrategy, Routine,
+            double_buffering::{CyclicDoubleBufferingAlgorithm, DoubleBufferingArgs},
+            double_unit::DoubleUnitAlgorithm,
+            ordered_double_buffering::{OrderedDoubleBufferingAlgorithm, OrderedSelectionArgs},
+            simple::{SimpleAlgorithm, SimpleArgs},
+            simple_unit::SimpleUnitAlgorithm,
+            vecmat::{DoubleVecMatAlgorithm, SimpleVecMatAlgorithm},
+        },
     },
-    launch::launch_kernel_virtual,
-    routines::{
-        BlueprintStrategy, Routine,
-        double_buffering::{CyclicDoubleBufferingAlgorithm, DoubleBufferingArgs},
-        double_unit::DoubleUnitAlgorithm,
-        ordered_double_buffering::{OrderedDoubleBufferingAlgorithm, OrderedSelectionArgs},
-        simple::{SimpleAlgorithm, SimpleArgs},
-        simple_unit::SimpleUnitAlgorithm,
-        vecmat::{DoubleVecMatAlgorithm, SimpleVecMatAlgorithm},
-    },
+    std::MatrixLayout,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;

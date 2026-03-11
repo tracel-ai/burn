@@ -133,3 +133,18 @@ fn reduction_sum_should_match_reference_backend() {
         .into_data()
         .assert_approx_eq::<FloatElem>(&tensor_ref.clone().sum().into_data(), Tolerance::default());
 }
+
+#[test]
+#[ignore = "Impossible to run unless you have tons of VRAM. Also reference backend is broken."]
+fn reduction_sum_should_match_reference_backend_64bit() {
+    const SHAPE: [usize; RANK] = [33, 512, 512, 512];
+
+    let tensor =
+        Tensor::<TestBackend, RANK>::random(SHAPE, Distribution::Default, &Default::default());
+    let tensor_ref =
+        Tensor::<ReferenceBackend, RANK>::from_data(tensor.to_data(), &Default::default());
+    let data = tensor.sum().into_data();
+    let data_ref = tensor_ref.sum().into_data();
+    println!("result: {:?}", data.as_slice::<f32>());
+    data.assert_approx_eq::<FloatElem>(&data_ref, Tolerance::default());
+}

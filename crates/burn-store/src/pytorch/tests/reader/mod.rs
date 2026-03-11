@@ -5,6 +5,8 @@
 //! - F32: 1e-6 (~7 decimal digits precision)
 //! - F64: 1e-10 (~16 decimal digits precision)
 
+#![allow(clippy::needless_range_loop)]
+
 use crate::pytorch::PytorchReader;
 // Import internal types for testing only
 use crate::pytorch::reader::{ByteOrder, FileFormat};

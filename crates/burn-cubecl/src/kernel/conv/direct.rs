@@ -36,7 +36,7 @@ struct Conv2dArgs {
 fn direct_conv2d_kernel<E: Numeric>(
     input: &Tensor<Line<E>>,
     weight: &Tensor<Line<E>>,
-    bias: Option<Tensor<Line<E>>>,
+    bias: ComptimeOption<Tensor<Line<E>>>,
     output: &mut LinearView<Line<E>, ReadWrite>,
     args: Conv2dArgs,
     shape_out: Sequence<FastDivmod<u32>>,
@@ -61,7 +61,7 @@ fn direct_conv2d_kernel<E: Numeric>(
     let g = out_c / args.channels_per_group;
     let ic_start = in_c_per_group * g;
 
-    let bias: Option<Line<E>> = bias.map(|bias| bias[out_c as usize / line_size_out]);
+    let bias: ComptimeOption<Line<E>> = bias.map(|bias| bias[out_c as usize / line_size_out]);
     let mut sum = bias.unwrap_or_else(|| Line::empty(line_size_out).fill(E::from_int(0)));
 
     let in_offs = b as usize * input.stride(0) + ic_start as usize;
@@ -300,21 +300,21 @@ pub fn conv_direct<R: CubeRuntime, const N: usize>(
 
     unsafe {
         direct_conv2d_kernel::launch_unchecked(
-            &input.client,
+            &output.client,
             cube_count,
             cube_dim,
             address_type!(input, weight, bias, output),
-            input.as_tensor_arg(line_size_in),
-            weight.as_tensor_arg(line_size_in),
-            bias.as_ref().map(|b| b.as_tensor_arg(line_size_out)).into(),
-            linear_view(&output, line_size_out),
+            input.into_tensor_arg(line_size_in),
+            weight.into_tensor_arg(line_size_in),
+            bias.map(|b| b.into_tensor_arg(line_size_out)).into(),
+            linear_view(output.clone(), line_size_out),
             Conv2dArgsLaunch::new(conv_params, ScalarArg::new(channels_per_group as u32)),
             shape_out,
             shape_out_c,
             options.padding.iter().any(|it| *it != 0),
             out_dtype.into(),
         )
-    }?;
+    };
 
     Ok(output)
 }

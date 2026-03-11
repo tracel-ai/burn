@@ -928,7 +928,7 @@ fn safetensors_to_snapshots_lazy(
     for (name, tensor_snapshot) in tensors.tensors() {
         // Extract metadata without materializing data
         let dtype = safetensor_dtype_to_burn(tensor_snapshot.dtype())?;
-        let shape = tensor_snapshot.shape().into();
+        let shape = tensor_snapshot.shape();
         let path_parts: Vec<String> = name.split('.').map(|s| s.to_string()).collect();
 
         // Create a lazy closure that will deserialize only this tensor when needed
@@ -967,7 +967,7 @@ fn safetensors_to_snapshots_lazy(
         let snapshot = TensorSnapshot::from_closure(
             data_fn,
             dtype,
-            shape,
+            shape.into(),
             path_parts,
             vec![], // Empty container_stack - will be filled during module traversal
             ParamId::new(),
@@ -998,7 +998,7 @@ fn safetensors_to_snapshots_lazy_file(
 
     for (name, tensor_snapshot) in tensors.tensors() {
         let dtype = safetensor_dtype_to_burn(tensor_snapshot.dtype())?;
-        let shape = tensor_snapshot.shape().into();
+        let shape = tensor_snapshot.shape();
         let path_parts: Vec<String> = name.split('.').map(|s| s.to_string()).collect();
 
         // Create a lazy closure that accesses the mmap'd data
@@ -1029,7 +1029,7 @@ fn safetensors_to_snapshots_lazy_file(
         let snapshot = TensorSnapshot::from_closure(
             data_fn,
             dtype,
-            shape,
+            shape.into(),
             path_parts,
             vec![], // Empty container_stack - will be filled during module traversal
             ParamId::new(),

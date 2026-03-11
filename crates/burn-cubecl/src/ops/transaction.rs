@@ -4,7 +4,7 @@ use burn_backend::{
     ops::{TransactionOps, TransactionPrimitive, TransactionPrimitiveData},
 };
 use burn_std::{Shape, Strides};
-use cubecl::server::{Binding, CopyDescriptor};
+use cubecl::server::{CopyDescriptor, Handle};
 
 use crate::{CubeBackend, CubeRuntime, FloatElement, IntElement, element::BoolElement};
 
@@ -30,7 +30,7 @@ where
         struct BindingData {
             index: usize,
             kind: Kind,
-            handle: Option<Binding>,
+            handle: Option<Handle>,
             shape: Shape,
             strides: Strides,
             dtype: DType,
@@ -49,9 +49,9 @@ where
             let binding = BindingData::new(
                 num_bindings,
                 Kind::Float,
-                Some(t.handle.binding()),
-                t.meta.shape,
-                t.meta.strides,
+                Some(t.handle.clone()),
+                t.meta.shape.clone(),
+                t.meta.strides.clone(),
                 t.dtype,
             );
 
@@ -67,9 +67,9 @@ where
             let binding = BindingData::new(
                 num_bindings,
                 Kind::Int,
-                Some(t.handle.binding()),
-                t.meta.shape,
-                t.meta.strides,
+                Some(t.handle.clone()),
+                t.meta.shape.clone(),
+                t.meta.strides.clone(),
                 t.dtype,
             );
 
@@ -85,9 +85,9 @@ where
             let binding = BindingData::new(
                 num_bindings,
                 Kind::Bool,
-                Some(t.handle.binding()),
-                t.meta.shape,
-                t.meta.strides,
+                Some(t.handle.clone()),
+                t.meta.shape.clone(),
+                t.meta.strides.clone(),
                 t.dtype,
             );
 
@@ -101,9 +101,9 @@ where
             .iter_mut()
             .map(|b| {
                 CopyDescriptor::new(
-                    b.handle.take().unwrap(),
-                    &b.shape,
-                    &b.strides,
+                    b.handle.take().unwrap().binding(),
+                    b.shape.clone(),
+                    b.strides.clone(),
                     b.dtype.size(),
                 )
             })

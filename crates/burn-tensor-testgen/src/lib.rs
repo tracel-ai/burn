@@ -84,47 +84,66 @@ pub fn might_panic(args: TokenStream, input: TokenStream) -> TokenStream {
     // Create a wrapped test function
     let wrapper_name = format_ident!("{}_might_panic", fn_name);
 
-    let expanded = quote! {
+    quote! {
         #(#fn_attrs)*
-        #fn_vis fn #fn_name #fn_generics() {
-            #fn_block
-        }
+        #fn_vis fn #fn_name #fn_generics() { #fn_block }
 
         #[test]
         #fn_vis fn #wrapper_name #fn_generics() {
             use std::panic::{self, AssertUnwindSafe};
+            use std::sync::{Arc, Mutex, OnceLock};
 
-            let expected_reason = #expected_reason;
-            let result = panic::catch_unwind(AssertUnwindSafe(|| {
-                #fn_name();
-            }));
+            let get_msg = |p: &(dyn std::any::Any + Send)| -> String {
+                p.downcast_ref::<String>().cloned()
+                    .or_else(|| p.downcast_ref::<&str>().map(|s| s.to_string()))
+                    .unwrap_or_else(|| "Unknown panic".to_string())
+            };
 
-            match result {
-                Ok(_) => {
-                    // Test passed without panic - this is OK
-                }
-                Err(e) => {
-                    // Convert the panic payload to a string
-                    let panic_msg = if let Some(s) = e.downcast_ref::<String>() {
-                        s.to_string()
-                    } else if let Some(s) = e.downcast_ref::<&str>() {
-                        s.to_string()
-                    } else {
-                        "Unknown panic".to_string()
-                    };
+            // An append-only list of all panic messages across the entire process.
+            // This is required because cubecl's `CallError` hides the original panic message
+            // occurring in the device threads.
+            //
+            // A global log also prevents parallel tests from overwriting each other's panic hooks.
+            static PANIC_LOG: OnceLock<Mutex<Vec<String>>> = OnceLock::new();
+            let log = PANIC_LOG.get_or_init(|| Mutex::new(Vec::new()));
 
-                    // Check if the panic message starts with the expected reason
-                    if !panic_msg.starts_with(expected_reason) {
-                        panic!(
-                            "Test '{}' marked as 'might_panic' failed. Expected reason: '{}'",
-                            stringify!(#fn_name),
-                            expected_reason
-                        );
+            static HOOK: OnceLock<()> = OnceLock::new();
+            HOOK.get_or_init(|| {
+                let prev = panic::take_hook();
+                panic::set_hook(Box::new(move |info| {
+                    if let Ok(mut v) = log.lock() {
+                        v.push(get_msg(info.payload()));
                     }
+                    prev(info);
+                }));
+            });
+
+            // We only care about panics that occur during this test's execution window, so
+            // we start at the number of panics logged before this test starts.
+            let start_idx = log.lock().unwrap().len();
+            let result = panic::catch_unwind(AssertUnwindSafe(|| #fn_name()));
+
+            if let Err(e) = result {
+                let main_msg = get_msg(&*e);
+                let panic_logs = log.lock().unwrap();
+                let window = &panic_logs[start_idx..];
+
+                let matched = window.iter().chain(std::iter::once(&main_msg))
+                    .any(|m| m.contains(#expected_reason));
+
+                if !matched {
+                    let all = window.iter().chain(std::iter::once(&main_msg))
+                        .map(|m| format!("- {m}")).collect::<Vec<_>>().join("\n");
+                    panic!("\nTest '{}' failed.\nExpected: '{}'\nFound:\n{}\n",
+                           stringify!(#fn_name), #expected_reason, all);
+                } else {
+                    let all = window.iter().chain(std::iter::once(&main_msg))
+                        .map(|m| format!("- {m}")).collect::<Vec<_>>().join("\n");
+                    println!("\nTest '{}' failed.\nExpected: '{}'\nFound:\n{}\n",
+                           stringify!(#fn_name), #expected_reason, all);
                 }
             }
         }
-    };
-
-    expanded.into()
+    }
+    .into()
 }

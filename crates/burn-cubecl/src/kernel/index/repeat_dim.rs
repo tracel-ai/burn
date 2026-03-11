@@ -55,7 +55,7 @@ pub(crate) fn repeat_dim<R: CubeRuntime>(
 ) -> CubeTensor<R> {
     if input.meta.shape()[dim] == 1 {
         input.meta.strides[dim] = 0;
-        input.meta.shape = input.meta.shape.repeat(dim, times).unwrap();
+        input.meta.shape = input.meta.shape.clone().repeat(dim, times).unwrap();
         return input;
     }
 
@@ -73,20 +73,21 @@ pub(crate) fn repeat_dim<R: CubeRuntime>(
     let cube_dim = CubeDim::new(&input.client, working_units);
     let cube_count = calculate_cube_count_elemwise(&input.client, working_units, cube_dim);
 
+    let shape_arg = FastDivmodArgs::new(&input.client, input.meta.shape()[dim]);
+
     unsafe {
         repeat_dim_kernel::launch_unchecked(
-            &input.client,
+            &output.client,
             cube_count,
             cube_dim,
             address_type!(input, output),
-            input.as_tensor_arg(1),
-            output.as_tensor_arg(1),
+            input.into_tensor_arg(1),
+            output.clone().into_tensor_arg(1),
             shape_divmod(&output),
-            FastDivmodArgs::new(&input.client, input.meta.shape()[dim]),
+            shape_arg,
             dim,
             output.dtype.into(),
         )
-        .expect("Kernel to never fail");
     };
 
     output
