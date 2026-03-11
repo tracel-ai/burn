@@ -8,6 +8,7 @@ mod lp_loss;
 mod mse;
 mod poisson;
 mod reduction;
+mod rnnt;
 mod smooth_l1;
 
 pub use binary_cross_entropy::*;
@@ -20,4 +21,5 @@ pub use lp_loss::*;
 pub use mse::*;
 pub use poisson::*;
 pub use reduction::*;
+pub use rnnt::*;
 pub use smooth_l1::*;
