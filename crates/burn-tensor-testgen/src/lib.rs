@@ -101,7 +101,7 @@ pub fn might_panic(args: TokenStream, input: TokenStream) -> TokenStream {
 
             // An append-only list of all panic messages across the entire process.
             // This is required because cubecl's `CallError` hides the original panic message
-            // occuring in the device threads.
+            // occurring in the device threads.
             //
             // A global log also prevents parallel tests from overwriting each other's panic hooks.
             static PANIC_LOG: OnceLock<Mutex<Vec<String>>> = OnceLock::new();
