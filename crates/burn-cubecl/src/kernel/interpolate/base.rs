@@ -11,12 +11,13 @@ use burn_backend::{
 
 use super::{
     bicubic::interpolate_bicubic_launch, bilinear::interpolate_bilinear_launch,
-    nearest::interpolate_nearest_launch, nearest_backward::interpolate_nearest_backward_launch,
+    lanczos3::interpolate_lanczos3_launch, nearest::interpolate_nearest_launch,
+    nearest_backward::interpolate_nearest_backward_launch,
 };
 
 /// Interpolate operation
 ///
-/// Supports nearest, bilinear and bicubic modes
+/// Supports nearest, bilinear, bicubic and lanczos3 modes
 pub fn interpolate<R: CubeRuntime>(
     input: CubeTensor<R>,
     output_size: [usize; 2],
@@ -40,6 +41,7 @@ pub fn interpolate<R: CubeRuntime>(
         InterpolateMode::Nearest => interpolate_nearest_launch(input, output),
         InterpolateMode::Bilinear => interpolate_bilinear_launch(input, output, align_corners),
         InterpolateMode::Bicubic => interpolate_bicubic_launch(input, output, align_corners),
+        InterpolateMode::Lanczos3 => interpolate_lanczos3_launch(input, output, align_corners),
     };
 
     permute_nhwc_to_nchw(output)
@@ -72,6 +74,9 @@ pub fn interpolate_backward<R: CubeRuntime>(
         }
         InterpolateMode::Bicubic => {
             panic!("bicubic interpolation backward is not supported by JIT backend")
+        }
+        InterpolateMode::Lanczos3 => {
+            panic!("lanczos3 interpolation backward is not supported by JIT backend")
         }
     };
 
