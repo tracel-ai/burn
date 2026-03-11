@@ -298,6 +298,10 @@ pub enum InterpolateMode {
     /// Bicubic interpolation.
     /// <https://en.wikipedia.org/wiki/Bicubic_interpolation>
     Bicubic,
+
+    /// Lanczos3 interpolation (6-tap sinc-based filter).
+    /// <https://en.wikipedia.org/wiki/Lanczos_resampling>
+    Lanczos3,
 }
 
 /// Interpolation options.

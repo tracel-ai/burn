@@ -36,6 +36,13 @@ pub enum InterpolateMode {
     /// It is applicable for both temporal and spatial data and generally
     /// provides smoother results than linear interpolation.
     Cubic,
+
+    /// Lanczos3 interpolation
+    ///
+    /// This mode uses a 6-tap sinc-based Lanczos filter (a=3) to calculate
+    /// the output value. It generally provides high-quality results,
+    /// especially for downsampling.
+    Lanczos,
 }
 
 impl From<InterpolateMode> for OpsInterpolateMode {
@@ -44,6 +51,7 @@ impl From<InterpolateMode> for OpsInterpolateMode {
             InterpolateMode::Nearest => OpsInterpolateMode::Nearest,
             InterpolateMode::Linear => OpsInterpolateMode::Bilinear,
             InterpolateMode::Cubic => OpsInterpolateMode::Bicubic,
+            InterpolateMode::Lanczos => OpsInterpolateMode::Lanczos3,
         }
     }
 }
