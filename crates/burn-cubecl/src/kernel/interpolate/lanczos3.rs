@@ -120,7 +120,6 @@ pub(crate) fn interpolate_lanczos3_launch<R: CubeRuntime>(
     output: CubeTensor<R>,
     align_corners: bool,
 ) -> CubeTensor<R> {
-    let client = input.client.clone();
     let vector_size = max_vector_size(&input);
     let out_shape = shape_divmod(&output);
     let out_layout = linear_layout(&output, vector_size);
@@ -130,7 +129,7 @@ pub(crate) fn interpolate_lanczos3_launch<R: CubeRuntime>(
     let cube_count = calculate_cube_count_elemwise(&input.client, working_units, cube_dim);
 
     interpolate_lanczos3_kernel::launch(
-        &client,
+        &output.client,
         cube_count,
         cube_dim,
         address_type!(input, output),
