@@ -9,7 +9,6 @@ use crate::{AsIndex, Numeric};
 /// # Arguments
 /// - `lhs`: the "row" tensor, with shape ``[..., i]``.
 /// - `rhs`: the "col" tensor, with shape ``[..., j]``.
-/// - `dim`: the dimension to product.
 ///
 /// # Returns
 ///
@@ -19,13 +18,13 @@ use crate::{AsIndex, Numeric};
 /// result[..., i, j] = lhs[..., i] * rhs[..., j]
 /// ``
 pub fn outer<B: Backend, const D: usize, const R: usize, K>(
-    x: Tensor<B, D, K>,
-    y: Tensor<B, D, K>,
+    lhs: Tensor<B, D, K>,
+    rhs: Tensor<B, D, K>,
 ) -> Tensor<B, R, K>
 where
     K: BasicOps<B> + Numeric<B>,
 {
-    outer_dim(x, y, -1)
+    outer_dim(lhs, rhs, -1)
 }
 
 /// Computes the outer product along a specific dimension, broadcasting over others.
