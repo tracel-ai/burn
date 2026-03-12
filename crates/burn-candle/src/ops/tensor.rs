@@ -609,10 +609,4 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
             CandleTensor::new(tensor.tensor.to_dtype(dtype).unwrap())
         }
     }
-
-    fn comm_duplicated(
-        tensor: &mut FloatTensor<Self>,
-    ) -> burn_backend::tensor::CommunicationTensor<Self> {
-        todo!()
-    }
 }

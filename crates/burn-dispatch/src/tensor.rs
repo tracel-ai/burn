@@ -1,6 +1,4 @@
-use std::sync::Arc;
-
-use burn_backend::{Backend, QTensorPrimitive, TensorMetadata, ops::TensorRef};
+use burn_backend::{Backend, QTensorPrimitive, TensorMetadata};
 
 use crate::backends::*;
 
@@ -119,18 +117,6 @@ impl<B: Backend> BackendTensor<B> {
             BackendTensor::Quantized(tensor) => B::q_device(tensor),
             #[cfg(feature = "autodiff")]
             BackendTensor::Autodiff(tensor) => B::float_device(&tensor.primitive),
-        }
-    }
-
-    /// Returns the backend device.
-    pub(crate) fn as_ref(&mut self) -> TensorRef<B> {
-        match self {
-            BackendTensor::Float(tensor) => TensorRef(Arc::new(tensor)),
-            BackendTensor::Int(_) => panic!("Should be float, got int"),
-            BackendTensor::Bool(_) => panic!("Should be float, got bool"),
-            BackendTensor::Quantized(_) => panic!("Should be float, got quantized"),
-            #[cfg(feature = "autodiff")]
-            BackendTensor::Autodiff(_) => panic!("Should be float, got autodiff"),
         }
     }
 }

@@ -14,7 +14,7 @@ use crate::{
     tensor::NodeRefCount,
 };
 use alloc::vec::Vec;
-use burn_backend::{Backend, DeviceOps, ShardedParams, tensor::FloatTensor};
+use burn_backend::{Backend, ShardedParams, tensor::FloatTensor};
 
 struct TapeResult {
     tape: Vec<Vec<StepBoxed>>,
@@ -80,7 +80,7 @@ impl AutodiffServer {
                 tape_result.n_required_map,
                 tape_result.sharded_params.clone(),
             ));
-            B::register_graph(
+            B::init_collective_queue(
                 device,
                 tape_result.sharded_params.values().cloned().collect(),
             );
@@ -89,7 +89,7 @@ impl AutodiffServer {
         let gradients = Self::execute_steps(tape_result.tape, grads, tape_result.checkpointer);
 
         if has_sharded_params {
-            B::communication_sync(device);
+            B::collective_sync(device);
         }
 
         // Cleanup

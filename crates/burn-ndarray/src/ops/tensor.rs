@@ -685,10 +685,4 @@ where
             NdArrayOps::unfold(array, dim, size, step)
         })
     }
-
-    fn comm_duplicated(
-        tensor: &mut FloatTensor<Self>,
-    ) -> burn_backend::tensor::CommunicationTensor<Self> {
-        todo!()
-    }
 }

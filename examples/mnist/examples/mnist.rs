@@ -71,10 +71,7 @@ fn select_devices() -> Vec<DispatchDevice> {
     return WgpuDevice::default().into();
 
     #[cfg(feature = "cuda")]
-    println!("CuDA, i choose you");
-    #[cfg(feature = "cuda")]
     return cuda_devices();
-    // return CudaDevice::default().into();
 
     #[cfg(feature = "rocm")]
     return RocmDevice::default().into();

@@ -11,9 +11,7 @@ use crate::{
     kernel::matmul::{MatmulStrategy, matmul},
 };
 use burn_backend::ops::GridSampleOptions;
-use burn_backend::tensor::{
-    BoolTensor, CommunicationTensor, Device, FloatElem, FloatTensor, IntTensor,
-};
+use burn_backend::tensor::{BoolTensor, Device, FloatElem, FloatTensor, IntTensor};
 use burn_backend::{Backend, ExecutionError, Scalar};
 use burn_backend::{DType, ElementConversion, FloatDType, Slice};
 use burn_backend::{Distribution, Shape, TensorData, ops::FloatTensorOps};
@@ -618,9 +616,5 @@ where
         options: GridSampleOptions,
     ) -> FloatTensor<Self> {
         kernel::grid_sample::grid_sample(tensor, grid, options)
-    }
-
-    fn comm_duplicated(_tensor: &mut FloatTensor<Self>) -> CommunicationTensor<Self> {
-        todo!()
     }
 }

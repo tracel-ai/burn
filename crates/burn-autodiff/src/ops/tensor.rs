@@ -23,7 +23,7 @@ use burn_backend::{
     Backend, ExecutionError, ModuleParamId, PeerId, ReduceOperation, ShardedParams, TensorData,
     TensorMetadata,
     ops::FloatTensorOps,
-    tensor::{BoolTensor, CommunicationTensor, Device, FloatTensor, IntTensor},
+    tensor::{BoolTensor, Device, FloatTensor, IntTensor},
 };
 use burn_backend::{Scalar, ops::unfold::calculate_unfold_windows};
 use burn_std::{FloatDType, Shape, Slice};
@@ -3462,10 +3462,6 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                 prep.finish(B::float_unfold(tensor.primitive, dim, size, step))
             }
         }
-    }
-
-    fn comm_duplicated(tensor: &mut FloatTensor<Self>) -> CommunicationTensor<Self> {
-        B::comm_duplicated(&mut tensor.primitive)
     }
 }
 

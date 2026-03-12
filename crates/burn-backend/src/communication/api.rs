@@ -7,14 +7,6 @@ use hashbrown::HashMap;
 
 use crate::{Backend, client::GradientSyncClient};
 
-/// Errors from gradient syncing operations
-#[allow(unused)]
-#[derive(Debug, Clone)]
-pub enum GradientSyncError {
-    #[allow(unused)]
-    Other(String),
-}
-
 /// The type-erased box type for [`GradientSyncClient`].
 type ClientBox = Box<dyn Any + Send + Sync>;
 
@@ -32,7 +24,7 @@ pub(crate) fn get_backend_client_map() -> MutexGuard<'static, HashMap<TypeId, Cl
 }
 
 /// Get a [`GradientSyncClient`] for the given [`Backend`].
-pub fn get_gradient_sync_client<B: Backend>(device: &B::Device) -> Option<GradientSyncClient<B>> {
+pub fn get_gradient_sync_client<B: Backend>() -> Option<GradientSyncClient<B>> {
     let typeid = TypeId::of::<B>();
     let state_map = get_backend_client_map();
     match state_map.get(&typeid) {
@@ -42,7 +34,7 @@ pub fn get_gradient_sync_client<B: Backend>(device: &B::Device) -> Option<Gradie
 }
 
 /// Remove the client form the map for the given [`Backend`].
-pub(crate) fn remove_gradient_sync_client<B: Backend>(device: &B::Device) {
+pub(crate) fn remove_gradient_sync_client<B: Backend>() {
     let typeid = TypeId::of::<B>();
     let mut state_map = get_backend_client_map();
     state_map.remove(&typeid);
@@ -50,7 +42,7 @@ pub(crate) fn remove_gradient_sync_client<B: Backend>(device: &B::Device) {
 
 /// Starts the server used to sync the gradients of parameters sharded across multiple devices.
 pub fn start_gradient_sync_server<B: Backend>(devices: Vec<B::Device>) {
-    if get_gradient_sync_client::<B>(&devices[0]).is_none() {
+    if get_gradient_sync_client::<B>().is_none() {
         let typeid = TypeId::of::<B>();
         let mut state_map = get_backend_client_map();
         let client = GradientSyncClient::<B>::new(devices);
@@ -59,9 +51,9 @@ pub fn start_gradient_sync_server<B: Backend>(devices: Vec<B::Device>) {
 }
 
 /// Close the gradient syncing server.
-pub fn close_gradient_sync_server<B: Backend>(device: &B::Device) {
-    if let Some(client) = get_gradient_sync_client::<B>(device) {
+pub fn close_gradient_sync_server<B: Backend>() {
+    if let Some(client) = get_gradient_sync_client::<B>() {
         client.close();
-        remove_gradient_sync_client::<B>(device);
+        remove_gradient_sync_client::<B>();
     }
 }

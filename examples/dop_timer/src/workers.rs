@@ -3,7 +3,7 @@ use burn::Tensor;
 use burn::collective::{CollectiveConfig, all_reduce};
 use burn::prelude::Backend;
 use burn::tensor::TensorPrimitive;
-use burn::tensor::backend::{PeerId, ReduceOperation};
+use burn::tensor::communication::{PeerId, ReduceOperation};
 use std::sync::mpsc::Receiver;
 
 pub enum WorkRequest<B: Backend> {

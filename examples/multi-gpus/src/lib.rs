@@ -8,7 +8,8 @@ use burn::{
     prelude::*,
     tensor::{
         TensorPrimitive,
-        backend::{AllReduceStrategy, AutodiffBackend, DeviceId, PeerId, ReduceOperation},
+        backend::{AutodiffBackend, DeviceId},
+        communication::{AllReduceStrategy, PeerId, ReduceOperation},
     },
 };
 use std::{

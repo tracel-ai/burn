@@ -54,9 +54,6 @@ impl<R: RunnerChannel> Backend for BackendRouter<R> {
 
     type QuantizedTensorPrimitive = RouterTensor<R::Client>;
 
-    // TODO:
-    type CommunicationTensorPrimitive = RouterTensor<R::Client>;
-
     fn name(device: &Self::Device) -> String {
         format!("router<{}>", R::name(device))
     }

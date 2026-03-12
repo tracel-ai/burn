@@ -97,7 +97,7 @@ impl<LC: LearningComponentsTypes> DdpTrainEpoch<LC> {
         let mut accumulator = GradientsAccumulator::new();
         let mut accumulation_current = 0;
 
-        let mut grad_db = None;
+        // let mut grad_db = None;
         while let Some(item) = iterator.next() {
             for _ in 0..peer_count {
                 iteration += 1;
@@ -124,10 +124,10 @@ impl<LC: LearningComponentsTypes> DdpTrainEpoch<LC> {
                     }
                 }
                 None => {
-                    if let Some(last_grad) = grad_db {
-                        learner.optimizer_step(last_grad);
-                    }
-                    grad_db = Some(item.grads);
+                    // if let Some(last_grad) = grad_db {
+                    learner.optimizer_step(item.grads);
+                    // }
+                    // grad_db = Some(item.grads);
                 }
             }
 

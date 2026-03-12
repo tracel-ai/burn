@@ -1,5 +1,4 @@
 use std::{
-    collections::HashMap,
     sync::{
         Arc, Condvar, Mutex,
         mpsc::{self, Sender},
@@ -7,10 +6,7 @@ use std::{
     thread::spawn,
 };
 
-use crate::{
-    Backend, ModuleParamId, ShardedParams, ops::TensorRef, server::GradientSyncServer,
-    tensor::Device,
-};
+use crate::{Backend, ShardedParams, ops::TensorRef, server::GradientSyncServer, tensor::Device};
 
 pub(crate) enum MessageAction<B: Backend> {
     Message(GradientSyncMessage<B>),

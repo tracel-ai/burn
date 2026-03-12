@@ -1,5 +1,3 @@
-use std::any::TypeId;
-
 use alloc::format;
 use alloc::string::String;
 
@@ -69,9 +67,6 @@ impl Backend for Dispatch {
     type BoolElem = u8;
 
     type QuantizedTensorPrimitive = DispatchTensor;
-
-    // TODO:
-    type CommunicationTensorPrimitive = DispatchTensor;
 
     fn name(device: &Self::Device) -> String {
         let inner = dispatch_device!(device, |device| B::name(device));

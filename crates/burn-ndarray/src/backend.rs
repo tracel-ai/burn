@@ -5,7 +5,6 @@ use crate::{
     element::{FloatNdArrayElement, IntNdArrayElement, QuantElement},
 };
 use alloc::string::String;
-use burn_backend::ops::TensorRef;
 use burn_backend::quantization::{QuantLevel, QuantMode, QuantScheme, QuantStore, QuantValue};
 use burn_backend::tensor::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
 use burn_backend::{Backend, DType, DeviceId, DeviceOps};
@@ -75,7 +74,6 @@ where
     type BoolElem = bool;
 
     type QuantizedTensorPrimitive = NdArrayQTensor;
-    type CommunicationTensorPrimitive = NdArrayTensor;
 
     fn ad_enabled(_device: &Self::Device) -> bool {
         false

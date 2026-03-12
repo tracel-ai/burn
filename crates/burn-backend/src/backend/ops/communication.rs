@@ -1,47 +1,12 @@
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 use crate::{
-    Backend, ModuleParamId, PeerId, ReduceOperation, ShardedParams, close_gradient_sync_server,
+    Backend, PeerId, ReduceOperation, ShardedParams, close_gradient_sync_server,
     get_gradient_sync_client, start_gradient_sync_server,
     tensor::{Device, FloatTensor},
 };
 
-pub(crate) unsafe fn reduce_sum_centralized<B: Backend>(
-    tensors: &Vec<TensorRef<B>>,
-    central_device: &B::Device,
-) -> B::FloatTensorPrimitive {
-    let mut central_tensor = (**tensors[0].0).clone();
-    for tensor in tensors {
-        let rhs = B::float_to_device((**tensor.0).clone(), &central_device);
-        central_tensor = B::float_add(central_tensor, rhs);
-    }
-
-    central_tensor
-}
-
-pub(crate) unsafe fn all_reduce_inplace_sum_centralized<B: Backend>(
-    tensors: Vec<TensorRef<B>>,
-    op: ReduceOperation,
-) {
-    let devices: Vec<B::Device> = tensors
-        .iter()
-        .map(|tensor| B::comm_device(tensor))
-        .collect();
-    let central_device = devices.get(0).unwrap();
-
-    // TODO: inplace?
-    let mut central_tensor = reduce_sum_centralized::<B>(&tensors, &central_device);
-
-    if op == ReduceOperation::Mean {
-        // Apply mean division
-        let div = (tensors.len() as f32).into();
-        central_tensor = B::float_div_scalar(central_tensor, div);
-    }
-
-    // Broadcast result to all
-    B::all_broadcast_inplace(central_tensor, tensors);
-}
-
+/// mutable reference to a float tensor.
 #[derive(Clone)]
 pub struct TensorRef<B: Backend>(pub Arc<*mut FloatTensor<B>>);
 unsafe impl<B> Sync for TensorRef<B> where B: Backend {}
@@ -49,7 +14,7 @@ unsafe impl<B> Send for TensorRef<B> where B: Backend {}
 
 /// Operations on communication tensors.
 pub trait CommunicationTensorOps<B: Backend> {
-    /// Start the communication server used to orchestrate operations across devices.
+    /// Start the communication server used to orchestrate operations between devices.
     ///
     /// # Arguments
     ///
@@ -58,83 +23,85 @@ pub trait CommunicationTensorOps<B: Backend> {
         start_gradient_sync_server::<B>(devices);
     }
 
-    /// Close the communication server used to orchestrate operations across devices.
+    /// Close the communication server used to orchestrate operations between devices.
     ///
     /// # Arguments
     ///
-    /// * `devices` - The devices to orchestrate.
-    fn close_communication_server(device: &B::Device) {
-        close_gradient_sync_server::<B>(device);
+    /// * `device` - A device on the backend.
+    fn close_communication_server(_device: &B::Device) {
+        close_gradient_sync_server::<B>();
     }
 
-    /// Register the maps for an autodiff graph of a backward pass.
-    /// TODO: ARGS and returns
-    fn register_graph(
-        device: &B::Device,
-        // n_required_map: HashMap<u64, usize>,
-        // sharded_params_map: HashMap<u64, ShardedParams>,
-        sharded_param_ids: Vec<ShardedParams>,
-    ) {
-        if let Some(sync_client) = get_gradient_sync_client::<B>(device) {
+    /// Announce the parameters to sync during a single backward pass on this device to the gradient sync server of the backend.
+    ///
+    /// # Arguments
+    ///
+    /// * `device` - The device calling the initialization.
+    /// * `sharded_param_ids` - A list of [`ShardedParams`] of the tensors to sync.
+    fn init_collective_queue(_device: &B::Device, sharded_param_ids: Vec<ShardedParams>) {
+        if let Some(sync_client) = get_gradient_sync_client::<B>() {
             sync_client.register_device(sharded_param_ids);
-            // sync_client.register_device(n_required_map, sharded_params_map);
         };
     }
 
-    /// Wait for the queued communication operations to be finished.
-    /// TODO: ARGS and returns
-    fn communication_sync(device: &B::Device) {
-        if let Some(sync_client) = get_gradient_sync_client::<B>(device) {
+    /// Wait for the all queued collective operations to be finished.
+    ///
+    /// # Arguments
+    ///
+    /// * `device` - The device on which to sync.
+    fn collective_sync(device: &B::Device) {
+        if let Some(sync_client) = get_gradient_sync_client::<B>() {
             sync_client.wait_gradients_sync(device.clone());
         };
     }
 
-    /// Performs an all_reduce operation on the given tensors and replaces the values in-place.
+    /// Performs an in place all_reduce operation on the given sharded tensor.
     ///
     /// # Arguments
     ///
     /// * `tensor` - The tensor on which to perform all_reduce.
-    /// * `peer_id` - The device's [PeerId].
-    /// * `all_ids` - All of the devices [PeerId]'s from which to all_reduce.
-    /// * `op` - The [`ReduceOperation`].
-    fn all_reduce_inplace(tensor: TensorRef<B>, sharded_params: ShardedParams) {
-        if let Some(sync_client) = get_gradient_sync_client::<B>(&B::comm_device(&tensor)) {
+    /// * `sharded_params` - The [`ShardedParams`].
+    fn all_reduce_in_place(tensor: TensorRef<B>, sharded_params: ShardedParams) {
+        if let Some(sync_client) = get_gradient_sync_client::<B>() {
             sync_client.on_register(tensor, sharded_params);
         };
     }
 
-    /// If this backend supports native communication operations e.g. NCCL for Cuda.
-    /// TODO: ARGS and returns
-    fn supports_native_communication(_device: &B::Device) -> bool {
+    /// Whether this backend supports collective operations natively e.g. NCCL for Cuda.
+    #[allow(unused)]
+    fn supports_native_collective(device: &B::Device) -> bool {
         false
     }
 
-    fn all_reduce_inplace_native(
-        _tensor: TensorRef<B>,
-        _peer_id: PeerId,
-        _all_ids: Vec<PeerId>,
-        _op: ReduceOperation,
+    /// The native version of the all_reduce.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor on which to perform all_reduce.
+    /// * `peer_id` - The [PeerId] of the device the tensor is on.
+    /// * `all_ids` - The [PeerId] of the devices on which to all_reduce.
+    /// * `op` - The [`ReduceOperation`].
+    #[allow(unused)]
+    fn all_reduce_in_place_native(
+        tensor: TensorRef<B>,
+        peer_id: PeerId,
+        all_ids: Vec<PeerId>,
+        op: ReduceOperation,
     ) {
         unimplemented!()
     }
 
-    fn communication_sync_native(device: &B::Device) {
+    /// Natively sync the collective operations.
+    ///
+    /// # Arguments
+    ///
+    /// * `device` - The device to sync.
+    #[allow(unused)]
+    fn collective_sync_native(device: &B::Device) {
         unimplemented!()
     }
 
-    // unsafe fn all_reduce_inplace(
-    //     tensors: Vec<TensorRef<B>>,
-    //     strategy: AllReduceStrategy,
-    //     op: ReduceOperation,
-    // ) {
-    //     match strategy {
-    //         AllReduceStrategy::Centralized => all_reduce_inplace_sum_centralized::<B>(tensors, op),
-    //         // AllReduceStrategy::Tree(arity) => all_reduce_sum_tree::<B>(tensors, *arity),
-    //         // AllReduceStrategy::Ring => all_reduce_sum_ring::<B>(tensors),
-    //         AllReduceStrategy::Tree(arity) => todo!(),
-    //         AllReduceStrategy::Ring => todo!(),
-    //     };
-    // }
+    /////////////////////////////////////////////////////////////TODO: useful?//////////////////////////////////////////////////////////////
 
     /// Performs a broadcast of the given source tensor to the destinations, in-place.
     ///
@@ -142,13 +109,16 @@ pub trait CommunicationTensorOps<B: Backend> {
     ///
     /// * `src_tensors` - A float tensor of the data to broadcast.
     /// * `dest_tensors` - The tensors on which to perform the broadcast in-place.
-    unsafe fn all_broadcast_inplace(src_tensor: FloatTensor<B>, dest_tensors: Vec<TensorRef<B>>) {
-        for dest in dest_tensors {
-            let device = B::comm_device(&dest);
-            let tensor_float = B::float_to_device(src_tensor.clone(), &device);
-            (**dest.0) = tensor_float;
+    fn all_broadcast_inplace(src_tensor: FloatTensor<B>, dest_tensors: Vec<TensorRef<B>>) {
+        unsafe {
+            for dest in dest_tensors {
+                let device = B::comm_device(&dest);
+                let tensor_float = B::float_to_device(src_tensor.clone(), &device);
+                (**dest.0) = tensor_float;
+            }
         }
     }
+
     /// Gets the device of the tensor.
     ///
     /// # Arguments

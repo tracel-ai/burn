@@ -1,73 +1,8 @@
-use burn_backend::ops::{FloatTensorOps, TensorRef};
-use burn_backend::{
-    AllReduceStrategy, Backend, ReduceOperation,
-    ops::CommunicationTensorOps,
-    tensor::{CommunicationTensor, Device, FloatTensor},
-};
+use burn_backend::ops::TensorRef;
 use burn_backend::{DeviceId, DeviceOps};
-use cubecl::Runtime;
+use burn_backend::{ReduceOperation, ops::CommunicationTensorOps, tensor::Device};
 
-use crate::tensor::CubeTensor;
-use crate::{BoolElement, CubeBackend, CubeRuntime, FloatElement, IntElement, kernel};
-
-// pub(crate) fn reduce_sum_centralized<B: Backend>(
-//     tensors: &Vec<B::CommunicationTensorPrimitive>,
-//     central_device: &B::Device,
-// ) -> B::FloatTensorPrimitive {
-//     let mut central_tensor = B::float_data_from_comm(&tensors.get(0).unwrap());
-//     for tensor in tensors {
-//         let rhs = B::float_to_device(B::float_data_from_comm(tensor), &central_device);
-//         central_tensor = B::float_add(central_tensor, rhs);
-//     }
-
-//     central_tensor
-// }
-
-// pub(crate) fn all_reduce_inplace_sum_centralized<B: Backend>(
-//     tensors: Vec<B::CommunicationTensorPrimitive>,
-//     op: ReduceOperation,
-// ) {
-//     // Get corresponding devices for each tensor
-//     let devices: Vec<B::Device> = tensors
-//         .iter()
-//         .map(|tensor| B::comm_device(tensor))
-//         .collect();
-//     let central_device = devices.get(0).unwrap();
-
-//     // Reduce to central device
-//     // TODO: inplace?
-//     let mut central_tensor = reduce_sum_centralized::<B>(&tensors, &central_device);
-
-//     if op == ReduceOperation::Mean {
-//         // Apply mean division
-//         let div = (tensors.len() as f32).into();
-//         central_tensor = B::float_div_scalar(central_tensor, div);
-//     }
-
-//     // Broadcast result to all
-//     B::all_broadcast_inplace(central_tensor, tensors);
-// }
-
-// fn all_reduce_inplace<R: CubeRuntime>(inputs: Vec<&CubeTensor<R>>, outputs: Vec<&CubeTensor<R>>) {
-fn all_reduce_inplace<R: CubeRuntime>(tensors: Vec<&CubeTensor<R>>) {
-    println!("All reduce inplace");
-    // TODO: need a check for this in cubecl?
-    // TODO: All device IDs should be different or else we die.
-    let device_ids: Vec<burn_backend::DeviceId> =
-        tensors.iter().map(|tensor| tensor.device.id()).collect();
-    println!("Device ids {:?}", device_ids);
-    for tensor in tensors {
-        // let tensor = kernel::into_contiguous_aligned(*tensor);
-        let id = tensor.device.id();
-
-        println!("id {:?}", id);
-        tensor.client.all_reduce(
-            tensor.handle.clone(),
-            tensor.handle.clone(),
-            device_ids.clone(),
-        );
-    }
-}
+use crate::{BoolElement, CubeBackend, CubeRuntime, FloatElement, IntElement};
 
 impl<R, F, I, BT> CommunicationTensorOps<Self> for CubeBackend<R, F, I, BT>
 where
@@ -76,15 +11,16 @@ where
     I: IntElement,
     BT: BoolElement,
 {
-    fn supports_native_communication(_device: &Device<Self>) -> bool {
+    // TODO: actually just cuda
+    fn supports_native_collective(_device: &Device<Self>) -> bool {
         true
     }
 
-    fn all_reduce_inplace_native(
+    fn all_reduce_in_place_native(
         tensor: TensorRef<Self>,
         _peer_id: burn_backend::PeerId,
         all_ids: Vec<burn_backend::PeerId>,
-        _op: ReduceOperation,
+        op: ReduceOperation,
     ) {
         unsafe {
             let tensor = &**tensor.0;
@@ -96,65 +32,18 @@ where
                 .iter()
                 .map(|val| DeviceId::new(device.id().type_id, *val))
                 .collect();
-            client.all_reduce(tensor.handle.clone(), tensor.handle.clone(), all_ids);
+            client.all_reduce(
+                tensor.handle.clone(),
+                tensor.handle.clone(),
+                tensor.dtype.into(),
+                all_ids,
+                op.into(),
+            );
         }
     }
 
-    fn communication_sync_native(device: &Device<Self>) {
-        let client_loop = R::client(&device);
-        client_loop.sync_collective();
+    fn collective_sync_native(device: &Device<Self>) {
+        let client = R::client(&device);
+        client.sync_collective();
     }
-
-    // unsafe fn all_reduce_inplace(
-    //     tensors: Vec<TensorRef<Self>>,
-    //     strategy: AllReduceStrategy,
-    //     op: ReduceOperation,
-    // ) {
-    //     let tensors = tensors
-    //         .iter()
-    //         .map(|tensor| &**tensor.0)
-    //         .collect::<Vec<&CubeTensor<R>>>();
-    //     all_reduce_inplace(tensors);
-    // }
-    // unsafe fn all_reduce_inplace(
-    //     tensors: Vec<TensorRef<Self>>,
-    //     strategy: AllReduceStrategy,
-    //     op: ReduceOperation,
-    // ) {
-    //     // match strategy {
-    //     //     AllReduceStrategy::Centralized => {
-    //     //         all_reduce_inplace_sum_centralized::<Self>(tensors, op)
-    //     //     }
-    //     //     // AllReduceStrategy::Tree(arity) => all_reduce_sum_tree::<B>(tensors, *arity),
-    //     //     // AllReduceStrategy::Ring => all_reduce_sum_ring::<B>(tensors),
-    //     //     AllReduceStrategy::Tree(arity) => todo!(),
-    //     //     AllReduceStrategy::Ring => todo!(),
-    //     // };
-
-    //     cudarc::nccl::Comm::from_devices(streams)
-    // }
-
-    // // TODO: broadcast should broadcast to all devices even if tensor is not is dest???
-    // fn all_broadcast_inplace(
-    //     src_tensor: FloatTensor<Self>,
-    //     dest_tensors: Vec<CommunicationTensor<Self>>,
-    // ) {
-    //     // TODO: highly unoptimized and unsafe
-    //     unsafe {
-    //         // Centralized
-    //         for dest in dest_tensors {
-    //             let device = Self::comm_device(&dest);
-    //             let tensor_float = Self::float_to_device(src_tensor.clone(), &device);
-    //             (**dest.0) = tensor_float;
-    //         }
-    //     }
-    // }
-
-    // fn comm_device(tensor: &TensorRef<Self>) -> Device<Self> {
-    //     unsafe { (**tensor.0).device.clone() }
-    // }
-
-    // fn float_data_from_comm(tensor: &CommunicationTensor<Self>) -> FloatTensor<Self> {
-    //     unsafe { (**tensor.0).clone() }
-    // }
 }

@@ -1,5 +1,3 @@
-use std::any::TypeId;
-
 use burn_std::DType;
 pub use burn_std::backtrace::BackTrace;
 
@@ -101,9 +99,6 @@ pub trait Backend:
 
     /// Tensor primitive to be used for all quantized operations.
     type QuantizedTensorPrimitive: TensorMetadata + QTensorPrimitive + 'static;
-
-    /// Tensor primitive to be used for communication operations.
-    type CommunicationTensorPrimitive: TensorMetadata + 'static;
 
     /// If autodiff is enabled.
     fn ad_enabled(_device: &Self::Device) -> bool {

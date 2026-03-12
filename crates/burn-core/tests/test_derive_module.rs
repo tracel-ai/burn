@@ -34,7 +34,7 @@ impl<B: Backend> ModuleBasic<B> {
                 std: 1.0,
                 mean: 0.0,
             }
-            .init([20, 20], device),
+            .init([200, 200], device),
         }
     }
 }
@@ -525,27 +525,17 @@ mod require_grad {
         ) -> Tensor<TestAutodiffBackend, 2>,
     ) {
         let type_id = 0;
-        // let num_devices = <TestAutodiffBackend as Backend>::Device::device_count(type_id);
-        let num_devices = 2;
-        // println!("num_devices: {num_devices}");
+        let num_devices = 4;
         let devices: Vec<<TestAutodiffBackend as Backend>::Device> = (0..num_devices)
             .map(|i| {
                 <TestAutodiffBackend as Backend>::Device::from_id(DeviceId::new(type_id, i as u32))
             })
             .collect();
-        // println!("devices: {:?}", devices);
-        // println!(
-        //     "devices id: {:?}",
-        //     devices.iter().map(|d| d.id()).collect::<Vec<DeviceId>>()
-        // );
+        let num_iter = 200;
 
         let module = ModuleBasic::<TestAutodiffBackend>::new(&devices[0]);
-
         let mut recvs = vec![];
-        // println!("gradient sync start");
-        // start_gradient_sync_server::<TestBackend>(devices.clone());
         <TestBackend>::start_communication_server(devices.clone());
-        // println!("gradient sync started");
         for i in 0..num_devices {
             let device = devices[i].clone();
             let (send, recv) = std::sync::mpsc::sync_channel(32);
@@ -559,23 +549,21 @@ mod require_grad {
                     send,
                     transformation,
                     device,
+                    num_iter,
                 )
             });
         }
 
-        // println!("all spawned");
-
-        // thread::sleep(Duration::from_millis(5000));
-
-        let grad_x1 = recvs[0].recv().unwrap();
-        for i in 1..num_devices {
-            let new_tensor = &recvs[i].recv().unwrap().unwrap().to_data();
-            // println!("new_tensor : {}", new_tensor);
-            grad_x1
-                .clone()
-                .unwrap()
-                .to_data()
-                .assert_eq(new_tensor, true);
+        for _ in 0..num_iter {
+            let grad_x1 = recvs[0].recv().unwrap();
+            for i in 1..num_devices {
+                let new_tensor = &recvs[i].recv().unwrap().unwrap().to_data();
+                grad_x1
+                    .clone()
+                    .unwrap()
+                    .to_data()
+                    .assert_eq(new_tensor, true);
+            }
         }
 
         <TestBackend>::close_communication_server(&devices[0]);
@@ -593,14 +581,15 @@ mod require_grad {
             Tensor<TestAutodiffBackend, 2>,
         ) -> Tensor<TestAutodiffBackend, 2>,
         device: <TestAutodiffBackend as Backend>::Device,
+        num_iter: usize,
     ) {
-        // println!("device run_poeer {:?}", device);
-        let module = module.clone().fork(&device);
+        let mut module = module.clone().fork(&device);
 
-        let module = module.grad_sharded(id, op);
-        let grads_x = calculate_grads(&module, transformation);
-
-        output.send(grads_x).unwrap();
+        for _ in 0..num_iter {
+            module = module.grad_sharded(id, op);
+            let grads_x = calculate_grads(&module, transformation);
+            output.send(grads_x).unwrap();
+        }
     }
 
     fn calculate_grads(

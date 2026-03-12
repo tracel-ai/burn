@@ -11,17 +11,9 @@ use crate::tensor::Device;
 use crate::worker::{AllReduceArgs, CollectiveOperationMessage, Worker};
 use crate::{Backend, ModuleParamId, PeerId, ShardedParams};
 
-#[derive(new, Debug)]
-struct SyncParams {
-    sharded_params: ShardedParams,
-    n_required: usize,
-}
-
 pub(crate) struct GradientSyncServer<B: Backend> {
-    // nodes_sync_parameters: HashMap<u64, SyncParams>,
     all_reduce_ops_queue: HashMap<ModuleParamId, Vec<TensorRef<B>>>,
     param_required_map: HashMap<ModuleParamId, usize>,
-    sharded_params_map: HashMap<ModuleParamId, ShardedParams>,
     devices: HashMap<PeerId, Device<B>>,
     num_devices: usize,
     devices_registered: usize,
@@ -38,7 +30,6 @@ impl<B: Backend> GradientSyncServer<B> {
     ) -> Self {
         let mut task_senders = HashMap::default();
         let mut devices_map = HashMap::default();
-        // println!("devices: {:?}", devices);
         for i in 0..devices.len() {
             let (tx, rx) = std::sync::mpsc::channel();
             let peer_id = PeerId::from(i);
@@ -46,23 +37,11 @@ impl<B: Backend> GradientSyncServer<B> {
             let device = devices[i].clone();
             devices_map.insert(peer_id, device.clone());
             thread::spawn(move || {
-                // // Fallback implementation of all_reduce for a backend uses `burn-collective`.
-                // register::<B>(
-                //     PeerId::from(i),
-                //     device,
-                //     CollectiveConfig::default()
-                //         .with_num_devices(num_devices)
-                //         .with_local_all_reduce_strategy(burn_backend::AllReduceStrategy::Ring),
-                // )
-                // .expect("Couldn't register for collective operations!");
-
                 let worker = Worker::new(rx);
                 worker.run();
             });
         }
         Self {
-            // nodes_sync_parameters: HashMap::default(),
-            sharded_params_map: HashMap::default(),
             all_reduce_ops_queue: HashMap::default(),
             param_required_map: HashMap::default(),
             devices: devices_map,
@@ -100,40 +79,25 @@ impl<B: Backend> GradientSyncServer<B> {
         let (lock, _) = &*self.is_finished_fence;
         let mut finished = lock.lock().unwrap();
         *finished = false;
+        drop(finished);
 
         sharded_params.iter().for_each(|param| {
             let id = param
                 .param_id
                 .expect("Sharded parameters should have a module parameter ID.");
             *self.param_required_map.entry(id).or_insert(0) += 1;
-            // *self.sharded_params_map.entry(id).or_insert(0) += 1;
         });
         self.devices_registered += 1;
-    }
-    // fn register_device(
-    //     &mut self,
-    //     n_required_map: HashMap<u64, usize>,
-    //     sharded_params_map: HashMap<u64, ShardedParams>,
-    // ) {
-    //     let (lock, _) = &*self.is_finished_fence;
-    //     let mut finished = lock.lock().unwrap();
-    //     *finished = false;
 
-    //     sharded_params_map.iter().for_each(|(k, v)| {
-    //         self.nodes_sync_parameters.insert(
-    //             *k,
-    //             SyncParams::new(v.clone(), *n_required_map.get(k).unwrap_or(&1)),
-    //         );
-    //         let param_id = v
-    //             .param_id
-    //             .expect("Sharded tensor should have a parameter ID.");
-    //         *self.param_required_map.entry(param_id).or_insert(0) += 1;
-    //     });
-    //     self.devices_registered += 1;
-    // }
+        // println!("Device registered: {}", self.devices_registered);
+    }
 
     fn launch_ops(&mut self) {
         if self.devices_registered == self.num_devices {
+            // println!(
+            //     "Launch ops!!! Device registered: {}",
+            //     self.devices_registered
+            // );
             for (param_id, num_tensors) in self.param_required_map.clone() {
                 let all_reduce_ops_queue =
                     self.all_reduce_ops_queue.entry(param_id).or_insert(vec![]);
@@ -150,7 +114,7 @@ impl<B: Backend> GradientSyncServer<B> {
                 // );
                 if num_tensors == all_reduce_ops_queue.len() {
                     // println!("All tensors queued, execute : {:?}", param_id);
-                    if B::supports_native_communication(&devices[0]) {
+                    if B::supports_native_collective(&devices[0]) {
                         // println!("Supports native comm ops");
                         let peer_ids: Vec<PeerId> = devices
                             .iter()
@@ -192,9 +156,6 @@ impl<B: Backend> GradientSyncServer<B> {
 
     /// Called on registration of a gradient. Calls the all_reduce operation for any parameter that is no longer required in the autodiff graph.
     fn on_register(&mut self, tensor: TensorRef<B>, sharded_params: ShardedParams) {
-        // println!("On register");
-        let peer_id = PeerId::from(B::comm_device(&tensor).id().index_id);
-        // println!("peerid : {}", peer_id);
         let param_id = sharded_params
             .param_id
             .expect("Sharded tensor should have a parameter ID.");
@@ -202,67 +163,25 @@ impl<B: Backend> GradientSyncServer<B> {
         all_reduce_ops_queue.push(tensor.clone());
         self.launch_ops();
     }
-    // fn on_register(&mut self, id: u64, tensor: TensorRef<B>) {
-    //     println!("On register");
-    //     if let Some(sync_params) = self.nodes_sync_parameters.get_mut(&id) {
-    //         sync_params.n_required -= 1;
-    //         if sync_params.n_required == 0 {
-    //             let param_id = &sync_params
-    //                 .sharded_params
-    //                 .param_id
-    //                 .expect("Sharded tensor should have a parameter ID.");
-    //             let all_reduce_ops_queue =
-    //                 self.all_reduce_ops_queue.entry(*param_id).or_insert(vec![]);
-    //             all_reduce_ops_queue.push(tensor);
-
-    //             // println!("queuing : {:?}", param_id);
-    //         }
-    //     }
-
-    //     if self.devices_registered == self.num_devices {
-    //         for (param_id, num_tensors) in self.param_required_map.clone() {
-    //             let all_reduce_ops_queue =
-    //                 self.all_reduce_ops_queue.entry(param_id).or_insert(vec![]);
-
-    //             if num_tensors == all_reduce_ops_queue.len() {
-    //                 // println!("execute : {:?}", param_id);
-    //                 let device_ids: Vec<PeerId> = all_reduce_ops_queue
-    //                     .to_vec()
-    //                     .iter()
-    //                     .map(|tensor| PeerId::from(B::comm_device(tensor).id().index_id))
-    //                     .collect();
-    //                 for t in all_reduce_ops_queue.to_vec() {
-    //                     let peer_id = PeerId::from(B::comm_device(&t).id().index_id);
-    //                     // B::all_reduce_inplace(
-    //                     //     t.clone(),
-    //                     //     PeerId::from(B::comm_device(&t).id().index_id),
-    //                     //     device_ids.clone(),
-    //                     //     burn_backend::ReduceOperation::Sum,
-    //                     // );
-    //                     println!("sending to worker : {:?}", peer_id);
-    //                     self.task_senders
-    //                         .get(&peer_id)
-    //                         .expect("Peer ID was registered.")
-    //                         .send(AllReduceArgs {
-    //                             tensor: t,
-    //                             device_ids: device_ids.clone(),
-    //                         })
-    //                         .expect("Can send to worker");
-    //                 }
-    //                 self.all_reduce_ops_queue.remove(&param_id).unwrap();
-    //                 self.param_required_map.remove(&param_id).unwrap();
-    //             }
-    //         }
-    //     }
-    // }
 
     pub(crate) fn update_finished(&mut self, device: &B::Device) {
         let mut is_finished = false;
         // println!("update_finished : {:?}", device);
-        if B::supports_native_communication(device) {
-            // TODO: right device.
+        if B::supports_native_collective(device) {
             if self.all_reduce_ops_queue.is_empty() {
-                B::communication_sync_native(device);
+                for d in self.devices.values() {
+                    B::collective_sync_native(d);
+                }
+                // for (peer_id, sender) in self.task_senders.iter_mut() {
+                //     sender
+                //         .send(CollectiveOperationMessage::Sync(
+                //             self.devices
+                //                 .get(&peer_id)
+                //                 .expect("Device should exist.")
+                //                 .clone(),
+                //         ))
+                //         .expect("Worker channel hanged.");
+                // }
                 is_finished = true;
             }
         } else {
@@ -272,6 +191,10 @@ impl<B: Backend> GradientSyncServer<B> {
         }
 
         if is_finished {
+            self.devices_registered = 0;
+            self.waiting_devices = 0;
+            self.all_reduce_ops_queue.clear();
+            self.param_required_map.clear();
             // println!("is_finished true");
             let (lock, cvar) = &*self.is_finished_fence;
             let mut finished = lock.lock().unwrap();
@@ -280,18 +203,6 @@ impl<B: Backend> GradientSyncServer<B> {
             // println!("notified all");
         }
     }
-
-    // pub(crate) fn is_finished(&mut self) -> bool {
-    //     if self.param_required_map.is_empty() {
-    //         // if !self.all_reduce_ops_queue.is_empty() {
-    //         //     log::warn!("All reduce operations left hanging.")
-    //         // }
-    //         self.devices_registered = 0;
-    //         true
-    //     } else {
-    //         false
-    //     }
-    // }
 }
 
 // TODO: Tests

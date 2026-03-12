@@ -3,7 +3,7 @@ use super::grid_sample::float_grid_sample_2d_ref;
 use super::repeat_dim::repeat_with_slice_assign;
 use super::sort::{argsort, sort, sort_with_indices};
 use crate::ops::GridSampleOptions;
-use crate::tensor::{BoolTensor, CommunicationTensor, Device, Float, FloatTensor, IntTensor};
+use crate::tensor::{BoolTensor, Device, Float, FloatTensor, IntTensor};
 use crate::{
     Backend, Distribution, ModuleParamId, PeerId, ReduceOperation, ShardedParams, TensorData,
 };
@@ -1666,16 +1666,4 @@ pub trait FloatTensorOps<B: Backend> {
     fn float_is_inf(tensor: FloatTensor<B>) -> BoolTensor<B> {
         B::float_equal_elem(B::float_abs(tensor), f64::INFINITY.into())
     }
-
-    /// Converts float tensor to communication tensor used for in-place operations.
-    ///
-    /// # Arguments
-    ///
-    /// * `tensor` - The tensor.
-    ///
-    /// # Returns
-    ///
-    /// The communication tensor with the same data as the float tensor.
-    /// // TODO: remove
-    fn comm_duplicated(tensor: &mut FloatTensor<B>) -> CommunicationTensor<B>;
 }

@@ -2400,10 +2400,4 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             )
             .output()
     }
-
-    fn comm_duplicated(
-        tensor: &mut FloatTensor<Self>,
-    ) -> burn_backend::tensor::CommunicationTensor<Self> {
-        todo!()
-    }
 }

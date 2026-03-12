@@ -9,6 +9,16 @@ pub enum ReduceOperation {
     Mean,
 }
 
+#[cfg(feature = "cubecl")]
+impl From<ReduceOperation> for cubecl::server::ReduceOperation {
+    fn from(value: ReduceOperation) -> Self {
+        match value {
+            ReduceOperation::Sum => cubecl::server::ReduceOperation::Sum,
+            ReduceOperation::Mean => cubecl::server::ReduceOperation::Mean,
+        }
+    }
+}
+
 /// All reduce can be implemented with different algorithms, which all have the same result.
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize)]
 pub enum AllReduceStrategy {

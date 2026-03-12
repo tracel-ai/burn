@@ -1,5 +1,5 @@
 use burn_backend::{
-    ExecutionError, Scalar, TensorData,
+    ExecutionError, ModuleParamId, PeerId, ReduceOperation, Scalar, ShardedParams, TensorData,
     ops::FloatTensorOps,
     tensor::{BoolTensor, FloatTensor, IntTensor},
 };
@@ -410,6 +410,19 @@ impl FloatTensorOps<Self> for Dispatch {
         unary_float!(ref tensor, float, |tensor| B::float_is_require_grad(tensor))
     }
 
+    fn float_set_sharded_params(
+        tensor: FloatTensor<Self>,
+        peer_id: PeerId,
+        op: ReduceOperation,
+        param_id: Option<ModuleParamId>,
+    ) -> FloatTensor<Self> {
+        unary_float!(tensor, float, |tensor| B::float_set_sharded_params(tensor, peer_id, op, param_id) => Float)
+    }
+
+    fn float_sharded_params(tensor: &FloatTensor<Self>) -> Option<ShardedParams> {
+        unary_float!(ref tensor, float, |tensor| B::float_sharded_params(tensor))
+    }
+
     // Default implementation
     fn float_zeros(shape: Shape, device: &DispatchDevice, dtype: FloatDType) -> FloatTensor<Self> {
         creation_op!(Float, device, |device| B::float_zeros(shape, device, dtype))
@@ -590,11 +603,5 @@ impl FloatTensorOps<Self> for Dispatch {
 
     fn float_is_inf(tensor: FloatTensor<Self>) -> BoolTensor<Self> {
         unary_float!(tensor, float, |tensor| B::float_is_inf(tensor) => Bool)
-    }
-
-    fn comm_duplicated(
-        _tensor: &mut FloatTensor<Self>,
-    ) -> burn_backend::tensor::CommunicationTensor<Self> {
-        todo!()
     }
 }

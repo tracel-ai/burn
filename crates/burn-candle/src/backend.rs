@@ -210,8 +210,6 @@ impl<F: FloatCandleElement, I: IntCandleElement> Backend for Candle<F, I> {
     type BoolElem = u8;
 
     type QuantizedTensorPrimitive = CandleTensor;
-    // TODO:
-    type CommunicationTensorPrimitive = CandleTensor;
 
     fn ad_enabled(_device: &Self::Device) -> bool {
         false
