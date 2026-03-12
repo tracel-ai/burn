@@ -1,7 +1,6 @@
-use crate::engine::codegen::{DynSize, io::set_polyfill_typed};
+use crate::engine::codegen::{DynElem, DynSize, io::set_polyfill_typed};
 
 use super::{
-    DYN_ELEM_ID,
     io::{
         Transform, global_buffer_len, global_vector_size, input_as_slice, read_input,
         read_input_window, ref_buffer_len, ref_len,
@@ -96,7 +95,7 @@ impl<E: CubePrimitive> ViewOperationsExpand<E, Coords1d> for GlobalInputExpand {
             scope,
             pos.clone(),
         );
-        set_polyfill_typed::expand::<E, NumericExpand<DYN_ELEM_ID>, DynSize>(scope);
+        set_polyfill_typed::expand::<E, DynElem, DynSize>(scope);
         let slice = input_as_slice::expand(scope, self.inputs.clone(), self.pos);
         read_masked::expand::<E>(scope, in_bounds, slice, pos, value)
     }
@@ -107,7 +106,7 @@ impl<E: CubePrimitive> ViewOperationsExpand<E, Coords1d> for GlobalInputExpand {
         scope: &mut Scope,
         pos: ExpandElementTyped<usize>,
     ) -> <E as CubeType>::ExpandType {
-        set_polyfill_typed::expand::<E, NumericExpand<DYN_ELEM_ID>, DynSize>(scope);
+        set_polyfill_typed::expand::<E, DynElem, DynSize>(scope);
         let value = read_input::expand::<E::Scalar, E::Size>(
             scope,
             self.inputs.clone(),
@@ -128,7 +127,7 @@ impl<E: CubePrimitive> ViewOperationsExpand<E, Coords1d> for GlobalInputExpand {
         pos: ExpandElementTyped<usize>,
         end: ExpandElementTyped<usize>,
     ) -> SliceExpand<E, ReadOnly> {
-        set_polyfill_typed::expand::<E, NumericExpand<DYN_ELEM_ID>, DynSize>(scope);
+        set_polyfill_typed::expand::<E, DynElem, DynSize>(scope);
         let end = add::expand(scope, end.clone(), 1.into());
         read_input_window::expand(scope, self.inputs.clone(), self.pos, pos, end)
     }

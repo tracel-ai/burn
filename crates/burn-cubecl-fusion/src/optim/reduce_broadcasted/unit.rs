@@ -75,13 +75,13 @@ pub fn reduce_kernel_broadcasted(
     reduce_many(inputs, outputs, reduce_axis, blocks, block_end);
 }
 
-const REDUCE_INPUT: usize = 10000;
-const REDUCE_ACC: usize = 10001;
-const REDUCE_OUT: usize = 10002;
+struct ReduceInput;
+struct ReduceAcc;
+struct ReduceOut;
 
-type In = NumericExpand<REDUCE_INPUT>;
-type Acc = NumericExpand<REDUCE_ACC>;
-type Out = NumericExpand<REDUCE_OUT>;
+type In = NumericExpand<ReduceInput>;
+type Acc = NumericExpand<ReduceAcc>;
+type Out = NumericExpand<ReduceOut>;
 
 define_size!(InSize);
 define_size!(OutSize);
