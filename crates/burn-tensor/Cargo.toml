@@ -33,7 +33,6 @@ cubecl-cuda = ["burn-backend/cubecl-cuda"]
 cubecl-hip = ["burn-backend/cubecl-hip"]
 cubecl-wgpu = ["burn-backend/cubecl-wgpu"]
 cubecl-cpu = ["burn-backend/cubecl-cpu"]
-experimental-named-tensor = []
 
 [dependencies]
 burn-std = { path = "../burn-std", version = "=0.21.0-pre.2", default-features = false }
