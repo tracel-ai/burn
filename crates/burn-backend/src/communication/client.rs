@@ -15,7 +15,6 @@ pub(crate) enum MessageAction<B: Backend> {
 
 pub(crate) enum GradientSyncMessage<B: Backend> {
     RegisterDevice(Vec<ShardedParams>),
-    // RegisterDevice((HashMap<u64, usize>, HashMap<u64, ShardedParams>)),
     Register((TensorRef<B>, ShardedParams)),
     Sync(Device<B>),
 }
@@ -32,28 +31,14 @@ impl<B: Backend> GradientSyncClient<B> {
         let is_finished_fence = Arc::new((Mutex::new(false), Condvar::new()));
 
         let mut server = GradientSyncServer::new(devices, is_finished_fence.clone());
-        // let fence_clone = is_finished_fence.clone();
         spawn(move || {
             loop {
-                match rx.try_recv() {
-                    Ok(action) => match action {
-                        MessageAction::Message(msg) => server.process_message(msg),
-                        MessageAction::Close(tx) => {
-                            server.close(tx);
-                            break;
-                        }
-                    },
-                    Err(mpsc::TryRecvError::Empty) => {
-                        // if server.is_finished() {
-                        //     let (lock, cvar) = &*fence_clone;
-                        //     let mut finished = lock.lock().unwrap();
-                        //     *finished = true;
-                        //     cvar.notify_all();
-                        // }
-                    }
-                    Err(mpsc::TryRecvError::Disconnected) => {
-                        panic!("Gradient sync server disconnected.")
-                    }
+                match rx.recv().expect("Gradient sync server disconnected.") {
+                    MessageAction::Message(msg) => server.process_message(msg),
+                    MessageAction::Close(tx) => {
+                        server.close(tx);
+                        break;
+                    } 
                 }
             }
         });
@@ -63,17 +48,12 @@ impl<B: Backend> GradientSyncClient<B> {
         }
     }
 
-    // TODO: Might be more logical to let the autodiff graph/gradients struct decide when to register the gradients to the server.
-    // The "unused" parameters in the graph will just be sent right away with 0 gradients and the all_reduce is launched simply when the param_id count reaches num_devices.
     pub fn register_device(
         &self,
-        // n_required_map: HashMap<u64, usize>,
-        // sharded_params_map: HashMap<u64, ShardedParams>,
         sharded_params: Vec<ShardedParams>,
     ) {
         self.sender
             .send(MessageAction::Message(GradientSyncMessage::RegisterDevice(
-                // (n_required_map, sharded_params_map),
                 sharded_params,
             )))
             .unwrap();

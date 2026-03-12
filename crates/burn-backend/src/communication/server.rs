@@ -1,15 +1,16 @@
+use burn_std::tensor;
 use std::collections::HashMap;
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
 
-use crate::DeviceOps;
 use crate::all_reduce::all_reduce_inplace_sum_centralized;
 use crate::client::GradientSyncMessage;
 use crate::ops::TensorRef;
 use crate::tensor::Device;
 use crate::worker::{AllReduceArgs, CollectiveOperationMessage, Worker};
 use crate::{Backend, ModuleParamId, PeerId, ShardedParams};
+use crate::{DeviceOps, TensorMetadata};
 
 pub(crate) struct GradientSyncServer<B: Backend> {
     all_reduce_ops_queue: HashMap<ModuleParamId, Vec<TensorRef<B>>>,
@@ -94,10 +95,6 @@ impl<B: Backend> GradientSyncServer<B> {
 
     fn launch_ops(&mut self) {
         if self.devices_registered == self.num_devices {
-            // println!(
-            //     "Launch ops!!! Device registered: {}",
-            //     self.devices_registered
-            // );
             for (param_id, num_tensors) in self.param_required_map.clone() {
                 let all_reduce_ops_queue =
                     self.all_reduce_ops_queue.entry(param_id).or_insert(vec![]);
@@ -107,23 +104,14 @@ impl<B: Backend> GradientSyncServer<B> {
                     .iter()
                     .map(|tensor| B::comm_device(tensor))
                     .collect();
-                // println!("devices: {:?}", devices);
-                // println!(
-                //     "devices id: {:?}",
-                //     devices.iter().map(|d| d.id()).collect::<Vec<DeviceId>>()
-                // );
                 if num_tensors == all_reduce_ops_queue.len() {
-                    // println!("All tensors queued, execute : {:?}", param_id);
                     if B::supports_native_collective(&devices[0]) {
-                        // println!("Supports native comm ops");
                         let peer_ids: Vec<PeerId> = devices
                             .iter()
                             .map(|d| PeerId::from(d.id().index_id))
                             .collect();
                         for t in all_reduce_ops_queue.to_vec() {
                             let peer_id = PeerId::from(B::comm_device(&t).id().index_id);
-                            // println!("sending to worker : {:?}", peer_ids);
-                            // println!("sending to worker : {:?}", peer_id);
                             self.task_senders
                                 .get(&peer_id)
                                 .expect("Peer ID was registered.")
@@ -137,7 +125,6 @@ impl<B: Backend> GradientSyncServer<B> {
                             self.update_finished(&devices[0]);
                         }
                     } else {
-                        // println!("Dont support native comms");
                         // TODO: operation hard coded to mean.
                         all_reduce_inplace_sum_centralized(
                             all_reduce_ops_queue.to_vec(),
@@ -166,22 +153,11 @@ impl<B: Backend> GradientSyncServer<B> {
 
     pub(crate) fn update_finished(&mut self, device: &B::Device) {
         let mut is_finished = false;
-        // println!("update_finished : {:?}", device);
         if B::supports_native_collective(device) {
             if self.all_reduce_ops_queue.is_empty() {
                 for d in self.devices.values() {
                     B::collective_sync_native(d);
                 }
-                // for (peer_id, sender) in self.task_senders.iter_mut() {
-                //     sender
-                //         .send(CollectiveOperationMessage::Sync(
-                //             self.devices
-                //                 .get(&peer_id)
-                //                 .expect("Device should exist.")
-                //                 .clone(),
-                //         ))
-                //         .expect("Worker channel hanged.");
-                // }
                 is_finished = true;
             }
         } else {
@@ -195,12 +171,11 @@ impl<B: Backend> GradientSyncServer<B> {
             self.waiting_devices = 0;
             self.all_reduce_ops_queue.clear();
             self.param_required_map.clear();
-            // println!("is_finished true");
+
             let (lock, cvar) = &*self.is_finished_fence;
             let mut finished = lock.lock().unwrap();
             *finished = true;
             cvar.notify_all();
-            // println!("notified all");
         }
     }
 }
