@@ -74,6 +74,7 @@ impl<B: Backend> GradientSyncServer<B> {
     }
 
     fn try_flush_sync(&mut self) {
+        println!("try flush sync");
         if self.all_reduce_ops_queue.is_empty() {
             for (d, barrier) in self.syncing_devices.iter().zip(self.sync_barriers.clone()) {
                 B::collective_sync_native(&d);
@@ -191,7 +192,6 @@ impl<B: Backend> GradientSyncServer<B> {
                                 ReduceOperation::Sum, // TODO: sum hard coded.
                             );
                             println!("launched all_reduce for {peer_id:?}");
-                            self.try_flush_sync();
                         }
                         // if self.num_devices == self.syncing_devices {
                         //     self.update_finished(&devices[0]);
@@ -208,6 +208,7 @@ impl<B: Backend> GradientSyncServer<B> {
                     }
                     self.all_reduce_ops_queue.remove(&param_id).unwrap();
                     self.param_required_map.remove(&param_id).unwrap();
+                    self.try_flush_sync();
                 }
             }
         }
