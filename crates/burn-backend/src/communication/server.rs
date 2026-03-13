@@ -83,7 +83,12 @@ impl<B: Backend> GradientSyncServer<B> {
             for (d, barrier) in self.syncing_devices.iter().zip(self.sync_barriers.clone()) {
                 println!("[{:?}] comm server sync", thread::current().id());
                 println!("launching sync {d:?}");
-                B::collective_sync_native(&d);
+                self.task_senders
+                    .get(&PeerId::from(d.id().index_id))
+                    .unwrap()
+                    .send(CollectiveOperationMessage::Sync(d.clone()))
+                    .unwrap();
+                // B::collective_sync_native(&d);
                 println!("launched sync {d:?}");
                 let (lock, cvar) = &*barrier;
                 println!("acquired lock {d:?}");
