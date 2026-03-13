@@ -267,7 +267,7 @@ impl<R: FusionRuntime> MultiStream<R> {
                 .analyse(current, node, streams, &self.streams);
             match analysis {
                 SharedTensorAnalysis::SharedFromCurrentStream => {
-                    shared_analysis.current.push(node.id);
+                    shared_analysis.current.push((node.id, node.status));
                 }
                 SharedTensorAnalysis::NotShared => {}
                 SharedTensorAnalysis::SharedFromExistingStream {
@@ -295,7 +295,7 @@ impl<R: FusionRuntime> MultiStream<R> {
         nodes: &[&TensorIr],
     ) {
         // If we only have current tensors that are shared, we're safe to not sync the timelines.
-        if analysis.new.is_empty() && analysis.existing.is_empty() {
+        if analysis.new.is_empty() && analysis.existing.is_empty() && analysis.current.is_empty() {
             return;
         }
 
@@ -310,6 +310,14 @@ impl<R: FusionRuntime> MultiStream<R> {
                 // the original cursor of the current operation.
                 if stream.cursor <= *original_cursor && *stream_id != current {
                     streams_to_sync.insert(*stream_id);
+                }
+            }
+        }
+
+        for (tensor_id, status) in analysis.current.iter() {
+            if let TensorStatus::ReadWrite = status {
+                for stream in self.shared_tensors.streams_of(tensor_id) {
+                    streams_to_sync.insert(stream);
                 }
             }
         }
@@ -333,8 +341,10 @@ impl<R: FusionRuntime> MultiStream<R> {
         for (tensor_id, _stream_id, _cursor) in analysis.existing.iter() {
             readonly_tensors.push(*tensor_id);
         }
-        for tensor_id in analysis.current.iter() {
-            readonly_tensors.push(*tensor_id);
+        for (tensor_id, status) in analysis.current.iter() {
+            if let TensorStatus::ReadOnly = status {
+                readonly_tensors.push(*tensor_id);
+            }
         }
 
         self.shared_tensors
@@ -464,7 +474,7 @@ impl OperationStreams {
 struct MultiSharedTensorAnalysis {
     /// Tensors that are shared with other streams, but we're currently executing on the same stream
     /// the tensor was originally created.
-    current: Vec<TensorId>,
+    current: Vec<(TensorId, TensorStatus)>,
     /// Tensors that are shared with new streams.
     new: Vec<(TensorId, StreamId)>,
     /// Tensors that are shared with existing streams.

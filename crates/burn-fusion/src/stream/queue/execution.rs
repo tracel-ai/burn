@@ -32,6 +32,7 @@ impl<R: FusionRuntime> OperationQueue<R> {
     ) {
         let mut operations = Vec::new();
         core::mem::swap(&mut operations, &mut self.operations);
+
         let (operations, num_drained) =
             QueueExecution::run(step, &mut self.converter, handles, operations);
 
