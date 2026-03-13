@@ -1,8 +1,5 @@
 use std::{
-    sync::{
-        Arc, Condvar, Mutex,
-        mpsc::{self, Sender},
-    },
+    sync::{Arc, Condvar, Mutex, mpsc::Sender},
     thread::spawn,
 };
 
@@ -16,7 +13,7 @@ pub(crate) enum MessageAction<B: Backend> {
 pub(crate) enum GradientSyncMessage<B: Backend> {
     RegisterDevice(Vec<ShardedParams>),
     Register((TensorRef<B>, ShardedParams)),
-    Sync(Device<B>),
+    Sync((Device<B>, Arc<(Mutex<bool>, Condvar)>)),
 }
 
 #[derive(Clone)]
@@ -38,7 +35,7 @@ impl<B: Backend> GradientSyncClient<B> {
                     MessageAction::Close(tx) => {
                         server.close(tx);
                         break;
-                    } 
+                    }
                 }
             }
         });
@@ -48,10 +45,7 @@ impl<B: Backend> GradientSyncClient<B> {
         }
     }
 
-    pub fn register_device(
-        &self,
-        sharded_params: Vec<ShardedParams>,
-    ) {
+    pub fn register_device(&self, sharded_params: Vec<ShardedParams>) {
         self.sender
             .send(MessageAction::Message(GradientSyncMessage::RegisterDevice(
                 sharded_params,
@@ -68,14 +62,18 @@ impl<B: Backend> GradientSyncClient<B> {
     }
 
     pub fn wait_gradients_sync(&self, device: Device<B>) {
+        let is_synced = Arc::new((Mutex::new(false), Condvar::new()));
         self.sender
-            .send(MessageAction::Message(GradientSyncMessage::Sync(device)))
+            .send(MessageAction::Message(GradientSyncMessage::Sync((
+                device,
+                is_synced.clone(),
+            ))))
             .unwrap();
 
-        let (lock, cvar) = &*self.is_finished_fence;
-        let mut finished = lock.lock().unwrap();
-        while !*finished {
-            finished = cvar.wait(finished).unwrap();
+        let (lock, cvar) = &*is_synced;
+        let mut synced = lock.lock().unwrap();
+        while !*synced {
+            synced = cvar.wait(synced).unwrap();
         }
     }
 

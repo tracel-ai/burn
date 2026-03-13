@@ -9,7 +9,7 @@ use crate::client::GradientSyncMessage;
 use crate::ops::TensorRef;
 use crate::tensor::Device;
 use crate::worker::{AllReduceArgs, CollectiveOperationMessage, Worker};
-use crate::{Backend, ModuleParamId, PeerId, ShardedParams};
+use crate::{Backend, ModuleParamId, PeerId, ReduceOperation, ShardedParams};
 use crate::{DeviceOps, TensorMetadata};
 
 pub(crate) struct GradientSyncServer<B: Backend> {
@@ -18,9 +18,10 @@ pub(crate) struct GradientSyncServer<B: Backend> {
     devices: HashMap<PeerId, Device<B>>,
     num_devices: usize,
     devices_registered: usize,
-    waiting_devices: usize,
+    syncing_devices: usize,
     is_finished_fence: Arc<(Mutex<bool>, Condvar)>,
     task_senders: HashMap<PeerId, Sender<CollectiveOperationMessage<B>>>,
+    sync_barriers: Vec<Arc<(Mutex<bool>, Condvar)>>,
 }
 
 impl<B: Backend> GradientSyncServer<B> {
@@ -48,9 +49,10 @@ impl<B: Backend> GradientSyncServer<B> {
             devices: devices_map,
             num_devices: devices.len(),
             devices_registered: 0,
-            waiting_devices: 0,
+            syncing_devices: 0,
             is_finished_fence,
             task_senders,
+            sync_barriers: vec![],
         }
     }
 
@@ -59,12 +61,45 @@ impl<B: Backend> GradientSyncServer<B> {
         match msg {
             GradientSyncMessage::RegisterDevice(params) => self.register_device(params),
             GradientSyncMessage::Register((tensor, params)) => self.on_register(tensor, params),
-            GradientSyncMessage::Sync(device) => {
-                self.waiting_devices += 1;
-                if self.waiting_devices == self.num_devices {
-                    self.update_finished(&device);
+            GradientSyncMessage::Sync((device, is_synced)) => self.sync(device, is_synced),
+            // {
+            //     self.waiting_devices += 1;
+            //     if self.waiting_devices == self.num_devices {
+            //         self.update_finished(&device);
+            //     }
+            // }
+        }
+    }
+
+    fn sync(&mut self, device: Device<B>, sync_barrier: Arc<(Mutex<bool>, Condvar)>) {
+        self.syncing_devices += 1;
+        let mut is_finished = false;
+        if B::supports_native_collective(&device) {
+            B::collective_sync_native(&device);
+            is_finished = self.syncing_devices == self.num_devices;
+            let (lock, cvar) = &*sync_barrier;
+            let mut synced = lock.lock().unwrap();
+            *synced = true;
+            cvar.notify_all();
+        } else {
+            self.sync_barriers.push(sync_barrier);
+            if self.sync_barriers.len() == self.num_devices {
+                is_finished = true;
+                for barrier in self.sync_barriers.clone() {
+                    let (lock, cvar) = &*barrier;
+                    let mut synced = lock.lock().unwrap();
+                    *synced = true;
+                    cvar.notify_all();
                 }
             }
+        }
+
+        if is_finished {
+            self.devices_registered = 0;
+            self.syncing_devices = 0;
+            self.all_reduce_ops_queue.clear();
+            self.param_required_map.clear();
+            self.sync_barriers.clear();
         }
     }
 
@@ -112,27 +147,33 @@ impl<B: Backend> GradientSyncServer<B> {
                             .collect();
                         for t in all_reduce_ops_queue.to_vec() {
                             let peer_id = PeerId::from(B::comm_device(&t).id().index_id);
-                            self.task_senders
-                                .get(&peer_id)
-                                .expect("Peer ID was registered.")
-                                .send(CollectiveOperationMessage::AllReduce(AllReduceArgs {
-                                    tensor: t,
-                                    device_ids: peer_ids.clone(),
-                                }))
-                                .expect("Can send to worker");
+                            // self.task_senders
+                            //     .get(&peer_id)
+                            //     .expect("Peer ID was registered.")
+                            //     .send(CollectiveOperationMessage::AllReduce(AllReduceArgs {
+                            //         tensor: t,
+                            //         device_ids: peer_ids.clone(),
+                            //     }))
+                            //     .expect("Can send to worker");
+                            B::all_reduce_in_place_native(
+                                t,
+                                peer_id,
+                                peer_ids.clone(),
+                                ReduceOperation::Sum, // TODO: sum hard coded.
+                            );
                         }
-                        if self.num_devices == self.waiting_devices {
-                            self.update_finished(&devices[0]);
-                        }
+                        // if self.num_devices == self.syncing_devices {
+                        //     self.update_finished(&devices[0]);
+                        // }
                     } else {
                         // TODO: operation hard coded to mean.
                         all_reduce_inplace_sum_centralized(
                             all_reduce_ops_queue.to_vec(),
                             crate::ReduceOperation::Mean,
                         );
-                        if self.num_devices == self.waiting_devices {
-                            self.update_finished(&devices[0]);
-                        }
+                        // if self.num_devices == self.syncing_devices {
+                        //     self.update_finished(&devices[0]);
+                        // }
                     }
                     self.all_reduce_ops_queue.remove(&param_id).unwrap();
                     self.param_required_map.remove(&param_id).unwrap();
@@ -168,7 +209,7 @@ impl<B: Backend> GradientSyncServer<B> {
 
         if is_finished {
             self.devices_registered = 0;
-            self.waiting_devices = 0;
+            self.syncing_devices = 0;
             self.all_reduce_ops_queue.clear();
             self.param_required_map.clear();
 
