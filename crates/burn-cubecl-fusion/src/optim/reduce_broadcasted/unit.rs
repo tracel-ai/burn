@@ -75,13 +75,9 @@ pub fn reduce_kernel_broadcasted(
     reduce_many(inputs, outputs, reduce_axis, blocks, block_end);
 }
 
-struct ReduceInput;
-struct ReduceAcc;
-struct ReduceOut;
-
-type In = NumericExpand<ReduceInput>;
-type Acc = NumericExpand<ReduceAcc>;
-type Out = NumericExpand<ReduceOut>;
+define_scalar!(In);
+define_scalar!(Acc);
+define_scalar!(Out);
 
 define_size!(InSize);
 define_size!(OutSize);

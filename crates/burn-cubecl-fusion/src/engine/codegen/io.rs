@@ -6,7 +6,7 @@ use burn_std::quantization::QuantScheme;
 use cubecl::quant::scheme::QuantLevel;
 use cubecl::{
     intrinsic,
-    ir::{ExpandElement, Variable},
+    ir::{ManagedVariable, Variable},
     prelude::*,
     std::{FastDivmod, tensor::View},
 };
@@ -791,7 +791,7 @@ pub(crate) fn reverse_index(
 #[cube]
 fn from_const_int<C: CubePrimitive>(#[comptime] value: usize) -> C {
     intrinsic!(|scope| {
-        ExpandElement::Plain(Variable::constant(value.into(), C::as_type(scope))).into()
+        ManagedVariable::Plain(Variable::constant(value.into(), C::as_type(scope))).into()
     })
 }
 
