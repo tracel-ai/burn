@@ -8,19 +8,21 @@ use crate::{
         pool::pool2d::{Position, view4d},
         utils::{address_type, shape_divmod},
     },
-    ops::{max_line_size, numeric::empty_device_dtype, permute_nchw_to_nhwc, permute_nhwc_to_nchw},
+    ops::{
+        max_vector_size, numeric::empty_device_dtype, permute_nchw_to_nhwc, permute_nhwc_to_nchw,
+    },
     tensor::CubeTensor,
 };
 use burn_backend::{Shape, ops::conv::calculate_pool_output_size};
-use cubecl::{CubeDim, calculate_cube_count_elemwise, prelude::ScalarArg};
+use cubecl::{CubeDim, calculate_cube_count_elemwise, num_traits::Zero};
 use cubecl::{prelude::*, std::tensor::View};
 
 struct AvgPoolStrategy;
 
 impl Pool2dDirectStrategyFamily for AvgPoolStrategy {
-    type Indices = ();
+    type Indices<N: Size> = ();
     type Config = AvgPoolStrategyConfig;
-    type Pool2d<N: Numeric> = Self;
+    type Pool2d<T: Numeric, N: Size> = Self;
 }
 
 #[derive(CubeType, Debug, PartialEq, Eq, Hash, Clone, Copy)]
@@ -33,16 +35,13 @@ pub struct AvgPoolStrategyConfig {
 }
 
 #[cube]
-impl<N: Numeric> Pool2dDirectStrategy<N> for AvgPoolStrategy {
-    type Accumulator = (Line<N>, u32);
+impl<T: Numeric, N: Size> Pool2dDirectStrategy<T, N> for AvgPoolStrategy {
+    type Accumulator = (Vector<T, N>, u32);
     type Config = AvgPoolStrategyConfig;
     type Indices = ();
 
-    fn initialize(
-        #[comptime] _config: &Self::Config,
-        #[comptime] line_size: LineSize,
-    ) -> Self::Accumulator {
-        let sum = Line::empty(line_size).fill(N::from_int(0));
+    fn initialize(#[comptime] _config: &Self::Config) -> Self::Accumulator {
+        let sum = Vector::zero();
         // Count will be set dynamically: either by accumulate (count_include_pad=false)
         // or by set_padded_count (count_include_pad=true)
         let count = 0u32;
@@ -54,7 +53,7 @@ impl<N: Numeric> Pool2dDirectStrategy<N> for AvgPoolStrategy {
         #[comptime] config: &Self::Config,
         accumulator: &mut Self::Accumulator,
         _index: usize,
-        result: Line<N>,
+        result: Vector<T, N>,
     ) {
         let (sum, count) = accumulator;
 
@@ -83,12 +82,12 @@ impl<N: Numeric> Pool2dDirectStrategy<N> for AvgPoolStrategy {
     fn store(
         #[comptime] _config: &Self::Config,
         position: Position,
-        output: &mut View<Line<N>, Position, ReadWrite>,
+        output: &mut View<Vector<T, N>, Position, ReadWrite>,
         _output_indices: &mut (),
         accumulator: Self::Accumulator,
     ) {
         let (sum, count) = accumulator;
-        output[position] = sum / Line::cast_from(count);
+        output[position] = sum / Vector::cast_from(count);
     }
 }
 
@@ -125,12 +124,12 @@ pub(crate) fn avg_pool2d<R: CubeRuntime>(
     let padded_1 = in_w + 2 * padding[1];
 
     let x = into_contiguous_aligned(permute_nchw_to_nhwc(x));
-    let line_size = max_line_size(&x);
+    let vector_size = max_vector_size(&x);
 
     let shape_out = Shape::new([batch_size, size_0, size_1, channels]);
     let output = empty_device_dtype(x.client.clone(), x.device.clone(), shape_out, x.dtype);
 
-    let working_units = output.meta.num_elements() / line_size as usize;
+    let working_units = output.meta.num_elements() / vector_size as usize;
     let cube_dim = CubeDim::new(&x.client, working_units);
     let cube_count = calculate_cube_count_elemwise(&x.client, working_units, cube_dim);
 
@@ -139,18 +138,19 @@ pub(crate) fn avg_pool2d<R: CubeRuntime>(
         cube_count,
         cube_dim,
         address_type!(x, output),
-        x.into_tensor_arg(line_size),
-        view4d(output.clone(), line_size),
+        vector_size,
+        x.into_tensor_arg(),
+        view4d(output.clone(), vector_size),
         (),
         shape_divmod(&output),
-        ScalarArg::new(working_units),
+        working_units,
         Pool2dDirectArgsLaunch::new(
-            ScalarArg::new(stride[0] as u32),
-            ScalarArg::new(stride[1] as u32),
-            ScalarArg::new(dilation as u32),
-            ScalarArg::new(dilation as u32),
-            ScalarArg::new(padding[0] as u32),
-            ScalarArg::new(padding[1] as u32),
+            stride[0] as u32,
+            stride[1] as u32,
+            dilation as u32,
+            dilation as u32,
+            padding[0] as u32,
+            padding[1] as u32,
         ),
         (kernel_size[0] as u32, kernel_size[1] as u32),
         AvgPoolStrategyConfig {

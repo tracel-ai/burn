@@ -418,17 +418,17 @@ where
         struct Abs;
 
         #[cube]
-        impl<N: Numeric> NumericUnaryOp<N> for Abs {
+        impl<T: Numeric, N: Size> NumericUnaryOp<T, N> for Abs {
             type Options = ();
 
-            fn execute(input: Line<N>, _options: &Self::Options) -> Line<N> {
-                Line::abs(input)
+            fn execute(input: Vector<T, N>, _options: &Self::Options) -> Vector<T, N> {
+                Vector::abs(input)
             }
         }
 
         impl NumericUnaryOpFamily for Abs {
             type Options = ();
-            type Unary<N: Numeric> = Self;
+            type Unary<T: Numeric, N: Size> = Self;
         }
 
         launch_unary_numeric::<R, Abs, _>(tensor, |_| ())

@@ -7,14 +7,14 @@ use cubecl::{calculate_cube_count_elemwise, prelude::*};
 use crate::{
     CubeRuntime,
     kernel::utils::{address_type, linear_layout, shape_divmod},
-    ops::max_line_size,
+    ops::max_vector_size,
     tensor::CubeTensor,
 };
 
 #[cube(launch_unchecked, address_type = "dynamic")]
-fn interpolate_nearest_kernel<F: Float>(
-    input: &Tensor<Line<F>>,
-    output: &mut Tensor<Line<F>>,
+fn interpolate_nearest_kernel<F: Float, N: Size>(
+    input: &Tensor<Vector<F, N>>,
+    output: &mut Tensor<Vector<F, N>>,
     shape_out: Sequence<FastDivmod<usize>>,
     out_layout: LinearLayout,
     #[define(F)] _dtype: StorageType,
@@ -23,10 +23,10 @@ fn interpolate_nearest_kernel<F: Float>(
         terminate!();
     }
 
-    let line_size = input.line_size();
+    let vector_size = input.vector_size();
     let out_idx = out_layout.to_source_pos(ABSOLUTE_POS);
 
-    let out_pos = ABSOLUTE_POS * line_size;
+    let out_pos = ABSOLUTE_POS * vector_size;
 
     let (h_in, w_in) = (input.shape(1) as f32, input.shape(2) as f32);
     let (h_out, w_out) = (output.shape(1) as f32, output.shape(2) as f32);
@@ -43,7 +43,7 @@ fn interpolate_nearest_kernel<F: Float>(
         + x as usize * input.stride(2)
         + c * input.stride(3);
 
-    output[out_idx] = input[in_idx / line_size];
+    output[out_idx] = input[in_idx / vector_size];
 }
 
 pub(crate) fn interpolate_nearest_launch<R: CubeRuntime>(
@@ -52,14 +52,14 @@ pub(crate) fn interpolate_nearest_launch<R: CubeRuntime>(
 ) -> CubeTensor<R> {
     let client = input.client.clone();
 
-    let line_size = max_line_size(&input);
+    let vector_size = max_vector_size(&input);
 
-    let working_units = output.meta.num_elements() / line_size as usize;
+    let working_units = output.meta.num_elements() / vector_size as usize;
     let cube_dim = CubeDim::new(&input.client, working_units);
     let cube_count = calculate_cube_count_elemwise(&input.client, working_units, cube_dim);
 
     let shape_out = shape_divmod(&output);
-    let out_layout = linear_layout(&output, line_size);
+    let out_layout = linear_layout(&output, vector_size);
 
     unsafe {
         interpolate_nearest_kernel::launch_unchecked(
@@ -67,8 +67,9 @@ pub(crate) fn interpolate_nearest_launch<R: CubeRuntime>(
             cube_count,
             cube_dim,
             address_type!(input, output),
-            input.into_tensor_arg(line_size),
-            output.clone().into_tensor_arg(line_size),
+            vector_size,
+            input.into_tensor_arg(),
+            output.clone().into_tensor_arg(),
             shape_out,
             out_layout,
             output.dtype.into(),

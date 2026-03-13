@@ -127,7 +127,7 @@ impl<R: Runtime> ReduceFuser<R> {
         let fuse_on_write_activated = match self.settings {
             ReduceSettings::Always => true,
             // We only activate fuse-on-write when the reduction isn't on the last dimension, otherwise
-            // vectorization is impossible. Only [LineMode::Perpendicular] supports vectorization.
+            // vectorization is impossible. Only [VectorizationMode::Perpendicular] supports vectorization.
             //
             // We could still fuse some output operations, but it would probably lead to worse performance.
             ReduceSettings::OnlyParallel => axis != op.input.shape.rank() - 1,

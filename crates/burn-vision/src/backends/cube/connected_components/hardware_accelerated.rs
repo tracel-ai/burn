@@ -504,8 +504,8 @@ pub fn hardware_accelerated<R: CubeRuntime, F: FloatElement, I: IntElement, BT: 
             &client,
             cube_count,
             cube_dim,
-            img.clone().into_tensor_arg(1),
-            labels.clone().into_tensor_arg(1),
+            img.clone().into_tensor_arg(),
+            labels.clone().into_tensor_arg(),
             connectivity,
         )
     };
@@ -522,8 +522,8 @@ pub fn hardware_accelerated<R: CubeRuntime, F: FloatElement, I: IntElement, BT: 
             &client,
             cube_count,
             cube_dim_merge,
-            img.clone().into_tensor_arg(1),
-            labels.clone().into_tensor_arg(1),
+            img.clone().into_tensor_arg(),
+            labels.clone().into_tensor_arg(),
             connectivity,
         )
     };
@@ -541,8 +541,8 @@ pub fn hardware_accelerated<R: CubeRuntime, F: FloatElement, I: IntElement, BT: 
                 &client,
                 cube_count,
                 cube_dim,
-                img.into_tensor_arg(1),
-                labels.clone().into_tensor_arg(1),
+                img.into_tensor_arg(),
+                labels.clone().into_tensor_arg(),
             )
         };
     } else {
@@ -551,14 +551,14 @@ pub fn hardware_accelerated<R: CubeRuntime, F: FloatElement, I: IntElement, BT: 
                 &client,
                 cube_count,
                 cube_dim,
-                img.clone().into_tensor_arg(1),
-                labels.clone().into_tensor_arg(1),
-                stats.area.clone().into_tensor_arg(1),
-                stats.top.clone().into_tensor_arg(1),
-                stats.left.clone().into_tensor_arg(1),
-                stats.right.clone().into_tensor_arg(1),
-                stats.bottom.clone().into_tensor_arg(1),
-                stats.max_label.clone().into_tensor_arg(1),
+                img.clone().into_tensor_arg(),
+                labels.clone().into_tensor_arg(),
+                stats.area.clone().into_tensor_arg(),
+                stats.top.clone().into_tensor_arg(),
+                stats.left.clone().into_tensor_arg(),
+                stats.right.clone().into_tensor_arg(),
+                stats.bottom.clone().into_tensor_arg(),
+                stats.max_label.clone().into_tensor_arg(),
                 stats_opt,
             )
         };
@@ -585,9 +585,9 @@ pub fn hardware_accelerated<R: CubeRuntime, F: FloatElement, I: IntElement, BT: 
                     &client,
                     cube_count,
                     cube_dim,
-                    labels.clone().into_tensor_arg(1),
-                    relabel.clone().into_tensor_arg(1),
-                    stats.max_label.clone().into_tensor_arg(1),
+                    labels.clone().into_tensor_arg(),
+                    relabel.clone().into_tensor_arg(),
+                    stats.max_label.clone().into_tensor_arg(),
                 )
             };
 
@@ -598,17 +598,17 @@ pub fn hardware_accelerated<R: CubeRuntime, F: FloatElement, I: IntElement, BT: 
                     &client,
                     cube_count,
                     cube_dim,
-                    stats.area.copy().into_tensor_arg(1),
-                    stats.area.clone().into_tensor_arg(1),
-                    stats.top.copy().into_tensor_arg(1),
-                    stats.top.clone().into_tensor_arg(1),
-                    stats.left.copy().into_tensor_arg(1),
-                    stats.left.clone().into_tensor_arg(1),
-                    stats.right.copy().into_tensor_arg(1),
-                    stats.right.clone().into_tensor_arg(1),
-                    stats.bottom.copy().into_tensor_arg(1),
-                    stats.bottom.clone().into_tensor_arg(1),
-                    relabel.into_tensor_arg(1),
+                    stats.area.copy().into_tensor_arg(),
+                    stats.area.clone().into_tensor_arg(),
+                    stats.top.copy().into_tensor_arg(),
+                    stats.top.clone().into_tensor_arg(),
+                    stats.left.copy().into_tensor_arg(),
+                    stats.left.clone().into_tensor_arg(),
+                    stats.right.copy().into_tensor_arg(),
+                    stats.right.clone().into_tensor_arg(),
+                    stats.bottom.copy().into_tensor_arg(),
+                    stats.bottom.clone().into_tensor_arg(),
+                    relabel.into_tensor_arg(),
                 )
             };
         }

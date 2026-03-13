@@ -20,22 +20,21 @@ pub(crate) fn clamp<R: CubeRuntime>(
     struct ClampOp;
 
     #[cube]
-    impl<N: Numeric> NumericUnaryOp<N> for ClampOp {
+    impl<T: Numeric, N: Size> NumericUnaryOp<T, N> for ClampOp {
         type Options = Options;
 
-        fn execute(input: Line<N>, options: &Self::Options) -> Line<N> {
-            let line_size = input.size();
+        fn execute(input: Vector<T, N>, options: &Self::Options) -> Vector<T, N> {
             cubecl::prelude::clamp(
                 input,
-                Line::empty(line_size).fill(options.min_value.get::<N>()),
-                Line::empty(line_size).fill(options.max_value.get::<N>()),
+                Vector::new(options.min_value.get::<T>()),
+                Vector::new(options.max_value.get::<T>()),
             )
         }
     }
 
     impl NumericUnaryOpFamily for ClampOp {
         type Options = Options;
-        type Unary<N: Numeric> = Self;
+        type Unary<T: Numeric, N: Size> = Self;
     }
 
     launch_unary_numeric::<R, ClampOp, _>(input, |_| OptionsLaunch::new(min_value, max_value))

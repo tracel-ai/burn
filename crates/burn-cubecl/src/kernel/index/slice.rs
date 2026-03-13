@@ -98,7 +98,7 @@ pub(crate) fn slice_on_output<R: CubeRuntime>(
 
     for i in 0..ndims {
         let start = indices.get(i).map(|index| index.start).unwrap_or(0);
-        indices_sequence.push(ScalarArg::new(start));
+        indices_sequence.push(start);
     }
 
     let working_units = output.meta.num_elements();
@@ -112,7 +112,7 @@ pub(crate) fn slice_on_output<R: CubeRuntime>(
             cube_count,
             cube_dim,
             address_type!(tensor, output),
-            tensor.into_tensor_arg(1),
+            tensor.into_tensor_arg(),
             linear_view(output.clone(), 1),
             shape_divmod(&output),
             indices_sequence,
@@ -203,16 +203,16 @@ pub fn slice_with_steps<R: CubeRuntime>(tensor: CubeTensor<R>, slices: &[Slice])
 
     for (dim, slice) in slices.iter().enumerate() {
         let range = slice.to_range(tensor.meta.shape()[dim]);
-        starts.push(ScalarArg::new(range.start));
-        ends.push(ScalarArg::new(range.end));
-        steps.push(ScalarArg::new(slice.step as i32));
+        starts.push(range.start);
+        ends.push(range.end);
+        steps.push(slice.step as i32);
     }
 
     // Pad with default values if needed to match tensor dimensions
     for dim in slices.len()..tensor.meta.num_dims() {
-        starts.push(ScalarArg::new(0));
-        ends.push(ScalarArg::new(tensor.meta.shape()[dim]));
-        steps.push(ScalarArg::new(1));
+        starts.push(0);
+        ends.push(tensor.meta.shape[dim]);
+        steps.push(1);
     }
 
     // Launch kernel
@@ -227,7 +227,7 @@ pub fn slice_with_steps<R: CubeRuntime>(tensor: CubeTensor<R>, slices: &[Slice])
             cube_count,
             cube_dim,
             address_type!(tensor, output),
-            tensor.into_tensor_arg(1),
+            tensor.into_tensor_arg(),
             linear_view(output.clone(), 1),
             shape_divmod(&output),
             starts,

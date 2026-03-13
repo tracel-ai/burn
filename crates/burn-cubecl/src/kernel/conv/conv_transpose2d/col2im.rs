@@ -201,21 +201,21 @@ fn col2im<R: CubeRuntime>(
             cube_count,
             cube_dim,
             address_type!(columns, bias, out),
-            columns.into_tensor_arg(1),
-            bias.map(|bias| bias.into_tensor_arg(1)).into(),
+            columns.into_tensor_arg(),
+            bias.map(|bias| bias.into_tensor_arg()).into(),
             linear_view(out, 1),
             shape,
             Col2ImArgsLaunch::new(
-                ScalarArg::new(out_h),
-                ScalarArg::new(out_w),
-                ScalarArg::new(kernel_h),
-                ScalarArg::new(kernel_w),
-                ScalarArg::new(options.padding[0]),
-                ScalarArg::new(options.padding[1]),
-                ScalarArg::new(options.dilation[0]),
-                ScalarArg::new(options.dilation[1]),
-                ScalarArg::new(options.stride[0]),
-                ScalarArg::new(options.stride[1]),
+                out_h,
+                out_w,
+                kernel_h,
+                kernel_w,
+                options.padding[0],
+                options.padding[1],
+                options.dilation[0],
+                options.dilation[1],
+                options.stride[0],
+                options.stride[1],
             ),
             dtype.into(),
         )
@@ -264,7 +264,7 @@ fn col2im_kernel<E: Numeric>(
     let kernel_extent_w = (args.kernel_w - 1) * args.dilation_w + 1;
     let kernel_extent_h = (args.kernel_h - 1) * args.dilation_h + 1;
 
-    let mut val = E::from_int(0);
+    let mut val = E::zero();
 
     let x_col_start = if im_x >= kernel_extent_w {
         (im_x - kernel_extent_w) / args.stride_w + 1
