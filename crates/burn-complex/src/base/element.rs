@@ -37,6 +37,7 @@ pub trait ToComplex<C> {
 }
 use paste::paste;
 
+use crate::base::Complex as ComplexTensor;
 use crate::base::ComplexTensorOps;
 pub trait ToComplexElement: ToElement + ToComplex<Complex32> + ToComplex<Complex64> {
     fn to_complex32(&self) -> Complex32 {
@@ -49,10 +50,28 @@ pub trait ToComplexElement: ToElement + ToComplex<Complex32> + ToComplex<Complex
 
 // will attempt after I get ndarray to compile
 
-// pub struct Complex<C> {
-//     pub real: C,
-//     pub imag: C,
-// }
+#[derive(Debug, Clone, Default, Copy, PartialEq, Default, bytemuck::Pod, bytemuck::Zeroable)]
+#[repr(C)]
+pub struct Complex<E: Default + bytemuck::Pod + bytemuck::Zeroable> {
+    pub real: E,
+    pub imag: E,
+}
+
+impl<E> Complex<E> {
+    /// Create a new complex number from real and imaginary parts
+    #[inline]
+    pub fn new(real: E, imag: E) -> Self {
+        Self { real, imag }
+    }
+}
+
+impl<E> Complex<E> where E: num_traits::identities::Zero {
+    /// Create a complex number from a real number
+    #[inline]
+    pub fn from_real(real: E) -> Self {
+        Self { real, imag: E::zero() }
+    }
+}
 
 // impl<C> Complex<C> {
 //     #[inline]
@@ -90,18 +109,15 @@ macro_rules! make_complex {
             pub imag: $inner,
         }
 
-        impl $type {
-            /// Create a new complex number from real and imaginary parts
-            #[inline]
-            pub const fn new(real: $inner, imag: $inner) -> Self {
-                Self { real, imag }
-            }
+        impl Complex<$inner> {
+            
+            
 
-            /// Create a complex number from a real number
-            #[inline]
-            pub const fn from_real(real: $inner) -> Self {
-                Self { real, imag: $inner::ZERO }
-            }
+            // /// Create a complex number from a real number
+            // #[inline]
+            // pub const fn from_real(real: $inner) -> Self {
+            //     Self { real, imag: $inner::ZERO }
+            // }
 
             /// Create a complex number from any element primitive
             #[inline]
@@ -140,7 +156,7 @@ macro_rules! make_complex {
             pub fn exp(self) -> Self {
                 // formula: e^(a + bi) = e^a (cos(b) + i*sin(b)) = from_polar(e^a, b)
 
-                let $type { real, mut imag } = self;
+                let Complex { real, mut imag } = self;
                 // Treat the corner cases +∞, -∞, and NaN
                 if real.is_infinite() {
                     if real < $inner::zero() {
