@@ -420,8 +420,6 @@ Additional examples:
   the browser. The demo is available [online](https://burn.dev/demo/).
 - [MNIST Training](./examples/mnist) : Demonstrates how to train a custom `Module` (MLP) with the
   `Learner` configured to log metrics and keep training checkpoints.
-- [Named Tensor](./examples/named-tensor) : Performs operations with the experimental `NamedTensor`
-  feature.
 - [PyTorch Import Inference](./examples/import-model-weights) : Imports a PyTorch model pre-trained
   on MNIST to perform inference on a sample image with Burn.
 - [Text Classification](./examples/text-classification) : Trains a text classification transformer
