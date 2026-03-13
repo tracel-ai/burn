@@ -305,7 +305,7 @@ mod tests {
         let actual_means = actual_means.to_data();
         let actual_means = actual_means.as_slice::<FT>().unwrap();
 
-        for i in 0..tensor.shape().dims[0] {
+        for i in 0..tensor.shape()[0] {
             let actual_var = actual_vars[i] as f64;
             let actual_mean = actual_means[i] as f64;
 

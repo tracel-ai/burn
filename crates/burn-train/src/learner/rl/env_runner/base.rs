@@ -270,6 +270,7 @@ where
 }
 
 #[cfg(test)]
+#[allow(clippy::needless_range_loop)]
 mod tests {
     use crate::{AsyncProcessorTraining, TestBackend};
 
@@ -308,15 +309,15 @@ mod tests {
     fn run_steps_returns_requested_number() {
         let mut runner = setup(0, false, false);
         let mut processor = AsyncProcessorTraining::new(MockProcessor);
-        let mut interrupter = Interrupter::new();
+        let interrupter = Interrupter::new();
         let mut progress = Progress {
             items_processed: 0,
             items_total: 1,
         };
 
-        let steps = runner.run_steps(1, &mut processor, &mut interrupter, &mut progress);
+        let steps = runner.run_steps(1, &mut processor, &interrupter, &mut progress);
         assert_eq!(steps.len(), 1);
-        let steps = runner.run_steps(8, &mut processor, &mut interrupter, &mut progress);
+        let steps = runner.run_steps(8, &mut processor, &interrupter, &mut progress);
         assert_eq!(steps.len(), 8);
     }
 
@@ -324,16 +325,16 @@ mod tests {
     fn run_episodes_returns_requested_number() {
         let mut runner = setup(0, false, false);
         let mut processor = AsyncProcessorTraining::new(MockProcessor);
-        let mut interrupter = Interrupter::new();
+        let interrupter = Interrupter::new();
         let mut progress = Progress {
             items_processed: 0,
             items_total: 1,
         };
 
-        let trajectories = runner.run_episodes(1, &mut processor, &mut interrupter, &mut progress);
+        let trajectories = runner.run_episodes(1, &mut processor, &interrupter, &mut progress);
         assert_eq!(trajectories.len(), 1);
         assert_ne!(trajectories[0].timesteps.len(), 0);
-        let trajectories = runner.run_episodes(8, &mut processor, &mut interrupter, &mut progress);
+        let trajectories = runner.run_episodes(8, &mut processor, &interrupter, &mut progress);
         assert_eq!(trajectories.len(), 8);
         for i in 0..8 {
             assert_ne!(trajectories[i].timesteps.len(), 0);

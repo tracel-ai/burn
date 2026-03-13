@@ -9,7 +9,7 @@ fn test_roll_empty() {
 
     let result = input.clone().roll(&[1, 2], &[0, 1]);
 
-    assert_eq!(result.shape().dims, &[12, 0]);
+    assert_eq!(&*result.shape(), &[12, 0]);
 
     // TODO: Rolling an empty tensor should return the same empty tensor;
     // but we have no way to compare tensor references yet.

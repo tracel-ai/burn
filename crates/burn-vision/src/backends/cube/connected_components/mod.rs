@@ -24,7 +24,7 @@ where
     I: IntElement,
     BT: BoolElement,
 {
-    let [height, width] = l.shape.dims();
+    let [height, width] = l.meta.shape().dims();
     let shape = Shape::new([height * width]);
     let zeros = || {
         zeros_client::<R>(

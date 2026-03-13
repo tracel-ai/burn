@@ -10,14 +10,14 @@ use num_traits::Pow;
 use libm::{log1p, log1pf};
 
 /// A float element for ndarray backend.
-pub trait FloatNdArrayElement: NdArrayElement + Signed
+pub trait FloatNdArrayElement: NdArrayElement + Signed + core::cmp::PartialOrd<Self>
 where
     Self: Sized,
 {
 }
 
 /// An int element for ndarray backend.
-pub trait IntNdArrayElement: NdArrayElement {}
+pub trait IntNdArrayElement: NdArrayElement + core::cmp::PartialOrd<Self> {}
 
 /// A general element for ndarray backend.
 pub trait NdArrayElement:
@@ -29,7 +29,6 @@ pub trait NdArrayElement:
     + num_traits::FromPrimitive
     + core::ops::AddAssign
     + core::cmp::PartialEq
-    + core::cmp::PartialOrd<Self>
     + core::ops::Rem<Output = Self>
 {
 }

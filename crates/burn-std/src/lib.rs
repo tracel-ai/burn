@@ -17,8 +17,7 @@ pub mod tensor;
 pub use tensor::*;
 
 /// Common Errors.
-pub mod errors;
-pub use errors::*;
+pub use cubecl_zspace::errors::{self, *};
 
 /// Network utilities.
 #[cfg(feature = "network")]
@@ -26,6 +25,7 @@ pub mod network;
 
 // Re-exported types
 pub use cubecl_common::bytes::*;
+pub use cubecl_common::device_handle::DeviceHandle;
 pub use cubecl_common::*;
 pub use half::{bf16, f16};
 

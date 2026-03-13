@@ -431,7 +431,7 @@ mod verification {
         );
 
         println!("✅ Verified: Operations on zero-copy data produce correct results");
-        println!("   - Weight shape: {:?}", shape.dims);
+        println!("   - Weight shape: {:?}", shape.as_slice());
         println!("   - Sum: {:.4}", sum);
         println!("   - Matmul result sum: {:.4}", matmul_sum);
     }

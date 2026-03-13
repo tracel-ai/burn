@@ -53,7 +53,7 @@ fn test_chunk_not_evenly_divisible_remains_several() {
     let expected = [13, 13, 13, 13, 13, 13, 13, 9];
 
     for (index, tensor) in tensors.iter().enumerate() {
-        assert_eq!(tensor.shape().dims[0], expected[index]);
+        assert_eq!(tensor.shape()[0], expected[index]);
     }
 }
 

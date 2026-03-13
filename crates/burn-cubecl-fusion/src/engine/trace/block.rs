@@ -4,7 +4,7 @@ use crate::engine::{
     settings::FuseSettings,
 };
 use burn_ir::{TensorId, TensorIr, TensorStatus};
-use burn_std::{DType, quantization::QuantParam};
+use burn_std::{DType, Shape, quantization::QuantParam};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, btree_map::Entry};
 
@@ -17,7 +17,7 @@ pub struct FuseBlock {
     /// Contains all the [operations](FuseOp) registered in the current block.
     pub ops: Vec<FuseOp>,
     /// The reference shape of the current block.
-    pub shape_ref: Vec<usize>,
+    pub shape_ref: Shape,
     /// Contains all tensor inputs of the current block except for manually handled tensors.
     ///
     /// # Notes
@@ -46,7 +46,7 @@ pub struct FuseBlockBuilder {
     pub outputs_unhandled: Vec<FuseArg>,
     pub local_inputs: BTreeMap<TensorId, FuseArg>,
     /// The reference shape used by this block.
-    pub shape_ref: Vec<usize>,
+    pub shape_ref: Shape,
 }
 
 #[derive(Debug)]
@@ -71,7 +71,7 @@ impl FuseBlockBuilder {
             outputs: Default::default(),
             outputs_unhandled: Default::default(),
             local_inputs: Default::default(),
-            shape_ref: Vec::new(),
+            shape_ref: Shape::new([]),
         }
     }
 
@@ -396,7 +396,7 @@ impl FuseBlockBuilder {
             reshaped: output.id,
             original: tensor.id,
             reshape_pos: index,
-            shape_relative: output.shape.dims.clone(),
+            shape_relative: output.shape.clone(),
         });
 
         let input = FuseArg::InputReshaped {

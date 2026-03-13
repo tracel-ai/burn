@@ -75,7 +75,7 @@ where
 
     type QuantizedTensorPrimitive = NdArrayQTensor;
 
-    fn ad_enabled() -> bool {
+    fn ad_enabled(_device: &Self::Device) -> bool {
         false
     }
 

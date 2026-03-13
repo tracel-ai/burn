@@ -1,24 +1,26 @@
 use crate::{
     CubeElement, CubeRuntime,
-    kernel::utils::linear_view,
-    ops::{max_line_size, numeric::empty_device},
+    kernel::utils::{address_type, linear_view},
+    ops::{max_vector_size, numeric::empty_device},
     tensor::CubeTensor,
 };
+use burn_backend::TensorMetadata;
 use cubecl::{
-    CubeDim, calculate_cube_count_elemwise, prelude::*, std::tensor::layout::linear::LinearView,
+    CubeDim, calculate_cube_count_elemwise, num_traits::One, prelude::*,
+    std::tensor::layout::linear::LinearView,
 };
 
-#[cube(launch_unchecked)]
-fn bool_cast_kernel<B: Int, T: Numeric>(
-    input: &LinearView<Line<B>>,
-    output: &mut LinearView<Line<T>, ReadWrite>,
+#[cube(launch_unchecked, address_type = "dynamic")]
+fn bool_cast_kernel<B: Int, T: Numeric, N: Size>(
+    input: &LinearView<Vector<B, N>>,
+    output: &mut LinearView<Vector<T, N>, ReadWrite>,
     #[define(B)] _input_ty: StorageType,
 ) {
     if !output.is_in_bounds(ABSOLUTE_POS) {
         terminate!();
     }
 
-    output[ABSOLUTE_POS] = Line::cast_from(input[ABSOLUTE_POS] & Line::cast_from(1u32));
+    output[ABSOLUTE_POS] = Vector::cast_from(input[ABSOLUTE_POS] & Vector::one());
 }
 
 /// Cast a bool tensor to the given element type.
@@ -28,29 +30,29 @@ fn bool_cast_kernel<B: Int, T: Numeric>(
 /// it may hold an uncanny bit combination. Naively casting it would not
 /// necessarily yield 0 or 1.
 pub fn bool_cast<R: CubeRuntime, EO: CubeElement>(tensor: CubeTensor<R>) -> CubeTensor<R> {
-    let output = empty_device::<R, EO>(
-        tensor.client.clone(),
-        tensor.device.clone(),
-        tensor.shape.clone(),
-    );
+    let output =
+        empty_device::<R, EO>(tensor.client.clone(), tensor.device.clone(), tensor.shape());
 
-    let line_size = max_line_size(&tensor);
-    let num_elems = tensor.shape.num_elements();
-    let working_units = num_elems / line_size as usize;
+    let vector_size = max_vector_size(&tensor);
+    let num_elems = tensor.meta.num_elements();
+    let working_units = num_elems / vector_size as usize;
     let cube_dim = CubeDim::new(&tensor.client, working_units);
     let cube_count = calculate_cube_count_elemwise(&tensor.client, working_units, cube_dim);
 
+    let dtype = tensor.dtype;
+
     unsafe {
         bool_cast_kernel::launch_unchecked::<EO, R>(
-            &tensor.client,
+            &output.client,
             cube_count,
             cube_dim,
-            linear_view(&tensor, line_size),
-            linear_view(&output, line_size),
-            tensor.dtype.into(),
+            address_type!(tensor, output),
+            vector_size,
+            linear_view(tensor, vector_size),
+            linear_view(output.clone(), vector_size),
+            dtype.into(),
         )
-        .expect("Kernel to never fail");
-    }
+    };
 
     output
 }

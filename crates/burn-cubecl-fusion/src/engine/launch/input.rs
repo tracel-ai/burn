@@ -84,14 +84,14 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
                             global_ir: tensor_global,
                             precision,
                             handle,
-                            line_size: 1,
+                            vector_size: 1,
                         }));
 
                     plan.handle_inputs
                         .push(HandleInput::QuantParams(QuantParamsHandleInput {
                             precision: precision_scales,
                             handle: params,
-                            shape: shape_params.dims,
+                            shape: shape_params,
                         }));
                 }
                 RegisterTensor::QuantParams(_) => {
@@ -163,7 +163,7 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
         }
 
         if let BlockInplaceSelection::Selected(idx) = block_inplace_selection {
-            if self.blocks[idx].shape_ref != tensor_relative.shape.dims {
+            if self.blocks[idx].shape_ref != tensor_relative.shape {
                 return;
             }
 
@@ -225,11 +225,13 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
                 }
 
                 if original == &tensor_relative.id {
-                    let shape = tensor_relative.shape.clone().swap(dims.0, dims.1).unwrap();
+                    let shape = tensor_relative
+                        .shape
+                        .clone()
+                        .swapped(dims.0, dims.1)
+                        .unwrap();
 
-                    if block_plan.potential_reference_input.is_none()
-                        && shape.dims == block.shape_ref
-                    {
+                    if block_plan.potential_reference_input.is_none() && shape == block.shape_ref {
                         block_plan.potential_reference_input = Some(InputReference::SwapDims {
                             original_pos: pos,
                             dims: *dims,

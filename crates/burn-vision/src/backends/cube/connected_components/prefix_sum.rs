@@ -1,4 +1,4 @@
-use burn_tensor::Shape;
+use burn_tensor::{Shape, TensorMetadata};
 use cubecl::prelude::*;
 
 use burn_cubecl::{
@@ -17,9 +17,9 @@ const MAX_REDUCE_SIZE: usize = CUBE_SIZE / MIN_SUBGROUP_SIZE;
 const PART_SIZE: usize = 4096;
 
 #[cube(launch_unchecked)]
-fn prefix_sum_kernel<I: Int>(
-    scan_in: &Tensor<Line<I>>,
-    scan_out: &mut Tensor<Line<I>>,
+fn prefix_sum_kernel<I: Int, N: Size>(
+    scan_in: &Tensor<Vector<I, N>>,
+    scan_out: &mut Tensor<Vector<I, N>>,
     scan_bump: &Tensor<Atomic<I>>,
     reduction: &Tensor<Atomic<I>>,
     cube_count_x: usize,
@@ -27,9 +27,9 @@ fn prefix_sum_kernel<I: Int>(
     let mut broadcast = SharedMemory::<I>::new(1usize);
     let mut reduce = SharedMemory::<I>::new(MAX_REDUCE_SIZE);
     let batch = CUBE_POS_Z as usize;
-    let line_spt = comptime!(PART_SIZE / CUBE_SIZE / scan_in.line_size());
+    let line_spt = comptime!(PART_SIZE / CUBE_SIZE / scan_in.vector_size());
     let nums_per_cube = CUBE_SIZE * line_spt;
-    let v_last = comptime!(scan_in.line_size() - 1);
+    let v_last = comptime!(scan_in.vector_size() - 1);
 
     //acquire partition index
     if UNIT_POS_X == 0 {
@@ -56,16 +56,17 @@ fn prefix_sum_kernel<I: Int>(
     let red_offs = batch * reduction.stride(0);
     let scan_offs = batch * scan_in.stride(0);
 
-    let mut t_scan = Array::<Line<I>>::lined(line_spt, scan_in.line_size());
+    let mut t_scan = Array::<Vector<I, N>>::new(line_spt);
     {
         let mut i = dev_offs + plane_offs + UNIT_POS_PLANE as usize;
 
         if part_id < cube_count_x - 1 {
             for k in 0..line_spt {
                 // Manually fuse not_equal and cast
-                let mut scan = Line::cast_from(scan_in[i + scan_offs].not_equal(Line::new(zero)));
+                let mut scan =
+                    Vector::cast_from(scan_in[i + scan_offs].not_equal(Vector::new(zero)));
                 #[unroll]
-                for v in 1..scan_in.line_size() {
+                for v in 1..scan_in.vector_size() {
                     let prev = scan[v - 1];
                     scan[v] += prev;
                 }
@@ -79,9 +80,9 @@ fn prefix_sum_kernel<I: Int>(
                 if i < scan_in.shape(1) {
                     // Manually fuse not_equal and cast
                     let mut scan =
-                        Line::cast_from(scan_in[i + scan_offs].not_equal(Line::new(zero)));
+                        Vector::cast_from(scan_in[i + scan_offs].not_equal(Vector::new(zero)));
                     #[unroll]
-                    for v in 1..scan_in.line_size() {
+                    for v in 1..scan_in.vector_size() {
                         let prev = scan[v - 1];
                         scan[v] += prev;
                     }
@@ -96,7 +97,7 @@ fn prefix_sum_kernel<I: Int>(
         let circular_shift = (UNIT_POS_PLANE + plane_mask) & plane_mask;
         for k in 0..line_spt {
             let t = plane_shuffle(plane_inclusive_sum(t_scan[k][v_last]), circular_shift);
-            t_scan[k] += Line::cast_from(select(UNIT_POS_PLANE != 0, t, zero) + prev);
+            t_scan[k] += Vector::cast_from(select(UNIT_POS_PLANE != 0, t, zero) + prev);
             prev += plane_broadcast(t, 0u32);
         }
 
@@ -188,7 +189,7 @@ fn prefix_sum_kernel<I: Int>(
         } else {
             zero
         };
-        let prev = Line::cast_from(broadcast[0] + prev);
+        let prev = Vector::cast_from(broadcast[0] + prev);
         let s_offset = UNIT_POS_PLANE + plane_id * PLANE_DIM * line_spt as u32;
         let dev_offset = part_id * nums_per_cube;
         let mut i = s_offset as usize + dev_offset;
@@ -220,12 +221,12 @@ fn count_trailing_zeros(num: u32) -> u32 {
 pub fn prefix_sum<R: CubeRuntime, I: IntElement>(input: CubeTensor<R>) -> CubeTensor<R> {
     let client = input.client.clone();
     let device = input.device.clone();
-    let num_elems = input.shape.num_elements();
-    let numbers = *input.shape.last().unwrap();
+    let num_elems = input.meta.num_elements();
+    let numbers = *input.meta.shape().last().unwrap();
     let batches = num_elems / numbers;
 
     let input = reshape(input, Shape::new([batches, numbers]));
-    let out = empty_device::<R, I>(client.clone(), device.clone(), input.shape.clone());
+    let out = empty_device::<R, I>(client.clone(), device.clone(), input.shape());
 
     let cubes = numbers.div_ceil(PART_SIZE);
     let cube_dim = CubeDim::new_1d(CUBE_SIZE as u32);
@@ -246,16 +247,16 @@ pub fn prefix_sum<R: CubeRuntime, I: IntElement>(input: CubeTensor<R>) -> CubeTe
 
     unsafe {
         prefix_sum_kernel::launch_unchecked::<I, R>(
-            &input.client,
+            &out.client,
             cube_count,
             cube_dim,
-            input.as_tensor_arg(4),
-            out.as_tensor_arg(4),
-            bump.as_tensor_arg(1),
-            reduction.as_tensor_arg(1),
-            ScalarArg::new(cubes),
+            4,
+            input.into_tensor_arg(),
+            out.clone().into_tensor_arg(),
+            bump.into_tensor_arg(),
+            reduction.into_tensor_arg(),
+            cubes,
         )
-        .expect("Kernel to never fail");
     };
 
     out

@@ -1,6 +1,6 @@
 use crate::CubeRuntime;
 use crate::{ops::empty_qtensor_optimized, tensor::CubeTensor};
-use burn_backend::quantization::QuantScheme;
+use burn_backend::{TensorMetadata, quantization::QuantScheme};
 
 /// Convert the tensor to a lower precision data type based on the quantization scheme and parameters.
 pub fn quantize<R>(
@@ -11,17 +11,18 @@ pub fn quantize<R>(
 where
     R: CubeRuntime,
 {
-    let output = empty_qtensor_optimized(tensor.shape.clone(), *scheme, &tensor.device);
+    let output = empty_qtensor_optimized(tensor.shape(), *scheme, &tensor.device);
     let (out_values, out_params) = output.clone().quantized_handles().unwrap();
+    let dtype = tensor.dtype;
 
     cubek::quantization::quantize::launch_ref(
-        &tensor.client,
-        &tensor.as_handle_ref(),
-        &out_values.as_handle_ref(),
-        &scale.as_handle_ref(),
-        &out_params.as_handle_ref(),
+        &output.client,
+        tensor.binding(),
+        out_values.binding(),
+        scale.binding(),
+        out_params.binding(),
         scheme,
-        tensor.dtype.into(),
+        dtype.into(),
     )
     .expect("Kernel to never fail");
 

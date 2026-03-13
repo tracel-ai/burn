@@ -29,15 +29,15 @@ impl<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolElement> Backend
         let bias = into_contiguous(bias);
 
         // Get the matmul relevant shapes.
-        let ndims = lhs.shape.num_dims();
-        let num_rows = lhs.shape[ndims - 2];
-        let num_cols = rhs.shape[ndims - 1];
+        let ndims = lhs.meta.num_dims();
+        let num_rows = lhs.meta.shape()[ndims - 2];
+        let num_cols = rhs.meta.shape()[ndims - 1];
 
         // Compute shape of output, while tracking number of batches.
         let mut num_batches = 1;
         let mut shape_out = vec![0; ndims];
         for i in shape_out.clone().into_iter().take(ndims - 2) {
-            shape_out[i] = usize::max(lhs.shape[i], rhs.shape[i]);
+            shape_out[i] = usize::max(lhs.meta.shape()[i], rhs.meta.shape()[i]);
             num_batches *= shape_out[i];
         }
         shape_out[ndims - 2] = num_rows;
@@ -67,15 +67,14 @@ impl<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolElement> Backend
         // Execute lazily the kernel with the launch information and the given buffers. For
         // simplicity, no vectorization is performed
         fused_matmul_add_relu_kernel::launch::<F, R>(
-            &lhs.client,
+            &output.client,
             cube_count,
             cube_dim,
-            lhs.as_tensor_arg(1),
-            rhs.as_tensor_arg(1),
-            bias.as_tensor_arg(1),
-            output.as_tensor_arg(1),
-        )
-        .expect("Kernel to never fail");
+            lhs.into_tensor_arg(),
+            rhs.into_tensor_arg(),
+            bias.into_tensor_arg(),
+            output.clone().into_tensor_arg(),
+        );
 
         // Return the output tensor.
         output

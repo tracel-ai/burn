@@ -8,7 +8,7 @@ use burn::{
     },
     tensor::Shape,
 };
-use cubecl::{CubeCount, CubeDim, prelude::KernelId, server::Bindings};
+use cubecl::{CubeCount, CubeDim, prelude::KernelId, server::KernelArguments};
 use derive_new::new;
 use std::marker::PhantomData;
 
@@ -61,15 +61,15 @@ impl<F: FloatElement, I: IntElement, BT: BoolElement> Backend
         let bias = into_contiguous(bias);
 
         // Get the matmul relevant shapes.
-        let ndims = lhs.shape.num_dims();
-        let num_rows = lhs.shape[ndims - 2];
-        let num_cols = rhs.shape[ndims - 1];
+        let ndims = lhs.meta.shape().num_dims();
+        let num_rows = lhs.meta.shape()[ndims - 2];
+        let num_cols = rhs.meta.shape()[ndims - 1];
 
         // Compute shape of output, while tracking number of batches.
         let mut num_batches = 1;
         let mut shape_out = vec![0; ndims];
         for i in shape_out.clone().into_iter().take(ndims - 2) {
-            shape_out[i] = usize::max(lhs.shape[i], rhs.shape[i]);
+            shape_out[i] = usize::max(lhs.meta.shape()[i], rhs.meta.shape()[i]);
             num_batches *= shape_out[i];
         }
         shape_out[ndims - 2] = num_rows;
@@ -104,19 +104,17 @@ impl<F: FloatElement, I: IntElement, BT: BoolElement> Backend
             CubeCount::Static(cubes_needed_in_x, cubes_needed_in_y, num_batches as u32);
 
         // Execute lazily the kernel with the launch information and the given buffers.
-        lhs.client
-            .launch(
-                Box::new(SourceKernel::new(kernel, cube_dim)),
-                cube_count,
-                Bindings::new().with_buffers(vec![
-                    lhs.handle.binding(),
-                    rhs.handle.binding(),
-                    bias.handle.binding(),
-                    output.handle.clone().binding(),
-                    info_handle.binding(),
-                ]),
-            )
-            .unwrap();
+        lhs.client.launch(
+            Box::new(SourceKernel::new(kernel, cube_dim)),
+            cube_count,
+            KernelArguments::new().with_buffers(vec![
+                lhs.handle.binding(),
+                rhs.handle.binding(),
+                bias.handle.binding(),
+                output.handle.clone().binding(),
+                info_handle.binding(),
+            ]),
+        );
 
         // Return the output tensor.
         output

@@ -7,7 +7,8 @@ use crate::{
     },
 };
 use burn_ir::{TensorId, TensorIr};
-use cubecl::{Runtime, ir::LineSize};
+use burn_std::{Shape, Strides};
+use cubecl::{Runtime, ir::VectorSize};
 use std::collections::BTreeMap;
 
 /// The `LaunchPlan` is responsible for aggregating all runtime information required
@@ -52,7 +53,7 @@ pub struct BlockPlan<'a> {
     /// Mapping of tensor IDs to the write operations performed on them.
     pub writes: BTreeMap<TensorId, Vec<FuseOp>>,
     /// The width for the operations in this block.
-    pub width: LineSize,
+    pub width: VectorSize,
 }
 
 /// Metadata for an input tensor being used as a reference for a block's layout.
@@ -79,8 +80,8 @@ pub enum ReferenceSelection {
     /// Layout from a normal tensor.
     Concrete {
         layout: FuseArg,
-        shape: Vec<usize>,
-        strides: Vec<usize>,
+        shape: Shape,
+        strides: Strides,
     },
     /// Layout from a swapped dim tensor.
     SwapDims {
@@ -92,8 +93,8 @@ pub enum ReferenceSelection {
     /// Layout that has the shape of an input, but not its strides.
     VirtualShape {
         original: FuseArg,
-        shape: Vec<usize>,
-        strides: Vec<usize>,
+        shape: Shape,
+        strides: Strides,
     },
     /// The layout is provided dynamically by the host at runtime.
     Runtime { pos: usize },
@@ -140,11 +141,11 @@ impl<R: Runtime> LaunchPlan<'_, R> {
 pub struct HandleOutputAliasDebugInfo<R: Runtime> {
     pub handle: CubeFusionHandle<R>,
     pub relative_id: TensorId,
-    pub global_shape: Vec<usize>,
+    pub global_shape: Shape,
 }
 
 /// Represents the output of a fused kernel execution.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[allow(clippy::large_enum_variant)]
 pub enum HandleOutput<R: Runtime> {
     /// An output that reuses the memory of an input tensor (In-place).
@@ -162,44 +163,44 @@ pub enum HandleOutput<R: Runtime> {
         relative_id: TensorId,
         precision: FuseType,
         handle: CubeFusionHandle<R>,
-        global_shape: Vec<usize>,
-        vectorization: LineSize,
+        global_shape: Shape,
+        vectorization: VectorSize,
     },
 }
 
 /// A standard input handle with associated layout and vectorization metadata.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct NormalHandleInput<R: Runtime> {
     pub relative_id: TensorId,
     pub global_ir: TensorIr,
     pub precision: FuseType,
     pub handle: CubeFusionHandle<R>,
-    pub line_size: LineSize,
+    pub vector_size: VectorSize,
     pub broadcated: bool,
     /// Stores the original strides of the handle for restoration during plan rollback.
-    pub orig_strides: Vec<usize>,
+    pub orig_strides: Strides,
 }
 
 /// An input handle containing values for a quantized tensor.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct QuantValuesHandleInput<R: Runtime> {
     pub relative_id: TensorId,
     pub global_ir: TensorIr,
     pub precision: FuseType,
     pub handle: CubeFusionHandle<R>,
-    pub line_size: LineSize,
+    pub vector_size: VectorSize,
 }
 
 /// An input handle containing parameters (scales/offsets) for quantization.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct QuantParamsHandleInput<R: Runtime> {
     pub precision: FuseType,
     pub handle: CubeFusionHandle<R>,
-    pub shape: Vec<usize>,
+    pub shape: Shape,
 }
 
 /// Different types of inputs that can be passed to a fused kernel.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum HandleInput<R: Runtime> {
     Normal(NormalHandleInput<R>),
     QuantValues(QuantValuesHandleInput<R>),
@@ -223,7 +224,7 @@ impl<R: Runtime> NormalHandleInput<R> {
         tensor_relative: &TensorIr,
         precision: FuseType,
         mut handle: CubeFusionHandle<R>,
-        mut strides: Vec<usize>,
+        mut strides: Strides,
     ) -> Self {
         // Swap current handle strides with provided strides to track the original state for rollback.
         core::mem::swap(&mut handle.strides, &mut strides);
@@ -232,7 +233,7 @@ impl<R: Runtime> NormalHandleInput<R> {
             handle,
             relative_id: tensor_relative.id,
             global_ir: tensor_global,
-            line_size: 1,
+            vector_size: 1,
             broadcated: false,
             orig_strides: strides,
         }
@@ -255,7 +256,7 @@ pub struct PotentialInplace<'a> {
     /// Reference to the IR of the relative tensor.
     pub tensor_relative: &'a TensorIr,
     /// Current strides of the potential in-place candidate.
-    pub strides: Vec<usize>,
+    pub strides: Strides,
 }
 
 impl ReferenceSelection {
@@ -265,7 +266,7 @@ impl ReferenceSelection {
 
     pub fn compatible_strides_for_inplace(&self, strides_inplace: &[usize]) -> bool {
         match self {
-            ReferenceSelection::Concrete { strides, .. } => strides == strides_inplace,
+            ReferenceSelection::Concrete { strides, .. } => &**strides == strides_inplace,
             _ => false,
         }
     }

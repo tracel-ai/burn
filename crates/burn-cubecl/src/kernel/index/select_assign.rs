@@ -1,12 +1,12 @@
 use crate::kernel::{
     AddOp, BinaryOp, BinaryOpFamily, OrOp,
-    utils::{linear_view, shape_divmod},
+    utils::{address_type, linear_view, shape_divmod},
 };
 use crate::{CubeRuntime, tensor::CubeTensor};
 use cubecl::{CubeDim, calculate_cube_count_elemwise, std::tensor::layout::linear::LinearView};
 use cubecl::{prelude::*, std::FastDivmod};
 
-#[cube(launch_unchecked)]
+#[cube(launch_unchecked, address_type = "dynamic")]
 fn select_assign_kernel<F: Numeric, I: Numeric, Op: BinaryOpFamily>(
     tensor: &mut Tensor<F>,
     indices: &LinearView<I>,
@@ -47,9 +47,9 @@ fn select_assign_kernel<F: Numeric, I: Numeric, Op: BinaryOpFamily>(
         let index_tensor = usize::cast_from(indices[i]) * strides_tensor_dim + offset_tensor;
         let index_value = i * strides_value_dim + offset_value;
 
-        let value = Op::BinaryOp::<F>::execute(
-            Line::cast_from(tensor[index_tensor]),
-            Line::cast_from(value[index_value]),
+        let value = Op::BinaryOp::<F, Const<1>>::execute(
+            Vector::cast_from(tensor[index_tensor]),
+            Vector::cast_from(value[index_value]),
         );
         tensor[index_tensor] = F::cast_from(value);
     }
@@ -67,7 +67,7 @@ pub(crate) fn select_assign<R: CubeRuntime>(
         false => tensor.copy(),
     };
 
-    let num_elems = tensor.shape.num_elements() / tensor.shape.dims[dim];
+    let num_elems = tensor.meta.num_elements() / tensor.meta.shape()[dim];
     let working_units = num_elems;
     let cube_dim = CubeDim::new(&indices.client, working_units);
     let cube_count = calculate_cube_count_elemwise(&indices.client, working_units, cube_dim);
@@ -77,20 +77,23 @@ pub(crate) fn select_assign<R: CubeRuntime>(
         false => select_assign_kernel::launch_unchecked::<AddOp, R>,
     };
 
+    let (tensor_dtype, indices_dtype) = (tensor.dtype, indices.dtype);
+
+    let shape = shape_divmod(&value);
     unsafe {
         launch(
             &tensor.client,
             cube_count,
             cube_dim,
-            tensor.as_tensor_arg(1),
-            linear_view(&indices, 1),
-            value.as_tensor_arg(1),
-            shape_divmod(&value),
-            ScalarArg::new(num_elems),
+            address_type!(tensor, indices, value),
+            tensor.clone().into_tensor_arg(),
+            linear_view(indices, 1),
+            value.into_tensor_arg(),
+            shape,
+            num_elems,
             dim,
-            [tensor.dtype.into(), indices.dtype.into()],
+            [tensor_dtype.into(), indices_dtype.into()],
         )
-        .expect("Kernel to never fail");
     };
 
     tensor

@@ -5,7 +5,7 @@ use burn::tensor::module::interpolate;
 use burn_core as burn;
 
 use burn::config::Config;
-use burn::module::{Content, DisplaySettings, Ignored, Module, ModuleDisplay};
+use burn::module::{Content, DisplaySettings, Module, ModuleDisplay};
 use burn::tensor::Tensor;
 use burn::tensor::backend::Backend;
 use burn::tensor::ops::InterpolateOptions;
@@ -32,6 +32,11 @@ pub struct Interpolate1dConfig {
     /// Determines how the output values are calculated.
     #[config(default = "InterpolateMode::Nearest")]
     pub mode: InterpolateMode,
+
+    /// If `true`, the input and output tensors are aligned by their corner pixels.
+    /// If `false`, half-pixel coordinate mapping is used instead.
+    #[config(default = true)]
+    pub align_corners: bool,
 }
 
 /// Interpolate module for resizing 1D tensors with shape [N, C, L].
@@ -56,7 +61,10 @@ pub struct Interpolate1d {
     pub scale_factor: Option<f32>,
 
     /// Interpolation mode used for resizing
-    pub mode: Ignored<InterpolateMode>,
+    pub mode: InterpolateMode,
+
+    /// Whether to align corner pixels
+    pub align_corners: bool,
 }
 
 impl Interpolate1dConfig {
@@ -65,7 +73,8 @@ impl Interpolate1dConfig {
         Interpolate1d {
             output_size: self.output_size,
             scale_factor: self.scale_factor,
-            mode: Ignored(self.mode),
+            mode: self.mode,
+            align_corners: self.align_corners,
         }
     }
 }
@@ -102,7 +111,8 @@ impl Interpolate1d {
         let result = interpolate(
             input,
             [1, output_size],
-            InterpolateOptions::new(self.mode.0.clone().into()),
+            InterpolateOptions::new(self.mode.clone().into())
+                .with_align_corners(self.align_corners),
         );
 
         result.squeeze_dims(&[2])
@@ -160,7 +170,7 @@ impl ModuleDisplay for Interpolate1d {
 
     fn custom_content(&self, content: Content) -> Option<Content> {
         content
-            .add("mode", &self.mode)
+            .add_debug_attribute("mode", &self.mode)
             .add("output_size", &format!("{:?}", self.output_size))
             .add("scale_factor", &self.scale_factor)
             .optional()

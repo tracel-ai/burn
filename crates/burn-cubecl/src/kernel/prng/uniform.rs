@@ -1,5 +1,5 @@
 use crate::{CubeRuntime, ops::numeric::empty_device_dtype, tensor::CubeTensor};
-use burn_backend::{DType, Shape};
+use burn_backend::{DType, Shape, TensorMetadata};
 
 /// Pseudo-random generator with uniform distribution
 pub fn random_uniform<R: CubeRuntime>(
@@ -11,13 +11,12 @@ pub fn random_uniform<R: CubeRuntime>(
 ) -> CubeTensor<R> {
     let client = R::client(device);
     let output = empty_device_dtype(client.clone(), device.clone(), shape, dtype);
-    let output_handle = output.as_handle_ref();
 
     cubek::random::random_uniform(
         &client,
         lower_bound,
         upper_bound,
-        output_handle,
+        output.clone().binding(),
         dtype.into(),
     )
     .expect("Kernel to never fail");
@@ -34,7 +33,7 @@ pub fn random_like_uniform<R: CubeRuntime>(
     dtype: DType,
 ) -> CubeTensor<R> {
     random_uniform(
-        tensor.shape.clone(),
+        tensor.shape(),
         &tensor.device,
         lower_bound,
         upper_bound,

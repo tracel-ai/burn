@@ -133,7 +133,7 @@ where
 impl<D, I> Dataset<Vec<I>> for WindowsDataset<D, I>
 where
     D: Dataset<I>,
-    I: Clone + Send + Sync,
+    I: Send + Sync,
 {
     /// Retrieves a window of items from the dataset.
     ///

@@ -14,8 +14,11 @@ use crate::{
 };
 use burn_fusion::stream::Context;
 use burn_ir::{TensorId, TensorIr};
-use burn_std::DType;
-use burn_std::tensor::{ReshapeAction, contiguous_strides, is_contiguous, reshape_action};
+use burn_std::{DType, Shape};
+use burn_std::{
+    Strides,
+    tensor::{ReshapeAction, contiguous_strides, is_contiguous, reshape_action},
+};
 use cubecl::{CubeElement, Runtime, client::ComputeClient, ir::StorageType};
 
 /// Create or reuse handles for the outputs.
@@ -105,7 +108,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                 .get(&output.tensor_relative.id)
                 .unwrap()
                 .clone();
-            let strides = strides_dyn_rank(&tensor_global.shape.dims);
+            let strides = strides_dyn_rank(&tensor_global.shape);
             let (kind, block_idx) = self.output_kind(plan, &tensor_global, &output, &strides);
 
             match kind {
@@ -209,7 +212,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         block: &FuseBlock,
         block_plan: &mut BlockPlan<'_>,
         handle_inputs: &[HandleInput<R>],
-    ) -> Option<Vec<usize>> {
+    ) -> Option<Shape> {
         if let Some(input_ref) = block_plan.potential_reference_input.take() {
             match input_ref {
                 InputReference::Normal { input_pos } => {
@@ -226,7 +229,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                                 reference.precision,
                                 LayoutInfo::IsRef,
                             ),
-                            shape: reference.global_ir.shape.dims.clone(),
+                            shape: reference.global_ir.shape.clone(),
                             strides: reference.handle.strides.clone(),
                         };
                     };
@@ -238,8 +241,8 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                                 reference.precision,
                                 LayoutInfo::Unknown,
                             ),
-                            shape: reference.global_ir.shape.dims.clone(),
-                            strides: contiguous_strides(&reference.global_ir.shape.dims),
+                            shape: reference.global_ir.shape.clone(),
+                            strides: contiguous_strides(&reference.global_ir.shape),
                         };
                     };
 
@@ -249,10 +252,8 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                             // Skip set ref.
                         }
                         RefLayoutSetting::OnlyContiguous => {
-                            if is_contiguous(
-                                &reference.global_ir.shape.dims,
-                                &reference.handle.strides,
-                            ) {
+                            if is_contiguous(&reference.global_ir.shape, &reference.handle.strides)
+                            {
                                 set_ref_as_concrete(block_plan)
                             } else {
                                 set_ref_as_virtual(block_plan)
@@ -299,7 +300,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             };
 
             if strides == &hi.handle.strides
-                && shape == &hi.global_ir.shape.dims
+                && shape == &hi.global_ir.shape
                 && let Some(ops) = block.reads.get_mut(&hi.relative_id)
             {
                 for op in ops.iter_mut() {
@@ -342,7 +343,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             .find(|(_pos, pi)| {
                 pi.tensor_relative.dtype == tensor_global.dtype
                     && pi.tensor_relative.shape == output.tensor_relative.shape
-                    && pi.strides == strides
+                    && &*pi.strides == strides
                     && block.reference.compatible_strides_for_inplace(strides)
             })
             .map(|(pos, _)| OutputKind::Inplace { input_pos: pos })
@@ -383,7 +384,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
 
             block.reference = ReferenceSelection::Concrete {
                 layout: FuseArg::Input(index_input, output.precision, LayoutInfo::IsRef),
-                shape: tensor_global.shape.dims.clone(),
+                shape: tensor_global.shape.clone(),
                 strides: handle_input.handle.strides.clone(),
             };
 
@@ -442,13 +443,13 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         plan: &mut LaunchPlan<'a, R>,
         output: OutputSorted,
         tensor_global: TensorIr,
-        strides: Vec<usize>,
+        strides: Strides,
         block_idx: usize,
     ) {
         let block = &mut plan.blocks[block_idx];
 
         if !block.reference.is_found()
-            && self.blocks[block_idx].shape_ref == output.tensor_relative.shape.dims
+            && self.blocks[block_idx].shape_ref == output.tensor_relative.shape
             && !matches!(
                 self.blocks[block_idx].settings.ref_layout,
                 RefLayoutSetting::SameAsBlock { .. }
@@ -456,7 +457,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         {
             block.reference = ReferenceSelection::Concrete {
                 layout: FuseArg::Output(output.pos_original, output.precision, LayoutInfo::IsRef),
-                shape: tensor_global.shape.dims.clone(),
+                shape: tensor_global.shape.clone(),
                 strides: strides.clone(),
             };
 
@@ -475,7 +476,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             ..
         } = &block.reference
             && ref_strides == &strides
-            && ref_shape == &tensor_global.shape.dims
+            && ref_shape == &tensor_global.shape
             && let Some(ops) = block.writes.get_mut(&output.tensor_relative.id)
         {
             for op in ops {
@@ -510,7 +511,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         self.handles[output.pos_original] = Some(HandleOutput::Owned {
             precision: output.precision,
             handle,
-            global_shape: tensor_global.shape.dims.clone(),
+            global_shape: tensor_global.shape.clone(),
             global_id: tensor_global.id,
             relative_id: output.tensor_relative.id,
             vectorization: 1,
@@ -527,7 +528,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         plan: &mut LaunchPlan<'a, R>,
         output: OutputSorted,
         tensor_global: TensorIr,
-        strides: Vec<usize>,
+        strides: Strides,
         original: TensorId,
         block_idx: usize,
     ) {
@@ -542,9 +543,9 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         };
 
         let action = reshape_action(
-            &original_handle.global_ir.shape.dims,
+            &original_handle.global_ir.shape,
             &original_handle.handle.strides,
-            &tensor_global.shape.dims,
+            &tensor_global.shape,
         );
 
         let update = match action {

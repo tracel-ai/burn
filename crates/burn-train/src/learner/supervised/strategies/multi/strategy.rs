@@ -5,7 +5,10 @@ use crate::{
     multi::epoch::MultiDeviceTrainEpoch,
     single::{TrainingLoop, epoch::SingleDeviceValidEpoch},
 };
-use burn_core::{data::dataloader::split::split_dataloader, tensor::Device};
+use burn_core::{
+    data::dataloader::split::split_dataloader,
+    tensor::{Device, backend::DeviceOps},
+};
 
 pub struct MultiDeviceLearningStrategy<LC: LearningComponentsTypes> {
     devices: Vec<Device<TrainingBackend<LC>>>,
@@ -34,7 +37,7 @@ impl<LC: LearningComponentsTypes> SupervisedLearningStrategy<LC>
         // for each (worker) data loader. This matches the expected device on the worker, so we
         // don't have to move the data between devices.
         let dataloader_train = split_dataloader(dataloader_train, &self.devices);
-        let dataloader_valid = dataloader_valid.to_device(main_device);
+        let dataloader_valid = dataloader_valid.to_device(main_device.inner());
 
         learner.fork(main_device);
         let mut event_processor = training_components.event_processor;
@@ -66,6 +69,12 @@ impl<LC: LearningComponentsTypes> SupervisedLearningStrategy<LC>
                     .unwrap_or(String::from("Reason unknown"));
                 log::info!("Training interrupted: {reason}");
                 break;
+            }
+
+            // After OptimSharded training, model parameters are scattered across
+            // devices. Fork back to main_device before single-device validation.
+            if matches!(self.optim, MultiDeviceOptim::OptimSharded) {
+                learner.fork(main_device);
             }
 
             epoch_valid.run(

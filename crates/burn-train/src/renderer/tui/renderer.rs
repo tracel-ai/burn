@@ -19,7 +19,7 @@ use std::collections::HashMap;
 use std::panic::{set_hook, take_hook};
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex, mpsc};
-use std::thread::{JoinHandle, spawn};
+use std::thread::JoinHandle;
 use std::{
     error::Error,
     io::{self, Stdout},
@@ -45,10 +45,14 @@ enum TuiRendererEvent {
     MetricsUpdate((TuiSplit, TuiGroup, MetricState)),
     StatusUpdateTrain((TuiSplit, TrainingProgress, Vec<ProgressType>)),
     StatusUpdateTest((EvaluationProgress, Vec<ProgressType>)),
-    TrainEnd(Option<LearnerSummary>),
-    ManualClose(),
-    Close(),
-    Persistent(),
+    ProcessEnd {
+        summary: Option<LearnerSummary>,
+        /// Interrupter reset.
+        reset: bool,
+    },
+    ManualClose,
+    Close,
+    Persistent,
 }
 
 /// The terminal UI metrics renderer.
@@ -66,34 +70,39 @@ impl TuiMetricsRendererWrapper {
         let (kill_signal_sender, kill_signal_receiver) = mpsc::channel();
 
         let interrupter_clone = interrupter.clone();
-        let handle_join = spawn(move || {
-            let mut renderer =
-                TuiMetricsRenderer::new(interrupter_clone, checkpoint, kill_signal_sender);
+        let handle_join = std::thread::Builder::new()
+            .name("train-renderer".into())
+            .spawn(move || {
+                let mut renderer =
+                    TuiMetricsRenderer::new(interrupter_clone, checkpoint, kill_signal_sender);
 
-            let tick_rate = Duration::from_millis(MAX_REFRESH_RATE_MILLIS);
-            loop {
-                match receiver.try_recv() {
-                    Ok(event) => renderer.handle_event(event),
-                    Err(mpsc::TryRecvError::Empty) => (),
-                    Err(mpsc::TryRecvError::Disconnected) => {
-                        log::error!("Renderer thread disconnected.");
+                let tick_rate = Duration::from_millis(MAX_REFRESH_RATE_MILLIS);
+                loop {
+                    match receiver.try_recv() {
+                        Ok(event) => renderer.handle_event(event),
+                        Err(mpsc::TryRecvError::Empty) => (),
+                        Err(mpsc::TryRecvError::Disconnected) => {
+                            log::error!("Renderer thread disconnected.");
+                            break;
+                        }
+                    }
+
+                    // Render
+                    if renderer.last_update.elapsed() >= tick_rate
+                        && let Err(err) = renderer.render()
+                    {
+                        log::error!("Render error: {err}");
+                        break;
+                    }
+
+                    if (renderer.manual_close && renderer.interrupter.should_stop())
+                        || renderer.close
+                    {
                         break;
                     }
                 }
-
-                // Render
-                if renderer.last_update.elapsed() >= tick_rate
-                    && let Err(err) = renderer.render()
-                {
-                    log::error!("Render error: {err}");
-                    break;
-                }
-
-                if (renderer.manual_close && renderer.interrupter.should_stop()) || renderer.close {
-                    break;
-                }
-            }
-        });
+            })
+            .unwrap();
 
         Self {
             sender,
@@ -114,7 +123,7 @@ impl TuiMetricsRendererWrapper {
 
     /// Set the renderer to persistent mode.
     pub fn persistent(self) -> Self {
-        self.send_event(TuiRendererEvent::Persistent());
+        self.send_event(TuiRendererEvent::Persistent);
         self
     }
 }
@@ -152,11 +161,20 @@ impl MetricsRendererEvaluation for TuiMetricsRendererWrapper {
             progress_indicators,
         )));
     }
+
+    fn on_test_end(&mut self, summary: Option<LearnerSummary>) -> Result<(), Box<dyn Error>> {
+        // Update the summary
+        self.send_event(TuiRendererEvent::ProcessEnd {
+            summary,
+            reset: false,
+        });
+        Ok(())
+    }
 }
 
 impl MetricsRenderer for TuiMetricsRendererWrapper {
     fn manual_close(&mut self) {
-        self.send_event(TuiRendererEvent::ManualClose());
+        self.send_event(TuiRendererEvent::ManualClose);
         let _ = self.handle_join.take().unwrap().join();
     }
 
@@ -202,7 +220,10 @@ impl MetricsRendererTraining for TuiMetricsRendererWrapper {
         // Reset for following steps.
         self.interrupter.reset();
         // Update the summary
-        self.send_event(TuiRendererEvent::TrainEnd(summary));
+        self.send_event(TuiRendererEvent::ProcessEnd {
+            summary,
+            reset: true,
+        });
         Ok(())
     }
 }
@@ -210,7 +231,7 @@ impl MetricsRendererTraining for TuiMetricsRendererWrapper {
 impl Drop for TuiMetricsRendererWrapper {
     fn drop(&mut self) {
         if !std::thread::panicking() {
-            self.send_event(TuiRendererEvent::Close());
+            self.send_event(TuiRendererEvent::Close);
             let _ = self.handle_join.take().unwrap().join();
         }
     }
@@ -312,13 +333,22 @@ impl TuiMetricsRenderer {
                 self.metrics_numeric.update_progress_test(&item);
                 self.status.update_test(status);
             }
-            TuiRendererEvent::TrainEnd(learner_summary) => {
-                self.interrupter.reset();
-                self.summary = learner_summary;
+            TuiRendererEvent::ProcessEnd { summary, reset } => {
+                match (self.summary.take(), summary) {
+                    (None, Some(summary)) => {
+                        self.summary = Some(summary);
+                    }
+                    (Some(current), Some(other)) => self.summary = Some(current.merge(other)),
+                    (_, _) => { /* nothing to update */ }
+                }
+
+                if reset {
+                    self.interrupter.reset();
+                }
             }
-            TuiRendererEvent::ManualClose() => self.manual_close = true,
-            TuiRendererEvent::Persistent() => self.persistent = true,
-            TuiRendererEvent::Close() => self.close = true,
+            TuiRendererEvent::ManualClose => self.manual_close = true,
+            TuiRendererEvent::Persistent => self.persistent = true,
+            TuiRendererEvent::Close => self.close = true,
         }
     }
 

@@ -485,6 +485,15 @@ impl RelativeOps for ModuleOperationIr {
                     out: desc.out.to_relative(converter),
                 })
             }
+            ModuleOperationIr::Attention(desc) => ModuleOperationIr::Attention(AttentionOpIr {
+                query: desc.query.to_relative(converter),
+                key: desc.key.to_relative(converter),
+                value: desc.value.to_relative(converter),
+                mask: desc.mask.as_ref().map(|m| m.to_relative(converter)),
+                attn_bias: desc.attn_bias.as_ref().map(|ab| ab.to_relative(converter)),
+                options: desc.options.clone(),
+                out: desc.out.to_relative(converter),
+            }),
         }
     }
 }

@@ -144,5 +144,5 @@ fn should_support_cat_all_empty_tensors() {
     // All empty tensors should produce an empty tensor
     let output = TestTensor::cat(vec![tensor_1, tensor_2], 1);
 
-    assert_eq!(output.shape().dims, [2, 0]);
+    assert_eq!(output.shape().as_slice(), [2, 0]);
 }

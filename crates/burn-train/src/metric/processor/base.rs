@@ -20,12 +20,12 @@ pub enum LearnerEvent<T> {
 
 /// Event happening during the evaluation process.
 pub enum EvaluatorEvent<T> {
-    /// Signal the start of the process (e.g., training start)
+    /// Signal the start of the process (e.g., evaluation start)
     Start,
     /// Signal that an item have been processed.
     ProcessedItem(EvaluationName, EvaluationItem<T>),
-    /// Signal the end of the process (e.g., training end).
-    End,
+    /// Signal the end of the process (e.g., evaluation end).
+    End(Option<LearnerSummary>),
 }
 
 /// Items that are lazy are not ready to be processed by metrics.

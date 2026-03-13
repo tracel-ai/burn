@@ -167,7 +167,7 @@ mod linear_model_tests {
         let output = model.forward(input);
 
         // Verify output shape
-        assert_eq!(output.shape().dims, [1, 4]);
+        assert_eq!(&*output.shape(), [1, 4]);
     }
 
     #[test]

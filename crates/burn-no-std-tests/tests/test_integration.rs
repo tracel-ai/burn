@@ -26,6 +26,6 @@ fn test_mnist_model_with_random_input() {
     // Run through the model
     let output = mnist_model.forward(input);
 
-    assert_eq!(output.shape().dims, [1, 10]);
+    assert_eq!(&*output.shape(), [1, 10]);
     assert!(output.to_data().iter::<f32>().all(|x| x <= 1.0));
 }

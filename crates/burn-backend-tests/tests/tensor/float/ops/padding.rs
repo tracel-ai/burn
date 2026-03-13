@@ -303,3 +303,168 @@ fn padding_empty_tensor_reflect_panics_test() {
     // Reflect padding on zero-sized dimension should panic
     let _ = tensor.pad((0, 0, 1, 1), PadMode::Reflect);
 }
+
+// --- Tests for N-dimensional padding using (before, after) pairs ---
+
+#[test]
+fn padding_constant_pairs_2d_test() {
+    // Same as padding_constant_2d_test but using the new pairs API
+    let tensor = TestTensor::<2>::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
+
+    // [(row_before, row_after), (col_before, col_after)]
+    let padded_tensor = tensor.pad([(2, 2), (2, 2)], 1.1);
+
+    let expected = TensorData::from([
+        [1.1, 1.1, 1.1, 1.1, 1.1, 1.1, 1.1],
+        [1.1, 1.1, 1.1, 1.1, 1.1, 1.1, 1.1],
+        [1.1, 1.1, 0.0, 1.0, 2.0, 1.1, 1.1],
+        [1.1, 1.1, 3.0, 4.0, 5.0, 1.1, 1.1],
+        [1.1, 1.1, 1.1, 1.1, 1.1, 1.1, 1.1],
+        [1.1, 1.1, 1.1, 1.1, 1.1, 1.1, 1.1],
+    ]);
+    padded_tensor.into_data().assert_eq(&expected, false);
+}
+
+#[test]
+fn padding_constant_single_dim_test() {
+    // Pad only the last dimension
+    let tensor = TestTensor::<2>::from([[1.0, 2.0], [3.0, 4.0]]);
+
+    let padded_tensor = tensor.pad([(1, 1)], 0.0);
+
+    let expected = TensorData::from([[0.0, 1.0, 2.0, 0.0], [0.0, 3.0, 4.0, 0.0]]);
+    padded_tensor.into_data().assert_eq(&expected, false);
+}
+
+#[test]
+fn padding_constant_all_dims_4d_test() {
+    // Pad all 4 dimensions of a 4D tensor (batch, channel, height, width)
+    // Input: shape [1, 1, 2, 2]
+    let tensor = TestTensor::<4>::from([[[[1.0, 2.0], [3.0, 4.0]]]]);
+
+    // Pad: batch(1,1), channel(1,1), height(0,0), width(0,0)
+    let padded = tensor.pad([(1, 1), (1, 1), (0, 0), (0, 0)], 0.0);
+
+    // Shape should be [3, 3, 2, 2]
+    assert_eq!(padded.dims(), [3, 3, 2, 2]);
+
+    let expected = TensorData::from([
+        [
+            [[0.0, 0.0], [0.0, 0.0]],
+            [[0.0, 0.0], [0.0, 0.0]],
+            [[0.0, 0.0], [0.0, 0.0]],
+        ],
+        [
+            [[0.0, 0.0], [0.0, 0.0]],
+            [[1.0, 2.0], [3.0, 4.0]],
+            [[0.0, 0.0], [0.0, 0.0]],
+        ],
+        [
+            [[0.0, 0.0], [0.0, 0.0]],
+            [[0.0, 0.0], [0.0, 0.0]],
+            [[0.0, 0.0], [0.0, 0.0]],
+        ],
+    ]);
+    padded.into_data().assert_eq(&expected, false);
+}
+
+#[test]
+fn padding_constant_batch_dim_only_test() {
+    // Pad only the batch dimension of a 3D tensor [N, H, W]
+    let tensor = TestTensor::<3>::from([[[1.0, 2.0], [3.0, 4.0]]]);
+
+    // 3 pairs for 3 dims: batch(1,1), height(0,0), width(0,0)
+    let padded = tensor.pad([(1, 1), (0, 0), (0, 0)], -1.0);
+
+    assert_eq!(padded.dims(), [3, 2, 2]);
+
+    let expected = TensorData::from([
+        [[-1.0, -1.0], [-1.0, -1.0]],
+        [[1.0, 2.0], [3.0, 4.0]],
+        [[-1.0, -1.0], [-1.0, -1.0]],
+    ]);
+    padded.into_data().assert_eq(&expected, false);
+}
+
+#[test]
+fn padding_reflect_pairs_test() {
+    // Reflect padding using pairs API
+    let tensor = TestTensor::<2>::from([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]]);
+
+    let padded = tensor.pad([(1, 1), (1, 1)], PadMode::Reflect);
+
+    let expected = TensorData::from([
+        [5.0, 4.0, 5.0, 6.0, 5.0],
+        [2.0, 1.0, 2.0, 3.0, 2.0],
+        [5.0, 4.0, 5.0, 6.0, 5.0],
+        [8.0, 7.0, 8.0, 9.0, 8.0],
+        [5.0, 4.0, 5.0, 6.0, 5.0],
+    ]);
+    padded.into_data().assert_eq(&expected, false);
+}
+
+#[test]
+fn padding_edge_pairs_test() {
+    // Edge padding using pairs API
+    let tensor = TestTensor::<2>::from([[1.0, 2.0], [3.0, 4.0]]);
+
+    let padded = tensor.pad([(1, 1), (1, 1)], PadMode::Edge);
+
+    let expected = TensorData::from([
+        [1.0, 1.0, 2.0, 2.0],
+        [1.0, 1.0, 2.0, 2.0],
+        [3.0, 3.0, 4.0, 4.0],
+        [3.0, 3.0, 4.0, 4.0],
+    ]);
+    padded.into_data().assert_eq(&expected, false);
+}
+
+#[test]
+fn padding_reflect_batch_dim_3d_test() {
+    // Reflect pad the batch dimension of a 3D tensor [N, H, W]
+    // Input shape: [3, 1, 2] - 3 batches, 1 row, 2 cols
+    let tensor = TestTensor::<3>::from([[[1.0, 2.0]], [[3.0, 4.0]], [[5.0, 6.0]]]);
+
+    // Pad batch dim with reflect(1, 1), no spatial padding
+    let padded = tensor.pad([(1, 1), (0, 0), (0, 0)], PadMode::Reflect);
+
+    assert_eq!(padded.dims(), [5, 1, 2]);
+
+    // Reflect on batch: [3,4] [1,2] [3,4] [5,6] [3,4]
+    let expected = TensorData::from([
+        [[3.0, 4.0]],
+        [[1.0, 2.0]],
+        [[3.0, 4.0]],
+        [[5.0, 6.0]],
+        [[3.0, 4.0]],
+    ]);
+    padded.into_data().assert_eq(&expected, false);
+}
+
+#[test]
+fn padding_edge_batch_dim_3d_test() {
+    // Edge pad the batch dimension of a 3D tensor
+    let tensor = TestTensor::<3>::from([[[1.0, 2.0]], [[3.0, 4.0]]]);
+
+    let padded = tensor.pad([(2, 1), (0, 0), (0, 0)], PadMode::Edge);
+
+    assert_eq!(padded.dims(), [5, 1, 2]);
+
+    let expected = TensorData::from([
+        [[1.0, 2.0]],
+        [[1.0, 2.0]],
+        [[1.0, 2.0]],
+        [[3.0, 4.0]],
+        [[3.0, 4.0]],
+    ]);
+    padded.into_data().assert_eq(&expected, false);
+}
+
+#[test]
+#[should_panic(expected = "Padding has")]
+fn padding_too_many_pairs_panics_test() {
+    let tensor = TestTensor::<2>::from([[1.0, 2.0]]);
+
+    // 3 pairs for a 2D tensor should panic
+    let _ = tensor.pad([(1, 1), (1, 1), (1, 1)], 0.0);
+}

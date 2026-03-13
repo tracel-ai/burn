@@ -1,7 +1,9 @@
+use crate::engine::codegen::{DynSize, io::set_polyfill_typed};
+
 use super::{
     DYN_ELEM_ID,
     io::{
-        Transform, global_buffer_len, global_line_size, input_as_slice, read_input,
+        Transform, global_buffer_len, global_vector_size, input_as_slice, read_input,
         read_input_window, ref_buffer_len, ref_len,
     },
     ir::{FuseArg, FuseBlockConfig, GlobalArgs, LayoutInfo, LocalArgs},
@@ -45,7 +47,7 @@ impl GlobalInput {
         #[comptime] transform: Option<Transform>,
     ) -> GlobalInput {
         let (pos, ty, layout) = comptime![match arg {
-            FuseArg::Input(pos, prec, layout) => (pos, prec.into_type(), layout),
+            FuseArg::Input(pos, prec, layout) => (pos, prec.into_storage_type(), layout),
             _ => unreachable!("Must be concrete input"),
         }];
 
@@ -94,7 +96,7 @@ impl<E: CubePrimitive> ViewOperationsExpand<E, Coords1d> for GlobalInputExpand {
             scope,
             pos.clone(),
         );
-        scope.register_type::<NumericExpand<DYN_ELEM_ID>>(self.ty);
+        set_polyfill_typed::expand::<E, NumericExpand<DYN_ELEM_ID>, DynSize>(scope);
         let slice = input_as_slice::expand(scope, self.inputs.clone(), self.pos);
         read_masked::expand::<E>(scope, in_bounds, slice, pos, value)
     }
@@ -105,7 +107,8 @@ impl<E: CubePrimitive> ViewOperationsExpand<E, Coords1d> for GlobalInputExpand {
         scope: &mut Scope,
         pos: ExpandElementTyped<usize>,
     ) -> <E as CubeType>::ExpandType {
-        let value = read_input::expand::<E>(
+        set_polyfill_typed::expand::<E, NumericExpand<DYN_ELEM_ID>, DynSize>(scope);
+        let value = read_input::expand::<E::Scalar, E::Size>(
             scope,
             self.inputs.clone(),
             self.locals.clone(),
@@ -125,7 +128,7 @@ impl<E: CubePrimitive> ViewOperationsExpand<E, Coords1d> for GlobalInputExpand {
         pos: ExpandElementTyped<usize>,
         end: ExpandElementTyped<usize>,
     ) -> SliceExpand<E, ReadOnly> {
-        scope.register_type::<NumericExpand<DYN_ELEM_ID>>(self.ty);
+        set_polyfill_typed::expand::<E, NumericExpand<DYN_ELEM_ID>, DynSize>(scope);
         let end = add::expand(scope, end.clone(), 1.into());
         read_input_window::expand(scope, self.inputs.clone(), self.pos, pos, end)
     }
@@ -157,11 +160,11 @@ impl<E: CubePrimitive> ViewOperationsExpand<E, Coords1d> for GlobalInputExpand {
     }
 }
 
-impl Lined for GlobalInput {}
-impl LinedExpand for GlobalInputExpand {
-    fn line_size(&self) -> LineSize {
+impl Vectorized for GlobalInput {}
+impl VectorizedExpand for GlobalInputExpand {
+    fn vector_size(&self) -> VectorSize {
         let mut temp_scope = Scope::root(false);
-        global_line_size::expand(&mut temp_scope, self.inputs.clone(), self.pos)
+        global_vector_size::expand(&mut temp_scope, self.inputs.clone(), self.pos)
     }
 }
 
@@ -195,14 +198,14 @@ impl FusedOutput {
     }
 }
 
-impl<E: CubePrimitive> ViewOperations<Line<E>, Coords1d> for FusedOutput {}
-impl<E: CubePrimitive> ViewOperationsExpand<Line<E>, Coords1d> for FusedOutputExpand {
+impl<E: CubePrimitive> ViewOperations<E, Coords1d> for FusedOutput {}
+impl<E: CubePrimitive> ViewOperationsExpand<E, Coords1d> for FusedOutputExpand {
     #[allow(clippy::too_many_arguments)]
     fn __expand_read_method(
         &self,
         _scope: &mut Scope,
         _pos: ExpandElementTyped<usize>,
-    ) -> <Line<E> as CubeType>::ExpandType {
+    ) -> <E as CubeType>::ExpandType {
         todo!()
     }
 
@@ -211,7 +214,7 @@ impl<E: CubePrimitive> ViewOperationsExpand<Line<E>, Coords1d> for FusedOutputEx
         &self,
         _scope: &mut Scope,
         _pos: ExpandElementTyped<usize>,
-    ) -> <Line<E> as CubeType>::ExpandType {
+    ) -> <E as CubeType>::ExpandType {
         todo!()
     }
 
@@ -220,8 +223,8 @@ impl<E: CubePrimitive> ViewOperationsExpand<Line<E>, Coords1d> for FusedOutputEx
         &self,
         _scope: &mut Scope,
         _pos: ExpandElementTyped<usize>,
-        _value: <Line<E> as CubeType>::ExpandType,
-    ) -> <Line<E> as CubeType>::ExpandType {
+        _value: <E as CubeType>::ExpandType,
+    ) -> <E as CubeType>::ExpandType {
         todo!()
     }
 
@@ -230,7 +233,7 @@ impl<E: CubePrimitive> ViewOperationsExpand<Line<E>, Coords1d> for FusedOutputEx
         &self,
         _scope: &mut Scope,
         _pos: ExpandElementTyped<usize>,
-    ) -> <Line<E> as CubeType>::ExpandType {
+    ) -> <E as CubeType>::ExpandType {
         todo!()
     }
 
@@ -240,7 +243,7 @@ impl<E: CubePrimitive> ViewOperationsExpand<Line<E>, Coords1d> for FusedOutputEx
         _scope: &mut Scope,
         _pos: ExpandElementTyped<usize>,
         _size: ExpandElementTyped<usize>,
-    ) -> SliceExpand<Line<E>, ReadOnly> {
+    ) -> SliceExpand<E, ReadOnly> {
         todo!()
     }
 
@@ -249,7 +252,7 @@ impl<E: CubePrimitive> ViewOperationsExpand<Line<E>, Coords1d> for FusedOutputEx
         &self,
         _scope: &mut Scope,
         _barrier: BarrierExpand,
-        _shared_memory: SliceExpand<Line<E>, ReadWrite>,
+        _shared_memory: SliceExpand<E, ReadWrite>,
         _pos: ExpandElementTyped<usize>,
     ) {
         panic!("Not a tensor map")
@@ -283,18 +286,19 @@ impl<E: CubePrimitive> ViewOperationsExpand<Line<E>, Coords1d> for FusedOutputEx
     }
 }
 
-impl<E: CubePrimitive> ViewOperationsMut<Line<E>, Coords1d> for FusedOutput {}
-impl<E: CubePrimitive> ViewOperationsMutExpand<Line<E>, Coords1d> for FusedOutputExpand {
+impl<E: CubePrimitive> ViewOperationsMut<E, Coords1d> for FusedOutput {}
+impl<E: CubePrimitive> ViewOperationsMutExpand<E, Coords1d> for FusedOutputExpand {
     #[allow(clippy::too_many_arguments)]
     fn __expand_write_method(
         &self,
         scope: &mut Scope,
         pos: ExpandElementTyped<usize>,
-        value: <Line<E> as CubeType>::ExpandType,
+        value: <E as CubeType>::ExpandType,
     ) {
-        let values = Registry::<FuseArg, Line<E>>::__expand_new(scope);
+        let values = Registry::<FuseArg, Vector<E::Scalar, E::Size>>::__expand_new(scope);
         let mut args = comptime![Vec::<FuseArg>::new()];
 
+        let value = Vector::__expand_cast_from(scope, value);
         values
             .clone()
             .__expand_insert_method(scope, comptime![self.arg.clone()], value);
@@ -317,15 +321,15 @@ impl<E: CubePrimitive> ViewOperationsMutExpand<Line<E>, Coords1d> for FusedOutpu
         &self,
         scope: &mut Scope,
         pos: ExpandElementTyped<usize>,
-        value: <Line<E> as CubeType>::ExpandType,
+        value: <E as CubeType>::ExpandType,
     ) {
-        let in_bounds = ViewOperationsExpand::<Line<E>, Coords1d>::__expand_is_in_bounds_method(
+        let in_bounds = ViewOperationsExpand::<E, Coords1d>::__expand_is_in_bounds_method(
             self,
             scope,
             pos.clone(),
         );
         if_expand(scope, in_bounds.into(), |scope| {
-            self.__expand_write_method(scope, pos, value);
+            ViewOperationsMutExpand::<E, Coords1d>::__expand_write_method(self, scope, pos, value);
         })
     }
 
@@ -335,7 +339,7 @@ impl<E: CubePrimitive> ViewOperationsMutExpand<Line<E>, Coords1d> for FusedOutpu
         _scope: &mut Scope,
         _pos: ExpandElementTyped<usize>,
         _size: ExpandElementTyped<usize>,
-    ) -> SliceExpand<Line<E>, ReadWrite> {
+    ) -> SliceExpand<E, ReadWrite> {
         todo!("Not yet supported")
     }
 
@@ -343,16 +347,16 @@ impl<E: CubePrimitive> ViewOperationsMutExpand<Line<E>, Coords1d> for FusedOutpu
     fn __expand_tensor_map_store_method(
         &self,
         _scope: &mut Scope,
-        _shared_memory: SliceExpand<Line<E>, ReadOnly>,
+        _shared_memory: SliceExpand<E, ReadOnly>,
         _pos: ExpandElementTyped<usize>,
     ) {
         panic!("Not a tensor map")
     }
 }
 
-impl Lined for FusedOutput {}
-impl LinedExpand for FusedOutputExpand {
-    fn line_size(&self) -> LineSize {
-        self.locals.ref_line_size
+impl Vectorized for FusedOutput {}
+impl VectorizedExpand for FusedOutputExpand {
+    fn vector_size(&self) -> VectorSize {
+        self.locals.ref_vector_size
     }
 }

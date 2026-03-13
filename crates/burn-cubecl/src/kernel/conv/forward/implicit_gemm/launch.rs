@@ -7,7 +7,7 @@ use cubek::{
     },
     matmul::{
         definition::{MatmulElems, MatmulGlobalElems},
-        launch::MatmulInputHandleRef,
+        launch::MatmulInputBinding,
     },
 };
 
@@ -109,13 +109,13 @@ pub fn launch_convolution_forward<R: CubeRuntime, const N: usize>(
     }
 
     let out_dtype = input.dtype;
-    let rank = input.shape.num_dims();
-    let batch_size = input.shape[0];
+    let rank = input.meta.shape().num_dims();
+    let batch_size = input.meta.shape()[0];
     let dim_c = rank - 1;
-    let shape = &input.shape[1..dim_c];
+    let shape = &input.meta.shape()[1..dim_c];
 
-    let out_channels = weight.shape[0];
-    let weight_shape = &weight.shape[1..dim_c];
+    let out_channels = weight.meta.shape()[0];
+    let weight_shape = &weight.meta.shape()[1..dim_c];
 
     let mut out_shape = calculate_conv_output_sizes(
         weight_shape,
@@ -135,9 +135,10 @@ pub fn launch_convolution_forward<R: CubeRuntime, const N: usize>(
         out_dtype,
     );
 
-    let bias = bias
-        .as_ref()
-        .map(|bias| MatmulInputHandleRef::Normal(bias.as_handle_ref(), bias.dtype.into()));
+    let bias = bias.map(|bias| {
+        let dtype = bias.dtype;
+        MatmulInputBinding::Normal(bias.binding(), dtype.into())
+    });
 
     let client = input.client.clone();
     let dtypes = MatmulElems::from_globals(&MatmulGlobalElems {
@@ -145,16 +146,18 @@ pub fn launch_convolution_forward<R: CubeRuntime, const N: usize>(
         rhs: weight.dtype.into(),
         out: out_dtype.into(),
     });
-    let input = MatmulInputHandleRef::new(input.as_handle_ref(), input.dtype.into());
-    let weight = MatmulInputHandleRef::new(weight.as_handle_ref(), weight.dtype.into());
+    let input_dtype = input.dtype;
+    let weight_dtype = weight.dtype;
+    let input = MatmulInputBinding::new(input.binding(), input_dtype.into());
+    let weight = MatmulInputBinding::new(weight.binding(), weight_dtype.into());
 
     forward::launch_ref::<R, N>(
         strategy,
         &client,
-        &input,
-        &weight,
-        &bias,
-        &out.as_handle_ref(),
+        input,
+        weight,
+        bias,
+        out.clone().binding(),
         ConvolutionArgs {
             stride: options.stride,
             padding: options.padding,

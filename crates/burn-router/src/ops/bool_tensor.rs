@@ -6,12 +6,12 @@ use burn_backend::ops::BoolTensorOps;
 use burn_backend::tensor::{
     BoolTensor, Device, FloatElem, FloatTensor, IndexingUpdateOp, IntElem, IntTensor,
 };
-use burn_backend::{Element, Shape, Slice, TensorData};
+use burn_backend::{Element, Scalar, Shape, Slice, TensorData};
 use burn_ir::{
     BaseOperationIr, BinaryOpIr, BoolOperationIr, CastOpIr, CatOpIr, CreationOpIr, FlipOpIr,
     GatherOpIr, InitOperationIr, MaskFillOpIr, MaskWhereOpIr, OperationIr, OperationOutput,
-    PermuteOpIr, RepeatDimOpIr, ScalarIr, ScalarOpIr, ScatterOpIr, ShapeOpIr, SliceAssignOpIr,
-    SliceOpIr, SwapDimsOpIr, UnaryOpIr, UnfoldOpIr,
+    PermuteOpIr, RepeatDimOpIr, ScalarOpIr, ScatterOpIr, ShapeOpIr, SliceAssignOpIr, SliceOpIr,
+    SwapDimsOpIr, UnaryOpIr, UnfoldOpIr,
 };
 
 impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
@@ -270,10 +270,10 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
     fn bool_mask_fill(
         tensor: BoolTensor<Self>,
         mask: BoolTensor<Self>,
-        value: burn_backend::tensor::BoolElem<Self>,
+        value: Scalar,
     ) -> BoolTensor<Self> {
         let client = tensor.client.clone();
-        let value = ScalarIr::new(value, &tensor.dtype);
+        let value = value.into();
         let desc = MaskFillOpIr::create(tensor.into_ir(), mask.into_ir(), value, || {
             client.create_empty_handle()
         });
@@ -319,12 +319,9 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
             .output()
     }
 
-    fn bool_equal_elem(
-        lhs: BoolTensor<Self>,
-        rhs: burn_backend::tensor::BoolElem<Self>,
-    ) -> BoolTensor<Self> {
+    fn bool_equal_elem(lhs: BoolTensor<Self>, rhs: Scalar) -> BoolTensor<Self> {
         let client = lhs.client.clone();
-        let rhs = ScalarIr::new(rhs, &lhs.dtype);
+        let rhs = rhs.into();
         let desc = ScalarOpIr::create_comparison(lhs.into_ir(), rhs, R::BoolElem::dtype(), || {
             client.create_empty_handle()
         });

@@ -286,14 +286,14 @@ Inference in the Browser 🌐
 </summary>
 <br />
 
-Several of our backends can run in WebAssembly environments: NdArray for CPU execution,
-and WGPU for GPU acceleration via WebGPU. This means that you can run inference directly within a
-browser. We provide several examples of this:
+Several of our backends can run in WebAssembly environments: NdArray for CPU execution, and WGPU for
+GPU acceleration via WebGPU. This means that you can run inference directly within a browser. We
+provide several examples of this:
 
 - [MNIST](./examples/mnist-inference-web) where you can draw digits and a small convnet tries to
   find which one it is! 2️⃣ 7️⃣ 😰
-- [Image Classification](./examples/image-classification-web) where you can upload images and
-  classify them! 🌄
+- [Image Classification](https://github.com/tracel-ai/burn-onnx/tree/main/examples/image-classification-web)
+  where you can upload images and classify them! 🌄
 
 </details>
 
@@ -542,12 +542,9 @@ any background. You can ask your questions and share what you built with the com
 
 **Contributing**
 
-Before contributing, please take a moment to review our
-[code of conduct](https://github.com/tracel-ai/burn/tree/main/CODE-OF-CONDUCT.md). It's also highly
-recommended to read the
-[architecture overview](https://github.com/tracel-ai/burn/tree/main/contributor-book/src/project-architecture),
-which explains some of our architectural decisions. Refer to our
-[contributing guide](/CONTRIBUTING.md) for more details.
+Before contributing, please read the [Contributing Guidelines](./CONTRIBUTING.md) and our
+[Code of Conduct](./CODE-OF-CONDUCT.md). The [Contributor Book](https://burn.dev/contributor-book/)
+covers architecture, environment setup, and guides for common tasks.
 
 ## Status
 

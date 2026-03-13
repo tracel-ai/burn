@@ -1,3 +1,4 @@
+use burn_backend::ops::AttentionModuleOptions;
 use burn_backend::tensor::IndexingUpdateOp;
 use core::hash::Hash;
 use serde::{Deserialize, Serialize};
@@ -63,6 +64,7 @@ impl CustomOpIr {
 
 /// Describe all tensor operations possible.
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(clippy::large_enum_variant)]
 pub enum OperationIr {
     /// Basic operation on a float tensor.
     BaseFloat(BaseOperationIr),
@@ -246,6 +248,8 @@ pub enum ModuleOperationIr {
     Interpolate(InterpolateOpIr),
     /// Operation corresponding to [interpolate backward](burn_backend::ops::ModuleOps::interpolate_backward).
     InterpolateBackward(InterpolateBackwardOpIr),
+    /// Operation corresponding to [attention](burn_backend::ops::ModuleOps::attention).
+    Attention(AttentionOpIr),
 }
 
 /// Basic operations that can be done on any tensor type.
@@ -1558,12 +1562,14 @@ pub enum InterpolateModeIr {
     Nearest,
     Bilinear,
     Bicubic,
+    Lanczos3,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
 pub struct InterpolateOptionsIr {
     pub mode: InterpolateModeIr,
+    pub align_corners: bool,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
@@ -1575,21 +1581,60 @@ pub struct InterpolateOpIr {
     pub out: TensorIr,
 }
 
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct AttentionOptionsIr {
+    pub scale: Option<ScalarIr>,
+    pub softcap: Option<ScalarIr>,
+    pub is_causal: bool,
+}
+
+impl From<AttentionOptionsIr> for AttentionModuleOptions {
+    fn from(ir: AttentionOptionsIr) -> Self {
+        AttentionModuleOptions {
+            scale: ir.scale.map(|s| s.elem()),
+            softcap: ir.softcap.map(|s| s.elem()),
+            is_causal: ir.is_causal,
+        }
+    }
+}
+
+impl From<AttentionModuleOptions> for AttentionOptionsIr {
+    fn from(ir: AttentionModuleOptions) -> Self {
+        AttentionOptionsIr {
+            scale: ir.scale.map(ScalarIr::Float),
+            softcap: ir.softcap.map(ScalarIr::Float),
+            is_causal: ir.is_causal,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct AttentionOpIr {
+    pub query: TensorIr,
+    pub key: TensorIr,
+    pub value: TensorIr,
+    pub mask: Option<TensorIr>,
+    pub attn_bias: Option<TensorIr>,
+    pub options: AttentionOptionsIr,
+    pub out: TensorIr,
+}
+
 impl From<InterpolateModeIr> for InterpolateMode {
     fn from(val: InterpolateModeIr) -> Self {
         match val {
             InterpolateModeIr::Nearest => Self::Nearest,
             InterpolateModeIr::Bilinear => Self::Bilinear,
             InterpolateModeIr::Bicubic => Self::Bicubic,
+            InterpolateModeIr::Lanczos3 => Self::Lanczos3,
         }
     }
 }
 
 impl From<InterpolateOptionsIr> for InterpolateOptions {
     fn from(val: InterpolateOptionsIr) -> Self {
-        Self {
-            mode: val.mode.into(),
-        }
+        Self::new(val.mode.into()).with_align_corners(val.align_corners)
     }
 }
 
@@ -1599,6 +1644,7 @@ impl From<InterpolateMode> for InterpolateModeIr {
             InterpolateMode::Nearest => Self::Nearest,
             InterpolateMode::Bilinear => Self::Bilinear,
             InterpolateMode::Bicubic => Self::Bicubic,
+            InterpolateMode::Lanczos3 => Self::Lanczos3,
         }
     }
 }
@@ -1607,6 +1653,7 @@ impl From<InterpolateOptions> for InterpolateOptionsIr {
     fn from(val: InterpolateOptions) -> Self {
         Self {
             mode: val.mode.into(),
+            align_corners: val.align_corners,
         }
     }
 }
@@ -1950,10 +1997,10 @@ impl NumericOperationIr {
             NumericOperationIr::MaxAbsDim(repr) => Box::new([&repr.input].into_iter()),
             NumericOperationIr::IntRandom(_repr) => Box::new([].into_iter()),
             NumericOperationIr::Powf(repr) => Box::new([&repr.lhs, &repr.rhs].into_iter()),
-            NumericOperationIr::CumMin(repr) => Box::new([&repr.out].into_iter()),
-            NumericOperationIr::CumMax(repr) => Box::new([&repr.out].into_iter()),
-            NumericOperationIr::CumProd(repr) => Box::new([&repr.out].into_iter()),
-            NumericOperationIr::CumSum(repr) => Box::new([&repr.out].into_iter()),
+            NumericOperationIr::CumMin(repr) => Box::new([&repr.input].into_iter()),
+            NumericOperationIr::CumMax(repr) => Box::new([&repr.input].into_iter()),
+            NumericOperationIr::CumProd(repr) => Box::new([&repr.input].into_iter()),
+            NumericOperationIr::CumSum(repr) => Box::new([&repr.input].into_iter()),
         }
     }
 
@@ -2607,6 +2654,19 @@ impl ModuleOperationIr {
             ModuleOperationIr::InterpolateBackward(repr) => {
                 Box::new([&repr.x, &repr.grad].into_iter())
             }
+            ModuleOperationIr::Attention(repr) => {
+                if let Some(mask) = &repr.mask {
+                    if let Some(attn_bias) = &repr.attn_bias {
+                        Box::new([&repr.query, &repr.key, &repr.value, mask, attn_bias].into_iter())
+                    } else {
+                        Box::new([&repr.query, &repr.key, &repr.value, mask].into_iter())
+                    }
+                } else if let Some(attn_bias) = &repr.attn_bias {
+                    Box::new([&repr.query, &repr.key, &repr.value, attn_bias].into_iter())
+                } else {
+                    Box::new([&repr.query, &repr.key, &repr.value].into_iter())
+                }
+            }
         }
     }
     fn outputs(&self) -> Box<dyn Iterator<Item = &TensorIr> + '_> {
@@ -2688,6 +2748,7 @@ impl ModuleOperationIr {
             }
             ModuleOperationIr::Interpolate(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::InterpolateBackward(repr) => Box::new([&repr.out].into_iter()),
+            ModuleOperationIr::Attention(repr) => Box::new([&repr.out].into_iter()),
         }
     }
 
@@ -2883,6 +2944,17 @@ impl ModuleOperationIr {
             ModuleOperationIr::InterpolateBackward(repr) => {
                 repr.x.mark_read_only(nodes, &mut output);
                 repr.grad.mark_read_only(nodes, &mut output);
+            }
+            ModuleOperationIr::Attention(repr) => {
+                repr.query.mark_read_only(nodes, &mut output);
+                repr.key.mark_read_only(nodes, &mut output);
+                repr.value.mark_read_only(nodes, &mut output);
+                if let Some(mask) = &mut repr.mask {
+                    mask.mark_read_only(nodes, &mut output);
+                }
+                if let Some(attn_bias) = &mut repr.attn_bias {
+                    attn_bias.mark_read_only(nodes, &mut output);
+                }
             }
         };
 

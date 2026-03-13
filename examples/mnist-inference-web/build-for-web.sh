@@ -10,7 +10,7 @@ then
 fi
 
 # Set optimization flags
-RUSTFLAGS="-C embed-bitcode=yes -C codegen-units=1 -C opt-level=3 --cfg web_sys_unstable_apis --cfg getrandom_backend=\"wasm_js\""
+RUSTFLAGS="-C embed-bitcode=yes -C codegen-units=1 -C opt-level=3 --cfg web_sys_unstable_apis"
 
 # Run wasm pack tool to build JS wrapper files and copy wasm to pkg directory.
 mkdir -p pkg

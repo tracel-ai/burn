@@ -204,16 +204,18 @@ pub(crate) fn create_key<R: Runtime>(
     let lhs_strides = context
         .handles
         .get_handle(&lhs.id, &burn_ir::TensorStatus::ReadOnly)
-        .strides;
+        .strides
+        .clone();
     let rhs_strides = context
         .handles
         .get_handle(&rhs.id, &burn_ir::TensorStatus::ReadOnly)
-        .strides;
+        .strides
+        .clone();
 
     let key = MatmulAutotuneKey::generate(
         &opt.info.client,
-        &lhs.shape.dims,
-        &rhs.shape.dims,
+        &lhs.shape,
+        &rhs.shape,
         &lhs_strides,
         &rhs_strides,
         lhs.dtype.into(),
@@ -240,13 +242,14 @@ fn tune_fused<R: Runtime, BT: CubeElement>(
     let context = input.context();
 
     match context {
-        TuneContext::Original(context) => match optimization.execute_fused::<BT>(context, selector)
-        {
-            Ok(out) => Ok(out),
-            Err(_) => {
-                return tune_fallback::<R, BT>(input);
+        TuneContext::Original(context) => {
+            match optimization.execute_fused::<BT>(context, selector) {
+                Ok(out) => Ok(out),
+                Err(_) => {
+                    return tune_fallback::<R, BT>(input);
+                }
             }
-        },
+        }
         TuneContext::Fork(mut context_owned) => {
             optimization.execute_fused::<BT>(&mut context_owned.as_context(), selector)
         }

@@ -2,14 +2,17 @@ use crate::{
     CubeRuntime,
     kernel::{
         pool::pool2d::{Position, view4d},
-        utils::{decompose_linear, shape_divmod},
+        utils::{address_type, decompose_linear, shape_divmod},
     },
-    ops::{max_line_size, numeric::empty_device_dtype, permute_nchw_to_nhwc, permute_nhwc_to_nchw},
+    ops::{
+        max_vector_size, numeric::empty_device_dtype, permute_nchw_to_nhwc, permute_nhwc_to_nchw,
+    },
     tensor::CubeTensor,
 };
 use burn_backend::Shape;
 use cubecl::{
     calculate_cube_count_elemwise,
+    num_traits::Zero,
     prelude::*,
     std::{FastDivmod, tensor::View},
 };
@@ -24,10 +27,10 @@ pub(crate) struct PoolBackwardArgs {
     pub padding_1: i32,
 }
 
-#[cube(launch_unchecked)]
-fn avg_pool2d_backward_kernel<E: Numeric>(
-    grad: &Tensor<Line<E>>,
-    output: &mut View<Line<E>, Position, ReadWrite>,
+#[cube(launch_unchecked, address_type = "dynamic")]
+fn avg_pool2d_backward_kernel<E: Numeric, N: Size>(
+    grad: &Tensor<Vector<E, N>>,
+    output: &mut View<Vector<E, N>, Position, ReadWrite>,
     out_shape: Sequence<FastDivmod<usize>>,
     working_units: usize,
     args: &PoolBackwardArgs,
@@ -40,14 +43,14 @@ fn avg_pool2d_backward_kernel<E: Numeric>(
         terminate!();
     }
 
-    let line_size = grad.line_size();
+    let vector_size = grad.vector_size();
 
-    let (_, pos) = decompose_linear(ABSOLUTE_POS * output.line_size(), &out_shape);
+    let (_, pos) = decompose_linear(ABSOLUTE_POS * output.vector_size(), &out_shape);
     let [batch, ih, iw, channel] = *pos else {
         unreachable!()
     };
 
-    let mut grad_acc = Line::empty(grad.line_size()).fill(E::from_int(0));
+    let mut grad_acc = Vector::zero();
 
     let (oh_start, oh_end, ow_start, ow_end) = loop_ranges(
         ih as i32,
@@ -88,13 +91,13 @@ fn avg_pool2d_backward_kernel<E: Numeric>(
 
                 if begin_w >= iw_start && (iw as u32) < iw_end {
                     if count_include_pad {
-                        grad_acc += grad[index / line_size]
-                            / Line::cast_from(kernel_size_0 * kernel_size_1);
+                        grad_acc += grad[index / vector_size]
+                            / Vector::cast_from(kernel_size_0 * kernel_size_1);
                     } else {
                         let ih_diff = ih_end - ih_start;
                         let iw_diff = iw_end - iw_start;
-                        let count = Line::cast_from(ih_diff * iw_diff);
-                        grad_acc += grad[index / line_size] / count;
+                        let count = Vector::cast_from(ih_diff * iw_diff);
+                        grad_acc += grad[index / vector_size] / count;
                     }
                 }
             }
@@ -134,12 +137,12 @@ pub(crate) fn avg_pool2d_backward<R: CubeRuntime>(
     count_include_pad: bool,
     _ceil_mode: bool,
 ) -> CubeTensor<R> {
-    let [batches, channels, height, width] = x.shape.dims();
+    let [batches, channels, height, width] = x.meta.shape().dims();
 
     let grad = permute_nchw_to_nhwc(grad);
 
-    let line_size = if x.strides[3] == grad.strides[3] {
-        max_line_size(&x)
+    let vector_size = if x.meta.strides()[3] == grad.meta.strides()[3] {
+        max_vector_size(&x)
     } else {
         1
     };
@@ -149,34 +152,35 @@ pub(crate) fn avg_pool2d_backward<R: CubeRuntime>(
     let out_shape = Shape::new([batches, height, width, channels]);
     let output = empty_device_dtype(x.client.clone(), x.device.clone(), out_shape, x.dtype);
 
-    let working_units = output.shape.num_elements() / line_size as usize;
+    let working_units = output.meta.num_elements() / vector_size as usize;
     let cube_dim = CubeDim::new(&x.client, working_units);
     let cube_count = calculate_cube_count_elemwise(&x.client, working_units, cube_dim);
 
     unsafe {
         avg_pool2d_backward_kernel::launch_unchecked(
-            &grad.client,
+            &output.client,
             cube_count,
             cube_dim,
-            grad.as_tensor_arg(line_size),
-            view4d(&output, line_size),
+            address_type!(grad, output),
+            vector_size,
+            grad.into_tensor_arg(),
+            view4d(output.clone(), vector_size),
             shape_divmod(&output),
-            ScalarArg::new(working_units),
+            working_units,
             PoolBackwardArgsLaunch::new(
-                ScalarArg::new(stride[0] as i32),
-                ScalarArg::new(stride[1] as i32),
-                ScalarArg::new(dilation),
-                ScalarArg::new(dilation),
-                ScalarArg::new(padding[0] as i32),
-                ScalarArg::new(padding[1] as i32),
+                stride[0] as i32,
+                stride[1] as i32,
+                dilation,
+                dilation,
+                padding[0] as i32,
+                padding[1] as i32,
             ),
             kernel_size[0] as i32,
             kernel_size[1] as i32,
             count_include_pad,
             output.dtype.into(),
         )
-    }
-    .expect("Kernel to never fail");
+    };
 
     permute_nhwc_to_nchw(output)
 }

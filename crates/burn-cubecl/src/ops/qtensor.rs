@@ -1,5 +1,6 @@
 use burn_backend::{
-    Bytes, DType, ExecutionError, QTensorPrimitive, Shape, Slice, TensorData, TensorPrimitive,
+    Bytes, DType, ExecutionError, QTensorPrimitive, Shape, Slice, TensorData, TensorMetadata,
+    TensorPrimitive,
     ops::QTensorOps,
     quantization::{
         QParamTensor, QuantLevel, QuantMode, QuantParam, QuantPropagation, QuantScheme, QuantValue,
@@ -7,7 +8,8 @@ use burn_backend::{
     },
     tensor::{Device, FloatElem, FloatTensor, IntTensor, QuantizedTensor},
 };
-use cubecl::server::{Allocation, AllocationDescriptor, AllocationKind};
+use burn_std::Metadata;
+use cubecl::server::{MemoryLayout, MemoryLayoutDescriptor, MemoryLayoutStrategy};
 use cubecl::{e2m1x2, quant::scheme::QuantStore};
 
 use crate::{
@@ -26,7 +28,7 @@ fn new_qtensor_optimized<R: CubeRuntime>(
     scheme: QuantScheme,
     device: &R::Device,
 ) -> CubeTensor<R> {
-    new_qtensor(data, shape, scheme, device, AllocationKind::Optimized)
+    new_qtensor(data, shape, scheme, device, MemoryLayoutStrategy::Optimized)
 }
 
 /// Create a quantized tensor with packed values (u32).
@@ -35,7 +37,7 @@ fn new_qtensor<R: CubeRuntime>(
     shape: impl Into<Shape>,
     scheme: QuantScheme,
     device: &R::Device,
-    kind: AllocationKind,
+    kind: MemoryLayoutStrategy,
 ) -> CubeTensor<R> {
     new_quantized(shape, scheme, device, Some(data), kind)
 }
@@ -46,7 +48,7 @@ pub fn empty_qtensor_optimized<R: CubeRuntime>(
     scheme: QuantScheme,
     device: &R::Device,
 ) -> CubeTensor<R> {
-    empty_qtensor(shape, scheme, device, AllocationKind::Optimized)
+    empty_qtensor(shape, scheme, device, MemoryLayoutStrategy::Optimized)
 }
 
 /// Create an empty quantized tensor.
@@ -54,7 +56,7 @@ pub fn empty_qtensor<R: CubeRuntime>(
     shape: impl Into<Shape>,
     scheme: QuantScheme,
     device: &R::Device,
-    kind: AllocationKind,
+    kind: MemoryLayoutStrategy,
 ) -> CubeTensor<R> {
     new_quantized(shape, scheme, device, None, kind)
 }
@@ -64,7 +66,7 @@ fn new_quantized<R: CubeRuntime>(
     scheme: QuantScheme,
     device: &R::Device,
     data: Option<Bytes>,
-    alloc_kind: AllocationKind,
+    alloc_kind: MemoryLayoutStrategy,
 ) -> CubeTensor<R> {
     let client = R::client(device);
     let shape: Shape = shape.into();
@@ -79,7 +81,7 @@ fn new_quantized<R: CubeRuntime>(
             if !shape_last.is_multiple_of(num_quants) {
                 panic!("Can't store in u32")
             }
-            shape_value.dims[rank - 1] = shape_last.div_ceil(num_quants);
+            shape_value[rank - 1] = shape_last.div_ceil(num_quants);
             size_of::<u32>()
         }
         QuantStore::Native => match scheme.value {
@@ -109,9 +111,9 @@ fn new_quantized<R: CubeRuntime>(
     };
 
     let scales_shape = params_shape(&shape, scheme.level);
-    let data_desc = AllocationDescriptor::new(alloc_kind, &shape_value.dims, data_size);
+    let data_desc = MemoryLayoutDescriptor::new(alloc_kind, shape_value.clone(), data_size);
     let scales_desc =
-        AllocationDescriptor::new(alloc_kind, &scales_shape.dims, scales_dtype.size());
+        MemoryLayoutDescriptor::new(alloc_kind, scales_shape.clone(), scales_dtype.size());
 
     let mut tensors = match data {
         Some(data) => {
@@ -128,24 +130,23 @@ fn new_quantized<R: CubeRuntime>(
         }
         None => client.empty_tensors(vec![data_desc, scales_desc]),
     };
-    let Allocation {
-        handle: scales_handle,
+    let MemoryLayout {
+        memory: scales_handle,
         strides: scales_strides,
     } = tensors.remove(1);
-    let Allocation { handle, strides } = tensors.remove(0);
+    let MemoryLayout { memory, strides } = tensors.remove(0);
 
     let scales = QParamTensor {
         offset_start: scales_handle.offset_start.unwrap_or(0) as usize,
         offset_end: scales_handle.offset_end.unwrap_or(0) as usize,
-        shape: scales_shape,
-        strides: scales_strides,
+        metadata: Metadata::new(scales_shape, scales_strides),
         dtype: scales_dtype,
     };
     let qparams = QParams { scales };
 
     CubeTensor::new_quantized(
         client,
-        handle,
+        memory,
         shape,
         device.clone(),
         strides,
@@ -222,7 +223,7 @@ where
             return into_data(tensor).await;
         }
 
-        let (shape, dtype) = (tensor.shape.dims.clone(), tensor.dtype);
+        let (shape, dtype) = (tensor.shape(), tensor.dtype);
         let (values, params) = tensor.quantized_handles().unwrap();
 
         let mut data_values = into_data(values).await?;

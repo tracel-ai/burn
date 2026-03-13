@@ -44,12 +44,12 @@ fn float_grid_sample_2d_bilinear<B: Backend>(
     padding_mode: GridSamplePaddingMode,
     align_corners: bool,
 ) -> FloatTensor<B> {
-    let n = tensor.shape().dims[0];
-    let c = tensor.shape().dims[1];
-    let h_in = tensor.shape().dims[2];
-    let w_in = tensor.shape().dims[3];
-    let h_out = grid.shape().dims[1];
-    let w_out = grid.shape().dims[2];
+    let n = tensor.shape()[0];
+    let c = tensor.shape()[1];
+    let h_in = tensor.shape()[2];
+    let w_in = tensor.shape()[3];
+    let h_out = grid.shape()[1];
+    let w_out = grid.shape()[2];
     let spatial_in = h_in * w_in;
     let spatial_out = h_out * w_out;
 

@@ -2,7 +2,7 @@
 
 use alloc::vec::Vec;
 use burn_backend::{
-    DType, Distribution, Shape, Slice, calculate_matmul_output,
+    DType, Distribution, Shape, Slice, SliceOps, calculate_matmul_output,
     ops::{
         conv::{
             calculate_conv_output_shape, calculate_conv_transpose_output_shape,
@@ -242,13 +242,13 @@ impl_ir_create!(
         dim1: usize,
         dim2: usize
     },
-    shape = input.shape.clone().swap(dim1, dim2).unwrap(),
+    shape = input.shape.clone().swapped(dim1, dim2).unwrap(),
     dtype = input.dtype
 );
 
 impl_ir_create!(
     PermuteOpIr { input: TensorIr, axes: Vec<usize> },
-    shape = input.shape.clone().permute(&axes).unwrap(),
+    shape = input.shape.clone().permuted(&axes).unwrap(),
     dtype = input.dtype
 );
 
@@ -941,6 +941,19 @@ impl_ir_create!(
     },
     shape = tensor.shape.clone(),
     dtype = DType::QFloat(scheme)
+);
+
+impl_ir_create!(
+    AttentionOpIr {
+        query: TensorIr,
+        key: TensorIr,
+        value: TensorIr,
+        mask: Option<TensorIr>,
+        attn_bias: Option<TensorIr>,
+        options: AttentionOptionsIr,
+    },
+    shape = Shape::new([query.shape[0], query.shape[1], query.shape[2], value.shape[3]]),
+    dtype = query.dtype
 );
 
 impl DequantizeOpIr {

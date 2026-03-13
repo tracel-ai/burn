@@ -5,7 +5,7 @@ use crate::{
         into_contiguous_aligned,
         matmul::{MatmulStrategy, matmul},
         slice,
-        utils::{decompose_linear, linear_view, shape_divmod},
+        utils::{address_type, decompose_linear, linear_view, shape_divmod},
     },
     ops::{numeric::empty_device_dtype, reshape, swap_dims},
     tensor::CubeTensor,
@@ -17,7 +17,7 @@ use burn_backend::{
 use cubecl::{
     calculate_cube_count_elemwise,
     prelude::*,
-    std::{CubeOption, CubeOptionExpand, FastDivmod, tensor::layout::linear::LinearView},
+    std::{FastDivmod, tensor::layout::linear::LinearView},
 };
 use cubek::convolution::components::ConvSetupError;
 
@@ -33,8 +33,8 @@ pub fn conv_transpose2d_col2im<R: CubeRuntime>(
     bias: Option<CubeTensor<R>>,
     options: ConvTransposeOptions<2>,
 ) -> Result<CubeTensor<R>, ConvSetupError> {
-    let [input_channels, im_ch_per_group, kernel_h, kernel_w] = weight.shape.dims();
-    let [batch_size, _, input_h, input_w] = input.shape.dims();
+    let [input_channels, im_ch_per_group, kernel_h, kernel_w] = weight.meta.shape().dims();
+    let [batch_size, _, input_h, input_w] = input.meta.shape().dims();
     let groups = options.groups;
     let input_ch_per_group = input_channels / groups;
     let ConvTransposeOptions {
@@ -135,12 +135,11 @@ pub fn conv_transpose2d_col2im<R: CubeRuntime>(
 pub(crate) fn index<R: CubeRuntime>(tensor: CubeTensor<R>, i: usize) -> CubeTensor<R> {
     #[allow(clippy::single_range_in_vec_init)]
     let mut indices = vec![i..i + 1];
-    for dim in tensor.shape[1..].iter() {
+    for dim in tensor.meta.shape()[1..].iter() {
         indices.push(0..*dim);
     }
     let mut tensor = slice(tensor, &indices);
-    tensor.shape.remove(0);
-    tensor.strides.remove(0);
+    tensor.meta.remove(0);
     tensor
 }
 
@@ -154,8 +153,8 @@ fn execute<R: CubeRuntime>(
     kernel_h: usize,
     kernel_w: usize,
 ) -> Result<(), ConvSetupError> {
-    let [batch_size, _, input_h, input_w] = input.shape.dims();
-    let [groups, col_shape_0, input_ch_per_group] = weight.shape.dims();
+    let [batch_size, _, input_h, input_w] = input.meta.shape().dims();
+    let [groups, col_shape_0, input_ch_per_group] = weight.meta.shape().dims();
 
     let col_shape_1 = batch_size * input_h * input_w;
 
@@ -190,35 +189,39 @@ fn col2im<R: CubeRuntime>(
     let columns = into_contiguous_aligned(columns);
     let bias = bias.map(into_contiguous_aligned);
 
-    let num_elems = out.shape.num_elements();
+    let num_elems = out.meta.num_elements();
 
     let cube_dim = CubeDim::new(&columns.client, num_elems);
     let cube_count = calculate_cube_count_elemwise(&columns.client, num_elems, cube_dim);
 
+    let shape = shape_divmod(&out);
     unsafe {
         col2im_kernel::launch_unchecked(
-            &columns.client,
+            &columns.client.clone(),
             cube_count,
             cube_dim,
-            columns.as_tensor_arg(1),
-            bias.as_ref().map(|bias| bias.as_tensor_arg(1)).into(),
-            linear_view(&out, 1),
-            shape_divmod(&out),
+            address_type!(columns, bias, out),
+            columns.into_tensor_arg(),
+            bias.map(|bias| bias.into_tensor_arg()).into(),
+            linear_view(out, 1),
+            shape,
             Col2ImArgsLaunch::new(
-                ScalarArg::new(out_h),
-                ScalarArg::new(out_w),
-                ScalarArg::new(kernel_h),
-                ScalarArg::new(kernel_w),
-                ScalarArg::new(options.padding[0]),
-                ScalarArg::new(options.padding[1]),
-                ScalarArg::new(options.dilation[0]),
-                ScalarArg::new(options.dilation[1]),
-                ScalarArg::new(options.stride[0]),
-                ScalarArg::new(options.stride[1]),
+                out_h,
+                out_w,
+                kernel_h,
+                kernel_w,
+                options.padding[0],
+                options.padding[1],
+                options.dilation[0],
+                options.dilation[1],
+                options.stride[0],
+                options.stride[1],
             ),
             dtype.into(),
         )
-    }
+    };
+
+    Ok(())
 }
 
 #[derive(CubeLaunch, CubeType)]
@@ -237,10 +240,10 @@ struct Col2ImArgs {
     stride_w: usize,
 }
 
-#[cube(launch_unchecked)]
+#[cube(launch_unchecked, address_type = "dynamic")]
 fn col2im_kernel<E: Numeric>(
     columns: &Tensor<E>,
-    bias: &CubeOption<Tensor<E>>,
+    bias: &ComptimeOption<Tensor<E>>,
     image: &mut LinearView<E, ReadWrite>,
     image_shape: Sequence<FastDivmod<usize>>,
     args: &Col2ImArgs,
@@ -261,7 +264,7 @@ fn col2im_kernel<E: Numeric>(
     let kernel_extent_w = (args.kernel_w - 1) * args.dilation_w + 1;
     let kernel_extent_h = (args.kernel_h - 1) * args.dilation_h + 1;
 
-    let mut val = E::from_int(0);
+    let mut val = E::zero();
 
     let x_col_start = if im_x >= kernel_extent_w {
         (im_x - kernel_extent_w) / args.stride_w + 1
@@ -295,8 +298,9 @@ fn col2im_kernel<E: Numeric>(
         }
     }
 
+    #[comptime]
     match bias {
-        CubeOption::Some(bias) => image[ABSOLUTE_POS] = val + bias[ch_im],
-        CubeOption::None => image[ABSOLUTE_POS] = val,
+        ComptimeOption::Some(bias) => image[ABSOLUTE_POS] = val + bias[ch_im],
+        ComptimeOption::None => image[ABSOLUTE_POS] = val,
     }
 }

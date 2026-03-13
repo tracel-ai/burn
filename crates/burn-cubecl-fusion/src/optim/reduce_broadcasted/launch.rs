@@ -10,16 +10,15 @@ use crate::{
 use cubecl::{
     Runtime,
     ir::{ElemType, FloatKind, StorageType},
-    prelude::{ComputeClient, ScalarArg, SequenceArg},
+    prelude::*,
     server::LaunchError,
-    std::CubeOptionArgs,
 };
 use cubek::reduce::{
-    LineMode, ReduceDtypes,
+    ReduceDtypes, VectorizationMode,
     components::instructions::ReduceOperationConfig,
     launch::RoutineStrategy,
     routines::{
-        BlueprintStrategy, GlobalReduceBlueprint, ReduceLineSettings, ReduceProblem, Routine,
+        BlueprintStrategy, GlobalReduceBlueprint, ReduceProblem, ReduceVectorSettings, Routine,
         unit::{UnitRoutine, UnitStrategy},
     },
 };
@@ -48,8 +47,8 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceBroadcastedLaunch<'_> {
     fn run<'a>(
         &'a self,
         client: &'a ComputeClient<R>,
-        inputs: GlobalArgsLaunch<'a, R>,
-        outputs: GlobalArgsLaunch<'a, R>,
+        inputs: GlobalArgsLaunch<R>,
+        outputs: GlobalArgsLaunch<R>,
         configs: &'a [FuseBlockConfig],
     ) -> Result<(), Self::Error> {
         let routine = UnitRoutine;
@@ -64,6 +63,9 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceBroadcastedLaunch<'_> {
 
         let vector_size = shape[self.reduce_axis];
         let vector_count = shape.iter().product::<usize>() / vector_size;
+        let address_type = inputs
+            .required_address_type()
+            .max(outputs.required_address_type());
 
         let (blueprint, settings) = routine
             .prepare::<R>(
@@ -77,17 +79,18 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceBroadcastedLaunch<'_> {
                         output: StorageType::Scalar(ElemType::Float(FloatKind::F32)),
                         accumulation: StorageType::Scalar(ElemType::Float(FloatKind::F32)),
                     },
+                    address_type,
                 },
-                ReduceLineSettings {
-                    line_mode: LineMode::Parallel,
-                    line_size_input: first_config.width,
-                    line_size_output: 1,
+                ReduceVectorSettings {
+                    vectorization_mode: VectorizationMode::Parallel,
+                    vector_size_input: first_config.width,
+                    vector_size_output: 1,
                 },
                 BlueprintStrategy::Inferred(UnitStrategy),
             )
             .unwrap();
 
-        assert_eq!(blueprint.line_mode, LineMode::Parallel);
+        assert_eq!(blueprint.vectorization_mode, VectorizationMode::Parallel);
 
         let mut blocks = SequenceArg::new();
         let mut index = 0;
@@ -109,10 +112,10 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceBroadcastedLaunch<'_> {
         }
 
         let block_end = match configs.len() > index {
-            true => CubeOptionArgs::Some(ElemwiseFuseBlockLaunch::new(
+            true => ComptimeOptionArgs::Some(ElemwiseFuseBlockLaunch::new(
                 configs.last().cloned().unwrap(),
             )),
-            false => CubeOptionArgs::None,
+            false => ComptimeOptionArgs::None,
         };
 
         // TODO: Ensure parallel is selected.
@@ -122,12 +125,13 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceBroadcastedLaunch<'_> {
                 client,
                 settings.cube_count,
                 settings.cube_dim,
+                settings.address_type,
                 inputs,
                 outputs,
-                ScalarArg::new(self.reduce_axis),
+                self.reduce_axis,
                 blocks,
                 block_end,
-            )?;
+            );
         }
 
         Ok(())

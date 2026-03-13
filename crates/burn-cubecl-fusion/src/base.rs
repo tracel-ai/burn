@@ -1,14 +1,11 @@
 use burn_fusion::stream::Context;
-use burn_std::{DType, quantization::QParamTensor};
+use burn_std::{DType, Shape, Strides, quantization::QParamTensor, strides};
+use cubecl::quant::scheme::{QuantParam, QuantScheme};
 use cubecl::{
     CubeElement, Runtime,
     client::ComputeClient,
-    ir::ElemType,
-    prelude::{TensorArg, TensorHandleRef},
-};
-use cubecl::{
-    ir::LineSize,
-    quant::scheme::{QuantParam, QuantScheme},
+    ir::{AddressType, ElemType},
+    prelude::{TensorArg, TensorBinding},
 };
 use std::marker::PhantomData;
 
@@ -33,7 +30,7 @@ pub struct CubeFusionHandle<R: Runtime> {
     /// The element type of the tensor.
     pub dtype: DType,
     /// The strides of the tensor.
-    pub strides: Vec<usize>,
+    pub strides: Strides,
     /// Quantization runtime parameters, if applicable
     pub qparams: Option<QParams>,
 }
@@ -66,33 +63,31 @@ unsafe impl<R: Runtime> Sync for CubeFusionHandle<R> {}
 
 impl<R: Runtime> CubeFusionHandle<R> {
     /// Return the reference to a tensor handle.
-    pub fn as_handle_ref<'a>(&'a self, shape: &'a [usize]) -> TensorHandleRef<'a, R> {
-        TensorHandleRef {
-            handle: &self.handle,
-            strides: &self.strides,
+    pub fn binding(self, shape: Shape) -> TensorBinding<R> {
+        TensorBinding {
+            handle: self.handle.binding(),
+            strides: self.strides.clone(),
             shape,
             runtime: PhantomData,
-            elem_size: self.dtype.size(),
         }
     }
-    /// Return the reference to a tensor argument.
-    pub fn as_tensor_arg<'a>(
-        &'a self,
-        shape: &'a [usize],
-        line_size: LineSize,
-    ) -> TensorArg<'a, R> {
-        let handle: TensorHandleRef<'a, R> = self.as_handle_ref(shape);
 
-        unsafe {
-            TensorArg::from_raw_parts_and_size(
-                handle.handle,
-                handle.strides,
-                handle.shape,
-                line_size,
-                self.dtype.size(),
-            )
+    pub fn required_address_type(&self) -> AddressType {
+        match self.dtype {
+            DType::QFloat(scheme) => {
+                let len = self.handle.size() as usize * 8 / scheme.size_bits_value();
+                AddressType::from_len(len)
+            }
+            _ => AddressType::from_len(self.handle.size() as usize / self.dtype.size()),
         }
     }
+
+    /// Return the reference to a tensor argument.
+    pub fn into_tensor_arg(self, shape: Shape) -> TensorArg<R> {
+        let handle = self.binding(shape);
+        handle.into_tensor_arg()
+    }
+
     /// Construct a separate tensor for the quantization scales, if present
     pub fn params(&self, scheme: QuantScheme) -> Option<Self> {
         let qparams = self.qparams.as_ref()?;
@@ -110,14 +105,14 @@ impl<R: Runtime> CubeFusionHandle<R> {
                 QuantParam::BF16 => DType::BF16,
                 QuantParam::UE8M0 | QuantParam::UE4M3 => unimplemented!("Not yet supported"),
             },
-            strides: qparams.scales.strides.clone(),
+            strides: qparams.scales.metadata.strides().clone(),
             qparams: None,
         })
     }
 }
 
-pub(crate) fn strides_dyn_rank(shape: &[usize]) -> Vec<usize> {
-    let mut strides = vec![0; shape.len()];
+pub(crate) fn strides_dyn_rank(shape: &[usize]) -> Strides {
+    let mut strides = strides![0; shape.len()];
 
     let mut current = 1;
     shape.iter().enumerate().rev().for_each(|(index, val)| {

@@ -1,12 +1,15 @@
 use crate::{
     CubeRuntime,
-    kernel::{AddOp, BinaryOp, BinaryOpFamily, OrOp, utils::shape_divmod},
+    kernel::{
+        AddOp, BinaryOp, BinaryOpFamily, OrOp,
+        utils::{address_type, shape_divmod},
+    },
     tensor::CubeTensor,
 };
 use cubecl::{CubeDim, calculate_cube_count_elemwise};
 use cubecl::{prelude::*, std::FastDivmod};
 
-#[cube(launch_unchecked)]
+#[cube(launch_unchecked, address_type = "dynamic")]
 fn scatter_kernel<T: Numeric, I: Int, Op: BinaryOpFamily>(
     input: &mut Tensor<T>,
     indices: &Tensor<I>,
@@ -58,8 +61,10 @@ fn scatter_kernel<T: Numeric, I: Int, Op: BinaryOpFamily>(
 
         let input_idx = (stride_input * index) + offset_input;
 
-        let value =
-            Op::BinaryOp::<T>::execute(Line::cast_from(input[input_idx]), Line::cast_from(value));
+        let value = Op::BinaryOp::<T, Const<1>>::execute(
+            Vector::cast_from(input[input_idx]),
+            Vector::cast_from(value),
+        );
         input[input_idx] = value[0];
     }
 }
@@ -76,7 +81,7 @@ pub(crate) fn scatter<R: CubeRuntime>(
         false => tensor.copy(),
     };
 
-    let num_elems = tensor.shape.num_elements() / tensor.shape.dims[dim];
+    let num_elems = tensor.meta.num_elements() / tensor.meta.shape()[dim];
 
     let working_units = num_elems;
     let cube_dim = CubeDim::new(&indices.client, working_units);
@@ -87,19 +92,21 @@ pub(crate) fn scatter<R: CubeRuntime>(
         false => scatter_kernel::launch_unchecked::<AddOp, R>,
     };
 
+    let (tensor_dtype, indices_dtype) = (tensor.dtype, indices.dtype);
+
     unsafe {
         launch(
-            &indices.client.clone(),
+            &tensor.client.clone(),
             cube_count,
             cube_dim,
-            tensor.as_tensor_arg(1),
-            indices.as_tensor_arg(1),
-            value.as_tensor_arg(1),
+            address_type!(tensor, indices, value),
+            tensor.clone().into_tensor_arg(),
+            indices.into_tensor_arg(),
+            value.into_tensor_arg(),
             shape_divmod(&tensor),
             dim,
-            [tensor.dtype.into(), indices.dtype.into()],
+            [tensor_dtype.into(), indices_dtype.into()],
         )
-        .expect("Kernel to never fail");
     }
     tensor
 }

@@ -1,17 +1,17 @@
 use crate::{
     CubeRuntime,
-    kernel::utils::{broadcast_shape, linear_view, linear_view_ref},
+    kernel::utils::{address_type, broadcast_shape, linear_view, linear_view_ref},
     ops::numeric::empty_device_dtype,
     tensor::CubeTensor,
 };
 use cubecl::std::tensor::layout::linear::LinearView;
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
-#[cube(launch_unchecked)]
+#[cube(launch_unchecked, address_type = "dynamic")]
 fn cross_kernel<E: Float>(
-    lhs: &LinearView<Line<E>>,
-    rhs: &LinearView<Line<E>>,
-    output: &mut LinearView<Line<E>, ReadWrite>,
+    lhs: &LinearView<E>,
+    rhs: &LinearView<E>,
+    output: &mut LinearView<E, ReadWrite>,
     #[define(E)] _dtype: StorageType,
 ) {
     // Each thread processes one 3-element vector
@@ -46,13 +46,15 @@ pub(crate) fn cross<R: CubeRuntime>(
     rhs: CubeTensor<R>,
     dim: usize,
 ) -> CubeTensor<R> {
-    let ndims = lhs.shape.num_dims();
+    let ndims = lhs.meta.num_dims();
 
     // Validate that the cross dimension has size 3
-    if lhs.shape[dim] != 3 || rhs.shape[dim] != 3 {
+    if lhs.meta.shape()[dim] != 3 || rhs.meta.shape()[dim] != 3 {
         panic!(
             "Cross product requires dimension {} to have size 3, but got {} and {}",
-            dim, lhs.shape[dim], rhs.shape[dim]
+            dim,
+            lhs.meta.shape()[dim],
+            rhs.meta.shape()[dim]
         );
     }
 
@@ -66,7 +68,7 @@ pub(crate) fn cross<R: CubeRuntime>(
     let output_shape = broadcast_shape(&[&lhs, &rhs]);
 
     // Since the cross dimension is forced to be size 3, line size would be restricted to 1 anyway
-    let line_size = 1;
+    let vector_size = 1;
 
     let output = empty_device_dtype(
         lhs.client.clone(),
@@ -80,18 +82,19 @@ pub(crate) fn cross<R: CubeRuntime>(
 
     let cube_dim = CubeDim::new(&lhs.client, num_vectors);
     let cube_count = calculate_cube_count_elemwise(&lhs.client, num_vectors, cube_dim);
+    let dtype = lhs.dtype;
 
     unsafe {
         cross_kernel::launch_unchecked(
-            &lhs.client,
+            &output.client,
             cube_count,
             cube_dim,
-            linear_view_ref(&lhs, &output, line_size),
-            linear_view_ref(&rhs, &output, line_size),
-            linear_view(&output, line_size),
-            lhs.dtype.into(),
-        )
-        .expect("Kernel to never fail");
+            address_type!(lhs, rhs, output),
+            linear_view_ref(lhs, &output, vector_size),
+            linear_view_ref(rhs, &output, vector_size),
+            linear_view(output.clone(), vector_size),
+            dtype.into(),
+        );
     };
 
     output

@@ -1498,4 +1498,66 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             )
             .output()
     }
+
+    fn attention(
+        query: FloatTensor<Fusion<B>>,
+        key: FloatTensor<Fusion<B>>,
+        value: FloatTensor<Fusion<B>>,
+        mask: Option<burn_backend::tensor::BoolTensor<Fusion<B>>>,
+        attn_bias: Option<FloatTensor<Fusion<B>>>,
+        options: burn_backend::ops::AttentionModuleOptions,
+    ) -> FloatTensor<Fusion<B>> {
+        make_ops!(
+            AttentionOps,
+            AttentionOpIr,
+            |args: &AttentionOpIr, handles: &mut HandleContainer<B::Handle>| {
+                let query = handles.get_float_tensor::<B>(&args.query);
+                let key = handles.get_float_tensor::<B>(&args.key);
+                let value = handles.get_float_tensor::<B>(&args.value);
+                let mask = args.mask.as_ref().map(|m| handles.get_bool_tensor::<B>(m));
+                let attn_bias = args
+                    .attn_bias
+                    .as_ref()
+                    .map(|ab| handles.get_float_tensor::<B>(ab));
+
+                let output = B::attention(
+                    query,
+                    key,
+                    value,
+                    mask,
+                    attn_bias,
+                    args.options.clone().into(),
+                );
+
+                handles.register_float_tensor::<B>(&args.out.id, output);
+            }
+        );
+
+        let mut streams = OperationStreams::with_inputs([&query, &key, &value]);
+        if let Some(mask) = &mask {
+            streams.tensor(mask);
+        }
+        if let Some(attn_bias) = &attn_bias {
+            streams.tensor(attn_bias);
+        }
+
+        let client = query.client.clone();
+        let desc = AttentionOpIr::create(
+            query.into_ir(),
+            key.into_ir(),
+            value.into_ir(),
+            mask.map(|m| m.into_ir()),
+            attn_bias.map(|ab| ab.into_ir()),
+            options.into(),
+            || client.create_empty_handle(),
+        );
+
+        client
+            .register(
+                streams,
+                OperationIr::Module(ModuleOperationIr::Attention(desc.clone())),
+                AttentionOps::<B>::new(desc),
+            )
+            .output()
+    }
 }

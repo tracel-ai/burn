@@ -19,10 +19,7 @@ cubecl = ["dep:cubecl"]
 default = ["std", "cubecl-common/default"]
 doc = ["default"]
 std = ["cubecl-common/std", "num-traits/std"]
-tracing = [
-    "cubecl?/tracing",
-    "cubecl-common/tracing",
-]
+tracing = ["cubecl?/tracing", "cubecl-common/tracing"]
 
 network = ["dep:indicatif", "dep:reqwest", "dep:tokio"]
 
@@ -31,12 +28,14 @@ bytemuck = { workspace = true, features = ["extern_crate_alloc"] }
 half = { workspace = true, features = ["bytemuck"] }
 num-traits = { workspace = true }
 serde = { workspace = true }
+smallvec = { workspace = true, features = ["serde"] }
 
 cubecl = { workspace = true, optional = true, default-features = false }
 cubecl-common = { workspace = true, default-features = false, features = [
     "serde",
     "shared-bytes",
 ] }
+cubecl-zspace = { workspace = true, default-features = false }
 # Enable extra-platforms for portable-atomic support on targets without native atomics (e.g., thumbv6m)
 # This is needed because cubecl-common's shared-bytes feature pulls in bytes
 bytes = { workspace = true }

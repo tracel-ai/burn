@@ -100,13 +100,17 @@ pub trait Backend:
     type QuantizedTensorPrimitive: TensorMetadata + QTensorPrimitive + 'static;
 
     /// If autodiff is enabled.
-    fn ad_enabled() -> bool {
+    fn ad_enabled(_device: &Self::Device) -> bool {
         false
     }
 
     /// Sets the current allocation mode to persistent.
     #[allow(unused_variables)]
-    fn memory_persistent_allocations<Output, Input, Func: Fn(Input) -> Output>(
+    fn memory_persistent_allocations<
+        Output: Send,
+        Input: Send,
+        Func: Fn(Input) -> Output + Send,
+    >(
         device: &Self::Device,
         input: Input,
         func: Func,

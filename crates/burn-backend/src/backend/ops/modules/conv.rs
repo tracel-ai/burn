@@ -1,7 +1,7 @@
 #![allow(clippy::single_range_in_vec_init)]
 use super::{ConvOptions, ConvTransposeOptions};
 use crate::{Backend, TensorMetadata, tensor::FloatTensor};
-use burn_std::{Shape, ShapeError, Slice};
+use burn_std::{MetadataError, Shape, Slice};
 
 use alloc::{vec, vec::Vec};
 #[cfg(not(feature = "std"))]
@@ -16,9 +16,9 @@ pub fn calculate_pool_output_shape<const N: usize>(
     padding: &[usize; N],
     dilation: &[usize; N],
     ceil_mode: bool,
-) -> Result<Shape, ShapeError> {
+) -> Result<Shape, MetadataError> {
     if in_shape.rank() != N + 2 {
-        return Err(ShapeError::RankMismatch {
+        return Err(MetadataError::RankMismatch {
             left: in_shape.rank(),
             right: N + 2,
         });
@@ -47,16 +47,16 @@ pub fn calculate_conv_output_shape<const N: usize>(
     stride: &[usize; N],
     padding: &[usize; N],
     dilation: &[usize; N],
-) -> Result<Shape, ShapeError> {
+) -> Result<Shape, MetadataError> {
     if weight_shape.rank() != N + 2 {
-        return Err(ShapeError::RankMismatch {
+        return Err(MetadataError::RankMismatch {
             left: weight_shape.rank(),
             right: N + 2,
         });
     }
 
     if in_shape.rank() != N + 2 {
-        return Err(ShapeError::RankMismatch {
+        return Err(MetadataError::RankMismatch {
             left: in_shape.rank(),
             right: N + 2,
         });
@@ -85,16 +85,16 @@ pub fn calculate_conv_transpose_output_shape<const N: usize>(
     padding_out: &[usize; N],
     dilation: &[usize; N],
     groups: usize,
-) -> Result<Shape, ShapeError> {
+) -> Result<Shape, MetadataError> {
     if weight_shape.rank() != N + 2 {
-        return Err(ShapeError::RankMismatch {
+        return Err(MetadataError::RankMismatch {
             left: weight_shape.rank(),
             right: N + 2,
         });
     }
 
     if in_shape.rank() != N + 2 {
-        return Err(ShapeError::RankMismatch {
+        return Err(MetadataError::RankMismatch {
             left: in_shape.rank(),
             right: N + 2,
         });

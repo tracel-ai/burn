@@ -1,8 +1,7 @@
+use crate::engine::codegen::DynSize;
+
 use super::DYN_ELEM_ID;
-use cubecl::{
-    ir::{ElemType, Type},
-    prelude::*,
-};
+use cubecl::{ir::Type, prelude::*};
 use serde::{Deserialize, Serialize};
 use std::hash::Hash;
 
@@ -10,15 +9,15 @@ use std::hash::Hash;
 ///
 /// # Warning
 ///
-/// The `tensor` field type [Line<NumericExpand<DYN_ELEM_ID>>] must be set using polyfill before
+/// The `tensor` field type [Vector<NumericExpand<DYN_ELEM_ID>>] must be set using polyfill before
 /// use.
 #[derive(CubeType, Clone)]
 pub struct GlobalTensor {
     /// The global tensor type.
-    pub tensor: Tensor<Line<NumericExpand<DYN_ELEM_ID>>>,
+    pub tensor: Tensor<Vector<NumericExpand<DYN_ELEM_ID>, DynSize>>,
     /// The element type of the tensor.
     #[cube(comptime)]
-    pub elem: ElemType,
+    pub ty: Type,
     /// Whether the current tensor is logically broadcasted.
     #[cube(comptime)]
     pub broadcasted: bool,
@@ -29,40 +28,46 @@ pub struct GlobalTensor {
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Hash, Debug)]
 pub struct GlobalTensorCompilationArg {
     tensor: TensorCompilationArg,
-    elem: ElemType,
+    ty: Type,
     broadcasted: bool,
 }
 
 #[derive(new, Debug)]
-pub struct GlobalTensorArg<'a, R: Runtime> {
-    pub tensor: <Tensor<Line<NumericExpand<DYN_ELEM_ID>>> as LaunchArg>::RuntimeArg<'a, R>,
-    pub elem: ElemType,
+pub struct GlobalTensorArg<R: Runtime> {
+    pub tensor: <Tensor<Vector<NumericExpand<DYN_ELEM_ID>, DynSize>> as LaunchArg>::RuntimeArg<R>,
+    pub ty: Type,
     pub broadcasted: bool,
+    pub address_type: AddressType,
 }
 
 impl CompilationArg for GlobalTensorCompilationArg {}
 
 impl LaunchArg for GlobalTensor {
-    type RuntimeArg<'a, R: Runtime> = GlobalTensorArg<'a, R>;
+    type RuntimeArg<R: Runtime> = GlobalTensorArg<R>;
     type CompilationArg = GlobalTensorCompilationArg;
 
-    fn compilation_arg<R: Runtime>(runtime_arg: &Self::RuntimeArg<'_, R>) -> Self::CompilationArg {
-        let tensor = <Tensor<Line<NumericExpand<DYN_ELEM_ID>>> as LaunchArg>::compilation_arg(
-            &runtime_arg.tensor,
-        );
+    fn compilation_arg<R: Runtime>(runtime_arg: &Self::RuntimeArg<R>) -> Self::CompilationArg {
+        let tensor =
+            <Tensor<Vector<NumericExpand<DYN_ELEM_ID>, DynSize>> as LaunchArg>::compilation_arg(
+                &runtime_arg.tensor,
+            );
         GlobalTensorCompilationArg {
             tensor,
-            elem: runtime_arg.elem,
+            ty: runtime_arg.ty,
             broadcasted: runtime_arg.broadcasted,
         }
     }
 
+    fn register<R: Runtime>(arg: Self::RuntimeArg<R>, launcher: &mut KernelLauncher<R>) {
+        launcher.register_tensor(arg.tensor, arg.ty);
+    }
+
     fn expand(arg: &Self::CompilationArg, builder: &mut KernelBuilder) -> GlobalTensorExpand {
-        let tensor = builder.input_tensor(Type::scalar(arg.elem).line(arg.tensor.line_size));
+        let tensor = builder.input_tensor(arg.ty);
 
         GlobalTensorExpand {
             tensor: tensor.into(),
-            elem: arg.elem,
+            ty: arg.ty,
             broadcasted: arg.broadcasted,
         }
     }
@@ -72,18 +77,12 @@ impl LaunchArg for GlobalTensor {
     ) -> GlobalTensorExpand {
         let tensor = match arg.tensor.inplace {
             Some(id) => builder.inplace_output(id),
-            None => builder.output_tensor(Type::scalar(arg.elem).line(arg.tensor.line_size)),
+            None => builder.output_tensor(arg.ty),
         };
         GlobalTensorExpand {
             tensor: tensor.into(),
-            elem: arg.elem,
+            ty: arg.ty,
             broadcasted: arg.broadcasted,
         }
-    }
-}
-
-impl<R: Runtime> ArgSettings<R> for GlobalTensorArg<'_, R> {
-    fn register(&self, launcher: &mut KernelLauncher<R>) {
-        launcher.register_tensor(&self.tensor)
     }
 }

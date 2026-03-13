@@ -20,15 +20,17 @@ throughout the training process. We currently offer a restricted range of metric
 | CPU Temperature     | Fetch the temperature of CPUs                                                               |
 | CPU Usage           | Fetch the CPU utilization                                                                   |
 | CPU Memory Usage    | Fetch the CPU RAM usage                                                                     |
-| GPU Temperature     | Fetch the GPU temperature                                                                   |
 | Learning Rate       | Fetch the current learning rate for each optimizer step                                     |
 | CUDA                | Fetch general CUDA metrics such as utilization                                              |
 
-| Vision Metric | Description                                                                              |
-| ------------- | ---------------------------------------------------------------------------------------- |
-| Dice          | Computes the Dice-Sorenson coefficient (DSC) for evaluating overlap between binary masks |
-| PSNR          | Computes the peak signal-to-noise-ratio (PSNR) for image quality assessment              |
-| SSIM          | Computes the structural similarity index measure (SSIM) for image quality assessment     |
+| Vision Metric | Description                                                                                          |
+| ------------- | ---------------------------------------------------------------------------------------------------- |
+| Dice          | Computes the Dice-Sorenson coefficient (DSC) for evaluating overlap between binary masks             |
+| DISTS         | Computes the Deep Image Structure and Texture Similarity (DISTS) metric for image quality assessment |
+| LPIPS         | Computes the Learned Perceptual Image Patch Similarity (LPIPS) for image quality assessment          |
+| MS-SSIM       | Computes the Multi-scale Structural Similarity index measure (MS-SSIM) for image quality assessment  |
+| PSNR          | Computes the Peak Signal-to-Noise Ratio (PSNR) for image quality assessment                          |
+| SSIM          | Computes the Structural Similarity index measure (SSIM) for image quality assessment                 |
 
 ## Using Metrics with the Learner
 
@@ -54,7 +56,7 @@ adaptor code yourself.
     - Adapted metrics: Loss
 - `SequenceOutput<B>`:
     - Use case: Sequence prediction
-    - Fields: `loss: Tensor<B, 1>`, `output: Tensor<B, 2, Int>`, `targets: Tensor<B, 2, Int>`
+    - Fields: `loss: Tensor<B, 1>`, `logits: Tensor<B, 3>`, `predictions: Option<Tensor<B, 2, Int>>`, `targets: Tensor<B, 2, Int>`
     - Adapted metrics: Accuracy, TopKAccuracy, Perplexity, CER, WER, Loss
 
 \* Precision, Recall, and FBetaScore all use `ConfusionStatsInput` as its input type so these three 

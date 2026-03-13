@@ -192,8 +192,8 @@ mod tests {
     fn reduce_broadcast_workflow_1() {
         let device: <Run as Runtime>::Device = Default::default();
         let mut fuser = ReduceBroadcastedFuser::<Run>::new(device, FuseType::I32);
-        let (tensor1_out, tensor1) = tensor(0, vec![1, 2], TensorStatus::ReadWrite);
-        let (tensor2_out, tensor2) = tensor(1, vec![1, 0], TensorStatus::ReadWrite);
+        let (tensor1_out, tensor1) = tensor(0, &[1, 2], TensorStatus::ReadWrite);
+        let (tensor2_out, tensor2) = tensor(1, &[1, 0], TensorStatus::ReadWrite);
 
         fuser.fuse(&OperationIr::BaseFloat(BaseOperationIr::Ones(
             CreationOpIr { out: tensor1_out },
@@ -213,9 +213,9 @@ mod tests {
         assert!(fuser.properties().ready,);
 
         // An existing tensor
-        let (_tensor3_out, tensor3) = tensor(2, vec![1, 0], TensorStatus::ReadWrite);
+        let (_tensor3_out, tensor3) = tensor(2, &[1, 0], TensorStatus::ReadWrite);
         // A new tensor
-        let (tensor4_out, tensor4) = tensor(3, vec![1, 0], TensorStatus::ReadWrite);
+        let (tensor4_out, tensor4) = tensor(3, &[1, 0], TensorStatus::ReadWrite);
         fuser.fuse(&OperationIr::NumericFloat(
             DType::F32,
             burn_ir::NumericOperationIr::Add(BinaryOpIr {
@@ -231,9 +231,9 @@ mod tests {
         assert!(fuser.properties().ready,);
 
         // An existing tensor
-        let (_tensor5_out, tensor5) = tensor(4, vec![1, 2], TensorStatus::ReadWrite);
+        let (_tensor5_out, tensor5) = tensor(4, &[1, 2], TensorStatus::ReadWrite);
         // A new tensor
-        let (tensor6_out, tensor6) = tensor(5, vec![1, 2], TensorStatus::ReadWrite);
+        let (tensor6_out, tensor6) = tensor(5, &[1, 2], TensorStatus::ReadWrite);
         fuser.fuse(&OperationIr::NumericFloat(
             DType::F32,
             burn_ir::NumericOperationIr::Add(BinaryOpIr {
@@ -248,7 +248,7 @@ mod tests {
         assert_eq!(status, FuserStatus::Open);
         assert!(fuser.properties().ready,);
 
-        let (tensor7_out, _tensor7) = tensor(6, vec![1, 0], TensorStatus::ReadWrite);
+        let (tensor7_out, _tensor7) = tensor(6, &[1, 0], TensorStatus::ReadWrite);
         fuser.fuse(&OperationIr::NumericFloat(
             DType::F32,
             burn_ir::NumericOperationIr::SumDim(ReduceDimOpIr {
@@ -268,13 +268,13 @@ mod tests {
     fn reduce_broadcast_workflow_2() {
         let device: <Run as Runtime>::Device = Default::default();
         let mut fuser = ReduceBroadcastedFuser::<Run>::new(device, FuseType::I32);
-        let (tensor1_out, tensor1) = tensor(0, vec![1, 2], TensorStatus::ReadWrite);
+        let (tensor1_out, tensor1) = tensor(0, &[1, 2], TensorStatus::ReadWrite);
         // An existing tensor
-        let (_tensor2_out, mut tensor2) = tensor(2, vec![1, 2], TensorStatus::ReadOnly);
-        let (tensor3_out, tensor3) = tensor(3, vec![1, 2], TensorStatus::ReadWrite);
+        let (_tensor2_out, mut tensor2) = tensor(2, &[1, 2], TensorStatus::ReadOnly);
+        let (tensor3_out, tensor3) = tensor(3, &[1, 2], TensorStatus::ReadWrite);
 
         // First reduce output
-        let (tensor4_out, tensor4) = tensor(1, vec![1, 0], TensorStatus::ReadWrite);
+        let (tensor4_out, tensor4) = tensor(1, &[1, 0], TensorStatus::ReadWrite);
 
         fuser.fuse(&OperationIr::BaseFloat(BaseOperationIr::Ones(
             CreationOpIr { out: tensor1_out },
@@ -304,7 +304,7 @@ mod tests {
         assert!(fuser.properties().ready,);
 
         // A new tensor
-        let (tensor5_out, _tensor5) = tensor(5, vec![1, 2], TensorStatus::ReadWrite);
+        let (tensor5_out, _tensor5) = tensor(5, &[1, 2], TensorStatus::ReadWrite);
         // Last time we use tensor2.
         tensor2.status = TensorStatus::ReadWrite;
         fuser.fuse(&OperationIr::NumericFloat(
@@ -324,10 +324,10 @@ mod tests {
         let _optimization = fuser.finish();
     }
 
-    fn tensor(id: u64, shape: Vec<usize>, status: TensorStatus) -> (TensorIr, TensorIr) {
+    fn tensor(id: u64, shape: &[usize], status: TensorStatus) -> (TensorIr, TensorIr) {
         let tensor = TensorIr {
             id: TensorId::new(id),
-            shape: Shape { dims: shape },
+            shape: Shape::from(shape),
             status: TensorStatus::NotInit,
             dtype: DType::F32,
         };

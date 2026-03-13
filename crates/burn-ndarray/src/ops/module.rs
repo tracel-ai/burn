@@ -3,7 +3,9 @@ use super::{
     avgpool::{avg_pool2d, avg_pool2d_backward},
     conv::{conv_transpose2d, conv_transpose3d, conv2d, conv3d},
     deform_conv::{backward::deform_conv2d_backward, deform_conv2d},
-    interpolate::{bicubic_interpolate, bilinear_interpolate, nearest_interpolate},
+    interpolate::{
+        bicubic_interpolate, bilinear_interpolate, lanczos3_interpolate, nearest_interpolate,
+    },
     maxpool::{max_pool2d, max_pool2d_backward, max_pool2d_with_indices},
 };
 #[cfg(feature = "simd")]
@@ -18,7 +20,11 @@ use crate::{
     element::{IntNdArrayElement, QuantElement},
     ops::interpolate::nearest_interpolate_backward,
 };
-use burn_backend::{ElementConversion, TensorMetadata, ops::*, tensor::FloatTensor};
+use burn_backend::{
+    ElementConversion, TensorMetadata,
+    ops::{attention::attention_fallback, *},
+    tensor::FloatTensor,
+};
 
 macro_rules! module_op {
     // Module op with inputs (inp), optional (opt) and arguments (args).
@@ -288,16 +294,29 @@ where
                 .into())
             }
             InterpolateMode::Bilinear => {
+                let align_corners = options.align_corners;
                 module_op!(inp(x), opt(), E, |x| bilinear_interpolate::<E>(
                     x,
-                    output_size
+                    output_size,
+                    align_corners
                 )
                 .into())
             }
             InterpolateMode::Bicubic => {
+                let align_corners = options.align_corners;
                 module_op!(inp(x), opt(), E, |x| bicubic_interpolate::<E>(
                     x,
-                    output_size
+                    output_size,
+                    align_corners
+                )
+                .into())
+            }
+            InterpolateMode::Lanczos3 => {
+                let align_corners = options.align_corners;
+                module_op!(inp(x), opt(), E, |x| lanczos3_interpolate::<E>(
+                    x,
+                    output_size,
+                    align_corners
                 )
                 .into())
             }
@@ -319,6 +338,9 @@ where
             }
             InterpolateMode::Bicubic => {
                 panic!("bicubic interpolation backward is not supported for ndarray backend")
+            }
+            InterpolateMode::Lanczos3 => {
+                panic!("lanczos3 interpolation backward is not supported for ndarray backend")
             }
         }
     }
@@ -344,5 +366,16 @@ where
         module_op!(inp(x, weight), opt(bias), E, |x, weight, bias| {
             conv_transpose3d::<E>(x, weight, bias, options).into()
         })
+    }
+
+    fn attention(
+        query: FloatTensor<Self>,
+        key: FloatTensor<Self>,
+        value: FloatTensor<Self>,
+        mask: Option<burn_backend::tensor::BoolTensor<Self>>,
+        attn_bias: Option<FloatTensor<Self>>,
+        options: AttentionModuleOptions,
+    ) -> FloatTensor<Self> {
+        attention_fallback::<Self>(query, key, value, mask, attn_bias, options)
     }
 }

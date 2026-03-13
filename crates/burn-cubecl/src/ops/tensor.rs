@@ -59,7 +59,7 @@ where
     #[cfg_attr(feature = "tracing", tracing::instrument(
         level="trace",
         skip(tensor),
-        fields(from = ?tensor.device, shape = ?tensor.shape, dtype = ?tensor.dtype)
+        fields(from = ?tensor.device, meta = ?tensor.meta, dtype = ?tensor.dtype)
     ))]
     async fn float_into_data(tensor: FloatTensor<Self>) -> Result<TensorData, ExecutionError> {
         super::into_data(tensor).await
@@ -72,7 +72,7 @@ where
     #[cfg_attr(feature = "tracing", tracing::instrument(
         level="trace",
         skip(tensor),
-        fields(from = ?tensor.device, shape = ?tensor.shape, dtype = ?tensor.dtype)
+        fields(from = ?tensor.device, meta = ?tensor.meta, dtype = ?tensor.dtype)
     ))]
     fn float_to_device(tensor: FloatTensor<Self>, device: &Device<Self>) -> FloatTensor<Self> {
         super::to_device(tensor, device)
@@ -219,7 +219,7 @@ where
             let simple_ranges: Vec<Range<usize>> = slices
                 .iter()
                 .enumerate()
-                .map(|(i, slice)| slice.to_range(tensor.shape[i]))
+                .map(|(i, slice)| slice.to_range(tensor.meta.shape()[i]))
                 .collect();
 
             kernel::slice(tensor, &simple_ranges)
@@ -429,17 +429,17 @@ where
         struct Powf;
 
         #[cube]
-        impl<F: Float> FloatUnaryOp<F> for Powf {
+        impl<F: Float, N: Size> FloatUnaryOp<F, N> for Powf {
             type Options = InputScalar;
 
-            fn execute(input: Line<F>, options: &Self::Options) -> Line<F> {
-                Line::powf(input, Line::new(options.get::<F>()))
+            fn execute(input: Vector<F, N>, options: &Self::Options) -> Vector<F, N> {
+                Vector::powf(input, Vector::new(options.get::<F>()))
             }
         }
 
         impl FloatUnaryOpFamily for Powf {
             type Options = InputScalar;
-            type Unary<F: Float> = Self;
+            type Unary<F: Float, N: Size> = Self;
         }
 
         let dtype = lhs.dtype;
@@ -452,6 +452,10 @@ where
 
     fn float_abs(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::Abs)
+    }
+
+    fn float_sign(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        unary_basic::launch::<R, _>(tensor, |_| BasicFloatUnaryKind::Sign)
     }
 
     fn float_cos(tensor: FloatTensor<Self>) -> FloatTensor<Self> {

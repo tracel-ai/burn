@@ -102,7 +102,7 @@ impl Unfold4dTestCase {
         );
 
         assert_eq!(
-            output.shape().dims,
+            output.shape().as_slice(),
             expected_shape,
             "Expected shape doesn't match the actual shape"
         );

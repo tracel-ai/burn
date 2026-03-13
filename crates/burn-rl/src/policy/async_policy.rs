@@ -314,6 +314,7 @@ where
 }
 
 #[cfg(test)]
+#[allow(clippy::needless_range_loop)]
 mod tests {
     use std::thread::JoinHandle;
     use std::time::Duration;

@@ -228,6 +228,29 @@ pub(crate) fn handle_command(
                         None,
                         "std cpu",
                     )?;
+
+                    // burn-train vision (LPIPS, DISTS metrics)
+                    helpers::custom_crates_tests(
+                        vec!["burn-train"],
+                        handle_test_args(&["--features", "vision"], args.release),
+                        None,
+                        None,
+                        "std vision",
+                    )?;
+
+                    // burn-nn (pretrained and local tests)
+                    let mut nn_features = "pretrained".to_string();
+                    // If the "CI" environment variable is missing, we are running locally.
+                    if std::env::var("CI").is_err() {
+                        nn_features.push_str(",test-local");
+                    }
+                    helpers::custom_crates_tests(
+                        vec!["burn-nn"],
+                        handle_test_args(&["--features", &nn_features], args.release),
+                        None,
+                        None,
+                        &format!("std burn-nn with features: {}", nn_features),
+                    )?;
                 }
                 CiTestType::GcpCudaRunner => (),
                 CiTestType::GcpVulkanRunner | CiTestType::GcpWgpuRunner => (), // handled in tests above
@@ -239,6 +262,15 @@ pub(crate) fn handle_command(
                         None,
                         None,
                         "std blas-accelerate",
+                    )?;
+
+                    // burn-train vision (LPIPS, DISTS metrics)
+                    helpers::custom_crates_tests(
+                        vec!["burn-train"],
+                        handle_test_args(&["--features", "vision"], args.release),
+                        None,
+                        None,
+                        "std vision",
                     )?;
                     helpers::custom_crates_tests(
                         vec!["burn-core"],

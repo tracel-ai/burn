@@ -86,7 +86,8 @@ mod tensor_snapshot;
 mod traits;
 
 pub use adapter::{
-    BurnToPyTorchAdapter, ChainAdapter, IdentityAdapter, ModuleAdapter, PyTorchToBurnAdapter,
+    BurnToPyTorchAdapter, ChainAdapter, HalfPrecisionAdapter, IdentityAdapter, ModuleAdapter,
+    PyTorchToBurnAdapter,
 };
 pub use applier::Applier;
 pub use apply_result::{ApplyError, ApplyResult};
@@ -113,6 +114,6 @@ pub use safetensors::{SafetensorsStore, SafetensorsStoreError};
 #[cfg(feature = "burnpack")]
 mod burnpack;
 #[cfg(feature = "burnpack")]
-pub use burnpack::store::BurnpackStore;
-#[cfg(feature = "burnpack")]
 pub use burnpack::writer::BurnpackWriter;
+#[cfg(feature = "burnpack")]
+pub use burnpack::{base::BurnpackError, store::BurnpackStore};

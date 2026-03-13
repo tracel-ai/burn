@@ -1,6 +1,8 @@
 use burn_core as burn;
 
-use crate::{BurnToPyTorchAdapter, ModuleSnapshot, PyTorchToBurnAdapter, SafetensorsStore};
+use crate::{
+    BurnToPyTorchAdapter, ModuleSnapshot, ModuleStore, PyTorchToBurnAdapter, SafetensorsStore,
+};
 use burn_core::module::{Module, Param};
 use burn_nn::{Linear, LinearConfig};
 use burn_tensor::Tensor;
@@ -190,4 +192,158 @@ fn adapter_with_pytorch_import() {
     // Should load some tensors (fc1 if it exists in the file)
     // This mainly tests that the adapter works with real PyTorch files
     assert!(!result.applied.is_empty() || !result.missing.is_empty());
+}
+
+#[test]
+fn half_precision_adapter_round_trip() {
+    use crate::HalfPrecisionAdapter;
+    use burn_tensor::DType;
+
+    let device = Default::default();
+    let model = TestModel::<TestBackend>::new(&device);
+
+    // Save with HalfPrecisionAdapter (F32 -> F16)
+    let adapter = HalfPrecisionAdapter::new();
+    let mut save_store = SafetensorsStore::from_bytes(None).with_to_adapter(adapter.clone());
+    model.save_into(&mut save_store).unwrap();
+
+    // Verify Linear tensors are F16, raw params stay F32 (no recognized module type)
+    let save_bytes = match &save_store {
+        SafetensorsStore::Memory(p) => p.data().unwrap().as_ref().clone(),
+        _ => panic!("Expected memory store"),
+    };
+    let mut inspect_store = SafetensorsStore::from_bytes(Some(save_bytes.clone()));
+    let snapshots = inspect_store.get_all_snapshots().unwrap();
+    for (name, snapshot) in snapshots.iter() {
+        if name.starts_with("linear") {
+            assert_eq!(
+                snapshot.dtype,
+                DType::F16,
+                "Linear tensor '{}' should be F16",
+                name
+            );
+        } else {
+            assert_eq!(
+                snapshot.dtype,
+                DType::F32,
+                "Raw param '{}' should stay F32",
+                name
+            );
+        }
+    }
+
+    // Load back with same adapter (F16 -> F32)
+    let mut load_store = SafetensorsStore::from_bytes(Some(save_bytes)).with_from_adapter(adapter);
+
+    let mut model2 = TestModel::<TestBackend>::new(&device);
+    let result = model2.load_from(&mut load_store).unwrap();
+
+    assert!(!result.applied.is_empty());
+
+    // Verify values are close (F32 -> F16 -> F32 has rounding)
+    let w1 = model.linear.weight.val().to_data().to_vec::<f32>().unwrap();
+    let w2 = model2
+        .linear
+        .weight
+        .val()
+        .to_data()
+        .to_vec::<f32>()
+        .unwrap();
+    for (a, b) in w1.iter().zip(w2.iter()) {
+        assert!(
+            (a - b).abs() < 0.01,
+            "Weight values differ too much after F16 round-trip: {} vs {}",
+            a,
+            b
+        );
+    }
+}
+
+#[test]
+fn half_precision_adapter_without_module() {
+    use crate::HalfPrecisionAdapter;
+    use burn_nn::{LayerNorm, LayerNormConfig};
+    use burn_tensor::DType;
+
+    #[derive(Module, Debug)]
+    struct MixedModel<B: Backend> {
+        linear: Linear<B>,
+        norm: LayerNorm<B>,
+    }
+
+    let device = Default::default();
+    let model = MixedModel::<TestBackend> {
+        linear: LinearConfig::new(4, 2).with_bias(true).init(&device),
+        norm: LayerNormConfig::new(2).init(&device),
+    };
+
+    // Save: exclude LayerNorm from half-precision conversion
+    let adapter = HalfPrecisionAdapter::new().without_module("LayerNorm");
+    let mut save_store = SafetensorsStore::from_bytes(None).with_to_adapter(adapter);
+    model.save_into(&mut save_store).unwrap();
+
+    // Verify: Linear tensors are F16, LayerNorm tensors remain F32
+    let save_bytes = match &save_store {
+        SafetensorsStore::Memory(p) => p.data().unwrap().as_ref().clone(),
+        _ => panic!("Expected memory store"),
+    };
+    let mut inspect_store = SafetensorsStore::from_bytes(Some(save_bytes));
+    let snapshots = inspect_store.get_all_snapshots().unwrap();
+    for (name, snapshot) in snapshots {
+        if name.starts_with("linear") {
+            assert_eq!(
+                snapshot.dtype,
+                DType::F16,
+                "Linear tensor '{}' should be F16",
+                name
+            );
+        } else if name.starts_with("norm") {
+            assert_eq!(
+                snapshot.dtype,
+                DType::F32,
+                "LayerNorm tensor '{}' should stay F32",
+                name
+            );
+        }
+    }
+}
+
+#[test]
+fn half_precision_adapter_default_converts_layer_norm() {
+    use crate::HalfPrecisionAdapter;
+    use burn_nn::{LayerNorm, LayerNormConfig};
+    use burn_tensor::DType;
+
+    #[derive(Module, Debug)]
+    struct NormModel<B: Backend> {
+        linear: Linear<B>,
+        norm: LayerNorm<B>,
+    }
+
+    let device = Default::default();
+    let model = NormModel::<TestBackend> {
+        linear: LinearConfig::new(4, 2).with_bias(true).init(&device),
+        norm: LayerNormConfig::new(2).init(&device),
+    };
+
+    // Default adapter converts LayerNorm
+    let adapter = HalfPrecisionAdapter::new();
+    let mut save_store = SafetensorsStore::from_bytes(None).with_to_adapter(adapter);
+    model.save_into(&mut save_store).unwrap();
+
+    let save_bytes = match &save_store {
+        SafetensorsStore::Memory(p) => p.data().unwrap().as_ref().clone(),
+        _ => panic!("Expected memory store"),
+    };
+    let mut inspect_store = SafetensorsStore::from_bytes(Some(save_bytes));
+    let snapshots = inspect_store.get_all_snapshots().unwrap();
+    for (name, snapshot) in snapshots {
+        assert_eq!(
+            snapshot.dtype,
+            DType::F16,
+            "All tensors should be F16 by default, but '{}' is {:?}",
+            name,
+            snapshot.dtype
+        );
+    }
 }

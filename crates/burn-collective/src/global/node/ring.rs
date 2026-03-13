@@ -191,7 +191,6 @@ fn slice_tensor<B: Backend>(
     let shape = tensor.shape();
     // full range across all dims as Slice
     let full_range = shape
-        .dims
         .iter()
         .map(|dim| Slice::from(0..*dim))
         .collect::<Vec<Slice>>();

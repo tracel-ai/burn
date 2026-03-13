@@ -5,12 +5,13 @@ use crate::{
     ops::numeric::{empty_device_contiguous_dtype, zeros_client},
     tensor::CubeTensor,
 };
-use burn_backend::{DType, Shape};
+use burn_backend::{DType, TensorMetadata};
+use burn_std::Metadata;
 use cubecl::{AutotuneKey, client::ComputeClient, features::TypeUsage, ir::StorageType};
 use cubek::reduce::{
     ReduceDtypes, ReduceError, ReduceStrategy,
     components::instructions::ReduceOperationConfig,
-    launch::{LineSizeStrategy, RoutineStrategy},
+    launch::{RoutineStrategy, VectorizationStrategy},
     routines::{BlueprintStrategy, unit::UnitStrategy},
     shared_sum,
 };
@@ -64,12 +65,14 @@ pub fn sum<Run: CubeRuntime>(
     match strategy {
         SumStrategy::OneShot(cube_count) => {
             let output = zeros_client(client.clone(), device, [1].into(), tensor.dtype);
+            let dtype = tensor.dtype;
+
             shared_sum::<Run>(
                 &client,
-                tensor.as_handle_ref(),
-                output.as_handle_ref(),
+                tensor.binding(),
+                output.clone().binding(),
                 cube_count,
-                tensor.dtype.into(),
+                dtype.into(),
             )?;
 
             Ok(output)
@@ -118,13 +121,12 @@ pub fn reduce<Run: CubeRuntime>(
 ) -> Result<CubeTensor<Run>, cubek::reduce::ReduceError> {
     // In practice, it looks like starting by the axis with the smallest shape
     // and going in increasing order lead to the fastest calculation.
-    let sorted_axis = argsort(&tensor.shape);
+    let sorted_axis = argsort(tensor.meta.shape());
     for axis in sorted_axis {
         tensor = reduce_dim::<Run>(tensor, output_dtype, axis, strategy.clone(), config)?;
     }
     // reshape to scalar tensor
-    tensor.shape = Shape::new([1]);
-    tensor.strides = vec![1];
+    *tensor.meta = Metadata::new([1], [1]);
     Ok(tensor)
 }
 
@@ -162,19 +164,19 @@ pub fn reduce_dim<Run: CubeRuntime>(
     let output = init_reduce_output::<Run>(&input, dim, &dtypes).ok_or(
         cubek::reduce::ReduceError::InvalidAxis {
             axis: dim,
-            rank: input.shape.num_dims(),
+            rank: input.meta.num_dims(),
         },
     )?;
 
     let result = match strategy {
         KernelReduceStrategy::Unspecified => cubek::reduce::reduce::<Run>(
             &client,
-            input.as_handle_ref(),
-            output.as_handle_ref(),
+            input.binding(),
+            output.clone().binding(),
             dim,
             ReduceStrategy {
                 routine: RoutineStrategy::Unit(BlueprintStrategy::Inferred(UnitStrategy)),
-                line_size: LineSizeStrategy {
+                vectorization: VectorizationStrategy {
                     parallel_output_vectorization: false,
                 },
             },
@@ -183,8 +185,8 @@ pub fn reduce_dim<Run: CubeRuntime>(
         ),
         KernelReduceStrategy::Specific(strategy) => cubek::reduce::reduce::<Run>(
             &client,
-            input.as_handle_ref(),
-            output.as_handle_ref(),
+            input.binding(),
+            output.clone().binding(),
             dim,
             strategy,
             config,
@@ -206,9 +208,9 @@ pub fn init_reduce_output<Run: CubeRuntime>(
     dim: usize,
     dtypes: &ReduceDtypes,
 ) -> Option<CubeTensor<Run>> {
-    (dim < input.shape.num_dims()).then(|| {
-        let mut shape_out = input.shape.clone();
-        shape_out.dims[dim] = 1;
+    (dim < input.meta.num_dims()).then(|| {
+        let mut shape_out = input.shape();
+        shape_out[dim] = 1;
         empty_device_contiguous_dtype(
             input.client.clone(),
             input.device.clone(),

@@ -606,7 +606,7 @@ mod tests {
 
         let hidden_state = gru.forward(batched_input, None);
 
-        assert_eq!(hidden_state.shape().dims, [8, 10, 1024]);
+        assert_eq!(&*hidden_state.shape(), [8, 10, 1024]);
     }
 
     #[test]
@@ -631,9 +631,9 @@ mod tests {
         let (output, state) = bigru.forward(batched_input, None);
 
         // Output should have hidden_size * 2 features (forward + reverse concatenated)
-        assert_eq!(output.shape().dims, [8, 10, 2048]);
+        assert_eq!(&*output.shape(), [8, 10, 2048]);
         // State should have shape [2, batch_size, hidden_size]
-        assert_eq!(state.shape().dims, [2, 8, 1024]);
+        assert_eq!(&*state.shape(), [2, 8, 1024]);
     }
 
     #[test]
@@ -647,8 +647,8 @@ mod tests {
 
         let (output, state) = bigru.forward(batched_input, Some(initial_state));
 
-        assert_eq!(output.shape().dims, [4, 5, 128]);
-        assert_eq!(state.shape().dims, [2, 4, 64]);
+        assert_eq!(&*output.shape(), [4, 5, 128]);
+        assert_eq!(&*state.shape(), [2, 4, 64]);
     }
 
     #[test]
@@ -664,8 +664,8 @@ mod tests {
         let (output, state) = bigru.forward(batched_input, None);
 
         // Output shape: [seq_length, batch_size, hidden_size * 2]
-        assert_eq!(output.shape().dims, [5, 4, 128]);
-        assert_eq!(state.shape().dims, [2, 4, 64]);
+        assert_eq!(&*output.shape(), [5, 4, 128]);
+        assert_eq!(&*state.shape(), [2, 4, 64]);
     }
 
     /// Test BiGru against PyTorch reference implementation.
@@ -865,7 +865,7 @@ mod tests {
 
         // Should run without panicking and produce valid output
         let output = gru.forward(input, None);
-        assert_eq!(output.shape().dims, [2, 3, 8]);
+        assert_eq!(&*output.shape(), [2, 3, 8]);
     }
 
     #[test]
@@ -881,8 +881,8 @@ mod tests {
         let input = Tensor::<TestBackend, 3>::random([2, 3, 4], Distribution::Default, &device);
 
         let (output, state) = bigru.forward(input, None);
-        assert_eq!(output.shape().dims, [2, 3, 16]); // hidden_size * 2
-        assert_eq!(state.shape().dims, [2, 2, 8]);
+        assert_eq!(&*output.shape(), [2, 3, 16]); // hidden_size * 2
+        assert_eq!(&*state.shape(), [2, 2, 8]);
     }
 
     #[test]

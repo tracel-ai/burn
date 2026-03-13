@@ -109,11 +109,11 @@ impl<B: Backend> GroupNorm<B> {
     /// - input: `[batch_size, num_channels, *]`
     /// - output: `[batch_size, num_channels, *]`
     pub fn forward<const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
-        if input.shape().dims[1] != self.num_channels {
+        if input.shape()[1] != self.num_channels {
             panic!(
                 "The number of channels in the input tensor should be equal to the number of channels in the GroupNorm module. Expected {}, got {}",
                 self.num_channels,
-                input.shape().dims[1]
+                input.shape()[1]
             );
         }
 

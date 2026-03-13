@@ -2,10 +2,11 @@ use burn_backend::{
     DType,
     ops::{ConvOptions, conv::calculate_conv_output_sizes},
 };
+use burn_std::{Metadata, Shape};
 use core::iter;
 use cubecl::{
     prelude::*,
-    std::tensor::{TensorHandle, into_contiguous_pitched_ref},
+    std::tensor::{TensorHandle, into_contiguous_pitched},
 };
 use cubek::convolution::components::ConvSetupError;
 
@@ -65,14 +66,14 @@ pub fn conv_im2col_1x1<R: CubeRuntime, const N: usize>(
         return Err(ConvSetupError::Groups(options.groups));
     }
 
-    let rank = input.shape.num_dims();
+    let rank = input.meta.num_dims();
     let dim_c = rank - 1;
 
-    let batch_size = input.shape[0];
-    let in_channels = input.shape[dim_c];
-    let in_shape = &input.shape[1..dim_c];
-    let out_channels = weight.shape[0];
-    let kernel_shape = &weight.shape[1..dim_c];
+    let batch_size = input.meta.shape()[0];
+    let in_channels = input.meta.shape()[dim_c];
+    let in_shape = &input.meta.shape()[1..dim_c];
+    let out_channels = weight.meta.shape()[0];
+    let kernel_shape = &weight.meta.shape()[1..dim_c];
 
     if kernel_shape.iter().any(|s| *s != 1) {
         return Err(ConvSetupError::Unknown);
@@ -97,16 +98,17 @@ pub fn conv_im2col_1x1<R: CubeRuntime, const N: usize>(
     let dtype = input.dtype;
 
     // Efficient permutation that takes the stride required for TMA into account
-    let weight = if weight.strides[dim_c] != 1 {
+    let weight = if weight.meta.strides()[dim_c] != 1 {
         // Remove kernel dims so padded dim is channels
-        weight.shape.dims = vec![out_channels, in_channels]; // [N, K]
-        weight.strides = vec![weight.strides[0], weight.strides[dim_c]];
+        *weight.meta = Metadata::new(
+            [out_channels, in_channels], // [N, K]
+            [weight.meta.strides()[0], weight.meta.strides()[dim_c]],
+        );
         // Pitched contiguous to skip running another kernel for TMA
         into_contiguous_aligned(weight)
     } else {
         // Already compatible, skip initial reshape
-        weight.shape.dims = vec![out_channels, in_channels]; // [N, K]
-        weight.strides = vec![weight.strides[0], 1];
+        *weight.meta = Metadata::new([out_channels, in_channels], [weight.meta.strides()[0], 1]);
         weight
     };
 
@@ -130,36 +132,40 @@ pub fn conv_im2col_1x1<R: CubeRuntime, const N: usize>(
 }
 
 /// Reshapes NHWC input to [(N, H, W), C]
-fn reshape_input<R: CubeRuntime>(mut input: CubeTensor<R>) -> CubeTensor<R> {
-    let rank = input.shape.num_dims();
+fn reshape_input<R: CubeRuntime>(input: CubeTensor<R>) -> CubeTensor<R> {
+    let rank = input.meta.num_dims();
     let dim_c = rank - 1;
     let dtype = input.dtype;
 
-    let batch_size = input.shape[0];
-    let in_c: usize = input.shape[dim_c];
-    let in_shape = input.shape[1..dim_c].to_vec();
+    let batch_size = input.meta.shape()[0];
+    let in_c: usize = input.meta.shape()[dim_c];
+    let in_shape: Shape = input.meta.shape()[1..dim_c].into();
 
-    if !is_spatial_contiguous(&input.shape, &input.strides) {
-        let contiguous =
-            into_contiguous_pitched_ref(&input.client, &input.as_handle_ref(), dtype.into())
-                .expect("Kernel to never fail");
-        input = from_handle(&input.client, &input.device, contiguous, dtype);
-    }
-    input.shape.dims = vec![batch_size * in_shape.iter().product::<usize>(), in_c]; // [M, K]
-    input.strides = vec![input.strides[dim_c - 1], input.strides[dim_c]];
+    let mut input = if !is_spatial_contiguous(input.meta.shape(), input.meta.strides()) {
+        let (client, device) = (input.client.clone(), input.device.clone());
+        let contiguous = into_contiguous_pitched(&client, input.binding(), dtype.into());
+        from_handle(client, device, contiguous, dtype)
+    } else {
+        input
+    };
+
+    *input.meta = Metadata::new(
+        [batch_size * in_shape.num_elements(), in_c], // [M, K]
+        [input.meta.strides()[dim_c - 1], input.meta.strides()[dim_c]],
+    );
     input
 }
 
 fn is_spatial_contiguous(shape: &[usize], strides: &[usize]) -> bool {
     let rank = shape.len();
+    let dim_c = rank - 1;
 
-    let mut ordered = strides.to_vec();
-    ordered.sort();
-    if ordered != strides {
+    // Channel must be contiguous for the [(N, H, W), C] reshape to be valid
+    if strides[dim_c] != 1 {
         return false;
     }
 
-    for i in (1..rank - 2).rev() {
+    for i in (1..dim_c).rev() {
         if strides[i + 1] * shape[i + 1] != strides[i] {
             return false;
         }
@@ -168,17 +174,16 @@ fn is_spatial_contiguous(shape: &[usize], strides: &[usize]) -> bool {
 }
 
 fn from_handle<R: CubeRuntime>(
-    client: &ComputeClient<R>,
-    device: &R::Device,
+    client: ComputeClient<R>,
+    device: R::Device,
     handle: TensorHandle<R>,
     dtype: DType,
 ) -> CubeTensor<R> {
     CubeTensor::new(
         client.clone(),
         handle.handle,
-        handle.shape.into(),
+        *handle.metadata,
         device.clone(),
-        handle.strides,
         dtype,
     )
 }

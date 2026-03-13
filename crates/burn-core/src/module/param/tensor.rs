@@ -99,6 +99,7 @@ impl<B: Backend, const D: usize> Param<Tensor<B, D>> {
     where
         T: Into<TensorData>,
     {
+        let data: TensorData = data.into();
         // When creating a parameter from a float tensor, we automatically mark it as requiring
         // gradients, so that it can be updated by an optimizer.
         B::memory_persistent_allocations(device, data, |data| {
@@ -335,7 +336,7 @@ impl<const D: usize, B: Backend> ModuleDisplayDefault for Param<Tensor<B, D>> {
         };
         let string = format!(
             "ParamTensor {{rank: {D}, shape: {:?}, kind: float{id}}}",
-            self.shape().dims
+            self.shape().as_slice()
         );
         content.add_formatted(&string).optional()
     }
@@ -390,7 +391,7 @@ impl<const D: usize, B: Backend> ModuleDisplayDefault for Param<Tensor<B, D, Int
         };
         let string = format!(
             "ParamTensor {{rank: {D}, shape: {:?}, kind: int{id}}}",
-            self.shape().dims
+            self.shape().as_slice()
         );
         content.add_formatted(&string).optional()
     }
@@ -446,7 +447,7 @@ impl<const D: usize, B: Backend> ModuleDisplayDefault for Param<Tensor<B, D, Boo
 
         let string = format!(
             "ParamTensor {{rank: {D}, shape: {:?}, kind: bool{id}}}",
-            self.shape().dims
+            self.shape().as_slice()
         );
         content.add_formatted(&string).optional()
     }

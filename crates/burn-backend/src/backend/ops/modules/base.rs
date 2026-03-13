@@ -1,5 +1,4 @@
 use super::{conv, pool};
-use crate::ops::attention;
 use crate::ops::unfold::unfold4d_using_conv2d;
 use crate::tensor::{BoolTensor, FloatTensor, IntTensor};
 use crate::{Backend, ElementConversion, TensorMetadata};
@@ -299,13 +298,37 @@ pub enum InterpolateMode {
     /// Bicubic interpolation.
     /// <https://en.wikipedia.org/wiki/Bicubic_interpolation>
     Bicubic,
+
+    /// Lanczos3 interpolation (6-tap sinc-based filter).
+    /// <https://en.wikipedia.org/wiki/Lanczos_resampling>
+    Lanczos3,
 }
 
 /// Interpolation options.
-#[derive(new, Debug, Clone)]
+#[derive(Debug, Clone)]
 pub struct InterpolateOptions {
     /// Algorithm used for upsampling.
     pub mode: InterpolateMode,
+    /// If `true`, the input and output tensors are aligned by their corner pixels.
+    /// If `false`, half-pixel coordinate mapping is used instead.
+    pub align_corners: bool,
+}
+
+impl InterpolateOptions {
+    /// Create new interpolate options with the given mode.
+    /// Defaults to `align_corners = true`.
+    pub fn new(mode: InterpolateMode) -> Self {
+        Self {
+            mode,
+            align_corners: true,
+        }
+    }
+
+    /// Set align_corners.
+    pub fn with_align_corners(mut self, align_corners: bool) -> Self {
+        self.align_corners = align_corners;
+        self
+    }
 }
 
 /// Padding mode for grid sampling when coordinates are out of bounds.
@@ -378,9 +401,7 @@ impl GridSampleOptions {
 /// Padding mode for tensor pad operations.
 ///
 /// Defines how values are filled when padding a tensor beyond its original boundaries.
-///
-/// **Note**: Currently, padding is only supported on the last two dimensions of a tensor
-/// (typically height and width for image data in NCHW format).
+/// Padding can be applied to any dimension of a tensor.
 ///
 /// # Modes
 ///
@@ -434,7 +455,7 @@ pub struct InterpolateBackward<B: Backend> {
 
 /// Options for [attention](ModuleOps::attention).
 #[derive(Debug, Clone, Copy, Default, PartialEq, serde::Deserialize, serde::Serialize)]
-pub struct AttentionOptions {
+pub struct AttentionModuleOptions {
     /// Custom scale factor applied to QK^T. When `None`, defaults to `1/sqrt(head_dim)`.
     pub scale: Option<f64>,
 
@@ -782,7 +803,7 @@ pub trait ModuleOps<B: Backend> {
             // batch, channels, h_blocks, w_blocks, h_kern, w_kern
 
             let blocks = B::float_permute(blocks, &[0, 1, 4, 5, 2, 3]);
-            let shape = &blocks.shape().dims;
+            let shape = blocks.shape();
 
             // batch, channels, h_kern, w_kern, h_blocks, w_blocks
 
@@ -1033,10 +1054,8 @@ pub trait ModuleOps<B: Backend> {
         value: FloatTensor<B>,
         mask: Option<BoolTensor<B>>,
         attn_bias: Option<FloatTensor<B>>,
-        options: AttentionOptions,
-    ) -> FloatTensor<B> {
-        attention::naive_attention::<B>(query, key, value, mask, attn_bias, options)
-    }
+        options: AttentionModuleOptions,
+    ) -> FloatTensor<B>;
 }
 
 #[cfg(test)]

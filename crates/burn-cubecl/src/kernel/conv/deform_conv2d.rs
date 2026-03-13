@@ -1,7 +1,7 @@
 use cubecl::{
     calculate_cube_count_elemwise,
     prelude::*,
-    std::{CubeOption, CubeOptionExpand, FastDivmod, FastDivmodArgs},
+    std::{FastDivmod, FastDivmodArgs},
 };
 use cubek::convolution::components::ConvSetupError;
 
@@ -15,6 +15,7 @@ use crate::{
     kernel::{
         AddOp, into_contiguous_aligned, launch_binop,
         matmul::{MatmulStrategy, matmul},
+        utils::address_type,
     },
     ops::{numeric::zeros_client, reshape, swap_dims},
     tensor::CubeTensor,
@@ -36,11 +37,11 @@ struct DeformConv2dArgs {
     out_w: usize,
 }
 
-#[cube(launch)]
+#[cube(launch, address_type = "dynamic")]
 fn deform_im2col_kernel<F: Float>(
     input: &Tensor<F>,
     offset: &Tensor<F>,
-    mask: &CubeOption<Tensor<F>>,
+    mask: &ComptimeOption<Tensor<F>>,
     columns: &mut Tensor<F>,
     pos_shape: Sequence<FastDivmod<usize>>,
     args: &DeformConv2dArgs,
@@ -84,12 +85,9 @@ fn deform_im2col_kernel<F: Float>(
     let offset_base_idx = batch * offset.stride(0)
         + group_index * kernel_height * kernel_width * 2 * offset.stride(1);
 
-    let mask_base_idx = match &mask {
-        CubeOption::Some(mask) => {
-            batch * mask.stride(0) + group_index * kernel_height * kernel_width * mask.stride(1)
-        }
-        CubeOption::None => 0,
-    };
+    let mask_base_idx = mask.as_ref().map(|mask| {
+        batch * mask.stride(0) + group_index * kernel_height * kernel_width * mask.stride(1)
+    });
 
     #[unroll(unroll_h)]
     for kernel_y in 0..kernel_height {
@@ -114,15 +112,16 @@ fn deform_im2col_kernel<F: Float>(
                 + offset_x;
 
             let interpolated = bilinear_interpolate(input, height, width, y, x, input_base_idx);
-            let value = match mask {
-                CubeOption::Some(mask) => {
-                    let mask_value = mask[mask_base_idx
+            #[comptime]
+            let value = match mask.zip::<usize>(mask_base_idx) {
+                ComptimeOption::Some((mask, base_idx)) => {
+                    let mask_value = mask[base_idx
                         + mask_index * mask.stride(1)
                         + out_y * mask.stride(2)
                         + out_x * mask.stride(3)];
                     mask_value * interpolated
                 }
-                CubeOption::None => interpolated,
+                ComptimeOption::None => interpolated,
             };
 
             columns[col_base_idx] = value;
@@ -202,7 +201,7 @@ pub(crate) fn deform_im2col<R: CubeRuntime>(
     let device = input.device.clone();
     let dtype = input.dtype;
 
-    let [batch_size, in_channels, _, _] = input.shape.dims();
+    let [batch_size, in_channels, _, _] = input.meta.shape().dims();
     let (out_height, out_width) = out_dims;
     let (kernel_height, kernel_width) = kernel_dims;
 
@@ -223,19 +222,20 @@ pub(crate) fn deform_im2col<R: CubeRuntime>(
     let cube_count = calculate_cube_count_elemwise(&input.client, num_kernels, cube_dim);
 
     deform_im2col_kernel::launch(
-        &input.client,
+        &output.client,
         cube_count,
         cube_dim,
-        input.as_tensor_arg(1),
-        offset.as_tensor_arg(1),
-        mask.as_ref().map(|mask| mask.as_tensor_arg(1)).into(),
-        output.as_handle_ref().as_tensor_arg(1),
+        address_type!(input, offset, mask, output),
+        input.into_tensor_arg(),
+        offset.into_tensor_arg(),
+        mask.map(|mask| mask.into_tensor_arg()).into(),
+        output.clone().binding().into_tensor_arg(),
         pos_shape,
         DeformConv2dArgsLaunch::new(
-            ScalarArg::new(options.stride[0]),
-            ScalarArg::new(options.stride[1]),
-            ScalarArg::new(options.dilation[0]),
-            ScalarArg::new(options.dilation[1]),
+            options.stride[0],
+            options.stride[1],
+            options.dilation[0],
+            options.dilation[1],
             {
                 let val = options.padding[0] as f32;
                 InputScalar::new(val, dtype)
@@ -244,16 +244,16 @@ pub(crate) fn deform_im2col<R: CubeRuntime>(
                 let val = options.padding[1] as f32;
                 InputScalar::new(val, dtype)
             },
-            ScalarArg::new(options.offset_groups),
-            ScalarArg::new(kernel_height),
-            ScalarArg::new(kernel_width),
-            ScalarArg::new(out_height),
-            ScalarArg::new(out_width),
+            options.offset_groups,
+            kernel_height,
+            kernel_width,
+            out_height,
+            out_width,
         ),
         Some(kernel_height),
         Some(kernel_width),
         dtype.into(),
-    )?;
+    );
 
     Ok(output)
 }
@@ -272,8 +272,8 @@ pub(crate) fn deform_conv2d<R: CubeRuntime>(
     let mask = mask.map(|it| into_contiguous_aligned(it));
     let bias = bias.map(|it| into_contiguous_aligned(it));
 
-    let [batch_size, _, in_height, in_width] = input.shape.dims();
-    let [out_channels, _, kernel_h, kernel_w] = weight.shape.dims();
+    let [batch_size, _, in_height, in_width] = input.meta.shape().dims();
+    let [out_channels, _, kernel_h, kernel_w] = weight.meta.shape().dims();
     let groups = options.weight_groups;
 
     let out_h = calculate_conv_output_size(
@@ -294,7 +294,7 @@ pub(crate) fn deform_conv2d<R: CubeRuntime>(
 
     let columns = deform_im2col(input, offset, mask, options, out_dims, (kernel_h, kernel_w))?;
 
-    let [col_size_0, col_size_1] = columns.shape.dims();
+    let [col_size_0, col_size_1] = columns.meta.shape().dims();
     let col_size_0 = col_size_0 / groups;
     let out_c_per_group = out_channels / groups;
 

@@ -207,7 +207,7 @@ mod tests {
 
         let output = pe.forward(tensor);
 
-        assert_eq!(output.shape().dims, [batch_size, length, d_model]);
+        assert_eq!(&*output.shape(), [batch_size, length, d_model]);
 
         let expected = Tensor::<TestBackend, 3>::from_floats(
             [

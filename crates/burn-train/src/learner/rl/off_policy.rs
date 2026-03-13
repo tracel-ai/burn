@@ -8,7 +8,7 @@ use crate::{
 use burn_core::{self as burn};
 use burn_core::{config::Config, data::dataloader::Progress};
 use burn_ndarray::NdArray;
-use burn_rl::{AsyncPolicy, Policy, PolicyLearner, Transition, TransitionBuffer};
+use burn_rl::{AsyncPolicy, Policy, PolicyLearner, SliceAccess, TransitionBuffer};
 
 /// Parameters of an on policy training with multi environments and double-batching.
 #[derive(Config, Debug)]
@@ -61,6 +61,8 @@ impl<RLC: RLComponentsTypes> OffPolicyStrategy<RLC> {
 impl<RLC> RLStrategy<RLC> for OffPolicyStrategy<RLC>
 where
     RLC: RLComponentsTypes,
+    RLC::PolicyObs: SliceAccess<RLC::Backend>,
+    RLC::PolicyAction: SliceAccess<RLC::Backend>,
 {
     fn train_loop(
         &self,
@@ -97,10 +99,13 @@ where
             None,
             None,
         );
-        let mut transition_buffer =
-            TransitionBuffer::<Transition<NdArray, RLC::State, RLC::Action>>::new(
-                self.config.replay_buffer_size,
-            );
+
+        let device: <RLC::Backend as burn_core::prelude::Backend>::Device = Default::default();
+        let mut transition_buffer = TransitionBuffer::<
+            RLC::Backend,
+            RLC::PolicyObs,
+            RLC::PolicyAction,
+        >::new(self.config.replay_buffer_size, &device);
 
         let mut valid_next = self.config.eval_interval + starting_epoch - 1;
         let mut progress = Progress {
@@ -128,7 +133,15 @@ where
                 &mut progress,
             );
 
-            transition_buffer.append(&mut items.iter().map(|i| i.transition.clone()).collect());
+            for item in &items {
+                let t = &item.transition;
+                let state: RLC::PolicyObs = t.state.clone().into();
+                let next_state: RLC::PolicyObs = t.next_state.clone().into();
+                let action: RLC::PolicyAction = t.action.clone().into();
+                let reward = t.reward.to_data().to_vec::<f32>().unwrap()[0];
+                let done = t.done.to_data().to_vec::<f32>().unwrap()[0] > 0.5;
+                transition_buffer.push(state, next_state, action, reward, done);
+            }
 
             if transition_buffer.len() >= self.config.train_batch_size
                 && progress.items_processed >= self.config.warmup_steps
@@ -137,10 +150,8 @@ where
                     env_runner.update_policy(u.clone());
                 }
                 for _ in 0..self.config.train_steps {
-                    let transitions = transition_buffer
-                        .random_sample(self.config.train_batch_size)
-                        .unwrap();
-                    let train_item = learner_agent.train(transitions.into());
+                    let batch = transition_buffer.sample(self.config.train_batch_size);
+                    let train_item = learner_agent.train(batch);
                     intermediary_update = Some(train_item.policy);
 
                     event_processor.process_train(RLEvent::TrainStep(EvaluationItem::new(
