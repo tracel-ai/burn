@@ -129,7 +129,7 @@ impl<B: Backend> GradientSyncServer<B> {
         });
         self.devices_registered += 1;
 
-        // println!("Device registered: {}", self.devices_registered);
+        println!("Device registered: {}", self.devices_registered);
     }
 
     fn launch_ops(&mut self) {
@@ -166,6 +166,7 @@ impl<B: Backend> GradientSyncServer<B> {
                                 peer_ids.clone(),
                                 ReduceOperation::Sum, // TODO: sum hard coded.
                             );
+                            println!("launched all_reduce for {peer_id:?}");
                         }
                         // if self.num_devices == self.syncing_devices {
                         //     self.update_finished(&devices[0]);
@@ -192,6 +193,7 @@ impl<B: Backend> GradientSyncServer<B> {
         let param_id = sharded_params
             .param_id
             .expect("Sharded tensor should have a parameter ID.");
+        println!("Received {param_id:?} from {:?}", B::comm_device(&tensor));
         let all_reduce_ops_queue = self.all_reduce_ops_queue.entry(param_id).or_insert(vec![]);
         all_reduce_ops_queue.push(tensor.clone());
         self.launch_ops();
