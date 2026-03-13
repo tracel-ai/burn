@@ -3,7 +3,7 @@ use crate::optim::reduce::tune::fused_reduce_autotune;
 use crate::{
     CubeFusionHandle, FallbackOperation,
     engine::{
-        launch::FuseTraceLauncher,
+        launch::{FuseTraceLauncher, FuseTraceState},
         trace::{FuseTrace, TraceError, TuneOutput},
     },
     optim::{
@@ -16,7 +16,7 @@ use crate::{
     },
 };
 use burn_fusion::stream::Context;
-use cubecl::{Runtime, prelude::*};
+use cubecl::{Runtime, prelude::*, stub::Mutex};
 use cubek::reduce::launch::RoutineStrategy;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -122,7 +122,8 @@ impl<R: Runtime> ReduceBroadcastedOptimizationTuneArg<R> {
             self.broadcasted.reduce_axis,
             strategy,
         );
-        let launcher = FuseTraceLauncher::new(&self.broadcasted.trace, &launch);
+        let state = Arc::new(Mutex::new(FuseTraceState::new()));
+        let launcher = FuseTraceLauncher::new(&self.broadcasted.trace, &launch, state);
 
         launcher
             .launch::<BT>(&self.client, &self.device, context)

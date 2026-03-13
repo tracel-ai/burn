@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::{
     CubeFusionHandle,
     engine::{
@@ -11,20 +13,22 @@ use crate::{
             kernel::{fuse_on_write, init_locals},
         },
         launch::{
-            FuseTraceLauncher,
+            FuseTraceLauncher, FuseTraceState,
             runner::{TraceRunner, Vectorization},
         },
         trace::FuseTrace,
     },
 };
 use burn_fusion::stream::Context;
-use cubecl::{CubeDim, calculate_cube_count_elemwise, client::ComputeClient, prelude::*};
+use cubecl::{
+    CubeDim, calculate_cube_count_elemwise, client::ComputeClient, prelude::*, stub::Mutex,
+};
 use serde::{Deserialize, Serialize};
 
-#[derive(new)]
 /// Fuse element wise operations into a single kernel.
 pub struct ElemwiseOptimization<R: Runtime> {
     pub(crate) trace: FuseTrace,
+    state: Arc<Mutex<FuseTraceState<R>>>,
     client: ComputeClient<R>,
     device: R::Device,
     len: usize,
@@ -38,9 +42,19 @@ pub struct ElemwiseOptimizationState {
 }
 
 impl<R: Runtime> ElemwiseOptimization<R> {
+    pub fn new(trace: FuseTrace, client: ComputeClient<R>, device: R::Device, len: usize) -> Self {
+        Self {
+            trace,
+            state: Arc::new(Mutex::new(FuseTraceState::new())),
+            client,
+            device,
+            len,
+        }
+    }
+
     /// Execute the optimization.
     pub fn execute<BT: CubeElement>(&self, context: &mut Context<'_, CubeFusionHandle<R>>) {
-        let launcher = FuseTraceLauncher::new(&self.trace, &ElemwiseRunner);
+        let launcher = FuseTraceLauncher::new(&self.trace, &ElemwiseRunner, self.state.clone());
 
         match launcher.launch::<BT>(&self.client, &self.device, context) {
             Ok(_) => (),
@@ -59,6 +73,7 @@ impl<R: Runtime> ElemwiseOptimization<R> {
     pub fn from_state(device: &R::Device, state: ElemwiseOptimizationState) -> Self {
         Self {
             trace: state.trace,
+            state: Arc::new(Mutex::new(FuseTraceState::new())),
             len: state.len,
             client: R::client(device),
             device: device.clone(),

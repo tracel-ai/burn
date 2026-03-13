@@ -2,16 +2,19 @@ use crate::{
     CubeFusionHandle,
     engine::{
         launch::{
-            HandleInput, HandleOutput, LaunchPlan, executor::LaunchPlanExecutor,
-            input::InputPlanner, output::OutputPlanner, runner::TraceRunner,
+            HandleInput, HandleOutput, LaunchPlan,
+            executor::LaunchPlanExecutor,
+            input::InputPlanner,
+            output::{OutputPlanner, OutputPlannerState},
+            runner::TraceRunner,
             vectorization::VectorizationPlanner,
         },
-        trace::{FuseTrace, TraceError, TuneOutput},
+        trace::{FuseTrace, TraceError, TuneOutput, block::FuseBlock},
     },
 };
 use burn_fusion::stream::Context;
-use cubecl::{CubeElement, Runtime, client::ComputeClient};
-use std::marker::PhantomData;
+use cubecl::{CubeElement, Runtime, client::ComputeClient, stub::Mutex};
+use std::{marker::PhantomData, sync::Arc};
 
 /// The launcher is responsible to launch a fused kernel using the [TraceRunner] and a [FuseTrace].
 ///
@@ -20,37 +23,66 @@ use std::marker::PhantomData;
 pub struct FuseTraceLauncher<'a, R: Runtime, Runner: TraceRunner<R>> {
     trace: &'a FuseTrace,
     runner: &'a Runner,
+    state: Arc<Mutex<FuseTraceState<R>>>,
     _runtime: PhantomData<R>,
+}
+
+pub struct FuseTraceState<R: Runtime> {
+    plan: LaunchPlan<R>,
+    planner_output: OutputPlannerState<R>,
+}
+
+impl<R: Runtime> FuseTraceState<R> {
+    pub fn new() -> Self {
+        Self {
+            plan: LaunchPlan::uinit(),
+            planner_output: OutputPlannerState::init(),
+        }
+    }
+    pub fn init(
+        &mut self,
+        fuse_blocks: &[FuseBlock],
+    ) -> (&mut LaunchPlan<R>, &mut OutputPlannerState<R>) {
+        self.plan.init(fuse_blocks);
+        (&mut self.plan, &mut self.planner_output)
+    }
 }
 
 impl<'a, R: Runtime, Runner: TraceRunner<R>> FuseTraceLauncher<'a, R, Runner> {
     /// Creates a new launcher.
-    pub fn new(trace: &'a FuseTrace, runner: &'a Runner) -> Self {
+    pub fn new(
+        trace: &'a FuseTrace,
+        runner: &'a Runner,
+        state: Arc<Mutex<FuseTraceState<R>>>,
+    ) -> Self {
         Self {
             trace,
             runner,
+            state,
             _runtime: PhantomData,
         }
     }
+
     /// Launches the fuse kernel on the given device modifying the context.
     pub fn launch<BT: CubeElement>(
-        &self,
+        self,
         client: &ComputeClient<R>,
         device: &R::Device,
         context: &mut Context<'_, CubeFusionHandle<R>>,
     ) -> Result<TuneOutput<R>, TraceError<Runner::Error>> {
-        let mut plan = LaunchPlan::new(&self.trace.blocks);
+        let mut state = self.state.lock().unwrap();
+        let (plan, output) = state.init(&self.trace.blocks);
 
-        InputPlanner::new(&self.trace.resources, &self.trace.blocks).run(context, &mut plan);
+        InputPlanner::new(&self.trace.resources, &self.trace.blocks).run(context, plan);
 
-        OutputPlanner::new(&self.trace.resources, &self.trace.blocks)
-            .run::<BT>(client, device, context, &mut plan);
+        OutputPlanner::new(output, &self.trace.resources, &self.trace.blocks)
+            .run::<BT>(client, device, context, plan);
 
         VectorizationPlanner::new(&self.trace.resources, &self.trace.blocks).run(
             client,
             self.runner,
             context,
-            &mut plan,
+            plan,
         );
 
         match LaunchPlanExecutor::new(&self.trace.resources, &self.trace.blocks).execute::<_, BT>(

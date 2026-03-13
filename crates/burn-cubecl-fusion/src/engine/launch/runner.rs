@@ -64,7 +64,7 @@ impl VectorizationAxis {
 
 pub trait Vectorization<R: Runtime> {
     /// Returns the vectorization options.
-    fn axis(&self, _plan: &LaunchPlan<'_, R>) -> VectorizationAxis {
+    fn axis(&self, _plan: &LaunchPlan<R>) -> VectorizationAxis {
         VectorizationAxis::default()
     }
     /// The vectorization factor for all inputs and outputs.

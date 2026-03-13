@@ -26,17 +26,36 @@ use cubecl::{CubeElement, Runtime, client::ComputeClient, ir::StorageType};
 /// It is also responsible to select the reference tensor.
 pub struct OutputPlanner<'a, R: Runtime> {
     resources: &'a FuseResources,
-    outputs_sorted: Vec<OutputSorted<'a>>,
+    blocks: &'a Vec<FuseBlock>,
+    state: &'a mut OutputPlannerState<R>,
+}
+
+pub struct OutputPlannerState<R: Runtime> {
+    outputs_sorted: Vec<OutputSorted>,
     handles: Vec<Option<HandleOutput<R>>>,
     globals: Vec<Option<TensorIr>>,
-    blocks: &'a Vec<FuseBlock>,
+}
+
+impl<R: Runtime> OutputPlannerState<R> {
+    pub fn init() -> Self {
+        Self {
+            outputs_sorted: Vec::new(),
+            handles: Vec::new(),
+            globals: Vec::new(),
+        }
+    }
+    pub fn clear(&mut self) {
+        self.outputs_sorted.clear();
+        self.handles.clear();
+        self.globals.clear();
+    }
 }
 
 #[derive(Debug)]
-struct OutputSorted<'a> {
+struct OutputSorted {
     pos_original: usize,
     precision: FuseType,
-    tensor_relative: &'a TensorIr,
+    tensor_relative: TensorIr,
 }
 
 #[derive(Debug)]
@@ -50,43 +69,46 @@ enum OutputKind {
 }
 
 impl<'a, R: Runtime> OutputPlanner<'a, R> {
-    pub fn new(resources: &'a FuseResources, blocks: &'a Vec<FuseBlock>) -> Self {
-        let mut outputs_sorted: Vec<_> = resources
-            .outputs
-            .iter()
-            .enumerate()
-            .filter_map(|(pos, entry)| match entry {
-                RegisterTensor::Normal(ir, p) => Some((pos, ir, p)),
-                RegisterTensor::QuantValues(_) => None,
-                RegisterTensor::QuantParams(_) => None,
-            })
-            .map(|(pos, tensor, precision)| OutputSorted {
+    pub fn new(
+        state: &'a mut OutputPlannerState<R>,
+        resources: &'a FuseResources,
+        blocks: &'a Vec<FuseBlock>,
+    ) -> Self {
+        state.clear();
+
+        for (pos, tensor, precision) in
+            resources
+                .outputs
+                .iter()
+                .enumerate()
+                .filter_map(|(pos, entry)| match entry {
+                    RegisterTensor::Normal(ir, p) => Some((pos, ir, p)),
+                    RegisterTensor::QuantValues(_) => None,
+                    RegisterTensor::QuantParams(_) => None,
+                })
+        {
+            state.outputs_sorted.push(OutputSorted {
                 pos_original: pos,
                 precision: *precision,
-                tensor_relative: tensor,
-            })
-            .collect();
+                tensor_relative: tensor.clone(),
+            });
+        }
 
-        outputs_sorted.sort_by(|a, b| {
+        state.outputs_sorted.sort_by(|a, b| {
             let a_val: usize = a.tensor_relative.shape.iter().sum();
             let b_val: usize = b.tensor_relative.shape.iter().sum();
 
             b_val.cmp(&a_val)
         });
 
-        let mut handles = Vec::with_capacity(resources.outputs.len());
-        let mut globals = Vec::with_capacity(resources.outputs.len());
-
         for _ in 0..resources.outputs.len() {
-            handles.push(None);
-            globals.push(None);
+            state.handles.push(None);
+            state.globals.push(None);
         }
 
         Self {
             resources,
-            outputs_sorted,
-            handles,
-            globals,
+            state,
             blocks,
         }
     }
@@ -96,11 +118,11 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         client: &ComputeClient<R>,
         device: &R::Device,
         context: &mut Context<'_, CubeFusionHandle<R>>,
-        plan: &mut LaunchPlan<'a, R>,
+        plan: &mut LaunchPlan<R>,
     ) {
         // So that we can borrow self during the iteration.
         let mut outputs = Vec::new();
-        core::mem::swap(&mut outputs, &mut self.outputs_sorted);
+        core::mem::swap(&mut outputs, &mut self.state.outputs_sorted);
 
         for output in outputs.into_iter() {
             let tensor_global = context
@@ -156,7 +178,12 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             }
         }
 
-        for (handle, global) in self.handles.into_iter().zip(self.globals.into_iter()) {
+        for (handle, global) in self
+            .state
+            .handles
+            .drain(..)
+            .zip(self.state.globals.drain(..))
+        {
             plan.handle_outputs.push(handle.unwrap());
             plan.global_outputs.push(global.unwrap());
         }
@@ -210,7 +237,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
 
     fn select_reference_from_inputs(
         block: &FuseBlock,
-        block_plan: &mut BlockPlan<'_>,
+        block_plan: &mut BlockPlan,
         handle_inputs: &[HandleInput<R>],
     ) -> Option<Shape> {
         if let Some(input_ref) = block_plan.potential_reference_input.take() {
@@ -222,7 +249,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                         .as_normal()
                         .expect("Quant can't be used as inplace");
 
-                    let set_ref_as_concrete = |block: &mut BlockPlan<'_>| {
+                    let set_ref_as_concrete = |block: &mut BlockPlan| {
                         block.reference = ReferenceSelection::Concrete {
                             layout: FuseArg::Input(
                                 input_pos,
@@ -234,7 +261,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                         };
                     };
 
-                    let set_ref_as_virtual = |block: &mut BlockPlan<'_>| {
+                    let set_ref_as_virtual = |block: &mut BlockPlan| {
                         block.reference = ReferenceSelection::VirtualShape {
                             original: FuseArg::Input(
                                 input_pos,
@@ -288,7 +315,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         }
     }
 
-    fn add_layout_info_inputs(block: &mut BlockPlan<'_>, handle_inputs: &[HandleInput<R>]) {
+    fn add_layout_info_inputs(block: &mut BlockPlan, handle_inputs: &[HandleInput<R>]) {
         for hi in handle_inputs.iter().filter_map(|h| match h {
             HandleInput::Normal(input) => Some(input),
             _ => None,
@@ -314,7 +341,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
 
     fn output_kind(
         &self,
-        plan: &mut LaunchPlan<'a, R>,
+        plan: &mut LaunchPlan<R>,
         tensor_global: &TensorIr,
         output: &OutputSorted,
         strides: &[usize],
@@ -355,7 +382,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
     fn inplace_output(
         &mut self,
         context: &mut Context<'_, CubeFusionHandle<R>>,
-        plan: &mut LaunchPlan<'a, R>,
+        plan: &mut LaunchPlan<R>,
         output: OutputSorted,
         tensor_global: TensorIr,
         input_index: usize,
@@ -421,7 +448,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             .handles
             .register_handle(tensor_global.id, handle_input.handle.clone());
 
-        self.handles[output.pos_original] = Some(HandleOutput::Alias {
+        self.state.handles[output.pos_original] = Some(HandleOutput::Alias {
             input_pos: potential_inplace.input_pos,
             precision: output.precision,
             #[cfg(feature = "autotune-checks")]
@@ -431,7 +458,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                 global_shape: tensor_global.shape.dims.clone(),
             },
         });
-        self.globals[output.pos_original] = Some(tensor_global);
+        self.state.globals[output.pos_original] = Some(tensor_global);
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -440,7 +467,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         client: &ComputeClient<R>,
         device: &R::Device,
         context: &mut Context<'_, CubeFusionHandle<R>>,
-        plan: &mut LaunchPlan<'a, R>,
+        plan: &mut LaunchPlan<R>,
         output: OutputSorted,
         tensor_global: TensorIr,
         strides: Strides,
@@ -508,7 +535,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             .handles
             .register_handle(tensor_global.id, handle.clone());
 
-        self.handles[output.pos_original] = Some(HandleOutput::Owned {
+        self.state.handles[output.pos_original] = Some(HandleOutput::Owned {
             precision: output.precision,
             handle,
             global_shape: tensor_global.shape.clone(),
@@ -516,7 +543,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             relative_id: output.tensor_relative.id,
             vectorization: 1,
         });
-        self.globals[output.pos_original] = Some(tensor_global);
+        self.state.globals[output.pos_original] = Some(tensor_global);
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -525,7 +552,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         client: &ComputeClient<R>,
         device: &R::Device,
         context: &mut Context<'_, CubeFusionHandle<R>>,
-        plan: &mut LaunchPlan<'a, R>,
+        plan: &mut LaunchPlan<R>,
         output: OutputSorted,
         tensor_global: TensorIr,
         strides: Strides,
@@ -572,7 +599,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                     .register_handle(tensor_global.id, handle.clone());
 
                 // IT will never be access, just a way to keep the original position working.
-                self.handles[output.pos_original] = Some(HandleOutput::Alias {
+                self.state.handles[output.pos_original] = Some(HandleOutput::Alias {
                     input_pos: pos_input,
                     precision: output.precision,
                     #[cfg(feature = "autotune-checks")]
@@ -582,7 +609,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                         global_shape: tensor_global.shape.dims.clone(),
                     },
                 });
-                self.globals[output.pos_original] = Some(tensor_global);
+                self.state.globals[output.pos_original] = Some(tensor_global);
             }
             None => {
                 self.normal_output::<BT>(
@@ -605,7 +632,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         client: &ComputeClient<R>,
         device: &R::Device,
         context: &mut Context<'_, CubeFusionHandle<R>>,
-        plan: &mut LaunchPlan<'a, R>,
+        plan: &mut LaunchPlan<R>,
         output: OutputSorted,
         tensor_global: TensorIr,
         original: TensorId,
@@ -643,7 +670,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             .register_handle(tensor_global.id, handle.clone());
 
         // IT will never be access, just a way to keep the original position working.
-        self.handles[output.pos_original] = Some(HandleOutput::Alias {
+        self.state.handles[output.pos_original] = Some(HandleOutput::Alias {
             input_pos: pos_input,
             precision: output.precision,
             #[cfg(feature = "autotune-checks")]
@@ -653,7 +680,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                 global_shape: tensor_global.shape.dims.clone(),
             },
         });
-        self.globals[output.pos_original] = Some(tensor_global);
+        self.state.globals[output.pos_original] = Some(tensor_global);
     }
 
     fn find_child_input(

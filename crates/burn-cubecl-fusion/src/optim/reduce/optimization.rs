@@ -11,7 +11,7 @@ use crate::{
             multi_block_variables_init,
         },
         launch::{
-            FuseTraceLauncher,
+            FuseTraceLauncher, FuseTraceState,
             runner::{TraceRunner, Vectorization},
         },
         trace::{FuseTrace, TraceError, TuneOutput},
@@ -21,7 +21,7 @@ use crate::{
 use burn_fusion::stream::Context;
 use burn_ir::ReduceDimOpIr;
 use burn_std::DType;
-use cubecl::{Runtime, client::ComputeClient, ir::StorageType, prelude::*};
+use cubecl::{Runtime, client::ComputeClient, ir::StorageType, prelude::*, stub::Mutex};
 use cubek::reduce::{
     ReduceDtypes, ReduceError, VectorizationMode,
     components::instructions::ReduceOperationConfig,
@@ -182,7 +182,8 @@ impl<R: Runtime> ReduceOptimizationTuneArg<R> {
         strategy: RoutineStrategy,
     ) -> Result<TuneOutput<R>, TraceError<FusedReduceError>> {
         let launch = FusedReduceLaunch::new(&self.info.reduce, strategy);
-        let launcher = FuseTraceLauncher::new(&self.info.trace, &launch);
+        let state = Arc::new(Mutex::new(FuseTraceState::new()));
+        let launcher = FuseTraceLauncher::new(&self.info.trace, &launch, state);
         launcher.launch::<BT>(&self.info.client, &self.info.device, context)
     }
 
@@ -190,7 +191,9 @@ impl<R: Runtime> ReduceOptimizationTuneArg<R> {
         &self,
         context: &mut Context<'_, CubeFusionHandle<R>>,
     ) -> TuneOutput<R> {
-        let launcher = FuseTraceLauncher::new(&self.info.trace_read_fallback, &ElemwiseRunner);
+        let state = Arc::new(Mutex::new(FuseTraceState::new()));
+        let launcher =
+            FuseTraceLauncher::new(&self.info.trace_read_fallback, &ElemwiseRunner, state);
 
         #[allow(unused_mut)] // It is used when `autotune-checks` is activated.
         let mut output_read = launcher
@@ -212,7 +215,9 @@ impl<R: Runtime> ReduceOptimizationTuneArg<R> {
             );
         }
 
-        let launcher = FuseTraceLauncher::new(&self.info.trace_write_fallback, &ElemwiseRunner);
+        let state = Arc::new(Mutex::new(FuseTraceState::new()));
+        let launcher =
+            FuseTraceLauncher::new(&self.info.trace_write_fallback, &ElemwiseRunner, state);
 
         let output_write = launcher
             .launch::<BT>(&self.info.client, &self.info.device, context)

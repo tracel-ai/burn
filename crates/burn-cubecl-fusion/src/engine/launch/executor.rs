@@ -49,7 +49,7 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
         client: &ComputeClient<R>,
         runner: &Runner,
         context: &mut Context<'_, CubeFusionHandle<R>>,
-        plan: LaunchPlan<'a, R>,
+        plan: &mut LaunchPlan<R>,
     ) -> Result<TuneOutput<R>, ExecutionError<R, Runner>> {
         let mut num_writes = 0;
         for b in plan.blocks.iter() {
@@ -83,7 +83,7 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
         );
         register_outputs::<BT, R>(plan.handle_outputs.clone(), &mut outputs, &mut tune_output);
 
-        for layout in plan.runtime_layouts {
+        for layout in plan.runtime_layouts.drain(..) {
             for s in layout.shape.iter() {
                 inputs.runtime_layouts.push(*s);
             }
@@ -94,7 +94,7 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
 
         let mut configs = Vec::with_capacity(plan.blocks.len());
 
-        for (block_plan, block) in plan.blocks.into_iter().zip(self.blocks) {
+        for (block_plan, block) in plan.blocks.drain(..).into_iter().zip(self.blocks) {
             let reference = match block_plan.reference {
                 ReferenceSelection::Concrete { layout, .. } => RefLayout::Concrete(layout),
                 ReferenceSelection::VirtualShape { original, .. } => {
@@ -115,8 +115,8 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
                 ReferenceSelection::Searching => {
                     return Err(ExecutionError::new(
                         TraceError::ReferenceNotFound,
-                        plan.handle_inputs,
-                        plan.handle_outputs,
+                        plan.handle_inputs.drain(..).collect::<Vec<_>>(),
+                        plan.handle_outputs.drain(..).collect::<Vec<_>>(),
                     ));
                 }
             };
@@ -151,8 +151,8 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
         Runner::run(runner, client, inputs, outputs, &configs).map_err(|err| {
             ExecutionError::new(
                 TraceError::RunnerError(err),
-                plan.handle_inputs,
-                plan.handle_outputs,
+                plan.handle_inputs.drain(..).collect::<Vec<_>>(),
+                plan.handle_outputs.drain(..).collect::<Vec<_>>(),
             )
         })?;
 

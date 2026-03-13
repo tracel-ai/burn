@@ -17,7 +17,7 @@ use std::collections::BTreeMap;
 /// It maps abstract IR tensors to memory handles, manages vectorization
 /// strategies, and tracks layout transformations.
 #[derive(Debug)]
-pub struct LaunchPlan<'a, R: Runtime> {
+pub struct LaunchPlan<R: Runtime> {
     /// The IR representation of tensors that are results of the fusion.
     pub global_outputs: Vec<TensorIr>,
     /// Memory handles and metadata for all input tensors.
@@ -29,7 +29,7 @@ pub struct LaunchPlan<'a, R: Runtime> {
     /// Smaller tensors are unsqueezed during launch.
     pub rank: usize,
     /// Detailed planning for each individual computation block within the fusion.
-    pub blocks: Vec<BlockPlan<'a>>,
+    pub blocks: Vec<BlockPlan>,
     /// Mapping of tensor IDs to their specific vectorization factors.
     pub vectorizations: BTreeMap<TensorId, Vect>,
     /// Tensors that can be cleared or deallocated after this plan executes.
@@ -41,9 +41,9 @@ pub struct LaunchPlan<'a, R: Runtime> {
 
 /// Information regarding the execution of a specific block of operations within a fusion.
 #[derive(Debug)]
-pub struct BlockPlan<'a> {
+pub struct BlockPlan {
     /// List of inputs that are candidates for in-place memory reuse within this block.
-    pub potential_inplaces: Vec<PotentialInplace<'a>>,
+    pub potential_inplaces: Vec<PotentialInplace>,
     /// The input tensor chosen to define the iteration space, if any.
     pub potential_reference_input: Option<InputReference>,
     /// How the master layout is determined for this block.
@@ -100,17 +100,36 @@ pub enum ReferenceSelection {
     Runtime { pos: usize },
 }
 
-impl<R: Runtime> LaunchPlan<'_, R> {
+impl<R: Runtime> LaunchPlan<R> {
+    pub fn uinit() -> Self {
+        Self {
+            global_outputs: Default::default(),
+            handle_inputs: Default::default(),
+            handle_outputs: Default::default(),
+            rank: Default::default(),
+            blocks: Default::default(),
+            vectorizations: Default::default(),
+            cleared: Default::default(),
+            runtime_layouts: Default::default(),
+        }
+    }
+
     /// Creates a new `LaunchPlan` from a slice of fusion blocks.
     ///
     /// Initializes blocks with default "Searching" references and calculates
     /// the initial max rank.
-    pub fn new(fuse_blocks: &[FuseBlock]) -> Self {
-        let mut rank = 0;
-        let mut blocks = Vec::with_capacity(fuse_blocks.len());
+    pub fn init(&mut self, fuse_blocks: &[FuseBlock]) {
+        self.global_outputs.clear();
+        self.handle_inputs.clear();
+        self.handle_outputs.clear();
+        self.rank = 0;
+        self.blocks.clear();
+        self.vectorizations.clear();
+        self.cleared.clear();
+        self.runtime_layouts.clear();
 
         for b in fuse_blocks.iter() {
-            rank = usize::max(b.shape_ref.len(), rank);
+            self.rank = usize::max(b.shape_ref.len(), self.rank);
             let block = BlockPlan {
                 reference: ReferenceSelection::Searching,
                 reads: b.reads.clone(),
@@ -119,18 +138,7 @@ impl<R: Runtime> LaunchPlan<'_, R> {
                 potential_inplaces: Vec::new(),
                 potential_reference_input: None,
             };
-            blocks.push(block);
-        }
-
-        LaunchPlan {
-            global_outputs: Vec::new(),
-            handle_inputs: Vec::new(),
-            handle_outputs: Vec::new(),
-            rank,
-            blocks,
-            vectorizations: Default::default(),
-            cleared: Default::default(),
-            runtime_layouts: Default::default(),
+            self.blocks.push(block);
         }
     }
 }
@@ -250,11 +258,11 @@ impl<R: Runtime> NormalHandleInput<R> {
 
 /// A candidate for in-place optimization.
 #[derive(Debug)]
-pub struct PotentialInplace<'a> {
+pub struct PotentialInplace {
     /// Position of the input handle in the `handle_inputs` vector.
     pub input_pos: usize,
     /// Reference to the IR of the relative tensor.
-    pub tensor_relative: &'a TensorIr,
+    pub tensor_relative: TensorIr,
     /// Current strides of the potential in-place candidate.
     pub strides: Strides,
 }

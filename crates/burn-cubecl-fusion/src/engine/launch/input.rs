@@ -27,7 +27,7 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
         }
     }
 
-    pub fn run(self, context: &mut Context<'_, CubeFusionHandle<R>>, plan: &mut LaunchPlan<'a, R>) {
+    pub fn run(self, context: &mut Context<'_, CubeFusionHandle<R>>, plan: &mut LaunchPlan<R>) {
         for (pos, input) in self.resources.inputs.iter().enumerate() {
             match input {
                 RegisterTensor::Normal(tensor_relative, precision) => {
@@ -105,7 +105,7 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
 
     fn analyze(
         &self,
-        plan: &mut LaunchPlan<'a, R>,
+        plan: &mut LaunchPlan<R>,
         pos: usize,
         tensor_relative: &'a TensorIr,
         handle: &CubeFusionHandle<R>,
@@ -133,7 +133,7 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
     /// Analyzes if the given tensor can be used inplace in one of the block.
     fn analyze_normal(
         &self,
-        plan: &mut LaunchPlan<'a, R>,
+        plan: &mut LaunchPlan<R>,
         pos: usize,
         tensor_relative: &'a TensorIr,
         handle: &CubeFusionHandle<R>,
@@ -172,7 +172,7 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
                 if self.blocks[idx].settings.inplace && handle.handle.can_mut() {
                     block_plan.potential_inplaces.push(PotentialInplace {
                         input_pos: pos,
-                        tensor_relative,
+                        tensor_relative: tensor_relative.clone(),
                         strides: handle.strides.clone(),
                     });
                 }
@@ -193,7 +193,7 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
         pos: usize,
         tensor_relative: &'a TensorIr,
         block: &FuseBlock,
-        block_plan: &mut BlockPlan<'a>,
+        block_plan: &mut BlockPlan,
         view: &TensorView,
     ) -> bool {
         match view {

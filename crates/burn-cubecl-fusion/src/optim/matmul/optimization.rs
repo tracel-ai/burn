@@ -6,7 +6,7 @@ use crate::{
     engine::{
         codegen::ir::{FuseArg, FuseBlockConfig, FuseType, GlobalArgsLaunch, RefLayout},
         launch::{
-            FuseTraceLauncher, HandleInput, LaunchPlan,
+            FuseTraceLauncher, FuseTraceState, HandleInput, LaunchPlan,
             runner::{TraceRunner, Vectorization, VectorizationAxis},
         },
         trace::{FuseTrace, TraceError, TuneOutput},
@@ -22,6 +22,7 @@ use cubecl::{
     client::ComputeClient,
     prelude::*,
     std::tensor::{MatrixBatchLayout, matrix_batch_layout},
+    stub::Mutex,
 };
 use cubek::{
     matmul::{
@@ -92,7 +93,8 @@ impl<R: Runtime> MatmulOptimizationTuneArg<R> {
         selector: FusedMatmulSelector,
     ) -> Result<TuneOutput<R>, TraceError<FusedMatmulError>> {
         let launch = FusedMatmulLaunch::new(&self.info.matmul, selector);
-        let launcher = FuseTraceLauncher::new(&self.info.trace, &launch);
+        let state = Arc::new(Mutex::new(FuseTraceState::new()));
+        let launcher = FuseTraceLauncher::new(&self.info.trace, &launch, state);
 
         launcher.launch::<BT>(&self.info.client, &self.info.device, context)
     }
@@ -123,7 +125,8 @@ impl<R: Runtime> MatmulOptimizationTuneArg<R> {
             );
         }
 
-        let launcher = FuseTraceLauncher::new(&self.info.trace_fallback, &ElemwiseRunner);
+        let state = Arc::new(Mutex::new(FuseTraceState::new()));
+        let launcher = FuseTraceLauncher::new(&self.info.trace_fallback, &ElemwiseRunner, state);
         let output_write = launcher
             .launch::<BT>(&self.info.client, &self.info.device, context)
             .unwrap();
@@ -298,7 +301,7 @@ impl From<MatmulSetupError> for FusedMatmulError {
 }
 
 impl<'a, R: Runtime> Vectorization<R> for FusedMatmulLaunch<'a> {
-    fn axis(&self, plan: &LaunchPlan<'_, R>) -> VectorizationAxis {
+    fn axis(&self, plan: &LaunchPlan<R>) -> VectorizationAxis {
         let lhs_id = self.matmul.op.lhs.id;
         let rhs_id = self.matmul.op.rhs.id;
 
