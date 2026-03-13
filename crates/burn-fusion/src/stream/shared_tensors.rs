@@ -132,6 +132,18 @@ impl SharedTensors {
         self.register_manual_drop(to_drop)
     }
 
+    pub fn streams_of(&mut self, tensor: &TensorId) -> Vec<StreamId> {
+        let mut streams = Vec::new();
+
+        if let Some(value) = self.shared_tensors.get(tensor) {
+            for s in value.streams.keys() {
+                streams.push(*s);
+            }
+        }
+
+        streams
+    }
+
     /// Analyses the current tensor and updates its state.
     pub fn analyse<R: FusionRuntime>(
         &mut self,

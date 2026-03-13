@@ -477,7 +477,7 @@ impl TestStream {
 
     /// Assert the number of executions since the start of the stream.
     fn assert_number_of_executions(&self, number: usize) {
-        assert_eq!(self.executed.len(), number);
+        assert_eq!(self.executed.len(), number, "Number of execution match");
     }
 
     /// Assert the number of operations queued.
@@ -552,7 +552,7 @@ impl OperationFuser<TestOptimization> for TestOptimizationBuilder {
 
         // Optimization possible.
         FuserProperties {
-            score: 1,
+            score: self.expected_operations.len() as u64,
             ready: true,
         }
     }
