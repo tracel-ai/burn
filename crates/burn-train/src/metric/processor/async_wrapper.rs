@@ -28,36 +28,41 @@ impl<ET: Send + 'static, EV: Send + 'static, P: EventProcessorTraining<ET, EV> +
 {
     pub fn start(processor: P, rec: Receiver<Message<ET, EV>>) {
         let mut worker = Self { processor, rec };
-
-        std::thread::spawn(move || {
-            while let Ok(msg) = worker.rec.recv_blocking() {
-                match msg {
-                    Message::Train(event) => worker.processor.process_train(event),
-                    Message::Valid(event) => worker.processor.process_valid(event),
-                    Message::Renderer(callback) => {
-                        callback.send_blocking(worker.processor.renderer()).unwrap();
-                        return;
+        std::thread::Builder::new()
+            .name("train-worker".into())
+            .spawn(move || {
+                while let Ok(msg) = worker.rec.recv_blocking() {
+                    match msg {
+                        Message::Train(event) => worker.processor.process_train(event),
+                        Message::Valid(event) => worker.processor.process_valid(event),
+                        Message::Renderer(callback) => {
+                            callback.send_blocking(worker.processor.renderer()).unwrap();
+                            return;
+                        }
                     }
                 }
-            }
-        });
+            })
+            .unwrap();
     }
 }
 impl<P: EventProcessorEvaluation + 'static> WorkerEvaluation<P> {
     pub fn start(processor: P, rec: Receiver<EvalMessage<P>>) {
         let mut worker = Self { processor, rec };
 
-        std::thread::spawn(move || {
-            while let Ok(event) = worker.rec.recv_blocking() {
-                match event {
-                    EvalMessage::Test(event) => worker.processor.process_test(event),
-                    EvalMessage::Renderer(sender) => {
-                        sender.send_blocking(worker.processor.renderer()).unwrap();
-                        return;
+        std::thread::Builder::new()
+            .name("evel-worker".into())
+            .spawn(move || {
+                while let Ok(event) = worker.rec.recv_blocking() {
+                    match event {
+                        EvalMessage::Test(event) => worker.processor.process_test(event),
+                        EvalMessage::Renderer(sender) => {
+                            sender.send_blocking(worker.processor.renderer()).unwrap();
+                            return;
+                        }
                     }
                 }
-            }
-        });
+            })
+            .unwrap();
     }
 }
 

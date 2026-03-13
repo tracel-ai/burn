@@ -1,6 +1,6 @@
 use burn_backend::{DType, QTensorPrimitive, TensorMetadata};
 use cubecl::quant::scheme::{QuantStore, QuantValue};
-use cubecl::server::AllocationKind;
+use cubecl::server::MemoryLayoutStrategy;
 
 use crate::{CubeRuntime, ops::empty_qtensor, tensor::CubeTensor};
 
@@ -11,22 +11,19 @@ pub fn into_contiguous<R: CubeRuntime>(tensor: CubeTensor<R>) -> CubeTensor<R> {
     }
 
     if tensor.qparams.is_some() {
-        return into_contiguous_quantized(tensor, AllocationKind::Contiguous);
+        return into_contiguous_quantized(tensor, MemoryLayoutStrategy::Contiguous);
     }
 
-    let output = cubecl::std::tensor::into_contiguous_ref(
-        &tensor.client,
-        &tensor.as_handle_ref(),
-        tensor.dtype.into(),
-    )
-    .expect("Kernel to never fail");
+    let (client, device, dtype) = (tensor.client.clone(), tensor.device.clone(), tensor.dtype);
+
+    let output = cubecl::std::tensor::into_contiguous(&client, tensor.binding(), dtype.into());
 
     CubeTensor::new(
-        tensor.client,
+        client.clone(),
         output.handle,
         *output.metadata,
-        tensor.device,
-        tensor.dtype,
+        device,
+        dtype,
     )
 }
 
@@ -42,22 +39,20 @@ pub fn into_contiguous_aligned<R: CubeRuntime>(tensor: CubeTensor<R>) -> CubeTen
     }
 
     if tensor.qparams.is_some() {
-        return into_contiguous_quantized(tensor, AllocationKind::Optimized);
+        return into_contiguous_quantized(tensor, MemoryLayoutStrategy::Optimized);
     }
 
-    let output = cubecl::std::tensor::into_contiguous_pitched_ref(
-        &tensor.client,
-        &tensor.as_handle_ref(),
-        tensor.dtype.into(),
-    )
-    .expect("Kernel to never fail");
+    let (client, device, dtype) = (tensor.client.clone(), tensor.device.clone(), tensor.dtype);
+
+    let output =
+        cubecl::std::tensor::into_contiguous_pitched(&client, tensor.binding(), dtype.into());
 
     CubeTensor::new(
-        tensor.client,
+        client.clone(),
         output.handle,
         *output.metadata,
-        tensor.device,
-        tensor.dtype,
+        device,
+        dtype,
     )
 }
 
@@ -67,58 +62,56 @@ pub fn into_contiguous_aligned<R: CubeRuntime>(tensor: CubeTensor<R>) -> CubeTen
 )]
 fn into_contiguous_quantized<R: CubeRuntime>(
     tensor: CubeTensor<R>,
-    kind: AllocationKind,
+    strategy: MemoryLayoutStrategy,
 ) -> CubeTensor<R> {
     let scheme = tensor.scheme();
-    let output = empty_qtensor(tensor.shape(), *tensor.scheme(), &tensor.device, kind);
+    let output = empty_qtensor(tensor.shape(), *tensor.scheme(), &tensor.device, strategy);
     let (values, scales) = tensor.quantized_handles().unwrap();
     let (out_values, out_scales) = output.quantized_handles().unwrap();
+
+    let (client, dtype_scales, dtype_value) = (scales.client.clone(), scales.dtype, values.dtype);
 
     match scheme.store {
         QuantStore::PackedU32(packed_dim) => {
             cubecl::std::tensor::into_contiguous_packed_ref(
-                &values.client,
-                &values.as_handle_ref(),
-                &out_values.as_handle_ref(),
+                &client,
+                values.binding(),
+                out_values.binding(),
                 packed_dim,
                 tensor.meta.shape(),
                 scheme.num_quants(),
                 DType::U32.into(),
-            )
-            .expect("Kernel to never fail");
+            );
         }
         // e2m1 is special because it has a native packed representation, `e2m1x2`.
         // It's internally stored as `u8` with a packing factor of 2.
         QuantStore::PackedNative(packed_dim) if scheme.value == QuantValue::E2M1 => {
             cubecl::std::tensor::into_contiguous_packed_ref(
-                &values.client,
-                &values.as_handle_ref(),
-                &out_values.as_handle_ref(),
+                &client,
+                values.binding(),
+                out_values.binding(),
                 packed_dim,
                 tensor.meta.shape(),
                 scheme.num_quants(),
                 DType::U8.into(),
-            )
-            .expect("Kernel to never fail");
+            );
         }
         _ => {
             cubecl::std::tensor::copy_into(
-                &values.client,
-                &values.as_handle_ref(),
-                &out_values.as_handle_ref(),
-                values.dtype.into(),
-            )
-            .expect("Kernel to never fail");
+                &client,
+                values.binding(),
+                out_values.binding(),
+                dtype_value.into(),
+            );
         }
     }
 
     cubecl::std::tensor::copy_into(
-        &scales.client,
-        &scales.as_handle_ref(),
-        &out_scales.as_handle_ref(),
-        scales.dtype.into(),
-    )
-    .expect("Kernel to never fail");
+        &client,
+        scales.binding(),
+        out_scales.binding(),
+        dtype_scales.into(),
+    );
 
     output
 }

@@ -50,7 +50,11 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
         B::sync(device)
     }
 
-    fn memory_persistent_allocations<Output, Input, Func: Fn(Input) -> Output>(
+    fn memory_persistent_allocations<
+        Output: Send,
+        Input: Send,
+        Func: Fn(Input) -> Output + Send,
+    >(
         device: &Self::Device,
         input: Input,
         func: Func,

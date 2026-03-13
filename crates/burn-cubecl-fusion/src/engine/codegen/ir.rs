@@ -419,7 +419,7 @@ impl<R: Runtime> GlobalArgsLaunch<'_, R> {
     /// If the argument doesn't have an handle.
     pub fn shape(&self, arg: &FuseArg) -> Shape {
         match self.resolve_arg(arg) {
-            TensorArg::Handle { handle, .. } => handle.shape.into(),
+            TensorArg::Handle { handle, .. } => handle.shape.clone(),
             TensorArg::Alias { .. } => panic!("Unsupported yet"),
         }
     }
@@ -462,7 +462,7 @@ impl<R: Runtime> GlobalArgsLaunch<'_, R> {
     /// If the argument doesn't have an handle.
     pub fn strides(&self, arg: &FuseArg) -> Strides {
         match self.resolve_arg(arg) {
-            TensorArg::Handle { handle, .. } => handle.strides.into(),
+            TensorArg::Handle { handle, .. } => handle.strides.clone(),
             TensorArg::Alias { .. } => panic!("Unsupported yet"),
         }
     }
@@ -503,7 +503,7 @@ impl<R: Runtime> GlobalArgsLaunch<'_, R> {
     /// # Panics
     ///
     /// If the argument isn't a global input or output tensor.
-    pub fn resolve_arg(&self, arg: &FuseArg) -> &TensorArg<'_, R> {
+    pub fn resolve_arg(&self, arg: &FuseArg) -> &TensorArg<R> {
         match arg {
             FuseArg::Input(pos, _, _) => &self.tensors.values[*pos].tensor,
             FuseArg::Output(pos, _, _) => &self.tensors.values[*pos].tensor,

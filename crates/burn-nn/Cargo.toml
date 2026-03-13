@@ -23,10 +23,17 @@ doc = [
     "std",
     # Doc features
     "burn-core/doc",
+    "pretrained",
 ]
+pretrained = ["std", "burn-store/pytorch", "burn-std/network", "dirs"]
+# Added for some test cases that should only be run locally 
+# (e.g., test cases with pretrained weights for gram matrix loss)
+test-local = []  
 std = [
     "burn-core/std",
     "num-traits/std",
+    "burn-store?/std",
+    "burn-std?/std",
 ]
 tracing = [
     "burn-core/tracing",
@@ -76,6 +83,11 @@ burn-router = { path = "../burn-router", version = "=0.21.0-pre.2", default-feat
 burn-tch = { path = "../burn-tch", version = "=0.21.0-pre.2", optional = true }
 burn-wgpu = { path = "../burn-wgpu", version = "=0.21.0-pre.2", optional = true, default-features = false }
 burn-fusion = { path = "../burn-fusion", version = "=0.21.0-pre.2", optional = true }
+
+# For loss functions requiring pretrained models (e.g., Gram Matrix Loss)
+burn-store = { path = "../burn-store", version = "=0.21.0-pre.2", optional = true, default-features = false }
+burn-std = { path = "../burn-std", version = "=0.21.0-pre.2", optional = true, default-features = false }
+dirs = { workspace = true, optional = true }
 
 [dev-dependencies]
 burn-ndarray = { path = "../burn-ndarray", version = "=0.21.0-pre.2" }

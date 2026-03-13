@@ -86,6 +86,49 @@ impl<B: Backend> ModuleComposed<B> {
     }
 }
 
+#[derive(Debug, Clone)]
+pub enum PaddingConfig {
+    Default,
+    Other,
+}
+
+#[derive(Module, Debug)]
+pub struct ModuleWithAttributes<B: Backend, M: Module<B>, N> {
+    /// A normal parameter.
+    weight: Param<Tensor<B, 2>>,
+    /// A nested module.
+    nested: ModuleEnumWithGenericModule<B, M>,
+    /// By default, primitives were not persistent (same as `#[module(skip)]`).
+    other_prob: f64,
+    /// By default, tensors were not persistent and not visited/mapped (same as `#[module(skip)]`).
+    tensor: Tensor<B, 1>,
+    /// A field that is recomputed at runtime.
+    #[module(skip)]
+    cached_mask: Option<Tensor<B, 2>>,
+    /// A field that contains some debug state.
+    debug_state: String,
+    /// Hint required: this generic is NOT a module.
+    #[module(skip)]
+    config: N,
+}
+
+impl<B: Backend> ModuleWithAttributes<B, ModuleBasic<B>, PaddingConfig> {
+    fn new(device: &B::Device) -> Self {
+        let basic = ModuleBasic::new(device);
+        let weight = basic.weight_basic.clone();
+
+        Self {
+            weight: weight,
+            nested: ModuleEnumWithGenericModule::Basic(basic),
+            other_prob: 1.,
+            tensor: Tensor::ones([2], device),
+            cached_mask: Some(Tensor::ones([2, 2], device)),
+            debug_state: "Hello World".into(),
+            config: PaddingConfig::Default,
+        }
+    }
+}
+
 #[allow(dead_code)]
 mod compiletime_clone_impl_check {
     use burn_core::{
@@ -118,6 +161,8 @@ mod compiletime_clone_impl_check {
 }
 
 mod state {
+    use burn_core::module::EmptyRecord;
+
     use super::*;
 
     #[test]
@@ -187,6 +232,74 @@ mod state {
         assert_eq!(
             module_1_basic.weight_basic.to_data(),
             module_2_basic.weight_basic.to_data()
+        );
+    }
+
+    #[test]
+    fn should_load_from_record_based_on_attributes() {
+        let device = <TestBackend as Backend>::Device::default();
+        let mut module_1 = ModuleWithAttributes::<TestBackend, _, _>::new(&device);
+        let mut module_2 = ModuleWithAttributes::new(&device);
+
+        assert_ne!(module_1.weight.to_data(), module_2.weight.to_data(),);
+
+        let ModuleEnumWithGenericModule::Basic(ref m1_basic) = module_1.nested else {
+            panic!("Invalid module type")
+        };
+        let ModuleEnumWithGenericModule::Basic(ref m2_basic) = module_2.nested else {
+            panic!("Invalid module type")
+        };
+
+        assert_ne!(
+            m1_basic.weight_basic.to_data(),
+            m2_basic.weight_basic.to_data(),
+        );
+
+        assert_eq!(module_1.tensor.to_data(), module_2.tensor.to_data());
+        assert_eq!(
+            module_1.cached_mask.as_ref().unwrap().to_data(),
+            module_2.cached_mask.as_ref().unwrap().to_data()
+        );
+
+        assert_eq!(module_1.other_prob, module_2.other_prob);
+        assert_eq!(module_1.debug_state, module_2.debug_state);
+
+        // Alter state of skipped fields to validate persistence
+        module_1.cached_mask = Some(module_1.cached_mask.unwrap() * 2);
+        module_1.tensor = module_1.tensor * 2;
+        module_1.other_prob = 0.;
+        module_1.debug_state = "Hello World!".into();
+        module_1.config = PaddingConfig::Other;
+
+        let state_1 = module_1.clone().into_record();
+
+        assert_eq!(state_1.cached_mask, EmptyRecord);
+        assert_eq!(state_1.other_prob, EmptyRecord);
+        assert_eq!(state_1.debug_state, EmptyRecord);
+        assert_eq!(state_1.config, EmptyRecord);
+
+        module_2 = module_2.load_record(state_1);
+
+        let ModuleEnumWithGenericModule::Basic(m2_basic) = module_2.nested else {
+            panic!("Invalid module type")
+        };
+
+        // Modules & params
+        assert_eq!(module_1.weight.to_data(), module_2.weight.to_data(),);
+        assert_eq!(
+            m1_basic.weight_basic.to_data(),
+            m2_basic.weight_basic.to_data(),
+        );
+
+        // `#[module(skip)]` field and other skip-by-default
+        assert_ne!(module_1.other_prob, module_2.other_prob);
+        assert_ne!(module_1.debug_state, module_2.debug_state);
+        assert!(matches!(module_1.config, PaddingConfig::Other));
+        assert!(matches!(module_2.config, PaddingConfig::Default));
+        assert_ne!(module_1.tensor.to_data(), module_2.tensor.to_data());
+        assert_ne!(
+            module_1.cached_mask.as_ref().unwrap().to_data(),
+            module_2.cached_mask.as_ref().unwrap().to_data()
         );
     }
 
@@ -265,6 +378,13 @@ mod num_params {
 
         let module = ModuleEnum::Composed(ModuleComposed::<TestBackend>::new(&device));
         assert_eq!(4 * 20 * 20, module.num_params());
+    }
+
+    #[test]
+    fn should_calculate_num_params_based_on_attributes() {
+        let device = <TestBackend as Backend>::Device::default();
+        let module = ModuleWithAttributes::<TestBackend, _, _>::new(&device);
+        assert_eq!(20 * 20 * 2, module.num_params());
     }
 }
 

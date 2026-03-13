@@ -1,5 +1,8 @@
 use super::{codegen::ModuleCodegen, record_enum::EnumModuleRecordCodegen};
-use crate::shared::enum_variant::{EnumVariant, parse_variants};
+use crate::{
+    module::generics::{ModuleGenerics, parse_module_generics},
+    shared::enum_variant::{EnumVariant, parse_variants},
+};
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
 use syn::Visibility;
@@ -8,6 +11,7 @@ pub(crate) struct EnumModuleCodegen {
     pub name: Ident,
     pub variants: Vec<EnumVariant>,
     pub vis: Visibility,
+    pub generics: ModuleGenerics,
 }
 
 impl ModuleCodegen for EnumModuleCodegen {
@@ -192,6 +196,37 @@ impl ModuleCodegen for EnumModuleCodegen {
     fn record_codegen(self) -> Self::RecordCodegen {
         EnumModuleRecordCodegen::new(self.variants, self.vis)
     }
+
+    fn module_generics(&self) -> &ModuleGenerics {
+        &self.generics
+    }
+
+    fn gen_display(&self) -> TokenStream {
+        // Only tuple enum variants with exactly one field are supported
+        let variant_prints = self.variants.iter().map(|variant| {
+            let variant_name = &variant.ident;
+            let field_names =
+                (0..1).map(|i| syn::Ident::new(&format!("_{i}"), proc_macro2::Span::call_site()));
+
+            let field_prints = field_names.clone().map(|field_name| {
+                quote! { .add(stringify!(#field_name), #field_name) }
+            });
+            quote! {
+                Self::#variant_name(#(#field_names),*) => {
+                    content.set_top_level_type(&stringify!(#variant_name))
+                    #(#field_prints)*
+                    .optional()
+                }
+            }
+        });
+        quote! {
+            fn content(&self, mut content: burn::module::Content) -> Option<burn::module::Content> {
+                match self {
+                    #(#variant_prints)*
+                }
+            }
+        }
+    }
 }
 
 impl EnumModuleCodegen {
@@ -200,6 +235,7 @@ impl EnumModuleCodegen {
             name: ast.ident.clone(),
             variants: parse_variants(ast)?,
             vis: ast.vis.clone(),
+            generics: parse_module_generics(&ast.generics),
         })
     }
 

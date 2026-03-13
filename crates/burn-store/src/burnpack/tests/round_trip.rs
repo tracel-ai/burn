@@ -427,7 +427,7 @@ fn test_round_trip_empty_shapes() {
 
         // Empty tensor
         let empty_snapshot = TensorSnapshot::from_data(
-            TensorData::from_bytes_vec(vec![], vec![0], DType::F32),
+            TensorData::from_bytes_vec(vec![], shape![0], DType::F32),
             vec!["empty".to_string()],
             vec![],
             burn_core::module::ParamId::new(),

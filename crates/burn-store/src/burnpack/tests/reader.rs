@@ -140,7 +140,7 @@ fn test_reader_multiple_tensors() {
         let name = format!("tensor_{}", i);
         let data = vec![i as u8; 100];
         let snapshot = TensorSnapshot::from_data(
-            TensorData::from_bytes_vec(data, vec![100], DType::U8),
+            TensorData::from_bytes_vec(data, shape![100], DType::U8),
             vec![name.clone()],
             vec![],
             burn_core::module::ParamId::new(),

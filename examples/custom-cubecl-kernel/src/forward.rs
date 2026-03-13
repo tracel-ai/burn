@@ -67,15 +67,14 @@ impl<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolElement> Backend
         // Execute lazily the kernel with the launch information and the given buffers. For
         // simplicity, no vectorization is performed
         fused_matmul_add_relu_kernel::launch::<F, R>(
-            &lhs.client,
+            &output.client,
             cube_count,
             cube_dim,
-            lhs.as_tensor_arg(1),
-            rhs.as_tensor_arg(1),
-            bias.as_tensor_arg(1),
-            output.as_tensor_arg(1),
-        )
-        .expect("Kernel to never fail");
+            lhs.into_tensor_arg(1),
+            rhs.into_tensor_arg(1),
+            bias.into_tensor_arg(1),
+            output.clone().into_tensor_arg(1),
+        );
 
         // Return the output tensor.
         output
