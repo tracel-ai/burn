@@ -1,7 +1,7 @@
 use crate::{
     CubeRuntime,
     kernel::utils::{address_type, linear_view},
-    ops::{max_line_size, numeric::empty_device_dtype},
+    ops::{max_vector_size, numeric::empty_device_dtype},
     tensor::CubeTensor,
 };
 use burn_backend::{DType, TensorMetadata};
@@ -9,16 +9,16 @@ use cubecl::std::tensor::layout::linear::LinearView;
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
 #[cube(launch, address_type = "dynamic")]
-pub(crate) fn cast_element<I: Numeric, O: Numeric>(
-    input: &LinearView<Line<I>>,
-    output: &mut LinearView<Line<O>, ReadWrite>,
+pub(crate) fn cast_element<I: Numeric, O: Numeric, N: Size>(
+    input: &LinearView<Vector<I, N>>,
+    output: &mut LinearView<Vector<O, N>, ReadWrite>,
     #[define(I, O)] _dtypes: [StorageType; 2],
 ) {
     if !output.is_in_bounds(ABSOLUTE_POS) {
         terminate!();
     }
 
-    output[ABSOLUTE_POS] = Line::cast_from(input[ABSOLUTE_POS]);
+    output[ABSOLUTE_POS] = Vector::cast_from(input[ABSOLUTE_POS]);
 }
 
 /// Cast a tensor to the given element type.
@@ -40,11 +40,11 @@ pub fn cast<R: CubeRuntime>(input: CubeTensor<R>, dtype: DType) -> CubeTensor<R>
 
     let client = input.client.clone();
 
-    let line_size = max_line_size(&input);
+    let vector_size = max_vector_size(&input);
 
     let num_elems: usize = input.meta.num_elements();
 
-    let working_units = num_elems / line_size as usize;
+    let working_units = num_elems / vector_size as usize;
     let cube_dim = CubeDim::new(&client, working_units);
     let cube_count = calculate_cube_count_elemwise(&client, working_units, cube_dim);
 
@@ -60,8 +60,9 @@ pub fn cast<R: CubeRuntime>(input: CubeTensor<R>, dtype: DType) -> CubeTensor<R>
         cube_count,
         cube_dim,
         address_type!(input, output),
-        linear_view(input, line_size),
-        linear_view(output.clone(), line_size),
+        vector_size,
+        linear_view(input, vector_size),
+        linear_view(output.clone(), vector_size),
         [dtype_input.into(), dtype_output.into()],
     );
 

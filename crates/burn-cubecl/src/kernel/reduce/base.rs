@@ -11,7 +11,7 @@ use cubecl::{AutotuneKey, client::ComputeClient, features::TypeUsage, ir::Storag
 use cubek::reduce::{
     ReduceDtypes, ReduceError, ReduceStrategy,
     components::instructions::ReduceOperationConfig,
-    launch::{LineSizeStrategy, RoutineStrategy},
+    launch::{RoutineStrategy, VectorizationStrategy},
     routines::{BlueprintStrategy, unit::UnitStrategy},
     shared_sum,
 };
@@ -176,7 +176,7 @@ pub fn reduce_dim<Run: CubeRuntime>(
             dim,
             ReduceStrategy {
                 routine: RoutineStrategy::Unit(BlueprintStrategy::Inferred(UnitStrategy)),
-                line_size: LineSizeStrategy {
+                vectorization: VectorizationStrategy {
                     parallel_output_vectorization: false,
                 },
             },

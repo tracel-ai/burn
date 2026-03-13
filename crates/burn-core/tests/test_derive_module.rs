@@ -124,7 +124,7 @@ impl<B: Backend> ModuleWithAttributes<B, ModuleBasic<B>, PaddingConfig> {
         let weight = basic.weight_basic.clone();
 
         Self {
-            weight: weight,
+            weight,
             nested: ModuleEnumWithGenericModule::Basic(basic),
             other_prob: 1.,
             tensor: Tensor::ones([2], device),

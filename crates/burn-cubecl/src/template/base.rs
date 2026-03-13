@@ -45,7 +45,7 @@ impl<K: KernelSource> KernelMetadata for SourceKernel<K> {
     }
 
     fn address_type(&self) -> StorageType {
-        u32::as_type_native_unchecked()
+        u32::as_type_native_unchecked().storage_type()
     }
 }
 

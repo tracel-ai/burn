@@ -1,6 +1,6 @@
 use burn_backend::Shape;
 use cubecl::{
-    ir::LineSize,
+    ir::VectorSize,
     prelude::*,
     std::{
         FastDivmod, FastDivmodArgs, FastDivmodInt,
@@ -11,9 +11,7 @@ use cubecl::{prelude::SequenceArg, std::tensor::layout::linear::LinearLayout};
 
 use crate::{CubeRuntime, tensor::CubeTensor};
 
-pub fn shape_divmod<'a, R: CubeRuntime>(
-    tensor: &CubeTensor<R>,
-) -> SequenceArg<'a, R, FastDivmod<usize>> {
+pub fn shape_divmod<R: CubeRuntime>(tensor: &CubeTensor<R>) -> SequenceArg<R, FastDivmod<usize>> {
     let mut arg = SequenceArg::new();
     for dim in tensor.meta.shape().iter() {
         arg.push(FastDivmodArgs::<usize>::new(&tensor.client, *dim));
@@ -21,63 +19,59 @@ pub fn shape_divmod<'a, R: CubeRuntime>(
     arg
 }
 
-pub fn linear_layout<'a, R: CubeRuntime>(
+pub fn linear_layout<R: CubeRuntime>(
     tensor: &CubeTensor<R>,
-    line_size: LineSize,
-) -> LinearLayoutArgs<'a, R> {
+    vector_size: VectorSize,
+) -> LinearLayoutArgs<R> {
     LinearLayoutArgs::from_shape_strides(
         &tensor.client,
         tensor.meta.shape(),
         tensor.meta.strides(),
-        line_size,
+        vector_size,
     )
 }
 
-pub fn linear_layout_ref<'a, R: CubeRuntime>(
+pub fn linear_layout_ref<R: CubeRuntime>(
     tensor: &CubeTensor<R>,
     reference: &CubeTensor<R>,
-    line_size: LineSize,
-) -> LinearLayoutArgs<'a, R> {
+    vector_size: VectorSize,
+) -> LinearLayoutArgs<R> {
     LinearLayoutArgs::from_shape_strides_with_reference(
         &tensor.client,
         tensor.meta.shape(),
         reference.meta.shape(),
         tensor.meta.strides(),
-        line_size,
+        vector_size,
     )
 }
 
-pub fn linear_view<'a, R: CubeRuntime>(
+pub fn linear_view<R: CubeRuntime>(
     tensor: CubeTensor<R>,
-    line_size: LineSize,
-) -> LinearViewLaunch<'a, R> {
+    vector_size: VectorSize,
+) -> LinearViewLaunch<R> {
     let len = tensor.meta.num_elements();
-    let layout = linear_layout(&tensor, line_size);
-    let elem_size = tensor.elem_size();
-    let buffer =
-        unsafe { ArrayArg::from_raw_parts_and_size(tensor.handle, len, line_size, elem_size) };
+    let layout = linear_layout(&tensor, vector_size);
+    let buffer = unsafe { ArrayArg::from_raw_parts(tensor.handle, len) };
     LinearViewLaunch::new::<LinearLayout>(buffer, layout)
 }
 
-pub fn linear_view_ref<'a, R: CubeRuntime>(
+pub fn linear_view_ref<R: CubeRuntime>(
     tensor: CubeTensor<R>,
     reference: &CubeTensor<R>,
-    line_size: LineSize,
-) -> LinearViewLaunch<'a, R> {
+    vector_size: VectorSize,
+) -> LinearViewLaunch<R> {
     let len = tensor.meta.num_elements();
-    let layout = linear_layout_ref(&tensor, reference, line_size);
-    let elem_size = tensor.elem_size();
-    let buffer =
-        unsafe { ArrayArg::from_raw_parts_and_size(tensor.handle, len, line_size, elem_size) };
+    let layout = linear_layout_ref(&tensor, reference, vector_size);
+    let buffer = unsafe { ArrayArg::from_raw_parts(tensor.handle, len) };
     LinearViewLaunch::new::<LinearLayout>(buffer, layout)
 }
 
-pub fn linear_view_alias<'a, R: CubeRuntime>(
+pub fn linear_view_alias<R: CubeRuntime>(
     tensor: &CubeTensor<R>,
-    line_size: LineSize,
+    vector_size: VectorSize,
     pos: usize,
-) -> LinearViewLaunch<'a, R> {
-    let layout = linear_layout(tensor, line_size);
+) -> LinearViewLaunch<R> {
+    let layout = linear_layout(tensor, vector_size);
     let buffer = ArrayArg::Alias { input_pos: pos };
     LinearViewLaunch::new::<LinearLayout>(buffer, layout)
 }
@@ -120,10 +114,10 @@ pub fn broadcast_shape<R: CubeRuntime>(tensors: &[&CubeTensor<R>]) -> Shape {
     Shape::from(dims)
 }
 
-pub fn broadcast_strides<'a, R: CubeRuntime>(
+pub fn broadcast_strides<R: CubeRuntime>(
     reference: &CubeTensor<R>,
     tensor: &CubeTensor<R>,
-) -> SequenceArg<'a, R, usize> {
+) -> SequenceArg<R, usize> {
     if reference.meta.shape() != tensor.meta.shape() {
         tensor
             .meta
@@ -137,16 +131,9 @@ pub fn broadcast_strides<'a, R: CubeRuntime>(
                     .zip(reference.meta.shape().iter()),
             )
             .map(|(stride, (shape, ref_shape))| if *shape == *ref_shape { *stride } else { 0 })
-            .map(ScalarArg::new)
             .collect()
     } else {
-        tensor
-            .meta
-            .strides()
-            .iter()
-            .copied()
-            .map(ScalarArg::new)
-            .collect()
+        tensor.meta.strides().iter().copied().collect()
     }
 }
 

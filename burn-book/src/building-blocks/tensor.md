@@ -213,14 +213,13 @@ Those operations are available for numeric tensor kinds: `Float` and `Int`.
 | `tensor.clamp(min, max)`                                        | `torch.clamp(tensor, min=min, max=max)`       |
 | `tensor.clamp_max(max)`                                         | `torch.clamp(tensor, max=max)`                |
 | `tensor.clamp_min(min)`                                         | `torch.clamp(tensor, min=min)`                |
-| `tensor.contains_nan()`                                         | N/A                                           |
 | `tensor.cumsum(dim)`                                            | `tensor.cumsum(dim)`                          |
 | `tensor.cumprod(dim)`                                           | `tensor.cumprod(dim)`                         |
 | `tensor.cummin(dim)`                                            | `tensor.cummin(dim)`                          |
 | `tensor.cummax(dim)`                                            | `tensor.cummax(dim)`                          |
 | `tensor.div(other)` or `tensor / other`                         | `tensor / other`                              |
 | `tensor.div_scalar(scalar)` or `tensor / scalar`                | `tensor / scalar`                             |
-| `tensor.dot()`                                                  | `torch.dot()`                                 |
+| `tensor.dot(other)`                                             | `torch.dot(tensor, other)`                    |
 | `tensor.greater(other)`                                         | `tensor.gt(other)`                            |
 | `tensor.greater_elem(scalar)`                                   | `tensor.gt(scalar)`                           |
 | `tensor.greater_equal(other)`                                   | `tensor.ge(other)`                            |
@@ -291,6 +290,7 @@ Those operations are only available for `Float` tensors.
 | `tensor.atan2(other_tensor)`                 | `tensor.atan2(other_tensor)`               |
 | `tensor.cast(dtype)`                         | `tensor.to(dtype)`                         |
 | `tensor.ceil()`                              | `tensor.ceil()`                            |
+| `tensor.contains_nan()`                      | N/A                                        |
 | `tensor.cos()`                               | `tensor.cos()`                             |
 | `tensor.cosh()`                              | `tensor.cosh()`                            |
 | `tensor.cross(other)`                        | `torch.cross(tensor, other)`               |
@@ -349,7 +349,6 @@ Those operations are only available for `Int` tensors.
 | `tensor.bitwise_xor_scalar(scalar)`              | `torch.bitwise_xor(tensor, scalar)`                     |
 | `tensor.float()`                                 | `tensor.to(torch.float)`                                |
 | `tensor.from_ints(ints)`                         | N/A                                                     |
-| `tensor.int_random(shape, distribution, device)` | N/A                                                     |
 | `tensor.cartesian_grid(shape, device)`           | N/A                                                     |
 
 ### Bool Operations
@@ -387,6 +386,7 @@ strategies.
 | `activation::celu(tensor, alpha)`                | `nn.functional.celu(tensor, alpha)`                |
 | `activation::elu(tensor, alpha)`                 | `nn.functional.elu(tensor, alpha)`                 |
 | `activation::gelu(tensor)`                       | `nn.functional.gelu(tensor)`                       |
+| `activation::glu(tensor, dim)`                   | `nn.functional.glu(tensor, dim)`                   |
 | `activation::hard_shrink(tensor, lambda)`        | `nn.functional.hardshrink(tensor, lambd)`          |
 | `activation::hard_sigmoid(tensor, alpha, beta)`  | `nn.functional.hardsigmoid(tensor)`                |
 | `activation::hard_swish(tensor)`                 | `nn.functional.hardswish(tensor)`                  |
@@ -411,21 +411,32 @@ strategies.
 
 ## Grid Functions
 
-| Burn API                                           | PyTorch Equivalent                       |
-| -------------------------------------------------- | ---------------------------------------- |
-| `grid::meshgrid(tensors, GridIndexing::Matrix)`    | `torch.meshgrid(tensors, indexing="ij")` |
-| `grid::meshgrid(tensors, GridIndexing::Cartesian)` | `torch.meshgrid(tensors, indexing="xy")` |
+| Burn API                                            | PyTorch Equivalent                                                   |
+| --------------------------------------------------- | -------------------------------------------------------------------- |
+| `grid::affine_grid_2d(transformation_tensor, dims)` | `nn.functional.affine_grid(theta_tensor, size, align_corners)` |
+| `grid::meshgrid(tensors, GridIndexing::Matrix)`     | `torch.meshgrid(tensors, indexing="ij")`                             |
+| `grid::meshgrid(tensors, GridIndexing::Cartesian)`  | `torch.meshgrid(tensors, indexing="xy")`                             |
+| `grid::meshgrid_stack(tensors, index_pos)`          | _No direct equivalent_                                               |
 
 ## Linalg Functions
 
-| Burn API                              | PyTorch Equivalent                              |
-| ------------------------------------- | ----------------------------------------------- |
-| `linalg::vector_norm(tensor, p, dim)` | `torch.linalg.vector_norm(tensor, p, dim)`      |
-| `linalg::diag(tensor)`                | `torch.diag(tensor)`                            |
-| `linalg::trace(tensor)`               | `torch.trace(tensor)`                           |
-| `linalg::outer(x, y)`                 | `torch.outer(x, y)` / `einsum("bi,bj->bij", …)` |
-| `linalg::lu_decomposition(tensor)`    | `torch.linalg.lu(tensor)`                       |
-| `linalg::matvec(matrix, vector)`      | `torch.matmul(matrix, vector)` / `@` operator   |
+| Burn API                                           | PyTorch Equivalent                                  |
+| -------------------------------------------------- | --------------------------------------------------- |
+| `linalg::cosine_similarity(x1, x2, dim, eps)`      | `nn.functional.cosine_similarity(x1, x2, dim, eps)` |
+| `linalg::diag(tensor)`                             | `torch.diag(tensor)`                                |
+| `linalg::l0_norm(tensor, dim)`                     | _No direct equivalent_                              |
+| `linalg::l1_norm(tensor, dim)`                     | _No direct equivalent_                              |
+| `linalg::l2_norm(tensor, dim)`                     | _No direct equivalent_                              |
+| `linalg::lp_norm(tensor, p, dim)`                  | _No direct equivalent_                              |
+| `linalg::lu_decomposition(tensor)`                 | `torch.linalg.lu(tensor)`                           |
+| `linalg::matvec(matrix, vector)`                   | `torch.matmul(matrix, vector)` / `@` operator       |
+| `linalg::max_abs_norm(tensor, dim)`                | _No direct equivalent_                              |
+| `linalg::min_abs_norm(tensor, dim)`                | _No direct equivalent_                              |
+| `linalg::outer(lhs, rhs)`                          | `torch.outer(lhs, rhs)` / `einsum("bi,bj->bij", …)` |
+| `linalg::outer_dim(lhs, rhs, dim)`                 | _No direct equivalent_                              |
+| `linalg::trace(tensor)`                            | `torch.trace(tensor)`                               |
+| `linalg::vector_norm(tensor, p, dim)`              | `torch.linalg.vector_norm(tensor, p, dim)`          |
+| `linalg::vector_normalize(tensor, norm, dim, eps)` | `nn.functional.normalize(tensor, p, dim, eps)`      |
 
 ## Displaying Tensor Details
 

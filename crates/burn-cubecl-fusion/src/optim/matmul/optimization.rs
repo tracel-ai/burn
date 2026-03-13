@@ -27,7 +27,7 @@ use cubek::{
     matmul::{
         components::tile::{cmma::CmmaMatmul, mma::MmaMatmul},
         definition::{
-            MatmulElems, MatmulGlobalElems, MatmulLineSizes, MatmulProblem, MatmulSetupError,
+            MatmulElems, MatmulGlobalElems, MatmulProblem, MatmulSetupError, MatmulVectorSizes,
         },
         launch::launch_kernel_virtual,
         routines::{
@@ -356,14 +356,14 @@ impl<R: Runtime> TraceRunner<R> for FusedMatmulLaunch<'_> {
     fn run<'a>(
         &'a self,
         client: &'a ComputeClient<R>,
-        inputs: GlobalArgsLaunch<'a, R>,
-        outputs: GlobalArgsLaunch<'a, R>,
+        inputs: GlobalArgsLaunch<R>,
+        outputs: GlobalArgsLaunch<R>,
         configs: &'a [FuseBlockConfig],
     ) -> Result<(), FusedMatmulError> {
         let global_elems = MatmulGlobalElems {
-            lhs: self.matmul.lhs.precision().into_type(),
-            rhs: self.matmul.rhs.precision().into_type(),
-            out: self.matmul.out.precision().into_type(),
+            lhs: self.matmul.lhs.precision().into_storage_type(),
+            rhs: self.matmul.rhs.precision().into_storage_type(),
+            out: self.matmul.out.precision().into_storage_type(),
         };
         let dtypes = MatmulElems::from_globals(&global_elems);
         self.matmul_fused(client, inputs, outputs, &configs[0], dtypes)
@@ -397,8 +397,8 @@ impl FusedMatmulLaunch<'_> {
     fn matmul_fused<'a, R: Runtime>(
         &'a self,
         client: &'a ComputeClient<R>,
-        inputs: GlobalArgsLaunch<'a, R>,
-        outputs: GlobalArgsLaunch<'a, R>,
+        inputs: GlobalArgsLaunch<R>,
+        outputs: GlobalArgsLaunch<R>,
         config: &'a FuseBlockConfig,
         dtypes: MatmulElems,
     ) -> Result<(), FusedMatmulError> {
@@ -422,13 +422,13 @@ impl FusedMatmulLaunch<'_> {
             ));
         }
 
-        let mut line_sizes = MatmulLineSizes {
-            lhs: inputs.line_size(self.matmul.lhs.data()),
-            rhs: inputs.line_size(self.matmul.rhs.data()),
+        let mut vector_sizes = MatmulVectorSizes {
+            lhs: inputs.vector_size(self.matmul.lhs.data()),
+            rhs: inputs.vector_size(self.matmul.rhs.data()),
             out: match &config.ref_layout {
                 RefLayout::Concrete(arg) => match arg {
-                    FuseArg::Input(..) => inputs.line_size(arg),
-                    FuseArg::Output(..) => outputs.line_size(arg),
+                    FuseArg::Input(..) => inputs.vector_size(arg),
+                    FuseArg::Output(..) => outputs.vector_size(arg),
                     _ => panic!("Invalid ref layout"),
                 },
                 RefLayout::Virtual(_) => 1,
@@ -439,17 +439,17 @@ impl FusedMatmulLaunch<'_> {
             .required_address_type()
             .max(outputs.required_address_type());
 
-        if line_sizes.out == 1 && (line_sizes.lhs > 1 || line_sizes.rhs > 1) {
+        if vector_sizes.out == 1 && (vector_sizes.lhs > 1 || vector_sizes.rhs > 1) {
             return Err(FusedMatmulError::InvalidInput(
-                "Output line size of 1 removes the gain from fusion",
+                "Output vector size of 1 removes the gain from fusion",
             ));
         }
 
         if let MatmulArg::Quantized { scheme, .. } = self.matmul.lhs {
-            line_sizes.lhs *= scheme.num_quants();
+            vector_sizes.lhs *= scheme.num_quants();
         }
         if let MatmulArg::Quantized { scheme, .. } = self.matmul.rhs {
-            line_sizes.rhs *= scheme.num_quants();
+            vector_sizes.rhs *= scheme.num_quants();
         }
 
         let out_strides = MatrixLayout::RowMajor.to_strides(&out_shape);
@@ -485,7 +485,7 @@ impl FusedMatmulLaunch<'_> {
                 ),
                 outputs,
                 problem,
-                line_sizes,
+                vector_sizes,
                 &BlueprintStrategy::Inferred(SimpleArgs { multi_rows }),
             ) {
                 Ok(_) => Ok(()),
@@ -509,7 +509,7 @@ impl FusedMatmulLaunch<'_> {
                 ),
                 outputs,
                 problem,
-                line_sizes,
+                vector_sizes,
                 &BlueprintStrategy::Inferred(DoubleBufferingArgs { specialized }),
             ) {
                 Ok(_) => Ok(()),
@@ -536,7 +536,7 @@ impl FusedMatmulLaunch<'_> {
                     ),
                     outputs,
                     problem,
-                    line_sizes,
+                    vector_sizes,
                     &BlueprintStrategy::Inferred(OrderedSelectionArgs {
                         row_count: Some(row_count),
                         rows_per_plane: Some(2),
@@ -560,7 +560,7 @@ impl FusedMatmulLaunch<'_> {
                     ),
                     outputs,
                     problem,
-                    line_sizes,
+                    vector_sizes,
                     &Default::default(),
                 ) {
                     Ok(_) => Ok(()),
@@ -580,7 +580,7 @@ impl FusedMatmulLaunch<'_> {
                     ),
                     outputs,
                     problem,
-                    line_sizes,
+                    vector_sizes,
                     &Default::default(),
                 ) {
                     Ok(_) => Ok(()),
@@ -600,7 +600,7 @@ impl FusedMatmulLaunch<'_> {
                     ),
                     outputs,
                     problem,
-                    line_sizes,
+                    vector_sizes,
                     &Default::default(),
                 ) {
                     Ok(_) => Ok(()),
@@ -620,7 +620,7 @@ impl FusedMatmulLaunch<'_> {
                     ),
                     outputs,
                     problem,
-                    line_sizes,
+                    vector_sizes,
                     &Default::default(),
                 ) {
                     Ok(_) => Ok(()),
@@ -631,12 +631,12 @@ impl FusedMatmulLaunch<'_> {
     }
 }
 
-fn launch_inner_fix_dtype<'a, R: Runtime, A: Routine<()>>(
+fn launch_inner_fix_dtype<R: Runtime, A: Routine<()>>(
     client: &ComputeClient<R>,
-    input: FusedMatmulInputLaunch<'a, R>,
-    output: GlobalArgsLaunch<'a, R>,
+    input: FusedMatmulInputLaunch<R>,
+    output: GlobalArgsLaunch<R>,
     problem: MatmulProblem,
-    line_sizes: MatmulLineSizes,
+    vector_sizes: MatmulVectorSizes,
     blueprint_strategy: &BlueprintStrategy<(), A>,
 ) -> Result<(), MatmulSetupError> {
     launch_kernel_virtual::<FusedMatmulArgs, R, A>(
@@ -645,7 +645,7 @@ fn launch_inner_fix_dtype<'a, R: Runtime, A: Routine<()>>(
         output,
         (),
         problem,
-        line_sizes,
+        vector_sizes,
         blueprint_strategy,
     )
 }

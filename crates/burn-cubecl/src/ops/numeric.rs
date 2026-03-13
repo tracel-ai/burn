@@ -8,7 +8,7 @@ use crate::{
         AddOp, BitwiseAndOp, BitwiseOrOp, BitwiseXorOp, DivOp, MulOp, PowOp, RemainderOp, SubOp,
         launch_binop, launch_binop_int, launch_scalar_binop, launch_scalar_binop_int,
     },
-    ops::max_line_size,
+    ops::max_vector_size,
 };
 use burn_backend::{DType, Shape, TensorMetadata};
 use burn_std::Metadata;
@@ -52,8 +52,8 @@ pub fn full_device_dtype<R: CubeRuntime>(
     let empty = empty_device_dtype(client, device, shape, dtype);
 
     #[cube(launch_unchecked, address_type = "dynamic")]
-    pub fn full_kernel<C: Numeric>(
-        tensor: &mut LinearView<C, ReadWrite>,
+    pub fn full_kernel<C: Numeric, N: Size>(
+        tensor: &mut LinearView<Vector<C, N>, ReadWrite>,
         value: InputScalar,
         #[define(C)] _dtype: StorageType,
     ) {
@@ -61,13 +61,13 @@ pub fn full_device_dtype<R: CubeRuntime>(
             terminate!();
         }
 
-        tensor[ABSOLUTE_POS] = value.get::<C>();
+        tensor[ABSOLUTE_POS] = Vector::new(value.get::<C>());
     }
 
     let num_elems = empty.meta.num_elements();
-    let line_size = max_line_size(&empty);
+    let vector_size = max_vector_size(&empty);
 
-    let working_units = num_elems / line_size as usize;
+    let working_units = num_elems / vector_size as usize;
     let cube_dim = CubeDim::new(&empty.client, working_units);
     let cube_count = calculate_cube_count_elemwise(&empty.client, working_units, cube_dim);
 
@@ -77,7 +77,8 @@ pub fn full_device_dtype<R: CubeRuntime>(
             cube_count,
             cube_dim,
             address_type!(empty),
-            linear_view(empty.clone(), line_size),
+            vector_size,
+            linear_view(empty.clone(), vector_size),
             value,
             empty.dtype.into(),
         );
@@ -291,7 +292,7 @@ impl<N: Numeric> CumulativeOp<N> for SumOp {
     }
 
     fn init_value(_first_element: N) -> N {
-        N::from_int(0)
+        N::zero()
     }
 }
 
@@ -429,7 +430,7 @@ fn cumulative_op<R: CubeRuntime, O: CumulativeOpFamily>(
             cube_count,
             cube_dim,
             address_type!(input, output),
-            input.into_tensor_arg(1),
+            input.into_tensor_arg(),
             linear_view(output.clone(), 1),
             shape,
             dim,

@@ -15,6 +15,7 @@ use burn_std::tensor::DType;
 use burn_std::{
     Bytes, QuantLevel, QuantMode, QuantScheme, QuantValue, QuantizedBytes, Shape, bf16, f16,
 };
+
 use serde::{Deserialize, Serialize};
 
 /// Data structure for tensors.

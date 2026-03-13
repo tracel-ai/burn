@@ -376,7 +376,7 @@ pub trait BoolTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The tensor with the result of the logical and.
-    fn bool_and(tensor: BoolTensor<B>, rhs: BoolTensor<B>) -> BoolTensor<B>;
+    fn bool_and(lhs: BoolTensor<B>, rhs: BoolTensor<B>) -> BoolTensor<B>;
 
     /// Executes the logical or (`||`) operation on two boolean tensors.
     ///
@@ -388,7 +388,7 @@ pub trait BoolTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The tensor with the result of the logical or.
-    fn bool_or(tensor: BoolTensor<B>, rhs: BoolTensor<B>) -> BoolTensor<B>;
+    fn bool_or(lhs: BoolTensor<B>, rhs: BoolTensor<B>) -> BoolTensor<B>;
 
     /// Element-wise exclusive or.
     ///
