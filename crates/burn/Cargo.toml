@@ -113,8 +113,6 @@ sqlite-bundled = ["burn-core/sqlite-bundled"]
 
 # Custom deserializer for Record that is helpful for importing data, such as PyTorch pt files.
 record-item-custom-serde = ["burn-core/record-item-custom-serde"]
-# Serialization formats
-experimental-named-tensor = ["burn-core/experimental-named-tensor"]
 
 # Model storage and serialization (SafeTensors, PyTorch interop)
 store = ["burn-store"]

@@ -432,7 +432,7 @@ strategies.
 | `linalg::matvec(matrix, vector)`                   | `torch.matmul(matrix, vector)` / `@` operator       |
 | `linalg::max_abs_norm(tensor, dim)`                | _No direct equivalent_                              |
 | `linalg::min_abs_norm(tensor, dim)`                | _No direct equivalent_                              |
-| `linalg::outer(x, y)`                              | `torch.outer(x, y)` / `einsum("bi,bj->bij", …)`     |
+| `linalg::outer(lhs, rhs)`                          | `torch.outer(lhs, rhs)` / `einsum("bi,bj->bij", …)` |
 | `linalg::outer_dim(lhs, rhs, dim)`                 | _No direct equivalent_                              |
 | `linalg::trace(tensor)`                            | `torch.trace(tensor)`                               |
 | `linalg::vector_norm(tensor, p, dim)`              | `torch.linalg.vector_norm(tensor, p, dim)`          |
