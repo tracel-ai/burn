@@ -44,7 +44,17 @@ where
     }
 
     fn collective_sync_native(device: &Device<Self>) {
+        println!(
+            "[{:?}] sync native: R::client - {:?}",
+            std::thread::current().id(),
+            device.id()
+        );
         let client = R::client(&device);
+        println!(
+            "[{:?}] sync native: R::client DONE - {:?}",
+            std::thread::current().id(),
+            device.id()
+        );
         client.sync_collective();
     }
 }
