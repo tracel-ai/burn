@@ -82,10 +82,7 @@ impl RNNTLoss {
         let mut alpha = self.init_alpha(&lpl, b, max_up1, &device);
         alpha = neg_inf.clone().mask_where(u_mask.clone(), alpha);
 
-        let logit_lengths_exp = logit_lengths
-            .clone()
-            .reshape([b, 1])
-            .expand([b, max_up1]);
+        let logit_lengths_exp = logit_lengths.clone().reshape([b, 1]).expand([b, max_up1]);
 
         for t in 1..max_t {
             let new = self.step_alpha(&alpha, &lpb, &lpl, t);
@@ -323,7 +320,7 @@ impl RNNTLoss {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use burn::tensor::{Tolerance, TensorData};
+    use burn::tensor::{TensorData, Tolerance};
     use burn_ndarray::{NdArray, NdArrayDevice};
 
     type B = NdArray<f32>;
@@ -470,26 +467,24 @@ mod tests {
         let target_lengths = Tensor::<B, 1, Int>::from_data([target_len as i64], &dev);
 
         let vocab_dim = 3;
-        let fused = RNNTLossConfig::new()
-            .with_logits(true)
-            .init()
-            .forward(
-                logits.clone(),
-                targets.clone(),
-                logit_lengths.clone(),
-                target_lengths.clone(),
-            );
+        let fused = RNNTLossConfig::new().with_logits(true).init().forward(
+            logits.clone(),
+            targets.clone(),
+            logit_lengths.clone(),
+            target_lengths.clone(),
+        );
 
         let log_probs = burn::tensor::activation::log_softmax(logits, vocab_dim);
-        let manual = RNNTLossConfig::new()
-            .with_logits(false)
-            .init()
-            .forward(log_probs, targets, logit_lengths, target_lengths);
-
-        fused.into_data().assert_approx_eq::<f32>(
-            &manual.into_data(),
-            Tolerance::absolute(1e-4),
+        let manual = RNNTLossConfig::new().with_logits(false).init().forward(
+            log_probs,
+            targets,
+            logit_lengths,
+            target_lengths,
         );
+
+        fused
+            .into_data()
+            .assert_approx_eq::<f32>(&manual.into_data(), Tolerance::absolute(1e-4));
     }
 }
 
@@ -500,7 +495,7 @@ mod tests {
 #[cfg(test)]
 mod pytorch_comparison_tests {
     use super::*;
-    use burn::tensor::{Tolerance, TensorData};
+    use burn::tensor::{TensorData, Tolerance};
     use burn_autodiff::Autodiff;
     use burn_ndarray::{NdArray, NdArrayDevice};
 
@@ -535,10 +530,8 @@ mod pytorch_comparison_tests {
                 for ui in 0..up1 {
                     let base = ((bi * t + ti) * up1 + ui) * v;
                     let sum: f32 = (0..v).map(|vi| grad[base + vi]).sum();
-                    TensorData::from([sum]).assert_approx_eq::<f32>(
-                        &TensorData::from([0.0f32]),
-                        tol(),
-                    );
+                    TensorData::from([sum])
+                        .assert_approx_eq::<f32>(&TensorData::from([0.0f32]), tol());
                 }
             }
         }
@@ -586,10 +579,9 @@ mod pytorch_comparison_tests {
             Tensor::<B, 1, Int>::from_data([4_i64], &dev),
             Tensor::<B, 1, Int>::from_data([2_i64], &dev),
         );
-        loss.clone().into_data().assert_approx_eq::<f32>(
-            &TensorData::from([4.4491f32]),
-            tol(),
-        );
+        loss.clone()
+            .into_data()
+            .assert_approx_eq::<f32>(&TensorData::from([4.4491f32]), tol());
 
         let grads = loss.sum().backward();
         let grad = logits
@@ -622,10 +614,9 @@ mod pytorch_comparison_tests {
             Tensor::<B, 1, Int>::from_data([5_i64, 5], &dev),
             Tensor::<B, 1, Int>::from_data([3_i64, 3], &dev),
         );
-        loss.clone().into_data().assert_approx_eq::<f32>(
-            &TensorData::from([7.9356f32, 7.2033]),
-            tol(),
-        );
+        loss.clone()
+            .into_data()
+            .assert_approx_eq::<f32>(&TensorData::from([7.9356f32, 7.2033]), tol());
 
         let grads = loss.sum().backward();
         let grad = logits
@@ -661,10 +652,9 @@ mod pytorch_comparison_tests {
             Tensor::<B, 1, Int>::from_data([6_i64, 4, 5], &dev),
             Tensor::<B, 1, Int>::from_data([3_i64, 2, 1], &dev),
         );
-        loss.clone().into_data().assert_approx_eq::<f32>(
-            &TensorData::from([10.7458f32, 8.0196, 8.3316]),
-            tol(),
-        );
+        loss.clone()
+            .into_data()
+            .assert_approx_eq::<f32>(&TensorData::from([10.7458f32, 8.0196, 8.3316]), tol());
 
         let grads = loss.sum().backward();
         let grad = logits
@@ -677,11 +667,38 @@ mod pytorch_comparison_tests {
         let zeros = vec![0.0f32; 5];
 
         // Sample 0 (full length=6): spot-check first and last active positions
-        assert_grad(&grad, 0, 0, 0, 6, 4, 5, &[-0.4232, -0.3114, 0.1992, 0.2478, 0.2876]);
-        assert_grad(&grad, 0, 5, 3, 6, 4, 5, &[-0.8016, 0.2170, 0.2172, 0.1991, 0.1683]);
+        assert_grad(
+            &grad,
+            0,
+            0,
+            0,
+            6,
+            4,
+            5,
+            &[-0.4232, -0.3114, 0.1992, 0.2478, 0.2876],
+        );
+        assert_grad(
+            &grad,
+            0,
+            5,
+            3,
+            6,
+            4,
+            5,
+            &[-0.8016, 0.2170, 0.2172, 0.1991, 0.1683],
+        );
 
         // Sample 1 (logit_length=4): gradients beyond t=3 should be zero
-        assert_grad(&grad, 1, 0, 0, 6, 4, 5, &[-0.2502, 0.2160, 0.2173, 0.2002, -0.3833]);
+        assert_grad(
+            &grad,
+            1,
+            0,
+            0,
+            6,
+            4,
+            5,
+            &[-0.2502, 0.2160, 0.2173, 0.2002, -0.3833],
+        );
         let sample1_t4_start = 1 * 6 * stride + 4 * stride;
         for i in 0..(2 * stride) {
             // t=4 and t=5 should all be zero
@@ -726,10 +743,9 @@ mod pytorch_comparison_tests {
 
         let loss = rnnt.forward_with_reduction(logits.clone(), tgt, il, tl, Reduction::Sum);
         // 7.9356 + 7.2033 = 15.1389
-        loss.clone().into_data().assert_approx_eq::<f32>(
-            &TensorData::from([15.1389f32]),
-            tol(),
-        );
+        loss.clone()
+            .into_data()
+            .assert_approx_eq::<f32>(&TensorData::from([15.1389f32]), tol());
 
         let grads = loss.backward();
         let g = logits
@@ -758,10 +774,9 @@ mod pytorch_comparison_tests {
 
         let loss = rnnt.forward_with_reduction(logits.clone(), tgt, il, tl, Reduction::Mean);
         // 15.1389 / 2 = 7.5694
-        loss.clone().into_data().assert_approx_eq::<f32>(
-            &TensorData::from([7.5694f32]),
-            tol(),
-        );
+        loss.clone()
+            .into_data()
+            .assert_approx_eq::<f32>(&TensorData::from([7.5694f32]), tol());
 
         // Gradients should be half the sum-reduction gradients (mean over batch of 2)
         let grads = loss.backward();
