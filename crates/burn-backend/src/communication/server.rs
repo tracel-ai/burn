@@ -82,7 +82,9 @@ impl<B: Backend> GradientSyncServer<B> {
             println!("empty queue");
             for (d, barrier) in self.syncing_devices.iter().zip(self.sync_barriers.clone()) {
                 B::collective_sync_native(&d);
+                println!("launched sync {d:?}");
                 let (lock, cvar) = &*barrier;
+                println!("acquired lock {d:?}");
                 let mut synced = lock.lock().unwrap();
                 *synced = true;
                 cvar.notify_all();
