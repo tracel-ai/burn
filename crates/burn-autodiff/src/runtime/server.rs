@@ -1,3 +1,5 @@
+use std::thread;
+
 use super::memory_management::GraphMemoryManagement;
 use crate::{
     NodeId,
@@ -84,11 +86,13 @@ impl AutodiffServer {
                 device,
                 tape_result.sharded_params.values().cloned().collect(),
             );
+            println!("[{:?}] start graph", thread::current().id());
         }
         let grads = Gradients::new::<B>(root_node.clone(), root_tensor, sync_registration);
         let gradients = Self::execute_steps(tape_result.tape, grads, tape_result.checkpointer);
 
         if has_sharded_params {
+            println!("[{:?}] finished autodiff graph", thread::current().id());
             B::collective_sync(device);
         }
 

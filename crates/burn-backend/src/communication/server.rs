@@ -81,6 +81,7 @@ impl<B: Backend> GradientSyncServer<B> {
         if self.all_reduce_ops_queue.is_empty() {
             println!("empty queue");
             for (d, barrier) in self.syncing_devices.iter().zip(self.sync_barriers.clone()) {
+                println!("[{:?}] comm server sync", thread::current().id());
                 println!("launching sync {d:?}");
                 B::collective_sync_native(&d);
                 println!("launched sync {d:?}");
@@ -192,6 +193,7 @@ impl<B: Backend> GradientSyncServer<B> {
                             //         device_ids: peer_ids.clone(),
                             //     }))
                             //     .expect("Can send to worker");
+                            println!("[{:?}] comm server all_reduces", thread::current().id());
                             B::all_reduce_in_place_native(
                                 t,
                                 peer_id,
