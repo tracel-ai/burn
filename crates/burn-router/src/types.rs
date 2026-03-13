@@ -196,6 +196,7 @@ macro_rules! impl_multi_backend_types {
                 type FloatElem = $DefaultBackend::FloatElem;
                 type IntElem = $DefaultBackend::IntElem;
                 type BoolElem = $DefaultBackend::BoolElem;
+                //type ComplexElem = Backend::ComplexElem;
 
                 type Client = MultiRunnerClient<$DefaultBackend, $($OtherBackend),+>;
 

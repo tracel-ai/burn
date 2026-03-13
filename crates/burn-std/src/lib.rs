@@ -76,6 +76,9 @@ mod cube {
                         other => panic!("{other:?} doesn't support native packing"),
                     },
                 },
+                //need to open a PR for CubeCL once everything else is finished
+                DType::Complex64 => todo!(),
+                DType::Complex32 => todo!(),
             }
         }
     }
