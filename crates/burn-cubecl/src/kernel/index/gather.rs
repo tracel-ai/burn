@@ -57,6 +57,8 @@ pub(crate) fn gather<R: CubeRuntime>(
 
     let (dtype, indices_dtype) = (tensor.dtype, indices.dtype);
 
+    let (dtype, indices_dtype) = (tensor.dtype, indices.dtype);
+
     unsafe {
         gather_kernel::launch_unchecked(
             &output.client,

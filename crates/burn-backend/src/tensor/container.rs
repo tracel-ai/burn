@@ -52,6 +52,18 @@ where
         Some(tensor.clone())
     }
 
+    /// Get a mutable reference to the tensor with the given ID.
+    pub fn get_mut_ref<B>(&mut self, id: &ID) -> Option<&mut TensorPrimitive<B>>
+    where
+        B: Backend,
+    {
+        let grad = self.tensors.get_mut(id)?;
+
+        let tensor = grad.downcast_mut::<TensorPrimitive<B>>().unwrap();
+
+        Some(tensor)
+    }
+
     /// Register a new tensor for the given ID.
     ///
     /// # Notes

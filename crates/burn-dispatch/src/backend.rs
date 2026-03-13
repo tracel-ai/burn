@@ -3,12 +3,22 @@ use alloc::string::String;
 
 use burn_backend::Backend;
 use burn_backend::ExecutionError;
+#[cfg(feature = "cpu")]
+use burn_cpu::Cpu;
+#[cfg(feature = "rocm")]
+use burn_rocm::Rocm;
 use burn_std::DType;
 
 #[cfg(feature = "autodiff")]
 use burn_autodiff::grads::Gradients;
 #[cfg(feature = "autodiff")]
 use burn_backend::AutodiffBackend;
+#[cfg(feature = "tch")]
+use burn_tch::LibTorch;
+#[cfg(wgpu_webgpu)]
+use burn_wgpu::Wgpu;
+#[cfg(wgpu_metal)]
+use burn_wgpu::graphics::Metal;
 
 use crate::backends::*;
 use crate::{DispatchDevice, DispatchTensor};

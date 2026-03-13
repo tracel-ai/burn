@@ -1,8 +1,8 @@
 use burn_tensor::backend::Backend;
+use burn_tensor::communication::{PeerId, ReduceOperation};
 
 use crate::{
-    CollectiveConfig, PeerId, ReduceOperation, global::shared::GlobalCollectiveError,
-    local::server::get_collective_client,
+    CollectiveConfig, global::shared::GlobalCollectiveError, local::server::get_collective_client,
 };
 
 /// Errors from collective operations
@@ -57,6 +57,7 @@ pub fn register<B: Backend>(
     config: CollectiveConfig,
 ) -> Result<(), CollectiveError> {
     log::info!("Registering peer {id} with config: {config}");
+    println!("Registering peer {id} with config: {config}");
     let mut client = get_collective_client::<B>();
     client.register(id, device, config)
 }

@@ -1,10 +1,6 @@
 use core::panic;
 use std::sync::{Arc, Mutex};
 
-use burn_collective::CollectiveConfig;
-use burn_core::tensor::Device;
-use burn_core::tensor::backend::DeviceOps;
-
 use crate::ddp::worker::DdpWorker;
 use crate::metric::store::EventStoreClient;
 use crate::{
@@ -12,7 +8,12 @@ use crate::{
     SupervisedLearningStrategy, SupervisedTrainingEventProcessor, TrainLoader, TrainingBackend,
     TrainingComponents, TrainingModel, ValidLoader,
 };
+use burn_collective::CollectiveConfig;
 use burn_core::data::dataloader::split::split_dataloader;
+use burn_core::tensor::Device;
+use burn_core::tensor::backend::AutodiffBackend;
+use burn_core::tensor::backend::DeviceOps;
+use burn_core::tensor::ops::CommunicationTensorOps;
 
 #[derive(Clone)]
 pub(crate) struct WorkerComponents {
@@ -30,14 +31,15 @@ pub(crate) struct WorkerComponents {
 
 pub struct DdpTrainingStrategy<LC: LearningComponentsTypes> {
     devices: Vec<Device<TrainingBackend<LC>>>,
-    config: CollectiveConfig,
 }
 impl<LC: LearningComponentsTypes> DdpTrainingStrategy<LC> {
-    pub fn new(devices: Vec<Device<TrainingBackend<LC>>>, config: CollectiveConfig) -> Self {
-        let config = config.with_num_devices(devices.len());
-        Self { devices, config }
+    pub fn new(devices: Vec<Device<TrainingBackend<LC>>>, _config: CollectiveConfig) -> Self {
+        // let config = config.with_num_devices(devices.len());
+        Self { devices }
     }
 }
+
+type Inner<LC> = <TrainingBackend<LC> as AutodiffBackend>::InnerBackend;
 
 impl<LC: LearningComponentsTypes + Send + 'static> SupervisedLearningStrategy<LC>
     for DdpTrainingStrategy<LC>
@@ -71,18 +73,21 @@ impl<LC: LearningComponentsTypes + Send + 'static> SupervisedLearningStrategy<LC
             event_store: training_components.event_store,
         };
 
+        Inner::<LC>::start_communication_server(
+            self.devices.iter().map(|d| d.inner().clone()).collect(),
+        );
+
         // Start worker for main device
         // First training dataloader corresponds to main device
         let main_handle = DdpWorker::<LC>::start(
             0.into(),
-            main_device,
+            main_device.clone(),
             learner.clone(),
             event_processor.clone(),
             worker_components.clone(),
             training_components.checkpointer,
             dataloaders_train.remove(0),
             Some(dataloader_valid),
-            self.config.clone(),
             starting_epoch,
             peer_count,
             true,
@@ -101,7 +106,6 @@ impl<LC: LearningComponentsTypes + Send + 'static> SupervisedLearningStrategy<LC
                 None,
                 dataloaders_train.remove(0),
                 None,
-                self.config.clone(),
                 starting_epoch,
                 peer_count,
                 false,
@@ -118,6 +122,9 @@ impl<LC: LearningComponentsTypes + Send + 'static> SupervisedLearningStrategy<LC
                 .join()
                 .expect("Distributed data parallel worker failed");
         }
+
+        Inner::<LC>::close_communication_server(main_device.inner());
+
         // Main worker had the event processor
         let model = main_handle
             .join()
