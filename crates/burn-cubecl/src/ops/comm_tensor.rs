@@ -32,6 +32,7 @@ where
                 .iter()
                 .map(|val| DeviceId::new(device.id().type_id, *val))
                 .collect();
+            println!("{all_ids:?}");
             client.all_reduce(
                 tensor.handle.clone(),
                 tensor.handle.clone(),
