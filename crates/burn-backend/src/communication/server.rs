@@ -75,7 +75,11 @@ impl<B: Backend> GradientSyncServer<B> {
 
     fn try_flush_sync(&mut self) {
         println!("try flush sync");
+        println!("{:?}", self.all_reduce_ops_queue.len());
+        println!("{:?}", self.syncing_devices);
+        println!("{:?}", self.sync_barriers);
         if self.all_reduce_ops_queue.is_empty() {
+            println!("empty queue");
             for (d, barrier) in self.syncing_devices.iter().zip(self.sync_barriers.clone()) {
                 B::collective_sync_native(&d);
                 let (lock, cvar) = &*barrier;
