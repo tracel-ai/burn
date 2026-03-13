@@ -554,10 +554,13 @@ mod require_grad {
             });
         }
 
+        println!("launched all threads ");
+
         for _ in 0..num_iter {
             let grad_x1 = recvs[0].recv().unwrap();
             for i in 1..num_devices {
                 let new_tensor = &recvs[i].recv().unwrap().unwrap().to_data();
+                println!("new tensor {new_tensor} ");
                 grad_x1
                     .clone()
                     .unwrap()

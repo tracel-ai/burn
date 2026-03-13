@@ -76,6 +76,9 @@ impl<B: Backend> GradientSyncServer<B> {
         let mut is_finished = false;
         if B::supports_native_collective(&device) {
             B::collective_sync_native(&device);
+
+            println!("sync collective {device:?}");
+
             is_finished = self.syncing_devices == self.num_devices;
             let (lock, cvar) = &*sync_barrier;
             let mut synced = lock.lock().unwrap();
@@ -100,6 +103,7 @@ impl<B: Backend> GradientSyncServer<B> {
             self.all_reduce_ops_queue.clear();
             self.param_required_map.clear();
             self.sync_barriers.clear();
+            println!("is_finished {device:?}");
         }
     }
 
@@ -140,6 +144,7 @@ impl<B: Backend> GradientSyncServer<B> {
                     .map(|tensor| B::comm_device(tensor))
                     .collect();
                 if num_tensors == all_reduce_ops_queue.len() {
+                    println!("Launching for {param_id:?}");
                     if B::supports_native_collective(&devices[0]) {
                         let peer_ids: Vec<PeerId> = devices
                             .iter()

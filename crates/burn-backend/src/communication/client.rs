@@ -65,7 +65,7 @@ impl<B: Backend> GradientSyncClient<B> {
         let is_synced = Arc::new((Mutex::new(false), Condvar::new()));
         self.sender
             .send(MessageAction::Message(GradientSyncMessage::Sync((
-                device,
+                device.clone(),
                 is_synced.clone(),
             ))))
             .unwrap();
@@ -75,6 +75,7 @@ impl<B: Backend> GradientSyncClient<B> {
         while !*synced {
             synced = cvar.wait(synced).unwrap();
         }
+        println!("synced client {device:?}");
     }
 
     pub(crate) fn close(&self) {
