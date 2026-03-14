@@ -44,6 +44,8 @@ impl<R: Runtime> FuseTraceState<R> {
         fuse_blocks: &[FuseBlock],
     ) -> (&mut LaunchPlan<R>, &mut OutputPlannerState<R>) {
         self.plan.init(fuse_blocks);
+        self.planner_output.clear();
+
         (&mut self.plan, &mut self.planner_output)
     }
 }
