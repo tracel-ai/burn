@@ -327,7 +327,7 @@ impl<E: CubePrimitive> ViewOperationsMutExpand<E, Coords1d> for FusedOutputExpan
             scope,
             pos.clone(),
         );
-        if_expand(scope, in_bounds.into(), |scope| {
+        if_expand(scope, in_bounds, |scope| {
             ViewOperationsMutExpand::<E, Coords1d>::__expand_write_method(self, scope, pos, value);
         })
     }
