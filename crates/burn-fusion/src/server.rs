@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use crate::{
     FusionBackend, FusionRuntime,
     stream::{MultiStream, OperationStreams, StreamId, execution::Operation},
@@ -23,14 +21,14 @@ where
         }
     }
 
-    pub fn register(
+    pub fn register<O: Operation<R> + 'static>(
         &mut self,
         streams: OperationStreams,
         repr: OperationIr,
-        operation: Arc<dyn Operation<R>>,
+        operation: O,
     ) {
         self.streams
-            .register(streams, repr, operation, &mut self.handles)
+            .register(streams, repr, Box::new(operation), &mut self.handles)
     }
 
     pub fn drain_stream(&mut self, id: StreamId) {

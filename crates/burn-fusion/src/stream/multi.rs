@@ -1,7 +1,6 @@
-use std::sync::Arc;
-
 use burn_ir::{HandleContainer, OperationIr, TensorId, TensorIr, TensorStatus};
 use hashbrown::{HashMap, HashSet};
+use smallvec::SmallVec;
 
 use super::{
     StreamId,
@@ -49,7 +48,7 @@ impl<R: FusionRuntime> MultiStream<R> {
         &mut self,
         streams: OperationStreams,
         mut repr: OperationIr,
-        operation: Arc<dyn Operation<R>>,
+        operation: Box<dyn Operation<R>>,
         handles: &mut HandleContainer<R::FusionHandle>,
     ) {
         let id = self.resolve_streams(&streams, handles, &mut repr);
@@ -135,7 +134,7 @@ impl<R: FusionRuntime> MultiStream<R> {
         id: StreamId,
         repr: OperationIr,
         streams: &OperationStreams,
-        operation: Arc<dyn Operation<R>>,
+        operation: Box<dyn Operation<R>>,
         handles: &mut HandleContainer<R::FusionHandle>,
     ) -> usize {
         let stream = match self.streams.get_mut(&id) {
@@ -368,11 +367,11 @@ impl<R: FusionRuntime> MultiStream<R> {
         }
         for tensor in tensors {
             let streams = OperationStreams {
-                streams: HashMap::new(),
+                streams: SmallVec::new(),
                 current,
             };
 
-            let op = Arc::new(DropOp { id: tensor.id });
+            let op = Box::new(DropOp { id: tensor.id });
             self.register(streams, OperationIr::Drop(tensor), op, handles);
         }
     }
@@ -429,14 +428,14 @@ impl<R: FusionRuntime> Stream<R> {
 #[derive(Debug)]
 /// Manage the streams used for the current [operation](OperationIr).
 pub struct OperationStreams {
-    pub(crate) streams: HashMap<TensorId, StreamId>,
+    pub(crate) streams: SmallVec<[(TensorId, StreamId); 5]>,
     pub(crate) current: StreamId,
 }
 
 impl Default for OperationStreams {
     fn default() -> Self {
         Self {
-            streams: HashMap::new(),
+            streams: SmallVec::new(),
             current: StreamId::current(),
         }
     }
@@ -448,11 +447,22 @@ impl OperationStreams {
     /// You only need to register input tensors, not the outputs.
     /// So init tensor operations should have no streams registered.
     pub fn tensor<R: FusionRuntime>(&mut self, tensor: &crate::FusionTensor<R>) {
-        self.streams.insert(tensor.id, tensor.stream);
+        for (id, _) in self.streams.iter() {
+            if *id == tensor.id {
+                return;
+            }
+        }
+        self.streams.push((tensor.id, tensor.stream));
     }
 
     pub(crate) fn get(&self, id: TensorId) -> Option<StreamId> {
-        self.streams.get(&id).cloned()
+        for (tensor_id, stream) in self.streams.iter() {
+            if *tensor_id == id {
+                return Some(*stream);
+            }
+        }
+
+        None
     }
 
     /// Create new operation streams with the given inputs.

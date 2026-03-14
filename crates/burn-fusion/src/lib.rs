@@ -18,10 +18,12 @@ pub mod stream;
 pub(crate) mod search;
 
 mod backend;
+mod op;
 mod ops;
 mod server;
 mod tensor;
 
+pub(crate) use op::*;
 pub(crate) use server::*;
 
 pub use backend::*;

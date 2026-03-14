@@ -5,10 +5,7 @@ use crate::{
 use burn_backend::{Device, DeviceHandle, DeviceId, DeviceService};
 use burn_backend::{TensorData, backend::ExecutionError};
 use burn_ir::{OperationIr, TensorId, TensorIr};
-use std::sync::{
-    Arc,
-    atomic::{AtomicU64, Ordering},
-};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 /// Use a mutex to communicate with the fusion server.
 pub struct GlobalFusionClient<R: FusionRuntime> {
@@ -88,7 +85,8 @@ where
             .collect();
 
         self.server.submit(move |server| {
-            server.register(streams, repr, Arc::new(operation));
+            // std::println!("Operation alloc {} bytes", size_of::<O>());
+            server.register(streams, repr, operation);
         });
 
         outputs

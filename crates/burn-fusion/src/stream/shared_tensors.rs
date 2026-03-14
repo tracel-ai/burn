@@ -152,7 +152,7 @@ impl SharedTensors {
         streams_op: &OperationStreams,
         streams: &HashMap<StreamId, Stream<R>>,
     ) -> SharedTensorAnalysis {
-        let stream_id = match streams_op.streams.get(&node.id) {
+        let stream_id = match streams_op.get(node.id) {
             Some(val) => val,
             None => {
                 return match self.shared_tensors.contains_key(&node.id) {
@@ -162,7 +162,7 @@ impl SharedTensors {
             }
         };
 
-        if stream_id == &id {
+        if stream_id == id {
             return match self.shared_tensors.contains_key(&node.id) {
                 true => SharedTensorAnalysis::SharedFromCurrentStream,
                 false => SharedTensorAnalysis::NotShared,
@@ -171,7 +171,7 @@ impl SharedTensors {
 
         // Here the node is tagged as newly shared.
         let stream_current = streams.get(&id);
-        let stream = streams.get(stream_id);
+        let stream = streams.get(&stream_id);
 
         let state = match self.shared_tensors.get_mut(&node.id) {
             Some(state) => state,
@@ -182,13 +182,13 @@ impl SharedTensors {
         };
 
         state.register_new_stream(id, stream_current);
-        match state.register_new_stream(*stream_id, stream) {
+        match state.register_new_stream(stream_id, stream) {
             Some(origin) => SharedTensorAnalysis::SharedFromExistingStream {
-                stream_id: *stream_id,
+                stream_id: stream_id,
                 original_cursor: origin,
             },
             None => SharedTensorAnalysis::SharedFromNewStream {
-                stream_id: *stream_id,
+                stream_id: stream_id,
             },
         }
     }
