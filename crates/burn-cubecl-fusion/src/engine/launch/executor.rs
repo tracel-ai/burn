@@ -210,11 +210,17 @@ fn register_outputs<BT: CubeElement, R: Runtime>(
             HandleOutput::Alias {
                 input_pos,
                 precision,
+                global_shape,
+                strides,
                 #[cfg(feature = "autotune-checks")]
                 debug_info,
             } => {
                 outputs.tensors.push(GlobalTensorArg::new(
-                    TensorArg::alias(input_pos),
+                    TensorArg::Alias {
+                        input_pos,
+                        strides,
+                        shape: global_shape,
+                    },
                     precision.into_type(1),
                     false,
                     AddressType::default(),

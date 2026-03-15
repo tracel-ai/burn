@@ -1,6 +1,6 @@
 use crate::{
     CubeRuntime,
-    kernel::utils::{address_type, linear_view},
+    kernel::utils::address_type,
     ops::{max_vector_size, numeric::empty_device_dtype},
     tensor::CubeTensor,
 };
@@ -61,8 +61,8 @@ pub fn cast<R: CubeRuntime>(input: CubeTensor<R>, dtype: DType) -> CubeTensor<R>
         cube_dim,
         address_type!(input, output),
         vector_size,
-        linear_view(input, vector_size),
-        linear_view(output.clone(), vector_size),
+        input.into_linear_view(),
+        output.clone().into_linear_view(),
         [dtype_input.into(), dtype_output.into()],
     );
 

@@ -1,8 +1,6 @@
 use crate::{
     CubeRuntime,
-    kernel::utils::{
-        address_type, broadcast_shape, linear_view, linear_view_alias, linear_view_ref,
-    },
+    kernel::utils::{address_type, broadcast_shape},
     ops::{max_vector_size, numeric::empty_device_dtype},
     tensor::CubeTensor,
 };
@@ -71,9 +69,9 @@ pub(crate) fn launch_binop_float<R: CubeRuntime, O: BinaryOpFloatFamily>(
                 cube_dim,
                 address_type!(lhs, rhs),
                 vector_size,
-                linear_view(lhs.clone(), vector_size),
-                linear_view_ref(rhs, &lhs, vector_size),
-                linear_view_alias(&lhs, vector_size, 0),
+                lhs.clone().into_linear_view(),
+                rhs.clone().into_linear_view_like(&lhs),
+                lhs.as_linear_view_alias(0),
                 dtype.into(),
             );
 
@@ -85,9 +83,9 @@ pub(crate) fn launch_binop_float<R: CubeRuntime, O: BinaryOpFloatFamily>(
                 cube_dim,
                 address_type!(lhs, rhs),
                 vector_size,
-                linear_view_ref(lhs, &rhs, vector_size),
-                linear_view(rhs.clone(), vector_size),
-                linear_view_alias(&rhs, vector_size, 1),
+                lhs.into_linear_view_like(&rhs),
+                rhs.clone().into_linear_view(),
+                rhs.as_linear_view_alias(1),
                 dtype.into(),
             );
 
@@ -102,9 +100,9 @@ pub(crate) fn launch_binop_float<R: CubeRuntime, O: BinaryOpFloatFamily>(
                 cube_dim,
                 address_type!(lhs, rhs, output),
                 vector_size,
-                linear_view_ref(lhs, &output, vector_size),
-                linear_view_ref(rhs, &output, vector_size),
-                linear_view(output.clone(), vector_size),
+                lhs.into_linear_view_like(&output),
+                rhs.into_linear_view_like(&output),
+                output.clone().into_linear_view(),
                 dtype.into(),
             );
 
