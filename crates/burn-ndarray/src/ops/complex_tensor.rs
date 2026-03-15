@@ -2,7 +2,7 @@ use crate::ops::{NdArrayMathOps, NdArrayOps};
 use crate::{execute_with_complex_dtype, execute_with_float_dtype};
 
 use burn_complex::base::ComplexElem;
-use burn_complex::base::element::ToComplex;
+use burn_complex::base::element::{Complex, ToComplex};
 use burn_complex::base::{
     ComplexTensor, ComplexTensorBackend, ComplexTensorOps, InterleavedLayout, element::Complex32,
 };
@@ -23,7 +23,7 @@ where
     type InnerBackend = NdArray<E, I, Q>;
 
     type ComplexTensorPrimitive = NdArrayTensor;
-    type ComplexElem = Complex32;
+    type ComplexElem = Complex<E>;
 
     type Layout = InterleavedLayout;
 }
@@ -55,11 +55,30 @@ where
     }
     //NOTE: May want to change complex types from ComplexE to Complex<E> in the future to match the element type (and allow quantized complex tensors)
     fn to_complex(tensor: NdArrayTensor) -> NdArrayTensor {
-        execute_with_float_dtype!(tensor, E, |array: SharedArray<E>| {
-            array
-                .mapv_into(|a: E| Complex32::new(a.to_f32(), 0.0))
-                .into_shared()
-        })
+        {
+            {
+                match tensor {
+                    crate::NdArrayTensor::F64(storage) => {
+                        #[allow(unused)]
+                        type E = f64;
+                        (|array: SharedArray<E>| {
+                            array.mapv_into(|a: E| Complex::<E>::from(a)).into_shared()
+                        })(storage.into_shared())
+                        .into()
+                    }
+                    crate::NdArrayTensor::F32(storage) => {
+                        #[allow(unused)]
+                        type E = f32;
+                        (|array: SharedArray<E>| {
+                            array.mapv_into(|a: E| Complex::<E>::from(a)).into_shared()
+                        })(storage.into_shared())
+                        .into()
+                    }
+                    #[allow(unreachable_patterns)]
+                    other => unimplemented!("unsupported dtype: {:?}", other.dtype()),
+                }
+            }
+        }
     }
     //     fn complex_from_data(data: TensorData, _device: &NdArrayDevice) -> NdArrayTensor {
     //         NdArrayTensor::from_data(data)
