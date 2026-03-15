@@ -150,20 +150,20 @@ impl<R: CubeRuntime, BT: BoolElement> FusionRuntime for FusionCubeRuntime<R, BT>
         vec![
             Box::new(ElementWiseFuser::new(
                 device.clone(),
-                BT::as_type_native_unchecked().into(),
+                BT::as_type_native_unchecked().storage_type().into(),
             )),
             Box::new(MatmulFuser::new(
                 device.clone(),
-                BT::as_type_native_unchecked().into(),
+                BT::as_type_native_unchecked().storage_type().into(),
             )),
             Box::new(ReduceFuser::new(
                 device.clone(),
-                BT::as_type_native_unchecked().into(),
+                BT::as_type_native_unchecked().storage_type().into(),
                 ReduceSettings::Always,
             )),
             Box::new(ReduceBroadcastedFuser::new(
                 device.clone(),
-                BT::as_type_native_unchecked().into(),
+                BT::as_type_native_unchecked().storage_type().into(),
             )),
         ]
     }

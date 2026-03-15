@@ -12,4 +12,3 @@ This crate can be used without the standard library (`#![no_std]`) with `alloc` 
 default `std` feature.
 
 - `std` - enables the standard library. Enabled by default.
-- `experimental-named-tensor` - enables experimental named tensor.

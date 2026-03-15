@@ -3,20 +3,20 @@ use crate::{
     kernel::utils::{
         address_type, broadcast_shape, linear_view, linear_view_alias, linear_view_ref,
     },
-    ops::{max_line_size, numeric::empty_device_dtype},
+    ops::{max_vector_size, numeric::empty_device_dtype},
     tensor::CubeTensor,
 };
 use burn_backend::TensorMetadata;
 use cubecl::{calculate_cube_count_elemwise, prelude::*, std::tensor::layout::linear::LinearView};
 
 pub(crate) trait BinaryOpIntFamily: Send + Sync + 'static {
-    type BinaryOp<C: Int>: BinaryOpInt<C>;
+    type BinaryOp<C: Int, N: Size>: BinaryOpInt<C, N>;
 }
 
 #[cube]
-pub(crate) trait BinaryOpInt<C: Int>: 'static + Send + Sync {
+pub(crate) trait BinaryOpInt<C: Int, N: Size>: 'static + Send + Sync {
     /// Execute a binary operation.
-    fn execute(lhs: Line<C>, rhs: Line<C>) -> Line<C>;
+    fn execute(lhs: Vector<C, N>, rhs: Vector<C, N>) -> Vector<C, N>;
 }
 
 pub(crate) struct BitwiseAndOp;
@@ -26,65 +26,65 @@ pub(crate) struct BitwiseShrOp;
 pub(crate) struct BitwiseShlOp;
 
 impl BinaryOpIntFamily for BitwiseAndOp {
-    type BinaryOp<C: Int> = Self;
+    type BinaryOp<C: Int, N: Size> = Self;
 }
 
 impl BinaryOpIntFamily for BitwiseOrOp {
-    type BinaryOp<C: Int> = Self;
+    type BinaryOp<C: Int, N: Size> = Self;
 }
 
 impl BinaryOpIntFamily for BitwiseXorOp {
-    type BinaryOp<C: Int> = Self;
+    type BinaryOp<C: Int, N: Size> = Self;
 }
 
 impl BinaryOpIntFamily for BitwiseShrOp {
-    type BinaryOp<C: Int> = Self;
+    type BinaryOp<C: Int, N: Size> = Self;
 }
 
 impl BinaryOpIntFamily for BitwiseShlOp {
-    type BinaryOp<C: Int> = Self;
+    type BinaryOp<C: Int, N: Size> = Self;
 }
 
 #[cube]
-impl<N: Int> BinaryOpInt<N> for BitwiseAndOp {
-    fn execute(lhs: Line<N>, rhs: Line<N>) -> Line<N> {
+impl<T: Int, N: Size> BinaryOpInt<T, N> for BitwiseAndOp {
+    fn execute(lhs: Vector<T, N>, rhs: Vector<T, N>) -> Vector<T, N> {
         lhs & rhs
     }
 }
 
 #[cube]
-impl<N: Int> BinaryOpInt<N> for BitwiseOrOp {
-    fn execute(lhs: Line<N>, rhs: Line<N>) -> Line<N> {
+impl<T: Int, N: Size> BinaryOpInt<T, N> for BitwiseOrOp {
+    fn execute(lhs: Vector<T, N>, rhs: Vector<T, N>) -> Vector<T, N> {
         lhs | rhs
     }
 }
 
 #[cube]
-impl<N: Int> BinaryOpInt<N> for BitwiseXorOp {
-    fn execute(lhs: Line<N>, rhs: Line<N>) -> Line<N> {
+impl<T: Int, N: Size> BinaryOpInt<T, N> for BitwiseXorOp {
+    fn execute(lhs: Vector<T, N>, rhs: Vector<T, N>) -> Vector<T, N> {
         lhs ^ rhs
     }
 }
 
 #[cube]
-impl<N: Int> BinaryOpInt<N> for BitwiseShrOp {
-    fn execute(lhs: Line<N>, rhs: Line<N>) -> Line<N> {
+impl<T: Int, N: Size> BinaryOpInt<T, N> for BitwiseShrOp {
+    fn execute(lhs: Vector<T, N>, rhs: Vector<T, N>) -> Vector<T, N> {
         lhs >> rhs
     }
 }
 
 #[cube]
-impl<N: Int> BinaryOpInt<N> for BitwiseShlOp {
-    fn execute(lhs: Line<N>, rhs: Line<N>) -> Line<N> {
+impl<T: Int, N: Size> BinaryOpInt<T, N> for BitwiseShlOp {
+    fn execute(lhs: Vector<T, N>, rhs: Vector<T, N>) -> Vector<T, N> {
         lhs << rhs
     }
 }
 
 #[cube(launch_unchecked, address_type = "dynamic")]
-pub(crate) fn kernel_scalar_binop_int<C: Int, O: BinaryOpIntFamily>(
-    input: &LinearView<Line<C>>,
+pub(crate) fn kernel_scalar_binop_int<C: Int, N: Size, O: BinaryOpIntFamily>(
+    input: &LinearView<Vector<C, N>>,
     scalar: InputScalar,
-    output: &mut LinearView<Line<C>, ReadWrite>,
+    output: &mut LinearView<Vector<C, N>, ReadWrite>,
     #[define(C)] _dtype: StorageType,
 ) {
     if !output.is_in_bounds(ABSOLUTE_POS) {
@@ -92,37 +92,37 @@ pub(crate) fn kernel_scalar_binop_int<C: Int, O: BinaryOpIntFamily>(
     }
 
     output[ABSOLUTE_POS] =
-        O::BinaryOp::<C>::execute(input[ABSOLUTE_POS], Line::new(scalar.get::<C>()));
+        O::BinaryOp::<C, N>::execute(input[ABSOLUTE_POS], Vector::new(scalar.get::<C>()));
 }
 
 #[cube(launch_unchecked, address_type = "dynamic")]
-pub(crate) fn kernel_binop_int<C: Int, O: BinaryOpIntFamily>(
-    lhs: &LinearView<Line<C>>,
-    rhs: &LinearView<Line<C>>,
-    out: &mut LinearView<Line<C>, ReadWrite>,
+pub(crate) fn kernel_binop_int<C: Int, N: Size, O: BinaryOpIntFamily>(
+    lhs: &LinearView<Vector<C, N>>,
+    rhs: &LinearView<Vector<C, N>>,
+    out: &mut LinearView<Vector<C, N>, ReadWrite>,
     #[define(C)] _dtype: StorageType,
 ) {
     if !out.is_in_bounds(ABSOLUTE_POS) {
         terminate!();
     }
 
-    out[ABSOLUTE_POS] = O::BinaryOp::<C>::execute(lhs[ABSOLUTE_POS], rhs[ABSOLUTE_POS]);
+    out[ABSOLUTE_POS] = O::BinaryOp::<C, N>::execute(lhs[ABSOLUTE_POS], rhs[ABSOLUTE_POS]);
 }
 
 pub(crate) fn launch_binop_int<R: CubeRuntime, O: BinaryOpIntFamily>(
     lhs: CubeTensor<R>,
     rhs: CubeTensor<R>,
 ) -> CubeTensor<R> {
-    let line_size_lhs = max_line_size(&lhs);
-    let line_size_rhs = max_line_size(&rhs);
-    let line_size = Ord::min(line_size_lhs, line_size_rhs);
+    let vector_size_lhs = max_vector_size(&lhs);
+    let vector_size_rhs = max_vector_size(&rhs);
+    let vector_size = Ord::min(vector_size_lhs, vector_size_rhs);
 
     let shape_out = broadcast_shape(&[&lhs, &rhs]);
 
     let client = lhs.client.clone();
     let num_elems = shape_out.num_elements();
 
-    let working_units = num_elems / line_size as usize;
+    let working_units = num_elems / vector_size as usize;
     let cube_dim = CubeDim::new(&lhs.client, working_units);
     let cube_count = calculate_cube_count_elemwise(&lhs.client, working_units, cube_dim);
     let dtype = lhs.dtype;
@@ -134,9 +134,10 @@ pub(crate) fn launch_binop_int<R: CubeRuntime, O: BinaryOpIntFamily>(
                 cube_count,
                 cube_dim,
                 address_type!(lhs, rhs),
-                linear_view(lhs.clone(), line_size),
-                linear_view_ref(rhs, &lhs, line_size),
-                linear_view_alias(&lhs, line_size, 0),
+                vector_size,
+                linear_view(lhs.clone(), vector_size),
+                linear_view_ref(rhs, &lhs, vector_size),
+                linear_view_alias(&lhs, vector_size, 0),
                 dtype.into(),
             );
 
@@ -147,9 +148,10 @@ pub(crate) fn launch_binop_int<R: CubeRuntime, O: BinaryOpIntFamily>(
                 cube_count,
                 cube_dim,
                 address_type!(lhs, rhs),
-                linear_view_ref(lhs, &rhs, line_size),
-                linear_view(rhs.clone(), line_size),
-                linear_view_alias(&rhs, line_size, 1),
+                vector_size,
+                linear_view_ref(lhs, &rhs, vector_size),
+                linear_view(rhs.clone(), vector_size),
+                linear_view_alias(&rhs, vector_size, 1),
                 dtype.into(),
             );
 
@@ -163,9 +165,10 @@ pub(crate) fn launch_binop_int<R: CubeRuntime, O: BinaryOpIntFamily>(
                 cube_count,
                 cube_dim,
                 address_type!(lhs, rhs, output),
-                linear_view_ref(lhs, &output, line_size),
-                linear_view_ref(rhs, &output, line_size),
-                linear_view(output.clone(), line_size),
+                vector_size,
+                linear_view_ref(lhs, &output, vector_size),
+                linear_view_ref(rhs, &output, vector_size),
+                linear_view(output.clone(), vector_size),
                 dtype.into(),
             );
 
@@ -178,11 +181,11 @@ pub(crate) fn launch_scalar_binop_int<R: CubeRuntime, O: BinaryOpIntFamily>(
     tensor: CubeTensor<R>,
     scalar: InputScalar,
 ) -> CubeTensor<R> {
-    let line_size = max_line_size(&tensor);
+    let vector_size = max_vector_size(&tensor);
     let client = tensor.client.clone();
     let num_elems = tensor.meta.shape.num_elements();
 
-    let working_units = num_elems / line_size as usize;
+    let working_units = num_elems / vector_size as usize;
     let cube_dim = CubeDim::new(&tensor.client, working_units);
     let cube_count = calculate_cube_count_elemwise(&tensor.client, working_units, cube_dim);
 
@@ -193,9 +196,10 @@ pub(crate) fn launch_scalar_binop_int<R: CubeRuntime, O: BinaryOpIntFamily>(
                 cube_count,
                 cube_dim,
                 address_type!(tensor),
-                linear_view(tensor.clone(), line_size),
+                vector_size,
+                linear_view(tensor.clone(), vector_size),
                 scalar,
-                linear_view_alias(&tensor, line_size, 0),
+                linear_view_alias(&tensor, vector_size, 0),
                 tensor.dtype.into(),
             );
 
@@ -213,9 +217,10 @@ pub(crate) fn launch_scalar_binop_int<R: CubeRuntime, O: BinaryOpIntFamily>(
                 cube_count,
                 cube_dim,
                 address_type!(tensor, output),
-                linear_view(tensor, line_size),
+                vector_size,
+                linear_view(tensor, vector_size),
                 scalar,
-                linear_view(output.clone(), line_size),
+                linear_view(output.clone(), vector_size),
                 output.dtype.into(),
             );
 

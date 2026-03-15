@@ -8,7 +8,7 @@ use crate::{
 };
 use burn_ir::{TensorId, TensorIr};
 use burn_std::{Shape, Strides};
-use cubecl::{Runtime, ir::LineSize};
+use cubecl::{Runtime, ir::VectorSize};
 use std::collections::BTreeMap;
 
 /// The `LaunchPlan` is responsible for aggregating all runtime information required
@@ -53,7 +53,7 @@ pub struct BlockPlan<'a> {
     /// Mapping of tensor IDs to the write operations performed on them.
     pub writes: BTreeMap<TensorId, Vec<FuseOp>>,
     /// The width for the operations in this block.
-    pub width: LineSize,
+    pub width: VectorSize,
 }
 
 /// Metadata for an input tensor being used as a reference for a block's layout.
@@ -164,7 +164,7 @@ pub enum HandleOutput<R: Runtime> {
         precision: FuseType,
         handle: CubeFusionHandle<R>,
         global_shape: Shape,
-        vectorization: LineSize,
+        vectorization: VectorSize,
     },
 }
 
@@ -175,7 +175,7 @@ pub struct NormalHandleInput<R: Runtime> {
     pub global_ir: TensorIr,
     pub precision: FuseType,
     pub handle: CubeFusionHandle<R>,
-    pub line_size: LineSize,
+    pub vector_size: VectorSize,
     pub broadcated: bool,
     /// Stores the original strides of the handle for restoration during plan rollback.
     pub orig_strides: Strides,
@@ -188,7 +188,7 @@ pub struct QuantValuesHandleInput<R: Runtime> {
     pub global_ir: TensorIr,
     pub precision: FuseType,
     pub handle: CubeFusionHandle<R>,
-    pub line_size: LineSize,
+    pub vector_size: VectorSize,
 }
 
 /// An input handle containing parameters (scales/offsets) for quantization.
@@ -233,7 +233,7 @@ impl<R: Runtime> NormalHandleInput<R> {
             handle,
             relative_id: tensor_relative.id,
             global_ir: tensor_global,
-            line_size: 1,
+            vector_size: 1,
             broadcated: false,
             orig_strides: strides,
         }

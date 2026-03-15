@@ -9,9 +9,9 @@ use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
 #[cube(launch_unchecked, address_type = "dynamic")]
 fn cross_kernel<E: Float>(
-    lhs: &LinearView<Line<E>>,
-    rhs: &LinearView<Line<E>>,
-    output: &mut LinearView<Line<E>, ReadWrite>,
+    lhs: &LinearView<E>,
+    rhs: &LinearView<E>,
+    output: &mut LinearView<E, ReadWrite>,
     #[define(E)] _dtype: StorageType,
 ) {
     // Each thread processes one 3-element vector
@@ -68,7 +68,7 @@ pub(crate) fn cross<R: CubeRuntime>(
     let output_shape = broadcast_shape(&[&lhs, &rhs]);
 
     // Since the cross dimension is forced to be size 3, line size would be restricted to 1 anyway
-    let line_size = 1;
+    let vector_size = 1;
 
     let output = empty_device_dtype(
         lhs.client.clone(),
@@ -90,9 +90,9 @@ pub(crate) fn cross<R: CubeRuntime>(
             cube_count,
             cube_dim,
             address_type!(lhs, rhs, output),
-            linear_view_ref(lhs, &output, line_size),
-            linear_view_ref(rhs, &output, line_size),
-            linear_view(output.clone(), line_size),
+            linear_view_ref(lhs, &output, vector_size),
+            linear_view_ref(rhs, &output, vector_size),
+            linear_view(output.clone(), vector_size),
             dtype.into(),
         );
     };

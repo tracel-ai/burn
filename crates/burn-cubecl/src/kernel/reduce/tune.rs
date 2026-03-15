@@ -9,7 +9,7 @@ use cubecl::{
 use cubek::reduce::{
     ReduceDtypes, ReduceStrategy,
     components::instructions::ReduceOperationConfig,
-    launch::{LineSizeStrategy, RoutineStrategy, tune_key::ReduceAutotuneKey},
+    launch::{RoutineStrategy, VectorizationStrategy, tune_key::ReduceAutotuneKey},
     routines::{BlueprintStrategy, cube::CubeStrategy, plane::PlaneStrategy, unit::UnitStrategy},
 };
 
@@ -40,7 +40,7 @@ pub fn autotune_reduce<R: CubeRuntime>(
                 if key.axis_is_contiguous {
                     PRIORITY_MAX
                 } else {
-                    // We disable the tunable with the setting [line_size.parallel_output_vectorization]
+                    // We disable the tunable with the setting [vector_size.parallel_output_vectorization]
                     // when the reduce isn't parallel, since it would duplicate tunables.
                     PRIORITY_SKIP
                 }
@@ -52,15 +52,15 @@ pub fn autotune_reduce<R: CubeRuntime>(
             Balanced,
         }
 
-        for (line_size, line_size_ident) in [
+        for (vectorization, vector_size_ident) in [
             (
-                LineSizeStrategy {
+                VectorizationStrategy {
                     parallel_output_vectorization: true,
                 },
                 "_vectorized_parallel_reduce",
             ),
             (
-                LineSizeStrategy {
+                VectorizationStrategy {
                     parallel_output_vectorization: false,
                 },
                 "",
@@ -87,7 +87,7 @@ pub fn autotune_reduce<R: CubeRuntime>(
                     ReduceProps::GreatWithLowReduceCount,
                 ),
             ] {
-                let name = format!("{name}{line_size_ident}");
+                let name = format!("{name}{vector_size_ident}");
                 let mut tunable = Tunable::new(
                     name,
                     move |(input, output, axis, config, dtypes): (
@@ -99,7 +99,7 @@ pub fn autotune_reduce<R: CubeRuntime>(
                     )| {
                         let strategy = ReduceStrategy {
                             routine: routine.clone(),
-                            line_size,
+                            vectorization,
                         };
                         cubek::reduce::reduce::<R>(
                             &output.client,
@@ -113,7 +113,7 @@ pub fn autotune_reduce<R: CubeRuntime>(
                         .map_err(|e| format!("{e}"))
                     },
                 );
-                if line_size.parallel_output_vectorization {
+                if vectorization.parallel_output_vectorization {
                     tunable = tunable.group(&vectorized_parallel_group, |_| PRIORITY_MAX);
                 }
 

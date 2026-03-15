@@ -23,12 +23,12 @@ use burn_ir::ReduceDimOpIr;
 use burn_std::DType;
 use cubecl::{Runtime, client::ComputeClient, ir::StorageType, prelude::*};
 use cubek::reduce::{
-    LineMode, ReduceDtypes, ReduceError,
+    ReduceDtypes, ReduceError, VectorizationMode,
     components::instructions::ReduceOperationConfig,
     init_tensors,
     launch::{RoutineStrategy, reduce_kernel_virtual},
     routines::{
-        ReduceBlueprint, ReduceLaunchSettings, ReduceLineSettings, ReduceProblem, Routine,
+        ReduceBlueprint, ReduceLaunchSettings, ReduceProblem, ReduceVectorSettings, Routine,
         cube::CubeRoutine, plane::PlaneRoutine, unit::UnitRoutine,
     },
 };
@@ -87,7 +87,7 @@ impl<R: Runtime> ReduceOptimizationInfo<R> {
 pub enum ReduceSettings {
     Always,
     /// We only activate fuse-on-write when the reduction isn't on the last dimension, otherwise
-    /// vectorization is impossible. Only [LineMode::Perpendicular] supports vectorization.
+    /// vectorization is impossible. Only [VectorizationMode::Perpendicular] supports vectorization.
     ///
     /// We could still fuse some output operations, but it would probably lead to worse performance.
     OnlyParallel,
@@ -330,8 +330,8 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceLaunch<'_> {
     fn run<'a>(
         &'a self,
         client: &'a ComputeClient<R>,
-        inputs: GlobalArgsLaunch<'a, R>,
-        outputs: GlobalArgsLaunch<'a, R>,
+        inputs: GlobalArgsLaunch<R>,
+        outputs: GlobalArgsLaunch<R>,
         configs: &'a [FuseBlockConfig],
     ) -> Result<(), FusedReduceError> {
         let [config_read, config_write] = [&configs[0], &configs[1]];
@@ -347,18 +347,18 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceLaunch<'_> {
             .map(|(i, s)| if i == self.reduce.axis { 1 } else { *s })
             .product();
 
-        let line_mode = match self.reduce.axis == config_read.rank - 1 {
-            true => LineMode::Parallel,
-            false => LineMode::Perpendicular,
+        let vectorization_mode = match self.reduce.axis == config_read.rank - 1 {
+            true => VectorizationMode::Parallel,
+            false => VectorizationMode::Perpendicular,
         };
         let address_type = inputs
             .required_address_type()
             .max(outputs.required_address_type());
 
-        let settings = ReduceLineSettings {
-            line_mode,
-            line_size_input: config_read.width,
-            line_size_output: config_write.width,
+        let settings = ReduceVectorSettings {
+            vectorization_mode,
+            vector_size_input: config_read.width,
+            vector_size_output: config_write.width,
         };
         let problem = ReduceProblem {
             vector_size: shape[self.reduce.axis],
@@ -414,10 +414,10 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceLaunch<'_> {
     }
 }
 
-struct ReduceKwArgs<'a, 'b, Run: Runtime> {
+struct ReduceKwArgs<'b, Run: Runtime> {
     client: &'b ComputeClient<Run>,
-    inputs: GlobalArgsLaunch<'a, Run>,
-    outputs: GlobalArgsLaunch<'a, Run>,
+    inputs: GlobalArgsLaunch<Run>,
+    outputs: GlobalArgsLaunch<Run>,
     axis: usize,
     blueprint: ReduceBlueprint,
     settings: ReduceLaunchSettings,
@@ -428,7 +428,7 @@ struct ReduceKwArgs<'a, 'b, Run: Runtime> {
 }
 
 fn launch_reduce_mixed_precision<Run: Runtime>(
-    kwargs: ReduceKwArgs<'_, '_, Run>,
+    kwargs: ReduceKwArgs<'_, Run>,
     instruction: ReduceInstruction,
     dtype_input: DType,
     dtype_output: DType,
@@ -448,7 +448,7 @@ fn launch_reduce_mixed_precision<Run: Runtime>(
 }
 
 fn launch_reduce<Run: Runtime>(
-    kwargs: ReduceKwArgs<'_, '_, Run>,
+    kwargs: ReduceKwArgs<'_, Run>,
     inst: ReduceOperationConfig,
     dtype_input: DType,
     dtype_output: DType,
@@ -460,9 +460,11 @@ fn launch_reduce<Run: Runtime>(
             kwargs.settings.cube_count,
             kwargs.settings.cube_dim,
             kwargs.settings.address_type,
+            kwargs.config_fuse_read.width,
+            kwargs.config_fuse_write.width,
             FusedReduceInputLaunch::new(kwargs.inputs, kwargs.config_fuse_read, kwargs.input),
             FusedReduceOutputLaunch::new(kwargs.outputs, kwargs.config_fuse_write, kwargs.output),
-            ScalarArg::new(kwargs.axis),
+            kwargs.axis,
             kwargs.blueprint,
             inst,
             dtype_input.into(),
@@ -475,7 +477,7 @@ fn launch_reduce<Run: Runtime>(
 }
 
 #[cube(launch_unchecked, address_type = "dynamic")]
-pub fn reduce_kernel_fused<In: Numeric, Out: Numeric, Acc: Numeric>(
+pub fn reduce_kernel_fused<In: Numeric, SizeIn: Size, Out: Numeric, SizeOut: Size, Acc: Numeric>(
     input: &FusedReduceInput,
     output: &mut FusedReduceOutput,
     axis_reduce: usize,
@@ -488,7 +490,14 @@ pub fn reduce_kernel_fused<In: Numeric, Out: Numeric, Acc: Numeric>(
     multi_block_variables_init(&input.config, &mut output.global.variables);
     multi_block_variables_init(&output.config, &mut output.global.variables);
 
-    let (input, mut output) = init_tensors::<FusedReduceArgs, In, Out>(input, output);
+    let (input, mut output) =
+        init_tensors::<FusedReduceArgs, In, SizeIn, Out, SizeOut>(input, output);
 
-    reduce_kernel_virtual::<In, Out, Acc>(&input, &mut output, axis_reduce, blueprint, config);
+    reduce_kernel_virtual::<In, SizeIn, Out, SizeOut, Acc>(
+        &input,
+        &mut output,
+        axis_reduce,
+        blueprint,
+        config,
+    );
 }

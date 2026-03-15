@@ -71,11 +71,11 @@ pub(crate) fn select<R: CubeRuntime>(
             cube_count,
             cube_dim,
             address_type!(tensor, indices, output),
-            tensor.into_tensor_arg(1),
+            tensor.into_tensor_arg(),
             linear_view(indices, 1),
             linear_view(output.clone(), 1),
             shape_divmod(&output),
-            ScalarArg::new(dim),
+            dim,
             [tensor_dtype.into(), indices_dtype.into()],
         )
     };
