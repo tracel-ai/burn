@@ -514,44 +514,20 @@ impl<E: ElementEq> ElementEq for Complex<E> {
     }
 }
 
-impl<E: ElementOrdered + bytemuck::Pod> Element for Complex<E> {
-    #[inline]
-    fn dtype() -> DType {
-        match E::dtype() {
-            DType::F32 => DType::Complex32,
-            DType::F64 => DType::Complex64,
-            _ => panic!("Unsupported element type for Complex: {:?}", E::dtype()),
-        }
-    }
-}
-
 /// Macro to implement the element trait for a type.
 #[macro_export]
 macro_rules! make_complex {
     (
-        $inner:ident $precision:expr,
-        random $random:expr,
-        cmp $cmp:expr,
+        ty $inner:ident $precision:expr,
         dtype $dtype:expr
     ) => {
-        make_complex!(ty $type $inner $precision, convert $convert, random $random, cmp $cmp, dtype $dtype, min $type::MIN, max $type::MAX);
+        make_complex!(ty $inner $precision, dtype $dtype);
     };
     (
-        ty $type:ident $inner:ident $precision:expr,
-        convert $convert:expr,
-        random $random:expr,
-        cmp $cmp:expr,
+        ty $inner:ident $precision:expr,
         dtype $dtype:expr,
-        min $min:expr,
-        max $max:expr
     ) => {
-
-
         impl Complex<$inner> {
-
-
-
-
 
             /// Create a complex number from any element primitive
             #[inline]
@@ -560,73 +536,27 @@ macro_rules! make_complex {
                     Self { real: real.[<to_ $inner>](), imag: $inner::ZERO }
                 }
             }
-
-
-
-
-
-
         }
-
-
-
-
-
-
-
-        // impl<Complex<$inner>> ToComplex<Complex32> for Complex<$inner> {
-        //     fn to_complex(&self) -> Complex32 {
-        //         Complex32::new(self.real as f32, self.imag as f32)
-        //     }
-        // }
-
-        // impl ToComplex<Complex64> for Complex<$inner> {
-        //     fn to_complex(&self) -> Complex64 {
-        //         Complex64::new(self.real as f64, self.imag as f64)
-        //     }
-        // }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+        impl Element for Complex<$inner> {
+            fn dtype() -> DType {
+                $dtype
+            }
+        }
     };
 }
 
 make_complex!(
-    ty Complex32 f32 Precision::Full,
-    convert ToComplexElement::to_complex32,
-    random |distribution: Distribution, rng: &mut R| {
-        let real: f32 = distribution.sampler(rng).sample();
-        let imag: f32 = distribution.sampler(rng).sample();
-        Complex::<f32>::new(real, imag)
-    },
-    cmp |a: &Complex32, b: &Complex32| {
-        // Compare by magnitude, then by real part if magnitudes are equal
-        let mag_cmp = a.abs().total_cmp(&b.abs());
-        if mag_cmp == Ordering::Equal {
-            a.real.total_cmp(&b.real)
-        } else {
-            mag_cmp
-        }
-    },
+    ty f32 Precision::Full,
     dtype DType::Complex32,
-    min Complex::<f32>{real: f32::MIN, imag: f32::MIN},
-    max Complex::<f32>{real: f32::MAX, imag: f32::MAX}
 );
+
+//to_complex!(bool);
+
+make_complex!(
+    ty f64 Precision::Double,
+    dtype DType::Complex64,
+);
+
 macro_rules! to_complex {
     (
         $type:ident
@@ -650,31 +580,6 @@ to_complex!(i64);
 to_complex!(i32);
 to_complex!(f32);
 to_complex!(f64);
-//to_complex!(bool);
-
-make_complex!(
-    ty Complex64 f64 Precision::Double,
-    convert ToComplexElement::to_complex64,
-    random |distribution: Distribution, rng: &mut R| {
-        let real: f64 = distribution.sampler(rng).sample();
-        let imag: f64 = distribution.sampler(rng).sample();
-        Complex::<f64>::new(real, imag)
-    },
-    cmp |a: &Complex<f64>, b: &Complex<f64>| {
-        // Compare by magnitude, then by real part if magnitudes are equal
-        let mag_cmp = a.abs().total_cmp(&b.abs());
-        if mag_cmp == Ordering::Equal {
-            a.real.total_cmp(&b.real)
-        } else {
-            mag_cmp
-        }
-    },
-    dtype DType::Complex64,
-    min Complex::<f64>{real: f64::MIN, imag: f64::MIN},
-    max Complex::<f64>{real: f64::MAX, imag: f64::MAX}
-
-
-);
 
 impl ToComplex<Complex<f32>> for Complex<f64> {
     #[inline]
