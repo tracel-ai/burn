@@ -29,6 +29,7 @@ mod fmod;
 mod full;
 mod gather_scatter;
 mod grid_sample;
+mod hann_window;
 mod inf;
 mod init;
 mod iter_dim;

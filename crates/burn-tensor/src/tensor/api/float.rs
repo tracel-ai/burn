@@ -1,6 +1,7 @@
 use crate::AsIndex;
 use crate::FloatDType;
 use crate::Tensor;
+use crate::TensorCreationOptions;
 use crate::cast::ToElement;
 use crate::check;
 use crate::check::TensorCheck;
@@ -18,6 +19,74 @@ pub const DEFAULT_RTOL: f64 = 1e-5;
 
 /// Default ATOL value for `is_close` and `all_close`.
 pub const DEFAULT_ATOL: f64 = 1e-8;
+
+impl<B> Tensor<B, 1>
+where
+    B: Backend,
+{
+    /// Creates a 1D Hann window.
+    ///
+    #[cfg_attr(
+        doc,
+        doc = r#"
+$$w_n = 0.5 - 0.5 \cos\left(\frac{2\pi n}{N}\right)$$
+
+where $N$ = `size` when `periodic` is `true`, or $N$ = `size - 1` when `periodic` is `false`.
+"#
+    )]
+    #[cfg_attr(
+        not(doc),
+        doc = "`w_n = 0.5 - 0.5 * cos(2πn/N)` where N = size (periodic) or N = size-1 (symmetric)"
+    )]
+    ///
+    /// # Notes
+    ///
+    /// - `size == 0` returns an empty tensor.
+    /// - `size == 1` returns `[1.0]` regardless of `periodic` (consistent with PyTorch / NumPy).
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::Tensor;
+    ///
+    /// fn example<B: Backend>() {
+    ///     let device = B::Device::default();
+    ///     let window = Tensor::<B, 1>::hann_window(8, true, &device);
+    ///     println!("{window}");
+    /// }
+    /// ```
+    pub fn hann_window(
+        size: usize,
+        periodic: bool,
+        options: impl Into<TensorCreationOptions<B>>,
+    ) -> Self {
+        let opt = options.into();
+        let dtype = opt.resolve_policy(<B::FloatElem as burn_backend::Element>::dtype());
+        let shape = crate::Shape::new([size]);
+        check!(TensorCheck::creation_ops::<1>("HannWindow", &shape));
+
+        if size == 0 {
+            return Self::empty(shape, opt).cast(dtype);
+        }
+
+        if size == 1 {
+            return Self::ones(shape, opt).cast(dtype);
+        }
+
+        let size_i64 = i64::try_from(size).expect("HannWindow size doesn't fit in i64 range.");
+        let denominator = if periodic { size } else { size - 1 };
+        let angular_increment = (2.0 * core::f64::consts::PI) / denominator as f64;
+
+        Tensor::<B, 1, Int>::arange(0..size_i64, &opt.device)
+            .float()
+            .mul_scalar(angular_increment)
+            .cos()
+            .mul_scalar(-0.5)
+            .add_scalar(0.5)
+            .cast(dtype)
+    }
+}
 
 impl<const D: usize, B> Tensor<B, D>
 where
