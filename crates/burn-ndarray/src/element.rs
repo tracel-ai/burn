@@ -1,6 +1,4 @@
 use burn_backend::Element;
-#[cfg(feature = "complex")]
-use burn_complex::base::element::{Complex32, Complex64};
 
 use num_traits::Signed;
 
@@ -13,21 +11,21 @@ use num_traits::Pow;
 use libm::{log1p, log1pf};
 
 /// A float element for ndarray backend.
-pub trait FloatNdArrayElement: NdArrayElement + Signed + core::cmp::PartialOrd<Self>
+pub trait FloatNdArrayElement:
+    NdArrayElement + Signed + core::cmp::PartialOrd<Self> + ExpElement
 where
     Self: Sized,
 {
 }
 
 /// An int element for ndarray backend.
-pub trait IntNdArrayElement: NdArrayElement + core::cmp::PartialOrd<Self> {}
+pub trait IntNdArrayElement: NdArrayElement + core::cmp::PartialOrd<Self> + ExpElement {}
 
 /// A general element for ndarray backend.
 pub trait NdArrayElement:
     Element
     + ndarray::LinalgScalar
     + ndarray::ScalarOperand
-    + ExpElement
     + AddAssignElement
     + num_traits::FromPrimitive
     + core::ops::AddAssign
@@ -75,92 +73,12 @@ impl AddAssignElement for bool {
     }
 }
 
-impl ExpElement for Complex32 {
-    type AbsOutput = f32;
-
-    fn exp_elem(self) -> Self {
-        self.exp()
-    }
-
-    fn log_elem(self) -> Self {
-        self.ln()
-    }
-
-    fn log1p_elem(self) -> Self {
-        // Credit to soumyasen1809
-        // https://github.com/rust-num/num-complex/pull/131
-        (Self::one() + self).ln()
-    }
-
-    fn powf_elem(self, value: f32) -> Self {
-        self.powf(value)
-    }
-
-    // I have no idea if this is right or why one would even use powi with a complex number, I'll circle back
-    // once everything else is working
-    fn powi_elem(self, value: i32) -> Self {
-        let mut output = self.powf(value as f32);
-        output.real.floor();
-        output.imag.floor();
-        output
-    }
-
-    fn sqrt_elem(self) -> Self {
-        self.sqrt()
-    }
-
-    fn abs_elem(self) -> Self::AbsOutput {
-        self.abs()
-    }
-}
-
-impl ExpElement for Complex64 {
-    type AbsOutput = f64;
-
-    fn exp_elem(self) -> Self {
-        self.exp()
-    }
-
-    fn log_elem(self) -> Self {
-        self.ln()
-    }
-
-    fn log1p_elem(self) -> Self {
-        // Credit to soumyasen1809
-        // https://github.com/rust-num/num-complex/pull/131
-        (Self::one() + self).ln()
-    }
-
-    fn powf_elem(self, value: f32) -> Self {
-        self.powf(value.into())
-    }
-
-    fn powi_elem(self, value: i32) -> Self {
-        let mut output = self.powf(value as f64);
-        output.real.floor();
-        output.imag.floor();
-        output
-    }
-
-    fn sqrt_elem(self) -> Self {
-        self.sqrt()
-    }
-
-    fn abs_elem(self) -> Self::AbsOutput {
-        self.abs()
-    }
-}
-
 ///Mother fucker
 
 /// A quantized element for the ndarray backend.
 pub trait QuantElement: NdArrayElement {}
 
 impl QuantElement for i8 {}
-#[cfg(feature = "complex")]
-impl NdArrayElement for burn_complex::base::element::Complex64 {}
-#[cfg(feature = "complex")]
-impl NdArrayElement for burn_complex::base::element::Complex32 {}
 
 impl FloatNdArrayElement for f64 {}
 impl FloatNdArrayElement for f32 {}
@@ -293,3 +211,54 @@ make_int!(u64, |x| x);
 make_int!(u32, |x| x);
 make_int!(u16, |x| x);
 make_int!(u8, |x| x);
+
+#[cfg(feature = "complex")]
+mod complex {
+    use super::*;
+    use burn_complex::base::element::Complex;
+    use num_traits::One;
+
+    impl<E> NdArrayElement for burn_complex::base::element::Complex<E> where
+        E: NdArrayElement + num_traits::Float + burn_backend::ElementOrdered + bytemuck::Pod
+    {
+    }
+
+    impl<E: bytemuck::Pod + num_traits::Float + burn_backend::ElementOrdered> ExpElement
+        for Complex<E>
+    {
+        type AbsOutput = E;
+
+        fn exp_elem(self) -> Self {
+            self.exp()
+        }
+
+        fn log_elem(self) -> Self {
+            self.ln()
+        }
+
+        fn log1p_elem(self) -> Self {
+            // Credit to soumyasen1809
+            // https://github.com/rust-num/num-complex/pull/131
+            (Self::one() + self).ln()
+        }
+
+        fn powf_elem(self, value: f32) -> Self {
+            self.powf(E::from(value).expect("failed to convert to E"))
+        }
+
+        fn powi_elem(self, value: i32) -> Self {
+            let mut output = self.powf(E::from(value).expect("failed to convert to E"));
+            output.real = output.real.floor();
+            output.imag = output.imag.floor();
+            output
+        }
+
+        fn sqrt_elem(self) -> Self {
+            self.sqrt()
+        }
+
+        fn abs_elem(self) -> Self::AbsOutput {
+            self.abs()
+        }
+    }
+}

@@ -31,9 +31,9 @@ pub enum NdArrayTensor {
     U8(NdArrayStorage<u8>),
     Bool(NdArrayStorage<bool>),
     #[cfg(feature = "complex")]
-    Complex32(NdArrayStorage<burn_complex::base::element::Complex32>),
+    Complex32(NdArrayStorage<burn_complex::base::element::Complex<f32>>),
     #[cfg(feature = "complex")]
-    Complex64(NdArrayStorage<burn_complex::base::element::Complex64>),
+    Complex64(NdArrayStorage<burn_complex::base::element::Complex<f64>>),
 }
 
 impl NdArrayTensor {
@@ -105,9 +105,9 @@ where
         DType::U8 => cast::<E1, u8>(array).into(),
         DType::Bool => cast::<E1, bool>(array).into(),
         #[cfg(feature = "complex")]
-        DType::Complex32 => cast::<E1, burn_complex::base::element::Complex32>(array).into(),
+        DType::Complex32 => cast::<E1, burn_complex::base::element::Complex<f32>>(array).into(),
         #[cfg(feature = "complex")]
-        DType::Complex64 => cast::<E1, burn_complex::base::element::Complex64>(array).into(),
+        DType::Complex64 => cast::<E1, burn_complex::base::element::Complex<f64>>(array).into(),
         dtype => panic!("Unsupported dtype: {dtype:?}"),
     }
 }
@@ -138,8 +138,8 @@ impl_from!(
 );
 #[cfg(feature = "complex")]
 impl_from!(
-    burn_complex::base::element::Complex32 => Complex32,
-    burn_complex::base::element::Complex64 => Complex64
+    burn_complex::base::element::Complex<f32> => Complex32,
+    burn_complex::base::element::Complex<f64> => Complex64
 );
 
 /// Macro to execute an operation on a given element type.
@@ -221,9 +221,9 @@ macro_rules! execute_with_dtype {
             U64 => u64, U32 => u32, U16 => u16, U8 => u8,
             Bool => bool,
             #[cfg(feature = "complex")]
-            Complex32 => burn_complex::base::element::Complex32,
+            Complex32 => burn_complex::base::element::Complex<f32>,
             #[cfg(feature = "complex")]
-            Complex64 => burn_complex::base::element::Complex64
+            Complex64 => burn_complex::base::element::Complex<f64>
         ])
     }};
 }
@@ -748,8 +748,8 @@ impl NdArrayTensor {
                 I64 => i64, I32 => i32, I16 => i16, I8 => i8,
                 U64 => u64, U32 => u32, U16 => u16, U8 => u8,
                 Bool => bool,
-                Complex32 => burn_complex::base::element::Complex32,
-                Complex64 => burn_complex::base::element::Complex64
+                Complex32 => burn_complex::base::element::Complex<f32>,
+                Complex64 => burn_complex::base::element::Complex<f64>
             ])
         }
         #[cfg(not(feature = "complex"))]
