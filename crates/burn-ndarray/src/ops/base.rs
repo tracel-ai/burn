@@ -875,9 +875,11 @@ where
     }
 }
 
+
+//Trying to figure out how to how to support the scenario where E:AbsOutput != E while still using Simd when 
 impl<E> NdArrayMathOps<E>
 where
-    E: Copy + NdArrayElement + ExpElement<AbsOutput = E>,
+    E: Copy + NdArrayElement + ExpElement<AbsOutput=E>,
 {
     pub(crate) fn abs(tensor: SharedArray<E>) -> SharedArray<E> {
         let tensor = dispatch_unary_simd!(E, VecAbs, tensor, i8, i16, i32, f32, f64);

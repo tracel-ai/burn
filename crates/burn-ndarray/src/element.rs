@@ -218,10 +218,12 @@ mod complex {
     use burn_complex::base::element::Complex;
     use num_traits::One;
 
-    impl<E> NdArrayElement for burn_complex::base::element::Complex<E> where
-        E: NdArrayElement + num_traits::Float + burn_backend::ElementOrdered + bytemuck::Pod
-    {
-    }
+    impl NdArrayElement for burn_complex::base::element::Complex<f32> {}
+    impl NdArrayElement for burn_complex::base::element::Complex<f64> {}
+    // where
+    //     E: NdArrayElement + num_traits::Float + burn_backend::ElementOrdered + bytemuck::Pod
+    // {
+    // }
 
     impl<E: bytemuck::Pod + num_traits::Float + burn_backend::ElementOrdered> ExpElement
         for Complex<E>
