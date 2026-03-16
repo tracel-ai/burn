@@ -561,7 +561,7 @@ mod require_grad {
         for i in 1..num_devices {
             let device = devices[i].clone();
             let module_thread = module.clone();
-            let s = Some(senders[i].clone());
+            let s = Some(senders[i - 1].clone());
             join_handles.push(std::thread::spawn(move || {
                 run_peer_sharded(
                     &module_thread,
