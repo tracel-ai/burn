@@ -34,7 +34,7 @@ impl<B: Backend> ModuleBasic<B> {
                 std: 1.0,
                 mean: 0.0,
             }
-            .init([200, 200], device),
+            .init([20, 1], device),
         }
     }
 }
@@ -634,7 +634,7 @@ mod require_grad {
                 println!("device {} sent!", id.0);
             } else {
                 let data = grads_x.unwrap().to_data();
-                for r in recvs.iter().as_ref() {
+                for (i, r) in recvs.iter().as_ref().iter().enumerate() {
                     let t = r.recv().unwrap();
                     if t == data {
                         println!("tensors are the same {i} : {:?}", t.to_vec::<f32>());
