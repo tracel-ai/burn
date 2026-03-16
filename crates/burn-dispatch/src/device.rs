@@ -91,6 +91,7 @@ impl core::ops::Deref for AutodiffDevice {
 #[allow(missing_docs)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 /// Checkpointing strategy for autodiff.
+#[repr(u8)]
 pub enum CheckpointingStrategy {
     Balanced,
     #[default]
@@ -102,10 +103,9 @@ pub(crate) fn validate_checkpointing(
     lhs: crate::CheckpointingStrategy,
     rhs: crate::CheckpointingStrategy,
 ) -> crate::CheckpointingStrategy {
-    // TODO: debug assert?
     assert_eq!(
         lhs, rhs,
-        "Autodiff should have the same checkpointing strategy"
+        "Autodiff strategy mismatch: {lhs:?} vs {rhs:?}. Tensors in the same operation must share a strategy."
     );
     lhs
 }
