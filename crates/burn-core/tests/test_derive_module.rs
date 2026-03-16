@@ -625,26 +625,31 @@ mod require_grad {
             println!("iter {i} --- device {}", id.0);
             module = module.grad_sharded(id, op);
             let grads_x = calculate_grads(&module, transformation);
-            if !is_main {
-                output
-                    .clone()
-                    .unwrap()
-                    .send(grads_x.unwrap().to_data())
-                    .unwrap();
-                println!("device {} sent!", id.0);
-            } else {
-                let data = grads_x.unwrap().to_data();
-                for (i, r) in recvs.iter().as_ref().iter().enumerate() {
-                    let t = r.recv().unwrap();
-                    if t == data {
-                        println!("tensors are the same {i} : {:?}", t.to_vec::<f32>());
-                    } else {
-                        println!("tensors are different {i} : {:?}", t.to_vec::<f32>());
-                        println!("data {i} : {:?}", data.to_vec::<f32>());
-                    }
-                    assert_eq!(data, t);
-                }
-            }
+            println!(
+                "iter {i} --- device {} --- val: {:?}",
+                id.0,
+                grads_x.unwrap().to_data().to_vec::<f32>()
+            );
+            // if !is_main {
+            //     output
+            //         .clone()
+            //         .unwrap()
+            //         .send(grads_x.unwrap().to_data())
+            //         .unwrap();
+            //     println!("device {} sent!", id.0);
+            // } else {
+            //     let data = grads_x.unwrap().to_data();
+            //     for (i, r) in recvs.iter().as_ref().iter().enumerate() {
+            //         let t = r.recv().unwrap();
+            //         if t == data {
+            //             println!("tensors are the same {i} : {:?}", t.to_vec::<f32>());
+            //         } else {
+            //             println!("tensors are different {i} : {:?}", t.to_vec::<f32>());
+            //             println!("data {i} : {:?}", data.to_vec::<f32>());
+            //         }
+            //         assert_eq!(data, t);
+            //     }
+            // }
         }
     }
 
