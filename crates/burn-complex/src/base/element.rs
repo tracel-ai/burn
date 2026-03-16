@@ -31,7 +31,7 @@ mod ndarray {
 
 #[cfg(feature = "tch")]
 mod tch {
-    use super::Complex;
+    use super::ComplexTensorType;
     use tch::kind::Element as TchElement;
     impl<E: TchElement> TchElement for Complex<E> {}
 }
@@ -43,8 +43,8 @@ pub trait ToComplex<C> {
 
 use paste::paste;
 
-use crate::base::Complex as ComplexTensor;
 use crate::base::ComplexTensorOps;
+use crate::base::ComplexTensorType as ComplexTensor;
 pub trait ToComplexElement: ToElement {
     fn to_complex32(&self) -> Complex<f32>;
     fn to_complex64(&self) -> Complex<f64>;
@@ -466,6 +466,17 @@ where
     }
 }
 
+impl<E: Element + ElementComparison + bytemuck::Pod> Element for Complex<E> {
+    #[inline(always)]
+    fn dtype() -> burn_std::DType {
+        match E::dtype() {
+            DType::F32 => DType::Complex32,
+            DType::F64 => DType::Complex64,
+            _ => panic!("Unsupported element type for Complex. Only f32 and f64 are supported."),
+        }
+    }
+}
+
 impl<E> Complex<E>
 where
     E: num_traits::identities::Zero,
@@ -537,11 +548,7 @@ macro_rules! make_complex {
                 }
             }
         }
-        impl Element for Complex<$inner> {
-            fn dtype() -> DType {
-                $dtype
-            }
-        }
+
     };
 }
 
@@ -571,6 +578,16 @@ macro_rules! to_complex {
             #[inline]
             fn to_complex(&self) -> Complex<f64> {
                 Complex::<f64>::new(*self as f64, 0.0)
+            }
+        }
+        impl ToComplexElement for $type {
+            #[inline]
+            fn to_complex32(&self) -> Complex<f32> {
+                self.to_complex()
+            }
+            #[inline]
+            fn to_complex64(&self) -> Complex<f64> {
+                self.to_complex()
             }
         }
     };

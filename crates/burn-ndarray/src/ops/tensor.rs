@@ -389,9 +389,30 @@ where
 
     fn float_argmin(tensor: FloatTensor<Self>, dim: usize) -> NdArrayTensor {
         // Use view() for zero-copy on borrowed storage
-        execute_with_float_dtype!(tensor, FloatElem, |array: SharedArray<FloatElem>| {
-            NdArrayMathOps::argmin_view::<I>(array.view(), dim)
-        })
+        {
+            {
+                match tensor {
+                    crate::NdArrayTensor::F64(storage) => {
+                        #[allow(unused)]
+                        type FloatElem = f64;
+                        (|array: SharedArray<FloatElem>| {
+                            NdArrayMathOps::argmin_view::<I>(array.view(), dim)
+                        })(storage.into_shared())
+                        .into()
+                    }
+                    crate::NdArrayTensor::F32(storage) => {
+                        #[allow(unused)]
+                        type FloatElem = f32;
+                        (|array: SharedArray<FloatElem>| {
+                            NdArrayMathOps::argmin_view::<I>(array.view(), dim)
+                        })(storage.into_shared())
+                        .into()
+                    }
+                    #[allow(unreachable_patterns)]
+                    other => unimplemented!("unsupported dtype: {:?}", other.dtype()),
+                }
+            }
+        }
     }
 
     fn float_exp(tensor: FloatTensor<Self>) -> FloatTensor<Self> {

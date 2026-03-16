@@ -152,7 +152,7 @@ impl_from!(
 #[macro_export]
 macro_rules! execute_with_dtype {
     // 1. Binary op with explicit list
-    (($lhs:expr, $rhs:expr), $element:ident, $op:expr, [$( $(#[$meta:meta])* $dtype:ident => $ty:ty ),*]) => {{
+    (($lhs:expr, $rhs:expr), $element:ident, $op:expr, [$( $(#[$meta:meta])* $dtype:ident => $ty:ty ),* $(,)?]) => {{
         let lhs_dtype = burn_backend::TensorMetadata::dtype(&$lhs);
         let rhs_dtype = burn_backend::TensorMetadata::dtype(&$rhs);
         match ($lhs, $rhs) {
@@ -185,14 +185,14 @@ macro_rules! execute_with_dtype {
             U64 => u64, U32 => u32, U16 => u16, U8 => u8,
             Bool => bool,
             #[cfg(feature = "complex")]
-            Complex32 => burn_complex::base::element::Complex32,
+            Complex32 => burn_complex::base::element::Complex<f32>,
             #[cfg(feature = "complex")]
-            Complex64 => burn_complex::base::element::Complex64
+            Complex64 => burn_complex::base::element::Complex<f64>,
         ])
     }};
 
     // 4. Unary op with explicit list
-    ($tensor:expr, $element:ident, $op:expr, [$( $(#[$meta:meta])* $dtype:ident => $ty:ty ),*]) => {{
+    ($tensor:expr, $element:ident, $op:expr, [$( $(#[$meta:meta])* $dtype:ident => $ty:ty ),* $(,)?]) => {{
         match $tensor {
             $(
                 $(#[$meta])*
@@ -223,7 +223,7 @@ macro_rules! execute_with_dtype {
             #[cfg(feature = "complex")]
             Complex32 => burn_complex::base::element::Complex<f32>,
             #[cfg(feature = "complex")]
-            Complex64 => burn_complex::base::element::Complex<f64>
+            Complex64 => burn_complex::base::element::Complex<f64>,
         ])
     }};
 }
@@ -453,34 +453,6 @@ impl ShapeOps for &[usize] {
 }
 
 mod utils {
-    // For borrowed data, we assume it's contiguous (it came from TensorData which is contiguous)
-    // For owned data, we check the strides
-    macro_rules! check_contiguous {
-        ($($variant:ident),*) => {
-            match self {
-                $(NdArrayTensor::$variant(storage) => {
-                    match storage {
-                        NdArrayStorage::Borrowed { .. } => {
-                            // Borrowed storage requires contiguous row-major data
-                            // (see NdArrayStorage::from_borrowed documentation)
-                            true
-                        }
-                        NdArrayStorage::Owned(array) => {
-                            let shape = array.shape();
-                            let mut strides = Vec::with_capacity(array.strides().len());
-                            for &stride in array.strides() {
-                                if stride <= 0 {
-                                    return false;
-                                }
-                                strides.push(stride as usize);
-                            }
-                            is_contiguous(shape, &strides)
-                        }
-                    }
-                })*
-            }
-        };
-    }
     use burn_std::tensor::is_contiguous;
 
     use super::*;
@@ -524,7 +496,7 @@ mod utils {
             // For borrowed data, we assume it's contiguous (it came from TensorData which is contiguous)
             // For owned data, we check the strides
             macro_rules! check_contiguous {
-                ($( $(#[$meta:meta])* $variant:ident ),*) => {
+                ($( $(#[$meta:meta])* $variant:ident ),* $(,)?) => {
                     match self {
                         $(
                             $(#[$meta])*

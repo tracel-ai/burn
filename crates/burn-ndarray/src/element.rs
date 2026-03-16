@@ -1,4 +1,4 @@
-use burn_backend::Element;
+use burn_backend::{Element, ElementComparison};
 
 use num_traits::Signed;
 
@@ -12,7 +12,12 @@ use libm::{log1p, log1pf};
 
 /// A float element for ndarray backend.
 pub trait FloatNdArrayElement:
-    NdArrayElement + Signed + core::cmp::PartialOrd<Self> + ExpElement
+    NdArrayElement
+    + Signed
+    + core::cmp::PartialOrd<Self>
+    + ExpElement
+    + ElementComparison
+    + bytemuck::Pod
 where
     Self: Sized,
 {
@@ -72,8 +77,6 @@ impl AddAssignElement for bool {
         *self = *self || rhs; // logical OR for bool
     }
 }
-
-///Mother fucker
 
 /// A quantized element for the ndarray backend.
 pub trait QuantElement: NdArrayElement {}

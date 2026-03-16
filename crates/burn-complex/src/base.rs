@@ -853,10 +853,10 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
 
 /// A type-level representation of the kind of a complex tensor.
 #[derive(Clone, Debug)]
-pub struct Complex;
+pub struct ComplexTensorType;
 
 #[allow(unused_variables)]
-impl<B: ComplexTensorBackend> BasicOps<B> for Complex {
+impl<B: ComplexTensorBackend> BasicOps<B> for ComplexTensorType {
     type Elem = B::ComplexElem;
 
     fn empty(shape: Shape, device: &B::Device, dtype: DType) -> Self::Primitive {
@@ -1062,7 +1062,7 @@ impl<B: ComplexTensorBackend> BasicOps<B> for Complex {
 }
 
 #[allow(unused_variables)]
-impl<B: ComplexTensorBackend> Numeric<B> for Complex
+impl<B: ComplexTensorBackend> Numeric<B> for ComplexTensorType
 where
     B::ComplexElem: Element,
 {
@@ -1304,7 +1304,7 @@ where
 //     }
 // }
 
-impl<B: ComplexTensorBackend> TensorKind<B> for Complex {
+impl<B: ComplexTensorBackend> TensorKind<B> for ComplexTensorType {
     type Primitive = B::ComplexTensorPrimitive;
     fn name() -> &'static str {
         "Complex"
