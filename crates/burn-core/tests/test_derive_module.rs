@@ -603,9 +603,10 @@ mod require_grad {
         module: &ModuleBasic<TestAutodiffBackend>,
         id: PeerId,
         op: ReduceOperation,
-        output: Option<
-            Sender<Option<Tensor<<TestAutodiffBackend as AutodiffBackend>::InnerBackend, 2>>>,
-        >,
+        // output: Option<
+        //     Sender<Option<Tensor<<TestAutodiffBackend as AutodiffBackend>::InnerBackend, 2>>>,
+        // >,
+        output: Option<Sender<TensorData>>,
         transformation: fn(
             Tensor<TestAutodiffBackend, 2>,
             Tensor<TestAutodiffBackend, 2>,
@@ -613,22 +614,28 @@ mod require_grad {
         device: <TestAutodiffBackend as Backend>::Device,
         num_iter: usize,
         is_main: bool,
-        recvs: Vec<
-            Receiver<Option<Tensor<<TestAutodiffBackend as AutodiffBackend>::InnerBackend, 2>>>,
-        >,
+        // recvs: Vec<
+        //     Receiver<Option<Tensor<<TestAutodiffBackend as AutodiffBackend>::InnerBackend, 2>>>,
+        // >,
+        recvs: Vec<Receiver<TensorData>>,
     ) {
         let mut module = module.clone().fork(&device);
 
-        for _ in 0..num_iter {
+        for i in 0..num_iter {
+            println!("iter {i} --- device {}", id.0);
             module = module.grad_sharded(id, op);
             let grads_x = calculate_grads(&module, transformation);
             if !is_main {
-                output.clone().unwrap().send(grads_x).unwrap();
+                output
+                    .clone()
+                    .unwrap()
+                    .send(grads_x.unwrap().to_data())
+                    .unwrap();
             } else {
                 let data = grads_x.unwrap().to_data();
                 for r in recvs.iter().as_ref() {
-                    let t = r.recv().unwrap().unwrap();
-                    assert_eq!(data, t.to_data());
+                    let t = r.recv().unwrap();
+                    assert_eq!(data, t);
                 }
             }
         }
