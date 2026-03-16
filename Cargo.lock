@@ -3328,13 +3328,13 @@ dependencies = [
 
 [[package]]
 name = "fake"
-version = "4.4.0"
+version = "5.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f2b0902eb36fbab51c14eda1c186bda119fcff91e5e4e7fc2dd2077298197ce8"
+checksum = "0878901d85b757a0c16bc7d9946ac0a28c58c75591026b20966ddb13cac83465"
 dependencies = [
  "deunicode",
  "either",
- "rand 0.9.2",
+ "rand 0.10.0",
 ]
 
 [[package]]
