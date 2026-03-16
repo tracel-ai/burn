@@ -631,10 +631,17 @@ mod require_grad {
                     .unwrap()
                     .send(grads_x.unwrap().to_data())
                     .unwrap();
+                println!("device {} sent!", id.0);
             } else {
                 let data = grads_x.unwrap().to_data();
                 for r in recvs.iter().as_ref() {
                     let t = r.recv().unwrap();
+                    if t == data {
+                        println!("tensors are the same {i} : {:?}", t.to_vec::<f32>());
+                    } else {
+                        println!("tensors are different {i} : {:?}", t.to_vec::<f32>());
+                        println!("data {i} : {:?}", data.to_vec::<f32>());
+                    }
                     assert_eq!(data, t);
                 }
             }
