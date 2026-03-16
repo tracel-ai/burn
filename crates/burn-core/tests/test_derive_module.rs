@@ -396,6 +396,8 @@ mod num_params {
 
 #[cfg(feature = "std")]
 mod require_grad {
+    use std::sync::mpsc::Receiver;
+    use std::sync::mpsc::Sender;
     use std::sync::mpsc::SyncSender;
 
     use burn_backend::Device;
@@ -536,40 +538,63 @@ mod require_grad {
         println!("Start test!!!!");
 
         let module = ModuleBasic::<TestAutodiffBackend>::new(&devices[0]);
-        let mut recvs = vec![];
+        let (senders, receivers): (Vec<_>, Vec<_>) =
+            (1..num_devices).map(|_| std::sync::mpsc::channel()).unzip();
         <TestBackend>::start_communication_server(devices.clone());
-        for i in 0..num_devices {
+        let mut join_handles = vec![];
+
+        let module_thread = module.clone();
+        let device = devices[0].clone();
+        join_handles.push(std::thread::spawn(move || {
+            run_peer_sharded(
+                &module_thread,
+                PeerId::from(0),
+                op,
+                None,
+                transformation,
+                device,
+                num_iter,
+                true,
+                receivers,
+            )
+        }));
+        for i in 1..num_devices {
             let device = devices[i].clone();
-            let (send, recv) = std::sync::mpsc::sync_channel(32);
-            recvs.push(recv);
             let module_thread = module.clone();
-            std::thread::spawn(move || {
+            let s = Some(senders[i].clone());
+            join_handles.push(std::thread::spawn(move || {
                 run_peer_sharded(
                     &module_thread,
                     PeerId::from(i),
                     op,
-                    send,
+                    s,
                     transformation,
                     device,
                     num_iter,
+                    false,
+                    vec![],
                 )
-            });
+            }));
         }
 
         println!("launched all threads ");
 
-        for _ in 0..num_iter {
-            let grad_x1 = recvs[0].recv().unwrap();
-            for i in 1..num_devices {
-                let new_tensor = &recvs[i].recv().unwrap().unwrap().to_data();
-                println!("new tensor {new_tensor} ");
-                grad_x1
-                    .clone()
-                    .unwrap()
-                    .to_data()
-                    .assert_eq(new_tensor, true);
-            }
+        for h in join_handles {
+            h.join().unwrap();
         }
+
+        // for _ in 0..num_iter {
+        //     let grad_x1 = recvs[0].recv().unwrap();
+        //     for i in 1..num_devices {
+        //         let new_tensor = &recvs[i].recv().unwrap().unwrap().to_data();
+        //         println!("new tensor {new_tensor} ");
+        //         grad_x1
+        //             .clone()
+        //             .unwrap()
+        //             .to_data()
+        //             .assert_eq(new_tensor, true);
+        //     }
+        // }
 
         <TestBackend>::close_communication_server(&devices[0]);
     }
@@ -578,8 +603,8 @@ mod require_grad {
         module: &ModuleBasic<TestAutodiffBackend>,
         id: PeerId,
         op: ReduceOperation,
-        output: SyncSender<
-            Option<Tensor<<TestAutodiffBackend as AutodiffBackend>::InnerBackend, 2>>,
+        output: Option<
+            Sender<Option<Tensor<<TestAutodiffBackend as AutodiffBackend>::InnerBackend, 2>>>,
         >,
         transformation: fn(
             Tensor<TestAutodiffBackend, 2>,
@@ -587,13 +612,25 @@ mod require_grad {
         ) -> Tensor<TestAutodiffBackend, 2>,
         device: <TestAutodiffBackend as Backend>::Device,
         num_iter: usize,
+        is_main: bool,
+        recvs: Vec<
+            Receiver<Option<Tensor<<TestAutodiffBackend as AutodiffBackend>::InnerBackend, 2>>>,
+        >,
     ) {
         let mut module = module.clone().fork(&device);
 
         for _ in 0..num_iter {
             module = module.grad_sharded(id, op);
             let grads_x = calculate_grads(&module, transformation);
-            output.send(grads_x).unwrap();
+            if !is_main {
+                output.clone().unwrap().send(grads_x).unwrap();
+            } else {
+                let data = grads_x.unwrap().to_data();
+                for r in recvs.iter().as_ref() {
+                    let t = r.recv().unwrap().unwrap();
+                    assert_eq!(data, t.to_data());
+                }
+            }
         }
     }
 
