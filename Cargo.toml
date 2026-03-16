@@ -114,7 +114,7 @@ tracing = { version = "0.1.44", default-features = false }
 tracing-appender = "0.2.3"
 tracing-core = { version = "0.1.36", default-features = false }
 tracing-opentelemetry = "0.32.0"
-tracing-subscriber = "0.3.20"
+tracing-subscriber = "0.3.23"
 zip = "8.2.0"
 
 # Persist related
