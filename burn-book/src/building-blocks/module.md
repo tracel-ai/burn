@@ -338,4 +338,5 @@ Configuration is done via `Interpolate1dConfig` / `Interpolate2dConfig` with the
 | `LpLoss`                 | _No direct equivalent_   |
 | `MseLoss`                | `nn.MSELoss`             |
 | `PoissonNllLoss`         | `nn.PoissonNLLLoss`      |
+| `RNNTLoss`               | `torchaudio.functional.rnnt_loss` |
 | `SmoothL1Loss`           | `nn.SmoothL1Loss`        |
