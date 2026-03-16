@@ -1,4 +1,7 @@
-use burn_backend::{Backend, Element, tensor::Device};
+use burn_backend::{
+    Backend, Element,
+    tensor::{BasicOps, Device},
+};
 use burn_std::DType;
 
 use crate::get_device_policy;
@@ -71,15 +74,19 @@ impl<B: Backend> TensorCreationOptions<B> {
     }
 
     /// Returns the tensor data type, or the default from the [device policy](crate::set_default_dtypes).
-    pub(crate) fn resolve_policy(&self, dtype: DType) -> DType {
-        // TODO: should rely on tensor kind, not element dtype
+    pub(crate) fn resolve_policy<K: BasicOps<B>>(&self) -> DType {
+        let dtype = K::Elem::dtype();
+        let kind_name = K::name();
+        // TODO: tensor kind enum?
         self.dtype.unwrap_or_else(|| {
             let policy = get_device_policy(&self.device);
             if dtype.is_float()
+                && kind_name == "Float"
                 && let Some(float_dtype) = policy.float_dtype()
             {
                 float_dtype.into()
             } else if (dtype.is_int() || dtype.is_uint())
+                && kind_name == "Int"
                 && let Some(int_dtype) = policy.int_dtype()
             {
                 int_dtype.into()

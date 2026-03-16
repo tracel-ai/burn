@@ -740,6 +740,7 @@ macro_rules! binary_float_arms {
                             })
                         }
                         $crate::DispatchTensorKind::Autodiff(..) => panic!("Autodiff should not wrap an autodiff tensor."),
+                        #[allow(unreachable_patterns)]
                         _ => panic!("The provided tensors are not on the same backend.")
                     }
                 },
@@ -816,6 +817,7 @@ macro_rules! binary_float_arms {
             )*
             #[cfg(feature = "autodiff")]
             ($crate::DispatchTensorKind::Autodiff(..), _) | (_, $crate::DispatchTensorKind::Autodiff(..))  => panic!("Autodiff should not wrap an autodiff tensor."),
+            #[allow(unreachable_patterns)]
             (lhs, rhs) => {
                 panic!(
                     "The provided tensors are not on the same backend. Got backends {:?} and {:?}.", lhs, rhs
@@ -936,6 +938,7 @@ macro_rules! multi_op_arm_autodiff {
                     },
                     // Unreachable, except when input is int
                     $crate::DispatchTensorKind::$Backend(inner) => wrap_input_autodiff!($Backend, inner, $x_kind),
+                    #[allow(unreachable_patterns)]
                     _ => panic!("Input tensor {} is on the wrong device", stringify!($x)),
                 };
             )+
