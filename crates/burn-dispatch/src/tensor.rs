@@ -159,10 +159,11 @@ impl<B: Backend> QTensorPrimitive for BackendTensor<B> {
     }
 }
 
-/// Dispatch tensor that can hold tensors from any enabled backend.
+/// A tensor that can dispatch operations to any enabled backend at runtime.
 ///
-/// This enum wraps backend-specific tensor types, allowing runtime selection
-/// of the backend to execute operations on.
+/// When the `autodiff` feature is enabled, tensors may carry a checkpointing
+/// strategy used to control gradient computation. This is derived from the
+/// device used to create the tensor.
 #[derive(Clone, Debug)]
 pub struct DispatchTensor {
     /// Tensor kind primitive.
@@ -172,10 +173,13 @@ pub struct DispatchTensor {
     pub(crate) checkpointing: CheckpointingStrategy,
 }
 
-/// Dispatch tensor that can hold tensors from any enabled backend.
+/// Internal representation of a [`DispatchTensor`].
 ///
-/// This enum wraps backend-specific tensor types, allowing runtime selection
-/// of the backend to execute operations on.
+/// This enum contains the concrete backend tensor for each enabled backend.
+/// It is not intended to be used directly; instead, it is manipulated by
+/// the dispatch system to route operations to the correct backend.
+///
+/// Each variant corresponds to a specific backend implementation.
 #[derive(Clone, Debug)]
 pub enum DispatchTensorKind {
     /// The [CPU backend](Cpu) tensor.
