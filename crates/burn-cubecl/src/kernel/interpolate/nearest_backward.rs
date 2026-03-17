@@ -1,8 +1,11 @@
-use cubecl::std::{
-    FastDivmod,
-    tensor::layout::{linear::LinearLayout, *},
-};
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
+use cubecl::{
+    num_traits::Zero,
+    std::{
+        FastDivmod,
+        tensor::layout::{linear::LinearLayout, *},
+    },
+};
 
 use crate::{
     CubeRuntime,
@@ -42,7 +45,7 @@ fn interpolate_nearest_backward_kernel<F: Float, N: Size>(
 
     let index_grad_base = b * grad.stride(0) + c * grad.stride(3);
 
-    let mut sum = Vector::new(F::new(0.0));
+    let mut sum = Vector::zero();
 
     for grad_y in grad_y_start..grad_y_end {
         for grad_x in grad_x_start..grad_x_end {

@@ -1,12 +1,12 @@
 //! This module declares input-output primitives to read and write values during kernel expansion.
 use crate::engine::codegen::{DynElem, DynSize};
 
-use super::{DYN_ELEM_ID, ir::*, tensor::GlobalTensor};
+use super::{ir::*, tensor::GlobalTensor};
 use burn_std::quantization::QuantScheme;
 use cubecl::quant::scheme::QuantLevel;
 use cubecl::{
     intrinsic,
-    ir::{ExpandElement, Variable},
+    ir::{ManagedVariable, Variable},
     prelude::*,
     std::{FastDivmod, tensor::View},
 };
@@ -291,7 +291,7 @@ pub fn input_as_scales_view<C: Scalar, N: Size>(
     #[comptime] level: QuantLevel,
     #[comptime] config: &FuseBlockConfig,
 ) -> View<C, usize> {
-    set_polyfill_typed::<Vector<C, N>, NumericExpand<DYN_ELEM_ID>, DynSize>();
+    set_polyfill_typed::<Vector<C, N>, DynElem, DynSize>();
     let tensor = inputs.tensors.index(tensor_pos);
     let scales = inputs.tensors.index(pos);
     let tensor_len = tensor.tensor.len();
@@ -791,7 +791,7 @@ pub(crate) fn reverse_index(
 #[cube]
 fn from_const_int<C: CubePrimitive>(#[comptime] value: usize) -> C {
     intrinsic!(|scope| {
-        ExpandElement::Plain(Variable::constant(value.into(), C::as_type(scope))).into()
+        ManagedVariable::Plain(Variable::constant(value.into(), C::as_type(scope))).into()
     })
 }
 

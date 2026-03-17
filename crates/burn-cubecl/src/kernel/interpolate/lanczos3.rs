@@ -1,8 +1,11 @@
-use cubecl::std::{
-    FastDivmod,
-    tensor::layout::{linear::LinearLayout, *},
-};
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
+use cubecl::{
+    num_traits::Zero,
+    std::{
+        FastDivmod,
+        tensor::layout::{linear::LinearLayout, *},
+    },
+};
 
 use crate::{
     CubeRuntime,
@@ -61,8 +64,7 @@ fn interpolate_lanczos3_kernel<F: Float, N: Size>(
     let in_stride_y = input.stride(1);
     let in_stride_x = input.stride(2);
 
-    let zero = Vector::new(F::new(0.0));
-    let mut result = zero;
+    let mut result = Vector::zero();
     let mut weight_sum = 0.0f32;
 
     // 6-tap separable Lanczos3 filter: ky in -2..=3, kx in -2..=3
