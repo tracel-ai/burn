@@ -149,23 +149,23 @@ impl<R: CubeRuntime, BT: BoolElement> FusionRuntime for FusionCubeRuntime<R, BT>
 
     fn fusers(device: R::Device) -> Vec<Box<dyn burn_fusion::OperationFuser<Self::Optimization>>> {
         vec![
-            // Box::new(ElementWiseFuser::new(
-            //     device.clone(),
-            //     BT::as_type_native_unchecked().storage_type().into(),
-            // )),
-            // Box::new(MatmulFuser::new(
-            //     device.clone(),
-            //     BT::as_type_native_unchecked().storage_type().into(),
-            // )),
-            // Box::new(ReduceFuser::new(
-            //     device.clone(),
-            //     BT::as_type_native_unchecked().storage_type().into(),
-            //     ReduceSettings::Always,
-            // )),
-            // Box::new(ReduceBroadcastedFuser::new(
-            //     device.clone(),
-            //     BT::as_type_native_unchecked().storage_type().into(),
-            // )),
+            Box::new(ElementWiseFuser::new(
+                device.clone(),
+                BT::as_type_native_unchecked().storage_type().into(),
+            )),
+            Box::new(MatmulFuser::new(
+                device.clone(),
+                BT::as_type_native_unchecked().storage_type().into(),
+            )),
+            Box::new(ReduceFuser::new(
+                device.clone(),
+                BT::as_type_native_unchecked().storage_type().into(),
+                ReduceSettings::Always,
+            )),
+            Box::new(ReduceBroadcastedFuser::new(
+                device.clone(),
+                BT::as_type_native_unchecked().storage_type().into(),
+            )),
         ]
     }
 }

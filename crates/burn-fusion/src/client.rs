@@ -85,7 +85,6 @@ where
             .collect();
 
         self.server.submit(move |server| {
-            // std::println!("Operation alloc {} bytes", size_of::<O>());
             server.register(streams, repr, operation);
         });
 
