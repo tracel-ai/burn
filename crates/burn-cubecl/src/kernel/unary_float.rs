@@ -94,6 +94,8 @@ where
 /// Use comptime enum to implement all unary operations that don't have any input argument in the
 /// kernel definition.
 pub(crate) mod unary_basic {
+    use cubecl::num_traits::{One, Zero};
+
     use super::*;
 
     pub(crate) fn launch<R, Args>(tensor: CubeTensor<R>, args: Args) -> CubeTensor<R>
@@ -153,8 +155,8 @@ pub(crate) mod unary_basic {
                 BasicFloatUnaryKind::Sqrt => Vector::sqrt(input),
                 BasicFloatUnaryKind::Abs => Vector::abs(input),
                 BasicFloatUnaryKind::Sign => {
-                    let zero = Vector::new(F::new(0.0));
-                    let one = Vector::new(F::new(1.0));
+                    let zero = Vector::zero();
+                    let one = Vector::one();
                     let minus_one = Vector::new(F::new(-1.0));
 
                     let is_positive = input.greater_than(zero);

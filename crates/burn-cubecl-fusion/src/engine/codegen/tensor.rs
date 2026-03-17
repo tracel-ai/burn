@@ -1,6 +1,5 @@
-use crate::engine::codegen::DynSize;
+use crate::engine::codegen::{DynElem, DynSize};
 
-use super::DYN_ELEM_ID;
 use cubecl::{ir::Type, prelude::*};
 use serde::{Deserialize, Serialize};
 use std::hash::Hash;
@@ -14,7 +13,7 @@ use std::hash::Hash;
 #[derive(CubeType, Clone)]
 pub struct GlobalTensor {
     /// The global tensor type.
-    pub tensor: Tensor<Vector<NumericExpand<DYN_ELEM_ID>, DynSize>>,
+    pub tensor: Tensor<Vector<DynElem, DynSize>>,
     /// The element type of the tensor.
     #[cube(comptime)]
     pub ty: Type,
@@ -34,7 +33,7 @@ pub struct GlobalTensorCompilationArg {
 
 #[derive(new, Debug)]
 pub struct GlobalTensorArg<R: Runtime> {
-    pub tensor: <Tensor<Vector<NumericExpand<DYN_ELEM_ID>, DynSize>> as LaunchArg>::RuntimeArg<R>,
+    pub tensor: <Tensor<Vector<DynElem, DynSize>> as LaunchArg>::RuntimeArg<R>,
     pub ty: Type,
     pub broadcasted: bool,
     pub address_type: AddressType,
@@ -46,9 +45,7 @@ impl LaunchArg for GlobalTensor {
 
     fn compilation_arg<R: Runtime>(runtime_arg: &Self::RuntimeArg<R>) -> Self::CompilationArg {
         let tensor =
-            <Tensor<Vector<NumericExpand<DYN_ELEM_ID>, DynSize>> as LaunchArg>::compilation_arg(
-                &runtime_arg.tensor,
-            );
+            <Tensor<Vector<DynElem, DynSize>> as LaunchArg>::compilation_arg(&runtime_arg.tensor);
         GlobalTensorCompilationArg {
             tensor,
             ty: runtime_arg.ty,

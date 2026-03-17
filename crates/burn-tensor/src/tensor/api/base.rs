@@ -161,7 +161,7 @@ where
     pub fn empty<S: Into<Shape>>(shape: S, options: impl Into<TensorCreationOptions<B>>) -> Self {
         let opt = options.into();
         let shape = shape.into();
-        let dtype = opt.resolve_policy(K::Elem::dtype());
+        let dtype = opt.resolve_policy::<K>();
         check!(TensorCheck::creation_ops::<D>("Empty", &shape));
         Self::new(K::empty(shape, &opt.device, dtype))
     }
@@ -184,7 +184,7 @@ where
     pub fn zeros<S: Into<Shape>>(shape: S, options: impl Into<TensorCreationOptions<B>>) -> Self {
         let opt = options.into();
         let shape = shape.into();
-        let dtype = opt.resolve_policy(K::Elem::dtype());
+        let dtype = opt.resolve_policy::<K>();
         check!(TensorCheck::creation_ops::<D>("Zeros", &shape));
         Self::new(K::zeros(shape, &opt.device, dtype))
     }
@@ -227,7 +227,7 @@ where
     pub fn ones<S: Into<Shape>>(shape: S, options: impl Into<TensorCreationOptions<B>>) -> Self {
         let opt = options.into();
         let shape = shape.into();
-        let dtype = opt.resolve_policy(K::Elem::dtype());
+        let dtype = opt.resolve_policy::<K>();
         check!(TensorCheck::creation_ops::<D>("Ones", &shape));
         Self::new(K::ones(shape, &opt.device, dtype))
     }
@@ -274,7 +274,7 @@ where
     ) -> Self {
         let opt = options.into();
         let shape = shape.into();
-        let dtype = opt.resolve_policy(K::Elem::dtype());
+        let dtype = opt.resolve_policy::<K>();
         check!(TensorCheck::creation_ops::<D>("Full", &shape));
         Self::new(K::full(
             shape,
