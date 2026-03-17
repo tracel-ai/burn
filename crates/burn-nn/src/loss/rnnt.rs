@@ -493,6 +493,7 @@ mod tests {
 /// Logits are generated deterministically via sin((b*11+t*7+u*13+v*3)*0.1) so the same
 /// values can be reproduced in a Python script for cross-checking.
 #[cfg(test)]
+#[allow(clippy::identity_op, clippy::too_many_arguments)]
 mod pytorch_comparison_tests {
     use super::*;
     use burn::tensor::{TensorData, Tolerance};
