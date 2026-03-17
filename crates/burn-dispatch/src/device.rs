@@ -62,15 +62,52 @@ pub enum DispatchDevice {
 ///
 /// Use [`DispatchDevice::autodiff`] to construct this type.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AutodiffDevice(pub(crate) Box<DispatchDevice>);
+pub struct AutodiffDevice {
+    pub(crate) inner: Box<DispatchDevice>,
+    pub(crate) checkpointing: CheckpointingStrategy,
+}
 
+#[cfg(feature = "autodiff")]
+impl AutodiffDevice {
+    pub(crate) fn new(device: DispatchDevice, checkpointing: CheckpointingStrategy) -> Self {
+        Self {
+            inner: Box::new(device),
+            checkpointing,
+        }
+    }
+}
+
+#[cfg(feature = "autodiff")]
 // Useful for match in dispatch macros
 impl core::ops::Deref for AutodiffDevice {
     type Target = DispatchDevice;
 
     fn deref(&self) -> &Self::Target {
-        &self.0
+        &self.inner
     }
+}
+
+#[cfg(feature = "autodiff")]
+#[allow(missing_docs)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+/// Checkpointing strategy for autodiff.
+#[repr(u8)]
+pub enum CheckpointingStrategy {
+    Balanced,
+    #[default]
+    None,
+}
+
+#[cfg(feature = "autodiff")]
+pub(crate) fn validate_checkpointing(
+    lhs: crate::CheckpointingStrategy,
+    rhs: crate::CheckpointingStrategy,
+) -> crate::CheckpointingStrategy {
+    assert_eq!(
+        lhs, rhs,
+        "Autodiff strategy mismatch: {lhs:?} vs {rhs:?}. Tensors in the same operation must share a strategy."
+    );
+    lhs
 }
 
 impl core::fmt::Debug for DispatchDevice {
@@ -94,7 +131,7 @@ impl core::fmt::Debug for DispatchDevice {
             Self::LibTorch(device) => f.debug_tuple("LibTorch").field(device).finish(),
             #[cfg(feature = "autodiff")]
             // Format without `AutodiffDevice` wrapper
-            Self::Autodiff(device) => f.debug_tuple("Autodiff").field(&device.0).finish(),
+            Self::Autodiff(device) => f.debug_tuple("Autodiff").field(&device.inner).finish(),
         }
     }
 }
@@ -138,9 +175,9 @@ impl PartialEq for DispatchDevice {
             (DispatchDevice::Autodiff(a), DispatchDevice::Autodiff(b)) => a == b,
             // If one is Autodiff, compare it to the raw device
             #[cfg(feature = "autodiff")]
-            (DispatchDevice::Autodiff(a), b) => a.0.as_ref() == b,
+            (DispatchDevice::Autodiff(a), b) => a.inner.as_ref() == b,
             #[cfg(feature = "autodiff")]
-            (a, DispatchDevice::Autodiff(b)) => a == b.0.as_ref(),
+            (a, DispatchDevice::Autodiff(b)) => a == b.inner.as_ref(),
             #[cfg(feature = "cpu")]
             (Self::Cpu(a), Self::Cpu(b)) => a == b,
             #[cfg(feature = "cuda")]
@@ -170,10 +207,17 @@ const TYPE_ID_BASE: u16 = 10;
 impl DispatchDevice {
     #[cfg(feature = "autodiff")]
     /// Creates a new [`DispatchDevice`] with [automatic differentiation](Autodiff) enabled.
-    #[cfg(feature = "autodiff")]
     pub fn autodiff(device: impl Into<DispatchDevice>) -> DispatchDevice {
+        Self::autodiff_checkpointed(device, CheckpointingStrategy::None)
+    }
+    #[cfg(feature = "autodiff")]
+    /// Creates a new [`DispatchDevice`] with [automatic differentiation](Autodiff) enabled.
+    pub fn autodiff_checkpointed(
+        device: impl Into<DispatchDevice>,
+        checkpointing: CheckpointingStrategy,
+    ) -> DispatchDevice {
         let device = device.into();
-        DispatchDevice::Autodiff(AutodiffDevice(Box::new(device)))
+        DispatchDevice::Autodiff(AutodiffDevice::new(device, checkpointing))
     }
 
     /// Returns a unique number per variant to encode into type_id.
@@ -196,7 +240,7 @@ impl DispatchDevice {
             #[cfg(feature = "tch")]
             Self::LibTorch(_) => BackendId::LibTorch,
             #[cfg(feature = "autodiff")]
-            Self::Autodiff(device) => device.0.backend_id(),
+            Self::Autodiff(device) => device.inner.backend_id(),
         }
     }
 
@@ -273,7 +317,7 @@ impl DeviceOps for DispatchDevice {
     fn inner(&self) -> &Self {
         match self {
             #[cfg(feature = "autodiff")]
-            DispatchDevice::Autodiff(device) => &device.0,
+            DispatchDevice::Autodiff(device) => &device.inner,
             device => device,
         }
     }
@@ -323,7 +367,7 @@ impl burn_std::device::Device for DispatchDevice {
             #[cfg(feature = "tch")]
             Self::LibTorch(device) => device.to_id(),
             #[cfg(feature = "autodiff")]
-            Self::Autodiff(device) => device.0.to_id(),
+            Self::Autodiff(device) => device.inner.to_id(),
         };
         device_id.type_id = self.encode_type_id(device_id.type_id);
         device_id

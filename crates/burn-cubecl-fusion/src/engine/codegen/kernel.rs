@@ -1,4 +1,4 @@
-use super::{DYN_ELEM_ID, io::*, ir::*};
+use super::{io::*, ir::*};
 use burn_std::quantization::{QuantScheme, QuantStore, QuantValue};
 use cubecl::{
     ir::{ElemType, FloatKind, StorageType, UIntKind},
@@ -238,8 +238,6 @@ fn fuse(
     pos: usize,
     #[comptime] config: &FuseBlockConfig,
 ) {
-    type E = NumericExpand<DYN_ELEM_ID>;
-
     #[unroll]
     for index in 0..config.ops.len() {
         let op = config.ops[index].clone();
