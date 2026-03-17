@@ -2154,6 +2154,7 @@ dependencies = [
  "serde_json",
  "spin",
  "tracing",
+ "tynm",
  "wasm-bindgen-futures",
  "web-time",
  "xxhash-rust",
@@ -2292,7 +2293,6 @@ dependencies = [
  "cubecl-common",
  "darling 0.23.0",
  "derive-new",
- "foldhash 0.2.0",
  "ident_case",
  "inflections",
  "prettyplease",
@@ -9373,6 +9373,15 @@ dependencies = [
  "sha1",
  "thiserror 2.0.18",
  "utf-8",
+]
+
+[[package]]
+name = "tynm"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a21cdb0fc8f85c98b1ec812bc4cd69faf6c0fa2fc17d44ea3c2cdd38dc08e999"
+dependencies = [
+ "nom 8.0.0",
 ]
 
 [[package]]

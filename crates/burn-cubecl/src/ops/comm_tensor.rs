@@ -25,12 +25,19 @@ where
         unsafe {
             let tensor = &**tensor.0;
             let device = &tensor.device;
+
+            println!(
+                "[{:?}] [{:?}] - all_red native - getting client",
+                std::thread::current().id(),
+                device.to_id()
+            );
+
             let client = R::client(device);
-            let mut all_ids = all_ids.iter().map(|p| p.0).collect::<Vec<u32>>();
-            all_ids.sort();
+            // let mut all_ids = all_ids.iter().map(|p| p.0).collect::<Vec<u32>>();
+            // all_ids.sort();
             let all_ids = all_ids
                 .iter()
-                .map(|val| DeviceId::new(device.id().type_id, *val))
+                .map(|val| DeviceId::new(device.id().type_id, *val.0))
                 .collect();
             println!("{all_ids:?}");
             client.all_reduce(
@@ -45,11 +52,13 @@ where
 
     fn collective_sync_native(device: &Device<Self>) {
         println!(
-            "[{:?}] sync native: R::client - {:?}",
+            "[{:?}] [{:?}] - sync native - getting client",
             std::thread::current().id(),
-            device.id()
+            device.to_id()
         );
+
         let client = R::client(&device);
+
         println!(
             "[{:?}] sync native: R::client DONE - {:?}",
             std::thread::current().id(),
