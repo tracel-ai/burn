@@ -1,5 +1,6 @@
 use crate::{
     FusionBackend, FusionDevice, FusionHandle, FusionRuntime, FusionServer, FusionTensor,
+    OperationCall,
     stream::{OperationStreams, StreamId, execution::Operation},
 };
 use burn_backend::{Device, DeviceHandle, DeviceId, DeviceService};
@@ -70,6 +71,8 @@ where
     where
         O: Operation<R> + 'static,
     {
+        let operation = OperationCall::new(operation, streams.current);
+
         // Create output tensors returned by this operation
         let outputs = repr
             .outputs()

@@ -1,5 +1,5 @@
 use crate::{
-    FusionBackend, FusionRuntime,
+    FusionBackend, FusionRuntime, OperationCall,
     stream::{MultiStream, OperationStreams, StreamId, execution::Operation},
 };
 use burn_backend::{TensorData, backend::ExecutionError};
@@ -21,11 +21,11 @@ where
         }
     }
 
-    pub fn register<O: Operation<R> + 'static>(
+    pub fn register(
         &mut self,
         streams: OperationStreams,
         repr: OperationIr,
-        operation: O,
+        operation: OperationCall<R>,
     ) {
         self.streams
             .register(streams, repr, operation, &mut self.handles)
