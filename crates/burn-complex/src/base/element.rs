@@ -50,7 +50,23 @@ pub trait ToComplexElement: ToElement {
     fn to_complex64(&self) -> Complex<f64>;
 }
 
+pub trait ComplexElement: Element {
+    type InnerType: Element;
+    fn real(&self) -> Self::InnerType;
+    fn imag(&self) -> Self::InnerType;
+}
 
+impl<E: Element + ElementComparison + bytemuck::Pod> ComplexElement for Complex<E> {
+    type InnerType = E;
+    #[inline]
+    fn real(&self) -> Self::InnerType {
+        self.real
+    }
+    #[inline]
+    fn imag(&self) -> Self::InnerType {
+        self.imag
+    }
+}
 
 #[derive(Clone, PartialEq)]
 #[repr(C)]
