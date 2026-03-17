@@ -670,6 +670,7 @@ mod require_grad {
         let y = transformation(module.weight_basic.val(), x);
 
         let mut grads = y.backward();
+        TestAutodiffBackend::collective_sync_native(&device);
         module.weight_basic.grad_remove(&mut grads)
     }
 }

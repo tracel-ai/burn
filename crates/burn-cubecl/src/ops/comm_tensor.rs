@@ -1,5 +1,5 @@
 use burn_backend::ops::TensorRef;
-use burn_backend::{DeviceId, DeviceOps};
+use burn_backend::{DeviceId, DeviceOps, StreamId};
 use burn_backend::{ReduceOperation, ops::CommunicationTensorOps, tensor::Device};
 
 use crate::{BoolElement, CubeBackend, CubeRuntime, FloatElement, IntElement};
@@ -64,6 +64,10 @@ where
             std::thread::current().id(),
             device.id()
         );
-        client.sync_collective();
+
+        // let current = StreamId::current();
+        // let old = unsafe { StreamId::swap(current) };
+        // client.sync_collective();
+        // unsafe { StreamId::swap(old) };
     }
 }
