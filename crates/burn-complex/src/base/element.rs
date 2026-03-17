@@ -50,14 +50,16 @@ pub trait ToComplexElement: ToElement {
     fn to_complex64(&self) -> Complex<f64>;
 }
 
-// will attempt after I get ndarray to compile
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+
+#[derive(Debug, Clone, PartialEq)]
 #[repr(C)]
 pub struct Complex<E> {
     pub real: E,
     pub imag: E,
 }
+
+impl<E: Copy> Copy for Complex<E> {}
 
 unsafe impl<E: bytemuck::Zeroable> Zeroable for Complex<E> {}
 

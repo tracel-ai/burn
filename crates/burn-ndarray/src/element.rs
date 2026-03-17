@@ -41,6 +41,8 @@ pub trait NdArrayElement:
 
 /// A element for ndarray backend that supports exp ops.
 pub trait ExpElement {
+    /// The output type of the `abs_elem` method. For most types, this will be the same as `Self`, 
+    /// but for some types (like complex numbers), it may an inner type.
     type AbsOutput: Element;
     /// Exponent
     fn exp_elem(self) -> Self;
