@@ -44,14 +44,15 @@ impl<R: FusionRuntime> MultiStream<R> {
     }
 
     /// Register a new tensor operation.
-    pub(crate) fn register(
+    pub(crate) fn register<O: Operation<R> + 'static>(
         &mut self,
         streams: OperationStreams,
         mut repr: OperationIr,
-        operation: OperationCall<R>,
+        operation: O,
         handles: &mut HandleContainer<R::FusionHandle>,
     ) {
         let id = self.resolve_streams(&streams, handles, &mut repr);
+        let operation = OperationCall::new(operation, id);
 
         let drop_action = match &mut repr {
             OperationIr::Drop(tensor_ir) => Some(self.handle_drop_op(id, tensor_ir)),
@@ -371,7 +372,7 @@ impl<R: FusionRuntime> MultiStream<R> {
                 current,
             };
 
-            let op = OperationCall::new(DropOp { id: tensor.id });
+            let op = DropOp { id: tensor.id };
             self.register(streams, OperationIr::Drop(tensor), op, handles);
         }
     }

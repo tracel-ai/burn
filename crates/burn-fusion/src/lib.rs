@@ -23,6 +23,7 @@ mod ops;
 mod server;
 mod tensor;
 
+pub use op::OperationCall;
 pub(crate) use op::*;
 pub(crate) use server::*;
 

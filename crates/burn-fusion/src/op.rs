@@ -1,3 +1,4 @@
+use burn_backend::StreamId;
 use burn_ir::HandleContainer;
 use std::{
     cell::RefCell,
@@ -66,7 +67,11 @@ impl Arena {
         None
     }
 
-    fn reserve<R: FusionRuntime, O: Operation<R> + 'static>(&mut self, op: O) -> OperationCall<R> {
+    fn reserve<R: FusionRuntime, O: Operation<R> + 'static>(
+        &mut self,
+        op: O,
+        stream_id: StreamId,
+    ) -> OperationCall<R> {
         let data = match size_of::<O>() <= MAX_SIZE {
             true => self.reserve_data(),
             false => None,
@@ -77,6 +82,7 @@ impl Arena {
             None => {
                 return OperationCall {
                     inner: OperationCallInner::Fallback(Arc::new(op)),
+                    stream_id,
                 };
             }
         };
@@ -94,6 +100,7 @@ impl Arena {
                 ptr_execute,
                 ptr_drop,
             }),
+            stream_id,
         }
     }
 }
@@ -176,25 +183,30 @@ enum OperationCallInner<R: FusionRuntime> {
 
 pub struct OperationCall<R: FusionRuntime> {
     inner: OperationCallInner<R>,
+    stream_id: StreamId,
 }
 
 impl<R: FusionRuntime> Clone for OperationCall<R> {
     fn clone(&self) -> Self {
         Self {
             inner: self.inner.clone(),
+            stream_id: self.stream_id.clone(),
         }
     }
 }
 
 impl<R: FusionRuntime> OperationCall<R> {
-    pub fn new<O: Operation<R> + 'static>(op: O) -> Self {
-        ARENA.with_borrow_mut(|arena| arena.reserve(op))
+    pub fn new<O: Operation<R> + 'static>(op: O, stream_id: StreamId) -> Self {
+        ARENA.with_borrow_mut(|arena| arena.reserve(op, stream_id))
     }
+
     pub fn execute(&self, handles: &mut HandleContainer<R::FusionHandle>) {
+        let old = unsafe { StreamId::swap(self.stream_id) };
         match &self.inner {
             OperationCallInner::Managed(o) => o.execute(handles),
             OperationCallInner::Fallback(o) => o.execute(handles),
         }
+        unsafe { StreamId::swap(old) };
     }
 }
 
