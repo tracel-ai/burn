@@ -37,7 +37,7 @@ where
             // all_ids.sort();
             let all_ids = all_ids
                 .iter()
-                .map(|val| DeviceId::new(device.id().type_id, *val.0))
+                .map(|val| DeviceId::new(device.id().type_id, val.0))
                 .collect();
             println!("{all_ids:?}");
             client.all_reduce(
