@@ -17,10 +17,9 @@ where
 {
     type InnerBackend = NdArray<E, I, Q>;
 
-    type ComplexTensorPrimitive = NdArrayTensor;
-    type ComplexElem = Complex<E>;
+    type ComplexScalar = Complex<E>;
 
-    type Layout = InterleavedLayout;
+    type Layout = InterleavedLayout<NdArrayTensor>;
 }
 
 impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement>
@@ -30,7 +29,7 @@ where
     NdArrayTensor: From<SharedArray<Complex<E>>>,
     NdArrayTensor: From<SharedArray<I>>,
 {
-    type Layout = burn_complex::base::InterleavedLayout;
+    
     fn real(tensor: ComplexTensor<Self>) -> NdArrayTensor {
         match tensor {
             crate::NdArrayTensor::Complex32(storage) => {
@@ -112,7 +111,7 @@ where
 
     fn complex_not_equal_elem(
         lhs: ComplexTensor<NdArray<E, I, Q>>,
-        rhs: <NdArray<E, I, Q> as ComplexTensorBackend>::ComplexElem,
+        rhs: <NdArray<E, I, Q> as ComplexTensorBackend>::ComplexScalar,
     ) -> NdArrayTensor {
         execute_with_float_dtype!(lhs, FloatElem, |array: SharedArray<FloatElem>| {
             NdArrayMathOps::equal_elem(array, rhs.elem())
