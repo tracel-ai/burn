@@ -1,5 +1,5 @@
 use crate::{
-    FusionBackend, FusionRuntime,
+    FusionBackend, FusionRuntime, OperationCall,
     stream::{MultiStream, OperationStreams, StreamId, execution::Operation},
 };
 use burn_backend::{TensorData, backend::ExecutionError};
@@ -27,8 +27,12 @@ where
         repr: OperationIr,
         operation: O,
     ) {
-        self.streams
-            .register(streams, repr, Box::new(operation), &mut self.handles)
+        self.streams.register(
+            streams,
+            repr,
+            OperationCall::new(operation),
+            &mut self.handles,
+        )
     }
 
     pub fn drain_stream(&mut self, id: StreamId) {

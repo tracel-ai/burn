@@ -1,5 +1,5 @@
-use crate::FusionRuntime;
 use crate::stream::{OperationConverter, OperationStreams, RelativeOps, execution::Operation};
+use crate::{FusionRuntime, OperationCall};
 use burn_backend::StreamId;
 use burn_ir::{OperationIr, TensorId, TensorStatus};
 
@@ -17,7 +17,7 @@ pub struct OperationQueue<R: FusionRuntime> {
     /// determine which operations can be fused.
     pub(crate) relative: Vec<OperationIr>,
     pub(crate) converter: OperationConverter,
-    pub(crate) operations: Vec<Box<dyn Operation<R>>>,
+    pub(crate) operations: Vec<OperationCall<R>>,
     pub(crate) variables: HashMap<TensorId, (StreamId, TensorStatus)>,
 }
 
@@ -47,7 +47,7 @@ impl<R: FusionRuntime> OperationQueue<R> {
     pub fn add(
         &mut self,
         global: OperationIr,
-        operation: Box<dyn Operation<R>>,
+        operation: OperationCall<R>,
         streams: &OperationStreams,
         current: StreamId,
     ) {

@@ -10,7 +10,7 @@ use super::{
     store::{ExecutionPlanId, ExecutionPlanStore},
 };
 use crate::{
-    DropOp, FusionRuntime,
+    DropOp, FusionRuntime, OperationCall,
     stream::shared_tensors::{SharedTensorAnalysis, SharedTensorDropAction},
 };
 
@@ -48,7 +48,7 @@ impl<R: FusionRuntime> MultiStream<R> {
         &mut self,
         streams: OperationStreams,
         mut repr: OperationIr,
-        operation: Box<dyn Operation<R>>,
+        operation: OperationCall<R>,
         handles: &mut HandleContainer<R::FusionHandle>,
     ) {
         let id = self.resolve_streams(&streams, handles, &mut repr);
@@ -134,7 +134,7 @@ impl<R: FusionRuntime> MultiStream<R> {
         id: StreamId,
         repr: OperationIr,
         streams: &OperationStreams,
-        operation: Box<dyn Operation<R>>,
+        operation: OperationCall<R>,
         handles: &mut HandleContainer<R::FusionHandle>,
     ) -> usize {
         let stream = match self.streams.get_mut(&id) {
@@ -371,7 +371,7 @@ impl<R: FusionRuntime> MultiStream<R> {
                 current,
             };
 
-            let op = Box::new(DropOp { id: tensor.id });
+            let op = OperationCall::new(DropOp { id: tensor.id });
             self.register(streams, OperationIr::Drop(tensor), op, handles);
         }
     }

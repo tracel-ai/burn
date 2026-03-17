@@ -1,7 +1,7 @@
 use burn_ir::{HandleContainer, TensorStatus};
 
 use crate::{
-    FusionRuntime,
+    FusionRuntime, OperationCall,
     search::BlockOptimization,
     stream::{
         Context, Operation, OperationConverter, OrderedExecution, RelativeOps,
@@ -85,8 +85,8 @@ impl<'a, R: FusionRuntime> QueueExecution<'a, R> {
         optimization: &mut BlockOptimization<R::Optimization>,
         converter: &'a mut OperationConverter,
         handles: &'a mut HandleContainer<R::FusionHandle>,
-        operations: Vec<Box<dyn Operation<R>>>,
-    ) -> (Vec<Box<dyn Operation<R>>>, usize) {
+        operations: Vec<OperationCall<R>>,
+    ) -> (Vec<OperationCall<R>>, usize) {
         let execution = OrderedExecution::new(operations);
 
         if matches!(&optimization.strategy, ExecutionStrategy::Composed(..)) {
