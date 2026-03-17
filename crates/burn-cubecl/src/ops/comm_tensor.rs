@@ -29,7 +29,7 @@ where
             println!(
                 "[{:?}] [{:?}] - all_red native - getting client",
                 std::thread::current().id(),
-                device.to_id()
+                device.id()
             );
 
             let client = R::client(device);
@@ -54,7 +54,7 @@ where
         println!(
             "[{:?}] [{:?}] - sync native - getting client",
             std::thread::current().id(),
-            device.to_id()
+            device.id()
         );
 
         let client = R::client(&device);
