@@ -161,6 +161,8 @@ pub enum FloatOperationIr {
     Dequantize(DequantizeOpIr),
     /// Operation corresponding to [grid_sample_2d](burn_backend::ops::FloatTensorOps::float_grid_sample_2d).
     GridSample2d(GridSample2dOpIr),
+    /// Operation corresponding to [powf](burn_backend::ops::FloatTensorOps::float_powi).
+    Powf(BinaryOpIr),
 }
 
 /// Operation intermediate representation specific to module.
@@ -581,9 +583,9 @@ pub enum NumericOperationIr {
     IntRandom(RandomOpIr),
     /// Operation corresponding to:
     ///
-    /// Float => [powf](burn_backend::ops::FloatTensorOps::float_powf).
-    /// Int => [powf](burn_backend::ops::IntTensorOps::int_powf).
-    Powf(BinaryOpIr),
+    /// Float => [powf](burn_backend::ops::FloatTensorOps::float_powi).
+    /// Int => [powf](burn_backend::ops::IntTensorOps::int_powi).
+    Powi(BinaryOpIr),
     /// Operation corresponding to:
     ///
     /// Float => [cumsum](burn_backend::ops::FloatTensorOps::float_cumsum).
@@ -1996,7 +1998,7 @@ impl NumericOperationIr {
             NumericOperationIr::MaxAbs(repr) => Box::new([&repr.input].into_iter()),
             NumericOperationIr::MaxAbsDim(repr) => Box::new([&repr.input].into_iter()),
             NumericOperationIr::IntRandom(_repr) => Box::new([].into_iter()),
-            NumericOperationIr::Powf(repr) => Box::new([&repr.lhs, &repr.rhs].into_iter()),
+            NumericOperationIr::Powi(repr) => Box::new([&repr.lhs, &repr.rhs].into_iter()),
             NumericOperationIr::CumMin(repr) => Box::new([&repr.input].into_iter()),
             NumericOperationIr::CumMax(repr) => Box::new([&repr.input].into_iter()),
             NumericOperationIr::CumProd(repr) => Box::new([&repr.input].into_iter()),
@@ -2048,7 +2050,7 @@ impl NumericOperationIr {
             NumericOperationIr::MaxAbs(repr) => Box::new([&repr.out].into_iter()),
             NumericOperationIr::MaxAbsDim(repr) => Box::new([&repr.out].into_iter()),
             NumericOperationIr::IntRandom(repr) => Box::new([&repr.out].into_iter()),
-            NumericOperationIr::Powf(repr) => Box::new([&repr.out].into_iter()),
+            NumericOperationIr::Powi(repr) => Box::new([&repr.out].into_iter()),
             NumericOperationIr::CumMin(repr) => Box::new([&repr.out].into_iter()),
             NumericOperationIr::CumMax(repr) => Box::new([&repr.out].into_iter()),
             NumericOperationIr::CumProd(repr) => Box::new([&repr.out].into_iter()),
@@ -2178,7 +2180,7 @@ impl NumericOperationIr {
                 repr.input.mark_read_only(nodes, &mut output);
             }
             NumericOperationIr::IntRandom(_) => {}
-            NumericOperationIr::Powf(repr) => {
+            NumericOperationIr::Powi(repr) => {
                 repr.lhs.mark_read_only(nodes, &mut output);
                 repr.rhs.mark_read_only(nodes, &mut output);
             }
@@ -2240,6 +2242,7 @@ impl FloatOperationIr {
             FloatOperationIr::ArcTan(repr) => Box::new([&repr.input].into_iter()),
             FloatOperationIr::ArcTanh(repr) => Box::new([&repr.input].into_iter()),
             FloatOperationIr::ArcTan2(repr) => Box::new([&repr.lhs, &repr.rhs].into_iter()),
+            FloatOperationIr::Powf(repr) => Box::new([&repr.lhs, &repr.rhs].into_iter()),
         }
     }
     fn outputs(&self) -> Box<dyn Iterator<Item = &TensorIr> + '_> {
@@ -2277,6 +2280,7 @@ impl FloatOperationIr {
             FloatOperationIr::ArcTan(repr) => Box::new([&repr.out].into_iter()),
             FloatOperationIr::ArcTanh(repr) => Box::new([&repr.out].into_iter()),
             FloatOperationIr::ArcTan2(repr) => Box::new([&repr.out].into_iter()),
+            FloatOperationIr::Powf(repr) => Box::new([&repr.out].into_iter()),
         }
     }
 
@@ -2365,6 +2369,10 @@ impl FloatOperationIr {
             FloatOperationIr::ArcTan(repr) => repr.input.mark_read_only(nodes, &mut output),
             FloatOperationIr::ArcTanh(repr) => repr.input.mark_read_only(nodes, &mut output),
             FloatOperationIr::ArcTan2(repr) => {
+                repr.lhs.mark_read_only(nodes, &mut output);
+                repr.rhs.mark_read_only(nodes, &mut output);
+            }
+            FloatOperationIr::Powf(repr) => {
                 repr.lhs.mark_read_only(nodes, &mut output);
                 repr.rhs.mark_read_only(nodes, &mut output);
             }

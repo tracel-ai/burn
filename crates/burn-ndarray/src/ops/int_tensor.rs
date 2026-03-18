@@ -9,10 +9,10 @@ use burn_backend::{Distribution, IntDType, Scalar, TensorMetadata};
 use burn_backend::ElementConversion;
 
 // Current crate
+use crate::cat_with_dtype;
 use crate::{NdArray, cast_to_dtype, execute_with_dtype, tensor::NdArrayTensor};
 use crate::{NdArrayDevice, SEED, slice};
 use crate::{SharedArray, element::QuantElement};
-use crate::{cat_with_dtype, execute_with_float_dtype};
 use crate::{element::FloatNdArrayElement, ops::matmul::matmul};
 use crate::{element::IntNdArrayElement, execute_with_int_dtype};
 
@@ -376,24 +376,6 @@ where
             rhs,
             |a: &I, b: &I| { (a.elem::<i64>().pow(b.elem::<u32>())).elem() }
         ))
-    }
-
-    fn int_powf(lhs: NdArrayTensor, rhs: FloatTensor<Self>) -> NdArrayTensor {
-        execute_with_int_dtype!(lhs, I, |array| -> NdArrayTensor {
-            execute_with_float_dtype!(rhs, E, |rhs_array| {
-                NdArrayMathOps::elementwise_op(array, rhs_array, |a: &I, b: &E| {
-                    (a.elem::<i64>().pow(*b as u32)).elem()
-                })
-            })
-        })
-    }
-
-    fn int_powf_scalar_impl(lhs: NdArrayTensor, rhs: Scalar) -> NdArrayTensor {
-        execute_with_int_dtype!(lhs, I, |array| {
-            NdArrayMathOps::elementwise_op_scalar(array, |a: I| {
-                (a.elem::<i64>().pow(rhs.elem())).elem()
-            })
-        })
     }
 
     fn int_permute(tensor: NdArrayTensor, axes: &[usize]) -> NdArrayTensor {
