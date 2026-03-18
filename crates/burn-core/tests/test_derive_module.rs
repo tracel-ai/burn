@@ -452,19 +452,23 @@ mod require_grad {
     #[test]
     #[serial]
     fn sharded_module_should_sync_gradients_sum() {
-        compare_sync_gradients(ReduceOperation::Sum, |weights, x| weights.matmul(x));
+        compare_sync_gradients::<TestAutodiffBackend>(ReduceOperation::Sum, |weights, x| {
+            weights.matmul(x)
+        });
     }
 
     #[test]
     #[serial]
     fn sharded_module_should_sync_gradients_mean() {
-        compare_sync_gradients(ReduceOperation::Mean, |weights, x| weights.matmul(x));
+        compare_sync_gradients::<TestAutodiffBackend>(ReduceOperation::Mean, |weights, x| {
+            weights.matmul(x)
+        });
     }
 
     #[test]
     #[serial]
     fn sharded_module_should_sync_gradients_sum_residual() {
-        compare_sync_gradients(ReduceOperation::Sum, |weights, x| {
+        compare_sync_gradients::<TestAutodiffBackend>(ReduceOperation::Sum, |weights, x| {
             let y = weights.clone().matmul(x);
             y.add(weights)
         });
@@ -473,7 +477,7 @@ mod require_grad {
     #[test]
     #[serial]
     fn sharded_module_should_sync_gradients_mean_residual() {
-        compare_sync_gradients(ReduceOperation::Mean, |weights, x| {
+        compare_sync_gradients::<TestAutodiffBackend>(ReduceOperation::Mean, |weights, x| {
             let y = weights.clone().matmul(x);
             y.add(weights)
         });
@@ -482,7 +486,7 @@ mod require_grad {
     #[test]
     #[serial]
     fn sharded_module_should_sync_gradients_sum_activation() {
-        compare_sync_gradients(ReduceOperation::Sum, |weights, x| {
+        compare_sync_gradients::<TestAutodiffBackend>(ReduceOperation::Sum, |weights, x| {
             let y = weights.clone().matmul(x);
             let y = y.add(weights);
             burn_tensor::activation::relu(y)
@@ -492,7 +496,7 @@ mod require_grad {
     #[test]
     #[serial]
     fn sharded_module_should_sync_gradients_mean_activation() {
-        compare_sync_gradients(ReduceOperation::Mean, |weights, x| {
+        compare_sync_gradients::<TestAutodiffBackend>(ReduceOperation::Mean, |weights, x| {
             let y = weights.clone().matmul(x);
             let y = y.add(weights);
             burn_tensor::activation::relu(y)
@@ -502,7 +506,7 @@ mod require_grad {
     #[test]
     #[serial]
     fn sharded_module_should_sync_gradients_sum_diamond_graph() {
-        compare_sync_gradients(ReduceOperation::Sum, |weights, x| {
+        compare_sync_gradients::<TestAutodiffBackend>(ReduceOperation::Sum, |weights, x| {
             let left = weights.clone().matmul(x.clone().mul_scalar(2));
             let right = weights.clone().matmul(x.clone().exp());
             Tensor::cat(vec![left, right], 0)
@@ -512,35 +516,30 @@ mod require_grad {
     #[test]
     #[serial]
     fn sharded_module_should_sync_gradients_mean_diamond_graph() {
-        compare_sync_gradients(ReduceOperation::Mean, |weights, x| {
+        compare_sync_gradients::<TestAutodiffBackend>(ReduceOperation::Mean, |weights, x| {
             let left = weights.clone().matmul(x.clone().mul_scalar(2));
             let right = weights.clone().matmul(x.clone().exp());
             Tensor::cat(vec![left, right], 0)
         });
     }
 
-    fn compare_sync_gradients(
+    fn compare_sync_gradients<B: AutodiffBackend>(
         op: ReduceOperation,
-        transformation: fn(
-            Tensor<TestAutodiffBackend, 2>,
-            Tensor<TestAutodiffBackend, 2>,
-        ) -> Tensor<TestAutodiffBackend, 2>,
+        transformation: fn(Tensor<B, 2>, Tensor<B, 2>) -> Tensor<B, 2>,
     ) {
         let type_id = 0;
-        let num_devices = 4;
-        let devices: Vec<<TestAutodiffBackend as Backend>::Device> = (0..num_devices)
-            .map(|i| {
-                <TestAutodiffBackend as Backend>::Device::from_id(DeviceId::new(type_id, i as u32))
-            })
+        let device_count = <B as Backend>::Device::device_count(type_id);
+        let devices: Vec<<B as Backend>::Device> = (0..device_count)
+            .map(|i| <B as Backend>::Device::from_id(DeviceId::new(type_id, i as u32)))
             .collect();
-        let num_iter = 10;
+        let num_iter = 100;
 
-        println!("Start test!!!!");
+        let module = ModuleBasic::<B>::new(&devices[0]);
+        let (senders, receivers): (Vec<_>, Vec<_>) = (1..device_count)
+            .map(|_| std::sync::mpsc::channel())
+            .unzip();
 
-        let module = ModuleBasic::<TestAutodiffBackend>::new(&devices[0]);
-        let (senders, receivers): (Vec<_>, Vec<_>) =
-            (1..num_devices).map(|_| std::sync::mpsc::channel()).unzip();
-        <TestBackend>::start_communication_server(devices.clone());
+        <B::InnerBackend>::start_communication_server(devices.clone());
         let mut join_handles = vec![];
 
         let module_thread = module.clone();
@@ -558,16 +557,17 @@ mod require_grad {
                 receivers,
             )
         }));
-        for i in 1..num_devices {
+
+        for i in 1..device_count {
             let device = devices[i].clone();
             let module_thread = module.clone();
-            let s = Some(senders[i - 1].clone());
+            let sender = Some(senders[i - 1].clone());
             join_handles.push(std::thread::spawn(move || {
                 run_peer_sharded(
                     &module_thread,
                     PeerId::from(i),
                     op,
-                    s,
+                    sender,
                     transformation,
                     device,
                     num_iter,
@@ -577,46 +577,22 @@ mod require_grad {
             }));
         }
 
-        println!("launched all threads ");
-
         for h in join_handles {
             h.join().unwrap();
         }
 
-        // for _ in 0..num_iter {
-        //     let grad_x1 = recvs[0].recv().unwrap();
-        //     for i in 1..num_devices {
-        //         let new_tensor = &recvs[i].recv().unwrap().unwrap().to_data();
-        //         println!("new tensor {new_tensor} ");
-        //         grad_x1
-        //             .clone()
-        //             .unwrap()
-        //             .to_data()
-        //             .assert_eq(new_tensor, true);
-        //     }
-        // }
-
-        <TestBackend>::close_communication_server(&devices[0]);
+        <B::InnerBackend>::close_communication_server(&devices[0]);
     }
 
-    pub fn run_peer_sharded(
-        module: &ModuleBasic<TestAutodiffBackend>,
+    pub fn run_peer_sharded<B: AutodiffBackend>(
+        module: &ModuleBasic<B>,
         id: PeerId,
         op: ReduceOperation,
-        // output: Option<
-        //     Sender<Option<Tensor<<TestAutodiffBackend as AutodiffBackend>::InnerBackend, 2>>>,
-        // >,
         output: Option<Sender<TensorData>>,
-        transformation: fn(
-            Tensor<TestAutodiffBackend, 2>,
-            Tensor<TestAutodiffBackend, 2>,
-        ) -> Tensor<TestAutodiffBackend, 2>,
-        device: <TestAutodiffBackend as Backend>::Device,
+        transformation: fn(Tensor<B, 2>, Tensor<B, 2>) -> Tensor<B, 2>,
+        device: B::Device,
         num_iter: usize,
         is_main: bool,
-        // recvs: Vec<
-        //     Receiver<Option<Tensor<<TestAutodiffBackend as AutodiffBackend>::InnerBackend, 2>>>,
-        // >,
         recvs: Vec<Receiver<TensorData>>,
     ) {
         let mut module = module.clone().fork(&device);
@@ -628,38 +604,28 @@ mod require_grad {
             println!(
                 "iter {i} --- device {} --- val: {:?}",
                 id.0,
-                grads_x.unwrap().to_data().to_vec::<f32>()
+                grads_x.clone().unwrap().to_data().to_vec::<f32>()
             );
-            // if !is_main {
-            //     output
-            //         .clone()
-            //         .unwrap()
-            //         .send(grads_x.unwrap().to_data())
-            //         .unwrap();
-            //     println!("device {} sent!", id.0);
-            // } else {
-            //     let data = grads_x.unwrap().to_data();
-            //     for (i, r) in recvs.iter().as_ref().iter().enumerate() {
-            //         let t = r.recv().unwrap();
-            //         if t == data {
-            //             println!("tensors are the same {i} : {:?}", t.to_vec::<f32>());
-            //         } else {
-            //             println!("tensors are different {i} : {:?}", t.to_vec::<f32>());
-            //             println!("data {i} : {:?}", data.to_vec::<f32>());
-            //         }
-            //         assert_eq!(data, t);
-            //     }
-            // }
+            if !is_main {
+                output
+                    .clone()
+                    .unwrap()
+                    .send(grads_x.unwrap().to_data())
+                    .unwrap();
+            } else {
+                let data = grads_x.unwrap().to_data();
+                for r in recvs.iter().by_ref() {
+                    let t = r.recv().unwrap();
+                    assert_eq!(data, t);
+                }
+            }
         }
     }
 
-    fn calculate_grads(
-        module: &ModuleBasic<TestAutodiffBackend>,
-        transformation: fn(
-            Tensor<TestAutodiffBackend, 2>,
-            Tensor<TestAutodiffBackend, 2>,
-        ) -> Tensor<TestAutodiffBackend, 2>,
-    ) -> Option<Tensor<<TestAutodiffBackend as AutodiffBackend>::InnerBackend, 2>> {
+    fn calculate_grads<B: AutodiffBackend>(
+        module: &ModuleBasic<B>,
+        transformation: fn(Tensor<B, 2>, Tensor<B, 2>) -> Tensor<B, 2>,
+    ) -> Option<Tensor<B::InnerBackend, 2>> {
         let device = module.weight_basic.device();
         let data = TensorData::random::<f32, _, _>(
             module.weight_basic.shape(),
@@ -670,7 +636,6 @@ mod require_grad {
         let y = transformation(module.weight_basic.val(), x);
 
         let mut grads = y.backward();
-        // TestBackend::<f32, i32>::collective_sync_native(&device);
         module.weight_basic.grad_remove(&mut grads)
     }
 }
