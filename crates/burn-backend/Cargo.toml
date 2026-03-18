@@ -40,6 +40,7 @@ rand = { workspace = true, default-features = false }
 rand_distr = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }
+oneshot = "0.2.1"
 
 [dev-dependencies]
 rand = { workspace = true, features = ["thread_rng"] }

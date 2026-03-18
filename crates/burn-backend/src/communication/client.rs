@@ -13,7 +13,13 @@ pub(crate) enum MessageAction<B: Backend> {
 pub(crate) enum GradientSyncMessage<B: Backend> {
     RegisterDevice(Vec<ShardedParams>),
     Register((TensorRef<B>, ShardedParams)),
-    Sync((Device<B>, Arc<(Mutex<bool>, Condvar)>)),
+    Sync(
+        (
+            Device<B>,
+            // Arc<(Mutex<bool>, Condvar)>
+            oneshot::Sender<Box<dyn FnOnce() + Send>>,
+        ),
+    ),
 }
 
 #[derive(Clone)]
@@ -62,19 +68,27 @@ impl<B: Backend> GradientSyncClient<B> {
     }
 
     pub fn wait_gradients_sync(&self, device: Device<B>) {
-        let is_synced = Arc::new((Mutex::new(false), Condvar::new()));
+        // let is_synced = Arc::new((Mutex::new(false), Condvar::new()));
+
+        let (tx, rx) = oneshot::channel();
+
+        // Send callback and sync/wait on this thread
         self.sender
             .send(MessageAction::Message(GradientSyncMessage::Sync((
                 device.clone(),
-                is_synced.clone(),
+                // is_synced.clone(),
+                tx,
             ))))
             .unwrap();
 
-        let (lock, cvar) = &*is_synced;
-        let mut synced = lock.lock().unwrap();
-        while !*synced {
-            synced = cvar.wait(synced).unwrap();
-        }
+        // let (lock, cvar) = &*is_synced;
+        // let mut synced = lock.lock().unwrap();
+        // while !*synced {
+        //     synced = cvar.wait(synced).unwrap();
+        // }
+
+        let task = rx.recv().expect("Can receive callback");
+        task();
         println!("synced client {device:?}");
     }
 

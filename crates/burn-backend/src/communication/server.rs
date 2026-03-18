@@ -23,6 +23,7 @@ pub(crate) struct GradientSyncServer<B: Backend> {
     is_finished_fence: Arc<(Mutex<bool>, Condvar)>,
     task_senders: HashMap<PeerId, Sender<CollectiveOperationMessage<B>>>,
     sync_barriers: Vec<Arc<(Mutex<bool>, Condvar)>>,
+    callbacks: Vec<oneshot::Sender<Box<dyn FnOnce() + Send>>>,
 }
 
 impl<B: Backend> GradientSyncServer<B> {
@@ -55,6 +56,7 @@ impl<B: Backend> GradientSyncServer<B> {
             is_finished_fence,
             task_senders,
             sync_barriers: vec![],
+            callbacks: vec![],
         }
     }
 
@@ -63,7 +65,8 @@ impl<B: Backend> GradientSyncServer<B> {
         match msg {
             GradientSyncMessage::RegisterDevice(params) => self.register_device(params),
             GradientSyncMessage::Register((tensor, params)) => self.on_register(tensor, params),
-            GradientSyncMessage::Sync((device, is_synced)) => self.sync(device, is_synced),
+            // GradientSyncMessage::Sync((device, is_synced)) => self.sync(device, is_synced),
+            GradientSyncMessage::Sync((device, callback)) => self.sync(device, callback),
             // {
             //     self.waiting_devices += 1;
             //     if self.waiting_devices == self.num_devices {
@@ -73,13 +76,69 @@ impl<B: Backend> GradientSyncServer<B> {
         }
     }
 
+    // fn try_flush_sync(&mut self) {
+    //     println!("try flush sync");
+    //     println!("{:?}", self.all_reduce_ops_queue.len());
+    //     println!("{:?}", self.syncing_devices);
+    //     println!("{:?}", self.sync_barriers);
+    //     if self.all_reduce_ops_queue.is_empty() {
+    //         println!("empty queue");
+    //         for (d, barrier) in self.syncing_devices.iter().zip(self.sync_barriers.clone()) {
+    //             println!("[{:?}] comm server sync", thread::current().id());
+    //             println!("launching sync {d:?}");
+    //             // self.task_senders
+    //             //     .get(&PeerId::from(d.id().index_id))
+    //             //     .unwrap()
+    //             //     .send(CollectiveOperationMessage::Sync(d.clone()))
+    //             //     .unwrap();
+    //             B::collective_sync_native(&d);
+    //             println!("launched sync {d:?}");
+    //             let (lock, cvar) = &*barrier;
+    //             println!("acquired lock {d:?}");
+    //             let mut synced = lock.lock().unwrap();
+    //             *synced = true;
+    //             cvar.notify_all();
+    //             self.devices_synced += 1;
+    //             println!("synced collective {d:?}");
+    //         }
+    //         self.syncing_devices.clear();
+    //         self.sync_barriers.clear();
+    //     }
+
+    //     if self.devices_synced == self.num_devices {
+    //         self.devices_registered = 0;
+    //         self.syncing_devices.clear();
+    //         self.devices_synced = 0;
+    //         self.all_reduce_ops_queue.clear();
+    //         self.param_required_map.clear();
+    //         self.sync_barriers.clear();
+    //         println!("is_finished ");
+    //     }
+    // }
+
     fn try_flush_sync(&mut self) {
         println!("try flush sync");
         println!("{:?}", self.all_reduce_ops_queue.len());
         println!("{:?}", self.syncing_devices);
-        println!("{:?}", self.sync_barriers);
+        println!("callbacks len {:?}", self.callbacks.len());
+
         if self.all_reduce_ops_queue.is_empty() {
             println!("empty queue");
+
+            for (d, barrier) in self.syncing_devices.iter().zip(self.sync_barriers.clone()) {
+                if B::supports_native_collective(&device) {
+                } else {
+                    if self.callbacks.len() == self.num_devices {
+                        is_finished = true;
+                        for barrier in self.sync_barriers.clone() {
+                            let (lock, cvar) = &*barrier;
+                            let mut synced = lock.lock().unwrap();
+                            *synced = true;
+                            cvar.notify_all();
+                        }
+                    }
+                }
+            }
             for (d, barrier) in self.syncing_devices.iter().zip(self.sync_barriers.clone()) {
                 println!("[{:?}] comm server sync", thread::current().id());
                 println!("launching sync {d:?}");
@@ -113,36 +172,72 @@ impl<B: Backend> GradientSyncServer<B> {
         }
     }
 
-    fn sync(&mut self, device: Device<B>, sync_barrier: Arc<(Mutex<bool>, Condvar)>) {
-        let mut is_finished = false;
-        if B::supports_native_collective(&device) {
-            self.syncing_devices.push(device.clone());
-            self.sync_barriers.push(sync_barrier);
-            self.try_flush_sync();
-            println!("syncing collective {device:?}");
-            is_finished = self.devices_synced == self.num_devices;
-        } else {
-            self.sync_barriers.push(sync_barrier);
-            if self.sync_barriers.len() == self.num_devices {
-                is_finished = true;
-                for barrier in self.sync_barriers.clone() {
-                    let (lock, cvar) = &*barrier;
-                    let mut synced = lock.lock().unwrap();
-                    *synced = true;
-                    cvar.notify_all();
-                }
-            }
-        }
+    // fn sync(&mut self, device: Device<B>, sync_barrier: Arc<(Mutex<bool>, Condvar)>) {
+    //     let mut is_finished = false;
+    //     if B::supports_native_collective(&device) {
+    //         self.syncing_devices.push(device.clone());
+    //         self.sync_barriers.push(sync_barrier);
+    //         self.try_flush_sync();
+    //         println!("syncing collective {device:?}");
+    //         is_finished = self.devices_synced == self.num_devices;
+    //     } else {
+    //         self.sync_barriers.push(sync_barrier);
+    //         if self.sync_barriers.len() == self.num_devices {
+    //             is_finished = true;
+    //             for barrier in self.sync_barriers.clone() {
+    //                 let (lock, cvar) = &*barrier;
+    //                 let mut synced = lock.lock().unwrap();
+    //                 *synced = true;
+    //                 cvar.notify_all();
+    //             }
+    //         }
+    //     }
 
-        if is_finished {
-            self.devices_registered = 0;
-            self.syncing_devices.clear();
-            self.devices_synced = 0;
-            self.all_reduce_ops_queue.clear();
-            self.param_required_map.clear();
-            self.sync_barriers.clear();
-            println!("is_finished {device:?}");
-        }
+    //     if is_finished {
+    //         self.devices_registered = 0;
+    //         self.syncing_devices.clear();
+    //         self.devices_synced = 0;
+    //         self.all_reduce_ops_queue.clear();
+    //         self.param_required_map.clear();
+    //         self.sync_barriers.clear();
+    //         println!("is_finished {device:?}");
+    //     }
+    // }
+
+    fn sync(&mut self, device: Device<B>, callback: oneshot::Sender<Box<dyn FnOnce() + Send>>) {
+        self.syncing_devices.push(device.clone());
+        self.callbacks.push(callback);
+        self.try_flush_sync();
+
+        // let mut is_finished = false;
+        // if B::supports_native_collective(&device) {
+        //     self.syncing_devices.push(device.clone());
+        //     self.sync_barriers.push(sync_barrier);
+        //     self.try_flush_sync();
+        //     println!("syncing collective {device:?}");
+        //     is_finished = self.devices_synced == self.num_devices;
+        // } else {
+        //     self.sync_barriers.push(sync_barrier);
+        //     if self.sync_barriers.len() == self.num_devices {
+        //         is_finished = true;
+        //         for barrier in self.sync_barriers.clone() {
+        //             let (lock, cvar) = &*barrier;
+        //             let mut synced = lock.lock().unwrap();
+        //             *synced = true;
+        //             cvar.notify_all();
+        //         }
+        //     }
+        // }
+
+        // if is_finished {
+        //     self.devices_registered = 0;
+        //     self.syncing_devices.clear();
+        //     self.devices_synced = 0;
+        //     self.all_reduce_ops_queue.clear();
+        //     self.param_required_map.clear();
+        //     self.sync_barriers.clear();
+        //     println!("is_finished {device:?}");
+        // }
     }
 
     pub(crate) fn close(&mut self, callback: Sender<()>) {
