@@ -124,7 +124,7 @@ impl<B: Backend> GradientSyncServer<B> {
         println!("{:?}", self.syncing_devices);
         println!("callbacks len {:?}", self.callbacks.len());
 
-        if self.all_reduce_ops_queue.is_empty() {
+        if self.all_reduce_ops_queue.is_empty() && !self.syncing_devices.is_empty() {
             println!("empty queue");
             let device = self.syncing_devices[0].clone();
 
