@@ -144,9 +144,7 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for MatmulFuser<R> {
     }
 
     fn properties(&self) -> burn_fusion::FuserProperties {
-        let mut properties = self.fuser.properties();
-        properties.score += 1;
-        properties
+        self.fuser.properties()
     }
 
     fn len(&self) -> usize {

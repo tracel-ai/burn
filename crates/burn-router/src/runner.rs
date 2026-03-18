@@ -714,8 +714,11 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
                 NumericOperationIr::IntRandom(_) => unreachable!(),
-                NumericOperationIr::Powf(desc) => {
-                    binary_float_ops!(handles, desc, B::float_powf)
+                NumericOperationIr::Powi(desc) => {
+                    let lhs = handles.get_float_tensor::<B>(&desc.lhs);
+                    let rhs = handles.get_int_tensor::<B>(&desc.rhs);
+                    let output = (B::float_powi)(lhs, rhs);
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
                 NumericOperationIr::CumSum(desc) => {
                     let tensor = handles.get_float_tensor::<B>(&desc.input);
@@ -874,11 +877,11 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     let output = B::int_random(shape, desc.distribution, &self.device);
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
-                NumericOperationIr::Powf(desc) => {
+                NumericOperationIr::Powi(desc) => {
                     let lhs = handles.get_int_tensor::<B>(&desc.lhs);
-                    let rhs = handles.get_float_tensor::<B>(&desc.rhs);
+                    let rhs = handles.get_int_tensor::<B>(&desc.rhs);
 
-                    let output = B::int_powf(lhs, rhs);
+                    let output = B::int_powi(lhs, rhs);
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
                 NumericOperationIr::CumSum(desc) => {
@@ -975,6 +978,9 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
             OperationIr::Float(_dtype, op) => match op {
                 FloatOperationIr::Exp(desc) => {
                     unary_float_ops!(handles, desc, B::float_exp)
+                }
+                FloatOperationIr::Powf(desc) => {
+                    binary_float_ops!(handles, desc, B::float_powf)
                 }
                 FloatOperationIr::Log(desc) => {
                     unary_float_ops!(handles, desc, B::float_log)

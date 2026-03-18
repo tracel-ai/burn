@@ -1,6 +1,6 @@
 use crate::{
     CubeRuntime,
-    kernel::utils::{address_type, linear_view, shape_divmod},
+    kernel::utils::{address_type, shape_divmod},
     ops::numeric::empty_device_dtype,
     tensor::CubeTensor,
 };
@@ -113,7 +113,7 @@ pub(crate) fn slice_on_output<R: CubeRuntime>(
             cube_dim,
             address_type!(tensor, output),
             tensor.into_tensor_arg(),
-            linear_view(output.clone(), 1),
+            output.clone().into_linear_view(),
             shape_divmod(&output),
             indices_sequence,
             dtype.into(),
@@ -228,7 +228,7 @@ pub fn slice_with_steps<R: CubeRuntime>(tensor: CubeTensor<R>, slices: &[Slice])
             cube_dim,
             address_type!(tensor, output),
             tensor.into_tensor_arg(),
-            linear_view(output.clone(), 1),
+            output.clone().into_linear_view(),
             shape_divmod(&output),
             starts,
             ends,

@@ -1,5 +1,5 @@
 use super::tensor::GlobalTensor;
-use crate::engine::codegen::{DYN_ELEM_ID, DynSize};
+use crate::engine::codegen::{DynElem, DynSize};
 use burn_std::{
     DType, Shape, Strides, bf16, f16,
     quantization::{QuantScheme, QuantStore, QuantValue},
@@ -322,8 +322,7 @@ impl<R: Runtime> GlobalArgsLaunch<R> {
 /// Variables shared between blocks.
 #[derive(CubeType, Default, Clone)]
 pub struct MultiBlockVariables {
-    variables:
-        Registry<usize, Registry<usize, RuntimeCell<Vector<NumericExpand<DYN_ELEM_ID>, DynSize>>>>,
+    variables: Registry<usize, Registry<usize, RuntimeCell<Vector<DynElem, DynSize>>>>,
 }
 
 #[cube]
@@ -336,7 +335,7 @@ impl MultiBlockVariables {
     pub fn init(&mut self, #[comptime] key: MultiBlockPos) {
         let mut registers = Registry::<
             usize,
-            Registry<usize, RuntimeCell<Vector<NumericExpand<DYN_ELEM_ID>, DynSize>>>,
+            Registry<usize, RuntimeCell<Vector<DynElem, DynSize>>>,
         >::find_or_default::<usize>(&mut self.variables, key.block_pos);
         let cell = RuntimeCell::new(Vector::empty());
         registers.insert(key.block_local_pos, cell);
@@ -347,10 +346,7 @@ impl MultiBlockVariables {
     /// # Notes
     ///
     /// The variable must be initialized.
-    pub fn read(
-        &self,
-        #[comptime] key: MultiBlockPos,
-    ) -> Vector<NumericExpand<DYN_ELEM_ID>, DynSize> {
+    pub fn read(&self, #[comptime] key: MultiBlockPos) -> Vector<DynElem, DynSize> {
         let registers = self.variables.find(key.block_pos);
         let cell = registers.find(key.block_local_pos);
         cell.read()
@@ -361,11 +357,7 @@ impl MultiBlockVariables {
     /// # Notes
     ///
     /// The variable must be initialized.
-    pub fn write(
-        &mut self,
-        #[comptime] key: MultiBlockPos,
-        value: Vector<NumericExpand<DYN_ELEM_ID>, DynSize>,
-    ) {
+    pub fn write(&mut self, #[comptime] key: MultiBlockPos, value: Vector<DynElem, DynSize>) {
         let registers = self.variables.find(key.block_pos);
         // Try find for local(visibility) registers.
         let cell = registers.find(key.block_local_pos);
@@ -738,9 +730,7 @@ pub fn multi_block_variables_init(
     #[unroll]
     for i in 0..comptime!(output.len()) {
         let (key, dtype) = comptime!(output.get(i).unwrap().clone());
-        set_polyfill::<NumericExpand<DYN_ELEM_ID>, DynSize>(comptime![
-            Type::new(dtype).with_vector_size(block.width)
-        ]);
+        set_polyfill::<DynElem, DynSize>(comptime![Type::new(dtype).with_vector_size(block.width)]);
         variables.init(key);
     }
 }

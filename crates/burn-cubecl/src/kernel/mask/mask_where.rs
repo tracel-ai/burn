@@ -3,9 +3,7 @@ use cubecl::{calculate_cube_count_elemwise, prelude::*, std::tensor::layout::lin
 
 use crate::{
     CubeRuntime,
-    kernel::utils::{
-        address_type, broadcast_shape, linear_view, linear_view_alias, linear_view_ref,
-    },
+    kernel::utils::{address_type, broadcast_shape},
     ops::{max_vector_size_many, numeric::empty_device_dtype},
     tensor::CubeTensor,
 };
@@ -69,9 +67,9 @@ pub fn mask_where<R: CubeRuntime>(
     };
 
     let out = match strategy {
-        MaskWhereStrategy::Readonly => linear_view(output.clone(), vector_size),
-        MaskWhereStrategy::InplaceLhs => linear_view_alias(&output, vector_size, 0),
-        MaskWhereStrategy::InplaceRhs => linear_view_alias(&output, vector_size, 1),
+        MaskWhereStrategy::Readonly => output.clone().into_linear_view(),
+        MaskWhereStrategy::InplaceLhs => output.as_linear_view_alias(0),
+        MaskWhereStrategy::InplaceRhs => output.as_linear_view_alias(1),
     };
 
     mask_where_kernel::launch(
@@ -80,9 +78,9 @@ pub fn mask_where<R: CubeRuntime>(
         cube_dim,
         address_type!(input, value, mask, output),
         vector_size,
-        linear_view_ref(input, &output, vector_size),
-        linear_view_ref(value, &output, vector_size),
-        linear_view_ref(mask, &output, vector_size),
+        input.into_linear_view_like(&output),
+        value.into_linear_view_like(&output),
+        mask.into_linear_view_like(&output),
         out,
         [output.dtype.into(), dtype_bool.into()],
     );

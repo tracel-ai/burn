@@ -1,8 +1,4 @@
-use cubecl::{
-    calculate_cube_count_elemwise,
-    prelude::*,
-    std::{FastDivmod, FastDivmodArgs},
-};
+use cubecl::{calculate_cube_count_elemwise, prelude::*, std::FastDivmod};
 use cubek::convolution::components::ConvSetupError;
 
 use burn_backend::{
@@ -212,7 +208,6 @@ pub(crate) fn deform_im2col<R: CubeRuntime>(
 
     let pos_shape = [in_channels, batch_size, out_height, out_width]
         .into_iter()
-        .map(|s| FastDivmodArgs::new(&client, s))
         .collect();
 
     let output = zeros_client(client.clone(), device.clone(), shape_out.clone(), dtype);

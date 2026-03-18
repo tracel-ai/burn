@@ -3,7 +3,7 @@ use super::{
     settings::FuseSettings,
     trace::{FuseTrace, TraceFuser, block::QuantInput},
 };
-use crate::engine::codegen::ir::QuantSchemeFuse;
+use crate::engine::{codegen::ir::QuantSchemeFuse, scoring::Scoring};
 use burn_fusion::{FuserProperties, FuserStatus, OperationFuser};
 use burn_ir::{
     BaseOperationIr, BinaryOpIr, FloatOperationIr, NumericOperationIr, OperationIr, ScalarOpIr,
@@ -28,6 +28,7 @@ use cubecl::ir::ElemType;
 #[derive(Debug, Clone)]
 pub(crate) struct TraceOperationFuser {
     fuser: TryTraceFuser,
+    scoring: Scoring,
     pub(crate) settings: FuseSettings,
     pub(crate) current_output_shape: Shape,
     status: FuserStatus,
@@ -107,6 +108,7 @@ impl OperationFuser<FuseTrace> for TraceOperationFuser {
         };
 
         self.status = FuserStatus::Open;
+        self.scoring.register(op);
         self.num_ops += 1;
     }
 
@@ -120,6 +122,7 @@ impl OperationFuser<FuseTrace> for TraceOperationFuser {
 
     fn reset(&mut self) {
         self.num_ops = 0;
+        self.scoring.reset();
         self.num_views = 0;
         self.status = FuserStatus::Open;
         self.fuser = TryTraceFuser::new(
@@ -136,11 +139,11 @@ impl OperationFuser<FuseTrace> for TraceOperationFuser {
 
     fn properties(&self) -> FuserProperties {
         let ready = self.num_ops > 0;
+        let score = self
+            .scoring
+            .evaluate(&self.fuser.clone().finish(self.current_output_shape.clone()));
 
-        FuserProperties {
-            ready,
-            score: self.num_ops as u64,
-        }
+        FuserProperties { ready, score }
     }
 
     fn clone_dyn(&self) -> Box<dyn OperationFuser<FuseTrace>> {
@@ -154,6 +157,7 @@ impl TraceOperationFuser {
         Self {
             fuser: TryTraceFuser::new(max_bindings, bool_precision, settings),
             settings,
+            scoring: Scoring::default(),
             num_ops: 0,
             num_views: 0,
             max_bindings,
@@ -430,6 +434,9 @@ impl TraceOperationFuser {
             FloatOperationIr::Log(desc) => {
                 self.fuse_unary_ops(desc, |input, out| FuseOp::Log(UnaryFuseArgs { input, out }))
             }
+            FloatOperationIr::Powf(desc) => self.fuse_binary_ops(desc, |lhs, rhs, out| {
+                FuseOp::Powf(BinaryFuseArgs { lhs, rhs, out })
+            }),
             FloatOperationIr::Log1p(desc) => self.fuse_unary_ops(desc, |input, out| {
                 FuseOp::Log1p(UnaryFuseArgs { input, out })
             }),
@@ -565,9 +572,6 @@ impl TraceOperationFuser {
             }),
             NumericOperationIr::RemScalar(desc) => self.fuse_scalar_ops(desc, |lhs, rhs, out| {
                 FuseOp::Rem(BinaryFuseArgs { lhs, rhs, out })
-            }),
-            NumericOperationIr::Powf(desc) => self.fuse_binary_ops(desc, |lhs, rhs, out| {
-                FuseOp::Powf(BinaryFuseArgs { lhs, rhs, out })
             }),
             NumericOperationIr::Clamp(desc) => {
                 if !self.output_is_compatible(&desc.out) {

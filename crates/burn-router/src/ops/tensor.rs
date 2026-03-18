@@ -1181,9 +1181,9 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         });
 
         client
-            .register(OperationIr::NumericFloat(
+            .register(OperationIr::Float(
                 desc.out.dtype,
-                NumericOperationIr::Powf(desc),
+                FloatOperationIr::Powf(desc),
             ))
             .output()
     }

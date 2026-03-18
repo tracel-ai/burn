@@ -1,5 +1,7 @@
 use burn_backend::{Backend, QTensorPrimitive, TensorMetadata};
 
+#[cfg(feature = "autodiff")]
+use crate::CheckpointingStrategy;
 use crate::backends::*;
 
 #[cfg(feature = "autodiff")]
@@ -157,12 +159,29 @@ impl<B: Backend> QTensorPrimitive for BackendTensor<B> {
     }
 }
 
-/// Dispatch tensor that can hold tensors from any enabled backend.
+/// A tensor that can dispatch operations to any enabled backend at runtime.
 ///
-/// This enum wraps backend-specific tensor types, allowing runtime selection
-/// of the backend to execute operations on.
+/// When the `autodiff` feature is enabled, tensors may carry a checkpointing
+/// strategy used to control gradient computation. This is derived from the
+/// device used to create the tensor.
 #[derive(Clone, Debug)]
-pub enum DispatchTensor {
+pub struct DispatchTensor {
+    /// Tensor kind primitive.
+    pub(crate) kind: DispatchTensorKind,
+    // Technically more of a device property, but device is not a dispatch tensor field.
+    #[cfg(feature = "autodiff")]
+    pub(crate) checkpointing: CheckpointingStrategy,
+}
+
+/// Internal representation of a [`DispatchTensor`].
+///
+/// This enum contains the concrete backend tensor for each enabled backend.
+/// It is not intended to be used directly; instead, it is manipulated by
+/// the dispatch system to route operations to the correct backend.
+///
+/// Each variant corresponds to a specific backend implementation.
+#[derive(Clone, Debug)]
+pub enum DispatchTensorKind {
     /// The [CPU backend](Cpu) tensor.
     #[cfg(feature = "cpu")]
     Cpu(BackendTensor<Cpu>),
@@ -197,78 +216,94 @@ pub enum DispatchTensor {
 
     /// The [autodiff enabled backend](Autodiff) tensor.
     #[cfg(feature = "autodiff")]
-    Autodiff(Box<DispatchTensor>),
+    Autodiff(Box<DispatchTensorKind>),
 }
 
-impl TensorMetadata for DispatchTensor {
+impl TensorMetadata for DispatchTensorKind {
     fn dtype(&self) -> burn_std::DType {
         match self {
             #[cfg(feature = "cpu")]
-            DispatchTensor::Cpu(tensor) => tensor.dtype(),
+            Self::Cpu(tensor) => tensor.dtype(),
             #[cfg(feature = "cuda")]
-            DispatchTensor::Cuda(tensor) => tensor.dtype(),
+            Self::Cuda(tensor) => tensor.dtype(),
             #[cfg(wgpu_metal)]
-            DispatchTensor::Metal(tensor) => tensor.dtype(),
+            Self::Metal(tensor) => tensor.dtype(),
             #[cfg(feature = "rocm")]
-            DispatchTensor::Rocm(tensor) => tensor.dtype(),
+            Self::Rocm(tensor) => tensor.dtype(),
             #[cfg(wgpu_vulkan)]
-            DispatchTensor::Vulkan(tensor) => tensor.dtype(),
+            Self::Vulkan(tensor) => tensor.dtype(),
             #[cfg(wgpu_webgpu)]
-            DispatchTensor::WebGpu(tensor) => tensor.dtype(),
+            Self::WebGpu(tensor) => tensor.dtype(),
             #[cfg(feature = "ndarray")]
-            DispatchTensor::NdArray(tensor) => tensor.dtype(),
+            Self::NdArray(tensor) => tensor.dtype(),
             #[cfg(feature = "tch")]
-            DispatchTensor::LibTorch(tensor) => tensor.dtype(),
+            Self::LibTorch(tensor) => tensor.dtype(),
             #[cfg(feature = "autodiff")]
-            DispatchTensor::Autodiff(tensor) => tensor.dtype(),
+            Self::Autodiff(tensor) => tensor.dtype(),
         }
     }
 
     fn shape(&self) -> burn_std::Shape {
         match self {
             #[cfg(feature = "cpu")]
-            DispatchTensor::Cpu(tensor) => tensor.shape(),
+            Self::Cpu(tensor) => tensor.shape(),
             #[cfg(feature = "cuda")]
-            DispatchTensor::Cuda(tensor) => tensor.shape(),
+            Self::Cuda(tensor) => tensor.shape(),
             #[cfg(wgpu_metal)]
-            DispatchTensor::Metal(tensor) => tensor.shape(),
+            Self::Metal(tensor) => tensor.shape(),
             #[cfg(feature = "rocm")]
-            DispatchTensor::Rocm(tensor) => tensor.shape(),
+            Self::Rocm(tensor) => tensor.shape(),
             #[cfg(wgpu_vulkan)]
-            DispatchTensor::Vulkan(tensor) => tensor.shape(),
+            Self::Vulkan(tensor) => tensor.shape(),
             #[cfg(wgpu_webgpu)]
-            DispatchTensor::WebGpu(tensor) => tensor.shape(),
+            Self::WebGpu(tensor) => tensor.shape(),
             #[cfg(feature = "ndarray")]
-            DispatchTensor::NdArray(tensor) => tensor.shape(),
+            Self::NdArray(tensor) => tensor.shape(),
             #[cfg(feature = "tch")]
-            DispatchTensor::LibTorch(tensor) => tensor.shape(),
+            Self::LibTorch(tensor) => tensor.shape(),
             #[cfg(feature = "autodiff")]
-            DispatchTensor::Autodiff(tensor) => tensor.shape(),
+            Self::Autodiff(tensor) => tensor.shape(),
         }
+    }
+}
+
+impl QTensorPrimitive for DispatchTensorKind {
+    fn scheme(&self) -> &burn_std::QuantScheme {
+        match self {
+            #[cfg(feature = "cpu")]
+            Self::Cpu(tensor) => tensor.scheme(),
+            #[cfg(feature = "cuda")]
+            Self::Cuda(tensor) => tensor.scheme(),
+            #[cfg(wgpu_metal)]
+            Self::Metal(tensor) => tensor.scheme(),
+            #[cfg(feature = "rocm")]
+            Self::Rocm(tensor) => tensor.scheme(),
+            #[cfg(wgpu_vulkan)]
+            Self::Vulkan(tensor) => tensor.scheme(),
+            #[cfg(wgpu_webgpu)]
+            Self::WebGpu(tensor) => tensor.scheme(),
+            #[cfg(feature = "ndarray")]
+            Self::NdArray(tensor) => tensor.scheme(),
+            #[cfg(feature = "tch")]
+            Self::LibTorch(tensor) => tensor.scheme(),
+            #[cfg(feature = "autodiff")]
+            Self::Autodiff(tensor) => tensor.scheme(),
+        }
+    }
+}
+
+impl TensorMetadata for DispatchTensor {
+    fn dtype(&self) -> burn_std::DType {
+        self.kind.dtype()
+    }
+
+    fn shape(&self) -> burn_std::Shape {
+        self.kind.shape()
     }
 }
 
 impl QTensorPrimitive for DispatchTensor {
     fn scheme(&self) -> &burn_std::QuantScheme {
-        match self {
-            #[cfg(feature = "cpu")]
-            DispatchTensor::Cpu(tensor) => tensor.scheme(),
-            #[cfg(feature = "cuda")]
-            DispatchTensor::Cuda(tensor) => tensor.scheme(),
-            #[cfg(wgpu_metal)]
-            DispatchTensor::Metal(tensor) => tensor.scheme(),
-            #[cfg(feature = "rocm")]
-            DispatchTensor::Rocm(tensor) => tensor.scheme(),
-            #[cfg(wgpu_vulkan)]
-            DispatchTensor::Vulkan(tensor) => tensor.scheme(),
-            #[cfg(wgpu_webgpu)]
-            DispatchTensor::WebGpu(tensor) => tensor.scheme(),
-            #[cfg(feature = "ndarray")]
-            DispatchTensor::NdArray(tensor) => tensor.scheme(),
-            #[cfg(feature = "tch")]
-            DispatchTensor::LibTorch(tensor) => tensor.scheme(),
-            #[cfg(feature = "autodiff")]
-            DispatchTensor::Autodiff(tensor) => tensor.scheme(),
-        }
+        self.kind.scheme()
     }
 }

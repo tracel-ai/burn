@@ -2055,6 +2055,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             .output()
     }
 
+    // TODO: float_powi w/ burn-cubecl-fusion impl
     fn float_powf(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
         binary_float_ops!(PowOps, B::float_powf);
 
@@ -2068,7 +2069,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         client
             .register(
                 streams,
-                OperationIr::NumericFloat(desc.out.dtype, NumericOperationIr::Powf(desc.clone())),
+                OperationIr::Float(desc.out.dtype, FloatOperationIr::Powf(desc.clone())),
                 PowOps::<B>::new(desc),
             )
             .output()
