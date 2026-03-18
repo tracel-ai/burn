@@ -1,6 +1,6 @@
 use crate::{
     FusionBackend, FusionRuntime, UnfusedOp,
-    stream::{MultiStream, OperationStreams, StreamId, execution::Operation},
+    stream::{MultiStream, OperationStreams, StreamId},
 };
 use burn_backend::{TensorData, backend::ExecutionError};
 use burn_ir::{HandleContainer, OperationIr, TensorId, TensorIr};

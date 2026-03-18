@@ -2,120 +2,29 @@ use burn_backend::StreamId;
 use burn_ir::HandleContainer;
 use std::{
     cell::RefCell,
-    sync::{
-        Arc,
-        atomic::{AtomicU32, Ordering},
-    },
+    sync::{Arc, atomic::Ordering},
 };
 
-use crate::{FusionRuntime, stream::Operation};
+use crate::{FusionRuntime, arena::Arena, stream::Operation};
 
-const MAX_SIZE: usize = 2048;
-const MAX_ITEM: usize = 256;
+const MAX_ITEM_COUNT: usize = 256;
+const MAX_ITEM_SIZE: usize = 2048;
 
-type Bytes = [u128; MAX_SIZE / 16];
+type Storage = crate::arena::Item<MAX_ITEM_SIZE>;
 
 std::thread_local! {
-    static ARENA: RefCell<Arena> = const {RefCell::new(Arena::new(MAX_ITEM))};
-}
-
-struct Data {
-    bytes: Bytes,
-    count: AtomicU32,
-}
-
-struct Arena {
-    buffer: Vec<Data>,
-    cursor: usize,
-    size: usize,
-    init: bool,
-}
-
-impl Arena {
-    pub const fn new(size: usize) -> Self {
-        Self {
-            buffer: Vec::new(),
-            cursor: 0,
-            size,
-            init: false,
-        }
-    }
-
-    pub fn reserve_data(&mut self) -> Option<(usize, *mut Data)> {
-        if !self.init {
-            for _ in 0..self.size {
-                self.buffer.push(Data {
-                    bytes: [0; MAX_SIZE / 16],
-                    count: AtomicU32::new(0),
-                });
-            }
-            self.init = true;
-        }
-
-        for i in 0..self.size {
-            let i = (i + self.cursor) % self.size;
-            let data = &mut self.buffer[i];
-
-            if data.count.load(Ordering::Relaxed) == 0 {
-                self.cursor = i;
-                // We start with a ref count of 2, so a ref count of 1 mean the drop must be
-                // executed and a ref count of 0 means free for reuse.
-                data.count.store(2, Ordering::Relaxed);
-
-                return Some((i, &mut self.buffer[i]));
-            }
-        }
-
-        None
-    }
-
-    fn reserve<R: FusionRuntime, O: Operation<R> + 'static>(
-        &mut self,
-        op: O,
-        stream_id: StreamId,
-    ) -> UnfusedOp<R> {
-        let data = match size_of::<O>() <= MAX_SIZE {
-            true => self.reserve_data(),
-            false => None,
-        };
-
-        let (index, ptr_data) = match data {
-            Some(val) => val,
-            None => {
-                return UnfusedOp {
-                    kind: UnfusedOpKind::Alloc(Arc::new(op)),
-                    stream_id,
-                };
-            }
-        };
-
-        unsafe {
-            core::ptr::write(ptr_data as *mut O, op);
-        };
-        let ptr_execute = shim_execute::<R, O>;
-        let ptr_drop = shim_drop::<R, O>;
-
-        UnfusedOp {
-            kind: UnfusedOpKind::Arena(UnfusedOpInArena {
-                index,
-                ptr_data,
-                ptr_execute,
-                ptr_drop,
-            }),
-            stream_id,
-        }
-    }
+    static ARENA: RefCell<Arena::<MAX_ITEM_COUNT, MAX_ITEM_SIZE>> = const {RefCell::new(Arena::new())};
 }
 
 struct UnfusedOpInArena<R: FusionRuntime> {
     /// The index in the arena.
     index: usize,
     /// The data pointer.
-    ptr_data: *mut Data,
+    ptr_data: *mut Storage,
     /// The execute function pointer.
-    ptr_execute: unsafe fn(*const Data, handles: &mut HandleContainer<R::FusionHandle>),
+    ptr_execute: unsafe fn(*const Storage, handles: &mut HandleContainer<R::FusionHandle>),
     /// The drop function pointer.
-    ptr_drop: unsafe fn(*const Data),
+    ptr_drop: unsafe fn(*const Storage),
 }
 
 impl<R: FusionRuntime> Clone for UnfusedOpInArena<R> {
@@ -168,14 +77,14 @@ impl<R: FusionRuntime> UnfusedOpInArena<R> {
 }
 
 unsafe fn shim_execute<R: FusionRuntime, O: Operation<R>>(
-    ptr_data: *const Data,
+    ptr_data: *const Storage,
     handles: &mut HandleContainer<R::FusionHandle>,
 ) {
     let operation: &O = unsafe { &*(ptr_data as *const O) };
     operation.execute(handles);
 }
 
-unsafe fn shim_drop<R: FusionRuntime, O: Operation<R>>(ptr_data: *const Data) {
+unsafe fn shim_drop<R: FusionRuntime, O: Operation<R>>(ptr_data: *const Storage) {
     let operation_ptr = ptr_data as *mut O;
     unsafe {
         core::ptr::drop_in_place(operation_ptr);
@@ -193,7 +102,36 @@ pub struct UnfusedOp<R: FusionRuntime> {
 impl<R: FusionRuntime> UnfusedOp<R> {
     /// Creates a new unfused [operation](Operation) that will execute on the given [StreamId].
     pub fn new<O: Operation<R> + 'static>(op: O, stream_id: StreamId) -> Self {
-        ARENA.with_borrow_mut(|arena| arena.reserve(op, stream_id))
+        let arena_item = match size_of::<O>() <= MAX_ITEM_SIZE {
+            true => ARENA.with_borrow_mut(|arena| arena.reserve()),
+            false => None,
+        };
+
+        let (index, ptr_data) = match arena_item {
+            Some(val) => val,
+            None => {
+                return UnfusedOp {
+                    kind: UnfusedOpKind::Alloc(Arc::new(op)),
+                    stream_id: stream_id,
+                };
+            }
+        };
+
+        unsafe {
+            core::ptr::write(ptr_data as *mut O, op);
+        };
+        let ptr_execute = shim_execute::<R, O>;
+        let ptr_drop = shim_drop::<R, O>;
+
+        UnfusedOp {
+            kind: UnfusedOpKind::Arena(UnfusedOpInArena {
+                index,
+                ptr_data,
+                ptr_execute,
+                ptr_drop,
+            }),
+            stream_id: stream_id,
+        }
     }
 
     /// Executes the [operation](Operation) and modifies the given handles.

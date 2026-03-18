@@ -26,7 +26,6 @@ mod server;
 mod tensor;
 
 pub use op::UnfusedOp;
-pub(crate) use op::*;
 pub(crate) use server::*;
 
 pub use backend::*;
