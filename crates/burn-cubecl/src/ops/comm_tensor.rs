@@ -67,7 +67,7 @@ where
 
         // let current = StreamId::current();
         // let old = unsafe { StreamId::swap(current) };
-        // client.sync_collective();
+        client.sync_collective();
         // unsafe { StreamId::swap(old) };
     }
 }
