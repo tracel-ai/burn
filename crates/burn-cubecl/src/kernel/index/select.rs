@@ -1,8 +1,5 @@
 use crate::{CubeRuntime, kernel::utils::address_type, tensor::CubeTensor};
-use crate::{
-    kernel::utils::{ shape_divmod},
-    ops::numeric::empty_device_dtype,
-};
+use crate::{kernel::utils::shape_divmod, ops::numeric::empty_device_dtype};
 use burn_backend::TensorMetadata;
 use cubecl::{CubeDim, calculate_cube_count_elemwise, std::tensor::layout::linear::LinearView};
 use cubecl::{prelude::*, std::FastDivmod};

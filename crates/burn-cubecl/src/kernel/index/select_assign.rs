@@ -1,6 +1,6 @@
 use crate::kernel::{
     AddOp, BinaryOp, BinaryOpFamily, OrOp,
-    utils::{address_type,  shape_divmod},
+    utils::{address_type, shape_divmod},
 };
 use crate::{CubeRuntime, tensor::CubeTensor};
 use cubecl::{CubeDim, calculate_cube_count_elemwise, std::tensor::layout::linear::LinearView};
