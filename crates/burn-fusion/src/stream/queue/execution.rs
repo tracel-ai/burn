@@ -4,7 +4,7 @@ use crate::{
     FusionRuntime, UnfusedOp,
     search::BlockOptimization,
     stream::{
-        Context, Operation, OperationConverter, OrderedExecution, RelativeOps,
+        Context, OperationConverter, OrderedExecution, RelativeOps,
         store::{ExecutionPlanId, ExecutionPlanStore, ExecutionStrategy},
     },
 };

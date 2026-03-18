@@ -1,4 +1,4 @@
-use crate::stream::{OperationConverter, OperationStreams, RelativeOps, execution::Operation};
+use crate::stream::{OperationConverter, OperationStreams, RelativeOps};
 use crate::{FusionRuntime, UnfusedOp};
 use burn_backend::StreamId;
 use burn_ir::{OperationIr, TensorId, TensorStatus};

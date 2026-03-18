@@ -4,7 +4,7 @@ use smallvec::SmallVec;
 
 use super::{
     StreamId,
-    execution::{ExecutionMode, Operation, Processor, StreamSegment},
+    execution::{ExecutionMode, Processor, StreamSegment},
     queue::OperationQueue,
     shared_tensors::SharedTensors,
     store::{ExecutionPlanId, ExecutionPlanStore},

@@ -1,17 +1,20 @@
-use std::{
-    mem::MaybeUninit,
-    sync::atomic::{AtomicU32, Ordering},
-};
+use std::sync::atomic::{AtomicU32, Ordering};
+
+/// The raw storage for the item, potentially uninitialized.
+#[repr(C, align(64))]
+pub struct Bytes<const MAX_ITEM_SIZE: usize> {
+    bytes: [u8; MAX_ITEM_SIZE],
+}
 
 /// A fixed-size memory slot with high alignment.
 ///
 /// `Item` provides a raw byte buffer of size `MAX_ITEM_SIZE`.
 /// It uses a 512-byte alignment to avoid false sharing and to satisfy
 /// strict alignment requirements for specialized hardware or SIMD operations.
-#[repr(C, align(512))]
+#[repr(C, align(64))]
 pub struct Item<const MAX_ITEM_SIZE: usize> {
     /// The raw storage for the item, potentially uninitialized.
-    pub bytes: [MaybeUninit<u8>; MAX_ITEM_SIZE],
+    pub bytes: Bytes<MAX_ITEM_SIZE>,
     /// An atomic reference count or state tracker.
     ///
     /// - `0`: The item is free for reuse.
@@ -41,6 +44,11 @@ impl<const MAX_ITEM_COUNT: usize, const MAX_ITEM_SIZE: usize> Arena<MAX_ITEM_COU
         }
     }
 
+    pub const fn accept<O>() -> bool {
+        size_of::<O>() <= size_of::<Bytes<MAX_ITEM_SIZE>>()
+            && align_of::<O>() <= align_of::<Bytes<MAX_ITEM_SIZE>>()
+    }
+
     /// Attempts to reserve an available item in the arena.
     ///
     /// If the arena is empty, it lazily initializes the buffer to `MAX_ITEM_COUNT`.
@@ -51,11 +59,13 @@ impl<const MAX_ITEM_COUNT: usize, const MAX_ITEM_SIZE: usize> Arena<MAX_ITEM_COU
     /// - `Some((index, *mut Item))`: The index and a raw pointer to the reserved item.
     ///   The item's `count` is automatically set to `2`.
     /// - `None`: If all items in the arena are currently reserved or active.
-    pub fn reserve(&mut self) -> Option<(usize, *mut Item<MAX_ITEM_SIZE>)> {
+    pub fn reserve(&mut self) -> Option<*mut Item<MAX_ITEM_SIZE>> {
         if self.buffer.is_empty() {
             for _ in 0..MAX_ITEM_COUNT {
                 self.buffer.push(Item {
-                    bytes: [MaybeUninit::uninit(); MAX_ITEM_SIZE],
+                    bytes: Bytes {
+                        bytes: [0; MAX_ITEM_SIZE],
+                    },
                     count: AtomicU32::new(0),
                 });
             }
@@ -69,7 +79,7 @@ impl<const MAX_ITEM_COUNT: usize, const MAX_ITEM_SIZE: usize> Arena<MAX_ITEM_COU
                 self.cursor = (i + 1) % MAX_ITEM_COUNT;
                 data.count.store(2, Ordering::Relaxed);
 
-                return Some((i, &mut self.buffer[i]));
+                return Some(&mut self.buffer[i]);
             }
         }
 
@@ -107,14 +117,12 @@ mod tests {
         let mut arena = Arena::<3, MAX_ITEM_SIZE>::new();
 
         // First allocation
-        let (idx1, _) = arena.reserve().expect("Should allocate");
-        assert_eq!(idx1, 0);
-        assert_eq!(arena.cursor, 0);
+        let _ = arena.reserve().expect("Should allocate");
+        assert_eq!(arena.cursor, 1);
 
         // Second allocation
-        let (idx2, _) = arena.reserve().expect("Should allocate");
-        assert_eq!(idx2, 1);
-        assert_eq!(arena.cursor, 1);
+        let _ = arena.reserve().expect("Should allocate");
+        assert_eq!(arena.cursor, 2);
     }
 
     #[test]
@@ -122,8 +130,8 @@ mod tests {
         let mut arena = Arena::<2, MAX_ITEM_SIZE>::new();
 
         // Fill the arena
-        let (_idx0, data0) = arena.reserve().unwrap();
-        let (_idx1, _data1) = arena.reserve().unwrap();
+        let data0 = arena.reserve().unwrap();
+        let _data1 = arena.reserve().unwrap();
 
         // Arena is now full (counts are 2)
         assert!(arena.reserve().is_none(), "Should be full");
@@ -132,8 +140,8 @@ mod tests {
         unsafe { data0.as_ref().unwrap().count.store(0, Ordering::Relaxed) };
 
         // Should now be able to reserve again, and it should pick up index 0
-        let (new_idx, _) = arena.reserve().expect("Should reuse index 0");
-        assert_eq!(new_idx, 0);
+        let data2 = arena.reserve().expect("Should reuse index 0");
+        assert_eq!(data0, data2);
     }
 
     #[test]
@@ -141,18 +149,17 @@ mod tests {
         let mut arena = Arena::<3, MAX_ITEM_SIZE>::new();
 
         // Fill 0, 1, 2
-        let (_, _d0) = arena.reserve().unwrap();
-        let (_, d1) = arena.reserve().unwrap();
-        let (_, _d2) = arena.reserve().unwrap();
+        let _d0 = arena.reserve().unwrap();
+        let d1 = arena.reserve().unwrap();
+        let _d2 = arena.reserve().unwrap();
 
         // Free index 1 (the middle)
         unsafe { d1.as_ref().unwrap().count.store(0, Ordering::Relaxed) };
 
         // Currently cursor is at 2. The search starts at (cursor + i) % size.
         // It should wrap around and find index 1.
-        let (reused_idx, _) = arena.reserve().expect("Should find the hole at index 1");
-        assert_eq!(reused_idx, 1);
-        assert_eq!(arena.cursor, 1);
+        let _ = arena.reserve().expect("Should find the hole at index 1");
+        assert_eq!(arena.cursor, 2);
     }
 
     #[test]
