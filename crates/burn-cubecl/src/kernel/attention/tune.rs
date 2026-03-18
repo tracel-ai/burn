@@ -62,38 +62,35 @@ pub fn attention_autotune<R: CubeRuntime>(
             .group(&fallback, |_key| PRIORITY_MAX),
         );
 
+        let seq_q = 1;
+        let seq_kv = 1;
         for num_planes in [2, 4, 8] {
-            for seq_q in [1] {
-                for seq_kv in [1] {
-                    let name =
-                        format!("blackbox_accelerated_{num_planes}_planes_p_{seq_q}-{seq_kv}");
-                    set = set.with(
-                        Tunable::new(
-                            &name,
-                            move |query, key, value, mask, attn_bias, out, options| {
-                                attention::<R>(
-                                    query,
-                                    key,
-                                    value,
-                                    mask,
-                                    attn_bias,
-                                    options,
-                                    AttentionStrategy::FlashBlackboxAccelerated(
-                                        BlackboxAcceleratedStrategy {
-                                            num_planes,
-                                            seq_q,
-                                            seq_kv,
-                                        },
-                                    ),
-                                    Some(out),
-                                )
-                                .map_err(|err| std::format!("{err:?}"))
-                            },
+            let name = format!("blackbox_accelerated_{num_planes}_planes_p_{seq_q}-{seq_kv}");
+            set = set.with(
+                Tunable::new(
+                    &name,
+                    move |query, key, value, mask, attn_bias, out, options| {
+                        attention::<R>(
+                            query,
+                            key,
+                            value,
+                            mask,
+                            attn_bias,
+                            options,
+                            AttentionStrategy::FlashBlackboxAccelerated(
+                                BlackboxAcceleratedStrategy {
+                                    num_planes,
+                                    seq_q,
+                                    seq_kv,
+                                },
+                            ),
+                            Some(out),
                         )
-                        .group(&flash_attention, |_key| PRIORITY_MAX),
-                    );
-                }
-            }
+                        .map_err(|err| std::format!("{err:?}"))
+                    },
+                )
+                .group(&flash_attention, |_key| PRIORITY_MAX),
+            );
         }
 
         set = set.with(
