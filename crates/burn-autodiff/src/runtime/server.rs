@@ -1,5 +1,3 @@
-use std::thread;
-
 use super::memory_management::GraphMemoryManagement;
 use crate::{
     NodeId,
@@ -16,7 +14,7 @@ use crate::{
     tensor::NodeRefCount,
 };
 use alloc::vec::Vec;
-use burn_backend::{Backend, DeviceOps, ShardedParams, tensor::FloatTensor};
+use burn_backend::{Backend, ShardedParams, tensor::FloatTensor};
 
 struct TapeResult {
     tape: Vec<Vec<StepBoxed>>,

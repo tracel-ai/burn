@@ -1,5 +1,5 @@
 use burn_backend::ops::TensorRef;
-use burn_backend::{DeviceId, DeviceOps, StreamId};
+use burn_backend::{DeviceId, DeviceOps};
 use burn_backend::{ReduceOperation, ops::CommunicationTensorOps, tensor::Device};
 
 use crate::{BoolElement, CubeBackend, CubeRuntime, FloatElement, IntElement};

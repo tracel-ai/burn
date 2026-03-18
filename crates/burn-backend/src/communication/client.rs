@@ -53,11 +53,8 @@ impl<B: Backend> GradientSyncClient<B> {
     }
 
     pub fn wait_gradients_sync(&self, device: Device<B>) {
-        // let is_synced = Arc::new((Mutex::new(false), Condvar::new()));
-
         let (tx, rx) = oneshot::channel();
 
-        // Send callback and sync/wait on this thread
         self.sender
             .send(MessageAction::Message(GradientSyncMessage::Sync((
                 device.clone(),
@@ -67,7 +64,6 @@ impl<B: Backend> GradientSyncClient<B> {
 
         let task = rx.recv().expect("Can receive callback");
         task();
-        println!("synced client {device:?}");
     }
 
     pub(crate) fn close(&self) {
