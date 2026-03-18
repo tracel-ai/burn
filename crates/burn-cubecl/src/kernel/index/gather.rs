@@ -1,6 +1,6 @@
 use crate::{
     CubeRuntime,
-    kernel::utils::{address_type, broadcast_strides,  shape_divmod},
+    kernel::utils::{address_type, broadcast_strides, shape_divmod},
     ops::numeric::empty_device_dtype,
     tensor::CubeTensor,
 };
