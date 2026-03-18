@@ -6,6 +6,7 @@ use crate::{
 use burn_backend::{Device, DeviceHandle, DeviceId, DeviceService};
 use burn_backend::{TensorData, backend::ExecutionError};
 use burn_ir::{OperationIr, TensorId, TensorIr};
+use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 /// Use a mutex to communicate with the fusion server.
