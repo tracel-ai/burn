@@ -1,6 +1,6 @@
 use crate::{
     CubeRuntime,
-    kernel::utils::{address_type, linear_view, shape_divmod},
+    kernel::utils::{address_type, shape_divmod},
 };
 use crate::{element::CubeElement, tensor::CubeTensor};
 use crate::{
@@ -78,7 +78,7 @@ pub fn full_device_dtype<R: CubeRuntime>(
             cube_dim,
             address_type!(empty),
             vector_size,
-            linear_view(empty.clone(), vector_size),
+            empty.clone().into_linear_view(),
             value,
             empty.dtype.into(),
         );
@@ -431,7 +431,7 @@ fn cumulative_op<R: CubeRuntime, O: CumulativeOpFamily>(
             cube_dim,
             address_type!(input, output),
             input.into_tensor_arg(),
-            linear_view(output.clone(), 1),
+            output.clone().into_linear_view(),
             shape,
             dim,
             output.dtype.into(),

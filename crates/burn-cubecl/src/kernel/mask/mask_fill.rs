@@ -3,7 +3,7 @@ use cubecl::{calculate_cube_count_elemwise, prelude::*, std::tensor::layout::lin
 
 use crate::{
     CubeRuntime,
-    kernel::utils::{address_type, linear_view, linear_view_alias, linear_view_ref},
+    kernel::utils::address_type,
     ops::{max_vector_size_many, numeric::empty_device_dtype},
     tensor::CubeTensor,
 };
@@ -65,12 +65,12 @@ pub fn mask_fill<R: CubeRuntime>(
     let cube_count = calculate_cube_count_elemwise(&input.client, working_units, cube_dim);
 
     let out_arg = match strategy {
-        MaskFillStrategy::Readonly => linear_view(output.clone(), vector_size),
-        MaskFillStrategy::Inplace => linear_view_alias(&output, vector_size, 0),
+        MaskFillStrategy::Readonly => output.clone().into_linear_view(),
+        MaskFillStrategy::Inplace => output.as_linear_view_alias(0),
     };
 
     let at = address_type!(input, mask, output);
-    let mask = linear_view_ref(mask, &input, vector_size);
+    let mask = mask.into_linear_view_like(&input);
 
     unsafe {
         mask_fill_kernel::launch_unchecked(
@@ -79,7 +79,7 @@ pub fn mask_fill<R: CubeRuntime>(
             cube_dim,
             at,
             vector_size,
-            linear_view(input, vector_size),
+            input.into_linear_view(),
             mask,
             out_arg,
             value,
