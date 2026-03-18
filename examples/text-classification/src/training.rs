@@ -9,10 +9,11 @@ use crate::{
     data::{BertCasedTokenizer, TextClassificationBatcher, TextClassificationDataset, Tokenizer},
     model::TextClassificationModelConfig,
 };
-#[cfg(feature = "ddp")]
-use burn::collective::{AllReduceStrategy, CollectiveConfig};
-use burn::train::{Learner, SupervisedTraining};
 #[cfg(not(feature = "ddp"))]
+use burn::train::MultiDeviceOptim;
+use burn::train::{Learner, SupervisedTraining};
+#[cfg(feature = "ddp")]
+use burn::{collective::CollectiveConfig, tensor::communication::AllReduceStrategy};
 use burn::{
     data::{dataloader::DataLoaderBuilder, dataset::transform::SamplerDataset},
     lr_scheduler::noam::NoamLrSchedulerConfig,
@@ -21,11 +22,8 @@ use burn::{
     prelude::*,
     record::{CompactRecorder, Recorder},
     tensor::backend::AutodiffBackend,
-    train::{
-        MultiDeviceOptim,
-        metric::{
-            AccuracyMetric, CudaMetric, IterationSpeedMetric, LearningRateMetric, LossMetric,
-        },
+    train::metric::{
+        AccuracyMetric, CudaMetric, IterationSpeedMetric, LearningRateMetric, LossMetric,
     },
 };
 use std::sync::Arc;
@@ -121,11 +119,7 @@ pub fn train<B: AutodiffBackend, D: TextClassificationDataset + 'static>(
         .with_file_checkpointer(CompactRecorder::new())
         .with_training_strategy(burn::train::ddp(devices, collective_config))
         .num_epochs(config.num_epochs)
-        .summary()
-        .with_training_strategy(burn::train::TrainingStrategy::DistributedDataParallel {
-            devices: devices,
-            config: collective_config,
-        });
+        .summary();
 
     // Train the model
     let result = training.launch(Learner::new(model, optim, lr_scheduler));

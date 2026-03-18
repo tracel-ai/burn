@@ -38,7 +38,6 @@ burn = { path = "../../crates/burn", features = [
     "autotune",
     # "fusion",
     "std",
-    "collective",
 ], default-features = false }
 log = { workspace = true }
 
