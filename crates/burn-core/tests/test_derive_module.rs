@@ -533,7 +533,7 @@ mod require_grad {
                 <TestAutodiffBackend as Backend>::Device::from_id(DeviceId::new(type_id, i as u32))
             })
             .collect();
-        let num_iter = 1;
+        let num_iter = 10;
 
         println!("Start test!!!!");
 
