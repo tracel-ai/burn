@@ -444,20 +444,6 @@ pub trait IntTensorOps<B: Backend> {
         B::float_into_int(B::float_powi(B::int_into_float(lhs), rhs))
     }
 
-    /// Element-wise power with a floatTensor.
-    ///
-    /// # Arguments
-    ///
-    /// * `lhs` - The left-hand side tensor.
-    /// * `rhs` - The right-hand side floatTensor.
-    ///
-    /// # Returns
-    ///
-    /// The elements of `lhs` raised to the value of `rhs`. Result is an IntTensor.
-    fn int_powf(lhs: IntTensor<B>, rhs: FloatTensor<B>) -> IntTensor<B> {
-        B::float_into_int(B::float_powf(B::int_into_float(lhs), rhs))
-    }
-
     /// Element-wise power with a scalar.
     ///
     /// # Backend Implementors Note
@@ -514,43 +500,6 @@ pub trait IntTensorOps<B: Backend> {
     /// The elements of `lhs` raised to the value of `rhs`.
     fn int_powi_scalar_impl(lhs: IntTensor<B>, rhs: Scalar) -> IntTensor<B> {
         B::float_into_int(B::float_powi_scalar_impl(B::int_into_float(lhs), rhs))
-    }
-
-    /// Element-wise power with a floatTensor.
-    ///
-    /// Handles a number of special cases, then calls [`Self::int_powf_scalar_impl`].
-    ///
-    /// # Arguments
-    ///
-    /// * `lhs` - The left-hand side tensor.
-    /// * `rhs` - The right-hand side scalar.
-    ///
-    /// # Returns
-    ///
-    /// The elements of `lhs` raised to the value of `rhs`. Result is an IntTensor.
-    fn int_powf_scalar(lhs: IntTensor<B>, rhs: Scalar) -> IntTensor<B> {
-        // TODO: remove int powf which has weird semantics
-        if let Some(exp) = rhs.try_as_integer() {
-            Self::int_powi_scalar(lhs, exp)
-        } else {
-            Self::int_powf_scalar_impl(lhs, rhs)
-        }
-    }
-
-    /// Element-wise power with a floatTensor.
-    ///
-    /// Fallback handler for [`Self::int_powf_scalar`].
-    ///
-    /// # Arguments
-    ///
-    /// * `lhs` - The left-hand side tensor.
-    /// * `rhs` - The right-hand side scalar.
-    ///
-    /// # Returns
-    ///
-    /// The elements of `lhs` raised to the value of `rhs`. Result is an IntTensor.
-    fn int_powf_scalar_impl(lhs: IntTensor<B>, rhs: Scalar) -> IntTensor<B> {
-        B::float_into_int(B::float_powf_scalar_impl(B::int_into_float(lhs), rhs))
     }
 
     /// Clamps a tensor under a minimum value.

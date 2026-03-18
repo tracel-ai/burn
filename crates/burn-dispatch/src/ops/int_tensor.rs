@@ -346,16 +346,8 @@ impl IntTensorOps<Self> for Dispatch {
         binary_op!((lhs, int), (rhs, int), |lhs, rhs| B::int_powi(lhs, rhs) => Int)
     }
 
-    fn int_powf(lhs: IntTensor<Self>, rhs: FloatTensor<Self>) -> IntTensor<Self> {
-        binary_op!((lhs, int), (rhs, int), |lhs, rhs| B::int_powf(lhs, rhs) => Int)
-    }
-
     fn int_powi_scalar_impl(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
         unary_op!(lhs, int, |lhs| B::int_powi_scalar_impl(lhs, rhs) => Int)
-    }
-
-    fn int_powf_scalar_impl(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
-        unary_op!(lhs, int, |lhs| B::int_powf_scalar_impl(lhs, rhs) => Int)
     }
 
     fn int_clamp_min(tensor: IntTensor<Self>, min: Scalar) -> IntTensor<Self> {
