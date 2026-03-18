@@ -1,6 +1,6 @@
 use crate::{
     CubeRuntime,
-    kernel::utils::{address_type, linear_view, linear_view_alias},
+    kernel::utils::address_type,
     ops::{max_vector_size, numeric::empty_device_dtype},
     tensor::CubeTensor,
 };
@@ -56,8 +56,8 @@ where
                 cube_dim,
                 address_type!(tensor),
                 vector_size,
-                linear_view(tensor.clone(), vector_size),
-                linear_view_alias(&tensor, vector_size, 0),
+                tensor.clone().into_linear_view(),
+                tensor.as_linear_view_alias(0),
                 args(&()),
                 dtype.into(),
             );
@@ -77,8 +77,8 @@ where
                 cube_dim,
                 address_type!(tensor, output),
                 vector_size,
-                linear_view(tensor, vector_size),
-                linear_view(output.clone(), vector_size),
+                tensor.into_linear_view(),
+                output.clone().into_linear_view(),
                 args(&()),
                 dtype.into(),
             );

@@ -257,14 +257,6 @@ impl<B: Backend> Numeric<B> for Int {
         B::int_abs(tensor)
     }
 
-    fn powf(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
-        B::int_powf(lhs, B::int_into_float(rhs))
-    }
-
-    fn powf_scalar(lhs: Self::Primitive, rhs: Scalar) -> Self::Primitive {
-        B::int_powf_scalar(lhs, rhs)
-    }
-
     fn powi(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
         B::int_powi(lhs, rhs)
     }

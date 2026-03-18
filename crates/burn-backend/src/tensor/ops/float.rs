@@ -429,17 +429,6 @@ impl<B: Backend> Numeric<B> for Float {
         }
     }
 
-    fn powf(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
-        q_bin_ops!(lhs, rhs, float_powf, q_powf)
-    }
-
-    fn powf_scalar(lhs: Self::Primitive, rhs: Scalar) -> Self::Primitive {
-        match lhs {
-            TensorPrimitive::Float(lhs) => TensorPrimitive::Float(B::float_powf_scalar(lhs, rhs)),
-            TensorPrimitive::QFloat(lhs) => B::q_powf_scalar(lhs, rhs),
-        }
-    }
-
     fn powi(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
         q_bin_ops!(lhs, rhs, float_powf, q_powf)
     }

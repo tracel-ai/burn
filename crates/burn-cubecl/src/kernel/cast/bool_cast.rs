@@ -1,6 +1,6 @@
 use crate::{
     CubeElement, CubeRuntime,
-    kernel::utils::{address_type, linear_view},
+    kernel::utils::address_type,
     ops::{max_vector_size, numeric::empty_device},
     tensor::CubeTensor,
 };
@@ -48,8 +48,8 @@ pub fn bool_cast<R: CubeRuntime, EO: CubeElement>(tensor: CubeTensor<R>) -> Cube
             cube_dim,
             address_type!(tensor, output),
             vector_size,
-            linear_view(tensor, vector_size),
-            linear_view(output.clone(), vector_size),
+            tensor.into_linear_view(),
+            output.clone().into_linear_view(),
             dtype.into(),
         )
     };

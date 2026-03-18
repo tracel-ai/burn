@@ -1,14 +1,16 @@
 use crate::CubeRuntime;
-use crate::element::CubeElement;
 use crate::kernel::{NumericUnaryOp, NumericUnaryOpFamily, launch_unary_numeric};
 use burn_backend::quantization::QuantScheme;
 use burn_backend::{DType, QTensorPrimitive, Shape, TensorMetadata};
 use burn_std::{Metadata, strides, tensor::is_contiguous};
-use cubecl::client::ComputeClient;
-use cubecl::frontend::Numeric;
-use cubecl::prelude::{TensorBinding, *};
 use cubecl::server::Handle;
 use cubecl::std::tensor::TensorHandle;
+use cubecl::{client::ComputeClient, std::tensor::layout::linear::LinearViewLaunch};
+use cubecl::{frontend::Numeric, std::tensor::layout::linear::LinearViewLayoutLaunch};
+use cubecl::{
+    prelude::{TensorBinding, *},
+    std::tensor::layout::linear::LinearViewLayout,
+};
 use std::marker::PhantomData;
 
 use super::QParams;
@@ -211,8 +213,38 @@ where
     }
 
     /// Return the reference to an array argument.
-    pub fn into_array_arg<E: CubeElement>(self) -> ArrayArg<R> {
+    pub fn into_array_arg(self) -> ArrayArg<R> {
         self.into_tensor_arg().into_array_arg()
+    }
+
+    /// Returns a reference to the aliased tensor argument.
+    pub fn as_tensor_alias(&self, input_pos: usize) -> TensorArg<R> {
+        TensorArg::Alias {
+            input_pos,
+            strides: self.meta.strides().clone(),
+            shape: self.meta.shape().clone(),
+        }
+    }
+
+    /// Return a linear view of this tensor.
+    pub fn into_linear_view(self) -> LinearViewLaunch<R> {
+        let layout = LinearViewLayoutLaunch::new();
+        let buffer = self.into_tensor_arg();
+        LinearViewLaunch::new_tensor::<LinearViewLayout>(buffer, layout)
+    }
+
+    /// Return an aliased linear view of this tensor
+    pub fn as_linear_view_alias(&self, input_pos: usize) -> LinearViewLaunch<R> {
+        let layout = LinearViewLayoutLaunch::new();
+        let buffer = self.as_tensor_alias(input_pos);
+        LinearViewLaunch::new_tensor::<LinearViewLayout>(buffer, layout)
+    }
+
+    /// Return a linear view broadcast to the reference tensor's shape
+    pub fn into_linear_view_like(self, reference: &Self) -> LinearViewLaunch<R> {
+        let layout = LinearViewLayoutLaunch::from_reference_shape(reference.shape());
+        let buffer = self.into_tensor_arg();
+        LinearViewLaunch::new_tensor::<LinearViewLayout>(buffer, layout)
     }
 
     /// Returns the address type required to index this tensor

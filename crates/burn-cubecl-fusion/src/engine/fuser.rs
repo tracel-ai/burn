@@ -434,6 +434,9 @@ impl TraceOperationFuser {
             FloatOperationIr::Log(desc) => {
                 self.fuse_unary_ops(desc, |input, out| FuseOp::Log(UnaryFuseArgs { input, out }))
             }
+            FloatOperationIr::Powf(desc) => self.fuse_binary_ops(desc, |lhs, rhs, out| {
+                FuseOp::Powf(BinaryFuseArgs { lhs, rhs, out })
+            }),
             FloatOperationIr::Log1p(desc) => self.fuse_unary_ops(desc, |input, out| {
                 FuseOp::Log1p(UnaryFuseArgs { input, out })
             }),
@@ -569,9 +572,6 @@ impl TraceOperationFuser {
             }),
             NumericOperationIr::RemScalar(desc) => self.fuse_scalar_ops(desc, |lhs, rhs, out| {
                 FuseOp::Rem(BinaryFuseArgs { lhs, rhs, out })
-            }),
-            NumericOperationIr::Powf(desc) => self.fuse_binary_ops(desc, |lhs, rhs, out| {
-                FuseOp::Powf(BinaryFuseArgs { lhs, rhs, out })
             }),
             NumericOperationIr::Clamp(desc) => {
                 if !self.output_is_compatible(&desc.out) {

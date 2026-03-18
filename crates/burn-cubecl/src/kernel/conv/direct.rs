@@ -1,9 +1,6 @@
 use crate::{
     CubeRuntime,
-    kernel::{
-        into_contiguous_aligned,
-        utils::{address_type, linear_view},
-    },
+    kernel::{into_contiguous_aligned, utils::address_type},
     ops::max_vector_size,
     tensor::CubeTensor,
 };
@@ -16,10 +13,7 @@ use cubecl::{
     calculate_cube_count_elemwise, prelude::*, std::tensor::layout::linear::LinearView,
     tensor_vector_size_parallel,
 };
-use cubecl::{
-    num_traits::Zero,
-    std::{FastDivmod, FastDivmodArgs},
-};
+use cubecl::{num_traits::Zero, std::FastDivmod};
 use cubek::convolution::components::ConvSetupError;
 
 #[derive(CubeLaunch, CubeType, Clone)]
@@ -231,7 +225,6 @@ pub fn conv_direct<R: CubeRuntime, const N: usize>(
     bias: Option<CubeTensor<R>>,
     options: ConvOptions<N>,
 ) -> Result<CubeTensor<R>, ConvSetupError> {
-    let client = input.client.clone();
     let out_dtype = input.dtype;
     let rank = input.meta.shape().num_dims();
     let dim_c = rank - 1;
@@ -285,9 +278,9 @@ pub fn conv_direct<R: CubeRuntime, const N: usize>(
 
     let shape_out = output.meta.shape()[1..dim_c]
         .iter()
-        .map(|s| FastDivmodArgs::<u32>::new(&client, *s as u32))
+        .map(|s| *s as u32)
         .collect();
-    let shape_out_c = FastDivmodArgs::<u32>::new(&client, out_channels as u32);
+    let shape_out_c = out_channels as u32;
 
     let mut conv_params = SequenceArg::new();
 
@@ -314,7 +307,7 @@ pub fn conv_direct<R: CubeRuntime, const N: usize>(
             input.into_tensor_arg(),
             weight.into_tensor_arg(),
             bias.map(|b| b.into_tensor_arg()).into(),
-            linear_view(output.clone(), vector_size_out),
+            output.clone().into_linear_view(),
             Conv2dArgsLaunch::new(conv_params, channels_per_group as u32),
             shape_out,
             shape_out_c,

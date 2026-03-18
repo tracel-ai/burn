@@ -50,7 +50,7 @@ data-encoding = { version = "2.10.0", default-features = false, features = [
 dirs = "6.0.0"
 encoding_rs = "0.8.33"
 enumset = { version = "1.1.10", default-features = false }
-fake = "5.0.0"
+fake = "5.1.0"
 flate2 = "1.1.9"
 float-cmp = "0.10.0"
 futures = "0.3"
@@ -182,7 +182,7 @@ portable-atomic-util = { version = "0.2.6", features = ["alloc"] }
 cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "b2e13139e871f299716099633851f592b5e8a487" }
 cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "b2e13139e871f299716099633851f592b5e8a487" }
 cubecl-zspace = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "b2e13139e871f299716099633851f592b5e8a487" }
-cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "52890221c8566f4fb92a9ab863ad8a459a4d22ce" }
+cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "554abe1b0d945fef8bc74daf90bf11718fee9d47" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }
