@@ -74,7 +74,10 @@ pub fn attention<R: CubeRuntime>(
             attn_bias,
             options,
             out,
-            launch::Strategy::Unit(cubek::attention::launch::BlueprintStrategy::Inferred(())),
+            launch::Strategy::BlackboxAccelerated(
+                cubek::attention::launch::BlueprintStrategy::Inferred(()),
+            ),
+            // launch::Strategy::Unit(cubek::attention::launch::BlueprintStrategy::Inferred(())),
         ),
         AttentionStrategy::Fallback => {
             out = attention_fallback::<CubeBackend<R, f32, i32, u8>>(
