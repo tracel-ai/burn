@@ -113,7 +113,15 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
 
             match kind {
                 OutputKind::Inplace { input_pos } => {
-                    self.inplace_output(context, plan, output, tensor_global, input_pos, block_idx);
+                    self.inplace_output(
+                        context,
+                        plan,
+                        output,
+                        tensor_global,
+                        strides,
+                        input_pos,
+                        block_idx,
+                    );
                 }
                 OutputKind::Normal => {
                     self.normal_output::<BT>(
@@ -352,12 +360,14 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         (kind, block_idx)
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn inplace_output(
         &mut self,
         context: &mut Context<'_, CubeFusionHandle<R>>,
         plan: &mut LaunchPlan<'a, R>,
         output: OutputSorted,
         tensor_global: TensorIr,
+        strides: Strides,
         input_index: usize,
         block_idx: usize,
     ) {
@@ -424,6 +434,8 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         self.handles[output.pos_original] = Some(HandleOutput::Alias {
             input_pos: potential_inplace.input_pos,
             precision: output.precision,
+            global_shape: tensor_global.shape.clone(),
+            strides,
             #[cfg(feature = "autotune-checks")]
             debug_info: super::HandleOutputAliasDebugInfo {
                 relative_id: output.tensor_relative.id,
@@ -575,6 +587,8 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                 self.handles[output.pos_original] = Some(HandleOutput::Alias {
                     input_pos: pos_input,
                     precision: output.precision,
+                    global_shape: tensor_global.shape.clone(),
+                    strides: handle.strides.clone(),
                     #[cfg(feature = "autotune-checks")]
                     debug_info: super::HandleOutputAliasDebugInfo {
                         relative_id: output.tensor_relative.id,
@@ -646,6 +660,8 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         self.handles[output.pos_original] = Some(HandleOutput::Alias {
             input_pos: pos_input,
             precision: output.precision,
+            global_shape: tensor_global.shape.clone(),
+            strides: handle.strides.clone(),
             #[cfg(feature = "autotune-checks")]
             debug_info: super::HandleOutputAliasDebugInfo {
                 relative_id: output.tensor_relative.id,

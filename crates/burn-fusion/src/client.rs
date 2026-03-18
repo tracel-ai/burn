@@ -19,6 +19,10 @@ impl<R: FusionRuntime> DeviceService for FusionServer<R> {
         let device = FusionDevice::<R>::from_id(device_id);
         FusionServer::new(device)
     }
+
+    fn utilities(&self) -> burn_backend::ServerUtilitiesHandle {
+        Arc::new(())
+    }
 }
 
 impl<R> Clone for GlobalFusionClient<R>

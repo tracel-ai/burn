@@ -1,6 +1,6 @@
 use crate::{
     CubeRuntime,
-    kernel::utils::{address_type, linear_view, shape_divmod},
+    kernel::utils::{address_type, shape_divmod},
     ops::numeric::empty_device_dtype,
     tensor::CubeTensor,
 };
@@ -88,7 +88,7 @@ pub(crate) fn flip_on_output<R: CubeRuntime>(
             cube_dim,
             address_type!(tensor, output),
             tensor.into_tensor_arg(),
-            linear_view(output.clone(), 1),
+            output.clone().into_linear_view(),
             shape,
             indices_sequence,
             [dtype_input.into(), dtype_bool.into()],

@@ -779,56 +779,6 @@ where
         self.mask_fill(mask, 0)
     }
 
-    /// Applies element wise power operation with a float Tensor
-    ///
-    /// # Arguments
-    ///
-    /// * `other` - The tensor to apply the power operation with.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use burn_tensor::backend::Backend;
-    /// use burn_tensor::{Tensor, Shape};
-    ///
-    /// fn example<B: Backend>() {
-    ///    let device = B::Device::default();
-    ///    let tensor1 = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let tensor2 = Tensor::<B, 2>::from_data([[2.0, 3.0, 4.0], [1.0, 2.0, 3.0]], &device);
-    ///    let tensor = tensor1.powf(tensor2);
-    ///    println!("{tensor}");
-    ///    // [[1.0, 8.0, 81.0], [5.0, 81.0, 216.0]]
-    /// }
-    /// ```
-    pub fn powf(self, other: Self) -> Self {
-        Self::new(K::powf(self.primitive, other.primitive))
-    }
-
-    /// Applies element wise power operation with a float scalar
-    ///
-    /// # Arguments
-    ///
-    /// * `other` - The scalar to apply the power operation with.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use burn_tensor::backend::Backend;
-    /// use burn_tensor::{Tensor, Shape};
-    ///
-    /// fn example<B: Backend>() {
-    ///    let device = B::Device::default();
-    ///    let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]], &device);
-    ///    let tensor = tensor.powf_scalar(2.0);
-    ///    println!("{tensor}");
-    ///    // [[1.0, 4.0, 9.0], [25.0, 81.0, 36.0]]
-    /// }
-    /// ```
-    pub fn powf_scalar<E: ElementConversion>(self, other: E) -> Self {
-        let other = Scalar::new(other, &self.dtype());
-        Self::new(K::powf_scalar(self.primitive, other))
-    }
-
     /// Applies element wise power operation with a integer Tensor
     ///
     /// # Arguments

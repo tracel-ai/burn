@@ -1,12 +1,12 @@
 use crate::{
     CubeRuntime,
-    kernel::utils::{address_type, linear_view, shape_divmod},
+    kernel::utils::{address_type, shape_divmod},
     tensor::CubeTensor,
 };
 use cubecl::{
     calculate_cube_count_elemwise, intrinsic,
     prelude::*,
-    std::{FastDivmod, FastDivmodArgs, tensor::layout::linear::LinearView},
+    std::{FastDivmod, tensor::layout::linear::LinearView},
 };
 
 #[cube(launch_unchecked, address_type = "dynamic")]
@@ -155,7 +155,7 @@ pub(crate) fn slice_assign<R: CubeRuntime>(
         let end = slice.end.unwrap_or(tensor.meta.shape()[i] as isize);
         let length = (end - slice.start) as usize;
 
-        shape.push(FastDivmodArgs::<usize>::new(&client, length));
+        shape.push(length);
         offsets.push(start);
     }
 
@@ -171,7 +171,7 @@ pub(crate) fn slice_assign<R: CubeRuntime>(
             address_type!(tensor, value),
             vector_size,
             tensor.clone().into_tensor_arg(),
-            linear_view(value, vector_size),
+            value.into_linear_view(),
             shape,
             offsets,
             tensor.dtype.into(),
@@ -232,7 +232,7 @@ pub(crate) fn slice_assign_with_steps<R: CubeRuntime>(
             cube_dim,
             address_type!(tensor, value),
             tensor.clone().into_tensor_arg(),
-            linear_view(value, 1),
+            value.into_linear_view(),
             shape,
             starts,
             ends,
