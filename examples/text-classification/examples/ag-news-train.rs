@@ -41,7 +41,8 @@ pub fn launch<B: AutodiffBackend>(devices: Vec<B::Device>) {
         AgNewsDataset::train(),
         AgNewsDataset::test(),
         config,
-        "/tmp/text-classification-ag-news",
+        // "/tmp/text-classification-ag-news",
+        "/home/charles/text-classification-ag-news",
     );
 }
 

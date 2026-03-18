@@ -11,11 +11,7 @@ use crate::{
 };
 #[cfg(feature = "ddp")]
 use burn::collective::{AllReduceStrategy, CollectiveConfig};
-use burn::{
-    collective::CollectiveConfig,
-    tensor::communication::AllReduceStrategy,
-    train::{Learner, SupervisedTraining},
-};
+use burn::train::{Learner, SupervisedTraining};
 #[cfg(not(feature = "ddp"))]
 use burn::{
     data::{dataloader::DataLoaderBuilder, dataset::transform::SamplerDataset},
@@ -90,9 +86,6 @@ pub fn train<B: AutodiffBackend, D: TextClassificationDataset + 'static>(
         .init()
         .unwrap();
 
-    let collective_config =
-        CollectiveConfig::default().with_local_all_reduce_strategy(AllReduceStrategy::Centralized);
-
     // Initialize learner
     #[cfg(not(feature = "ddp"))]
     let training = SupervisedTraining::new(artifact_dir, dataloader_train, dataloader_test)
@@ -107,14 +100,10 @@ pub fn train<B: AutodiffBackend, D: TextClassificationDataset + 'static>(
         .with_file_checkpointer(CompactRecorder::new())
         .num_epochs(config.num_epochs)
         .summary()
-        // .with_training_strategy(burn::train::TrainingStrategy::MultiDevice(
-        //     devices,
-        //     MultiDeviceOptim::OptimSharded,
-        // ));
-        .with_training_strategy(burn::train::TrainingStrategy::DistributedDataParallel {
-            devices: devices,
-            config: collective_config,
-        });
+        .with_training_strategy(burn::train::TrainingStrategy::MultiDevice(
+            devices,
+            MultiDeviceOptim::OptimSharded,
+        ));
 
     #[cfg(feature = "ddp")]
     let collective_config =
@@ -132,7 +121,11 @@ pub fn train<B: AutodiffBackend, D: TextClassificationDataset + 'static>(
         .with_file_checkpointer(CompactRecorder::new())
         .with_training_strategy(burn::train::ddp(devices, collective_config))
         .num_epochs(config.num_epochs)
-        .summary();
+        .summary()
+        .with_training_strategy(burn::train::TrainingStrategy::DistributedDataParallel {
+            devices: devices,
+            config: collective_config,
+        });
 
     // Train the model
     let result = training.launch(Learner::new(model, optim, lr_scheduler));
