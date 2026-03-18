@@ -8,7 +8,7 @@ use crate::burnpack::{
 
 use super::*;
 use burn_core::module::ParamId;
-use burn_tensor::{DType, TensorData, shape};
+use burn_tensor::{BoolStore, DType, TensorData, shape};
 use std::rc::Rc;
 
 #[test]
@@ -172,7 +172,7 @@ fn test_writer_all_dtypes() {
         (DType::U16, 2, 255u16.to_le_bytes().to_vec()),
         (DType::U8, 1, vec![255u8]),
         // Boolean
-        (DType::Bool, 1, vec![1u8]),
+        (DType::Bool(BoolStore::Native), 1, vec![1u8]),
     ];
 
     let mut snapshots = vec![];
@@ -346,7 +346,12 @@ fn test_writer_all_dtypes_round_trip() {
         ),
         ("u8_tensor", DType::U8, vec![1u8, 2, 3, 4], shape![2, 2]),
         // Boolean
-        ("bool_tensor", DType::Bool, vec![1u8, 0, 1, 0], shape![4]),
+        (
+            "bool_tensor",
+            DType::Bool(BoolStore::Native),
+            vec![1u8, 0, 1, 0],
+            shape![4],
+        ),
     ];
 
     let mut snapshots = vec![];

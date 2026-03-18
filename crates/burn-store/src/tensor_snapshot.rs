@@ -307,7 +307,7 @@ mod tests {
     use super::*;
     type TestBackend = burn_ndarray::NdArray;
     use alloc::string::ToString;
-    use burn_tensor::{DType, shape};
+    use burn_tensor::{BoolStore, DType, shape};
 
     #[test]
     fn tensor_view_float() {
@@ -369,12 +369,12 @@ mod tests {
         );
 
         // Test metadata access without materialization
-        assert_eq!(snapshot.dtype, DType::Bool);
+        assert_eq!(snapshot.dtype, DType::Bool(BoolStore::Native));
         assert_eq!(snapshot.shape, shape![2, 2]);
 
         let data = snapshot.to_data().unwrap();
         assert_eq!(data.shape, shape![2, 2]);
-        assert_eq!(data.dtype, DType::Bool);
+        assert_eq!(data.dtype, DType::Bool(BoolStore::Native));
     }
 
     #[test]

@@ -15,7 +15,7 @@ use alloc::vec;
 use alloc::vec::Vec;
 use burn_core::module::ParamId;
 use burn_tensor::backend::Backend;
-use burn_tensor::{DType, TensorData};
+use burn_tensor::{BoolStore, DType, TensorData};
 use core::fmt;
 use core::ops::Deref;
 use hashbrown::HashMap;
@@ -1056,7 +1056,7 @@ fn safetensor_dtype_to_burn(dtype: safetensors::Dtype) -> Result<DType, Safetens
         Dtype::U64 => Ok(DType::U64),
         Dtype::U32 => Ok(DType::U32),
         Dtype::U8 => Ok(DType::U8),
-        Dtype::BOOL => Ok(DType::Bool),
+        Dtype::BOOL => Ok(DType::Bool(BoolStore::Native)),
         _ => Err(SafetensorsStoreError::Other(format!(
             "Unsupported dtype: {:?}",
             dtype
@@ -1083,7 +1083,9 @@ fn dtype_to_safetensors(dtype: DType) -> Result<safetensors::Dtype, SafetensorsS
             "U16 dtype not yet supported in safetensors".to_string(),
         )),
         DType::U8 => Ok(Dtype::U8),
-        DType::Bool => Ok(Dtype::BOOL),
+        DType::Bool(BoolStore::Native) => Ok(Dtype::BOOL),
+        DType::Bool(BoolStore::U32) => Ok(Dtype::U32),
+        DType::Bool(BoolStore::U8) => Ok(Dtype::U8),
         DType::QFloat(_) => Err(SafetensorsStoreError::Other(
             "Quantized tensors not yet supported in safetensors".to_string(),
         )),
