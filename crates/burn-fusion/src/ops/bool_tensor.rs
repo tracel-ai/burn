@@ -1,5 +1,5 @@
 use crate::{
-    Fusion, FusionBackend, get_client,
+    Fusion, FusionBackend, bool_dtype, get_client,
     stream::{OperationStreams, execution::Operation},
 };
 use burn_backend::{
@@ -33,8 +33,9 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         }
 
         let client = get_client::<B>(device);
-        let desc =
-            CreationOpIr::create(shape, B::BoolElem::dtype(), || client.create_empty_handle());
+        let desc = CreationOpIr::create(shape, bool_dtype::<B::BoolElem>(), || {
+            client.create_empty_handle()
+        });
 
         client
             .register(
@@ -60,8 +61,9 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         }
 
         let client = get_client::<B>(device);
-        let desc =
-            CreationOpIr::create(shape, B::BoolElem::dtype(), || client.create_empty_handle());
+        let desc = CreationOpIr::create(shape, bool_dtype::<B::BoolElem>(), || {
+            client.create_empty_handle()
+        });
 
         client
             .register(
@@ -87,8 +89,9 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         }
 
         let client = get_client::<B>(device);
-        let desc =
-            CreationOpIr::create(shape, B::BoolElem::dtype(), || client.create_empty_handle());
+        let desc = CreationOpIr::create(shape, bool_dtype::<B::BoolElem>(), || {
+            client.create_empty_handle()
+        });
 
         client
             .register(
@@ -109,7 +112,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         let shape = burn_backend::TensorMetadata::shape(&tensor);
 
         let handle = B::bool_tensor_handle(tensor);
-        let desc = InitOperationIr::create(shape, B::BoolElem::dtype(), || {
+        let desc = InitOperationIr::create(shape, bool_dtype::<B::BoolElem>(), || {
             client.register_tensor_handle(handle)
         });
 
@@ -841,9 +844,10 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
 
         let client = lhs.client.clone();
         let rhs = rhs.into();
-        let desc = ScalarOpIr::create_comparison(lhs.into_ir(), rhs, B::BoolElem::dtype(), || {
-            client.create_empty_handle()
-        });
+        let desc =
+            ScalarOpIr::create_comparison(lhs.into_ir(), rhs, bool_dtype::<B::BoolElem>(), || {
+                client.create_empty_handle()
+            });
 
         client
             .register(

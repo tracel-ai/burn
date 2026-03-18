@@ -2,6 +2,7 @@ use burn_backend::{
     DType, Element, QTensorPrimitive, Shape, TensorData, TensorMetadata,
     quantization::{QParams, QuantLevel, QuantMode, QuantScheme, QuantValue},
 };
+use burn_std::BoolStore;
 
 use crate::NdArrayStorage;
 use crate::ops::quantization::{QuantizationStrategy, SymmetricQuantization};
@@ -79,7 +80,7 @@ where
         DType::U32 => cast::<E1, u32>(array).into(),
         DType::U16 => cast::<E1, u16>(array).into(),
         DType::U8 => cast::<E1, u8>(array).into(),
-        DType::Bool => cast::<E1, bool>(array).into(),
+        DType::Bool(BoolStore::Native) => cast::<E1, bool>(array).into(),
         dtype => panic!("Unsupported dtype: {dtype:?}"),
     }
 }
@@ -329,7 +330,7 @@ impl TensorMetadata for NdArrayTensor {
             NdArrayTensor::U32(_) => DType::U32,
             NdArrayTensor::U16(_) => DType::U16,
             NdArrayTensor::U8(_) => DType::U8,
-            NdArrayTensor::Bool(_) => DType::Bool,
+            NdArrayTensor::Bool(_) => DType::Bool(BoolStore::Native),
         }
     }
 
@@ -572,7 +573,7 @@ impl NdArrayTensor {
             DType::U32 => try_borrow!(u32, U32, bytes, shape),
             DType::U16 => try_borrow!(u16, U16, bytes, shape),
             DType::U8 => try_borrow!(u8, U8, bytes, shape),
-            DType::Bool => try_borrow!(bool, Bool, bytes, shape),
+            DType::Bool(BoolStore::Native) => try_borrow!(bool, Bool, bytes, shape),
             _ => (bytes, shape), // QFloat not supported for zero-copy
         };
 
@@ -592,25 +593,24 @@ impl NdArrayTensor {
         let shape = data.shape.to_vec(); // TODO: into_vec
 
         macro_rules! execute {
-            ($data: expr, [$($dtype: ident => $ty: ty),*]) => {
+            ($data: expr, [$($dtype: pat => $ty: ty),*]) => {
                 match $data.dtype {
-                    $(DType::$dtype => {
+                    $( $dtype => {
                         match data.into_vec::<$ty>() {
-                            // Safety: TensorData checks shape validity on creation
                             Ok(vec) => unsafe { ArrayD::from_shape_vec_unchecked(shape, vec) }.into_shared(),
                             Err(err) => panic!("Data should have the same element type as the tensor {err:?}"),
                         }.into()
-                    },)*
+                    }, )*
                     other => unimplemented!("Unsupported dtype {other:?}"),
                 }
             };
         }
 
         execute!(data, [
-            F64 => f64, F32 => f32,
-            I64 => i64, I32 => i32, I16 => i16, I8 => i8,
-            U64 => u64, U32 => u32, U16 => u16, U8 => u8,
-            Bool => bool
+            DType::F64 => f64, DType::F32 => f32,
+            DType::I64 => i64, DType::I32 => i32, DType::I16 => i16, DType::I8 => i8,
+            DType::U64 => u64, DType::U32 => u32, DType::U16 => u16, DType::U8 => u8,
+            DType::Bool(BoolStore::Native) => bool
         ])
     }
 }

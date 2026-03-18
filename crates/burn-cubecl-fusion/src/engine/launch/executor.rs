@@ -2,7 +2,7 @@ use super::{HandleInput, HandleOutput, LaunchPlan, ReferenceSelection};
 use crate::engine::launch::runner::TraceRunner;
 use crate::engine::trace::{FuseResources, TensorView, TraceError, TuneOutput, block::FuseBlock};
 use crate::{
-    CubeFusionHandle, elem_dtype,
+    CubeFusionHandle,
     engine::{
         codegen::ir::{
             FuseBlockConfig, FuseOp, FuseType, GlobalArgsLaunch, RefLayout, VirtualLayout,
@@ -12,9 +12,8 @@ use crate::{
 };
 use burn_fusion::stream::{Context, ScalarId};
 use burn_ir::ScalarIr;
-use burn_std::DType;
 use cubecl::{
-    CubeElement, Runtime,
+    Runtime,
     client::ComputeClient,
     ir::{AddressType, Type},
     prelude::{InputScalar, TensorArg},
@@ -44,7 +43,7 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
         }
     }
 
-    pub fn execute<Runner: TraceRunner<R>, BT: CubeElement>(
+    pub fn execute<Runner: TraceRunner<R>>(
         self,
         client: &ComputeClient<R>,
         runner: &Runner,
@@ -81,7 +80,7 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
             context,
             &mut inputs,
         );
-        register_outputs::<BT, R>(plan.handle_outputs.clone(), &mut outputs, &mut tune_output);
+        register_outputs::<R>(plan.handle_outputs.clone(), &mut outputs, &mut tune_output);
 
         for layout in plan.runtime_layouts {
             for s in layout.shape.iter() {
@@ -200,7 +199,7 @@ fn register_inputs<R: Runtime>(
     }
 }
 
-fn register_outputs<BT: CubeElement, R: Runtime>(
+fn register_outputs<R: Runtime>(
     handle_outputs: Vec<HandleOutput<R>>,
     outputs: &mut GlobalArgsLaunch<R>,
     #[allow(unused_variables)] tune_output: &mut TuneOutput<R>,
@@ -246,14 +245,7 @@ fn register_outputs<BT: CubeElement, R: Runtime>(
                 let at = handle.required_address_type();
                 let arg = handle.into_tensor_arg(global_shape.clone());
 
-                let elem = match precision {
-                    FuseType::Bool => match elem_dtype::<BT>() {
-                        DType::U32 => FuseType::U32.into_elem(),
-                        DType::U8 => FuseType::U8.into_elem(),
-                        _ => todo!(),
-                    },
-                    _ => precision.into_elem(),
-                };
+                let elem = precision.into_elem();
                 let ty = Type::new(elem.into()).with_vector_size(vector_size);
 
                 #[cfg(feature = "autotune-checks")]

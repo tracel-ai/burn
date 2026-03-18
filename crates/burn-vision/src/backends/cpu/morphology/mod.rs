@@ -1,8 +1,8 @@
 use std::fmt::Debug;
 
 use burn_tensor::{
-    BasicOps, Bool, DType, Element, Shape, Tensor, TensorData, backend::Backend, cast::ToElement,
-    ops::BoolTensor,
+    BasicOps, Bool, BoolStore, DType, Element, Shape, Tensor, TensorData, backend::Backend,
+    cast::ToElement, ops::BoolTensor,
 };
 use filter::{MaxOp, MinOp, MorphOperator, VecMorphOperator};
 use filter_engine::{ColFilter, Filter, Filter2D, FilterEngine, RowFilter};
@@ -97,14 +97,18 @@ pub fn morph<B: Backend, K: BasicOps<B>>(
         DType::U64 => {
             morph_typed::<B, K, u64>(data, shape, kernel, op, iter, btype, bvalue, &device)
         }
-        DType::U32 => {
+        DType::U32 | DType::Bool(BoolStore::U32) => {
             morph_typed::<B, K, u32>(data, shape, kernel, op, iter, btype, bvalue, &device)
         }
         DType::U16 => {
             morph_typed::<B, K, u16>(data, shape, kernel, op, iter, btype, bvalue, &device)
         }
-        DType::U8 => morph_typed::<B, K, u8>(data, shape, kernel, op, iter, btype, bvalue, &device),
-        DType::Bool => morph_bool::<B, K>(data, shape, kernel, op, iter, btype, bvalue, &device),
+        DType::U8 | DType::Bool(BoolStore::U8) => {
+            morph_typed::<B, K, u8>(data, shape, kernel, op, iter, btype, bvalue, &device)
+        }
+        DType::Bool(BoolStore::Native) => {
+            morph_bool::<B, K>(data, shape, kernel, op, iter, btype, bvalue, &device)
+        }
         DType::QFloat(_) => unimplemented!(),
     }
 }

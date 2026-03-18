@@ -20,7 +20,6 @@ use cubecl::quant::scheme::QuantParam;
 /// delegates most of the work to the [block builder](FuseBlockBuilder).
 pub struct TraceFuser {
     settings: FuseSettings,
-    pub bool_precision: FuseType,
     // The tensors returned by the block that don't need to be written to global memory.
     block_current: FuseBlockBuilder,
     blocks_previous: Vec<FuseBlockBuilder>,
@@ -29,11 +28,10 @@ pub struct TraceFuser {
 
 impl TraceFuser {
     /// Create a new trace builder with the given bool precision and [fuse settings](FuseSettings).
-    pub fn new(bool_precision: FuseType, settings: FuseSettings) -> Self {
+    pub fn new(settings: FuseSettings) -> Self {
         Self {
             settings,
-            bool_precision,
-            block_current: FuseBlockBuilder::new(bool_precision, settings),
+            block_current: FuseBlockBuilder::new(settings),
             blocks_previous: Default::default(),
             resources: Default::default(),
         }
@@ -70,7 +68,7 @@ impl TraceFuser {
 
     /// Close the current block with the given reference shape and creates a new one with new [fusion settings](FuseSettings).
     pub fn next_block(&mut self, shape_ref: Shape, settings: FuseSettings) {
-        let mut block_new = FuseBlockBuilder::new(self.bool_precision, settings);
+        let mut block_new = FuseBlockBuilder::new(settings);
         core::mem::swap(&mut self.block_current, &mut block_new);
         block_new.shape_ref = shape_ref;
         self.blocks_previous.push(block_new);
@@ -157,16 +155,8 @@ impl TraceFuser {
         self.resources.outputs.update(tensor);
 
         let precision = tensor.dtype.into();
-        // Bool tensors are encoded as bool_precision.
-        let precision_input = match precision {
-            FuseType::Bool => self.bool_precision,
-            _ => precision,
-        };
-        let new_input = self
-            .resources
-            .inputs
-            .insert(precision_input, tensor.clone());
-        let arg = FuseArg::Input(new_input, precision_input, LayoutInfo::Unknown);
+        let new_input = self.resources.inputs.insert(precision, tensor.clone());
+        let arg = FuseArg::Input(new_input, precision, LayoutInfo::Unknown);
 
         self.resources.inputs_unhandled.push(tensor.id);
         arg
@@ -286,11 +276,6 @@ impl TraceFuser {
             unreachable!() // should always be u64
         };
 
-        // Bool scalars are encoded as bool_precision.
-        let precision = match precision {
-            FuseType::Bool => self.bool_precision,
-            _ => precision,
-        };
         let new_index = self.resources.scalars.len();
 
         self.resources.scalars.push((precision, id.value));

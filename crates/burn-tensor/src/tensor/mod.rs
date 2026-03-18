@@ -6,7 +6,8 @@ pub use api::*;
 
 // Re-exported types
 pub use burn_backend::{
-    DType, DataError, FloatDType, IntDType, TensorData, TensorMetadata, TensorPrimitive, Tolerance,
+    BoolDType, BoolStore, DType, DataError, FloatDType, IntDType, TensorData, TensorMetadata,
+    TensorPrimitive, Tolerance,
     distribution::*,
     element::*,
     indexing::*,

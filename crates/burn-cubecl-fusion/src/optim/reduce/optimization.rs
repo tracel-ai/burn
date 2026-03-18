@@ -176,17 +176,17 @@ impl From<ReduceError> for FusedReduceError {
 }
 
 impl<R: Runtime> ReduceOptimizationTuneArg<R> {
-    pub fn execute_fused<BT: CubeElement>(
+    pub fn execute_fused(
         &self,
         context: &mut Context<'_, CubeFusionHandle<R>>,
         strategy: RoutineStrategy,
     ) -> Result<TuneOutput<R>, TraceError<FusedReduceError>> {
         let launch = FusedReduceLaunch::new(&self.info.reduce, strategy);
         let launcher = FuseTraceLauncher::new(&self.info.trace, &launch);
-        launcher.launch::<BT>(&self.info.client, &self.info.device, context)
+        launcher.launch(&self.info.client, &self.info.device, context)
     }
 
-    pub fn execute_fallback<BT: CubeElement>(
+    pub fn execute_fallback(
         &self,
         context: &mut Context<'_, CubeFusionHandle<R>>,
     ) -> TuneOutput<R> {
@@ -194,7 +194,7 @@ impl<R: Runtime> ReduceOptimizationTuneArg<R> {
 
         #[allow(unused_mut)] // It is used when `autotune-checks` is activated.
         let mut output_read = launcher
-            .launch::<BT>(&self.info.client, &self.info.device, context)
+            .launch(&self.info.client, &self.info.device, context)
             .unwrap();
 
         self.fallback.run(context);
@@ -215,7 +215,7 @@ impl<R: Runtime> ReduceOptimizationTuneArg<R> {
         let launcher = FuseTraceLauncher::new(&self.info.trace_write_fallback, &ElemwiseRunner);
 
         let output_write = launcher
-            .launch::<BT>(&self.info.client, &self.info.device, context)
+            .launch(&self.info.client, &self.info.device, context)
             .unwrap();
 
         output_read.merge(output_write)
@@ -252,7 +252,7 @@ impl<R: Runtime> ReduceOptimization<R> {
         }
     }
     /// Execute the optimization.
-    pub fn execute<BT: CubeElement>(
+    pub fn execute(
         &mut self,
         context: &mut Context<'_, CubeFusionHandle<R>>,
         fallback: impl FnOnce(usize) -> Box<dyn FallbackOperation<R>>,
@@ -265,17 +265,17 @@ impl<R: Runtime> ReduceOptimization<R> {
         };
 
         #[cfg(feature = "autotune")]
-        fused_reduce_autotune::<R, BT>(arg, context);
+        fused_reduce_autotune::<R>(arg, context);
 
         #[cfg(not(feature = "autotune"))]
         if arg
-            .execute_fused::<BT>(
+            .execute_fused(
                 context,
                 RoutineStrategy::Unit(BlueprintStrategy::Inferred(UnitStrategy)),
             )
             .is_err()
         {
-            arg.execute_fallback::<BT>(context);
+            arg.execute_fallback(context);
         }
     }
 

@@ -1,6 +1,6 @@
 use crate::{
     CubeBackend, CubeRuntime, FloatElement, IntElement,
-    element::BoolElement,
+    element::{BoolElement, bool_dtype},
     kernel::{self, AndOp, OrOp},
 };
 use burn_backend::{
@@ -9,6 +9,7 @@ use burn_backend::{
     tensor::{BoolTensor, Device, FloatTensor, IntTensor},
 };
 use burn_backend::{Scalar, Shape, TensorData};
+use burn_std::{BoolStore, DType};
 use cubecl::prelude::InputScalar;
 use std::ops::Range;
 
@@ -22,15 +23,15 @@ where
     BT: BoolElement,
 {
     fn bool_empty(shape: Shape, device: &Device<Self>) -> BoolTensor<Self> {
-        super::empty(shape, device, BT::dtype())
+        super::empty(shape, device, bool_dtype::<BT>())
     }
 
     fn bool_zeros(shape: Shape, device: &Device<Self>) -> BoolTensor<Self> {
-        numeric::zeros(device.clone(), shape, BT::dtype())
+        numeric::zeros(device.clone(), shape, bool_dtype::<BT>())
     }
 
     fn bool_ones(shape: Shape, device: &Device<Self>) -> BoolTensor<Self> {
-        numeric::ones(device.clone(), shape, BT::dtype())
+        numeric::ones(device.clone(), shape, bool_dtype::<BT>())
     }
 
     async fn bool_into_data(tensor: BoolTensor<Self>) -> Result<TensorData, ExecutionError> {
@@ -38,9 +39,16 @@ where
     }
 
     fn bool_from_data(data: TensorData, device: &Device<Self>) -> BoolTensor<Self> {
-        if data.dtype != BT::dtype() {
-            unimplemented!("Unsupported dtype for `bool_from_data`")
-        }
+        let bool_dtype = bool_dtype::<BT>();
+        // TODO: remove once backends no longer rely on generics for default elem types
+        let data = match (data.dtype, bool_dtype) {
+            (DType::U8, DType::Bool(BoolStore::U8)) | (DType::U32, DType::Bool(BoolStore::U32)) => {
+                // No-op, but change dtype to bool w/ storage type
+                data.convert_dtype(bool_dtype)
+            }
+            (DType::U8, DType::U8) | (DType::U32, DType::U32) => data,
+            other => unimplemented!("Unsupported dtype for `bool_from_data` {other:?}"),
+        };
         super::from_data(data, device)
     }
 
@@ -88,14 +96,14 @@ where
     }
 
     fn bool_equal(lhs: BoolTensor<Self>, rhs: BoolTensor<Self>) -> BoolTensor<Self> {
-        kernel::equal(lhs, rhs, BT::dtype())
+        kernel::equal(lhs, rhs, bool_dtype::<BT>())
     }
 
     fn bool_not(tensor: BoolTensor<Self>) -> BoolTensor<Self> {
         kernel::equal_elem(
             tensor,
-            InputScalar::new(BT::false_val(), BT::dtype()),
-            BT::dtype(),
+            InputScalar::new(BT::false_val(), bool_dtype::<BT>()),
+            bool_dtype::<BT>(),
         )
     }
 
@@ -147,7 +155,7 @@ where
     }
 
     fn bool_flip(tensor: BoolTensor<Self>, axes: &[usize]) -> BoolTensor<Self> {
-        kernel::flip(tensor, axes, BT::dtype())
+        kernel::flip(tensor, axes, bool_dtype::<BT>())
     }
 
     fn bool_unfold(
@@ -164,7 +172,7 @@ where
         mask: BoolTensor<Self>,
         value: BoolTensor<Self>,
     ) -> BoolTensor<Self> {
-        kernel::mask_where_auto(tensor, mask, value, BT::dtype())
+        kernel::mask_where_auto(tensor, mask, value, bool_dtype::<BT>())
     }
 
     fn bool_mask_fill(

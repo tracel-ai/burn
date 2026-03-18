@@ -75,7 +75,7 @@ pub(crate) enum ReduceBlockOptimArg<R: Runtime> {
 }
 
 impl<R: Runtime> ReduceBlockOptimArg<R> {
-    pub fn execute_fallback<BT: CubeElement>(
+    pub fn execute_fallback(
         &self,
         context: &mut Context<'_, CubeFusionHandle<R>>,
     ) -> Option<TuneOutput<R>> {
@@ -83,14 +83,14 @@ impl<R: Runtime> ReduceBlockOptimArg<R> {
             ReduceBlockOptimArg::Reduce(reduce) => {
                 #[cfg(feature = "autotune")]
                 {
-                    fused_reduce_autotune::<R, BT>(reduce.clone(), context);
+                    fused_reduce_autotune::<R>(reduce.clone(), context);
                     None
                 }
                 #[cfg(not(feature = "autotune"))]
-                Some(reduce.execute_fallback::<BT>(context))
+                Some(reduce.execute_fallback(context))
             }
             ReduceBlockOptimArg::Elemwise(elem) => {
-                elem.execute::<BT>(context);
+                elem.execute(context);
                 None
             }
         }
@@ -112,7 +112,7 @@ pub enum ReduceBlockState {
 }
 
 impl<R: Runtime> ReduceBroadcastedOptimizationTuneArg<R> {
-    pub fn execute_fused<BT: CubeElement>(
+    pub fn execute_fused(
         &self,
         context: &mut Context<'_, CubeFusionHandle<R>>,
         strategy: RoutineStrategy,
@@ -125,16 +125,13 @@ impl<R: Runtime> ReduceBroadcastedOptimizationTuneArg<R> {
         let launcher = FuseTraceLauncher::new(&self.broadcasted.trace, &launch);
 
         launcher
-            .launch::<BT>(&self.client, &self.device, context)
+            .launch(&self.client, &self.device, context)
             .map_err(|err| TraceError::RunnerError(format!("{:?}", err)))
     }
 
-    pub fn execute_fallback<BT: CubeElement>(
-        &self,
-        context: &mut Context<'_, CubeFusionHandle<R>>,
-    ) {
+    pub fn execute_fallback(&self, context: &mut Context<'_, CubeFusionHandle<R>>) {
         for fallback in self.fallbacks.iter() {
-            fallback.execute_fallback::<BT>(context);
+            fallback.execute_fallback(context);
         }
     }
 }
@@ -142,7 +139,7 @@ impl<R: Runtime> ReduceBroadcastedOptimizationTuneArg<R> {
 #[allow(clippy::too_many_arguments)]
 impl<R: Runtime> ReduceBroadcastedOptimization<R> {
     /// Execute the optimization.
-    pub fn execute<BT: CubeElement>(
+    pub fn execute(
         &mut self,
         context: &mut Context<'_, CubeFusionHandle<R>>,
         fallback: impl Fn(usize) -> Box<dyn FallbackOperation<R>>,
@@ -182,10 +179,10 @@ impl<R: Runtime> ReduceBroadcastedOptimization<R> {
         };
 
         #[cfg(feature = "autotune")]
-        fused_broadcasted_reduce_autotune::<R, BT>(arg, context);
+        fused_broadcasted_reduce_autotune::<R>(arg, context);
 
         #[cfg(not(feature = "autotune"))]
-        arg.execute_fallback::<BT>(context);
+        arg.execute_fallback(context);
     }
 
     pub fn to_state(&self) -> ReduceBroadcastedOptimizationState {

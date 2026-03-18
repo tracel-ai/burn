@@ -112,7 +112,7 @@ pub type Metal<F = f32, I = i32, B = u8> = Wgpu<F, I, B>;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use burn_backend::{Backend, DType, QTensorPrimitive};
+    use burn_backend::{Backend, BoolStore, DType, QTensorPrimitive};
 
     #[test]
     fn should_support_dtypes() {
@@ -129,7 +129,7 @@ mod tests {
             DType::QFloat(CubeTensor::<WgpuRuntime>::default_scheme())
         ));
         // Registered as supported type but we don't actually use it?
-        assert!(B::supports_dtype(&device, DType::Bool));
+        assert!(B::supports_dtype(&device, DType::Bool(BoolStore::Native)));
 
         #[cfg(feature = "vulkan")]
         {
