@@ -34,7 +34,7 @@ impl<B: Backend> ModuleBasic<B> {
                 std: 1.0,
                 mean: 0.0,
             }
-            .init([4, 4], device),
+            .init([250, 250], device),
         }
     }
 }
@@ -398,7 +398,6 @@ mod num_params {
 mod require_grad {
     use std::sync::mpsc::Receiver;
     use std::sync::mpsc::Sender;
-    use std::sync::mpsc::SyncSender;
 
     use burn_backend::Device;
     use burn_backend::DeviceId;
@@ -527,26 +526,64 @@ mod require_grad {
         op: ReduceOperation,
         transformation: fn(Tensor<B, 2>, Tensor<B, 2>) -> Tensor<B, 2>,
     ) {
-        let type_id = 0;
-        let device_count = <B as Backend>::Device::device_count(type_id);
-        let devices: Vec<<B as Backend>::Device> = (0..device_count)
-            .map(|i| <B as Backend>::Device::from_id(DeviceId::new(type_id, i as u32)))
-            .collect();
-        let num_iter = 100;
+        const NUM_ITERATIONS: usize = 100;
+        let type_id = 0u16;
 
+        let device_count = <B as Backend>::Device::device_count(type_id);
+        let devices = create_devices::<B::Device>(type_id, device_count);
         let module = ModuleBasic::<B>::new(&devices[0]);
-        let (senders, receivers): (Vec<_>, Vec<_>) = (1..device_count)
-            .map(|_| std::sync::mpsc::channel())
-            .unzip();
+        let (senders, receivers) = create_channels(device_count);
 
         <B::InnerBackend>::start_communication_server(devices.clone());
-        let mut join_handles = vec![];
 
-        let module_thread = module.clone();
+        let join_handles = spawn_peer_threads(
+            &module,
+            &devices,
+            senders,
+            receivers,
+            op,
+            transformation,
+            NUM_ITERATIONS,
+        );
+
+        for handle in join_handles {
+            handle.join().unwrap();
+        }
+
+        <B::InnerBackend>::close_communication_server(&devices[0]);
+    }
+
+    fn create_devices<D: Device>(type_id: u16, count: usize) -> Vec<D> {
+        (0..count)
+            .map(|i| D::from_id(DeviceId::new(type_id, i as u32)))
+            .collect()
+    }
+
+    fn create_channels(
+        device_count: usize,
+    ) -> (Vec<Sender<TensorData>>, Vec<Receiver<TensorData>>) {
+        (1..device_count)
+            .map(|_| std::sync::mpsc::channel())
+            .unzip()
+    }
+
+    fn spawn_peer_threads<B: AutodiffBackend>(
+        module: &ModuleBasic<B>,
+        devices: &[<B as Backend>::Device],
+        senders: Vec<Sender<TensorData>>,
+        receivers: Vec<Receiver<TensorData>>,
+        op: ReduceOperation,
+        transformation: fn(Tensor<B, 2>, Tensor<B, 2>) -> Tensor<B, 2>,
+        num_iter: usize,
+    ) -> Vec<std::thread::JoinHandle<()>> {
+        let mut handles = vec![];
+
+        // Spawn main peer thread (id=0)
+        let module_clone = module.clone();
         let device = devices[0].clone();
-        join_handles.push(std::thread::spawn(move || {
+        handles.push(std::thread::spawn(move || {
             run_peer_sharded(
-                &module_thread,
+                &module_clone,
                 PeerId::from(0),
                 op,
                 None,
@@ -558,13 +595,14 @@ mod require_grad {
             )
         }));
 
-        for i in 1..device_count {
+        // Spawn worker peer threads (id > 0)
+        for i in 1..devices.len() {
+            let module_clone = module.clone();
             let device = devices[i].clone();
-            let module_thread = module.clone();
             let sender = Some(senders[i - 1].clone());
-            join_handles.push(std::thread::spawn(move || {
+            handles.push(std::thread::spawn(move || {
                 run_peer_sharded(
-                    &module_thread,
+                    &module_clone,
                     PeerId::from(i),
                     op,
                     sender,
@@ -577,18 +615,14 @@ mod require_grad {
             }));
         }
 
-        for h in join_handles {
-            h.join().unwrap();
-        }
-
-        <B::InnerBackend>::close_communication_server(&devices[0]);
+        handles
     }
 
     pub fn run_peer_sharded<B: AutodiffBackend>(
         module: &ModuleBasic<B>,
         id: PeerId,
         op: ReduceOperation,
-        output: Option<Sender<TensorData>>,
+        sender: Option<Sender<TensorData>>,
         transformation: fn(Tensor<B, 2>, Tensor<B, 2>) -> Tensor<B, 2>,
         device: B::Device,
         num_iter: usize,
@@ -597,28 +631,22 @@ mod require_grad {
     ) {
         let mut module = module.clone().fork(&device);
 
-        for i in 0..num_iter {
-            println!("iter {i} --- device {}", id.0);
+        for _ in 0..num_iter {
             module = module.grad_sharded(id, op);
-            let grads_x = calculate_grads(&module, transformation);
-            println!(
-                "iter {i} --- device {} --- val: {:?}",
-                id.0,
-                grads_x.clone().unwrap().to_data().to_vec::<f32>()
-            );
-            if !is_main {
-                output
-                    .clone()
-                    .unwrap()
-                    .send(grads_x.unwrap().to_data())
-                    .unwrap();
+            let grad_data = calculate_grads(&module, transformation).unwrap().to_data();
+
+            if is_main {
+                validate_gradients(&grad_data, &recvs);
             } else {
-                let data = grads_x.unwrap().to_data();
-                for r in recvs.iter().by_ref() {
-                    let t = r.recv().unwrap();
-                    assert_eq!(data, t);
-                }
+                sender.as_ref().unwrap().send(grad_data).unwrap();
             }
+        }
+    }
+
+    fn validate_gradients(expected: &TensorData, receivers: &[Receiver<TensorData>]) {
+        for receiver in receivers {
+            let received = receiver.recv().unwrap();
+            assert_eq!(*expected, received);
         }
     }
 
@@ -627,15 +655,21 @@ mod require_grad {
         transformation: fn(Tensor<B, 2>, Tensor<B, 2>) -> Tensor<B, 2>,
     ) -> Option<Tensor<B::InnerBackend, 2>> {
         let device = module.weight_basic.device();
+        let x = create_random_input_tensor(&device, module.weight_basic.clone());
+        let y = transformation(module.weight_basic.val(), x);
+        let mut grads = y.backward();
+        module.weight_basic.grad_remove(&mut grads)
+    }
+
+    fn create_random_input_tensor<B: Backend>(
+        device: &B::Device,
+        weight: Param<Tensor<B, 2>>,
+    ) -> Tensor<B, 2> {
         let data = TensorData::random::<f32, _, _>(
-            module.weight_basic.shape(),
+            weight.shape(),
             burn_tensor::Distribution::Default,
             &mut StdRng::try_from_rng(&mut SysRng).unwrap(),
         );
-        let x = Tensor::from_data(data, &device).require_grad();
-        let y = transformation(module.weight_basic.val(), x);
-
-        let mut grads = y.backward();
-        module.weight_basic.grad_remove(&mut grads)
+        Tensor::from_data(data, device).require_grad()
     }
 }
