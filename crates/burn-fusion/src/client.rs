@@ -22,9 +22,8 @@ impl<R: FusionRuntime> DeviceService for FusionServer<R> {
         FusionServer::new(device)
     }
 
-    fn utilities(&self) -> Arc<dyn std::any::Any + Send + Sync> {
-        // TODO:
-        todo!()
+    fn utilities(&self) -> burn_backend::ServerUtilitiesHandle {
+        Arc::new(())
     }
 }
 
