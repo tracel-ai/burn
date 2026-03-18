@@ -1,4 +1,5 @@
 use burn_std::tensor;
+use cubecl::device::DeviceId;
 use std::collections::HashMap;
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Condvar, Mutex};
@@ -23,7 +24,8 @@ pub(crate) struct GradientSyncServer<B: Backend> {
     is_finished_fence: Arc<(Mutex<bool>, Condvar)>,
     task_senders: HashMap<PeerId, Sender<CollectiveOperationMessage<B>>>,
     sync_barriers: Vec<Arc<(Mutex<bool>, Condvar)>>,
-    callbacks: Vec<oneshot::Sender<Box<dyn FnOnce() + Send>>>,
+    // callbacks: Vec<oneshot::Sender<Box<dyn FnOnce() + Send>>>,
+    callbacks: HashMap<DeviceId, oneshot::Sender<Box<dyn FnOnce() + Send>>>,
 }
 
 impl<B: Backend> GradientSyncServer<B> {
@@ -56,7 +58,7 @@ impl<B: Backend> GradientSyncServer<B> {
             is_finished_fence,
             task_senders,
             sync_barriers: vec![],
-            callbacks: vec![],
+            callbacks: HashMap::default(),
         }
     }
 
@@ -124,41 +126,27 @@ impl<B: Backend> GradientSyncServer<B> {
 
         if self.all_reduce_ops_queue.is_empty() {
             println!("empty queue");
+            let device = self.syncing_devices[0].clone();
 
-            for (d, barrier) in self.syncing_devices.iter().zip(self.sync_barriers.clone()) {
-                if B::supports_native_collective(&device) {
-                } else {
-                    if self.callbacks.len() == self.num_devices {
-                        is_finished = true;
-                        for barrier in self.sync_barriers.clone() {
-                            let (lock, cvar) = &*barrier;
-                            let mut synced = lock.lock().unwrap();
-                            *synced = true;
-                            cvar.notify_all();
-                        }
+            if B::supports_native_collective(&device) {
+                for d in self.syncing_devices.clone() {
+                    let callback = self.callbacks.remove(&d.id()).unwrap();
+                    let closure = Box::new(move || B::collective_sync_native(&d));
+                    callback.send(closure).expect("Can send callback");
+                    self.devices_synced += 1;
+                }
+                self.syncing_devices.clear();
+            } else {
+                if self.syncing_devices.len() == self.num_devices {
+                    for d in self.syncing_devices.clone() {
+                        let callback = self.callbacks.remove(&d.id()).unwrap();
+                        let closure = Box::new(|| ());
+                        callback.send(closure).expect("Can send callback");
                     }
+                    self.devices_synced = self.num_devices;
+                    self.syncing_devices.clear();
                 }
             }
-            for (d, barrier) in self.syncing_devices.iter().zip(self.sync_barriers.clone()) {
-                println!("[{:?}] comm server sync", thread::current().id());
-                println!("launching sync {d:?}");
-                // self.task_senders
-                //     .get(&PeerId::from(d.id().index_id))
-                //     .unwrap()
-                //     .send(CollectiveOperationMessage::Sync(d.clone()))
-                //     .unwrap();
-                B::collective_sync_native(&d);
-                println!("launched sync {d:?}");
-                let (lock, cvar) = &*barrier;
-                println!("acquired lock {d:?}");
-                let mut synced = lock.lock().unwrap();
-                *synced = true;
-                cvar.notify_all();
-                self.devices_synced += 1;
-                println!("synced collective {d:?}");
-            }
-            self.syncing_devices.clear();
-            self.sync_barriers.clear();
         }
 
         if self.devices_synced == self.num_devices {
@@ -168,6 +156,7 @@ impl<B: Backend> GradientSyncServer<B> {
             self.all_reduce_ops_queue.clear();
             self.param_required_map.clear();
             self.sync_barriers.clear();
+            self.callbacks.clear();
             println!("is_finished ");
         }
     }
@@ -205,8 +194,8 @@ impl<B: Backend> GradientSyncServer<B> {
     // }
 
     fn sync(&mut self, device: Device<B>, callback: oneshot::Sender<Box<dyn FnOnce() + Send>>) {
+        self.callbacks.insert(device.id(), callback);
         self.syncing_devices.push(device.clone());
-        self.callbacks.push(callback);
         self.try_flush_sync();
 
         // let mut is_finished = false;
