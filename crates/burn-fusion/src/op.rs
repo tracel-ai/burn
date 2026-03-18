@@ -112,19 +112,21 @@ impl<R: FusionRuntime> UnfusedOp<R> {
             None => {
                 return UnfusedOp {
                     kind: UnfusedOpKind::Alloc(Arc::new(op)),
-                    stream_id: stream_id,
+                    stream_id,
                 };
             }
         };
 
         let item: &mut Item = unsafe { ptr_item.as_mut().unwrap() };
 
-        let ptr_data = core::ptr::from_ref(&mut item.bytes);
-        let ptr_count = core::ptr::from_ref(&mut item.count);
+        let ptr_data = core::ptr::from_ref(&item.bytes);
+        let ptr_count = core::ptr::from_ref(&item.count);
 
+        #[allow(invalid_reference_casting)]
         unsafe {
             core::ptr::write(ptr_data as *mut O, op);
         };
+
         let ptr_execute = shim_execute::<R, O>;
         let ptr_drop = shim_drop::<R, O>;
 
@@ -135,7 +137,7 @@ impl<R: FusionRuntime> UnfusedOp<R> {
                 ptr_execute,
                 ptr_drop,
             }),
-            stream_id: stream_id,
+            stream_id,
         }
     }
 
@@ -154,7 +156,7 @@ impl<R: FusionRuntime> Clone for UnfusedOp<R> {
     fn clone(&self) -> Self {
         Self {
             kind: self.kind.clone(),
-            stream_id: self.stream_id.clone(),
+            stream_id: self.stream_id,
         }
     }
 }

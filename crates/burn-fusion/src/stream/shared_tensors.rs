@@ -184,12 +184,10 @@ impl SharedTensors {
         state.register_new_stream(id, stream_current);
         match state.register_new_stream(stream_id, stream) {
             Some(origin) => SharedTensorAnalysis::SharedFromExistingStream {
-                stream_id: stream_id,
+                stream_id,
                 original_cursor: origin,
             },
-            None => SharedTensorAnalysis::SharedFromNewStream {
-                stream_id: stream_id,
-            },
+            None => SharedTensorAnalysis::SharedFromNewStream { stream_id },
         }
     }
 
