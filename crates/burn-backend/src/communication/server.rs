@@ -287,7 +287,7 @@ impl<B: Backend> GradientSyncServer<B> {
                                 t,
                                 peer_id,
                                 peer_ids.clone(),
-                                ReduceOperation::Sum, // TODO: sum hard coded.
+                                ReduceOperation::Mean, // TODO: mean hard coded.
                             );
                             println!("launched all_reduce for {peer_id:?}");
                         }
