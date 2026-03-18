@@ -34,7 +34,7 @@ impl<B: Backend> ModuleBasic<B> {
                 std: 1.0,
                 mean: 0.0,
             }
-            .init([250, 250], device),
+            .init([4, 4], device),
         }
     }
 }
@@ -622,7 +622,7 @@ mod require_grad {
         module: &ModuleBasic<B>,
         id: PeerId,
         op: ReduceOperation,
-        sender: Option<Sender<TensorData>>,
+        output: Option<Sender<TensorData>>,
         transformation: fn(Tensor<B, 2>, Tensor<B, 2>) -> Tensor<B, 2>,
         device: B::Device,
         num_iter: usize,
@@ -633,20 +633,20 @@ mod require_grad {
 
         for _ in 0..num_iter {
             module = module.grad_sharded(id, op);
-            let grad_data = calculate_grads(&module, transformation).unwrap().to_data();
-
-            if is_main {
-                validate_gradients(&grad_data, &recvs);
+            let grads_x = calculate_grads(&module, transformation);
+            if !is_main {
+                output
+                    .clone()
+                    .unwrap()
+                    .send(grads_x.unwrap().to_data())
+                    .unwrap();
             } else {
-                sender.as_ref().unwrap().send(grad_data).unwrap();
+                let data = grads_x.unwrap().to_data();
+                for r in recvs.iter().by_ref() {
+                    let t = r.recv().unwrap();
+                    assert_eq!(data, t);
+                }
             }
-        }
-    }
-
-    fn validate_gradients(expected: &TensorData, receivers: &[Receiver<TensorData>]) {
-        for receiver in receivers {
-            let received = receiver.recv().unwrap();
-            assert_eq!(*expected, received);
         }
     }
 
@@ -655,21 +655,15 @@ mod require_grad {
         transformation: fn(Tensor<B, 2>, Tensor<B, 2>) -> Tensor<B, 2>,
     ) -> Option<Tensor<B::InnerBackend, 2>> {
         let device = module.weight_basic.device();
-        let x = create_random_input_tensor(&device, module.weight_basic.clone());
-        let y = transformation(module.weight_basic.val(), x);
-        let mut grads = y.backward();
-        module.weight_basic.grad_remove(&mut grads)
-    }
-
-    fn create_random_input_tensor<B: Backend>(
-        device: &B::Device,
-        weight: Param<Tensor<B, 2>>,
-    ) -> Tensor<B, 2> {
         let data = TensorData::random::<f32, _, _>(
-            weight.shape(),
+            module.weight_basic.shape(),
             burn_tensor::Distribution::Default,
             &mut StdRng::try_from_rng(&mut SysRng).unwrap(),
         );
-        Tensor::from_data(data, device).require_grad()
+        let x = Tensor::from_data(data, &device).require_grad();
+        let y = transformation(module.weight_basic.val(), x);
+
+        let mut grads = y.backward();
+        module.weight_basic.grad_remove(&mut grads)
     }
 }
