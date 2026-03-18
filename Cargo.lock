@@ -3327,9 +3327,9 @@ dependencies = [
 
 [[package]]
 name = "fake"
-version = "5.0.0"
+version = "5.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0878901d85b757a0c16bc7d9946ac0a28c58c75591026b20966ddb13cac83465"
+checksum = "ea6be833b323a56361118a747470a45a1bcd5c52a2ec9b1e40c83dafe687e453"
 dependencies = [
  "deunicode",
  "either",
