@@ -39,8 +39,6 @@ pub struct GlobalTensorArg<R: Runtime> {
     pub address_type: AddressType,
 }
 
-impl CompilationArg for GlobalTensorCompilationArg {}
-
 impl LaunchArg for GlobalTensor {
     type RuntimeArg<R: Runtime> = GlobalTensorArg<R>;
     type CompilationArg = GlobalTensorCompilationArg;

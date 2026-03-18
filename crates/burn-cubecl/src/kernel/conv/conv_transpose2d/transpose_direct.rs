@@ -1,6 +1,6 @@
 use crate::{
     CubeRuntime,
-    kernel::utils::{address_type, decompose_linear, linear_view, shape_divmod},
+    kernel::utils::{address_type, decompose_linear,  shape_divmod},
     ops::numeric::empty_device_dtype,
     tensor::CubeTensor,
 };
@@ -168,7 +168,7 @@ pub fn conv_transpose2d_direct<R: CubeRuntime>(
         input.into_tensor_arg(),
         weight.into_tensor_arg(),
         bias.map(|bias| bias.into_tensor_arg()).into(),
-        linear_view(output.clone(), 1),
+        output.clone().into_linear_view(),
         shape_divmod(&output),
         ConvArgsLaunch::new(
             options.stride[0],

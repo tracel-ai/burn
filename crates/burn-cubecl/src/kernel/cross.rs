@@ -1,6 +1,6 @@
 use crate::{
     CubeRuntime,
-    kernel::utils::{address_type, broadcast_shape, linear_view, linear_view_ref},
+    kernel::utils::{address_type, broadcast_shape},
     ops::numeric::empty_device_dtype,
     tensor::CubeTensor,
 };
@@ -67,9 +67,6 @@ pub(crate) fn cross<R: CubeRuntime>(
 
     let output_shape = broadcast_shape(&[&lhs, &rhs]);
 
-    // Since the cross dimension is forced to be size 3, line size would be restricted to 1 anyway
-    let vector_size = 1;
-
     let output = empty_device_dtype(
         lhs.client.clone(),
         lhs.device.clone(),
@@ -90,9 +87,9 @@ pub(crate) fn cross<R: CubeRuntime>(
             cube_count,
             cube_dim,
             address_type!(lhs, rhs, output),
-            linear_view_ref(lhs, &output, vector_size),
-            linear_view_ref(rhs, &output, vector_size),
-            linear_view(output.clone(), vector_size),
+            lhs.into_linear_view_like(&output),
+            rhs.into_linear_view_like(&output),
+            output.clone().into_linear_view(),
             dtype.into(),
         );
     };

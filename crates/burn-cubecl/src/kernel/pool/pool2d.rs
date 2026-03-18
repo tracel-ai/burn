@@ -142,6 +142,6 @@ pub(super) fn view4d<R: CubeRuntime>(
         shape,
         vector_size,
     );
-    let buffer = binding.into_tensor_arg().into_array_arg();
-    ViewArg::new::<FixedDimLayout<Position>>(buffer, layout)
+    let buffer = binding.into_tensor_arg();
+    ViewArg::new_tensor::<FixedDimLayout<Position>>(buffer, layout)
 }
