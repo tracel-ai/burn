@@ -630,9 +630,9 @@ mod require_grad {
         recvs: Vec<Receiver<TensorData>>,
     ) {
         let mut module = module.clone().fork(&device);
-        module = module.grad_sharded(id, op);
 
         for i in 0..num_iter {
+            module = module.grad_sharded(id, op);
             let grads_x = calculate_grads(&module, transformation, i, id.0 as usize);
             let data = grads_x.unwrap().to_data();
             println!("Iter {i} dev {} : {:?}", id.0, data.to_vec::<f32>());
