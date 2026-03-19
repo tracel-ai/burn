@@ -175,7 +175,7 @@ impl DeviceSettingsRegistry {
 
 #[cfg(feature = "std")]
 thread_local! {
-    /// Thread-local cache acces initialized device settings lock-free.
+    /// Thread-local cache access to initialized device settings is lock-free.
     static LOCAL_CACHE: core::cell::RefCell<HashMap<RegistryKey, DeviceSettings>> =
         core::cell::RefCell::new(HashMap::new());
 }
