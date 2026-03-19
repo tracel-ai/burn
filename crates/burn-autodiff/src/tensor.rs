@@ -181,6 +181,8 @@ impl<B: Backend> AutodiffTensor<B> {
         )
         .into();
 
+        println!("from_parents");
+
         Self {
             rc: Arc::new(node.id),
             primitive,
