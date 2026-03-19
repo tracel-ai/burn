@@ -1,5 +1,6 @@
 use burn_backend::{DType, FloatDType, IntDType, Shape, quantization::QuantScheme};
 use burn_backend::{Element, QTensorPrimitive, TensorData, TensorMetadata};
+use burn_std::BoolStore;
 
 use crate::{CandleDevice, element::CandleElement};
 
@@ -105,7 +106,7 @@ impl IntoDType for DType {
             DType::U8 => Ok(candle_core::DType::U8),
             DType::I16 => Ok(candle_core::DType::I16),
             DType::I32 => Ok(candle_core::DType::I32),
-            // DType::Bool => Ok(candle_core::DType::U8),
+            DType::Bool(BoolStore::U8) => Ok(candle_core::DType::U8),
             _ => Err(candle_core::Error::Msg(format!(
                 "Unsupported dtype {self:?}"
             ))),
