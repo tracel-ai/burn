@@ -8,7 +8,7 @@ use crate::burnpack::{
 };
 
 use super::*;
-use burn_tensor::{Bytes, DType, TensorData, shape};
+use burn_tensor::{BoolStore, Bytes, DType, TensorData, shape};
 
 #[test]
 fn test_reader_from_bytes_empty() {
@@ -197,7 +197,7 @@ fn test_reader_all_dtypes() {
         (DType::U32, [5u32.to_le_bytes().to_vec()].concat()),
         (DType::U64, [6u64.to_le_bytes().to_vec()].concat()),
         (DType::U8, vec![7u8]),
-        (DType::Bool, vec![1u8]),
+        (DType::Bool(BoolStore::Native), vec![1u8]),
     ];
 
     let mut snapshots = Vec::new();

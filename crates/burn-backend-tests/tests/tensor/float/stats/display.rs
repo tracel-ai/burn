@@ -73,6 +73,12 @@ fn test_display_2d_bool_tensor() {
     let tensor_bool = TestTensorBool::<2>::from_data(bool_data, &Default::default());
 
     let output = format!("{}", tensor_bool);
+    // TODO: remove once backends no longer rely on generics for default elem types
+    let expected_name = match <TestBackend as Backend>::BoolElem::dtype() {
+        burn_tensor::DType::U8 => burn_tensor::DType::Bool(burn_tensor::BoolStore::U8).name(),
+        burn_tensor::DType::U32 => burn_tensor::DType::Bool(burn_tensor::BoolStore::U32).name(),
+        dtype => dtype.name(),
+    };
     let expected = format!(
         r#"Tensor {{
   data:
@@ -87,7 +93,7 @@ fn test_display_2d_bool_tensor() {
 }}"#,
         tensor_bool.device(),
         TestBackend::name(&tensor_bool.device()),
-        <TestBackend as Backend>::BoolElem::dtype().name(),
+        expected_name,
     );
     assert_eq!(output, expected);
 }

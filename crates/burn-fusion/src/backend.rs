@@ -4,7 +4,7 @@ use crate::{
     stream::{Context, OrderedExecution},
 };
 use burn_backend::{
-    Backend, DType, DeviceOps, Element, ExecutionError,
+    Backend, DType, DeviceOps, ExecutionError,
     tensor::{BoolTensor, Device, FloatTensor, IntTensor, QuantizedTensor},
 };
 use burn_ir::{BackendIr, OperationIr, TensorHandle};
@@ -184,8 +184,6 @@ pub trait FusionRuntime: Send + Sync + Sized + core::fmt::Debug + 'static {
     type FusionHandle: Clone + Send;
     /// Device used by the runtime.
     type FusionDevice: DeviceOps;
-    /// The type that represents booleans on the backend.
-    type BoolRepr: Element;
 
     /// The list of fusers that will be used to optimize the computational graph.
     fn fusers(device: Self::FusionDevice) -> Vec<Box<dyn OperationFuser<Self::Optimization>>>;
@@ -240,5 +238,15 @@ impl<B: FusionBackend> BackendIr for Fusion<B> {
 
     fn quantized_tensor_handle(tensor: QuantizedTensor<Self>) -> Self::Handle {
         tensor
+    }
+}
+
+// TODO: remove once backends no longer rely on generics for default elem types
+/// Returns the bool element dtype.
+pub(crate) fn bool_dtype<BT: burn_backend::Element>() -> DType {
+    match BT::dtype() {
+        DType::U32 => DType::Bool(burn_backend::BoolStore::U32),
+        DType::U8 => DType::Bool(burn_backend::BoolStore::U8),
+        other => unimplemented!("Invalid bool dtye {other:?}"),
     }
 }

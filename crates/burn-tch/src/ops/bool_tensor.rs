@@ -1,5 +1,6 @@
 use super::TchOps;
 use crate::{LibTorch, LibTorchDevice, TchShape, TchTensor, element::TchElement};
+use burn_backend::BoolStore;
 use burn_backend::ExecutionError;
 use burn_backend::Scalar;
 use burn_backend::tensor::BoolTensor;
@@ -9,7 +10,9 @@ use burn_backend::{Shape, TensorData, TensorMetadata, ops::BoolTensorOps};
 impl<E: TchElement> BoolTensorOps<Self> for LibTorch<E> {
     fn bool_from_data(data: TensorData, device: &LibTorchDevice) -> TchTensor {
         match data.dtype {
-            burn_backend::DType::Bool => TchTensor::from_data::<bool>(data, (*device).into()),
+            burn_backend::DType::Bool(BoolStore::Native) => {
+                TchTensor::from_data::<bool>(data, (*device).into())
+            }
             _ => unimplemented!("Unsupported dtype for `bool_from_data`"),
         }
     }

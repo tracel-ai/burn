@@ -1,6 +1,6 @@
 use super::optimization::{FusedMatmul, MatmulOptimization};
 use crate::{
-    engine::{codegen::ir::FuseType, fuser::TraceOperationFuser, settings::FuseSettings},
+    engine::{fuser::TraceOperationFuser, settings::FuseSettings},
     optim::CubeOptimization,
     optim::matmul::args::MatmulArg,
 };
@@ -29,7 +29,7 @@ impl<R: Runtime> Clone for MatmulFuser<R> {
 }
 
 impl<R: Runtime> MatmulFuser<R> {
-    pub fn new(device: R::Device, bool_precision: FuseType) -> Self {
+    pub fn new(device: R::Device) -> Self {
         let client = R::client(&device);
         let props = client.properties();
         let max_bindings = props.hardware.max_bindings;
@@ -40,12 +40,8 @@ impl<R: Runtime> MatmulFuser<R> {
         let settings_fallback = FuseSettings::default();
 
         Self {
-            fuser: TraceOperationFuser::new(max_bindings, bool_precision, settings_matmul),
-            fuser_fallback: TraceOperationFuser::new(
-                max_bindings,
-                bool_precision,
-                settings_fallback,
-            ),
+            fuser: TraceOperationFuser::new(max_bindings, settings_matmul),
+            fuser_fallback: TraceOperationFuser::new(max_bindings, settings_fallback),
             device,
             matmul: None,
         }

@@ -1,7 +1,7 @@
 use super::NoOp;
 use crate::{
-    Fusion, FusionBackend, binary_int_cmp_ops, binary_int_ops, get_client, reduce_int_ops,
-    scalar_int_cmp_ops, scalar_int_ops,
+    Fusion, FusionBackend, binary_int_cmp_ops, binary_int_ops, bool_dtype, get_client,
+    reduce_int_ops, scalar_int_cmp_ops, scalar_int_ops,
     stream::{OperationStreams, execution::Operation},
     unary_int_ops,
 };
@@ -499,7 +499,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         let desc = BinaryOpIr::create_comparison(
             lhs.into_ir(),
             rhs.into_ir(),
-            B::BoolElem::dtype(),
+            bool_dtype::<B::BoolElem>(),
             || client.create_empty_handle(),
         );
 
@@ -519,9 +519,10 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
 
         let client = lhs.client.clone();
         let rhs = rhs.into();
-        let desc = ScalarOpIr::create_comparison(lhs.into_ir(), rhs, B::BoolElem::dtype(), || {
-            client.create_empty_handle()
-        });
+        let desc =
+            ScalarOpIr::create_comparison(lhs.into_ir(), rhs, bool_dtype::<B::BoolElem>(), || {
+                client.create_empty_handle()
+            });
 
         client
             .register(
@@ -541,7 +542,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         let desc = BinaryOpIr::create_comparison(
             lhs.into_ir(),
             rhs.into_ir(),
-            B::BoolElem::dtype(),
+            bool_dtype::<B::BoolElem>(),
             || client.create_empty_handle(),
         );
 
@@ -561,9 +562,10 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
 
         let client = lhs.client.clone();
         let rhs = rhs.into();
-        let desc = ScalarOpIr::create_comparison(lhs.into_ir(), rhs, B::BoolElem::dtype(), || {
-            client.create_empty_handle()
-        });
+        let desc =
+            ScalarOpIr::create_comparison(lhs.into_ir(), rhs, bool_dtype::<B::BoolElem>(), || {
+                client.create_empty_handle()
+            });
 
         client
             .register(
@@ -586,7 +588,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         let desc = BinaryOpIr::create_comparison(
             lhs.into_ir(),
             rhs.into_ir(),
-            B::BoolElem::dtype(),
+            bool_dtype::<B::BoolElem>(),
             || client.create_empty_handle(),
         );
 
@@ -609,9 +611,10 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
 
         let client = lhs.client.clone();
         let rhs = rhs.into();
-        let desc = ScalarOpIr::create_comparison(lhs.into_ir(), rhs, B::BoolElem::dtype(), || {
-            client.create_empty_handle()
-        });
+        let desc =
+            ScalarOpIr::create_comparison(lhs.into_ir(), rhs, bool_dtype::<B::BoolElem>(), || {
+                client.create_empty_handle()
+            });
 
         client
             .register(
@@ -634,7 +637,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         let desc = BinaryOpIr::create_comparison(
             lhs.into_ir(),
             rhs.into_ir(),
-            B::BoolElem::dtype(),
+            bool_dtype::<B::BoolElem>(),
             || client.create_empty_handle(),
         );
 
@@ -654,9 +657,10 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
 
         let client = lhs.client.clone();
         let rhs = rhs.into();
-        let desc = ScalarOpIr::create_comparison(lhs.into_ir(), rhs, B::BoolElem::dtype(), || {
-            client.create_empty_handle()
-        });
+        let desc =
+            ScalarOpIr::create_comparison(lhs.into_ir(), rhs, bool_dtype::<B::BoolElem>(), || {
+                client.create_empty_handle()
+            });
 
         client
             .register(
@@ -679,7 +683,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         let desc = BinaryOpIr::create_comparison(
             lhs.into_ir(),
             rhs.into_ir(),
-            B::BoolElem::dtype(),
+            bool_dtype::<B::BoolElem>(),
             || client.create_empty_handle(),
         );
 
@@ -702,9 +706,10 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
 
         let client = lhs.client.clone();
         let rhs = rhs.into();
-        let desc = ScalarOpIr::create_comparison(lhs.into_ir(), rhs, B::BoolElem::dtype(), || {
-            client.create_empty_handle()
-        });
+        let desc =
+            ScalarOpIr::create_comparison(lhs.into_ir(), rhs, bool_dtype::<B::BoolElem>(), || {
+                client.create_empty_handle()
+            });
 
         client
             .register(

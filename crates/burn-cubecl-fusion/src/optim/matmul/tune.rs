@@ -7,7 +7,7 @@ use crate::{
 };
 use burn_fusion::stream::Context;
 use cubecl::{
-    AutotuneKey, CubeElement, CubeTuneId, Runtime,
+    AutotuneKey, CubeTuneId, Runtime,
     tune::{LocalTuner, Tunable, TunableSet, TuneGroup, local_tuner},
 };
 use cubek::matmul::{
@@ -26,7 +26,7 @@ pub struct FusedMatmulAutotuneKey {
 }
 
 /// Executes autotune on matmul operations
-pub fn fused_matmul_autotune<R: Runtime, BT: CubeElement>(
+pub fn fused_matmul_autotune<R: Runtime>(
     optimization: MatmulOptimizationTuneArg<R>,
     context: &mut Context<CubeFusionHandle<R>>,
 ) {
@@ -96,10 +96,8 @@ pub fn fused_matmul_autotune<R: Runtime, BT: CubeElement>(
             }
         }
 
-        let mut set = TunableSet::new(create_key::<R>, input_gen::<R>).with(Tunable::new(
-            "fused_matmul_fallback",
-            tune_fallback::<R, BT>,
-        )); // First one should always work.
+        let mut set = TunableSet::new(create_key::<R>, input_gen::<R>)
+            .with(Tunable::new("fused_matmul_fallback", tune_fallback::<R>)); // First one should always work.
 
         // Unit matmuls
         for (selector, double_buf) in [
@@ -110,7 +108,7 @@ pub fn fused_matmul_autotune<R: Runtime, BT: CubeElement>(
         ] {
             set = set.with(
                 Tunable::new(selector.name(), move |input| {
-                    tune_fused::<R, BT>(input, selector)
+                    tune_fused::<R>(input, selector)
                 })
                 .group(&unit, move |key| match double_buf {
                     true => double_buffering_priority(key, PRIORITY_MAX, PRIORITY_HIGH),
@@ -164,7 +162,7 @@ pub fn fused_matmul_autotune<R: Runtime, BT: CubeElement>(
                 ),
             ] {
                 let mut tunable = Tunable::new(selector.name(), move |input| {
-                    tune_fused::<R, BT>(input, selector)
+                    tune_fused::<R>(input, selector)
                 })
                 .group(group, move |key| match double_buf {
                     true => double_buffering_priority(key, PRIORITY_MAX, PRIORITY_HIGH),
@@ -234,7 +232,7 @@ fn input_gen<R: Runtime>(
     input.clone()
 }
 
-fn tune_fused<R: Runtime, BT: CubeElement>(
+fn tune_fused<R: Runtime>(
     input: TuneInput<R, MatmulOptimizationTuneArg<R>>,
     selector: FusedMatmulSelector,
 ) -> Result<TuneOutput<R>, String> {
@@ -242,31 +240,29 @@ fn tune_fused<R: Runtime, BT: CubeElement>(
     let context = input.context();
 
     match context {
-        TuneContext::Original(context) => {
-            match optimization.execute_fused::<BT>(context, selector) {
-                Ok(out) => Ok(out),
-                Err(_) => {
-                    return tune_fallback::<R, BT>(input);
-                }
+        TuneContext::Original(context) => match optimization.execute_fused(context, selector) {
+            Ok(out) => Ok(out),
+            Err(_) => {
+                return tune_fallback::<R>(input);
             }
-        }
+        },
         TuneContext::Fork(mut context_owned) => {
-            optimization.execute_fused::<BT>(&mut context_owned.as_context(), selector)
+            optimization.execute_fused(&mut context_owned.as_context(), selector)
         }
     }
     .map_err(|e| format!("{e:?}"))
 }
 
-fn tune_fallback<R: Runtime, BT: CubeElement>(
+fn tune_fallback<R: Runtime>(
     input: TuneInput<R, MatmulOptimizationTuneArg<R>>,
 ) -> Result<TuneOutput<R>, String> {
     let optimization = input.optimization();
     let context = input.context();
 
     Ok(match context {
-        TuneContext::Original(context) => optimization.execute_fallback::<BT>(context),
+        TuneContext::Original(context) => optimization.execute_fallback(context),
         TuneContext::Fork(mut context_owned) => {
-            optimization.execute_fallback::<BT>(&mut context_owned.as_context())
+            optimization.execute_fallback(&mut context_owned.as_context())
         }
     })
 }

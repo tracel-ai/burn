@@ -1,5 +1,5 @@
 use super::{
-    codegen::ir::{BinaryFuseArgs, FuseArg, FuseOp, FuseType, UnaryFuseArgs},
+    codegen::ir::{BinaryFuseArgs, FuseArg, FuseOp, UnaryFuseArgs},
     settings::FuseSettings,
     trace::{FuseTrace, TraceFuser, block::QuantInput},
 };
@@ -125,11 +125,7 @@ impl OperationFuser<FuseTrace> for TraceOperationFuser {
         self.scoring.reset();
         self.num_views = 0;
         self.status = FuserStatus::Open;
-        self.fuser = TryTraceFuser::new(
-            self.max_bindings,
-            self.fuser.fuser.bool_precision,
-            self.settings,
-        );
+        self.fuser = TryTraceFuser::new(self.max_bindings, self.settings);
         self.current_output_shape = Shape::new([]);
     }
 
@@ -153,9 +149,9 @@ impl OperationFuser<FuseTrace> for TraceOperationFuser {
 
 impl TraceOperationFuser {
     /// Creates a new fuser.
-    pub fn new(max_bindings: u32, bool_precision: FuseType, settings: FuseSettings) -> Self {
+    pub fn new(max_bindings: u32, settings: FuseSettings) -> Self {
         Self {
-            fuser: TryTraceFuser::new(max_bindings, bool_precision, settings),
+            fuser: TryTraceFuser::new(max_bindings, settings),
             settings,
             scoring: Scoring::default(),
             num_ops: 0,
@@ -728,9 +724,9 @@ struct TryTraceFuser {
 }
 
 impl TryTraceFuser {
-    fn new(max_bindings: u32, bool_precision: FuseType, settings: FuseSettings) -> Self {
+    fn new(max_bindings: u32, settings: FuseSettings) -> Self {
         Self {
-            fuser: TraceFuser::new(bool_precision, settings),
+            fuser: TraceFuser::new(settings),
             max_bindings,
             // A good default, avoid errors with for loops over only memory
             // bound operations.
