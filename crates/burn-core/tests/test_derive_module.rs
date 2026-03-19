@@ -641,6 +641,14 @@ mod require_grad {
             } else {
                 for r in recvs.iter().by_ref() {
                     let t = r.recv().unwrap();
+                    if data != t {
+                        println!("Failing at iteration {i}");
+                        println!(
+                            "With tensors {:?} and {:?}",
+                            data.to_vec::<f32>(),
+                            t.to_vec::<f32>()
+                        );
+                    }
                     assert_eq!(data, t);
                 }
             }
