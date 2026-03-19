@@ -46,7 +46,6 @@ impl<B: Backend> GradientSyncServer<B> {
         }
     }
 
-    // TODO: Can't register until all synced_devices has been reset.
     /// Called at the start of the backward process. Lets the device announce what parameters are nodes in the autodiff graph and how many times they are required.
     fn register_sync_params(&mut self, sharded_params: Vec<DistributedParams>) {
         sharded_params.iter().for_each(|params| {

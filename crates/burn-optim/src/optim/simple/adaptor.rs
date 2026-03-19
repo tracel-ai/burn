@@ -25,7 +25,6 @@ where
     records: HashMap<ParamId, AdaptorRecord<O, B>>,
     module: PhantomData<M>,
     grad_clipping: Option<GradientClipping>,
-    // TODO: grads_sharded: bool
 }
 
 impl<O, B, M> From<O> for OptimizerAdaptor<O, M, B>
@@ -80,8 +79,6 @@ where
 
     fn step(&mut self, lr: LearningRate, module: M, grads: GradientsParams) -> M {
         let mut grads = GradAdaptor::Single(grads);
-
-        // TODO: if grads_sharded, propagate to mapper.
 
         let mut mapper = SimpleOptimizerMapper::<M, B, O>::new(
             &self.optim,
@@ -163,9 +160,7 @@ where
 
         let tensor = if let Some((grad, device)) = grad {
             let is_require_grad = tensor.is_require_grad();
-            let sharded_params = tensor.sharded_params();
-
-            // TODO: if grads_sharded, sync shards. new op in comm_tensor.
+            let distributed_params = tensor.distributed_params();
 
             let (key, record) = self.records.remove_entry(&id).unzip();
             let tensor = if tensor.device() != device {
@@ -207,7 +202,7 @@ where
             if is_require_grad {
                 tensor = tensor.require_grad();
             }
-            if let Some(params) = sharded_params {
+            if let Some(params) = distributed_params {
                 tensor = tensor.set_distributed_params(params.peer_id, params.op, params.param_id);
             }
             tensor

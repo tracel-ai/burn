@@ -10,9 +10,9 @@ use crate::tensor::backend::Backend;
 use crate::tensor::stats;
 use crate::tensor::{Distribution, TensorData};
 use crate::{Bool, Int, TensorPrimitive};
+use burn_backend::DistributedParamId;
 use burn_backend::DistributedParams;
 use burn_backend::ElementConversion;
-use burn_backend::DistributedParamId;
 use burn_backend::PeerId;
 use burn_backend::ReduceOperation;
 use burn_backend::Scalar;
@@ -684,7 +684,7 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     }
 
     /// Returns the sharded parameters if the tensor was marked as sharded.
-    pub fn sharded_params(&self) -> Option<DistributedParams> {
+    pub fn distributed_params(&self) -> Option<DistributedParams> {
         match &self.primitive {
             TensorPrimitive::Float(tensor) => B::float_distributed_params(tensor),
             TensorPrimitive::QFloat(_tensor) => todo!(),
