@@ -1,21 +1,22 @@
 use crate::{Backend, ReduceOperation, ops::TensorRef};
 
 pub(crate) fn reduce_sum_centralized<B: Backend>(
-    tensors: &Vec<TensorRef<B>>,
+    mut tensors: Vec<TensorRef<B>>,
     central_device: &B::Device,
 ) -> B::FloatTensorPrimitive {
-    // Safe since tensors shouldn't be accessed other than here at this point
-    let mut central_tensor = unsafe { B::float_data_from_comm(&tensors.get(0).unwrap()) };
+    // Safe since tensors shouldn't be accessed other than here at this point.
+    let mut central_tensor = unsafe { B::float_from_ref(&tensors.remove(0)) };
 
     for tensor in tensors {
-        let rhs = unsafe { B::float_to_device(B::float_data_from_comm(tensor), &central_device) };
+        let rhs = unsafe { B::float_to_device(B::float_from_ref(&tensor), &central_device) };
         central_tensor = B::float_add(central_tensor, rhs);
     }
 
     central_tensor
 }
 
-pub(crate) fn all_reduce_inplace_sum_centralized<B: Backend>(
+// TODO : Tests
+pub(crate) fn all_reduce_inplace_centralized<B: Backend>(
     tensors: Vec<TensorRef<B>>,
     op: ReduceOperation,
 ) {
@@ -28,8 +29,7 @@ pub(crate) fn all_reduce_inplace_sum_centralized<B: Backend>(
     let central_device = devices.get(0).unwrap();
 
     // Reduce to central device
-    // TODO: inplace?
-    let mut central_tensor = reduce_sum_centralized::<B>(&tensors, &central_device);
+    let mut central_tensor = reduce_sum_centralized::<B>(tensors.clone(), &central_device);
 
     if op == ReduceOperation::Mean {
         // Apply mean division

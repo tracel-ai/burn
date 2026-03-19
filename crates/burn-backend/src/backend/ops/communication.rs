@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use crate::{
     Backend, DistributedParams, ReduceOperation,
-    all_reduce::all_reduce_inplace_sum_centralized,
+    all_reduce::all_reduce_inplace_centralized,
     close_gradient_sync_server, get_gradient_sync_client, start_gradient_sync_server,
     tensor::{Device, FloatTensor},
 };
@@ -44,7 +44,7 @@ pub trait CommunicationTensorOps<B: Backend> {
     /// * `distributed_params` - A list of [`DistributedParams`] of the tensors to sync.
     fn register_sync_parameters(_device: &B::Device, distributed_params: Vec<DistributedParams>) {
         if let Some(sync_client) = get_gradient_sync_client::<B>() {
-            sync_client.register_device(distributed_params);
+            sync_client.register_sync_parameters(distributed_params);
         };
     }
 
@@ -83,17 +83,17 @@ pub trait CommunicationTensorOps<B: Backend> {
     /// * `all_ids` - The [PeerId] of the devices on which to all_reduce.
     /// * `op` - The [`ReduceOperation`].
     #[allow(unused)]
-    fn all_reduce_in_place_native(tensors: Vec<TensorRef<B>>, op: ReduceOperation) {
-        all_reduce_inplace_sum_centralized(tensors, op);
+    fn all_reduce_in_place(tensors: Vec<TensorRef<B>>, op: ReduceOperation) {
+        all_reduce_inplace_centralized(tensors, op);
     }
 
-    /// Natively sync the collective operations.
+    /// Sync the collective operations.
     ///
     /// # Arguments
     ///
     /// * `device` - The device to sync.
     #[allow(unused)]
-    fn collective_sync_native(device: &B::Device) {
+    fn sync_collective(device: &B::Device) {
         // Default implementation executes collective operations synchronously, so nothing to do here.
     }
 
@@ -110,7 +110,7 @@ pub trait CommunicationTensorOps<B: Backend> {
         unsafe { B::float_device(&(**tensor.0)) }
     }
 
-    /// Creates a float tensor from the current data in the communication tensor.
+    /// Returns a clone of the float tensor from the tensor reference.
     ///
     /// # Arguments
     ///
@@ -119,7 +119,7 @@ pub trait CommunicationTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A float tensor containing a copy of the data of the given tensor.
-    unsafe fn float_data_from_comm(tensor: &TensorRef<B>) -> FloatTensor<B> {
+    unsafe fn float_from_ref(tensor: &TensorRef<B>) -> FloatTensor<B> {
         unsafe { (**tensor.0).clone() }
     }
 }

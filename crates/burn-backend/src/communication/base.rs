@@ -71,12 +71,11 @@ impl From<usize> for PeerId {
     }
 }
 
-/// A unique identifier for a parameter in a burn module.
-/// The same parameter in a clone of the module should have the same id.
+/// A unique identifier for a parameter distributed across multiple devices.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct ModuleParamId(u64);
+pub struct DistributedParamId(u64);
 
-impl From<u64> for ModuleParamId {
+impl From<u64> for DistributedParamId {
     fn from(value: u64) -> Self {
         Self(value)
     }
@@ -89,7 +88,6 @@ pub struct DistributedParams {
     pub peer_id: PeerId,
     /// The reduce operation.
     pub op: ReduceOperation,
-    // TODO: Should we be able to mark a tensor as sharded if it has no param ID.
-    /// The tensor's parameter id if it's in a burn module.
-    pub param_id: Option<ModuleParamId>,
+    /// The tensor's [DistributedParamId].
+    pub param_id: DistributedParamId,
 }

@@ -20,8 +20,8 @@ use crate::{
 };
 
 use burn_backend::{
-    Backend, DistributedParams, ExecutionError, ModuleParamId, PeerId, ReduceOperation, TensorData,
-    TensorMetadata,
+    Backend, DistributedParamId, DistributedParams, ExecutionError, PeerId, ReduceOperation,
+    TensorData, TensorMetadata,
     ops::FloatTensorOps,
     tensor::{BoolTensor, Device, FloatTensor, IntTensor},
 };
@@ -1499,7 +1499,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         tensor: FloatTensor<Self>,
         peer_id: PeerId,
         op: ReduceOperation,
-        param_id: Option<ModuleParamId>,
+        param_id: DistributedParamId,
     ) -> FloatTensor<Self> {
         tensor.grad_distributed(peer_id, op, param_id)
     }

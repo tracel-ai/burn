@@ -1,5 +1,5 @@
 use burn_backend::{
-    DistributedParams, ExecutionError, ModuleParamId, PeerId, ReduceOperation, Scalar, TensorData,
+    DistributedParams, ExecutionError, DistributedParamId, PeerId, ReduceOperation, Scalar, TensorData,
     ops::FloatTensorOps,
     tensor::{BoolTensor, FloatTensor, IntTensor},
 };
@@ -414,7 +414,7 @@ impl FloatTensorOps<Self> for Dispatch {
         tensor: FloatTensor<Self>,
         peer_id: PeerId,
         op: ReduceOperation,
-        param_id: Option<ModuleParamId>,
+        param_id: DistributedParamId,
     ) -> FloatTensor<Self> {
         unary_float!(tensor, float, |tensor| B::float_set_distributed_params(tensor, peer_id, op, param_id) => Float)
     }

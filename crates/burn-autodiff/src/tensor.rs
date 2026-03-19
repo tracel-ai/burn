@@ -6,7 +6,7 @@ use crate::{
 };
 use alloc::{boxed::Box, sync::Arc, vec};
 use burn_backend::{
-    Backend, DistributedParams, ModuleParamId, PeerId, ReduceOperation, TensorMetadata,
+    Backend, DistributedParamId, DistributedParams, PeerId, ReduceOperation, TensorMetadata,
 };
 
 #[derive(Debug, Clone)]
@@ -107,7 +107,7 @@ impl<B: Backend> AutodiffTensor<B> {
                     self.node.distributed_params.clone(),
                 )
                 .into();
-                let step: RootStep = RootStep::new(self.node.clone());
+                let step = RootStep::new(self.node.clone());
 
                 self.register_step(step, CheckpointerBuilder::default())
             }
@@ -126,7 +126,7 @@ impl<B: Backend> AutodiffTensor<B> {
         mut self,
         peer_id: PeerId,
         op: ReduceOperation,
-        param_id: Option<ModuleParamId>,
+        param_id: DistributedParamId,
     ) -> Self {
         self.node = Node::new(
             vec![],

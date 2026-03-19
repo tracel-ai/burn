@@ -11,7 +11,7 @@ where
     I: IntElement,
     BT: BoolElement,
 {
-    fn all_reduce_in_place_native(tensors: Vec<TensorRef<Self>>, op: ReduceOperation) {
+    fn all_reduce_in_place(tensors: Vec<TensorRef<Self>>, op: ReduceOperation) {
         let tensors = tensors
             .iter()
             .map(|t| unsafe { &**t.0 })
@@ -32,7 +32,7 @@ where
         }
     }
 
-    fn collective_sync_native(device: &Device<Self>) {
+    fn sync_collective(device: &Device<Self>) {
         let client = R::client(&device);
         client.sync_collective();
     }

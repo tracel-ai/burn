@@ -13,8 +13,7 @@ type ClientBox = Box<dyn Any + Send + Sync>;
 /// Global state map from [`Backend`] to boxed [`GradientSyncClient`].
 static BACKEND_CLIENT_MAP: OnceLock<Mutex<HashMap<TypeId, ClientBox>>> = OnceLock::new();
 
-// Device service/id type u16 max ____ index max u32.
-
+// TODO: Replace TypeId with DeviceId, the index being i32::MAX, a.k.a. communication index.
 /// Gets a locked mutable view of the `STATE_MAP`.
 pub(crate) fn get_backend_client_map() -> MutexGuard<'static, HashMap<TypeId, ClientBox>> {
     BACKEND_CLIENT_MAP

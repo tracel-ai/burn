@@ -26,12 +26,12 @@ impl<B: Backend, C: CheckpointStrategy> CommunicationTensorOps<Self> for Autodif
         unimplemented!()
     }
 
-    fn all_reduce_in_place_native(_tensors: Vec<TensorRef<Self>>, _op: ReduceOperation) {
+    fn all_reduce_in_place(_tensors: Vec<TensorRef<Self>>, _op: ReduceOperation) {
         unimplemented!()
     }
 
     #[allow(unused)]
-    fn collective_sync_native(device: &B::Device) {
+    fn sync_collective(device: &B::Device) {
         unimplemented!()
     }
 }

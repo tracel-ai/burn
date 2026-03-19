@@ -5,7 +5,7 @@ use super::sort::{argsort, sort, sort_with_indices};
 use crate::ops::GridSampleOptions;
 use crate::tensor::{BoolTensor, Device, Float, FloatTensor, IntTensor};
 use crate::{
-    Backend, DistributedParams, Distribution, ModuleParamId, PeerId, ReduceOperation, TensorData,
+    Backend, DistributedParams, Distribution, DistributedParamId, PeerId, ReduceOperation, TensorData,
 };
 use crate::{ExecutionError, Scalar, TensorMetadata, TensorPrimitive};
 use alloc::vec::Vec;
@@ -731,7 +731,7 @@ pub trait FloatTensorOps<B: Backend> {
         tensor: FloatTensor<B>,
         _peer_id: PeerId,
         _op: ReduceOperation,
-        _param_id: Option<ModuleParamId>,
+        _param_id: DistributedParamId,
     ) -> FloatTensor<B> {
         // Should only be overridden by autodiff backends.
         tensor
