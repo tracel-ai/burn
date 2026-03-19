@@ -153,18 +153,31 @@ impl DeviceSettingsRegistry {
                 Arc::clone(map.entry(key).or_default())
             });
 
-            *settings.get_or_init(DeviceSettings::default)
+            settings.call_once(DeviceSettings::default);
+            *settings.get().unwrap()
         }
     }
 
     /// Initializes the settings for the given device.
     ///
     /// Returns `Err` with the existing settings if already initialized.
-    fn init<D: DeviceOps>(device: &D, settings: DeviceSettings) -> Result<(), DeviceSettings> {
+    fn init<D: DeviceOps>(device: &D, settings: DeviceSettings) -> Result<(), DeviceError> {
         let key = Self::key(device);
         let mut map = REGISTRY.write().unwrap();
         let cell = map.entry(key).or_insert_with(|| Arc::new(OnceLock::new()));
-        cell.set(settings)
+
+        #[cfg(feature = "std")]
+        return cell
+            .set(settings)
+            .map_err(|_| DeviceError::already_initialized(device));
+
+        #[cfg(not(feature = "std"))]
+        if cell.get().is_some() {
+            Err(DeviceError::already_initialized(device))
+        } else {
+            cell.call_once(|| settings);
+            Ok(())
+        }
     }
 
     /// Returns the device registry key.
@@ -359,7 +372,6 @@ fn initialize_unchecked<D: DeviceOps>(
             bool_dtype,
         },
     )
-    .map_err(|_| DeviceError::already_initialized(device))
 }
 
 #[cfg(all(test, feature = "std"))]
