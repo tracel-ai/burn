@@ -1,7 +1,6 @@
 use self::unary_basic_int::BasicIntUnaryKind;
 
 use super::{expand, numeric, permute, unfold};
-use crate::element::bool_dtype;
 use crate::kernel::{
     BitwiseShlOp, BitwiseShrOp, NumericUnaryOp, NumericUnaryOpFamily, launch_binop_int,
     launch_scalar_binop_int, launch_unary_numeric, reduce, unary_basic_int,
@@ -19,8 +18,9 @@ use crate::{
 };
 use burn_backend::tensor::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
 use burn_backend::{DType, IntDType, Slice, ops::IntTensorOps};
-use burn_backend::{Distribution, ElementConversion, Shape, TensorData};
+use burn_backend::{Distribution, ElementConversion, Shape, TensorData, get_device_settings};
 use burn_backend::{ExecutionError, Scalar};
+use burn_std::{BoolDType, FloatDType};
 use cubecl::frontend::Numeric;
 use cubecl::prelude::*;
 use cubek::reduce::components::instructions::ReduceOperationConfig;
@@ -105,7 +105,8 @@ where
         mask: BoolTensor<Self>,
         value: IntTensor<Self>,
     ) -> IntTensor<Self> {
-        kernel::mask_where_auto(tensor, mask, value, bool_dtype::<BT>())
+        let bool_dtype = mask.dtype;
+        kernel::mask_where_auto(tensor, mask, value, bool_dtype)
     }
 
     fn int_mask_fill(
@@ -114,12 +115,8 @@ where
         value: Scalar,
     ) -> IntTensor<Self> {
         let dtype = tensor.dtype;
-        kernel::mask_fill_auto(
-            tensor,
-            mask,
-            InputScalar::new(value, dtype),
-            bool_dtype::<BT>(),
-        )
+        let bool_dtype = mask.dtype;
+        kernel::mask_fill_auto(tensor, mask, InputScalar::new(value, dtype), bool_dtype)
     }
 
     fn int_gather(
@@ -156,49 +153,81 @@ where
         kernel::select_assign(tensor, dim, indices, value, false)
     }
 
-    fn int_equal(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> BoolTensor<Self> {
-        kernel::equal(lhs, rhs, bool_dtype::<BT>())
+    fn int_equal(
+        lhs: IntTensor<Self>,
+        rhs: IntTensor<Self>,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<Self> {
+        kernel::equal(lhs, rhs, out_dtype.into())
     }
 
-    fn int_equal_elem(lhs: IntTensor<Self>, rhs: Scalar) -> BoolTensor<Self> {
+    fn int_equal_elem(lhs: IntTensor<Self>, rhs: Scalar, out_dtype: BoolDType) -> BoolTensor<Self> {
         let dtype = lhs.dtype;
-        kernel::equal_elem(lhs, InputScalar::new(rhs, dtype), bool_dtype::<BT>())
+        kernel::equal_elem(lhs, InputScalar::new(rhs, dtype), out_dtype.into())
     }
 
-    fn int_greater(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> BoolTensor<Self> {
-        kernel::greater(lhs, rhs, bool_dtype::<BT>())
+    fn int_greater(
+        lhs: IntTensor<Self>,
+        rhs: IntTensor<Self>,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<Self> {
+        kernel::greater(lhs, rhs, out_dtype.into())
     }
 
-    fn int_greater_elem(lhs: IntTensor<Self>, rhs: Scalar) -> BoolTensor<Self> {
+    fn int_greater_elem(
+        lhs: IntTensor<Self>,
+        rhs: Scalar,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<Self> {
         let dtype = lhs.dtype;
-        kernel::greater_elem(lhs, InputScalar::new(rhs, dtype), bool_dtype::<BT>())
+        kernel::greater_elem(lhs, InputScalar::new(rhs, dtype), out_dtype.into())
     }
 
-    fn int_greater_equal(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> BoolTensor<Self> {
-        kernel::greater_equal(lhs, rhs, bool_dtype::<BT>())
+    fn int_greater_equal(
+        lhs: IntTensor<Self>,
+        rhs: IntTensor<Self>,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<Self> {
+        kernel::greater_equal(lhs, rhs, out_dtype.into())
     }
 
-    fn int_greater_equal_elem(lhs: IntTensor<Self>, rhs: Scalar) -> BoolTensor<Self> {
+    fn int_greater_equal_elem(
+        lhs: IntTensor<Self>,
+        rhs: Scalar,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<Self> {
         let dtype = lhs.dtype;
-        kernel::greater_equal_elem(lhs, InputScalar::new(rhs, dtype), bool_dtype::<BT>())
+        kernel::greater_equal_elem(lhs, InputScalar::new(rhs, dtype), out_dtype.into())
     }
 
-    fn int_lower(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> BoolTensor<Self> {
-        kernel::lower(lhs, rhs, bool_dtype::<BT>())
+    fn int_lower(
+        lhs: IntTensor<Self>,
+        rhs: IntTensor<Self>,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<Self> {
+        kernel::lower(lhs, rhs, out_dtype.into())
     }
 
-    fn int_lower_elem(lhs: IntTensor<Self>, rhs: Scalar) -> BoolTensor<Self> {
+    fn int_lower_elem(lhs: IntTensor<Self>, rhs: Scalar, out_dtype: BoolDType) -> BoolTensor<Self> {
         let dtype = lhs.dtype;
-        kernel::lower_elem(lhs, InputScalar::new(rhs, dtype), bool_dtype::<BT>())
+        kernel::lower_elem(lhs, InputScalar::new(rhs, dtype), out_dtype.into())
     }
 
-    fn int_lower_equal(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> BoolTensor<Self> {
-        kernel::lower_equal(lhs, rhs, bool_dtype::<BT>())
+    fn int_lower_equal(
+        lhs: IntTensor<Self>,
+        rhs: IntTensor<Self>,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<Self> {
+        kernel::lower_equal(lhs, rhs, out_dtype.into())
     }
 
-    fn int_lower_equal_elem(lhs: IntTensor<Self>, rhs: Scalar) -> BoolTensor<Self> {
+    fn int_lower_equal_elem(
+        lhs: IntTensor<Self>,
+        rhs: Scalar,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<Self> {
         let dtype = lhs.dtype;
-        kernel::lower_equal_elem(lhs, InputScalar::new(rhs, dtype), bool_dtype::<BT>())
+        kernel::lower_equal_elem(lhs, InputScalar::new(rhs, dtype), out_dtype.into())
     }
 
     fn int_add(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
@@ -444,8 +473,8 @@ where
         unary_basic_int::launch::<R, _>(tensor, |_| BasicIntUnaryKind::Sign)
     }
 
-    fn int_into_float(tensor: IntTensor<Self>) -> FloatTensor<Self> {
-        kernel::cast(tensor, F::dtype())
+    fn int_into_float(tensor: IntTensor<Self>, out_dtype: FloatDType) -> FloatTensor<Self> {
+        kernel::cast(tensor, out_dtype.into())
     }
 
     fn int_swap_dims(mut tensor: IntTensor<Self>, dim1: usize, dim2: usize) -> IntTensor<Self> {
@@ -485,7 +514,8 @@ where
     }
 
     fn int_flip(tensor: IntTensor<Self>, axes: &[usize]) -> IntTensor<Self> {
-        kernel::flip(tensor, axes, bool_dtype::<BT>())
+        let bool_dtype = get_device_settings(&tensor.device).bool_dtype::<Self>();
+        kernel::flip(tensor, axes, bool_dtype.into())
     }
 
     fn bitwise_and(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
@@ -549,4 +579,13 @@ where
     ) -> FloatTensor<Self> {
         unfold(tensor, dim, size, step)
     }
+
+    // TODO
+    // fn int_powi(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
+    //     todo!()
+    // }
+
+    // fn int_powi_scalar_impl(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
+    //     todo!()
+    // }
 }

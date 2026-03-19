@@ -1,10 +1,13 @@
 use super::TchOps;
+use crate::IntoKind;
 use crate::{LibTorch, LibTorchDevice, TchShape, TchTensor, element::TchElement};
 use burn_backend::BoolStore;
 use burn_backend::ExecutionError;
+use burn_backend::IntDType;
 use burn_backend::Scalar;
 use burn_backend::tensor::BoolTensor;
 use burn_backend::tensor::IntTensor;
+use burn_backend::{BoolDType, FloatDType};
 use burn_backend::{Shape, TensorData, TensorMetadata, ops::BoolTensorOps};
 
 impl<E: TchElement> BoolTensorOps<Self> for LibTorch<E> {
@@ -40,7 +43,7 @@ impl<E: TchElement> BoolTensorOps<Self> for LibTorch<E> {
         tensor.tensor.device().into()
     }
 
-    fn bool_empty(shape: Shape, device: &LibTorchDevice) -> TchTensor {
+    fn bool_empty(shape: Shape, device: &LibTorchDevice, _dtype: BoolDType) -> TchTensor {
         let tensor = tch::Tensor::empty(
             TchShape::from(shape).dims,
             (tch::Kind::Bool, (*device).into()),
@@ -49,7 +52,7 @@ impl<E: TchElement> BoolTensorOps<Self> for LibTorch<E> {
         TchTensor::new(tensor)
     }
 
-    fn bool_zeros(shape: Shape, device: &LibTorchDevice) -> TchTensor {
+    fn bool_zeros(shape: Shape, device: &LibTorchDevice, _dtype: BoolDType) -> TchTensor {
         let tensor = tch::Tensor::zeros(
             TchShape::from(shape).dims,
             (tch::Kind::Bool, (*device).into()),
@@ -58,7 +61,7 @@ impl<E: TchElement> BoolTensorOps<Self> for LibTorch<E> {
         TchTensor::new(tensor)
     }
 
-    fn bool_ones(shape: Shape, device: &LibTorchDevice) -> TchTensor {
+    fn bool_ones(shape: Shape, device: &LibTorchDevice, _dtype: BoolDType) -> TchTensor {
         let tensor = tch::Tensor::ones(
             TchShape::from(shape).dims,
             (tch::Kind::Bool, (*device).into()),
@@ -114,13 +117,13 @@ impl<E: TchElement> BoolTensorOps<Self> for LibTorch<E> {
         )
     }
 
-    fn bool_into_int(tensor: TchTensor) -> TchTensor {
-        let tensor = tensor.tensor.to_kind(tch::Kind::Int64);
+    fn bool_into_int(tensor: TchTensor, out_dtype: IntDType) -> TchTensor {
+        let tensor = tensor.tensor.to_kind(out_dtype.into_kind());
         TchTensor::new(tensor)
     }
 
-    fn bool_into_float(tensor: TchTensor) -> TchTensor {
-        let tensor = tensor.tensor.to_kind(E::kind());
+    fn bool_into_float(tensor: TchTensor, out_dtype: FloatDType) -> TchTensor {
+        let tensor = tensor.tensor.to_kind(out_dtype.into_kind());
         TchTensor::new(tensor)
     }
 
@@ -136,8 +139,8 @@ impl<E: TchElement> BoolTensorOps<Self> for LibTorch<E> {
         TchOps::flip(tensor, axes)
     }
 
-    async fn bool_argwhere(tensor: TchTensor) -> TchTensor {
-        TchTensor::new(tensor.tensor.argwhere())
+    async fn bool_argwhere(tensor: TchTensor, out_dtype: IntDType) -> TchTensor {
+        TchTensor::new(tensor.tensor.argwhere().to_kind(out_dtype.into_kind()))
     }
 
     fn bool_select(tensor: TchTensor, dim: usize, indices: TchTensor) -> TchTensor {

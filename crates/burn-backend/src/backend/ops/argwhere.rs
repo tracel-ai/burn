@@ -1,7 +1,7 @@
 use crate::tensor::{Device, IntTensor};
 use crate::{Backend, TensorData, element::ElementConversion};
 use alloc::vec::Vec;
-use burn_std::Shape;
+use burn_std::{IntDType, Shape};
 
 /// Compute the indices of the elements that are non-zero, grouped by element.
 ///
@@ -20,7 +20,11 @@ use burn_std::Shape;
 /// Ideally, it is supposed to be implemented by the backend and the backend implementation will be resolved
 /// by static dispatch. It is not designed for direct usage by users, and not recommended to import
 /// or use this function directly.
-pub fn argwhere_data<B: Backend>(data: TensorData, device: &Device<B>) -> IntTensor<B> {
+pub fn argwhere_data<B: Backend>(
+    data: TensorData,
+    device: &Device<B>,
+    out_dtype: IntDType,
+) -> IntTensor<B> {
     let dims = &data.shape;
     let ndims = dims.len();
     let count_nonzero = data.iter::<bool>().filter(|&v| v).count();
@@ -50,7 +54,8 @@ pub fn argwhere_data<B: Backend>(data: TensorData, device: &Device<B>) -> IntTen
         .concat();
 
     B::int_from_data(
-        TensorData::new(indices, Shape::new([count_nonzero, ndims])),
+        TensorData::new(indices, Shape::new([count_nonzero, ndims]))
+            .convert_dtype(out_dtype.into()),
         device,
     )
 }

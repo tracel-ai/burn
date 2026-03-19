@@ -6,7 +6,7 @@ use burn_backend::{
     ops::BoolTensorOps,
     tensor::{BoolTensor, Device, IntTensor},
 };
-use burn_std::Shape;
+use burn_std::{BoolDType, FloatDType, IntDType, Shape};
 
 impl<B: Backend, C: CheckpointStrategy> BoolTensorOps<Self> for Autodiff<B, C> {
     fn bool_from_data(data: TensorData, device: &Device<B>) -> BoolTensor<B> {
@@ -17,8 +17,8 @@ impl<B: Backend, C: CheckpointStrategy> BoolTensorOps<Self> for Autodiff<B, C> {
         B::bool_into_data(tensor).await
     }
 
-    fn bool_into_int(tensor: BoolTensor<B>) -> IntTensor<B> {
-        B::bool_into_int(tensor)
+    fn bool_into_int(tensor: BoolTensor<B>, out_dtype: IntDType) -> IntTensor<B> {
+        B::bool_into_int(tensor, out_dtype)
     }
 
     fn bool_to_device(tensor: BoolTensor<B>, device: &Device<B>) -> BoolTensor<B> {
@@ -37,16 +37,16 @@ impl<B: Backend, C: CheckpointStrategy> BoolTensorOps<Self> for Autodiff<B, C> {
         B::bool_slice(tensor, slices)
     }
 
-    fn bool_empty(shape: Shape, device: &Device<B>) -> BoolTensor<B> {
-        B::bool_empty(shape, device)
+    fn bool_empty(shape: Shape, device: &Device<B>, dtype: BoolDType) -> BoolTensor<B> {
+        B::bool_empty(shape, device, dtype)
     }
 
-    fn bool_zeros(shape: Shape, device: &Device<B>) -> BoolTensor<B> {
-        B::bool_zeros(shape, device)
+    fn bool_zeros(shape: Shape, device: &Device<B>, dtype: BoolDType) -> BoolTensor<B> {
+        B::bool_zeros(shape, device, dtype)
     }
 
-    fn bool_ones(shape: Shape, device: &Device<B>) -> BoolTensor<B> {
-        B::bool_ones(shape, device)
+    fn bool_ones(shape: Shape, device: &Device<B>, dtype: BoolDType) -> BoolTensor<B> {
+        B::bool_ones(shape, device, dtype)
     }
 
     fn bool_slice_assign(
@@ -81,8 +81,11 @@ impl<B: Backend, C: CheckpointStrategy> BoolTensorOps<Self> for Autodiff<B, C> {
         B::bool_xor(lhs, rhs)
     }
 
-    fn bool_into_float(tensor: BoolTensor<B>) -> <Autodiff<B> as Backend>::FloatTensorPrimitive {
-        AutodiffTensor::new(B::bool_into_float(tensor))
+    fn bool_into_float(
+        tensor: BoolTensor<B>,
+        out_dtype: FloatDType,
+    ) -> <Autodiff<B> as Backend>::FloatTensorPrimitive {
+        AutodiffTensor::new(B::bool_into_float(tensor, out_dtype))
     }
 
     fn bool_swap_dims(
@@ -101,8 +104,8 @@ impl<B: Backend, C: CheckpointStrategy> BoolTensorOps<Self> for Autodiff<B, C> {
         B::bool_flip(tensor, axes)
     }
 
-    async fn bool_argwhere(tensor: BoolTensor<B>) -> IntTensor<B> {
-        B::bool_argwhere(tensor).await
+    async fn bool_argwhere(tensor: BoolTensor<B>, out_dtype: burn_std::IntDType) -> IntTensor<B> {
+        B::bool_argwhere(tensor, out_dtype).await
     }
 
     fn bool_expand(tensor: BoolTensor<B>, shape: Shape) -> BoolTensor<B> {
@@ -157,5 +160,22 @@ impl<B: Backend, C: CheckpointStrategy> BoolTensorOps<Self> for Autodiff<B, C> {
 
     fn bool_equal_elem(lhs: BoolTensor<Self>, rhs: Scalar) -> BoolTensor<Self> {
         B::bool_equal_elem(lhs, rhs)
+    }
+
+    fn bool_select(
+        tensor: BoolTensor<Self>,
+        dim: usize,
+        indices: IntTensor<Self>,
+    ) -> BoolTensor<Self> {
+        B::bool_select(tensor, dim, indices)
+    }
+
+    fn bool_select_or(
+        tensor: BoolTensor<Self>,
+        dim: usize,
+        indices: IntTensor<Self>,
+        value: BoolTensor<Self>,
+    ) -> BoolTensor<Self> {
+        B::bool_select_or(tensor, dim, indices, value)
     }
 }

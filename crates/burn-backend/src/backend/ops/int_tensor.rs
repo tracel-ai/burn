@@ -3,9 +3,9 @@ use super::repeat_dim::repeat_with_slice_assign;
 use super::sort::{argsort, sort, sort_with_indices};
 use crate::tensor::{BoolTensor, Device, FloatTensor, Int, IntElem, IntTensor};
 use crate::{Backend, Distribution, TensorData, TensorMetadata, element::ElementConversion};
-use crate::{ExecutionError, Scalar};
+use crate::{ExecutionError, Scalar, get_device_settings};
 use alloc::vec::Vec;
-use burn_std::{IntDType, Shape, Slice};
+use burn_std::{BoolDType, FloatDType, IntDType, Shape, Slice};
 use core::ops::Range;
 
 /// Int Tensor API for basic and numeric operations, see
@@ -121,11 +121,12 @@ pub trait IntTensorOps<B: Backend> {
     /// # Arguments
     ///
     /// * `tensor` - The tensor.
+    /// * `out_dtype` - The output tensor dtype.
     ///
     /// # Returns
     ///
     /// The int tensor with the same data as the float tensor.
-    fn int_into_float(tensor: IntTensor<B>) -> FloatTensor<B>;
+    fn int_into_float(tensor: IntTensor<B>, out_dtype: FloatDType) -> FloatTensor<B>;
 
     /// Fills the tensor with values from the value tensor if the mask is true at the given
     /// indices.
@@ -260,11 +261,12 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// * `lhs` - The left-hand side tensor.
     /// * `rhs` - The right-hand side tensor.
+    /// * `out_dtype` - The output tensor dtype.
     ///
     /// # Returns
     ///
     /// The boolean tensor with the result of the comparison.
-    fn int_equal(lhs: IntTensor<B>, rhs: IntTensor<B>) -> BoolTensor<B>;
+    fn int_equal(lhs: IntTensor<B>, rhs: IntTensor<B>, out_dtype: BoolDType) -> BoolTensor<B>;
 
     /// Element-wise non-equality comparison.
     ///
@@ -272,12 +274,13 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// * `lhs` - The left-hand side tensor.
     /// * `rhs` - The right-hand side tensor.
+    /// * `out_dtype` - The output tensor dtype.
     ///
     /// # Returns
     ///
     /// The boolean tensor with the result of the comparison.
-    fn int_not_equal(lhs: IntTensor<B>, rhs: IntTensor<B>) -> BoolTensor<B> {
-        let equal_tensor = B::int_equal(lhs, rhs);
+    fn int_not_equal(lhs: IntTensor<B>, rhs: IntTensor<B>, out_dtype: BoolDType) -> BoolTensor<B> {
+        let equal_tensor = B::int_equal(lhs, rhs, out_dtype);
         B::bool_not(equal_tensor)
     }
 
@@ -287,11 +290,12 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// * `lhs` - The left-hand side tensor.
     /// * `rhs` - The right-hand side scalar.
+    /// * `out_dtype` - The output tensor dtype.
     ///
     /// # Returns
     ///
     /// The boolean tensor with the result of the comparison.
-    fn int_equal_elem(lhs: IntTensor<B>, rhs: Scalar) -> BoolTensor<B>;
+    fn int_equal_elem(lhs: IntTensor<B>, rhs: Scalar, out_dtype: BoolDType) -> BoolTensor<B>;
 
     /// Element-wise non-equality comparison with a scalar.
     ///
@@ -299,12 +303,13 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// * `lhs` - The left-hand side tensor.
     /// * `rhs` - The right-hand side scalar.
+    /// * `out_dtype` - The output tensor dtype.
     ///
     /// # Returns
     ///
     /// The boolean tensor with the result of the comparison.
-    fn int_not_equal_elem(lhs: IntTensor<B>, rhs: Scalar) -> BoolTensor<B> {
-        let equal_tensor = B::int_equal_elem(lhs, rhs);
+    fn int_not_equal_elem(lhs: IntTensor<B>, rhs: Scalar, out_dtype: BoolDType) -> BoolTensor<B> {
+        let equal_tensor = B::int_equal_elem(lhs, rhs, out_dtype);
         B::bool_not(equal_tensor)
     }
 
@@ -314,11 +319,12 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// * `lhs` - The left-hand side tensor.
     /// * `rhs` - The right-hand side tensor.
+    /// * `out_dtype` - The output tensor dtype.
     ///
     /// # Returns
     ///
     /// The boolean tensor with the result of the comparison.
-    fn int_greater(lhs: IntTensor<B>, rhs: IntTensor<B>) -> BoolTensor<B>;
+    fn int_greater(lhs: IntTensor<B>, rhs: IntTensor<B>, out_dtype: BoolDType) -> BoolTensor<B>;
 
     /// Element-wise greater than comparison with a scalar.
     ///
@@ -326,11 +332,12 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// * `lhs` - The left-hand side tensor.
     /// * `rhs` - The right-hand side scalar.
+    /// * `out_dtype` - The output tensor dtype.
     ///
     /// # Returns
     ///
     /// The boolean tensor with the result of the comparison.
-    fn int_greater_elem(lhs: IntTensor<B>, rhs: Scalar) -> BoolTensor<B>;
+    fn int_greater_elem(lhs: IntTensor<B>, rhs: Scalar, out_dtype: BoolDType) -> BoolTensor<B>;
 
     /// Element-wise greater than or equal comparison.
     ///
@@ -338,11 +345,16 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// * `lhs` - The left-hand side tensor.
     /// * `rhs` - The right-hand side tensor.
+    /// * `out_dtype` - The output tensor dtype.
     ///
     /// # Returns
     ///
     /// The boolean tensor with the result of the comparison.
-    fn int_greater_equal(lhs: IntTensor<B>, rhs: IntTensor<B>) -> BoolTensor<B>;
+    fn int_greater_equal(
+        lhs: IntTensor<B>,
+        rhs: IntTensor<B>,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<B>;
 
     /// Element-wise greater than or equal comparison with a scalar.
     ///
@@ -350,11 +362,16 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// * `lhs` - The left-hand side tensor.
     /// * `rhs` - The right-hand side scalar.
+    /// * `out_dtype` - The output tensor dtype.
     ///
     /// # Returns
     ///
     /// The boolean tensor with the result of the comparison.
-    fn int_greater_equal_elem(lhs: IntTensor<B>, rhs: Scalar) -> BoolTensor<B>;
+    fn int_greater_equal_elem(
+        lhs: IntTensor<B>,
+        rhs: Scalar,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<B>;
 
     /// Element-wise less than comparison.
     ///
@@ -362,11 +379,12 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// * `lhs` - The left-hand side tensor.
     /// * `rhs` - The right-hand side tensor.
+    /// * `out_dtype` - The output tensor dtype.
     ///
     /// # Returns
     ///
     /// The boolean tensor with the result of the comparison.
-    fn int_lower(lhs: IntTensor<B>, rhs: IntTensor<B>) -> BoolTensor<B>;
+    fn int_lower(lhs: IntTensor<B>, rhs: IntTensor<B>, out_dtype: BoolDType) -> BoolTensor<B>;
 
     /// Element-wise less than comparison with a scalar.
     ///
@@ -374,11 +392,12 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// * `lhs` - The left-hand side tensor.
     /// * `rhs` - The right-hand side scalar.
+    /// * `out_dtype` - The output tensor dtype.
     ///
     /// # Returns
     ///
     /// The boolean tensor with the result of the comparison.
-    fn int_lower_elem(lhs: IntTensor<B>, rhs: Scalar) -> BoolTensor<B>;
+    fn int_lower_elem(lhs: IntTensor<B>, rhs: Scalar, out_dtype: BoolDType) -> BoolTensor<B>;
 
     /// Element-wise less than or equal comparison.
     ///
@@ -386,11 +405,13 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// * `lhs` - The left-hand side tensor.
     /// * `rhs` - The right-hand side tensor.
+    /// * `out_dtype` - The output tensor dtype.
     ///
     /// # Returns
     ///
     /// The boolean tensor with the result of the comparison.
-    fn int_lower_equal(lhs: IntTensor<B>, rhs: IntTensor<B>) -> BoolTensor<B>;
+    fn int_lower_equal(lhs: IntTensor<B>, rhs: IntTensor<B>, out_dtype: BoolDType)
+    -> BoolTensor<B>;
 
     /// Element-wise less than or equal comparison with a scalar.
     ///
@@ -398,11 +419,12 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// * `lhs` - The left-hand side tensor.
     /// * `rhs` - The right-hand side scalar.
+    /// * `out_dtype` - The output tensor dtype.
     ///
     /// # Returns
     ///
     /// The boolean tensor with the result of the comparison.
-    fn int_lower_equal_elem(lhs: IntTensor<B>, rhs: Scalar) -> BoolTensor<B>;
+    fn int_lower_equal_elem(lhs: IntTensor<B>, rhs: Scalar, out_dtype: BoolDType) -> BoolTensor<B>;
 
     // ====  NUMERIC ==== //
 
@@ -441,7 +463,12 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// The elements of `lhs` raised to the power of the elements of `rhs`.
     fn int_powi(lhs: IntTensor<B>, rhs: IntTensor<B>) -> IntTensor<B> {
-        B::float_into_int(B::float_powi(B::int_into_float(lhs), rhs))
+        let dtype = lhs.dtype();
+        let float_dtype = get_device_settings(&B::int_device(&lhs)).float_dtype::<B>();
+        B::float_into_int(
+            B::float_powi(B::int_into_float(lhs, float_dtype), rhs),
+            dtype.into(),
+        )
     }
 
     /// Element-wise power with a scalar.
@@ -499,7 +526,12 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// The elements of `lhs` raised to the value of `rhs`.
     fn int_powi_scalar_impl(lhs: IntTensor<B>, rhs: Scalar) -> IntTensor<B> {
-        B::float_into_int(B::float_powi_scalar_impl(B::int_into_float(lhs), rhs))
+        let dtype = lhs.dtype();
+        let float_dtype = get_device_settings(&B::int_device(&lhs)).float_dtype::<B>();
+        B::float_into_int(
+            B::float_powi_scalar_impl(B::int_into_float(lhs, float_dtype), rhs),
+            dtype.into(),
+        )
     }
 
     /// Clamps a tensor under a minimum value.
@@ -513,7 +545,8 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// The clamped tensor.
     fn int_clamp_min(tensor: IntTensor<B>, min: Scalar) -> IntTensor<B> {
-        let mask = Self::int_lower_elem(tensor.clone(), min);
+        let dtype = get_device_settings(&B::int_device(&tensor)).bool_dtype::<B>();
+        let mask = Self::int_lower_elem(tensor.clone(), min, dtype);
         Self::int_mask_fill(tensor, mask, min)
     }
 
@@ -528,7 +561,8 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// The clamped tensor.
     fn int_clamp_max(tensor: IntTensor<B>, max: Scalar) -> IntTensor<B> {
-        let mask = Self::int_greater_elem(tensor.clone(), max);
+        let dtype = get_device_settings(&B::int_device(&tensor)).bool_dtype::<B>();
+        let mask = Self::int_greater_elem(tensor.clone(), max, dtype);
         Self::int_mask_fill(tensor, mask, max)
     }
 
@@ -1075,13 +1109,18 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The tensor with the given values.
-    fn int_arange_step(range: Range<i64>, step: usize, device: &Device<B>) -> IntTensor<B> {
+    fn int_arange_step(
+        range: Range<i64>,
+        step: usize,
+        device: &Device<B>,
+        dtype: IntDType,
+    ) -> IntTensor<B> {
         let value = range
             .step_by(step)
             .map(|i| i.elem())
             .collect::<Vec<IntElem<B>>>();
         let shape = Shape::new([value.len()]);
-        let data = TensorData::new(value, shape);
+        let data = TensorData::new(value, shape).convert_dtype(dtype.into());
         B::int_from_data(data, device)
     }
 
@@ -1099,8 +1138,8 @@ pub trait IntTensorOps<B: Backend> {
     /// # Remarks
     ///
     /// Uses `arange_step` with a step size of 1 under the hood.
-    fn int_arange(range: Range<i64>, device: &Device<B>) -> IntTensor<B> {
-        Self::int_arange_step(range, 1, device)
+    fn int_arange(range: Range<i64>, device: &Device<B>, dtype: IntDType) -> IntTensor<B> {
+        Self::int_arange_step(range, 1, device, dtype)
     }
 
     /// Tests if any element in the int `tensor` evaluates to True.
@@ -1112,11 +1151,12 @@ pub trait IntTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A boolean tensor with a single element, True if any element in the tensor is True, False otherwise.
-    fn int_any(tensor: IntTensor<B>) -> BoolTensor<B> {
-        let bool_tensor = B::int_equal_elem(tensor, 0.into());
+    fn int_any(tensor: IntTensor<B>, out_dtype: BoolDType) -> BoolTensor<B> {
+        let int_dtype = tensor.dtype();
+        let bool_tensor = B::int_equal_elem(tensor, 0.into(), out_dtype);
         let bool_tensor = B::bool_not(bool_tensor);
-        let sum = B::int_sum(B::bool_into_int(bool_tensor));
-        B::int_greater_elem(sum, 0.into())
+        let sum = B::int_sum(B::bool_into_int(bool_tensor, int_dtype.into()));
+        B::int_greater_elem(sum, 0.into(), out_dtype)
     }
 
     /// Tests if any element in the int `tensor` evaluates to True along a given dimension `dim`.
@@ -1131,11 +1171,12 @@ pub trait IntTensorOps<B: Backend> {
     /// A boolean tensor `Tensor<B, D, Bool>` with the same size as input `tensor`, except in the `dim` axis
     /// where the size is 1. The elem in the `dim` axis is True if any element along this dim in the input
     /// evaluates to True, False otherwise.
-    fn int_any_dim(tensor: IntTensor<B>, dim: usize) -> BoolTensor<B> {
-        let bool_tensor = B::int_equal_elem(tensor, 0.into());
+    fn int_any_dim(tensor: IntTensor<B>, dim: usize, out_dtype: BoolDType) -> BoolTensor<B> {
+        let int_dtype = tensor.dtype();
+        let bool_tensor = B::int_equal_elem(tensor, 0.into(), out_dtype);
         let bool_tensor = B::bool_not(bool_tensor);
-        let sum = B::int_sum_dim(B::bool_into_int(bool_tensor), dim);
-        B::int_greater_elem(sum, 0.into())
+        let sum = B::int_sum_dim(B::bool_into_int(bool_tensor, int_dtype.into()), dim);
+        B::int_greater_elem(sum, 0.into(), out_dtype)
     }
 
     /// Tests if all elements in the int `tensor` evaluate to True.
@@ -1143,17 +1184,19 @@ pub trait IntTensorOps<B: Backend> {
     /// # Arguments
     ///
     /// * `tensor` - The tensor to test.
+    /// * `out_dtype` - The output tensor dtype.
     ///
     /// # Returns
     ///
     /// A boolean tensor `Tensor<B, 1, Bool>` with a single element, True if all elements in the input tensor
     /// evaluate to True, False otherwise.
-    fn int_all(tensor: IntTensor<B>) -> BoolTensor<B> {
+    fn int_all(tensor: IntTensor<B>, out_dtype: BoolDType) -> BoolTensor<B> {
+        let int_dtype = tensor.dtype();
         let num_elems = tensor.shape().num_elements() as i64;
-        let bool_tensor = B::int_equal_elem(tensor, 0.into());
+        let bool_tensor = B::int_equal_elem(tensor, 0.into(), out_dtype);
         let bool_tensor = B::bool_not(bool_tensor);
-        let sum = B::int_sum(B::bool_into_int(bool_tensor));
-        B::int_equal_elem(sum, num_elems.into())
+        let sum = B::int_sum(B::bool_into_int(bool_tensor, int_dtype.into()));
+        B::int_equal_elem(sum, num_elems.into(), out_dtype)
     }
 
     /// Tests if all elements in the int `tensor` evaluate to True along a given dimension `dim`.
@@ -1162,18 +1205,20 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// * `tensor` - The tensor to test.
     /// * `dim` - The axis along which to test.
+    /// * `out_dtype` - The output tensor dtype.
     ///
     /// # Returns
     ///
     /// A boolean tensor `Tensor<B, D, Bool>` with the same size as input `tensor`, except in the `dim` axis
     /// where the size is 1. The elem in the `dim` axis is True if all elements along this dim in the input
     /// evaluates to True, False otherwise.
-    fn int_all_dim(tensor: IntTensor<B>, dim: usize) -> BoolTensor<B> {
+    fn int_all_dim(tensor: IntTensor<B>, dim: usize, out_dtype: BoolDType) -> BoolTensor<B> {
+        let int_dtype = tensor.dtype();
         let num_elems = tensor.shape()[dim] as i64;
-        let bool_tensor = B::int_equal_elem(tensor, 0.into());
+        let bool_tensor = B::int_equal_elem(tensor, 0.into(), out_dtype);
         let bool_tensor = B::bool_not(bool_tensor);
-        let sum = B::int_sum_dim(B::bool_into_int(bool_tensor), dim);
-        B::int_equal_elem(sum, num_elems.into())
+        let sum = B::int_sum_dim(B::bool_into_int(bool_tensor, int_dtype.into()), dim);
+        B::int_equal_elem(sum, num_elems.into(), out_dtype)
     }
 
     /// Returns the signs of the int `tensor`.
@@ -1187,9 +1232,11 @@ pub trait IntTensorOps<B: Backend> {
     /// A tensor with the same shape as `tensor` containing the signs of the elements of `tensor`.
     fn int_sign(tensor: IntTensor<B>) -> IntTensor<B> {
         let dtype = tensor.dtype();
-        let zeros = B::int_zeros(tensor.shape(), &B::int_device(&tensor), dtype.into());
-        let less_than_zero = B::int_lower_elem(tensor.clone(), 0.into());
-        let greater_than_zero = B::int_greater_elem(tensor, 0.into());
+        let device = B::int_device(&tensor);
+        let bool_dtype = get_device_settings(&B::int_device(&tensor)).bool_dtype::<B>();
+        let zeros = B::int_zeros(tensor.shape(), &device, dtype.into());
+        let less_than_zero = B::int_lower_elem(tensor.clone(), 0.into(), bool_dtype);
+        let greater_than_zero = B::int_greater_elem(tensor, 0.into(), bool_dtype);
 
         let mut result = B::int_mask_fill(zeros, less_than_zero, (-1).into());
         result = B::int_mask_fill(result, greater_than_zero, 1.into());
@@ -1234,7 +1281,8 @@ pub trait IntTensorOps<B: Backend> {
         dim: usize,
         descending: bool,
     ) -> (IntTensor<B>, IntTensor<B>) {
-        sort_with_indices::<B, Int>(tensor, dim, descending)
+        let dtype = tensor.dtype();
+        sort_with_indices::<B, Int>(tensor, dim, descending, dtype.into())
     }
 
     /// Returns the indices that sort the elements of the input `tensor` by value
@@ -1252,7 +1300,8 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// A tensor with the same shape as the input tensor the indices map back to the original input tensor.
     fn int_argsort(tensor: IntTensor<B>, dim: usize, descending: bool) -> IntTensor<B> {
-        argsort::<B, Int>(tensor, dim, descending)
+        let dtype = tensor.dtype();
+        argsort::<B, Int>(tensor, dim, descending, dtype.into())
     }
 
     /// Bitwise AND operation for Int Tensors
