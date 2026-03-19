@@ -17,12 +17,12 @@ use core::any::TypeId;
 #[cfg(feature = "std")]
 pub use std::collections::HashMap;
 #[cfg(feature = "std")]
-use std::sync::LazyLock;
+use std::sync::{LazyLock, OnceLock};
 
 #[cfg(not(feature = "std"))]
 pub use hashbrown::HashMap;
 #[cfg(not(feature = "std"))]
-use spin::Lazy as LazyLock;
+use spin::{Lazy as LazyLock, Once as OnceLock};
 
 use crate::Backend;
 
@@ -50,7 +50,7 @@ pub trait DeviceOps: Clone + Default + PartialEq + Send + Sync + core::fmt::Debu
 /// was updated.
 ///
 /// Settings should only be set once during initialization, to be queried during tensor creation.
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct DeviceSettings {
     /// Default floating-point data type for tensor creation.
     float_dtype: Option<FloatDType>,
@@ -88,25 +88,16 @@ impl DeviceSettings {
         self.bool_dtype
             .unwrap_or(<B::BoolElem as crate::Element>::dtype().into())
     }
-
-    /// Sets the default floating-point data type.
-    pub(crate) fn set_float_dtype(&mut self, dtype: FloatDType) {
-        self.float_dtype = Some(dtype);
-    }
-
-    /// Sets the default integer data type.
-    pub(crate) fn set_int_dtype(&mut self, dtype: IntDType) {
-        self.int_dtype = Some(dtype);
-    }
 }
 
 /// Key for the registry: physical device type + device id
 type RegistryKey = (DeviceId, TypeId);
 
-// TODO: use OnceLock<DeviceSettings> to enforce the "initialized once" contract.
-
 /// Global registry mapping devices to their settings.
-static REGISTRY: LazyLock<RwLock<HashMap<RegistryKey, Arc<DeviceSettings>>>> =
+///
+/// Each value is wrapped in a `OnceLock` to enforce that settings are initialized only once
+/// per device.
+static REGISTRY: LazyLock<RwLock<HashMap<RegistryKey, Arc<OnceLock<DeviceSettings>>>>> =
     LazyLock::new(|| RwLock::new(HashMap::new()));
 
 /// Device settings management for controlling default tensor creation behavior.
@@ -123,35 +114,57 @@ static REGISTRY: LazyLock<RwLock<HashMap<RegistryKey, Arc<DeviceSettings>>>> =
 struct DeviceSettingsRegistry;
 
 impl DeviceSettingsRegistry {
-    /// Get the settings for a physical device type and device id.
-    ///
-    /// If no settings exists yet, a default one is created and stored.
-    fn get<D: DeviceOps>(device: &D) -> Arc<DeviceSettings> {
+    /// Returns the settings for the given device, inserting the default if absent.
+    fn get_or_insert<D: DeviceOps>(device: &D) -> DeviceSettings {
         let key = Self::key(device);
+        #[cfg(feature = "std")]
+        {
+            let cached = LOCAL_CACHE.with(|cache| cache.borrow().get(&key).copied());
+            if let Some(settings) = cached {
+                return settings;
+            }
 
-        if let Some(settings) = REGISTRY.read().unwrap().get(&key) {
-            return Arc::clone(settings);
+            // Entry does not exist in cache
+            let settings = {
+                let read = REGISTRY.read().unwrap();
+                read.get(&key).cloned()
+            }
+            .unwrap_or_else(|| {
+                let mut map = REGISTRY.write().unwrap();
+                Arc::clone(map.entry(key).or_default())
+            });
+
+            let settings = *settings.get_or_init(DeviceSettings::default);
+
+            LOCAL_CACHE.with(|cache| {
+                cache.borrow_mut().insert(key, settings);
+            });
+
+            settings
         }
+        #[cfg(not(feature = "std"))]
+        {
+            let settings = {
+                let read = REGISTRY.read().unwrap();
+                read.get(&key).cloned()
+            }
+            .unwrap_or_else(|| {
+                let mut map = REGISTRY.write().unwrap();
+                Arc::clone(map.entry(key).or_default())
+            });
 
-        let mut map = REGISTRY.write().unwrap();
-        Arc::clone(
-            map.entry(key)
-                .or_insert_with(|| Arc::new(DeviceSettings::default())),
-        )
+            *settings.get_or_init(DeviceSettings::default)
+        }
     }
 
-    /// Mutate the settings for a given device.
-    fn update<D: DeviceOps>(device: &D, update_fn: impl FnOnce(&mut DeviceSettings)) {
+    /// Initializes the settings for the given device.
+    ///
+    /// Returns `Err` with the existing settings if already initialized.
+    fn init<D: DeviceOps>(device: &D, settings: DeviceSettings) -> Result<(), DeviceSettings> {
         let key = Self::key(device);
         let mut map = REGISTRY.write().unwrap();
-
-        let settings = map
-            .entry(key)
-            .or_insert_with(|| Arc::new(DeviceSettings::default()));
-
-        // Update the settings
-        let settings_mut = Arc::make_mut(settings);
-        update_fn(settings_mut);
+        let cell = map.entry(key).or_insert_with(|| Arc::new(OnceLock::new()));
+        cell.set(settings)
     }
 
     /// Returns the device registry key.
@@ -160,12 +173,19 @@ impl DeviceSettingsRegistry {
     }
 }
 
+#[cfg(feature = "std")]
+thread_local! {
+    /// Thread-local cache acces initialized device settings lock-free.
+    static LOCAL_CACHE: core::cell::RefCell<HashMap<RegistryKey, DeviceSettings>> =
+        core::cell::RefCell::new(HashMap::new());
+}
+
 /// Get the [`device`'s settings](DeviceSettings).
 ///
 /// Returns an immutable snapshot of the device's current settings. If the settings
 /// is updated after retrieval, this snapshot will not reflect those changes.
-pub fn get_device_settings<D: DeviceOps>(device: &D) -> Arc<DeviceSettings> {
-    DeviceSettingsRegistry::get(device)
+pub fn get_device_settings<D: DeviceOps>(device: &D) -> DeviceSettings {
+    DeviceSettingsRegistry::get_or_insert(device)
 }
 
 /// Errors that can occur during device-related operations.
@@ -183,7 +203,12 @@ pub enum DeviceError {
         /// The data type that caused the error.
         dtype: DType,
     },
-    // TODO: `InvalidContext` if a device settings cannot be changed after init / during training / etc.
+    /// Device settings have already been initialized.
+    #[error("Device {device} settings have already been initialized")]
+    AlreadyInitialized {
+        /// The string representation of the device.
+        device: String,
+    },
 }
 
 impl DeviceError {
@@ -192,6 +217,13 @@ impl DeviceError {
         Self::UnsupportedDType {
             device: format!("{device:?}"),
             dtype,
+        }
+    }
+
+    /// Helper to create a [`DeviceError::AlreadyInitialized`] from any device.
+    pub fn already_initialized<D: DeviceOps>(device: &D) -> Self {
+        Self::AlreadyInitialized {
+            device: format!("{device:?}"),
         }
     }
 }
@@ -213,8 +245,15 @@ fn check_dtype_support<B: Backend>(
 /// Sets the default data types for the device.
 ///
 /// This updates the device's default data types used for tensor creation.
-/// The settings should typically be set once during initialization and then
-/// remains global for all subsequent operations on that device.
+///
+/// Settings can only be initialized once per device. Subsequent calls for
+/// the same device return [`DeviceError::AlreadyInitialized`].
+///
+/// # Note
+///
+/// Initialization must happen before any tensor creation on the device.
+/// The first tensor operation will lock the device to its defaults, causing
+/// any subsequent initialization attempt to return [`DeviceError::AlreadyInitialized`].
 ///
 /// # Example
 ///
@@ -244,7 +283,7 @@ pub fn set_default_dtypes<B: Backend>(
     check_dtype_support::<B>(device, float_dtype)?;
     check_dtype_support::<B>(device, int_dtype)?;
 
-    set_default_dtypes_unchecked(device, float_dtype, int_dtype);
+    initialize_unchecked(device, Some(float_dtype), Some(int_dtype), None)?;
     Ok(())
 }
 
@@ -277,7 +316,7 @@ pub fn set_default_float_dtype<B: Backend>(
     let dtype = dtype.into();
     check_dtype_support::<B>(device, dtype)?;
 
-    set_default_float_dtype_unchecked(device, dtype);
+    initialize_unchecked(device, Some(dtype), None, None)?;
     Ok(())
 }
 
@@ -310,32 +349,26 @@ pub fn set_default_int_dtype<B: Backend>(
     let dtype = dtype.into();
     check_dtype_support::<B>(device, dtype)?;
 
-    set_default_int_dtype_unchecked(device, dtype);
+    initialize_unchecked(device, None, Some(dtype), None)?;
     Ok(())
 }
 
-// Unchecked versions
-fn set_default_dtypes_unchecked<D: DeviceOps>(
+// Unchecked dtypes
+fn initialize_unchecked<D: DeviceOps>(
     device: &D,
-    float_dtype: FloatDType,
-    int_dtype: IntDType,
-) {
-    DeviceSettingsRegistry::update(device, |p| {
-        p.set_float_dtype(float_dtype);
-        p.set_int_dtype(int_dtype);
-    });
-}
-
-fn set_default_float_dtype_unchecked<D: DeviceOps>(device: &D, dtype: FloatDType) {
-    DeviceSettingsRegistry::update(device, |p| {
-        p.set_float_dtype(dtype);
-    });
-}
-
-fn set_default_int_dtype_unchecked<D: DeviceOps>(device: &D, dtype: IntDType) {
-    DeviceSettingsRegistry::update(device, |p| {
-        p.set_int_dtype(dtype);
-    });
+    float_dtype: Option<FloatDType>,
+    int_dtype: Option<IntDType>,
+    bool_dtype: Option<BoolDType>,
+) -> Result<(), DeviceError> {
+    DeviceSettingsRegistry::init(
+        device,
+        DeviceSettings {
+            float_dtype,
+            int_dtype,
+            bool_dtype,
+        },
+    )
+    .map_err(|_| DeviceError::already_initialized(device))
 }
 
 #[cfg(all(test, feature = "std"))]
@@ -402,110 +435,131 @@ mod tests {
 
     #[test]
     #[serial]
-    fn default_settings_is_created_and_shared() {
+    fn default_settings_returned_when_uninitialized() {
         clear_registry(); // reset registry for each test
 
         let device = TestDeviceA::new(0);
 
-        let p1 = get_device_settings(&device);
-        let p2 = get_device_settings(&device);
+        let s1 = get_device_settings(&device);
+        let s2 = get_device_settings(&device);
 
-        assert!(Arc::ptr_eq(&p1, &p2));
+        assert_eq!(s1, s2);
         // Not explicitly set
-        assert!(p1.float_dtype.is_none());
-        assert!(p1.int_dtype.is_none());
-        assert!(p2.float_dtype.is_none());
-        assert!(p2.int_dtype.is_none());
+        assert!(s1.float_dtype.is_none());
+        assert!(s1.int_dtype.is_none());
+        assert!(s2.float_dtype.is_none());
+        assert!(s2.int_dtype.is_none());
     }
 
     #[test]
     #[serial]
-    fn updated_settings_is_shared() {
+    fn initialized_settings_are_returned() {
         clear_registry(); // reset registry for each test
 
         let device = TestDeviceA::new(0);
 
-        // The device settings is meant to be set once at initialization
-        set_default_dtypes_unchecked(&device, FloatDType::BF16, IntDType::I32);
-        let p1 = get_device_settings(&device);
-        let p2 = get_device_settings(&device);
+        initialize_unchecked(&device, Some(FloatDType::BF16), Some(IntDType::I32), None).unwrap();
+        let s1 = get_device_settings(&device);
+        let s2 = get_device_settings(&device);
 
-        assert!(Arc::ptr_eq(&p1, &p2));
-        assert_eq!(p1.float_dtype, Some(FloatDType::BF16));
-        assert_eq!(p1.int_dtype, Some(IntDType::I32));
-        assert_eq!(p2.float_dtype, Some(FloatDType::BF16));
-        assert_eq!(p2.int_dtype, Some(IntDType::I32));
+        assert_eq!(s1, s2);
+        assert_eq!(s1.float_dtype, Some(FloatDType::BF16));
+        assert_eq!(s1.int_dtype, Some(IntDType::I32));
+        assert_eq!(s2.float_dtype, Some(FloatDType::BF16));
+        assert_eq!(s2.int_dtype, Some(IntDType::I32));
     }
 
     #[test]
     #[serial]
-    fn settings_is_device_id_specific() {
+    fn settings_are_device_id_specific() {
         clear_registry(); // reset registry for each test
 
         let d1 = TestDeviceA::new(0);
         let d2 = TestDeviceA::new(1);
 
-        set_default_float_dtype_unchecked(&d1, FloatDType::F16);
+        initialize_unchecked(&d1, Some(FloatDType::F16), None, None).unwrap();
 
-        let p1 = get_device_settings(&d1);
-        let p2 = get_device_settings(&d2);
+        let s1 = get_device_settings(&d1);
+        let s2 = get_device_settings(&d2);
 
-        assert!(!Arc::ptr_eq(&p1, &p2));
-        assert_eq!(p1.float_dtype, Some(FloatDType::F16));
-        assert!(p1.int_dtype.is_none());
-        assert!(p2.float_dtype.is_none());
-        assert!(p2.int_dtype.is_none());
+        assert_ne!(s1, s2);
+        assert_eq!(s1.float_dtype, Some(FloatDType::F16));
+        assert!(s1.int_dtype.is_none());
+        assert!(s2.float_dtype.is_none());
+        assert!(s2.int_dtype.is_none());
     }
 
     #[test]
     #[serial]
-    fn settings_is_device_type_specific() {
+    fn settings_are_device_type_specific() {
         clear_registry(); // reset registry for each test
 
         let d1 = TestDeviceA::new(0);
         let d2 = TestDeviceB::new(0);
 
-        set_default_float_dtype_unchecked(&d2, FloatDType::F16);
+        initialize_unchecked(&d2, Some(FloatDType::F16), None, None).unwrap();
 
-        let p1 = get_device_settings(&d1);
-        let p2 = get_device_settings(&d2);
+        let s1 = get_device_settings(&d1);
+        let s2 = get_device_settings(&d2);
 
-        assert!(p1.float_dtype.is_none());
-        assert!(p1.int_dtype.is_none());
-        assert_eq!(p2.float_dtype, Some(FloatDType::F16));
-        assert!(p2.int_dtype.is_none());
+        assert!(s1.float_dtype.is_none());
+        assert!(s1.int_dtype.is_none());
+        assert_eq!(s2.float_dtype, Some(FloatDType::F16));
+        assert!(s2.int_dtype.is_none());
     }
 
     #[test]
     #[serial]
-    fn updating_settings_should_not_affect_snapshot() {
+    fn initialization_after_default_returns_error() {
         clear_registry(); // reset registry for each test
 
-        // The device settings is meant to be set once at initialization
         let device = TestDeviceA::new(0);
-        let before = get_device_settings(&device);
+        // Settings are set to default on first access, which forces consistency
+        let _before = get_device_settings(&device);
 
-        set_default_float_dtype_unchecked(&device, FloatDType::BF16);
+        let result = initialize_unchecked(&device, Some(FloatDType::BF16), None, None);
 
-        let after = get_device_settings(&device);
-
-        assert!(!Arc::ptr_eq(&before, &after));
-        assert_eq!(after.float_dtype, Some(FloatDType::BF16));
-        assert!(before.float_dtype.is_none());
+        assert!(matches!(
+            result,
+            Err(DeviceError::AlreadyInitialized { .. })
+        ));
     }
 
     #[test]
     #[serial]
-    fn set_default_dtypes_overwrites_fields() {
+    fn second_initialization_returns_error() {
         clear_registry(); // reset registry for each test
 
         let device = TestDeviceA::new(0);
+        initialize_unchecked(&device, Some(FloatDType::F16), Some(IntDType::I32), None).unwrap();
 
-        set_default_dtypes_unchecked(&device, FloatDType::F16, IntDType::I64);
+        let result =
+            initialize_unchecked(&device, Some(FloatDType::BF16), Some(IntDType::I64), None);
+        assert!(matches!(
+            result,
+            Err(DeviceError::AlreadyInitialized { .. })
+        ));
+    }
 
+    #[cfg(feature = "std")]
+    #[test]
+    #[serial]
+    fn initialized_settings_are_global() {
+        clear_registry();
+
+        let device = TestDeviceA::new(0);
+
+        initialize_unchecked(&device, Some(FloatDType::F16), Some(IntDType::I32), None).unwrap();
         let settings = get_device_settings(&device);
-
         assert_eq!(settings.float_dtype, Some(FloatDType::F16));
-        assert_eq!(settings.int_dtype, Some(IntDType::I64));
+        assert_eq!(settings.int_dtype, Some(IntDType::I32));
+        assert_eq!(settings.bool_dtype, None);
+
+        // The other thread will see the initialized settings
+        let seen_by_new_thread =
+            std::thread::spawn(move || get_device_settings(&TestDeviceA::new(0)))
+                .join()
+                .unwrap();
+        assert_eq!(seen_by_new_thread, settings);
     }
 }
