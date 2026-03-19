@@ -122,7 +122,7 @@ impl AutodiffServer {
         let gradients = Self::execute_steps(tape_result.tape, grads, tape_result.checkpointer);
 
         if require_sync {
-            B::sync_collective(device);
+            B::submit_sync_collective(device);
         }
 
         gradients

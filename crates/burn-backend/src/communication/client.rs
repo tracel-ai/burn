@@ -54,7 +54,7 @@ impl<B: Backend> GradientSyncClient<B> {
             .unwrap();
     }
 
-    pub fn wait_gradients_sync(&self, device: Device<B>) {
+    pub fn submit_sync_collective(&self, device: Device<B>) {
         let (tx, rx) = oneshot::channel();
 
         self.sender

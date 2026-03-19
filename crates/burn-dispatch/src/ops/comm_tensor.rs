@@ -33,16 +33,12 @@ impl CommunicationTensorOps<Self> for Dispatch {
         ))
     }
 
-    fn sync_collective(device: &DispatchDevice) {
-        dispatch_device!(device, |device| B::sync_collective(device,))
+    fn submit_sync_collective(device: &DispatchDevice) {
+        dispatch_device!(device, |device| B::submit_sync_collective(device,))
     }
 
     // TODO:
     fn submit_gradient_sync(_tensor: TensorRef<Self>, _distributed_params: DistributedParams) {
         todo!()
-    }
-
-    fn supports_native_collective(device: &DispatchDevice) -> bool {
-        dispatch_device!(device, |device| B::supports_native_collective(device,))
     }
 }

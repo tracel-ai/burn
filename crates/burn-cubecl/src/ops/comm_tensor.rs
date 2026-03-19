@@ -1,5 +1,5 @@
+use burn_backend::DeviceOps;
 use burn_backend::ops::TensorRef;
-use burn_backend::{DeviceId, DeviceOps};
 use burn_backend::{ReduceOperation, ops::CommunicationTensorOps, tensor::Device};
 
 use crate::{BoolElement, CubeBackend, CubeRuntime, FloatElement, IntElement};
@@ -11,32 +11,22 @@ where
     I: IntElement,
     BT: BoolElement,
 {
-    // TODO: actually just cuda
-    fn supports_native_collective(_device: &Device<Self>) -> bool {
-        true
-    }
+    fn all_reduce_in_place_native(tensors: Vec<TensorRef<Self>>, op: ReduceOperation) {
+        let tensors = tensors
+            .iter()
+            .map(|t| unsafe { &**t.0 })
+            .collect::<Vec<_>>();
+        let all_ids = tensors.iter().map(|t| t.device.id()).collect::<Vec<_>>();
 
-    fn all_reduce_in_place_native(
-        tensor: TensorRef<Self>,
-        _peer_id: burn_backend::PeerId,
-        all_ids: Vec<burn_backend::PeerId>,
-        op: ReduceOperation,
-    ) {
-        unsafe {
-            let tensor = &**tensor.0;
+        for tensor in tensors {
             let device = &tensor.device;
-
             let client = R::client(device);
-            let all_ids = all_ids
-                .iter()
-                .map(|val| DeviceId::new(device.id().type_id, val.0))
-                .collect();
 
             client.all_reduce(
                 tensor.handle.clone(),
                 tensor.handle.clone(),
                 tensor.dtype.into(),
-                all_ids,
+                all_ids.clone(),
                 op.into(),
             );
         }

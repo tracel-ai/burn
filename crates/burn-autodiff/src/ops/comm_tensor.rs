@@ -1,5 +1,5 @@
 use burn_backend::{
-    Backend, DistributedParams, PeerId, ReduceOperation,
+    Backend, DistributedParams, ReduceOperation,
     ops::{CommunicationTensorOps, TensorRef},
 };
 
@@ -18,24 +18,15 @@ impl<B: Backend, C: CheckpointStrategy> CommunicationTensorOps<Self> for Autodif
         B::register_sync_parameters(device, distributed_params);
     }
 
-    fn sync_collective(device: &B::Device) {
-        B::sync_collective(device);
+    fn submit_sync_collective(device: &B::Device) {
+        B::submit_sync_collective(device);
     }
 
     fn submit_gradient_sync(_tensor: TensorRef<Self>, _distributed_params: DistributedParams) {
         unimplemented!()
     }
 
-    fn supports_native_collective(device: &B::Device) -> bool {
-        B::supports_native_collective(device)
-    }
-
-    fn all_reduce_in_place_native(
-        _tensor: TensorRef<Self>,
-        _peer_id: PeerId,
-        _all_ids: Vec<PeerId>,
-        _op: ReduceOperation,
-    ) {
+    fn all_reduce_in_place_native(_tensors: Vec<TensorRef<Self>>, _op: ReduceOperation) {
         unimplemented!()
     }
 

@@ -1,8 +1,9 @@
 use std::sync::Arc;
 
 use crate::{
-    Backend, DistributedParams, PeerId, ReduceOperation, close_gradient_sync_server,
-    get_gradient_sync_client, start_gradient_sync_server,
+    Backend, DistributedParams, ReduceOperation,
+    all_reduce::all_reduce_inplace_sum_centralized,
+    close_gradient_sync_server, get_gradient_sync_client, start_gradient_sync_server,
     tensor::{Device, FloatTensor},
 };
 
@@ -47,14 +48,14 @@ pub trait CommunicationTensorOps<B: Backend> {
         };
     }
 
-    /// Wait for all queued collective operations to be finished.
+    /// Tell the gradient sync server that this device has submitted all its sync operations and is ready to be synchronized.
     ///
     /// # Arguments
     ///
     /// * `device` - The device on which to sync.
-    fn sync_collective(device: &B::Device) {
+    fn submit_sync_collective(device: &B::Device) {
         if let Some(sync_client) = get_gradient_sync_client::<B>() {
-            sync_client.wait_gradients_sync(device.clone());
+            sync_client.submit_sync_collective(device.clone());
         };
     }
 
@@ -73,12 +74,6 @@ pub trait CommunicationTensorOps<B: Backend> {
         };
     }
 
-    /// Whether this backend supports collective operations natively e.g. NCCL for Cuda.
-    #[allow(unused)]
-    fn supports_native_collective(device: &B::Device) -> bool {
-        false
-    }
-
     /// In-place version of all_reduce.
     ///
     /// # Arguments
@@ -88,13 +83,8 @@ pub trait CommunicationTensorOps<B: Backend> {
     /// * `all_ids` - The [PeerId] of the devices on which to all_reduce.
     /// * `op` - The [`ReduceOperation`].
     #[allow(unused)]
-    fn all_reduce_in_place_native(
-        tensor: TensorRef<B>,
-        peer_id: PeerId,
-        all_ids: Vec<PeerId>,
-        op: ReduceOperation,
-    ) {
-        unimplemented!()
+    fn all_reduce_in_place_native(tensors: Vec<TensorRef<B>>, op: ReduceOperation) {
+        all_reduce_inplace_sum_centralized(tensors, op);
     }
 
     /// Natively sync the collective operations.

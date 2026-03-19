@@ -2,11 +2,10 @@ use cubecl::device::DeviceId;
 use std::collections::HashMap;
 
 use crate::DeviceOps;
-use crate::all_reduce::all_reduce_inplace_sum_centralized;
 use crate::client::GradientSyncMessage;
 use crate::ops::TensorRef;
 use crate::tensor::Device;
-use crate::{Backend, DistributedParams, ModuleParamId, PeerId, ReduceOperation};
+use crate::{Backend, DistributedParams, ModuleParamId, ReduceOperation};
 
 pub(crate) struct GradientSyncServer<B: Backend> {
     all_reduce_ops_queue: HashMap<ModuleParamId, Vec<TensorRef<B>>>,
@@ -43,27 +42,13 @@ impl<B: Backend> GradientSyncServer<B> {
 
     fn try_flush_sync(&mut self) {
         if self.all_reduce_ops_queue.is_empty() && !self.syncing_devices.is_empty() {
-            let device = self.syncing_devices[0].clone();
-
-            if B::supports_native_collective(&device) {
-                for d in self.syncing_devices.clone() {
-                    let callback = self.callbacks.remove(&d.id()).unwrap();
-                    let closure = Box::new(move || B::collective_sync_native(&d));
-                    callback.send(closure).expect("Can send callback");
-                    self.devices_synced += 1;
-                }
-                self.syncing_devices.clear();
-            } else {
-                if self.syncing_devices.len() == self.num_devices {
-                    for d in self.syncing_devices.clone() {
-                        let callback = self.callbacks.remove(&d.id()).unwrap();
-                        let closure = Box::new(|| ());
-                        callback.send(closure).expect("Can send callback");
-                    }
-                    self.devices_synced = self.num_devices;
-                    self.syncing_devices.clear();
-                }
+            for d in self.syncing_devices.clone() {
+                let callback = self.callbacks.remove(&d.id()).unwrap();
+                let closure = Box::new(move || B::collective_sync_native(&d));
+                callback.send(closure).expect("Can send callback");
+                self.devices_synced += 1;
             }
+            self.syncing_devices.clear();
         }
 
         if self.devices_synced == self.num_devices {
@@ -99,34 +84,11 @@ impl<B: Backend> GradientSyncServer<B> {
                 let all_reduce_ops_queue =
                     self.all_reduce_ops_queue.entry(param_id).or_insert(vec![]);
 
-                // It's safe to get device since tensors shouldn't be accessed other than here at this point
-                let devices: Vec<B::Device> = all_reduce_ops_queue
-                    .to_vec()
-                    .iter()
-                    .map(|tensor| unsafe { B::comm_device(tensor) })
-                    .collect();
                 if num_tensors == all_reduce_ops_queue.len() {
-                    if B::supports_native_collective(&devices[0]) {
-                        let peer_ids: Vec<PeerId> = devices
-                            .iter()
-                            .map(|d| PeerId::from(d.id().index_id))
-                            .collect();
-                        for t in all_reduce_ops_queue.to_vec() {
-                            let peer_id = PeerId::from(unsafe { B::comm_device(&t).id().index_id });
-                            B::all_reduce_in_place_native(
-                                t,
-                                peer_id,
-                                peer_ids.clone(),
-                                ReduceOperation::Mean, // TODO: mean hard coded.
-                            );
-                        }
-                    } else {
-                        // TODO: operation hard coded to mean.
-                        all_reduce_inplace_sum_centralized(
-                            all_reduce_ops_queue.to_vec(),
-                            crate::ReduceOperation::Mean,
-                        );
-                    }
+                    B::all_reduce_in_place_native(
+                        all_reduce_ops_queue.clone(),
+                        ReduceOperation::Mean, // TODO: hard coded
+                    );
                     self.all_reduce_ops_queue.remove(&param_id).unwrap();
                     self.param_required_map.remove(&param_id).unwrap();
                     self.try_flush_sync();
