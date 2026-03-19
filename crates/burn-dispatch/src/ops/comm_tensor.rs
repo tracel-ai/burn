@@ -3,7 +3,7 @@ use std::mem::discriminant;
 use crate::backends::*;
 
 use burn_backend::{
-    ShardedParams,
+    DistributedParams,
     ops::{CommunicationTensorOps, TensorRef},
 };
 
@@ -23,19 +23,22 @@ impl CommunicationTensorOps<Self> for Dispatch {
         dispatch_device!(device, |device| B::close_communication_server(device))
     }
 
-    fn init_collective_queue(device: &DispatchDevice, sharded_param_ids: Vec<ShardedParams>) {
-        dispatch_device!(device, |device| B::init_collective_queue(
+    fn register_sync_parameters(
+        device: &DispatchDevice,
+        sharded_param_ids: Vec<DistributedParams>,
+    ) {
+        dispatch_device!(device, |device| B::register_sync_parameters(
             device,
             sharded_param_ids,
         ))
     }
 
-    fn collective_sync(device: &DispatchDevice) {
-        dispatch_device!(device, |device| B::collective_sync(device,))
+    fn sync_collective(device: &DispatchDevice) {
+        dispatch_device!(device, |device| B::sync_collective(device,))
     }
 
     // TODO:
-    fn all_reduce_in_place(_tensor: TensorRef<Self>, _sharded_params: ShardedParams) {
+    fn submit_gradient_sync(_tensor: TensorRef<Self>, _distributed_params: DistributedParams) {
         todo!()
     }
 

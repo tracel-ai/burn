@@ -1,6 +1,8 @@
 use std::{sync::mpsc::Sender, thread::spawn};
 
-use crate::{Backend, ShardedParams, ops::TensorRef, server::GradientSyncServer, tensor::Device};
+use crate::{
+    Backend, DistributedParams, ops::TensorRef, server::GradientSyncServer, tensor::Device,
+};
 
 pub(crate) enum MessageAction<B: Backend> {
     Message(GradientSyncMessage<B>),
@@ -8,8 +10,8 @@ pub(crate) enum MessageAction<B: Backend> {
 }
 
 pub(crate) enum GradientSyncMessage<B: Backend> {
-    RegisterDevice(Vec<ShardedParams>),
-    Register((TensorRef<B>, ShardedParams)),
+    RegisterDevice(Vec<DistributedParams>),
+    Register((TensorRef<B>, DistributedParams)),
     Sync((Device<B>, oneshot::Sender<Box<dyn FnOnce() + Send>>)),
 }
 
@@ -36,7 +38,7 @@ impl<B: Backend> GradientSyncClient<B> {
         Self { sender: tx }
     }
 
-    pub fn register_device(&self, sharded_params: Vec<ShardedParams>) {
+    pub fn register_device(&self, sharded_params: Vec<DistributedParams>) {
         self.sender
             .send(MessageAction::Message(GradientSyncMessage::RegisterDevice(
                 sharded_params,
@@ -44,7 +46,7 @@ impl<B: Backend> GradientSyncClient<B> {
             .unwrap();
     }
 
-    pub fn on_register(&self, tensor: TensorRef<B>, params: ShardedParams) {
+    pub fn submit_gradient_sync(&self, tensor: TensorRef<B>, params: DistributedParams) {
         self.sender
             .send(MessageAction::Message(GradientSyncMessage::Register((
                 tensor, params,

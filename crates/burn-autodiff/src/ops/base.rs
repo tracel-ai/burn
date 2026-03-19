@@ -270,8 +270,8 @@ where
         self.ops.node.order
     }
 
-    fn sharded_params(&self) -> Option<burn_backend::ShardedParams> {
-        self.ops.node.sharded_params.clone()
+    fn distributed_params(&self) -> Option<burn_backend::DistributedParams> {
+        self.ops.node.distributed_params.clone()
     }
 }
 
@@ -296,8 +296,8 @@ impl<const N: usize> Step for UntrackedOpsStep<N> {
         self.ops.node.order
     }
 
-    fn sharded_params(&self) -> Option<burn_backend::ShardedParams> {
-        self.ops.node.sharded_params.clone()
+    fn distributed_params(&self) -> Option<burn_backend::DistributedParams> {
+        self.ops.node.distributed_params.clone()
     }
 }
 

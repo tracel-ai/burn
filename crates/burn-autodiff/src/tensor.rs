@@ -6,7 +6,7 @@ use crate::{
 };
 use alloc::{boxed::Box, sync::Arc, vec};
 use burn_backend::{
-    Backend, ModuleParamId, PeerId, ReduceOperation, ShardedParams, TensorMetadata,
+    Backend, DistributedParams, ModuleParamId, PeerId, ReduceOperation, TensorMetadata,
 };
 
 #[derive(Debug, Clone)]
@@ -54,8 +54,8 @@ impl Step for RootStep {
         self.node.order
     }
 
-    fn sharded_params(&self) -> Option<ShardedParams> {
-        self.node.sharded_params.clone()
+    fn distributed_params(&self) -> Option<DistributedParams> {
+        self.node.distributed_params.clone()
     }
 }
 
@@ -104,7 +104,7 @@ impl<B: Backend> AutodiffTensor<B> {
                     Requirement::Grad,
                     self.node.properties.clone(),
                     self.node.client.clone(),
-                    self.node.sharded_params.clone(),
+                    self.node.distributed_params.clone(),
                 )
                 .into();
                 let step: RootStep = RootStep::new(self.node.clone());
@@ -114,8 +114,15 @@ impl<B: Backend> AutodiffTensor<B> {
         }
     }
 
-    /// Mark the tensor as sharded.
-    pub fn grad_sharded(
+    /// Mark the tensor as distributed across multiple devices.
+    /// Its gradients will be automatically aggregated from those devices after the backward pass.
+    ///
+    /// # Arguments
+    ///
+    /// * `peer_id` - The device's [`PeerId`].
+    /// * `op` - The aggregation operation.
+    /// * `param_id` - The module tensor's [`ModuleParamId`].
+    pub fn grad_distributed(
         mut self,
         peer_id: PeerId,
         op: ReduceOperation,
@@ -128,7 +135,7 @@ impl<B: Backend> AutodiffTensor<B> {
             self.node.requirement,
             self.node.properties.clone(),
             self.node.client.clone(),
-            Some(ShardedParams {
+            Some(DistributedParams {
                 peer_id,
                 op,
                 param_id,

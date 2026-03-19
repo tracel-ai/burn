@@ -10,12 +10,12 @@ use crate::tensor::backend::Backend;
 use crate::tensor::stats;
 use crate::tensor::{Distribution, TensorData};
 use crate::{Bool, Int, TensorPrimitive};
+use burn_backend::DistributedParams;
 use burn_backend::ElementConversion;
 use burn_backend::ModuleParamId;
 use burn_backend::PeerId;
 use burn_backend::ReduceOperation;
 use burn_backend::Scalar;
-use burn_backend::ShardedParams;
 use burn_backend::tensor::quantization::QuantizationParametersPrimitive;
 use core::f32;
 
@@ -673,9 +673,9 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
         param_id: Option<ModuleParamId>,
     ) -> Self {
         let primitive = match self.primitive {
-            TensorPrimitive::Float(tensor) => {
-                TensorPrimitive::Float(B::float_set_sharded_params(tensor, peer_id, op, param_id))
-            }
+            TensorPrimitive::Float(tensor) => TensorPrimitive::Float(
+                B::float_set_distributed_params(tensor, peer_id, op, param_id),
+            ),
             TensorPrimitive::QFloat(_tensor) => {
                 todo!()
             }
@@ -684,9 +684,9 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     }
 
     /// Returns the sharded parameters if the tensor was marked as sharded.
-    pub fn sharded_params(&self) -> Option<ShardedParams> {
+    pub fn sharded_params(&self) -> Option<DistributedParams> {
         match &self.primitive {
-            TensorPrimitive::Float(tensor) => B::float_sharded_params(tensor),
+            TensorPrimitive::Float(tensor) => B::float_distributed_params(tensor),
             TensorPrimitive::QFloat(_tensor) => todo!(),
         }
     }

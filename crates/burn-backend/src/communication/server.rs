@@ -6,7 +6,7 @@ use crate::all_reduce::all_reduce_inplace_sum_centralized;
 use crate::client::GradientSyncMessage;
 use crate::ops::TensorRef;
 use crate::tensor::Device;
-use crate::{Backend, ModuleParamId, PeerId, ReduceOperation, ShardedParams};
+use crate::{Backend, ModuleParamId, PeerId, ReduceOperation, DistributedParams};
 
 pub(crate) struct GradientSyncServer<B: Backend> {
     all_reduce_ops_queue: HashMap<ModuleParamId, Vec<TensorRef<B>>>,
@@ -83,7 +83,7 @@ impl<B: Backend> GradientSyncServer<B> {
     }
 
     /// Called at the start of the backward process. Lets the device announce what parameters are nodes in the autodiff graph and how many times they are required.
-    fn register_device(&mut self, sharded_params: Vec<ShardedParams>) {
+    fn register_device(&mut self, sharded_params: Vec<DistributedParams>) {
         sharded_params.iter().for_each(|param| {
             let id = param
                 .param_id
@@ -135,7 +135,7 @@ impl<B: Backend> GradientSyncServer<B> {
     }
 
     /// Called on registration of a gradient. Calls the all_reduce operation for any parameter that is no longer required in the autodiff graph.
-    fn on_register(&mut self, tensor: TensorRef<B>, sharded_params: ShardedParams) {
+    fn on_register(&mut self, tensor: TensorRef<B>, sharded_params: DistributedParams) {
         let param_id = sharded_params
             .param_id
             .expect("Sharded tensor should have a parameter ID.");

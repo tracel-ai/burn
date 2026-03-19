@@ -1,7 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use burn_backend::{
-    Backend, ShardedParams, TensorMetadata, TensorPrimitive,
+    Backend, DistributedParams, TensorMetadata, TensorPrimitive,
     ops::TensorRef,
     tensor::{FloatTensor, TensorContainer},
 };
@@ -15,37 +15,27 @@ use crate::{
 /// Gradient identifier.
 pub type GradID = u64;
 
-/// Used to launch all_reduce operations on gradients registration.
+/// Submits sync operations on gradient registrations.
+#[derive(new)]
 pub struct GradientSyncRegistration {
     n_required_map: HashMap<NodeId, usize>,
-    sharded_parameters_map: HashMap<NodeId, ShardedParams>,
+    sharded_parameters_map: HashMap<NodeId, DistributedParams>,
 }
 
 impl GradientSyncRegistration {
-    pub(crate) fn new(
-        n_required_map: HashMap<NodeId, usize>,
-        sharded_parameters_map: HashMap<NodeId, ShardedParams>,
-    ) -> Self {
-        // println!("GradientSyncRegistration n_req : {:?}", n_required_map);
-        // println!(
-        //     "GradientSyncRegistration sharded_params : {:?}",
-        //     sharded_parameters_map
-        // );
-        Self {
-            n_required_map,
-            sharded_parameters_map,
-        }
-    }
-
-    pub(crate) fn on_register<B: Backend>(&mut self, id: NodeId, tensor: TensorRef<B>) {
-        // println!("Registering {id}");
-        if let Some(sharded_params) = self.sharded_parameters_map.get(&id) {
-            let n_required = self.n_required_map.get_mut(&id).unwrap();
+    pub(crate) fn on_register<B: Backend>(
+        &mut self,
+        id: &NodeId,
+        container: &mut TensorContainer<GradID>,
+    ) {
+        if let Some(sharded_params) = self.sharded_parameters_map.get(id) {
+            let n_required = self.n_required_map.get_mut(id).unwrap();
             *n_required -= 1;
 
             if *n_required == 0 {
-                // println!("launch for node {id}, param {:?}", param_id);
-                B::all_reduce_in_place(tensor, sharded_params.clone());
+                let tensor_ref = container.get_mut_ref::<B>(&id.value).unwrap();
+                let tensor_ref = TensorRef(Arc::new(tensor_ref.get_mut_ref()));
+                B::submit_gradient_sync(tensor_ref, sharded_params.clone());
             }
         }
     }
@@ -117,7 +107,7 @@ impl Gradients {
     ///
     /// If the tensor already exists, add both tensors together before saving the result.
     ///
-    /// If the registered tensor is sharded across multiple device, performs an all_reduce operation on the gradient.
+    /// If the registered tensor is distributed across multiple device, performs syncing operations on the gradients.
     pub fn register<B: Backend>(&mut self, node_id: NodeId, value: FloatTensor<B>) {
         let out = if let Some(tensor_old) = self.container.remove::<B>(&node_id.value) {
             B::float_add(value, tensor_old.tensor())
@@ -128,21 +118,7 @@ impl Gradients {
         self.container
             .register::<B>(node_id.value, TensorPrimitive::Float(out));
         if let Some(sync_registration) = self.gradient_sync_registration.as_mut() {
-            let tensor_ref = self.container.get_mut_ref::<B>(&node_id.value).unwrap();
-            let tensor_ref = TensorRef(Arc::new(tensor_ref.get_mut_ref()));
-            sync_registration.on_register::<B>(node_id, tensor_ref);
+            sync_registration.on_register::<B>(&node_id, &mut self.container);
         }
-
-        // if let Some(sync_client) = get_gradient_sync_client::<B>(device) {
-        // let tensor_ref = self.container.get_mut_ref::<B>(&node_id.value).unwrap();
-        // let tensor_ref = TensorRef(Arc::new(tensor_ref.get_mut_ref()));
-
-        // let id = B::comm_device(&tensor_ref).to_id();
-        // println!("Device ID grad : {}", id);
-        // sync_client.on_register(node_id, tensor_ref);
-
-        // TODO: do the n_required stuff and then call the normal all_reduce_inplace
-        // B::all_reduce_inplace(tensor, peer_id, all_ids, op);
-        // };
     }
 }

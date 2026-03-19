@@ -1,5 +1,5 @@
 use burn_backend::{
-    ExecutionError, ModuleParamId, PeerId, ReduceOperation, Scalar, ShardedParams, TensorData,
+    DistributedParams, ExecutionError, ModuleParamId, PeerId, ReduceOperation, Scalar, TensorData,
     ops::FloatTensorOps,
     tensor::{BoolTensor, FloatTensor, IntTensor},
 };
@@ -410,17 +410,19 @@ impl FloatTensorOps<Self> for Dispatch {
         unary_float!(ref tensor, float, |tensor| B::float_is_require_grad(tensor))
     }
 
-    fn float_set_sharded_params(
+    fn float_set_distributed_params(
         tensor: FloatTensor<Self>,
         peer_id: PeerId,
         op: ReduceOperation,
         param_id: Option<ModuleParamId>,
     ) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_set_sharded_params(tensor, peer_id, op, param_id) => Float)
+        unary_float!(tensor, float, |tensor| B::float_set_distributed_params(tensor, peer_id, op, param_id) => Float)
     }
 
-    fn float_sharded_params(tensor: &FloatTensor<Self>) -> Option<ShardedParams> {
-        unary_float!(ref tensor, float, |tensor| B::float_sharded_params(tensor))
+    fn float_distributed_params(tensor: &FloatTensor<Self>) -> Option<DistributedParams> {
+        unary_float!(ref tensor, float, |tensor| B::float_distributed_params(
+            tensor
+        ))
     }
 
     // Default implementation

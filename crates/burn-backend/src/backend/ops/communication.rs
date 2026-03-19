@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::{
-    Backend, PeerId, ReduceOperation, ShardedParams, close_gradient_sync_server,
+    Backend, DistributedParams, PeerId, ReduceOperation, close_gradient_sync_server,
     get_gradient_sync_client, start_gradient_sync_server,
     tensor::{Device, FloatTensor},
 };
@@ -32,15 +32,18 @@ pub trait CommunicationTensorOps<B: Backend> {
         close_gradient_sync_server::<B>();
     }
 
-    /// Announce the parameters to sync during a single backward pass on this device to the gradient sync server of the backend.
+    /// Register the parameters that will require gradient synchronization for the upcoming backward pass.
+    ///
+    /// This must be called before the backward pass on each device so the gradient sync server
+    /// can coordinate collective operations across all devices.
     ///
     /// # Arguments
     ///
     /// * `device` - The device calling the initialization.
-    /// * `sharded_param_ids` - A list of [`ShardedParams`] of the tensors to sync.
-    fn init_collective_queue(_device: &B::Device, sharded_param_ids: Vec<ShardedParams>) {
+    /// * `distributed_params` - A list of [`DistributedParams`] of the tensors to sync.
+    fn register_sync_parameters(_device: &B::Device, distributed_params: Vec<DistributedParams>) {
         if let Some(sync_client) = get_gradient_sync_client::<B>() {
-            sync_client.register_device(sharded_param_ids);
+            sync_client.register_device(distributed_params);
         };
     }
 
@@ -49,21 +52,24 @@ pub trait CommunicationTensorOps<B: Backend> {
     /// # Arguments
     ///
     /// * `device` - The device on which to sync.
-    fn collective_sync(device: &B::Device) {
+    fn sync_collective(device: &B::Device) {
         if let Some(sync_client) = get_gradient_sync_client::<B>() {
             sync_client.wait_gradients_sync(device.clone());
         };
     }
 
-    /// Performs an in place all_reduce operation on the given sharded tensor.
+    /// Submit a gradient tensor for synchronization across all devices.
+    ///
+    /// The gradient is sent to the gradient sync server, which will launch the all-reduce
+    /// operation once all devices have submitted their gradient for this parameter.
     ///
     /// # Arguments
     ///
-    /// * `tensor` - The tensor on which to perform all_reduce.
-    /// * `sharded_params` - The [`ShardedParams`].
-    fn all_reduce_in_place(tensor: TensorRef<B>, sharded_params: ShardedParams) {
+    /// * `tensor` - The tensor to synchronize.
+    /// * `distributed_params` - The [`DistributedParams`] for the parameter.
+    fn submit_gradient_sync(tensor: TensorRef<B>, distributed_params: DistributedParams) {
         if let Some(sync_client) = get_gradient_sync_client::<B>() {
-            sync_client.on_register(tensor, sharded_params);
+            sync_client.submit_gradient_sync(tensor, distributed_params);
         };
     }
 

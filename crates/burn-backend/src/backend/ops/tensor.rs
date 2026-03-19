@@ -5,7 +5,7 @@ use super::sort::{argsort, sort, sort_with_indices};
 use crate::ops::GridSampleOptions;
 use crate::tensor::{BoolTensor, Device, Float, FloatTensor, IntTensor};
 use crate::{
-    Backend, Distribution, ModuleParamId, PeerId, ReduceOperation, ShardedParams, TensorData,
+    Backend, DistributedParams, Distribution, ModuleParamId, PeerId, ReduceOperation, TensorData,
 };
 use crate::{ExecutionError, Scalar, TensorMetadata, TensorPrimitive};
 use alloc::vec::Vec;
@@ -727,7 +727,7 @@ pub trait FloatTensorOps<B: Backend> {
     }
 
     /// Sets the `sharded` parameters of a tensor.
-    fn float_set_sharded_params(
+    fn float_set_distributed_params(
         tensor: FloatTensor<B>,
         _peer_id: PeerId,
         _op: ReduceOperation,
@@ -738,7 +738,7 @@ pub trait FloatTensorOps<B: Backend> {
     }
 
     /// Returns the [ShardedParams](ShardedParams) of a tensor.
-    fn float_sharded_params(_tensor: &FloatTensor<B>) -> Option<ShardedParams> {
+    fn float_distributed_params(_tensor: &FloatTensor<B>) -> Option<DistributedParams> {
         // Should only be overridden by autodiff backends.
         None
     }
