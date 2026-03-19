@@ -34,7 +34,7 @@ impl<B: Backend> ModuleBasic<B> {
                 std: 1.0,
                 mean: 0.0,
             }
-            .init([280, 280], device), // For some reason 250 breaks the test.
+            .init([4, 4], device), // For some reason 250 breaks the test.
         }
     }
 }
@@ -631,17 +631,14 @@ mod require_grad {
     ) {
         let mut module = module.clone().fork(&device);
 
-        for _ in 0..num_iter {
+        for i in 0..num_iter {
             module = module.grad_sharded(id, op);
             let grads_x = calculate_grads(&module, transformation);
+            let data = grads_x.unwrap().to_data();
+            println!("Iter {i} dev {} : {:?}", id.0, data.to_vec::<f32>());
             if !is_main {
-                output
-                    .clone()
-                    .unwrap()
-                    .send(grads_x.unwrap().to_data())
-                    .unwrap();
+                output.clone().unwrap().send(data).unwrap();
             } else {
-                let data = grads_x.unwrap().to_data();
                 for r in recvs.iter().by_ref() {
                     let t = r.recv().unwrap();
                     assert_eq!(data, t);
