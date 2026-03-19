@@ -14,7 +14,7 @@ unsafe impl<B> Send for TensorRef<B> where B: Backend {}
 
 /// Operations on communication tensors.
 pub trait CommunicationTensorOps<B: Backend> {
-    /// Start the communication server used to orchestrate operations between devices.
+    /// Start the communication server used to orchestrate tensor syncing between devices.
     ///
     /// # Arguments
     ///
@@ -23,7 +23,7 @@ pub trait CommunicationTensorOps<B: Backend> {
         start_gradient_sync_server::<B>(devices);
     }
 
-    /// Close the communication server used to orchestrate operations between devices.
+    /// Close the communication server used to orchestrate syncing between devices.
     ///
     /// # Arguments
     ///
@@ -47,7 +47,7 @@ pub trait CommunicationTensorOps<B: Backend> {
         };
     }
 
-    /// Wait for the all queued collective operations to be finished.
+    /// Wait for all queued collective operations to be finished.
     ///
     /// # Arguments
     ///
@@ -79,7 +79,7 @@ pub trait CommunicationTensorOps<B: Backend> {
         false
     }
 
-    /// The native version of the all_reduce.
+    /// In-place version of all_reduce.
     ///
     /// # Arguments
     ///
@@ -104,25 +104,7 @@ pub trait CommunicationTensorOps<B: Backend> {
     /// * `device` - The device to sync.
     #[allow(unused)]
     fn collective_sync_native(device: &B::Device) {
-        unimplemented!()
-    }
-
-    /////////////////////////////////////////////////////////////TODO: useful?//////////////////////////////////////////////////////////////
-
-    /// Performs a broadcast of the given source tensor to the destinations, in-place.
-    ///
-    /// # Arguments
-    ///
-    /// * `src_tensors` - A float tensor of the data to broadcast.
-    /// * `dest_tensors` - The tensors on which to perform the broadcast in-place.
-    fn all_broadcast_inplace(src_tensor: FloatTensor<B>, dest_tensors: Vec<TensorRef<B>>) {
-        unsafe {
-            for dest in dest_tensors {
-                let device = B::comm_device(&dest);
-                let tensor_float = B::float_to_device(src_tensor.clone(), &device);
-                (**dest.0) = tensor_float;
-            }
-        }
+        // Default implementation executes collective operations synchronously, so nothing to do here.
     }
 
     /// Gets the device of the tensor.
@@ -134,9 +116,10 @@ pub trait CommunicationTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The device of the tensor.
-    fn comm_device(tensor: &TensorRef<B>) -> Device<B> {
+    unsafe fn comm_device(tensor: &TensorRef<B>) -> Device<B> {
         unsafe { B::float_device(&(**tensor.0)) }
     }
+
     /// Creates a float tensor from the current data in the communication tensor.
     ///
     /// # Arguments
@@ -146,7 +129,7 @@ pub trait CommunicationTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A float tensor containing a copy of the data of the given tensor.
-    fn float_data_from_comm(tensor: &TensorRef<B>) -> FloatTensor<B> {
+    unsafe fn float_data_from_comm(tensor: &TensorRef<B>) -> FloatTensor<B> {
         unsafe { (**tensor.0).clone() }
     }
 }

@@ -6,7 +6,7 @@ use crate::all_reduce::all_reduce_inplace_sum_centralized;
 use crate::client::GradientSyncMessage;
 use crate::ops::TensorRef;
 use crate::tensor::Device;
-use crate::{Backend, ModuleParamId, PeerId, ReduceOperation, DistributedParams};
+use crate::{Backend, DistributedParams, ModuleParamId, PeerId, ReduceOperation};
 
 pub(crate) struct GradientSyncServer<B: Backend> {
     all_reduce_ops_queue: HashMap<ModuleParamId, Vec<TensorRef<B>>>,
@@ -99,10 +99,11 @@ impl<B: Backend> GradientSyncServer<B> {
                 let all_reduce_ops_queue =
                     self.all_reduce_ops_queue.entry(param_id).or_insert(vec![]);
 
+                // It's safe to get device since tensors shouldn't be accessed other than here at this point
                 let devices: Vec<B::Device> = all_reduce_ops_queue
                     .to_vec()
                     .iter()
-                    .map(|tensor| B::comm_device(tensor))
+                    .map(|tensor| unsafe { B::comm_device(tensor) })
                     .collect();
                 if num_tensors == all_reduce_ops_queue.len() {
                     if B::supports_native_collective(&devices[0]) {
@@ -111,7 +112,7 @@ impl<B: Backend> GradientSyncServer<B> {
                             .map(|d| PeerId::from(d.id().index_id))
                             .collect();
                         for t in all_reduce_ops_queue.to_vec() {
-                            let peer_id = PeerId::from(B::comm_device(&t).id().index_id);
+                            let peer_id = PeerId::from(unsafe { B::comm_device(&t).id().index_id });
                             B::all_reduce_in_place_native(
                                 t,
                                 peer_id,

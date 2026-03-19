@@ -4,9 +4,11 @@ pub(crate) fn reduce_sum_centralized<B: Backend>(
     tensors: &Vec<TensorRef<B>>,
     central_device: &B::Device,
 ) -> B::FloatTensorPrimitive {
-    let mut central_tensor = B::float_data_from_comm(&tensors.get(0).unwrap());
+    // Safe since tensors shouldn't be accessed other than here at this point
+    let mut central_tensor = unsafe { B::float_data_from_comm(&tensors.get(0).unwrap()) };
+
     for tensor in tensors {
-        let rhs = B::float_to_device(B::float_data_from_comm(tensor), &central_device);
+        let rhs = unsafe { B::float_to_device(B::float_data_from_comm(tensor), &central_device) };
         central_tensor = B::float_add(central_tensor, rhs);
     }
 
@@ -18,9 +20,10 @@ pub(crate) fn all_reduce_inplace_sum_centralized<B: Backend>(
     op: ReduceOperation,
 ) {
     // Get corresponding devices for each tensor
+    // Safe since tensors shouldn't be accessed other than here at this point
     let devices: Vec<B::Device> = tensors
         .iter()
-        .map(|tensor| B::comm_device(tensor))
+        .map(|tensor| unsafe { B::comm_device(tensor) })
         .collect();
     let central_device = devices.get(0).unwrap();
 

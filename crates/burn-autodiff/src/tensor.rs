@@ -177,7 +177,7 @@ impl<B: Backend> AutodiffTensor<B> {
             requirement,
             computing_properties,
             client,
-            None, // Sharded params do not propagate.
+            None,
         )
         .into();
 

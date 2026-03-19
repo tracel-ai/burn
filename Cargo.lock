@@ -708,8 +708,6 @@ name = "burn-autodiff"
 version = "0.21.0-pre.2"
 dependencies = [
  "burn-backend",
- "burn-collective",
- "burn-cuda",
  "burn-std",
  "derive-new",
  "hashbrown 0.16.1",
@@ -746,7 +744,6 @@ name = "burn-backend-tests"
 version = "0.21.0-pre.2"
 dependencies = [
  "burn-autodiff",
- "burn-collective",
  "burn-cpu",
  "burn-cubecl",
  "burn-cuda",
@@ -761,7 +758,6 @@ dependencies = [
  "cubecl",
  "cubek",
  "num-traits",
- "rand 0.10.0",
  "serial_test",
 ]
 
