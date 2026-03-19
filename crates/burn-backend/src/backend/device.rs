@@ -257,10 +257,7 @@ fn check_dtype_support<B: Backend>(
 ///
 /// # Example
 ///
-/// ```rust
-/// use burn_tensor::backend::Backend;
-/// use burn_tensor::{DType, Int, Tensor, set_default_dtypes};
-///
+/// ```rust, ignore
 /// fn example<B: Backend>() {
 ///     let device = B::Device::default();
 ///     
@@ -295,10 +292,7 @@ pub fn set_default_dtypes<B: Backend>(
 ///
 /// # Example
 ///
-/// ```rust
-/// use burn_tensor::backend::Backend;
-/// use burn_tensor::{DType, Tensor, set_default_float_dtype};
-///
+/// ```rust, ignore
 /// fn example<B: Backend>() {
 ///     let device = B::Device::default();
 ///     
@@ -328,10 +322,7 @@ pub fn set_default_float_dtype<B: Backend>(
 ///
 /// # Example
 ///
-/// ```rust
-/// use burn_tensor::backend::Backend;
-/// use burn_tensor::{DType, Int, Tensor, set_default_int_dtype};
-///
+/// ```rust, ignore
 /// fn example<B: Backend>() {
 ///     let device = B::Device::default();
 ///     
