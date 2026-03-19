@@ -287,7 +287,7 @@ mod tests {
         assert!(B::supports_dtype(&device, DType::U8));
         assert!(B::supports_dtype(&device, DType::I32));
         assert!(B::supports_dtype(&device, DType::I16));
-        assert!(!B::supports_dtype(&device, DType::Bool(BoolStore::U8)));
+        assert!(B::supports_dtype(&device, DType::Bool(BoolStore::U8)));
 
         assert!(!B::supports_dtype(&device, DType::U64));
         assert!(!B::supports_dtype(&device, DType::U16));
