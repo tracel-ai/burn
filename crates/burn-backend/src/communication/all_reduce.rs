@@ -1,4 +1,5 @@
 use crate::{Backend, ReduceOperation, ops::TensorRef};
+use alloc::vec::Vec;
 
 pub(crate) fn reduce_sum_centralized<B: Backend>(
     mut tensors: Vec<TensorRef<B>>,
@@ -42,7 +43,7 @@ pub(crate) unsafe fn all_reduce_inplace_centralized<B: Backend>(
         for dest in tensors {
             let device = B::comm_device(&dest);
             let tensor_float = B::float_to_device(central_tensor.clone(), &device);
-            (**dest.0) = tensor_float;
+            (*dest.0) = tensor_float;
         }
     }
 }

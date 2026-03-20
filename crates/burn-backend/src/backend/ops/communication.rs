@@ -1,17 +1,24 @@
-use std::sync::Arc;
+use alloc::vec::Vec;
 
 use crate::{
     Backend, DistributedConfig, DistributedParams, ReduceOperation,
     all_reduce::all_reduce_inplace_centralized,
-    close_distributed_sync_server, get_distributed_sync_client, start_distributed_sync_server,
     tensor::{Device, FloatTensor},
 };
 
-/// mutable reference to a float tensor.
+#[cfg(feature = "communication")]
+use crate::{
+    close_distributed_sync_server, get_distributed_sync_client, start_distributed_sync_server,
+};
+
+/// Mutable reference to a float tensor.
 #[derive(Clone)]
-pub struct TensorRef<B: Backend>(pub Arc<*mut FloatTensor<B>>);
+pub struct TensorRef<B: Backend>(pub *mut FloatTensor<B>);
 unsafe impl<B> Sync for TensorRef<B> where B: Backend {}
 unsafe impl<B> Send for TensorRef<B> where B: Backend {}
+
+// TODO : Once the change from `TypeId` to `DeviceId` is made in `backend/communication/api.rs`,
+// we can move the client operations out of the trait (and crate), which eliminates the need for the `communication` feature flag.
 
 /// Operations on communication tensors.
 pub trait CommunicationTensorOps<B: Backend> {
@@ -21,7 +28,10 @@ pub trait CommunicationTensorOps<B: Backend> {
     ///
     /// * `devices` - The devices to orchestrate.
     fn start_communication_server(devices: Vec<B::Device>, config: DistributedConfig) {
+        #[cfg(feature = "communication")]
         start_distributed_sync_server::<B>(devices, config);
+        #[cfg(not(feature = "communication"))]
+        unimplemented!()
     }
 
     /// Close the communication server used to orchestrate syncing between devices.
@@ -30,7 +40,10 @@ pub trait CommunicationTensorOps<B: Backend> {
     ///
     /// * `device` - A device on the backend.
     fn close_communication_server(_device: &B::Device) {
+        #[cfg(feature = "communication")]
         close_distributed_sync_server::<B>();
+        #[cfg(not(feature = "communication"))]
+        unimplemented!()
     }
 
     /// Register the parameters that will require gradient synchronization for the upcoming backward pass.
@@ -43,9 +56,12 @@ pub trait CommunicationTensorOps<B: Backend> {
     /// * `device` - The device calling the initialization.
     /// * `distributed_params` - A list of [`DistributedParams`] of the tensors to sync.
     fn register_sync_parameters(_device: &B::Device, distributed_params: Vec<DistributedParams>) {
+        #[cfg(feature = "communication")]
         if let Some(sync_client) = get_distributed_sync_client::<B>() {
             sync_client.register_sync_parameters(distributed_params);
         };
+        #[cfg(not(feature = "communication"))]
+        unimplemented!()
     }
 
     /// Tell the gradient sync server that this device has submitted all its sync operations and is ready to be synchronized.
@@ -54,9 +70,12 @@ pub trait CommunicationTensorOps<B: Backend> {
     ///
     /// * `device` - The device on which to sync.
     fn submit_sync_collective(device: &B::Device) {
+        #[cfg(feature = "communication")]
         if let Some(sync_client) = get_distributed_sync_client::<B>() {
             sync_client.submit_sync_collective(device.clone());
         };
+        #[cfg(not(feature = "communication"))]
+        unimplemented!()
     }
 
     /// Submit a gradient tensor for synchronization across all devices.
@@ -69,9 +88,12 @@ pub trait CommunicationTensorOps<B: Backend> {
     /// * `tensor` - The tensor to synchronize.
     /// * `distributed_params` - The [`DistributedParams`] for the parameter.
     fn submit_gradient_sync(tensor: TensorRef<B>, distributed_params: DistributedParams) {
+        #[cfg(feature = "communication")]
         if let Some(sync_client) = get_distributed_sync_client::<B>() {
             sync_client.submit_gradient_sync(tensor, distributed_params);
         };
+        #[cfg(not(feature = "communication"))]
+        unimplemented!()
     }
 
     /// In-place version of all_reduce.
@@ -107,7 +129,7 @@ pub trait CommunicationTensorOps<B: Backend> {
     ///
     /// The device of the tensor.
     unsafe fn comm_device(tensor: &TensorRef<B>) -> Device<B> {
-        unsafe { B::float_device(&(**tensor.0)) }
+        unsafe { B::float_device(&(*tensor.0)) }
     }
 
     /// Returns a clone of the float tensor from the tensor reference.
@@ -120,6 +142,6 @@ pub trait CommunicationTensorOps<B: Backend> {
     ///
     /// A float tensor containing a copy of the data of the given tensor.
     unsafe fn float_from_ref(tensor: &TensorRef<B>) -> FloatTensor<B> {
-        unsafe { (**tensor.0).clone() }
+        unsafe { (*tensor.0).clone() }
     }
 }

@@ -3,6 +3,8 @@ use burn_backend::{
     ops::{CommunicationTensorOps, TensorRef},
 };
 
+use alloc::vec::Vec;
+
 use crate::{Autodiff, checkpoint::strategy::CheckpointStrategy};
 
 impl<B: Backend, C: CheckpointStrategy> CommunicationTensorOps<Self> for Autodiff<B, C> {

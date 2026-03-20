@@ -1,5 +1,3 @@
-use std::{collections::HashMap, sync::Arc};
-
 use burn_backend::{
     Backend, DistributedParams, TensorMetadata, TensorPrimitive,
     ops::TensorRef,
@@ -8,6 +6,7 @@ use burn_backend::{
 
 use crate::{
     NodeId,
+    collections::HashMap,
     graph::{NodeRef, Requirement},
     tensor::AutodiffTensor,
 };
@@ -34,7 +33,7 @@ impl GradientSyncRegistration {
 
             if *n_required == 0 {
                 let tensor_ref = container.get_mut_ref::<B>(&id.value).unwrap();
-                let tensor_ref = TensorRef(Arc::new(tensor_ref.get_mut_ref()));
+                let tensor_ref = TensorRef(tensor_ref.get_mut_ref());
                 B::submit_gradient_sync(tensor_ref, sharded_params.clone());
             }
         }
