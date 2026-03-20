@@ -15,8 +15,9 @@ version.workspace = true
 workspace = true
 
 [features]
-default = ["std"]
+default = ["communication"]
 doc = ["default"]
+communication = ["std", "burn-backend/communication"]
 std = [
     "num-traits/std",
     "burn-std/std",
@@ -59,3 +60,4 @@ serial_test = { workspace = true }
 [package.metadata.docs.rs]
 features = ["doc"]
 rustdoc-args = ["--cfg", "docsrs", "--html-in-header", "katex-header.html"]
+
