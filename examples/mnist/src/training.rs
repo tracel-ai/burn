@@ -6,7 +6,6 @@ use crate::{
 };
 
 use burn::{
-    collective::CollectiveConfig,
     data::{
         dataloader::DataLoaderBuilder,
         dataset::{
@@ -21,10 +20,7 @@ use burn::{
     },
     prelude::*,
     record::{CompactRecorder, NoStdTrainingRecorder},
-    tensor::{
-        backend::{AutodiffBackend, DeviceId},
-        communication::AllReduceStrategy,
-    },
+    tensor::{backend::AutodiffBackend, communication::DistributedConfig},
     train::{
         EvaluatorBuilder, Learner, MetricEarlyStoppingStrategy, StoppingCondition,
         metric::{
@@ -100,9 +96,9 @@ pub fn run2<B: AutodiffBackend>(devices: Vec<B::Device>) {
         .linear(LinearLrSchedulerConfig::new(1e-8, 1.0, 2000))
         .linear(LinearLrSchedulerConfig::new(1e-2, 1e-6, 10000));
 
-    // let device2 = Default::default();
-    let collective_config =
-        CollectiveConfig::default().with_local_all_reduce_strategy(AllReduceStrategy::Centralized);
+    let dist_config = DistributedConfig {
+        all_reduce_op: burn::tensor::communication::ReduceOperation::Mean,
+    };
 
     let training = SupervisedTraining::new(ARTIFACT_DIR, dataloader_train, dataloader_valid)
         .metrics((AccuracyMetric::new(), LossMetric::new()))
@@ -119,7 +115,7 @@ pub fn run2<B: AutodiffBackend>(devices: Vec<B::Device>) {
         .summary()
         .with_training_strategy(burn::train::TrainingStrategy::DistributedDataParallel {
             devices: devices,
-            config: collective_config,
+            config: dist_config,
         });
 
     let result = training.launch(Learner::new(
@@ -203,10 +199,6 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         // Warmup
         .linear(LinearLrSchedulerConfig::new(1e-8, 1.0, 2000))
         .linear(LinearLrSchedulerConfig::new(1e-2, 1e-6, 10000));
-
-    // let device2 = Default::default();
-    let collective_config =
-        CollectiveConfig::default().with_local_all_reduce_strategy(AllReduceStrategy::Centralized);
 
     let training = SupervisedTraining::new(ARTIFACT_DIR, dataloader_train, dataloader_valid)
         .metrics((AccuracyMetric::new(), LossMetric::new()))
