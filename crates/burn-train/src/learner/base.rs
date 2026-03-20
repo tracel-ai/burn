@@ -73,6 +73,11 @@ impl<LC: LearningComponentsTypes> Learner<LC> {
         self.model = self.model().fork(device);
     }
 
+    /// Mark the model as sharded across multiple devices.
+    pub fn grad_sharded(&mut self) {
+        self.model = self.model.clone().grad_distributed();
+    }
+
     /// Returns the current model.
     pub fn model(&self) -> LC::TrainingModel {
         self.model.clone()

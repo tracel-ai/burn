@@ -730,6 +730,7 @@ dependencies = [
  "enumset",
  "hashbrown 0.16.1",
  "num-traits",
+ "oneshot",
  "paste",
  "rand 0.10.0",
  "rand_distr 0.6.0",
@@ -868,6 +869,7 @@ dependencies = [
  "rstest",
  "serde",
  "serde_json",
+ "serial_test",
  "spin",
  "thiserror 2.0.18",
  "uuid",
@@ -3282,9 +3284,9 @@ checksum = "ca81e6b4777c89fd810c25a4be2b1bd93ea034fbe58e6a75216a34c6b82c539b"
 
 [[package]]
 name = "euclid"
-version = "0.22.13"
+version = "0.22.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "df61bf483e837f88d5c2291dcf55c67be7e676b3a51acc48db3a7b163b91ed63"
+checksum = "f1a05365e3b1c6d1650318537c7460c6923f1abdd272ad6842baa2b509957a06"
 dependencies = [
  "num-traits",
 ]

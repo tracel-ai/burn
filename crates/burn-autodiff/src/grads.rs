@@ -1,10 +1,12 @@
 use burn_backend::{
-    Backend, TensorMetadata, TensorPrimitive,
+    Backend, DistributedParams, TensorMetadata, TensorPrimitive,
+    ops::TensorRef,
     tensor::{FloatTensor, TensorContainer},
 };
 
 use crate::{
     NodeId,
+    collections::HashMap,
     graph::{NodeRef, Requirement},
     tensor::AutodiffTensor,
 };
@@ -12,16 +14,48 @@ use crate::{
 /// Gradient identifier.
 pub type GradID = u64;
 
+/// Submits sync operations on gradient registrations.
+#[derive(new)]
+pub struct GradientSyncRegistration {
+    n_required_map: HashMap<NodeId, usize>,
+    sharded_parameters_map: HashMap<NodeId, DistributedParams>,
+}
+
+impl GradientSyncRegistration {
+    pub(crate) fn on_register<B: Backend>(
+        &mut self,
+        id: &NodeId,
+        container: &mut TensorContainer<GradID>,
+    ) {
+        if let Some(sharded_params) = self.sharded_parameters_map.get(id) {
+            let n_required = self.n_required_map.get_mut(id).unwrap();
+            *n_required -= 1;
+
+            if *n_required == 0 {
+                let tensor_ref = container.get_mut_ref::<B>(&id.value).unwrap();
+                let tensor_ref = TensorRef(tensor_ref.get_mut_ref());
+                B::submit_gradient_sync(tensor_ref, sharded_params.clone());
+            }
+        }
+    }
+}
+
 /// Gradients container used during the backward pass.
 pub struct Gradients {
     container: TensorContainer<GradID>,
+    gradient_sync_registration: Option<GradientSyncRegistration>,
 }
 
 impl Gradients {
     /// Creates a new gradients container.
-    pub fn new<B: Backend>(root_node: NodeRef, root_tensor: FloatTensor<B>) -> Self {
+    pub fn new<B: Backend>(
+        root_node: NodeRef,
+        root_tensor: FloatTensor<B>,
+        gradient_sync_registration: Option<GradientSyncRegistration>,
+    ) -> Self {
         let mut gradients = Self {
             container: TensorContainer::new(),
+            gradient_sync_registration,
         };
         gradients.register::<B>(
             root_node.id,
@@ -71,15 +105,19 @@ impl Gradients {
     /// Register a grad tensor in the container.
     ///
     /// If the tensor already exists, add both tensors together before saving the result.
+    ///
+    /// If the registered tensor is distributed across multiple device, performs syncing operations on the gradients.
     pub fn register<B: Backend>(&mut self, node_id: NodeId, value: FloatTensor<B>) {
-        if let Some(tensor_old) = self.container.remove::<B>(&node_id.value) {
-            self.container.register::<B>(
-                node_id.value,
-                TensorPrimitive::Float(B::float_add(value, tensor_old.tensor())),
-            );
+        let out = if let Some(tensor_old) = self.container.remove::<B>(&node_id.value) {
+            B::float_add(value, tensor_old.tensor())
         } else {
-            self.container
-                .register::<B>(node_id.value, TensorPrimitive::Float(value));
+            value
+        };
+
+        self.container
+            .register::<B>(node_id.value, TensorPrimitive::Float(out));
+        if let Some(sync_registration) = self.gradient_sync_registration.as_mut() {
+            sync_registration.on_register::<B>(&node_id, &mut self.container);
         }
     }
 }

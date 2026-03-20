@@ -16,6 +16,8 @@ pub mod distribution;
 pub use distribution::*;
 pub mod element;
 pub use element::*;
+pub mod communication;
+pub use communication::*;
 
 /// [`Backend`] trait and required types.
 pub mod backend;

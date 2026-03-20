@@ -160,6 +160,8 @@ where
 
         let tensor = if let Some((grad, device)) = grad {
             let is_require_grad = tensor.is_require_grad();
+            let distributed_params = tensor.distributed_params();
+
             let (key, record) = self.records.remove_entry(&id).unzip();
             let tensor = if tensor.device() != device {
                 tensor.to_device(&device)
@@ -199,6 +201,9 @@ where
             let mut tensor = Tensor::from_inner(tensor);
             if is_require_grad {
                 tensor = tensor.require_grad();
+            }
+            if let Some(params) = distributed_params {
+                tensor = tensor.set_distributed_params(params.param_id);
             }
             tensor
         } else {

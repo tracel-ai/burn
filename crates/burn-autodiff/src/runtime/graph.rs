@@ -109,10 +109,11 @@ impl AutodiffClient for GraphMutexClient {
         let node_id = root.node.id;
         let graph = GraphMutexClient::graph(root.node.id, &[]);
 
-        let grads = Gradients::new::<B>(root.node, root.primitive);
         let grads = {
             let mut state = graph.state.lock();
-            state.server.backward::<GraphCleaner>(grads, node_id)
+            state
+                .server
+                .backward::<GraphCleaner, B>(root.node, root.primitive, node_id)
         }; // lock released
 
         GraphCleaner::cleanup_orphaned_entries();

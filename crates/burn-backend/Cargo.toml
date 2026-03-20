@@ -15,8 +15,9 @@ version.workspace = true
 workspace = true
 
 [features]
-default = ["std"]
+default = ["std", "communication"]
 doc = ["default"]
+communication = ["std", "oneshot"]
 std = ["rand/std", "num-traits/std", "burn-std/std", "cubecl?/std"]
 
 tracing = ["burn-std/tracing", "cubecl/tracing"]
@@ -40,6 +41,7 @@ rand = { workspace = true, default-features = false }
 rand_distr = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }
+oneshot = { version = "0.2.1", optional = true }
 
 [dev-dependencies]
 rand = { workspace = true, features = ["thread_rng"] }

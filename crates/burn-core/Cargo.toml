@@ -142,6 +142,7 @@ burn-dataset = { path = "../burn-dataset", version = "=0.21.0-pre.2", features =
     "fake",
 ] }
 rstest = { workspace = true }
+serial_test = { workspace = true }
 
 [package.metadata.docs.rs]
 features = ["doc"]

@@ -1,6 +1,7 @@
 mod activation;
 mod binary;
 mod bool_tensor;
+mod comm_tensor;
 mod int_tensor;
 mod module;
 mod qtensor;

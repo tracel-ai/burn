@@ -20,7 +20,7 @@ use crate::{
 };
 
 use burn_backend::{
-    Backend, ExecutionError, TensorData, TensorMetadata,
+    Backend, DistributedParamId, DistributedParams, ExecutionError, TensorData, TensorMetadata,
     ops::FloatTensorOps,
     tensor::{BoolTensor, Device, FloatTensor, IntTensor},
 };
@@ -1468,14 +1468,18 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
 
     fn float_detach(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         // When we detach a tensor, we remove it from the graph, but we still want to keep the
-        // `require_grad` setting.
+        // `require_grad` and `distributed` setting.
         let is_require_grad = Self::float_is_require_grad(&tensor);
-        let tensor = AutodiffTensor::new(tensor.primitive);
+        let distributed_params = Self::float_distributed_params(&tensor);
+        let mut tensor = AutodiffTensor::new(tensor.primitive);
 
-        match is_require_grad {
-            true => tensor.require_grad(),
-            false => tensor,
+        if is_require_grad {
+            tensor = tensor.require_grad();
         }
+        if let Some(params) = distributed_params {
+            tensor = tensor.grad_distributed(params.param_id);
+        }
+        tensor
     }
 
     fn float_set_require_grad(tensor: FloatTensor<Self>, require_grad: bool) -> FloatTensor<Self> {
@@ -1488,6 +1492,17 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
 
     fn float_is_require_grad(tensor: &FloatTensor<Self>) -> bool {
         matches!(tensor.node.requirement, Requirement::Grad)
+    }
+
+    fn float_set_distributed_params(
+        tensor: FloatTensor<Self>,
+        param_id: DistributedParamId,
+    ) -> FloatTensor<Self> {
+        tensor.grad_distributed(param_id)
+    }
+
+    fn float_distributed_params(tensor: &FloatTensor<Self>) -> Option<DistributedParams> {
+        tensor.node.distributed_params.clone()
     }
 
     fn float_mean(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
@@ -2904,6 +2919,10 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             }
             fn depth(&self) -> usize {
                 self.output.order
+            }
+
+            fn distributed_params(&self) -> Option<DistributedParams> {
+                self.output.distributed_params.clone()
             }
         }
 

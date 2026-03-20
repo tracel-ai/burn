@@ -10,9 +10,10 @@ use crate::{
     model::TextClassificationModelConfig,
 };
 #[cfg(feature = "ddp")]
-use burn::collective::{AllReduceStrategy, CollectiveConfig};
-use burn::train::{Learner, SupervisedTraining};
+use burn::tensor::communication::DistributedConfig;
 #[cfg(not(feature = "ddp"))]
+use burn::train::MultiDeviceOptim;
+use burn::train::{Learner, SupervisedTraining};
 use burn::{
     data::{dataloader::DataLoaderBuilder, dataset::transform::SamplerDataset},
     lr_scheduler::noam::NoamLrSchedulerConfig,
@@ -21,11 +22,8 @@ use burn::{
     prelude::*,
     record::{CompactRecorder, Recorder},
     tensor::backend::AutodiffBackend,
-    train::{
-        MultiDeviceOptim,
-        metric::{
-            AccuracyMetric, CudaMetric, IterationSpeedMetric, LearningRateMetric, LossMetric,
-        },
+    train::metric::{
+        AccuracyMetric, CudaMetric, IterationSpeedMetric, LearningRateMetric, LossMetric,
     },
 };
 use std::sync::Arc;
@@ -106,8 +104,9 @@ pub fn train<B: AutodiffBackend, D: TextClassificationDataset + 'static>(
         ));
 
     #[cfg(feature = "ddp")]
-    let collective_config =
-        CollectiveConfig::default().with_local_all_reduce_strategy(AllReduceStrategy::Tree(2));
+    let distributed_config = DistributedConfig {
+        all_reduce_op: burn::tensor::communication::ReduceOperation::Mean,
+    };
     #[cfg(feature = "ddp")]
     let training = SupervisedTraining::new(artifact_dir, dataloader_train, dataloader_test)
         .metric_train(CudaMetric::new())
@@ -119,7 +118,7 @@ pub fn train<B: AutodiffBackend, D: TextClassificationDataset + 'static>(
         .metric_valid_numeric(AccuracyMetric::new())
         .metric_train_numeric(LearningRateMetric::new())
         .with_file_checkpointer(CompactRecorder::new())
-        .with_training_strategy(burn::train::ddp(devices, collective_config))
+        .with_training_strategy(burn::train::ddp(devices, distributed_config))
         .num_epochs(config.num_epochs)
         .summary();
 
