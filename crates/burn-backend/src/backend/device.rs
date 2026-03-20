@@ -186,19 +186,22 @@ fn default_bool<B: Backend>(device: &B::Device) -> BoolDType {
     // NOTE: this fallback logic is mostly tied to the dispatch backend since we still have associated
     // element types. Once they're removed, we need to have some sort of `DeviceDefaults` trait that provides
     // per-device defaults instead.
-    let default_bool = <B::BoolElem as crate::Element>::dtype();
-    if B::supports_dtype(device, default_bool) {
-        default_bool.into()
+
+    // dtype.into() handles u8/u32 conversion to Bool(..)
+    let default_bool: BoolDType = <B::BoolElem as crate::Element>::dtype().into();
+    let bool_as_dtype = default_bool.into();
+    if B::supports_dtype(device, bool_as_dtype) {
+        default_bool
     } else {
-        if !matches!(default_bool, DType::Bool(BoolStore::Native))
+        if !matches!(bool_as_dtype, DType::Bool(BoolStore::Native))
             && B::supports_dtype(device, DType::Bool(BoolStore::Native))
         {
             BoolDType::Native
-        } else if !matches!(default_bool, DType::Bool(BoolStore::U8))
+        } else if !matches!(bool_as_dtype, DType::Bool(BoolStore::U8))
             && B::supports_dtype(device, DType::Bool(BoolStore::U8))
         {
             BoolDType::U8
-        } else if !matches!(default_bool, DType::Bool(BoolStore::U32))
+        } else if !matches!(bool_as_dtype, DType::Bool(BoolStore::U32))
             && B::supports_dtype(device, DType::Bool(BoolStore::U32))
         {
             BoolDType::U32
