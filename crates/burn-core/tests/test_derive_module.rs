@@ -620,7 +620,6 @@ mod require_grad {
             module = module.fork(&device).grad_distributed();
             let grads_x = calculate_grads(&module, transformation);
             let data = grads_x.unwrap().to_data();
-            println!("Iter {i} - {:?}", data.to_vec::<f32>());
             if !is_main {
                 output.clone().unwrap().send(data).unwrap();
             } else {
