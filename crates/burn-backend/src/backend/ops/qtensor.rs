@@ -1131,7 +1131,7 @@ pub trait QTensorOps<B: Backend> {
     ///
     /// A tensor with the maximum elements of `tensor` along `dim`.
     fn q_max_dim(tensor: QuantizedTensor<B>, dim: usize) -> QuantizedTensor<B> {
-        let int_dtype = get_device_settings(&B::q_device(&tensor)).int_dtype::<B>();
+        let int_dtype = get_device_settings::<B>(&B::q_device(&tensor)).int_dtype;
         let index = B::q_argmax(tensor.clone(), dim, int_dtype);
 
         B::q_gather(dim, tensor, index)
@@ -1185,7 +1185,7 @@ pub trait QTensorOps<B: Backend> {
     ///
     /// A tensor with the minimum elements of `tensor` along `dim`.
     fn q_min_dim(tensor: QuantizedTensor<B>, dim: usize) -> QuantizedTensor<B> {
-        let int_dtype = get_device_settings(&B::q_device(&tensor)).int_dtype::<B>();
+        let int_dtype = get_device_settings::<B>(&B::q_device(&tensor)).int_dtype;
         let index = B::q_argmin(tensor.clone(), dim, int_dtype);
 
         B::q_gather(dim, tensor, index)
@@ -1239,7 +1239,7 @@ pub trait QTensorOps<B: Backend> {
     ///
     /// A tensor with the maximum elements of `tensor` along `dim`.
     fn q_max_abs_dim(tensor: QuantizedTensor<B>, dim: usize) -> QuantizedTensor<B> {
-        let int_dtype = get_device_settings(&B::q_device(&tensor)).int_dtype::<B>();
+        let int_dtype = get_device_settings::<B>(&B::q_device(&tensor)).int_dtype;
         let index = B::q_argmax(B::q_abs(tensor.clone()), dim, int_dtype);
 
         B::q_gather(dim, tensor, index)

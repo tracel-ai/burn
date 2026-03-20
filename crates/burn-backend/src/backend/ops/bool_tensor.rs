@@ -456,7 +456,7 @@ pub trait BoolTensorOps<B: Backend> {
     /// A boolean tensor with a single element, True if any element in the tensor is True, False otherwise.
     fn bool_any(tensor: BoolTensor<B>) -> BoolTensor<B> {
         let dtype = tensor.dtype();
-        let int_dtype = get_device_settings(&B::bool_device(&tensor)).int_dtype::<B>();
+        let int_dtype = get_device_settings::<B>(&B::bool_device(&tensor)).int_dtype;
         let sum = B::int_sum(B::bool_into_int(tensor, int_dtype));
         B::int_greater_elem(sum, 0.into(), dtype.into())
     }
@@ -475,7 +475,7 @@ pub trait BoolTensorOps<B: Backend> {
     /// evaluates to True, False otherwise.
     fn bool_any_dim(tensor: BoolTensor<B>, dim: usize) -> BoolTensor<B> {
         let dtype = tensor.dtype();
-        let int_dtype = get_device_settings(&B::bool_device(&tensor)).int_dtype::<B>();
+        let int_dtype = get_device_settings::<B>(&B::bool_device(&tensor)).int_dtype;
         let sum = B::int_sum_dim(B::bool_into_int(tensor, int_dtype), dim);
         B::int_greater_elem(sum, 0.into(), dtype.into())
     }
@@ -492,7 +492,7 @@ pub trait BoolTensorOps<B: Backend> {
     /// evaluate to True, False otherwise.
     fn bool_all(tensor: BoolTensor<B>) -> BoolTensor<B> {
         let dtype = tensor.dtype();
-        let int_dtype = get_device_settings(&B::bool_device(&tensor)).int_dtype::<B>();
+        let int_dtype = get_device_settings::<B>(&B::bool_device(&tensor)).int_dtype;
         let num_elems = tensor.shape().num_elements() as i64;
         let sum = B::int_sum(B::bool_into_int(tensor, int_dtype));
         B::int_equal_elem(sum, num_elems.into(), dtype.into())
@@ -512,7 +512,7 @@ pub trait BoolTensorOps<B: Backend> {
     /// evaluates to True, False otherwise.
     fn bool_all_dim(tensor: BoolTensor<B>, dim: usize) -> BoolTensor<B> {
         let dtype = tensor.dtype();
-        let int_dtype = get_device_settings(&B::bool_device(&tensor)).int_dtype::<B>();
+        let int_dtype = get_device_settings::<B>(&B::bool_device(&tensor)).int_dtype;
         let num_elems = tensor.shape()[dim] as i64;
         let sum = B::int_sum_dim(B::bool_into_int(tensor, int_dtype), dim);
         B::int_equal_elem(sum, num_elems.into(), dtype.into())

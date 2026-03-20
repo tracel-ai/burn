@@ -131,35 +131,39 @@ fn float_grid_sample_2d_bilinear<B: Backend>(
     let y_frac = B::float_sub(grid_y.clone(), grid_y_floored.clone());
 
     // Convert to integer indices
-    let settings = get_device_settings(&device);
-    let int_dtype = settings.int_dtype::<B>();
-    let bool_dtype = settings.bool_dtype::<B>();
-    let x0 = B::float_into_int(grid_x_floored.clone(), int_dtype);
-    let y0 = B::float_into_int(grid_y_floored.clone(), int_dtype);
-    let x1 = B::float_into_int(B::float_add_scalar(grid_x_floored, 1f32.into()), int_dtype);
-    let y1 = B::float_into_int(B::float_add_scalar(grid_y_floored, 1f32.into()), int_dtype);
+    let settings = get_device_settings::<B>(&device);
+    let x0 = B::float_into_int(grid_x_floored.clone(), settings.int_dtype);
+    let y0 = B::float_into_int(grid_y_floored.clone(), settings.int_dtype);
+    let x1 = B::float_into_int(
+        B::float_add_scalar(grid_x_floored, 1f32.into()),
+        settings.int_dtype,
+    );
+    let y1 = B::float_into_int(
+        B::float_add_scalar(grid_y_floored, 1f32.into()),
+        settings.int_dtype,
+    );
 
     // Create masks for out-of-bounds coordinates (only used for zeros padding)
     let (mask_00, mask_01, mask_10, mask_11) = if padding_mode == GridSamplePaddingMode::Zeros {
-        let x0_valid = B::int_greater_equal_elem(x0.clone(), 0.into(), bool_dtype);
+        let x0_valid = B::int_greater_equal_elem(x0.clone(), 0.into(), settings.bool_dtype);
         let x0_valid = B::bool_and(
             x0_valid,
-            B::int_lower_elem(x0.clone(), (w_in as i32).into(), bool_dtype),
+            B::int_lower_elem(x0.clone(), (w_in as i32).into(), settings.bool_dtype),
         );
-        let x1_valid = B::int_greater_equal_elem(x1.clone(), 0.into(), bool_dtype);
+        let x1_valid = B::int_greater_equal_elem(x1.clone(), 0.into(), settings.bool_dtype);
         let x1_valid = B::bool_and(
             x1_valid,
-            B::int_lower_elem(x1.clone(), (w_in as i32).into(), bool_dtype),
+            B::int_lower_elem(x1.clone(), (w_in as i32).into(), settings.bool_dtype),
         );
-        let y0_valid = B::int_greater_equal_elem(y0.clone(), 0.into(), bool_dtype);
+        let y0_valid = B::int_greater_equal_elem(y0.clone(), 0.into(), settings.bool_dtype);
         let y0_valid = B::bool_and(
             y0_valid,
-            B::int_lower_elem(y0.clone(), (h_in as i32).into(), bool_dtype),
+            B::int_lower_elem(y0.clone(), (h_in as i32).into(), settings.bool_dtype),
         );
-        let y1_valid = B::int_greater_equal_elem(y1.clone(), 0.into(), bool_dtype);
+        let y1_valid = B::int_greater_equal_elem(y1.clone(), 0.into(), settings.bool_dtype);
         let y1_valid = B::bool_and(
             y1_valid,
-            B::int_lower_elem(y1.clone(), (h_in as i32).into(), bool_dtype),
+            B::int_lower_elem(y1.clone(), (h_in as i32).into(), settings.bool_dtype),
         );
 
         (

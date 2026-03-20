@@ -454,7 +454,7 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// }
     /// ```
     pub fn int(self) -> Tensor<B, D, Int> {
-        let out_dtype = get_device_settings(&self.device()).int_dtype::<B>();
+        let out_dtype = get_device_settings::<B>(&self.device()).int_dtype;
         Tensor::new(B::float_into_int(self.primitive.tensor(), out_dtype))
     }
 
@@ -863,7 +863,7 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// }
     /// ```
     pub fn is_nan(self) -> Tensor<B, D, Bool> {
-        let out_dtype = get_device_settings(&self.device()).bool_dtype::<B>();
+        let out_dtype = get_device_settings::<B>(&self.device()).bool_dtype;
         Tensor::new(B::float_is_nan(self.primitive.tensor(), out_dtype))
     }
 
@@ -921,7 +921,7 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// }
     /// ```
     pub fn is_inf(self) -> Tensor<B, D, Bool> {
-        let out_dtype = get_device_settings(&self.device()).bool_dtype::<B>();
+        let out_dtype = get_device_settings::<B>(&self.device()).bool_dtype;
         Tensor::new(B::float_is_inf(self.primitive.tensor(), out_dtype))
     }
 

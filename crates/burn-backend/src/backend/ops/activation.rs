@@ -17,7 +17,7 @@ pub trait ActivationOps<B: Backend> {
     ///
     /// The output tensor.
     fn leaky_relu(tensor: FloatTensor<B>, negative_slope: Scalar) -> FloatTensor<B> {
-        let bool_dtype = get_device_settings(&B::float_device(&tensor)).bool_dtype::<B>();
+        let bool_dtype = get_device_settings::<B>(&B::float_device(&tensor)).bool_dtype;
         let mask = B::float_lower_elem(tensor.clone(), 0f32.into(), bool_dtype);
         let scaled_tensor = B::float_mul_scalar(tensor.clone(), negative_slope);
 
@@ -35,7 +35,7 @@ pub trait ActivationOps<B: Backend> {
     ///
     /// The output tensor.
     fn relu(tensor: FloatTensor<B>) -> FloatTensor<B> {
-        let bool_dtype = get_device_settings(&B::float_device(&tensor)).bool_dtype::<B>();
+        let bool_dtype = get_device_settings::<B>(&B::float_device(&tensor)).bool_dtype;
         let mask = B::float_lower_equal_elem(tensor.clone(), 0f32.into(), bool_dtype);
 
         B::float_mask_fill(tensor, mask, 0f32.into())
@@ -51,7 +51,7 @@ pub trait ActivationOps<B: Backend> {
     ///
     /// The gradient.
     fn relu_backward(output: FloatTensor<B>, grad: FloatTensor<B>) -> FloatTensor<B> {
-        let bool_dtype = get_device_settings(&B::float_device(&output)).bool_dtype::<B>();
+        let bool_dtype = get_device_settings::<B>(&B::float_device(&output)).bool_dtype;
         let mask = B::float_lower_equal_elem(output, 0f32.into(), bool_dtype);
 
         B::float_mask_fill(grad, mask, 0.into())
@@ -79,7 +79,7 @@ pub trait ActivationOps<B: Backend> {
     /// * `tensor` - The input tensor
     /// * `alpha` - The weight tensor
     fn prelu(tensor: FloatTensor<B>, alpha: FloatTensor<B>) -> FloatTensor<B> {
-        let bool_dtype = get_device_settings(&B::float_device(&tensor)).bool_dtype::<B>();
+        let bool_dtype = get_device_settings::<B>(&B::float_device(&tensor)).bool_dtype;
         let mask = B::float_lower_elem(tensor.clone(), 0f32.into(), bool_dtype);
         let scaled_tensor = B::float_mul(tensor.clone(), alpha);
         B::float_mask_where(tensor, mask, scaled_tensor)
@@ -217,7 +217,7 @@ pub trait ActivationOps<B: Backend> {
         // This extends the range of values for which we obtain accurate results.
 
         // max(-x, 0)
-        let bool_dtype = get_device_settings(&B::float_device(&tensor)).bool_dtype::<B>();
+        let bool_dtype = get_device_settings::<B>(&B::float_device(&tensor)).bool_dtype;
         let tensor_neg = B::float_neg(tensor);
         let mask = B::float_lower_elem(tensor_neg.clone(), 0f32.into(), bool_dtype);
         let max_elem = B::float_mask_fill(tensor_neg.clone(), mask, 0f32.into());
@@ -255,7 +255,7 @@ pub trait ActivationOps<B: Backend> {
         let shape = x.shape();
         let dtype = x.dtype();
         let device = B::float_device(&x);
-        let bool_dtype = get_device_settings(&device).bool_dtype::<B>();
+        let bool_dtype = get_device_settings::<B>(&device).bool_dtype;
 
         // max(-x, 0)
         let x_neg = B::float_neg(x);

@@ -83,26 +83,24 @@ fn build_causal_mask<B: Backend>(attention_scores: &FloatTensor<B>) -> BoolTenso
     let device = B::float_device(attention_scores);
     let scores_shape = attention_scores.shape().dims::<4>();
     let [batch_size, num_heads, seq_q, seq_k] = scores_shape;
-    let settings = get_device_settings(&device);
-    let int_dtype = settings.int_dtype::<B>();
-    let bool_dtype = settings.bool_dtype::<B>();
+    let settings = get_device_settings::<B>(&device);
 
     // row indices [seq_q, 1] and col indices [1, seq_k]
     // Offset col indices so that the causal boundary aligns at the bottom-right corner,
     // which handles cross-attention (seq_k > seq_q) correctly.
     let offset = seq_k as i64 - seq_q as i64;
     let rows = B::int_reshape(
-        B::int_arange(0..seq_q as i64, &device, int_dtype),
+        B::int_arange(0..seq_q as i64, &device, settings.int_dtype),
         Shape::new([seq_q, 1]),
     );
     let cols = B::int_reshape(
-        B::int_arange(0..seq_k as i64, &device, int_dtype),
+        B::int_arange(0..seq_k as i64, &device, settings.int_dtype),
         Shape::new([1, seq_k]),
     );
 
     // mask where col > row + offset (upper triangle)
     let rows_shifted = B::int_add_scalar(rows, offset.into());
-    let mask_2d = B::int_lower(rows_shifted, cols, bool_dtype);
+    let mask_2d = B::int_lower(rows_shifted, cols, settings.bool_dtype);
 
     // Reshape to [1, 1, seq_q, seq_k] then expand to [batch_size, num_heads, seq_q, seq_k]
     let mask_4d = B::bool_reshape(mask_2d, Shape::new([1, 1, seq_q, seq_k]));

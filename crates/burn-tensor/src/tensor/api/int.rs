@@ -78,7 +78,7 @@ where
     /// }
     /// ```
     pub fn float(self) -> Tensor<B, D, Float> {
-        let out_dtype = get_device_settings(&self.device()).float_dtype::<B>();
+        let out_dtype = get_device_settings::<B>(&self.device()).float_dtype;
         Tensor::new(TensorPrimitive::Float(B::int_into_float(
             self.primitive,
             out_dtype,

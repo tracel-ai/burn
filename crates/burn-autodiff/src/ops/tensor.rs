@@ -1787,13 +1787,11 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
 
                     let shape = input.shape();
                     let device = B::float_device(&input);
-                    let settings = get_device_settings(&device);
-                    let int_dtype = settings.int_dtype::<B>();
-                    let bool_dtype = settings.bool_dtype::<B>();
+                    let settings = get_device_settings::<B>(&device);
                     let dim_size = shape[dim] as i64;
 
                     // Create indices [0, 1, 2, ...] along the dimension
-                    let arange_1d = B::int_arange(0..dim_size, &device, int_dtype);
+                    let arange_1d = B::int_arange(0..dim_size, &device, settings.int_dtype);
 
                     // Reshape to broadcast along the specified dimension
                     let mut arange_shape = vec![1; shape.num_dims()];
@@ -1804,8 +1802,9 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                     let arange = B::int_expand(arange, shape.clone());
 
                     // Find where cummin[i] == input[i] (these are source positions)
-                    let is_source = B::float_equal(output.clone(), input.clone(), bool_dtype);
-                    let is_source_int = B::bool_into_int(is_source, int_dtype);
+                    let is_source =
+                        B::float_equal(output.clone(), input.clone(), settings.bool_dtype);
+                    let is_source_int = B::bool_into_int(is_source, settings.int_dtype);
 
                     // Mask: where is_source, use index; else 0
                     let masked_indices = B::int_mul(arange, is_source_int);
@@ -1855,13 +1854,11 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
 
                     let shape = input.shape();
                     let device = B::float_device(&input);
-                    let settings = get_device_settings(&device);
-                    let int_dtype = settings.int_dtype::<B>();
-                    let bool_dtype = settings.bool_dtype::<B>();
+                    let settings = get_device_settings::<B>(&device);
                     let dim_size = shape[dim] as i64;
 
                     // Create indices [0, 1, 2, ...] along the dimension
-                    let arange_1d = B::int_arange(0..dim_size, &device, int_dtype);
+                    let arange_1d = B::int_arange(0..dim_size, &device, settings.int_dtype);
 
                     // Reshape to broadcast along the specified dimension
                     let mut arange_shape = vec![1; shape.num_dims()];
@@ -1872,8 +1869,9 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                     let arange = B::int_expand(arange, shape.clone());
 
                     // Find where cummax[i] == input[i] (these are source positions)
-                    let is_source = B::float_equal(output.clone(), input.clone(), bool_dtype);
-                    let is_source_int = B::bool_into_int(is_source, int_dtype);
+                    let is_source =
+                        B::float_equal(output.clone(), input.clone(), settings.bool_dtype);
+                    let is_source_int = B::bool_into_int(is_source, settings.int_dtype);
 
                     // Mask: where is_source, use index; else 0
                     let masked_indices = B::int_mul(arange, is_source_int);
@@ -3003,10 +3001,9 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         {
             OpsKind::Tracked(prep) => {
                 let shape = tensor.primitive.shape();
-                let int_dtype =
-                    get_device_settings(&B::float_device(&tensor.primitive)).int_dtype::<B>();
+                let settings = get_device_settings::<B>(&B::float_device(&tensor.primitive));
                 let (tensor, index) =
-                    B::float_max_dim_with_indices(tensor.primitive, dim, int_dtype);
+                    B::float_max_dim_with_indices(tensor.primitive, dim, settings.int_dtype);
                 prep.finish((index, shape, dim), tensor)
             }
             OpsKind::UnTracked(prep) => prep.finish(B::float_max_dim(tensor.primitive, dim)),
@@ -3048,10 +3045,9 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         {
             OpsKind::Tracked(prep) => {
                 let shape = tensor.primitive.shape();
-                let int_dtype =
-                    get_device_settings(&B::float_device(&tensor.primitive)).int_dtype::<B>();
+                let settings = get_device_settings::<B>(&B::float_device(&tensor.primitive));
                 let (tensor, index) =
-                    B::float_min_dim_with_indices(tensor.primitive, dim, int_dtype);
+                    B::float_min_dim_with_indices(tensor.primitive, dim, settings.int_dtype);
                 prep.finish((index, shape, dim), tensor)
             }
             OpsKind::UnTracked(prep) => prep.finish(B::float_min_dim(tensor.primitive, dim)),
@@ -3277,10 +3273,13 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         {
             OpsKind::Tracked(prep) => {
                 let shape = tensor.primitive.shape();
-                let int_dtype =
-                    get_device_settings(&B::float_device(&tensor.primitive)).int_dtype::<B>();
-                let (tensor, indices) =
-                    B::float_sort_with_indices(tensor.primitive, dim, descending, int_dtype);
+                let settings = get_device_settings::<B>(&B::float_device(&tensor.primitive));
+                let (tensor, indices) = B::float_sort_with_indices(
+                    tensor.primitive,
+                    dim,
+                    descending,
+                    settings.int_dtype,
+                );
                 prep.finish((indices, shape, dim), tensor)
             }
             OpsKind::UnTracked(prep) => {

@@ -67,7 +67,7 @@ where
     /// }
     /// ```
     pub fn int(self) -> Tensor<B, D, Int> {
-        let out_dtype = get_device_settings(&self.device()).int_dtype::<B>();
+        let out_dtype = get_device_settings::<B>(&self.device()).int_dtype;
         Tensor::new(B::bool_into_int(self.primitive, out_dtype))
     }
 
@@ -91,7 +91,7 @@ where
     /// }
     /// ```
     pub fn float(self) -> Tensor<B, D> {
-        let out_dtype = get_device_settings(&self.device()).float_dtype::<B>();
+        let out_dtype = get_device_settings::<B>(&self.device()).float_dtype;
         Tensor::new(TensorPrimitive::Float(B::bool_into_float(
             self.primitive,
             out_dtype,
@@ -288,7 +288,7 @@ where
     /// A tensor containing the indices of all non-zero elements of the given tensor. Each row in the
     /// result contains the indices of a non-zero element.
     pub async fn argwhere_async(self) -> Tensor<B, 2, Int> {
-        let out_dtype = get_device_settings(&self.device()).int_dtype::<B>();
+        let out_dtype = get_device_settings::<B>(&self.device()).int_dtype;
         Tensor::new(B::bool_argwhere(self.primitive, out_dtype).await)
     }
 

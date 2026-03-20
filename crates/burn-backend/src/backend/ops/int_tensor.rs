@@ -464,7 +464,7 @@ pub trait IntTensorOps<B: Backend> {
     /// The elements of `lhs` raised to the power of the elements of `rhs`.
     fn int_powi(lhs: IntTensor<B>, rhs: IntTensor<B>) -> IntTensor<B> {
         let dtype = lhs.dtype();
-        let float_dtype = get_device_settings(&B::int_device(&lhs)).float_dtype::<B>();
+        let float_dtype = get_device_settings::<B>(&B::int_device(&lhs)).float_dtype;
         B::float_into_int(
             B::float_powi(B::int_into_float(lhs, float_dtype), rhs),
             dtype.into(),
@@ -527,7 +527,7 @@ pub trait IntTensorOps<B: Backend> {
     /// The elements of `lhs` raised to the value of `rhs`.
     fn int_powi_scalar_impl(lhs: IntTensor<B>, rhs: Scalar) -> IntTensor<B> {
         let dtype = lhs.dtype();
-        let float_dtype = get_device_settings(&B::int_device(&lhs)).float_dtype::<B>();
+        let float_dtype = get_device_settings::<B>(&B::int_device(&lhs)).float_dtype;
         B::float_into_int(
             B::float_powi_scalar_impl(B::int_into_float(lhs, float_dtype), rhs),
             dtype.into(),
@@ -545,7 +545,7 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// The clamped tensor.
     fn int_clamp_min(tensor: IntTensor<B>, min: Scalar) -> IntTensor<B> {
-        let dtype = get_device_settings(&B::int_device(&tensor)).bool_dtype::<B>();
+        let dtype = get_device_settings::<B>(&B::int_device(&tensor)).bool_dtype;
         let mask = Self::int_lower_elem(tensor.clone(), min, dtype);
         Self::int_mask_fill(tensor, mask, min)
     }
@@ -561,7 +561,7 @@ pub trait IntTensorOps<B: Backend> {
     ///
     /// The clamped tensor.
     fn int_clamp_max(tensor: IntTensor<B>, max: Scalar) -> IntTensor<B> {
-        let dtype = get_device_settings(&B::int_device(&tensor)).bool_dtype::<B>();
+        let dtype = get_device_settings::<B>(&B::int_device(&tensor)).bool_dtype;
         let mask = Self::int_greater_elem(tensor.clone(), max, dtype);
         Self::int_mask_fill(tensor, mask, max)
     }
@@ -1233,7 +1233,7 @@ pub trait IntTensorOps<B: Backend> {
     fn int_sign(tensor: IntTensor<B>) -> IntTensor<B> {
         let dtype = tensor.dtype();
         let device = B::int_device(&tensor);
-        let bool_dtype = get_device_settings(&B::int_device(&tensor)).bool_dtype::<B>();
+        let bool_dtype = get_device_settings::<B>(&B::int_device(&tensor)).bool_dtype;
         let zeros = B::int_zeros(tensor.shape(), &device, dtype.into());
         let less_than_zero = B::int_lower_elem(tensor.clone(), 0.into(), bool_dtype);
         let greater_than_zero = B::int_greater_elem(tensor, 0.into(), bool_dtype);

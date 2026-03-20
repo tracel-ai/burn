@@ -77,13 +77,13 @@ impl<B: Backend> TensorCreationOptions<B> {
         let kind_name = K::name();
         // TODO: tensor kind enum?
         self.dtype.unwrap_or_else(|| {
-            let settings = get_device_settings(&self.device);
+            let settings = get_device_settings::<B>(&self.device);
             if dtype.is_float() && kind_name == "Float" {
-                settings.float_dtype::<B>().into()
+                settings.float_dtype.into()
             } else if (dtype.is_int() || dtype.is_uint()) && kind_name == "Int" {
-                settings.int_dtype::<B>().into()
+                settings.int_dtype.into()
             } else {
-                settings.bool_dtype::<B>().into()
+                settings.bool_dtype.into()
             }
         })
     }

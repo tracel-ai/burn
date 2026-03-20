@@ -202,7 +202,7 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// The clamped tensor.
     fn float_clamp_min(tensor: FloatTensor<B>, min: Scalar) -> FloatTensor<B> {
-        let dtype = get_device_settings(&B::float_device(&tensor)).bool_dtype::<B>();
+        let dtype = get_device_settings::<B>(&B::float_device(&tensor)).bool_dtype;
         let mask = Self::float_lower_elem(tensor.clone(), min, dtype);
         B::float_mask_fill(tensor, mask, min)
     }
@@ -218,7 +218,7 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// The clamped tensor.
     fn float_clamp_max(tensor: FloatTensor<B>, max: Scalar) -> FloatTensor<B> {
-        let dtype = get_device_settings(&B::float_device(&tensor)).bool_dtype::<B>();
+        let dtype = get_device_settings::<B>(&B::float_device(&tensor)).bool_dtype;
         let mask = Self::float_greater_elem(tensor.clone(), max, dtype);
         B::float_mask_fill(tensor, mask, max)
     }
@@ -1369,7 +1369,7 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// A tensor with the maximum elements of `tensor` along `dim`.
     fn float_max_dim(tensor: FloatTensor<B>, dim: usize) -> FloatTensor<B> {
-        let dtype = get_device_settings(&B::float_device(&tensor)).int_dtype::<B>();
+        let dtype = get_device_settings::<B>(&B::float_device(&tensor)).int_dtype;
         let index = B::float_argmax(tensor.clone(), dim, dtype);
 
         B::float_gather(dim, tensor, index)
@@ -1424,7 +1424,7 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// A tensor with the minimum elements of `tensor` along `dim`.
     fn float_min_dim(tensor: FloatTensor<B>, dim: usize) -> FloatTensor<B> {
-        let dtype = get_device_settings(&B::float_device(&tensor)).int_dtype::<B>();
+        let dtype = get_device_settings::<B>(&B::float_device(&tensor)).int_dtype;
         let index = B::float_argmin(tensor.clone(), dim, dtype);
 
         B::float_gather(dim, tensor, index)
@@ -1574,7 +1574,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// A tensor with the same shape as `tensor` containing the signs of the elements of `tensor`.
     fn float_sign(tensor: FloatTensor<B>) -> FloatTensor<B> {
         let device = B::float_device(&tensor);
-        let bool_dtype = get_device_settings(&B::float_device(&tensor)).bool_dtype::<B>();
+        let bool_dtype = get_device_settings::<B>(&B::float_device(&tensor)).bool_dtype;
         let zeros = B::float_zeros(tensor.shape(), &device, tensor.dtype().into());
         let less_than_zero = B::float_lower_elem(tensor.clone(), 0f32.into(), bool_dtype);
         let greater_than_zero = B::float_greater_elem(tensor, 0f32.into(), bool_dtype);

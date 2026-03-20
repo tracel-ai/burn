@@ -629,7 +629,7 @@ where
     }
 
     fn float_flip(tensor: FloatTensor<Self>, axes: &[usize]) -> FloatTensor<Self> {
-        let bool_dtype = get_device_settings(&tensor.device).bool_dtype::<Self>();
+        let bool_dtype = get_device_settings::<Self>(&tensor.device).bool_dtype;
         kernel::flip(tensor, axes, bool_dtype.into())
     }
 
