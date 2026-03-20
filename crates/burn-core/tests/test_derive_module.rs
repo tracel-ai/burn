@@ -7,11 +7,7 @@ use burn::tensor::{Int, Tensor};
 use burn_core as burn;
 use burn_tensor::ops::CommunicationTensorOps;
 
-// pub type TestBackend = burn_ndarray::NdArray<f32>;
-// #[cfg(feature = "std")]
-// pub type TestAutodiffBackend = burn_autodiff::Autodiff<TestBackend>;
-
-pub type TestBackend = burn_tch::LibTorch;
+pub type TestBackend = burn_ndarray::NdArray<f32>;
 #[cfg(feature = "std")]
 pub type TestAutodiffBackend = burn_autodiff::Autodiff<TestBackend>;
 

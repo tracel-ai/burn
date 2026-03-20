@@ -142,8 +142,6 @@ burn-dataset = { path = "../burn-dataset", version = "=0.21.0-pre.2", features =
     "fake",
 ] }
 rstest = { workspace = true }
-
-burn-tch = { path = "../burn-tch", version = "=0.21.0-pre.2", default-features = false }
 serial_test = { workspace = true }
 
 [package.metadata.docs.rs]
