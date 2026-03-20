@@ -5,16 +5,11 @@ use burn::module::{Module, Param};
 use burn::tensor::backend::Backend;
 use burn::tensor::{Int, Tensor};
 use burn_core as burn;
-use burn_cubecl::CubeBackend;
 use burn_tensor::ops::CommunicationTensorOps;
-use cubecl::cuda::CudaRuntime;
 
-// pub type TestBackend = burn_ndarray::NdArray<f32>;
-// #[cfg(feature = "std")]
-// pub type TestAutodiffBackend = burn_autodiff::Autodiff<TestBackend>;
-
-pub type TestBackend<F = f32, I = i32> = CubeBackend<CudaRuntime, F, I, u8>;
-pub type TestAutodiffBackend<F = f32, I = i32> = burn_autodiff::Autodiff<TestBackend<F, I>>;
+pub type TestBackend = burn_ndarray::NdArray<f32>;
+#[cfg(feature = "std")]
+pub type TestAutodiffBackend = burn_autodiff::Autodiff<TestBackend>;
 
 #[derive(Module, Debug)]
 pub struct ModuleBasic<B: Backend> {
@@ -34,7 +29,7 @@ impl<B: Backend> ModuleBasic<B> {
                 std: 1.0,
                 mean: 0.0,
             }
-            .init([4, 4], device), // For some reason 250 breaks the test.
+            .init([4, 4], device),
         }
     }
 }
@@ -399,9 +394,9 @@ mod require_grad {
     use std::sync::mpsc::Receiver;
     use std::sync::mpsc::Sender;
 
-    use burn_backend::Device;
-    use burn_backend::DeviceId;
-    use burn_backend::DistributedConfig;
+    use burn_std::device::Device;
+    use burn_std::device::DeviceId;
+    use burn_tensor::communication::DistributedConfig;
     use burn_tensor::{TensorData, backend::AutodiffBackend, communication::ReduceOperation};
     use rand::{
         SeedableRng,
@@ -621,10 +616,11 @@ mod require_grad {
     ) {
         let mut module = module.clone().fork(&device);
 
-        for _ in 0..num_iter {
+        for i in 0..num_iter {
             module = module.fork(&device).grad_distributed();
             let grads_x = calculate_grads(&module, transformation);
             let data = grads_x.unwrap().to_data();
+            println!("Iter {i} - {:?}", data.to_vec::<f32>());
             if !is_main {
                 output.clone().unwrap().send(data).unwrap();
             } else {

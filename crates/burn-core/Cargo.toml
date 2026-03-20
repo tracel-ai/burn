@@ -141,14 +141,7 @@ burn-autodiff = { path = "../burn-autodiff", version = "=0.21.0-pre.2" }
 burn-dataset = { path = "../burn-dataset", version = "=0.21.0-pre.2", features = [
     "fake",
 ] }
-burn-collective = { path = "../burn-collective", version = "=0.21.0-pre.2" }
 rstest = { workspace = true }
-
-burn-cubecl = { path = "../burn-cubecl", version = "=0.21.0-pre.2", default-features = false }
-burn-backend = { path = "../burn-backend", version = "=0.21.0-pre.2", default-features = false, features = [
-    "cubecl-cuda",
-] }
-cubecl = { workspace = true, features = ["cuda"] }
 serial_test = { workspace = true }
 
 [package.metadata.docs.rs]
