@@ -741,6 +741,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// Returns the [ShardedParams](ShardedParams) of a tensor.
     fn float_distributed_params(_tensor: &FloatTensor<B>) -> Option<DistributedParams> {
         // Should only be overridden by autodiff backends.
+        println!("float_distributed_params none");
         None
     }
 

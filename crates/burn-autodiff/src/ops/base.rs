@@ -172,11 +172,17 @@ where
 {
     /// Finish the preparation of an untracked operation and returns the output tensor.
     pub fn finish(self, output: FloatTensor<B>) -> AutodiffTensor<B> {
+        let params = B::float_distributed_params(&output);
+        println!("Finish params untracked before : {:?}", params);
         let output = AutodiffTensor::from_parents(
             output,
             &self.nodes,
             self.requirement,
             self.compute_property,
+        );
+        println!(
+            "Finish params tracked after : {:?}",
+            output.node.distributed_params
         );
         let parents = self.nodes.map(|node| node.clone_if_require_grad());
         let ops = Ops::new(parents, output.node.clone(), ());
