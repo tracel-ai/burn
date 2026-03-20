@@ -1,13 +1,14 @@
 use cubecl::device::DeviceId;
 use std::collections::HashMap;
 
-use crate::DeviceOps;
-use crate::client::GradientSyncMessage;
+use crate::client::DistributedSyncMessage;
 use crate::ops::TensorRef;
 use crate::tensor::Device;
-use crate::{Backend, DistributedParamId, DistributedParams, ReduceOperation};
+use crate::{Backend, DistributedParamId, DistributedParams};
+use crate::{DeviceOps, DistributedConfig};
 
-pub(crate) struct GradientSyncServer<B: Backend> {
+pub(crate) struct DistributedSyncServer<B: Backend> {
+    config: DistributedConfig,
     all_reduce_ops_queue: HashMap<DistributedParamId, Vec<TensorRef<B>>>,
     param_required_map: HashMap<DistributedParamId, usize>,
     num_devices: usize,
@@ -17,13 +18,14 @@ pub(crate) struct GradientSyncServer<B: Backend> {
     callbacks: HashMap<DeviceId, oneshot::Sender<Box<dyn FnOnce() + Send>>>,
 }
 
-impl<B: Backend> GradientSyncServer<B> {
+impl<B: Backend> DistributedSyncServer<B> {
     /// Create a new gradient sync server instance.
-    pub(crate) fn new(devices: Vec<B::Device>) -> Self {
+    pub(crate) fn new(num_devices: usize, config: DistributedConfig) -> Self {
         Self {
+            config,
             all_reduce_ops_queue: HashMap::default(),
             param_required_map: HashMap::default(),
-            num_devices: devices.len(),
+            num_devices,
             devices_registered: 0,
             syncing_devices: vec![],
             devices_synced: 0,
@@ -32,15 +34,15 @@ impl<B: Backend> GradientSyncServer<B> {
     }
 
     /// Process message from client.
-    pub(crate) fn process_message(&mut self, msg: GradientSyncMessage<B>) {
+    pub(crate) fn process_message(&mut self, msg: DistributedSyncMessage<B>) {
         match msg {
-            GradientSyncMessage::RegisterSyncParameters(params) => {
+            DistributedSyncMessage::RegisterSyncParameters(params) => {
                 self.register_sync_params(params)
             }
-            GradientSyncMessage::GradientSync((tensor, params)) => {
-                self.register_gradient(tensor, params)
+            DistributedSyncMessage::TensorSync((tensor, params)) => {
+                self.register_tensor(tensor, params)
             }
-            GradientSyncMessage::CollectiveSync((device, callback)) => {
+            DistributedSyncMessage::CollectiveSync((device, callback)) => {
                 self.collective_sync(device, callback)
             }
         }
@@ -55,7 +57,7 @@ impl<B: Backend> GradientSyncServer<B> {
     }
 
     /// Called on registration of a gradient. Calls the all_reduce operation for any parameter that is no longer required in the autodiff graph.
-    fn register_gradient(&mut self, tensor: TensorRef<B>, sharded_params: DistributedParams) {
+    fn register_tensor(&mut self, tensor: TensorRef<B>, sharded_params: DistributedParams) {
         let op_queue = self
             .all_reduce_ops_queue
             .entry(sharded_params.param_id)
@@ -99,10 +101,7 @@ impl<B: Backend> GradientSyncServer<B> {
                 let queued_tensors = self.all_reduce_ops_queue.entry(param_id).or_insert(vec![]);
 
                 if num_tensors == queued_tensors.len() {
-                    B::all_reduce_in_place(
-                        queued_tensors.clone(),
-                        ReduceOperation::Mean, // TODO: hard coded
-                    );
+                    B::all_reduce_in_place(queued_tensors.clone(), self.config.all_reduce_op);
                     self.all_reduce_ops_queue.remove(&param_id).unwrap();
                     self.param_required_map.remove(&param_id).unwrap();
                     self.try_launch_sync();

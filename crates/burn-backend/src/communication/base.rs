@@ -87,3 +87,10 @@ pub struct DistributedParams {
     /// The tensor's [DistributedParamId].
     pub param_id: DistributedParamId,
 }
+
+/// Parameter struct for setting up and getting parameters for distributed operations.
+#[derive(Clone)]
+pub struct DistributedConfig {
+    /// How to execute the all_reduce operation.
+    pub all_reduce_op: ReduceOperation,
+}

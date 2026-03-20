@@ -1,13 +1,13 @@
 use burn_backend::{
-    Backend, DistributedParams, ReduceOperation,
+    Backend, DistributedConfig, DistributedParams, ReduceOperation,
     ops::{CommunicationTensorOps, TensorRef},
 };
 
 use crate::{Autodiff, checkpoint::strategy::CheckpointStrategy};
 
 impl<B: Backend, C: CheckpointStrategy> CommunicationTensorOps<Self> for Autodiff<B, C> {
-    fn start_communication_server(devices: Vec<B::Device>) {
-        B::start_communication_server(devices);
+    fn start_communication_server(devices: Vec<B::Device>, config: DistributedConfig) {
+        B::start_communication_server(devices, config);
     }
 
     fn close_communication_server(device: &B::Device) {

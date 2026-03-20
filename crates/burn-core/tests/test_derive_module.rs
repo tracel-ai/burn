@@ -401,6 +401,7 @@ mod require_grad {
 
     use burn_backend::Device;
     use burn_backend::DeviceId;
+    use burn_backend::DistributedConfig;
     use burn_tensor::{TensorData, backend::AutodiffBackend, communication::ReduceOperation};
     use rand::{
         SeedableRng,
@@ -530,14 +531,14 @@ mod require_grad {
         let module = ModuleBasic::<B>::new(&devices[0]);
         let (senders, receivers) = create_channels(device_count);
 
-        <B::InnerBackend>::start_communication_server(devices.clone());
+        let config = DistributedConfig { all_reduce_op: op };
+        <B::InnerBackend>::start_communication_server(devices.clone(), config);
 
         let join_handles = spawn_peer_threads(
             &module,
             &devices,
             senders,
             receivers,
-            op,
             transformation,
             NUM_ITERATIONS,
         );
@@ -568,7 +569,6 @@ mod require_grad {
         devices: &[<B as Backend>::Device],
         senders: Vec<Sender<TensorData>>,
         receivers: Vec<Receiver<TensorData>>,
-        op: ReduceOperation,
         transformation: fn(Tensor<B, 2>, Tensor<B, 2>) -> Tensor<B, 2>,
         num_iter: usize,
     ) -> Vec<std::thread::JoinHandle<()>> {

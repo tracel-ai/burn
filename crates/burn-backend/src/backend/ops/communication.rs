@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
 use crate::{
-    Backend, DistributedParams, ReduceOperation,
+    Backend, DistributedConfig, DistributedParams, ReduceOperation,
     all_reduce::all_reduce_inplace_centralized,
-    close_gradient_sync_server, get_gradient_sync_client, start_gradient_sync_server,
+    close_distributed_sync_server, get_distributed_sync_client, start_distributed_sync_server,
     tensor::{Device, FloatTensor},
 };
 
@@ -20,8 +20,8 @@ pub trait CommunicationTensorOps<B: Backend> {
     /// # Arguments
     ///
     /// * `devices` - The devices to orchestrate.
-    fn start_communication_server(devices: Vec<B::Device>) {
-        start_gradient_sync_server::<B>(devices);
+    fn start_communication_server(devices: Vec<B::Device>, config: DistributedConfig) {
+        start_distributed_sync_server::<B>(devices, config);
     }
 
     /// Close the communication server used to orchestrate syncing between devices.
@@ -30,7 +30,7 @@ pub trait CommunicationTensorOps<B: Backend> {
     ///
     /// * `device` - A device on the backend.
     fn close_communication_server(_device: &B::Device) {
-        close_gradient_sync_server::<B>();
+        close_distributed_sync_server::<B>();
     }
 
     /// Register the parameters that will require gradient synchronization for the upcoming backward pass.
@@ -43,7 +43,7 @@ pub trait CommunicationTensorOps<B: Backend> {
     /// * `device` - The device calling the initialization.
     /// * `distributed_params` - A list of [`DistributedParams`] of the tensors to sync.
     fn register_sync_parameters(_device: &B::Device, distributed_params: Vec<DistributedParams>) {
-        if let Some(sync_client) = get_gradient_sync_client::<B>() {
+        if let Some(sync_client) = get_distributed_sync_client::<B>() {
             sync_client.register_sync_parameters(distributed_params);
         };
     }
@@ -54,7 +54,7 @@ pub trait CommunicationTensorOps<B: Backend> {
     ///
     /// * `device` - The device on which to sync.
     fn submit_sync_collective(device: &B::Device) {
-        if let Some(sync_client) = get_gradient_sync_client::<B>() {
+        if let Some(sync_client) = get_distributed_sync_client::<B>() {
             sync_client.submit_sync_collective(device.clone());
         };
     }
@@ -69,7 +69,7 @@ pub trait CommunicationTensorOps<B: Backend> {
     /// * `tensor` - The tensor to synchronize.
     /// * `distributed_params` - The [`DistributedParams`] for the parameter.
     fn submit_gradient_sync(tensor: TensorRef<B>, distributed_params: DistributedParams) {
-        if let Some(sync_client) = get_gradient_sync_client::<B>() {
+        if let Some(sync_client) = get_distributed_sync_client::<B>() {
             sync_client.submit_gradient_sync(tensor, distributed_params);
         };
     }

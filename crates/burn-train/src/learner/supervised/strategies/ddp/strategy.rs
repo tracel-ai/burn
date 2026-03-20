@@ -8,11 +8,11 @@ use crate::{
     SupervisedLearningStrategy, SupervisedTrainingEventProcessor, TrainLoader, TrainingBackend,
     TrainingComponents, TrainingModel, ValidLoader,
 };
-use burn_collective::CollectiveConfig;
 use burn_core::data::dataloader::split::split_dataloader;
 use burn_core::tensor::Device;
 use burn_core::tensor::backend::AutodiffBackend;
 use burn_core::tensor::backend::DeviceOps;
+use burn_core::tensor::communication::DistributedConfig;
 use burn_core::tensor::ops::CommunicationTensorOps;
 
 #[derive(Clone)]
@@ -31,11 +31,11 @@ pub(crate) struct WorkerComponents {
 
 pub struct DdpTrainingStrategy<LC: LearningComponentsTypes> {
     devices: Vec<Device<TrainingBackend<LC>>>,
+    config: DistributedConfig,
 }
 impl<LC: LearningComponentsTypes> DdpTrainingStrategy<LC> {
-    pub fn new(devices: Vec<Device<TrainingBackend<LC>>>, _config: CollectiveConfig) -> Self {
-        // let config = config.with_num_devices(devices.len());
-        Self { devices }
+    pub fn new(devices: Vec<Device<TrainingBackend<LC>>>, config: DistributedConfig) -> Self {
+        Self { devices, config }
     }
 }
 
@@ -75,6 +75,7 @@ impl<LC: LearningComponentsTypes + Send + 'static> SupervisedLearningStrategy<LC
 
         Inner::<LC>::start_communication_server(
             self.devices.iter().map(|d| d.inner().clone()).collect(),
+            self.config.clone(),
         );
 
         // Start worker for main device

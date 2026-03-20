@@ -1,30 +1,31 @@
 use std::{sync::mpsc::Sender, thread::spawn};
 
 use crate::{
-    Backend, DistributedParams, ops::TensorRef, server::GradientSyncServer, tensor::Device,
+    Backend, DistributedConfig, DistributedParams, ops::TensorRef, server::DistributedSyncServer,
+    tensor::Device,
 };
 
 pub(crate) enum ActionMessage<B: Backend> {
-    Message(GradientSyncMessage<B>),
+    Message(DistributedSyncMessage<B>),
     Close(),
 }
 
-pub(crate) enum GradientSyncMessage<B: Backend> {
+pub(crate) enum DistributedSyncMessage<B: Backend> {
     RegisterSyncParameters(Vec<DistributedParams>),
-    GradientSync((TensorRef<B>, DistributedParams)),
+    TensorSync((TensorRef<B>, DistributedParams)),
     CollectiveSync((Device<B>, oneshot::Sender<Box<dyn FnOnce() + Send>>)),
 }
 
 #[derive(Clone)]
-pub struct GradientSyncClient<B: Backend> {
+pub struct DistributedSyncClient<B: Backend> {
     sender: Sender<ActionMessage<B>>,
 }
 
-impl<B: Backend> GradientSyncClient<B> {
-    pub(crate) fn new(devices: Vec<B::Device>) -> Self {
+impl<B: Backend> DistributedSyncClient<B> {
+    pub(crate) fn new(num_devices: usize, config: DistributedConfig) -> Self {
         let (tx, rx) = std::sync::mpsc::channel();
 
-        let mut server = GradientSyncServer::new(devices);
+        let mut server = DistributedSyncServer::new(num_devices, config);
         spawn(move || {
             loop {
                 match rx.recv().expect("Gradient sync server disconnected.") {
@@ -39,16 +40,16 @@ impl<B: Backend> GradientSyncClient<B> {
     pub fn register_sync_parameters(&self, sharded_params: Vec<DistributedParams>) {
         self.sender
             .send(ActionMessage::Message(
-                GradientSyncMessage::RegisterSyncParameters(sharded_params),
+                DistributedSyncMessage::RegisterSyncParameters(sharded_params),
             ))
             .unwrap();
     }
 
     pub fn submit_gradient_sync(&self, tensor: TensorRef<B>, params: DistributedParams) {
         self.sender
-            .send(ActionMessage::Message(GradientSyncMessage::GradientSync((
-                tensor, params,
-            ))))
+            .send(ActionMessage::Message(DistributedSyncMessage::TensorSync(
+                (tensor, params),
+            )))
             .unwrap();
     }
 
@@ -56,9 +57,9 @@ impl<B: Backend> GradientSyncClient<B> {
         let (tx, rx) = oneshot::channel();
 
         self.sender
-            .send(ActionMessage::Message(GradientSyncMessage::CollectiveSync(
-                (device.clone(), tx),
-            )))
+            .send(ActionMessage::Message(
+                DistributedSyncMessage::CollectiveSync((device.clone(), tx)),
+            ))
             .unwrap();
 
         let sync = rx.recv().expect("Can receive callback");
