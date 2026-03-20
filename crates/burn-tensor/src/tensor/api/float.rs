@@ -683,7 +683,7 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
         Self::new(primitive)
     }
 
-    /// Returns the sharded parameters if the tensor was marked as sharded.
+    /// Returns the distributed parameters if the tensor was marked as distributed.
     pub fn distributed_params(&self) -> Option<DistributedParams> {
         match &self.primitive {
             TensorPrimitive::Float(tensor) => B::float_distributed_params(tensor),
