@@ -727,7 +727,7 @@ pub trait FloatTensorOps<B: Backend> {
         false
     }
 
-    /// Sets the `sharded` parameters of a tensor.
+    /// Sets the distributed parameters of a tensor.
     fn float_set_distributed_params(
         tensor: FloatTensor<B>,
         _peer_id: PeerId,
@@ -738,7 +738,7 @@ pub trait FloatTensorOps<B: Backend> {
         tensor
     }
 
-    /// Returns the [ShardedParams](ShardedParams) of a tensor.
+    /// Returns the [DistributedParams](DistributedParams) of a tensor.
     fn float_distributed_params(_tensor: &FloatTensor<B>) -> Option<DistributedParams> {
         // Should only be overridden by autodiff backends.
         None

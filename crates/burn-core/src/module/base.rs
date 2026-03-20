@@ -164,14 +164,13 @@ pub trait Module<B: Backend>: Clone + Send + core::fmt::Debug {
         <Self as HasAutodiffModule<AB>>::TrainModule::from_inner(self)
     }
 
-    /// Each parameter in the module tree will be marked as sharded across multiple devices.
+    /// Each parameter in the module tree will be marked as distributed across multiple devices.
     ///
     /// # Arguments
     ///
     /// * `peer_id` - The device's [PeerId](PeerId).
     /// * `op` - The reduce operation.
-    fn grad_sharded(self, peer_id: PeerId, op: ReduceOperation) -> Self {
-        // TODO: remove PeerId
+    fn grad_distributed(self, peer_id: PeerId, op: ReduceOperation) -> Self {
         let mut sharder = ModuleSharder { peer_id, op };
         self.map(&mut sharder)
     }

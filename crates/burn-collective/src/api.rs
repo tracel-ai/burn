@@ -57,7 +57,6 @@ pub fn register<B: Backend>(
     config: CollectiveConfig,
 ) -> Result<(), CollectiveError> {
     log::info!("Registering peer {id} with config: {config}");
-    println!("Registering peer {id} with config: {config}");
     let mut client = get_collective_client::<B>();
     client.register(id, device, config)
 }

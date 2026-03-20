@@ -632,7 +632,7 @@ mod require_grad {
         let mut module = module.clone().fork(&device);
 
         for _ in 0..num_iter {
-            module = module.fork(&device).grad_sharded(id, op);
+            module = module.fork(&device).grad_distributed(id, op);
             let grads_x = calculate_grads(&module, transformation);
             let data = grads_x.unwrap().to_data();
             if !is_main {

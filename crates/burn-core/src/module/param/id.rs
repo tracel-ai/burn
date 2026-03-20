@@ -9,7 +9,7 @@ use data_encoding::BASE32_DNSSEC;
 // Also, `param_serde_deserialize_legacy_uuid` doesn't pass with the default hasher.
 type DefaultHashBuilder = core::hash::BuildHasherDefault<ahash::AHasher>;
 
-/// Unique ID for a parameter of a burn module.
+/// Unique ID for a parameter of a module.
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Copy, PartialOrd, Ord)]
 pub struct ParamId {
     value: u64,

@@ -81,7 +81,7 @@ impl<LC: LearningComponentsTypes> Learner<LC> {
     /// * `peer_id` - The device's [PeerId](PeerId).
     /// * `op` - The reduce operation.
     pub fn grad_sharded(&mut self, peer_id: PeerId, op: ReduceOperation) {
-        self.model = self.model.clone().grad_sharded(peer_id, op);
+        self.model = self.model.clone().grad_distributed(peer_id, op);
     }
 
     /// Returns the current model.

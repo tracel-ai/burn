@@ -1469,7 +1469,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
 
     fn float_detach(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         // When we detach a tensor, we remove it from the graph, but we still want to keep the
-        // `require_grad` and `sharded` setting.
+        // `require_grad` and `distributed` setting.
         let is_require_grad = Self::float_is_require_grad(&tensor);
         let distributed_params = Self::float_distributed_params(&tensor);
         let mut tensor = AutodiffTensor::new(tensor.primitive);
