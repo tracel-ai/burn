@@ -4,10 +4,7 @@ use super::repeat_dim::repeat_with_slice_assign;
 use super::sort::{argsort, sort, sort_with_indices};
 use crate::ops::GridSampleOptions;
 use crate::tensor::{BoolTensor, Device, Float, FloatTensor, IntTensor};
-use crate::{
-    Backend, DistributedParamId, DistributedParams, Distribution, PeerId, ReduceOperation,
-    TensorData,
-};
+use crate::{Backend, DistributedParamId, DistributedParams, Distribution, TensorData};
 use crate::{ExecutionError, Scalar, TensorMetadata, TensorPrimitive};
 use alloc::vec::Vec;
 use burn_std::{FloatDType, Shape, Slice};
@@ -730,8 +727,6 @@ pub trait FloatTensorOps<B: Backend> {
     /// Sets the distributed parameters of a tensor.
     fn float_set_distributed_params(
         tensor: FloatTensor<B>,
-        _peer_id: PeerId,
-        _op: ReduceOperation,
         _param_id: DistributedParamId,
     ) -> FloatTensor<B> {
         // Should only be overridden by autodiff backends.

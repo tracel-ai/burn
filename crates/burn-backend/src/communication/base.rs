@@ -84,10 +84,6 @@ impl From<u64> for DistributedParamId {
 /// Parameters for a tensor that is sharded across multiple devices.
 #[derive(Debug, Clone)]
 pub struct DistributedParams {
-    /// The [PeerId](PeerId) of the device.
-    pub peer_id: PeerId,
-    /// The reduce operation.
-    pub op: ReduceOperation,
     /// The tensor's [DistributedParamId].
     pub param_id: DistributedParamId,
 }

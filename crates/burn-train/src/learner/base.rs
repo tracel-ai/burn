@@ -12,7 +12,6 @@ use burn_core::module::{AutodiffModule, Module};
 use burn_core::prelude::Backend;
 use burn_core::tensor::Device;
 use burn_core::tensor::backend::AutodiffBackend;
-use burn_core::tensor::communication::{PeerId, ReduceOperation};
 use burn_optim::lr_scheduler::LrScheduler;
 use burn_optim::{GradientsParams, MultiGradientsParams, Optimizer};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -80,8 +79,8 @@ impl<LC: LearningComponentsTypes> Learner<LC> {
     ///
     /// * `peer_id` - The device's [PeerId](PeerId).
     /// * `op` - The reduce operation.
-    pub fn grad_sharded(&mut self, peer_id: PeerId, op: ReduceOperation) {
-        self.model = self.model.clone().grad_distributed(peer_id, op);
+    pub fn grad_sharded(&mut self) {
+        self.model = self.model.clone().grad_distributed();
     }
 
     /// Returns the current model.

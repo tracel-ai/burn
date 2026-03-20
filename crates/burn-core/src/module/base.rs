@@ -6,11 +6,7 @@ use crate::{
 };
 use alloc::{string::String, vec::Vec};
 pub use burn_derive::Module;
-use burn_tensor::{
-    Bool, Int, Tensor,
-    communication::{PeerId, ReduceOperation},
-    ops::Device,
-};
+use burn_tensor::{Bool, Int, Tensor, ops::Device};
 
 /// Type alias to `Vec<B::Device>` which supports `no_std` environments, but automatically using
 /// the `alloc` crate.
@@ -170,9 +166,8 @@ pub trait Module<B: Backend>: Clone + Send + core::fmt::Debug {
     ///
     /// * `peer_id` - The device's [PeerId](PeerId).
     /// * `op` - The reduce operation.
-    fn grad_distributed(self, peer_id: PeerId, op: ReduceOperation) -> Self {
-        let mut sharder = ModuleSharder { peer_id, op };
-        self.map(&mut sharder)
+    fn grad_distributed(self) -> Self {
+        self.map(&mut ModuleSharder)
     }
 
     /// Get the number of parameters the module has, including all of its sub-modules.

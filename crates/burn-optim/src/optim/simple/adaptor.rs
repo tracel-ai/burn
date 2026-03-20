@@ -203,7 +203,7 @@ where
                 tensor = tensor.require_grad();
             }
             if let Some(params) = distributed_params {
-                tensor = tensor.set_distributed_params(params.peer_id, params.op, params.param_id);
+                tensor = tensor.set_distributed_params(params.param_id);
             }
             tensor
         } else {

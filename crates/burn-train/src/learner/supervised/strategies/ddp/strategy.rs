@@ -80,7 +80,6 @@ impl<LC: LearningComponentsTypes + Send + 'static> SupervisedLearningStrategy<LC
         // Start worker for main device
         // First training dataloader corresponds to main device
         let main_handle = DdpWorker::<LC>::start(
-            0.into(),
             main_device.clone(),
             learner.clone(),
             event_processor.clone(),
@@ -94,11 +93,9 @@ impl<LC: LearningComponentsTypes + Send + 'static> SupervisedLearningStrategy<LC
         );
 
         // Spawn other workers for the other devices, starting with peer id 1
-        let mut peer_id = 1;
         let mut secondary_workers = vec![];
         for device in &self.devices[1..] {
             let handle = DdpWorker::<LC>::start(
-                peer_id.into(),
                 device.clone(),
                 learner.clone(),
                 event_processor.clone(),
@@ -110,8 +107,6 @@ impl<LC: LearningComponentsTypes + Send + 'static> SupervisedLearningStrategy<LC
                 peer_count,
                 false,
             );
-
-            peer_id += 1;
 
             secondary_workers.push(handle);
         }

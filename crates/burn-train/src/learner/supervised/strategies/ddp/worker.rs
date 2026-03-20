@@ -6,7 +6,6 @@ use crate::{
     TrainLoader, TrainingBackend, ValidLoader,
 };
 use burn_core::tensor::Device;
-use burn_core::tensor::communication::PeerId;
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 
@@ -16,7 +15,6 @@ pub(crate) struct DdpWorker<LC>
 where
     LC: LearningComponentsTypes + Send + 'static,
 {
-    peer_id: PeerId,
     device: Device<TrainingBackend<LC>>,
     learner: Learner<LC>,
     event_processor: Arc<Mutex<SupervisedTrainingEventProcessor<LC>>>,
@@ -36,7 +34,6 @@ where
     /// Starts a worker that runs the model in a data distributed parallel
     #[allow(clippy::too_many_arguments)]
     pub fn start(
-        peer_id: PeerId,
         device: Device<TrainingBackend<LC>>,
         learner: Learner<LC>,
         event_processor: Arc<Mutex<SupervisedTrainingEventProcessor<LC>>>,
@@ -49,7 +46,6 @@ where
         is_main: bool,
     ) -> JoinHandle<<LC as LearningComponentsTypes>::TrainingModel> {
         let worker = Self {
-            peer_id,
             device,
             learner,
             event_processor,
@@ -79,10 +75,7 @@ where
             .dataloader_valid
             .map(|dataloader| DdpValidEpoch::<LC>::new(dataloader));
         self.learner.fork(&self.device);
-        self.learner.grad_sharded(
-            self.peer_id,
-            burn_core::tensor::communication::ReduceOperation::Mean,
-        );
+        self.learner.grad_sharded();
 
         for training_progress in TrainingLoop::new(self.starting_epoch, num_epochs) {
             let epoch = training_progress.items_processed;

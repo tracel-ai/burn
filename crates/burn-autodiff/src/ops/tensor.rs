@@ -20,8 +20,7 @@ use crate::{
 };
 
 use burn_backend::{
-    Backend, DistributedParamId, DistributedParams, ExecutionError, PeerId, ReduceOperation,
-    TensorData, TensorMetadata,
+    Backend, DistributedParamId, DistributedParams, ExecutionError, TensorData, TensorMetadata,
     ops::FloatTensorOps,
     tensor::{BoolTensor, Device, FloatTensor, IntTensor},
 };
@@ -1478,7 +1477,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             tensor = tensor.require_grad();
         }
         if let Some(params) = distributed_params {
-            tensor = tensor.grad_distributed(params.peer_id, params.op, params.param_id);
+            tensor = tensor.grad_distributed(params.param_id);
         }
         tensor
     }
@@ -1497,11 +1496,9 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
 
     fn float_set_distributed_params(
         tensor: FloatTensor<Self>,
-        peer_id: PeerId,
-        op: ReduceOperation,
         param_id: DistributedParamId,
     ) -> FloatTensor<Self> {
-        tensor.grad_distributed(peer_id, op, param_id)
+        tensor.grad_distributed(param_id)
     }
 
     fn float_distributed_params(tensor: &FloatTensor<Self>) -> Option<DistributedParams> {

@@ -401,11 +401,7 @@ mod require_grad {
 
     use burn_backend::Device;
     use burn_backend::DeviceId;
-    use burn_tensor::{
-        TensorData,
-        backend::AutodiffBackend,
-        communication::{PeerId, ReduceOperation},
-    };
+    use burn_tensor::{TensorData, backend::AutodiffBackend, communication::ReduceOperation};
     use rand::{
         SeedableRng,
         rngs::{StdRng, SysRng},
@@ -584,8 +580,6 @@ mod require_grad {
         handles.push(std::thread::spawn(move || {
             run_peer_sharded(
                 &module_clone,
-                PeerId::from(0),
-                op,
                 None,
                 transformation,
                 device,
@@ -603,8 +597,6 @@ mod require_grad {
             handles.push(std::thread::spawn(move || {
                 run_peer_sharded(
                     &module_clone,
-                    PeerId::from(i),
-                    op,
                     sender,
                     transformation,
                     device,
@@ -620,8 +612,6 @@ mod require_grad {
 
     pub fn run_peer_sharded<B: AutodiffBackend>(
         module: &ModuleBasic<B>,
-        id: PeerId,
-        op: ReduceOperation,
         output: Option<Sender<TensorData>>,
         transformation: fn(Tensor<B, 2>, Tensor<B, 2>) -> Tensor<B, 2>,
         device: B::Device,
@@ -632,7 +622,7 @@ mod require_grad {
         let mut module = module.clone().fork(&device);
 
         for _ in 0..num_iter {
-            module = module.fork(&device).grad_distributed(id, op);
+            module = module.fork(&device).grad_distributed();
             let grads_x = calculate_grads(&module, transformation);
             let data = grads_x.unwrap().to_data();
             if !is_main {

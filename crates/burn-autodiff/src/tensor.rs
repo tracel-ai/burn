@@ -5,9 +5,7 @@ use crate::{
     runtime::{AutodiffClient, AutodiffClientImpl},
 };
 use alloc::{boxed::Box, sync::Arc, vec};
-use burn_backend::{
-    Backend, DistributedParamId, DistributedParams, PeerId, ReduceOperation, TensorMetadata,
-};
+use burn_backend::{Backend, DistributedParamId, DistributedParams, TensorMetadata};
 
 #[derive(Debug, Clone)]
 pub struct AutodiffTensor<B: Backend> {
@@ -122,12 +120,7 @@ impl<B: Backend> AutodiffTensor<B> {
     /// * `peer_id` - The device's [`PeerId`].
     /// * `op` - The aggregation operation.
     /// * `param_id` - The module tensor's [`ModuleParamId`].
-    pub fn grad_distributed(
-        mut self,
-        peer_id: PeerId,
-        op: ReduceOperation,
-        param_id: DistributedParamId,
-    ) -> Self {
+    pub fn grad_distributed(mut self, param_id: DistributedParamId) -> Self {
         self.node = Node::new(
             vec![],
             0,
@@ -135,11 +128,7 @@ impl<B: Backend> AutodiffTensor<B> {
             self.node.requirement,
             self.node.properties.clone(),
             self.node.client.clone(),
-            Some(DistributedParams {
-                peer_id,
-                op,
-                param_id,
-            }),
+            Some(DistributedParams { param_id }),
         )
         .into();
         let step = RootStep::new(self.node.clone());
