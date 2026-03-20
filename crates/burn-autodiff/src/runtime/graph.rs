@@ -109,11 +109,6 @@ impl AutodiffClient for GraphMutexClient {
         let node_id = root.node.id;
         let graph = GraphMutexClient::graph(root.node.id, &[]);
 
-        println!(
-            "Distributed params autodiff client : {:?}",
-            root.node.distributed_params
-        );
-
         let grads = {
             let mut state = graph.state.lock();
             state

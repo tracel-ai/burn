@@ -70,9 +70,6 @@ impl AutodiffServer {
         let mut consumed = Vec::new();
         let tape_result = self.build_tape(node_id, step, builder, &mut consumed);
 
-        println!("n_req : {:?}", tape_result.n_required_map);
-        println!("map params : {:?}", tape_result.distributed_params);
-
         let gradients = self.compute_gradients::<B>(root_node, root_tensor, tape_result);
 
         // Cleanup
@@ -152,8 +149,6 @@ impl AutodiffServer {
             consumed.push(id);
 
             let depth = step.depth();
-            println!("node id : {}", id);
-            println!("params tape : {:?}", step.distributed_params());
             step.distributed_params()
                 .and_then(|params| distributed_params.insert(id, params));
 

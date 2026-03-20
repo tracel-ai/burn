@@ -414,45 +414,44 @@ mod require_grad {
 
     use super::*;
 
-    // #[test]
-    // #[parallel]
-    // fn should_have_grad_by_default() {
-    //     let device = <TestBackend as Backend>::Device::default();
-    //     let module = ModuleBasic::<TestAutodiffBackend>::new(&device);
-    //     let grad_x = calculate_grads(&module, |weights, x| weights.matmul(x));
+    #[test]
+    #[parallel]
+    fn should_have_grad_by_default() {
+        let device = <TestBackend as Backend>::Device::default();
+        let module = ModuleBasic::<TestAutodiffBackend>::new(&device);
+        let grad_x = calculate_grads(&module, |weights, x| weights.matmul(x));
 
-    //     assert!(grad_x.is_some());
-    // }
+        assert!(grad_x.is_some());
+    }
 
-    // #[test]
-    // #[parallel]
-    // fn should_have_no_grad_after_no_grad() {
-    //     let device = <TestAutodiffBackend as Backend>::Device::default();
-    //     let module = ModuleBasic::<TestAutodiffBackend>::new(&device).no_grad();
-    //     let grad_x = calculate_grads(&module, |weights, x| weights.matmul(x));
+    #[test]
+    #[parallel]
+    fn should_have_no_grad_after_no_grad() {
+        let device = <TestAutodiffBackend as Backend>::Device::default();
+        let module = ModuleBasic::<TestAutodiffBackend>::new(&device).no_grad();
+        let grad_x = calculate_grads(&module, |weights, x| weights.matmul(x));
 
-    //     assert!(grad_x.is_none());
-    // }
+        assert!(grad_x.is_none());
+    }
 
-    // #[test]
-    // #[parallel]
-    // fn should_have_grad_when_from_record() {
-    //     let device = <TestAutodiffBackend as Backend>::Device::default();
-    //     let module = ModuleBasic::<TestAutodiffBackend>::new(&device);
-    //     let record = ModuleBasicRecord {
-    //         weight_basic: module.weight_basic.clone(), // Even when param is no_grad,
-    //     };
-    //     let module = module.load_record(record);
-    //     let grad_x = calculate_grads(&module, |weights, x| weights.matmul(x));
+    #[test]
+    #[parallel]
+    fn should_have_grad_when_from_record() {
+        let device = <TestAutodiffBackend as Backend>::Device::default();
+        let module = ModuleBasic::<TestAutodiffBackend>::new(&device);
+        let record = ModuleBasicRecord {
+            weight_basic: module.weight_basic.clone(), // Even when param is no_grad,
+        };
+        let module = module.load_record(record);
+        let grad_x = calculate_grads(&module, |weights, x| weights.matmul(x));
 
-    //     assert!(grad_x.is_some());
-    // }
+        assert!(grad_x.is_some());
+    }
 
     #[test]
     #[serial]
     fn sharded_module_should_sync_gradients_sum() {
         compare_sync_gradients::<TestAutodiffBackend>(ReduceOperation::Sum, |weights, x| {
-            println!("weights params : {:?}", weights.distributed_params());
             weights.matmul(x)
         });
     }
@@ -632,24 +631,15 @@ mod require_grad {
     ) {
         let mut module = module.clone().fork(&device);
 
-        for i in 0..num_iter {
+        for _ in 0..num_iter {
             module = module.fork(&device).grad_sharded(id, op);
-            let grads_x = calculate_grads(&module, transformation, i, id.0 as usize);
+            let grads_x = calculate_grads(&module, transformation);
             let data = grads_x.unwrap().to_data();
-            println!("Iter {i} dev {} : {:?}", id.0, data.to_vec::<f32>());
             if !is_main {
                 output.clone().unwrap().send(data).unwrap();
             } else {
                 for r in recvs.iter().by_ref() {
                     let t = r.recv().unwrap();
-                    if data != t {
-                        println!("Failing at iteration {i}");
-                        println!(
-                            "With tensors {:?} and {:?}",
-                            data.to_vec::<f32>(),
-                            t.to_vec::<f32>()
-                        );
-                    }
                     assert_eq!(data, t);
                 }
             }
@@ -659,8 +649,6 @@ mod require_grad {
     fn calculate_grads<B: AutodiffBackend>(
         module: &ModuleBasic<B>,
         transformation: fn(Tensor<B, 2>, Tensor<B, 2>) -> Tensor<B, 2>,
-        i: usize,
-        id: usize,
     ) -> Option<Tensor<B::InnerBackend, 2>> {
         let device = module.weight_basic.device();
         let data = TensorData::random::<f32, _, _>(
@@ -670,8 +658,6 @@ mod require_grad {
         );
         let x = Tensor::from_data(data, &device).require_grad();
         let t = module.weight_basic.val();
-        let params = t.distributed_params();
-        println!("Iter {i} dev {} : {:?}", id, params);
         let y = transformation(t, x);
 
         let mut grads = y.backward();
