@@ -29,7 +29,7 @@ sys-metrics = ["nvml-wrapper", "sysinfo", "systemstat"]
 tui = ["ratatui"]
 rl = ["burn-rl"]
 # Distributed Data Parallel
-ddp = ["burn-collective", "burn-optim/collective", "burn-autodiff"]
+ddp = ["burn-collective", "burn-optim/collective"]
 
 [dependencies]
 burn-core = { path = "../burn-core", version = "=0.21.0-pre.2", features = [
@@ -41,7 +41,6 @@ burn-optim = { path = "../burn-optim", version = "=0.21.0-pre.2", features = [
 ], default-features = false }
 burn-rl = { path = "../burn-rl", version = "=0.21.0-pre.2", optional = true, default-features = false }
 burn-collective = { path = "../burn-collective", version = "=0.21.0-pre.2", optional = true }
-burn-autodiff = { path = "../burn-autodiff", version = "=0.21.0-pre.2", optional = true }
 burn-nn = { path = "../burn-nn", version = "=0.21.0-pre.2", optional = true, default-features = false, features = ["std"] }
 burn-store = { path = "../burn-store", version = "=0.21.0-pre.2", optional = true, default-features = false, features = ["std"] }
 burn-std = { path = "../burn-std", version = "=0.21.0-pre.2", optional = true, default-features = false, features = ["std"] }

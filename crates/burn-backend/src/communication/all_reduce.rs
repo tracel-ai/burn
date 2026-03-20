@@ -16,12 +16,11 @@ pub(crate) fn reduce_sum_centralized<B: Backend>(
 }
 
 // TODO : Tests
-pub(crate) fn all_reduce_inplace_centralized<B: Backend>(
+pub(crate) unsafe fn all_reduce_inplace_centralized<B: Backend>(
     tensors: Vec<TensorRef<B>>,
     op: ReduceOperation,
 ) {
     // Get corresponding devices for each tensor
-    // Safe since tensors shouldn't be accessed other than here at this point
     let devices: Vec<B::Device> = tensors
         .iter()
         .map(|tensor| unsafe { B::comm_device(tensor) })

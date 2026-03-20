@@ -83,8 +83,8 @@ pub trait CommunicationTensorOps<B: Backend> {
     /// * `all_ids` - The [PeerId] of the devices on which to all_reduce.
     /// * `op` - The [`ReduceOperation`].
     #[allow(unused)]
-    fn all_reduce_in_place(tensors: Vec<TensorRef<B>>, op: ReduceOperation) {
-        all_reduce_inplace_centralized(tensors, op);
+    unsafe fn all_reduce_in_place(tensors: Vec<TensorRef<B>>, op: ReduceOperation) {
+        unsafe { all_reduce_inplace_centralized(tensors, op) };
     }
 
     /// Sync the collective operations.

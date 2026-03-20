@@ -101,7 +101,10 @@ impl<B: Backend> DistributedSyncServer<B> {
                 let queued_tensors = self.all_reduce_ops_queue.entry(param_id).or_insert(vec![]);
 
                 if num_tensors == queued_tensors.len() {
-                    B::all_reduce_in_place(queued_tensors.clone(), self.config.all_reduce_op);
+                    // This is safe since tensors shouldn't be accessed other than here at this point
+                    unsafe {
+                        B::all_reduce_in_place(queued_tensors.clone(), self.config.all_reduce_op)
+                    };
                     self.all_reduce_ops_queue.remove(&param_id).unwrap();
                     self.param_required_map.remove(&param_id).unwrap();
                     self.try_launch_sync();

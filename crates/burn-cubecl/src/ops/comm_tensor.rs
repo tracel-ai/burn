@@ -11,7 +11,7 @@ where
     I: IntElement,
     BT: BoolElement,
 {
-    fn all_reduce_in_place(tensors: Vec<TensorRef<Self>>, op: ReduceOperation) {
+    unsafe fn all_reduce_in_place(tensors: Vec<TensorRef<Self>>, op: ReduceOperation) {
         let tensors = tensors
             .iter()
             .map(|t| unsafe { &**t.0 })

@@ -660,7 +660,7 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
         Self::new(primitive)
     }
 
-    /// Mark the tensor as sharded across multiple devices.
+    /// Mark the tensor as distributed across multiple devices.
     /// The gradients will be aggregated during the backward pass.
     ///
     /// This function does nothing when autodiff is not enabled.

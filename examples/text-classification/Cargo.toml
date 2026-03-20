@@ -10,7 +10,7 @@ version.workspace = true
 workspace = true
 
 [features]
-default = ["ddp"]
+default = []
 f16 = []
 flex32 = []
 ndarray = ["burn/ndarray"]

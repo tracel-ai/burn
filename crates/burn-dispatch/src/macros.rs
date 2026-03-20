@@ -187,7 +187,7 @@ macro_rules! dispatch_devices_arms {
     };
 }
 
-/// Dispatches an operation body based on the provided device.
+/// Dispatches an operation body based on the provided devices.
 macro_rules! dispatch_devices {
     ($device:expr, $devices:expr, |$inner_devices:ident| $body:expr) => {
         backend_list!(dispatch_devices_arms, $device, $devices, |$inner_devices| {
@@ -511,28 +511,6 @@ macro_rules! unary_op_arms {
     }};
 }
 
-// TODO: Is this really useful?
-// macro_rules! ref_op_arms {
-//     // Operations that do not return a tensor kind
-//     (
-//         $tensor:expr,
-//         $body:expr;
-//         $([$Backend:ident, $cfg:meta]),*
-//     ) => {{
-//         match $tensor {
-//             $(
-//                 #[cfg($cfg)]
-//                 $crate::DispatchTensor::$Backend(_) => {
-//                     type B = $Backend<f32>;
-//                     $body
-//                 }
-//             )*
-//             #[cfg(feature = "autodiff")]
-//             $crate::DispatchTensor::Autodiff(_) => panic!("Operation not marked for autodiff.")
-//         }
-//     }};
-// }
-
 /// Backend dispatch for unary operations.
 ///
 /// When the return `=> Kind` is not provided, the operation output is not wrapped in a dispatch tensor (e.g., `into_data(..)`)
@@ -546,13 +524,6 @@ macro_rules! unary_op {
         backend_list!(unary_op_arms, $inner_kind, $tensor, |$inner| { $body })
     };
 }
-
-/// Backend dispatch for `TensorRef` operations.
-// macro_rules! ref_op {
-//     ($tensor:expr, $body:expr) => {
-//         backend_list!(ref_op_arms, $tensor, $body)
-//     };
-// }
 
 /// Match arm generator for `unary_float`.
 ///

@@ -9,11 +9,12 @@ use crate::{
     TrainingComponents, TrainingModel, ValidLoader,
 };
 use burn_core::data::dataloader::split::split_dataloader;
-use burn_core::tensor::Device;
-use burn_core::tensor::backend::AutodiffBackend;
-use burn_core::tensor::backend::DeviceOps;
-use burn_core::tensor::communication::DistributedConfig;
-use burn_core::tensor::ops::CommunicationTensorOps;
+use burn_core::tensor::{
+    Device,
+    backend::{AutodiffBackend, DeviceOps},
+    communication::DistributedConfig,
+    ops::CommunicationTensorOps,
+};
 
 #[derive(Clone)]
 pub(crate) struct WorkerComponents {

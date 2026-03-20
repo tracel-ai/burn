@@ -3,8 +3,9 @@ use std::mem::discriminant;
 use crate::backends::*;
 
 use burn_backend::{
-    DistributedConfig, DistributedParams,
+    DistributedConfig, DistributedParams, ReduceOperation,
     ops::{CommunicationTensorOps, TensorRef},
+    tensor::FloatTensor,
 };
 
 use crate::{Dispatch, DispatchDevice};
@@ -33,12 +34,27 @@ impl CommunicationTensorOps<Self> for Dispatch {
         ))
     }
 
-    fn submit_sync_collective(device: &DispatchDevice) {
-        dispatch_device!(device, |device| B::submit_sync_collective(device,))
+    fn submit_sync_collective(_device: &DispatchDevice) {
+        unimplemented!()
     }
 
-    // TODO:
     fn submit_gradient_sync(_tensor: TensorRef<Self>, _distributed_params: DistributedParams) {
-        todo!()
+        unimplemented!()
+    }
+
+    unsafe fn all_reduce_in_place(_tensors: Vec<TensorRef<Self>>, _op: ReduceOperation) {
+        unimplemented!()
+    }
+
+    fn sync_collective(_device: &DispatchDevice) {
+        unimplemented!()
+    }
+
+    unsafe fn comm_device(_tensor: &TensorRef<Self>) -> DispatchDevice {
+        unimplemented!()
+    }
+
+    unsafe fn float_from_ref(_tensor: &TensorRef<Self>) -> FloatTensor<Self> {
+        unimplemented!()
     }
 }

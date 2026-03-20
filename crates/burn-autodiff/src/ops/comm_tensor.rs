@@ -26,7 +26,7 @@ impl<B: Backend, C: CheckpointStrategy> CommunicationTensorOps<Self> for Autodif
         unimplemented!()
     }
 
-    fn all_reduce_in_place(_tensors: Vec<TensorRef<Self>>, _op: ReduceOperation) {
+    unsafe fn all_reduce_in_place(_tensors: Vec<TensorRef<Self>>, _op: ReduceOperation) {
         unimplemented!()
     }
 

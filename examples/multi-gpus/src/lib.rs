@@ -255,7 +255,7 @@ impl GradSyncer {
         let (sender, receiver) = std::sync::mpsc::sync_channel::<Message>(8);
 
         std::thread::spawn(move || {
-            println!("[{id}] Register peration {config:?}");
+            println!("[{id}] Register collective operation {config:?}");
             register::<B::InnerBackend>(id, device, config).unwrap();
             let num_stages = 4;
             let mut buffers: Vec<GradientsParams> = Vec::new();
