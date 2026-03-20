@@ -12,6 +12,7 @@ use crate::tensor::{Distribution, TensorData};
 use crate::{Bool, Int, TensorPrimitive};
 use burn_backend::ElementConversion;
 use burn_backend::Scalar;
+use burn_backend::get_device_settings;
 use burn_backend::tensor::quantization::QuantizationParametersPrimitive;
 use core::f32;
 
@@ -453,7 +454,8 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// }
     /// ```
     pub fn int(self) -> Tensor<B, D, Int> {
-        Tensor::new(B::float_into_int(self.primitive.tensor()))
+        let out_dtype = get_device_settings::<B>(&self.device()).int_dtype;
+        Tensor::new(B::float_into_int(self.primitive.tensor(), out_dtype))
     }
 
     /// Returns a new tensor with the same shape, dtype, and device as the current tensor filled random
@@ -861,7 +863,8 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// }
     /// ```
     pub fn is_nan(self) -> Tensor<B, D, Bool> {
-        Tensor::new(B::float_is_nan(self.primitive.tensor()))
+        let out_dtype = get_device_settings::<B>(&self.device()).bool_dtype;
+        Tensor::new(B::float_is_nan(self.primitive.tensor(), out_dtype))
     }
 
     /// Checks if the tensor contains any NaN values.
@@ -918,7 +921,8 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     /// }
     /// ```
     pub fn is_inf(self) -> Tensor<B, D, Bool> {
-        Tensor::new(B::float_is_inf(self.primitive.tensor()))
+        let out_dtype = get_device_settings::<B>(&self.device()).bool_dtype;
+        Tensor::new(B::float_is_inf(self.primitive.tensor(), out_dtype))
     }
 
     /// Returns a new tensor with boolean elements indicating whether each element of the input is finite

@@ -990,6 +990,11 @@ impl RelativeOps for NumericOperationIr {
                 rhs: desc.rhs.to_relative(converter),
                 out: desc.out.to_relative(converter),
             }),
+            NumericOperationIr::PowiScalar(desc) => NumericOperationIr::PowiScalar(ScalarOpIr {
+                lhs: desc.lhs.to_relative(converter),
+                rhs: desc.rhs.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
             NumericOperationIr::CumSum(desc) => NumericOperationIr::CumSum(DimOpIr {
                 input: desc.input.to_relative(converter),
                 out: desc.out.to_relative(converter),

@@ -3,6 +3,7 @@ use burn_std::{DType, Shape, Slice};
 
 use crate::{
     AutodiffBackend, Backend, Distribution, ExecutionError, Scalar, TensorData,
+    get_device_settings,
     ops::TransactionPrimitive,
     tensor::{
         BasicAutodiffOps, BasicOps, BoolTensor, Device, IndexingUpdateOp, Int, IntTensor, Numeric,
@@ -120,15 +121,7 @@ impl<B: Backend> BasicOps<B> for Int {
         B::int_into_data(tensor).await
     }
 
-    fn from_data(data: TensorData, device: &Device<B>) -> Self::Primitive {
-        B::int_from_data(data.convert::<B::IntElem>(), device)
-    }
-
-    fn from_data_dtype(data: TensorData, device: &Device<B>, dtype: DType) -> Self::Primitive {
-        if !dtype.is_int() {
-            panic!("Expected int dtype, got {dtype:?}")
-        }
-
+    fn from_data(data: TensorData, device: &Device<B>, dtype: DType) -> Self::Primitive {
         B::int_from_data(data.convert_dtype(dtype), device)
     }
 
@@ -137,19 +130,23 @@ impl<B: Backend> BasicOps<B> for Int {
     }
 
     fn equal(lhs: Self::Primitive, rhs: Self::Primitive) -> BoolTensor<B> {
-        B::int_equal(lhs, rhs)
+        let out_dtype = get_device_settings::<B>(&B::int_device(&lhs)).bool_dtype;
+        B::int_equal(lhs, rhs, out_dtype)
     }
 
     fn not_equal(lhs: Self::Primitive, rhs: Self::Primitive) -> BoolTensor<B> {
-        B::int_not_equal(lhs, rhs)
+        let out_dtype = get_device_settings::<B>(&B::int_device(&lhs)).bool_dtype;
+        B::int_not_equal(lhs, rhs, out_dtype)
     }
 
     fn equal_elem(lhs: Self::Primitive, rhs: Scalar) -> B::BoolTensorPrimitive {
-        B::int_equal_elem(lhs, rhs)
+        let out_dtype = get_device_settings::<B>(&B::int_device(&lhs)).bool_dtype;
+        B::int_equal_elem(lhs, rhs, out_dtype)
     }
 
     fn not_equal_elem(lhs: Self::Primitive, rhs: Scalar) -> B::BoolTensorPrimitive {
-        B::int_not_equal_elem(lhs, rhs)
+        let out_dtype = get_device_settings::<B>(&B::int_device(&lhs)).bool_dtype;
+        B::int_not_equal_elem(lhs, rhs, out_dtype)
     }
 
     fn cat(vectors: Vec<Self::Primitive>, dim: usize) -> Self::Primitive {
@@ -157,19 +154,23 @@ impl<B: Backend> BasicOps<B> for Int {
     }
 
     fn any(tensor: Self::Primitive) -> BoolTensor<B> {
-        B::int_any(tensor)
+        let out_dtype = get_device_settings::<B>(&B::int_device(&tensor)).bool_dtype;
+        B::int_any(tensor, out_dtype)
     }
 
     fn any_dim(tensor: Self::Primitive, dim: usize) -> BoolTensor<B> {
-        B::int_any_dim(tensor, dim)
+        let out_dtype = get_device_settings::<B>(&B::int_device(&tensor)).bool_dtype;
+        B::int_any_dim(tensor, dim, out_dtype)
     }
 
     fn all(tensor: Self::Primitive) -> BoolTensor<B> {
-        B::int_all(tensor)
+        let out_dtype = get_device_settings::<B>(&B::int_device(&tensor)).bool_dtype;
+        B::int_all(tensor, out_dtype)
     }
 
     fn all_dim(tensor: Self::Primitive, dim: usize) -> BoolTensor<B> {
-        B::int_all_dim(tensor, dim)
+        let out_dtype = get_device_settings::<B>(&B::int_device(&tensor)).bool_dtype;
+        B::int_all_dim(tensor, dim, out_dtype)
     }
 
     fn permute(tensor: Self::Primitive, axes: &[usize]) -> Self::Primitive {
@@ -311,35 +312,43 @@ impl<B: Backend> Ordered<B> for Int {
     }
 
     fn greater(lhs: Self::Primitive, rhs: Self::Primitive) -> B::BoolTensorPrimitive {
-        B::int_greater(lhs, rhs)
+        let out_dtype = get_device_settings::<B>(&B::int_device(&lhs)).bool_dtype;
+        B::int_greater(lhs, rhs, out_dtype)
     }
 
     fn greater_elem(lhs: Self::Primitive, rhs: Scalar) -> B::BoolTensorPrimitive {
-        B::int_greater_elem(lhs, rhs)
+        let out_dtype = get_device_settings::<B>(&B::int_device(&lhs)).bool_dtype;
+        B::int_greater_elem(lhs, rhs, out_dtype)
     }
 
     fn greater_equal(lhs: Self::Primitive, rhs: Self::Primitive) -> B::BoolTensorPrimitive {
-        B::int_greater_equal(lhs, rhs)
+        let out_dtype = get_device_settings::<B>(&B::int_device(&lhs)).bool_dtype;
+        B::int_greater_equal(lhs, rhs, out_dtype)
     }
 
     fn greater_equal_elem(lhs: Self::Primitive, rhs: Scalar) -> B::BoolTensorPrimitive {
-        B::int_greater_equal_elem(lhs, rhs)
+        let out_dtype = get_device_settings::<B>(&B::int_device(&lhs)).bool_dtype;
+        B::int_greater_equal_elem(lhs, rhs, out_dtype)
     }
 
     fn lower(lhs: Self::Primitive, rhs: Self::Primitive) -> B::BoolTensorPrimitive {
-        B::int_lower(lhs, rhs)
+        let out_dtype = get_device_settings::<B>(&B::int_device(&lhs)).bool_dtype;
+        B::int_lower(lhs, rhs, out_dtype)
     }
 
     fn lower_elem(lhs: Self::Primitive, rhs: Scalar) -> B::BoolTensorPrimitive {
-        B::int_lower_elem(lhs, rhs)
+        let out_dtype = get_device_settings::<B>(&B::int_device(&lhs)).bool_dtype;
+        B::int_lower_elem(lhs, rhs, out_dtype)
     }
 
     fn lower_equal(lhs: Self::Primitive, rhs: Self::Primitive) -> B::BoolTensorPrimitive {
-        B::int_lower_equal(lhs, rhs)
+        let out_dtype = get_device_settings::<B>(&B::int_device(&lhs)).bool_dtype;
+        B::int_lower_equal(lhs, rhs, out_dtype)
     }
 
     fn lower_equal_elem(lhs: Self::Primitive, rhs: Scalar) -> B::BoolTensorPrimitive {
-        B::int_lower_equal_elem(lhs, rhs)
+        let out_dtype = get_device_settings::<B>(&B::int_device(&lhs)).bool_dtype;
+        B::int_lower_equal_elem(lhs, rhs, out_dtype)
     }
 
     fn argmax(tensor: Self::Primitive, dim: usize) -> IntTensor<B> {

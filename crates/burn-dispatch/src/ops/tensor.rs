@@ -1,9 +1,8 @@
 use burn_backend::{
-    ExecutionError, Scalar, TensorData,
+    BoolDType, ExecutionError, FloatDType, IntDType, Scalar, Shape, Slice, TensorData,
     ops::FloatTensorOps,
     tensor::{BoolTensor, FloatTensor, IntTensor},
 };
-use burn_std::{FloatDType, Shape, Slice};
 
 use crate::backends::*;
 use crate::{Dispatch, DispatchDevice};
@@ -52,8 +51,8 @@ impl FloatTensorOps<Self> for Dispatch {
         )
     }
 
-    fn float_into_int(tensor: FloatTensor<Self>) -> IntTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_into_int(tensor) => Int)
+    fn float_into_int(tensor: FloatTensor<Self>, dtype: burn_backend::IntDType) -> IntTensor<Self> {
+        unary_float!(tensor, float, |tensor| B::float_into_int(tensor, dtype) => Int)
     }
 
     fn float_empty(shape: Shape, device: &DispatchDevice, dtype: FloatDType) -> FloatTensor<Self> {
@@ -203,44 +202,84 @@ impl FloatTensorOps<Self> for Dispatch {
         binary_float!((tensor, float), (mask, bool), |tensor, mask| B::float_mask_fill(tensor, mask, value) => Float)
     }
 
-    fn float_equal(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> BoolTensor<Self> {
-        binary_float!((lhs, float), (rhs, float), |lhs, rhs| B::float_equal(lhs, rhs) => Bool)
+    fn float_equal(
+        lhs: FloatTensor<Self>,
+        rhs: FloatTensor<Self>,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<Self> {
+        binary_float!((lhs, float), (rhs, float), |lhs, rhs| B::float_equal(lhs, rhs, out_dtype) => Bool)
     }
 
-    fn float_equal_elem(lhs: FloatTensor<Self>, rhs: Scalar) -> BoolTensor<Self> {
-        unary_float!(lhs, float, |lhs| B::float_equal_elem(lhs, rhs) => Bool)
+    fn float_equal_elem(
+        lhs: FloatTensor<Self>,
+        rhs: Scalar,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<Self> {
+        unary_float!(lhs, float, |lhs| B::float_equal_elem(lhs, rhs, out_dtype) => Bool)
     }
 
-    fn float_greater(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> BoolTensor<Self> {
-        binary_float!((lhs, float), (rhs, float), |lhs, rhs| B::float_greater(lhs, rhs) => Bool)
+    fn float_greater(
+        lhs: FloatTensor<Self>,
+        rhs: FloatTensor<Self>,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<Self> {
+        binary_float!((lhs, float), (rhs, float), |lhs, rhs| B::float_greater(lhs, rhs, out_dtype) => Bool)
     }
 
-    fn float_greater_elem(lhs: FloatTensor<Self>, rhs: Scalar) -> BoolTensor<Self> {
-        unary_float!(lhs, float, |lhs| B::float_greater_elem(lhs, rhs) => Bool)
+    fn float_greater_elem(
+        lhs: FloatTensor<Self>,
+        rhs: Scalar,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<Self> {
+        unary_float!(lhs, float, |lhs| B::float_greater_elem(lhs, rhs, out_dtype) => Bool)
     }
 
-    fn float_greater_equal(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> BoolTensor<Self> {
-        binary_float!((lhs, float), (rhs, float), |lhs, rhs| B::float_greater_equal(lhs, rhs) => Bool)
+    fn float_greater_equal(
+        lhs: FloatTensor<Self>,
+        rhs: FloatTensor<Self>,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<Self> {
+        binary_float!((lhs, float), (rhs, float), |lhs, rhs| B::float_greater_equal(lhs, rhs, out_dtype) => Bool)
     }
 
-    fn float_greater_equal_elem(lhs: FloatTensor<Self>, rhs: Scalar) -> BoolTensor<Self> {
-        unary_float!(lhs, float, |lhs| B::float_greater_equal_elem(lhs, rhs) => Bool)
+    fn float_greater_equal_elem(
+        lhs: FloatTensor<Self>,
+        rhs: Scalar,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<Self> {
+        unary_float!(lhs, float, |lhs| B::float_greater_equal_elem(lhs, rhs, out_dtype) => Bool)
     }
 
-    fn float_lower(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> BoolTensor<Self> {
-        binary_float!((lhs, float), (rhs, float), |lhs, rhs| B::float_lower(lhs, rhs) => Bool)
+    fn float_lower(
+        lhs: FloatTensor<Self>,
+        rhs: FloatTensor<Self>,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<Self> {
+        binary_float!((lhs, float), (rhs, float), |lhs, rhs| B::float_lower(lhs, rhs, out_dtype) => Bool)
     }
 
-    fn float_lower_elem(lhs: FloatTensor<Self>, rhs: Scalar) -> BoolTensor<Self> {
-        unary_float!(lhs, float, |lhs| B::float_lower_elem(lhs, rhs) => Bool)
+    fn float_lower_elem(
+        lhs: FloatTensor<Self>,
+        rhs: Scalar,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<Self> {
+        unary_float!(lhs, float, |lhs| B::float_lower_elem(lhs, rhs, out_dtype) => Bool)
     }
 
-    fn float_lower_equal(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> BoolTensor<Self> {
-        binary_float!((lhs, float), (rhs, float), |lhs, rhs| B::float_lower_equal(lhs, rhs) => Bool)
+    fn float_lower_equal(
+        lhs: FloatTensor<Self>,
+        rhs: FloatTensor<Self>,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<Self> {
+        binary_float!((lhs, float), (rhs, float), |lhs, rhs| B::float_lower_equal(lhs, rhs, out_dtype) => Bool)
     }
 
-    fn float_lower_equal_elem(lhs: FloatTensor<Self>, rhs: Scalar) -> BoolTensor<Self> {
-        unary_float!(lhs, float, |lhs| B::float_lower_equal_elem(lhs, rhs) => Bool)
+    fn float_lower_equal_elem(
+        lhs: FloatTensor<Self>,
+        rhs: Scalar,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<Self> {
+        unary_float!(lhs, float, |lhs| B::float_lower_equal_elem(lhs, rhs, out_dtype) => Bool)
     }
 
     fn float_sum(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
@@ -375,12 +414,12 @@ impl FloatTensorOps<Self> for Dispatch {
         unary_float!(tensor, float, |tensor| B::float_erf(tensor) => Float)
     }
 
-    fn float_argmax(tensor: FloatTensor<Self>, dim: usize) -> IntTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_argmax(tensor, dim) => Int)
+    fn float_argmax(tensor: FloatTensor<Self>, dim: usize, out_dtype: IntDType) -> IntTensor<Self> {
+        unary_float!(tensor, float, |tensor| B::float_argmax(tensor, dim, out_dtype) => Int)
     }
 
-    fn float_argmin(tensor: FloatTensor<Self>, dim: usize) -> IntTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_argmin(tensor, dim) => Int)
+    fn float_argmin(tensor: FloatTensor<Self>, dim: usize, out_dtype: IntDType) -> IntTensor<Self> {
+        unary_float!(tensor, float, |tensor| B::float_argmin(tensor, dim, out_dtype) => Int)
     }
 
     fn float_expand(tensor: FloatTensor<Self>, shape: Shape) -> FloatTensor<Self> {
@@ -454,12 +493,20 @@ impl FloatTensorOps<Self> for Dispatch {
         unary_float!(tensor, float, |tensor| B::float_transpose(tensor) => Float)
     }
 
-    fn float_not_equal(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> BoolTensor<Self> {
-        binary_float!((lhs, float), (rhs, float), |lhs, rhs| B::float_not_equal(lhs, rhs) => Bool)
+    fn float_not_equal(
+        lhs: FloatTensor<Self>,
+        rhs: FloatTensor<Self>,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<Self> {
+        binary_float!((lhs, float), (rhs, float), |lhs, rhs| B::float_not_equal(lhs, rhs, out_dtype) => Bool)
     }
 
-    fn float_not_equal_elem(lhs: FloatTensor<Self>, rhs: Scalar) -> BoolTensor<Self> {
-        unary_float!(lhs, float, |lhs| B::float_not_equal_elem(lhs, rhs) => Bool)
+    fn float_not_equal_elem(
+        lhs: FloatTensor<Self>,
+        rhs: Scalar,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<Self> {
+        unary_float!(lhs, float, |lhs| B::float_not_equal_elem(lhs, rhs, out_dtype) => Bool)
     }
 
     fn float_prod(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
@@ -501,11 +548,12 @@ impl FloatTensorOps<Self> for Dispatch {
     fn float_max_dim_with_indices(
         tensor: FloatTensor<Self>,
         dim: usize,
+        indices_dtype: IntDType,
     ) -> (FloatTensor<Self>, IntTensor<Self>) {
         multi_op!(
             inputs[(tensor, float)],
             outputs[(out, Float), (indices, Int)],
-            B::float_max_dim_with_indices(tensor, dim)
+            B::float_max_dim_with_indices(tensor, dim, indices_dtype)
         )
     }
 
@@ -520,11 +568,12 @@ impl FloatTensorOps<Self> for Dispatch {
     fn float_min_dim_with_indices(
         tensor: FloatTensor<Self>,
         dim: usize,
+        indices_dtype: IntDType,
     ) -> (FloatTensor<Self>, IntTensor<Self>) {
         multi_op!(
             inputs[(tensor, float)],
             outputs[(out, Float), (indices, Int)],
-            B::float_min_dim_with_indices(tensor, dim)
+            B::float_min_dim_with_indices(tensor, dim, indices_dtype)
         )
     }
 
@@ -536,20 +585,28 @@ impl FloatTensorOps<Self> for Dispatch {
         unary_float!(tensor, float, |tensor| B::float_max_abs_dim(tensor, dim) => Float)
     }
 
-    fn float_any(tensor: FloatTensor<Self>) -> BoolTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_any(tensor) => Bool)
+    fn float_any(tensor: FloatTensor<Self>, out_dtype: BoolDType) -> BoolTensor<Self> {
+        unary_float!(tensor, float, |tensor| B::float_any(tensor, out_dtype) => Bool)
     }
 
-    fn float_any_dim(tensor: FloatTensor<Self>, dim: usize) -> BoolTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_any_dim(tensor, dim) => Bool)
+    fn float_any_dim(
+        tensor: FloatTensor<Self>,
+        dim: usize,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<Self> {
+        unary_float!(tensor, float, |tensor| B::float_any_dim(tensor, dim, out_dtype) => Bool)
     }
 
-    fn float_all(tensor: FloatTensor<Self>) -> BoolTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_all(tensor) => Bool)
+    fn float_all(tensor: FloatTensor<Self>, out_dtype: BoolDType) -> BoolTensor<Self> {
+        unary_float!(tensor, float, |tensor| B::float_all(tensor, out_dtype) => Bool)
     }
 
-    fn float_all_dim(tensor: FloatTensor<Self>, dim: usize) -> BoolTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_all_dim(tensor, dim) => Bool)
+    fn float_all_dim(
+        tensor: FloatTensor<Self>,
+        dim: usize,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<Self> {
+        unary_float!(tensor, float, |tensor| B::float_all_dim(tensor, dim, out_dtype) => Bool)
     }
 
     fn float_sign(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
@@ -564,16 +621,22 @@ impl FloatTensorOps<Self> for Dispatch {
         tensor: FloatTensor<Self>,
         dim: usize,
         descending: bool,
+        indices_dtype: IntDType,
     ) -> (FloatTensor<Self>, IntTensor<Self>) {
         multi_op!(
             inputs[(tensor, float)],
             outputs[(out, Float), (indices, Int)],
-            B::float_sort_with_indices(tensor, dim, descending)
+            B::float_sort_with_indices(tensor, dim, descending, indices_dtype)
         )
     }
 
-    fn float_argsort(tensor: FloatTensor<Self>, dim: usize, descending: bool) -> IntTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_argsort(tensor, dim, descending) => Int)
+    fn float_argsort(
+        tensor: FloatTensor<Self>,
+        dim: usize,
+        descending: bool,
+        out_dtype: IntDType,
+    ) -> IntTensor<Self> {
+        unary_float!(tensor, float, |tensor| B::float_argsort(tensor, dim, descending, out_dtype) => Int)
     }
 
     fn float_grid_sample_2d(
@@ -584,11 +647,11 @@ impl FloatTensorOps<Self> for Dispatch {
         binary_float!((tensor, float), (grid, float), |tensor, grid| B::float_grid_sample_2d(tensor, grid, options) => Float)
     }
 
-    fn float_is_nan(tensor: FloatTensor<Self>) -> BoolTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_is_nan(tensor) => Bool)
+    fn float_is_nan(tensor: FloatTensor<Self>, out_dtype: BoolDType) -> BoolTensor<Self> {
+        unary_float!(tensor, float, |tensor| B::float_is_nan(tensor, out_dtype) => Bool)
     }
 
-    fn float_is_inf(tensor: FloatTensor<Self>) -> BoolTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_is_inf(tensor) => Bool)
+    fn float_is_inf(tensor: FloatTensor<Self>, out_dtype: BoolDType) -> BoolTensor<Self> {
+        unary_float!(tensor, float, |tensor| B::float_is_inf(tensor, out_dtype) => Bool)
     }
 }
