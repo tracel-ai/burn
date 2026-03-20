@@ -42,14 +42,15 @@ pub trait DeviceOps: Clone + Default + PartialEq + Send + Sync + core::fmt::Debu
     }
 }
 
-/// Settings controlling the default device data types.
+/// Settings controlling the default data types for a specific device.
 ///
-/// These settings follow snapshot semantics. When you retrieve settings for a device,
-/// you receive an immutable snapshot of the current configuration. Changes made to the global
-/// [DeviceSettings] registry will only affect tensors created after the policy
-/// was updated.
+/// These settings are managed in a global registry that enforces strict initialization semantics:
 ///
-/// Settings should only be set once during initialization, to be queried during tensor creation.
+/// 1. Manual Initialization: You can set these once at the start of your program using [`set_default_dtypes`].
+/// 2. Default Initialization: If an operation (like creating a tensor) occurs before manual initialization,
+///    the settings are permanently locked to their default values.
+/// 3. Immutability: Once initialized, settings cannot be changed. This ensures consistent behavior across
+///    all threads and operations.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct DeviceSettings {
     /// Default floating-point data type for tensor creation.
@@ -100,17 +101,6 @@ type RegistryKey = (DeviceId, TypeId);
 static REGISTRY: LazyLock<RwLock<HashMap<RegistryKey, Arc<OnceLock<DeviceSettings>>>>> =
     LazyLock::new(|| RwLock::new(HashMap::new()));
 
-/// Device settings management for controlling default tensor creation behavior.
-///
-/// # Settings Semantics
-///
-/// Device settings use snapshot semantics: when you retrieve a settings with
-/// [`get_device_settings`], you get an immutable snapshot of the current configuration.
-/// Updates to the settings (via [`set_default_dtypes`], [`set_default_float_dtype`], etc.)
-/// only affect future settings retrievals, not existing references.
-///
-/// This is intended for the common case where settings are set once during
-/// initialization and then read frequently during tensor creation.
 struct DeviceSettingsRegistry;
 
 impl DeviceSettingsRegistry {
@@ -300,8 +290,15 @@ pub fn set_default_dtypes<B: Backend>(
 /// Sets the default floating-point data type for the device.
 ///
 /// This updates the device's default data types used for tensor creation.
-/// The settings should typically be set once during initialization and then
-/// remains global for all subsequent operations on that device.
+///
+/// Settings can only be initialized once per device. Subsequent calls for
+/// the same device return [`DeviceError::AlreadyInitialized`].
+///
+/// # Note
+///
+/// Initialization must happen before any tensor creation on the device.
+/// The first tensor operation will lock the device to its defaults, causing
+/// any subsequent initialization attempt to return [`DeviceError::AlreadyInitialized`].
 ///
 /// # Example
 ///
@@ -330,8 +327,15 @@ pub fn set_default_float_dtype<B: Backend>(
 /// Sets the default integer data type for the device.
 ///
 /// This updates the device's default data types used for tensor creation.
-/// The settings should typically be set once during initialization and then
-/// remains global for all subsequent operations on that device.
+///
+/// Settings can only be initialized once per device. Subsequent calls for
+/// the same device return [`DeviceError::AlreadyInitialized`].
+///
+/// # Note
+///
+/// Initialization must happen before any tensor creation on the device.
+/// The first tensor operation will lock the device to its defaults, causing
+/// any subsequent initialization attempt to return [`DeviceError::AlreadyInitialized`].
 ///
 /// # Example
 ///
