@@ -2,9 +2,9 @@ use burn_fusion::stream::Context;
 use burn_std::{DType, Shape, Strides, quantization::QParamTensor, strides};
 use cubecl::quant::scheme::{QuantParam, QuantScheme};
 use cubecl::{
-    CubeElement, Runtime,
+    Runtime,
     client::ComputeClient,
-    ir::{AddressType, ElemType},
+    ir::AddressType,
     prelude::{TensorArg, TensorBinding},
 };
 use std::marker::PhantomData;
@@ -121,29 +121,4 @@ pub(crate) fn strides_dyn_rank(shape: &[usize]) -> Strides {
     });
 
     strides
-}
-
-pub(crate) fn elem_dtype<E: CubeElement>() -> DType {
-    match E::cube_type().elem_type() {
-        ElemType::Float(kind) => match kind {
-            cubecl::ir::FloatKind::F64 => DType::F64,
-            cubecl::ir::FloatKind::F16 => DType::F16,
-            cubecl::ir::FloatKind::BF16 => DType::BF16,
-            cubecl::ir::FloatKind::F32 => DType::F32,
-            _ => todo!(),
-        },
-        ElemType::Int(kind) => match kind {
-            cubecl::ir::IntKind::I64 => DType::I64,
-            cubecl::ir::IntKind::I32 => DType::I32,
-            cubecl::ir::IntKind::I16 => DType::I16,
-            cubecl::ir::IntKind::I8 => DType::I8,
-        },
-        ElemType::UInt(kind) => match kind {
-            cubecl::ir::UIntKind::U64 => DType::U64,
-            cubecl::ir::UIntKind::U32 => DType::U32,
-            cubecl::ir::UIntKind::U16 => DType::U16,
-            cubecl::ir::UIntKind::U8 => DType::U8,
-        },
-        ElemType::Bool => DType::Bool,
-    }
 }

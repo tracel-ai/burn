@@ -76,7 +76,6 @@ pub fn read<C: Scalar, N: Size>(
             FuseType::I32 => Vector::cast_from(locals.l_i32.find(pos)),
             FuseType::I16 => Vector::cast_from(locals.l_i16.find(pos)),
             FuseType::I8 => Vector::cast_from(locals.l_i8.find(pos)),
-            FuseType::Bool => Vector::cast_from(locals.l_bool.find(pos)),
         },
         FuseArg::Scalar(..) => {
             let scalar = read_scalar::<C>(inputs, arg);
@@ -486,7 +485,6 @@ pub fn write_scalar<C: Scalar, N: Size>(
             FuseType::I32 => locals.l_i32.insert(pos, Vector::cast_from(value)),
             FuseType::I16 => locals.l_i16.insert(pos, Vector::cast_from(value)),
             FuseType::I8 => locals.l_i8.insert(pos, Vector::cast_from(value)),
-            FuseType::Bool => locals.l_bool.insert(pos, Vector::cast_from(value)),
         },
         _ => comptime![panic!("Can't write into something else than scalars")],
     }
