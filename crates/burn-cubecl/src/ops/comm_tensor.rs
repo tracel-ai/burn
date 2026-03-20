@@ -30,7 +30,7 @@ where
     }
 
     fn sync_collective(device: &Device<Self>) {
-        let client = R::client(&device);
+        let client = R::client(device);
         client.sync_collective();
     }
 }

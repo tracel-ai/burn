@@ -100,10 +100,12 @@ pub trait CommunicationTensorOps<B: Backend> {
     ///
     /// # Arguments
     ///
-    /// * `tensor` - The tensor on which to perform all_reduce.
-    /// * `peer_id` - The [PeerId] of the device the tensor is on.
-    /// * `all_ids` - The [PeerId] of the devices on which to all_reduce.
+    /// * `tensors` - The tensors on which to perform all_reduce.
     /// * `op` - The [`ReduceOperation`].
+    ///
+    /// # Safety
+    ///
+    /// Ensure that the tensors are not accessed/modified when calling in-place operation.
     #[allow(unused)]
     unsafe fn all_reduce_in_place(tensors: Vec<TensorRef<B>>, op: ReduceOperation) {
         unsafe { all_reduce_inplace_centralized(tensors, op) };
@@ -128,6 +130,10 @@ pub trait CommunicationTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The device of the tensor.
+    ///
+    /// # Safety
+    ///
+    /// Ensure that the tensors are not accessed/modified when calling.
     unsafe fn comm_device(tensor: &TensorRef<B>) -> Device<B> {
         unsafe { B::float_device(&(*tensor.0)) }
     }
@@ -141,6 +147,10 @@ pub trait CommunicationTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A float tensor containing a copy of the data of the given tensor.
+    ///
+    /// # Safety
+    ///
+    /// Ensure that the tensors are not accessed/modified when calling.
     unsafe fn float_from_ref(tensor: &TensorRef<B>) -> FloatTensor<B> {
         unsafe { (*tensor.0).clone() }
     }

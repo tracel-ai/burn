@@ -103,7 +103,7 @@ impl AutodiffServer {
     ) -> Gradients {
         let device = &B::float_device(&root_tensor);
 
-        // For DDP, we register the distibuted parameters of the tensors' nodes used in the graph and the number of times they
+        // For DDP, we register the distributed parameters of the tensors' nodes used in the graph and the number of times they
         // appear as nodes to know when to launch gradients reducing.
         let mut sync_registration = None;
         let require_sync = !tape_result.distributed_params.is_empty();

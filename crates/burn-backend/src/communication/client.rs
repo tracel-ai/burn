@@ -13,6 +13,7 @@ pub(crate) enum ActionMessage<B: Backend> {
 pub(crate) enum DistributedSyncMessage<B: Backend> {
     RegisterSyncParameters(Vec<DistributedParams>),
     TensorSync((TensorRef<B>, DistributedParams)),
+    #[allow(clippy::type_complexity)]
     CollectiveSync((Device<B>, oneshot::Sender<Box<dyn FnOnce() + Send>>)),
 }
 
@@ -27,11 +28,10 @@ impl<B: Backend> DistributedSyncClient<B> {
 
         let mut server = DistributedSyncServer::new(num_devices, config);
         spawn(move || {
-            loop {
-                match rx.recv().expect("Gradient sync server disconnected.") {
-                    ActionMessage::Message(msg) => server.process_message(msg),
-                    ActionMessage::Close() => break,
-                }
+            while let ActionMessage::Message(msg) =
+                rx.recv().expect("Gradient sync server disconnected.")
+            {
+                server.process_message(msg)
             }
         });
         Self { sender: tx }

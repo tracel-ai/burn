@@ -12,7 +12,7 @@ use crate::{Dispatch, DispatchDevice};
 
 impl CommunicationTensorOps<Self> for Dispatch {
     fn start_communication_server(devices: Vec<DispatchDevice>, config: DistributedConfig) {
-        if devices.len() > 0 {
+        if !devices.is_empty() {
             let first = &devices[0];
             dispatch_devices!(first, devices, |inner_devices| {
                 B::start_communication_server(inner_devices, config)

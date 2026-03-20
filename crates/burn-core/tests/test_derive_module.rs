@@ -29,7 +29,7 @@ impl<B: Backend> ModuleBasic<B> {
                 std: 1.0,
                 mean: 0.0,
             }
-            .init([4, 4], device),
+            .init([20, 20], device),
         }
     }
 }

@@ -74,11 +74,6 @@ impl<LC: LearningComponentsTypes> Learner<LC> {
     }
 
     /// Mark the model as sharded across multiple devices.
-    ///
-    /// # Arguments
-    ///
-    /// * `peer_id` - The device's [PeerId](PeerId).
-    /// * `op` - The reduce operation.
     pub fn grad_sharded(&mut self) {
         self.model = self.model.clone().grad_distributed();
     }

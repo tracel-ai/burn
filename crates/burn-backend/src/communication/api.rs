@@ -22,14 +22,13 @@ pub(crate) fn get_backend_client_map() -> MutexGuard<'static, HashMap<TypeId, Cl
         .unwrap()
 }
 
-/// Get a [`DistributedSyncClient`] for the given [`Backend`].
+/// Get the distributed sync client for the given [`Backend`].
 pub fn get_distributed_sync_client<B: Backend>() -> Option<DistributedSyncClient<B>> {
     let typeid = TypeId::of::<B>();
     let state_map = get_backend_client_map();
-    match state_map.get(&typeid) {
-        Some(val) => Some(val.downcast_ref().cloned().unwrap()),
-        None => None,
-    }
+    state_map
+        .get(&typeid)
+        .map(|val| val.downcast_ref().cloned().unwrap())
 }
 
 /// Remove the client form the map for the given [`Backend`].

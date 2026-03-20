@@ -9,7 +9,7 @@ pub(crate) fn reduce_sum_centralized<B: Backend>(
     let mut central_tensor = unsafe { B::float_from_ref(&tensors.remove(0)) };
 
     for tensor in tensors {
-        let rhs = unsafe { B::float_to_device(B::float_from_ref(&tensor), &central_device) };
+        let rhs = unsafe { B::float_to_device(B::float_from_ref(&tensor), central_device) };
         central_tensor = B::float_add(central_tensor, rhs);
     }
 
@@ -26,10 +26,10 @@ pub(crate) unsafe fn all_reduce_inplace_centralized<B: Backend>(
         .iter()
         .map(|tensor| unsafe { B::comm_device(tensor) })
         .collect();
-    let central_device = devices.get(0).unwrap();
+    let central_device = devices.first().unwrap();
 
     // Reduce to central device
-    let mut central_tensor = reduce_sum_centralized::<B>(tensors.clone(), &central_device);
+    let mut central_tensor = reduce_sum_centralized::<B>(tensors.clone(), central_device);
 
     if op == ReduceOperation::Mean {
         // Apply mean division
