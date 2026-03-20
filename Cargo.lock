@@ -998,6 +998,7 @@ dependencies = [
  "hashbrown 0.16.1",
  "log",
  "serde",
+ "smallvec",
  "spin",
  "tracing",
 ]

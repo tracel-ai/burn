@@ -14,6 +14,7 @@ use burn_cubecl_fusion::{
         reduce_broadcasted::ReduceBroadcastedOptimization,
     },
 };
+use burn_fusion::UnfusedOp;
 use burn_fusion::{
     FusionBackend, FusionRuntime,
     stream::{Operation, OrderedExecution},
@@ -89,6 +90,14 @@ impl<R: CubeRuntime> FallbackOperation<R>
 {
     fn run(&self, context: &mut burn_fusion::stream::Context<'_, CubeFusionHandle<R>>) {
         self.operation.as_ref().execute(context.handles);
+    }
+}
+
+impl<R: CubeRuntime, BT: BoolElement> FallbackOperation<R>
+    for FallbackOperationWrapper<UnfusedOp<FusionCubeRuntime<R, BT>>>
+{
+    fn run(&self, context: &mut burn_fusion::stream::Context<'_, CubeFusionHandle<R>>) {
+        self.operation.execute(context.handles);
     }
 }
 

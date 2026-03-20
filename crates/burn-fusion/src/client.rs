@@ -1,14 +1,13 @@
 use crate::{
     FusionBackend, FusionDevice, FusionHandle, FusionRuntime, FusionServer, FusionTensor,
+    UnfusedOp,
     stream::{OperationStreams, StreamId, execution::Operation},
 };
 use burn_backend::{Device, DeviceHandle, DeviceId, DeviceService};
 use burn_backend::{TensorData, backend::ExecutionError};
 use burn_ir::{OperationIr, TensorId, TensorIr};
-use std::sync::{
-    Arc,
-    atomic::{AtomicU64, Ordering},
-};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 /// Use a mutex to communicate with the fusion server.
 pub struct GlobalFusionClient<R: FusionRuntime> {
@@ -77,6 +76,8 @@ where
     where
         O: Operation<R> + 'static,
     {
+        let operation = UnfusedOp::new(operation, streams.current);
+
         // Create output tensors returned by this operation
         let outputs = repr
             .outputs()
@@ -92,7 +93,7 @@ where
             .collect();
 
         self.server.submit(move |server| {
-            server.register(streams, repr, Arc::new(operation));
+            server.register(streams, repr, operation);
         });
 
         outputs
