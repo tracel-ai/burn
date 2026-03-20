@@ -30,7 +30,7 @@ pub fn launch_multi<B: AutodiffBackend>() {
 
 pub fn launch<B: AutodiffBackend>(devices: Vec<B::Device>) {
     let config = ExperimentConfig::new(
-        TransformerEncoderConfig::new(256, 1024, 8, 4)
+        TransformerEncoderConfig::new(1024, 2048, 8, 8)
             .with_norm_first(true)
             .with_quiet_softmax(true),
         AdamConfig::new().with_weight_decay(Some(WeightDecayConfig::new(5e-5))),
@@ -41,7 +41,8 @@ pub fn launch<B: AutodiffBackend>(devices: Vec<B::Device>) {
         AgNewsDataset::train(),
         AgNewsDataset::test(),
         config,
-        "/tmp/text-classification-ag-news",
+        // /tmp/text-classification-ag-news",
+        "/home/charles/text-classification-ag-news",
     );
 }
 

@@ -20,7 +20,7 @@ use burn::{
     },
     prelude::*,
     record::{CompactRecorder, NoStdTrainingRecorder},
-    tensor::backend::AutodiffBackend,
+    tensor::{backend::AutodiffBackend, communication::DistributedConfig},
     train::{
         EvaluatorBuilder, Learner, MetricEarlyStoppingStrategy, StoppingCondition,
         metric::{
@@ -32,7 +32,7 @@ use burn::{
 };
 use burn::{optim::AdamWConfig, train::SupervisedTraining};
 
-static ARTIFACT_DIR: &str = "/tmp/burn-example-mnist";
+static ARTIFACT_DIR: &str = "/home/charles/burn-example-mnist";
 
 #[derive(Config, Debug)]
 pub struct MnistTrainingConfig {
@@ -57,12 +57,118 @@ fn create_artifact_dir(artifact_dir: &str) {
     std::fs::create_dir_all(artifact_dir).ok();
 }
 
+pub fn run2<B: AutodiffBackend>(devices: Vec<B::Device>) {
+    create_artifact_dir(ARTIFACT_DIR);
+    // Config
+    let config_optimizer = AdamWConfig::new()
+        .with_cautious_weight_decay(true)
+        .with_weight_decay(5e-5);
+
+    let device = devices[0].clone();
+
+    let config = MnistTrainingConfig::new(config_optimizer);
+    B::seed(&device, config.seed);
+
+    let model = Model::<B>::new(&device);
+
+    let dataset_train_original = Arc::new(MnistDataset::train());
+    let dataset_train_plain = PartialDataset::new(dataset_train_original.clone(), 0, 55_000);
+    let dataset_valid_plain = PartialDataset::new(dataset_train_original.clone(), 55_000, 60_000);
+
+    let ident_trains = generate_idents(Some(10000));
+    let ident_valid = generate_idents(None);
+    let dataset_train = DatasetIdent::compose(ident_trains, dataset_train_plain);
+    let dataset_valid = DatasetIdent::compose(ident_valid, dataset_valid_plain);
+
+    let dataloader_train = DataLoaderBuilder::new(MnistBatcher::default())
+        .batch_size(config.batch_size)
+        .shuffle(config.seed)
+        .num_workers(config.num_workers)
+        .build(dataset_train);
+    let dataloader_valid = DataLoaderBuilder::new(MnistBatcher::default())
+        .batch_size(config.batch_size)
+        .shuffle(config.seed)
+        .num_workers(config.num_workers)
+        .build(dataset_valid);
+    let lr_scheduler = ComposedLrSchedulerConfig::new()
+        .cosine(CosineAnnealingLrSchedulerConfig::new(1.0, 2000))
+        // Warmup
+        .linear(LinearLrSchedulerConfig::new(1e-8, 1.0, 2000))
+        .linear(LinearLrSchedulerConfig::new(1e-2, 1e-6, 10000));
+
+    let dist_config = DistributedConfig {
+        all_reduce_op: burn::tensor::communication::ReduceOperation::Mean,
+    };
+
+    let training = SupervisedTraining::new(ARTIFACT_DIR, dataloader_train, dataloader_valid)
+        .metrics((AccuracyMetric::new(), LossMetric::new()))
+        .metric_train_numeric(LearningRateMetric::new())
+        .with_file_checkpointer(CompactRecorder::new())
+        .early_stopping(MetricEarlyStoppingStrategy::new(
+            &LossMetric::<B>::new(),
+            Aggregate::Mean,
+            Direction::Lowest,
+            Split::Valid,
+            StoppingCondition::NoImprovementSince { n_epochs: 5 },
+        ))
+        .num_epochs(config.num_epochs)
+        .summary()
+        .with_training_strategy(burn::train::TrainingStrategy::DistributedDataParallel {
+            devices: devices,
+            config: dist_config,
+        });
+
+    let result = training.launch(Learner::new(
+        model,
+        config.optimizer.init(),
+        lr_scheduler.init().unwrap(),
+    ));
+
+    let dataset_test_plain = Arc::new(MnistDataset::test());
+    let mut renderer = result.renderer;
+
+    let idents_tests = generate_idents(None);
+
+    for (ident, _) in idents_tests {
+        let name = ident.to_string();
+        renderer = evaluate::<B::InnerBackend>(
+            name.as_str(),
+            ident,
+            result.model.clone(),
+            renderer,
+            dataset_test_plain.clone(),
+            config.batch_size,
+        );
+    }
+
+    result
+        .model
+        .save_file(
+            format!("{ARTIFACT_DIR}/model"),
+            &NoStdTrainingRecorder::new(),
+        )
+        .expect("Failed to save trained model");
+
+    config
+        .save(format!("{ARTIFACT_DIR}/config.json").as_str())
+        .unwrap();
+
+    renderer.manual_close();
+}
+
 pub fn run<B: AutodiffBackend>(device: B::Device) {
     create_artifact_dir(ARTIFACT_DIR);
     // Config
     let config_optimizer = AdamWConfig::new()
         .with_cautious_weight_decay(true)
         .with_weight_decay(5e-5);
+
+    // let type_id = 0;
+    // let num_devices = B::Device::device_count(type_id);
+    // let devices: Vec<<B as Backend>::Device> = (0..2)
+    //     .map(|i| B::Device::from_id(DeviceId::new(type_id, i as u32)))
+    //     .collect();
+    // let device = devices[0].clone();
 
     let config = MnistTrainingConfig::new(config_optimizer);
     B::seed(&device, config.seed);
@@ -107,6 +213,10 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         ))
         .num_epochs(config.num_epochs)
         .summary();
+    // .with_training_strategy(burn::train::TrainingStrategy::DistributedDataParallel {
+    //     devices: devices,
+    //     config: collective_config,
+    // });
 
     let result = training.launch(Learner::new(
         model,
