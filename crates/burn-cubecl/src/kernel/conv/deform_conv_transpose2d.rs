@@ -524,7 +524,7 @@ fn compute_input_grad<R: CubeRuntime>(
             address_type!(offset, mask, columns, grad_in),
             offset.into_tensor_arg(),
             mask.map(|mask| mask.into_tensor_arg()).into(),
-            columns.into_linear_view(),
+            reshape(columns, Shape::new([num_elements])).into_linear_view(),
             grad_arg,
             pos_shape,
             DeformConv2dCol2ImgArgsLaunch::new(
