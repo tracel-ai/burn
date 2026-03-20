@@ -441,6 +441,14 @@ impl DispatchTensorKind {
 
 impl DispatchTensor {
     pub(crate) fn device(&self) -> DispatchDevice {
-        self.kind.device()
+        #[allow(unused_mut)]
+        let mut device = self.kind.device();
+
+        #[cfg(feature = "autodiff")]
+        if let DispatchDevice::Autodiff(device) = &mut device {
+            device.checkpointing = self.checkpointing;
+        }
+
+        device
     }
 }
