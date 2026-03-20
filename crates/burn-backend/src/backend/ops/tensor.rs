@@ -5,7 +5,8 @@ use super::sort::{argsort, sort, sort_with_indices};
 use crate::ops::GridSampleOptions;
 use crate::tensor::{BoolTensor, Device, Float, FloatTensor, IntTensor};
 use crate::{
-    Backend, DistributedParams, Distribution, DistributedParamId, PeerId, ReduceOperation, TensorData,
+    Backend, DistributedParamId, DistributedParams, Distribution, PeerId, ReduceOperation,
+    TensorData,
 };
 use crate::{ExecutionError, Scalar, TensorMetadata, TensorPrimitive};
 use alloc::vec::Vec;
