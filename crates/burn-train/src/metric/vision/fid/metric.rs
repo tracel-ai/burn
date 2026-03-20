@@ -4,11 +4,13 @@ use burn::config::Config;
 use burn::module::Module;
 use burn::tensor::Tensor;
 use burn::tensor::backend::Backend;
+use burn::tensor::linalg;
 
 use super::inception::InceptionV3FeatureExtractor;
 
 const IMAGENET_MEAN: [f32; 3] = [0.485, 0.456, 0.406];
 const IMAGENET_STD: [f32; 3] = [0.229, 0.224, 0.225];
+const EPS: f64 = 1e-6;
 
 /// Configuration for [Fid].
 ///
@@ -94,15 +96,9 @@ impl<B: Backend> Fid<B> {
 
 fn imagenet_normalize<B: Backend>(x: Tensor<B, 4>) -> Tensor<B, 4> {
     let device = x.device();
-    let [batch, _, h, w] = x.dims();
 
-    // Build [1, 3, 1, 1] broadcastable tensors
-    let mean = Tensor::<B, 1>::from_floats(IMAGENET_MEAN, &device)
-        .reshape([1, 3, 1, 1])
-        .expand([batch, 3, h, w]);
-    let std = Tensor::<B, 1>::from_floats(IMAGENET_STD, &device)
-        .reshape([1, 3, 1, 1])
-        .expand([batch, 3, h, w]);
+    let mean = Tensor::<B, 1>::from_floats(IMAGENET_MEAN, &device).reshape([1, 3, 1, 1]);
+    let std = Tensor::<B, 1>::from_floats(IMAGENET_STD, &device).reshape([1, 3, 1, 1]);
 
     x.sub(mean).div(std)
 }
@@ -130,12 +126,8 @@ fn matrix_sqrt_newton_schulz<B: Backend>(a: Tensor<B, 2>, num_iterations: usize)
     let [d, _] = a.dims();
     let device = a.device();
 
-    let norm_a = a.clone().mul(a.clone()).sum().sqrt();
-    let norm_val = norm_a.clone().into_data().to_vec::<f32>().unwrap()[0] as f64;
-
-    if norm_val < 1e-10 {
-        return Tensor::zeros([d, d], &device);
-    }
+    // Clamp to avoid division by near-zero norms (also avoids a GPU sync).
+    let norm_a = a.clone().mul(a.clone()).sum().sqrt().clamp_min(EPS);
 
     let identity = Tensor::<B, 2>::eye(d, &device);
     let mut y = a.div(norm_a.clone().unsqueeze_dim::<2>(0).expand([d, d]));
@@ -173,19 +165,13 @@ fn frechet_distance<B: Backend>(
     let mean_term = diff.clone().mul(diff).sum();
 
     // Small regularization (eps · I) scaled to the average variance for numerical
-    // stability with near-singular covariances.
-    let avg_variance = {
-        let tr1 = trace_2d(sigma1.clone())
-            .into_data()
-            .to_vec::<f32>()
-            .unwrap()[0] as f64;
-        let tr2 = trace_2d(sigma2.clone())
-            .into_data()
-            .to_vec::<f32>()
-            .unwrap()[0] as f64;
-        ((tr1 + tr2) / (2.0 * d as f64)).max(1e-10)
-    };
-    let reg = Tensor::<B, 2>::eye(d, &device).mul_scalar(1e-6 * avg_variance);
+    // stability with near-singular covariances. Done entirely with tensor ops to
+    // avoid forcing a GPU sync.
+    let tr_sum =
+        linalg::trace::<B, 2, 1>(sigma1.clone()).add(linalg::trace::<B, 2, 1>(sigma2.clone()));
+    let avg_variance = tr_sum.div_scalar(2.0 * d as f64).clamp_min(EPS);
+    let reg =
+        Tensor::<B, 2>::eye(d, &device).mul(avg_variance.mul_scalar(EPS).unsqueeze_dim::<2>(0));
     let sigma1 = sigma1.add(reg.clone());
     let sigma2 = sigma2.add(reg);
 
@@ -197,16 +183,9 @@ fn frechet_distance<B: Backend>(
     let sqrt_m = matrix_sqrt_newton_schulz(m, num_iterations);
 
     let cov_term = sigma1.add(sigma2).sub(sqrt_m.mul_scalar(2.0));
-    let trace = trace_2d(cov_term);
+    let trace = linalg::trace::<B, 2, 1>(cov_term);
 
     mean_term.add(trace).reshape([1])
-}
-
-/// Sum of diagonal elements of a 2D tensor.
-fn trace_2d<B: Backend>(m: Tensor<B, 2>) -> Tensor<B, 1> {
-    let [d, _] = m.dims();
-    let eye = Tensor::<B, 2>::eye(d, &m.device());
-    m.mul(eye).sum()
 }
 
 #[cfg(test)]
