@@ -1080,3 +1080,76 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
         Tensor::new(primitive)
     }
 }
+
+impl<B: Backend> Tensor<B, 2> {
+    /// Draws samples from a multinomial (categorical) distribution defined by the
+    /// rows of the input tensor.
+    ///
+    /// Each row is treated as a (possibly unnormalized) set of weights defining a
+    /// categorical distribution over columns. The method returns integer indices of
+    /// the sampled categories.
+    ///
+    /// # Arguments
+    ///
+    /// * `num_samples` - Number of samples to draw per row.
+    /// * `replacement` - Whether to sample with replacement. Sampling without
+    ///   replacement with `num_samples > 1` is not yet supported and will panic.
+    ///
+    /// # Returns
+    ///
+    /// An integer tensor of shape `[batch_size, num_samples]` containing the
+    /// sampled category indices in `[0, num_categories)`.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::Tensor;
+    ///
+    /// fn example<B: Backend>() {
+    ///     let device = B::Device::default();
+    ///     let probs = Tensor::<B, 2>::from_floats(
+    ///         [[0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+    ///         &device,
+    ///     );
+    ///     let samples = probs.multinomial(4, true);
+    ///     // First row always samples index 1, second row always samples index 2
+    ///     println!("{samples}");
+    /// }
+    /// ```
+    pub fn multinomial(self, num_samples: usize, replacement: bool) -> Tensor<B, 2, Int> {
+        if !replacement && num_samples > 1 {
+            panic!(
+                "multinomial: sampling without replacement with num_samples > 1 \
+                 is not yet supported"
+            );
+        }
+
+        let [batch_size, _num_categories] = self.dims();
+        let device = self.device();
+
+        // Normalize weights to probabilities
+        let sum = self.clone().sum_dim(1); // [batch, 1]
+        let probs = self / sum;
+
+        // Cumulative sum along categories dimension
+        let cumsum = probs.cumsum(1); // [batch, categories]
+
+        // Uniform random values for each sample
+        let uniform = Tensor::<B, 2>::random(
+            [batch_size, num_samples],
+            Distribution::Uniform(0.0, 1.0),
+            &device,
+        ); // [batch, num_samples]
+
+        // Expand dimensions for broadcasting:
+        //   cumsum: [batch, categories, 1]
+        //   uniform: [batch, 1, num_samples]
+        let cumsum_3d: Tensor<B, 3> = cumsum.unsqueeze_dim(2);
+        let uniform_3d: Tensor<B, 3> = uniform.unsqueeze_dim(1);
+
+        // Count categories where cumsum < uniform (inverse CDF)
+        let mask: Tensor<B, 3, Bool> = cumsum_3d.lower(uniform_3d);
+        mask.int().sum_dim(1).squeeze_dim::<2>(1)
+    }
+}
