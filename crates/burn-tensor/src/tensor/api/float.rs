@@ -1095,6 +1095,11 @@ impl<B: Backend> Tensor<B, 2> {
     /// * `replacement` - Whether to sample with replacement. Sampling without
     ///   replacement with `num_samples > 1` is not yet supported and will panic.
     ///
+    /// # Note
+    ///
+    /// Rows with all-zero weights produce undefined (NaN-based) sampling results.
+    /// Callers should ensure each row has at least one positive weight.
+    ///
     /// # Returns
     ///
     /// An integer tensor of shape `[batch_size, num_samples]` containing the
@@ -1125,7 +1130,7 @@ impl<B: Backend> Tensor<B, 2> {
             );
         }
 
-        let [batch_size, _num_categories] = self.dims();
+        let [batch_size, num_categories] = self.dims();
         let device = self.device();
 
         // Normalize weights to probabilities
@@ -1150,6 +1155,9 @@ impl<B: Backend> Tensor<B, 2> {
 
         // Count categories where cumsum < uniform (inverse CDF)
         let mask: Tensor<B, 3, Bool> = cumsum_3d.lower(uniform_3d);
-        mask.int().sum_dim(1).squeeze_dim::<2>(1)
+        let indices = mask.int().sum_dim(1).squeeze_dim::<2>(1);
+
+        // Clamp to valid range to guard against floating-point imprecision in cumsum
+        indices.clamp(0, num_categories as i64 - 1)
     }
 }

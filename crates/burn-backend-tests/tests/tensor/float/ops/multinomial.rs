@@ -75,6 +75,27 @@ fn multinomial_unnormalized_weights() {
 }
 
 #[test]
+fn multinomial_statistical_distribution() {
+    // With equal probabilities [0.5, 0.5], samples should be roughly evenly split
+    let num_samples = 1000;
+    let probs = TestTensor::<2>::from([[0.5, 0.5]]);
+    let samples = probs.multinomial(num_samples, true);
+
+    let data: TensorData = samples.into_data();
+    let values = data.to_vec::<i64>().unwrap();
+
+    let count_zero = values.iter().filter(|&&v| v == 0).count();
+    let ratio = count_zero as f64 / num_samples as f64;
+
+    // Expect ~50% zeros, allow wide tolerance for stochastic test
+    assert!(
+        ratio > 0.3 && ratio < 0.7,
+        "expected ~50% index-0 samples, got {:.1}%",
+        ratio * 100.0
+    );
+}
+
+#[test]
 #[should_panic]
 fn multinomial_no_replacement_multiple_samples_panics() {
     let probs = TestTensor::<2>::from([[0.5, 0.5]]);
