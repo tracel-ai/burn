@@ -12,10 +12,8 @@ pub(crate) fn mask_fill_auto<R: CubeRuntime>(
     dtype_bool: DType,
 ) -> CubeTensor<R> {
     let strategy = if tensor.can_mut() && tensor.is_nonoverlapping() {
-        println!("INPLACE");
         MaskFillStrategy::Inplace
     } else {
-        println!("READONLY");
         MaskFillStrategy::Readonly
     };
 
