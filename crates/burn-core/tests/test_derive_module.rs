@@ -440,6 +440,7 @@ mod require_grad {
         assert!(grad_x.is_some());
     }
 
+    #[cfg(feature = "std")]
     #[test]
     #[serial]
     fn sharded_module_should_sync_gradients_sum() {
@@ -448,6 +449,7 @@ mod require_grad {
         });
     }
 
+    #[cfg(feature = "std")]
     #[test]
     #[serial]
     fn sharded_module_should_sync_gradients_mean() {
@@ -456,6 +458,7 @@ mod require_grad {
         });
     }
 
+    #[cfg(feature = "std")]
     #[test]
     #[serial]
     fn sharded_module_should_sync_gradients_sum_residual() {
@@ -465,6 +468,7 @@ mod require_grad {
         });
     }
 
+    #[cfg(feature = "std")]
     #[test]
     #[serial]
     fn sharded_module_should_sync_gradients_mean_residual() {
@@ -474,6 +478,7 @@ mod require_grad {
         });
     }
 
+    #[cfg(feature = "std")]
     #[test]
     #[serial]
     fn sharded_module_should_sync_gradients_sum_activation() {
@@ -484,6 +489,7 @@ mod require_grad {
         });
     }
 
+    #[cfg(feature = "std")]
     #[test]
     #[serial]
     fn sharded_module_should_sync_gradients_mean_activation() {
@@ -494,6 +500,7 @@ mod require_grad {
         });
     }
 
+    #[cfg(feature = "std")]
     #[test]
     #[serial]
     fn sharded_module_should_sync_gradients_sum_diamond_graph() {
@@ -504,6 +511,7 @@ mod require_grad {
         });
     }
 
+    #[cfg(feature = "std")]
     #[test]
     #[serial]
     fn sharded_module_should_sync_gradients_mean_diamond_graph() {
@@ -514,6 +522,7 @@ mod require_grad {
         });
     }
 
+    #[cfg(feature = "std")]
     fn compare_sync_gradients<B: AutodiffBackend>(
         op: ReduceOperation,
         transformation: fn(Tensor<B, 2>, Tensor<B, 2>) -> Tensor<B, 2>,
@@ -545,12 +554,14 @@ mod require_grad {
         <B::InnerBackend>::close_communication_server(&devices[0]);
     }
 
+    #[cfg(feature = "std")]
     fn create_devices<D: Device>(type_id: u16, count: usize) -> Vec<D> {
         (0..count)
             .map(|i| D::from_id(DeviceId::new(type_id, i as u32)))
             .collect()
     }
 
+    #[cfg(feature = "std")]
     fn create_channels(
         device_count: usize,
     ) -> (Vec<Sender<TensorData>>, Vec<Receiver<TensorData>>) {
@@ -559,6 +570,7 @@ mod require_grad {
             .unzip()
     }
 
+    #[cfg(feature = "std")]
     fn spawn_peer_threads<B: AutodiffBackend>(
         module: &ModuleBasic<B>,
         devices: &[<B as Backend>::Device],
@@ -605,6 +617,7 @@ mod require_grad {
         handles
     }
 
+    #[cfg(feature = "std")]
     pub fn run_peer_sharded<B: AutodiffBackend>(
         module: &ModuleBasic<B>,
         output: Option<Sender<TensorData>>,
@@ -616,7 +629,7 @@ mod require_grad {
     ) {
         let mut module = module.clone().fork(&device);
 
-        for i in 0..num_iter {
+        for _ in 0..num_iter {
             module = module.fork(&device).grad_distributed();
             let grads_x = calculate_grads(&module, transformation);
             let data = grads_x.unwrap().to_data();
