@@ -913,7 +913,7 @@ pub trait QTensorOps<B: Backend> {
         // Heuristic: prioritize first tensor scheme
         let first = tensors.first().unwrap();
         let scheme = *first.scheme();
-        let dtype = get_device_settings::<B>(&Self::q_device(&first)).float_dtype;
+        let dtype = get_device_settings::<B>(&Self::q_device(first)).float_dtype;
 
         let tensor_f = tensors
             .into_iter()
