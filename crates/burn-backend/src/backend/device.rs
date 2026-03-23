@@ -192,22 +192,20 @@ fn default_bool<B: Backend>(device: &B::Device) -> BoolDType {
     let bool_as_dtype = default_bool.into();
     if B::supports_dtype(device, bool_as_dtype) {
         default_bool
+    } else if !matches!(bool_as_dtype, DType::Bool(BoolStore::Native))
+        && B::supports_dtype(device, DType::Bool(BoolStore::Native))
+    {
+        BoolDType::Native
+    } else if !matches!(bool_as_dtype, DType::Bool(BoolStore::U8))
+        && B::supports_dtype(device, DType::Bool(BoolStore::U8))
+    {
+        BoolDType::U8
+    } else if !matches!(bool_as_dtype, DType::Bool(BoolStore::U32))
+        && B::supports_dtype(device, DType::Bool(BoolStore::U32))
+    {
+        BoolDType::U32
     } else {
-        if !matches!(bool_as_dtype, DType::Bool(BoolStore::Native))
-            && B::supports_dtype(device, DType::Bool(BoolStore::Native))
-        {
-            BoolDType::Native
-        } else if !matches!(bool_as_dtype, DType::Bool(BoolStore::U8))
-            && B::supports_dtype(device, DType::Bool(BoolStore::U8))
-        {
-            BoolDType::U8
-        } else if !matches!(bool_as_dtype, DType::Bool(BoolStore::U32))
-            && B::supports_dtype(device, DType::Bool(BoolStore::U32))
-        {
-            BoolDType::U32
-        } else {
-            unreachable!()
-        }
+        unreachable!()
     }
 }
 
@@ -431,10 +429,6 @@ mod tests {
                 index_id: self.index,
             }
         }
-
-        fn device_count(_type_id: u16) -> usize {
-            1
-        }
     }
 
     impl DeviceOps for TestDeviceA {}
@@ -457,10 +451,6 @@ mod tests {
                 index_id: self.index,
             }
         }
-
-        fn device_count(_type_id: u16) -> usize {
-            1
-        }
     }
 
     impl DeviceOps for TestDeviceB {}
@@ -473,7 +463,7 @@ mod tests {
     }
 
     fn get_test_device_settings<D: DeviceOps>(device: &D) -> DeviceSettings {
-        DeviceSettingsRegistry::get_or_insert(device, || DeviceSettings::defaults())
+        DeviceSettingsRegistry::get_or_insert(device, DeviceSettings::defaults)
     }
 
     #[test]

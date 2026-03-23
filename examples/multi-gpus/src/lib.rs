@@ -22,7 +22,7 @@ use text_classification::{
 
 pub fn run<B: Backend>() {
     let type_id = 0;
-    let num_devices = B::Device::device_count(type_id);
+    let num_devices = B::device_count(type_id);
 
     let devices = (0..num_devices)
         .map(|i| B::Device::from_id(DeviceId::new(type_id, i as u32)))

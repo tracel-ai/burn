@@ -252,7 +252,7 @@ impl DispatchDevice {
     }
 
     /// Decode an encoded `type_id` into variant ID and backend type ID.
-    fn decode_type_id(type_id: u16) -> (BackendId, u16) {
+    pub(crate) fn decode_type_id(type_id: u16) -> (BackendId, u16) {
         let variant = type_id / TYPE_ID_BASE;
         let backend_type_id = type_id % TYPE_ID_BASE;
         (
@@ -264,7 +264,7 @@ impl DispatchDevice {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u16)]
-enum BackendId {
+pub(crate) enum BackendId {
     #[cfg(feature = "cpu")]
     Cpu = 0,
     #[cfg(feature = "cuda")]
@@ -374,28 +374,6 @@ impl burn_backend::Device for DispatchDevice {
         device_id.type_id = self.encode_type_id(device_id.type_id);
         device_id
     }
-
-    fn device_count(type_id: u16) -> usize {
-        let (dispatch_id, backend_type_id) = Self::decode_type_id(type_id);
-        match dispatch_id {
-            #[cfg(feature = "cpu")]
-            BackendId::Cpu => CpuDevice::device_count(backend_type_id),
-            #[cfg(feature = "cuda")]
-            BackendId::Cuda => CudaDevice::device_count(backend_type_id),
-            #[cfg(wgpu_metal)]
-            BackendId::Metal => WgpuDevice::device_count(backend_type_id),
-            #[cfg(feature = "rocm")]
-            BackendId::Rocm => RocmDevice::device_count(backend_type_id),
-            #[cfg(wgpu_vulkan)]
-            BackendId::Vulkan => WgpuDevice::device_count(backend_type_id),
-            #[cfg(wgpu_webgpu)]
-            BackendId::WebGpu => WgpuDevice::device_count(backend_type_id),
-            #[cfg(feature = "ndarray")]
-            BackendId::NdArray => NdArrayDevice::device_count(backend_type_id),
-            #[cfg(feature = "tch")]
-            BackendId::LibTorch => LibTorchDevice::device_count(backend_type_id),
-        }
-    }
 }
 
 #[cfg(feature = "cpu")]
@@ -444,13 +422,6 @@ impl From<WgpuDevice> for DispatchDevice {
 impl From<NdArrayDevice> for DispatchDevice {
     fn from(device: NdArrayDevice) -> Self {
         DispatchDevice::NdArray(device)
-    }
-}
-
-#[cfg(feature = "tch")]
-impl From<LibTorchDevice> for DispatchDevice {
-    fn from(device: LibTorchDevice) -> Self {
-        DispatchDevice::LibTorch(device)
     }
 }
 
