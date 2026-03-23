@@ -1,16 +1,15 @@
 use super::*;
-use burn_tensor::{IndexingUpdateOp, Int, Tensor, TensorData};
+use burn_tensor::{IndexingUpdateOp, TensorData};
 
 #[test]
 fn test_select_grad() {
-    let device = Default::default();
-    let tensor_1 = TestAutodiffTensor::<2>::from_data(
+    let device = AutodiffDevice::new();
+    let tensor_1 = TestTensor::<2>::from_data(
         TensorData::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]),
         &device,
     )
     .require_grad();
-    let indices =
-        Tensor::<TestAutodiffBackend, 1, Int>::from_data(TensorData::from([1, 0]), &device);
+    let indices = TestTensorInt::<1>::from_data(TensorData::from([1, 0]), &device);
 
     let tensor_2 = tensor_1.clone().matmul(tensor_1.clone().transpose());
     let tensor_3 = tensor_1.clone().select(0, indices);
@@ -28,19 +27,18 @@ fn test_select_grad() {
 
 #[test]
 fn test_select_add_grad() {
-    let device = Default::default();
-    let tensor_1 = TestAutodiffTensor::<2>::from_data(
+    let device = AutodiffDevice::new();
+    let tensor_1 = TestTensor::<2>::from_data(
         TensorData::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]),
         &device,
     )
     .require_grad();
-    let values = TestAutodiffTensor::from_data(
+    let values = TestTensor::from_data(
         TensorData::from([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]),
         &device,
     )
     .require_grad();
-    let indices =
-        Tensor::<TestAutodiffBackend, 1, Int>::from_data(TensorData::from([1, 0]), &device);
+    let indices = TestTensorInt::<1>::from_data(TensorData::from([1, 0]), &device);
 
     let tensor_2 = tensor_1.clone().matmul(tensor_1.clone().transpose());
     let tensor_3 =
@@ -65,11 +63,11 @@ fn test_select_add_grad() {
 
 #[test]
 fn test_select_add_grad_different_shapes() {
-    let device = Default::default();
+    let device = AutodiffDevice::new();
 
-    let indices: Tensor<TestAutodiffBackend, 1, Int> = Tensor::from_ints([1], &device);
-    let x: Tensor<TestAutodiffBackend, 2> = Tensor::ones([1, 1], &device).require_grad();
-    let y = Tensor::ones([2, 1], &device).require_grad();
+    let indices = TestTensorInt::from_ints([1], &device);
+    let x = TestTensor::<2>::ones([1, 1], &device).require_grad();
+    let y = TestTensor::ones([2, 1], &device).require_grad();
 
     let w = y
         .clone()

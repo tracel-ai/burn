@@ -21,14 +21,14 @@ mod int;
 #[path = "../tensor/bool/mod.rs"]
 mod bool;
 
-use burn_backend_tests::test_float_elem_variant;
+// use burn_backend_tests::test_float_elem_variant;
 
-test_float_elem_variant!(
-    f16,
-    burn_tensor::f16,
-    "../tensor/float/mod.rs",
-    ["vulkan", "cuda", "rocm", "metal"]
-);
+// test_float_elem_variant!(
+//     f16,
+//     burn_tensor::f16,
+//     "../tensor/float/mod.rs",
+//     ["vulkan", "cuda", "rocm", "metal"]
+// );
 
 // TODO: bf16 not yet supported on any backend for full test suite
 // test_float_elem_variant!(

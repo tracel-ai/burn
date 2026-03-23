@@ -1,9 +1,11 @@
 use super::*;
 use burn_tensor::Tolerance;
-use burn_tensor::{Int, Tensor};
 
 #[test]
 pub fn into_contiguous_match_reference_backend_1() {
+    let device = Default::default();
+    let ref_device = ReferenceDevice::new();
+
     for shape in [
         [4, 4, 4, 4],
         [32, 42, 24, 48],
@@ -12,12 +14,10 @@ pub fn into_contiguous_match_reference_backend_1() {
         [1, 32, 256, 128],
     ] {
         let num_elems = shape.iter().product::<usize>() as i64;
-        let tensor: Tensor<TestBackend, 4> =
-            Tensor::<TestBackend, 1, Int>::arange(0..num_elems, &Default::default())
-                .reshape(shape)
-                .float();
-        let tensor_ref =
-            Tensor::<ReferenceBackend, 4>::from_data(tensor.to_data(), &Default::default());
+        let tensor: TestTensor<4> = TestTensorInt::arange(0..num_elems, &device)
+            .reshape(shape)
+            .float();
+        let tensor_ref = TestTensor::<4>::from_data(tensor.to_data(), &ref_device);
 
         for (i, j) in get_combinations(shape.len()) {
             let view = tensor.clone().swap_dims(i, j);

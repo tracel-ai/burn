@@ -29,10 +29,10 @@ fn should_support_quantize_symmetric_int8() {
         return;
     }
     let device = Default::default();
-    let tensor = TestTensor::<1>::from_floats([-1.8, -1.0, 0.0, 0.5], &device);
+    let tensor = TestTensor::<1>::from_data([-1.8, -1.0, 0.0, 0.5], &device);
     let scheme = QuantizedTensor::<TestBackend>::default_scheme().with_value(QuantValue::Q8S);
     let qparams = QuantizationParameters {
-        scales: TestTensor::from_floats([0.014_173_228], &device),
+        scales: TestTensor::from_data([0.014_173_228], &device),
     };
 
     let x_q = tensor.clone().quantize(&scheme, qparams);
@@ -67,7 +67,7 @@ fn should_support_quantize_dynamic_int8() {
     let device = Default::default();
     // NOTE: we use fully representable values since different backend implementations could differ slightly
     // due to rounding discrepancies
-    let tensor = TestTensor::<1>::from_floats([5., 0., 4., -12.7], &device);
+    let tensor = TestTensor::<1>::from_data([5., 0., 4., -12.7], &device);
     let scheme = QuantizedTensor::<TestBackend>::default_scheme().with_value(QuantValue::Q8S);
 
     let x_q = tensor.quantize_dynamic(&scheme);

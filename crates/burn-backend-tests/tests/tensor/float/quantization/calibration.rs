@@ -8,7 +8,7 @@ use burn_tensor::{
 // NOTE: The scheme variant fields are not important for calibration, only the "main" variant (e.g., per-tensor)
 #[test]
 fn min_max_calibration_range_per_tensor() {
-    let tensor = TestTensor::<1>::from_floats([-1.8, -1.0, 0.0, 0.5], &Default::default());
+    let tensor = TestTensor::<1>::from_data([-1.8, -1.0, 0.0, 0.5], &Default::default());
     let scheme = QuantizedTensor::<TestBackend>::default_scheme().with_value(QuantValue::Q8S);
 
     let range = compute_range(&scheme, &tensor, &Calibration::MinMax);
@@ -25,7 +25,7 @@ fn min_max_calibration_range_per_tensor() {
 
 #[test]
 fn min_max_calibration_range_per_block() {
-    let tensor = TestTensor::<2>::from_floats(
+    let tensor = TestTensor::<2>::from_data(
         [
             [-1.8, -1.0, 0.0, 0.5],
             [1.8, 1.0, 0.0, -0.5],

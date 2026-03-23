@@ -1,16 +1,14 @@
 use super::*;
 use burn_tensor::Tolerance;
-use burn_tensor::{Distribution, Tensor, module};
+use burn_tensor::{Distribution, module};
 
 #[test]
 pub fn max_pool2d_should_match_reference_backends() {
-    let tensor = Tensor::<TestBackend, 4>::random(
-        [32, 32, 32, 32],
-        Distribution::Default,
-        &Default::default(),
-    );
-    let tensor_ref =
-        Tensor::<ReferenceBackend, 4>::from_data(tensor.to_data(), &Default::default());
+    let device = Default::default();
+    let ref_device = ReferenceDevice::new();
+
+    let tensor = TestTensor::<4>::random([32, 32, 32, 32], Distribution::Default, &device);
+    let tensor_ref = TestTensor::<4>::from_data(tensor.to_data(), &ref_device);
     let kernel_size = [3, 3];
     let stride = [2, 2];
     let padding = [1, 1];
@@ -26,13 +24,11 @@ pub fn max_pool2d_should_match_reference_backends() {
 
 #[test]
 pub fn max_pool2d_with_indices_should_match_reference_backend() {
-    let tensor = Tensor::<TestBackend, 4>::random(
-        [32, 32, 32, 32],
-        Distribution::Default,
-        &Default::default(),
-    );
-    let tensor_ref =
-        Tensor::<ReferenceBackend, 4>::from_data(tensor.to_data(), &Default::default());
+    let device = Default::default();
+    let ref_device = ReferenceDevice::new();
+
+    let tensor = TestTensor::<4>::random([32, 32, 32, 32], Distribution::Default, &device);
+    let tensor_ref = TestTensor::<4>::from_data(tensor.to_data(), &ref_device);
     let kernel_size = [3, 3];
     let stride = [2, 2];
     let padding = [1, 1];

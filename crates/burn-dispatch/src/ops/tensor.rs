@@ -22,9 +22,10 @@ impl FloatTensorOps<Self> for Dispatch {
         shape: Shape,
         distribution: burn_backend::Distribution,
         device: &DispatchDevice,
+        dtype: FloatDType,
     ) -> FloatTensor<Self> {
         creation_op!(Float, device, |device| {
-            B::float_random(shape, distribution, device)
+            B::float_random(shape, distribution, device, dtype)
         })
     }
 

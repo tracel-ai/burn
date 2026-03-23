@@ -1,46 +1,31 @@
+use ctor::ctor;
+
 // Re-export
-use super::FloatElemType;
+use super::{FloatElem, IntElem};
 
 // Default
-#[cfg(feature = "ndarray")]
-pub type TestBackend = burn_ndarray::NdArray<FloatElemType>;
+pub type TestBackend = burn_dispatch::Dispatch;
 
-#[cfg(feature = "tch")]
-pub type TestBackend = burn_tch::LibTorch<FloatElemType>;
-
-#[cfg(feature = "cuda")]
-pub type TestBackend = burn_cuda::Cuda<FloatElemType, super::IntElemType>;
-
-#[cfg(feature = "rocm")]
-pub type TestBackend = burn_rocm::Rocm<FloatElemType, super::IntElemType>;
-
-#[cfg(feature = "wgpu")]
-pub type TestBackend = burn_wgpu::Wgpu<FloatElemType, super::IntElemType>;
-
-#[cfg(feature = "cpu")]
-pub type TestBackend = burn_cpu::Cpu<FloatElemType, super::IntElemType>;
-
-#[cfg(feature = "router")]
-pub type TestBackend = burn_router::BackendRouter<
-    burn_router::DirectByteChannel<(burn_ndarray::NdArray, burn_wgpu::Wgpu)>,
->;
+#[ctor]
+fn init_device_settings() {
+    let device = burn_dispatch::DispatchDevice::default();
+    burn_tensor::set_default_dtypes::<TestBackend>(
+        &device,
+        <FloatElem as burn_tensor::Element>::dtype(),
+        <IntElem as burn_tensor::Element>::dtype(),
+    )
+    .unwrap();
+}
 
 /// Collection of types used across tests
 #[allow(unused)]
 pub mod prelude {
-    pub use burn_autodiff::Autodiff;
     pub use burn_tensor::Tensor;
 
     use super::*;
     pub type TestTensor<const D: usize> = Tensor<TestBackend, D>;
     pub type TestTensorInt<const D: usize> = Tensor<TestBackend, D, burn_tensor::Int>;
     pub type TestTensorBool<const D: usize> = Tensor<TestBackend, D, burn_tensor::Bool>;
-
-    pub type FloatElem = burn_tensor::ops::FloatElem<TestBackend>;
-    pub type IntElem = burn_tensor::ops::IntElem<TestBackend>;
-
-    pub type TestAutodiffBackend = Autodiff<TestBackend>;
-    pub type TestAutodiffTensor<const D: usize> = Tensor<TestAutodiffBackend, D>;
 }
 
 #[allow(unused)]

@@ -10,7 +10,7 @@ use burn_backend::ElementConversion;
 use burn_std::{BoolDType, FloatDType};
 
 // Current crate
-use crate::{ExpElement, NdArrayDevice, SEED, slice};
+use crate::{ExpElement, NdArrayDevice, SEED, execute_with_int_out_dtype, slice};
 use crate::{NdArray, cast_to_dtype, execute_with_dtype, tensor::NdArrayTensor};
 use crate::{SharedArray, element::QuantElement};
 use crate::{cat_with_dtype, execute_with_float_out_dtype};
@@ -371,6 +371,7 @@ where
         shape: Shape,
         distribution: Distribution,
         device: &NdArrayDevice,
+        dtype: IntDType,
     ) -> NdArrayTensor {
         let mut seed = SEED.lock().unwrap();
         let mut rng = seed.take().unwrap_or_else(get_seeded_rng);
@@ -381,9 +382,13 @@ where
             distribution
         };
 
-        let tensor = Self::int_from_data(
-            TensorData::random::<I, _, _>(shape, effective_distribution, &mut rng),
-            device,
+        let tensor = execute_with_int_out_dtype!(
+            dtype,
+            I,
+            Self::int_from_data(
+                TensorData::random::<I, _, _>(shape, effective_distribution, &mut rng),
+                device,
+            )
         );
         *seed = Some(rng);
         tensor

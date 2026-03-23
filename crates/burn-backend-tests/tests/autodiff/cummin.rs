@@ -4,8 +4,8 @@ use burn_tensor::{TensorData, Tolerance};
 #[test]
 fn should_diff_cummin() {
     // Simple test to verify cummin gradients work
-    let device = Default::default();
-    let tensor = TestAutodiffTensor::<1>::from_data(TensorData::from([3.0, 2.0, 4.0]), &device)
+    let device = AutodiffDevice::new();
+    let tensor = TestTensor::<1>::from_data(TensorData::from([3.0, 2.0, 4.0]), &device)
         .require_grad();
 
     let output = tensor.clone().cummin(0);
@@ -21,8 +21,8 @@ fn should_diff_cummin() {
 #[test]
 fn should_diff_cummin_2d() {
     // Test 2D cummin gradients
-    let device = Default::default();
-    let tensor = TestAutodiffTensor::<2>::from_data(
+    let device = AutodiffDevice::new();
+    let tensor = TestTensor::<2>::from_data(
         TensorData::from([[3.0, 2.0, 4.0], [5.0, 1.0, 3.0]]),
         &device,
     )
@@ -41,9 +41,9 @@ fn should_diff_cummin_2d() {
 #[test]
 fn should_diff_cummin_duplicate_values() {
     // Test with duplicate minimum values - critical edge case
-    let device = Default::default();
+    let device = AutodiffDevice::new();
     let tensor =
-        TestAutodiffTensor::<1>::from_data(TensorData::from([3.0, 2.0, 2.0, 4.0]), &device)
+        TestTensor::<1>::from_data(TensorData::from([3.0, 2.0, 2.0, 4.0]), &device)
             .require_grad();
 
     let output = tensor.clone().cummin(0);
@@ -62,8 +62,8 @@ fn should_diff_cummin_duplicate_values() {
 #[test]
 fn should_diff_cummin_all_same() {
     // Test with all same values
-    let device = Default::default();
-    let tensor = TestAutodiffTensor::<1>::from_data(TensorData::from([2.0, 2.0, 2.0]), &device)
+    let device = AutodiffDevice::new();
+    let tensor = TestTensor::<1>::from_data(TensorData::from([2.0, 2.0, 2.0]), &device)
         .require_grad();
 
     let output = tensor.clone().cummin(0);
@@ -80,9 +80,9 @@ fn should_diff_cummin_all_same() {
 #[test]
 fn should_diff_cummin_decreasing() {
     // Test with decreasing sequence
-    let device = Default::default();
+    let device = AutodiffDevice::new();
     let tensor =
-        TestAutodiffTensor::<1>::from_data(TensorData::from([5.0, 4.0, 3.0, 2.0]), &device)
+        TestTensor::<1>::from_data(TensorData::from([5.0, 4.0, 3.0, 2.0]), &device)
             .require_grad();
 
     let output = tensor.clone().cummin(0);
@@ -99,8 +99,8 @@ fn should_diff_cummin_decreasing() {
 #[test]
 fn should_diff_cummin_2d_duplicates() {
     // Test 2D with duplicate values
-    let device = Default::default();
-    let tensor = TestAutodiffTensor::<2>::from_data(
+    let device = AutodiffDevice::new();
+    let tensor = TestTensor::<2>::from_data(
         TensorData::from([[3.0, 2.0, 2.0, 4.0], [5.0, 1.0, 1.0, 3.0]]),
         &device,
     )

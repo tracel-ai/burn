@@ -2,9 +2,6 @@ use super::*;
 use burn_tensor::backend::Backend;
 use burn_tensor::{Element, Shape, TensorData};
 
-type FloatElem = <TestBackend as Backend>::FloatElem;
-type IntElem = <TestBackend as Backend>::IntElem;
-
 // Floating point values might not match for other precisions
 fn skip_precision_not_f32() -> bool {
     core::any::TypeId::of::<FloatElem>() != core::any::TypeId::of::<f32>()

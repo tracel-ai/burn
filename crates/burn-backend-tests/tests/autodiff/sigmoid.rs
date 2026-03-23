@@ -6,8 +6,8 @@ use burn_tensor::{TensorData, activation};
 fn should_diff_sigmoid() {
     let data = TensorData::from([0.8762]);
 
-    let device = Default::default();
-    let tensor_1 = TestAutodiffTensor::<1>::from_data(data, &device).require_grad();
+    let device = AutodiffDevice::new();
+    let tensor_1 = TestTensor::<1>::from_data(data, &device).require_grad();
     let tensor_2 = activation::sigmoid(tensor_1.clone());
     let grads = tensor_2.backward();
 
@@ -22,8 +22,8 @@ fn should_diff_sigmoid() {
 fn small_neg_val_should_not_cause_grad_overflow() {
     let data = TensorData::from([-90.0]);
 
-    let device = Default::default();
-    let tensor_1 = TestAutodiffTensor::<1>::from_data(data, &device).require_grad();
+    let device = AutodiffDevice::new();
+    let tensor_1 = TestTensor::<1>::from_data(data, &device).require_grad();
     let tensor_2 = activation::sigmoid(tensor_1.clone());
     let grads = tensor_2.backward();
 

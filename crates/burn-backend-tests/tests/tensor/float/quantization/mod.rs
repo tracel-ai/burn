@@ -30,7 +30,7 @@ pub mod qtensor {
 
         /// Creates a quantized int8 tensor from the floating point data using blocks of size 16
         pub fn int8_block<F: Into<TensorData>>(floats: F) -> Tensor<B, D> {
-            Tensor::from_floats(floats, &Default::default()).quantize_dynamic(
+            Tensor::from_data(floats, &Default::default()).quantize_dynamic(
                 &<B::QuantizedTensorPrimitive as QTensorPrimitive>::default_scheme()
                     .with_value(QuantValue::Q8S)
                     .with_level(QuantLevel::block([16])),
@@ -39,7 +39,7 @@ pub mod qtensor {
 
         /// Creates a quantized int8 tensor from the floating point data using per-tensor symmetric quantization.
         pub fn int8_symmetric<F: Into<TensorData>>(floats: F) -> Tensor<B, D> {
-            Tensor::from_floats(floats, &Default::default()).quantize_dynamic(
+            Tensor::from_data(floats, &Default::default()).quantize_dynamic(
                 &<B::QuantizedTensorPrimitive as QTensorPrimitive>::default_scheme()
                     .with_value(QuantValue::Q8S),
             )

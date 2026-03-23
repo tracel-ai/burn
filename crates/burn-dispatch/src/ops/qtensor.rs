@@ -1,5 +1,5 @@
 use burn_backend::{
-    ExecutionError, QTensorPrimitive, Shape, Slice, TensorData, TensorPrimitive,
+    ExecutionError, FloatDType, QTensorPrimitive, Shape, Slice, TensorData, TensorPrimitive,
     ops::QTensorOps,
     quantization::{QuantPropagation, QuantScheme, QuantizationParametersPrimitive},
     tensor::{FloatTensor, IntTensor, QuantizedTensor},
@@ -27,8 +27,8 @@ impl QTensorOps<Self> for Dispatch {
         )
     }
 
-    fn dequantize(tensor: QuantizedTensor<Self>) -> FloatTensor<Self> {
-        unary_op!(tensor, quantized, |tensor| B::dequantize(tensor) => Float)
+    fn dequantize(tensor: QuantizedTensor<Self>, dtype: FloatDType) -> FloatTensor<Self> {
+        unary_op!(tensor, quantized, |tensor| B::dequantize(tensor, dtype) => Float)
     }
 
     fn q_device(tensor: &QuantizedTensor<Self>) -> DispatchDevice {

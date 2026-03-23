@@ -6,10 +6,10 @@ use crate::{
     unary_float_ops,
 };
 use burn_backend::{
-    BoolDType, Distribution, Element, ExecutionError, FloatDType, IntDType, Scalar, Shape, Slice,
+    BoolDType, Distribution, ExecutionError, FloatDType, IntDType, Scalar, Shape, Slice,
     TensorData,
     ops::{FloatTensorOps, GridSampleOptions},
-    tensor::{BoolTensor, Device, FloatElem, FloatTensor, IndexingUpdateOp, IntTensor},
+    tensor::{BoolTensor, Device, FloatTensor, IndexingUpdateOp, IntTensor},
 };
 use burn_ir::*;
 use std::marker::PhantomData;
@@ -42,6 +42,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         shape: Shape,
         distribution: Distribution,
         device: &Device<Self>,
+        dtype: FloatDType,
     ) -> FloatTensor<Self> {
         #[derive(new, Debug)]
         struct RandomOps<B: FusionBackend> {
@@ -55,12 +56,13 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
                     self.desc.out.shape.clone(),
                     self.desc.distribution,
                     &self.device,
+                    self.desc.out.dtype.into(),
                 );
                 handles.register_float_tensor::<B>(&self.desc.out.id, output);
             }
         }
 
-        let dtype = FloatElem::<Self>::dtype();
+        let dtype = dtype.into();
         let client = get_client::<B>(device);
         let desc = RandomOpIr::create(shape, dtype, distribution, || client.create_empty_handle());
 

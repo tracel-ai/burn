@@ -110,17 +110,21 @@ impl Unfold4dTestCase {
 
     fn assert_output(self, expected: TestTensor<3>) {
         let shape_x = Shape::new([self.batch_size, self.channels_in, self.height, self.width]);
-        let x = TestTensor::from(
-            TestTensorInt::arange(0..shape_x.num_elements() as i64, &Default::default())
-                .reshape::<4, _>(shape_x)
-                .into_data(),
-        );
+        let x_int = TestTensorInt::arange(0..shape_x.num_elements() as i64, &Default::default())
+            .reshape::<4, _>(shape_x);
+        println!("x int: {x_int}");
+        let x = TestTensor::from(x_int.into_data());
+
+        println!("x: {x}");
 
         let output = unfold4d(
             x,
             self.kernel_size,
             UnfoldOptions::new(self.stride, self.padding, self.dilation),
         );
+
+        println!("output: {output}");
+        println!("expected: {expected}");
 
         let tolerance = Tolerance::default()
             .set_half_precision_relative(2e-3)

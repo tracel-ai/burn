@@ -1,5 +1,5 @@
 use super::*;
-use burn_tensor::{Bool, Tensor, TensorData};
+use burn_tensor::TensorData;
 
 #[test]
 fn should_diff_nonzero() {
@@ -7,14 +7,14 @@ fn should_diff_nonzero() {
     let data_2 = TensorData::from([-1.0, 1.0]);
     let mask = TensorData::from([[false, true], [true, false]]);
 
-    let device = Default::default();
-    let tensor_1 = TestAutodiffTensor::<2>::from_data(data_1, &device).require_grad();
-    let tensor_2 = TestAutodiffTensor::<1>::from_data(data_2, &device).require_grad();
+    let device = AutodiffDevice::new();
+    let tensor_1 = TestTensor::<2>::from_data(data_1, &device).require_grad();
+    let tensor_2 = TestTensor::<1>::from_data(data_2, &device).require_grad();
 
     // Multi-dimensional tensor indexing isn't really supported yet so the easiest way to do
     // this is to flatten the mask and tensor to get proper indexing. Anyway the returned tensor would
     // have dimensions different from the input, so this is somewhat equivalent.
-    let mask = Tensor::<TestAutodiffBackend, 2, Bool>::from_bool(mask, &device).flatten::<1>(0, 1);
+    let mask = TestTensorBool::<2>::from_bool(mask, &device).flatten::<1>(0, 1);
     let indices = mask.nonzero();
     let tensor_3 = tensor_1
         .clone()

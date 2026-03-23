@@ -1,5 +1,5 @@
 use super::*;
-use burn_tensor::{Int, Tensor, TensorData, module::embedding};
+use burn_tensor::{TensorData, module::embedding};
 
 #[test]
 fn test_embedding_backward() {
@@ -9,10 +9,10 @@ fn test_embedding_backward() {
         [[1.0, 2.0], [4.0, 5.0], [3.0, 4.0]],
         [[4.0, 5.0], [8.0, 5.0], [1.0, 9.0]],
     ]);
-    let device = Default::default();
-    let weights = Tensor::<TestAutodiffBackend, 2>::from_data(weights, &device).require_grad();
-    let indices = Tensor::<TestAutodiffBackend, 2, Int>::from_data(indices, &device);
-    let x = Tensor::<TestAutodiffBackend, 3>::from_data(x, &device).require_grad();
+    let device = AutodiffDevice::new();
+    let weights = TestTensor::<2>::from_data(weights, &device).require_grad();
+    let indices = TestTensorInt::<2>::from_data(indices, &device);
+    let x = TestTensor::<3>::from_data(x, &device).require_grad();
 
     let output = embedding(weights.clone(), indices);
     let output = output.matmul(x);

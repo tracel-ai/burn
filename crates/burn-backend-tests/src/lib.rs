@@ -9,11 +9,12 @@ macro_rules! test_float_elem_variant {
     ($modname:ident, $float:ty, $module:literal, [$($feat:literal),* $(,)?]) => {
         #[cfg(all(test, any($(feature = $feat),*)))]
         mod $modname {
-            pub type FloatElemType = $float;
+            pub type FloatElem = $float;
             #[allow(unused)]
-            pub use super::IntElemType;
+            pub use super::IntElem;
 
             mod ty {
+                // Re-includes the common backend module with the once init
                 include!("backend.rs");
                 include!($module);
             }

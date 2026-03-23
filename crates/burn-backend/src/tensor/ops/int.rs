@@ -266,8 +266,13 @@ impl<B: Backend> Numeric<B> for Int {
         B::int_powi_scalar(lhs, rhs)
     }
 
-    fn random(shape: Shape, distribution: Distribution, device: &Device<B>) -> Self::Primitive {
-        B::int_random(shape, distribution, device)
+    fn random(
+        shape: Shape,
+        distribution: Distribution,
+        device: &Device<B>,
+        dtype: DType,
+    ) -> Self::Primitive {
+        B::int_random(shape, distribution, device, dtype.into())
     }
 
     fn sign(tensor: Self::Primitive) -> Self::Primitive {

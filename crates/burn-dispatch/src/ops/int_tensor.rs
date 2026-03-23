@@ -290,9 +290,10 @@ impl IntTensorOps<Self> for Dispatch {
         shape: Shape,
         distribution: burn_backend::Distribution,
         device: &DispatchDevice,
+        dtype: IntDType,
     ) -> IntTensor<Self> {
         creation_op!(Int, device, |device| {
-            B::int_random(shape, distribution, device)
+            B::int_random(shape, distribution, device, dtype)
         })
     }
 
