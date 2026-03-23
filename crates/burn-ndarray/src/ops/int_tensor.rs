@@ -361,14 +361,6 @@ where
                 array.mapv(|a: IntElem| a.elem::<F>()).into_shared()
             })
         })
-        // execute_with_float_out_dtype!(out_dtype, E, {
-        //     execute_with_int_dtype!(tensor, IntElem, |array: SharedArray<IntElem>| {
-        //         array.mapv(|a: IntElem| a.elem::<E>()).into_shared().into()
-        //     })
-        // })
-        // execute_with_int_dtype!(tensor, IntElem, |array: SharedArray<IntElem>| {
-        //     array.mapv(|a: IntElem| a.elem::<E>()).into_shared().into()
-        // })
     }
 
     fn int_swap_dims(tensor: NdArrayTensor, dim1: usize, dim2: usize) -> NdArrayTensor {
