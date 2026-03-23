@@ -1,44 +1,40 @@
 use alloc::vec::Vec;
 use burn_backend::backend::ExecutionError;
+use burn_std::{BoolDType, FloatDType, IntDType};
 
 use crate::{BackendRouter, RunnerChannel, RunnerClient, get_client};
 use burn_backend::ops::BoolTensorOps;
-use burn_backend::tensor::{
-    BoolTensor, Device, FloatElem, FloatTensor, IndexingUpdateOp, IntElem, IntTensor,
-};
-use burn_backend::{Element, Scalar, Shape, Slice, TensorData};
+use burn_backend::tensor::{BoolTensor, Device, FloatTensor, IndexingUpdateOp, IntTensor};
+use burn_backend::{Scalar, Shape, Slice, TensorData};
 use burn_ir::{
     BaseOperationIr, BinaryOpIr, BoolOperationIr, CastOpIr, CatOpIr, CreationOpIr, FlipOpIr,
     GatherOpIr, InitOperationIr, MaskFillOpIr, MaskWhereOpIr, OperationIr, OperationOutput,
-    PermuteOpIr, RepeatDimOpIr, ScalarOpIr, ScatterOpIr, ShapeOpIr, SliceAssignOpIr, SliceOpIr,
-    SwapDimsOpIr, UnaryOpIr, UnfoldOpIr,
+    PermuteOpIr, RepeatDimOpIr, ScalarOpIr, ScatterOpIr, SelectAssignOpIr, SelectOpIr, ShapeOpIr,
+    SliceAssignOpIr, SliceOpIr, SwapDimsOpIr, UnaryOpIr, UnfoldOpIr,
 };
 
 impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
-    fn bool_empty(shape: Shape, device: &Device<Self>) -> BoolTensor<Self> {
+    fn bool_empty(shape: Shape, device: &Device<Self>, dtype: BoolDType) -> BoolTensor<Self> {
         let client = get_client::<R>(device);
-        let desc =
-            CreationOpIr::create(shape, R::BoolElem::dtype(), || client.create_empty_handle());
+        let desc = CreationOpIr::create(shape, dtype.into(), || client.create_empty_handle());
 
         client
             .register(OperationIr::BaseBool(BaseOperationIr::Empty(desc)))
             .output()
     }
 
-    fn bool_zeros(shape: Shape, device: &Device<Self>) -> BoolTensor<Self> {
+    fn bool_zeros(shape: Shape, device: &Device<Self>, dtype: BoolDType) -> BoolTensor<Self> {
         let client = get_client::<R>(device);
-        let desc =
-            CreationOpIr::create(shape, R::BoolElem::dtype(), || client.create_empty_handle());
+        let desc = CreationOpIr::create(shape, dtype.into(), || client.create_empty_handle());
 
         client
             .register(OperationIr::BaseBool(BaseOperationIr::Zeros(desc)))
             .output()
     }
 
-    fn bool_ones(shape: Shape, device: &Device<Self>) -> BoolTensor<Self> {
+    fn bool_ones(shape: Shape, device: &Device<Self>, dtype: BoolDType) -> BoolTensor<Self> {
         let client = get_client::<R>(device);
-        let desc =
-            CreationOpIr::create(shape, R::BoolElem::dtype(), || client.create_empty_handle());
+        let desc = CreationOpIr::create(shape, dtype.into(), || client.create_empty_handle());
 
         client
             .register(OperationIr::BaseBool(BaseOperationIr::Ones(desc)))
@@ -62,9 +58,9 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
         out
     }
 
-    fn bool_into_int(tensor: BoolTensor<Self>) -> IntTensor<Self> {
+    fn bool_into_int(tensor: BoolTensor<Self>, out_dtype: IntDType) -> IntTensor<Self> {
         let client = tensor.client.clone();
-        let desc = CastOpIr::create(tensor.into_ir(), IntElem::<Self>::dtype(), || {
+        let desc = CastOpIr::create(tensor.into_ir(), out_dtype.into(), || {
             client.create_empty_handle()
         });
 
@@ -73,9 +69,9 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
             .output()
     }
 
-    fn bool_into_float(tensor: BoolTensor<Self>) -> FloatTensor<Self> {
+    fn bool_into_float(tensor: BoolTensor<Self>, out_dtype: FloatDType) -> FloatTensor<Self> {
         let client = tensor.client.clone();
-        let desc = CastOpIr::create(tensor.into_ir(), FloatElem::<Self>::dtype(), || {
+        let desc = CastOpIr::create(tensor.into_ir(), out_dtype.into(), || {
             client.create_empty_handle()
         });
 
@@ -320,14 +316,51 @@ impl<R: RunnerChannel> BoolTensorOps<Self> for BackendRouter<R> {
     }
 
     fn bool_equal_elem(lhs: BoolTensor<Self>, rhs: Scalar) -> BoolTensor<Self> {
+        let dtype = lhs.dtype;
         let client = lhs.client.clone();
         let rhs = rhs.into();
-        let desc = ScalarOpIr::create_comparison(lhs.into_ir(), rhs, R::BoolElem::dtype(), || {
+        let desc = ScalarOpIr::create_comparison(lhs.into_ir(), rhs, dtype, || {
             client.create_empty_handle()
         });
 
         client
             .register(OperationIr::BaseBool(BaseOperationIr::EqualElem(desc)))
+            .output()
+    }
+
+    fn bool_select(
+        tensor: BoolTensor<Self>,
+        dim: usize,
+        indices: IntTensor<Self>,
+    ) -> BoolTensor<Self> {
+        let client = tensor.client.clone();
+        let desc = SelectOpIr::create(tensor.into_ir(), dim, indices.into_ir(), || {
+            client.create_empty_handle()
+        });
+
+        client
+            .register(OperationIr::BaseBool(BaseOperationIr::Select(desc)))
+            .output()
+    }
+
+    fn bool_select_or(
+        tensor: BoolTensor<Self>,
+        dim: usize,
+        indices: IntTensor<Self>,
+        value: BoolTensor<Self>,
+    ) -> BoolTensor<Self> {
+        let client = tensor.client.clone();
+        let desc = SelectAssignOpIr::create(
+            tensor.into_ir(),
+            dim,
+            indices.into_ir(),
+            value.into_ir(),
+            IndexingUpdateOp::Add,
+            || client.create_empty_handle(),
+        );
+
+        client
+            .register(OperationIr::BaseBool(BaseOperationIr::SelectAssign(desc)))
             .output()
     }
 }

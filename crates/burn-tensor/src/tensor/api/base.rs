@@ -161,7 +161,7 @@ where
     pub fn empty<S: Into<Shape>>(shape: S, options: impl Into<TensorCreationOptions<B>>) -> Self {
         let opt = options.into();
         let shape = shape.into();
-        let dtype = opt.resolve_policy(K::Elem::dtype());
+        let dtype = opt.resolve_dtype::<K>();
         check!(TensorCheck::creation_ops::<D>("Empty", &shape));
         Self::new(K::empty(shape, &opt.device, dtype))
     }
@@ -184,7 +184,7 @@ where
     pub fn zeros<S: Into<Shape>>(shape: S, options: impl Into<TensorCreationOptions<B>>) -> Self {
         let opt = options.into();
         let shape = shape.into();
-        let dtype = opt.resolve_policy(K::Elem::dtype());
+        let dtype = opt.resolve_dtype::<K>();
         check!(TensorCheck::creation_ops::<D>("Zeros", &shape));
         Self::new(K::zeros(shape, &opt.device, dtype))
     }
@@ -227,7 +227,7 @@ where
     pub fn ones<S: Into<Shape>>(shape: S, options: impl Into<TensorCreationOptions<B>>) -> Self {
         let opt = options.into();
         let shape = shape.into();
-        let dtype = opt.resolve_policy(K::Elem::dtype());
+        let dtype = opt.resolve_dtype::<K>();
         check!(TensorCheck::creation_ops::<D>("Ones", &shape));
         Self::new(K::ones(shape, &opt.device, dtype))
     }
@@ -274,7 +274,7 @@ where
     ) -> Self {
         let opt = options.into();
         let shape = shape.into();
-        let dtype = opt.resolve_policy(K::Elem::dtype());
+        let dtype = opt.resolve_dtype::<K>();
         check!(TensorCheck::creation_ops::<D>("Full", &shape));
         Self::new(K::full(
             shape,
@@ -1522,11 +1522,8 @@ where
         check!(TensorCheck::slice::<D>(&shape, &slices));
 
         let slice_shape = shape.slice(&slices).unwrap();
-        let value = Tensor::<B, 1, K>::from_data_dtype(
-            [value.elem::<K::Elem>()],
-            &self.device(),
-            self.dtype(),
-        );
+        let value =
+            Tensor::<B, 1, K>::from_data([value.elem::<K::Elem>()], (&self.device(), self.dtype()));
         let value = value.expand(slice_shape);
         self.slice_assign(&slices, value)
     }
@@ -1864,7 +1861,7 @@ where
     }
 
     /// Create a tensor from the given data on the given device.
-    pub fn from_data<T>(data: T, device: &B::Device) -> Self
+    pub fn from_data<T>(data: T, options: impl Into<TensorCreationOptions<B>>) -> Self
     where
         T: Into<TensorData>,
     {
@@ -1873,20 +1870,11 @@ where
             "From Data",
             data.shape.as_slice()
         ));
-        Self::new(K::from_data(data, device))
-    }
 
-    /// Create a tensor from the given data on the given device enforcing the given data type.
-    pub fn from_data_dtype<T>(data: T, device: &B::Device, dtype: DType) -> Self
-    where
-        T: Into<TensorData>,
-    {
-        let data = data.into();
-        check!(TensorCheck::creation_ops::<D>(
-            "From Data",
-            data.shape.as_slice()
-        ));
-        Self::new(K::from_data_dtype(data, device, dtype))
+        // Use the given dtype when provided, otherwise default device dtype
+        let opt = options.into();
+        let dtype = opt.resolve_dtype::<K>();
+        Self::new(K::from_data(data, &opt.device, dtype))
     }
 
     /// Repeat the tensor along the given dimension.

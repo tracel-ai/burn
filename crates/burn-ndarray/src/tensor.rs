@@ -2,6 +2,7 @@ use burn_backend::{
     DType, Element, QTensorPrimitive, Shape, TensorData, TensorMetadata,
     quantization::{QParams, QuantLevel, QuantMode, QuantScheme, QuantValue},
 };
+use burn_std::BoolStore;
 
 use crate::NdArrayStorage;
 use crate::ops::quantization::{QuantizationStrategy, SymmetricQuantization};
@@ -103,7 +104,7 @@ where
         DType::U32 => cast::<E1, u32>(array).into(),
         DType::U16 => cast::<E1, u16>(array).into(),
         DType::U8 => cast::<E1, u8>(array).into(),
-        DType::Bool => cast::<E1, bool>(array).into(),
+        DType::Bool(BoolStore::Native) => cast::<E1, bool>(array).into(),
         #[cfg(feature = "complex")]
         DType::Complex32 => cast::<E1, burn_complex::base::element::Complex<f32>>(array).into(),
         #[cfg(feature = "complex")]
@@ -363,6 +364,124 @@ macro_rules! cat_with_dtype {
     };
 }
 
+/// Macro to execute an operation that returns a given element type.
+#[macro_export]
+macro_rules! execute_with_float_out_dtype {
+    ($out_dtype:expr, $element:ident, $op:expr, [$($dtype: ident => $ty: ty),*]) => {{
+        match $out_dtype {
+            $(
+                burn_std::FloatDType::$dtype => {
+                    #[allow(unused)]
+                    type $element = $ty;
+                    $op
+                }
+            )*
+            #[allow(unreachable_patterns)]
+            other => unimplemented!("unsupported dtype: {other:?}")
+        }
+    }};
+    // Unary op: type automatically inferred by the compiler
+    ($out_dtype:expr, $op:expr) => {{
+        $crate::execute_with_float_out_dtype!($out_dtype, E, $op)
+    }};
+
+    // Unary op: generic type cannot be inferred for an operation
+    ($out_dtype:expr, $element:ident, $op:expr) => {{
+        $crate::execute_with_float_out_dtype!($out_dtype, $element, $op, [
+            F64 => f64, F32 => f32
+        ])
+    }};
+}
+
+/// Macro to execute an operation that returns a given element type.
+#[macro_export]
+macro_rules! execute_with_int_out_dtype {
+    ($out_dtype:expr, $element:ident, $op:expr, [$($dtype: ident => $ty: ty),*]) => {{
+        match $out_dtype {
+            $(
+                burn_std::IntDType::$dtype => {
+                    #[allow(unused)]
+                    type $element = $ty;
+                    $op
+                }
+            )*
+            #[allow(unreachable_patterns)]
+            other => unimplemented!("unsupported dtype: {other:?}")
+        }
+    }};
+    // Unary op: type automatically inferred by the compiler
+    ($out_dtype:expr, $op:expr) => {{
+        $crate::execute_with_int_out_dtype!($out_dtype, E, $op)
+    }};
+
+    // Unary op: generic type cannot be inferred for an operation
+    ($out_dtype:expr, $element:ident, $op:expr) => {{
+        $crate::execute_with_int_out_dtype!($out_dtype, $element, $op, [
+            I64 => i64, I32 => i32, I16 => i16, I8 => i8,
+            U64 => u64, U32 => u32, U16 => u16, U8 => u8
+        ])
+    }};
+}
+
+/// Macro to execute an operation that returns a given element type.
+#[macro_export]
+macro_rules! execute_with_float_out_dtype {
+    ($out_dtype:expr, $element:ident, $op:expr, [$($dtype: ident => $ty: ty),*]) => {{
+        match $out_dtype {
+            $(
+                burn_std::FloatDType::$dtype => {
+                    #[allow(unused)]
+                    type $element = $ty;
+                    $op
+                }
+            )*
+            #[allow(unreachable_patterns)]
+            other => unimplemented!("unsupported dtype: {other:?}")
+        }
+    }};
+    // Unary op: type automatically inferred by the compiler
+    ($out_dtype:expr, $op:expr) => {{
+        $crate::execute_with_float_out_dtype!($out_dtype, E, $op)
+    }};
+
+    // Unary op: generic type cannot be inferred for an operation
+    ($out_dtype:expr, $element:ident, $op:expr) => {{
+        $crate::execute_with_float_out_dtype!($out_dtype, $element, $op, [
+            F64 => f64, F32 => f32
+        ])
+    }};
+}
+
+/// Macro to execute an operation that returns a given element type.
+#[macro_export]
+macro_rules! execute_with_int_out_dtype {
+    ($out_dtype:expr, $element:ident, $op:expr, [$($dtype: ident => $ty: ty),*]) => {{
+        match $out_dtype {
+            $(
+                burn_std::IntDType::$dtype => {
+                    #[allow(unused)]
+                    type $element = $ty;
+                    $op
+                }
+            )*
+            #[allow(unreachable_patterns)]
+            other => unimplemented!("unsupported dtype: {other:?}")
+        }
+    }};
+    // Unary op: type automatically inferred by the compiler
+    ($out_dtype:expr, $op:expr) => {{
+        $crate::execute_with_int_out_dtype!($out_dtype, E, $op)
+    }};
+
+    // Unary op: generic type cannot be inferred for an operation
+    ($out_dtype:expr, $element:ident, $op:expr) => {{
+        $crate::execute_with_int_out_dtype!($out_dtype, $element, $op, [
+            I64 => i64, I32 => i32, I16 => i16, I8 => i8,
+            U64 => u64, U32 => u32, U16 => u16, U8 => u8
+        ])
+    }};
+}
+
 // Use storage's shape method (works for both borrowed and owned)
 macro_rules! get_shape {
     ($($variant:ident),*) => {
@@ -384,7 +503,7 @@ impl TensorMetadata for NdArrayTensor {
             NdArrayTensor::U32(_) => DType::U32,
             NdArrayTensor::U16(_) => DType::U16,
             NdArrayTensor::U8(_) => DType::U8,
-            NdArrayTensor::Bool(_) => DType::Bool,
+            NdArrayTensor::Bool(_) => DType::Bool(BoolStore::Native),
             #[cfg(feature = "complex")]
             NdArrayTensor::Complex32(_) => DType::Complex32,
             #[cfg(feature = "complex")]
@@ -639,11 +758,19 @@ impl NdArrayTensor {
     /// - The data's bytes are properly aligned for the element type
     /// - The bytes can be borrowed (e.g., from mmap'd file or static data)
     pub fn from_data(data: TensorData) -> NdArrayTensor {
-        // Try borrowed storage first, fall back to owned if not possible
-        match Self::try_from_data_borrowed(data) {
-            Ok(tensor) => tensor,
-            Err(data) => Self::from_data_owned(data),
+        // Only use Borrowed storage for non-native allocations (e.g., burnpack mmap/file).
+        // For native Rust heap allocations (the common case), go directly to owned storage:
+        // `from_data_owned` reclaims the Vec zero-copy via `into_vec`, while
+        // Borrowed storage would trigger a full memcopy on every single operation
+        // (because `is_unique()` always returns false for Borrowed).
+        use burn_backend::AllocationProperty;
+        if data.bytes.property() != AllocationProperty::Native {
+            match Self::try_from_data_borrowed(data) {
+                Ok(tensor) => return tensor,
+                Err(data) => return Self::from_data_owned(data),
+            }
         }
+        Self::from_data_owned(data)
     }
 
     /// Try to create a tensor with borrowed storage (zero-copy).
@@ -680,7 +807,7 @@ impl NdArrayTensor {
             DType::U32 => try_borrow!(u32, U32, bytes, shape),
             DType::U16 => try_borrow!(u16, U16, bytes, shape),
             DType::U8 => try_borrow!(u8, U8, bytes, shape),
-            DType::Bool => try_borrow!(bool, Bool, bytes, shape),
+            DType::Bool(BoolStore::Native) => try_borrow!(bool, Bool, bytes, shape),
             _ => (bytes, shape), // QFloat not supported for zero-copy
         };
 
@@ -700,39 +827,32 @@ impl NdArrayTensor {
         let shape = data.shape.to_vec(); // TODO: into_vec
 
         macro_rules! execute {
-            ($data: expr, [$($dtype: ident => $ty: ty),*]) => {
+            ($data: expr, [ $( $(#[$attr:meta])* $dtype:pat => $ty:ty ), * $(,)?]) => {
                 match $data.dtype {
-                    $(DType::$dtype => {
-                        match data.into_vec::<$ty>() {
-                            // Safety: TensorData checks shape validity on creation
-                            Ok(vec) => unsafe { ArrayD::from_shape_vec_unchecked(shape, vec) }.into_shared(),
-                            Err(err) => panic!("Data should have the same element type as the tensor {err:?}"),
-                        }.into()
-                    },)*
+                    $(
+                        $(#[$attr])*
+                        $dtype => {
+                            match data.into_vec::<$ty>() {
+                                Ok(vec) => unsafe { ArrayD::from_shape_vec_unchecked(shape, vec) }.into_shared(),
+                                Err(err) => panic!("Data should have the same element type as the tensor {err:?}"),
+                            }.into()
+                        },
+                    )*
                     other => unimplemented!("Unsupported dtype {other:?}"),
                 }
             };
         }
-        #[cfg(feature = "complex")]
-        {
-            execute!(data, [
-                F64 => f64, F32 => f32,
-                I64 => i64, I32 => i32, I16 => i16, I8 => i8,
-                U64 => u64, U32 => u32, U16 => u16, U8 => u8,
-                Bool => bool,
-                Complex32 => burn_complex::base::element::Complex<f32>,
-                Complex64 => burn_complex::base::element::Complex<f64>
-            ])
-        }
-        #[cfg(not(feature = "complex"))]
-        {
-            execute!(data, [
-                F64 => f64, F32 => f32,
-                I64 => i64, I32 => i32, I16 => i16, I8 => i8,
-                U64 => u64, U32 => u32, U16 => u16, U8 => u8,
-                Bool => bool
-            ])
-        }
+
+        execute!(data, [
+            DType::F64 => f64, DType::F32 => f32,
+            DType::I64 => i64, DType::I32 => i32, DType::I16 => i16, DType::I8 => i8,
+            DType::U64 => u64, DType::U32 => u32, DType::U16 => u16, DType::U8 => u8,
+            DType::Bool(BoolStore::Native) => bool,
+            #[cfg(feature = "complex")]
+            DType::Complex32 => burn_complex::base::element::Complex<f32>,
+            #[cfg(feature = "complex")]
+            DType::Complex64 => burn_complex::base::element::Complex<f64>
+        ])
     }
 }
 
@@ -918,16 +1038,21 @@ mod tests {
     // ==========================================================================
 
     #[test]
-    fn zero_copy_creates_borrowed_storage() {
-        // Verify that from_data creates borrowed storage when possible.
-        // Note: For native allocations, Bytes::clone() copies data internally,
-        // but the storage type (Borrowed) is preserved, which is important for
-        // the is_unique() behavior that triggers copy-on-write.
+    fn zero_copy_creates_borrowed_storage_for_non_native() {
+        // Verify that from_data creates borrowed storage for non-native allocations
+        // (e.g. burnpack mmap/file data tagged with AllocationProperty::Other or File).
+        // Native heap allocations intentionally use Owned storage for performance.
+        use burn_backend::AllocationProperty;
         use burn_std::Bytes;
 
         let data: Vec<f32> = vec![1.0, 2.0, 3.0, 4.0];
         let bytes = Bytes::from_elems(data);
-        let tensor_data = TensorData::from_bytes(bytes, Shape::new([2, 2]), DType::F32);
+        // Tag as Other to simulate burnpack / mmap data (non-native backing storage)
+        let non_native_bytes = Bytes::from_shared(
+            bytes::Bytes::copy_from_slice(&*bytes),
+            AllocationProperty::Other,
+        );
+        let tensor_data = TensorData::from_bytes(non_native_bytes, Shape::new([2, 2]), DType::F32);
 
         let tensor = NdArrayTensor::from_data(tensor_data);
 
@@ -936,11 +1061,35 @@ mod tests {
                 assert!(
                     storage.is_borrowed(),
                     "ZERO-COPY REGRESSION: from_data should create borrowed storage \
-                     for properly aligned TensorData with Bytes"
+                     for non-native (e.g. burnpack) TensorData"
                 );
                 assert!(
                     !storage.is_unique(),
                     "ZERO-COPY REGRESSION: borrowed storage must report is_unique() == false"
+                );
+            }
+            _ => panic!("Expected F32 tensor"),
+        }
+    }
+
+    #[test]
+    fn native_alloc_creates_owned_storage() {
+        // Native heap allocations must use Owned storage so that is_unique()
+        // returns true and ndarray can perform in-place mutations without copying.
+        use burn_std::Bytes;
+
+        let data: Vec<f32> = vec![1.0, 2.0, 3.0, 4.0];
+        let bytes = Bytes::from_elems(data); // AllocationProperty::Native
+        let tensor_data = TensorData::from_bytes(bytes, Shape::new([2, 2]), DType::F32);
+
+        let tensor = NdArrayTensor::from_data(tensor_data);
+
+        match &tensor {
+            NdArrayTensor::F32(storage) => {
+                assert!(
+                    !storage.is_borrowed(),
+                    "PERF REGRESSION: from_data must NOT create borrowed storage \
+                     for native heap allocations (is_unique() would always be false)"
                 );
             }
             _ => panic!("Expected F32 tensor"),

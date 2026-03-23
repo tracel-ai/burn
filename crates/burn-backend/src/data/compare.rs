@@ -1,6 +1,6 @@
 use alloc::format;
 use alloc::string::String;
-use burn_std::{DType, bf16, f16};
+use burn_std::{BoolStore, DType, bf16, f16};
 use num_traits::{Float, ToPrimitive};
 
 use super::TensorData;
@@ -236,7 +236,9 @@ impl TensorData {
             DType::U32 => self.assert_eq_elem::<u32>(other),
             DType::U16 => self.assert_eq_elem::<u16>(other),
             DType::U8 => self.assert_eq_elem::<u8>(other),
-            DType::Bool => self.assert_eq_elem::<bool>(other),
+            DType::Bool(BoolStore::Native) => self.assert_eq_elem::<bool>(other),
+            DType::Bool(BoolStore::U8) => self.assert_eq_elem::<u8>(other),
+            DType::Bool(BoolStore::U32) => self.assert_eq_elem::<u32>(other),
             DType::QFloat(q) => {
                 // Strict or not, it doesn't make sense to compare quantized data to not quantized data for equality
                 let q_other = if let DType::QFloat(q_other) = other.dtype {

@@ -75,13 +75,9 @@ pub fn reduce_kernel_broadcasted(
     reduce_many(inputs, outputs, reduce_axis, blocks, block_end);
 }
 
-const REDUCE_INPUT: usize = 10000;
-const REDUCE_ACC: usize = 10001;
-const REDUCE_OUT: usize = 10002;
-
-type In = NumericExpand<REDUCE_INPUT>;
-type Acc = NumericExpand<REDUCE_ACC>;
-type Out = NumericExpand<REDUCE_OUT>;
+define_scalar!(In);
+define_scalar!(Acc);
+define_scalar!(Out);
 
 define_size!(InSize);
 define_size!(OutSize);
@@ -105,7 +101,6 @@ fn set_polyfill_block(block: &ReduceFuseBlock) {
         FuseType::U32 => FuseType::U32,
         FuseType::U16 => FuseType::U32,
         FuseType::U8 => FuseType::U32,
-        FuseType::Bool => FuseType::I32,
     });
 
     set_polyfill::<In, InSize>(comptime!(

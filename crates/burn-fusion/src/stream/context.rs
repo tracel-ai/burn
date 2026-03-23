@@ -517,6 +517,11 @@ impl RelativeOps for FloatOperationIr {
                 input: desc.input.to_relative(converter),
                 out: desc.out.to_relative(converter),
             }),
+            FloatOperationIr::Powf(desc) => FloatOperationIr::Powf(BinaryOpIr {
+                lhs: desc.lhs.to_relative(converter),
+                rhs: desc.rhs.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
             FloatOperationIr::PowfScalar(desc) => FloatOperationIr::PowfScalar(ScalarOpIr {
                 lhs: desc.lhs.to_relative(converter),
                 rhs: desc.rhs.to_relative(converter),
@@ -980,7 +985,12 @@ impl RelativeOps for NumericOperationIr {
                 out: desc.out.to_relative(converter),
                 distribution: desc.distribution,
             }),
-            NumericOperationIr::Powf(desc) => NumericOperationIr::Powf(BinaryOpIr {
+            NumericOperationIr::Powi(desc) => NumericOperationIr::Powi(BinaryOpIr {
+                lhs: desc.lhs.to_relative(converter),
+                rhs: desc.rhs.to_relative(converter),
+                out: desc.out.to_relative(converter),
+            }),
+            NumericOperationIr::PowiScalar(desc) => NumericOperationIr::PowiScalar(ScalarOpIr {
                 lhs: desc.lhs.to_relative(converter),
                 rhs: desc.rhs.to_relative(converter),
                 out: desc.out.to_relative(converter),

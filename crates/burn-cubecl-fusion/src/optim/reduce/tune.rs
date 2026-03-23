@@ -6,7 +6,7 @@ use crate::{
 };
 use burn_fusion::stream::Context;
 use cubecl::{
-    AutotuneKey, CubeElement, CubeTuneId, Runtime,
+    AutotuneKey, CubeTuneId, Runtime,
     tune::{LocalTuner, Tunable, TunableSet, TuneGroup, local_tuner},
 };
 use cubek::reduce::{
@@ -34,7 +34,7 @@ pub struct FusedReduceAutotuneKey {
 ///
 /// This tuner evaluates different hardware-specific strategies (Plane, Cube, Unit)
 /// and assigns priorities based on the `vector_count` of the reduction.
-pub fn fused_reduce_autotune<R: Runtime, BT: CubeElement>(
+pub fn fused_reduce_autotune<R: Runtime>(
     arg: ReduceOptimizationTuneArg<R>,
     context: &mut Context<CubeFusionHandle<R>>,
 ) {
@@ -48,10 +48,7 @@ pub fn fused_reduce_autotune<R: Runtime, BT: CubeElement>(
         let group = TuneGroup::<FusedReduceAutotuneKey>::new("fused_reduce", |_key| PRIORITY_MAX);
 
         // Fallback implementation for robustness.
-        set = set.with(Tunable::new(
-            "fused_reduce_fallback",
-            tune_fallback::<R, BT>,
-        ));
+        set = set.with(Tunable::new("fused_reduce_fallback", tune_fallback::<R>));
 
         // Define properties to categorize hardware strategies.
         enum ReduceProps {
@@ -85,7 +82,7 @@ pub fn fused_reduce_autotune<R: Runtime, BT: CubeElement>(
         ];
 
         for (name, strategy, props) in strategies {
-            let tunable = Tunable::new(name, move |input| tune_reduce::<R, BT>(input, &strategy))
+            let tunable = Tunable::new(name, move |input| tune_reduce::<R>(input, &strategy))
                 .group(&group, move |key| match props {
                     ReduceProps::GreatWithLowReduceCount => {
                         if key.reduce_key.vector_count < 128 {
@@ -162,33 +159,31 @@ fn input_gen<R: Runtime>(
 }
 
 /// Executes a fused reduction optimization.
-fn tune_reduce<R: Runtime, BT: CubeElement>(
+fn tune_reduce<R: Runtime>(
     input: TuneInput<R, ReduceOptimizationTuneArg<R>>,
     strategy: &RoutineStrategy,
 ) -> Result<TuneOutput<R>, String> {
     let optimization = input.optimization();
 
     match input.context() {
-        TuneContext::Original(context) => {
-            optimization.execute_fused::<BT>(context, strategy.clone())
-        }
+        TuneContext::Original(context) => optimization.execute_fused(context, strategy.clone()),
         TuneContext::Fork(mut context_owned) => {
-            optimization.execute_fused::<BT>(&mut context_owned.as_context(), strategy.clone())
+            optimization.execute_fused(&mut context_owned.as_context(), strategy.clone())
         }
     }
     .map_err(|e| format!("{e:?}"))
 }
 
 /// Executes the fallback path for a reduction optimization.
-fn tune_fallback<R: Runtime, BT: CubeElement>(
+fn tune_fallback<R: Runtime>(
     input: TuneInput<R, ReduceOptimizationTuneArg<R>>,
 ) -> Result<TuneOutput<R>, String> {
     let optimization = input.optimization();
 
     match input.context() {
-        TuneContext::Original(context) => optimization.execute_fallback::<BT>(context),
+        TuneContext::Original(context) => optimization.execute_fallback(context),
         TuneContext::Fork(mut context_owned) => {
-            optimization.execute_fallback::<BT>(&mut context_owned.as_context())
+            optimization.execute_fallback(&mut context_owned.as_context())
         }
     };
 

@@ -1,6 +1,5 @@
 use crate::{
     engine::{
-        codegen::ir::FuseType,
         fuser::TraceOperationFuser,
         settings::{FuseSettings, RefLayoutSetting, VectorizationSetting},
     },
@@ -31,7 +30,7 @@ pub struct ReduceBroadcastedFullFuser {
 
 impl ReduceBroadcastedFullFuser {
     /// Creates a new fuser with the given settings.
-    pub fn new(max_bindings: u32, bool_precision: FuseType, analyzer: FullFuserAnalyzer) -> Self {
+    pub fn new(max_bindings: u32, analyzer: FullFuserAnalyzer) -> Self {
         let settings_read = FuseSettings {
             output_shape_updates: true,
             broadcast: true,
@@ -47,7 +46,7 @@ impl ReduceBroadcastedFullFuser {
             // Deactivated for now, but would be cool to support vectorization of the output.
             vectorization: VectorizationSetting::Deactivated,
         };
-        let fuser = TraceOperationFuser::new(max_bindings, bool_precision, settings_read);
+        let fuser = TraceOperationFuser::new(max_bindings, settings_read);
 
         Self {
             fuser,

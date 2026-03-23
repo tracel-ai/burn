@@ -15,7 +15,7 @@ pub type Cuda<F = f32, I = i32> = burn_fusion::Fusion<CubeBackend<CudaRuntime, F
 #[cfg(all(test, not(target_os = "macos")))]
 mod tests {
     use super::*;
-    use burn_backend::{Backend, DType, QTensorPrimitive};
+    use burn_backend::{Backend, BoolStore, DType, QTensorPrimitive};
     use burn_cubecl::tensor::CubeTensor;
 
     #[test]
@@ -35,7 +35,7 @@ mod tests {
         assert!(B::supports_dtype(&device, DType::U32));
         assert!(B::supports_dtype(&device, DType::U16));
         assert!(B::supports_dtype(&device, DType::U8));
-        assert!(B::supports_dtype(&device, DType::Bool));
+        assert!(B::supports_dtype(&device, DType::Bool(BoolStore::Native)));
         assert!(B::supports_dtype(
             &device,
             DType::QFloat(CubeTensor::<CudaRuntime>::default_scheme())

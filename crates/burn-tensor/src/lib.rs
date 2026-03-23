@@ -17,7 +17,10 @@ pub(crate) use tensor::check::macros::check;
 pub use tensor::*;
 
 // Re-exported types
-pub use burn_backend::{AllocationProperty, Bytes, StreamId, bf16, f16, read_sync, try_read_sync};
+pub use burn_backend::{
+    AllocationProperty, Bytes, DeviceSettings, StreamId, bf16, f16, get_device_settings, read_sync,
+    set_default_dtypes, try_read_sync,
+};
 
-mod device;
-pub use device::*;
+// mod device;
+// pub use device::*;

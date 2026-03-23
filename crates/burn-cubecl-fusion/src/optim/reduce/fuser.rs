@@ -47,7 +47,7 @@ pub enum ReduceFuserInfo {
 }
 
 impl<R: Runtime> ReduceFuser<R> {
-    pub fn new(device: R::Device, bool_precision: FuseType, settings: ReduceSettings) -> Self {
+    pub fn new(device: R::Device, settings: ReduceSettings) -> Self {
         let client = R::client(&device);
         let props = client.properties();
         let max_bindings = props.hardware.max_bindings;
@@ -69,17 +69,9 @@ impl<R: Runtime> ReduceFuser<R> {
         let settings_fallback = FuseSettings::default();
 
         Self {
-            fuser: TraceOperationFuser::new(max_bindings, bool_precision, settings_read),
-            fuser_read_fallback: TraceOperationFuser::new(
-                max_bindings,
-                bool_precision,
-                settings_fallback,
-            ),
-            fuser_write_fallback: TraceOperationFuser::new(
-                max_bindings,
-                bool_precision,
-                settings_fallback,
-            ),
+            fuser: TraceOperationFuser::new(max_bindings, settings_read),
+            fuser_read_fallback: TraceOperationFuser::new(max_bindings, settings_fallback),
+            fuser_write_fallback: TraceOperationFuser::new(max_bindings, settings_fallback),
             settings_write,
             device,
             reduce: None,

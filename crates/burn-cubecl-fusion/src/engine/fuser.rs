@@ -1,5 +1,5 @@
 use super::{
-    codegen::ir::{BinaryFuseArgs, FuseArg, FuseOp, FuseType, UnaryFuseArgs},
+    codegen::ir::{BinaryFuseArgs, FuseArg, FuseOp, UnaryFuseArgs},
     settings::FuseSettings,
     trace::{FuseTrace, TraceFuser, block::QuantInput},
 };
@@ -125,11 +125,7 @@ impl OperationFuser<FuseTrace> for TraceOperationFuser {
         self.scoring.reset();
         self.num_views = 0;
         self.status = FuserStatus::Open;
-        self.fuser = TryTraceFuser::new(
-            self.max_bindings,
-            self.fuser.fuser.bool_precision,
-            self.settings,
-        );
+        self.fuser = TryTraceFuser::new(self.max_bindings, self.settings);
         self.current_output_shape = Shape::new([]);
     }
 
@@ -153,9 +149,9 @@ impl OperationFuser<FuseTrace> for TraceOperationFuser {
 
 impl TraceOperationFuser {
     /// Creates a new fuser.
-    pub fn new(max_bindings: u32, bool_precision: FuseType, settings: FuseSettings) -> Self {
+    pub fn new(max_bindings: u32, settings: FuseSettings) -> Self {
         Self {
-            fuser: TryTraceFuser::new(max_bindings, bool_precision, settings),
+            fuser: TryTraceFuser::new(max_bindings, settings),
             settings,
             scoring: Scoring::default(),
             num_ops: 0,
@@ -434,6 +430,9 @@ impl TraceOperationFuser {
             FloatOperationIr::Log(desc) => {
                 self.fuse_unary_ops(desc, |input, out| FuseOp::Log(UnaryFuseArgs { input, out }))
             }
+            FloatOperationIr::Powf(desc) => self.fuse_binary_ops(desc, |lhs, rhs, out| {
+                FuseOp::Powf(BinaryFuseArgs { lhs, rhs, out })
+            }),
             FloatOperationIr::Log1p(desc) => self.fuse_unary_ops(desc, |input, out| {
                 FuseOp::Log1p(UnaryFuseArgs { input, out })
             }),
@@ -569,9 +568,6 @@ impl TraceOperationFuser {
             }),
             NumericOperationIr::RemScalar(desc) => self.fuse_scalar_ops(desc, |lhs, rhs, out| {
                 FuseOp::Rem(BinaryFuseArgs { lhs, rhs, out })
-            }),
-            NumericOperationIr::Powf(desc) => self.fuse_binary_ops(desc, |lhs, rhs, out| {
-                FuseOp::Powf(BinaryFuseArgs { lhs, rhs, out })
             }),
             NumericOperationIr::Clamp(desc) => {
                 if !self.output_is_compatible(&desc.out) {
@@ -728,9 +724,9 @@ struct TryTraceFuser {
 }
 
 impl TryTraceFuser {
-    fn new(max_bindings: u32, bool_precision: FuseType, settings: FuseSettings) -> Self {
+    fn new(max_bindings: u32, settings: FuseSettings) -> Self {
         Self {
-            fuser: TraceFuser::new(bool_precision, settings),
+            fuser: TraceFuser::new(settings),
             max_bindings,
             // A good default, avoid errors with for loops over only memory
             // bound operations.

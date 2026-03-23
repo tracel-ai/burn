@@ -50,8 +50,6 @@ pub trait ToComplexElement: ToElement {
     fn to_complex64(&self) -> Complex<f64>;
 }
 
-
-
 #[derive(Debug, Clone, PartialEq)]
 #[repr(C)]
 pub struct Complex<E> {

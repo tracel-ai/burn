@@ -6,7 +6,7 @@ use crate::{
         matmul::{MatmulStrategy, matmul},
         reduce::reduce_dim,
         slice_assign,
-        utils::{address_type, decompose_linear, linear_view},
+        utils::{address_type, decompose_linear},
     },
     ops::{
         numeric::{empty_device_dtype, zeros_client},
@@ -20,7 +20,7 @@ use cubecl::{
     features::TypeUsage,
     ir::FloatKind,
     prelude::*,
-    std::{FastDivmod, FastDivmodArgs, tensor::layout::linear::LinearView},
+    std::{FastDivmod, tensor::layout::linear::LinearView},
 };
 use cubek::{
     convolution::components::ConvSetupError,
@@ -236,10 +236,7 @@ fn compute_offset_and_mask_gradient<R: CubeRuntime>(
     let offset_groups = options.offset_groups;
 
     let pos_shape = [batches, offset_groups, kernel_h, kernel_w, 2, out_h, out_w];
-    let pos_shape = pos_shape
-        .into_iter()
-        .map(|s| FastDivmodArgs::new(&client, s))
-        .collect();
+    let pos_shape = pos_shape.into_iter().collect();
 
     let grad_offset =
         empty_device_dtype(client.clone(), device.clone(), offset.shape(), offset.dtype);
@@ -262,7 +259,7 @@ fn compute_offset_and_mask_gradient<R: CubeRuntime>(
             offset.into_tensor_arg(),
             mask.map(|mask| mask.into_tensor_arg()).into(),
             columns.into_tensor_arg(),
-            linear_view(grad_offset.clone(), 1),
+            grad_offset.clone().into_linear_view(),
             grad_mask
                 .clone()
                 .map(|grad_mask| grad_mask.into_tensor_arg())
@@ -494,10 +491,7 @@ fn compute_input_grad<R: CubeRuntime>(
     let (kernel_h, kernel_w) = kernel_dims;
 
     let pos_shape = [in_channels, kernel_h, kernel_w, batches, out_h, out_w];
-    let pos_shape = pos_shape
-        .into_iter()
-        .map(|s| FastDivmodArgs::new(&client, s))
-        .collect();
+    let pos_shape = pos_shape.into_iter().collect();
 
     let shape = Shape::new([batches, in_channels, height, width]);
     let grad_in = match supports_fadd && supports_same_type {
@@ -530,7 +524,7 @@ fn compute_input_grad<R: CubeRuntime>(
             address_type!(offset, mask, columns, grad_in),
             offset.into_tensor_arg(),
             mask.map(|mask| mask.into_tensor_arg()).into(),
-            linear_view(columns, 1),
+            reshape(columns, Shape::new([num_elements])).into_linear_view(),
             grad_arg,
             pos_shape,
             DeformConv2dCol2ImgArgsLaunch::new(

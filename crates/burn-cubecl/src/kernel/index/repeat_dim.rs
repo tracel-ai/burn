@@ -4,11 +4,7 @@ use crate::{
     ops::numeric::empty_device_dtype,
     tensor::CubeTensor,
 };
-use cubecl::{
-    calculate_cube_count_elemwise,
-    prelude::*,
-    std::{FastDivmod, FastDivmodArgs},
-};
+use cubecl::{calculate_cube_count_elemwise, prelude::*, std::FastDivmod};
 
 #[cube(launch_unchecked, address_type = "dynamic")]
 fn repeat_dim_kernel<E: Numeric>(
@@ -73,7 +69,7 @@ pub(crate) fn repeat_dim<R: CubeRuntime>(
     let cube_dim = CubeDim::new(&input.client, working_units);
     let cube_count = calculate_cube_count_elemwise(&input.client, working_units, cube_dim);
 
-    let shape_arg = FastDivmodArgs::new(&input.client, input.meta.shape()[dim]);
+    let shape_arg = input.meta.shape()[dim];
 
     unsafe {
         repeat_dim_kernel::launch_unchecked(
