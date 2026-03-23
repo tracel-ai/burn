@@ -1,6 +1,6 @@
 use crate::kernel::{
     AddOp, BinaryOp, BinaryOpFamily, OrOp,
-    utils::{address_type, linear_view, shape_divmod},
+    utils::{address_type, shape_divmod},
 };
 use crate::{CubeRuntime, tensor::CubeTensor};
 use cubecl::{CubeDim, calculate_cube_count_elemwise, std::tensor::layout::linear::LinearView};
@@ -87,7 +87,7 @@ pub(crate) fn select_assign<R: CubeRuntime>(
             cube_dim,
             address_type!(tensor, indices, value),
             tensor.clone().into_tensor_arg(),
-            linear_view(indices, 1),
+            indices.into_linear_view(),
             value.into_tensor_arg(),
             shape,
             num_elems,

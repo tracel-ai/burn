@@ -1,4 +1,4 @@
-use cubecl::std::{FastDivmod, FastDivmodArgs};
+use cubecl::std::FastDivmod;
 use cubecl::{calculate_cube_count_elemwise, prelude::*};
 
 use crate::{
@@ -150,7 +150,7 @@ pub(crate) fn grid_sample_bilinear_launch<R: CubeRuntime>(
 
     let mut shape_spatial = SequenceArg::new();
     for dim in spatial_shape.iter() {
-        shape_spatial.push(FastDivmodArgs::new(&input.client, *dim));
+        shape_spatial.push(*dim);
     }
 
     let cube_dim = CubeDim::new(&input.client, num_spatial);

@@ -86,7 +86,7 @@ impl<R: Runtime> MatmulOptimizationInfo<R> {
 }
 
 impl<R: Runtime> MatmulOptimizationTuneArg<R> {
-    pub(crate) fn execute_fused<BT: CubeElement>(
+    pub(crate) fn execute_fused(
         &self,
         context: &mut Context<'_, CubeFusionHandle<R>>,
         selector: FusedMatmulSelector,
@@ -94,10 +94,10 @@ impl<R: Runtime> MatmulOptimizationTuneArg<R> {
         let launch = FusedMatmulLaunch::new(&self.info.matmul, selector);
         let launcher = FuseTraceLauncher::new(&self.info.trace, &launch);
 
-        launcher.launch::<BT>(&self.info.client, &self.info.device, context)
+        launcher.launch(&self.info.client, &self.info.device, context)
     }
 
-    pub fn execute_fallback<BT: CubeElement>(
+    pub fn execute_fallback(
         &self,
         context: &mut Context<'_, CubeFusionHandle<R>>,
     ) -> TuneOutput<R> {
@@ -125,7 +125,7 @@ impl<R: Runtime> MatmulOptimizationTuneArg<R> {
 
         let launcher = FuseTraceLauncher::new(&self.info.trace_fallback, &ElemwiseRunner);
         let output_write = launcher
-            .launch::<BT>(&self.info.client, &self.info.device, context)
+            .launch(&self.info.client, &self.info.device, context)
             .unwrap();
 
         output.merge(output_write)
@@ -155,7 +155,7 @@ impl<R: Runtime> MatmulOptimization<R> {
         }
     }
     /// Execute the optimization.
-    pub fn execute<BT: CubeElement>(
+    pub fn execute(
         &mut self,
         context: &mut Context<'_, CubeFusionHandle<R>>,
         fallback: impl FnOnce(usize) -> Box<dyn FallbackOperation<R>>,
@@ -168,14 +168,14 @@ impl<R: Runtime> MatmulOptimization<R> {
         };
 
         #[cfg(feature = "autotune")]
-        fused_matmul_autotune::<R, BT>(arg, context);
+        fused_matmul_autotune::<R>(arg, context);
 
         #[cfg(not(feature = "autotune"))]
         if arg
-            .execute_fused::<BT>(context, FusedMatmulSelector::default())
+            .execute_fused(context, FusedMatmulSelector::default())
             .is_err()
         {
-            arg.execute_fallback::<BT>(context);
+            arg.execute_fallback(context);
         }
     }
 

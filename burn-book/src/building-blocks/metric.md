@@ -27,6 +27,7 @@ throughout the training process. We currently offer a restricted range of metric
 | ------------- | ---------------------------------------------------------------------------------------------------- |
 | Dice          | Computes the Dice-Sorenson coefficient (DSC) for evaluating overlap between binary masks             |
 | DISTS         | Computes the Deep Image Structure and Texture Similarity (DISTS) metric for image quality assessment |
+| FID           | Computes the Frechet Inception Distance (FID) for evaluating generative model quality                |
 | LPIPS         | Computes the Learned Perceptual Image Patch Similarity (LPIPS) for image quality assessment          |
 | MS-SSIM       | Computes the Multi-scale Structural Similarity index measure (MS-SSIM) for image quality assessment  |
 | PSNR          | Computes the Peak Signal-to-Noise Ratio (PSNR) for image quality assessment                          |

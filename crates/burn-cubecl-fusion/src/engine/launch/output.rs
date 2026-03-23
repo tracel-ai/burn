@@ -3,7 +3,7 @@ use super::{
     NormalHandleInput, ReferenceSelection,
 };
 use crate::{
-    CubeFusionHandle, elem_dtype,
+    CubeFusionHandle,
     engine::{
         codegen::ir::{FuseArg, FuseOp, LayoutInfo},
         launch::HandleInput,
@@ -14,12 +14,12 @@ use crate::{
 };
 use burn_fusion::stream::Context;
 use burn_ir::{TensorId, TensorIr};
-use burn_std::{DType, Shape};
+use burn_std::Shape;
 use burn_std::{
     Strides,
     tensor::{ReshapeAction, contiguous_strides, is_contiguous, reshape_action},
 };
-use cubecl::{CubeElement, Runtime, client::ComputeClient, ir::StorageType};
+use cubecl::{Runtime, client::ComputeClient, ir::StorageType};
 
 /// Create or reuse handles for the outputs.
 ///
@@ -91,7 +91,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         }
     }
 
-    pub fn run<BT: CubeElement>(
+    pub fn run(
         mut self,
         client: &ComputeClient<R>,
         device: &R::Device,
@@ -113,10 +113,18 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
 
             match kind {
                 OutputKind::Inplace { input_pos } => {
-                    self.inplace_output(context, plan, output, tensor_global, input_pos, block_idx);
+                    self.inplace_output(
+                        context,
+                        plan,
+                        output,
+                        tensor_global,
+                        strides,
+                        input_pos,
+                        block_idx,
+                    );
                 }
                 OutputKind::Normal => {
-                    self.normal_output::<BT>(
+                    self.normal_output(
                         client,
                         device,
                         context,
@@ -128,7 +136,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                     );
                 }
                 OutputKind::Transform(TensorView::Reshape { original, .. }) => {
-                    self.reshaped_output::<BT>(
+                    self.reshaped_output(
                         client,
                         device,
                         context,
@@ -141,7 +149,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                     );
                 }
                 OutputKind::Transform(TensorView::SwapDims { original, dims, .. }) => {
-                    self.swapped_dims_output::<BT>(
+                    self.swapped_dims_output(
                         client,
                         device,
                         context,
@@ -352,12 +360,14 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         (kind, block_idx)
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn inplace_output(
         &mut self,
         context: &mut Context<'_, CubeFusionHandle<R>>,
         plan: &mut LaunchPlan<'a, R>,
         output: OutputSorted,
         tensor_global: TensorIr,
+        strides: Strides,
         input_index: usize,
         block_idx: usize,
     ) {
@@ -424,6 +434,8 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         self.handles[output.pos_original] = Some(HandleOutput::Alias {
             input_pos: potential_inplace.input_pos,
             precision: output.precision,
+            global_shape: tensor_global.shape.clone(),
+            strides,
             #[cfg(feature = "autotune-checks")]
             debug_info: super::HandleOutputAliasDebugInfo {
                 relative_id: output.tensor_relative.id,
@@ -435,7 +447,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn normal_output<BT: CubeElement>(
+    fn normal_output(
         &mut self,
         client: &ComputeClient<R>,
         device: &R::Device,
@@ -487,11 +499,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             }
         };
 
-        // We encode bool tensors as `B`.
-        let dtype = match tensor_global.dtype {
-            DType::Bool => elem_dtype::<BT>(),
-            _ => tensor_global.dtype,
-        };
+        let dtype = tensor_global.dtype;
         let size = tensor_global.shape.iter().product::<usize>() * StorageType::from(dtype).size();
 
         let handle = CubeFusionHandle {
@@ -520,7 +528,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn reshaped_output<BT: CubeElement>(
+    fn reshaped_output(
         &mut self,
         client: &ComputeClient<R>,
         device: &R::Device,
@@ -536,11 +544,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
 
         let (pos_input, original_handle) = Self::find_child_input(&plan.handle_inputs, original);
 
-        // We encode bool tensors as `B`.
-        let dtype = match tensor_global.dtype {
-            DType::Bool => elem_dtype::<BT>(),
-            _ => tensor_global.dtype,
-        };
+        let dtype = tensor_global.dtype;
 
         let action = reshape_action(
             &original_handle.global_ir.shape,
@@ -575,6 +579,8 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                 self.handles[output.pos_original] = Some(HandleOutput::Alias {
                     input_pos: pos_input,
                     precision: output.precision,
+                    global_shape: tensor_global.shape.clone(),
+                    strides: handle.strides.clone(),
                     #[cfg(feature = "autotune-checks")]
                     debug_info: super::HandleOutputAliasDebugInfo {
                         relative_id: output.tensor_relative.id,
@@ -585,7 +591,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                 self.globals[output.pos_original] = Some(tensor_global);
             }
             None => {
-                self.normal_output::<BT>(
+                self.normal_output(
                     client,
                     device,
                     context,
@@ -600,7 +606,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn swapped_dims_output<BT: CubeElement>(
+    fn swapped_dims_output(
         &mut self,
         client: &ComputeClient<R>,
         device: &R::Device,
@@ -615,11 +621,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         let block = &mut plan.blocks[block_idx];
         let (pos_input, original_handle) = Self::find_child_input(&plan.handle_inputs, original);
 
-        // We encode bool tensors as `B`.
-        let dtype = match tensor_global.dtype {
-            DType::Bool => elem_dtype::<BT>(),
-            _ => tensor_global.dtype,
-        };
+        let dtype = tensor_global.dtype;
 
         // TODO: Check if we can also remove the read, if we have a dead partial graph.
         //
@@ -646,6 +648,8 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         self.handles[output.pos_original] = Some(HandleOutput::Alias {
             input_pos: pos_input,
             precision: output.precision,
+            global_shape: tensor_global.shape.clone(),
+            strides: handle.strides.clone(),
             #[cfg(feature = "autotune-checks")]
             debug_info: super::HandleOutputAliasDebugInfo {
                 relative_id: output.tensor_relative.id,

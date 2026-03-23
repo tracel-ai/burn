@@ -32,7 +32,6 @@ default = [
 doc = ["default"]
 std = [
     "burn-backend/std",
-    "burn-std/std",
     "burn-autodiff?/std",
     "burn-cpu?/std",
     "burn-cuda?/std",
@@ -63,9 +62,28 @@ wgpu = ["burn-wgpu"]
 cpu = ["burn-cpu"]
 autodiff = ["burn-autodiff"]
 
+# Backend features
+autotune = [
+    "burn-wgpu?/autotune",
+    "burn-cuda?/autotune",
+    "burn-rocm?/autotune",
+    "burn-cpu?/autotune",
+]
+autotune-checks = [
+    "burn-wgpu?/autotune-checks",
+    "burn-cuda?/autotune-checks",
+    "burn-rocm?/autotune-checks",
+    "burn-cpu?/autotune-checks",
+]
+fusion = [
+    "burn-wgpu?/fusion",
+    "burn-cuda?/fusion",
+    "burn-rocm?/fusion",
+    "burn-cpu?/fusion",
+]
+
 [dependencies]
 burn-backend = { path = "../burn-backend", version = "=0.21.0-pre.2", default-features = false }
-burn-std = { path = "../burn-std", version = "=0.21.0-pre.2", default-features = false }
 
 # Backends
 burn-autodiff = { path = "../burn-autodiff", version = "=0.21.0-pre.2", optional = true, default-features = false }

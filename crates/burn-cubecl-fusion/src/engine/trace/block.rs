@@ -40,7 +40,6 @@ pub struct FuseBlockBuilder {
     reads: BTreeMap<TensorId, Vec<FuseOp>>,
     // Only for global registers.
     writes: BTreeMap<TensorId, Vec<FuseOp>>,
-    bool_precision: FuseType,
     // Output declared in this block alone.
     outputs: RegisteredTensors,
     pub outputs_unhandled: Vec<FuseArg>,
@@ -60,9 +59,8 @@ pub enum QuantInput {
 }
 
 impl FuseBlockBuilder {
-    pub fn new(bool_precision: FuseType, settings: FuseSettings) -> Self {
+    pub fn new(settings: FuseSettings) -> Self {
         Self {
-            bool_precision,
             settings,
             locals: Default::default(),
             ops: Default::default(),
@@ -85,19 +83,13 @@ impl FuseBlockBuilder {
         }
         let precision = tensor.dtype.into();
 
-        // Bool tensors are encoded as bool_precision.
-        let precision_output = match precision {
-            FuseType::Bool => self.bool_precision,
-            _ => precision,
-        };
-
         let out = match self.locals.get(precision, tensor.id) {
             Some(local) => local,
             None => {
                 let out = self.locals.create(precision, tensor.id);
 
-                self.outputs.insert(precision_output, tensor.clone());
-                resources.outputs.insert(precision_output, tensor.clone());
+                self.outputs.insert(precision, tensor.clone());
+                resources.outputs.insert(precision, tensor.clone());
 
                 out
             }
@@ -170,12 +162,6 @@ impl FuseBlockBuilder {
         }
         let precision = tensor.dtype.into();
 
-        // Bool tensors are encoded as bool_precision.
-        let precision_input = match precision {
-            FuseType::Bool => self.bool_precision,
-            _ => precision,
-        };
-
         if let Some(val) = self.local_inputs.get(&tensor.id) {
             return Some(val.clone());
         }
@@ -193,10 +179,10 @@ impl FuseBlockBuilder {
                     };
 
                     let pos = resources.buffers.insert(precision, tensor.clone());
-                    FuseArg::Output(pos, precision_input, LayoutInfo::Unknown)
+                    FuseArg::Output(pos, precision, LayoutInfo::Unknown)
                 } else {
-                    let pos = resources.inputs.insert(precision_input, tensor.clone());
-                    FuseArg::Input(pos, precision_input, LayoutInfo::Unknown)
+                    let pos = resources.inputs.insert(precision, tensor.clone());
+                    FuseArg::Input(pos, precision, LayoutInfo::Unknown)
                 };
 
                 let out = self.locals.create(precision, tensor.id);
@@ -281,12 +267,6 @@ impl FuseBlockBuilder {
         }
         let precision = tensor.dtype.into();
 
-        // Bool tensors are encoded as bool_precision.
-        let precision_input = match precision {
-            FuseType::Bool => self.bool_precision,
-            _ => precision,
-        };
-
         let input_index = match self.locals.get(precision, tensor.id) {
             Some(_) => {
                 // Can't fused an already fused input.
@@ -304,11 +284,11 @@ impl FuseBlockBuilder {
                     }
                 }
             }
-            None => resources.inputs.insert(precision_input, tensor.clone()),
+            None => resources.inputs.insert(precision, tensor.clone()),
         };
 
         let out = self.output(output, resources)?;
-        let original = FuseArg::Input(input_index, precision_input, LayoutInfo::Unknown);
+        let original = FuseArg::Input(input_index, precision, LayoutInfo::Unknown);
 
         let broadcasted = output.shape[output.shape.rank() - 1] == 0;
 
@@ -351,12 +331,6 @@ impl FuseBlockBuilder {
         }
         let precision = tensor.dtype.into();
 
-        // Bool tensors are encoded as bool_precision.
-        let precision_input = match precision {
-            FuseType::Bool => self.bool_precision,
-            _ => precision,
-        };
-
         let input_index = match self.locals.get(precision, tensor.id) {
             Some(_) => {
                 // Can't fused an already fused input.
@@ -374,11 +348,11 @@ impl FuseBlockBuilder {
                     }
                 }
             }
-            None => resources.inputs.insert(precision_input, tensor.clone()),
+            None => resources.inputs.insert(precision, tensor.clone()),
         };
 
         let out = self.output(output, resources)?;
-        let original = FuseArg::Input(input_index, precision_input, LayoutInfo::Unknown);
+        let original = FuseArg::Input(input_index, precision, LayoutInfo::Unknown);
 
         let mut shape = Vec::new();
 

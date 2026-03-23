@@ -10,7 +10,7 @@
 use crate::pytorch::PytorchReader;
 // Import internal types for testing only
 use crate::pytorch::reader::{ByteOrder, FileFormat};
-use burn_tensor::{DType, shape};
+use burn_tensor::{BoolStore, DType, shape};
 use std::path::PathBuf;
 
 fn test_data_path(filename: &str) -> PathBuf {
@@ -118,7 +118,7 @@ fn test_bool_tensor() {
     let path = test_data_path("bool.pt");
     let reader = PytorchReader::new(&path).expect("Failed to load bool.pt");
     let tensor = reader.get("tensor").expect("tensor key not found");
-    assert_eq!(tensor.dtype, DType::Bool);
+    assert_eq!(tensor.dtype, DType::Bool(BoolStore::Native));
     assert_eq!(tensor.shape, shape![5]);
 
     let data = tensor.to_data().unwrap();
@@ -390,7 +390,7 @@ fn test_mixed_types() {
 
     // Check bool tensor [True, False] from test_data.py
     let bool_tensor = reader.get("bool").unwrap();
-    assert_eq!(bool_tensor.dtype, DType::Bool);
+    assert_eq!(bool_tensor.dtype, DType::Bool(BoolStore::Native));
     assert_eq!(bool_tensor.shape, shape![2]);
     let data = bool_tensor.to_data().unwrap();
     let values = data.as_slice::<bool>().unwrap();
@@ -484,7 +484,7 @@ fn test_buffers() {
 
     // Check buffer2 (bool)
     let buffer2 = reader.get("buffer2").unwrap();
-    assert_eq!(buffer2.dtype, DType::Bool);
+    assert_eq!(buffer2.dtype, DType::Bool(BoolStore::Native));
     assert_eq!(buffer2.shape, shape![2]);
     let data2 = buffer2.to_data().unwrap();
     let values2 = data2.as_slice::<bool>().unwrap();

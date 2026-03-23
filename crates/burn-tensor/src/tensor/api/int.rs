@@ -1,8 +1,8 @@
-use burn_backend::Scalar;
+use burn_backend::{Scalar, get_device_settings};
 
 use crate::{
-    Float, Int, IntDType, Shape, Tensor, TensorData, TensorPrimitive, backend::Backend,
-    cartesian_grid,
+    Float, Int, IntDType, Shape, Tensor, TensorCreationOptions, TensorData, TensorPrimitive,
+    backend::Backend, cartesian_grid,
 };
 
 use core::ops::Range;
@@ -17,8 +17,10 @@ where
     ///
     /// * `range` - The range of values to generate.
     /// * `device` - The device to create the tensor on.
-    pub fn arange(range: Range<i64>, device: &B::Device) -> Self {
-        Tensor::new(B::int_arange(range, device))
+    pub fn arange(range: Range<i64>, options: impl Into<TensorCreationOptions<B>>) -> Self {
+        let opt = options.into();
+        let dtype = opt.resolve_dtype::<Int>();
+        Tensor::new(B::int_arange(range, &opt.device, dtype.into()))
     }
 
     /// Returns a new integer tensor on the specified device.
@@ -27,8 +29,14 @@ where
     ///
     /// * `range` - The range of values to generate.
     /// * `step` - The step between each value.
-    pub fn arange_step(range: Range<i64>, step: usize, device: &B::Device) -> Self {
-        Tensor::new(B::int_arange_step(range, step, device))
+    pub fn arange_step(
+        range: Range<i64>,
+        step: usize,
+        options: impl Into<TensorCreationOptions<B>>,
+    ) -> Self {
+        let opt = options.into();
+        let dtype = opt.resolve_dtype::<Int>();
+        Tensor::new(B::int_arange_step(range, step, &opt.device, dtype.into()))
     }
 }
 
@@ -70,7 +78,11 @@ where
     /// }
     /// ```
     pub fn float(self) -> Tensor<B, D, Float> {
-        Tensor::new(TensorPrimitive::Float(B::int_into_float(self.primitive)))
+        let out_dtype = get_device_settings::<B>(&self.device()).float_dtype;
+        Tensor::new(TensorPrimitive::Float(B::int_into_float(
+            self.primitive,
+            out_dtype,
+        )))
     }
 
     /// Generates a cartesian grid for the given tensor shape on the specified device.

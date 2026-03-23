@@ -495,26 +495,12 @@ where
     /// function, which is more high-level and designed for public use.
     fn abs(tensor: Self::Primitive) -> Self::Primitive;
 
-    /// Element-wise power of a tensor to a float tensor
-    ///
-    /// # Arguments
-    /// * `tensor` - The tensor to apply power to.
-    /// * `power` - The power to apply to the tensor.
-    fn powf(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive;
-
     /// Element-wise power of a tensor
     ///
     /// # Arguments
     /// * `tensor` - The tensor to apply power to.
     /// * `power` - The power to apply to the tensor.
     fn powi(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive;
-
-    /// Element-wise power of a tensor to a scalar float
-    ///
-    /// # Arguments
-    /// * `tensor` - The tensor to apply power to.
-    /// * `power` - The power to apply to the tensor.
-    fn powf_scalar(lhs: Self::Primitive, rhs: Scalar) -> Self::Primitive;
 
     /// Element-wise power of a tensor to a scalar int
     ///

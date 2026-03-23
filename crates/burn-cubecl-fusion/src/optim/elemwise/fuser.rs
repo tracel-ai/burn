@@ -1,7 +1,6 @@
 use super::optimization::ElemwiseOptimization;
 use crate::{
     engine::{
-        codegen::ir::FuseType,
         fuser::TraceOperationFuser,
         settings::{FuseSettings, RefLayoutSetting, VectorizationSetting},
     },
@@ -30,7 +29,7 @@ impl<R: Runtime> ElementWiseFuser<R> {
     pub fn shape_id(&self) -> Shape {
         self.fuser.current_output_shape.clone()
     }
-    pub fn new(device: R::Device, bool_precision: FuseType) -> Self {
+    pub fn new(device: R::Device) -> Self {
         let client = R::client(&device);
         let props = client.properties();
         let max_bindings = props.hardware.max_bindings;
@@ -38,7 +37,6 @@ impl<R: Runtime> ElementWiseFuser<R> {
         Self {
             fuser: TraceOperationFuser::new(
                 max_bindings,
-                bool_precision,
                 FuseSettings {
                     broadcast: true,
                     output_shape_updates: true,

@@ -9,6 +9,7 @@ use burn_backend::quantization::{QuantLevel, QuantMode, QuantScheme, QuantStore,
 use burn_backend::tensor::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
 use burn_backend::{Backend, DType, DeviceId, DeviceOps};
 use burn_ir::{BackendIr, HandleKind, TensorHandle};
+use burn_std::BoolStore;
 use burn_std::stub::Mutex;
 use core::marker::PhantomData;
 use rand::SeedableRng;
@@ -103,8 +104,8 @@ where
             | DType::U32
             | DType::U16
             | DType::U8
-            | DType::Bool => burn_backend::DTypeUsage::general(),
-            DType::F16 | DType::BF16 => burn_backend::DTypeUsageSet::empty(),
+            | DType::Bool(BoolStore::Native) => burn_backend::DTypeUsage::general(),
+            DType::F16 | DType::BF16 | DType::Bool(_) => burn_backend::DTypeUsageSet::empty(),
             DType::QFloat(scheme) => {
                 match scheme {
                     QuantScheme {
@@ -221,7 +222,7 @@ mod tests {
         assert!(B::supports_dtype(&device, DType::U32));
         assert!(B::supports_dtype(&device, DType::U16));
         assert!(B::supports_dtype(&device, DType::U8));
-        assert!(B::supports_dtype(&device, DType::Bool));
+        assert!(B::supports_dtype(&device, DType::Bool(BoolStore::Native)));
         assert!(B::supports_dtype(
             &device,
             DType::QFloat(NdArrayQTensor::default_scheme())

@@ -3,22 +3,23 @@ use crate::{
     stream::{OperationStreams, execution::Operation},
 };
 use burn_backend::{
-    Element, ExecutionError, Scalar, Shape, Slice, TensorData,
+    BoolDType, ExecutionError, FloatDType, IntDType, Scalar, Shape, Slice, TensorData,
     ops::BoolTensorOps,
     tensor::{BoolTensor, Device, FloatTensor, IndexingUpdateOp, IntTensor},
 };
 use burn_ir::{
     BaseOperationIr, BinaryOpIr, BoolOperationIr, CastOpIr, CatOpIr, CreationOpIr, FlipOpIr,
     GatherOpIr, HandleContainer, InitOperationIr, MaskFillOpIr, MaskWhereOpIr, OperationIr,
-    OperationOutput, PermuteOpIr, RepeatDimOpIr, ScalarOpIr, ScatterOpIr, ShapeOpIr,
-    SliceAssignOpIr, SliceOpIr, SwapDimsOpIr, TensorIr, UnaryOpIr, UnfoldOpIr,
+    OperationOutput, PermuteOpIr, RepeatDimOpIr, ScalarOpIr, ScatterOpIr, SelectAssignOpIr,
+    SelectOpIr, ShapeOpIr, SliceAssignOpIr, SliceOpIr, SwapDimsOpIr, TensorIr, UnaryOpIr,
+    UnfoldOpIr,
 };
 use std::marker::PhantomData;
 
 use super::NoOp;
 
 impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
-    fn bool_empty(shape: Shape, device: &Device<Self>) -> BoolTensor<Self> {
+    fn bool_empty(shape: Shape, device: &Device<Self>, dtype: BoolDType) -> BoolTensor<Self> {
         #[derive(new, Debug)]
         struct EmptyOps<B: FusionBackend> {
             desc: TensorIr,
@@ -27,14 +28,17 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for EmptyOps<B> {
             fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
-                let output = B::bool_empty(self.desc.shape.clone(), &self.device);
+                let output = B::bool_empty(
+                    self.desc.shape.clone(),
+                    &self.device,
+                    self.desc.dtype.into(),
+                );
                 handles.register_bool_tensor::<B>(&self.desc.id, output);
             }
         }
 
         let client = get_client::<B>(device);
-        let desc =
-            CreationOpIr::create(shape, B::BoolElem::dtype(), || client.create_empty_handle());
+        let desc = CreationOpIr::create(shape, dtype.into(), || client.create_empty_handle());
 
         client
             .register(
@@ -45,7 +49,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             .output()
     }
 
-    fn bool_zeros(shape: Shape, device: &Device<Self>) -> BoolTensor<Self> {
+    fn bool_zeros(shape: Shape, device: &Device<Self>, dtype: BoolDType) -> BoolTensor<Self> {
         #[derive(new, Debug)]
         struct ZerosOps<B: FusionBackend> {
             desc: TensorIr,
@@ -54,14 +58,17 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for ZerosOps<B> {
             fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
-                let output = B::bool_zeros(self.desc.shape.clone(), &self.device);
+                let output = B::bool_zeros(
+                    self.desc.shape.clone(),
+                    &self.device,
+                    self.desc.dtype.into(),
+                );
                 handles.register_bool_tensor::<B>(&self.desc.id, output);
             }
         }
 
         let client = get_client::<B>(device);
-        let desc =
-            CreationOpIr::create(shape, B::BoolElem::dtype(), || client.create_empty_handle());
+        let desc = CreationOpIr::create(shape, dtype.into(), || client.create_empty_handle());
 
         client
             .register(
@@ -72,7 +79,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             .output()
     }
 
-    fn bool_ones(shape: Shape, device: &Device<Self>) -> BoolTensor<Self> {
+    fn bool_ones(shape: Shape, device: &Device<Self>, dtype: BoolDType) -> BoolTensor<Self> {
         #[derive(new, Debug)]
         struct OnesOps<B: FusionBackend> {
             desc: TensorIr,
@@ -81,14 +88,17 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
 
         impl<B: FusionBackend> Operation<B::FusionRuntime> for OnesOps<B> {
             fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
-                let output = B::bool_ones(self.desc.shape.clone(), &self.device);
+                let output = B::bool_ones(
+                    self.desc.shape.clone(),
+                    &self.device,
+                    self.desc.dtype.into(),
+                );
                 handles.register_bool_tensor::<B>(&self.desc.id, output);
             }
         }
 
         let client = get_client::<B>(device);
-        let desc =
-            CreationOpIr::create(shape, B::BoolElem::dtype(), || client.create_empty_handle());
+        let desc = CreationOpIr::create(shape, dtype.into(), || client.create_empty_handle());
 
         client
             .register(
@@ -105,13 +115,12 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
 
     fn bool_from_data(data: burn_backend::TensorData, device: &Device<Self>) -> BoolTensor<Self> {
         let client = get_client::<B>(device);
+        let dtype = data.dtype;
         let tensor = B::bool_from_data(data, device);
         let shape = burn_backend::TensorMetadata::shape(&tensor);
 
         let handle = B::bool_tensor_handle(tensor);
-        let desc = InitOperationIr::create(shape, B::BoolElem::dtype(), || {
-            client.register_tensor_handle(handle)
-        });
+        let desc = InitOperationIr::create(shape, dtype, || client.register_tensor_handle(handle));
 
         client
             .register(
@@ -122,7 +131,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             .output()
     }
 
-    fn bool_into_int(tensor: BoolTensor<Self>) -> IntTensor<Self> {
+    fn bool_into_int(tensor: BoolTensor<Self>, out_dtype: IntDType) -> IntTensor<Self> {
         #[derive(new, Debug)]
         struct IntoIntOps<B: FusionBackend> {
             desc: CastOpIr,
@@ -132,7 +141,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         impl<B: FusionBackend> Operation<B::FusionRuntime> for IntoIntOps<B> {
             fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let input = handles.get_bool_tensor::<B>(&self.desc.input);
-                let output = B::bool_into_int(input);
+                let output = B::bool_into_int(input, self.desc.out.dtype.into());
                 handles.register_int_tensor::<B>(&self.desc.out.id, output);
             }
         }
@@ -140,7 +149,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         let streams = OperationStreams::with_inputs([&tensor]);
 
         let client = tensor.client.clone();
-        let desc = CastOpIr::create(tensor.into_ir(), B::IntElem::dtype(), || {
+        let desc = CastOpIr::create(tensor.into_ir(), out_dtype.into(), || {
             client.create_empty_handle()
         });
 
@@ -153,7 +162,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
             .output()
     }
 
-    fn bool_into_float(tensor: BoolTensor<Self>) -> FloatTensor<Self> {
+    fn bool_into_float(tensor: BoolTensor<Self>, out_dtype: FloatDType) -> FloatTensor<Self> {
         #[derive(new, Debug)]
         struct IntoFloatOps<B: FusionBackend> {
             desc: CastOpIr,
@@ -163,7 +172,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         impl<B: FusionBackend> Operation<B::FusionRuntime> for IntoFloatOps<B> {
             fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let input = handles.get_bool_tensor::<B>(&self.desc.input);
-                let output = B::bool_into_float(input);
+                let output = B::bool_into_float(input, self.desc.out.dtype.into());
                 handles.register_float_tensor::<B>(&self.desc.out.id, output);
             }
         }
@@ -171,7 +180,7 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         let streams = OperationStreams::with_inputs([&tensor]);
 
         let client = tensor.client.clone();
-        let desc = CastOpIr::create(tensor.into_ir(), B::FloatElem::dtype(), || {
+        let desc = CastOpIr::create(tensor.into_ir(), out_dtype.into(), || {
             client.create_empty_handle()
         });
 
@@ -839,9 +848,10 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
 
         let streams = OperationStreams::with_inputs([&lhs]);
 
+        let dtype = lhs.dtype;
         let client = lhs.client.clone();
         let rhs = rhs.into();
-        let desc = ScalarOpIr::create_comparison(lhs.into_ir(), rhs, B::BoolElem::dtype(), || {
+        let desc = ScalarOpIr::create_comparison(lhs.into_ir(), rhs, dtype, || {
             client.create_empty_handle()
         });
 
@@ -850,6 +860,89 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
                 streams,
                 OperationIr::BaseBool(BaseOperationIr::EqualElem(desc.clone())),
                 EqualElemOps::<B>::new(desc),
+            )
+            .output()
+    }
+
+    fn bool_select(
+        tensor: BoolTensor<Self>,
+        dim: usize,
+        indices: IntTensor<Self>,
+    ) -> BoolTensor<Self> {
+        #[derive(new, Debug)]
+        struct SelectOps<B: FusionBackend> {
+            desc: SelectOpIr,
+            _b: PhantomData<B>,
+        }
+
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for SelectOps<B> {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+                let tensor = handles.get_bool_tensor::<B>(&self.desc.tensor);
+                let indices = handles.get_int_tensor::<B>(&self.desc.indices);
+
+                let output = B::bool_select(tensor, self.desc.dim, indices);
+
+                handles.register_bool_tensor::<B>(&self.desc.out.id, output);
+            }
+        }
+
+        let streams = OperationStreams::with_inputs([&tensor, &indices]);
+
+        let client = tensor.client.clone();
+        let desc = SelectOpIr::create(tensor.into_ir(), dim, indices.into_ir(), || {
+            client.create_empty_handle()
+        });
+
+        client
+            .register(
+                streams,
+                OperationIr::BaseBool(BaseOperationIr::Select(desc.clone())),
+                SelectOps::<B>::new(desc),
+            )
+            .output()
+    }
+
+    fn bool_select_or(
+        tensor: BoolTensor<Self>,
+        dim: usize,
+        indices: IntTensor<Self>,
+        value: BoolTensor<Self>,
+    ) -> BoolTensor<Self> {
+        #[derive(new, Debug)]
+        struct SelectAssignOps<B: FusionBackend> {
+            desc: SelectAssignOpIr,
+            _b: PhantomData<B>,
+        }
+
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for SelectAssignOps<B> {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+                let tensor = handles.get_bool_tensor::<B>(&self.desc.tensor);
+                let indices = handles.get_int_tensor::<B>(&self.desc.indices);
+                let value = handles.get_bool_tensor::<B>(&self.desc.value);
+
+                let output = B::bool_select_or(tensor, self.desc.dim, indices, value);
+
+                handles.register_bool_tensor::<B>(&self.desc.out.id, output);
+            }
+        }
+
+        let streams = OperationStreams::with_inputs([&tensor, &indices, &value]);
+
+        let client = tensor.client.clone();
+        let desc = SelectAssignOpIr::create(
+            tensor.into_ir(),
+            dim,
+            indices.into_ir(),
+            value.into_ir(),
+            IndexingUpdateOp::Add,
+            || client.create_empty_handle(),
+        );
+
+        client
+            .register(
+                streams,
+                OperationIr::BaseBool(BaseOperationIr::SelectAssign(desc.clone())),
+                SelectAssignOps::<B>::new(desc),
             )
             .output()
     }

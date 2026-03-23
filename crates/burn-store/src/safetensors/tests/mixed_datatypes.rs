@@ -55,6 +55,8 @@ impl<B: Backend> MixedDtypeModel<B> {
 #[cfg(test)]
 #[allow(clippy::excessive_precision)]
 mod tests {
+    use burn_tensor::BoolStore;
+
     use super::*;
 
     #[test]
@@ -128,7 +130,7 @@ mod tests {
             } else if path.contains("bool_tensor") {
                 assert_eq!(
                     dtype,
-                    burn::tensor::DType::Bool,
+                    burn::tensor::DType::Bool(BoolStore::Native),
                     "Boolean tensor {} should have Bool dtype",
                     path
                 );
