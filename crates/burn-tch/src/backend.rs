@@ -153,7 +153,7 @@ impl<E: TchElement> Backend for LibTorch<E> {
                 burn_backend::read_sync(Self::int_into_data(Self::int_zeros(
                     [1].into(),
                     device,
-                    E::dtype().into(),
+                    <Self::IntElem as burn_backend::Element>::dtype().into(),
                 )))
                 .unwrap();
             }
