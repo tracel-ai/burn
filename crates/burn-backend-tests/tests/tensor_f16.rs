@@ -17,3 +17,5 @@ mod f16;
 #[cfg(feature = "fusion")]
 #[path = "fused_ops/mod.rs"]
 mod fusion;
+
+// TODO: bf16 (vulkan only supports bf16 for matmul, metal/wgpu doesn't support bf16)

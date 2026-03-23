@@ -5,10 +5,8 @@ use burn_tensor::Tolerance;
 #[test]
 fn should_diff_cat() {
     let device = AutodiffDevice::new();
-    let tensor_1 =
-        TestTensor::<2>::from_data([[2.0, -1.0], [5.0, 2.0]], &device).require_grad();
-    let tensor_2 =
-        TestTensor::<2>::from_data([[5.0, 4.0], [-1.0, 4.0]], &device).require_grad();
+    let tensor_1 = TestTensor::<2>::from_data([[2.0, -1.0], [5.0, 2.0]], &device).require_grad();
+    let tensor_2 = TestTensor::<2>::from_data([[5.0, 4.0], [-1.0, 4.0]], &device).require_grad();
 
     let tensor_3 = tensor_1.clone().matmul(tensor_2.clone());
     let grads = tensor_3.backward();
@@ -60,11 +58,9 @@ fn should_diff_cat() {
 #[test]
 fn should_diff_cat_more_than_1_dim() {
     let device = AutodiffDevice::new();
-    let tensor_1 =
-        TestTensor::<2>::from_data([[2.0, -1.0], [5.0, 2.0]], &device).require_grad();
+    let tensor_1 = TestTensor::<2>::from_data([[2.0, -1.0], [5.0, 2.0]], &device).require_grad();
     let tensor_2 =
-        TestTensor::<2>::from_data([[5.0, 4.0], [-1.0, 4.0], [4.0, 1.0]], &device)
-            .require_grad();
+        TestTensor::<2>::from_data([[5.0, 4.0], [-1.0, 4.0], [4.0, 1.0]], &device).require_grad();
 
     // Concat a tensor [2, 2] with another tensor [3, 2] along dim 0.
     // The resulting tensor should be [5, 2]
@@ -84,8 +80,7 @@ fn should_slice_grads_correctly_when_some_inputs_not_tracked() {
     let device = AutodiffDevice::new();
     let tensor_1 = TestTensor::<2>::from_data([[1.0]], &device).require_grad(); // tracked
     let tensor_2 = TestTensor::<2>::from_data([[10.0, 20.0]], &device); // not tracked
-    let tensor_3 =
-        TestTensor::<2>::from_data([[100.0, 200.0, 300.0]], &device).require_grad(); // tracked
+    let tensor_3 = TestTensor::<2>::from_data([[100.0, 200.0, 300.0]], &device).require_grad(); // tracked
 
     let cat = TestTensor::cat(
         vec![tensor_1.clone(), tensor_2.clone(), tensor_3.clone()],

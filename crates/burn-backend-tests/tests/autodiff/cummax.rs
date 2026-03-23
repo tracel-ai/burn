@@ -5,8 +5,8 @@ use burn_tensor::{TensorData, Tolerance};
 fn should_diff_cummax() {
     // Simple test to verify cummax gradients work
     let device = AutodiffDevice::new();
-    let tensor = TestTensor::<1>::from_data(TensorData::from([1.0, 3.0, 2.0]), &device)
-        .require_grad();
+    let tensor =
+        TestTensor::<1>::from_data(TensorData::from([1.0, 3.0, 2.0]), &device).require_grad();
 
     let output = tensor.clone().cummax(0);
     let grads = output.sum().backward();
@@ -43,8 +43,7 @@ fn should_diff_cummax_duplicate_values() {
     // Test with duplicate maximum values - critical edge case
     let device = AutodiffDevice::new();
     let tensor =
-        TestTensor::<1>::from_data(TensorData::from([1.0, 3.0, 3.0, 2.0]), &device)
-            .require_grad();
+        TestTensor::<1>::from_data(TensorData::from([1.0, 3.0, 3.0, 2.0]), &device).require_grad();
 
     let output = tensor.clone().cummax(0);
     let grads = output.sum().backward();
@@ -63,8 +62,8 @@ fn should_diff_cummax_duplicate_values() {
 fn should_diff_cummax_all_same() {
     // Test with all same values
     let device = AutodiffDevice::new();
-    let tensor = TestTensor::<1>::from_data(TensorData::from([2.0, 2.0, 2.0]), &device)
-        .require_grad();
+    let tensor =
+        TestTensor::<1>::from_data(TensorData::from([2.0, 2.0, 2.0]), &device).require_grad();
 
     let output = tensor.clone().cummax(0);
     let grads = output.sum().backward();
@@ -82,8 +81,7 @@ fn should_diff_cummax_increasing() {
     // Test with increasing sequence
     let device = AutodiffDevice::new();
     let tensor =
-        TestTensor::<1>::from_data(TensorData::from([1.0, 2.0, 3.0, 4.0]), &device)
-            .require_grad();
+        TestTensor::<1>::from_data(TensorData::from([1.0, 2.0, 3.0, 4.0]), &device).require_grad();
 
     let output = tensor.clone().cummax(0);
     let grads = output.sum().backward();

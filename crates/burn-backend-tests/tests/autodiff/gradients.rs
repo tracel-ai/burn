@@ -4,8 +4,7 @@ use burn_tensor::{Distribution, activation};
 #[test]
 fn should_update_tensor_when_grad_replace() {
     let device = AutodiffDevice::new();
-    let tensor_1 =
-        TestTensor::<2>::random([32, 32], Distribution::Default, &device).require_grad();
+    let tensor_1 = TestTensor::<2>::random([32, 32], Distribution::Default, &device).require_grad();
     let tensor_2 = TestTensor::random([32, 32], Distribution::Default, &device);
 
     let x = tensor_1.clone().matmul(activation::gelu(tensor_2));
