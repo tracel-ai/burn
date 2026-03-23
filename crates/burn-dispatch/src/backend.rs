@@ -2,8 +2,8 @@ use alloc::format;
 use alloc::string::String;
 
 use burn_backend::Backend;
+use burn_backend::DType;
 use burn_backend::ExecutionError;
-use burn_std::DType;
 
 #[cfg(feature = "autodiff")]
 use burn_autodiff::grads::Gradients;

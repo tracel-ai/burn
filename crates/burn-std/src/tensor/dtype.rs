@@ -256,6 +256,9 @@ impl From<DType> for BoolDType {
                 BoolStore::U8 => BoolDType::U8,
                 BoolStore::U32 => BoolDType::U32,
             },
+            // For compat BoolElem associated type
+            DType::U8 => BoolDType::U8,
+            DType::U32 => BoolDType::U32,
             _ => panic!("Expected bool data type, got {value:?}"),
         }
     }

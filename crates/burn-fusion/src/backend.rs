@@ -240,13 +240,3 @@ impl<B: FusionBackend> BackendIr for Fusion<B> {
         tensor
     }
 }
-
-// TODO: remove once backends no longer rely on generics for default elem types
-/// Returns the bool element dtype.
-pub(crate) fn bool_dtype<BT: burn_backend::Element>() -> DType {
-    match BT::dtype() {
-        DType::U32 => DType::Bool(burn_backend::BoolStore::U32),
-        DType::U8 => DType::Bool(burn_backend::BoolStore::U8),
-        other => unimplemented!("Invalid bool dtye {other:?}"),
-    }
-}
