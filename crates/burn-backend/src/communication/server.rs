@@ -77,7 +77,7 @@ impl<B: Backend> DistributedSyncServer<B> {
     }
 
     fn try_launch_sync(&mut self) {
-        if self.all_reduce_ops_queue.is_empty() && !self.syncing_devices.is_empty() {
+        if self.all_reduce_ops_queue.is_empty() && self.syncing_devices.len() == self.num_devices {
             for d in self.syncing_devices.clone() {
                 let callback = self.callbacks.remove(&d.id()).unwrap();
                 let closure = Box::new(move || B::sync_collective(&d));
