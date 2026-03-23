@@ -1,10 +1,9 @@
 use burn_backend::{
-    ExecutionError, QTensorPrimitive, TensorData, TensorPrimitive,
+    ExecutionError, QTensorPrimitive, Shape, Slice, TensorData, TensorPrimitive,
     ops::QTensorOps,
-    quantization::QuantizationParametersPrimitive,
+    quantization::{QuantPropagation, QuantScheme, QuantizationParametersPrimitive},
     tensor::{FloatTensor, IntTensor, QuantizedTensor},
 };
-use burn_std::{QuantPropagation, Shape, Slice};
 
 use crate::backends::*;
 use crate::{Dispatch, DispatchDevice};
@@ -16,7 +15,7 @@ impl QTensorOps<Self> for Dispatch {
 
     fn quantize(
         tensor: FloatTensor<Self>,
-        scheme: &burn_std::QuantScheme,
+        scheme: &QuantScheme,
         qparams: QuantizationParametersPrimitive<Self>,
     ) -> QuantizedTensor<Self> {
         binary_op!(

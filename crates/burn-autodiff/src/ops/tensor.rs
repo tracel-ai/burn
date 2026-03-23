@@ -21,11 +21,12 @@ use crate::{
 
 use burn_backend::{
     Backend, DistributedParamId, DistributedParams, ExecutionError, TensorData, TensorMetadata,
+    get_device_settings,
     ops::FloatTensorOps,
     tensor::{BoolTensor, Device, FloatTensor, IntTensor},
 };
 use burn_backend::{Scalar, ops::unfold::calculate_unfold_windows};
-use burn_std::{FloatDType, Shape, Slice};
+use burn_std::{BoolDType, FloatDType, IntDType, Shape, Slice};
 
 use super::maxmin::MaxMinDim;
 
@@ -1418,52 +1419,92 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
     }
 
-    fn float_equal(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> BoolTensor<B> {
-        B::float_equal(lhs.primitive, rhs.primitive)
+    fn float_equal(
+        lhs: FloatTensor<Self>,
+        rhs: FloatTensor<Self>,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<B> {
+        B::float_equal(lhs.primitive, rhs.primitive, out_dtype)
     }
 
-    fn float_equal_elem(lhs: FloatTensor<Self>, rhs: Scalar) -> BoolTensor<B> {
-        B::float_equal_elem(lhs.primitive, rhs)
+    fn float_equal_elem(
+        lhs: FloatTensor<Self>,
+        rhs: Scalar,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<B> {
+        B::float_equal_elem(lhs.primitive, rhs, out_dtype)
     }
 
-    fn float_greater(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> BoolTensor<B> {
-        B::float_greater(lhs.primitive, rhs.primitive)
+    fn float_greater(
+        lhs: FloatTensor<Self>,
+        rhs: FloatTensor<Self>,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<B> {
+        B::float_greater(lhs.primitive, rhs.primitive, out_dtype)
     }
 
-    fn float_greater_elem(lhs: FloatTensor<Self>, rhs: Scalar) -> BoolTensor<B> {
-        B::float_greater_elem(lhs.primitive, rhs)
+    fn float_greater_elem(
+        lhs: FloatTensor<Self>,
+        rhs: Scalar,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<B> {
+        B::float_greater_elem(lhs.primitive, rhs, out_dtype)
     }
 
-    fn float_greater_equal(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> BoolTensor<B> {
-        B::float_greater_equal(lhs.primitive, rhs.primitive)
+    fn float_greater_equal(
+        lhs: FloatTensor<Self>,
+        rhs: FloatTensor<Self>,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<B> {
+        B::float_greater_equal(lhs.primitive, rhs.primitive, out_dtype)
     }
 
-    fn float_greater_equal_elem(lhs: FloatTensor<Self>, rhs: Scalar) -> BoolTensor<B> {
-        B::float_greater_equal_elem(lhs.primitive, rhs)
+    fn float_greater_equal_elem(
+        lhs: FloatTensor<Self>,
+        rhs: Scalar,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<B> {
+        B::float_greater_equal_elem(lhs.primitive, rhs, out_dtype)
     }
 
-    fn float_lower(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> BoolTensor<B> {
-        B::float_lower(lhs.primitive, rhs.primitive)
+    fn float_lower(
+        lhs: FloatTensor<Self>,
+        rhs: FloatTensor<Self>,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<B> {
+        B::float_lower(lhs.primitive, rhs.primitive, out_dtype)
     }
 
-    fn float_lower_elem(lhs: FloatTensor<Self>, rhs: Scalar) -> BoolTensor<B> {
-        B::float_lower_elem(lhs.primitive, rhs)
+    fn float_lower_elem(
+        lhs: FloatTensor<Self>,
+        rhs: Scalar,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<B> {
+        B::float_lower_elem(lhs.primitive, rhs, out_dtype)
     }
 
-    fn float_lower_equal(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> BoolTensor<B> {
-        B::float_lower_equal(lhs.primitive, rhs.primitive)
+    fn float_lower_equal(
+        lhs: FloatTensor<Self>,
+        rhs: FloatTensor<Self>,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<B> {
+        B::float_lower_equal(lhs.primitive, rhs.primitive, out_dtype)
     }
 
-    fn float_lower_equal_elem(lhs: FloatTensor<Self>, rhs: Scalar) -> BoolTensor<B> {
-        B::float_lower_equal_elem(lhs.primitive, rhs)
+    fn float_lower_equal_elem(
+        lhs: FloatTensor<Self>,
+        rhs: Scalar,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<B> {
+        B::float_lower_equal_elem(lhs.primitive, rhs, out_dtype)
     }
 
-    fn float_is_nan(tensor: FloatTensor<Self>) -> BoolTensor<Self> {
-        B::float_is_nan(tensor.primitive)
+    fn float_is_nan(tensor: FloatTensor<Self>, out_dtype: BoolDType) -> BoolTensor<Self> {
+        B::float_is_nan(tensor.primitive, out_dtype)
     }
 
-    fn float_is_inf(tensor: FloatTensor<Self>) -> BoolTensor<Self> {
-        B::float_is_inf(tensor.primitive)
+    fn float_is_inf(tensor: FloatTensor<Self>, out_dtype: BoolDType) -> BoolTensor<Self> {
+        B::float_is_inf(tensor.primitive, out_dtype)
     }
 
     fn float_detach(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
@@ -1762,10 +1803,11 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
 
                     let shape = input.shape();
                     let device = B::float_device(&input);
+                    let settings = get_device_settings::<B>(&device);
                     let dim_size = shape[dim] as i64;
 
                     // Create indices [0, 1, 2, ...] along the dimension
-                    let arange_1d = B::int_arange(0..dim_size, &device);
+                    let arange_1d = B::int_arange(0..dim_size, &device, settings.int_dtype);
 
                     // Reshape to broadcast along the specified dimension
                     let mut arange_shape = vec![1; shape.num_dims()];
@@ -1776,8 +1818,9 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                     let arange = B::int_expand(arange, shape.clone());
 
                     // Find where cummin[i] == input[i] (these are source positions)
-                    let is_source = B::float_equal(output.clone(), input.clone());
-                    let is_source_int = B::bool_into_int(is_source);
+                    let is_source =
+                        B::float_equal(output.clone(), input.clone(), settings.bool_dtype);
+                    let is_source_int = B::bool_into_int(is_source, settings.int_dtype);
 
                     // Mask: where is_source, use index; else 0
                     let masked_indices = B::int_mul(arange, is_source_int);
@@ -1827,10 +1870,11 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
 
                     let shape = input.shape();
                     let device = B::float_device(&input);
+                    let settings = get_device_settings::<B>(&device);
                     let dim_size = shape[dim] as i64;
 
                     // Create indices [0, 1, 2, ...] along the dimension
-                    let arange_1d = B::int_arange(0..dim_size, &device);
+                    let arange_1d = B::int_arange(0..dim_size, &device, settings.int_dtype);
 
                     // Reshape to broadcast along the specified dimension
                     let mut arange_shape = vec![1; shape.num_dims()];
@@ -1841,8 +1885,9 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                     let arange = B::int_expand(arange, shape.clone());
 
                     // Find where cummax[i] == input[i] (these are source positions)
-                    let is_source = B::float_equal(output.clone(), input.clone());
-                    let is_source_int = B::bool_into_int(is_source);
+                    let is_source =
+                        B::float_equal(output.clone(), input.clone(), settings.bool_dtype);
+                    let is_source_int = B::bool_into_int(is_source, settings.int_dtype);
 
                     // Mask: where is_source, use index; else 0
                     let masked_indices = B::int_mul(arange, is_source_int);
@@ -1870,12 +1915,12 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
     }
 
-    fn float_argmax(tensor: FloatTensor<Self>, dim: usize) -> IntTensor<B> {
-        B::float_argmax(tensor.primitive, dim)
+    fn float_argmax(tensor: FloatTensor<Self>, dim: usize, out_dtype: IntDType) -> IntTensor<B> {
+        B::float_argmax(tensor.primitive, dim, out_dtype)
     }
 
-    fn float_argmin(tensor: FloatTensor<Self>, dim: usize) -> IntTensor<B> {
-        B::float_argmin(tensor.primitive, dim)
+    fn float_argmin(tensor: FloatTensor<Self>, dim: usize, out_dtype: IntDType) -> IntTensor<B> {
+        B::float_argmin(tensor.primitive, dim, out_dtype)
     }
 
     fn float_exp(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
@@ -2976,7 +3021,9 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         {
             OpsKind::Tracked(prep) => {
                 let shape = tensor.primitive.shape();
-                let (tensor, index) = B::float_max_dim_with_indices(tensor.primitive, dim);
+                let settings = get_device_settings::<B>(&B::float_device(&tensor.primitive));
+                let (tensor, index) =
+                    B::float_max_dim_with_indices(tensor.primitive, dim, settings.int_dtype);
                 prep.finish((index, shape, dim), tensor)
             }
             OpsKind::UnTracked(prep) => prep.finish(B::float_max_dim(tensor.primitive, dim)),
@@ -2985,6 +3032,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
     fn float_max_dim_with_indices(
         tensor: FloatTensor<Self>,
         dim: usize,
+        indices_dtype: IntDType,
     ) -> (FloatTensor<Self>, IntTensor<B>) {
         match MaxMinDim
             .prepare::<C>([tensor.node])
@@ -2993,13 +3041,15 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         {
             OpsKind::Tracked(prep) => {
                 let shape = tensor.primitive.shape();
-                let (tensor, index) = B::float_max_dim_with_indices(tensor.primitive, dim);
+                let (tensor, index) =
+                    B::float_max_dim_with_indices(tensor.primitive, dim, indices_dtype);
                 let tensor = prep.finish((index.clone(), shape, dim), tensor);
 
                 (tensor, index)
             }
             OpsKind::UnTracked(prep) => {
-                let (tensor, index) = B::float_max_dim_with_indices(tensor.primitive, dim);
+                let (tensor, index) =
+                    B::float_max_dim_with_indices(tensor.primitive, dim, indices_dtype);
                 let tensor = prep.finish(tensor);
 
                 (tensor, index)
@@ -3015,7 +3065,9 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         {
             OpsKind::Tracked(prep) => {
                 let shape = tensor.primitive.shape();
-                let (tensor, index) = B::float_min_dim_with_indices(tensor.primitive, dim);
+                let settings = get_device_settings::<B>(&B::float_device(&tensor.primitive));
+                let (tensor, index) =
+                    B::float_min_dim_with_indices(tensor.primitive, dim, settings.int_dtype);
                 prep.finish((index, shape, dim), tensor)
             }
             OpsKind::UnTracked(prep) => prep.finish(B::float_min_dim(tensor.primitive, dim)),
@@ -3024,6 +3076,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
     fn float_min_dim_with_indices(
         tensor: FloatTensor<Self>,
         dim: usize,
+        indices_dtype: IntDType,
     ) -> (FloatTensor<Self>, IntTensor<B>) {
         match MaxMinDim
             .prepare::<C>([tensor.node])
@@ -3032,13 +3085,15 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         {
             OpsKind::Tracked(prep) => {
                 let shape = tensor.primitive.shape();
-                let (tensor, index) = B::float_min_dim_with_indices(tensor.primitive, dim);
+                let (tensor, index) =
+                    B::float_min_dim_with_indices(tensor.primitive, dim, indices_dtype);
                 let tensor = prep.finish((index.clone(), shape, dim), tensor);
 
                 (tensor, index)
             }
             OpsKind::UnTracked(prep) => {
-                let (tensor, index) = B::float_min_dim_with_indices(tensor.primitive, dim);
+                let (tensor, index) =
+                    B::float_min_dim_with_indices(tensor.primitive, dim, indices_dtype);
                 let tensor = prep.finish(tensor);
 
                 (tensor, index)
@@ -3046,8 +3101,11 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
     }
 
-    fn float_into_int(tensor: FloatTensor<Self>) -> <Autodiff<B> as Backend>::IntTensorPrimitive {
-        B::float_into_int(tensor.primitive)
+    fn float_into_int(
+        tensor: FloatTensor<Self>,
+        out_dtype: IntDType,
+    ) -> <Autodiff<B> as Backend>::IntTensorPrimitive {
+        B::float_into_int(tensor.primitive, out_dtype)
     }
 
     fn float_powf(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> FloatTensor<Self> {
@@ -3235,8 +3293,13 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         {
             OpsKind::Tracked(prep) => {
                 let shape = tensor.primitive.shape();
-                let (tensor, indices) =
-                    B::float_sort_with_indices(tensor.primitive, dim, descending);
+                let settings = get_device_settings::<B>(&B::float_device(&tensor.primitive));
+                let (tensor, indices) = B::float_sort_with_indices(
+                    tensor.primitive,
+                    dim,
+                    descending,
+                    settings.int_dtype,
+                );
                 prep.finish((indices, shape, dim), tensor)
             }
             OpsKind::UnTracked(prep) => {
@@ -3249,6 +3312,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         tensor: FloatTensor<Self>,
         dim: usize,
         descending: bool,
+        indices_dtype: IntDType,
     ) -> (FloatTensor<Self>, IntTensor<B>) {
         match super::sort::SortDim
             .prepare::<C>([tensor.node])
@@ -3258,14 +3322,14 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             OpsKind::Tracked(prep) => {
                 let shape = tensor.primitive.shape();
                 let (tensor, indices) =
-                    B::float_sort_with_indices(tensor.primitive, dim, descending);
+                    B::float_sort_with_indices(tensor.primitive, dim, descending, indices_dtype);
                 let tensor = prep.finish((indices.clone(), shape, dim), tensor);
 
                 (tensor, indices)
             }
             OpsKind::UnTracked(prep) => {
                 let (tensor, indices) =
-                    B::float_sort_with_indices(tensor.primitive, dim, descending);
+                    B::float_sort_with_indices(tensor.primitive, dim, descending, indices_dtype);
                 let tensor = prep.finish(tensor);
 
                 (tensor, indices)
@@ -3273,8 +3337,13 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
     }
 
-    fn float_argsort(tensor: FloatTensor<Self>, dim: usize, descending: bool) -> IntTensor<B> {
-        B::float_argsort(tensor.primitive, dim, descending)
+    fn float_argsort(
+        tensor: FloatTensor<Self>,
+        dim: usize,
+        descending: bool,
+        out_dtype: IntDType,
+    ) -> IntTensor<B> {
+        B::float_argsort(tensor.primitive, dim, descending, out_dtype)
     }
 
     fn float_repeat_dim(tensor: FloatTensor<Self>, dim: usize, times: usize) -> FloatTensor<Self> {

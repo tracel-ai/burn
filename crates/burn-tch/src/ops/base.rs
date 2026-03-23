@@ -567,7 +567,7 @@ impl TchOps {
         TchTensor::new(tensor)
     }
 
-    pub fn powf(tensor: TchTensor, exponent: TchTensor) -> TchTensor {
+    pub fn pow(tensor: TchTensor, exponent: TchTensor) -> TchTensor {
         TchTensor::binary_ops_tensor(
             tensor,
             exponent,

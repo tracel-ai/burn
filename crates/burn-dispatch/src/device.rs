@@ -323,7 +323,7 @@ impl DeviceOps for DispatchDevice {
     }
 }
 
-impl burn_std::device::Device for DispatchDevice {
+impl burn_backend::Device for DispatchDevice {
     fn from_id(mut device_id: DeviceId) -> Self {
         let (dispatch_id, backend_type_id) = Self::decode_type_id(device_id.type_id);
         device_id.type_id = backend_type_id;
