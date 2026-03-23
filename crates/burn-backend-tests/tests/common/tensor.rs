@@ -20,5 +20,3 @@ mod int;
 // Default bool dtype
 #[path = "../tensor/bool/mod.rs"]
 mod bool;
-
-// use burn_backend_tests::test_float_elem_variant;

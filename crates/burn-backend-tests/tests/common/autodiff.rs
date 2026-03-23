@@ -19,8 +19,6 @@ mod base;
 mod checkpointing {
     pub use super::FloatElem;
 
-    // TODO: should be enabled via device!
-
     // Override autodiff device
     pub struct AutodiffDevice;
 

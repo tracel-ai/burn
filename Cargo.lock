@@ -752,7 +752,6 @@ dependencies = [
  "burn-tensor",
  "burn-tensor-testgen",
  "ctor",
- "cubecl",
  "cubek",
  "num-traits",
  "serial_test",

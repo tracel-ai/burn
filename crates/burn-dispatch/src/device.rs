@@ -1,3 +1,5 @@
+use alloc::boxed::Box;
+
 use burn_backend::{DeviceId, DeviceOps};
 
 use crate::backends::*;
@@ -111,7 +113,7 @@ pub(crate) fn validate_checkpointing(
 }
 
 impl core::fmt::Debug for DispatchDevice {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             #[cfg(feature = "cpu")]
             Self::Cpu(device) => f.debug_tuple("Cpu").field(device).finish(),

@@ -1,5 +1,6 @@
 //! Burn backend tensor tests.
 
+#![recursion_limit = "256"]
 #![allow(clippy::single_range_in_vec_init, reason = "false positive")]
 extern crate alloc;
 
@@ -15,5 +16,5 @@ pub use backend::*;
 mod tensor;
 
 #[cfg(all(feature = "cube", feature = "fusion"))]
-#[path = "fused_ops/mod.rs"]
+#[path = "fusion/mod.rs"]
 mod fusion;

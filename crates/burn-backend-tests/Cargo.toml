@@ -24,8 +24,6 @@ default = [
 ]
 std = ["burn-tensor/std", "burn-dispatch/std"]
 
-tracing = ["cubecl?/tracing", "burn-tensor/tracing", "burn-dispatch/tracing"]
-
 # Backends
 cuda = ["burn-dispatch/cuda", "quantization", "cube"]
 rocm = ["burn-dispatch/rocm", "quantization", "cube"]
@@ -61,6 +59,9 @@ burn-dispatch = { path = "../burn-dispatch", version = "=0.21.0-pre.2", default-
     "autodiff",
 ] }
 
+# For random tests
+cubek = { workspace = true, features = ["random"], optional = true }
+
 # Explicitly enable test-only checks
 burn-autodiff = { path = "../burn-autodiff", version = "=0.21.0-pre.2", default-features = false, features = [
     "export_tests",
@@ -77,8 +78,6 @@ burn-cubecl = { path = "../burn-cubecl", version = "=0.21.0-pre.2", optional = t
 num-traits = { workspace = true }
 serial_test = { workspace = true }
 
-cubecl = { workspace = true, optional = true }
-cubek = { workspace = true, features = ["random"], optional = true }
 
 [dev-dependencies]
 # Used to initialize device settings (test dtypes)

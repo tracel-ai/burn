@@ -1,5 +1,6 @@
 // //! Burn backend tensor tests.
 
+#![recursion_limit = "256"]
 #![allow(clippy::single_range_in_vec_init, reason = "false positive")]
 extern crate alloc;
 
@@ -15,7 +16,7 @@ pub use backend::*;
 mod f16;
 
 #[cfg(feature = "fusion")]
-#[path = "fused_ops/mod.rs"]
+#[path = "fusion/mod.rs"]
 mod fusion;
 
 // TODO: bf16 (vulkan only supports bf16 for matmul, metal/wgpu doesn't support bf16)
