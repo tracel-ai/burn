@@ -492,7 +492,7 @@ impl Dispatch {
                 <<LibTorch as Backend>::QuantizedTensorPrimitive as QTensorPrimitive>::default_scheme()
             }
             #[cfg(feature = "autodiff")]
-            DispatchDevice::Autodiff(ad_device) => Self::default_quant_scheme(&*ad_device.inner),
+            DispatchDevice::Autodiff(ad_device) => Self::default_quant_scheme(&ad_device.inner),
         }
     }
 }
