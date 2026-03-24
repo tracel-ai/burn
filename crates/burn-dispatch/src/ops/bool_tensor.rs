@@ -1,24 +1,23 @@
 use burn_backend::{
-    ExecutionError, Scalar, TensorData,
+    BoolDType, ExecutionError, FloatDType, IntDType, Scalar, Shape, Slice, TensorData,
     ops::BoolTensorOps,
     tensor::{BoolTensor, FloatTensor, IntTensor},
 };
-use burn_std::{Shape, Slice};
 
 use crate::backends::*;
 use crate::{Dispatch, DispatchDevice};
 
 impl BoolTensorOps<Self> for Dispatch {
-    fn bool_empty(shape: Shape, device: &DispatchDevice) -> BoolTensor<Self> {
-        creation_op!(Bool, device, |device| B::bool_empty(shape, device))
+    fn bool_empty(shape: Shape, device: &DispatchDevice, dtype: BoolDType) -> BoolTensor<Self> {
+        creation_op!(Bool, device, |device| B::bool_empty(shape, device, dtype))
     }
 
-    fn bool_zeros(shape: Shape, device: &DispatchDevice) -> BoolTensor<Self> {
-        creation_op!(Bool, device, |device| B::bool_zeros(shape, device))
+    fn bool_zeros(shape: Shape, device: &DispatchDevice, dtype: BoolDType) -> BoolTensor<Self> {
+        creation_op!(Bool, device, |device| B::bool_zeros(shape, device, dtype))
     }
 
-    fn bool_ones(shape: Shape, device: &DispatchDevice) -> BoolTensor<Self> {
-        creation_op!(Bool, device, |device| B::bool_ones(shape, device))
+    fn bool_ones(shape: Shape, device: &DispatchDevice, dtype: BoolDType) -> BoolTensor<Self> {
+        creation_op!(Bool, device, |device| B::bool_ones(shape, device, dtype))
     }
 
     async fn bool_into_data(tensor: BoolTensor<Self>) -> Result<TensorData, ExecutionError> {
@@ -29,12 +28,12 @@ impl BoolTensorOps<Self> for Dispatch {
         creation_op!(Bool, device, |device| B::bool_from_data(data, device))
     }
 
-    fn bool_into_int(tensor: BoolTensor<Self>) -> IntTensor<Self> {
-        unary_op!(tensor, bool, |tensor| B::bool_into_int(tensor) => Int)
+    fn bool_into_int(tensor: BoolTensor<Self>, out_dtype: IntDType) -> IntTensor<Self> {
+        unary_op!(tensor, bool, |tensor| B::bool_into_int(tensor, out_dtype) => Int)
     }
 
-    fn bool_into_float(tensor: BoolTensor<Self>) -> FloatTensor<Self> {
-        unary_op!(tensor, bool, |tensor| B::bool_into_float(tensor) => Float)
+    fn bool_into_float(tensor: BoolTensor<Self>, out_dtype: FloatDType) -> FloatTensor<Self> {
+        unary_op!(tensor, bool, |tensor| B::bool_into_float(tensor, out_dtype) => Float)
     }
 
     fn bool_device(tensor: &BoolTensor<Self>) -> DispatchDevice {
@@ -216,7 +215,7 @@ impl BoolTensorOps<Self> for Dispatch {
         unary_op!(tensor, bool, |tensor| B::bool_all_dim(tensor, dim) => Bool)
     }
 
-    async fn bool_argwhere(tensor: BoolTensor<Self>) -> IntTensor<Self> {
-        unary_op!(tensor, bool, |tensor| B::bool_argwhere(tensor).await => Int)
+    async fn bool_argwhere(tensor: BoolTensor<Self>, out_dtype: IntDType) -> IntTensor<Self> {
+        unary_op!(tensor, bool, |tensor| B::bool_argwhere(tensor, out_dtype).await => Int)
     }
 }

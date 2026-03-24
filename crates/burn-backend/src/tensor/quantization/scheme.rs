@@ -2,7 +2,7 @@ pub use burn_std::{QPARAM_ALIGN, params_shape};
 use burn_std::{QuantLevel, QuantMode, QuantScheme, Shape};
 
 use super::{Calibration, QuantizationParametersPrimitive};
-use crate::{Backend, TensorMetadata};
+use crate::{Backend, TensorMetadata, get_device_settings};
 
 /// Compute the quantization range mapping.
 pub fn compute_range<B: Backend>(
@@ -50,6 +50,7 @@ pub fn compute_q_params<B: Backend>(
             mode: QuantMode::Symmetric,
             ..
         } => {
+            let bool_dtype = get_device_settings::<B>(&B::float_device(&min)).bool_dtype;
             // Quantized range `[a, b]`
             let (a, b) = scheme.value.range();
 
@@ -58,7 +59,7 @@ pub fn compute_q_params<B: Backend>(
             let max_abs = B::float_abs(max);
 
             // `min_abs.max_pair(max_abs)`
-            let mask = B::float_lower(min_abs.clone(), max_abs.clone());
+            let mask = B::float_lower(min_abs.clone(), max_abs.clone(), bool_dtype);
             let values_range =
                 B::float_mul_scalar(B::float_mask_where(min_abs, mask, max_abs), 2f32.into());
 

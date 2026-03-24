@@ -2,7 +2,7 @@ use core::cmp::Ordering;
 use rand::Rng;
 
 use crate::distribution::Distribution;
-use burn_std::{DType, bf16, f16};
+use burn_std::{BoolStore, DType, bf16, f16};
 
 #[cfg(feature = "cubecl")]
 use burn_std::flex32;
@@ -289,7 +289,7 @@ make_element!(
         bool::from_elem(sample)
     },
     cmp |a: &bool, b: &bool| Ord::cmp(a, b),
-    dtype DType::Bool,
+    dtype DType::Bool(BoolStore::Native),
     min false,
     max true
 );

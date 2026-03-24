@@ -38,7 +38,7 @@ bytemuck = "1.25.0"
 bytes = { version = "1.11.1", default-features = false }
 candle-core = { version = "0.9.2" }
 ciborium = { version = "0.2", default-features = false }
-clap = { version = "4.5.57", features = ["derive"] }
+clap = { version = "4.6.0", features = ["derive"] }
 colored = "3.0.0"
 console_error_panic_hook = "0.1.7"
 const-random = "0.1"
@@ -50,12 +50,12 @@ data-encoding = { version = "2.10.0", default-features = false, features = [
 dirs = "6.0.0"
 encoding_rs = "0.8.33"
 enumset = { version = "1.1.10", default-features = false }
-fake = "4.4.0"
+fake = "5.1.0"
 flate2 = "1.1.9"
 float-cmp = "0.10.0"
 futures = "0.3"
 futures-util = "0.3"
-gix-tempfile = { version = "21.0.0", features = ["signals"] }
+gix-tempfile = { version = "21.0.2", features = ["signals"] }
 globwalk = "0.9.1"
 hashbrown = "0.16"
 hound = "3.5.1"
@@ -103,19 +103,19 @@ spin = { version = "0.10.0", features = [
 ] }
 strum = { version = "0.28.0", features = ["derive"] }
 syn = { version = "2.0.111", features = ["full", "extra-traits"] }
-tar = "0.4.44"
+tar = "0.4.45"
 tempfile = "3.24.0"
 textdistance = { version = "1.1.1", default-features = false }
 thiserror = { version = "2", default-features = false }
 tokio = { version = "1.50.0", features = ["rt", "macros"] }
-tokio-tungstenite = "0.28"
+tokio-tungstenite = "0.29"
 tokio-util = "0.7"
 tracing = { version = "0.1.44", default-features = false }
 tracing-appender = "0.2.3"
 tracing-core = { version = "0.1.36", default-features = false }
 tracing-opentelemetry = "0.32.0"
-tracing-subscriber = "0.3.20"
-zip = "8.2.0"
+tracing-subscriber = "0.3.23"
+zip = "8.4.0"
 
 # Persist related
 memmap2 = { version = "0.9" }
@@ -176,13 +176,13 @@ torch-sys = "0.22.0"                                        # matches what tch i
 
 ahash = { version = "0.8.12", default-features = false }
 portable-atomic = { version = "1.13.1" }
-portable-atomic-util = { version = "0.2.5", features = ["alloc"] }
+portable-atomic-util = { version = "0.2.6", features = ["alloc"] }
 
 ### For the main burn branch. ###
-cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "6710b3acd7a421ade4081a839a81e25af7ede195" }
-cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "6710b3acd7a421ade4081a839a81e25af7ede195" }
-cubecl-zspace = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "6710b3acd7a421ade4081a839a81e25af7ede195" }
-cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "75cb4da641e3211432a5f93b453916c3874d5b21" }
+cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "20585bb73e19b16c5fb84b39923a49011b329a70" }
+cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "20585bb73e19b16c5fb84b39923a49011b329a70" }
+cubecl-zspace = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "20585bb73e19b16c5fb84b39923a49011b329a70" }
+cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "01ed48e1abb5ed117df33f4394f2c5a91c3eb97e" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }
@@ -195,7 +195,7 @@ cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, 
 # cubek = { version = "=0.2.0-pre.2", default-features = false }
 
 ### For xtask crate ###
-tracel-xtask = "=4.13.4"
+tracel-xtask = "=4.13.5"
 # ### For local development. ###
 # tracel-xtask = { path = "../xtask/crates/tracel-xtask", default-features = false }
 

@@ -1,15 +1,12 @@
-use crate::{
-    engine::codegen::ir::FuseType,
-    optim::{
-        CubeOptimization,
-        reduce::{ReduceFuser, ReduceFuserInfo, ReduceSettings},
-        reduce_broadcasted::{
-            ReduceBroadcastedOptimization, ReduceBroadcastedOptimizationInfo,
-            fuser::{
-                block::{ReduceBlockFuser, ReduceBlockFusionAnalysis, ReduceBroadcastedStatus},
-                full::ReduceBroadcastedFullFuser,
-                full_analyzer::FullFuserAnalyzer,
-            },
+use crate::optim::{
+    CubeOptimization,
+    reduce::{ReduceFuser, ReduceFuserInfo, ReduceSettings},
+    reduce_broadcasted::{
+        ReduceBroadcastedOptimization, ReduceBroadcastedOptimizationInfo,
+        fuser::{
+            block::{ReduceBlockFuser, ReduceBlockFusionAnalysis, ReduceBroadcastedStatus},
+            full::ReduceBroadcastedFullFuser,
+            full_analyzer::FullFuserAnalyzer,
         },
     },
 };
@@ -25,7 +22,6 @@ pub struct ReduceBroadcastedFuser<R: Runtime> {
     num_ops: usize,
     state: ReduceBroadcastedStatus,
     max_bindings: u32,
-    bool_precision: FuseType,
 }
 
 impl<R: Runtime> Clone for ReduceBroadcastedFuser<R> {
@@ -36,14 +32,13 @@ impl<R: Runtime> Clone for ReduceBroadcastedFuser<R> {
             num_ops: self.num_ops,
             state: self.state.clone(),
             max_bindings: self.max_bindings,
-            bool_precision: self.bool_precision,
         }
     }
 }
 
 impl<R: Runtime> ReduceBroadcastedFuser<R> {
-    pub fn new(device: R::Device, bool_precision: FuseType) -> Self {
-        let fuser = ReduceFuser::new(device, bool_precision, ReduceSettings::Always);
+    pub fn new(device: R::Device) -> Self {
+        let fuser = ReduceFuser::new(device, ReduceSettings::Always);
         let max_bindings = fuser.fuser.max_bindings;
         let block = ReduceBlockFuser::new(fuser.clone());
 
@@ -53,7 +48,6 @@ impl<R: Runtime> ReduceBroadcastedFuser<R> {
             num_ops: 0,
             state: ReduceBroadcastedStatus::Starting,
             max_bindings,
-            bool_precision,
         }
     }
 }
@@ -111,8 +105,7 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceBroadcastedFuser<
 
     fn finish(&mut self) -> CubeOptimization<R> {
         let analyzer = FullFuserAnalyzer::new(&self.blocks);
-        let mut full =
-            ReduceBroadcastedFullFuser::new(self.max_bindings, self.bool_precision, analyzer);
+        let mut full = ReduceBroadcastedFullFuser::new(self.max_bindings, analyzer);
         let mut num_ops = 0;
         let fallbacks = self
             .blocks
@@ -191,7 +184,7 @@ mod tests {
     #[test]
     fn reduce_broadcast_workflow_1() {
         let device: <Run as Runtime>::Device = Default::default();
-        let mut fuser = ReduceBroadcastedFuser::<Run>::new(device, FuseType::I32);
+        let mut fuser = ReduceBroadcastedFuser::<Run>::new(device);
         let (tensor1_out, tensor1) = tensor(0, &[1, 2], TensorStatus::ReadWrite);
         let (tensor2_out, tensor2) = tensor(1, &[1, 0], TensorStatus::ReadWrite);
 
@@ -267,7 +260,7 @@ mod tests {
     #[test]
     fn reduce_broadcast_workflow_2() {
         let device: <Run as Runtime>::Device = Default::default();
-        let mut fuser = ReduceBroadcastedFuser::<Run>::new(device, FuseType::I32);
+        let mut fuser = ReduceBroadcastedFuser::<Run>::new(device);
         let (tensor1_out, tensor1) = tensor(0, &[1, 2], TensorStatus::ReadWrite);
         // An existing tensor
         let (_tensor2_out, mut tensor2) = tensor(2, &[1, 2], TensorStatus::ReadOnly);

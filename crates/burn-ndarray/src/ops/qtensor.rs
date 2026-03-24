@@ -9,11 +9,13 @@ use burn_backend::{
     },
     tensor::{FloatTensor, IntTensor, QuantizedTensor},
 };
+use burn_std::IntDType;
 
 use crate::{
     FloatNdArrayElement, NdArray, NdArrayDevice, NdArrayQTensor, NdArrayTensor, SharedArray,
     element::{IntNdArrayElement, QuantElement},
-    execute_with_dtype, execute_with_int_dtype, execute_with_numeric_dtype, slice,
+    execute_with_dtype, execute_with_int_dtype, execute_with_int_out_dtype,
+    execute_with_numeric_dtype, slice,
 };
 
 use super::quantization::{QuantizationStrategy, SymmetricQuantization};
@@ -305,15 +307,19 @@ where
         }
     }
 
-    fn q_argmax(tensor: QuantizedTensor<Self>, dim: usize) -> IntTensor<Self> {
-        execute_with_numeric_dtype!(tensor.qtensor, E, |array: SharedArray<E>| {
-            NdArrayMathOps::argmax::<I>(array, dim)
+    fn q_argmax(tensor: QuantizedTensor<Self>, dim: usize, out_dtype: IntDType) -> IntTensor<Self> {
+        execute_with_int_out_dtype!(out_dtype, I, {
+            execute_with_numeric_dtype!(tensor.qtensor, E, |array: SharedArray<E>| {
+                NdArrayMathOps::argmax::<I>(array, dim)
+            })
         })
     }
 
-    fn q_argmin(tensor: QuantizedTensor<Self>, dim: usize) -> IntTensor<Self> {
-        execute_with_numeric_dtype!(tensor.qtensor, E, |array: SharedArray<E>| {
-            NdArrayMathOps::argmin::<I>(array, dim)
+    fn q_argmin(tensor: QuantizedTensor<Self>, dim: usize, out_dtype: IntDType) -> IntTensor<Self> {
+        execute_with_int_out_dtype!(out_dtype, I, {
+            execute_with_numeric_dtype!(tensor.qtensor, E, |array: SharedArray<E>| {
+                NdArrayMathOps::argmin::<I>(array, dim)
+            })
         })
     }
 

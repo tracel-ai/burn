@@ -6,16 +6,19 @@ use burn_backend::{
     DType, Shape,
     ops::{AttentionModuleOptions, attention::attention_fallback},
 };
-use cubek::attention::definition::{
-    AccumulatorPrecision, AttentionGlobalTypes, AttentionOptions, AttentionSetupError,
-};
 use cubek::attention::launch;
+use cubek::attention::{
+    definition::{
+        AccumulatorPrecision, AttentionGlobalTypes, AttentionOptions, AttentionSetupError,
+    },
+    routines::blackbox_accelerated::BlackboxAcceleratedStrategy,
+};
 
 #[derive(Debug)]
 /// Strategy used to select which attention implementation to run.
 pub enum AttentionStrategy {
     /// Flash Attention using accelerated inner matmuls.
-    FlashBlackboxAccelerated,
+    FlashBlackboxAccelerated(BlackboxAcceleratedStrategy),
 
     /// Flash Attention using unit inner matmuls.
     FlashUnit,
@@ -49,12 +52,12 @@ pub fn attention<R: CubeRuntime>(
     mask: Option<CubeTensor<R>>,
     attn_bias: Option<CubeTensor<R>>,
     options: AttentionModuleOptions,
-    strategy: &AttentionStrategy,
+    strategy: AttentionStrategy,
     out: Option<CubeTensor<R>>,
 ) -> Result<CubeTensor<R>, AttentionSetupError> {
     let mut out = out.unwrap_or_else(|| init_attention_output(&query, &value));
     match strategy {
-        AttentionStrategy::FlashBlackboxAccelerated => flash_attention(
+        AttentionStrategy::FlashBlackboxAccelerated(strategy) => flash_attention(
             query,
             key,
             value,
@@ -63,7 +66,7 @@ pub fn attention<R: CubeRuntime>(
             options,
             out,
             launch::Strategy::BlackboxAccelerated(
-                cubek::attention::launch::BlueprintStrategy::Inferred(()),
+                cubek::attention::launch::BlueprintStrategy::Inferred(strategy),
             ),
         ),
         AttentionStrategy::FlashUnit => flash_attention(

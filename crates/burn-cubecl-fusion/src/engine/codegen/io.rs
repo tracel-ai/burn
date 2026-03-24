@@ -1,12 +1,12 @@
 //! This module declares input-output primitives to read and write values during kernel expansion.
 use crate::engine::codegen::{DynElem, DynSize};
 
-use super::{DYN_ELEM_ID, ir::*, tensor::GlobalTensor};
+use super::{ir::*, tensor::GlobalTensor};
 use burn_std::quantization::QuantScheme;
 use cubecl::quant::scheme::QuantLevel;
 use cubecl::{
     intrinsic,
-    ir::{ExpandElement, Variable},
+    ir::{ManagedVariable, Variable},
     prelude::*,
     std::{FastDivmod, tensor::View},
 };
@@ -76,7 +76,6 @@ pub fn read<C: Scalar, N: Size>(
             FuseType::I32 => Vector::cast_from(locals.l_i32.find(pos)),
             FuseType::I16 => Vector::cast_from(locals.l_i16.find(pos)),
             FuseType::I8 => Vector::cast_from(locals.l_i8.find(pos)),
-            FuseType::Bool => Vector::cast_from(locals.l_bool.find(pos)),
         },
         FuseArg::Scalar(..) => {
             let scalar = read_scalar::<C>(inputs, arg);
@@ -291,7 +290,7 @@ pub fn input_as_scales_view<C: Scalar, N: Size>(
     #[comptime] level: QuantLevel,
     #[comptime] config: &FuseBlockConfig,
 ) -> View<C, usize> {
-    set_polyfill_typed::<Vector<C, N>, NumericExpand<DYN_ELEM_ID>, DynSize>();
+    set_polyfill_typed::<Vector<C, N>, DynElem, DynSize>();
     let tensor = inputs.tensors.index(tensor_pos);
     let scales = inputs.tensors.index(pos);
     let tensor_len = tensor.tensor.len();
@@ -486,7 +485,6 @@ pub fn write_scalar<C: Scalar, N: Size>(
             FuseType::I32 => locals.l_i32.insert(pos, Vector::cast_from(value)),
             FuseType::I16 => locals.l_i16.insert(pos, Vector::cast_from(value)),
             FuseType::I8 => locals.l_i8.insert(pos, Vector::cast_from(value)),
-            FuseType::Bool => locals.l_bool.insert(pos, Vector::cast_from(value)),
         },
         _ => comptime![panic!("Can't write into something else than scalars")],
     }
@@ -791,7 +789,7 @@ pub(crate) fn reverse_index(
 #[cube]
 fn from_const_int<C: CubePrimitive>(#[comptime] value: usize) -> C {
     intrinsic!(|scope| {
-        ExpandElement::Plain(Variable::constant(value.into(), C::as_type(scope))).into()
+        ManagedVariable::Plain(Variable::constant(value.into(), C::as_type(scope))).into()
     })
 }
 

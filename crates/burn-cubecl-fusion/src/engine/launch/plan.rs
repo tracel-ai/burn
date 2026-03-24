@@ -154,6 +154,8 @@ pub enum HandleOutput<R: Runtime> {
         input_pos: usize,
         /// Data type precision.
         precision: FuseType,
+        global_shape: Shape,
+        strides: Strides,
         #[cfg(feature = "autotune-checks")]
         debug_info: HandleOutputAliasDebugInfo<R>,
     },

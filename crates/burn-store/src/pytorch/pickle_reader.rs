@@ -16,7 +16,7 @@ use alloc::rc::Rc;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use burn_core::module::ParamId;
-use burn_tensor::{DType, TensorData};
+use burn_tensor::{BoolStore, DType, TensorData};
 use byteorder::{LittleEndian, ReadBytesExt};
 use half::{bf16, f16};
 use std::collections::HashMap;
@@ -447,7 +447,7 @@ fn storage_type_to_dtype(storage_type: &str) -> Result<DType> {
         "ShortStorage" => Ok(DType::I16),
         "CharStorage" => Ok(DType::I8),
         "ByteStorage" => Ok(DType::U8),
-        "BoolStorage" => Ok(DType::Bool),
+        "BoolStorage" => Ok(DType::Bool(BoolStore::Native)),
         _ => Err(PickleError::InvalidData(format!(
             "Unknown storage type: {}",
             storage_type
@@ -682,7 +682,7 @@ fn rebuild_tensor_impl(
                         values.resize(num_elements, 0);
                         Ok(TensorData::new(values, shape_clone.clone()))
                     }
-                    DType::Bool => {
+                    DType::Bool(BoolStore::Native) => {
                         let mut values = Vec::with_capacity(num_elements);
                         for &byte in data_slice.iter().take(elements_to_read) {
                             values.push(byte != 0);
@@ -818,7 +818,7 @@ fn rebuild_tensor_impl(
                         vec![0u64; num_elements],
                         shape_clone.clone(),
                     )),
-                    DType::Bool => Ok(TensorData::new(
+                    DType::Bool(BoolStore::Native) => Ok(TensorData::new(
                         vec![false; num_elements],
                         shape_clone.clone(),
                     )),

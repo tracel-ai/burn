@@ -40,8 +40,13 @@ rand = { workspace = true, default-features = false }
 rand_distr = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }
+spin = { workspace = true }
+
+[target.'cfg(not(target_has_atomic = "ptr"))'.dependencies]
+portable-atomic-util = { workspace = true }
 
 [dev-dependencies]
 rand = { workspace = true, features = ["thread_rng"] }
 paste = { workspace = true }
 serde_json = { workspace = true, features = ["alloc"]}
+serial_test = { workspace = true }

@@ -3,7 +3,7 @@ use crate::burnpack::{reader::BurnpackReader, writer::BurnpackWriter};
 use super::*;
 use alloc::collections::BTreeMap;
 use alloc::string::String;
-use burn_tensor::{DType, TensorData, shape};
+use burn_tensor::{BoolStore, DType, TensorData, shape};
 
 /// Helper function to perform round-trip test
 fn round_trip_test<F>(setup: F)
@@ -175,7 +175,7 @@ fn test_round_trip_bool() {
     round_trip_test(|snapshots, _metadata| {
         let data = vec![0u8, 1, 0, 1, 1];
         let snapshot = TensorSnapshot::from_data(
-            TensorData::from_bytes_vec(data, vec![5], DType::Bool),
+            TensorData::from_bytes_vec(data, vec![5], DType::Bool(BoolStore::Native)),
             vec!["bool_tensor".to_string()],
             vec![],
             burn_core::module::ParamId::new(),
@@ -211,7 +211,7 @@ fn test_round_trip_mixed_dtypes() {
 
         // Bool
         let bool_snapshot = TensorSnapshot::from_data(
-            TensorData::from_bytes_vec(vec![1, 0, 1], vec![3], DType::Bool),
+            TensorData::from_bytes_vec(vec![1, 0, 1], vec![3], DType::Bool(BoolStore::Native)),
             vec!["bool".to_string()],
             vec![],
             burn_core::module::ParamId::new(),

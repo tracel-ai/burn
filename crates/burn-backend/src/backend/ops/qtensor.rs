@@ -1,11 +1,12 @@
 use alloc::vec::Vec;
 use burn_std::{
-    Shape, Slice,
+    BoolDType, IntDType, Shape, Slice,
     quantization::{QuantPropagation, QuantScheme},
 };
 
 use crate::{
     Backend, ExecutionError, QTensorPrimitive, TensorData, TensorMetadata, TensorPrimitive,
+    get_device_settings,
 };
 use crate::{
     Scalar,
@@ -1077,14 +1078,14 @@ pub trait QTensorOps<B: Backend> {
     ///
     /// * `tensor` - The tensor to get the maximum elements of.
     /// * `dim` - The dimension along which to get the maximum elements.
+    /// * `out_dtype` - The output tensor dtype.
     ///
     /// # Returns
     ///
     /// A tensor with the indices of the maximum elements of `tensor` along `dim`.
-    fn q_argmax(tensor: QuantizedTensor<B>, dim: usize) -> IntTensor<B> {
-        // Default implementation. Backends can sort on the int values since qparams remain the same.
+    fn q_argmax(tensor: QuantizedTensor<B>, dim: usize, out_dtype: IntDType) -> IntTensor<B> {
         let tensor_f = Self::dequantize(tensor);
-        B::float_argmax(tensor_f, dim)
+        B::float_argmax(tensor_f, dim, out_dtype)
     }
 
     /// Gets the indices of the minimum elements of a tensor along an axis.
@@ -1093,14 +1094,14 @@ pub trait QTensorOps<B: Backend> {
     ///
     /// * `tensor` - The tensor to get the minimum elements of.
     /// * `dim` - The dimension along which to get the minimum elements.
+    /// * `out_dtype` - The output tensor dtype.
     ///
     /// # Returns
     ///
     /// A tensor with the indices of the minimum elements of `tensor` along `dim`.
-    fn q_argmin(tensor: QuantizedTensor<B>, dim: usize) -> IntTensor<B> {
-        // Default implementation. Backends can sort on the int values since qparams remain the same.
+    fn q_argmin(tensor: QuantizedTensor<B>, dim: usize, out_dtype: IntDType) -> IntTensor<B> {
         let tensor_f = Self::dequantize(tensor);
-        B::float_argmin(tensor_f, dim)
+        B::float_argmin(tensor_f, dim, out_dtype)
     }
 
     /// Gets the maximum element of a tensor.
@@ -1130,7 +1131,8 @@ pub trait QTensorOps<B: Backend> {
     ///
     /// A tensor with the maximum elements of `tensor` along `dim`.
     fn q_max_dim(tensor: QuantizedTensor<B>, dim: usize) -> QuantizedTensor<B> {
-        let index = B::q_argmax(tensor.clone(), dim);
+        let int_dtype = get_device_settings::<B>(&B::q_device(&tensor)).int_dtype;
+        let index = B::q_argmax(tensor.clone(), dim, int_dtype);
 
         B::q_gather(dim, tensor, index)
     }
@@ -1148,8 +1150,9 @@ pub trait QTensorOps<B: Backend> {
     fn q_max_dim_with_indices(
         tensor: QuantizedTensor<B>,
         dim: usize,
+        out_dtype: IntDType,
     ) -> (QuantizedTensor<B>, IntTensor<B>) {
-        let index = B::q_argmax(tensor.clone(), dim);
+        let index = B::q_argmax(tensor.clone(), dim, out_dtype);
         let values = B::q_gather(dim, tensor, index.clone());
 
         (values, index)
@@ -1182,7 +1185,8 @@ pub trait QTensorOps<B: Backend> {
     ///
     /// A tensor with the minimum elements of `tensor` along `dim`.
     fn q_min_dim(tensor: QuantizedTensor<B>, dim: usize) -> QuantizedTensor<B> {
-        let index = B::q_argmin(tensor.clone(), dim);
+        let int_dtype = get_device_settings::<B>(&B::q_device(&tensor)).int_dtype;
+        let index = B::q_argmin(tensor.clone(), dim, int_dtype);
 
         B::q_gather(dim, tensor, index)
     }
@@ -1200,8 +1204,9 @@ pub trait QTensorOps<B: Backend> {
     fn q_min_dim_with_indices(
         tensor: QuantizedTensor<B>,
         dim: usize,
+        out_dtype: IntDType,
     ) -> (QuantizedTensor<B>, IntTensor<B>) {
-        let index = B::q_argmin(tensor.clone(), dim);
+        let index = B::q_argmin(tensor.clone(), dim, out_dtype);
         let values = B::q_gather(dim, tensor, index.clone());
 
         (values, index)
@@ -1234,7 +1239,8 @@ pub trait QTensorOps<B: Backend> {
     ///
     /// A tensor with the maximum elements of `tensor` along `dim`.
     fn q_max_abs_dim(tensor: QuantizedTensor<B>, dim: usize) -> QuantizedTensor<B> {
-        let index = B::q_argmax(B::q_abs(tensor.clone()), dim);
+        let int_dtype = get_device_settings::<B>(&B::q_device(&tensor)).int_dtype;
+        let index = B::q_argmax(B::q_abs(tensor.clone()), dim, int_dtype);
 
         B::q_gather(dim, tensor, index)
     }
@@ -1248,9 +1254,9 @@ pub trait QTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A boolean tensor with a single element, True if any element in the tensor is True, False otherwise.
-    fn q_any(tensor: QuantizedTensor<B>) -> BoolTensor<B> {
+    fn q_any(tensor: QuantizedTensor<B>, out_dtype: BoolDType) -> BoolTensor<B> {
         let tensor_f = Self::dequantize(tensor);
-        B::float_any(tensor_f)
+        B::float_any(tensor_f, out_dtype)
     }
 
     /// Tests if any element in the float `tensor` evaluates to True along a given dimension `dim`.
@@ -1265,9 +1271,9 @@ pub trait QTensorOps<B: Backend> {
     /// A boolean tensor `Tensor<B, D, Bool>` with the same size as input `tensor`, except in the `dim` axis
     /// where the size is 1. The elem in the `dim` axis is True if any element along this dim in the
     /// input evaluates to True, False otherwise.
-    fn q_any_dim(tensor: QuantizedTensor<B>, dim: usize) -> BoolTensor<B> {
+    fn q_any_dim(tensor: QuantizedTensor<B>, dim: usize, out_dtype: BoolDType) -> BoolTensor<B> {
         let tensor_f = Self::dequantize(tensor);
-        B::float_any_dim(tensor_f, dim)
+        B::float_any_dim(tensor_f, dim, out_dtype)
     }
 
     /// Tests if all elements in the `tensor` evaluate to True.
@@ -1280,9 +1286,9 @@ pub trait QTensorOps<B: Backend> {
     ///
     /// A boolean tensor `Tensor<B, 1, Bool>` with a single element, True if all elements in the input tensor
     /// evaluate to True, False otherwise.
-    fn q_all(tensor: QuantizedTensor<B>) -> BoolTensor<B> {
+    fn q_all(tensor: QuantizedTensor<B>, out_dtype: BoolDType) -> BoolTensor<B> {
         let tensor_f = Self::dequantize(tensor);
-        B::float_all(tensor_f)
+        B::float_all(tensor_f, out_dtype)
     }
 
     /// Tests if all elements in the `tensor` evaluate to True along a given dimension `dim`.
@@ -1297,9 +1303,9 @@ pub trait QTensorOps<B: Backend> {
     /// A boolean tensor `Tensor<B, D, Bool>` with the same size as input `tensor`, except in the `dim` axis
     /// where the size is 1. The elem in the `dim` axis is True if all elements along this dim in the input
     /// evaluates to True, False otherwise.
-    fn q_all_dim(tensor: QuantizedTensor<B>, dim: usize) -> BoolTensor<B> {
+    fn q_all_dim(tensor: QuantizedTensor<B>, dim: usize, out_dtype: BoolDType) -> BoolTensor<B> {
         let tensor_f = Self::dequantize(tensor);
-        B::float_all_dim(tensor_f, dim)
+        B::float_all_dim(tensor_f, dim, out_dtype)
     }
 
     /// Sort the elements of the input `tensor` by value in along a given dimension.
@@ -1342,12 +1348,12 @@ pub trait QTensorOps<B: Backend> {
         tensor: QuantizedTensor<B>,
         dim: usize,
         descending: bool,
+        out_dtype: IntDType,
     ) -> (QuantizedTensor<B>, IntTensor<B>) {
-        // Default implementation. Backends can sort on the int values since qparams remain the same.
         let scheme = *tensor.scheme();
 
         let tensor_f = Self::dequantize(tensor);
-        let (out_f, indices) = B::float_sort_with_indices(tensor_f, dim, descending);
+        let (out_f, indices) = B::float_sort_with_indices(tensor_f, dim, descending, out_dtype);
 
         (Self::quantize_dynamic(out_f, &scheme), indices)
     }
@@ -1365,9 +1371,13 @@ pub trait QTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A tensor with the same shape as the input tensor the indices map back to the original input tensor.
-    fn q_argsort(tensor: QuantizedTensor<B>, dim: usize, descending: bool) -> IntTensor<B> {
-        // Default implementation. Backends can sort on the int values since qparams remain the same.
+    fn q_argsort(
+        tensor: QuantizedTensor<B>,
+        dim: usize,
+        descending: bool,
+        out_dtype: IntDType,
+    ) -> IntTensor<B> {
         let tensor_f = Self::dequantize(tensor);
-        B::float_argsort(tensor_f, dim, descending)
+        B::float_argsort(tensor_f, dim, descending, out_dtype)
     }
 }
