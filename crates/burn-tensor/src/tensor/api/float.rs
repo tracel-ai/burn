@@ -9,7 +9,7 @@ use crate::quantization::{QuantScheme, QuantizationParameters};
 use crate::tensor::backend::Backend;
 use crate::tensor::stats;
 use crate::tensor::{Distribution, TensorData};
-use crate::{Bool, Int, TensorPrimitive};
+use crate::{Bool, Int, Shape, TensorPrimitive};
 use burn_backend::ElementConversion;
 use burn_backend::Scalar;
 use burn_backend::tensor::quantization::QuantizationParametersPrimitive;
@@ -1081,29 +1081,34 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     }
 }
 
-impl<B: Backend> Tensor<B, 2> {
-    /// Draws samples from a multinomial (categorical) distribution defined by the
-    /// rows of the input tensor.
+impl<const D: usize, B: Backend> Tensor<B, D> {
+    /// Draws samples from a categorical distribution defined by the last dimension
+    /// of the input tensor.
     ///
-    /// Each row is treated as a (possibly unnormalized) set of weights defining a
-    /// categorical distribution over columns. The method returns integer indices of
-    /// the sampled categories.
+    /// The last dimension is treated as a (possibly unnormalized) set of weights
+    /// defining a categorical distribution over categories. All leading dimensions
+    /// are treated as batch dimensions. The method returns integer indices of the
+    /// sampled categories.
     ///
     /// # Arguments
     ///
-    /// * `num_samples` - Number of samples to draw per row.
-    /// * `replacement` - Whether to sample with replacement. Sampling without
-    ///   replacement with `num_samples > 1` is not yet supported and will panic.
+    /// * `num_samples` - Number of samples to draw per distribution. Must be >= 1.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `num_samples` is 0.
     ///
     /// # Note
     ///
-    /// Rows with all-zero weights produce undefined (NaN-based) sampling results.
-    /// Callers should ensure each row has at least one positive weight.
+    /// Distributions with all-zero weights produce undefined (NaN-based) sampling
+    /// results. Callers should ensure each distribution has at least one positive
+    /// weight.
     ///
     /// # Returns
     ///
-    /// An integer tensor of shape `[batch_size, num_samples]` containing the
-    /// sampled category indices in `[0, num_categories)`.
+    /// An integer tensor with the same shape as the input, except the last dimension
+    /// is replaced by `num_samples`, containing sampled category indices in
+    /// `[0, num_categories)`.
     ///
     /// # Example
     ///
@@ -1117,25 +1122,25 @@ impl<B: Backend> Tensor<B, 2> {
     ///         [[0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
     ///         &device,
     ///     );
-    ///     let samples = probs.multinomial(4, true);
+    ///     let samples = probs.categorical(4);
     ///     // First row always samples index 1, second row always samples index 2
     ///     println!("{samples}");
     /// }
     /// ```
-    pub fn multinomial(self, num_samples: usize, replacement: bool) -> Tensor<B, 2, Int> {
-        if !replacement && num_samples > 1 {
-            panic!(
-                "multinomial: sampling without replacement with num_samples > 1 \
-                 is not yet supported"
-            );
-        }
+    pub fn categorical(self, num_samples: usize) -> Tensor<B, D, Int> {
+        assert!(num_samples > 0, "categorical: num_samples must be >= 1");
 
-        let [batch_size, num_categories] = self.dims();
+        let dims = self.dims();
+        let num_categories = dims[D - 1];
+        let batch_size: usize = dims[..D - 1].iter().product::<usize>().max(1);
         let device = self.device();
 
+        // Flatten leading dimensions into a single batch dimension: [batch, categories]
+        let flat: Tensor<B, 2> = self.reshape([batch_size, num_categories]);
+
         // Normalize weights to probabilities
-        let sum = self.clone().sum_dim(1); // [batch, 1]
-        let probs = self / sum;
+        let sum = flat.clone().sum_dim(1); // [batch, 1]
+        let probs = flat / sum;
 
         // Cumulative sum along categories dimension
         let cumsum = probs.cumsum(1); // [batch, categories]
@@ -1155,9 +1160,14 @@ impl<B: Backend> Tensor<B, 2> {
 
         // Count categories where cumsum < uniform (inverse CDF)
         let mask: Tensor<B, 3, Bool> = cumsum_3d.lower(uniform_3d);
-        let indices = mask.int().sum_dim(1).squeeze_dim::<2>(1);
+        let indices: Tensor<B, 2, Int> = mask.int().sum_dim(1).squeeze_dim::<2>(1);
 
         // Clamp to valid range to guard against floating-point imprecision in cumsum
-        indices.clamp(0, num_categories as i64 - 1)
+        let indices = indices.clamp(0, num_categories as i64 - 1);
+
+        // Reshape back to [...leading_dims, num_samples]
+        let mut out_dims: Vec<usize> = dims[..D - 1].to_vec();
+        out_dims.push(num_samples);
+        indices.reshape(Shape::from(out_dims))
     }
 }

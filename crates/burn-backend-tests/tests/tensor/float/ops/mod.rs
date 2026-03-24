@@ -39,7 +39,7 @@ mod matmul;
 mod maxmin;
 mod movedim;
 mod mul;
-mod multinomial;
+mod categorical;
 mod nan;
 mod narrow;
 mod neg;
