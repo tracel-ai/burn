@@ -25,8 +25,6 @@ cargo test-wgpu
 cargo test-vulkan
 # Metal
 cargo test-metal
-# Router
-cargo test-router
 
 # NdArray
 cargo test-ndarray
@@ -42,12 +40,13 @@ regardless of failures, pass `--no-fail-fast`, for example:
 cargo test-cuda --no-fail-fast
 ```
 
-CubeCL-based backends are tested with `fusion` by default. If you want to run the tests without
-fusion, just append `-nofuse` to the cargo command. For example:
-
-```sh
-cargo test-cuda-nofuse
-```
+> [!NOTE]  
+> CubeCL-based backends are tested with `fusion` by default. If you want to run the tests without
+> fusion, just append `-nofuse` to the cargo command. For example:
+>
+> ```sh
+> cargo test-cuda-nofuse
+> ```
 
 ## Structure
 
@@ -92,8 +91,9 @@ For f16 tests, only the float tensor tests are included to validate behavior wit
 mod f16;
 ```
 
-> [!WARNING] Tests for different data types (e.g., f32 vs f16) must be isolated, as each device's
-> settings are global and can only be initialized once per process.
+> [!WARNING]  
+> Tests for different data types (e.g., f32 vs f16) must be isolated, as each device's settings are
+> global and can only be initialized once per process.
 
 ## Adding New Tests
 
