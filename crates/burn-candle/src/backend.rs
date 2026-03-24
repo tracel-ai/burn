@@ -259,7 +259,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> Backend for Candle<F, I> {
             burn_backend::DTypeUsageSet::empty()
         }
     }
-    
+
     fn device_count(_: u16) -> usize {
         1
     }
