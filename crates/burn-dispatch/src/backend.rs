@@ -10,7 +10,7 @@ use burn_autodiff::grads::Gradients;
 #[cfg(feature = "autodiff")]
 use burn_backend::AutodiffBackend;
 
-#[cfg(feature = "cuda")]
+#[allow(unused)]
 use crate::BackendId;
 use crate::DispatchTensorKind;
 use crate::backends::*;
