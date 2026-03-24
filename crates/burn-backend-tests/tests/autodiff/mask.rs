@@ -1,6 +1,6 @@
 use super::*;
+use burn_tensor::TensorData;
 use burn_tensor::Tolerance;
-use burn_tensor::{Bool, Tensor, TensorData};
 
 #[test]
 fn should_diff_mask_fill() {
@@ -8,10 +8,10 @@ fn should_diff_mask_fill() {
     let data_2 = TensorData::from([[4.0, 7.0], [2.0, 3.0]]);
     let mask = TensorData::from([[true, false], [false, true]]);
 
-    let device = Default::default();
-    let tensor_1 = TestAutodiffTensor::from_data(data_1, &device).require_grad();
-    let tensor_2 = TestAutodiffTensor::from_data(data_2, &device).require_grad();
-    let mask = Tensor::<TestAutodiffBackend, 2, Bool>::from_bool(mask, &device);
+    let device = AutodiffDevice::new();
+    let tensor_1 = TestTensor::from_data(data_1, &device).require_grad();
+    let tensor_2 = TestTensor::from_data(data_2, &device).require_grad();
+    let mask = TestTensorBool::<2>::from_bool(mask, &device);
 
     let tensor_3 = tensor_1.clone().matmul(tensor_2.clone());
     let tensor_4 = tensor_3.mask_fill(mask, 2.0);
@@ -30,13 +30,11 @@ fn should_diff_mask_fill() {
 
 #[test]
 fn should_diff_mask_where() {
-    let device = Default::default();
-    let tensor_1 = TestAutodiffTensor::from_data([[1.0, 7.0], [2.0, 3.0]], &device).require_grad();
-    let tensor_2 = TestAutodiffTensor::from_data([[4.0, 7.0], [2.0, 3.0]], &device).require_grad();
-    let tensor_3 =
-        TestAutodiffTensor::from_data([[8.8, 9.8], [10.8, 11.8]], &device).require_grad();
-    let mask =
-        Tensor::<TestAutodiffBackend, 2, Bool>::from_data([[true, false], [false, true]], &device);
+    let device = AutodiffDevice::new();
+    let tensor_1 = TestTensor::from_data([[1.0, 7.0], [2.0, 3.0]], &device).require_grad();
+    let tensor_2 = TestTensor::from_data([[4.0, 7.0], [2.0, 3.0]], &device).require_grad();
+    let tensor_3 = TestTensor::from_data([[8.8, 9.8], [10.8, 11.8]], &device).require_grad();
+    let mask = TestTensorBool::<2>::from_data([[true, false], [false, true]], &device);
 
     let tensor_4 = tensor_1.clone().matmul(tensor_2.clone());
     let tensor_5 = tensor_4.clone().matmul(tensor_3.clone());

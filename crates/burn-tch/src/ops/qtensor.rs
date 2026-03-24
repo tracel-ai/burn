@@ -1,5 +1,5 @@
 use burn_backend::{
-    ExecutionError, IntDType, Shape, TensorData,
+    ExecutionError, FloatDType, IntDType, Shape, TensorData,
     ops::QTensorOps,
     quantization::{QuantScheme, QuantizationParametersPrimitive},
     tensor::{Device, FloatTensor, IntTensor, QuantizedTensor},
@@ -27,7 +27,7 @@ impl<E: TchElement> QTensorOps<Self> for LibTorch<E> {
         unimplemented!()
     }
 
-    fn dequantize(_tensor: QuantizedTensor<Self>) -> FloatTensor<Self> {
+    fn dequantize(_tensor: QuantizedTensor<Self>, _dtype: FloatDType) -> FloatTensor<Self> {
         unimplemented!()
     }
 

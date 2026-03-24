@@ -2,8 +2,8 @@ use alloc::vec::Vec;
 use burn_std::{DType, Shape, Slice};
 
 use crate::{
-    AutodiffBackend, Backend, Distribution, ExecutionError, Scalar, TensorData, TensorPrimitive,
-    get_device_settings,
+    AutodiffBackend, Backend, Distribution, ExecutionError, Scalar, TensorData, TensorMetadata,
+    TensorPrimitive, get_device_settings,
     ops::TransactionPrimitive,
     tensor::{
         BasicAutodiffOps, BasicOps, Device, Float, IndexingUpdateOp, IntTensor, Numeric, Ordered,
@@ -19,10 +19,12 @@ macro_rules! q_bin_ops {
             }
             (TensorPrimitive::QFloat(lhs), TensorPrimitive::QFloat(rhs)) => B::$q_op(lhs, rhs),
             (TensorPrimitive::QFloat(lhs), TensorPrimitive::Float(rhs)) => {
-                TensorPrimitive::Float(B::$op(B::dequantize(lhs), rhs))
+                let dtype = rhs.dtype();
+                TensorPrimitive::Float(B::$op(B::dequantize(lhs, dtype.into()), rhs))
             }
             (TensorPrimitive::Float(lhs), TensorPrimitive::QFloat(rhs)) => {
-                TensorPrimitive::Float(B::$op(lhs, B::dequantize(rhs)))
+                let dtype = lhs.dtype();
+                TensorPrimitive::Float(B::$op(lhs, B::dequantize(rhs, dtype.into())))
             }
         }
     };
@@ -449,8 +451,13 @@ impl<B: Backend> Numeric<B> for Float {
         }
     }
 
-    fn random(shape: Shape, distribution: Distribution, device: &Device<B>) -> Self::Primitive {
-        TensorPrimitive::Float(B::float_random(shape, distribution, device))
+    fn random(
+        shape: Shape,
+        distribution: Distribution,
+        device: &Device<B>,
+        dtype: DType,
+    ) -> Self::Primitive {
+        TensorPrimitive::Float(B::float_random(shape, distribution, device, dtype.into()))
     }
 
     fn sign(tensor: Self::Primitive) -> Self::Primitive {

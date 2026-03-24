@@ -1,3 +1,5 @@
+use alloc::boxed::Box;
+
 use burn_backend::{DeviceId, DeviceOps};
 
 use crate::backends::*;
@@ -111,7 +113,7 @@ pub(crate) fn validate_checkpointing(
 }
 
 impl core::fmt::Debug for DispatchDevice {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             #[cfg(feature = "cpu")]
             Self::Cpu(device) => f.debug_tuple("Cpu").field(device).finish(),
@@ -141,9 +143,6 @@ impl Default for DispatchDevice {
     fn default() -> Self {
         // TODO: which priority?
 
-        #[cfg(feature = "cpu")]
-        return Self::Cpu(CpuDevice);
-
         #[cfg(feature = "cuda")]
         return Self::Cuda(CudaDevice::default());
 
@@ -159,11 +158,14 @@ impl Default for DispatchDevice {
         #[cfg(wgpu_webgpu)]
         return Self::WebGpu(burn_wgpu::WgpuDevice::default());
 
-        #[cfg(feature = "ndarray")]
-        return Self::NdArray(NdArrayDevice::default());
+        #[cfg(feature = "cpu")]
+        return Self::Cpu(CpuDevice);
 
         #[cfg(feature = "tch")]
         return Self::LibTorch(LibTorchDevice::default());
+
+        #[cfg(feature = "ndarray")]
+        return Self::NdArray(NdArrayDevice::default());
     }
 }
 

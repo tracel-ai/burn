@@ -3,11 +3,9 @@ use burn_tensor::{TensorData, Tolerance, activation};
 
 #[test]
 fn should_diff_gelu() {
-    let device = Default::default();
-    let tensor_1 =
-        TestAutodiffTensor::<2>::from_floats([[0.0, 1.0], [-3.0, 4.0]], &device).require_grad();
-    let tensor_2 =
-        TestAutodiffTensor::from_floats([[6.0, -0.5], [9.0, 10.0]], &device).require_grad();
+    let device = AutodiffDevice::new();
+    let tensor_1 = TestTensor::<2>::from_data([[0.0, 1.0], [-3.0, 4.0]], &device).require_grad();
+    let tensor_2 = TestTensor::from_data([[6.0, -0.5], [9.0, 10.0]], &device).require_grad();
 
     let x = tensor_1.clone().matmul(activation::gelu(tensor_2.clone()));
     let x = tensor_1.clone().matmul(x);

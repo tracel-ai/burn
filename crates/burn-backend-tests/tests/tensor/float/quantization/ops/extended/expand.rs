@@ -5,7 +5,7 @@ use burn_tensor::Tolerance;
 
 #[test]
 fn expand_2d() {
-    let tensor = QTensor::<TestBackend, 1>::int8([1.0, 2.0, 3.0]);
+    let tensor = QTensor::<1>::int8([1.0, 2.0, 3.0]);
     let output = tensor.expand([3, 3]);
 
     output
@@ -17,7 +17,7 @@ fn expand_2d() {
         );
 
     // Quantized [4.0, 7.0, 2.0, 3.0]
-    let tensor = QTensor::<TestBackend, 1>::int8([4.0, 7.0, 2.0, 3.0]);
+    let tensor = QTensor::<1>::int8([4.0, 7.0, 2.0, 3.0]);
     let output = tensor.expand([2, 4]);
 
     output
@@ -31,7 +31,7 @@ fn expand_2d() {
 
 #[test]
 fn expand_3d() {
-    let tensor = QTensor::<TestBackend, 2>::int8([[1.0, 2.0], [3.0, 4.0]]);
+    let tensor = QTensor::<2>::int8([[1.0, 2.0], [3.0, 4.0]]);
 
     let output = tensor.expand([3, 2, 2]);
     let expected = TensorData::from([
@@ -48,7 +48,7 @@ fn expand_3d() {
 
 #[test]
 fn expand_higher_dimensions() {
-    let tensor = QTensor::<TestBackend, 2>::int8([[1.0, 2.0, 3.0, 4.0]]);
+    let tensor = QTensor::<2>::int8([[1.0, 2.0, 3.0, 4.0]]);
 
     let output = tensor.expand([2, 3, 4]);
     let expected = TensorData::from([
@@ -72,7 +72,7 @@ fn expand_higher_dimensions() {
 
 #[test]
 fn broadcast_single() {
-    let tensor = QTensor::<TestBackend, 1>::int8([1.0]);
+    let tensor = QTensor::<1>::int8([1.0]);
 
     let output = tensor.expand([2, 3]);
 
@@ -85,13 +85,13 @@ fn broadcast_single() {
 #[test]
 #[should_panic]
 fn should_fail_expand_incompatible_shapes() {
-    let tensor = QTensor::<TestBackend, 1>::int8([1.0, 2.0, 3.0]);
+    let tensor = QTensor::<1>::int8([1.0, 2.0, 3.0]);
     let _expanded_tensor = tensor.expand([2, 2]);
 }
 
 #[test]
 fn should_all_negative_one() {
-    let tensor = QTensor::<TestBackend, 1>::int8([1.0, 2.0, 3.0]);
+    let tensor = QTensor::<1>::int8([1.0, 2.0, 3.0]);
 
     let output = tensor.expand([2, -1]);
 
@@ -107,6 +107,6 @@ fn should_all_negative_one() {
 #[test]
 #[should_panic]
 fn should_panic_negative_one_on_non_existing_dim() {
-    let tensor = QTensor::<TestBackend, 1>::int8([1.0, 2.0, 3.0]);
+    let tensor = QTensor::<1>::int8([1.0, 2.0, 3.0]);
     let _expanded_tensor = tensor.expand([-1, 3]);
 }

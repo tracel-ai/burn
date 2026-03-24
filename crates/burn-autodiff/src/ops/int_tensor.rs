@@ -312,8 +312,9 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
         shape: Shape,
         distribution: Distribution,
         device: &Device<Self>,
+        dtype: IntDType,
     ) -> IntTensor<Self> {
-        B::int_random(shape, distribution, device)
+        B::int_random(shape, distribution, device, dtype)
     }
 
     fn int_arange(

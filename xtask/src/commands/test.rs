@@ -28,9 +28,25 @@ pub enum CiTestType {
     GcpWgpuRunner,
 }
 
+#[derive(strum::Display)]
+enum TestBackend {
+    #[strum(to_string = "cuda")]
+    Cuda,
+    #[strum(to_string = "metal")]
+    Metal,
+    #[strum(to_string = "vulkan")]
+    Vulkan,
+    #[strum(to_string = "wgpu")]
+    Wgpu,
+    #[allow(unused)]
+    #[strum(to_string = "rocm")]
+    Rocm,
+    #[strum(to_string = "ndarray")]
+    Ndarray,
+}
 fn handle_backend_tests(
     mut args: TestCmdArgs,
-    backend: &str,
+    backend: TestBackend,
     env: Environment,
     context: Context,
 ) -> anyhow::Result<()> {
@@ -38,11 +54,21 @@ fn handle_backend_tests(
     args.only.push("burn-backend-tests".to_string());
     args.no_default_features = true;
 
-    let mut features = vec![String::from(backend)];
+    let mut features = vec![backend.to_string()];
     if !matches!(context, Context::NoStd) {
         features.push("std".into())
     }
     args.features = Some(features);
+
+    if !matches!(backend, TestBackend::Ndarray) {
+        // Fusion enabled tests first
+        let mut fusion_args = args.clone();
+        if let Some(features) = fusion_args.features.as_mut() {
+            features.push("fusion".into());
+        }
+
+        base_commands::test::handle_command(fusion_args, env.clone(), context.clone())?;
+    }
 
     base_commands::test::handle_command(args, env, context)
 }
@@ -100,7 +126,12 @@ pub(crate) fn handle_command(
                     "no-std",
                 )
             })?;
-            handle_backend_tests(args.clone().try_into().unwrap(), "ndarray", env, context)?;
+            handle_backend_tests(
+                args.clone().try_into().unwrap(),
+                TestBackend::Ndarray,
+                env,
+                context,
+            )?;
 
             Ok(())
         }
@@ -139,7 +170,7 @@ pub(crate) fn handle_command(
 
                     handle_backend_tests(
                         args.clone().try_into().unwrap(),
-                        "ndarray",
+                        TestBackend::Ndarray,
                         env,
                         context,
                     )?;
@@ -147,7 +178,7 @@ pub(crate) fn handle_command(
                 CiTestType::GithubMacRunner => {
                     handle_backend_tests(
                         args.clone().try_into().unwrap(),
-                        "metal",
+                        TestBackend::Metal,
                         env.clone(),
                         context.clone(),
                     )?;
@@ -165,10 +196,20 @@ pub(crate) fn handle_command(
                     )?;
                 }
                 CiTestType::GcpCudaRunner => {
-                    handle_backend_tests(args.clone().try_into().unwrap(), "cuda", env, context)?;
+                    handle_backend_tests(
+                        args.clone().try_into().unwrap(),
+                        TestBackend::Cuda,
+                        env,
+                        context,
+                    )?;
                 }
                 CiTestType::GcpVulkanRunner => {
-                    handle_backend_tests(args.clone().try_into().unwrap(), "vulkan", env, context)?;
+                    handle_backend_tests(
+                        args.clone().try_into().unwrap(),
+                        TestBackend::Vulkan,
+                        env,
+                        context,
+                    )?;
 
                     args.target = Target::AllPackages;
                     let mut args_vulkan: TestCmdArgs = args.clone().try_into().unwrap();
@@ -179,7 +220,12 @@ pub(crate) fn handle_command(
                     handle_wgpu_test("burn-vision", &args_vulkan)?;
                 }
                 CiTestType::GcpWgpuRunner => {
-                    handle_backend_tests(args.clone().try_into().unwrap(), "wgpu", env, context)?;
+                    handle_backend_tests(
+                        args.clone().try_into().unwrap(),
+                        TestBackend::Wgpu,
+                        env,
+                        context,
+                    )?;
                     // "burn-router" uses "burn-wgpu" for the tests.
                     args.target = Target::AllPackages;
                     let mut args_wgpu = args.clone().try_into().unwrap();

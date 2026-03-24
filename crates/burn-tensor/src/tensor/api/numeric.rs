@@ -4,11 +4,11 @@ pub use burn_backend::tensor::Numeric;
 use crate::alloc::borrow::ToOwned;
 use alloc::vec::Vec;
 
-use crate::IndexingUpdateOp;
 use crate::{
     AsIndex, Bool, Distribution, Element, ElementConversion, Int, Shape, Tensor, backend::Backend,
     check, check::TensorCheck,
 };
+use crate::{IndexingUpdateOp, TensorCreationOptions};
 
 impl<B, const D: usize, K> Tensor<B, D, K>
 where
@@ -895,9 +895,12 @@ where
     pub fn random<S: Into<Shape>>(
         shape: S,
         distribution: Distribution,
-        device: &B::Device,
+        options: impl Into<TensorCreationOptions<B>>,
     ) -> Self {
-        Self::new(K::random(shape.into(), distribution, device))
+        // Use the given dtype when provided, otherwise default device dtype
+        let opt = options.into();
+        let dtype = opt.resolve_dtype::<K>();
+        Self::new(K::random(shape.into(), distribution, &opt.device, dtype))
     }
 
     /// Applies the matrix multiplication operation.

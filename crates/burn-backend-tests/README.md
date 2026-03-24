@@ -5,10 +5,11 @@ This crate provides a comprehensive suite of tests for Burn backends, covering:
 - Tensor operations: [tests/tensor/](./tests/tensor/)
 - Autodiff: [tests/autodiff/](./tests/autodiff/)
 - (Optional) CubeCL kernels correctness: [tests/cubecl/](./tests/cubecl/)
+- (Optional) Fusion correctness: [tests/fusion/](./tests/fusion/)
 
 ## Running Tests
 
-The `TestBackend` is selected via feature flags. Use the provided shorthand commands for
+The test backend device is selected via feature flags. Use the provided shorthand commands for
 convenience:
 
 ```sh
@@ -24,8 +25,6 @@ cargo test-wgpu
 cargo test-vulkan
 # Metal
 cargo test-metal
-# Router
-cargo test-router
 
 # NdArray
 cargo test-ndarray
@@ -41,14 +40,21 @@ regardless of failures, pass `--no-fail-fast`, for example:
 cargo test-cuda --no-fail-fast
 ```
 
+> [!NOTE]  
+> CubeCL-based backends are tested with `fusion` by default. If you want to run the tests without
+> fusion, just append `-nofuse` to the cargo command. For example:
+>
+> ```sh
+> cargo test-cuda-nofuse
+> ```
+
 ## Structure
 
 - `tests/tensor.rs`: Tensor tests
+- `tests/tensor_f16.rs`: F16 tensor tests
 - `tests/autodiff.rs`: Autodiff tests
-- `tests/fusion.rs`: Fusion backend tests wrapping tensor and autodiff tests
+- `tests/autodiff_f16.rs`: F16 autodiff tests
 - `tests/cubecl.rs`: CubeCL kernel tests
-
-Each test module assumes exactly one `FloatElemType`, `IntElemType`, and `TestBackend` in scope.
 
 ### Common Modules
 
@@ -59,10 +65,10 @@ Each test module assumes exactly one `FloatElemType`, `IntElemType`, and `TestBa
 ### Test Reusability
 
 This crate uses a pattern of parameterized test modules to run the same tests with different
-configurations (backends, dtypes, etc.):
+configurations:
 
-1. **Type aliases define the configuration**: Each test scope declares `FloatElemType`,
-   `IntElemType`, and `TestBackend`
+1. **Element types**: Each test scope declares `FloatElem` and `IntElem`, which determine the
+   precision for the current test run
 1. **`#[path = "..."]` references shared modules**: Points to test files outside the normal module
    hierarchy, e.g. `"common/tensor.rs"`
 1. **`include!()` imports test code**: Test modules are included multiple times with different type
@@ -70,14 +76,29 @@ configurations (backends, dtypes, etc.):
 1. **`use super::*;`** propagates types down the module tree: Each level re-exports parent types so
    deeply nested tests have access to the configured types
 
-For example, `common/tensor.rs` can be included with `FloatElemType = f32` for base tests, then
-included again with `FloatElemType = f16` for half-precision tests, running the same test suite
-twice with different dtypes.
+For example, all tensor tests are included in `tensor.rs` to execute with the default element types
+(`FloatElem = f32`, `IntElem = i32`):
+
+```rust
+#[path = "common/tensor.rs"]
+mod tensor;
+```
+
+For f16 tests, only the float tensor tests are included to validate behavior with `FloatElem = f16`:
+
+```rust
+#[path = "tensor/float/mod.rs"]
+mod f16;
+```
+
+> [!WARNING]  
+> Tests for different data types (e.g., f32 vs f16) must be isolated, as each device's settings are
+> global and can only be initialized once per process.
 
 ## Adding New Tests
 
-Add test modules under `tests/tensor/`, `tests/autodiff/`, or `tests/cubecl` respectively. They will
-automatically run for all required configurations.
+Add test modules under `tests/tensor/`, `tests/autodiff/`, `tests/cubecl` and `tests/fusion`
+respectively. They will automatically run for all required configurations.
 
 For tensor tests, make sure to add the test to each relevant tensor kind:
 
@@ -87,25 +108,9 @@ For tensor tests, make sure to add the test to each relevant tensor kind:
 
 **Guidelines:**
 
-Import types with `use super::*;` at the top of each module and use the types defined in
-`common/backend.rs`:
+Import types with `use super::*;` at the top of each module to use the `TestBackend` and `FloatElem`
+/ `IntElem` types.
 
-```rust
-/// Collection of types used across tests
-pub use burn_autodiff::Autodiff;
-pub use burn_tensor::Tensor;
-pub type TestBackend = ...;
-
-pub type TestTensor<const D: usize> = Tensor<TestBackend, D>;
-pub type TestTensorInt<const D: usize> = Tensor<TestBackend, D, burn_tensor::Int>;
-pub type TestTensorBool<const D: usize> = Tensor<TestBackend, D, burn_tensor::Bool>;
-
-pub type FloatElem = burn_tensor::ops::FloatElem<TestBackend>;
-pub type IntElem = burn_tensor::ops::IntElem<TestBackend>;
-
-pub type TestAutodiffBackend = Autodiff<TestBackend>;
-pub type TestAutodiffTensor<const D: usize> = Tensor<TestAutodiffBackend, D>;
-```
-
-Tests will automatically run with default dtypes and any variants (f16, bf16, etc.) based on the
-backend configuration.
+For autodiff tests, always use `AutodiffDevice::new()` to create the device. Autodiff is enabled on
+the device itself when using the `Dispatch` test backend, ensuring the device supports automatic
+differentiation without modifying the backend type.

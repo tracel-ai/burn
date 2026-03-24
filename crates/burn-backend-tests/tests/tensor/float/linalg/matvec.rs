@@ -4,8 +4,8 @@ use burn_tensor::{TensorData, Tolerance, linalg};
 #[test]
 fn test_matvec_basic_float() {
     let device = Default::default();
-    let matrix = TestTensor::<2>::from_floats([[1.0, 2.0], [3.0, 4.0]], &device);
-    let vector = TestTensor::<1>::from_floats([5.0, 6.0], &device);
+    let matrix = TestTensor::<2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
+    let vector = TestTensor::<1>::from_data([5.0, 6.0], &device);
 
     let result = linalg::matvec::<TestBackend, 2, 1, _>(matrix, vector);
     let expected = TensorData::from([17.0, 39.0]);
@@ -30,14 +30,14 @@ fn test_matvec_basic_int() {
 #[test]
 fn test_matvec_batched() {
     let device = Default::default();
-    let matrix = TestTensor::<3>::from_floats(
+    let matrix = TestTensor::<3>::from_data(
         [
             [[1.0, 0.0, 2.0], [3.0, 1.0, -1.0]],
             [[-2.0, 1.0, 0.0], [0.5, -1.5, 2.0]],
         ],
         &device,
     );
-    let vector = TestTensor::<2>::from_floats([[1.0, -1.0, 0.5], [2.0, 0.0, -1.0]], &device);
+    let vector = TestTensor::<2>::from_data([[1.0, -1.0, 0.5], [2.0, 0.0, -1.0]], &device);
 
     let result = linalg::matvec::<TestBackend, 3, 2, _>(matrix, vector);
     let expected = TensorData::from([[2.0, 1.5], [-4.0, -1.0]]);
@@ -50,14 +50,14 @@ fn test_matvec_batched() {
 #[test]
 fn test_matvec_vector_broadcasts_over_batches() {
     let device = Default::default();
-    let matrix = TestTensor::<3>::from_floats(
+    let matrix = TestTensor::<3>::from_data(
         [
             [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]],
             [[-1.0, 0.0, 2.0], [3.0, 1.0, -2.0]],
         ],
         &device,
     );
-    let vector = TestTensor::<2>::from_floats([[1.0, 0.0, -1.0]], &device);
+    let vector = TestTensor::<2>::from_data([[1.0, 0.0, -1.0]], &device);
 
     let result = linalg::matvec::<TestBackend, 3, 2, _>(matrix, vector);
     let expected = TensorData::from([[-2.0, -2.0], [-3.0, 5.0]]);
@@ -70,8 +70,8 @@ fn test_matvec_vector_broadcasts_over_batches() {
 #[test]
 fn test_matvec_matrix_broadcasts_over_vector_batches() {
     let device = Default::default();
-    let matrix = TestTensor::<3>::from_floats([[[1.0, 0.0, 2.0], [3.0, -1.0, 1.0]]], &device);
-    let vector = TestTensor::<2>::from_floats([[2.0, 1.0, 0.0], [1.0, -1.0, 3.0]], &device);
+    let matrix = TestTensor::<3>::from_data([[[1.0, 0.0, 2.0], [3.0, -1.0, 1.0]]], &device);
+    let vector = TestTensor::<2>::from_data([[2.0, 1.0, 0.0], [1.0, -1.0, 3.0]], &device);
 
     let result = linalg::matvec::<TestBackend, 3, 2, _>(matrix, vector);
     let expected = TensorData::from([[2.0, 5.0], [7.0, 7.0]]);

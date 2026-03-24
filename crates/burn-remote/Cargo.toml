@@ -38,7 +38,9 @@ server = [
 
 [dependencies]
 burn-ir = { path = "../burn-ir", version = "=0.21.0-pre.2", default-features = true }
-burn-backend = { path = "../burn-backend", version = "=0.21.0-pre.2", default-features = true }
+burn-backend = { path = "../burn-backend", version = "=0.21.0-pre.2", default-features = true, features = [
+    "serde", # For DTypeUsageSet to be de/serialized
+] }
 burn-std = { path = "../burn-std", version = "=0.21.0-pre.2", default-features = true }
 burn-router = { path = "../burn-router", version = "=0.21.0-pre.2", default-features = true }
 burn-communication = { path = "../burn-communication", version = "=0.21.0-pre.2", features = [

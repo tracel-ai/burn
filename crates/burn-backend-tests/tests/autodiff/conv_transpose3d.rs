@@ -14,9 +14,9 @@ fn test_conv_transpose3d_basic() {
         groups: 1,
         size: [4, 4, 4],
     };
-    let device = Default::default();
+    let device = AutodiffDevice::new();
     let grads = Grads {
-        x: TestTensor::from_floats(
+        x: TestTensor::from_data(
             [
                 [
                     [
@@ -129,7 +129,7 @@ fn test_conv_transpose3d_basic() {
             ],
             &device,
         ),
-        weight: TestTensor::from_floats(
+        weight: TestTensor::from_data(
             [
                 [
                     [
@@ -206,7 +206,7 @@ fn test_conv_transpose3d_basic() {
             ],
             &device,
         ),
-        bias: TestTensor::from_floats([432., 432.], &device),
+        bias: TestTensor::from_data([432., 432.], &device),
     };
     test.assert_grads(grads);
 }
@@ -224,9 +224,9 @@ fn test_conv_transpose3d_complex_groups() {
         groups: 2,
         size: [6, 6, 6],
     };
-    let device = Default::default();
+    let device = AutodiffDevice::new();
     let grads = Grads {
-        x: TestTensor::from_floats(
+        x: TestTensor::from_data(
             [[
                 [
                     [
@@ -561,7 +561,7 @@ fn test_conv_transpose3d_complex_groups() {
             ]],
             &device,
         ),
-        weight: TestTensor::from_floats(
+        weight: TestTensor::from_data(
             [
                 [[
                     [
@@ -614,7 +614,7 @@ fn test_conv_transpose3d_complex_groups() {
             ],
             &device,
         ),
-        bias: TestTensor::from_floats([5346., 5346.], &device),
+        bias: TestTensor::from_data([5346., 5346.], &device),
     };
     test.assert_grads(grads);
 }
@@ -653,8 +653,8 @@ impl ConvTranspose3dTestCase {
             self.kernel_size[1],
             self.kernel_size[2],
         ]);
-        let device = Default::default();
-        let weight = TestAutodiffTensor::from_data(
+        let device = AutodiffDevice::new();
+        let weight = TestTensor::from_data(
             TestTensorInt::arange(0..shape_weight.num_elements() as i64, &device)
                 .reshape::<5, _>(shape_weight.clone())
                 .into_data(),
@@ -662,12 +662,12 @@ impl ConvTranspose3dTestCase {
         )
         .div_scalar(shape_weight.num_elements() as f32)
         .require_grad();
-        let bias = TestAutodiffTensor::from_data(
+        let bias = TestTensor::from_data(
             TestTensorInt::arange(0..self.channels[1] as i64, &device).into_data(),
             &device,
         )
         .require_grad();
-        let x = TestAutodiffTensor::from_data(
+        let x = TestTensor::from_data(
             TestTensorInt::arange(0..shape_x.num_elements() as i64, &device)
                 .reshape::<5, _>(shape_x.clone())
                 .into_data(),

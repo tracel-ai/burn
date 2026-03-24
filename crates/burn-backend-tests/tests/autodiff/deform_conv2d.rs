@@ -21,9 +21,9 @@ fn test_deform_conv2d_basic() {
         height: 4,
         width: 4,
     };
-    let device = Default::default();
+    let device = AutodiffDevice::new();
     let grads = Grads {
-        x: TestTensor::from_floats(
+        x: TestTensor::from_data(
             [[
                 [
                     [0.000, 6.0678, 14.2071, 12.2477],
@@ -40,7 +40,7 @@ fn test_deform_conv2d_basic() {
             ]],
             &device,
         ),
-        offset: TestTensor::from_floats(
+        offset: TestTensor::from_data(
             [[
                 [[0.000, 15.0000], [30.000, 45.0000]],
                 [[0.000, 3.7500], [7.5000, 11.2500]],
@@ -63,7 +63,7 @@ fn test_deform_conv2d_basic() {
             ]],
             &device,
         ),
-        weight: TestTensor::from_floats(
+        weight: TestTensor::from_data(
             [
                 [
                     [
@@ -104,7 +104,7 @@ fn test_deform_conv2d_basic() {
             ],
             &device,
         ),
-        mask: TestTensor::from_floats(
+        mask: TestTensor::from_data(
             [[
                 [[1303.5000, 1447.8750], [1862.2500, 2006.6250]],
                 [[1571.1666, 1721.9581], [2154.7500, 2305.5417]],
@@ -118,7 +118,7 @@ fn test_deform_conv2d_basic() {
             ]],
             &device,
         ),
-        bias: TestTensor::from_floats([4., 4., 4.], &device),
+        bias: TestTensor::from_data([4., 4., 4.], &device),
     };
     test.assert_grads(grads);
 }
@@ -142,9 +142,9 @@ fn test_deform_conv2d_batched() {
         height: 4,
         width: 4,
     };
-    let device = Default::default();
+    let device = AutodiffDevice::new();
     let grads = Grads {
-        x: TestTensor::from_floats(
+        x: TestTensor::from_data(
             [
                 [
                     [
@@ -178,7 +178,7 @@ fn test_deform_conv2d_batched() {
             &device,
         ),
 
-        offset: TestTensor::from_floats(
+        offset: TestTensor::from_data(
             [
                 [
                     [[0.000, 7.5000], [15.0000, 22.5000]],
@@ -223,7 +223,7 @@ fn test_deform_conv2d_batched() {
             ],
             &device,
         ),
-        weight: TestTensor::from_floats(
+        weight: TestTensor::from_data(
             [
                 [
                     [
@@ -264,7 +264,7 @@ fn test_deform_conv2d_batched() {
             ],
             &device,
         ),
-        mask: TestTensor::from_floats(
+        mask: TestTensor::from_data(
             [
                 [
                     [[1299.7499, 1439.4375], [1849.1249, 1988.8125]],
@@ -291,7 +291,7 @@ fn test_deform_conv2d_batched() {
             ],
             &device,
         ),
-        bias: TestTensor::from_floats([8., 8., 8.], &device),
+        bias: TestTensor::from_data([8., 8., 8.], &device),
     };
     test.assert_grads(grads);
 }
@@ -315,9 +315,9 @@ fn test_deform_conv2d_different_kernel_size() {
         height: 4,
         width: 4,
     };
-    let device = Default::default();
+    let device = AutodiffDevice::new();
     let grads = Grads {
-        x: TestTensor::from_floats(
+        x: TestTensor::from_data(
             [[
                 [
                     [14.558521, 27.249609, 37.382030, 36.039406],
@@ -334,7 +334,7 @@ fn test_deform_conv2d_different_kernel_size() {
             ]],
             &device,
         ),
-        offset: TestTensor::from_floats(
+        offset: TestTensor::from_data(
             [[
                 [
                     [0.0e+00, 5.355903e+00, 1.171528e+01],
@@ -483,7 +483,7 @@ fn test_deform_conv2d_different_kernel_size() {
             ]],
             &device,
         ),
-        weight: TestTensor::from_floats(
+        weight: TestTensor::from_data(
             [
                 [
                     [
@@ -512,7 +512,7 @@ fn test_deform_conv2d_different_kernel_size() {
             ],
             &device,
         ),
-        mask: TestTensor::from_floats(
+        mask: TestTensor::from_data(
             [[
                 [
                     [0.0e+00, 2.677941e+00, 5.857617e+00],
@@ -589,7 +589,7 @@ fn test_deform_conv2d_different_kernel_size() {
             ]],
             &device,
         ),
-        bias: TestTensor::from_floats([12., 12.], &device),
+        bias: TestTensor::from_data([12., 12.], &device),
     };
     test.assert_grads(grads);
 }
@@ -613,9 +613,9 @@ fn test_deform_conv2d_different_padding() {
         height: 4,
         width: 4,
     };
-    let device = Default::default();
+    let device = AutodiffDevice::new();
     let grads = Grads {
-        x: TestTensor::from_floats(
+        x: TestTensor::from_data(
             [[
                 [
                     [60.633026, 60.906506, 61.179493, 61.451954],
@@ -634,7 +634,7 @@ fn test_deform_conv2d_different_padding() {
         ),
         // => Position 788: 10.421875 != 10.0546875
         //  diff (rel = +1.79e-2, abs = +3.67e-1), tol (rel = +1.00e-2, abs = +9.77e-4)
-        offset: TestTensor::from_floats(
+        offset: TestTensor::from_data(
             [[
                 [
                     [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
@@ -1273,7 +1273,7 @@ fn test_deform_conv2d_different_padding() {
             ]],
             &device,
         ),
-        weight: TestTensor::from_floats(
+        weight: TestTensor::from_data(
             [
                 [
                     [
@@ -1302,7 +1302,7 @@ fn test_deform_conv2d_different_padding() {
             ],
             &device,
         ),
-        mask: TestTensor::from_floats(
+        mask: TestTensor::from_data(
             [[
                 [
                     [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
@@ -1645,7 +1645,7 @@ fn test_deform_conv2d_different_padding() {
             ]],
             &device,
         ),
-        bias: TestTensor::from_floats([48., 48.], &device),
+        bias: TestTensor::from_data([48., 48.], &device),
     };
     test.assert_grads(grads);
 }
@@ -1706,27 +1706,27 @@ impl Conv2dTestCase {
             out_height,
             out_width,
         ]);
-        let device = Default::default();
-        let weight = TestAutodiffTensor::from_data(
+        let device = AutodiffDevice::new();
+        let weight = TestTensor::from_data(
             TestTensorInt::arange(0..shape_weight.num_elements() as i64, &device)
                 .reshape::<4, _>(shape_weight)
                 .into_data(),
             &device,
         )
         .require_grad();
-        let bias = TestAutodiffTensor::from_data(
+        let bias = TestTensor::from_data(
             TestTensorInt::arange(0..self.channels_out as i64, &device).into_data(),
             &device,
         )
         .require_grad();
-        let x = TestAutodiffTensor::from_data(
+        let x = TestTensor::from_data(
             TestTensorInt::arange(0..shape_x.num_elements() as i64, &device)
                 .reshape::<4, _>(shape_x)
                 .into_data(),
             &device,
         )
         .require_grad();
-        let offset = TestAutodiffTensor::from_data(
+        let offset = TestTensor::from_data(
             TestTensorInt::arange(0..shape_offset.num_elements() as i64, &device)
                 .reshape::<4, _>(shape_offset.clone())
                 .into_data(),
@@ -1735,7 +1735,7 @@ impl Conv2dTestCase {
         .div_scalar(shape_offset.num_elements() as f32)
         .require_grad();
 
-        let mask = TestAutodiffTensor::from_data(
+        let mask = TestTensor::from_data(
             TestTensorInt::arange(0..shape_mask.num_elements() as i64, &device)
                 .reshape::<4, _>(shape_mask.clone())
                 .into_data(),

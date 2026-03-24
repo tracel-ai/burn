@@ -18,7 +18,7 @@ fn test_avg_pool2d_simple() {
         count_include_pad: true,
     };
 
-    test.assert_output(TestTensor::from_floats(
+    test.assert_output(TestTensor::from_data(
         [[[
             [0.11111, 0.22222, 0.33333, 0.33333, 0.22222, 0.11111],
             [0.22222, 0.44444, 0.66667, 0.66667, 0.44444, 0.22222],
@@ -27,7 +27,7 @@ fn test_avg_pool2d_simple() {
             [0.22222, 0.44444, 0.66667, 0.66667, 0.44444, 0.22222],
             [0.11111, 0.22222, 0.33333, 0.33333, 0.22222, 0.11111],
         ]]],
-        &Default::default(),
+        &AutodiffDevice::new(),
     ));
 }
 
@@ -47,14 +47,14 @@ fn test_avg_pool2d_complex() {
         count_include_pad: true,
     };
 
-    test.assert_output(TestTensor::from_floats(
+    test.assert_output(TestTensor::from_data(
         [[[
             [0.33333, 0.33333, 0.33333, 0.33333, 0.33333, 0.33333],
             [0.5000, 0.5000, 0.5000, 0.5000, 0.5000, 0.5000],
             [0.5000, 0.5000, 0.5000, 0.5000, 0.5000, 0.5000],
             [0.33333, 0.33333, 0.33333, 0.33333, 0.33333, 0.33333],
         ]]],
-        &Default::default(),
+        &AutodiffDevice::new(),
     ));
 }
 
@@ -74,14 +74,14 @@ fn test_avg_pool2d_complex_dont_include_pad() {
         count_include_pad: false,
     };
 
-    test.assert_output(TestTensor::from_floats(
+    test.assert_output(TestTensor::from_data(
         [[[
             [0.6250, 0.6250, 0.41667, 0.41667, 0.6250, 0.6250],
             [0.8750, 0.8750, 0.58333, 0.58333, 0.8750, 0.8750],
             [0.8750, 0.8750, 0.58333, 0.58333, 0.8750, 0.8750],
             [0.6250, 0.6250, 0.41667, 0.41667, 0.6250, 0.6250],
         ]]],
-        &Default::default(),
+        &AutodiffDevice::new(),
     ));
 }
 
@@ -102,8 +102,8 @@ struct AvgPool2dTestCase {
 impl AvgPool2dTestCase {
     fn assert_output(self, x_grad: TestTensor<4>) {
         let shape_x = Shape::new([self.batch_size, self.channels, self.height, self.width]);
-        let device = Default::default();
-        let x = TestAutodiffTensor::from_data(
+        let device = AutodiffDevice::new();
+        let x = TestTensor::from_data(
             TestTensorInt::arange(0..shape_x.num_elements() as i64, &device)
                 .reshape::<4, _>(shape_x)
                 .into_data(),
