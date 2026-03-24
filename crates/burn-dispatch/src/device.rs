@@ -143,9 +143,6 @@ impl Default for DispatchDevice {
     fn default() -> Self {
         // TODO: which priority?
 
-        #[cfg(feature = "cpu")]
-        return Self::Cpu(CpuDevice);
-
         #[cfg(feature = "cuda")]
         return Self::Cuda(CudaDevice::default());
 
@@ -161,11 +158,14 @@ impl Default for DispatchDevice {
         #[cfg(wgpu_webgpu)]
         return Self::WebGpu(burn_wgpu::WgpuDevice::default());
 
-        #[cfg(feature = "ndarray")]
-        return Self::NdArray(NdArrayDevice::default());
+        #[cfg(feature = "cpu")]
+        return Self::Cpu(CpuDevice);
 
         #[cfg(feature = "tch")]
         return Self::LibTorch(LibTorchDevice::default());
+
+        #[cfg(feature = "ndarray")]
+        return Self::NdArray(NdArrayDevice::default());
     }
 }
 
