@@ -43,6 +43,7 @@ impl GradientSyncRegistration {
 /// Gradients container used during the backward pass.
 pub struct Gradients {
     container: TensorContainer<GradID>,
+    distributed: bool,
     gradient_sync_registration: Option<GradientSyncRegistration>,
 }
 
@@ -53,8 +54,10 @@ impl Gradients {
         root_tensor: FloatTensor<B>,
         gradient_sync_registration: Option<GradientSyncRegistration>,
     ) -> Self {
+        let distributed = gradient_sync_registration.is_some();
         let mut gradients = Self {
             container: TensorContainer::new(),
+            distributed,
             gradient_sync_registration,
         };
         gradients.register::<B>(
@@ -118,6 +121,13 @@ impl Gradients {
             .register::<B>(node_id.value, TensorPrimitive::Float(out));
         if let Some(sync_registration) = self.gradient_sync_registration.as_mut() {
             sync_registration.on_register::<B>(&node_id, &mut self.container);
+        }
+    }
+
+    /// For distributed models, waits for collective operations to be completed so the gradients are synced accross devices.
+    pub fn sync_collective<B: Backend>(&self, device: &B::Device) {
+        if self.distributed {
+            B::submit_sync_collective(device);
         }
     }
 }

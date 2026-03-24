@@ -34,8 +34,8 @@ impl CommunicationTensorOps<Self> for Dispatch {
         ))
     }
 
-    fn submit_sync_collective(_device: &DispatchDevice) {
-        unimplemented!()
+    fn submit_sync_collective(device: &DispatchDevice) {
+        dispatch_device!(device, |device| B::submit_sync_collective(device))
     }
 
     fn submit_gradient_sync(_tensor: TensorRef<Self>, _distributed_params: DistributedParams) {
