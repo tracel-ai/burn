@@ -398,8 +398,6 @@ mod tests {
     /// without specifying the target dtype
     #[test]
     fn dtype_preservation_f64() {
-        // Use NdArray<f64> backend to properly test F64 dtype preservation
-        type TestBackendF64 = burn_ndarray::NdArray<f64>;
         let device = Default::default();
 
         // Create TensorData with F64 dtype explicitly
@@ -420,12 +418,12 @@ mod tests {
         );
 
         // Create applier with the F64 snapshot
-        let mut applier = Applier::<TestBackendF64>::new(vec![snapshot], None, None, false);
+        let mut applier = Applier::<TestBackend>::new(vec![snapshot], None, None, false);
 
         // Create target parameter
         let target = Param::initialized(
             ParamId::new(),
-            Tensor::<TestBackendF64, 2>::zeros([2, 2], &device),
+            Tensor::<TestBackend, 2>::zeros([2, 2], (&device, DType::F64)),
         );
 
         // Apply the snapshot
