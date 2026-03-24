@@ -8,9 +8,6 @@ use burn_backend::{
 use crate::backends::*;
 use crate::{Dispatch, DispatchDevice};
 
-// TODO: remove backend default elem type genericsnow that we have per-device defaults
-// https://github.com/tracel-ai/burn/issues/3642
-
 impl FloatTensorOps<Self> for Dispatch {
     fn float_from_data(
         data: burn_backend::TensorData,
