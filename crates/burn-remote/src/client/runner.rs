@@ -116,10 +116,13 @@ impl RunnerClient for RemoteClient {
     }
 
     fn dtype_usage(&self, dtype: burn_std::DType) -> burn_backend::DTypeUsageSet {
-        let fut = self.sender.send_async(ComputeTask::SupportsDType(dtype));
+        let fut = self.sender.send_async(ComputeTask::DTypeUsage(dtype));
 
         match self.runtime.block_on(fut) {
-            Ok(_response) => panic!("Invalid message type"),
+            Ok(response) => match response {
+                TaskResponseContent::DTypeUsage(res) => res,
+                other => panic!("Invalid message type {other:?}"),
+            },
             Err(e) => panic!("Failed to check dtype support: {:?}", e),
         }
     }
