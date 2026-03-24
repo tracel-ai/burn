@@ -1,6 +1,6 @@
 use super::*;
 use burn_tensor::backend::Backend;
-use burn_tensor::{Element, Shape, TensorData};
+use burn_tensor::{DType, Element, Shape, TensorData, get_device_settings};
 
 // Floating point values might not match for other precisions
 fn skip_precision_not_f32() -> bool {
@@ -62,19 +62,20 @@ fn test_display_2d_float_tensor() {
 
 #[test]
 fn test_display_2d_bool_tensor() {
+    let device = Default::default();
     let bool_data = TensorData::from([
         [true, false, true],
         [false, true, false],
         [false, true, true],
     ]);
-    let tensor_bool = TestTensorBool::<2>::from_data(bool_data, &Default::default());
+    let tensor_bool = TestTensorBool::<2>::from_data(bool_data, &device);
 
     let output = format!("{}", tensor_bool);
     // TODO: remove once backends no longer rely on generics for default elem types
-    let expected_name = match <TestBackend as Backend>::BoolElem::dtype() {
-        burn_tensor::DType::U8 => burn_tensor::DType::Bool(burn_tensor::BoolStore::U8).name(),
-        burn_tensor::DType::U32 => burn_tensor::DType::Bool(burn_tensor::BoolStore::U32).name(),
-        dtype => dtype.name(),
+    let expected_name = match get_device_settings::<TestBackend>(&device).bool_dtype {
+        burn_tensor::BoolDType::Native => DType::Bool(burn_tensor::BoolStore::Native).name(),
+        burn_tensor::BoolDType::U8 => DType::Bool(burn_tensor::BoolStore::U8).name(),
+        burn_tensor::BoolDType::U32 => DType::Bool(burn_tensor::BoolStore::U32).name(),
     };
     let expected = format!(
         r#"Tensor {{
