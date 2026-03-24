@@ -1,11 +1,13 @@
 //! Burn autodiff tests.
 
 #![recursion_limit = "256"]
-#![allow(
-    clippy::single_range_in_vec_init,
-    clippy::duplicate_mod,
-    reason = "false positive"
-)]
+#![cfg(any(
+    feature = "vulkan",
+    feature = "cuda",
+    feature = "rocm",
+    feature = "metal"
+))]
+
 extern crate alloc;
 
 pub type FloatElem = burn_tensor::f16;
