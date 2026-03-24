@@ -124,7 +124,7 @@ impl Gradients {
         }
     }
 
-    /// For distributed models, waits for collective operations to be completed so the gradients are synced accross devices.
+    /// For distributed models, waits for collective operations to be completed so the gradients are synced across devices.
     pub fn sync_collective<B: Backend>(&self, device: &B::Device) {
         if self.distributed {
             B::submit_sync_collective(device);
