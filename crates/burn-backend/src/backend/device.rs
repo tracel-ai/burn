@@ -192,22 +192,20 @@ fn default_bool<B: Backend>(device: &B::Device) -> BoolDType {
     let bool_as_dtype = default_bool.into();
     if B::supports_dtype(device, bool_as_dtype) {
         default_bool
+    } else if !matches!(bool_as_dtype, DType::Bool(BoolStore::Native))
+        && B::supports_dtype(device, DType::Bool(BoolStore::Native))
+    {
+        BoolDType::Native
+    } else if !matches!(bool_as_dtype, DType::Bool(BoolStore::U8))
+        && B::supports_dtype(device, DType::Bool(BoolStore::U8))
+    {
+        BoolDType::U8
+    } else if !matches!(bool_as_dtype, DType::Bool(BoolStore::U32))
+        && B::supports_dtype(device, DType::Bool(BoolStore::U32))
+    {
+        BoolDType::U32
     } else {
-        if !matches!(bool_as_dtype, DType::Bool(BoolStore::Native))
-            && B::supports_dtype(device, DType::Bool(BoolStore::Native))
-        {
-            BoolDType::Native
-        } else if !matches!(bool_as_dtype, DType::Bool(BoolStore::U8))
-            && B::supports_dtype(device, DType::Bool(BoolStore::U8))
-        {
-            BoolDType::U8
-        } else if !matches!(bool_as_dtype, DType::Bool(BoolStore::U32))
-            && B::supports_dtype(device, DType::Bool(BoolStore::U32))
-        {
-            BoolDType::U32
-        } else {
-            unreachable!()
-        }
+        unreachable!()
     }
 }
 
