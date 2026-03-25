@@ -54,6 +54,11 @@ impl<B: Backend> DistributedSyncServer<B> {
             *self.param_required_map.entry(params.param_id).or_insert(0) += 1;
         });
         self.devices_registered += 1;
+        println!(
+            "[{:?}] Registered {} devices",
+            std::thread::current().id(),
+            self.devices_registered
+        );
     }
 
     /// Called on registration of a gradient. Calls the all_reduce operation for any parameter that is no longer required in the autodiff graph.

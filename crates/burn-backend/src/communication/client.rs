@@ -1,8 +1,8 @@
 use std::{sync::mpsc::Sender, thread::spawn};
 
 use crate::{
-    Backend, DistributedConfig, DistributedParams, ops::TensorRef, server::DistributedSyncServer,
-    tensor::Device,
+    Backend, DeviceOps, DistributedConfig, DistributedParams, ops::TensorRef,
+    server::DistributedSyncServer, tensor::Device,
 };
 
 pub(crate) enum ActionMessage<B: Backend> {
@@ -62,8 +62,20 @@ impl<B: Backend> DistributedSyncClient<B> {
             ))
             .unwrap();
 
+        println!(
+            "[{:?}] Waiting for callback : {:?}",
+            std::thread::current().id(),
+            device.id()
+        );
+
         let sync = rx.recv().expect("Can receive callback");
         sync();
+
+        println!(
+            "[{:?}] Sync callback : {:?}",
+            std::thread::current().id(),
+            device.id()
+        );
     }
 
     pub(crate) fn close(&self) {

@@ -1,5 +1,6 @@
 use burn_core::data::dataloader::Progress;
-use burn_core::module::AutodiffModule;
+use burn_core::module::{AutodiffModule, Module};
+use burn_core::tensor::backend::DeviceOps;
 use burn_optim::GradientsAccumulator;
 use std::sync::{Arc, Mutex};
 
@@ -108,7 +109,17 @@ impl<LC: LearningComponentsTypes> DdpTrainEpoch<LC> {
             progress.items_processed *= peer_count;
             progress.items_total *= peer_count;
 
+            println!(
+                "[{:?}] before train_step : {:?}",
+                std::thread::current().id(),
+                learner.model.devices()[0].id()
+            );
             let item = learner.train_step(item);
+            println!(
+                "[{:?}] after train_step : {:?}",
+                std::thread::current().id(),
+                learner.model.devices()[0].id()
+            );
 
             match self.grad_accumulation {
                 Some(accumulation) => {
