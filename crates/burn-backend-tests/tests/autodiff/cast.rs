@@ -3,18 +3,15 @@
 
 use super::*;
 use burn_backend_tests::might_panic;
-use burn_tensor::{DType, Tensor, TensorData};
+use burn_tensor::{DType, TensorData};
 
 #[might_panic(reason = "Unsupported precision for fusion")]
 #[test]
 fn cast_keeps_gradient_flow() {
-    let device = Default::default();
+    let device = AutodiffDevice::new();
 
-    let x = Tensor::<TestAutodiffBackend, 2>::from_data(
-        TensorData::from([[1.0, 2.0], [3.0, 4.0]]),
-        &device,
-    )
-    .require_grad();
+    let x = TestTensor::<2>::from_data(TensorData::from([[1.0, 2.0], [3.0, 4.0]]), &device)
+        .require_grad();
 
     let y = x.clone().cast(DType::F64);
     let z = y.sum();

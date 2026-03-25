@@ -429,10 +429,6 @@ mod tests {
                 index_id: self.index,
             }
         }
-
-        fn device_count(_type_id: u16) -> usize {
-            1
-        }
     }
 
     impl DeviceOps for TestDeviceA {}
@@ -455,10 +451,6 @@ mod tests {
                 index_id: self.index,
             }
         }
-
-        fn device_count(_type_id: u16) -> usize {
-            1
-        }
     }
 
     impl DeviceOps for TestDeviceB {}
@@ -471,7 +463,7 @@ mod tests {
     }
 
     fn get_test_device_settings<D: DeviceOps>(device: &D) -> DeviceSettings {
-        DeviceSettingsRegistry::get_or_insert(device, || DeviceSettings::defaults())
+        DeviceSettingsRegistry::get_or_insert(device, DeviceSettings::defaults)
     }
 
     #[test]

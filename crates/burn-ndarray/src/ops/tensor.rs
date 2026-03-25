@@ -14,7 +14,7 @@ use super::{
 use crate::{
     NdArray, cast_to_dtype, cat_with_dtype, execute_with_int_dtype, tensor::NdArrayTensor,
 };
-use crate::{NdArrayDevice, SEED, execute_with_int_out_dtype, slice};
+use crate::{NdArrayDevice, SEED, execute_with_float_out_dtype, execute_with_int_out_dtype, slice};
 use crate::{
     SharedArray,
     element::{ExpElement, FloatNdArrayElement, IntNdArrayElement, QuantElement},
@@ -62,13 +62,19 @@ where
         shape: Shape,
         distribution: Distribution,
         device: &NdArrayDevice,
+        dtype: FloatDType,
     ) -> FloatTensor<Self> {
         let mut seed = SEED.lock().unwrap();
         let mut rng = seed.take().unwrap_or_else(get_seeded_rng);
-        let tensor = Self::float_from_data(
-            TensorData::random::<E, _, _>(shape, distribution, &mut rng),
-            device,
+        let tensor = execute_with_float_out_dtype!(
+            dtype,
+            E,
+            Self::float_from_data(
+                TensorData::random::<E, _, _>(shape, distribution, &mut rng),
+                device,
+            )
         );
+
         *seed = Some(rng);
         tensor
     }

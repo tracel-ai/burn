@@ -1,15 +1,15 @@
 use super::*;
-use burn_tensor::{IndexingUpdateOp, Int, Tensor, TensorData};
+use burn_tensor::{IndexingUpdateOp, TensorData};
 
 #[test]
 fn test_gather_grad() {
-    let device = Default::default();
-    let tensor_1 = TestAutodiffTensor::from_data(
+    let device = AutodiffDevice::new();
+    let tensor_1 = TestTensor::from_data(
         TensorData::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]),
         &device,
     )
     .require_grad();
-    let indices = Tensor::<TestAutodiffBackend, 2, Int>::from_data(
+    let indices = TestTensorInt::<2>::from_data(
         TensorData::from([[2, 1, 0, 1, 2], [1, 0, 2, 1, 0]]),
         &device,
     );
@@ -30,21 +30,18 @@ fn test_gather_grad() {
 
 #[test]
 fn test_scatter_grad() {
-    let device = Default::default();
-    let tensor_1 = TestAutodiffTensor::from_data(
+    let device = AutodiffDevice::new();
+    let tensor_1 = TestTensor::from_data(
         TensorData::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]),
         &device,
     )
     .require_grad();
-    let values = TestAutodiffTensor::from_data(
+    let values = TestTensor::from_data(
         TensorData::from([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]),
         &device,
     )
     .require_grad();
-    let indices = Tensor::<TestAutodiffBackend, 2, Int>::from_data(
-        TensorData::from([[2, 1, 0], [2, 0, 1]]),
-        &device,
-    );
+    let indices = TestTensorInt::<2>::from_data(TensorData::from([[2, 1, 0], [2, 0, 1]]), &device);
 
     let tensor_2 = tensor_1.clone().matmul(tensor_1.clone().transpose());
     let tensor_3 = tensor_1
@@ -68,17 +65,15 @@ fn test_scatter_grad() {
 
 #[test]
 fn test_scatter_add_grad_partial_indices() {
-    let device = Default::default();
+    let device = AutodiffDevice::new();
     let tensor_1 =
-        TestAutodiffTensor::from_data(TensorData::from([[0.0, 1.0, 2.0, 3.0, 4.0, 5.0]]), &device)
+        TestTensor::from_data(TensorData::from([[0.0, 1.0, 2.0, 3.0, 4.0, 5.0]]), &device)
             .require_grad();
     let tensor_2 =
-        TestAutodiffTensor::from_data(TensorData::from([[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]]), &device)
+        TestTensor::from_data(TensorData::from([[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]]), &device)
             .require_grad();
-    let values =
-        TestAutodiffTensor::from_data(TensorData::from([[4.0, 5.0, 6.0]]), &device).require_grad();
-    let indices =
-        Tensor::<TestAutodiffBackend, 2, Int>::from_data(TensorData::from([[2, 1, 0]]), &device);
+    let values = TestTensor::from_data(TensorData::from([[4.0, 5.0, 6.0]]), &device).require_grad();
+    let indices = TestTensorInt::<2>::from_data(TensorData::from([[2, 1, 0]]), &device);
 
     let tensor_3 = tensor_1.clone().mul(tensor_2);
     let tensor_4 = tensor_3

@@ -14,6 +14,7 @@ use burn_backend::DistributedParamId;
 use burn_backend::DistributedParams;
 use burn_backend::ElementConversion;
 use burn_backend::Scalar;
+use burn_backend::TensorMetadata;
 use burn_backend::get_device_settings;
 use burn_backend::tensor::quantization::QuantizationParametersPrimitive;
 use core::f32;
@@ -467,8 +468,8 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
             self.shape(),
             distribution,
             &self.device(),
+            self.dtype().into(),
         )))
-        .cast(self.dtype())
     }
 
     /// Calculate the variance along the given dimension.
@@ -1069,10 +1070,12 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
             }
             (TensorPrimitive::QFloat(lhs), TensorPrimitive::QFloat(rhs)) => B::q_powf(lhs, rhs),
             (TensorPrimitive::QFloat(lhs), TensorPrimitive::Float(rhs)) => {
-                TensorPrimitive::Float(B::float_powf(B::dequantize(lhs), rhs))
+                let dtype = rhs.dtype();
+                TensorPrimitive::Float(B::float_powf(B::dequantize(lhs, dtype.into()), rhs))
             }
             (TensorPrimitive::Float(lhs), TensorPrimitive::QFloat(rhs)) => {
-                TensorPrimitive::Float(B::float_powf(lhs, B::dequantize(rhs)))
+                let dtype = lhs.dtype();
+                TensorPrimitive::Float(B::float_powf(lhs, B::dequantize(rhs, dtype.into())))
             }
         };
 

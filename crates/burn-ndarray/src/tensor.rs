@@ -873,7 +873,7 @@ mod tests {
         let bytes = Bytes::from_elems(data);
         // Tag as Other to simulate burnpack / mmap data (non-native backing storage)
         let non_native_bytes = Bytes::from_shared(
-            bytes::Bytes::copy_from_slice(&*bytes),
+            bytes::Bytes::copy_from_slice(&bytes),
             AllocationProperty::Other,
         );
         let tensor_data = TensorData::from_bytes(non_native_bytes, Shape::new([2, 2]), DType::F32);

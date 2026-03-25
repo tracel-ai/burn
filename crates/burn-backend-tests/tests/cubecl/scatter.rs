@@ -1,5 +1,5 @@
 use super::*;
-use burn_tensor::{Distribution, Int, Tensor, backend::Backend};
+use burn_tensor::{Distribution, backend::Backend};
 use burn_tensor::{IndexingUpdateOp, Tolerance};
 
 #[test]
@@ -37,21 +37,23 @@ fn same_as_reference_diff_shape<const D: usize>(
     shape1: [usize; D],
     shape2: [usize; D],
 ) {
-    let test_device = Default::default();
-    TestBackend::seed(&test_device, 0);
+    let device = Default::default();
+    let ref_device = ReferenceDevice::new();
 
-    let tensor = Tensor::<TestBackend, D>::random(shape1, Distribution::Default, &test_device);
-    let value = Tensor::<TestBackend, D>::random(shape2, Distribution::Default, &test_device);
-    let indices = Tensor::<TestBackend, 1, Int>::random(
+    TestBackend::seed(&device, 0);
+
+    let tensor = TestTensor::<D>::random(shape1, Distribution::Default, &device);
+    let value = TestTensor::<D>::random(shape2, Distribution::Default, &device);
+    let indices = TestTensorInt::<1>::random(
         [shape2.iter().product::<usize>()],
         Distribution::Uniform(0., shape2[dim] as f64),
-        &test_device,
+        &device,
     )
     .reshape(shape2);
-    let ref_device = Default::default();
-    let tensor_ref = Tensor::<ReferenceBackend, D>::from_data(tensor.to_data(), &ref_device);
-    let value_ref = Tensor::<ReferenceBackend, D>::from_data(value.to_data(), &ref_device);
-    let indices_ref = Tensor::<ReferenceBackend, D, Int>::from_data(indices.to_data(), &ref_device);
+
+    let tensor_ref = TestTensor::<D>::from_data(tensor.to_data(), &ref_device);
+    let value_ref = TestTensor::<D>::from_data(value.to_data(), &ref_device);
+    let indices_ref = TestTensorInt::<D>::from_data(indices.to_data(), &ref_device);
 
     let actual = tensor.scatter(dim, indices, value, IndexingUpdateOp::Add);
     let expected = tensor_ref.scatter(dim, indices_ref, value_ref, IndexingUpdateOp::Add);

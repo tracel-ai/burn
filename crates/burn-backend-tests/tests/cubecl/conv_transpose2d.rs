@@ -1,10 +1,12 @@
 use super::*;
 use burn_tensor::Tolerance;
-use burn_tensor::{Distribution, Tensor, backend::Backend, module};
+use burn_tensor::{Distribution, backend::Backend, module};
 
 #[test]
 fn conv_transpose2d_should_match_reference_backend() {
     let device = Default::default();
+    let ref_device = ReferenceDevice::new();
+
     TestBackend::seed(&device, 0);
 
     let height = 8;
@@ -16,11 +18,10 @@ fn conv_transpose2d_should_match_reference_backend() {
     let kernel_size_1 = 3;
     let options = burn_tensor::ops::ConvTransposeOptions::new([1, 1], [1, 1], [0, 0], [1, 1], 1);
 
-    let test_device = Default::default();
     let input = Tensor::<TestBackend, 4>::random(
         [batch_size, in_channels, height, width],
         Distribution::Default,
-        &test_device,
+        &device,
     );
     let weight = Tensor::<TestBackend, 4>::random(
         [
@@ -30,14 +31,13 @@ fn conv_transpose2d_should_match_reference_backend() {
             kernel_size_1,
         ],
         Distribution::Default,
-        &test_device,
+        &device,
     );
-    let bias =
-        Tensor::<TestBackend, 1>::random([out_channels], Distribution::Default, &test_device);
-    let ref_device = Default::default();
-    let input_ref = Tensor::<ReferenceBackend, 4>::from_data(input.to_data(), &ref_device);
-    let weight_ref = Tensor::<ReferenceBackend, 4>::from_data(weight.to_data(), &ref_device);
-    let bias_ref = Tensor::<ReferenceBackend, 1>::from_data(bias.to_data(), &ref_device);
+    let bias = TestTensor::<1>::random([out_channels], Distribution::Default, &device);
+
+    let input_ref = TestTensor::<4>::from_data(input.to_data(), &ref_device);
+    let weight_ref = TestTensor::<4>::from_data(weight.to_data(), &ref_device);
+    let bias_ref = TestTensor::<1>::from_data(bias.to_data(), &ref_device);
 
     let output = module::conv_transpose2d(input, weight, Some(bias), options.clone());
     let output_ref = module::conv_transpose2d(input_ref, weight_ref, Some(bias_ref), options);

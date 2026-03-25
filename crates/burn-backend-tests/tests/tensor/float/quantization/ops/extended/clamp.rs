@@ -5,7 +5,7 @@ use burn_tensor::Tolerance;
 
 #[test]
 fn clamp_min() {
-    let tensor = QTensor::<TestBackend, 2>::int8([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
+    let tensor = QTensor::<2>::int8([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
 
     let output = tensor.clamp_min(2.0);
 
@@ -20,7 +20,7 @@ fn clamp_min() {
 
 #[test]
 fn clamp_max() {
-    let tensor = QTensor::<TestBackend, 2>::int8([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
+    let tensor = QTensor::<2>::int8([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
 
     let output = tensor.clamp_max(2.0);
 
@@ -35,7 +35,7 @@ fn clamp_max() {
 
 #[test]
 fn clamp_min_max() {
-    let tensor = QTensor::<TestBackend, 2>::int8([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
+    let tensor = QTensor::<2>::int8([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
 
     let output = tensor.clamp(1.0, 4.0);
 

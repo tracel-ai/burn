@@ -186,7 +186,7 @@ fn should_support_atan2_ops() {
 #[test]
 fn should_support_deg2rad_ops() {
     let device = Default::default();
-    let tensor = TestTensor::<1>::from_floats(
+    let tensor = TestTensor::<1>::from_data(
         [
             0.0, 22.5, 30.0, 45.0, 60.0, 90.0, 135.0, 180.0, 270.0, 360.0,
         ],
@@ -215,7 +215,7 @@ fn should_support_deg2rad_ops() {
 #[test]
 fn should_support_rad2deg_ops() {
     let device = Default::default();
-    let tensor = TestTensor::<1>::from_floats(
+    let tensor = TestTensor::<1>::from_data(
         [
             0.0,
             FRAC_PI_8,

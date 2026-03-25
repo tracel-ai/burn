@@ -434,6 +434,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
         shape: Shape,
         distribution: Distribution,
         device: &Device<Self>,
+        dtype: IntDType,
     ) -> IntTensor<Self> {
         if let CandleDevice::Cpu = device {
             let distribution = if distribution == Distribution::Default {
@@ -442,7 +443,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
                 distribution
             };
             // Use our own seed since candle doesn't support it on CPU
-            return Self::int_from_data(cpu_random::<I>(shape, distribution), device);
+            return Self::int_from_data(cpu_random(shape, distribution, dtype.into()), device);
         }
 
         let shape = shape.to_vec();

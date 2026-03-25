@@ -8,10 +8,10 @@ fn should_diff_matmul_with_slice_assign() {
     let data_2 = TensorData::from([[4.0, 7.0], [2.0, 3.0]]);
     let data_assigned = TensorData::from([[9.0]]);
 
-    let device = Default::default();
-    let tensor_1 = TestAutodiffTensor::<2>::from_data(data_1, &device).require_grad();
-    let tensor_2 = TestAutodiffTensor::from_data(data_2, &device).require_grad();
-    let tensor_assigned = TestAutodiffTensor::from_data(data_assigned, &device).require_grad();
+    let device = AutodiffDevice::new();
+    let tensor_1 = TestTensor::<2>::from_data(data_1, &device).require_grad();
+    let tensor_2 = TestTensor::from_data(data_2, &device).require_grad();
+    let tensor_assigned = TestTensor::from_data(data_assigned, &device).require_grad();
 
     let tensor_3 = tensor_1.clone().matmul(tensor_2.clone());
     let tensor_4 = tensor_3.slice_assign([0..1, 0..1], tensor_assigned);
@@ -36,10 +36,10 @@ fn should_diff_matmul_with_slice_assign_complex() {
     let data_2 = TensorData::from([[4.0, 7.0], [2.0, 3.0]]);
     let data_3 = TensorData::from([[9.0]]);
 
-    let device = Default::default();
-    let tensor_1 = TestAutodiffTensor::<2>::from_data(data_1, &device).require_grad();
-    let tensor_2 = TestAutodiffTensor::from_data(data_2, &device).require_grad();
-    let tensor_3 = TestAutodiffTensor::from_data(data_3, &device).require_grad();
+    let device = AutodiffDevice::new();
+    let tensor_1 = TestTensor::<2>::from_data(data_1, &device).require_grad();
+    let tensor_2 = TestTensor::from_data(data_2, &device).require_grad();
+    let tensor_3 = TestTensor::from_data(data_3, &device).require_grad();
 
     let tensor_4 = tensor_1.clone().matmul(tensor_2.clone());
     let tensor_5 = tensor_2.clone().slice([0..1, 0..1]);
@@ -70,17 +70,17 @@ fn slice_assign_diff_should_give_same_results_as_cat() {
     let data_2 = TensorData::from([[5.0, 6.0], [7.0, 8.0]]);
     let data_3 = TensorData::from([[14.0, 97.0, 100.0, 9.0], [2.0, 3.0, 15.0, 7.0]]);
 
-    let device = Default::default();
-    let tensor_1 = TestAutodiffTensor::<2>::from_data(data_1, &device).require_grad();
-    let tensor_2 = TestAutodiffTensor::from_data(data_2, &device).require_grad();
-    let tensor_3 = TestAutodiffTensor::from_data(data_3, &device);
+    let device = AutodiffDevice::new();
+    let tensor_1 = TestTensor::<2>::from_data(data_1, &device).require_grad();
+    let tensor_2 = TestTensor::from_data(data_2, &device).require_grad();
+    let tensor_3 = TestTensor::from_data(data_3, &device);
 
-    let slice_assign_output = TestAutodiffTensor::zeros([2, 4], &Default::default());
+    let slice_assign_output = TestTensor::zeros([2, 4], &AutodiffDevice::new());
     let slice_assign_output = slice_assign_output.slice_assign([0..2, 0..2], tensor_1.clone());
     let slice_assign_output = slice_assign_output.slice_assign([0..2, 2..4], tensor_2.clone());
     let slice_assign_output = slice_assign_output / tensor_3.clone();
 
-    let cat_output = TestAutodiffTensor::cat(vec![tensor_1.clone(), tensor_2.clone()], 1);
+    let cat_output = TestTensor::cat(vec![tensor_1.clone(), tensor_2.clone()], 1);
     let cat_output = cat_output / tensor_3;
 
     slice_assign_output
@@ -109,9 +109,9 @@ fn should_diff_slice_assign_with_step() {
     let data = TensorData::from([[0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]]);
     let value_data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
 
-    let device = Default::default();
-    let tensor = TestAutodiffTensor::<2>::from_data(data, &device).require_grad();
-    let value = TestAutodiffTensor::<2>::from_data(value_data, &device).require_grad();
+    let device = AutodiffDevice::new();
+    let tensor = TestTensor::<2>::from_data(data, &device).require_grad();
+    let value = TestTensor::<2>::from_data(value_data, &device).require_grad();
 
     // Assign with step=2
     let result = tensor.clone().slice_assign(s![.., 0..4; 2], value.clone());
@@ -138,9 +138,9 @@ fn should_diff_slice_assign_with_negative_step() {
 
     let data = TensorData::from([[0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0]]);
     let value_data = TensorData::from([[1.0, 2.0, 3.0, 4.0], [5.0, 6.0, 7.0, 8.0]]);
-    let device = Default::default();
-    let tensor = TestAutodiffTensor::<2>::from_data(data, &device).require_grad();
-    let value = TestAutodiffTensor::<2>::from_data(value_data, &device).require_grad();
+    let device = AutodiffDevice::new();
+    let tensor = TestTensor::<2>::from_data(data, &device).require_grad();
+    let value = TestTensor::<2>::from_data(value_data, &device).require_grad();
 
     // Assign with step=-1 (reverse order, all elements)
     let result = tensor.clone().slice_assign(s![.., ..;-1], value.clone());

@@ -6,13 +6,13 @@ use burn_backend_tests::might_panic;
 
 #[test]
 fn backward_basic() {
-    let device = Default::default();
-    let a = TestAutodiffTensor::<2>::from_data(
+    let device = AutodiffDevice::new();
+    let a = TestTensor::<2>::from_data(
         TensorData::from([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]),
         &device,
     )
     .require_grad();
-    let b = TestAutodiffTensor::<2>::from_data(
+    let b = TestTensor::<2>::from_data(
         TensorData::from([[4.0, 5.0, 6.0], [7.0, 8.0, 9.0]]),
         &device,
     )
@@ -36,13 +36,13 @@ fn backward_basic() {
 
 #[test]
 fn backward_after_sum() {
-    let device = Default::default();
-    let a = TestAutodiffTensor::<2>::from_data(
+    let device = AutodiffDevice::new();
+    let a = TestTensor::<2>::from_data(
         TensorData::from([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]),
         &device,
     )
     .require_grad();
-    let b = TestAutodiffTensor::<2>::from_data(
+    let b = TestTensor::<2>::from_data(
         TensorData::from([[4.0, 5.0, 6.0], [7.0, 8.0, 9.0]]),
         &device,
     )
@@ -67,7 +67,7 @@ fn backward_after_sum() {
 #[test]
 fn different_dim() {
     // Also check when the cross is along a different dimension (e.g. dim 0).
-    let device = Default::default();
+    let device = AutodiffDevice::new();
     let a_raw = [[1.0, 4.0, 7.0], [2.0, 5.0, 8.0], [3.0, 6.0, 9.0]];
     let b_raw = [[9.0, 6.0, 3.0], [8.0, 5.0, 2.0], [7.0, 4.0, 1.0]];
 

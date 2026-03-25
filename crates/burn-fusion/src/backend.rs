@@ -89,6 +89,10 @@ impl<B: FusionBackend> Backend for Fusion<B> {
     fn dtype_usage(device: &Self::Device, dtype: DType) -> burn_backend::DTypeUsageSet {
         B::dtype_usage(device, dtype)
     }
+
+    fn device_count(type_id: u16) -> usize {
+        B::device_count(type_id)
+    }
 }
 
 /// The status of a [fuser](OperationFuser).

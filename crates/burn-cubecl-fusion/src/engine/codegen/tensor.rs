@@ -43,18 +43,23 @@ impl LaunchArg for GlobalTensor {
     type RuntimeArg<R: Runtime> = GlobalTensorArg<R>;
     type CompilationArg = GlobalTensorCompilationArg;
 
-    fn compilation_arg<R: Runtime>(runtime_arg: &Self::RuntimeArg<R>) -> Self::CompilationArg {
-        let tensor =
-            <Tensor<Vector<DynElem, DynSize>> as LaunchArg>::compilation_arg(&runtime_arg.tensor);
+    fn register<R: Runtime>(
+        arg: Self::RuntimeArg<R>,
+        launcher: &mut KernelLauncher<R>,
+    ) -> Self::CompilationArg {
+        let tensor = TensorCompilationArg {
+            inplace: match arg.tensor {
+                TensorArg::Handle { .. } => None,
+                TensorArg::Alias { input_pos, .. } => Some(input_pos as u32),
+            },
+        };
+        launcher.register_tensor(arg.tensor, arg.ty);
+
         GlobalTensorCompilationArg {
             tensor,
-            ty: runtime_arg.ty,
-            broadcasted: runtime_arg.broadcasted,
+            ty: arg.ty,
+            broadcasted: arg.broadcasted,
         }
-    }
-
-    fn register<R: Runtime>(arg: Self::RuntimeArg<R>, launcher: &mut KernelLauncher<R>) {
-        launcher.register_tensor(arg.tensor, arg.ty);
     }
 
     fn expand(arg: &Self::CompilationArg, builder: &mut KernelBuilder) -> GlobalTensorExpand {
@@ -66,6 +71,7 @@ impl LaunchArg for GlobalTensor {
             broadcasted: arg.broadcasted,
         }
     }
+
     fn expand_output(
         arg: &Self::CompilationArg,
         builder: &mut KernelBuilder,

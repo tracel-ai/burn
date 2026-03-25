@@ -3,9 +3,9 @@ use burn_tensor::TensorData;
 
 #[test]
 fn should_diff_add() {
-    let device = Default::default();
-    let tensor_1 = TestAutodiffTensor::<1>::from_floats([2.0, 5.0], &device).require_grad();
-    let tensor_2 = TestAutodiffTensor::from_floats([4.0, 1.0], &device).require_grad();
+    let device = AutodiffDevice::new();
+    let tensor_1 = TestTensor::<1>::from_data([2.0, 5.0], &device).require_grad();
+    let tensor_2 = TestTensor::from_data([4.0, 1.0], &device).require_grad();
 
     let tensor_3 = tensor_1.clone() + tensor_2.clone();
     let grads = tensor_3.backward();
@@ -28,7 +28,7 @@ fn should_diff_add() {
 fn should_diff_add_scalar() {
     let data = TensorData::from([2.0, 10.0]);
 
-    let tensor = TestAutodiffTensor::<1>::from_data(data, &Default::default()).require_grad();
+    let tensor = TestTensor::<1>::from_data(data, &AutodiffDevice::new()).require_grad();
     let tensor_out = tensor.clone().add_scalar(5.0);
     let grads = tensor_out.backward();
 
@@ -47,10 +47,10 @@ fn test_add_complex_1() {
     let data_2 = TensorData::from([[4.0, 7.0], [2.0, 3.0]]);
     let data_3 = TensorData::from([[2.0, 2.0], [2.0, 2.0]]);
 
-    let device = Default::default();
-    let tensor_1 = TestAutodiffTensor::<2>::from_data(data_1, &device).require_grad();
-    let tensor_2 = TestAutodiffTensor::from_data(data_2, &device).require_grad();
-    let tensor_3 = TestAutodiffTensor::from_data(data_3, &device).require_grad();
+    let device = AutodiffDevice::new();
+    let tensor_1 = TestTensor::<2>::from_data(data_1, &device).require_grad();
+    let tensor_2 = TestTensor::from_data(data_2, &device).require_grad();
+    let tensor_3 = TestTensor::from_data(data_3, &device).require_grad();
 
     let tensor_4 = tensor_1.clone().add(tensor_2.clone());
     let tensor_5 = tensor_4

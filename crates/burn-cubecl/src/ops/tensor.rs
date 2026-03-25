@@ -11,7 +11,7 @@ use crate::{
     kernel::matmul::{MatmulStrategy, matmul},
 };
 use burn_backend::ops::GridSampleOptions;
-use burn_backend::tensor::{BoolTensor, Device, FloatElem, FloatTensor, IntTensor};
+use burn_backend::tensor::{BoolTensor, Device, FloatTensor, IntTensor};
 use burn_backend::{DType, ElementConversion, FloatDType, Slice};
 use burn_backend::{Distribution, Shape, TensorData, ops::FloatTensorOps};
 use burn_backend::{ExecutionError, Scalar, get_device_settings};
@@ -43,8 +43,9 @@ where
         shape: Shape,
         distribution: Distribution,
         device: &Device<Self>,
+        dtype: FloatDType,
     ) -> FloatTensor<Self> {
-        let dtype = FloatElem::<Self>::dtype();
+        let dtype = dtype.into();
         match distribution {
             Distribution::Default => random_uniform(shape, device, 0., 1., dtype),
             Distribution::Uniform(low, high) => {

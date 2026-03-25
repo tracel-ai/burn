@@ -80,6 +80,10 @@ impl<B: Backend, C: CheckpointStrategy> Backend for Autodiff<B, C> {
     fn dtype_usage(device: &Self::Device, dtype: burn_std::DType) -> burn_backend::DTypeUsageSet {
         B::dtype_usage(device, dtype)
     }
+
+    fn device_count(type_id: u16) -> usize {
+        B::device_count(type_id)
+    }
 }
 
 impl<B: Backend, C: CheckpointStrategy> AutodiffBackend for Autodiff<B, C> {

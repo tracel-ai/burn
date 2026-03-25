@@ -328,7 +328,7 @@ macro_rules! float_to_device_arms {
             $(
                 #[cfg($src_cfg)]
                 ($crate::DispatchTensorKind::$B1(tensor), $crate::DispatchDevice::$B1(d)) => {
-                    let kind = $crate::DispatchTensorKind::Autodiff(Box::new($crate::DispatchTensorKind::$B1($crate::BackendTensor::Autodiff(
+                    let kind = $crate::DispatchTensorKind::Autodiff(alloc::boxed::Box::new($crate::DispatchTensorKind::$B1($crate::BackendTensor::Autodiff(
                         with_autodiff_backend!($B1, $ckp, |B| {
                             B::$to_device(tensor.autodiff(), d)
                         })
@@ -435,7 +435,7 @@ macro_rules! wrap_float {
         $expr:expr
     ) => {
         $crate::DispatchTensor {
-            kind: $crate::DispatchTensorKind::Autodiff(Box::new(
+            kind: $crate::DispatchTensorKind::Autodiff(alloc::boxed::Box::new(
                 $crate::DispatchTensorKind::$Backend($crate::BackendTensor::Autodiff($expr)),
             )),
             checkpointing: $ckp,

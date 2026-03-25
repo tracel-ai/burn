@@ -362,9 +362,9 @@ impl TchTensor {
     /// # Returns
     ///
     /// A new empty tensor.
-    pub fn empty<E: TchElement>(shape: Shape, device: LibTorchDevice) -> Self {
+    pub fn empty(shape: Shape, device: LibTorchDevice, dtype: DType) -> Self {
         let shape_tch = TchShape::from(shape);
-        let tensor = tch::Tensor::empty(shape_tch.dims, (E::kind(), device.into()));
+        let tensor = tch::Tensor::empty(shape_tch.dims, (dtype.into_kind(), device.into()));
 
         Self::new(tensor)
     }
