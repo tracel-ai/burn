@@ -37,7 +37,7 @@ use cubek::{
             ordered_double_buffering::{OrderedDoubleBufferingAlgorithm, OrderedSelectionArgs},
             simple::{SimpleAlgorithm, SimpleArgs},
             simple_unit::SimpleUnitAlgorithm,
-            vecmat::{DoubleVecMatAlgorithm, SimpleVecMatAlgorithm},
+            vecmat_innerproduct::{DoubleVecMatInnerProductAlgorithm, VecMatInnerProductAlgorithm},
         },
     },
     std::MatrixLayout,
@@ -588,7 +588,7 @@ impl FusedMatmulLaunch<'_> {
                 }
             }
             FusedMatmulSelector::SimpleVecMat => {
-                match launch_inner_fix_dtype::<R, SimpleVecMatAlgorithm>(
+                match launch_inner_fix_dtype::<R, VecMatInnerProductAlgorithm>(
                     client,
                     FusedMatmulInputLaunch::new(
                         inputs,
@@ -608,7 +608,7 @@ impl FusedMatmulLaunch<'_> {
                 }
             }
             FusedMatmulSelector::DoubleVecMat => {
-                match launch_inner_fix_dtype::<R, DoubleVecMatAlgorithm>(
+                match launch_inner_fix_dtype::<R, DoubleVecMatInnerProductAlgorithm>(
                     client,
                     FusedMatmulInputLaunch::new(
                         inputs,
