@@ -55,7 +55,7 @@ impl<B: Backend> Model<B> {
     pub fn forward(&self, input: Tensor<B, 3>) -> Tensor<B, 2> {
         let [batch_size, height, width] = input.dims();
 
-        let dev_id = input.device.id();
+        let dev_id = input.device().id();
         println!("[{:?}] conv1 : {:?}", std::thread::current().id(), dev_id);
 
         let x = input.reshape([batch_size, 1, height, width]).detach();
