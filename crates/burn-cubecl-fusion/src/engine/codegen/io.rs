@@ -443,24 +443,88 @@ pub fn write<C: Scalar, N: Size>(
     match arg {
         FuseArg::Output(pos, _, layout) => {
             let tensor = outputs.tensors.index(pos);
-            let offset = match layout {
-                LayoutInfo::SameAsRef => ref_pos,
-                LayoutInfo::IsRef => ref_pos,
-                LayoutInfo::Unknown => {
-                    get_offset(inputs, locals, tensor, ref_pos, None, config, None)
-                }
-            };
-            let tensor = outputs.tensors.index_mut(pos);
+            let output_vs = tensor.tensor.vector_size();
+            if comptime![output_vs != config.width] {
+                // Output tensor has a different vector_size than the computation width.
+                // Write element-by-element to avoid SPIR-V type mismatch.
+                write_output_aligned(outputs, locals, pos, ref_pos, value, layout, config);
+            } else {
+                // Vector sizes match - set polyfill to output type and write directly.
+                set_polyfill::<DynElem, DynSize>(comptime![tensor.ty]);
+                let offset = match layout {
+                    LayoutInfo::SameAsRef => ref_pos,
+                    LayoutInfo::IsRef => ref_pos,
+                    LayoutInfo::Unknown => {
+                        get_offset(inputs, locals, tensor, ref_pos, None, config, None)
+                    }
+                };
+                let tensor = outputs.tensors.index_mut(pos);
 
-            let value = Vector::cast_from(value);
+                let value = Vector::cast_from(value);
 
-            tensor.tensor[offset] = value;
+                tensor.tensor[offset] = value;
+            }
         }
         FuseArg::BlockLocal { .. } => write_scalar::<C, N>(locals, value, arg),
         FuseArg::MultiBlockLocal(key, _) | FuseArg::MultiBlockGlobal(key, _) => {
             outputs.variables.write(key, Vector::cast_from(value))
         }
         _ => comptime![panic!("Can't write into inputs and scalars")],
+    }
+}
+
+/// Writes a [Vector] value element-by-element to an output tensor whose vector_size
+/// differs from the computation width. Mirrors [read_input_aligned] for the write path.
+#[cube]
+fn write_output_aligned<C: Scalar, N: Size>(
+    outputs: &mut GlobalArgs,
+    locals: &LocalArgs,
+    #[comptime] pos: usize,
+    ref_pos: usize,
+    value: Vector<C, N>,
+    #[comptime] layout: LayoutInfo,
+    #[comptime] config: &FuseBlockConfig,
+) {
+    let tensor = outputs.tensors.index(pos);
+    set_polyfill::<DynElem, DynSize>(comptime![tensor.ty]);
+
+    match layout {
+        LayoutInfo::SameAsRef | LayoutInfo::IsRef => {
+            let offset = (ref_pos * config.width) / tensor.tensor.vector_size();
+            let tensor = outputs.tensors.index_mut(pos);
+            let stride = tensor.tensor.stride(config.rank - 1);
+
+            #[unroll]
+            for i in 0..config.width {
+                let idx = offset + i * stride;
+                tensor.tensor[idx] = Vector::cast_from(value[i]);
+            }
+        }
+        LayoutInfo::Unknown => {
+            // When layout differs from ref, each of the config.width elements may map
+            // to a different offset in the output (or to the same offset when the output
+            // has broadcast dimensions). Compute each element's offset individually to
+            // avoid cross-contamination of neighboring elements.
+            let base_flat = ref_pos * config.width;
+
+            #[unroll]
+            for i in 0..config.width {
+                let flat_ref = base_flat + i;
+                let mut offset = 0;
+
+                #[unroll]
+                for d in 0..config.rank {
+                    let ogwl = flat_ref / locals.ref_strides[d];
+                    let tensor_ro = outputs.tensors.index(pos);
+                    offset += ogwl % tensor_ro.tensor.shape(d) * tensor_ro.tensor.stride(d);
+                }
+
+                let tensor_ro = outputs.tensors.index(pos);
+                offset /= tensor_ro.tensor.vector_size();
+                let tensor = outputs.tensors.index_mut(pos);
+                tensor.tensor[offset] = Vector::cast_from(value[i]);
+            }
+        }
     }
 }
 
