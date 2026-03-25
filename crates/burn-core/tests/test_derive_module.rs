@@ -639,10 +639,11 @@ mod require_grad {
     ) {
         let mut module = module.clone().fork(&device);
 
-        for _ in 0..num_iter {
+        for i in 0..num_iter {
             module = module.fork(&device).grad_distributed();
             let grads_x = calculate_grads(&module, transformation);
             let data = grads_x.unwrap().to_data();
+            println!("Iter {i} : {:?}", data.to_vec::<f32>());
             if !is_main {
                 output.clone().unwrap().send(data).unwrap();
             } else {
