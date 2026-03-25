@@ -127,7 +127,7 @@ impl AutodiffClient for GraphMutexClient {
         GraphCleaner::cleanup_orphaned_entries();
 
         println!(
-            "[{:?}] cleanup orphans : {:?}",
+            "[{:?}] grads sync : {:?}",
             std::thread::current().id(),
             device.id()
         );
