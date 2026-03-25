@@ -5,7 +5,7 @@ use burn_tensor::{Shape, TensorData};
 
 #[test]
 fn test_narrow() {
-    let tensor = QTensor::<TestBackend, 2>::int8([[1., 2., 3.], [7., 8., 9.], [13., 14., 15.]]);
+    let tensor = QTensor::<2>::int8([[1., 2., 3.], [7., 8., 9.], [13., 14., 15.]]);
 
     let output = tensor.clone().narrow(0, 0, 2);
     let expected = TensorData::from([[1., 2., 3.], [7., 8., 9.]]);
@@ -28,7 +28,7 @@ fn test_narrow() {
 #[test]
 #[should_panic]
 fn test_narrow_invalid_dim() {
-    let tensor = QTensor::<TestBackend, 2>::int8([[1., 2., 3.], [7., 8., 9.], [13., 14., 15.]]);
+    let tensor = QTensor::<2>::int8([[1., 2., 3.], [7., 8., 9.], [13., 14., 15.]]);
 
     let _output = tensor.narrow(2, 0, 2);
 }
@@ -36,7 +36,7 @@ fn test_narrow_invalid_dim() {
 #[test]
 #[should_panic]
 fn test_narrow_invalid_start() {
-    let tensor = QTensor::<TestBackend, 2>::int8([[1., 2., 3.], [7., 8., 9.], [13., 14., 15.]]);
+    let tensor = QTensor::<2>::int8([[1., 2., 3.], [7., 8., 9.], [13., 14., 15.]]);
 
     let _output = tensor.narrow(0, 3, 2);
 }
@@ -44,7 +44,7 @@ fn test_narrow_invalid_start() {
 #[test]
 #[should_panic]
 fn test_narrow_invalid_zero_length() {
-    let tensor = QTensor::<TestBackend, 2>::int8([[1., 2., 3.], [7., 8., 9.], [13., 14., 15.]]);
+    let tensor = QTensor::<2>::int8([[1., 2., 3.], [7., 8., 9.], [13., 14., 15.]]);
 
     let _output = tensor.narrow(0, 1, 0);
 }
@@ -52,7 +52,7 @@ fn test_narrow_invalid_zero_length() {
 #[test]
 #[should_panic]
 fn test_narrow_invalid_length() {
-    let tensor = QTensor::<TestBackend, 2>::int8([[1., 2., 3.], [7., 8., 9.], [13., 14., 15.]]);
+    let tensor = QTensor::<2>::int8([[1., 2., 3.], [7., 8., 9.], [13., 14., 15.]]);
 
     let _output = tensor.narrow(0, 0, 4);
 }

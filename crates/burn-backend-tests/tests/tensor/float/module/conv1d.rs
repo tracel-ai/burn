@@ -78,7 +78,7 @@ fn test_conv1d_complex() {
         length: 4,
     };
 
-    test.assert_output(TestTensor::from_floats(
+    test.assert_output(TestTensor::from_data(
         [
             [[171., 294.], [415., 781.], [659., 1268.], [903., 1755.]],
             [[495., 726.], [1387., 2185.], [2279., 3644.], [3171., 5103.]],

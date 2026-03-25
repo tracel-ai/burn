@@ -5,7 +5,7 @@ use burn_tensor::{Tolerance, s};
 
 #[test]
 fn should_support_full_sliceing_1d() {
-    let tensor = QTensor::<TestBackend, 1>::int8([0.0, 1.0, 2.0, 3.0]);
+    let tensor = QTensor::<1>::int8([0.0, 1.0, 2.0, 3.0]);
     let data = tensor.to_data();
 
     let output = tensor.slice([0..4]);
@@ -15,7 +15,7 @@ fn should_support_full_sliceing_1d() {
 
 #[test]
 fn should_support_partial_sliceing_1d() {
-    let tensor = QTensor::<TestBackend, 1>::int8([0.0, 1.0, 2.0, 3.0]);
+    let tensor = QTensor::<1>::int8([0.0, 1.0, 2.0, 3.0]);
 
     let output = tensor.slice([1..3]);
     let expected = TensorData::from([1.0, 2.0]);
@@ -28,7 +28,7 @@ fn should_support_partial_sliceing_1d() {
 
 #[test]
 fn should_support_full_sliceing_2d() {
-    let tensor = QTensor::<TestBackend, 2>::int8([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
+    let tensor = QTensor::<2>::int8([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
     let data = tensor.to_data();
 
     let output = tensor.clone().slice([0..2]);
@@ -40,7 +40,7 @@ fn should_support_full_sliceing_2d() {
 
 #[test]
 fn should_support_partial_sliceing_2d() {
-    let tensor = QTensor::<TestBackend, 2>::int8([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
+    let tensor = QTensor::<2>::int8([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
 
     let output = tensor.slice([0..2, 0..2]);
     let expected = TensorData::from([[0.0, 1.0], [3.0, 4.0]]);
@@ -53,7 +53,7 @@ fn should_support_partial_sliceing_2d() {
 
 #[test]
 fn should_support_partial_sliceing_3d() {
-    let tensor = QTensor::<TestBackend, 3>::int8([
+    let tensor = QTensor::<3>::int8([
         [[0., 1., 2., 3.], [4., 5., 6., 7.]],
         [[8., 9., 10., 11.], [12., 13., 14., 15.]],
     ]);
@@ -69,7 +69,7 @@ fn should_support_partial_sliceing_3d() {
 
 #[test]
 fn should_support_partial_sliceing_3d_non_contiguous() {
-    let tensor = QTensor::<TestBackend, 3>::int8([
+    let tensor = QTensor::<3>::int8([
         [[0., 1., 2., 3.], [4., 5., 6., 7.]],
         [[8., 9., 10., 11.], [12., 13., 14., 15.]],
     ]);
@@ -85,8 +85,8 @@ fn should_support_partial_sliceing_3d_non_contiguous() {
 
 #[test]
 fn should_support_slice_assign_1d() {
-    let tensor = QTensor::<TestBackend, 1>::int8([0.0, 1.0, 2.0]);
-    let tensor_assigned = QTensor::<TestBackend, 1>::int8([10.0, 5.0]);
+    let tensor = QTensor::<1>::int8([0.0, 1.0, 2.0]);
+    let tensor_assigned = QTensor::<1>::int8([10.0, 5.0]);
 
     let output = tensor.slice_assign([0..2], tensor_assigned);
     let expected = TensorData::from([10.0, 5.0, 2.0]);
@@ -99,8 +99,8 @@ fn should_support_slice_assign_1d() {
 
 #[test]
 fn should_support_slice_assign_2d() {
-    let tensor = QTensor::<TestBackend, 2>::int8([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
-    let tensor_assigned = QTensor::<TestBackend, 2>::int8([[10.0, 5.0]]);
+    let tensor = QTensor::<2>::int8([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
+    let tensor_assigned = QTensor::<2>::int8([[10.0, 5.0]]);
 
     let output = tensor.slice_assign([1..2, 0..2], tensor_assigned);
     let expected = TensorData::from([[0.0, 1.0, 2.0], [10.0, 5.0, 5.0]]);
@@ -113,7 +113,7 @@ fn should_support_slice_assign_2d() {
 
 #[test]
 fn slice_should_not_corrupt_potentially_inplace_operations() {
-    let tensor = QTensor::<TestBackend, 1>::int8([1.0, 2.0, 3.0, 4.0, 5.0]);
+    let tensor = QTensor::<1>::int8([1.0, 2.0, 3.0, 4.0, 5.0]);
     let tensor = tensor.clone().slice([0..3]) + tensor.clone().slice([2..5]);
 
     let expected = TensorData::from([4., 6., 8.]);
@@ -126,8 +126,8 @@ fn slice_should_not_corrupt_potentially_inplace_operations() {
 
 #[test]
 fn slice_assign_should_not_corrupt_potentially_inplace_operations() {
-    let tensor = QTensor::<TestBackend, 1>::int8([1.0, 2.0, 3.0, 4.0, 5.0]);
-    let values = QTensor::<TestBackend, 1>::int8([10., 20., 30.]);
+    let tensor = QTensor::<1>::int8([1.0, 2.0, 3.0, 4.0, 5.0]);
+    let values = QTensor::<1>::int8([10., 20., 30.]);
 
     let tensor_1 = tensor.clone().slice_assign([0..3], values);
     let tensor_2 = tensor + 2;
@@ -149,7 +149,7 @@ fn slice_assign_should_not_corrupt_potentially_inplace_operations() {
 
 #[test]
 fn clamp_when_slice_exceeds_dimension() {
-    let tensor = QTensor::<TestBackend, 1>::int8([0.0, 1.0, 2.0]);
+    let tensor = QTensor::<1>::int8([0.0, 1.0, 2.0]);
     let data = tensor.to_data();
 
     let output = tensor.slice([0..4]);
@@ -158,7 +158,7 @@ fn clamp_when_slice_exceeds_dimension() {
 
 #[test]
 fn negative_dimensions() {
-    let tensor = QTensor::<TestBackend, 2>::int8([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
+    let tensor = QTensor::<2>::int8([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
     let data = tensor.to_data();
 
     // Clamping to the tensor dimensions
@@ -182,7 +182,7 @@ fn negative_dimensions() {
 
 #[test]
 fn missing_dimensions() {
-    let tensor = QTensor::<TestBackend, 2>::int8([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
+    let tensor = QTensor::<2>::int8([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
     let data = tensor.to_data();
 
     // Clamping to the tensor dimensions
@@ -223,7 +223,7 @@ fn missing_dimensions() {
 #[test]
 #[should_panic]
 fn should_panic_when_slice_with_too_many_dimensions() {
-    let tensor = QTensor::<TestBackend, 1>::int8([0.0, 1.0, 2.0]);
+    let tensor = QTensor::<1>::int8([0.0, 1.0, 2.0]);
 
     let _output = tensor.slice([0..1, 0..1]);
 }

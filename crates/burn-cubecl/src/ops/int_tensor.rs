@@ -16,7 +16,7 @@ use crate::{
     element::BoolElement,
     kernel::prng::{random_bernoulli, random_normal, random_uniform},
 };
-use burn_backend::tensor::{BoolTensor, Device, FloatTensor, IntElem, IntTensor};
+use burn_backend::tensor::{BoolTensor, Device, FloatTensor, IntTensor};
 use burn_backend::{DType, IntDType, Slice, ops::IntTensorOps};
 use burn_backend::{Distribution, ElementConversion, Shape, TensorData, get_device_settings};
 use burn_backend::{ExecutionError, Scalar};
@@ -491,8 +491,9 @@ where
         shape: Shape,
         distribution: Distribution,
         device: &Device<Self>,
+        dtype: IntDType,
     ) -> IntTensor<Self> {
-        let dtype = IntElem::<Self>::dtype();
+        let dtype = dtype.into();
         match distribution {
             Distribution::Default => random_uniform(shape, device, 0., 255., dtype),
             Distribution::Uniform(low, high) => {

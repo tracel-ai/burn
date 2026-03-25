@@ -1,5 +1,5 @@
 use super::*;
-use burn_tensor::{ElementConversion, Tolerance};
+use burn_tensor::Tolerance;
 use burn_tensor::{TensorData, linalg};
 
 #[test]
@@ -15,7 +15,7 @@ fn test_cosine_similarity_basic() {
         .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
 
     // Test with explicit epsilon
-    linalg::cosine_similarity(x1.clone(), x2.clone(), 1, Some(1e-8.elem::<FloatElem>()))
+    linalg::cosine_similarity(x1.clone(), x2.clone(), 1, Some(1e-8))
         .into_data()
         .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
 }
@@ -91,7 +91,7 @@ fn test_cosine_similarity_near_zero() {
     let expected = TensorData::from([[0.0028], [0.0154]]);
 
     // Smaller values result in NaN on metal f16
-    let epsilon = Some(FloatElem::from_elem(1e-2));
+    let epsilon = Some(1e-2);
     let tolerance = Tolerance::absolute(0.2);
 
     linalg::cosine_similarity(x1, x2, 1, epsilon)

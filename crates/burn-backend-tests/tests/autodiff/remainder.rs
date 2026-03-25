@@ -4,8 +4,8 @@ use burn_tensor::Tolerance;
 
 #[test]
 fn should_diff_remainder() {
-    let device = Default::default();
-    let tensor_1 = TestAutodiffTensor::<1>::from_data(
+    let device = AutodiffDevice::new();
+    let tensor_1 = TestTensor::<1>::from_data(
         TensorData::from([
             0.9742, 0.3676, 0.0905, 0.8066, 0.7072, 0.7883, 0.6987, 0.1560, 0.7179, 0.7874, 0.9032,
             0.1845,
@@ -13,7 +13,7 @@ fn should_diff_remainder() {
         &device,
     )
     .require_grad();
-    let tensor_2 = TestAutodiffTensor::<1>::from_data(
+    let tensor_2 = TestTensor::<1>::from_data(
         TensorData::from([
             0.3357, 0.0285, 0.4115, 0.5511, 0.8637, 0.3593, 0.3885, 0.2569, 0.0936, 0.7172, 0.4792,
             0.4898,

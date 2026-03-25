@@ -1,7 +1,8 @@
 use std::marker::PhantomData;
 
 use burn_backend::{
-    DType, Element, ExecutionError, QTensorPrimitive, Shape, Slice, TensorData, TensorPrimitive,
+    DType, Element, ExecutionError, FloatDType, QTensorPrimitive, Shape, Slice, TensorData,
+    TensorPrimitive,
     ops::QTensorOps,
     quantization::{QuantPropagation, QuantScheme, QuantizationParametersPrimitive},
     tensor::{Device, FloatTensor, IntTensor, QuantizedTensor},
@@ -79,7 +80,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
             .output()
     }
 
-    fn dequantize(tensor: QuantizedTensor<Self>) -> FloatTensor<Self> {
+    fn dequantize(tensor: QuantizedTensor<Self>, dtype: FloatDType) -> FloatTensor<Self> {
         #[derive(new, Debug)]
         struct DequantizeOp<B: FusionBackend> {
             desc: DequantizeOpIr,
@@ -90,7 +91,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
             fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let tensor = handles.get_quantized_tensor::<B>(&self.desc.input);
 
-                let output = B::dequantize(tensor);
+                let output = B::dequantize(tensor, self.desc.out.dtype.into());
                 handles.register_float_tensor::<B>(&self.desc.out.id, output);
             }
         }
@@ -98,7 +99,7 @@ impl<B: FusionBackend> QTensorOps<Self> for Fusion<B> {
         let streams = OperationStreams::with_inputs([&tensor]);
 
         let client = tensor.client.clone();
-        let dtype = B::FloatElem::dtype();
+        let dtype = dtype.into();
         let desc = DequantizeOpIr::create(tensor.into_ir(), dtype, || client.create_empty_handle());
 
         client

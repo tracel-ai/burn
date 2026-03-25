@@ -17,73 +17,36 @@ workspace = true
 [features]
 default = [
     "burn-tensor/default",
-    "burn-autodiff/default",
-    # Backends (default not enabled for CubeCL backends as it activates fusion)
-    "burn-cpu?/default",
-    "burn-ndarray?/default",
-    "burn-tch?/default",
+    "burn-dispatch/default",
     # Default
-    "ndarray",
+    # "ndarray",
     "std",
 ]
-std = [
-    "burn-tensor/std",
-    "burn-autodiff/std",
-    # Backends
-    "burn-cpu?/std",
-    "burn-ndarray?/std",
-    "burn-wgpu?/std",
-    "burn-router?/std",
-    "burn-cuda?/std",
-    "burn-rocm?/std",
-]
-
-tracing = [
-    "cubecl?/tracing",
-    "burn-tensor/tracing",
-    "burn-autodiff/tracing",
-    # Backends
-    "burn-cpu?/tracing",
-    "burn-ndarray?/tracing",
-    "burn-wgpu?/tracing",
-    "burn-router?/tracing",
-    "burn-cuda?/tracing",
-    "burn-rocm?/tracing",
-]
+std = ["burn-tensor/std", "burn-dispatch/std"]
 
 # Backends
-cuda = ["burn-cuda", "quantization", "cube"]
-rocm = ["burn-rocm", "quantization", "cube"]
-ndarray = ["burn-ndarray", "quantization"]
-tch = ["burn-tch"]
-vulkan = ["wgpu", "burn-wgpu/vulkan"]
-webgpu = ["wgpu", "burn-wgpu/webgpu"]
-metal = ["wgpu", "burn-wgpu/metal"]
-wgpu = ["burn-wgpu", "quantization", "cube"]
-cpu = ["burn-cpu", "cube"]
-router = ["burn-router", "ndarray", "burn-wgpu"]
+cuda = ["burn-dispatch/cuda", "quantization", "cube"]
+rocm = ["burn-dispatch/rocm", "quantization", "cube"]
+ndarray = ["burn-dispatch/ndarray", "quantization"]
+tch = ["burn-dispatch/tch"]
+vulkan = ["wgpu", "burn-dispatch/vulkan"]
+webgpu = ["wgpu", "burn-dispatch/webgpu"]
+metal = ["wgpu", "burn-dispatch/metal"]
+wgpu = ["burn-dispatch/wgpu", "quantization", "cube"]
+cpu = ["burn-dispatch/cpu", "cube"]
 
-autotune = [
-    "burn-wgpu?/autotune",
-    "burn-cuda?/autotune",
-    "burn-rocm?/autotune",
-    "burn-cpu?/autotune",
-]
-autotune-checks = [
-    "burn-wgpu?/autotune-checks",
-    "burn-cuda?/autotune-checks",
-    "burn-rocm?/autotune-checks",
-    "burn-cpu?/autotune-checks",
-]
+autotune = ["burn-dispatch/autotune"]
+autotune-checks = ["burn-dispatch/autotune-checks"]
+fusion = ["burn-dispatch/fusion"]
 
 # CubeCL backends
 cube = [
-    "cubecl",
     "cubek",
     "autotune",
-    "burn-fusion",
-    "burn-cubecl",
+    "burn-dispatch/ndarray",
     "burn-ndarray",
+    # Not used directly, but included to avoid recompiling with and without fusion
+    "burn-cubecl",
 ]
 
 # Test configs
@@ -92,23 +55,22 @@ quantization = []
 [dependencies]
 burn-tensor = { path = "../burn-tensor", version = "=0.21.0-pre.2", default-features = false }
 burn-tensor-testgen = { path = "../burn-tensor-testgen", version = "=0.21.0-pre.2" }
+burn-dispatch = { path = "../burn-dispatch", version = "=0.21.0-pre.2", default-features = false, features = [
+    "autodiff",
+] }
 
-# Backends
+# For random tests
+cubek = { workspace = true, features = ["random"], optional = true }
+
+# Explicitly enable test-only checks
 burn-autodiff = { path = "../burn-autodiff", version = "=0.21.0-pre.2", default-features = false, features = [
     "export_tests",
 ] }
-burn-cuda = { path = "../burn-cuda", version = "=0.21.0-pre.2", optional = true, default-features = false }
-burn-cpu = { path = "../burn-cpu", version = "=0.21.0-pre.2", optional = true, default-features = false }
-burn-rocm = { path = "../burn-rocm", version = "=0.21.0-pre.2", optional = true, default-features = false }
 burn-ndarray = { path = "../burn-ndarray", version = "=0.21.0-pre.2", optional = true, default-features = false, features = [
     "export_tests",
 ] }
-burn-router = { path = "../burn-router", version = "=0.21.0-pre.2", optional = true, default-features = false }
-burn-tch = { path = "../burn-tch", version = "=0.21.0-pre.2", optional = true, default-features = false }
-burn-wgpu = { path = "../burn-wgpu", version = "=0.21.0-pre.2", optional = true, default-features = false }
 
-# To wrap `Fusion<CubeBackend>
-burn-fusion = { path = "../burn-fusion", version = "=0.21.0-pre.2", optional = true }
+# Manually enable so running the tests again with fusion feature doesn't have to compile other crates
 burn-cubecl = { path = "../burn-cubecl", version = "=0.21.0-pre.2", optional = true, features = [
     "fusion",
 ] }
@@ -116,5 +78,7 @@ burn-cubecl = { path = "../burn-cubecl", version = "=0.21.0-pre.2", optional = t
 num-traits = { workspace = true }
 serial_test = { workspace = true }
 
-cubecl = { workspace = true, optional = true }
-cubek = { workspace = true, features = ["random"], optional = true }
+
+[dev-dependencies]
+# Used to initialize device settings (test dtypes)
+ctor = "0.6.3"

@@ -372,16 +372,21 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
         TchOps::swap_dims(tensor, dim1, dim2)
     }
 
-    fn int_random(shape: Shape, distribution: Distribution, device: &LibTorchDevice) -> TchTensor {
+    fn int_random(
+        shape: Shape,
+        distribution: Distribution,
+        device: &LibTorchDevice,
+        dtype: IntDType,
+    ) -> TchTensor {
         match distribution {
             Distribution::Default => TchTensor::new(tch::Tensor::randint_low(
                 0,
                 255,
                 shape.iter().map(|i| *i as i64).collect::<Vec<_>>(),
-                (tch::Kind::Int64, (*device).into()),
+                (dtype.into_kind(), (*device).into()),
             )),
             Distribution::Bernoulli(prob) => {
-                let mut tensor = TchTensor::empty::<i64>(shape, *device);
+                let mut tensor = TchTensor::empty(shape, *device, dtype.into());
                 tensor
                     .mut_ops(|tensor| tensor.f_bernoulli_float_(prob).unwrap())
                     .unwrap()
@@ -390,10 +395,10 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
                 from as i64,
                 to as i64,
                 shape.iter().map(|i| *i as i64).collect::<Vec<_>>(),
-                (tch::Kind::Int64, (*device).into()),
+                (dtype.into_kind(), (*device).into()),
             )),
             Distribution::Normal(mean, std) => {
-                let mut tensor = TchTensor::empty::<i64>(shape, *device);
+                let mut tensor = TchTensor::empty(shape, *device, dtype.into());
                 tensor.mut_ops(|tensor| tensor.normal_(mean, std)).unwrap()
             }
         }

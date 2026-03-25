@@ -1,4 +1,4 @@
-use crate::Backend;
+use crate::{Backend, get_device_settings};
 use burn_std::quantization::{QuantAcc, QuantPropagation, QuantScheme};
 use burn_std::{DType, Shape};
 
@@ -15,7 +15,10 @@ impl<B: Backend> TensorPrimitive<B> {
     /// Returns the full tensor representation.
     pub fn tensor(self) -> B::FloatTensorPrimitive {
         match self {
-            Self::QFloat(tensor) => B::dequantize(tensor),
+            Self::QFloat(tensor) => {
+                let dtype = get_device_settings::<B>(&B::q_device(&tensor)).float_dtype;
+                B::dequantize(tensor, dtype)
+            }
             Self::Float(tensor) => tensor,
         }
     }

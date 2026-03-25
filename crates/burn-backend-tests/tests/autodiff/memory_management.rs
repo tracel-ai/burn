@@ -1,26 +1,26 @@
 use super::*;
-use burn_tensor::{Tensor, TensorData};
+use burn_tensor::TensorData;
 
 #[test]
 fn test_mm_independent_trees() {
     let data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
-    let device = Default::default();
+    let device = AutodiffDevice::new();
 
     // First tree
-    let tensor_0 = TestAutodiffTensor::<2>::from_data(data.clone(), &device).require_grad();
-    let tensor_1 = TestAutodiffTensor::from_data(data.clone(), &device).require_grad();
-    let tensor_2 = TestAutodiffTensor::from_data(data.clone(), &device).require_grad();
-    let tensor_3 = TestAutodiffTensor::from_data(data.clone(), &device).require_grad();
+    let tensor_0 = TestTensor::<2>::from_data(data.clone(), &device).require_grad();
+    let tensor_1 = TestTensor::from_data(data.clone(), &device).require_grad();
+    let tensor_2 = TestTensor::from_data(data.clone(), &device).require_grad();
+    let tensor_3 = TestTensor::from_data(data.clone(), &device).require_grad();
 
     let tensor_4 = tensor_0 * tensor_1;
     let tensor_5 = tensor_2 * tensor_3;
     let tensor_6 = tensor_4 * tensor_5;
 
     // Second tree
-    let tensor_7 = TestAutodiffTensor::<2>::from_data(data.clone(), &device).require_grad();
-    let tensor_8 = TestAutodiffTensor::from_data(data.clone(), &device).require_grad();
-    let tensor_9 = TestAutodiffTensor::from_data(data.clone(), &device).require_grad();
-    let tensor_10 = TestAutodiffTensor::from_data(data.clone(), &device).require_grad();
+    let tensor_7 = TestTensor::<2>::from_data(data.clone(), &device).require_grad();
+    let tensor_8 = TestTensor::from_data(data.clone(), &device).require_grad();
+    let tensor_9 = TestTensor::from_data(data.clone(), &device).require_grad();
+    let tensor_10 = TestTensor::from_data(data.clone(), &device).require_grad();
 
     let tensor_11 = tensor_7.clone() * tensor_8.clone();
     let tensor_12 = tensor_9.clone() * tensor_10.clone();
@@ -39,21 +39,21 @@ fn test_mm_independent_trees() {
 #[should_panic]
 fn test_mm_crossover_trees_root_unavailable() {
     let data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
-    let device = Default::default();
+    let device = AutodiffDevice::new();
 
     // First tree
-    let tensor_0 = TestAutodiffTensor::<2>::from_data(data.clone(), &device).require_grad();
-    let tensor_1 = TestAutodiffTensor::from_data(data.clone(), &device).require_grad();
-    let tensor_2 = TestAutodiffTensor::from_data(data.clone(), &device).require_grad();
-    let tensor_3 = TestAutodiffTensor::from_data(data.clone(), &device).require_grad();
+    let tensor_0 = TestTensor::<2>::from_data(data.clone(), &device).require_grad();
+    let tensor_1 = TestTensor::from_data(data.clone(), &device).require_grad();
+    let tensor_2 = TestTensor::from_data(data.clone(), &device).require_grad();
+    let tensor_3 = TestTensor::from_data(data.clone(), &device).require_grad();
 
     let tensor_4 = tensor_0 * tensor_1;
     let tensor_5 = tensor_2 * tensor_3;
     let tensor_6 = tensor_4.clone() * tensor_5;
 
     // Second tree
-    let tensor_7 = TestAutodiffTensor::<2>::from_data(data.clone(), &device).require_grad();
-    let tensor_8 = TestAutodiffTensor::from_data(data.clone(), &device).require_grad();
+    let tensor_7 = TestTensor::<2>::from_data(data.clone(), &device).require_grad();
+    let tensor_8 = TestTensor::from_data(data.clone(), &device).require_grad();
 
     let tensor_9 = tensor_7.clone() * tensor_8.clone();
     let tensor_10 = tensor_4 * tensor_9;
@@ -65,21 +65,21 @@ fn test_mm_crossover_trees_root_unavailable() {
 #[test]
 fn test_mm_crossover_trees_with_referred_subtree() {
     let data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
-    let device = Default::default();
+    let device = AutodiffDevice::new();
 
     // First tree
-    let tensor_0 = TestAutodiffTensor::<2>::from_data(data.clone(), &device).require_grad();
-    let tensor_1 = TestAutodiffTensor::from_data(data.clone(), &device).require_grad();
-    let tensor_2 = TestAutodiffTensor::from_data(data.clone(), &device).require_grad();
-    let tensor_3 = TestAutodiffTensor::from_data(data.clone(), &device).require_grad();
+    let tensor_0 = TestTensor::<2>::from_data(data.clone(), &device).require_grad();
+    let tensor_1 = TestTensor::from_data(data.clone(), &device).require_grad();
+    let tensor_2 = TestTensor::from_data(data.clone(), &device).require_grad();
+    let tensor_3 = TestTensor::from_data(data.clone(), &device).require_grad();
 
     let tensor_4 = tensor_0 * tensor_1;
     let tensor_5 = tensor_2 * tensor_3;
     let tensor_6 = tensor_4.clone() * tensor_5;
 
     // Second tree
-    let tensor_7 = TestAutodiffTensor::<2>::from_data(data.clone(), &device).require_grad();
-    let tensor_8 = TestAutodiffTensor::from_data(data.clone(), &device).require_grad();
+    let tensor_7 = TestTensor::<2>::from_data(data.clone(), &device).require_grad();
+    let tensor_8 = TestTensor::from_data(data.clone(), &device).require_grad();
 
     let tensor_9 = tensor_7.clone() * tensor_8.clone();
     let _tensor_10 = tensor_4 * tensor_9.clone();
@@ -91,23 +91,23 @@ fn test_mm_crossover_trees_with_referred_subtree() {
 #[test]
 fn test_mm_three_crossover_trees_last_still_usable() {
     let data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
-    let device = Default::default();
+    let device = AutodiffDevice::new();
 
     // First tree
-    let tensor_0 = TestAutodiffTensor::<2>::from_data(data.clone(), &device).require_grad();
-    let tensor_1 = TestAutodiffTensor::from_data(data.clone(), &device).require_grad();
-    let tensor_2 = TestAutodiffTensor::from_data(data.clone(), &device).require_grad();
-    let tensor_3 = TestAutodiffTensor::from_data(data.clone(), &device).require_grad();
+    let tensor_0 = TestTensor::<2>::from_data(data.clone(), &device).require_grad();
+    let tensor_1 = TestTensor::from_data(data.clone(), &device).require_grad();
+    let tensor_2 = TestTensor::from_data(data.clone(), &device).require_grad();
+    let tensor_3 = TestTensor::from_data(data.clone(), &device).require_grad();
 
     let tensor_4 = tensor_0 * tensor_1;
     let tensor_5 = tensor_2 * tensor_3;
     let tensor_6 = tensor_4 * tensor_5.clone();
 
     // Third tree
-    let tensor_7 = TestAutodiffTensor::<2>::from_data(data.clone(), &device).require_grad();
-    let tensor_8 = TestAutodiffTensor::from_data(data.clone(), &device).require_grad();
-    let tensor_9 = TestAutodiffTensor::from_data(data.clone(), &device).require_grad();
-    let tensor_10 = TestAutodiffTensor::from_data(data.clone(), &device).require_grad();
+    let tensor_7 = TestTensor::<2>::from_data(data.clone(), &device).require_grad();
+    let tensor_8 = TestTensor::from_data(data.clone(), &device).require_grad();
+    let tensor_9 = TestTensor::from_data(data.clone(), &device).require_grad();
+    let tensor_10 = TestTensor::from_data(data.clone(), &device).require_grad();
 
     let tensor_11 = tensor_7 * tensor_8;
     let tensor_12 = tensor_9 * tensor_10;
@@ -124,23 +124,23 @@ fn test_mm_three_crossover_trees_last_still_usable() {
 #[should_panic]
 fn test_mm_three_crossover_trees_middle_one_unavailable() {
     let data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
-    let device = Default::default();
+    let device = AutodiffDevice::new();
 
     // First tree
-    let tensor_0 = TestAutodiffTensor::<2>::from_data(data.clone(), &device).require_grad();
-    let tensor_1 = TestAutodiffTensor::from_data(data.clone(), &device).require_grad();
-    let tensor_2 = TestAutodiffTensor::from_data(data.clone(), &device).require_grad();
-    let tensor_3 = TestAutodiffTensor::from_data(data.clone(), &device).require_grad();
+    let tensor_0 = TestTensor::<2>::from_data(data.clone(), &device).require_grad();
+    let tensor_1 = TestTensor::from_data(data.clone(), &device).require_grad();
+    let tensor_2 = TestTensor::from_data(data.clone(), &device).require_grad();
+    let tensor_3 = TestTensor::from_data(data.clone(), &device).require_grad();
 
     let tensor_4 = tensor_0 * tensor_1;
     let tensor_5 = tensor_2 * tensor_3;
     let tensor_6 = tensor_4 * tensor_5.clone();
 
     // Third tree
-    let tensor_7 = TestAutodiffTensor::<2>::from_data(data.clone(), &device).require_grad();
-    let tensor_8 = TestAutodiffTensor::from_data(data.clone(), &device).require_grad();
-    let tensor_9 = TestAutodiffTensor::from_data(data.clone(), &device).require_grad();
-    let tensor_10 = TestAutodiffTensor::from_data(data.clone(), &device).require_grad();
+    let tensor_7 = TestTensor::<2>::from_data(data.clone(), &device).require_grad();
+    let tensor_8 = TestTensor::from_data(data.clone(), &device).require_grad();
+    let tensor_9 = TestTensor::from_data(data.clone(), &device).require_grad();
+    let tensor_10 = TestTensor::from_data(data.clone(), &device).require_grad();
 
     let tensor_11 = tensor_7 * tensor_8;
     let tensor_12 = tensor_9 * tensor_10;
@@ -156,12 +156,12 @@ fn test_mm_three_crossover_trees_middle_one_unavailable() {
 #[test]
 fn test_mm_self_referencing_tree() {
     let data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
-    let device = Default::default();
+    let device = AutodiffDevice::new();
 
     // First tree
-    let tensor_0 = TestAutodiffTensor::<2>::from_data(data.clone(), &device).require_grad();
-    let tensor_1 = TestAutodiffTensor::from_data(data.clone(), &device).require_grad();
-    let tensor_2 = TestAutodiffTensor::from_data(data.clone(), &device).require_grad();
+    let tensor_0 = TestTensor::<2>::from_data(data.clone(), &device).require_grad();
+    let tensor_1 = TestTensor::from_data(data.clone(), &device).require_grad();
+    let tensor_2 = TestTensor::from_data(data.clone(), &device).require_grad();
 
     let tensor_3 = tensor_0 * tensor_1;
     let tensor_5 = tensor_2 * tensor_3.clone();
@@ -173,12 +173,10 @@ fn test_mm_self_referencing_tree() {
 #[test]
 fn test_mm_with_non_impacting_detach() {
     let data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
-    let device = Default::default();
-    let tensor_1 =
-        Tensor::<TestAutodiffBackend, 2>::from_data(data.clone(), &device).require_grad();
-    let tensor_2 =
-        Tensor::<TestAutodiffBackend, 2>::from_data(data.clone(), &device).require_grad();
-    let tensor_3 = Tensor::<TestAutodiffBackend, 2>::from_data(data, &device).require_grad();
+    let device = AutodiffDevice::new();
+    let tensor_1 = TestTensor::<2>::from_data(data.clone(), &device).require_grad();
+    let tensor_2 = TestTensor::<2>::from_data(data.clone(), &device).require_grad();
+    let tensor_3 = TestTensor::<2>::from_data(data, &device).require_grad();
 
     let tensor_4 = tensor_1.clone() * tensor_2.clone();
     let tensor_5 = tensor_4.detach() * tensor_3.clone();
@@ -190,18 +188,17 @@ fn test_mm_with_non_impacting_detach() {
 #[test]
 fn test_mm_with_missing_require_grad_after_cleanup() {
     let data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
-    let device = Default::default();
+    let device = AutodiffDevice::new();
 
-    let tensor_1 =
-        Tensor::<TestAutodiffBackend, 2>::from_data(data.clone(), &device).require_grad();
-    let tensor_2 = Tensor::<TestAutodiffBackend, 2>::from_data(data.clone(), &device);
-    let tensor_3 = Tensor::<TestAutodiffBackend, 2>::from_data(data.clone(), &device);
+    let tensor_1 = TestTensor::<2>::from_data(data.clone(), &device).require_grad();
+    let tensor_2 = TestTensor::<2>::from_data(data.clone(), &device);
+    let tensor_3 = TestTensor::<2>::from_data(data.clone(), &device);
 
     let tensor_4 = tensor_1.clone() * tensor_2.clone();
     let tensor_5 = tensor_4 * tensor_3.clone();
 
     // Trivial backward, just to trigger cleanup
-    Tensor::<TestAutodiffBackend, 2>::from_data(data, &device)
+    TestTensor::<2>::from_data(data, &device)
         .require_grad()
         .backward();
 
@@ -214,20 +211,17 @@ fn test_mm_with_missing_require_grad_after_cleanup() {
 #[test]
 fn test_mm_with_detach_after_cleanup() {
     let data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
-    let device = Default::default();
+    let device = AutodiffDevice::new();
 
-    let tensor_1 =
-        Tensor::<TestAutodiffBackend, 2>::from_data(data.clone(), &device).require_grad();
-    let tensor_2 =
-        Tensor::<TestAutodiffBackend, 2>::from_data(data.clone(), &device).require_grad();
-    let tensor_3 =
-        Tensor::<TestAutodiffBackend, 2>::from_data(data.clone(), &device).require_grad();
+    let tensor_1 = TestTensor::<2>::from_data(data.clone(), &device).require_grad();
+    let tensor_2 = TestTensor::<2>::from_data(data.clone(), &device).require_grad();
+    let tensor_3 = TestTensor::<2>::from_data(data.clone(), &device).require_grad();
 
     let tensor_4 = tensor_1.clone() * tensor_2.clone();
     let tensor_5 = tensor_4 * tensor_3.clone().detach();
 
     // Trivial backward, just to trigger cleanup
-    Tensor::<TestAutodiffBackend, 2>::from_data(data, &device)
+    TestTensor::<2>::from_data(data, &device)
         .require_grad()
         .backward();
 
@@ -241,12 +235,10 @@ fn test_mm_with_detach_after_cleanup() {
 #[should_panic]
 fn test_mm_deletables_propagate_well() {
     let data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
-    let device = Default::default();
+    let device = AutodiffDevice::new();
 
-    let tensor_0 =
-        Tensor::<TestAutodiffBackend, 2>::from_data(data.clone(), &device).require_grad();
-    let tensor_1 =
-        Tensor::<TestAutodiffBackend, 2>::from_data(data.clone(), &device).require_grad();
+    let tensor_0 = TestTensor::<2>::from_data(data.clone(), &device).require_grad();
+    let tensor_1 = TestTensor::<2>::from_data(data.clone(), &device).require_grad();
 
     let tensor_2 = tensor_0 * tensor_1;
     let tensor_3 = tensor_2.clone().exp();
@@ -262,15 +254,13 @@ fn test_mm_deletables_propagate_well() {
 #[test]
 fn test_mm_node_explored_once_can_still_be_tagged_as_useful_when_found_again_deeper() {
     let data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
-    let device = Default::default();
+    let device = AutodiffDevice::new();
 
     // The test has 50% chance of starting with leaf tensor_8 instead of tensor_4, which is not informative
     // By repeating it many times it becomes almost impossible that it passes if it shouldn't
     for _ in 0..12 {
-        let tensor_0 =
-            Tensor::<TestAutodiffBackend, 2>::from_data(data.clone(), &device).require_grad();
-        let tensor_1 =
-            Tensor::<TestAutodiffBackend, 2>::from_data(data.clone(), &device).require_grad();
+        let tensor_0 = TestTensor::<2>::from_data(data.clone(), &device).require_grad();
+        let tensor_1 = TestTensor::<2>::from_data(data.clone(), &device).require_grad();
 
         let tensor_2 = tensor_1.clone().exp();
         let tensor_3 = tensor_0.exp();

@@ -1,3 +1,4 @@
+use alloc::vec::Vec;
 use burn_backend::{
     BoolDType, ExecutionError, FloatDType, IntDType, Scalar, Shape, Slice, TensorData,
     ops::IntTensorOps,
@@ -290,9 +291,10 @@ impl IntTensorOps<Self> for Dispatch {
         shape: Shape,
         distribution: burn_backend::Distribution,
         device: &DispatchDevice,
+        dtype: IntDType,
     ) -> IntTensor<Self> {
         creation_op!(Int, device, |device| {
-            B::int_random(shape, distribution, device)
+            B::int_random(shape, distribution, device, dtype)
         })
     }
 
@@ -479,7 +481,7 @@ impl IntTensorOps<Self> for Dispatch {
     }
 
     fn int_arange_step(
-        range: std::ops::Range<i64>,
+        range: core::ops::Range<i64>,
         step: usize,
         device: &DispatchDevice,
         dtype: IntDType,
@@ -490,7 +492,7 @@ impl IntTensorOps<Self> for Dispatch {
     }
 
     fn int_arange(
-        range: std::ops::Range<i64>,
+        range: core::ops::Range<i64>,
         device: &DispatchDevice,
         dtype: IntDType,
     ) -> IntTensor<Self> {

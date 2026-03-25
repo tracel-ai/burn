@@ -1,5 +1,5 @@
 use super::*;
-use burn_tensor::{Bool, Tensor, TensorData};
+use burn_tensor::TensorData;
 
 #[test]
 fn test_autodiff_checkpoint_complicated_computation() {
@@ -9,12 +9,12 @@ fn test_autodiff_checkpoint_complicated_computation() {
     let data_3 = TensorData::from([[0.3, 7.0], [7.0, 7.0]]);
     let data_4 = TensorData::from([[0.4, 7.0], [7.0, 7.0]]);
 
-    let device = Default::default();
-    let tensor_0 = TestAutodiffTensor::<2>::from_data(data_0, &device).require_grad();
-    let tensor_1 = TestAutodiffTensor::from_data(data_1, &device).require_grad();
-    let tensor_2 = TestAutodiffTensor::from_data(data_2, &device).require_grad();
-    let tensor_3 = TestAutodiffTensor::from_data(data_3, &device).require_grad();
-    let tensor_4 = TestAutodiffTensor::from_data(data_4, &device).require_grad();
+    let device = AutodiffDevice::new();
+    let tensor_0 = TestTensor::<2>::from_data(data_0, &device).require_grad();
+    let tensor_1 = TestTensor::from_data(data_1, &device).require_grad();
+    let tensor_2 = TestTensor::from_data(data_2, &device).require_grad();
+    let tensor_3 = TestTensor::from_data(data_3, &device).require_grad();
+    let tensor_4 = TestTensor::from_data(data_4, &device).require_grad();
 
     let tensor_5 = compute_bound_eager(tensor_0, tensor_1);
     let tensor_6 = compute_bound_lazy(tensor_2, tensor_3.clone());
@@ -33,9 +33,9 @@ fn test_autodiff_checkpoint_with_missing_requirement() {
     let data_0 = TensorData::from([[0.0, 7.0], [7.0, 7.0]]);
     let data_1 = TensorData::from([[0.1, 7.0], [7.0, 7.0]]);
 
-    let device = Default::default();
-    let tensor_0 = TestAutodiffTensor::<2>::from_data(data_0, &device).require_grad();
-    let tensor_1 = TestAutodiffTensor::from_data(data_1, &device); // does not require_grad
+    let device = AutodiffDevice::new();
+    let tensor_0 = TestTensor::<2>::from_data(data_0, &device).require_grad();
+    let tensor_1 = TestTensor::from_data(data_1, &device); // does not require_grad
 
     let tensor_2 = memory_bound_eager(tensor_0, tensor_1);
     let tensor_3 = memory_bound_eager_scalar(tensor_2.clone(), 11.);
@@ -52,8 +52,8 @@ fn test_autodiff_checkpoint_with_missing_requirement() {
 fn test_autodiff_checkpoint_with_many_duplicates() {
     let data_0 = TensorData::from([[4.0, 7.0], [7.0, 7.0]]);
 
-    let device = Default::default();
-    let tensor_0 = TestAutodiffTensor::<2>::from_data(data_0, &device).require_grad();
+    let device = AutodiffDevice::new();
+    let tensor_0 = TestTensor::<2>::from_data(data_0, &device).require_grad();
 
     let tensor_1 = memory_bound_eager(tensor_0.clone(), tensor_0.clone());
     let tensor_2 = compute_bound_eager(tensor_0.clone(), tensor_0.clone());
@@ -80,12 +80,12 @@ fn test_autodiff_checkpoint_with_long_chain_of_eager_memory_bound() {
     let data_3 = TensorData::from([[0.3, 7.0], [7.0, 7.0]]);
     let data_4 = TensorData::from([[0.4, 7.0], [7.0, 7.0]]);
 
-    let device = Default::default();
-    let tensor_0 = TestAutodiffTensor::<2>::from_data(data_0, &device).require_grad();
-    let tensor_1 = TestAutodiffTensor::from_data(data_1, &device);
-    let tensor_2 = TestAutodiffTensor::from_data(data_2, &device).require_grad();
-    let tensor_3 = TestAutodiffTensor::from_data(data_3, &device).require_grad();
-    let tensor_4 = TestAutodiffTensor::from_data(data_4, &device).require_grad();
+    let device = AutodiffDevice::new();
+    let tensor_0 = TestTensor::<2>::from_data(data_0, &device).require_grad();
+    let tensor_1 = TestTensor::from_data(data_1, &device);
+    let tensor_2 = TestTensor::from_data(data_2, &device).require_grad();
+    let tensor_3 = TestTensor::from_data(data_3, &device).require_grad();
+    let tensor_4 = TestTensor::from_data(data_4, &device).require_grad();
 
     let tensor_5 = memory_bound_eager(tensor_0, tensor_1.clone());
     let tensor_6 = memory_bound_eager(tensor_5, tensor_2);
@@ -105,13 +105,13 @@ fn test_autodiff_checkpoint_half_sub_graph_not_tracked() {
     let data_4 = TensorData::from([[0.4, 7.0], [7.0, 7.0]]);
     let data_5 = TensorData::from([[0.5, 7.0], [7.0, 7.0]]);
 
-    let device = Default::default();
-    let tensor_0 = TestAutodiffTensor::<2>::from_data(data_0, &device);
-    let tensor_1 = TestAutodiffTensor::from_data(data_1, &device);
-    let tensor_2 = TestAutodiffTensor::from_data(data_2, &device);
-    let tensor_3 = TestAutodiffTensor::from_data(data_3, &device).require_grad();
-    let tensor_4 = TestAutodiffTensor::from_data(data_4, &device).require_grad();
-    let tensor_5 = TestAutodiffTensor::from_data(data_5, &device).require_grad();
+    let device = AutodiffDevice::new();
+    let tensor_0 = TestTensor::<2>::from_data(data_0, &device);
+    let tensor_1 = TestTensor::from_data(data_1, &device);
+    let tensor_2 = TestTensor::from_data(data_2, &device);
+    let tensor_3 = TestTensor::from_data(data_3, &device).require_grad();
+    let tensor_4 = TestTensor::from_data(data_4, &device).require_grad();
+    let tensor_5 = TestTensor::from_data(data_5, &device).require_grad();
 
     let tensor_6 = memory_bound_lazy(tensor_0, tensor_1);
     let tensor_7 = compute_bound_eager(tensor_6, tensor_2);
@@ -132,12 +132,12 @@ fn test_autodiff_checkpoint_very_complex() {
     let data_3 = TensorData::from([[0.3, 7.0], [7.0, 7.0]]);
     let data_4 = TensorData::from([[0.4, 7.0], [7.0, 7.0]]);
 
-    let device = Default::default();
-    let tensor_0 = TestAutodiffTensor::<2>::from_data(data_0, &device).require_grad();
-    let tensor_1 = TestAutodiffTensor::from_data(data_1, &device);
-    let tensor_2 = TestAutodiffTensor::from_data(data_2, &device).require_grad();
-    let tensor_3 = TestAutodiffTensor::from_data(data_3, &device).require_grad();
-    let tensor_4 = TestAutodiffTensor::from_data(data_4, &device).require_grad();
+    let device = AutodiffDevice::new();
+    let tensor_0 = TestTensor::<2>::from_data(data_0, &device).require_grad();
+    let tensor_1 = TestTensor::from_data(data_1, &device);
+    let tensor_2 = TestTensor::from_data(data_2, &device).require_grad();
+    let tensor_3 = TestTensor::from_data(data_3, &device).require_grad();
+    let tensor_4 = TestTensor::from_data(data_4, &device).require_grad();
 
     let tensor_5 = memory_bound_eager_scalar(tensor_0, 8.);
     let tensor_6 = memory_bound_lazy(tensor_5.clone(), tensor_1.clone());
@@ -160,7 +160,7 @@ fn test_autodiff_checkpoint_very_complex() {
     assert_checkpoint(tensor_21)
 }
 
-fn assert_checkpoint<const D: usize>(tensor: TestAutodiffTensor<D>) {
+fn assert_checkpoint<const D: usize>(tensor: TestTensor<D>) {
     // Assert is not explicit here, but the test can fail
     // - when a tensor is actually required more than n_required, it won't be found and will panic
     // - when a tensor is actually required less than n_required, the backward states map won't be
@@ -170,46 +170,40 @@ fn assert_checkpoint<const D: usize>(tensor: TestAutodiffTensor<D>) {
 
 // Does not save its state and does not need its parents
 fn memory_bound_eager<const D: usize>(
-    tensor_a: TestAutodiffTensor<D>,
-    tensor_b: TestAutodiffTensor<D>,
-) -> TestAutodiffTensor<D> {
+    tensor_a: TestTensor<D>,
+    tensor_b: TestTensor<D>,
+) -> TestTensor<D> {
     tensor_a.add(tensor_b)
 }
-fn memory_bound_eager_scalar<const D: usize>(
-    tensor_a: TestAutodiffTensor<D>,
-    b: f32,
-) -> TestAutodiffTensor<D> {
+fn memory_bound_eager_scalar<const D: usize>(tensor_a: TestTensor<D>, b: f32) -> TestTensor<D> {
     tensor_a.add_scalar(b)
 }
 
 // Saves its own state and does not need its parents
 fn compute_bound_eager<const D: usize>(
-    tensor_a: TestAutodiffTensor<D>,
-    tensor_b: TestAutodiffTensor<D>,
-) -> TestAutodiffTensor<D> {
-    let mask = Tensor::<TestAutodiffBackend, D, Bool>::empty(tensor_a.shape(), &tensor_a.device());
+    tensor_a: TestTensor<D>,
+    tensor_b: TestTensor<D>,
+) -> TestTensor<D> {
+    let mask = TestTensorBool::<D>::empty(tensor_a.shape(), &tensor_a.device());
     tensor_a.mask_where(mask, tensor_b)
 }
-fn compute_bound_eager_scalar<const D: usize>(
-    tensor_a: TestAutodiffTensor<D>,
-    b: f32,
-) -> TestAutodiffTensor<D> {
-    let mask = Tensor::<TestAutodiffBackend, D, Bool>::empty(tensor_a.shape(), &tensor_a.device());
+fn compute_bound_eager_scalar<const D: usize>(tensor_a: TestTensor<D>, b: f32) -> TestTensor<D> {
+    let mask = TestTensorBool::<D>::empty(tensor_a.shape(), &tensor_a.device());
     tensor_a.mask_fill(mask, b)
 }
 
 // Does not save its state and needs its parents
 fn memory_bound_lazy<const D: usize>(
-    tensor_a: TestAutodiffTensor<D>,
-    tensor_b: TestAutodiffTensor<D>,
-) -> TestAutodiffTensor<D> {
+    tensor_a: TestTensor<D>,
+    tensor_b: TestTensor<D>,
+) -> TestTensor<D> {
     tensor_a.mul(tensor_b)
 }
 
 // Saves its own state and needs its parents
 fn compute_bound_lazy<const D: usize>(
-    tensor_a: TestAutodiffTensor<D>,
-    tensor_b: TestAutodiffTensor<D>,
-) -> TestAutodiffTensor<D> {
+    tensor_a: TestTensor<D>,
+    tensor_b: TestTensor<D>,
+) -> TestTensor<D> {
     tensor_a.matmul(tensor_b)
 }

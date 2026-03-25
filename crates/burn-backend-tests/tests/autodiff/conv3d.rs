@@ -24,9 +24,9 @@ fn test_conv3d_basic() {
         height: 4,
         width: 4,
     };
-    let device = Default::default();
+    let device = AutodiffDevice::new();
     let grads = Grads {
-        x: TestTensor::from_floats(
+        x: TestTensor::from_data(
             [
                 [
                     [
@@ -139,7 +139,7 @@ fn test_conv3d_basic() {
             ],
             &device,
         ),
-        weight: TestTensor::from_floats(
+        weight: TestTensor::from_data(
             [
                 [
                     [
@@ -216,7 +216,7 @@ fn test_conv3d_basic() {
             ],
             &device,
         ),
-        bias: TestTensor::from_floats([128., 128.], &device),
+        bias: TestTensor::from_data([128., 128.], &device),
     };
     test.assert_grads(grads);
 }
@@ -244,9 +244,9 @@ fn test_conv3d_complex() {
         height: 6,
         width: 7,
     };
-    let device = Default::default();
+    let device = AutodiffDevice::new();
     let grads = Grads {
-        x: TestTensor::from_floats(
+        x: TestTensor::from_data(
             [[
                 [
                     [
@@ -335,7 +335,7 @@ fn test_conv3d_complex() {
             ]],
             &device,
         ),
-        weight: TestTensor::from_floats(
+        weight: TestTensor::from_data(
             [
                 [
                     [
@@ -418,7 +418,7 @@ fn test_conv3d_complex() {
             ],
             &device,
         ),
-        bias: TestTensor::from_floats([10., 10., 10.], &device),
+        bias: TestTensor::from_data([10., 10., 10.], &device),
     };
     test.assert_grads(grads);
 }
@@ -446,9 +446,9 @@ fn test_conv3d_groups_stride_2_no_pad() {
         height: 4,
         width: 4,
     };
-    let device = Default::default();
+    let device = AutodiffDevice::new();
     let grads = Grads {
-        x: TestTensor::from_floats(
+        x: TestTensor::from_data(
             [[
                 [
                     [
@@ -557,7 +557,7 @@ fn test_conv3d_groups_stride_2_no_pad() {
             ]],
             &device,
         ),
-        weight: TestTensor::from_floats(
+        weight: TestTensor::from_data(
             [
                 [
                     [
@@ -586,7 +586,7 @@ fn test_conv3d_groups_stride_2_no_pad() {
             ],
             &device,
         ),
-        bias: TestTensor::from_floats([1., 1.], &device),
+        bias: TestTensor::from_data([1., 1.], &device),
     };
     test.assert_grads(grads);
 }
@@ -635,20 +635,20 @@ impl Conv3dTestCase {
             self.kernel_size_2,
             self.kernel_size_3,
         ]);
-        let device = Default::default();
-        let weight = TestAutodiffTensor::from_data(
+        let device = AutodiffDevice::new();
+        let weight = TestTensor::from_data(
             TestTensorInt::arange(0..shape_weight.num_elements() as i64, &device)
                 .reshape::<5, _>(shape_weight)
                 .into_data(),
             &device,
         )
         .require_grad();
-        let bias = TestAutodiffTensor::from_data(
+        let bias = TestTensor::from_data(
             TestTensorInt::arange(0..self.channels_out as i64, &device).into_data(),
             &device,
         )
         .require_grad();
-        let x = TestAutodiffTensor::from_data(
+        let x = TestTensor::from_data(
             TestTensorInt::arange(0..shape_x.num_elements() as i64, &device)
                 .reshape::<5, _>(shape_x)
                 .into_data(),

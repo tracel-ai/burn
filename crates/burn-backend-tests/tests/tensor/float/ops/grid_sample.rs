@@ -14,11 +14,11 @@ use burn_tensor::{
 #[test]
 fn should_grid_sample_2d_default() {
     let device = Default::default();
-    let tensor = TestTensor::<4>::from_floats(
+    let tensor = TestTensor::<4>::from_data(
         [[[[0.0, 1.0, 2.0], [3.0, 4.0, 5.0], [6.0, 7.0, 8.0]]]],
         &device,
     );
-    let grid = TestTensor::<4>::from_floats(
+    let grid = TestTensor::<4>::from_data(
         [[[[0.0, 0.0], [-1.0, 0.25]], [[1.0, 1.0], [0.2, -0.8]]]],
         &device,
     );
@@ -38,11 +38,11 @@ fn should_grid_sample_2d_default() {
 #[test]
 fn should_grid_sample_2d_align_corners_border() {
     let device = Default::default();
-    let tensor = TestTensor::<4>::from_floats(
+    let tensor = TestTensor::<4>::from_data(
         [[[[0.0, 1.0, 2.0], [3.0, 4.0, 5.0], [6.0, 7.0, 8.0]]]],
         &device,
     );
-    let grid = TestTensor::<4>::from_floats(
+    let grid = TestTensor::<4>::from_data(
         [[[[0.0, 0.0], [-1.0, 0.25]], [[1.0, 1.0], [0.2, -0.8]]]],
         &device,
     );
@@ -64,11 +64,11 @@ fn should_grid_sample_2d_align_corners_border() {
 #[test]
 fn should_pad_zeros_grid_sample_2d() {
     let device = Default::default();
-    let tensor = TestTensor::<4>::from_floats(
+    let tensor = TestTensor::<4>::from_data(
         [[[[0.0, 1.0, 2.0], [3.0, 4.0, 5.0], [6.0, 7.0, 8.0]]]],
         &device,
     );
-    let grid = TestTensor::<4>::from_floats([[[[0.0, -2.0]]]], &device);
+    let grid = TestTensor::<4>::from_data([[[[0.0, -2.0]]]], &device);
 
     let output = tensor.grid_sample_2d(grid, GridSampleOptions::default());
 
@@ -83,11 +83,11 @@ fn should_pad_zeros_grid_sample_2d() {
 #[test]
 fn should_pad_border_grid_sample_2d() {
     let device = Default::default();
-    let tensor = TestTensor::<4>::from_floats(
+    let tensor = TestTensor::<4>::from_data(
         [[[[0.0, 1.0, 2.0], [3.0, 4.0, 5.0], [6.0, 7.0, 8.0]]]],
         &device,
     );
-    let grid = TestTensor::<4>::from_floats([[[[0.0, -2.0]]]], &device);
+    let grid = TestTensor::<4>::from_data([[[[0.0, -2.0]]]], &device);
 
     let options = GridSampleOptions::new(InterpolateMode::Bilinear)
         .with_padding_mode(GridSamplePaddingMode::Border);
@@ -105,11 +105,11 @@ fn should_pad_border_grid_sample_2d() {
 #[test]
 fn should_pad_reflection_grid_sample_2d() {
     let device = Default::default();
-    let tensor = TestTensor::<4>::from_floats(
+    let tensor = TestTensor::<4>::from_data(
         [[[[0.0, 1.0, 2.0], [3.0, 4.0, 5.0], [6.0, 7.0, 8.0]]]],
         &device,
     );
-    let grid = TestTensor::<4>::from_floats(
+    let grid = TestTensor::<4>::from_data(
         [[[[0.0, 0.0], [-1.0, 0.25]], [[1.0, 1.0], [0.2, -0.8]]]],
         &device,
     );

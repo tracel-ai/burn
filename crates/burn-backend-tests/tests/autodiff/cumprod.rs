@@ -4,9 +4,9 @@ use burn_tensor::{TensorData, Tolerance};
 #[test]
 fn should_diff_cumprod() {
     // Simple test to verify cumprod gradients work
-    let device = Default::default();
-    let tensor = TestAutodiffTensor::<1>::from_data(TensorData::from([2.0, 3.0, 4.0]), &device)
-        .require_grad();
+    let device = AutodiffDevice::new();
+    let tensor =
+        TestTensor::<1>::from_data(TensorData::from([2.0, 3.0, 4.0]), &device).require_grad();
 
     let output = tensor.clone().cumprod(0);
     let grads = output.sum().backward();
@@ -21,8 +21,8 @@ fn should_diff_cumprod() {
 #[test]
 fn should_diff_cumprod_2d() {
     // Test 2D cumprod gradients
-    let device = Default::default();
-    let tensor = TestAutodiffTensor::<2>::from_data(
+    let device = AutodiffDevice::new();
+    let tensor = TestTensor::<2>::from_data(
         TensorData::from([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]),
         &device,
     )
@@ -59,10 +59,9 @@ fn should_diff_cumprod_2d() {
 #[ignore = "cumprod gradient with zeros not yet implemented - produces NaN due to division by zero"]
 fn should_diff_cumprod_zero_in_middle() {
     // Test cumprod with zero in the middle - edge case for division
-    let device = Default::default();
+    let device = AutodiffDevice::new();
     let tensor =
-        TestAutodiffTensor::<1>::from_data(TensorData::from([2.0, 0.0, 3.0, 4.0]), &device)
-            .require_grad();
+        TestTensor::<1>::from_data(TensorData::from([2.0, 0.0, 3.0, 4.0]), &device).require_grad();
 
     let output = tensor.clone().cumprod(0);
     let grads = output.sum().backward();
@@ -78,10 +77,9 @@ fn should_diff_cumprod_zero_in_middle() {
 #[ignore = "cumprod gradient with zeros not yet implemented - produces NaN due to division by zero"]
 fn should_diff_cumprod_zero_at_start() {
     // Test cumprod with zero at the beginning
-    let device = Default::default();
+    let device = AutodiffDevice::new();
     let tensor =
-        TestAutodiffTensor::<1>::from_data(TensorData::from([0.0, 2.0, 3.0, 4.0]), &device)
-            .require_grad();
+        TestTensor::<1>::from_data(TensorData::from([0.0, 2.0, 3.0, 4.0]), &device).require_grad();
 
     let output = tensor.clone().cumprod(0);
     let grads = output.sum().backward();
@@ -97,10 +95,9 @@ fn should_diff_cumprod_zero_at_start() {
 #[ignore = "cumprod gradient with zeros not yet implemented - produces NaN due to division by zero"]
 fn should_diff_cumprod_zero_at_end() {
     // Test cumprod with zero at the end
-    let device = Default::default();
+    let device = AutodiffDevice::new();
     let tensor =
-        TestAutodiffTensor::<1>::from_data(TensorData::from([2.0, 3.0, 4.0, 0.0]), &device)
-            .require_grad();
+        TestTensor::<1>::from_data(TensorData::from([2.0, 3.0, 4.0, 0.0]), &device).require_grad();
 
     let output = tensor.clone().cumprod(0);
     let grads = output.sum().backward();
@@ -116,10 +113,9 @@ fn should_diff_cumprod_zero_at_end() {
 #[ignore = "cumprod gradient with zeros not yet implemented - produces NaN due to division by zero"]
 fn should_diff_cumprod_multiple_zeros() {
     // Test cumprod with multiple zeros
-    let device = Default::default();
-    let tensor =
-        TestAutodiffTensor::<1>::from_data(TensorData::from([2.0, 0.0, 3.0, 0.0, 5.0]), &device)
-            .require_grad();
+    let device = AutodiffDevice::new();
+    let tensor = TestTensor::<1>::from_data(TensorData::from([2.0, 0.0, 3.0, 0.0, 5.0]), &device)
+        .require_grad();
 
     let output = tensor.clone().cumprod(0);
     let grads = output.sum().backward();
