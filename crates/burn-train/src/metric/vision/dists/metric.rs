@@ -457,6 +457,7 @@ mod tests {
 
     /// Test DISTS pretrained weights download and loading.
     #[test]
+    #[ignore = "downloads pre-trained weights"]
     fn test_dists_pretrained() {
         let device = Default::default();
 
