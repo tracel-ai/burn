@@ -118,6 +118,35 @@ fn test_float_matmul_batch_vec_mat() {
 }
 
 #[test]
+fn test_float_matmul_vec2mat() {
+    let device = Default::default();
+
+    // [..., B, 1, K] = [3, 1, 2]
+    let tensor_1 = TestTensor::<3>::from_data([[[1.0, 7.0]], [[2.0, 3.0]], [[1.0, 5.0]]], &device);
+
+    // [..., B, K, N] = [3, 2, 3]
+    let tensor_2 = TestTensor::<3>::from_data(
+        [
+            [[1.0, 4.0, 5.0], [3.0, 5.0, 6.0]],
+            [[8.0, 2.0, 3.0], [0.0, 2.0, 4.0]],
+            [[4.0, 7.0, 5.0], [2.0, 3.0, 5.0]],
+        ],
+        &device,
+    );
+
+    let tensor_3 = tensor_1.matmul(tensor_2);
+
+    // [..., B, 1, N] = [3, 1, 3]
+    let expected = TensorData::from([
+        [[22.0, 39.0, 47.0]],
+        [[16.0, 10.0, 18.0]],
+        [[14.0, 22.0, 30.0]],
+    ]);
+
+    tensor_3.into_data().assert_eq(&expected, false);
+}
+
+#[test]
 fn test_float_matmul_trivial() {
     let device = Default::default();
 
