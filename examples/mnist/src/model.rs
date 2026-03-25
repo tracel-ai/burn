@@ -6,7 +6,7 @@ use burn::{
         pool::{MaxPool2d, MaxPool2dConfig},
     },
     prelude::*,
-    tensor::backend::AutodiffBackend,
+    tensor::backend::{AutodiffBackend, DeviceOps},
     train::{ClassificationOutput, InferenceStep, TrainOutput, TrainStep},
 };
 
@@ -75,7 +75,21 @@ impl<B: Backend> Model<B> {
 
     pub fn forward_classification(&self, item: MnistBatch<B>) -> ClassificationOutput<B> {
         let targets = item.targets;
+
+        println!(
+            "[{:?}] model fw : {:?}",
+            std::thread::current().id(),
+            item.images.device().id()
+        );
+
         let output = self.forward(item.images);
+
+        println!(
+            "[{:?}] model loss : {:?}",
+            std::thread::current().id(),
+            output.device().id()
+        );
+
         let loss = CrossEntropyLossConfig::new()
             .init(&output.device())
             .forward(output.clone(), targets.clone());
@@ -139,7 +153,19 @@ impl<B: AutodiffBackend> TrainStep for Model<B> {
     type Output = ClassificationOutput<B>;
 
     fn step(&self, item: MnistBatch<B>) -> TrainOutput<ClassificationOutput<B>> {
+        println!(
+            "[{:?}] Mnist fw : {:?}",
+            std::thread::current().id(),
+            item.targets.device().id()
+        );
+
         let item = self.forward_classification(item);
+
+        println!(
+            "[{:?}] Mnist bw : {:?}",
+            std::thread::current().id(),
+            item.targets.device().id()
+        );
 
         TrainOutput::new(self, item.loss.backward(), item)
     }
