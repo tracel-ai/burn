@@ -122,6 +122,7 @@ pub fn handle_command(
                 test: None,
                 force: false,
                 no_capture: false,
+                miri: false,
             },
             env.clone(),
             Context::Std,
