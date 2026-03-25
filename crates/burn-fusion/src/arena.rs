@@ -21,7 +21,7 @@ pub struct Arena<const MAX_ITEM_COUNT: usize, const MAX_ITEM_SIZE: usize> {
 pub struct UnInit;
 pub struct Init;
 
-pub struct ReservedMemory<const MAX_ITEM_SIZE: usize, I = Init> {
+pub struct ReservedMemory<const MAX_ITEM_SIZE: usize, I: 'static = Init> {
     data: *mut Bytes<MAX_ITEM_SIZE>,
     count: Arc<()>,
     drop_fn: fn(&mut Bytes<MAX_ITEM_SIZE>),
@@ -84,8 +84,13 @@ impl<const MAX_ITEM_SIZE: usize> Clone for ReservedMemory<MAX_ITEM_SIZE> {
     }
 }
 
-impl<const MAX_ITEM_SIZE: usize, I> Drop for ReservedMemory<MAX_ITEM_SIZE, I> {
+impl<const MAX_ITEM_SIZE: usize, I: 'static> Drop for ReservedMemory<MAX_ITEM_SIZE, I> {
     fn drop(&mut self) {
+        // The reserved memory isn't init, no drop to call.
+        if core::any::TypeId::of::<I>() != core::any::TypeId::of::<Init>() {
+            return;
+        }
+
         if Arc::strong_count(&self.count) == 2 {
             // # Safety
             //
@@ -131,6 +136,8 @@ impl<const MAX_ITEM_COUNT: usize, const MAX_ITEM_SIZE: usize> Arena<MAX_ITEM_COU
     /// If the arena is empty, it lazily initializes the buffer to `MAX_ITEM_COUNT`.
     /// It searches starting from the current `cursor` position for an item with a
     /// `count` of 0.
+    ///
+    /// The drop function is only called when the reserved memory is initialized.
     ///
     /// # Returns
     /// - `Some((index, *mut Item))`: The index and a raw pointer to the reserved item.
