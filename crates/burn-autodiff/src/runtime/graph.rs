@@ -117,7 +117,20 @@ impl AutodiffClient for GraphMutexClient {
                 .backward::<GraphCleaner, B>(root.node, root.primitive, node_id)
         }; // lock released
 
+        use burn_backend::DeviceOps;
+        println!(
+            "[{:?}] cleanup orphans : {:?}",
+            std::thread::current().id(),
+            device.id()
+        );
+
         GraphCleaner::cleanup_orphaned_entries();
+
+        println!(
+            "[{:?}] cleanup orphans : {:?}",
+            std::thread::current().id(),
+            device.id()
+        );
 
         grads.sync_collective::<B>(&device);
         grads

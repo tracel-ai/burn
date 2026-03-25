@@ -61,6 +61,14 @@ impl AutodiffServer {
         root_tensor: FloatTensor<B>,
         node_id: NodeId,
     ) -> Gradients {
+        use burn_backend::DeviceOps;
+        let device = B::float_device(&root_tensor);
+        println!(
+            "[{:?}] Backward server : {:?}",
+            std::thread::current().id(),
+            device.id()
+        );
+
         let step = self.steps.remove(&node_id).expect(
             "Node should have a step registered, did you forget to call \
              `Tensor::register_grad` on the tensor where you need gradients?",
@@ -69,6 +77,12 @@ impl AutodiffServer {
 
         let mut consumed = Vec::new();
         let tape_result = self.build_tape(node_id, step, builder, &mut consumed);
+
+        println!(
+            "[{:?}] Compute gradients server : {:?}",
+            std::thread::current().id(),
+            device.id()
+        );
 
         let gradients = self.compute_gradients::<B>(root_node, root_tensor, tape_result);
 
