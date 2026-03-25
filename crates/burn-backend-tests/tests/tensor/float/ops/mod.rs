@@ -8,6 +8,7 @@ mod any;
 mod arg;
 mod cast;
 mod cat;
+mod categorical;
 mod ceil;
 mod chunk;
 mod clamp;
