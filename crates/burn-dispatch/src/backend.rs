@@ -10,6 +10,8 @@ use burn_autodiff::grads::Gradients;
 #[cfg(feature = "autodiff")]
 use burn_backend::AutodiffBackend;
 
+#[allow(unused)]
+use crate::BackendId;
 use crate::DispatchTensorKind;
 use crate::backends::*;
 use crate::{DispatchDevice, DispatchTensor};
@@ -83,6 +85,28 @@ impl Backend for Dispatch {
             _ => false,
         }
     }
+
+    fn device_count(type_id: u16) -> usize {
+        let (dispatch_id, backend_type_id) = DispatchDevice::decode_type_id(type_id);
+        match dispatch_id {
+            #[cfg(feature = "cpu")]
+            BackendId::Cpu => Cpu::<f32>::device_count(backend_type_id),
+            #[cfg(feature = "cuda")]
+            BackendId::Cuda => Cuda::<f32>::device_count(backend_type_id),
+            #[cfg(wgpu_metal)]
+            BackendId::Metal => Metal::<f32>::device_count(backend_type_id),
+            #[cfg(feature = "rocm")]
+            BackendId::Rocm => Rocm::<f32>::device_count(backend_type_id),
+            #[cfg(wgpu_vulkan)]
+            BackendId::Vulkan => Vulkan::<f32>::device_count(backend_type_id),
+            #[cfg(wgpu_webgpu)]
+            BackendId::WebGpu => WebGpu::<f32>::device_count(backend_type_id),
+            #[cfg(feature = "ndarray")]
+            BackendId::NdArray => NdArray::<f32>::device_count(backend_type_id),
+            #[cfg(feature = "tch")]
+            BackendId::LibTorch => LibTorch::<f32>::device_count(backend_type_id),
+        }
+    }
 }
 
 #[cfg(feature = "autodiff")]
@@ -110,6 +134,8 @@ impl AutodiffBackend for Dispatch {
                 DispatchTensorKind::WebGpu(tensor) => tensor.autodiff().backward(),
                 #[cfg(feature = "ndarray")]
                 DispatchTensorKind::NdArray(tensor) => tensor.autodiff().backward(),
+                #[cfg(feature = "tch")]
+                DispatchTensorKind::LibTorch(tensor) => tensor.autodiff().backward(),
                 DispatchTensorKind::Autodiff(_) => {
                     panic!("Autodiff should not wrap an autodiff tensor.")
                 }
@@ -161,6 +187,11 @@ impl AutodiffBackend for Dispatch {
                     .as_autodiff()
                     .grad(grads)
                     .map(|t| DispatchTensorKind::NdArray(crate::BackendTensor::Float(t))),
+                #[cfg(feature = "tch")]
+                DispatchTensorKind::LibTorch(tensor) => tensor
+                    .as_autodiff()
+                    .grad(grads)
+                    .map(|t| DispatchTensorKind::LibTorch(crate::BackendTensor::Float(t))),
                 DispatchTensorKind::Autodiff(_) => {
                     panic!("Autodiff should not wrap an autodiff tensor.")
                 }
@@ -216,6 +247,11 @@ impl AutodiffBackend for Dispatch {
                     .as_autodiff()
                     .grad_remove(grads)
                     .map(|t| DispatchTensorKind::NdArray(crate::BackendTensor::Float(t))),
+                #[cfg(feature = "tch")]
+                DispatchTensorKind::LibTorch(tensor) => tensor
+                    .as_autodiff()
+                    .grad_remove(grads)
+                    .map(|t| DispatchTensorKind::LibTorch(crate::BackendTensor::Float(t))),
                 DispatchTensorKind::Autodiff(_) => {
                     panic!("Autodiff should not wrap an autodiff tensor.")
                 }
@@ -318,6 +354,10 @@ impl AutodiffBackend for Dispatch {
                 DispatchTensorKind::NdArray(tensor) => DispatchTensorKind::NdArray(
                     crate::BackendTensor::Float(tensor.autodiff().primitive),
                 ),
+                #[cfg(feature = "tch")]
+                DispatchTensorKind::LibTorch(tensor) => DispatchTensorKind::LibTorch(
+                    crate::BackendTensor::Float(tensor.autodiff().primitive),
+                ),
                 DispatchTensorKind::Autodiff(_) => {
                     panic!("Autodiff should not wrap an autodiff tensor.")
                 }
@@ -391,6 +431,14 @@ impl AutodiffBackend for Dispatch {
                     Autodiff::<NdArray<f32>>::from_inner(tensor.float()),
                 )),
             )),
+            #[cfg(feature = "tch")]
+            DispatchTensorKind::LibTorch(tensor) => {
+                DispatchTensorKind::Autodiff(Box::new(DispatchTensorKind::LibTorch(
+                    crate::BackendTensor::Autodiff(Autodiff::<LibTorch<f32>>::from_inner(
+                        tensor.float(),
+                    )),
+                )))
+            }
             DispatchTensorKind::Autodiff(_) => {
                 panic!("Autodiff should not wrap an autodiff tensor.")
             }

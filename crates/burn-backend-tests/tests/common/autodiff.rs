@@ -6,6 +6,7 @@ pub use super::*;
 pub struct AutodiffDevice;
 
 impl AutodiffDevice {
+    #[allow(clippy::new_ret_no_self)]
     pub fn new() -> burn_dispatch::DispatchDevice {
         let device = burn_dispatch::DispatchDevice::default();
 
@@ -23,6 +24,7 @@ mod checkpointing {
     pub struct AutodiffDevice;
 
     impl AutodiffDevice {
+        #[allow(clippy::new_ret_no_self)]
         pub fn new() -> burn_dispatch::DispatchDevice {
             let device = burn_dispatch::DispatchDevice::default();
 

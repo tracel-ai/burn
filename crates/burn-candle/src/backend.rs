@@ -189,11 +189,6 @@ impl burn_backend::Device for CandleDevice {
             _ => CandleDevice::Cpu,
         }
     }
-
-    fn device_count(type_id: u16) -> usize {
-        // TODO: Fix that
-        1
-    }
 }
 impl DeviceOps for CandleDevice {}
 
@@ -263,6 +258,10 @@ impl<F: FloatCandleElement, I: IntCandleElement> Backend for Candle<F, I> {
         } else {
             burn_backend::DTypeUsageSet::empty()
         }
+    }
+
+    fn device_count(_: u16) -> usize {
+        1
     }
 }
 

@@ -174,10 +174,6 @@ impl burn_std::device::Device for RemoteDevice {
             index_id: self.id,
         }
     }
-
-    fn device_count(_type_id: u16) -> usize {
-        1
-    }
 }
 
 impl DeviceOps for RemoteDevice {}
