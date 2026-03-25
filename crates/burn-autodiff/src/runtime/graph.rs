@@ -108,7 +108,20 @@ impl AutodiffClient for GraphMutexClient {
     fn backward<B: Backend>(&self, root: AutodiffTensor<B>) -> Gradients {
         let node_id = root.node.id;
         let device = B::float_device(&root.primitive);
+
+        println!(
+            "[{:?}] client backward : {:?}",
+            std::thread::current().id(),
+            device.id()
+        );
+
         let graph = GraphMutexClient::graph(root.node.id, &[]);
+
+        println!(
+            "[{:?}] client graph : {:?}",
+            std::thread::current().id(),
+            device.id()
+        );
 
         let grads = {
             let mut state = graph.state.lock();
