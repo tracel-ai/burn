@@ -9,7 +9,7 @@ use crate::quantization::{QuantScheme, QuantizationParameters};
 use crate::tensor::backend::Backend;
 use crate::tensor::stats;
 use crate::tensor::{Distribution, TensorData};
-use crate::{Bool, Int, Shape, TensorPrimitive};
+use crate::{Bool, Int, TensorPrimitive};
 use burn_backend::ElementConversion;
 use burn_backend::Scalar;
 use burn_backend::tensor::quantization::QuantizationParametersPrimitive;
@@ -1130,9 +1130,9 @@ impl<const D: usize, B: Backend> Tensor<B, D> {
     pub fn categorical(self, num_samples: usize) -> Tensor<B, D, Int> {
         assert!(num_samples > 0, "categorical: num_samples must be >= 1");
 
-        let dims = self.dims();
-        let num_categories = dims[D - 1];
-        let batch_size: usize = dims[..D - 1].iter().product::<usize>().max(1);
+        let shape = self.shape();
+        let num_categories = shape[D - 1];
+        let batch_size = (shape.num_elements() / num_categories).max(1);
         let device = self.device();
 
         // Flatten leading dimensions into a single batch dimension: [batch, categories]
@@ -1166,8 +1166,8 @@ impl<const D: usize, B: Backend> Tensor<B, D> {
         let indices = indices.clamp(0, num_categories as i64 - 1);
 
         // Reshape back to [...leading_dims, num_samples]
-        let mut out_dims: Vec<usize> = dims[..D - 1].to_vec();
-        out_dims.push(num_samples);
-        indices.reshape(Shape::from(out_dims))
+        let mut out_shape = shape;
+        out_shape[D - 1] = num_samples;
+        indices.reshape(out_shape)
     }
 }
