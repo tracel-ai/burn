@@ -93,8 +93,8 @@ impl<R: CubeRuntime> FallbackOperation<R>
     }
 }
 
-impl<R: CubeRuntime, BT: BoolElement> FallbackOperation<R>
-    for FallbackOperationWrapper<UnfusedOp<FusionCubeRuntime<R, BT>>>
+impl<R: CubeRuntime> FallbackOperation<R>
+    for FallbackOperationWrapper<UnfusedOp<FusionCubeRuntime<R>>>
 {
     fn run(&self, context: &mut burn_fusion::stream::Context<'_, CubeFusionHandle<R>>) {
         self.operation.execute(context.handles);
