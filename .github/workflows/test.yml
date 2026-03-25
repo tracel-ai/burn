@@ -71,7 +71,7 @@ jobs:
         uses: actions/checkout@v6
       # --------------------------------------------------------------------------------
       - name: Setup Rust
-        uses: tracel-ai/github-actions/install-rust@v9
+        uses: tracel-ai/github-actions/install-rust@v10
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           cache-key: ${{ matrix.rust }}-linux
@@ -91,7 +91,7 @@ jobs:
         run: cargo xtask check lint
       # --------------------------------------------------------------------------------
       - name: Typos
-        uses: tracel-ai/github-actions/check-typos@v9
+        uses: tracel-ai/github-actions/check-typos@v10
 
   documentation:
     runs-on: ubuntu-22.04
@@ -107,7 +107,7 @@ jobs:
         uses: actions/checkout@v6
       # --------------------------------------------------------------------------------
       - name: Setup Rust
-        uses: tracel-ai/github-actions/install-rust@v9
+        uses: tracel-ai/github-actions/install-rust@v10
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           cache-key: ${{ matrix.rust }}-linux
@@ -139,7 +139,7 @@ jobs:
         uses: actions/checkout@v6
       # --------------------------------------------------------------------------------
       - name: Setup Rust
-        uses: tracel-ai/github-actions/install-rust@v9
+        uses: tracel-ai/github-actions/install-rust@v10
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           cache-key: ${{ matrix.rust }}-linux
@@ -185,7 +185,7 @@ jobs:
         uses: actions/checkout@v6
       # --------------------------------------------------------------------------------
       - name: Setup Rust
-        uses: tracel-ai/github-actions/install-rust@v9
+        uses: tracel-ai/github-actions/install-rust@v10
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           cache-key: ${{ matrix.rust }}-linux-no-std
@@ -195,6 +195,36 @@ jobs:
       # --------------------------------------------------------------------------------
       - name: Crates Tests
         run: cargo xtask --context no-std test ${{ env.TEST_RELEASE_FLAG }} --ci github-runner
+
+  linux-miri-tests:
+    runs-on: ubuntu-22.04
+    needs: [prepare-checks, code-quality]
+    env:
+      DISABLE_WGPU_SPIRV: "1"
+      # disable incremental compilation (reduces artifact size)
+      CARGO_PROFILE_TEST_INCREMENTAL: "false"
+    strategy:
+      matrix:
+        rust: [nightly]
+        include:
+          - rust: nightly
+            toolchain: nightly
+    steps:
+      - name: checkout
+        uses: actions/checkout@v6
+      # --------------------------------------------------------------------------------
+      - name: Setup Rust
+        uses: tracel-ai/github-actions/install-rust@v10
+        with:
+          rust-toolchain: ${{ matrix.toolchain }}
+          cache-key: ${{ matrix.rust }}-miri-tests
+          enable-cache: false
+      # --------------------------------------------------------------------------------
+      - name: Install miri
+        run: rustup component add --toolchain nightly-x86_64-unknown-linux-gnu miri
+      # --------------------------------------------------------------------------------
+      - name: Tests
+        run: cargo +nightly miri test
 
   windows-std-tests:
     runs-on: windows-2022
@@ -211,7 +241,7 @@ jobs:
         uses: actions/checkout@v6
       # --------------------------------------------------------------------------------
       - name: Setup Rust
-        uses: tracel-ai/github-actions/install-rust@v9
+        uses: tracel-ai/github-actions/install-rust@v10
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           cache-key: ${{ matrix.rust }}-windows
@@ -235,7 +265,7 @@ jobs:
         uses: actions/checkout@v6
       # --------------------------------------------------------------------------------
       - name: Setup Rust
-        uses: tracel-ai/github-actions/install-rust@v9
+        uses: tracel-ai/github-actions/install-rust@v10
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           cache-key: ${{ matrix.rust }}-macos
