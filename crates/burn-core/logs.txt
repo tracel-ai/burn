@@ -1,0 +1,22 @@
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 38 filtered out; finished in 0.00s
+
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 9 filtered out; finished in 0.00s
+
+
+running 1 test
+device count 4
+devices : [Cuda(0), Cuda(1), Cuda(2), Cuda(3)]
+[ThreadId(6)] client backward : DeviceId { type_id: 0, index_id: 0 }
+[ThreadId(6)] client graph : DeviceId { type_id: 0, index_id: 0 }
+[ThreadId(6)] Backward server : DeviceId { type_id: 0, index_id: 0 }
+[ThreadId(6)] Compute gradients server : DeviceId { type_id: 0, index_id: 0 }
+[ThreadId(3)] Registered 1 devices
+[ThreadId(6)] cleanup orphans : DeviceId { type_id: 0, index_id: 0 }
+[ThreadId(6)] grads sync : DeviceId { type_id: 0, index_id: 0 }
+[ThreadId(6)] Waiting for callback : DeviceId { type_id: 0, index_id: 0 }

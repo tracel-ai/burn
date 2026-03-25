@@ -5,9 +5,14 @@ use burn::module::{Module, Param};
 use burn::tensor::backend::Backend;
 use burn::tensor::{Int, Tensor};
 use burn_core as burn;
+use burn_cuda::Cuda;
 use burn_tensor::ops::CommunicationTensorOps;
 
-pub type TestBackend = burn_ndarray::NdArray<f32>;
+// pub type TestBackend = burn_ndarray::NdArray<f32>;
+// #[cfg(feature = "std")]
+// pub type TestAutodiffBackend = burn_autodiff::Autodiff<TestBackend>;
+
+pub type TestBackend = Cuda<f32, i32>;
 #[cfg(feature = "std")]
 pub type TestAutodiffBackend = burn_autodiff::Autodiff<TestBackend>;
 
@@ -530,8 +535,13 @@ mod require_grad {
         const NUM_ITERATIONS: usize = 100;
         let type_id = 0u16;
 
-        let device_count = <B as Backend>::device_count(type_id);
+        // let device_count = <B as Backend>::device_count(type_id);
+        let device_count = 4;
+        println!("device count {device_count}");
         let devices = create_devices::<B::Device>(type_id, device_count);
+
+        println!("devices : {devices:?}");
+
         let module = ModuleBasic::<B>::new(&devices[0]);
         let (senders, receivers) = create_channels(device_count);
 

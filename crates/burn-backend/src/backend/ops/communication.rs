@@ -108,6 +108,7 @@ pub trait CommunicationTensorOps<B: Backend> {
     /// Ensure that the tensors are not accessed/modified when calling in-place operation.
     #[allow(unused)]
     unsafe fn all_reduce_in_place(tensors: Vec<TensorRef<B>>, op: ReduceOperation) {
+        println!("Fallback op.");
         unsafe { all_reduce_inplace_centralized(tensors, op) };
     }
 

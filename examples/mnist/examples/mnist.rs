@@ -53,10 +53,19 @@ fn cuda_devices() -> Vec<DispatchDevice> {
     devices
 }
 
+#[cfg(feature = "ndarray")]
+fn nd_devices() -> Vec<DispatchDevice> {
+    let type_id = 0;
+    let num_dev = 4;
+
+    let devices: Vec<DispatchDevice> = (0..num_dev).map(|i| NdArrayDevice::Cpu.into()).collect();
+    devices
+}
+
 #[allow(unreachable_code)]
 fn select_devices() -> Vec<DispatchDevice> {
     #[cfg(feature = "ndarray")]
-    return NdArrayDevice::Cpu.into();
+    return nd_devices();
 
     #[cfg(all(feature = "tch-gpu", not(target_os = "macos")))]
     return LibTorchDevice::Cuda(0).into();
