@@ -63,11 +63,8 @@ fn categorical_indices_in_range() {
     let probs = TestTensor::<2>::from([[0.2, 0.2, 0.2, 0.2, 0.2]]);
     let samples = probs.categorical(100);
 
-    let data: TensorData = samples.into_data();
-    let values = data.to_vec::<i64>().unwrap();
-    for &v in &values {
-        assert!(v >= 0 && v < num_categories, "index {v} out of range");
-    }
+    let data = samples.into_data();
+    data.assert_within_range::<IntElem>(0..num_categories);
 }
 
 #[test]
@@ -110,7 +107,7 @@ fn categorical_statistical_distribution() {
     let samples = probs.categorical(num_samples);
 
     let data: TensorData = samples.into_data();
-    let values = data.to_vec::<i64>().unwrap();
+    let values = data.to_vec::<IntElem>().unwrap();
 
     let count_zero = values.iter().filter(|&&v| v == 0).count();
     let ratio = count_zero as f64 / num_samples as f64;
