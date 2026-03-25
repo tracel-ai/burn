@@ -45,7 +45,7 @@ fn select_device() -> DispatchDevice {
 #[cfg(feature = "cuda")]
 fn cuda_devices() -> Vec<DispatchDevice> {
     let type_id = 0;
-    let num_dev = CudaDevice::device_count(type_id);
+    let num_dev = 4;
 
     let devices: Vec<DispatchDevice> = (0..num_dev)
         .map(|i| CudaDevice::from_id(DeviceId::new(type_id, i as u32)).into())
