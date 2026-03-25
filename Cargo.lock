@@ -8664,6 +8664,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "test-all-reduce"
+version = "0.21.0-pre.2"
+dependencies = [
+ "burn",
+ "log",
+ "rand 0.10.0",
+ "serde",
+]
+
+[[package]]
 name = "text-classification"
 version = "0.21.0-pre.2"
 dependencies = [
