@@ -53,6 +53,7 @@ pub fn handle_command(
                     no_capture: false,
                     release: args.release,
                     test: None,
+                    miri: false,
                 },
                 env.clone(),
                 Context::NoStd,
