@@ -6,6 +6,7 @@ use burn_backend::{
     ops::FloatTensorOps,
     tensor::{BoolTensor, Device, FloatElem, FloatTensor, IntTensor},
 };
+use burn_std::{BoolDType, IntDType};
 use candle_core::{Tensor, backend::BackendStorage, shape};
 
 use crate::{
@@ -30,10 +31,11 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         shape: Shape,
         distribution: Distribution,
         device: &Device<Self>,
+        dtype: FloatDType,
     ) -> FloatTensor<Self> {
         if let CandleDevice::Cpu = device {
             // Use our own seed since candle doesn't support it on CPU
-            return Self::float_from_data(cpu_random::<F>(shape, distribution), device);
+            return Self::float_from_data(cpu_random(shape, distribution, dtype.into()), device);
         }
 
         let shape = shape.to_vec();
@@ -77,8 +79,8 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         super::base::to_device(tensor, device)
     }
 
-    fn float_into_int(tensor: CandleTensor) -> IntTensor<Self> {
-        CandleTensor::new(tensor.tensor.to_dtype(I::DTYPE).unwrap())
+    fn float_into_int(tensor: CandleTensor, out_dtype: IntDType) -> IntTensor<Self> {
+        CandleTensor::new(tensor.tensor.to_dtype(out_dtype.into_dtype()).unwrap())
     }
 
     fn float_empty(shape: Shape, device: &Device<Self>, dtype: FloatDType) -> FloatTensor<Self> {
@@ -246,23 +248,39 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         super::base::mask_where_broadcasted(tensor, mask, CandleTensor::new(value))
     }
 
-    fn float_equal(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> BoolTensor<Self> {
+    fn float_equal(
+        lhs: FloatTensor<Self>,
+        rhs: FloatTensor<Self>,
+        _out_dtype: BoolDType,
+    ) -> BoolTensor<Self> {
         let (lhs_broadcast, rhs_broadcast) =
             super::candle_utils::broadcast_for_comparison(&lhs.tensor, &rhs.tensor).unwrap();
         CandleTensor::new(lhs_broadcast.eq(&rhs_broadcast).unwrap())
     }
 
-    fn float_equal_elem(lhs: FloatTensor<Self>, rhs: Scalar) -> BoolTensor<Self> {
+    fn float_equal_elem(
+        lhs: FloatTensor<Self>,
+        rhs: Scalar,
+        _out_dtype: BoolDType,
+    ) -> BoolTensor<Self> {
         CandleTensor::new(lhs.tensor.eq(rhs.elem::<F>()).unwrap())
     }
 
-    fn float_greater(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> BoolTensor<Self> {
+    fn float_greater(
+        lhs: FloatTensor<Self>,
+        rhs: FloatTensor<Self>,
+        _out_dtype: BoolDType,
+    ) -> BoolTensor<Self> {
         let (lhs_broadcast, rhs_broadcast) =
             super::candle_utils::broadcast_for_comparison(&lhs.tensor, &rhs.tensor).unwrap();
         CandleTensor::new(lhs_broadcast.gt(&rhs_broadcast).unwrap())
     }
 
-    fn float_greater_elem(lhs: FloatTensor<Self>, rhs: Scalar) -> BoolTensor<Self> {
+    fn float_greater_elem(
+        lhs: FloatTensor<Self>,
+        rhs: Scalar,
+        _out_dtype: BoolDType,
+    ) -> BoolTensor<Self> {
         CandleTensor::new(
             lhs.tensor
                 .gt(&super::candle_utils::fill_like::<F>(
@@ -273,13 +291,21 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         )
     }
 
-    fn float_greater_equal(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> BoolTensor<Self> {
+    fn float_greater_equal(
+        lhs: FloatTensor<Self>,
+        rhs: FloatTensor<Self>,
+        _out_dtype: BoolDType,
+    ) -> BoolTensor<Self> {
         let (lhs_broadcast, rhs_broadcast) =
             super::candle_utils::broadcast_for_comparison(&lhs.tensor, &rhs.tensor).unwrap();
         CandleTensor::new(lhs_broadcast.ge(&rhs_broadcast).unwrap())
     }
 
-    fn float_greater_equal_elem(lhs: FloatTensor<Self>, rhs: Scalar) -> BoolTensor<Self> {
+    fn float_greater_equal_elem(
+        lhs: FloatTensor<Self>,
+        rhs: Scalar,
+        _out_dtype: BoolDType,
+    ) -> BoolTensor<Self> {
         CandleTensor::new(
             lhs.tensor
                 .ge(&super::candle_utils::fill_like::<F>(
@@ -290,13 +316,21 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         )
     }
 
-    fn float_lower(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> BoolTensor<Self> {
+    fn float_lower(
+        lhs: FloatTensor<Self>,
+        rhs: FloatTensor<Self>,
+        _out_dtype: BoolDType,
+    ) -> BoolTensor<Self> {
         let (lhs_broadcast, rhs_broadcast) =
             super::candle_utils::broadcast_for_comparison(&lhs.tensor, &rhs.tensor).unwrap();
         CandleTensor::new(lhs_broadcast.lt(&rhs_broadcast).unwrap())
     }
 
-    fn float_lower_elem(lhs: FloatTensor<Self>, rhs: Scalar) -> BoolTensor<Self> {
+    fn float_lower_elem(
+        lhs: FloatTensor<Self>,
+        rhs: Scalar,
+        _out_dtype: BoolDType,
+    ) -> BoolTensor<Self> {
         CandleTensor::new(
             lhs.tensor
                 .lt(&super::candle_utils::fill_like::<F>(
@@ -307,13 +341,21 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         )
     }
 
-    fn float_lower_equal(lhs: FloatTensor<Self>, rhs: FloatTensor<Self>) -> BoolTensor<Self> {
+    fn float_lower_equal(
+        lhs: FloatTensor<Self>,
+        rhs: FloatTensor<Self>,
+        _out_dtype: BoolDType,
+    ) -> BoolTensor<Self> {
         let (lhs_broadcast, rhs_broadcast) =
             super::candle_utils::broadcast_for_comparison(&lhs.tensor, &rhs.tensor).unwrap();
         CandleTensor::new(lhs_broadcast.le(&rhs_broadcast).unwrap())
     }
 
-    fn float_lower_equal_elem(lhs: FloatTensor<Self>, rhs: Scalar) -> BoolTensor<Self> {
+    fn float_lower_equal_elem(
+        lhs: FloatTensor<Self>,
+        rhs: Scalar,
+        _out_dtype: BoolDType,
+    ) -> BoolTensor<Self> {
         CandleTensor::new(
             lhs.tensor
                 .le(&super::candle_utils::fill_like::<F>(
@@ -518,24 +560,24 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         super::base::cat(tensors, dim)
     }
 
-    fn float_argmax(tensor: FloatTensor<Self>, dim: usize) -> IntTensor<Self> {
+    fn float_argmax(tensor: FloatTensor<Self>, dim: usize, out_dtype: IntDType) -> IntTensor<Self> {
         CandleTensor::new(
             tensor
                 .tensor
                 .argmax_keepdim(dim)
                 .unwrap()
-                .to_dtype(I::DTYPE)
+                .to_dtype(out_dtype.into_dtype())
                 .unwrap(),
         )
     }
 
-    fn float_argmin(tensor: FloatTensor<Self>, dim: usize) -> IntTensor<Self> {
+    fn float_argmin(tensor: FloatTensor<Self>, dim: usize, out_dtype: IntDType) -> IntTensor<Self> {
         CandleTensor::new(
             tensor
                 .tensor
                 .argmin_keepdim(dim)
                 .unwrap()
-                .to_dtype(I::DTYPE)
+                .to_dtype(out_dtype.into_dtype())
                 .unwrap(),
         )
     }

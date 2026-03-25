@@ -10,7 +10,7 @@ use crate::{
     },
 };
 use burn_fusion::stream::Context;
-use cubecl::{CubeElement, Runtime, client::ComputeClient};
+use cubecl::{Runtime, client::ComputeClient};
 use std::marker::PhantomData;
 
 /// The launcher is responsible to launch a fused kernel using the [TraceRunner] and a [FuseTrace].
@@ -33,7 +33,7 @@ impl<'a, R: Runtime, Runner: TraceRunner<R>> FuseTraceLauncher<'a, R, Runner> {
         }
     }
     /// Launches the fuse kernel on the given device modifying the context.
-    pub fn launch<BT: CubeElement>(
+    pub fn launch(
         &self,
         client: &ComputeClient<R>,
         device: &R::Device,
@@ -44,7 +44,7 @@ impl<'a, R: Runtime, Runner: TraceRunner<R>> FuseTraceLauncher<'a, R, Runner> {
         InputPlanner::new(&self.trace.resources, &self.trace.blocks).run(context, &mut plan);
 
         OutputPlanner::new(&self.trace.resources, &self.trace.blocks)
-            .run::<BT>(client, device, context, &mut plan);
+            .run(client, device, context, &mut plan);
 
         VectorizationPlanner::new(&self.trace.resources, &self.trace.blocks).run(
             client,
@@ -53,7 +53,7 @@ impl<'a, R: Runtime, Runner: TraceRunner<R>> FuseTraceLauncher<'a, R, Runner> {
             &mut plan,
         );
 
-        match LaunchPlanExecutor::new(&self.trace.resources, &self.trace.blocks).execute::<_, BT>(
+        match LaunchPlanExecutor::new(&self.trace.resources, &self.trace.blocks).execute::<_>(
             client,
             self.runner,
             context,

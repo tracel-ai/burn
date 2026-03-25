@@ -101,7 +101,6 @@ fn set_polyfill_block(block: &ReduceFuseBlock) {
         FuseType::U32 => FuseType::U32,
         FuseType::U16 => FuseType::U32,
         FuseType::U8 => FuseType::U32,
-        FuseType::Bool => FuseType::I32,
     });
 
     set_polyfill::<In, InSize>(comptime!(

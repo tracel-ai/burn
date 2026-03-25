@@ -14,23 +14,23 @@ fn test_conv1d_basic() {
         groups: 1,
         length: 4,
     };
-    let device = Default::default();
+    let device = AutodiffDevice::new();
     let grads = Grads {
-        x: TestTensor::from_floats(
+        x: TestTensor::from_data(
             [
                 [[14., 24., 24., 18.], [26., 42., 42., 30.]],
                 [[14., 24., 24., 18.], [26., 42., 42., 30.]],
             ],
             &device,
         ),
-        weight: TestTensor::from_floats(
+        weight: TestTensor::from_data(
             [
                 [[30., 44., 36.], [54., 76., 60.]],
                 [[30., 44., 36.], [54., 76., 60.]],
             ],
             &device,
         ),
-        bias: TestTensor::from_floats([8., 8.], &device),
+        bias: TestTensor::from_data([8., 8.], &device),
     };
     test.assert_grads(grads);
 }
@@ -48,16 +48,16 @@ fn test_conv1d_different_channels() {
         groups: 1,
         length: 4,
     };
-    let device = Default::default();
+    let device = AutodiffDevice::new();
     let grads = Grads {
-        x: TestTensor::from_floats(
+        x: TestTensor::from_data(
             [
                 [[39., 63., 63., 45.], [57., 90., 90., 63.]],
                 [[39., 63., 63., 45.], [57., 90., 90., 63.]],
             ],
             &device,
         ),
-        weight: TestTensor::from_floats(
+        weight: TestTensor::from_data(
             [
                 [[30., 44., 36.], [54., 76., 60.]],
                 [[30., 44., 36.], [54., 76., 60.]],
@@ -65,7 +65,7 @@ fn test_conv1d_different_channels() {
             ],
             &device,
         ),
-        bias: TestTensor::from_floats([8., 8., 8.], &device),
+        bias: TestTensor::from_data([8., 8., 8.], &device),
     };
     test.assert_grads(grads);
 }
@@ -83,23 +83,23 @@ fn test_conv1d_with_padding() {
         groups: 1,
         length: 4,
     };
-    let device = Default::default();
+    let device = AutodiffDevice::new();
     let grads = Grads {
-        x: TestTensor::from_floats(
+        x: TestTensor::from_data(
             [
                 [[24., 24., 24., 24.], [42., 42., 42., 42.]],
                 [[24., 24., 24., 24.], [42., 42., 42., 42.]],
             ],
             &device,
         ),
-        weight: TestTensor::from_floats(
+        weight: TestTensor::from_data(
             [
                 [[44., 44., 44.], [76., 76., 76.]],
                 [[44., 44., 44.], [76., 76., 76.]],
             ],
             &device,
         ),
-        bias: TestTensor::from_floats([12., 12.], &device),
+        bias: TestTensor::from_data([12., 12.], &device),
     };
     test.assert_grads(grads);
 }
@@ -117,23 +117,23 @@ fn test_conv1d_with_stride() {
         groups: 1,
         length: 4,
     };
-    let device = Default::default();
+    let device = AutodiffDevice::new();
     let grads = Grads {
-        x: TestTensor::from_floats(
+        x: TestTensor::from_data(
             [
                 [[8., 16., 8., 10.], [14., 28., 14., 16.]],
                 [[8., 16., 8., 10.], [14., 28., 14., 16.]],
             ],
             &device,
         ),
-        weight: TestTensor::from_floats(
+        weight: TestTensor::from_data(
             [
                 [[10., 20., 24.], [18., 36., 40.]],
                 [[10., 20., 24.], [18., 36., 40.]],
             ],
             &device,
         ),
-        bias: TestTensor::from_floats([4., 4.], &device),
+        bias: TestTensor::from_data([4., 4.], &device),
     };
     test.assert_grads(grads);
 }
@@ -151,23 +151,23 @@ fn test_conv1d_dilation() {
         groups: 1,
         length: 4,
     };
-    let device = Default::default();
+    let device = AutodiffDevice::new();
     let grads = Grads {
-        x: TestTensor::from_floats(
+        x: TestTensor::from_data(
             [
                 [[6., 8., 8., 10.], [12., 14., 14., 16.]],
                 [[6., 8., 8., 10.], [12., 14., 14., 16.]],
             ],
             &device,
         ),
-        weight: TestTensor::from_floats(
+        weight: TestTensor::from_data(
             [
                 [[8., 22., 14.], [16., 38., 22.]],
                 [[8., 22., 14.], [16., 38., 22.]],
             ],
             &device,
         ),
-        bias: TestTensor::from_floats([4., 4.], &device),
+        bias: TestTensor::from_data([4., 4.], &device),
     };
     test.assert_grads(grads);
 }
@@ -185,17 +185,17 @@ fn test_conv1d_groups() {
         groups: 2,
         length: 4,
     };
-    let device = Default::default();
+    let device = AutodiffDevice::new();
     let grads = Grads {
-        x: TestTensor::from_floats(
+        x: TestTensor::from_data(
             [
                 [[1., 3., 3., 3.], [7., 12., 12., 9.]],
                 [[1., 3., 3., 3.], [7., 12., 12., 9.]],
             ],
             &device,
         ),
-        weight: TestTensor::from_floats([[[30., 44., 36.]], [[54., 76., 60.]]], &device),
-        bias: TestTensor::from_floats([8., 8.], &device),
+        weight: TestTensor::from_data([[[30., 44., 36.]], [[54., 76., 60.]]], &device),
+        bias: TestTensor::from_data([8., 8.], &device),
     };
     test.assert_grads(grads);
 }
@@ -226,20 +226,20 @@ impl Conv1dTestCase {
             self.channels_in / self.groups,
             self.kernel_size,
         ]);
-        let device = Default::default();
-        let weight = TestAutodiffTensor::from_data(
+        let device = AutodiffDevice::new();
+        let weight = TestTensor::from_data(
             TestTensorInt::arange(0..shape_weight.num_elements() as i64, &device)
                 .reshape::<3, _>(shape_weight)
                 .into_data(),
             &device,
         )
         .require_grad();
-        let bias = TestAutodiffTensor::from_data(
+        let bias = TestTensor::from_data(
             TestTensorInt::arange(0..self.channels_out as i64, &device).into_data(),
             &device,
         )
         .require_grad();
-        let x = TestAutodiffTensor::from_data(
+        let x = TestTensor::from_data(
             TestTensorInt::arange(0..shape_x.num_elements() as i64, &device)
                 .reshape::<3, _>(shape_x)
                 .into_data(),

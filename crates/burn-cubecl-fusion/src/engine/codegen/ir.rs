@@ -1,7 +1,7 @@
 use super::tensor::GlobalTensor;
 use crate::engine::codegen::{DynElem, DynSize};
 use burn_std::{
-    DType, Shape, Strides, bf16, f16,
+    BoolStore, DType, Shape, Strides, bf16, f16,
     quantization::{QuantScheme, QuantStore, QuantValue},
     strides,
 };
@@ -373,8 +373,6 @@ impl LaunchArg for MultiBlockVariables {
     type RuntimeArg<R: Runtime> = ();
     type CompilationArg = ();
 
-    fn compilation_arg<R: Runtime>(_runtime_arg: &Self::RuntimeArg<R>) -> Self::CompilationArg {}
-
     fn register<R: Runtime>(_arg: Self::RuntimeArg<R>, _launcher: &mut KernelLauncher<R>) {}
 
     fn expand(
@@ -521,7 +519,6 @@ pub struct LocalArgs {
     pub l_u32: Registry<usize, Vector<u32, DynSize>>,
     pub l_u16: Registry<usize, Vector<u16, DynSize>>,
     pub l_u8: Registry<usize, Vector<u8, DynSize>>,
-    pub l_bool: Registry<usize, Vector<bool, DynSize>>,
     pub ref_shape: Slice<usize>,
     pub ref_strides: Slice<usize>,
     #[cube(comptime)]
@@ -549,7 +546,6 @@ impl LocalArgs {
             l_u32: Registry::<usize, Vector<u32, DynSize>>::new(),
             l_u16: Registry::<usize, Vector<u16, DynSize>>::new(),
             l_u8: Registry::<usize, Vector<u8, DynSize>>::new(),
-            l_bool: Registry::<usize, Vector<bool, DynSize>>::new(),
             ref_shape,
             ref_strides,
             ref_vector_size,
@@ -593,7 +589,6 @@ pub enum FuseType {
     U32,
     U16,
     U8,
-    Bool,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
@@ -803,7 +798,7 @@ impl From<ElemType> for FuseType {
                 UIntKind::U16 => Self::U16,
                 UIntKind::U8 => Self::U8,
             },
-            ElemType::Bool => Self::Bool,
+            ElemType::Bool => panic!("Bool should be encoded as u8 or u32"),
         }
     }
 }
@@ -830,7 +825,6 @@ impl FuseType {
             FuseType::U32 => ElemType::UInt(UIntKind::U32),
             FuseType::U16 => ElemType::UInt(UIntKind::U16),
             FuseType::U8 => ElemType::UInt(UIntKind::U8),
-            FuseType::Bool => ElemType::Bool,
             FuseType::F64 => ElemType::Float(FloatKind::F64),
         }
     }
@@ -861,7 +855,9 @@ impl From<DType> for FuseType {
             DType::U32 => Self::U32,
             DType::U16 => Self::U16,
             DType::U8 => Self::U8,
-            DType::Bool => Self::Bool,
+            DType::Bool(BoolStore::Native) => unimplemented!("Bool should be U8 or U32"),
+            DType::Bool(BoolStore::U8) => Self::U8,
+            DType::Bool(BoolStore::U32) => Self::U32,
             DType::F64 => Self::F64,
             DType::QFloat(scheme) => match scheme.store {
                 QuantStore::Native => match scheme.value {

@@ -72,4 +72,9 @@ impl<R: RunnerChannel> Backend for BackendRouter<R> {
         let client = get_client::<R>(device);
         client.dtype_usage(dtype)
     }
+
+    fn device_count(_: u16) -> usize {
+        // This is what was there before, not sure if it's actually correct
+        1
+    }
 }

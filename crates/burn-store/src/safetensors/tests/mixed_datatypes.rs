@@ -55,6 +55,8 @@ impl<B: Backend> MixedDtypeModel<B> {
 #[cfg(test)]
 #[allow(clippy::excessive_precision)]
 mod tests {
+    use burn_tensor::{BoolStore, DType};
+
     use super::*;
 
     #[test]
@@ -128,7 +130,7 @@ mod tests {
             } else if path.contains("bool_tensor") {
                 assert_eq!(
                     dtype,
-                    burn::tensor::DType::Bool,
+                    burn::tensor::DType::Bool(BoolStore::Native),
                     "Boolean tensor {} should have Bool dtype",
                     path
                 );
@@ -203,7 +205,6 @@ mod tests {
         // Note: While SafeTensors format supports storing tensors with different precisions
         // (F16, BF16, F32, F64, etc.) in the same file, Burn's backend architecture currently
         // requires all tensors in a model instance to share the same floating-point precision.
-        // This is determined at the backend level (e.g., NdArray<f32> or NdArray<f64>).
         //
         // However, for storage purposes, SafeTensors can correctly save and load tensors
         // with their original precision, preserving the data type information in the file format.
@@ -235,25 +236,25 @@ mod tests {
             );
         }
 
-        // Test with f64 backend
+        // Test with f64 weights
         {
-            type TestBackend = burn_ndarray::NdArray<f64>;
+            type TestBackend = burn_ndarray::NdArray<f32>;
             let device = Default::default();
 
             #[derive(Module, Debug)]
             struct F64Model<B: Backend> {
-                linear: nn::Linear<B>,
+                weight: Param<Tensor<B, 2>>,
                 double_precision: Param<Tensor<B, 2>>,
             }
 
             let model = F64Model::<TestBackend> {
-                linear: nn::LinearConfig::new(2, 2).init(&device),
-                double_precision: Param::from_tensor(Tensor::from_floats(
+                weight: Param::from_tensor(Tensor::ones([3, 3], (&device, DType::F64))),
+                double_precision: Param::from_tensor(Tensor::from_data(
                     [
                         [1.234567890123456789, 2.345678901234567890],
                         [3.456789012345678901, 4.567890123456789012],
                     ],
-                    &device,
+                    (&device, DType::F64),
                 )),
             };
 
@@ -265,7 +266,7 @@ mod tests {
             // Load and verify
             let mut load_store = SafetensorsStore::from_bytes(Some(bytes));
             let mut loaded_model = F64Model::<TestBackend> {
-                linear: nn::LinearConfig::new(2, 2).init(&device),
+                weight: Param::from_tensor(Tensor::ones([3, 3], &device)),
                 double_precision: Param::from_tensor(Tensor::zeros([2, 2], &device)),
             };
             loaded_model

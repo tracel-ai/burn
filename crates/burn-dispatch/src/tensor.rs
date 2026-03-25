@@ -1,4 +1,8 @@
-use burn_backend::{Backend, QTensorPrimitive, TensorMetadata};
+use alloc::boxed::Box;
+
+use burn_backend::{
+    Backend, DType, QTensorPrimitive, Shape, TensorMetadata, quantization::QuantScheme,
+};
 
 #[cfg(feature = "autodiff")]
 use crate::CheckpointingStrategy;
@@ -124,7 +128,7 @@ impl<B: Backend> BackendTensor<B> {
 }
 
 impl<B: Backend> TensorMetadata for BackendTensor<B> {
-    fn dtype(&self) -> burn_std::DType {
+    fn dtype(&self) -> DType {
         match self {
             BackendTensor::Float(tensor) => tensor.dtype(),
             BackendTensor::Int(tensor) => tensor.dtype(),
@@ -135,7 +139,7 @@ impl<B: Backend> TensorMetadata for BackendTensor<B> {
         }
     }
 
-    fn shape(&self) -> burn_std::Shape {
+    fn shape(&self) -> Shape {
         match self {
             BackendTensor::Float(tensor) => tensor.shape(),
             BackendTensor::Int(tensor) => tensor.shape(),
@@ -148,7 +152,7 @@ impl<B: Backend> TensorMetadata for BackendTensor<B> {
 }
 
 impl<B: Backend> QTensorPrimitive for BackendTensor<B> {
-    fn scheme(&self) -> &burn_std::QuantScheme {
+    fn scheme(&self) -> &QuantScheme {
         match self {
             BackendTensor::Quantized(tensor) => tensor.scheme(),
             _ => panic!(
@@ -220,7 +224,7 @@ pub enum DispatchTensorKind {
 }
 
 impl TensorMetadata for DispatchTensorKind {
-    fn dtype(&self) -> burn_std::DType {
+    fn dtype(&self) -> DType {
         match self {
             #[cfg(feature = "cpu")]
             Self::Cpu(tensor) => tensor.dtype(),
@@ -243,7 +247,7 @@ impl TensorMetadata for DispatchTensorKind {
         }
     }
 
-    fn shape(&self) -> burn_std::Shape {
+    fn shape(&self) -> Shape {
         match self {
             #[cfg(feature = "cpu")]
             Self::Cpu(tensor) => tensor.shape(),
@@ -268,7 +272,7 @@ impl TensorMetadata for DispatchTensorKind {
 }
 
 impl QTensorPrimitive for DispatchTensorKind {
-    fn scheme(&self) -> &burn_std::QuantScheme {
+    fn scheme(&self) -> &QuantScheme {
         match self {
             #[cfg(feature = "cpu")]
             Self::Cpu(tensor) => tensor.scheme(),
@@ -293,17 +297,17 @@ impl QTensorPrimitive for DispatchTensorKind {
 }
 
 impl TensorMetadata for DispatchTensor {
-    fn dtype(&self) -> burn_std::DType {
+    fn dtype(&self) -> DType {
         self.kind.dtype()
     }
 
-    fn shape(&self) -> burn_std::Shape {
+    fn shape(&self) -> Shape {
         self.kind.shape()
     }
 }
 
 impl QTensorPrimitive for DispatchTensor {
-    fn scheme(&self) -> &burn_std::QuantScheme {
+    fn scheme(&self) -> &QuantScheme {
         self.kind.scheme()
     }
 }

@@ -24,30 +24,29 @@ use burn_std::Metadata;
 use core::marker::PhantomData;
 use std::sync::Arc;
 
-impl<R, BT> burn_fusion::Optimization<FusionCubeRuntime<R, BT>> for CubeOptimization<R>
+impl<R> burn_fusion::Optimization<FusionCubeRuntime<R>> for CubeOptimization<R>
 where
     R: CubeRuntime,
-    BT: BoolElement,
 {
     fn execute(
         &mut self,
         context: &mut burn_fusion::stream::Context<
             '_,
-            <FusionCubeRuntime<R, BT> as FusionRuntime>::FusionHandle,
+            <FusionCubeRuntime<R> as FusionRuntime>::FusionHandle,
         >,
-        execution: &OrderedExecution<FusionCubeRuntime<R, BT>>,
+        execution: &OrderedExecution<FusionCubeRuntime<R>>,
     ) {
         match self {
-            Self::ElementWise(op) => op.execute::<BT>(context),
-            Self::Matmul(op) => op.execute::<BT>(context, |index| {
+            Self::ElementWise(op) => op.execute(context),
+            Self::Matmul(op) => op.execute(context, |index| {
                 let operation = execution.operation_within_optimization(index);
                 Box::new(FallbackOperationWrapper::new(operation))
             }),
-            Self::Reduce(op) => op.execute::<BT>(context, |index| {
+            Self::Reduce(op) => op.execute(context, |index| {
                 let operation = execution.operation_within_optimization(index);
                 Box::new(FallbackOperationWrapper::new(operation))
             }),
-            Self::ReduceBroadcasted(op) => op.execute::<BT>(context, |index| {
+            Self::ReduceBroadcasted(op) => op.execute(context, |index| {
                 let operation = execution.operation_within_optimization(index);
                 Box::new(FallbackOperationWrapper::new(operation))
             }),
@@ -86,8 +85,8 @@ impl<O: Clone> FallbackOperationWrapper<O> {
     }
 }
 
-impl<R: CubeRuntime, BT: BoolElement> FallbackOperation<R>
-    for FallbackOperationWrapper<Arc<dyn Operation<FusionCubeRuntime<R, BT>>>>
+impl<R: CubeRuntime> FallbackOperation<R>
+    for FallbackOperationWrapper<Arc<dyn Operation<FusionCubeRuntime<R>>>>
 {
     fn run(&self, context: &mut burn_fusion::stream::Context<'_, CubeFusionHandle<R>>) {
         self.operation.as_ref().execute(context.handles);
@@ -140,47 +139,32 @@ impl<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolElement> BackendIr
     }
 }
 
-impl<R: CubeRuntime, BT: BoolElement> FusionRuntime for FusionCubeRuntime<R, BT> {
+impl<R: CubeRuntime> FusionRuntime for FusionCubeRuntime<R> {
     type OptimizationState = CubeOptimizationState;
     type Optimization = CubeOptimization<R>;
     type FusionHandle = CubeFusionHandle<R>;
     type FusionDevice = R::CubeDevice;
-    type BoolRepr = BT;
 
     fn fusers(device: R::Device) -> Vec<Box<dyn burn_fusion::OperationFuser<Self::Optimization>>> {
         vec![
-            Box::new(ElementWiseFuser::new(
-                device.clone(),
-                BT::as_type_native_unchecked().storage_type().into(),
-            )),
-            Box::new(MatmulFuser::new(
-                device.clone(),
-                BT::as_type_native_unchecked().storage_type().into(),
-            )),
-            Box::new(ReduceFuser::new(
-                device.clone(),
-                BT::as_type_native_unchecked().storage_type().into(),
-                ReduceSettings::Always,
-            )),
-            Box::new(ReduceBroadcastedFuser::new(
-                device.clone(),
-                BT::as_type_native_unchecked().storage_type().into(),
-            )),
+            Box::new(ElementWiseFuser::new(device.clone())),
+            Box::new(MatmulFuser::new(device.clone())),
+            Box::new(ReduceFuser::new(device.clone(), ReduceSettings::Always)),
+            Box::new(ReduceBroadcastedFuser::new(device.clone())),
         ]
     }
 }
 
 /// Fusion runtime for JIT runtimes.
 #[derive(Debug)]
-pub struct FusionCubeRuntime<R: CubeRuntime, BT: BoolElement> {
+pub struct FusionCubeRuntime<R: CubeRuntime> {
     _b: PhantomData<R>,
-    _bool: PhantomData<BT>,
 }
 
 impl<R: CubeRuntime, F: FloatElement, I: IntElement, BT: BoolElement> FusionBackend
     for CubeBackend<R, F, I, BT>
 {
-    type FusionRuntime = FusionCubeRuntime<R, BT>;
+    type FusionRuntime = FusionCubeRuntime<R>;
 
     type FullPrecisionBackend = CubeBackend<R, f32, i32, BT>;
 

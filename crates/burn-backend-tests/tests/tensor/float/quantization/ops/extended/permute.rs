@@ -4,7 +4,7 @@ use burn_tensor::{TensorData, Tolerance};
 
 #[test]
 fn permute_float() {
-    let tensor = QTensor::<TestBackend, 1>::int8([
+    let tensor = QTensor::<1>::int8([
         0., 1., 2., 3., 4., 5., 6., 7., 8., 9., 10., 11., 12., 13., 14., 15.,
     ])
     .reshape([2, 2, 4]);
@@ -44,7 +44,7 @@ fn permute_float() {
 #[test]
 #[should_panic]
 fn edge_repeated_axes() {
-    let tensor = QTensor::<TestBackend, 1>::int8([
+    let tensor = QTensor::<1>::int8([
         0., 1., 2., 3., 4., 5., 6., 7., 8., 9., 10., 11., 12., 13., 14., 15.,
     ])
     .reshape([2, 2, 4]);
@@ -56,7 +56,7 @@ fn edge_repeated_axes() {
 #[test]
 #[should_panic]
 fn edge_out_of_bound_axis() {
-    let tensor = QTensor::<TestBackend, 1>::int8([
+    let tensor = QTensor::<1>::int8([
         0., 1., 2., 3., 4., 5., 6., 7., 8., 9., 10., 11., 12., 13., 14., 15.,
     ])
     .reshape([2, 2, 4]);

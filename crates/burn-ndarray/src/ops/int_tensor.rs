@@ -7,12 +7,13 @@ use burn_backend::tensor::{FloatTensor, IntTensor};
 use burn_backend::{Distribution, IntDType, Scalar, TensorMetadata};
 
 use burn_backend::ElementConversion;
+use burn_std::{BoolDType, FloatDType};
 
 // Current crate
-use crate::cat_with_dtype;
+use crate::{ExpElement, NdArrayDevice, SEED, execute_with_int_out_dtype, slice};
 use crate::{NdArray, cast_to_dtype, execute_with_dtype, tensor::NdArrayTensor};
-use crate::{NdArrayDevice, SEED, slice};
 use crate::{SharedArray, element::QuantElement};
+use crate::{cat_with_dtype, execute_with_float_out_dtype};
 use crate::{element::FloatNdArrayElement, ops::matmul::matmul};
 use crate::{element::IntNdArrayElement, execute_with_int_dtype};
 
@@ -98,46 +99,62 @@ where
         cat_with_dtype!(tensors, dim, [I64, I32, I16, I8, U64, U32, U16, U8])
     }
 
-    fn int_equal(lhs: NdArrayTensor, rhs: NdArrayTensor) -> NdArrayTensor {
+    fn int_equal(lhs: NdArrayTensor, rhs: NdArrayTensor, _out_dtype: BoolDType) -> NdArrayTensor {
         execute_with_int_dtype!((lhs, rhs), NdArrayMathOps::equal)
     }
 
-    fn int_equal_elem(lhs: NdArrayTensor, rhs: Scalar) -> NdArrayTensor {
+    fn int_equal_elem(lhs: NdArrayTensor, rhs: Scalar, _out_dtype: BoolDType) -> NdArrayTensor {
         execute_with_int_dtype!(lhs, |array| NdArrayMathOps::equal_elem(array, rhs.elem()))
     }
 
-    fn int_greater(lhs: NdArrayTensor, rhs: NdArrayTensor) -> NdArrayTensor {
+    fn int_greater(lhs: NdArrayTensor, rhs: NdArrayTensor, _out_dtype: BoolDType) -> NdArrayTensor {
         execute_with_int_dtype!((lhs, rhs), NdArrayMathOps::greater)
     }
 
-    fn int_greater_elem(lhs: NdArrayTensor, rhs: Scalar) -> NdArrayTensor {
+    fn int_greater_elem(lhs: NdArrayTensor, rhs: Scalar, _out_dtype: BoolDType) -> NdArrayTensor {
         execute_with_int_dtype!(lhs, |array| NdArrayMathOps::greater_elem(array, rhs.elem()))
     }
 
-    fn int_greater_equal(lhs: NdArrayTensor, rhs: NdArrayTensor) -> NdArrayTensor {
+    fn int_greater_equal(
+        lhs: NdArrayTensor,
+        rhs: NdArrayTensor,
+        _out_dtype: BoolDType,
+    ) -> NdArrayTensor {
         execute_with_int_dtype!((lhs, rhs), NdArrayMathOps::greater_equal)
     }
 
-    fn int_greater_equal_elem(lhs: NdArrayTensor, rhs: Scalar) -> NdArrayTensor {
+    fn int_greater_equal_elem(
+        lhs: NdArrayTensor,
+        rhs: Scalar,
+        _out_dtype: BoolDType,
+    ) -> NdArrayTensor {
         execute_with_int_dtype!(lhs, |array| NdArrayMathOps::greater_equal_elem(
             array,
             rhs.elem()
         ))
     }
 
-    fn int_lower(lhs: NdArrayTensor, rhs: NdArrayTensor) -> NdArrayTensor {
+    fn int_lower(lhs: NdArrayTensor, rhs: NdArrayTensor, _out_dtype: BoolDType) -> NdArrayTensor {
         execute_with_int_dtype!((lhs, rhs), NdArrayMathOps::lower)
     }
 
-    fn int_lower_elem(lhs: NdArrayTensor, rhs: Scalar) -> NdArrayTensor {
+    fn int_lower_elem(lhs: NdArrayTensor, rhs: Scalar, _out_dtype: BoolDType) -> NdArrayTensor {
         execute_with_int_dtype!(lhs, |array| NdArrayMathOps::lower_elem(array, rhs.elem()))
     }
 
-    fn int_lower_equal(lhs: NdArrayTensor, rhs: NdArrayTensor) -> NdArrayTensor {
+    fn int_lower_equal(
+        lhs: NdArrayTensor,
+        rhs: NdArrayTensor,
+        _out_dtype: BoolDType,
+    ) -> NdArrayTensor {
         execute_with_int_dtype!((lhs, rhs), NdArrayMathOps::lower_equal)
     }
 
-    fn int_lower_equal_elem(lhs: NdArrayTensor, rhs: Scalar) -> NdArrayTensor {
+    fn int_lower_equal_elem(
+        lhs: NdArrayTensor,
+        rhs: Scalar,
+        _out_dtype: BoolDType,
+    ) -> NdArrayTensor {
         execute_with_int_dtype!(lhs, |array| NdArrayMathOps::lower_equal_elem(
             array,
             rhs.elem()
@@ -338,10 +355,12 @@ where
         }
     }
 
-    fn int_into_float(tensor: NdArrayTensor) -> FloatTensor<Self> {
-        execute_with_int_dtype!(tensor, IntElem, |array: SharedArray<IntElem>| array
-            .mapv(|a: IntElem| a.elem::<E>())
-            .into_shared())
+    fn int_into_float(tensor: NdArrayTensor, out_dtype: FloatDType) -> FloatTensor<Self> {
+        execute_with_float_out_dtype!(out_dtype, F, {
+            execute_with_int_dtype!(tensor, IntElem, |array: SharedArray<IntElem>| {
+                array.mapv(|a: IntElem| a.elem::<F>()).into_shared()
+            })
+        })
     }
 
     fn int_swap_dims(tensor: NdArrayTensor, dim1: usize, dim2: usize) -> NdArrayTensor {
@@ -352,6 +371,7 @@ where
         shape: Shape,
         distribution: Distribution,
         device: &NdArrayDevice,
+        dtype: IntDType,
     ) -> NdArrayTensor {
         let mut seed = SEED.lock().unwrap();
         let mut rng = seed.take().unwrap_or_else(get_seeded_rng);
@@ -362,9 +382,13 @@ where
             distribution
         };
 
-        let tensor = Self::int_from_data(
-            TensorData::random::<I, _, _>(shape, effective_distribution, &mut rng),
-            device,
+        let tensor = execute_with_int_out_dtype!(
+            dtype,
+            I,
+            Self::int_from_data(
+                TensorData::random::<I, _, _>(shape, effective_distribution, &mut rng),
+                device,
+            )
         );
         *seed = Some(rng);
         tensor
@@ -394,7 +418,7 @@ where
                 ])
             }
             DType::U64 | DType::U32 | DType::U16 | DType::U8 => {
-                Self::int_greater_elem(tensor, 0.into())
+                Self::int_greater_elem(tensor, 0.into(), BoolDType::Native)
             }
             other => panic!("Unsupported dtype: {other:?}"),
         }
@@ -475,5 +499,11 @@ where
         step: usize,
     ) -> IntTensor<Self> {
         execute_with_int_dtype!(tensor, |array| NdArrayOps::unfold(array, dim, size, step))
+    }
+
+    fn int_powi_scalar_impl(lhs: IntTensor<Self>, rhs: Scalar) -> IntTensor<Self> {
+        execute_with_int_dtype!(lhs, I, |array| {
+            NdArrayMathOps::elementwise_op_scalar(array, |a: I| a.powi_elem(rhs.elem()))
+        })
     }
 }

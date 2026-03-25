@@ -6,7 +6,8 @@ pub use api::*;
 
 // Re-exported types
 pub use burn_backend::{
-    DType, DataError, FloatDType, IntDType, TensorData, TensorMetadata, TensorPrimitive, Tolerance,
+    BoolDType, BoolStore, DType, DataError, FloatDType, IntDType, TensorData, TensorMetadata,
+    TensorPrimitive, Tolerance,
     distribution::*,
     element::*,
     indexing::*,
@@ -40,6 +41,9 @@ pub mod loss;
 
 /// The neural network module.
 pub mod module;
+
+/// The signal processing module.
+pub mod signal;
 
 /// Operations on tensors module.
 pub mod ops {

@@ -3,7 +3,7 @@ use crate::tensor::FloatTensor;
 use crate::{Backend, TensorData, TensorMetadata, element::ElementConversion};
 use alloc::vec;
 use alloc::vec::Vec;
-use burn_std::Shape;
+use burn_std::{DType, Shape};
 
 /// Constructs a special weight tensor used for unfolding.
 ///
@@ -17,6 +17,7 @@ pub(crate) fn create_unfolding_weight<B: Backend>(
     in_channels: usize,
     kernel_size: [usize; 2],
     device: &B::Device,
+    dtype: DType,
 ) -> FloatTensor<B> {
     let shape = Shape::new([
         in_channels * kernel_size[0] * kernel_size[1],
@@ -48,7 +49,7 @@ pub(crate) fn create_unfolding_weight<B: Backend>(
         }
     }
 
-    B::float_from_data(TensorData::new(weight, shape), device)
+    B::float_from_data(TensorData::new(weight, shape).convert_dtype(dtype), device)
 }
 
 /// Compute the unfold4d operation using the conv2d operations.
@@ -58,7 +59,8 @@ pub(crate) fn unfold4d_using_conv2d<B: Backend>(
     options: UnfoldOptions,
 ) -> FloatTensor<B> {
     let [_batch_size, in_channels, _in_height, _in_width] = x.shape().dims();
-    let weight = create_unfolding_weight::<B>(in_channels, kernel_size, &B::float_device(&x));
+    let weight =
+        create_unfolding_weight::<B>(in_channels, kernel_size, &B::float_device(&x), x.dtype());
     let unfolded = B::conv2d(
         x,
         weight,

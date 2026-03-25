@@ -27,7 +27,7 @@ fn test_transposed() {
         [4., 5., 6., 1., 2.],
         [7., 8., 9., 1., 2.],
     ];
-    let tensor = TestTensor::<2>::from_floats(data, &Default::default());
+    let tensor = TestTensor::<2>::from_data(data, &Default::default());
     let lhs = tensor.clone().slice([1..2, 0..5]);
     let rhs = tensor.transpose().iter_dim(1).nth(1).unwrap();
     assert_eq!(
@@ -171,7 +171,7 @@ fn test_iteration_over_low_dim() {
         [7., 8., 9., 1., 2.],
     ]];
 
-    let tensor = TestTensor::<3>::from_floats(data, &Default::default());
+    let tensor = TestTensor::<3>::from_data(data, &Default::default());
 
     let lhs = tensor.iter_dim(2).nth(1).unwrap();
     let rhs = TestTensor::<1>::from([2., 5., 8.]);

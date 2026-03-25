@@ -1,10 +1,11 @@
 use crate::{
-    CubeElement, CubeRuntime,
+    CubeRuntime,
     kernel::utils::address_type,
-    ops::{max_vector_size, numeric::empty_device},
+    ops::{max_vector_size, numeric::empty_device_dtype},
     tensor::CubeTensor,
 };
 use burn_backend::TensorMetadata;
+use burn_std::DType;
 use cubecl::{
     CubeDim, calculate_cube_count_elemwise, num_traits::One, prelude::*,
     std::tensor::layout::linear::LinearView,
@@ -14,7 +15,7 @@ use cubecl::{
 fn bool_cast_kernel<B: Int, T: Numeric, N: Size>(
     input: &LinearView<Vector<B, N>>,
     output: &mut LinearView<Vector<T, N>, ReadWrite>,
-    #[define(B)] _input_ty: StorageType,
+    #[define(B, T)] _dtypes: [StorageType; 2],
 ) {
     if !output.is_in_bounds(ABSOLUTE_POS) {
         terminate!();
@@ -29,9 +30,13 @@ fn bool_cast_kernel<B: Int, T: Numeric, N: Size>(
 /// where any non-zero value means true. Depending how it was created
 /// it may hold an uncanny bit combination. Naively casting it would not
 /// necessarily yield 0 or 1.
-pub fn bool_cast<R: CubeRuntime, EO: CubeElement>(tensor: CubeTensor<R>) -> CubeTensor<R> {
-    let output =
-        empty_device::<R, EO>(tensor.client.clone(), tensor.device.clone(), tensor.shape());
+pub fn bool_cast<R: CubeRuntime>(tensor: CubeTensor<R>, out_dtype: DType) -> CubeTensor<R> {
+    let output = empty_device_dtype(
+        tensor.client.clone(),
+        tensor.device.clone(),
+        tensor.shape(),
+        out_dtype,
+    );
 
     let vector_size = max_vector_size(&tensor);
     let num_elems = tensor.meta.num_elements();
@@ -42,7 +47,7 @@ pub fn bool_cast<R: CubeRuntime, EO: CubeElement>(tensor: CubeTensor<R>) -> Cube
     let dtype = tensor.dtype;
 
     unsafe {
-        bool_cast_kernel::launch_unchecked::<EO, R>(
+        bool_cast_kernel::launch_unchecked(
             &output.client,
             cube_count,
             cube_dim,
@@ -50,7 +55,7 @@ pub fn bool_cast<R: CubeRuntime, EO: CubeElement>(tensor: CubeTensor<R>) -> Cube
             vector_size,
             tensor.into_linear_view(),
             output.clone().into_linear_view(),
-            dtype.into(),
+            [dtype.into(), out_dtype.into()],
         )
     };
 

@@ -500,16 +500,13 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     /// or use this function directly.
     fn register_transaction(tr: &mut TransactionPrimitive<B>, tensor: Self::Primitive);
 
-    /// Creates a tensor from the given data.
+    /// Creates a tensor from the given data enforcing the provided data type.
     ///
     /// # Arguments
     ///
     /// * `data` - The data of the tensor.
     /// * `device` - The device on which the tensor will be allocated.
-    ///
-    /// # Returns
-    ///
-    /// The tensor.
+    /// * `dtype` - The target data type.
     ///
     /// # Remarks
     ///
@@ -521,20 +518,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     #[cfg_attr(doc, doc = crate::doc_tensor!("from_data"))]
     #[cfg_attr(not(doc), doc = "`Tensor::from_data`")]
     /// function, which is more high-level and designed for public use.
-    fn from_data(data: TensorData, device: &B::Device) -> Self::Primitive;
-    /// Creates a tensor from the given data enforcing the given data type.
-    ///
-    /// # Remarks
-    ///
-    /// This is a low-level function used internally by the library to call different backend functions
-    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
-    /// or use this function directly.
-    ///
-    /// For creating a tensor from data, users should prefer the
-    #[cfg_attr(doc, doc = crate::doc_tensor!("from_data_dtype"))]
-    #[cfg_attr(not(doc), doc = "`Tensor::from_data_dtype`")]
-    /// function, which is more high-level and designed for public use.
-    fn from_data_dtype(data: TensorData, device: &B::Device, dtype: DType) -> Self::Primitive;
+    fn from_data(data: TensorData, device: &B::Device, dtype: DType) -> Self::Primitive;
 
     /// Repeat the tensor along the given dimension.
     ///

@@ -169,7 +169,7 @@ fn test_upsample_half_pixel() {
 fn test_1d_lanczos3() {
     let device = Default::default();
 
-    let input = TestTensor::<3>::from_floats(
+    let input = TestTensor::<3>::from_data(
         [[[1.5410, -0.2934, -2.1788, 0.5684, -1.0845, -1.3986]]],
         &device,
     );

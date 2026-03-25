@@ -1,5 +1,5 @@
 use super::*;
-use burn_tensor::{Distribution, Int, Tensor, backend::Backend};
+use burn_tensor::{Distribution, backend::Backend};
 use burn_tensor::{IndexingUpdateOp, Tolerance};
 
 #[test]
@@ -29,21 +29,20 @@ fn select_add_should_work_with_multiple_workgroups_3d_dim2() {
 
 fn select_add_same_as_ref<const D: usize>(dim: usize, shape: [usize; D]) {
     let device = Default::default();
+    let ref_device = ReferenceDevice::new();
+
     TestBackend::seed(&device, 0);
 
-    let tensor =
-        Tensor::<TestBackend, D>::random(shape, Distribution::Default, &Default::default());
-    let value = Tensor::<TestBackend, D>::random(shape, Distribution::Default, &Default::default());
-    let indices = Tensor::<TestBackend, 1, Int>::random(
+    let tensor = TestTensor::<D>::random(shape, Distribution::Default, &device);
+    let value = TestTensor::<D>::random(shape, Distribution::Default, &device);
+    let indices = TestTensorInt::<1>::random(
         [shape[dim]],
         Distribution::Uniform(0., shape[dim] as f64),
-        &Default::default(),
+        &device,
     );
-    let tensor_ref =
-        Tensor::<ReferenceBackend, D>::from_data(tensor.to_data(), &Default::default());
-    let value_ref = Tensor::<ReferenceBackend, D>::from_data(value.to_data(), &Default::default());
-    let indices_ref =
-        Tensor::<ReferenceBackend, 1, Int>::from_data(indices.to_data(), &Default::default());
+    let tensor_ref = TestTensor::<D>::from_data(tensor.to_data(), &ref_device);
+    let value_ref = TestTensor::<D>::from_data(value.to_data(), &ref_device);
+    let indices_ref = TestTensorInt::<1>::from_data(indices.to_data(), &ref_device);
 
     let actual = tensor.select_assign(dim, indices, value, IndexingUpdateOp::Add);
     let expected = tensor_ref.select_assign(dim, indices_ref, value_ref, IndexingUpdateOp::Add);

@@ -1,9 +1,9 @@
+use alloc::vec::Vec;
 use burn_backend::{
-    ExecutionError, Scalar, TensorData,
+    BoolDType, ExecutionError, FloatDType, IntDType, Scalar, Shape, Slice, TensorData,
     ops::IntTensorOps,
     tensor::{BoolTensor, FloatTensor, IntTensor},
 };
-use burn_std::{IntDType, Shape, Slice};
 
 use crate::backends::*;
 use crate::{Dispatch, DispatchDevice};
@@ -48,8 +48,8 @@ impl IntTensorOps<Self> for Dispatch {
         binary_op!((tensor, int), (value, int), |tensor, value| B::int_slice_assign(tensor, slices, value) => Int)
     }
 
-    fn int_into_float(tensor: IntTensor<Self>) -> FloatTensor<Self> {
-        unary_op!(tensor, int, |tensor| B::int_into_float(tensor) => Float)
+    fn int_into_float(tensor: IntTensor<Self>, out_dtype: FloatDType) -> FloatTensor<Self> {
+        unary_op!(tensor, int, |tensor| B::int_into_float(tensor, out_dtype) => Float)
     }
 
     fn int_mask_where(
@@ -111,44 +111,76 @@ impl IntTensorOps<Self> for Dispatch {
         )
     }
 
-    fn int_equal(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> BoolTensor<Self> {
-        binary_op!((lhs, int), (rhs, int), |lhs, rhs| B::int_equal(lhs, rhs) => Bool)
+    fn int_equal(
+        lhs: IntTensor<Self>,
+        rhs: IntTensor<Self>,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<Self> {
+        binary_op!((lhs, int), (rhs, int), |lhs, rhs| B::int_equal(lhs, rhs, out_dtype) => Bool)
     }
 
-    fn int_equal_elem(lhs: IntTensor<Self>, rhs: Scalar) -> BoolTensor<Self> {
-        unary_op!(lhs, int, |lhs| B::int_equal_elem(lhs, rhs) => Bool)
+    fn int_equal_elem(lhs: IntTensor<Self>, rhs: Scalar, out_dtype: BoolDType) -> BoolTensor<Self> {
+        unary_op!(lhs, int, |lhs| B::int_equal_elem(lhs, rhs, out_dtype) => Bool)
     }
 
-    fn int_greater(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> BoolTensor<Self> {
-        binary_op!((lhs, int), (rhs, int), |lhs, rhs| B::int_greater(lhs, rhs) => Bool)
+    fn int_greater(
+        lhs: IntTensor<Self>,
+        rhs: IntTensor<Self>,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<Self> {
+        binary_op!((lhs, int), (rhs, int), |lhs, rhs| B::int_greater(lhs, rhs, out_dtype) => Bool)
     }
 
-    fn int_greater_elem(lhs: IntTensor<Self>, rhs: Scalar) -> BoolTensor<Self> {
-        unary_op!(lhs, int, |lhs| B::int_greater_elem(lhs, rhs) => Bool)
+    fn int_greater_elem(
+        lhs: IntTensor<Self>,
+        rhs: Scalar,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<Self> {
+        unary_op!(lhs, int, |lhs| B::int_greater_elem(lhs, rhs, out_dtype) => Bool)
     }
 
-    fn int_greater_equal(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> BoolTensor<Self> {
-        binary_op!((lhs, int), (rhs, int), |lhs, rhs| B::int_greater_equal(lhs, rhs) => Bool)
+    fn int_greater_equal(
+        lhs: IntTensor<Self>,
+        rhs: IntTensor<Self>,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<Self> {
+        binary_op!((lhs, int), (rhs, int), |lhs, rhs| B::int_greater_equal(lhs, rhs, out_dtype) => Bool)
     }
 
-    fn int_greater_equal_elem(lhs: IntTensor<Self>, rhs: Scalar) -> BoolTensor<Self> {
-        unary_op!(lhs, int, |lhs| B::int_greater_equal_elem(lhs, rhs) => Bool)
+    fn int_greater_equal_elem(
+        lhs: IntTensor<Self>,
+        rhs: Scalar,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<Self> {
+        unary_op!(lhs, int, |lhs| B::int_greater_equal_elem(lhs, rhs, out_dtype) => Bool)
     }
 
-    fn int_lower(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> BoolTensor<Self> {
-        binary_op!((lhs, int), (rhs, int), |lhs, rhs| B::int_lower(lhs, rhs) => Bool)
+    fn int_lower(
+        lhs: IntTensor<Self>,
+        rhs: IntTensor<Self>,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<Self> {
+        binary_op!((lhs, int), (rhs, int), |lhs, rhs| B::int_lower(lhs, rhs, out_dtype) => Bool)
     }
 
-    fn int_lower_elem(lhs: IntTensor<Self>, rhs: Scalar) -> BoolTensor<Self> {
-        unary_op!(lhs, int, |lhs| B::int_lower_elem(lhs, rhs) => Bool)
+    fn int_lower_elem(lhs: IntTensor<Self>, rhs: Scalar, out_dtype: BoolDType) -> BoolTensor<Self> {
+        unary_op!(lhs, int, |lhs| B::int_lower_elem(lhs, rhs, out_dtype) => Bool)
     }
 
-    fn int_lower_equal(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> BoolTensor<Self> {
-        binary_op!((lhs, int), (rhs, int), |lhs, rhs| B::int_lower_equal(lhs, rhs) => Bool)
+    fn int_lower_equal(
+        lhs: IntTensor<Self>,
+        rhs: IntTensor<Self>,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<Self> {
+        binary_op!((lhs, int), (rhs, int), |lhs, rhs| B::int_lower_equal(lhs, rhs, out_dtype) => Bool)
     }
 
-    fn int_lower_equal_elem(lhs: IntTensor<Self>, rhs: Scalar) -> BoolTensor<Self> {
-        unary_op!(lhs, int, |lhs| B::int_lower_equal_elem(lhs, rhs) => Bool)
+    fn int_lower_equal_elem(
+        lhs: IntTensor<Self>,
+        rhs: Scalar,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<Self> {
+        unary_op!(lhs, int, |lhs| B::int_lower_equal_elem(lhs, rhs, out_dtype) => Bool)
     }
 
     fn int_add(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
@@ -259,9 +291,10 @@ impl IntTensorOps<Self> for Dispatch {
         shape: Shape,
         distribution: burn_backend::Distribution,
         device: &DispatchDevice,
+        dtype: IntDType,
     ) -> IntTensor<Self> {
         creation_op!(Int, device, |device| {
-            B::int_random(shape, distribution, device)
+            B::int_random(shape, distribution, device, dtype)
         })
     }
 
@@ -334,12 +367,20 @@ impl IntTensorOps<Self> for Dispatch {
         vec_op!(tensors, int, |tensors| B::int_cat(tensors, dim) => Int)
     }
 
-    fn int_not_equal(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> BoolTensor<Self> {
-        binary_op!((lhs, int), (rhs, int), |lhs, rhs| B::int_not_equal(lhs, rhs) => Bool)
+    fn int_not_equal(
+        lhs: IntTensor<Self>,
+        rhs: IntTensor<Self>,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<Self> {
+        binary_op!((lhs, int), (rhs, int), |lhs, rhs| B::int_not_equal(lhs, rhs, out_dtype) => Bool)
     }
 
-    fn int_not_equal_elem(lhs: IntTensor<Self>, rhs: Scalar) -> BoolTensor<Self> {
-        unary_op!(lhs, int, |lhs| B::int_not_equal_elem(lhs, rhs) => Bool)
+    fn int_not_equal_elem(
+        lhs: IntTensor<Self>,
+        rhs: Scalar,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<Self> {
+        unary_op!(lhs, int, |lhs| B::int_not_equal_elem(lhs, rhs, out_dtype) => Bool)
     }
 
     fn int_powi(lhs: IntTensor<Self>, rhs: IntTensor<Self>) -> IntTensor<Self> {
@@ -440,33 +481,38 @@ impl IntTensorOps<Self> for Dispatch {
     }
 
     fn int_arange_step(
-        range: std::ops::Range<i64>,
+        range: core::ops::Range<i64>,
         step: usize,
         device: &DispatchDevice,
+        dtype: IntDType,
     ) -> IntTensor<Self> {
         creation_op!(Int, device, |device| B::int_arange_step(
-            range, step, device
+            range, step, device, dtype
         ))
     }
 
-    fn int_arange(range: std::ops::Range<i64>, device: &DispatchDevice) -> IntTensor<Self> {
-        creation_op!(Int, device, |device| B::int_arange(range, device))
+    fn int_arange(
+        range: core::ops::Range<i64>,
+        device: &DispatchDevice,
+        dtype: IntDType,
+    ) -> IntTensor<Self> {
+        creation_op!(Int, device, |device| B::int_arange(range, device, dtype))
     }
 
-    fn int_any(tensor: IntTensor<Self>) -> BoolTensor<Self> {
-        unary_op!(tensor, int, |tensor| B::int_any(tensor) => Bool)
+    fn int_any(tensor: IntTensor<Self>, out_dtype: BoolDType) -> BoolTensor<Self> {
+        unary_op!(tensor, int, |tensor| B::int_any(tensor, out_dtype) => Bool)
     }
 
-    fn int_any_dim(tensor: IntTensor<Self>, dim: usize) -> BoolTensor<Self> {
-        unary_op!(tensor, int, |tensor| B::int_any_dim(tensor, dim) => Bool)
+    fn int_any_dim(tensor: IntTensor<Self>, dim: usize, out_dtype: BoolDType) -> BoolTensor<Self> {
+        unary_op!(tensor, int, |tensor| B::int_any_dim(tensor, dim, out_dtype) => Bool)
     }
 
-    fn int_all(tensor: IntTensor<Self>) -> BoolTensor<Self> {
-        unary_op!(tensor, int, |tensor| B::int_all(tensor) => Bool)
+    fn int_all(tensor: IntTensor<Self>, out_dtype: BoolDType) -> BoolTensor<Self> {
+        unary_op!(tensor, int, |tensor| B::int_all(tensor, out_dtype) => Bool)
     }
 
-    fn int_all_dim(tensor: IntTensor<Self>, dim: usize) -> BoolTensor<Self> {
-        unary_op!(tensor, int, |tensor| B::int_all_dim(tensor, dim) => Bool)
+    fn int_all_dim(tensor: IntTensor<Self>, dim: usize, out_dtype: BoolDType) -> BoolTensor<Self> {
+        unary_op!(tensor, int, |tensor| B::int_all_dim(tensor, dim, out_dtype) => Bool)
     }
 
     fn int_sign(tensor: IntTensor<Self>) -> IntTensor<Self> {

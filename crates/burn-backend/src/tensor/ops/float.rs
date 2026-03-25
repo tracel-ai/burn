@@ -2,7 +2,8 @@ use alloc::vec::Vec;
 use burn_std::{DType, Shape, Slice};
 
 use crate::{
-    AutodiffBackend, Backend, Distribution, ExecutionError, Scalar, TensorData, TensorPrimitive,
+    AutodiffBackend, Backend, Distribution, ExecutionError, Scalar, TensorData, TensorMetadata,
+    TensorPrimitive, get_device_settings,
     ops::TransactionPrimitive,
     tensor::{
         BasicAutodiffOps, BasicOps, Device, Float, IndexingUpdateOp, IntTensor, Numeric, Ordered,
@@ -18,10 +19,12 @@ macro_rules! q_bin_ops {
             }
             (TensorPrimitive::QFloat(lhs), TensorPrimitive::QFloat(rhs)) => B::$q_op(lhs, rhs),
             (TensorPrimitive::QFloat(lhs), TensorPrimitive::Float(rhs)) => {
-                TensorPrimitive::Float(B::$op(B::dequantize(lhs), rhs))
+                let dtype = rhs.dtype();
+                TensorPrimitive::Float(B::$op(B::dequantize(lhs, dtype.into()), rhs))
             }
             (TensorPrimitive::Float(lhs), TensorPrimitive::QFloat(rhs)) => {
-                TensorPrimitive::Float(B::$op(lhs, B::dequantize(rhs)))
+                let dtype = lhs.dtype();
+                TensorPrimitive::Float(B::$op(lhs, B::dequantize(rhs, dtype.into())))
             }
         }
     };
@@ -195,22 +198,14 @@ impl<B: Backend> BasicOps<B> for Float {
         }
     }
 
-    fn from_data(data: TensorData, device: &Device<B>) -> Self::Primitive {
-        match &data.dtype {
-            DType::QFloat(_scheme) => TensorPrimitive::QFloat(B::q_from_data(data, device)),
-            _ => TensorPrimitive::Float(B::float_from_data(data.convert::<B::FloatElem>(), device)),
-        }
-    }
-
-    fn from_data_dtype(data: TensorData, device: &Device<B>, dtype: DType) -> Self::Primitive {
-        match dtype {
-            DType::QFloat(_scheme) => {
-                TensorPrimitive::QFloat(B::q_from_data(data.convert_dtype(dtype), device))
-            }
-            _ if dtype.is_float() => {
-                TensorPrimitive::Float(B::float_from_data(data.convert_dtype(dtype), device))
-            }
-            _ => panic!("Expected float dtype, got {dtype:?}"),
+    fn from_data(data: TensorData, device: &Device<B>, dtype: DType) -> Self::Primitive {
+        if matches!(data.dtype, DType::QFloat(_)) {
+            // When the source is QFloat, there is no conversion path possible.
+            TensorPrimitive::QFloat(B::q_from_data(data, device))
+        } else if dtype.is_float() {
+            TensorPrimitive::Float(B::float_from_data(data.convert_dtype(dtype), device))
+        } else {
+            panic!("Expected float dtype, got {dtype:?}")
         }
     }
 
@@ -248,35 +243,51 @@ impl<B: Backend> BasicOps<B> for Float {
     }
 
     fn equal(lhs: Self::Primitive, rhs: Self::Primitive) -> B::BoolTensorPrimitive {
-        B::float_equal(lhs.tensor(), rhs.tensor())
+        let lhs = lhs.tensor();
+        let out_dtype = get_device_settings::<B>(&B::float_device(&lhs)).bool_dtype;
+        B::float_equal(lhs, rhs.tensor(), out_dtype)
     }
 
     fn not_equal(lhs: Self::Primitive, rhs: Self::Primitive) -> B::BoolTensorPrimitive {
-        B::float_not_equal(lhs.tensor(), rhs.tensor())
+        let lhs = lhs.tensor();
+        let out_dtype = get_device_settings::<B>(&B::float_device(&lhs)).bool_dtype;
+        B::float_not_equal(lhs, rhs.tensor(), out_dtype)
     }
 
     fn equal_elem(lhs: Self::Primitive, rhs: Scalar) -> B::BoolTensorPrimitive {
-        B::float_equal_elem(lhs.tensor(), rhs)
+        let lhs = lhs.tensor();
+        let out_dtype = get_device_settings::<B>(&B::float_device(&lhs)).bool_dtype;
+        B::float_equal_elem(lhs, rhs, out_dtype)
     }
 
     fn not_equal_elem(lhs: Self::Primitive, rhs: Scalar) -> B::BoolTensorPrimitive {
-        B::float_not_equal_elem(lhs.tensor(), rhs)
+        let lhs = lhs.tensor();
+        let out_dtype = get_device_settings::<B>(&B::float_device(&lhs)).bool_dtype;
+        B::float_not_equal_elem(lhs, rhs, out_dtype)
     }
 
     fn any(tensor: Self::Primitive) -> B::BoolTensorPrimitive {
-        B::float_any(tensor.tensor())
+        let tensor = tensor.tensor();
+        let out_dtype = get_device_settings::<B>(&B::float_device(&tensor)).bool_dtype;
+        B::float_any(tensor, out_dtype)
     }
 
     fn any_dim(tensor: Self::Primitive, dim: usize) -> B::BoolTensorPrimitive {
-        B::float_any_dim(tensor.tensor(), dim)
+        let tensor = tensor.tensor();
+        let out_dtype = get_device_settings::<B>(&B::float_device(&tensor)).bool_dtype;
+        B::float_any_dim(tensor, dim, out_dtype)
     }
 
     fn all(tensor: Self::Primitive) -> B::BoolTensorPrimitive {
-        B::float_all(tensor.tensor())
+        let tensor = tensor.tensor();
+        let out_dtype = get_device_settings::<B>(&B::float_device(&tensor)).bool_dtype;
+        B::float_all(tensor, out_dtype)
     }
 
     fn all_dim(tensor: Self::Primitive, dim: usize) -> B::BoolTensorPrimitive {
-        B::float_all_dim(tensor.tensor(), dim)
+        let tensor = tensor.tensor();
+        let out_dtype = get_device_settings::<B>(&B::float_device(&tensor)).bool_dtype;
+        B::float_all_dim(tensor, dim, out_dtype)
     }
 
     fn permute(tensor: Self::Primitive, axes: &[usize]) -> Self::Primitive {
@@ -440,8 +451,13 @@ impl<B: Backend> Numeric<B> for Float {
         }
     }
 
-    fn random(shape: Shape, distribution: Distribution, device: &Device<B>) -> Self::Primitive {
-        TensorPrimitive::Float(B::float_random(shape, distribution, device))
+    fn random(
+        shape: Shape,
+        distribution: Distribution,
+        device: &Device<B>,
+        dtype: DType,
+    ) -> Self::Primitive {
+        TensorPrimitive::Float(B::float_random(shape, distribution, device, dtype.into()))
     }
 
     fn sign(tensor: Self::Primitive) -> Self::Primitive {
@@ -483,11 +499,14 @@ impl<B: Backend> Ordered<B> for Float {
     ) -> (Self::Primitive, IntTensor<B>) {
         match tensor {
             TensorPrimitive::Float(tensor) => {
-                let (values, indices) = B::float_sort_with_indices(tensor, dim, descending);
+                let out_dtype = get_device_settings::<B>(&B::float_device(&tensor)).int_dtype;
+                let (values, indices) =
+                    B::float_sort_with_indices(tensor, dim, descending, out_dtype);
                 (TensorPrimitive::Float(values), indices)
             }
             TensorPrimitive::QFloat(tensor) => {
-                let (values, indices) = B::q_sort_with_indices(tensor, dim, descending);
+                let out_dtype = get_device_settings::<B>(&B::q_device(&tensor)).int_dtype;
+                let (values, indices) = B::q_sort_with_indices(tensor, dim, descending, out_dtype);
                 (TensorPrimitive::QFloat(values), indices)
             }
         }
@@ -495,8 +514,14 @@ impl<B: Backend> Ordered<B> for Float {
 
     fn argsort(tensor: Self::Primitive, dim: usize, descending: bool) -> IntTensor<B> {
         match tensor {
-            TensorPrimitive::Float(tensor) => B::float_argsort(tensor, dim, descending),
-            TensorPrimitive::QFloat(tensor) => B::q_argsort(tensor, dim, descending),
+            TensorPrimitive::Float(tensor) => {
+                let out_dtype = get_device_settings::<B>(&B::float_device(&tensor)).int_dtype;
+                B::float_argsort(tensor, dim, descending, out_dtype)
+            }
+            TensorPrimitive::QFloat(tensor) => {
+                let out_dtype = get_device_settings::<B>(&B::q_device(&tensor)).int_dtype;
+                B::q_argsort(tensor, dim, descending, out_dtype)
+            }
         }
     }
 
@@ -515,48 +540,76 @@ impl<B: Backend> Ordered<B> for Float {
     }
 
     fn greater(lhs: Self::Primitive, rhs: Self::Primitive) -> B::BoolTensorPrimitive {
-        B::float_greater(lhs.tensor(), rhs.tensor())
+        let lhs = lhs.tensor();
+        let out_dtype = get_device_settings::<B>(&B::float_device(&lhs)).bool_dtype;
+        B::float_greater(lhs, rhs.tensor(), out_dtype)
     }
 
     fn greater_elem(lhs: Self::Primitive, rhs: Scalar) -> B::BoolTensorPrimitive {
-        B::float_greater_elem(lhs.tensor(), rhs)
+        let lhs = lhs.tensor();
+        let out_dtype = get_device_settings::<B>(&B::float_device(&lhs)).bool_dtype;
+        B::float_greater_elem(lhs, rhs, out_dtype)
     }
 
     fn greater_equal(lhs: Self::Primitive, rhs: Self::Primitive) -> B::BoolTensorPrimitive {
-        B::float_greater_equal(lhs.tensor(), rhs.tensor())
+        let lhs = lhs.tensor();
+        let out_dtype = get_device_settings::<B>(&B::float_device(&lhs)).bool_dtype;
+        B::float_greater_equal(lhs, rhs.tensor(), out_dtype)
     }
 
     fn greater_equal_elem(lhs: Self::Primitive, rhs: Scalar) -> B::BoolTensorPrimitive {
-        B::float_greater_equal_elem(lhs.tensor(), rhs)
+        let lhs = lhs.tensor();
+        let out_dtype = get_device_settings::<B>(&B::float_device(&lhs)).bool_dtype;
+        B::float_greater_equal_elem(lhs, rhs, out_dtype)
     }
 
     fn lower(lhs: Self::Primitive, rhs: Self::Primitive) -> B::BoolTensorPrimitive {
-        B::float_lower(lhs.tensor(), rhs.tensor())
+        let lhs = lhs.tensor();
+        let out_dtype = get_device_settings::<B>(&B::float_device(&lhs)).bool_dtype;
+        B::float_lower(lhs, rhs.tensor(), out_dtype)
     }
 
     fn lower_elem(lhs: Self::Primitive, rhs: Scalar) -> B::BoolTensorPrimitive {
-        B::float_lower_elem(lhs.tensor(), rhs)
+        let lhs = lhs.tensor();
+        let out_dtype = get_device_settings::<B>(&B::float_device(&lhs)).bool_dtype;
+        B::float_lower_elem(lhs, rhs, out_dtype)
     }
 
     fn lower_equal(lhs: Self::Primitive, rhs: Self::Primitive) -> B::BoolTensorPrimitive {
-        B::float_lower_equal(lhs.tensor(), rhs.tensor())
+        let lhs = lhs.tensor();
+        let out_dtype = get_device_settings::<B>(&B::float_device(&lhs)).bool_dtype;
+        B::float_lower_equal(lhs, rhs.tensor(), out_dtype)
     }
 
     fn lower_equal_elem(lhs: Self::Primitive, rhs: Scalar) -> B::BoolTensorPrimitive {
-        B::float_lower_equal_elem(lhs.tensor(), rhs)
+        let lhs = lhs.tensor();
+        let out_dtype = get_device_settings::<B>(&B::float_device(&lhs)).bool_dtype;
+        B::float_lower_equal_elem(lhs, rhs, out_dtype)
     }
 
     fn argmax(tensor: Self::Primitive, dim: usize) -> IntTensor<B> {
         match tensor {
-            TensorPrimitive::Float(tensor) => B::float_argmax(tensor, dim),
-            TensorPrimitive::QFloat(tensor) => B::q_argmax(tensor, dim),
+            TensorPrimitive::Float(tensor) => {
+                let out_dtype = get_device_settings::<B>(&B::float_device(&tensor)).int_dtype;
+                B::float_argmax(tensor, dim, out_dtype)
+            }
+            TensorPrimitive::QFloat(tensor) => {
+                let out_dtype = get_device_settings::<B>(&B::q_device(&tensor)).int_dtype;
+                B::q_argmax(tensor, dim, out_dtype)
+            }
         }
     }
 
     fn argmin(tensor: Self::Primitive, dim: usize) -> IntTensor<B> {
         match tensor {
-            TensorPrimitive::Float(tensor) => B::float_argmin(tensor, dim),
-            TensorPrimitive::QFloat(tensor) => B::q_argmin(tensor, dim),
+            TensorPrimitive::Float(tensor) => {
+                let out_dtype = get_device_settings::<B>(&B::float_device(&tensor)).int_dtype;
+                B::float_argmin(tensor, dim, out_dtype)
+            }
+            TensorPrimitive::QFloat(tensor) => {
+                let out_dtype = get_device_settings::<B>(&B::q_device(&tensor)).int_dtype;
+                B::q_argmin(tensor, dim, out_dtype)
+            }
         }
     }
 
@@ -580,11 +633,13 @@ impl<B: Backend> Ordered<B> for Float {
     ) -> (Self::Primitive, IntTensor<B>) {
         match tensor {
             TensorPrimitive::Float(tensor) => {
-                let (values, indices) = B::float_max_dim_with_indices(tensor, dim);
+                let out_dtype = get_device_settings::<B>(&B::float_device(&tensor)).int_dtype;
+                let (values, indices) = B::float_max_dim_with_indices(tensor, dim, out_dtype);
                 (TensorPrimitive::Float(values), indices)
             }
             TensorPrimitive::QFloat(tensor) => {
-                let (values, indices) = B::q_max_dim_with_indices(tensor, dim);
+                let out_dtype = get_device_settings::<B>(&B::q_device(&tensor)).int_dtype;
+                let (values, indices) = B::q_max_dim_with_indices(tensor, dim, out_dtype);
                 (TensorPrimitive::QFloat(values), indices)
             }
         }
@@ -610,11 +665,13 @@ impl<B: Backend> Ordered<B> for Float {
     ) -> (Self::Primitive, IntTensor<B>) {
         match tensor {
             TensorPrimitive::Float(tensor) => {
-                let (values, indices) = B::float_min_dim_with_indices(tensor, dim);
+                let out_dtype = get_device_settings::<B>(&B::float_device(&tensor)).int_dtype;
+                let (values, indices) = B::float_min_dim_with_indices(tensor, dim, out_dtype);
                 (TensorPrimitive::Float(values), indices)
             }
             TensorPrimitive::QFloat(tensor) => {
-                let (values, indices) = B::q_min_dim_with_indices(tensor, dim);
+                let out_dtype = get_device_settings::<B>(&B::q_device(&tensor)).int_dtype;
+                let (values, indices) = B::q_min_dim_with_indices(tensor, dim, out_dtype);
                 (TensorPrimitive::QFloat(values), indices)
             }
         }

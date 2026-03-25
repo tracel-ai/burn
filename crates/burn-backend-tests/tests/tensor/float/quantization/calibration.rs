@@ -1,15 +1,15 @@
 use super::*;
 use burn_tensor::{
     TensorData,
-    ops::QuantizedTensor,
-    quantization::{Calibration, QTensorPrimitive, QuantLevel, QuantValue, compute_range},
+    quantization::{Calibration, QuantLevel, QuantValue, compute_range},
 };
 
 // NOTE: The scheme variant fields are not important for calibration, only the "main" variant (e.g., per-tensor)
 #[test]
 fn min_max_calibration_range_per_tensor() {
-    let tensor = TestTensor::<1>::from_floats([-1.8, -1.0, 0.0, 0.5], &Default::default());
-    let scheme = QuantizedTensor::<TestBackend>::default_scheme().with_value(QuantValue::Q8S);
+    let device = Default::default();
+    let tensor = TestTensor::<1>::from_data([-1.8, -1.0, 0.0, 0.5], &device);
+    let scheme = TestBackend::default_quant_scheme(&device).with_value(QuantValue::Q8S);
 
     let range = compute_range(&scheme, &tensor, &Calibration::MinMax);
 
@@ -25,16 +25,17 @@ fn min_max_calibration_range_per_tensor() {
 
 #[test]
 fn min_max_calibration_range_per_block() {
-    let tensor = TestTensor::<2>::from_floats(
+    let device = Default::default();
+    let tensor = TestTensor::<2>::from_data(
         [
             [-1.8, -1.0, 0.0, 0.5],
             [1.8, 1.0, 0.0, -0.5],
             [0.01, 0.02, 0.03, 0.04],
             [-0.01, -0.02, -0.03, -0.04],
         ],
-        &Default::default(),
+        &device,
     );
-    let scheme = QuantizedTensor::<TestBackend>::default_scheme()
+    let scheme = TestBackend::default_quant_scheme(&device)
         .with_value(QuantValue::Q8S)
         .with_level(QuantLevel::block([4]));
 

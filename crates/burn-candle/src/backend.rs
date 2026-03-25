@@ -189,11 +189,6 @@ impl burn_backend::Device for CandleDevice {
             _ => CandleDevice::Cpu,
         }
     }
-
-    fn device_count(type_id: u16) -> usize {
-        // TODO: Fix that
-        1
-    }
 }
 impl DeviceOps for CandleDevice {}
 
@@ -264,11 +259,15 @@ impl<F: FloatCandleElement, I: IntCandleElement> Backend for Candle<F, I> {
             burn_backend::DTypeUsageSet::empty()
         }
     }
+
+    fn device_count(_: u16) -> usize {
+        1
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use burn_std::QuantScheme;
+    use burn_std::{BoolStore, QuantScheme};
 
     use super::*;
 
@@ -287,11 +286,12 @@ mod tests {
         assert!(B::supports_dtype(&device, DType::U8));
         assert!(B::supports_dtype(&device, DType::I32));
         assert!(B::supports_dtype(&device, DType::I16));
+        assert!(B::supports_dtype(&device, DType::Bool(BoolStore::U8)));
 
         assert!(!B::supports_dtype(&device, DType::U64));
         assert!(!B::supports_dtype(&device, DType::U16));
         assert!(!B::supports_dtype(&device, DType::I8));
-        assert!(!B::supports_dtype(&device, DType::Bool));
+        assert!(!B::supports_dtype(&device, DType::Bool(BoolStore::Native)));
         assert!(!B::supports_dtype(
             &device,
             DType::QFloat(QuantScheme::default())

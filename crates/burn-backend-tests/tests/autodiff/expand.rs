@@ -13,13 +13,13 @@ fn should_diff_expand() {
     // print("x1", x1.grad)
     // print("x2", x2.grad)
 
-    let device = Default::default();
+    let device = AutodiffDevice::new();
 
     let data_1 = TensorData::from([4.0, 7.0, 2.0, 3.0]);
-    let tensor_1 = TestAutodiffTensor::<1>::from_data(data_1, &device).require_grad();
+    let tensor_1 = TestTensor::<1>::from_data(data_1, &device).require_grad();
 
     let data_2 = TensorData::from([2.0, 4.5, 7.0, 3.0]);
-    let tensor_2 = TestAutodiffTensor::<1>::from_data(data_2, &device).require_grad();
+    let tensor_2 = TestTensor::<1>::from_data(data_2, &device).require_grad();
 
     let tensor_3 = tensor_1.clone().expand([4, 4]);
 

@@ -13,7 +13,7 @@ fn test_avg_pool2d_simple() {
         output_size_2: 2,
     };
 
-    test.assert_output(TestTensor::from_floats(
+    test.assert_output(TestTensor::from_data(
         [[
             [
                 [0.2500, 0.5000, 0.2500],
@@ -30,7 +30,7 @@ fn test_avg_pool2d_simple() {
                 [0.2500, 0.5000, 0.2500],
             ],
         ]],
-        &Default::default(),
+        &AutodiffDevice::new(),
     ));
 }
 
@@ -45,7 +45,7 @@ fn test_avg_pool2d_output_1() {
         output_size_2: 1,
     };
 
-    test.assert_output(TestTensor::from_floats(
+    test.assert_output(TestTensor::from_data(
         [[[
             [
                 0.03125, 0.03125, 0.03125, 0.03125, 0.03125, 0.03125, 0.03125, 0.03125,
@@ -60,7 +60,7 @@ fn test_avg_pool2d_output_1() {
                 0.03125, 0.03125, 0.03125, 0.03125, 0.03125, 0.03125, 0.03125, 0.03125,
             ],
         ]]],
-        &Default::default(),
+        &AutodiffDevice::new(),
     ));
 }
 
@@ -76,8 +76,8 @@ struct AdaptiveAvgPool2dTestCase {
 impl AdaptiveAvgPool2dTestCase {
     fn assert_output(self, x_grad: TestTensor<4>) {
         let shape_x = Shape::new([self.batch_size, self.channels, self.height, self.width]);
-        let device = Default::default();
-        let x = TestAutodiffTensor::from_data(
+        let device = AutodiffDevice::new();
+        let x = TestTensor::from_data(
             TestTensorInt::arange(0..shape_x.num_elements() as i64, &device)
                 .reshape::<4, _>(shape_x)
                 .into_data(),

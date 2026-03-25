@@ -21,7 +21,7 @@ pub enum DType {
     U32,
     U16,
     U8,
-    Bool,
+    Bool(BoolStore),
     QFloat(QuantScheme),
 }
 
@@ -79,7 +79,11 @@ impl DType {
             DType::U32 => core::mem::size_of::<u32>(),
             DType::U16 => core::mem::size_of::<u16>(),
             DType::U8 => core::mem::size_of::<u8>(),
-            DType::Bool => core::mem::size_of::<bool>(),
+            DType::Bool(store) => match store {
+                BoolStore::Native => core::mem::size_of::<bool>(),
+                BoolStore::U8 => core::mem::size_of::<u8>(),
+                BoolStore::U32 => core::mem::size_of::<u32>(),
+            },
             DType::QFloat(scheme) => match scheme.store {
                 QuantStore::Native => match scheme.value {
                     QuantValue::Q8F | QuantValue::Q8S => core::mem::size_of::<i8>(),
@@ -119,7 +123,7 @@ impl DType {
 
     /// Returns true if the data type is a boolean type
     pub fn is_bool(&self) -> bool {
-        matches!(self, DType::Bool)
+        matches!(self, DType::Bool(_))
     }
 
     /// Returns the data type name.
@@ -138,7 +142,11 @@ impl DType {
             DType::U32 => "u32",
             DType::U16 => "u16",
             DType::U8 => "u8",
-            DType::Bool => "bool",
+            DType::Bool(store) => match store {
+                BoolStore::Native => "bool",
+                BoolStore::U8 => "bool(u8)",
+                BoolStore::U32 => "bool(u32)",
+            },
             DType::QFloat(_) => "qfloat",
         }
     }
@@ -219,6 +227,49 @@ impl From<IntDType> for DType {
             IntDType::U32 => DType::U32,
             IntDType::U16 => DType::U16,
             IntDType::U8 => DType::U8,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Serialize, Deserialize)]
+/// Data type used to store boolean values.
+pub enum BoolStore {
+    /// Stored as native boolean type (e.g. `bool`).
+    Native,
+    /// Stored as 8-bit unsigned integer.
+    U8,
+    /// Stored as 32-bit unsigned integer.
+    U32,
+}
+
+/// Boolean dtype.
+///
+/// This is currently an alias to [`BoolStore`], since it only varies by the storage representation.
+pub type BoolDType = BoolStore;
+
+#[allow(deprecated)]
+impl From<DType> for BoolDType {
+    fn from(value: DType) -> Self {
+        match value {
+            DType::Bool(store) => match store {
+                BoolStore::Native => BoolDType::Native,
+                BoolStore::U8 => BoolDType::U8,
+                BoolStore::U32 => BoolDType::U32,
+            },
+            // For compat BoolElem associated type
+            DType::U8 => BoolDType::U8,
+            DType::U32 => BoolDType::U32,
+            _ => panic!("Expected bool data type, got {value:?}"),
+        }
+    }
+}
+
+impl From<BoolDType> for DType {
+    fn from(value: BoolDType) -> Self {
+        match value {
+            BoolDType::Native => DType::Bool(BoolStore::Native),
+            BoolDType::U8 => DType::Bool(BoolStore::U8),
+            BoolDType::U32 => DType::Bool(BoolStore::U32),
         }
     }
 }

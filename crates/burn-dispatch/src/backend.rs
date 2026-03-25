@@ -1,15 +1,17 @@
+use alloc::boxed::Box;
 use alloc::format;
 use alloc::string::String;
 
-use burn_backend::Backend;
-use burn_backend::ExecutionError;
-use burn_std::DType;
+use burn_backend::quantization::QuantScheme;
+use burn_backend::{Backend, DType, ExecutionError, QTensorPrimitive};
 
 #[cfg(feature = "autodiff")]
 use burn_autodiff::grads::Gradients;
 #[cfg(feature = "autodiff")]
 use burn_backend::AutodiffBackend;
 
+#[allow(unused)]
+use crate::BackendId;
 use crate::DispatchTensorKind;
 use crate::backends::*;
 use crate::{DispatchDevice, DispatchTensor};
@@ -83,6 +85,28 @@ impl Backend for Dispatch {
             _ => false,
         }
     }
+
+    fn device_count(type_id: u16) -> usize {
+        let (dispatch_id, backend_type_id) = DispatchDevice::decode_type_id(type_id);
+        match dispatch_id {
+            #[cfg(feature = "cpu")]
+            BackendId::Cpu => Cpu::<f32>::device_count(backend_type_id),
+            #[cfg(feature = "cuda")]
+            BackendId::Cuda => Cuda::<f32>::device_count(backend_type_id),
+            #[cfg(wgpu_metal)]
+            BackendId::Metal => Metal::<f32>::device_count(backend_type_id),
+            #[cfg(feature = "rocm")]
+            BackendId::Rocm => Rocm::<f32>::device_count(backend_type_id),
+            #[cfg(wgpu_vulkan)]
+            BackendId::Vulkan => Vulkan::<f32>::device_count(backend_type_id),
+            #[cfg(wgpu_webgpu)]
+            BackendId::WebGpu => WebGpu::<f32>::device_count(backend_type_id),
+            #[cfg(feature = "ndarray")]
+            BackendId::NdArray => NdArray::<f32>::device_count(backend_type_id),
+            #[cfg(feature = "tch")]
+            BackendId::LibTorch => LibTorch::<f32>::device_count(backend_type_id),
+        }
+    }
 }
 
 #[cfg(feature = "autodiff")]
@@ -110,6 +134,8 @@ impl AutodiffBackend for Dispatch {
                 DispatchTensorKind::WebGpu(tensor) => tensor.autodiff().backward(),
                 #[cfg(feature = "ndarray")]
                 DispatchTensorKind::NdArray(tensor) => tensor.autodiff().backward(),
+                #[cfg(feature = "tch")]
+                DispatchTensorKind::LibTorch(tensor) => tensor.autodiff().backward(),
                 DispatchTensorKind::Autodiff(_) => {
                     panic!("Autodiff should not wrap an autodiff tensor.")
                 }
@@ -161,6 +187,11 @@ impl AutodiffBackend for Dispatch {
                     .as_autodiff()
                     .grad(grads)
                     .map(|t| DispatchTensorKind::NdArray(crate::BackendTensor::Float(t))),
+                #[cfg(feature = "tch")]
+                DispatchTensorKind::LibTorch(tensor) => tensor
+                    .as_autodiff()
+                    .grad(grads)
+                    .map(|t| DispatchTensorKind::LibTorch(crate::BackendTensor::Float(t))),
                 DispatchTensorKind::Autodiff(_) => {
                     panic!("Autodiff should not wrap an autodiff tensor.")
                 }
@@ -216,6 +247,11 @@ impl AutodiffBackend for Dispatch {
                     .as_autodiff()
                     .grad_remove(grads)
                     .map(|t| DispatchTensorKind::NdArray(crate::BackendTensor::Float(t))),
+                #[cfg(feature = "tch")]
+                DispatchTensorKind::LibTorch(tensor) => tensor
+                    .as_autodiff()
+                    .grad_remove(grads)
+                    .map(|t| DispatchTensorKind::LibTorch(crate::BackendTensor::Float(t))),
                 DispatchTensorKind::Autodiff(_) => {
                     panic!("Autodiff should not wrap an autodiff tensor.")
                 }
@@ -318,6 +354,10 @@ impl AutodiffBackend for Dispatch {
                 DispatchTensorKind::NdArray(tensor) => DispatchTensorKind::NdArray(
                     crate::BackendTensor::Float(tensor.autodiff().primitive),
                 ),
+                #[cfg(feature = "tch")]
+                DispatchTensorKind::LibTorch(tensor) => DispatchTensorKind::LibTorch(
+                    crate::BackendTensor::Float(tensor.autodiff().primitive),
+                ),
                 DispatchTensorKind::Autodiff(_) => {
                     panic!("Autodiff should not wrap an autodiff tensor.")
                 }
@@ -391,6 +431,14 @@ impl AutodiffBackend for Dispatch {
                     Autodiff::<NdArray<f32>>::from_inner(tensor.float()),
                 )),
             )),
+            #[cfg(feature = "tch")]
+            DispatchTensorKind::LibTorch(tensor) => {
+                DispatchTensorKind::Autodiff(Box::new(DispatchTensorKind::LibTorch(
+                    crate::BackendTensor::Autodiff(Autodiff::<LibTorch<f32>>::from_inner(
+                        tensor.float(),
+                    )),
+                )))
+            }
             DispatchTensorKind::Autodiff(_) => {
                 panic!("Autodiff should not wrap an autodiff tensor.")
             }
@@ -441,6 +489,58 @@ impl DispatchTensorKind {
 
 impl DispatchTensor {
     pub(crate) fn device(&self) -> DispatchDevice {
-        self.kind.device()
+        #[allow(unused_mut)]
+        let mut device = self.kind.device();
+
+        #[cfg(feature = "autodiff")]
+        if let DispatchDevice::Autodiff(device) = &mut device {
+            device.checkpointing = self.checkpointing;
+        }
+
+        device
+    }
+}
+
+impl Dispatch {
+    /// Returns the default tensor quantization scheme for the device.
+    // TODO: replace this + QTensorPrimitive trait method with better API.
+    // This is temporary, for test purposes.
+    pub fn default_quant_scheme(device: &<Self as Backend>::Device) -> QuantScheme {
+        match device {
+            #[cfg(feature = "cpu")]
+            DispatchDevice::Cpu(_) => {
+                <<Cpu as Backend>::QuantizedTensorPrimitive as QTensorPrimitive>::default_scheme()
+            }
+            #[cfg(feature = "cuda")]
+            DispatchDevice::Cuda(_) => {
+                <<Cuda as Backend>::QuantizedTensorPrimitive as QTensorPrimitive>::default_scheme()
+            }
+            #[cfg(wgpu_metal)]
+            DispatchDevice::Metal(_) => {
+                <<Metal as Backend>::QuantizedTensorPrimitive as QTensorPrimitive>::default_scheme()
+            }
+            #[cfg(feature = "rocm")]
+            DispatchDevice::Rocm(_) => {
+                <<Rocm as Backend>::QuantizedTensorPrimitive as QTensorPrimitive>::default_scheme()
+            }
+            #[cfg(wgpu_vulkan)]
+            DispatchDevice::Vulkan(_) => {
+                <<Vulkan as Backend>::QuantizedTensorPrimitive as QTensorPrimitive>::default_scheme()
+            }
+            #[cfg(wgpu_webgpu)]
+            DispatchDevice::WebGpu(_) => {
+                <<WebGpu as Backend>::QuantizedTensorPrimitive as QTensorPrimitive>::default_scheme()
+            }
+            #[cfg(feature = "ndarray")]
+            DispatchDevice::NdArray(_) => {
+                <<NdArray as Backend>::QuantizedTensorPrimitive as QTensorPrimitive>::default_scheme()
+            }
+            #[cfg(feature = "tch")]
+            DispatchDevice::LibTorch(_) => {
+                <<LibTorch as Backend>::QuantizedTensorPrimitive as QTensorPrimitive>::default_scheme()
+            }
+            #[cfg(feature = "autodiff")]
+            DispatchDevice::Autodiff(ad_device) => Self::default_quant_scheme(&ad_device.inner),
+        }
     }
 }

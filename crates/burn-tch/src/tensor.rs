@@ -1,5 +1,5 @@
 use crate::{LibTorchDevice, TchElement};
-use burn_backend::{DType, FloatDType, IntDType, Shape, TensorData, TensorMetadata};
+use burn_backend::{BoolStore, DType, FloatDType, IntDType, Shape, TensorData, TensorMetadata};
 use libc::c_void;
 use std::sync::Arc;
 
@@ -75,7 +75,7 @@ impl TensorMetadata for TchTensor {
             tch::Kind::Half => DType::F16,
             tch::Kind::Float => DType::F32,
             tch::Kind::Double => DType::F64,
-            tch::Kind::Bool => DType::Bool,
+            tch::Kind::Bool => DType::Bool(BoolStore::Native),
             tch::Kind::BFloat16 => DType::BF16,
             // Complex and quantization types are not valid/implemented.
             _ => unimplemented!(),
@@ -140,7 +140,7 @@ impl IntoKind for DType {
             DType::I16 => Ok(tch::Kind::Int16),
             DType::I8 => Ok(tch::Kind::Int8),
             DType::U8 => Ok(tch::Kind::Uint8),
-            DType::Bool => Ok(tch::Kind::Bool),
+            DType::Bool(BoolStore::Native) => Ok(tch::Kind::Bool),
             other => Err(tch::TchError::Kind(format!("Unsupported dtype {other:?}"))),
         }
     }
@@ -362,9 +362,9 @@ impl TchTensor {
     /// # Returns
     ///
     /// A new empty tensor.
-    pub fn empty<E: TchElement>(shape: Shape, device: LibTorchDevice) -> Self {
+    pub fn empty(shape: Shape, device: LibTorchDevice, dtype: DType) -> Self {
         let shape_tch = TchShape::from(shape);
-        let tensor = tch::Tensor::empty(shape_tch.dims, (E::kind(), device.into()));
+        let tensor = tch::Tensor::empty(shape_tch.dims, (dtype.into_kind(), device.into()));
 
         Self::new(tensor)
     }
@@ -470,7 +470,7 @@ mod tests {
         assert!(B::supports_dtype(&device, DType::I16));
         assert!(B::supports_dtype(&device, DType::I8));
         assert!(B::supports_dtype(&device, DType::U8));
-        assert!(B::supports_dtype(&device, DType::Bool));
+        assert!(B::supports_dtype(&device, DType::Bool(BoolStore::Native)));
 
         assert!(!B::supports_dtype(&device, DType::U64));
         assert!(!B::supports_dtype(&device, DType::U32));

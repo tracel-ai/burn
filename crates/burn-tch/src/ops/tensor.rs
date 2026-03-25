@@ -2,10 +2,10 @@ use super::TchOps;
 use crate::{IntoKind, LibTorch, LibTorchDevice, TchShape, TchTensor, element::TchElement};
 use burn_backend::backend::ExecutionError;
 use burn_backend::tensor::{BoolTensor, FloatTensor, IntTensor};
+use burn_backend::{BoolDType, IntDType, Scalar, bf16, f16};
 use burn_backend::{
     DType, Distribution, FloatDType, Shape, TensorData, TensorMetadata, ops::FloatTensorOps,
 };
-use burn_backend::{Scalar, bf16, f16};
 
 impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
     fn float_from_data(data: TensorData, device: &LibTorchDevice) -> TchTensor {
@@ -22,26 +22,27 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
         shape: Shape,
         distribution: Distribution,
         device: &LibTorchDevice,
+        dtype: FloatDType,
     ) -> TchTensor {
         match distribution {
             Distribution::Default => {
-                let mut tensor = TchTensor::empty::<E>(shape, *device);
+                let mut tensor = TchTensor::empty(shape, *device, dtype.into());
                 tensor
                     .mut_ops(|tensor| tensor.rand_like_out(tensor))
                     .unwrap()
             }
             Distribution::Bernoulli(prob) => {
-                let mut tensor = TchTensor::empty::<E>(shape, *device);
+                let mut tensor = TchTensor::empty(shape, *device, dtype.into());
                 tensor
                     .mut_ops(|tensor| tensor.f_bernoulli_float_(prob).unwrap())
                     .unwrap()
             }
             Distribution::Uniform(from, to) => {
-                let mut tensor = TchTensor::empty::<E>(shape, *device);
+                let mut tensor = TchTensor::empty(shape, *device, dtype.into());
                 tensor.mut_ops(|tensor| tensor.uniform_(from, to)).unwrap()
             }
             Distribution::Normal(mean, std) => {
-                let mut tensor = TchTensor::empty::<E>(shape, *device);
+                let mut tensor = TchTensor::empty(shape, *device, dtype.into());
                 tensor.mut_ops(|tensor| tensor.normal_(mean, std)).unwrap()
             }
         }
@@ -246,43 +247,43 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
         )
     }
 
-    fn float_equal(lhs: TchTensor, rhs: TchTensor) -> TchTensor {
+    fn float_equal(lhs: TchTensor, rhs: TchTensor, _out_dtype: BoolDType) -> TchTensor {
         TchOps::equal(lhs, rhs)
     }
 
-    fn float_equal_elem(lhs: TchTensor, rhs: Scalar) -> TchTensor {
+    fn float_equal_elem(lhs: TchTensor, rhs: Scalar, _out_dtype: BoolDType) -> TchTensor {
         TchOps::equal_elem(lhs, rhs.elem::<f64>())
     }
 
-    fn float_greater(lhs: TchTensor, rhs: TchTensor) -> TchTensor {
+    fn float_greater(lhs: TchTensor, rhs: TchTensor, _out_dtype: BoolDType) -> TchTensor {
         TchOps::greater(lhs, rhs)
     }
 
-    fn float_greater_elem(lhs: TchTensor, rhs: Scalar) -> TchTensor {
+    fn float_greater_elem(lhs: TchTensor, rhs: Scalar, _out_dtype: BoolDType) -> TchTensor {
         TchOps::greater_elem(lhs, rhs.elem::<f64>())
     }
 
-    fn float_greater_equal(lhs: TchTensor, rhs: TchTensor) -> TchTensor {
+    fn float_greater_equal(lhs: TchTensor, rhs: TchTensor, _out_dtype: BoolDType) -> TchTensor {
         TchOps::greater_equal(lhs, rhs)
     }
 
-    fn float_greater_equal_elem(lhs: TchTensor, rhs: Scalar) -> TchTensor {
+    fn float_greater_equal_elem(lhs: TchTensor, rhs: Scalar, _out_dtype: BoolDType) -> TchTensor {
         TchOps::greater_equal_elem(lhs, rhs.elem::<f64>())
     }
 
-    fn float_lower(lhs: TchTensor, rhs: TchTensor) -> TchTensor {
+    fn float_lower(lhs: TchTensor, rhs: TchTensor, _out_dtype: BoolDType) -> TchTensor {
         TchOps::lower(lhs, rhs)
     }
 
-    fn float_lower_elem(lhs: TchTensor, rhs: Scalar) -> TchTensor {
+    fn float_lower_elem(lhs: TchTensor, rhs: Scalar, _out_dtype: BoolDType) -> TchTensor {
         TchOps::lower_elem(lhs, rhs.elem::<f64>())
     }
 
-    fn float_lower_equal(lhs: TchTensor, rhs: TchTensor) -> TchTensor {
+    fn float_lower_equal(lhs: TchTensor, rhs: TchTensor, _out_dtype: BoolDType) -> TchTensor {
         TchOps::lower_equal(lhs, rhs)
     }
 
-    fn float_lower_equal_elem(lhs: TchTensor, rhs: Scalar) -> TchTensor {
+    fn float_lower_equal_elem(lhs: TchTensor, rhs: Scalar, _out_dtype: BoolDType) -> TchTensor {
         TchOps::lower_equal_elem(lhs, rhs.elem::<f64>())
     }
 
@@ -326,11 +327,11 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
         TchOps::prod_dim(tensor, dim)
     }
 
-    fn float_argmax(tensor: TchTensor, dim: usize) -> TchTensor {
+    fn float_argmax(tensor: TchTensor, dim: usize, _indices_dtype: IntDType) -> TchTensor {
         TchOps::argmax(tensor, dim)
     }
 
-    fn float_argmin(tensor: TchTensor, dim: usize) -> TchTensor {
+    fn float_argmin(tensor: TchTensor, dim: usize, _out_dtype: IntDType) -> TchTensor {
         TchOps::argmin(tensor, dim)
     }
 
@@ -338,7 +339,11 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
         TchOps::max_dim(tensor, dim)
     }
 
-    fn float_max_dim_with_indices(tensor: TchTensor, dim: usize) -> (TchTensor, TchTensor) {
+    fn float_max_dim_with_indices(
+        tensor: TchTensor,
+        dim: usize,
+        _indices_dtype: IntDType,
+    ) -> (TchTensor, TchTensor) {
         TchOps::max_dim_with_indices(tensor, dim)
     }
 
@@ -346,7 +351,11 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
         TchOps::min_dim(tensor, dim)
     }
 
-    fn float_min_dim_with_indices(tensor: TchTensor, dim: usize) -> (TchTensor, TchTensor) {
+    fn float_min_dim_with_indices(
+        tensor: TchTensor,
+        dim: usize,
+        _indices_dtype: IntDType,
+    ) -> (TchTensor, TchTensor) {
         TchOps::min_dim_with_indices(tensor, dim)
     }
 
@@ -465,13 +474,13 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
         TchOps::clamp(tensor, min.elem::<f64>(), max.elem::<f64>())
     }
 
-    fn float_into_int(tensor: TchTensor) -> TchTensor {
+    fn float_into_int(tensor: TchTensor, _out_dtype: IntDType) -> TchTensor {
         let tensor = tensor.tensor.to_kind(tch::Kind::Int64);
         TchTensor::new(tensor)
     }
 
     fn float_powf(lhs: TchTensor, rhs: TchTensor) -> TchTensor {
-        TchOps::powf(lhs, rhs)
+        TchOps::pow(lhs, rhs)
     }
 
     fn float_permute(tensor: TchTensor, axes: &[usize]) -> TchTensor {
@@ -498,11 +507,17 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
         tensor: TchTensor,
         dim: usize,
         descending: bool,
+        _indices_dtype: IntDType,
     ) -> (TchTensor, TchTensor) {
         TchOps::sort_with_indices(tensor, dim, descending)
     }
 
-    fn float_argsort(tensor: TchTensor, dim: usize, descending: bool) -> IntTensor<Self> {
+    fn float_argsort(
+        tensor: TchTensor,
+        dim: usize,
+        descending: bool,
+        _out_dtype: IntDType,
+    ) -> IntTensor<Self> {
         TchOps::argsort(tensor, dim, descending)
     }
 
@@ -529,11 +544,11 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
         TchOps::unfold(tensor, dim, size, step)
     }
 
-    fn float_is_nan(tensor: FloatTensor<Self>) -> BoolTensor<Self> {
+    fn float_is_nan(tensor: FloatTensor<Self>, _out_dtype: BoolDType) -> BoolTensor<Self> {
         TchTensor::new(tensor.tensor.isnan())
     }
 
-    fn float_is_inf(tensor: FloatTensor<Self>) -> BoolTensor<Self> {
+    fn float_is_inf(tensor: FloatTensor<Self>, _out_dtype: BoolDType) -> BoolTensor<Self> {
         TchTensor::new(tensor.tensor.isinf())
     }
 }

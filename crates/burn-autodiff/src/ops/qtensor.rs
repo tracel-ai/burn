@@ -6,7 +6,7 @@ use burn_backend::{
         quantization::QuantizationParametersPrimitive,
     },
 };
-use burn_std::{QuantScheme, Shape};
+use burn_std::{FloatDType, IntDType, QuantScheme, Shape};
 
 use crate::{Autodiff, checkpoint::strategy::CheckpointStrategy};
 
@@ -30,7 +30,7 @@ impl<B: Backend, C: CheckpointStrategy> QTensorOps<Self> for Autodiff<B, C> {
         todo!()
     }
 
-    fn dequantize(_tensor: QuantizedTensor<Self>) -> FloatTensor<Self> {
+    fn dequantize(_tensor: QuantizedTensor<Self>, _dtype: FloatDType) -> FloatTensor<Self> {
         todo!()
     }
 
@@ -92,12 +92,12 @@ impl<B: Backend, C: CheckpointStrategy> QTensorOps<Self> for Autodiff<B, C> {
         unimplemented!()
     }
 
-    fn q_argmax(tensor: QuantizedTensor<Self>, dim: usize) -> IntTensor<Self> {
-        B::q_argmax(tensor, dim)
+    fn q_argmax(tensor: QuantizedTensor<Self>, dim: usize, out_dtype: IntDType) -> IntTensor<Self> {
+        B::q_argmax(tensor, dim, out_dtype)
     }
 
-    fn q_argmin(tensor: QuantizedTensor<Self>, dim: usize) -> IntTensor<Self> {
-        B::q_argmin(tensor, dim)
+    fn q_argmin(tensor: QuantizedTensor<Self>, dim: usize, out_dtype: IntDType) -> IntTensor<Self> {
+        B::q_argmin(tensor, dim, out_dtype)
     }
 
     fn q_expand(_tensor: QuantizedTensor<Self>, _shape: Shape) -> QuantizedTensor<Self> {

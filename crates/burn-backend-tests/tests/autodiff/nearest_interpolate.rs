@@ -72,8 +72,8 @@ struct InterpolateTestCase {
 impl InterpolateTestCase {
     fn assert_output(self, x_grad: TestTensor<4>) {
         let shape_x = Shape::new([self.batch_size, self.channels, self.height, self.width]);
-        let device = Default::default();
-        let x = TestAutodiffTensor::from_data(
+        let device = AutodiffDevice::new();
+        let x = TestTensor::from_data(
             TestTensorInt::arange(0..shape_x.num_elements() as i64, &x_grad.device())
                 .reshape::<4, _>(shape_x)
                 .into_data(),

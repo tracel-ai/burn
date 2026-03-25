@@ -9,6 +9,7 @@ use burn_backend::{
     tensor::{BoolTensor, Device, FloatTensor, IntTensor},
 };
 use burn_backend::{Scalar, Shape, TensorData};
+use burn_std::{BoolDType, BoolStore, DType, FloatDType, IntDType};
 use cubecl::prelude::InputScalar;
 use std::ops::Range;
 
@@ -21,16 +22,16 @@ where
     I: IntElement,
     BT: BoolElement,
 {
-    fn bool_empty(shape: Shape, device: &Device<Self>) -> BoolTensor<Self> {
-        super::empty(shape, device, BT::dtype())
+    fn bool_empty(shape: Shape, device: &Device<Self>, dtype: BoolDType) -> BoolTensor<Self> {
+        super::empty(shape, device, dtype.into())
     }
 
-    fn bool_zeros(shape: Shape, device: &Device<Self>) -> BoolTensor<Self> {
-        numeric::zeros(device.clone(), shape, BT::dtype())
+    fn bool_zeros(shape: Shape, device: &Device<Self>, dtype: BoolDType) -> BoolTensor<Self> {
+        numeric::zeros(device.clone(), shape, dtype.into())
     }
 
-    fn bool_ones(shape: Shape, device: &Device<Self>) -> BoolTensor<Self> {
-        numeric::ones(device.clone(), shape, BT::dtype())
+    fn bool_ones(shape: Shape, device: &Device<Self>, dtype: BoolDType) -> BoolTensor<Self> {
+        numeric::ones(device.clone(), shape, dtype.into())
     }
 
     async fn bool_into_data(tensor: BoolTensor<Self>) -> Result<TensorData, ExecutionError> {
@@ -38,14 +39,17 @@ where
     }
 
     fn bool_from_data(data: TensorData, device: &Device<Self>) -> BoolTensor<Self> {
-        if data.dtype != BT::dtype() {
-            unimplemented!("Unsupported dtype for `bool_from_data`")
+        if !matches!(
+            data.dtype,
+            DType::Bool(BoolStore::U8) | DType::Bool(BoolStore::U32)
+        ) {
+            unimplemented!("Unsupported dtype for `bool_from_data` {:?}", data.dtype);
         }
         super::from_data(data, device)
     }
 
-    fn bool_into_int(tensor: BoolTensor<Self>) -> IntTensor<Self> {
-        kernel::bool_cast::<R, I>(tensor)
+    fn bool_into_int(tensor: BoolTensor<Self>, out_dtype: IntDType) -> IntTensor<Self> {
+        kernel::bool_cast(tensor, out_dtype.into())
     }
 
     fn bool_device(tensor: &BoolTensor<Self>) -> Device<Self> {
@@ -88,15 +92,18 @@ where
     }
 
     fn bool_equal(lhs: BoolTensor<Self>, rhs: BoolTensor<Self>) -> BoolTensor<Self> {
-        kernel::equal(lhs, rhs, BT::dtype())
+        let dtype = lhs.dtype;
+        kernel::equal(lhs, rhs, dtype)
     }
 
     fn bool_not(tensor: BoolTensor<Self>) -> BoolTensor<Self> {
-        kernel::equal_elem(
-            tensor,
-            InputScalar::new(BT::false_val(), BT::dtype()),
-            BT::dtype(),
-        )
+        let dtype = tensor.dtype;
+        let scalar = match dtype {
+            DType::Bool(BoolStore::U32) => InputScalar::new(u32::false_val(), dtype),
+            DType::Bool(BoolStore::U8) => InputScalar::new(u8::false_val(), dtype),
+            other => unimplemented!("Unsupported dtype for `bool_from_data` {other:?}"),
+        };
+        kernel::equal_elem(tensor, scalar, dtype)
     }
 
     fn bool_and(lhs: BoolTensor<Self>, rhs: BoolTensor<Self>) -> BoolTensor<Self> {
@@ -107,8 +114,8 @@ where
         kernel::launch_binop::<R, OrOp>(lhs, rhs)
     }
 
-    fn bool_into_float(tensor: BoolTensor<Self>) -> FloatTensor<Self> {
-        kernel::bool_cast::<R, F>(tensor)
+    fn bool_into_float(tensor: BoolTensor<Self>, out_dtype: FloatDType) -> FloatTensor<Self> {
+        kernel::bool_cast(tensor, out_dtype.into())
     }
 
     fn bool_swap_dims(mut tensor: BoolTensor<Self>, dim1: usize, dim2: usize) -> BoolTensor<Self> {
@@ -147,7 +154,8 @@ where
     }
 
     fn bool_flip(tensor: BoolTensor<Self>, axes: &[usize]) -> BoolTensor<Self> {
-        kernel::flip(tensor, axes, BT::dtype())
+        let dtype = tensor.dtype;
+        kernel::flip(tensor, axes, dtype)
     }
 
     fn bool_unfold(
@@ -164,7 +172,8 @@ where
         mask: BoolTensor<Self>,
         value: BoolTensor<Self>,
     ) -> BoolTensor<Self> {
-        kernel::mask_where_auto(tensor, mask, value, BT::dtype())
+        let dtype = tensor.dtype;
+        kernel::mask_where_auto(tensor, mask, value, dtype)
     }
 
     fn bool_mask_fill(

@@ -5,7 +5,7 @@ use burn_tensor::Tolerance;
 
 #[test]
 fn flip_float() {
-    let tensor = QTensor::<TestBackend, 3>::int8([[[0.0, 1.0, 2.0]], [[3.0, 4.0, 5.0]]]);
+    let tensor = QTensor::<3>::int8([[[0.0, 1.0, 2.0]], [[3.0, 4.0, 5.0]]]);
 
     let flipped = tensor.clone().flip([0, 2]);
     let expected = TensorData::from([[[5., 4., 3.]], [[2., 1., 0.]]]);
@@ -23,7 +23,7 @@ fn flip_float() {
 #[test]
 #[should_panic]
 fn flip_duplicated_axes() {
-    let tensor = QTensor::<TestBackend, 3>::int8([[[0.0, 1.0, 2.0]], [[3.0, 4.0, 5.0]]]);
+    let tensor = QTensor::<3>::int8([[[0.0, 1.0, 2.0]], [[3.0, 4.0, 5.0]]]);
 
     // Test with a duplicated axis
     let _ = tensor.flip([0, 0, 1]);
@@ -32,7 +32,7 @@ fn flip_duplicated_axes() {
 #[test]
 #[should_panic]
 fn flip_out_of_bound_axis() {
-    let tensor = QTensor::<TestBackend, 3>::int8([[[0.0, 1.0, 2.0]], [[3.0, 4.0, 5.0]]]);
+    let tensor = QTensor::<3>::int8([[[0.0, 1.0, 2.0]], [[3.0, 4.0, 5.0]]]);
 
     // Test with an out of bound axis
     let _ = tensor.clone().flip([3, 0, 1]);

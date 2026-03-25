@@ -88,11 +88,6 @@ impl burn_backend::Device for LibTorchDevice {
             LibTorchDevice::Vulkan => DeviceId::new(3, 0),
         }
     }
-
-    fn device_count(_type_id: u16) -> usize {
-        // TODO: Somehow find the info using the tch API.
-        1
-    }
 }
 
 impl DeviceOps for LibTorchDevice {}
@@ -153,7 +148,7 @@ impl<E: TchElement> Backend for LibTorch<E> {
                 burn_backend::read_sync(Self::int_into_data(Self::int_zeros(
                     [1].into(),
                     device,
-                    E::dtype().into(),
+                    <Self::IntElem as burn_backend::Element>::dtype().into(),
                 )))
                 .unwrap();
             }
@@ -171,5 +166,10 @@ impl<E: TchElement> Backend for LibTorch<E> {
         } else {
             burn_backend::DTypeUsageSet::empty()
         }
+    }
+
+    fn device_count(_: u16) -> usize {
+        // tch only supports one device for each backend
+        1
     }
 }

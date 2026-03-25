@@ -588,6 +588,11 @@ pub enum NumericOperationIr {
     Powi(BinaryOpIr),
     /// Operation corresponding to:
     ///
+    /// Float => [powi_scalar](burn_backend::ops::FloatTensorOps::float_powi_scalar).
+    /// Int => [powi_scalar](burn_backend::ops::IntTensorOps::int_powi_scalar).
+    PowiScalar(ScalarOpIr),
+    /// Operation corresponding to:
+    ///
     /// Float => [cumsum](burn_backend::ops::FloatTensorOps::float_cumsum).
     /// Int => [cumsum](burn_backend::ops::IntTensorOps::int_cumsum).
     CumSum(DimOpIr),
@@ -1999,6 +2004,7 @@ impl NumericOperationIr {
             NumericOperationIr::MaxAbsDim(repr) => Box::new([&repr.input].into_iter()),
             NumericOperationIr::IntRandom(_repr) => Box::new([].into_iter()),
             NumericOperationIr::Powi(repr) => Box::new([&repr.lhs, &repr.rhs].into_iter()),
+            NumericOperationIr::PowiScalar(repr) => Box::new([&repr.lhs].into_iter()),
             NumericOperationIr::CumMin(repr) => Box::new([&repr.input].into_iter()),
             NumericOperationIr::CumMax(repr) => Box::new([&repr.input].into_iter()),
             NumericOperationIr::CumProd(repr) => Box::new([&repr.input].into_iter()),
@@ -2051,6 +2057,7 @@ impl NumericOperationIr {
             NumericOperationIr::MaxAbsDim(repr) => Box::new([&repr.out].into_iter()),
             NumericOperationIr::IntRandom(repr) => Box::new([&repr.out].into_iter()),
             NumericOperationIr::Powi(repr) => Box::new([&repr.out].into_iter()),
+            NumericOperationIr::PowiScalar(repr) => Box::new([&repr.out].into_iter()),
             NumericOperationIr::CumMin(repr) => Box::new([&repr.out].into_iter()),
             NumericOperationIr::CumMax(repr) => Box::new([&repr.out].into_iter()),
             NumericOperationIr::CumProd(repr) => Box::new([&repr.out].into_iter()),
@@ -2183,6 +2190,9 @@ impl NumericOperationIr {
             NumericOperationIr::Powi(repr) => {
                 repr.lhs.mark_read_only(nodes, &mut output);
                 repr.rhs.mark_read_only(nodes, &mut output);
+            }
+            NumericOperationIr::PowiScalar(repr) => {
+                repr.lhs.mark_read_only(nodes, &mut output);
             }
             NumericOperationIr::CumSum(repr) => {
                 repr.input.mark_read_only(nodes, &mut output);
