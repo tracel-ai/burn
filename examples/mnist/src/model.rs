@@ -55,21 +55,33 @@ impl<B: Backend> Model<B> {
     pub fn forward(&self, input: Tensor<B, 3>) -> Tensor<B, 2> {
         let [batch_size, height, width] = input.dims();
 
+        let dev_id = input.device.id();
+        println!("[{:?}] conv1 : {:?}", std::thread::current().id(), dev_id);
+
         let x = input.reshape([batch_size, 1, height, width]).detach();
         let x = self.conv1.forward(x);
+
+        println!("[{:?}] conv2 : {:?}", std::thread::current().id(), dev_id);
         let x = self.conv2.forward(x);
 
         let [batch_size, channels, height, width] = x.dims();
         let x = x.reshape([batch_size, channels * height * width]);
 
+        println!("[{:?}] fc1 : {:?}", std::thread::current().id(), dev_id);
         let x = self.fc1.forward(x);
+        println!("[{:?}] act : {:?}", std::thread::current().id(), dev_id);
         let x = self.activation.forward(x);
+        println!("[{:?}] dropout : {:?}", std::thread::current().id(), dev_id);
         let x = self.dropout.forward(x);
 
+        println!("[{:?}] fc2 : {:?}", std::thread::current().id(), dev_id);
         let x = self.fc2.forward(x);
+        println!("[{:?}] act : {:?}", std::thread::current().id(), dev_id);
         let x = self.activation.forward(x);
+        println!("[{:?}] dropout : {:?}", std::thread::current().id(), dev_id);
         let x = self.dropout.forward(x);
 
+        println!("[{:?}] fc3 : {:?}", std::thread::current().id(), dev_id);
         self.fc3.forward(x)
     }
 
