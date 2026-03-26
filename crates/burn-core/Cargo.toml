@@ -129,7 +129,7 @@ burn-remote = { path = "../burn-remote", version = "=0.21.0-pre.2", default-feat
 burn-router = { path = "../burn-router", version = "=0.21.0-pre.2", default-features = false, optional = true }
 burn-tch = { path = "../burn-tch", version = "=0.21.0-pre.2", optional = true }
 burn-wgpu = { path = "../burn-wgpu", version = "=0.21.0-pre.2", optional = true, default-features = false }
-burn-fusion = { path = "../burn-fusion", version = "=0.21.0-pre.2", optional = true }
+burn-fusion = { path = "../burn-fusion", version = "=0.21.0-pre.2" }
 
 [target.'cfg(not(target_has_atomic = "ptr"))'.dependencies]
 portable-atomic-util = { workspace = true }
