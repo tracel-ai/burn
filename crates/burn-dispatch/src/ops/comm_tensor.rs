@@ -1,4 +1,5 @@
-use std::mem::discriminant;
+use alloc::vec::Vec;
+use core::mem::discriminant;
 
 use crate::backends::*;
 

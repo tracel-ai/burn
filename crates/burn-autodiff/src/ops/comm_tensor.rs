@@ -24,16 +24,23 @@ impl<B: Backend, C: CheckpointStrategy> CommunicationTensorOps<Self> for Autodif
         B::submit_sync_collective(device);
     }
 
-    fn submit_gradient_sync(_tensor: TensorRef<Self>, _distributed_params: DistributedParams) {
-        unimplemented!()
+    fn submit_gradient_sync(tensor: TensorRef<Self>, distributed_params: DistributedParams) {
+        let mut tensor = unsafe { (*tensor.0).clone() };
+        B::submit_gradient_sync(TensorRef(&mut tensor.primitive), distributed_params);
     }
 
-    unsafe fn all_reduce_in_place(_tensors: Vec<TensorRef<Self>>, _op: ReduceOperation) {
-        unimplemented!()
+    unsafe fn all_reduce_in_place(tensors: Vec<TensorRef<Self>>, op: ReduceOperation) {
+        let tensors = tensors
+            .iter()
+            .map(|t| {
+                let mut t = unsafe { (*t.0).clone() };
+                TensorRef(&mut t.primitive)
+            })
+            .collect();
+        unsafe { B::all_reduce_in_place(tensors, op) };
     }
 
-    #[allow(unused)]
     fn sync_collective(device: &B::Device) {
-        unimplemented!()
+        B::sync_collective(device);
     }
 }
