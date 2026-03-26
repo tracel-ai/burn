@@ -285,17 +285,16 @@ pub(crate) fn handle_command(
                     )?;
 
                     // burn-nn (pretrained and local tests)
-                    let mut nn_features = "pretrained".to_string();
                     // If the "CI" environment variable is missing, we are running locally.
-                    if std::env::var("CI").is_err() {
-                        nn_features.push_str(",test-local");
-                    }
+                    // if std::env::var("CI").is_err() {
+                    //     nn_features.push_str(",test-local");
+                    // }
                     helpers::custom_crates_tests(
                         vec!["burn-nn"],
-                        handle_test_args(&["--features", &nn_features], args.release),
+                        handle_test_args(&["--features", "pretrained"], args.release),
                         None,
                         None,
-                        &format!("std burn-nn with features: {}", nn_features),
+                        "std burn-nn",
                     )?;
                 }
                 CiTestType::GcpCudaRunner => (),

@@ -313,6 +313,9 @@ mod tests {
     }
 
     #[test]
+    // TODO: run tests only locally, and #[serial]'ised?
+    // #[cfg(feature = "test-local")]
+    #[ignore = "downloads pre-trained weights"]
     fn test_gram_matrix_loss_config_valid_weights() {
         let device = Default::default();
         let layer_weights = vec![0.0, 0.2, 0.2, 0.25, 0.4];
@@ -511,7 +514,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "test-local")]
+    #[ignore = "downloads pre-trained weights"]
     fn test_gram_matrix_loss_pretrained_weights_identical_inputs() {
         let device = Default::default();
         let loss_fn =
@@ -532,7 +535,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "test-local")]
+    #[ignore = "downloads pre-trained weights"]
     fn test_gram_matrix_loss_pretrained_weights_different_inputs() {
         let device = Default::default();
         let loss_fn =
