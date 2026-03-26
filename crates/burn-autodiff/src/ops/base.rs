@@ -172,6 +172,14 @@ where
 {
     /// Finish the preparation of an untracked operation and returns the output tensor.
     pub fn finish(self, output: FloatTensor<B>) -> AutodiffTensor<B> {
+        use burn_backend::DeviceOps;
+        let device = B::float_device(&output).id();
+        println!(
+            "[{:?}] prep finish : {:?}",
+            std::thread::current().id(),
+            device
+        );
+
         let output = AutodiffTensor::from_parents(
             output,
             &self.nodes,
@@ -183,7 +191,15 @@ where
 
         // We register the ops in the graph even if untracked, otherwise memory bound operations
         // that have an untracked parent would not be able to retrieve it
-        output.register_step(UntrackedOpsStep::new(ops), self.checkpointer_builder)
+        let res = output.register_step(UntrackedOpsStep::new(ops), self.checkpointer_builder);
+
+        println!(
+            "[{:?}] prep finished untracked : {:?}",
+            std::thread::current().id(),
+            device
+        );
+
+        res
     }
 }
 
@@ -215,7 +231,7 @@ where
         let res = output.register_step(OpsStep::new(ops, self.backward), self.checkpointer_builder);
 
         println!(
-            "[{:?}] prep finish finished : {:?}",
+            "[{:?}] prep finished tracked : {:?}",
             std::thread::current().id(),
             device
         );
