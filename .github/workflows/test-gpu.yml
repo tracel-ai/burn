@@ -77,7 +77,7 @@ jobs:
         uses: actions/checkout@v6
       # --------------------------------------------------------------------------------
       - name: Install Rust
-        uses: tracel-ai/github-actions/install-rust@v9
+        uses: tracel-ai/github-actions/install-rust@v10
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           enable-cache: false
@@ -115,7 +115,7 @@ jobs:
         uses: actions/checkout@v6
       # --------------------------------------------------------------------------------
       - name: Setup Rust
-        uses: tracel-ai/github-actions/install-rust@v9
+        uses: tracel-ai/github-actions/install-rust@v10
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           enable-cache: false
@@ -153,7 +153,7 @@ jobs:
         uses: actions/checkout@v6
       # --------------------------------------------------------------------------------
       - name: Setup Rust
-        uses: tracel-ai/github-actions/install-rust@v9
+        uses: tracel-ai/github-actions/install-rust@v10
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           enable-cache: false
