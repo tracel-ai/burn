@@ -7,6 +7,11 @@ fn main() {
     let metal = cfg!(feature = "metal");
     let vulkan = cfg!(feature = "vulkan");
     let webgpu = cfg!(feature = "webgpu");
+    let wgpu_only = cfg!(all(
+        feature = "wgpu",
+        not(feature = "metal"),
+        not(feature = "vulkan")
+    ));
     let enabled = [(metal, "metal"), (vulkan, "vulkan"), (webgpu, "webgpu")]
         .iter()
         .filter(|x| x.0)
@@ -29,7 +34,7 @@ fn main() {
     if vulkan {
         println!("cargo:rustc-cfg=wgpu_vulkan");
     }
-    if webgpu {
+    if webgpu || wgpu_only {
         println!("cargo:rustc-cfg=wgpu_webgpu");
     }
 }
