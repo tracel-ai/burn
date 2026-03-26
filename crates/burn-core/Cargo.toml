@@ -123,7 +123,7 @@ thiserror = { workspace = true, optional = true }
 regex = { workspace = true }
 
 # FOR TESTING
-burn-cuda = { path = "../burn-cuda", version = "=0.21.0-pre.2",  default-features = false, features = ["fusion"]}
+burn-cuda = { path = "../burn-cuda", version = "=0.21.0-pre.2",  default-features = false }
 burn-rocm = { path = "../burn-rocm", version = "=0.21.0-pre.2", optional = true, default-features = false }
 burn-remote = { path = "../burn-remote", version = "=0.21.0-pre.2", default-features = false, optional = true }
 burn-router = { path = "../burn-router", version = "=0.21.0-pre.2", default-features = false, optional = true }
