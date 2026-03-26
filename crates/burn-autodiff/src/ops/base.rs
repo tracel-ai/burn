@@ -196,10 +196,11 @@ where
     /// Finish the preparation of a tracked operation and returns the output tensor.
     pub fn finish(self, state: S, output: FloatTensor<B>) -> AutodiffTensor<B> {
         use burn_backend::DeviceOps;
+        let device = B::float_device(&output).id();
         println!(
             "[{:?}] prep finish : {:?}",
             std::thread::current().id(),
-            B::float_device(&output).id()
+            device
         );
 
         let output = AutodiffTensor::from_parents(
@@ -211,7 +212,15 @@ where
         let parents = self.nodes.map(|node| node.clone_if_require_grad());
         let ops = Ops::new(parents, output.node.clone(), state);
 
-        output.register_step(OpsStep::new(ops, self.backward), self.checkpointer_builder)
+        let res = output.register_step(OpsStep::new(ops, self.backward), self.checkpointer_builder);
+
+        println!(
+            "[{:?}] prep finish finished : {:?}",
+            std::thread::current().id(),
+            device
+        );
+
+        res
     }
 
     /// Checkpoints the tensor
