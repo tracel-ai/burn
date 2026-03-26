@@ -16,15 +16,15 @@ pub struct Bytes<const MAX_ITEM_SIZE: usize> {
 ///
 /// This can be used to replace `Arc<dyn Trait>`.
 pub struct Arena<const MAX_ITEM_COUNT: usize, const MAX_ITEM_SIZE: usize> {
-    buffer: Vec<UnsafeCell<Bytes<MAX_ITEM_SIZE>>>,
-    counts: Vec<Arc<()>>,
+    /// The arc here is only to have a stable pointer, since the buffer can be drop when the thread
+    /// is done, but some bytes might still live, so the Arc handles that gracefully.
+    buffer: Vec<Arc<UnsafeCell<Bytes<MAX_ITEM_SIZE>>>>,
     cursor: usize,
 }
 
 /// The initialized reserved memory.
 pub struct ReservedMemory<const MAX_ITEM_SIZE: usize> {
-    data: *mut Bytes<MAX_ITEM_SIZE>,
-    count: Arc<()>,
+    data: Arc<UnsafeCell<Bytes<MAX_ITEM_SIZE>>>,
     drop_fn: fn(&mut Bytes<MAX_ITEM_SIZE>),
 }
 
@@ -32,8 +32,7 @@ pub struct ReservedMemory<const MAX_ITEM_SIZE: usize> {
 ///
 /// This type isn't Send/Sync and should be initialized on the same thread as it was reserved.
 pub struct UninitReservedMemory<const MAX_ITEM_SIZE: usize> {
-    data: *mut Bytes<MAX_ITEM_SIZE>,
-    count: Arc<()>,
+    data: Arc<UnsafeCell<Bytes<MAX_ITEM_SIZE>>>,
     /// Used to assert the position in the arena.
     #[cfg(test)]
     pub index: usize,
@@ -81,17 +80,16 @@ impl<const MAX_ITEM_SIZE: usize> UninitReservedMemory<MAX_ITEM_SIZE> {
         // We read the cell pointer that is only available to the client, not the
         // areana.
         assert_eq!(
-            Arc::strong_count(&self.count),
+            Arc::strong_count(&self.data),
             2,
             "We can only initialize reserved memory when there is a single writer."
         );
 
-        let bytes_mut = unsafe { self.data.as_mut().unwrap() };
+        let bytes_mut = unsafe { self.data.as_ref().get().as_mut().unwrap() };
         init_data(bytes_mut);
 
         ReservedMemory {
             data: self.data,
-            count: self.count.clone(),
             drop_fn,
         }
     }
@@ -101,7 +99,6 @@ impl<const MAX_ITEM_SIZE: usize> core::fmt::Debug for ReservedMemory<MAX_ITEM_SI
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ReservedMemory")
             .field("data", &self.data)
-            .field("count", &self.count)
             .field("drop_fn", &self.drop_fn)
             .finish()
     }
@@ -110,8 +107,7 @@ impl<const MAX_ITEM_SIZE: usize> core::fmt::Debug for ReservedMemory<MAX_ITEM_SI
 impl<const MAX_ITEM_SIZE: usize> Clone for ReservedMemory<MAX_ITEM_SIZE> {
     fn clone(&self) -> Self {
         Self {
-            data: self.data,
-            count: self.count.clone(),
+            data: self.data.clone(),
             drop_fn: self.drop_fn,
         }
     }
@@ -119,12 +115,12 @@ impl<const MAX_ITEM_SIZE: usize> Clone for ReservedMemory<MAX_ITEM_SIZE> {
 
 impl<const MAX_ITEM_SIZE: usize> Drop for ReservedMemory<MAX_ITEM_SIZE> {
     fn drop(&mut self) {
-        if Arc::strong_count(&self.count) == 2 {
+        if Arc::strong_count(&self.data) == 2 {
             // # Safety
             //
             // We read the cell pointer that is only available to the client, not the
             // areana.
-            let bytes_mut = unsafe { self.data.as_mut().unwrap() };
+            let bytes_mut = unsafe { self.data.get().as_mut().unwrap() };
             (self.drop_fn)(bytes_mut)
         }
     }
@@ -139,7 +135,7 @@ impl<const MAX_ITEM_SIZE: usize> ReservedMemory<MAX_ITEM_SIZE> {
     /// Gets the reserved bytes.
     pub fn as_ref(&self) -> &Bytes<MAX_ITEM_SIZE> {
         // The pointer is valid and the data is readonly.
-        unsafe { self.data.as_ref().unwrap() }
+        unsafe { self.data.as_ref().get().as_ref().unwrap() }
     }
 }
 
@@ -150,7 +146,6 @@ impl<const MAX_ITEM_COUNT: usize, const MAX_ITEM_SIZE: usize> Arena<MAX_ITEM_COU
     pub const fn new() -> Self {
         Self {
             buffer: Vec::new(),
-            counts: Vec::new(),
             cursor: 0,
         }
     }
@@ -174,26 +169,22 @@ impl<const MAX_ITEM_COUNT: usize, const MAX_ITEM_SIZE: usize> Arena<MAX_ITEM_COU
     pub fn reserve(&mut self) -> Option<UninitReservedMemory<MAX_ITEM_SIZE>> {
         if self.buffer.is_empty() {
             for _ in 0..MAX_ITEM_COUNT {
-                self.buffer.push(UnsafeCell::new(Bytes {
+                self.buffer.push(Arc::new(UnsafeCell::new(Bytes {
                     bytes: [0; MAX_ITEM_SIZE],
-                }));
-                self.counts.push(Arc::new(()));
+                })));
             }
         }
 
         for i in 0..MAX_ITEM_COUNT {
             let i = (i + self.cursor) % MAX_ITEM_COUNT;
-            let count = &self.counts[i];
+            let item = &self.buffer[i];
 
-            if Arc::strong_count(count) == 1 {
+            if Arc::strong_count(item) == 1 {
                 self.cursor = (i + 1) % MAX_ITEM_COUNT;
-                let count = count.clone();
-
-                let bytes = self.buffer[i].get();
+                let data = item.clone();
 
                 return Some(UninitReservedMemory {
-                    data: bytes,
-                    count,
+                    data,
                     #[cfg(test)]
                     index: i,
                 });

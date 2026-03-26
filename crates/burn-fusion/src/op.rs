@@ -85,7 +85,7 @@ impl<R: FusionRuntime> Clone for UnfusedOpInArena<R> {
 
 impl<R: FusionRuntime> UnfusedOpInArena<R> {
     fn execute(&self, handles: &mut HandleContainer<R::FusionHandle>) {
-        (self.ptr_execute)(self.reserved.as_ref(), handles)
+        (self.ptr_execute)(self.reserved.as_ref(), handles);
     }
 }
 
