@@ -7,6 +7,7 @@ use crate::{Fusion, FusionBackend};
 
 impl<B: FusionBackend> CommunicationTensorOps<Self> for Fusion<B> {
     unsafe fn all_reduce_in_place(tensors: Vec<TensorRef<Self>>, op: ReduceOperation) {
+        println!("Fusion all_reduce");
         let tensors = tensors
             .iter()
             .map(|t| {
