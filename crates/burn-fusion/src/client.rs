@@ -90,7 +90,7 @@ where
             })
             .collect();
 
-        // By doing this comparison, we reduce the number of bytes transfered in the device handle
+        // By doing this comparison, we reduce the number of bytes transferred in the device handle
         // queue.
         if size_of::<O>() < size_of::<UnfusedOp<R>>() {
             // Here the [`O`] type is smaller than the [`UnfusedOp`] type, so it's better to
@@ -101,7 +101,7 @@ where
             });
         } else {
             // Here the [`O`] type is larger than the [`UnfusedOp`] type, so it's better to
-            // first create the [`UnfusedOp`] before transfering it to the server.
+            // first create the [`UnfusedOp`] before transferring it to the server.
             let operation = UnfusedOp::new(operation, streams.current);
 
             self.server.submit(move |server| {
