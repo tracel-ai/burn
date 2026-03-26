@@ -6,14 +6,13 @@ use burn::tensor::backend::Backend;
 use burn::tensor::{Int, Tensor};
 use burn_core as burn;
 use burn_cuda::Cuda;
-use burn_fusion::Fusion;
 use burn_tensor::ops::CommunicationTensorOps;
 
 // pub type TestBackend = burn_ndarray::NdArray<f32>;
 // #[cfg(feature = "std")]
 // pub type TestAutodiffBackend = burn_autodiff::Autodiff<TestBackend>;
 
-pub type TestBackend = Fusion<Cuda<f32, i32>>;
+pub type TestBackend = Cuda<f32, i32>;
 #[cfg(feature = "std")]
 pub type TestAutodiffBackend = burn_autodiff::Autodiff<TestBackend>;
 
