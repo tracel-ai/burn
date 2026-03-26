@@ -41,9 +41,9 @@ pub enum DispatchDevice {
     #[cfg(wgpu_vulkan)]
     Vulkan(WgpuDevice),
 
-    /// The [WebGPU backend](WebGpu) device (via WGPU runtime).
+    /// The [WebGPU backend](Wgpu) device (via WGPU runtime).
     #[cfg(wgpu_webgpu)]
-    WebGpu(WgpuDevice),
+    Wgpu(WgpuDevice),
 
     /// The [NdArray backend](NdArray) device (CPU-only).
     #[cfg(feature = "ndarray")]
@@ -126,7 +126,7 @@ impl core::fmt::Debug for DispatchDevice {
             #[cfg(wgpu_vulkan)]
             Self::Vulkan(device) => f.debug_tuple("Vulkan").field(device).finish(),
             #[cfg(wgpu_webgpu)]
-            Self::WebGpu(device) => f.debug_tuple("WebGpu").field(device).finish(),
+            Self::Wgpu(device) => f.debug_tuple("Wgpu").field(device).finish(),
             #[cfg(feature = "ndarray")]
             Self::NdArray(device) => f.debug_tuple("NdArray").field(device).finish(),
             #[cfg(feature = "tch")]
@@ -156,7 +156,7 @@ impl Default for DispatchDevice {
         return Self::Vulkan(burn_wgpu::WgpuDevice::default());
 
         #[cfg(wgpu_webgpu)]
-        return Self::WebGpu(burn_wgpu::WgpuDevice::default());
+        return Self::Wgpu(burn_wgpu::WgpuDevice::default());
 
         #[cfg(feature = "cpu")]
         return Self::Cpu(CpuDevice);
@@ -191,7 +191,7 @@ impl PartialEq for DispatchDevice {
             #[cfg(wgpu_vulkan)]
             (Self::Vulkan(a), Self::Vulkan(b)) => a == b,
             #[cfg(wgpu_webgpu)]
-            (Self::WebGpu(a), Self::WebGpu(b)) => a == b,
+            (Self::Wgpu(a), Self::Wgpu(b)) => a == b,
             #[cfg(feature = "ndarray")]
             (Self::NdArray(a), Self::NdArray(b)) => a == b,
             #[cfg(feature = "tch")]
@@ -236,7 +236,7 @@ impl DispatchDevice {
             #[cfg(wgpu_vulkan)]
             Self::Vulkan(_) => BackendId::Vulkan,
             #[cfg(wgpu_webgpu)]
-            Self::WebGpu(_) => BackendId::WebGpu,
+            Self::Wgpu(_) => BackendId::Wgpu,
             #[cfg(feature = "ndarray")]
             Self::NdArray(_) => BackendId::NdArray,
             #[cfg(feature = "tch")]
@@ -276,7 +276,7 @@ pub(crate) enum BackendId {
     #[cfg(wgpu_vulkan)]
     Vulkan = 4,
     #[cfg(wgpu_webgpu)]
-    WebGpu = 5,
+    Wgpu = 5,
     #[cfg(feature = "ndarray")]
     NdArray = 6,
     #[cfg(feature = "tch")]
@@ -305,7 +305,7 @@ impl TryFrom<u16> for BackendId {
             #[cfg(wgpu_vulkan)]
             4 => Ok(Self::Vulkan),
             #[cfg(wgpu_webgpu)]
-            5 => Ok(Self::WebGpu),
+            5 => Ok(Self::Wgpu),
             #[cfg(feature = "ndarray")]
             6 => Ok(Self::NdArray),
             #[cfg(feature = "tch")]
@@ -342,7 +342,7 @@ impl burn_backend::Device for DispatchDevice {
             #[cfg(wgpu_vulkan)]
             BackendId::Vulkan => Self::Vulkan(WgpuDevice::from_id(device_id)),
             #[cfg(wgpu_webgpu)]
-            BackendId::WebGpu => Self::WebGpu(WgpuDevice::from_id(device_id)),
+            BackendId::Wgpu => Self::Wgpu(WgpuDevice::from_id(device_id)),
             #[cfg(feature = "ndarray")]
             BackendId::NdArray => Self::NdArray(NdArrayDevice::from_id(device_id)),
             #[cfg(feature = "tch")]
@@ -363,7 +363,7 @@ impl burn_backend::Device for DispatchDevice {
             #[cfg(wgpu_vulkan)]
             Self::Vulkan(device) => device.to_id(),
             #[cfg(wgpu_webgpu)]
-            Self::WebGpu(device) => device.to_id(),
+            Self::Wgpu(device) => device.to_id(),
             #[cfg(feature = "ndarray")]
             Self::NdArray(device) => device.to_id(),
             #[cfg(feature = "tch")]
@@ -414,7 +414,7 @@ impl From<WgpuDevice> for DispatchDevice {
 #[cfg(wgpu_webgpu)]
 impl From<WgpuDevice> for DispatchDevice {
     fn from(device: WgpuDevice) -> Self {
-        DispatchDevice::WebGpu(device)
+        DispatchDevice::Wgpu(device)
     }
 }
 
