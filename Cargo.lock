@@ -903,6 +903,7 @@ dependencies = [
 name = "burn-cubecl-fusion"
 version = "0.21.0-pre.2"
 dependencies = [
+ "burn",
  "burn-backend",
  "burn-fusion",
  "burn-ir",
