@@ -530,7 +530,7 @@ mod require_grad {
         const NUM_ITERATIONS: usize = 100;
         let type_id = 0u16;
 
-        let device_count = <B as Backend>::Device::device_count(type_id);
+        let device_count = <B as Backend>::device_count(type_id);
         let devices = create_devices::<B::Device>(type_id, device_count);
         let module = ModuleBasic::<B>::new(&devices[0]);
         let (senders, receivers) = create_channels(device_count);

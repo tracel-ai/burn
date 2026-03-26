@@ -119,9 +119,7 @@ impl AutodiffServer {
         }
 
         let grads = Gradients::new::<B>(root_node.clone(), root_tensor, sync_registration);
-        let gradients = Self::execute_steps(tape_result.tape, grads, tape_result.checkpointer);
-
-        gradients
+        Self::execute_steps(tape_result.tape, grads, tape_result.checkpointer)
     }
 
     fn build_tape(
