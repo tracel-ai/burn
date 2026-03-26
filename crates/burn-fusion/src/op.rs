@@ -14,6 +14,58 @@ std::thread_local! {
     static ARENA: RefCell<Arena> = const {RefCell::new(Arena::new())};
 }
 
+/// An [operation](Operation) that isn't fused.
+///
+/// This can be executed with [Self::execute].
+pub struct UnfusedOp<R: FusionRuntime> {
+    kind: UnfusedOpKind<R>,
+    stream_id: StreamId,
+}
+
+impl<R: FusionRuntime> UnfusedOp<R> {
+    /// Creates a new unfused [operation](Operation) that will execute on the given [StreamId].
+    pub fn new<O: Operation<R> + 'static>(op: O, stream_id: StreamId) -> Self {
+        let arena_item = match Arena::accept::<O>() {
+            true => ARENA.with_borrow_mut(|arena| arena.reserve()),
+            false => None,
+        };
+
+        let reserved = match arena_item {
+            Some(val) => val,
+            None => {
+                return UnfusedOp {
+                    kind: UnfusedOpKind::Alloc(Arc::new(op)),
+                    stream_id,
+                };
+            }
+        };
+        let reserved = reserved.init(op);
+        let ptr_execute = shim_execute::<R, O>;
+
+        UnfusedOp {
+            kind: UnfusedOpKind::Arena(UnfusedOpInArena {
+                reserved,
+                ptr_execute,
+            }),
+            stream_id,
+        }
+    }
+
+    /// Executes the [operation](Operation) and modifies the given handles.
+    pub fn execute(&self, handles: &mut HandleContainer<R::FusionHandle>) {
+        // We ensure that we execute the operation on the same stream as they were registered.
+        let old = unsafe { StreamId::swap(self.stream_id) };
+
+        match &self.kind {
+            UnfusedOpKind::Arena(o) => o.execute(handles),
+            UnfusedOpKind::Alloc(o) => o.execute(handles),
+        }
+
+        // We ensure that we execute the operation on the same stream as they were registered.
+        unsafe { StreamId::swap(old) };
+    }
+}
+
 #[derive(Debug)]
 struct UnfusedOpInArena<R: FusionRuntime> {
     /// The data pointer.
@@ -43,67 +95,6 @@ fn shim_execute<R: FusionRuntime, O: Operation<R>>(
 ) {
     let operation: &O = unsafe { (ptr_data as *const O).as_ref().unwrap() };
     operation.execute(handles);
-}
-
-/// An [operation](Operation) that isn't fused.
-///
-/// This can be executed with [Self::execute].
-pub struct UnfusedOp<R: FusionRuntime> {
-    kind: UnfusedOpKind<R>,
-    stream_id: StreamId,
-}
-
-impl<R: FusionRuntime> UnfusedOp<R> {
-    /// Creates a new unfused [operation](Operation) that will execute on the given [StreamId].
-    pub fn new<O: Operation<R> + 'static>(op: O, stream_id: StreamId) -> Self {
-        let arena_item = match Arena::accept::<O>() {
-            true => ARENA.with_borrow_mut(|arena| {
-                arena.reserve(|bytes| {
-                    let ptr = core::ptr::from_mut(bytes);
-                    unsafe {
-                        core::ptr::drop_in_place(ptr as *mut O);
-                    }
-                })
-            }),
-            false => None,
-        };
-
-        let reserved = match arena_item {
-            Some(val) => val,
-            None => {
-                return UnfusedOp {
-                    kind: UnfusedOpKind::Alloc(Arc::new(op)),
-                    stream_id,
-                };
-            }
-        };
-        let reserved = reserved.init(|bytes| {
-            let ptr = core::ptr::from_mut(bytes);
-            unsafe {
-                core::ptr::write(ptr as *mut O, op);
-            };
-        });
-
-        let ptr_execute = shim_execute::<R, O>;
-
-        UnfusedOp {
-            kind: UnfusedOpKind::Arena(UnfusedOpInArena {
-                reserved,
-                ptr_execute,
-            }),
-            stream_id,
-        }
-    }
-
-    /// Executes the [operation](Operation) and modifies the given handles.
-    pub fn execute(&self, handles: &mut HandleContainer<R::FusionHandle>) {
-        let old = unsafe { StreamId::swap(self.stream_id) };
-        match &self.kind {
-            UnfusedOpKind::Arena(o) => o.execute(handles),
-            UnfusedOpKind::Alloc(o) => o.execute(handles),
-        }
-        unsafe { StreamId::swap(old) };
-    }
 }
 
 impl<R: FusionRuntime> Clone for UnfusedOp<R> {
