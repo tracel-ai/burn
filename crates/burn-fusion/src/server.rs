@@ -4,7 +4,7 @@ use crate::{
     FusionBackend, FusionRuntime,
     stream::{MultiStream, OperationStreams, StreamId, execution::Operation},
 };
-use burn_backend::{ReduceOperation, TensorData, backend::ExecutionError, ops::TensorRef};
+use burn_backend::{TensorData, backend::ExecutionError};
 use burn_ir::{HandleContainer, OperationIr, TensorId, TensorIr};
 
 pub struct FusionServer<R: FusionRuntime> {
@@ -195,19 +195,5 @@ where
         server_device
             .handles
             .register_quantized_tensor::<B>(&output_id, tensor);
-    }
-
-    pub fn all_reduce_in_place<B>(&mut self, tensors: Vec<TensorIr>, op: ReduceOperation)
-    where
-        B: FusionBackend<FusionRuntime = R>,
-    {
-        let tensors = tensors
-            .iter()
-            .map(|t| {
-                let mut t = self.handles.get_float_tensor::<B>(&t);
-                TensorRef(&mut t)
-            })
-            .collect();
-        unsafe { B::all_reduce_in_place(tensors, op) }
     }
 }
