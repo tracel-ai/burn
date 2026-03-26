@@ -320,6 +320,13 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         bias: Option<AutodiffTensor<B>>,
         options: ConvOptions<2>,
     ) -> AutodiffTensor<B> {
+        use burn_backend::DeviceOps;
+        println!(
+            "[{:?}] autodiff conv2d : {:?}",
+            std::thread::current().id(),
+            B::float_device(&x.primitive).id()
+        );
+
         #[derive(Debug)]
         struct Conv2DWithBias;
         #[derive(Debug)]
@@ -404,6 +411,12 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                 .stateful()
             {
                 OpsKind::Tracked(mut prep) => {
+                    println!(
+                        "[{:?}] bias tracked : {:?}",
+                        std::thread::current().id(),
+                        B::float_device(&x.primitive).id()
+                    );
+
                     let x_state = prep.checkpoint(&x);
                     let weight_state = prep.checkpoint(&weight);
                     let bias_state = prep.checkpoint(&bias);
@@ -425,6 +438,11 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                 .stateful()
             {
                 OpsKind::Tracked(mut prep) => {
+                    println!(
+                        "[{:?}] bias tracked : {:?}",
+                        std::thread::current().id(),
+                        B::float_device(&x.primitive).id()
+                    );
                     let x_state = prep.checkpoint(&x);
                     let weight_state = prep.checkpoint(&weight);
                     prep.finish(
