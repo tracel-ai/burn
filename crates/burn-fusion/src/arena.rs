@@ -1,8 +1,6 @@
-use std::{
-    cell::UnsafeCell,
-    marker::PhantomData,
-    sync::{Arc, atomic::AtomicBool},
-};
+use std::{cell::UnsafeCell, marker::PhantomData, ops::Deref, sync::Arc};
+
+use spin::RwLock;
 
 /// The raw storage for the item, potentially uninitialized.
 #[repr(C, align(64))]
@@ -23,14 +21,14 @@ pub struct Arena<const MAX_ITEM_COUNT: usize, const MAX_ITEM_SIZE: usize> {
     /// The arc here is only to have a stable pointer, since the buffer can be drop when the thread
     /// is done, but some bytes might still live, so the Arc handles that gracefully.
     buffer: Vec<Arc<UnsafeCell<Bytes<MAX_ITEM_SIZE>>>>,
-    alive: Option<Arc<AtomicBool>>,
+    alive: Option<Arc<RwLock<bool>>>,
     cursor: usize,
 }
 
 /// The initialized reserved memory.
 pub struct ReservedMemory<const MAX_ITEM_SIZE: usize> {
     data: Arc<UnsafeCell<Bytes<MAX_ITEM_SIZE>>>,
-    alive: Arc<AtomicBool>,
+    alive: Arc<RwLock<bool>>,
     drop_fn: fn(&mut Bytes<MAX_ITEM_SIZE>),
 }
 
@@ -39,7 +37,7 @@ pub struct ReservedMemory<const MAX_ITEM_SIZE: usize> {
 /// This type isn't Send/Sync and should be initialized on the same thread as it was reserved.
 pub struct UninitReservedMemory<const MAX_ITEM_SIZE: usize> {
     data: Arc<UnsafeCell<Bytes<MAX_ITEM_SIZE>>>,
-    alive: Arc<AtomicBool>,
+    alive: Arc<RwLock<bool>>,
     /// Used to assert the position in the arena.
     #[cfg(test)]
     index: usize,
@@ -134,13 +132,27 @@ impl<const MAX_ITEM_SIZE: usize> Drop for ReservedMemory<MAX_ITEM_SIZE> {
             (self.drop_fn)(bytes_mut);
         };
 
-        if self.alive.load(std::sync::atomic::Ordering::Acquire) {
+        // The alive guard ensures the drop of the reserved memory can't overlap with the drop of
+        // the arena.
+        //
+        // The alive flag also determines the reference count value to use for the drop.
+        let guard = self.alive.read();
+        let is_alive = *guard.deref();
+
+        if is_alive {
             if Arc::strong_count(&self.data) == 2 {
+                core::mem::drop(guard);
                 drop_fn();
+                return;
+            } else {
+                core::mem::drop(guard);
             }
         } else {
             if Arc::strong_count(&self.data) == 1 {
+                core::mem::drop(guard);
                 drop_fn();
+            } else {
+                core::mem::drop(guard);
             }
         }
     }
@@ -194,7 +206,7 @@ impl<const MAX_ITEM_COUNT: usize, const MAX_ITEM_SIZE: usize> Arena<MAX_ITEM_COU
                     bytes: [0; MAX_ITEM_SIZE],
                 })));
             }
-            self.alive = Some(Arc::new(AtomicBool::new(true)));
+            self.alive = Some(Arc::new(RwLock::new(true)));
         }
 
         for i in 0..MAX_ITEM_COUNT {
@@ -223,14 +235,12 @@ impl<const MAX_ITEM_COUNT: usize, const MAX_ITEM_SIZE: usize> Drop
     for Arena<MAX_ITEM_COUNT, MAX_ITEM_SIZE>
 {
     fn drop(&mut self) {
+        let mut guard = self.alive.as_ref().unwrap().write();
         // We start by dropping the buffers.
         self.buffer.clear();
 
         // Then we set the alive boolean.
-        self.alive
-            .as_ref()
-            .unwrap()
-            .store(false, std::sync::atomic::Ordering::Release);
+        *guard = false;
     }
 }
 
