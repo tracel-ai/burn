@@ -2,7 +2,7 @@ use crate::{
     FusionBackend, FusionDevice, FusionHandle, FusionRuntime, FusionServer, FusionTensor,
     stream::{OperationStreams, StreamId, execution::Operation},
 };
-use burn_backend::{Device, DeviceHandle, DeviceId, DeviceService};
+use burn_backend::{Device, DeviceHandle, DeviceId, DeviceService, ReduceOperation};
 use burn_backend::{TensorData, backend::ExecutionError};
 use burn_ir::{OperationIr, TensorId, TensorIr};
 use std::sync::{
@@ -346,5 +346,19 @@ where
                 server.resolve_server_bool::<B>(&tensor.into_ir())
             })
             .unwrap()
+    }
+
+    /// All-reduce the given tensors.
+    pub fn all_reduce_in_place<B>(&self, tensors: Vec<FusionTensor<R>>, op: ReduceOperation)
+    where
+        B: FusionBackend<FusionRuntime = R>,
+    {
+        self.server.submit(move |server| {
+            tensors
+                .iter()
+                .map(|t| t.stream)
+                .for_each(|id| server.drain_stream(id));
+            server.all_reduce_in_place::<B>(tensors.into_iter().map(|t| t.into_ir()).collect(), op);
+        });
     }
 }

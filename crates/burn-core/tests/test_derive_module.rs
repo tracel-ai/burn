@@ -535,9 +535,7 @@ mod require_grad {
         const NUM_ITERATIONS: usize = 100;
         let type_id = 0u16;
 
-        // let device_count = <B as Backend>::device_count(type_id);
-        let device_count = 4;
-        println!("device count {device_count}");
+        let device_count = <B as Backend>::device_count(type_id);
         let devices = create_devices::<B::Device>(type_id, device_count);
 
         println!("devices : {devices:?}");
