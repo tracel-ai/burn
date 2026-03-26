@@ -53,9 +53,11 @@ impl AutodiffServer {
         println!("[{:?}] server mem manag. ", std::thread::current().id(),);
         self.memory_management.register(rc, parents);
 
-        println!("[{:?}] server mem manag. ", std::thread::current().id(),);
+        println!("[{:?}] server inserts", std::thread::current().id(),);
         self.steps.insert(node_id, step);
         self.actions_builder.insert(node_id, actions);
+
+        println!("[{:?}] server register done", std::thread::current().id(),);
     }
 
     pub fn backward<NC: NodeCleaner, B: Backend>(

@@ -108,6 +108,11 @@ impl AutodiffClient for GraphMutexClient {
         println!("[{:?}] graph.state locked ", std::thread::current().id(),);
 
         state.server.register(node_id_ref, step, actions);
+
+        println!(
+            "[{:?}] client registered finish",
+            std::thread::current().id(),
+        );
     }
 
     fn backward<B: Backend>(&self, root: AutodiffTensor<B>) -> Gradients {
