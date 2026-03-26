@@ -491,13 +491,13 @@ fn write_output_aligned<C: Scalar, N: Size>(
     match layout {
         LayoutInfo::SameAsRef | LayoutInfo::IsRef => {
             let offset = (ref_pos * config.width) / tensor.tensor.vector_size();
-            let tensor = outputs.tensors.index_mut(pos);
-            let stride = tensor.tensor.stride(config.rank - 1);
+            let output = outputs.tensors.index_mut(pos);
+            let stride = output.tensor.stride(config.rank - 1);
 
             #[unroll]
             for i in 0..config.width {
                 let idx = offset + i * stride;
-                tensor.tensor[idx] = Vector::cast_from(value[i]);
+                output.tensor[idx] = Vector::cast_from(value[i]);
             }
         }
         LayoutInfo::Unknown => {
@@ -521,8 +521,8 @@ fn write_output_aligned<C: Scalar, N: Size>(
 
                 let tensor_ro = outputs.tensors.index(pos);
                 offset /= tensor_ro.tensor.vector_size();
-                let tensor = outputs.tensors.index_mut(pos);
-                tensor.tensor[offset] = Vector::cast_from(value[i]);
+                let output = outputs.tensors.index_mut(pos);
+                output.tensor[offset] = Vector::cast_from(value[i]);
             }
         }
     }
