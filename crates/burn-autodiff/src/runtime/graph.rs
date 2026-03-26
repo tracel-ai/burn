@@ -82,7 +82,9 @@ impl GraphMutexClient {
     /// # Returns
     /// An `Arc<Graph>` representing the selected or newly created stream.
     fn graph(node: NodeId, parents: &[Parent]) -> Arc<Graph> {
+        println!("[{:?}] STATE lock ", std::thread::current().id(),);
         let mut state = STATE.lock();
+        println!("[{:?}] STATE locked ", std::thread::current().id(),);
 
         match state.as_mut() {
             Some(locator) => locator.select(node, parents),
@@ -100,7 +102,10 @@ impl AutodiffClient for GraphMutexClient {
     fn register(&self, node_id_ref: NodeRefCount, step: StepBoxed, actions: CheckpointerBuilder) {
         let node_id = *node_id_ref;
         let graph = GraphMutexClient::graph(node_id, step.parents());
+
+        println!("[{:?}] graph.state lock ", std::thread::current().id(),);
         let mut state = graph.state.lock();
+        println!("[{:?}] graph.state locked ", std::thread::current().id(),);
 
         state.server.register(node_id_ref, step, actions);
     }

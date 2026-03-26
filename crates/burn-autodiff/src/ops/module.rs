@@ -411,12 +411,6 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                 .stateful()
             {
                 OpsKind::Tracked(mut prep) => {
-                    println!(
-                        "[{:?}] bias tracked : {:?}",
-                        std::thread::current().id(),
-                        B::float_device(&x.primitive).id()
-                    );
-
                     let x_state = prep.checkpoint(&x);
                     let weight_state = prep.checkpoint(&weight);
                     let bias_state = prep.checkpoint(&bias);
@@ -438,11 +432,6 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
                 .stateful()
             {
                 OpsKind::Tracked(mut prep) => {
-                    println!(
-                        "[{:?}] bias tracked : {:?}",
-                        std::thread::current().id(),
-                        B::float_device(&x.primitive).id()
-                    );
                     let x_state = prep.checkpoint(&x);
                     let weight_state = prep.checkpoint(&weight);
                     prep.finish(

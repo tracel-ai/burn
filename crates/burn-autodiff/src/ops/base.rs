@@ -195,6 +195,13 @@ where
 {
     /// Finish the preparation of a tracked operation and returns the output tensor.
     pub fn finish(self, state: S, output: FloatTensor<B>) -> AutodiffTensor<B> {
+        use burn_backend::DeviceOps;
+        println!(
+            "[{:?}] prep finish : {:?}",
+            std::thread::current().id(),
+            B::float_device(&output).id()
+        );
+
         let output = AutodiffTensor::from_parents(
             output,
             &self.nodes,
