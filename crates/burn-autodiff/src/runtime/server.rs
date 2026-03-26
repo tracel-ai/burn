@@ -46,11 +46,14 @@ impl AutodiffServer {
     }
 
     pub fn register(&mut self, rc: NodeRefCount, step: StepBoxed, actions: CheckpointerBuilder) {
+        println!("[{:?}] server register ", std::thread::current().id(),);
         let parents = step.parents();
         let node_id = *rc.as_ref();
 
+        println!("[{:?}] server mem manag. ", std::thread::current().id(),);
         self.memory_management.register(rc, parents);
 
+        println!("[{:?}] server mem manag. ", std::thread::current().id(),);
         self.steps.insert(node_id, step);
         self.actions_builder.insert(node_id, actions);
     }
