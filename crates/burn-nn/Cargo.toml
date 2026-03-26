@@ -26,9 +26,6 @@ doc = [
     "pretrained",
 ]
 pretrained = ["std", "burn-store/pytorch", "burn-std/network", "dirs"]
-# Added for some test cases that should only be run locally 
-# (e.g., test cases with pretrained weights for gram matrix loss)
-test-local = []  
 std = [
     "burn-core/std",
     "num-traits/std",
