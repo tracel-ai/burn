@@ -143,7 +143,6 @@ impl<const MAX_ITEM_SIZE: usize> Drop for ReservedMemory<MAX_ITEM_SIZE> {
             if Arc::strong_count(&self.data) == 2 {
                 core::mem::drop(guard);
                 drop_fn();
-                return;
             } else {
                 core::mem::drop(guard);
             }
@@ -202,6 +201,10 @@ impl<const MAX_ITEM_COUNT: usize, const MAX_ITEM_SIZE: usize> Arena<MAX_ITEM_COU
     pub fn reserve(&mut self) -> Option<UninitReservedMemory<MAX_ITEM_SIZE>> {
         if self.buffer.is_empty() {
             for _ in 0..MAX_ITEM_COUNT {
+                // Here we need to disable the clippy warning since we manually ensure the type is
+                // send sync and we need to wrap it in an Arc because the bytes might outlive the
+                // current arena.
+                #[allow(clippy::arc_with_non_send_sync)]
                 self.buffer.push(Arc::new(UnsafeCell::new(Bytes {
                     bytes: [0; MAX_ITEM_SIZE],
                 })));
