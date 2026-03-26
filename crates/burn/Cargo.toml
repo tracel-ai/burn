@@ -169,7 +169,7 @@ tch = ["burn-tch"]
 vulkan = ["wgpu", "burn-wgpu/vulkan", "burn-dispatch?/vulkan"]
 webgpu = ["wgpu", "burn-wgpu/webgpu", "burn-dispatch?/webgpu"]
 metal = ["wgpu", "burn-wgpu/metal", "burn-dispatch?/metal"]
-wgpu = ["burn-wgpu"]
+wgpu = ["burn-wgpu", "burn-dispatch?/wgpu"]
 cpu = ["burn-cpu", "burn-dispatch?/cpu"]
 
 # Backend dispatch

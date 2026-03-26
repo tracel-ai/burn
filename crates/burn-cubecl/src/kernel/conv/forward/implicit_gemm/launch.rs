@@ -5,10 +5,8 @@ use cubek::{
         AcceleratedTileKind, ConvolutionArgs, ReadingStrategy, Strategy,
         components::ConvSetupError, forward,
     },
-    matmul::{
-        definition::{MatmulElems, MatmulGlobalElems},
-        launch::MatmulInputBinding,
-    },
+    matmul::definition::{MatmulElems, MatmulGlobalElems},
+    std::InputBinding,
 };
 
 /// Perform a 2D convolution using the implicit GEMM (im2col) algorithm, using cubecl tiling matmul
@@ -137,7 +135,7 @@ pub fn launch_convolution_forward<R: CubeRuntime, const N: usize>(
 
     let bias = bias.map(|bias| {
         let dtype = bias.dtype;
-        MatmulInputBinding::Normal(bias.binding(), dtype.into())
+        InputBinding::Normal(bias.binding(), dtype.into())
     });
 
     let client = input.client.clone();
@@ -148,8 +146,8 @@ pub fn launch_convolution_forward<R: CubeRuntime, const N: usize>(
     });
     let input_dtype = input.dtype;
     let weight_dtype = weight.dtype;
-    let input = MatmulInputBinding::new(input.binding(), input_dtype.into());
-    let weight = MatmulInputBinding::new(weight.binding(), weight_dtype.into());
+    let input = InputBinding::new(input.binding(), input_dtype.into());
+    let weight = InputBinding::new(weight.binding(), weight_dtype.into());
 
     forward::launch_ref::<R, N>(
         strategy,
