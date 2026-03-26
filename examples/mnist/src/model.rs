@@ -56,29 +56,37 @@ impl<B: Backend> Model<B> {
         let [batch_size, height, width] = input.dims();
 
         let dev_id = input.device().id();
-        println!("[{:?}] conv1 : {:?}", std::thread::current().id(), dev_id);
+        println!("[{:?}] - conv1 : {:?}", std::thread::current().id(), dev_id);
 
         let x = input.reshape([batch_size, 1, height, width]).detach();
         let x = self.conv1.forward(x);
 
-        println!("[{:?}] conv2 : {:?}", std::thread::current().id(), dev_id);
+        println!("[{:?}] - conv2 : {:?}", std::thread::current().id(), dev_id);
         let x = self.conv2.forward(x);
 
         let [batch_size, channels, height, width] = x.dims();
         let x = x.reshape([batch_size, channels * height * width]);
 
-        println!("[{:?}] fc1 : {:?}", std::thread::current().id(), dev_id);
+        println!("[{:?}] - fc1 : {:?}", std::thread::current().id(), dev_id);
         let x = self.fc1.forward(x);
-        println!("[{:?}] act : {:?}", std::thread::current().id(), dev_id);
+        println!("[{:?}] - act : {:?}", std::thread::current().id(), dev_id);
         let x = self.activation.forward(x);
-        println!("[{:?}] dropout : {:?}", std::thread::current().id(), dev_id);
+        println!(
+            "[{:?}] - dropout : {:?}",
+            std::thread::current().id(),
+            dev_id
+        );
         let x = self.dropout.forward(x);
 
-        println!("[{:?}] fc2 : {:?}", std::thread::current().id(), dev_id);
+        println!("[{:?}] - fc2 : {:?}", std::thread::current().id(), dev_id);
         let x = self.fc2.forward(x);
-        println!("[{:?}] act : {:?}", std::thread::current().id(), dev_id);
+        println!("[{:?}] - act : {:?}", std::thread::current().id(), dev_id);
         let x = self.activation.forward(x);
-        println!("[{:?}] dropout : {:?}", std::thread::current().id(), dev_id);
+        println!(
+            "[{:?}] - dropout : {:?}",
+            std::thread::current().id(),
+            dev_id
+        );
         let x = self.dropout.forward(x);
 
         println!("[{:?}] fc3 : {:?}", std::thread::current().id(), dev_id);
@@ -148,11 +156,34 @@ impl<B: Backend> ConvBlock<B> {
     }
 
     pub fn forward(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
+        let dev_id = input.device().id();
+        println!(
+            "[{:?}] - conv inner : {:?}",
+            std::thread::current().id(),
+            dev_id
+        );
         let x = self.conv.forward(input);
+
+        println!(
+            "[{:?}] - norm inner : {:?}",
+            std::thread::current().id(),
+            dev_id
+        );
         let x = self.norm.forward(x);
+
+        println!(
+            "[{:?}] - act inner : {:?}",
+            std::thread::current().id(),
+            dev_id
+        );
         let x = self.activation.forward(x);
 
         if let Some(pool) = &self.pool {
+            println!(
+                "[{:?}] - pool inner : {:?}",
+                std::thread::current().id(),
+                dev_id
+            );
             pool.forward(x)
         } else {
             x
