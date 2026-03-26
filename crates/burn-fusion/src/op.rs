@@ -78,7 +78,7 @@ impl<R: FusionRuntime> Clone for UnfusedOpInArena<R> {
     fn clone(&self) -> Self {
         Self {
             reserved: self.reserved.clone(),
-            ptr_execute: self.ptr_execute.clone(),
+            ptr_execute: self.ptr_execute,
         }
     }
 }

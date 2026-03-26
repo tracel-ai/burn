@@ -86,11 +86,11 @@ impl<const MAX_ITEM_SIZE: usize> UninitReservedMemory<MAX_ITEM_SIZE> {
             "We can only initialize reserved memory when there is a single writer."
         );
 
-        let mut bytes_mut = unsafe { self.data.as_mut().unwrap() };
-        init_data(&mut bytes_mut);
+        let bytes_mut = unsafe { self.data.as_mut().unwrap() };
+        init_data(bytes_mut);
 
         ReservedMemory {
-            data: self.data.clone(),
+            data: self.data,
             count: self.count.clone(),
             drop_fn,
         }
@@ -112,7 +112,7 @@ impl<const MAX_ITEM_SIZE: usize> Clone for ReservedMemory<MAX_ITEM_SIZE> {
         Self {
             data: self.data,
             count: self.count.clone(),
-            drop_fn: self.drop_fn.clone(),
+            drop_fn: self.drop_fn,
         }
     }
 }
@@ -124,8 +124,8 @@ impl<const MAX_ITEM_SIZE: usize> Drop for ReservedMemory<MAX_ITEM_SIZE> {
             //
             // We read the cell pointer that is only available to the client, not the
             // areana.
-            let mut bytes_mut = unsafe { self.data.as_mut().unwrap() };
-            (self.drop_fn)(&mut bytes_mut)
+            let bytes_mut = unsafe { self.data.as_mut().unwrap() };
+            (self.drop_fn)(bytes_mut)
         }
     }
 }
