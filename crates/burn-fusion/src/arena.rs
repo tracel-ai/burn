@@ -1,4 +1,8 @@
-use std::{cell::UnsafeCell, sync::Arc};
+use std::{
+    cell::UnsafeCell,
+    marker::PhantomData,
+    sync::{Arc, atomic::AtomicBool},
+};
 
 /// The raw storage for the item, potentially uninitialized.
 #[repr(C, align(64))]
@@ -19,12 +23,14 @@ pub struct Arena<const MAX_ITEM_COUNT: usize, const MAX_ITEM_SIZE: usize> {
     /// The arc here is only to have a stable pointer, since the buffer can be drop when the thread
     /// is done, but some bytes might still live, so the Arc handles that gracefully.
     buffer: Vec<Arc<UnsafeCell<Bytes<MAX_ITEM_SIZE>>>>,
+    alive: Option<Arc<AtomicBool>>,
     cursor: usize,
 }
 
 /// The initialized reserved memory.
 pub struct ReservedMemory<const MAX_ITEM_SIZE: usize> {
     data: Arc<UnsafeCell<Bytes<MAX_ITEM_SIZE>>>,
+    alive: Arc<AtomicBool>,
     drop_fn: fn(&mut Bytes<MAX_ITEM_SIZE>),
 }
 
@@ -33,9 +39,12 @@ pub struct ReservedMemory<const MAX_ITEM_SIZE: usize> {
 /// This type isn't Send/Sync and should be initialized on the same thread as it was reserved.
 pub struct UninitReservedMemory<const MAX_ITEM_SIZE: usize> {
     data: Arc<UnsafeCell<Bytes<MAX_ITEM_SIZE>>>,
+    alive: Arc<AtomicBool>,
     /// Used to assert the position in the arena.
     #[cfg(test)]
-    pub index: usize,
+    index: usize,
+    // Add this type to make sure the object is `!Sync`.
+    not_sync: PhantomData<*const ()>,
 }
 
 impl<const MAX_ITEM_SIZE: usize> UninitReservedMemory<MAX_ITEM_SIZE> {
@@ -78,7 +87,7 @@ impl<const MAX_ITEM_SIZE: usize> UninitReservedMemory<MAX_ITEM_SIZE> {
         // # Safety
         //
         // We read the cell pointer that is only available to the client, not the
-        // areana.
+        // arena.
         assert_eq!(
             Arc::strong_count(&self.data),
             2,
@@ -90,6 +99,7 @@ impl<const MAX_ITEM_SIZE: usize> UninitReservedMemory<MAX_ITEM_SIZE> {
 
         ReservedMemory {
             data: self.data,
+            alive: self.alive,
             drop_fn,
         }
     }
@@ -108,6 +118,7 @@ impl<const MAX_ITEM_SIZE: usize> Clone for ReservedMemory<MAX_ITEM_SIZE> {
     fn clone(&self) -> Self {
         Self {
             data: self.data.clone(),
+            alive: self.alive.clone(),
             drop_fn: self.drop_fn,
         }
     }
@@ -115,13 +126,22 @@ impl<const MAX_ITEM_SIZE: usize> Clone for ReservedMemory<MAX_ITEM_SIZE> {
 
 impl<const MAX_ITEM_SIZE: usize> Drop for ReservedMemory<MAX_ITEM_SIZE> {
     fn drop(&mut self) {
-        if Arc::strong_count(&self.data) == 2 {
-            // # Safety
-            //
-            // We read the cell pointer that is only available to the client, not the
-            // areana.
+        // We take the strong count BEFORE we take the alive atomic.
+        let drop_fn = || {
+            // SAFETY: We are the last user of this slot. The data pointer is valid,
+            // initialized, and no other `ReservedMemory` clone exists.
             let bytes_mut = unsafe { self.data.get().as_mut().unwrap() };
-            (self.drop_fn)(bytes_mut)
+            (self.drop_fn)(bytes_mut);
+        };
+
+        if self.alive.load(std::sync::atomic::Ordering::Acquire) {
+            if Arc::strong_count(&self.data) == 2 {
+                drop_fn();
+            }
+        } else {
+            if Arc::strong_count(&self.data) == 1 {
+                drop_fn();
+            }
         }
     }
 }
@@ -146,6 +166,7 @@ impl<const MAX_ITEM_COUNT: usize, const MAX_ITEM_SIZE: usize> Arena<MAX_ITEM_COU
     pub const fn new() -> Self {
         Self {
             buffer: Vec::new(),
+            alive: None,
             cursor: 0,
         }
     }
@@ -173,6 +194,7 @@ impl<const MAX_ITEM_COUNT: usize, const MAX_ITEM_SIZE: usize> Arena<MAX_ITEM_COU
                     bytes: [0; MAX_ITEM_SIZE],
                 })));
             }
+            self.alive = Some(Arc::new(AtomicBool::new(true)));
         }
 
         for i in 0..MAX_ITEM_COUNT {
@@ -185,13 +207,30 @@ impl<const MAX_ITEM_COUNT: usize, const MAX_ITEM_SIZE: usize> Arena<MAX_ITEM_COU
 
                 return Some(UninitReservedMemory {
                     data,
+                    alive: self.alive.as_ref().unwrap().clone(),
                     #[cfg(test)]
                     index: i,
+                    not_sync: PhantomData,
                 });
             }
         }
 
         None
+    }
+}
+
+impl<const MAX_ITEM_COUNT: usize, const MAX_ITEM_SIZE: usize> Drop
+    for Arena<MAX_ITEM_COUNT, MAX_ITEM_SIZE>
+{
+    fn drop(&mut self) {
+        // We start by dropping the buffers.
+        self.buffer.clear();
+
+        // Then we set the alive boolean.
+        self.alive
+            .as_ref()
+            .unwrap()
+            .store(false, std::sync::atomic::Ordering::Release);
     }
 }
 
@@ -289,5 +328,139 @@ mod tests {
 
         // Next one should fail
         assert!(arena.reserve().is_none());
+    }
+}
+
+#[cfg(test)]
+mod concurrent_tests {
+    use super::*;
+    use std::sync::{Arc, Barrier, Mutex};
+    use std::thread;
+
+    const MAX_ITEM_SIZE: usize = 2048;
+
+    /// Wraps an arena in a Mutex for shared cross-thread access.
+    fn shared_arena<const N: usize>() -> Arc<Mutex<Arena<N, MAX_ITEM_SIZE>>> {
+        Arc::new(Mutex::new(Arena::<N, MAX_ITEM_SIZE>::new()))
+    }
+
+    /// Verifies that drop_fn is called exactly once even when multiple threads
+    /// hold clones and release them concurrently.
+    #[test]
+    fn test_drop_called_exactly_once_under_contention() {
+        let drop_count = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let arena = shared_arena::<4>();
+
+        let uninit = arena.lock().unwrap().reserve().unwrap();
+
+        struct Probe(Arc<std::sync::atomic::AtomicUsize>);
+        impl Drop for Probe {
+            fn drop(&mut self) {
+                self.0.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            }
+        }
+
+        let reserved = uninit.init(Probe(drop_count.clone()));
+
+        // Spawn 32 threads, each clones and drops ReservedMemory concurrently.
+        let barrier = Arc::new(Barrier::new(32));
+        let mut handles = vec![];
+
+        for _ in 0..32 {
+            let r = reserved.clone();
+            let b = barrier.clone();
+            handles.push(thread::spawn(move || {
+                b.wait(); // all threads drop at the same time
+                drop(r);
+            }));
+        }
+
+        drop(reserved); // drop the original too
+        for h in handles {
+            h.join().unwrap();
+        }
+
+        assert_eq!(
+            drop_count.load(std::sync::atomic::Ordering::Relaxed),
+            1,
+            "drop_fn must be called exactly once"
+        );
+    }
+
+    /// Verifies that a slot becomes available for reuse after all ReservedMemory
+    /// clones are dropped across threads.
+    #[test]
+    fn test_slot_reuse_after_concurrent_drop() {
+        let arena = shared_arena::<1>();
+        let uninit = arena.lock().unwrap().reserve().unwrap();
+        let reserved = uninit.init(42u64);
+
+        let barrier = Arc::new(Barrier::new(8));
+        let mut handles = vec![];
+
+        for _ in 0..8 {
+            let r = reserved.clone();
+            let b = barrier.clone();
+            handles.push(thread::spawn(move || {
+                b.wait();
+                drop(r);
+            }));
+        }
+
+        drop(reserved);
+        for h in handles {
+            h.join().unwrap();
+        }
+
+        // All clones dropped — the single slot should be free again.
+        assert!(
+            arena.lock().unwrap().reserve().is_some(),
+            "Slot should be available after all clones are dropped"
+        );
+    }
+
+    /// Verifies that ReservedMemory clones dropped after the arena is dropped
+    /// still correctly run drop_fn (the count == 1 case).
+    #[test]
+    fn test_drop_after_arena_dropped() {
+        let drop_count = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+
+        struct Probe(Arc<std::sync::atomic::AtomicUsize>);
+        impl Drop for Probe {
+            fn drop(&mut self) {
+                self.0.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            }
+        }
+
+        let reserved = {
+            let mut arena = Arena::<4, MAX_ITEM_SIZE>::new();
+            let uninit = arena.reserve().unwrap();
+            uninit.init(Probe(drop_count.clone()))
+            // arena drops here
+        };
+
+        // Spawn threads that hold clones past the arena's lifetime.
+        let barrier = Arc::new(Barrier::new(8));
+        let mut handles = vec![];
+
+        for _ in 0..8 {
+            let r = reserved.clone();
+            let b = barrier.clone();
+            handles.push(thread::spawn(move || {
+                b.wait();
+                drop(r);
+            }));
+        }
+
+        drop(reserved);
+        for h in handles {
+            h.join().unwrap();
+        }
+
+        assert_eq!(
+            drop_count.load(std::sync::atomic::Ordering::Relaxed),
+            1,
+            "drop_fn must fire exactly once even when arena is dropped first"
+        );
     }
 }
