@@ -294,7 +294,7 @@ pub(crate) fn handle_command(
                         handle_test_args(&["--features", "pretrained"], args.release),
                         None,
                         None,
-                        &format!("std burn-nn"),
+                        "std burn-nn",
                     )?;
                 }
                 CiTestType::GcpCudaRunner => (),
