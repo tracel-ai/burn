@@ -146,10 +146,10 @@ pub fn matmul_autotune<R: CubeRuntime>(
             }),
         );
 
-        // Vec2Mat
+        // No Stage VecMat
         for target_num_planes in [1, 2, 4, 8] {
             set = set.with(
-                Tunable::new("vec2mat", move |lhs, rhs, out| {
+                Tunable::new("vecmat", move |lhs, rhs, out| {
                     launch_matmul::<R>(
                         &Strategy::NoStageVecMat(BlueprintStrategy::Inferred(
                             NoStageVecMatStrategy { target_num_planes },
