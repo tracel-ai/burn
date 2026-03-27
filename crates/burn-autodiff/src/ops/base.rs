@@ -16,7 +16,7 @@ use burn_std::Shape;
 use core::marker::PhantomData;
 
 #[cfg(feature = "distributed")]
-use burn_backend::communication::DistributedParams;
+use burn_backend::distributed::DistributedParams;
 
 /// Operation in preparation.
 ///

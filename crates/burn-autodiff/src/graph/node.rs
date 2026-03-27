@@ -1,7 +1,7 @@
 use alloc::{sync::Arc, vec::Vec};
 
 #[cfg(feature = "distributed")]
-use burn_backend::communication::DistributedParams;
+use burn_backend::distributed::DistributedParams;
 
 #[cfg(target_has_atomic = "64")]
 use core::sync::atomic::{AtomicU64, Ordering};

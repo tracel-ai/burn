@@ -3,7 +3,7 @@ use crate::{checkpoint::base::Checkpointer, grads::Gradients, graph::Parent};
 use alloc::boxed::Box;
 
 #[cfg(feature = "distributed")]
-use burn_backend::communication::DistributedParams;
+use burn_backend::distributed::DistributedParams;
 
 /// Backward step for reverse mode autodiff.
 pub trait Step: Send + core::fmt::Debug {

@@ -15,6 +15,7 @@ version.workspace = true
 workspace = true
 
 [features]
+# TODO : remove distributed from defaults.
 default = ["std", "distributed"]
 doc = ["default"]
 distributed = ["std", "oneshot"]

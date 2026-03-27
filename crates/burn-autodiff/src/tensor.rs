@@ -182,11 +182,10 @@ impl<B: Backend> AutodiffTensor<B> {
         self.primitive
     }
 
-    // TODO: only expose when #[cfg(not(feature = "distributed"))]
+    #[cfg(not(feature = "distributed"))]
     pub fn backward(self) -> Gradients {
         let client = self.node.client.clone();
 
-        // TODO: configure based on distributed feature
         AutodiffClient::backward::<B>(&client, self)
     }
 
@@ -202,10 +201,8 @@ impl<B: Backend> AutodiffTensor<B> {
         grads.remove::<B>(self);
         grads.register::<B>(self.node.id, grad);
     }
-}
 
-#[cfg(feature = "distributed")]
-impl<B: DistributedBackend> AutodiffTensor<B> {
+    #[cfg(feature = "distributed")]
     /// Mark the tensor as distributed across multiple devices.
     /// Its gradients will be automatically aggregated from those devices after the backward pass.
     ///
@@ -227,12 +224,14 @@ impl<B: DistributedBackend> AutodiffTensor<B> {
 
         self.register_step(step, CheckpointerBuilder::default())
     }
+}
 
-    // TODO
-    // pub fn backward(self) -> Gradients {
-    //     let client = self.node.client.clone();
+#[cfg(feature = "distributed")]
+impl<B: DistributedBackend> AutodiffTensor<B> {
+    #[cfg(feature = "distributed")]
+    pub fn backward(self) -> Gradients {
+        let client = self.node.client.clone();
 
-    //     // TODO: configure based on distributed feature
-    //     AutodiffClient::backward::<B>(&client, self)
-    // }
+        AutodiffClient::backward::<B>(&client, self)
+    }
 }

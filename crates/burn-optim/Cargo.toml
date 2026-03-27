@@ -15,9 +15,11 @@ version.workspace = true
 workspace = true
 
 [features]
+# TODO: remove distributed from default.
 default = [
     "std",
     "burn-core/default",
+    "distributed"
 ]
 doc = [
     "std",
@@ -42,6 +44,7 @@ tracing = [
     "burn-wgpu?/tracing",
 ]
 
+distributed = ["std"]
 collective = ["burn-collective"]
 
 test-cuda = [

@@ -3,7 +3,7 @@ use burn_core as burn;
 #[cfg(feature = "collective")]
 use burn_collective::{CollectiveError, all_reduce};
 #[cfg(feature = "collective")]
-use burn_core::tensor::communication::{PeerId, ReduceOperation};
+use burn_core::tensor::backend::distributed::{PeerId, ReduceOperation};
 
 use burn::{
     Tensor,

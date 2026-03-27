@@ -1,7 +1,6 @@
 use alloc::vec::Vec;
 use burn_backend::{
-    BoolDType, DistributedParamId, DistributedParams, ExecutionError, FloatDType, IntDType, Scalar,
-    Shape, Slice, TensorData,
+    BoolDType, ExecutionError, FloatDType, IntDType, Scalar, Shape, Slice, TensorData,
     ops::FloatTensorOps,
     tensor::{BoolTensor, FloatTensor, IntTensor},
 };
