@@ -16,7 +16,7 @@
 //! | `Metal`    | `metal`    | Apple Metal backend via `wgpu` (MSL) |
 //! | `Rocm`     | `rocm`     | AMD ROCm backend |
 //! | `Vulkan`   | `vulkan`   | Vulkan backend via `wgpu` (SPIR-V) |
-//! | `WebGpu`   | `webgpu`   | WebGPU backend via `wgpu` (WGSL) |
+//! | `Wgpu`     | `webgpu`   | WebGPU backend via `wgpu` (WGSL) |
 //! | `NdArray`  | `ndarray`  | Pure Rust CPU backend using `ndarray` |
 //! | `LibTorch` | `tch`      | Libtorch backend via `tch` |
 //! | `Autodiff` | `autodiff` | Autodiff-enabled backend (used in combination with any of the backends above) |
@@ -79,7 +79,7 @@ pub(crate) mod backends {
     #[cfg(wgpu_vulkan)]
     pub use burn_wgpu::Vulkan;
     #[cfg(wgpu_webgpu)]
-    pub use burn_wgpu::WebGpu;
+    pub use burn_wgpu::Wgpu;
     #[cfg(any(wgpu_metal, wgpu_vulkan, wgpu_webgpu))]
     pub use burn_wgpu::WgpuDevice;
 

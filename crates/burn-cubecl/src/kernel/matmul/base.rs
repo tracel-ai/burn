@@ -2,9 +2,12 @@ use super::init_matmul_output;
 use crate::{CubeRuntime, kernel::quantization::dequantize, tensor::CubeTensor};
 use burn_backend::{DType, QTensorPrimitive};
 use burn_std::QuantLevel;
-use cubek::matmul::{
-    definition::{MatmulElems, MatmulGlobalElems, MatmulSetupError},
-    launch::{MatmulInputBinding, Strategy},
+use cubek::{
+    matmul::{
+        definition::{MatmulElems, MatmulGlobalElems, MatmulSetupError},
+        launch::Strategy,
+    },
+    std::InputBinding,
 };
 
 #[cfg(feature = "autotune")]
@@ -91,7 +94,7 @@ pub(crate) fn launch_matmul<R: CubeRuntime>(
             let lhs_dtype = lhs.dtype;
             (
                 lhs_dtype,
-                MatmulInputBinding::new(lhs.binding(), lhs_dtype.into()),
+                InputBinding::new(lhs.binding(), lhs_dtype.into()),
             )
         }
         Some((data, scale)) => {
@@ -100,7 +103,7 @@ pub(crate) fn launch_matmul<R: CubeRuntime>(
             let scale_dtype = scale.dtype;
             (
                 out_dtype,
-                MatmulInputBinding::quantized(
+                InputBinding::quantized(
                     data.binding(),
                     scale.binding(),
                     lhs.meta.shape().clone(),
@@ -117,7 +120,7 @@ pub(crate) fn launch_matmul<R: CubeRuntime>(
     let (rhs_dtype, rhs_handle) = match rhs_quant_handles {
         None => (
             lhs_dtype,
-            MatmulInputBinding::new(rhs.binding(), lhs_dtype.into()),
+            InputBinding::new(rhs.binding(), lhs_dtype.into()),
         ),
         Some((data, scale)) => {
             // Extremely hacky fix to ensure naive can run in every case
@@ -128,7 +131,7 @@ pub(crate) fn launch_matmul<R: CubeRuntime>(
                 let rhs_dtype = rhs.dtype;
                 (
                     lhs_dtype,
-                    MatmulInputBinding::new(rhs.binding(), rhs_dtype.into()),
+                    InputBinding::new(rhs.binding(), rhs_dtype.into()),
                 )
             } else {
                 let scheme = *rhs.scheme();
@@ -136,7 +139,7 @@ pub(crate) fn launch_matmul<R: CubeRuntime>(
                 let scale_dtype = scale.dtype;
                 (
                     out_dtype,
-                    MatmulInputBinding::quantized(
+                    InputBinding::quantized(
                         data.binding(),
                         scale.binding(),
                         rhs.meta.shape().clone(),
