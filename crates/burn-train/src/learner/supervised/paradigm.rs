@@ -414,6 +414,8 @@ impl<LC: LearningComponentsTypes + Send + 'static> SupervisedTraining<LC> {
             }
             #[cfg(feature = "ddp")]
             TrainingStrategy::DistributedDataParallel { devices, config } => {
+                // TODO: should only be valid for `B: DistributedBackend`, so we can call the distributed extension ops
+                // like start/stop communication server
                 use crate::ddp::DdpTrainingStrategy;
 
                 let ddp = DdpTrainingStrategy::new(devices.clone(), config.clone());

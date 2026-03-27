@@ -15,7 +15,8 @@ version.workspace = true
 workspace = true
 
 [features]
-default = ["std", "tracing"]
+# TODO: remove distributed from default
+default = ["std", "tracing", "distributed"]
 std = ["dep:parking_lot"]
 export_tests = []         # check checkpointer is_empty in tests
 
@@ -24,6 +25,8 @@ tracing = [
     "burn-std/tracing",
     "burn-backend/tracing",
 ]
+
+distributed = ["std", "burn-backend/distributed"]
 
 [dependencies]
 burn-std = { path = "../burn-std", version = "=0.21.0-pre.2", default-features = false }

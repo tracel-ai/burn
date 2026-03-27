@@ -15,6 +15,9 @@ use burn_backend::{Backend, TensorMetadata, tensor::FloatTensor};
 use burn_std::Shape;
 use core::marker::PhantomData;
 
+#[cfg(feature = "distributed")]
+use burn_backend::communication::DistributedParams;
+
 /// Operation in preparation.
 ///
 /// Each mode has its own set of functions to minimize cloning for unused backward states.
@@ -270,7 +273,8 @@ where
         self.ops.node.order
     }
 
-    fn distributed_params(&self) -> Option<burn_backend::DistributedParams> {
+    #[cfg(feature = "distributed")]
+    fn distributed_params(&self) -> Option<DistributedParams> {
         self.ops.node.distributed_params.clone()
     }
 }
@@ -296,7 +300,8 @@ impl<const N: usize> Step for UntrackedOpsStep<N> {
         self.ops.node.order
     }
 
-    fn distributed_params(&self) -> Option<burn_backend::DistributedParams> {
+    #[cfg(feature = "distributed")]
+    fn distributed_params(&self) -> Option<DistributedParams> {
         self.ops.node.distributed_params.clone()
     }
 }

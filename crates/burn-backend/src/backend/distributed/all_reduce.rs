@@ -1,7 +1,6 @@
-use crate::{Backend, ReduceOperation, ops::TensorRef};
-use alloc::vec::Vec;
+use crate::distributed::{DistributedBackend, ReduceOperation, TensorRef};
 
-pub(crate) fn reduce_sum_centralized<B: Backend>(
+pub(crate) fn reduce_sum_centralized<B: DistributedBackend>(
     mut tensors: Vec<TensorRef<B>>,
     central_device: &B::Device,
 ) -> B::FloatTensorPrimitive {
@@ -17,7 +16,7 @@ pub(crate) fn reduce_sum_centralized<B: Backend>(
 }
 
 // TODO : Tests
-pub(crate) unsafe fn all_reduce_inplace_centralized<B: Backend>(
+pub(crate) unsafe fn all_reduce_inplace_centralized<B: DistributedBackend>(
     tensors: Vec<TensorRef<B>>,
     op: ReduceOperation,
 ) {

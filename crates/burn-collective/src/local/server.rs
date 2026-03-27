@@ -6,9 +6,11 @@ use crate::{
         client::LocalCollectiveClient,
     },
 };
+use burn_backend::{
+    Backend, TensorMetadata,
+    distributed::{PeerId, ReduceOperation},
+};
 use burn_communication::websocket::{WebSocket, WsServer};
-use burn_tensor::communication::{PeerId, ReduceOperation};
-use burn_tensor::{TensorMetadata, backend::Backend};
 use std::sync::{MutexGuard, OnceLock};
 use std::{
     any::{Any, TypeId},

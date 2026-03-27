@@ -449,19 +449,6 @@ impl FloatTensorOps<Self> for Dispatch {
         unary_float!(ref tensor, float, |tensor| B::float_is_require_grad(tensor))
     }
 
-    fn float_set_distributed_params(
-        tensor: FloatTensor<Self>,
-        param_id: DistributedParamId,
-    ) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_set_distributed_params(tensor, param_id) => Float)
-    }
-
-    fn float_distributed_params(tensor: &FloatTensor<Self>) -> Option<DistributedParams> {
-        unary_float!(ref tensor, float, |tensor| B::float_distributed_params(
-            tensor
-        ))
-    }
-
     // Default implementation
     fn float_zeros(shape: Shape, device: &DispatchDevice, dtype: FloatDType) -> FloatTensor<Self> {
         creation_op!(Float, device, |device| B::float_zeros(shape, device, dtype))

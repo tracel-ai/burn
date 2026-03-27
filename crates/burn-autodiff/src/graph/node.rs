@@ -1,5 +1,7 @@
 use alloc::{sync::Arc, vec::Vec};
-use burn_backend::DistributedParams;
+
+#[cfg(feature = "distributed")]
+use burn_backend::communication::DistributedParams;
 
 #[cfg(target_has_atomic = "64")]
 use core::sync::atomic::{AtomicU64, Ordering};
@@ -38,6 +40,7 @@ pub struct Node {
     pub requirement: Requirement,
     pub properties: ComputingProperty,
     pub client: AutodiffClientImpl,
+    #[cfg(feature = "distributed")]
     pub distributed_params: Option<DistributedParams>,
 }
 pub type NodeRef = Arc<Node>;

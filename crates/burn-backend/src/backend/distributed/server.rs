@@ -1,13 +1,13 @@
-use cubecl::device::DeviceId;
 use std::collections::HashMap;
 
-use crate::client::DistributedSyncMessage;
-use crate::ops::TensorRef;
-use crate::tensor::Device;
-use crate::{Backend, DistributedParamId, DistributedParams};
-use crate::{DeviceOps, DistributedConfig};
+use crate::{DeviceId, DeviceOps, tensor::Device};
 
-pub(crate) struct DistributedSyncServer<B: Backend> {
+use crate::distributed::{
+    DistributedBackend, DistributedConfig, DistributedParamId, DistributedParams, TensorRef,
+    client::DistributedSyncMessage,
+};
+
+pub(crate) struct DistributedSyncServer<B: DistributedBackend> {
     config: DistributedConfig,
     all_reduce_ops_queue: HashMap<DistributedParamId, Vec<TensorRef<B>>>,
     param_required_map: HashMap<DistributedParamId, usize>,
@@ -18,7 +18,7 @@ pub(crate) struct DistributedSyncServer<B: Backend> {
     callbacks: HashMap<DeviceId, oneshot::Sender<Box<dyn FnOnce() + Send>>>,
 }
 
-impl<B: Backend> DistributedSyncServer<B> {
+impl<B: DistributedBackend> DistributedSyncServer<B> {
     /// Create a new gradient sync server instance.
     pub(crate) fn new(num_devices: usize, config: DistributedConfig) -> Self {
         Self {

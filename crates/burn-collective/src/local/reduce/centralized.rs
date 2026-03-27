@@ -1,5 +1,4 @@
-use burn_tensor::backend::Backend;
-use burn_tensor::communication::PeerId;
+use burn_backend::{Backend, distributed::PeerId};
 
 use crate::local::tensor_map::CollectiveTensorMap;
 

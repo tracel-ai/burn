@@ -1,7 +1,9 @@
 use super::NodeId;
 use crate::{checkpoint::base::Checkpointer, grads::Gradients, graph::Parent};
 use alloc::boxed::Box;
-use burn_backend::DistributedParams;
+
+#[cfg(feature = "distributed")]
+use burn_backend::communication::DistributedParams;
 
 /// Backward step for reverse mode autodiff.
 pub trait Step: Send + core::fmt::Debug {
@@ -13,6 +15,8 @@ pub trait Step: Send + core::fmt::Debug {
     fn node(&self) -> NodeId;
     /// The parents of the node associated to the step.
     fn parents(&self) -> &[Parent];
+
+    #[cfg(feature = "distributed")]
     /// Returns the [`DistributedParams`] of the node's tensor associated to the step.
     fn distributed_params(&self) -> Option<DistributedParams>;
 }

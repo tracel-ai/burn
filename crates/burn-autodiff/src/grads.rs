@@ -1,6 +1,6 @@
 use burn_backend::{
-    Backend, DistributedParams, TensorMetadata, TensorPrimitive,
-    ops::TensorRef,
+    Backend, TensorMetadata, TensorPrimitive,
+    distributed::{DistributedBackend, DistributedParams, TensorRef},
     tensor::{FloatTensor, TensorContainer},
 };
 
@@ -34,6 +34,12 @@ impl GradientSyncRegistration {
             if *n_required == 0 {
                 let tensor_ref = container.get_mut_ref::<B>(&id.value).unwrap();
                 let tensor_ref = TensorRef(tensor_ref.get_mut_ref());
+                // TODO: requires `B: DistributedBackend`
+                // but we don't want this bound to leak to the backward ops implementations
+                // so we might have to make this a type-erased callback that acts on a node id + container
+                // i.e., `Box<dyn FnOnce(&NodeId, &mut TensorContainer<GradID>)>`? Would have to be a field held
+                // by the `GradientSyncRegistration`. This callback can be passed when creating the `GradientSyncRegistration`
+                // in `AutodiffServer::backward/compute_gradients` implementation, which can be configured for `B: DistributedBackend`
                 B::submit_gradient_sync(tensor_ref, sharded_params.clone());
             }
         }
@@ -125,7 +131,7 @@ impl Gradients {
     }
 
     /// For distributed models, waits for collective operations to be completed so the gradients are synced across devices.
-    pub fn sync_collective<B: Backend>(&self, device: &B::Device) {
+    pub fn sync_collective<B: DistributedBackend>(&self, device: &B::Device) {
         if self.distributed {
             B::submit_sync_collective(device);
         }

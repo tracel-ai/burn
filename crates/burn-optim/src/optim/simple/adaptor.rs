@@ -160,6 +160,11 @@ where
 
         let tensor = if let Some((grad, device)) = grad {
             let is_require_grad = tensor.is_require_grad();
+
+            // TODO: instead of having a new `DistributedParamId`, we can keep `ParamId` only since it maps to the param id.
+            // (in `ModuleSharder` the map_float impl simply calls `DistributedParamId::from(param_id)`).
+            // and we don't need to query the tensor to get the param id. Simply, check *if* `tensor.is_distributed()`
+            // and then afterwards , if t was distributed we can recover the state here since we have the param id.
             let distributed_params = tensor.distributed_params();
 
             let (key, record) = self.records.remove_entry(&id).unzip();

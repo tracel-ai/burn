@@ -74,6 +74,8 @@ impl<LC: LearningComponentsTypes + Send + 'static> SupervisedLearningStrategy<LC
             event_store: training_components.event_store,
         };
 
+        // TODO: this is an implementation detail.. we should probably restrict DdpTrainingStrategy for `DistributedBackend`
+        // or have a specialized distributed Autodiff. Otherwise it just leaks everywhere.
         Inner::<LC>::start_communication_server(
             self.devices.iter().map(|d| d.inner().clone()).collect(),
             self.config.clone(),

@@ -773,6 +773,7 @@ dependencies = [
 name = "burn-collective"
 version = "0.21.0-pre.2"
 dependencies = [
+ "burn-backend",
  "burn-communication",
  "burn-cuda",
  "burn-ndarray",

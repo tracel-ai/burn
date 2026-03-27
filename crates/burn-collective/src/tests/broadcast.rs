@@ -1,8 +1,8 @@
 mod tests {
     use std::sync::mpsc::SyncSender;
 
+    use crate::communication::PeerId;
     use burn_std::rand::get_seeded_rng;
-    use burn_tensor::communication::PeerId;
     use burn_tensor::{Tensor, TensorData, TensorPrimitive, Tolerance, backend::Backend};
 
     use serial_test::serial;

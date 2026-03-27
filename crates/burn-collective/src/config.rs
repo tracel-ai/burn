@@ -1,7 +1,7 @@
 use std::fmt::Display;
 
+use burn_backend::distributed::{AllReduceStrategy, ReduceOperation};
 use burn_communication::Address;
-use burn_tensor::communication::{AllReduceStrategy, ReduceOperation};
 use serde::{Deserialize, Serialize};
 
 /// Parameter struct for setting up and getting parameters for collective operations.

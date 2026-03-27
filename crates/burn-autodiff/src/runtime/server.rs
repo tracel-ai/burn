@@ -14,12 +14,16 @@ use crate::{
     tensor::NodeRefCount,
 };
 use alloc::vec::Vec;
-use burn_backend::{Backend, DistributedParams, tensor::FloatTensor};
+use burn_backend::{Backend, communication::DistributedBackend, tensor::FloatTensor};
+
+#[cfg(feature = "distributed")]
+use burn_backend::communication::DistributedParams;
 
 struct TapeResult {
     tape: Vec<Vec<StepBoxed>>,
     checkpointer: Checkpointer,
     n_required_map: HashMap<NodeId, usize>,
+    #[cfg(feature = "distributed")]
     distributed_params: HashMap<NodeId, DistributedParams>,
 }
 
@@ -55,6 +59,7 @@ impl AutodiffServer {
         self.actions_builder.insert(node_id, actions);
     }
 
+    // TODO: Specialize the implementation for `B: DistributedBackend` instead, which will be called from `AutodiffBackend` impl for `Autodiff`
     pub fn backward<NC: NodeCleaner, B: Backend>(
         &mut self,
         root_node: NodeRef,
@@ -112,6 +117,7 @@ impl AutodiffServer {
                 tape_result.n_required_map,
                 tape_result.distributed_params.clone(),
             ));
+            // TODO: this requires B: DistributedBackend
             B::register_sync_parameters(
                 device,
                 tape_result.distributed_params.values().cloned().collect(),

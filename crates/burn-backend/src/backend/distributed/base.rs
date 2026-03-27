@@ -9,16 +9,6 @@ pub enum ReduceOperation {
     Mean,
 }
 
-#[cfg(feature = "cubecl")]
-impl From<ReduceOperation> for cubecl::server::ReduceOperation {
-    fn from(value: ReduceOperation) -> Self {
-        match value {
-            ReduceOperation::Sum => cubecl::server::ReduceOperation::Sum,
-            ReduceOperation::Mean => cubecl::server::ReduceOperation::Mean,
-        }
-    }
-}
-
 /// All reduce can be implemented with different algorithms, which all have the same result.
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize)]
 pub enum AllReduceStrategy {
@@ -69,23 +59,6 @@ impl From<usize> for PeerId {
     fn from(value: usize) -> Self {
         Self(value as u32)
     }
-}
-
-/// A unique identifier for a parameter distributed across multiple devices.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct DistributedParamId(u64);
-
-impl From<u64> for DistributedParamId {
-    fn from(value: u64) -> Self {
-        Self(value)
-    }
-}
-
-/// Parameters for a tensor that is sharded across multiple devices.
-#[derive(Debug, Clone)]
-pub struct DistributedParams {
-    /// The tensor's [DistributedParamId].
-    pub param_id: DistributedParamId,
 }
 
 /// Parameter struct for setting up and getting parameters for distributed operations.

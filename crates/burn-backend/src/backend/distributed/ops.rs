@@ -1,14 +1,12 @@
-use alloc::vec::Vec;
-
 use crate::{
-    Backend, DistributedConfig, DistributedParams, ReduceOperation,
-    all_reduce::all_reduce_inplace_centralized,
+    Backend,
     tensor::{Device, FloatTensor},
 };
 
-#[cfg(feature = "communication")]
-use crate::{
-    close_distributed_sync_server, get_distributed_sync_client, start_distributed_sync_server,
+use crate::distributed::{
+    DistributedConfig, DistributedParams, ReduceOperation,
+    all_reduce::all_reduce_inplace_centralized, close_distributed_sync_server,
+    get_distributed_sync_client, start_distributed_sync_server,
 };
 
 /// Mutable reference to a float tensor.
@@ -21,17 +19,14 @@ unsafe impl<B> Send for TensorRef<B> where B: Backend {}
 // we can move the client operations out of the trait (and crate), which eliminates the need for the `communication` feature flag.
 
 /// Operations on communication tensors.
-pub trait CommunicationTensorOps<B: Backend> {
+pub trait DistributedBackend: Backend {
     /// Start the communication server used to orchestrate tensor syncing between devices.
     ///
     /// # Arguments
     ///
     /// * `devices` - The devices to orchestrate.
-    fn start_communication_server(devices: Vec<B::Device>, config: DistributedConfig) {
-        #[cfg(feature = "communication")]
-        start_distributed_sync_server::<B>(devices, config);
-        #[cfg(not(feature = "communication"))]
-        unimplemented!()
+    fn start_communication_server(devices: Vec<Self::Device>, config: DistributedConfig) {
+        start_distributed_sync_server::<Self>(devices, config);
     }
 
     /// Close the communication server used to orchestrate syncing between devices.
@@ -39,11 +34,8 @@ pub trait CommunicationTensorOps<B: Backend> {
     /// # Arguments
     ///
     /// * `device` - A device on the backend.
-    fn close_communication_server(_device: &B::Device) {
-        #[cfg(feature = "communication")]
-        close_distributed_sync_server::<B>();
-        #[cfg(not(feature = "communication"))]
-        unimplemented!()
+    fn close_communication_server(_device: &Self::Device) {
+        close_distributed_sync_server::<Self>();
     }
 
     /// Register the parameters that will require gradient synchronization for the upcoming backward pass.
@@ -55,13 +47,13 @@ pub trait CommunicationTensorOps<B: Backend> {
     ///
     /// * `device` - The device calling the initialization.
     /// * `distributed_params` - A list of [`DistributedParams`] of the tensors to sync.
-    fn register_sync_parameters(_device: &B::Device, distributed_params: Vec<DistributedParams>) {
-        #[cfg(feature = "communication")]
-        if let Some(sync_client) = get_distributed_sync_client::<B>() {
+    fn register_sync_parameters(
+        _device: &Self::Device,
+        distributed_params: Vec<DistributedParams>,
+    ) {
+        if let Some(sync_client) = get_distributed_sync_client::<Self>() {
             sync_client.register_sync_parameters(distributed_params);
         };
-        #[cfg(not(feature = "communication"))]
-        unimplemented!()
     }
 
     /// Tell the gradient sync server that this device has submitted all its sync operations and is ready to be synchronized.
@@ -69,13 +61,10 @@ pub trait CommunicationTensorOps<B: Backend> {
     /// # Arguments
     ///
     /// * `device` - The device on which to sync.
-    fn submit_sync_collective(device: &B::Device) {
-        #[cfg(feature = "communication")]
-        if let Some(sync_client) = get_distributed_sync_client::<B>() {
+    fn submit_sync_collective(device: &Self::Device) {
+        if let Some(sync_client) = get_distributed_sync_client::<Self>() {
             sync_client.submit_sync_collective(device.clone());
         };
-        #[cfg(not(feature = "communication"))]
-        unimplemented!()
     }
 
     /// Submit a gradient tensor for synchronization across all devices.
@@ -87,13 +76,10 @@ pub trait CommunicationTensorOps<B: Backend> {
     ///
     /// * `tensor` - The tensor to synchronize.
     /// * `distributed_params` - The [`DistributedParams`] for the parameter.
-    fn submit_gradient_sync(tensor: TensorRef<B>, distributed_params: DistributedParams) {
-        #[cfg(feature = "communication")]
-        if let Some(sync_client) = get_distributed_sync_client::<B>() {
+    fn submit_gradient_sync(tensor: TensorRef<Self>, distributed_params: DistributedParams) {
+        if let Some(sync_client) = get_distributed_sync_client::<Self>() {
             sync_client.submit_gradient_sync(tensor, distributed_params);
         };
-        #[cfg(not(feature = "communication"))]
-        unimplemented!()
     }
 
     /// In-place version of all_reduce.
@@ -107,7 +93,7 @@ pub trait CommunicationTensorOps<B: Backend> {
     ///
     /// Ensure that the tensors are not accessed/modified when calling in-place operation.
     #[allow(unused)]
-    unsafe fn all_reduce_in_place(tensors: Vec<TensorRef<B>>, op: ReduceOperation) {
+    unsafe fn all_reduce_in_place(tensors: Vec<TensorRef<Self>>, op: ReduceOperation) {
         unsafe { all_reduce_inplace_centralized(tensors, op) };
     }
 
@@ -117,7 +103,7 @@ pub trait CommunicationTensorOps<B: Backend> {
     ///
     /// * `device` - The device to sync.
     #[allow(unused)]
-    fn sync_collective(device: &B::Device) {
+    fn sync_collective(device: &Self::Device) {
         // Default implementation executes collective operations synchronously, so nothing to do here.
     }
 
@@ -134,8 +120,8 @@ pub trait CommunicationTensorOps<B: Backend> {
     /// # Safety
     ///
     /// Ensure that the tensors are not accessed/modified when calling.
-    unsafe fn comm_device(tensor: &TensorRef<B>) -> Device<B> {
-        unsafe { B::float_device(&(*tensor.0)) }
+    unsafe fn comm_device(tensor: &TensorRef<Self>) -> Device<Self> {
+        unsafe { Self::float_device(&(*tensor.0)) }
     }
 
     /// Returns a clone of the float tensor from the tensor reference.
@@ -151,7 +137,7 @@ pub trait CommunicationTensorOps<B: Backend> {
     /// # Safety
     ///
     /// Ensure that the tensors are not accessed/modified when calling.
-    unsafe fn float_from_ref(tensor: &TensorRef<B>) -> FloatTensor<B> {
+    unsafe fn float_from_ref(tensor: &TensorRef<Self>) -> FloatTensor<Self> {
         unsafe { (*tensor.0).clone() }
     }
 }

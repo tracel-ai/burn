@@ -4,11 +4,11 @@ use crate::{
     local::{broadcast_centralized, broadcast_tree},
     node::base::Node,
 };
-use burn_communication::Protocol;
+use burn_backend::Backend;
 #[allow(unused_imports)] // TensorMetadata is used by tracing::instrument.
-use burn_tensor::TensorMetadata;
-use burn_tensor::backend::Backend;
-use burn_tensor::communication::PeerId;
+use burn_backend::TensorMetadata;
+use burn_backend::distributed::PeerId;
+use burn_communication::Protocol;
 use std::sync::mpsc::SyncSender;
 
 /// An on-going broadcast operation

@@ -1,5 +1,4 @@
-use burn_tensor::backend::{Backend, DeviceOps};
-use burn_tensor::communication::PeerId;
+use burn_backend::{Backend, DeviceOps, distributed::PeerId};
 use std::collections::HashMap;
 
 use crate::local::tensor_map::{CollectiveTensorMap, PeerDeviceMap};

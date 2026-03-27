@@ -7,9 +7,9 @@ use crate::{
     },
     node::base::Node,
 };
+use burn_backend::Backend;
+use burn_backend::distributed::{AllReduceStrategy, ReduceOperation};
 use burn_communication::Protocol;
-use burn_tensor::backend::Backend;
-use burn_tensor::communication::{AllReduceStrategy, ReduceOperation};
 
 #[cfg(feature = "tracing")]
 use tracing::Instrument;

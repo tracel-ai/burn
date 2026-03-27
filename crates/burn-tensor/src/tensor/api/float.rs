@@ -10,8 +10,6 @@ use crate::tensor::backend::Backend;
 use crate::tensor::stats;
 use crate::tensor::{Distribution, TensorData};
 use crate::{Bool, Int, TensorPrimitive};
-use burn_backend::DistributedParamId;
-use burn_backend::DistributedParams;
 use burn_backend::ElementConversion;
 use burn_backend::Scalar;
 use burn_backend::TensorMetadata;
@@ -661,30 +659,6 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
             }
         };
         Self::new(primitive)
-    }
-
-    /// Mark the tensor as distributed across multiple devices.
-    /// The gradients will be aggregated during the backward pass.
-    ///
-    /// This function does nothing when autodiff is not enabled.
-    pub fn set_distributed_params(self, param_id: DistributedParamId) -> Self {
-        let primitive = match self.primitive {
-            TensorPrimitive::Float(tensor) => {
-                TensorPrimitive::Float(B::float_set_distributed_params(tensor, param_id))
-            }
-            TensorPrimitive::QFloat(_tensor) => {
-                todo!()
-            }
-        };
-        Self::new(primitive)
-    }
-
-    /// Returns the distributed parameters if the tensor was marked as distributed.
-    pub fn distributed_params(&self) -> Option<DistributedParams> {
-        match &self.primitive {
-            TensorPrimitive::Float(tensor) => B::float_distributed_params(tensor),
-            TensorPrimitive::QFloat(_tensor) => todo!(),
-        }
     }
 
     /// Applies the relu function to the tensor.

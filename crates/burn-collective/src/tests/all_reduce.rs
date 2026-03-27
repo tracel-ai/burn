@@ -1,12 +1,9 @@
 mod tests {
     use std::sync::mpsc::SyncSender;
 
+    use crate::communication::{AllReduceStrategy, PeerId, ReduceOperation};
     use burn_std::rand::get_seeded_rng;
-    use burn_tensor::{
-        Tensor, TensorData, TensorPrimitive, Tolerance,
-        backend::Backend,
-        communication::{AllReduceStrategy, PeerId, ReduceOperation},
-    };
+    use burn_tensor::{Tensor, TensorData, TensorPrimitive, Tolerance, backend::Backend};
 
     use serial_test::serial;
 

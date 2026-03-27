@@ -15,9 +15,8 @@ version.workspace = true
 workspace = true
 
 [features]
-default = ["communication"]
+default = ["std"]
 doc = ["default"]
-communication = ["std", "burn-backend/communication"]
 std = [
     "num-traits/std",
     "burn-std/std",

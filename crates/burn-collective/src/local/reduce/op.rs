@@ -1,9 +1,8 @@
-use burn_communication::Protocol;
-use burn_tensor::{
-    Shape, TensorMetadata,
-    backend::Backend,
-    communication::{PeerId, ReduceOperation},
+use burn_backend::{
+    Backend, Shape, TensorMetadata,
+    distributed::{PeerId, ReduceOperation},
 };
+use burn_communication::Protocol;
 use std::sync::mpsc::SyncSender;
 
 use crate::{

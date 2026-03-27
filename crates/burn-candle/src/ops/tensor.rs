@@ -1,8 +1,8 @@
 use std::borrow::Borrow;
 
 use burn_backend::{
-    AllReduceStrategy, DType, Distribution, ElementConversion, ExecutionError, FloatDType,
-    ReduceOperation, Scalar, Shape, Slice, TensorData, bf16, f16,
+    DType, Distribution, ElementConversion, ExecutionError, FloatDType, Scalar, Shape, Slice,
+    TensorData, bf16, f16,
     ops::FloatTensorOps,
     tensor::{BoolTensor, Device, FloatElem, FloatTensor, IntTensor},
 };

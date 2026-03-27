@@ -107,7 +107,6 @@ impl AutodiffClient for GraphMutexClient {
 
     fn backward<B: Backend>(&self, root: AutodiffTensor<B>) -> Gradients {
         let node_id = root.node.id;
-        let device = B::float_device(&root.primitive);
         let graph = GraphMutexClient::graph(root.node.id, &[]);
 
         let grads = {
@@ -119,7 +118,6 @@ impl AutodiffClient for GraphMutexClient {
 
         GraphCleaner::cleanup_orphaned_entries();
 
-        grads.sync_collective::<B>(&device);
         grads
     }
 }
