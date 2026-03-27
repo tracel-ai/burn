@@ -31,6 +31,7 @@ where
     }
 
     fn sync_collective(device: &Device<Self>) {
+        println!("Definitely cubecl cuda");
         let client = R::client(device);
         client.sync_collective();
     }
