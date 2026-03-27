@@ -55,6 +55,8 @@ pub fn train<B: AutodiffBackend, D: TextClassificationDataset + 'static>(
     config: ExperimentConfig, // Experiment configuration
     artifact_dir: &str,      // Directory to save model and config files
 ) {
+    create_artifact_dir(artifact_dir);
+
     // Initialize tokenizer
     let tokenizer = Arc::new(BertCasedTokenizer::default());
 
