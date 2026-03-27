@@ -118,7 +118,7 @@ fn test_float_matmul_batch_vec_mat() {
 }
 
 #[test]
-fn test_float_matmul_vec2mat() {
+fn test_float_matmul_vecmat() {
     let device = Default::default();
 
     // [..., B, 1, K] = [3, 1, 2]
