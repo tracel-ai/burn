@@ -17,11 +17,15 @@ pub mod stream;
 /// Search module for stream optimizations.
 pub(crate) mod search;
 
+pub(crate) mod arena;
+
 mod backend;
+mod op;
 mod ops;
 mod server;
 mod tensor;
 
+pub use op::UnfusedOp;
 pub(crate) use server::*;
 
 pub use backend::*;
