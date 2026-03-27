@@ -41,6 +41,12 @@ pub struct ExperimentConfig {
     pub num_epochs: usize,
 }
 
+fn create_artifact_dir(artifact_dir: &str) {
+    // Remove existing artifacts before to get an accurate learner summary
+    std::fs::remove_dir_all(artifact_dir).ok();
+    std::fs::create_dir_all(artifact_dir).ok();
+}
+
 // Define train function
 pub fn train<B: AutodiffBackend, D: TextClassificationDataset + 'static>(
     devices: Vec<B::Device>, // Device on which to perform computation (e.g., CPU or CUDA device)
