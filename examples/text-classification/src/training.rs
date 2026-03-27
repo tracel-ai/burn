@@ -84,6 +84,8 @@ pub fn train<B: AutodiffBackend, D: TextClassificationDataset + 'static>(
         .init()
         .unwrap();
 
+    #[cfg(not(feature = "ddp"))]
+    log::info!("Using MultiDevice");
     // Initialize learner
     #[cfg(not(feature = "ddp"))]
     let training = SupervisedTraining::new(artifact_dir, dataloader_train, dataloader_test)
@@ -103,6 +105,8 @@ pub fn train<B: AutodiffBackend, D: TextClassificationDataset + 'static>(
             MultiDeviceOptim::OptimSharded,
         ));
 
+    #[cfg(feature = "ddp")]
+    log::info!("Using DDP");
     #[cfg(feature = "ddp")]
     let distributed_config = DistributedConfig {
         all_reduce_op: burn::tensor::communication::ReduceOperation::Mean,
