@@ -66,6 +66,7 @@ pub trait Backend:
     FloatTensorOps<Self>
     + BoolTensorOps<Self>
     + IntTensorOps<Self>
+    + CommunicationTensorOps<Self>
     + ModuleOps<Self>
     + ActivationOps<Self>
     + QTensorOps<Self>

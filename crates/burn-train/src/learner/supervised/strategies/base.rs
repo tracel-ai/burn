@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 #[cfg(feature = "ddp")]
-use burn_collective::CollectiveConfig;
+use burn_core::tensor::communication::DistributedConfig;
 use burn_core::{module::AutodiffModule, prelude::Backend};
 
 use crate::{
@@ -46,9 +46,8 @@ pub enum TrainingStrategy<LC: LearningComponentsTypes> {
         /// Devices on this node for the DDP
         devices: Vec<LearnerDevice<LC>>,
 
-        /// The configuration for collective operations
-        /// num_devices is ignored
-        config: CollectiveConfig,
+        /// The configuration for distributed operations
+        config: DistributedConfig,
     },
 }
 
@@ -56,7 +55,7 @@ pub enum TrainingStrategy<LC: LearningComponentsTypes> {
 #[cfg(feature = "ddp")]
 pub fn ddp<LC: LearningComponentsTypes>(
     devices: Vec<LearnerDevice<LC>>,
-    config: CollectiveConfig,
+    config: DistributedConfig,
 ) -> TrainingStrategy<LC> {
     TrainingStrategy::DistributedDataParallel { devices, config }
 }

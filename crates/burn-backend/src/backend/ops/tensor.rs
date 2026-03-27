@@ -4,7 +4,9 @@ use super::repeat_dim::repeat_with_slice_assign;
 use super::sort::{argsort, sort, sort_with_indices};
 use crate::ops::GridSampleOptions;
 use crate::tensor::{BoolTensor, Device, Float, FloatTensor, IntTensor};
-use crate::{Backend, Distribution, TensorData, get_device_settings};
+use crate::{
+    Backend, DistributedParamId, DistributedParams, Distribution, TensorData, get_device_settings,
+};
 use crate::{ExecutionError, Scalar, TensorMetadata, TensorPrimitive};
 use alloc::vec::Vec;
 use burn_std::{BoolDType, FloatDType, IntDType, Shape, Slice};
@@ -770,6 +772,21 @@ pub trait FloatTensorOps<B: Backend> {
     fn float_is_require_grad(_tensor: &FloatTensor<B>) -> bool {
         // Should only be overridden by autodiff backends.
         false
+    }
+
+    /// Sets the distributed parameters of a tensor.
+    fn float_set_distributed_params(
+        tensor: FloatTensor<B>,
+        _param_id: DistributedParamId,
+    ) -> FloatTensor<B> {
+        // Should only be overridden by autodiff backends.
+        tensor
+    }
+
+    /// Returns the [DistributedParams](DistributedParams) of a tensor.
+    fn float_distributed_params(_tensor: &FloatTensor<B>) -> Option<DistributedParams> {
+        // Should only be overridden by autodiff backends.
+        None
     }
 
     /// Sum of all elements in a tensor.

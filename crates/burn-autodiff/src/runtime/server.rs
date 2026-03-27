@@ -6,11 +6,22 @@ use crate::{
         builder::CheckpointerBuilder,
     },
     collections::HashMap,
-    grads::Gradients,
-    graph::{StepBoxed, traversal::BreadthFirstSearch},
+    grads::{GradientSyncRegistration, Gradients},
+    graph::{
+        NodeRef, StepBoxed,
+        traversal::{BreadthFirstSearch, TraversalItem},
+    },
     tensor::NodeRefCount,
 };
 use alloc::vec::Vec;
+use burn_backend::{Backend, DistributedParams, tensor::FloatTensor};
+
+struct TapeResult {
+    tape: Vec<Vec<StepBoxed>>,
+    checkpointer: Checkpointer,
+    n_required_map: HashMap<NodeId, usize>,
+    distributed_params: HashMap<NodeId, DistributedParams>,
+}
 
 #[derive(Default)]
 pub struct AutodiffServer {
@@ -44,7 +55,12 @@ impl AutodiffServer {
         self.actions_builder.insert(node_id, actions);
     }
 
-    pub fn backward<NC: NodeCleaner>(&mut self, grads: Gradients, node_id: NodeId) -> Gradients {
+    pub fn backward<NC: NodeCleaner, B: Backend>(
+        &mut self,
+        root_node: NodeRef,
+        root_tensor: FloatTensor<B>,
+        node_id: NodeId,
+    ) -> Gradients {
         let step = self.steps.remove(&node_id).expect(
             "Node should have a step registered, did you forget to call \
              `Tensor::register_grad` on the tensor where you need gradients?",
@@ -52,9 +68,9 @@ impl AutodiffServer {
         let builder = self.actions_builder.remove(&node_id).unwrap();
 
         let mut consumed = Vec::new();
-        let (tape, checkpointer) = self.build_tape(node_id, step, builder, &mut consumed);
+        let tape_result = self.build_tape(node_id, step, builder, &mut consumed);
 
-        let gradients = Self::execute_steps(tape, grads, checkpointer);
+        let gradients = self.compute_gradients::<B>(root_node, root_tensor, tape_result);
 
         // Cleanup
         let mut cleaner = NC::init();
@@ -79,18 +95,47 @@ impl AutodiffServer {
         });
     }
 
+    fn compute_gradients<B: Backend>(
+        &mut self,
+        root_node: NodeRef,
+        root_tensor: FloatTensor<B>,
+        tape_result: TapeResult,
+    ) -> Gradients {
+        let device = &B::float_device(&root_tensor);
+
+        // For DDP, we register the distributed parameters of the tensors' nodes used in the graph and the number of times they
+        // appear as nodes to know when to launch gradients reducing.
+        let mut sync_registration = None;
+        let require_sync = !tape_result.distributed_params.is_empty();
+        if require_sync {
+            sync_registration = Some(GradientSyncRegistration::new(
+                tape_result.n_required_map,
+                tape_result.distributed_params.clone(),
+            ));
+            B::register_sync_parameters(
+                device,
+                tape_result.distributed_params.values().cloned().collect(),
+            );
+        }
+
+        let grads = Gradients::new::<B>(root_node.clone(), root_tensor, sync_registration);
+        Self::execute_steps(tape_result.tape, grads, tape_result.checkpointer)
+    }
+
     fn build_tape(
         &mut self,
         node: NodeId,
         node_step: StepBoxed,
         mut builder: CheckpointerBuilder,
         consumed: &mut Vec<NodeId>,
-    ) -> (Vec<Vec<StepBoxed>>, Checkpointer) {
-        let mut tape = (0..node_step.depth())
+    ) -> TapeResult {
+        let mut tape = (0..node_step.depth() + 1)
             .map(|_| Vec::with_capacity(1))
             .collect::<Vec<_>>();
 
         let mut tree = HashMap::default();
+        let mut n_required_map = HashMap::default();
+        let mut distributed_params = HashMap::default();
 
         BreadthFirstSearch.traverse(node, node_step, &mut self.steps, |id, step| {
             self.memory_management.consume_node(id);
@@ -98,13 +143,18 @@ impl AutodiffServer {
             consumed.push(id);
 
             let depth = step.depth();
+            step.distributed_params()
+                .and_then(|params| distributed_params.insert(id, params));
 
-            if depth == 0 {
-                return;
-            }
-
-            if let Some(steps) = tape.get_mut(depth - 1) {
-                let parents = step.parents().iter().map(|p| p.id).filter(|s| *s != id);
+            if let Some(steps) = tape.get_mut(depth) {
+                let parents = step
+                    .parents()
+                    .iter()
+                    .map(|p| {
+                        *n_required_map.entry(p.id).or_insert(0) += 1;
+                        p.id
+                    })
+                    .filter(|s| *s != id);
                 tree.insert(id, parents.collect());
                 steps.push(step);
             }
@@ -116,7 +166,12 @@ impl AutodiffServer {
 
         let checkpointer = builder.build(NodeTree::new(tree));
 
-        (tape, checkpointer)
+        TapeResult {
+            tape,
+            checkpointer,
+            n_required_map,
+            distributed_params,
+        }
     }
 
     fn execute_steps(

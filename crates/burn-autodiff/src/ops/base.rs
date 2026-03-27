@@ -269,6 +269,10 @@ where
     fn depth(&self) -> usize {
         self.ops.node.order
     }
+
+    fn distributed_params(&self) -> Option<burn_backend::DistributedParams> {
+        self.ops.node.distributed_params.clone()
+    }
 }
 
 #[derive(new, Debug)]
@@ -290,6 +294,10 @@ impl<const N: usize> Step for UntrackedOpsStep<N> {
     }
     fn depth(&self) -> usize {
         self.ops.node.order
+    }
+
+    fn distributed_params(&self) -> Option<burn_backend::DistributedParams> {
+        self.ops.node.distributed_params.clone()
     }
 }
 

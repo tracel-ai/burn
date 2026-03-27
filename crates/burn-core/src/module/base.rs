@@ -1,5 +1,6 @@
 use super::{Param, ParamId, Quantizer};
 use crate::{
+    module::ModuleSharder,
     record::Record,
     tensor::backend::{AutodiffBackend, Backend},
 };
@@ -14,7 +15,7 @@ pub type Devices<B> = Vec<Device<B>>;
 // At the moment, our plan is to continue experimenting with the macro internally and monitor its development.
 // We may consider making it public in the future.
 macro_rules! module {
-    (map=$module:ident, ops=$item:expr) => {{
+    (map=$module:ident,  ops=$item:expr) => {{
         struct Mapper;
         impl<B: Backend> ModuleMapper<B> for Mapper {
             fn map_float<const D: usize>(
@@ -139,6 +140,11 @@ pub trait Module<B: Backend>: Clone + Send + core::fmt::Debug {
         Self: HasAutodiffModule<AB>,
     {
         <Self as HasAutodiffModule<AB>>::TrainModule::from_inner(self)
+    }
+
+    /// Each parameter in the module tree will be marked as distributed across multiple devices.
+    fn grad_distributed(self) -> Self {
+        self.map(&mut ModuleSharder)
     }
 
     /// Get the number of parameters the module has, including all of its sub-modules.

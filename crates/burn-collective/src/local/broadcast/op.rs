@@ -1,6 +1,6 @@
 use crate::local::tensor_map::{CollectiveTensorMap, PeerDeviceMap};
 use crate::{
-    BroadcastStrategy, CollectiveConfig, CollectiveError, PeerId,
+    BroadcastStrategy, CollectiveConfig, CollectiveError,
     local::{broadcast_centralized, broadcast_tree},
     node::base::Node,
 };
@@ -8,6 +8,7 @@ use burn_communication::Protocol;
 #[allow(unused_imports)] // TensorMetadata is used by tracing::instrument.
 use burn_tensor::TensorMetadata;
 use burn_tensor::backend::Backend;
+use burn_tensor::communication::PeerId;
 use std::sync::mpsc::SyncSender;
 
 /// An on-going broadcast operation
@@ -50,6 +51,7 @@ impl<B: Backend> BroadcastOp<B> {
         self.root.unwrap_or(self.calls.first().unwrap().caller)
     }
 
+    #[allow(dead_code)]
     pub fn peers(&self) -> Vec<PeerId> {
         self.calls.iter().map(|c| c.caller).collect()
     }

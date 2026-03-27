@@ -5,7 +5,7 @@ use crate::{
     runtime::{AutodiffClient, AutodiffClientImpl},
 };
 use alloc::{boxed::Box, sync::Arc, vec};
-use burn_backend::{Backend, TensorMetadata};
+use burn_backend::{Backend, DistributedParamId, DistributedParams, TensorMetadata};
 
 #[derive(Debug, Clone)]
 pub struct AutodiffTensor<B: Backend> {
@@ -51,6 +51,10 @@ impl Step for RootStep {
     fn depth(&self) -> usize {
         self.node.order
     }
+
+    fn distributed_params(&self) -> Option<DistributedParams> {
+        self.node.distributed_params.clone()
+    }
 }
 
 impl<B: Backend> AutodiffTensor<B> {
@@ -64,6 +68,7 @@ impl<B: Backend> AutodiffTensor<B> {
             Requirement::None,
             ComputingProperty::Ambiguous,
             AutodiffClientImpl::new(),
+            None,
         )
         .into();
 
@@ -97,6 +102,7 @@ impl<B: Backend> AutodiffTensor<B> {
                     Requirement::Grad,
                     self.node.properties.clone(),
                     self.node.client.clone(),
+                    self.node.distributed_params.clone(),
                 )
                 .into();
                 let step = RootStep::new(self.node.clone());
@@ -104,6 +110,30 @@ impl<B: Backend> AutodiffTensor<B> {
                 self.register_step(step, CheckpointerBuilder::default())
             }
         }
+    }
+
+    /// Mark the tensor as distributed across multiple devices.
+    /// Its gradients will be automatically aggregated from those devices after the backward pass.
+    ///
+    /// # Arguments
+    ///
+    /// * `peer_id` - The device's [`PeerId`].
+    /// * `op` - The aggregation operation.
+    /// * `param_id` - The module tensor's [`ModuleParamId`].
+    pub fn grad_distributed(mut self, param_id: DistributedParamId) -> Self {
+        self.node = Node::new(
+            vec![],
+            0,
+            self.node.id,
+            self.node.requirement,
+            self.node.properties.clone(),
+            self.node.client.clone(),
+            Some(DistributedParams { param_id }),
+        )
+        .into();
+        let step = RootStep::new(self.node.clone());
+
+        self.register_step(step, CheckpointerBuilder::default())
     }
 
     /// Create a tensor from parent infos.
@@ -136,6 +166,7 @@ impl<B: Backend> AutodiffTensor<B> {
             requirement,
             computing_properties,
             client,
+            None,
         )
         .into();
 
