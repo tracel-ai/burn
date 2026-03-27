@@ -148,17 +148,14 @@ pub fn matmul_autotune<R: CubeRuntime>(
 
         // No Stage VecMat
         for target_num_planes in [1, 2, 4, 8] {
+            let strategy =
+                Strategy::NoStageVecMat(BlueprintStrategy::Inferred(NoStageVecMatStrategy {
+                    target_num_planes,
+                }));
             set = set.with(
-                Tunable::new("vecmat", move |lhs, rhs, out| {
-                    launch_matmul::<R>(
-                        &Strategy::NoStageVecMat(BlueprintStrategy::Inferred(
-                            NoStageVecMatStrategy { target_num_planes },
-                        )),
-                        lhs,
-                        rhs,
-                        out,
-                    )
-                    .map_err(|err| std::format!("{err:?}"))
+                Tunable::new(strategy.to_string(), move |lhs, rhs, out| {
+                    launch_matmul::<R>(&strategy, lhs, rhs, out)
+                        .map_err(|err| std::format!("{err:?}"))
                 })
                 .group(&vecmat, move |key| {
                     if key.definition.k >= 1024 && target_num_planes >= 4
