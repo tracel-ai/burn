@@ -71,13 +71,13 @@ jobs:
         uses: actions/checkout@v6
       # --------------------------------------------------------------------------------
       - name: Setup Rust
-        uses: tracel-ai/github-actions/install-rust@v9
+        uses: tracel-ai/github-actions/install-rust@v10
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           cache-key: ${{ matrix.rust }}-linux
       # --------------------------------------------------------------------------------
       - name: Audit
-        run: cargo xtask check audit
+        run: xtask check audit
       # --------------------------------------------------------------------------------
       - name: Format
         shell: bash
@@ -85,13 +85,13 @@ jobs:
           # work around for colors
           # see: https://github.com/rust-lang/rustfmt/issues/3385
           TERM: xterm-256color
-        run: cargo xtask check format
+        run: xtask check format
       # --------------------------------------------------------------------------------
       - name: Lint
-        run: cargo xtask check lint
+        run: xtask check lint
       # --------------------------------------------------------------------------------
       - name: Typos
-        uses: tracel-ai/github-actions/check-typos@v9
+        uses: tracel-ai/github-actions/check-typos@v10
 
   documentation:
     runs-on: ubuntu-22.04
@@ -107,16 +107,16 @@ jobs:
         uses: actions/checkout@v6
       # --------------------------------------------------------------------------------
       - name: Setup Rust
-        uses: tracel-ai/github-actions/install-rust@v9
+        uses: tracel-ai/github-actions/install-rust@v10
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           cache-key: ${{ matrix.rust }}-linux
       # --------------------------------------------------------------------------------
       - name: Documentation Build
-        run: cargo xtask doc build
+        run: xtask doc build
       # --------------------------------------------------------------------------------
       - name: Documentation Tests
-        run: cargo xtask doc tests
+        run: xtask doc tests
 
   linux-std-tests:
     runs-on: ubuntu-22.04
@@ -139,7 +139,7 @@ jobs:
         uses: actions/checkout@v6
       # --------------------------------------------------------------------------------
       - name: Setup Rust
-        uses: tracel-ai/github-actions/install-rust@v9
+        uses: tracel-ai/github-actions/install-rust@v10
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           cache-key: ${{ matrix.rust }}-linux
@@ -152,15 +152,15 @@ jobs:
         run: |
           curl -L "$GRCOV_LINK/v$GRCOV_VERSION/grcov-x86_64-unknown-linux-musl.tar.bz2" |
           tar xj -C $HOME/.cargo/bin
-          cargo xtask coverage install
+          xtask coverage install
       # --------------------------------------------------------------------------------
       - name: Tests
-        run: cargo xtask ${{ matrix.coverage }} test ${{ env.TEST_RELEASE_FLAG }} --ci github-runner
+        run: xtask ${{ matrix.coverage }} test ${{ env.TEST_RELEASE_FLAG }} --ci github-runner
       # --------------------------------------------------------------------------------
       - name: Generate lcov.info
         if: matrix.rust == 'stable'
         # /* is to exclude std library code coverage from analysis
-        run: cargo xtask coverage generate --ignore "/*,xtask/*,examples/*" --profile release
+        run: xtask coverage generate --ignore "/*,xtask/*,examples/*" --profile release
       # --------------------------------------------------------------------------------
       - name: Codecov upload lcov.info
         if: matrix.rust == 'stable'
@@ -185,16 +185,43 @@ jobs:
         uses: actions/checkout@v6
       # --------------------------------------------------------------------------------
       - name: Setup Rust
-        uses: tracel-ai/github-actions/install-rust@v9
+        uses: tracel-ai/github-actions/install-rust@v10
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           cache-key: ${{ matrix.rust }}-linux-no-std
       # --------------------------------------------------------------------------------
       - name: Crates Build
-        run: cargo xtask --context no-std build --ci
+        run: xtask --context no-std build --ci
       # --------------------------------------------------------------------------------
       - name: Crates Tests
-        run: cargo xtask --context no-std test ${{ env.TEST_RELEASE_FLAG }} --ci github-runner
+        run: xtask --context no-std test ${{ env.TEST_RELEASE_FLAG }} --ci github-runner
+
+  linux-miri-tests:
+    runs-on: ubuntu-22.04
+    needs: [prepare-checks, code-quality]
+    env:
+      DISABLE_WGPU_SPIRV: "1"
+      # disable incremental compilation (reduces artifact size)
+      CARGO_PROFILE_TEST_INCREMENTAL: "false"
+    strategy:
+      matrix:
+        rust: [nightly]
+        include:
+          - rust: nightly
+            toolchain: nightly
+    steps:
+      - name: checkout
+        uses: actions/checkout@v6
+      # --------------------------------------------------------------------------------
+      - name: Setup Rust
+        uses: tracel-ai/github-actions/install-rust@v10
+        with:
+          rust-toolchain: ${{ matrix.toolchain }}
+          cache-key: ${{ matrix.rust }}-miri-tests
+          enable-cache: false
+      # --------------------------------------------------------------------------------
+      - name: Tests
+        run: xtask +n test --miri --ci github-runner
 
   windows-std-tests:
     runs-on: windows-2022
@@ -211,13 +238,13 @@ jobs:
         uses: actions/checkout@v6
       # --------------------------------------------------------------------------------
       - name: Setup Rust
-        uses: tracel-ai/github-actions/install-rust@v9
+        uses: tracel-ai/github-actions/install-rust@v10
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           cache-key: ${{ matrix.rust }}-windows
       # --------------------------------------------------------------------------------
       - name: Tests
-        run: cargo xtask test ${{ env.TEST_RELEASE_FLAG }} --ci github-runner
+        run: xtask test ${{ env.TEST_RELEASE_FLAG }} --ci github-runner
 
   macos-std-tests:
     runs-on: blaze/macos-15
@@ -235,7 +262,7 @@ jobs:
         uses: actions/checkout@v6
       # --------------------------------------------------------------------------------
       - name: Setup Rust
-        uses: tracel-ai/github-actions/install-rust@v9
+        uses: tracel-ai/github-actions/install-rust@v10
         with:
           rust-toolchain: ${{ matrix.toolchain }}
           cache-key: ${{ matrix.rust }}-macos
@@ -244,4 +271,4 @@ jobs:
         run: system_profiler SPHardwareDataType
       # --------------------------------------------------------------------------------
       - name: Tests
-        run: cargo xtask test ${{ env.TEST_RELEASE_FLAG }} --ci github-mac-runner
+        run: xtask test ${{ env.TEST_RELEASE_FLAG }} --ci github-mac-runner
