@@ -1,5 +1,7 @@
 #![allow(unused)]
 pub mod element;
+
+pub mod split;
 /*
 The base implementation for complex tensors, contains everything that would be in burn-tensor.
 May get split into separate files at some point, but for now it's easier to keep all the base
@@ -960,16 +962,11 @@ impl<B: ComplexTensorBackend> BasicOps<B> for ComplexTensorType {
         B::complex_into_data(tensor).await
     }
 
-    fn from_data(data: TensorData, device: &B::Device) -> Self::Primitive {
+    fn from_data(data: TensorData, device: &B::Device, dtype: DType) -> Self::Primitive {
         B::complex_from_data(data.convert::<B::ComplexScalar>(), device)
     }
 
-    fn from_data_dtype(data: TensorData, device: &B::Device, dtype: DType) -> Self::Primitive {
-        if !dtype.is_complex() {
-            panic!("Expected complex dtype, got {dtype:?}")
-        }
-        B::complex_from_data(data.convert_dtype(dtype), device)
-    }
+    
 
     fn repeat_dim(tensor: Self::Primitive, dim: usize, times: usize) -> Self::Primitive {
         B::complex_repeat_dim(tensor, dim, times)
@@ -1186,17 +1183,7 @@ where
         B::complex_from_parts(magnitude, zeros)
     }
 
-    fn powf(lhs: Self::Primitive, rhs: Self::Primitive) -> Self::Primitive {
-        B::complex_powc(lhs, rhs)
-    }
-
-    fn powf_scalar(lhs: Self::Primitive, rhs: Scalar) -> Self::Primitive {
-        let device = B::complex_device(&lhs);
-        let shape = B::complex_shape(&lhs);
-        let scalar_complex: B::ComplexScalar = rhs.elem();
-        let scalar_tensor = B::complex_full(shape, scalar_complex, &device);
-        B::complex_powc(lhs, scalar_tensor)
-    }
+    
 
     fn random(shape: Shape, distribution: Distribution, device: &Device<B>) -> Self::Primitive {
         B::complex_random(shape, distribution, device)
