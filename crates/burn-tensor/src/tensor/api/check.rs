@@ -918,7 +918,7 @@ impl TensorCheck {
         let ops = "ScatterNd";
         let mut check = Self::Ok;
 
-        let k = indices_shape.dims[M - 1];
+        let k = indices_shape[M - 1];
 
         if k > D {
             check = check.register(
@@ -941,12 +941,12 @@ impl TensorCheck {
 
         // Batch dims: first M-1 dims of values must equal first M-1 dims of indices
         for i in 0..(M - 1) {
-            if values_shape.dims[i] != indices_shape.dims[i] {
+            if values_shape[i] != indices_shape[i] {
                 check = check.register(
                     ops,
                     TensorError::new(format!(
                         "Batch dimension {i} mismatch: values={} vs indices={}",
-                        values_shape.dims[i], indices_shape.dims[i]
+                        values_shape[i], indices_shape[i]
                     )),
                 );
             }
@@ -957,12 +957,12 @@ impl TensorCheck {
             let val_idx = M - 1 + i;
             let data_idx = k + i;
             if val_idx < DV && data_idx < D {
-                if values_shape.dims[val_idx] != data_shape.dims[data_idx] {
+                if values_shape[val_idx] != data_shape[data_idx] {
                     check = check.register(
                         ops,
                         TensorError::new(format!(
                             "Slice dimension mismatch at values[{val_idx}]={} vs data[{data_idx}]={}",
-                            values_shape.dims[val_idx], data_shape.dims[data_idx]
+                            values_shape[val_idx], data_shape[data_idx]
                         )),
                     );
                 }
@@ -979,7 +979,7 @@ impl TensorCheck {
         let ops = "GatherNd";
         let mut check = Self::Ok;
 
-        let k = indices_shape.dims[M - 1];
+        let k = indices_shape[M - 1];
 
         if k > D {
             check = check.register(

@@ -335,9 +335,9 @@ where
             }
         }
 
-        let out_shape = Shape { dims: out_shape_vec };
+        let out_shape = Shape::from(out_shape_vec);
         let output = ArrayD::from_shape_vec(
-            out_shape.dims.as_slice(),
+            out_shape.as_slice(),
             output_vec,
         )
         .expect("gather_nd: shape mismatch");

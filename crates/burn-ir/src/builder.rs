@@ -315,10 +315,10 @@ impl GatherNdOpIr {
         new_id: impl FnOnce() -> crate::TensorId,
     ) -> Self {
         let m = indices.shape.num_dims();
-        let k = indices.shape.dims[m - 1];
-        let mut dims = indices.shape.dims[..m - 1].to_vec();
-        dims.extend_from_slice(&data.shape.dims[k..]);
-        let shape = Shape { dims };
+        let k = indices.shape[m - 1];
+        let mut dims = indices.shape.as_slice()[..m - 1].to_vec();
+        dims.extend_from_slice(&data.shape.as_slice()[k..]);
+        let shape = Shape::from(dims);
         let dtype = data.dtype;
         let out = TensorIr::uninit(new_id(), shape, dtype);
         GatherNdOpIr { data, indices, out }

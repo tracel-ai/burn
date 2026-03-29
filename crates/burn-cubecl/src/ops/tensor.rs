@@ -195,6 +195,22 @@ where
         kernel::scatter(dim, tensor, indices, value, false)
     }
 
+    fn float_scatter_nd(
+        data: FloatTensor<Self>,
+        indices: IntTensor<Self>,
+        values: FloatTensor<Self>,
+        reduction: burn_backend::tensor::ScatterNdReduction,
+    ) -> FloatTensor<Self> {
+        kernel::scatter_nd(data, indices, values, reduction)
+    }
+
+    fn float_gather_nd(
+        data: FloatTensor<Self>,
+        indices: IntTensor<Self>,
+    ) -> FloatTensor<Self> {
+        kernel::gather_nd(data, indices)
+    }
+
     fn float_select(
         tensor: FloatTensor<Self>,
         dim: usize,

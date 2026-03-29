@@ -10,7 +10,7 @@ use burn_backend::{
     TensorData,
     ops::IntTensorOps,
     tensor::{
-        BoolTensor, Device, FloatTensor, IndexingUpdateOp, IntElem, IntTensor,
+        BoolTensor, Device, FloatTensor, IndexingUpdateOp, IntTensor,
         ScatterNdReduction,
     },
 };
