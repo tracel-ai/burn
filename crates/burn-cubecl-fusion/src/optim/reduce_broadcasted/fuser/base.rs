@@ -2,7 +2,7 @@ use crate::optim::{
     CubeOptimization,
     reduce::{ReduceFuser, ReduceFuserInfo, ReduceSettings},
     reduce_broadcasted::{
-        ReduceBroadcastedOptimization, ReduceBroadcastedOptimizationInfo,
+        ReduceBlockOptimInfo, ReduceBroadcastedOptimization, ReduceBroadcastedOptimizationInfo,
         fuser::{
             block::{ReduceBlockFuser, ReduceBlockFusionAnalysis, ReduceBroadcastedStatus},
             full::ReduceBroadcastedFullFuser,
@@ -50,6 +50,32 @@ impl<R: Runtime> ReduceBroadcastedFuser<R> {
             max_bindings,
         }
     }
+
+    fn fuser_is_sync(&self) -> bool {
+        let analyzer = FullFuserAnalyzer::new(&self.blocks);
+        let mut full = ReduceBroadcastedFullFuser::new(self.max_bindings, analyzer);
+        let mut num_ops = 0;
+        let fallbacks = self
+            .blocks
+            .clone()
+            .iter_mut()
+            .map(|block| block.finish(&mut num_ops, &mut full))
+            .collect::<Vec<_>>();
+
+        let mut num_ops_fallback = 0;
+
+        for f in fallbacks.iter() {
+            num_ops_fallback += match f {
+                ReduceBlockOptimInfo::Reduce(info) => info.len,
+                ReduceBlockOptimInfo::Elemwise(info) => info.num_ops_fused(),
+            };
+        }
+
+        let fuser_is_sync = full.fuser.num_ops == num_ops;
+        let fallbacks_are_sync = num_ops_fallback == num_ops;
+
+        fuser_is_sync && fallbacks_are_sync
+    }
 }
 
 impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceBroadcastedFuser<R> {
@@ -92,14 +118,20 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceBroadcastedFuser<
                 // Only support last axis for now.
                 if axis != shape_input_id.len() - 1 {
                     self.state = ReduceBroadcastedStatus::Abort;
+                    return;
                 } else {
                     self.state = ReduceBroadcastedStatus::Init {
                         shape_id: shape_input_id,
                         axis,
                     };
+                    return;
                 }
             }
             ReduceFuserInfo::FusedElemwise { .. } => {}
+        };
+
+        if !self.fuser_is_sync() {
+            self.state = ReduceBroadcastedStatus::Abort;
         }
     }
 
