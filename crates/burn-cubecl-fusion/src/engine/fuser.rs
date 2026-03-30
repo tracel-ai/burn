@@ -156,7 +156,7 @@ impl TraceOperationFuser {
             scoring: Scoring::default(),
             num_ops: 0,
             num_views: 0,
-            max_bindings,
+            max_bindings: 8,
             current_output_shape: Shape::new([]),
             status: FuserStatus::Open,
         }
