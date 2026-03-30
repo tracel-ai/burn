@@ -51,7 +51,21 @@ impl<R: Runtime> ReduceBroadcastedFuser<R> {
         }
     }
 
-    fn fuser_is_sync(&self) -> bool {
+    /// Checks whether the full fuser and all fallback blocks together account for every
+    /// operation that has been registered across all blocks.
+    ///
+    /// This is a dry-run consistency check: it simulates finishing all blocks without
+    /// mutating any state, then verifies two invariants:
+    ///
+    /// 1. **Full fuser coverage** — the number of operations absorbed by the
+    ///    [`ReduceBroadcastedFullFuser`] matches the total operation count.
+    /// 2. **Fallback coverage** — the sum of operations across all fallback
+    ///    [`ReduceBlockOptimInfo`] entries also matches the total operation count.
+    ///
+    /// If either invariant fails, the fuser's state should be marked as
+    /// [`ReduceBroadcastedStatus::Abort`] because the optimization would produce
+    /// incorrect results.
+    fn is_consistent(&self) -> bool {
         let analyzer = FullFuserAnalyzer::new(&self.blocks);
         let mut full = ReduceBroadcastedFullFuser::new(self.max_bindings, analyzer);
         let mut num_ops = 0;
@@ -71,10 +85,10 @@ impl<R: Runtime> ReduceBroadcastedFuser<R> {
             };
         }
 
-        let fuser_is_sync = full.fuser.num_ops == num_ops;
-        let fallbacks_are_sync = num_ops_fallback == num_ops;
+        let full_fuser_covers_all = full.fuser.num_ops == num_ops;
+        let fallbacks_cover_all = num_ops_fallback == num_ops;
 
-        fuser_is_sync && fallbacks_are_sync
+        full_fuser_covers_all && fallbacks_cover_all
     }
 }
 
@@ -130,7 +144,7 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceBroadcastedFuser<
             ReduceFuserInfo::FusedElemwise { .. } => {}
         };
 
-        if !self.fuser_is_sync() {
+        if !self.is_consistent() {
             self.state = ReduceBroadcastedStatus::Abort;
         }
     }
