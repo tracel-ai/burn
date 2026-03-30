@@ -5912,9 +5912,9 @@ dependencies = [
 
 [[package]]
 name = "openblas-build"
-version = "0.10.14"
+version = "0.10.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "20d370acc586f21e12b1922e462439f0e98412e617f7642eb5e63df7ea211066"
+checksum = "cd235aa8876fa5c4be452efde09b9b8bafa19aea0bf14a4926508213082439a3"
 dependencies = [
  "anyhow",
  "cc",
@@ -5926,9 +5926,9 @@ dependencies = [
 
 [[package]]
 name = "openblas-src"
-version = "0.10.14"
+version = "0.10.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7e1042a867cd2effa3a188ab302acd8851b7eac58a7ae06496456e1172a1b456"
+checksum = "fccd2c4f5271ab871f2069cb6f1a13ef2c0db50e1145ce03428ee541f4c63c4f"
 dependencies = [
  "dirs",
  "openblas-build",
