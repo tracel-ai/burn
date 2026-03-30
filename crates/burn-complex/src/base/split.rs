@@ -1,19 +1,20 @@
-use burn_tensor::{Float, TensorKind, TensorMetadata, backend::Backend};
+use burn_tensor::{ElementComparison, Float, TensorData, TensorKind, TensorMetadata, backend::Backend};
 use bytemuck::Pod;
 
-use crate::base::{ComplexTensorBackend, SplitLayout, element::Complex};
-#[derive(Debug, Clone)]
-pub struct SplitComplexTensor<B, const D: usize, K= Float>
-where
-    B: Backend,
-    K: TensorKind<B> {
-    pub real: K::Primitive,
-    pub imag: K::Primitive,
+use crate::base::{ComplexTensor, ComplexTensorBackend, ComplexTensorOps, Layout, SplitLayout, element::Complex};
+
+impl<T: TensorMetadata + 'static> Layout for SplitLayout<T> {
+    type ComplexTensorPrimitive = SplitComplexTensor<T>;
 }
 
-impl<B: Backend, const D: usize, K> TensorMetadata for SplitComplexTensor<B, D, K>
-where
-    K: TensorKind<B> {
+#[derive(Debug, Clone)]
+pub struct SplitComplexTensor<P: TensorMetadata> {
+    pub real: P,
+    pub imag: P,
+}
+
+impl<T: TensorMetadata+ 'static> TensorMetadata for SplitComplexTensor<T>
+{
     fn shape(&self) -> burn_tensor::Shape {
         self.real.shape()
     }
@@ -31,16 +32,45 @@ where
     }
 }
 
-impl<B: Backend, const D: usize, K> ComplexTensorBackend for SplitComplexTensor<B, D, K>
+/// A newtype that wraps a real backend B and exposes a split-layout complex backend.
+pub struct SplitBackend<B: Backend>(core::marker::PhantomData<B>);
+
+impl<B: Backend> ComplexTensorBackend for SplitBackend<B>
 where
-    B::FloatElem: burn_tensor::ElementComparison + Pod {
+    <B as Backend>::FloatElem: ElementComparison + Pod,
+    B::FloatTensorPrimitive: TensorMetadata + 'static,
+{
     type InnerBackend = B;
-
     type ComplexScalar = Complex<B::FloatElem>;
+    type Layout = SplitLayout<B::FloatTensorPrimitive>;
 
-    type Layout = SplitLayout<Self>;
-    
-    fn complex_from_data(data: burn_tensor::TensorData, device: &burn_tensor::Device<Self>) -> super::ComplexTensor<Self> {
+    fn complex_from_data(
+        data: TensorData,
+        device: &B::Device,
+    ) -> ComplexTensor<Self> {
+        // ComplexTensor<Self> = Complex<SplitComplexTensor<B::FloatTensorPrimitive>>
+        // i.e. Complex { re: SplitComplexTensor { real, imag } }
+        todo!()
+    }
+}
+
+impl<B> ComplexTensorOps<SplitBackend<B>> for SplitBackend<B>
+where
+    B: Backend,
+    <B as Backend>::FloatElem: ElementComparison + Pod,
+{
+    fn to_complex(tensor: super::FloatTensor<SplitBackend<B>>) -> ComplexTensor<SplitBackend<B>> {
+        todo!()
+    }
+
+    async fn complex_into_data(
+        tensor: ComplexTensor<SplitBackend<B>>,
+    ) -> Result<TensorData, burn_tensor::backend::ExecutionError> {
+        todo!()
+    }
+
+    fn complex_not_equal_elem(lhs: ComplexTensor<SplitBackend<B>>, rhs: <SplitBackend<B> as ComplexTensorBackend>::ComplexScalar)
+    -> super::BoolTensor<SplitBackend<B>> {
         todo!()
     }
 }
