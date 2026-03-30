@@ -85,22 +85,14 @@ impl<R: Runtime> ReduceBroadcastedFuser<R> {
             };
         }
 
-        let full_fuser_covers_all = full.fuser.num_ops == num_ops;
+        let full_fuser_covers_all = full.num_ops_fused() == num_ops;
         let fallbacks_cover_all = num_ops_fallback == num_ops;
 
         full_fuser_covers_all && fallbacks_cover_all
     }
-}
 
-impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceBroadcastedFuser<R> {
-    fn fuse(&mut self, operation: &OperationIr) {
-        if matches!(
-            &self.state,
-            ReduceBroadcastedStatus::Closed | ReduceBroadcastedStatus::Abort
-        ) {
-            return;
-        }
-
+    /// Fuses without checking consistency and the current state.
+    fn fuse_no_check(&mut self, operation: &OperationIr) {
         let block = self.blocks.last_mut().unwrap();
         let analyze = block.analyze(operation, &self.state, &self.fuser_default);
 
@@ -132,20 +124,39 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceBroadcastedFuser<
                 // Only support last axis for now.
                 if axis != shape_input_id.len() - 1 {
                     self.state = ReduceBroadcastedStatus::Abort;
-                    return;
                 } else {
                     self.state = ReduceBroadcastedStatus::Init {
                         shape_id: shape_input_id,
                         axis,
                     };
-                    return;
                 }
             }
             ReduceFuserInfo::FusedElemwise { .. } => {}
-        };
+        }
+    }
+}
 
-        if !self.is_consistent() {
-            self.state = ReduceBroadcastedStatus::Abort;
+impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceBroadcastedFuser<R> {
+    fn fuse(&mut self, operation: &OperationIr) {
+        if matches!(
+            &self.state,
+            ReduceBroadcastedStatus::Closed | ReduceBroadcastedStatus::Abort
+        ) {
+            return;
+        }
+
+        // We first need to simulate the fusion to check the consistency, then we perform the
+        // fusion.
+        let mut next = self.clone();
+        next.fuse_no_check(operation);
+
+        // We can only check for consistency if the optimization is ready.
+        if next.properties().ready && !next.is_consistent() {
+            // Fusions that lead to inconsistent trace are closed.
+            self.state = ReduceBroadcastedStatus::Closed;
+        } else {
+            // Normal path.
+            self.fuse_no_check(operation);
         }
     }
 
