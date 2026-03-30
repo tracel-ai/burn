@@ -1051,6 +1051,187 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
     }
 
+    fn float_scatter_nd(
+        data: FloatTensor<Self>,
+        indices: IntTensor<B>,
+        values: FloatTensor<Self>,
+        reduction: burn_backend::tensor::ScatterNdReduction,
+    ) -> FloatTensor<Self> {
+        use burn_backend::tensor::ScatterNdReduction;
+
+        match reduction {
+            ScatterNdReduction::Add => {
+                #[derive(Debug)]
+                struct ScatterNdAdd;
+
+                impl<B: Backend> Backward<B, 2> for ScatterNdAdd {
+                    type State = IntTensor<B>;
+
+                    fn backward(
+                        self,
+                        ops: Ops<Self::State, 2>,
+                        grads: &mut Gradients,
+                        _checkpointer: &mut Checkpointer,
+                    ) {
+                        let indices = ops.state;
+                        let [_, indices_4rhs] = duplicate(&ops.parents, Some(indices));
+
+                        binary::<B, _, _>(
+                            ops.parents,
+                            ops.node,
+                            grads,
+                            |grad| grad,
+                            |grad| B::float_gather_nd(grad, indices_4rhs.unwrap()),
+                        );
+                    }
+                }
+
+                match ScatterNdAdd
+                    .prepare::<C>([data.node, values.node])
+                    .compute_bound()
+                    .stateful()
+                {
+                    OpsKind::Tracked(prep) => prep.finish(
+                        indices.clone(),
+                        B::float_scatter_nd(
+                            data.primitive,
+                            indices,
+                            values.primitive,
+                            ScatterNdReduction::Add,
+                        ),
+                    ),
+                    OpsKind::UnTracked(prep) => prep.finish(B::float_scatter_nd(
+                        data.primitive,
+                        indices,
+                        values.primitive,
+                        ScatterNdReduction::Add,
+                    )),
+                }
+            }
+            ScatterNdReduction::Assign => {
+                #[derive(Debug)]
+                struct ScatterNdAssign;
+
+                impl<B: Backend> Backward<B, 2> for ScatterNdAssign {
+                    type State = (IntTensor<B>, Shape, B::Device);
+
+                    fn backward(
+                        self,
+                        ops: Ops<Self::State, 2>,
+                        grads: &mut Gradients,
+                        _checkpointer: &mut Checkpointer,
+                    ) {
+                        let (indices, values_shape, device) = ops.state;
+                        let [indices_4lhs, indices_4rhs] =
+                            duplicate(&ops.parents, Some(indices));
+
+                        binary::<B, _, _>(
+                            ops.parents,
+                            ops.node,
+                            grads,
+                            |grad| {
+                                // Zero out the scattered positions in grad
+                                let zeros = B::float_zeros(
+                                    values_shape,
+                                    &device,
+                                    grad.dtype().into(),
+                                );
+                                B::float_scatter_nd(
+                                    grad,
+                                    indices_4lhs.unwrap(),
+                                    zeros,
+                                    ScatterNdReduction::Assign,
+                                )
+                            },
+                            |grad| B::float_gather_nd(grad, indices_4rhs.unwrap()),
+                        );
+                    }
+                }
+
+                match ScatterNdAssign
+                    .prepare::<C>([data.node, values.node])
+                    .compute_bound()
+                    .stateful()
+                {
+                    OpsKind::Tracked(prep) => prep.finish(
+                        (
+                            indices.clone(),
+                            values.primitive.shape(),
+                            B::float_device(&data.primitive),
+                        ),
+                        B::float_scatter_nd(
+                            data.primitive,
+                            indices,
+                            values.primitive,
+                            ScatterNdReduction::Assign,
+                        ),
+                    ),
+                    OpsKind::UnTracked(prep) => prep.finish(B::float_scatter_nd(
+                        data.primitive,
+                        indices,
+                        values.primitive,
+                        ScatterNdReduction::Assign,
+                    )),
+                }
+            }
+            _ => panic!(
+                "scatter_nd backward is not supported for {:?} reduction. \
+                 Only Assign and Add support autograd. Use these reductions in \
+                 inference-only contexts or detach the tensor first.",
+                reduction,
+            ),
+        }
+    }
+
+    fn float_gather_nd(
+        data: FloatTensor<Self>,
+        indices: IntTensor<B>,
+    ) -> FloatTensor<Self> {
+        #[derive(Debug)]
+        struct GatherNd;
+
+        impl<B: Backend> Backward<B, 1> for GatherNd {
+            type State = (IntTensor<B>, Shape, B::Device);
+
+            fn backward(
+                self,
+                ops: Ops<Self::State, 1>,
+                grads: &mut Gradients,
+                _checkpointer: &mut Checkpointer,
+            ) {
+                let (indices, data_shape, device) = ops.state;
+
+                unary::<B, _>(ops.parents, ops.node, grads, |grad| {
+                    let zeros = B::float_zeros(data_shape, &device, grad.dtype().into());
+                    B::float_scatter_nd(
+                        zeros,
+                        indices,
+                        grad,
+                        burn_backend::tensor::ScatterNdReduction::Add,
+                    )
+                });
+            }
+        }
+
+        match GatherNd
+            .prepare::<C>([data.node])
+            .compute_bound()
+            .stateful()
+        {
+            OpsKind::Tracked(prep) => prep.finish(
+                (
+                    indices.clone(),
+                    data.primitive.shape(),
+                    B::float_device(&data.primitive),
+                ),
+                B::float_gather_nd(data.primitive, indices),
+            ),
+            OpsKind::UnTracked(prep) => {
+                prep.finish(B::float_gather_nd(data.primitive, indices))
+            }
+        }
+    }
+
     fn float_select(
         tensor: FloatTensor<Self>,
         dim: usize,
