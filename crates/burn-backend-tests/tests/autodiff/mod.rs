@@ -38,6 +38,7 @@ mod expand;
 mod flip;
 mod floor;
 mod gather_scatter;
+mod gather_scatter_nd;
 mod gelu;
 mod gradients;
 mod log;
