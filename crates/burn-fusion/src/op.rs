@@ -1,14 +1,15 @@
 use burn_backend::StreamId;
 use burn_ir::HandleContainer;
+use burn_std::arena::ReservedMemory;
 use std::{cell::RefCell, sync::Arc};
 
-use crate::{FusionRuntime, arena::ReservedMemory, stream::Operation};
+use crate::{FusionRuntime, stream::Operation};
 
 const MAX_ITEM_COUNT: usize = 256;
 const MAX_ITEM_SIZE: usize = 512;
 
-type Data = crate::arena::Bytes<MAX_ITEM_SIZE>;
-type Arena = crate::arena::Arena<MAX_ITEM_COUNT, MAX_ITEM_SIZE>;
+type Data = burn_std::arena::Bytes<MAX_ITEM_SIZE>;
+type Arena = burn_std::arena::Arena<MAX_ITEM_COUNT, MAX_ITEM_SIZE>;
 
 std::thread_local! {
     static ARENA: RefCell<Arena> = const {RefCell::new(Arena::new())};
@@ -53,16 +54,10 @@ impl<R: FusionRuntime> UnfusedOp<R> {
 
     /// Executes the [operation](Operation) and modifies the given handles.
     pub fn execute(&self, handles: &mut HandleContainer<R::FusionHandle>) {
-        // We ensure that we execute the operation on the same stream as they were registered.
-        let old = unsafe { StreamId::swap(self.stream_id) };
-
-        match &self.kind {
+        self.stream_id.executes(|| match &self.kind {
             UnfusedOpKind::Arena(o) => o.execute(handles),
             UnfusedOpKind::Alloc(o) => o.execute(handles),
-        }
-
-        // We ensure that we execute the operation on the same stream as they were registered.
-        unsafe { StreamId::swap(old) };
+        })
     }
 }
 

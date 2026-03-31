@@ -17,8 +17,6 @@ pub mod stream;
 /// Search module for stream optimizations.
 pub(crate) mod search;
 
-pub(crate) mod arena;
-
 mod backend;
 mod op;
 mod ops;

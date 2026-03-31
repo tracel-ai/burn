@@ -193,25 +193,23 @@ impl<R: FusionRuntime> MultiStream<R> {
 
     /// Drain a stream
     pub fn drain(&mut self, handles: &mut HandleContainer<R::FusionHandle>, id: StreamId) {
-        if let Some(stream) = self.streams.get_mut(&id) {
-            let old = unsafe { StreamId::swap(id) };
-            let num_executed = stream.queue.global.len();
-            stream.processor.process(
-                Segment::new(&mut stream.queue, handles),
-                &mut self.optimizations,
-                ExecutionMode::Sync,
-            );
-            stream.cursor += num_executed as u64;
+        id.executes(|| {
+            if let Some(stream) = self.streams.get_mut(&id) {
+                let num_executed = stream.queue.global.len();
+                stream.processor.process(
+                    Segment::new(&mut stream.queue, handles),
+                    &mut self.optimizations,
+                    ExecutionMode::Sync,
+                );
+                stream.cursor += num_executed as u64;
 
-            let cleared = self.shared_tensors.on_executed_ops(id, stream);
-            self.clear_shared_tensors(&cleared, id);
-            let to_drop = self.shared_tensors.clear_tensors(cleared);
+                let cleared = self.shared_tensors.on_executed_ops(id, stream);
+                self.clear_shared_tensors(&cleared, id);
+                let to_drop = self.shared_tensors.clear_tensors(cleared);
 
-            self.drop_shared_tensors(to_drop, handles, id);
-            unsafe {
-                StreamId::swap(old);
-            };
-        }
+                self.drop_shared_tensors(to_drop, handles, id);
+            }
+        });
     }
 
     /// When one of the provided streams is different from the current stream, we drain them.
