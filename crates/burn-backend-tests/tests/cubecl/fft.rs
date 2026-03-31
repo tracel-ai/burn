@@ -1,6 +1,6 @@
 use super::*;
-use burn_tensor::{TensorData, Tolerance};
 use burn_tensor::signal::rfft;
+use burn_tensor::{TensorData, Tolerance};
 
 #[test]
 fn rfft_dim1_sine_wave_produces_imaginary_spectrum() {
@@ -21,10 +21,7 @@ fn rfft_dim1_sine_wave_produces_imaginary_spectrum() {
 
 #[test]
 fn rfft_dim1_cosine_wave_produces_real_spectrum() {
-    let signal = TestTensor::<2>::from([[
-        1.0, 0.7071, 0.0, -0.7071,
-        -1.0, -0.7071, 0.0, 0.7071,
-    ]]);
+    let signal = TestTensor::<2>::from([[1.0, 0.7071, 0.0, -0.7071, -1.0, -0.7071, 0.0, 0.7071]]);
 
     let (spectrum_re, spectrum_im) = rfft(signal, 1);
 
@@ -51,10 +48,7 @@ fn rfft_dim1_2d_tensor_distinct_rows() {
 
     let (re, im) = rfft(signal, 1);
 
-    let expected_re = TensorData::from([
-        [0.0, 0.0, 0.0, 0.0, 0.0],
-        [0.0, 0.0, 0.0, 0.0, 0.0],
-    ]);
+    let expected_re = TensorData::from([[0.0, 0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0, 0.0]]);
 
     let expected_im = TensorData::from([
         [0.0, -4.0, 0.0, 0.0, 0.0], // freq 1

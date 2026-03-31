@@ -553,4 +553,3 @@ pub fn attention_fallback<B: Backend>(
         ),
     ))
 }
-
