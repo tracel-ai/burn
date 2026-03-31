@@ -173,7 +173,7 @@ mod state {
 
         // Access module_1 to trigger initialization before cloning.
         // Cloning an uninitialized module preserves lazy state (no memory allocation),
-        // so we need to initialize first if we want the clone to share the same values.
+        // so we need to initialize first if we want the clone to have the same values.
         assert_ne!(
             module_1.weight_basic.to_data(),
             module_2.weight_basic.to_data()
@@ -216,7 +216,7 @@ mod state {
         let module_1 = ModuleEnum::Basic(ModuleBasic::<TestBackend>::new(&device));
         let mut module_2 = ModuleEnum::Basic(ModuleBasic::<TestBackend>::new(&device));
 
-        // Trigger initialization before cloning so clone shares the same values.
+        // Trigger initialization before cloning so clone has the same values.
         let ModuleEnum::Basic(ref module_1_basic) = module_1 else {
             panic!("Invalid module type")
         };
@@ -325,7 +325,7 @@ mod state {
             ],
         };
 
-        // Trigger initialization before cloning so clone shares the same values.
+        // Trigger initialization before cloning so clone has the same values.
         assert_ne!(
             module_1.modules[0].weight_basic.to_data(),
             module_2.modules[0].weight_basic.to_data(),
@@ -389,10 +389,7 @@ mod lazy_clone {
 
         // Clone of an initialized param should have the same values.
         let cloned = module.clone();
-        assert_eq!(
-            module.weight_basic.to_data(),
-            cloned.weight_basic.to_data()
-        );
+        assert_eq!(module.weight_basic.to_data(), cloned.weight_basic.to_data());
     }
 
     #[test]
@@ -411,6 +408,64 @@ mod lazy_clone {
 
         // Original should still be uninitialized.
         assert!(!module.weight_basic.is_initialized());
+    }
+
+    #[test]
+    fn lazy_clone_and_original_produce_independent_values() {
+        let device = <TestBackend as Backend>::Device::default();
+        let module = ModuleBasic::<TestBackend>::new(&device);
+        let cloned = module.clone();
+
+        // Access clone first, then original. Both should produce valid but different
+        // tensors since each runs the random init function independently.
+        let clone_data = cloned.weight_basic.to_data();
+        let orig_data = module.weight_basic.to_data();
+
+        assert_eq!(clone_data.shape, [20, 20].into());
+        assert_eq!(orig_data.shape, [20, 20].into());
+        assert_ne!(clone_data, orig_data);
+    }
+
+    #[test]
+    fn lazy_clone_deref_should_trigger_init() {
+        let device = <TestBackend as Backend>::Device::default();
+        let module = ModuleBasic::<TestBackend>::new(&device);
+        let cloned = module.clone();
+
+        // Access via Deref (shape() uses Deref, not val()) on the clone.
+        let shape = cloned.weight_basic.shape();
+        assert_eq!(shape, [20, 20].into());
+        assert!(cloned.weight_basic.is_initialized());
+        assert!(!module.weight_basic.is_initialized());
+    }
+
+    #[test]
+    fn init_mapper_on_lazy_clone_should_not_affect_original() {
+        use burn::module::ParamId;
+        use burn::tensor::Shape;
+
+        let device = <TestBackend as Backend>::Device::default();
+
+        // Create two uninitialized params from the same init function.
+        let param: Param<Tensor<TestBackend, 2>> = Param::uninitialized(
+            ParamId::new(),
+            move |d, _| Tensor::ones([4, 4], d),
+            device.clone(),
+            false,
+            Shape::from([4, 4]),
+        );
+
+        let mut cloned = param.clone();
+
+        // Apply init_mapper on the clone to double all values.
+        cloned = cloned.init_mapper(|t| t.mul_scalar(2.0));
+
+        // Original should produce ones, clone should produce twos.
+        let orig_data = param.val().to_data().to_vec::<f32>().unwrap();
+        let clone_data = cloned.val().to_data().to_vec::<f32>().unwrap();
+
+        assert!(orig_data.iter().all(|&v| (v - 1.0).abs() < 1e-6));
+        assert!(clone_data.iter().all(|&v| (v - 2.0).abs() < 1e-6));
     }
 
     #[test]

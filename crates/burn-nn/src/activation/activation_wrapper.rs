@@ -453,7 +453,7 @@ mod tests {
         let config: ActivationConfig = inner_config.into();
         let layer = config.init(&device);
 
-        // Run forward pass first to trigger lazy initialization, then clone weights.
+        // Access tensors via forward pass to trigger lazy initialization, then clone weights.
         let layer_output = layer.forward(input.clone());
 
         match &layer {

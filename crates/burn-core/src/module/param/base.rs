@@ -146,7 +146,8 @@ pub trait Parameter: Clone + core::fmt::Debug + Send {
 pub(crate) struct Uninitialized<P: Parameter> {
     /// The initialization function. Called with `(device, is_require_grad) -> Parameter`.
     /// Wrapped in `Arc` so that cloning a `Param` preserves the lazy state without
-    /// triggering initialization. Each clone can independently initialize when needed.
+    /// triggering initialization. Each clone holds its own `Uninitialized` state and
+    /// will run the init function separately on first access (producing independent values).
     init: Arc<dyn Fn(&P::Device, bool) -> P + Send + Sync>,
     /// The target device on which the parameter should be initialized.
     /// Used by `lazy_device()` to provide device information without triggering initialization.
@@ -175,6 +176,10 @@ impl<P: Parameter> Uninitialized<P> {
     ///
     /// This is called by [Param::val] when accessing an uninitialized parameter for the first time.
     /// The function is given the stored device and gradient requirement, and returns the initialized parameter.
+    ///
+    /// Although this takes `&self` (the `Arc<dyn Fn>` is callable multiple times), callers
+    /// are expected to invoke this only once per `Param` instance. The caller (`val()`) takes
+    /// the `Uninitialized` out of its `Option` via `take()` to enforce single-initialization.
     fn initialize(&self) -> P {
         (self.init)(&self.device, self.is_require_grad)
     }
@@ -410,6 +415,8 @@ impl<T: Parameter> Clone for Param<T> {
         // If uninitialized, clone the lazy state without triggering initialization.
         // This avoids allocating tensor memory for params that may never be used
         // (e.g., when cloning a module just to load weights into it).
+        // The clone gets its own OnceCell and RwLock, so initializing one
+        // does not affect the other.
         if let Some(init_lock) = &self.initialization {
             let init_guard = init_lock.read().unwrap();
             if let Some(uninit) = init_guard.as_ref() {
@@ -423,7 +430,7 @@ impl<T: Parameter> Clone for Param<T> {
             }
         }
 
-        // Already initialized: clone the value.
+        // Already initialized (or init was already consumed): clone the value.
         let mut param = Param::initialized(self.id, self.val());
         param.param_mapper = self.param_mapper.clone();
         param
