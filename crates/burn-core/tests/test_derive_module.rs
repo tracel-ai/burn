@@ -170,12 +170,16 @@ mod state {
         let device = <TestBackend as Backend>::Device::default();
         let module_1 = ModuleBasic::<TestBackend>::new(&device);
         let mut module_2 = ModuleBasic::<TestBackend>::new(&device);
-        let state_1 = module_1.clone().into_record();
 
+        // Access module_1 to trigger initialization before cloning.
+        // Cloning an uninitialized module preserves lazy state (no memory allocation),
+        // so we need to initialize first if we want the clone to share the same values.
         assert_ne!(
             module_1.weight_basic.to_data(),
             module_2.weight_basic.to_data()
         );
+
+        let state_1 = module_1.clone().into_record();
 
         module_2 = module_2.load_record(state_1);
 
@@ -211,9 +215,9 @@ mod state {
         let device = <TestBackend as Backend>::Device::default();
         let module_1 = ModuleEnum::Basic(ModuleBasic::<TestBackend>::new(&device));
         let mut module_2 = ModuleEnum::Basic(ModuleBasic::<TestBackend>::new(&device));
-        let state_1 = module_1.clone().into_record();
 
-        let ModuleEnum::Basic(module_1_basic) = module_1 else {
+        // Trigger initialization before cloning so clone shares the same values.
+        let ModuleEnum::Basic(ref module_1_basic) = module_1 else {
             panic!("Invalid module type")
         };
         let ModuleEnum::Basic(module_2_basic) = module_2.clone() else {
@@ -223,6 +227,8 @@ mod state {
             module_1_basic.weight_basic.to_data(),
             module_2_basic.weight_basic.to_data()
         );
+
+        let state_1 = module_1.clone().into_record();
 
         module_2 = module_2.load_record(state_1);
 
@@ -318,8 +324,8 @@ mod state {
                 ModuleBasic::<TestBackend>::new(&device),
             ],
         };
-        let state_1 = module_1.clone().into_record();
 
+        // Trigger initialization before cloning so clone shares the same values.
         assert_ne!(
             module_1.modules[0].weight_basic.to_data(),
             module_2.modules[0].weight_basic.to_data(),
@@ -328,6 +334,8 @@ mod state {
             module_1.modules[1].weight_basic.to_data(),
             module_2.modules[1].weight_basic.to_data(),
         );
+
+        let state_1 = module_1.clone().into_record();
 
         module_2 = module_2.load_record(state_1);
 

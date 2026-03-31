@@ -1,5 +1,5 @@
 use super::ParamId;
-use alloc::{boxed::Box, format};
+use alloc::format;
 use burn_std::stub::RwLock;
 use burn_tensor::Shape;
 use core::cell::OnceCell;
@@ -145,8 +145,9 @@ pub trait Parameter: Clone + core::fmt::Debug + Send {
 #[allow(clippy::type_complexity)]
 pub(crate) struct Uninitialized<P: Parameter> {
     /// The initialization function. Called with `(device, is_require_grad) -> Parameter`.
-    /// This function is consumed during initialization via `FnOnce`.
-    init: Box<dyn FnOnce(&P::Device, bool) -> P + Send>,
+    /// Wrapped in `Arc` so that cloning a `Param` preserves the lazy state without
+    /// triggering initialization. Each clone can independently initialize when needed.
+    init: Arc<dyn Fn(&P::Device, bool) -> P + Send + Sync>,
     /// The target device on which the parameter should be initialized.
     /// Used by `lazy_device()` to provide device information without triggering initialization.
     pub(crate) device: P::Device,
@@ -158,14 +159,24 @@ pub(crate) struct Uninitialized<P: Parameter> {
     pub(crate) shape: Shape,
 }
 
+impl<P: Parameter> Clone for Uninitialized<P> {
+    fn clone(&self) -> Self {
+        Self {
+            init: self.init.clone(),
+            device: self.device.clone(),
+            is_require_grad: self.is_require_grad,
+            shape: self.shape.clone(),
+        }
+    }
+}
+
 impl<P: Parameter> Uninitialized<P> {
-    /// Consumes the uninitialized state and runs the initialization function.
+    /// Runs the initialization function.
     ///
     /// This is called by [Param::val] when accessing an uninitialized parameter for the first time.
     /// The function is given the stored device and gradient requirement, and returns the initialized parameter.
-    fn initialize(self) -> P {
-        let init = self.init;
-        init(&self.device, self.is_require_grad)
+    fn initialize(&self) -> P {
+        (self.init)(&self.device, self.is_require_grad)
     }
 }
 
@@ -191,13 +202,13 @@ impl<T: Parameter> Param<T> {
         shape: Shape,
     ) -> Self
     where
-        F: FnOnce(&T::Device, bool) -> T + Send + 'static,
+        F: Fn(&T::Device, bool) -> T + Send + Sync + 'static,
     {
         Self {
             id,
             state: OnceCell::new(),
             initialization: Some(RwLock::new(Some(Uninitialized {
-                init: Box::new(init),
+                init: Arc::new(init),
                 device,
                 is_require_grad,
                 shape,
@@ -293,7 +304,7 @@ impl<T: Parameter> Param<T> {
     }
 
     /// Execute the given function on the inner value.
-    pub fn init_mapper<F: FnOnce(T) -> T + Send + 'static>(self, func: F) -> Self
+    pub fn init_mapper<F: Fn(T) -> T + Send + Sync + 'static>(self, func: F) -> Self
     where
         T: 'static,
     {
@@ -306,12 +317,9 @@ impl<T: Parameter> Param<T> {
 
         match init.as_mut() {
             Some(value) => {
-                #[allow(clippy::type_complexity)]
-                let mut prev: Box<dyn FnOnce(&T::Device, bool) -> T + Send> =
-                    Box::new(|_, _| panic!("Fake func to not have null ref."));
-                core::mem::swap(&mut prev, &mut value.init);
+                let prev = value.init.clone();
 
-                value.init = Box::new(|a, b| {
+                value.init = Arc::new(move |a, b| {
                     let tensor = prev(a, b);
                     func(tensor)
                 });
@@ -399,6 +407,23 @@ impl<T: Parameter> Param<T> {
 
 impl<T: Parameter> Clone for Param<T> {
     fn clone(&self) -> Self {
+        // If uninitialized, clone the lazy state without triggering initialization.
+        // This avoids allocating tensor memory for params that may never be used
+        // (e.g., when cloning a module just to load weights into it).
+        if let Some(init_lock) = &self.initialization {
+            let init_guard = init_lock.read().unwrap();
+            if let Some(uninit) = init_guard.as_ref() {
+                return Self {
+                    id: self.id,
+                    state: OnceCell::new(),
+                    initialization: Some(RwLock::new(Some(uninit.clone()))),
+                    param_mapper: self.param_mapper.clone(),
+                    require_grad: self.require_grad,
+                };
+            }
+        }
+
+        // Already initialized: clone the value.
         let mut param = Param::initialized(self.id, self.val());
         param.param_mapper = self.param_mapper.clone();
         param
