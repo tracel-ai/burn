@@ -469,7 +469,7 @@ mod lazy_clone {
     }
 
     #[test]
-    fn lazy_clone_then_load_should_not_init_original() {
+    fn load_record_into_uninitialized_module_should_work() {
         let device = <TestBackend as Backend>::Device::default();
         let module_1 = ModuleBasic::<TestBackend>::new(&device);
 
