@@ -4,12 +4,8 @@ use burn_backend::backend::{Backend, ExecutionError};
 use burn_std::{BoolDType, IntDType};
 
 use crate::{BackendRouter, RunnerChannel, RunnerClient, get_client};
-use burn_backend::tensor::{
-    BoolTensor, Device, FloatElem, FloatTensor, IndexingUpdateOp, IntTensor,
-};
-use burn_backend::{
-    Distribution, Element, FloatDType, Shape, Slice, TensorData, ops::FloatTensorOps,
-};
+use burn_backend::tensor::{BoolTensor, Device, FloatTensor, IndexingUpdateOp, IntTensor};
+use burn_backend::{Distribution, FloatDType, Shape, Slice, TensorData, ops::FloatTensorOps};
 use burn_ir::{
     BaseOperationIr, BinaryOpIr, CastOpIr, CatOpIr, ClampOpIr, CreationOpIr, CrossOpIr, DimOpIr,
     FlipOpIr, FloatOperationIr, FullOpIr, GatherOpIr, InitOperationIr, MaskFillOpIr, MaskWhereOpIr,
@@ -37,9 +33,10 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         shape: Shape,
         distribution: Distribution,
         device: &Device<Self>,
+        dtype: FloatDType,
     ) -> FloatTensor<Self> {
         let client = get_client::<R>(device);
-        let dtype = FloatElem::<Self>::dtype();
+        let dtype = dtype.into();
         let desc = RandomOpIr::create(shape, dtype, distribution, || client.create_empty_handle());
 
         client

@@ -6,10 +6,10 @@ use crate::{
     unary_int_ops,
 };
 use burn_backend::{
-    BoolDType, Distribution, Element, ExecutionError, FloatDType, IntDType, Scalar, Shape, Slice,
+    BoolDType, Distribution, ExecutionError, FloatDType, IntDType, Scalar, Shape, Slice,
     TensorData,
     ops::IntTensorOps,
-    tensor::{BoolTensor, Device, FloatTensor, IndexingUpdateOp, IntElem, IntTensor},
+    tensor::{BoolTensor, Device, FloatTensor, IndexingUpdateOp, IntTensor},
 };
 use burn_ir::*;
 use std::marker::PhantomData;
@@ -1577,6 +1577,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         shape: Shape,
         distribution: Distribution,
         device: &Device<Self>,
+        dtype: IntDType,
     ) -> IntTensor<Self> {
         #[derive(new, Debug)]
         struct IntRandomOps<B: FusionBackend> {
@@ -1587,12 +1588,17 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         impl<B: FusionBackend> Operation<B::FusionRuntime> for IntRandomOps<B> {
             fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let shape = self.desc.out.shape.clone();
-                let output = B::int_random(shape, self.desc.distribution, &self.device);
+                let output = B::int_random(
+                    shape,
+                    self.desc.distribution,
+                    &self.device,
+                    self.desc.out.dtype.into(),
+                );
                 handles.register_int_tensor::<B>(&self.desc.out.id, output);
             }
         }
 
-        let dtype = IntElem::<Self>::dtype();
+        let dtype = dtype.into();
         let client = get_client::<B>(device);
         let desc = RandomOpIr::create(shape, dtype, distribution, || client.create_empty_handle());
 

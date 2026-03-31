@@ -6,7 +6,7 @@ use burn_tensor::Tolerance;
 fn should_diff_recip() {
     let data = TensorData::from([2.0, 5.0, 0.4]);
 
-    let tensor = TestAutodiffTensor::<1>::from_data(data, &Default::default()).require_grad();
+    let tensor = TestTensor::<1>::from_data(data, &AutodiffDevice::new()).require_grad();
     let tensor_out = tensor.clone().recip();
 
     let grads = tensor_out.backward();

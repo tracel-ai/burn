@@ -22,26 +22,27 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
         shape: Shape,
         distribution: Distribution,
         device: &LibTorchDevice,
+        dtype: FloatDType,
     ) -> TchTensor {
         match distribution {
             Distribution::Default => {
-                let mut tensor = TchTensor::empty::<E>(shape, *device);
+                let mut tensor = TchTensor::empty(shape, *device, dtype.into());
                 tensor
                     .mut_ops(|tensor| tensor.rand_like_out(tensor))
                     .unwrap()
             }
             Distribution::Bernoulli(prob) => {
-                let mut tensor = TchTensor::empty::<E>(shape, *device);
+                let mut tensor = TchTensor::empty(shape, *device, dtype.into());
                 tensor
                     .mut_ops(|tensor| tensor.f_bernoulli_float_(prob).unwrap())
                     .unwrap()
             }
             Distribution::Uniform(from, to) => {
-                let mut tensor = TchTensor::empty::<E>(shape, *device);
+                let mut tensor = TchTensor::empty(shape, *device, dtype.into());
                 tensor.mut_ops(|tensor| tensor.uniform_(from, to)).unwrap()
             }
             Distribution::Normal(mean, std) => {
-                let mut tensor = TchTensor::empty::<E>(shape, *device);
+                let mut tensor = TchTensor::empty(shape, *device, dtype.into());
                 tensor.mut_ops(|tensor| tensor.normal_(mean, std)).unwrap()
             }
         }

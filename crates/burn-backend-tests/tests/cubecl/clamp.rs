@@ -1,15 +1,14 @@
 use super::*;
+use burn_tensor::Distribution;
 use burn_tensor::Tolerance;
-use burn_tensor::{Distribution, Tensor};
 
 #[test]
 fn clamp_should_match_reference() {
-    let input = Tensor::<TestBackend, 4>::random(
-        [1, 5, 32, 32],
-        Distribution::Default,
-        &Default::default(),
-    );
-    let input_ref = Tensor::<ReferenceBackend, 4>::from_data(input.to_data(), &Default::default());
+    let device = Default::default();
+    let ref_device = ReferenceDevice::new();
+
+    let input = TestTensor::<4>::random([1, 5, 32, 32], Distribution::Default, &device);
+    let input_ref = TestTensor::<4>::from_data(input.to_data(), &ref_device);
 
     let output = input.clamp(0.3, 0.7);
 

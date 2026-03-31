@@ -3,7 +3,7 @@ use burn_tensor::TensorData;
 
 #[test]
 fn test_max_dim_2d() {
-    let f = TestTensor::<2>::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
+    let f = TestTensor::<2>::from_data([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
 
     f.clone()
         .max_dim(0)
@@ -35,7 +35,7 @@ fn test_max_dim_2d() {
 
 #[test]
 fn test_max_dims_2d() {
-    let f = TestTensor::<2>::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
+    let f = TestTensor::<2>::from_data([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
 
     f.clone()
         .max_dims(&[0])
@@ -56,7 +56,7 @@ fn test_max_dims_2d() {
 #[test]
 fn test_max_dim_with_indices_2d_with_dim_0th() {
     let tensor =
-        TestTensor::<2>::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
+        TestTensor::<2>::from_data([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
 
     // Positive, Negative Index
     for idx in [0, -2] {
@@ -73,7 +73,7 @@ fn test_max_dim_with_indices_2d_with_dim_0th() {
 #[test]
 fn test_max_dim_with_indices_2d() {
     let tensor =
-        TestTensor::<2>::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
+        TestTensor::<2>::from_data([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
 
     let (output, index) = tensor.max_dim_with_indices(1);
 
@@ -87,7 +87,7 @@ fn test_max_dim_with_indices_2d() {
 #[test]
 fn test_max_dim_2d_with_0th_dim() {
     let tensor =
-        TestTensor::<2>::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
+        TestTensor::<2>::from_data([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
 
     let output = tensor.max_dim(0);
     let expected = TensorData::from([[3., 4., 5.]]);
@@ -97,8 +97,8 @@ fn test_max_dim_2d_with_0th_dim() {
 
 #[test]
 fn test_max_pair() {
-    let a = TestTensor::<1>::from_floats([1.0, 2.0, 3.0, 4.0], &Default::default());
-    let b = TestTensor::from_floats([2.0, 1.0, 4.0, 5.0], &Default::default());
+    let a = TestTensor::<1>::from_data([1.0, 2.0, 3.0, 4.0], &Default::default());
+    let b = TestTensor::from_data([2.0, 1.0, 4.0, 5.0], &Default::default());
 
     let output = a.max_pair(b);
     let expected = TensorData::from([2.0, 2.0, 4.0, 5.0]);
@@ -108,7 +108,7 @@ fn test_max_pair() {
 
 #[test]
 fn test_min_dim_2d() {
-    let f = TestTensor::<2>::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
+    let f = TestTensor::<2>::from_data([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
 
     f.clone()
         .min_dim(0)
@@ -140,7 +140,7 @@ fn test_min_dim_2d() {
 
 #[test]
 fn test_min_dims_2d() {
-    let f = TestTensor::<2>::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
+    let f = TestTensor::<2>::from_data([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
 
     f.clone()
         .min_dims(&[0])
@@ -161,7 +161,7 @@ fn test_min_dims_2d() {
 #[test]
 fn test_min_dim_with_indices_2d() {
     let tensor =
-        TestTensor::<2>::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
+        TestTensor::<2>::from_data([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
 
     let (output, index) = tensor.min_dim_with_indices(1);
 
@@ -175,7 +175,7 @@ fn test_min_dim_with_indices_2d() {
 #[test]
 fn test_min_dim_2d_with_0th_dim() {
     let tensor =
-        TestTensor::<2>::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
+        TestTensor::<2>::from_data([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
 
     let output = tensor.min_dim(0);
     let expected = TensorData::from([[0., 1., 2.]]);
@@ -186,7 +186,7 @@ fn test_min_dim_2d_with_0th_dim() {
 #[test]
 fn test_min_dim_with_indices_2d_with_0th_dim() {
     let tensor =
-        TestTensor::<2>::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
+        TestTensor::<2>::from_data([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
 
     // Positive, Negative Index
     for idx in [0, -2] {
@@ -202,8 +202,8 @@ fn test_min_dim_with_indices_2d_with_0th_dim() {
 
 #[test]
 fn test_min_pair() {
-    let a = TestTensor::<1>::from_floats([1.0, 2.0, 3.0, 4.0], &Default::default());
-    let b = TestTensor::from_floats([2.0, 1.0, 4.0, 5.0], &Default::default());
+    let a = TestTensor::<1>::from_data([1.0, 2.0, 3.0, 4.0], &Default::default());
+    let b = TestTensor::from_data([2.0, 1.0, 4.0, 5.0], &Default::default());
 
     let output = a.min_pair(b);
     let expected = TensorData::from([1.0, 1.0, 3.0, 4.0]);
@@ -213,7 +213,7 @@ fn test_min_pair() {
 
 #[test]
 fn test_max_abs() {
-    let tensor = TestTensor::<2>::from_floats([[0., 1., -2.], [-5., 6., 1.]], &Default::default());
+    let tensor = TestTensor::<2>::from_data([[0., 1., -2.], [-5., 6., 1.]], &Default::default());
 
     let output = tensor.max_abs();
     let expected = TensorData::from([6.0]);
@@ -223,7 +223,7 @@ fn test_max_abs() {
 
 #[test]
 fn test_max_abs_dim_2d_dim_0() {
-    let tensor = TestTensor::<2>::from_floats([[0., 1., -2.], [-5., 6., 1.]], &Default::default());
+    let tensor = TestTensor::<2>::from_data([[0., 1., -2.], [-5., 6., 1.]], &Default::default());
 
     let output = tensor.clone().max_abs_dim(0);
     let expected = TensorData::from([[5., 6., 2.]]);
@@ -237,7 +237,7 @@ fn test_max_abs_dim_2d_dim_0() {
 
 #[test]
 fn test_max_abs_dims_2d() {
-    let tensor = TestTensor::<2>::from_floats([[0., 1., -2.], [-5., 6., 1.]], &Default::default());
+    let tensor = TestTensor::<2>::from_data([[0., 1., -2.], [-5., 6., 1.]], &Default::default());
 
     tensor
         .clone()
@@ -260,7 +260,7 @@ fn test_max_abs_dims_2d() {
 
 #[test]
 fn test_max_abs_dim_2d_dim_1() {
-    let tensor = TestTensor::<2>::from_floats([[0., 1., -2.], [-5., 6., 1.]], &Default::default());
+    let tensor = TestTensor::<2>::from_data([[0., 1., -2.], [-5., 6., 1.]], &Default::default());
 
     let output = tensor.max_abs_dim(1);
     let expected = TensorData::from([[2.], [6.]]);

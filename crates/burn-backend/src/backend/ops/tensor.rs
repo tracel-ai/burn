@@ -30,12 +30,17 @@ pub trait FloatTensorOps<B: Backend> {
     /// * `shape` - The shape of the tensor.
     /// * `distribution` - The distribution to sample from.
     /// * `device` - The device to create the tensor on.
+    /// * `dtype` - The target data type.
     ///
     /// # Returns
     ///
     /// The tensor with the given shape and random values.
-    fn float_random(shape: Shape, distribution: Distribution, device: &Device<B>)
-    -> FloatTensor<B>;
+    fn float_random(
+        shape: Shape,
+        distribution: Distribution,
+        device: &Device<B>,
+        dtype: FloatDType,
+    ) -> FloatTensor<B>;
 
     /// Creates a new tensor with zeros.
     ///

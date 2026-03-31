@@ -709,6 +709,7 @@ mod tests {
 
     /// Test VGG pretrained weights download and loading.
     #[test]
+    #[ignore = "downloads pre-trained weights"]
     fn test_lpips_pretrained_vgg() {
         let device = Default::default();
 
@@ -741,6 +742,7 @@ mod tests {
 
     /// Test AlexNet pretrained weights download and loading.
     #[test]
+    #[ignore = "downloads pre-trained weights"]
     fn test_lpips_pretrained_alex() {
         let device = Default::default();
 
@@ -771,6 +773,7 @@ mod tests {
 
     /// Test SqueezeNet pretrained weights download and loading.
     #[test]
+    #[ignore = "downloads pre-trained weights"]
     fn test_lpips_pretrained_squeeze() {
         let device = Default::default();
 

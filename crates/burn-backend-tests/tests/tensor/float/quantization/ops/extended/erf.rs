@@ -5,7 +5,7 @@ use burn_tensor::Tolerance;
 
 #[test]
 fn should_support_erf_ops() {
-    let tensor = QTensor::<TestBackend, 2>::int8([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
+    let tensor = QTensor::<2>::int8([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
 
     let output = tensor.erf();
     let expected = TensorData::from([[0.0000, 0.8427, 0.9953], [1.0000, 1.0000, 1.0000]]);
@@ -18,7 +18,7 @@ fn should_support_erf_ops() {
 
 #[test]
 fn should_support_erf_ops_with_negative_number() {
-    let tensor = QTensor::<TestBackend, 2>::int8([[-0.056, -0.043, -0.089], [3.0, 4.0, 5.0]]);
+    let tensor = QTensor::<2>::int8([[-0.056, -0.043, -0.089], [3.0, 4.0, 5.0]]);
 
     let output = tensor.erf();
     let expected = TensorData::from([

@@ -5,8 +5,8 @@ use burn_tensor::{ElementConversion, Tolerance, backend::Backend};
 #[test]
 fn test_float_matmul_d2() {
     let device = Default::default();
-    let tensor_1 = TestTensor::<2>::from_floats([[1.0, 7.0], [2.0, 3.0], [1.0, 5.0]], &device);
-    let tensor_2 = TestTensor::from_floats([[4.0, 7.0, 5.0], [2.0, 3.0, 5.0]], &device);
+    let tensor_1 = TestTensor::<2>::from_data([[1.0, 7.0], [2.0, 3.0], [1.0, 5.0]], &device);
+    let tensor_2 = TestTensor::from_data([[4.0, 7.0, 5.0], [2.0, 3.0, 5.0]], &device);
 
     let tensor_3 = tensor_1.matmul(tensor_2);
     let expected = TensorData::from([[18.0, 28.0, 40.0], [14.0, 23.0, 25.0], [14.0, 22.0, 30.0]]);
@@ -17,8 +17,8 @@ fn test_float_matmul_d2() {
 #[test]
 fn test_float_matmul_d3() {
     let device = Default::default();
-    let tensor_1 = TestTensor::<3>::from_floats([[[1.0, 7.0], [2.0, 3.0]]], &device);
-    let tensor_2 = TestTensor::from_floats([[[4.0, 7.0], [2.0, 3.0]]], &device);
+    let tensor_1 = TestTensor::<3>::from_data([[[1.0, 7.0], [2.0, 3.0]]], &device);
+    let tensor_2 = TestTensor::from_data([[[4.0, 7.0], [2.0, 3.0]]], &device);
 
     let tensor_3 = tensor_1.matmul(tensor_2);
     let expected = TensorData::from([[[18.0, 28.0], [14.0, 23.0]]]);
@@ -29,8 +29,8 @@ fn test_float_matmul_d3() {
 #[test]
 fn test_float_matmul_broadcast_1() {
     let device = Default::default();
-    let tensor_1 = TestTensor::<3>::from_floats([[[1.0, 7.0], [2.0, 3.0]]], &device);
-    let tensor_2 = TestTensor::from_floats(
+    let tensor_1 = TestTensor::<3>::from_data([[[1.0, 7.0], [2.0, 3.0]]], &device);
+    let tensor_2 = TestTensor::from_data(
         [[[4.0, 7.0], [2.0, 3.0]], [[2.0, 5.0], [6.0, 3.0]]],
         &device,
     );
@@ -45,12 +45,12 @@ fn test_float_matmul_broadcast_1() {
 fn test_float_matmul_broadcast_4d() {
     let device = Default::default();
     // [2, 1, 2, 2]
-    let tensor_1 = TestTensor::<4>::from_floats(
+    let tensor_1 = TestTensor::<4>::from_data(
         [[[[1.0, 7.0], [2.0, 3.0]]], [[[2.0, 5.0], [6.0, 3.0]]]],
         &device,
     );
     // [1, 2, 2, 2]
-    let tensor_2 = TestTensor::from_floats(
+    let tensor_2 = TestTensor::from_data(
         [[[[9.0, 8.0], [1.0, 4.0]], [[2.0, 7.0], [3.0, 5.0]]]],
         &device,
     );
@@ -68,8 +68,8 @@ fn test_float_matmul_broadcast_4d() {
 #[test]
 fn test_float_matmul_simple_1() {
     let device = Default::default();
-    let tensor_1 = TestTensor::<2>::from_floats([[5.0, 14.0], [14.0, 50.0]], &device);
-    let tensor_2 = TestTensor::from_floats([[3.0, 4.0, 5.0], [0.0, 1.0, 2.0]], &device);
+    let tensor_1 = TestTensor::<2>::from_data([[5.0, 14.0], [14.0, 50.0]], &device);
+    let tensor_2 = TestTensor::from_data([[3.0, 4.0, 5.0], [0.0, 1.0, 2.0]], &device);
 
     let tensor_3 = tensor_1.matmul(tensor_2);
     let expected = TensorData::from([[15.0, 34.0, 53.0], [42.0, 106.0, 170.0]]);
@@ -80,11 +80,11 @@ fn test_float_matmul_simple_1() {
 #[test]
 fn test_float_matmul_4_3() {
     let device = Default::default();
-    let tensor_1 = TestTensor::<2>::from_floats(
+    let tensor_1 = TestTensor::<2>::from_data(
         [[0., 1., 2., 3.], [4., 5., 6., 7.], [8., 9., 10., 11.]],
         &device,
     );
-    let tensor_2 = TestTensor::from_floats(
+    let tensor_2 = TestTensor::from_data(
         [[0., 1., 2.], [4., 5., 6.], [8., 9., 10.], [12., 13., 14.]],
         &device,
     );
@@ -100,11 +100,10 @@ fn test_float_matmul_batch_vec_mat() {
     let device = Default::default();
 
     // [..., B, 1, K] = [3, 1, 2]
-    let tensor_1 =
-        TestTensor::<3>::from_floats([[[1.0, 7.0]], [[2.0, 3.0]], [[1.0, 5.0]]], &device);
+    let tensor_1 = TestTensor::<3>::from_data([[[1.0, 7.0]], [[2.0, 3.0]], [[1.0, 5.0]]], &device);
 
     // [..., 1, K, N] = [1, 2, 3]
-    let tensor_2 = TestTensor::<3>::from_floats([[[4.0, 7.0, 5.0], [2.0, 3.0, 5.0]]], &device);
+    let tensor_2 = TestTensor::<3>::from_data([[[4.0, 7.0, 5.0], [2.0, 3.0, 5.0]]], &device);
 
     let tensor_3 = tensor_1.matmul(tensor_2);
 
@@ -112,6 +111,35 @@ fn test_float_matmul_batch_vec_mat() {
     let expected = TensorData::from([
         [[18.0, 28.0, 40.0]],
         [[14.0, 23.0, 25.0]],
+        [[14.0, 22.0, 30.0]],
+    ]);
+
+    tensor_3.into_data().assert_eq(&expected, false);
+}
+
+#[test]
+fn test_float_matmul_vecmat() {
+    let device = Default::default();
+
+    // [..., B, 1, K] = [3, 1, 2]
+    let tensor_1 = TestTensor::<3>::from_data([[[1.0, 7.0]], [[2.0, 3.0]], [[1.0, 5.0]]], &device);
+
+    // [..., B, K, N] = [3, 2, 3]
+    let tensor_2 = TestTensor::<3>::from_data(
+        [
+            [[1.0, 4.0, 5.0], [3.0, 5.0, 6.0]],
+            [[8.0, 2.0, 3.0], [0.0, 2.0, 4.0]],
+            [[4.0, 7.0, 5.0], [2.0, 3.0, 5.0]],
+        ],
+        &device,
+    );
+
+    let tensor_3 = tensor_1.matmul(tensor_2);
+
+    // [..., B, 1, N] = [3, 1, 3]
+    let expected = TensorData::from([
+        [[22.0, 39.0, 47.0]],
+        [[16.0, 10.0, 18.0]],
         [[14.0, 22.0, 30.0]],
     ]);
 
@@ -221,8 +249,8 @@ fn test_float_matmul_4_8() {
 #[test]
 fn test_float_matmul_simple_2() {
     let device = Default::default();
-    let tensor_1 = TestTensor::<2>::from_floats([[1.0, 2.0, 3.0, 4.0]], &device);
-    let tensor_2 = TestTensor::from_floats([[3.0], [4.0], [5.0], [6.0]], &device);
+    let tensor_1 = TestTensor::<2>::from_data([[1.0, 2.0, 3.0, 4.0]], &device);
+    let tensor_2 = TestTensor::from_data([[3.0], [4.0], [5.0], [6.0]], &device);
 
     let tensor_3 = tensor_1.matmul(tensor_2);
     let expected = TensorData::from([[50.0]]);
@@ -233,11 +261,11 @@ fn test_float_matmul_simple_2() {
 #[test]
 fn test_float_matmul_simple_3() {
     let device = Default::default();
-    let tensor_1 = TestTensor::<2>::from_floats(
+    let tensor_1 = TestTensor::<2>::from_data(
         [[3., 3., 3.], [4., 4., 4.], [5., 5., 5.], [6., 6., 6.]],
         &device,
     );
-    let tensor_2 = TestTensor::from_floats(
+    let tensor_2 = TestTensor::from_data(
         [[1., 2., 3., 4.], [1., 2., 3., 4.], [1., 2., 3., 4.]],
         &device,
     );
@@ -257,8 +285,8 @@ fn test_float_matmul_simple_3() {
 #[should_panic]
 fn float_should_panic_when_inner_dimensions_are_not_equal() {
     let device = Default::default();
-    let tensor_1 = TestTensor::<2>::from_floats([[3., 3.], [4., 4.], [5., 5.], [6., 6.]], &device);
-    let tensor_2 = TestTensor::from_floats(
+    let tensor_1 = TestTensor::<2>::from_data([[3., 3.], [4., 4.], [5., 5.], [6., 6.]], &device);
+    let tensor_2 = TestTensor::from_data(
         [[1., 2., 3., 4.], [1., 2., 3., 4.], [1., 2., 3., 4.]],
         &device,
     );

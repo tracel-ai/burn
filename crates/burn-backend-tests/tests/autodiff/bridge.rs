@@ -1,13 +1,11 @@
 use super::*;
-use burn_tensor::{DType, Distribution, Tensor};
+use burn_tensor::{DType, Distribution};
 
 #[test]
 fn test_full_precision() {
-    let device = Default::default();
-    let x1 = Tensor::<TestAutodiffBackend, 2>::random([32, 32], Distribution::Default, &device)
-        .require_grad();
-    let x2 = Tensor::<TestAutodiffBackend, 2>::random([32, 32], Distribution::Default, &device)
-        .require_grad();
+    let device = AutodiffDevice::new();
+    let x1 = TestTensor::<2>::random([32, 32], Distribution::Default, &device).require_grad();
+    let x2 = TestTensor::<2>::random([32, 32], Distribution::Default, &device).require_grad();
     let dtype = x1.dtype();
 
     let x3 = x1.clone().cast(DType::F32);

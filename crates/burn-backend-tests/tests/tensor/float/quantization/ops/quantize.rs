@@ -1,11 +1,11 @@
 use super::*;
 use alloc::{vec, vec::Vec};
+use burn_tensor::Tolerance;
 use burn_tensor::quantization::{
-    QParams, QTensorPrimitive, QuantLevel, QuantScheme, QuantStore, QuantValue,
-    QuantizationParameters, QuantizedBytes,
+    QParams, QuantLevel, QuantScheme, QuantStore, QuantValue, QuantizationParameters,
+    QuantizedBytes,
 };
 use burn_tensor::{DType, Element, TensorData};
-use burn_tensor::{Tolerance, ops::QuantizedTensor};
 
 fn get_q_params(data: TensorData) -> QParams<Vec<f32>> {
     let num_elements = data.num_elements();
@@ -29,10 +29,10 @@ fn should_support_quantize_symmetric_int8() {
         return;
     }
     let device = Default::default();
-    let tensor = TestTensor::<1>::from_floats([-1.8, -1.0, 0.0, 0.5], &device);
-    let scheme = QuantizedTensor::<TestBackend>::default_scheme().with_value(QuantValue::Q8S);
+    let tensor = TestTensor::<1>::from_data([-1.8, -1.0, 0.0, 0.5], &device);
+    let scheme = TestBackend::default_quant_scheme(&device).with_value(QuantValue::Q8S);
     let qparams = QuantizationParameters {
-        scales: TestTensor::from_floats([0.014_173_228], &device),
+        scales: TestTensor::from_data([0.014_173_228], &device),
     };
 
     let x_q = tensor.clone().quantize(&scheme, qparams);
@@ -67,8 +67,8 @@ fn should_support_quantize_dynamic_int8() {
     let device = Default::default();
     // NOTE: we use fully representable values since different backend implementations could differ slightly
     // due to rounding discrepancies
-    let tensor = TestTensor::<1>::from_floats([5., 0., 4., -12.7], &device);
-    let scheme = QuantizedTensor::<TestBackend>::default_scheme().with_value(QuantValue::Q8S);
+    let tensor = TestTensor::<1>::from_data([5., 0., 4., -12.7], &device);
+    let scheme = TestBackend::default_quant_scheme(&device).with_value(QuantValue::Q8S);
 
     let x_q = tensor.quantize_dynamic(&scheme);
 
@@ -84,8 +84,9 @@ fn should_support_quantize_dynamic_int8() {
 
 #[test]
 fn should_quantize_dequantize_symmetric_single_with_transform() {
-    let scheme = QuantizedTensor::<TestBackend>::default_scheme().with_value(QuantValue::Q8S);
-    let input = TestTensorInt::<1>::arange(0..32, &Default::default()).float();
+    let device = Default::default();
+    let scheme = TestBackend::default_quant_scheme(&device).with_value(QuantValue::Q8S);
+    let input = TestTensorInt::<1>::arange(0..32, &device).float();
 
     let quant = input.quantize_dynamic(&scheme);
     let result = quant * 10;
@@ -102,9 +103,10 @@ fn should_quantize_dequantize_symmetric_single_with_transform() {
 
 #[test]
 fn should_quantize_dequantize_symmetric_arange_16x16() {
-    let scheme = QuantizedTensor::<TestBackend>::default_scheme().with_value(QuantValue::Q8S);
+    let device = Default::default();
+    let scheme = TestBackend::default_quant_scheme(&device).with_value(QuantValue::Q8S);
 
-    let input: TestTensor<2> = TestTensorInt::arange(0..256, &Default::default())
+    let input: TestTensor<2> = TestTensorInt::arange(0..256, &device)
         .float()
         .div_scalar(256.)
         .reshape([16, 16]);
@@ -120,11 +122,12 @@ fn should_quantize_dequantize_symmetric_arange_16x16() {
 
 #[test]
 fn should_quantize_dequantize_symmetric_per_block_arange_16x16() {
-    let scheme = QuantizedTensor::<TestBackend>::default_scheme()
+    let device = Default::default();
+    let scheme = TestBackend::default_quant_scheme(&device)
         .with_value(QuantValue::Q8S)
         .with_level(QuantLevel::block([2, 16]));
 
-    let input: TestTensor<2> = TestTensorInt::arange(0..256, &Default::default())
+    let input: TestTensor<2> = TestTensorInt::arange(0..256, &device)
         .float()
         .div_scalar(256.)
         .reshape([16, 16]);
@@ -151,9 +154,10 @@ fn should_quantize_transposed<const D: usize>(tensor: Tensor<TestBackend, D>, sc
 
 #[test]
 fn should_quantize_symmetric_int8_transposed_8x32() {
-    let scheme = QuantizedTensor::<TestBackend>::default_scheme().with_value(QuantValue::Q8S);
+    let device = Default::default();
+    let scheme = TestBackend::default_quant_scheme(&device).with_value(QuantValue::Q8S);
 
-    let tensor = TestTensorInt::arange(0..256, &Default::default())
+    let tensor = TestTensorInt::arange(0..256, &device)
         .float()
         .div_scalar(256.)
         .reshape([8, 32]);
@@ -162,9 +166,10 @@ fn should_quantize_symmetric_int8_transposed_8x32() {
 
 #[test]
 fn should_quantize_symmetric_int8_transposed_48x64() {
-    let scheme = QuantizedTensor::<TestBackend>::default_scheme().with_value(QuantValue::Q8S);
+    let device = Default::default();
+    let scheme = TestBackend::default_quant_scheme(&device).with_value(QuantValue::Q8S);
 
-    let tensor = TestTensorInt::arange(0..3072, &Default::default())
+    let tensor = TestTensorInt::arange(0..3072, &device)
         .float()
         .div_scalar(3072.)
         .reshape([48, 64]);
@@ -173,11 +178,12 @@ fn should_quantize_symmetric_int8_transposed_48x64() {
 
 #[test]
 fn should_quantize_symmetric_per_block_int8_transposed_32x64() {
-    let scheme = QuantizedTensor::<TestBackend>::default_scheme()
+    let device = Default::default();
+    let scheme = TestBackend::default_quant_scheme(&device)
         .with_value(QuantValue::Q8S)
         .with_level(QuantLevel::block([32]));
 
-    let tensor = TestTensorInt::arange(0..2048, &Default::default())
+    let tensor = TestTensorInt::arange(0..2048, &device)
         .float()
         .div_scalar(2048.)
         .reshape([32, 64]);
@@ -186,9 +192,10 @@ fn should_quantize_symmetric_per_block_int8_transposed_32x64() {
 
 #[test]
 fn should_quantize_symmetric_int8_permuted_batch_dims() {
-    let scheme = QuantizedTensor::<TestBackend>::default_scheme().with_value(QuantValue::Q8S);
+    let device = Default::default();
+    let scheme = TestBackend::default_quant_scheme(&device).with_value(QuantValue::Q8S);
 
-    let tensor = TestTensorInt::arange(0..2048, &Default::default())
+    let tensor = TestTensorInt::arange(0..2048, &device)
         .float()
         .div_scalar(2048.)
         .reshape([2, 4, 8, 32]);

@@ -9,7 +9,7 @@ use burn_backend::{
     },
     tensor::{FloatTensor, IntTensor, QuantizedTensor},
 };
-use burn_std::IntDType;
+use burn_std::{FloatDType, IntDType};
 
 use crate::{
     FloatNdArrayElement, NdArray, NdArrayDevice, NdArrayQTensor, NdArrayTensor, SharedArray,
@@ -174,14 +174,14 @@ where
         }
     }
 
-    fn dequantize(tensor: QuantizedTensor<Self>) -> FloatTensor<Self> {
+    fn dequantize(tensor: QuantizedTensor<Self>, dtype: FloatDType) -> FloatTensor<Self> {
         let strategy = tensor.strategy();
         let scheme = tensor.scheme;
         let shape = tensor.shape();
         let data = match tensor.qtensor {
             NdArrayTensor::I8(storage) => {
                 let data = storage.into_shared().into_iter().collect();
-                dequantize(data, shape, scheme, &strategy)
+                dequantize(data, shape, scheme, &strategy, dtype.into())
             }
             _ => unreachable!(),
         };
@@ -339,6 +339,7 @@ fn dequantize<Q: QuantElement>(
     shape: Shape,
     scheme: QuantScheme,
     strategy: &QuantizationStrategy,
+    dtype: DType,
 ) -> TensorData {
     let qparams = match strategy {
         QuantizationStrategy::PerTensorSymmetric(quant) => vec![quant.scale],
@@ -348,5 +349,5 @@ fn dequantize<Q: QuantElement>(
     };
     let q_bytes = QuantizedBytes::new(data, scheme, &qparams);
     let (values, _qparams) = q_bytes.into_vec_i8();
-    TensorData::new(strategy.dequantize(&values), shape)
+    TensorData::new(strategy.dequantize(&values), shape).convert_dtype(dtype)
 }

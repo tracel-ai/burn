@@ -64,7 +64,7 @@ fn test_1d_nearest() {
     let device = Default::default();
 
     // Run the model
-    let input = TestTensor::<3>::from_floats(
+    let input = TestTensor::<3>::from_data(
         [[[1.5410, -0.2934, -2.1788, 0.5684, -1.0845, -1.3986]]],
         &device,
     );

@@ -13,8 +13,8 @@ fn test_max_pool2d_simple_1() {
     let dilation_1 = 1;
     let dilation_2 = 1;
 
-    let device = Default::default();
-    let x = TestAutodiffTensor::from_floats(
+    let device = AutodiffDevice::new();
+    let x = TestTensor::from_data(
         [[[
             [0.2479, 0.6386, 0.3166, 0.5742],
             [0.7065, 0.1940, 0.6305, 0.8959],
@@ -24,7 +24,7 @@ fn test_max_pool2d_simple_1() {
         &device,
     )
     .require_grad();
-    let x_grad_expected = TestAutodiffTensor::<4>::from_floats(
+    let x_grad_expected = TestTensor::<4>::from_data(
         [[[
             [0.0, 0.0, 0.0, 0.0],
             [0.0, 0.0, 0.0, 2.0],
@@ -62,8 +62,8 @@ fn test_max_pool2d_simple_2() {
     let dilation_1 = 1;
     let dilation_2 = 1;
 
-    let device = Default::default();
-    let x = TestAutodiffTensor::from_floats(
+    let device = AutodiffDevice::new();
+    let x = TestTensor::from_data(
         [[[
             [0.2479, 0.6386, 0.3166, 0.5742],
             [0.7065, 0.1940, 0.6305, 0.8959],
@@ -73,7 +73,7 @@ fn test_max_pool2d_simple_2() {
         &device,
     )
     .require_grad();
-    let x_grad_expected = TestAutodiffTensor::<4>::from_floats(
+    let x_grad_expected = TestTensor::<4>::from_data(
         [[[
             [1., 3., 0., 2.],
             [3., 0., 0., 4.],
@@ -111,8 +111,8 @@ fn test_max_pool2d_with_dilation() {
     let dilation_1 = 2;
     let dilation_2 = 2;
 
-    let device = Default::default();
-    let x = TestAutodiffTensor::from_floats(
+    let device = AutodiffDevice::new();
+    let x = TestTensor::from_data(
         [[[
             [0.2479, 0.6386, 0.3166, 0.5742],
             [0.7065, 0.1940, 0.6305, 0.8959],
@@ -122,7 +122,7 @@ fn test_max_pool2d_with_dilation() {
         &device,
     )
     .require_grad();
-    let x_grad_expected = TestAutodiffTensor::<4>::from_floats(
+    let x_grad_expected = TestTensor::<4>::from_data(
         [[[
             [0., 0., 0., 0.],
             [1., 1., 1., 2.],
@@ -160,8 +160,8 @@ fn test_max_pool2d_complex() {
     let dilation_1 = 1;
     let dilation_2 = 1;
 
-    let device = Default::default();
-    let x = TestAutodiffTensor::from_floats(
+    let device = AutodiffDevice::new();
+    let x = TestTensor::from_data(
         [[[
             [0.5388, 0.0676, 0.7122, 0.8316, 0.0653],
             [0.9154, 0.1536, 0.9089, 0.8016, 0.7518],
@@ -172,7 +172,7 @@ fn test_max_pool2d_complex() {
         &device,
     )
     .require_grad();
-    let x_grad_expected = TestAutodiffTensor::<4>::from_floats(
+    let x_grad_expected = TestTensor::<4>::from_data(
         [[[
             [0., 0., 0., 3., 0.],
             [4., 0., 2., 1., 0.],
@@ -215,9 +215,9 @@ fn test_max_pool2d_ceil_mode() {
     let dilation_1 = 1;
     let dilation_2 = 1;
 
-    let device = Default::default();
+    let device = AutodiffDevice::new();
     // Input (values 1-36):
-    let x = TestAutodiffTensor::from_floats(
+    let x = TestTensor::from_data(
         [[[
             [1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
             [7.0, 8.0, 9.0, 10.0, 11.0, 12.0],
@@ -241,7 +241,7 @@ fn test_max_pool2d_ceil_mode() {
     // (2,0): max at (5,2)=33 -> grad[5,2] += 1
     // (2,1): max at (5,4)=35 -> grad[5,4] += 1
     // (2,2): max at (5,5)=36 -> grad[5,5] += 1
-    let x_grad_expected = TestAutodiffTensor::<4>::from_floats(
+    let x_grad_expected = TestTensor::<4>::from_data(
         [[[
             [0., 0., 0., 0., 0., 0.],
             [0., 0., 0., 0., 0., 0.],

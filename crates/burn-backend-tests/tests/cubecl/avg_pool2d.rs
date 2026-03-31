@@ -1,18 +1,14 @@
 use super::*;
 use burn_tensor::Tolerance;
-use burn_tensor::{
-    Distribution, Tensor, TensorPrimitive, backend::Backend, module, ops::ModuleOps,
-};
+use burn_tensor::{Distribution, TensorPrimitive, backend::Backend, module, ops::ModuleOps};
 
 #[test]
 fn avg_pool2d_should_match_reference_backend() {
-    let tensor = Tensor::<TestBackend, 4>::random(
-        [32, 32, 32, 32],
-        Distribution::Default,
-        &Default::default(),
-    );
-    let tensor_ref =
-        Tensor::<ReferenceBackend, 4>::from_data(tensor.to_data(), &Default::default());
+    let device = Default::default();
+    let ref_device = ReferenceDevice::new();
+
+    let tensor = TestTensor::<4>::random([32, 32, 32, 32], Distribution::Default, &device);
+    let tensor_ref = TestTensor::<4>::from_data(tensor.to_data(), &ref_device);
     let kernel_size = [3, 4];
     let stride = [1, 2];
     let padding = [1, 2];
@@ -43,13 +39,13 @@ fn avg_pool2d_should_match_reference_backend() {
 #[test]
 fn avg_pool2d_backward_should_match_reference_backend() {
     let device = Default::default();
+    let ref_device = ReferenceDevice::new();
 
     TestBackend::seed(&device, 0);
-    ReferenceBackend::seed(&Default::default(), 0);
+    TestBackend::seed(&ref_device, 0);
 
-    let tensor = Tensor::<TestBackend, 4>::random([32, 32, 32, 32], Distribution::Default, &device);
-    let tensor_ref =
-        Tensor::<ReferenceBackend, 4>::from_data(tensor.to_data(), &Default::default());
+    let tensor = TestTensor::<4>::random([32, 32, 32, 32], Distribution::Default, &device);
+    let tensor_ref = TestTensor::<4>::from_data(tensor.to_data(), &ref_device);
     let kernel_size = [3, 3];
     let stride = [1, 1];
     let padding = [1, 1];
@@ -64,13 +60,11 @@ fn avg_pool2d_backward_should_match_reference_backend() {
         false,
     )
     .shape();
-    let grad_output =
-        Tensor::<TestBackend, 4>::random(shape_out, Distribution::Default, &Default::default());
-    let grad_output_ref =
-        Tensor::<ReferenceBackend, 4>::from_data(grad_output.to_data(), &Default::default());
+    let grad_output = TestTensor::<4>::random(shape_out, Distribution::Default, &device);
+    let grad_output_ref = TestTensor::<4>::from_data(grad_output.to_data(), &ref_device);
 
-    let grad: Tensor<TestBackend, 4> =
-        Tensor::from_primitive(TensorPrimitive::Float(TestBackend::avg_pool2d_backward(
+    let grad =
+        TestTensor::<4>::from_primitive(TensorPrimitive::Float(TestBackend::avg_pool2d_backward(
             tensor.into_primitive().tensor(),
             grad_output.into_primitive().tensor(),
             kernel_size,
@@ -79,8 +73,8 @@ fn avg_pool2d_backward_should_match_reference_backend() {
             count_include_pad,
             false,
         )));
-    let grad_ref: Tensor<ReferenceBackend, 4> = Tensor::from_primitive(TensorPrimitive::Float(
-        ReferenceBackend::avg_pool2d_backward(
+    let grad_ref =
+        TestTensor::<4>::from_primitive(TensorPrimitive::Float(TestBackend::avg_pool2d_backward(
             tensor_ref.into_primitive().tensor(),
             grad_output_ref.into_primitive().tensor(),
             kernel_size,
@@ -88,8 +82,7 @@ fn avg_pool2d_backward_should_match_reference_backend() {
             padding,
             count_include_pad,
             false,
-        ),
-    ));
+        )));
 
     grad.into_data()
         .assert_approx_eq::<FloatElem>(&grad_ref.into_data(), Tolerance::default());

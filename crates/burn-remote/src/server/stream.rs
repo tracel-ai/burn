@@ -121,11 +121,11 @@ where
             .unwrap();
     }
 
-    pub async fn supports_dtype(&self, id: ConnectionId, dtype: DType) {
+    pub async fn dtype_usage(&self, id: ConnectionId, dtype: DType) {
         let (callback_sender, callback_rec) = tokio::sync::mpsc::channel(1);
 
         self.compute_sender
-            .send(ProcessorTask::SupportsDType(id, dtype, callback_sender))
+            .send(ProcessorTask::DTypeUsage(id, dtype, callback_sender))
             .await
             .unwrap();
 

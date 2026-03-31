@@ -164,6 +164,12 @@ pub trait Backend:
 
     /// Returns the [DTypeUsageSet] for the given [DType] on the specified device.
     fn dtype_usage(device: &Self::Device, dtype: DType) -> DTypeUsageSet;
+
+    /// Returns the number of devices available on this backend.
+    /// `device` is a reference device used to determine the underlying backend that should be queried.
+    /// A CUDA device will return all devices available to CUDA, a Vulkan device will return all
+    /// devices available to Vulkan, etc.
+    fn device_count(type_id: u16) -> usize;
 }
 
 /// An error that can happen when syncing a device.

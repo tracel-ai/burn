@@ -1,5 +1,5 @@
 use burn_backend::{
-    DType, Element, QTensorPrimitive, Shape, TensorData, TensorMetadata,
+    AllocationProperty, DType, Element, QTensorPrimitive, Shape, TensorData, TensorMetadata,
     quantization::{QParams, QuantLevel, QuantMode, QuantScheme, QuantValue},
 };
 use burn_std::BoolStore;
@@ -704,9 +704,7 @@ impl NdArrayTensor {
         // Only use Borrowed storage for non-native allocations (e.g., burnpack mmap/file).
         // For native Rust heap allocations (the common case), go directly to owned storage:
         // `from_data_owned` reclaims the Vec zero-copy via `into_vec`, while
-        // Borrowed storage would trigger a full memcopy on every single operation
-        // (because `is_unique()` always returns false for Borrowed).
-        use burn_backend::AllocationProperty;
+        // Borrowed storage would trigger a full memcopy on every single operation.
         if data.bytes.property() != AllocationProperty::Native {
             match Self::try_from_data_borrowed(data) {
                 Ok(tensor) => return tensor,
@@ -992,7 +990,7 @@ mod tests {
         let bytes = Bytes::from_elems(data);
         // Tag as Other to simulate burnpack / mmap data (non-native backing storage)
         let non_native_bytes = Bytes::from_shared(
-            bytes::Bytes::copy_from_slice(&*bytes),
+            bytes::Bytes::copy_from_slice(&bytes),
             AllocationProperty::Other,
         );
         let tensor_data = TensorData::from_bytes(non_native_bytes, Shape::new([2, 2]), DType::F32);
@@ -1017,8 +1015,7 @@ mod tests {
 
     #[test]
     fn native_alloc_creates_owned_storage() {
-        // Native heap allocations must use Owned storage so that is_unique()
-        // returns true and ndarray can perform in-place mutations without copying.
+        // Native heap allocations must use Owned storage to avoid the memcpy.
         use burn_std::Bytes;
 
         let data: Vec<f32> = vec![1.0, 2.0, 3.0, 4.0];
@@ -1032,7 +1029,7 @@ mod tests {
                 assert!(
                     !storage.is_borrowed(),
                     "PERF REGRESSION: from_data must NOT create borrowed storage \
-                     for native heap allocations (is_unique() would always be false)"
+                     for native TensorData"
                 );
             }
             _ => panic!("Expected F32 tensor"),

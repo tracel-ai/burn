@@ -1,3 +1,5 @@
+use alloc::boxed::Box;
+
 use burn_backend::{
     Backend, DType, QTensorPrimitive, Shape, TensorMetadata, quantization::QuantScheme,
 };
@@ -204,9 +206,9 @@ pub enum DispatchTensorKind {
     #[cfg(wgpu_vulkan)]
     Vulkan(BackendTensor<Vulkan>),
 
-    /// The [WebGPU backend](WebGpu) tensor.
+    /// The [WebGPU backend](Wgpu) tensor.
     #[cfg(wgpu_webgpu)]
-    WebGpu(BackendTensor<WebGpu>),
+    Wgpu(BackendTensor<Wgpu>),
 
     /// The [NdArray backend](NdArray) tensor.
     #[cfg(feature = "ndarray")]
@@ -235,7 +237,7 @@ impl TensorMetadata for DispatchTensorKind {
             #[cfg(wgpu_vulkan)]
             Self::Vulkan(tensor) => tensor.dtype(),
             #[cfg(wgpu_webgpu)]
-            Self::WebGpu(tensor) => tensor.dtype(),
+            Self::Wgpu(tensor) => tensor.dtype(),
             #[cfg(feature = "ndarray")]
             Self::NdArray(tensor) => tensor.dtype(),
             #[cfg(feature = "tch")]
@@ -258,7 +260,7 @@ impl TensorMetadata for DispatchTensorKind {
             #[cfg(wgpu_vulkan)]
             Self::Vulkan(tensor) => tensor.shape(),
             #[cfg(wgpu_webgpu)]
-            Self::WebGpu(tensor) => tensor.shape(),
+            Self::Wgpu(tensor) => tensor.shape(),
             #[cfg(feature = "ndarray")]
             Self::NdArray(tensor) => tensor.shape(),
             #[cfg(feature = "tch")]
@@ -283,7 +285,7 @@ impl QTensorPrimitive for DispatchTensorKind {
             #[cfg(wgpu_vulkan)]
             Self::Vulkan(tensor) => tensor.scheme(),
             #[cfg(wgpu_webgpu)]
-            Self::WebGpu(tensor) => tensor.scheme(),
+            Self::Wgpu(tensor) => tensor.scheme(),
             #[cfg(feature = "ndarray")]
             Self::NdArray(tensor) => tensor.scheme(),
             #[cfg(feature = "tch")]

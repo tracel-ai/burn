@@ -6,7 +6,7 @@ use burn_backend::{
         quantization::QuantizationParametersPrimitive,
     },
 };
-use burn_std::{IntDType, QuantScheme, Shape};
+use burn_std::{FloatDType, IntDType, QuantScheme, Shape};
 
 use crate::{Autodiff, checkpoint::strategy::CheckpointStrategy};
 
@@ -30,7 +30,7 @@ impl<B: Backend, C: CheckpointStrategy> QTensorOps<Self> for Autodiff<B, C> {
         todo!()
     }
 
-    fn dequantize(_tensor: QuantizedTensor<Self>) -> FloatTensor<Self> {
+    fn dequantize(_tensor: QuantizedTensor<Self>, _dtype: FloatDType) -> FloatTensor<Self> {
         todo!()
     }
 

@@ -1,14 +1,14 @@
 use super::*;
 use burn_tensor::Tolerance;
-use burn_tensor::{Tensor, TensorData, activation};
+use burn_tensor::{TensorData, activation};
 
 #[test]
 fn test_softmax_grad() {
     let data_1 = TensorData::from([[0.0, 1.0], [3.0, 4.0]]);
     let data_2 = TensorData::from([[6.0, 7.0], [9.0, 10.0]]);
-    let device = Default::default();
-    let tensor_1 = Tensor::<TestAutodiffBackend, 2>::from_data(data_1, &device).require_grad();
-    let tensor_2 = Tensor::<TestAutodiffBackend, 2>::from_data(data_2, &device).require_grad();
+    let device = AutodiffDevice::new();
+    let tensor_1 = TestTensor::<2>::from_data(data_1, &device).require_grad();
+    let tensor_2 = TestTensor::<2>::from_data(data_2, &device).require_grad();
 
     let tensor_3 = tensor_1.clone().matmul(tensor_2.clone());
     let tensor_4 = activation::softmax(tensor_3, 1).matmul(tensor_2.clone());
@@ -33,9 +33,9 @@ fn test_softmax_grad() {
 fn test_log_softmax_grad() {
     let data_1 = TensorData::from([[0.0, 1.0], [3.0, 4.0]]);
     let data_2 = TensorData::from([[6.0, 7.0], [9.0, 10.0]]);
-    let device = Default::default();
-    let tensor_1 = Tensor::<TestAutodiffBackend, 2>::from_data(data_1, &device).require_grad();
-    let tensor_2 = Tensor::<TestAutodiffBackend, 2>::from_data(data_2, &device).require_grad();
+    let device = AutodiffDevice::new();
+    let tensor_1 = TestTensor::<2>::from_data(data_1, &device).require_grad();
+    let tensor_2 = TestTensor::<2>::from_data(data_2, &device).require_grad();
 
     let tensor_3 = tensor_1.clone().matmul(tensor_2.clone());
     let tensor_4 = activation::log_softmax(tensor_3, 1).matmul(tensor_2.clone());
@@ -64,9 +64,9 @@ fn test_quiet_softmax_grad() {
     let data_1 = TensorData::from([[0.0, 1.0], [3.0, 4.0]]);
     let data_2 = TensorData::from([[6.0, 7.0], [9.0, 10.0]]);
 
-    let device = Default::default();
-    let tensor_1 = Tensor::<TestAutodiffBackend, 2>::from_data(data_1, &device).require_grad();
-    let tensor_2 = Tensor::<TestAutodiffBackend, 2>::from_data(data_2, &device).require_grad();
+    let device = AutodiffDevice::new();
+    let tensor_1 = TestTensor::<2>::from_data(data_1, &device).require_grad();
+    let tensor_2 = TestTensor::<2>::from_data(data_2, &device).require_grad();
 
     let tensor_3 = tensor_1.clone().matmul(tensor_2.clone());
     let tensor_4 = activation::softmax(tensor_3, 1).matmul(tensor_2.clone());

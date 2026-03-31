@@ -885,7 +885,12 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                 NumericOperationIr::IntRandom(desc) => {
                     let shape = desc.out.shape.clone();
 
-                    let output = B::int_random(shape, desc.distribution, &self.device);
+                    let output = B::int_random(
+                        shape,
+                        desc.distribution,
+                        &self.device,
+                        desc.out.dtype.into(),
+                    );
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
                 NumericOperationIr::Powi(desc) => {
@@ -1060,7 +1065,12 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                 FloatOperationIr::Random(desc) => {
                     let shape = desc.out.shape.clone();
 
-                    let output = B::float_random(shape, desc.distribution, &self.device);
+                    let output = B::float_random(
+                        shape,
+                        desc.distribution,
+                        &self.device,
+                        desc.out.dtype.into(),
+                    );
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
                 FloatOperationIr::Recip(desc) => {

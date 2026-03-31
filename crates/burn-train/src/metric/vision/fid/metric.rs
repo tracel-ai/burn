@@ -339,6 +339,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "downloads pre-trained weights"]
     fn test_fid_pretrained_features() {
         let device = Default::default();
         let fid: Fid<TestBackend> = FidConfig::new().init_pretrained(&device);

@@ -12,6 +12,7 @@ use crate::tensor::{Distribution, TensorData};
 use crate::{Bool, Int, TensorPrimitive};
 use burn_backend::ElementConversion;
 use burn_backend::Scalar;
+use burn_backend::TensorMetadata;
 use burn_backend::get_device_settings;
 use burn_backend::tensor::quantization::QuantizationParametersPrimitive;
 use core::f32;
@@ -465,8 +466,8 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
             self.shape(),
             distribution,
             &self.device(),
+            self.dtype().into(),
         )))
-        .cast(self.dtype())
     }
 
     /// Calculate the variance along the given dimension.
@@ -1043,10 +1044,12 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
             }
             (TensorPrimitive::QFloat(lhs), TensorPrimitive::QFloat(rhs)) => B::q_powf(lhs, rhs),
             (TensorPrimitive::QFloat(lhs), TensorPrimitive::Float(rhs)) => {
-                TensorPrimitive::Float(B::float_powf(B::dequantize(lhs), rhs))
+                let dtype = rhs.dtype();
+                TensorPrimitive::Float(B::float_powf(B::dequantize(lhs, dtype.into()), rhs))
             }
             (TensorPrimitive::Float(lhs), TensorPrimitive::QFloat(rhs)) => {
-                TensorPrimitive::Float(B::float_powf(lhs, B::dequantize(rhs)))
+                let dtype = lhs.dtype();
+                TensorPrimitive::Float(B::float_powf(lhs, B::dequantize(rhs, dtype.into())))
             }
         };
 
@@ -1082,5 +1085,96 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
         };
 
         Tensor::new(primitive)
+    }
+}
+
+impl<const D: usize, B: Backend> Tensor<B, D> {
+    /// Draws samples from a categorical distribution defined by the last dimension
+    /// of the input tensor.
+    ///
+    /// The last dimension is treated as a (possibly unnormalized) set of weights
+    /// defining a categorical distribution over categories. All leading dimensions
+    /// are treated as batch dimensions. The method returns integer indices of the
+    /// sampled categories.
+    ///
+    /// # Arguments
+    ///
+    /// * `num_samples` - Number of samples to draw per distribution. Must be >= 1.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `num_samples` is 0.
+    ///
+    /// # Note
+    ///
+    /// Distributions with all-zero weights produce undefined (NaN-based) sampling
+    /// results. Callers should ensure each distribution has at least one positive
+    /// weight.
+    ///
+    /// # Returns
+    ///
+    /// An integer tensor with the same shape as the input, except the last dimension
+    /// is replaced by `num_samples`, containing sampled category indices in
+    /// `[0, num_categories)`.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::Tensor;
+    ///
+    /// fn example<B: Backend>() {
+    ///     let device = B::Device::default();
+    ///     let probs = Tensor::<B, 2>::from_floats(
+    ///         [[0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+    ///         &device,
+    ///     );
+    ///     let samples = probs.categorical(4);
+    ///     // First row always samples index 1, second row always samples index 2
+    ///     println!("{samples}");
+    /// }
+    /// ```
+    pub fn categorical(self, num_samples: usize) -> Tensor<B, D, Int> {
+        assert!(num_samples > 0, "categorical: num_samples must be >= 1");
+
+        let shape = self.shape();
+        let num_categories = shape[D - 1];
+        let batch_size = (shape.num_elements() / num_categories).max(1);
+        let device = self.device();
+
+        // Flatten leading dimensions into a single batch dimension: [batch, categories]
+        let flat: Tensor<B, 2> = self.reshape([batch_size, num_categories]);
+
+        // Normalize weights to probabilities
+        let sum = flat.clone().sum_dim(1); // [batch, 1]
+        let probs = flat / sum;
+
+        // Cumulative sum along categories dimension
+        let cumsum = probs.cumsum(1); // [batch, categories]
+
+        // Uniform random values for each sample
+        let uniform = Tensor::<B, 2>::random(
+            [batch_size, num_samples],
+            Distribution::Uniform(0.0, 1.0),
+            &device,
+        ); // [batch, num_samples]
+
+        // Expand dimensions for broadcasting:
+        //   cumsum: [batch, categories, 1]
+        //   uniform: [batch, 1, num_samples]
+        let cumsum_3d: Tensor<B, 3> = cumsum.unsqueeze_dim(2);
+        let uniform_3d: Tensor<B, 3> = uniform.unsqueeze_dim(1);
+
+        // Count categories where cumsum < uniform (inverse CDF)
+        let mask: Tensor<B, 3, Bool> = cumsum_3d.lower(uniform_3d);
+        let indices: Tensor<B, 2, Int> = mask.int().sum_dim(1).squeeze_dim::<2>(1);
+
+        // Clamp to valid range to guard against floating-point imprecision in cumsum
+        let indices = indices.clamp(0, num_categories as i64 - 1);
+
+        // Reshape back to [...leading_dims, num_samples]
+        let mut out_shape = shape;
+        out_shape[D - 1] = num_samples;
+        indices.reshape(out_shape)
     }
 }
