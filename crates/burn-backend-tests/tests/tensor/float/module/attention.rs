@@ -337,17 +337,15 @@ fn test_attention_fully_masked_rows_no_nan() {
         &Default::default(),
     );
 
-    // Mask everything: all positions are true (masked)
-    let mask = TestTensor::<4>::ones(
+    let mask = TestTensorBool::<4>::full(
         [num_batches, num_heads, seq_len, seq_len],
+        true,
         &Default::default(),
-    )
-    .greater_elem(0.0);
+    );
 
     let output =
         attention_fallback::<TestBackend>(query, key, value, Some(mask), None, Default::default());
 
-    // Every row is fully masked, so output should be all zeros (not NaN)
     let output_data = output.into_data();
     let values = output_data.as_slice::<FloatElem>().unwrap();
     assert!(
@@ -381,20 +379,18 @@ fn test_attention_fully_masked_rows_causal_no_nan() {
         &Default::default(),
     );
 
-    // Mask everything: all positions are true (masked)
-    let mask = TestTensor::<4>::ones(
+    let mask = TestTensorBool::<4>::full(
         [num_batches, num_heads, seq_len, seq_len],
+        true,
         &Default::default(),
-    )
-    .greater_elem(0.0);
+    );
 
     let options = AttentionModuleOptions {
         is_causal: true,
         ..Default::default()
     };
 
-    let output =
-        attention_fallback::<TestBackend>(query, key, value, Some(mask), None, options);
+    let output = attention_fallback::<TestBackend>(query, key, value, Some(mask), None, options);
 
     let output_data = output.into_data();
     let values = output_data.as_slice::<FloatElem>().unwrap();
