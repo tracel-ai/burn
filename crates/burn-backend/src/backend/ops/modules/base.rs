@@ -1056,6 +1056,9 @@ pub trait ModuleOps<B: Backend> {
         attn_bias: Option<FloatTensor<B>>,
         options: AttentionModuleOptions,
     ) -> FloatTensor<B>;
+
+    /// Doc for rfft
+    fn rfft(signal: FloatTensor<B>, dim: usize) -> FloatTensor<B>;
 }
 
 #[cfg(test)]

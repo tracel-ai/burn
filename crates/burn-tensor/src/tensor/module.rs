@@ -553,3 +553,11 @@ pub fn attention_fallback<B: Backend>(
         ),
     ))
 }
+
+/// TODO
+pub fn rfft<B: Backend, const D: usize>(signal: Tensor<B, D>, dim: usize) -> Tensor<B, D> {
+    Tensor::new(TensorPrimitive::Float(B::rfft(
+        signal.primitive.tensor(),
+        dim,
+    )))
+}

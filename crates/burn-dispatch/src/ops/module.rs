@@ -625,4 +625,8 @@ impl ModuleOps<Self> for Dispatch {
             B::attention(query, key, value, mask, attn_bias, options)
         )
     }
+
+    fn rfft(_signal: FloatTensor<Self>, _dim: usize) -> FloatTensor<Self> {
+        todo!("Unsupported operation")
+    }
 }

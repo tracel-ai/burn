@@ -1749,6 +1749,10 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
     ) -> FloatTensor<Autodiff<B, C>> {
         attention_fallback::<Self>(query, key, value, mask, attn_bias, options)
     }
+
+    fn rfft(_signal: FloatTensor<Autodiff<B, C>>, _dim: usize) -> FloatTensor<Autodiff<B, C>> {
+        todo!("Unsupported operation")
+    }
 }
 
 #[derive(Debug)]

@@ -71,6 +71,7 @@ cubek = { workspace = true, features = [
     "random",
     "quantization",
     "stdlib",
+    "fft",
 ] }
 tracing = { workspace = true, features = ["attributes"], optional = true }
 
