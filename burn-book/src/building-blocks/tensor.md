@@ -171,6 +171,12 @@ Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 | `tensor.roll(shifts, dims)`                          | `tensor.roll(shifts, dims)`                                               |
 | `tensor.roll_dim(shift, dim)`                        | `tensor.roll([shift], [dim])`                                             |
 | `tensor.scatter(dim, indices, values, update)`       | `tensor.scatter_add(dim, indices, values)`                                |
+| `tensor.scatter_nd(indices, values)`                 | `tensor.scatter_(0, indices, values)` (flattened)                         |
+| `tensor.scatter_nd_add(indices, values)`             | `tensor.scatter_add(0, indices, values)` (flattened)                      |
+| `tensor.scatter_nd_mul(indices, values)`             | `tensor.scatter_reduce(0, indices, values, "prod")` (flattened) [^1]      |
+| `tensor.scatter_nd_min(indices, values)`             | `tensor.scatter_reduce(0, indices, values, "amin")` (flattened) [^1]      |
+| `tensor.scatter_nd_max(indices, values)`             | `tensor.scatter_reduce(0, indices, values, "amax")` (flattened) [^1]      |
+| `tensor.gather_nd(indices)`                          | N/A (flatten + `index_select`)                                            |
 | `tensor.select(dim, indices)`                        | `tensor.index_select(dim, indices)`                                       |
 | `tensor.select_assign(dim, indices, values, update)` | `tensor.index_add(dim, indices, values)`                                  |
 | `tensor.shape()`                                     | `tensor.shape`                                                            |
@@ -194,6 +200,9 @@ Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 | `Tensor::full(shape, fill_value, options)`           | `torch.full(shape, fill_value, device=device, dtype=dtype)`               |
 | `Tensor::ones(shape, options)`                       | `torch.ones(shape, device=device, dtype=dtype)`                           |
 | `Tensor::zeros(shape, options)`                      | `torch.zeros(shape, device=device, dtype=dtype)`                          |
+
+[^1]: Forward pass only. Autodiff is supported for `scatter_nd` (assign) and `scatter_nd_add`;
+mul/min/max reductions do not support backward.
 
 ### Numeric Operations
 
