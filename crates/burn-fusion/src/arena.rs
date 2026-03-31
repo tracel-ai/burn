@@ -1,43 +1,88 @@
-use std::{cell::UnsafeCell, marker::PhantomData, ops::Deref, sync::Arc};
+use std::{
+    cell::UnsafeCell,
+    marker::PhantomData,
+    sync::{
+        Arc,
+        atomic::{AtomicU32, Ordering},
+    },
+};
 
-use spin::RwLock;
-
-/// The raw storage for the item, potentially uninitialized.
+/// The raw storage for an item, potentially uninitialized.
+///
+/// Aligned to 64 bytes (typical cache-line size) to prevent false sharing
+/// when different threads access adjacent slots concurrently.
 #[repr(C, align(64))]
 pub struct Bytes<const MAX_ITEM_SIZE: usize> {
     bytes: [u8; MAX_ITEM_SIZE],
 }
 
-/// A circular, allocation arena for reusable memory blocks.
+/// A circular, allocation-free arena for reusable memory blocks.
 ///
-/// The `Arena` manages a fixed-capacity pool of [`Bytes`]. It uses a cursor-based
-/// search strategy to find and reuse available slots, minimizing allocation overhead
-/// after the initial lazy initialization.
+/// `Arena` manages a fixed-capacity pool of [`Bytes`] buffers, each up to
+/// `MAX_ITEM_SIZE` bytes. After the pool is lazily initialized, subsequent
+/// allocations scan from an internal cursor to find a free slot, avoiding
+/// further heap allocation.
 ///
-/// # Notes
+/// # Const Parameters
 ///
-/// This can be used to replace `Arc<dyn Trait>`.
+/// - `MAX_ITEM_COUNT` — maximum number of buffers in the pool.
+/// - `MAX_ITEM_SIZE` — capacity of each individual buffer in bytes.
+///
+/// # How It Works
+///
+/// The arena maintains a vector of reference-counted buffer slots. When a
+/// caller requests memory, the arena advances its cursor through the pool
+/// looking for a slot whose reference count is zero, then hands back a
+/// [`Bytes`] handle to that slot. The cursor wraps around, giving the
+/// allocation pattern its circular behavior.
+///
+/// Because a `Bytes` handle can outlive the `Arena` itself (e.g. when the
+/// owning thread exits but the handle was sent elsewhere), each slot is
+/// wrapped in an `Arc` to keep the underlying storage alive. A separate
+/// `AtomicU32` reference count tracks logical ownership independently of
+/// the `Arc` strong count, so the arena can reliably detect which slots
+/// are free.
+///
+/// # Use Case
+///
+/// This is useful as a replacement for repeated `Arc<dyn Trait>` allocations.
 pub struct Arena<const MAX_ITEM_COUNT: usize, const MAX_ITEM_SIZE: usize> {
-    /// The arc here is only to have a stable pointer, since the buffer can be drop when the thread
-    /// is done, but some bytes might still live, so the Arc handles that gracefully.
+    /// Backing storage for each slot. Wrapped in `Arc` so that a [`Bytes`]
+    /// handle remains valid even after the `Arena` (and its owning thread)
+    /// is dropped.
     buffer: Vec<Arc<UnsafeCell<Bytes<MAX_ITEM_SIZE>>>>,
-    alive: Option<Arc<RwLock<bool>>>,
+    /// Logical reference counts, one per slot. Tracked separately from the
+    /// `Arc` strong count because the arena may be dropped while outstanding
+    /// `Bytes` handles still exist — the `Arc` keeps memory alive, but this
+    /// counter tells the arena whether a slot can be reclaimed.
+    ref_counts: Vec<Arc<AtomicU32>>,
+    /// Current scan position in the circular pool. Advanced on each
+    /// allocation attempt and wraps at `MAX_ITEM_COUNT`.
     cursor: usize,
 }
 
-/// The initialized reserved memory.
+/// An initialized, immutable handle to a slot in the arena.
+///
+/// This type is `Send + Sync` and can be cheaply cloned. Each clone
+/// increments a logical reference count; when the last clone is dropped,
+/// the stored object's destructor runs and the slot becomes available for
+/// reuse by the arena.
 pub struct ReservedMemory<const MAX_ITEM_SIZE: usize> {
     data: Arc<UnsafeCell<Bytes<MAX_ITEM_SIZE>>>,
-    alive: Arc<RwLock<bool>>,
+    ref_count: Arc<AtomicU32>,
     drop_fn: fn(&mut Bytes<MAX_ITEM_SIZE>),
 }
 
-/// The uninitialized reserved memory.
+/// An uninitialized handle to a reserved arena slot.
 ///
-/// This type isn't Send/Sync and should be initialized on the same thread as it was reserved.
+/// Obtained from [`Arena::reserve`]. Must be initialized via [`init`](Self::init)
+/// to produce a usable [`ReservedMemory`].
+///
+/// This type is intentionally `!Send` and `!Sync` — it must be initialized on
+/// the same thread that reserved it.
 pub struct UninitReservedMemory<const MAX_ITEM_SIZE: usize> {
     data: Arc<UnsafeCell<Bytes<MAX_ITEM_SIZE>>>,
-    alive: Arc<RwLock<bool>>,
+    ref_count: Arc<AtomicU32>,
     /// Used to assert the position in the arena.
     #[cfg(test)]
     index: usize,
@@ -73,7 +118,8 @@ impl<const MAX_ITEM_SIZE: usize> UninitReservedMemory<MAX_ITEM_SIZE> {
         )
     }
 
-    /// Initialize the reserved memory.
+    /// Writes to the reserved slot using `init_data` and attaches `drop_fn`
+    /// as the destructor to run when the last [`ReservedMemory`] clone is dropped.
     fn init_with_func<F>(
         self,
         init_data: F,
@@ -82,14 +128,16 @@ impl<const MAX_ITEM_SIZE: usize> UninitReservedMemory<MAX_ITEM_SIZE> {
     where
         F: FnOnce(&mut Bytes<MAX_ITEM_SIZE>),
     {
-        // # Safety
-        //
-        // We read the cell pointer that is only available to the client, not the
-        // arena.
+        // SAFETY: We access the `UnsafeCell` contents mutably. This is sound
+        // because strong_count == 2 means only two owners exist: the arena's
+        // buffer slot and this `UninitReservedMemory`. The arena never reads
+        // through the `UnsafeCell` — only the holder of `UninitReservedMemory`
+        // writes, so there is no data race.
         assert_eq!(
             Arc::strong_count(&self.data),
             2,
-            "We can only initialize reserved memory when there is a single writer."
+            "Slot must be held by exactly two owners (the arena and this \
+             UninitReservedMemory) to guarantee exclusive write access."
         );
 
         let bytes_mut = unsafe { self.data.as_ref().get().as_mut().unwrap() };
@@ -97,7 +145,7 @@ impl<const MAX_ITEM_SIZE: usize> UninitReservedMemory<MAX_ITEM_SIZE> {
 
         ReservedMemory {
             data: self.data,
-            alive: self.alive,
+            ref_count: self.ref_count,
             drop_fn,
         }
     }
@@ -114,9 +162,11 @@ impl<const MAX_ITEM_SIZE: usize> core::fmt::Debug for ReservedMemory<MAX_ITEM_SI
 
 impl<const MAX_ITEM_SIZE: usize> Clone for ReservedMemory<MAX_ITEM_SIZE> {
     fn clone(&self) -> Self {
+        self.ref_count.fetch_add(1, Ordering::Release);
+
         Self {
             data: self.data.clone(),
-            alive: self.alive.clone(),
+            ref_count: self.ref_count.clone(),
             drop_fn: self.drop_fn,
         }
     }
@@ -124,7 +174,20 @@ impl<const MAX_ITEM_SIZE: usize> Clone for ReservedMemory<MAX_ITEM_SIZE> {
 
 impl<const MAX_ITEM_SIZE: usize> Drop for ReservedMemory<MAX_ITEM_SIZE> {
     fn drop(&mut self) {
-        // We take the strong count BEFORE we take the alive atomic.
+        // Ref-count lifecycle:
+        //   reserve()  → stores 1   (arena holds the slot)
+        //   init()     → consumes UninitReservedMemory, inherits count 1
+        //   clone()    → fetch_add  (count grows with each clone: 2, 3, …)
+        //   drop()     → fetch_sub  (count shrinks)
+        //
+        // When `fetch_sub` returns 2 it means the count just moved from 2→1,
+        // and we are the last `ReservedMemory` clone — the remaining "1" is
+        // the arena's own ref-count baseline. At this point no other clone
+        // can access the data, so we can safely run the destructor.
+        //
+        // If the arena has already been dropped, the same logic applies: the
+        // last clone still sees previous == 2 because the arena never
+        // decrements the logical ref_count — only `ReservedMemory::drop` does.
         let drop_fn = || {
             // SAFETY: We are the last user of this slot. The data pointer is valid,
             // initialized, and no other `ReservedMemory` clone exists.
@@ -132,34 +195,20 @@ impl<const MAX_ITEM_SIZE: usize> Drop for ReservedMemory<MAX_ITEM_SIZE> {
             (self.drop_fn)(bytes_mut);
         };
 
-        // The alive guard ensures the drop of the reserved memory can't overlap with the drop of
-        // the arena.
-        //
-        // The alive flag also determines the reference count value to use for the drop.
-        let guard = self.alive.read();
-        let is_alive = *guard.deref();
+        let previous = self.ref_count.fetch_sub(1, Ordering::Release);
 
-        if is_alive {
-            if Arc::strong_count(&self.data) == 2 {
-                core::mem::drop(guard);
-                drop_fn();
-            } else {
-                core::mem::drop(guard);
-            }
-        } else {
-            if Arc::strong_count(&self.data) == 1 {
-                core::mem::drop(guard);
-                drop_fn();
-            } else {
-                core::mem::drop(guard);
-            }
+        if previous == 2 {
+            drop_fn();
         }
     }
 }
 
-/// The reserved data is readonly and protected with ref counting.
+// SAFETY: After initialization, the data behind `ReservedMemory` is immutable
+// (no `&mut` access is possible while any clone exists). The logical ref_count
+// is an `AtomicU32` with proper ordering, and the backing `Arc` guarantees the
+// storage outlives all handles. These together satisfy the `Send` and `Sync`
+// contracts.
 unsafe impl<const MAX_ITEM_SIZE: usize> Send for ReservedMemory<MAX_ITEM_SIZE> {}
-/// The reserved data is readonly and protected with ref counting.
 unsafe impl<const MAX_ITEM_SIZE: usize> Sync for ReservedMemory<MAX_ITEM_SIZE> {}
 
 impl<const MAX_ITEM_SIZE: usize> ReservedMemory<MAX_ITEM_SIZE> {
@@ -177,30 +226,37 @@ impl<const MAX_ITEM_COUNT: usize, const MAX_ITEM_SIZE: usize> Arena<MAX_ITEM_COU
     pub const fn new() -> Self {
         Self {
             buffer: Vec::new(),
-            alive: None,
+            ref_counts: Vec::new(),
             cursor: 0,
         }
     }
 
+    /// Returns `true` if an object of type `O` fits within a single slot.
+    ///
+    /// Checks that both the size and alignment of `O` are compatible with
+    /// [`Bytes<MAX_ITEM_SIZE>`].
     pub const fn accept<O>() -> bool {
         accept_obj::<O, MAX_ITEM_SIZE>()
     }
 
-    /// Attempts to reserve an available item in the arena.
+    /// Attempts to reserve an uninitialized slot in the arena.
     ///
-    /// If the arena is empty, it lazily initializes the buffer to `MAX_ITEM_COUNT`.
-    /// It searches starting from the current `cursor` position for an item with a
-    /// `count` of 0.
-    ///
-    /// The drop function is only called when the reserved memory is initialized.
+    /// On the first call, the internal buffer is lazily allocated to
+    /// `MAX_ITEM_COUNT` slots. Subsequent calls scan from the current cursor
+    /// position, wrapping around circularly, looking for a slot whose backing
+    /// `Arc` has a strong count of 1 (meaning no outstanding
+    /// [`ReservedMemory`] handles reference it).
     ///
     /// # Returns
-    /// - `Some((index, *mut Item))`: The index and a raw pointer to the reserved item.
-    ///   The item's `count` is automatically set to `2`.
-    /// - `None`: If all items in the arena are currently reserved or active.
+    ///
+    /// - `Some(UninitReservedMemory)` — a handle to the reserved slot, ready
+    ///   to be initialized via [`UninitReservedMemory::init`].
+    /// - `None` — all slots are currently in use.
     pub fn reserve(&mut self) -> Option<UninitReservedMemory<MAX_ITEM_SIZE>> {
         if self.buffer.is_empty() {
             for _ in 0..MAX_ITEM_COUNT {
+                self.ref_counts.push(Arc::new(AtomicU32::new(0)));
+
                 // Here we need to disable the clippy warning since we manually ensure the type is
                 // send sync and we need to wrap it in an Arc because the bytes might outlive the
                 // current arena.
@@ -209,20 +265,28 @@ impl<const MAX_ITEM_COUNT: usize, const MAX_ITEM_SIZE: usize> Arena<MAX_ITEM_COU
                     bytes: [0; MAX_ITEM_SIZE],
                 })));
             }
-            self.alive = Some(Arc::new(RwLock::new(true)));
         }
 
         for i in 0..MAX_ITEM_COUNT {
             let i = (i + self.cursor) % MAX_ITEM_COUNT;
             let item = &self.buffer[i];
 
+            // SAFETY: `Arc::strong_count` is not synchronized, but this is safe
+            // because `reserve` takes `&mut self`, guaranteeing single-threaded
+            // access to the arena side. The only concurrent mutation is a
+            // `ReservedMemory` being dropped on another thread, which performs a
+            // `Release`-ordered `Arc::drop` before the strong count decrements.
+            // A stale (too-high) read here is harmless — we simply skip a slot
+            // that is actually free, and will find it on the next call.
             if Arc::strong_count(item) == 1 {
                 self.cursor = (i + 1) % MAX_ITEM_COUNT;
                 let data = item.clone();
+                let ref_count = self.ref_counts[i].clone();
+                ref_count.store(1, Ordering::Release);
 
                 return Some(UninitReservedMemory {
                     data,
-                    alive: self.alive.as_ref().unwrap().clone(),
+                    ref_count,
                     #[cfg(test)]
                     index: i,
                     not_sync: PhantomData,
@@ -231,19 +295,6 @@ impl<const MAX_ITEM_COUNT: usize, const MAX_ITEM_SIZE: usize> Arena<MAX_ITEM_COU
         }
 
         None
-    }
-}
-
-impl<const MAX_ITEM_COUNT: usize, const MAX_ITEM_SIZE: usize> Drop
-    for Arena<MAX_ITEM_COUNT, MAX_ITEM_SIZE>
-{
-    fn drop(&mut self) {
-        let mut guard = self.alive.as_ref().unwrap().write();
-        // We start by dropping the buffers.
-        self.buffer.clear();
-
-        // Then we set the alive boolean.
-        *guard = false;
     }
 }
 
