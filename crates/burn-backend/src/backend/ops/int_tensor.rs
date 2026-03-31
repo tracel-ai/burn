@@ -1092,11 +1092,17 @@ pub trait IntTensorOps<B: Backend> {
     ///  * `shape` - The shape of the tensor.
     ///  * `distribution` - The distribution to sample from.
     ///  * `device` - The device to create the tensor on.
+    /// * `dtype` - The target data type.
     ///
     ///  # Returns
     ///
     ///  The tensor with the given shape and random values.
-    fn int_random(shape: Shape, distribution: Distribution, device: &Device<B>) -> IntTensor<B>;
+    fn int_random(
+        shape: Shape,
+        distribution: Distribution,
+        device: &Device<B>,
+        dtype: IntDType,
+    ) -> IntTensor<B>;
 
     /// Creates a new tensor with values from the given range with the given step size.
     ///
@@ -1105,6 +1111,7 @@ pub trait IntTensorOps<B: Backend> {
     /// * `range` - The range of values.
     /// * `step` - The step size.
     /// * `device` - The device to create the tensor on.
+    /// * `dtype` - The target data type.
     ///
     /// # Returns
     ///

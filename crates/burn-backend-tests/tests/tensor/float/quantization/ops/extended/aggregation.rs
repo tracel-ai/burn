@@ -5,7 +5,7 @@ use burn_tensor::Tolerance;
 
 #[test]
 fn test_should_mean() {
-    let tensor = QTensor::<TestBackend, 2>::int8([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
+    let tensor = QTensor::<2>::int8([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
 
     let output = tensor.mean();
 
@@ -17,7 +17,7 @@ fn test_should_mean() {
 
 #[test]
 fn test_should_sum() {
-    let tensor = QTensor::<TestBackend, 2>::int8([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
+    let tensor = QTensor::<2>::int8([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
 
     let output = tensor.sum();
 
@@ -29,7 +29,7 @@ fn test_should_sum() {
 
 #[test]
 fn test_should_mean_last_dim() {
-    let tensor = QTensor::<TestBackend, 2>::int8([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
+    let tensor = QTensor::<2>::int8([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
 
     let output = tensor.mean_dim(1);
     let expected = TensorData::from([[3.0 / 3.0], [12.0 / 3.0]]);
@@ -42,7 +42,7 @@ fn test_should_mean_last_dim() {
 
 #[test]
 fn test_should_sum_last_dim() {
-    let tensor = QTensor::<TestBackend, 2>::int8([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
+    let tensor = QTensor::<2>::int8([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
 
     let output = tensor.sum_dim(1);
 
@@ -57,7 +57,7 @@ fn test_should_sum_last_dim() {
 
 #[test]
 fn test_should_sum_first_dim() {
-    let tensor = QTensor::<TestBackend, 2>::int8([[3.0, 1.0, 2.0], [4.0, 2.0, 3.0]]);
+    let tensor = QTensor::<2>::int8([[3.0, 1.0, 2.0], [4.0, 2.0, 3.0]]);
 
     let output = tensor.sum_dim(0);
 
@@ -72,7 +72,7 @@ fn test_should_sum_first_dim() {
 
 #[test]
 fn test_should_mean_first_dim() {
-    let tensor = QTensor::<TestBackend, 2>::int8([[3.0, 1.0, 2.0], [4.0, 2.0, 3.0]]);
+    let tensor = QTensor::<2>::int8([[3.0, 1.0, 2.0], [4.0, 2.0, 3.0]]);
 
     let output = tensor.mean_dim(0);
 
@@ -87,7 +87,7 @@ fn test_should_mean_first_dim() {
 
 #[test]
 fn test_should_sum_mid_dim_3d_non_contiguous_1() {
-    let tensor = QTensor::<TestBackend, 3>::int8([
+    let tensor = QTensor::<3>::int8([
         [[2.0, 4.0, 1.0], [7.0, -5.0, 3.0]],
         [[3.0, 1.0, 2.0], [4.0, 2.0, 3.0]],
     ]);
@@ -105,7 +105,7 @@ fn test_should_sum_mid_dim_3d_non_contiguous_1() {
 
 #[test]
 fn test_should_sum_mid_dim_3d_non_contiguous_2() {
-    let tensor = QTensor::<TestBackend, 3>::int8([
+    let tensor = QTensor::<3>::int8([
         [[2.0, 4.0, 1.0], [7.0, -5.0, 3.0]],
         [[3.0, 1.0, 2.0], [4.0, 2.0, 3.0]],
     ]);
@@ -123,7 +123,7 @@ fn test_should_sum_mid_dim_3d_non_contiguous_2() {
 
 #[test]
 fn test_prod_float() {
-    let tensor = QTensor::<TestBackend, 2>::int8([[2.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
+    let tensor = QTensor::<2>::int8([[2.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
 
     let output = tensor.prod();
 
@@ -132,7 +132,7 @@ fn test_prod_float() {
         .into_data()
         .assert_approx_eq::<FloatElem>(&TensorData::from([240.0]), Tolerance::rel_abs(1e-1, 1e-1));
 
-    let tensor_with_zero = QTensor::<TestBackend, 2>::int8([[2.0, 0.0, 2.0], [3.0, 4.0, 5.0]]);
+    let tensor_with_zero = QTensor::<2>::int8([[2.0, 0.0, 2.0], [3.0, 4.0, 5.0]]);
     let output = tensor_with_zero.prod();
 
     output
@@ -143,7 +143,7 @@ fn test_prod_float() {
 
 #[test]
 fn test_prod_dim_float() {
-    let tensor = QTensor::<TestBackend, 2>::int8([[2.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
+    let tensor = QTensor::<2>::int8([[2.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
 
     let output = tensor.prod_dim(1);
 
@@ -155,7 +155,7 @@ fn test_prod_dim_float() {
             Tolerance::absolute(1e-1),
         );
 
-    let tensor_with_zero = QTensor::<TestBackend, 2>::int8([[2.0, 0.0, 2.0], [3.0, 4.0, 5.0]]);
+    let tensor_with_zero = QTensor::<2>::int8([[2.0, 0.0, 2.0], [3.0, 4.0, 5.0]]);
     let output = tensor_with_zero.prod_dim(1);
     let expected = TensorData::from([[0.0], [60.0]]);
 

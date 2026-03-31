@@ -42,6 +42,9 @@ pub mod loss;
 /// The neural network module.
 pub mod module;
 
+/// The signal processing module.
+pub mod signal;
+
 /// Operations on tensors module.
 pub mod ops {
     pub use burn_backend::backend::ops::*;

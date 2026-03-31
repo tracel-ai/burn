@@ -1,3 +1,4 @@
+use alloc::vec::Vec;
 use burn_backend::{
     ExecutionError,
     ops::{TransactionOps, TransactionPrimitive, TransactionPrimitiveData},

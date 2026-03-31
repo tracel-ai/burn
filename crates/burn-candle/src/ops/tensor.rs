@@ -31,10 +31,11 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         shape: Shape,
         distribution: Distribution,
         device: &Device<Self>,
+        dtype: FloatDType,
     ) -> FloatTensor<Self> {
         if let CandleDevice::Cpu = device {
             // Use our own seed since candle doesn't support it on CPU
-            return Self::float_from_data(cpu_random::<F>(shape, distribution), device);
+            return Self::float_from_data(cpu_random(shape, distribution, dtype.into()), device);
         }
 
         let shape = shape.to_vec();

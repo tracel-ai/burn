@@ -59,8 +59,9 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         shape: Shape,
         distribution: burn_backend::Distribution,
         device: &Device<Self>,
+        dtype: FloatDType,
     ) -> FloatTensor<Self> {
-        AutodiffTensor::new(B::float_random(shape, distribution, device))
+        AutodiffTensor::new(B::float_random(shape, distribution, device, dtype))
     }
 
     fn float_zeros(shape: Shape, device: &Device<Self>, dtype: FloatDType) -> FloatTensor<Self> {

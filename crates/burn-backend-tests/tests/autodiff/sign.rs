@@ -26,8 +26,8 @@ use burn_tensor::TensorData;
 fn should_diff_sign() {
     let data = TensorData::from([-2.0, -1.0, 0.0, 1.0, 2.0]);
 
-    let device = Default::default();
-    let x = TestAutodiffTensor::<1>::from_data(data, &device).require_grad();
+    let device = AutodiffDevice::new();
+    let x = TestTensor::<1>::from_data(data, &device).require_grad();
 
     let y = x.clone().sign();
 

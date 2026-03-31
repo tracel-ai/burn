@@ -10,8 +10,9 @@ use cubek::matmul::{
     launch::{MatmulAutotuneKey, MatmulGlobalScale, Strategy, should_tune_double_buffering},
     routines::{
         BlueprintStrategy, TileSizeSelection, double_buffering::DoubleBufferingArgs,
-        double_unit::DoubleUnitSelectionArgs, ordered_double_buffering::OrderedSelectionArgs,
-        simple::SimpleArgs, simple_unit::SimpleUnitSelectionArgs,
+        double_unit::DoubleUnitSelectionArgs, nostage_vecmat::NoStageVecMatStrategy,
+        ordered_double_buffering::OrderedSelectionArgs, simple::SimpleArgs,
+        simple_unit::SimpleUnitSelectionArgs,
     },
 };
 
@@ -49,7 +50,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
                 key.analysis.kind,
                 MatmulKind::General
                 // Those variants are just because the unit alternatives aren't very good yet.
-                | MatmulKind::VecMat | MatmulKind::MatVec
+                | MatmulKind::MatVec
             ) {
                 PRIORITY_HIGH
             } else {
@@ -110,6 +111,14 @@ pub fn matmul_autotune<R: CubeRuntime>(
             }
         });
 
+        let vecmat = TuneGroup::<MatmulAutotuneKey>::new("vecmat", |key| {
+            if matches!(key.analysis.kind, MatmulKind::VecMat) {
+                PRIORITY_MAX
+            } else {
+                PRIORITY_NEVER
+            }
+        });
+
         fn double_buffering_priority(key: &MatmulAutotuneKey, max: i8, min: i8) -> i8 {
             if should_tune_double_buffering(false, key) {
                 max
@@ -137,6 +146,29 @@ pub fn matmul_autotune<R: CubeRuntime>(
             }),
         );
 
+        // No Stage VecMat
+        for target_num_planes in [1, 2, 4, 8] {
+            let strategy =
+                Strategy::NoStageVecMat(BlueprintStrategy::Inferred(NoStageVecMatStrategy {
+                    target_num_planes,
+                }));
+            set = set.with(
+                Tunable::new(strategy.to_string(), move |lhs, rhs, out| {
+                    launch_matmul::<R>(&strategy, lhs, rhs, out)
+                        .map_err(|err| std::format!("{err:?}"))
+                })
+                .group(&vecmat, move |key| {
+                    if key.definition.k >= 1024 && target_num_planes >= 4
+                        || key.definition.k < 1024 && target_num_planes < 4
+                    {
+                        PRIORITY_HIGH
+                    } else {
+                        PRIORITY_MIN
+                    }
+                }),
+            );
+        }
+
         // Unit VecMat
         for (strategy, double_buf) in [
             (
@@ -156,7 +188,8 @@ pub fn matmul_autotune<R: CubeRuntime>(
                 .group(&unit, move |key| match double_buf {
                     false => PRIORITY_MAX,
                     true => double_buffering_priority(key, PRIORITY_MAX, PRIORITY_HIGH),
-                }),
+                })
+                .group(&vecmat, move |_key| PRIORITY_HIGH),
             );
         }
 

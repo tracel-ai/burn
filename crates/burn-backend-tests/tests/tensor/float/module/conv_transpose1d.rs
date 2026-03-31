@@ -82,7 +82,7 @@ fn test_conv_transpose1d_groups() {
         length: 4,
     };
 
-    test.assert_output(TestTensor::from_floats(
+    test.assert_output(TestTensor::from_data(
         [[[0., 1., 4., 7.], [32., 59., 71., 59.]]],
         &Default::default(),
     ));

@@ -1,3 +1,4 @@
+use alloc::vec::Vec;
 use burn_backend::{
     BoolDType, ExecutionError, FloatDType, IntDType, Scalar, Shape, Slice, TensorData,
     ops::FloatTensorOps,
@@ -6,9 +7,6 @@ use burn_backend::{
 
 use crate::backends::*;
 use crate::{Dispatch, DispatchDevice};
-
-// TODO: remove backend default elem type genericsnow that we have per-device defaults
-// https://github.com/tracel-ai/burn/issues/3642
 
 impl FloatTensorOps<Self> for Dispatch {
     fn float_from_data(
@@ -22,9 +20,10 @@ impl FloatTensorOps<Self> for Dispatch {
         shape: Shape,
         distribution: burn_backend::Distribution,
         device: &DispatchDevice,
+        dtype: FloatDType,
     ) -> FloatTensor<Self> {
         creation_op!(Float, device, |device| {
-            B::float_random(shape, distribution, device)
+            B::float_random(shape, distribution, device, dtype)
         })
     }
 

@@ -1,4 +1,4 @@
-use burn_std::Shape;
+use burn_std::{DType, Shape};
 
 use crate::{Backend, Distribution, Scalar, element::Element, tensor::BasicOps};
 
@@ -516,6 +516,7 @@ where
     /// * `shape` - The shape of the output tensor.
     /// * `distribution` - The distribution used to sample.
     /// * `device` - The device to use.
+    /// * `dtype` - The target data type.
     ///
     /// # Returns
     ///
@@ -531,7 +532,12 @@ where
     #[cfg_attr(doc, doc = crate::doc_tensor!("random"))]
     #[cfg_attr(not(doc), doc = "`Tensor::random`")]
     /// function, which is more high-level and designed for public use.
-    fn random(shape: Shape, distribution: Distribution, device: &B::Device) -> Self::Primitive;
+    fn random(
+        shape: Shape,
+        distribution: Distribution,
+        device: &B::Device,
+        dtype: DType,
+    ) -> Self::Primitive;
 
     /// Applies the matrix multiplication operation.
     ///

@@ -373,8 +373,6 @@ impl LaunchArg for MultiBlockVariables {
     type RuntimeArg<R: Runtime> = ();
     type CompilationArg = ();
 
-    fn compilation_arg<R: Runtime>(_runtime_arg: &Self::RuntimeArg<R>) -> Self::CompilationArg {}
-
     fn register<R: Runtime>(_arg: Self::RuntimeArg<R>, _launcher: &mut KernelLauncher<R>) {}
 
     fn expand(

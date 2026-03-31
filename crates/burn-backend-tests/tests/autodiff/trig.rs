@@ -7,9 +7,9 @@ fn should_diff_cos() {
     let data_1 = TensorData::from([[0.0, 1.0], [3.0, 4.0]]);
     let data_2 = TensorData::from([[6.0, 7.0], [9.0, 10.0]]);
 
-    let device = Default::default();
-    let tensor_1 = TestAutodiffTensor::<2>::from_data(data_1, &device).require_grad();
-    let tensor_2 = TestAutodiffTensor::from_data(data_2, &device).require_grad();
+    let device = AutodiffDevice::new();
+    let tensor_1 = TestTensor::<2>::from_data(data_1, &device).require_grad();
+    let tensor_2 = TestTensor::from_data(data_2, &device).require_grad();
 
     let tensor_3 = tensor_1.clone().matmul(tensor_2.clone().cos());
     let tensor_4 = tensor_3.matmul(tensor_2.clone());
@@ -37,9 +37,9 @@ fn should_diff_sin() {
     let data_1 = TensorData::from([[0.0, 1.0], [3.0, 4.0]]);
     let data_2 = TensorData::from([[6.0, 7.0], [9.0, 10.0]]);
 
-    let device = Default::default();
-    let tensor_1 = TestAutodiffTensor::<2>::from_data(data_1, &device).require_grad();
-    let tensor_2 = TestAutodiffTensor::from_data(data_2, &device).require_grad();
+    let device = AutodiffDevice::new();
+    let tensor_1 = TestTensor::<2>::from_data(data_1, &device).require_grad();
+    let tensor_2 = TestTensor::from_data(data_2, &device).require_grad();
 
     let tensor_3 = tensor_1.clone().matmul(tensor_2.clone().sin());
     let tensor_4 = tensor_3.matmul(tensor_2.clone());
@@ -67,9 +67,9 @@ fn should_diff_tanh() {
     let data_1 = TensorData::from([[0.0, 1.0], [3.0, 4.0]]);
     let data_2 = TensorData::from([[6.0, 7.0], [9.0, 10.0]]);
 
-    let device = Default::default();
-    let tensor_1 = TestAutodiffTensor::<2>::from_data(data_1, &device).require_grad();
-    let tensor_2 = TestAutodiffTensor::from_data(data_2, &device).require_grad();
+    let device = AutodiffDevice::new();
+    let tensor_1 = TestTensor::<2>::from_data(data_1, &device).require_grad();
+    let tensor_2 = TestTensor::from_data(data_2, &device).require_grad();
 
     let tensor_3 = tensor_1.clone().matmul(tensor_2.clone().tanh());
     let tensor_4 = tensor_3.matmul(tensor_2.clone());
@@ -95,9 +95,9 @@ fn should_diff_cosh() {
     let data_1 = TensorData::from([[0.0, 1.0], [3.0, 4.0]]);
     let data_2 = TensorData::from([[0.5, 1.0], [1.5, 2.0]]);
 
-    let device = Default::default();
-    let tensor_1 = TestAutodiffTensor::<2>::from_data(data_1, &device).require_grad();
-    let tensor_2 = TestAutodiffTensor::from_data(data_2, &device).require_grad();
+    let device = AutodiffDevice::new();
+    let tensor_1 = TestTensor::<2>::from_data(data_1, &device).require_grad();
+    let tensor_2 = TestTensor::from_data(data_2, &device).require_grad();
 
     let tensor_3 = tensor_1.clone().matmul(tensor_2.clone().cosh());
     let tensor_4 = tensor_3.matmul(tensor_2.clone());
@@ -122,9 +122,9 @@ fn should_diff_sinh() {
     let data_1 = TensorData::from([[0.0, 1.0], [3.0, 4.0]]);
     let data_2 = TensorData::from([[0.5, 1.0], [1.5, 2.0]]);
 
-    let device = Default::default();
-    let tensor_1 = TestAutodiffTensor::<2>::from_data(data_1, &device).require_grad();
-    let tensor_2 = TestAutodiffTensor::from_data(data_2, &device).require_grad();
+    let device = AutodiffDevice::new();
+    let tensor_1 = TestTensor::<2>::from_data(data_1, &device).require_grad();
+    let tensor_2 = TestTensor::from_data(data_2, &device).require_grad();
 
     let tensor_3 = tensor_1.clone().matmul(tensor_2.clone().sinh());
     let tensor_4 = tensor_3.matmul(tensor_2.clone());
@@ -149,9 +149,9 @@ fn should_diff_tan() {
     let data_1 = TensorData::from([[0.0, 1.0], [3.0, 4.0]]);
     let data_2 = TensorData::from([[0.5, 1.0], [0.3, 0.8]]);
 
-    let device = Default::default();
-    let tensor_1 = TestAutodiffTensor::<2>::from_data(data_1, &device).require_grad();
-    let tensor_2 = TestAutodiffTensor::from_data(data_2, &device).require_grad();
+    let device = AutodiffDevice::new();
+    let tensor_1 = TestTensor::<2>::from_data(data_1, &device).require_grad();
+    let tensor_2 = TestTensor::from_data(data_2, &device).require_grad();
 
     let tensor_3 = tensor_1.clone().matmul(tensor_2.clone().tan());
     let tensor_4 = tensor_3.matmul(tensor_2.clone());
@@ -176,9 +176,9 @@ fn should_diff_asin() {
     let data_1 = TensorData::from([[0.0, 0.1], [0.3, 0.4]]);
     let data_2 = TensorData::from([[0.2, 0.3], [0.5, 0.6]]);
 
-    let device = Default::default();
-    let tensor_1 = TestAutodiffTensor::<2>::from_data(data_1, &device).require_grad();
-    let tensor_2 = TestAutodiffTensor::from_data(data_2, &device).require_grad();
+    let device = AutodiffDevice::new();
+    let tensor_1 = TestTensor::<2>::from_data(data_1, &device).require_grad();
+    let tensor_2 = TestTensor::from_data(data_2, &device).require_grad();
 
     let tensor_3 = tensor_1.clone().matmul(tensor_2.clone().asin());
     let tensor_4 = tensor_3.matmul(tensor_2.clone());
@@ -203,9 +203,9 @@ fn should_diff_acos() {
     let data_1 = TensorData::from([[0.0, 0.1], [0.3, 0.4]]);
     let data_2 = TensorData::from([[0.2, 0.3], [0.5, 0.6]]);
 
-    let device = Default::default();
-    let tensor_1 = TestAutodiffTensor::<2>::from_data(data_1, &device).require_grad();
-    let tensor_2 = TestAutodiffTensor::from_data(data_2, &device).require_grad();
+    let device = AutodiffDevice::new();
+    let tensor_1 = TestTensor::<2>::from_data(data_1, &device).require_grad();
+    let tensor_2 = TestTensor::from_data(data_2, &device).require_grad();
 
     let tensor_3 = tensor_1.clone().matmul(tensor_2.clone().acos());
     let tensor_4 = tensor_3.matmul(tensor_2.clone());
@@ -230,9 +230,9 @@ fn should_diff_atan() {
     let data_1 = TensorData::from([[0.0, 1.0], [3.0, 4.0]]);
     let data_2 = TensorData::from([[0.5, 1.0], [1.5, 2.0]]);
 
-    let device = Default::default();
-    let tensor_1 = TestAutodiffTensor::<2>::from_data(data_1, &device).require_grad();
-    let tensor_2 = TestAutodiffTensor::from_data(data_2, &device).require_grad();
+    let device = AutodiffDevice::new();
+    let tensor_1 = TestTensor::<2>::from_data(data_1, &device).require_grad();
+    let tensor_2 = TestTensor::from_data(data_2, &device).require_grad();
 
     let tensor_3 = tensor_1.clone().matmul(tensor_2.clone().atan());
     let tensor_4 = tensor_3.matmul(tensor_2.clone());
@@ -257,9 +257,9 @@ fn should_diff_asinh() {
     let data_1 = TensorData::from([[0.0, 1.0], [3.0, 4.0]]);
     let data_2 = TensorData::from([[0.5, 1.0], [1.5, 2.0]]);
 
-    let device = Default::default();
-    let tensor_1 = TestAutodiffTensor::<2>::from_data(data_1, &device).require_grad();
-    let tensor_2 = TestAutodiffTensor::from_data(data_2, &device).require_grad();
+    let device = AutodiffDevice::new();
+    let tensor_1 = TestTensor::<2>::from_data(data_1, &device).require_grad();
+    let tensor_2 = TestTensor::from_data(data_2, &device).require_grad();
 
     let tensor_3 = tensor_1.clone().matmul(tensor_2.clone().asinh());
     let tensor_4 = tensor_3.matmul(tensor_2.clone());
@@ -284,9 +284,9 @@ fn should_diff_acosh() {
     let data_1 = TensorData::from([[0.0, 1.0], [3.0, 4.0]]);
     let data_2 = TensorData::from([[1.5, 2.0], [2.5, 3.0]]);
 
-    let device = Default::default();
-    let tensor_1 = TestAutodiffTensor::<2>::from_data(data_1, &device).require_grad();
-    let tensor_2 = TestAutodiffTensor::from_data(data_2, &device).require_grad();
+    let device = AutodiffDevice::new();
+    let tensor_1 = TestTensor::<2>::from_data(data_1, &device).require_grad();
+    let tensor_2 = TestTensor::from_data(data_2, &device).require_grad();
 
     let tensor_3 = tensor_1.clone().matmul(tensor_2.clone().acosh());
     let tensor_4 = tensor_3.matmul(tensor_2.clone());
@@ -311,9 +311,9 @@ fn should_diff_atanh() {
     let data_1 = TensorData::from([[0.0, 0.1], [0.3, 0.4]]);
     let data_2 = TensorData::from([[0.2, 0.3], [0.5, 0.6]]);
 
-    let device = Default::default();
-    let tensor_1 = TestAutodiffTensor::<2>::from_data(data_1, &device).require_grad();
-    let tensor_2 = TestAutodiffTensor::from_data(data_2, &device).require_grad();
+    let device = AutodiffDevice::new();
+    let tensor_1 = TestTensor::<2>::from_data(data_1, &device).require_grad();
+    let tensor_2 = TestTensor::from_data(data_2, &device).require_grad();
 
     let tensor_3 = tensor_1.clone().matmul(tensor_2.clone().atanh());
     let tensor_4 = tensor_3.matmul(tensor_2.clone());
@@ -339,10 +339,10 @@ fn should_diff_atan2() {
     let data_2 = TensorData::from([[0.5, 1.0], [1.5, 2.0]]);
     let data_3 = TensorData::from([[1.0, 0.5], [2.0, 1.5]]);
 
-    let device = Default::default();
-    let tensor_1 = TestAutodiffTensor::<2>::from_data(data_1, &device).require_grad();
-    let tensor_2 = TestAutodiffTensor::from_data(data_2, &device).require_grad();
-    let tensor_3 = TestAutodiffTensor::from_data(data_3, &device).require_grad();
+    let device = AutodiffDevice::new();
+    let tensor_1 = TestTensor::<2>::from_data(data_1, &device).require_grad();
+    let tensor_2 = TestTensor::from_data(data_2, &device).require_grad();
+    let tensor_3 = TestTensor::from_data(data_3, &device).require_grad();
 
     let tensor_4 = tensor_1
         .clone()

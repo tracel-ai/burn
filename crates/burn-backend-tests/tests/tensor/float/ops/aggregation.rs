@@ -169,7 +169,7 @@ fn test_prod_dim_float() {
 #[test]
 fn test_sum_dim_2d() {
     let tensor =
-        TestTensor::<2>::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
+        TestTensor::<2>::from_data([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
 
     let output = tensor.clone().sum_dim(1);
     let expected = TensorData::from([[3.], [12.]]);
@@ -185,7 +185,7 @@ fn test_sum_dim_2d() {
 #[test]
 fn test_sum_dims_2d() {
     let tensor =
-        TestTensor::<2>::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
+        TestTensor::<2>::from_data([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
 
     tensor
         .clone()
@@ -208,7 +208,7 @@ fn test_sum_dims_2d() {
 
 #[test]
 fn test_sum_and_squeeze_dims() {
-    let tensor = TestTensor::<3>::from_floats(
+    let tensor = TestTensor::<3>::from_data(
         [
             [[1.0, -2.0, 3.0], [5.0, 9.0, 6.0]],
             [[9.0, 2.0, 5.0], [5.0, 7.0, 7.0]],
@@ -400,7 +400,7 @@ fn test_mean_dim_fused_on_read_on_write() {
 #[test]
 fn test_mean_dim_2d() {
     let tensor =
-        TestTensor::<2>::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
+        TestTensor::<2>::from_data([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
 
     let output = tensor.clone().mean_dim(1);
     let expected = TensorData::from([[1.], [4.]]);
@@ -420,7 +420,7 @@ fn test_mean_dim_2d() {
 #[test]
 fn test_mean_dims_2d() {
     let tensor =
-        TestTensor::<2>::from_floats([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
+        TestTensor::<2>::from_data([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]], &Default::default());
 
     tensor
         .clone()

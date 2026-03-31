@@ -84,9 +84,6 @@ macro_rules! impl_multi_backend_types {
                     }
                 }
 
-                fn device_count(_type_id: u16) -> usize {
-                    1
-                }
             }
 
             impl<$DefaultBackend: Backend, $($OtherBackend: Backend),+> DeviceOps for MultiDevice<$DefaultBackend, $($OtherBackend),+> {}

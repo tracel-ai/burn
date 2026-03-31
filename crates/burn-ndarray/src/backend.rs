@@ -38,10 +38,6 @@ impl burn_backend::Device for NdArrayDevice {
             index_id: 0,
         }
     }
-
-    fn device_count(_type_id: u16) -> usize {
-        1
-    }
 }
 
 /// Tensor backend that uses the [ndarray](ndarray) crate for executing tensor operations.
@@ -135,6 +131,10 @@ where
             #[cfg(not(feature = "complex"))]
             DType::Complex32 | DType::Complex64 => burn_backend::DTypeUsageSet::empty(),
         }
+    }
+
+    fn device_count(_: u16) -> usize {
+        1
     }
 }
 

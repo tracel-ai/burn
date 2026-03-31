@@ -856,9 +856,10 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
         shape: Shape,
         distribution: Distribution,
         device: &Device<Self>,
+        dtype: IntDType,
     ) -> IntTensor<Self> {
         let client = get_client::<R>(device);
-        let dtype = IntElem::<Self>::dtype();
+        let dtype = dtype.into();
         let desc = RandomOpIr::create(shape, dtype, distribution, || client.create_empty_handle());
 
         client
