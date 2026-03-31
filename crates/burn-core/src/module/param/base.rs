@@ -1,5 +1,8 @@
 use super::ParamId;
 use alloc::format;
+
+#[cfg(not(target_has_atomic = "ptr"))]
+use alloc::boxed::Box;
 use burn_std::stub::RwLock;
 use burn_tensor::Shape;
 use core::cell::OnceCell;
@@ -24,6 +27,29 @@ fn new_mapper<T, F: Fn(T) -> T + Send + Sync + 'static>(func: F) -> Mapper<T> {
 
 #[cfg(not(target_has_atomic = "ptr"))]
 fn new_mapper<T, F: Fn(T) -> T + Send + Sync + 'static>(func: F) -> Mapper<T> {
+    Arc::new(Box::new(func))
+}
+
+/// Type alias for the init function stored in `Uninitialized`.
+/// On targets without atomics, `portable_atomic_util::Arc` needs `Box` indirection
+/// for unsized types, mirroring the `Mapper` pattern above.
+#[cfg(target_has_atomic = "ptr")]
+type InitFn<P> = Arc<dyn Fn(&<P as Parameter>::Device, bool) -> P + Send + Sync>;
+
+#[cfg(not(target_has_atomic = "ptr"))]
+type InitFn<P> = Arc<Box<dyn Fn(&<P as Parameter>::Device, bool) -> P + Send + Sync>>;
+
+#[cfg(target_has_atomic = "ptr")]
+fn new_init_fn<P: Parameter, F: Fn(&P::Device, bool) -> P + Send + Sync + 'static>(
+    func: F,
+) -> InitFn<P> {
+    Arc::new(func)
+}
+
+#[cfg(not(target_has_atomic = "ptr"))]
+fn new_init_fn<P: Parameter, F: Fn(&P::Device, bool) -> P + Send + Sync + 'static>(
+    func: F,
+) -> InitFn<P> {
     Arc::new(Box::new(func))
 }
 
@@ -148,7 +174,7 @@ pub(crate) struct Uninitialized<P: Parameter> {
     /// Wrapped in `Arc` so that cloning a `Param` preserves the lazy state without
     /// triggering initialization. Each clone holds its own `Uninitialized` state and
     /// will run the init function separately on first access (producing independent values).
-    init: Arc<dyn Fn(&P::Device, bool) -> P + Send + Sync>,
+    init: InitFn<P>,
     /// The target device on which the parameter should be initialized.
     /// Used by `lazy_device()` to provide device information without triggering initialization.
     pub(crate) device: P::Device,
@@ -213,7 +239,7 @@ impl<T: Parameter> Param<T> {
             id,
             state: OnceCell::new(),
             initialization: Some(RwLock::new(Some(Uninitialized {
-                init: Arc::new(init),
+                init: new_init_fn(init),
                 device,
                 is_require_grad,
                 shape,
@@ -324,7 +350,7 @@ impl<T: Parameter> Param<T> {
             Some(value) => {
                 let prev = value.init.clone();
 
-                value.init = Arc::new(move |a, b| {
+                value.init = new_init_fn(move |a, b| {
                     let tensor = prev(a, b);
                     func(tensor)
                 });
