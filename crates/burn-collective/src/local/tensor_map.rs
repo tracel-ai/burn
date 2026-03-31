@@ -1,7 +1,9 @@
 //! # Common Tensor Map for Local Collective Operations
-use burn_backend::{Backend, TensorMetadata, distributed::PeerId};
+use burn_backend::{Backend, TensorMetadata};
 use burn_std::Shape;
 use std::collections::HashMap;
+
+use crate::PeerId;
 
 pub type CollectiveTensorMap<B> = HashMap<PeerId, <B as Backend>::FloatTensorPrimitive>;
 

@@ -1,7 +1,6 @@
 use std::{collections::HashMap, sync::atomic::AtomicU32};
 
-use crate::NodeId;
-use burn_backend::distributed::PeerId;
+use crate::{NodeId, PeerId};
 use burn_communication::{Address, CommunicationError};
 use burn_std::id::IdGenerator;
 use serde::{Deserialize, Serialize};

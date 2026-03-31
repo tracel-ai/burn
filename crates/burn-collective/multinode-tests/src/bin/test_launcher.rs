@@ -1,7 +1,5 @@
-use burn::tensor::{
-    TensorData,
-    communication::{AllReduceStrategy, ReduceOperation},
-};
+use burn::tensor::TensorData;
+use burn_collective::{AllReduceStrategy, ReduceOperation};
 use burn_communication::Address;
 use futures::{SinkExt, StreamExt};
 use std::{

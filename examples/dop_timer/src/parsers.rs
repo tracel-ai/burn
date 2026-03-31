@@ -1,4 +1,4 @@
-use burn::tensor::communication::{AllReduceStrategy, ReduceOperation};
+use burn::collective::{AllReduceStrategy, ReduceOperation};
 use std::num::ParseIntError;
 
 pub(crate) fn parse_array4(s: &str) -> Result<[usize; 4], String> {

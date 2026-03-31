@@ -377,6 +377,12 @@ pub trait AutodiffBackend: Backend {
     fn distributed_params(_tensor: &FloatTensor<Self>) -> Option<DistributedParams> {
         None
     }
+
+    #[cfg(feature = "distributed")]
+    /// Returns true if the tensor was marked as distributed.
+    fn is_distributed(_tensor: &FloatTensor<Self>) -> bool {
+        false
+    }
 }
 
 /// Describes how a data type can be used on a given device.

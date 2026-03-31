@@ -1,7 +1,7 @@
 use burn_core::{
     Tensor,
     module::{Module, ModuleMapper, Param},
-    prelude::Backend,
+    tensor::backend::{AutodiffBackend, distributed::DistributedParamId},
 };
 
 use crate::{Learner, LearningComponentsTypes};
@@ -9,10 +9,10 @@ use crate::{Learner, LearningComponentsTypes};
 /// Describes how the module is distributed across multiple devices.
 pub struct ModuleSharder;
 
-impl<B: Backend> ModuleMapper<B> for ModuleSharder {
+impl<B: AutodiffBackend> ModuleMapper<B> for ModuleSharder {
     fn map_float<const D: usize>(&mut self, param: Param<Tensor<B, D>>) -> Param<Tensor<B, D>> {
         let (id, tensor, mapper) = param.consume();
-        let tensor = tensor.set_distributed_params(DistributedParamId::from(id.val()));
+        let tensor = tensor.set_distributed(DistributedParamId::from(id.val()));
         Param::from_mapped_value(id, tensor, mapper)
     }
 }
@@ -20,7 +20,7 @@ impl<B: Backend> ModuleMapper<B> for ModuleSharder {
 impl<LC: LearningComponentsTypes> Learner<LC> {
     /// Mark the model as sharded across multiple devices.
     pub fn grad_sharded(&mut self) {
-        self.model = self.model.map(&mut ModuleSharder);
+        self.model = self.model.clone().map(&mut ModuleSharder);
     }
 }
 

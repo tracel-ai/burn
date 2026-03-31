@@ -12,6 +12,8 @@ use burn_core::module::{AutodiffModule, Module};
 use burn_core::prelude::Backend;
 use burn_core::tensor::Device;
 use burn_core::tensor::backend::AutodiffBackend;
+#[cfg(feature = "ddp")]
+use burn_core::tensor::backend::distributed::DistributedBackend;
 use burn_optim::lr_scheduler::LrScheduler;
 use burn_optim::{GradientsParams, MultiGradientsParams, Optimizer};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -48,9 +50,30 @@ impl<LC: LearningComponentsTypes> Clone for Learner<LC> {
     }
 }
 
+#[cfg(not(feature = "ddp"))]
 impl<B, LR, M, O> Learner<LearningComponentsMarker<B, LR, M, O>>
 where
     B: AutodiffBackend,
+    LR: LrScheduler + 'static,
+    M: TrainStep + AutodiffModule<B> + core::fmt::Display + 'static,
+    M::InnerModule: InferenceStep,
+    O: Optimizer<M, B> + 'static,
+{
+    /// Create a learner.
+    pub fn new(model: M, optim: O, lr_scheduler: LR) -> Self {
+        Self {
+            model,
+            optim,
+            lr_scheduler,
+            lr: 0.0,
+        }
+    }
+}
+
+#[cfg(feature = "ddp")]
+impl<B, LR, M, O> Learner<LearningComponentsMarker<B, LR, M, O>>
+where
+    B: AutodiffBackend + DistributedBackend,
     LR: LrScheduler + 'static,
     M: TrainStep + AutodiffModule<B> + core::fmt::Display + 'static,
     M::InnerModule: InferenceStep,

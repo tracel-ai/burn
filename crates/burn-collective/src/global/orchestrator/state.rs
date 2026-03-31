@@ -1,11 +1,13 @@
-use crate::global::{
-    NodeId,
-    shared::{
-        CollectiveMessageResponse, GlobalCollectiveError, RemoteRequest, RemoteResponse, RequestId,
-        SessionId,
+use crate::{
+    PeerId,
+    global::{
+        NodeId,
+        shared::{
+            CollectiveMessageResponse, GlobalCollectiveError, RemoteRequest, RemoteResponse,
+            RequestId, SessionId,
+        },
     },
 };
-use burn_backend::distributed::PeerId;
 use burn_communication::Address;
 use std::collections::HashMap;
 use tokio::sync::mpsc::{Receiver, Sender};

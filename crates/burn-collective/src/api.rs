@@ -1,7 +1,5 @@
-use burn_backend::{
-    Backend,
-    distributed::{PeerId, ReduceOperation},
-};
+use crate::{PeerId, ReduceOperation};
+use burn_backend::Backend;
 
 use crate::{
     CollectiveConfig, global::shared::GlobalCollectiveError, local::server::get_collective_client,

@@ -5,7 +5,6 @@ use burn::module::{Module, Param};
 use burn::tensor::backend::Backend;
 use burn::tensor::{Int, Tensor};
 use burn_core as burn;
-use burn_tensor::ops::CommunicationTensorOps;
 
 pub type TestBackend = burn_ndarray::NdArray<f32>;
 #[cfg(feature = "std")]
@@ -391,18 +390,12 @@ mod num_params {
 
 #[cfg(feature = "std")]
 mod require_grad {
-    use std::sync::mpsc::Receiver;
-    use std::sync::mpsc::Sender;
-
-    use burn_std::device::Device;
-    use burn_std::device::DeviceId;
-    use burn_tensor::communication::DistributedConfig;
-    use burn_tensor::{TensorData, backend::AutodiffBackend, communication::ReduceOperation};
+    use burn_tensor::{TensorData, backend::AutodiffBackend};
     use rand::{
         SeedableRng,
         rngs::{StdRng, SysRng},
     };
-    use serial_test::{parallel, serial};
+    use serial_test::parallel;
 
     use super::*;
 
@@ -440,7 +433,41 @@ mod require_grad {
         assert!(grad_x.is_some());
     }
 
-    #[cfg(feature = "std")]
+    fn calculate_grads<B: AutodiffBackend>(
+        module: &ModuleBasic<B>,
+        transformation: fn(Tensor<B, 2>, Tensor<B, 2>) -> Tensor<B, 2>,
+    ) -> Option<Tensor<B::InnerBackend, 2>> {
+        let device = module.weight_basic.device();
+        let data = TensorData::random::<f32, _, _>(
+            module.weight_basic.shape(),
+            burn_tensor::Distribution::Default,
+            &mut StdRng::try_from_rng(&mut SysRng).unwrap(),
+        );
+        let x = Tensor::from_data(data, &device).require_grad();
+        let t = module.weight_basic.val();
+        let y = transformation(t, x);
+
+        let mut grads = y.backward();
+        module.weight_basic.grad_remove(&mut grads)
+    }
+}
+
+#[cfg(feature = "distributed")]
+mod grad_distributed {
+    use burn_std::device::{Device, DeviceId};
+    use burn_tensor::backend::distributed::DistributedBackend;
+    use burn_tensor::backend::distributed::{DistributedParamId, ReduceOperation};
+    use burn_tensor::{Float, TensorData, backend::AutodiffBackend};
+    use rand::{
+        SeedableRng,
+        rngs::{StdRng, SysRng},
+    };
+    use serial_test::parallel;
+    use serial_test::serial;
+    use std::sync::mpsc::{Receiver, Sender};
+
+    use super::*;
+
     #[test]
     #[serial]
     fn sharded_module_should_sync_gradients_sum() {
@@ -449,7 +476,6 @@ mod require_grad {
         });
     }
 
-    #[cfg(feature = "std")]
     #[test]
     #[serial]
     fn sharded_module_should_sync_gradients_mean() {
@@ -458,7 +484,6 @@ mod require_grad {
         });
     }
 
-    #[cfg(feature = "std")]
     #[test]
     #[serial]
     fn sharded_module_should_sync_gradients_sum_residual() {
@@ -468,7 +493,6 @@ mod require_grad {
         });
     }
 
-    #[cfg(feature = "std")]
     #[test]
     #[serial]
     fn sharded_module_should_sync_gradients_mean_residual() {
@@ -478,7 +502,6 @@ mod require_grad {
         });
     }
 
-    #[cfg(feature = "std")]
     #[test]
     #[serial]
     fn sharded_module_should_sync_gradients_sum_activation() {
@@ -489,7 +512,6 @@ mod require_grad {
         });
     }
 
-    #[cfg(feature = "std")]
     #[test]
     #[serial]
     fn sharded_module_should_sync_gradients_mean_activation() {
@@ -500,7 +522,6 @@ mod require_grad {
         });
     }
 
-    #[cfg(feature = "std")]
     #[test]
     #[serial]
     fn sharded_module_should_sync_gradients_sum_diamond_graph() {
@@ -511,7 +532,6 @@ mod require_grad {
         });
     }
 
-    #[cfg(feature = "std")]
     #[test]
     #[serial]
     fn sharded_module_should_sync_gradients_mean_diamond_graph() {
@@ -523,10 +543,12 @@ mod require_grad {
     }
 
     #[cfg(feature = "std")]
-    fn compare_sync_gradients<B: AutodiffBackend>(
+    fn compare_sync_gradients<B: AutodiffBackend + DistributedBackend>(
         op: ReduceOperation,
         transformation: fn(Tensor<B, 2>, Tensor<B, 2>) -> Tensor<B, 2>,
     ) {
+        use burn_tensor::backend::distributed::DistributedConfig;
+
         const NUM_ITERATIONS: usize = 100;
         let type_id = 0u16;
 
@@ -536,7 +558,7 @@ mod require_grad {
         let (senders, receivers) = create_channels(device_count);
 
         let config = DistributedConfig { all_reduce_op: op };
-        <B::InnerBackend>::start_communication_server(devices.clone(), config);
+        B::start_communication_server(devices.clone(), config);
 
         let join_handles = spawn_peer_threads(
             &module,
@@ -551,17 +573,17 @@ mod require_grad {
             handle.join().unwrap();
         }
 
-        <B::InnerBackend>::close_communication_server(&devices[0]);
+        B::close_communication_server(&devices[0]);
     }
 
-    #[cfg(feature = "std")]
+    #[cfg(feature = "distributed")]
     fn create_devices<D: Device>(type_id: u16, count: usize) -> Vec<D> {
         (0..count)
             .map(|i| D::from_id(DeviceId::new(type_id, i as u32)))
             .collect()
     }
 
-    #[cfg(feature = "std")]
+    #[cfg(feature = "distributed")]
     fn create_channels(
         device_count: usize,
     ) -> (Vec<Sender<TensorData>>, Vec<Receiver<TensorData>>) {
@@ -570,7 +592,7 @@ mod require_grad {
             .unzip()
     }
 
-    #[cfg(feature = "std")]
+    #[cfg(feature = "distributed")]
     fn spawn_peer_threads<B: AutodiffBackend>(
         module: &ModuleBasic<B>,
         devices: &[<B as Backend>::Device],
@@ -617,7 +639,7 @@ mod require_grad {
         handles
     }
 
-    #[cfg(feature = "std")]
+    #[cfg(feature = "distributed")]
     pub fn run_peer_sharded<B: AutodiffBackend>(
         module: &ModuleBasic<B>,
         output: Option<Sender<TensorData>>,
@@ -630,7 +652,7 @@ mod require_grad {
         let mut module = module.clone().fork(&device);
 
         for _ in 0..num_iter {
-            module = module.fork(&device).grad_distributed();
+            module = set_distributed(&module, &device);
             let grads_x = calculate_grads(&module, transformation);
             let data = grads_x.unwrap().to_data();
             if !is_main {
@@ -642,6 +664,18 @@ mod require_grad {
                 }
             }
         }
+    }
+
+    #[cfg(feature = "distributed")]
+    fn set_distributed<B: AutodiffBackend>(
+        module: &ModuleBasic<B>,
+        device: &B::Device,
+    ) -> ModuleBasic<B> {
+        let mut module = module.clone().fork(&device);
+        let (id, tensor, mapper) = module.weight_basic.consume();
+        let tensor = tensor.set_distributed(DistributedParamId::from(id.val()));
+        module.weight_basic = Param::from_mapped_value(id, tensor, mapper);
+        module
     }
 
     fn calculate_grads<B: AutodiffBackend>(

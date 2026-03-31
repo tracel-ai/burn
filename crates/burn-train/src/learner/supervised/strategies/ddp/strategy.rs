@@ -9,12 +9,9 @@ use crate::{
     TrainingComponents, TrainingModel, ValidLoader,
 };
 use burn_core::data::dataloader::split::split_dataloader;
-use burn_core::tensor::{
-    Device,
-    backend::{AutodiffBackend, DeviceOps},
-    communication::DistributedConfig,
-    ops::CommunicationTensorOps,
-};
+use burn_core::tensor::backend::distributed::DistributedBackend;
+use burn_core::tensor::backend::distributed::DistributedConfig;
+use burn_core::tensor::{Device, backend::DeviceOps};
 
 #[derive(Clone)]
 pub(crate) struct WorkerComponents {
@@ -40,10 +37,10 @@ impl<LC: LearningComponentsTypes> DdpTrainingStrategy<LC> {
     }
 }
 
-type Inner<LC> = <TrainingBackend<LC> as AutodiffBackend>::InnerBackend;
-
-impl<LC: LearningComponentsTypes + Send + 'static> SupervisedLearningStrategy<LC>
-    for DdpTrainingStrategy<LC>
+impl<LC> SupervisedLearningStrategy<LC> for DdpTrainingStrategy<LC>
+where
+    LC: LearningComponentsTypes + Send + 'static,
+    LC::Backend: DistributedBackend,
 {
     fn fit(
         &self,
@@ -76,7 +73,7 @@ impl<LC: LearningComponentsTypes + Send + 'static> SupervisedLearningStrategy<LC
 
         // TODO: this is an implementation detail.. we should probably restrict DdpTrainingStrategy for `DistributedBackend`
         // or have a specialized distributed Autodiff. Otherwise it just leaks everywhere.
-        Inner::<LC>::start_communication_server(
+        LC::Backend::start_communication_server(
             self.devices.iter().map(|d| d.inner().clone()).collect(),
             self.config.clone(),
         );
@@ -122,7 +119,7 @@ impl<LC: LearningComponentsTypes + Send + 'static> SupervisedLearningStrategy<LC
                 .expect("Distributed data parallel worker failed");
         }
 
-        Inner::<LC>::close_communication_server(main_device.inner());
+        LC::Backend::close_communication_server(main_device.inner());
 
         // Main worker had the event processor
         let model = main_handle

@@ -2,13 +2,11 @@
 
 pub(crate) mod all_reduce;
 pub(crate) mod api;
-mod base;
 pub(crate) mod client;
 mod ops;
 pub(crate) mod server;
 
 pub use api::*;
-pub use base::*;
 pub use ops::*;
 
 // TODO: should be removed I think!
@@ -33,4 +31,20 @@ impl From<u64> for DistributedParamId {
 pub struct DistributedParams {
     /// The tensor's [DistributedParamId].
     pub param_id: DistributedParamId,
+}
+
+/// The different ways to execute the reduce operation.
+#[derive(Debug, PartialEq, Clone, Copy, Serialize, Deserialize)]
+pub enum ReduceOperation {
+    /// The sum of the values.
+    Sum,
+    /// The mean of the values.
+    Mean,
+}
+
+/// Parameter struct for setting up and getting parameters for distributed operations.
+#[derive(Clone)]
+pub struct DistributedConfig {
+    /// How to execute the all_reduce operation.
+    pub all_reduce_op: ReduceOperation,
 }

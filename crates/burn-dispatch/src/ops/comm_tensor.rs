@@ -4,14 +4,15 @@ use core::mem::discriminant;
 use crate::backends::*;
 
 use burn_backend::{
-    DistributedConfig, DistributedParams, ReduceOperation,
-    ops::{CommunicationTensorOps, TensorRef},
+    distributed::{
+        DistributedBackend, DistributedConfig, DistributedParams, ReduceOperation, TensorRef,
+    },
     tensor::FloatTensor,
 };
 
 use crate::{Dispatch, DispatchDevice};
 
-impl CommunicationTensorOps<Self> for Dispatch {
+impl DistributedBackend for Dispatch {
     fn start_communication_server(devices: Vec<DispatchDevice>, config: DistributedConfig) {
         if !devices.is_empty() {
             let first = &devices[0];

@@ -1242,7 +1242,6 @@ version = "0.21.0-pre.2"
 dependencies = [
  "async-channel",
  "burn-autodiff",
- "burn-collective",
  "burn-core",
  "burn-ndarray",
  "burn-nn",

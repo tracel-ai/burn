@@ -222,4 +222,8 @@ impl<B: DistributedBackend, C: CheckpointStrategy> AutodiffBackend for Autodiff<
     fn distributed_params(tensor: &AutodiffTensor<B>) -> Option<DistributedParams> {
         tensor.node.distributed_params.clone()
     }
+
+    fn is_distributed(tensor: &AutodiffTensor<B>) -> bool {
+        tensor.node.distributed_params.is_some()
+    }
 }

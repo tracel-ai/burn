@@ -26,6 +26,8 @@ use burn_core::data::dataloader::DataLoader;
 use burn_core::module::{AutodiffModule, Module};
 use burn_core::record::FileRecorder;
 use burn_core::tensor::backend::AutodiffBackend;
+#[cfg(feature = "ddp")]
+use burn_core::tensor::backend::distributed::DistributedBackend;
 use burn_optim::Optimizer;
 use burn_optim::lr_scheduler::LrScheduler;
 use std::collections::BTreeSet;
@@ -73,9 +75,69 @@ where
     summary: bool,
 }
 
+#[cfg(not(feature = "ddp"))]
 impl<B, LR, M, O> SupervisedTraining<LearningComponentsMarker<B, LR, M, O>>
 where
     B: AutodiffBackend,
+    LR: LrScheduler + 'static,
+    M: TrainStep + AutodiffModule<B> + core::fmt::Display + 'static,
+    M::InnerModule: InferenceStep,
+    O: Optimizer<M, B> + 'static,
+{
+    /// Creates a new runner for a supervised training.
+    ///
+    /// # Arguments
+    ///
+    /// * `directory` - The directory to save the checkpoints.
+    /// * `dataloader_train` - The dataloader for the training split.
+    /// * `dataloader_valid` - The dataloader for the validation split.
+    pub fn new(
+        directory: impl AsRef<Path>,
+        dataloader_train: Arc<dyn DataLoader<B, M::Input>>,
+        dataloader_valid: Arc<
+            dyn DataLoader<B::InnerBackend, <M::InnerModule as InferenceStep>::Input>,
+        >,
+    ) -> Self {
+        let directory = directory.as_ref().to_path_buf();
+        let experiment_log_file = directory.join("experiment.log");
+        Self {
+            num_epochs: 1,
+            checkpoint: None,
+            checkpointers: None,
+            directory,
+            grad_accumulation: None,
+            metrics: MetricsTraining::default(),
+            event_store: LogEventStore::default(),
+            renderer: None,
+            interrupter: Interrupter::new(),
+            tracing_logger: Some(Box::new(FileApplicationLoggerInstaller::new(
+                experiment_log_file,
+            ))),
+            checkpointer_strategy: Box::new(
+                ComposedCheckpointingStrategy::builder()
+                    .add(KeepLastNCheckpoints::new(2))
+                    .add(MetricCheckpointingStrategy::new(
+                        &LossMetric::<B>::new(), // default to valid loss
+                        Aggregate::Mean,
+                        Direction::Lowest,
+                        Split::Valid,
+                    ))
+                    .build(),
+            ),
+            early_stopping: None,
+            training_strategy: None,
+            summary_metrics: BTreeSet::new(),
+            summary: false,
+            dataloader_train,
+            dataloader_valid,
+        }
+    }
+}
+
+#[cfg(feature = "ddp")]
+impl<B, LR, M, O> SupervisedTraining<LearningComponentsMarker<B, LR, M, O>>
+where
+    B: AutodiffBackend + DistributedBackend,
     LR: LrScheduler + 'static,
     M: TrainStep + AutodiffModule<B> + core::fmt::Display + 'static,
     M::InnerModule: InferenceStep,
@@ -319,7 +381,10 @@ impl<LC: LearningComponentsTypes> SupervisedTraining<LC> {
     }
 }
 
-impl<LC: LearningComponentsTypes + Send + 'static> SupervisedTraining<LC> {
+impl<LC> SupervisedTraining<LC>
+where
+    LC: LearningComponentsTypes + Send + 'static,
+{
     /// Launch this training with the given [Learner](Learner).
     pub fn launch(mut self, learner: Learner<LC>) -> LearningResult<InferenceModel<LC>> {
         if self.tracing_logger.is_some()

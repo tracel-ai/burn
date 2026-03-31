@@ -58,6 +58,7 @@ std = [
 ]
 vision = ["burn-vision", "burn-dataset?/vision"]
 audio = ["burn-dataset?/audio"]
+distributed = ["std", "burn-tensor/distributed", "burn-autodiff/distributed"]
 
 # Custom deserializer for Record that is helpful for importing data, such as PyTorch pt files.
 record-item-custom-serde = ["thiserror"]

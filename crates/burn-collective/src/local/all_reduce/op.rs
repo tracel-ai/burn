@@ -1,7 +1,6 @@
 use crate::global::node::base::Node;
 use crate::local::tensor_map::CollectiveTensorMap;
-use crate::{CollectiveConfig, CollectiveError, local};
-use burn_backend::distributed::{PeerId, ReduceOperation};
+use crate::{CollectiveConfig, CollectiveError, PeerId, ReduceOperation, local};
 use burn_backend::{Backend, TensorMetadata};
 use burn_communication::Protocol;
 use burn_std::Shape;
