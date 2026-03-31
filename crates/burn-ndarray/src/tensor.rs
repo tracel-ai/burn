@@ -364,64 +364,7 @@ macro_rules! cat_with_dtype {
     };
 }
 
-/// Macro to execute an operation that returns a given element type.
-#[macro_export]
-macro_rules! execute_with_float_out_dtype {
-    ($out_dtype:expr, $element:ident, $op:expr, [$($dtype: ident => $ty: ty),*]) => {{
-        match $out_dtype {
-            $(
-                burn_std::FloatDType::$dtype => {
-                    #[allow(unused)]
-                    type $element = $ty;
-                    $op
-                }
-            )*
-            #[allow(unreachable_patterns)]
-            other => unimplemented!("unsupported dtype: {other:?}")
-        }
-    }};
-    // Unary op: type automatically inferred by the compiler
-    ($out_dtype:expr, $op:expr) => {{
-        $crate::execute_with_float_out_dtype!($out_dtype, E, $op)
-    }};
 
-    // Unary op: generic type cannot be inferred for an operation
-    ($out_dtype:expr, $element:ident, $op:expr) => {{
-        $crate::execute_with_float_out_dtype!($out_dtype, $element, $op, [
-            F64 => f64, F32 => f32
-        ])
-    }};
-}
-
-/// Macro to execute an operation that returns a given element type.
-#[macro_export]
-macro_rules! execute_with_int_out_dtype {
-    ($out_dtype:expr, $element:ident, $op:expr, [$($dtype: ident => $ty: ty),*]) => {{
-        match $out_dtype {
-            $(
-                burn_std::IntDType::$dtype => {
-                    #[allow(unused)]
-                    type $element = $ty;
-                    $op
-                }
-            )*
-            #[allow(unreachable_patterns)]
-            other => unimplemented!("unsupported dtype: {other:?}")
-        }
-    }};
-    // Unary op: type automatically inferred by the compiler
-    ($out_dtype:expr, $op:expr) => {{
-        $crate::execute_with_int_out_dtype!($out_dtype, E, $op)
-    }};
-
-    // Unary op: generic type cannot be inferred for an operation
-    ($out_dtype:expr, $element:ident, $op:expr) => {{
-        $crate::execute_with_int_out_dtype!($out_dtype, $element, $op, [
-            I64 => i64, I32 => i32, I16 => i16, I8 => i8,
-            U64 => u64, U32 => u32, U16 => u16, U8 => u8
-        ])
-    }};
-}
 
 /// Macro to execute an operation that returns a given element type.
 #[macro_export]
