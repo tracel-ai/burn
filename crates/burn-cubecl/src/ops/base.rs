@@ -319,7 +319,7 @@ pub fn q_reshape<R: CubeRuntime>(mut tensor: CubeTensor<R>, shape: Shape) -> Cub
             let packed_d = rank - packed_dim - 1;
             let num_quants = scheme.num_quants();
 
-            if shape[packed_d] % num_quants != 0 {
+            if !shape[packed_d].is_multiple_of(num_quants) {
                 unimplemented!(
                     "Cannot reshape packed tensor: inner dimension {} is not aligned with packing factor {num_quants}",
                     shape[packed_d]
