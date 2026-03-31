@@ -158,7 +158,14 @@ server = ["burn-remote/server"]
 simd = ["burn-ndarray?/simd"]
 template = ["burn-wgpu?/template"]
 collective = ["burn-collective", "burn-optim/collective"]
-distributed = ["std", "burn-core/distributed", "burn-optim/distributed", "burn-train?/ddp"]
+distributed = ["std",
+    "burn-core/distributed",
+    "burn-optim/distributed",
+    "burn-train?/ddp",
+    "burn-ndarray?/distributed",
+    "burn-cuda?/distributed",
+    "burn-autodiff?/distributed",
+]
 
 candle = ["burn-candle"]
 candle-cuda = ["candle", "burn-candle/cuda"]
