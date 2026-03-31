@@ -341,8 +341,7 @@ where
         .expect("Kernel to never fail")
     }
 
-    fn rfft(signal: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
-        kernel::fft::rfft(signal, dim);
-        todo!()
+    fn rfft(signal: FloatTensor<Self>, dim: usize) -> (FloatTensor<Self>, FloatTensor<Self>) {
+        kernel::fft::rfft(signal, dim)
     }
 }

@@ -555,9 +555,13 @@ pub fn attention_fallback<B: Backend>(
 }
 
 /// TODO
-pub fn rfft<B: Backend, const D: usize>(signal: Tensor<B, D>, dim: usize) -> Tensor<B, D> {
-    Tensor::new(TensorPrimitive::Float(B::rfft(
-        signal.primitive.tensor(),
-        dim,
-    )))
+pub fn rfft<B: Backend, const D: usize>(
+    signal: Tensor<B, D>,
+    dim: usize,
+) -> (Tensor<B, D>, Tensor<B, D>) {
+    let (spectrum_re, spectrum_im) = B::rfft(signal.primitive.tensor(), dim);
+    (
+        Tensor::new(TensorPrimitive::Float(spectrum_re)),
+        Tensor::new(TensorPrimitive::Float(spectrum_im)),
+    )
 }

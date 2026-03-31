@@ -1058,7 +1058,7 @@ pub trait ModuleOps<B: Backend> {
     ) -> FloatTensor<B>;
 
     /// Doc for rfft
-    fn rfft(signal: FloatTensor<B>, dim: usize) -> FloatTensor<B>;
+    fn rfft(signal: FloatTensor<B>, dim: usize) -> (FloatTensor<B>, FloatTensor<B>);
 }
 
 #[cfg(test)]

@@ -379,7 +379,7 @@ where
         attention_fallback::<Self>(query, key, value, mask, attn_bias, options)
     }
 
-    fn rfft(_signal: FloatTensor<Self>, _dim: usize) -> FloatTensor<Self> {
+    fn rfft(_signal: FloatTensor<Self>, _dim: usize) -> (FloatTensor<Self>, FloatTensor<Self>) {
         todo!("Unsupported operation")
     }
 }

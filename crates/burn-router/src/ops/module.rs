@@ -794,7 +794,7 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
             .output()
     }
 
-    fn rfft(_signal: FloatTensor<Self>, _dim: usize) -> FloatTensor<Self> {
+    fn rfft(_signal: FloatTensor<Self>, _dim: usize) -> (FloatTensor<Self>, FloatTensor<Self>) {
         todo!("Unsupported operation")
     }
 }

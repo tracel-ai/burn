@@ -626,7 +626,7 @@ impl ModuleOps<Self> for Dispatch {
         )
     }
 
-    fn rfft(_signal: FloatTensor<Self>, _dim: usize) -> FloatTensor<Self> {
+    fn rfft(_signal: FloatTensor<Self>, _dim: usize) -> (FloatTensor<Self>, FloatTensor<Self>) {
         todo!("Unsupported operation")
     }
 }

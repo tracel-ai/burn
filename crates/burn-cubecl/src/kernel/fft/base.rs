@@ -1,9 +1,9 @@
 use crate::{CubeRuntime, tensor::CubeTensor};
 use cubecl::prelude::*;
 //use cubecl::std::tensor::TensorHandle;
-use cubek::fft::rfft_launch;
-use burn_backend::TensorMetadata;
 use crate::ops::numeric::empty_device_dtype;
+use burn_backend::TensorMetadata;
+use cubek::fft::rfft_launch;
 
 //pub fn attention<R: CubeRuntime>(
 //    query: CubeTensor<R>,
@@ -26,8 +26,18 @@ pub fn rfft<R: CubeRuntime>(signal: CubeTensor<R>, dim: usize) -> (CubeTensor<R>
     let mut output_shape = signal_shape.clone();
     output_shape[dim] = output_shape[dim] / 2 + 1;
 
-    let output_re = empty_device_dtype(signal.client.clone(), signal.device.clone(), output_shape.clone(), signal.dtype);
-    let output_im = empty_device_dtype(signal.client.clone(), signal.device.clone(), output_shape.clone(), signal.dtype);
+    let output_re = empty_device_dtype(
+        signal.client.clone(),
+        signal.device.clone(),
+        output_shape.clone(),
+        signal.dtype,
+    );
+    let output_im = empty_device_dtype(
+        signal.client.clone(),
+        signal.device.clone(),
+        output_shape.clone(),
+        signal.dtype,
+    );
 
     rfft_launch(
         &signal.client.clone(),

@@ -1561,7 +1561,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             .output()
     }
 
-    fn rfft(_signal: FloatTensor<Fusion<B>>, _dim: usize) -> FloatTensor<Fusion<B>> {
+    fn rfft(_signal: FloatTensor<Fusion<B>>, _dim: usize) ->  (FloatTensor<Fusion<B>>, FloatTensor<Fusion<B>>) {
         todo!("Unsupported operation")
     }
 }
