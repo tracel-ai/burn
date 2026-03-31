@@ -1,7 +1,5 @@
 #![recursion_limit = "256"]
 
-#[cfg(feature = "ddp")]
-use burn::tensor::backend::distributed::DistributedBackend;
 use burn::{
     nn::transformer::TransformerEncoderConfig,
     optim::{AdamConfig, decay::WeightDecayConfig},
@@ -19,7 +17,6 @@ type ElemType = burn::tensor::f16;
 #[cfg(feature = "flex32")]
 type ElemType = burn::tensor::flex32;
 
-#[cfg(not(feature = "ddp"))]
 pub fn launch_multi<B: AutodiffBackend>() {
     let type_id = 0;
     let num_devices = B::device_count(type_id);
@@ -31,38 +28,7 @@ pub fn launch_multi<B: AutodiffBackend>() {
     launch::<B>(devices)
 }
 
-#[cfg(not(feature = "ddp"))]
 pub fn launch<B: AutodiffBackend>(devices: Vec<B::Device>) {
-    let config = ExperimentConfig::new(
-        TransformerEncoderConfig::new(256, 1024, 8, 4)
-            .with_norm_first(true)
-            .with_quiet_softmax(true),
-        AdamConfig::new().with_weight_decay(Some(WeightDecayConfig::new(5e-5))),
-    );
-
-    text_classification::training::train::<B, AgNewsDataset>(
-        devices,
-        AgNewsDataset::train(),
-        AgNewsDataset::test(),
-        config,
-        "/tmp/text-classification-ag-news",
-    );
-}
-
-#[cfg(feature = "ddp")]
-pub fn launch_multi<B: AutodiffBackend + DistributedBackend>() {
-    let type_id = 0;
-    let num_devices = B::device_count(type_id);
-
-    let devices = (0..num_devices)
-        .map(|i| B::Device::from_id(DeviceId::new(type_id, i as u32)))
-        .collect();
-
-    launch::<B>(devices)
-}
-
-#[cfg(feature = "ddp")]
-pub fn launch<B: AutodiffBackend + DistributedBackend>(devices: Vec<B::Device>) {
     let config = ExperimentConfig::new(
         TransformerEncoderConfig::new(256, 1024, 8, 4)
             .with_norm_first(true)

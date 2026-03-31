@@ -12,7 +12,7 @@ use crate::tensor::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
 use crate::{QTensorPrimitive, TensorData, TensorMetadata};
 
 #[cfg(feature = "distributed")]
-use crate::distributed::{DistributedParamId, DistributedParams};
+use crate::distributed::{DistributedBackend, DistributedParamId, DistributedParams};
 
 use super::DeviceOps;
 
@@ -205,6 +205,7 @@ impl core::fmt::Debug for ExecutionError {
     }
 }
 
+#[cfg(not(feature = "distributed"))]
 /// Trait that allows a backend to support autodiff.
 pub trait AutodiffBackend: Backend {
     /// The inner backend type.
@@ -359,8 +360,164 @@ pub trait AutodiffBackend: Backend {
     ///
     /// The autodiff backend tensor.
     fn q_from_inner(tensor: QuantizedTensor<Self::InnerBackend>) -> QuantizedTensor<Self>;
+}
 
-    #[cfg(feature = "distributed")]
+#[cfg(feature = "distributed")]
+/// Trait that allows a backend to support autodiff.
+pub trait AutodiffBackend: Backend + DistributedBackend {
+    /// The inner backend type.
+    type InnerBackend: Backend<Device = Self::Device, FloatElem = Self::FloatElem, IntElem = Self::IntElem>;
+
+    /// Gradients type.
+    type Gradients: Send;
+
+    /// Backward pass.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor is the last node of computational graph where the gradients are computed.
+    ///
+    /// # Returns
+    ///
+    /// The gradients.
+    fn backward(tensor: FloatTensor<Self>) -> Self::Gradients;
+
+    /// Returns the gradients of a tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to extract the gradients from.
+    ///
+    /// # Returns
+    ///
+    /// An optional tensor containing the gradient.
+    fn grad(
+        tensor: &FloatTensor<Self>,
+        grads: &Self::Gradients,
+    ) -> Option<FloatTensor<Self::InnerBackend>>;
+
+    /// Pops the gradients of a tensor and returns them.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to pop the gradients from.
+    /// * `grads` - The gradients.
+    ///
+    /// # Returns
+    ///
+    /// An optional tensor containing the given gradients.
+    fn grad_remove(
+        tensor: &FloatTensor<Self>,
+        grads: &mut Self::Gradients,
+    ) -> Option<FloatTensor<Self::InnerBackend>>;
+
+    /// Replace the gradients of a tensor with the one provided.
+    ///
+    /// If no gradient existed for the provided tensor, register it.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to pop the gradients from.
+    /// * `grads` - The gradients.
+    /// * `grad` - The updated grad tensor.
+    fn grad_replace(
+        tensor: &FloatTensor<Self>,
+        grads: &mut Self::Gradients,
+        grad: FloatTensor<Self::InnerBackend>,
+    );
+
+    /// Returns the tensor with inner backend type.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to get the inner backend tensor for.
+    ///
+    /// # Returns
+    ///
+    /// The inner backend tensor.
+    fn inner(tensor: FloatTensor<Self>) -> FloatTensor<Self::InnerBackend>;
+
+    /// Returns the tensor with inner backend type.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to get the inner backend tensor for.
+    ///
+    /// # Returns
+    ///
+    /// The inner backend tensor.
+    fn int_inner(tensor: IntTensor<Self>) -> IntTensor<Self::InnerBackend>;
+
+    /// Returns the tensor with inner backend type.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to get the inner backend tensor for.
+    ///
+    /// # Returns
+    ///
+    /// The inner backend tensor.
+    fn bool_inner(tensor: BoolTensor<Self>) -> BoolTensor<Self::InnerBackend>;
+
+    /// Returns the tensor with inner backend type.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to get the inner backend tensor for.
+    ///
+    /// # Returns
+    ///
+    /// The inner backend tensor.
+    fn q_inner(tensor: QuantizedTensor<Self>) -> QuantizedTensor<Self::InnerBackend>;
+
+    /// Converts the inner backend tensor to the autodiff backend tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The inner backend tensor to convert.
+    ///
+    ///
+    /// # Returns
+    ///
+    /// The autodiff backend tensor.
+    fn from_inner(tensor: FloatTensor<Self::InnerBackend>) -> FloatTensor<Self>;
+
+    /// Converts the inner backend tensor to the autodiff backend tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The inner backend tensor to convert.
+    ///
+    ///
+    /// # Returns
+    ///
+    /// The autodiff backend tensor.
+    fn int_from_inner(tensor: IntTensor<Self::InnerBackend>) -> IntTensor<Self>;
+
+    /// Converts the inner backend tensor to the autodiff backend tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The inner backend tensor to convert.
+    ///
+    ///
+    /// # Returns
+    ///
+    /// The autodiff backend tensor.
+    fn bool_from_inner(tensor: BoolTensor<Self::InnerBackend>) -> BoolTensor<Self>;
+
+    /// Converts the inner backend tensor to the autodiff backend tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The inner backend tensor to convert.
+    ///
+    ///
+    /// # Returns
+    ///
+    /// The autodiff backend tensor.
+    fn q_from_inner(tensor: QuantizedTensor<Self::InnerBackend>) -> QuantizedTensor<Self>;
+
     /// Mark the tensor as distributed across multiple devices.
     /// The gradients will be aggregated during the backward pass.
     ///
@@ -372,13 +529,11 @@ pub trait AutodiffBackend: Backend {
         tensor
     }
 
-    #[cfg(feature = "distributed")]
     /// Returns the distributed parameters if the tensor was marked as distributed.
     fn distributed_params(_tensor: &FloatTensor<Self>) -> Option<DistributedParams> {
         None
     }
 
-    #[cfg(feature = "distributed")]
     /// Returns true if the tensor was marked as distributed.
     fn is_distributed(_tensor: &FloatTensor<Self>) -> bool {
         false

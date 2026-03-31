@@ -1,16 +1,10 @@
 use crate::{InferenceStep, TrainStep};
-#[cfg(feature = "ddp")]
-use burn_core::tensor::backend::distributed::DistributedBackend;
 use burn_core::{module::AutodiffModule, tensor::backend::AutodiffBackend};
 use burn_optim::{Optimizer, lr_scheduler::LrScheduler};
 use std::marker::PhantomData;
 
 /// Components used for a model to learn, grouped in one trait.
 pub trait LearningComponentsTypes {
-    #[cfg(feature = "ddp")]
-    /// The backend used for training.
-    type Backend: AutodiffBackend + DistributedBackend;
-    #[cfg(not(feature = "ddp"))]
     /// The backend used for training.
     type Backend: AutodiffBackend;
     /// The learning rate scheduler used for training.
@@ -34,26 +28,9 @@ pub struct LearningComponentsMarker<B, LR, M, O> {
     _optimizer: PhantomData<O>,
 }
 
-#[cfg(not(feature = "ddp"))]
 impl<B, LR, M, O> LearningComponentsTypes for LearningComponentsMarker<B, LR, M, O>
 where
     B: AutodiffBackend,
-    LR: LrScheduler + 'static,
-    M: TrainStep + AutodiffModule<B> + core::fmt::Display + 'static,
-    M::InnerModule: InferenceStep,
-    O: Optimizer<M, B> + 'static,
-{
-    type Backend = B;
-    type LrScheduler = LR;
-    type TrainingModel = M;
-    type InferenceModel = M::InnerModule;
-    type Optimizer = O;
-}
-
-#[cfg(feature = "ddp")]
-impl<B, LR, M, O> LearningComponentsTypes for LearningComponentsMarker<B, LR, M, O>
-where
-    B: AutodiffBackend + DistributedBackend,
     LR: LrScheduler + 'static,
     M: TrainStep + AutodiffModule<B> + core::fmt::Display + 'static,
     M::InnerModule: InferenceStep,
