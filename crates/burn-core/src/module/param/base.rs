@@ -463,14 +463,9 @@ mod tests {
 
         // Share across threads via &param (requires Sync).
         std::thread::scope(|s| {
-            let handles: Vec<_> = (0..4)
-                .map(|_| s.spawn(|| param.val()))
-                .collect();
+            let handles: Vec<_> = (0..4).map(|_| s.spawn(|| param.val())).collect();
 
-            let results: Vec<_> = handles
-                .into_iter()
-                .map(|h| h.join().unwrap())
-                .collect();
+            let results: Vec<_> = handles.into_iter().map(|h| h.join().unwrap()).collect();
 
             // All threads must get the same value.
             let expected = results[0].to_data();
