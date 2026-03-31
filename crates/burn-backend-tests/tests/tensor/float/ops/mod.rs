@@ -30,6 +30,7 @@ mod fmod;
 mod full;
 mod gather_scatter;
 mod grid_sample;
+mod hamming_window;
 mod hann_window;
 mod inf;
 mod init;
