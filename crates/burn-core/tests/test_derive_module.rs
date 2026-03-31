@@ -395,12 +395,10 @@ mod require_grad {
         SeedableRng,
         rngs::{StdRng, SysRng},
     };
-    use serial_test::parallel;
 
     use super::*;
 
     #[test]
-    #[parallel]
     fn should_have_grad_by_default() {
         let device = <TestBackend as Backend>::Device::default();
         let module = ModuleBasic::<TestAutodiffBackend>::new(&device);
@@ -410,7 +408,6 @@ mod require_grad {
     }
 
     #[test]
-    #[parallel]
     fn should_have_no_grad_after_no_grad() {
         let device = <TestAutodiffBackend as Backend>::Device::default();
         let module = ModuleBasic::<TestAutodiffBackend>::new(&device).no_grad();
@@ -420,7 +417,6 @@ mod require_grad {
     }
 
     #[test]
-    #[parallel]
     fn should_have_grad_when_from_record() {
         let device = <TestAutodiffBackend as Backend>::Device::default();
         let module = ModuleBasic::<TestAutodiffBackend>::new(&device);
@@ -457,12 +453,11 @@ mod grad_distributed {
     use burn_std::device::{Device, DeviceId};
     use burn_tensor::backend::distributed::DistributedBackend;
     use burn_tensor::backend::distributed::{DistributedParamId, ReduceOperation};
-    use burn_tensor::{Float, TensorData, backend::AutodiffBackend};
+    use burn_tensor::{TensorData, backend::AutodiffBackend};
     use rand::{
         SeedableRng,
         rngs::{StdRng, SysRng},
     };
-    use serial_test::parallel;
     use serial_test::serial;
     use std::sync::mpsc::{Receiver, Sender};
 

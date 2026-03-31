@@ -17,6 +17,7 @@ workspace = true
 [features]
 default = [
     "std",
+    "distributed",
     "burn-std/default",
     "burn-dataset?/default",
     "burn-tensor/default",
@@ -58,7 +59,12 @@ std = [
 ]
 vision = ["burn-vision", "burn-dataset?/vision"]
 audio = ["burn-dataset?/audio"]
-distributed = ["std", "burn-tensor/distributed", "burn-autodiff/distributed"]
+distributed = ["std",
+    "burn-tensor/distributed",
+    "burn-autodiff/distributed",
+    "burn-ndarray/distributed",
+    "burn-cuda?/distributed",
+]
 
 # Custom deserializer for Record that is helpful for importing data, such as PyTorch pt files.
 record-item-custom-serde = ["thiserror"]
