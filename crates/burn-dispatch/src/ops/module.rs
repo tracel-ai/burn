@@ -626,7 +626,16 @@ impl ModuleOps<Self> for Dispatch {
         )
     }
 
-    fn rfft(_signal: FloatTensor<Self>, _dim: usize) -> (FloatTensor<Self>, FloatTensor<Self>) {
-        todo!("Unsupported operation")
+    fn rfft(signal: FloatTensor<Self>, dim: usize) -> (FloatTensor<Self>, FloatTensor<Self>) {
+        let (real, imag) = multi_op!(
+            inputs[(signal, float)],
+            outputs[(real, Float), (imag, Float)],
+            {
+                let res = B::rfft(signal, dim);
+                (res.0, res.1)
+            }
+        );
+
+        (real, imag)
     }
 }

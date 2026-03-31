@@ -12,6 +12,7 @@ mod conv3d;
 mod conv_transpose2d;
 mod conv_transpose3d;
 mod cross;
+mod fft;
 mod gather;
 mod mask_fill;
 mod mask_where;
