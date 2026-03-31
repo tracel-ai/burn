@@ -361,6 +361,81 @@ mod state {
     }
 }
 
+mod lazy_clone {
+    use super::*;
+
+    #[test]
+    fn clone_uninitialized_param_should_not_trigger_init() {
+        let device = <TestBackend as Backend>::Device::default();
+        let module = ModuleBasic::<TestBackend>::new(&device);
+
+        // Module starts uninitialized (lazy).
+        assert!(!module.weight_basic.is_initialized());
+
+        // Cloning should preserve the lazy state, not trigger initialization.
+        let cloned = module.clone();
+        assert!(!module.weight_basic.is_initialized());
+        assert!(!cloned.weight_basic.is_initialized());
+    }
+
+    #[test]
+    fn clone_initialized_param_should_share_values() {
+        let device = <TestBackend as Backend>::Device::default();
+        let module = ModuleBasic::<TestBackend>::new(&device);
+
+        // Force initialization by accessing the tensor.
+        let _ = module.weight_basic.to_data();
+        assert!(module.weight_basic.is_initialized());
+
+        // Clone of an initialized param should have the same values.
+        let cloned = module.clone();
+        assert_eq!(
+            module.weight_basic.to_data(),
+            cloned.weight_basic.to_data()
+        );
+    }
+
+    #[test]
+    fn lazy_clone_should_produce_valid_tensor_on_access() {
+        let device = <TestBackend as Backend>::Device::default();
+        let module = ModuleBasic::<TestBackend>::new(&device);
+        let cloned = module.clone();
+
+        // Both are uninitialized.
+        assert!(!module.weight_basic.is_initialized());
+        assert!(!cloned.weight_basic.is_initialized());
+
+        // Accessing the clone should produce a valid tensor with the right shape.
+        let data = cloned.weight_basic.to_data();
+        assert_eq!(data.shape, [20, 20].into());
+
+        // Original should still be uninitialized.
+        assert!(!module.weight_basic.is_initialized());
+    }
+
+    #[test]
+    fn lazy_clone_then_load_should_not_init_original() {
+        let device = <TestBackend as Backend>::Device::default();
+        let module_1 = ModuleBasic::<TestBackend>::new(&device);
+
+        // Initialize module_1 so we have a record to load.
+        let _ = module_1.weight_basic.to_data();
+        let record = module_1.clone().into_record();
+
+        // Create a fresh uninitialized module and load weights into it.
+        let module_2 = ModuleBasic::<TestBackend>::new(&device);
+        assert!(!module_2.weight_basic.is_initialized());
+
+        let module_2 = module_2.load_record(record);
+
+        // After loading, the param should be initialized with the loaded values.
+        assert_eq!(
+            module_1.weight_basic.to_data(),
+            module_2.weight_basic.to_data()
+        );
+    }
+}
+
 mod num_params {
     use super::*;
 
