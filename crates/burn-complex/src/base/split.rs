@@ -1,7 +1,7 @@
 use burn_tensor::{ElementComparison, Float, TensorData, TensorKind, TensorMetadata, backend::Backend};
 use bytemuck::Pod;
 
-use crate::base::{ComplexTensor, ComplexTensorBackend, ComplexTensorOps, Layout, SplitLayout, element::Complex};
+use crate::base::{ComplexDevice, ComplexTensor, ComplexTensorBackend, ComplexTensorOps, Layout, SplitLayout, element::Complex};
 
 impl<T: TensorMetadata + 'static> Layout for SplitLayout<T> {
     type ComplexTensorPrimitive = SplitComplexTensor<T>;
@@ -60,7 +60,17 @@ where
     <B as Backend>::FloatElem: ElementComparison + Pod,
 {
     fn to_complex(tensor: super::FloatTensor<SplitBackend<B>>) -> ComplexTensor<SplitBackend<B>> {
-        todo!()
+        SplitComplexTensor {
+            imag: B::float_zeros(tensor.shape().clone(), &<Self as ComplexTensorBackend>::InnerBackend::float_device(&tensor), tensor.dtype().into()),
+            real: tensor,
+        }
+    }
+
+    fn real(tensor: ComplexTensor<SplitBackend<B>>) -> super::FloatTensor<SplitBackend<B>> {
+        tensor.real
+    }
+    fn imag(tensor: ComplexTensor<SplitBackend<B>>) -> super::FloatTensor<SplitBackend<B>> {
+        tensor.imag
     }
 
     async fn complex_into_data(

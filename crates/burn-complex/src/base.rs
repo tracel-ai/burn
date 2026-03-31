@@ -2,6 +2,7 @@
 pub mod element;
 
 pub mod split;
+use burn_std::dtype;
 /*
 The base implementation for complex tensors, contains everything that would be in burn-tensor.
 May get split into separate files at some point, but for now it's easier to keep all the base
@@ -61,6 +62,8 @@ pub trait ComplexTensorBackend: ComplexTensorOps<Self> + Sized {
     fn complex_from_data(data: TensorData, device: &<Self::InnerBackend as Backend>::Device) -> ComplexTensor<Self> {
         todo!()
     }
+
+    
 }
 //Note: changing to adopt terminology used in fftw doc
 
@@ -1216,7 +1219,7 @@ where
 
     
 
-    fn random(shape: Shape, distribution: Distribution, device: &ComplexDevice<B>) -> Self::Primitive {
+    fn random(shape: Shape, distribution: Distribution, device: &ComplexDevice<B>, dtype: DType) -> Self::Primitive {
         B::complex_random(shape, distribution, device)
     }
 

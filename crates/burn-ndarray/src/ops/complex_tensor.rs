@@ -20,6 +20,8 @@ where
     type ComplexScalar = Complex<E>;
 
     type Layout = InterleavedLayout<NdArrayTensor>;
+    
+    
 }
 
 impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement>
