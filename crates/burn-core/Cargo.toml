@@ -17,7 +17,6 @@ workspace = true
 [features]
 default = [
     "std",
-    "distributed",
     "burn-std/default",
     "burn-dataset?/default",
     "burn-tensor/default",

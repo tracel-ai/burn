@@ -1,3 +1,5 @@
+#[cfg(feature = "ddp")]
+use burn::tensor::backend::distributed::DistributedBackend;
 use burn::{
     nn::transformer::TransformerEncoderConfig,
     optim::{AdamConfig, decay::WeightDecayConfig},
@@ -12,7 +14,24 @@ type ElemType = f32;
 #[cfg(feature = "f16")]
 type ElemType = burn::tensor::f16;
 
+#[cfg(not(feature = "ddp"))]
 pub fn launch<B: AutodiffBackend>(devices: Vec<B::Device>) {
+    let config = ExperimentConfig::new(
+        TransformerEncoderConfig::new(256, 1024, 8, 4).with_norm_first(true),
+        AdamConfig::new().with_weight_decay(Some(WeightDecayConfig::new(5e-5))),
+    );
+
+    text_classification::training::train::<B, DbPediaDataset>(
+        devices,
+        DbPediaDataset::train(),
+        DbPediaDataset::test(),
+        config,
+        "/tmp/text-classification-db-pedia",
+    );
+}
+
+#[cfg(feature = "ddp")]
+pub fn launch<B: AutodiffBackend + DistributedBackend>(devices: Vec<B::Device>) {
     let config = ExperimentConfig::new(
         TransformerEncoderConfig::new(256, 1024, 8, 4).with_norm_first(true),
         AdamConfig::new().with_weight_decay(Some(WeightDecayConfig::new(5e-5))),

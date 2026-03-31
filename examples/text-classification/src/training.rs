@@ -9,8 +9,12 @@ use crate::{
     data::{BertCasedTokenizer, TextClassificationBatcher, TextClassificationDataset, Tokenizer},
     model::TextClassificationModelConfig,
 };
+
 #[cfg(feature = "ddp")]
-use burn::tensor::communication::DistributedConfig;
+use burn::tensor::backend::distributed::{DistributedBackend, DistributedConfig, ReduceOperation};
+#[cfg(not(feature = "ddp"))]
+use burn::train::MultiDeviceOptim;
+#[cfg(feature = "ddp")]
 #[cfg(not(feature = "ddp"))]
 use burn::train::MultiDeviceOptim;
 use burn::train::{Learner, SupervisedTraining};
@@ -41,6 +45,7 @@ pub struct ExperimentConfig {
     pub num_epochs: usize,
 }
 
+#[cfg(not(feature = "ddp"))]
 // Define train function
 pub fn train<B: AutodiffBackend, D: TextClassificationDataset + 'static>(
     devices: Vec<B::Device>, // Device on which to perform computation (e.g., CPU or CUDA device)
@@ -85,7 +90,6 @@ pub fn train<B: AutodiffBackend, D: TextClassificationDataset + 'static>(
         .unwrap();
 
     // Initialize learner
-    #[cfg(not(feature = "ddp"))]
     let training = SupervisedTraining::new(artifact_dir, dataloader_train, dataloader_test)
         .metric_train(CudaMetric::new())
         .metric_valid(CudaMetric::new())
@@ -103,11 +107,67 @@ pub fn train<B: AutodiffBackend, D: TextClassificationDataset + 'static>(
             MultiDeviceOptim::OptimSharded,
         ));
 
-    #[cfg(feature = "ddp")]
+    // Train the model
+    let result = training.launch(Learner::new(model, optim, lr_scheduler));
+
+    // Save the configuration and the trained model
+    config.save(format!("{artifact_dir}/config.json")).unwrap();
+    CompactRecorder::new()
+        .record(
+            result.model.into_record(),
+            format!("{artifact_dir}/model").into(),
+        )
+        .unwrap();
+}
+
+#[cfg(feature = "ddp")]
+// Define train function
+pub fn train<B: AutodiffBackend + DistributedBackend, D: TextClassificationDataset + 'static>(
+    devices: Vec<B::Device>, // Device on which to perform computation (e.g., CPU or CUDA device)
+    dataset_train: D,        // Training dataset
+    dataset_test: D,         // Testing dataset
+    config: ExperimentConfig, // Experiment configuration
+    artifact_dir: &str,      // Directory to save model and config files
+) {
+    // Initialize tokenizer
+    let tokenizer = Arc::new(BertCasedTokenizer::default());
+
+    // Initialize batcher
+    let batcher = TextClassificationBatcher::new(tokenizer.clone(), config.seq_length);
+
+    // Initialize model
+    let model = TextClassificationModelConfig::new(
+        config.transformer.clone(),
+        D::num_classes(),
+        tokenizer.vocab_size(),
+        config.seq_length,
+    )
+    .init::<B>(&devices[0]);
+
+    // Initialize data loaders for training and testing data
+    let dataloader_train = DataLoaderBuilder::new(batcher.clone())
+        .batch_size(config.batch_size)
+        .num_workers(1)
+        .build(SamplerDataset::new(dataset_train, 50_000));
+    let dataloader_test = DataLoaderBuilder::new(batcher)
+        .batch_size(config.batch_size)
+        .num_workers(1)
+        .build(SamplerDataset::new(dataset_test, 5_000));
+
+    // Initialize optimizer
+    let optim = config.optimizer.init();
+
+    // Initialize learning rate scheduler
+    let lr_scheduler = NoamLrSchedulerConfig::new(1e-2)
+        .with_warmup_steps(1000)
+        .with_model_size(config.transformer.d_model)
+        .init()
+        .unwrap();
+
+    // Initialize learner
     let distributed_config = DistributedConfig {
-        all_reduce_op: burn::tensor::communication::ReduceOperation::Mean,
+        all_reduce_op: ReduceOperation::Mean,
     };
-    #[cfg(feature = "ddp")]
     let training = SupervisedTraining::new(artifact_dir, dataloader_train, dataloader_test)
         .metric_train(CudaMetric::new())
         .metric_valid(CudaMetric::new())
