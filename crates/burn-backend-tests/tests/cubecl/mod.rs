@@ -13,6 +13,7 @@ mod conv_transpose2d;
 mod conv_transpose3d;
 mod cross;
 mod gather;
+mod interpolate_nearest;
 mod mask_fill;
 mod mask_where;
 mod max_pool2d;
