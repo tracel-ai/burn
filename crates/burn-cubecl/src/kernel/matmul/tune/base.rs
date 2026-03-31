@@ -50,7 +50,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
                 key.analysis.kind,
                 MatmulKind::General
                 // Those variants are just because the unit alternatives aren't very good yet.
-                | MatmulKind::MatVec
+                | MatmulKind::VecMat | MatmulKind::MatVec
             ) {
                 PRIORITY_HIGH
             } else {
