@@ -1,7 +1,7 @@
+use burn_backend::Backend;
 use burn_communication::Protocol;
 use burn_communication::data_service::TensorDataServer;
 use burn_communication::{Address, ProtocolServer, data_service::TensorDataService};
-use burn_tensor::backend::Backend;
 use std::collections::HashMap;
 use std::{marker::PhantomData, sync::Arc};
 use tokio::sync::RwLock;
@@ -9,10 +9,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::node::sync::SyncService;
 use crate::{
-    AllReduceStrategy, BroadcastStrategy, GlobalRegisterParams, NodeId, PeerId, ReduceStrategy,
-};
-use crate::{
-    ReduceOperation,
+    AllReduceStrategy, PeerId, ReduceOperation,
     global::{
         node::{
             centralized::centralized_all_reduce_sum, ring::ring_all_reduce_sum,
@@ -22,6 +19,7 @@ use crate::{
     },
     local::server::get_collective_server_runtime,
 };
+use crate::{BroadcastStrategy, GlobalRegisterParams, NodeId, ReduceStrategy};
 
 /// Must be synchronized between all nodes for collective operations to work
 pub(crate) struct NodeState {

@@ -20,6 +20,7 @@ default = [
     "std",
     "fusion",
     "cubecl/default",
+    "burn-backend/default",
     "burn-fusion?/default",
     "burn-cubecl-fusion?/default",
 ]
@@ -51,6 +52,8 @@ fusion = ["burn-fusion", "burn-cubecl-fusion"]
 fusion-experimental = ["fusion"]
 
 template = []
+
+distributed = ["std", "burn-backend/distributed"]
 
 [dependencies]
 burn-cubecl-fusion = { path = "../burn-cubecl-fusion", version = "=0.21.0-pre.2", default-features = false, optional = true }

@@ -21,7 +21,6 @@ vision = ["burn-nn", "burn-store/pytorch", "burn-std/network", "dirs"]
 tracing = [
     "burn-core/tracing",
     "burn-optim/tracing",
-    "burn-collective?/tracing",
 ]
 
 
@@ -29,7 +28,7 @@ sys-metrics = ["nvml-wrapper", "sysinfo", "systemstat"]
 tui = ["ratatui"]
 rl = ["burn-rl"]
 # Distributed Data Parallel
-ddp = ["burn-collective", "burn-optim/collective"]
+ddp = ["burn-optim/distributed", "burn-core/distributed"]
 
 [dependencies]
 burn-core = { path = "../burn-core", version = "=0.21.0-pre.2", features = [
@@ -40,7 +39,6 @@ burn-optim = { path = "../burn-optim", version = "=0.21.0-pre.2", features = [
     "std",
 ], default-features = false }
 burn-rl = { path = "../burn-rl", version = "=0.21.0-pre.2", optional = true, default-features = false }
-burn-collective = { path = "../burn-collective", version = "=0.21.0-pre.2", optional = true }
 burn-nn = { path = "../burn-nn", version = "=0.21.0-pre.2", optional = true, default-features = false, features = ["std"] }
 burn-store = { path = "../burn-store", version = "=0.21.0-pre.2", optional = true, default-features = false, features = ["std"] }
 burn-std = { path = "../burn-std", version = "=0.21.0-pre.2", optional = true, default-features = false, features = ["std"] }

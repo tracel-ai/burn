@@ -1,10 +1,6 @@
 use core::panic;
 use std::sync::{Arc, Mutex};
 
-use burn_collective::CollectiveConfig;
-use burn_core::tensor::Device;
-use burn_core::tensor::backend::DeviceOps;
-
 use crate::ddp::worker::DdpWorker;
 use crate::metric::store::EventStoreClient;
 use crate::{
@@ -13,6 +9,9 @@ use crate::{
     TrainingComponents, TrainingModel, ValidLoader,
 };
 use burn_core::data::dataloader::split::split_dataloader;
+use burn_core::tensor::backend::distributed::DistributedBackend;
+use burn_core::tensor::backend::distributed::DistributedConfig;
+use burn_core::tensor::{Device, backend::DeviceOps};
 
 #[derive(Clone)]
 pub(crate) struct WorkerComponents {
@@ -30,17 +29,18 @@ pub(crate) struct WorkerComponents {
 
 pub struct DdpTrainingStrategy<LC: LearningComponentsTypes> {
     devices: Vec<Device<TrainingBackend<LC>>>,
-    config: CollectiveConfig,
+    config: DistributedConfig,
 }
 impl<LC: LearningComponentsTypes> DdpTrainingStrategy<LC> {
-    pub fn new(devices: Vec<Device<TrainingBackend<LC>>>, config: CollectiveConfig) -> Self {
-        let config = config.with_num_devices(devices.len());
+    pub fn new(devices: Vec<Device<TrainingBackend<LC>>>, config: DistributedConfig) -> Self {
         Self { devices, config }
     }
 }
 
-impl<LC: LearningComponentsTypes + Send + 'static> SupervisedLearningStrategy<LC>
-    for DdpTrainingStrategy<LC>
+impl<LC> SupervisedLearningStrategy<LC> for DdpTrainingStrategy<LC>
+where
+    LC: LearningComponentsTypes + Send + 'static,
+    LC::Backend: DistributedBackend,
 {
     fn fit(
         &self,
@@ -71,29 +71,32 @@ impl<LC: LearningComponentsTypes + Send + 'static> SupervisedLearningStrategy<LC
             event_store: training_components.event_store,
         };
 
+        // TODO: this is an implementation detail.. we should probably restrict DdpTrainingStrategy for `DistributedBackend`
+        // or have a specialized distributed Autodiff. Otherwise it just leaks everywhere.
+        LC::Backend::start_communication_server(
+            self.devices.iter().map(|d| d.inner().clone()).collect(),
+            self.config.clone(),
+        );
+
         // Start worker for main device
         // First training dataloader corresponds to main device
         let main_handle = DdpWorker::<LC>::start(
-            0.into(),
-            main_device,
+            main_device.clone(),
             learner.clone(),
             event_processor.clone(),
             worker_components.clone(),
             training_components.checkpointer,
             dataloaders_train.remove(0),
             Some(dataloader_valid),
-            self.config.clone(),
             starting_epoch,
             peer_count,
             true,
         );
 
         // Spawn other workers for the other devices, starting with peer id 1
-        let mut peer_id = 1;
         let mut secondary_workers = vec![];
         for device in &self.devices[1..] {
             let handle = DdpWorker::<LC>::start(
-                peer_id.into(),
                 device.clone(),
                 learner.clone(),
                 event_processor.clone(),
@@ -101,13 +104,10 @@ impl<LC: LearningComponentsTypes + Send + 'static> SupervisedLearningStrategy<LC
                 None,
                 dataloaders_train.remove(0),
                 None,
-                self.config.clone(),
                 starting_epoch,
                 peer_count,
                 false,
             );
-
-            peer_id += 1;
 
             secondary_workers.push(handle);
         }
@@ -118,6 +118,9 @@ impl<LC: LearningComponentsTypes + Send + 'static> SupervisedLearningStrategy<LC
                 .join()
                 .expect("Distributed data parallel worker failed");
         }
+
+        LC::Backend::close_communication_server(main_device.inner());
+
         // Main worker had the event processor
         let model = main_handle
             .join()

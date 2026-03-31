@@ -7,6 +7,9 @@ use crate::{
 use alloc::{boxed::Box, sync::Arc, vec};
 use burn_backend::{Backend, TensorMetadata};
 
+#[cfg(feature = "distributed")]
+use burn_backend::distributed::{DistributedBackend, DistributedParamId, DistributedParams};
+
 #[derive(Debug, Clone)]
 pub struct AutodiffTensor<B: Backend> {
     pub primitive: B::FloatTensorPrimitive,
@@ -51,6 +54,11 @@ impl Step for RootStep {
     fn depth(&self) -> usize {
         self.node.order
     }
+
+    #[cfg(feature = "distributed")]
+    fn distributed_params(&self) -> Option<DistributedParams> {
+        self.node.distributed_params.clone()
+    }
 }
 
 impl<B: Backend> AutodiffTensor<B> {
@@ -64,6 +72,8 @@ impl<B: Backend> AutodiffTensor<B> {
             Requirement::None,
             ComputingProperty::Ambiguous,
             AutodiffClientImpl::new(),
+            #[cfg(feature = "distributed")]
+            None,
         )
         .into();
 
@@ -97,6 +107,8 @@ impl<B: Backend> AutodiffTensor<B> {
                     Requirement::Grad,
                     self.node.properties.clone(),
                     self.node.client.clone(),
+                    #[cfg(feature = "distributed")]
+                    self.node.distributed_params.clone(),
                 )
                 .into();
                 let step = RootStep::new(self.node.clone());
@@ -136,6 +148,8 @@ impl<B: Backend> AutodiffTensor<B> {
             requirement,
             computing_properties,
             client,
+            #[cfg(feature = "distributed")]
+            None,
         )
         .into();
 
@@ -168,6 +182,7 @@ impl<B: Backend> AutodiffTensor<B> {
         self.primitive
     }
 
+    #[cfg(not(feature = "distributed"))]
     pub fn backward(self) -> Gradients {
         let client = self.node.client.clone();
 
@@ -185,5 +200,40 @@ impl<B: Backend> AutodiffTensor<B> {
     pub fn grad_replace(&self, grads: &mut Gradients, grad: B::FloatTensorPrimitive) {
         grads.remove::<B>(self);
         grads.register::<B>(self.node.id, grad);
+    }
+
+    #[cfg(feature = "distributed")]
+    /// Mark the tensor as distributed across multiple devices.
+    /// Its gradients will be automatically aggregated from those devices after the backward pass.
+    ///
+    /// # Arguments
+    ///
+    /// * `param_id` - The module tensor's [`DistributedParamId`].
+    pub fn grad_distributed(mut self, param_id: DistributedParamId) -> Self {
+        self.node = Node::new(
+            vec![],
+            0,
+            self.node.id,
+            self.node.requirement,
+            self.node.properties.clone(),
+            self.node.client.clone(),
+            Some(DistributedParams { param_id }),
+        )
+        .into();
+        let step = RootStep::new(self.node.clone());
+
+        self.register_step(step, CheckpointerBuilder::default())
+    }
+}
+
+#[cfg(feature = "distributed")]
+impl<B: DistributedBackend> AutodiffTensor<B> {
+    pub fn backward(self) -> Gradients {
+        let device = B::float_device(&self.primitive);
+        let client = self.node.client.clone();
+
+        let grads = AutodiffClient::backward::<B>(&client, self);
+        grads.sync_collective::<B>(&device);
+        grads
     }
 }
