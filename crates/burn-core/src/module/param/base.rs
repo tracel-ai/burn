@@ -439,4 +439,38 @@ mod tests {
         }
         check::<burn_ndarray::NdArray>();
     }
+
+    /// Concurrent lazy initialization must not panic.
+    ///
+    /// Multiple threads call `val()` on an uninitialized `Param` simultaneously.
+    /// `SyncOnceCell::get_or_init` guarantees only one thread runs the initializer;
+    /// the others block and receive the same value.
+    #[test]
+    fn param_concurrent_lazy_init() {
+        type B = burn_ndarray::NdArray;
+        let device = <B as Backend>::Device::default();
+
+        let param: Param<Tensor<B, 2>> = Param::uninitialized(
+            ParamId::new(),
+            |device, _require_grad| Tensor::zeros([2, 3], device),
+            device,
+            false,
+            [2, 3].into(),
+        );
+
+        // Share across threads via &param (requires Sync).
+        std::thread::scope(|s| {
+            let handles: Vec<_> = (0..4)
+                .map(|_| s.spawn(|| param.val()))
+                .collect();
+
+            let results: Vec<_> = handles.into_iter().map(|h| h.join().unwrap()).collect();
+
+            // All threads must get the same value.
+            let expected = results[0].to_data();
+            for result in &results[1..] {
+                assert_eq!(result.to_data(), expected);
+            }
+        });
+    }
 }

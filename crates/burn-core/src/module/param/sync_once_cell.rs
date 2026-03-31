@@ -1,8 +1,11 @@
-//! A thread-safe `OnceCell` that works in both `std` and `no_std` environments.
+//! A `Sync`-compatible single-initialization cell for both `std` and `no_std`.
 //!
 //! Wraps `std::sync::OnceLock` (with `std`) or `spin::Once` (without `std`) behind
 //! a unified API. This makes `Param<T>` `Sync` so models can be shared across threads
 //! for parallel inference.
+//!
+//! We define our own wrapper instead of reusing `burn_std::stub::SyncOnceCell` because
+//! that version requires `T: Debug` on all methods and lacks `get()`.
 
 #[cfg(feature = "std")]
 use std::sync::OnceLock as Inner;
