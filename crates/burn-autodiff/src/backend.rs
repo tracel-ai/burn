@@ -156,10 +156,7 @@ impl<B: DistributedBackend, C: CheckpointStrategy> AutodiffBackend for Autodiff<
     type Gradients = Gradients;
 
     fn backward(tensor: AutodiffTensor<B>) -> Gradients {
-        let device = B::float_device(&tensor.primitive);
-        let grads = tensor.backward();
-        grads.sync_collective::<B>(&device);
-        grads
+        tensor.backward()
     }
 
     fn grad(tensor: &AutodiffTensor<B>, grads: &Gradients) -> Option<B::FloatTensorPrimitive> {

@@ -14,7 +14,7 @@ pub type Devices<B> = Vec<Device<B>>;
 // At the moment, our plan is to continue experimenting with the macro internally and monitor its development.
 // We may consider making it public in the future.
 macro_rules! module {
-    (map=$module:ident,  ops=$item:expr) => {{
+    (map=$module:ident, ops=$item:expr) => {{
         struct Mapper;
         impl<B: Backend> ModuleMapper<B> for Mapper {
             fn map_float<const D: usize>(

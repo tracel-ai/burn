@@ -457,12 +457,11 @@ mod grad_distributed {
     use burn_std::device::{Device, DeviceId};
     use burn_tensor::backend::distributed::DistributedBackend;
     use burn_tensor::backend::distributed::{DistributedParamId, ReduceOperation};
-    use burn_tensor::{Float, TensorData, backend::AutodiffBackend};
+    use burn_tensor::{TensorData, backend::AutodiffBackend};
     use rand::{
         SeedableRng,
         rngs::{StdRng, SysRng},
     };
-    use serial_test::parallel;
     use serial_test::serial;
     use std::sync::mpsc::{Receiver, Sender};
 

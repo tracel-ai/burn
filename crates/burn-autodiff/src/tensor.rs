@@ -228,10 +228,12 @@ impl<B: Backend> AutodiffTensor<B> {
 
 #[cfg(feature = "distributed")]
 impl<B: DistributedBackend> AutodiffTensor<B> {
-    #[cfg(feature = "distributed")]
     pub fn backward(self) -> Gradients {
+        let device = B::float_device(&self.primitive);
         let client = self.node.client.clone();
 
-        AutodiffClient::backward::<B>(&client, self)
+        let grads = AutodiffClient::backward::<B>(&client, self);
+        grads.sync_collective::<B>(&device);
+        grads
     }
 }
