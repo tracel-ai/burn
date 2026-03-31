@@ -57,6 +57,21 @@ impl ReduceBroadcastedFullFuser {
         }
     }
 
+    /// Returns the amount of operations fused.
+    pub fn num_ops_fused(&self) -> usize {
+        let mut fused = self.fuser.num_ops;
+
+        for block in self.blocks.iter() {
+            match block {
+                ReduceBlockKind::Elemwise => {}
+                // The base fuser doesn't hold the reduce ops.
+                ReduceBlockKind::Reduce { .. } => fused += 1,
+            }
+        }
+
+        fused
+    }
+
     /// Finishes fusing all blocks.
     pub fn finish(mut self) -> ReduceBroadcastedInfo {
         let mut reduce_axis = 0;

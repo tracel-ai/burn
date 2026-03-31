@@ -96,6 +96,7 @@ impl<R: Runtime> ReduceFuser<R> {
             }
         }
     }
+
     fn on_reduce(&mut self, op: &ReduceDimOpIr, inst: ReduceInstruction) {
         // TODO: Fix: we need to have fuse-on-read with an identity block.
         //
