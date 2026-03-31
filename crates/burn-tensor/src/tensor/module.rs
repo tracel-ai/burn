@@ -554,7 +554,11 @@ pub fn attention_fallback<B: Backend>(
     ))
 }
 
-/// TODO
+/// Real-valued fast Fourier transform.
+///
+/// Computes the discrete Fourier transform of a real-valued input along the given dimension.
+/// The transform is applied independently for each slice along `dim`, returning the non-redundant
+/// frequency components as separate real and imaginary tensors.
 pub fn rfft<B: Backend, const D: usize>(
     signal: Tensor<B, D>,
     dim: usize,

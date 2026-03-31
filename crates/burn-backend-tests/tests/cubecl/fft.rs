@@ -1,6 +1,6 @@
 use super::*;
 use burn_tensor::module::rfft;
-use burn_tensor::{DType, TensorData, Tolerance};
+use burn_tensor::{TensorData, Tolerance};
 
 #[test]
 fn rfft_dim1_sine_wave_produces_imaginary_spectrum() {

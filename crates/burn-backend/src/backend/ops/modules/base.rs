@@ -1057,7 +1057,11 @@ pub trait ModuleOps<B: Backend> {
         options: AttentionModuleOptions,
     ) -> FloatTensor<B>;
 
-    /// Doc for rfft
+    ///Real-valued fast Fourier transform.
+    ///
+    /// Computes the discrete Fourier transform of a real-valued input along the given dimension.
+    /// The transform is applied independently for each slice along `dim`, returning the non-redundant
+    /// frequency components as separate real and imaginary tensors.
     fn rfft(signal: FloatTensor<B>, dim: usize) -> (FloatTensor<B>, FloatTensor<B>);
 }
 

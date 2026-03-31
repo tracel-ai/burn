@@ -5,18 +5,7 @@ use crate::ops::numeric::empty_device_dtype;
 use burn_backend::TensorMetadata;
 use cubek::fft::rfft_launch;
 
-//pub fn attention<R: CubeRuntime>(
-//    query: CubeTensor<R>,
-//    key: CubeTensor<R>,
-//    value: CubeTensor<R>,
-//    mask: Option<CubeTensor<R>>,
-//    attn_bias: Option<CubeTensor<R>>,
-//    options: AttentionModuleOptions,
-//    strategy: AttentionStrategy,
-//    out: Option<CubeTensor<R>>,
-//) -> Result<CubeTensor<R>, AttentionSetupError> {
-
-/// TODO
+/// launch the fft kernel 
 pub fn rfft<R: CubeRuntime>(signal: CubeTensor<R>, dim: usize) -> (CubeTensor<R>, CubeTensor<R>) {
     //let client = <R as Runtime>::client(&Default::default());
     //let device = Default::default();
