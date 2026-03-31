@@ -5,6 +5,7 @@ use burn_tensor::Tolerance;
 use burn_tensor::module::attention;
 use burn_tensor::module::attention_fallback;
 use burn_tensor::ops::AttentionModuleOptions;
+use num_traits::{Float, cast::cast};
 
 #[test]
 fn test_attention_no_mask() {
@@ -349,12 +350,13 @@ fn test_attention_fully_masked_rows_no_nan() {
 
     let output_data = output.into_data();
     let values = output_data.as_slice::<FloatElem>().unwrap();
+    let tol: FloatElem = cast(1e-4f64).unwrap();
     assert!(
         !values.iter().any(|v| v.is_nan()),
         "Fully-masked rows should produce 0, not NaN"
     );
     assert!(
-        values.iter().all(|v| v.abs() < 1e-4),
+        values.iter().all(|v| v.abs() < tol),
         "Fully-masked rows should produce values near 0"
     );
 }
@@ -408,6 +410,7 @@ fn test_attention_fully_masked_rows_causal_no_nan() {
 
     let output_data = output.into_data();
     let values = output_data.as_slice::<FloatElem>().unwrap();
+    let tol: FloatElem = cast(1e-4f64).unwrap();
     assert!(
         !values.iter().any(|v| v.is_nan()),
         "Fully-masked rows should produce 0, not NaN"
@@ -415,13 +418,13 @@ fn test_attention_fully_masked_rows_causal_no_nan() {
     // Row 0 (indices 0..head_dim) should be ~0 since it's fully masked
     let row0 = &values[..head_dim];
     assert!(
-        row0.iter().all(|v| v.abs() < 1e-4),
+        row0.iter().all(|v| v.abs() < tol),
         "Fully-masked row 0 should produce values near 0"
     );
     // Rows 1-3 should have non-zero output (they have valid positions)
     let rest = &values[head_dim..];
     assert!(
-        rest.iter().any(|v| v.abs() > 1e-4),
+        rest.iter().any(|v| v.abs() > tol),
         "Non-masked rows should produce non-zero output"
     );
 }
