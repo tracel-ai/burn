@@ -1,5 +1,5 @@
 [default]
-extend-ignore-identifiers-re = ["ratatui", "Ratatui", "NdArray*", "ND"]
+extend-ignore-identifiers-re = ["ratatui", "Ratatui", "NdArray*", "ND", ".*_nd.*", ".*Nd.*"]
 
 [default.extend-identifiers]
 UE4M3 = "UE4M3"
@@ -14,6 +14,8 @@ extend-exclude = [
 ]
 
 [default.extend-words]
+# Don't correct "nd" (n-dimensional, as in scatter_nd/gather_nd)
+nd = "nd"
 # Don't correct "arange" which is intentional
 arange = "arange"
 # Don't correct "convnet" (convolutional network)

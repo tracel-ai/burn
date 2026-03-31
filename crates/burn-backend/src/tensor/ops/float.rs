@@ -187,10 +187,7 @@ impl<B: Backend> BasicOps<B> for Float {
         ))
     }
 
-    fn gather_nd(
-        data: Self::Primitive,
-        indices: IntTensor<B>,
-    ) -> Self::Primitive {
+    fn gather_nd(data: Self::Primitive, indices: IntTensor<B>) -> Self::Primitive {
         TensorPrimitive::Float(B::float_gather_nd(data.tensor(), indices))
     }
 

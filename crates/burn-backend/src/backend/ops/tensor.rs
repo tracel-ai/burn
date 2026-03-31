@@ -486,10 +486,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// The gathered tensor.
-    fn float_gather_nd(
-        _data: FloatTensor<B>,
-        _indices: IntTensor<B>,
-    ) -> FloatTensor<B> {
+    fn float_gather_nd(_data: FloatTensor<B>, _indices: IntTensor<B>) -> FloatTensor<B> {
         panic!("float_gather_nd is not implemented for this backend")
     }
 

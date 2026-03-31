@@ -118,10 +118,7 @@ impl<B: Backend> BasicOps<B> for Int {
         B::int_scatter_nd(data, indices, values, reduction)
     }
 
-    fn gather_nd(
-        data: Self::Primitive,
-        indices: IntTensor<B>,
-    ) -> Self::Primitive {
+    fn gather_nd(data: Self::Primitive, indices: IntTensor<B>) -> Self::Primitive {
         B::int_gather_nd(data, indices)
     }
 

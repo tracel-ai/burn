@@ -104,8 +104,7 @@ fn flatten_nd_indices(
         }
     }
 
-    let strides_tensor =
-        candle_core::Tensor::from_slice(&strides, (k,), device).unwrap();
+    let strides_tensor = candle_core::Tensor::from_slice(&strides, (k,), device).unwrap();
     // base_offsets: [num_updates] = indices @ strides
     let base_offsets = indices
         .to_dtype(candle_core::DType::I64)
@@ -117,7 +116,7 @@ fn flatten_nd_indices(
 
     // Expand to [num_updates, slice_size] + intra-slice offsets
     let slice_offsets = candle_core::Tensor::arange(0i64, slice_size as i64, device).unwrap();
-    let flat = base_offsets
+    base_offsets
         .unsqueeze(1)
         .unwrap()
         .broadcast_add(&slice_offsets.unsqueeze(0).unwrap())
@@ -125,9 +124,7 @@ fn flatten_nd_indices(
         .reshape((num_updates * slice_size,))
         .unwrap()
         .to_dtype(candle_core::DType::U32)
-        .unwrap();
-
-    flat
+        .unwrap()
 }
 
 pub fn scatter_nd(
@@ -149,16 +146,22 @@ pub fn scatter_nd(
     let flat_indices = indices.tensor.reshape((num_updates, k)).unwrap();
     let linear_idx = flatten_nd_indices(&flat_indices, &data_shape, k, slice_size);
 
-    let flat_data = data.tensor.contiguous().unwrap().reshape(total_elems).unwrap();
-    let flat_values = values.tensor.contiguous().unwrap().reshape(num_updates * slice_size).unwrap();
+    let flat_data = data
+        .tensor
+        .contiguous()
+        .unwrap()
+        .reshape(total_elems)
+        .unwrap();
+    let flat_values = values
+        .tensor
+        .contiguous()
+        .unwrap()
+        .reshape(num_updates * slice_size)
+        .unwrap();
 
     let result = match reduction {
-        ScatterNdReduction::Assign => {
-            flat_data.scatter(&linear_idx, &flat_values, 0).unwrap()
-        }
-        ScatterNdReduction::Add => {
-            flat_data.scatter_add(&linear_idx, &flat_values, 0).unwrap()
-        }
+        ScatterNdReduction::Assign => flat_data.scatter(&linear_idx, &flat_values, 0).unwrap(),
+        ScatterNdReduction::Add => flat_data.scatter_add(&linear_idx, &flat_values, 0).unwrap(),
         _ => panic!(
             "scatter_nd with {:?} reduction is not supported by the candle backend",
             reduction
@@ -168,10 +171,7 @@ pub fn scatter_nd(
     CandleTensor::new(result.reshape(data_shape).unwrap())
 }
 
-pub fn gather_nd(
-    data: CandleTensor,
-    indices: CandleTensor,
-) -> CandleTensor {
+pub fn gather_nd(data: CandleTensor, indices: CandleTensor) -> CandleTensor {
     let data_shape: Vec<usize> = data.tensor.dims().to_vec();
     let idx_shape: Vec<usize> = indices.tensor.dims().to_vec();
     let m = idx_shape.len();
@@ -183,7 +183,12 @@ pub fn gather_nd(
     let flat_indices = indices.tensor.reshape((num_indices, k)).unwrap();
     let linear_idx = flatten_nd_indices(&flat_indices, &data_shape, k, slice_size);
 
-    let flat_data = data.tensor.contiguous().unwrap().reshape(total_elems).unwrap();
+    let flat_data = data
+        .tensor
+        .contiguous()
+        .unwrap()
+        .reshape(total_elems)
+        .unwrap();
     let gathered = flat_data.index_select(&linear_idx, 0).unwrap();
 
     // Output shape: idx_shape[..m-1] ++ data_shape[k..]

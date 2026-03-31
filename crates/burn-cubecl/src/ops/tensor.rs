@@ -204,10 +204,7 @@ where
         kernel::scatter_nd(data, indices, values, reduction)
     }
 
-    fn float_gather_nd(
-        data: FloatTensor<Self>,
-        indices: IntTensor<Self>,
-    ) -> FloatTensor<Self> {
+    fn float_gather_nd(data: FloatTensor<Self>, indices: IntTensor<Self>) -> FloatTensor<Self> {
         kernel::gather_nd(data, indices)
     }
 

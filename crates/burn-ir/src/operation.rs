@@ -1856,9 +1856,7 @@ impl BaseOperationIr {
             BaseOperationIr::ScatterNd(repr) => {
                 Box::new([&repr.data, &repr.indices, &repr.values].into_iter())
             }
-            BaseOperationIr::GatherNd(repr) => {
-                Box::new([&repr.data, &repr.indices].into_iter())
-            }
+            BaseOperationIr::GatherNd(repr) => Box::new([&repr.data, &repr.indices].into_iter()),
             BaseOperationIr::Select(repr) => Box::new([&repr.tensor, &repr.indices].into_iter()),
             BaseOperationIr::SelectAssign(repr) => {
                 Box::new([&repr.tensor, &repr.indices, &repr.value].into_iter())

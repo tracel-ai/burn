@@ -24,10 +24,9 @@ fn test_int_scatter_nd_add() {
 
     let output = data.scatter_nd_add(indices, values);
 
-    output.into_data().assert_eq(
-        &TensorData::from([[11, 2, 3], [4, 5, 26]]),
-        false,
-    );
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([[11, 2, 3], [4, 5, 26]]), false);
 }
 
 #[test]
@@ -39,8 +38,7 @@ fn test_int_scatter_nd_mul() {
 
     let output = data.scatter_nd_mul(indices, values);
 
-    output.into_data().assert_eq(
-        &TensorData::from([[2, 30], [12, 5]]),
-        false,
-    );
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([[2, 30], [12, 5]]), false);
 }

@@ -305,14 +305,9 @@ where
         })
     }
 
-    fn int_gather_nd(
-        data: NdArrayTensor,
-        indices: NdArrayTensor,
-    ) -> NdArrayTensor {
+    fn int_gather_nd(data: NdArrayTensor, indices: NdArrayTensor) -> NdArrayTensor {
         execute_with_int_dtype!(data, E, |array| -> NdArrayTensor {
-            execute_with_int_dtype!(indices, |idx_array| NdArrayOps::gather_nd(
-                array, idx_array
-            ))
+            execute_with_int_dtype!(indices, |idx_array| NdArrayOps::gather_nd(array, idx_array))
         })
     }
 

@@ -956,16 +956,14 @@ impl TensorCheck {
         for i in 0..(D - k) {
             let val_idx = M - 1 + i;
             let data_idx = k + i;
-            if val_idx < DV && data_idx < D {
-                if values_shape[val_idx] != data_shape[data_idx] {
-                    check = check.register(
-                        ops,
-                        TensorError::new(format!(
-                            "Slice dimension mismatch at values[{val_idx}]={} vs data[{data_idx}]={}",
-                            values_shape[val_idx], data_shape[data_idx]
-                        )),
-                    );
-                }
+            if val_idx < DV && data_idx < D && values_shape[val_idx] != data_shape[data_idx] {
+                check = check.register(
+                    ops,
+                    TensorError::new(format!(
+                        "Slice dimension mismatch at values[{val_idx}]={} vs data[{data_idx}]={}",
+                        values_shape[val_idx], data_shape[data_idx]
+                    )),
+                );
             }
         }
 

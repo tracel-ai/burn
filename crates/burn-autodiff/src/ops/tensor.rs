@@ -1122,8 +1122,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                         _checkpointer: &mut Checkpointer,
                     ) {
                         let (indices, values_shape, device) = ops.state;
-                        let [indices_4lhs, indices_4rhs] =
-                            duplicate(&ops.parents, Some(indices));
+                        let [indices_4lhs, indices_4rhs] = duplicate(&ops.parents, Some(indices));
 
                         binary::<B, _, _>(
                             ops.parents,
@@ -1131,11 +1130,8 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                             grads,
                             |grad| {
                                 // Zero out the scattered positions in grad
-                                let zeros = B::float_zeros(
-                                    values_shape,
-                                    &device,
-                                    grad.dtype().into(),
-                                );
+                                let zeros =
+                                    B::float_zeros(values_shape, &device, grad.dtype().into());
                                 B::float_scatter_nd(
                                     grad,
                                     indices_4lhs.unwrap(),
@@ -1183,10 +1179,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
     }
 
-    fn float_gather_nd(
-        data: FloatTensor<Self>,
-        indices: IntTensor<B>,
-    ) -> FloatTensor<Self> {
+    fn float_gather_nd(data: FloatTensor<Self>, indices: IntTensor<B>) -> FloatTensor<Self> {
         #[derive(Debug)]
         struct GatherNd;
 
@@ -1226,9 +1219,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                 ),
                 B::float_gather_nd(data.primitive, indices),
             ),
-            OpsKind::UnTracked(prep) => {
-                prep.finish(B::float_gather_nd(data.primitive, indices))
-            }
+            OpsKind::UnTracked(prep) => prep.finish(B::float_gather_nd(data.primitive, indices)),
         }
     }
 

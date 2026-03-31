@@ -9,10 +9,7 @@ use burn_backend::{
     BoolDType, Distribution, ExecutionError, FloatDType, IntDType, Scalar, Shape, Slice,
     TensorData,
     ops::{FloatTensorOps, GridSampleOptions},
-    tensor::{
-        BoolTensor, Device, FloatTensor, IndexingUpdateOp, IntTensor,
-        ScatterNdReduction,
-    },
+    tensor::{BoolTensor, Device, FloatTensor, IndexingUpdateOp, IntTensor, ScatterNdReduction},
 };
 use burn_ir::*;
 use std::marker::PhantomData;
@@ -727,8 +724,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
                 let indices = handles.get_int_tensor::<B>(&self.desc.indices);
                 let values = handles.get_float_tensor::<B>(&self.desc.values);
 
-                let output =
-                    B::float_scatter_nd(data, indices, values, self.desc.reduction);
+                let output = B::float_scatter_nd(data, indices, values, self.desc.reduction);
 
                 handles.register_float_tensor::<B>(&self.desc.out.id, output);
             }
@@ -754,10 +750,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             .output()
     }
 
-    fn float_gather_nd(
-        data: FloatTensor<Self>,
-        indices: IntTensor<Self>,
-    ) -> FloatTensor<Self> {
+    fn float_gather_nd(data: FloatTensor<Self>, indices: IntTensor<Self>) -> FloatTensor<Self> {
         #[derive(new, Debug)]
         struct GatherNdOps<B: FusionBackend> {
             desc: GatherNdOpIr,

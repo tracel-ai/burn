@@ -1,5 +1,5 @@
-use burn_backend::{Shape, TensorMetadata};
 use burn_backend::tensor::ScatterNdReduction;
+use burn_backend::{Shape, TensorMetadata};
 use tch::Scalar;
 
 use crate::{LibTorchDevice, TchShape, TchTensor};
@@ -254,13 +254,13 @@ impl TchOps {
         }
 
         // base_offsets: [num_updates] = sum(indices[:, j] * strides[j])
-        let strides_tensor =
-            tch::Tensor::from_slice(&strides).to_device(indices.device());
-        let base_offsets = indices.matmul(&strides_tensor.unsqueeze(-1)).squeeze_dim(-1);
+        let strides_tensor = tch::Tensor::from_slice(&strides).to_device(indices.device());
+        let base_offsets = indices
+            .matmul(&strides_tensor.unsqueeze(-1))
+            .squeeze_dim(-1);
 
         // Expand base_offsets to [num_updates, slice_size] and add intra-slice offsets
-        let slice_offsets =
-            tch::Tensor::arange(slice_size, (tch::Kind::Int64, indices.device()));
+        let slice_offsets = tch::Tensor::arange(slice_size, (tch::Kind::Int64, indices.device()));
         let flat = base_offsets.unsqueeze(-1) + slice_offsets.unsqueeze(0);
         flat.reshape([flat.size().iter().product::<i64>()])
     }
@@ -288,12 +288,8 @@ impl TchOps {
         let flat_values = values.tensor.reshape([num_updates * slice_size]);
 
         let result = match reduction {
-            ScatterNdReduction::Assign => {
-                flat_data.scatter_(0, &linear_idx, &flat_values)
-            }
-            ScatterNdReduction::Add => {
-                flat_data.scatter_add(0, &linear_idx, &flat_values)
-            }
+            ScatterNdReduction::Assign => flat_data.scatter_(0, &linear_idx, &flat_values),
+            ScatterNdReduction::Add => flat_data.scatter_add(0, &linear_idx, &flat_values),
             ScatterNdReduction::Mul => {
                 flat_data.scatter_reduce(0, &linear_idx, &flat_values, "prod")
             }

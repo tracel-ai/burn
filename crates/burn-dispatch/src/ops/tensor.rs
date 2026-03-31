@@ -162,10 +162,7 @@ impl FloatTensorOps<Self> for Dispatch {
         )
     }
 
-    fn float_gather_nd(
-        data: FloatTensor<Self>,
-        indices: IntTensor<Self>,
-    ) -> FloatTensor<Self> {
+    fn float_gather_nd(data: FloatTensor<Self>, indices: IntTensor<Self>) -> FloatTensor<Self> {
         binary_float!((data, float), (indices, int), |data, indices| B::float_gather_nd(data, indices) => Float)
     }
 
