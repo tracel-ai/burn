@@ -162,7 +162,6 @@ distributed = ["std",
     "burn-core/distributed",
     "burn-optim/distributed",
     "burn-train?/ddp",
-    "burn-ndarray?/distributed",
     "burn-cuda?/distributed",
     "burn-autodiff?/distributed",
 ]

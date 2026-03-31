@@ -25,9 +25,7 @@ remote = ["burn/remote"]
 cuda = ["burn/cuda"]
 rocm = ["burn/rocm"]
 metal = ["burn/metal"]
-ddp = [
-    "burn/distributed",
-]
+ddp = ["burn/distributed"]
 
 [dependencies]
 # Burn

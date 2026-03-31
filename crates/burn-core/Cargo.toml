@@ -61,7 +61,6 @@ audio = ["burn-dataset?/audio"]
 distributed = ["std",
     "burn-tensor/distributed",
     "burn-autodiff/distributed",
-    "burn-ndarray/distributed",
     "burn-cuda?/distributed",
 ]
 

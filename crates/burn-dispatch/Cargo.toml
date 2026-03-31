@@ -52,7 +52,6 @@ tracing = [
 distributed = ["std", 
     "burn-backend/distributed",
     "burn-autodiff?/distributed",
-    "burn-ndarray?/distributed",
     "burn-cuda?/distributed"
 ]
 
