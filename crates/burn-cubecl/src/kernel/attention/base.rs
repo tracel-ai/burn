@@ -53,9 +53,7 @@ pub fn attention<R: CubeRuntime>(
     attn_bias: Option<CubeTensor<R>>,
     options: AttentionModuleOptions,
     strategy: AttentionStrategy,
-    out: Option<CubeTensor<R>>,
 ) -> Result<CubeTensor<R>, AttentionSetupError> {
-    let mut out = out.unwrap_or_else(|| init_attention_output(&query, &value));
     match strategy {
         AttentionStrategy::FlashBlackboxAccelerated(strategy) => flash_attention(
             query,
@@ -64,7 +62,6 @@ pub fn attention<R: CubeRuntime>(
             mask,
             attn_bias,
             options,
-            out,
             launch::Strategy::BlackboxAccelerated(
                 cubek::attention::launch::BlueprintStrategy::Inferred(strategy),
             ),
@@ -76,19 +73,15 @@ pub fn attention<R: CubeRuntime>(
             mask,
             attn_bias,
             options,
-            out,
             launch::Strategy::Unit(cubek::attention::launch::BlueprintStrategy::Inferred(())),
         ),
-        AttentionStrategy::Fallback => {
-            out = attention_fallback::<CubeBackend<R, f32, i32, u8>>(
-                query, key, value, mask, attn_bias, options,
-            );
-            Ok(out)
-        }
+        AttentionStrategy::Fallback => Ok(attention_fallback::<CubeBackend<R, f32, i32, u8>>(
+            query, key, value, mask, attn_bias, options,
+        )),
         #[cfg(feature = "autotune")]
-        AttentionStrategy::Autotune => {
-            attention_autotune(query, key, value, mask, attn_bias, options, out)
-        }
+        AttentionStrategy::Autotune => Ok(attention_autotune(
+            query, key, value, mask, attn_bias, options,
+        )),
     }
 }
 
@@ -101,10 +94,10 @@ pub fn flash_attention<R: CubeRuntime>(
     mask: Option<CubeTensor<R>>,
     _attn_bias: Option<CubeTensor<R>>,
     options: AttentionModuleOptions,
-    out: CubeTensor<R>,
     strategy: launch::Strategy,
 ) -> Result<CubeTensor<R>, AttentionSetupError> {
     let client = query.client.clone();
+    let out = init_attention_output(&query, &value);
 
     let dtypes = AttentionGlobalTypes {
         query: query.dtype.into(),
