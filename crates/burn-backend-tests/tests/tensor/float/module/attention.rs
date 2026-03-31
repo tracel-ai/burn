@@ -314,6 +314,100 @@ fn test_attention_softcap_preserves_causal_mask() {
         .assert_approx_eq::<FloatElem>(&value_row0.into_data(), Tolerance::relative(1e-5));
 }
 
+/// Regression: fully-masked rows must produce 0, not NaN.
+/// When a bool mask masks every key position for a query row, all attention
+/// scores are -inf and naive softmax yields NaN.
+#[test]
+fn test_attention_fully_masked_rows_no_nan() {
+    let [num_batches, num_heads, seq_len, head_dim] = [1, 1, 4, 8];
+
+    let query = TestTensor::<4>::random(
+        [num_batches, num_heads, seq_len, head_dim],
+        Distribution::Uniform(-1., 1.),
+        &Default::default(),
+    );
+    let key = TestTensor::<4>::random(
+        [num_batches, num_heads, seq_len, head_dim],
+        Distribution::Uniform(-1., 1.),
+        &Default::default(),
+    );
+    let value = TestTensor::<4>::random(
+        [num_batches, num_heads, seq_len, head_dim],
+        Distribution::Uniform(-1., 1.),
+        &Default::default(),
+    );
+
+    // Mask everything: all positions are true (masked)
+    let mask = TestTensor::<4>::ones(
+        [num_batches, num_heads, seq_len, seq_len],
+        &Default::default(),
+    )
+    .greater_elem(0.0);
+
+    let output =
+        attention_fallback::<TestBackend>(query, key, value, Some(mask), None, Default::default());
+
+    // Every row is fully masked, so output should be all zeros (not NaN)
+    let output_data = output.into_data();
+    let values = output_data.as_slice::<FloatElem>().unwrap();
+    assert!(
+        !values.iter().any(|v| v.is_nan()),
+        "Fully-masked rows should produce 0, not NaN"
+    );
+    assert!(
+        values.iter().all(|v| v.abs() < 1e-4),
+        "Fully-masked rows should produce values near 0"
+    );
+}
+
+/// Same as above but with causal + bool mask combined.
+#[test]
+fn test_attention_fully_masked_rows_causal_no_nan() {
+    let [num_batches, num_heads, seq_len, head_dim] = [1, 1, 4, 8];
+
+    let query = TestTensor::<4>::random(
+        [num_batches, num_heads, seq_len, head_dim],
+        Distribution::Uniform(-1., 1.),
+        &Default::default(),
+    );
+    let key = TestTensor::<4>::random(
+        [num_batches, num_heads, seq_len, head_dim],
+        Distribution::Uniform(-1., 1.),
+        &Default::default(),
+    );
+    let value = TestTensor::<4>::random(
+        [num_batches, num_heads, seq_len, head_dim],
+        Distribution::Uniform(-1., 1.),
+        &Default::default(),
+    );
+
+    // Mask everything: all positions are true (masked)
+    let mask = TestTensor::<4>::ones(
+        [num_batches, num_heads, seq_len, seq_len],
+        &Default::default(),
+    )
+    .greater_elem(0.0);
+
+    let options = AttentionModuleOptions {
+        is_causal: true,
+        ..Default::default()
+    };
+
+    let output =
+        attention_fallback::<TestBackend>(query, key, value, Some(mask), None, options);
+
+    let output_data = output.into_data();
+    let values = output_data.as_slice::<FloatElem>().unwrap();
+    assert!(
+        !values.iter().any(|v| v.is_nan()),
+        "Fully-masked rows should produce 0, not NaN"
+    );
+    assert!(
+        values.iter().all(|v| v.abs() < 1e-4),
+        "Fully-masked rows should produce values near 0"
+    );
+}
+
 /// Combined: mask + bias + custom scale + softcap together.
 #[test]
 fn test_attention_all_options() {

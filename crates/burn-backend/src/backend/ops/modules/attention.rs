@@ -66,11 +66,18 @@ pub fn attention_fallback<B: Backend>(
         attention_scores
     };
 
-    // Softmax: S = softmax(A)
+    // NaN-safe softmax: S = softmax(A)
+    // When all positions in a row are masked (-inf), naive softmax has two NaN paths:
+    //   (1) max is -inf, so the shift -inf - (-inf) = NaN;
+    //   (2) after fixing (1), all exp values are 0, so sum is 0 and 0/0 = NaN.
+    // Clamping max (to -1e4) and sum (to 1e-6) avoids both, yielding 0 for
+    // fully-masked rows (no position contributes to output).
     let max_per_dim = B::float_max_dim(attention_scores.clone(), 3);
+    let max_per_dim = B::float_clamp_min(max_per_dim, (-1e4).into());
     let minus_max = B::float_sub(attention_scores, max_per_dim);
     let numerator = B::float_exp(minus_max);
     let sum_exp = B::float_sum_dim(numerator.clone(), 3);
+    let sum_exp = B::float_clamp_min(sum_exp, 1e-6.into());
     let softmax = B::float_div(numerator, sum_exp);
 
     // Context: S · V
