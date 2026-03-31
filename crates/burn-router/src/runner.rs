@@ -220,8 +220,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     let indices = handles.get_int_tensor::<B>(&desc.indices);
                     let values = handles.get_float_tensor::<B>(&desc.values);
 
-                    let output =
-                        B::float_scatter_nd(data, indices, values, desc.reduction);
+                    let output = B::float_scatter_nd(data, indices, values, desc.reduction);
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
                 BaseOperationIr::GatherNd(desc) => {
@@ -382,8 +381,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     let indices = handles.get_int_tensor::<B>(&desc.indices);
                     let values = handles.get_int_tensor::<B>(&desc.values);
 
-                    let output =
-                        B::int_scatter_nd(data, indices, values, desc.reduction);
+                    let output = B::int_scatter_nd(data, indices, values, desc.reduction);
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
                 BaseOperationIr::GatherNd(desc) => {

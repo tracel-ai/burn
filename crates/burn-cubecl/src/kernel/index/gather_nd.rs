@@ -1,12 +1,9 @@
 use crate::{
-    CubeRuntime,
-    kernel::utils::address_type,
-    ops::numeric::empty_device_dtype,
-    tensor::CubeTensor,
+    CubeRuntime, kernel::utils::address_type, ops::numeric::empty_device_dtype, tensor::CubeTensor,
 };
 use burn_backend::TensorMetadata;
-use cubecl::{CubeDim, calculate_cube_count_elemwise};
 use cubecl::prelude::*;
+use cubecl::{CubeDim, calculate_cube_count_elemwise};
 
 use super::scatter_nd::nd_index_strides;
 

@@ -242,9 +242,8 @@ where
             let val_offset = n * slice_size;
             match reduction {
                 ScatterNdReduction::Assign => {
-                    for s in 0..slice_size {
-                        output_flat[base_offset + s] = val_flat[val_offset + s];
-                    }
+                    output_flat[base_offset..(base_offset + slice_size)]
+                        .copy_from_slice(&val_flat[val_offset..(val_offset + slice_size)]);
                 }
                 ScatterNdReduction::Add => {
                     for s in 0..slice_size {
@@ -330,17 +329,13 @@ where
             }
 
             let out_offset = n * slice_size;
-            for s in 0..slice_size {
-                output_vec[out_offset + s] = data_flat[base_offset + s];
-            }
+            output_vec[out_offset..(out_offset + slice_size)]
+                .copy_from_slice(&data_flat[base_offset..(base_offset + slice_size)]);
         }
 
         let out_shape = Shape::from(out_shape_vec);
-        let output = ArrayD::from_shape_vec(
-            out_shape.as_slice(),
-            output_vec,
-        )
-        .expect("gather_nd: shape mismatch");
+        let output = ArrayD::from_shape_vec(out_shape.as_slice(), output_vec)
+            .expect("gather_nd: shape mismatch");
 
         output.into_shared()
     }

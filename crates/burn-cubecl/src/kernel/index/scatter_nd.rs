@@ -1,15 +1,15 @@
 use crate::{
     CubeRuntime,
     kernel::{
-        AddOp, AssignOp, BinaryOp, BinaryOpFamily, BinaryMaxOp, BinaryMinOp, MulOp,
+        AddOp, AssignOp, BinaryMaxOp, BinaryMinOp, BinaryOp, BinaryOpFamily, MulOp,
         utils::address_type,
     },
     tensor::CubeTensor,
 };
 use burn_backend::TensorMetadata;
 use burn_backend::tensor::ScatterNdReduction;
-use cubecl::{CubeDim, calculate_cube_count_elemwise};
 use cubecl::prelude::*;
+use cubecl::{CubeDim, calculate_cube_count_elemwise};
 
 /// Compute the strides used to convert K-dimensional index tuples into flat
 /// offsets into a contiguous data tensor.

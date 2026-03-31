@@ -4,19 +4,18 @@ use burn_std::{BoolDType, FloatDType};
 
 use crate::{BackendRouter, RunnerChannel, RunnerClient, get_client};
 use burn_backend::tensor::{
-    BoolTensor, Device, FloatElem, FloatTensor, IndexingUpdateOp, IntElem, IntTensor,
-    ScatterNdReduction,
+    BoolTensor, Device, FloatTensor, IndexingUpdateOp, IntElem, IntTensor, ScatterNdReduction,
 };
 use burn_backend::{
     Distribution, Element, IntDType, Scalar, Shape, Slice, TensorData, ops::IntTensorOps,
 };
 use burn_ir::{
     BaseOperationIr, BinaryOpIr, CastOpIr, CatOpIr, ClampOpIr, CreationOpIr, DimOpIr, FlipOpIr,
-    GatherOpIr, InitOperationIr, IntOperationIr, MaskFillOpIr, MaskWhereOpIr, MatmulOpIr,
-    NumericOperationIr, OperationIr, OperationOutput, PermuteOpIr, RandomOpIr, ReduceDimOpIr,
-    ReduceDimWithIndicesOpIr, ReduceOpIr, RepeatDimOpIr, ScalarOpIr, ScatterOpIr, SelectAssignOpIr,
-    ScatterNdOpIr, GatherNdOpIr,
-    SelectOpIr, ShapeOpIr, SliceAssignOpIr, SliceOpIr, SwapDimsOpIr, UnaryOpIr, UnfoldOpIr,
+    GatherNdOpIr, GatherOpIr, InitOperationIr, IntOperationIr, MaskFillOpIr, MaskWhereOpIr,
+    MatmulOpIr, NumericOperationIr, OperationIr, OperationOutput, PermuteOpIr, RandomOpIr,
+    ReduceDimOpIr, ReduceDimWithIndicesOpIr, ReduceOpIr, RepeatDimOpIr, ScalarOpIr, ScatterNdOpIr,
+    ScatterOpIr, SelectAssignOpIr, SelectOpIr, ShapeOpIr, SliceAssignOpIr, SliceOpIr, SwapDimsOpIr,
+    UnaryOpIr, UnfoldOpIr,
 };
 
 impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
@@ -195,10 +194,7 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
             .output()
     }
 
-    fn int_gather_nd(
-        data: IntTensor<Self>,
-        indices: IntTensor<Self>,
-    ) -> IntTensor<Self> {
+    fn int_gather_nd(data: IntTensor<Self>, indices: IntTensor<Self>) -> IntTensor<Self> {
         let client = data.client.clone();
         let desc = GatherNdOpIr::create(data.into_ir(), indices.into_ir(), || {
             client.create_empty_handle()

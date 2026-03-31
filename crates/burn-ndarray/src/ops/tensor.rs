@@ -225,10 +225,7 @@ where
         )
     }
 
-    fn float_gather_nd(
-        data: FloatTensor<Self>,
-        indices: NdArrayTensor,
-    ) -> FloatTensor<Self> {
+    fn float_gather_nd(data: FloatTensor<Self>, indices: NdArrayTensor) -> FloatTensor<Self> {
         execute_with_int_dtype!(
             indices,
             IntElem,

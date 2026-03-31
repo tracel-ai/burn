@@ -206,10 +206,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         super::base::scatter_nd(data, indices, values, reduction)
     }
 
-    fn float_gather_nd(
-        data: FloatTensor<Self>,
-        indices: IntTensor<Self>,
-    ) -> FloatTensor<Self> {
+    fn float_gather_nd(data: FloatTensor<Self>, indices: IntTensor<Self>) -> FloatTensor<Self> {
         super::base::gather_nd(data, indices)
     }
 

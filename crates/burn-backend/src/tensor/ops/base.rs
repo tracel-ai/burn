@@ -446,10 +446,7 @@ pub trait BasicOps<B: BackendTypes>: TensorKind<B> {
     ) -> Self::Primitive;
 
     /// Multi-dimensional gather: collect slices from `data` at multi-index locations.
-    fn gather_nd(
-        data: Self::Primitive,
-        indices: IntTensor<B>,
-    ) -> Self::Primitive;
+    fn gather_nd(data: Self::Primitive, indices: IntTensor<B>) -> Self::Primitive;
 
     /// Returns the device on which the tensor is allocated.
     ///

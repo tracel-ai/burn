@@ -103,10 +103,7 @@ impl IntTensorOps<Self> for Dispatch {
         )
     }
 
-    fn int_gather_nd(
-        data: IntTensor<Self>,
-        indices: IntTensor<Self>,
-    ) -> IntTensor<Self> {
+    fn int_gather_nd(data: IntTensor<Self>, indices: IntTensor<Self>) -> IntTensor<Self> {
         binary_op!((data, int), (indices, int), |data, indices| B::int_gather_nd(data, indices) => Int)
     }
 

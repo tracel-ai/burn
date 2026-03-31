@@ -198,10 +198,7 @@ pub trait IntTensorOps<B: Backend> {
     }
 
     /// Multi-dimensional gather for int tensors.
-    fn int_gather_nd(
-        _data: IntTensor<B>,
-        _indices: IntTensor<B>,
-    ) -> IntTensor<B> {
+    fn int_gather_nd(_data: IntTensor<B>, _indices: IntTensor<B>) -> IntTensor<B> {
         panic!("int_gather_nd is not implemented for this backend")
     }
 
