@@ -1,5 +1,5 @@
-use burn_tensor::backend::Backend;
-use burn_tensor::communication::{PeerId, ReduceOperation};
+use crate::{PeerId, ReduceOperation};
+use burn_backend::Backend;
 
 use crate::{
     CollectiveConfig, global::shared::GlobalCollectiveError, local::server::get_collective_client,

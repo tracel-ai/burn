@@ -1,11 +1,9 @@
 use crate::global::node::base::Node;
 use crate::local::tensor_map::CollectiveTensorMap;
-use crate::{CollectiveConfig, CollectiveError, local};
+use crate::{CollectiveConfig, CollectiveError, PeerId, ReduceOperation, local};
+use burn_backend::{Backend, TensorMetadata};
 use burn_communication::Protocol;
 use burn_std::Shape;
-use burn_tensor::TensorMetadata;
-use burn_tensor::backend::Backend;
-use burn_tensor::communication::{PeerId, ReduceOperation};
 use std::sync::mpsc::SyncSender;
 
 /// An on-going all-reduce operation

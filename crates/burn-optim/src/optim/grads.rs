@@ -1,10 +1,5 @@
 use burn_core as burn;
 
-#[cfg(feature = "collective")]
-use burn_collective::{CollectiveError, all_reduce};
-#[cfg(feature = "collective")]
-use burn_core::tensor::communication::{PeerId, ReduceOperation};
-
 use burn::{
     Tensor,
     tensor::{
@@ -12,6 +7,8 @@ use burn::{
         container::TensorContainer,
     },
 };
+#[cfg(feature = "collective")]
+use burn_collective::{CollectiveError, PeerId, ReduceOperation, all_reduce};
 
 use burn::module::{AutodiffModule, ParamId};
 

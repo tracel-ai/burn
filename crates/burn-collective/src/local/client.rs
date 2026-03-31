@@ -1,13 +1,12 @@
-use crate::local::all_reduce::AllReduceResult;
 use crate::{
-    CollectiveConfig, CollectiveError,
+    CollectiveConfig, CollectiveError, PeerId, ReduceOperation,
     local::{
         BroadcastResult, ReduceResult,
+        all_reduce::AllReduceResult,
         server::{FinishResult, Message, RegisterResult},
     },
 };
-use burn_tensor::backend::Backend;
-use burn_tensor::communication::{PeerId, ReduceOperation};
+use burn_backend::Backend;
 use std::sync::mpsc::{Receiver, SyncSender};
 
 /// Local client to communicate with the local server. Each thread has a client.

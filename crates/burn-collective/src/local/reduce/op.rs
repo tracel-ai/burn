@@ -1,13 +1,9 @@
+use burn_backend::{Backend, Shape, TensorMetadata};
 use burn_communication::Protocol;
-use burn_tensor::{
-    Shape, TensorMetadata,
-    backend::Backend,
-    communication::{PeerId, ReduceOperation},
-};
 use std::sync::mpsc::SyncSender;
 
 use crate::{
-    CollectiveConfig, CollectiveError, ReduceStrategy,
+    CollectiveConfig, CollectiveError, PeerId, ReduceOperation, ReduceStrategy,
     local::{reduce_sum_centralized, reduce_sum_tree},
     node::base::Node,
 };

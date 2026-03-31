@@ -9,8 +9,8 @@ use crate::{
     local::{get_ring_reduce_slice_ranges, get_slice_dim},
     node::sync::SyncService,
 };
+use burn_backend::{Backend, Slice, TensorMetadata};
 use burn_communication::{Address, Protocol, data_service::TensorDataService};
-use burn_tensor::{Slice, TensorMetadata, backend::Backend};
 
 // https://blog.dailydoseofds.com/p/all-reduce-and-ring-reduce-for-model
 

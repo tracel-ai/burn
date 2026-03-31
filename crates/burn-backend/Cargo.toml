@@ -15,9 +15,9 @@ version.workspace = true
 workspace = true
 
 [features]
-default = ["std", "communication"]
+default = ["std"]
 doc = ["default"]
-communication = ["std", "oneshot"]
+distributed = ["std", "oneshot"]
 std = ["rand/std", "num-traits/std", "burn-std/std", "cubecl?/std"]
 
 tracing = ["burn-std/tracing", "cubecl/tracing"]

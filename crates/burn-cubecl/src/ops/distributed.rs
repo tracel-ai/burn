@@ -1,10 +1,12 @@
-use burn_backend::DeviceOps;
-use burn_backend::ops::TensorRef;
-use burn_backend::{ReduceOperation, ops::CommunicationTensorOps, tensor::Device};
+use burn_backend::{
+    DeviceOps,
+    distributed::{DistributedBackend, ReduceOperation, TensorRef},
+    tensor::Device,
+};
 
 use crate::{BoolElement, CubeBackend, CubeRuntime, FloatElement, IntElement};
 
-impl<R, F, I, BT> CommunicationTensorOps<Self> for CubeBackend<R, F, I, BT>
+impl<R, F, I, BT> DistributedBackend for CubeBackend<R, F, I, BT>
 where
     R: CubeRuntime,
     F: FloatElement,
@@ -19,12 +21,17 @@ where
             let device = &tensor.device;
             let client = R::client(device);
 
+            let op = match op {
+                ReduceOperation::Sum => cubecl::server::ReduceOperation::Sum,
+                ReduceOperation::Mean => cubecl::server::ReduceOperation::Mean,
+            };
+
             client.all_reduce(
                 tensor.handle.clone(),
                 tensor.handle.clone(),
                 tensor.dtype.into(),
                 all_ids.clone(),
-                op.into(),
+                op,
             );
         }
     }

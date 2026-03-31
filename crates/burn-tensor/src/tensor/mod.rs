@@ -25,11 +25,6 @@ pub mod backend {
     pub use burn_backend::backend::*;
 }
 
-/// The communication module.
-pub mod communication {
-    pub use burn_backend::communication::*;
-}
-
 /// The container module.
 pub mod container {
     pub use burn_backend::tensor::TensorContainer;

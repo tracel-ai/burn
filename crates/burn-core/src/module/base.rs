@@ -1,6 +1,5 @@
 use super::{Param, ParamId, Quantizer};
 use crate::{
-    module::ModuleSharder,
     record::Record,
     tensor::backend::{AutodiffBackend, Backend},
 };
@@ -140,11 +139,6 @@ pub trait Module<B: Backend>: Clone + Send + core::fmt::Debug {
         Self: HasAutodiffModule<AB>,
     {
         <Self as HasAutodiffModule<AB>>::TrainModule::from_inner(self)
-    }
-
-    /// Each parameter in the module tree will be marked as distributed across multiple devices.
-    fn grad_distributed(self) -> Self {
-        self.map(&mut ModuleSharder)
     }
 
     /// Get the number of parameters the module has, including all of its sub-modules.

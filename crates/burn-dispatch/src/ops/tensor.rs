@@ -1,7 +1,6 @@
 use alloc::vec::Vec;
 use burn_backend::{
-    BoolDType, DistributedParamId, DistributedParams, ExecutionError, FloatDType, IntDType, Scalar,
-    Shape, Slice, TensorData,
+    BoolDType, ExecutionError, FloatDType, IntDType, Scalar, Shape, Slice, TensorData,
     ops::FloatTensorOps,
     tensor::{BoolTensor, FloatTensor, IntTensor},
 };
@@ -447,19 +446,6 @@ impl FloatTensorOps<Self> for Dispatch {
 
     fn float_is_require_grad(tensor: &FloatTensor<Self>) -> bool {
         unary_float!(ref tensor, float, |tensor| B::float_is_require_grad(tensor))
-    }
-
-    fn float_set_distributed_params(
-        tensor: FloatTensor<Self>,
-        param_id: DistributedParamId,
-    ) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| B::float_set_distributed_params(tensor, param_id) => Float)
-    }
-
-    fn float_distributed_params(tensor: &FloatTensor<Self>) -> Option<DistributedParams> {
-        unary_float!(ref tensor, float, |tensor| B::float_distributed_params(
-            tensor
-        ))
     }
 
     // Default implementation

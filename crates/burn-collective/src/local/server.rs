@@ -1,14 +1,13 @@
 use crate::{
-    CollectiveConfig, CollectiveError,
+    CollectiveConfig, CollectiveError, PeerId, ReduceOperation,
     global::node::base::Node,
     local::{
         AllReduceOp, AllReduceResult, BroadcastOp, BroadcastResult, ReduceOp, ReduceResult,
         client::LocalCollectiveClient,
     },
 };
+use burn_backend::{Backend, TensorMetadata};
 use burn_communication::websocket::{WebSocket, WsServer};
-use burn_tensor::communication::{PeerId, ReduceOperation};
-use burn_tensor::{TensorMetadata, backend::Backend};
 use std::sync::{MutexGuard, OnceLock};
 use std::{
     any::{Any, TypeId},

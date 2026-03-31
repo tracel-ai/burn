@@ -1,10 +1,7 @@
 use std::time::Duration;
 
-use burn::tensor::{
-    TensorData,
-    communication::{AllReduceStrategy, ReduceOperation},
-};
-use burn_collective::NodeId;
+use burn::tensor::TensorData;
+use burn_collective::{AllReduceStrategy, NodeId, ReduceOperation};
 use burn_communication::Address;
 use serde::{Deserialize, Serialize};
 

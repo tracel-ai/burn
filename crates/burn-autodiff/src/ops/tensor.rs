@@ -20,13 +20,15 @@ use crate::{
 };
 
 use burn_backend::{
-    Backend, DistributedParamId, DistributedParams, ExecutionError, TensorData, TensorMetadata,
-    get_device_settings,
+    Backend, ExecutionError, TensorData, TensorMetadata, get_device_settings,
     ops::FloatTensorOps,
     tensor::{BoolTensor, Device, FloatTensor, IntTensor},
 };
 use burn_backend::{Scalar, ops::unfold::calculate_unfold_windows};
 use burn_std::{BoolDType, FloatDType, IntDType, Shape, Slice};
+
+#[cfg(feature = "distributed")]
+use burn_backend::distributed::DistributedParams;
 
 use super::maxmin::MaxMinDim;
 
@@ -1510,14 +1512,18 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
 
     fn float_detach(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         // When we detach a tensor, we remove it from the graph, but we still want to keep the
-        // `require_grad` and `distributed` setting.
+        // `require_grad` (and `distributed`) setting.
         let is_require_grad = Self::float_is_require_grad(&tensor);
-        let distributed_params = Self::float_distributed_params(&tensor);
+
+        #[cfg(feature = "distributed")]
+        let distributed_params = tensor.node.distributed_params.clone();
+
         let mut tensor = AutodiffTensor::new(tensor.primitive);
 
         if is_require_grad {
             tensor = tensor.require_grad();
         }
+        #[cfg(feature = "distributed")]
         if let Some(params) = distributed_params {
             tensor = tensor.grad_distributed(params.param_id);
         }
@@ -1534,17 +1540,6 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
 
     fn float_is_require_grad(tensor: &FloatTensor<Self>) -> bool {
         matches!(tensor.node.requirement, Requirement::Grad)
-    }
-
-    fn float_set_distributed_params(
-        tensor: FloatTensor<Self>,
-        param_id: DistributedParamId,
-    ) -> FloatTensor<Self> {
-        tensor.grad_distributed(param_id)
-    }
-
-    fn float_distributed_params(tensor: &FloatTensor<Self>) -> Option<DistributedParams> {
-        tensor.node.distributed_params.clone()
     }
 
     fn float_mean(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
@@ -2967,6 +2962,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                 self.output.order
             }
 
+            #[cfg(feature = "distributed")]
             fn distributed_params(&self) -> Option<DistributedParams> {
                 self.output.distributed_params.clone()
             }

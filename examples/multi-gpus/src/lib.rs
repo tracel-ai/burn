@@ -1,7 +1,6 @@
 use burn::{
-    self,
     backend::Autodiff,
-    collective::{CollectiveConfig, all_reduce, finish_collective, register},
+    collective::{self, CollectiveConfig, PeerId, ReduceOperation},
     data::{dataloader::DataLoaderBuilder, dataset::transform::PartialDataset},
     nn::transformer::TransformerEncoderConfig,
     optim::{GradientsParams, Optimizer, SgdConfig},
@@ -9,7 +8,6 @@ use burn::{
     tensor::{
         TensorPrimitive,
         backend::{AutodiffBackend, DeviceId},
-        communication::{AllReduceStrategy, PeerId, ReduceOperation},
     },
 };
 use std::{
@@ -35,9 +33,9 @@ pub fn run<B: Backend>() {
 
 fn run_with<B: Backend>(devices: Vec<B::Device>) {
     for strategy in [
-        AllReduceStrategy::Tree(2),
-        AllReduceStrategy::Ring,
-        AllReduceStrategy::Centralized,
+        collective::AllReduceStrategy::Tree(2),
+        collective::AllReduceStrategy::Ring,
+        collective::AllReduceStrategy::Centralized,
     ] {
         println!("[Gradient Update - {strategy:?}] starting ...");
         let start = Instant::now();
@@ -48,9 +46,9 @@ fn run_with<B: Backend>(devices: Vec<B::Device>) {
         );
     }
     for strategy in [
-        AllReduceStrategy::Centralized,
-        AllReduceStrategy::Ring,
-        AllReduceStrategy::Tree(2),
+        collective::AllReduceStrategy::Centralized,
+        collective::AllReduceStrategy::Ring,
+        collective::AllReduceStrategy::Tree(2),
     ] {
         println!("[All Reduce - {strategy:?}] starting ...");
         let start = Instant::now();
@@ -112,7 +110,7 @@ fn task_naive_aggregation<B: Backend>(mut devices: Vec<B::Device>, num_iteration
 fn task_all_reduce<B: Backend>(
     devices: Vec<B::Device>,
     num_iterations: usize,
-    strategy: AllReduceStrategy,
+    strategy: collective::AllReduceStrategy,
 ) {
     let num_devices = devices.len();
     let batch = 32;
@@ -139,7 +137,7 @@ fn task_all_reduce<B: Backend>(
                     .with_num_devices(num_devices)
                     .with_local_all_reduce_strategy(strategy);
 
-                register::<B>(id, device.clone(), config).unwrap();
+                collective::register::<B>(id, device.clone(), config).unwrap();
 
                 for i in 0..num_iterations {
                     let signal = Tensor::<B, 3>::random(
@@ -150,7 +148,7 @@ fn task_all_reduce<B: Backend>(
                     let signal = compute(weights, signal);
                     let weights_update = signal.mean_dim(0);
 
-                    let result = all_reduce::<B>(
+                    let result = collective::all_reduce::<B>(
                         id,
                         weights_update.into_primitive().tensor(),
                         ReduceOperation::Mean,
@@ -162,7 +160,7 @@ fn task_all_reduce<B: Backend>(
                         println!("Iter {i} => {val}");
                     }
                 }
-                finish_collective::<B>(id).unwrap();
+                collective::finish_collective::<B>(id).unwrap();
             })
         })
         .collect::<Vec<_>>();
@@ -172,7 +170,10 @@ fn task_all_reduce<B: Backend>(
     }
 }
 
-fn task_grad_all_reduce<B: AutodiffBackend>(devices: Vec<B::Device>, strategy: AllReduceStrategy) {
+fn task_grad_all_reduce<B: AutodiffBackend>(
+    devices: Vec<B::Device>,
+    strategy: collective::AllReduceStrategy,
+) {
     let num_devices = devices.len();
     let seq_length = nn::attention::SeqLengthOption::Fixed(512);
     let batch_size = 32;
@@ -256,7 +257,7 @@ impl GradSyncer {
 
         std::thread::spawn(move || {
             println!("[{id}] Register collective operation {config:?}");
-            register::<B::InnerBackend>(id, device, config).unwrap();
+            collective::register::<B::InnerBackend>(id, device, config).unwrap();
             let num_stages = 4;
             let mut buffers: Vec<GradientsParams> = Vec::new();
 
@@ -276,7 +277,7 @@ impl GradSyncer {
 
                 msg.callback.send(result).unwrap();
             }
-            finish_collective::<B::InnerBackend>(id).unwrap();
+            collective::finish_collective::<B::InnerBackend>(id).unwrap();
         });
 
         Self { sender }

@@ -1,3 +1,5 @@
+#[cfg(feature = "distributed")]
+use burn_core::tensor::backend::distributed::DistributedParamId;
 use burn_core::{self as burn, prelude::Backend, tensor::Device};
 
 use super::{SimpleOptimizer, record::AdaptorRecord};
@@ -160,7 +162,8 @@ where
 
         let tensor = if let Some((grad, device)) = grad {
             let is_require_grad = tensor.is_require_grad();
-            let distributed_params = tensor.distributed_params();
+            #[cfg(feature = "distributed")]
+            let is_distributed = tensor.is_distributed();
 
             let (key, record) = self.records.remove_entry(&id).unzip();
             let tensor = if tensor.device() != device {
@@ -202,9 +205,11 @@ where
             if is_require_grad {
                 tensor = tensor.require_grad();
             }
-            if let Some(params) = distributed_params {
-                tensor = tensor.set_distributed_params(params.param_id);
+            #[cfg(feature = "distributed")]
+            if is_distributed {
+                tensor = tensor.set_distributed(DistributedParamId::from(id.val()))
             }
+
             tensor
         } else {
             tensor

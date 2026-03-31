@@ -15,9 +15,8 @@ version.workspace = true
 workspace = true
 
 [features]
-default = ["communication"]
+default = ["std"]
 doc = ["default"]
-communication = ["std", "burn-backend/communication"]
 std = [
     "num-traits/std",
     "burn-std/std",
@@ -28,6 +27,7 @@ tracing = [
     "burn-std/tracing",
     "burn-backend/tracing",
 ]
+distributed = ["std", "burn-backend/distributed"]
 
 cubecl = ["burn-std/cubecl", "burn-backend/cubecl"]
 cubecl-cuda = ["burn-backend/cubecl-cuda"]

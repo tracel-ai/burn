@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 #[cfg(feature = "ddp")]
-use burn_core::tensor::communication::DistributedConfig;
+use burn_core::tensor::backend::distributed::DistributedConfig;
 use burn_core::{module::AutodiffModule, prelude::Backend};
 
 use crate::{
