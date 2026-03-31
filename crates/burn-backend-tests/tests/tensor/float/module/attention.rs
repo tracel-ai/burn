@@ -392,8 +392,12 @@ fn test_attention_fully_masked_rows_causal_no_nan() {
         true,  false, false, false,
         true,  false, false, false,
     ]]]]);
-    let mask = TestTensorBool::<4>::from_data(mask_data, &Default::default())
-        .reshape([num_batches, num_heads, seq_len, seq_len]);
+    let mask = TestTensorBool::<4>::from_data(mask_data, &Default::default()).reshape([
+        num_batches,
+        num_heads,
+        seq_len,
+        seq_len,
+    ]);
 
     let options = AttentionModuleOptions {
         is_causal: true,
