@@ -1,53 +1,56 @@
 use burn_backend::Backend;
 
 use crate::Tensor;
+use crate::TensorPrimitive;
 
-/// Creates a 1D Hann window.
+/// Computes the 1-dimensional discrete Fourier Transform of real-valued input.
+///
+/// Since the input is real, the Hermitian symmetry is exploited, and only the
+/// first non-redundant values are returned ($N/2 + 1$).
 ///
 #[cfg_attr(
     doc,
     doc = r#"
-$$w_n = 0.5 - 0.5 \cos\left(\frac{2\pi n}{N}\right)$$
+The mathematical formulation for each element $k$ in the frequency domain is:
 
-where $N$ = `size` when `periodic` is `true`, or $N$ = `size - 1` when `periodic` is `false`.
+$$X[k] = \sum_{n=0}^{N-1} x[n] \left[ \cos\left(\frac{2\pi kn}{N}\right) - i \sin\left(\frac{2\pi kn}{N}\right) \right]$$
+
+where $N$ is the size of the signal along the specified dimension.
 "#
 )]
-#[cfg_attr(
-    not(doc),
-    doc = "`w_n = 0.5 - 0.5 * cos(2πn/N)` where N = size (periodic) or N = size-1 (symmetric)"
-)]
+#[cfg_attr(not(doc), doc = "X[k] = Σ x[n] * exp(-i*2πkn/N)")]
 ///
-/// # Notes
+/// # Arguments
 ///
-/// - `size == 0` returns an empty tensor.
-/// - `size == 1` returns `[1.0]` regardless of `periodic`.
+/// * `signal` - The input tensor containing the real-valued signal.
+/// * `dim` - The dimension along which to take the FFT.
+///
+/// # Returns
+///
+/// A tuple containing:
+/// 1. The real part of the spectrum.
+/// 2. The imaginary part of the spectrum.
 ///
 /// # Example
 ///
 /// ```rust
 /// use burn_tensor::backend::Backend;
-/// use burn_tensor::signal::hann_window;
+/// use burn_tensor::Tensor;
 ///
 /// fn example<B: Backend>() {
 ///     let device = B::Device::default();
-///     let window = hann_window::<B>(8, true, &device);
-///     println!("{window}");
+///     let signal = Tensor::<B, 1>::from_floats([1.0, 2.0, 3.0, 4.0], &device);
+///     let (real, imag) = burn_tensor::signal::rfft(signal, 0);
 /// }
 /// ```
 pub fn rfft<B: Backend, const D: usize>(
     signal: Tensor<B, D>,
-    _dim: usize,
+    dim: usize,
     // options: impl Into<TensorCreationOptions<B>>,
-) -> Tensor<B, D> {
-    let _shape = signal.shape();
-    signal
-    //check!(TensorCheck::creation_ops::<1>("HannWindow", &shape));
-
-    //Tensor::<B, 1, Int>::arange(0..size_i64, &opt.device)
-    //    .float()
-    //    .mul_scalar(angular_increment)
-    //    .cos()
-    //    .mul_scalar(-0.5)
-    //    .add_scalar(0.5)
-    //    .cast(dtype)
+) -> (Tensor<B, D>, Tensor<B, D>) {
+    let (spectrum_re, spectrum_im) = B::rfft(signal.primitive.tensor(), dim);
+    (
+        Tensor::new(TensorPrimitive::Float(spectrum_re)),
+        Tensor::new(TensorPrimitive::Float(spectrum_im)),
+    )
 }

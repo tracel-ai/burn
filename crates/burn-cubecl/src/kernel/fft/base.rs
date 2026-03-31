@@ -5,7 +5,7 @@ use crate::ops::numeric::empty_device_dtype;
 use burn_backend::TensorMetadata;
 use cubek::fft::rfft_launch;
 
-/// launch the fft kernel 
+/// launch the fft kernel
 pub fn rfft<R: CubeRuntime>(signal: CubeTensor<R>, dim: usize) -> (CubeTensor<R>, CubeTensor<R>) {
     //let client = <R as Runtime>::client(&Default::default());
     //let device = Default::default();
