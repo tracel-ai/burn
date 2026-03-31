@@ -97,7 +97,7 @@ impl AutodiffServer {
                 NC::clean(&mut cleaner, node_id);
             });
         for node_id in consumed {
-            cleaner.clean(&node_id)
+            cleaner.clean(node_id)
         }
     }
 
