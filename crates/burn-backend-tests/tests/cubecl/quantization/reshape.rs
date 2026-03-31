@@ -102,7 +102,7 @@ fn should_quantize_dequantize_per_block_unsqueezed_q8s_packed() {
 
 #[test]
 #[should_panic = "Cannot reshape a block-quantized tensor when the reshape requires recomputing the buffer"]
-fn quantize_nd_block_reshape_should_be_valid() {
+fn quantize_2d_block_reshape_should_be_valid() {
     should_quantize_dequantize_per_block_arange_reshaped(
         QuantLevel::Block(BlockSize::new([2, 4])),
         QuantValue::Q8S,
