@@ -7,8 +7,6 @@ use cubek::fft::rfft_launch;
 
 /// launch the fft kernel
 pub fn rfft<R: CubeRuntime>(signal: CubeTensor<R>, dim: usize) -> (CubeTensor<R>, CubeTensor<R>) {
-    //let client = <R as Runtime>::client(&Default::default());
-    //let device = Default::default();
     let dtype = f32::as_type_native_unchecked().storage_type();
 
     let signal_shape = signal.shape();
