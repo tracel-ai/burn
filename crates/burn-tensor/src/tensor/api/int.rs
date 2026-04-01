@@ -1,8 +1,8 @@
 use burn_backend::{Scalar, get_device_settings};
 
 use crate::{
-    CastFromInt, Float, Int, Shape, Tensor, TensorCreationOptions, TensorData,
-    TensorPrimitive, backend::Backend, cartesian_grid,
+    CastFromInt, Float, Int, Shape, Tensor, TensorCreationOptions, TensorData, TensorPrimitive,
+    backend::Backend, cartesian_grid,
 };
 
 use core::ops::Range;

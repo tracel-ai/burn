@@ -1,4 +1,6 @@
-use crate::{Bool, CastFromBool, Int, Shape, Tensor, TensorData, TensorPrimitive, backend::Backend};
+use crate::{
+    Bool, CastFromBool, Int, Shape, Tensor, TensorData, TensorPrimitive, backend::Backend,
+};
 use alloc::{vec, vec::Vec};
 use burn_backend::get_device_settings;
 

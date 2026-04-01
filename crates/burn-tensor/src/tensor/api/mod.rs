@@ -19,8 +19,8 @@ mod trunc;
 
 pub use autodiff::*;
 pub use base::*;
-pub use cast::*;
 pub use cartesian_grid::cartesian_grid;
+pub use cast::*;
 pub use float::{DEFAULT_ATOL, DEFAULT_RTOL};
 pub use numeric::*;
 pub use options::*;

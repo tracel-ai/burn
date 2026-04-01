@@ -1,5 +1,5 @@
-use burn_backend::{Backend, DType, FloatDType, IntDType, TensorMetadata, TensorPrimitive};
 use burn_backend::tensor::{Float, Int, TensorKind};
+use burn_backend::{Backend, DType, FloatDType, IntDType, TensorMetadata, TensorPrimitive};
 
 /// Trait for types that represent a valid cast target from a float tensor.
 ///
@@ -62,10 +62,7 @@ impl<B: Backend> CastFromFloat<B> for FloatDType {
 impl<B: Backend> CastFromFloat<B> for IntDType {
     type OutputKind = Int;
 
-    fn cast_from_float(
-        primitive: TensorPrimitive<B>,
-        dtype: Self,
-    ) -> B::IntTensorPrimitive {
+    fn cast_from_float(primitive: TensorPrimitive<B>, dtype: Self) -> B::IntTensorPrimitive {
         B::float_into_int(primitive.tensor(), dtype)
     }
 }
@@ -96,10 +93,7 @@ impl<B: Backend> CastFromInt<B> for IntDType {
 impl<B: Backend> CastFromInt<B> for FloatDType {
     type OutputKind = Float;
 
-    fn cast_from_int(
-        primitive: B::IntTensorPrimitive,
-        dtype: Self,
-    ) -> TensorPrimitive<B> {
+    fn cast_from_int(primitive: B::IntTensorPrimitive, dtype: Self) -> TensorPrimitive<B> {
         TensorPrimitive::Float(B::int_into_float(primitive, dtype))
     }
 }
@@ -118,10 +112,7 @@ impl<B: Backend> CastFromInt<B> for DType {
 impl<B: Backend> CastFromBool<B> for IntDType {
     type OutputKind = Int;
 
-    fn cast_from_bool(
-        primitive: B::BoolTensorPrimitive,
-        dtype: Self,
-    ) -> B::IntTensorPrimitive {
+    fn cast_from_bool(primitive: B::BoolTensorPrimitive, dtype: Self) -> B::IntTensorPrimitive {
         B::bool_into_int(primitive, dtype)
     }
 }
@@ -129,10 +120,7 @@ impl<B: Backend> CastFromBool<B> for IntDType {
 impl<B: Backend> CastFromBool<B> for FloatDType {
     type OutputKind = Float;
 
-    fn cast_from_bool(
-        primitive: B::BoolTensorPrimitive,
-        dtype: Self,
-    ) -> TensorPrimitive<B> {
+    fn cast_from_bool(primitive: B::BoolTensorPrimitive, dtype: Self) -> TensorPrimitive<B> {
         TensorPrimitive::Float(B::bool_into_float(primitive, dtype))
     }
 }
