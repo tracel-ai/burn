@@ -6,7 +6,7 @@ use burn_backend::distributed::{
 use crate::{Autodiff, checkpoint::strategy::CheckpointStrategy};
 
 impl<B: DistributedBackend, C: CheckpointStrategy> DistributedBackend for Autodiff<B, C> {
-    fn start_communication_server(devices: Vec<B::Device>, config: DistributedConfig) {
+    fn start_communication_server(devices: &[B::Device], config: DistributedConfig) {
         B::start_communication_server(devices, config);
     }
 

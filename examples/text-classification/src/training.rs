@@ -10,11 +10,7 @@ use crate::{
     model::TextClassificationModelConfig,
 };
 
-#[cfg(feature = "ddp")]
-use burn::tensor::backend::distributed::{DistributedConfig, ReduceOperation};
-#[cfg(not(feature = "ddp"))]
-use burn::train::MultiDeviceOptim;
-use burn::train::{Learner, SupervisedTraining};
+use burn::train::{ExecutionStrategy, Learner, SupervisedTraining};
 use burn::{
     data::{dataloader::DataLoaderBuilder, dataset::transform::SamplerDataset},
     lr_scheduler::noam::NoamLrSchedulerConfig,
@@ -44,11 +40,11 @@ pub struct ExperimentConfig {
 
 // Define train function
 pub fn train<B: AutodiffBackend, D: TextClassificationDataset + 'static>(
-    devices: Vec<B::Device>, // Device on which to perform computation (e.g., CPU or CUDA device)
-    dataset_train: D,        // Training dataset
-    dataset_test: D,         // Testing dataset
+    strategy: ExecutionStrategy<B>,
+    dataset_train: D,         // Training dataset
+    dataset_test: D,          // Testing dataset
     config: ExperimentConfig, // Experiment configuration
-    artifact_dir: &str,      // Directory to save model and config files
+    artifact_dir: &str,       // Directory to save model and config files
 ) {
     // Initialize tokenizer
     let tokenizer = Arc::new(BertCasedTokenizer::default());
@@ -63,7 +59,7 @@ pub fn train<B: AutodiffBackend, D: TextClassificationDataset + 'static>(
         tokenizer.vocab_size(),
         config.seq_length,
     )
-    .init::<B>(&devices[0]);
+    .init::<B>(strategy.main_device());
 
     // Initialize data loaders for training and testing data
     let dataloader_train = DataLoaderBuilder::new(batcher.clone())
@@ -85,7 +81,6 @@ pub fn train<B: AutodiffBackend, D: TextClassificationDataset + 'static>(
         .init()
         .unwrap();
 
-    #[cfg(not(feature = "ddp"))]
     // Initialize learner
     let training = SupervisedTraining::new(artifact_dir, dataloader_train, dataloader_test)
         .metric_train(CudaMetric::new())
@@ -97,30 +92,7 @@ pub fn train<B: AutodiffBackend, D: TextClassificationDataset + 'static>(
         .metric_valid_numeric(AccuracyMetric::new())
         .metric_train_numeric(LearningRateMetric::new())
         .with_file_checkpointer(CompactRecorder::new())
-        .num_epochs(config.num_epochs)
-        .summary()
-        .with_training_strategy(burn::train::TrainingStrategy::MultiDevice(
-            devices,
-            MultiDeviceOptim::OptimSharded,
-        ));
-
-    #[cfg(feature = "ddp")]
-    // Initialize learner
-    let distributed_config = DistributedConfig {
-        all_reduce_op: ReduceOperation::Mean,
-    };
-    #[cfg(feature = "ddp")]
-    let training = SupervisedTraining::new(artifact_dir, dataloader_train, dataloader_test)
-        .metric_train(CudaMetric::new())
-        .metric_valid(CudaMetric::new())
-        .metric_train(IterationSpeedMetric::new())
-        .metric_train_numeric(LossMetric::new())
-        .metric_valid_numeric(LossMetric::new())
-        .metric_train_numeric(AccuracyMetric::new())
-        .metric_valid_numeric(AccuracyMetric::new())
-        .metric_train_numeric(LearningRateMetric::new())
-        .with_file_checkpointer(CompactRecorder::new())
-        .with_training_strategy(burn::train::ddp(devices, distributed_config))
+        .with_training_strategy(strategy.into())
         .num_epochs(config.num_epochs)
         .summary();
 
