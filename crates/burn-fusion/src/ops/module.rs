@@ -1567,4 +1567,12 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
     ) -> (FloatTensor<Fusion<B>>, FloatTensor<Fusion<B>>) {
         todo!("Unsupported operation")
     }
+
+    fn irfft(
+        _spectrum_re: FloatTensor<Fusion<B>>,
+        _spectrum_im: FloatTensor<Fusion<B>>,
+        _dim: usize,
+    ) -> FloatTensor<Fusion<B>> {
+        todo!("Unsupported operation")
+    }
 }

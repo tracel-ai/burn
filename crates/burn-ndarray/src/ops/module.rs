@@ -382,4 +382,12 @@ where
     fn rfft(_signal: FloatTensor<Self>, _dim: usize) -> (FloatTensor<Self>, FloatTensor<Self>) {
         todo!("Unsupported operation")
     }
+
+    fn irfft(
+        _spectrum_re: FloatTensor<Self>,
+        _spectrum_im: FloatTensor<Self>,
+        _dim: usize,
+    ) -> FloatTensor<Self> {
+        todo!("Unsupported operation")
+    }
 }
