@@ -1062,7 +1062,7 @@ pub trait ModuleOps<B: Backend> {
     /// Computes the discrete Fourier transform of a real-valued input along the given dimension.
     /// The transform is applied independently for each slice along `dim`, returning the non-redundant
     /// frequency components as separate real and imaginary tensors.
-    /// #Returns 
+    /// #Returns
     /// two tensors, the first is the real part, the second is the imaginary
     fn rfft(signal: FloatTensor<B>, dim: usize) -> (FloatTensor<B>, FloatTensor<B>);
 }

@@ -33,7 +33,7 @@ pub fn rfft<R: CubeRuntime>(signal: CubeTensor<R>, dim: usize) -> (CubeTensor<R>
         dim,
         dtype,
     )
-    .unwrap();
+    .expect("rfft kernel launch failed");
 
     (output_re, output_im)
 }
