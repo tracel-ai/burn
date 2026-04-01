@@ -63,3 +63,16 @@ pub fn rfft<B: Backend, const D: usize>(
         Tensor::new(TensorPrimitive::Float(spectrum_im)),
     )
 }
+
+pub fn irfft<B: Backend, const D: usize>(
+    spectrum_re: Tensor<B, D>,
+    spectrum_im: Tensor<B, D>,
+    dim: usize,
+) -> Tensor<B, D> {
+    let signal = B::irfft(
+        spectrum_re.primitive.tensor(),
+        spectrum_im.primitive.tensor(),
+        dim,
+    );
+    Tensor::new(TensorPrimitive::Float(signal))
+}

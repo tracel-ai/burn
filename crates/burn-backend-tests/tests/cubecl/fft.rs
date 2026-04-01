@@ -1,5 +1,5 @@
 use super::*;
-use burn_tensor::signal::rfft;
+use burn_tensor::signal::{rfft, irfft};
 use burn_tensor::{TensorData, Tolerance};
 
 #[test]
@@ -223,4 +223,98 @@ fn rfft_dim1_3d_tensor() {
     spectrum_im
         .into_data()
         .assert_approx_eq::<FloatElem>(&expected_im, Tolerance::absolute(1e-3));
+}
+
+#[test]
+fn irfft_dim1_imaginary_spectrum_produces_sine_wave() {
+    let spectrum_re = TestTensor::<2>::from([[0.0, 0.0, 0.0, 0.0, 0.0]]);
+    let spectrum_im = TestTensor::<2>::from([[0.0, -4.0, -2.0, 0.0, 0.0]]);
+
+    let signal = irfft(spectrum_re, spectrum_im, 1);
+
+    let expected = TensorData::from([[
+        0.0, 1.2071, 1.0, 0.2071,
+        0.0, -0.2071, -1.0, -1.2071
+    ]]);
+
+    signal
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected, Tolerance::absolute(1e-3));
+}
+
+#[test]
+fn irfft_dim1_real_spectrum_produces_cosine_wave() {
+    let spectrum_re = TestTensor::<2>::from([[0.0, 4.0, 0.0, 0.0, 0.0]]);
+    let spectrum_im = TestTensor::<2>::from([[0.0, 0.0, 0.0, 0.0, 0.0]]);
+
+    let signal = irfft(spectrum_re, spectrum_im, 1);
+
+    let expected = TensorData::from([[
+        1.0, 0.7071, 0.0, -0.7071,
+        -1.0, -0.7071, 0.0, 0.7071
+    ]]);
+
+    signal
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected, Tolerance::absolute(1e-3));
+}
+
+#[test]
+fn irfft_dim1_2d_tensor_distinct_rows() {
+    let spectrum_re = TestTensor::<2>::from([
+        [0.0, 0.0, 0.0, 0.0, 0.0],
+        [0.0, 0.0, 0.0, 0.0, 0.0],
+    ]);
+
+    let spectrum_im = TestTensor::<2>::from([
+        [0.0, -4.0, 0.0, 0.0, 0.0], // freq 1
+        [0.0, 0.0, -4.0, 0.0, 0.0], // freq 2
+    ]);
+
+    let signal = irfft(spectrum_re, spectrum_im, 1);
+
+    let expected = TensorData::from([
+        [0.0, 0.7071, 1.0, 0.7071, 0.0, -0.7071, -1.0, -0.7071],
+        [0.0, 1.0, 0.0, -1.0, 0.0, 1.0, 0.0, -1.0],
+    ]);
+
+    signal
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected, Tolerance::absolute(1e-3));
+}
+
+#[test]
+fn irfft_dim0_2d_tensor() {
+    let spectrum_re = TestTensor::<2>::from([
+        [0.0, 0.0],
+        [4.0, 4.0],
+        [0.0, 0.0],
+        [0.0, 0.0],
+        [0.0, 0.0],
+    ]);
+
+    let spectrum_im = TestTensor::<2>::from([
+        [0.0, 0.0],
+        [0.0, 0.0],
+        [0.0, 0.0],
+        [0.0, 0.0],
+        [0.0, 0.0],
+    ]);
+
+    let signal = irfft(spectrum_re, spectrum_im, 0);
+
+    let expected = TensorData::from([
+        [1.0, 1.0],
+        [0.7071, 0.7071],
+        [0.0, 0.0],
+        [-0.7071, -0.7071],
+        [-1.0, -1.0],
+        [-0.7071, -0.7071],
+        [0.0, 0.0],
+        [0.7071, 0.7071],
+    ]);
+
+    signal
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected, Tolerance::absolute(1e-3));
 }
