@@ -40,9 +40,7 @@ fn rfft_dim1_cosine_wave_produces_real_spectrum() {
 #[test]
 fn rfft_dim1_2d_tensor_distinct_rows() {
     let signal = TestTensor::<2>::from([
-        // freq = 1
         [0.0, 0.7071, 1.0, 0.7071, 0.0, -0.7071, -1.0, -0.7071],
-        // freq = 2
         [0.0, 1.0, 0.0, -1.0, 0.0, 1.0, 0.0, -1.0],
     ]);
 
@@ -51,8 +49,8 @@ fn rfft_dim1_2d_tensor_distinct_rows() {
     let expected_re = TensorData::from([[0.0, 0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0, 0.0]]);
 
     let expected_im = TensorData::from([
-        [0.0, -4.0, 0.0, 0.0, 0.0], // freq 1
-        [0.0, 0.0, -4.0, 0.0, 0.0], // freq 2
+        [0.0, -4.0, 0.0, 0.0, 0.0],
+        [0.0, 0.0, -4.0, 0.0, 0.0],
     ]);
 
     re.into_data()
