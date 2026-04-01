@@ -6,34 +6,42 @@ use crate::{
     },
     tensor::CubeTensor,
 };
-use burn_backend::TensorMetadata;
+use burn_backend::{DType, TensorMetadata};
 use burn_backend::tensor::ScatterNdReduction;
+use burn_std::Metadata;
 use cubecl::prelude::*;
 use cubecl::{CubeDim, calculate_cube_count_elemwise};
 
 /// Compute the strides used to convert K-dimensional index tuples into flat
-/// offsets into a contiguous data tensor.
+/// offsets into a contiguous data tensor, returned as a 1D CubeTensor of u32.
 ///
-/// Returns a `SequenceArg` where entry `j` = product of `data_shape[j+1..]`
-/// truncated to the first `k` dimensions, with the innermost stride equal to
-/// `slice_size` (the product of the trailing `data_shape[k..]` dimensions).
-pub(super) fn nd_index_strides<R: CubeRuntime>(
+/// Entry `j` = product of `data_shape[j+1..]` truncated to the first `k`
+/// dimensions, with the innermost stride equal to `slice_size`.
+pub(super) fn nd_index_strides_tensor<R: CubeRuntime>(
+    tensor: &CubeTensor<R>,
     data_shape: &burn_backend::Shape,
     k: usize,
     slice_size: usize,
-) -> SequenceArg<R, usize> {
-    let mut strides = vec![0usize; k];
+) -> CubeTensor<R> {
+    let mut strides = vec![0u32; k];
     if k > 0 {
-        strides[k - 1] = slice_size;
+        strides[k - 1] = slice_size as u32;
         for i in (0..k - 1).rev() {
-            strides[i] = strides[i + 1] * data_shape[i + 1];
+            strides[i] = strides[i + 1] * data_shape[i + 1] as u32;
         }
     }
-    let mut arg = SequenceArg::new();
-    for val in strides {
-        arg.push(val);
-    }
-    arg
+    let data = burn_backend::TensorData::new(strides, burn_backend::Shape::from([k]));
+    let shape = burn_backend::Shape::from([k]);
+    let alloc = tensor
+        .client
+        .create_tensor(data.bytes, shape.clone(), data.dtype.size());
+    CubeTensor::new(
+        tensor.client.clone(),
+        alloc.memory,
+        Metadata::new(shape, alloc.strides),
+        tensor.device.clone(),
+        DType::U32,
+    )
 }
 
 /// scatter_nd GPU kernel.
@@ -41,14 +49,14 @@ pub(super) fn nd_index_strides<R: CubeRuntime>(
 /// Each thread handles one element across all update slices.
 /// Work items = num_updates * slice_size.
 ///
-/// `data_strides` holds the "index strides" for the first K dimensions of data,
-/// used to convert K-dimensional index tuples into flat offsets.
+/// `data_strides` is a 1D tensor of length K holding the strides for converting
+/// K-dimensional index tuples into flat offsets.
 #[cube(launch_unchecked, address_type = "dynamic")]
 fn scatter_nd_kernel<T: Numeric, I: Int, Op: BinaryOpFamily>(
     data: &mut Tensor<T>,
     indices: &Tensor<I>,
     values: &Tensor<T>,
-    data_strides: Sequence<usize>,
+    data_strides: &Tensor<u32>,
     slice_size: usize,
     k: usize,
     #[define(T, I)] _dtypes: [StorageType; 2],
@@ -67,7 +75,7 @@ fn scatter_nd_kernel<T: Numeric, I: Int, Op: BinaryOpFamily>(
     let mut base_offset = 0usize;
     for j in 0..k {
         let idx_val = usize::cast_from(indices[idx_base + j]);
-        base_offset += idx_val * data_strides[j];
+        base_offset += idx_val * data_strides[j] as usize;
     }
 
     let data_idx = base_offset + slice_offset;
@@ -103,7 +111,7 @@ pub(crate) fn scatter_nd<R: CubeRuntime>(
     let slice_size: usize = data_shape.as_slice()[k..].iter().product();
     let working_units = num_updates * slice_size;
 
-    let data_strides_arg = nd_index_strides(&data_shape, k, slice_size);
+    let strides_tensor = nd_index_strides_tensor(&tensor, &data_shape, k, slice_size);
 
     let cube_dim = CubeDim::new(&indices.client, working_units);
     let cube_count = calculate_cube_count_elemwise(&indices.client, working_units, cube_dim);
@@ -123,11 +131,11 @@ pub(crate) fn scatter_nd<R: CubeRuntime>(
             &tensor.client.clone(),
             cube_count,
             cube_dim,
-            address_type!(tensor, indices, values),
+            address_type!(tensor, indices, values, strides_tensor),
             tensor.clone().into_tensor_arg(),
             indices.into_tensor_arg(),
             values.into_tensor_arg(),
-            data_strides_arg,
+            strides_tensor.into_tensor_arg(),
             slice_size,
             k,
             [tensor_dtype.into(), indices_dtype.into()],

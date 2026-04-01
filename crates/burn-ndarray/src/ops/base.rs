@@ -191,7 +191,10 @@ where
         indices: SharedArray<I>,
         values: SharedArray<E>,
         reduction: burn_backend::tensor::ScatterNdReduction,
-    ) -> SharedArray<E> {
+    ) -> SharedArray<E>
+    where
+        E: core::ops::Mul<Output = E> + PartialOrd,
+    {
         use burn_backend::tensor::ScatterNdReduction;
 
         let data_shape: Vec<usize> = data.shape().to_vec();
@@ -252,25 +255,22 @@ where
                 }
                 ScatterNdReduction::Mul => {
                     for s in 0..slice_size {
-                        let a: f64 = output_flat[base_offset + s].elem();
-                        let b: f64 = val_flat[val_offset + s].elem();
-                        output_flat[base_offset + s] = (a * b).elem();
+                        output_flat[base_offset + s] =
+                            output_flat[base_offset + s] * val_flat[val_offset + s];
                     }
                 }
                 ScatterNdReduction::Min => {
                     for s in 0..slice_size {
-                        let a = output_flat[base_offset + s];
                         let b = val_flat[val_offset + s];
-                        if b.elem::<f64>() < a.elem::<f64>() {
+                        if b < output_flat[base_offset + s] {
                             output_flat[base_offset + s] = b;
                         }
                     }
                 }
                 ScatterNdReduction::Max => {
                     for s in 0..slice_size {
-                        let a = output_flat[base_offset + s];
                         let b = val_flat[val_offset + s];
-                        if b.elem::<f64>() > a.elem::<f64>() {
+                        if b > output_flat[base_offset + s] {
                             output_flat[base_offset + s] = b;
                         }
                     }
