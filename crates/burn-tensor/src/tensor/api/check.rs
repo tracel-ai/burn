@@ -918,6 +918,13 @@ impl TensorCheck {
         let ops = "ScatterNd";
         let mut check = Self::Ok;
 
+        if indices_shape.num_elements() == 0 {
+            return check.register(
+                ops,
+                TensorError::new("Indices tensor must not be empty".to_string()),
+            );
+        }
+
         let k = indices_shape[M - 1];
 
         if k > D {
@@ -976,6 +983,13 @@ impl TensorCheck {
     ) -> Self {
         let ops = "GatherNd";
         let mut check = Self::Ok;
+
+        if indices_shape.num_elements() == 0 {
+            return check.register(
+                ops,
+                TensorError::new("Indices tensor must not be empty".to_string()),
+            );
+        }
 
         let k = indices_shape[M - 1];
 

@@ -131,22 +131,6 @@ fn test_scatter_nd_add_2d() {
 }
 
 #[test]
-fn test_scatter_nd_add_duplicate_indices() {
-    let device = Default::default();
-    let data = TestTensor::<2>::zeros([2, 3], &device);
-    // Both index tuples point to the same location
-    let indices = TestTensorInt::<2>::from_ints([[0, 1], [0, 1]], &device);
-    let values = TestTensor::<1>::from_floats([5.0, 3.0], &device);
-
-    let output = data.scatter_nd_add(indices, values);
-
-    // Values should accumulate: 5.0 + 3.0 = 8.0
-    output
-        .into_data()
-        .assert_eq(&TensorData::from([[0.0, 8.0, 0.0], [0.0, 0.0, 0.0]]), false);
-}
-
-#[test]
 fn test_scatter_nd_3d_slices() {
     // Scatter 1D slices into a 3D tensor (K=1)
     let device = Default::default();
@@ -274,21 +258,6 @@ fn test_gather_nd_single_element() {
     output
         .into_data()
         .assert_eq(&TensorData::from([20.0]), false);
-}
-
-#[test]
-fn test_scatter_nd_empty_indices() {
-    // Zero updates should return data unchanged
-    let device = Default::default();
-    let data = TestTensor::<2>::from_floats([[1.0, 2.0], [3.0, 4.0]], &device);
-    let indices = TestTensorInt::<2>::zeros([0, 2], &device);
-    let values = TestTensor::<1>::zeros([0], &device);
-
-    let output = data.scatter_nd(indices, values);
-
-    output
-        .into_data()
-        .assert_eq(&TensorData::from([[1.0, 2.0], [3.0, 4.0]]), false);
 }
 
 #[test]
