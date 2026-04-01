@@ -6,8 +6,8 @@ use crate::{
     },
     tensor::CubeTensor,
 };
-use burn_backend::{DType, TensorMetadata};
 use burn_backend::tensor::ScatterNdReduction;
+use burn_backend::{DType, TensorMetadata};
 use burn_std::Metadata;
 use cubecl::prelude::*;
 use cubecl::{CubeDim, calculate_cube_count_elemwise};

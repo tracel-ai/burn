@@ -295,10 +295,8 @@ fn test_scatter_nd_empty_indices() {
 fn test_gather_scatter_nd_roundtrip() {
     // gather_nd then scatter_nd_add back should reconstruct selected rows
     let device = Default::default();
-    let data = TestTensor::<2>::from_floats(
-        [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]],
-        &device,
-    );
+    let data =
+        TestTensor::<2>::from_floats([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]], &device);
     let indices = TestTensorInt::<2>::from_ints([[0], [2]], &device);
 
     let gathered: TestTensor<2> = data.clone().gather_nd(indices.clone());
