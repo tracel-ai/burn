@@ -50,3 +50,23 @@ fn cast_int_within_kind() {
     let expected = TensorData::from([1i32, 2, 3]);
     output.into_data().assert_eq(&expected, false);
 }
+
+#[test]
+fn cast_int_same_dtype_is_noop() {
+    let data = TensorData::from([1, 2, 3]);
+    let tensor = TestTensorInt::<1>::from(data.clone());
+    let original_dtype = tensor.dtype();
+    let int_dtype: IntDType = original_dtype.into();
+
+    let output = tensor.cast(int_dtype);
+
+    assert_eq!(output.dtype(), original_dtype);
+    output.into_data().assert_eq(&data, false);
+}
+
+#[test]
+#[should_panic]
+fn cast_int_with_float_dtype_panics() {
+    let tensor = TestTensorInt::<1>::from([1, 2]);
+    let _ = tensor.cast(DType::F32);
+}

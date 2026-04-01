@@ -102,8 +102,8 @@ where
 
     /// Converts a bool tensor to the specified data type.
     ///
-    /// Supports casting to [`IntDType`](burn_backend::IntDType) (producing an int tensor)
-    /// or [`FloatDType`](burn_backend::FloatDType) (producing a float tensor).
+    /// Supports casting to [`IntDType`] (producing an int tensor)
+    /// or [`FloatDType`] (producing a float tensor).
     ///
     /// # Example
     ///

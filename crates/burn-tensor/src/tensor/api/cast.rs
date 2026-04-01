@@ -4,7 +4,7 @@ use burn_backend::{Backend, DType, FloatDType, IntDType, TensorMetadata, TensorP
 /// Trait for types that represent a valid cast target from a float tensor.
 ///
 /// Implemented for [`FloatDType`] (within-kind), [`IntDType`] (cross-kind),
-/// and [`DType`] (backward-compatible within-kind).
+/// and [`DType`] (backward-compatible within-kind; panics if given a non-float variant).
 pub trait CastFromFloat<B: Backend> {
     /// The output tensor kind after casting.
     type OutputKind: TensorKind<B>;
@@ -19,7 +19,7 @@ pub trait CastFromFloat<B: Backend> {
 /// Trait for types that represent a valid cast target from an int tensor.
 ///
 /// Implemented for [`IntDType`] (within-kind), [`FloatDType`] (cross-kind),
-/// and [`DType`] (backward-compatible within-kind).
+/// and [`DType`] (backward-compatible within-kind; panics if given a non-int variant).
 pub trait CastFromInt<B: Backend> {
     /// The output tensor kind after casting.
     type OutputKind: TensorKind<B>;
@@ -44,8 +44,6 @@ pub trait CastFromBool<B: Backend> {
         dtype: Self,
     ) -> <Self::OutputKind as TensorKind<B>>::Primitive;
 }
-
-// --- CastFromFloat implementations ---
 
 impl<B: Backend> CastFromFloat<B> for FloatDType {
     type OutputKind = Float;
@@ -82,8 +80,6 @@ impl<B: Backend> CastFromFloat<B> for DType {
     }
 }
 
-// --- CastFromInt implementations ---
-
 impl<B: Backend> CastFromInt<B> for IntDType {
     type OutputKind = Int;
 
@@ -118,8 +114,6 @@ impl<B: Backend> CastFromInt<B> for DType {
         <IntDType as CastFromInt<B>>::cast_from_int(primitive, int_dtype)
     }
 }
-
-// --- CastFromBool implementations ---
 
 impl<B: Backend> CastFromBool<B> for IntDType {
     type OutputKind = Int;
