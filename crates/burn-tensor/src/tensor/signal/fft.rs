@@ -13,12 +13,12 @@ use crate::TensorPrimitive;
     doc = r#"
 The mathematical formulation for each element $k$ in the frequency domain is:
 
-$$X[k] = \sum_{n=0}^{N-1} x[n] \left[ \cos\left(\frac{2\pi kn}{N}\right) - i \sin\left(\frac{2\pi kn}{N}\right) \right]$$
+$$X\[k\] = \sum_{n=0}^{N-1} x\[n\] \left\[ \cos\left(\frac{2\pi kn}{N}\right) - i \sin\left(\frac{2\pi kn}{N}\right) \right\]$$
 
 where $N$ is the size of the signal along the specified dimension.
 "#
 )]
-#[cfg_attr(not(doc), doc = "X[k] = Σ x[n] * exp(-i*2πkn/N)")]
+#[cfg_attr(not(doc), doc = r"X\[k\] = Σ x\[n\] * exp(-i*2πkn/N)")]
 ///
 /// # Arguments
 ///
