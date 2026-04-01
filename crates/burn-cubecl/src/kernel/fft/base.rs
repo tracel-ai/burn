@@ -1,8 +1,7 @@
-use crate::{CubeRuntime, tensor::CubeTensor};
-use cubecl::prelude::*;
-//use cubecl::std::tensor::TensorHandle;
 use crate::ops::numeric::empty_device_dtype;
+use crate::{CubeRuntime, tensor::CubeTensor};
 use burn_backend::TensorMetadata;
+use cubecl::prelude::*;
 use cubek::fft::rfft_launch;
 
 /// launch the fft kernel

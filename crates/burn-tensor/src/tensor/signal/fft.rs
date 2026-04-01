@@ -46,7 +46,6 @@ where $N$ is the size of the signal along the specified dimension.
 pub fn rfft<B: Backend, const D: usize>(
     signal: Tensor<B, D>,
     dim: usize,
-    // options: impl Into<TensorCreationOptions<B>>,
 ) -> (Tensor<B, D>, Tensor<B, D>) {
     let (spectrum_re, spectrum_im) = B::rfft(signal.primitive.tensor(), dim);
     (
