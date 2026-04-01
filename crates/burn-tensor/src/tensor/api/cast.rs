@@ -49,9 +49,11 @@ impl<B: Backend> CastFromFloat<B> for FloatDType {
     type OutputKind = Float;
 
     fn cast_from_float(primitive: TensorPrimitive<B>, dtype: Self) -> TensorPrimitive<B> {
-        let current: FloatDType = primitive.dtype().into();
-        if current == dtype {
-            return primitive;
+        if let TensorPrimitive::Float(ref tensor) = primitive {
+            let current: FloatDType = tensor.dtype().into();
+            if current == dtype {
+                return primitive;
+            }
         }
         TensorPrimitive::Float(B::float_cast(primitive.tensor(), dtype))
     }
