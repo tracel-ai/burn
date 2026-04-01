@@ -1,6 +1,6 @@
 use super::*;
 use burn_tensor::Tolerance;
-use burn_tensor::{DType, TensorData};
+use burn_tensor::{DType, IntDType, TensorData};
 
 #[test]
 fn cast_float_to_bool() {
@@ -48,4 +48,15 @@ fn cast_float_precision() {
     output
         .into_data()
         .assert_approx_eq::<FloatElem>(&data, Tolerance::default());
+}
+
+#[test]
+fn cast_float_to_int_with_dtype() {
+    let tensor = TestTensor::<2>::from([[1.0, 2.0, 3.0], [4.4, 5.5, 6.6]]);
+
+    let output = tensor.cast(IntDType::I32);
+
+    assert_eq!(output.dtype(), DType::I32);
+    let expected = TensorData::from([[1i32, 2, 3], [4, 5, 6]]);
+    output.into_data().assert_eq(&expected, false);
 }

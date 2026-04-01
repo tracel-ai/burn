@@ -1,5 +1,5 @@
 use super::*;
-use burn_tensor::{DType, TensorData};
+use burn_tensor::{DType, FloatDType, IntDType, TensorData};
 
 #[test]
 fn cast_int_to_bool() {
@@ -27,4 +27,26 @@ fn cast_int_precision() {
 
     assert_eq!(output.dtype(), DType::I32);
     output.into_data().assert_eq(&data, false);
+}
+
+#[test]
+fn cast_int_to_float_with_dtype() {
+    let tensor = TestTensorInt::<2>::from([[1, 2, 3], [4, 5, 6]]);
+
+    let output = tensor.cast(FloatDType::F32);
+
+    assert_eq!(output.dtype(), DType::F32);
+    let expected = TensorData::from([[1.0f32, 2.0, 3.0], [4.0, 5.0, 6.0]]);
+    output.into_data().assert_eq(&expected, false);
+}
+
+#[test]
+fn cast_int_within_kind() {
+    let tensor = TestTensorInt::<1>::from([1, 2, 3]);
+
+    let output = tensor.cast(IntDType::I32);
+
+    assert_eq!(output.dtype(), DType::I32);
+    let expected = TensorData::from([1i32, 2, 3]);
+    output.into_data().assert_eq(&expected, false);
 }

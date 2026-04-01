@@ -1,8 +1,8 @@
 use burn_backend::{Scalar, get_device_settings};
 
 use crate::{
-    Float, Int, IntDType, Shape, Tensor, TensorCreationOptions, TensorData, TensorPrimitive,
-    backend::Backend, cartesian_grid,
+    CastFromInt, Float, Int, Shape, Tensor, TensorCreationOptions, TensorData,
+    TensorPrimitive, backend::Backend, cartesian_grid,
 };
 
 use core::ops::Range;
@@ -177,18 +177,31 @@ where
 
     /// Converts a tensor to the specified integer data type.
     ///
-    /// This is always a no-op when casting to the current dtype.
+    /// Converts a tensor to the specified data type.
     ///
-    /// # Warning
-    /// Most backends don't have automatic type promotion at this time, so make sure that all tensors
-    /// have the same integer data type for operations multiple input tensors (e.g., binary ops).
-    pub fn cast<F: Into<IntDType>>(self, dtype: F) -> Tensor<B, D, Int> {
-        let dtype = dtype.into();
-        let self_dtype: IntDType = self.dtype().into();
-        if dtype == self_dtype {
-            // no-op.
-            return self;
-        }
-        Tensor::new(B::int_cast(self.primitive, dtype))
+    /// Supports both within-kind casting (e.g., `IntDType::I64`) and cross-kind casting
+    /// (e.g., `FloatDType::F32` to produce a float tensor).
+    ///
+    /// This is a no-op when casting to the current dtype within the same kind.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Int, IntDType, FloatDType};
+    ///
+    /// fn example<B: Backend>() {
+    ///     let device = Default::default();
+    ///     let int_tensor = Tensor::<B, 1, Int>::arange(0..5, &device);
+    ///
+    ///     // Within-kind cast (int to int)
+    ///     let i64_tensor = int_tensor.clone().cast(IntDType::I64);
+    ///
+    ///     // Cross-kind cast (int to float)
+    ///     let float_tensor = int_tensor.cast(FloatDType::F32);
+    /// }
+    /// ```
+    pub fn cast<T: CastFromInt<B>>(self, dtype: T) -> Tensor<B, D, T::OutputKind> {
+        Tensor::new(T::cast_from_int(self.primitive, dtype))
     }
 }

@@ -1,5 +1,5 @@
 use crate::AsIndex;
-use crate::FloatDType;
+use crate::CastFromFloat;
 use crate::Tensor;
 use crate::cast::ToElement;
 use crate::check;
@@ -602,25 +602,32 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
         stats::median_with_indices(self, dim)
     }
 
-    /// Converts a tensor to the specified floating point data type.
+    /// Converts a tensor to the specified data type.
     ///
-    /// This is always a no-op when casting to the current dtype.
+    /// Supports both within-kind casting (e.g., `FloatDType::F64`) and cross-kind casting
+    /// (e.g., `IntDType::I64` to produce an int tensor).
     ///
-    /// # Warning
-    /// Most backends don't have automatic type promotion at this time, so make sure that all tensors
-    /// have the same floating point precision data type for operations multiple input tensors (e.g., binary ops).
-    pub fn cast<F: Into<FloatDType>>(self, dtype: F) -> Tensor<B, D> {
-        let dtype = dtype.into();
-        let self_type: FloatDType = self.dtype().into();
-        if dtype == self_type {
-            // no-op.
-            return self;
-        }
-
-        Tensor::new(TensorPrimitive::Float(B::float_cast(
-            self.primitive.tensor(),
-            dtype,
-        )))
+    /// This is a no-op when casting to the current dtype within the same kind.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, FloatDType, IntDType};
+    ///
+    /// fn example<B: Backend>() {
+    ///     let device = Default::default();
+    ///     let float_tensor = Tensor::<B, 1>::from_floats([1.0, 2.5], &device);
+    ///
+    ///     // Within-kind cast (float to float)
+    ///     let f64_tensor = float_tensor.clone().cast(FloatDType::F64);
+    ///
+    ///     // Cross-kind cast (float to int)
+    ///     let int_tensor = float_tensor.cast(IntDType::I64);
+    /// }
+    /// ```
+    pub fn cast<T: CastFromFloat<B>>(self, dtype: T) -> Tensor<B, D, T::OutputKind> {
+        Tensor::new(T::cast_from_float(self.primitive, dtype))
     }
 
     /// Detach the current tensor from the autodiff graph.

@@ -4,6 +4,7 @@ mod autodiff;
 mod base;
 mod bool;
 mod cartesian_grid;
+mod cast;
 mod float;
 mod fmod;
 mod int;
@@ -18,6 +19,7 @@ mod trunc;
 
 pub use autodiff::*;
 pub use base::*;
+pub use cast::*;
 pub use cartesian_grid::cartesian_grid;
 pub use float::{DEFAULT_ATOL, DEFAULT_RTOL};
 pub use numeric::*;

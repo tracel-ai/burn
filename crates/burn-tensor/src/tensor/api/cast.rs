@@ -1,0 +1,138 @@
+use burn_backend::{Backend, DType, FloatDType, IntDType, TensorMetadata, TensorPrimitive};
+use burn_backend::tensor::{Float, Int, TensorKind};
+
+/// Trait for types that represent a valid cast target from a float tensor.
+///
+/// Implemented for [`FloatDType`] (within-kind), [`IntDType`] (cross-kind),
+/// and [`DType`] (backward-compatible within-kind).
+pub trait CastFromFloat<B: Backend> {
+    /// The output tensor kind after casting.
+    type OutputKind: TensorKind<B>;
+
+    /// Cast a float tensor primitive to the target dtype.
+    fn cast_from_float(
+        primitive: TensorPrimitive<B>,
+        dtype: Self,
+    ) -> <Self::OutputKind as TensorKind<B>>::Primitive;
+}
+
+/// Trait for types that represent a valid cast target from an int tensor.
+///
+/// Implemented for [`IntDType`] (within-kind), [`FloatDType`] (cross-kind),
+/// and [`DType`] (backward-compatible within-kind).
+pub trait CastFromInt<B: Backend> {
+    /// The output tensor kind after casting.
+    type OutputKind: TensorKind<B>;
+
+    /// Cast an int tensor primitive to the target dtype.
+    fn cast_from_int(
+        primitive: B::IntTensorPrimitive,
+        dtype: Self,
+    ) -> <Self::OutputKind as TensorKind<B>>::Primitive;
+}
+
+/// Trait for types that represent a valid cast target from a bool tensor.
+///
+/// Implemented for [`IntDType`] and [`FloatDType`].
+pub trait CastFromBool<B: Backend> {
+    /// The output tensor kind after casting.
+    type OutputKind: TensorKind<B>;
+
+    /// Cast a bool tensor primitive to the target dtype.
+    fn cast_from_bool(
+        primitive: B::BoolTensorPrimitive,
+        dtype: Self,
+    ) -> <Self::OutputKind as TensorKind<B>>::Primitive;
+}
+
+// --- CastFromFloat implementations ---
+
+impl<B: Backend> CastFromFloat<B> for FloatDType {
+    type OutputKind = Float;
+
+    fn cast_from_float(primitive: TensorPrimitive<B>, dtype: Self) -> TensorPrimitive<B> {
+        let current: FloatDType = primitive.dtype().into();
+        if current == dtype {
+            return primitive;
+        }
+        TensorPrimitive::Float(B::float_cast(primitive.tensor(), dtype))
+    }
+}
+
+impl<B: Backend> CastFromFloat<B> for IntDType {
+    type OutputKind = Int;
+
+    fn cast_from_float(
+        primitive: TensorPrimitive<B>,
+        dtype: Self,
+    ) -> B::IntTensorPrimitive {
+        B::float_into_int(primitive.tensor(), dtype)
+    }
+}
+
+impl<B: Backend> CastFromFloat<B> for DType {
+    type OutputKind = Float;
+
+    fn cast_from_float(primitive: TensorPrimitive<B>, dtype: Self) -> TensorPrimitive<B> {
+        let float_dtype: FloatDType = dtype.into();
+        <FloatDType as CastFromFloat<B>>::cast_from_float(primitive, float_dtype)
+    }
+}
+
+// --- CastFromInt implementations ---
+
+impl<B: Backend> CastFromInt<B> for IntDType {
+    type OutputKind = Int;
+
+    fn cast_from_int(primitive: B::IntTensorPrimitive, dtype: Self) -> B::IntTensorPrimitive {
+        let current: IntDType = primitive.dtype().into();
+        if current == dtype {
+            return primitive;
+        }
+        B::int_cast(primitive, dtype)
+    }
+}
+
+impl<B: Backend> CastFromInt<B> for FloatDType {
+    type OutputKind = Float;
+
+    fn cast_from_int(
+        primitive: B::IntTensorPrimitive,
+        dtype: Self,
+    ) -> TensorPrimitive<B> {
+        TensorPrimitive::Float(B::int_into_float(primitive, dtype))
+    }
+}
+
+impl<B: Backend> CastFromInt<B> for DType {
+    type OutputKind = Int;
+
+    fn cast_from_int(primitive: B::IntTensorPrimitive, dtype: Self) -> B::IntTensorPrimitive {
+        let int_dtype: IntDType = dtype.into();
+        <IntDType as CastFromInt<B>>::cast_from_int(primitive, int_dtype)
+    }
+}
+
+// --- CastFromBool implementations ---
+
+impl<B: Backend> CastFromBool<B> for IntDType {
+    type OutputKind = Int;
+
+    fn cast_from_bool(
+        primitive: B::BoolTensorPrimitive,
+        dtype: Self,
+    ) -> B::IntTensorPrimitive {
+        B::bool_into_int(primitive, dtype)
+    }
+}
+
+impl<B: Backend> CastFromBool<B> for FloatDType {
+    type OutputKind = Float;
+
+    fn cast_from_bool(
+        primitive: B::BoolTensorPrimitive,
+        dtype: Self,
+    ) -> TensorPrimitive<B> {
+        TensorPrimitive::Float(B::bool_into_float(primitive, dtype))
+    }
+}
