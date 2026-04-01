@@ -10,6 +10,9 @@ fn rfft_dim1_sine_wave_produces_imaginary_spectrum() {
     let expected_re = TensorData::from([[0, 0, 0, 0, 0]]);
     let expected_im = TensorData::from([[0, -4, -2, 0, 0]]);
 
+    assert_eq!(spectrum_re.shape(), spectrum_im.shape());
+    assert_eq!(spectrum_re.shape(), expected_re.shape);
+
     spectrum_re
         .into_data()
         .assert_approx_eq::<FloatElem>(&expected_re, Tolerance::absolute(1e-4));
@@ -28,6 +31,9 @@ fn rfft_dim1_cosine_wave_produces_real_spectrum() {
     let expected_re = TensorData::from([[0.0, 4.0, 0.0, 0.0, 0.0]]);
     let expected_im = TensorData::from([[0.0, 0.0, 0.0, 0.0, 0.0]]);
 
+    assert_eq!(spectrum_re.shape(), spectrum_im.shape());
+    assert_eq!(spectrum_re.shape(), expected_re.shape);
+
     spectrum_re
         .into_data()
         .assert_approx_eq::<FloatElem>(&expected_re, Tolerance::absolute(1e-3));
@@ -44,15 +50,121 @@ fn rfft_dim1_2d_tensor_distinct_rows() {
         [0.0, 1.0, 0.0, -1.0, 0.0, 1.0, 0.0, -1.0],
     ]);
 
-    let (re, im) = rfft(signal, 1);
+    let (spectrum_re, spectrum_im) = rfft(signal, 1);
 
     let expected_re = TensorData::from([[0.0, 0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0, 0.0]]);
 
     let expected_im = TensorData::from([[0.0, -4.0, 0.0, 0.0, 0.0], [0.0, 0.0, -4.0, 0.0, 0.0]]);
 
-    re.into_data()
+    assert_eq!(spectrum_re.shape(), spectrum_im.shape());
+    assert_eq!(spectrum_re.shape(), expected_re.shape);
+
+    spectrum_re
+        .into_data()
         .assert_approx_eq::<FloatElem>(&expected_re, Tolerance::absolute(1e-3));
 
-    im.into_data()
+    spectrum_im
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected_im, Tolerance::absolute(1e-3));
+}
+
+#[test]
+fn rfft_dim0_2d_tensor() {
+    let signal = TestTensor::<2>::from([
+        [0.0, 0.0],
+        [0.7071, 1.0],
+        [1.0, 0.0],
+        [0.7071, -1.0],
+        [0.0, 0.0],
+        [-0.7071, 1.0],
+        [-1.0, 0.0],
+        [-0.7071, -1.0],
+    ]);
+
+    let (spectrum_re, spectrum_im) = rfft(signal, 0);
+
+    let expected_re =
+        TensorData::from([[0.0, 0.0], [0.0, 0.0], [0.0, 0.0], [0.0, 0.0], [0.0, 0.0]]);
+
+    let expected_im =
+        TensorData::from([[0.0, 0.0], [-4.0, 0.0], [0.0, -4.0], [0.0, 0.0], [0.0, 0.0]]);
+
+    assert_eq!(spectrum_re.shape(), spectrum_im.shape());
+    assert_eq!(spectrum_re.shape(), expected_re.shape);
+
+    spectrum_re
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected_re, Tolerance::absolute(1e-3));
+
+    spectrum_im
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected_im, Tolerance::absolute(1e-3));
+}
+
+#[test]
+fn rfft_dim2_3d_tensor() {
+    let signal = TestTensor::<3>::from([
+        [
+            [0.0, 0.7071, 1.0, 0.7071, 0.0, -0.7071, -1.0, -0.7071],
+            [0.0, 1.0, 0.0, -1.0, 0.0, 1.0, 0.0, -1.0],
+        ],
+        [
+            [0.0, 1.0, 0.0, -1.0, 0.0, 1.0, 0.0, -1.0],
+            [0.0, 0.7071, 1.0, 0.7071, 0.0, -0.7071, -1.0, -0.7071],
+        ],
+    ]);
+
+    let (spectrum_re, spectrum_im) = rfft(signal, 2);
+
+    let expected_re = TensorData::from([
+        [[0.0, 0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0, 0.0]],
+        [[0.0, 0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0, 0.0]],
+    ]);
+
+    let expected_im = TensorData::from([
+        [[0.0, -4.0, 0.0, 0.0, 0.0], [0.0, 0.0, -4.0, 0.0, 0.0]],
+        [[0.0, 0.0, -4.0, 0.0, 0.0], [0.0, -4.0, 0.0, 0.0, 0.0]],
+    ]);
+
+    assert_eq!(spectrum_re.shape(), spectrum_im.shape());
+    assert_eq!(spectrum_re.shape(), expected_re.shape);
+
+    spectrum_re
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected_re, Tolerance::absolute(1e-3));
+
+    spectrum_im
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected_im, Tolerance::absolute(1e-3));
+}
+
+#[test]
+fn rfft_dim1_3d_tensor() {
+    let signal = TestTensor::<3>::from([
+        [[1.0, 0.0], [0.0, 0.0], [-1.0, 0.0], [0.0, 0.0]],
+        [[0.0, 1.0], [0.0, 0.0], [0.0, -1.0], [0.0, 0.0]],
+    ]);
+
+    let (spectrum_re, spectrum_im) = rfft(signal, 1);
+
+    let expected_re = TensorData::from([
+        [[0.0, 0.0], [2.0, 0.0], [0.0, 0.0]],
+        [[0.0, 0.0], [0.0, 2.0], [0.0, 0.0]],
+    ]);
+
+    let expected_im = TensorData::from([
+        [[0.0, 0.0], [0.0, 0.0], [0.0, 0.0]],
+        [[0.0, 0.0], [0.0, 0.0], [0.0, 0.0]],
+    ]);
+
+    assert_eq!(spectrum_re.shape(), spectrum_im.shape());
+    assert_eq!(spectrum_re.shape(), expected_re.shape);
+
+    spectrum_re
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected_re, Tolerance::absolute(1e-3));
+
+    spectrum_im
+        .into_data()
         .assert_approx_eq::<FloatElem>(&expected_im, Tolerance::absolute(1e-3));
 }
