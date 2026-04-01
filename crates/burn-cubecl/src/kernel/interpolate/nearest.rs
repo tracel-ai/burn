@@ -38,10 +38,8 @@ fn interpolate_nearest_kernel<F: Float, N: Size>(
     let y = y * h_in / h_out;
     let x = x * w_in / w_out;
 
-    let in_idx = b * input.stride(0)
-        + y * input.stride(1)
-        + x * input.stride(2)
-        + c * input.stride(3);
+    let in_idx =
+        b * input.stride(0) + y * input.stride(1) + x * input.stride(2) + c * input.stride(3);
 
     output[out_idx] = input[in_idx / vector_size];
 }

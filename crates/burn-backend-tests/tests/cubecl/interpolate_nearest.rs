@@ -15,8 +15,7 @@ pub fn nearest_interpolate_should_match_reference_backend() {
 
     // These spatial sizes previously triggered the float precision bug.
     for h in [214, 220, 227, 235, 255] {
-        let tensor =
-            TestTensor::<4>::random([1, 64, h, h], Distribution::Default, &device);
+        let tensor = TestTensor::<4>::random([1, 64, h, h], Distribution::Default, &device);
         let tensor_ref = TestTensor::<4>::from_data(tensor.to_data(), &ref_device);
 
         let opts = InterpolateOptions::new(InterpolateMode::Nearest);
@@ -25,9 +24,8 @@ pub fn nearest_interpolate_should_match_reference_backend() {
         let output = module::interpolate(tensor, out_size, opts.clone());
         let output_ref = module::interpolate(tensor_ref, out_size, opts);
 
-        output.into_data().assert_approx_eq::<FloatElem>(
-            &output_ref.into_data(),
-            Tolerance::default(),
-        );
+        output
+            .into_data()
+            .assert_approx_eq::<FloatElem>(&output_ref.into_data(), Tolerance::default());
     }
 }
