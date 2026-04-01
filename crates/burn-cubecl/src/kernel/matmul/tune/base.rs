@@ -10,9 +10,10 @@ use cubek::matmul::{
     launch::{MatmulAutotuneKey, MatmulGlobalScale, Strategy, should_tune_double_buffering},
     routines::{
         BlueprintStrategy, TileSizeSelection, double_buffering::DoubleBufferingArgs,
-        double_unit::DoubleUnitSelectionArgs, nostage_vecmat::NoStageVecMatStrategy,
-        ordered_double_buffering::OrderedSelectionArgs, simple::SimpleArgs,
-        simple_unit::SimpleUnitSelectionArgs,
+        double_unit::DoubleUnitSelectionArgs, ordered_double_buffering::OrderedSelectionArgs,
+        simple::SimpleArgs, simple_unit::SimpleUnitSelectionArgs,
+        vecmat_plane_parallel::VecMatPlaneParallelStrategy,
+        vecmat_unit_perpendicular::VecMatUnitPerpendicularStrategy,
     },
 };
 
@@ -50,7 +51,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
                 key.analysis.kind,
                 MatmulKind::General
                 // Those variants are just because the unit alternatives aren't very good yet.
-                | MatmulKind::VecMat | MatmulKind::MatVec
+                | MatmulKind::MatVec
             ) {
                 PRIORITY_HIGH
             } else {
@@ -146,30 +147,32 @@ pub fn matmul_autotune<R: CubeRuntime>(
             }),
         );
 
-        // No Stage VecMat
-        for target_num_planes in [1, 2, 4, 8] {
-            let strategy =
-                Strategy::NoStageVecMat(BlueprintStrategy::Inferred(NoStageVecMatStrategy {
-                    target_num_planes,
-                }));
-            set = set.with(
-                Tunable::new(strategy.to_string(), move |lhs, rhs, out| {
-                    launch_matmul::<R>(&strategy, lhs, rhs, out)
-                        .map_err(|err| std::format!("{err:?}"))
-                })
-                .group(&vecmat, move |key| {
-                    if key.definition.k >= 1024 && target_num_planes >= 4
-                        || key.definition.k < 1024 && target_num_planes < 4
-                    {
-                        PRIORITY_HIGH
-                    } else {
-                        PRIORITY_MIN
-                    }
-                }),
-            );
-        }
-
-        // Unit VecMat
+        // Vecmat
+        let target_num_planes = 4;
+        let strategy = Strategy::VecMatUnitPerpendicular(BlueprintStrategy::Inferred(
+            VecMatUnitPerpendicularStrategy { target_num_planes },
+        ));
+        set = set.with(
+            Tunable::new(strategy.to_string(), move |lhs, rhs, out| {
+                launch_matmul::<R>(&strategy, lhs, rhs, out).map_err(|err| std::format!("{err:?}"))
+            })
+            .group(&vecmat, move |key| {
+                if key.definition.n >= 2 * key.definition.k {
+                    PRIORITY_HIGH
+                } else {
+                    PRIORITY_MIN
+                }
+            }),
+        );
+        let strategy = Strategy::VecMatPlaneParallel(BlueprintStrategy::Inferred(
+            VecMatPlaneParallelStrategy { target_num_planes },
+        ));
+        set = set.with(
+            Tunable::new(strategy.to_string(), move |lhs, rhs, out| {
+                launch_matmul::<R>(&strategy, lhs, rhs, out).map_err(|err| std::format!("{err:?}"))
+            })
+            .group(&vecmat, move |_key| PRIORITY_MAX),
+        );
         for (strategy, double_buf) in [
             (
                 Strategy::SimpleVecMat(BlueprintStrategy::Inferred(().into())),
