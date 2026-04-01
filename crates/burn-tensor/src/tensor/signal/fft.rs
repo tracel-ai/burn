@@ -2,11 +2,14 @@ use burn_backend::Backend;
 
 use crate::Tensor;
 use crate::TensorPrimitive;
+use crate::check;
+use crate::check::TensorCheck;
 
 /// Computes the 1-dimensional discrete Fourier Transform of real-valued input.
 ///
 /// Since the input is real, the Hermitian symmetry is exploited, and only the
 /// first non-redundant values are returned ($N/2 + 1$).
+/// For now, the autodiff is not yet supported
 ///
 #[cfg_attr(
     doc,
@@ -47,6 +50,7 @@ pub fn rfft<B: Backend, const D: usize>(
     signal: Tensor<B, D>,
     dim: usize,
 ) -> (Tensor<B, D>, Tensor<B, D>) {
+    check!(TensorCheck::check_dim::<D>(dim));
     let (spectrum_re, spectrum_im) = B::rfft(signal.primitive.tensor(), dim);
     (
         Tensor::new(TensorPrimitive::Float(spectrum_re)),

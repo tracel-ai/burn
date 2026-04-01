@@ -1,12 +1,16 @@
 use crate::ops::numeric::empty_device_dtype;
 use crate::{CubeRuntime, tensor::CubeTensor};
-use burn_backend::TensorMetadata;
+use burn_backend::{DType, TensorMetadata};
 use cubecl::prelude::*;
 use cubek::fft::rfft_launch;
 
 /// launch the fft kernel
 pub fn rfft<R: CubeRuntime>(signal: CubeTensor<R>, dim: usize) -> (CubeTensor<R>, CubeTensor<R>) {
-    let dtype = f32::as_type_native_unchecked().storage_type();
+    let dtype = match signal.dtype {
+        DType::F64 => f64::as_type_native_unchecked().storage_type(),
+        DType::F32 => f32::as_type_native_unchecked().storage_type(),
+        _ => panic!("Unsupported type {:?}", signal.dtype),
+    };
 
     let signal_shape = signal.shape();
     let mut output_shape = signal_shape.clone();
