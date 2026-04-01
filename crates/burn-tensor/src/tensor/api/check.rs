@@ -921,7 +921,7 @@ impl TensorCheck {
         let k = indices_shape[M - 1];
 
         if k > D {
-            check = check.register(
+            return check.register(
                 ops,
                 TensorError::new(format!(
                     "Last dimension of indices (K={k}) must be <= data rank (D={D})"
@@ -980,7 +980,7 @@ impl TensorCheck {
         let k = indices_shape[M - 1];
 
         if k > D {
-            check = check.register(
+            return check.register(
                 ops,
                 TensorError::new(format!(
                     "Last dimension of indices (K={k}) must be <= data rank (D={D})"

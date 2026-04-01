@@ -1815,6 +1815,12 @@ where
     /// `indices` is an M-dimensional integer tensor whose last dimension (K) indexes into the
     /// first K dimensions of `self`. The `values` tensor has shape
     /// `[indices.shape[0..M-1]..., self.shape[K..D]...]`.
+    ///
+    /// # Note
+    ///
+    /// When `indices` contains duplicate entries, the result is non-deterministic on GPU
+    /// backends (matching ONNX ScatterND semantics). For deterministic accumulation with
+    /// duplicates, use [`scatter_nd_add`](Self::scatter_nd_add) on CPU backends.
     pub fn scatter_nd<const M: usize, const DV: usize>(
         self,
         indices: Tensor<B, M, Int>,
@@ -1834,6 +1840,8 @@ where
     }
 
     /// Multi-dimensional scatter with additive reduction.
+    ///
+    /// With duplicate indices, results are non-deterministic on GPU backends.
     pub fn scatter_nd_add<const M: usize, const DV: usize>(
         self,
         indices: Tensor<B, M, Int>,
