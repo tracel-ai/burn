@@ -99,6 +99,7 @@ impl<LC: LearningComponentsTypes> From<ExecutionStrategy<LC::Backend>> for Train
     }
 }
 
+#[cfg(feature = "ddp")]
 /// Manages the orchestration of a distributed training environment.
 ///
 /// This trait provides a generic interface to initialize and finalize
@@ -111,6 +112,7 @@ pub trait DistributedRuntime: Send + Sync + 'static {
     fn close(&self);
 }
 
+#[cfg(feature = "ddp")]
 /// A concrete implementation of [`DistributedRuntime`] for a [distributed backend](DistributedBackend).
 ///
 /// It encapsulates the necessary configuration and device information to
@@ -120,6 +122,7 @@ pub struct DistributedSession<B: DistributedBackend> {
     config: DistributedConfig,
 }
 
+#[cfg(feature = "ddp")]
 impl<B: DistributedBackend> DistributedRuntime for DistributedSession<B> {
     fn start(&self) {
         B::start_communication_server(&self.devices, self.config.clone());

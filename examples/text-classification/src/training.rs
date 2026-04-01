@@ -82,7 +82,6 @@ pub fn train<B: AutodiffBackend, D: TextClassificationDataset + 'static>(
         .unwrap();
 
     // Initialize learner
-    #[cfg(feature = "ddp")]
     let training = SupervisedTraining::new(artifact_dir, dataloader_train, dataloader_test)
         .metric_train(CudaMetric::new())
         .metric_valid(CudaMetric::new())
