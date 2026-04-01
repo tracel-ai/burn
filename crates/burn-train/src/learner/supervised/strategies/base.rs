@@ -49,7 +49,7 @@ impl<B: Backend> ExecutionStrategy<B> {
     /// Returns the primary device responsible for coordination.
     pub fn main_device(&self) -> &B::Device {
         match self {
-            ExecutionStrategy::SingleDevice(device) => &device,
+            ExecutionStrategy::SingleDevice(device) => device,
             ExecutionStrategy::MultiDevice(devices, _optim) => &devices[0],
             #[cfg(feature = "ddp")]
             ExecutionStrategy::DistributedDataParallel {
