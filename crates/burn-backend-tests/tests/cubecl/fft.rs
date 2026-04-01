@@ -3,6 +3,62 @@ use burn_tensor::signal::rfft;
 use burn_tensor::{TensorData, Tolerance};
 
 #[test]
+fn rfft_zeros() {
+    let signal = TestTensor::<1>::from([0.0, 0.0, 0.0, 0.0]);
+    let (re, im) = rfft(signal, 0);
+
+    let expected_re = TensorData::from([0.0, 0.0, 0.0]);
+    let expected_im = TensorData::from([0.0, 0.0, 0.0]);
+
+    re.into_data()
+        .assert_approx_eq::<FloatElem>(&expected_re, Tolerance::absolute(1e-4));
+    im.into_data()
+        .assert_approx_eq::<FloatElem>(&expected_im, Tolerance::absolute(1e-4));
+}
+
+#[test]
+fn rfft_constant() {
+    let signal = TestTensor::<1>::from([1.0, 1.0, 1.0, 1.0]);
+    let (re, im) = rfft(signal, 0);
+
+    let expected_re = TensorData::from([4.0, 0.0, 0.0]);
+    let expected_im = TensorData::from([0.0, 0.0, 0.0]);
+
+    re.into_data()
+        .assert_approx_eq::<FloatElem>(&expected_re, Tolerance::absolute(1e-4));
+    im.into_data()
+        .assert_approx_eq::<FloatElem>(&expected_im, Tolerance::absolute(1e-4));
+}
+
+#[test]
+fn rfft_length1() {
+    let signal = TestTensor::<1>::from([5.0]);
+    let (re, im) = rfft(signal, 0);
+
+    let expected_re = TensorData::from([5.0]);
+    let expected_im = TensorData::from([0.0]);
+
+    re.into_data()
+        .assert_approx_eq::<FloatElem>(&expected_re, Tolerance::absolute(1e-4));
+    im.into_data()
+        .assert_approx_eq::<FloatElem>(&expected_im, Tolerance::absolute(1e-4));
+}
+
+#[test]
+fn rfft_length2() {
+    let signal = TestTensor::<1>::from([1.0, -1.0]);
+    let (re, im) = rfft(signal, 0);
+
+    let expected_re = TensorData::from([0.0, 2.0]);
+    let expected_im = TensorData::from([0.0, 0.0]);
+
+    re.into_data()
+        .assert_approx_eq::<FloatElem>(&expected_re, Tolerance::absolute(1e-4));
+    im.into_data()
+        .assert_approx_eq::<FloatElem>(&expected_im, Tolerance::absolute(1e-4));
+}
+
+#[test]
 fn rfft_dim1_sine_wave_produces_imaginary_spectrum() {
     let signal = TestTensor::<2>::from([[0.0, 1.2071, 1.0, 0.2071, 0.0, -0.2071, -1.0, -1.2071]]);
     let dim = 1;
