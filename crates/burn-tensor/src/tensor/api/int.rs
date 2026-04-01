@@ -175,8 +175,6 @@ where
         Self::new(B::bitwise_right_shift_scalar(self.primitive, other))
     }
 
-    /// Converts a tensor to the specified integer data type.
-    ///
     /// Converts a tensor to the specified data type.
     ///
     /// Supports both within-kind casting (e.g., `IntDType::I64`) and cross-kind casting

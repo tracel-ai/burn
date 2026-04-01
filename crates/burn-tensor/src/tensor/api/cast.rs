@@ -67,6 +67,12 @@ impl<B: Backend> CastFromFloat<B> for IntDType {
     }
 }
 
+/// Backward-compatible impl: only float `DType` variants are accepted.
+///
+/// # Panics
+///
+/// Panics if `dtype` is not a float variant (e.g., `DType::I32`).
+/// Use [`IntDType`] directly for cross-kind casting to int.
 impl<B: Backend> CastFromFloat<B> for DType {
     type OutputKind = Float;
 
@@ -98,6 +104,12 @@ impl<B: Backend> CastFromInt<B> for FloatDType {
     }
 }
 
+/// Backward-compatible impl: only int `DType` variants are accepted.
+///
+/// # Panics
+///
+/// Panics if `dtype` is not an int variant (e.g., `DType::F32`).
+/// Use [`FloatDType`] directly for cross-kind casting to float.
 impl<B: Backend> CastFromInt<B> for DType {
     type OutputKind = Int;
 
