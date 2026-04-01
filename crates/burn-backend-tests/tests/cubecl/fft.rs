@@ -48,10 +48,7 @@ fn rfft_dim1_2d_tensor_distinct_rows() {
 
     let expected_re = TensorData::from([[0.0, 0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0, 0.0]]);
 
-    let expected_im = TensorData::from([
-        [0.0, -4.0, 0.0, 0.0, 0.0],
-        [0.0, 0.0, -4.0, 0.0, 0.0],
-    ]);
+    let expected_im = TensorData::from([[0.0, -4.0, 0.0, 0.0, 0.0], [0.0, 0.0, -4.0, 0.0, 0.0]]);
 
     re.into_data()
         .assert_approx_eq::<FloatElem>(&expected_re, Tolerance::absolute(1e-3));
