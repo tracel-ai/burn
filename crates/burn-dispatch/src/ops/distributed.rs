@@ -101,7 +101,7 @@ macro_rules! dispatch_devices {
 }
 
 impl DistributedBackend for Dispatch {
-    fn start_communication_server(devices: Vec<DispatchDevice>, config: DistributedConfig) {
+    fn start_communication_server(devices: &[DispatchDevice], config: DistributedConfig) {
         if !devices.is_empty() {
             let first = &devices[0];
             dispatch_devices!(first, devices, |inner_devices| {

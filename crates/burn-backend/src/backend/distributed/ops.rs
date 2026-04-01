@@ -25,7 +25,7 @@ pub trait DistributedBackend: Backend {
     /// # Arguments
     ///
     /// * `devices` - The devices to orchestrate.
-    fn start_communication_server(devices: Vec<Self::Device>, config: DistributedConfig) {
+    fn start_communication_server(devices: &[Self::Device], config: DistributedConfig) {
         start_distributed_sync_server::<Self>(devices, config);
     }
 

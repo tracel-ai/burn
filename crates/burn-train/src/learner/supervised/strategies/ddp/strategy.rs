@@ -4,13 +4,11 @@ use std::sync::{Arc, Mutex};
 use crate::ddp::worker::DdpWorker;
 use crate::metric::store::EventStoreClient;
 use crate::{
-    EarlyStoppingStrategyRef, Interrupter, Learner, LearningComponentsTypes,
+    DistributedRuntime, EarlyStoppingStrategyRef, Interrupter, Learner, LearningComponentsTypes,
     SupervisedLearningStrategy, SupervisedTrainingEventProcessor, TrainLoader, TrainingBackend,
     TrainingComponents, TrainingModel, ValidLoader,
 };
 use burn_core::data::dataloader::split::split_dataloader;
-use burn_core::tensor::backend::distributed::DistributedBackend;
-use burn_core::tensor::backend::distributed::DistributedConfig;
 use burn_core::tensor::{Device, backend::DeviceOps};
 
 #[derive(Clone)]
@@ -27,20 +25,26 @@ pub(crate) struct WorkerComponents {
     pub event_store: Arc<EventStoreClient>,
 }
 
+/// A training strategy for Distributed Data Parallel (DDP) training.
+///
+/// This strategy manages multiple workers and coordinates cross-device
+/// gradient synchronization using the provided [`DistributedRuntime`].
 pub struct DdpTrainingStrategy<LC: LearningComponentsTypes> {
     devices: Vec<Device<TrainingBackend<LC>>>,
-    config: DistributedConfig,
+    runtime: Box<dyn DistributedRuntime>,
 }
 impl<LC: LearningComponentsTypes> DdpTrainingStrategy<LC> {
-    pub fn new(devices: Vec<Device<TrainingBackend<LC>>>, config: DistributedConfig) -> Self {
-        Self { devices, config }
+    pub fn new(
+        devices: Vec<Device<TrainingBackend<LC>>>,
+        runtime: Box<dyn DistributedRuntime>,
+    ) -> Self {
+        Self { devices, runtime }
     }
 }
 
 impl<LC> SupervisedLearningStrategy<LC> for DdpTrainingStrategy<LC>
 where
     LC: LearningComponentsTypes + Send + 'static,
-    LC::Backend: DistributedBackend,
 {
     fn fit(
         &self,
@@ -71,12 +75,7 @@ where
             event_store: training_components.event_store,
         };
 
-        // TODO: this is an implementation detail.. we should probably restrict DdpTrainingStrategy for `DistributedBackend`
-        // or have a specialized distributed Autodiff. Otherwise it just leaks everywhere.
-        LC::Backend::start_communication_server(
-            self.devices.iter().map(|d| d.inner().clone()).collect(),
-            self.config.clone(),
-        );
+        self.runtime.start();
 
         // Start worker for main device
         // First training dataloader corresponds to main device
@@ -119,7 +118,7 @@ where
                 .expect("Distributed data parallel worker failed");
         }
 
-        LC::Backend::close_communication_server(main_device.inner());
+        self.runtime.close();
 
         // Main worker had the event processor
         let model = main_handle

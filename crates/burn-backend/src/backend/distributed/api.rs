@@ -40,7 +40,7 @@ pub(crate) fn remove_distributed_sync_client<B: DistributedBackend>() {
 
 /// Starts the server used to sync the gradients of parameters sharded across multiple devices.
 pub fn start_distributed_sync_server<B: DistributedBackend>(
-    devices: Vec<B::Device>,
+    devices: &[B::Device],
     config: DistributedConfig,
 ) {
     if get_distributed_sync_client::<B>().is_none() {
