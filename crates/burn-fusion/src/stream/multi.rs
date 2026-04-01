@@ -1,17 +1,16 @@
-use std::sync::Arc;
-
 use burn_ir::{HandleContainer, OperationIr, TensorId, TensorIr, TensorStatus};
 use hashbrown::{HashMap, HashSet};
+use smallvec::SmallVec;
 
 use super::{
     StreamId,
-    execution::{ExecutionMode, Operation, Processor, StreamSegment},
+    execution::{ExecutionMode, Processor, StreamSegment},
     queue::OperationQueue,
     shared_tensors::SharedTensors,
     store::{ExecutionPlanId, ExecutionPlanStore},
 };
 use crate::{
-    DropOp, FusionRuntime,
+    DropOp, FusionRuntime, UnfusedOp,
     stream::shared_tensors::{SharedTensorAnalysis, SharedTensorDropAction},
 };
 
@@ -49,7 +48,7 @@ impl<R: FusionRuntime> MultiStream<R> {
         &mut self,
         streams: OperationStreams,
         mut repr: OperationIr,
-        operation: Arc<dyn Operation<R>>,
+        operation: UnfusedOp<R>,
         handles: &mut HandleContainer<R::FusionHandle>,
     ) {
         let id = self.resolve_streams(&streams, handles, &mut repr);
@@ -135,7 +134,7 @@ impl<R: FusionRuntime> MultiStream<R> {
         id: StreamId,
         repr: OperationIr,
         streams: &OperationStreams,
-        operation: Arc<dyn Operation<R>>,
+        operation: UnfusedOp<R>,
         handles: &mut HandleContainer<R::FusionHandle>,
     ) -> usize {
         let stream = match self.streams.get_mut(&id) {
@@ -194,25 +193,23 @@ impl<R: FusionRuntime> MultiStream<R> {
 
     /// Drain a stream
     pub fn drain(&mut self, handles: &mut HandleContainer<R::FusionHandle>, id: StreamId) {
-        if let Some(stream) = self.streams.get_mut(&id) {
-            let old = unsafe { StreamId::swap(id) };
-            let num_executed = stream.queue.global.len();
-            stream.processor.process(
-                Segment::new(&mut stream.queue, handles),
-                &mut self.optimizations,
-                ExecutionMode::Sync,
-            );
-            stream.cursor += num_executed as u64;
+        id.executes(|| {
+            if let Some(stream) = self.streams.get_mut(&id) {
+                let num_executed = stream.queue.global.len();
+                stream.processor.process(
+                    Segment::new(&mut stream.queue, handles),
+                    &mut self.optimizations,
+                    ExecutionMode::Sync,
+                );
+                stream.cursor += num_executed as u64;
 
-            let cleared = self.shared_tensors.on_executed_ops(id, stream);
-            self.clear_shared_tensors(&cleared, id);
-            let to_drop = self.shared_tensors.clear_tensors(cleared);
+                let cleared = self.shared_tensors.on_executed_ops(id, stream);
+                self.clear_shared_tensors(&cleared, id);
+                let to_drop = self.shared_tensors.clear_tensors(cleared);
 
-            self.drop_shared_tensors(to_drop, handles, id);
-            unsafe {
-                StreamId::swap(old);
-            };
-        }
+                self.drop_shared_tensors(to_drop, handles, id);
+            }
+        });
     }
 
     /// When one of the provided streams is different from the current stream, we drain them.
@@ -368,11 +365,11 @@ impl<R: FusionRuntime> MultiStream<R> {
         }
         for tensor in tensors {
             let streams = OperationStreams {
-                streams: HashMap::new(),
+                streams: SmallVec::new(),
                 current,
             };
 
-            let op = Arc::new(DropOp { id: tensor.id });
+            let op = UnfusedOp::new(DropOp { id: tensor.id }, current);
             self.register(streams, OperationIr::Drop(tensor), op, handles);
         }
     }
@@ -429,14 +426,14 @@ impl<R: FusionRuntime> Stream<R> {
 #[derive(Debug)]
 /// Manage the streams used for the current [operation](OperationIr).
 pub struct OperationStreams {
-    pub(crate) streams: HashMap<TensorId, StreamId>,
+    pub(crate) streams: SmallVec<[(TensorId, StreamId); 5]>,
     pub(crate) current: StreamId,
 }
 
 impl Default for OperationStreams {
     fn default() -> Self {
         Self {
-            streams: HashMap::new(),
+            streams: SmallVec::new(),
             current: StreamId::current(),
         }
     }
@@ -448,11 +445,22 @@ impl OperationStreams {
     /// You only need to register input tensors, not the outputs.
     /// So init tensor operations should have no streams registered.
     pub fn tensor<R: FusionRuntime>(&mut self, tensor: &crate::FusionTensor<R>) {
-        self.streams.insert(tensor.id, tensor.stream);
+        for (id, _) in self.streams.iter() {
+            if *id == tensor.id {
+                return;
+            }
+        }
+        self.streams.push((tensor.id, tensor.stream));
     }
 
     pub(crate) fn get(&self, id: TensorId) -> Option<StreamId> {
-        self.streams.get(&id).cloned()
+        for (tensor_id, stream) in self.streams.iter() {
+            if *tensor_id == id {
+                return Some(*stream);
+            }
+        }
+
+        None
     }
 
     /// Create new operation streams with the given inputs.
