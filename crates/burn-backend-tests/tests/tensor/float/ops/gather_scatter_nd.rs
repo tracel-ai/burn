@@ -230,3 +230,83 @@ fn test_scatter_nd_batch() {
         false,
     );
 }
+
+#[test]
+fn test_scatter_nd_single_element() {
+    // Single update to a single element in a 1D tensor
+    let device = Default::default();
+    let data = TestTensor::<1>::from_floats([1.0, 2.0, 3.0], &device);
+    let indices = TestTensorInt::<2>::from_ints([[2]], &device);
+    let values = TestTensor::<1>::from_floats([99.0], &device);
+
+    let output = data.scatter_nd(indices, values);
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([1.0, 2.0, 99.0]), false);
+}
+
+#[test]
+fn test_scatter_nd_k1_high_rank() {
+    // K=1 on a 3D tensor: each index selects a full 2D slice
+    let device = Default::default();
+    let data = TestTensor::<3>::zeros([2, 2, 2], &device);
+    let indices = TestTensorInt::<2>::from_ints([[1]], &device);
+    let values = TestTensor::<3>::from_floats([[[10.0, 20.0], [30.0, 40.0]]], &device);
+
+    let output = data.scatter_nd(indices, values);
+
+    output.into_data().assert_eq(
+        &TensorData::from([[[0.0, 0.0], [0.0, 0.0]], [[10.0, 20.0], [30.0, 40.0]]]),
+        false,
+    );
+}
+
+#[test]
+fn test_gather_nd_single_element() {
+    // Gather a single scalar from a 1D tensor
+    let device = Default::default();
+    let data = TestTensor::<1>::from_floats([10.0, 20.0, 30.0], &device);
+    let indices = TestTensorInt::<2>::from_ints([[1]], &device);
+
+    let output: TestTensor<1> = data.gather_nd(indices);
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([20.0]), false);
+}
+
+#[test]
+fn test_scatter_nd_empty_indices() {
+    // Zero updates should return data unchanged
+    let device = Default::default();
+    let data = TestTensor::<2>::from_floats([[1.0, 2.0], [3.0, 4.0]], &device);
+    let indices = TestTensorInt::<2>::zeros([0, 2], &device);
+    let values = TestTensor::<1>::zeros([0], &device);
+
+    let output = data.scatter_nd(indices, values);
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([[1.0, 2.0], [3.0, 4.0]]), false);
+}
+
+#[test]
+fn test_gather_scatter_nd_roundtrip() {
+    // gather_nd then scatter_nd_add back should reconstruct selected rows
+    let device = Default::default();
+    let data = TestTensor::<2>::from_floats(
+        [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]],
+        &device,
+    );
+    let indices = TestTensorInt::<2>::from_ints([[0], [2]], &device);
+
+    let gathered: TestTensor<2> = data.clone().gather_nd(indices.clone());
+    let zeros = TestTensor::<2>::zeros([3, 3], &device);
+    let reconstructed: TestTensor<2> = zeros.scatter_nd_add(indices, gathered);
+
+    reconstructed.into_data().assert_eq(
+        &TensorData::from([[1.0, 2.0, 3.0], [0.0, 0.0, 0.0], [7.0, 8.0, 9.0]]),
+        false,
+    );
+}
