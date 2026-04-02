@@ -14,6 +14,7 @@ mod conv_transpose3d;
 mod cross;
 mod fft;
 mod gather;
+mod interpolate_nearest;
 mod mask_fill;
 mod mask_where;
 mod max_pool2d;

@@ -1,5 +1,5 @@
+use burn_backend::{Backend, Shape, TensorMetadata};
 use burn_communication::Protocol;
-use burn_tensor::{Shape, TensorMetadata, backend::Backend};
 use std::sync::mpsc::SyncSender;
 
 use crate::{
@@ -43,6 +43,7 @@ impl<B: Backend> ReduceOp<B> {
         }
     }
 
+    #[allow(dead_code)]
     fn peers(&self) -> Vec<PeerId> {
         self.calls.iter().map(|c| c.caller).collect()
     }

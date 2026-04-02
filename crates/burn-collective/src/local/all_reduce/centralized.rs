@@ -1,4 +1,4 @@
-use burn_tensor::backend::Backend;
+use burn_backend::Backend;
 
 use crate::local::tensor_map::{CollectiveTensorMap, get_peer_devices};
 use crate::local::{broadcast_centralized, reduce_sum_centralized};

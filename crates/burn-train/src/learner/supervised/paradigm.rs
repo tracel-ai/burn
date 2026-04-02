@@ -15,11 +15,12 @@ use crate::multi::MultiDeviceLearningStrategy;
 use crate::renderer::{MetricsRenderer, default_renderer};
 use crate::single::SingleDeviceTrainingStrategy;
 use crate::{
-    ApplicationLoggerInstaller, EarlyStoppingStrategyRef, FileApplicationLoggerInstaller,
-    InferenceBackend, InferenceModel, InferenceModelInput, InferenceStep, LearnerEvent,
-    LearnerModelRecord, LearnerOptimizerRecord, LearnerSchedulerRecord, LearnerSummaryConfig,
-    LearningCheckpointer, LearningComponentsMarker, LearningComponentsTypes, LearningResult,
-    TrainStep, TrainingBackend, TrainingComponents, TrainingModelInput, TrainingStrategy,
+    ApplicationLoggerInstaller, EarlyStoppingStrategyRef, ExecutionStrategy,
+    FileApplicationLoggerInstaller, InferenceBackend, InferenceModel, InferenceModelInput,
+    InferenceStep, LearnerEvent, LearnerModelRecord, LearnerOptimizerRecord,
+    LearnerSchedulerRecord, LearnerSummaryConfig, LearningCheckpointer, LearningComponentsMarker,
+    LearningComponentsTypes, LearningResult, TrainStep, TrainingBackend, TrainingComponents,
+    TrainingModelInput, TrainingStrategy,
 };
 use crate::{Learner, SupervisedLearningStrategy};
 use burn_core::data::dataloader::DataLoader;
@@ -319,7 +320,10 @@ impl<LC: LearningComponentsTypes> SupervisedTraining<LC> {
     }
 }
 
-impl<LC: LearningComponentsTypes + Send + 'static> SupervisedTraining<LC> {
+impl<LC> SupervisedTraining<LC>
+where
+    LC: LearningComponentsTypes + Send + 'static,
+{
     /// Launch this training with the given [Learner](Learner).
     pub fn launch(mut self, learner: Learner<LC>) -> LearningResult<InferenceModel<LC>> {
         if self.tracing_logger.is_some()
@@ -374,56 +378,57 @@ impl<LC: LearningComponentsTypes + Send + 'static> SupervisedTraining<LC> {
         };
 
         // Default to single device based on model
-        let training_strategy = self
-            .training_strategy
-            .unwrap_or(TrainingStrategy::SingleDevice(
-                learner.model.devices()[0].clone(),
-            ));
+        let training_strategy = self.training_strategy.unwrap_or(TrainingStrategy::Default(
+            ExecutionStrategy::SingleDevice(learner.model.devices()[0].clone()),
+        ));
 
         match training_strategy {
-            TrainingStrategy::SingleDevice(device) => {
-                let single_device: SingleDeviceTrainingStrategy<LC> =
-                    SingleDeviceTrainingStrategy::new(device);
-                single_device.train(
-                    learner,
-                    self.dataloader_train,
-                    self.dataloader_valid,
-                    components,
-                )
-            }
             TrainingStrategy::Custom(learning_paradigm) => learning_paradigm.train(
                 learner,
                 self.dataloader_train,
                 self.dataloader_valid,
                 components,
             ),
-            TrainingStrategy::MultiDevice(devices, multi_device_optim) => {
-                let strategy: Box<dyn SupervisedLearningStrategy<LC>> = match devices.len() == 1 {
-                    true => Box::new(SingleDeviceTrainingStrategy::new(devices[0].clone())),
-                    false => Box::new(MultiDeviceLearningStrategy::new(
-                        devices,
-                        multi_device_optim,
-                    )),
-                };
-                strategy.train(
-                    learner,
-                    self.dataloader_train,
-                    self.dataloader_valid,
-                    components,
-                )
-            }
-            #[cfg(feature = "ddp")]
-            TrainingStrategy::DistributedDataParallel { devices, config } => {
-                use crate::ddp::DdpTrainingStrategy;
+            TrainingStrategy::Default(strategy) => match strategy {
+                ExecutionStrategy::SingleDevice(device) => {
+                    let single_device: SingleDeviceTrainingStrategy<LC> =
+                        SingleDeviceTrainingStrategy::new(device);
+                    single_device.train(
+                        learner,
+                        self.dataloader_train,
+                        self.dataloader_valid,
+                        components,
+                    )
+                }
+                ExecutionStrategy::MultiDevice(devices, multi_device_optim) => {
+                    let strategy: Box<dyn SupervisedLearningStrategy<LC>> = match devices.len() == 1
+                    {
+                        true => Box::new(SingleDeviceTrainingStrategy::new(devices[0].clone())),
+                        false => Box::new(MultiDeviceLearningStrategy::new(
+                            devices,
+                            multi_device_optim,
+                        )),
+                    };
+                    strategy.train(
+                        learner,
+                        self.dataloader_train,
+                        self.dataloader_valid,
+                        components,
+                    )
+                }
+                #[cfg(feature = "ddp")]
+                ExecutionStrategy::DistributedDataParallel { devices, runtime } => {
+                    use crate::ddp::DdpTrainingStrategy;
 
-                let ddp = DdpTrainingStrategy::new(devices.clone(), config.clone());
-                ddp.train(
-                    learner,
-                    self.dataloader_train,
-                    self.dataloader_valid,
-                    components,
-                )
-            }
+                    let ddp = DdpTrainingStrategy::new(devices, runtime);
+                    ddp.train(
+                        learner,
+                        self.dataloader_train,
+                        self.dataloader_valid,
+                        components,
+                    )
+                }
+            },
         }
     }
 }

@@ -1,6 +1,5 @@
-use crate::PeerId;
-use crate::local::tensor_map::CollectiveTensorMap;
-use burn_tensor::backend::{Backend, DeviceOps};
+use crate::{PeerId, local::tensor_map::CollectiveTensorMap};
+use burn_backend::{Backend, DeviceOps};
 
 /// Performs a reduce on the provided tensors in a b-tree structure with `arity`.
 #[cfg_attr(

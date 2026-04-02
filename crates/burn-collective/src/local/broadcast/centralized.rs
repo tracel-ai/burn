@@ -1,8 +1,10 @@
 use std::collections::HashMap;
 
-use crate::PeerId;
-use crate::local::tensor_map::{CollectiveTensorMap, PeerDeviceMap};
-use burn_tensor::backend::Backend;
+use crate::{
+    PeerId,
+    local::tensor_map::{CollectiveTensorMap, PeerDeviceMap},
+};
+use burn_backend::Backend;
 
 /// Broadcasts the tensor from one device in a map to all the others
 #[cfg_attr(

@@ -4,7 +4,7 @@ use burn_backend::{DType, TensorMetadata};
 use cubecl::prelude::*;
 use cubek::fft::{irfft_launch, rfft_launch};
 
-/// launch the rfft kernel
+/// launch the fft kernel
 pub fn rfft<R: CubeRuntime>(signal: CubeTensor<R>, dim: usize) -> (CubeTensor<R>, CubeTensor<R>) {
     let dtype = match signal.dtype {
         DType::F64 => f64::as_type_native_unchecked().storage_type(),

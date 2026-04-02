@@ -1,4 +1,5 @@
 use burn::tensor::TensorData;
+use burn_collective::{AllReduceStrategy, ReduceOperation};
 use burn_communication::Address;
 use futures::{SinkExt, StreamExt};
 use std::{
@@ -13,7 +14,6 @@ use tokio_serde::formats::MessagePack;
 use tokio_util::codec::LengthDelimitedCodec;
 
 use burn::{backend::NdArray, prelude::Backend, tensor::Tensor};
-use burn_collective::{AllReduceStrategy, ReduceOperation};
 use burn_collective_multinode_tests::shared::{NodeTest, NodeTestResult, TENSOR_RANK};
 use burn_std::rand::{SeedableRng, StdRng};
 use tokio::process::{Child, Command};

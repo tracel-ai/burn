@@ -42,6 +42,7 @@ tracing = [
     "burn-wgpu?/tracing",
 ]
 
+distributed = ["std", "burn-core/distributed"]
 collective = ["burn-collective"]
 
 test-cuda = [

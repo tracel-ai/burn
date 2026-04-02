@@ -1,10 +1,9 @@
 use std::{collections::HashMap, sync::Arc};
 
 use crate::{NodeId, global::shared::GlobalCollectiveError, node::sync::SyncService};
+use burn_backend::{Backend, TensorMetadata};
 use burn_communication::data_service::TensorDataService;
 use burn_communication::{Address, Protocol};
-use burn_tensor::TensorMetadata;
-use burn_tensor::backend::Backend;
 use futures::StreamExt;
 use futures::stream::FuturesUnordered;
 
