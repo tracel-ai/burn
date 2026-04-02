@@ -337,6 +337,6 @@ impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<Self> for Candle<F, I
         spectrum_im: FloatTensor<Self>,
         dim: usize,
     ) -> FloatTensor<Self> {
-        todo!("rfft is unsupported in Candle")
+        todo!("irfft is unsupported in Candle")
     }
 }

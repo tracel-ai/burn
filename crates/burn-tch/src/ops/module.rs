@@ -479,7 +479,7 @@ impl<E: TchElement> ModuleOps<Self> for LibTorch<E> {
     }
 
     fn rfft(_signal: FloatTensor<Self>, _dim: usize) -> (FloatTensor<Self>, FloatTensor<Self>) {
-        todo!("Not supported for now in LibTorch")
+        todo!("rfft is not supported for now in LibTorch")
     }
 
     fn irfft(
@@ -487,6 +487,6 @@ impl<E: TchElement> ModuleOps<Self> for LibTorch<E> {
         _spectrum_im: FloatTensor<Self>,
         _dim: usize,
     ) -> FloatTensor<Self> {
-        todo!("Not supported for now in LibTorch")
+        todo!("irfft is not supported for now in LibTorch")
     }
 }

@@ -1565,7 +1565,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         _signal: FloatTensor<Fusion<B>>,
         _dim: usize,
     ) -> (FloatTensor<Fusion<B>>, FloatTensor<Fusion<B>>) {
-        todo!("Unsupported operation")
+        todo!("rfft is not yet supported for fusion")
     }
 
     fn irfft(
@@ -1573,6 +1573,6 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         _spectrum_im: FloatTensor<Fusion<B>>,
         _dim: usize,
     ) -> FloatTensor<Fusion<B>> {
-        todo!("Unsupported operation")
+        todo!("irfft is not yet supported for fusion")
     }
 }
