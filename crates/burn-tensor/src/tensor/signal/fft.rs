@@ -63,11 +63,55 @@ pub fn rfft<B: Backend, const D: usize>(
     )
 }
 
+/// Computes the 1-dimensional inverse discrete Fourier Transform for real-valued signals.
+///
+/// This function reconstructs the real-valued time-domain signal from the
+/// first non-redundant values ($N/2 + 1$) of the frequency-domain spectrum.
+/// For now, the autodiff is not yet supported.
+///
+#[cfg_attr(
+    doc,
+    doc = r#"
+The mathematical formulation for each element $n$ in the time domain is:
+
+$$x\[n\] = \frac{1}{N} \sum_{k=0}^{N-1} X\[k\] \left\[ \cos\left(\frac{2\pi kn}{N}\right) + i \sin\left(\frac{2\pi kn}{N}\right) \right\]$$
+
+where $N$ is the size of the reconstructed signal.
+"#
+)]
+#[cfg_attr(not(doc), doc = r"x\[n\] = (1/N) * Σ X\[k\] * exp(i*2πkn/N)")]
+///
+/// # Arguments
+///
+/// * `spectrum_re` - The real part of the spectrum.
+/// * `spectrum_im` - The imaginary part of the spectrum.
+/// * `dim` - The dimension along which to take the inverse FFT.
+/// * The reconstructed signal length (2 * (size - 1)) must be a power of two.
+///
+/// # Returns
+///
+/// The reconstructed real-valued signal.
+///
+/// # Example
+///
+/// ```rust
+/// use burn_tensor::backend::Backend;
+/// use burn_tensor::Tensor;
+///
+/// fn example<B: Backend>() {
+///     let device = B::Device::default();
+///     let real = Tensor::<B, 1>::from_floats([10.0, -2.0, 2.0], &device);
+///     let imag = Tensor::<B, 1>::from_floats([0.0, 2.0, 0.0], &device);
+///     let signal = burn_tensor::signal::irfft(real, imag, 0);
+/// }
+/// ```
 pub fn irfft<B: Backend, const D: usize>(
     spectrum_re: Tensor<B, D>,
     spectrum_im: Tensor<B, D>,
     dim: usize,
 ) -> Tensor<B, D> {
+    check!(TensorCheck::check_dim::<D>(dim));
+
     let signal = B::irfft(
         spectrum_re.primitive.tensor(),
         spectrum_im.primitive.tensor(),
