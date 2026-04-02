@@ -130,6 +130,24 @@ fn test_scatter_nd_add_2d() {
     );
 }
 
+// Duplicate indices are non-deterministic on GPU; only test on CPU backends.
+#[cfg(feature = "ndarray")]
+#[test]
+fn test_scatter_nd_add_duplicate_indices() {
+    let device = Default::default();
+    let data = TestTensor::<2>::zeros([2, 3], &device);
+    // Both index tuples point to the same location
+    let indices = TestTensorInt::<2>::from_ints([[0, 1], [0, 1]], &device);
+    let values = TestTensor::<1>::from_floats([5.0, 3.0], &device);
+
+    let output = data.scatter_nd_add(indices, values);
+
+    // Values should accumulate: 5.0 + 3.0 = 8.0
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([[0.0, 8.0, 0.0], [0.0, 0.0, 0.0]]), false);
+}
+
 #[test]
 fn test_scatter_nd_3d_slices() {
     // Scatter 1D slices into a 3D tensor (K=1)
@@ -274,6 +292,65 @@ fn test_gather_scatter_nd_roundtrip() {
 
     reconstructed.into_data().assert_eq(
         &TensorData::from([[1.0, 2.0, 3.0], [0.0, 0.0, 0.0], [7.0, 8.0, 9.0]]),
+        false,
+    );
+}
+
+#[test]
+fn test_scatter_nd_3d_k2_partial_slices() {
+    // K=2 on 3D data: each index tuple selects a 1D row within a 2D slice
+    let device = Default::default();
+    // data shape: [2, 3, 4]
+    let data = TestTensor::<3>::zeros([2, 3, 4], &device);
+    // indices shape: [2, 2] => K=2, M=2, DV = 1+3-2 = 2
+    // [0, 1] => data[0, 1, :], [1, 2] => data[1, 2, :]
+    let indices = TestTensorInt::<2>::from_ints([[0, 1], [1, 2]], &device);
+    // values shape: [2, 4]
+    let values = TestTensor::<2>::from_floats(
+        [[10.0, 20.0, 30.0, 40.0], [50.0, 60.0, 70.0, 80.0]],
+        &device,
+    );
+
+    let output = data.scatter_nd(indices, values);
+
+    // Only data[0,1,:] and data[1,2,:] should be set
+    let output_data = output.into_data();
+    output_data.assert_eq(
+        &TensorData::from([
+            [
+                [0.0, 0.0, 0.0, 0.0],
+                [10.0, 20.0, 30.0, 40.0],
+                [0.0, 0.0, 0.0, 0.0],
+            ],
+            [
+                [0.0, 0.0, 0.0, 0.0],
+                [0.0, 0.0, 0.0, 0.0],
+                [50.0, 60.0, 70.0, 80.0],
+            ],
+        ]),
+        false,
+    );
+}
+
+#[test]
+fn test_gather_nd_3d_k2_partial_slices() {
+    // K=2 on 3D data: each index tuple gathers a 1D row
+    let device = Default::default();
+    let data = TestTensor::<3>::from_floats(
+        [
+            [[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]],
+            [[7.0, 8.0], [9.0, 10.0], [11.0, 12.0]],
+        ],
+        &device,
+    );
+    // indices shape: [3, 2] => K=2, M=2, DV = 1+3-2 = 2
+    let indices = TestTensorInt::<2>::from_ints([[0, 2], [1, 0], [0, 1]], &device);
+
+    let output: TestTensor<2> = data.gather_nd(indices);
+
+    // [0,2] => [5,6], [1,0] => [7,8], [0,1] => [3,4]
+    output.into_data().assert_eq(
+        &TensorData::from([[5.0, 6.0], [7.0, 8.0], [3.0, 4.0]]),
         false,
     );
 }

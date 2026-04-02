@@ -1821,6 +1821,11 @@ where
     /// When `indices` contains duplicate entries, the result is non-deterministic on GPU
     /// backends (matching ONNX ScatterND semantics). For deterministic accumulation with
     /// duplicates, use [`scatter_nd_add`](Self::scatter_nd_add) on CPU backends.
+    ///
+    /// # Warning
+    ///
+    /// Not all backends have runtime bound checks for the indices, so make sure they are valid.
+    /// Otherwise, out of bounds indices could lead to unexpected results instead of panicking.
     pub fn scatter_nd<const M: usize, const DV: usize>(
         self,
         indices: Tensor<B, M, Int>,
@@ -1842,6 +1847,11 @@ where
     /// Multi-dimensional scatter with additive reduction.
     ///
     /// With duplicate indices, results are non-deterministic on GPU backends.
+    ///
+    /// # Warning
+    ///
+    /// Not all backends have runtime bound checks for the indices, so make sure they are valid.
+    /// Otherwise, out of bounds indices could lead to unexpected results instead of panicking.
     pub fn scatter_nd_add<const M: usize, const DV: usize>(
         self,
         indices: Tensor<B, M, Int>,
@@ -1861,6 +1871,13 @@ where
     }
 
     /// Multi-dimensional scatter with multiplicative reduction.
+    ///
+    /// With duplicate indices, results are non-deterministic on GPU backends.
+    ///
+    /// # Warning
+    ///
+    /// Not all backends have runtime bound checks for the indices, so make sure they are valid.
+    /// Otherwise, out of bounds indices could lead to unexpected results instead of panicking.
     pub fn scatter_nd_mul<const M: usize, const DV: usize>(
         self,
         indices: Tensor<B, M, Int>,
@@ -1880,6 +1897,13 @@ where
     }
 
     /// Multi-dimensional scatter with minimum reduction.
+    ///
+    /// With duplicate indices, results are non-deterministic on GPU backends.
+    ///
+    /// # Warning
+    ///
+    /// Not all backends have runtime bound checks for the indices, so make sure they are valid.
+    /// Otherwise, out of bounds indices could lead to unexpected results instead of panicking.
     pub fn scatter_nd_min<const M: usize, const DV: usize>(
         self,
         indices: Tensor<B, M, Int>,
@@ -1899,6 +1923,13 @@ where
     }
 
     /// Multi-dimensional scatter with maximum reduction.
+    ///
+    /// With duplicate indices, results are non-deterministic on GPU backends.
+    ///
+    /// # Warning
+    ///
+    /// Not all backends have runtime bound checks for the indices, so make sure they are valid.
+    /// Otherwise, out of bounds indices could lead to unexpected results instead of panicking.
     pub fn scatter_nd_max<const M: usize, const DV: usize>(
         self,
         indices: Tensor<B, M, Int>,
@@ -1923,6 +1954,11 @@ where
     /// `indices` is an M-dimensional integer tensor whose last dimension (K) indexes into the
     /// first K dimensions of `self`. The output has shape
     /// `[indices.shape[0..M-1]..., self.shape[K..D]...]`.
+    ///
+    /// # Warning
+    ///
+    /// Not all backends have runtime bound checks for the indices, so make sure they are valid.
+    /// Otherwise, out of bounds indices could lead to unexpected results instead of panicking.
     pub fn gather_nd<const M: usize, const DV: usize>(
         self,
         indices: Tensor<B, M, Int>,

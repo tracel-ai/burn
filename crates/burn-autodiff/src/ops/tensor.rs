@@ -1059,6 +1059,18 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
     ) -> FloatTensor<Self> {
         use burn_backend::tensor::ScatterNdReduction;
 
+        if matches!(
+            reduction,
+            ScatterNdReduction::Mul | ScatterNdReduction::Min | ScatterNdReduction::Max
+        ) && (!data.node.requirement.is_none() || !values.node.requirement.is_none())
+        {
+            panic!(
+                "scatter_nd with {:?} reduction does not support autograd. \
+                 Detach the input tensors or use Assign/Add reduction instead.",
+                reduction,
+            );
+        }
+
         match reduction {
             ScatterNdReduction::Add => {
                 #[derive(Debug)]
