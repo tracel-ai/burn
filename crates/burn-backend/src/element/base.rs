@@ -95,6 +95,44 @@ pub trait ElementLimits {
     const MAX: Self;
 }
 
+/// Precision properties for floating-point element types.
+///
+/// Provides associated constants analogous to NumPy's `finfo` fields,
+/// usable in generic Rust code and CubeCL kernels.
+pub trait FloatElementPrecision: Element {
+    /// Machine epsilon: smallest value such that `1.0 + EPSILON != 1.0`.
+    const EPSILON: Self;
+    /// Smallest positive normal value (equivalent to `tiny` in NumPy/PyTorch).
+    const TINY: Self;
+}
+
+impl FloatElementPrecision for f64 {
+    const EPSILON: Self = f64::EPSILON;
+    const TINY: Self = f64::MIN_POSITIVE;
+}
+
+impl FloatElementPrecision for f32 {
+    const EPSILON: Self = f32::EPSILON;
+    const TINY: Self = f32::MIN_POSITIVE;
+}
+
+impl FloatElementPrecision for f16 {
+    const EPSILON: Self = f16::EPSILON;
+    const TINY: Self = f16::MIN_POSITIVE;
+}
+
+impl FloatElementPrecision for bf16 {
+    const EPSILON: Self = bf16::EPSILON;
+    const TINY: Self = bf16::MIN_POSITIVE;
+}
+
+#[cfg(feature = "cubecl")]
+impl FloatElementPrecision for flex32 {
+    // Flex32 computes at reduced precision; use f16 limits for safety.
+    const EPSILON: Self = flex32::from_f32(f16::EPSILON.to_f32_const());
+    const TINY: Self = flex32::from_f32(f16::MIN_POSITIVE.to_f32_const());
+}
+
 /// Macro to implement the element trait for a type.
 #[macro_export]
 macro_rules! make_element {
