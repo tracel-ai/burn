@@ -52,11 +52,10 @@ pub fn rfft<B: Backend, const D: usize>(
     dim: usize,
 ) -> (Tensor<B, D>, Tensor<B, D>) {
     check!(TensorCheck::check_dim::<D>(dim));
-    // I did not see a tensor check for this assert
-    assert!(
-        signal.shape()[dim].is_power_of_two(),
-        "The dimension in which the fft is done must be a power of two"
-    );
+    check!(TensorCheck::check_is_power_of_two::<D>(
+        &signal.shape(),
+        dim
+    ));
     let (spectrum_re, spectrum_im) = B::rfft(signal.primitive.tensor(), dim);
     (
         Tensor::new(TensorPrimitive::Float(spectrum_re)),
