@@ -1,5 +1,4 @@
 use super::diag;
-use crate::backend::Backend;
 use crate::tensor::Tensor;
 
 /// Computes the trace of a matrix.
@@ -17,8 +16,8 @@ use crate::tensor::Tensor;
 ///
 /// A tensor of rank `D - 1`, where the last dimension contains the sum along the diagonals
 /// of the input.
-pub fn trace<B: Backend, const D: usize, const DO: usize>(tensor: Tensor<B, D>) -> Tensor<B, DO> {
-    let diag_tensor = diag::<_, D, DO, _>(tensor);
+pub fn trace<const D: usize, const DO: usize>(tensor: Tensor<D>) -> Tensor<DO> {
+    let diag_tensor = diag::<D, DO, _>(tensor);
 
     diag_tensor.sum_dim(DO - 1)
 }

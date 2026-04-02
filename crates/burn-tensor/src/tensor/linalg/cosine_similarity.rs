@@ -1,5 +1,5 @@
-use crate::ElementConversion;
-use crate::backend::Backend;
+use burn_backend::ElementConversion;
+
 use crate::tensor::Tensor;
 
 use super::l2_norm;
@@ -22,13 +22,13 @@ pub const DEFAULT_EPSILON: f64 = 1e-8;
 /// # Returns
 ///
 /// Tensor containing the cosine similarity between x1 and x2
-pub fn cosine_similarity<B: Backend, const D: usize>(
-    x1: Tensor<B, D>,
-    x2: Tensor<B, D>,
+pub fn cosine_similarity<const D: usize>(
+    x1: Tensor<D>,
+    x2: Tensor<D>,
     dim: i32,
-    eps: Option<B::FloatElem>,
-) -> Tensor<B, D> {
-    let eps = eps.unwrap_or_else(|| B::FloatElem::from_elem(DEFAULT_EPSILON));
+    eps: Option<f64>,
+) -> Tensor<D> {
+    let eps = eps.unwrap_or_else(|| DEFAULT_EPSILON.elem());
 
     // Convert negative dimension to positive
     let dim_idx = if dim < 0 { D as i32 + dim } else { dim } as usize;

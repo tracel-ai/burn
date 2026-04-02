@@ -34,7 +34,6 @@ default = [
     "burn-rocm?/default",
     "burn-nn/default",
     "burn-optim/default",
-    "burn-dispatch?/default",
 ]
 doc = [
     "default",
@@ -55,7 +54,6 @@ doc = [
     "burn-rocm/doc",
     "burn-nn/doc",
     "burn-optim/doc",
-    "burn-dispatch?/doc",
 ]
 std = [
     "burn-core/std",
@@ -72,7 +70,6 @@ std = [
     "burn-tch?/std",
     "burn-nn/std",
     "burn-optim/std",
-    "burn-dispatch?/std",
 ]
 tracing = [
     "cubecl?/tracing",
@@ -90,7 +87,6 @@ tracing = [
     "burn-store?/tracing",
     "burn-nn/tracing",
     "burn-optim/tracing",
-    "burn-dispatch?/tracing",
 ]
 
 
@@ -169,9 +165,9 @@ distributed = ["std",
 candle = ["burn-candle"]
 candle-cuda = ["candle", "burn-candle/cuda"]
 candle-metal = ["burn-candle?/metal"]
-cuda = ["burn-cuda", "burn-dispatch?/cuda"]
-rocm = ["burn-rocm", "burn-dispatch?/rocm"]
-ndarray = ["burn-ndarray", "burn-dispatch?/ndarray"]
+cuda = ["burn-cuda", "burn-dispatch/cuda"]
+rocm = ["burn-rocm", "burn-dispatch/rocm"]
+ndarray = ["burn-ndarray", "burn-dispatch/ndarray"]
 tch = ["burn-tch"]
 vulkan = ["wgpu", "burn-wgpu/vulkan", "burn-dispatch?/vulkan"]
 webgpu = ["wgpu", "burn-wgpu/webgpu", "burn-dispatch?/webgpu"]

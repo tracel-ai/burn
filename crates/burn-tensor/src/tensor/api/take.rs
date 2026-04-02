@@ -1,10 +1,9 @@
-use crate::{AsIndex, BasicOps, Int, Tensor, backend::Backend, check, check::TensorCheck};
+use crate::{AsIndex, Int, Tensor, check, check::TensorCheck, kind::Basic};
 use alloc::vec::Vec;
 
-impl<B, const D: usize, K> Tensor<B, D, K>
+impl<const D: usize, K> Tensor<D, K>
 where
-    B: Backend,
-    K: BasicOps<B>,
+    K: Basic,
 {
     /// Takes elements from the tensor along the given dimension using indices of any dimensionality.
     ///
@@ -43,8 +42,8 @@ where
     pub fn take<const DI: usize, const DO: usize>(
         self,
         dim: impl AsIndex,
-        indices: Tensor<B, DI, Int>,
-    ) -> Tensor<B, DO, K> {
+        indices: Tensor<DI, Int>,
+    ) -> Tensor<DO, K> {
         let dim = dim.expect_dim_index(D);
         check!(TensorCheck::take::<D, DI, DO>(dim));
 

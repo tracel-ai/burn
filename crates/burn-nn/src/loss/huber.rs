@@ -143,7 +143,7 @@ mod tests {
     use super::*;
     use crate::TestBackend;
     use burn::tensor::TensorData;
-    type TestTensor<const D: usize> = Tensor<TestBackend, D>;
+    type Tensor<const D: usize> = Tensor<TestBackend, D>;
     use burn::tensor::{Tolerance, ops::FloatElem};
     type FT = FloatElem<TestBackend>;
 
@@ -154,8 +154,8 @@ mod tests {
 
         let device = Default::default();
 
-        let predict = TestTensor::<1>::from_data(predict, &device);
-        let targets = TestTensor::<1>::from_data(targets, &device);
+        let predict = Tensor::<1>::from_data(predict, &device);
+        let targets = Tensor::<1>::from_data(targets, &device);
 
         let huber = HuberLossConfig::new(0.5).init();
 

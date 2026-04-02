@@ -16,7 +16,7 @@ fn test_same_as_ref<const D: usize>(shape: [usize; D], dim: usize) {
     let device = Default::default();
     let ref_device = ReferenceDevice::new();
 
-    TestBackend::seed(&device, 0);
+    device.seed(0);
 
     let max = shape[dim];
     let shape = Shape::new(shape);

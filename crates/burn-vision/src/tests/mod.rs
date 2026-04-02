@@ -11,7 +11,7 @@ macro_rules! testgen_all {
     () => {
         use burn_tensor::{Bool, Float, Int};
 
-        pub type TestTensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;
+        pub type Tensor<const D: usize> = burn_tensor::Tensor<TestBackend, D>;
         pub type TestTensorInt<const D: usize> = burn_tensor::Tensor<TestBackend, D, Int>;
         pub type TestTensorBool<const D: usize> = burn_tensor::Tensor<TestBackend, D, Bool>;
 

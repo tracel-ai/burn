@@ -66,6 +66,7 @@ metal = ["wgpu", "burn-wgpu/metal"]
 wgpu = ["burn-wgpu"]
 cpu = ["burn-cpu"]
 autodiff = ["burn-autodiff"]
+# remote = ["burn-remote"]
 
 # Backend features
 autotune = [
@@ -98,6 +99,9 @@ burn-ndarray = { path = "../burn-ndarray", version = "=0.21.0-pre.2", optional =
 burn-tch = { path = "../burn-tch", version = "=0.21.0-pre.2", optional = true, default-features = false }
 burn-rocm = { path = "../burn-rocm", version = "=0.21.0-pre.2", optional = true, default-features = false }
 burn-wgpu = { path = "../burn-wgpu", version = "=0.21.0-pre.2", optional = true, default-features = false }
+
+# TODO: add remote backend
+# burn-remote = { path = "../burn-remote", version = "=0.21.0-pre.2", optional = true, default-features = false }
 
 # Op macros with `.as_$inner_kind()`
 paste = { workspace = true }

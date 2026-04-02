@@ -1,5 +1,4 @@
 use crate::ElementConversion;
-use crate::backend::Backend;
 use crate::s;
 use crate::tensor::{Int, Tensor};
 use alloc::vec;
@@ -18,15 +17,15 @@ use alloc::vec;
 ///
 /// Tensor with shape (batch_size, height, width, 2), where dim 2 is (x, y)
 /// All coordinates are broadcast on the batch dim
-pub fn affine_grid_2d<B: Backend>(transform: Tensor<B, 3>, dims: [usize; 4]) -> Tensor<B, 4> {
+pub fn affine_grid_2d(transform: Tensor<3>, dims: [usize; 4]) -> Tensor<4> {
     let [batch_size, _c, height, width] = dims;
 
     let device = &transform.device();
 
-    let x = Tensor::<B, 1, Int>::arange(0..width as i64, device)
+    let x = Tensor::<1, Int>::arange(0..width as i64, device)
         .reshape([1, width])
         .expand([height, width]);
-    let y = Tensor::<B, 1, Int>::arange(0..height as i64, device)
+    let y = Tensor::<1, Int>::arange(0..height as i64, device)
         .reshape([height, 1])
         .expand([height, width]);
 

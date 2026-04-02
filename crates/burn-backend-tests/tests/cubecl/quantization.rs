@@ -112,18 +112,6 @@ fn should_quantize_dequantize_symmetric_per_block(
         .assert_approx_eq::<FloatElem>(&output_ref.to_data(), Tolerance::default());
 }
 
-fn supports_native() -> bool {
-    let name = <TestBackend as Backend>::name(&Default::default());
-    // TODO: Proper checks for i8 support.
-    name.contains("cuda")
-        || name.contains("rocm")
-        || name.contains("hip")
-        || name.contains("vulkan")
-        || name.contains("spirv")
-        || name.contains("metal")
-        || name.contains("msl")
-}
-
 #[test]
 fn should_quantize_dequantize_symmetric_arange_q8s_packed() {
     should_quantize_dequantize_symmetric_arange(QuantValue::Q8S, QuantStore::PackedU32(0), [8, 16])
@@ -178,16 +166,12 @@ fn should_quantize_dequantize_symmetric_per_block_q2s_packed() {
 
 #[test]
 fn should_quantize_dequantize_symmetric_arange_q8s_native() {
-    if supports_native() {
-        should_quantize_dequantize_symmetric_arange(QuantValue::Q8S, QuantStore::Native, [32, 32])
-    }
+    should_quantize_dequantize_symmetric_arange(QuantValue::Q8S, QuantStore::Native, [32, 32])
 }
 
 #[test]
 fn should_quantize_dequantize_symmetric_per_block_q8s_native() {
-    if supports_native() {
-        should_quantize_dequantize_symmetric_per_block(QuantValue::Q8S, 8, QuantStore::Native)
-    }
+    should_quantize_dequantize_symmetric_per_block(QuantValue::Q8S, 8, QuantStore::Native)
 }
 
 #[test]
@@ -202,27 +186,24 @@ fn should_quantize_dequantize_symmetric_per_block_arange_q8s_packed() {
 
 #[test]
 fn should_quantize_dequantize_symmetric_per_block_arange_q8s_native() {
-    if supports_native() {
-        should_quantize_dequantize_symmetric_per_block_arange(
-            QuantValue::Q8S,
-            32,
-            QuantStore::Native,
-            [32, 32],
-        )
-    }
+    should_quantize_dequantize_symmetric_per_block_arange(
+        QuantValue::Q8S,
+        32,
+        QuantStore::Native,
+        [32, 32],
+    )
 }
 
 #[test]
 fn should_quantize_dequantize_symmetric_arange_128x256_q8s_native() {
-    if supports_native() {
-        should_quantize_dequantize_symmetric_per_block_arange(
-            QuantValue::Q8S,
-            32,
-            QuantStore::Native,
-            [128, 256],
-        )
-    }
+    should_quantize_dequantize_symmetric_per_block_arange(
+        QuantValue::Q8S,
+        32,
+        QuantStore::Native,
+        [128, 256],
+    )
 }
+
 #[test]
 fn should_quantize_dequantize_symmetric_arange_128x256_q8s_packed() {
     should_quantize_dequantize_symmetric_per_block_arange(

@@ -108,8 +108,7 @@ For tensor tests, make sure to add the test to each relevant tensor kind:
 
 **Guidelines:**
 
-Import types with `use super::*;` at the top of each module to use the `TestBackend` and `FloatElem`
-/ `IntElem` types.
+Import types with `use super::*;` at the top of each module to use the `FloatElem` and `IntElem` types.
 
 For autodiff tests, always use `AutodiffDevice::new()` to create the device. Autodiff is enabled on
 the device itself when using the `Dispatch` test backend, ensuring the device supports automatic

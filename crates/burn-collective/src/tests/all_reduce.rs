@@ -1,7 +1,10 @@
+// TODO: should burn-collective be a backend-level lib (B: Backend) or high-level (Tensor<D, K>)?
+
 mod tests {
     use std::sync::mpsc::SyncSender;
 
     use burn_std::rand::get_seeded_rng;
+    use burn_tensor::Device;
     use burn_tensor::{Tensor, TensorData, TensorPrimitive, Tolerance, backend::Backend};
 
     use serial_test::serial;
@@ -14,34 +17,28 @@ mod tests {
         feature = "test-metal",
         feature = "test-vulkan"
     )))]
-    pub type TestBackend = burn_ndarray::NdArray<f32>;
+    pub type TestDevice = burn_ndarray::NdArrayDevice;
 
     #[cfg(feature = "test-cuda")]
-    pub type TestBackend = burn_cuda::Cuda<f32>;
+    pub type TestBackend = burn_cuda::CudaDevice;
 
-    #[cfg(feature = "test-wgpu")]
-    pub type TestBackend = burn_wgpu::Wgpu<f32>;
-
-    #[cfg(feature = "test-metal")]
-    pub type TestBackend = burn_wgpu::Wgpu<f32>;
-
-    #[cfg(feature = "test-vulkan")]
-    pub type TestBackend = burn_wgpu::Wgpu<f32>;
+    #[cfg(any(feature = "test-wgpu", feature = "test-metal", feature = "test-vulkan"))]
+    pub type TestBackend = burn_wgpu::WgpuDevice<f32>;
 
     use crate::{CollectiveConfig, all_reduce, register, reset_collective};
 
-    pub fn run_peer<B: Backend>(
+    pub fn run_peer(
         id: PeerId,
         config: CollectiveConfig,
         input: TensorData,
         op: ReduceOperation,
-        output: SyncSender<Tensor<B, 1>>,
+        output: SyncSender<Tensor<1>>,
     ) {
-        let device = B::Device::default();
+        let device = Device::new(TestDevice::default());
 
-        register::<B>(id, device.clone(), config).unwrap();
+        register(id, device.clone(), config).unwrap();
 
-        let tensor = Tensor::<B, 1>::from_data(input, &device);
+        let tensor = Tensor::<1>::from_data(input, &device);
 
         let tensor = Tensor::from_primitive(TensorPrimitive::Float(
             all_reduce::<B>(id, tensor.into_primitive().tensor(), op).unwrap(),

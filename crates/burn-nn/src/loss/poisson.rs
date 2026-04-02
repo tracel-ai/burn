@@ -227,7 +227,7 @@ mod tests {
     use super::*;
     use crate::TestBackend;
     use burn::tensor::TensorData;
-    type TestTensor<const D: usize> = Tensor<TestBackend, D>;
+    type Tensor<const D: usize> = Tensor<TestBackend, D>;
     use burn::tensor::{Tolerance, ops::FloatElem};
     type FT = FloatElem<TestBackend>;
 
@@ -238,8 +238,8 @@ mod tests {
 
         let device = Default::default();
 
-        let predictions = TestTensor::<1>::from_data(predictions, &device);
-        let targets = TestTensor::<1>::from_data(targets, &device);
+        let predictions = Tensor::<1>::from_data(predictions, &device);
+        let targets = Tensor::<1>::from_data(targets, &device);
 
         let poisson = PoissonNllLossConfig::new().init();
 
@@ -269,8 +269,8 @@ mod tests {
 
         let device = Default::default();
 
-        let predictions = TestTensor::<1>::from_data(predictions, &device);
-        let targets = TestTensor::<1>::from_data(targets, &device);
+        let predictions = Tensor::<1>::from_data(predictions, &device);
+        let targets = Tensor::<1>::from_data(targets, &device);
 
         let poisson = PoissonNllLossConfig::new().with_log_input(false).init();
 
@@ -289,8 +289,8 @@ mod tests {
 
         let device = Default::default();
 
-        let predictions = TestTensor::<1>::from_data(predictions, &device);
-        let targets = TestTensor::<1>::from_data(targets, &device);
+        let predictions = Tensor::<1>::from_data(predictions, &device);
+        let targets = Tensor::<1>::from_data(targets, &device);
 
         let poisson = PoissonNllLossConfig::new().with_full(true).init();
 
@@ -364,8 +364,8 @@ mod tests {
 
         let device = Default::default();
 
-        let predictions = TestTensor::<1>::from_data(predictions, &device);
-        let targets = TestTensor::<1>::from_data(targets, &device);
+        let predictions = Tensor::<1>::from_data(predictions, &device);
+        let targets = Tensor::<1>::from_data(targets, &device);
 
         let poisson = PoissonNllLossConfig::new().init();
 
@@ -380,8 +380,8 @@ mod tests {
 
         let device = Default::default();
 
-        let predictions = TestTensor::<1>::from_data(predictions, &device);
-        let targets = TestTensor::<1>::from_data(targets, &device);
+        let predictions = Tensor::<1>::from_data(predictions, &device);
+        let targets = Tensor::<1>::from_data(targets, &device);
 
         let poisson = PoissonNllLossConfig::new().init();
 
@@ -396,8 +396,8 @@ mod tests {
 
         let device = Default::default();
 
-        let predictions = TestTensor::<1>::from_data(predictions, &device);
-        let targets = TestTensor::<1>::from_data(targets, &device);
+        let predictions = Tensor::<1>::from_data(predictions, &device);
+        let targets = Tensor::<1>::from_data(targets, &device);
 
         let poisson = PoissonNllLossConfig::new().with_log_input(false).init();
 

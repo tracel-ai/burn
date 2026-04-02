@@ -1,4 +1,4 @@
-use crate::{Int, Shape, Tensor, backend::Backend};
+use crate::{Device, Int, Shape, Tensor};
 use alloc::vec::Vec;
 
 /// Generates a cartesian grid for the given tensor shape on the specified device.
@@ -24,19 +24,19 @@ use alloc::vec::Vec;
 ///        println!("{}", result);
 ///    }
 /// ```
-pub fn cartesian_grid<B: Backend, S: Into<Shape>, const D: usize, const D2: usize>(
+pub fn cartesian_grid<S: Into<Shape>, const D: usize, const D2: usize>(
     shape: S,
-    device: &B::Device,
-) -> Tensor<B, D2, Int> {
+    device: &Device,
+) -> Tensor<D2, Int> {
     if D2 != D + 1 {
         panic!("D2 must equal D + 1 for Tensor::cartesian_grid")
     }
 
     let dims = shape.into();
-    let mut indices: Vec<Tensor<B, D, Int>> = Vec::new();
+    let mut indices: Vec<Tensor<D, Int>> = Vec::new();
 
     for dim in 0..D {
-        let dim_range: Tensor<B, 1, Int> = Tensor::arange(0..dims[dim] as i64, device);
+        let dim_range: Tensor<1, Int> = Tensor::arange(0..dims[dim] as i64, device);
 
         let mut shape = [1; D];
         shape[dim] = dims[dim];

@@ -1,10 +1,9 @@
 use super::*;
 use burn_tensor::TensorData;
-use burn_tensor::backend::Backend;
 
 #[test]
 fn test_arange() {
-    let device = <TestBackend as Backend>::Device::default();
+    let device = Default::default();
 
     let tensor = TestTensorInt::<1>::arange(2..5, &device);
     tensor

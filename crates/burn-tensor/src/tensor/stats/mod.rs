@@ -1,44 +1,40 @@
-use crate::{Tensor, backend::Backend};
+use crate::Tensor;
 use burn_backend::tensor::Int;
 
-pub fn var<B: Backend, const D: usize>(tensor: Tensor<B, D>, dim: usize) -> Tensor<B, D> {
+pub fn var<const D: usize>(tensor: Tensor<D>, dim: usize) -> Tensor<D> {
     let mean = tensor.clone().mean_dim(dim);
     var_with_mean(tensor, mean, dim)
 }
 
-pub fn var_with_mean<B: Backend, const D: usize>(
-    tensor: Tensor<B, D>,
-    mean: Tensor<B, D>,
-    dim: usize,
-) -> Tensor<B, D> {
+pub fn var_with_mean<const D: usize>(tensor: Tensor<D>, mean: Tensor<D>, dim: usize) -> Tensor<D> {
     let n = tensor.shape()[dim] - 1;
     var_with_mean_n(tensor, mean, dim, n)
 }
 
-pub fn var_bias<B: Backend, const D: usize>(tensor: Tensor<B, D>, dim: usize) -> Tensor<B, D> {
+pub fn var_bias<const D: usize>(tensor: Tensor<D>, dim: usize) -> Tensor<D> {
     let mean = tensor.clone().mean_dim(dim);
     var_with_mean_bias(tensor, mean, dim)
 }
 
-pub fn var_with_mean_bias<B: Backend, const D: usize>(
-    tensor: Tensor<B, D>,
-    mean: Tensor<B, D>,
+pub fn var_with_mean_bias<const D: usize>(
+    tensor: Tensor<D>,
+    mean: Tensor<D>,
     dim: usize,
-) -> Tensor<B, D> {
+) -> Tensor<D> {
     let n = tensor.shape()[dim];
     var_with_mean_n(tensor, mean, dim, n)
 }
 
-pub fn var_with_mean_n<B: Backend, const D: usize>(
-    tensor: Tensor<B, D>,
-    mean: Tensor<B, D>,
+pub fn var_with_mean_n<const D: usize>(
+    tensor: Tensor<D>,
+    mean: Tensor<D>,
     dim: usize,
     n: usize,
-) -> Tensor<B, D> {
+) -> Tensor<D> {
     tensor.sub(mean).square().sum_dim(dim).div_scalar(n as f32)
 }
 
-pub fn median<B: Backend, const D: usize>(tensor: Tensor<B, D>, dim: usize) -> Tensor<B, D> {
+pub fn median<const D: usize>(tensor: Tensor<D>, dim: usize) -> Tensor<D> {
     let total_elem_numbers = tensor.dims()[dim];
     let sorted_tensor = tensor.sort(dim);
 
@@ -53,10 +49,10 @@ pub fn median<B: Backend, const D: usize>(tensor: Tensor<B, D>, dim: usize) -> T
     sorted_tensor.narrow(dim, median_index, 1)
 }
 
-pub fn median_with_indices<B: Backend, const D: usize>(
-    tensor: Tensor<B, D>,
+pub fn median_with_indices<const D: usize>(
+    tensor: Tensor<D>,
     dim: usize,
-) -> (Tensor<B, D>, Tensor<B, D, Int>) {
+) -> (Tensor<D>, Tensor<D, Int>) {
     let total_elem_numbers = tensor.dims()[dim];
     let (sorted_tensor, indices) = tensor.sort_with_indices(dim);
 

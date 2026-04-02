@@ -23,7 +23,7 @@ fn should_support_dilate_luma() {
         &Default::default(),
         true,
     );
-    let expected = TestTensor::<3>::from(expected);
+    let expected = Tensor::<3>::from(expected);
 
     output
         .into_data()
@@ -46,7 +46,7 @@ fn should_support_dilate_luma_cross() {
         &Default::default(),
         true,
     );
-    let expected = TestTensor::<3>::from(expected);
+    let expected = Tensor::<3>::from(expected);
 
     output
         .into_data()
@@ -69,7 +69,7 @@ fn should_support_dilate_luma_ellipse() {
         &Default::default(),
         true,
     );
-    let expected = TestTensor::<3>::from(expected);
+    let expected = Tensor::<3>::from(expected);
 
     output
         .into_data()
@@ -92,7 +92,7 @@ fn should_support_dilate_luma_non_square_rect() {
         &Default::default(),
         true,
     );
-    let expected = TestTensor::<3>::from(expected);
+    let expected = Tensor::<3>::from(expected);
 
     output
         .into_data()
@@ -115,7 +115,7 @@ fn should_support_dilate_luma_non_square_cross() {
         &Default::default(),
         true,
     );
-    let expected = TestTensor::<3>::from(expected);
+    let expected = Tensor::<3>::from(expected);
 
     output
         .into_data()
@@ -138,7 +138,7 @@ fn should_support_dilate_rgb_rect() {
         &Default::default(),
         false,
     );
-    let expected = TestTensor::<3>::from(expected);
+    let expected = Tensor::<3>::from(expected);
 
     output
         .into_data()
@@ -161,7 +161,7 @@ fn should_support_dilate_rgb_cross() {
         &Default::default(),
         false,
     );
-    let expected = TestTensor::<3>::from(expected);
+    let expected = Tensor::<3>::from(expected);
 
     output
         .into_data()
@@ -189,7 +189,7 @@ fn should_support_dilate_rgb_border_reflect_rect() {
         &Default::default(),
         false,
     );
-    let expected = TestTensor::<3>::from(expected);
+    let expected = Tensor::<3>::from(expected);
 
     output
         .into_data()
@@ -217,7 +217,7 @@ fn should_support_dilate_rgb_border_reflect_cross() {
         &Default::default(),
         false,
     );
-    let expected = TestTensor::<3>::from(expected);
+    let expected = Tensor::<3>::from(expected);
 
     output
         .into_data()
@@ -245,7 +245,7 @@ fn should_support_dilate_rgb_border_reflect101_rect() {
         &Default::default(),
         false,
     );
-    let expected = TestTensor::<3>::from(expected);
+    let expected = Tensor::<3>::from(expected);
 
     output
         .into_data()
@@ -273,7 +273,7 @@ fn should_support_dilate_rgb_border_reflect101_cross() {
         &Default::default(),
         false,
     );
-    let expected = TestTensor::<3>::from(expected);
+    let expected = Tensor::<3>::from(expected);
 
     output
         .into_data()
@@ -301,7 +301,7 @@ fn should_support_dilate_rgb_border_replicate_rect() {
         &Default::default(),
         false,
     );
-    let expected = TestTensor::<3>::from(expected);
+    let expected = Tensor::<3>::from(expected);
 
     output
         .into_data()
@@ -329,7 +329,7 @@ fn should_support_dilate_rgb_border_replicate_cross() {
         &Default::default(),
         false,
     );
-    let expected = TestTensor::<3>::from(expected);
+    let expected = Tensor::<3>::from(expected);
 
     output
         .into_data()
@@ -355,7 +355,7 @@ fn should_support_dilate_rgb_anchor_rect() {
         &Default::default(),
         false,
     );
-    let expected = TestTensor::<3>::from(expected);
+    let expected = Tensor::<3>::from(expected);
 
     output
         .into_data()
@@ -386,7 +386,7 @@ fn should_support_dilate_rgb_anchor_cross() {
         &Default::default(),
         false,
     );
-    let expected = TestTensor::<3>::from(expected);
+    let expected = Tensor::<3>::from(expected);
 
     output
         .into_data()
@@ -510,7 +510,7 @@ fn should_support_erode_luma() {
 
     let output = tensor.erode(kernel, MorphOptions::default());
     let expected = test_image("morphology/Erode_1_5x5_Rect.png", &Default::default(), true);
-    let expected = TestTensor::<3>::from(expected);
+    let expected = Tensor::<3>::from(expected);
 
     output
         .into_data()
@@ -533,7 +533,7 @@ fn should_support_erode_luma_cross() {
         &Default::default(),
         true,
     );
-    let expected = TestTensor::<3>::from(expected);
+    let expected = Tensor::<3>::from(expected);
 
     output
         .into_data()
@@ -556,7 +556,7 @@ fn should_support_erode_luma_ellipse() {
         &Default::default(),
         true,
     );
-    let expected = TestTensor::<3>::from(expected);
+    let expected = Tensor::<3>::from(expected);
 
     output
         .into_data()

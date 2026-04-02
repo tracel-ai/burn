@@ -84,7 +84,7 @@ fn test_median_all_elements() {
 
     // Sorted: [-5, -4, -2, -2, -1, 0, 0.2, 0.5, 1, 1, 1.8, 3, 3, 5, 5]
     let dims = tensor.dims().len();
-    let flattened_tensor: Tensor<_, 1> = tensor.flatten(0, dims - 1);
+    let flattened_tensor: Tensor<1> = tensor.flatten(0, dims - 1);
     let result = flattened_tensor.median(0);
     result
         .into_data()

@@ -1,5 +1,6 @@
 pub(crate) mod check;
 
+#[cfg(feature = "autodiff")]
 mod autodiff;
 mod base;
 mod bool;
@@ -16,11 +17,11 @@ mod take;
 mod transaction;
 mod trunc;
 
+#[cfg(feature = "autodiff")]
 pub use autodiff::*;
 pub use base::*;
 pub use cartesian_grid::cartesian_grid;
 pub use float::{DEFAULT_ATOL, DEFAULT_RTOL};
-pub use numeric::*;
 pub use options::*;
 pub use transaction::*;
 

@@ -724,7 +724,6 @@ version = "0.21.0-pre.2"
 dependencies = [
  "burn-autodiff",
  "burn-cubecl",
- "burn-dispatch",
  "burn-ndarray",
  "burn-tensor",
  "burn-tensor-testgen",
@@ -1199,6 +1198,7 @@ name = "burn-tensor"
 version = "0.21.0-pre.2"
 dependencies = [
  "burn-backend",
+ "burn-dispatch",
  "burn-std",
  "colored 3.1.1",
  "derive-new",

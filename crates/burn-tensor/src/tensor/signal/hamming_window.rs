@@ -1,7 +1,4 @@
-use burn_backend::{
-    Backend,
-    tensor::{Float, Int},
-};
+use burn_backend::tensor::{Float, Int};
 
 use crate::{Tensor, TensorCreationOptions, check, check::TensorCheck};
 
@@ -37,22 +34,22 @@ where $\alpha = 25/46$, $\beta = 1 - \alpha$, and $N$ = `size` when `periodic` i
 ///     println!("{window}");
 /// }
 /// ```
-pub fn hamming_window<B: Backend>(
+pub fn hamming_window(
     size: usize,
     periodic: bool,
-    options: impl Into<TensorCreationOptions<B>>,
-) -> Tensor<B, 1> {
+    options: impl Into<TensorCreationOptions>,
+) -> Tensor<1> {
     let opt = options.into();
     let dtype = opt.resolve_dtype::<Float>();
     let shape = [size];
     check!(TensorCheck::creation_ops::<1>("HammingWindow", &shape));
 
     if size == 0 {
-        return Tensor::<B, 1>::empty(shape, opt).cast(dtype);
+        return Tensor::<1>::empty(shape, opt).cast(dtype);
     }
 
     if size == 1 {
-        return Tensor::<B, 1>::ones(shape, opt).cast(dtype);
+        return Tensor::<1>::ones(shape, opt).cast(dtype);
     }
 
     let size_i64 = i64::try_from(size).expect("HammingWindow size doesn't fit in i64 range.");
@@ -62,7 +59,7 @@ pub fn hamming_window<B: Backend>(
     let alpha = 25.0_f64 / 46.0_f64;
     let beta = 1.0 - alpha;
 
-    Tensor::<B, 1, Int>::arange(0..size_i64, &opt.device)
+    Tensor::<1, Int>::arange(0..size_i64, &opt.device)
         .float()
         .mul_scalar(angular_increment)
         .cos()

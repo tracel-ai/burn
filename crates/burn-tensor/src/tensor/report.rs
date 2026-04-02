@@ -1,4 +1,4 @@
-use super::{Tensor, backend::Backend};
+use super::Tensor;
 
 use colored::*;
 
@@ -71,7 +71,7 @@ use colored::*;
 ///
 /// Closeness check complete.
 /// ```
-pub fn check_closeness<B: Backend, const D: usize>(output: &Tensor<B, D>, expected: &Tensor<B, D>) {
+pub fn check_closeness<const D: usize>(output: &Tensor<D>, expected: &Tensor<D>) {
     println!("{}", "Tensor Closeness Check Results:".bold());
     println!("===============================");
 

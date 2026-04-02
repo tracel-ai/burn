@@ -7,7 +7,7 @@ use serial_test::serial;
 #[serial]
 fn empirical_mean_close_to_expectation() {
     let device = Default::default();
-    TestBackend::seed(&device, 0);
+    device.seed(0);
 
     let shape = [100, 100];
     let mean = 10.;

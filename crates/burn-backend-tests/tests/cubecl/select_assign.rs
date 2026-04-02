@@ -31,7 +31,7 @@ fn select_add_same_as_ref<const D: usize>(dim: usize, shape: [usize; D]) {
     let device = Default::default();
     let ref_device = ReferenceDevice::new();
 
-    TestBackend::seed(&device, 0);
+    device.seed(0);
 
     let tensor = TestTensor::<D>::random(shape, Distribution::Default, &device);
     let value = TestTensor::<D>::random(shape, Distribution::Default, &device);

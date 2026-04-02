@@ -1,9 +1,6 @@
-use crate::{Float, Tensor, backend::Backend};
+use crate::{Float, Tensor};
 
-impl<B, const D: usize> Tensor<B, D, Float>
-where
-    B: Backend,
-{
+impl<const D: usize> Tensor<D, Float> {
     /// Computes the floating-point remainder of dividing `self` by `other`.
     ///
     /// The result has the same sign as `self` and magnitude less than `other`.

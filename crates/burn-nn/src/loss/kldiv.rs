@@ -103,7 +103,7 @@ mod tests {
     use super::*;
     use crate::TestBackend;
     use burn::tensor::TensorData;
-    type TestTensor<const D: usize> = Tensor<TestBackend, D>;
+    type Tensor<const D: usize> = Tensor<TestBackend, D>;
     use burn::tensor::{Tolerance, ops::FloatElem};
     type FT = FloatElem<TestBackend>;
 
@@ -113,8 +113,8 @@ mod tests {
         let targets = TensorData::from([[0.4, 0.6], [0.1, 0.9]]);
 
         let device = Default::default();
-        let predict = TestTensor::<2>::from_data(predict, &device);
-        let targets = TestTensor::<2>::from_data(targets, &device);
+        let predict = Tensor::<2>::from_data(predict, &device);
+        let targets = Tensor::<2>::from_data(targets, &device);
 
         let kl_loss = KLDivLossConfig { log_target: false }.init();
 
@@ -143,8 +143,8 @@ mod tests {
     #[test]
     fn test_kl_div_loss_log_target() {
         let device = Default::default();
-        let predict = TestTensor::<1>::from_data([-1.0, -2.0], &device);
-        let targets = TestTensor::<1>::from_data([-0.5, -1.5], &device);
+        let predict = Tensor::<1>::from_data([-1.0, -2.0], &device);
+        let targets = Tensor::<1>::from_data([-0.5, -1.5], &device);
 
         let kl_loss = KLDivLossConfig { log_target: true }.init();
 

@@ -1,9 +1,7 @@
 use alloc::vec::Vec;
 use core::ops::Range;
 
-use crate::{Element, ElementConversion, Tensor, backend::Backend, ops::PadMode};
-
-use super::Numeric;
+use crate::{Element, ElementConversion, Tensor, kind::Numeric, ops::PadMode};
 
 /// Trait for types that can be used as padding specifications.
 ///
@@ -100,10 +98,9 @@ fn build_slice_ranges<const D: usize>(
         .unwrap()
 }
 
-impl<B, const D: usize, K> Tensor<B, D, K>
+impl<const D: usize, K> Tensor<D, K>
 where
-    B: Backend,
-    K: Numeric<B>,
+    K: Numeric,
     K::Elem: Element,
 {
     /// Pads the tensor using the specified padding mode.
@@ -166,14 +163,13 @@ where
 }
 
 /// Pad with a constant value.
-fn pad_constant<B, const D: usize, K, E>(
-    tensor: Tensor<B, D, K>,
+fn pad_constant<const D: usize, K, E>(
+    tensor: Tensor<D, K>,
     padding: &[(usize, usize); D],
     value: E,
-) -> Tensor<B, D, K>
+) -> Tensor<D, K>
 where
-    B: Backend,
-    K: Numeric<B>,
+    K: Numeric,
     K::Elem: Element,
     E: ElementConversion,
 {
@@ -203,13 +199,12 @@ where
 ///
 /// For ONNX "reflect" mode: mirrors from index 1, not index 0.
 /// Example: `[1, 2, 3, 4]` with left padding 2 becomes `[3, 2, 1, 2, 3, 4]`
-fn pad_reflect<B, const D: usize, K>(
-    tensor: Tensor<B, D, K>,
+fn pad_reflect<const D: usize, K>(
+    tensor: Tensor<D, K>,
     padding: &[(usize, usize); D],
-) -> Tensor<B, D, K>
+) -> Tensor<D, K>
 where
-    B: Backend,
-    K: Numeric<B>,
+    K: Numeric,
     K::Elem: Element,
 {
     let dims = tensor.dims();
@@ -239,15 +234,14 @@ where
 }
 
 /// Helper to pad a single dimension using reflection.
-fn pad_reflect_dim<B, const D: usize, K>(
-    tensor: Tensor<B, D, K>,
+fn pad_reflect_dim<const D: usize, K>(
+    tensor: Tensor<D, K>,
     dim: usize,
     pad_before: usize,
     pad_after: usize,
-) -> Tensor<B, D, K>
+) -> Tensor<D, K>
 where
-    B: Backend,
-    K: Numeric<B>,
+    K: Numeric,
     K::Elem: Element,
 {
     let dims = tensor.dims();
@@ -287,13 +281,9 @@ where
 /// Pad by replicating edge values.
 ///
 /// Example: `[1, 2, 3, 4]` with left padding 2 becomes `[1, 1, 1, 2, 3, 4]`
-fn pad_edge<B, const D: usize, K>(
-    tensor: Tensor<B, D, K>,
-    padding: &[(usize, usize); D],
-) -> Tensor<B, D, K>
+fn pad_edge<const D: usize, K>(tensor: Tensor<D, K>, padding: &[(usize, usize); D]) -> Tensor<D, K>
 where
-    B: Backend,
-    K: Numeric<B>,
+    K: Numeric,
     K::Elem: Element,
 {
     let dims = tensor.dims();
@@ -320,15 +310,14 @@ where
 }
 
 /// Helper to pad a single dimension by replicating edge values.
-fn pad_edge_dim<B, const D: usize, K>(
-    tensor: Tensor<B, D, K>,
+fn pad_edge_dim<const D: usize, K>(
+    tensor: Tensor<D, K>,
     dim: usize,
     pad_before: usize,
     pad_after: usize,
-) -> Tensor<B, D, K>
+) -> Tensor<D, K>
 where
-    B: Backend,
-    K: Numeric<B>,
+    K: Numeric,
     K::Elem: Element,
 {
     let dims = tensor.dims();
