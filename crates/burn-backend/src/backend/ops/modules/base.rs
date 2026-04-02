@@ -1065,6 +1065,17 @@ pub trait ModuleOps<B: Backend> {
     /// #Returns
     /// two tensors, the first is the real part, the second is the imaginary
     fn rfft(signal: FloatTensor<B>, dim: usize) -> (FloatTensor<B>, FloatTensor<B>);
+
+    /// Inverse real-valued fast Fourier transform.
+    ///
+    /// Computes the inverse discrete Fourier transform from a frequency-domain
+    /// representation given as separate real and imaginary components.
+    /// The transform is applied independently for each slice along `dim`.
+    fn irfft(
+        spectrum_re: FloatTensor<B>,
+        spectrum_im: FloatTensor<B>,
+        dim: usize,
+    ) -> FloatTensor<B>;
 }
 
 #[cfg(test)]

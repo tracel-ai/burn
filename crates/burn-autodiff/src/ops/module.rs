@@ -1754,7 +1754,15 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         _signal: FloatTensor<Autodiff<B, C>>,
         _dim: usize,
     ) -> (FloatTensor<Autodiff<B, C>>, FloatTensor<Autodiff<B, C>>) {
-        todo!("Unsupported operation")
+        todo!("rfft not yet supported for autodiff")
+    }
+
+    fn irfft(
+        _spectrum_re: FloatTensor<Autodiff<B, C>>,
+        _spectrum_im: FloatTensor<Autodiff<B, C>>,
+        _dim: usize,
+    ) -> FloatTensor<Autodiff<B, C>> {
+        todo!("irfft not yet supported for autodiff")
     }
 }
 

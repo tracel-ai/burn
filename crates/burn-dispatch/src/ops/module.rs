@@ -638,4 +638,18 @@ impl ModuleOps<Self> for Dispatch {
 
         (real, imag)
     }
+
+    fn irfft(
+        spectrum_re: FloatTensor<Self>,
+        spectrum_im: FloatTensor<Self>,
+        dim: usize,
+    ) -> FloatTensor<Self> {
+        multi_op!(
+            inputs[(spectrum_re, float), (spectrum_im, float)],
+            => Float,
+            {
+                B::irfft(spectrum_re, spectrum_im, dim)
+            }
+        )
+    }
 }
