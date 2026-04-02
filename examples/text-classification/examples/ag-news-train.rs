@@ -65,7 +65,7 @@ pub fn launch<B: AutodiffBackend>(strategy: ExecutionStrategy<B>) {
         AgNewsDataset::train(),
         AgNewsDataset::test(),
         config,
-        "/home/charles/text-classification-ag-news",
+        "/tmp/text-classification-ag-news",
     );
 }
 

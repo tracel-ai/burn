@@ -5,7 +5,6 @@ use crate::{
     element::{FloatNdArrayElement, IntNdArrayElement, QuantElement},
 };
 use alloc::string::String;
-use burn_backend::distributed::DistributedBackend;
 use burn_backend::quantization::{QuantLevel, QuantMode, QuantScheme, QuantStore, QuantValue};
 use burn_backend::tensor::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
 use burn_backend::{Backend, DType, DeviceId, DeviceOps};
@@ -131,14 +130,6 @@ where
     fn device_count(_: u16) -> usize {
         1
     }
-}
-
-impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> DistributedBackend
-    for NdArray<E, I, Q>
-where
-    NdArrayTensor: From<SharedArray<E>>,
-    NdArrayTensor: From<SharedArray<I>>,
-{
 }
 
 impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> BackendIr for NdArray<E, I, Q>

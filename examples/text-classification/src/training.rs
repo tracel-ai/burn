@@ -32,7 +32,7 @@ pub struct ExperimentConfig {
     pub optimizer: AdamConfig,
     #[config(default = "SeqLengthOption::Fixed(256)")]
     pub seq_length: SeqLengthOption,
-    #[config(default = 256)]
+    #[config(default = 16)]
     pub batch_size: usize,
     #[config(default = 5)]
     pub num_epochs: usize,
@@ -83,7 +83,7 @@ pub fn train<B: AutodiffBackend, D: TextClassificationDataset + 'static>(
     let optim = config.optimizer.init();
 
     // Initialize learning rate scheduler
-    let lr_scheduler = NoamLrSchedulerConfig::new(4e-2)
+    let lr_scheduler = NoamLrSchedulerConfig::new(1e-2)
         .with_warmup_steps(1000)
         .with_model_size(config.transformer.d_model)
         .init()
@@ -103,8 +103,6 @@ pub fn train<B: AutodiffBackend, D: TextClassificationDataset + 'static>(
         .with_training_strategy(strategy.into())
         .num_epochs(config.num_epochs)
         .summary();
-
-    println!("Model : {}", model.to_string());
 
     // Train the model
     let result = training.launch(Learner::new(model, optim, lr_scheduler));
