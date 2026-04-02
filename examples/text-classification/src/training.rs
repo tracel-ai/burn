@@ -104,6 +104,8 @@ pub fn train<B: AutodiffBackend, D: TextClassificationDataset + 'static>(
         .num_epochs(config.num_epochs)
         .summary();
 
+    println!("Model : {}", model.to_string());
+
     // Train the model
     let result = training.launch(Learner::new(model, optim, lr_scheduler));
 
