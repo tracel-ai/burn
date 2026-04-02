@@ -2477,7 +2477,7 @@ dependencies = [
 [[package]]
 name = "cubek-fft"
 version = "0.2.0-pre.2"
-source = "git+https://github.com/tracel-ai/cubek?rev=eb6b6fbb9a06dd7a0d9394e3ecfaf018e6e6eff8#eb6b6fbb9a06dd7a0d9394e3ecfaf018e6e6eff8"
+source = "git+https://github.com/tracel-ai/cubek?rev=e139964fd9f36a5d2df9faeeb1417feb58ecf9a1#e139964fd9f36a5d2df9faeeb1417feb58ecf9a1"
 dependencies = [
  "cubecl",
  "cubek-test-utils",
@@ -2546,7 +2546,7 @@ dependencies = [
 [[package]]
 name = "cubek-test-utils"
 version = "0.2.0-pre.2"
-source = "git+https://github.com/tracel-ai/cubek?rev=eb6b6fbb9a06dd7a0d9394e3ecfaf018e6e6eff8#eb6b6fbb9a06dd7a0d9394e3ecfaf018e6e6eff8"
+source = "git+https://github.com/tracel-ai/cubek?rev=e139964fd9f36a5d2df9faeeb1417feb58ecf9a1#e139964fd9f36a5d2df9faeeb1417feb58ecf9a1"
 dependencies = [
  "bytemuck",
  "cubecl",
