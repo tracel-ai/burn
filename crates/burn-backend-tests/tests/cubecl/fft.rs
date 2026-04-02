@@ -257,10 +257,8 @@ fn irfft_dim1_real_spectrum_produces_cosine_wave() {
 fn irfft_dim1_2d_tensor_distinct_rows() {
     let spectrum_re = TestTensor::<2>::from([[0.0, 0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0, 0.0]]);
 
-    let spectrum_im = TestTensor::<2>::from([
-        [0.0, -4.0, 0.0, 0.0, 0.0], // freq 1
-        [0.0, 0.0, -4.0, 0.0, 0.0], // freq 2
-    ]);
+    let spectrum_im =
+        TestTensor::<2>::from([[0.0, -4.0, 0.0, 0.0, 0.0], [0.0, 0.0, -4.0, 0.0, 0.0]]);
 
     let signal = irfft(spectrum_re, spectrum_im, 1);
 
