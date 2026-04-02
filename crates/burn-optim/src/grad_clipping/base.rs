@@ -75,7 +75,8 @@ impl GradientClipping {
         threshold: f32,
     ) -> Tensor<B, D> {
         let norm = Self::l2_norm(grad.clone());
-        let clip_coef = threshold / norm.add_scalar(1e-6); // avoid div by zero
+        let tiny = grad.dtype().finfo().expect("float tensor").tiny;
+        let clip_coef = threshold / norm.add_scalar(tiny);
         let clip_coef_clamped = clip_coef.clamp_max(1.0);
         grad.mul(clip_coef_clamped.unsqueeze())
     }
