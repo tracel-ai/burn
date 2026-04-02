@@ -10,10 +10,8 @@ pub trait Cast<B: Backend, K: TensorKind<B>> {
     type OutputKind: TensorKind<B>;
 
     /// Cast a tensor primitive to the target dtype.
-    fn cast(
-        primitive: K::Primitive,
-        dtype: Self,
-    ) -> <Self::OutputKind as TensorKind<B>>::Primitive;
+    fn cast(primitive: K::Primitive, dtype: Self)
+    -> <Self::OutputKind as TensorKind<B>>::Primitive;
 }
 
 // --- Float input impls ---
