@@ -5,7 +5,7 @@ use burn_tensor::Tolerance;
 use burn_tensor::module::attention;
 use burn_tensor::module::attention_fallback;
 use burn_tensor::ops::AttentionModuleOptions;
-use num_traits::{Float, cast::cast};
+use num_traits::{Signed, cast::cast};
 
 #[test]
 fn test_attention_no_mask() {

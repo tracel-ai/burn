@@ -146,7 +146,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
             }),
         );
 
-        // No Stage VecMat
+        // VecMat
         for target_num_planes in [1, 2, 4, 8] {
             let strategy = Strategy::VecMatUnitPerpendicular(BlueprintStrategy::Inferred(
                 VecMatUnitPerpendicularStrategy { target_num_planes },
@@ -167,8 +167,6 @@ pub fn matmul_autotune<R: CubeRuntime>(
                 }),
             );
         }
-
-        // Unit VecMat
         for (strategy, double_buf) in [
             (
                 Strategy::SimpleVecMat(BlueprintStrategy::Inferred(().into())),
