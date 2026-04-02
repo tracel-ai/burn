@@ -6,6 +6,7 @@ use burn_backend::{
         DeformConvOptions, InterpolateMode, InterpolateOptions, MaxPool1dWithIndices,
         MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps, attention::attention_fallback,
     },
+    tensor::FloatTensor,
 };
 
 impl<E: TchElement> ModuleOps<Self> for LibTorch<E> {
@@ -475,5 +476,9 @@ impl<E: TchElement> ModuleOps<Self> for LibTorch<E> {
             options.scale,
             false,
         ))
+    }
+
+    fn rfft(_signal: FloatTensor<Self>, _dim: usize) -> (FloatTensor<Self>, FloatTensor<Self>) {
+        todo!("Not supported for now in LibTorch")
     }
 }

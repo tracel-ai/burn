@@ -2436,6 +2436,7 @@ dependencies = [
  "cubecl",
  "cubek-attention",
  "cubek-convolution",
+ "cubek-fft",
  "cubek-matmul",
  "cubek-quant",
  "cubek-random",
@@ -2471,6 +2472,15 @@ dependencies = [
  "enumset",
  "half",
  "serde",
+]
+
+[[package]]
+name = "cubek-fft"
+version = "0.2.0-pre.2"
+source = "git+https://github.com/tracel-ai/cubek?rev=eb6b6fbb9a06dd7a0d9394e3ecfaf018e6e6eff8#eb6b6fbb9a06dd7a0d9394e3ecfaf018e6e6eff8"
+dependencies = [
+ "cubecl",
+ "cubek-test-utils",
 ]
 
 [[package]]
@@ -2531,6 +2541,19 @@ dependencies = [
  "cubecl",
  "cubecl-common",
  "half",
+]
+
+[[package]]
+name = "cubek-test-utils"
+version = "0.2.0-pre.2"
+source = "git+https://github.com/tracel-ai/cubek?rev=eb6b6fbb9a06dd7a0d9394e3ecfaf018e6e6eff8#eb6b6fbb9a06dd7a0d9394e3ecfaf018e6e6eff8"
+dependencies = [
+ "bytemuck",
+ "cubecl",
+ "cubecl-common",
+ "cubek-random",
+ "half",
+ "serde",
 ]
 
 [[package]]
