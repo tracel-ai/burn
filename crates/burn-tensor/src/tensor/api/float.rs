@@ -1,5 +1,5 @@
 use crate::AsIndex;
-use crate::CastFromFloat;
+use crate::Cast;
 use crate::Tensor;
 use crate::cast::ToElement;
 use crate::check;
@@ -9,7 +9,7 @@ use crate::quantization::{QuantScheme, QuantizationParameters};
 use crate::tensor::backend::Backend;
 use crate::tensor::stats;
 use crate::tensor::{Distribution, TensorData};
-use crate::{Bool, Int, TensorPrimitive};
+use crate::{Bool, Float, Int, TensorPrimitive};
 #[cfg(feature = "distributed")]
 use burn_backend::AutodiffBackend;
 use burn_backend::ElementConversion;
@@ -626,8 +626,9 @@ $$\text{erf}\(x\) = \frac{2}{\sqrt{\pi}} \int_0^x e^{-t^2} dt$$
     ///     let int_tensor = float_tensor.cast(IntDType::I64);
     /// }
     /// ```
-    pub fn cast<T: CastFromFloat<B>>(self, dtype: T) -> Tensor<B, D, T::OutputKind> {
-        Tensor::new(T::cast_from_float(self.primitive, dtype))
+    #[must_use]
+    pub fn cast<T: Cast<B, Float>>(self, dtype: T) -> Tensor<B, D, T::OutputKind> {
+        Tensor::new(T::cast(self.primitive, dtype))
     }
 
     /// Detach the current tensor from the autodiff graph.

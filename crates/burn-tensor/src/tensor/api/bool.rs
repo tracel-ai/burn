@@ -1,5 +1,5 @@
 use crate::{
-    Bool, CastFromBool, Int, Shape, Tensor, TensorData, TensorPrimitive, backend::Backend,
+    Bool, Cast, Int, Shape, Tensor, TensorData, TensorPrimitive, backend::Backend,
 };
 use alloc::{vec, vec::Vec};
 use burn_backend::get_device_settings;
@@ -122,8 +122,9 @@ where
     ///     let float_tensor = bool_tensor.cast(FloatDType::F32);
     /// }
     /// ```
-    pub fn cast<T: CastFromBool<B>>(self, dtype: T) -> Tensor<B, D, T::OutputKind> {
-        Tensor::new(T::cast_from_bool(self.primitive, dtype))
+    #[must_use]
+    pub fn cast<T: Cast<B, Bool>>(self, dtype: T) -> Tensor<B, D, T::OutputKind> {
+        Tensor::new(T::cast(self.primitive, dtype))
     }
 
     /// Inverses boolean values.

@@ -1,7 +1,7 @@
 use burn_backend::{Scalar, get_device_settings};
 
 use crate::{
-    CastFromInt, Float, Int, Shape, Tensor, TensorCreationOptions, TensorData, TensorPrimitive,
+    Cast, Float, Int, Shape, Tensor, TensorCreationOptions, TensorData, TensorPrimitive,
     backend::Backend, cartesian_grid,
 };
 
@@ -199,7 +199,8 @@ where
     ///     let float_tensor = int_tensor.cast(FloatDType::F32);
     /// }
     /// ```
-    pub fn cast<T: CastFromInt<B>>(self, dtype: T) -> Tensor<B, D, T::OutputKind> {
-        Tensor::new(T::cast_from_int(self.primitive, dtype))
+    #[must_use]
+    pub fn cast<T: Cast<B, Int>>(self, dtype: T) -> Tensor<B, D, T::OutputKind> {
+        Tensor::new(T::cast(self.primitive, dtype))
     }
 }
