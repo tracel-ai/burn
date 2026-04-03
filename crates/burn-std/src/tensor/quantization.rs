@@ -210,7 +210,7 @@ impl QuantizedBytes {
             QuantStore::PackedU32(_) => match self.scheme.value {
                 QuantValue::Q8F | QuantValue::Q8S => self.split_i8_values(num_params),
                 QuantValue::Q4F | QuantValue::Q4S | QuantValue::Q2F | QuantValue::Q2S => {
-                    let mut values = self.bytes.try_into_vec::<u32>().unwrap();
+                    let mut values = bytemuck::cast_slice::<_, u32>(&self.bytes).to_vec();
                     let scale_size = num_params; // size of f32 same as u32
                     let values_end = values.len() - scale_size;
 

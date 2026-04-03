@@ -27,6 +27,7 @@ tracing = [
     "burn-std/tracing",
     "burn-backend/tracing",
 ]
+distributed = ["std", "burn-backend/distributed"]
 
 cubecl = ["burn-std/cubecl", "burn-backend/cubecl"]
 cubecl-cuda = ["burn-backend/cubecl-cuda"]
@@ -48,3 +49,4 @@ serde = { workspace = true }
 [package.metadata.docs.rs]
 features = ["doc"]
 rustdoc-args = ["--cfg", "docsrs", "--html-in-header", "katex-header.html"]
+

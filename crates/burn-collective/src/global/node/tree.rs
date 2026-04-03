@@ -1,8 +1,8 @@
 use std::{collections::HashMap, sync::Arc};
 
 use crate::{NodeId, global::shared::GlobalCollectiveError, node::sync::SyncService};
+use burn_backend::{Backend, TensorMetadata};
 use burn_communication::{Address, Protocol, data_service::TensorDataService};
-use burn_tensor::{TensorMetadata, backend::Backend};
 use futures::{StreamExt, stream::FuturesUnordered};
 
 struct TreeTopology {

@@ -3,6 +3,7 @@ pub use super::*; // re-export test types
 mod all;
 mod any;
 mod argwhere_nonzero;
+mod cast;
 mod cat;
 mod comparison;
 mod create_like;
