@@ -1,4 +1,3 @@
-// #[allow(unused_imports)] // required for re-included modules
 pub use super::*;
 
 mod avg_pool2d;
