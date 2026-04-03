@@ -53,7 +53,8 @@ fn should_quantize_dequantize_per_block_reshaped_global_block_q8s_packed() {
 }
 
 #[test]
-#[ignore] // FIXME: should work like tensor-level
+// FIXME: should work like tensor-level
+#[should_panic = "Reshape with sub-byte values is not supported"]
 fn should_quantize_dequantize_per_block_reshaped_global_block_q4s_packed() {
     should_quantize_dequantize_per_block_arange_reshaped(
         QuantLevel::Block(BlockSize::new([32])),
@@ -65,7 +66,8 @@ fn should_quantize_dequantize_per_block_reshaped_global_block_q4s_packed() {
 }
 
 #[test]
-#[ignore] // FIXME: should work
+// FIXME: should work
+#[should_panic = "Reshape with sub-byte values is not supported"]
 fn should_quantize_dequantize_per_tensor_reshaped_q4s_packed() {
     should_quantize_dequantize_per_block_arange_reshaped(
         QuantLevel::Tensor,
@@ -101,8 +103,8 @@ fn should_quantize_dequantize_per_block_unsqueezed_q8s_packed() {
 }
 
 #[test]
-#[should_panic = "Cannot reshape a block-quantized tensor when the reshape requires recomputing the buffer"]
-fn quantize_2d_block_reshape_should_be_valid() {
+#[should_panic = "Reshape of ND block-quantized tensor is not yet supported"]
+fn quantize_2d_block_reshape_should_panic() {
     should_quantize_dequantize_per_block_arange_reshaped(
         QuantLevel::Block(BlockSize::new([2, 4])),
         QuantValue::Q8S,
@@ -115,13 +117,18 @@ fn quantize_2d_block_reshape_should_be_valid() {
 #[test]
 #[should_panic = "Reshape would split a block across multiple rows"]
 fn quantize_per_block_reshaped_should_not_split_block() {
-    should_quantize_dequantize_per_block_arange_reshaped(
-        QuantLevel::Block(BlockSize::new([32])),
-        QuantValue::Q8S,
-        QuantStore::Native,
-        [2, 32],
-        [4, 16],
-    )
+    if supports_native() {
+        should_quantize_dequantize_per_block_arange_reshaped(
+            QuantLevel::Block(BlockSize::new([32])),
+            QuantValue::Q8S,
+            QuantStore::Native,
+            [2, 32],
+            [4, 16],
+        )
+    } else {
+        // So it also panics with the same message when `QuantStore::Native` is not supported
+        panic!("Reshape would split a block across multiple rows")
+    }
 }
 
 #[test]
@@ -136,4 +143,9 @@ fn should_quantize_dequantize_per_block_reshaped_2d_q8s_packed() {
     )
 }
 
-// TODO: add tests for ND reshape split (validation should panic) and broadcasted
+// TODO: add tests for
+// - ND reshape split (validation should panic)
+// - broadcasted
+// - multi-block successful reshape (all current success tests use exactly 1 block, e.g. [4, 32] -> [1, 4, 32] with block_size 32)
+// - packed dimension alignment failure (invalid shape for packed num_quants)
+// - ND-block unsqueeze (should succeed per the is_unsqueeze exemption, but nothing tests it)

@@ -5,7 +5,7 @@ use burn_backend::{
 };
 use burn_backend::{TensorMetadata, ops::unfold::calculate_unfold_shape};
 use burn_std::{
-    Metadata, ReshapeAnalysis, reshape_analysis, strides,
+    Metadata, QuantValue, ReshapeAnalysis, reshape_analysis, strides,
     tensor::{ReshapeAction, contiguous_strides, reshape_action},
 };
 use cubecl::{ir::VectorSize, server::CopyDescriptor};
@@ -326,6 +326,14 @@ pub fn q_reshape<R: CubeRuntime>(mut tensor: CubeTensor<R>, shape: Shape) -> Cub
                 );
             }
 
+            if matches!(
+                scheme.value,
+                QuantValue::Q4S | QuantValue::Q4F | QuantValue::Q2S | QuantValue::Q2F
+            ) {
+                // FIXME
+                todo!("Reshape with sub-byte values is not supported")
+            }
+
             shape[packed_d] = shape[packed_d].div_ceil(num_quants);
             shape
         }
@@ -356,7 +364,7 @@ pub fn q_reshape<R: CubeRuntime>(mut tensor: CubeTensor<R>, shape: Shape) -> Cub
                     unimplemented!("Reshape of ND block-quantized tensor is not yet supported.");
                 }
             }
-            ReshapeAnalysis::Broadcasted => {}
+            ReshapeAnalysis::Broadcasted => {} // only preprends unit dims
             ReshapeAnalysis::Split => {
                 if let QuantLevel::Block(block_size) = scheme.level
                     && block_size.len() > 1
@@ -368,7 +376,7 @@ pub fn q_reshape<R: CubeRuntime>(mut tensor: CubeTensor<R>, shape: Shape) -> Cub
                     );
                 }
             }
-            _ => unreachable!(),
+            other => unreachable!("Reshape analysis {other:?} should not update strides."),
         }
     }
 
@@ -422,11 +430,11 @@ pub fn q_reshape<R: CubeRuntime>(mut tensor: CubeTensor<R>, shape: Shape) -> Cub
         }
         // Any action to recompute
         (ReshapeAction::Recompute, _) | (_, ReshapeAction::Recompute) => {
-            if let QuantLevel::Block(block_size) = scheme.level
-                && block_size.len() > 1
+            if let QuantLevel::Block(_) = scheme.level
+                && shape_scales.num_elements() > 1
             {
                 // Original block boundaries no longer align with the layout, would have to be recomputed
-                panic!(
+                unimplemented!(
                     "Cannot reshape a block-quantized tensor when the reshape requires recomputing the buffer."
                 );
             }
