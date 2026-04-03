@@ -2,7 +2,7 @@ use crate::{Tensor, TensorPrimitive};
 use burn_backend::tensor::quantization;
 
 // We re-export those types.
-pub use burn_backend::{QTensorPrimitive, quantization::*};
+pub use burn_backend::quantization::*;
 use burn_dispatch::Dispatch;
 
 /// The tensor quantization parameters.

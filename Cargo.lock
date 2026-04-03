@@ -813,7 +813,6 @@ version = "0.21.0-pre.2"
 dependencies = [
  "ahash",
  "bincode",
- "burn-autodiff",
  "burn-cuda",
  "burn-dataset",
  "burn-derive",

@@ -5,26 +5,22 @@ use crate::module::{
 
 use alloc::{format, string::ToString, vec::Vec};
 
-use burn_tensor::{
-    backend::{AutodiffBackend, Backend},
-    ops::Device,
-};
+use burn_tensor::Device;
 use core::fmt::Debug;
 
-impl<T, B> Module<B> for Option<T>
+impl<T> Module for Option<T>
 where
-    T: Module<B> + Debug + Send + Clone,
-    B: Backend,
+    T: Module + Debug + Send + Clone,
 {
     type Record = Option<T::Record>;
 
-    fn visit<V: ModuleVisitor<B>>(&self, visitor: &mut V) {
+    fn visit<V: ModuleVisitor>(&self, visitor: &mut V) {
         if let Some(module) = self {
             module.visit(visitor)
         }
     }
 
-    fn map<M: ModuleMapper<B>>(self, mapper: &mut M) -> Self {
+    fn map<M: ModuleMapper>(self, mapper: &mut M) -> Self {
         self.map(|module| module.map(mapper))
     }
 
@@ -43,15 +39,15 @@ where
         self.map(Module::into_record)
     }
 
-    fn to_device(self, device: &Device<B>) -> Self {
+    fn to_device(self, device: &Device) -> Self {
         self.map(|module| module.to_device(device))
     }
 
-    fn fork(self, device: &Device<B>) -> Self {
+    fn fork(self, device: &Device) -> Self {
         self.map(|module| module.fork(device))
     }
 
-    fn collect_devices(&self, mut devices: Vec<B::Device>) -> Vec<B::Device> {
+    fn collect_devices(&self, mut devices: Vec<Device>) -> Vec<Device> {
         if let Some(module) = self.as_ref() {
             devices = module.collect_devices(devices);
         }
@@ -71,26 +67,22 @@ impl<T: ModuleDisplay> ModuleDisplayDefault for Option<T> {
 
 impl<T: ModuleDisplay> ModuleDisplay for Option<T> {}
 
-impl<T, B> AutodiffModule<B> for Option<T>
+impl<T> AutodiffModule for Option<T>
 where
-    T: AutodiffModule<B> + Debug + Send + Clone,
-    B: AutodiffBackend,
+    T: AutodiffModule + Debug + Send + Clone,
 {
-    type InnerModule = Option<T::InnerModule>;
-
-    fn valid(&self) -> Self::InnerModule {
+    fn valid(&self) -> Self {
         self.as_ref().map(|module| module.valid())
     }
 
-    fn from_inner(module: Self::InnerModule) -> Self {
+    fn from_inner(module: Self) -> Self {
         module.map(|module| T::from_inner(module))
     }
 }
 
-impl<T, B> Module<B> for Vec<T>
+impl<T> Module for Vec<T>
 where
-    T: Module<B> + Debug + Send + Clone,
-    B: Backend,
+    T: Module + Debug + Send + Clone,
 {
     type Record = Vec<T::Record>;
 
@@ -103,7 +95,7 @@ where
         num_params
     }
 
-    fn visit<V: ModuleVisitor<B>>(&self, visitor: &mut V) {
+    fn visit<V: ModuleVisitor>(&self, visitor: &mut V) {
         for (i, module) in self.iter().enumerate() {
             let index_str = alloc::format!("{}", i);
             visitor.enter_module(&index_str, "Vec");
@@ -112,7 +104,7 @@ where
         }
     }
 
-    fn map<M: ModuleMapper<B>>(self, mapper: &mut M) -> Self {
+    fn map<M: ModuleMapper>(self, mapper: &mut M) -> Self {
         self.into_iter()
             .enumerate()
             .map(|(i, module)| {
@@ -144,17 +136,17 @@ where
             .collect()
     }
 
-    fn to_device(self, device: &Device<B>) -> Self {
+    fn to_device(self, device: &Device) -> Self {
         self.into_iter()
             .map(|module| module.to_device(device))
             .collect()
     }
 
-    fn fork(self, device: &Device<B>) -> Self {
+    fn fork(self, device: &Device) -> Self {
         self.into_iter().map(|module| module.fork(device)).collect()
     }
 
-    fn collect_devices(&self, mut devices: Vec<B::Device>) -> Vec<B::Device> {
+    fn collect_devices(&self, mut devices: Vec<Device>) -> Vec<Device> {
         for module in self.iter() {
             devices = module.collect_devices(devices);
         }
@@ -178,18 +170,15 @@ impl<T: ModuleDisplay> ModuleDisplayDefault for Vec<T> {
 
 impl<T: ModuleDisplay> ModuleDisplay for Vec<T> {}
 
-impl<T, B> AutodiffModule<B> for Vec<T>
+impl<T> AutodiffModule for Vec<T>
 where
-    T: AutodiffModule<B> + Debug + Send + Clone,
-    B: AutodiffBackend,
+    T: AutodiffModule + Debug + Send + Clone,
 {
-    type InnerModule = Vec<T::InnerModule>;
-
-    fn valid(&self) -> Self::InnerModule {
+    fn valid(&self) -> Self {
         self.iter().map(|module| module.valid()).collect()
     }
 
-    fn from_inner(module: Self::InnerModule) -> Self {
+    fn from_inner(module: Self) -> Self {
         module
             .into_iter()
             .map(|module| T::from_inner(module))
@@ -197,14 +186,13 @@ where
     }
 }
 
-impl<const N: usize, T, B> Module<B> for [T; N]
+impl<const N: usize, T> Module for [T; N]
 where
-    T: Module<B> + Debug + Send + Clone,
-    B: Backend,
+    T: Module + Debug + Send + Clone,
 {
     type Record = [T::Record; N];
 
-    fn collect_devices(&self, mut devices: Vec<B::Device>) -> Vec<B::Device> {
+    fn collect_devices(&self, mut devices: Vec<Device>) -> Vec<Device> {
         for module in self.iter() {
             devices = module.collect_devices(devices);
         }
@@ -221,7 +209,7 @@ where
         num_params
     }
 
-    fn visit<V: ModuleVisitor<B>>(&self, visitor: &mut V) {
+    fn visit<V: ModuleVisitor>(&self, visitor: &mut V) {
         for (i, module) in self.iter().enumerate() {
             let index_str = alloc::format!("{}", i);
             visitor.enter_module(&index_str, "Array");
@@ -230,7 +218,7 @@ where
         }
     }
 
-    fn map<M: ModuleMapper<B>>(self, mapper: &mut M) -> Self {
+    fn map<M: ModuleMapper>(self, mapper: &mut M) -> Self {
         let mut result = Vec::with_capacity(N);
         for (i, module) in IntoIterator::into_iter(self).enumerate() {
             let index_str = alloc::format!("{}", i);
@@ -257,11 +245,11 @@ where
         self.map(Module::into_record)
     }
 
-    fn to_device(self, device: &Device<B>) -> Self {
+    fn to_device(self, device: &Device) -> Self {
         self.map(|module| module.to_device(device))
     }
 
-    fn fork(self, device: &Device<B>) -> Self {
+    fn fork(self, device: &Device) -> Self {
         self.map(|module| module.fork(device))
     }
 }
@@ -281,19 +269,15 @@ impl<const N: usize, T: ModuleDisplay> ModuleDisplayDefault for [T; N] {
 
 impl<const N: usize, T: ModuleDisplay> ModuleDisplay for [T; N] {}
 
-impl<const N: usize, T, B> AutodiffModule<B> for [T; N]
+impl<const N: usize, T> AutodiffModule for [T; N]
 where
-    T: AutodiffModule<B> + Debug + Send + Clone,
-    T::InnerModule: Debug,
-    B: AutodiffBackend,
+    T: AutodiffModule + Debug + Send + Clone,
 {
-    type InnerModule = [T::InnerModule; N];
-
-    fn valid(&self) -> Self::InnerModule {
+    fn valid(&self) -> Self {
         self.clone().map(|module| module.valid())
     }
 
-    fn from_inner(module: Self::InnerModule) -> Self {
+    fn from_inner(module: Self) -> Self {
         module.map(|module| T::from_inner(module))
     }
 }
@@ -307,27 +291,26 @@ macro_rules! impl_module_tuple {
     // `$l` represents the generic modules.
     // `$i` represents the indices of the modules in the tuple.
     ([$($l:ident),*][$($i:tt),*]) => {
-        impl<B, $($l,)*> Module<B> for ($($l,)*)
+        impl<$($l,)*> Module for ($($l,)*)
         where
-            B: Backend,
-            $($l: Module<B> + Debug + Send + Clone,)*
+            $($l: Module + Debug + Send + Clone,)*
         {
             type Record = ($($l::Record),*);
 
-            fn collect_devices(&self, mut devices: Vec<B::Device>) -> Vec<B::Device> {
+            fn collect_devices(&self, mut devices: Vec<Device>) -> Vec<Device> {
                 $(devices = self.$i.collect_devices(devices);)*
                 devices
             }
 
-            fn fork(self, device: &Device<B>) -> Self {
+            fn fork(self, device: &Device) -> Self {
                 ($(self.$i.fork(device),)*)
             }
 
-            fn to_device(self, device: &Device<B>) -> Self {
+            fn to_device(self, device: &Device) -> Self {
                 ($(self.$i.to_device(device),)*)
             }
 
-            fn visit<V: ModuleVisitor<B>>(&self, visitor: &mut V) {
+            fn visit<V: ModuleVisitor>(&self, visitor: &mut V) {
                 $(
                     let index_str = $i.to_string();
                     visitor.enter_module(&index_str, "Tuple");
@@ -336,7 +319,7 @@ macro_rules! impl_module_tuple {
                 )*
             }
 
-            fn map<M: ModuleMapper<B>>(self, mapper: &mut M) -> Self {
+            fn map<M: ModuleMapper>(self, mapper: &mut M) -> Self {
                 ($(
                     {
                         let index_str = $i.to_string();
@@ -357,18 +340,15 @@ macro_rules! impl_module_tuple {
             }
         }
 
-        impl<B, $($l,)*> AutodiffModule<B> for ($($l,)*)
+        impl<$($l,)*> AutodiffModule for ($($l,)*)
         where
-            B: AutodiffBackend,
-            $($l: AutodiffModule<B> + Debug + Send + Clone,)*
+            $($l: AutodiffModule + Debug + Send + Clone,)*
         {
-            type InnerModule = ($($l::InnerModule,)*);
-
-            fn valid(&self) -> Self::InnerModule {
+            fn valid(&self) -> Self {
                 ($(self.$i.valid(),)*)
             }
 
-            fn from_inner(module: Self::InnerModule) -> Self {
+            fn from_inner(module: Self) -> Self {
                 ($($l::from_inner(module.$i),)*)
             }
         }
@@ -403,14 +383,13 @@ impl_module_tuple!([L0, L1, L2, L3, L4, L5, L6, L7, L8, L9][0, 1, 2, 3, 4, 5, 6,
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::TestBackend;
 
     #[test]
     fn dont_override_constant_module_when_loading_record() {
         let module = Some(42);
 
-        let record = Module::<TestBackend>::into_record(module);
-        let loaded = Module::<TestBackend>::load_record(module, record);
+        let record = Module::into_record(module);
+        let loaded = Module::load_record(module, record);
 
         assert_eq!(loaded, module);
     }
@@ -419,7 +398,7 @@ mod tests {
         let module = Some(42);
 
         let record = None;
-        let loaded = Module::<TestBackend>::load_record(module, record);
+        let loaded = Module::load_record(module, record);
 
         assert_eq!(loaded, module);
     }

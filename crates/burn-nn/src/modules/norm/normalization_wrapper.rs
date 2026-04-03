@@ -5,8 +5,8 @@ use crate::{
     LayerNorm, LayerNormConfig, RmsNorm, RmsNormConfig,
 };
 use burn::prelude::{Config, Module};
+use burn::tensor::Device;
 use burn::tensor::Tensor;
-use burn::tensor::backend::Backend;
 
 /// ['Normalization'] Configuration.
 ///
@@ -67,7 +67,7 @@ impl From<RmsNormConfig> for NormalizationConfig {
 
 impl NormalizationConfig {
     /// Initialize a ['Norm'] layer.
-    pub fn init<B: Backend>(&self, device: &B::Device) -> Normalization<B> {
+    pub fn init(&self, device: &Device) -> Normalization {
         match self {
             NormalizationConfig::Batch(config) => config.init(device).into(),
             NormalizationConfig::Group(config) => config.init(device).into(),
@@ -132,60 +132,60 @@ impl NormalizationConfig {
 /// The enum is non-exhaustive, to prepare for future additions.
 #[derive(Module, Debug)]
 #[non_exhaustive]
-pub enum Normalization<B: Backend> {
+pub enum Normalization {
     /// [`BatchNorm`] layer.
-    Batch(BatchNorm<B>),
+    Batch(BatchNorm),
 
     /// [`GroupNorm`] layer.
-    Group(GroupNorm<B>),
+    Group(GroupNorm),
 
     /// ['InstanceNorm'] layer.
-    Instance(InstanceNorm<B>),
+    Instance(InstanceNorm),
 
     /// [`LayerNorm`] layer.
-    Layer(LayerNorm<B>),
+    Layer(LayerNorm),
 
     /// ['RmsNorm'] layer.
-    Rms(RmsNorm<B>),
+    Rms(RmsNorm),
 }
 
-impl<B: Backend> From<BatchNorm<B>> for Normalization<B> {
-    fn from(layer: BatchNorm<B>) -> Self {
+impl From<BatchNorm> for Normalization {
+    fn from(layer: BatchNorm) -> Self {
         Self::Batch(layer)
     }
 }
 
-impl<B: Backend> From<GroupNorm<B>> for Normalization<B> {
-    fn from(layer: GroupNorm<B>) -> Self {
+impl From<GroupNorm> for Normalization {
+    fn from(layer: GroupNorm) -> Self {
         Self::Group(layer)
     }
 }
 
-impl<B: Backend> From<InstanceNorm<B>> for Normalization<B> {
-    fn from(layer: InstanceNorm<B>) -> Self {
+impl From<InstanceNorm> for Normalization {
+    fn from(layer: InstanceNorm) -> Self {
         Self::Instance(layer)
     }
 }
 
-impl<B: Backend> From<LayerNorm<B>> for Normalization<B> {
-    fn from(layer: LayerNorm<B>) -> Self {
+impl From<LayerNorm> for Normalization {
+    fn from(layer: LayerNorm) -> Self {
         Self::Layer(layer)
     }
 }
 
-impl<B: Backend> From<RmsNorm<B>> for Normalization<B> {
-    fn from(layer: RmsNorm<B>) -> Self {
+impl From<RmsNorm> for Normalization {
+    fn from(layer: RmsNorm) -> Self {
         Self::Rms(layer)
     }
 }
 
-impl<B: Backend> Normalization<B> {
+impl Normalization {
     /// Applies normalization to a tensor.
     ///
     /// The normalization contract depends upon the wrapped norm layer;
     /// but all norm layers assume an input of at least rank 2;
     /// and produce an output of the same rank and shape.
-    pub fn forward<const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
+    pub fn forward<const D: usize>(&self, input: Tensor<D>) -> Tensor<D> {
         match self {
             Normalization::Batch(norm) => norm.forward(input),
             Normalization::Group(norm) => norm.forward(input),
@@ -211,9 +211,8 @@ impl<B: Backend> Normalization<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::TestAutodiffBackend;
-    use burn::tensor::{Tolerance, ops::FloatElem};
-    type FT = FloatElem<TestAutodiffBackend>;
+    use burn::tensor::Tolerance;
+    type FT = f32;
 
     #[test]
     fn test_match_feature_size() {
@@ -245,15 +244,14 @@ mod tests {
 
     #[test]
     fn test_batch_norm() {
-        type B = TestAutodiffBackend;
-        let device = Default::default();
+        let device = Device::default().autodiff();
 
         let num_features = 12;
-        let input: Tensor<B, 4> = Tensor::ones([2, num_features, 3, 4], &device);
+        let input: Tensor<4> = Tensor::ones([2, num_features, 3, 4], &device);
 
         let config: NormalizationConfig = BatchNormConfig::new(12).into();
 
-        let layer: Normalization<B> = config.init(&device);
+        let layer = config.init(&device);
         assert_eq!(layer.num_features(), 12);
 
         let expected = match &layer {
@@ -268,15 +266,14 @@ mod tests {
 
     #[test]
     fn test_group_norm() {
-        type B = TestAutodiffBackend;
-        let device = Default::default();
+        let device = Device::default().autodiff();
 
         let num_features = 12;
-        let input: Tensor<B, 4> = Tensor::ones([2, num_features, 3, 4], &device);
+        let input: Tensor<4> = Tensor::ones([2, num_features, 3, 4], &device);
 
         let config: NormalizationConfig = GroupNormConfig::new(3, num_features).into();
 
-        let layer: Normalization<B> = config.init(&device);
+        let layer = config.init(&device);
         assert_eq!(layer.num_features(), 12);
 
         let expected = match &layer {
@@ -293,15 +290,14 @@ mod tests {
 
     #[test]
     fn test_instance_norm() {
-        type B = TestAutodiffBackend;
-        let device = Default::default();
+        let device = Device::default().autodiff();
 
         let num_features = 12;
-        let input: Tensor<B, 4> = Tensor::ones([2, num_features, 3, 4], &device);
+        let input: Tensor<4> = Tensor::ones([2, num_features, 3, 4], &device);
 
         let config: NormalizationConfig = InstanceNormConfig::new(num_features).into();
 
-        let layer: Normalization<B> = config.init(&device);
+        let layer = config.init(&device);
         assert_eq!(layer.num_features(), 12);
 
         let expected = match &layer {
@@ -318,15 +314,14 @@ mod tests {
 
     #[test]
     fn test_layer_norm() {
-        type B = TestAutodiffBackend;
-        let device = Default::default();
+        let device = Device::default().autodiff();
 
         let num_features = 12;
-        let input: Tensor<B, 4> = Tensor::ones([2, 3, 4, num_features], &device);
+        let input: Tensor<4> = Tensor::ones([2, 3, 4, num_features], &device);
 
         let config: NormalizationConfig = LayerNormConfig::new(num_features).into();
 
-        let layer: Normalization<B> = config.init(&device);
+        let layer = config.init(&device);
         assert_eq!(layer.num_features(), 12);
 
         let expected = match &layer {
@@ -343,15 +338,14 @@ mod tests {
 
     #[test]
     fn test_rms_norm() {
-        type B = TestAutodiffBackend;
-        let device = Default::default();
+        let device = Device::default().autodiff();
 
         let num_features = 12;
-        let input: Tensor<B, 4> = Tensor::ones([2, 3, 4, num_features], &device);
+        let input: Tensor<4> = Tensor::ones([2, 3, 4, num_features], &device);
 
         let config: NormalizationConfig = RmsNormConfig::new(num_features).into();
 
-        let layer: Normalization<B> = config.init(&device);
+        let layer = config.init(&device);
         assert_eq!(layer.num_features(), 12);
 
         let expected = match &layer {

@@ -2,7 +2,7 @@ use super::ParamId;
 use super::sync_once_cell::SyncOnceCell;
 use alloc::{boxed::Box, format};
 use burn_std::stub::RwLock;
-use burn_tensor::Shape;
+use burn_tensor::{Device, Shape};
 use core::ops::Deref;
 
 #[cfg(target_has_atomic = "ptr")]
@@ -128,11 +128,8 @@ impl<T: Parameter> core::fmt::Debug for Param<T> {
 
 /// Trait that defines what is necessary for a type to be a parameter.
 pub trait Parameter: Clone + core::fmt::Debug + Send {
-    /// The device type to be used.
-    type Device: Clone;
-
     /// Fetch the device.
-    fn device(&self) -> Self::Device;
+    fn device(&self) -> Device;
 
     /// Fetch the gradient requirement.
     fn is_require_grad(&self) -> bool;
@@ -146,10 +143,10 @@ pub trait Parameter: Clone + core::fmt::Debug + Send {
 pub(crate) struct Uninitialized<P: Parameter> {
     /// The initialization function. Called with `(device, is_require_grad) -> Parameter`.
     /// This function is consumed during initialization via `FnOnce`.
-    init: Box<dyn FnOnce(&P::Device, bool) -> P + Send + Sync>,
+    init: Box<dyn FnOnce(&Device, bool) -> P + Send + Sync>,
     /// The target device on which the parameter should be initialized.
     /// Used by `lazy_device()` to provide device information without triggering initialization.
-    pub(crate) device: P::Device,
+    pub(crate) device: Device,
     /// The gradient requirement for the parameter.
     /// Used by `lazy_is_require_grad()` to provide gradient settings without triggering initialization.
     pub(crate) is_require_grad: bool,
@@ -186,12 +183,12 @@ impl<T: Parameter> Param<T> {
     pub fn uninitialized<F>(
         id: ParamId,
         init: F,
-        device: T::Device,
+        device: Device,
         is_require_grad: bool,
         shape: Shape,
     ) -> Self
     where
-        F: FnOnce(&T::Device, bool) -> T + Send + Sync + 'static,
+        F: FnOnce(&Device, bool) -> T + Send + Sync + 'static,
     {
         Self {
             id,
@@ -307,7 +304,7 @@ impl<T: Parameter> Param<T> {
         match init.as_mut() {
             Some(value) => {
                 #[allow(clippy::type_complexity)]
-                let mut prev: Box<dyn FnOnce(&T::Device, bool) -> T + Send + Sync> =
+                let mut prev: Box<dyn FnOnce(&Device, bool) -> T + Send + Sync> =
                     Box::new(|_, _| panic!("Fake func to not have null ref."));
                 core::mem::swap(&mut prev, &mut value.init);
 
@@ -333,7 +330,7 @@ impl<T: Parameter> Param<T> {
     ///
     /// Use this instead of [crate::tensor::Tensor::device] when you need the device but want to
     /// preserve lazy initialization.
-    pub fn lazy_device(&self) -> T::Device {
+    pub fn lazy_device(&self) -> Device {
         let initialization = match &self.initialization {
             Some(init) => init,
             None => return self.device(),
@@ -426,7 +423,7 @@ impl<T: Parameter> Deref for Param<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use burn_tensor::{Tensor, backend::Backend};
+    use burn_tensor::Tensor;
 
     // Param<T> should be Sync so that models can be shared across threads
     // (e.g. parallel inference with rayon).
@@ -434,10 +431,10 @@ mod tests {
 
     #[test]
     fn param_is_sync() {
-        fn check<B: Backend>() {
-            _assert_sync::<Param<Tensor<B, 2>>>();
+        fn check() {
+            _assert_sync::<Param<Tensor<2>>>();
         }
-        check::<burn_ndarray::NdArray>();
+        check();
     }
 
     /// Concurrent lazy initialization must not panic.
@@ -450,10 +447,9 @@ mod tests {
     fn param_concurrent_lazy_init() {
         use alloc::vec::Vec;
 
-        type B = burn_ndarray::NdArray;
-        let device = <B as Backend>::Device::default();
+        let device = Default::default();
 
-        let param: Param<Tensor<B, 2>> = Param::uninitialized(
+        let param: Param<Tensor<2>> = Param::uninitialized(
             ParamId::new(),
             |device, _require_grad| Tensor::zeros([2, 3], device),
             device,

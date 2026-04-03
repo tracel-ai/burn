@@ -7,8 +7,8 @@ use crate::PaddingConfig2d;
 use burn::config::Config;
 use burn::module::Initializer;
 use burn::module::{Content, DisplaySettings, Module, ModuleDisplay, Param};
+use burn::tensor::Device;
 use burn::tensor::Tensor;
-use burn::tensor::backend::Backend;
 use burn::tensor::module::deform_conv2d;
 
 use crate::conv::checks;
@@ -54,11 +54,11 @@ pub struct DeformConv2dConfig {
 /// Should be created with [DeformConv2dConfig].
 #[derive(Module, Debug)]
 #[module(custom_display)]
-pub struct DeformConv2d<B: Backend> {
+pub struct DeformConv2d {
     /// Tensor of shape `[channels_out, channels_in / groups, kernel_size_1, kernel_size_2]`
-    pub weight: Param<Tensor<B, 4>>,
+    pub weight: Param<Tensor<4>>,
     /// Tensor of shape `[channels_out]`
-    pub bias: Option<Param<Tensor<B, 1>>>,
+    pub bias: Option<Param<Tensor<1>>>,
     /// Stride of the convolution.
     pub stride: [usize; 2],
     /// Size of the kernel.
@@ -70,12 +70,13 @@ pub struct DeformConv2d<B: Backend> {
     /// Offset groups.
     pub offset_groups: usize,
     /// The padding configuration.
+    #[module(skip)]
     pub padding: PaddingConfig2d,
 }
 
 impl DeformConv2dConfig {
     /// Initialize a new [DeformConv2d](DeformConv2d) module.
-    pub fn init<B: Backend>(&self, device: &B::Device) -> DeformConv2d<B> {
+    pub fn init(&self, device: &Device) -> DeformConv2d {
         checks::checks_channels_div_groups(self.channels[0], self.channels[1], self.weight_groups);
         if self.padding == PaddingConfig2d::Same {
             checks::check_same_padding_support(&self.kernel_size);
@@ -119,7 +120,7 @@ impl DeformConv2dConfig {
     }
 }
 
-impl<B: Backend> ModuleDisplay for DeformConv2d<B> {
+impl ModuleDisplay for DeformConv2d {
     fn custom_settings(&self) -> Option<DisplaySettings> {
         DisplaySettings::new()
             .with_new_line_after_attribute(false)
@@ -143,7 +144,7 @@ impl<B: Backend> ModuleDisplay for DeformConv2d<B> {
     }
 }
 
-impl<B: Backend> DeformConv2d<B> {
+impl DeformConv2d {
     /// Applies the forward pass on the input tensor.
     ///
     /// See [deform_conv2d](burn::tensor::module::deform_conv2d) for more information.
@@ -156,10 +157,10 @@ impl<B: Backend> DeformConv2d<B> {
     /// - output: `[batch_size, channels_out, height_out, width_out]`
     pub fn forward(
         &self,
-        input: Tensor<B, 4>,
-        offset: Tensor<B, 4>,
-        mask: Option<Tensor<B, 4>>,
-    ) -> Tensor<B, 4> {
+        input: Tensor<4>,
+        offset: Tensor<4>,
+        mask: Option<Tensor<4>>,
+    ) -> Tensor<4> {
         let [_batch_size, _channels_in, height_in, width_in] = input.dims();
         let padding =
             self.padding
@@ -183,33 +184,32 @@ impl<B: Backend> DeformConv2d<B> {
 
 #[cfg(test)]
 mod tests {
-    use burn::tensor::{ElementConversion, Tolerance, ops::FloatElem};
-    type FT = FloatElem<TestBackend>;
+    use burn::tensor::{ElementConversion, Tolerance};
+    type FT = f32;
 
     use super::*;
-    use crate::TestBackend;
     use burn::tensor::TensorData;
 
     #[test]
     fn initializer_default() {
-        let device = Default::default();
-        TestBackend::seed(&device, 0);
+        let device = Device::default();
+        device.seed(0);
 
         let config = DeformConv2dConfig::new([5, 1], [5, 5]);
         let k = (config.channels[0] * config.kernel_size[0] * config.kernel_size[1]) as f64;
         let k = (config.offset_groups as f64 / k).sqrt().elem::<FT>();
-        let conv = config.init::<TestBackend>(&device);
+        let conv = config.init(&device);
 
         conv.weight.to_data().assert_within_range(-k..k);
     }
 
     #[test]
     fn initializer_zeros() {
-        let device = Default::default();
-        TestBackend::seed(&device, 0);
+        let device = Device::default();
+        device.seed(0);
 
         let config = DeformConv2dConfig::new([5, 2], [5, 5]).with_initializer(Initializer::Zeros);
-        let conv = config.init::<TestBackend>(&device);
+        let conv = config.init(&device);
 
         assert_eq!(config.initializer, Initializer::Zeros);
         conv.weight.to_data().assert_approx_eq::<FT>(
@@ -220,8 +220,8 @@ mod tests {
 
     #[test]
     fn initializer_fan_out() {
-        let device = Default::default();
-        TestBackend::seed(&device, 0);
+        let device = Device::default();
+        device.seed(0);
 
         let init = Initializer::KaimingUniform {
             gain: 1.0 / 3.0f64.sqrt(),
@@ -229,15 +229,15 @@ mod tests {
         };
 
         let config = DeformConv2dConfig::new([5, 1], [5, 5]).with_initializer(init.clone());
-        let _ = config.init::<TestBackend>(&device);
+        let _ = config.init(&device);
 
         assert_eq!(config.initializer, init);
     }
 
     #[test]
     fn initializer_fan_with_groups_is_valid() {
-        let device = Default::default();
-        TestBackend::seed(&device, 0);
+        let device = Device::default();
+        device.seed(0);
 
         let init = Initializer::KaimingUniform {
             gain: 1.0 / 3.0f64.sqrt(),
@@ -247,7 +247,7 @@ mod tests {
         let config = DeformConv2dConfig::new([4, 4], [1, 1])
             .with_initializer(init.clone())
             .with_weight_groups(4);
-        let _ = config.init::<TestBackend>(&device);
+        let _ = config.init(&device);
 
         assert_eq!(config.initializer, init);
     }
@@ -257,7 +257,7 @@ mod tests {
     fn channels_with_groups_is_invalid() {
         let device = Default::default();
         let config = DeformConv2dConfig::new([1, 4], [1, 1]).with_weight_groups(4);
-        let _ = config.init::<TestBackend>(&device);
+        let _ = config.init(&device);
     }
 
     #[test]
@@ -265,13 +265,13 @@ mod tests {
     fn same_with_even_kernel_is_invalid() {
         let device = Default::default();
         let config = DeformConv2dConfig::new([4, 4], [2, 2]).with_padding(PaddingConfig2d::Same);
-        let _ = config.init::<TestBackend>(&device);
+        let _ = config.init(&device);
     }
 
     #[test]
     fn display() {
         let config = DeformConv2dConfig::new([5, 1], [5, 5]);
-        let conv = config.init::<TestBackend>(&Default::default());
+        let conv = config.init(&Default::default());
 
         assert_eq!(
             alloc::format!("{conv}"),
@@ -283,10 +283,10 @@ mod tests {
     #[should_panic = "Number of channels in input tensor and input channels of convolution must be equal. got: 4, expected: 5"]
     fn input_channels_mismatch() {
         let config = DeformConv2dConfig::new([5, 3], [3, 3]);
-        let conv = config.init::<TestBackend>(&Default::default());
+        let conv = config.init(&Default::default());
 
-        let input = Tensor::<TestBackend, 4>::zeros([1, 4, 10, 10], &Default::default());
-        let offset = Tensor::<TestBackend, 4>::zeros([1, 2 * 3 * 3, 10, 10], &Default::default());
+        let input = Tensor::<4>::zeros([1, 4, 10, 10], &Default::default());
+        let offset = Tensor::<4>::zeros([1, 2 * 3 * 3, 10, 10], &Default::default());
         let _ = conv.forward(input, offset, None);
     }
 }

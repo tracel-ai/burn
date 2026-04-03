@@ -4,9 +4,8 @@ use alloc::vec::Vec;
 use burn::config::Config;
 use burn::module::{Content, DisplaySettings, Module, ModuleDisplay};
 
-use burn::tensor::Tensor;
 use burn::tensor::TensorData;
-use burn::tensor::backend::Backend;
+use burn::tensor::{Device, Tensor};
 
 #[cfg(not(feature = "std"))]
 #[allow(unused_imports)]
@@ -43,16 +42,16 @@ pub struct PositionalEncodingConfig {
 /// Should be created using [PositionalEncodingConfig]
 #[derive(Module, Debug)]
 #[module(custom_display)]
-pub struct PositionalEncoding<B: Backend> {
+pub struct PositionalEncoding {
     /// The sinusoids used to add positional information to the input embeddings.
-    pub sinusoids: Tensor<B, 3>,
+    pub sinusoids: Tensor<3>,
     /// The maximum sequence size to use.
     pub max_sequence_size: usize,
     /// Max time scale to use.
     pub max_timescale: usize,
 }
 
-impl<B: Backend> ModuleDisplay for PositionalEncoding<B> {
+impl ModuleDisplay for PositionalEncoding {
     fn custom_settings(&self) -> Option<DisplaySettings> {
         DisplaySettings::new()
             .with_new_line_after_attribute(false)
@@ -71,8 +70,8 @@ impl<B: Backend> ModuleDisplay for PositionalEncoding<B> {
 
 impl PositionalEncodingConfig {
     /// Initialize a new [PositionalEncoding](PositionalEncoding) module.
-    pub fn init<B: Backend>(&self, device: &B::Device) -> PositionalEncoding<B> {
-        let sinusoids = generate_sinusoids::<B>(
+    pub fn init(&self, device: &Device) -> PositionalEncoding {
+        let sinusoids = generate_sinusoids(
             self.max_sequence_size,
             self.d_model,
             self.max_timescale,
@@ -88,7 +87,7 @@ impl PositionalEncodingConfig {
     }
 }
 
-impl<B: Backend> PositionalEncoding<B> {
+impl PositionalEncoding {
     /// Applies the forward pass on the input tensor by adding the sinusoids to the input.
     ///
     /// # Shapes
@@ -101,7 +100,7 @@ impl<B: Backend> PositionalEncoding<B> {
     ///
     /// * Panics if the input sequence length is greater than the maximum sequence size.
     /// * Panics if the input d_model is not equal to the d_model of the sinusoids.
-    pub fn forward(&self, input: Tensor<B, 3>) -> Tensor<B, 3> {
+    pub fn forward(&self, input: Tensor<3>) -> Tensor<3> {
         let [_, seq_length, d_model_input] = input.dims();
 
         let [batch_size, max_sequence_size, d_model] = self.sinusoids.dims();
@@ -138,12 +137,12 @@ impl<B: Backend> PositionalEncoding<B> {
 /// # Returns
 ///
 /// A tensor of shape [length, d_model] containing the sinusoids.
-pub fn generate_sinusoids<B: Backend>(
+pub fn generate_sinusoids(
     length: usize,
     d_model: usize,
     max_timescale: usize,
-    device: &B::Device,
-) -> Tensor<B, 2> {
+    device: &Device,
+) -> Tensor<2> {
     assert!(d_model.is_multiple_of(2), "d_model must be even");
     assert!(
         max_timescale >= length,
@@ -179,16 +178,15 @@ pub fn generate_sinusoids<B: Backend>(
         [length, d_model],
     );
 
-    Tensor::<B, 2>::from_data(data, device)
+    Tensor::<2>::from_data(data, device)
 }
 
 #[cfg(test)]
 mod tests {
 
     use super::*;
-    use crate::TestBackend;
-    use burn::tensor::{Tolerance, ops::FloatElem};
-    type FT = FloatElem<TestBackend>;
+    use burn::tensor::Tolerance;
+    type FT = f32;
 
     #[test]
     fn test_module() {
@@ -199,7 +197,7 @@ mod tests {
         let batch_size = 2;
 
         let device = Default::default();
-        let pe = PositionalEncodingConfig::new(d_model).init::<TestBackend>(&device);
+        let pe = PositionalEncodingConfig::new(d_model).init(&device);
 
         // Use a tensor of zeros as input for easy verification of the output
         // The output should be the sinusoids broadcasted to the input shape
@@ -209,7 +207,7 @@ mod tests {
 
         assert_eq!(&*output.shape(), [batch_size, length, d_model]);
 
-        let expected = Tensor::<TestBackend, 3>::from_floats(
+        let expected = Tensor::<3>::from_floats(
             [
                 [
                     [0.00000, 1.00000, 0.00000, 1.00000, 0.00000, 1.00000],
@@ -233,10 +231,10 @@ mod tests {
     #[test]
     fn test_generate_sinusoids() {
         let device = Default::default();
-        let sinusoids = generate_sinusoids::<TestBackend>(12, 6, 10_000, &device);
+        let sinusoids = generate_sinusoids(12, 6, 10_000, &device);
 
         // The values are taken from the pytorch reference implementation
-        let expected = Tensor::<TestBackend, 2>::from_floats(
+        let expected = Tensor::<2>::from_floats(
             [
                 [0.00000, 1.00000, 0.00000, 1.00000, 0.00000, 1.00000],
                 [0.84147, 0.54030, 0.04640, 0.99892, 0.00215, 1.00000],
@@ -263,7 +261,7 @@ mod tests {
     fn d_model_input_should_match() {
         let d_model = 8;
         let device = Default::default();
-        let pe = PositionalEncodingConfig::new(d_model).init::<TestBackend>(&device);
+        let pe = PositionalEncodingConfig::new(d_model).init(&device);
         let input = Tensor::zeros([1, 5, 10], &device);
         let _output = pe.forward(input);
     }
@@ -273,7 +271,7 @@ mod tests {
     fn input_length_should_be_less_than_max_len() {
         let d_model = 8;
         let device = Default::default();
-        let pe = PositionalEncodingConfig::new(d_model).init::<TestBackend>(&device);
+        let pe = PositionalEncodingConfig::new(d_model).init(&device);
         let input = Tensor::zeros([1, 6_000, d_model], &device);
         let _output = pe.forward(input);
     }
@@ -281,7 +279,7 @@ mod tests {
     #[test]
     fn display() {
         let config = PositionalEncodingConfig::new(4);
-        let pe = config.init::<TestBackend>(&Default::default());
+        let pe = config.init(&Default::default());
 
         assert_eq!(
             alloc::format!("{pe}"),

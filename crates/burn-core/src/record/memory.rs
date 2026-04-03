@@ -1,6 +1,5 @@
 use super::{PrecisionSettings, Recorder, RecorderError, bin_config};
 use alloc::vec::Vec;
-use burn_tensor::backend::Backend;
 use serde::{Serialize, de::DeserializeOwned};
 
 /// Recorder trait specialized to save and load data to and from bytes.
@@ -10,9 +9,8 @@ use serde::{Serialize, de::DeserializeOwned};
 /// This is especially useful in no_std environment where weights are stored directly in
 /// compiled binaries.
 pub trait BytesRecorder<
-    B: Backend,
     L: AsRef<[u8]> + Send + Sync + core::fmt::Debug + Clone + core::default::Default,
->: Recorder<B, RecordArgs = (), RecordOutput = Vec<u8>, LoadArgs = L>
+>: Recorder<RecordArgs = (), RecordOutput = Vec<u8>, LoadArgs = L>
 {
 }
 
@@ -28,17 +26,15 @@ pub struct BinBytesRecorder<
 
 impl<
     S: PrecisionSettings,
-    B: Backend,
     L: AsRef<[u8]> + Send + Sync + core::fmt::Debug + Clone + core::default::Default,
-> BytesRecorder<B, L> for BinBytesRecorder<S, L>
+> BytesRecorder<L> for BinBytesRecorder<S, L>
 {
 }
 
 impl<
     S: PrecisionSettings,
-    B: Backend,
     L: AsRef<[u8]> + Send + Sync + core::fmt::Debug + Clone + core::default::Default,
-> Recorder<B> for BinBytesRecorder<S, L>
+> Recorder for BinBytesRecorder<S, L>
 {
     type Settings = S;
     type RecordArgs = ();
@@ -75,10 +71,10 @@ pub struct NamedMpkBytesRecorder<S: PrecisionSettings> {
 }
 
 #[cfg(feature = "std")]
-impl<S: PrecisionSettings, B: Backend> BytesRecorder<B, Vec<u8>> for NamedMpkBytesRecorder<S> {}
+impl<S: PrecisionSettings> BytesRecorder<Vec<u8>> for NamedMpkBytesRecorder<S> {}
 
 #[cfg(feature = "std")]
-impl<S: PrecisionSettings, B: Backend> Recorder<B> for NamedMpkBytesRecorder<S> {
+impl<S: PrecisionSettings> Recorder for NamedMpkBytesRecorder<S> {
     type Settings = S;
     type RecordArgs = ();
     type RecordOutput = Vec<u8>;
@@ -101,11 +97,11 @@ impl<S: PrecisionSettings, B: Backend> Recorder<B> for NamedMpkBytesRecorder<S> 
 
 #[cfg(test)]
 mod tests {
+    use burn_tensor::Device;
+
     use super::*;
     use crate::test_utils::SimpleLinear;
-    use crate::{
-        TestBackend, module::Module, record::FullPrecisionSettings, tensor::backend::Backend,
-    };
+    use crate::{module::Module, record::FullPrecisionSettings};
 
     #[test]
     fn test_can_save_and_load_bin_format() {
@@ -120,11 +116,11 @@ mod tests {
 
     fn test_can_save_and_load<Recorder>(recorder: Recorder)
     where
-        Recorder: BytesRecorder<TestBackend, Vec<u8>>,
+        Recorder: BytesRecorder<Vec<u8>>,
     {
         let device = Default::default();
-        let model1 = create_model::<TestBackend>(&device);
-        let model2 = create_model::<TestBackend>(&device);
+        let model1 = create_model(&device);
+        let model2 = create_model(&device);
         let bytes1 = recorder.record(model1.into_record(), ()).unwrap();
         let bytes2 = recorder.record(model2.clone().into_record(), ()).unwrap();
 
@@ -135,7 +131,7 @@ mod tests {
         assert_eq!(bytes1, bytes2_after);
     }
 
-    pub fn create_model<B: Backend>(device: &B::Device) -> SimpleLinear<B> {
+    pub fn create_model(device: &Device) -> SimpleLinear {
         SimpleLinear::new(32, 32, device)
     }
 }

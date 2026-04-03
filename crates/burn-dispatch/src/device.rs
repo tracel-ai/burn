@@ -1,8 +1,9 @@
-use alloc::boxed::Box;
-
 use burn_backend::{DeviceId, DeviceOps};
 
 use crate::backends::*;
+
+#[cfg(feature = "autodiff")]
+use alloc::boxed::Box;
 
 /// Represents a device for the [`Dispatch`](crate::Dispatch).
 ///
@@ -89,7 +90,6 @@ impl core::ops::Deref for AutodiffDevice {
     }
 }
 
-#[cfg(feature = "autodiff")]
 #[allow(missing_docs)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 /// Checkpointing strategy for autodiff.

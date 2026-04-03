@@ -1,7 +1,8 @@
+use burn_backend::AutodiffBackend;
 pub use burn_backend::tensor::BasicAutodiffOps;
 use burn_dispatch::Dispatch;
 
-use crate::{Tensor, TensorPrimitive, backend::AutodiffBackend};
+use crate::{Tensor, TensorPrimitive, kind::Autodiff};
 
 type Gradients = <Dispatch as AutodiffBackend>::Gradients;
 
@@ -59,9 +60,9 @@ impl<const D: usize> Tensor<D> {
     }
 }
 
-impl<const D: usize, K: BasicAutodiffOps<Dispatch>> Tensor<D, K> {
+impl<const D: usize, K: Autodiff<InnerKind = K>> Tensor<D, K> {
     /// Returns the inner tensor without the autodiff information.
-    pub fn inner(self) -> Tensor<D, K::InnerKind> {
+    pub fn inner(self) -> Tensor<D, K> {
         Tensor::new(K::inner(self.primitive))
     }
 
@@ -74,7 +75,7 @@ impl<const D: usize, K: BasicAutodiffOps<Dispatch>> Tensor<D, K> {
     /// # Returns
     ///
     /// The tensor converted to the autodiff backend.
-    pub fn from_inner(inner: Tensor<D, K::InnerKind>) -> Self {
+    pub fn from_inner(inner: Tensor<D, K>) -> Self {
         Self::new(K::from_inner(inner.primitive))
     }
 }

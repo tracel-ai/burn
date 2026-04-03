@@ -58,9 +58,9 @@ std = [
 ]
 vision = ["burn-vision", "burn-dataset?/vision"]
 audio = ["burn-dataset?/audio"]
+autodiff = ["burn-tensor/autodiff"]
 distributed = ["std",
     "burn-tensor/distributed",
-    "burn-autodiff/distributed",
     "burn-cuda?/distributed",
 ]
 
@@ -143,7 +143,6 @@ portable-atomic = { workspace = true }
 
 [dev-dependencies]
 burn-ndarray = { path = "../burn-ndarray", version = "=0.21.0-pre.2" }
-burn-autodiff = { path = "../burn-autodiff", version = "=0.21.0-pre.2" }
 burn-dataset = { path = "../burn-dataset", version = "=0.21.0-pre.2", features = [
     "fake",
 ] }

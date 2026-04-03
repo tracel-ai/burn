@@ -10,8 +10,6 @@ use crate::quantization::{QuantScheme, QuantizationParameters};
 use crate::tensor::stats;
 use crate::tensor::{Distribution, TensorData};
 use crate::{Bool, Int, TensorPrimitive};
-#[cfg(feature = "distributed")]
-use burn_backend::AutodiffBackend;
 use burn_backend::ElementConversion;
 use burn_backend::Scalar;
 use burn_backend::TensorMetadata;
@@ -1193,14 +1191,11 @@ impl<const D: usize> Tensor<D> {
 }
 
 #[cfg(feature = "distributed")]
-impl<const D: usize, B> Tensor<B, D>
-where
-    B: AutodiffBackend,
-{
+impl<const D: usize> Tensor<D> {
     /// Returns true if the tensor is marked as distributed.
     pub fn is_distributed(&self) -> bool {
         match &self.primitive {
-            TensorPrimitive::Float(tensor) => B::is_distributed(tensor),
+            TensorPrimitive::Float(tensor) => Dispatch::is_distributed(tensor),
             TensorPrimitive::QFloat(_) => unimplemented!(),
         }
     }
@@ -1211,7 +1206,7 @@ where
     pub fn set_distributed(self, param_id: DistributedParamId) -> Self {
         let primitive = match self.primitive {
             TensorPrimitive::Float(tensor) => {
-                TensorPrimitive::Float(B::set_distributed_params(tensor, param_id))
+                TensorPrimitive::Float(Dispatch::set_distributed_params(tensor, param_id))
             }
             TensorPrimitive::QFloat(_) => unimplemented!(),
         };

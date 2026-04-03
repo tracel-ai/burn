@@ -1,4 +1,4 @@
-use alloc::boxed::Box;
+use crate::backends::*;
 
 use burn_backend::{
     Backend, DType, QTensorPrimitive, Shape, TensorMetadata, quantization::QuantScheme,
@@ -6,8 +6,8 @@ use burn_backend::{
 
 #[cfg(feature = "autodiff")]
 use crate::CheckpointingStrategy;
-use crate::backends::*;
-
+#[cfg(feature = "autodiff")]
+use alloc::boxed::Box;
 #[cfg(feature = "autodiff")]
 use burn_backend::tensor::FloatTensor;
 
@@ -116,6 +116,10 @@ impl<B: Backend> BackendTensor<B> {
 
     /// Returns the backend device.
     pub(crate) fn device(&self) -> B::Device {
+        // TODO: should int tensors also hold an autodiff property?
+        // So if you create a tensor from a `int_tensor.device()` it will return Autodiff<device>?
+        // And if you use `int_tensor.float()` you need to have the autodiff property?
+        // Otherwise you need to do e.g. `int_tensor.float().to_device(autodiff_device)`
         match self {
             BackendTensor::Float(tensor) => B::float_device(tensor),
             BackendTensor::Int(tensor) => B::int_device(tensor),

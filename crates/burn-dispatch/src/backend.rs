@@ -1,14 +1,13 @@
-use alloc::boxed::Box;
 use alloc::format;
 use alloc::string::String;
 
 use burn_backend::quantization::QuantScheme;
-use burn_backend::{Backend, DType, ExecutionError, QTensorPrimitive};
+use burn_backend::{AutodiffBackend, Backend, DType, ExecutionError, QTensorPrimitive};
 
 #[cfg(feature = "autodiff")]
-use burn_autodiff::grads::Gradients;
+use alloc::boxed::Box;
 #[cfg(feature = "autodiff")]
-use burn_backend::AutodiffBackend;
+use burn_autodiff::grads::Gradients;
 
 #[allow(unused)]
 use crate::BackendId;
@@ -118,7 +117,6 @@ impl AutodiffBackend for Dispatch {
     fn backward(tensor: DispatchTensor) -> Self::Gradients {
         let DispatchTensor { kind, .. } = tensor;
         match kind {
-            #[cfg(feature = "autodiff")]
             DispatchTensorKind::Autodiff(tensor) => match *tensor {
                 #[cfg(feature = "cpu")]
                 DispatchTensorKind::Cpu(tensor) => tensor.autodiff().backward(),
@@ -150,7 +148,6 @@ impl AutodiffBackend for Dispatch {
             checkpointing,
         } = tensor;
         let grad = match &kind {
-            #[cfg(feature = "autodiff")]
             DispatchTensorKind::Autodiff(inner_kind) => match &**inner_kind {
                 #[cfg(feature = "cpu")]
                 DispatchTensorKind::Cpu(tensor) => tensor
@@ -210,7 +207,6 @@ impl AutodiffBackend for Dispatch {
             checkpointing,
         } = tensor;
         let grad = match &kind {
-            #[cfg(feature = "autodiff")]
             DispatchTensorKind::Autodiff(inner_kind) => match &**inner_kind {
                 #[cfg(feature = "cpu")]
                 DispatchTensorKind::Cpu(tensor) => tensor
@@ -276,7 +272,6 @@ impl AutodiffBackend for Dispatch {
         debug_assert_eq!(checkpointing, &grad_ckp);
 
         match &kind {
-            #[cfg(feature = "autodiff")]
             DispatchTensorKind::Autodiff(inner_kind) => match (&**inner_kind, grad) {
                 #[cfg(feature = "cpu")]
                 (DispatchTensorKind::Cpu(tensor), DispatchTensorKind::Cpu(grad)) => {
@@ -324,7 +319,6 @@ impl AutodiffBackend for Dispatch {
         } = tensor;
 
         let kind = match kind {
-            #[cfg(feature = "autodiff")]
             DispatchTensorKind::Autodiff(inner_kind) => match *inner_kind {
                 #[cfg(feature = "cpu")]
                 DispatchTensorKind::Cpu(tensor) => DispatchTensorKind::Cpu(
@@ -459,6 +453,65 @@ impl AutodiffBackend for Dispatch {
 
     fn q_from_inner(tensor: DispatchTensor) -> DispatchTensor {
         tensor
+    }
+}
+
+// NOTE: placeholder for autodiff module requirements
+#[cfg(not(feature = "autodiff"))]
+impl AutodiffBackend for Dispatch {
+    type InnerBackend = Dispatch;
+
+    type Gradients = bool;
+
+    fn backward(_tensor: DispatchTensor) -> Self::Gradients {
+        unimplemented!("Requires `autodiff` feature")
+    }
+
+    fn grad(_tensor: &DispatchTensor, _grads: &Self::Gradients) -> Option<DispatchTensor> {
+        unimplemented!("Requires `autodiff` feature")
+    }
+
+    fn grad_remove(
+        _tensor: &DispatchTensor,
+        _grads: &mut Self::Gradients,
+    ) -> Option<DispatchTensor> {
+        unimplemented!("Requires `autodiff` feature")
+    }
+
+    fn grad_replace(_tensor: &DispatchTensor, _grads: &mut Self::Gradients, _grad: DispatchTensor) {
+        unimplemented!("Requires `autodiff` feature")
+    }
+
+    fn inner(_tensor: DispatchTensor) -> DispatchTensor {
+        unimplemented!("Requires `autodiff` feature")
+    }
+
+    fn int_inner(_tensor: DispatchTensor) -> DispatchTensor {
+        unimplemented!("Requires `autodiff` feature")
+    }
+
+    fn bool_inner(_tensor: DispatchTensor) -> DispatchTensor {
+        unimplemented!("Requires `autodiff` feature")
+    }
+
+    fn q_inner(_tensor: DispatchTensor) -> DispatchTensor {
+        unimplemented!("Requires `autodiff` feature")
+    }
+
+    fn from_inner(_tensor: DispatchTensor) -> DispatchTensor {
+        unimplemented!("Requires `autodiff` feature")
+    }
+
+    fn int_from_inner(_tensor: DispatchTensor) -> DispatchTensor {
+        unimplemented!("Requires `autodiff` feature")
+    }
+
+    fn bool_from_inner(_tensor: DispatchTensor) -> DispatchTensor {
+        unimplemented!("Requires `autodiff` feature")
+    }
+
+    fn q_from_inner(_tensor: DispatchTensor) -> DispatchTensor {
+        unimplemented!("Requires `autodiff` feature")
     }
 }
 

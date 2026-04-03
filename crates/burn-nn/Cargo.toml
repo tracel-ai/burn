@@ -89,6 +89,7 @@ dirs = { workspace = true, optional = true }
 [dev-dependencies]
 burn-ndarray = { path = "../burn-ndarray", version = "=0.21.0-pre.2" }
 burn-autodiff = { path = "../burn-autodiff", version = "=0.21.0-pre.2" }
+burn-core = { path = "../burn-core", version = "=0.21.0-pre.2", default-features = false, features = ["autodiff"] }
 rstest = { workspace = true }
 
 [package.metadata.docs.rs]

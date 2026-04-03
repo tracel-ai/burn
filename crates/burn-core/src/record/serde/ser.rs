@@ -309,7 +309,6 @@ impl SerializeSeq for Serializer {
 #[cfg(test)]
 mod tests {
     use crate::{
-        TestBackend,
         module::{Param, ParamId},
         record::{FullPrecisionSettings, Record},
         tensor::Tensor,
@@ -367,7 +366,7 @@ mod tests {
     #[test]
     fn test_param_serde() {
         let device = Default::default();
-        let tensor: Tensor<TestBackend, 2> = Tensor::ones([2, 2], &device);
+        let tensor: Tensor<2> = Tensor::ones([2, 2], &device);
         let param = Param::initialized(ParamId::new(), tensor);
         let param_item = param.into_item::<FullPrecisionSettings>();
 

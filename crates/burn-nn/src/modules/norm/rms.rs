@@ -7,8 +7,8 @@ use burn::module::Initializer;
 use burn::module::Module;
 use burn::module::Param;
 use burn::module::{Content, DisplaySettings, ModuleDisplay};
+use burn::tensor::Device;
 use burn::tensor::Tensor;
-use burn::tensor::backend::Backend;
 
 /// Configuration to create a [RMS Norm](RmsNorm) layer using the [init function](RmsNormConfig::init).
 #[derive(Config, Debug)]
@@ -26,7 +26,7 @@ impl RmsNormConfig {
     /// # Panics
     ///
     /// Panics if `epsilon` is not positive.
-    pub fn init<B: Backend>(&self, device: &B::Device) -> RmsNorm<B> {
+    pub fn init(&self, device: &Device) -> RmsNorm {
         assert!(self.epsilon > 0.0, "epsilon must be positive.");
 
         let gamma = Initializer::Ones.init([self.d_model], device);
@@ -52,14 +52,14 @@ impl RmsNormConfig {
 /// Should be created using the [RmsNormConfig](RmsNormConfig) configuration.
 #[derive(Module, Debug)]
 #[module(custom_display)]
-pub struct RmsNorm<B: Backend> {
+pub struct RmsNorm {
     /// The learnable parameter to scale the normalized tensor
-    pub gamma: Param<Tensor<B, 1>>,
+    pub gamma: Param<Tensor<1>>,
     /// A value required for numerical stability
     pub epsilon: f64,
 }
 
-impl<B: Backend> RmsNorm<B> {
+impl RmsNorm {
     /// Applies the forward pass on the input tensor.
     ///
     /// See the [RmsNorm](RmsNorm) documentation for more information.
@@ -68,7 +68,7 @@ impl<B: Backend> RmsNorm<B> {
     ///
     /// - input: `[..., any, d_model]`
     /// - output: `[..., any, d_model]`
-    pub fn forward<const D: usize>(&self, x: Tensor<B, D>) -> Tensor<B, D> {
+    pub fn forward<const D: usize>(&self, x: Tensor<D>) -> Tensor<D> {
         // Calculate the root-mean-square norm of the input tensor along the last dimension
         let dtype = x.dtype();
         let rms = (x.clone().cast(DType::F32).square().mean_dim(D - 1) + self.epsilon).sqrt();
@@ -76,7 +76,7 @@ impl<B: Backend> RmsNorm<B> {
     }
 }
 
-impl<B: Backend> ModuleDisplay for RmsNorm<B> {
+impl ModuleDisplay for RmsNorm {
     fn custom_settings(&self) -> Option<DisplaySettings> {
         DisplaySettings::new()
             .with_new_line_after_attribute(false)
@@ -95,18 +95,15 @@ impl<B: Backend> ModuleDisplay for RmsNorm<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::TestBackend;
     use alloc::format;
     use burn::tensor::TensorData;
-    use burn::tensor::{Tolerance, ops::FloatElem};
-    type FT = FloatElem<TestBackend>;
+    use burn::tensor::Tolerance;
+    type FT = f32;
 
     #[test]
     fn rms_norm_forward() {
         let device = Default::default();
-        let module = RmsNormConfig::new(3)
-            .with_epsilon(1e-5)
-            .init::<TestBackend>(&device);
+        let module = RmsNormConfig::new(3).with_epsilon(1e-5).init(&device);
 
         let input = Tensor::arange(0..9, &device).float().reshape([3, 3]);
         let output = module.forward(input);
@@ -124,7 +121,7 @@ mod tests {
     #[test]
     fn display() {
         let config = RmsNormConfig::new(6);
-        let layer_norm = config.init::<TestBackend>(&Default::default());
+        let layer_norm = config.init(&Default::default());
 
         assert_eq!(
             format!("{layer_norm}"),

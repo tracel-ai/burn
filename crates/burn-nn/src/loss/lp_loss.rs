@@ -1,7 +1,7 @@
 use super::Reduction;
 use burn::config::Config;
 use burn::module::Module;
-use burn::tensor::{Tensor, backend::Backend};
+use burn::tensor::Tensor;
 use burn_core as burn;
 
 /// Configuration for the [Lp Loss](LpLoss) module.
@@ -110,7 +110,7 @@ impl LpLossConfig {
 /// // Compute loss with no reduction
 /// let unreduced_l2_loss = l2_loss.forward_no_reduction(predictions, targets);
 /// ```
-#[derive(Module, Clone, Debug)]
+#[derive(Module, Debug)]
 pub struct LpLoss {
     /// The order of the norm (e.g., 1 for L1, 2 for L2).
     /// Equivalently, the exponent `p` for computing `|error|^p`.
@@ -137,12 +137,12 @@ impl LpLoss {
     /// - predictions: `[...dims]` - Any shape
     /// - targets: `[...dims]` - Must match predictions shape
     /// - output: `[1]` - Scalar loss value
-    pub fn forward<const D: usize, B: Backend>(
+    pub fn forward<const D: usize>(
         &self,
-        predictions: Tensor<B, D>,
-        targets: Tensor<B, D>,
+        predictions: Tensor<D>,
+        targets: Tensor<D>,
         reduction: Reduction,
-    ) -> Tensor<B, 1> {
+    ) -> Tensor<1> {
         let unreduced_loss = self.forward_no_reduction(predictions, targets);
 
         match reduction {
@@ -169,11 +169,11 @@ impl LpLoss {
     /// - predictions: `[...dims]` - Any shape
     /// - targets: `[...dims]` - Must match predictions shape
     /// - output: `[...dims]` - Same shape as inputs
-    pub fn forward_no_reduction<const D: usize, B: Backend>(
+    pub fn forward_no_reduction<const D: usize>(
         &self,
-        predictions: Tensor<B, D>,
-        targets: Tensor<B, D>,
-    ) -> Tensor<B, D> {
+        predictions: Tensor<D>,
+        targets: Tensor<D>,
+    ) -> Tensor<D> {
         let error = predictions.sub(targets);
 
         // Use simplified/optimized expressions for common cases (p = 1, p = 2)
@@ -216,12 +216,12 @@ impl LpLoss {
     /// // Per-image MSE for PSNR: reduce over C, H, W → [batch, 1, 1, 1]
     /// let mse_per_image = l2_loss.forward_reduce_dims(predictions, targets, &[1, 2, 3]);
     /// ```
-    pub fn forward_reduce_dims<const D: usize, B: Backend>(
+    pub fn forward_reduce_dims<const D: usize>(
         &self,
-        predictions: Tensor<B, D>,
-        targets: Tensor<B, D>,
+        predictions: Tensor<D>,
+        targets: Tensor<D>,
         dims: &[usize],
-    ) -> Tensor<B, D> {
+    ) -> Tensor<D> {
         let error = self.forward_no_reduction(predictions, targets);
 
         // Sort the dimensions to ascending order
@@ -236,10 +236,9 @@ impl LpLoss {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::TestBackend;
     use burn::tensor::TensorData;
-    use burn::tensor::{Tolerance, ops::FloatElem};
-    type FT = FloatElem<TestBackend>;
+    use burn::tensor::Tolerance;
+    type FT = f32;
 
     #[test]
     fn test_lp_loss_l1_constructor() {
@@ -260,15 +259,10 @@ mod tests {
     #[test]
     fn test_lp_loss_l1() {
         let device = Default::default();
-        let predictions = Tensor::<TestBackend, 2>::from_data(
-            TensorData::from([[1.0, 2.0], [3.0, 4.0]]),
-            &device,
-        );
+        let predictions =
+            Tensor::<2>::from_data(TensorData::from([[1.0, 2.0], [3.0, 4.0]]), &device);
 
-        let targets = Tensor::<TestBackend, 2>::from_data(
-            TensorData::from([[2.0, 1.0], [3.0, 2.0]]),
-            &device,
-        );
+        let targets = Tensor::<2>::from_data(TensorData::from([[2.0, 1.0], [3.0, 2.0]]), &device);
 
         let loss_func = LpLossConfig::l1();
         let loss_no_reduction =
@@ -289,15 +283,10 @@ mod tests {
     #[test]
     fn test_lp_loss_l2() {
         let device = Default::default();
-        let predictions = Tensor::<TestBackend, 2>::from_data(
-            TensorData::from([[1.0, 2.0], [3.0, 4.0]]),
-            &device,
-        );
+        let predictions =
+            Tensor::<2>::from_data(TensorData::from([[1.0, 2.0], [3.0, 4.0]]), &device);
 
-        let targets = Tensor::<TestBackend, 2>::from_data(
-            TensorData::from([[2.0, 1.0], [3.0, 2.0]]),
-            &device,
-        );
+        let targets = Tensor::<2>::from_data(TensorData::from([[2.0, 1.0], [3.0, 2.0]]), &device);
 
         let loss_func = LpLossConfig::l2();
         let loss_no_reduction =
@@ -319,15 +308,10 @@ mod tests {
     fn test_lp_loss_p_half() {
         // L0.5 quasi-norm: more robust to outliers than L1
         let device = Default::default();
-        let predictions = Tensor::<TestBackend, 2>::from_data(
-            TensorData::from([[1.0, 2.0], [3.0, 4.0]]),
-            &device,
-        );
+        let predictions =
+            Tensor::<2>::from_data(TensorData::from([[1.0, 2.0], [3.0, 4.0]]), &device);
 
-        let targets = Tensor::<TestBackend, 2>::from_data(
-            TensorData::from([[2.0, 1.0], [3.0, 0.0]]),
-            &device,
-        );
+        let targets = Tensor::<2>::from_data(TensorData::from([[2.0, 1.0], [3.0, 0.0]]), &device);
 
         let loss_func = LpLossConfig::new(0.5).init();
         let loss_no_reduction =
@@ -350,15 +334,10 @@ mod tests {
     fn test_lp_loss_p3() {
         // L3 norm: more sensitive to outliers than L2
         let device = Default::default();
-        let predictions = Tensor::<TestBackend, 2>::from_data(
-            TensorData::from([[1.0, 2.0], [3.0, 4.0]]),
-            &device,
-        );
+        let predictions =
+            Tensor::<2>::from_data(TensorData::from([[1.0, 2.0], [3.0, 4.0]]), &device);
 
-        let targets = Tensor::<TestBackend, 2>::from_data(
-            TensorData::from([[2.0, 1.0], [3.0, 2.0]]),
-            &device,
-        );
+        let targets = Tensor::<2>::from_data(TensorData::from([[2.0, 1.0], [3.0, 2.0]]), &device);
 
         let loss_func = LpLossConfig::new(3.0).init();
         let loss_no_reduction =
@@ -381,10 +360,8 @@ mod tests {
     fn test_lp_loss_zero_error() {
         // Test when predictions exactly match targets
         let device = Default::default();
-        let predictions = Tensor::<TestBackend, 2>::from_data(
-            TensorData::from([[1.0, 2.0], [3.0, 4.0]]),
-            &device,
-        );
+        let predictions =
+            Tensor::<2>::from_data(TensorData::from([[1.0, 2.0], [3.0, 4.0]]), &device);
 
         let targets = predictions.clone();
 
@@ -403,10 +380,8 @@ mod tests {
     fn test_lp_loss_negative_errors() {
         // Test that negative errors are handled correctly (absolute value)
         let device = Default::default();
-        let predictions =
-            Tensor::<TestBackend, 1>::from_data(TensorData::from([1.0, 2.0, 3.0]), &device);
-        let targets =
-            Tensor::<TestBackend, 1>::from_data(TensorData::from([3.0, 4.0, 5.0]), &device);
+        let predictions = Tensor::<1>::from_data(TensorData::from([1.0, 2.0, 3.0]), &device);
+        let targets = Tensor::<1>::from_data(TensorData::from([3.0, 4.0, 5.0]), &device);
         let loss_func_l1 = LpLossConfig::l1();
         let loss_func_p1 = LpLossConfig::new(1.0).init();
 
@@ -423,11 +398,11 @@ mod tests {
     #[test]
     fn test_lp_loss_3d_tensor() {
         let device = Default::default();
-        let predictions = Tensor::<TestBackend, 3>::from_data(
+        let predictions = Tensor::<3>::from_data(
             TensorData::from([[[1.0, 2.0], [3.0, 4.0]], [[5.0, 6.0], [7.0, 8.0]]]),
             &device,
         );
-        let targets = Tensor::<TestBackend, 3>::from_data(
+        let targets = Tensor::<3>::from_data(
             TensorData::from([[[0.0, 2.0], [3.0, 5.0]], [[4.0, 6.0], [7.0, 10.0]]]),
             &device,
         );
@@ -461,10 +436,9 @@ mod tests {
     fn test_lp_loss_fractional_p() {
         // Test p = 1.5
         let device = Default::default();
-        let predictions =
-            Tensor::<TestBackend, 1>::from_data(TensorData::from([0.0, 4.0]), &device);
+        let predictions = Tensor::<1>::from_data(TensorData::from([0.0, 4.0]), &device);
 
-        let targets = Tensor::<TestBackend, 1>::from_data(TensorData::from([1.0, 0.0]), &device);
+        let targets = Tensor::<1>::from_data(TensorData::from([1.0, 0.0]), &device);
 
         let loss_func = LpLossConfig::new(1.5).init();
         let loss_no_reduction = loss_func.forward_no_reduction(predictions, targets);
@@ -478,11 +452,11 @@ mod tests {
     fn test_forward_reduce_dims_single_dim() {
         let device = Default::default();
         // Shape: [2, 3]
-        let predictions = Tensor::<TestBackend, 2>::from_data(
+        let predictions = Tensor::<2>::from_data(
             TensorData::from([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]),
             &device,
         );
-        let targets = Tensor::<TestBackend, 2>::from_data(
+        let targets = Tensor::<2>::from_data(
             TensorData::from([[0.0, 2.0, 6.0], [1.0, 5.0, 6.0]]),
             &device,
         );
@@ -508,11 +482,11 @@ mod tests {
     fn test_forward_reduce_dims_first_dim() {
         let device = Default::default();
         // Shape: [2, 3]
-        let predictions = Tensor::<TestBackend, 2>::from_data(
+        let predictions = Tensor::<2>::from_data(
             TensorData::from([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]),
             &device,
         );
-        let targets = Tensor::<TestBackend, 2>::from_data(
+        let targets = Tensor::<2>::from_data(
             TensorData::from([[0.0, 2.0, 6.0], [1.0, 5.0, 6.0]]),
             &device,
         );
@@ -532,11 +506,11 @@ mod tests {
     fn test_forward_reduce_dims_multiple_dims() {
         let device = Default::default();
         // Shape: [2, 2, 2]
-        let predictions = Tensor::<TestBackend, 3>::from_data(
+        let predictions = Tensor::<3>::from_data(
             TensorData::from([[[1.0, 2.0], [3.0, 4.0]], [[5.0, 6.0], [7.0, 8.0]]]),
             &device,
         );
-        let targets = Tensor::<TestBackend, 3>::from_data(
+        let targets = Tensor::<3>::from_data(
             TensorData::from([[[0.0, 2.0], [3.0, 6.0]], [[4.0, 6.0], [7.0, 10.0]]]),
             &device,
         );
@@ -556,14 +530,9 @@ mod tests {
     fn test_forward_reduce_dims_all_dims() {
         let device = Default::default();
         // Shape: [2, 2]
-        let predictions = Tensor::<TestBackend, 2>::from_data(
-            TensorData::from([[1.0, 2.0], [3.0, 4.0]]),
-            &device,
-        );
-        let targets = Tensor::<TestBackend, 2>::from_data(
-            TensorData::from([[2.0, 1.0], [3.0, 2.0]]),
-            &device,
-        );
+        let predictions =
+            Tensor::<2>::from_data(TensorData::from([[1.0, 2.0], [3.0, 4.0]]), &device);
+        let targets = Tensor::<2>::from_data(TensorData::from([[2.0, 1.0], [3.0, 2.0]]), &device);
         let loss_func = LpLossConfig::l2();
 
         // Reduce over all dims -> should give [1, 1] shape
@@ -580,14 +549,14 @@ mod tests {
         // Simulate per-image loss for [batch, C, H, W] tensor (common use case for PSNR)
         let device = Default::default();
         // Shape: [2, 1, 2, 2] (batch=2, C=1, H=2, W=2)
-        let predictions = Tensor::<TestBackend, 4>::from_data(
+        let predictions = Tensor::<4>::from_data(
             TensorData::from([
                 [[[1.0, 2.0], [3.0, 4.0]]], // Image 1
                 [[[5.0, 6.0], [7.0, 8.0]]], // Image 2
             ]),
             &device,
         );
-        let targets = Tensor::<TestBackend, 4>::from_data(
+        let targets = Tensor::<4>::from_data(
             TensorData::from([
                 [[[0.0, 2.0], [3.0, 6.0]]], // Target 1
                 [[[5.0, 5.0], [7.0, 7.0]]], // Target 2
@@ -610,11 +579,11 @@ mod tests {
     fn test_forward_reduce_dims_with_p1() {
         let device = Default::default();
         // Shape: [2, 3]
-        let predictions = Tensor::<TestBackend, 2>::from_data(
+        let predictions = Tensor::<2>::from_data(
             TensorData::from([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]),
             &device,
         );
-        let targets = Tensor::<TestBackend, 2>::from_data(
+        let targets = Tensor::<2>::from_data(
             TensorData::from([[0.0, 5.0, 3.0], [1.0, 5.0, 9.0]]),
             &device,
         );
@@ -634,14 +603,9 @@ mod tests {
     fn test_forward_reduce_dims_empty_dims() {
         // Reducing over no dimensions should return the unreduced loss
         let device = Default::default();
-        let predictions = Tensor::<TestBackend, 2>::from_data(
-            TensorData::from([[1.0, 2.0], [3.0, 4.0]]),
-            &device,
-        );
-        let targets = Tensor::<TestBackend, 2>::from_data(
-            TensorData::from([[0.0, 2.0], [3.0, 6.0]]),
-            &device,
-        );
+        let predictions =
+            Tensor::<2>::from_data(TensorData::from([[1.0, 2.0], [3.0, 4.0]]), &device);
+        let targets = Tensor::<2>::from_data(TensorData::from([[0.0, 2.0], [3.0, 6.0]]), &device);
         let loss_func = LpLossConfig::l2();
         let loss_reduce_dims =
             loss_func.forward_reduce_dims(predictions.clone(), targets.clone(), &[]);
@@ -657,7 +621,7 @@ mod tests {
     fn test_forward_reduce_dims_zero_error() {
         let device = Default::default();
         // Shape: [2, 2, 2]
-        let predictions = Tensor::<TestBackend, 3>::from_data(
+        let predictions = Tensor::<3>::from_data(
             TensorData::from([[[1.0, 2.0], [3.0, 4.0]], [[5.0, 6.0], [7.0, 8.0]]]),
             &device,
         );

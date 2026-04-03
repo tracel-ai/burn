@@ -170,10 +170,38 @@ impl Device {
         Dispatch::seed(&self.dispatch, seed)
     }
 
+    /// Returns `true` if autodiff (gradient tracking) is enabled on this device.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let device = Device::default();
+    /// assert!(!device.is_autodiff());
+    ///
+    /// let ad_device = device.autodiff();
+    /// assert!(ad_device.is_autodiff());
+    /// ```
+    pub fn is_autodiff(&self) -> bool {
+        Dispatch::ad_enabled(&self.dispatch)
+    }
+
     /// Returns the default [quantization scheme](QuantScheme) for this device.
     pub fn default_quant_scheme(&self) -> QuantScheme {
         // TODO: maybe in device settings?
         Dispatch::default_quant_scheme(&self.dispatch)
+    }
+
+    /// Sets the current allocation mode to persistent.
+    pub fn memory_persistent_allocations<
+        Output: Send,
+        Input: Send,
+        Func: Fn(Input) -> Output + Send,
+    >(
+        &self,
+        input: Input,
+        func: Func,
+    ) -> Output {
+        Dispatch::memory_persistent_allocations(&self.dispatch, input, func)
     }
 
     /// Returns the [`DeviceSettings`] for this device.

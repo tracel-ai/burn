@@ -8,15 +8,16 @@ pub trait Basic: backend::BasicOps<Dispatch> {}
 impl<K: backend::BasicOps<Dispatch>> Basic for K {}
 
 /// Kinds that support numeric operations.
-pub trait Numeric: backend::Numeric<Dispatch> {}
+pub trait Numeric: Basic + backend::Numeric<Dispatch> {}
 
-impl<K: backend::Numeric<Dispatch>> Numeric for K {}
+impl<K: Basic + backend::Numeric<Dispatch>> Numeric for K {}
 
 /// Kinds that support ordered operations.
-pub trait Ordered: backend::Ordered<Dispatch> + Numeric {}
-impl<K: backend::Ordered<Dispatch>> Ordered for K {}
+pub trait Ordered: Numeric + backend::Ordered<Dispatch> {}
+impl<K: Numeric + backend::Ordered<Dispatch>> Ordered for K {}
 
-// Not required, should be part of basic ops
-// /// Kinds that support autodiff operations.
-// pub trait Autodiff: backend::BasicAutodiffOps<Dispatch> + {}
-// impl<K: backend::BasicAutodiffOps<Dispatch>> Autodiff for K {}
+/// Kinds that support autodiff operations.
+// #[cfg(feature = "autodiff")]
+pub trait Autodiff: Basic + backend::BasicAutodiffOps<Dispatch> {}
+// #[cfg(feature = "autodiff")]
+impl<K: backend::BasicAutodiffOps<Dispatch, InnerKind = K>> Autodiff for K {}

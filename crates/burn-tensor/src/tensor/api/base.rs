@@ -74,10 +74,10 @@ use serde::{Serialize, Serializer};
 #[derive(new, Clone, Debug)]
 pub struct Tensor<const D: usize, K = Float>
 where
-    K: TensorKind<Dispatch>,
+    K: Basic,
 {
     // TODO: float tensor primitive no longer needs to be a wrapped enum?
-    pub(crate) primitive: K::Primitive,
+    pub(crate) primitive: <K as TensorKind<Dispatch>>::Primitive,
 }
 
 impl<const D: usize, K, T> From<T> for Tensor<D, K>

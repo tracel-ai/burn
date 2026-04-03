@@ -10,8 +10,8 @@ use burn::module::Initializer;
 use burn::module::Module;
 use burn::module::ModuleDisplay;
 use burn::module::Param;
+use burn::tensor::Device;
 use burn::tensor::Tensor;
-use burn::tensor::backend::Backend;
 use burn::tensor::module::conv_transpose1d;
 use burn::tensor::ops::ConvTransposeOptions;
 
@@ -51,11 +51,11 @@ pub struct ConvTranspose1dConfig {
 /// Applies a 1D transposed convolution over input tensors.
 #[derive(Module, Debug)]
 #[module(custom_display)]
-pub struct ConvTranspose1d<B: Backend> {
+pub struct ConvTranspose1d {
     /// Tensor of shape `[channels_in, channels_out / groups, kernel_size]`
-    pub weight: Param<Tensor<B, 3>>,
+    pub weight: Param<Tensor<3>>,
     /// Tensor of shape `[channels_out]`
-    pub bias: Option<Param<Tensor<B, 1>>>,
+    pub bias: Option<Param<Tensor<1>>>,
     /// Stride of the convolution.
     pub stride: usize,
     /// Size of the kernel.
@@ -72,7 +72,7 @@ pub struct ConvTranspose1d<B: Backend> {
     pub channels: [usize; 2],
 }
 
-impl<B: Backend> ModuleDisplay for ConvTranspose1d<B> {
+impl ModuleDisplay for ConvTranspose1d {
     fn custom_settings(&self) -> Option<DisplaySettings> {
         DisplaySettings::new()
             .with_new_line_after_attribute(false)
@@ -94,7 +94,7 @@ impl<B: Backend> ModuleDisplay for ConvTranspose1d<B> {
 
 impl ConvTranspose1dConfig {
     /// Initialize a new [conv transpose 1d](ConvTranspose1d) module.
-    pub fn init<B: Backend>(&self, device: &B::Device) -> ConvTranspose1d<B> {
+    pub fn init(&self, device: &Device) -> ConvTranspose1d {
         checks::checks_channels_div_groups(self.channels[0], self.channels[1], self.groups);
 
         let shape = [
@@ -130,7 +130,7 @@ impl ConvTranspose1dConfig {
     }
 }
 
-impl<B: Backend> ConvTranspose1d<B> {
+impl ConvTranspose1d {
     /// Applies the forward pass on the input tensor.
     ///
     /// See also [conv_transpose1d](burn::tensor::module::conv_transpose1d).
@@ -139,7 +139,7 @@ impl<B: Backend> ConvTranspose1d<B> {
     ///
     /// - input: `[batch_size, channels_in, length_in]`
     /// - output: `[batch_size, channels_out, length_out]`
-    pub fn forward(&self, input: Tensor<B, 3>) -> Tensor<B, 3> {
+    pub fn forward(&self, input: Tensor<3>) -> Tensor<3> {
         conv_transpose1d(
             input,
             self.weight.val(),
@@ -157,34 +157,32 @@ impl<B: Backend> ConvTranspose1d<B> {
 
 #[cfg(test)]
 mod tests {
-    use burn::tensor::ops::FloatElem;
     use burn::tensor::{ElementConversion, Tolerance};
 
     use super::*;
-    use crate::TestBackend;
     use burn::tensor::TensorData;
-    type FT = FloatElem<TestBackend>;
+    type FT = f32;
 
     #[test]
     fn initializer_default() {
-        let device = Default::default();
-        TestBackend::seed(&device, 0);
+        let device = Device::default();
+        device.seed(0);
 
         let config = ConvTranspose1dConfig::new([5, 1], 5);
         let k = (config.channels[1] * config.kernel_size) as f64;
         let k = (config.groups as f64 / k).sqrt().elem::<FT>();
-        let conv = config.init::<TestBackend>(&Default::default());
+        let conv = config.init(&device);
 
         conv.weight.to_data().assert_within_range(-k..k);
     }
 
     #[test]
     fn initializer_zeros() {
-        let device = Default::default();
-        TestBackend::seed(&device, 0);
+        let device = Device::default();
+        device.seed(0);
 
         let config = ConvTranspose1dConfig::new([5, 2], 5).with_initializer(Initializer::Zeros);
-        let conv = config.init::<TestBackend>(&Default::default());
+        let conv = config.init(&device);
 
         assert_eq!(config.initializer, Initializer::Zeros);
         conv.weight.to_data().assert_approx_eq::<f32>(
@@ -196,7 +194,7 @@ mod tests {
     #[test]
     fn display() {
         let config = ConvTranspose1dConfig::new([5, 2], 5);
-        let conv = config.init::<TestBackend>(&Default::default());
+        let conv = config.init(&Default::default());
 
         assert_eq!(
             format!("{conv}"),
@@ -208,9 +206,9 @@ mod tests {
     #[should_panic = "Number of channels in input tensor and input channels of convolution must be equal. got: 4, expected: 5"]
     fn input_channels_mismatch() {
         let config = ConvTranspose1dConfig::new([5, 3], 3);
-        let conv = config.init::<TestBackend>(&Default::default());
+        let conv = config.init(&Default::default());
 
-        let input = Tensor::<TestBackend, 3>::zeros([1, 4, 10], &Default::default());
+        let input = Tensor::<3>::zeros([1, 4, 10], &Default::default());
         let _ = conv.forward(input);
     }
 }
