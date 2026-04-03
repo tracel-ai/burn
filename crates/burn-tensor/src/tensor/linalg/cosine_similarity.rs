@@ -1,4 +1,5 @@
 use crate::ElementConversion;
+use crate::FloatDType;
 use crate::backend::Backend;
 use crate::tensor::Tensor;
 
@@ -27,7 +28,7 @@ pub fn cosine_similarity<B: Backend, const D: usize>(
     eps: Option<B::FloatElem>,
 ) -> Tensor<B, D> {
     let eps = eps.unwrap_or_else(|| {
-        let tiny = x1.dtype().finfo().expect("float tensor").tiny;
+        let tiny = x1.dtype().finfo().unwrap_or(FloatDType::F32.finfo()).tiny;
         B::FloatElem::from_elem(tiny)
     });
 
