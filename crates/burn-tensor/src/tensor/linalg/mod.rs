@@ -1,7 +1,6 @@
 mod cosine_similarity;
 mod diag;
 mod lu;
-mod lu_decomp;
 mod lu_decomposition;
 mod matvec;
 mod outer;
