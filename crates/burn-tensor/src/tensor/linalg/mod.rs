@@ -10,7 +10,6 @@ mod vector_norm;
 pub use cosine_similarity::*;
 pub use diag::*;
 pub use lu::*;
-pub use lu_decomp::*;
 pub use lu_decomposition::*;
 pub use matvec::*;
 pub use outer::*;
