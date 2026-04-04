@@ -2,13 +2,11 @@ use std::sync::Arc;
 
 use burn_ir::HandleContainer;
 
-use crate::{FusionRuntime, NumOperations, Optimization, stream::Context};
-
-use super::Operation;
+use crate::{FusionRuntime, NumOperations, Optimization, UnfusedOp, stream::Context};
 
 /// Manage the execution of potentially multiple optimizations and operations out of order.
 pub struct OrderedExecution<R: FusionRuntime> {
-    operations: Vec<Arc<dyn Operation<R>>>,
+    operations: Vec<UnfusedOp<R>>,
     num_executed: usize,
     ordering: Option<Arc<Vec<usize>>>,
 }
@@ -18,7 +16,7 @@ impl<R: FusionRuntime> OrderedExecution<R> {
     ///
     /// This is useful to implement fallback for optimizations.
     #[allow(clippy::borrowed_box)]
-    pub fn operation_within_optimization(&self, index: usize) -> Arc<dyn Operation<R>> {
+    pub fn operation_within_optimization(&self, index: usize) -> UnfusedOp<R> {
         match &self.ordering {
             Some(val) => {
                 let index = val[index];
@@ -28,7 +26,7 @@ impl<R: FusionRuntime> OrderedExecution<R> {
         }
     }
 
-    pub(crate) fn new(operations: Vec<Arc<dyn Operation<R>>>) -> Self {
+    pub(crate) fn new(operations: Vec<UnfusedOp<R>>) -> Self {
         Self {
             operations,
             num_executed: 0,
@@ -36,7 +34,7 @@ impl<R: FusionRuntime> OrderedExecution<R> {
         }
     }
 
-    pub(crate) fn finish(mut self) -> (Vec<Arc<dyn Operation<R>>>, usize) {
+    pub(crate) fn finish(mut self) -> (Vec<UnfusedOp<R>>, usize) {
         self.operations.drain(0..self.num_executed);
         (self.operations, self.num_executed)
     }

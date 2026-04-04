@@ -3,24 +3,25 @@ use burn_backend::{
     ops::BoolTensorOps,
     tensor::{BoolTensor, Device, FloatTensor, IntTensor},
 };
+use burn_std::{BoolDType, FloatDType, IntDType};
 
 use crate::{
-    Candle, CandleTensor,
+    Candle, CandleTensor, IntoDType,
     element::{CandleElement, FloatCandleElement, IntCandleElement},
 };
 
 use super::base::{expand, permute, unfold};
 
 impl<F: FloatCandleElement, I: IntCandleElement> BoolTensorOps<Self> for Candle<F, I> {
-    fn bool_empty(shape: Shape, device: &Device<Self>) -> BoolTensor<Self> {
+    fn bool_empty(shape: Shape, device: &Device<Self>, _dtype: BoolDType) -> BoolTensor<Self> {
         super::base::empty(shape, device, candle_core::DType::U8)
     }
 
-    fn bool_zeros(shape: Shape, device: &Device<Self>) -> BoolTensor<Self> {
+    fn bool_zeros(shape: Shape, device: &Device<Self>, _dtype: BoolDType) -> BoolTensor<Self> {
         super::base::zeros(shape, device, candle_core::DType::U8)
     }
 
-    fn bool_ones(shape: Shape, device: &Device<Self>) -> BoolTensor<Self> {
+    fn bool_ones(shape: Shape, device: &Device<Self>, _dtype: BoolDType) -> BoolTensor<Self> {
         super::base::ones(shape, device, candle_core::DType::U8)
     }
 
@@ -50,12 +51,12 @@ impl<F: FloatCandleElement, I: IntCandleElement> BoolTensorOps<Self> for Candle<
         }
     }
 
-    fn bool_into_int(tensor: BoolTensor<Self>) -> IntTensor<Self> {
-        CandleTensor::new(tensor.tensor.to_dtype(I::DTYPE).unwrap())
+    fn bool_into_int(tensor: BoolTensor<Self>, out_dtype: IntDType) -> IntTensor<Self> {
+        CandleTensor::new(tensor.tensor.to_dtype(out_dtype.into_dtype()).unwrap())
     }
 
-    fn bool_into_float(tensor: BoolTensor<Self>) -> FloatTensor<Self> {
-        CandleTensor::new(tensor.tensor.to_dtype(F::DTYPE).unwrap())
+    fn bool_into_float(tensor: BoolTensor<Self>, out_dtype: FloatDType) -> FloatTensor<Self> {
+        CandleTensor::new(tensor.tensor.to_dtype(out_dtype.into_dtype()).unwrap())
     }
 
     fn bool_device(tensor: &BoolTensor<Self>) -> Device<Self> {

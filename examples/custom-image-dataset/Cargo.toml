@@ -27,4 +27,4 @@ burn = { path = "../../crates/burn", features = [
 
 # File download
 flate2 = { workspace = true }
-tar = "0.4.44"
+tar = { workspace = true }

@@ -1,5 +1,6 @@
-use crate::{Bool, Int, Shape, Tensor, TensorData, TensorPrimitive, backend::Backend};
+use crate::{Bool, Cast, Int, Shape, Tensor, TensorData, TensorPrimitive, backend::Backend};
 use alloc::{vec, vec::Vec};
+use burn_backend::get_device_settings;
 
 use crate::try_read_sync;
 
@@ -43,7 +44,7 @@ where
     /// }
     /// ```
     pub fn from_bool(data: TensorData, device: &B::Device) -> Self {
-        Self::new(B::bool_from_data(data.convert::<B::BoolElem>(), device))
+        Self::from_data(data, device)
     }
 
     /// Convert the bool tensor into an int tensor.
@@ -66,7 +67,8 @@ where
     /// }
     /// ```
     pub fn int(self) -> Tensor<B, D, Int> {
-        Tensor::new(B::bool_into_int(self.primitive))
+        let out_dtype = get_device_settings::<B>(&self.device()).int_dtype;
+        Tensor::new(B::bool_into_int(self.primitive, out_dtype))
     }
 
     /// Convert the bool tensor into a float tensor.
@@ -89,7 +91,38 @@ where
     /// }
     /// ```
     pub fn float(self) -> Tensor<B, D> {
-        Tensor::new(TensorPrimitive::Float(B::bool_into_float(self.primitive)))
+        let out_dtype = get_device_settings::<B>(&self.device()).float_dtype;
+        Tensor::new(TensorPrimitive::Float(B::bool_into_float(
+            self.primitive,
+            out_dtype,
+        )))
+    }
+
+    /// Converts a bool tensor to the specified data type.
+    ///
+    /// Supports casting to [`IntDType`](crate::IntDType) (producing an int tensor)
+    /// or [`FloatDType`](crate::FloatDType) (producing a float tensor).
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Bool, IntDType, FloatDType};
+    ///
+    /// fn example<B: Backend>() {
+    ///     let device = Default::default();
+    ///     let bool_tensor = Tensor::<B, 1, Bool>::from_bool([true, false, true].into(), &device);
+    ///
+    ///     // Cast to int
+    ///     let int_tensor = bool_tensor.clone().cast(IntDType::I64);
+    ///
+    ///     // Cast to float
+    ///     let float_tensor = bool_tensor.cast(FloatDType::F32);
+    /// }
+    /// ```
+    #[must_use]
+    pub fn cast<T: Cast<B, Bool>>(self, dtype: T) -> Tensor<B, D, T::OutputKind> {
+        Tensor::new(T::cast(self.primitive, dtype))
     }
 
     /// Inverses boolean values.
@@ -282,7 +315,8 @@ where
     /// A tensor containing the indices of all non-zero elements of the given tensor. Each row in the
     /// result contains the indices of a non-zero element.
     pub async fn argwhere_async(self) -> Tensor<B, 2, Int> {
-        Tensor::new(B::bool_argwhere(self.primitive).await)
+        let out_dtype = get_device_settings::<B>(&self.device()).int_dtype;
+        Tensor::new(B::bool_argwhere(self.primitive, out_dtype).await)
     }
 
     /// Creates a mask for the upper, lower triangle, or diagonal of a matrix, which can be used to

@@ -1,3 +1,5 @@
+use alloc::boxed::Box;
+
 use burn_backend::{DeviceId, DeviceOps};
 
 use crate::backends::*;
@@ -39,9 +41,9 @@ pub enum DispatchDevice {
     #[cfg(wgpu_vulkan)]
     Vulkan(WgpuDevice),
 
-    /// The [WebGPU backend](WebGpu) device (via WGPU runtime).
+    /// The [WebGPU backend](Wgpu) device (via WGPU runtime).
     #[cfg(wgpu_webgpu)]
-    WebGpu(WgpuDevice),
+    Wgpu(WgpuDevice),
 
     /// The [NdArray backend](NdArray) device (CPU-only).
     #[cfg(feature = "ndarray")]
@@ -111,7 +113,7 @@ pub(crate) fn validate_checkpointing(
 }
 
 impl core::fmt::Debug for DispatchDevice {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             #[cfg(feature = "cpu")]
             Self::Cpu(device) => f.debug_tuple("Cpu").field(device).finish(),
@@ -124,7 +126,7 @@ impl core::fmt::Debug for DispatchDevice {
             #[cfg(wgpu_vulkan)]
             Self::Vulkan(device) => f.debug_tuple("Vulkan").field(device).finish(),
             #[cfg(wgpu_webgpu)]
-            Self::WebGpu(device) => f.debug_tuple("WebGpu").field(device).finish(),
+            Self::Wgpu(device) => f.debug_tuple("Wgpu").field(device).finish(),
             #[cfg(feature = "ndarray")]
             Self::NdArray(device) => f.debug_tuple("NdArray").field(device).finish(),
             #[cfg(feature = "tch")]
@@ -141,9 +143,6 @@ impl Default for DispatchDevice {
     fn default() -> Self {
         // TODO: which priority?
 
-        #[cfg(feature = "cpu")]
-        return Self::Cpu(CpuDevice);
-
         #[cfg(feature = "cuda")]
         return Self::Cuda(CudaDevice::default());
 
@@ -157,13 +156,16 @@ impl Default for DispatchDevice {
         return Self::Vulkan(burn_wgpu::WgpuDevice::default());
 
         #[cfg(wgpu_webgpu)]
-        return Self::WebGpu(burn_wgpu::WgpuDevice::default());
+        return Self::Wgpu(burn_wgpu::WgpuDevice::default());
 
-        #[cfg(feature = "ndarray")]
-        return Self::NdArray(NdArrayDevice::default());
+        #[cfg(feature = "cpu")]
+        return Self::Cpu(CpuDevice);
 
         #[cfg(feature = "tch")]
         return Self::LibTorch(LibTorchDevice::default());
+
+        #[cfg(feature = "ndarray")]
+        return Self::NdArray(NdArrayDevice::default());
     }
 }
 
@@ -189,7 +191,7 @@ impl PartialEq for DispatchDevice {
             #[cfg(wgpu_vulkan)]
             (Self::Vulkan(a), Self::Vulkan(b)) => a == b,
             #[cfg(wgpu_webgpu)]
-            (Self::WebGpu(a), Self::WebGpu(b)) => a == b,
+            (Self::Wgpu(a), Self::Wgpu(b)) => a == b,
             #[cfg(feature = "ndarray")]
             (Self::NdArray(a), Self::NdArray(b)) => a == b,
             #[cfg(feature = "tch")]
@@ -234,7 +236,7 @@ impl DispatchDevice {
             #[cfg(wgpu_vulkan)]
             Self::Vulkan(_) => BackendId::Vulkan,
             #[cfg(wgpu_webgpu)]
-            Self::WebGpu(_) => BackendId::WebGpu,
+            Self::Wgpu(_) => BackendId::Wgpu,
             #[cfg(feature = "ndarray")]
             Self::NdArray(_) => BackendId::NdArray,
             #[cfg(feature = "tch")]
@@ -250,7 +252,7 @@ impl DispatchDevice {
     }
 
     /// Decode an encoded `type_id` into variant ID and backend type ID.
-    fn decode_type_id(type_id: u16) -> (BackendId, u16) {
+    pub(crate) fn decode_type_id(type_id: u16) -> (BackendId, u16) {
         let variant = type_id / TYPE_ID_BASE;
         let backend_type_id = type_id % TYPE_ID_BASE;
         (
@@ -262,7 +264,7 @@ impl DispatchDevice {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u16)]
-enum BackendId {
+pub(crate) enum BackendId {
     #[cfg(feature = "cpu")]
     Cpu = 0,
     #[cfg(feature = "cuda")]
@@ -274,7 +276,7 @@ enum BackendId {
     #[cfg(wgpu_vulkan)]
     Vulkan = 4,
     #[cfg(wgpu_webgpu)]
-    WebGpu = 5,
+    Wgpu = 5,
     #[cfg(feature = "ndarray")]
     NdArray = 6,
     #[cfg(feature = "tch")]
@@ -303,7 +305,7 @@ impl TryFrom<u16> for BackendId {
             #[cfg(wgpu_vulkan)]
             4 => Ok(Self::Vulkan),
             #[cfg(wgpu_webgpu)]
-            5 => Ok(Self::WebGpu),
+            5 => Ok(Self::Wgpu),
             #[cfg(feature = "ndarray")]
             6 => Ok(Self::NdArray),
             #[cfg(feature = "tch")]
@@ -323,7 +325,7 @@ impl DeviceOps for DispatchDevice {
     }
 }
 
-impl burn_std::device::Device for DispatchDevice {
+impl burn_backend::Device for DispatchDevice {
     fn from_id(mut device_id: DeviceId) -> Self {
         let (dispatch_id, backend_type_id) = Self::decode_type_id(device_id.type_id);
         device_id.type_id = backend_type_id;
@@ -340,7 +342,7 @@ impl burn_std::device::Device for DispatchDevice {
             #[cfg(wgpu_vulkan)]
             BackendId::Vulkan => Self::Vulkan(WgpuDevice::from_id(device_id)),
             #[cfg(wgpu_webgpu)]
-            BackendId::WebGpu => Self::WebGpu(WgpuDevice::from_id(device_id)),
+            BackendId::Wgpu => Self::Wgpu(WgpuDevice::from_id(device_id)),
             #[cfg(feature = "ndarray")]
             BackendId::NdArray => Self::NdArray(NdArrayDevice::from_id(device_id)),
             #[cfg(feature = "tch")]
@@ -361,7 +363,7 @@ impl burn_std::device::Device for DispatchDevice {
             #[cfg(wgpu_vulkan)]
             Self::Vulkan(device) => device.to_id(),
             #[cfg(wgpu_webgpu)]
-            Self::WebGpu(device) => device.to_id(),
+            Self::Wgpu(device) => device.to_id(),
             #[cfg(feature = "ndarray")]
             Self::NdArray(device) => device.to_id(),
             #[cfg(feature = "tch")]
@@ -371,28 +373,6 @@ impl burn_std::device::Device for DispatchDevice {
         };
         device_id.type_id = self.encode_type_id(device_id.type_id);
         device_id
-    }
-
-    fn device_count(type_id: u16) -> usize {
-        let (dispatch_id, backend_type_id) = Self::decode_type_id(type_id);
-        match dispatch_id {
-            #[cfg(feature = "cpu")]
-            BackendId::Cpu => CpuDevice::device_count(backend_type_id),
-            #[cfg(feature = "cuda")]
-            BackendId::Cuda => CudaDevice::device_count(backend_type_id),
-            #[cfg(wgpu_metal)]
-            BackendId::Metal => WgpuDevice::device_count(backend_type_id),
-            #[cfg(feature = "rocm")]
-            BackendId::Rocm => RocmDevice::device_count(backend_type_id),
-            #[cfg(wgpu_vulkan)]
-            BackendId::Vulkan => WgpuDevice::device_count(backend_type_id),
-            #[cfg(wgpu_webgpu)]
-            BackendId::WebGpu => WgpuDevice::device_count(backend_type_id),
-            #[cfg(feature = "ndarray")]
-            BackendId::NdArray => NdArrayDevice::device_count(backend_type_id),
-            #[cfg(feature = "tch")]
-            BackendId::LibTorch => LibTorchDevice::device_count(backend_type_id),
-        }
     }
 }
 
@@ -434,7 +414,7 @@ impl From<WgpuDevice> for DispatchDevice {
 #[cfg(wgpu_webgpu)]
 impl From<WgpuDevice> for DispatchDevice {
     fn from(device: WgpuDevice) -> Self {
-        DispatchDevice::WebGpu(device)
+        DispatchDevice::Wgpu(device)
     }
 }
 
@@ -442,13 +422,6 @@ impl From<WgpuDevice> for DispatchDevice {
 impl From<NdArrayDevice> for DispatchDevice {
     fn from(device: NdArrayDevice) -> Self {
         DispatchDevice::NdArray(device)
-    }
-}
-
-#[cfg(feature = "tch")]
-impl From<LibTorchDevice> for DispatchDevice {
-    fn from(device: LibTorchDevice) -> Self {
-        DispatchDevice::LibTorch(device)
     }
 }
 

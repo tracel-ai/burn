@@ -6,9 +6,9 @@ fn should_diff_neg() {
     let data_1 = TensorData::from([[1.0, 7.0], [2.0, 3.0]]);
     let data_2 = TensorData::from([[4.0, 7.0], [2.0, 3.0]]);
 
-    let device = Default::default();
-    let tensor_1 = TestAutodiffTensor::<2>::from_data(data_1, &device).require_grad();
-    let tensor_2 = TestAutodiffTensor::from_data(data_2, &device).require_grad();
+    let device = AutodiffDevice::new();
+    let tensor_1 = TestTensor::<2>::from_data(data_1, &device).require_grad();
+    let tensor_2 = TestTensor::from_data(data_2, &device).require_grad();
 
     let tensor_3 = tensor_1.clone().matmul(tensor_2.clone().neg());
     let tensor_4 = tensor_3.neg();

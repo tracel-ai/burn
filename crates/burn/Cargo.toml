@@ -157,7 +157,14 @@ router = ["burn-router", "ir"]
 server = ["burn-remote/server"]
 simd = ["burn-ndarray?/simd"]
 template = ["burn-wgpu?/template"]
-collective = ["burn-collective", "burn-optim/collective", "burn-train?/ddp"]
+collective = ["burn-collective", "burn-optim/collective"]
+distributed = ["std",
+    "burn-core/distributed",
+    "burn-optim/distributed",
+    "burn-train?/ddp",
+    "burn-cuda?/distributed",
+    "burn-autodiff?/distributed",
+]
 
 candle = ["burn-candle"]
 candle-cuda = ["candle", "burn-candle/cuda"]
@@ -169,7 +176,7 @@ tch = ["burn-tch"]
 vulkan = ["wgpu", "burn-wgpu/vulkan", "burn-dispatch?/vulkan"]
 webgpu = ["wgpu", "burn-wgpu/webgpu", "burn-dispatch?/webgpu"]
 metal = ["wgpu", "burn-wgpu/metal", "burn-dispatch?/metal"]
-wgpu = ["burn-wgpu"]
+wgpu = ["burn-wgpu", "burn-dispatch?/wgpu"]
 cpu = ["burn-cpu", "burn-dispatch?/cpu"]
 
 # Backend dispatch

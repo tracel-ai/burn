@@ -11,6 +11,9 @@ use crate::ops::*;
 use crate::tensor::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
 use crate::{QTensorPrimitive, TensorData, TensorMetadata};
 
+#[cfg(feature = "distributed")]
+use crate::distributed::{DistributedParamId, DistributedParams};
+
 use super::DeviceOps;
 
 /// This trait defines all types and functions needed for a backend to be used with burn.
@@ -164,6 +167,12 @@ pub trait Backend:
 
     /// Returns the [DTypeUsageSet] for the given [DType] on the specified device.
     fn dtype_usage(device: &Self::Device, dtype: DType) -> DTypeUsageSet;
+
+    /// Returns the number of devices available on this backend.
+    /// `device` is a reference device used to determine the underlying backend that should be queried.
+    /// A CUDA device will return all devices available to CUDA, a Vulkan device will return all
+    /// devices available to Vulkan, etc.
+    fn device_count(type_id: u16) -> usize;
 }
 
 /// An error that can happen when syncing a device.
@@ -350,6 +359,30 @@ pub trait AutodiffBackend: Backend {
     ///
     /// The autodiff backend tensor.
     fn q_from_inner(tensor: QuantizedTensor<Self::InnerBackend>) -> QuantizedTensor<Self>;
+
+    #[cfg(feature = "distributed")]
+    /// Mark the tensor as distributed across multiple devices.
+    /// The gradients will be aggregated during the backward pass.
+    ///
+    /// This function does nothing when distributed training is not available.
+    fn set_distributed_params(
+        tensor: FloatTensor<Self>,
+        _param_id: DistributedParamId,
+    ) -> FloatTensor<Self> {
+        tensor
+    }
+
+    #[cfg(feature = "distributed")]
+    /// Returns the distributed parameters if the tensor was marked as distributed.
+    fn distributed_params(_tensor: &FloatTensor<Self>) -> Option<DistributedParams> {
+        None
+    }
+
+    #[cfg(feature = "distributed")]
+    /// Returns true if the tensor was marked as distributed.
+    fn is_distributed(_tensor: &FloatTensor<Self>) -> bool {
+        false
+    }
 }
 
 /// Describes how a data type can be used on a given device.

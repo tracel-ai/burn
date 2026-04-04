@@ -1,16 +1,17 @@
 use super::*;
+use burn_tensor::Distribution;
 use burn_tensor::Tolerance;
-use burn_tensor::{Distribution, Tensor};
 
 const RANK: usize = 4;
 const SHAPE: [usize; RANK] = [2, 4, 8, 16];
 
 #[test]
 fn reduction_argmax_should_match_reference_backend() {
-    let tensor =
-        Tensor::<TestBackend, RANK>::random(SHAPE, Distribution::Default, &Default::default());
-    let tensor_ref =
-        Tensor::<ReferenceBackend, RANK>::from_data(tensor.to_data(), &Default::default());
+    let device = Default::default();
+    let ref_device = ReferenceDevice::new();
+
+    let tensor = TestTensor::<RANK>::random(SHAPE, Distribution::Default, &device);
+    let tensor_ref = TestTensor::<RANK>::from_data(tensor.to_data(), &ref_device);
     for dim in 0..RANK {
         tensor
             .clone()
@@ -22,10 +23,11 @@ fn reduction_argmax_should_match_reference_backend() {
 
 #[test]
 fn reduction_argmin_should_match_reference_backend() {
-    let tensor =
-        Tensor::<TestBackend, RANK>::random(SHAPE, Distribution::Default, &Default::default());
-    let tensor_ref =
-        Tensor::<ReferenceBackend, RANK>::from_data(tensor.to_data(), &Default::default());
+    let device = Default::default();
+    let ref_device = ReferenceDevice::new();
+
+    let tensor = TestTensor::<RANK>::random(SHAPE, Distribution::Default, &device);
+    let tensor_ref = TestTensor::<RANK>::from_data(tensor.to_data(), &ref_device);
     for dim in 0..RANK {
         tensor
             .clone()
@@ -37,10 +39,11 @@ fn reduction_argmin_should_match_reference_backend() {
 
 #[test]
 fn reduction_mean_dim_should_match_reference_backend() {
-    let tensor =
-        Tensor::<TestBackend, RANK>::random(SHAPE, Distribution::Default, &Default::default());
-    let tensor_ref =
-        Tensor::<ReferenceBackend, RANK>::from_data(tensor.to_data(), &Default::default());
+    let device = Default::default();
+    let ref_device = ReferenceDevice::new();
+
+    let tensor = TestTensor::<RANK>::random(SHAPE, Distribution::Default, &device);
+    let tensor_ref = TestTensor::<RANK>::from_data(tensor.to_data(), &ref_device);
     for dim in 0..RANK {
         tensor
             .clone()
@@ -55,10 +58,11 @@ fn reduction_mean_dim_should_match_reference_backend() {
 
 #[test]
 fn reduction_mean_should_match_reference_backend() {
-    let tensor =
-        Tensor::<TestBackend, RANK>::random(SHAPE, Distribution::Default, &Default::default());
-    let tensor_ref =
-        Tensor::<ReferenceBackend, RANK>::from_data(tensor.to_data(), &Default::default());
+    let device = Default::default();
+    let ref_device = ReferenceDevice::new();
+
+    let tensor = TestTensor::<RANK>::random(SHAPE, Distribution::Default, &device);
+    let tensor_ref = TestTensor::<RANK>::from_data(tensor.to_data(), &ref_device);
     tensor
         .clone()
         .mean()
@@ -71,10 +75,11 @@ fn reduction_mean_should_match_reference_backend() {
 
 #[test]
 fn reduction_prod_dim_should_match_reference_backend() {
-    let tensor =
-        Tensor::<TestBackend, RANK>::random(SHAPE, Distribution::Default, &Default::default());
-    let tensor_ref =
-        Tensor::<ReferenceBackend, RANK>::from_data(tensor.to_data(), &Default::default());
+    let device = Default::default();
+    let ref_device = ReferenceDevice::new();
+
+    let tensor = TestTensor::<RANK>::random(SHAPE, Distribution::Default, &device);
+    let tensor_ref = TestTensor::<RANK>::from_data(tensor.to_data(), &ref_device);
     for dim in 0..RANK {
         tensor
             .clone()
@@ -89,10 +94,11 @@ fn reduction_prod_dim_should_match_reference_backend() {
 
 #[test]
 fn reduction_prod_should_match_reference_backend() {
-    let tensor =
-        Tensor::<TestBackend, RANK>::random(SHAPE, Distribution::Default, &Default::default());
-    let tensor_ref =
-        Tensor::<ReferenceBackend, RANK>::from_data(tensor.to_data(), &Default::default());
+    let device = Default::default();
+    let ref_device = ReferenceDevice::new();
+
+    let tensor = TestTensor::<RANK>::random(SHAPE, Distribution::Default, &device);
+    let tensor_ref = TestTensor::<RANK>::from_data(tensor.to_data(), &ref_device);
     tensor
         .clone()
         .prod()
@@ -105,10 +111,11 @@ fn reduction_prod_should_match_reference_backend() {
 
 #[test]
 fn reduction_sum_dim_should_match_reference_backend() {
-    let tensor =
-        Tensor::<TestBackend, RANK>::random(SHAPE, Distribution::Default, &Default::default());
-    let tensor_ref =
-        Tensor::<ReferenceBackend, RANK>::from_data(tensor.to_data(), &Default::default());
+    let device = Default::default();
+    let ref_device = ReferenceDevice::new();
+
+    let tensor = TestTensor::<RANK>::random(SHAPE, Distribution::Default, &device);
+    let tensor_ref = TestTensor::<RANK>::from_data(tensor.to_data(), &ref_device);
     for dim in 0..RANK {
         tensor
             .clone()
@@ -123,10 +130,11 @@ fn reduction_sum_dim_should_match_reference_backend() {
 
 #[test]
 fn reduction_sum_should_match_reference_backend() {
-    let tensor =
-        Tensor::<TestBackend, RANK>::random(SHAPE, Distribution::Default, &Default::default());
-    let tensor_ref =
-        Tensor::<ReferenceBackend, RANK>::from_data(tensor.to_data(), &Default::default());
+    let device = Default::default();
+    let ref_device = ReferenceDevice::new();
+
+    let tensor = TestTensor::<RANK>::random(SHAPE, Distribution::Default, &device);
+    let tensor_ref = TestTensor::<RANK>::from_data(tensor.to_data(), &ref_device);
     tensor
         .clone()
         .sum()
@@ -139,10 +147,11 @@ fn reduction_sum_should_match_reference_backend() {
 fn reduction_sum_should_match_reference_backend_64bit() {
     const SHAPE: [usize; RANK] = [33, 512, 512, 512];
 
-    let tensor =
-        Tensor::<TestBackend, RANK>::random(SHAPE, Distribution::Default, &Default::default());
-    let tensor_ref =
-        Tensor::<ReferenceBackend, RANK>::from_data(tensor.to_data(), &Default::default());
+    let device = Default::default();
+    let ref_device = ReferenceDevice::new();
+
+    let tensor = TestTensor::<RANK>::random(SHAPE, Distribution::Default, &device);
+    let tensor_ref = TestTensor::<RANK>::from_data(tensor.to_data(), &ref_device);
     let data = tensor.sum().into_data();
     let data_ref = tensor_ref.sum().into_data();
     println!("result: {:?}", data.as_slice::<f32>());

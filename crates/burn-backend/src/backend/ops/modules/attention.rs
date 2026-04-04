@@ -5,10 +5,17 @@ use num_traits::Float as _;
 use burn_std::Shape;
 
 use crate::{
-    Backend, TensorMetadata,
+    Backend, TensorMetadata, get_device_settings,
     ops::AttentionModuleOptions,
     tensor::{BoolTensor, FloatTensor},
 };
+
+/// Any finite floor prevents `-inf - (-inf) = NaN` in the softmax max-shift.
+/// Only activates when every position in a row is masked (`-inf`).
+const SOFTMAX_MAX_FLOOR: f64 = -1e4;
+
+/// Prevents `0 / 0 = NaN` when all numerators are zero (fully-masked row).
+const SOFTMAX_SUM_EPS: f64 = 1e-6;
 
 /// Computes softmax(QKᵗ * scale) · V using separate kernels.
 /// Serves as a fallback when FlashAttention is not used.
@@ -66,11 +73,18 @@ pub fn attention_fallback<B: Backend>(
         attention_scores
     };
 
-    // Softmax: S = softmax(A)
+    // NaN-safe softmax: S = softmax(A)
+    // When all positions in a row are masked (-inf), naive softmax has two NaN paths:
+    //   (1) max is -inf, so the shift -inf - (-inf) = NaN;
+    //   (2) after fixing (1), all exp values are 0, so sum is 0 and 0/0 = NaN.
+    // Clamping max and sum (see SOFTMAX_MAX_FLOOR / SOFTMAX_SUM_EPS) avoids both, yielding 0 for
+    // fully-masked rows (no position contributes to output).
     let max_per_dim = B::float_max_dim(attention_scores.clone(), 3);
+    let max_per_dim = B::float_clamp_min(max_per_dim, SOFTMAX_MAX_FLOOR.into());
     let minus_max = B::float_sub(attention_scores, max_per_dim);
     let numerator = B::float_exp(minus_max);
     let sum_exp = B::float_sum_dim(numerator.clone(), 3);
+    let sum_exp = B::float_clamp_min(sum_exp, SOFTMAX_SUM_EPS.into());
     let softmax = B::float_div(numerator, sum_exp);
 
     // Context: S · V
@@ -83,23 +97,24 @@ fn build_causal_mask<B: Backend>(attention_scores: &FloatTensor<B>) -> BoolTenso
     let device = B::float_device(attention_scores);
     let scores_shape = attention_scores.shape().dims::<4>();
     let [batch_size, num_heads, seq_q, seq_k] = scores_shape;
+    let settings = get_device_settings::<B>(&device);
 
     // row indices [seq_q, 1] and col indices [1, seq_k]
     // Offset col indices so that the causal boundary aligns at the bottom-right corner,
     // which handles cross-attention (seq_k > seq_q) correctly.
     let offset = seq_k as i64 - seq_q as i64;
     let rows = B::int_reshape(
-        B::int_arange(0..seq_q as i64, &device),
+        B::int_arange(0..seq_q as i64, &device, settings.int_dtype),
         Shape::new([seq_q, 1]),
     );
     let cols = B::int_reshape(
-        B::int_arange(0..seq_k as i64, &device),
+        B::int_arange(0..seq_k as i64, &device, settings.int_dtype),
         Shape::new([1, seq_k]),
     );
 
     // mask where col > row + offset (upper triangle)
     let rows_shifted = B::int_add_scalar(rows, offset.into());
-    let mask_2d = B::int_lower(rows_shifted, cols);
+    let mask_2d = B::int_lower(rows_shifted, cols, settings.bool_dtype);
 
     // Reshape to [1, 1, seq_q, seq_k] then expand to [batch_size, num_heads, seq_q, seq_k]
     let mask_4d = B::bool_reshape(mask_2d, Shape::new([1, 1, seq_q, seq_k]));

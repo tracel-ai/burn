@@ -73,3 +73,6 @@ impl<const D: usize, B: AutodiffBackend, K: BasicAutodiffOps<B>> Tensor<B, D, K>
         Self::new(K::from_inner(inner.primitive))
     }
 }
+
+// TODO: a lot of the `tensor.inner` / `Tensor::from_inner(...)` are actually scoped to perform some operations
+// so it might be cleaner and easier to manage the device etc. if we provide a method to scope the autodiff?

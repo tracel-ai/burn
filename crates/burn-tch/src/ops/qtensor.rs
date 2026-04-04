@@ -1,5 +1,5 @@
 use burn_backend::{
-    ExecutionError, Shape, TensorData,
+    ExecutionError, FloatDType, IntDType, Shape, TensorData,
     ops::QTensorOps,
     quantization::{QuantScheme, QuantizationParametersPrimitive},
     tensor::{Device, FloatTensor, IntTensor, QuantizedTensor},
@@ -27,7 +27,7 @@ impl<E: TchElement> QTensorOps<Self> for LibTorch<E> {
         unimplemented!()
     }
 
-    fn dequantize(_tensor: QuantizedTensor<Self>) -> FloatTensor<Self> {
+    fn dequantize(_tensor: QuantizedTensor<Self>, _dtype: FloatDType) -> FloatTensor<Self> {
         unimplemented!()
     }
 
@@ -80,17 +80,26 @@ impl<E: TchElement> QTensorOps<Self> for LibTorch<E> {
         unimplemented!()
     }
 
-    fn q_argmax(_tensor: QuantizedTensor<Self>, _dim: usize) -> IntTensor<Self> {
+    fn q_argmax(
+        _tensor: QuantizedTensor<Self>,
+        _dim: usize,
+        _out_dtype: IntDType,
+    ) -> IntTensor<Self> {
         unimplemented!()
     }
 
-    fn q_argmin(_tensor: QuantizedTensor<Self>, _dim: usize) -> IntTensor<Self> {
+    fn q_argmin(
+        _tensor: QuantizedTensor<Self>,
+        _dim: usize,
+        _out_dtype: IntDType,
+    ) -> IntTensor<Self> {
         unimplemented!()
     }
 
     fn q_max_dim_with_indices(
         _tensor: QuantizedTensor<Self>,
         _dim: usize,
+        _indices_dtype: IntDType,
     ) -> (QuantizedTensor<Self>, IntTensor<Self>) {
         unimplemented!()
     }
@@ -106,6 +115,7 @@ impl<E: TchElement> QTensorOps<Self> for LibTorch<E> {
     fn q_min_dim_with_indices(
         _tensor: QuantizedTensor<Self>,
         _dim: usize,
+        _indices_dtype: IntDType,
     ) -> (QuantizedTensor<Self>, IntTensor<Self>) {
         unimplemented!()
     }
@@ -126,6 +136,7 @@ impl<E: TchElement> QTensorOps<Self> for LibTorch<E> {
         _tensor: QuantizedTensor<Self>,
         _dim: usize,
         _descending: bool,
+        _indices_dtype: IntDType,
     ) -> (QuantizedTensor<Self>, IntTensor<Self>) {
         unimplemented!()
     }
@@ -134,6 +145,7 @@ impl<E: TchElement> QTensorOps<Self> for LibTorch<E> {
         _tensor: QuantizedTensor<Self>,
         _dim: usize,
         _descending: bool,
+        _out_dtype: IntDType,
     ) -> IntTensor<Self> {
         unimplemented!()
     }

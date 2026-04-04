@@ -1,5 +1,5 @@
 use burn_backend::{
-    ExecutionError, Shape, Slice, TensorData,
+    ExecutionError, FloatDType, Shape, Slice, TensorData,
     ops::QTensorOps,
     quantization::{QuantScheme, QuantizationParametersPrimitive},
     tensor::{Device, FloatTensor, IntTensor, QuantizedTensor},
@@ -27,7 +27,7 @@ impl<R: RunnerChannel> QTensorOps<Self> for BackendRouter<R> {
         unimplemented!()
     }
 
-    fn dequantize(_tensor: QuantizedTensor<Self>) -> FloatTensor<Self> {
+    fn dequantize(_tensor: QuantizedTensor<Self>, _dtype: FloatDType) -> FloatTensor<Self> {
         unimplemented!()
     }
 

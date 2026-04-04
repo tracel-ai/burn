@@ -1,5 +1,5 @@
 use burn_backend::{
-    DType, Element, QTensorPrimitive, Shape, TensorData, TensorMetadata,
+    AllocationProperty, DType, Element, QTensorPrimitive, Shape, TensorData, TensorMetadata,
     quantization::{QParams, QuantLevel, QuantMode, QuantScheme, QuantValue},
 };
 use burn_std::BoolStore;
@@ -317,6 +317,65 @@ macro_rules! cat_with_dtype {
     };
 }
 
+/// Macro to execute an operation that returns a given element type.
+#[macro_export]
+macro_rules! execute_with_float_out_dtype {
+    ($out_dtype:expr, $element:ident, $op:expr, [$($dtype: ident => $ty: ty),*]) => {{
+        match $out_dtype {
+            $(
+                burn_std::FloatDType::$dtype => {
+                    #[allow(unused)]
+                    type $element = $ty;
+                    $op
+                }
+            )*
+            #[allow(unreachable_patterns)]
+            other => unimplemented!("unsupported dtype: {other:?}")
+        }
+    }};
+    // Unary op: type automatically inferred by the compiler
+    ($out_dtype:expr, $op:expr) => {{
+        $crate::execute_with_float_out_dtype!($out_dtype, E, $op)
+    }};
+
+    // Unary op: generic type cannot be inferred for an operation
+    ($out_dtype:expr, $element:ident, $op:expr) => {{
+        $crate::execute_with_float_out_dtype!($out_dtype, $element, $op, [
+            F64 => f64, F32 => f32
+        ])
+    }};
+}
+
+/// Macro to execute an operation that returns a given element type.
+#[macro_export]
+macro_rules! execute_with_int_out_dtype {
+    ($out_dtype:expr, $element:ident, $op:expr, [$($dtype: ident => $ty: ty),*]) => {{
+        match $out_dtype {
+            $(
+                burn_std::IntDType::$dtype => {
+                    #[allow(unused)]
+                    type $element = $ty;
+                    $op
+                }
+            )*
+            #[allow(unreachable_patterns)]
+            other => unimplemented!("unsupported dtype: {other:?}")
+        }
+    }};
+    // Unary op: type automatically inferred by the compiler
+    ($out_dtype:expr, $op:expr) => {{
+        $crate::execute_with_int_out_dtype!($out_dtype, E, $op)
+    }};
+
+    // Unary op: generic type cannot be inferred for an operation
+    ($out_dtype:expr, $element:ident, $op:expr) => {{
+        $crate::execute_with_int_out_dtype!($out_dtype, $element, $op, [
+            I64 => i64, I32 => i32, I16 => i16, I8 => i8,
+            U64 => u64, U32 => u32, U16 => u16, U8 => u8
+        ])
+    }};
+}
+
 impl TensorMetadata for NdArrayTensor {
     fn dtype(&self) -> DType {
         match self {
@@ -535,9 +594,7 @@ impl NdArrayTensor {
         // Only use Borrowed storage for non-native allocations (e.g., burnpack mmap/file).
         // For native Rust heap allocations (the common case), go directly to owned storage:
         // `from_data_owned` reclaims the Vec zero-copy via `into_vec`, while
-        // Borrowed storage would trigger a full memcopy on every single operation
-        // (because `is_unique()` always returns false for Borrowed).
-        use burn_backend::AllocationProperty;
+        // Borrowed storage would trigger a full memcopy on every single operation.
         if data.bytes.property() != AllocationProperty::Native {
             match Self::try_from_data_borrowed(data) {
                 Ok(tensor) => return tensor,
@@ -816,7 +873,7 @@ mod tests {
         let bytes = Bytes::from_elems(data);
         // Tag as Other to simulate burnpack / mmap data (non-native backing storage)
         let non_native_bytes = Bytes::from_shared(
-            bytes::Bytes::copy_from_slice(&*bytes),
+            bytes::Bytes::copy_from_slice(&bytes),
             AllocationProperty::Other,
         );
         let tensor_data = TensorData::from_bytes(non_native_bytes, Shape::new([2, 2]), DType::F32);
@@ -841,8 +898,7 @@ mod tests {
 
     #[test]
     fn native_alloc_creates_owned_storage() {
-        // Native heap allocations must use Owned storage so that is_unique()
-        // returns true and ndarray can perform in-place mutations without copying.
+        // Native heap allocations must use Owned storage to avoid the memcpy.
         use burn_std::Bytes;
 
         let data: Vec<f32> = vec![1.0, 2.0, 3.0, 4.0];
@@ -856,7 +912,7 @@ mod tests {
                 assert!(
                     !storage.is_borrowed(),
                     "PERF REGRESSION: from_data must NOT create borrowed storage \
-                     for native heap allocations (is_unique() would always be false)"
+                     for native TensorData"
                 );
             }
             _ => panic!("Expected F32 tensor"),

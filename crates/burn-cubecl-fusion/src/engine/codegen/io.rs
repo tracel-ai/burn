@@ -443,24 +443,87 @@ pub fn write<C: Scalar, N: Size>(
     match arg {
         FuseArg::Output(pos, _, layout) => {
             let tensor = outputs.tensors.index(pos);
-            let offset = match layout {
-                LayoutInfo::SameAsRef => ref_pos,
-                LayoutInfo::IsRef => ref_pos,
-                LayoutInfo::Unknown => {
-                    get_offset(inputs, locals, tensor, ref_pos, None, config, None)
-                }
-            };
-            let tensor = outputs.tensors.index_mut(pos);
+            let output_vs = tensor.tensor.vector_size();
+            if comptime![output_vs != config.width] {
+                // Output tensor has a different vector_size than the computation width.
+                // Write element-by-element to avoid SPIR-V type mismatch.
+                write_output_aligned(inputs, outputs, locals, pos, ref_pos, value, layout, config);
+            } else {
+                // Vector sizes match - set polyfill to output type and write directly.
+                set_polyfill::<DynElem, DynSize>(comptime![tensor.ty]);
+                let offset = match layout {
+                    LayoutInfo::SameAsRef => ref_pos,
+                    LayoutInfo::IsRef => ref_pos,
+                    LayoutInfo::Unknown => {
+                        get_offset(inputs, locals, tensor, ref_pos, None, config, None)
+                    }
+                };
+                let tensor = outputs.tensors.index_mut(pos);
 
-            let value = Vector::cast_from(value);
+                let value = Vector::cast_from(value);
 
-            tensor.tensor[offset] = value;
+                tensor.tensor[offset] = value;
+            }
         }
         FuseArg::BlockLocal { .. } => write_scalar::<C, N>(locals, value, arg),
         FuseArg::MultiBlockLocal(key, _) | FuseArg::MultiBlockGlobal(key, _) => {
             outputs.variables.write(key, Vector::cast_from(value))
         }
         _ => comptime![panic!("Can't write into inputs and scalars")],
+    }
+}
+
+/// Writes a [Vector] value element-by-element to an output tensor whose vector_size
+/// differs from the computation width. Mirrors [read_input_aligned] for the write path.
+#[cube]
+fn write_output_aligned<C: Scalar, N: Size>(
+    inputs: &GlobalArgs,
+    outputs: &mut GlobalArgs,
+    locals: &LocalArgs,
+    #[comptime] pos: usize,
+    ref_pos: usize,
+    value: Vector<C, N>,
+    #[comptime] layout: LayoutInfo,
+    #[comptime] config: &FuseBlockConfig,
+) {
+    let tensor = outputs.tensors.index(pos);
+    set_polyfill::<DynElem, DynSize>(comptime![tensor.ty]);
+
+    match layout {
+        LayoutInfo::SameAsRef | LayoutInfo::IsRef => {
+            let offset = (ref_pos * config.width) / tensor.tensor.vector_size();
+            let output = outputs.tensors.index_mut(pos);
+            let stride = output.tensor.stride(config.rank - 1);
+
+            #[unroll]
+            for i in 0..config.width {
+                let idx = offset + i * stride;
+                output.tensor[idx] = Vector::cast_from(value[i]);
+            }
+        }
+        LayoutInfo::Unknown => {
+            // When layout differs from ref, each of the config.width elements may map
+            // to a different offset in the output (or to the same offset when the output
+            // has broadcast dimensions). Compute each element's offset individually to
+            // avoid cross-contamination of neighboring elements.
+            let base_flat = ref_pos * config.width;
+
+            #[unroll]
+            for i in 0..config.width {
+                let tensor_ro = outputs.tensors.index(pos);
+                let offset = index_offset_with_layout(
+                    inputs,
+                    tensor_ro,
+                    locals,
+                    base_flat + i,
+                    None,
+                    config.rank,
+                    None,
+                );
+                let output = outputs.tensors.index_mut(pos);
+                output.tensor[offset] = Vector::cast_from(value[i]);
+            }
+        }
     }
 }
 
@@ -523,11 +586,12 @@ fn get_offset(
     #[comptime] config: &FuseBlockConfig,
     #[comptime] transform: Option<Transform>,
 ) -> usize {
+    let offset_ref = ref_pos * locals.ref_vector_size;
     index_offset_with_layout(
         inputs,
         tensor,
         locals,
-        ref_pos,
+        offset_ref,
         range,
         config.rank,
         transform,
@@ -657,7 +721,7 @@ fn index_offset_with_layout(
     inputs: &GlobalArgs,
     tensor: &GlobalTensor,
     locals: &LocalArgs,
-    index: usize,
+    offset_ref: usize,
     #[comptime] range: Option<(usize, usize)>,
     #[comptime] rank: usize,
     #[comptime] transform: Option<Transform>,
@@ -669,8 +733,7 @@ fn index_offset_with_layout(
                 "Can't get a range on a reshaped tensor."
             )];
 
-            let index = index * locals.ref_vector_size;
-            let index = reshaped_index(inputs, locals, index, rank, shape);
+            let index = reshaped_index(inputs, locals, offset_ref, rank, shape);
             reshaped_index_to_original_index(&tensor.tensor, index, rank)
         }
         Some(Transform::SwapDims(dim1, dim2)) => {
@@ -679,7 +742,6 @@ fn index_offset_with_layout(
                 None => (0, rank),
             }};
 
-            let offset_ref = index * locals.ref_vector_size;
             let mut offset = 0;
 
             #[unroll]
@@ -697,7 +759,6 @@ fn index_offset_with_layout(
                 None => (0, rank),
             }};
 
-            let offset_ref = index * locals.ref_vector_size;
             let mut offset = 0;
 
             #[unroll]

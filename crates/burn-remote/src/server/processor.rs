@@ -36,7 +36,7 @@ pub enum ProcessorTask {
     ReadTensor(ConnectionId, TensorIr, Callback<TaskResponse>),
     Sync(ConnectionId, Callback<TaskResponse>),
     Seed(u64),
-    SupportsDType(ConnectionId, DType, Callback<TaskResponse>),
+    DTypeUsage(ConnectionId, DType, Callback<TaskResponse>),
     Close,
 }
 
@@ -111,13 +111,11 @@ where
                         break;
                     }
                     ProcessorTask::Seed(seed) => runner.seed(seed),
-                    ProcessorTask::SupportsDType(id, dtype, callback) => {
-                        let _result = runner.dtype_usage(dtype);
+                    ProcessorTask::DTypeUsage(id, dtype, callback) => {
+                        let result = runner.dtype_usage(dtype);
                         callback
                             .send(TaskResponse {
-                                // content: TaskResponseContent::SupportsDType(result),
-                                // TODO: Update to result.
-                                content: TaskResponseContent::SupportsDType(()),
+                                content: TaskResponseContent::DTypeUsage(result),
                                 id,
                             })
                             .await

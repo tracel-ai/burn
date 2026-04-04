@@ -91,8 +91,6 @@ impl TraceFuser {
             .tensor_writes(&self.resources, &mut buffers)
             .len() as u32;
         estimation += self.resources.inputs.len() as u32;
-        // One buffer per scalar type for now.
-        estimation += self.resources.scalars.len() as u32;
 
         estimation
     }

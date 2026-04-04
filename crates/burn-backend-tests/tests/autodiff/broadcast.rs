@@ -35,11 +35,11 @@ fn mask_where_broadcast() {
 
 fn test_ops_broadcast_backward<F>(func: F)
 where
-    F: Fn(TestAutodiffTensor<3>, TestAutodiffTensor<3>) -> TestAutodiffTensor<3>,
+    F: Fn(TestTensor<3>, TestTensor<3>) -> TestTensor<3>,
 {
-    let device = Default::default();
-    let w = TestAutodiffTensor::zeros([16, 5, 5], &device).require_grad();
-    let x = TestAutodiffTensor::zeros([4, 5, 5], &device).require_grad();
+    let device = AutodiffDevice::new();
+    let w = TestTensor::zeros([16, 5, 5], &device).require_grad();
+    let x = TestTensor::zeros([4, 5, 5], &device).require_grad();
 
     // Slice isn't a broadcastable operation, so it will fail when the previous backward pass
     // of an operation that support broadcast doesn't support it during the backward pass.

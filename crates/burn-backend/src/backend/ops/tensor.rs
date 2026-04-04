@@ -4,10 +4,10 @@ use super::repeat_dim::repeat_with_slice_assign;
 use super::sort::{argsort, sort, sort_with_indices};
 use crate::ops::GridSampleOptions;
 use crate::tensor::{BoolTensor, Device, Float, FloatTensor, IntTensor};
-use crate::{Backend, Distribution, TensorData};
+use crate::{Backend, Distribution, TensorData, get_device_settings};
 use crate::{ExecutionError, Scalar, TensorMetadata, TensorPrimitive};
 use alloc::vec::Vec;
-use burn_std::{FloatDType, Shape, Slice};
+use burn_std::{BoolDType, FloatDType, IntDType, Shape, Slice};
 
 /// Operations on float tensors.
 pub trait FloatTensorOps<B: Backend> {
@@ -30,12 +30,17 @@ pub trait FloatTensorOps<B: Backend> {
     /// * `shape` - The shape of the tensor.
     /// * `distribution` - The distribution to sample from.
     /// * `device` - The device to create the tensor on.
+    /// * `dtype` - The target data type.
     ///
     /// # Returns
     ///
     /// The tensor with the given shape and random values.
-    fn float_random(shape: Shape, distribution: Distribution, device: &Device<B>)
-    -> FloatTensor<B>;
+    fn float_random(
+        shape: Shape,
+        distribution: Distribution,
+        device: &Device<B>,
+        dtype: FloatDType,
+    ) -> FloatTensor<B>;
 
     /// Creates a new tensor with zeros.
     ///
@@ -132,11 +137,12 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Arguments
     ///
     /// * `tensor` - The tensor.
+    /// * `out_dtype` - The output tensor dtype.
     ///
     /// # Returns
     ///
     /// The int tensor with the same data as the float tensor.
-    fn float_into_int(tensor: FloatTensor<B>) -> IntTensor<B>;
+    fn float_into_int(tensor: FloatTensor<B>, out_dtype: IntDType) -> IntTensor<B>;
 
     /// Creates an empty tensor with the given shape.
     ///
@@ -201,8 +207,8 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// The clamped tensor.
     fn float_clamp_min(tensor: FloatTensor<B>, min: Scalar) -> FloatTensor<B> {
-        // Default implementation
-        let mask = Self::float_lower_elem(tensor.clone(), min);
+        let dtype = get_device_settings::<B>(&B::float_device(&tensor)).bool_dtype;
+        let mask = Self::float_lower_elem(tensor.clone(), min, dtype);
         B::float_mask_fill(tensor, mask, min)
     }
 
@@ -217,8 +223,8 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// The clamped tensor.
     fn float_clamp_max(tensor: FloatTensor<B>, max: Scalar) -> FloatTensor<B> {
-        // Default implementation
-        let mask = Self::float_greater_elem(tensor.clone(), max);
+        let dtype = get_device_settings::<B>(&B::float_device(&tensor)).bool_dtype;
+        let mask = Self::float_greater_elem(tensor.clone(), max, dtype);
         B::float_mask_fill(tensor, mask, max)
     }
 
@@ -562,11 +568,13 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// * `lhs` - The left-hand side tensor.
     /// * `rhs` - The right-hand side tensor.
+    /// * `out_dtype` - The output tensor dtype.
     ///
     /// # Returns
     ///
     /// A boolean tensor with the result of the comparison.
-    fn float_equal(lhs: FloatTensor<B>, rhs: FloatTensor<B>) -> BoolTensor<B>;
+    fn float_equal(lhs: FloatTensor<B>, rhs: FloatTensor<B>, out_dtype: BoolDType)
+    -> BoolTensor<B>;
 
     /// Element-wise non-equality comparison.
     ///
@@ -574,12 +582,17 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// * `lhs` - The left-hand side tensor.
     /// * `rhs` - The right-hand side tensor.
+    /// * `out_dtype` - The output tensor dtype.
     ///
     /// # Returns
     ///
     /// A boolean tensor with the result of the comparison.
-    fn float_not_equal(lhs: FloatTensor<B>, rhs: FloatTensor<B>) -> BoolTensor<B> {
-        let equal_tensor = B::float_equal(lhs, rhs);
+    fn float_not_equal(
+        lhs: FloatTensor<B>,
+        rhs: FloatTensor<B>,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<B> {
+        let equal_tensor = B::float_equal(lhs, rhs, out_dtype);
         B::bool_not(equal_tensor)
     }
 
@@ -589,11 +602,12 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// * `lhs` - The left-hand side tensor.
     /// * `rhs` - The right-hand side scalar.
+    /// * `out_dtype` - The output tensor dtype.
     ///
     /// # Returns
     ///
     /// A boolean tensor with the result of the comparison.
-    fn float_equal_elem(lhs: FloatTensor<B>, rhs: Scalar) -> BoolTensor<B>;
+    fn float_equal_elem(lhs: FloatTensor<B>, rhs: Scalar, out_dtype: BoolDType) -> BoolTensor<B>;
 
     /// Element-wise non-equality comparison with a scalar.
     ///
@@ -601,12 +615,17 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// * `lhs` - The left-hand side tensor.
     /// * `rhs` - The right-hand side scalar.
+    /// * `out_dtype` - The output tensor dtype.
     ///
     /// # Returns
     ///
     /// A boolean tensor with the result of the comparison.
-    fn float_not_equal_elem(lhs: FloatTensor<B>, rhs: Scalar) -> BoolTensor<B> {
-        let equal_tensor = B::float_equal_elem(lhs, rhs);
+    fn float_not_equal_elem(
+        lhs: FloatTensor<B>,
+        rhs: Scalar,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<B> {
+        let equal_tensor = B::float_equal_elem(lhs, rhs, out_dtype);
         B::bool_not(equal_tensor)
     }
 
@@ -616,11 +635,16 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// * `lhs` - The left-hand side tensor.
     /// * `rhs` - The right-hand side tensor.
+    /// * `out_dtype` - The output tensor dtype.
     ///
     /// # Returns
     ///
     /// A boolean tensor with the result of the comparison.
-    fn float_greater(lhs: FloatTensor<B>, rhs: FloatTensor<B>) -> BoolTensor<B>;
+    fn float_greater(
+        lhs: FloatTensor<B>,
+        rhs: FloatTensor<B>,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<B>;
 
     /// Greater than comparison of a tensor and a scalar.
     ///
@@ -628,11 +652,12 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// * `lhs` - The left-hand side tensor.
     /// * `rhs` - The right-hand side scalar.
+    /// * `out_dtype` - The output tensor dtype.
     ///
     /// # Returns
     ///
     /// A boolean tensor with the result of the comparison.
-    fn float_greater_elem(lhs: FloatTensor<B>, rhs: Scalar) -> BoolTensor<B>;
+    fn float_greater_elem(lhs: FloatTensor<B>, rhs: Scalar, out_dtype: BoolDType) -> BoolTensor<B>;
 
     /// Greater than or equal comparison of two tensors.
     ///
@@ -640,11 +665,16 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// * `lhs` - The left-hand side tensor.
     /// * `rhs` - The right-hand side tensor.
+    /// * `out_dtype` - The output tensor dtype.
     ///
     /// # Returns
     ///
     /// A boolean tensor with the result of the comparison.
-    fn float_greater_equal(lhs: FloatTensor<B>, rhs: FloatTensor<B>) -> BoolTensor<B>;
+    fn float_greater_equal(
+        lhs: FloatTensor<B>,
+        rhs: FloatTensor<B>,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<B>;
 
     /// Greater than or equal comparison of a tensor and a scalar.
     ///
@@ -652,11 +682,16 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// * `lhs` - The left-hand side tensor.
     /// * `rhs` - The right-hand side scalar.
+    /// * `out_dtype` - The output tensor dtype.
     ///
     /// # Returns
     ///
     /// A boolean tensor with the result of the comparison.
-    fn float_greater_equal_elem(lhs: FloatTensor<B>, rhs: Scalar) -> BoolTensor<B>;
+    fn float_greater_equal_elem(
+        lhs: FloatTensor<B>,
+        rhs: Scalar,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<B>;
 
     /// Less than comparison of two tensors.
     ///
@@ -664,11 +699,13 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// * `lhs` - The left-hand side tensor.
     /// * `rhs` - The right-hand side tensor.
+    /// * `out_dtype` - The output tensor dtype.
     ///
     /// # Returns
     ///
     /// A boolean tensor with the result of the comparison.
-    fn float_lower(lhs: FloatTensor<B>, rhs: FloatTensor<B>) -> BoolTensor<B>;
+    fn float_lower(lhs: FloatTensor<B>, rhs: FloatTensor<B>, out_dtype: BoolDType)
+    -> BoolTensor<B>;
 
     /// Less than comparison of a tensor and a scalar.
     ///
@@ -676,11 +713,12 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// * `lhs` - The left-hand side tensor.
     /// * `rhs` - The right-hand side scalar.
+    /// * `out_dtype` - The output tensor dtype.
     ///
     /// # Returns
     ///
     /// A boolean tensor with the result of the comparison.
-    fn float_lower_elem(lhs: FloatTensor<B>, rhs: Scalar) -> BoolTensor<B>;
+    fn float_lower_elem(lhs: FloatTensor<B>, rhs: Scalar, out_dtype: BoolDType) -> BoolTensor<B>;
 
     /// Less than or equal comparison of two tensors.
     ///
@@ -688,11 +726,16 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// * `lhs` - The left-hand side tensor.
     /// * `rhs` - The right-hand side tensor.
+    /// * `out_dtype` - The output tensor dtype.
     ///
     /// # Returns
     ///
     /// A boolean tensor with the result of the comparison.
-    fn float_lower_equal(lhs: FloatTensor<B>, rhs: FloatTensor<B>) -> BoolTensor<B>;
+    fn float_lower_equal(
+        lhs: FloatTensor<B>,
+        rhs: FloatTensor<B>,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<B>;
 
     /// Less than or equal comparison of a tensor and a scalar.
     ///
@@ -700,11 +743,16 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// * `lhs` - The left-hand side tensor.
     /// * `rhs` - The right-hand side scalar.
+    /// * `out_dtype` - The output tensor dtype.
     ///
     /// # Returns
     ///
     /// A boolean tensor with the result of the comparison.
-    fn float_lower_equal_elem(lhs: FloatTensor<B>, rhs: Scalar) -> BoolTensor<B>;
+    fn float_lower_equal_elem(
+        lhs: FloatTensor<B>,
+        rhs: Scalar,
+        out_dtype: BoolDType,
+    ) -> BoolTensor<B>;
 
     /// Detaches a tensor from the computation graph.
     fn float_detach(tensor: FloatTensor<B>) -> FloatTensor<B> {
@@ -921,7 +969,8 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// The elements of `lhs` raised to the value of `rhs`. Result is an IntTensor.
     fn float_powi(lhs: FloatTensor<B>, rhs: IntTensor<B>) -> FloatTensor<B> {
-        Self::float_powf(lhs, B::int_into_float(rhs))
+        let dtype = lhs.dtype();
+        Self::float_powf(lhs, B::int_into_float(rhs, dtype.into()))
     }
 
     /// Raises a tensor to the power of an int scalar.
@@ -1278,11 +1327,12 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// * `tensor` - The tensor to get the maximum elements of.
     /// * `dim` - The dimension along which to get the maximum elements.
+    /// * `out_dtype` - The output tensor dtype.
     ///
     /// # Returns
     ///
     /// A tensor with the indices of the maximum elements of `tensor` along `dim`.
-    fn float_argmax(tensor: FloatTensor<B>, dim: usize) -> IntTensor<B>;
+    fn float_argmax(tensor: FloatTensor<B>, dim: usize, out_dtype: IntDType) -> IntTensor<B>;
 
     /// Gets the indices of the minimum elements of a tensor along an axis.
     ///
@@ -1290,11 +1340,12 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// * `tensor` - The tensor to get the minimum elements of.
     /// * `dim` - The dimension along which to get the minimum elements.
+    /// * `out_dtype` - The output tensor dtype.
     ///
     /// # Returns
     ///
     /// A tensor with the indices of the minimum elements of `tensor` along `dim`.
-    fn float_argmin(tensor: FloatTensor<B>, dim: usize) -> IntTensor<B>;
+    fn float_argmin(tensor: FloatTensor<B>, dim: usize, out_dtype: IntDType) -> IntTensor<B>;
 
     /// Gets the maximum element of a tensor.
     ///
@@ -1323,7 +1374,8 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// A tensor with the maximum elements of `tensor` along `dim`.
     fn float_max_dim(tensor: FloatTensor<B>, dim: usize) -> FloatTensor<B> {
-        let index = B::float_argmax(tensor.clone(), dim);
+        let dtype = get_device_settings::<B>(&B::float_device(&tensor)).int_dtype;
+        let index = B::float_argmax(tensor.clone(), dim, dtype);
 
         B::float_gather(dim, tensor, index)
     }
@@ -1334,6 +1386,7 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// * `tensor` - The tensor to get the maximum elements of.
     /// * `dim` - The dimension along which to get the maximum elements.
+    /// * `indices_dtype` - The indices tensor dtype.
     ///
     /// # Returns
     ///
@@ -1341,8 +1394,9 @@ pub trait FloatTensorOps<B: Backend> {
     fn float_max_dim_with_indices(
         tensor: FloatTensor<B>,
         dim: usize,
+        indices_dtype: IntDType,
     ) -> (FloatTensor<B>, IntTensor<B>) {
-        let index = B::float_argmax(tensor.clone(), dim);
+        let index = B::float_argmax(tensor.clone(), dim, indices_dtype);
         let values = B::float_gather(dim, tensor, index.clone());
 
         (values, index)
@@ -1375,7 +1429,8 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// A tensor with the minimum elements of `tensor` along `dim`.
     fn float_min_dim(tensor: FloatTensor<B>, dim: usize) -> FloatTensor<B> {
-        let index = B::float_argmin(tensor.clone(), dim);
+        let dtype = get_device_settings::<B>(&B::float_device(&tensor)).int_dtype;
+        let index = B::float_argmin(tensor.clone(), dim, dtype);
 
         B::float_gather(dim, tensor, index)
     }
@@ -1386,6 +1441,7 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// * `tensor` - The tensor to get the minimum elements of.
     /// * `dim` - The dimension along which to get the minimum elements.
+    /// * `indices_dtype` - The indices tensor dtype.
     ///
     /// # Returns
     ///
@@ -1393,8 +1449,9 @@ pub trait FloatTensorOps<B: Backend> {
     fn float_min_dim_with_indices(
         tensor: FloatTensor<B>,
         dim: usize,
+        indices_dtype: IntDType,
     ) -> (FloatTensor<B>, IntTensor<B>) {
-        let index = B::float_argmin(tensor.clone(), dim);
+        let index = B::float_argmin(tensor.clone(), dim, indices_dtype);
         let values = B::float_gather(dim, tensor, index.clone());
 
         (values, index)
@@ -1435,15 +1492,17 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Arguments
     ///
     /// * `tensor` - The tensor to test.
+    /// * `out_dtype` - The output tensor dtype.
     ///
     /// # Returns
     ///
     /// A boolean tensor with a single element, True if any element in the tensor is True, False otherwise.
-    fn float_any(tensor: FloatTensor<B>) -> BoolTensor<B> {
-        let bool_tensor = B::float_equal_elem(tensor, 0f32.into());
+    fn float_any(tensor: FloatTensor<B>, out_dtype: BoolDType) -> BoolTensor<B> {
+        let float_dtype = tensor.dtype();
+        let bool_tensor = B::float_equal_elem(tensor, 0f32.into(), out_dtype);
         let bool_tensor = B::bool_not(bool_tensor);
-        let sum = B::float_sum(B::bool_into_float(bool_tensor));
-        B::float_greater_elem(sum, 0f32.into())
+        let sum = B::float_sum(B::bool_into_float(bool_tensor, float_dtype.into()));
+        B::float_greater_elem(sum, 0f32.into(), out_dtype)
     }
 
     /// Tests if any element in the float `tensor` evaluates to True along a given dimension `dim`.
@@ -1452,17 +1511,19 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// * `tensor` - The tensor to test.
     /// * `dim` - The axis along which to test.
+    /// * `out_dtype` - The output tensor dtype.
     ///
     /// # Returns
     ///
     /// A boolean tensor `Tensor<B, D, Bool>` with the same size as input `tensor`, except in the `dim` axis
     /// where the size is 1. The elem in the `dim` axis is True if any element along this dim in the
     /// input evaluates to True, False otherwise.
-    fn float_any_dim(tensor: FloatTensor<B>, dim: usize) -> BoolTensor<B> {
-        let bool_tensor = B::float_equal_elem(tensor, 0f32.into());
+    fn float_any_dim(tensor: FloatTensor<B>, dim: usize, out_dtype: BoolDType) -> BoolTensor<B> {
+        let float_dtype = tensor.dtype();
+        let bool_tensor = B::float_equal_elem(tensor, 0f32.into(), out_dtype);
         let bool_tensor = B::bool_not(bool_tensor);
-        let sum = B::float_sum_dim(B::bool_into_float(bool_tensor), dim);
-        B::float_greater_elem(sum, 0f32.into())
+        let sum = B::float_sum_dim(B::bool_into_float(bool_tensor, float_dtype.into()), dim);
+        B::float_greater_elem(sum, 0f32.into(), out_dtype)
     }
 
     /// Tests if all elements in the float `tensor` evaluate to True.
@@ -1470,17 +1531,19 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Arguments
     ///
     /// * `tensor` - The tensor to test.
+    /// * `out_dtype` - The output tensor dtype.
     ///
     /// # Returns
     ///
     /// A boolean tensor `Tensor<B, 1, Bool>` with a single element, True if all elements in the input tensor
     /// evaluate to True, False otherwise.
-    fn float_all(tensor: FloatTensor<B>) -> BoolTensor<B> {
+    fn float_all(tensor: FloatTensor<B>, out_dtype: BoolDType) -> BoolTensor<B> {
+        let float_dtype = tensor.dtype();
         let num_elems = tensor.shape().num_elements() as f32;
-        let bool_tensor = B::float_equal_elem(tensor, 0f32.into());
+        let bool_tensor = B::float_equal_elem(tensor, 0f32.into(), out_dtype);
         let bool_tensor = B::bool_not(bool_tensor);
-        let sum = B::float_sum(B::bool_into_float(bool_tensor));
-        B::float_equal_elem(sum, num_elems.into())
+        let sum = B::float_sum(B::bool_into_float(bool_tensor, float_dtype.into()));
+        B::float_equal_elem(sum, num_elems.into(), out_dtype)
     }
 
     /// Tests if all elements in the float `tensor` evaluate to True along a given dimension `dim`.
@@ -1489,18 +1552,20 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// * `tensor` - The tensor to test.
     /// * `dim` - The axis along which to test.
+    /// * `out_dtype` - The output tensor dtype.
     ///
     /// # Returns
     ///
     /// A boolean tensor `Tensor<B, D, Bool>` with the same size as input `tensor`, except in the `dim` axis
     /// where the size is 1. The elem in the `dim` axis is True if all elements along this dim in the input
     /// evaluates to True, False otherwise.
-    fn float_all_dim(tensor: FloatTensor<B>, dim: usize) -> BoolTensor<B> {
+    fn float_all_dim(tensor: FloatTensor<B>, dim: usize, out_dtype: BoolDType) -> BoolTensor<B> {
+        let float_dtype = tensor.dtype();
         let num_elems = tensor.shape()[dim] as f32;
-        let bool_tensor = B::float_equal_elem(tensor, 0f32.into());
+        let bool_tensor = B::float_equal_elem(tensor, 0f32.into(), out_dtype);
         let bool_tensor = B::bool_not(bool_tensor);
-        let sum = B::float_sum_dim(B::bool_into_float(bool_tensor), dim);
-        B::float_equal_elem(sum, num_elems.into())
+        let sum = B::float_sum_dim(B::bool_into_float(bool_tensor, float_dtype.into()), dim);
+        B::float_equal_elem(sum, num_elems.into(), out_dtype)
     }
 
     /// Returns the signs of the float `tensor`.
@@ -1513,13 +1578,11 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// A tensor with the same shape as `tensor` containing the signs of the elements of `tensor`.
     fn float_sign(tensor: FloatTensor<B>) -> FloatTensor<B> {
-        let zeros = B::float_zeros(
-            tensor.shape(),
-            &B::float_device(&tensor),
-            tensor.dtype().into(),
-        );
-        let less_than_zero = B::float_lower_elem(tensor.clone(), 0f32.into());
-        let greater_than_zero = B::float_greater_elem(tensor, 0f32.into());
+        let device = B::float_device(&tensor);
+        let bool_dtype = get_device_settings::<B>(&B::float_device(&tensor)).bool_dtype;
+        let zeros = B::float_zeros(tensor.shape(), &device, tensor.dtype().into());
+        let less_than_zero = B::float_lower_elem(tensor.clone(), 0f32.into(), bool_dtype);
+        let greater_than_zero = B::float_greater_elem(tensor, 0f32.into(), bool_dtype);
 
         let mut result = B::float_mask_fill(zeros, less_than_zero, (-1f32).into());
         result = B::float_mask_fill(result, greater_than_zero, 1f32.into());
@@ -1555,6 +1618,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// * `tensor` - The input tensor.
     /// * `dim` - The axis along which to sort.
     /// * `descending` - The sorting order.
+    /// * `indices_dtype` - The indices tensor dtype.
     ///
     /// # Returns
     ///
@@ -1564,9 +1628,14 @@ pub trait FloatTensorOps<B: Backend> {
         tensor: FloatTensor<B>,
         dim: usize,
         descending: bool,
+        indices_dtype: IntDType,
     ) -> (FloatTensor<B>, IntTensor<B>) {
-        let (values, indices) =
-            sort_with_indices::<B, Float>(TensorPrimitive::Float(tensor), dim, descending);
+        let (values, indices) = sort_with_indices::<B, Float>(
+            TensorPrimitive::Float(tensor),
+            dim,
+            descending,
+            indices_dtype,
+        );
         (values.tensor(), indices)
     }
 
@@ -1579,12 +1648,18 @@ pub trait FloatTensorOps<B: Backend> {
     /// * `tensor` - The input tensor.
     /// * `dim` - The axis along which to sort.
     /// * `descending` - The sorting order.
+    /// * `out_dtype` - The output tensor dtype.
     ///
     /// # Returns
     ///
     /// A tensor with the same shape as the input tensor the indices map back to the original input tensor.
-    fn float_argsort(tensor: FloatTensor<B>, dim: usize, descending: bool) -> IntTensor<B> {
-        argsort::<B, Float>(TensorPrimitive::Float(tensor), dim, descending)
+    fn float_argsort(
+        tensor: FloatTensor<B>,
+        dim: usize,
+        descending: bool,
+        out_dtype: IntDType,
+    ) -> IntTensor<B> {
+        argsort::<B, Float>(TensorPrimitive::Float(tensor), dim, descending, out_dtype)
     }
 
     /// Samples tensor as a two-dimensional spatial grid of (possibly multi-channel) values,
@@ -1605,6 +1680,7 @@ pub trait FloatTensorOps<B: Backend> {
         grid: FloatTensor<B>,
         options: GridSampleOptions,
     ) -> FloatTensor<B> {
+        // TODO: default impl should get int default dtype
         float_grid_sample_2d_ref::<B>(tensor, grid, options)
     }
 
@@ -1633,10 +1709,10 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A boolean tensor where `true` indicates NaN and `false` indicates a non-NaN value.
-    fn float_is_nan(tensor: FloatTensor<B>) -> BoolTensor<B> {
+    fn float_is_nan(tensor: FloatTensor<B>, out_dtype: BoolDType) -> BoolTensor<B> {
         // Check if the input tensor is NaN by comparing it to itself
         // NaN is the only value that is not equal to itself
-        B::float_not_equal(tensor.clone(), tensor)
+        B::float_not_equal(tensor.clone(), tensor, out_dtype)
     }
 
     /// Returns a new tensor with boolean elements indicating whether each element of the input is infinite (either +INF or -INF).
@@ -1644,7 +1720,7 @@ pub trait FloatTensorOps<B: Backend> {
     /// # Returns
     ///
     /// A boolean tensor where `true` indicates that the value is infinite
-    fn float_is_inf(tensor: FloatTensor<B>) -> BoolTensor<B> {
-        B::float_equal_elem(B::float_abs(tensor), f64::INFINITY.into())
+    fn float_is_inf(tensor: FloatTensor<B>, out_dtype: BoolDType) -> BoolTensor<B> {
+        B::float_equal_elem(B::float_abs(tensor), f64::INFINITY.into(), out_dtype)
     }
 }

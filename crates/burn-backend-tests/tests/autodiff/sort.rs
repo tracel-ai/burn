@@ -4,11 +4,9 @@ use burn_tensor::Tolerance;
 
 #[test]
 fn should_diff_sort() {
-    let device = Default::default();
-    let tensor_1 =
-        TestAutodiffTensor::<2>::from_floats([[1.0, 7.0], [-2.0, -3.0]], &device).require_grad();
-    let tensor_2 =
-        TestAutodiffTensor::from_floats([[4.0, -7.0], [2.0, 3.0]], &device).require_grad();
+    let device = AutodiffDevice::new();
+    let tensor_1 = TestTensor::<2>::from_data([[1.0, 7.0], [-2.0, -3.0]], &device).require_grad();
+    let tensor_2 = TestTensor::from_data([[4.0, -7.0], [2.0, 3.0]], &device).require_grad();
 
     let tensor_3 = tensor_1.clone().matmul(tensor_2.clone());
     let tensor_4 = tensor_1.clone().mul(tensor_3.sort(1));
@@ -30,11 +28,9 @@ fn should_diff_sort() {
 
 #[test]
 fn should_diff_sort_with_indices() {
-    let device = Default::default();
-    let tensor_1 =
-        TestAutodiffTensor::<2>::from_floats([[1.0, 7.0], [-2.0, -3.0]], &device).require_grad();
-    let tensor_2 =
-        TestAutodiffTensor::from_floats([[4.0, -7.0], [2.0, 3.0]], &device).require_grad();
+    let device = AutodiffDevice::new();
+    let tensor_1 = TestTensor::<2>::from_data([[1.0, 7.0], [-2.0, -3.0]], &device).require_grad();
+    let tensor_2 = TestTensor::from_data([[4.0, -7.0], [2.0, 3.0]], &device).require_grad();
 
     let tensor_3 = tensor_1.clone().matmul(tensor_2.clone());
     let (values, _indices) = tensor_3.sort_with_indices(1);
@@ -57,11 +53,9 @@ fn should_diff_sort_with_indices() {
 
 #[test]
 fn should_diff_sort_3d_dim1() {
-    let device = Default::default();
-    let tensor_1 =
-        TestAutodiffTensor::<3>::from_floats([[[1.0, 7.0], [-2.0, -3.0]]], &device).require_grad();
-    let tensor_2 =
-        TestAutodiffTensor::from_floats([[[4.0, -7.0], [2.0, 3.0]]], &device).require_grad();
+    let device = AutodiffDevice::new();
+    let tensor_1 = TestTensor::<3>::from_data([[[1.0, 7.0], [-2.0, -3.0]]], &device).require_grad();
+    let tensor_2 = TestTensor::from_data([[[4.0, -7.0], [2.0, 3.0]]], &device).require_grad();
 
     let tensor_3 = tensor_1.clone().matmul(tensor_2.clone());
     let tensor_4 = tensor_1.clone().mul(tensor_3.sort(1));

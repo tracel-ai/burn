@@ -17,9 +17,13 @@ workspace = true
 [features]
 default = ["std"]
 doc = ["default"]
+distributed = ["std", "oneshot"]
 std = ["rand/std", "num-traits/std", "burn-std/std", "cubecl?/std"]
 
 tracing = ["burn-std/tracing", "cubecl/tracing"]
+
+# For DTypeUsage de/serialization
+serde = ["enumset/serde"]
 
 cubecl = ["dep:cubecl", "burn-std/cubecl"]
 cubecl-cuda = ["cubecl", "cubecl/cuda"]
@@ -40,8 +44,14 @@ rand = { workspace = true, default-features = false }
 rand_distr = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }
+oneshot = { version = "0.2.1", optional = true }
+spin = { workspace = true }
+
+[target.'cfg(not(target_has_atomic = "ptr"))'.dependencies]
+portable-atomic-util = { workspace = true }
 
 [dev-dependencies]
 rand = { workspace = true, features = ["thread_rng"] }
 paste = { workspace = true }
 serde_json = { workspace = true, features = ["alloc"]}
+serial_test = { workspace = true }

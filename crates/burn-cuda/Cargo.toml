@@ -27,6 +27,7 @@ tracing = [
     "burn-fusion?/tracing",
     "cubecl/tracing",
 ]
+distributed = ["std", "burn-cubecl/distributed"]
 
 [dependencies]
 burn-fusion = { path = "../burn-fusion", version = "=0.21.0-pre.2", optional = true }

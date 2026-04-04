@@ -12,6 +12,7 @@ use cubek::matmul::{
         BlueprintStrategy, TileSizeSelection, double_buffering::DoubleBufferingArgs,
         double_unit::DoubleUnitSelectionArgs, ordered_double_buffering::OrderedSelectionArgs,
         simple::SimpleArgs, simple_unit::SimpleUnitSelectionArgs,
+        vecmat_unit_perpendicular::VecMatUnitPerpendicularStrategy,
     },
 };
 
@@ -110,6 +111,14 @@ pub fn matmul_autotune<R: CubeRuntime>(
             }
         });
 
+        let vecmat = TuneGroup::<MatmulAutotuneKey>::new("vecmat", |key| {
+            if matches!(key.analysis.kind, MatmulKind::VecMat) {
+                PRIORITY_MAX
+            } else {
+                PRIORITY_NEVER
+            }
+        });
+
         fn double_buffering_priority(key: &MatmulAutotuneKey, max: i8, min: i8) -> i8 {
             if should_tune_double_buffering(false, key) {
                 max
@@ -137,7 +146,27 @@ pub fn matmul_autotune<R: CubeRuntime>(
             }),
         );
 
-        // Unit VecMat
+        // VecMat
+        for target_num_planes in [1, 2, 4, 8] {
+            let strategy = Strategy::VecMatUnitPerpendicular(BlueprintStrategy::Inferred(
+                VecMatUnitPerpendicularStrategy { target_num_planes },
+            ));
+            set = set.with(
+                Tunable::new(strategy.to_string(), move |lhs, rhs, out| {
+                    launch_matmul::<R>(&strategy, lhs, rhs, out)
+                        .map_err(|err| std::format!("{err:?}"))
+                })
+                .group(&vecmat, move |key| {
+                    if key.definition.k >= 1024 && target_num_planes >= 4
+                        || key.definition.k < 1024 && target_num_planes < 4
+                    {
+                        PRIORITY_HIGH
+                    } else {
+                        PRIORITY_MIN
+                    }
+                }),
+            );
+        }
         for (strategy, double_buf) in [
             (
                 Strategy::SimpleVecMat(BlueprintStrategy::Inferred(().into())),
@@ -156,7 +185,8 @@ pub fn matmul_autotune<R: CubeRuntime>(
                 .group(&unit, move |key| match double_buf {
                     false => PRIORITY_MAX,
                     true => double_buffering_priority(key, PRIORITY_MAX, PRIORITY_HIGH),
-                }),
+                })
+                .group(&vecmat, move |_key| PRIORITY_HIGH),
             );
         }
 

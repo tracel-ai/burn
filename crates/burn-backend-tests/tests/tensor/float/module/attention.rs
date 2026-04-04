@@ -1,16 +1,18 @@
 use super::*;
 use burn_tensor::Distribution;
+use burn_tensor::TensorData;
 use burn_tensor::Tolerance;
 use burn_tensor::module::attention;
 use burn_tensor::module::attention_fallback;
 use burn_tensor::ops::AttentionModuleOptions;
+use num_traits::{Signed, cast::cast};
 
 #[test]
 fn test_attention_no_mask() {
     // Skip on metal with f16 - flash attention returns zeros
     // Enable once this issue is fixed: https://github.com/tracel-ai/burn/issues/4325
     #[cfg(feature = "metal")]
-    if core::any::TypeId::of::<FloatElemType>() == core::any::TypeId::of::<burn_tensor::f16>() {
+    if core::any::TypeId::of::<FloatElem>() == core::any::TypeId::of::<burn_tensor::f16>() {
         return;
     }
 
@@ -312,6 +314,119 @@ fn test_attention_softcap_preserves_causal_mask() {
     output_row0
         .into_data()
         .assert_approx_eq::<FloatElem>(&value_row0.into_data(), Tolerance::relative(1e-5));
+}
+
+/// Regression: fully-masked rows must produce 0, not NaN.
+/// When a bool mask masks every key position for a query row, all attention
+/// scores are -inf and naive softmax yields NaN.
+#[test]
+fn test_attention_fully_masked_rows_no_nan() {
+    let [num_batches, num_heads, seq_len, head_dim] = [1, 1, 4, 8];
+
+    let query = TestTensor::<4>::random(
+        [num_batches, num_heads, seq_len, head_dim],
+        Distribution::Uniform(-1., 1.),
+        &Default::default(),
+    );
+    let key = TestTensor::<4>::random(
+        [num_batches, num_heads, seq_len, head_dim],
+        Distribution::Uniform(-1., 1.),
+        &Default::default(),
+    );
+    let value = TestTensor::<4>::random(
+        [num_batches, num_heads, seq_len, head_dim],
+        Distribution::Uniform(-1., 1.),
+        &Default::default(),
+    );
+
+    let mask = TestTensorBool::<4>::full(
+        [num_batches, num_heads, seq_len, seq_len],
+        true,
+        &Default::default(),
+    );
+
+    let output =
+        attention_fallback::<TestBackend>(query, key, value, Some(mask), None, Default::default());
+
+    let output_data = output.into_data();
+    let values = output_data.as_slice::<FloatElem>().unwrap();
+    let tol: FloatElem = cast(1e-4f64).unwrap();
+    assert!(
+        !values.iter().any(|v| v.is_nan()),
+        "Fully-masked rows should produce 0, not NaN"
+    );
+    assert!(
+        values.iter().all(|v| v.abs() < tol),
+        "Fully-masked rows should produce values near 0"
+    );
+}
+
+/// Causal + partial bool mask combine to fully mask early rows.
+/// With seq_len=4, the causal mask allows row 0 to attend only to key 0.
+/// The bool mask masks key 0, so row 0 is fully masked while rows 1-3 still
+/// have valid positions. Row 0 output must be 0, not NaN.
+#[test]
+fn test_attention_fully_masked_rows_causal_no_nan() {
+    let [num_batches, num_heads, seq_len, head_dim] = [1, 1, 4, 8];
+
+    let query = TestTensor::<4>::random(
+        [num_batches, num_heads, seq_len, head_dim],
+        Distribution::Uniform(-1., 1.),
+        &Default::default(),
+    );
+    let key = TestTensor::<4>::random(
+        [num_batches, num_heads, seq_len, head_dim],
+        Distribution::Uniform(-1., 1.),
+        &Default::default(),
+    );
+    let value = TestTensor::<4>::random(
+        [num_batches, num_heads, seq_len, head_dim],
+        Distribution::Uniform(-1., 1.),
+        &Default::default(),
+    );
+
+    // Mask only column 0 (key position 0). Combined with causal mask,
+    // row 0 becomes fully masked since it can only attend to key 0.
+    #[rustfmt::skip]
+    let mask_data = TensorData::from([[[[
+        true,  false, false, false,
+        true,  false, false, false,
+        true,  false, false, false,
+        true,  false, false, false,
+    ]]]]);
+    let mask = TestTensorBool::<4>::from_data(mask_data, &Default::default()).reshape([
+        num_batches,
+        num_heads,
+        seq_len,
+        seq_len,
+    ]);
+
+    let options = AttentionModuleOptions {
+        is_causal: true,
+        ..Default::default()
+    };
+
+    let output = attention_fallback::<TestBackend>(query, key, value, Some(mask), None, options);
+
+    let output_data = output.into_data();
+    let values = output_data.as_slice::<FloatElem>().unwrap();
+    let tol: FloatElem = cast(1e-4f64).unwrap();
+    assert!(
+        !values.iter().any(|v| v.is_nan()),
+        "Fully-masked rows should produce 0, not NaN"
+    );
+    // Row 0 (indices 0..head_dim) should be ~0 since it's fully masked
+    let row0 = &values[..head_dim];
+    assert!(
+        row0.iter().all(|v| v.abs() < tol),
+        "Fully-masked row 0 should produce values near 0"
+    );
+    // Rows 1-3 should have non-zero output (they have valid positions)
+    let rest = &values[head_dim..];
+    assert!(
+        rest.iter().any(|v| v.abs() > tol),
+        "Non-masked rows should produce non-zero output"
+    );
 }
 
 /// Combined: mask + bias + custom scale + softcap together.

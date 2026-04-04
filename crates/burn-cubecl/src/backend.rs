@@ -120,11 +120,18 @@ where
         let has_mma = |cfg: &MmaConfig| {
             cfg.a_type == storage || cfg.b_type == storage || cfg.cd_type == storage
         };
-        if props.features.cmma.iter().any(has_mma) || props.features.mma.iter().any(has_mma) {
+        if props.features.matmul.cmma.iter().any(has_mma)
+            || props.features.matmul.mma.iter().any(has_mma)
+        {
             out |= DTypeUsage::Accelerated;
         }
 
         out
+    }
+
+    fn device_count(type_id: u16) -> usize {
+        let client = R::client(&Default::default());
+        client.device_count(type_id)
     }
 }
 

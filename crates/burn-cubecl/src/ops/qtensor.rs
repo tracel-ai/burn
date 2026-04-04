@@ -6,9 +6,9 @@ use burn_backend::{
         QParamTensor, QuantLevel, QuantMode, QuantParam, QuantPropagation, QuantScheme, QuantValue,
         QuantizationParametersPrimitive, params_shape,
     },
-    tensor::{Device, FloatElem, FloatTensor, IntTensor, QuantizedTensor},
+    tensor::{Device, FloatTensor, IntTensor, QuantizedTensor},
 };
-use burn_std::Metadata;
+use burn_std::{FloatDType, Metadata};
 use cubecl::server::{MemoryLayout, MemoryLayoutDescriptor, MemoryLayoutStrategy};
 use cubecl::{e2m1x2, quant::scheme::QuantStore};
 
@@ -202,8 +202,8 @@ where
         kernel::quantization::quantize(tensor, scheme, qparams.scales)
     }
 
-    fn dequantize(tensor: QuantizedTensor<Self>) -> FloatTensor<Self> {
-        kernel::quantization::dequantize(tensor, FloatElem::<Self>::dtype())
+    fn dequantize(tensor: QuantizedTensor<Self>, dtype: FloatDType) -> FloatTensor<Self> {
+        kernel::quantization::dequantize(tensor, dtype.into())
     }
 
     fn q_device(tensor: &QuantizedTensor<Self>) -> Device<Self> {

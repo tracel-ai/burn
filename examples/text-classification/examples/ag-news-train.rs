@@ -1,10 +1,13 @@
 #![recursion_limit = "256"]
 
+#[cfg(feature = "ddp")]
+use burn::tensor::backend::distributed::{DistributedBackend, DistributedConfig, ReduceOperation};
 use burn::{
     nn::transformer::TransformerEncoderConfig,
     optim::{AdamConfig, decay::WeightDecayConfig},
     prelude::*,
     tensor::backend::{AutodiffBackend, DeviceId},
+    train::ExecutionStrategy,
 };
 
 use text_classification::{AgNewsDataset, training::ExperimentConfig};
@@ -17,18 +20,39 @@ type ElemType = burn::tensor::f16;
 #[cfg(feature = "flex32")]
 type ElemType = burn::tensor::flex32;
 
+#[cfg(not(feature = "ddp"))]
 pub fn launch_multi<B: AutodiffBackend>() {
     let type_id = 0;
-    let num_devices = B::Device::device_count(type_id);
+    let num_devices = B::device_count(type_id);
 
     let devices = (0..num_devices)
         .map(|i| B::Device::from_id(DeviceId::new(type_id, i as u32)))
         .collect();
 
-    launch::<B>(devices)
+    launch::<B>(ExecutionStrategy::MultiDevice(
+        devices,
+        burn::train::MultiDeviceOptim::OptimSharded,
+    ))
 }
 
-pub fn launch<B: AutodiffBackend>(devices: Vec<B::Device>) {
+#[cfg(feature = "ddp")]
+pub fn launch_multi<B: AutodiffBackend + DistributedBackend>() {
+    let type_id = 0;
+    let num_devices = B::device_count(type_id);
+
+    let devices = (0..num_devices)
+        .map(|i| B::Device::from_id(DeviceId::new(type_id, i as u32)))
+        .collect();
+
+    launch::<B>(ExecutionStrategy::ddp(
+        devices,
+        DistributedConfig {
+            all_reduce_op: ReduceOperation::Mean,
+        },
+    ))
+}
+
+pub fn launch<B: AutodiffBackend>(strategy: ExecutionStrategy<B>) {
     let config = ExperimentConfig::new(
         TransformerEncoderConfig::new(256, 1024, 8, 4)
             .with_norm_first(true)
@@ -37,7 +61,7 @@ pub fn launch<B: AutodiffBackend>(devices: Vec<B::Device>) {
     );
 
     text_classification::training::train::<B, AgNewsDataset>(
-        devices,
+        strategy,
         AgNewsDataset::train(),
         AgNewsDataset::test(),
         config,
@@ -60,7 +84,7 @@ mod ndarray {
     use crate::{ElemType, launch};
 
     pub fn run() {
-        launch::<Autodiff<NdArray<ElemType>>>(vec![NdArrayDevice::Cpu]);
+        launch::<Autodiff<NdArray<ElemType>>>(ExecutionStrategy::SingleDevice(NdArrayDevice::Cpu));
     }
 }
 
@@ -79,7 +103,7 @@ mod tch_gpu {
         #[cfg(target_os = "macos")]
         let device = LibTorchDevice::Mps;
 
-        launch::<Autodiff<LibTorch<ElemType>>>(vec![device]);
+        launch::<Autodiff<LibTorch<ElemType>>>(ExecutionStrategy::SingleDevice(device));
     }
 }
 
@@ -93,7 +117,9 @@ mod tch_cpu {
     use crate::{ElemType, launch};
 
     pub fn run() {
-        launch::<Autodiff<LibTorch<ElemType>>>(vec![LibTorchDevice::Cpu]);
+        launch::<Autodiff<LibTorch<ElemType>>>(ExecutionStrategy::SingleDevice(
+            LibTorchDevice::Cpu,
+        ));
     }
 }
 
@@ -103,7 +129,9 @@ mod wgpu {
     use burn::backend::{Autodiff, Wgpu};
 
     pub fn run() {
-        launch::<Autodiff<Wgpu<ElemType, i32>>>(vec![Default::default()]);
+        launch::<Autodiff<Wgpu<ElemType, i32>>>(
+            ExecutionStrategy::SingleDevice(Default::default()),
+        );
     }
 }
 
@@ -114,7 +142,7 @@ mod vulkan {
 
     pub fn run() {
         type B = Autodiff<Vulkan<ElemType, i32>, BalancedCheckpointing>;
-        launch::<B>(vec![Default::default()]);
+        launch::<B>(ExecutionStrategy::SingleDevice(Default::default()));
     }
 }
 
@@ -124,7 +152,9 @@ mod metal {
     use burn::backend::{Autodiff, Metal};
 
     pub fn run() {
-        launch::<Autodiff<Metal<ElemType, i32>>>(vec![Default::default()]);
+        launch::<Autodiff<Metal<ElemType, i32>>>(ExecutionStrategy::SingleDevice(
+            Default::default(),
+        ));
     }
 }
 
@@ -134,7 +164,7 @@ mod remote {
     use burn::backend::{Autodiff, RemoteBackend};
 
     pub fn run() {
-        launch::<Autodiff<RemoteBackend>>(vec![Default::default()]);
+        launch::<Autodiff<RemoteBackend>>(ExecutionStrategy::SingleDevice(Default::default()));
     }
 }
 
@@ -154,7 +184,9 @@ mod rocm {
     use burn::backend::{Autodiff, Rocm, autodiff::checkpoint::strategy::BalancedCheckpointing};
 
     pub fn run() {
-        launch::<Autodiff<Rocm<ElemType, i32>, BalancedCheckpointing>>(vec![Default::default()]);
+        launch::<Autodiff<Rocm<ElemType, i32>, BalancedCheckpointing>>(
+            ExecutionStrategy::SingleDevice(Default::default()),
+        );
     }
 }
 

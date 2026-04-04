@@ -1,4 +1,4 @@
-use burn_std::{DType, bf16, f16};
+use burn_std::{BoolStore, DType, bf16, f16};
 use num_traits::ToPrimitive;
 
 #[cfg(not(feature = "std"))]
@@ -30,7 +30,13 @@ impl Scalar {
         } else if dtype.is_uint() {
             Self::UInt(value.elem())
         } else if dtype.is_bool() {
-            Self::Bool(value.elem())
+            match dtype {
+                DType::Bool(BoolStore::Native) => Self::Bool(value.elem()),
+                DType::Bool(BoolStore::U8) | DType::Bool(BoolStore::U32) => {
+                    Self::UInt(value.elem())
+                }
+                _ => unreachable!(),
+            }
         } else {
             unimplemented!("Scalar not supported for {dtype:?}")
         }
