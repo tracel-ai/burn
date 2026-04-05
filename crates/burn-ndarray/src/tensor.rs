@@ -423,14 +423,6 @@ macro_rules! execute_with_int_out_dtype {
     }};
 }
 
-// Use storage's shape method (works for both borrowed and owned)
-macro_rules! get_shape {
-    ($($variant:ident),*) => {
-        match self {
-            $(NdArrayTensor::$variant(storage) => Shape::from(storage.shape().to_vec()),)*
-        }
-    };
-}
 impl TensorMetadata for NdArrayTensor {
     fn dtype(&self) -> DType {
         match self {

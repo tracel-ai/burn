@@ -25,7 +25,7 @@ use crate::base::{
 /// to be used for a specific layout (such as butterfly operations).
 pub trait Layout {
     /// The complex Tensor primitive type for this layout. For interleaved, this will be
-    /// a tensor of Complex<E>,for split this will be a tuple tensor Complex<FloatTensorPrimitive<E>, FloatTensorPrimitive<E>>.
+    /// a tensor of Complex\<E\>,for split this will be a tuple tensor Complex\<FloatTensorPrimitive\<E\>, FloatTensorPrimitive\<E\>\>.
     type ComplexTensorPrimitive: TensorMetadata + 'static;
 }
 
@@ -35,9 +35,11 @@ pub type ComplexElem<B> = <B as ComplexTensorBackend>::ComplexScalar;
 /// Complex tensor primitive type used by the backend.
 pub type ComplexTensor<B> = <<B as ComplexTensorBackend>::Layout as Layout>::ComplexTensorPrimitive;
 pub type ComplexDevice<B> = <<B as ComplexTensorBackend>::InnerBackend as Backend>::Device;
-type FloatTensor<B> = <<B as ComplexTensorBackend>::InnerBackend as Backend>::FloatTensorPrimitive;
-type IntTensor<B> = <<B as ComplexTensorBackend>::InnerBackend as Backend>::IntTensorPrimitive;
-type BoolTensor<B> = <<B as ComplexTensorBackend>::InnerBackend as Backend>::BoolTensorPrimitive;
+pub type FloatTensor<B> =
+    <<B as ComplexTensorBackend>::InnerBackend as Backend>::FloatTensorPrimitive;
+pub type IntTensor<B> = <<B as ComplexTensorBackend>::InnerBackend as Backend>::IntTensorPrimitive;
+pub type BoolTensor<B> =
+    <<B as ComplexTensorBackend>::InnerBackend as Backend>::BoolTensorPrimitive;
 
 pub trait ComplexTensorBackend: ComplexTensorOps<Self> + Sized {
     /// The inner backend type.
@@ -120,7 +122,7 @@ pub struct SplitLayout<T> {
     _marker: core::marker::PhantomData<T>,
 }
 
-/// Indicates that the underlying implementation uses a complex primitive type [float,float] like that found in the
+/// Indicates that the underlying implementation uses a complex primitive type \[float,float\] like that found in the
 /// num_complex trait.
 pub struct InterleavedLayout<E> {
     _marker: core::marker::PhantomData<E>,
@@ -446,9 +448,7 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// # Returns
     ///
     /// The result of adding the two tensors together.
-    fn complex_add(lhs: ComplexTensor<B>, rhs: ComplexTensor<B>) -> ComplexTensor<B> {
-        todo!()
-    }
+    fn complex_add(lhs: ComplexTensor<B>, rhs: ComplexTensor<B>) -> ComplexTensor<B>;
 
     /// Subtracts the second tensor from the first tensor.
     ///
@@ -460,9 +460,7 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// # Returns
     ///
     /// The result of subtracting the second tensor from the first tensor.
-    fn complex_sub(lhs: ComplexTensor<B>, rhs: ComplexTensor<B>) -> ComplexTensor<B> {
-        todo!()
-    }
+    fn complex_sub(lhs: ComplexTensor<B>, rhs: ComplexTensor<B>) -> ComplexTensor<B>;
 
     /// Multiplies two complex tensors together using complex multiplication.
     ///
@@ -474,9 +472,7 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// # Returns
     ///
     /// The result of multiplying the two tensors together.
-    fn complex_mul(lhs: ComplexTensor<B>, rhs: ComplexTensor<B>) -> ComplexTensor<B> {
-        todo!()
-    }
+    fn complex_mul(lhs: ComplexTensor<B>, rhs: ComplexTensor<B>) -> ComplexTensor<B>;
 
     /// Divides the first tensor by the second tensor using complex division.
     ///
@@ -488,9 +484,7 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// # Returns
     ///
     /// The result of dividing the first tensor by the second tensor.
-    fn complex_div(lhs: ComplexTensor<B>, rhs: ComplexTensor<B>) -> ComplexTensor<B> {
-        todo!()
-    }
+    fn complex_div(lhs: ComplexTensor<B>, rhs: ComplexTensor<B>) -> ComplexTensor<B>;
 
     /// Negates the tensor.
     ///
@@ -549,9 +543,7 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// # Returns
     ///
     /// A float tensor containing the magnitudes.
-    fn complex_abs(tensor: ComplexTensor<B>) -> FloatTensor<B> {
-        todo!()
-    }
+    fn complex_abs(tensor: ComplexTensor<B>) -> FloatTensor<B>;
 
     /// Returns the phase (argument) of the complex tensor.
     ///
@@ -576,9 +568,7 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// # Returns
     ///
     /// A complex tensor constructed from the real and imaginary parts.
-    fn complex_from_parts(real: FloatTensor<B>, imag: FloatTensor<B>) -> ComplexTensor<B> {
-        todo!()
-    }
+    fn complex_from_parts(real: FloatTensor<B>, imag: FloatTensor<B>) -> ComplexTensor<B>;
 
     /// Creates a complex tensor from magnitude and phase.
     ///
@@ -603,9 +593,7 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// # Returns
     ///
     /// The exponential of the tensor.
-    fn complex_exp(tensor: ComplexTensor<B>) -> ComplexTensor<B> {
-        todo!()
-    }
+    fn complex_exp(tensor: ComplexTensor<B>) -> ComplexTensor<B>;
 
     /// Complex natural logarithm.
     ///
@@ -616,9 +604,7 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// # Returns
     ///
     /// The natural logarithm of the tensor.
-    fn complex_log(tensor: ComplexTensor<B>) -> ComplexTensor<B> {
-        todo!()
-    }
+    fn complex_log(tensor: ComplexTensor<B>) -> ComplexTensor<B>;
 
     /// Complex power function.
     ///

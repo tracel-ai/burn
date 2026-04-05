@@ -428,7 +428,7 @@ where
 
     /// Returns the imaginary unit.
     ///
-    /// See also [`Complex::I`].
+    /// See also \[`Complex::I`\].
     #[inline]
     pub fn i() -> Self {
         Self::new(E::zero(), E::one())

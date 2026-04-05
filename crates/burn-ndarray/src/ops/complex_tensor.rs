@@ -7,7 +7,9 @@ use crate::{
 
 use burn_backend::{ElementConversion, TensorData, TensorMetadata, ops::FloatTensorOps};
 use burn_complex::base::element::{Complex, ToComplexElement};
-use burn_complex::base::{ComplexDevice, ComplexTensor, ComplexTensorBackend, InterleavedLayout};
+use burn_complex::base::{
+    ComplexDevice, ComplexTensor, ComplexTensorBackend, FloatTensor, InterleavedLayout,
+};
 use burn_complex::utils::{
     interleave_from_split_data, interleaved_data_from_imag_data, interleaved_data_from_real_data,
     interleaved_data_to_imag_data, interleaved_data_to_real_data, interleaved_data_to_split_data,
@@ -147,6 +149,53 @@ where
     ) -> ComplexDevice<NdArray<E, I, Q>> {
         NdArrayDevice::Cpu
     }
+
+    fn complex_add(
+        lhs: ComplexTensor<NdArray<E, I, Q>>,
+        rhs: ComplexTensor<NdArray<E, I, Q>>,
+    ) -> ComplexTensor<NdArray<E, I, Q>> {
+        crate::execute_with_complex_dtype!((lhs, rhs), NdArrayMathOps::add)
+    }
+
+    fn complex_sub(
+        lhs: ComplexTensor<NdArray<E, I, Q>>,
+        rhs: ComplexTensor<NdArray<E, I, Q>>,
+    ) -> ComplexTensor<NdArray<E, I, Q>> {
+        crate::execute_with_complex_dtype!((lhs, rhs), NdArrayMathOps::sub)
+    }
+
+    fn complex_mul(
+        lhs: ComplexTensor<NdArray<E, I, Q>>,
+        rhs: ComplexTensor<NdArray<E, I, Q>>,
+    ) -> ComplexTensor<NdArray<E, I, Q>> {
+        todo!()
+    }
+
+    fn complex_div(
+        lhs: ComplexTensor<NdArray<E, I, Q>>,
+        rhs: ComplexTensor<NdArray<E, I, Q>>,
+    ) -> ComplexTensor<NdArray<E, I, Q>> {
+        todo!()
+    }
+
+    fn complex_abs(tensor: ComplexTensor<NdArray<E, I, Q>>) -> FloatTensor<NdArray<E, I, Q>> {
+        todo!()
+    }
+
+    fn complex_from_parts(
+        real: FloatTensor<NdArray<E, I, Q>>,
+        imag: FloatTensor<NdArray<E, I, Q>>,
+    ) -> ComplexTensor<NdArray<E, I, Q>> {
+        todo!()
+    }
+
+    fn complex_exp(tensor: ComplexTensor<NdArray<E, I, Q>>) -> ComplexTensor<NdArray<E, I, Q>> {
+        todo!()
+    }
+
+    fn complex_log(tensor: ComplexTensor<NdArray<E, I, Q>>) -> ComplexTensor<NdArray<E, I, Q>> {
+        todo!()
+    }
 }
 
 /// Macro for ops that return the inner float component of a complex tensor
@@ -169,10 +218,9 @@ macro_rules! execute_real_op {
     }};
 }
 // TODO: actually fix this
-/// Macro to execute an operation for complex dtypes (currently Complex32).
+/// Macro to execute an operation for complex dtypes
 #[macro_export]
 macro_rules! execute_with_complex_dtype {
-
 
     // Binary op: type automatically inferred by the compiler
     (($lhs:expr, $rhs:expr), $op:expr) => {{

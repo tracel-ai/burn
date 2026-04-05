@@ -136,7 +136,7 @@ where
         SplitComplexTensor { real, imag }
     }
 }
-
+type FlOps<B> = <SplitBackend<B> as ComplexTensorBackend>::InnerBackend;
 impl<B> ComplexTensorOps<SplitBackend<B>> for SplitBackend<B>
 where
     B: Backend,
@@ -213,5 +213,68 @@ where
         <<SplitBackend<B> as ComplexTensorBackend>::InnerBackend as FloatTensorOps<
             <SplitBackend<B> as ComplexTensorBackend>::InnerBackend,
         >>::float_device(&tensor.real)
+    }
+
+    fn complex_add(
+        lhs: ComplexTensor<SplitBackend<B>>,
+        rhs: ComplexTensor<SplitBackend<B>>,
+    ) -> ComplexTensor<SplitBackend<B>> {
+        SplitComplexTensor {
+            real: FlOps::<B>::float_add(lhs.real, rhs.real),
+            imag: FlOps::<B>::float_add(lhs.imag, rhs.imag),
+        }
+    }
+
+    fn complex_sub(
+        lhs: ComplexTensor<SplitBackend<B>>,
+        rhs: ComplexTensor<SplitBackend<B>>,
+    ) -> ComplexTensor<SplitBackend<B>> {
+        SplitComplexTensor {
+            real: FlOps::<B>::float_sub(lhs.real, rhs.real),
+            imag: FlOps::<B>::float_sub(lhs.imag, rhs.imag),
+        }
+    }
+
+    fn complex_mul(
+        lhs: ComplexTensor<SplitBackend<B>>,
+        rhs: ComplexTensor<SplitBackend<B>>,
+    ) -> ComplexTensor<SplitBackend<B>> {
+        SplitComplexTensor {
+            real: FlOps::<B>::float_sub(
+                FlOps::<B>::float_mul(lhs.real.clone(), rhs.real.clone()),
+                FlOps::<B>::float_mul(lhs.imag.clone(), rhs.imag.clone()),
+            ),
+            imag: FlOps::<B>::float_add(
+                FlOps::<B>::float_mul(lhs.real, rhs.imag),
+                FlOps::<B>::float_mul(rhs.real, lhs.imag),
+            ),
+        }
+    }
+
+    fn complex_div(
+        lhs: ComplexTensor<SplitBackend<B>>,
+        rhs: ComplexTensor<SplitBackend<B>>,
+    ) -> ComplexTensor<SplitBackend<B>> {
+        type FlOps<B> = <SplitBackend<B> as ComplexTensorBackend>::InnerBackend;
+        todo!()
+    }
+
+    fn complex_abs(tensor: ComplexTensor<SplitBackend<B>>) -> super::FloatTensor<SplitBackend<B>> {
+        todo!()
+    }
+
+    fn complex_from_parts(
+        real: super::FloatTensor<SplitBackend<B>>,
+        imag: super::FloatTensor<SplitBackend<B>>,
+    ) -> ComplexTensor<SplitBackend<B>> {
+        SplitComplexTensor { real, imag }
+    }
+
+    fn complex_exp(tensor: ComplexTensor<SplitBackend<B>>) -> ComplexTensor<SplitBackend<B>> {
+        todo!()
+    }
+
+    fn complex_log(tensor: ComplexTensor<SplitBackend<B>>) -> ComplexTensor<SplitBackend<B>> {
+        todo!()
     }
 }
