@@ -1388,6 +1388,42 @@ impl TensorCheck {
         }
         check
     }
+    
+    /// Check the generic parameters for lu decomposition is valid.
+    pub fn lu_generic_param<const D: usize, const D1: usize>(ops: &str) -> Self {
+        let mut check = TensorCheck::Ok;
+        if D - 1 != D1 {
+            check = check.register(
+                ops,
+                TensorError::new("D - 1 = D1 must hold for the generic parameters of LU decomposition.")
+                    .details(format!("Got generic parameters D = {} and D1 = {}", D, D1)),
+            );
+        }
+        check
+    }
+    
+    /// Check the input tensor for lu decomposition is valid.
+    pub fn lu_input_tensor<const D: usize>(ops: &str, dims: &[usize]) -> Self {
+        let mut check = TensorCheck::Ok;
+        let n_dims = dims.len();
+        if D != n_dims {
+            check = check.register(
+                ops,
+                TensorError::new("Tensor rank D (generic parameter) must equal actual input tensor rank in LU decomposition.")
+                    .details(format!("Got generic parameter D = {} and tensor rank {}", D, n_dims)),
+            );
+        }
+        
+        if D < 2 {
+            check = check.register(
+                ops,
+                TensorError::new("The input tensor for LU decomposition must have at least two dimensions.")
+                    .details(format!("Got generic parameter D = {} and tensor rank {}", D, n_dims)),
+            );
+        }
+        
+        check
+    }
 }
 
 pub(crate) struct FailedTensorCheck {

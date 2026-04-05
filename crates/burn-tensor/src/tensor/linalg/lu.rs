@@ -1,5 +1,5 @@
 use burn_backend::{Backend, Slice, tensor::{Bool, IndexingUpdateOp, Int}};
-use crate::Tensor;
+use crate::{Tensor, check, check::TensorCheck};
 
 /// Computes the LU decomposition of a square or rectangular matrix with partial pivoting.
 ///
@@ -20,8 +20,17 @@ use crate::Tensor;
 pub fn lu<B: Backend, const D: usize, const D1: usize>(
     tensor: Tensor<B, D>, use_block_lu: bool
 ) -> (Tensor<B, D>, Tensor<B, D>, Tensor<B, D>) {
-    let device = tensor.device();
     let dims = tensor.dims();
+    
+    check!(TensorCheck::lu_generic_param::<D, D1>(
+        "linalg::lu"
+    ));
+    check!(TensorCheck::lu_input_tensor::<D>(
+        "linalg::lu",
+        &dims
+    ));
+    
+    let device = tensor.device();
     let n_rows = dims[D - 2];
     let n_cols = dims[D - 1];
     
@@ -65,6 +74,15 @@ pub fn lu<B: Backend, const D: usize, const D1: usize>(
 pub fn lu_factor<B: Backend, const D: usize, const D1: usize>(
     tensor: Tensor<B, D>, use_block_lu: bool
 ) -> (Tensor<B, D1>, Tensor<B, D>) {
+    let dims = tensor.dims();
+    check!(TensorCheck::lu_generic_param::<D, D1>(
+        "linalg::lu_factor"
+    ));
+    check!(TensorCheck::lu_input_tensor::<D>(
+        "linalg::lu_factor",
+        &dims
+    ));
+    
     let (lu, p) = compute_lu_decomposition::<B, D, D1>(tensor, use_block_lu);
     (p.squeeze_dim(D - 1), lu)
 }
