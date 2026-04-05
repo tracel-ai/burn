@@ -25,7 +25,6 @@ use crate::{Tensor, check, check::TensorCheck};
 /// This function will panic if the tensor checks fail:
 /// - The input tensor has less than 2 dimensions (`D < 2`).
 /// - The generic parameters do not satisfy `D - 1 == D1`.
-/// - The actual rank of the input tensor does not match the generic parameter `D`.
 ///
 /// # Performance Note
 /// The current implementation of LU decomposition is not fully optimized. It will not 
@@ -113,7 +112,6 @@ pub fn lu<B: Backend, const D: usize, const D1: usize>(
 /// This function will panic if the tensor checks fail:
 /// - The input tensor has less than 2 dimensions (`D < 2`).
 /// - The generic parameters do not satisfy `D - 1 == D1`.
-/// - The actual rank of the input tensor does not match the generic parameter `D`.
 ///
 /// # Performance Note
 /// The current implementation of LU decomposition is not fully optimized. It will not 

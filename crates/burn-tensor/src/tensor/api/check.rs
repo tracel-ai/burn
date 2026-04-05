@@ -1406,19 +1406,11 @@ impl TensorCheck {
     pub fn lu_input_tensor<const D: usize>(ops: &str, dims: &[usize]) -> Self {
         let mut check = TensorCheck::Ok;
         let n_dims = dims.len();
-        if D != n_dims {
-            check = check.register(
-                ops,
-                TensorError::new("Tensor rank D (generic parameter) must equal actual input tensor rank in LU decomposition.")
-                    .details(format!("Got generic parameter D = {} and tensor rank {}", D, n_dims)),
-            );
-        }
-        
-        if D < 2 {
+        if n_dims < 2 {
             check = check.register(
                 ops,
                 TensorError::new("The input tensor for LU decomposition must have at least two dimensions.")
-                    .details(format!("Got generic parameter D = {} and tensor rank {}", D, n_dims)),
+                    .details(format!("Got input tensor with {} dimensions", n_dims)),
             );
         }
         
