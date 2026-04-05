@@ -1,5 +1,5 @@
-use crate::execute_with_float_dtype;
 use crate::ops::NdArrayMathOps;
+use crate::{NdArrayDevice, execute_with_float_dtype};
 
 use crate::{
     FloatNdArrayElement, IntNdArrayElement, NdArray, NdArrayTensor, QuantElement, SharedArray,
@@ -69,75 +69,37 @@ where
     NdArrayTensor: From<SharedArray<I>>,
 {
     fn real(tensor: ComplexTensor<Self>) -> NdArrayTensor {
-        match tensor {
-            crate::NdArrayTensor::Complex32(storage) => {
-                #[allow(unused)]
-                type E = burn_complex::base::element::Complex<f32>;
-                (|array: SharedArray<E>| array.mapv(|a: E| a.imag).into_shared())(
-                    storage.into_shared(),
-                )
-                .into()
-            }
-            crate::NdArrayTensor::Complex64(storage) => {
-                #[allow(unused)]
-                type E = burn_complex::base::element::Complex<f64>;
-                (|array: SharedArray<E>| array.mapv(|a: E| a.imag).into_shared())(
-                    storage.into_shared(),
-                )
-                .into()
-            }
-            #[allow(unreachable_patterns)]
-            other => unimplemented!("unsupported dtype: {:?}", other.dtype()),
-        }
+        crate::execute_real_op!(tensor, C, |array: SharedArray<C>| {
+            array.mapv(|a| a.real).into_shared()
+        })
     }
 
     fn imag(tensor: NdArrayTensor) -> NdArrayTensor {
-        match tensor {
-            crate::NdArrayTensor::Complex32(storage) => {
-                #[allow(unused)]
-                type E = burn_complex::base::element::Complex<f32>;
-                (|array: SharedArray<E>| array.mapv(|a: E| a.imag).into_shared())(
-                    storage.into_shared(),
-                )
-                .into()
-            }
-            crate::NdArrayTensor::Complex64(storage) => {
-                #[allow(unused)]
-                type E = burn_complex::base::element::Complex<f64>;
-                (|array: SharedArray<E>| array.mapv(|a: E| a.imag).into_shared())(
-                    storage.into_shared(),
-                )
-                .into()
-            }
-            #[allow(unreachable_patterns)]
-            other => unimplemented!("unsupported dtype: {:?}", other.dtype()),
-        }
+        crate::execute_real_op!(tensor, C, |array: SharedArray<C>| {
+            array.mapv(|a| a.imag).into_shared()
+        })
     }
     //NOTE: May want to change complex types from ComplexE to Complex<E> in the future to match the element type (and allow quantized complex tensors)
     fn to_complex(tensor: NdArrayTensor) -> NdArrayTensor {
-        {
-            {
-                match tensor {
-                    crate::NdArrayTensor::F64(storage) => {
-                        #[allow(unused)]
-                        type E = f64;
-                        (|array: SharedArray<E>| array.mapv(|a: E| a.to_complex64()).into_shared())(
-                            storage.into_shared(),
-                        )
-                        .into()
-                    }
-                    crate::NdArrayTensor::F32(storage) => {
-                        #[allow(unused)]
-                        type E = f32;
-                        (|array: SharedArray<E>| {
+        match tensor {
+            crate::NdArrayTensor::F64(storage) => {
+                #[allow(unused)]
+                type E = f64;
+                (|array: SharedArray<E>| array.mapv(|a: E| a.to_complex64()).into_shared())(
+                    storage.into_shared(),
+                )
+                .into()
+            }
+            crate::NdArrayTensor::F32(storage) => {
+                #[allow(unused)]
+                type E = f32;
+                (|array: SharedArray<E>| {
                             array.mapv_into_any(|a: E| a.to_complex32()).into_shared()
                         })(storage.into_shared())
                         .into()
-                    }
-                    #[allow(unreachable_patterns)]
-                    other => unimplemented!("unsupported dtype: {:?}", other.dtype()),
-                }
             }
+            #[allow(unreachable_patterns)]
+            other => unimplemented!("unsupported dtype: {:?}", other.dtype()),
         }
     }
 
@@ -158,58 +120,113 @@ where
 
     async fn complex_into_real_data(
         tensor: ComplexTensor<NdArray<E, I, Q>>,
-        _device: &ComplexDevice<Self>,
     ) -> Result<TensorData, burn_backend::ExecutionError> {
         Ok(interleaved_data_to_real_data(tensor.into_data()))
     }
 
     async fn complex_into_imag_data(
         tensor: ComplexTensor<NdArray<E, I, Q>>,
-        _device: &ComplexDevice<Self>,
     ) -> Result<TensorData, burn_backend::ExecutionError> {
         Ok(interleaved_data_to_imag_data(tensor.into_data()))
     }
 
     async fn complex_into_interleaved_data(
         tensor: ComplexTensor<NdArray<E, I, Q>>,
-        _device: &ComplexDevice<Self>,
     ) -> Result<TensorData, burn_backend::ExecutionError> {
         Ok(tensor.into_data())
     }
 
     async fn complex_into_split_data(
         tensor: ComplexTensor<NdArray<E, I, Q>>,
-        _device: &ComplexDevice<Self>,
     ) -> Result<(TensorData, TensorData), burn_backend::ExecutionError> {
         Ok(interleaved_data_to_split_data(tensor.into_data()))
     }
+
+    fn complex_device(
+        _tensor: &ComplexTensor<NdArray<E, I, Q>>,
+    ) -> ComplexDevice<NdArray<E, I, Q>> {
+        NdArrayDevice::Cpu
+    }
 }
 
+/// Macro for ops that return the inner float component of a complex tensor
+#[macro_export]
+macro_rules! execute_real_op {
+    ($tensor:expr, $complex_elem:ident, $op:expr) => {{
+        match $tensor {
+            NdArrayTensor::Complex64(storage) => {
+                type $complex_elem = Complex<f64>;
+                let array = storage.into_shared();
+                $op(array).into()
+            }
+            NdArrayTensor::Complex32(storage) => {
+                type $complex_elem = Complex<f32>;
+                let array = storage.into_shared();
+                $op(array).into()
+            }
+            _ => unimplemented!("Not a complex tensor"),
+        }
+    }};
+}
 // TODO: actually fix this
 /// Macro to execute an operation for complex dtypes (currently Complex32).
 #[macro_export]
 macro_rules! execute_with_complex_dtype {
-        // Binary op: type automatically inferred by the compiler
-        (($lhs:expr, $rhs:expr), $op:expr) => {{
-            $crate::execute_with_complex_dtype!(($lhs, $rhs), E, $op)
-        }};
-        // Binary op
-        (($lhs:expr, $rhs:expr),$element:ident, $op:expr) => {{
-            $crate::execute_with_dtype!(($lhs, $rhs), $element, $op, [
-                Complex32 => burn_complex::base::element::Complex<f32>,
-                Complex64 => burn_complex::base::element::Complex<f64>
-            ])
-        }};
-        // Unary op: type automatically inferred by the compiler
-        ($tensor:expr, $op:expr) => {{
-            $crate::execute_with_complex_dtype!($tensor, E, $op)
-        }};
 
-        // Unary op
-        ($tensor:expr, $element:ident, $op:expr) => {{
-            $crate::execute_with_dtype!($tensor, $element, $op, [
-                Complex32 => burn_complex::base::element::Complex<f32>,
-                Complex64 => burn_complex::base::element::Complex<f64>
-            ])
-        }};
-    }
+
+    // Binary op: type automatically inferred by the compiler
+    (($lhs:expr, $rhs:expr), $op:expr) => {{
+        $crate::execute_with_complex_dtype!(($lhs, $rhs), E, $op)
+    }};
+    // Binary op
+    (($lhs:expr, $rhs:expr),$element:ident, $op:expr) => {{
+        $crate::execute_with_dtype!(($lhs, $rhs), $element, $op, [
+            Complex32 => burn_complex::base::element::Complex<f32>,
+            Complex64 => burn_complex::base::element::Complex<f64>
+        ])
+    }};
+    // Unary op: type automatically inferred by the compiler
+    ($tensor:expr, $op:expr) => {{
+        $crate::execute_with_complex_dtype!($tensor, E, $op)
+    }};
+
+    // Unary op
+    ($tensor:expr, $element:ident, $op:expr) => {{
+        $crate::execute_with_dtype!($tensor, $element, $op, [
+            Complex32 => burn_complex::base::element::Complex<f32>,
+            Complex64 => burn_complex::base::element::Complex<f64>
+        ])
+    }};
+}
+
+/// Macro to execute an operation that returns a given complex element type.
+#[macro_export]
+macro_rules! execute_with_complex_out_dtype {
+    ($out_dtype:expr, $element:ident, $op:expr, [$($dtype: ident => $ty: ty),*]) => {{
+        match $out_dtype {
+            $(
+
+                burn_std::DType::$dtype => {
+                    #[allow(unused)]
+                    type $element = $ty;
+                    $op
+                }
+            )*
+            #[allow(unreachable_patterns)]
+            other => unimplemented!("unsupported complex dtype: {other:?}")
+        }
+    }};
+
+    // Unary op: type automatically inferred
+    ($out_dtype:expr, $op:expr) => {{
+        $crate::execute_with_complex_out_dtype!($out_dtype, E, $op)
+    }};
+
+    // Unary op: default complex mapping
+    ($out_dtype:expr, $element:ident, $op:expr) => {{
+        $crate::execute_with_complex_out_dtype!($out_dtype, $element, $op, [
+            Complex64 => Complex<f64>,
+            Complex32 => Complex<f32>
+        ])
+    }};
+}

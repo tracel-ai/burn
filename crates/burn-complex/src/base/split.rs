@@ -7,10 +7,12 @@ use crate::{
 };
 use burn_std::{Bytes, DType};
 use burn_tensor::{
-    ElementComparison, Float, TensorData, TensorKind, TensorMetadata, backend::Backend,
+    ElementComparison, Float, TensorData, TensorKind, TensorMetadata,
+    backend::{Backend, DeviceOps},
+    get_device_settings,
+    ops::FloatTensorOps,
 };
 use bytemuck::Pod;
-
 
 impl<T: TensorMetadata + 'static> Layout for SplitLayout<T> {
     type ComplexTensorPrimitive = SplitComplexTensor<T>;
@@ -158,12 +160,6 @@ where
         tensor.imag
     }
 
-    async fn complex_into_data(
-        tensor: ComplexTensor<SplitBackend<B>>,
-    ) -> Result<TensorData, burn_tensor::backend::ExecutionError> {
-        todo!()
-    }
-
     fn complex_not_equal_elem(
         lhs: ComplexTensor<SplitBackend<B>>,
         rhs: <SplitBackend<B> as ComplexTensorBackend>::ComplexScalar,
@@ -173,21 +169,18 @@ where
 
     async fn complex_into_real_data(
         tensor: ComplexTensor<SplitBackend<B>>,
-        device: &ComplexDevice<SplitBackend<B>>,
     ) -> Result<TensorData, burn_tensor::backend::ExecutionError> {
         B::float_into_data(tensor.real).await
     }
 
     async fn complex_into_imag_data(
         tensor: ComplexTensor<SplitBackend<B>>,
-        device: &ComplexDevice<SplitBackend<B>>,
     ) -> Result<TensorData, burn_tensor::backend::ExecutionError> {
         B::float_into_data(tensor.imag).await
     }
 
     async fn complex_into_interleaved_data(
         tensor: ComplexTensor<SplitBackend<B>>,
-        device: &ComplexDevice<SplitBackend<B>>,
     ) -> Result<TensorData, burn_tensor::backend::ExecutionError> {
         let real_data = B::float_into_data(tensor.real).await?;
         let imag_data = B::float_into_data(tensor.imag).await?;
@@ -210,10 +203,15 @@ where
 
     async fn complex_into_split_data(
         tensor: ComplexTensor<SplitBackend<B>>,
-        device: &ComplexDevice<SplitBackend<B>>,
     ) -> Result<(TensorData, TensorData), burn_tensor::backend::ExecutionError> {
         let real_data = B::float_into_data(tensor.real).await?;
         let imag_data = B::float_into_data(tensor.imag).await?;
         Ok((real_data, imag_data))
+    }
+
+    fn complex_device(tensor: &ComplexTensor<SplitBackend<B>>) -> ComplexDevice<SplitBackend<B>> {
+        <<SplitBackend<B> as ComplexTensorBackend>::InnerBackend as FloatTensorOps<
+            <SplitBackend<B> as ComplexTensorBackend>::InnerBackend,
+        >>::float_device(&tensor.real)
     }
 }

@@ -164,6 +164,9 @@ pub trait DefaultComplexOps<B: ComplexTensorBackend> {
         fill_value: ComplexElem<B>,
         device: &ComplexDevice<B>,
     ) -> ComplexTensor<B>;
+    fn complex_into_data(
+        tensor: ComplexTensor<B>,
+    ) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send;
 }
 
 impl<T, B> DefaultComplexOps<B> for InterleavedLayout<T>
@@ -186,6 +189,10 @@ where
         device: &ComplexDevice<B>,
     ) -> ComplexTensor<B> {
         B::complex_from_real_data(TensorData::full(shape, fill_value), device)
+    }
+
+    async fn complex_into_data(tensor: ComplexTensor<B>) -> Result<TensorData, ExecutionError> {
+        B::complex_into_interleaved_data(tensor).await
     }
 }
 
@@ -245,6 +252,10 @@ where
             imag: imag.into(),
         }
     }
+
+    async fn complex_into_data(tensor: ComplexTensor<B>) -> Result<TensorData, ExecutionError> {
+        B::complex_into_interleaved_data(tensor).await
+    }
 }
 
 /// Operations on complex tensors.
@@ -260,22 +271,18 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// The data structure with the tensor's data.
     fn complex_into_real_data(
         tensor: ComplexTensor<B>,
-        device: &ComplexDevice<B>,
     ) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send;
 
     fn complex_into_imag_data(
         tensor: ComplexTensor<B>,
-        device: &ComplexDevice<B>,
     ) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send;
 
     fn complex_into_interleaved_data(
         tensor: ComplexTensor<B>,
-        device: &ComplexDevice<B>,
     ) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send;
 
     fn complex_into_split_data(
         tensor: ComplexTensor<B>,
-        device: &ComplexDevice<B>,
     ) -> impl Future<Output = Result<(TensorData, TensorData), ExecutionError>> + Send;
 
     fn to_complex(tensor: FloatTensor<B>) -> ComplexTensor<B>;
@@ -311,7 +318,7 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     ///
     /// The tensor with the given shape and zeros.
     fn complex_zeros(shape: Shape, device: &ComplexDevice<B>) -> ComplexTensor<B> {
-        B::complex_from_real_data(TensorData::zeros::<ComplexElem<B>, _>(shape), device)
+        <<B as ComplexTensorBackend>::Layout as DefaultComplexOps<B>>::zeros(shape, device)
     }
 
     /// Creates a new complex tensor with ones.
@@ -325,7 +332,7 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     ///
     /// The tensor with the given shape and ones.
     fn complex_ones(shape: Shape, device: &ComplexDevice<B>) -> ComplexTensor<B> {
-        B::complex_from_real_data(TensorData::ones::<ComplexElem<B>, _>(shape), device)
+        <<B as ComplexTensorBackend>::Layout as DefaultComplexOps<B>>::ones(shape, device)
     }
 
     /// Creates a new complex tensor with the given shape and a single value.
@@ -344,7 +351,9 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
         fill_value: ComplexElem<B>,
         device: &ComplexDevice<B>,
     ) -> ComplexTensor<B> {
-        todo!()
+        <<B as ComplexTensorBackend>::Layout as DefaultComplexOps<B>>::full(
+            shape, fill_value, device,
+        )
     }
 
     /// Gets the shape of the tensor.
@@ -357,7 +366,7 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     ///
     /// The shape of the tensor.
     fn complex_shape(tensor: &ComplexTensor<B>) -> Shape {
-        todo!()
+        tensor.shape()
     }
 
     /// Gets the device of the tensor.
@@ -369,9 +378,7 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// # Returns
     ///
     /// The device of the tensor.
-    fn complex_device(tensor: &ComplexTensor<B>) -> ComplexDevice<B> {
-        todo!()
-    }
+    fn complex_device(tensor: &ComplexTensor<B>) -> ComplexDevice<B>;
 
     /// Moves the tensor to the given device.
     ///
@@ -398,7 +405,9 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// The tensor with the new element type.
     fn complex_into_data(
         tensor: ComplexTensor<B>,
-    ) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send;
+    ) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send {
+        <<B as ComplexTensorBackend>::Layout as DefaultComplexOps<B>>::complex_into_data(tensor)
+    }
 
     /// Reshapes the tensor.
     ///
@@ -518,9 +527,7 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// # Returns
     ///
     /// A float tensor containing the real parts.
-    fn real(tensor: ComplexTensor<B>) -> FloatTensor<B> {
-        todo!()
-    }
+    fn real(tensor: ComplexTensor<B>) -> FloatTensor<B>;
 
     /// Returns the imaginary part of the complex tensor.
     ///
@@ -531,9 +538,7 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// # Returns
     ///
     /// A float tensor containing the imaginary parts.
-    fn imag(tensor: ComplexTensor<B>) -> FloatTensor<B> {
-        todo!()
-    }
+    fn imag(tensor: ComplexTensor<B>) -> FloatTensor<B>;
 
     /// Returns the magnitude (absolute value) of the complex tensor.
     ///
