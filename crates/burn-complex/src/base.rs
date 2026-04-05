@@ -13,15 +13,18 @@ use burn_tensor::{
     IndexingUpdateOp, Numeric, Scalar, Shape, Slice, TensorData, TensorKind, TensorMetadata,
     TransactionPrimitive,
     backend::{Backend, ExecutionError},
-    ops::{FloatTensorOps},
+    ops::FloatTensorOps,
 };
 
-use crate::base::{element::{Complex, ComplexElement}, split::SplitComplexTensor};
+use crate::base::{
+    element::{Complex, ComplexElement},
+    split::SplitComplexTensor,
+};
 
 /// The layout of the complex tensor. Used to define shared behavior only meant
 /// to be used for a specific layout (such as butterfly operations).
 pub trait Layout {
-    /// The complex Tensor primitive type for this layout. For interleaved, this will be 
+    /// The complex Tensor primitive type for this layout. For interleaved, this will be
     /// a tensor of Complex<E>,for split this will be a tuple tensor Complex<FloatTensorPrimitive<E>, FloatTensorPrimitive<E>>.
     type ComplexTensorPrimitive: TensorMetadata + 'static;
 }
@@ -31,7 +34,7 @@ pub type ComplexElem<B> = <B as ComplexTensorBackend>::ComplexScalar;
 
 /// Complex tensor primitive type used by the backend.
 pub type ComplexTensor<B> = <<B as ComplexTensorBackend>::Layout as Layout>::ComplexTensorPrimitive;
-type ComplexDevice<B> = <<B as ComplexTensorBackend>::InnerBackend as Backend>::Device;
+pub type ComplexDevice<B> = <<B as ComplexTensorBackend>::InnerBackend as Backend>::Device;
 type FloatTensor<B> = <<B as ComplexTensorBackend>::InnerBackend as Backend>::FloatTensorPrimitive;
 type IntTensor<B> = <<B as ComplexTensorBackend>::InnerBackend as Backend>::IntTensorPrimitive;
 type BoolTensor<B> = <<B as ComplexTensorBackend>::InnerBackend as Backend>::BoolTensorPrimitive;
@@ -59,7 +62,10 @@ pub trait ComplexTensorBackend: ComplexTensorOps<Self> + Sized {
     /// # Returns
     ///
     /// The tensor with the given data.
-    fn complex_from_real_data(data: TensorData, device: &<Self::InnerBackend as Backend>::Device) -> ComplexTensor<Self>;
+    fn complex_from_real_data(
+        data: TensorData,
+        device: &ComplexDevice<Self>,
+    ) -> ComplexTensor<Self>;
 
     /// Creates a new complex tensor from the data structure.
     ///
@@ -71,7 +77,10 @@ pub trait ComplexTensorBackend: ComplexTensorOps<Self> + Sized {
     /// # Returns
     ///
     /// The tensor with the given data.
-    fn complex_from_imag_data(data: TensorData, device: &<Self::InnerBackend as Backend>::Device) -> ComplexTensor<Self>;
+    fn complex_from_imag_data(
+        data: TensorData,
+        device: &ComplexDevice<Self>,
+    ) -> ComplexTensor<Self>;
 
     /// Creates a new complex tensor from the data structure.
     ///
@@ -83,7 +92,10 @@ pub trait ComplexTensorBackend: ComplexTensorOps<Self> + Sized {
     /// # Returns
     ///
     /// The tensor with the given data.
-    fn complex_from_interleaved_data(data: TensorData, device: &<Self::InnerBackend as Backend>::Device) -> ComplexTensor<Self>;
+    fn complex_from_interleaved_data(
+        data: TensorData,
+        device: &<Self::InnerBackend as Backend>::Device,
+    ) -> ComplexTensor<Self>;
 
     /// Creates a new complex tensor from the data structure.
     ///
@@ -95,9 +107,11 @@ pub trait ComplexTensorBackend: ComplexTensorOps<Self> + Sized {
     /// # Returns
     ///
     /// The tensor with the given data.
-    fn complex_from_split_data(real_data: TensorData, imag_data: TensorData, device: &<Self::InnerBackend as Backend>::Device) -> ComplexTensor<Self>;
-
-    
+    fn complex_from_split_data(
+        real_data: TensorData,
+        imag_data: TensorData,
+        device: &<Self::InnerBackend as Backend>::Device,
+    ) -> ComplexTensor<Self>;
 }
 //Note: changing to adopt terminology used in fftw doc
 
@@ -137,18 +151,19 @@ pub struct SplitTensorData {
     pub dtype: DType,
 }
 
-
-impl<T: TensorMetadata+ 'static> Layout for InterleavedLayout<T> {
+impl<T: TensorMetadata + 'static> Layout for InterleavedLayout<T> {
     type ComplexTensorPrimitive = T;
 }
-
 
 // The evolution of Laziness
 pub trait DefaultComplexOps<B: ComplexTensorBackend> {
     fn ones(shape: Shape, device: &ComplexDevice<B>) -> ComplexTensor<B>;
     fn zeros(shape: Shape, device: &ComplexDevice<B>) -> ComplexTensor<B>;
-    fn full(shape: Shape, fill_value: ComplexElem<B>, device: &ComplexDevice<B>) -> ComplexTensor<B>;
-
+    fn full(
+        shape: Shape,
+        fill_value: ComplexElem<B>,
+        device: &ComplexDevice<B>,
+    ) -> ComplexTensor<B>;
 }
 
 impl<T, B> DefaultComplexOps<B> for InterleavedLayout<T>
@@ -165,7 +180,11 @@ where
         B::complex_from_real_data(TensorData::zeros::<ComplexElem<B>, _>(shape), device)
     }
 
-    fn full(shape: Shape, fill_value: ComplexElem<B>, device: &ComplexDevice<B>) -> ComplexTensor<B> {
+    fn full(
+        shape: Shape,
+        fill_value: ComplexElem<B>,
+        device: &ComplexDevice<B>,
+    ) -> ComplexTensor<B> {
         B::complex_from_real_data(TensorData::full(shape, fill_value), device)
     }
 }
@@ -191,7 +210,10 @@ where
             device,
         );
         // ComplexTensor<B> = Complex<T> via SplitLayout
-        SplitComplexTensor { real: real.into(), imag: imag.into() }
+        SplitComplexTensor {
+            real: real.into(),
+            imag: imag.into(),
+        }
     }
 
     fn ones(shape: Shape, device: &ComplexDevice<B>) -> ComplexTensor<B> {
@@ -203,25 +225,30 @@ where
             TensorData::ones::<<B::InnerBackend as Backend>::FloatElem, _>(shape),
             device,
         );
-        SplitComplexTensor { real: real.into(), imag: imag.into() }
+        SplitComplexTensor {
+            real: real.into(),
+            imag: imag.into(),
+        }
     }
 
-    fn full(shape: Shape, fill_value: ComplexElem<B>, device: &ComplexDevice<B>) -> ComplexTensor<B> {
-        let real = B::InnerBackend::float_from_data(
-            TensorData::full(&shape, fill_value.real()),
-            device,
-        );
-        let imag = B::InnerBackend::float_from_data(
-            TensorData::full(shape, fill_value.imag()),
-            device,
-        );
-        SplitComplexTensor { real: real.into(), imag: imag.into() }
+    fn full(
+        shape: Shape,
+        fill_value: ComplexElem<B>,
+        device: &ComplexDevice<B>,
+    ) -> ComplexTensor<B> {
+        let real =
+            B::InnerBackend::float_from_data(TensorData::full(&shape, fill_value.real()), device);
+        let imag =
+            B::InnerBackend::float_from_data(TensorData::full(shape, fill_value.imag()), device);
+        SplitComplexTensor {
+            real: real.into(),
+            imag: imag.into(),
+        }
     }
 }
 
 /// Operations on complex tensors.
 pub trait ComplexTensorOps<B: ComplexTensorBackend> {
-    
     /// Converts the tensor's real component to a data structure.
     ///
     /// # Arguments
@@ -231,20 +258,28 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// # Returns
     ///
     /// The data structure with the tensor's data.
-    fn complex_into_real_data(tensor: ComplexTensor<B>, device: &ComplexDevice<B>) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send;
+    fn complex_into_real_data(
+        tensor: ComplexTensor<B>,
+        device: &ComplexDevice<B>,
+    ) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send;
 
-    
-    fn complex_into_imag_data(tensor: ComplexTensor<B>, device: &ComplexDevice<B>) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send;
+    fn complex_into_imag_data(
+        tensor: ComplexTensor<B>,
+        device: &ComplexDevice<B>,
+    ) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send;
 
-    
-    fn complex_into_interleaved_data(tensor: ComplexTensor<B>, device: &ComplexDevice<B>) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send;
+    fn complex_into_interleaved_data(
+        tensor: ComplexTensor<B>,
+        device: &ComplexDevice<B>,
+    ) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send;
 
-    
-    fn complex_into_split_data(tensor: ComplexTensor<B>, device: &ComplexDevice<B>) -> impl Future<Output = Result<(TensorData, TensorData), ExecutionError>> + Send;
-    
+    fn complex_into_split_data(
+        tensor: ComplexTensor<B>,
+        device: &ComplexDevice<B>,
+    ) -> impl Future<Output = Result<(TensorData, TensorData), ExecutionError>> + Send;
+
     fn to_complex(tensor: FloatTensor<B>) -> ComplexTensor<B>;
     // can reuse float random
-    
 
     /// Creates a new complex tensor with random values.
     ///
@@ -324,9 +359,6 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     fn complex_shape(tensor: &ComplexTensor<B>) -> Shape {
         todo!()
     }
-
-    
-    
 
     /// Gets the device of the tensor.
     ///
@@ -539,10 +571,7 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// # Returns
     ///
     /// A complex tensor constructed from the real and imaginary parts.
-    fn complex_from_parts(
-        real: FloatTensor<B>,
-        imag: FloatTensor<B>,
-    ) -> ComplexTensor<B> {
+    fn complex_from_parts(real: FloatTensor<B>, imag: FloatTensor<B>) -> ComplexTensor<B> {
         todo!()
     }
 
@@ -556,10 +585,7 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// # Returns
     ///
     /// A complex tensor constructed from polar coordinates.
-    fn complex_from_polar(
-        magnitude: FloatTensor<B>,
-        phase: FloatTensor<B>,
-    ) -> ComplexTensor<B> {
+    fn complex_from_polar(magnitude: FloatTensor<B>, phase: FloatTensor<B>) -> ComplexTensor<B> {
         todo!()
     }
 
@@ -666,11 +692,7 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// # Returns
     ///
     /// The selected tensor.
-    fn select(
-        tensor: ComplexTensor<B>,
-        dim: usize,
-        indices: IntTensor<B>,
-    ) -> ComplexTensor<B> {
+    fn select(tensor: ComplexTensor<B>, dim: usize, indices: IntTensor<B>) -> ComplexTensor<B> {
         todo!()
     }
 
@@ -934,8 +956,7 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     fn complex_equal_elem(lhs: ComplexTensor<B>, rhs: B::ComplexScalar) -> BoolTensor<B> {
         todo!()
     }
-    fn complex_not_equal_elem(lhs: ComplexTensor<B>, rhs: B::ComplexScalar)
-    -> BoolTensor<B>;
+    fn complex_not_equal_elem(lhs: ComplexTensor<B>, rhs: B::ComplexScalar) -> BoolTensor<B>;
 
     fn complex_mask_where(
         tensor: ComplexTensor<B>,
@@ -995,9 +1016,10 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
 pub struct ComplexTensorType;
 
 #[allow(unused_variables)]
-impl<B: ComplexTensorBackend::<InnerBackend = B>+ Backend> BasicOps<B> for ComplexTensorType
-where 
-    B: {
+impl<B: ComplexTensorBackend<InnerBackend = B> + Backend> BasicOps<B> for ComplexTensorType
+where
+    B:,
+{
     type Elem = B::ComplexScalar;
 
     fn empty(shape: Shape, device: &B::Device, dtype: DType) -> Self::Primitive {
@@ -1042,8 +1064,6 @@ where
     fn from_data(data: TensorData, device: &B::Device, dtype: DType) -> Self::Primitive {
         B::complex_from_real_data(data.convert::<B::ComplexScalar>(), device)
     }
-
-    
 
     fn repeat_dim(tensor: Self::Primitive, dim: usize, times: usize) -> Self::Primitive {
         B::complex_repeat_dim(tensor, dim, times)
@@ -1198,7 +1218,7 @@ where
 }
 
 #[allow(unused_variables)]
-impl<B: ComplexTensorBackend::<InnerBackend = B>+ Backend> Numeric<B> for ComplexTensorType
+impl<B: ComplexTensorBackend<InnerBackend = B> + Backend> Numeric<B> for ComplexTensorType
 where
     B::ComplexScalar: Element,
 {
@@ -1260,9 +1280,12 @@ where
         B::complex_from_parts(magnitude, zeros)
     }
 
-    
-
-    fn random(shape: Shape, distribution: Distribution, device: &ComplexDevice<B>, dtype: DType) -> Self::Primitive {
+    fn random(
+        shape: Shape,
+        distribution: Distribution,
+        device: &ComplexDevice<B>,
+        dtype: DType,
+    ) -> Self::Primitive {
         B::complex_random(shape, distribution, device)
     }
 
@@ -1346,8 +1369,7 @@ where
     }
 }
 
-
-impl<B: ComplexTensorBackend::<InnerBackend = B>+ Backend> TensorKind<B> for ComplexTensorType {
+impl<B: ComplexTensorBackend<InnerBackend = B> + Backend> TensorKind<B> for ComplexTensorType {
     type Primitive = ComplexTensor<B>;
     fn name() -> &'static str {
         "Complex"

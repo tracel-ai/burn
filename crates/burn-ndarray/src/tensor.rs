@@ -364,8 +364,6 @@ macro_rules! cat_with_dtype {
     };
 }
 
-
-
 /// Macro to execute an operation that returns a given element type.
 #[macro_export]
 macro_rules! execute_with_float_out_dtype {

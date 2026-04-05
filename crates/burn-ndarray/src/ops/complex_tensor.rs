@@ -4,9 +4,14 @@ use crate::ops::NdArrayMathOps;
 use crate::{
     FloatNdArrayElement, IntNdArrayElement, NdArray, NdArrayTensor, QuantElement, SharedArray,
 };
+
 use burn_backend::{ElementConversion, TensorData, TensorMetadata, ops::FloatTensorOps};
 use burn_complex::base::element::{Complex, ToComplexElement};
-use burn_complex::base::{ComplexTensor, ComplexTensorBackend, InterleavedLayout};
+use burn_complex::base::{ComplexDevice, ComplexTensor, ComplexTensorBackend, InterleavedLayout};
+use burn_complex::utils::{
+    interleave_from_split_data, interleaved_data_from_imag_data, interleaved_data_from_real_data,
+    interleaved_data_to_imag_data, interleaved_data_to_real_data, interleaved_data_to_split_data,
+};
 
 impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> ComplexTensorBackend
     for NdArray<E, I, Q>
@@ -20,27 +25,40 @@ where
     type ComplexScalar = Complex<E>;
 
     type Layout = InterleavedLayout<NdArrayTensor>;
-    
-    fn complex_from_real_data(data: TensorData, device: &<Self::InnerBackend as burn_backend::Backend>::Device) -> ComplexTensor<Self> {
-        todo!()
-        
-        
-        
+
+    fn complex_from_real_data(
+        data: TensorData,
+        _device: &ComplexDevice<Self>,
+    ) -> ComplexTensor<Self> {
+        let interleaved_data = interleaved_data_from_real_data(data);
+
+        NdArrayTensor::from_data(interleaved_data).into()
     }
-    
-    fn complex_from_imag_data(data: TensorData, _device: &<Self::InnerBackend as burn_backend::Backend>::Device) -> ComplexTensor<Self> {
-        todo!()
+
+    fn complex_from_imag_data(
+        data: TensorData,
+        _device: &ComplexDevice<Self>,
+    ) -> ComplexTensor<Self> {
+        let interleaved_data = interleaved_data_from_imag_data(data);
+
+        NdArrayTensor::from_data(interleaved_data).into()
     }
-    
-    fn complex_from_interleaved_data(data: TensorData, _device: &<Self::InnerBackend as burn_backend::Backend>::Device) -> ComplexTensor<Self> {
+
+    fn complex_from_interleaved_data(
+        data: TensorData,
+        _device: &<Self::InnerBackend as burn_backend::Backend>::Device,
+    ) -> ComplexTensor<Self> {
         NdArrayTensor::from_data(data).into()
     }
-    
-    fn complex_from_split_data(real_data: TensorData, imag_data: TensorData, _device: &<Self::InnerBackend as burn_backend::Backend>::Device) -> ComplexTensor<Self> {
-        todo!()
+
+    fn complex_from_split_data(
+        real_data: TensorData,
+        imag_data: TensorData,
+        _device: &<Self::InnerBackend as burn_backend::Backend>::Device,
+    ) -> ComplexTensor<Self> {
+        let interleaved_data = interleave_from_split_data(real_data, imag_data);
+        NdArrayTensor::from_data(interleaved_data).into()
     }
-    
-    
 }
 
 impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement>
@@ -50,7 +68,6 @@ where
     NdArrayTensor: From<SharedArray<Complex<E>>>,
     NdArrayTensor: From<SharedArray<I>>,
 {
-    
     fn real(tensor: ComplexTensor<Self>) -> NdArrayTensor {
         match tensor {
             crate::NdArrayTensor::Complex32(storage) => {
@@ -137,6 +154,34 @@ where
         execute_with_float_dtype!(lhs, FloatElem, |array: SharedArray<FloatElem>| {
             NdArrayMathOps::equal_elem(array, rhs.elem())
         })
+    }
+
+    async fn complex_into_real_data(
+        tensor: ComplexTensor<NdArray<E, I, Q>>,
+        _device: &ComplexDevice<Self>,
+    ) -> Result<TensorData, burn_backend::ExecutionError> {
+        Ok(interleaved_data_to_real_data(tensor.into_data()))
+    }
+
+    async fn complex_into_imag_data(
+        tensor: ComplexTensor<NdArray<E, I, Q>>,
+        _device: &ComplexDevice<Self>,
+    ) -> Result<TensorData, burn_backend::ExecutionError> {
+        Ok(interleaved_data_to_imag_data(tensor.into_data()))
+    }
+
+    async fn complex_into_interleaved_data(
+        tensor: ComplexTensor<NdArray<E, I, Q>>,
+        _device: &ComplexDevice<Self>,
+    ) -> Result<TensorData, burn_backend::ExecutionError> {
+        Ok(tensor.into_data())
+    }
+
+    async fn complex_into_split_data(
+        tensor: ComplexTensor<NdArray<E, I, Q>>,
+        _device: &ComplexDevice<Self>,
+    ) -> Result<(TensorData, TensorData), burn_backend::ExecutionError> {
+        Ok(interleaved_data_to_split_data(tensor.into_data()))
     }
 }
 
