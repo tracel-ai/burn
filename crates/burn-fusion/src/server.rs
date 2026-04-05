@@ -1,8 +1,6 @@
-use std::sync::Arc;
-
 use crate::{
-    FusionBackend, FusionRuntime,
-    stream::{MultiStream, OperationStreams, StreamId, execution::Operation},
+    FusionBackend, FusionRuntime, UnfusedOp,
+    stream::{MultiStream, OperationStreams, StreamId},
 };
 use burn_backend::{TensorData, backend::ExecutionError};
 use burn_ir::{HandleContainer, OperationIr, TensorId, TensorIr};
@@ -27,7 +25,7 @@ where
         &mut self,
         streams: OperationStreams,
         repr: OperationIr,
-        operation: Arc<dyn Operation<R>>,
+        operation: UnfusedOp<R>,
     ) {
         self.streams
             .register(streams, repr, operation, &mut self.handles)

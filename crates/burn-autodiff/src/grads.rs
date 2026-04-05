@@ -3,6 +3,11 @@ use burn_backend::{
     tensor::{FloatTensor, TensorContainer},
 };
 
+#[cfg(feature = "distributed")]
+use crate::distributed::DistributedRegistration;
+#[cfg(feature = "distributed")]
+use burn_backend::distributed::DistributedBackend;
+
 use crate::{
     NodeId,
     graph::{NodeRef, Requirement},
@@ -15,13 +20,38 @@ pub type GradID = u64;
 /// Gradients container used during the backward pass.
 pub struct Gradients {
     container: TensorContainer<GradID>,
+    #[cfg(feature = "distributed")]
+    distributed_registration: Option<Box<dyn DistributedRegistration + Send + Sync>>,
 }
 
 impl Gradients {
+    #[cfg(not(feature = "distributed"))]
     /// Creates a new gradients container.
     pub fn new<B: Backend>(root_node: NodeRef, root_tensor: FloatTensor<B>) -> Self {
         let mut gradients = Self {
             container: TensorContainer::new(),
+        };
+        gradients.register::<B>(
+            root_node.id,
+            B::float_ones(
+                root_tensor.shape(),
+                &B::float_device(&root_tensor),
+                root_tensor.dtype().into(),
+            ),
+        );
+        gradients
+    }
+
+    #[cfg(feature = "distributed")]
+    /// Creates a new gradients container.
+    pub fn new<B: Backend>(
+        root_node: NodeRef,
+        root_tensor: FloatTensor<B>,
+        distributed_registration: Option<Box<dyn DistributedRegistration + Send + Sync>>,
+    ) -> Self {
+        let mut gradients = Self {
+            container: TensorContainer::new(),
+            distributed_registration,
         };
         gradients.register::<B>(
             root_node.id,
@@ -71,15 +101,38 @@ impl Gradients {
     /// Register a grad tensor in the container.
     ///
     /// If the tensor already exists, add both tensors together before saving the result.
+    ///
+    /// If the registered tensor is distributed, launches a syncing operation on the gradients.
     pub fn register<B: Backend>(&mut self, node_id: NodeId, value: FloatTensor<B>) {
-        if let Some(tensor_old) = self.container.remove::<B>(&node_id.value) {
-            self.container.register::<B>(
-                node_id.value,
-                TensorPrimitive::Float(B::float_add(value, tensor_old.tensor())),
-            );
+        let out = if let Some(tensor_old) = self.container.remove::<B>(&node_id.value) {
+            B::float_add(value, tensor_old.tensor())
         } else {
-            self.container
-                .register::<B>(node_id.value, TensorPrimitive::Float(value));
+            value
+        };
+
+        self.container
+            .register::<B>(node_id.value, TensorPrimitive::Float(out));
+
+        #[cfg(feature = "distributed")]
+        if self.is_distributed() {
+            self.distributed_registration
+                .as_mut()
+                .unwrap()
+                .on_register(&node_id, &mut self.container);
+        }
+    }
+
+    #[cfg(feature = "distributed")]
+    /// returns true if the gradients are distributed across devices.
+    pub fn is_distributed(&self) -> bool {
+        self.distributed_registration.is_some()
+    }
+
+    #[cfg(feature = "distributed")]
+    /// For distributed models, waits for collective operations to be completed so the gradients are synced across devices.
+    pub fn sync_collective<B: DistributedBackend>(&self, device: &B::Device) {
+        if self.is_distributed() {
+            B::submit_sync_collective(device);
         }
     }
 }

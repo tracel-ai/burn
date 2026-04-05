@@ -9,13 +9,5 @@ pub use api::*;
 
 mod local;
 
-#[cfg(all(
-    test,
-    any(
-        feature = "test-ndarray",
-        feature = "test-wgpu",
-        feature = "test-cuda",
-        feature = "test-metal"
-    )
-))]
+#[cfg(test)]
 mod tests;

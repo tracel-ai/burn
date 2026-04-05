@@ -10,9 +10,9 @@ use cubek::matmul::{
     launch::{MatmulAutotuneKey, MatmulGlobalScale, Strategy, should_tune_double_buffering},
     routines::{
         BlueprintStrategy, TileSizeSelection, double_buffering::DoubleBufferingArgs,
-        double_unit::DoubleUnitSelectionArgs, nostage_vecmat::NoStageVecMatStrategy,
-        ordered_double_buffering::OrderedSelectionArgs, simple::SimpleArgs,
-        simple_unit::SimpleUnitSelectionArgs,
+        double_unit::DoubleUnitSelectionArgs, ordered_double_buffering::OrderedSelectionArgs,
+        simple::SimpleArgs, simple_unit::SimpleUnitSelectionArgs,
+        vecmat_unit_perpendicular::VecMatUnitPerpendicularStrategy,
     },
 };
 
@@ -50,7 +50,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
                 key.analysis.kind,
                 MatmulKind::General
                 // Those variants are just because the unit alternatives aren't very good yet.
-                | MatmulKind::MatVec
+                | MatmulKind::VecMat | MatmulKind::MatVec
             ) {
                 PRIORITY_HIGH
             } else {
@@ -146,12 +146,11 @@ pub fn matmul_autotune<R: CubeRuntime>(
             }),
         );
 
-        // No Stage VecMat
+        // VecMat
         for target_num_planes in [1, 2, 4, 8] {
-            let strategy =
-                Strategy::NoStageVecMat(BlueprintStrategy::Inferred(NoStageVecMatStrategy {
-                    target_num_planes,
-                }));
+            let strategy = Strategy::VecMatUnitPerpendicular(BlueprintStrategy::Inferred(
+                VecMatUnitPerpendicularStrategy { target_num_planes },
+            ));
             set = set.with(
                 Tunable::new(strategy.to_string(), move |lhs, rhs, out| {
                     launch_matmul::<R>(&strategy, lhs, rhs, out)
@@ -168,8 +167,6 @@ pub fn matmul_autotune<R: CubeRuntime>(
                 }),
             );
         }
-
-        // Unit VecMat
         for (strategy, double_buf) in [
             (
                 Strategy::SimpleVecMat(BlueprintStrategy::Inferred(().into())),

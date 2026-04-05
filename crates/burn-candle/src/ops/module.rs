@@ -327,4 +327,16 @@ impl<F: FloatCandleElement, I: IntCandleElement> ModuleOps<Self> for Candle<F, I
     ) -> FloatTensor<Self> {
         attention_fallback::<Self>(query, key, value, mask, attn_bias, options)
     }
+
+    fn rfft(signal: FloatTensor<Self>, dim: usize) -> (FloatTensor<Self>, FloatTensor<Self>) {
+        todo!("rfft is unsupported in Candle")
+    }
+
+    fn irfft(
+        spectrum_re: FloatTensor<Self>,
+        spectrum_im: FloatTensor<Self>,
+        dim: usize,
+    ) -> FloatTensor<Self> {
+        todo!("irfft is unsupported in Candle")
+    }
 }

@@ -1,14 +1,13 @@
 use crate::{
     FusionBackend, FusionDevice, FusionHandle, FusionRuntime, FusionServer, FusionTensor,
+    UnfusedOp,
     stream::{OperationStreams, StreamId, execution::Operation},
 };
 use burn_backend::{Device, DeviceHandle, DeviceId, DeviceService};
 use burn_backend::{TensorData, backend::ExecutionError};
 use burn_ir::{OperationIr, TensorId, TensorIr};
-use std::sync::{
-    Arc,
-    atomic::{AtomicU64, Ordering},
-};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 /// Use a mutex to communicate with the fusion server.
 pub struct GlobalFusionClient<R: FusionRuntime> {
@@ -91,9 +90,24 @@ where
             })
             .collect();
 
-        self.server.submit(move |server| {
-            server.register(streams, repr, Arc::new(operation));
-        });
+        // By doing this comparison, we reduce the number of bytes transferred in the device handle
+        // queue.
+        if size_of::<O>() < size_of::<UnfusedOp<R>>() {
+            // Here the [`O`] type is smaller than the [`UnfusedOp`] type, so it's better to
+            // transfer it directly.
+            self.server.submit(move |server| {
+                let operation = UnfusedOp::new(operation, streams.current);
+                server.register(streams, repr, operation);
+            });
+        } else {
+            // Here the [`O`] type is larger than the [`UnfusedOp`] type, so it's better to
+            // first create the [`UnfusedOp`] before transferring it to the server.
+            let operation = UnfusedOp::new(operation, streams.current);
+
+            self.server.submit(move |server| {
+                server.register(streams, repr, operation);
+            });
+        }
 
         outputs
     }

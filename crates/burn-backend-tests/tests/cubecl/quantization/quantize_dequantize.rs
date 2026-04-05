@@ -2,7 +2,6 @@ use super::*;
 use burn_tensor::Tolerance;
 use burn_tensor::{
     Shape,
-    backend::Backend,
     quantization::{QuantLevel, QuantScheme, QuantStore, QuantValue},
 };
 
@@ -110,18 +109,6 @@ fn should_quantize_dequantize_symmetric_per_block(
     output
         .into_data()
         .assert_approx_eq::<FloatElem>(&output_ref.to_data(), Tolerance::default());
-}
-
-fn supports_native() -> bool {
-    let name = <TestBackend as Backend>::name(&Default::default());
-    // TODO: Proper checks for i8 support.
-    name.contains("cuda")
-        || name.contains("rocm")
-        || name.contains("hip")
-        || name.contains("vulkan")
-        || name.contains("spirv")
-        || name.contains("metal")
-        || name.contains("msl")
 }
 
 #[test]

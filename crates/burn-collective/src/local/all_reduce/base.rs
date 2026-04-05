@@ -7,8 +7,8 @@ use crate::{
     },
     node::base::Node,
 };
+use burn_backend::Backend;
 use burn_communication::Protocol;
-use burn_tensor::backend::Backend;
 
 #[cfg(feature = "tracing")]
 use tracing::Instrument;

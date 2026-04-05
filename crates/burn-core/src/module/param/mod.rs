@@ -3,6 +3,7 @@ mod constant;
 mod id;
 mod primitive;
 mod running;
+mod sync_once_cell;
 mod tensor;
 mod visitor;
 

@@ -2,7 +2,7 @@ use crate::optim::{
     CubeOptimization,
     reduce::{ReduceFuser, ReduceFuserInfo, ReduceSettings},
     reduce_broadcasted::{
-        ReduceBroadcastedOptimization, ReduceBroadcastedOptimizationInfo,
+        ReduceBlockOptimInfo, ReduceBroadcastedOptimization, ReduceBroadcastedOptimizationInfo,
         fuser::{
             block::{ReduceBlockFuser, ReduceBlockFusionAnalysis, ReduceBroadcastedStatus},
             full::ReduceBroadcastedFullFuser,
@@ -50,17 +50,49 @@ impl<R: Runtime> ReduceBroadcastedFuser<R> {
             max_bindings,
         }
     }
-}
 
-impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceBroadcastedFuser<R> {
-    fn fuse(&mut self, operation: &OperationIr) {
-        if matches!(
-            &self.state,
-            ReduceBroadcastedStatus::Closed | ReduceBroadcastedStatus::Abort
-        ) {
-            return;
+    /// Checks whether the full fuser and all fallback blocks together account for every
+    /// operation that has been registered across all blocks.
+    ///
+    /// This is a dry-run consistency check: it simulates finishing all blocks without
+    /// mutating any state, then verifies two invariants:
+    ///
+    /// 1. **Full fuser coverage** — the number of operations absorbed by the
+    ///    [`ReduceBroadcastedFullFuser`] matches the total operation count.
+    /// 2. **Fallback coverage** — the sum of operations across all fallback
+    ///    [`ReduceBlockOptimInfo`] entries also matches the total operation count.
+    ///
+    /// If either invariant fails, the fuser's state should be marked as
+    /// [`ReduceBroadcastedStatus::Abort`] because the optimization would produce
+    /// incorrect results.
+    fn is_consistent(&self) -> bool {
+        let analyzer = FullFuserAnalyzer::new(&self.blocks);
+        let mut full = ReduceBroadcastedFullFuser::new(self.max_bindings, analyzer);
+        let mut num_ops = 0;
+        let fallbacks = self
+            .blocks
+            .clone()
+            .iter_mut()
+            .map(|block| block.finish(&mut num_ops, &mut full))
+            .collect::<Vec<_>>();
+
+        let mut num_ops_fallback = 0;
+
+        for f in fallbacks.iter() {
+            num_ops_fallback += match f {
+                ReduceBlockOptimInfo::Reduce(info) => info.len,
+                ReduceBlockOptimInfo::Elemwise(info) => info.num_ops_fused(),
+            };
         }
 
+        let full_fuser_covers_all = full.num_ops_fused() == num_ops;
+        let fallbacks_cover_all = num_ops_fallback == num_ops;
+
+        full_fuser_covers_all && fallbacks_cover_all
+    }
+
+    /// Fuses without checking consistency and the current state.
+    fn fuse_no_check(&mut self, operation: &OperationIr) {
         let block = self.blocks.last_mut().unwrap();
         let analyze = block.analyze(operation, &self.state, &self.fuser_default);
 
@@ -100,6 +132,31 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceBroadcastedFuser<
                 }
             }
             ReduceFuserInfo::FusedElemwise { .. } => {}
+        }
+    }
+}
+
+impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceBroadcastedFuser<R> {
+    fn fuse(&mut self, operation: &OperationIr) {
+        if matches!(
+            &self.state,
+            ReduceBroadcastedStatus::Closed | ReduceBroadcastedStatus::Abort
+        ) {
+            return;
+        }
+
+        // We first need to simulate the fusion to check the consistency, then we perform the
+        // fusion.
+        let mut next = self.clone();
+        next.fuse_no_check(operation);
+
+        // We can only check for consistency if the optimization is ready.
+        if next.properties().ready && !next.is_consistent() {
+            // Fusions that lead to inconsistent trace are closed.
+            self.state = ReduceBroadcastedStatus::Closed;
+        } else {
+            // Normal path.
+            self.fuse_no_check(operation);
         }
     }
 

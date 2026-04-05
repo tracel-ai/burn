@@ -1,7 +1,5 @@
-use std::sync::Arc;
-
-use crate::FusionRuntime;
-use crate::stream::{OperationConverter, OperationStreams, RelativeOps, execution::Operation};
+use crate::stream::{OperationConverter, OperationStreams, RelativeOps};
+use crate::{FusionRuntime, UnfusedOp};
 use burn_backend::StreamId;
 use burn_ir::{OperationIr, TensorId, TensorStatus};
 
@@ -19,7 +17,7 @@ pub struct OperationQueue<R: FusionRuntime> {
     /// determine which operations can be fused.
     pub(crate) relative: Vec<OperationIr>,
     pub(crate) converter: OperationConverter,
-    pub(crate) operations: Vec<Arc<dyn Operation<R>>>,
+    pub(crate) operations: Vec<UnfusedOp<R>>,
     pub(crate) variables: HashMap<TensorId, (StreamId, TensorStatus)>,
 }
 
@@ -49,7 +47,7 @@ impl<R: FusionRuntime> OperationQueue<R> {
     pub fn add(
         &mut self,
         global: OperationIr,
-        operation: Arc<dyn Operation<R>>,
+        operation: UnfusedOp<R>,
         streams: &OperationStreams,
         current: StreamId,
     ) {

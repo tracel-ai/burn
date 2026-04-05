@@ -1,8 +1,8 @@
 use super::ParamId;
+use super::sync_once_cell::SyncOnceCell;
 use alloc::{boxed::Box, format};
 use burn_std::stub::RwLock;
 use burn_tensor::Shape;
-use core::cell::OnceCell;
 use core::ops::Deref;
 
 #[cfg(target_has_atomic = "ptr")]
@@ -34,20 +34,20 @@ fn new_mapper<T, F: Fn(T) -> T + Send + Sync + 'static>(func: F) -> Mapper<T> {
 ///
 /// # Core Lazy Initialization Architecture
 ///
-/// `Param<T>` has a dual-state design using `OnceCell<T>`:
+/// `Param<T>` has a dual-state design using `SyncOnceCell<T>`:
 ///
 /// ## State Management
 ///
 /// **Two possible states:**
 ///
-/// 1. **Initialized**: `state: OnceCell<T>` contains value, `initialization: None`
+/// 1. **Initialized**: `state: SyncOnceCell<T>` contains value, `initialization: None`
 /// 2. **Uninitialized (Lazy)**: `state` is empty, `initialization: Some(RwLock<Option<Uninitialized<T>>>)`
 pub struct Param<T: Parameter> {
     /// The unique ID of this parameter. This is used by eg. optimizers to associate a gradient with a specific parameter.
     pub id: ParamId,
-    /// The OnceCell holding the initialized parameter value.
+    /// The SyncOnceCell holding the initialized parameter value.
     /// Empty for uninitialized parameters, populated after first access or explicit initialization.
-    pub(crate) state: OnceCell<T>,
+    pub(crate) state: SyncOnceCell<T>,
     /// The deferred initialization state for lazy parameters.
     ///
     /// **State Transitions:**
@@ -146,7 +146,7 @@ pub trait Parameter: Clone + core::fmt::Debug + Send {
 pub(crate) struct Uninitialized<P: Parameter> {
     /// The initialization function. Called with `(device, is_require_grad) -> Parameter`.
     /// This function is consumed during initialization via `FnOnce`.
-    init: Box<dyn FnOnce(&P::Device, bool) -> P + Send>,
+    init: Box<dyn FnOnce(&P::Device, bool) -> P + Send + Sync>,
     /// The target device on which the parameter should be initialized.
     /// Used by `lazy_device()` to provide device information without triggering initialization.
     pub(crate) device: P::Device,
@@ -175,7 +175,7 @@ impl<T: Parameter> Param<T> {
         let require_grad = value.is_require_grad();
         Self {
             id,
-            state: OnceCell::from(value),
+            state: SyncOnceCell::initialized(value),
             initialization: None,
             param_mapper: Default::default(),
             require_grad,
@@ -191,11 +191,11 @@ impl<T: Parameter> Param<T> {
         shape: Shape,
     ) -> Self
     where
-        F: FnOnce(&T::Device, bool) -> T + Send + 'static,
+        F: FnOnce(&T::Device, bool) -> T + Send + Sync + 'static,
     {
         Self {
             id,
-            state: OnceCell::new(),
+            state: SyncOnceCell::new(),
             initialization: Some(RwLock::new(Some(Uninitialized {
                 init: Box::new(init),
                 device,
@@ -256,7 +256,7 @@ impl<T: Parameter> Param<T> {
 
         Self {
             id,
-            state: OnceCell::from(tensor),
+            state: SyncOnceCell::initialized(tensor),
             initialization: None,
             param_mapper,
             require_grad,
@@ -271,7 +271,7 @@ impl<T: Parameter> Param<T> {
         let require_grad = value.is_require_grad();
         Self {
             id,
-            state: OnceCell::from(value),
+            state: SyncOnceCell::initialized(value),
             initialization: None,
             param_mapper,
             require_grad,
@@ -293,7 +293,7 @@ impl<T: Parameter> Param<T> {
     }
 
     /// Execute the given function on the inner value.
-    pub fn init_mapper<F: FnOnce(T) -> T + Send + 'static>(self, func: F) -> Self
+    pub fn init_mapper<F: FnOnce(T) -> T + Send + Sync + 'static>(self, func: F) -> Self
     where
         T: 'static,
     {
@@ -307,7 +307,7 @@ impl<T: Parameter> Param<T> {
         match init.as_mut() {
             Some(value) => {
                 #[allow(clippy::type_complexity)]
-                let mut prev: Box<dyn FnOnce(&T::Device, bool) -> T + Send> =
+                let mut prev: Box<dyn FnOnce(&T::Device, bool) -> T + Send + Sync> =
                     Box::new(|_, _| panic!("Fake func to not have null ref."));
                 core::mem::swap(&mut prev, &mut value.init);
 
@@ -420,5 +420,58 @@ impl<T: Parameter> Deref for Param<T> {
             let state = result.take().expect("Should exist when not initialized");
             state.initialize()
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use burn_tensor::{Tensor, backend::Backend};
+
+    // Param<T> should be Sync so that models can be shared across threads
+    // (e.g. parallel inference with rayon).
+    fn _assert_sync<T: Sync>() {}
+
+    #[test]
+    fn param_is_sync() {
+        fn check<B: Backend>() {
+            _assert_sync::<Param<Tensor<B, 2>>>();
+        }
+        check::<burn_ndarray::NdArray>();
+    }
+
+    /// Concurrent lazy initialization must not panic.
+    ///
+    /// Multiple threads call `val()` on an uninitialized `Param` simultaneously.
+    /// `SyncOnceCell::get_or_init` guarantees only one thread runs the initializer;
+    /// the others block and receive the same value.
+    #[cfg(feature = "std")]
+    #[test]
+    fn param_concurrent_lazy_init() {
+        use alloc::vec::Vec;
+
+        type B = burn_ndarray::NdArray;
+        let device = <B as Backend>::Device::default();
+
+        let param: Param<Tensor<B, 2>> = Param::uninitialized(
+            ParamId::new(),
+            |device, _require_grad| Tensor::zeros([2, 3], device),
+            device,
+            false,
+            [2, 3].into(),
+        );
+
+        // Share across threads via &param (requires Sync).
+        std::thread::scope(|s| {
+            let handles: Vec<_> = (0..4).map(|_| s.spawn(|| param.val())).collect();
+
+            let results: Vec<_> = handles.into_iter().map(|h| h.join().unwrap()).collect();
+
+            // All threads must get the same value.
+            let expected = results[0].to_data();
+            for result in &results[1..] {
+                assert_eq!(result.to_data(), expected);
+            }
+        });
     }
 }

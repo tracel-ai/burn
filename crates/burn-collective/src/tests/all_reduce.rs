@@ -2,11 +2,18 @@ mod tests {
     use std::sync::mpsc::SyncSender;
 
     use burn_std::rand::get_seeded_rng;
-    use burn_tensor::{Shape, Tensor, TensorData, TensorPrimitive, Tolerance, backend::Backend};
+    use burn_tensor::{Tensor, TensorData, TensorPrimitive, Tolerance, backend::Backend};
 
     use serial_test::serial;
 
-    #[cfg(feature = "test-ndarray")]
+    use crate::{AllReduceStrategy, PeerId, ReduceOperation};
+
+    #[cfg(not(all(
+        feature = "test-cuda",
+        feature = "test-wgpu",
+        feature = "test-metal",
+        feature = "test-vulkan"
+    )))]
     pub type TestBackend = burn_ndarray::NdArray<f32>;
 
     #[cfg(feature = "test-cuda")]
@@ -21,10 +28,7 @@ mod tests {
     #[cfg(feature = "test-vulkan")]
     pub type TestBackend = burn_wgpu::Wgpu<f32>;
 
-    use crate::{
-        AllReduceStrategy, CollectiveConfig, PeerId, ReduceOperation, all_reduce, register,
-        reset_collective,
-    };
+    use crate::{CollectiveConfig, all_reduce, register, reset_collective};
 
     pub fn run_peer<B: Backend>(
         id: PeerId,
@@ -47,7 +51,7 @@ mod tests {
     }
 
     fn generate_random_input(
-        shape: Shape,
+        shape: Vec<usize>,
         op: ReduceOperation,
         thread_count: usize,
     ) -> (Vec<TensorData>, TensorData) {
@@ -64,7 +68,7 @@ mod tests {
         let device = <TestBackend as Backend>::Device::default();
 
         let mut expected_tensor = Tensor::<TestBackend, 1>::zeros(shape, &device);
-        for item in input.iter().take(thread_count as usize) {
+        for item in input.iter().take(thread_count) {
             let input_tensor = Tensor::<TestBackend, 1>::from_data(item.clone(), &device);
             expected_tensor = expected_tensor.add(input_tensor);
         }
@@ -87,9 +91,7 @@ mod tests {
 
         let (send, recv) = std::sync::mpsc::sync_channel(32);
 
-        let shape = Shape {
-            dims: vec![tensor_size],
-        };
+        let shape = vec![tensor_size];
 
         let (input, expected) = generate_random_input(shape, op, device_count);
 
@@ -99,7 +101,7 @@ mod tests {
 
         for id in 0..device_count {
             let send = send.clone();
-            let input = input[id as usize].clone();
+            let input = input[id].clone();
 
             std::thread::spawn({
                 let config = config.clone();

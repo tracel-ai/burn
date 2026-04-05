@@ -17,7 +17,7 @@ use crate::{
 use burn_backend::{DType, Shape, TensorMetadata, ops::DeformConvOptions};
 use cubecl::{
     CubeDim, CubeLaunch, calculate_cube_count_elemwise, cube,
-    features::TypeUsage,
+    features::AtomicUsage,
     ir::FloatKind,
     prelude::*,
     std::{FastDivmod, tensor::layout::linear::LinearView},
@@ -479,12 +479,12 @@ fn compute_input_grad<R: CubeRuntime>(
 
     let supports_fadd = client
         .properties()
-        .type_usage(StorageType::Atomic(FloatKind::F32.into()))
-        .contains(TypeUsage::AtomicAdd);
+        .atomic_type_usage(Type::new(StorageType::Atomic(FloatKind::F32.into())))
+        .contains(AtomicUsage::Add);
     let supports_same_type = client
         .properties()
-        .type_usage(StorageType::Atomic(columns.dtype.into()))
-        .contains(TypeUsage::AtomicAdd);
+        .atomic_type_usage(Type::new(StorageType::Atomic(columns.dtype.into())))
+        .contains(AtomicUsage::Add);
 
     let [batches, in_channels, height, width] = input_shape.dims();
     let [_, _, out_h, out_w] = offset.meta.shape().dims();
