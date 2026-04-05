@@ -4,12 +4,10 @@ use crate::{Tensor, check, check::TensorCheck};
 /// Computes the LU decomposition of a square or rectangular matrix with partial pivoting.
 ///
 /// This function decomposes the input tensor A into three tensors P, L, and U
-/// such that PA = LU, or equivalently A = P^T LU.
+/// such that A = PLU.
 ///
 /// # Arguments
 /// - `tensor` - The input tensor of shape `[..., n_rows, n_cols]`.
-/// - `use_block_lu` - If `true`, uses the block LU decomposition algorithm, which is generally
-///   faster for larger matrices. If `false`, uses the standard unblocked algorithm.
 ///
 /// # Returns
 /// A tuple of three tensors `(P, L, U)`:
@@ -17,8 +15,48 @@ use crate::{Tensor, check, check::TensorCheck};
 /// - `L` - The lower triangular tensor of shape `[..., n_rows, min(n_rows, n_cols)]`
 ///   with unit diagonal elements.
 /// - `U` - The upper triangular tensor of shape `[..., min(n_rows, n_cols), n_cols]`.
+/// 
+/// # Generic Parameters
+///
+/// - `D`: The number of dimensions of the input tensor.
+/// - `D1`: The number of dimensions of the 1D pivot tensor. Must be exactly `D - 1`.
+/// 
+/// # Panics
+/// This function will panic if the tensor checks fail:
+/// - The input tensor has less than 2 dimensions (`D < 2`).
+/// - The generic parameters do not satisfy `D - 1 == D1`.
+/// - The actual rank of the input tensor does not match the generic parameter `D`.
+///
+/// # Performance Note
+/// The current implementation of LU decomposition is not fully optimized. It will not 
+/// be as fast as highly tuned specialized libraries, especially for very large 
+/// matrices or large batch sizes.
+///
+/// # Example
+/// ```rust,ignore
+/// use burn::tensor::Tensor;
+/// use burn::backend::NdArray;
+/// use burn::tensor::linalg;
+/// 
+/// type B = NdArray<f32>;
+/// let device = Default::default();
+/// let tensor = Tensor::<B, 2>::from_data([[4.0, 3.0], [6.0, 3.0]], &device);
+/// 
+/// // Compute P, L, U
+/// let (p, l, u) = linalg::lu::<B, 2, 1>(tensor);
+/// 
+/// // Expected Output:
+/// // p: [[0.0, 1.0], 
+/// //     [1.0, 0.0]]
+/// //
+/// // l: [[1.0,       0.0], 
+/// //     [0.6666667, 1.0]]
+/// //
+/// // u: [[6.0, 3.0], 
+/// //     [0.0, 1.0]]
+/// ```
 pub fn lu<B: Backend, const D: usize, const D1: usize>(
-    tensor: Tensor<B, D>, use_block_lu: bool
+    tensor: Tensor<B, D>
 ) -> (Tensor<B, D>, Tensor<B, D>, Tensor<B, D>) {
     let dims = tensor.dims();
     
@@ -34,7 +72,7 @@ pub fn lu<B: Backend, const D: usize, const D1: usize>(
     let n_rows = dims[D - 2];
     let n_cols = dims[D - 1];
     
-    let (lu_tensor, p_compact) = compute_lu_decomposition::<B, D, D1>(tensor, use_block_lu);
+    let (lu_tensor, p_compact) = compute_lu_decomposition::<B, D, D1>(tensor);
     
     let u;
     let temp_l;
@@ -58,21 +96,52 @@ pub fn lu<B: Backend, const D: usize, const D1: usize>(
 /// The L and U matrices are packed into a single tensor, and permutations 
 /// are returned as a 1D array of swap indices per batch.
 /// 
-/// # Checks
-/// - Input must have at least 2 dimensions.
-/// - Singularity: zero pivots (currently not explicitly checked, but division by zero may occur).
-/// 
-/// # Generic Parameters
-/// - `D`: The dimension of the input tensor.
-/// - `D1`: Must be set to `D - 1`. Used to properly squeeze the pivot tensor's last dimension.
+/// # Arguments
+/// - `tensor` - The input tensor of shape `[..., n_rows, n_cols]`.
 ///
 /// # Returns
 /// A tuple `(pivots, lu)`:
-/// * `pivots` - A tensor of shape `[..., min(n_rows, n_cols)]` containing the 0-indexed pivot indices.
-/// * `lu` - A tensor of shape `[..., n_rows, n_cols]` containing U in its upper triangle
+/// - `pivots` - A tensor of shape `[..., min(n_rows, n_cols)]` containing the 0-indexed pivot indices.
+/// - `lu` - A tensor of shape `[..., n_rows, n_cols]` containing U in its upper triangle
 ///   and L (without the unit diagonal) in its strict lower triangle.
+/// 
+/// # Generic Parameters
+/// - `D`: The number of dimensions of the input tensor.
+/// - `D1`: The number of dimensions of the 1D pivot tensor. Must be exactly `D - 1`.
+///
+/// # Panics
+/// This function will panic if the tensor checks fail:
+/// - The input tensor has less than 2 dimensions (`D < 2`).
+/// - The generic parameters do not satisfy `D - 1 == D1`.
+/// - The actual rank of the input tensor does not match the generic parameter `D`.
+///
+/// # Performance Note
+/// The current implementation of LU decomposition is not fully optimized. It will not 
+/// be as fast as highly tuned specialized libraries, especially for very large 
+/// matrices or large batch sizes.
+///
+/// # Example
+/// ```rust,ignore
+/// use burn::tensor::Tensor;
+/// use burn::backend::NdArray;
+/// use burn::tensor::linalg;
+/// 
+/// type B = NdArray<f32>;
+/// let device = Default::default();
+/// 
+/// let tensor = Tensor::<B, 2>::from_data([[4.0, 3.0], [6.0, 3.0]], &device);
+/// 
+/// // Returns 1D pivots and a 2D LU tensor
+/// let (pivots, lu) = linalg::lu_factor::<B, 2, 1>(tensor);
+/// 
+/// // Expected Output:
+/// // pivots: [1.0, 1.0] // Row 0 swapped with Row 1, then Row 1 swapped with Row 1
+/// //
+/// // lu_packed: [[6.0,       3.0], 
+/// //             [0.6666667, 1.0]]
+/// ```
 pub fn lu_factor<B: Backend, const D: usize, const D1: usize>(
-    tensor: Tensor<B, D>, use_block_lu: bool
+    tensor: Tensor<B, D>
 ) -> (Tensor<B, D1>, Tensor<B, D>) {
     let dims = tensor.dims();
     check!(TensorCheck::lu_generic_param::<D, D1>(
@@ -83,20 +152,16 @@ pub fn lu_factor<B: Backend, const D: usize, const D1: usize>(
         &dims
     ));
     
-    let (lu, p) = compute_lu_decomposition::<B, D, D1>(tensor, use_block_lu);
+    let (lu, p) = compute_lu_decomposition::<B, D, D1>(tensor);
     (p.squeeze_dim(D - 1), lu)
 }
 
 /// Dispatches the LU decomposition to either the block or standard algorithm based on 
-/// the `use_block_lu` flag and the size of the matrix.
+/// the size of the matrix.
 fn compute_lu_decomposition<B: Backend, const D: usize, const D1: usize>(
-    tensor: Tensor<B, D>, use_block_lu: bool
+    tensor: Tensor<B, D>
 ) -> (Tensor<B, D>, Tensor<B, D>) {
     let device = tensor.device();
-    if !use_block_lu {
-        return standard_lu_with_partial_piv::<B, D, D1>(tensor, &device)
-    }
-    
     let dims = tensor.dims();
     let n_rows = dims[D - 2];
     let n_cols = dims[D - 1];
@@ -332,8 +397,11 @@ fn update_kth_column<B: Backend, const D: usize>(tensor: Tensor<B, D>, k: usize)
     let a_kk = tensor.clone().slice_dim(D - 2, k).slice_dim(D - 1, k);
     let a_rho_k = tensor.clone().slice_dim(D - 2, k+1..).slice_dim(D - 1, k);
     
-    // TODO: Skip scaling and update steps
-    let updated_column = a_rho_k / a_kk;
+    // Replace near-zero pivots with epsilon to prevent division by zero.
+    let epsilon = 1e-7;
+    let is_zero_mask = a_kk.clone().abs().lower_elem(epsilon);
+    let safe_a_kk = a_kk.mask_fill(is_zero_mask, epsilon);
+    let updated_column = a_rho_k / safe_a_kk;
     
     let mut slices = vec![Slice::full(); D];
     slices[D - 2] = Slice::from((k + 1)..);  // Rows k+1 to the end
