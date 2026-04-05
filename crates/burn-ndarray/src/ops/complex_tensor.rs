@@ -4,7 +4,7 @@ use crate::ops::NdArrayMathOps;
 use crate::{
     FloatNdArrayElement, IntNdArrayElement, NdArray, NdArrayTensor, QuantElement, SharedArray,
 };
-use burn_backend::{ElementConversion, TensorData, TensorMetadata};
+use burn_backend::{ElementConversion, TensorData, TensorMetadata, ops::FloatTensorOps};
 use burn_complex::base::element::{Complex, ToComplexElement};
 use burn_complex::base::{ComplexTensor, ComplexTensorBackend, InterleavedLayout};
 
@@ -20,6 +20,25 @@ where
     type ComplexScalar = Complex<E>;
 
     type Layout = InterleavedLayout<NdArrayTensor>;
+    
+    fn complex_from_real_data(data: TensorData, device: &<Self::InnerBackend as burn_backend::Backend>::Device) -> ComplexTensor<Self> {
+        todo!()
+        
+        
+        
+    }
+    
+    fn complex_from_imag_data(data: TensorData, _device: &<Self::InnerBackend as burn_backend::Backend>::Device) -> ComplexTensor<Self> {
+        todo!()
+    }
+    
+    fn complex_from_interleaved_data(data: TensorData, _device: &<Self::InnerBackend as burn_backend::Backend>::Device) -> ComplexTensor<Self> {
+        NdArrayTensor::from_data(data).into()
+    }
+    
+    fn complex_from_split_data(real_data: TensorData, imag_data: TensorData, _device: &<Self::InnerBackend as burn_backend::Backend>::Device) -> ComplexTensor<Self> {
+        todo!()
+    }
     
     
 }
