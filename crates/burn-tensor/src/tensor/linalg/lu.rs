@@ -37,9 +37,9 @@ pub fn lu<B: Backend, const D: usize, const D1: usize>(
 /// - `D1` must be set to D - 1
 pub fn lu_factor<B: Backend, const D: usize, const D1: usize>(
     tensor: Tensor<B, D>, use_block_lu: bool
-) -> (Tensor<B, D>, Tensor<B, D1>) {
+) -> (Tensor<B, D1>, Tensor<B, D>) {
     let (lu, p) = compute_lu_decomposition::<B, D, D1>(tensor, use_block_lu);
-    (lu, p.squeeze_dim(D - 1))
+    (p.squeeze_dim(D - 1), lu)
 }
 
 fn compute_lu_decomposition<B: Backend, const D: usize, const D1: usize>(
@@ -189,7 +189,9 @@ fn standard_lu_with_partial_piv<B: Backend, const D: usize, const D1: usize>(
     (tensor, permutations)
 }
 
-fn construct_full_permutation_tensor<B: Backend, const D: usize>(piv: Tensor<B, D>, n_rows: usize, device: &B::Device) -> Tensor<B, D> {
+fn construct_full_permutation_tensor<B: Backend, const D: usize>(
+    piv: Tensor<B, D>, n_rows: usize, device: &B::Device
+) -> Tensor<B, D> {
     let dims = piv.dims();
     let identity_2d = Tensor::eye(n_rows, device);
     
@@ -315,15 +317,54 @@ fn update_permutations_to_global_idx<B: Backend, const D: usize>(
 /// Applies the permutations to the entire width of the tensor.
 /// This updates the past L blocks and also permutes the unfactor A blocks.
 fn apply_permutations_to_tensor<B: Backend, const D: usize>(
-    mut tensor: Tensor<B, D>, global_piv: Tensor<B, D>, device: &B::Device
+    tensor: Tensor<B, D>, piv: Tensor<B, D>, device: &B::Device
 ) -> Tensor<B, D> {
-    // println!("tensor> {}", tensor);
-    for (i, swap_target_row_tensor) in global_piv.iter_dim(D - 2).enumerate() {
-        // swap i-th rows with the `swap_target_row_tensor` rows
-        tensor = swap_tensor_rows(tensor, swap_target_row_tensor.int(), i, device);
-    }
+    let tensor_dims = tensor.dims();  
+    let n_rows = tensor_dims[D - 2];  
+    let n_pivots = piv.dims()[D - 2];  
     
-    tensor
+    // Compute total batch size (product of all batch dimensions)
+    let batch_size: usize = tensor_dims[..D - 2].iter().product();  
+    if batch_size <= 1 {  
+        // No batch dims (or batch size 1)
+        let piv_data: Vec<f32> = piv.into_data().into_vec::<f32>().unwrap();  
+        let mut perm: Vec<i64> = (0..n_rows as i64).collect();  
+        for i in 0..n_pivots {  
+            let j = piv_data[i] as usize;  
+            perm.swap(i, j);  
+        }  
+        let perm_tensor = Tensor::<B, 1, Int>::from_data(&perm[..], device);  
+        return tensor.select(D - 2, perm_tensor);  
+    }  
+    
+    // If input tensor has batch dimensions, then flatten batch dims, 
+    // iterate, then reshape back.
+    // Reshape tensor: [b1, b2, ..., bN, rows, cols] -> [B, rows, cols]  
+    let n_cols = tensor_dims[D - 1];  
+    let flat_tensor: Tensor<B, 3> = tensor.reshape([batch_size, n_rows, n_cols]);  
+    // Reshape pivot: [b1, b2, ..., bN, n_pivots, 1] -> [B * n_pivots]  
+    let piv_data: Vec<f32> = piv.into_data().into_vec::<f32>().unwrap();
+    
+    let mut results: Vec<Tensor<B, 3>> = Vec::with_capacity(batch_size);  
+    for b in 0..batch_size {  
+        // Build permutation for this batch element  
+        let mut perm: Vec<i64> = (0..n_rows as i64).collect();  
+        let offset = b * n_pivots;  
+        for i in 0..n_pivots {  
+            let j = piv_data[offset + i] as usize;  
+            perm.swap(i, j);  
+        }  
+        let perm_tensor = Tensor::<B, 1, Int>::from_data(&perm[..], device);  
+    
+        // Extract this batch element [1, rows, cols], select rows, collect  
+        let batch_elem = flat_tensor.clone().slice_dim(0, b);  // [1, rows, cols]  
+        let permuted = batch_elem.select(1, perm_tensor);       // [1, rows, cols]  
+        results.push(permuted);  
+    }  
+    
+    // Concatenate along batch dim and reshape back to original shape  
+    let concatenated: Tensor<B, 3> = Tensor::cat(results, 0); // [B, rows, cols]  
+    concatenated.reshape(tensor_dims) 
 }
 
 /// # Arguments
