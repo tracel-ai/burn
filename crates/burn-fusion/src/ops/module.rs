@@ -1593,10 +1593,36 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
     }
 
     fn irfft(
-        _spectrum_re: FloatTensor<Fusion<B>>,
-        _spectrum_im: FloatTensor<Fusion<B>>,
-        _dim: usize,
+        spectrum_re: FloatTensor<Fusion<B>>,
+        spectrum_im: FloatTensor<Fusion<B>>,
+        dim: usize,
     ) -> FloatTensor<Fusion<B>> {
-        todo!("irfft is not yet supported for fusion")
+        make_ops!(IRfftOps, IRfftOpIr, |desc: &IRfftOpIr,
+                                        handles: &mut HandleContainer<
+            B::Handle,
+        >| {
+            let input_re = handles.get_float_tensor::<B>(&desc.input_re);
+            let input_im = handles.get_float_tensor::<B>(&desc.input_im);
+
+            let signal = B::irfft(input_re, input_im, desc.dim);
+            handles.register_float_tensor::<B>(&desc.out_signal.id, signal);
+        });
+
+        let streams = OperationStreams::with_inputs([&spectrum_re, &spectrum_im]);
+        let client = spectrum_re.client.clone();
+
+        let desc = IRfftOpIr::create(spectrum_re.into_ir(), spectrum_im.into_ir(), dim, || {
+            client.create_empty_handle()
+        });
+
+        let mut outputs = client
+            .register(
+                streams,
+                OperationIr::Module(ModuleOperationIr::IRfft(desc.clone())),
+                IRfftOps::<B>::new(desc),
+            )
+            .into_iter();
+
+        outputs.next().unwrap()
     }
 }
