@@ -2733,7 +2733,9 @@ impl ModuleOperationIr {
                 Box::new([&repr.x, &repr.grad].into_iter())
             }
             ModuleOperationIr::Rfft(repr) => Box::new([&repr.signal].into_iter()),
-            ModuleOperationIr::IRfft(repr) => Box::new([&repr.input_re, &repr.input_im].into_iter()),
+            ModuleOperationIr::IRfft(repr) => {
+                Box::new([&repr.input_re, &repr.input_im].into_iter())
+            }
             ModuleOperationIr::Attention(repr) => {
                 if let Some(mask) = &repr.mask {
                     if let Some(attn_bias) = &repr.attn_bias {
