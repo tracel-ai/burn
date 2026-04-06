@@ -1,4 +1,3 @@
-use crate::ops::FloatElem;
 use crate::{BasicOps, Shape, Slice, Tensor, backend::Backend, cast::ToElement};
 use alloc::format;
 use alloc::string::{String, ToString};
