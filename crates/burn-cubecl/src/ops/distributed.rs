@@ -1,5 +1,5 @@
 use burn_backend::{
-    DeviceOps, TensorMetadata,
+    DeviceOps, StreamId, TensorMetadata,
     distributed::{DistributedBackend, ReduceOperation},
     tensor::{Device, FloatTensor},
 };
@@ -22,6 +22,7 @@ where
 
         for tensor in tensors {
             let device = &tensor.device;
+            let old = unsafe { StreamId::swap(tensor.handle.stream) };
             let out_tensor = empty(tensor.shape(), device, tensor.dtype());
 
             let op = match op {
@@ -39,6 +40,8 @@ where
             );
 
             output.push(out_tensor);
+
+            unsafe { StreamId::swap(old) };
         }
 
         output
