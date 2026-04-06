@@ -1,10 +1,10 @@
 use burn_backend::{
-    DeviceOps,
-    distributed::{DistributedBackend, ReduceOperation, TensorRef},
-    tensor::Device,
+    DeviceOps, TensorMetadata,
+    distributed::{DistributedBackend, ReduceOperation},
+    tensor::{Device, FloatTensor},
 };
 
-use crate::{BoolElement, CubeBackend, CubeRuntime, FloatElement, IntElement};
+use crate::{BoolElement, CubeBackend, CubeRuntime, FloatElement, IntElement, ops::empty};
 
 impl<R, F, I, BT> DistributedBackend for CubeBackend<R, F, I, BT>
 where
@@ -13,27 +13,35 @@ where
     I: IntElement,
     BT: BoolElement,
 {
-    unsafe fn all_reduce_in_place(tensors: Vec<TensorRef<Self>>, op: ReduceOperation) {
-        let tensors = tensors.iter().map(|t| unsafe { &*t.0 }).collect::<Vec<_>>();
+    unsafe fn all_reduce(
+        tensors: Vec<FloatTensor<Self>>,
+        op: ReduceOperation,
+    ) -> Vec<FloatTensor<Self>> {
         let all_ids = tensors.iter().map(|t| t.device.id()).collect::<Vec<_>>();
+        let mut output = vec![];
 
         for tensor in tensors {
             let device = &tensor.device;
-            let client = R::client(device);
+            let out_tensor = empty(tensor.shape(), device, tensor.dtype());
 
             let op = match op {
                 ReduceOperation::Sum => cubecl::server::ReduceOperation::Sum,
                 ReduceOperation::Mean => cubecl::server::ReduceOperation::Mean,
             };
 
+            let client = R::client(device);
             client.all_reduce(
                 tensor.handle.clone(),
-                tensor.handle.clone(),
+                out_tensor.handle.clone(),
                 tensor.dtype.into(),
                 all_ids.clone(),
                 op,
             );
+
+            output.push(out_tensor);
         }
+
+        output
     }
 
     fn sync_collective(device: &Device<Self>) {

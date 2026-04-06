@@ -553,7 +553,7 @@ mod grad_distributed {
         let (senders, receivers) = create_channels(device_count);
 
         let config = DistributedConfig { all_reduce_op: op };
-        B::start_communication_server(devices.clone(), config);
+        B::start_communication_server(devices.as_slice(), config);
 
         let join_handles = spawn_peer_threads(
             &module,

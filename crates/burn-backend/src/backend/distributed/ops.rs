@@ -4,9 +4,8 @@ use crate::{
 };
 
 use crate::distributed::{
-    DistributedConfig, DistributedParams, ReduceOperation,
-    all_reduce::all_reduce_inplace_centralized, close_distributed_sync_server,
-    get_distributed_sync_client, start_distributed_sync_server,
+    DistributedConfig, DistributedParams, ReduceOperation, all_reduce::all_reduce_centralized,
+    close_distributed_sync_server, get_distributed_sync_client, start_distributed_sync_server,
 };
 
 /// Mutable reference to a float tensor.
@@ -82,19 +81,27 @@ pub trait DistributedBackend: Backend {
         };
     }
 
-    /// In-place version of all_reduce.
+    /// all_reduce operation.
     ///
     /// # Arguments
     ///
     /// * `tensors` - The tensors on which to perform all_reduce.
     /// * `op` - The [`ReduceOperation`].
     ///
+    /// # Returns
+    ///
+    /// The corresponding reduced tensors.
+    ///
     /// # Safety
     ///
-    /// Ensure that the tensors are not accessed/modified when calling in-place operation.
+    /// Collective operations are asynchronous. You must call `sync_collective()` to ensure
+    /// the operation completes before attempting to read the output tensors.
     #[allow(unused)]
-    unsafe fn all_reduce_in_place(tensors: Vec<TensorRef<Self>>, op: ReduceOperation) {
-        unsafe { all_reduce_inplace_centralized(tensors, op) };
+    unsafe fn all_reduce(
+        tensors: Vec<FloatTensor<Self>>,
+        op: ReduceOperation,
+    ) -> Vec<FloatTensor<Self>> {
+        all_reduce_centralized::<Self>(tensors, op)
     }
 
     /// Sync the collective operations.

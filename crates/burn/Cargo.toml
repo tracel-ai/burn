@@ -16,8 +16,10 @@ version.workspace = true
 workspace = true
 
 [features]
+# TODO: REmove distribuyed
 default = [
     "std",
+    "distributed",
     "burn-core/default",
     "burn-train?/default",
     "burn-collective?/default",
@@ -163,6 +165,7 @@ distributed = ["std",
     "burn-optim/distributed",
     "burn-train?/ddp",
     "burn-cuda?/distributed",
+    "burn-ndarray?/distributed",
     "burn-autodiff?/distributed",
 ]
 

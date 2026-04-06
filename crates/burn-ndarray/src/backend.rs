@@ -5,6 +5,8 @@ use crate::{
     element::{FloatNdArrayElement, IntNdArrayElement, QuantElement},
 };
 use alloc::string::String;
+#[cfg(feature = "distributed")]
+use burn_backend::distributed::DistributedBackend;
 use burn_backend::quantization::{QuantLevel, QuantMode, QuantScheme, QuantStore, QuantValue};
 use burn_backend::tensor::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
 use burn_backend::{Backend, DType, DeviceId, DeviceOps};
@@ -182,6 +184,15 @@ where
     fn quantized_tensor_handle(tensor: QuantizedTensor<Self>) -> Self::Handle {
         HandleKind::Quantized(tensor)
     }
+}
+
+#[cfg(feature = "distributed")]
+impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> DistributedBackend
+    for NdArray<E, I, Q>
+where
+    NdArrayTensor: From<SharedArray<E>>,
+    NdArrayTensor: From<SharedArray<I>>,
+{
 }
 
 #[cfg(test)]

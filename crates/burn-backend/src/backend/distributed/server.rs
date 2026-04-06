@@ -101,10 +101,20 @@ impl<B: DistributedBackend> DistributedSyncServer<B> {
                 let queued_tensors = self.all_reduce_ops_queue.entry(param_id).or_insert(vec![]);
 
                 if num_tensors == queued_tensors.len() {
-                    // This is safe since tensors shouldn't be accessed other than here at this point
-                    unsafe {
-                        B::all_reduce_in_place(queued_tensors.clone(), self.config.all_reduce_op)
+                    // Safety: Tensors sent to the `DistributedSyncServer` should not be accessed or modified before calling `B::sync_collective`.
+                    let results = unsafe {
+                        B::all_reduce(
+                            queued_tensors.iter().map(|t| (*t.0).clone()).collect(),
+                            self.config.all_reduce_op,
+                        )
                     };
+                    // Safety: `B::sync_collective` should be automatically called after the backward pass.
+                    unsafe {
+                        queued_tensors
+                            .iter()
+                            .zip(results)
+                            .for_each(|(t, r)| *t.0 = r);
+                    }
                     self.all_reduce_ops_queue.remove(&param_id).unwrap();
                     self.param_required_map.remove(&param_id).unwrap();
                     self.try_launch_sync();

@@ -52,6 +52,11 @@ tracing = [
     "burn-backend/tracing",
     "burn-ir/tracing",
 ]
+distributed = [
+    "std",
+    "burn-autodiff?/distributed",
+    "burn-backend/distributed"
+]
 
 # Serves as a ref impl for some burn-cubecl kernels
 export_tests = []
