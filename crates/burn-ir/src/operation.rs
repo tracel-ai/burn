@@ -250,7 +250,7 @@ pub enum ModuleOperationIr {
     Interpolate(InterpolateOpIr),
     /// Operation corresponding to [interpolate backward](burn_backend::ops::ModuleOps::interpolate_backward).
     InterpolateBackward(InterpolateBackwardOpIr),
-    /// Operation corresponding to [Rfft](burn_backend::ops:ModuleOps::rfft)
+    /// Operation corresponding to [Rfft](burn_backend::ops::ModuleOps::rfft)
     Rfft(RfftOpIr),
     /// Operation corresponding to [attention](burn_backend::ops::ModuleOps::attention).
     Attention(AttentionOpIr),
