@@ -250,9 +250,8 @@ pub enum ModuleOperationIr {
     Interpolate(InterpolateOpIr),
     /// Operation corresponding to [interpolate backward](burn_backend::ops::ModuleOps::interpolate_backward).
     InterpolateBackward(InterpolateBackwardOpIr),
-
+    /// Operation corresponding to [Rfft](burn_backend::ops:ModuleOps::rfft)
     Rfft(RfftOpIr),
-
     /// Operation corresponding to [attention](burn_backend::ops::ModuleOps::attention).
     Attention(AttentionOpIr),
 }
@@ -1600,13 +1599,13 @@ pub struct RfftOpIr {
     pub out_im: TensorIr,
 }
 
+#[allow(missing_docs)]
 impl RfftOpIr {
     pub fn create<F>(signal: TensorIr, dim: usize, mut new_id: F) -> Self
     where
         F: FnMut() -> crate::TensorId,
     {
         let mut shape = signal.shape.clone();
-        // RFFT output length for the transformed dimension is N/2 + 1
         shape[dim] = shape[dim] / 2 + 1;
         let dtype = signal.dtype;
 
