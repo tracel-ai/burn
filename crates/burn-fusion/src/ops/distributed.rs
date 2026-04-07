@@ -76,9 +76,13 @@ impl<B: FusionBackend + DistributedBackend> DistributedBackend for Fusion<B> {
 
         impl<B: FusionBackend + DistributedBackend> Operation<B::FusionRuntime> for AllReduceOps<B> {
             fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+                println!("1 ");
                 let tensor = handles.get_float_tensor::<B>(&self.desc.tensor);
+                println!("2 ");
                 let output = unsafe { B::all_reduce(tensor, self.op, self.device_ids.clone()) };
+                println!("3 ");
                 handles.register_float_tensor::<B>(&self.desc.out.id, output);
+                println!("4 ");
             }
         }
 
