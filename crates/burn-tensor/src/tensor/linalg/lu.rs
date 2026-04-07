@@ -1,4 +1,4 @@
-use crate::{Tensor, check, check::TensorCheck};
+use crate::{ElementConversion, Tensor, check, check::TensorCheck};
 use alloc::vec;
 use alloc::vec::Vec;
 use burn_backend::{
@@ -486,10 +486,10 @@ fn apply_permutations_to_tensor<B: Backend, const D: usize>(
     let batch_size: usize = tensor_dims[..D - 2].iter().product();
     if batch_size <= 1 {
         // No batch dims (or batch size 1)
-        let piv_data: Vec<f32> = piv.into_data().into_vec::<f32>().unwrap();
+        let piv_data: Vec<B::FloatElem> = piv.into_data().into_vec::<B::FloatElem>().unwrap();
         let mut perm: Vec<i64> = (0..n_rows as i64).collect();
         for (i, piv_val) in piv_data.iter().enumerate().take(n_pivots) {
-            let j = *piv_val as usize;
+            let j = piv_val.elem::<u32>() as usize;
             perm.swap(i, j);
         }
         let perm_tensor = Tensor::<B, 1, Int>::from_data(&perm[..], device);
@@ -502,7 +502,7 @@ fn apply_permutations_to_tensor<B: Backend, const D: usize>(
     let n_cols = tensor_dims[D - 1];
     let flat_tensor: Tensor<B, 3> = tensor.reshape([batch_size, n_rows, n_cols]);
     // Reshape pivot: [b1, b2, ..., bN, n_pivots, 1] -> [B * n_pivots]
-    let piv_data: Vec<f32> = piv.into_data().into_vec::<f32>().unwrap();
+    let piv_data: Vec<B::FloatElem> = piv.into_data().into_vec::<B::FloatElem>().unwrap();
 
     let mut results: Vec<Tensor<B, 3>> = Vec::with_capacity(batch_size);
     for b in 0..batch_size {
@@ -510,7 +510,7 @@ fn apply_permutations_to_tensor<B: Backend, const D: usize>(
         let mut perm: Vec<i64> = (0..n_rows as i64).collect();
         let offset = b * n_pivots;
         for i in 0..n_pivots {
-            let j = piv_data[offset + i] as usize;
+            let j = piv_data[offset + i].elem::<u32>() as usize;
             perm.swap(i, j);
         }
         let perm_tensor = Tensor::<B, 1, Int>::from_data(&perm[..], device);
