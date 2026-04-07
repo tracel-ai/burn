@@ -481,7 +481,7 @@ pub fn linear<B: Backend, const D: usize>(
         return output.squeeze_dim(0);
     }
 
-    // Broadcast weight and bias to match the input rank for the backend op.
+    // Unsqueeze weight and bias to match the input rank for the backend op.
     let weight = weight.unsqueeze::<D>();
     let bias = bias.map(|bias| bias.unsqueeze::<D>());
 

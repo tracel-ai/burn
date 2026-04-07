@@ -38,12 +38,11 @@ pub(crate) fn linear_weight_backward<B: Backend>(
 ) -> FloatTensor<B> {
     let ndims = x.shape().num_dims();
     let x = B::float_swap_dims(x, ndims - 2, ndims - 1);
-    let grad = B::float_matmul(x, output_grad);
+    let mut grad = B::float_matmul(x, output_grad);
 
     // Sum over all batch dimensions (all dims except the last two).
     let ndims = grad.shape().num_dims();
     if ndims > 2 {
-        let mut grad = grad;
         // Sum from the outermost batch dim inward, always summing dim 0
         // since the tensor shrinks each iteration.
         for _ in 0..ndims - 2 {
