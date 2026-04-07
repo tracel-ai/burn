@@ -1,6 +1,7 @@
 use std::marker::PhantomData;
 
 use burn_backend::{
+    DeviceId,
     distributed::{DistributedBackend, ReduceOperation},
     tensor::{Device, FloatTensor},
 };
@@ -59,6 +60,42 @@ impl<B: FusionBackend + DistributedBackend> DistributedBackend for Fusion<B> {
     //         .outputs::<num_tensors>()
     //         .into()
     // }
+
+    unsafe fn all_reduce(
+        tensor: FloatTensor<Self>,
+        op: ReduceOperation,
+        device_ids: Vec<DeviceId>,
+    ) -> FloatTensor<Self> {
+        #[derive(new, Debug)]
+        struct AllReduceOps<B: FusionBackend> {
+            desc: AllReduceOpIr,
+            op: ReduceOperation,
+            device_ids: Vec<DeviceId>,
+            _b: PhantomData<B>,
+        }
+
+        impl<B: FusionBackend + DistributedBackend> Operation<B::FusionRuntime> for AllReduceOps<B> {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+                let tensor = handles.get_float_tensor::<B>(&self.desc.tensor);
+                let output = unsafe { B::all_reduce(tensor, self.op, self.device_ids.clone()) };
+                handles.register_float_tensor::<B>(&self.desc.out.id, output);
+            }
+        }
+
+        let streams = OperationStreams::with_inputs([&tensor]);
+
+        let client = tensor.client.clone();
+        let desc = AllReduceOpIr::create(tensor.into_ir(), || client.create_empty_handle());
+
+        client
+            .register(
+                streams,
+                OperationIr::BaseFloat(BaseOperationIr::AllReduce(desc.clone())),
+                AllReduceOps::<B>::new(desc, op, device_ids),
+            )
+            .output()
+            .into()
+    }
 
     fn sync_collective(device: &Device<Self>) {
         todo!()
