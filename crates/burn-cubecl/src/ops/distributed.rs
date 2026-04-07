@@ -22,7 +22,6 @@ where
 
         for tensor in tensors {
             let device = &tensor.device;
-            println!("switch to stream : {}", tensor.handle.stream);
             let old = unsafe { StreamId::swap(tensor.handle.stream) };
             let out_tensor = empty(tensor.shape(), device, tensor.dtype());
 
