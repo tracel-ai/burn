@@ -1,3 +1,4 @@
+use burn_backend::distributed::ReduceOperation;
 use burn_backend::ops::AttentionModuleOptions;
 use burn_backend::tensor::IndexingUpdateOp;
 use core::hash::Hash;
@@ -367,6 +368,7 @@ pub enum BaseOperationIr {
     /// Int => [cat](burn_backend::ops::IntTensorOps::int_cat).
     /// Bool => [cat](burn_backend::ops::BoolTensorOps::bool_cat).
     Cat(CatOpIr),
+    AllReduce(AllReduceOpIr),
     /// Cast operation, no direct operation and should be supported by fusion backend.
     Cast(CastOpIr),
     /// Operation corresponding to:
@@ -947,6 +949,13 @@ pub struct CatOpIr {
     pub tensors: Vec<TensorIr>,
     pub dim: usize,
     pub out: TensorIr,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct AllReduceOpIr {
+    pub tensors: Vec<TensorIr>,
+    pub out: Vec<TensorIr>,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
@@ -1847,6 +1856,7 @@ impl BaseOperationIr {
             BaseOperationIr::Empty(_repr) => Box::new([].into_iter()),
             BaseOperationIr::Ones(_repr) => Box::new([].into_iter()),
             BaseOperationIr::Zeros(_repr) => Box::new([].into_iter()),
+            BaseOperationIr::AllReduce(repr) => Box::new(repr.tensors.iter()),
         }
     }
 
@@ -1874,6 +1884,7 @@ impl BaseOperationIr {
             BaseOperationIr::Empty(repr) => Box::new([&repr.out].into_iter()),
             BaseOperationIr::Ones(repr) => Box::new([&repr.out].into_iter()),
             BaseOperationIr::Zeros(repr) => Box::new([&repr.out].into_iter()),
+            BaseOperationIr::AllReduce(repr) => Box::new(repr.out.iter()),
         }
     }
 
@@ -1956,6 +1967,11 @@ impl BaseOperationIr {
             BaseOperationIr::Empty(_) => {}
             BaseOperationIr::Zeros(_) => {}
             BaseOperationIr::Ones(_) => {}
+            BaseOperationIr::AllReduce(repr) => {
+                for t in repr.tensors.iter_mut() {
+                    t.mark_read_only(nodes, &mut output);
+                }
+            }
         };
 
         output
