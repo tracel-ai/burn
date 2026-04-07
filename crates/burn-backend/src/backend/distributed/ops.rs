@@ -1,3 +1,5 @@
+use cubecl::device::DeviceId;
+
 use crate::{
     Backend,
     tensor::{Device, FloatTensor},
@@ -98,11 +100,35 @@ pub trait DistributedBackend: Backend {
     /// the operation completes before attempting to read the output tensors.
     #[allow(unused)]
     unsafe fn all_reduce(
-        tensors: Vec<FloatTensor<Self>>,
+        tensor: FloatTensor<Self>,
         op: ReduceOperation,
-    ) -> Vec<FloatTensor<Self>> {
-        all_reduce_centralized::<Self>(tensors, op)
+        device_ids: Vec<DeviceId>,
+    ) -> FloatTensor<Self> {
+        todo!()
     }
+
+    /// all_reduce operation.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensors` - The tensors on which to perform all_reduce.
+    /// * `op` - The [`ReduceOperation`].
+    ///
+    /// # Returns
+    ///
+    /// The corresponding reduced tensors.
+    ///
+    /// # Safety
+    ///
+    /// Collective operations are asynchronous. You must call `sync_collective()` to ensure
+    /// the operation completes before attempting to read the output tensors.
+    // #[allow(unused)]
+    // unsafe fn all_reduce(
+    //     tensors: Vec<FloatTensor<Self>>,
+    //     op: ReduceOperation,
+    // ) -> Vec<FloatTensor<Self>> {
+    //     all_reduce_centralized::<Self>(tensors, op)
+    // }
 
     /// Sync the collective operations.
     ///

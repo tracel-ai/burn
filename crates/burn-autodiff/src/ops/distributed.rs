@@ -1,5 +1,6 @@
 use alloc::vec::Vec;
 use burn_backend::{
+    DeviceId,
     distributed::{
         DistributedBackend, DistributedConfig, DistributedParams, ReduceOperation, TensorRef,
     },
@@ -30,24 +31,34 @@ impl<B: DistributedBackend, C: CheckpointStrategy> DistributedBackend for Autodi
         B::submit_gradient_sync(TensorRef(&mut tensor.primitive), distributed_params);
     }
 
+    // unsafe fn all_reduce(
+    //     tensors: Vec<FloatTensor<Self>>,
+    //     op: ReduceOperation,
+    // ) -> Vec<FloatTensor<Self>> {
+    //     // TODO: backward()
+    //     let tensors = unsafe {
+    //         B::all_reduce(
+    //             tensors
+    //                 .iter()
+    //                 .map(|tensor| tensor.primitive.clone())
+    //                 .collect(),
+    //             op,
+    //         )
+    //     };
+    //     tensors
+    //         .iter()
+    //         .map(|tensor| AutodiffTensor::new(tensor.clone()))
+    //         .collect()
+    // }
+
     unsafe fn all_reduce(
-        tensors: Vec<FloatTensor<Self>>,
+        tensor: FloatTensor<Self>,
         op: ReduceOperation,
-    ) -> Vec<FloatTensor<Self>> {
+        device_ids: Vec<DeviceId>,
+    ) -> FloatTensor<Self> {
         // TODO: backward()
-        let tensors = unsafe {
-            B::all_reduce(
-                tensors
-                    .iter()
-                    .map(|tensor| tensor.primitive.clone())
-                    .collect(),
-                op,
-            )
-        };
-        tensors
-            .iter()
-            .map(|tensor| AutodiffTensor::new(tensor.clone()))
-            .collect()
+        let tensor = unsafe { B::all_reduce(tensor.primitive, op, device_ids) };
+        AutodiffTensor::new(tensor)
     }
 
     fn sync_collective(device: &B::Device) {
