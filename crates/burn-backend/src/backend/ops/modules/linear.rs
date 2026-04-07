@@ -70,16 +70,15 @@ pub(crate) fn linear_weight_backward<B: Backend>(
     let mut grad = B::float_matmul(x, output_grad);
 
     // Sum over all batch dimensions (all dims except the last two).
+    // float_sum_dim preserves rank (keepdim), so sum each batch dim at its index.
     let ndims = grad.shape().num_dims();
     if ndims > 2 {
-        // Sum from the outermost batch dim inward, always summing dim 0
-        // since the tensor shrinks each iteration.
-        for _ in 0..ndims - 2 {
-            grad = B::float_sum_dim(grad, 0);
+        for dim in 0..ndims - 2 {
+            grad = B::float_sum_dim(grad, dim);
         }
         let shape = grad.shape();
-        let d0 = shape[shape.num_dims() - 2];
-        let d1 = shape[shape.num_dims() - 1];
+        let d0 = shape[ndims - 2];
+        let d1 = shape[ndims - 1];
         B::float_reshape(grad, Shape::new([d0, d1]))
     } else {
         grad
@@ -94,12 +93,12 @@ pub(crate) fn linear_bias_backward<B: Backend>(output_grad: FloatTensor<B>) -> F
     let mut grad = output_grad;
 
     // Sum over all dims except the last (the output feature dim).
-    // Sum from the outermost dim inward, always summing dim 0.
-    for _ in 0..ndims - 1 {
-        grad = B::float_sum_dim(grad, 0);
+    // float_sum_dim preserves rank (keepdim), so sum each dim at its index.
+    for dim in 0..ndims - 1 {
+        grad = B::float_sum_dim(grad, dim);
     }
 
     let shape = grad.shape();
-    let d_output = shape[shape.num_dims() - 1];
+    let d_output = shape[ndims - 1];
     B::float_reshape(grad, Shape::new([d_output]))
 }

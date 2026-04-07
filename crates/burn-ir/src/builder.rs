@@ -623,7 +623,13 @@ impl_ir_create!(
         weight: TensorIr,
         bias: Option<TensorIr>
     },
-    shape = calculate_matmul_output(&x.shape, &weight.shape).unwrap(),
+    shape = {
+        // output: [..., d_output] where x is [..., d_input] and weight is [d_input, d_output]
+        let n = x.shape.num_dims();
+        let mut dims: Vec<usize> = (0..n).map(|i| x.shape[i]).collect();
+        dims[n - 1] = weight.shape[1];
+        Shape::from(dims)
+    },
     dtype = output_dtype(
             [
                 Some(&x.dtype),
