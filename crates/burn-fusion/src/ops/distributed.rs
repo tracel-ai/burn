@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use burn_backend::{
-    DeviceId,
+    DeviceId, StreamId,
     distributed::{DistributedBackend, ReduceOperation},
     tensor::{Device, FloatTensor},
 };
@@ -82,19 +82,24 @@ impl<B: FusionBackend + DistributedBackend> DistributedBackend for Fusion<B> {
             }
         }
 
+        let old = unsafe { StreamId::swap(tensor.stream) };
+
         let streams = OperationStreams::with_inputs([&tensor]);
 
         let client = tensor.client.clone();
         let desc = AllReduceOpIr::create(tensor.into_ir(), || client.create_empty_handle());
 
-        client
+        let output = client
             .register(
                 streams,
                 OperationIr::BaseFloat(BaseOperationIr::AllReduce(desc.clone())),
                 AllReduceOps::<B>::new(desc, op, device_ids),
             )
             .output()
-            .into()
+            .into();
+
+        unsafe { StreamId::swap(old) };
+        output
     }
 
     fn sync_collective(device: &Device<Self>) {
