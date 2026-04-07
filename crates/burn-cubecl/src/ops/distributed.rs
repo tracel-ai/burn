@@ -53,25 +53,28 @@ where
         device_ids: Vec<DeviceId>,
     ) -> FloatTensor<Self> {
         let device = &tensor.device;
-        let old = unsafe { StreamId::swap(tensor.handle.stream) };
-        let out_tensor = empty(tensor.shape(), device, tensor.dtype());
+        StreamId::executes(tensor.handle.stream, || {
+            let out_tensor = empty(tensor.shape(), device, tensor.dtype());
 
-        let op = match op {
-            ReduceOperation::Sum => cubecl::server::ReduceOperation::Sum,
-            ReduceOperation::Mean => cubecl::server::ReduceOperation::Mean,
-        };
+            let op = match op {
+                ReduceOperation::Sum => cubecl::server::ReduceOperation::Sum,
+                ReduceOperation::Mean => cubecl::server::ReduceOperation::Mean,
+            };
 
-        let client = R::client(device);
-        client.all_reduce(
-            tensor.handle.clone(),
-            out_tensor.handle.clone(),
-            tensor.dtype.into(),
-            device_ids.clone(),
-            op,
-        );
+            let client = R::client(device);
+            client.all_reduce(
+                tensor.handle.clone(),
+                out_tensor.handle.clone(),
+                tensor.dtype.into(),
+                device_ids.clone(),
+                op,
+            );
+            out_tensor
+        })
+        // let old = unsafe { StreamId::swap(tensor.handle.stream) };
 
-        unsafe { StreamId::swap(old) };
-        out_tensor
+        // unsafe { StreamId::swap(old) };
+        // out_tensor
     }
 
     fn sync_collective(device: &Device<Self>) {
