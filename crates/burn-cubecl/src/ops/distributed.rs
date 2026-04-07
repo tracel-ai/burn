@@ -55,6 +55,7 @@ where
         let device = &tensor.device;
         StreamId::executes(tensor.handle.stream, || {
             log::info!("create empty");
+            println!("create empty");
             let out_tensor = empty(tensor.shape(), device, tensor.dtype());
 
             let op = match op {
@@ -63,8 +64,10 @@ where
             };
 
             log::info!("get client");
+            println!("get client");
             let client = R::client(device);
             log::info!("all reduce");
+            println!("all reduce");
             client.all_reduce(
                 tensor.handle.clone(),
                 out_tensor.handle.clone(),
@@ -73,6 +76,7 @@ where
                 op,
             );
             log::info!("all reduce return");
+            println!("all reduce return");
             out_tensor
         })
         // let old = unsafe { StreamId::swap(tensor.handle.stream) };
