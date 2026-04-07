@@ -90,12 +90,17 @@ impl<B: FusionBackend + DistributedBackend> DistributedBackend for Fusion<B> {
             }
         }
 
+        log::info!("executes");
         StreamId::executes(tensor.stream, || {
+            log::info!("streams");
             let streams = OperationStreams::with_inputs([&tensor]);
 
+            log::info!("client");
             let client = tensor.client.clone();
+            log::info!("create");
             let desc = AllReduceOpIr::create(tensor.into_ir(), || client.create_empty_handle());
 
+            log::info!("register");
             client
                 .register(
                     streams,
