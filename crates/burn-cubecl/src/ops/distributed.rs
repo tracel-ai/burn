@@ -54,6 +54,7 @@ where
     ) -> FloatTensor<Self> {
         let device = &tensor.device;
         StreamId::executes(tensor.handle.stream, || {
+            log::info!("create empty");
             let out_tensor = empty(tensor.shape(), device, tensor.dtype());
 
             let op = match op {
@@ -61,7 +62,9 @@ where
                 ReduceOperation::Mean => cubecl::server::ReduceOperation::Mean,
             };
 
+            log::info!("get client");
             let client = R::client(device);
+            log::info!("all reduce");
             client.all_reduce(
                 tensor.handle.clone(),
                 out_tensor.handle.clone(),
@@ -69,6 +72,7 @@ where
                 device_ids.clone(),
                 op,
             );
+            log::info!("all reduce return");
             out_tensor
         })
         // let old = unsafe { StreamId::swap(tensor.handle.stream) };
