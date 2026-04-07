@@ -1562,10 +1562,34 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
     }
 
     fn rfft(
-        _signal: FloatTensor<Fusion<B>>,
-        _dim: usize,
+        signal: FloatTensor<Fusion<B>>,
+        dim: usize,
     ) -> (FloatTensor<Fusion<B>>, FloatTensor<Fusion<B>>) {
-        todo!("rfft is not yet supported for fusion")
+        make_ops!(RfftOps, RfftOpIr, |desc: &RfftOpIr,
+                                      handles: &mut HandleContainer<
+            B::Handle,
+        >| {
+            let signal = handles.get_float_tensor::<B>(&desc.signal);
+            let (re, im) = B::rfft(signal, desc.dim);
+
+            handles.register_float_tensor::<B>(&desc.out_re.id, re);
+            handles.register_float_tensor::<B>(&desc.out_im.id, im);
+        });
+
+        let streams = OperationStreams::with_inputs([&signal]);
+        let client = signal.client.clone();
+
+        let desc = RfftOpIr::create(signal.into_ir(), dim, || client.create_empty_handle());
+
+        let mut outputs = client
+            .register(
+                streams,
+                OperationIr::Module(ModuleOperationIr::Rfft(desc.clone())),
+                RfftOps::<B>::new(desc),
+            )
+            .into_iter();
+
+        (outputs.next().unwrap(), outputs.next().unwrap())
     }
 
     fn irfft(

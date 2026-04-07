@@ -20,3 +20,6 @@ uv.lock
 # Nix direnv
 .envrc
 .direnv
+
+# tags files
+tags
