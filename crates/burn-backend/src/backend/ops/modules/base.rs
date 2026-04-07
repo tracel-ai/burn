@@ -526,8 +526,8 @@ pub trait ModuleOps<B: Backend> {
     /// # Shapes
     ///
     /// x:      `[..., d_input]`,
-    /// weight: `[..., d_input, d_output]` (same rank as x, leading dims are broadcast 1s),
-    /// bias:   `[..., d_output]` (same rank as x, leading dims are broadcast 1s),
+    /// weight: `[d_input, d_output]`,
+    /// bias:   `[d_output]`,
     fn linear(
         x: FloatTensor<B>,
         weight: FloatTensor<B>,

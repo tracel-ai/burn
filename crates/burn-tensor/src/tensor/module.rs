@@ -481,10 +481,6 @@ pub fn linear<B: Backend, const D: usize>(
         return output.squeeze_dim(0);
     }
 
-    // Unsqueeze weight and bias to match the input rank for the backend op.
-    let weight = weight.unsqueeze::<D>();
-    let bias = bias.map(|bias| bias.unsqueeze::<D>());
-
     Tensor::new(TensorPrimitive::Float(B::linear(
         input.primitive.tensor(),
         weight.primitive.tensor(),

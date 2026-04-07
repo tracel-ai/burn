@@ -643,12 +643,11 @@ impl_ir_create!(
     },
     shape = {
         // dx = output_grad @ weight^T
-        // output_grad: [..., d_output], weight: [..., d_input, d_output] (broadcast dims)
+        // output_grad: [..., d_output], weight: [d_input, d_output]
         // result: [..., d_input]
         let n = output_grad.shape.num_dims();
         let mut dims: Vec<usize> = (0..n).map(|i| output_grad.shape[i]).collect();
-        let w_ndims = weight.shape.num_dims();
-        dims[n - 1] = weight.shape[w_ndims - 2];
+        dims[n - 1] = weight.shape[0];
         Shape::from(dims)
     },
     dtype = output_grad.dtype
