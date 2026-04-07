@@ -485,6 +485,12 @@ impl RelativeOps for ModuleOperationIr {
                     out: desc.out.to_relative(converter),
                 })
             }
+            ModuleOperationIr::Rfft(desc) => ModuleOperationIr::Rfft(RfftOpIr {
+                signal: desc.signal.to_relative(converter),
+                dim: desc.dim,
+                out_re: desc.out_re.to_relative(converter),
+                out_im: desc.out_re.to_relative(converter),
+            }),
             ModuleOperationIr::Attention(desc) => ModuleOperationIr::Attention(AttentionOpIr {
                 query: desc.query.to_relative(converter),
                 key: desc.key.to_relative(converter),
