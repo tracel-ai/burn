@@ -1138,17 +1138,21 @@ impl RelativeOps for BaseOperationIr {
             BaseOperationIr::Empty(desc) => BaseOperationIr::Empty(desc.to_relative(converter)),
             BaseOperationIr::Ones(desc) => BaseOperationIr::Ones(desc.to_relative(converter)),
             BaseOperationIr::Zeros(desc) => BaseOperationIr::Zeros(desc.to_relative(converter)),
+            // BaseOperationIr::AllReduce(desc) => BaseOperationIr::AllReduce(AllReduceOpIr {
+            //     tensors: desc
+            //         .tensors
+            //         .iter()
+            //         .map(|tensor| tensor.to_relative(converter))
+            //         .collect(),
+            //     out: desc
+            //         .out
+            //         .iter()
+            //         .map(|tensor| tensor.to_relative(converter))
+            //         .collect(),
+            // }),
             BaseOperationIr::AllReduce(desc) => BaseOperationIr::AllReduce(AllReduceOpIr {
-                tensors: desc
-                    .tensors
-                    .iter()
-                    .map(|tensor| tensor.to_relative(converter))
-                    .collect(),
-                out: desc
-                    .out
-                    .iter()
-                    .map(|tensor| tensor.to_relative(converter))
-                    .collect(),
+                tensor: desc.tensor.to_relative(converter),
+                out: desc.out.to_relative(converter),
             }),
         }
     }

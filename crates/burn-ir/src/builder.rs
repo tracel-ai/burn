@@ -275,6 +275,12 @@ impl_ir_create!(
 );
 
 impl_ir_create!(
+    AllReduceOpIr { tensor: TensorIr },
+    shape = tensor.shape.clone(),
+    dtype = tensor.dtype
+);
+
+impl_ir_create!(
     GatherOpIr {
         tensor: TensorIr,
         dim: usize,
@@ -987,16 +993,16 @@ impl ReduceDimWithIndicesOpIr {
     }
 }
 
-impl AllReduceOpIr {
-    pub fn create(tensors: Vec<TensorIr>, mut new_id: impl FnMut() -> TensorId) -> Self {
-        let out = tensors
-            .iter()
-            .map(|tensor| TensorIr::uninit(new_id(), tensor.shape.clone(), tensor.dtype))
-            .collect();
+// impl AllReduceOpIr {
+//     pub fn create(tensors: Vec<TensorIr>, mut new_id: impl FnMut() -> TensorId) -> Self {
+//         let out = tensors
+//             .iter()
+//             .map(|tensor| TensorIr::uninit(new_id(), tensor.shape.clone(), tensor.dtype))
+//             .collect();
 
-        AllReduceOpIr { tensors, out }
-    }
-}
+//         AllReduceOpIr { tensors, out }
+//     }
+// }
 
 impl DeformConv2dBackwardOpIr {
     #[allow(clippy::too_many_arguments)]

@@ -951,11 +951,18 @@ pub struct CatOpIr {
     pub out: TensorIr,
 }
 
+// #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+// #[allow(missing_docs)]
+// pub struct AllReduceOpIr {
+//     pub tensors: Vec<TensorIr>,
+//     pub out: Vec<TensorIr>,
+// }
+
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
 pub struct AllReduceOpIr {
-    pub tensors: Vec<TensorIr>,
-    pub out: Vec<TensorIr>,
+    pub tensor: TensorIr,
+    pub out: TensorIr,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
@@ -1856,7 +1863,8 @@ impl BaseOperationIr {
             BaseOperationIr::Empty(_repr) => Box::new([].into_iter()),
             BaseOperationIr::Ones(_repr) => Box::new([].into_iter()),
             BaseOperationIr::Zeros(_repr) => Box::new([].into_iter()),
-            BaseOperationIr::AllReduce(repr) => Box::new(repr.tensors.iter()),
+            // BaseOperationIr::AllReduce(repr) => Box::new(repr.tensors.iter()),
+            BaseOperationIr::AllReduce(repr) => Box::new([&repr.tensor].into_iter()),
         }
     }
 
@@ -1884,7 +1892,7 @@ impl BaseOperationIr {
             BaseOperationIr::Empty(repr) => Box::new([&repr.out].into_iter()),
             BaseOperationIr::Ones(repr) => Box::new([&repr.out].into_iter()),
             BaseOperationIr::Zeros(repr) => Box::new([&repr.out].into_iter()),
-            BaseOperationIr::AllReduce(repr) => Box::new(repr.out.iter()),
+            BaseOperationIr::AllReduce(repr) => Box::new([&repr.out].into_iter()),
         }
     }
 
@@ -1967,10 +1975,13 @@ impl BaseOperationIr {
             BaseOperationIr::Empty(_) => {}
             BaseOperationIr::Zeros(_) => {}
             BaseOperationIr::Ones(_) => {}
+            // BaseOperationIr::AllReduce(repr) => {
+            //     for t in repr.tensors.iter_mut() {
+            //         t.mark_read_only(nodes, &mut output);
+            //     }
+            // }
             BaseOperationIr::AllReduce(repr) => {
-                for t in repr.tensors.iter_mut() {
-                    t.mark_read_only(nodes, &mut output);
-                }
+                repr.tensor.mark_read_only(nodes, &mut output);
             }
         };
 
