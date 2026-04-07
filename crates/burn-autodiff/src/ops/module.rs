@@ -56,6 +56,116 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         panic!("Can't differentiate embedding backward.");
     }
 
+    fn linear(
+        x: AutodiffTensor<B>,
+        weight: AutodiffTensor<B>,
+        bias: Option<AutodiffTensor<B>>,
+    ) -> AutodiffTensor<B> {
+        #[derive(Debug)]
+        struct LinearWithBias;
+        #[derive(Debug)]
+        struct LinearNoBias;
+
+        impl<B: Backend> Backward<B, 3> for LinearWithBias {
+            type State = (NodeId, NodeId);
+
+            fn backward(
+                self,
+                ops: Ops<Self::State, 3>,
+                grads: &mut Gradients,
+                checkpointer: &mut Checkpointer,
+            ) {
+                let [node_x, node_weight, node_bias] = ops.parents;
+                let grad = grads.consume::<B>(&ops.node);
+
+                let (x_state, weight_state) = ops.state;
+                let x = checkpointer.retrieve_node_output::<B::FloatTensorPrimitive>(x_state);
+                let weight =
+                    checkpointer.retrieve_node_output::<B::FloatTensorPrimitive>(weight_state);
+
+                if let Some(node) = node_x {
+                    let grad = B::linear_x_backward(weight.clone(), grad.clone());
+                    grads.register::<B>(node.id, grad)
+                }
+                if let Some(node) = node_weight {
+                    let grad = B::linear_weight_backward(x, grad.clone());
+                    grads.register::<B>(node.id, grad)
+                }
+                if let Some(node) = node_bias {
+                    let grad = B::linear_bias_backward(grad);
+                    grads.register::<B>(node.id, grad)
+                }
+            }
+        }
+
+        impl<B: Backend> Backward<B, 2> for LinearNoBias {
+            type State = (NodeId, NodeId);
+
+            fn backward(
+                self,
+                ops: Ops<Self::State, 2>,
+                grads: &mut Gradients,
+                checkpointer: &mut Checkpointer,
+            ) {
+                let [node_x, node_weight] = ops.parents;
+                let grad = grads.consume::<B>(&ops.node);
+
+                let (x_state, weight_state) = ops.state;
+                let x = checkpointer.retrieve_node_output::<B::FloatTensorPrimitive>(x_state);
+                let weight =
+                    checkpointer.retrieve_node_output::<B::FloatTensorPrimitive>(weight_state);
+
+                if let Some(node) = node_x {
+                    let grad = B::linear_x_backward(weight, grad.clone());
+                    grads.register::<B>(node.id, grad)
+                }
+                if let Some(node) = node_weight {
+                    let grad = B::linear_weight_backward(x, grad);
+                    grads.register::<B>(node.id, grad)
+                }
+            }
+        }
+
+        match bias {
+            Some(bias) => match LinearWithBias
+                .prepare::<C>([x.node.clone(), weight.node.clone(), bias.node.clone()])
+                .compute_bound()
+                .stateful()
+            {
+                OpsKind::Tracked(mut prep) => {
+                    let x_state = prep.checkpoint(&x);
+                    let weight_state = prep.checkpoint(&weight);
+                    prep.finish(
+                        (x_state, weight_state),
+                        B::linear(x.primitive, weight.primitive, Some(bias.primitive)),
+                    )
+                }
+                OpsKind::UnTracked(prep) => prep.finish(B::linear(
+                    x.primitive,
+                    weight.primitive,
+                    Some(bias.primitive),
+                )),
+            },
+            None => match LinearNoBias
+                .prepare::<C>([x.node.clone(), weight.node.clone()])
+                .compute_bound()
+                .stateful()
+            {
+                OpsKind::Tracked(mut prep) => {
+                    let x_state = prep.checkpoint(&x);
+                    let weight_state = prep.checkpoint(&weight);
+                    prep.finish(
+                        (x_state, weight_state),
+                        B::linear(x.primitive, weight.primitive, None),
+                    )
+                }
+                OpsKind::UnTracked(prep) => {
+                    prep.finish(B::linear(x.primitive, weight.primitive, None))
+                }
+            },
+        }
+    }
+
     fn conv1d(
         x: AutodiffTensor<B>,
         weight: AutodiffTensor<B>,

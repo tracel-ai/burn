@@ -1,4 +1,4 @@
-use super::{conv, pool};
+use super::{conv, linear, pool};
 use crate::ops::unfold::unfold4d_using_conv2d;
 use crate::tensor::{BoolTensor, FloatTensor, IntTensor};
 use crate::{Backend, ElementConversion, TensorMetadata};
@@ -520,6 +520,34 @@ pub trait ModuleOps<B: Backend> {
 
         B::float_select_add(grad, 0, indices, output_grad)
     }
+
+    /// Linear transformation.
+    ///
+    /// # Shapes
+    ///
+    /// x:      `[..., d_input]`,
+    /// weight: `[d_input, d_output]`,
+    /// bias:   `[d_output]`,
+    fn linear(
+        x: FloatTensor<B>,
+        weight: FloatTensor<B>,
+        bias: Option<FloatTensor<B>>,
+    ) -> FloatTensor<B> {
+        linear::linear::<B>(x, weight, bias)
+    }
+    /// Backward pass for [linear](ModuleOps::linear), returning the gradient for `x`.
+    fn linear_x_backward(weight: FloatTensor<B>, output_grad: FloatTensor<B>) -> FloatTensor<B> {
+        linear::linear_x_backward::<B>(weight, output_grad)
+    }
+    /// Backward pass for [linear](ModuleOps::linear), returning the gradient for `weight`.
+    fn linear_weight_backward(x: FloatTensor<B>, output_grad: FloatTensor<B>) -> FloatTensor<B> {
+        linear::linear_weight_backward::<B>(x, output_grad)
+    }
+    /// Backward pass for [linear](ModuleOps::linear), returning the gradient for `bias`.
+    fn linear_bias_backward(output_grad: FloatTensor<B>) -> FloatTensor<B> {
+        linear::linear_bias_backward::<B>(output_grad)
+    }
+
     /// One dimensional convolution.
     ///
     /// # Shapes
