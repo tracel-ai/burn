@@ -58,10 +58,13 @@ std = [
 ]
 vision = ["burn-vision", "burn-dataset?/vision"]
 audio = ["burn-dataset?/audio"]
+# TODO : remove ndarray and fusion
 distributed = ["std",
     "burn-tensor/distributed",
     "burn-autodiff/distributed",
     "burn-cuda/distributed",
+    "burn-ndarray/distributed",
+    "burn-cuda/fusion",
 ]
 
 # Custom deserializer for Record that is helpful for importing data, such as PyTorch pt files.

@@ -1,4 +1,3 @@
-use burn_backend::distributed::ReduceOperation;
 use burn_backend::ops::AttentionModuleOptions;
 use burn_backend::tensor::IndexingUpdateOp;
 use core::hash::Hash;

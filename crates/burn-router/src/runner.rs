@@ -291,6 +291,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     let output = B::float_zeros(shape, &self.device, desc.out.dtype.into());
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
+                BaseOperationIr::AllReduce(all_reduce_op_ir) => todo!(),
             },
             OperationIr::BaseInt(op) => match op {
                 BaseOperationIr::Reshape(desc) => {
@@ -433,6 +434,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     let output = B::int_zeros(shape, &self.device, desc.out.dtype.into());
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
+                BaseOperationIr::AllReduce(all_reduce_op_ir) => todo!(),
             },
             OperationIr::BaseBool(op) => match op {
                 BaseOperationIr::Reshape(desc) => {
@@ -582,6 +584,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     let output = B::bool_ones(shape, &self.device, desc.out.dtype.into());
                     handles.register_bool_tensor::<B>(&desc.out.id, output);
                 }
+                BaseOperationIr::AllReduce(all_reduce_op_ir) => todo!(),
             },
             OperationIr::NumericFloat(_dtype, op) => match op {
                 NumericOperationIr::Add(desc) => {

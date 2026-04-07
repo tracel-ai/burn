@@ -451,9 +451,12 @@ mod require_grad {
 
 #[cfg(feature = "distributed")]
 mod grad_distributed {
+    use burn_std::Shape;
     use burn_std::device::{Device, DeviceId};
+    use burn_tensor::backend::DeviceOps;
     use burn_tensor::backend::distributed::DistributedBackend;
     use burn_tensor::backend::distributed::{DistributedParamId, ReduceOperation};
+    use burn_tensor::ops::FloatTensorOps;
     use burn_tensor::{TensorData, backend::AutodiffBackend};
     use rand::{
         SeedableRng,
@@ -537,6 +540,49 @@ mod grad_distributed {
             Tensor::cat(vec![left, right], 0)
         });
     }
+
+    // #[test]
+    // #[serial]
+    // fn fusion_test() {
+    //     test1::<TestAutodiffBackend>();
+    // }
+
+    // #[cfg(feature = "std")]
+    // fn test1<B: AutodiffBackend + DistributedBackend>() {
+    //     use burn_tensor::TensorKind;
+
+    //     let type_id = 0u16;
+
+    //     let device_count = <B as Backend>::device_count(type_id);
+    //     let devices = create_devices::<<B as Backend>::Device>(type_id, device_count);
+
+    //     // let data = TensorData::random::<f32, _, _>(
+    //     //     Shape::new([4, 4]),
+    //     //     burn_tensor::Distribution::Default,
+    //     //     &mut StdRng::try_from_rng(&mut SysRng).unwrap(),
+    //     // );
+    //     // let x: Tensor<B, 2> = Tensor::from_data(data, &devices.first().unwrap());
+
+    //     // x.to_data();
+    //     let x = B::float_ones(
+    //         Shape::new([4, 4]),
+    //         devices.first().unwrap(),
+    //         burn_std::FloatDType::F32,
+    //     );
+
+    //     let result = unsafe {
+    //         B::all_reduce(
+    //             // x.into_primitive(),
+    //             x,
+    //             ReduceOperation::Sum,
+    //             devices.iter().map(|d| d.id()).collect(),
+    //         )
+    //     };
+    //     let result: Tensor<B, 2> = Tensor::from_primitive(result);
+    //     B::sync_collective(devices.first().unwrap());
+    //     println!("tensor : {:?}", result.to_data().to_vec());
+    //     assert_eq!(0, 1)
+    // }
 
     #[cfg(feature = "std")]
     fn compare_sync_gradients<B: AutodiffBackend + DistributedBackend>(
@@ -651,6 +697,7 @@ mod grad_distributed {
             module = set_distributed(&module, &device);
             let grads_x = calculate_grads(&module, transformation);
             let data = grads_x.unwrap().to_data();
+            println!("data : {:?}", data.to_vec::<f32>());
             if !is_main {
                 output.clone().unwrap().send(data).unwrap();
             } else {

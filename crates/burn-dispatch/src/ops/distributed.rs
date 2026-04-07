@@ -4,6 +4,7 @@ use core::mem::discriminant;
 use crate::backends::*;
 
 use burn_backend::{
+    DeviceId,
     distributed::{
         DistributedBackend, DistributedConfig, DistributedParams, ReduceOperation, TensorRef,
     },
@@ -50,7 +51,7 @@ macro_rules! dispatch_devices_arms {
                             };
                             dev.clone()
                         })
-                        .collect();
+                        .collect::<Vec<_>>();
                     $body
                 }
             )*
@@ -75,14 +76,14 @@ macro_rules! dispatch_devices_arms {
                     );
                     type B = Autodiff<$Backend<f32>>;
                     let $inner_devices = $devices
-                        .iter()
+                        .into_iter()
                         .map(|d| {
                             let DispatchDevice::$Backend(dev) = d else {
                                 unreachable!()
                             };
                             dev.clone()
                         })
-                        .collect();
+                        .collect::<Vec<_>>();
                     $body
                 }
             )*
@@ -105,7 +106,7 @@ impl DistributedBackend for Dispatch {
         if !devices.is_empty() {
             let first = &devices[0];
             dispatch_devices!(first, devices, |inner_devices| {
-                B::start_communication_server(inner_devices, config)
+                B::start_communication_server(&inner_devices, config)
             });
         }
     }
@@ -132,7 +133,11 @@ impl DistributedBackend for Dispatch {
         unimplemented!()
     }
 
-    unsafe fn all_reduce_in_place(_tensors: Vec<TensorRef<Self>>, _op: ReduceOperation) {
+    unsafe fn all_reduce(
+        _tensors: FloatTensor<Self>,
+        _op: ReduceOperation,
+        _device_ids: Vec<DeviceId>,
+    ) -> FloatTensor<Self> {
         unimplemented!()
     }
 

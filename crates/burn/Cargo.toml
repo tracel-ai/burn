@@ -167,6 +167,7 @@ distributed = ["std",
     "burn-cuda?/distributed",
     "burn-ndarray?/distributed",
     "burn-autodiff?/distributed",
+    "burn-dispatch?/distributed"
 ]
 
 candle = ["burn-candle"]
