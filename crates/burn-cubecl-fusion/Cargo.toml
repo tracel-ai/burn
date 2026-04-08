@@ -51,7 +51,6 @@ serde = { workspace = true }
 
 [dev-dependencies]
 cubecl = { workspace = true, features = ["test-runtime"] }
-burn = { path = "../burn", version = "=0.21.0-pre.3", features = ["vulkan", "fusion"] }
 half = { workspace = true }
 
 [package.metadata.docs.rs]

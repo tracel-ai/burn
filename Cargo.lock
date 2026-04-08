@@ -871,7 +871,6 @@ dependencies = [
 name = "burn-cubecl-fusion"
 version = "0.21.0-pre.3"
 dependencies = [
- "burn",
  "burn-backend",
  "burn-fusion",
  "burn-ir",
