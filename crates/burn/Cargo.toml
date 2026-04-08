@@ -91,6 +91,7 @@ tracing = [
     "burn-nn/tracing",
     "burn-optim/tracing",
     "burn-dispatch?/tracing",
+    "burn-vision?/tracing",
 ]
 
 
@@ -121,7 +122,7 @@ store = ["burn-store"]
 cubecl = ["dep:cubecl"]
 
 audio = ["burn-core/audio"]
-vision = ["burn-core/vision"]
+vision = ["burn-core/vision", "burn-vision"]
 rl = ["dep:burn-rl", "burn-train?/rl"]
 
 # Backend
@@ -193,6 +194,7 @@ burn-store = { path = "../burn-store", version = "=0.21.0-pre.3", optional = tru
 burn-nn = { path = "../burn-nn", version = "=0.21.0-pre.3", default-features = false }
 burn-optim = { path = "../burn-optim", version = "=0.21.0-pre.3", default-features = false }
 burn-rl = { path = "../burn-rl", version = "=0.21.0-pre.3", optional = true, default-features = false }
+burn-vision = { path = "../burn-vision", version = "=0.21.0-pre.3", optional = true, default-features = false }
 
 # Backends
 burn-autodiff = { path = "../burn-autodiff", version = "=0.21.0-pre.3", optional = true, default-features = false }
