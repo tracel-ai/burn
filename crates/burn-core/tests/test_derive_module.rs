@@ -612,8 +612,8 @@ mod grad_distributed {
 
         // Spawn worker peer threads (id > 0)
         for i in 1..devices.len() {
-            let module_clone = module.clone();
             let device = devices[i].clone();
+            let module_clone = module.clone().fork(&device);
             let sender = Some(senders[i - 1].clone());
             handles.push(std::thread::spawn(move || {
                 run_peer_sharded(
@@ -640,11 +640,11 @@ mod grad_distributed {
         is_main: bool,
         recvs: Vec<Receiver<TensorData>>,
     ) {
-        let mut module = module.clone().fork(&device);
+        // let mut module = module.clone().fork(&device);
 
         for _ in 0..num_iter {
             // module = set_distributed(&module, &device);
-            let mut module = module.clone().fork(&device);
+            // let mut module = module.clone().fork(&device);
             let grads_x = calculate_grads(&module, transformation);
             let data = grads_x.unwrap().to_data();
             println!("data : {:?}", data.to_vec::<f32>());
