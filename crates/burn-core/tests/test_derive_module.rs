@@ -451,12 +451,9 @@ mod require_grad {
 
 #[cfg(feature = "distributed")]
 mod grad_distributed {
-    use burn_std::Shape;
     use burn_std::device::{Device, DeviceId};
-    use burn_tensor::backend::DeviceOps;
     use burn_tensor::backend::distributed::DistributedBackend;
     use burn_tensor::backend::distributed::{DistributedParamId, ReduceOperation};
-    use burn_tensor::ops::FloatTensorOps;
     use burn_tensor::{TensorData, backend::AutodiffBackend};
     use rand::{
         SeedableRng,
