@@ -199,37 +199,40 @@ where
     pub fn change_client_float<B>(
         &self,
         tensor: TensorIr,
-        client: Self,
+        client_dst: Self,
         stream: StreamId,
     ) -> FusionTensor<R>
     where
         B: FusionBackend<FusionRuntime = R>,
     {
         let dtype = tensor.dtype;
-        let client_cloned = client.clone();
+        let client_cloned = client_dst.clone();
         let shape = tensor.shape.clone();
         let id = self.create_empty_handle();
 
-        self.server.submit(move |server| {
-            server.drain_stream(stream);
-            // TODO: We could improve performance here by not requirering blocking.
-            client
-                .server
-                .clone()
-                .submit_blocking_scoped(move |server_other| {
-                    server_other.change_server_float::<B>(
-                        &tensor,
-                        id,
-                        stream,
-                        &client.device,
-                        server,
-                    )
-                })
+        // TODO: cleaner.
+        let tensor = self
+            .server
+            .submit_blocking(move |server_src| {
+                server_src.drain_stream(stream);
+                let tensor_float = server_src.handles.get_float_tensor::<B>(&tensor);
+                server_src
+                    .streams
+                    .mark_read(stream, &tensor, &server_src.handles);
+                tensor_float
+            })
+            .unwrap();
+        let tensor = B::float_to_device(tensor, client_dst.device());
+        client_dst.server.submit(move |server_dst| {
+            server_dst
+                .handles
+                .register_float_tensor::<B>(&id, tensor.clone());
         });
 
         FusionTensor::new(id, shape, dtype, client_cloned, StreamId::current())
     }
 
+    // TODO: Fix all the change_client.
     /// Change the client of the given int tensor.
     pub fn change_client_int<B>(
         &self,

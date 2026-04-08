@@ -82,6 +82,7 @@ impl<B: FusionBackend + DistributedBackend> DistributedBackend for Fusion<B> {
             }
         }
 
+        // TODO: executes might be useless.
         StreamId::executes(tensor.stream, || {
             let streams = OperationStreams::with_inputs([&tensor]);
 
@@ -97,11 +98,6 @@ impl<B: FusionBackend + DistributedBackend> DistributedBackend for Fusion<B> {
                 .output()
                 .into()
         })
-
-        // let old = unsafe { StreamId::swap(tensor.stream) };
-
-        // unsafe { StreamId::swap(old) };
-        // output
     }
 
     fn sync_collective(device: &Device<Self>) {

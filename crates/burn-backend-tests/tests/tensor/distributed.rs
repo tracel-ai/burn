@@ -25,6 +25,7 @@ fn test_all_reduce_multithread() {
     run_multithread::<TestBackend>();
 }
 
+// TODO: finish these tests.
 fn run_all_reduce<B: AutodiffBackend + DistributedBackend>() {
     let type_id = 10u16;
     let shape = [4, 4];

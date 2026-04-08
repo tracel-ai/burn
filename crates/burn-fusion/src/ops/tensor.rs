@@ -193,6 +193,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         )
     ))]
     fn float_to_device(tensor: FloatTensor<Self>, device: &Device<Self>) -> FloatTensor<Self> {
+        // TODO: naming (src/dst)
         let device_original: &B::Device = tensor.client.device();
 
         if device_original == device {
@@ -203,9 +204,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
         let client_target = get_client::<B>(device);
         let client_original = tensor.client.clone();
 
-        client_original
-            .clone()
-            .change_client_float::<B>(tensor.into_ir(), client_target, id)
+        client_original.change_client_float::<B>(tensor.into_ir(), client_target, id)
     }
 
     fn float_into_int(tensor: FloatTensor<Self>, dtype: IntDType) -> IntTensor<Self> {

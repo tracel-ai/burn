@@ -16,7 +16,7 @@ version.workspace = true
 workspace = true
 
 [features]
-# TODO: REmove distribuyed
+# TODO: REemove distributed
 default = [
     "std",
     "distributed",
