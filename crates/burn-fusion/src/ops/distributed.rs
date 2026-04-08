@@ -101,14 +101,15 @@ impl<B: FusionBackend + DistributedBackend> DistributedBackend for Fusion<B> {
         let desc = AllReduceOpIr::create(tensor.into_ir(), || client.create_empty_handle());
 
         println!("register");
-        client
-            .register(
-                streams,
-                OperationIr::BaseFloat(BaseOperationIr::AllReduce(desc.clone())),
-                AllReduceOps::<B>::new(desc, op, device_ids),
-            )
-            .output()
-            .into()
+        let registration = client.register(
+            streams,
+            OperationIr::BaseFloat(BaseOperationIr::AllReduce(desc.clone())),
+            AllReduceOps::<B>::new(desc, op, device_ids),
+        );
+        println!("output");
+        let output = registration.output();
+        println!("into");
+        output.into()
         // })
 
         // let old = unsafe { StreamId::swap(tensor.stream) };
