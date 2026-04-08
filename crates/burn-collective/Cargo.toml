@@ -58,7 +58,6 @@ tracing = { workspace = true, optional = true }
 [dev-dependencies]
 serial_test = { workspace = true }
 # Tests
-burn-tensor = { path = "../burn-tensor", version = "=0.21.0-pre.2", default-features = true }
 burn-ndarray = { path = "../burn-ndarray", version = "=0.21.0-pre.2" }
 burn-wgpu = { path = "../burn-wgpu", version = "=0.21.0-pre.2" }
 burn-cuda = { path = "../burn-cuda", version = "=0.21.0-pre.2" }

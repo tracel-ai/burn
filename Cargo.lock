@@ -742,7 +742,6 @@ dependencies = [
  "burn-cuda",
  "burn-ndarray",
  "burn-std",
- "burn-tensor",
  "burn-wgpu",
  "bytes",
  "futures",
@@ -778,8 +777,8 @@ name = "burn-communication"
 version = "0.21.0-pre.2"
 dependencies = [
  "axum",
+ "burn-backend",
  "burn-std",
- "burn-tensor",
  "bytes",
  "derive-new",
  "futures",
