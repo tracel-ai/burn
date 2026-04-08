@@ -9,6 +9,10 @@ mod clone_invariance;
 #[path = "../tensor/multi_threads.rs"]
 mod multi_threads;
 
+#[cfg(feature = "distributed")]
+#[path = "../tensor/distributed.rs"]
+mod distributed;
+
 // Default float dtype
 #[path = "../tensor/float/mod.rs"]
 mod float;

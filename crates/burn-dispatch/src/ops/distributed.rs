@@ -134,15 +134,15 @@ impl DistributedBackend for Dispatch {
     }
 
     unsafe fn all_reduce(
-        _tensors: FloatTensor<Self>,
-        _op: ReduceOperation,
-        _device_ids: Vec<DeviceId>,
+        tensor: FloatTensor<Self>,
+        op: ReduceOperation,
+        device_ids: Vec<DeviceId>,
     ) -> FloatTensor<Self> {
-        unimplemented!()
+        unary_float!(tensor, float, |tensor| unsafe { B::all_reduce(tensor, op, device_ids) } => Float)
     }
 
-    fn sync_collective(_device: &DispatchDevice) {
-        unimplemented!()
+    fn sync_collective(device: &DispatchDevice) {
+        dispatch_device!(device, |device| B::sync_collective(device))
     }
 
     unsafe fn comm_device(_tensor: &TensorRef<Self>) -> DispatchDevice {

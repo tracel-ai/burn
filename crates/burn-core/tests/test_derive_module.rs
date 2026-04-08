@@ -541,50 +541,6 @@ mod grad_distributed {
         });
     }
 
-    // #[test]
-    // #[serial]
-    // fn fusion_test() {
-    //     test1::<TestAutodiffBackend>();
-    // }
-
-    // #[cfg(feature = "std")]
-    // fn test1<B: AutodiffBackend + DistributedBackend>() {
-    //     use burn_tensor::TensorKind;
-
-    //     let type_id = 0u16;
-
-    //     let device_count = <B as Backend>::device_count(type_id);
-    //     let devices = create_devices::<<B as Backend>::Device>(type_id, device_count);
-
-    //     // let data = TensorData::random::<f32, _, _>(
-    //     //     Shape::new([4, 4]),
-    //     //     burn_tensor::Distribution::Default,
-    //     //     &mut StdRng::try_from_rng(&mut SysRng).unwrap(),
-    //     // );
-    //     // let x: Tensor<B, 2> = Tensor::from_data(data, &devices.first().unwrap());
-
-    //     // x.to_data();
-    //     let x = B::float_ones(
-    //         Shape::new([4, 4]),
-    //         devices.first().unwrap(),
-    //         burn_std::FloatDType::F32,
-    //     );
-
-    //     let result = unsafe {
-    //         B::all_reduce(
-    //             // x.into_primitive(),
-    //             x,
-    //             ReduceOperation::Sum,
-    //             devices.iter().map(|d| d.id()).collect(),
-    //         )
-    //     };
-    //     let result: Tensor<B, 2> = Tensor::from_primitive(result);
-    //     B::sync_collective(devices.first().unwrap());
-    //     println!("tensor : {:?}", result.to_data().to_vec());
-    //     assert_eq!(0, 1)
-    // }
-
-    #[cfg(feature = "std")]
     fn compare_sync_gradients<B: AutodiffBackend + DistributedBackend>(
         op: ReduceOperation,
         transformation: fn(Tensor<B, 2>, Tensor<B, 2>) -> Tensor<B, 2>,
@@ -618,14 +574,12 @@ mod grad_distributed {
         B::close_communication_server(&devices[0]);
     }
 
-    #[cfg(feature = "distributed")]
     fn create_devices<D: Device>(type_id: u16, count: usize) -> Vec<D> {
         (0..count)
             .map(|i| D::from_id(DeviceId::new(type_id, i as u32)))
             .collect()
     }
 
-    #[cfg(feature = "distributed")]
     fn create_channels(
         device_count: usize,
     ) -> (Vec<Sender<TensorData>>, Vec<Receiver<TensorData>>) {
@@ -634,7 +588,6 @@ mod grad_distributed {
             .unzip()
     }
 
-    #[cfg(feature = "distributed")]
     fn spawn_peer_threads<B: AutodiffBackend>(
         module: &ModuleBasic<B>,
         devices: &[<B as Backend>::Device],
@@ -681,7 +634,6 @@ mod grad_distributed {
         handles
     }
 
-    #[cfg(feature = "distributed")]
     pub fn run_peer_sharded<B: AutodiffBackend>(
         module: &ModuleBasic<B>,
         output: Option<Sender<TensorData>>,
@@ -709,7 +661,6 @@ mod grad_distributed {
         }
     }
 
-    #[cfg(feature = "distributed")]
     fn set_distributed<B: AutodiffBackend>(
         module: &ModuleBasic<B>,
         device: &B::Device,

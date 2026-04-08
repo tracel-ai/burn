@@ -49,10 +49,13 @@ tracing = [
     "burn-tch?/tracing",
     "burn-wgpu?/tracing",
 ]
-distributed = ["std", 
+# TODO: remove ndarray
+distributed = [
+    "std", 
     "burn-backend/distributed",
     "burn-autodiff?/distributed",
-    "burn-cuda?/distributed"
+    "burn-cuda?/distributed",
+    "burn-ndarray?/distributed"
 ]
 
 # Backends
