@@ -31,8 +31,6 @@ burn = { path = "../../crates/burn", features = [
     "ndarray",
     # "autotune",
 ], default-features = false }
-# Removing gym-rs because it pulls in SDL which causes big no nos to happen in linux
-# gym-rs = { version = "0.3.1", branch = "main", git = "https://github.com/MathisWellmann/gym-rs" }
 rand.workspace = true
 derive-new = { workspace = true }
 
