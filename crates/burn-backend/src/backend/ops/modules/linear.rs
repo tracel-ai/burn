@@ -1,3 +1,5 @@
+use alloc::vec;
+
 use crate::tensor::FloatTensor;
 use crate::{Backend, TensorMetadata};
 use burn_std::Shape;
