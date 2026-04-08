@@ -1963,10 +1963,7 @@ where
         self,
         indices: Tensor<B, M, Int>,
     ) -> Tensor<B, DV, K> {
-        check!(TensorCheck::gather_nd::<D, M, DV>(
-            &self.shape(),
-            &indices.shape()
-        ));
+        check!(TensorCheck::gather_nd::<D, M, DV>(&indices.shape()));
         Tensor::new(K::gather_nd(self.primitive, indices.primitive))
     }
 

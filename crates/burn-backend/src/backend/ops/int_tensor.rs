@@ -194,12 +194,12 @@ pub trait IntTensorOps<B: Backend> {
         _values: IntTensor<B>,
         _reduction: crate::tensor::IndexingUpdateOp,
     ) -> IntTensor<B> {
-        panic!("int_scatter_nd is not implemented for this backend")
+        unimplemented!("int_scatter_nd is not implemented for this backend")
     }
 
     /// Multi-dimensional gather for int tensors.
     fn int_gather_nd(_data: IntTensor<B>, _indices: IntTensor<B>) -> IntTensor<B> {
-        panic!("int_gather_nd is not implemented for this backend")
+        unimplemented!("int_gather_nd is not implemented for this backend")
     }
 
     /// Select tensor elements along the given dimension corresponding to the given indices.
