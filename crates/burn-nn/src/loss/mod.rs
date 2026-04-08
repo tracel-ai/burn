@@ -1,9 +1,10 @@
-#[cfg(feature = "pretrained")]
-#[cfg_attr(docsrs, doc(cfg(feature = "pretrained")))]
-mod pretrained;
-#[cfg(feature = "pretrained")]
-#[cfg_attr(docsrs, doc(cfg(feature = "pretrained")))]
-pub use pretrained::*;
+// TODO: move pretrained losses to another crate (maybe burn-vision?)
+// #[cfg(feature = "pretrained")]
+// #[cfg_attr(docsrs, doc(cfg(feature = "pretrained")))]
+// mod pretrained;
+// #[cfg(feature = "pretrained")]
+// #[cfg_attr(docsrs, doc(cfg(feature = "pretrained")))]
+// pub use pretrained::*;
 
 mod binary_cross_entropy;
 mod cosine_embedding;

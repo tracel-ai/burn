@@ -1018,7 +1018,6 @@ dependencies = [
  "burn-rocm",
  "burn-router",
  "burn-std",
- "burn-store",
  "burn-tch",
  "burn-wgpu",
  "dirs",
