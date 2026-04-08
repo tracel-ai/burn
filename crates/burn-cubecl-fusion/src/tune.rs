@@ -50,7 +50,7 @@ pub struct TuneContextFork<R: Runtime> {
 ///
 /// # Safety
 ///
-/// All access is sequential on the same thread during autotuning — the [`Sync`]
+/// All access is sequential on the same thread during autotuning the [`Sync`]
 /// impl is required for [`Arc`] but concurrent access never occurs.
 struct SharedNewHandles<R: Runtime>(UnsafeCell<Vec<(TensorId, CubeFusionHandle<R>)>>);
 
@@ -104,12 +104,11 @@ impl<R: Runtime> Drop for TuneContextFork<R> {
 
         let original = unsafe { self.ptr.as_ref().unwrap() };
         for id in fork_handles.handle_ids() {
-            if !original.handles.has_handle(&id) {
-                if let Some(handle) = fork_handles.get_handle_ref(&id) {
-                    // SAFETY: sequential execution — no concurrent access.
+            if !original.handles.has_handle(&id)
+                && let Some(handle) = fork_handles.get_handle_ref(&id) {
+                    // SAFETY: sequential execution no concurrent access.
                     unsafe { self.new_handles.push(id, handle.clone()) };
                 }
-            }
         }
     }
 }
@@ -158,7 +157,7 @@ enum UnsafeTuneContext<R: Runtime> {
     },
     Fork {
         context: Box<ContextOwned<CubeFusionHandle<R>>>,
-        /// Shared with the original — forks write new handles here.
+        /// Shared with the original forks write new handles here.
         new_handles: Arc<SharedNewHandles<R>>,
         ptr: *mut Context<'static, CubeFusionHandle<R>>,
     },
@@ -221,7 +220,7 @@ impl<R: Runtime> UnsafeTuneContext<R> {
                 TuneContext::Fork(TuneContextFork {
                     context: Box::new(fork),
                     new_handles: new_handles.clone(),
-                    ptr: ptr.clone(),
+                    ptr: *ptr,
                 })
             }
         }
@@ -235,9 +234,8 @@ impl<R: Runtime> Drop for UnsafeTuneContext<R> {
             executed,
             new_handles,
         } = self
-        {
-            if !executed.get() {
-                // The original context was never used for execution — persist
+            && !executed.get() {
+                // The original context was never used for execution persist
                 // output handles that were produced by forked executions.
                 let context = unsafe { ptr.as_mut().unwrap() };
                 // SAFETY: all forks have been dropped (sequential execution),
@@ -247,7 +245,6 @@ impl<R: Runtime> Drop for UnsafeTuneContext<R> {
                     context.handles.register_handle(id, handle);
                 }
             }
-        }
     }
 }
 
@@ -273,7 +270,7 @@ impl<R: Runtime> Clone for UnsafeTuneContext<R> {
                 UnsafeTuneContext::Fork {
                     context: Box::new(forked),
                     new_handles: new_handles.clone(),
-                    ptr: ptr.clone(),
+                    ptr: *ptr,
                 }
             }
             UnsafeTuneContext::Fork {
@@ -285,7 +282,7 @@ impl<R: Runtime> Clone for UnsafeTuneContext<R> {
                 UnsafeTuneContext::Fork {
                     context: Box::new(context.fork()),
                     new_handles: new_handles.clone(),
-                    ptr: ptr.clone(),
+                    ptr: *ptr,
                 }
             }
         }
