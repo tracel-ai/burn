@@ -87,6 +87,12 @@ fusion = [
     "burn-rocm?/fusion",
     "burn-cpu?/fusion",
 ]
+memory-checks = [
+    "burn-wgpu?/memory-checks",
+    "burn-cuda?/memory-checks",
+    "burn-rocm?/memory-checks",
+    "burn-cpu?/memory-checks",
+]
 
 [dependencies]
 burn-backend = { path = "../burn-backend", version = "=0.21.0-pre.2", default-features = false }

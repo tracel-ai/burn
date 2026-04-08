@@ -52,6 +52,7 @@ autodiff = ["burn-dispatch/autodiff"]
 # Backend features
 autotune = ["burn-dispatch/autotune"]
 autotune-checks = ["burn-dispatch/autotune-checks"]
+memory-checks = ["burn-dispatch/memory-checks"]
 fusion = ["burn-dispatch/fusion"]
 
 [dependencies]

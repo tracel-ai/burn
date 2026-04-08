@@ -67,9 +67,9 @@ mod tests {
 
         #[cfg(all(
             test,
-            not(feature = "test-tch"),
-            not(feature = "test-wgpu"),
-            not(feature = "test-cuda")
+            not(feature = "tch"),
+            not(feature = "wgpu"),
+            not(feature = "cuda")
         ))]
         // Only one device exists...
         let (device1, device2) = (
@@ -77,19 +77,19 @@ mod tests {
             Device::new(burn_ndarray::NdArrayDevice::Cpu),
         );
 
-        #[cfg(all(test, feature = "test-tch"))]
+        #[cfg(all(test, feature = "tch"))]
         let (device1, device2) = (
             Device::new(burn_tch::LibTorchDevice::Cuda(0)),
             Device::new(burn_tch::LibTorchDevice::Cuda(1)),
         );
 
-        #[cfg(all(test, feature = "test-wgpu"))]
+        #[cfg(all(test, feature = "wgpu"))]
         let (device1, device2) = (
             Device::new(burn_wgpu::WgpuDevice::DiscreteGpu(0)),
             Device::new(burn_wgpu::WgpuDevice::DiscreteGpu(1)),
         );
 
-        #[cfg(all(test, feature = "test-cuda"))]
+        #[cfg(all(test, feature = "cuda"))]
         let (device1, device2) = (
             Device::new(burn_cuda::CudaDevice::new(0)),
             Device::new(burn_cuda::CudaDevice::new(1)),
