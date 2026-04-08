@@ -246,8 +246,8 @@ fn tune_fused<R: Runtime>(
                 return tune_fallback::<R>(input);
             }
         },
-        TuneContext::Fork(mut context_owned) => {
-            optimization.execute_fused(&mut context_owned.as_context(), selector)
+        TuneContext::Fork(mut fork) => {
+            optimization.execute_fused(&mut fork.as_context(), selector)
         }
     }
     .map_err(|e| format!("{e:?}"))
@@ -261,8 +261,6 @@ fn tune_fallback<R: Runtime>(
 
     Ok(match context {
         TuneContext::Original(context) => optimization.execute_fallback(context),
-        TuneContext::Fork(mut context_owned) => {
-            optimization.execute_fallback(&mut context_owned.as_context())
-        }
+        TuneContext::Fork(mut fork) => optimization.execute_fallback(&mut fork.as_context()),
     })
 }
