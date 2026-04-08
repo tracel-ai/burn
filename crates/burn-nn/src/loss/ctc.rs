@@ -1679,6 +1679,7 @@ mod pytorch_comparison_tests {
             0.0401907414,
         ];
         logits_grad
+            .reshape::<1, _>([-1])
             .into_data()
             .assert_approx_eq::<f32>(&TensorData::from(expected_grad), Tolerance::default());
     }
