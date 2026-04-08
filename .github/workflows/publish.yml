@@ -38,6 +38,7 @@ jobs:
       - publish-burn-tensor
       - publish-burn-ir
       - publish-burn-tensor-testgen
+      - publish-burn-store
       # dev dependencies
       - publish-burn-wgpu
       - publish-burn-cuda
@@ -318,7 +319,6 @@ jobs:
       - publish-burn-std
       - publish-burn-derive
       - publish-burn-tensor
-      - publish-burn-vision
       # dev dependencies
       - publish-burn-autodiff
       - publish-burn-wgpu
@@ -412,6 +412,7 @@ jobs:
       - publish-burn-train
       - publish-burn-cpu
       - publish-burn-dispatch
+      - publish-burn-vision
     uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v9
     with:
       crate: burn
