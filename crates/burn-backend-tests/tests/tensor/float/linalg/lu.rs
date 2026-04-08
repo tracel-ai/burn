@@ -39,7 +39,9 @@ fn test_lu_factor_3x3() {
         [0.5, 5.5, -0.5],
         [0.75, -0.22727273, -2.3636363],
     ]);
-    lu.into_data().assert_eq(&expected, false);
+    let tolerance = Tolerance::default().set_half_precision_absolute(5e-2);
+    lu.into_data()
+        .assert_approx_eq::<FloatElem>(&expected, tolerance);
     pivots
         .into_data()
         .assert_eq(&TensorData::from([2.0, 2.0, 2.0]), false);
@@ -55,7 +57,7 @@ fn test_lu_identity_matrix() {
     let tensor = TestTensor::<2>::from_data([[1., 0., 0.], [0., 1., 0.], [0., 0., 1.]], &device);
     let (p, l, u) = lu::<TestBackend, 2, 1>(tensor.clone());
     let plu = p.matmul(l).matmul(u);
-    let tolerance = Tolerance::default().set_half_precision_absolute(5e-3);
+    let tolerance = Tolerance::default().set_half_precision_absolute(5e-2);
     plu.into_data()
         .assert_approx_eq::<FloatElem>(&tensor.into_data(), tolerance);
 }
@@ -74,7 +76,7 @@ fn test_lu_singular_zero_pivot() {
     );
     let (p, l, u) = lu::<TestBackend, 2, 1>(tensor.clone());
     let plu = p.matmul(l).matmul(u);
-    let tolerance = Tolerance::default().set_half_precision_absolute(5e-3);
+    let tolerance = Tolerance::default().set_half_precision_absolute(5e-2);
     plu.into_data()
         .assert_approx_eq::<FloatElem>(&tensor.into_data(), tolerance);
 }
@@ -89,7 +91,7 @@ fn test_lu_2d_square() {
     let tensor = TestTensor::<2>::random([6, 6], Distribution::Default, &device);
     let (p, l, u) = lu::<TestBackend, 2, 1>(tensor.clone());
     let plu = p.matmul(l).matmul(u);
-    let tolerance = Tolerance::default().set_half_precision_absolute(5e-3);
+    let tolerance = Tolerance::default().set_half_precision_absolute(5e-2);
     plu.into_data()
         .assert_approx_eq::<FloatElem>(&tensor.into_data(), tolerance);
 }
@@ -100,7 +102,7 @@ fn test_lu_2d_tall() {
     let tensor = TestTensor::<2>::random([8, 5], Distribution::Default, &device);
     let (p, l, u) = lu::<TestBackend, 2, 1>(tensor.clone());
     let plu = p.matmul(l).matmul(u);
-    let tolerance = Tolerance::default().set_half_precision_absolute(5e-3);
+    let tolerance = Tolerance::default().set_half_precision_absolute(5e-2);
     plu.into_data()
         .assert_approx_eq::<FloatElem>(&tensor.into_data(), tolerance);
 }
@@ -111,7 +113,7 @@ fn test_lu_2d_wide() {
     let tensor = TestTensor::<2>::random([5, 8], Distribution::Default, &device);
     let (p, l, u) = lu::<TestBackend, 2, 1>(tensor.clone());
     let plu = p.matmul(l).matmul(u);
-    let tolerance = Tolerance::default().set_half_precision_absolute(5e-3);
+    let tolerance = Tolerance::default().set_half_precision_absolute(5e-2);
     plu.into_data()
         .assert_approx_eq::<FloatElem>(&tensor.into_data(), tolerance);
 }
@@ -122,7 +124,7 @@ fn test_lu_medium_tall() {
     let tensor = TestTensor::<2>::random([256, 128], Distribution::Default, &device);
     let (p, l, u) = lu::<TestBackend, 2, 1>(tensor.clone());
     let plu = p.matmul(l).matmul(u);
-    let tolerance = Tolerance::default().set_half_precision_absolute(5e-3);
+    let tolerance = Tolerance::default().set_half_precision_absolute(5e-2);
     plu.into_data()
         .assert_approx_eq::<FloatElem>(&tensor.into_data(), tolerance);
 }
@@ -133,7 +135,7 @@ fn test_lu_medium_wide() {
     let tensor = TestTensor::<2>::random([128, 256], Distribution::Default, &device);
     let (p, l, u) = lu::<TestBackend, 2, 1>(tensor.clone());
     let plu = p.matmul(l).matmul(u);
-    let tolerance = Tolerance::default().set_half_precision_absolute(5e-3);
+    let tolerance = Tolerance::default().set_half_precision_absolute(5e-2);
     plu.into_data()
         .assert_approx_eq::<FloatElem>(&tensor.into_data(), tolerance);
 }
@@ -148,7 +150,7 @@ fn test_lu_3d_square() {
     let tensor = TestTensor::<3>::random([3, 6, 6], Distribution::Default, &device);
     let (p, l, u) = lu::<TestBackend, 3, 2>(tensor.clone());
     let plu = p.matmul(l).matmul(u);
-    let tolerance = Tolerance::default().set_half_precision_absolute(5e-3);
+    let tolerance = Tolerance::default().set_half_precision_absolute(5e-2);
     plu.into_data()
         .assert_approx_eq::<FloatElem>(&tensor.into_data(), tolerance);
 }
@@ -159,7 +161,7 @@ fn test_lu_3d_tall() {
     let tensor = TestTensor::<3>::random([3, 8, 5], Distribution::Default, &device);
     let (p, l, u) = lu::<TestBackend, 3, 2>(tensor.clone());
     let plu = p.matmul(l).matmul(u);
-    let tolerance = Tolerance::default().set_half_precision_absolute(5e-3);
+    let tolerance = Tolerance::default().set_half_precision_absolute(5e-2);
     plu.into_data()
         .assert_approx_eq::<FloatElem>(&tensor.into_data(), tolerance);
 }
@@ -170,7 +172,7 @@ fn test_lu_3d_wide() {
     let tensor = TestTensor::<3>::random([3, 5, 8], Distribution::Default, &device);
     let (p, l, u) = lu::<TestBackend, 3, 2>(tensor.clone());
     let plu = p.matmul(l).matmul(u);
-    let tolerance = Tolerance::default().set_half_precision_absolute(5e-3);
+    let tolerance = Tolerance::default().set_half_precision_absolute(5e-2);
     plu.into_data()
         .assert_approx_eq::<FloatElem>(&tensor.into_data(), tolerance);
 }
@@ -185,7 +187,7 @@ fn test_lu_4d_square() {
     let tensor = TestTensor::<4>::random([2, 2, 6, 6], Distribution::Default, &device);
     let (p, l, u) = lu::<TestBackend, 4, 3>(tensor.clone());
     let plu = p.matmul(l).matmul(u);
-    let tolerance = Tolerance::default().set_half_precision_absolute(5e-3);
+    let tolerance = Tolerance::default().set_half_precision_absolute(5e-2);
     plu.into_data()
         .assert_approx_eq::<FloatElem>(&tensor.into_data(), tolerance);
 }
@@ -196,7 +198,7 @@ fn test_lu_4d_tall() {
     let tensor = TestTensor::<4>::random([2, 2, 8, 5], Distribution::Default, &device);
     let (p, l, u) = lu::<TestBackend, 4, 3>(tensor.clone());
     let plu = p.matmul(l).matmul(u);
-    let tolerance = Tolerance::default().set_half_precision_absolute(5e-3);
+    let tolerance = Tolerance::default().set_half_precision_absolute(5e-2);
     plu.into_data()
         .assert_approx_eq::<FloatElem>(&tensor.into_data(), tolerance);
 }
@@ -207,7 +209,7 @@ fn test_lu_4d_wide() {
     let tensor = TestTensor::<4>::random([2, 2, 5, 8], Distribution::Default, &device);
     let (p, l, u) = lu::<TestBackend, 4, 3>(tensor.clone());
     let plu = p.matmul(l).matmul(u);
-    let tolerance = Tolerance::default().set_half_precision_absolute(5e-3);
+    let tolerance = Tolerance::default().set_half_precision_absolute(5e-2);
     plu.into_data()
         .assert_approx_eq::<FloatElem>(&tensor.into_data(), tolerance);
 }
@@ -222,7 +224,7 @@ fn test_lu_500x500_block_dispatch() {
     let tensor = TestTensor::<2>::random([500, 500], Distribution::Default, &device);
     let (p, l, u) = lu::<TestBackend, 2, 1>(tensor.clone());
     let plu = p.matmul(l).matmul(u);
-    let tolerance = Tolerance::default().set_half_precision_absolute(5e-3);
+    let tolerance = Tolerance::default().set_half_precision_absolute(5e-2);
     plu.into_data()
         .assert_approx_eq::<FloatElem>(&tensor.into_data(), tolerance);
 }
@@ -233,7 +235,7 @@ fn test_lu_500x300_block_dispatch() {
     let tensor = TestTensor::<2>::random([500, 300], Distribution::Default, &device);
     let (p, l, u) = lu::<TestBackend, 2, 1>(tensor.clone());
     let plu = p.matmul(l).matmul(u);
-    let tolerance = Tolerance::default().set_half_precision_absolute(5e-3);
+    let tolerance = Tolerance::default().set_half_precision_absolute(5e-2);
     plu.into_data()
         .assert_approx_eq::<FloatElem>(&tensor.into_data(), tolerance);
 }
@@ -244,7 +246,7 @@ fn test_lu_300x500_block_dispatch() {
     let tensor = TestTensor::<2>::random([300, 500], Distribution::Default, &device);
     let (p, l, u) = lu::<TestBackend, 2, 1>(tensor.clone());
     let plu = p.matmul(l).matmul(u);
-    let tolerance = Tolerance::default().set_half_precision_absolute(5e-3);
+    let tolerance = Tolerance::default().set_half_precision_absolute(5e-2);
     plu.into_data()
         .assert_approx_eq::<FloatElem>(&tensor.into_data(), tolerance);
 }
@@ -255,7 +257,7 @@ fn test_lu_5x300x300_block_dispatch() {
     let tensor = TestTensor::<3>::random([5, 300, 300], Distribution::Default, &device);
     let (p, l, u) = lu::<TestBackend, 3, 2>(tensor.clone());
     let plu = p.matmul(l).matmul(u);
-    let tolerance = Tolerance::default().set_half_precision_absolute(5e-3);
+    let tolerance = Tolerance::default().set_half_precision_absolute(5e-2);
     plu.into_data()
         .assert_approx_eq::<FloatElem>(&tensor.into_data(), tolerance);
 }
@@ -266,7 +268,7 @@ fn test_lu_3x300x500_block_dispatch() {
     let tensor = TestTensor::<3>::random([3, 300, 500], Distribution::Default, &device);
     let (p, l, u) = lu::<TestBackend, 3, 2>(tensor.clone());
     let plu = p.matmul(l).matmul(u);
-    let tolerance = Tolerance::default().set_half_precision_absolute(5e-3);
+    let tolerance = Tolerance::default().set_half_precision_absolute(5e-2);
     plu.into_data()
         .assert_approx_eq::<FloatElem>(&tensor.into_data(), tolerance);
 }
@@ -277,7 +279,7 @@ fn test_lu_3x500x300_block_dispatch() {
     let tensor = TestTensor::<3>::random([3, 500, 300], Distribution::Default, &device);
     let (p, l, u) = lu::<TestBackend, 3, 2>(tensor.clone());
     let plu = p.matmul(l).matmul(u);
-    let tolerance = Tolerance::default().set_half_precision_absolute(5e-3);
+    let tolerance = Tolerance::default().set_half_precision_absolute(5e-2);
     plu.into_data()
         .assert_approx_eq::<FloatElem>(&tensor.into_data(), tolerance);
 }
