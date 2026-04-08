@@ -105,6 +105,6 @@ impl<B: FusionBackend + DistributedBackend> DistributedBackend for Fusion<B> {
     }
 
     fn sync_collective(device: &Device<Self>) {
-        todo!()
+        B::sync_collective(device);
     }
 }

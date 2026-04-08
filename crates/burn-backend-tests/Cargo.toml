@@ -15,12 +15,14 @@ version.workspace = true
 workspace = true
 
 [features]
+# TODO: remove distributed
 default = [
     "burn-tensor/default",
     "burn-dispatch/default",
     # Default
     # "ndarray",
     "std",
+    "distributed"
 ]
 std = ["burn-tensor/std", "burn-dispatch/std"]
 
@@ -38,6 +40,10 @@ cpu = ["burn-dispatch/cpu", "cube"]
 autotune = ["burn-dispatch/autotune"]
 autotune-checks = ["burn-dispatch/autotune-checks"]
 fusion = ["burn-dispatch/fusion"]
+distributed = [
+    "std",
+    "burn-dispatch/distributed"
+]
 
 # CubeCL backends
 cube = [
@@ -77,6 +83,7 @@ burn-cubecl = { path = "../burn-cubecl", version = "=0.21.0-pre.2", optional = t
 
 num-traits = { workspace = true }
 serial_test = { workspace = true }
+rand.workspace = true
 
 
 [dev-dependencies]
