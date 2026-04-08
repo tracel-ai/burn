@@ -108,7 +108,7 @@ impl<R: Runtime> Drop for TuneContextFork<R> {
                 && let Some(handle) = fork_handles.get_handle_ref(id)
             {
                 // SAFETY: sequential execution no concurrent access.
-                unsafe { self.new_handles.push(id.clone(), handle.clone()) };
+                unsafe { self.new_handles.push(*id, handle.clone()) };
             }
         }
     }
