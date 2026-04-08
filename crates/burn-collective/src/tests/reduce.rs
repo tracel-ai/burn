@@ -103,7 +103,7 @@ mod tests {
         let root: PeerId = 0.into();
         for id in 0..device_count {
             let send = send.clone();
-            let input = input[id as usize].clone();
+            let input = input[id].clone();
 
             std::thread::spawn({
                 let config = config.clone();

@@ -2,7 +2,6 @@ use super::*;
 use burn_tensor::Tolerance;
 use burn_tensor::{
     Shape,
-    backend::Backend,
     quantization::{QuantLevel, QuantScheme, QuantStore, QuantValue},
 };
 
@@ -47,6 +46,9 @@ fn should_quantize_dequantize_symmetric_per_block_arange<S: Into<Shape>>(
     store: QuantStore,
     shape: S,
 ) {
+    let device = Default::default();
+    let ref_device = ReferenceDevice::new();
+
     let scheme = QuantScheme::default()
         .with_value(value)
         .with_level(QuantLevel::block([block_size as u8]))
@@ -54,11 +56,10 @@ fn should_quantize_dequantize_symmetric_per_block_arange<S: Into<Shape>>(
     let scheme_ref = scheme.clone().with_store(QuantStore::Native);
 
     let shape = shape.into();
-    let input: TestTensor<2> =
-        TestTensorInt::arange(0..shape.num_elements() as i64, &Default::default())
-            .float()
-            .reshape(shape);
-    let input_ref = TestTensor::<2>::from_data(input.to_data(), &Default::default());
+    let input: TestTensor<2> = TestTensorInt::arange(0..shape.num_elements() as i64, &device)
+        .float()
+        .reshape(shape);
+    let input_ref = TestTensor::<2>::from_data(input.to_data(), &ref_device);
 
     let output = input.quantize_dynamic(&scheme);
     let output_ref = input_ref.quantize_dynamic(&scheme_ref);

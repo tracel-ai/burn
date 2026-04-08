@@ -65,7 +65,7 @@ mod tests {
         let device = <TestBackend as Backend>::Device::default();
 
         let mut expected_tensor = Tensor::<TestBackend, 1>::zeros(shape, &device);
-        for item in input.iter().take(thread_count as usize) {
+        for item in input.iter().take(thread_count) {
             let input_tensor = Tensor::<TestBackend, 1>::from_data(item.clone(), &device);
             expected_tensor = expected_tensor.add(input_tensor);
         }
@@ -98,7 +98,7 @@ mod tests {
 
         for id in 0..device_count {
             let send = send.clone();
-            let input = input[id as usize].clone();
+            let input = input[id].clone();
 
             std::thread::spawn({
                 let config = config.clone();
