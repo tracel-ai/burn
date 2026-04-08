@@ -568,7 +568,6 @@ macro_rules! unary_float_arms {
 
 }
 
-#[cfg(feature = "autodiff")]
 /// Utility to pick a token based on mode
 macro_rules! if_mode {
     (ref, $if_ref:expr, $if_owned:expr) => {
@@ -1043,11 +1042,11 @@ macro_rules! multi_op_arms {
         $( [$Backend:ident, $cfg:meta] ),*
     ) => {{
         let first_input = &first_input!($inputs);
-        let checkpointing = if cfg!(feature = "autodiff") {
-            first_input.checkpointing
-        } else {
-            $crate::CheckpointingStrategy::None
-        };
+        #[cfg(feature = "autodiff")]
+        let checkpointing = first_input.checkpointing;
+        #[cfg(not(feature = "autodiff"))]
+        #[allow(unused_variables)]
+        let checkpointing = false;
 
         match first_input.kind {
             $(
