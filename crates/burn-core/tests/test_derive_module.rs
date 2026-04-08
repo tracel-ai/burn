@@ -643,8 +643,8 @@ mod grad_distributed {
         let mut module = module.clone().fork(&device);
 
         for _ in 0..num_iter {
-            module = set_distributed(&module, &device);
-            let grads_x = calculate_grads(&module, transformation);
+            // module = set_distributed(&module, &device);
+            let grads_x = calculate_grads(&module.fork(&device), transformation);
             let data = grads_x.unwrap().to_data();
             println!("data : {:?}", data.to_vec::<f32>());
             if !is_main {
