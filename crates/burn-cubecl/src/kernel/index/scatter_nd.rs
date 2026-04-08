@@ -6,8 +6,8 @@ use crate::{
     },
     tensor::CubeTensor,
 };
-use burn_backend::tensor::IndexingUpdateOp;
 use burn_backend::TensorMetadata;
+use burn_backend::tensor::IndexingUpdateOp;
 use cubecl::prelude::*;
 use cubecl::std::tensor::layout::linear::LinearView;
 use cubecl::{CubeDim, calculate_cube_count_elemwise};

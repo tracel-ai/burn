@@ -290,15 +290,9 @@ impl TchOps {
         let result = match reduction {
             IndexingUpdateOp::Assign => flat_data.scatter_(0, &linear_idx, &flat_values),
             IndexingUpdateOp::Add => flat_data.scatter_add(0, &linear_idx, &flat_values),
-            IndexingUpdateOp::Mul => {
-                flat_data.scatter_reduce(0, &linear_idx, &flat_values, "prod")
-            }
-            IndexingUpdateOp::Min => {
-                flat_data.scatter_reduce(0, &linear_idx, &flat_values, "amin")
-            }
-            IndexingUpdateOp::Max => {
-                flat_data.scatter_reduce(0, &linear_idx, &flat_values, "amax")
-            }
+            IndexingUpdateOp::Mul => flat_data.scatter_reduce(0, &linear_idx, &flat_values, "prod"),
+            IndexingUpdateOp::Min => flat_data.scatter_reduce(0, &linear_idx, &flat_values, "amin"),
+            IndexingUpdateOp::Max => flat_data.scatter_reduce(0, &linear_idx, &flat_values, "amax"),
         };
 
         let storage = tensor.storage.clone();

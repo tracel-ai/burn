@@ -4,9 +4,7 @@ use burn_backend::backend::{Backend, ExecutionError};
 use burn_std::{BoolDType, IntDType};
 
 use crate::{BackendRouter, RunnerChannel, RunnerClient, get_client};
-use burn_backend::tensor::{
-    BoolTensor, Device, FloatTensor, IndexingUpdateOp, IntTensor,
-};
+use burn_backend::tensor::{BoolTensor, Device, FloatTensor, IndexingUpdateOp, IntTensor};
 use burn_backend::{Distribution, FloatDType, Shape, Slice, TensorData, ops::FloatTensorOps};
 use burn_ir::{
     BaseOperationIr, BinaryOpIr, CastOpIr, CatOpIr, ClampOpIr, CreationOpIr, CrossOpIr, DimOpIr,
