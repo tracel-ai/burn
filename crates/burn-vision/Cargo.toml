@@ -20,7 +20,7 @@ workspace = true
 
 [features]
 default = ["ndarray", "cubecl-backend", "fusion", "std"]
-std = ["aligned-vec/std"]
+std = ["aligned-vec/std", "burn-store?/std", "burn-std?/std"]
 tracing = [
     "burn-cubecl?/tracing",
     "burn-fusion?/tracing",
@@ -35,6 +35,9 @@ cubecl-backend = ["cubecl", "burn-cubecl"]
 fusion = ["burn-fusion", "burn-cuda/fusion", "burn-wgpu/fusion"]
 ndarray = ["burn-ndarray"]
 tch = ["burn-tch"]
+
+# TODO: move somewhere else
+loss = ["std", "burn-store/pytorch", "burn-std/network", "dirs"]
 
 # Test features
 test-cpu = []
@@ -53,6 +56,12 @@ burn-ndarray = { path = "../burn-ndarray", version = "=0.21.0-pre.3", optional =
 burn-tch = { path = "../burn-tch", version = "=0.21.0-pre.3", optional = true }
 burn-tensor = { path = "../burn-tensor", version = "=0.21.0-pre.3" }
 burn-tensor-testgen = { path = "../burn-tensor-testgen", version = "=0.21.0-pre.3", optional = true }
+
+# For loss functions requiring pretrained models (e.g., Gram Matrix Loss)
+burn-store = { path = "../burn-store", version = "=0.21.0-pre.3", optional = true, default-features = false }
+burn-std = { path = "../burn-std", version = "=0.21.0-pre.3", optional = true, default-features = false }
+dirs = { workspace = true, optional = true }
+
 bytemuck = { workspace = true }
 cubecl = { workspace = true, optional = true }
 derive-new = { workspace = true }
