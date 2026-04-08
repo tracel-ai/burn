@@ -9,6 +9,7 @@ logger = { info = true, level = "full" }
 [compilation]
 logger = { level = "disabled" }
 cache = "target"
+check_mode = "auto"
 
 [memory]
 logger = { level = "disabled", file = "/tmp/memory.log" }
