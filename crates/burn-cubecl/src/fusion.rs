@@ -147,10 +147,10 @@ impl<R: CubeRuntime> FusionRuntime for FusionCubeRuntime<R> {
 
     fn fusers(device: R::Device) -> Vec<Box<dyn burn_fusion::OperationFuser<Self::Optimization>>> {
         vec![
-            Box::new(ElementWiseFuser::new(device.clone())),
-            Box::new(MatmulFuser::new(device.clone())),
-            Box::new(ReduceFuser::new(device.clone(), ReduceSettings::Always)),
-            Box::new(ReduceBroadcastedFuser::new(device.clone())),
+            // Box::new(ElementWiseFuser::new(device.clone())),
+            // Box::new(MatmulFuser::new(device.clone())),
+            // Box::new(ReduceFuser::new(device.clone(), ReduceSettings::Always)),
+            // Box::new(ReduceBroadcastedFuser::new(device.clone())),
         ]
     }
 }
