@@ -546,8 +546,16 @@ impl DispatchTensor {
         let mut device = self.kind.device();
 
         #[cfg(feature = "autodiff")]
-        if let DispatchDevice::Autodiff(device) = &mut device {
-            device.checkpointing = self.checkpointing;
+        if self.checkpointing.is_some() && !matches!(device, DispatchDevice::Autodiff(_)) {
+            // Carry autodiff intent for int and bool kinds
+            device = DispatchDevice::autodiff(device)
+        }
+
+        #[cfg(feature = "autodiff")]
+        if let DispatchDevice::Autodiff(device) = &mut device
+            && let Some(checkpointing) = &self.checkpointing
+        {
+            device.checkpointing = *checkpointing;
         }
 
         device

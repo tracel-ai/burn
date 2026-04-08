@@ -177,8 +177,11 @@ pub struct DispatchTensor {
     /// Tensor kind primitive.
     pub(crate) kind: DispatchTensorKind,
     // Technically more of a device property, but device is not a dispatch tensor field.
+    /// Holds the autodiff checkpointing strategy.
+    /// - `None`: tensor is not tracked by autodiff
+    /// - `Some(strategy)`: tensor is tracked by autodiff, and uses the checkpointing `strategy`
     #[cfg(feature = "autodiff")]
-    pub(crate) checkpointing: CheckpointingStrategy,
+    pub(crate) checkpointing: Option<CheckpointingStrategy>,
 }
 
 /// Internal representation of a [`DispatchTensor`].

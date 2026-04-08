@@ -102,9 +102,9 @@ pub enum CheckpointingStrategy {
 
 #[cfg(feature = "autodiff")]
 pub(crate) fn validate_checkpointing(
-    lhs: crate::CheckpointingStrategy,
-    rhs: crate::CheckpointingStrategy,
-) -> crate::CheckpointingStrategy {
+    lhs: Option<crate::CheckpointingStrategy>,
+    rhs: Option<crate::CheckpointingStrategy>,
+) -> Option<crate::CheckpointingStrategy> {
     assert_eq!(
         lhs, rhs,
         "Autodiff strategy mismatch: {lhs:?} vs {rhs:?}. Tensors in the same operation must share a strategy."
