@@ -10,7 +10,7 @@ use burn_backend::{
     BoolDType, Distribution, ExecutionError, FloatDType, IntDType, Scalar, Shape, Slice,
     TensorData,
     ops::IntTensorOps,
-    tensor::{BoolTensor, Device, FloatTensor, IndexingUpdateOp, IntTensor, ScatterNdReduction},
+    tensor::{BoolTensor, Device, FloatTensor, IndexingUpdateOp, IntTensor},
 };
 use burn_ir::*;
 use std::marker::PhantomData;
@@ -374,7 +374,7 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         data: IntTensor<Self>,
         indices: IntTensor<Self>,
         values: IntTensor<Self>,
-        reduction: ScatterNdReduction,
+        reduction: IndexingUpdateOp,
     ) -> IntTensor<Self> {
         #[derive(new, Debug)]
         struct ScatterNdOps<B: FusionBackend> {

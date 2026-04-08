@@ -7,7 +7,7 @@ use crate::{
     ops::TransactionPrimitive,
     tensor::{
         BasicAutodiffOps, BasicOps, BoolTensor, Device, IndexingUpdateOp, Int, IntTensor, Numeric,
-        Ordered, ScatterNdReduction, TensorKind, TransactionOp,
+        Ordered, TensorKind, TransactionOp,
     },
 };
 
@@ -71,6 +71,7 @@ impl<B: Backend> BasicOps<B> for Int {
     ) -> Self::Primitive {
         match update {
             IndexingUpdateOp::Add => B::int_select_add(tensor, dim, indices, values),
+            _ => unimplemented!(),
         }
     }
 
@@ -107,6 +108,7 @@ impl<B: Backend> BasicOps<B> for Int {
     ) -> Self::Primitive {
         match update {
             IndexingUpdateOp::Add => B::int_scatter_add(dim, tensor, indices, values),
+            _ => unimplemented!(),
         }
     }
 
@@ -114,7 +116,7 @@ impl<B: Backend> BasicOps<B> for Int {
         data: Self::Primitive,
         indices: IntTensor<B>,
         values: Self::Primitive,
-        reduction: ScatterNdReduction,
+        reduction: IndexingUpdateOp,
     ) -> Self::Primitive {
         B::int_scatter_nd(data, indices, values, reduction)
     }

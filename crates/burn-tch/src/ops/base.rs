@@ -1,4 +1,4 @@
-use burn_backend::tensor::ScatterNdReduction;
+use burn_backend::tensor::IndexingUpdateOp;
 use burn_backend::{Shape, TensorMetadata};
 use tch::Scalar;
 
@@ -269,7 +269,7 @@ impl TchOps {
         tensor: TchTensor,
         indices: TchTensor,
         values: TchTensor,
-        reduction: ScatterNdReduction,
+        reduction: IndexingUpdateOp,
     ) -> TchTensor {
         let data_shape: Vec<i64> = tensor.tensor.size();
         let idx_shape: Vec<i64> = indices.tensor.size();
@@ -288,15 +288,15 @@ impl TchOps {
         let flat_values = values.tensor.reshape([num_updates * slice_size]);
 
         let result = match reduction {
-            ScatterNdReduction::Assign => flat_data.scatter_(0, &linear_idx, &flat_values),
-            ScatterNdReduction::Add => flat_data.scatter_add(0, &linear_idx, &flat_values),
-            ScatterNdReduction::Mul => {
+            IndexingUpdateOp::Assign => flat_data.scatter_(0, &linear_idx, &flat_values),
+            IndexingUpdateOp::Add => flat_data.scatter_add(0, &linear_idx, &flat_values),
+            IndexingUpdateOp::Mul => {
                 flat_data.scatter_reduce(0, &linear_idx, &flat_values, "prod")
             }
-            ScatterNdReduction::Min => {
+            IndexingUpdateOp::Min => {
                 flat_data.scatter_reduce(0, &linear_idx, &flat_values, "amin")
             }
-            ScatterNdReduction::Max => {
+            IndexingUpdateOp::Max => {
                 flat_data.scatter_reduce(0, &linear_idx, &flat_values, "amax")
             }
         };

@@ -471,7 +471,7 @@ pub trait FloatTensorOps<B: Backend> {
         _data: FloatTensor<B>,
         _indices: IntTensor<B>,
         _values: FloatTensor<B>,
-        _reduction: crate::tensor::ScatterNdReduction,
+        _reduction: crate::tensor::IndexingUpdateOp,
     ) -> FloatTensor<B> {
         panic!("float_scatter_nd is not implemented for this backend")
     }

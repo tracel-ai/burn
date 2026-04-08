@@ -22,7 +22,7 @@ use crate::{
     backend::Backend, check,
 };
 use crate::{DType, Element};
-use crate::{IndexingUpdateOp, ScatterNdReduction, TensorCreationOptions};
+use crate::{IndexingUpdateOp, TensorCreationOptions};
 use crate::{cast::ToElement, check::TensorCheck};
 use serde::{Serialize, Serializer};
 
@@ -1851,7 +1851,7 @@ where
             self.primitive,
             indices.primitive,
             values.primitive,
-            ScatterNdReduction::Assign,
+            IndexingUpdateOp::Assign,
         ))
     }
 
@@ -1877,7 +1877,7 @@ where
             self.primitive,
             indices.primitive,
             values.primitive,
-            ScatterNdReduction::Add,
+            IndexingUpdateOp::Add,
         ))
     }
 
@@ -1903,7 +1903,7 @@ where
             self.primitive,
             indices.primitive,
             values.primitive,
-            ScatterNdReduction::Mul,
+            IndexingUpdateOp::Mul,
         ))
     }
 
@@ -1929,7 +1929,7 @@ where
             self.primitive,
             indices.primitive,
             values.primitive,
-            ScatterNdReduction::Min,
+            IndexingUpdateOp::Min,
         ))
     }
 
@@ -1955,7 +1955,7 @@ where
             self.primitive,
             indices.primitive,
             values.primitive,
-            ScatterNdReduction::Max,
+            IndexingUpdateOp::Max,
         ))
     }
 

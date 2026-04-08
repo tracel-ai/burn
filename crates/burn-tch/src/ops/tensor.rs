@@ -211,7 +211,7 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
         data: TchTensor,
         indices: TchTensor,
         values: TchTensor,
-        reduction: burn_backend::tensor::ScatterNdReduction,
+        reduction: burn_backend::tensor::IndexingUpdateOp,
     ) -> TchTensor {
         TchOps::scatter_nd(data, indices, values, reduction)
     }

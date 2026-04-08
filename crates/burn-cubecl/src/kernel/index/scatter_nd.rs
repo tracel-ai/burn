@@ -6,7 +6,7 @@ use crate::{
     },
     tensor::CubeTensor,
 };
-use burn_backend::tensor::ScatterNdReduction;
+use burn_backend::tensor::IndexingUpdateOp;
 use burn_backend::{DType, TensorMetadata};
 use burn_std::Metadata;
 use cubecl::prelude::*;
@@ -92,7 +92,7 @@ pub(crate) fn scatter_nd<R: CubeRuntime>(
     tensor: CubeTensor<R>,
     indices: CubeTensor<R>,
     values: CubeTensor<R>,
-    reduction: ScatterNdReduction,
+    reduction: IndexingUpdateOp,
 ) -> CubeTensor<R> {
     // Ensure we can write in-place
     let tensor = match tensor.can_mut() && tensor.is_nonoverlapping() {
@@ -119,11 +119,11 @@ pub(crate) fn scatter_nd<R: CubeRuntime>(
     let (tensor_dtype, indices_dtype) = (tensor.dtype, indices.dtype);
 
     let launch = match reduction {
-        ScatterNdReduction::Assign => scatter_nd_kernel::launch_unchecked::<AssignOp, R>,
-        ScatterNdReduction::Add => scatter_nd_kernel::launch_unchecked::<AddOp, R>,
-        ScatterNdReduction::Mul => scatter_nd_kernel::launch_unchecked::<MulOp, R>,
-        ScatterNdReduction::Min => scatter_nd_kernel::launch_unchecked::<BinaryMinOp, R>,
-        ScatterNdReduction::Max => scatter_nd_kernel::launch_unchecked::<BinaryMaxOp, R>,
+        IndexingUpdateOp::Assign => scatter_nd_kernel::launch_unchecked::<AssignOp, R>,
+        IndexingUpdateOp::Add => scatter_nd_kernel::launch_unchecked::<AddOp, R>,
+        IndexingUpdateOp::Mul => scatter_nd_kernel::launch_unchecked::<MulOp, R>,
+        IndexingUpdateOp::Min => scatter_nd_kernel::launch_unchecked::<BinaryMinOp, R>,
+        IndexingUpdateOp::Max => scatter_nd_kernel::launch_unchecked::<BinaryMaxOp, R>,
     };
 
     unsafe {

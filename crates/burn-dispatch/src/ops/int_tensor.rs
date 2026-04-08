@@ -95,7 +95,7 @@ impl IntTensorOps<Self> for Dispatch {
         data: IntTensor<Self>,
         indices: IntTensor<Self>,
         values: IntTensor<Self>,
-        reduction: burn_backend::tensor::ScatterNdReduction,
+        reduction: burn_backend::tensor::IndexingUpdateOp,
     ) -> IntTensor<Self> {
         multi_op!(
             inputs[(data, int), (indices, int), (values, int)], => Int,

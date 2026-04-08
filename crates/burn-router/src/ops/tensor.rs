@@ -5,7 +5,7 @@ use burn_std::{BoolDType, IntDType};
 
 use crate::{BackendRouter, RunnerChannel, RunnerClient, get_client};
 use burn_backend::tensor::{
-    BoolTensor, Device, FloatTensor, IndexingUpdateOp, IntTensor, ScatterNdReduction,
+    BoolTensor, Device, FloatTensor, IndexingUpdateOp, IntTensor,
 };
 use burn_backend::{Distribution, FloatDType, Shape, Slice, TensorData, ops::FloatTensorOps};
 use burn_ir::{
@@ -366,7 +366,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         data: FloatTensor<Self>,
         indices: IntTensor<Self>,
         values: FloatTensor<Self>,
-        reduction: ScatterNdReduction,
+        reduction: IndexingUpdateOp,
     ) -> FloatTensor<Self> {
         let client = data.client.clone();
         let desc = ScatterNdOpIr::create(
