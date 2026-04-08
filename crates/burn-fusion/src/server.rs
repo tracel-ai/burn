@@ -118,11 +118,15 @@ where
     ) where
         B: FusionBackend<FusionRuntime = R>,
     {
+        println!("fusion server get_tensor_float");
         let tensor_float = self.handles.get_float_tensor::<B>(tensor);
+        println!("fusion server mark_read");
         self.streams.mark_read(stream_tensor, tensor, &self.handles);
 
+        println!("fusion server to_device");
         let tensor = B::float_to_device(tensor_float, device);
 
+        println!("fusion server register_float");
         server_device
             .handles
             .register_float_tensor::<B>(&output_id, tensor.clone());
