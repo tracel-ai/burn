@@ -211,9 +211,15 @@ where
         let id = self.create_empty_handle();
 
         self.server.submit(move |server| {
-            println!("fusion server drain_stream");
+            println!(
+                "[{:?}] fusion server drain_stream",
+                std::thread::current().id()
+            );
             server.drain_stream(stream);
-            println!("fusion server change_server");
+            println!(
+                "[{:?}] fusion server change server float",
+                std::thread::current().id()
+            );
             // TODO: We could improve performance here by not requirering blocking.
             let ret = client
                 .server
@@ -227,7 +233,10 @@ where
                         server,
                     )
                 });
-            println!("fusion server change_server done");
+            println!(
+                "[{:?}] fusion server change server float done",
+                std::thread::current().id()
+            );
             ret
         });
 
