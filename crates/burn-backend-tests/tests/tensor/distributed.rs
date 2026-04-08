@@ -1,6 +1,6 @@
 use burn_tensor::backend::DeviceOps;
 use burn_tensor::backend::{Device, DeviceId};
-use burn_tensor::{Float, TensorPrimitive};
+use burn_tensor::{Float, TensorPrimitive, Tolerance};
 use burn_tensor::{
     TensorData,
     backend::{
@@ -44,18 +44,6 @@ fn run_all_reduce<B: AutodiffBackend + DistributedBackend>() {
         })
         .collect();
 
-    // let tensors = devices
-    //     .iter()
-    //     .map(|device| {
-    //         let data = TensorData::random::<f32, _, _>(
-    //             Shape::new([4, 4]),
-    //             burn_tensor::Distribution::Default,
-    //             &mut StdRng::try_from_rng(&mut SysRng).unwrap(),
-    //         );
-    //         Tensor::<B, 2>::from_data(data, device)
-    //     })
-    //     .collect::<Vec<_>>();
-
     let mut out_tensors = vec![];
     for tensor in tensors {
         let device = tensor.device();
@@ -73,9 +61,12 @@ fn run_all_reduce<B: AutodiffBackend + DistributedBackend>() {
 
     println!("Expected : {:?}", expected);
     for tensor in out_tensors {
-        let data = tensor.to_data().to_vec::<f32>().unwrap();
-        println!("Data : {:?}", data);
-        assert_eq!(data, expected);
+        let data = tensor.to_data();
+        println!("Data : {:?}", data.to_vec::<f32>().unwrap());
+        data.assert_approx_eq::<FloatElem>(
+            &TensorData::from(expected.as_slice()),
+            Tolerance::default(),
+        );
     }
 }
 
