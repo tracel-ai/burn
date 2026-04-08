@@ -211,9 +211,11 @@ where
         let id = self.create_empty_handle();
 
         self.server.submit(move |server| {
+            println!("fusion server drain_stream");
             server.drain_stream(stream);
+            println!("fusion server change_server");
             // TODO: We could improve performance here by not requirering blocking.
-            client
+            let ret = client
                 .server
                 .clone()
                 .submit_blocking_scoped(move |server_other| {
@@ -224,7 +226,9 @@ where
                         &client.device,
                         server,
                     )
-                })
+                });
+            println!("fusion server change_server done");
+            ret
         });
 
         FusionTensor::new(id, shape, dtype, client_cloned, StreamId::current())
