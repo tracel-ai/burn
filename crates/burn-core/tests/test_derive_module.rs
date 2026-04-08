@@ -596,8 +596,9 @@ mod grad_distributed {
         let mut handles = vec![];
 
         // Spawn main peer thread (id=0)
-        let module_clone = module.clone();
+        // let module_clone = module.clone();
         let device = devices[0].clone();
+        let module_clone = module.clone().fork(&device);
         handles.push(std::thread::spawn(move || {
             run_peer_sharded(
                 &module_clone,

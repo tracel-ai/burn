@@ -32,7 +32,16 @@ where
     }
 
     pub fn drain_stream(&mut self, id: StreamId) {
-        self.streams.drain(&mut self.handles, id)
+        // for s in self.streams.iter_mut() {
+        //     s.drain(&mut self.handles, id)
+        // }
+        // for sid in self.streams.streams.keys().into_iter() {
+        //     self.streams.drain(&mut self.handles, *sid);
+        // }
+        let sids: Vec<_> = self.streams.streams.keys().copied().collect();
+        for sid in sids {
+            self.streams.drain(&mut self.handles, sid);
+        }
     }
 
     pub fn read_float<B>(
