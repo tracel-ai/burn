@@ -105,10 +105,11 @@ impl<R: Runtime> Drop for TuneContextFork<R> {
         let original = unsafe { self.ptr.as_ref().unwrap() };
         for id in fork_handles.handle_ids() {
             if !original.handles.has_handle(&id)
-                && let Some(handle) = fork_handles.get_handle_ref(&id) {
-                    // SAFETY: sequential execution no concurrent access.
-                    unsafe { self.new_handles.push(id, handle.clone()) };
-                }
+                && let Some(handle) = fork_handles.get_handle_ref(&id)
+            {
+                // SAFETY: sequential execution no concurrent access.
+                unsafe { self.new_handles.push(id, handle.clone()) };
+            }
         }
     }
 }
@@ -234,17 +235,18 @@ impl<R: Runtime> Drop for UnsafeTuneContext<R> {
             executed,
             new_handles,
         } = self
-            && !executed.get() {
-                // The original context was never used for execution persist
-                // output handles that were produced by forked executions.
-                let context = unsafe { ptr.as_mut().unwrap() };
-                // SAFETY: all forks have been dropped (sequential execution),
-                // so no concurrent writers.
-                let handles = unsafe { new_handles.drain() };
-                for (id, handle) in handles {
-                    context.handles.register_handle(id, handle);
-                }
+            && !executed.get()
+        {
+            // The original context was never used for execution persist
+            // output handles that were produced by forked executions.
+            let context = unsafe { ptr.as_mut().unwrap() };
+            // SAFETY: all forks have been dropped (sequential execution),
+            // so no concurrent writers.
+            let handles = unsafe { new_handles.drain() };
+            for (id, handle) in handles {
+                context.handles.register_handle(id, handle);
             }
+        }
     }
 }
 
