@@ -1037,7 +1037,7 @@ where
         // Otherwise, the dim from the current entry of `old_dims` should be copied to `new_dims`.
         let mut dim_indices_curr_idx = 0;
         let mut old_dims_curr_idx = 0;
-        for new_dims_curr_idx in 0..new_dims.len() {
+        for new_dims_curr_idx in 0..D2 {
             // If all indices in `dim_indices` have been processed, then
             // simply copy all the remaining dims from `old_dims` to `new_dims`
             if dim_indices_curr_idx == dim_indices.len() {
