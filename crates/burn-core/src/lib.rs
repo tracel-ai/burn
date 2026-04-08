@@ -29,10 +29,6 @@ pub mod tensor;
 // Tensor at root: `burn::Tensor`
 pub use tensor::Tensor;
 
-/// Module for visual operations
-#[cfg(feature = "vision")]
-pub mod vision;
-
 extern crate alloc;
 
 /// Backend for test cases
