@@ -55,7 +55,11 @@ std = [
     "serde_json/std",
     "num-traits/std",
 ]
-vision = ["burn-dataset?/vision"]
+vision = ["burn-vision", "burn-dataset?/vision"]
+vision-ndarray = ["burn-vision?/ndarray"]
+vision-tch = ["burn-vision?/tch"]
+vision-cubecl = ["burn-vision?/cubecl-backend"]
+vision-fusion = ["burn-vision?/fusion"]
 audio = ["burn-dataset?/audio"]
 distributed = ["std",
     "burn-tensor/distributed",

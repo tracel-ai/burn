@@ -212,7 +212,7 @@ where
 
         self.server.submit(move |server| {
             server.drain_stream(stream);
-            // TODO: We could improve performance here by not requirering blocking.
+            // TODO: We could improve performance here by not requiring blocking.
             client
                 .server
                 .clone()
@@ -247,7 +247,7 @@ where
 
         self.server.submit(move |server| {
             server.drain_stream(stream);
-            // TODO: We could improve performance here by not requirering blocking.
+            // TODO: We could improve performance here by not requiring blocking.
             client
                 .server
                 .clone()
@@ -276,7 +276,7 @@ where
 
         self.server.submit(move |server| {
             server.drain_stream(stream);
-            // TODO: We could improve performance here by not requirering blocking.
+            // TODO: We could improve performance here by not requiring blocking.
             client
                 .server
                 .clone()
@@ -311,7 +311,7 @@ where
 
         self.server.submit(move |server| {
             server.drain_stream(stream);
-            // TODO: We could improve performance here by not requirering blocking.
+            // TODO: We could improve performance here by not requiring blocking.
             client
                 .server
                 .clone()
