@@ -210,33 +210,35 @@ where
         let shape = tensor.shape.clone();
         let id = self.create_empty_handle();
 
-        self.server.submit(move |server_src| {
-            server_src.drain_stream(stream);
-            let ret = client_dst.server.submit_blocking_scoped(move |server_dst| {
+        self.server
+            .submit_blocking(move |server_src| {
+                server_src.drain_stream(stream);
+                let ret = client_dst.server.submit_blocking_scoped(move |server_dst| {
+                    println!(
+                        "[{:?}] fusion server drain_stream",
+                        std::thread::current().id()
+                    );
+                    println!(
+                        "[{:?}] fusion server change_server_float",
+                        std::thread::current().id()
+                    );
+                    server_src.change_server_float::<B>(
+                        &tensor,
+                        id,
+                        stream,
+                        &client_dst.device,
+                        server_dst,
+                    );
+                });
+
                 println!(
-                    "[{:?}] fusion server drain_stream",
+                    "[{:?}] fusion server change_server_float done",
                     std::thread::current().id()
                 );
-                println!(
-                    "[{:?}] fusion server change_server_float",
-                    std::thread::current().id()
-                );
-                server_src.change_server_float::<B>(
-                    &tensor,
-                    id,
-                    stream,
-                    &client_dst.device,
-                    server_dst,
-                );
-            });
 
-            println!(
-                "[{:?}] fusion server change_server_float done",
-                std::thread::current().id()
-            );
-
-            ret
-        });
+                ret
+            })
+            .unwrap();
 
         FusionTensor::new(id, shape, dtype, client_cloned, StreamId::current())
     }
