@@ -424,7 +424,7 @@ fn update_kth_column<B: Backend, const D: usize>(tensor: Tensor<B, D>, k: usize)
     let a_rho_k = tensor.clone().slice_dim(D - 2, k + 1..).slice_dim(D - 1, k);
 
     // Replace near-zero pivots with epsilon to prevent division by zero.
-    let epsilon = 1e-7;
+    let epsilon = 1e-4;
     let is_zero_mask = a_kk.clone().abs().lower_elem(epsilon);
     let safe_a_kk = a_kk.mask_fill(is_zero_mask, epsilon);
     let updated_column = a_rho_k / safe_a_kk;
@@ -481,12 +481,12 @@ fn apply_permutations_to_tensor<B: Backend, const D: usize>(
     let tensor_dims = tensor.dims();
     let n_rows = tensor_dims[D - 2];
     let n_pivots = piv.dims()[D - 2];
+    let piv_data: Vec<f32> = piv.into_data().convert::<f32>().into_vec::<f32>().unwrap();
 
     // Compute total batch size (product of all batch dimensions)
     let batch_size: usize = tensor_dims[..D - 2].iter().product();
     if batch_size <= 1 {
         // No batch dims (or batch size 1)
-        let piv_data: Vec<B::FloatElem> = piv.into_data().into_vec::<B::FloatElem>().unwrap();
         let mut perm: Vec<i64> = (0..n_rows as i64).collect();
         for (i, piv_val) in piv_data.iter().enumerate().take(n_pivots) {
             let j = piv_val.elem::<u32>() as usize;
@@ -502,8 +502,6 @@ fn apply_permutations_to_tensor<B: Backend, const D: usize>(
     let n_cols = tensor_dims[D - 1];
     let flat_tensor: Tensor<B, 3> = tensor.reshape([batch_size, n_rows, n_cols]);
     // Reshape pivot: [b1, b2, ..., bN, n_pivots, 1] -> [B * n_pivots]
-    let piv_data: Vec<B::FloatElem> = piv.into_data().into_vec::<B::FloatElem>().unwrap();
-
     let mut results: Vec<Tensor<B, 3>> = Vec::with_capacity(batch_size);
     for b in 0..batch_size {
         // Build permutation for this batch element
