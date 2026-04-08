@@ -296,7 +296,7 @@ where
         data: NdArrayTensor,
         indices: NdArrayTensor,
         values: NdArrayTensor,
-        reduction: burn_backend::tensor::ScatterNdReduction,
+        reduction: burn_backend::tensor::IndexingUpdateOp,
     ) -> NdArrayTensor {
         execute_with_int_dtype!((data, values), I, |data, values| -> NdArrayTensor {
             execute_with_int_dtype!(indices, |idx_array| NdArrayOps::<I>::scatter_nd(

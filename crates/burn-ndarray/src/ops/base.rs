@@ -190,12 +190,12 @@ where
         data: SharedArray<E>,
         indices: SharedArray<I>,
         values: SharedArray<E>,
-        reduction: burn_backend::tensor::ScatterNdReduction,
+        reduction: burn_backend::tensor::IndexingUpdateOp,
     ) -> SharedArray<E>
     where
         E: core::ops::Mul<Output = E> + PartialOrd,
     {
-        use burn_backend::tensor::ScatterNdReduction;
+        use burn_backend::tensor::IndexingUpdateOp;
 
         let data_shape: Vec<usize> = data.shape().to_vec();
         let idx_shape: Vec<usize> = indices.shape().to_vec();
@@ -244,22 +244,22 @@ where
             // Apply reduction over the slice
             let val_offset = n * slice_size;
             match reduction {
-                ScatterNdReduction::Assign => {
+                IndexingUpdateOp::Assign => {
                     output_flat[base_offset..(base_offset + slice_size)]
                         .copy_from_slice(&val_flat[val_offset..(val_offset + slice_size)]);
                 }
-                ScatterNdReduction::Add => {
+                IndexingUpdateOp::Add => {
                     for s in 0..slice_size {
                         output_flat[base_offset + s].add_assign(val_flat[val_offset + s]);
                     }
                 }
-                ScatterNdReduction::Mul => {
+                IndexingUpdateOp::Mul => {
                     for s in 0..slice_size {
                         output_flat[base_offset + s] =
                             output_flat[base_offset + s] * val_flat[val_offset + s];
                     }
                 }
-                ScatterNdReduction::Min => {
+                IndexingUpdateOp::Min => {
                     for s in 0..slice_size {
                         let b = val_flat[val_offset + s];
                         if b < output_flat[base_offset + s] {
@@ -267,7 +267,7 @@ where
                         }
                     }
                 }
-                ScatterNdReduction::Max => {
+                IndexingUpdateOp::Max => {
                     for s in 0..slice_size {
                         let b = val_flat[val_offset + s];
                         if b > output_flat[base_offset + s] {

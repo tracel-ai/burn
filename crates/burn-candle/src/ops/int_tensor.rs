@@ -110,7 +110,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> IntTensorOps<Self> for Candle<F
         data: IntTensor<Self>,
         indices: IntTensor<Self>,
         values: IntTensor<Self>,
-        reduction: burn_backend::tensor::ScatterNdReduction,
+        reduction: burn_backend::tensor::IndexingUpdateOp,
     ) -> IntTensor<Self> {
         super::base::scatter_nd(data, indices, values, reduction)
     }

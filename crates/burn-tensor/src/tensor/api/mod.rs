@@ -25,4 +25,3 @@ pub use options::*;
 pub use transaction::*;
 
 pub use burn_backend::tensor::IndexingUpdateOp;
-pub use burn_backend::tensor::ScatterNdReduction;

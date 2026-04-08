@@ -7,7 +7,7 @@ use crate::{
     ops::TransactionPrimitive,
     tensor::{
         BasicAutodiffOps, BasicOps, Device, Float, IndexingUpdateOp, IntTensor, Numeric, Ordered,
-        ScatterNdReduction, TensorKind,
+        TensorKind,
     },
 };
 
@@ -126,6 +126,7 @@ impl<B: Backend> BasicOps<B> for Float {
                 indices,
                 values.tensor(),
             )),
+            _ => unimplemented!(),
         }
     }
 
@@ -170,6 +171,7 @@ impl<B: Backend> BasicOps<B> for Float {
                 indices,
                 values.tensor(),
             )),
+            _ => unimplemented!(),
         }
     }
 
@@ -177,7 +179,7 @@ impl<B: Backend> BasicOps<B> for Float {
         data: Self::Primitive,
         indices: IntTensor<B>,
         values: Self::Primitive,
-        reduction: ScatterNdReduction,
+        reduction: IndexingUpdateOp,
     ) -> Self::Primitive {
         TensorPrimitive::Float(B::float_scatter_nd(
             data.tensor(),

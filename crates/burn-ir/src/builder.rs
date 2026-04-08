@@ -11,7 +11,7 @@ use burn_backend::{
         unfold::calculate_unfold_shape,
     },
     quantization::QuantScheme,
-    tensor::{IndexingUpdateOp, ScatterNdReduction},
+    tensor::IndexingUpdateOp,
 };
 
 use crate::{ScalarIr, TensorId, TensorIr};
@@ -301,7 +301,7 @@ impl_ir_create!(
         data: TensorIr,
         indices: TensorIr,
         values: TensorIr,
-        reduction: ScatterNdReduction
+        reduction: IndexingUpdateOp
     },
     shape = data.shape.clone(),
     dtype = output_dtype([&data.dtype, &values.dtype]).unwrap()

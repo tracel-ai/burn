@@ -5,7 +5,7 @@ use crate::{
     Backend, ExecutionError, Scalar, TensorData, TensorMetadata,
     element::Element,
     ops::TransactionPrimitive,
-    tensor::{IndexingUpdateOp, IntTensor, ScatterNdReduction, TensorKind},
+    tensor::{IndexingUpdateOp, IntTensor, TensorKind},
 };
 
 /// Trait that list all operations that can be applied on all tensors.
@@ -425,7 +425,7 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
         data: Self::Primitive,
         indices: IntTensor<B>,
         values: Self::Primitive,
-        reduction: ScatterNdReduction,
+        reduction: IndexingUpdateOp,
     ) -> Self::Primitive;
 
     /// Multi-dimensional gather: collect slices from `data` at multi-index locations.

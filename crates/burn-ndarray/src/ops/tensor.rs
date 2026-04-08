@@ -216,7 +216,7 @@ where
         data: FloatTensor<Self>,
         indices: NdArrayTensor,
         values: FloatTensor<Self>,
-        reduction: burn_backend::tensor::ScatterNdReduction,
+        reduction: burn_backend::tensor::IndexingUpdateOp,
     ) -> FloatTensor<Self> {
         execute_with_int_dtype!(
             indices,

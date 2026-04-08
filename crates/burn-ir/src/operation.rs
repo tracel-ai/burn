@@ -1,6 +1,5 @@
 use burn_backend::ops::AttentionModuleOptions;
 use burn_backend::tensor::IndexingUpdateOp;
-use burn_backend::tensor::ScatterNdReduction;
 use core::hash::Hash;
 use serde::{Deserialize, Serialize};
 
@@ -879,7 +878,7 @@ pub struct ScatterNdOpIr {
     pub data: TensorIr,
     pub indices: TensorIr,
     pub values: TensorIr,
-    pub reduction: ScatterNdReduction,
+    pub reduction: IndexingUpdateOp,
     pub out: TensorIr,
 }
 

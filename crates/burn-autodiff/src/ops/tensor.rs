@@ -1055,13 +1055,13 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         data: FloatTensor<Self>,
         indices: IntTensor<B>,
         values: FloatTensor<Self>,
-        reduction: burn_backend::tensor::ScatterNdReduction,
+        reduction: burn_backend::tensor::IndexingUpdateOp,
     ) -> FloatTensor<Self> {
-        use burn_backend::tensor::ScatterNdReduction;
+        use burn_backend::tensor::IndexingUpdateOp;
 
         if matches!(
             reduction,
-            ScatterNdReduction::Mul | ScatterNdReduction::Min | ScatterNdReduction::Max
+            IndexingUpdateOp::Mul | IndexingUpdateOp::Min | IndexingUpdateOp::Max
         ) && (!data.node.requirement.is_none() || !values.node.requirement.is_none())
         {
             panic!(
@@ -1072,7 +1072,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
 
         match reduction {
-            ScatterNdReduction::Add => {
+            IndexingUpdateOp::Add => {
                 #[derive(Debug)]
                 struct ScatterNdAdd;
 
@@ -1109,18 +1109,18 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                             data.primitive,
                             indices,
                             values.primitive,
-                            ScatterNdReduction::Add,
+                            IndexingUpdateOp::Add,
                         ),
                     ),
                     OpsKind::UnTracked(prep) => prep.finish(B::float_scatter_nd(
                         data.primitive,
                         indices,
                         values.primitive,
-                        ScatterNdReduction::Add,
+                        IndexingUpdateOp::Add,
                     )),
                 }
             }
-            ScatterNdReduction::Assign => {
+            IndexingUpdateOp::Assign => {
                 #[derive(Debug)]
                 struct ScatterNdAssign;
 
@@ -1148,7 +1148,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                                     grad,
                                     indices_4lhs.unwrap(),
                                     zeros,
-                                    ScatterNdReduction::Assign,
+                                    IndexingUpdateOp::Assign,
                                 )
                             },
                             |grad| B::float_gather_nd(grad, indices_4rhs.unwrap()),
@@ -1171,14 +1171,14 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                             data.primitive,
                             indices,
                             values.primitive,
-                            ScatterNdReduction::Assign,
+                            IndexingUpdateOp::Assign,
                         ),
                     ),
                     OpsKind::UnTracked(prep) => prep.finish(B::float_scatter_nd(
                         data.primitive,
                         indices,
                         values.primitive,
-                        ScatterNdReduction::Assign,
+                        IndexingUpdateOp::Assign,
                     )),
                 }
             }
@@ -1212,7 +1212,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                         zeros,
                         indices,
                         grad,
-                        burn_backend::tensor::ScatterNdReduction::Add,
+                        burn_backend::tensor::IndexingUpdateOp::Add,
                     )
                 });
             }

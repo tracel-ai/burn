@@ -5,7 +5,7 @@ use crate::{
     AutodiffBackend, Backend, ExecutionError, Scalar, TensorData,
     ops::TransactionPrimitive,
     tensor::{
-        BasicAutodiffOps, BasicOps, Bool, Device, IndexingUpdateOp, IntTensor, ScatterNdReduction,
+        BasicAutodiffOps, BasicOps, Bool, Device, IndexingUpdateOp, IntTensor,
         TensorKind,
     },
 };
@@ -85,6 +85,7 @@ impl<B: Backend> BasicOps<B> for Bool {
     ) -> Self::Primitive {
         match update {
             IndexingUpdateOp::Add => B::bool_select_or(tensor, dim, indices, values),
+            _ => unimplemented!(),
         }
     }
 
@@ -121,6 +122,7 @@ impl<B: Backend> BasicOps<B> for Bool {
     ) -> Self::Primitive {
         match update {
             IndexingUpdateOp::Add => B::bool_scatter_or(dim, tensor, indices, values),
+            _ => unimplemented!(),
         }
     }
 
@@ -128,7 +130,7 @@ impl<B: Backend> BasicOps<B> for Bool {
         _data: Self::Primitive,
         _indices: IntTensor<B>,
         _values: Self::Primitive,
-        _reduction: ScatterNdReduction,
+        _reduction: IndexingUpdateOp,
     ) -> Self::Primitive {
         panic!("scatter_nd is not supported for bool tensors")
     }

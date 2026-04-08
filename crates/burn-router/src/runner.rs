@@ -212,6 +212,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                         IndexingUpdateOp::Add => {
                             B::float_scatter_add(desc.dim, tensor, indices, value)
                         }
+                        _ => unimplemented!(),
                     };
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
@@ -246,6 +247,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                         IndexingUpdateOp::Add => {
                             B::float_select_add(tensor, desc.dim, indices, value)
                         }
+                        _ => unimplemented!(),
                     };
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
@@ -373,6 +375,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                         IndexingUpdateOp::Add => {
                             B::int_scatter_add(desc.dim, tensor, indices, value)
                         }
+                        _ => unimplemented!(),
                     };
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
@@ -407,6 +410,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                         IndexingUpdateOp::Add => {
                             B::int_select_add(tensor, desc.dim, indices, value)
                         }
+                        _ => unimplemented!(),
                     };
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
@@ -530,6 +534,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                         IndexingUpdateOp::Add => {
                             B::bool_scatter_or(desc.dim, tensor, indices, value)
                         }
+                        _ => unimplemented!(),
                     };
                     handles.register_bool_tensor::<B>(&desc.out.id, output);
                 }
@@ -555,6 +560,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                         IndexingUpdateOp::Add => {
                             B::bool_select_or(tensor, desc.dim, indices, value)
                         }
+                        _ => unimplemented!(),
                     };
                     handles.register_bool_tensor::<B>(&desc.out.id, output);
                 }

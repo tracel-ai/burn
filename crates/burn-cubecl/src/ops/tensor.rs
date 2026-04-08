@@ -199,7 +199,7 @@ where
         data: FloatTensor<Self>,
         indices: IntTensor<Self>,
         values: FloatTensor<Self>,
-        reduction: burn_backend::tensor::ScatterNdReduction,
+        reduction: burn_backend::tensor::IndexingUpdateOp,
     ) -> FloatTensor<Self> {
         kernel::scatter_nd(data, indices, values, reduction)
     }

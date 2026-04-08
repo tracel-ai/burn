@@ -192,7 +192,7 @@ pub trait IntTensorOps<B: Backend> {
         _data: IntTensor<B>,
         _indices: IntTensor<B>,
         _values: IntTensor<B>,
-        _reduction: crate::tensor::ScatterNdReduction,
+        _reduction: crate::tensor::IndexingUpdateOp,
     ) -> IntTensor<B> {
         panic!("int_scatter_nd is not implemented for this backend")
     }
