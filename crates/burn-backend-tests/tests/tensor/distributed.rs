@@ -1,6 +1,6 @@
 use burn_tensor::backend::DeviceOps;
 use burn_tensor::backend::{Device, DeviceId};
-use burn_tensor::{Float, TensorPrimitive};
+use burn_tensor::{Float, TensorPrimitive, Tolerance};
 use burn_tensor::{
     TensorData,
     backend::{
@@ -61,9 +61,12 @@ fn run_all_reduce<B: AutodiffBackend + DistributedBackend>() {
 
     println!("Expected : {:?}", expected);
     for tensor in out_tensors {
-        let data = tensor.to_data().to_vec::<f32>().unwrap();
-        println!("Data : {:?}", data);
-        assert_eq!(data, expected);
+        let data = tensor.to_data();
+        println!("Data : {:?}", data.to_vec::<f32>().unwrap());
+        data.assert_approx_eq::<FloatElem>(
+            &TensorData::from(expected.as_slice()),
+            Tolerance::default(),
+        );
     }
 }
 
