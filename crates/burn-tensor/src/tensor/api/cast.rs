@@ -1,3 +1,4 @@
+use burn_backend::ops::{BoolTensorOps, FloatTensorOps, IntTensorOps};
 use burn_backend::tensor::{Bool, Float, Int, TensorKind};
 use burn_backend::{Backend, DType, FloatDType, IntDType, TensorMetadata, TensorPrimitive};
 use burn_dispatch::Dispatch;

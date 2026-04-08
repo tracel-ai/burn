@@ -8,7 +8,7 @@ use burn_tensor::ops::AttentionModuleOptions;
 use num_traits::cast::cast;
 
 #[allow(unused)]
-use num_traits::{Signed, cast::cast}; // f16
+use num_traits::Signed; // f16
 
 #[test]
 fn test_attention_no_mask() {
