@@ -58,8 +58,8 @@ impl<H: Clone> HandleContainer<H> {
         self.handles.insert(id, Handle::Existing(handle));
     }
 
-    /// Whether an handle exists.
-    pub fn has_handle(&mut self, id: &TensorId) -> bool {
+    /// Whether a handle exists.
+    pub fn has_handle(&self, id: &TensorId) -> bool {
         self.handles.contains_key(id)
     }
 

@@ -246,9 +246,7 @@ fn tune_fused<R: Runtime>(
                 return tune_fallback::<R>(input);
             }
         },
-        TuneContext::Fork(mut fork) => {
-            optimization.execute_fused(&mut fork.as_context(), selector)
-        }
+        TuneContext::Fork(mut fork) => optimization.execute_fused(&mut fork.as_context(), selector),
     }
     .map_err(|e| format!("{e:?}"))
 }
