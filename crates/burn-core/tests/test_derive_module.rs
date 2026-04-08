@@ -646,6 +646,7 @@ mod grad_distributed {
             module = set_distributed(&module, &device);
             let grads_x = calculate_grads(&module, transformation);
             let data = grads_x.unwrap().to_data();
+            println!("data : {:?}", data.to_vec::<f32>());
             if !is_main {
                 output.clone().unwrap().send(data).unwrap();
             } else {
