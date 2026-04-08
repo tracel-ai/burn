@@ -3,7 +3,7 @@ use crate::{
     UnfusedOp,
     stream::{OperationStreams, StreamId, execution::Operation},
 };
-use burn_backend::{Device, DeviceHandle, DeviceId, DeviceService};
+use burn_backend::{Device, DeviceHandle, DeviceId, DeviceService, tensor};
 use burn_backend::{TensorData, backend::ExecutionError};
 use burn_ir::{OperationIr, TensorId, TensorIr};
 use std::sync::Arc;
@@ -210,35 +210,52 @@ where
         let shape = tensor.shape.clone();
         let id = self.create_empty_handle();
 
-        self.server
+        // self.server
+        //     .submit_blocking(move |server_src| {
+        //         server_src.drain_stream(stream);
+        //         let ret = client_dst.server.submit_blocking_scoped(move |server_dst| {
+        //             println!(
+        //                 "[{:?}] fusion server drain_stream",
+        //                 std::thread::current().id()
+        //             );
+        //             println!(
+        //                 "[{:?}] fusion server change_server_float",
+        //                 std::thread::current().id()
+        //             );
+        //             server_src.change_server_float::<B>(
+        //                 &tensor,
+        //                 id,
+        //                 stream,
+        //                 &client_dst.device,
+        //                 server_dst,
+        //             );
+        //         });
+
+        //         println!(
+        //             "[{:?}] fusion server change_server_float done",
+        //             std::thread::current().id()
+        //         );
+
+        //         ret
+        //     })
+        //     .unwrap();
+        let tensor = self
+            .server
             .submit_blocking(move |server_src| {
                 server_src.drain_stream(stream);
-                let ret = client_dst.server.submit_blocking_scoped(move |server_dst| {
-                    println!(
-                        "[{:?}] fusion server drain_stream",
-                        std::thread::current().id()
-                    );
-                    println!(
-                        "[{:?}] fusion server change_server_float",
-                        std::thread::current().id()
-                    );
-                    server_src.change_server_float::<B>(
-                        &tensor,
-                        id,
-                        stream,
-                        &client_dst.device,
-                        server_dst,
-                    );
-                });
-
-                println!(
-                    "[{:?}] fusion server change_server_float done",
-                    std::thread::current().id()
-                );
-
-                ret
+                let tensor_float = server_src.handles.get_float_tensor::<B>(&tensor);
+                server_src
+                    .streams
+                    .mark_read(stream, &tensor, &server_src.handles);
+                tensor_float
             })
             .unwrap();
+        let tensor = B::float_to_device(tensor, client_dst.device());
+        client_dst.server.submit(move |server_dst| {
+            server_dst
+                .handles
+                .register_float_tensor::<B>(&id, tensor.clone());
+        });
 
         FusionTensor::new(id, shape, dtype, client_cloned, StreamId::current())
     }

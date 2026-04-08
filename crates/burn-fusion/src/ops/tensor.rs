@@ -201,11 +201,9 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
 
         let id = tensor.stream;
         let client_target = get_client::<B>(device);
-        let client_original = tensor.client.clone();
+        let client_src = tensor.client.clone();
 
-        client_original
-            .clone()
-            .change_client_float::<B>(tensor.into_ir(), client_target, id)
+        client_src.change_client_float::<B>(tensor.into_ir(), client_target, id)
     }
 
     fn float_into_int(tensor: FloatTensor<Self>, dtype: IntDType) -> IntTensor<Self> {
