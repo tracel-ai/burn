@@ -2,8 +2,11 @@ use crate::CubeFusionHandle;
 use burn_fusion::stream::{Context, ContextOwned};
 use burn_ir::TensorId;
 use cubecl::Runtime;
-use std::cell::{Cell, UnsafeCell};
-use std::sync::Arc;
+use std::{
+    cell::{Cell, UnsafeCell},
+    sync::Arc,
+    vec::Drain,
+};
 
 /// Fusion context used when tuning kernels.
 ///
@@ -73,8 +76,18 @@ impl<R: Runtime> SharedNewHandles<R> {
     /// # Safety
     ///
     /// Caller must ensure no concurrent access and that all writers have finished.
-    unsafe fn drain(&self) -> &Vec<(TensorId, CubeFusionHandle<R>)> {
-        unsafe { &*self.0.get() }
+    unsafe fn drain(&self) -> Drain<'_, (TensorId, CubeFusionHandle<R>)> {
+        unsafe { &mut *self.0.get() }.drain(..)
+    }
+
+    /// Clear all collected handles. Called before each new fork execution in
+    /// [`UnsafeTuneContext::get`] to discard outputs from prior benchmark runs.
+    ///
+    /// # Safety
+    ///
+    /// Caller must ensure no concurrent access (guaranteed by sequential execution).
+    unsafe fn clear(&self) {
+        unsafe { &mut *self.0.get() }.clear();
     }
 }
 
@@ -201,6 +214,10 @@ impl<R: Runtime> UnsafeTuneContext<R> {
                 ptr,
             } => {
                 let fork = context.fork();
+
+                // Each new fork execution resets the handles saved by the previous execution,
+                // making sure no memory leak is created by keeping handles that were discarded.
+                unsafe { new_handles.clear() };
                 TuneContext::Fork(TuneContextFork {
                     context: Box::new(fork),
                     new_handles: new_handles.clone(),
@@ -227,7 +244,7 @@ impl<R: Runtime> Drop for UnsafeTuneContext<R> {
                 // so no concurrent writers.
                 let handles = unsafe { new_handles.drain() };
                 for (id, handle) in handles {
-                    context.handles.register_handle(*id, handle.clone());
+                    context.handles.register_handle(id, handle);
                 }
             }
         }
@@ -259,13 +276,15 @@ impl<R: Runtime> Clone for UnsafeTuneContext<R> {
                     ptr: ptr.clone(),
                 }
             }
-            UnsafeTuneContext::Fork { context, ptr, .. } => {
-                // Fork-of-fork: independent cell, no back-reference to the
-                // original. These are transient benchmark contexts whose
-                // results are discarded.
+            UnsafeTuneContext::Fork {
+                context,
+                ptr,
+                new_handles,
+            } => {
+                // Fork-of-fork: they modify the same new_handles.
                 UnsafeTuneContext::Fork {
                     context: Box::new(context.fork()),
-                    new_handles: Arc::new(SharedNewHandles::new()),
+                    new_handles: new_handles.clone(),
                     ptr: ptr.clone(),
                 }
             }
