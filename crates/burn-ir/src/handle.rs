@@ -87,9 +87,12 @@ impl<H: Clone> HandleContainer<H> {
             .remove_entry(id)
             .unwrap_or_else(|| panic!("Should have handle for tensor {id:?}"));
 
+        println!("get_handle : {:?}", id);
+
         match handle {
             Handle::Existing(handle) => match status {
                 TensorStatus::ReadOnly => {
+                    println!("re-inserted : {:?}", id);
                     self.handles.insert(id, Handle::Existing(handle.clone()));
                     handle
                 }
