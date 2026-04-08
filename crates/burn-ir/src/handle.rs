@@ -82,17 +82,24 @@ impl<H: Clone> HandleContainer<H> {
     /// Make sure the status corresponds to the operation you want to execute the handle on,
     /// otherwise you might remove a tensor handle that will be required in the future.
     pub fn get_handle(&mut self, id: &TensorId, status: &TensorStatus) -> H {
+        println!("[{:?}] get_handle : {:?}", std::thread::current().id(), id);
+        println!(
+            "[{:?}] get_handle all : {:?}",
+            std::thread::current().id(),
+            self.handles.keys()
+        );
+
         let (id, handle) = self
             .handles
             .remove_entry(id)
             .unwrap_or_else(|| panic!("Should have handle for tensor {id:?}"));
 
-        println!("get_handle : {:?}", id);
+        println!("[{:?}] got_handle : {:?}", std::thread::current().id(), id);
 
         match handle {
             Handle::Existing(handle) => match status {
                 TensorStatus::ReadOnly => {
-                    println!("re-inserted : {:?}", id);
+                    println!("[{:?}] re-inserted : {:?}", std::thread::current().id(), id);
                     self.handles.insert(id, Handle::Existing(handle.clone()));
                     handle
                 }
