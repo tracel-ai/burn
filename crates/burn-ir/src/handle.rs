@@ -211,8 +211,8 @@ impl<H: Clone> HandleContainer<H> {
     /// Useful for snapshotting which handles exist at a point in time (e.g., before
     /// executing on a forked context) so that newly registered output handles can
     /// be detected afterwards.
-    pub fn handle_ids(&self) -> Vec<TensorId> {
-        self.handles.keys().copied().collect()
+    pub fn handle_ids(&self) -> impl Iterator<Item = &'_ TensorId> {
+        self.handles.keys()
     }
 }
 
