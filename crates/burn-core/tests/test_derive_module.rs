@@ -642,10 +642,10 @@ mod grad_distributed {
         is_main: bool,
         recvs: Vec<Receiver<TensorData>>,
     ) {
-        // let mut module = module.clone().fork(&device);
+        let mut module = module.clone().fork(&device);
 
         for _ in 0..num_iter {
-            // module = set_distributed(&module, &device);
+            module = set_distributed(&module, &device);
             // let mut module = module.clone().fork(&device);
             let grads_x = calculate_grads(&module, transformation);
             let data = grads_x.unwrap().to_data();
