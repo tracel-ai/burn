@@ -15,7 +15,7 @@ use super::*;
 
 #[test]
 #[serial]
-fn fusion_test() {
+fn test_all_reduce() {
     run_all_reduce::<TestBackend>();
 }
 
@@ -43,18 +43,6 @@ fn run_all_reduce<B: AutodiffBackend + DistributedBackend>() {
             tensor.reshape(shape)
         })
         .collect();
-
-    // let tensors = devices
-    //     .iter()
-    //     .map(|device| {
-    //         let data = TensorData::random::<f32, _, _>(
-    //             Shape::new([4, 4]),
-    //             burn_tensor::Distribution::Default,
-    //             &mut StdRng::try_from_rng(&mut SysRng).unwrap(),
-    //         );
-    //         Tensor::<B, 2>::from_data(data, device)
-    //     })
-    //     .collect::<Vec<_>>();
 
     let mut out_tensors = vec![];
     for tensor in tensors {
