@@ -61,7 +61,7 @@ fn run_all_reduce<B: AutodiffBackend + DistributedBackend>() {
 
     println!("Expected : {:?}", expected);
     for tensor in out_tensors {
-        let data = tensor.to_data();
+        let data = tensor.flatten::<1>(0, 1).to_data();
         println!("Data : {:?}", data.to_vec::<f32>().unwrap());
         data.assert_approx_eq::<FloatElem>(
             &TensorData::from(expected.as_slice()),
