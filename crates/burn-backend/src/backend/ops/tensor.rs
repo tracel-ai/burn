@@ -473,7 +473,7 @@ pub trait FloatTensorOps<B: Backend> {
         _values: FloatTensor<B>,
         _reduction: crate::tensor::IndexingUpdateOp,
     ) -> FloatTensor<B> {
-        panic!("float_scatter_nd is not implemented for this backend")
+        unimplemented!("float_scatter_nd is not implemented for this backend")
     }
 
     /// Multi-dimensional gather: collect slices from `data` at locations specified by `indices`.
@@ -487,7 +487,7 @@ pub trait FloatTensorOps<B: Backend> {
     ///
     /// The gathered tensor.
     fn float_gather_nd(_data: FloatTensor<B>, _indices: IntTensor<B>) -> FloatTensor<B> {
-        panic!("float_gather_nd is not implemented for this backend")
+        unimplemented!("float_gather_nd is not implemented for this backend")
     }
 
     /// Select tensor elements along the given dimension corresponding for the given indices.

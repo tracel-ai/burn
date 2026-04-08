@@ -993,7 +993,6 @@ impl TensorCheck {
     }
 
     pub(crate) fn gather_nd<const D: usize, const M: usize, const DV: usize>(
-        data_shape: &Shape,
         indices_shape: &Shape,
     ) -> Self {
         let ops = "GatherNd";
@@ -1026,9 +1025,6 @@ impl TensorCheck {
                 )),
             );
         }
-
-        // Suppress unused warning
-        let _ = data_shape;
 
         check
     }

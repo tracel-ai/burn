@@ -3,29 +3,23 @@ use crate::{
 };
 use burn_backend::TensorMetadata;
 use cubecl::prelude::*;
+use cubecl::std::tensor::layout::linear::LinearView;
 use cubecl::{CubeDim, calculate_cube_count_elemwise};
-
-use super::scatter_nd::nd_index_strides_tensor;
 
 /// gather_nd GPU kernel.
 ///
 /// Each thread handles one element of the output.
 /// Work items = num_indices * slice_size.
-///
-/// `data_strides` is a 1D tensor of length K holding the strides for converting
-/// K-dimensional index tuples into flat offsets.
 #[cube(launch_unchecked, address_type = "dynamic")]
 fn gather_nd_kernel<T: Numeric, I: Int>(
     data: &Tensor<T>,
-    indices: &Tensor<I>,
-    output: &mut Tensor<T>,
-    data_strides: &Tensor<u32>,
+    indices: &LinearView<I>,
+    output: &mut LinearView<T, ReadWrite>,
     slice_size: usize,
     k: usize,
     #[define(T, I)] _dtypes: [StorageType; 2],
 ) {
-    let total = output.len();
-    if ABSOLUTE_POS >= total {
+    if !output.is_in_bounds(ABSOLUTE_POS) {
         terminate!();
     }
 
@@ -38,7 +32,7 @@ fn gather_nd_kernel<T: Numeric, I: Int>(
     let mut base_offset = 0usize;
     for j in 0..k {
         let idx_val = usize::cast_from(indices[idx_base + j]);
-        base_offset += idx_val * data_strides[j] as usize;
+        base_offset += idx_val * data.stride(j);
     }
 
     output[ABSOLUTE_POS] = data[base_offset + slice_offset];
@@ -71,8 +65,6 @@ pub(crate) fn gather_nd<R: CubeRuntime>(
         tensor.dtype,
     );
 
-    let strides_tensor = nd_index_strides_tensor(&tensor, &data_shape, k, slice_size);
-
     let cube_dim = CubeDim::new(&tensor.client, total_elem);
     let cube_count = calculate_cube_count_elemwise(&tensor.client, total_elem, cube_dim);
 
@@ -85,9 +77,8 @@ pub(crate) fn gather_nd<R: CubeRuntime>(
             cube_dim,
             address_type!(tensor, indices, output),
             tensor.into_tensor_arg(),
-            indices.into_tensor_arg(),
-            output.clone().into_tensor_arg(),
-            strides_tensor.into_tensor_arg(),
+            indices.into_linear_view(),
+            output.clone().into_linear_view(),
             slice_size,
             k,
             [dtype.into(), indices_dtype.into()],
