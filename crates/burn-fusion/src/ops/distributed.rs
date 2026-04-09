@@ -8,7 +8,7 @@ use burn_backend::{
 use burn_ir::{AllReduceOpIr, BaseOperationIr, HandleContainer, OperationIr};
 
 use crate::{
-    Fusion, FusionBackend,
+    Fusion, FusionBackend, get_client,
     stream::{Operation, OperationStreams},
 };
 use burn_ir::OperationOutput;
@@ -98,7 +98,7 @@ impl<B: FusionBackend + DistributedBackend> DistributedBackend for Fusion<B> {
     }
 
     fn sync_collective(device: &Device<Self>) {
-        // TODO: flush fusion? actually, probably just register this operation like any other
-        B::sync_collective(device);
+        let client = get_client::<B>(device);
+        client.sync_collective::<B>(device.clone());
     }
 }

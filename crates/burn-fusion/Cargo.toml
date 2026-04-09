@@ -16,7 +16,7 @@ workspace = true
 
 [features]
 # TODO: remove from default and propagate distributed
-default = ["std", "tracing"]
+default = ["std", "tracing", "distributed"]
 std = ["serde/std", "tracing?/std"]
 doc = ["default"]
 memory-checks = ["std"]

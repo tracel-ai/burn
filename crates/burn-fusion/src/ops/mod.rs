@@ -1,6 +1,7 @@
 mod activation;
 mod binary;
 mod bool_tensor;
+#[cfg(feature = "distributed")]
 mod distributed;
 mod int_tensor;
 mod module;
