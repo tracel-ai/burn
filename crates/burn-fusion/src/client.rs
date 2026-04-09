@@ -372,6 +372,7 @@ where
     where
         B: FusionBackend<FusionRuntime = R> + DistributedBackend,
     {
+        self.drain();
         self.server.submit(move |_| {
             println!("submitted sync_collective");
             B::sync_collective(&device)
