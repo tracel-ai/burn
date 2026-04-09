@@ -62,7 +62,7 @@ where
             };
 
             let client = R::client(device);
-            println!("cube sync_collective: {:?}", device.id());
+            println!("cube all_reduce: {:?}", device.id());
             client.all_reduce(
                 tensor.handle.clone(),
                 out_tensor.handle.clone(),
