@@ -31,7 +31,7 @@ fn test_all_reduce_multithread() {
     let device_count = <TestBackend as Backend>::device_count(type_id);
     let devices = create_devices::<<TestBackend as Backend>::Device>(type_id, device_count);
 
-    let shape = [4, 4];
+    let shape = [20, 20];
     run_multithread::<TestBackend>(devices, 100, shape);
 }
 
