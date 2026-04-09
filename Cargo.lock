@@ -1054,7 +1054,7 @@ name = "burn-no-std-tests"
 version = "0.21.0-pre.3"
 dependencies = [
  "burn",
- "burn-ndarray",
+ "burn-flex",
  "burn-store",
 ]
 
