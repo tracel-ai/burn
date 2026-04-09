@@ -285,10 +285,15 @@ pub(crate) fn handle_command(
                         "std with features: test-tch,record-item-custom-serde",
                     )?;
 
+                    // burn-nn (pretrained and local tests)
+                    // If the "CI" environment variable is missing, we are running locally.
+                    // if std::env::var("CI").is_err() {
+                    //     nn_features.push_str(",test-local");
+                    // }
                     // burn-vision
                     helpers::custom_crates_tests(
                         vec!["burn-vision"],
-                        handle_test_args(&["--features", "test-cpu"], args.release),
+                        handle_test_args(&["--features", "test-cpu", "loss"], args.release),
                         None,
                         None,
                         "std cpu",
@@ -301,19 +306,6 @@ pub(crate) fn handle_command(
                         None,
                         None,
                         "std vision",
-                    )?;
-
-                    // burn-nn (pretrained and local tests)
-                    // If the "CI" environment variable is missing, we are running locally.
-                    // if std::env::var("CI").is_err() {
-                    //     nn_features.push_str(",test-local");
-                    // }
-                    helpers::custom_crates_tests(
-                        vec!["burn-nn"],
-                        handle_test_args(&["--features", "pretrained"], args.release),
-                        None,
-                        None,
-                        "std burn-nn",
                     )?;
                 }
                 CiTestType::GcpCudaRunner => (),
