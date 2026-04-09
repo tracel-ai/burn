@@ -356,12 +356,7 @@ where
     make_bool_tensor(result, shape, out_dtype)
 }
 
-fn compare_elem_typed<E, Cmp>(
-    lhs: FlexTensor,
-    rhs: E,
-    out_dtype: BoolDType,
-    cmp: Cmp,
-) -> FlexTensor
+fn compare_elem_typed<E, Cmp>(lhs: FlexTensor, rhs: E, out_dtype: BoolDType, cmp: Cmp) -> FlexTensor
 where
     E: Element + Pod + Copy,
     Cmp: Fn(E, E) -> bool,
@@ -385,11 +380,7 @@ where
 /// Build a bool FlexTensor from a Vec<u8> of 0/1 bytes, tagged with the requested
 /// output dtype. Native and U8 share the same 1-byte-per-element layout so the
 /// bytes pass through; U32 widens each element to 4 bytes.
-pub(crate) fn make_bool_tensor(
-    data: Vec<u8>,
-    shape: Shape,
-    out_dtype: BoolDType,
-) -> FlexTensor {
+pub(crate) fn make_bool_tensor(data: Vec<u8>, shape: Shape, out_dtype: BoolDType) -> FlexTensor {
     let (bytes, store) = match out_dtype {
         BoolDType::Native => (Bytes::from_elems(data), BoolStore::Native),
         BoolDType::U8 => (Bytes::from_elems(data), BoolStore::U8),
@@ -867,11 +858,7 @@ pub fn all_bool_dim(tensor: FlexTensor, dim: usize, out_dtype: BoolDType) -> Fle
 
 fn bool_scalar(val: bool, out_dtype: BoolDType) -> FlexTensor {
     let byte: u8 = if val { 1 } else { 0 };
-    make_bool_tensor(
-        alloc::vec![byte],
-        Shape::from(alloc::vec![1]),
-        out_dtype,
-    )
+    make_bool_tensor(alloc::vec![byte], Shape::from(alloc::vec![1]), out_dtype)
 }
 
 fn iter_elements<'a, E: Element + Pod + 'a>(
@@ -1000,9 +987,7 @@ fn reduce_bool_dim_raw(
 ) -> FlexTensor {
     let tensor = tensor.to_contiguous();
     let data: &[u8] = tensor.bytes();
-    reduce_bool_dim_with(&tensor, dim, init, combine, out_dtype, |idx| {
-        data[idx] != 0
-    })
+    reduce_bool_dim_with(&tensor, dim, init, combine, out_dtype, |idx| data[idx] != 0)
 }
 
 #[cfg(test)]
