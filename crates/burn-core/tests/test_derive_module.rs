@@ -652,6 +652,7 @@ mod grad_distributed {
             } else {
                 for r in recvs.iter().by_ref() {
                     let t = r.recv().unwrap();
+                    // TODO: should compute expected and compare to it.
                     assert_eq!(data, t);
                 }
             }
