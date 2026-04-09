@@ -82,25 +82,23 @@ impl<B: FusionBackend + DistributedBackend> DistributedBackend for Fusion<B> {
             }
         }
 
-        // TODO: executes might be useless.
-        StreamId::executes(tensor.stream, || {
-            let streams = OperationStreams::with_inputs([&tensor]);
+        let streams = OperationStreams::with_inputs([&tensor]);
 
-            let client = tensor.client.clone();
-            let desc = AllReduceOpIr::create(tensor.into_ir(), || client.create_empty_handle());
+        let client = tensor.client.clone();
+        let desc = AllReduceOpIr::create(tensor.into_ir(), || client.create_empty_handle());
 
-            client
-                .register(
-                    streams,
-                    OperationIr::BaseFloat(BaseOperationIr::AllReduce(desc.clone())),
-                    AllReduceOps::<B>::new(desc, op, device_ids),
-                )
-                .output()
-                .into()
-        })
+        client
+            .register(
+                streams,
+                OperationIr::BaseFloat(BaseOperationIr::AllReduce(desc.clone())),
+                AllReduceOps::<B>::new(desc, op, device_ids),
+            )
+            .output()
+            .into()
     }
 
     fn sync_collective(device: &Device<Self>) {
+        // TODO: flush fusion? actually, probably just register this operation like any other
         B::sync_collective(device);
     }
 }

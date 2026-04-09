@@ -16,28 +16,36 @@ use super::*;
 #[test]
 #[serial]
 fn test_all_reduce() {
-    run_all_reduce::<TestBackend>();
+    let type_id = 10u16;
+    let device_count = <TestBackend as Backend>::device_count(type_id);
+    let devices = create_devices::<<TestBackend as Backend>::Device>(type_id, device_count);
+
+    let shape = [4, 4];
+    run_all_reduce::<TestBackend>(devices, 100, shape);
 }
 
 #[test]
 #[serial]
 fn test_all_reduce_multithread() {
-    run_multithread::<TestBackend>();
+    let type_id = 10u16;
+    let device_count = <TestBackend as Backend>::device_count(type_id);
+    let devices = create_devices::<<TestBackend as Backend>::Device>(type_id, device_count);
+
+    let shape = [4, 4];
+    run_multithread::<TestBackend>(devices, 100, shape);
 }
 
 // TODO: finish these tests.
-fn run_all_reduce<B: AutodiffBackend + DistributedBackend>() {
-    let type_id = 10u16;
-    let shape = [4, 4];
+fn run_all_reduce<B: AutodiffBackend + DistributedBackend>(
+    devices: Vec<B::Device>,
+    num_iterations: usize,
+    shape: [usize; 2],
+) {
+    let mut rng = rand::rng();
     let size = shape[0] * shape[1];
 
-    let device_count = <B as Backend>::device_count(type_id);
-    let devices = create_devices::<<B as Backend>::Device>(type_id, device_count);
-
-    let mut rng = rand::rng();
-
-    for i in 0..10 {
-        let vec_data: Vec<Vec<f32>> = (0..device_count)
+    for _ in 0..num_iterations {
+        let vec_data: Vec<Vec<f32>> = (0..devices.len())
             .map(|_| (0..size).map(|_| rng.random_range(0.0..10.0)).collect())
             .collect();
         let expected: Vec<f32> = (0..size)
@@ -68,10 +76,8 @@ fn run_all_reduce<B: AutodiffBackend + DistributedBackend>() {
             out_tensors.push(output);
         }
 
-        println!("Expected : {:?}", expected);
         for tensor in out_tensors {
             let data = tensor.flatten::<1>(0, 1).to_data();
-            println!("Data : {:?}", data.to_vec::<f32>().unwrap());
             data.assert_approx_eq::<FloatElem>(
                 &TensorData::from(expected.as_slice()),
                 Tolerance::default(),
@@ -80,28 +86,34 @@ fn run_all_reduce<B: AutodiffBackend + DistributedBackend>() {
     }
 }
 
-fn run_multithread<B: AutodiffBackend + DistributedBackend>() {
-    let type_id = 10u16;
-    let shape = [4, 4];
+fn run_multithread<B: AutodiffBackend + DistributedBackend>(
+    devices: Vec<B::Device>,
+    num_iterations: usize,
+    shape: [usize; 2],
+) {
     let size = shape[0] * shape[1];
-
-    let device_count = <B as Backend>::device_count(type_id);
-    let devices = create_devices::<<B as Backend>::Device>(type_id, device_count);
     let device_ids = devices.iter().map(|d| d.id()).collect::<Vec<_>>();
+    let num_devices = devices.len();
 
+    let (expected_sender, expected_receiver) = std::sync::mpsc::channel();
+    let (actual_sender, actual_receiver) = std::sync::mpsc::channel();
     let handles = devices
         .iter()
         .map(|device| {
             let local_device = device.clone();
             let local_device_ids = device_ids.clone();
+            let local_expected_sender = expected_sender.clone();
+            let local_actual_sender = actual_sender.clone();
             std::thread::spawn(move || {
-                for i in 0..10 {
+                for _ in 0..num_iterations {
                     let mut rng = rand::rng();
                     let vec_data: Vec<f32> =
                         (0..size).map(|_| rng.random_range(0.0..10.0)).collect();
+                    local_expected_sender.send(vec_data.clone()).unwrap();
+
                     let tensor_data = TensorData::from(vec_data.as_slice());
-                    let tensor =
-                        Tensor::<B, 1>::from_data(tensor_data, &local_device).reshape(shape);
+                    let tensor = Tensor::<B, 1>::from_data(tensor_data, &local_device)
+                        .reshape(shape.clone());
                     let output = unsafe {
                         B::all_reduce(
                             tensor.into_primitive().tensor(),
@@ -113,19 +125,29 @@ fn run_multithread<B: AutodiffBackend + DistributedBackend>() {
                     B::sync_collective(&local_device);
 
                     let data = output.flatten::<1>(0, 1).to_data();
-                    println!(
-                        "[{:?}] Data : {:?}",
-                        local_device.id(),
-                        data.to_vec::<f32>().unwrap()
-                    );
-                    // data.assert_approx_eq::<FloatElem>(
-                    //     &TensorData::from(expected.as_slice()),
-                    //     Tolerance::default(),
-                    // );
+                    local_actual_sender.send(data).unwrap();
                 }
             })
         })
         .collect::<Vec<_>>();
+
+    for _ in 0..num_iterations {
+        let mut expected_list = vec![];
+        for _ in 0..num_devices {
+            expected_list.push(expected_receiver.recv().unwrap());
+        }
+        let expected: Vec<f32> = (0..size)
+            .map(|i| expected_list.iter().map(|v| v[i]).sum::<f32>())
+            .collect();
+
+        for _ in 0..num_devices {
+            let data = actual_receiver.recv().unwrap();
+            data.assert_approx_eq::<FloatElem>(
+                &TensorData::from(expected.as_slice()),
+                Tolerance::default(),
+            );
+        }
+    }
 
     for h in handles {
         h.join().unwrap();
