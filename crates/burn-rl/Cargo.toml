@@ -25,7 +25,8 @@ log = { workspace = true }
 rand.workspace = true
 
 [dev-dependencies]
-burn-ndarray = { path = "../burn-ndarray", version = "=0.21.0-pre.2" }
+# Test backend
+burn-core = { path = "../burn-core", version = "=0.21.0-pre.2", features = ["ndarray"]}
 
 [lints]
 workspace = true

@@ -7,12 +7,10 @@ use std::{
     thread::spawn,
 };
 
-use burn_core::prelude::Backend;
-
 use crate::{ActionContext, Batchable, Policy, PolicyState};
 
 #[derive(Clone)]
-struct PolicyInferenceServer<B: Backend, P: Policy<B>> {
+struct PolicyInferenceServer<P: Policy> {
     // `num_agents` used to make sure autobatching doesn't block the agents if they are less than the autobatch size.
     num_agents: Arc<AtomicUsize>,
     max_autobatch_size: usize,
@@ -21,10 +19,9 @@ struct PolicyInferenceServer<B: Backend, P: Policy<B>> {
     batch_logits: Vec<ForwardItem<P::Observation, P::ActionDistribution>>,
 }
 
-impl<B, P> PolicyInferenceServer<B, P>
+impl<P> PolicyInferenceServer<P>
 where
-    B: Backend,
-    P: Policy<B>,
+    P: Policy,
     P::Observation: Clone + Batchable,
     P::ActionDistribution: Clone + Batchable,
     P::Action: Clone + Batchable,
@@ -157,7 +154,7 @@ where
     }
 }
 
-enum InferenceMessage<B: Backend, P: Policy<B>> {
+enum InferenceMessage<P: Policy> {
     ActionMessage(ActionItem<P::Observation, P::Action, P::ActionContext>),
     ForwardMessage(ForwardItem<P::Observation, P::ActionDistribution>),
     PolicyUpdate(P::PolicyState),
@@ -181,14 +178,13 @@ struct ForwardItem<S, O> {
 
 /// An asynchronous policy using an inference server with autobatching.
 #[derive(Clone)]
-pub struct AsyncPolicy<B: Backend, P: Policy<B>> {
-    inference_state_sender: Sender<InferenceMessage<B, P>>,
+pub struct AsyncPolicy<P: Policy> {
+    inference_state_sender: Sender<InferenceMessage<P>>,
 }
 
-impl<B, P> AsyncPolicy<B, P>
+impl<P> AsyncPolicy<P>
 where
-    B: Backend,
-    P: Policy<B> + Clone + Send + 'static,
+    P: Policy + Clone + Send + 'static,
     P::ActionContext: Clone + Send,
     P::PolicyState: Send,
     P::Observation: Clone + Send + Batchable,
@@ -245,10 +241,9 @@ where
     }
 }
 
-impl<B, P> Policy<B> for AsyncPolicy<B, P>
+impl<P> Policy for AsyncPolicy<P>
 where
-    B: Backend,
-    P: Policy<B> + Send + 'static,
+    P: Policy + Send + 'static,
 {
     type ActionContext = P::ActionContext;
     type PolicyState = P::PolicyState;
@@ -307,7 +302,7 @@ where
             .expect("AsyncPolicy should be able to receive policy state.")
     }
 
-    fn load_record(self, _record: <Self::PolicyState as PolicyState<B>>::Record) -> Self {
+    fn load_record(self, _record: <Self::PolicyState as PolicyState>::Record) -> Self {
         // Not needed for now
         todo!()
     }
@@ -319,17 +314,13 @@ mod tests {
     use std::thread::JoinHandle;
     use std::time::Duration;
 
-    use crate::TestBackend;
     use crate::tests::{MockAction, MockObservation, MockPolicy};
 
     use super::*;
 
     #[test]
     fn test_multiple_actions_before_flush() {
-        fn launch_thread(
-            policy: &AsyncPolicy<TestBackend, MockPolicy>,
-            handles: &mut Vec<JoinHandle<()>>,
-        ) {
+        fn launch_thread(policy: &AsyncPolicy<MockPolicy>, handles: &mut Vec<JoinHandle<()>>) {
             let mut thread_policy = policy.clone();
             let handle = spawn(move || {
                 thread_policy.action(MockObservation(vec![0.]), false);
@@ -367,10 +358,7 @@ mod tests {
 
     #[test]
     fn test_multiple_forward_before_flush() {
-        fn launch_thread(
-            policy: &AsyncPolicy<TestBackend, MockPolicy>,
-            handles: &mut Vec<JoinHandle<()>>,
-        ) {
+        fn launch_thread(policy: &AsyncPolicy<MockPolicy>, handles: &mut Vec<JoinHandle<()>>) {
             let mut thread_policy = policy.clone();
             let handle = spawn(move || {
                 thread_policy.forward(MockObservation(vec![0.]));
@@ -409,7 +397,7 @@ mod tests {
     #[test]
     fn test_async_policy_deterministic_behaviour() {
         fn launch_thread(
-            policy: &AsyncPolicy<TestBackend, MockPolicy>,
+            policy: &AsyncPolicy<MockPolicy>,
             handles: &mut Vec<JoinHandle<MockAction>>,
             deterministic: bool,
         ) {
@@ -443,10 +431,7 @@ mod tests {
 
     #[test]
     fn flush_when_running_agents_smaller_than_autobatch_size() {
-        fn launch_thread(
-            policy: &AsyncPolicy<TestBackend, MockPolicy>,
-            handles: &mut Vec<JoinHandle<()>>,
-        ) {
+        fn launch_thread(policy: &AsyncPolicy<MockPolicy>, handles: &mut Vec<JoinHandle<()>>) {
             let mut thread_policy = policy.clone();
             let handle = spawn(move || {
                 thread_policy.action(MockObservation(vec![0.]), false);
