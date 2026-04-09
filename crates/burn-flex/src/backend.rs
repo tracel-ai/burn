@@ -280,8 +280,9 @@ mod tests {
     #[test]
     fn bool_not_preserves_u8_dtype() {
         use burn_backend::ops::BoolTensorOps;
-        let t = FlexTensor::from_data(burn_backend::TensorData::from([true, false, true]));
-        // from_data produces Bool(Native); tag it as U8 to verify preservation
+        // Construct a Bool(U8) tensor directly to verify bool_not preserves
+        // the dtype tag across the op. from_data would produce Bool(Native),
+        // so we use make_bool_tensor to get the U8 tag.
         let t_u8 = crate::ops::comparison::make_bool_tensor(
             alloc::vec![1, 0, 1],
             burn_std::Shape::from(alloc::vec![3]),
