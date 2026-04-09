@@ -672,25 +672,18 @@ mod grad_distributed {
                     .unwrap();
                 synced_sender.clone().unwrap().send(data).unwrap();
             } else {
-                let mut expected: Option<Tensor<<B as AutodiffBackend>::InnerBackend, 2>> = None;
+                let mut expected = grads_original.clone().unwrap();
                 for r in original_recvs.iter().by_ref() {
-                    let t = r.recv().unwrap();
-                    expected = match expected {
-                        Some(prev) => Some(prev.add(t)),
-                        None => Some(t),
-                    }
+                    expected = expected.add(r.recv().unwrap());
                 }
                 for r in synced_recvs.iter().by_ref() {
                     let data = r.recv().unwrap();
                     println!(
                         "expected : {:?}\n",
-                        expected.clone().unwrap().to_data().to_vec::<f32>().unwrap()
+                        expected.to_data().to_vec::<f32>().unwrap()
                     );
                     println!("data : {:?}\n", data.to_vec::<f32>().unwrap());
-                    data.assert_approx_eq::<f32>(
-                        &expected.clone().unwrap().to_data(),
-                        Tolerance::default(),
-                    );
+                    data.assert_approx_eq::<f32>(&expected.to_data(), Tolerance::default());
                 }
             }
         }
