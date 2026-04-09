@@ -642,11 +642,15 @@ mod grad_distributed {
     ) {
         let mut module = module.clone().fork(&device);
 
-        for _ in 0..num_iter {
+        for _ in 0..2 {
             module = set_distributed(&module, &device);
-            let grads_x = calculate_grads(&module, transformation);
+            let (grads_x, grads_unsync) = calculate_grads(&module, transformation);
             let data = grads_x.unwrap().to_data();
             println!("data : {:?}", data.to_vec::<f32>());
+            println!(
+                "data unsync : {:?}",
+                grads_unsync.unwrap().to_data().to_vec::<f32>()
+            );
             if !is_main {
                 output.clone().unwrap().send(data).unwrap();
             } else {
@@ -673,7 +677,10 @@ mod grad_distributed {
     fn calculate_grads<B: AutodiffBackend>(
         module: &ModuleBasic<B>,
         transformation: fn(Tensor<B, 2>, Tensor<B, 2>) -> Tensor<B, 2>,
-    ) -> Option<Tensor<B::InnerBackend, 2>> {
+    ) -> (
+        Option<Tensor<B::InnerBackend, 2>>,
+        Option<Tensor<B::InnerBackend, 2>>,
+    ) {
         let device = module.weight_basic.device();
         let data = TensorData::random::<f32, _, _>(
             module.weight_basic.shape(),
@@ -685,6 +692,13 @@ mod grad_distributed {
         let y = transformation(t, x);
 
         let mut grads = y.backward();
-        module.weight_basic.grad_remove(&mut grads)
+        let grads_sync = module.weight_basic.grad_remove(&mut grads);
+
+        let x = Tensor::from_data(data, &device).require_grad();
+        let t = module.weight_basic.val();
+        let y = transformation(t, x);
+        let mut grads = y.backward();
+        let grads_unsync = module.weight_basic.grad_remove(&mut grads);
+        (grads_sync, grads_unsync)
     }
 }
