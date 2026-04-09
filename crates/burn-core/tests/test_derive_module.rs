@@ -678,12 +678,13 @@ mod grad_distributed {
                     expected = expected.add(r.recv().unwrap().to_device(&device));
                 }
                 for r in synced_recvs.iter().by_ref() {
-                    let data = r.recv().unwrap();
+                    let data_other = r.recv().unwrap();
                     println!(
                         "expected : {:?}\n",
                         expected.to_data().to_vec::<f32>().unwrap()
                     );
                     println!("data : {:?}\n", data.to_vec::<f32>().unwrap());
+                    println!("data_other : {:?}\n", data_other.to_vec::<f32>().unwrap());
                     // data.assert_approx_eq::<f32>(&expected.to_data(), Tolerance::default());
                 }
             }
