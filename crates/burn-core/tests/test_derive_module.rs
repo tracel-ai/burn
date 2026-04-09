@@ -674,7 +674,7 @@ mod grad_distributed {
             } else {
                 let mut expected = grads_original.clone().unwrap();
                 for r in original_recvs.iter().by_ref() {
-                    expected = expected.add(r.recv().unwrap());
+                    expected = expected.add(r.recv().unwrap().to_device(&expected.device()));
                 }
                 for r in synced_recvs.iter().by_ref() {
                     let data = r.recv().unwrap();
