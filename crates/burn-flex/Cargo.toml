@@ -150,6 +150,10 @@ harness = false
 name = "fft_ops"
 harness = false
 
+[[bench]]
+name = "norm_ops"
+harness = false
+
 [package.metadata.docs.rs]
 features = ["default"]
 rustdoc-args = ["--cfg", "docsrs"]

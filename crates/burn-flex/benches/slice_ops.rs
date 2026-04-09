@@ -160,6 +160,53 @@ macro_rules! bench_backend {
                 }
             }
 
+            // Slice fill (scalar fill over a slice region)
+            //
+            // This is the pattern the user hit in issue #64 item 3:
+            // `tensor.slice_fill(slice, scalar)`. burn-tensor's default impl
+            // allocates a 1-element tensor, calls expand() to broadcast it
+            // over the slice shape, and then hands that view to
+            // slice_assign. A naive backend materializes the broadcast (one
+            // full alloc + fill) before doing the actual strided write, so
+            // the slice fill ends up doing ~3x the memory traffic it should.
+            #[divan::bench_group(name = "slice_fill")]
+            mod slice_fill {
+                use super::*;
+
+                #[divan::bench]
+                fn fill_1d_512_of_1k(bencher: Bencher) {
+                    let t = make_tensor_1d::<B>(1024);
+                    bencher.bench(|| t.clone().slice_fill([256..768], 1.0f32));
+                }
+
+                #[divan::bench]
+                fn fill_2d_128x128_of_256x256(bencher: Bencher) {
+                    let t = make_tensor_2d::<B>(256, 256);
+                    bencher.bench(|| t.clone().slice_fill([64..192, 64..192], 1.0f32));
+                }
+
+                #[divan::bench]
+                fn fill_2d_512x512_of_1024x1024(bencher: Bencher) {
+                    let t = make_tensor_2d::<B>(1024, 1024);
+                    bencher.bench(|| t.clone().slice_fill([256..768, 256..768], 1.0f32));
+                }
+
+                // Segmentation-model-sized: 488x448 feature map, half the
+                // spatial extent.
+                #[divan::bench]
+                fn fill_2d_244x224_of_488x448(bencher: Bencher) {
+                    let t = make_tensor_2d::<B>(488, 448);
+                    bencher.bench(|| t.clone().slice_fill([122..366, 112..336], 0.0f32));
+                }
+
+                // 3D feature map (B=1,C=64,H,W) half-spatial fill.
+                #[divan::bench]
+                fn fill_3d_64x64x64_of_64x128x128(bencher: Bencher) {
+                    let t = make_tensor_3d::<B>(64, 128, 128);
+                    bencher.bench(|| t.clone().slice_fill([0..64, 32..96, 32..96], 0.0f32));
+                }
+            }
+
             // Narrow (single dimension slice)
             #[divan::bench_group(name = "narrow")]
             mod narrow {

@@ -174,16 +174,69 @@ fn slice_assign_impl<E: Element + bytemuck::Pod + Clone>(
     slices: &[Slice],
     value: FlexTensor,
 ) -> FlexTensor {
-    // Make tensor contiguous
+    // Broadcast-scalar fast path: if `value` is a fully-broadcast
+    // scalar (all strides zero), read the scalar once instead of
+    // materializing the expansion via `to_contiguous`. The
+    // `num_elements > 0` gate also guards the storage read against
+    // zero-sized sources where `iter().all(...)` would be vacuously
+    // true.
+    if value.layout().num_elements() > 0 && value.layout().strides().iter().all(|&s| s == 0) {
+        let scalar = value.storage::<E>()[value.layout().start_offset()];
+        return slice_write_impl::<E>(tensor, slices, WriteSource::Scalar(scalar));
+    }
+
+    let value = value.to_contiguous();
+    let val_src: &[E] = value.storage::<E>();
+    slice_write_impl::<E>(tensor, slices, WriteSource::Slice(val_src))
+}
+
+/// Source to splat into a sliced region of a destination tensor. The
+/// two variants drive the same dispatch tree; `Scalar` hits the
+/// broadcast-scalar fast path (no value buffer), `Slice` hits the
+/// memcpy-style assign path (advances through `val_src`).
+#[derive(Copy, Clone)]
+enum WriteSource<'a, E: Copy> {
+    Scalar(E),
+    Slice(&'a [E]),
+}
+
+impl<'a, E: Copy> WriteSource<'a, E> {
+    /// Write a contiguous span of `dst` starting at `dst_offset` for
+    /// `len` elements. For `Slice`, `src_offset` is the current
+    /// position in the value buffer.
+    #[inline]
+    fn write_span(self, dst: &mut [E], dst_offset: usize, len: usize, src_offset: usize) {
+        match self {
+            WriteSource::Scalar(s) => dst[dst_offset..dst_offset + len].fill(s),
+            WriteSource::Slice(src) => dst[dst_offset..dst_offset + len]
+                .copy_from_slice(&src[src_offset..src_offset + len]),
+        }
+    }
+
+    /// Write a single element. `src_idx` is only read in the `Slice`
+    /// variant.
+    #[inline]
+    fn write_element(self, dst: &mut [E], dst_idx: usize, src_idx: usize) {
+        match self {
+            WriteSource::Scalar(s) => dst[dst_idx] = s,
+            WriteSource::Slice(src) => dst[dst_idx] = src[src_idx],
+        }
+    }
+}
+
+/// Unified slice writer used by both `slice_assign_impl` and the
+/// scalar-broadcast fast path. Walks the destination's sliced region
+/// (1D / 2D inner-contig / ND inner-contig / strided fallback) and
+/// pulls values from the given [`WriteSource`].
+fn slice_write_impl<E: Element + bytemuck::Pod>(
+    tensor: FlexTensor,
+    slices: &[Slice],
+    source: WriteSource<'_, E>,
+) -> FlexTensor {
     let mut tensor = tensor.to_contiguous();
     let dst_layout = tensor.layout().clone();
     let ndims = dst_layout.num_dims();
 
-    // Get value data
-    let value = value.to_contiguous();
-    let val_src: &[E] = value.storage::<E>();
-
-    // Calculate slice info: (start, len, step) for each dimension
     let slice_info: Vec<(usize, usize, isize)> = (0..ndims)
         .map(|dim| {
             let dim_size = dst_layout.shape()[dim] as isize;
@@ -196,34 +249,35 @@ fn slice_assign_impl<E: Element + bytemuck::Pod + Clone>(
         })
         .collect();
 
-    // Get mutable access
     let dst = tensor.storage_mut::<E>();
 
-    // Check if innermost dimension is contiguous (step=1)
     let inner_contiguous = slice_info
         .last()
         .map(|(_, _, step)| *step == 1)
         .unwrap_or(false);
 
-    if ndims == 1 {
-        // 1D case: simple loop or memcpy
+    if ndims == 0 {
+        // Rank 0: single scalar destination. Only reachable from the
+        // scalar fast path; `slice_assign` on a rank-0 tensor with a
+        // rank-0 source also ends up here.
+        if !dst.is_empty() {
+            source.write_element(dst, 0, 0);
+        }
+    } else if ndims == 1 {
         let (start, len, step) = slice_info[0];
         if step == 1 {
-            // Contiguous: use memcpy
-            dst[start..start + len].copy_from_slice(&val_src[..len]);
+            source.write_span(dst, start, len, 0);
         } else {
-            // Strided: element-by-element
-            for (i, &val) in val_src.iter().enumerate().take(len) {
+            for i in 0..len {
                 let dst_i = if step > 0 {
                     start + i * step as usize
                 } else {
                     (start as isize - (i as isize) * (-step)) as usize
                 };
-                dst[dst_i] = val;
+                source.write_element(dst, dst_i, i);
             }
         }
     } else if ndims == 2 && inner_contiguous {
-        // 2D with contiguous inner: row-based memcpy
         let (row_start, row_len, row_step) = slice_info[0];
         let (col_start, col_len, _) = slice_info[1];
         let dst_cols = dst_layout.shape()[1];
@@ -236,28 +290,20 @@ fn slice_assign_impl<E: Element + bytemuck::Pod + Clone>(
                 (row_start as isize - (r as isize) * (-row_step)) as usize
             };
             let dst_row_start = row_idx * dst_cols + col_start;
-            dst[dst_row_start..dst_row_start + col_len]
-                .copy_from_slice(&val_src[val_offset..val_offset + col_len]);
+            source.write_span(dst, dst_row_start, col_len, val_offset);
             val_offset += col_len;
         }
     } else if inner_contiguous {
-        // ND with contiguous inner: iterate outer dims, memcpy inner
         let inner_len = slice_info[ndims - 1].1;
         let outer_dims = ndims - 1;
         let dst_strides = dst_layout.strides();
 
-        // Compute total iterations for outer dimensions
-        let mut outer_count = 1usize;
-        for info in slice_info.iter().take(outer_dims) {
-            outer_count *= info.1;
-        }
+        let outer_count: usize = slice_info.iter().take(outer_dims).map(|i| i.1).product();
 
-        // Iterate using flat index for outer dimensions
         let mut outer_indices = vec![0usize; outer_dims];
         let mut val_offset = 0;
 
         for _ in 0..outer_count {
-            // Compute destination offset for current outer indices
             let mut dst_offset = dst_layout.start_offset() as isize;
             for (dim, &idx) in outer_indices.iter().enumerate() {
                 let (start, _, step) = slice_info[dim];
@@ -268,16 +314,13 @@ fn slice_assign_impl<E: Element + bytemuck::Pod + Clone>(
                 };
                 dst_offset += src_i as isize * dst_strides[dim];
             }
-            // Add inner dimension start
             dst_offset += slice_info[ndims - 1].0 as isize * dst_strides[ndims - 1];
             let dst_offset = dst_offset as usize;
 
-            // Copy inner row
-            dst[dst_offset..dst_offset + inner_len]
-                .copy_from_slice(&val_src[val_offset..val_offset + inner_len]);
+            source.write_span(dst, dst_offset, inner_len, val_offset);
             val_offset += inner_len;
 
-            // Increment outer indices (odometer style)
+            // Odometer increment over outer dims.
             for dim in (0..outer_dims).rev() {
                 outer_indices[dim] += 1;
                 if outer_indices[dim] < slice_info[dim].1 {
@@ -287,13 +330,11 @@ fn slice_assign_impl<E: Element + bytemuck::Pod + Clone>(
             }
         }
     } else {
-        // Fallback: element-by-element with iterative approach
         let total_elements: usize = slice_info.iter().map(|(_, len, _)| len).product();
         let dst_strides = dst_layout.strides();
         let mut indices = vec![0usize; ndims];
 
-        for &val in val_src.iter().take(total_elements) {
-            // Compute destination index
+        for i in 0..total_elements {
             let mut dst_offset = dst_layout.start_offset() as isize;
             for (dim, &idx) in indices.iter().enumerate() {
                 let (start, _, step) = slice_info[dim];
@@ -305,9 +346,8 @@ fn slice_assign_impl<E: Element + bytemuck::Pod + Clone>(
                 dst_offset += src_i as isize * dst_strides[dim];
             }
 
-            dst[dst_offset as usize] = val;
+            source.write_element(dst, dst_offset as usize, i);
 
-            // Increment indices (odometer style)
             for dim in (0..ndims).rev() {
                 indices[dim] += 1;
                 if indices[dim] < slice_info[dim].1 {
@@ -482,5 +522,184 @@ mod tests {
                 0.0, 1.0, 2.0, 3.0, 100.0, 101.0, 102.0, 103.0, 8.0, 9.0, 10.0, 11.0,
             ]
         );
+    }
+
+    // Broadcast-scalar fast path tests: mimic what
+    // `Tensor::slice_fill` produces (a 1-element source expanded to
+    // the slice shape with all strides zero).
+
+    fn broadcast_scalar_f32(value: f32, target_shape: &[usize]) -> FlexTensor {
+        let scalar_tensor = FlexTensor::from_data(TensorData::new(vec![value], [1]));
+        crate::ops::expand::expand(scalar_tensor, Shape::from(target_shape.to_vec()))
+    }
+
+    #[test]
+    fn test_slice_assign_broadcast_scalar_1d_contiguous() {
+        let data: Vec<f32> = vec![0.0, 1.0, 2.0, 3.0, 4.0];
+        let tensor = FlexTensor::from_data(TensorData::new(data, [5]));
+        let value = broadcast_scalar_f32(7.0, &[3]);
+        let slices = vec![Slice::new(1, Some(4), 1)];
+        let result = slice_assign(tensor, &slices, value);
+
+        let result_data = result.into_data();
+        let values: Vec<f32> = bytemuck::cast_slice(&result_data.bytes).to_vec();
+        assert_eq!(values, vec![0.0, 7.0, 7.0, 7.0, 4.0]);
+    }
+
+    #[test]
+    fn test_slice_assign_broadcast_scalar_2d_inner_contiguous() {
+        let data: Vec<f32> = (0..16).map(|i| i as f32).collect();
+        let tensor = FlexTensor::from_data(TensorData::new(data, [4, 4]));
+        let value = broadcast_scalar_f32(-1.0, &[2, 2]);
+        let slices = vec![Slice::new(1, Some(3), 1), Slice::new(1, Some(3), 1)];
+        let result = slice_assign(tensor, &slices, value);
+
+        let result_data = result.into_data();
+        let values: Vec<f32> = bytemuck::cast_slice(&result_data.bytes).to_vec();
+        assert_eq!(
+            values,
+            vec![
+                0.0, 1.0, 2.0, 3.0, 4.0, -1.0, -1.0, 7.0, 8.0, -1.0, -1.0, 11.0, 12.0, 13.0, 14.0,
+                15.0,
+            ]
+        );
+    }
+
+    #[test]
+    fn test_slice_assign_broadcast_scalar_3d_inner_contiguous() {
+        // 3D case that matched the user-reported regression shape.
+        let data: Vec<f32> = (0..24).map(|i| i as f32).collect();
+        let tensor = FlexTensor::from_data(TensorData::new(data, [2, 3, 4]));
+        let value = broadcast_scalar_f32(9.0, &[1, 2, 2]);
+        let slices = vec![
+            Slice::new(0, Some(1), 1),
+            Slice::new(0, Some(2), 1),
+            Slice::new(1, Some(3), 1),
+        ];
+        let result = slice_assign(tensor, &slices, value);
+
+        let result_data = result.into_data();
+        let values: Vec<f32> = bytemuck::cast_slice(&result_data.bytes).to_vec();
+        // Region [0..1, 0..2, 1..3] fills positions (0, 0, 1), (0, 0, 2),
+        // (0, 1, 1), (0, 1, 2) with 9.0. Linear indices: 1, 2, 5, 6.
+        let mut expected: Vec<f32> = (0..24).map(|i| i as f32).collect();
+        for &i in &[1usize, 2, 5, 6] {
+            expected[i] = 9.0;
+        }
+        assert_eq!(values, expected);
+    }
+
+    #[test]
+    fn test_slice_assign_broadcast_scalar_strided_fallback() {
+        // Stepped slice: hits the strided fallback (not inner-contiguous).
+        let data: Vec<f32> = (0..10).map(|i| i as f32).collect();
+        let tensor = FlexTensor::from_data(TensorData::new(data, [10]));
+        // Source needs to match slice_info length: s![0..10;2] selects
+        // 5 positions (0, 2, 4, 6, 8), so the expand target is [5].
+        let value = broadcast_scalar_f32(0.0, &[5]);
+        let slices = vec![Slice::new(0, Some(10), 2)];
+        let result = slice_assign(tensor, &slices, value);
+
+        let result_data = result.into_data();
+        let values: Vec<f32> = bytemuck::cast_slice(&result_data.bytes).to_vec();
+        assert_eq!(
+            values,
+            vec![0.0, 1.0, 0.0, 3.0, 0.0, 5.0, 0.0, 7.0, 0.0, 9.0]
+        );
+    }
+
+    #[test]
+    fn test_slice_assign_broadcast_scalar_matches_public_api() {
+        // End-to-end sanity check via the high-level burn Tensor API.
+        use crate::Flex;
+        use burn_tensor::Tensor;
+
+        let data: Vec<f32> = (0..25).map(|i| i as f32).collect();
+        let t: Tensor<Flex, 2> =
+            Tensor::from_data(TensorData::new(data.clone(), [5, 5]), &Default::default());
+        let filled = t.slice_fill([1..4, 1..4], 42.0);
+        let out: Vec<f32> = filled.into_data().into_vec().unwrap();
+
+        let mut expected = data.clone();
+        for r in 1..4 {
+            for c in 1..4 {
+                expected[r * 5 + c] = 42.0;
+            }
+        }
+        assert_eq!(out, expected);
+    }
+
+    /// Broadcast-scalar fast path on a non-f32 dtype.
+    #[test]
+    fn test_slice_assign_broadcast_scalar_i64() {
+        fn broadcast_scalar_i64(value: i64, target_shape: &[usize]) -> FlexTensor {
+            let scalar_tensor = FlexTensor::from_data(TensorData::new(vec![value], [1]));
+            crate::ops::expand::expand(scalar_tensor, Shape::from(target_shape.to_vec()))
+        }
+
+        let data: Vec<i64> = (0..12).collect();
+        let tensor = FlexTensor::from_data(TensorData::new(data, [3, 4]));
+        let value = broadcast_scalar_i64(-7, &[2, 2]);
+        let slices = vec![Slice::new(0, Some(2), 1), Slice::new(1, Some(3), 1)];
+        let result = slice_assign(tensor, &slices, value);
+
+        let result_data = result.into_data();
+        let values: Vec<i64> = bytemuck::cast_slice(&result_data.bytes).to_vec();
+        // Positions (0, 1), (0, 2), (1, 1), (1, 2): linear indices 1,
+        // 2, 5, 6 get replaced by -7.
+        assert_eq!(values, vec![0, -7, -7, 3, 4, -7, -7, 7, 8, 9, 10, 11]);
+    }
+
+    /// ND strided fallback path: 3D slice with a stepped inner dim.
+    #[test]
+    fn test_slice_assign_broadcast_scalar_nd_strided_fallback() {
+        let data: Vec<f32> = (0..24).map(|i| i as f32).collect();
+        let tensor = FlexTensor::from_data(TensorData::new(data, [2, 3, 4]));
+        // Step 2 on the innermost dim means slice_info's last step != 1,
+        // so inner_contiguous is false and we take the ND fallback.
+        let value = broadcast_scalar_f32(9.0, &[2, 3, 2]);
+        let slices = vec![
+            Slice::new(0, Some(2), 1),
+            Slice::new(0, Some(3), 1),
+            Slice::new(0, Some(4), 2),
+        ];
+        let result = slice_assign(tensor, &slices, value);
+
+        let result_data = result.into_data();
+        let values: Vec<f32> = bytemuck::cast_slice(&result_data.bytes).to_vec();
+        // Step-2 on dim 2 picks indices 0 and 2, so within each
+        // `[b, r, :]` row the 0 and 2 positions get 9.0.
+        let mut expected: Vec<f32> = (0..24).map(|i| i as f32).collect();
+        for b in 0..2 {
+            for r in 0..3 {
+                for c in [0, 2] {
+                    expected[b * 12 + r * 4 + c] = 9.0;
+                }
+            }
+        }
+        assert_eq!(values, expected);
+    }
+
+    /// 2D inner-contig branch with `row_step > 1`.
+    #[test]
+    fn test_slice_assign_broadcast_scalar_2d_stepped_rows() {
+        let data: Vec<f32> = (0..25).map(|i| i as f32).collect();
+        let tensor = FlexTensor::from_data(TensorData::new(data, [5, 5]));
+        // Step-2 rows pick out rows 0, 2, 4 (3 rows). Slice the inner
+        // dim as a contiguous range so the 2D-inner-contig branch with
+        // row_step != 1 fires.
+        let value = broadcast_scalar_f32(-1.0, &[3, 3]);
+        let slices = vec![Slice::new(0, Some(5), 2), Slice::new(1, Some(4), 1)];
+        let result = slice_assign(tensor, &slices, value);
+
+        let result_data = result.into_data();
+        let values: Vec<f32> = bytemuck::cast_slice(&result_data.bytes).to_vec();
+        let mut expected: Vec<f32> = (0..25).map(|i| i as f32).collect();
+        for r in [0, 2, 4] {
+            for c in 1..4 {
+                expected[r * 5 + c] = -1.0;
+            }
+        }
+        assert_eq!(values, expected);
     }
 }

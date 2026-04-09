@@ -69,7 +69,22 @@ fn binary_op_f32<Op>(
 where
     Op: Fn(f32, f32) -> f32,
 {
-    // In-place SIMD fast path: lhs unique, contiguous at offset 0, rhs contiguous
+    // Permuted lhs + broadcast rhs (e.g. `x.permute(...) - mean`):
+    // the generic path would walk the permuted lhs with a scalar
+    // `StridedIter`, an order of magnitude slower than the SIMD fast
+    // path. Pay one memcpy to materialize lhs contiguous so the fast
+    // paths below can take over.
+    //
+    // Gate on `simd_hint.is_some()` so custom ops like `atan2` or
+    // `powf` (which have no SIMD fast path and go straight to
+    // `binary_op_typed`) don't pay for a memcpy they can't benefit
+    // from. Their strided fallback handles non-contig lhs directly.
+    if simd_hint.is_some() && !lhs.layout().is_contiguous() && rhs.layout().strides().contains(&0) {
+        lhs = lhs.to_contiguous();
+    }
+
+    // In-place SIMD fast path: lhs unique contiguous at offset 0, rhs
+    // contiguous (no broadcast).
     if let Some(simd_op) = simd_hint
         && lhs.is_unique()
         && let (Some((0, l_end)), Some((r_start, r_end))) = (
@@ -90,8 +105,226 @@ where
         return lhs;
     }
 
-    // Fallback to generic implementation
+    // Broadcast SIMD fast path: rhs is broadcast via stride-0 dims in
+    // one of two hot shapes that dominate layer_norm decomposition --
+    // shared-row (`gamma.unsqueeze() * x`) or per-row scalar
+    // (`x - x.mean_dim(-1)`).
+    if let Some(simd_op) = simd_hint
+        && let Some(pattern) = detect_broadcast_pattern(lhs.layout(), rhs)
+    {
+        return apply_broadcast_pattern_f32(lhs, rhs, simd_op, pattern);
+    }
+
     binary_op_typed(lhs, rhs, op)
+}
+
+/// Categorization of the two broadcast patterns we can accelerate.
+///
+/// Consumers assume `lhs` and `rhs` already share the same logical
+/// shape and that `lhs` is row-contiguous at offset 0.
+#[derive(Debug, Clone, Copy)]
+enum BroadcastView {
+    /// rhs's inner `row_len` elements form a contiguous row that is
+    /// shared across `outer_count` outer positions. Starts at
+    /// `rhs_row_offset` in rhs's storage.
+    SharedRow {
+        outer_count: usize,
+        row_len: usize,
+        rhs_row_offset: usize,
+    },
+    /// rhs's inner `row_len` elements are all the same scalar,
+    /// stepping through `outer_count` scalars along the outer dims
+    /// starting at `rhs_scalar_base` in rhs's storage.
+    PerRowScalar {
+        outer_count: usize,
+        row_len: usize,
+        rhs_scalar_base: usize,
+    },
+}
+
+/// Detect whether rhs can be handled as one of the accelerated
+/// broadcast patterns, returning `None` if the stride pattern doesn't
+/// fit either bucket or the resulting offsets would leave rhs's
+/// storage.
+#[cfg(feature = "simd")]
+fn detect_broadcast_pattern(lhs: &Layout, rhs: &FlexTensor) -> Option<BroadcastView> {
+    let rhs_layout = rhs.layout();
+    let rhs_storage_elems = rhs.storage::<f32>().len();
+    // Require lhs to be row-contiguous at offset 0. The broadcast kernel
+    // below uses linear offsets into lhs's storage; relaxing this would
+    // complicate the indexing without helping the hot layer_norm path.
+    let (l_start, _) = lhs.contiguous_offsets()?;
+    if l_start != 0 {
+        return None;
+    }
+    let ndims = lhs.num_dims();
+    if ndims == 0 || rhs_layout.num_dims() != ndims {
+        return None;
+    }
+    let lhs_shape = lhs.shape();
+    let rhs_strides = rhs_layout.strides();
+
+    let last_stride = rhs_strides[ndims - 1];
+
+    // Case A: shared row. Innermost rhs stride is 1, and every outer
+    // dim either has stride 0 (a broadcast dim) or size 1 (stride
+    // doesn't matter since the dim never advances past index 0).
+    if last_stride == 1 {
+        let outer_ok = (0..ndims - 1).all(|d| rhs_strides[d] == 0 || lhs_shape[d] == 1);
+        if outer_ok {
+            let outer_count: usize = (0..ndims - 1).map(|d| lhs_shape[d]).product();
+            let row_len = lhs_shape[ndims - 1];
+            if outer_count == 0 || row_len == 0 {
+                return None;
+            }
+            let rhs_row_offset = rhs_layout.start_offset();
+            // Bounds: kernel reads `rhs_storage[off..off+row_len]`.
+            if rhs_row_offset.checked_add(row_len)? > rhs_storage_elems {
+                return None;
+            }
+            return Some(BroadcastView::SharedRow {
+                outer_count,
+                row_len,
+                rhs_row_offset,
+            });
+        }
+    }
+
+    // Case B: per-row scalar. Innermost dims all have stride 0 in
+    // rhs and outer dims walk rhs contiguously in row-major order.
+    if last_stride == 0 {
+        // Count the trailing stride-0 dims to find the inner scalar span.
+        let mut inner_dims = 0usize;
+        let mut row_len: usize = 1;
+        for d in (0..ndims).rev() {
+            if rhs_strides[d] == 0 {
+                inner_dims += 1;
+                row_len *= lhs_shape[d];
+            } else {
+                break;
+            }
+        }
+        if inner_dims == 0 {
+            return None;
+        }
+        // The outer dims must walk rhs's storage contiguously in
+        // row-major order.
+        let outer_ndims = ndims - inner_dims;
+        let mut expected: isize = 1;
+        for d in (0..outer_ndims).rev() {
+            if rhs_strides[d] != expected {
+                return None;
+            }
+            expected *= lhs_shape[d] as isize;
+        }
+        let outer_count: usize = (0..outer_ndims).map(|d| lhs_shape[d]).product();
+        if outer_count == 0 || row_len == 0 {
+            return None;
+        }
+        let rhs_scalar_base = rhs_layout.start_offset();
+        // Bounds: kernel reads `rhs_storage[base..base+outer_count]`.
+        if rhs_scalar_base.checked_add(outer_count)? > rhs_storage_elems {
+            return None;
+        }
+        return Some(BroadcastView::PerRowScalar {
+            outer_count,
+            row_len,
+            rhs_scalar_base,
+        });
+    }
+
+    None
+}
+
+/// Execute a detected broadcast pattern for f32. Writes in-place into
+/// lhs when unique; otherwise allocates a fresh contiguous output.
+#[cfg(feature = "simd")]
+fn apply_broadcast_pattern_f32(
+    mut lhs: FlexTensor,
+    rhs: &FlexTensor,
+    simd_op: BinaryOp,
+    pattern: BroadcastView,
+) -> FlexTensor {
+    let numel = lhs.layout().num_elements();
+    let rhs_storage = rhs.storage::<f32>();
+
+    if lhs.is_unique() {
+        let dst = &mut lhs.storage_mut::<f32>()[..numel];
+        run_broadcast_pattern_f32(dst, rhs_storage, simd_op, pattern);
+        lhs
+    } else {
+        // Copy lhs once, then apply the broadcast in place. The
+        // memcpy is cheaper than the StridedIter fallback it replaces.
+        let mut out: Vec<f32> = lhs.storage::<f32>()[..numel].to_vec();
+        run_broadcast_pattern_f32(&mut out, rhs_storage, simd_op, pattern);
+        make_tensor(out, lhs.layout().shape().clone(), lhs.dtype())
+    }
+}
+
+/// Shared kernel: run the chosen broadcast pattern against a mutable
+/// destination buffer (which already holds lhs's values) and rhs's
+/// storage slice.
+#[cfg(feature = "simd")]
+fn run_broadcast_pattern_f32(
+    dst: &mut [f32],
+    rhs_storage: &[f32],
+    simd_op: BinaryOp,
+    pattern: BroadcastView,
+) {
+    match pattern {
+        BroadcastView::SharedRow {
+            outer_count,
+            row_len,
+            rhs_row_offset,
+        } => {
+            let rhs_row: &[f32] = &rhs_storage[rhs_row_offset..rhs_row_offset + row_len];
+            let total = outer_count * row_len;
+            // One SIMD dispatch covers the whole outer walk. The kernel
+            // keeps `rhs_row` in registers across rows for small row
+            // lengths, and pays the macerator feature-detection cost
+            // exactly once.
+            let dst_full = &mut dst[..total];
+            match simd_op {
+                BinaryOp::Add => simd::add_shared_row_inplace_f32(dst_full, rhs_row),
+                BinaryOp::Sub => simd::sub_shared_row_inplace_f32(dst_full, rhs_row),
+                BinaryOp::Mul => simd::mul_shared_row_inplace_f32(dst_full, rhs_row),
+                BinaryOp::Div => simd::div_shared_row_inplace_f32(dst_full, rhs_row),
+            }
+        }
+        BroadcastView::PerRowScalar {
+            outer_count,
+            row_len,
+            rhs_scalar_base,
+        } => {
+            let scalars = &rhs_storage[rhs_scalar_base..rhs_scalar_base + outer_count];
+            // One monomorphized helper per op. The closure is statically
+            // known at each call site so LLVM still autovectorizes the
+            // inner scalar loop, and the outer op dispatch happens once.
+            match simd_op {
+                BinaryOp::Add => per_row_scalar_apply(dst, scalars, row_len, |a, b| a + b),
+                BinaryOp::Sub => per_row_scalar_apply(dst, scalars, row_len, |a, b| a - b),
+                BinaryOp::Mul => per_row_scalar_apply(dst, scalars, row_len, |a, b| a * b),
+                BinaryOp::Div => per_row_scalar_apply(dst, scalars, row_len, |a, b| a / b),
+            }
+        }
+    }
+}
+
+/// Apply `dst[r * row_len + j] = op(dst[r * row_len + j], scalars[r])`
+/// for `r in 0..scalars.len(), j in 0..row_len`. Generic over `Op` so
+/// each call site gets a monomorphized, autovectorizable inner loop.
+#[cfg(feature = "simd")]
+#[inline]
+fn per_row_scalar_apply<Op>(dst: &mut [f32], scalars: &[f32], row_len: usize, op: Op)
+where
+    Op: Fn(f32, f32) -> f32,
+{
+    for (i, &scalar) in scalars.iter().enumerate() {
+        let start = i * row_len;
+        for x in dst[start..start + row_len].iter_mut() {
+            *x = op(*x, scalar);
+        }
+    }
 }
 
 /// Fallback when SIMD is disabled.
@@ -857,5 +1090,170 @@ mod tests {
             &TensorData::new(expected, vec![3]),
             Tolerance::absolute(bf16::from_f32(0.01)),
         );
+    }
+
+    // ============================================================================
+    // Broadcast binary-op fast paths
+    // ============================================================================
+
+    /// Shared-row broadcast: 1-D gamma reshaped + expanded, with the
+    /// size-1 outer dim exemption in play.
+    #[test]
+    fn test_binary_shared_row_broadcast_f32() {
+        let a = FlexTensor::from_data(TensorData::new(
+            vec![
+                1.0f32, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0,
+            ],
+            vec![1, 3, 4],
+        ));
+        // 1D gamma broadcast over rows.
+        let gamma =
+            FlexTensor::from_data(TensorData::new(vec![10.0f32, 20.0, 30.0, 40.0], vec![4]));
+        let gamma_unsqueezed = gamma.reshape(Shape::from(vec![1, 1, 4]));
+        let result = binary_op(
+            a,
+            gamma_unsqueezed,
+            |a, b| a * b,
+            |a, b| a * b,
+            Some(BinaryOp::Mul),
+        );
+        let data = result.into_data();
+        let expected = vec![
+            10.0f32, 40.0, 90.0, 160.0, 50.0, 120.0, 210.0, 320.0, 90.0, 200.0, 330.0, 480.0,
+        ];
+        assert_eq!(data.as_slice::<f32>().unwrap(), expected.as_slice());
+    }
+
+    /// Per-row scalar broadcast: `[1, 3, 4] - mean_dim(-1)` shape,
+    /// rhs expands to strides `[3, 1, 0]`.
+    #[test]
+    fn test_binary_per_row_scalar_broadcast_f32() {
+        let a = FlexTensor::from_data(TensorData::new(
+            vec![
+                1.0f32, 2.0, 3.0, 4.0, 10.0, 20.0, 30.0, 40.0, 100.0, 200.0, 300.0, 400.0,
+            ],
+            vec![1, 3, 4],
+        ));
+        // Scalars shaped like `mean_dim(-1)` output.
+        let mean = FlexTensor::from_data(TensorData::new(vec![2.5f32, 25.0, 250.0], vec![1, 3, 1]));
+        let result = binary_op(a, mean, |a, b| a - b, |a, b| a - b, Some(BinaryOp::Sub));
+        let data = result.into_data();
+        let expected = vec![
+            -1.5f32, -0.5, 0.5, 1.5, -15.0, -5.0, 5.0, 15.0, -150.0, -50.0, 50.0, 150.0,
+        ];
+        assert_eq!(data.as_slice::<f32>().unwrap(), expected.as_slice());
+    }
+
+    /// Non-contig lhs + shared-row broadcast: must materialize lhs
+    /// contiguous then dispatch to the shared-row kernel.
+    #[test]
+    fn test_binary_permuted_lhs_broadcast_rhs() {
+        let a = FlexTensor::from_data(TensorData::new(
+            (0..24).map(|i| i as f32).collect::<Vec<_>>(),
+            vec![2, 3, 4],
+        ));
+        let a_permuted = a.transpose(1, 2); // shape [2, 4, 3]
+        let gamma = FlexTensor::from_data(TensorData::new(vec![1.0f32, 10.0, 100.0], vec![3]));
+        let gamma_expanded = gamma.reshape(Shape::from(vec![1, 1, 3]));
+
+        let result = binary_op(
+            a_permuted,
+            gamma_expanded,
+            |a, b| a * b,
+            |a, b| a * b,
+            Some(BinaryOp::Mul),
+        );
+
+        // Compare against a naive reference computed on the permuted
+        // values.
+        let reference: Vec<f32> = {
+            // original[b, r, c] = b*12 + r*4 + c
+            // permuted[b, c, r] = original[b, r, c]
+            // result[b, c, r] = permuted[b, c, r] * gamma_row[r]
+            let gamma_vals = [1.0f32, 10.0, 100.0];
+            let mut out = Vec::with_capacity(24);
+            for b in 0..2 {
+                for c in 0..4 {
+                    for r in 0..3 {
+                        let orig_val = (b * 12 + r * 4 + c) as f32;
+                        out.push(orig_val * gamma_vals[r]);
+                    }
+                }
+            }
+            out
+        };
+
+        let data = result.into_data();
+        assert_eq!(data.as_slice::<f32>().unwrap(), reference.as_slice());
+    }
+
+    /// Non-contig lhs + per-row-scalar broadcast-sub.
+    #[test]
+    fn test_binary_permuted_lhs_per_row_scalar_sub() {
+        let a = FlexTensor::from_data(TensorData::new(
+            (1..=24).map(|i| i as f32).collect::<Vec<_>>(),
+            vec![2, 3, 4],
+        ));
+        let a_permuted = a.transpose(1, 2); // shape [2, 4, 3]
+
+        // Per-row scalar in the permuted layout: shape [2, 4, 1].
+        let mean = FlexTensor::from_data(TensorData::new(
+            (0..8).map(|i| i as f32).collect::<Vec<_>>(),
+            vec![2, 4, 1],
+        ));
+
+        let result = binary_op(
+            a_permuted,
+            mean,
+            |a, b| a - b,
+            |a, b| a - b,
+            Some(BinaryOp::Sub),
+        );
+
+        // Reference computation.
+        let reference: Vec<f32> = {
+            let mut out = Vec::with_capacity(24);
+            for b in 0..2 {
+                for c in 0..4 {
+                    let mean_val = (b * 4 + c) as f32;
+                    for r in 0..3 {
+                        let orig_val = (b * 12 + r * 4 + c + 1) as f32;
+                        out.push(orig_val - mean_val);
+                    }
+                }
+            }
+            out
+        };
+
+        let data = result.into_data();
+        assert_eq!(data.as_slice::<f32>().unwrap(), reference.as_slice());
+    }
+
+    /// Fully-broadcast scalar: rhs strides all 0, PerRowScalar with
+    /// empty outer walk, applies one scalar across the whole dst.
+    #[test]
+    fn test_binary_fully_broadcast_scalar_f32() {
+        let a = FlexTensor::from_data(TensorData::new(
+            (0..12).map(|i| i as f32).collect::<Vec<_>>(),
+            vec![2, 2, 3],
+        ));
+        // 1-element tensor expanded to lhs's full shape. All strides
+        // become 0.
+        let scalar_tensor = FlexTensor::from_data(TensorData::new(vec![100.0f32], [1]));
+        let scalar_expanded = crate::ops::expand::expand(scalar_tensor, Shape::from(vec![2, 2, 3]));
+        // Sanity check: every stride is 0.
+        assert!(scalar_expanded.layout().strides().iter().all(|&s| s == 0));
+
+        let result = binary_op(
+            a,
+            scalar_expanded,
+            |a, b| a + b,
+            |a, b| a + b,
+            Some(BinaryOp::Add),
+        );
+
+        let expected: Vec<f32> = (0..12).map(|i| i as f32 + 100.0).collect();
+        let data = result.into_data();
+        assert_eq!(data.as_slice::<f32>().unwrap(), expected.as_slice());
     }
 }

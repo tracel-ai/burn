@@ -124,6 +124,41 @@ macro_rules! bench_backend {
                     let opts = InterpolateOptions::new(InterpolateMode::Bilinear);
                     bencher.bench(|| module::interpolate::<B>(x.clone(), [64, 64], opts.clone()));
                 }
+
+                // Segmentation-model sized shapes mirroring the user's
+                // 488x448 input + UNet up/down pattern from issue #64
+                // item 4. Covers the typical spatial dims across
+                // ConvNeXt-style downsample stages.
+                #[divan::bench]
+                fn model_downsample_488x448_to_244x224(bencher: Bencher) {
+                    let x = make_input::<B>(1, 3, 488, 448);
+                    let opts = InterpolateOptions::new(InterpolateMode::Bilinear);
+                    bencher.bench(|| module::interpolate::<B>(x.clone(), [244, 224], opts.clone()));
+                }
+
+                #[divan::bench]
+                fn model_upsample_244x224_to_488x448(bencher: Bencher) {
+                    let x = make_input::<B>(1, 48, 244, 224);
+                    let opts = InterpolateOptions::new(InterpolateMode::Bilinear);
+                    bencher.bench(|| module::interpolate::<B>(x.clone(), [488, 448], opts.clone()));
+                }
+
+                #[divan::bench]
+                fn model_upsample_61x56_to_122x112(bencher: Bencher) {
+                    let x = make_input::<B>(1, 192, 61, 56);
+                    let opts = InterpolateOptions::new(InterpolateMode::Bilinear);
+                    bencher.bench(|| module::interpolate::<B>(x.clone(), [122, 112], opts.clone()));
+                }
+
+                // Explicit align_corners=false variant at a model size,
+                // since the default is `true` everywhere else.
+                #[divan::bench]
+                fn model_upsample_61x56_to_122x112_halfpixel(bencher: Bencher) {
+                    let x = make_input::<B>(1, 192, 61, 56);
+                    let opts = InterpolateOptions::new(InterpolateMode::Bilinear)
+                        .with_align_corners(false);
+                    bencher.bench(|| module::interpolate::<B>(x.clone(), [122, 112], opts.clone()));
+                }
             }
 
             #[divan::bench_group(name = "bicubic")]
