@@ -454,7 +454,6 @@ mod grad_distributed {
     use burn_tensor::Tolerance;
     use burn_tensor::backend::distributed::DistributedBackend;
     use burn_tensor::backend::distributed::{DistributedParamId, ReduceOperation};
-    use burn_tensor::ops::FloatElem;
     use burn_tensor::{TensorData, backend::AutodiffBackend};
     use rand::{
         SeedableRng,
@@ -671,17 +670,17 @@ mod grad_distributed {
                     .unwrap();
                 synced_sender.clone().unwrap().send(data).unwrap();
             } else {
-                let mut expected = None;
+                let mut expected: Option<Tensor<<B as AutodiffBackend>::InnerBackend, 2>> = None;
                 for r in original_recvs.iter().by_ref() {
                     let t = r.recv().unwrap();
                     expected = match expected {
-                        Some(prev) => prev.add(t),
+                        Some(prev) => Some(prev.add(t)),
                         None => Some(t),
                     }
                 }
                 for r in synced_recvs.iter().by_ref() {
                     let data = r.recv().unwrap();
-                    data.assert_approx_eq::<FloatElem>(
+                    data.assert_approx_eq::<f32>(
                         &expected.unwrap().to_data(),
                         Tolerance::default(),
                     );
