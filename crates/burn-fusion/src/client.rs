@@ -3,7 +3,9 @@ use crate::{
     UnfusedOp,
     stream::{OperationStreams, StreamId, execution::Operation},
 };
-use burn_backend::{Device, DeviceHandle, DeviceId, DeviceService};
+use burn_backend::{
+    Device, DeviceHandle, DeviceId, DeviceService, distributed::DistributedBackend,
+};
 use burn_backend::{TensorData, backend::ExecutionError};
 use burn_ir::{OperationIr, TensorId, TensorIr};
 use std::sync::Arc;
@@ -363,5 +365,13 @@ where
                 server.resolve_server_bool::<B>(&tensor.into_ir())
             })
             .unwrap()
+    }
+
+    #[cfg(feature = "distributed")]
+    pub fn sync_collective<B>(&self, device: B::Device)
+    where
+        B: FusionBackend<FusionRuntime = R> + DistributedBackend,
+    {
+        self.server.submit(move |_| B::sync_collective(&device));
     }
 }
