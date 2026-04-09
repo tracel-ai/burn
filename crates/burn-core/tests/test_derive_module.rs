@@ -681,7 +681,7 @@ mod grad_distributed {
                 for r in synced_recvs.iter().by_ref() {
                     let data = r.recv().unwrap();
                     data.assert_approx_eq::<f32>(
-                        &expected.unwrap().to_data(),
+                        &expected.clone().unwrap().to_data(),
                         Tolerance::default(),
                     );
                 }
