@@ -1548,6 +1548,20 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     );
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
+                ModuleOperationIr::Rfft(desc) => {
+                    let signal = handles.get_float_tensor::<B>(&desc.signal);
+                    let (out_re, out_im) = B::rfft(signal, desc.dim);
+
+                    handles.register_float_tensor::<B>(&desc.out_re.id, out_re);
+                    handles.register_float_tensor::<B>(&desc.out_im.id, out_im);
+                }
+                ModuleOperationIr::IRfft(desc) => {
+                    let spectrum_re = handles.get_float_tensor::<B>(&desc.input_re);
+                    let spectrum_im = handles.get_float_tensor::<B>(&desc.input_im);
+                    let signal = B::irfft(spectrum_re, spectrum_im, desc.dim);
+
+                    handles.register_float_tensor::<B>(&desc.out_signal.id, signal);
+                }
                 ModuleOperationIr::Attention(desc) => {
                     let query = handles.get_float_tensor::<B>(&desc.query);
                     let key = handles.get_float_tensor::<B>(&desc.key);

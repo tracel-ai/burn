@@ -63,11 +63,11 @@ pub enum ReshapeAction {
 }
 
 /// The reshape kind.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum ReshapeAnalysis {
     /// Original tensor is contiguous, can update the strides.
     IsContiguous,
-    /// Original tensor is highly permutated, can't update the strides.
+    /// Original tensor is highly permuted, can't update the strides.
     HighlyPermuted,
     /// Only batch dimensions are added, can update the strides.
     Broadcasted,
@@ -81,7 +81,7 @@ pub enum ReshapeAnalysis {
 
 impl ReshapeAnalysis {
     /// Returns the proper action to take for the current analysis.
-    fn action(self, shape: &[usize], strides: &[usize], shape_new: &[usize]) -> ReshapeAction {
+    pub fn action(&self, shape: &[usize], strides: &[usize], shape_new: &[usize]) -> ReshapeAction {
         match self {
             ReshapeAnalysis::IsContiguous => ReshapeAction::UpdateStrides {
                 strides: contiguous_strides(shape_new),
@@ -113,7 +113,7 @@ impl ReshapeAnalysis {
 }
 
 /// Returns the proper action to take when reshaping a tensor.
-pub fn reshape_action(shape: &[usize], strides: &[usize], shape_new: &[usize]) -> ReshapeAction {
+pub fn reshape_action(shape: &Shape, strides: &Strides, shape_new: &Shape) -> ReshapeAction {
     reshape_analysis(shape, Some(strides), shape_new).action(shape, strides, shape_new)
 }
 
@@ -160,9 +160,9 @@ pub fn split_strides(shape: &[usize], strides: &[usize], shape_new: &[usize]) ->
 
 /// Returns the analysis of a reshape operation.
 pub fn reshape_analysis(
-    shape: &[usize],
-    strides: Option<&[usize]>,
-    shape_new: &[usize],
+    shape: &Shape,
+    strides: Option<&Strides>,
+    shape_new: &Shape,
 ) -> ReshapeAnalysis {
     let shape_rank = shape.len();
     let shape_new_rank = shape_new.len();
@@ -184,14 +184,14 @@ pub fn reshape_analysis(
 
     match n_new_batch > 0 {
         true => {
-            if shape == &shape_new[n_new_batch..shape_new_rank]
+            if shape.as_ref() == &shape_new[n_new_batch..shape_new_rank]
                 && shape_new[0..n_new_batch].iter().all(|it| *it == 1)
             {
                 return ReshapeAnalysis::Broadcasted;
             } else {
                 let mut dim_prod = 1;
                 let mut old_idx = 0;
-                for dim in shape_new {
+                for dim in shape_new.iter() {
                     dim_prod *= *dim;
 
                     // We need to ignore unit dims because they don't affect analysis and break
@@ -218,4 +218,65 @@ pub fn reshape_analysis(
     };
 
     ReshapeAnalysis::HighlyPermuted
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_reshape_analysis_is_contiguous() {
+        let analysis = reshape_analysis(
+            &[32, 1, 1, 1].into(),
+            Some(&[1, 1, 1, 1].into()),
+            &[1, 1, 32, 1, 1, 1].into(),
+        );
+
+        assert_eq!(analysis, ReshapeAnalysis::IsContiguous)
+    }
+
+    #[test]
+    fn test_reshape_analysis_is_contiguous_2() {
+        let analysis = reshape_analysis(
+            &[32, 1, 1, 8].into(),
+            Some(&[8, 8, 8, 1].into()),
+            &[1, 1, 32, 1, 1, 8].into(),
+        );
+
+        assert_eq!(analysis, ReshapeAnalysis::IsContiguous)
+    }
+
+    #[test]
+    fn test_reshape_analysis_broadcasted_batch() {
+        let analysis = reshape_analysis(
+            &[32, 1, 1, 1].into(),
+            Some(&[1, 32, 32, 32].into()),
+            &[1, 1, 32, 1, 1, 1].into(),
+        );
+
+        assert_eq!(analysis, ReshapeAnalysis::Broadcasted)
+    }
+
+    #[test]
+    fn test_reshape_analysis_unsqueeze_split() {
+        // Unsqueeze
+        let analysis = reshape_analysis(
+            &[32, 1, 1, 1].into(),
+            Some(&[1, 32, 32, 32].into()),
+            &[32, 1, 1, 1, 1].into(),
+        );
+
+        assert_eq!(analysis, ReshapeAnalysis::Split)
+    }
+
+    #[test]
+    fn test_reshape_analysis_split() {
+        let analysis = reshape_analysis(
+            &[32, 1, 1, 1].into(),
+            Some(&[1, 32, 32, 32].into()),
+            &[4, 8, 1, 1, 1].into(),
+        );
+
+        assert_eq!(analysis, ReshapeAnalysis::Split)
+    }
 }
