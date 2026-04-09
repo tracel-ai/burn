@@ -63,7 +63,7 @@ impl FlexTensor {
     pub fn into_data(self) -> TensorData {
         if self.layout.is_contiguous() && self.layout.start_offset() == 0 {
             let expected_bytes = self.layout.num_elements() * dtype_size(self.dtype);
-            debug_assert!(
+            assert!(
                 expected_bytes <= self.data.len(),
                 "into_data: buffer ({} bytes) too small for {} elements of {:?}",
                 self.data.len(),
@@ -166,10 +166,10 @@ impl FlexTensor {
     /// `layout().contiguous_offsets()` for the contiguous fast path.
     ///
     /// # Panics
-    /// Debug-asserts if `E::dtype()` doesn't match the tensor's dtype.
+    /// Panics if `E::dtype()` doesn't match the tensor's dtype.
     /// Note: Bool tensors are stored as u8, so both Bool and U8 dtypes accept u8 access.
     pub fn storage<E: Element + bytemuck::Pod>(&self) -> &[E] {
-        debug_assert!(
+        assert!(
             E::dtype() == self.dtype
                 || (matches!(
                     self.dtype,
@@ -189,10 +189,10 @@ impl FlexTensor {
     /// if shared, allowing you to choose an alternative strategy.
     ///
     /// # Panics
-    /// Debug-asserts if `E::dtype()` doesn't match the tensor's dtype.
+    /// Panics if `E::dtype()` doesn't match the tensor's dtype.
     /// Note: Bool tensors are stored as u8, so both Bool and U8 dtypes accept u8 access.
     pub fn storage_mut<E: Element + bytemuck::Pod>(&mut self) -> &mut [E] {
-        debug_assert!(
+        assert!(
             E::dtype() == self.dtype
                 || (matches!(
                     self.dtype,
@@ -213,7 +213,7 @@ impl FlexTensor {
     /// Use this when you want to avoid the implicit copy in `storage_mut()`.
     /// Note: Bool tensors are stored as u8, so both Bool and U8 dtypes accept u8 access.
     pub fn try_storage_mut<E: Element + bytemuck::Pod>(&mut self) -> Option<&mut [E]> {
-        debug_assert!(
+        assert!(
             E::dtype() == self.dtype
                 || (matches!(
                     self.dtype,
@@ -269,7 +269,7 @@ impl FlexTensor {
         dtype: DType,
         value: E,
     ) -> Self {
-        debug_assert_eq!(
+        assert_eq!(
             dtype_size(dtype),
             core::mem::size_of::<E>(),
             "filled_typed: dtype size mismatch"
@@ -371,7 +371,7 @@ impl FlexTensor {
 
     /// Reshape tensor. Zero-copy if contiguous.
     pub fn reshape(&self, new_shape: Shape) -> Self {
-        debug_assert_eq!(
+        assert_eq!(
             self.layout.num_elements(),
             new_shape.num_elements(),
             "reshape must preserve total elements"

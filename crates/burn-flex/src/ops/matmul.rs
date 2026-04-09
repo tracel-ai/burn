@@ -81,20 +81,20 @@ fn get_parallelism(m: usize, n: usize, k: usize) -> gemm::Parallelism {
 
 /// Dispatch matrix multiplication based on dtype.
 pub fn matmul(lhs: FlexTensor, rhs: FlexTensor) -> FlexTensor {
-    debug_assert_eq!(lhs.dtype(), rhs.dtype(), "matmul: dtype mismatch");
+    assert_eq!(lhs.dtype(), rhs.dtype(), "matmul: dtype mismatch");
 
     let lhs_shape = lhs.layout().shape();
     let rhs_shape = rhs.layout().shape();
     let lhs_rank = lhs_shape.num_dims();
     let rhs_rank = rhs_shape.num_dims();
 
-    debug_assert!(lhs_rank >= 2, "matmul requires at least 2D tensors");
-    debug_assert!(rhs_rank >= 2, "matmul requires at least 2D tensors");
+    assert!(lhs_rank >= 2, "matmul requires at least 2D tensors");
+    assert!(rhs_rank >= 2, "matmul requires at least 2D tensors");
 
     // Check inner dimensions match: lhs[..., M, K] x rhs[..., K, N]
     let k_lhs = lhs_shape[lhs_rank - 1];
     let k_rhs = rhs_shape[rhs_rank - 2];
-    debug_assert_eq!(k_lhs, k_rhs, "matmul: inner dimensions must match");
+    assert_eq!(k_lhs, k_rhs, "matmul: inner dimensions must match");
 
     match lhs.dtype() {
         DType::F32 => matmul_gemm::<f32>(lhs, rhs),
@@ -496,19 +496,19 @@ fn matmul_bf16(lhs: FlexTensor, rhs: FlexTensor) -> FlexTensor {
 
 /// Integer matrix multiplication dispatch.
 pub fn int_matmul(lhs: FlexTensor, rhs: FlexTensor) -> FlexTensor {
-    debug_assert_eq!(lhs.dtype(), rhs.dtype(), "int_matmul: dtype mismatch");
+    assert_eq!(lhs.dtype(), rhs.dtype(), "int_matmul: dtype mismatch");
 
     let lhs_shape = lhs.layout().shape();
     let rhs_shape = rhs.layout().shape();
     let lhs_rank = lhs_shape.num_dims();
     let rhs_rank = rhs_shape.num_dims();
 
-    debug_assert!(lhs_rank >= 2, "int_matmul requires at least 2D tensors");
-    debug_assert!(rhs_rank >= 2, "int_matmul requires at least 2D tensors");
+    assert!(lhs_rank >= 2, "int_matmul requires at least 2D tensors");
+    assert!(rhs_rank >= 2, "int_matmul requires at least 2D tensors");
 
     let k_lhs = lhs_shape[lhs_rank - 1];
     let k_rhs = rhs_shape[rhs_rank - 2];
-    debug_assert_eq!(k_lhs, k_rhs, "int_matmul: inner dimensions must match");
+    assert_eq!(k_lhs, k_rhs, "int_matmul: inner dimensions must match");
 
     match lhs.dtype() {
         DType::I32 => matmul_i32(lhs, rhs),
