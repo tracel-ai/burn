@@ -47,7 +47,7 @@ doc = [
     # Backends
     "burn-candle/doc",
     "burn-cpu?/doc",
-    "burn-flex?/default",
+    "burn-flex?/doc",
     "burn-ndarray/doc",
     "burn-tch/doc",
     "burn-wgpu/doc",

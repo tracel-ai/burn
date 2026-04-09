@@ -398,97 +398,97 @@ impl FloatTensorOps<Flex> for Flex {
     fn float_equal(
         lhs: FloatTensor<Flex>,
         rhs: FloatTensor<Flex>,
-        _out_dtype: burn_std::BoolDType,
+        out_dtype: burn_std::BoolDType,
     ) -> BoolTensor<Flex> {
-        crate::ops::comparison::equal(lhs, rhs)
+        crate::ops::comparison::equal(lhs, rhs, out_dtype)
     }
 
     fn float_equal_elem(
         lhs: FloatTensor<Flex>,
         rhs: Scalar,
-        _out_dtype: burn_std::BoolDType,
+        out_dtype: burn_std::BoolDType,
     ) -> BoolTensor<Flex> {
-        crate::ops::comparison::equal_elem(lhs, rhs.to_f64().unwrap())
+        crate::ops::comparison::equal_elem(lhs, rhs.to_f64().unwrap(), out_dtype)
     }
 
     fn float_greater(
         lhs: FloatTensor<Flex>,
         rhs: FloatTensor<Flex>,
-        _out_dtype: burn_std::BoolDType,
+        out_dtype: burn_std::BoolDType,
     ) -> BoolTensor<Flex> {
-        crate::ops::comparison::greater(lhs, rhs)
+        crate::ops::comparison::greater(lhs, rhs, out_dtype)
     }
 
     fn float_greater_elem(
         lhs: FloatTensor<Flex>,
         rhs: Scalar,
-        _out_dtype: burn_std::BoolDType,
+        out_dtype: burn_std::BoolDType,
     ) -> BoolTensor<Flex> {
-        crate::ops::comparison::greater_elem(lhs, rhs.to_f64().unwrap())
+        crate::ops::comparison::greater_elem(lhs, rhs.to_f64().unwrap(), out_dtype)
     }
 
     fn float_greater_equal(
         lhs: FloatTensor<Flex>,
         rhs: FloatTensor<Flex>,
-        _out_dtype: burn_std::BoolDType,
+        out_dtype: burn_std::BoolDType,
     ) -> BoolTensor<Flex> {
-        crate::ops::comparison::greater_equal(lhs, rhs)
+        crate::ops::comparison::greater_equal(lhs, rhs, out_dtype)
     }
 
     fn float_greater_equal_elem(
         lhs: FloatTensor<Flex>,
         rhs: Scalar,
-        _out_dtype: burn_std::BoolDType,
+        out_dtype: burn_std::BoolDType,
     ) -> BoolTensor<Flex> {
-        crate::ops::comparison::greater_equal_elem(lhs, rhs.to_f64().unwrap())
+        crate::ops::comparison::greater_equal_elem(lhs, rhs.to_f64().unwrap(), out_dtype)
     }
 
     fn float_lower(
         lhs: FloatTensor<Flex>,
         rhs: FloatTensor<Flex>,
-        _out_dtype: burn_std::BoolDType,
+        out_dtype: burn_std::BoolDType,
     ) -> BoolTensor<Flex> {
-        crate::ops::comparison::lower(lhs, rhs)
+        crate::ops::comparison::lower(lhs, rhs, out_dtype)
     }
 
     fn float_lower_elem(
         lhs: FloatTensor<Flex>,
         rhs: Scalar,
-        _out_dtype: burn_std::BoolDType,
+        out_dtype: burn_std::BoolDType,
     ) -> BoolTensor<Flex> {
-        crate::ops::comparison::lower_elem(lhs, rhs.to_f64().unwrap())
+        crate::ops::comparison::lower_elem(lhs, rhs.to_f64().unwrap(), out_dtype)
     }
 
     fn float_lower_equal(
         lhs: FloatTensor<Flex>,
         rhs: FloatTensor<Flex>,
-        _out_dtype: burn_std::BoolDType,
+        out_dtype: burn_std::BoolDType,
     ) -> BoolTensor<Flex> {
-        crate::ops::comparison::lower_equal(lhs, rhs)
+        crate::ops::comparison::lower_equal(lhs, rhs, out_dtype)
     }
 
     fn float_lower_equal_elem(
         lhs: FloatTensor<Flex>,
         rhs: Scalar,
-        _out_dtype: burn_std::BoolDType,
+        out_dtype: burn_std::BoolDType,
     ) -> BoolTensor<Flex> {
-        crate::ops::comparison::lower_equal_elem(lhs, rhs.to_f64().unwrap())
+        crate::ops::comparison::lower_equal_elem(lhs, rhs.to_f64().unwrap(), out_dtype)
     }
 
     fn float_not_equal(
         lhs: FloatTensor<Flex>,
         rhs: FloatTensor<Flex>,
-        _out_dtype: burn_std::BoolDType,
+        out_dtype: burn_std::BoolDType,
     ) -> BoolTensor<Flex> {
-        crate::ops::comparison::not_equal(lhs, rhs)
+        crate::ops::comparison::not_equal(lhs, rhs, out_dtype)
     }
 
     fn float_not_equal_elem(
         lhs: FloatTensor<Flex>,
         rhs: Scalar,
-        _out_dtype: burn_std::BoolDType,
+        out_dtype: burn_std::BoolDType,
     ) -> BoolTensor<Flex> {
-        crate::ops::comparison::not_equal_elem(lhs, rhs.to_f64().unwrap())
+        crate::ops::comparison::not_equal_elem(lhs, rhs.to_f64().unwrap(), out_dtype)
     }
 
     fn float_neg(tensor: FloatTensor<Flex>) -> FloatTensor<Flex> {
@@ -601,28 +601,28 @@ impl FloatTensorOps<Flex> for Flex {
         }
     }
 
-    fn float_any(tensor: FloatTensor<Flex>, _out_dtype: burn_std::BoolDType) -> BoolTensor<Flex> {
-        crate::ops::comparison::any_float(tensor)
+    fn float_any(tensor: FloatTensor<Flex>, out_dtype: burn_std::BoolDType) -> BoolTensor<Flex> {
+        crate::ops::comparison::any_float(tensor, out_dtype)
     }
 
     fn float_any_dim(
         tensor: FloatTensor<Flex>,
         dim: usize,
-        _out_dtype: burn_std::BoolDType,
+        out_dtype: burn_std::BoolDType,
     ) -> BoolTensor<Flex> {
-        crate::ops::comparison::any_float_dim(tensor, dim)
+        crate::ops::comparison::any_float_dim(tensor, dim, out_dtype)
     }
 
-    fn float_all(tensor: FloatTensor<Flex>, _out_dtype: burn_std::BoolDType) -> BoolTensor<Flex> {
-        crate::ops::comparison::all_float(tensor)
+    fn float_all(tensor: FloatTensor<Flex>, out_dtype: burn_std::BoolDType) -> BoolTensor<Flex> {
+        crate::ops::comparison::all_float(tensor, out_dtype)
     }
 
     fn float_all_dim(
         tensor: FloatTensor<Flex>,
         dim: usize,
-        _out_dtype: burn_std::BoolDType,
+        out_dtype: burn_std::BoolDType,
     ) -> BoolTensor<Flex> {
-        crate::ops::comparison::all_float_dim(tensor, dim)
+        crate::ops::comparison::all_float_dim(tensor, dim, out_dtype)
     }
 
     fn float_sum(tensor: FloatTensor<Flex>) -> FloatTensor<Flex> {

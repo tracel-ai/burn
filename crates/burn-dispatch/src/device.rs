@@ -168,11 +168,13 @@ impl Default for DispatchDevice {
         #[cfg(feature = "tch")]
         return Self::LibTorch(LibTorchDevice::default());
 
-        #[cfg(feature = "ndarray")]
-        return Self::NdArray(NdArrayDevice::default());
-
+        // Prefer Flex over NdArray when both are enabled: Flex is the long-term
+        // CPU backend replacement and should win the default tie.
         #[cfg(feature = "flex")]
         return Self::Flex(FlexDevice::default());
+
+        #[cfg(feature = "ndarray")]
+        return Self::NdArray(NdArrayDevice::default());
     }
 }
 

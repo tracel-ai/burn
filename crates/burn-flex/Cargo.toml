@@ -16,6 +16,7 @@ workspace = true
 
 [features]
 default = ["std", "simd", "rayon"]
+doc = ["default"]
 std = [
     "gemm/std",
     "burn-backend/std",

@@ -1,7 +1,7 @@
 //! Mask operations for conditional element replacement.
 
 use alloc::vec::Vec;
-use burn_backend::{DType, Element};
+use burn_backend::Element;
 use burn_std::{Bytes, bf16, f16};
 
 use crate::{FlexTensor, Layout};
@@ -124,6 +124,8 @@ pub fn mask_fill_u64(tensor: FlexTensor, mask: FlexTensor, value: u64) -> FlexTe
 
 /// Mask fill for bool tensors (SIMD-accelerated).
 pub fn mask_fill_bool(tensor: FlexTensor, mask: FlexTensor, value: bool) -> FlexTensor {
+    // Preserve the input tensor's bool dtype for the output.
+    let out_dtype = burn_std::BoolDType::from(tensor.dtype());
     #[cfg(feature = "simd")]
     {
         let (tensor, mask) = crate::ops::expand::broadcast_binary(tensor, mask);
@@ -133,11 +135,7 @@ pub fn mask_fill_bool(tensor: FlexTensor, mask: FlexTensor, value: bool) -> Flex
         let len = tensor.bytes().len();
         let mut out = uninit_vec::<u8>(len);
         crate::simd::mask_fill_u8(tensor.bytes(), mask.bytes(), value as u8, &mut out);
-        FlexTensor::new(
-            Bytes::from_elems(out),
-            Layout::contiguous(shape),
-            DType::Bool(burn_std::BoolStore::Native),
-        )
+        crate::ops::comparison::make_bool_tensor(out, shape, out_dtype)
     }
     #[cfg(not(feature = "simd"))]
     {
@@ -153,11 +151,7 @@ pub fn mask_fill_bool(tensor: FlexTensor, mask: FlexTensor, value: bool) -> Flex
             .zip(mask_data.iter())
             .map(|(&elem, &m)| if m != 0 { value_u8 } else { elem })
             .collect();
-        FlexTensor::new(
-            Bytes::from_elems(result),
-            Layout::contiguous(shape),
-            DType::Bool(burn_std::BoolStore::Native),
-        )
+        crate::ops::comparison::make_bool_tensor(result, shape, out_dtype)
     }
 }
 
@@ -285,6 +279,8 @@ pub fn mask_where_i64(tensor: FlexTensor, mask: FlexTensor, value: FlexTensor) -
 
 /// Mask where for bool tensors (SIMD-accelerated).
 pub fn mask_where_bool(tensor: FlexTensor, mask: FlexTensor, value: FlexTensor) -> FlexTensor {
+    // Preserve the input tensor's bool dtype for the output.
+    let out_dtype = burn_std::BoolDType::from(tensor.dtype());
     #[cfg(feature = "simd")]
     {
         let (tensor, mask, value) = broadcast_three(tensor, mask, value);
@@ -292,11 +288,7 @@ pub fn mask_where_bool(tensor: FlexTensor, mask: FlexTensor, value: FlexTensor) 
         let len = tensor.bytes().len();
         let mut out = uninit_vec::<u8>(len);
         crate::simd::mask_where_u8(tensor.bytes(), mask.bytes(), value.bytes(), &mut out);
-        FlexTensor::new(
-            Bytes::from_elems(out),
-            Layout::contiguous(shape),
-            DType::Bool(burn_std::BoolStore::Native),
-        )
+        crate::ops::comparison::make_bool_tensor(out, shape, out_dtype)
     }
     #[cfg(not(feature = "simd"))]
     {
@@ -311,11 +303,7 @@ pub fn mask_where_bool(tensor: FlexTensor, mask: FlexTensor, value: FlexTensor) 
             .zip(value_data.iter())
             .map(|((&t, &m), &v)| if m != 0 { v } else { t })
             .collect();
-        FlexTensor::new(
-            Bytes::from_elems(result),
-            Layout::contiguous(shape),
-            DType::Bool(burn_std::BoolStore::Native),
-        )
+        crate::ops::comparison::make_bool_tensor(result, shape, out_dtype)
     }
 }
 

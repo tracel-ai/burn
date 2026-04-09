@@ -935,6 +935,8 @@ pub fn scatter_or(
     indices: FlexTensor,
     value: FlexTensor,
 ) -> FlexTensor {
+    // Preserve the input tensor's bool dtype for the output.
+    let out_dtype = burn_std::BoolDType::from(tensor.dtype());
     let tensor = tensor.to_contiguous();
     let indices = indices.to_contiguous();
     let value = value.to_contiguous();
@@ -1021,12 +1023,7 @@ pub fn scatter_or(
         }
     }
 
-    let bytes = Bytes::from_elems(result);
-    FlexTensor::new(
-        bytes,
-        Layout::contiguous(tensor_shape),
-        DType::Bool(burn_std::BoolStore::Native),
-    )
+    crate::ops::comparison::make_bool_tensor(result, tensor_shape, out_dtype)
 }
 
 #[cfg(test)]

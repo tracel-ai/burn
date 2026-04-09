@@ -236,86 +236,86 @@ impl IntTensorOps<Flex> for Flex {
     fn int_equal(
         lhs: IntTensor<Flex>,
         rhs: IntTensor<Flex>,
-        _out_dtype: burn_std::BoolDType,
+        out_dtype: burn_std::BoolDType,
     ) -> BoolTensor<Flex> {
-        crate::ops::comparison::int_equal(lhs, rhs)
+        crate::ops::comparison::int_equal(lhs, rhs, out_dtype)
     }
 
     fn int_equal_elem(
         lhs: IntTensor<Flex>,
         rhs: Scalar,
-        _out_dtype: burn_std::BoolDType,
+        out_dtype: burn_std::BoolDType,
     ) -> BoolTensor<Flex> {
         let (i, u) = scalar_to_int_pair(lhs.dtype(), &rhs);
-        crate::ops::comparison::int_equal_elem(lhs, i, u)
+        crate::ops::comparison::int_equal_elem(lhs, i, u, out_dtype)
     }
 
     fn int_greater(
         lhs: IntTensor<Flex>,
         rhs: IntTensor<Flex>,
-        _out_dtype: burn_std::BoolDType,
+        out_dtype: burn_std::BoolDType,
     ) -> BoolTensor<Flex> {
-        crate::ops::comparison::int_greater(lhs, rhs)
+        crate::ops::comparison::int_greater(lhs, rhs, out_dtype)
     }
 
     fn int_greater_elem(
         lhs: IntTensor<Flex>,
         rhs: Scalar,
-        _out_dtype: burn_std::BoolDType,
+        out_dtype: burn_std::BoolDType,
     ) -> BoolTensor<Flex> {
         let (i, u) = scalar_to_int_pair(lhs.dtype(), &rhs);
-        crate::ops::comparison::int_greater_elem(lhs, i, u)
+        crate::ops::comparison::int_greater_elem(lhs, i, u, out_dtype)
     }
 
     fn int_greater_equal(
         lhs: IntTensor<Flex>,
         rhs: IntTensor<Flex>,
-        _out_dtype: burn_std::BoolDType,
+        out_dtype: burn_std::BoolDType,
     ) -> BoolTensor<Flex> {
-        crate::ops::comparison::int_greater_equal(lhs, rhs)
+        crate::ops::comparison::int_greater_equal(lhs, rhs, out_dtype)
     }
 
     fn int_greater_equal_elem(
         lhs: IntTensor<Flex>,
         rhs: Scalar,
-        _out_dtype: burn_std::BoolDType,
+        out_dtype: burn_std::BoolDType,
     ) -> BoolTensor<Flex> {
         let (i, u) = scalar_to_int_pair(lhs.dtype(), &rhs);
-        crate::ops::comparison::int_greater_equal_elem(lhs, i, u)
+        crate::ops::comparison::int_greater_equal_elem(lhs, i, u, out_dtype)
     }
 
     fn int_lower(
         lhs: IntTensor<Flex>,
         rhs: IntTensor<Flex>,
-        _out_dtype: burn_std::BoolDType,
+        out_dtype: burn_std::BoolDType,
     ) -> BoolTensor<Flex> {
-        crate::ops::comparison::int_lower(lhs, rhs)
+        crate::ops::comparison::int_lower(lhs, rhs, out_dtype)
     }
 
     fn int_lower_elem(
         lhs: IntTensor<Flex>,
         rhs: Scalar,
-        _out_dtype: burn_std::BoolDType,
+        out_dtype: burn_std::BoolDType,
     ) -> BoolTensor<Flex> {
         let (i, u) = scalar_to_int_pair(lhs.dtype(), &rhs);
-        crate::ops::comparison::int_lower_elem(lhs, i, u)
+        crate::ops::comparison::int_lower_elem(lhs, i, u, out_dtype)
     }
 
     fn int_lower_equal(
         lhs: IntTensor<Flex>,
         rhs: IntTensor<Flex>,
-        _out_dtype: burn_std::BoolDType,
+        out_dtype: burn_std::BoolDType,
     ) -> BoolTensor<Flex> {
-        crate::ops::comparison::int_lower_equal(lhs, rhs)
+        crate::ops::comparison::int_lower_equal(lhs, rhs, out_dtype)
     }
 
     fn int_lower_equal_elem(
         lhs: IntTensor<Flex>,
         rhs: Scalar,
-        _out_dtype: burn_std::BoolDType,
+        out_dtype: burn_std::BoolDType,
     ) -> BoolTensor<Flex> {
         let (i, u) = scalar_to_int_pair(lhs.dtype(), &rhs);
-        crate::ops::comparison::int_lower_equal_elem(lhs, i, u)
+        crate::ops::comparison::int_lower_equal_elem(lhs, i, u, out_dtype)
     }
 
     fn int_add(lhs: IntTensor<Flex>, rhs: IntTensor<Flex>) -> IntTensor<Flex> {
@@ -844,28 +844,28 @@ impl IntTensorOps<Flex> for Flex {
         crate::ops::reduce::min_dim_with_indices(tensor, dim)
     }
 
-    fn int_any(tensor: IntTensor<Flex>, _out_dtype: burn_std::BoolDType) -> BoolTensor<Flex> {
-        crate::ops::comparison::any_int(tensor)
+    fn int_any(tensor: IntTensor<Flex>, out_dtype: burn_std::BoolDType) -> BoolTensor<Flex> {
+        crate::ops::comparison::any_int(tensor, out_dtype)
     }
 
     fn int_any_dim(
         tensor: IntTensor<Flex>,
         dim: usize,
-        _out_dtype: burn_std::BoolDType,
+        out_dtype: burn_std::BoolDType,
     ) -> BoolTensor<Flex> {
-        crate::ops::comparison::any_int_dim(tensor, dim)
+        crate::ops::comparison::any_int_dim(tensor, dim, out_dtype)
     }
 
-    fn int_all(tensor: IntTensor<Flex>, _out_dtype: burn_std::BoolDType) -> BoolTensor<Flex> {
-        crate::ops::comparison::all_int(tensor)
+    fn int_all(tensor: IntTensor<Flex>, out_dtype: burn_std::BoolDType) -> BoolTensor<Flex> {
+        crate::ops::comparison::all_int(tensor, out_dtype)
     }
 
     fn int_all_dim(
         tensor: IntTensor<Flex>,
         dim: usize,
-        _out_dtype: burn_std::BoolDType,
+        out_dtype: burn_std::BoolDType,
     ) -> BoolTensor<Flex> {
-        crate::ops::comparison::all_int_dim(tensor, dim)
+        crate::ops::comparison::all_int_dim(tensor, dim, out_dtype)
     }
 
     fn int_powi(lhs: IntTensor<Flex>, rhs: IntTensor<Flex>) -> IntTensor<Flex> {
@@ -927,18 +927,18 @@ impl IntTensorOps<Flex> for Flex {
     fn int_not_equal(
         lhs: IntTensor<Flex>,
         rhs: IntTensor<Flex>,
-        _out_dtype: burn_std::BoolDType,
+        out_dtype: burn_std::BoolDType,
     ) -> BoolTensor<Flex> {
-        crate::ops::comparison::int_not_equal(lhs, rhs)
+        crate::ops::comparison::int_not_equal(lhs, rhs, out_dtype)
     }
 
     fn int_not_equal_elem(
         lhs: IntTensor<Flex>,
         rhs: burn_backend::Scalar,
-        _out_dtype: burn_std::BoolDType,
+        out_dtype: burn_std::BoolDType,
     ) -> BoolTensor<Flex> {
         let (i, u) = scalar_to_int_pair(lhs.dtype(), &rhs);
-        crate::ops::comparison::int_not_equal_elem(lhs, i, u)
+        crate::ops::comparison::int_not_equal_elem(lhs, i, u, out_dtype)
     }
 
     fn int_sort(tensor: IntTensor<Flex>, dim: usize, descending: bool) -> IntTensor<Flex> {

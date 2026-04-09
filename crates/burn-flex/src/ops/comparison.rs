@@ -5,7 +5,7 @@ use alloc::boxed::Box;
 use alloc::vec;
 use alloc::vec::Vec;
 use burn_backend::{DType, Element};
-use burn_std::{Bytes, Shape, bf16, f16};
+use burn_std::{BoolDType, BoolStore, Bytes, Shape, bf16, f16};
 use bytemuck::Pod;
 
 use crate::strided_index::StridedIter;
@@ -16,10 +16,12 @@ use crate::simd;
 /// Comparison operation type for SIMD dispatch.
 pub use simd::CmpOp as CompareOp;
 
-/// Compare two tensors element-wise, returning a boolean tensor.
+/// Compare two tensors element-wise, returning a boolean tensor with the
+/// requested output dtype.
 pub fn compare<F32Cmp, F64Cmp>(
     lhs: FlexTensor,
     rhs: FlexTensor,
+    out_dtype: BoolDType,
     f32_cmp: F32Cmp,
     f64_cmp: F64Cmp,
     simd_hint: Option<CompareOp>,
@@ -36,10 +38,12 @@ where
     let dtype = lhs.dtype();
 
     match dtype {
-        DType::F32 => compare_f32(lhs, &rhs, f32_cmp, simd_hint),
-        DType::F64 => compare_typed(lhs, &rhs, f64_cmp),
-        DType::F16 => compare_typed(lhs, &rhs, |a: f16, b: f16| f32_cmp(a.to_f32(), b.to_f32())),
-        DType::BF16 => compare_typed(lhs, &rhs, |a: bf16, b: bf16| {
+        DType::F32 => compare_f32(lhs, &rhs, out_dtype, f32_cmp, simd_hint),
+        DType::F64 => compare_typed(lhs, &rhs, out_dtype, f64_cmp),
+        DType::F16 => compare_typed(lhs, &rhs, out_dtype, |a: f16, b: f16| {
+            f32_cmp(a.to_f32(), b.to_f32())
+        }),
+        DType::BF16 => compare_typed(lhs, &rhs, out_dtype, |a: bf16, b: bf16| {
             f32_cmp(a.to_f32(), b.to_f32())
         }),
         _ => panic!("compare: unsupported dtype {:?}", dtype),
@@ -51,6 +55,7 @@ where
 fn compare_f32<Cmp>(
     lhs: FlexTensor,
     rhs: &FlexTensor,
+    out_dtype: BoolDType,
     cmp: Cmp,
     simd_hint: Option<CompareOp>,
 ) -> FlexTensor
@@ -73,7 +78,7 @@ where
         let mut result = vec![0u8; l_slice.len()];
         simd::cmp_f32(l_slice, r_slice, &mut result, simd_op);
 
-        return make_bool_tensor(result, shape);
+        return make_bool_tensor(result, shape, out_dtype);
     }
 
     // Optimized broadcast path for outer-product style broadcasting
@@ -82,11 +87,11 @@ where
         && let Some(simd_op) = simd_hint
         && let Some((result, shape)) = try_broadcast_cmp_f32(&lhs, rhs, simd_op)
     {
-        return make_bool_tensor(result, shape);
+        return make_bool_tensor(result, shape, out_dtype);
     }
 
     // Fallback to generic path
-    compare_typed(lhs, rhs, cmp)
+    compare_typed(lhs, rhs, out_dtype, cmp)
 }
 
 /// Try optimized outer-product style broadcast comparison.
@@ -213,19 +218,22 @@ fn swap_cmp_op(op: simd::CmpOp) -> simd::CmpOp {
 fn compare_f32<Cmp>(
     lhs: FlexTensor,
     rhs: &FlexTensor,
+    out_dtype: BoolDType,
     cmp: Cmp,
     _simd_hint: Option<CompareOp>,
 ) -> FlexTensor
 where
     Cmp: Fn(f32, f32) -> bool,
 {
-    compare_typed(lhs, rhs, cmp)
+    compare_typed(lhs, rhs, out_dtype, cmp)
 }
 
-/// Compare tensor with scalar, returning a boolean tensor.
+/// Compare tensor with scalar, returning a boolean tensor with the requested
+/// output dtype.
 pub fn compare_elem<F32Cmp, F64Cmp>(
     lhs: FlexTensor,
     rhs: f64,
+    out_dtype: BoolDType,
     f32_cmp: F32Cmp,
     f64_cmp: F64Cmp,
     simd_hint: Option<CompareOp>,
@@ -237,17 +245,17 @@ where
     let dtype = lhs.dtype();
 
     match dtype {
-        DType::F32 => compare_elem_f32(lhs, rhs as f32, f32_cmp, simd_hint),
-        DType::F64 => compare_elem_typed(lhs, rhs, f64_cmp),
+        DType::F32 => compare_elem_f32(lhs, rhs as f32, out_dtype, f32_cmp, simd_hint),
+        DType::F64 => compare_elem_typed(lhs, rhs, out_dtype, f64_cmp),
         DType::F16 => {
             let scalar = f16::from_f64(rhs);
-            compare_elem_typed(lhs, scalar, |a: f16, b: f16| {
+            compare_elem_typed(lhs, scalar, out_dtype, |a: f16, b: f16| {
                 f32_cmp(a.to_f32(), b.to_f32())
             })
         }
         DType::BF16 => {
             let scalar = bf16::from_f64(rhs);
-            compare_elem_typed(lhs, scalar, |a: bf16, b: bf16| {
+            compare_elem_typed(lhs, scalar, out_dtype, |a: bf16, b: bf16| {
                 f32_cmp(a.to_f32(), b.to_f32())
             })
         }
@@ -260,6 +268,7 @@ where
 fn compare_elem_f32<Cmp>(
     lhs: FlexTensor,
     rhs: f32,
+    out_dtype: BoolDType,
     cmp: Cmp,
     simd_hint: Option<CompareOp>,
 ) -> FlexTensor
@@ -277,11 +286,11 @@ where
         let mut result = vec![0u8; l_slice.len()];
         simd::cmp_scalar_f32(l_slice, rhs, &mut result, simd_op);
 
-        return make_bool_tensor(result, shape);
+        return make_bool_tensor(result, shape, out_dtype);
     }
 
     // Fallback to generic path
-    compare_elem_typed(lhs, rhs, cmp)
+    compare_elem_typed(lhs, rhs, out_dtype, cmp)
 }
 
 /// Fallback when SIMD is disabled.
@@ -289,16 +298,22 @@ where
 fn compare_elem_f32<Cmp>(
     lhs: FlexTensor,
     rhs: f32,
+    out_dtype: BoolDType,
     cmp: Cmp,
     _simd_hint: Option<CompareOp>,
 ) -> FlexTensor
 where
     Cmp: Fn(f32, f32) -> bool,
 {
-    compare_elem_typed(lhs, rhs, cmp)
+    compare_elem_typed(lhs, rhs, out_dtype, cmp)
 }
 
-fn compare_typed<E, Cmp>(lhs: FlexTensor, rhs: &FlexTensor, cmp: Cmp) -> FlexTensor
+fn compare_typed<E, Cmp>(
+    lhs: FlexTensor,
+    rhs: &FlexTensor,
+    out_dtype: BoolDType,
+    cmp: Cmp,
+) -> FlexTensor
 where
     E: Element + Pod,
     Cmp: Fn(E, E) -> bool,
@@ -338,10 +353,15 @@ where
         }
     };
 
-    make_bool_tensor(result, shape)
+    make_bool_tensor(result, shape, out_dtype)
 }
 
-fn compare_elem_typed<E, Cmp>(lhs: FlexTensor, rhs: E, cmp: Cmp) -> FlexTensor
+fn compare_elem_typed<E, Cmp>(
+    lhs: FlexTensor,
+    rhs: E,
+    out_dtype: BoolDType,
+    cmp: Cmp,
+) -> FlexTensor
 where
     E: Element + Pod + Copy,
     Cmp: Fn(E, E) -> bool,
@@ -359,66 +379,160 @@ where
             .collect(),
     };
 
-    make_bool_tensor(result, shape)
+    make_bool_tensor(result, shape, out_dtype)
 }
 
-fn make_bool_tensor(data: Vec<u8>, shape: Shape) -> FlexTensor {
-    let bytes = Bytes::from_elems(data);
-    FlexTensor::new(
-        bytes,
-        Layout::contiguous(shape),
-        DType::Bool(burn_std::BoolStore::Native),
-    )
+/// Build a bool FlexTensor from a Vec<u8> of 0/1 bytes, tagged with the requested
+/// output dtype. Native and U8 share the same 1-byte-per-element layout so the
+/// bytes pass through; U32 widens each element to 4 bytes.
+pub(crate) fn make_bool_tensor(
+    data: Vec<u8>,
+    shape: Shape,
+    out_dtype: BoolDType,
+) -> FlexTensor {
+    let (bytes, store) = match out_dtype {
+        BoolDType::Native => (Bytes::from_elems(data), BoolStore::Native),
+        BoolDType::U8 => (Bytes::from_elems(data), BoolStore::U8),
+        BoolDType::U32 => {
+            let widened: Vec<u32> = data.into_iter().map(u32::from).collect();
+            (Bytes::from_elems(widened), BoolStore::U32)
+        }
+    };
+    FlexTensor::new(bytes, Layout::contiguous(shape), DType::Bool(store))
 }
 
 // Specific comparison functions
 
-pub fn greater(lhs: FlexTensor, rhs: FlexTensor) -> FlexTensor {
-    compare(lhs, rhs, |a, b| a > b, |a, b| a > b, Some(CompareOp::Gt))
+pub fn greater(lhs: FlexTensor, rhs: FlexTensor, out_dtype: BoolDType) -> FlexTensor {
+    compare(
+        lhs,
+        rhs,
+        out_dtype,
+        |a, b| a > b,
+        |a, b| a > b,
+        Some(CompareOp::Gt),
+    )
 }
 
-pub fn greater_elem(lhs: FlexTensor, rhs: f64) -> FlexTensor {
-    compare_elem(lhs, rhs, |a, b| a > b, |a, b| a > b, Some(CompareOp::Gt))
+pub fn greater_elem(lhs: FlexTensor, rhs: f64, out_dtype: BoolDType) -> FlexTensor {
+    compare_elem(
+        lhs,
+        rhs,
+        out_dtype,
+        |a, b| a > b,
+        |a, b| a > b,
+        Some(CompareOp::Gt),
+    )
 }
 
-pub fn greater_equal(lhs: FlexTensor, rhs: FlexTensor) -> FlexTensor {
-    compare(lhs, rhs, |a, b| a >= b, |a, b| a >= b, Some(CompareOp::Ge))
+pub fn greater_equal(lhs: FlexTensor, rhs: FlexTensor, out_dtype: BoolDType) -> FlexTensor {
+    compare(
+        lhs,
+        rhs,
+        out_dtype,
+        |a, b| a >= b,
+        |a, b| a >= b,
+        Some(CompareOp::Ge),
+    )
 }
 
-pub fn greater_equal_elem(lhs: FlexTensor, rhs: f64) -> FlexTensor {
-    compare_elem(lhs, rhs, |a, b| a >= b, |a, b| a >= b, Some(CompareOp::Ge))
+pub fn greater_equal_elem(lhs: FlexTensor, rhs: f64, out_dtype: BoolDType) -> FlexTensor {
+    compare_elem(
+        lhs,
+        rhs,
+        out_dtype,
+        |a, b| a >= b,
+        |a, b| a >= b,
+        Some(CompareOp::Ge),
+    )
 }
 
-pub fn lower(lhs: FlexTensor, rhs: FlexTensor) -> FlexTensor {
-    compare(lhs, rhs, |a, b| a < b, |a, b| a < b, Some(CompareOp::Lt))
+pub fn lower(lhs: FlexTensor, rhs: FlexTensor, out_dtype: BoolDType) -> FlexTensor {
+    compare(
+        lhs,
+        rhs,
+        out_dtype,
+        |a, b| a < b,
+        |a, b| a < b,
+        Some(CompareOp::Lt),
+    )
 }
 
-pub fn lower_elem(lhs: FlexTensor, rhs: f64) -> FlexTensor {
-    compare_elem(lhs, rhs, |a, b| a < b, |a, b| a < b, Some(CompareOp::Lt))
+pub fn lower_elem(lhs: FlexTensor, rhs: f64, out_dtype: BoolDType) -> FlexTensor {
+    compare_elem(
+        lhs,
+        rhs,
+        out_dtype,
+        |a, b| a < b,
+        |a, b| a < b,
+        Some(CompareOp::Lt),
+    )
 }
 
-pub fn lower_equal(lhs: FlexTensor, rhs: FlexTensor) -> FlexTensor {
-    compare(lhs, rhs, |a, b| a <= b, |a, b| a <= b, Some(CompareOp::Le))
+pub fn lower_equal(lhs: FlexTensor, rhs: FlexTensor, out_dtype: BoolDType) -> FlexTensor {
+    compare(
+        lhs,
+        rhs,
+        out_dtype,
+        |a, b| a <= b,
+        |a, b| a <= b,
+        Some(CompareOp::Le),
+    )
 }
 
-pub fn lower_equal_elem(lhs: FlexTensor, rhs: f64) -> FlexTensor {
-    compare_elem(lhs, rhs, |a, b| a <= b, |a, b| a <= b, Some(CompareOp::Le))
+pub fn lower_equal_elem(lhs: FlexTensor, rhs: f64, out_dtype: BoolDType) -> FlexTensor {
+    compare_elem(
+        lhs,
+        rhs,
+        out_dtype,
+        |a, b| a <= b,
+        |a, b| a <= b,
+        Some(CompareOp::Le),
+    )
 }
 
-pub fn equal(lhs: FlexTensor, rhs: FlexTensor) -> FlexTensor {
-    compare(lhs, rhs, |a, b| a == b, |a, b| a == b, Some(CompareOp::Eq))
+pub fn equal(lhs: FlexTensor, rhs: FlexTensor, out_dtype: BoolDType) -> FlexTensor {
+    compare(
+        lhs,
+        rhs,
+        out_dtype,
+        |a, b| a == b,
+        |a, b| a == b,
+        Some(CompareOp::Eq),
+    )
 }
 
-pub fn equal_elem(lhs: FlexTensor, rhs: f64) -> FlexTensor {
-    compare_elem(lhs, rhs, |a, b| a == b, |a, b| a == b, Some(CompareOp::Eq))
+pub fn equal_elem(lhs: FlexTensor, rhs: f64, out_dtype: BoolDType) -> FlexTensor {
+    compare_elem(
+        lhs,
+        rhs,
+        out_dtype,
+        |a, b| a == b,
+        |a, b| a == b,
+        Some(CompareOp::Eq),
+    )
 }
 
-pub fn not_equal(lhs: FlexTensor, rhs: FlexTensor) -> FlexTensor {
-    compare(lhs, rhs, |a, b| a != b, |a, b| a != b, Some(CompareOp::Ne))
+pub fn not_equal(lhs: FlexTensor, rhs: FlexTensor, out_dtype: BoolDType) -> FlexTensor {
+    compare(
+        lhs,
+        rhs,
+        out_dtype,
+        |a, b| a != b,
+        |a, b| a != b,
+        Some(CompareOp::Ne),
+    )
 }
 
-pub fn not_equal_elem(lhs: FlexTensor, rhs: f64) -> FlexTensor {
-    compare_elem(lhs, rhs, |a, b| a != b, |a, b| a != b, Some(CompareOp::Ne))
+pub fn not_equal_elem(lhs: FlexTensor, rhs: f64, out_dtype: BoolDType) -> FlexTensor {
+    compare_elem(
+        lhs,
+        rhs,
+        out_dtype,
+        |a, b| a != b,
+        |a, b| a != b,
+        Some(CompareOp::Ne),
+    )
 }
 
 // Integer comparison functions
@@ -426,6 +540,7 @@ pub fn not_equal_elem(lhs: FlexTensor, rhs: f64) -> FlexTensor {
 fn compare_int<I64Cmp, U64Cmp>(
     lhs: FlexTensor,
     rhs: FlexTensor,
+    out_dtype: BoolDType,
     i64_cmp: I64Cmp,
     u64_cmp: U64Cmp,
 ) -> FlexTensor
@@ -436,14 +551,26 @@ where
     let (lhs, rhs) = crate::ops::expand::broadcast_binary(lhs, rhs);
 
     match lhs.dtype() {
-        DType::I64 => compare_typed(lhs, &rhs, i64_cmp),
-        DType::U64 => compare_typed(lhs, &rhs, u64_cmp),
-        DType::I32 => compare_typed(lhs, &rhs, |a: i32, b: i32| i64_cmp(a as i64, b as i64)),
-        DType::I16 => compare_typed(lhs, &rhs, |a: i16, b: i16| i64_cmp(a as i64, b as i64)),
-        DType::I8 => compare_typed(lhs, &rhs, |a: i8, b: i8| i64_cmp(a as i64, b as i64)),
-        DType::U32 => compare_typed(lhs, &rhs, |a: u32, b: u32| i64_cmp(a as i64, b as i64)),
-        DType::U16 => compare_typed(lhs, &rhs, |a: u16, b: u16| i64_cmp(a as i64, b as i64)),
-        DType::U8 => compare_typed(lhs, &rhs, |a: u8, b: u8| i64_cmp(a as i64, b as i64)),
+        DType::I64 => compare_typed(lhs, &rhs, out_dtype, i64_cmp),
+        DType::U64 => compare_typed(lhs, &rhs, out_dtype, u64_cmp),
+        DType::I32 => compare_typed(lhs, &rhs, out_dtype, |a: i32, b: i32| {
+            i64_cmp(a as i64, b as i64)
+        }),
+        DType::I16 => compare_typed(lhs, &rhs, out_dtype, |a: i16, b: i16| {
+            i64_cmp(a as i64, b as i64)
+        }),
+        DType::I8 => compare_typed(lhs, &rhs, out_dtype, |a: i8, b: i8| {
+            i64_cmp(a as i64, b as i64)
+        }),
+        DType::U32 => compare_typed(lhs, &rhs, out_dtype, |a: u32, b: u32| {
+            i64_cmp(a as i64, b as i64)
+        }),
+        DType::U16 => compare_typed(lhs, &rhs, out_dtype, |a: u16, b: u16| {
+            i64_cmp(a as i64, b as i64)
+        }),
+        DType::U8 => compare_typed(lhs, &rhs, out_dtype, |a: u8, b: u8| {
+            i64_cmp(a as i64, b as i64)
+        }),
         other => panic!("compare_int: unsupported dtype {:?}", other),
     }
 }
@@ -452,6 +579,7 @@ fn compare_int_elem<I64Cmp, U64Cmp>(
     lhs: FlexTensor,
     i64_rhs: i64,
     u64_rhs: u64,
+    out_dtype: BoolDType,
     i64_cmp: I64Cmp,
     u64_cmp: U64Cmp,
 ) -> FlexTensor
@@ -460,79 +588,137 @@ where
     U64Cmp: Fn(u64, u64) -> bool,
 {
     match lhs.dtype() {
-        DType::I64 => compare_elem_typed(lhs, i64_rhs, i64_cmp),
-        DType::U64 => compare_elem_typed(lhs, u64_rhs, u64_cmp),
-        DType::I32 => compare_elem_typed(lhs, i64_rhs as i32, |a: i32, b: i32| {
+        DType::I64 => compare_elem_typed(lhs, i64_rhs, out_dtype, i64_cmp),
+        DType::U64 => compare_elem_typed(lhs, u64_rhs, out_dtype, u64_cmp),
+        DType::I32 => compare_elem_typed(lhs, i64_rhs as i32, out_dtype, |a: i32, b: i32| {
             i64_cmp(a as i64, b as i64)
         }),
-        DType::I16 => compare_elem_typed(lhs, i64_rhs as i16, |a: i16, b: i16| {
+        DType::I16 => compare_elem_typed(lhs, i64_rhs as i16, out_dtype, |a: i16, b: i16| {
             i64_cmp(a as i64, b as i64)
         }),
-        DType::I8 => compare_elem_typed(lhs, i64_rhs as i8, |a: i8, b: i8| {
+        DType::I8 => compare_elem_typed(lhs, i64_rhs as i8, out_dtype, |a: i8, b: i8| {
             i64_cmp(a as i64, b as i64)
         }),
-        DType::U32 => compare_elem_typed(lhs, i64_rhs as u32, |a: u32, b: u32| {
+        DType::U32 => compare_elem_typed(lhs, i64_rhs as u32, out_dtype, |a: u32, b: u32| {
             i64_cmp(a as i64, b as i64)
         }),
-        DType::U16 => compare_elem_typed(lhs, i64_rhs as u16, |a: u16, b: u16| {
+        DType::U16 => compare_elem_typed(lhs, i64_rhs as u16, out_dtype, |a: u16, b: u16| {
             i64_cmp(a as i64, b as i64)
         }),
-        DType::U8 => compare_elem_typed(lhs, i64_rhs as u8, |a: u8, b: u8| {
+        DType::U8 => compare_elem_typed(lhs, i64_rhs as u8, out_dtype, |a: u8, b: u8| {
             i64_cmp(a as i64, b as i64)
         }),
         other => panic!("compare_int_elem: unsupported dtype {:?}", other),
     }
 }
 
-pub fn int_greater(lhs: FlexTensor, rhs: FlexTensor) -> FlexTensor {
-    compare_int(lhs, rhs, |a, b| a > b, |a, b| a > b)
+pub fn int_greater(lhs: FlexTensor, rhs: FlexTensor, out_dtype: BoolDType) -> FlexTensor {
+    compare_int(lhs, rhs, out_dtype, |a, b| a > b, |a, b| a > b)
 }
 
-pub fn int_greater_elem(lhs: FlexTensor, i64_rhs: i64, u64_rhs: u64) -> FlexTensor {
-    compare_int_elem(lhs, i64_rhs, u64_rhs, |a, b| a > b, |a, b| a > b)
+pub fn int_greater_elem(
+    lhs: FlexTensor,
+    i64_rhs: i64,
+    u64_rhs: u64,
+    out_dtype: BoolDType,
+) -> FlexTensor {
+    compare_int_elem(lhs, i64_rhs, u64_rhs, out_dtype, |a, b| a > b, |a, b| a > b)
 }
 
-pub fn int_greater_equal(lhs: FlexTensor, rhs: FlexTensor) -> FlexTensor {
-    compare_int(lhs, rhs, |a, b| a >= b, |a, b| a >= b)
+pub fn int_greater_equal(lhs: FlexTensor, rhs: FlexTensor, out_dtype: BoolDType) -> FlexTensor {
+    compare_int(lhs, rhs, out_dtype, |a, b| a >= b, |a, b| a >= b)
 }
 
-pub fn int_greater_equal_elem(lhs: FlexTensor, i64_rhs: i64, u64_rhs: u64) -> FlexTensor {
-    compare_int_elem(lhs, i64_rhs, u64_rhs, |a, b| a >= b, |a, b| a >= b)
+pub fn int_greater_equal_elem(
+    lhs: FlexTensor,
+    i64_rhs: i64,
+    u64_rhs: u64,
+    out_dtype: BoolDType,
+) -> FlexTensor {
+    compare_int_elem(
+        lhs,
+        i64_rhs,
+        u64_rhs,
+        out_dtype,
+        |a, b| a >= b,
+        |a, b| a >= b,
+    )
 }
 
-pub fn int_lower(lhs: FlexTensor, rhs: FlexTensor) -> FlexTensor {
-    compare_int(lhs, rhs, |a, b| a < b, |a, b| a < b)
+pub fn int_lower(lhs: FlexTensor, rhs: FlexTensor, out_dtype: BoolDType) -> FlexTensor {
+    compare_int(lhs, rhs, out_dtype, |a, b| a < b, |a, b| a < b)
 }
 
-pub fn int_lower_elem(lhs: FlexTensor, i64_rhs: i64, u64_rhs: u64) -> FlexTensor {
-    compare_int_elem(lhs, i64_rhs, u64_rhs, |a, b| a < b, |a, b| a < b)
+pub fn int_lower_elem(
+    lhs: FlexTensor,
+    i64_rhs: i64,
+    u64_rhs: u64,
+    out_dtype: BoolDType,
+) -> FlexTensor {
+    compare_int_elem(lhs, i64_rhs, u64_rhs, out_dtype, |a, b| a < b, |a, b| a < b)
 }
 
-pub fn int_lower_equal(lhs: FlexTensor, rhs: FlexTensor) -> FlexTensor {
-    compare_int(lhs, rhs, |a, b| a <= b, |a, b| a <= b)
+pub fn int_lower_equal(lhs: FlexTensor, rhs: FlexTensor, out_dtype: BoolDType) -> FlexTensor {
+    compare_int(lhs, rhs, out_dtype, |a, b| a <= b, |a, b| a <= b)
 }
 
-pub fn int_lower_equal_elem(lhs: FlexTensor, i64_rhs: i64, u64_rhs: u64) -> FlexTensor {
-    compare_int_elem(lhs, i64_rhs, u64_rhs, |a, b| a <= b, |a, b| a <= b)
+pub fn int_lower_equal_elem(
+    lhs: FlexTensor,
+    i64_rhs: i64,
+    u64_rhs: u64,
+    out_dtype: BoolDType,
+) -> FlexTensor {
+    compare_int_elem(
+        lhs,
+        i64_rhs,
+        u64_rhs,
+        out_dtype,
+        |a, b| a <= b,
+        |a, b| a <= b,
+    )
 }
 
-pub fn int_equal(lhs: FlexTensor, rhs: FlexTensor) -> FlexTensor {
-    compare_int(lhs, rhs, |a, b| a == b, |a, b| a == b)
+pub fn int_equal(lhs: FlexTensor, rhs: FlexTensor, out_dtype: BoolDType) -> FlexTensor {
+    compare_int(lhs, rhs, out_dtype, |a, b| a == b, |a, b| a == b)
 }
 
-pub fn int_equal_elem(lhs: FlexTensor, i64_rhs: i64, u64_rhs: u64) -> FlexTensor {
-    compare_int_elem(lhs, i64_rhs, u64_rhs, |a, b| a == b, |a, b| a == b)
+pub fn int_equal_elem(
+    lhs: FlexTensor,
+    i64_rhs: i64,
+    u64_rhs: u64,
+    out_dtype: BoolDType,
+) -> FlexTensor {
+    compare_int_elem(
+        lhs,
+        i64_rhs,
+        u64_rhs,
+        out_dtype,
+        |a, b| a == b,
+        |a, b| a == b,
+    )
 }
 
-pub fn int_not_equal(lhs: FlexTensor, rhs: FlexTensor) -> FlexTensor {
-    compare_int(lhs, rhs, |a, b| a != b, |a, b| a != b)
+pub fn int_not_equal(lhs: FlexTensor, rhs: FlexTensor, out_dtype: BoolDType) -> FlexTensor {
+    compare_int(lhs, rhs, out_dtype, |a, b| a != b, |a, b| a != b)
 }
 
-pub fn int_not_equal_elem(lhs: FlexTensor, i64_rhs: i64, u64_rhs: u64) -> FlexTensor {
-    compare_int_elem(lhs, i64_rhs, u64_rhs, |a, b| a != b, |a, b| a != b)
+pub fn int_not_equal_elem(
+    lhs: FlexTensor,
+    i64_rhs: i64,
+    u64_rhs: u64,
+    out_dtype: BoolDType,
+) -> FlexTensor {
+    compare_int_elem(
+        lhs,
+        i64_rhs,
+        u64_rhs,
+        out_dtype,
+        |a, b| a != b,
+        |a, b| a != b,
+    )
 }
 
-pub fn bool_not_equal(lhs: FlexTensor, rhs: FlexTensor) -> FlexTensor {
+pub fn bool_not_equal(lhs: FlexTensor, rhs: FlexTensor, out_dtype: BoolDType) -> FlexTensor {
     let (lhs, rhs) = crate::ops::expand::broadcast_binary(lhs, rhs);
     let shape = lhs.layout().shape().clone();
     let lhs_data: &[u8] = lhs.bytes();
@@ -556,14 +742,10 @@ pub fn bool_not_equal(lhs: FlexTensor, rhs: FlexTensor) -> FlexTensor {
                 .collect()
         }
     };
-    FlexTensor::new(
-        Bytes::from_elems(result),
-        Layout::contiguous(shape),
-        DType::Bool(burn_std::BoolStore::Native),
-    )
+    make_bool_tensor(result, shape, out_dtype)
 }
 
-pub fn bool_not_equal_elem(lhs: FlexTensor, rhs: bool) -> FlexTensor {
+pub fn bool_not_equal_elem(lhs: FlexTensor, rhs: bool, out_dtype: BoolDType) -> FlexTensor {
     let rhs_val: u8 = if rhs { 1 } else { 0 };
     let shape = lhs.layout().shape().clone();
     let lhs = lhs.to_contiguous();
@@ -572,11 +754,7 @@ pub fn bool_not_equal_elem(lhs: FlexTensor, rhs: bool) -> FlexTensor {
         .iter()
         .map(|&a| if a != rhs_val { 1 } else { 0 })
         .collect();
-    FlexTensor::new(
-        Bytes::from_elems(result),
-        Layout::contiguous(shape),
-        DType::Bool(burn_std::BoolStore::Native),
-    )
+    make_bool_tensor(result, shape, out_dtype)
 }
 
 // ============================================================================
@@ -584,7 +762,7 @@ pub fn bool_not_equal_elem(lhs: FlexTensor, rhs: bool) -> FlexTensor {
 // ============================================================================
 
 /// Check if any element is non-zero (float tensors).
-pub fn any_float(tensor: FlexTensor) -> FlexTensor {
+pub fn any_float(tensor: FlexTensor, out_dtype: BoolDType) -> FlexTensor {
     let has_any = match tensor.dtype() {
         DType::F32 => iter_elements::<f32>(&tensor).any(|x| x != 0.0),
         DType::F64 => iter_elements::<f64>(&tensor).any(|x| x != 0.0),
@@ -592,16 +770,16 @@ pub fn any_float(tensor: FlexTensor) -> FlexTensor {
         DType::BF16 => iter_elements::<bf16>(&tensor).any(|x: bf16| x.to_f32() != 0.0),
         _ => panic!("any_float: unsupported dtype {:?}", tensor.dtype()),
     };
-    bool_scalar(has_any)
+    bool_scalar(has_any, out_dtype)
 }
 
 /// Check if any element along a dimension is non-zero (float tensors).
-pub fn any_float_dim(tensor: FlexTensor, dim: usize) -> FlexTensor {
-    reduce_bool_dim(&tensor, dim, false, |a, b| a || b)
+pub fn any_float_dim(tensor: FlexTensor, dim: usize, out_dtype: BoolDType) -> FlexTensor {
+    reduce_bool_dim(&tensor, dim, false, |a, b| a || b, out_dtype)
 }
 
 /// Check if all elements are non-zero (float tensors).
-pub fn all_float(tensor: FlexTensor) -> FlexTensor {
+pub fn all_float(tensor: FlexTensor, out_dtype: BoolDType) -> FlexTensor {
     let all = match tensor.dtype() {
         DType::F32 => iter_elements::<f32>(&tensor).all(|x| x != 0.0),
         DType::F64 => iter_elements::<f64>(&tensor).all(|x| x != 0.0),
@@ -609,16 +787,16 @@ pub fn all_float(tensor: FlexTensor) -> FlexTensor {
         DType::BF16 => iter_elements::<bf16>(&tensor).all(|x: bf16| x.to_f32() != 0.0),
         _ => panic!("all_float: unsupported dtype {:?}", tensor.dtype()),
     };
-    bool_scalar(all)
+    bool_scalar(all, out_dtype)
 }
 
 /// Check if all elements along a dimension are non-zero (float tensors).
-pub fn all_float_dim(tensor: FlexTensor, dim: usize) -> FlexTensor {
-    reduce_bool_dim(&tensor, dim, true, |a, b| a && b)
+pub fn all_float_dim(tensor: FlexTensor, dim: usize, out_dtype: BoolDType) -> FlexTensor {
+    reduce_bool_dim(&tensor, dim, true, |a, b| a && b, out_dtype)
 }
 
 /// Check if any element is non-zero (int tensors).
-pub fn any_int(tensor: FlexTensor) -> FlexTensor {
+pub fn any_int(tensor: FlexTensor, out_dtype: BoolDType) -> FlexTensor {
     let has_any = match tensor.dtype() {
         DType::I64 => iter_elements::<i64>(&tensor).any(|x| x != 0),
         DType::I32 => iter_elements::<i32>(&tensor).any(|x| x != 0),
@@ -630,16 +808,16 @@ pub fn any_int(tensor: FlexTensor) -> FlexTensor {
         DType::U8 => iter_elements::<u8>(&tensor).any(|x| x != 0),
         _ => panic!("any_int: unsupported dtype {:?}", tensor.dtype()),
     };
-    bool_scalar(has_any)
+    bool_scalar(has_any, out_dtype)
 }
 
 /// Check if any element along a dimension is non-zero (int tensors).
-pub fn any_int_dim(tensor: FlexTensor, dim: usize) -> FlexTensor {
-    reduce_bool_dim_int(&tensor, dim, false, |a, b| a || b)
+pub fn any_int_dim(tensor: FlexTensor, dim: usize, out_dtype: BoolDType) -> FlexTensor {
+    reduce_bool_dim_int(&tensor, dim, false, |a, b| a || b, out_dtype)
 }
 
 /// Check if all elements are non-zero (int tensors).
-pub fn all_int(tensor: FlexTensor) -> FlexTensor {
+pub fn all_int(tensor: FlexTensor, out_dtype: BoolDType) -> FlexTensor {
     let all = match tensor.dtype() {
         DType::I64 => iter_elements::<i64>(&tensor).all(|x| x != 0),
         DType::I32 => iter_elements::<i32>(&tensor).all(|x| x != 0),
@@ -651,48 +829,48 @@ pub fn all_int(tensor: FlexTensor) -> FlexTensor {
         DType::U8 => iter_elements::<u8>(&tensor).all(|x| x != 0),
         _ => panic!("all_int: unsupported dtype {:?}", tensor.dtype()),
     };
-    bool_scalar(all)
+    bool_scalar(all, out_dtype)
 }
 
 /// Check if all elements along a dimension are non-zero (int tensors).
-pub fn all_int_dim(tensor: FlexTensor, dim: usize) -> FlexTensor {
-    reduce_bool_dim_int(&tensor, dim, true, |a, b| a && b)
+pub fn all_int_dim(tensor: FlexTensor, dim: usize, out_dtype: BoolDType) -> FlexTensor {
+    reduce_bool_dim_int(&tensor, dim, true, |a, b| a && b, out_dtype)
 }
 
 /// Check if any bool element is true.
-pub fn any_bool(tensor: FlexTensor) -> FlexTensor {
+pub fn any_bool(tensor: FlexTensor, out_dtype: BoolDType) -> FlexTensor {
     let tensor = tensor.to_contiguous();
     let data: &[u8] = tensor.bytes();
-    bool_scalar(data.iter().any(|&x| x != 0))
+    bool_scalar(data.iter().any(|&x| x != 0), out_dtype)
 }
 
 /// Check if any bool element along a dimension is true.
-pub fn any_bool_dim(tensor: FlexTensor, dim: usize) -> FlexTensor {
-    reduce_bool_dim_raw(&tensor, dim, false, |a, b| a || b)
+pub fn any_bool_dim(tensor: FlexTensor, dim: usize, out_dtype: BoolDType) -> FlexTensor {
+    reduce_bool_dim_raw(&tensor, dim, false, |a, b| a || b, out_dtype)
 }
 
 /// Check if all bool elements are true.
-pub fn all_bool(tensor: FlexTensor) -> FlexTensor {
+pub fn all_bool(tensor: FlexTensor, out_dtype: BoolDType) -> FlexTensor {
     let tensor = tensor.to_contiguous();
     let data: &[u8] = tensor.bytes();
-    bool_scalar(data.iter().all(|&x| x != 0))
+    bool_scalar(data.iter().all(|&x| x != 0), out_dtype)
 }
 
 /// Check if all bool elements along a dimension are true.
-pub fn all_bool_dim(tensor: FlexTensor, dim: usize) -> FlexTensor {
-    reduce_bool_dim_raw(&tensor, dim, true, |a, b| a && b)
+pub fn all_bool_dim(tensor: FlexTensor, dim: usize, out_dtype: BoolDType) -> FlexTensor {
+    reduce_bool_dim_raw(&tensor, dim, true, |a, b| a && b, out_dtype)
 }
 
 // ============================================================================
 // Helpers for any/all
 // ============================================================================
 
-fn bool_scalar(val: bool) -> FlexTensor {
+fn bool_scalar(val: bool, out_dtype: BoolDType) -> FlexTensor {
     let byte: u8 = if val { 1 } else { 0 };
-    FlexTensor::new(
-        Bytes::from_elems(alloc::vec![byte]),
-        Layout::contiguous(Shape::from(alloc::vec![1])),
-        DType::Bool(burn_std::BoolStore::Native),
+    make_bool_tensor(
+        alloc::vec![byte],
+        Shape::from(alloc::vec![1]),
+        out_dtype,
     )
 }
 
@@ -715,6 +893,7 @@ fn reduce_bool_dim_with(
     dim: usize,
     init: bool,
     combine: fn(bool, bool) -> bool,
+    out_dtype: BoolDType,
     is_nonzero: impl Fn(usize) -> bool,
 ) -> FlexTensor {
     debug_assert!(tensor.is_contiguous() && tensor.layout().start_offset() == 0);
@@ -742,11 +921,7 @@ fn reduce_bool_dim_with(
         }
     }
 
-    FlexTensor::new(
-        Bytes::from_elems(result),
-        Layout::contiguous(Shape::from(out_shape)),
-        DType::Bool(burn_std::BoolStore::Native),
-    )
+    make_bool_tensor(result, Shape::from(out_shape), out_dtype)
 }
 
 /// Reduce along a dimension producing a bool tensor (for float any/all_dim).
@@ -755,24 +930,33 @@ fn reduce_bool_dim(
     dim: usize,
     init: bool,
     combine: fn(bool, bool) -> bool,
+    out_dtype: BoolDType,
 ) -> FlexTensor {
     let tensor = tensor.to_contiguous();
     match tensor.dtype() {
         DType::F32 => {
             let data: &[f32] = tensor.storage();
-            reduce_bool_dim_with(&tensor, dim, init, combine, |idx| data[idx] != 0.0)
+            reduce_bool_dim_with(&tensor, dim, init, combine, out_dtype, |idx| {
+                data[idx] != 0.0
+            })
         }
         DType::F64 => {
             let data: &[f64] = tensor.storage();
-            reduce_bool_dim_with(&tensor, dim, init, combine, |idx| data[idx] != 0.0)
+            reduce_bool_dim_with(&tensor, dim, init, combine, out_dtype, |idx| {
+                data[idx] != 0.0
+            })
         }
         DType::F16 => {
             let data: &[f16] = tensor.storage();
-            reduce_bool_dim_with(&tensor, dim, init, combine, |idx| data[idx].to_f32() != 0.0)
+            reduce_bool_dim_with(&tensor, dim, init, combine, out_dtype, |idx| {
+                data[idx].to_f32() != 0.0
+            })
         }
         DType::BF16 => {
             let data: &[bf16] = tensor.storage();
-            reduce_bool_dim_with(&tensor, dim, init, combine, |idx| data[idx].to_f32() != 0.0)
+            reduce_bool_dim_with(&tensor, dim, init, combine, out_dtype, |idx| {
+                data[idx].to_f32() != 0.0
+            })
         }
         _ => panic!("reduce_bool_dim: unsupported dtype {:?}", tensor.dtype()),
     }
@@ -784,12 +968,13 @@ fn reduce_bool_dim_int(
     dim: usize,
     init: bool,
     combine: fn(bool, bool) -> bool,
+    out_dtype: BoolDType,
 ) -> FlexTensor {
     let tensor = tensor.to_contiguous();
     macro_rules! dispatch {
         ($ty:ty) => {{
             let data: &[$ty] = tensor.storage();
-            reduce_bool_dim_with(&tensor, dim, init, combine, |idx| data[idx] != 0)
+            reduce_bool_dim_with(&tensor, dim, init, combine, out_dtype, |idx| data[idx] != 0)
         }};
     }
     match tensor.dtype() {
@@ -811,10 +996,13 @@ fn reduce_bool_dim_raw(
     dim: usize,
     init: bool,
     combine: fn(bool, bool) -> bool,
+    out_dtype: BoolDType,
 ) -> FlexTensor {
     let tensor = tensor.to_contiguous();
     let data: &[u8] = tensor.bytes();
-    reduce_bool_dim_with(&tensor, dim, init, combine, |idx| data[idx] != 0)
+    reduce_bool_dim_with(&tensor, dim, init, combine, out_dtype, |idx| {
+        data[idx] != 0
+    })
 }
 
 #[cfg(test)]
@@ -826,7 +1014,7 @@ mod tests {
     fn test_greater() {
         let lhs = FlexTensor::from_data(TensorData::new(vec![1.0f32, 2.0, 3.0], [3]));
         let rhs = FlexTensor::from_data(TensorData::new(vec![2.0f32, 2.0, 1.0], [3]));
-        let result = greater(lhs, rhs);
+        let result = greater(lhs, rhs, BoolDType::Native);
         let data: &[u8] = result.bytes();
         assert_eq!(data, &[0, 0, 1]); // 1>2=F, 2>2=F, 3>1=T
     }
@@ -834,7 +1022,7 @@ mod tests {
     #[test]
     fn test_greater_elem() {
         let lhs = FlexTensor::from_data(TensorData::new(vec![1.0f32, 2.0, 3.0], [3]));
-        let result = greater_elem(lhs, 2.0);
+        let result = greater_elem(lhs, 2.0, BoolDType::Native);
         let data: &[u8] = result.bytes();
         assert_eq!(data, &[0, 0, 1]); // 1>2=F, 2>2=F, 3>2=T
     }
@@ -843,7 +1031,7 @@ mod tests {
     fn test_equal() {
         let lhs = FlexTensor::from_data(TensorData::new(vec![1.0f32, 2.0, 3.0], [3]));
         let rhs = FlexTensor::from_data(TensorData::new(vec![1.0f32, 3.0, 3.0], [3]));
-        let result = equal(lhs, rhs);
+        let result = equal(lhs, rhs, BoolDType::Native);
         let data: &[u8] = result.bytes();
         assert_eq!(data, &[1, 0, 1]); // 1==1=T, 2==3=F, 3==3=T
     }
@@ -864,7 +1052,7 @@ mod tests {
         assert!(!lhs.is_contiguous());
 
         let rhs = tensor_2d(vec![2.0, 2.0, 2.0, 2.0], 2, 2);
-        let result = greater(lhs, rhs);
+        let result = greater(lhs, rhs, BoolDType::Native);
         let data: &[u8] = result.bytes();
         assert_eq!(data, &[0, 1, 0, 1]);
     }
@@ -878,7 +1066,7 @@ mod tests {
         assert!(lhs.layout().strides()[0] < 0);
 
         let rhs = FlexTensor::from_data(TensorData::new(vec![4.0f32, 2.0, 2.0, 1.0], [4]));
-        let result = equal(lhs, rhs);
+        let result = equal(lhs, rhs, BoolDType::Native);
         let data: &[u8] = result.bytes();
         assert_eq!(data, &[1, 0, 1, 1]);
     }
@@ -892,7 +1080,7 @@ mod tests {
         assert!(lhs.layout().strides()[0] < 0);
 
         let rhs = tensor_2d(vec![2.0, 5.0, 2.0, 1.0], 2, 2);
-        let result = lower(lhs, rhs);
+        let result = lower(lhs, rhs, BoolDType::Native);
         let data: &[u8] = result.bytes();
         assert_eq!(data, &[0, 1, 1, 0]);
     }
@@ -905,7 +1093,7 @@ mod tests {
         let lhs = crate::ops::flip::flip(lhs, &[0]);
         assert!(lhs.layout().strides()[0] < 0);
 
-        let result = greater_elem(lhs, 2.5);
+        let result = greater_elem(lhs, 2.5, BoolDType::Native);
         let data: &[u8] = result.bytes();
         assert_eq!(data, &[1, 1, 0, 0]);
     }
@@ -921,7 +1109,7 @@ mod tests {
         assert!(!lhs.is_contiguous());
         assert!(!rhs.is_contiguous());
 
-        let result = equal(lhs, rhs);
+        let result = equal(lhs, rhs, BoolDType::Native);
         let data: &[u8] = result.bytes();
         assert_eq!(data, &[1, 0, 0, 1]);
     }
@@ -935,7 +1123,7 @@ mod tests {
         let lhs = lhs.narrow(0, 1, 4);
 
         let rhs = FlexTensor::from_data(TensorData::new(vec![2.0f32, 2.0, 4.0, 4.0], [4]));
-        let result = not_equal(lhs, rhs);
+        let result = not_equal(lhs, rhs, BoolDType::Native);
         let data: &[u8] = result.bytes();
         assert_eq!(data, &[0, 1, 0, 1]);
     }
@@ -949,7 +1137,7 @@ mod tests {
 
         // [4, 3, 2, 1] > [3, 3, 3, 3] = [T, F, F, F]
         let rhs = FlexTensor::from_data(TensorData::new(vec![3i64, 3, 3, 3], [4]));
-        let result = int_greater(lhs, rhs);
+        let result = int_greater(lhs, rhs, BoolDType::Native);
         let data: &[u8] = result.bytes();
         assert_eq!(data, &[1, 0, 0, 0]);
     }
@@ -964,7 +1152,7 @@ mod tests {
         assert!(lhs.layout().strides()[1] < 0);
 
         let rhs = tensor_2d(vec![3.0, 3.0, 3.0, 3.0], 2, 2);
-        let result = lower(lhs, rhs);
+        let result = lower(lhs, rhs, BoolDType::Native);
         let data: &[u8] = result.bytes();
         assert_eq!(data, &[0, 0, 1, 1]);
     }
@@ -980,7 +1168,7 @@ mod tests {
         let transposed = tensor.transpose(0, 1);
         assert!(!transposed.is_contiguous());
 
-        let result = any_float_dim(transposed, 1);
+        let result = any_float_dim(transposed, 1, BoolDType::Native);
         let data: &[u8] = result.bytes();
         assert_eq!(data, &[0, 1]); // row 0: all zeros; row 1: has a 1
     }
@@ -994,7 +1182,7 @@ mod tests {
             [3, 2],
         ));
         let narrowed = tensor.narrow(0, 0, 2); // first 2 rows: [[0, 5], [0, 3]]
-        let result = any_float_dim(narrowed, 1);
+        let result = any_float_dim(narrowed, 1, BoolDType::Native);
         let data: &[u8] = result.bytes();
         assert_eq!(data, &[1, 1]);
     }

@@ -46,14 +46,20 @@ where
     };
 
     // Native and U8 share the same 1-byte-per-element layout, so the bytes above
-    // work for both — only the dtype tag differs. U32 would need 4-byte expansion.
+    // work for both. Only the dtype tag differs. U32 widens to 4 bytes per element.
+    let bytes = match out_dtype {
+        BoolDType::Native | BoolDType::U8 => Bytes::from_elems(result),
+        BoolDType::U32 => {
+            let widened: Vec<u32> = result.into_iter().map(u32::from).collect();
+            Bytes::from_elems(widened)
+        }
+    };
     let store = match out_dtype {
         BoolDType::Native => BoolStore::Native,
         BoolDType::U8 => BoolStore::U8,
-        BoolDType::U32 => panic!("float_predicate: BoolDType::U32 output not yet supported"),
+        BoolDType::U32 => BoolStore::U32,
     };
 
-    let bytes = Bytes::from_elems(result);
     FlexTensor::new(bytes, Layout::contiguous(shape), DType::Bool(store))
 }
 

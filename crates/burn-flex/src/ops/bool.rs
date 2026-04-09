@@ -43,9 +43,9 @@ impl BoolTensorOps<Flex> for Flex {
     fn bool_empty(
         shape: Shape,
         _device: &Device<Flex>,
-        _dtype: burn_std::BoolDType,
+        dtype: burn_std::BoolDType,
     ) -> BoolTensor<Flex> {
-        FlexTensor::empty(shape, DType::Bool(burn_std::BoolStore::Native))
+        FlexTensor::empty(shape, DType::from(dtype))
     }
 
     fn bool_slice_assign(
@@ -140,10 +140,7 @@ impl BoolTensorOps<Flex> for Flex {
     }
 
     fn bool_equal(lhs: BoolTensor<Flex>, rhs: BoolTensor<Flex>) -> BoolTensor<Flex> {
-        use crate::Layout;
         use crate::strided_index::StridedIter;
-        use burn_backend::DType;
-        use burn_std::Bytes;
 
         debug_assert_eq!(
             lhs.layout().shape(),
@@ -151,6 +148,7 @@ impl BoolTensorOps<Flex> for Flex {
             "bool_equal: shape mismatch"
         );
 
+        let out_dtype = burn_std::BoolDType::from(lhs.dtype());
         let shape = lhs.layout().shape().clone();
         let lhs_storage: &[u8] = lhs.bytes();
         let rhs_storage: &[u8] = rhs.bytes();
@@ -178,21 +176,14 @@ impl BoolTensorOps<Flex> for Flex {
             }
         };
 
-        let bytes = Bytes::from_elems(result);
-        FlexTensor::new(
-            bytes,
-            Layout::contiguous(shape),
-            DType::Bool(burn_std::BoolStore::Native),
-        )
+        crate::ops::comparison::make_bool_tensor(result, shape, out_dtype)
     }
 
     fn bool_not(mut tensor: BoolTensor<Flex>) -> BoolTensor<Flex> {
-        use crate::Layout;
         use crate::strided_index::StridedIter;
-        use burn_backend::DType;
-        use burn_std::Bytes;
 
-        // Fast path: in-place for unique, contiguous tensors at offset 0
+        // Fast path: in-place for unique, contiguous tensors at offset 0. This
+        // preserves the input tensor's dtype tag implicitly.
         if tensor.is_unique()
             && tensor.layout().is_contiguous()
             && tensor.layout().start_offset() == 0
@@ -202,7 +193,9 @@ impl BoolTensorOps<Flex> for Flex {
             return tensor;
         }
 
-        // Allocating path for shared or non-contiguous tensors
+        // Allocating path for shared or non-contiguous tensors: preserve the
+        // input's bool dtype for the new tensor.
+        let out_dtype = burn_std::BoolDType::from(tensor.dtype());
         let shape = tensor.layout().shape().clone();
         let storage: &[u8] = tensor.bytes();
 
@@ -218,12 +211,7 @@ impl BoolTensorOps<Flex> for Flex {
                 .collect(),
         };
 
-        let bytes = Bytes::from_elems(result);
-        FlexTensor::new(
-            bytes,
-            Layout::contiguous(shape),
-            DType::Bool(burn_std::BoolStore::Native),
-        )
+        crate::ops::comparison::make_bool_tensor(result, shape, out_dtype)
     }
 
     fn bool_and(lhs: BoolTensor<Flex>, rhs: BoolTensor<Flex>) -> BoolTensor<Flex> {
@@ -254,15 +242,11 @@ impl BoolTensorOps<Flex> for Flex {
     fn bool_ones(
         shape: Shape,
         _device: &Device<Flex>,
-        _dtype: burn_std::BoolDType,
+        dtype: burn_std::BoolDType,
     ) -> BoolTensor<Flex> {
         let num_elements = shape.num_elements();
         let data = vec![1u8; num_elements];
-        FlexTensor::new(
-            Bytes::from_elems(data),
-            Layout::contiguous(shape),
-            DType::Bool(burn_std::BoolStore::Native),
-        )
+        crate::ops::comparison::make_bool_tensor(data, shape, dtype)
     }
 
     fn bool_mask_where(
@@ -300,10 +284,9 @@ impl BoolTensorOps<Flex> for Flex {
     }
 
     fn bool_equal_elem(lhs: BoolTensor<Flex>, rhs: burn_backend::Scalar) -> BoolTensor<Flex> {
-        use crate::Layout;
         use crate::strided_index::StridedIter;
-        use burn_std::Bytes;
 
+        let out_dtype = burn_std::BoolDType::from(lhs.dtype());
         let shape = lhs.layout().shape().clone();
         let storage: &[u8] = lhs.bytes();
         let rhs_bool: bool = rhs.elem();
@@ -319,12 +302,7 @@ impl BoolTensorOps<Flex> for Flex {
                 .collect(),
         };
 
-        let bytes = Bytes::from_elems(result);
-        FlexTensor::new(
-            bytes,
-            Layout::contiguous(shape),
-            DType::Bool(burn_std::BoolStore::Native),
-        )
+        crate::ops::comparison::make_bool_tensor(result, shape, out_dtype)
     }
 
     fn bool_unfold(
@@ -337,28 +315,34 @@ impl BoolTensorOps<Flex> for Flex {
     }
 
     fn bool_not_equal(lhs: BoolTensor<Flex>, rhs: BoolTensor<Flex>) -> BoolTensor<Flex> {
-        crate::ops::comparison::bool_not_equal(lhs, rhs)
+        let out_dtype = burn_std::BoolDType::from(lhs.dtype());
+        crate::ops::comparison::bool_not_equal(lhs, rhs, out_dtype)
     }
 
     fn bool_not_equal_elem(lhs: BoolTensor<Flex>, rhs: burn_backend::Scalar) -> BoolTensor<Flex> {
+        let out_dtype = burn_std::BoolDType::from(lhs.dtype());
         let rhs: bool = rhs.elem();
-        crate::ops::comparison::bool_not_equal_elem(lhs, rhs)
+        crate::ops::comparison::bool_not_equal_elem(lhs, rhs, out_dtype)
     }
 
     fn bool_any(tensor: BoolTensor<Flex>) -> BoolTensor<Flex> {
-        crate::ops::comparison::any_bool(tensor)
+        let out_dtype = burn_std::BoolDType::from(tensor.dtype());
+        crate::ops::comparison::any_bool(tensor, out_dtype)
     }
 
     fn bool_any_dim(tensor: BoolTensor<Flex>, dim: usize) -> BoolTensor<Flex> {
-        crate::ops::comparison::any_bool_dim(tensor, dim)
+        let out_dtype = burn_std::BoolDType::from(tensor.dtype());
+        crate::ops::comparison::any_bool_dim(tensor, dim, out_dtype)
     }
 
     fn bool_all(tensor: BoolTensor<Flex>) -> BoolTensor<Flex> {
-        crate::ops::comparison::all_bool(tensor)
+        let out_dtype = burn_std::BoolDType::from(tensor.dtype());
+        crate::ops::comparison::all_bool(tensor, out_dtype)
     }
 
     fn bool_all_dim(tensor: BoolTensor<Flex>, dim: usize) -> BoolTensor<Flex> {
-        crate::ops::comparison::all_bool_dim(tensor, dim)
+        let out_dtype = burn_std::BoolDType::from(tensor.dtype());
+        crate::ops::comparison::all_bool_dim(tensor, dim, out_dtype)
     }
 
     fn bool_select(
@@ -442,9 +426,7 @@ enum BoolBinaryOp {
 }
 
 fn bool_binary_op_simd(mut lhs: FlexTensor, mut rhs: FlexTensor, op: BoolBinaryOp) -> FlexTensor {
-    use crate::Layout;
     use crate::strided_index::StridedIter;
-    use burn_std::Bytes;
 
     debug_assert_eq!(
         lhs.layout().shape(),
@@ -452,6 +434,9 @@ fn bool_binary_op_simd(mut lhs: FlexTensor, mut rhs: FlexTensor, op: BoolBinaryO
         "bool_binary_op: shape mismatch"
     );
 
+    // Preserve the input bool dtype (taken from lhs; rhs is assumed to match
+    // since bool binary ops require shape and dtype consistency).
+    let out_dtype = burn_std::BoolDType::from(lhs.dtype());
     let shape = lhs.layout().shape().clone();
     let l_offsets = lhs.layout().contiguous_offsets();
     let r_offsets = rhs.layout().contiguous_offsets();
@@ -527,12 +512,7 @@ fn bool_binary_op_simd(mut lhs: FlexTensor, mut rhs: FlexTensor, op: BoolBinaryO
         }
     };
 
-    let bytes = Bytes::from_elems(result);
-    FlexTensor::new(
-        bytes,
-        Layout::contiguous(shape),
-        DType::Bool(burn_std::BoolStore::Native),
-    )
+    crate::ops::comparison::make_bool_tensor(result, shape, out_dtype)
 }
 
 #[cfg(test)]

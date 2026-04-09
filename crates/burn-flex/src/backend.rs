@@ -48,16 +48,42 @@ impl core::fmt::Display for FlexDevice {
     }
 }
 
-/// The Flex backend - a fast, portable CPU backend for Burn.
+/// The Flex backend, a fast, portable CPU backend for Burn.
 ///
 /// The `E` and `I` type parameters exist purely to match the shape of other Burn
 /// backends (e.g. `NdArray<E, I, Q>`) so `Flex` slots into `burn-dispatch`'s
 /// generic dispatch macros. The body of `Flex` uses runtime `DType` dispatch, so
-/// both parameters are phantom: the `Backend` impl is only provided for the
-/// defaults (`Flex<f32, i32>`) and uses `f32`/`i32` as the associated elem types
-/// regardless. To keep source-level compatibility, write `Flex` (which resolves
-/// to `Flex<f32, i32>` via the defaults); instantiating with other parameters
-/// will not implement `Backend`.
+/// both parameters are phantom and unused at runtime.
+///
+/// # Limitations of the phantom generics
+///
+/// The `Backend` impl is provided only for the default instantiation
+/// `Flex<f32, i32>`. Writing `Flex` (with no arguments) resolves to the default
+/// and works exactly as before. Writing `Flex<f64, i64>` or any other non-default
+/// combination is a valid Rust type but will not satisfy trait bounds requiring
+/// `Backend`, producing errors like:
+///
+/// ```text
+/// the trait bound `Flex<f64, i64>: Backend` is not satisfied
+/// ```
+///
+/// This is a deliberate compromise for the initial migration: making `Flex`
+/// generic over element types at the trait-impl level is a follow-up that would
+/// require rewriting all `impl FooOps<Flex> for Flex` blocks plus internal
+/// `Flex::method()` calls. Until then, treat the generic parameters as opaque
+/// shape placeholders; real element-type selection happens at runtime via
+/// `DType`.
+///
+/// The bound is locked in by a compile-fail doctest so that if someone later
+/// makes the `Backend` impl generic over `E`/`I`, this documentation gets
+/// flagged as out of date:
+///
+/// ```compile_fail
+/// use burn_backend::Backend;
+/// use burn_flex::Flex;
+/// fn requires_backend<B: Backend>() {}
+/// requires_backend::<Flex<f64, i64>>();
+/// ```
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Flex<E = f32, I = i32> {
     _e: PhantomData<E>,
