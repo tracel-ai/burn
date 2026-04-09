@@ -443,11 +443,7 @@ fn bool_binary_op_simd(mut lhs: FlexTensor, mut rhs: FlexTensor, op: BoolBinaryO
         rhs.layout().shape(),
         "bool_binary_op: shape mismatch"
     );
-    debug_assert_eq!(
-        lhs.dtype(),
-        rhs.dtype(),
-        "bool_binary_op: dtype mismatch"
-    );
+    debug_assert_eq!(lhs.dtype(), rhs.dtype(), "bool_binary_op: dtype mismatch");
 
     // Preserve the input bool dtype (taken from lhs; rhs is assumed to match
     // since bool binary ops require shape and dtype consistency).

@@ -171,7 +171,10 @@ impl FlexTensor {
     pub fn storage<E: Element + bytemuck::Pod>(&self) -> &[E] {
         debug_assert!(
             E::dtype() == self.dtype
-                || (matches!(self.dtype, DType::Bool(burn_std::BoolStore::Native | burn_std::BoolStore::U8)) && E::dtype() == DType::U8),
+                || (matches!(
+                    self.dtype,
+                    DType::Bool(burn_std::BoolStore::Native | burn_std::BoolStore::U8)
+                ) && E::dtype() == DType::U8),
             "storage: dtype mismatch (expected {:?}, got {:?})",
             self.dtype,
             E::dtype()
@@ -191,7 +194,10 @@ impl FlexTensor {
     pub fn storage_mut<E: Element + bytemuck::Pod>(&mut self) -> &mut [E] {
         debug_assert!(
             E::dtype() == self.dtype
-                || (matches!(self.dtype, DType::Bool(burn_std::BoolStore::Native | burn_std::BoolStore::U8)) && E::dtype() == DType::U8),
+                || (matches!(
+                    self.dtype,
+                    DType::Bool(burn_std::BoolStore::Native | burn_std::BoolStore::U8)
+                ) && E::dtype() == DType::U8),
             "storage_mut: dtype mismatch (expected {:?}, got {:?})",
             self.dtype,
             E::dtype()
@@ -209,7 +215,10 @@ impl FlexTensor {
     pub fn try_storage_mut<E: Element + bytemuck::Pod>(&mut self) -> Option<&mut [E]> {
         debug_assert!(
             E::dtype() == self.dtype
-                || (matches!(self.dtype, DType::Bool(burn_std::BoolStore::Native | burn_std::BoolStore::U8)) && E::dtype() == DType::U8),
+                || (matches!(
+                    self.dtype,
+                    DType::Bool(burn_std::BoolStore::Native | burn_std::BoolStore::U8)
+                ) && E::dtype() == DType::U8),
             "try_storage_mut: dtype mismatch (expected {:?}, got {:?})",
             self.dtype,
             E::dtype()
