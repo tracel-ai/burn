@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use burn_backend::{
-    DeviceId, StreamId,
+    DeviceId, DeviceOps, StreamId,
     distributed::{DistributedBackend, ReduceOperation},
     tensor::{Device, FloatTensor},
 };
@@ -99,7 +99,9 @@ impl<B: FusionBackend + DistributedBackend> DistributedBackend for Fusion<B> {
     }
 
     fn sync_collective(device: &Device<Self>) {
+        println!("fusion sync_collective: {:?}", device.id());
         let client = get_client::<B>(device);
+        println!("fusion sync_collective got client: {:?}", device.id());
         client.sync_collective::<B>(device.clone());
     }
 }

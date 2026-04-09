@@ -79,6 +79,7 @@ where
 
     fn sync_collective(device: &Device<Self>) {
         let client = R::client(device);
+        println!("fusion sync_collective: {:?}", device.id());
         client.sync_collective();
     }
 }
