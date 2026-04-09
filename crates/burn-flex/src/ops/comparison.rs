@@ -377,9 +377,9 @@ where
     make_bool_tensor(result, shape, out_dtype)
 }
 
-/// Build a bool FlexTensor from a Vec<u8> of 0/1 bytes, tagged with the requested
-/// output dtype. Native and U8 share the same 1-byte-per-element layout so the
-/// bytes pass through; U32 widens each element to 4 bytes.
+/// Build a bool `FlexTensor` from a `Vec<u8>` of 0/1 bytes, tagged with the
+/// requested output dtype. Native and U8 share the same 1-byte-per-element
+/// layout so the bytes pass through; U32 widens each element to 4 bytes.
 pub(crate) fn make_bool_tensor(data: Vec<u8>, shape: Shape, out_dtype: BoolDType) -> FlexTensor {
     let (bytes, store) = match out_dtype {
         BoolDType::Native => (Bytes::from_elems(data), BoolStore::Native),
