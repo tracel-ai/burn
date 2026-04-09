@@ -1276,15 +1276,63 @@ mod tests {
         };
 
         // SharedRow expected: lhs[i][j] OP rhs[j]
-        run("shared_add", build_shared, BinaryOp::Add, |a, b| a + b, &[6.0, 12.0, 15.0, 22.0, 34.0, 63.0]);
-        run("shared_sub", build_shared, BinaryOp::Sub, |a, b| a - b, &[2.0, 4.0, 9.0, 18.0, 26.0, 57.0]);
-        run("shared_mul", build_shared, BinaryOp::Mul, |a, b| a * b, &[8.0, 32.0, 36.0, 40.0, 120.0, 180.0]);
-        run("shared_div", build_shared, BinaryOp::Div, |a, b| a / b, &[2.0, 2.0, 4.0, 10.0, 7.5, 20.0]);
+        run(
+            "shared_add",
+            build_shared,
+            BinaryOp::Add,
+            |a, b| a + b,
+            &[6.0, 12.0, 15.0, 22.0, 34.0, 63.0],
+        );
+        run(
+            "shared_sub",
+            build_shared,
+            BinaryOp::Sub,
+            |a, b| a - b,
+            &[2.0, 4.0, 9.0, 18.0, 26.0, 57.0],
+        );
+        run(
+            "shared_mul",
+            build_shared,
+            BinaryOp::Mul,
+            |a, b| a * b,
+            &[8.0, 32.0, 36.0, 40.0, 120.0, 180.0],
+        );
+        run(
+            "shared_div",
+            build_shared,
+            BinaryOp::Div,
+            |a, b| a / b,
+            &[2.0, 2.0, 4.0, 10.0, 7.5, 20.0],
+        );
         // PerRowScalar expected: lhs[i][j] OP rhs[i]
-        run("perrow_add", build_perrow, BinaryOp::Add, |a, b| a + b, &[6.0, 10.0, 14.0, 25.0, 35.0, 65.0]);
-        run("perrow_sub", build_perrow, BinaryOp::Sub, |a, b| a - b, &[2.0, 6.0, 10.0, 15.0, 25.0, 55.0]);
-        run("perrow_mul", build_perrow, BinaryOp::Mul, |a, b| a * b, &[8.0, 16.0, 24.0, 100.0, 150.0, 300.0]);
-        run("perrow_div", build_perrow, BinaryOp::Div, |a, b| a / b, &[2.0, 4.0, 6.0, 4.0, 6.0, 12.0]);
+        run(
+            "perrow_add",
+            build_perrow,
+            BinaryOp::Add,
+            |a, b| a + b,
+            &[6.0, 10.0, 14.0, 25.0, 35.0, 65.0],
+        );
+        run(
+            "perrow_sub",
+            build_perrow,
+            BinaryOp::Sub,
+            |a, b| a - b,
+            &[2.0, 6.0, 10.0, 15.0, 25.0, 55.0],
+        );
+        run(
+            "perrow_mul",
+            build_perrow,
+            BinaryOp::Mul,
+            |a, b| a * b,
+            &[8.0, 16.0, 24.0, 100.0, 150.0, 300.0],
+        );
+        run(
+            "perrow_div",
+            build_perrow,
+            BinaryOp::Div,
+            |a, b| a / b,
+            &[2.0, 4.0, 6.0, 4.0, 6.0, 12.0],
+        );
     }
 
     /// Non-unique lhs: `apply_broadcast_pattern_f32` takes the allocating
