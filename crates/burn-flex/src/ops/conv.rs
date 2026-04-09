@@ -2813,6 +2813,67 @@ mod tests {
     }
 
     #[test]
+    fn test_conv2d_depthwise_bias_length_mismatch_panics() {
+        // Mirror of the small-channel bias check for the depthwise path.
+        // Depthwise dispatch requires groups == channels_in == channels_out, so
+        // we construct a 3->3 depthwise conv and deliberately underspecify the
+        // bias length to exercise the assert_eq in conv3d_depthwise_impl.
+        let x = FlexTensor::from_data(TensorData::new(vec![0.0f32; 48], vec![1, 3, 4, 4]));
+        let weight = FlexTensor::from_data(TensorData::new(vec![0.0f32; 27], vec![3, 1, 3, 3]));
+        // Bias has only 2 elements but there are 3 depthwise channels.
+        let bias = FlexTensor::from_data(TensorData::new(vec![0.0f32, 0.0], vec![2]));
+        let options = ConvOptions::new([1, 1], [1, 1], [1, 1], 3); // groups=3 => depthwise
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            conv2d_f32(x, weight, Some(bias), &options)
+        }));
+        assert!(result.is_err(), "expected panic on bias length mismatch");
+    }
+
+    #[test]
+    fn test_conv_plane_accumulate_accumulates_into_prefilled() {
+        // Pin the documented precondition that `conv_plane_accumulate`
+        // accumulates into `out_plane` rather than overwriting it. Both
+        // in-tree callers pre-zero before the first call, then call it
+        // repeatedly across input channels with the result acting as the
+        // running accumulator. A regression that overwrites instead of
+        // accumulating would silently drop every input-channel contribution
+        // except the last.
+        //
+        // Test shape: single 2x2 input -> single 2x2 output, 1x1 kernel with
+        // weight 1.0. Pre-fill out_plane with [10, 20, 30, 40] so the
+        // expected post-call value is x + prefill.
+        let x = vec![1.0f32, 2.0, 3.0, 4.0];
+        let w = vec![1.0f32]; // 1x1 kernel, weight = 1
+        let mut out_plane = vec![10.0f32, 20.0, 30.0, 40.0];
+
+        // 1x1 kernel, no padding: the only kernel position contributes to
+        // every output row and column (indices [0, out_h) and [0, out_w)).
+        let oh_ranges = [(0usize, 2usize)]; // per kh: (out_start, out_end)
+        let ow_ranges = [(0usize, 2usize)]; // per kw: (out_start, out_end)
+
+        super::conv_plane_accumulate::<f32>(
+            &mut out_plane,
+            &x,
+            &w,
+            /* kernel_h */ 1,
+            /* kernel_w */ 1,
+            /* in_w */ 2,
+            /* out_w */ 2,
+            /* stride_h */ 1,
+            /* stride_w */ 1,
+            /* pad_h */ 0,
+            /* pad_w */ 0,
+            /* dilation_h */ 1,
+            /* dilation_w */ 1,
+            &oh_ranges,
+            &ow_ranges,
+        );
+
+        // Expected: prefill + (x * 1.0) element-wise.
+        assert_eq!(out_plane, vec![11.0f32, 22.0, 33.0, 44.0]);
+    }
+
+    #[test]
     fn test_conv1d_small_channel_3in() {
         // conv1d -> conv3d expansion with groups=1 and 3 input channels.
         let batch = 2;

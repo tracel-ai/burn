@@ -601,9 +601,26 @@ fn copy_2d_tiled<E: Copy>(
 /// Matches `burn_std::DType::size()` semantics: Bool(Native) and Bool(U8) are
 /// 1 byte, Bool(U32) is 4 bytes. This makes buffer-size validation correct
 /// regardless of which BoolStore variant the dtype carries.
+///
+/// # Panics
+///
+/// Panics if the dtype has a zero-byte element size. `burn_std::DType::size()`
+/// returns 0 for sub-byte quantized dtypes (Q4F, Q4S, Q2F, Q2S, and most
+/// `QuantStore::PackedNative` variants). burn-flex does not yet support these
+/// packed quantization formats; passing them here would silently produce
+/// empty allocations in `FlexTensor::empty`, truncated buffers in `into_data`,
+/// and zero-byte memcpys in `repeat_dim`. The panic turns all three into a
+/// loud, actionable failure at the dispatch boundary.
 pub(crate) fn dtype_size(dtype: DType) -> usize {
     // Delegate to burn-std's canonical size to stay in sync.
-    dtype.size()
+    let size = dtype.size();
+    assert!(
+        size > 0,
+        "burn-flex: dtype {:?} has zero-byte element size (sub-byte packed \
+         quantization is not yet supported)",
+        dtype
+    );
+    size
 }
 
 #[cfg(test)]

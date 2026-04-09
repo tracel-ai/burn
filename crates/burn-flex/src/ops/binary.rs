@@ -1230,6 +1230,85 @@ mod tests {
         assert_eq!(data.as_slice::<f32>().unwrap(), reference.as_slice());
     }
 
+    /// Exercise every `(op, pattern)` combination of the broadcast fast path:
+    /// Add/Sub/Mul/Div crossed with SharedRow and PerRowScalar. The existing
+    /// targeted tests only cover a subset, so a sign error in
+    /// `div_shared_row_inplace_f32` or `add_per_row_scalar` would ship green.
+    #[test]
+    fn test_binary_broadcast_all_ops_and_patterns_f32() {
+        fn build_shared() -> (FlexTensor, FlexTensor) {
+            let a = FlexTensor::from_data(TensorData::new(
+                vec![4.0f32, 8.0, 12.0, 20.0, 30.0, 60.0],
+                vec![2, 3],
+            ));
+            let b = FlexTensor::from_data(TensorData::new(vec![2.0f32, 4.0, 3.0], vec![3]))
+                .reshape(Shape::from(vec![1, 3]));
+            (a, b)
+        }
+        fn build_perrow() -> (FlexTensor, FlexTensor) {
+            let a = FlexTensor::from_data(TensorData::new(
+                vec![4.0f32, 8.0, 12.0, 20.0, 30.0, 60.0],
+                vec![2, 3],
+            ));
+            let b = FlexTensor::from_data(TensorData::new(vec![2.0f32, 5.0], vec![2, 1]));
+            (a, b)
+        }
+
+        let run = |name: &str,
+                   build: fn() -> (FlexTensor, FlexTensor),
+                   simd_op: BinaryOp,
+                   op_fn: fn(f32, f32) -> f32,
+                   expected: &[f32]| {
+            let (a, b) = build();
+            let result = binary_op(
+                a,
+                b,
+                op_fn,
+                |x: f64, y: f64| op_fn(x as f32, y as f32) as f64,
+                Some(simd_op),
+            );
+            let data = result.into_data();
+            assert_eq!(
+                data.as_slice::<f32>().unwrap(),
+                expected,
+                "case {name} produced wrong values"
+            );
+        };
+
+        // SharedRow expected: lhs[i][j] OP rhs[j]
+        run("shared_add", build_shared, BinaryOp::Add, |a, b| a + b, &[6.0, 12.0, 15.0, 22.0, 34.0, 63.0]);
+        run("shared_sub", build_shared, BinaryOp::Sub, |a, b| a - b, &[2.0, 4.0, 9.0, 18.0, 26.0, 57.0]);
+        run("shared_mul", build_shared, BinaryOp::Mul, |a, b| a * b, &[8.0, 32.0, 36.0, 40.0, 120.0, 180.0]);
+        run("shared_div", build_shared, BinaryOp::Div, |a, b| a / b, &[2.0, 2.0, 4.0, 10.0, 7.5, 20.0]);
+        // PerRowScalar expected: lhs[i][j] OP rhs[i]
+        run("perrow_add", build_perrow, BinaryOp::Add, |a, b| a + b, &[6.0, 10.0, 14.0, 25.0, 35.0, 65.0]);
+        run("perrow_sub", build_perrow, BinaryOp::Sub, |a, b| a - b, &[2.0, 6.0, 10.0, 15.0, 25.0, 55.0]);
+        run("perrow_mul", build_perrow, BinaryOp::Mul, |a, b| a * b, &[8.0, 16.0, 24.0, 100.0, 150.0, 300.0]);
+        run("perrow_div", build_perrow, BinaryOp::Div, |a, b| a / b, &[2.0, 4.0, 6.0, 4.0, 6.0, 12.0]);
+    }
+
+    /// Non-unique lhs: `apply_broadcast_pattern_f32` takes the allocating
+    /// branch instead of writing in place. Clone the lhs so its Arc refcount
+    /// is > 1, then run a broadcast op and verify the result matches the
+    /// unique path. Without this test, a regression in the allocating branch
+    /// would only fire on shared-lhs call sites which are rare in bench code.
+    #[test]
+    fn test_binary_broadcast_non_unique_lhs_f32() {
+        let a = FlexTensor::from_data(TensorData::new(
+            vec![1.0f32, 2.0, 3.0, 4.0, 5.0, 6.0],
+            vec![2, 3],
+        ));
+        let _keep_alive = a.clone(); // bump Arc refcount so lhs is shared
+        let b = FlexTensor::from_data(TensorData::new(vec![10.0f32, 20.0, 30.0], vec![3]))
+            .reshape(Shape::from(vec![1, 3]));
+        let result = binary_op(a, b, |a, b| a + b, |a, b| a + b, Some(BinaryOp::Add));
+        let data = result.into_data();
+        assert_eq!(
+            data.as_slice::<f32>().unwrap(),
+            &[11.0f32, 22.0, 33.0, 14.0, 25.0, 36.0]
+        );
+    }
+
     /// Fully-broadcast scalar: rhs strides all 0, PerRowScalar with
     /// empty outer walk, applies one scalar across the whole dst.
     #[test]
