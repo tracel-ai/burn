@@ -8,7 +8,7 @@
 //!
 //! - Pure Rust (no C dependencies)
 //! - f16/bf16 support
-//! - SIMD acceleration (NEON on ARM, future AVX on x86)
+//! - SIMD acceleration via macerator (NEON, AVX2/AVX-512/SSE, SIMD128, scalar fallback)
 //! - Zero-copy tensor views
 //! - Thread-safe by design
 //!

@@ -268,7 +268,7 @@ macro_rules! bench_int_backend {
                 fn large(bencher: Bencher) {
                     let a = make_int_tensor::<B>(LARGE);
                     let b = make_int_tensor::<B>(LARGE);
-                    bencher.bench(|| a.clone() + b.clone());
+                    bencher.bench(|| a.clone() * b.clone());
                 }
             }
 

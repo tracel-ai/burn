@@ -17,9 +17,12 @@ pub type FlexRng = StdRng;
 /// Uses Mutex for thread-safe RNG state management.
 pub(crate) static SEED: Mutex<Option<FlexRng>> = Mutex::new(None);
 
-/// Get a random number generator.
-/// If a seed was set, clones and returns the seeded RNG.
-/// Otherwise, creates a new RNG with OS entropy (std) or constant seed (no_std).
+/// Fallback RNG when `SEED` is empty (consumed or never set).
+///
+/// The seeding flow is: `Backend::seed()` stores a `FlexRng` in `SEED`. Random
+/// ops (`float_random`, `int_random`) call `SEED.lock().take()`, consuming it for
+/// that op and falling back to this function for subsequent calls. This function
+/// delegates to burn_std's own entropy source.
 pub(crate) fn get_seeded_rng() -> FlexRng {
     burn_std::rand::get_seeded_rng()
 }
@@ -213,7 +216,10 @@ mod tests {
     #[test]
     fn supports_bool_native() {
         let device = FlexDevice;
-        assert!(Flex::supports_dtype(&device, DType::Bool(BoolStore::Native)));
+        assert!(Flex::supports_dtype(
+            &device,
+            DType::Bool(BoolStore::Native)
+        ));
     }
 
     #[test]

@@ -47,6 +47,13 @@ fn cat_impl<E: Element + bytemuck::Pod>(tensors: Vec<FlexTensor>, dim: usize) ->
     let mut out_dims = first_shape.to_vec();
     out_dims[dim] = 0;
     for t in &tensors {
+        assert_eq!(
+            t.dtype(),
+            dtype,
+            "cat: dtype mismatch: expected {:?}, got {:?}",
+            dtype,
+            t.dtype()
+        );
         let s = t.layout().shape();
         assert_eq!(s.num_dims(), ndims, "cat: dimension count mismatch");
         for (d, out_d) in out_dims.iter_mut().enumerate() {
