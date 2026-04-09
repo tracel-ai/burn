@@ -230,6 +230,17 @@ fn should_unsqueeze_dims_panic() {
     let _output_tensor: TestTensor<5> = input_tensor.unsqueeze_dims(&[0, -6]);
 }
 
+/// Duplicate-axis normalization can push the last index past the valid output
+/// range (e.g. `[2, 2]` targeting rank 3 normalizes to `[2, 3]`). This must be
+/// rejected with a clear error instead of triggering an out-of-bounds read in
+/// the copy loop.
+#[test]
+#[should_panic]
+fn should_unsqueeze_dims_panic_duplicate_pushed_out_of_range() {
+    let input_tensor = TestTensor::<1>::ones(Shape::new([4]), &Default::default());
+    let _: TestTensor<3> = input_tensor.unsqueeze_dims(&[2, 2]);
+}
+
 #[test]
 #[should_panic]
 fn squeeze_all_singleton_not_supported() {

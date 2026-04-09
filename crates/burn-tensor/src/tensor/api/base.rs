@@ -1042,6 +1042,15 @@ where
             }
         }
 
+        // Re-validate after normalization: bumping duplicates forward can push the
+        // last index past `D2 - 1` (e.g. `[2, 2]` targeting rank 3 normalizes to
+        // `[2, 3]`). The per-axis check above only runs on pre-normalization values,
+        // so we re-check here to surface a clear `TensorCheck` error instead of
+        // letting the copy loop panic on an out-of-bounds `old_dims` read.
+        for &dim_index in &dim_indices {
+            check!(TensorCheck::unsqueeze_dims::<{ D2 }>(dim_index as isize));
+        }
+
         // Loop over the entries/indices of the `new_dims` array.
         // When the current entry should be 1 from the unsqueeze operation, simply increment
         // the index for `dims_indices` to account for "adding" its entry to `new_dims`.
