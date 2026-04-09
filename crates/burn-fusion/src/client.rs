@@ -372,10 +372,13 @@ where
     where
         B: FusionBackend<FusionRuntime = R> + DistributedBackend,
     {
-        self.drain();
-        self.server.submit_blocking(move |_| {
-            println!("submitted sync_collective");
-            B::sync_collective(&device)
-        });
+        // self.drain();
+        self.server
+            .submit_blocking(move |server| {
+                println!("submitted sync_collective");
+                server.drain_stream(StreamId::current());
+                B::sync_collective(&device)
+            })
+            .unwrap();
     }
 }
