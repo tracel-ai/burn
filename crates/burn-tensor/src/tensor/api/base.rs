@@ -1031,6 +1031,17 @@ where
         //sort the indices
         dim_indices.sort_unstable();
 
+        // Per the documented semantics, duplicate axes mean "insert N dims at that index".
+        // After sorting, N insertions at position `i` logically occupy positions
+        // `i, i+1, ..., i+N-1` in the output, so bump each duplicate to the next slot.
+        // Example: sorted `[0, 0, 3]` becomes `[0, 1, 3]`, matching the intent of
+        // "two 1s starting at index 0, plus one 1 at index 3".
+        for i in 1..dim_indices.len() {
+            if dim_indices[i] <= dim_indices[i - 1] {
+                dim_indices[i] = dim_indices[i - 1] + 1;
+            }
+        }
+
         // Loop over the entries/indices of the `new_dims` array.
         // When the current entry should be 1 from the unsqueeze operation, simply increment
         // the index for `dims_indices` to account for "adding" its entry to `new_dims`.
