@@ -122,6 +122,7 @@ where
 ///
 /// Consumers assume `lhs` and `rhs` already share the same logical
 /// shape and that `lhs` is row-contiguous at offset 0.
+#[cfg(feature = "simd")]
 #[derive(Debug, Clone, Copy)]
 enum BroadcastView {
     /// rhs's inner `row_len` elements form a contiguous row that is
