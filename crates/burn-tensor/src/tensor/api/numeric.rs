@@ -901,7 +901,7 @@ where
         Self::new(K::random(
             shape.into(),
             distribution,
-            &&opt.device.dispatch,
+            &opt.device.dispatch,
             dtype,
         ))
     }

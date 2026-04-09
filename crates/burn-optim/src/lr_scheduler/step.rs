@@ -1,7 +1,6 @@
 use burn_core as burn;
 
 use burn::config::Config;
-use burn::tensor::backend::Backend;
 
 use super::{LrScheduler, String};
 use crate::LearningRate;
@@ -80,7 +79,7 @@ pub struct StepLrScheduler {
 }
 
 impl LrScheduler for StepLrScheduler {
-    type Record<B: Backend> = i32;
+    type Record = i32;
 
     fn step(&mut self) -> LearningRate {
         self.iter_idx = self
@@ -94,11 +93,11 @@ impl LrScheduler for StepLrScheduler {
                 .powi((self.iter_idx as usize / self.step_size) as i32)
     }
 
-    fn to_record<B: Backend>(&self) -> Self::Record<B> {
+    fn to_record(&self) -> Self::Record {
         self.iter_idx
     }
 
-    fn load_record<B: Backend>(mut self, record: Self::Record<B>) -> Self {
+    fn load_record(mut self, record: Self::Record) -> Self {
         self.iter_idx = record;
         self
     }
@@ -108,7 +107,6 @@ impl LrScheduler for StepLrScheduler {
 mod tests {
     use super::super::test_utils;
     use super::*;
-    use crate::TestBackend;
 
     // Warning logs for initial LR and gamma are not tested because there seems no straightforward
     // way to do it.
@@ -202,7 +200,7 @@ mod tests {
     fn test_number_of_calls_within_limit() {
         // Create a scheduler that has already run `i32::MAX` steps
         let mut scheduler = StepLrSchedulerConfig::new(0.1, 2).init().unwrap();
-        scheduler = scheduler.load_record::<TestBackend>(i32::MAX - 1);
+        scheduler = scheduler.load_record(i32::MAX - 1);
         scheduler.step();
     }
 
@@ -211,7 +209,7 @@ mod tests {
     fn test_number_of_calls_over_limit() {
         // Create a scheduler that has already run `i32::MAX` steps
         let mut scheduler = StepLrSchedulerConfig::new(0.1, 2).init().unwrap();
-        scheduler = scheduler.load_record::<TestBackend>(i32::MAX - 1);
+        scheduler = scheduler.load_record(i32::MAX - 1);
         scheduler.step();
         scheduler.step();
     }

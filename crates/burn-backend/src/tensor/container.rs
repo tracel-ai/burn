@@ -9,8 +9,6 @@ use hashbrown::HashMap;
 #[cfg(feature = "std")]
 use std::collections::HashMap;
 
-use crate::{TensorPrimitive, backend::Backend};
-
 /// Contains tensor of arbitrary dimension.
 #[derive(Debug)]
 pub struct TensorContainer<ID> {
@@ -38,14 +36,11 @@ where
     }
 
     /// Get a tensor with the given ID.
-    pub fn get<B>(&self, id: &ID) -> Option<TensorPrimitive<B>>
-    where
-        B: Backend,
-    {
+    pub fn get<T: Clone + Send + 'static>(&self, id: &ID) -> Option<T> {
         let grad = self.tensors.get(id)?;
 
         let tensor = grad
-            .downcast_ref::<TensorPrimitive<B>>()
+            .downcast_ref::<T>()
             // .map(|primitive| Tensor::<B, D>::from_primitive(primitive.clone()))
             .unwrap();
 
@@ -53,13 +48,10 @@ where
     }
 
     /// Get a mutable reference to the tensor with the given ID.
-    pub fn get_mut_ref<B>(&mut self, id: &ID) -> Option<&mut TensorPrimitive<B>>
-    where
-        B: Backend,
-    {
+    pub fn get_mut_ref<T: Clone + Send + 'static>(&mut self, id: &ID) -> Option<&mut T> {
         let grad = self.tensors.get_mut(id)?;
 
-        let tensor = grad.downcast_mut::<TensorPrimitive<B>>().unwrap();
+        let tensor = grad.downcast_mut::<T>().unwrap();
 
         Some(tensor)
     }
@@ -69,21 +61,15 @@ where
     /// # Notes
     ///
     /// If a tensor is already registered for the given ID, it will be replaced.
-    pub fn register<B>(&mut self, id: ID, value: TensorPrimitive<B>)
-    where
-        B: Backend,
-    {
+    pub fn register<T: Clone + Send + 'static>(&mut self, id: ID, value: T) {
         self.tensors.insert(id, Box::new(value));
     }
 
     /// Remove a tensor for the given ID and returns it.
-    pub fn remove<B>(&mut self, id: &ID) -> Option<TensorPrimitive<B>>
-    where
-        B: Backend,
-    {
+    pub fn remove<T: Clone + Send + 'static>(&mut self, id: &ID) -> Option<T> {
         self.tensors
             .remove(id)
-            .map(|item| *item.downcast::<TensorPrimitive<B>>().unwrap())
+            .map(|item| *item.downcast::<T>().unwrap())
         // .map(|primitive| Tensor::from_primitive(*primitive))
     }
 

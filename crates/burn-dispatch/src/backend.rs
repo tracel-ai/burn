@@ -545,11 +545,9 @@ impl DispatchTensor {
         #[allow(unused_mut)]
         let mut device = self.kind.device();
 
-        #[cfg(feature = "autodiff")]
-        if self.checkpointing.is_some() && !matches!(device, DispatchDevice::Autodiff(_)) {
-            // Carry autodiff intent for int and bool kinds
-            device = DispatchDevice::autodiff(device)
-        }
+        // TODO: should int and bool kinds return an autodiff device?
+        // It would be much easier once there is a single underlying primitive type, which
+        // we can wrap with Autodiff in all cases.
 
         #[cfg(feature = "autodiff")]
         if let DispatchDevice::Autodiff(device) = &mut device

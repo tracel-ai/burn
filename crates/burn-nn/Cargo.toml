@@ -27,22 +27,14 @@ std = ["burn-core/std", "num-traits/std", "burn-store?/std", "burn-std?/std"]
 tracing = ["burn-core/tracing"]
 pretrained = ["std", "burn-store/pytorch", "burn-std/network", "dirs"]
 
-# Backends
-cuda = ["burn-core/cuda"]
-rocm = ["burn-core/rocm"]
-ndarray = ["burn-core/ndarray"]
-tch = ["burn-core/tch"]
-vulkan = ["burn-core/vulkan"]
-webgpu = ["burn-core/webgpu"]
-wgpu = ["burn-core/wgpu"]
-metal = ["burn-core/metal"]
-cpu = ["burn-core/cpu"]
-autodiff = ["burn-core/autodiff"]
-
-# Backend features
-autotune = ["burn-core/autotune"]
-autotune-checks = ["burn-core/autotune-checks"]
-fusion = ["burn-core/fusion"]
+# Test backends
+test-cuda = ["burn-core/cuda"]
+test-rocm = ["burn-core/rocm"]
+test-ndarray = ["burn-core/ndarray"]
+test-tch = ["burn-core/tch"]
+test-vulkan = ["burn-core/vulkan"]
+test-wgpu = ["burn-core/wgpu"]
+test-metal = ["burn-core/metal"]
 
 # Memory checks are disabled by default
 test-memory-checks = ["burn-core/test-memory-checks"]

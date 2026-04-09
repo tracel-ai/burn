@@ -232,10 +232,11 @@ mod tests_1d {
 
     #[test]
     fn batch_norm_forward_inference() {
-        let device = Device::default().autodiff();
-        let module = BatchNormConfig::new(3).init(&device);
+        let device = Device::default();
+        let device_autodiff = device.clone().autodiff();
+        let module = BatchNormConfig::new(3).init(&device_autodiff);
 
-        module.forward(input_tensor(&device));
+        module.forward(input_tensor(&device_autodiff));
         let module = module.valid();
         let output = module.forward(input_tensor(&device));
 
@@ -278,10 +279,11 @@ mod tests_1d {
 
     #[test]
     fn batch_norm_forward_train_inference() {
-        let device = Device::default().autodiff();
-        let module = BatchNormConfig::new(3).init(&device);
+        let device = Device::default();
+        let device_autodiff = device.clone().autodiff();
+        let module = BatchNormConfig::new(3).init(&device_autodiff);
 
-        module.forward(input_tensor(&device));
+        module.forward(input_tensor(&device_autodiff));
         let module = module.valid();
         let output = module.forward(input_tensor(&device));
 
@@ -290,7 +292,7 @@ mod tests_1d {
             .assert_approx_eq::<FT>(&expected_valid(), Tolerance::default());
 
         let module = module.train();
-        let output = module.forward(input_tensor(&device));
+        let output = module.forward(input_tensor(&device_autodiff));
         output
             .to_data()
             .assert_approx_eq::<FT>(&expected_train(), Tolerance::default());
@@ -332,10 +334,11 @@ mod tests_2d {
 
     #[test]
     fn batch_norm_forward_inference() {
-        let device = Device::default().autodiff();
-        let module = BatchNormConfig::new(3).init(&device);
+        let device = Device::default();
+        let device_autodiff = device.clone().autodiff();
+        let module = BatchNormConfig::new(3).init(&device_autodiff);
 
-        module.forward(input_tensor(&device));
+        module.forward(input_tensor(&device_autodiff));
         let module = module.valid();
         let output = module.forward(input_tensor(&device));
 

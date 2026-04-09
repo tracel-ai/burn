@@ -1,6 +1,6 @@
+use burn_core as burn;
 #[cfg(feature = "distributed")]
 use burn_core::tensor::backend::distributed::DistributedParamId;
-use burn_core::{self as burn, prelude::Backend, tensor::Device};
 
 use super::{SimpleOptimizer, record::AdaptorRecord};
 use crate::{
@@ -10,30 +10,28 @@ use crate::{
 };
 
 use burn::module::{AutodiffModule, ModuleMapper, Param, ParamId};
-use burn::tensor::{Tensor, backend::AutodiffBackend};
+use burn::tensor::{Device, Tensor};
 use core::marker::PhantomData;
 use hashbrown::HashMap;
 
 /// Wrapper struct that adapts any [simple optimizer](SimpleOptimizer) into
 /// an [optimizer](Optimizer).
 #[derive(Clone)]
-pub struct OptimizerAdaptor<O, M, B>
+pub struct OptimizerAdaptor<O, M>
 where
-    O: SimpleOptimizer<B::InnerBackend>,
-    M: AutodiffModule<B>,
-    B: AutodiffBackend,
+    O: SimpleOptimizer,
+    M: AutodiffModule,
 {
     optim: O,
-    records: HashMap<ParamId, AdaptorRecord<O, B>>,
+    records: HashMap<ParamId, AdaptorRecord<O>>,
     module: PhantomData<M>,
     grad_clipping: Option<GradientClipping>,
 }
 
-impl<O, B, M> From<O> for OptimizerAdaptor<O, M, B>
+impl<O, M> From<O> for OptimizerAdaptor<O, M>
 where
-    B: AutodiffBackend,
-    M: AutodiffModule<B>,
-    O: SimpleOptimizer<B::InnerBackend>,
+    M: AutodiffModule,
+    O: SimpleOptimizer,
 {
     fn from(optim: O) -> Self {
         Self {
@@ -45,11 +43,10 @@ where
     }
 }
 
-impl<O, M, B> OptimizerAdaptor<O, M, B>
+impl<O, M> OptimizerAdaptor<O, M>
 where
-    O: SimpleOptimizer<B::InnerBackend>,
-    M: AutodiffModule<B>,
-    B: AutodiffBackend,
+    O: SimpleOptimizer,
+    M: AutodiffModule,
 {
     /// Sets the gradient clipping.
     ///
@@ -71,18 +68,17 @@ where
     }
 }
 
-impl<O, B, M> Optimizer<M, B> for OptimizerAdaptor<O, M, B>
+impl<O, M> Optimizer<M> for OptimizerAdaptor<O, M>
 where
-    B: AutodiffBackend,
-    M: AutodiffModule<B>,
-    O: SimpleOptimizer<B::InnerBackend>,
+    M: AutodiffModule,
+    O: SimpleOptimizer,
 {
-    type Record = HashMap<ParamId, AdaptorRecord<O, B>>;
+    type Record = HashMap<ParamId, AdaptorRecord<O>>;
 
     fn step(&mut self, lr: LearningRate, module: M, grads: GradientsParams) -> M {
         let mut grads = GradAdaptor::Single(grads);
 
-        let mut mapper = SimpleOptimizerMapper::<M, B, O>::new(
+        let mut mapper = SimpleOptimizerMapper::<M, O>::new(
             &self.optim,
             &mut self.records,
             &mut grads,
@@ -95,7 +91,7 @@ where
     fn step_multi(&mut self, lr: LearningRate, module: M, grads: crate::MultiGradientsParams) -> M {
         let mut grads = GradAdaptor::Multi(grads);
 
-        let mut mapper = SimpleOptimizerMapper::<M, B, O>::new(
+        let mut mapper = SimpleOptimizerMapper::<M, O>::new(
             &self.optim,
             &mut self.records,
             &mut grads,
@@ -121,10 +117,7 @@ enum GradAdaptor {
 }
 
 impl GradAdaptor {
-    fn remove<B: Backend, const D: usize>(
-        &mut self,
-        id: ParamId,
-    ) -> Option<(Tensor<B, D>, Device<B>)> {
+    fn remove<const D: usize>(&mut self, id: ParamId) -> Option<(Tensor<D>, Device)> {
         match self {
             GradAdaptor::Single(grads) => grads.remove(id).map(|t| {
                 let device = t.device();
@@ -136,27 +129,25 @@ impl GradAdaptor {
 }
 
 #[derive(new)]
-struct SimpleOptimizerMapper<'a, M, B, O>
+struct SimpleOptimizerMapper<'a, M, O>
 where
-    M: AutodiffModule<B>,
-    B: AutodiffBackend,
-    O: SimpleOptimizer<B::InnerBackend>,
+    M: AutodiffModule,
+    O: SimpleOptimizer,
 {
     optimizer: &'a O,
-    records: &'a mut HashMap<ParamId, AdaptorRecord<O, B>>,
+    records: &'a mut HashMap<ParamId, AdaptorRecord<O>>,
     grads: &'a mut GradAdaptor,
     lr: LearningRate,
     phantom: PhantomData<M>,
     grad_clipping: Option<&'a GradientClipping>,
 }
 
-impl<M, B, O> ModuleMapper<B> for SimpleOptimizerMapper<'_, M, B, O>
+impl<M, O> ModuleMapper for SimpleOptimizerMapper<'_, M, O>
 where
-    M: AutodiffModule<B>,
-    B: AutodiffBackend,
-    O: SimpleOptimizer<B::InnerBackend>,
+    M: AutodiffModule,
+    O: SimpleOptimizer,
 {
-    fn map_float<const D: usize>(&mut self, param: Param<Tensor<B, D>>) -> Param<Tensor<B, D>> {
+    fn map_float<const D: usize>(&mut self, param: Param<Tensor<D>>) -> Param<Tensor<D>> {
         let (id, tensor, mapper) = param.consume();
         let grad = self.grads.remove(id);
 

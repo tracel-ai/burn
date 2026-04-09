@@ -1,7 +1,6 @@
 use burn_core as burn;
 
 use burn::config::Config;
-use burn::tensor::backend::Backend;
 
 use super::{LrScheduler, String};
 use crate::LearningRate;
@@ -57,7 +56,7 @@ impl NoamLrSchedulerConfig {
 }
 
 impl LrScheduler for NoamLrScheduler {
-    type Record<B: Backend> = usize;
+    type Record = usize;
 
     fn step(&mut self) -> LearningRate {
         self.step += 1.0;
@@ -68,11 +67,11 @@ impl LrScheduler for NoamLrScheduler {
         self.factor * self.embedding_size.powf(-0.5) * f64::min(arg1, arg2)
     }
 
-    fn to_record<B: Backend>(&self) -> Self::Record<B> {
+    fn to_record(&self) -> Self::Record {
         self.step as usize
     }
 
-    fn load_record<B: Backend>(mut self, record: Self::Record<B>) -> Self {
+    fn load_record(mut self, record: Self::Record) -> Self {
         self.step = record as f64;
         self
     }

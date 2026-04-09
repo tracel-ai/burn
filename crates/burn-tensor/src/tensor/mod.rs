@@ -20,7 +20,7 @@ pub mod activation;
 
 /// The backend module.
 pub mod backend {
-    pub use burn_backend::backend::{DeviceError, ExecutionError};
+    pub use burn_backend::backend::{DeviceError, DeviceId, DeviceOps, ExecutionError};
 }
 
 /// The container module.

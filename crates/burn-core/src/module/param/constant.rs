@@ -363,9 +363,6 @@ impl<T> core::ops::Deref for Ignored<T> {
 mod tests {
     use core::marker::PhantomData;
 
-    use burn_tensor::{Device, Tensor};
-
-    use crate::record::{BinBytesRecorder, FullPrecisionSettings, Recorder};
     use burn::module::Module;
 
     use crate as burn;
@@ -373,6 +370,9 @@ mod tests {
     #[cfg(feature = "autodiff")]
     #[test]
     fn tensor_load_record_setting() {
+        use crate::record::{BinBytesRecorder, FullPrecisionSettings, Recorder};
+        use burn_tensor::{Device, Tensor};
+
         let device = &Device::default().autodiff();
         let tensor = Tensor::<2>::ones([3, 3], device);
 
@@ -396,7 +396,7 @@ mod tests {
     #[test]
     fn empty_module_with_phantom() {
         #[derive(Module, Debug, new)]
-        struct EmptyModule<T> {
+        struct EmptyModule<T: core::fmt::Debug + Clone + Send> {
             #[module(skip)]
             _phantom: PhantomData<T>,
         }

@@ -107,6 +107,15 @@ impl Device {
         self
     }
 
+    /// Returns the inner device, without autodiff (when enabled).
+    pub fn inner(mut self) -> Self {
+        if self.is_autodiff() {
+            self.dispatch = self.dispatch.inner();
+        }
+
+        self
+    }
+
     /// Enables autodiff with gradient checkpointing on this device.
     ///
     /// Gradient checkpointing recomputes activations during backpropagation for operations

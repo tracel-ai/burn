@@ -391,6 +391,7 @@ macro_rules! unary_op_arms {
                     type B = $Backend<f32>;
                     let $inner = $inner.$inner_kind();
 
+                    #[cfg(feature = "autodiff")]
                     if checkpointing.is_some() {
                         with_autodiff_backend!($Backend, checkpointing, |B| {
                             wrap_float!(@wrap_autodiff Float, $Backend, checkpointing, { $body })
@@ -401,6 +402,11 @@ macro_rules! unary_op_arms {
                             #[cfg(feature = "autodiff")]
                             checkpointing,
                         }
+                    }
+
+                    #[cfg(not(feature = "autodiff"))]
+                    $crate::DispatchTensor {
+                        kind: $crate::DispatchTensorKind::$Backend($crate::BackendTensor::Float($body)),
                     }
                 }
             )*

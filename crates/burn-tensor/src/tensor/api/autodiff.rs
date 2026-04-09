@@ -1,11 +1,20 @@
-use burn_backend::AutodiffBackend;
 pub use burn_backend::tensor::BasicAutodiffOps;
+
+use crate::{Tensor, kind::Autodiff};
+
+#[cfg(feature = "autodiff")]
+use crate::TensorPrimitive;
+#[cfg(feature = "autodiff")]
+use burn_backend::AutodiffBackend;
+#[cfg(feature = "autodiff")]
 use burn_dispatch::Dispatch;
 
-use crate::{Tensor, TensorPrimitive, kind::Autodiff};
+// TODO: re-export burn_autodiff struct?
+#[cfg(feature = "autodiff")]
+/// Gradients container used during the backward pass.
+pub type Gradients = <Dispatch as AutodiffBackend>::Gradients;
 
-type Gradients = <Dispatch as AutodiffBackend>::Gradients;
-
+#[cfg(feature = "autodiff")]
 impl<const D: usize> Tensor<D> {
     /// Backward pass of the tensor.
     pub fn backward(&self) -> Gradients {

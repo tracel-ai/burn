@@ -105,11 +105,21 @@ pub(crate) fn validate_checkpointing(
     lhs: Option<crate::CheckpointingStrategy>,
     rhs: Option<crate::CheckpointingStrategy>,
 ) -> Option<crate::CheckpointingStrategy> {
-    assert_eq!(
-        lhs, rhs,
-        "Autodiff strategy mismatch: {lhs:?} vs {rhs:?}. Tensors in the same operation must share a strategy."
-    );
-    lhs
+    match (lhs, rhs) {
+        (Some(lhs), Some(rhs)) => {
+            assert_eq!(
+                lhs, rhs,
+                "Autodiff strategy mismatch: {lhs:?} vs {rhs:?}. Tensors in the same operation must share a strategy."
+            );
+            Some(lhs)
+        }
+        (None, None) => None,
+        // When tensors are created on non-autodiff device there is no checkpointing, but
+        // tensor created with autodiff which moved out (`tensor.inner()`) will still carry the state.
+        // In such cases, we can "promote" the checkpointing.
+        (None, rhs) => rhs,
+        (lhs, None) => lhs,
+    }
 }
 
 impl core::fmt::Debug for DispatchDevice {
@@ -220,6 +230,16 @@ impl DispatchDevice {
     ) -> DispatchDevice {
         let device = device.into();
         DispatchDevice::Autodiff(AutodiffDevice::new(device, checkpointing))
+    }
+
+    /// Returns the inner device, without autodiff (when enabled).
+    pub fn inner(self) -> Self {
+        #[cfg(feature = "autodiff")]
+        if let DispatchDevice::Autodiff(device) = self {
+            return *device.inner;
+        }
+
+        self
     }
 
     /// Returns a unique number per variant to encode into type_id.

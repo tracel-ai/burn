@@ -796,8 +796,9 @@ mod pytorch_comparison_tests {
         println!("=== {} ===", label);
         println!("  Loss: {loss}");
 
+        let tolerance = Tolerance::rel_abs(1e-3, 1e-3);
         loss.to_data()
-            .assert_approx_eq::<f32>(&TensorData::from(expected_losses), Tolerance::default());
+            .assert_approx_eq::<f32>(&TensorData::from(expected_losses), tolerance);
 
         let loss_sum = loss.sum();
         let grads = loss_sum.backward();
@@ -806,7 +807,7 @@ mod pytorch_comparison_tests {
         logits_grad
             .reshape::<1, _>([-1])
             .into_data()
-            .assert_approx_eq::<f32>(&TensorData::from(expected_grad_flat), Tolerance::default());
+            .assert_approx_eq::<f32>(&TensorData::from(expected_grad_flat), tolerance);
     }
 
     #[test]

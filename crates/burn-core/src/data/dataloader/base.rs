@@ -1,3 +1,5 @@
+use burn_tensor::Device;
+
 pub use crate::data::dataset::{Dataset, DatasetIterator};
 use core::iter::Iterator;
 use std::sync::Arc;
@@ -28,7 +30,7 @@ pub trait DataLoader<O>: Send + Sync {
     fn num_items(&self) -> usize;
 
     /// Move the data loader to the given device, ensuring the batches are assigned to the correct device.
-    fn to_device(&self, device: &B::Device) -> Arc<dyn DataLoader<O>>;
+    fn to_device(&self, device: &Device) -> Arc<dyn DataLoader<O>>;
 
     /// Returns a new data loader containing a subset of the data.
     ///

@@ -72,12 +72,12 @@ impl Gradients {
         match node.requirement {
             Requirement::Grad => self
                 .container
-                .get::<B>(&node.id.value)
+                .get::<TensorPrimitive<B>>(&node.id.value)
                 .map(|tensor| tensor.tensor())
                 .expect("Can't consume the gradients before they are registered at least once."),
             Requirement::GradInBackward => self
                 .container
-                .remove::<B>(&node.id.value)
+                .remove::<TensorPrimitive<B>>(&node.id.value)
                 .map(|tensor| tensor.tensor())
                 .expect("Can't consume the gradients before they are registered at least once."),
             Requirement::None => panic!("Trying to consume the gradients for an untracked tensor"),
@@ -87,14 +87,14 @@ impl Gradients {
     /// Removes a grad tensor from the container.
     pub fn remove<B: Backend>(&mut self, tensor: &AutodiffTensor<B>) -> Option<FloatTensor<B>> {
         self.container
-            .remove::<B>(&tensor.node.id.value)
+            .remove::<TensorPrimitive<B>>(&tensor.node.id.value)
             .map(|tensor| tensor.tensor())
     }
 
     /// Gets a grad tensor from the container.
     pub fn get<B: Backend>(&self, tensor: &AutodiffTensor<B>) -> Option<FloatTensor<B>> {
         self.container
-            .get::<B>(&tensor.node.id.value)
+            .get::<TensorPrimitive<B>>(&tensor.node.id.value)
             .map(|tensor| tensor.tensor())
     }
 
@@ -104,14 +104,15 @@ impl Gradients {
     ///
     /// If the registered tensor is distributed, launches a syncing operation on the gradients.
     pub fn register<B: Backend>(&mut self, node_id: NodeId, value: FloatTensor<B>) {
-        let out = if let Some(tensor_old) = self.container.remove::<B>(&node_id.value) {
-            B::float_add(value, tensor_old.tensor())
-        } else {
-            value
-        };
+        let out =
+            if let Some(tensor_old) = self.container.remove::<TensorPrimitive<B>>(&node_id.value) {
+                B::float_add(value, tensor_old.tensor())
+            } else {
+                value
+            };
 
         self.container
-            .register::<B>(node_id.value, TensorPrimitive::Float(out));
+            .register::<TensorPrimitive<B>>(node_id.value, TensorPrimitive::Float(out));
 
         #[cfg(feature = "distributed")]
         if self.is_distributed() {
