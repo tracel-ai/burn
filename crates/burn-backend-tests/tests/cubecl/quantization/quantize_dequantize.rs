@@ -2,7 +2,6 @@ use super::*;
 use burn_tensor::Tolerance;
 use burn_tensor::{
     Shape,
-    backend::Backend,
     quantization::{QuantLevel, QuantScheme, QuantStore, QuantValue},
 };
 
@@ -44,6 +43,9 @@ fn should_quantize_dequantize_symmetric_per_block_arange<S: Into<Shape>>(
     store: QuantStore,
     shape: S,
 ) {
+    let device = Default::default();
+    let ref_device = ReferenceDevice::new();
+
     let scheme = QuantScheme::default()
         .with_value(value)
         .with_level(QuantLevel::block([block_size as u8]))
@@ -51,11 +53,10 @@ fn should_quantize_dequantize_symmetric_per_block_arange<S: Into<Shape>>(
     let scheme_ref = scheme.clone().with_store(QuantStore::Native);
 
     let shape = shape.into();
-    let input: TestTensor<2> =
-        TestTensorInt::arange(0..shape.num_elements() as i64, &Default::default())
-            .float()
-            .reshape(shape);
-    let input_ref = TestTensor::<2>::from_data(input.to_data(), &Default::default());
+    let input: TestTensor<2> = TestTensorInt::arange(0..shape.num_elements() as i64, &device)
+        .float()
+        .reshape(shape);
+    let input_ref = TestTensor::<2>::from_data(input.to_data(), &ref_device);
 
     let output = input.quantize_dynamic(&scheme);
     let output_ref = input_ref.quantize_dynamic(&scheme_ref);
@@ -110,18 +111,6 @@ fn should_quantize_dequantize_symmetric_per_block(
     output
         .into_data()
         .assert_approx_eq::<FloatElem>(&output_ref.to_data(), Tolerance::default());
-}
-
-fn supports_native() -> bool {
-    let name = <TestBackend as Backend>::name(&Default::default());
-    // TODO: Proper checks for i8 support.
-    name.contains("cuda")
-        || name.contains("rocm")
-        || name.contains("hip")
-        || name.contains("vulkan")
-        || name.contains("spirv")
-        || name.contains("metal")
-        || name.contains("msl")
 }
 
 #[test]

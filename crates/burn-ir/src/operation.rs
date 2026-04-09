@@ -250,6 +250,10 @@ pub enum ModuleOperationIr {
     Interpolate(InterpolateOpIr),
     /// Operation corresponding to [interpolate backward](burn_backend::ops::ModuleOps::interpolate_backward).
     InterpolateBackward(InterpolateBackwardOpIr),
+    /// Operation corresponding to [Rfft](burn_backend::ops::ModuleOps::rfft)
+    Rfft(RfftOpIr),
+    /// Operation corresponding to [IRfft](burn_backend::ops::ModuleOps::irfft)
+    IRfft(IRfftOpIr),
     /// Operation corresponding to [attention](burn_backend::ops::ModuleOps::attention).
     Attention(AttentionOpIr),
 }
@@ -1590,6 +1594,62 @@ pub struct InterpolateOpIr {
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
+pub struct RfftOpIr {
+    pub signal: TensorIr,
+    pub dim: usize,
+    pub out_re: TensorIr,
+    pub out_im: TensorIr,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct IRfftOpIr {
+    pub input_re: TensorIr,
+    pub input_im: TensorIr,
+    pub dim: usize,
+    pub out_signal: TensorIr,
+}
+
+#[allow(missing_docs)]
+impl RfftOpIr {
+    pub fn create<F>(signal: TensorIr, dim: usize, mut new_id: F) -> Self
+    where
+        F: FnMut() -> crate::TensorId,
+    {
+        let mut shape = signal.shape.clone();
+        shape[dim] = shape[dim] / 2 + 1;
+        let dtype = signal.dtype;
+
+        Self {
+            signal,
+            dim,
+            out_re: TensorIr::uninit(new_id(), shape.clone(), dtype),
+            out_im: TensorIr::uninit(new_id(), shape, dtype),
+        }
+    }
+}
+
+#[allow(missing_docs)]
+impl IRfftOpIr {
+    pub fn create<F>(input_re: TensorIr, input_im: TensorIr, dim: usize, mut new_id: F) -> Self
+    where
+        F: FnMut() -> crate::TensorId,
+    {
+        let mut shape = input_re.shape.clone();
+        shape[dim] = (shape[dim] - 1) * 2;
+        let dtype = input_re.dtype;
+
+        Self {
+            input_re,
+            input_im,
+            dim,
+            out_signal: TensorIr::uninit(new_id(), shape, dtype),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
 pub struct AttentionOptionsIr {
     pub scale: Option<ScalarIr>,
     pub softcap: Option<ScalarIr>,
@@ -2672,6 +2732,10 @@ impl ModuleOperationIr {
             ModuleOperationIr::InterpolateBackward(repr) => {
                 Box::new([&repr.x, &repr.grad].into_iter())
             }
+            ModuleOperationIr::Rfft(repr) => Box::new([&repr.signal].into_iter()),
+            ModuleOperationIr::IRfft(repr) => {
+                Box::new([&repr.input_re, &repr.input_im].into_iter())
+            }
             ModuleOperationIr::Attention(repr) => {
                 if let Some(mask) = &repr.mask {
                     if let Some(attn_bias) = &repr.attn_bias {
@@ -2766,6 +2830,8 @@ impl ModuleOperationIr {
             }
             ModuleOperationIr::Interpolate(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::InterpolateBackward(repr) => Box::new([&repr.out].into_iter()),
+            ModuleOperationIr::Rfft(repr) => Box::new([&repr.out_re, &repr.out_im].into_iter()),
+            ModuleOperationIr::IRfft(repr) => Box::new([&repr.out_signal].into_iter()),
             ModuleOperationIr::Attention(repr) => Box::new([&repr.out].into_iter()),
         }
     }
@@ -2962,6 +3028,13 @@ impl ModuleOperationIr {
             ModuleOperationIr::InterpolateBackward(repr) => {
                 repr.x.mark_read_only(nodes, &mut output);
                 repr.grad.mark_read_only(nodes, &mut output);
+            }
+            ModuleOperationIr::Rfft(repr) => {
+                repr.signal.mark_read_only(nodes, &mut output);
+            }
+            ModuleOperationIr::IRfft(repr) => {
+                repr.input_re.mark_read_only(nodes, &mut output);
+                repr.input_im.mark_read_only(nodes, &mut output);
             }
             ModuleOperationIr::Attention(repr) => {
                 repr.query.mark_read_only(nodes, &mut output);

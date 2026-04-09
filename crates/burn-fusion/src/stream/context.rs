@@ -73,6 +73,11 @@ impl<H: Clone> ContextOwned<H> {
         }
     }
 
+    /// Returns a reference to the underlying handle container.
+    pub fn handles(&self) -> &HandleContainer<H> {
+        &self.handles
+    }
+
     /// Fork the context again.
     pub fn fork(&self) -> ContextOwned<H> {
         ContextOwned {
@@ -485,6 +490,18 @@ impl RelativeOps for ModuleOperationIr {
                     out: desc.out.to_relative(converter),
                 })
             }
+            ModuleOperationIr::Rfft(desc) => ModuleOperationIr::Rfft(RfftOpIr {
+                signal: desc.signal.to_relative(converter),
+                dim: desc.dim,
+                out_re: desc.out_re.to_relative(converter),
+                out_im: desc.out_re.to_relative(converter),
+            }),
+            ModuleOperationIr::IRfft(desc) => ModuleOperationIr::IRfft(IRfftOpIr {
+                input_re: desc.input_re.to_relative(converter),
+                input_im: desc.input_im.to_relative(converter),
+                dim: desc.dim,
+                out_signal: desc.out_signal.to_relative(converter),
+            }),
             ModuleOperationIr::Attention(desc) => ModuleOperationIr::Attention(AttentionOpIr {
                 query: desc.query.to_relative(converter),
                 key: desc.key.to_relative(converter),
@@ -1228,6 +1245,122 @@ impl RelativeOps for ScalarIr {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use burn_backend::DType;
+    use burn_ir::{TensorId, TensorIr, TensorStatus};
+
+    /// Helper to build a minimal context with string handles for testing fork behavior.
+    fn make_test_context() -> (
+        HashMap<TensorId, TensorIr>,
+        HandleContainer<String>,
+        HashMap<ScalarId, ScalarIr>,
+        HashMap<usize, usize>,
+    ) {
+        let mut tensors = HashMap::new();
+        let mut handles = HandleContainer::new();
+
+        let id_input = TensorId::new(1);
+        tensors.insert(
+            id_input,
+            TensorIr {
+                id: id_input,
+                shape: Shape::new([4, 4]),
+                status: TensorStatus::ReadOnly,
+                dtype: DType::F32,
+            },
+        );
+        handles.register_handle(id_input, "input_handle".to_string());
+
+        let scalars = HashMap::new();
+        let shapes = HashMap::new();
+
+        (tensors, handles, scalars, shapes)
+    }
+
+    #[test]
+    fn context_fork_output_handles_are_isolated() {
+        // This test documents the core bug (#4751): output handles registered
+        // in a forked context are invisible to the original context.
+        let (mut tensors, mut handles, mut scalars, shapes) = make_test_context();
+
+        let output_id = TensorId::new(100);
+
+        {
+            let context = Context::new(&mut tensors, &mut handles, &mut scalars, &shapes);
+
+            // Fork the context (simulates what TuneInput::clone does).
+            let mut fork = context.fork();
+            let fork_ctx = fork.as_context();
+
+            // Simulate optimization registering output handles in the fork.
+            fork_ctx
+                .handles
+                .register_handle(output_id, "output_handle".to_string());
+
+            // The fork has the output handle.
+            assert!(fork_ctx.handles.get_handle_ref(&output_id).is_some());
+        }
+
+        // But the original handle container does NOT.
+        // This is the bug: output handles are lost after the fork is dropped.
+        assert!(handles.get_handle_ref(&output_id).is_none());
+    }
+
+    #[test]
+    fn context_fork_preserves_input_handles() {
+        let (mut tensors, mut handles, mut scalars, shapes) = make_test_context();
+
+        let input_id = TensorId::new(1);
+
+        let context = Context::new(&mut tensors, &mut handles, &mut scalars, &shapes);
+
+        let mut fork = context.fork();
+
+        // Fork should have a copy of the input handle.
+        assert_eq!(
+            fork.as_context().handles.get_handle_ref(&input_id),
+            Some(&"input_handle".to_string())
+        );
+        // Original is unchanged.
+        assert_eq!(
+            handles.get_handle_ref(&input_id),
+            Some(&"input_handle".to_string())
+        );
+    }
+
+    #[test]
+    fn context_double_fork_fully_isolated() {
+        // Simulates what happens in UnsafeTuneContext::get() on a Fork variant:
+        // the fork is forked again, creating a second level of isolation.
+        let (mut tensors, mut handles, mut scalars, shapes) = make_test_context();
+
+        let context = Context::new(&mut tensors, &mut handles, &mut scalars, &shapes);
+
+        let mut fork1 = context.fork();
+        let mut fork2 = fork1.fork();
+        let _fork2_ctx = fork2.as_context();
+
+        let deep_output_id = TensorId::new(200);
+        {
+            let ctx = fork2.as_context();
+            ctx.handles
+                .register_handle(deep_output_id, "deep_output".to_string());
+        }
+
+        // Neither the first fork nor the original see the deeply-nested output.
+        assert!(
+            fork1
+                .as_context()
+                .handles
+                .get_handle_ref(&deep_output_id)
+                .is_none()
+        );
+        assert!(handles.get_handle_ref(&deep_output_id).is_none());
+    }
+}
+
+#[cfg(test)]
+mod tests_ir {
     use super::*;
     use burn_backend::DType;
     use burn_ir::{TensorId, TensorIr, TensorStatus};

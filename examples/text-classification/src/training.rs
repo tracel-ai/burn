@@ -38,6 +38,12 @@ pub struct ExperimentConfig {
     pub num_epochs: usize,
 }
 
+fn create_artifact_dir(artifact_dir: &str) {
+    // Remove existing artifacts before to get an accurate learner summary
+    std::fs::remove_dir_all(artifact_dir).ok();
+    std::fs::create_dir_all(artifact_dir).ok();
+}
+
 // Define train function
 pub fn train<B: AutodiffBackend, D: TextClassificationDataset + 'static>(
     strategy: ExecutionStrategy<B>,
@@ -46,6 +52,8 @@ pub fn train<B: AutodiffBackend, D: TextClassificationDataset + 'static>(
     config: ExperimentConfig, // Experiment configuration
     artifact_dir: &str,       // Directory to save model and config files
 ) {
+    create_artifact_dir(artifact_dir);
+
     // Initialize tokenizer
     let tokenizer = Arc::new(BertCasedTokenizer::default());
 

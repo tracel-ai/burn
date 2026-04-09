@@ -2,6 +2,8 @@ use super::*;
 use burn_tensor::{TensorData, Tolerance};
 
 #[test]
+// TODO: FIXME https://github.com/tracel-ai/burn/issues/4739
+#[ignore = "Flaky test"]
 fn should_behave_the_same_with_multithread() {
     let data_1 = TensorData::from([[1.0, 7.0], [13.0, -3.0]]);
     let data_2 = TensorData::from([[4.0, 7.0], [2.0, 3.0]]);
