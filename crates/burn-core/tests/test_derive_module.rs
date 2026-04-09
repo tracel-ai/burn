@@ -547,7 +547,8 @@ mod grad_distributed {
         const NUM_ITERATIONS: usize = 100;
         let type_id = 0u16;
 
-        let device_count = <B as Backend>::device_count(type_id);
+        // let device_count = <B as Backend>::device_count(type_id);
+        let device_count = 2;
         let devices = create_devices::<B::Device>(type_id, device_count);
         let module = ModuleBasic::<B>::new(&devices[0]);
         let (senders, receivers) = create_channels(device_count);
@@ -646,9 +647,9 @@ mod grad_distributed {
             module = set_distributed(&module, &device);
             let (grads_x, grads_unsync) = calculate_grads(&module, transformation);
             let data = grads_x.unwrap().to_data();
-            println!("data : {:?}", data.to_vec::<f32>());
+            println!("data : {:?}\n", data.to_vec::<f32>());
             println!(
-                "data unsync : {:?}",
+                "data unsync : {:?}\n",
                 grads_unsync.unwrap().to_data().to_vec::<f32>()
             );
             if !is_main {
