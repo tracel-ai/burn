@@ -687,7 +687,7 @@ mod grad_distributed {
             burn_tensor::Distribution::Default,
             &mut StdRng::try_from_rng(&mut SysRng).unwrap(),
         );
-        let x = Tensor::from_data(data, &device).require_grad();
+        let x = Tensor::from_data(data.clone(), &device).require_grad();
         let t = module.weight_basic.val();
         let y = transformation(t, x);
 
