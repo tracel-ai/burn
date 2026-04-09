@@ -451,8 +451,10 @@ mod require_grad {
 #[cfg(feature = "distributed")]
 mod grad_distributed {
     use burn_std::device::{Device, DeviceId};
+    use burn_tensor::Tolerance;
     use burn_tensor::backend::distributed::DistributedBackend;
     use burn_tensor::backend::distributed::{DistributedParamId, ReduceOperation};
+    use burn_tensor::ops::FloatElem;
     use burn_tensor::{TensorData, backend::AutodiffBackend};
     use rand::{
         SeedableRng,
@@ -726,6 +728,6 @@ mod grad_distributed {
         let y = transformation(t, x);
         let mut grads = y.backward();
         let grads_original = module.weight_basic.grad_remove(&mut grads);
-        (grads_sync, grads_original)
+        (grads_synced, grads_original)
     }
 }
