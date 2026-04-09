@@ -288,7 +288,21 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     ) -> impl Future<Output = Result<(TensorData, TensorData), ExecutionError>> + Send;
 
     fn to_complex(tensor: FloatTensor<B>) -> ComplexTensor<B>;
-    // can reuse float random
+    
+
+    // was going to add a norm function here, but float tensor ops doesn't have a hypot function
+    // easy enough to add, but a bit out of scope for this PR
+
+    /// Creates a new complex tensor with random values.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The complex tensor.
+    ///
+    /// # Returns
+    ///
+    /// The squared norm of the complex tensor as a float tensor.
+    fn complex_squared_norm(tensor: ComplexTensor<B>) -> FloatTensor<B>;
 
     /// Creates a new complex tensor with random values.
     ///
@@ -580,10 +594,9 @@ pub trait ComplexTensorOps<B: ComplexTensorBackend> {
     /// # Returns
     ///
     /// A complex tensor constructed from polar coordinates.
-    fn complex_from_polar(magnitude: FloatTensor<B>, phase: FloatTensor<B>) -> ComplexTensor<B> {
-        todo!()
-    }
-
+    fn complex_from_polar(magnitude: FloatTensor<B>, phase: FloatTensor<B>) -> ComplexTensor<B>;
+    
+    // formula: e^(a + bi) = e^a (cos(b) + i*sin(b)) = from_polar(e^a, b)
     /// Complex exponential function.
     ///
     /// # Arguments

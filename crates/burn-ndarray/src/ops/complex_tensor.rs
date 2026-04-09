@@ -5,6 +5,8 @@ use crate::{
     FloatNdArrayElement, IntNdArrayElement, NdArray, NdArrayTensor, QuantElement, SharedArray,
 };
 
+use num_traits::Zero;
+
 use burn_backend::{ElementConversion, TensorData, TensorMetadata, ops::FloatTensorOps};
 use burn_complex::base::element::{Complex, ToComplexElement};
 use burn_complex::base::{
@@ -71,38 +73,21 @@ where
     NdArrayTensor: From<SharedArray<I>>,
 {
     fn real(tensor: ComplexTensor<Self>) -> NdArrayTensor {
-        crate::execute_real_op!(tensor, C, |array: SharedArray<C>| {
+        crate::execute_complex_to_real_op!(tensor, C, |array: SharedArray<C>| {
             array.mapv(|a| a.real).into_shared()
         })
     }
 
     fn imag(tensor: NdArrayTensor) -> NdArrayTensor {
-        crate::execute_real_op!(tensor, C, |array: SharedArray<C>| {
+        crate::execute_complex_to_real_op!(tensor, C, |array: SharedArray<C>| {
             array.mapv(|a| a.imag).into_shared()
         })
     }
     //NOTE: May want to change complex types from ComplexE to Complex<E> in the future to match the element type (and allow quantized complex tensors)
     fn to_complex(tensor: NdArrayTensor) -> NdArrayTensor {
-        match tensor {
-            crate::NdArrayTensor::F64(storage) => {
-                #[allow(unused)]
-                type E = f64;
-                (|array: SharedArray<E>| array.mapv(|a: E| a.to_complex64()).into_shared())(
-                    storage.into_shared(),
-                )
-                .into()
-            }
-            crate::NdArrayTensor::F32(storage) => {
-                #[allow(unused)]
-                type E = f32;
-                (|array: SharedArray<E>| {
-                            array.mapv_into_any(|a: E| a.to_complex32()).into_shared()
-                        })(storage.into_shared())
-                        .into()
-            }
-            #[allow(unreachable_patterns)]
-            other => unimplemented!("unsupported dtype: {:?}", other.dtype()),
-        }
+        crate::execute_real_to_complex_op!(tensor, |array: SharedArray<E>| {
+            array.mapv(|a: E| Complex::<E>::new(a, E::zero())).into_shared()
+        })
     }
 
     async fn complex_into_data(
@@ -196,11 +181,48 @@ where
     fn complex_log(tensor: ComplexTensor<NdArray<E, I, Q>>) -> ComplexTensor<NdArray<E, I, Q>> {
         todo!()
     }
+    
+    fn complex_squared_norm(tensor: ComplexTensor<NdArray<E, I, Q>>) -> FloatTensor<NdArray<E, I, Q>> {
+        match tensor {
+    NdArrayTensor::Complex64(storage) => {
+        #[allow(unused)]
+        type E = f64;
+        let array = storage.into_shared();
+            (|array: SharedArray<Complex<E>>|->SharedArray<E> {
+                array.mapv_into(|x|{
+                x.real*x.real+x.imag*x.imag
+            }).into()
+            }).into()
+            
+        
+    }
+    NdArrayTensor::Complex32(storage) => {
+        #[allow(unused)]
+        type E = f32;
+        
+        let array = storage.into_shared();
+            (|array: SharedArray<Complex<E>>|->SharedArray<E> {
+                array.mapv_into(|x|{
+                x.real*x.real+x.imag*x.imag
+            }).into()
+            }).into()
+        
+    }
+    _ => unimplemented!("Not a complex tensor"),
+
+    }
+        
+
+    }
+    
+    fn complex_from_polar(magnitude: FloatTensor<NdArray<E, I, Q>>, phase: FloatTensor<NdArray<E, I, Q>>) -> ComplexTensor<NdArray<E, I, Q>> {
+        todo!()
+    }
 }
 
 /// Macro for ops that return the inner float component of a complex tensor
 #[macro_export]
-macro_rules! execute_real_op {
+macro_rules! execute_complex_to_real_op {
     ($tensor:expr, $complex_elem:ident, $op:expr) => {{
         match $tensor {
             NdArrayTensor::Complex64(storage) => {
@@ -217,6 +239,29 @@ macro_rules! execute_real_op {
         }
     }};
 }
+
+/// Macro for ops that return a complex value 
+#[macro_export]
+macro_rules! execute_real_to_complex_op {
+    ($tensor:expr, $op:expr) => {
+        match $tensor {
+            NdArrayTensor::F64(storage) => {
+                #[allow(unused)]
+                type E = f64;
+                let array = storage.into_shared();
+                $op(array).into()
+            }
+            NdArrayTensor::F32(storage) => {
+                #[allow(unused)]
+                type E = f32;
+                let array = storage.into_shared();
+                $op(array).into()
+            }
+            _ => unimplemented!("Not a complex tensor"),
+        }
+    };
+}
+
 // TODO: actually fix this
 /// Macro to execute an operation for complex dtypes
 #[macro_export]
