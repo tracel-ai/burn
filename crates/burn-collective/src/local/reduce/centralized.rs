@@ -1,7 +1,6 @@
-use burn_tensor::backend::Backend;
+use burn_backend::Backend;
 
-use crate::PeerId;
-use crate::local::tensor_map::CollectiveTensorMap;
+use crate::{PeerId, local::tensor_map::CollectiveTensorMap};
 
 #[cfg(feature = "tracing")]
 use crate::local::tensor_map::get_common_shape;

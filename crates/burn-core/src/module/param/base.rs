@@ -1,11 +1,11 @@
 use super::ParamId;
+use super::sync_once_cell::SyncOnceCell;
 use alloc::format;
 
 #[cfg(not(target_has_atomic = "ptr"))]
 use alloc::boxed::Box;
 use burn_std::stub::RwLock;
 use burn_tensor::Shape;
-use core::cell::OnceCell;
 use core::ops::Deref;
 
 #[cfg(target_has_atomic = "ptr")]
@@ -60,20 +60,20 @@ fn new_init_fn<P: Parameter, F: Fn(&P::Device, bool) -> P + Send + Sync + 'stati
 ///
 /// # Core Lazy Initialization Architecture
 ///
-/// `Param<T>` has a dual-state design using `OnceCell<T>`:
+/// `Param<T>` has a dual-state design using `SyncOnceCell<T>`:
 ///
 /// ## State Management
 ///
 /// **Two possible states:**
 ///
-/// 1. **Initialized**: `state: OnceCell<T>` contains value, `initialization: None`
+/// 1. **Initialized**: `state: SyncOnceCell<T>` contains value, `initialization: None`
 /// 2. **Uninitialized (Lazy)**: `state` is empty, `initialization: Some(RwLock<Option<Uninitialized<T>>>)`
 pub struct Param<T: Parameter> {
     /// The unique ID of this parameter. This is used by eg. optimizers to associate a gradient with a specific parameter.
     pub id: ParamId,
-    /// The OnceCell holding the initialized parameter value.
+    /// The SyncOnceCell holding the initialized parameter value.
     /// Empty for uninitialized parameters, populated after first access or explicit initialization.
-    pub(crate) state: OnceCell<T>,
+    pub(crate) state: SyncOnceCell<T>,
     /// The deferred initialization state for lazy parameters.
     ///
     /// **State Transitions:**
@@ -217,7 +217,7 @@ impl<T: Parameter> Param<T> {
         let require_grad = value.is_require_grad();
         Self {
             id,
-            state: OnceCell::from(value),
+            state: SyncOnceCell::initialized(value),
             initialization: None,
             param_mapper: Default::default(),
             require_grad,
@@ -237,7 +237,7 @@ impl<T: Parameter> Param<T> {
     {
         Self {
             id,
-            state: OnceCell::new(),
+            state: SyncOnceCell::new(),
             initialization: Some(RwLock::new(Some(Uninitialized {
                 init: new_init_fn(init),
                 device,
@@ -298,7 +298,7 @@ impl<T: Parameter> Param<T> {
 
         Self {
             id,
-            state: OnceCell::from(tensor),
+            state: SyncOnceCell::initialized(tensor),
             initialization: None,
             param_mapper,
             require_grad,
@@ -313,7 +313,7 @@ impl<T: Parameter> Param<T> {
         let require_grad = value.is_require_grad();
         Self {
             id,
-            state: OnceCell::from(value),
+            state: SyncOnceCell::initialized(value),
             initialization: None,
             param_mapper,
             require_grad,
@@ -441,14 +441,14 @@ impl<T: Parameter> Clone for Param<T> {
         // If uninitialized, clone the lazy state without triggering initialization.
         // This avoids allocating tensor memory for params that may never be used
         // (e.g., when cloning a module just to load weights into it).
-        // The clone gets its own OnceCell and RwLock, so initializing one
+        // The clone gets its own SyncOnceCell and RwLock, so initializing one
         // does not affect the other.
         if let Some(init_lock) = &self.initialization {
             let init_guard = init_lock.read().unwrap();
             if let Some(uninit) = init_guard.as_ref() {
                 return Self {
                     id: self.id,
-                    state: OnceCell::new(),
+                    state: SyncOnceCell::new(),
                     initialization: Some(RwLock::new(Some(uninit.clone()))),
                     param_mapper: self.param_mapper.clone(),
                     require_grad: self.require_grad,
@@ -478,5 +478,58 @@ impl<T: Parameter> Deref for Param<T> {
             let state = result.take().expect("Should exist when not initialized");
             state.initialize()
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use burn_tensor::{Tensor, backend::Backend};
+
+    // Param<T> should be Sync so that models can be shared across threads
+    // (e.g. parallel inference with rayon).
+    fn _assert_sync<T: Sync>() {}
+
+    #[test]
+    fn param_is_sync() {
+        fn check<B: Backend>() {
+            _assert_sync::<Param<Tensor<B, 2>>>();
+        }
+        check::<burn_ndarray::NdArray>();
+    }
+
+    /// Concurrent lazy initialization must not panic.
+    ///
+    /// Multiple threads call `val()` on an uninitialized `Param` simultaneously.
+    /// `SyncOnceCell::get_or_init` guarantees only one thread runs the initializer;
+    /// the others block and receive the same value.
+    #[cfg(feature = "std")]
+    #[test]
+    fn param_concurrent_lazy_init() {
+        use alloc::vec::Vec;
+
+        type B = burn_ndarray::NdArray;
+        let device = <B as Backend>::Device::default();
+
+        let param: Param<Tensor<B, 2>> = Param::uninitialized(
+            ParamId::new(),
+            |device, _require_grad| Tensor::zeros([2, 3], device),
+            device,
+            false,
+            [2, 3].into(),
+        );
+
+        // Share across threads via &param (requires Sync).
+        std::thread::scope(|s| {
+            let handles: Vec<_> = (0..4).map(|_| s.spawn(|| param.val())).collect();
+
+            let results: Vec<_> = handles.into_iter().map(|h| h.join().unwrap()).collect();
+
+            // All threads must get the same value.
+            let expected = results[0].to_data();
+            for result in &results[1..] {
+                assert_eq!(result.to_data(), expected);
+            }
+        });
     }
 }

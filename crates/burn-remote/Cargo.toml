@@ -37,13 +37,13 @@ server = [
 
 
 [dependencies]
-burn-ir = { path = "../burn-ir", version = "=0.21.0-pre.2", default-features = true }
-burn-backend = { path = "../burn-backend", version = "=0.21.0-pre.2", default-features = true, features = [
+burn-ir = { path = "../burn-ir", version = "=0.21.0-pre.3", default-features = true }
+burn-backend = { path = "../burn-backend", version = "=0.21.0-pre.3", default-features = true, features = [
     "serde", # For DTypeUsageSet to be de/serialized
 ] }
-burn-std = { path = "../burn-std", version = "=0.21.0-pre.2", default-features = true }
-burn-router = { path = "../burn-router", version = "=0.21.0-pre.2", default-features = true }
-burn-communication = { path = "../burn-communication", version = "=0.21.0-pre.2", features = [
+burn-std = { path = "../burn-std", version = "=0.21.0-pre.3", default-features = true }
+burn-router = { path = "../burn-router", version = "=0.21.0-pre.3", default-features = true }
+burn-communication = { path = "../burn-communication", version = "=0.21.0-pre.3", features = [
     "data-service",
     "websocket",
 ] }
@@ -72,8 +72,8 @@ tracing-subscriber = { workspace = true, optional = true }
 tokio-util = { workspace = true }
 
 [dev-dependencies]
-burn-ndarray = { path = "../burn-ndarray", version = "=0.21.0-pre.2" }
-burn-tensor = { path = "../burn-tensor", version = "=0.21.0-pre.2", default-features = true }
+burn-ndarray = { path = "../burn-ndarray", version = "=0.21.0-pre.3" }
+burn-tensor = { path = "../burn-tensor", version = "=0.21.0-pre.3", default-features = true }
 
 [package.metadata.docs.rs]
 features = ["doc"]

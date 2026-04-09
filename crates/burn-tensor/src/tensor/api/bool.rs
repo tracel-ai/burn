@@ -1,4 +1,4 @@
-use crate::{Bool, Int, Shape, Tensor, TensorData, TensorPrimitive, backend::Backend};
+use crate::{Bool, Cast, Int, Shape, Tensor, TensorData, TensorPrimitive, backend::Backend};
 use alloc::{vec, vec::Vec};
 use burn_backend::get_device_settings;
 
@@ -96,6 +96,33 @@ where
             self.primitive,
             out_dtype,
         )))
+    }
+
+    /// Converts a bool tensor to the specified data type.
+    ///
+    /// Supports casting to [`IntDType`](crate::IntDType) (producing an int tensor)
+    /// or [`FloatDType`](crate::FloatDType) (producing a float tensor).
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Bool, IntDType, FloatDType};
+    ///
+    /// fn example<B: Backend>() {
+    ///     let device = Default::default();
+    ///     let bool_tensor = Tensor::<B, 1, Bool>::from_bool([true, false, true].into(), &device);
+    ///
+    ///     // Cast to int
+    ///     let int_tensor = bool_tensor.clone().cast(IntDType::I64);
+    ///
+    ///     // Cast to float
+    ///     let float_tensor = bool_tensor.cast(FloatDType::F32);
+    /// }
+    /// ```
+    #[must_use]
+    pub fn cast<T: Cast<B, Bool>>(self, dtype: T) -> Tensor<B, D, T::OutputKind> {
+        Tensor::new(T::cast(self.primitive, dtype))
     }
 
     /// Inverses boolean values.

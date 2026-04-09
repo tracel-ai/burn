@@ -28,20 +28,18 @@ fn interpolate_nearest_kernel<F: Float, N: Size>(
 
     let out_pos = ABSOLUTE_POS * vector_size;
 
-    let (h_in, w_in) = (input.shape(1) as f32, input.shape(2) as f32);
-    let (h_out, w_out) = (output.shape(1) as f32, output.shape(2) as f32);
+    let (h_in, w_in) = (input.shape(1), input.shape(2));
+    let (h_out, w_out) = (output.shape(1), output.shape(2));
 
     let (rem, c) = shape_out[3].div_mod(out_pos);
     let (rem, x) = shape_out[2].div_mod(rem);
     let (b, y) = shape_out[1].div_mod(rem);
 
-    let y = y as f32 * (h_in / h_out);
-    let x = x as f32 * (w_in / w_out);
+    let y = y * h_in / h_out;
+    let x = x * w_in / w_out;
 
-    let in_idx = b * input.stride(0)
-        + y as usize * input.stride(1)
-        + x as usize * input.stride(2)
-        + c * input.stride(3);
+    let in_idx =
+        b * input.stride(0) + y * input.stride(1) + x * input.stride(2) + c * input.stride(3);
 
     output[out_idx] = input[in_idx / vector_size];
 }

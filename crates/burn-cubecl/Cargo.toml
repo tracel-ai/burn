@@ -20,6 +20,7 @@ default = [
     "std",
     "fusion",
     "cubecl/default",
+    "burn-backend/default",
     "burn-fusion?/default",
     "burn-cubecl-fusion?/default",
 ]
@@ -52,14 +53,16 @@ fusion-experimental = ["fusion"]
 
 template = []
 
+distributed = ["std", "burn-backend/distributed"]
+
 [dependencies]
-burn-cubecl-fusion = { path = "../burn-cubecl-fusion", version = "=0.21.0-pre.2", default-features = false, optional = true }
-burn-fusion = { path = "../burn-fusion", version = "=0.21.0-pre.2", default-features = false, optional = true }
-burn-ir = { path = "../burn-ir", version = "=0.21.0-pre.2", default-features = false }
-burn-std = { path = "../burn-std", version = "=0.21.0-pre.2", default-features = false, features = [
+burn-cubecl-fusion = { path = "../burn-cubecl-fusion", version = "=0.21.0-pre.3", default-features = false, optional = true }
+burn-fusion = { path = "../burn-fusion", version = "=0.21.0-pre.3", default-features = false, optional = true }
+burn-ir = { path = "../burn-ir", version = "=0.21.0-pre.3", default-features = false }
+burn-std = { path = "../burn-std", version = "=0.21.0-pre.3", default-features = false, features = [
     "cubecl",
 ] }
-burn-backend = { path = "../burn-backend", version = "=0.21.0-pre.2", default-features = false, features = [
+burn-backend = { path = "../burn-backend", version = "=0.21.0-pre.3", default-features = false, features = [
     "cubecl",
 ] }
 cubecl = { workspace = true, features = ["stdlib"] }
@@ -71,6 +74,7 @@ cubek = { workspace = true, features = [
     "random",
     "quantization",
     "stdlib",
+    "fft",
 ] }
 tracing = { workspace = true, features = ["attributes"], optional = true }
 

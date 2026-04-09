@@ -27,6 +27,9 @@ use burn_backend::{
 use burn_backend::{Scalar, ops::unfold::calculate_unfold_windows};
 use burn_std::{BoolDType, FloatDType, IntDType, Shape, Slice};
 
+#[cfg(feature = "distributed")]
+use burn_backend::distributed::DistributedParams;
+
 use super::maxmin::MaxMinDim;
 
 // Unsqueeze op on primitive.
@@ -1509,14 +1512,22 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
 
     fn float_detach(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         // When we detach a tensor, we remove it from the graph, but we still want to keep the
-        // `require_grad` setting.
+        // `require_grad` (and `distributed`) setting.
         let is_require_grad = Self::float_is_require_grad(&tensor);
-        let tensor = AutodiffTensor::new(tensor.primitive);
 
-        match is_require_grad {
-            true => tensor.require_grad(),
-            false => tensor,
+        #[cfg(feature = "distributed")]
+        let distributed_params = tensor.node.distributed_params.clone();
+
+        let mut tensor = AutodiffTensor::new(tensor.primitive);
+
+        if is_require_grad {
+            tensor = tensor.require_grad();
         }
+        #[cfg(feature = "distributed")]
+        if let Some(params) = distributed_params {
+            tensor = tensor.grad_distributed(params.param_id);
+        }
+        tensor
     }
 
     fn float_set_require_grad(tensor: FloatTensor<Self>, require_grad: bool) -> FloatTensor<Self> {
@@ -2949,6 +2960,11 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
             }
             fn depth(&self) -> usize {
                 self.output.order
+            }
+
+            #[cfg(feature = "distributed")]
+            fn distributed_params(&self) -> Option<DistributedParams> {
+                self.output.distributed_params.clone()
             }
         }
 

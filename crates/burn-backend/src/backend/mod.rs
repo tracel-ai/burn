@@ -8,3 +8,7 @@ pub use primitive::*;
 
 /// Backend operations on tensors.
 pub mod ops;
+
+#[cfg(feature = "distributed")]
+/// Distributed backend extension.
+pub mod distributed;

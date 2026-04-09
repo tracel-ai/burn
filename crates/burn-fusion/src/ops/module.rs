@@ -1560,4 +1560,69 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             )
             .output()
     }
+
+    fn rfft(
+        signal: FloatTensor<Fusion<B>>,
+        dim: usize,
+    ) -> (FloatTensor<Fusion<B>>, FloatTensor<Fusion<B>>) {
+        make_ops!(RfftOps, RfftOpIr, |desc: &RfftOpIr,
+                                      handles: &mut HandleContainer<
+            B::Handle,
+        >| {
+            let signal = handles.get_float_tensor::<B>(&desc.signal);
+            let (re, im) = B::rfft(signal, desc.dim);
+
+            handles.register_float_tensor::<B>(&desc.out_re.id, re);
+            handles.register_float_tensor::<B>(&desc.out_im.id, im);
+        });
+
+        let streams = OperationStreams::with_inputs([&signal]);
+        let client = signal.client.clone();
+
+        let desc = RfftOpIr::create(signal.into_ir(), dim, || client.create_empty_handle());
+
+        let mut outputs = client
+            .register(
+                streams,
+                OperationIr::Module(ModuleOperationIr::Rfft(desc.clone())),
+                RfftOps::<B>::new(desc),
+            )
+            .into_iter();
+
+        (outputs.next().unwrap(), outputs.next().unwrap())
+    }
+
+    fn irfft(
+        spectrum_re: FloatTensor<Fusion<B>>,
+        spectrum_im: FloatTensor<Fusion<B>>,
+        dim: usize,
+    ) -> FloatTensor<Fusion<B>> {
+        make_ops!(IRfftOps, IRfftOpIr, |desc: &IRfftOpIr,
+                                        handles: &mut HandleContainer<
+            B::Handle,
+        >| {
+            let input_re = handles.get_float_tensor::<B>(&desc.input_re);
+            let input_im = handles.get_float_tensor::<B>(&desc.input_im);
+
+            let signal = B::irfft(input_re, input_im, desc.dim);
+            handles.register_float_tensor::<B>(&desc.out_signal.id, signal);
+        });
+
+        let streams = OperationStreams::with_inputs([&spectrum_re, &spectrum_im]);
+        let client = spectrum_re.client.clone();
+
+        let desc = IRfftOpIr::create(spectrum_re.into_ir(), spectrum_im.into_ir(), dim, || {
+            client.create_empty_handle()
+        });
+
+        let mut outputs = client
+            .register(
+                streams,
+                OperationIr::Module(ModuleOperationIr::IRfft(desc.clone())),
+                IRfftOps::<B>::new(desc),
+            )
+            .into_iter();
+
+        outputs.next().unwrap()
+    }
 }

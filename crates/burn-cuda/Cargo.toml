@@ -27,11 +27,12 @@ tracing = [
     "burn-fusion?/tracing",
     "cubecl/tracing",
 ]
+distributed = ["std", "burn-cubecl/distributed"]
 
 [dependencies]
-burn-fusion = { path = "../burn-fusion", version = "=0.21.0-pre.2", optional = true }
-burn-cubecl = { path = "../burn-cubecl", version = "=0.21.0-pre.2", default-features = false }
-burn-backend = { path = "../burn-backend", version = "=0.21.0-pre.2", default-features = false, features = [
+burn-fusion = { path = "../burn-fusion", version = "=0.21.0-pre.3", optional = true }
+burn-cubecl = { path = "../burn-cubecl", version = "=0.21.0-pre.3", default-features = false }
+burn-backend = { path = "../burn-backend", version = "=0.21.0-pre.3", default-features = false, features = [
     "cubecl-cuda",
 ] }
 cubecl = { workspace = true, features = ["cuda"] }

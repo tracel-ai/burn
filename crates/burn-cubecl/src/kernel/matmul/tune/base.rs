@@ -10,9 +10,10 @@ use cubek::matmul::{
     launch::{MatmulAutotuneKey, MatmulGlobalScale, Strategy, should_tune_double_buffering},
     routines::{
         BlueprintStrategy, TileSizeSelection, double_buffering::DoubleBufferingArgs,
-        double_unit::DoubleUnitSelectionArgs, nostage_vecmat::NoStageVecMatStrategy,
-        ordered_double_buffering::OrderedSelectionArgs, simple::SimpleArgs,
-        simple_unit::SimpleUnitSelectionArgs,
+        double_unit::DoubleUnitSelectionArgs, ordered_double_buffering::OrderedSelectionArgs,
+        simple::SimpleArgs, simple_unit::SimpleUnitSelectionArgs,
+        vecmat_plane_parallel::GemvPlaneParallelStrategy,
+        vecmat_unit_perpendicular::GemvUnitPerpendicularStrategy,
     },
 };
 
@@ -111,9 +112,10 @@ pub fn matmul_autotune<R: CubeRuntime>(
             }
         });
 
-        let vecmat = TuneGroup::<MatmulAutotuneKey>::new("vecmat", |key| {
-            if matches!(key.analysis.kind, MatmulKind::VecMat) {
-                PRIORITY_MAX
+        let gemv = TuneGroup::<MatmulAutotuneKey>::new("gemv", |key| {
+            if matches!(key.analysis.kind, MatmulKind::VecMat | MatmulKind::MatVec) {
+                // Make sure to not surpass cmma
+                PRIORITY_HIGH
             } else {
                 PRIORITY_NEVER
             }
@@ -146,30 +148,33 @@ pub fn matmul_autotune<R: CubeRuntime>(
             }),
         );
 
-        // No Stage VecMat
-        for target_num_planes in [1, 2, 4, 8] {
-            let strategy =
-                Strategy::NoStageVecMat(BlueprintStrategy::Inferred(NoStageVecMatStrategy {
-                    target_num_planes,
-                }));
-            set = set.with(
-                Tunable::new(strategy.to_string(), move |lhs, rhs, out| {
-                    launch_matmul::<R>(&strategy, lhs, rhs, out)
-                        .map_err(|err| std::format!("{err:?}"))
-                })
-                .group(&vecmat, move |key| {
-                    if key.definition.k >= 1024 && target_num_planes >= 4
-                        || key.definition.k < 1024 && target_num_planes < 4
-                    {
-                        PRIORITY_HIGH
-                    } else {
-                        PRIORITY_MIN
-                    }
-                }),
-            );
-        }
-
-        // Unit VecMat
+        // GEMV
+        let target_num_planes = 4;
+        let strategy = Strategy::GemvUnitPerpendicular(BlueprintStrategy::Inferred(
+            GemvUnitPerpendicularStrategy { target_num_planes },
+        ));
+        set = set.with(
+            Tunable::new(strategy.to_string(), move |lhs, rhs, out| {
+                launch_matmul::<R>(&strategy, lhs, rhs, out).map_err(|err| std::format!("{err:?}"))
+            })
+            .group(&gemv, move |key| {
+                if key.definition.n >= 2 * key.definition.k {
+                    PRIORITY_HIGH
+                } else {
+                    PRIORITY_MIN
+                }
+            }),
+        );
+        let strategy =
+            Strategy::GemvPlaneParallel(BlueprintStrategy::Inferred(GemvPlaneParallelStrategy {
+                target_num_planes,
+            }));
+        set = set.with(
+            Tunable::new(strategy.to_string(), move |lhs, rhs, out| {
+                launch_matmul::<R>(&strategy, lhs, rhs, out).map_err(|err| std::format!("{err:?}"))
+            })
+            .group(&gemv, move |_key| PRIORITY_HIGH),
+        );
         for (strategy, double_buf) in [
             (
                 Strategy::SimpleVecMat(BlueprintStrategy::Inferred(().into())),
@@ -189,7 +194,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
                     false => PRIORITY_MAX,
                     true => double_buffering_priority(key, PRIORITY_MAX, PRIORITY_HIGH),
                 })
-                .group(&vecmat, move |_key| PRIORITY_HIGH),
+                .group(&gemv, move |_key| PRIORITY_HIGH),
             );
         }
 

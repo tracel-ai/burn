@@ -9,10 +9,8 @@ use crate::{
     data::{BertCasedTokenizer, TextClassificationBatcher, TextClassificationDataset, Tokenizer},
     model::TextClassificationModelConfig,
 };
-#[cfg(feature = "ddp")]
-use burn::collective::{AllReduceStrategy, CollectiveConfig};
-use burn::train::{Learner, SupervisedTraining};
-#[cfg(not(feature = "ddp"))]
+
+use burn::train::{ExecutionStrategy, Learner, SupervisedTraining};
 use burn::{
     data::{dataloader::DataLoaderBuilder, dataset::transform::SamplerDataset},
     lr_scheduler::noam::NoamLrSchedulerConfig,
@@ -21,11 +19,8 @@ use burn::{
     prelude::*,
     record::{CompactRecorder, Recorder},
     tensor::backend::AutodiffBackend,
-    train::{
-        MultiDeviceOptim,
-        metric::{
-            AccuracyMetric, CudaMetric, IterationSpeedMetric, LearningRateMetric, LossMetric,
-        },
+    train::metric::{
+        AccuracyMetric, CudaMetric, IterationSpeedMetric, LearningRateMetric, LossMetric,
     },
 };
 use std::sync::Arc;
@@ -43,14 +38,22 @@ pub struct ExperimentConfig {
     pub num_epochs: usize,
 }
 
+fn create_artifact_dir(artifact_dir: &str) {
+    // Remove existing artifacts before to get an accurate learner summary
+    std::fs::remove_dir_all(artifact_dir).ok();
+    std::fs::create_dir_all(artifact_dir).ok();
+}
+
 // Define train function
 pub fn train<B: AutodiffBackend, D: TextClassificationDataset + 'static>(
-    devices: Vec<B::Device>, // Device on which to perform computation (e.g., CPU or CUDA device)
-    dataset_train: D,        // Training dataset
-    dataset_test: D,         // Testing dataset
+    strategy: ExecutionStrategy<B>,
+    dataset_train: D,         // Training dataset
+    dataset_test: D,          // Testing dataset
     config: ExperimentConfig, // Experiment configuration
-    artifact_dir: &str,      // Directory to save model and config files
+    artifact_dir: &str,       // Directory to save model and config files
 ) {
+    create_artifact_dir(artifact_dir);
+
     // Initialize tokenizer
     let tokenizer = Arc::new(BertCasedTokenizer::default());
 
@@ -64,7 +67,7 @@ pub fn train<B: AutodiffBackend, D: TextClassificationDataset + 'static>(
         tokenizer.vocab_size(),
         config.seq_length,
     )
-    .init::<B>(&devices[0]);
+    .init::<B>(strategy.main_device());
 
     // Initialize data loaders for training and testing data
     let dataloader_train = DataLoaderBuilder::new(batcher.clone())
@@ -87,7 +90,6 @@ pub fn train<B: AutodiffBackend, D: TextClassificationDataset + 'static>(
         .unwrap();
 
     // Initialize learner
-    #[cfg(not(feature = "ddp"))]
     let training = SupervisedTraining::new(artifact_dir, dataloader_train, dataloader_test)
         .metric_train(CudaMetric::new())
         .metric_valid(CudaMetric::new())
@@ -98,28 +100,7 @@ pub fn train<B: AutodiffBackend, D: TextClassificationDataset + 'static>(
         .metric_valid_numeric(AccuracyMetric::new())
         .metric_train_numeric(LearningRateMetric::new())
         .with_file_checkpointer(CompactRecorder::new())
-        .num_epochs(config.num_epochs)
-        .summary()
-        .with_training_strategy(burn::train::TrainingStrategy::MultiDevice(
-            devices,
-            MultiDeviceOptim::OptimSharded,
-        ));
-
-    #[cfg(feature = "ddp")]
-    let collective_config =
-        CollectiveConfig::default().with_local_all_reduce_strategy(AllReduceStrategy::Tree(2));
-    #[cfg(feature = "ddp")]
-    let training = SupervisedTraining::new(artifact_dir, dataloader_train, dataloader_test)
-        .metric_train(CudaMetric::new())
-        .metric_valid(CudaMetric::new())
-        .metric_train(IterationSpeedMetric::new())
-        .metric_train_numeric(LossMetric::new())
-        .metric_valid_numeric(LossMetric::new())
-        .metric_train_numeric(AccuracyMetric::new())
-        .metric_valid_numeric(AccuracyMetric::new())
-        .metric_train_numeric(LearningRateMetric::new())
-        .with_file_checkpointer(CompactRecorder::new())
-        .with_training_strategy(burn::train::ddp(devices, collective_config))
+        .with_training_strategy(strategy.into())
         .num_epochs(config.num_epochs)
         .summary();
 

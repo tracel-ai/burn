@@ -17,6 +17,7 @@ workspace = true
 [features]
 default = ["std"]
 doc = ["default"]
+distributed = ["std", "oneshot"]
 std = ["rand/std", "num-traits/std", "burn-std/std", "cubecl?/std"]
 
 tracing = ["burn-std/tracing", "cubecl/tracing"]
@@ -31,7 +32,7 @@ cubecl-wgpu = ["cubecl", "cubecl/wgpu"]
 cubecl-cpu = ["cubecl", "cubecl/cpu"]
 
 [dependencies]
-burn-std = { path = "../burn-std", version = "=0.21.0-pre.2", default-features = false }
+burn-std = { path = "../burn-std", version = "=0.21.0-pre.3", default-features = false }
 cubecl = { workspace = true, optional = true, default-features = false }
 
 bytemuck = { workspace = true, features = ["extern_crate_alloc"] }
@@ -43,6 +44,7 @@ rand = { workspace = true, default-features = false }
 rand_distr = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }
+oneshot = { version = "0.2.1", optional = true }
 spin = { workspace = true }
 
 [target.'cfg(not(target_has_atomic = "ptr"))'.dependencies]
