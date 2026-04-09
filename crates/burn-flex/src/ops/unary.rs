@@ -2,7 +2,7 @@
 
 use alloc::vec::Vec;
 use burn_backend::DType;
-use burn_std::{BoolDType, BoolStore, Bytes, bf16, f16};
+use burn_std::{BoolDType, Bytes, bf16, f16};
 #[cfg(not(feature = "std"))]
 #[allow(unused_imports)]
 use num_traits::Float;
@@ -11,6 +11,10 @@ use crate::layout::StridedBlocks;
 use crate::{FlexTensor, Layout};
 
 /// Apply a float predicate element-wise, producing a boolean tensor.
+///
+/// Delegates to [`crate::ops::comparison::make_bool_tensor`] for output
+/// construction, so it shares the same `BoolDType` support (Native/U8 only,
+/// panics on U32).
 pub fn float_predicate<F32P, F64P>(
     tensor: FlexTensor,
     out_dtype: BoolDType,
@@ -42,25 +46,10 @@ where
             let s: &[bf16] = tensor.storage();
             s[..n].iter().map(|&x| f32_pred(x.to_f32()) as u8).collect()
         }
-        dt => panic!("float_predicate: unsupported dtype {:?}", dt),
+        dt => panic!("float_predicate: expected float dtype, got {:?}", dt),
     };
 
-    // Native and U8 share the same 1-byte-per-element layout, so the bytes above
-    // work for both. Only the dtype tag differs. U32 widens to 4 bytes per element.
-    let bytes = match out_dtype {
-        BoolDType::Native | BoolDType::U8 => Bytes::from_elems(result),
-        BoolDType::U32 => {
-            let widened: Vec<u32> = result.into_iter().map(u32::from).collect();
-            Bytes::from_elems(widened)
-        }
-    };
-    let store = match out_dtype {
-        BoolDType::Native => BoolStore::Native,
-        BoolDType::U8 => BoolStore::U8,
-        BoolDType::U32 => BoolStore::U32,
-    };
-
-    FlexTensor::new(bytes, Layout::contiguous(shape), DType::Bool(store))
+    crate::ops::comparison::make_bool_tensor(result, shape, out_dtype)
 }
 
 /// Apply a unary operation element-wise to a tensor.

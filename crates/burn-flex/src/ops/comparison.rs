@@ -378,17 +378,22 @@ where
 }
 
 /// Build a bool `FlexTensor` from a `Vec<u8>` of 0/1 bytes, tagged with the
-/// requested output dtype. Native and U8 share the same 1-byte-per-element
-/// layout so the bytes pass through; U32 widens each element to 4 bytes.
+/// requested output dtype.
+///
+/// burn-flex stores bools as 1 byte per element, so only Native and U8 are
+/// supported. `Bool(U32)` would require 4-byte-per-element storage throughout
+/// the backend; `dtype_usage` declares it unsupported and this function panics
+/// if it's requested.
 pub(crate) fn make_bool_tensor(data: Vec<u8>, shape: Shape, out_dtype: BoolDType) -> FlexTensor {
-    let (bytes, store) = match out_dtype {
-        BoolDType::Native => (Bytes::from_elems(data), BoolStore::Native),
-        BoolDType::U8 => (Bytes::from_elems(data), BoolStore::U8),
-        BoolDType::U32 => {
-            let widened: Vec<u32> = data.into_iter().map(u32::from).collect();
-            (Bytes::from_elems(widened), BoolStore::U32)
-        }
+    let store = match out_dtype {
+        BoolDType::Native => BoolStore::Native,
+        BoolDType::U8 => BoolStore::U8,
+        BoolDType::U32 => panic!(
+            "burn-flex does not support Bool(U32) storage (only Native and U8). \
+             Use a backend that declares Bool(U32) support, or work with Bool(Native)/Bool(U8)."
+        ),
     };
+    let bytes = Bytes::from_elems(data);
     FlexTensor::new(bytes, Layout::contiguous(shape), DType::Bool(store))
 }
 

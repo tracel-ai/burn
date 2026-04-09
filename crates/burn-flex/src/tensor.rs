@@ -171,7 +171,7 @@ impl FlexTensor {
     pub fn storage<E: Element + bytemuck::Pod>(&self) -> &[E] {
         debug_assert!(
             E::dtype() == self.dtype
-                || (matches!(self.dtype, DType::Bool(_)) && E::dtype() == DType::U8),
+                || (matches!(self.dtype, DType::Bool(burn_std::BoolStore::Native | burn_std::BoolStore::U8)) && E::dtype() == DType::U8),
             "storage: dtype mismatch (expected {:?}, got {:?})",
             self.dtype,
             E::dtype()
@@ -191,7 +191,7 @@ impl FlexTensor {
     pub fn storage_mut<E: Element + bytemuck::Pod>(&mut self) -> &mut [E] {
         debug_assert!(
             E::dtype() == self.dtype
-                || (matches!(self.dtype, DType::Bool(_)) && E::dtype() == DType::U8),
+                || (matches!(self.dtype, DType::Bool(burn_std::BoolStore::Native | burn_std::BoolStore::U8)) && E::dtype() == DType::U8),
             "storage_mut: dtype mismatch (expected {:?}, got {:?})",
             self.dtype,
             E::dtype()
@@ -209,7 +209,7 @@ impl FlexTensor {
     pub fn try_storage_mut<E: Element + bytemuck::Pod>(&mut self) -> Option<&mut [E]> {
         debug_assert!(
             E::dtype() == self.dtype
-                || (matches!(self.dtype, DType::Bool(_)) && E::dtype() == DType::U8),
+                || (matches!(self.dtype, DType::Bool(burn_std::BoolStore::Native | burn_std::BoolStore::U8)) && E::dtype() == DType::U8),
             "try_storage_mut: dtype mismatch (expected {:?}, got {:?})",
             self.dtype,
             E::dtype()
@@ -295,7 +295,12 @@ impl FlexTensor {
             DType::U32 => self.copy_contiguous::<u32>(),
             DType::U16 => self.copy_contiguous::<u16>(),
             DType::U8 => self.copy_contiguous::<u8>(),
-            DType::Bool(_) => self.copy_contiguous::<u8>(), // bool as u8
+            DType::Bool(burn_std::BoolStore::Native | burn_std::BoolStore::U8) => {
+                self.copy_contiguous::<u8>()
+            }
+            DType::Bool(burn_std::BoolStore::U32) => {
+                panic!("burn-flex: Bool(U32) storage is not yet supported")
+            }
             _ => panic!("Unsupported dtype for contiguous copy: {:?}", self.dtype),
         }
     }
@@ -418,14 +423,13 @@ impl TensorMetadata for FlexTensor {
 }
 
 /// Get the size in bytes for a dtype element.
+///
+/// Matches `burn_std::DType::size()` semantics: Bool(Native) and Bool(U8) are
+/// 1 byte, Bool(U32) is 4 bytes. This makes buffer-size validation correct
+/// regardless of which BoolStore variant the dtype carries.
 pub(crate) fn dtype_size(dtype: DType) -> usize {
-    match dtype {
-        DType::F64 | DType::I64 | DType::U64 => 8,
-        DType::F32 | DType::I32 | DType::U32 => 4,
-        DType::F16 | DType::BF16 | DType::I16 | DType::U16 => 2,
-        DType::I8 | DType::U8 | DType::Bool(_) => 1,
-        _ => panic!("Unsupported dtype: {:?}", dtype),
-    }
+    // Delegate to burn-std's canonical size to stay in sync.
+    dtype.size()
 }
 
 #[cfg(test)]

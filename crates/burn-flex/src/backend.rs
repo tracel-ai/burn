@@ -70,9 +70,10 @@ impl core::fmt::Display for FlexDevice {
 /// This is a deliberate compromise for the initial migration: making `Flex`
 /// generic over element types at the trait-impl level is a follow-up that would
 /// require rewriting all `impl FooOps<Flex> for Flex` blocks plus internal
-/// `Flex::method()` calls. Until then, treat the generic parameters as opaque
-/// shape placeholders; real element-type selection happens at runtime via
-/// `DType`.
+/// `Flex::method()` calls (tracked in
+/// [#4762](https://github.com/tracel-ai/burn/issues/4762)). Until then, treat
+/// the generic parameters as opaque shape placeholders; real element-type
+/// selection happens at runtime via `DType`.
 ///
 /// The bound is locked in by a compile-fail doctest so that if someone later
 /// makes the `Backend` impl generic over `E`/`I`, this documentation gets
@@ -137,7 +138,14 @@ impl Backend for Flex {
             DType::U64 | DType::U32 | DType::U16 | DType::U8 => {
                 DTypeUsage::Storage | DTypeUsage::Arithmetic
             }
-            DType::Bool(_) => DTypeUsage::Storage | DTypeUsage::Arithmetic,
+            // Bool storage: flex stores bools as 1 byte per element, so Native and
+            // U8 are both supported (they share the same layout, only the tag
+            // differs). Bool(U32) would require 4-byte-per-element storage
+            // throughout the backend and is not yet implemented.
+            DType::Bool(burn_std::BoolStore::Native | burn_std::BoolStore::U8) => {
+                DTypeUsage::Storage | DTypeUsage::Arithmetic
+            }
+            DType::Bool(burn_std::BoolStore::U32) => DTypeUsageSet::empty(),
             // Quantized types: storage only for now
             DType::QFloat(_) => DTypeUsage::Storage.into(),
             _ => DTypeUsageSet::empty(),
@@ -194,3 +202,88 @@ impl BackendIr for Flex {
 }
 
 // Ops traits are implemented in the ops module
+
+#[cfg(test)]
+mod tests {
+    use burn_backend::{Backend, DType};
+    use burn_std::BoolStore;
+
+    use super::*;
+
+    #[test]
+    fn supports_bool_native() {
+        let device = FlexDevice;
+        assert!(Flex::supports_dtype(&device, DType::Bool(BoolStore::Native)));
+    }
+
+    #[test]
+    fn supports_bool_u8() {
+        let device = FlexDevice;
+        assert!(Flex::supports_dtype(&device, DType::Bool(BoolStore::U8)));
+    }
+
+    #[test]
+    fn does_not_support_bool_u32() {
+        let device = FlexDevice;
+        assert!(
+            !Flex::supports_dtype(&device, DType::Bool(BoolStore::U32)),
+            "Bool(U32) should not be supported: flex stores bools as 1 byte per element"
+        );
+    }
+
+    #[test]
+    fn bool_empty_preserves_native_dtype() {
+        use burn_backend::ops::BoolTensorOps;
+        let shape = burn_std::Shape::from(alloc::vec![3]);
+        let t = Flex::bool_empty(shape, &FlexDevice, burn_std::BoolDType::Native);
+        assert_eq!(t.dtype(), DType::Bool(BoolStore::Native));
+    }
+
+    #[test]
+    fn bool_empty_preserves_u8_dtype() {
+        use burn_backend::ops::BoolTensorOps;
+        let shape = burn_std::Shape::from(alloc::vec![3]);
+        let t = Flex::bool_empty(shape, &FlexDevice, burn_std::BoolDType::U8);
+        assert_eq!(t.dtype(), DType::Bool(BoolStore::U8));
+    }
+
+    #[test]
+    fn comparison_preserves_out_dtype_native() {
+        let lhs = FlexTensor::from_data(burn_backend::TensorData::from([1.0f32, 2.0, 3.0]));
+        let rhs = FlexTensor::from_data(burn_backend::TensorData::from([2.0f32, 2.0, 1.0]));
+        let result = crate::ops::comparison::greater(lhs, rhs, burn_std::BoolDType::Native);
+        assert_eq!(result.dtype(), DType::Bool(BoolStore::Native));
+    }
+
+    #[test]
+    fn comparison_preserves_out_dtype_u8() {
+        let lhs = FlexTensor::from_data(burn_backend::TensorData::from([1.0f32, 2.0, 3.0]));
+        let rhs = FlexTensor::from_data(burn_backend::TensorData::from([2.0f32, 2.0, 1.0]));
+        let result = crate::ops::comparison::greater(lhs, rhs, burn_std::BoolDType::U8);
+        assert_eq!(result.dtype(), DType::Bool(BoolStore::U8));
+    }
+
+    #[test]
+    #[should_panic(expected = "Bool(U32)")]
+    fn comparison_u32_panics() {
+        let lhs = FlexTensor::from_data(burn_backend::TensorData::from([1.0f32, 2.0]));
+        let rhs = FlexTensor::from_data(burn_backend::TensorData::from([2.0f32, 1.0]));
+        let _ = crate::ops::comparison::greater(lhs, rhs, burn_std::BoolDType::U32);
+    }
+
+    #[test]
+    fn bool_not_preserves_u8_dtype() {
+        use burn_backend::ops::BoolTensorOps;
+        let t = FlexTensor::from_data(burn_backend::TensorData::from([true, false, true]));
+        // from_data produces Bool(Native); tag it as U8 to verify preservation
+        let t_u8 = crate::ops::comparison::make_bool_tensor(
+            alloc::vec![1, 0, 1],
+            burn_std::Shape::from(alloc::vec![3]),
+            burn_std::BoolDType::U8,
+        );
+        let result = Flex::bool_not(t_u8);
+        assert_eq!(result.dtype(), DType::Bool(BoolStore::U8));
+        let data: &[u8] = result.bytes();
+        assert_eq!(&data[..3], &[0, 1, 0]);
+    }
+}

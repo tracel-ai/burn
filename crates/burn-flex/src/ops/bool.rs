@@ -182,8 +182,18 @@ impl BoolTensorOps<Flex> for Flex {
     fn bool_not(mut tensor: BoolTensor<Flex>) -> BoolTensor<Flex> {
         use crate::strided_index::StridedIter;
 
+        debug_assert!(
+            matches!(
+                tensor.dtype(),
+                DType::Bool(burn_std::BoolStore::Native | burn_std::BoolStore::U8)
+            ),
+            "bool_not: only Bool(Native) and Bool(U8) are supported, got {:?}",
+            tensor.dtype()
+        );
+
         // Fast path: in-place for unique, contiguous tensors at offset 0. This
-        // preserves the input tensor's dtype tag implicitly.
+        // preserves the input tensor's dtype tag implicitly (the in-place SIMD
+        // ops flip bytes without touching the dtype tag).
         if tensor.is_unique()
             && tensor.layout().is_contiguous()
             && tensor.layout().start_offset() == 0
@@ -193,8 +203,8 @@ impl BoolTensorOps<Flex> for Flex {
             return tensor;
         }
 
-        // Allocating path for shared or non-contiguous tensors: preserve the
-        // input's bool dtype for the new tensor.
+        // Allocating path for shared, non-contiguous, or offset tensors:
+        // preserve the input's bool dtype for the new tensor.
         let out_dtype = burn_std::BoolDType::from(tensor.dtype());
         let shape = tensor.layout().shape().clone();
         let storage: &[u8] = tensor.bytes();
@@ -432,6 +442,11 @@ fn bool_binary_op_simd(mut lhs: FlexTensor, mut rhs: FlexTensor, op: BoolBinaryO
         lhs.layout().shape(),
         rhs.layout().shape(),
         "bool_binary_op: shape mismatch"
+    );
+    debug_assert_eq!(
+        lhs.dtype(),
+        rhs.dtype(),
+        "bool_binary_op: dtype mismatch"
     );
 
     // Preserve the input bool dtype (taken from lhs; rhs is assumed to match
