@@ -1,3 +1,5 @@
+use alloc::boxed::Box;
+
 use burn_backend::{DeviceId, DeviceOps};
 
 use crate::backends::*;
