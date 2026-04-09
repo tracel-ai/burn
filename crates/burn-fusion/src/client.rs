@@ -376,19 +376,18 @@ where
 
         let id = device.id();
         println!("client sync_collective: {:?}", id);
-        self.server
-            .submit_blocking(move |server| {
-                let stream_id = StreamId::current();
-                println!(
-                    "client sync_collective drain_stream: {:?}, {:?}",
-                    device.id(),
-                    stream_id
-                );
-                server.drain_stream(stream_id);
-                println!("client sync_collective sync_collective: {:?}", device.id(),);
-                B::sync_collective(&device)
-            })
-            .unwrap();
+        self.server.submit(move |server| {
+            println!("client sync_collective submit: {:?}", device.id(),);
+            let stream_id = StreamId::current();
+            println!(
+                "client sync_collective drain_stream: {:?}, {:?}",
+                device.id(),
+                stream_id
+            );
+            server.drain_stream(stream_id);
+            println!("client sync_collective sync_collective: {:?}", device.id(),);
+            B::sync_collective(&device)
+        });
         println!("client sync_collective finished: {:?}", id,);
     }
 }
