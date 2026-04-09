@@ -1,6 +1,7 @@
 [alias]
 test-cpu = "test --release --no-default-features --features cpu,std,fusion"
 test-cuda = "test --release --no-default-features --features cuda,std,fusion"
+test-flex = "test --release --no-default-features --features flex,std"
 test-ndarray = "test --release --no-default-features --features ndarray,std"
 test-rocm = "test --release --no-default-features --features rocm,std,fusion"
 # test-router = "test --release --no-default-features --features router,std"

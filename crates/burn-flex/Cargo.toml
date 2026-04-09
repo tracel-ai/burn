@@ -1,0 +1,154 @@
+[package]
+authors = ["Dilshod Tadjibaev (@antimora)"]
+categories = ["science", "mathematics", "no-std"]
+description = "A fast, portable CPU backend for the Burn framework"
+documentation = "https://docs.rs/burn-flex"
+edition.workspace = true
+keywords = ["deep-learning", "machine-learning", "tensor", "simd"]
+license.workspace = true
+name = "burn-flex"
+readme.workspace = true
+repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-flex"
+version.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+default = ["std", "simd", "rayon"]
+std = [
+    "gemm/std",
+    "burn-backend/std",
+    "burn-std/std",
+    "burn-ir/std",
+    "half/std",
+    "num-traits/std",
+]
+simd = ["dep:macerator", "dep:aligned-vec"]
+rayon = ["dep:rayon", "gemm/rayon"]
+tracing = ["burn-std/tracing", "burn-backend/tracing", "burn-ir/tracing"]
+critical-section = [
+    "dep:once_cell",
+    "once_cell/critical-section",
+    "dep:portable-atomic",
+    "portable-atomic/critical-section",
+    "dep:portable-atomic-util",
+]
+
+[dependencies]
+
+# ** Please make sure all dependencies support no_std when std is disabled **
+
+burn-backend = { path = "../burn-backend", version = "=0.21.0-pre.3", default-features = false }
+burn-ir = { path = "../burn-ir", version = "=0.21.0-pre.3", default-features = false }
+burn-std = { path = "../burn-std", version = "=0.21.0-pre.3", default-features = false }
+
+bytemuck = { workspace = true }
+half = { workspace = true }
+num-traits = { workspace = true }
+
+# Matmul
+gemm = { version = "0.19", default-features = false, features = ["f16"] }
+
+# SIMD
+aligned-vec = { version = "0.6", default-features = false, optional = true }
+macerator = { workspace = true, optional = true }
+
+# Parallel
+rayon = { workspace = true, optional = true }
+
+# no_std targets without atomic CAS (enabled via `critical-section` feature)
+once_cell = { version = "1", default-features = false, optional = true }
+portable-atomic = { workspace = true, optional = true }
+portable-atomic-util = { workspace = true, optional = true }
+
+[dev-dependencies]
+burn-ndarray = { path = "../burn-ndarray", version = "=0.21.0-pre.3" }
+burn-tensor = { path = "../burn-tensor", version = "=0.21.0-pre.3" }
+divan = "0.1"
+realfft = "3"
+rustfft = "6"
+
+[[bench]]
+name = "attention"
+harness = false
+
+[[bench]]
+name = "binary_ops"
+harness = false
+
+[[bench]]
+name = "matmul"
+harness = false
+
+[[bench]]
+name = "slice_ops"
+harness = false
+
+[[bench]]
+name = "reduce_ops"
+harness = false
+
+[[bench]]
+name = "unary_ops"
+harness = false
+
+[[bench]]
+name = "comparison_ops"
+harness = false
+
+[[bench]]
+name = "conv_ops"
+harness = false
+
+[[bench]]
+name = "pool_ops"
+harness = false
+
+[[bench]]
+name = "conv_transpose_ops"
+harness = false
+
+[[bench]]
+name = "interpolate_ops"
+harness = false
+
+[[bench]]
+name = "gather_scatter_ops"
+harness = false
+
+[[bench]]
+name = "cumulative_ops"
+harness = false
+
+[[bench]]
+name = "cross_unfold_ops"
+harness = false
+
+[[bench]]
+name = "int_ops"
+harness = false
+
+[[bench]]
+name = "deform_conv_ops"
+harness = false
+
+[[bench]]
+name = "quantization_ops"
+harness = false
+
+[[bench]]
+name = "cat_max_min_ops"
+harness = false
+
+[[bench]]
+name = "default_ops"
+harness = false
+
+[[bench]]
+name = "fft_ops"
+harness = false
+
+[package.metadata.docs.rs]
+features = ["default"]
+rustdoc-args = ["--cfg", "docsrs"]

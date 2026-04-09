@@ -41,6 +41,8 @@ enum TestBackend {
     #[allow(unused)]
     #[strum(to_string = "rocm")]
     Rocm,
+    #[strum(to_string = "flex")]
+    Flex,
     #[strum(to_string = "ndarray")]
     Ndarray,
 }
@@ -60,7 +62,7 @@ fn handle_backend_tests(
     }
     args.features = Some(features);
 
-    if !matches!(backend, TestBackend::Ndarray) {
+    if !matches!(backend, TestBackend::Ndarray | TestBackend::Flex) {
         // Fusion enabled tests first
         let mut fusion_args = args.clone();
         if let Some(features) = fusion_args.features.as_mut() {
@@ -171,6 +173,13 @@ pub(crate) fn handle_command(
                     handle_backend_tests(
                         args.clone().try_into().unwrap(),
                         TestBackend::Ndarray,
+                        env.clone(),
+                        context.clone(),
+                    )?;
+
+                    handle_backend_tests(
+                        args.clone().try_into().unwrap(),
+                        TestBackend::Flex,
                         env,
                         context,
                     )?;
