@@ -384,7 +384,7 @@ where
                 device.id(),
                 stream_id
             );
-            server.drain_stream(stream_id);
+            // server.drain_stream(stream_id);
             println!("client sync_collective sync_collective: {:?}", device.id(),);
             B::sync_collective(&device)
         });
