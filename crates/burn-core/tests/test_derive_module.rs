@@ -681,6 +681,11 @@ mod grad_distributed {
                 }
                 for r in synced_recvs.iter().by_ref() {
                     let data = r.recv().unwrap();
+                    println!(
+                        "expected : {:?}\n",
+                        expected.unwrap().to_data().to_vec::<f32>().unwrap()
+                    );
+                    println!("data : {:?}\n", data.to_vec::<f32>().unwrap());
                     data.assert_approx_eq::<FloatElem>(
                         &expected.unwrap().to_data(),
                         Tolerance::default(),
