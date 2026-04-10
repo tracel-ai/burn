@@ -1,4 +1,3 @@
-use crate::ops::FloatElem;
 use crate::{BasicOps, Shape, Slice, Tensor, backend::Backend, cast::ToElement};
 use alloc::format;
 use alloc::string::{String, ToString};
@@ -1361,31 +1360,35 @@ impl TensorCheck {
         check
     }
 
-    /// Check if input is compatible with LU decomposition.
-    pub fn is_square<const D: usize>(ops: &str, shape: &Shape) -> Self {
+    /// Check the generic parameters for lu decomposition is valid.
+    pub fn lu_generic_param<const D: usize, const D1: usize>(ops: &str) -> Self {
         let mut check = TensorCheck::Ok;
-        if shape[D - 1] != shape[D - 2] {
+        if D - 1 != D1 {
             check = check.register(
                 ops,
-                TensorError::new("The input tensor must be square.").details(format!(
-                    "Got tensor with shape {:?}, expected last two dimensions to be equal",
-                    shape
-                )),
+                TensorError::new(
+                    "D - 1 = D1 must hold for the generic parameters of LU decomposition.",
+                )
+                .details(format!("Got generic parameters D = {} and D1 = {}", D, D1)),
             );
         }
         check
     }
 
-    /// Check pivot is valid for LU decomposition.
-    pub fn lu_decomposition_pivot<B: Backend>(pivot: FloatElem<B>) -> Self {
+    /// Check the input tensor for lu decomposition is valid.
+    pub fn lu_input_tensor<const D: usize>(ops: &str, dims: &[usize]) -> Self {
         let mut check = TensorCheck::Ok;
-        if pivot.to_f64().abs() <= 1e-6 {
+        let n_dims = dims.len();
+        if n_dims < 2 {
             check = check.register(
-                "lu_decomposition",
-                TensorError::new("LU decomposition requires a valid pivot.")
-                    .details(format!("Got pivot value too close to zero: {}", pivot)),
+                ops,
+                TensorError::new(
+                    "The input tensor for LU decomposition must have at least two dimensions.",
+                )
+                .details(format!("Got input tensor with {} dimensions", n_dims)),
             );
         }
+
         check
     }
 }

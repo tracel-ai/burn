@@ -2,7 +2,8 @@ use super::*;
 
 pub(crate) mod cosine_similarity;
 pub(crate) mod diag;
-pub(crate) mod lu_decomposition;
+pub(crate) mod lu;
+// pub(crate) mod lu_decomposition;
 pub(crate) mod matvec;
 pub(crate) mod outer;
 pub(crate) mod trace;
