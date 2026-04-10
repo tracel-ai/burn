@@ -124,7 +124,8 @@ where
     pub fn flush(&self) {
         let id = StreamId::current();
         self.server
-            .submit_blocking(move |server| server.drain_stream(id));
+            .submit_blocking(move |server| server.drain_stream(id))
+            .unwrap();
     }
 
     /// Create a new (uninitialized) empty tensor handle and returns its corresponding [tensor id](TensorId).
