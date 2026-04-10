@@ -569,6 +569,7 @@ mod grad_distributed {
             original_receivers,
             transformation,
             NUM_ITERATIONS,
+            op,
         );
 
         for handle in join_handles {
@@ -584,14 +585,6 @@ mod grad_distributed {
             .collect()
     }
 
-    fn create_channels(
-        device_count: usize,
-    ) -> (Vec<Sender<TensorData>>, Vec<Receiver<TensorData>>) {
-        (1..device_count)
-            .map(|_| std::sync::mpsc::channel())
-            .unzip()
-    }
-
     fn spawn_peer_threads<B: AutodiffBackend>(
         module: &ModuleBasic<B>,
         devices: &[<B as Backend>::Device],
@@ -601,6 +594,7 @@ mod grad_distributed {
         original_receivers: Vec<Receiver<Tensor<B::InnerBackend, 2>>>,
         transformation: fn(Tensor<B, 2>, Tensor<B, 2>) -> Tensor<B, 2>,
         num_iter: usize,
+        op: ReduceOperation,
     ) -> Vec<std::thread::JoinHandle<()>> {
         let mut handles = vec![];
 
@@ -618,6 +612,7 @@ mod grad_distributed {
                 true,
                 synced_receivers,
                 original_receivers,
+                op,
             )
         }));
 
@@ -655,6 +650,7 @@ mod grad_distributed {
         is_main: bool,
         synced_recvs: Vec<Receiver<TensorData>>,
         original_recvs: Vec<Receiver<Tensor<B::InnerBackend, 2>>>,
+        op: ReduceOperation,
     ) {
         let mut module = module.clone().fork(&device);
 
@@ -675,9 +671,13 @@ mod grad_distributed {
                 for r in original_recvs.iter().by_ref() {
                     expected = expected.add(r.recv().unwrap().to_device(&device));
                 }
+                if op == ReduceOperation::Mean {
+                    expected = expected.div_scalar((original_recvs.len() + 1) as f32);
+                }
+                data.assert_approx_eq::<f32>(&expected.to_data(), Tolerance::default());
                 for r in synced_recvs.iter().by_ref() {
-                    let data = r.recv().unwrap();
-                    data.assert_approx_eq::<f32>(&expected.to_data(), Tolerance::default());
+                    let data_other = r.recv().unwrap();
+                    data_other.assert_approx_eq::<f32>(&expected.to_data(), Tolerance::default());
                 }
             }
         }
