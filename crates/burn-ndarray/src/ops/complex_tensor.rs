@@ -161,6 +161,7 @@ where
         rhs: ComplexTensor<NdArray<E, I, Q>>,
     ) -> ComplexTensor<NdArray<E, I, Q>> {
         todo!()
+        //crate::execute_with_complex_dtype!((lhs, rhs), )
     }
 
     fn complex_abs(tensor: ComplexTensor<NdArray<E, I, Q>>) -> FloatTensor<NdArray<E, I, Q>> {
@@ -183,36 +184,10 @@ where
     }
     
     fn complex_squared_norm(tensor: ComplexTensor<NdArray<E, I, Q>>) -> FloatTensor<NdArray<E, I, Q>> {
-        match tensor {
-    NdArrayTensor::Complex64(storage) => {
-        #[allow(unused)]
-        type E = f64;
-        let array = storage.into_shared();
-            (|array: SharedArray<Complex<E>>|->SharedArray<E> {
-                array.mapv_into(|x|{
-                x.real*x.real+x.imag*x.imag
-            }).into()
-            }).into()
-            
-        
-    }
-    NdArrayTensor::Complex32(storage) => {
-        #[allow(unused)]
-        type E = f32;
-        
-        let array = storage.into_shared();
-            (|array: SharedArray<Complex<E>>|->SharedArray<E> {
-                array.mapv_into(|x|{
-                x.real*x.real+x.imag*x.imag
-            }).into()
-            }).into()
-        
-    }
-    _ => unimplemented!("Not a complex tensor"),
-
-    }
-        
-
+        crate::execute_complex_to_real_op!(tensor, C, |array: SharedArray<C>| {
+            array.mapv(|x| x.real*x.real+x.imag*x.imag).into_shared()
+        })
+    
     }
     
     fn complex_from_polar(magnitude: FloatTensor<NdArray<E, I, Q>>, phase: FloatTensor<NdArray<E, I, Q>>) -> ComplexTensor<NdArray<E, I, Q>> {

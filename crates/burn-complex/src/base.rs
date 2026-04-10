@@ -1,6 +1,6 @@
 #![allow(unused)]
 pub mod element;
-
+pub mod simd;
 pub mod split;
 use burn_std::dtype;
 /*

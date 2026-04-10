@@ -26,6 +26,7 @@ std = ["burn-tensor/std"]
 
 [dependencies]
 bon = { workspace = true }
+
 # burn-candle = { path = "../burn-candle", version = "0.19.0", optional = true }
 # burn-cubecl = { path = "../burn-cubecl", version = "0.19.0", optional = true }
 # burn-fusion = { path = "../burn-fusion", version = "0.19.0", optional = true }
@@ -41,7 +42,6 @@ cubecl = { workspace = true, optional = true }
 derive-new = { workspace = true }
 half = { workspace = true }
 macerator = { workspace = true }
-
 rand = { workspace = true, default-features = false }
 #rand_distr = { workspace = true }
 num-traits = { workspace = true }
