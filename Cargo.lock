@@ -646,7 +646,6 @@ checksum = "5d20789868f4b01b2f2caec9f5c4e0213b41e3e5702a50157d699ae31ced2fcb"
 name = "burn"
 version = "0.21.0-pre.2"
 dependencies = [
- "burn-autodiff",
  "burn-candle",
  "burn-collective",
  "burn-core",
@@ -1025,15 +1024,8 @@ dependencies = [
  "burn-autodiff",
  "burn-collective",
  "burn-core",
- "burn-cuda",
- "burn-fusion",
  "burn-ndarray",
  "burn-nn",
- "burn-remote",
- "burn-rocm",
- "burn-router",
- "burn-tch",
- "burn-wgpu",
  "derive-new",
  "hashbrown 0.16.1",
  "log",
@@ -1074,7 +1066,6 @@ name = "burn-rl"
 version = "0.21.0-pre.2"
 dependencies = [
  "burn-core",
- "burn-ndarray",
  "burn-optim",
  "derive-new",
  "log",
@@ -1192,7 +1183,6 @@ name = "burn-train"
 version = "0.21.0-pre.2"
 dependencies = [
  "async-channel",
- "burn-autodiff",
  "burn-core",
  "burn-ndarray",
  "burn-nn",
@@ -1222,13 +1212,13 @@ version = "0.21.0-pre.2"
 dependencies = [
  "aligned-vec",
  "bon",
+ "burn-backend",
  "burn-cubecl",
  "burn-cuda",
  "burn-fusion",
  "burn-ir",
  "burn-ndarray",
  "burn-tch",
- "burn-tensor",
  "burn-tensor-testgen",
  "burn-wgpu",
  "bytemuck",
