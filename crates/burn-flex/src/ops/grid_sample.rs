@@ -1,7 +1,9 @@
 //! Grid sampling operations for FlexTensor.
 //!
-//! Supported dtypes: f32, f64, f16, bf16 (all via an f64 compute path so f16
-//! grids and inputs don't lose precision mid-interpolation).
+//! Supported dtypes: f32, f64, f16, bf16. All dtypes share a single f64
+//! compute path. This is required for f16/bf16 correctness (so coordinate
+//! math, bilinear weights, and accumulated samples keep full precision) and
+//! incidentally gives f32 a small accuracy bump at the cost of extra casts.
 
 use alloc::vec;
 use alloc::vec::Vec;
@@ -47,7 +49,7 @@ fn grid_sample_2d_impl<T>(
     options: GridSampleOptions,
 ) -> FlexTensor
 where
-    T: Float + Element + bytemuck::Pod + Send + Sync,
+    T: Float + Element + bytemuck::Pod,
 {
     let t_shape = tensor.layout().shape();
     let g_shape = grid.layout().shape();
@@ -90,10 +92,13 @@ where
 
     // Low-precision types (f16/bf16) are widened to f64 for all arithmetic so
     // that coordinate math, weights, and accumulated samples keep full precision.
+    //
+    // The from_f64 unwrap is unreachable for any well-formed input: bilinear
+    // is a convex combination of finite samples so the result is bounded by
+    // the sample envelope, and `NumCast::from` for f16/bf16/f32/f64 saturates
+    // to inf/nan rather than returning None for non-finite inputs.
     let to_f64 = |x: T| -> f64 { ToElement::to_f64(&x) };
-    let from_f64 = |x: f64| -> T {
-        <T as NumCast>::from(x).expect("grid_sample_2d: f64 out of range for element type")
-    };
+    let from_f64 = |x: f64| -> T { <T as NumCast>::from(x).unwrap() };
 
     for b in 0..batch_size {
         for y in 0..h_out {
