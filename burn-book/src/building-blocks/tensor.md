@@ -429,7 +429,6 @@ strategies.
 | `linalg::l2_norm(tensor, dim)`                     | _No direct equivalent_                              |
 | `linalg::lp_norm(tensor, p, dim)`                  | _No direct equivalent_                              |
 | `linalg::lu(tensor)`                               | `torch.linalg.lu(tensor)`                           |
-| `linalg::lu_factor(tensor)`                        | `torch.linalg.lu_factor(tensor)`                    |
 | `linalg::matvec(matrix, vector)`                   | `torch.matmul(matrix, vector)` / `@` operator       |
 | `linalg::max_abs_norm(tensor, dim)`                | _No direct equivalent_                              |
 | `linalg::min_abs_norm(tensor, dim)`                | _No direct equivalent_                              |

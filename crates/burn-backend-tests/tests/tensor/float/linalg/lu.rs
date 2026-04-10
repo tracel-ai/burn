@@ -1,50 +1,42 @@
 use super::*;
-use burn_tensor::{Distribution, TensorData, Tolerance, linalg::*};
+use burn_tensor::{Distribution, Tolerance, linalg::lu};
 
 // ---------------------------------------------------------------------
-// Small Matrices (using lu_factor)
+// Small Matrices
 // ---------------------------------------------------------------------
 
 #[test]
-fn test_lu_factor_1x1() {
+fn test_lu_1x1() {
     let device = Default::default();
     let tensor = TestTensor::<2>::from_data([[5.0]], &device);
-    let (pivots, lu) = lu_factor::<TestBackend, 2, 1>(tensor);
-    lu.into_data().assert_eq(&TensorData::from([[5.0]]), false);
-    pivots
-        .into_data()
-        .assert_eq(&TensorData::from([0.0]), false);
+    let (p, l, u) = lu::<TestBackend, 2, 1>(tensor.clone());
+    let plu = p.matmul(l).matmul(u);
+    let tolerance = Tolerance::default().set_half_precision_absolute(5e-2);
+    plu.into_data()
+        .assert_approx_eq::<FloatElem>(&tensor.into_data(), tolerance);
 }
 
 #[test]
-fn test_lu_factor_2x2() {
+fn test_lu_2x2() {
     let device = Default::default();
     let tensor = TestTensor::<2>::from_data([[4.0, 3.0], [6.0, 3.0]], &device);
-    let (pivots, lu) = lu_factor::<TestBackend, 2, 1>(tensor);
-    let expected = TensorData::from([[6.0, 3.0], [2.0 / 3.0, 1.0]]);
-    lu.into_data().assert_eq(&expected, false);
-    pivots
-        .into_data()
-        .assert_eq(&TensorData::from([1.0, 1.0]), false);
+    let (p, l, u) = lu::<TestBackend, 2, 1>(tensor.clone());
+    let plu = p.matmul(l).matmul(u);
+    let tolerance = Tolerance::default().set_half_precision_absolute(5e-2);
+    plu.into_data()
+        .assert_approx_eq::<FloatElem>(&tensor.into_data(), tolerance);
 }
 
 #[test]
-fn test_lu_factor_3x3() {
+fn test_lu_3x3() {
     let device = Default::default();
     let tensor =
         TestTensor::<2>::from_data([[4.0, 7.0, 3.0], [6.0, 1.0, 3.0], [8.0, 3.0, 7.0]], &device);
-    let (pivots, lu) = lu_factor::<TestBackend, 2, 1>(tensor);
-    let expected = TensorData::from([
-        [8.0, 3.0, 7.0],
-        [0.5, 5.5, -0.5],
-        [0.75, -0.22727273, -2.3636363],
-    ]);
+    let (p, l, u) = lu::<TestBackend, 2, 1>(tensor.clone());
+    let plu = p.matmul(l).matmul(u);
     let tolerance = Tolerance::default().set_half_precision_absolute(5e-2);
-    lu.into_data()
-        .assert_approx_eq::<FloatElem>(&expected, tolerance);
-    pivots
-        .into_data()
-        .assert_eq(&TensorData::from([2.0, 2.0, 2.0]), false);
+    plu.into_data()
+        .assert_approx_eq::<FloatElem>(&tensor.into_data(), tolerance);
 }
 
 // ---------------------------------------------------------------------
@@ -79,23 +71,6 @@ fn test_lu_singular_zero_pivot() {
     let tolerance = Tolerance::default().set_half_precision_absolute(5e-2);
     plu.into_data()
         .assert_approx_eq::<FloatElem>(&tensor.into_data(), tolerance);
-}
-
-#[test]
-#[should_panic(expected = "Error: The input tensor passed to linalg::lu_factor cannot be singular")]
-fn test_lu_factor_singular_zero_pivot() {
-    let device = Default::default();
-    let tensor = TestTensor::<2>::from_data(
-        [
-            [0.0, 4.0, 2.0, 6.0],
-            [0.0, 2.0, 2.0, 11.0],
-            [0.0, 3.0, 9.0, 6.0],
-            [0.0, 7.0, 10.0, 9.0],
-        ],
-        &device,
-    );
-    // This should panic because the matrix is singular
-    let _ = lu_factor::<TestBackend, 2, 1>(tensor);
 }
 
 // ---------------------------------------------------------------------
@@ -321,22 +296,4 @@ fn test_lu_panic_invalid_d1() {
     let device = Default::default();
     let tensor = TestTensor::<2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
     let _ = lu::<TestBackend, 2, 2>(tensor);
-}
-
-#[test]
-#[should_panic]
-fn test_lu_factor_panic_rank_less_than_2() {
-    // Fails check: D >= 2
-    let device = Default::default();
-    let tensor = TestTensor::<1>::from_data([1.0, 2.0, 3.0], &device);
-    let _ = lu_factor::<TestBackend, 1, 0>(tensor);
-}
-
-#[test]
-#[should_panic]
-fn test_lu_factor_panic_invalid_d1() {
-    // Fails check: D - 1 == D1 (3 - 1 != 1) inside lu_factor
-    let device = Default::default();
-    let tensor = TestTensor::<3>::random([2, 2, 2], Distribution::Default, &device);
-    let _ = lu_factor::<TestBackend, 3, 1>(tensor);
 }
