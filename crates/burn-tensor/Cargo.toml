@@ -40,6 +40,7 @@ cubecl-cpu = ["burn-backend/cubecl-cpu"]
 # Backends
 cuda = ["burn-dispatch/cuda"]
 rocm = ["burn-dispatch/rocm"]
+flex = ["burn-dispatch/flex"]
 ndarray = ["burn-dispatch/ndarray"]
 tch = ["burn-dispatch/tch"]
 vulkan = ["burn-dispatch/vulkan"]
@@ -58,9 +59,9 @@ memory-checks = ["burn-dispatch/memory-checks"]
 fusion = ["burn-dispatch/fusion"]
 
 [dependencies]
-burn-std = { path = "../burn-std", version = "=0.21.0-pre.2", default-features = false }
-burn-backend = { path = "../burn-backend", version = "=0.21.0-pre.2", default-features = false }
-burn-dispatch = { path = "../burn-dispatch", version = "=0.21.0-pre.2", default-features = false }
+burn-std = { path = "../burn-std", version = "=0.21.0-pre.3", default-features = false }
+burn-backend = { path = "../burn-backend", version = "=0.21.0-pre.3", default-features = false }
+burn-dispatch = { path = "../burn-dispatch", version = "=0.21.0-pre.3", default-features = false }
 
 colored = { workspace = true, optional = true }
 derive-new = { workspace = true }

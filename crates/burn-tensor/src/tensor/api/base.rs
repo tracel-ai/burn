@@ -1032,6 +1032,26 @@ where
         //sort the indices
         dim_indices.sort_unstable();
 
+        // Per the documented semantics, duplicate axes mean "insert N dims at that index".
+        // After sorting, N insertions at position `i` logically occupy positions
+        // `i, i+1, ..., i+N-1` in the output, so bump each duplicate to the next slot.
+        // Example: sorted `[0, 0, 3]` becomes `[0, 1, 3]`, matching the intent of
+        // "two 1s starting at index 0, plus one 1 at index 3".
+        for i in 1..dim_indices.len() {
+            if dim_indices[i] <= dim_indices[i - 1] {
+                dim_indices[i] = dim_indices[i - 1] + 1;
+            }
+        }
+
+        // Re-validate after normalization: bumping duplicates forward can push the
+        // last index past `D2 - 1` (e.g. `[2, 2]` targeting rank 3 normalizes to
+        // `[2, 3]`). The per-axis check above only runs on pre-normalization values,
+        // so we re-check here to surface a clear `TensorCheck` error instead of
+        // letting the copy loop panic on an out-of-bounds `old_dims` read.
+        for &dim_index in &dim_indices {
+            check!(TensorCheck::unsqueeze_dims::<{ D2 }>(dim_index as isize));
+        }
+
         // Loop over the entries/indices of the `new_dims` array.
         // When the current entry should be 1 from the unsqueeze operation, simply increment
         // the index for `dims_indices` to account for "adding" its entry to `new_dims`.

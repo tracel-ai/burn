@@ -20,12 +20,10 @@ doc = [
     "std",
     # Doc features
     "burn-core/doc",
-    "pretrained",
 ]
-std = ["burn-core/std", "num-traits/std", "burn-store?/std", "burn-std?/std"]
+std = ["burn-core/std", "num-traits/std"]
 
 tracing = ["burn-core/tracing"]
-pretrained = ["std", "burn-store/pytorch", "burn-std/network", "dirs"]
 
 # Test backends
 test-cuda = ["burn-core/cuda"]
@@ -42,19 +40,14 @@ test-memory-checks = ["burn-core/test-memory-checks"]
 [dependencies]
 
 # ** Please make sure all dependencies support no_std when std is disabled **
-burn-core = { path = "../burn-core", version = "=0.21.0-pre.2", default-features = false }
+burn-core = { path = "../burn-core", version = "=0.21.0-pre.3", default-features = false }
 
 num-traits = { workspace = true }
 
-# For loss functions requiring pretrained models (e.g., Gram Matrix Loss)
-burn-store = { path = "../burn-store", version = "=0.21.0-pre.2", optional = true, default-features = false }
-burn-std = { path = "../burn-std", version = "=0.21.0-pre.2", optional = true, default-features = false }
-dirs = { workspace = true, optional = true }
-
 [dev-dependencies]
-burn-ndarray = { path = "../burn-ndarray", version = "=0.21.0-pre.2" }
-burn-autodiff = { path = "../burn-autodiff", version = "=0.21.0-pre.2" }
-burn-core = { path = "../burn-core", version = "=0.21.0-pre.2", default-features = false, features = [
+burn-ndarray = { path = "../burn-ndarray", version = "=0.21.0-pre.3" }
+burn-autodiff = { path = "../burn-autodiff", version = "=0.21.0-pre.3" }
+burn-core = { path = "../burn-core", version = "=0.21.0-pre.3", default-features = false, features = [
     "autodiff",
 ] }
 rstest = { workspace = true }

@@ -180,6 +180,7 @@ mod cuda {
 
 #[cfg(feature = "rocm")]
 mod rocm {
+    use super::*;
     use crate::{ElemType, launch};
     use burn::backend::{Autodiff, Rocm, autodiff::checkpoint::strategy::BalancedCheckpointing};
 

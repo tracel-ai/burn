@@ -173,6 +173,12 @@ pub mod cubecl {
     pub use cubecl::*;
 }
 
+#[cfg(feature = "vision")]
+/// Vision module.
+pub mod vision {
+    pub use burn_vision::*;
+}
+
 pub mod prelude {
     //! Structs and macros used by most projects. Add `use
     //! burn::prelude::*` to your code to quickly get started with

@@ -46,6 +46,10 @@ pub enum DispatchDevice {
     #[cfg(wgpu_webgpu)]
     Wgpu(WgpuDevice),
 
+    /// The [Flex backend](Flex) device (CPU-only).
+    #[cfg(feature = "flex")]
+    Flex(FlexDevice),
+
     /// The [NdArray backend](NdArray) device (CPU-only).
     #[cfg(feature = "ndarray")]
     NdArray(NdArrayDevice),
@@ -137,6 +141,8 @@ impl core::fmt::Debug for DispatchDevice {
             Self::Vulkan(device) => f.debug_tuple("Vulkan").field(device).finish(),
             #[cfg(wgpu_webgpu)]
             Self::Wgpu(device) => f.debug_tuple("Wgpu").field(device).finish(),
+            #[cfg(feature = "flex")]
+            Self::Flex(device) => f.debug_tuple("Flex").field(device).finish(),
             #[cfg(feature = "ndarray")]
             Self::NdArray(device) => f.debug_tuple("NdArray").field(device).finish(),
             #[cfg(feature = "tch")]
@@ -174,6 +180,11 @@ impl Default for DispatchDevice {
         #[cfg(feature = "tch")]
         return Self::LibTorch(LibTorchDevice::default());
 
+        // Prefer Flex over NdArray when both are enabled: Flex is the long-term
+        // CPU backend replacement and should win the default tie.
+        #[cfg(feature = "flex")]
+        return Self::Flex(FlexDevice::default());
+
         #[cfg(feature = "ndarray")]
         return Self::NdArray(NdArrayDevice::default());
     }
@@ -202,6 +213,8 @@ impl PartialEq for DispatchDevice {
             (Self::Vulkan(a), Self::Vulkan(b)) => a == b,
             #[cfg(wgpu_webgpu)]
             (Self::Wgpu(a), Self::Wgpu(b)) => a == b,
+            #[cfg(feature = "flex")]
+            (Self::Flex(a), Self::Flex(b)) => a == b,
             #[cfg(feature = "ndarray")]
             (Self::NdArray(a), Self::NdArray(b)) => a == b,
             #[cfg(feature = "tch")]
@@ -256,6 +269,8 @@ impl DispatchDevice {
             Self::Vulkan(_) => BackendId::Vulkan,
             #[cfg(wgpu_webgpu)]
             Self::Wgpu(_) => BackendId::Wgpu,
+            #[cfg(feature = "flex")]
+            Self::Flex(_) => BackendId::Flex,
             #[cfg(feature = "ndarray")]
             Self::NdArray(_) => BackendId::NdArray,
             #[cfg(feature = "tch")]
@@ -304,6 +319,8 @@ pub(crate) enum BackendId {
     NdArray = 6,
     #[cfg(feature = "tch")]
     LibTorch = 7,
+    #[cfg(feature = "flex")]
+    Flex = 8,
 }
 
 impl From<BackendId> for u16 {
@@ -333,6 +350,8 @@ impl TryFrom<u16> for BackendId {
             6 => Ok(Self::NdArray),
             #[cfg(feature = "tch")]
             7 => Ok(Self::LibTorch),
+            #[cfg(feature = "flex")]
+            8 => Ok(Self::Flex),
             _ => Err(()),
         }
     }
@@ -358,6 +377,8 @@ impl burn_backend::Device for DispatchDevice {
             BackendId::Vulkan => Self::Vulkan(WgpuDevice::from_id(device_id)),
             #[cfg(wgpu_webgpu)]
             BackendId::Wgpu => Self::Wgpu(WgpuDevice::from_id(device_id)),
+            #[cfg(feature = "flex")]
+            BackendId::Flex => Self::Flex(FlexDevice::from_id(device_id)),
             #[cfg(feature = "ndarray")]
             BackendId::NdArray => Self::NdArray(NdArrayDevice::from_id(device_id)),
             #[cfg(feature = "tch")]
@@ -379,6 +400,8 @@ impl burn_backend::Device for DispatchDevice {
             Self::Vulkan(device) => device.to_id(),
             #[cfg(wgpu_webgpu)]
             Self::Wgpu(device) => device.to_id(),
+            #[cfg(feature = "flex")]
+            Self::Flex(device) => device.to_id(),
             #[cfg(feature = "ndarray")]
             Self::NdArray(device) => device.to_id(),
             #[cfg(feature = "tch")]
@@ -430,6 +453,13 @@ impl From<WgpuDevice> for DispatchDevice {
 impl From<WgpuDevice> for DispatchDevice {
     fn from(device: WgpuDevice) -> Self {
         DispatchDevice::Wgpu(device)
+    }
+}
+
+#[cfg(feature = "flex")]
+impl From<FlexDevice> for DispatchDevice {
+    fn from(device: FlexDevice) -> Self {
+        DispatchDevice::Flex(device)
     }
 }
 

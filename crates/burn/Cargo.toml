@@ -44,6 +44,7 @@ tracing = [
     "cubecl?/tracing",
     "burn-core/tracing",
     "burn-store?/tracing",
+    "burn-vision?/tracing",
     "burn-nn/tracing",
     "burn-optim/tracing",
 ]
@@ -76,7 +77,7 @@ store = ["burn-store"]
 cubecl = ["dep:cubecl"]
 
 audio = ["burn-core/audio"]
-vision = ["burn-core/vision"]
+vision = ["burn-core/vision", "burn-vision"]
 rl = ["dep:burn-rl", "burn-train?/rl"]
 
 # Backend
@@ -116,6 +117,7 @@ candle-cuda = ["candle", "burn-candle/cuda"]
 candle-metal = ["burn-candle?/metal"]
 cuda = ["burn-cuda", "burn-core/cuda"]
 rocm = ["burn-rocm", "burn-core/rocm"]
+flex = ["burn-flex", "burn-core/flex"]
 ndarray = ["burn-ndarray", "burn-core/ndarray"]
 tch = ["burn-tch"]
 vulkan = ["wgpu", "burn-core/vulkan"]
@@ -128,25 +130,27 @@ cpu = ["burn-cpu", "burn-core/cpu"]
 
 # ** Please make sure all dependencies support no_std when std is disabled **
 
-burn-core = { path = "../burn-core", version = "=0.21.0-pre.2", default-features = false }
-burn-train = { path = "../burn-train", version = "=0.21.0-pre.2", optional = true, default-features = false }
-burn-collective = { path = "../burn-collective", version = "=0.21.0-pre.2", optional = true, default-features = false }
-burn-store = { path = "../burn-store", version = "=0.21.0-pre.2", optional = true, default-features = false }
-burn-nn = { path = "../burn-nn", version = "=0.21.0-pre.2", default-features = false }
-burn-optim = { path = "../burn-optim", version = "=0.21.0-pre.2", default-features = false }
-burn-rl = { path = "../burn-rl", version = "=0.21.0-pre.2", optional = true, default-features = false }
+burn-core = { path = "../burn-core", version = "=0.21.0-pre.3", default-features = false }
+burn-train = { path = "../burn-train", version = "=0.21.0-pre.3", optional = true, default-features = false }
+burn-collective = { path = "../burn-collective", version = "=0.21.0-pre.3", optional = true, default-features = false }
+burn-store = { path = "../burn-store", version = "=0.21.0-pre.3", optional = true, default-features = false }
+burn-nn = { path = "../burn-nn", version = "=0.21.0-pre.3", default-features = false }
+burn-optim = { path = "../burn-optim", version = "=0.21.0-pre.3", default-features = false }
+burn-rl = { path = "../burn-rl", version = "=0.21.0-pre.3", optional = true, default-features = false }
+burn-vision = { path = "../burn-vision", version = "=0.21.0-pre.3", optional = true, default-features = false }
 
 # Backends
-burn-candle = { path = "../burn-candle", version = "=0.21.0-pre.2", optional = true }
-burn-cuda = { path = "../burn-cuda", version = "=0.21.0-pre.2", optional = true, default-features = false }
-burn-cpu = { path = "../burn-cpu", version = "=0.21.0-pre.2", optional = true, default-features = false }
-burn-rocm = { path = "../burn-rocm", version = "=0.21.0-pre.2", optional = true, default-features = false }
-burn-ndarray = { path = "../burn-ndarray", version = "=0.21.0-pre.2", optional = true, default-features = false }
-burn-remote = { path = "../burn-remote", version = "=0.21.0-pre.2", default-features = false, optional = true }
-burn-router = { path = "../burn-router", version = "=0.21.0-pre.2", default-features = false, optional = true }
-burn-tch = { path = "../burn-tch", version = "=0.21.0-pre.2", default-features = false, optional = true }
-burn-wgpu = { path = "../burn-wgpu", version = "=0.21.0-pre.2", optional = true, default-features = false }
-burn-ir = { path = "../burn-ir", version = "=0.21.0-pre.2", optional = true, default-features = false }
-burn-dispatch = { path = "../burn-dispatch", version = "=0.21.0-pre.2", optional = true, default-features = false }
+burn-candle = { path = "../burn-candle", version = "=0.21.0-pre.3", optional = true }
+burn-cuda = { path = "../burn-cuda", version = "=0.21.0-pre.3", optional = true, default-features = false }
+burn-cpu = { path = "../burn-cpu", version = "=0.21.0-pre.3", optional = true, default-features = false }
+burn-rocm = { path = "../burn-rocm", version = "=0.21.0-pre.3", optional = true, default-features = false }
+burn-flex = { path = "../burn-flex", version = "=0.21.0-pre.3", optional = true, default-features = false }
+burn-ndarray = { path = "../burn-ndarray", version = "=0.21.0-pre.3", optional = true, default-features = false }
+burn-remote = { path = "../burn-remote", version = "=0.21.0-pre.3", default-features = false, optional = true }
+burn-router = { path = "../burn-router", version = "=0.21.0-pre.3", default-features = false, optional = true }
+burn-tch = { path = "../burn-tch", version = "=0.21.0-pre.3", default-features = false, optional = true }
+burn-wgpu = { path = "../burn-wgpu", version = "=0.21.0-pre.3", optional = true, default-features = false }
+burn-ir = { path = "../burn-ir", version = "=0.21.0-pre.3", optional = true, default-features = false }
+burn-dispatch = { path = "../burn-dispatch", version = "=0.21.0-pre.3", optional = true, default-features = false }
 
 cubecl = { workspace = true, default-features = false, optional = true }

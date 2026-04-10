@@ -21,7 +21,7 @@ data-service = ["burn-backend"]
 websocket = ["axum", "tokio-tungstenite", "futures"]
 
 [dependencies]
-burn-std = { path = "../burn-std", version = "=0.21.0-pre.2", default-features = true }
+burn-std = { path = "../burn-std", version = "=0.21.0-pre.3", default-features = true }
 bytes = { workspace = true }
 derive-new = { workspace = true }
 futures-util = { workspace = true }
@@ -36,7 +36,7 @@ tracing-core = { workspace = true, features = ["default"] }
 tracing-subscriber = { workspace = true, features = ["default", "fmt", "env-filter"] }
 
 # Tensor Data Service
-burn-backend = { path = "../burn-backend", version = "=0.21.0-pre.2", optional = true }
+burn-backend = { path = "../burn-backend", version = "=0.21.0-pre.3", optional = true }
 
 # Websocket
 axum = { workspace = true, features = ["ws"], optional = true }

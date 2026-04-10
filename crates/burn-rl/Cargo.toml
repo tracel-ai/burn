@@ -12,11 +12,11 @@ documentation = "https://docs.rs/burn-rl"
 version.workspace = true
 
 [dependencies]
-burn-core = { path = "../burn-core", version = "=0.21.0-pre.2", features = [
+burn-core = { path = "../burn-core", version = "=0.21.0-pre.3", features = [
     "dataset",
     "std",
 ], default-features = false }
-burn-optim = { path = "../burn-optim", version = "=0.21.0-pre.2", features = [
+burn-optim = { path = "../burn-optim", version = "=0.21.0-pre.3", features = [
     "std",
 ], default-features = false }
 
@@ -26,7 +26,7 @@ rand.workspace = true
 
 [dev-dependencies]
 # Test backend
-burn-core = { path = "../burn-core", version = "=0.21.0-pre.2", features = ["ndarray"]}
+burn-core = { path = "../burn-core", version = "=0.21.0-pre.3", features = ["ndarray"]}
 
 [lints]
 workspace = true

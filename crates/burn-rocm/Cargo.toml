@@ -33,11 +33,11 @@ memory-checks = ["burn-cubecl/memory-checks"]
 
 [dependencies]
 cubecl = { workspace = true, features = ["hip"] }
-burn-cubecl = { path = "../burn-cubecl", version = "=0.21.0-pre.2", default-features = true }
-burn-backend = { path = "../burn-backend", version = "=0.21.0-pre.2", features = [
+burn-cubecl = { path = "../burn-cubecl", version = "=0.21.0-pre.3", default-features = true }
+burn-backend = { path = "../burn-backend", version = "=0.21.0-pre.3", features = [
     "cubecl-hip",
 ] }
-burn-fusion = { path = "../burn-fusion", version = "=0.21.0-pre.2", optional = true }
+burn-fusion = { path = "../burn-fusion", version = "=0.21.0-pre.3", optional = true }
 
 [package.metadata.docs.rs]
 features = ["doc"]

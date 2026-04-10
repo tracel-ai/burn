@@ -28,22 +28,22 @@ rl = ["burn-rl"]
 ddp = ["burn-optim/distributed", "burn-core/distributed"]
 
 [dependencies]
-burn-core = { path = "../burn-core", version = "=0.21.0-pre.2", features = [
+burn-core = { path = "../burn-core", version = "=0.21.0-pre.3", features = [
     "dataset",
     "std",
     "ndarray", # RL loop
 ], default-features = false }
-burn-optim = { path = "../burn-optim", version = "=0.21.0-pre.2", features = [
+burn-optim = { path = "../burn-optim", version = "=0.21.0-pre.3", features = [
     "std",
 ], default-features = false }
-burn-rl = { path = "../burn-rl", version = "=0.21.0-pre.2", optional = true, default-features = false }
-burn-nn = { path = "../burn-nn", version = "=0.21.0-pre.2", optional = true, default-features = false, features = [
+burn-rl = { path = "../burn-rl", version = "=0.21.0-pre.3", optional = true, default-features = false }
+burn-nn = { path = "../burn-nn", version = "=0.21.0-pre.3", optional = true, default-features = false, features = [
     "std",
 ] }
-burn-store = { path = "../burn-store", version = "=0.21.0-pre.2", optional = true, default-features = false, features = [
+burn-store = { path = "../burn-store", version = "=0.21.0-pre.3", optional = true, default-features = false, features = [
     "std",
 ] }
-burn-std = { path = "../burn-std", version = "=0.21.0-pre.2", optional = true, default-features = false, features = [
+burn-std = { path = "../burn-std", version = "=0.21.0-pre.3", optional = true, default-features = false, features = [
     "std",
 ] }
 dirs = { workspace = true, optional = true }
@@ -68,7 +68,7 @@ ratatui = { workspace = true, optional = true, features = [
 derive-new = { workspace = true }
 serde = { workspace = true, features = ["std", "derive"] }
 async-channel = { workspace = true }
-burn-ndarray = { path = "../burn-ndarray", version = "=0.21.0-pre.2" }
+burn-ndarray = { path = "../burn-ndarray", version = "=0.21.0-pre.3" }
 rstest.workspace = true
 thiserror.workspace = true
 rand.workspace = true

@@ -338,7 +338,7 @@ mod tests {
 
         let (mean, std) = (0.0, 1.0);
         let normal: Tensor<1> = Initializer::Normal { mean, std }
-            .init([1000], &device)
+            .init([10000], &device)
             .into_value();
         let (var_act, mean_act) = normal.var_mean(0);
 
