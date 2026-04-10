@@ -193,8 +193,7 @@ fn test_bool_and_broadcast_row_lhs() {
     // [1, 3] AND [2, 3] broadcasts lhs along dim 0 only. Distinct from
     // the scalar_lhs pattern, which broadcasts along both dims.
     let device = Default::default();
-    let lhs =
-        TestTensorBool::<2>::from_data(TensorData::from([[true, false, true]]), &device);
+    let lhs = TestTensorBool::<2>::from_data(TensorData::from([[true, false, true]]), &device);
     let rhs = TestTensorBool::<2>::from_data(
         TensorData::from([[true, true, false], [false, true, true]]),
         &device,
@@ -211,12 +210,8 @@ fn test_bool_and_broadcast_mutual() {
     // axes, producing [3, 3]. Exercises the "neither operand matches the
     // output shape" path through broadcast_binary.
     let device = Default::default();
-    let lhs = TestTensorBool::<2>::from_data(
-        TensorData::from([[true], [false], [true]]),
-        &device,
-    );
-    let rhs =
-        TestTensorBool::<2>::from_data(TensorData::from([[true, false, true]]), &device);
+    let lhs = TestTensorBool::<2>::from_data(TensorData::from([[true], [false], [true]]), &device);
+    let rhs = TestTensorBool::<2>::from_data(TensorData::from([[true, false, true]]), &device);
 
     let actual = lhs.bool_and(rhs).into_data();
     let expected = TensorData::from([
