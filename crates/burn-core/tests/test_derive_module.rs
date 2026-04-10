@@ -587,14 +587,6 @@ mod grad_distributed {
             .collect()
     }
 
-    fn create_channels(
-        device_count: usize,
-    ) -> (Vec<Sender<TensorData>>, Vec<Receiver<TensorData>>) {
-        (1..device_count)
-            .map(|_| std::sync::mpsc::channel())
-            .unzip()
-    }
-
     fn spawn_peer_threads<B: AutodiffBackend>(
         module: &ModuleBasic<B>,
         devices: &[<B as Backend>::Device],
