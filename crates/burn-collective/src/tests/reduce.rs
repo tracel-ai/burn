@@ -1,8 +1,9 @@
 mod tests {
     use std::sync::mpsc::SyncSender;
 
+    use burn_backend::ops::FloatTensorOps;
+    use burn_backend::{Backend, TensorData, Tolerance};
     use burn_std::rand::get_seeded_rng;
-    use burn_tensor::{Tensor, TensorData, TensorPrimitive, Tolerance, backend::Backend};
 
     use serial_test::serial;
 
@@ -36,17 +37,15 @@ mod tests {
         input: TensorData,
         op: ReduceOperation,
         root: PeerId,
-        output: SyncSender<Option<Tensor<B, 1>>>,
+        output: SyncSender<Option<B::FloatTensorPrimitive>>,
     ) {
         let device = B::Device::default();
 
         register::<B>(id, device.clone(), config).unwrap();
 
-        let tensor = Tensor::<B, 1>::from_data(input, &device);
+        let tensor = B::float_from_data(input, &device);
 
-        let tensor = tensor.into_primitive().tensor();
         let tensor = reduce::<B>(id, tensor, op, root).unwrap();
-        let tensor = tensor.map(|t| Tensor::<B, 1>::from_primitive(TensorPrimitive::Float(t)));
 
         output.send(tensor).unwrap();
     }
@@ -60,7 +59,7 @@ mod tests {
             .map(|_| {
                 TensorData::random::<f32, _, _>(
                     shape.clone(),
-                    burn_tensor::Distribution::Default,
+                    burn_backend::Distribution::Default,
                     &mut get_seeded_rng(),
                 )
             })
@@ -68,16 +67,19 @@ mod tests {
 
         let device = <TestBackend as Backend>::Device::default();
 
-        let mut expected_tensor = Tensor::<TestBackend, 1>::zeros(shape, &device);
+        let mut expected_tensor =
+            TestBackend::float_zeros(shape.into(), &device, burn_backend::FloatDType::F32);
         for item in input.iter().take(thread_count) {
-            let input_tensor = Tensor::<TestBackend, 1>::from_data(item.clone(), &device);
-            expected_tensor = expected_tensor.add(input_tensor);
+            let input_tensor = TestBackend::float_from_data(item.clone(), &device);
+            expected_tensor = TestBackend::float_add(expected_tensor, input_tensor);
         }
         if op == ReduceOperation::Mean {
-            expected_tensor = expected_tensor.div_scalar(thread_count as u32);
+            expected_tensor =
+                TestBackend::float_div_scalar(expected_tensor, (thread_count as u32).into());
         }
 
-        let expected = expected_tensor.to_data();
+        let expected =
+            burn_backend::read_sync(TestBackend::float_into_data(expected_tensor)).unwrap();
 
         (input, expected)
     }
@@ -118,7 +120,7 @@ mod tests {
                 if result.is_some() {
                     panic!("Two peers received the result of an reduce!");
                 }
-                result = tensor.map(|t| t.to_data());
+                result = tensor.map(|t| burn_backend::read_sync(B::float_into_data(t)).unwrap());
             }
         }
 

@@ -1,18 +1,18 @@
 use super::*;
 use burn_tensor::Tolerance;
 use burn_tensor::{
-    Element, TensorData,
+    Device, Element, TensorData,
     quantization::{CalibrationRange, QuantLevel, QuantValue, compute_q_params},
 };
 
 #[test]
 fn per_tensor_symmetric_int8() {
     let device = Default::default();
-    let scheme = TestBackend::default_quant_scheme(&device).with_value(QuantValue::Q8S);
     let range = CalibrationRange {
         min: TestTensor::<1>::from_data([0.5], &device),
         max: TestTensor::<1>::from_data([1.8], &device),
     };
+    let scheme = device.default_quant_scheme().with_value(QuantValue::Q8S);
 
     let qparams = compute_q_params(&scheme, range);
 
@@ -25,13 +25,14 @@ fn per_tensor_symmetric_int8() {
 #[test]
 fn per_block_symmetric_int8() {
     let device = Default::default();
-    let scheme = TestBackend::default_quant_scheme(&device)
-        .with_value(QuantValue::Q8S)
-        .with_level(QuantLevel::block([4]));
     let range = CalibrationRange {
         min: TestTensor::<1>::from_data([-1.8, -0.5, 0.01, -0.04], &device),
         max: TestTensor::<1>::from_data([0.5, 1.8, 0.04, -0.01], &device),
     };
+    let scheme = device
+        .default_quant_scheme()
+        .with_value(QuantValue::Q8S)
+        .with_level(QuantLevel::block([4]));
 
     let qparams = compute_q_params(&scheme, range);
 
@@ -43,8 +44,8 @@ fn per_block_symmetric_int8() {
 
 #[test]
 fn quant_scheme_should_inhibit_by_default() {
-    let device = Default::default();
-    let scheme = TestBackend::default_quant_scheme(&device).with_value(QuantValue::Q8S);
+    let device = Device::default();
+    let scheme = device.default_quant_scheme().with_value(QuantValue::Q8S);
 
     let tensor_1 = TestTensor::<2>::from_data(
         [[1.0, 6.35, 0., 0.], [2.0, 3.0, 0., 0.], [1.0, 3.0, 0., 0.]],

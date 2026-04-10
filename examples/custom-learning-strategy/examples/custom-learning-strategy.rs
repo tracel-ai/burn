@@ -1,5 +1,5 @@
-use burn::backend::{Autodiff, WebGpu};
+use burn::backend::wgpu::WgpuDevice;
 
 fn main() {
-    custom_learning_strategy::training::run::<Autodiff<WebGpu>>(Default::default());
+    custom_learning_strategy::training::run(WgpuDevice::default());
 }

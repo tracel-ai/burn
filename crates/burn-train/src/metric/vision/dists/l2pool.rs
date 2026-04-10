@@ -6,8 +6,8 @@
 use burn_core as burn;
 
 use burn::module::Module;
+use burn::tensor::Device;
 use burn::tensor::Tensor;
-use burn::tensor::backend::Backend;
 use burn_nn::PaddingConfig2d;
 use burn_nn::conv::{Conv2d, Conv2dConfig};
 
@@ -44,7 +44,7 @@ impl L2Pool2dConfig {
     }
 
     /// Initialize the L2Pool2d layer.
-    pub fn init<B: Backend>(&self, channels: usize, device: &B::Device) -> L2Pool2d<B> {
+    pub fn init(&self, channels: usize, device: &Device) -> L2Pool2d {
         L2Pool2d::new(
             channels,
             self.kernel_size,
@@ -60,19 +60,19 @@ impl L2Pool2dConfig {
 /// Applies a 2D Hanning window filter followed by L2 normalization.
 /// This provides smoother downsampling compared to MaxPooling.
 #[derive(Module, Debug)]
-pub struct L2Pool2d<B: Backend> {
+pub struct L2Pool2d {
     /// Depthwise convolution with Hanning kernel
-    conv: Conv2d<B>,
+    conv: Conv2d,
 }
 
-impl<B: Backend> L2Pool2d<B> {
+impl L2Pool2d {
     /// Create a new L2Pool2d layer with Hanning window kernel.
     pub fn new(
         channels: usize,
         kernel_size: usize,
         stride: usize,
         padding: usize,
-        device: &B::Device,
+        device: &Device,
     ) -> Self {
         // Create Hanning kernel
         let kernel = Self::create_hanning_kernel(channels, kernel_size, device);
@@ -95,11 +95,7 @@ impl<B: Backend> L2Pool2d<B> {
 
     /// Create a Hanning kernel for depthwise convolution.
     /// Output shape: [channels, 1, kernel_size, kernel_size]
-    fn create_hanning_kernel<B2: Backend>(
-        channels: usize,
-        kernel_size: usize,
-        device: &B2::Device,
-    ) -> Tensor<B2, 4> {
+    fn create_hanning_kernel(channels: usize, kernel_size: usize, device: &Device) -> Tensor<4> {
         // Create 1D Hanning window
         let mut hanning_1d = Vec::with_capacity(kernel_size);
         for i in 0..kernel_size {
@@ -130,7 +126,7 @@ impl<B: Backend> L2Pool2d<B> {
         }
 
         // Create tensor of shape [1, 1, kernel_size, kernel_size]
-        let kernel_single = Tensor::<B2, 1>::from_floats(hanning_2d.as_slice(), device).reshape([
+        let kernel_single = Tensor::<1>::from_floats(hanning_2d.as_slice(), device).reshape([
             1,
             1,
             kernel_size,
@@ -150,7 +146,7 @@ impl<B: Backend> L2Pool2d<B> {
     /// # Returns
     ///
     /// Pooled tensor with reduced spatial dimensions.
-    pub fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 4> {
+    pub fn forward(&self, x: Tensor<4>) -> Tensor<4> {
         // Square the input
         let x_sq = x.clone().mul(x);
 

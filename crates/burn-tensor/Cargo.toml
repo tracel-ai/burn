@@ -15,17 +15,19 @@ version.workspace = true
 workspace = true
 
 [features]
-default = ["std"]
+default = ["std", "burn-dispatch/default"]
 doc = ["default"]
 std = [
     "num-traits/std",
     "burn-std/std",
     "burn-backend/std",
+    "burn-dispatch/std",
     "colored",
 ]
 tracing = [
     "burn-std/tracing",
     "burn-backend/tracing",
+    "burn-dispatch/tracing",
 ]
 distributed = ["std", "burn-backend/distributed"]
 
@@ -35,9 +37,31 @@ cubecl-hip = ["burn-backend/cubecl-hip"]
 cubecl-wgpu = ["burn-backend/cubecl-wgpu"]
 cubecl-cpu = ["burn-backend/cubecl-cpu"]
 
+# Backends
+cuda = ["burn-dispatch/cuda"]
+rocm = ["burn-dispatch/rocm"]
+flex = ["burn-dispatch/flex"]
+ndarray = ["burn-dispatch/ndarray"]
+tch = ["burn-dispatch/tch"]
+vulkan = ["burn-dispatch/vulkan"]
+webgpu = ["burn-dispatch/webgpu"]
+wgpu = ["burn-dispatch/wgpu"]
+metal = ["burn-dispatch/metal"]
+cpu = ["burn-dispatch/cpu"]
+autodiff = ["burn-dispatch/autodiff"]
+
+# TODO: re-export devices if we have feature flags to enable the backends
+
+# Backend features
+autotune = ["burn-dispatch/autotune"]
+autotune-checks = ["burn-dispatch/autotune-checks"]
+memory-checks = ["burn-dispatch/memory-checks"]
+fusion = ["burn-dispatch/fusion"]
+
 [dependencies]
 burn-std = { path = "../burn-std", version = "=0.21.0-pre.3", default-features = false }
 burn-backend = { path = "../burn-backend", version = "=0.21.0-pre.3", default-features = false }
+burn-dispatch = { path = "../burn-dispatch", version = "=0.21.0-pre.3", default-features = false }
 
 colored = { workspace = true, optional = true }
 derive-new = { workspace = true }

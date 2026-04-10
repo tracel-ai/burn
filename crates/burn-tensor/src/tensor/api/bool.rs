@@ -1,6 +1,7 @@
-use crate::{Bool, Cast, Int, Shape, Tensor, TensorData, TensorPrimitive, backend::Backend};
+use crate::{Bool, Cast, Device, Int, Shape, Tensor, TensorData, TensorPrimitive};
 use alloc::{vec, vec::Vec};
-use burn_backend::get_device_settings;
+use burn_backend::ops::BoolTensorOps;
+use burn_dispatch::Dispatch;
 
 use crate::try_read_sync;
 
@@ -16,10 +17,7 @@ enum TriPart {
     Diagonal,
 }
 
-impl<B, const D: usize> Tensor<B, D, Bool>
-where
-    B: Backend,
-{
+impl<const D: usize> Tensor<D, Bool> {
     /// Create a boolean tensor from data on the given device.
     ///
     /// # Arguments
@@ -43,7 +41,7 @@ where
     ///     println!("{tensor}");
     /// }
     /// ```
-    pub fn from_bool(data: TensorData, device: &B::Device) -> Self {
+    pub fn from_bool(data: TensorData, device: &Device) -> Self {
         Self::from_data(data, device)
     }
 
@@ -66,9 +64,9 @@ where
     ///     println!("{int_tensor}"); // [1, 0, 1]
     /// }
     /// ```
-    pub fn int(self) -> Tensor<B, D, Int> {
-        let out_dtype = get_device_settings::<B>(&self.device()).int_dtype;
-        Tensor::new(B::bool_into_int(self.primitive, out_dtype))
+    pub fn int(self) -> Tensor<D, Int> {
+        let out_dtype = self.device().settings().int_dtype;
+        Tensor::new(Dispatch::bool_into_int(self.primitive, out_dtype))
     }
 
     /// Convert the bool tensor into a float tensor.
@@ -90,9 +88,9 @@ where
     ///     println!("{float_tensor}"); // [1.0, 0.0, 1.0]
     /// }
     /// ```
-    pub fn float(self) -> Tensor<B, D> {
-        let out_dtype = get_device_settings::<B>(&self.device()).float_dtype;
-        Tensor::new(TensorPrimitive::Float(B::bool_into_float(
+    pub fn float(self) -> Tensor<D> {
+        let out_dtype = self.device().settings().float_dtype;
+        Tensor::new(TensorPrimitive::Float(Dispatch::bool_into_float(
             self.primitive,
             out_dtype,
         )))
@@ -121,7 +119,7 @@ where
     /// }
     /// ```
     #[must_use]
-    pub fn cast<T: Cast<B, Bool>>(self, dtype: T) -> Tensor<B, D, T::OutputKind> {
+    pub fn cast<T: Cast<Bool>>(self, dtype: T) -> Tensor<D, T::OutputKind> {
         Tensor::new(T::cast(self.primitive, dtype))
     }
 
@@ -141,7 +139,7 @@ where
     /// }
     /// ```
     pub fn bool_not(self) -> Self {
-        Tensor::new(B::bool_not(self.primitive))
+        Tensor::new(Dispatch::bool_not(self.primitive))
     }
 
     /// Performs logical and (`&&`) on two boolean tensors.
@@ -168,8 +166,8 @@ where
     ///     println!("{result}"); // [[true, false], [false, false]]
     /// }
     /// ```
-    pub fn bool_and(self, rhs: Tensor<B, D, Bool>) -> Tensor<B, D, Bool> {
-        Tensor::new(B::bool_and(self.primitive, rhs.primitive))
+    pub fn bool_and(self, rhs: Tensor<D, Bool>) -> Tensor<D, Bool> {
+        Tensor::new(Dispatch::bool_and(self.primitive, rhs.primitive))
     }
 
     /// Performs logical or (`||`) on two boolean tensors.
@@ -196,8 +194,8 @@ where
     ///     println!("{result}"); // [[true, true], [true, false]]
     /// }
     /// ```
-    pub fn bool_or(self, rhs: Tensor<B, D, Bool>) -> Tensor<B, D, Bool> {
-        Tensor::new(B::bool_or(self.primitive, rhs.primitive))
+    pub fn bool_or(self, rhs: Tensor<D, Bool>) -> Tensor<D, Bool> {
+        Tensor::new(Dispatch::bool_or(self.primitive, rhs.primitive))
     }
 
     /// Performs logical xor (`^`) on two boolean tensors.
@@ -225,8 +223,8 @@ where
     ///     println!("{result}"); // [[false, true], [true, false]]
     /// }
     /// ```
-    pub fn bool_xor(self, rhs: Tensor<B, D, Bool>) -> Tensor<B, D, Bool> {
-        Tensor::new(B::bool_xor(self.primitive, rhs.primitive))
+    pub fn bool_xor(self, rhs: Tensor<D, Bool>) -> Tensor<D, Bool> {
+        Tensor::new(Dispatch::bool_xor(self.primitive, rhs.primitive))
     }
 
     /// Compute the indices of `true` elements in the tensor (i.e., non-zero for boolean tensors).
@@ -253,7 +251,7 @@ where
     ///     println!("{}", indices[1]); // [0, 2, 1, 1]
     /// }
     /// ```
-    pub fn nonzero(self) -> Vec<Tensor<B, 1, Int>> {
+    pub fn nonzero(self) -> Vec<Tensor<1, Int>> {
         try_read_sync(self.nonzero_async())
             .expect("Failed to read tensor data synchronously. Try using nonzero_async instead.")
     }
@@ -264,7 +262,7 @@ where
     ///
     /// A vector of tensors, one for each dimension of the given tensor, containing the indices of
     /// the non-zero elements in that dimension.
-    pub async fn nonzero_async(self) -> Vec<Tensor<B, 1, Int>> {
+    pub async fn nonzero_async(self) -> Vec<Tensor<1, Int>> {
         let indices = self.argwhere_async().await;
 
         if indices.shape().num_elements() == 0 {
@@ -303,7 +301,7 @@ where
     ///     println!("{indices}"); // [[0, 0], [0, 2], [1, 1], [2, 1]]
     /// }
     /// ```
-    pub fn argwhere(self) -> Tensor<B, 2, Int> {
+    pub fn argwhere(self) -> Tensor<2, Int> {
         try_read_sync(self.argwhere_async())
             .expect("Failed to read tensor data synchronously. Try using argwhere_async instead.")
     }
@@ -314,26 +312,21 @@ where
     ///
     /// A tensor containing the indices of all non-zero elements of the given tensor. Each row in the
     /// result contains the indices of a non-zero element.
-    pub async fn argwhere_async(self) -> Tensor<B, 2, Int> {
-        let out_dtype = get_device_settings::<B>(&self.device()).int_dtype;
-        Tensor::new(B::bool_argwhere(self.primitive, out_dtype).await)
+    pub async fn argwhere_async(self) -> Tensor<2, Int> {
+        let out_dtype = self.device().settings().int_dtype;
+        Tensor::new(Dispatch::bool_argwhere(self.primitive, out_dtype).await)
     }
 
     /// Creates a mask for the upper, lower triangle, or diagonal of a matrix, which can be used to
     /// fill the specified area with a value.
-    fn tri_mask<S: Into<Shape>>(
-        shape: S,
-        tri_part: TriPart,
-        offset: i64,
-        device: &B::Device,
-    ) -> Self {
+    fn tri_mask<S: Into<Shape>>(shape: S, tri_part: TriPart, offset: i64, device: &Device) -> Self {
         let shape: Shape = shape.into();
         let height = shape[D - 2];
         let width = shape[D - 1];
 
         // Generate row and column index tensors.
-        let row_indices: Tensor<B, 1, Int> = Tensor::arange(0..height as i64, device);
-        let col_indices: Tensor<B, 1, Int> = Tensor::arange(0..width as i64, device);
+        let row_indices: Tensor<1, Int> = Tensor::arange(0..height as i64, device);
+        let col_indices: Tensor<1, Int> = Tensor::arange(0..width as i64, device);
 
         // Prepare shapes for broadcasting.
         let mut row_shape = [1; D];
@@ -342,7 +335,7 @@ where
         col_shape[D - 1] = width;
 
         // Reshape for broadcasting.
-        let row_broadcast: Tensor<B, D, Int> = row_indices.reshape(Shape::new(row_shape));
+        let row_broadcast: Tensor<D, Int> = row_indices.reshape(Shape::new(row_shape));
         let col_broadcast = col_indices.reshape(Shape::new(col_shape));
 
         // Broadcasting trick to create a matrix that facilitates comparison for mask generation.
@@ -389,7 +382,7 @@ where
     ///   //  [true, true, false]]
     /// }
     /// ```
-    pub fn triu_mask<S: Into<Shape>>(shape: S, offset: i64, device: &B::Device) -> Self {
+    pub fn triu_mask<S: Into<Shape>>(shape: S, offset: i64, device: &Device) -> Self {
         Self::tri_mask(shape, TriPart::Upper, offset, device)
     }
 
@@ -423,7 +416,7 @@ where
     ///   //  [false, false, false]]
     /// }
     /// ```
-    pub fn tril_mask<S: Into<Shape>>(shape: S, offset: i64, device: &B::Device) -> Self {
+    pub fn tril_mask<S: Into<Shape>>(shape: S, offset: i64, device: &Device) -> Self {
         Self::tri_mask(shape, TriPart::Lower, offset, device)
     }
 
@@ -457,7 +450,7 @@ where
     ///   //  [true, true, false]]
     /// }
     /// ```
-    pub fn diag_mask<S: Into<Shape>>(shape: S, offset: i64, device: &B::Device) -> Self {
+    pub fn diag_mask<S: Into<Shape>>(shape: S, offset: i64, device: &Device) -> Self {
         Self::tri_mask(shape, TriPart::Diagonal, offset, device)
     }
 }

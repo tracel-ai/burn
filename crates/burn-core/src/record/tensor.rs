@@ -1,7 +1,7 @@
 use core::marker::PhantomData;
 
 use super::{PrecisionSettings, Record};
-use burn_tensor::{Bool, DType, Element, Int, Tensor, TensorData, backend::Backend};
+use burn_tensor::{Bool, DType, Device, Element, Int, Tensor, TensorData};
 use serde::{Deserialize, Serialize};
 
 use alloc::format;
@@ -111,7 +111,7 @@ impl<'de> Deserialize<'de> for BoolTensorSerde {
 
 // --- RECORD IMPLEMENTATIONS --- //
 
-impl<B: Backend, const D: usize> Record<B> for Tensor<B, D> {
+impl<const D: usize> Record for Tensor<D> {
     type Item<S: PrecisionSettings> = FloatTensorSerde<S>;
 
     fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
@@ -124,36 +124,38 @@ impl<B: Backend, const D: usize> Record<B> for Tensor<B, D> {
         FloatTensorSerde::new(data)
     }
 
-    fn from_item<S: PrecisionSettings>(item: Self::Item<S>, device: &B::Device) -> Self {
+    fn from_item<S: PrecisionSettings>(item: Self::Item<S>, device: &Device) -> Self {
         let data = if let DType::QFloat(_) = item.data.dtype {
             item.data // do not convert quantized tensors
         } else {
-            item.data.convert::<B::FloatElem>()
+            let dtype = device.settings().float_dtype; // keep current behavior
+            item.data.convert_dtype(dtype.into())
         };
         Tensor::from_data(data, device)
     }
 }
 
-impl<B: Backend, const D: usize> Record<B> for Tensor<B, D, Int> {
+impl<const D: usize> Record for Tensor<D, Int> {
     type Item<S: PrecisionSettings> = IntTensorSerde<S>;
 
     fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
         IntTensorSerde::new(self.into_data().convert::<S::IntElem>())
     }
 
-    fn from_item<S: PrecisionSettings>(item: Self::Item<S>, device: &B::Device) -> Self {
-        Tensor::from_data(item.data.convert::<B::IntElem>(), device)
+    fn from_item<S: PrecisionSettings>(item: Self::Item<S>, device: &Device) -> Self {
+        let dtype = device.settings().int_dtype; // keep current behavior
+        Tensor::from_data(item.data.convert_dtype(dtype.into()), device)
     }
 }
 
-impl<B: Backend, const D: usize> Record<B> for Tensor<B, D, Bool> {
+impl<const D: usize> Record for Tensor<D, Bool> {
     type Item<S: PrecisionSettings> = BoolTensorSerde;
 
     fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
         BoolTensorSerde::new(self.into_data())
     }
 
-    fn from_item<S: PrecisionSettings>(item: Self::Item<S>, device: &B::Device) -> Self {
+    fn from_item<S: PrecisionSettings>(item: Self::Item<S>, device: &Device) -> Self {
         Tensor::from_data(item.data, device)
     }
 }

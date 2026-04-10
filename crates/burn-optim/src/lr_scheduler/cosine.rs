@@ -3,7 +3,6 @@ use burn_core as burn;
 use super::{LrScheduler, String};
 use crate::LearningRate;
 use burn::config::Config;
-use burn::tensor::backend::Backend;
 
 /// The configuration for creating a [Cosine Annealing learning rate scheduler with warm
 /// restarts](CosineAnnealingLrScheduler).
@@ -71,7 +70,7 @@ pub struct CosineAnnealingLrScheduler {
 }
 
 impl LrScheduler for CosineAnnealingLrScheduler {
-    type Record<B: Backend> = usize;
+    type Record = usize;
 
     fn step(&mut self) -> LearningRate {
         // Make current_iter overflow from usize::MAX to 0 to get the initial learning rate on the
@@ -86,11 +85,11 @@ impl LrScheduler for CosineAnnealingLrScheduler {
                         .cos())
     }
 
-    fn to_record<B: Backend>(&self) -> Self::Record<B> {
+    fn to_record(&self) -> Self::Record {
         self.current_iter
     }
 
-    fn load_record<B: Backend>(mut self, record: Self::Record<B>) -> Self {
+    fn load_record(mut self, record: Self::Record) -> Self {
         self.current_iter = record;
         self
     }

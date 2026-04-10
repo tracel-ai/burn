@@ -1,4 +1,4 @@
-use burn_tensor::backend::Backend;
+use burn_tensor::Device;
 
 pub use crate::data::dataset::{Dataset, DatasetIterator};
 use core::iter::Iterator;
@@ -21,7 +21,7 @@ pub trait DataLoaderIterator<O>: Iterator<Item = O> {
 }
 
 /// A data loader that can be used to iterate over a dataset.
-pub trait DataLoader<B: Backend, O>: Send + Sync {
+pub trait DataLoader<O>: Send + Sync {
     /// Returns a boxed [iterator](DataLoaderIterator) to iterate over the data loader.
     fn iter<'a>(&'a self) -> Box<dyn DataLoaderIterator<O> + 'a>;
 
@@ -30,7 +30,7 @@ pub trait DataLoader<B: Backend, O>: Send + Sync {
     fn num_items(&self) -> usize;
 
     /// Move the data loader to the given device, ensuring the batches are assigned to the correct device.
-    fn to_device(&self, device: &B::Device) -> Arc<dyn DataLoader<B, O>>;
+    fn to_device(&self, device: &Device) -> Arc<dyn DataLoader<O>>;
 
     /// Returns a new data loader containing a subset of the data.
     ///
@@ -45,5 +45,5 @@ pub trait DataLoader<B: Backend, O>: Send + Sync {
     /// # Returns
     ///
     /// A boxed [`DataLoader`] instance containing only the specified range.
-    fn slice(&self, start: usize, end: usize) -> Arc<dyn DataLoader<B, O>>;
+    fn slice(&self, start: usize, end: usize) -> Arc<dyn DataLoader<O>>;
 }

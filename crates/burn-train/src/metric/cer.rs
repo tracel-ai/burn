@@ -1,9 +1,7 @@
 use super::state::{FormatOptions, NumericMetricState};
 use super::{MetricMetadata, SerializedEntry};
 use crate::metric::{Metric, MetricAttributes, MetricName, Numeric, NumericEntry};
-use burn_core::tensor::backend::Backend;
 use burn_core::tensor::{Int, Tensor};
-use core::marker::PhantomData;
 use std::sync::Arc;
 
 /// Computes the edit distance (Levenshtein distance) between two sequences of integers.
@@ -36,36 +34,34 @@ pub(crate) fn edit_distance(reference: &[i32], prediction: &[i32]) -> usize {
 /// to quantify how closely the predicted output matches the ground truth at a character level.
 ///
 #[derive(Clone)]
-pub struct CharErrorRate<B: Backend> {
+pub struct CharErrorRate {
     name: MetricName,
     state: NumericMetricState,
     pad_token: Option<usize>,
-    _b: PhantomData<B>,
 }
 
 /// The [character error rate metric](CharErrorRate) input type.
 #[derive(new)]
-pub struct CerInput<B: Backend> {
+pub struct CerInput {
     /// The predicted token sequences (as a 2-D tensor of token indices).
-    pub outputs: Tensor<B, 2, Int>,
+    pub outputs: Tensor<2, Int>,
     /// The target token sequences (as a 2-D tensor of token indices).
-    pub targets: Tensor<B, 2, Int>,
+    pub targets: Tensor<2, Int>,
 }
 
-impl<B: Backend> Default for CharErrorRate<B> {
+impl Default for CharErrorRate {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<B: Backend> CharErrorRate<B> {
+impl CharErrorRate {
     /// Creates the metric.
     pub fn new() -> Self {
         Self {
             name: Arc::new("CER".to_string()),
             state: NumericMetricState::default(),
             pad_token: None,
-            _b: PhantomData,
         }
     }
 
@@ -77,10 +73,10 @@ impl<B: Backend> CharErrorRate<B> {
 }
 
 /// The [character error rate metric](CharErrorRate) implementation.
-impl<B: Backend> Metric for CharErrorRate<B> {
-    type Input = CerInput<B>;
+impl Metric for CharErrorRate {
+    type Input = CerInput;
 
-    fn update(&mut self, input: &CerInput<B>, _metadata: &MetricMetadata) -> SerializedEntry {
+    fn update(&mut self, input: &CerInput, _metadata: &MetricMetadata) -> SerializedEntry {
         let outputs = &input.outputs;
         let targets = &input.targets;
         let [batch_size, seq_len] = targets.dims();
@@ -94,19 +90,27 @@ impl<B: Backend> Metric for CharErrorRate<B> {
             let target_lengths_tensor = target_mask.int().sum_dim(1);
 
             (
-                output_lengths_tensor.to_data().to_vec::<i64>().unwrap(),
-                target_lengths_tensor.to_data().to_vec::<i64>().unwrap(),
+                output_lengths_tensor
+                    .into_data()
+                    .convert::<i32>()
+                    .to_vec()
+                    .unwrap(),
+                target_lengths_tensor
+                    .into_data()
+                    .convert::<i32>()
+                    .to_vec()
+                    .unwrap(),
             )
         } else {
             // If there's no padding, all sequences have the full length.
             (
-                vec![seq_len as i64; batch_size],
-                vec![seq_len as i64; batch_size],
+                vec![seq_len as i32; batch_size],
+                vec![seq_len as i32; batch_size],
             )
         };
 
-        let outputs_data = outputs.to_data().to_vec::<i64>().unwrap();
-        let targets_data = targets.to_data().to_vec::<i64>().unwrap();
+        let outputs_data = outputs.to_data().convert::<i32>().to_vec().unwrap();
+        let targets_data = targets.to_data().convert::<i32>().to_vec().unwrap();
 
         let total_edit_distance: usize = (0..batch_size)
             .map(|i| {
@@ -118,10 +122,8 @@ impl<B: Backend> Metric for CharErrorRate<B> {
 
                 let output_seq_slice = &outputs_data[start..(start + output_len)];
                 let target_seq_slice = &targets_data[start..(start + target_len)];
-                let output_seq: Vec<i32> = output_seq_slice.iter().map(|&x| x as i32).collect();
-                let target_seq: Vec<i32> = target_seq_slice.iter().map(|&x| x as i32).collect();
 
-                edit_distance(&target_seq, &output_seq)
+                edit_distance(target_seq_slice, output_seq_slice)
             })
             .sum();
 
@@ -157,7 +159,7 @@ impl<B: Backend> Metric for CharErrorRate<B> {
     }
 }
 
-impl<B: Backend> Numeric for CharErrorRate<B> {
+impl Numeric for CharErrorRate {
     fn value(&self) -> NumericEntry {
         self.state.current_value()
     }
@@ -170,13 +172,12 @@ impl<B: Backend> Numeric for CharErrorRate<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::TestBackend;
 
     /// Perfect match ⇒ CER = 0 %.
     #[test]
     fn test_cer_without_padding() {
         let device = Default::default();
-        let mut metric = CharErrorRate::<TestBackend>::new();
+        let mut metric = CharErrorRate::new();
 
         // Batch size = 2, sequence length = 2
         let preds = Tensor::from_data([[1, 2], [3, 4]], &device);
@@ -191,7 +192,7 @@ mod tests {
     #[test]
     fn test_cer_without_padding_two_errors() {
         let device = Default::default();
-        let mut metric = CharErrorRate::<TestBackend>::new();
+        let mut metric = CharErrorRate::new();
 
         // One substitution in each sequence.
         let preds = Tensor::from_data([[1, 2], [3, 5]], &device);
@@ -208,7 +209,7 @@ mod tests {
     fn test_cer_with_padding() {
         let device = Default::default();
         let pad = 9_i64;
-        let mut metric = CharErrorRate::<TestBackend>::new().with_pad_token(pad as usize);
+        let mut metric = CharErrorRate::new().with_pad_token(pad as usize);
 
         // Each row has three columns, last one is the pad token.
         let preds = Tensor::from_data([[1, 2, pad], [3, 5, pad]], &device);
@@ -222,7 +223,7 @@ mod tests {
     #[test]
     fn test_clear_resets_state() {
         let device = Default::default();
-        let mut metric = CharErrorRate::<TestBackend>::new();
+        let mut metric = CharErrorRate::new();
 
         let preds = Tensor::from_data([[1, 2]], &device);
         let tgts = Tensor::from_data([[1, 3]], &device); // one error

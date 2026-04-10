@@ -1,30 +1,31 @@
-use crate::{Tensor, TensorPrimitive, backend::Backend};
+use crate::{Tensor, TensorPrimitive};
 use burn_backend::tensor::quantization;
 
 // We re-export those types.
-pub use burn_backend::{QTensorPrimitive, quantization::*};
+pub use burn_backend::quantization::*;
+use burn_dispatch::Dispatch;
 
 /// The tensor quantization parameters.
-pub type QuantizationParameters<B> = QParams<Tensor<B, 1>>;
+pub type QuantizationParameters = QParams<Tensor<1>>;
 
 /// The observed input calibration range.
 #[derive(Clone, Debug)]
-pub struct CalibrationRange<B: Backend> {
+pub struct CalibrationRange {
     /// Minimum observed value(s).
-    pub min: Tensor<B, 1>,
+    pub min: Tensor<1>,
     /// Maximum observed value(s).
-    pub max: Tensor<B, 1>,
+    pub max: Tensor<1>,
 }
 
 /// Compute the quantization range mapping.
-pub fn compute_range<B: Backend, const D: usize>(
+pub fn compute_range<const D: usize>(
     scheme: &QuantScheme,
-    tensor: &Tensor<B, D>,
+    tensor: &Tensor<D>,
     calibration: &Calibration,
-) -> CalibrationRange<B> {
+) -> CalibrationRange {
     let (min, max) = match &tensor.primitive {
         TensorPrimitive::Float(tensor) => {
-            quantization::compute_range::<B>(scheme, tensor.clone(), calibration)
+            quantization::compute_range::<Dispatch>(scheme, tensor.clone(), calibration)
         }
         TensorPrimitive::QFloat(_) => unreachable!(),
     };
@@ -36,13 +37,10 @@ pub fn compute_range<B: Backend, const D: usize>(
 }
 
 /// Compute the quantization parameters.
-pub fn compute_q_params<B: Backend>(
-    scheme: &QuantScheme,
-    range: CalibrationRange<B>,
-) -> QuantizationParameters<B> {
+pub fn compute_q_params(scheme: &QuantScheme, range: CalibrationRange) -> QuantizationParameters {
     match (range.min.primitive, range.max.primitive) {
         (TensorPrimitive::Float(min), TensorPrimitive::Float(max)) => {
-            let qparams = quantization::compute_q_params::<B>(scheme, min, max);
+            let qparams = quantization::compute_q_params::<Dispatch>(scheme, min, max);
             QuantizationParameters {
                 scales: Tensor::from_primitive(TensorPrimitive::Float(qparams.scales)),
             }

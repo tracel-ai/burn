@@ -7,7 +7,6 @@ use burn_core as burn;
 use burn::config::Config;
 use burn::module::{Content, DisplaySettings, Module, ModuleDisplay};
 use burn::tensor::Tensor;
-use burn::tensor::backend::Backend;
 use burn::tensor::ops::InterpolateOptions;
 
 use super::InterpolateMode;
@@ -51,7 +50,7 @@ pub struct Interpolate1dConfig {
 ///
 /// The module can be created using the [Interpolate1dConfig] struct and the
 /// `init` method, which returns an instance of the [Interpolate1d] struct.
-#[derive(Module, Clone, Debug)]
+#[derive(Module, Debug)]
 #[module(custom_display)]
 pub struct Interpolate1d {
     /// Output size of the interpolated tensor
@@ -61,6 +60,7 @@ pub struct Interpolate1d {
     pub scale_factor: Option<f32>,
 
     /// Interpolation mode used for resizing
+    #[module(skip)]
     pub mode: InterpolateMode,
 
     /// Whether to align corner pixels
@@ -101,7 +101,7 @@ impl Interpolate1d {
     /// let output = interpolate.forward(input);
     /// assert_eq!(output.dims(), [1, 3, 128]);
     /// ```
-    pub fn forward<B: Backend>(&self, input: Tensor<B, 3>) -> Tensor<B, 3> {
+    pub fn forward(&self, input: Tensor<3>) -> Tensor<3> {
         let output_size = calculate_output_size(input.dims(), self.output_size, self.scale_factor);
 
         // Use the interpolate operation to resize the temporal input tensor
@@ -183,7 +183,6 @@ mod tests {
     use burn::tensor::Distribution;
 
     use super::*;
-    use crate::TestBackend;
     #[test]
     fn test_calculate_output_size() {
         let input_dims = [1, 1, 4];
@@ -217,7 +216,7 @@ mod tests {
 
     #[test]
     fn test_module() {
-        let input = Tensor::<TestBackend, 3>::random(
+        let input = Tensor::<3>::random(
             [2, 3, 4],
             Distribution::Uniform(0.0, 1.0),
             &Default::default(),

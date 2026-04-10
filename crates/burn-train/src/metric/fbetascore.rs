@@ -6,11 +6,7 @@ use super::{
     confusion_stats::{ConfusionStats, ConfusionStatsInput},
     state::{FormatOptions, NumericMetricState},
 };
-use burn_core::{
-    prelude::{Backend, Tensor},
-    tensor::cast::ToElement,
-};
-use core::marker::PhantomData;
+use burn_core::{prelude::Tensor, tensor::cast::ToElement};
 use std::{num::NonZeroUsize, sync::Arc};
 
 /// The [F-beta score](https://en.wikipedia.org/wiki/F-score) metric.
@@ -18,21 +14,20 @@ use std::{num::NonZeroUsize, sync::Arc};
 /// The `beta` parameter represents the ratio of recall importance to precision importance.
 /// `beta > 1` gives more weight to recall, while `beta < 1` favors precision.
 #[derive(Clone)]
-pub struct FBetaScoreMetric<B: Backend> {
+pub struct FBetaScoreMetric {
     name: MetricName,
     state: NumericMetricState,
-    _b: PhantomData<B>,
     config: ClassificationMetricConfig,
     beta: f64,
 }
 
-impl<B: Backend> Default for FBetaScoreMetric<B> {
+impl Default for FBetaScoreMetric {
     fn default() -> Self {
         Self::new(Default::default(), Default::default())
     }
 }
 
-impl<B: Backend> FBetaScoreMetric<B> {
+impl FBetaScoreMetric {
     #[allow(dead_code)]
     fn new(config: ClassificationMetricConfig, beta: f64) -> Self {
         let name = Arc::new(format!(
@@ -44,7 +39,6 @@ impl<B: Backend> FBetaScoreMetric<B> {
             config,
             beta,
             state: Default::default(),
-            _b: PhantomData,
         }
     }
 
@@ -104,7 +98,7 @@ impl<B: Backend> FBetaScoreMetric<B> {
         )
     }
 
-    fn class_average(&self, mut aggregated_metric: Tensor<B, 1>) -> f64 {
+    fn class_average(&self, mut aggregated_metric: Tensor<1>) -> f64 {
         use ClassReduction::{Macro, Micro};
         let avg_tensor = match self.config.class_reduction {
             Micro => aggregated_metric,
@@ -128,8 +122,8 @@ impl<B: Backend> FBetaScoreMetric<B> {
     }
 }
 
-impl<B: Backend> Metric for FBetaScoreMetric<B> {
-    type Input = ConfusionStatsInput<B>;
+impl Metric for FBetaScoreMetric {
+    type Input = ConfusionStatsInput;
 
     fn update(&mut self, input: &Self::Input, _metadata: &MetricMetadata) -> SerializedEntry {
         let [sample_size, _] = input.predictions.dims();
@@ -167,7 +161,7 @@ impl<B: Backend> Metric for FBetaScoreMetric<B> {
     }
 }
 
-impl<B: Backend> Numeric for FBetaScoreMetric<B> {
+impl Numeric for FBetaScoreMetric {
     fn value(&self) -> NumericEntry {
         self.state.current_value()
     }
@@ -184,10 +178,7 @@ mod tests {
         FBetaScoreMetric, Metric, MetricMetadata,
     };
     use crate::metric::Numeric;
-    use crate::{
-        TestBackend,
-        tests::{ClassificationType, THRESHOLD, dummy_classification_input},
-    };
+    use crate::tests::{ClassificationType, THRESHOLD, dummy_classification_input};
     use burn_core::tensor::TensorData;
     use burn_core::tensor::Tolerance;
     use rstest::rstest;
@@ -245,15 +236,15 @@ mod tests {
 
     #[test]
     fn test_parameterized_unique_name() {
-        let metric_a = FBetaScoreMetric::<TestBackend>::multiclass(0.5, 1, ClassReduction::Macro);
-        let metric_b = FBetaScoreMetric::<TestBackend>::multiclass(0.5, 2, ClassReduction::Macro);
-        let metric_c = FBetaScoreMetric::<TestBackend>::multiclass(0.5, 1, ClassReduction::Macro);
+        let metric_a = FBetaScoreMetric::multiclass(0.5, 1, ClassReduction::Macro);
+        let metric_b = FBetaScoreMetric::multiclass(0.5, 2, ClassReduction::Macro);
+        let metric_c = FBetaScoreMetric::multiclass(0.5, 1, ClassReduction::Macro);
 
         assert_ne!(metric_a.name(), metric_b.name());
         assert_eq!(metric_a.name(), metric_c.name());
 
-        let metric_a = FBetaScoreMetric::<TestBackend>::binary(0.5, 0.5);
-        let metric_b = FBetaScoreMetric::<TestBackend>::binary(0.75, 0.5);
+        let metric_a = FBetaScoreMetric::binary(0.5, 0.5);
+        let metric_b = FBetaScoreMetric::binary(0.75, 0.5);
         assert_ne!(metric_a.name(), metric_b.name());
     }
 }

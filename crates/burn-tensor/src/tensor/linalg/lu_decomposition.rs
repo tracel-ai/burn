@@ -1,6 +1,5 @@
 use crate::{
-    Int, backend::Backend, cast::ToElement, check, check::TensorCheck, linalg::swap_slices, s,
-    tensor::Tensor,
+    Int, cast::ToElement, check, check::TensorCheck, linalg::swap_slices, s, tensor::Tensor,
 };
 /// Performs PLU decomposition of a square matrix.
 ///
@@ -25,7 +24,7 @@ use crate::{
 /// # Performance note (synchronization / device transfers)
 /// This function may involve multiple synchronizations and device transfers, especially
 /// when determining pivot elements and performing row swaps. This can impact performance,
-pub fn lu_decomposition<B: Backend>(tensor: Tensor<B, 2>) -> (Tensor<B, 2>, Tensor<B, 1, Int>) {
+pub fn lu_decomposition(tensor: Tensor<2>) -> (Tensor<2>, Tensor<1, Int>) {
     check!(TensorCheck::is_square::<2>(
         "lu_decomposition",
         &tensor.shape()
@@ -50,7 +49,7 @@ pub fn lu_decomposition<B: Backend>(tensor: Tensor<B, 2>) -> (Tensor<B, 2>, Tens
 
         // Avoid division by zero
         let pivot = max.into_scalar();
-        check!(TensorCheck::lu_decomposition_pivot::<B>(pivot));
+        check!(TensorCheck::lu_decomposition_pivot(pivot));
 
         if p != k {
             tensor = swap_slices(tensor, s![k, ..], s![p, ..]);

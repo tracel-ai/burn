@@ -131,16 +131,24 @@ pub fn might_panic(args: TokenStream, input: TokenStream) -> TokenStream {
                 let matched = window.iter().chain(std::iter::once(&main_msg))
                     .any(|m| m.contains(#expected_reason));
 
-                if !matched {
-                    let all = window.iter().chain(std::iter::once(&main_msg))
-                        .map(|m| format!("- {m}")).collect::<Vec<_>>().join("\n");
-                    panic!("\nTest '{}' failed.\nExpected: '{}'\nFound:\n{}\n",
-                           stringify!(#fn_name), #expected_reason, all);
+                let all = window.iter().chain(std::iter::once(&main_msg))
+                    .map(|m| format!("- {m}")).collect::<Vec<_>>().join("\n");
+
+                if matched {
+                    eprintln!(
+                        "\n[SKIPPED - might_panic] Test '{}'\nReason: '{}'\nPanics:\n{}\n",
+                        stringify!(#fn_name),
+                        #expected_reason,
+                        all
+                    );
+                    return;
                 } else {
-                    let all = window.iter().chain(std::iter::once(&main_msg))
-                        .map(|m| format!("- {m}")).collect::<Vec<_>>().join("\n");
-                    println!("\nTest '{}' failed.\nExpected: '{}'\nFound:\n{}\n",
-                           stringify!(#fn_name), #expected_reason, all);
+                    panic!(
+                        "\nTest '{}' failed.\nExpected: '{}'\nFound:\n{}\n",
+                        stringify!(#fn_name),
+                        #expected_reason,
+                        all
+                    );
                 }
             }
         }

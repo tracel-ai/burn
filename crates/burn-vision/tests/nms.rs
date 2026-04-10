@@ -5,14 +5,14 @@ use common::*;
 
 #[test]
 fn should_suppress_non_maximum() {
-    let boxes = TestTensor::<2>::from([
+    let boxes = Tensor::<2>::from([
         [0, 0, 100, 100],
         [0, 1, 100, 100],
         [0, 101, 200, 200],
         [0, 100, 200, 200],
         [0, 170, 300, 300],
     ]);
-    let scores = TestTensor::<1>::from([0.1, 0.2, 0.4, 0.3, 0.5]);
+    let scores = Tensor::<1>::from([0.1, 0.2, 0.4, 0.3, 0.5]);
     let options = NmsOptions {
         iou_threshold: 0.5,
         score_threshold: 0.0,
@@ -27,14 +27,14 @@ fn should_suppress_non_maximum() {
 
 #[test]
 fn should_apply_score_threshold() {
-    let boxes = TestTensor::<2>::from([
+    let boxes = Tensor::<2>::from([
         [0, 0, 100, 100],
         [0, 1, 100, 100],
         [0, 101, 200, 200],
         [0, 100, 200, 200],
         [0, 170, 300, 300],
     ]);
-    let scores = TestTensor::<1>::from([0.1, 0.2, 0.4, 0.3, 0.5]);
+    let scores = Tensor::<1>::from([0.1, 0.2, 0.4, 0.3, 0.5]);
     let options = NmsOptions {
         iou_threshold: 0.5,
         score_threshold: 0.3,
@@ -49,14 +49,14 @@ fn should_apply_score_threshold() {
 
 #[test]
 fn should_apply_iou_threshold() {
-    let boxes = TestTensor::<2>::from([
+    let boxes = Tensor::<2>::from([
         [0, 0, 100, 100],
         [0, 1, 100, 100],
         [0, 101, 200, 200],
         [0, 100, 200, 200],
         [0, 170, 300, 300],
     ]);
-    let scores = TestTensor::<1>::from([0.1, 0.2, 0.4, 0.3, 0.5]);
+    let scores = Tensor::<1>::from([0.1, 0.2, 0.4, 0.3, 0.5]);
     let options = NmsOptions {
         iou_threshold: 0.1,
         score_threshold: 0.0,
@@ -71,14 +71,14 @@ fn should_apply_iou_threshold() {
 
 #[test]
 fn should_apply_max_output_boxes() {
-    let boxes = TestTensor::<2>::from([
+    let boxes = Tensor::<2>::from([
         [0, 0, 100, 100],
         [0, 1, 100, 100],
         [0, 101, 200, 200],
         [0, 100, 200, 200],
         [0, 170, 300, 300],
     ]);
-    let scores = TestTensor::<1>::from([0.1, 0.2, 0.4, 0.3, 0.5]);
+    let scores = Tensor::<1>::from([0.1, 0.2, 0.4, 0.3, 0.5]);
     let options = NmsOptions {
         iou_threshold: 0.5,
         score_threshold: 0.0,

@@ -1,40 +1,49 @@
+use burn_backend::ops::{BoolTensorOps, FloatTensorOps, IntTensorOps};
 use burn_backend::tensor::{Bool, Float, Int, TensorKind};
 use burn_backend::{Backend, DType, FloatDType, IntDType, TensorMetadata, TensorPrimitive};
+use burn_dispatch::Dispatch;
+
+use crate::kind::Basic;
 
 /// Trait for types that represent a valid cast target from a tensor of kind `K`.
 ///
 /// The generic parameter `K` is the *input* tensor kind ([`Float`], [`Int`], or [`Bool`]).
 /// Implementors declare the output kind and provide the actual cast logic.
-pub trait Cast<B: Backend, K: TensorKind<B>> {
+pub trait Cast<K: Basic> {
     /// The output tensor kind after casting.
-    type OutputKind: TensorKind<B>;
+    type OutputKind: Basic;
 
     /// Cast a tensor primitive to the target dtype.
-    fn cast(primitive: K::Primitive, dtype: Self)
-    -> <Self::OutputKind as TensorKind<B>>::Primitive;
+    fn cast(
+        primitive: <K as TensorKind<Dispatch>>::Primitive,
+        dtype: Self,
+    ) -> <Self::OutputKind as TensorKind<Dispatch>>::Primitive;
 }
 
 // --- Float input impls ---
 
-impl<B: Backend> Cast<B, Float> for FloatDType {
+impl Cast<Float> for FloatDType {
     type OutputKind = Float;
 
-    fn cast(primitive: TensorPrimitive<B>, dtype: Self) -> TensorPrimitive<B> {
+    fn cast(primitive: TensorPrimitive<Dispatch>, dtype: Self) -> TensorPrimitive<Dispatch> {
         if let TensorPrimitive::Float(ref tensor) = primitive {
             let current: FloatDType = tensor.dtype().into();
             if current == dtype {
                 return primitive;
             }
         }
-        TensorPrimitive::Float(B::float_cast(primitive.tensor(), dtype))
+        TensorPrimitive::Float(Dispatch::float_cast(primitive.tensor(), dtype))
     }
 }
 
-impl<B: Backend> Cast<B, Float> for IntDType {
+impl Cast<Float> for IntDType {
     type OutputKind = Int;
 
-    fn cast(primitive: TensorPrimitive<B>, dtype: Self) -> B::IntTensorPrimitive {
-        B::float_into_int(primitive.tensor(), dtype)
+    fn cast(
+        primitive: TensorPrimitive<Dispatch>,
+        dtype: Self,
+    ) -> <Dispatch as Backend>::IntTensorPrimitive {
+        Dispatch::float_into_int(primitive.tensor(), dtype)
     }
 }
 
@@ -44,34 +53,40 @@ impl<B: Backend> Cast<B, Float> for IntDType {
 ///
 /// Panics if `dtype` is not a float variant (e.g., `DType::I32`).
 /// Use [`IntDType`] directly for cross-kind casting to int.
-impl<B: Backend> Cast<B, Float> for DType {
+impl Cast<Float> for DType {
     type OutputKind = Float;
 
-    fn cast(primitive: TensorPrimitive<B>, dtype: Self) -> TensorPrimitive<B> {
+    fn cast(primitive: TensorPrimitive<Dispatch>, dtype: Self) -> TensorPrimitive<Dispatch> {
         let float_dtype: FloatDType = dtype.into();
-        <FloatDType as Cast<B, Float>>::cast(primitive, float_dtype)
+        <FloatDType as Cast<Float>>::cast(primitive, float_dtype)
     }
 }
 
 // --- Int input impls ---
 
-impl<B: Backend> Cast<B, Int> for IntDType {
+impl Cast<Int> for IntDType {
     type OutputKind = Int;
 
-    fn cast(primitive: B::IntTensorPrimitive, dtype: Self) -> B::IntTensorPrimitive {
+    fn cast(
+        primitive: <Dispatch as Backend>::IntTensorPrimitive,
+        dtype: Self,
+    ) -> <Dispatch as Backend>::IntTensorPrimitive {
         let current: IntDType = primitive.dtype().into();
         if current == dtype {
             return primitive;
         }
-        B::int_cast(primitive, dtype)
+        Dispatch::int_cast(primitive, dtype)
     }
 }
 
-impl<B: Backend> Cast<B, Int> for FloatDType {
+impl Cast<Int> for FloatDType {
     type OutputKind = Float;
 
-    fn cast(primitive: B::IntTensorPrimitive, dtype: Self) -> TensorPrimitive<B> {
-        TensorPrimitive::Float(B::int_into_float(primitive, dtype))
+    fn cast(
+        primitive: <Dispatch as Backend>::IntTensorPrimitive,
+        dtype: Self,
+    ) -> TensorPrimitive<Dispatch> {
+        TensorPrimitive::Float(Dispatch::int_into_float(primitive, dtype))
     }
 }
 
@@ -81,29 +96,38 @@ impl<B: Backend> Cast<B, Int> for FloatDType {
 ///
 /// Panics if `dtype` is not an int variant (e.g., `DType::F32`).
 /// Use [`FloatDType`] directly for cross-kind casting to float.
-impl<B: Backend> Cast<B, Int> for DType {
+impl Cast<Int> for DType {
     type OutputKind = Int;
 
-    fn cast(primitive: B::IntTensorPrimitive, dtype: Self) -> B::IntTensorPrimitive {
+    fn cast(
+        primitive: <Dispatch as Backend>::IntTensorPrimitive,
+        dtype: Self,
+    ) -> <Dispatch as Backend>::IntTensorPrimitive {
         let int_dtype: IntDType = dtype.into();
-        <IntDType as Cast<B, Int>>::cast(primitive, int_dtype)
+        <IntDType as Cast<Int>>::cast(primitive, int_dtype)
     }
 }
 
 // --- Bool input impls ---
 
-impl<B: Backend> Cast<B, Bool> for IntDType {
+impl Cast<Bool> for IntDType {
     type OutputKind = Int;
 
-    fn cast(primitive: B::BoolTensorPrimitive, dtype: Self) -> B::IntTensorPrimitive {
-        B::bool_into_int(primitive, dtype)
+    fn cast(
+        primitive: <Dispatch as Backend>::BoolTensorPrimitive,
+        dtype: Self,
+    ) -> <Dispatch as Backend>::IntTensorPrimitive {
+        Dispatch::bool_into_int(primitive, dtype)
     }
 }
 
-impl<B: Backend> Cast<B, Bool> for FloatDType {
+impl Cast<Bool> for FloatDType {
     type OutputKind = Float;
 
-    fn cast(primitive: B::BoolTensorPrimitive, dtype: Self) -> TensorPrimitive<B> {
-        TensorPrimitive::Float(B::bool_into_float(primitive, dtype))
+    fn cast(
+        primitive: <Dispatch as Backend>::BoolTensorPrimitive,
+        dtype: Self,
+    ) -> TensorPrimitive<Dispatch> {
+        TensorPrimitive::Float(Dispatch::bool_into_float(primitive, dtype))
     }
 }

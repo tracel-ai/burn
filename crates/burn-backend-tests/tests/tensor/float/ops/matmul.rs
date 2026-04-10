@@ -1,6 +1,6 @@
 use super::*;
 use burn_tensor::TensorData;
-use burn_tensor::{ElementConversion, Tolerance, backend::Backend};
+use burn_tensor::{ElementConversion, Tolerance};
 
 #[test]
 fn test_float_matmul_d2() {
@@ -215,7 +215,7 @@ fn test_float_matmul_vecmat_transposed_fused() {
         .reshape([batch1, batch2, seq_length, d_model])
         .float();
 
-    TestBackend::sync(&device).unwrap();
+    device.sync().unwrap();
     let weight = weight.transpose();
     let out = signal.matmul(weight) + 5;
     let expected = TensorData::from([[

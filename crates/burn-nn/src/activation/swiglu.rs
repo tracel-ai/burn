@@ -3,7 +3,7 @@ use burn_core as burn;
 use burn::config::Config;
 use burn::module::{Content, DisplaySettings, Initializer, Module, ModuleDisplay};
 use burn::tensor::activation::silu;
-use burn::tensor::{Tensor, backend::Backend};
+use burn::tensor::{Device, Tensor};
 
 use crate::{Linear, LinearConfig, LinearLayout};
 
@@ -35,16 +35,16 @@ pub struct SwiGluConfig {
 /// Should be created with [SwiGluConfig].
 #[derive(Module, Debug)]
 #[module(custom_display)]
-pub struct SwiGlu<B: Backend> {
+pub struct SwiGlu {
     /// The inner linear layer for Swish activation function
     /// with `d_input` input features and `d_output` output features.
-    pub linear_inner: Linear<B>,
+    pub linear_inner: Linear,
     /// The outer linear layer for element wise multiplication
     /// with `d_input` input features and `d_output` output features.
-    pub linear_outer: Linear<B>,
+    pub linear_outer: Linear,
 }
 
-impl<B: Backend> ModuleDisplay for SwiGlu<B> {
+impl ModuleDisplay for SwiGlu {
     fn custom_settings(&self) -> Option<DisplaySettings> {
         DisplaySettings::new()
             .with_new_line_after_attribute(false)
@@ -63,7 +63,7 @@ impl<B: Backend> ModuleDisplay for SwiGlu<B> {
 
 impl SwiGluConfig {
     /// Initialize a new [SwiGLU](SwiGlu) activation layer.
-    pub fn init<B: Backend>(&self, device: &B::Device) -> SwiGlu<B> {
+    pub fn init(&self, device: &Device) -> SwiGlu {
         SwiGlu {
             linear_inner: LinearConfig::new(self.d_input, self.d_output)
                 .with_bias(self.bias)
@@ -79,14 +79,14 @@ impl SwiGluConfig {
     }
 }
 
-impl<B: Backend> SwiGlu<B> {
+impl SwiGlu {
     /// Applies the Swish Gated Linear Unit to the input tensor.
     ///
     /// # Shapes
     ///
     /// - input: `[batch_size, seq_length, d_input]`
     /// - output: `[batch_size, seq_length, d_output]`
-    pub fn forward<const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
+    pub fn forward<const D: usize>(&self, input: Tensor<D>) -> Tensor<D> {
         let x = self.linear_inner.forward(input.clone());
         let x = silu(x);
         x.mul(self.linear_outer.forward(input))
@@ -96,21 +96,19 @@ impl<B: Backend> SwiGlu<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::TestBackend;
-    use burn::tensor::{Tolerance, ops::FloatElem};
-    type FT = FloatElem<TestBackend>;
+    use burn::tensor::Tolerance;
+    type FT = f32;
 
     #[test]
     fn test_swiglu_forward_no_bias() {
-        let device = Default::default();
-        TestBackend::seed(&device, 0);
+        let device = Device::default();
+        device.seed(0);
 
         let config = SwiGluConfig::new(3, 3).with_initializer(Initializer::Constant { value: 0.5 });
         let swiglu = config.init(&device);
-        let input =
-            Tensor::<TestBackend, 2>::from_data([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], &device);
+        let input = Tensor::<2>::from_data([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], &device);
         let output = swiglu.forward(input);
-        let expected_output = Tensor::<TestBackend, 2>::from_data(
+        let expected_output = Tensor::<2>::from_data(
             [[8.5732, 8.5732, 8.5732], [56.2189, 56.2189, 56.2189]],
             &device,
         );
@@ -121,17 +119,16 @@ mod tests {
 
     #[test]
     fn test_swiglu_forward_with_bias() {
-        let device = Default::default();
-        TestBackend::seed(&device, 0);
+        let device = Device::default();
+        device.seed(0);
 
         let config = SwiGluConfig::new(3, 3)
             .with_bias(true)
             .with_initializer(Initializer::Constant { value: 0.5 });
         let swiglu = config.init(&device);
-        let input =
-            Tensor::<TestBackend, 2>::from_data([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], &device);
+        let input = Tensor::<2>::from_data([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], &device);
         let output = swiglu.forward(input);
-        let expected_output = Tensor::<TestBackend, 2>::from_data(
+        let expected_output = Tensor::<2>::from_data(
             [[11.8909, 11.8909, 11.8909], [63.9785, 63.9785, 63.9785]],
             &device,
         );
@@ -143,7 +140,7 @@ mod tests {
     #[test]
     fn display() {
         let config = SwiGluConfig::new(3, 5);
-        let swiglu = config.init::<TestBackend>(&Default::default());
+        let swiglu = config.init(&Default::default());
 
         assert_eq!(
             alloc::format!("{swiglu}"),

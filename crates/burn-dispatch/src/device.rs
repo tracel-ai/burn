@@ -1,8 +1,9 @@
-use alloc::boxed::Box;
-
 use burn_backend::{DeviceId, DeviceOps};
 
 use crate::backends::*;
+
+#[cfg(feature = "autodiff")]
+use alloc::boxed::Box;
 
 /// Represents a device for the [`Dispatch`](crate::Dispatch).
 ///
@@ -93,7 +94,6 @@ impl core::ops::Deref for AutodiffDevice {
     }
 }
 
-#[cfg(feature = "autodiff")]
 #[allow(missing_docs)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 /// Checkpointing strategy for autodiff.
@@ -106,14 +106,24 @@ pub enum CheckpointingStrategy {
 
 #[cfg(feature = "autodiff")]
 pub(crate) fn validate_checkpointing(
-    lhs: crate::CheckpointingStrategy,
-    rhs: crate::CheckpointingStrategy,
-) -> crate::CheckpointingStrategy {
-    assert_eq!(
-        lhs, rhs,
-        "Autodiff strategy mismatch: {lhs:?} vs {rhs:?}. Tensors in the same operation must share a strategy."
-    );
-    lhs
+    lhs: Option<crate::CheckpointingStrategy>,
+    rhs: Option<crate::CheckpointingStrategy>,
+) -> Option<crate::CheckpointingStrategy> {
+    match (lhs, rhs) {
+        (Some(lhs), Some(rhs)) => {
+            assert_eq!(
+                lhs, rhs,
+                "Autodiff strategy mismatch: {lhs:?} vs {rhs:?}. Tensors in the same operation must share a strategy."
+            );
+            Some(lhs)
+        }
+        (None, None) => None,
+        // When tensors are created on non-autodiff device there is no checkpointing, but
+        // tensor created with autodiff which moved out (`tensor.inner()`) will still carry the state.
+        // In such cases, we can "promote" the checkpointing.
+        (None, rhs) => rhs,
+        (lhs, None) => lhs,
+    }
 }
 
 impl core::fmt::Debug for DispatchDevice {
@@ -215,9 +225,8 @@ impl PartialEq for DispatchDevice {
     }
 }
 
-/// Base multiplier to avoid type_id clashes between backends.
-/// Limits the number of device types per backend, but this is a sensible limit.
-const TYPE_ID_BASE: u16 = 10;
+const INTERNAL_ID_MASK: u16 = 0x00FF;
+const BACKEND_SHIFT: u32 = 8;
 
 impl DispatchDevice {
     #[cfg(feature = "autodiff")]
@@ -233,6 +242,16 @@ impl DispatchDevice {
     ) -> DispatchDevice {
         let device = device.into();
         DispatchDevice::Autodiff(AutodiffDevice::new(device, checkpointing))
+    }
+
+    /// Returns the inner device, without autodiff (when enabled).
+    pub fn inner(self) -> Self {
+        #[cfg(feature = "autodiff")]
+        if let DispatchDevice::Autodiff(device) = self {
+            return *device.inner;
+        }
+
+        self
     }
 
     /// Returns a unique number per variant to encode into type_id.
@@ -263,17 +282,21 @@ impl DispatchDevice {
 
     /// Encode variant ID and backend type ID into a unique `type_id`.
     fn encode_type_id(&self, backend_type_id: u16) -> u16 {
-        u16::from(self.backend_id()) * TYPE_ID_BASE + backend_type_id
+        // Use the lower 8 bits for the backend's internal type ID
+        let internal_type_id = backend_type_id & INTERNAL_ID_MASK;
+        // Use the upper 8 bits for the DispatchDevice/BackendId
+        let backend = u16::from(self.backend_id()) << BACKEND_SHIFT;
+        backend | internal_type_id
     }
 
     /// Decode an encoded `type_id` into variant ID and backend type ID.
     pub(crate) fn decode_type_id(type_id: u16) -> (BackendId, u16) {
-        let variant = type_id / TYPE_ID_BASE;
-        let backend_type_id = type_id % TYPE_ID_BASE;
-        (
-            BackendId::try_from(variant).expect("Unknown DispatchDevice variant"),
-            backend_type_id,
-        )
+        let backend_raw = type_id >> BACKEND_SHIFT;
+        let internal_type_id = type_id & INTERNAL_ID_MASK;
+
+        let backend = BackendId::try_from(backend_raw).expect("Unknown DispatchDevice backend ID");
+
+        (backend, internal_type_id)
     }
 }
 
@@ -334,15 +357,7 @@ impl TryFrom<u16> for BackendId {
     }
 }
 
-impl DeviceOps for DispatchDevice {
-    fn inner(&self) -> &Self {
-        match self {
-            #[cfg(feature = "autodiff")]
-            DispatchDevice::Autodiff(device) => &device.inner,
-            device => device,
-        }
-    }
-}
+impl DeviceOps for DispatchDevice {}
 
 impl burn_backend::Device for DispatchDevice {
     fn from_id(mut device_id: DeviceId) -> Self {

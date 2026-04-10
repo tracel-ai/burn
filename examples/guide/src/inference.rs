@@ -5,14 +5,15 @@ use burn::{
     record::{CompactRecorder, Recorder},
 };
 
-pub fn infer<B: Backend>(artifact_dir: &str, device: B::Device, item: MnistItem) {
+pub fn infer(artifact_dir: &str, device: impl Into<Device>, item: MnistItem) {
+    let device = device.into();
     let config = TrainingConfig::load(format!("{artifact_dir}/config.json"))
         .expect("Config should exist for the model; run train first");
     let record = CompactRecorder::new()
         .load(format!("{artifact_dir}/model").into(), &device)
         .expect("Trained model should exist; run train first");
 
-    let model = config.model.init::<B>(&device).load_record(record);
+    let model = config.model.init(&device).load_record(record);
 
     let label = item.label;
     let batcher = MnistBatcher::default();

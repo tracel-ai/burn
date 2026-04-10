@@ -1,10 +1,13 @@
-use crate::ops::FloatElem;
-use crate::{BasicOps, Shape, Slice, Tensor, backend::Backend, cast::ToElement};
+use crate::{
+    Shape, Slice, Tensor,
+    cast::ToElement,
+    kind::{Basic, Ordered},
+};
 use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec;
 use alloc::vec::Vec;
-use burn_backend::tensor::Ordered;
+use burn_backend::Element;
 
 /// The struct should always be used with the [check](crate::check) macro.
 ///
@@ -40,10 +43,10 @@ pub(crate) enum TensorCheck {
 
 impl TensorCheck {
     /// Checks device and shape compatibility for element wise binary operations.
-    pub(crate) fn binary_ops_ew<B: Backend, const D: usize, K: BasicOps<B>>(
+    pub(crate) fn binary_ops_ew<const D: usize, K: Basic>(
         ops: &str,
-        lhs: &Tensor<B, D, K>,
-        rhs: &Tensor<B, D, K>,
+        lhs: &Tensor<D, K>,
+        rhs: &Tensor<D, K>,
     ) -> Self {
         Self::Ok
             .binary_ops_device(ops, &lhs.device(), &rhs.device())
@@ -103,8 +106,8 @@ impl TensorCheck {
         check
     }
 
-    pub(crate) fn narrow<B: Backend, const D: usize, K: BasicOps<B>>(
-        tensor: &Tensor<B, D, K>,
+    pub(crate) fn narrow<const D: usize, K: Basic>(
+        tensor: &Tensor<D, K>,
         dim: usize,
         start: usize,
         length: usize,
@@ -420,8 +423,8 @@ impl TensorCheck {
         check
     }
 
-    pub(crate) fn one_hot_tensor<B: Backend, const D: usize, K: Ordered<B>>(
-        index_tensor: Tensor<B, D, K>,
+    pub(crate) fn one_hot_tensor<const D: usize, K: Ordered>(
+        index_tensor: Tensor<D, K>,
         num_classes: usize,
     ) -> Self {
         let mut check = Self::Ok;
@@ -531,12 +534,9 @@ impl TensorCheck {
         check
     }
 
-    pub(crate) fn matmul<B: Backend, const D: usize, K>(
-        lhs: &Tensor<B, D, K>,
-        rhs: &Tensor<B, D, K>,
-    ) -> Self
+    pub(crate) fn matmul<const D: usize, K>(lhs: &Tensor<D, K>, rhs: &Tensor<D, K>) -> Self
     where
-        K: BasicOps<B>,
+        K: Basic,
     {
         let mut check = Self::Ok;
 
@@ -569,13 +569,13 @@ impl TensorCheck {
         check
     }
 
-    pub(crate) fn cross<B: Backend, const D: usize, K>(
-        lhs: &Tensor<B, D, K>,
-        rhs: &Tensor<B, D, K>,
+    pub(crate) fn cross<const D: usize, K>(
+        lhs: &Tensor<D, K>,
+        rhs: &Tensor<D, K>,
         dim: usize,
     ) -> Self
     where
-        K: BasicOps<B>,
+        K: Basic,
     {
         let mut check = Self::Ok;
 
@@ -625,8 +625,8 @@ impl TensorCheck {
         check
     }
 
-    pub(crate) fn stack<B: Backend, const D1: usize, K: BasicOps<B>, const D2: usize>(
-        tensors: &[Tensor<B, D1, K>],
+    pub(crate) fn stack<const D1: usize, K: Basic, const D2: usize>(
+        tensors: &[Tensor<D1, K>],
         dim: usize,
     ) -> Self {
         let mut check = Self::Ok;
@@ -679,10 +679,7 @@ impl TensorCheck {
         check
     }
 
-    pub(crate) fn cat<B: Backend, const D: usize, K: BasicOps<B>>(
-        tensors: &[Tensor<B, D, K>],
-        dim: usize,
-    ) -> Self {
+    pub(crate) fn cat<const D: usize, K: Basic>(tensors: &[Tensor<D, K>], dim: usize) -> Self {
         let mut check = Self::Ok;
 
         if dim >= D {
@@ -1377,7 +1374,7 @@ impl TensorCheck {
     }
 
     /// Check pivot is valid for LU decomposition.
-    pub fn lu_decomposition_pivot<B: Backend>(pivot: FloatElem<B>) -> Self {
+    pub fn lu_decomposition_pivot(pivot: impl Element) -> Self {
         let mut check = TensorCheck::Ok;
         if pivot.to_f64().abs() <= 1e-6 {
             check = check.register(

@@ -1,4 +1,5 @@
-use burn_backend::Backend;
+use burn_backend::ops::ModuleOps;
+use burn_dispatch::Dispatch;
 
 use crate::Tensor;
 use crate::TensorPrimitive;
@@ -47,16 +48,13 @@ where $N$ is the size of the signal along the specified dimension.
 ///     let (real, imag) = burn_tensor::signal::rfft(signal, 0);
 /// }
 /// ```
-pub fn rfft<B: Backend, const D: usize>(
-    signal: Tensor<B, D>,
-    dim: usize,
-) -> (Tensor<B, D>, Tensor<B, D>) {
+pub fn rfft<const D: usize>(signal: Tensor<D>, dim: usize) -> (Tensor<D>, Tensor<D>) {
     check!(TensorCheck::check_dim::<D>(dim));
     check!(TensorCheck::check_is_power_of_two::<D>(
         &signal.shape(),
         dim
     ));
-    let (spectrum_re, spectrum_im) = B::rfft(signal.primitive.tensor(), dim);
+    let (spectrum_re, spectrum_im) = Dispatch::rfft(signal.primitive.tensor(), dim);
     (
         Tensor::new(TensorPrimitive::Float(spectrum_re)),
         Tensor::new(TensorPrimitive::Float(spectrum_im)),
@@ -105,14 +103,14 @@ where $N$ is the size of the reconstructed signal.
 ///     let signal = burn_tensor::signal::irfft(real, imag, 0);
 /// }
 /// ```
-pub fn irfft<B: Backend, const D: usize>(
-    spectrum_re: Tensor<B, D>,
-    spectrum_im: Tensor<B, D>,
+pub fn irfft<const D: usize>(
+    spectrum_re: Tensor<D>,
+    spectrum_im: Tensor<D>,
     dim: usize,
-) -> Tensor<B, D> {
+) -> Tensor<D> {
     check!(TensorCheck::check_dim::<D>(dim));
 
-    let signal = B::irfft(
+    let signal = Dispatch::irfft(
         spectrum_re.primitive.tensor(),
         spectrum_im.primitive.tensor(),
         dim,

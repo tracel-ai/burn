@@ -53,7 +53,7 @@ fn inputs_mask_where() -> (
     let device = Default::default();
     let ref_device = ReferenceDevice::new();
 
-    TestBackend::seed(&device, 0);
+    device.seed(0);
 
     let tensor = TestTensor::<3>::random([2, 6, 256], Distribution::Default, &device);
     let value = TestTensor::<3>::random([2, 6, 256], Distribution::Default, &device);

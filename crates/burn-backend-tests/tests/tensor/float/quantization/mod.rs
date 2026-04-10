@@ -7,7 +7,7 @@ mod scheme;
 
 /// Quantized tensor utilities
 pub mod qtensor {
-    use super::{TestBackend, TestTensor};
+    use super::TestTensor;
 
     use burn_tensor::quantization::QuantLevel;
     use burn_tensor::{TensorData, quantization::QuantValue};
@@ -25,7 +25,8 @@ pub mod qtensor {
         pub fn int8_block<F: Into<TensorData>>(floats: F) -> TestTensor<D> {
             let device = Default::default();
             TestTensor::from_data(floats, &device).quantize_dynamic(
-                &TestBackend::default_quant_scheme(&device)
+                &device
+                    .default_quant_scheme()
                     .with_value(QuantValue::Q8S)
                     .with_level(QuantLevel::block([16])),
             )
@@ -34,9 +35,8 @@ pub mod qtensor {
         /// Creates a quantized int8 tensor from the floating point data using per-tensor symmetric quantization.
         pub fn int8_symmetric<F: Into<TensorData>>(floats: F) -> TestTensor<D> {
             let device = Default::default();
-            TestTensor::from_data(floats, &device).quantize_dynamic(
-                &TestBackend::default_quant_scheme(&device).with_value(QuantValue::Q8S),
-            )
+            TestTensor::from_data(floats, &device)
+                .quantize_dynamic(&device.default_quant_scheme().with_value(QuantValue::Q8S))
         }
     }
 }

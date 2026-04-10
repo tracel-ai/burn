@@ -1,11 +1,13 @@
 mod tests {
     use std::sync::mpsc::SyncSender;
 
+    use burn_backend::ops::FloatTensorOps;
+    use burn_backend::{Backend, TensorData, Tolerance};
     use burn_std::rand::get_seeded_rng;
-    use burn_tensor::{Tensor, TensorData, TensorPrimitive, Tolerance, backend::Backend};
 
     use serial_test::serial;
 
+    use crate::tests::read_tensor;
     use crate::{AllReduceStrategy, PeerId, ReduceOperation};
 
     #[cfg(not(all(
@@ -14,19 +16,13 @@ mod tests {
         feature = "test-metal",
         feature = "test-vulkan"
     )))]
-    pub type TestBackend = burn_ndarray::NdArray<f32>;
+    pub type TestBackend = burn_ndarray::NdArray;
 
     #[cfg(feature = "test-cuda")]
-    pub type TestBackend = burn_cuda::Cuda<f32>;
+    pub type TestBackend = burn_cuda::CudaDevice;
 
-    #[cfg(feature = "test-wgpu")]
-    pub type TestBackend = burn_wgpu::Wgpu<f32>;
-
-    #[cfg(feature = "test-metal")]
-    pub type TestBackend = burn_wgpu::Wgpu<f32>;
-
-    #[cfg(feature = "test-vulkan")]
-    pub type TestBackend = burn_wgpu::Wgpu<f32>;
+    #[cfg(any(feature = "test-wgpu", feature = "test-metal", feature = "test-vulkan"))]
+    pub type TestBackend = burn_wgpu::WgpuDevice<f32>;
 
     use crate::{CollectiveConfig, all_reduce, register, reset_collective};
 
@@ -35,17 +31,15 @@ mod tests {
         config: CollectiveConfig,
         input: TensorData,
         op: ReduceOperation,
-        output: SyncSender<Tensor<B, 1>>,
+        output: SyncSender<B::FloatTensorPrimitive>,
     ) {
         let device = B::Device::default();
 
         register::<B>(id, device.clone(), config).unwrap();
 
-        let tensor = Tensor::<B, 1>::from_data(input, &device);
+        let tensor = B::float_from_data(input, &device);
 
-        let tensor = Tensor::from_primitive(TensorPrimitive::Float(
-            all_reduce::<B>(id, tensor.into_primitive().tensor(), op).unwrap(),
-        ));
+        let tensor = all_reduce::<B>(id, tensor, op).unwrap();
 
         output.send(tensor).unwrap();
     }
@@ -59,7 +53,7 @@ mod tests {
             .map(|_| {
                 TensorData::random::<f32, _, _>(
                     shape.clone(),
-                    burn_tensor::Distribution::Default,
+                    burn_backend::Distribution::Default,
                     &mut get_seeded_rng(),
                 )
             })
@@ -67,16 +61,18 @@ mod tests {
 
         let device = <TestBackend as Backend>::Device::default();
 
-        let mut expected_tensor = Tensor::<TestBackend, 1>::zeros(shape, &device);
+        let mut expected_tensor =
+            TestBackend::float_zeros(shape.into(), &device, burn_backend::FloatDType::F32);
         for item in input.iter().take(thread_count) {
-            let input_tensor = Tensor::<TestBackend, 1>::from_data(item.clone(), &device);
-            expected_tensor = expected_tensor.add(input_tensor);
+            let input_tensor = TestBackend::float_from_data(item.clone(), &device);
+            expected_tensor = TestBackend::float_add(expected_tensor, input_tensor);
         }
         if op == ReduceOperation::Mean {
-            expected_tensor = expected_tensor.div_scalar(thread_count as u32);
+            expected_tensor =
+                TestBackend::float_div_scalar(expected_tensor, (thread_count as u32).into());
         }
 
-        let expected = expected_tensor.to_data();
+        let expected = read_tensor::<TestBackend>(expected_tensor);
 
         (input, expected)
     }
@@ -109,10 +105,10 @@ mod tests {
             });
         }
 
-        let first = recv.recv().unwrap().to_data();
+        let first = read_tensor::<B>(recv.recv().unwrap());
         for _ in 1..device_count {
             let tensor = recv.recv().unwrap();
-            tensor.to_data().assert_eq(&first, true);
+            read_tensor::<B>(tensor).assert_eq(&first, true);
         }
 
         let tol: Tolerance<f32> = Tolerance::balanced();

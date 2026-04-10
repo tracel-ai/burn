@@ -4,27 +4,18 @@ pub fn launch<B: Backend>(device: B::Device) {
     modern_lstm::inference::infer::<B>("/tmp/modern-lstm", device);
 }
 
-#[cfg(any(
-    feature = "ndarray",
-    feature = "ndarray-blas-netlib",
-    feature = "ndarray-blas-openblas",
-    feature = "ndarray-blas-accelerate",
-))]
+#[cfg(feature = "ndarray")]
 mod ndarray {
-    use burn::backend::ndarray::{NdArray, NdArrayDevice};
-
-    use crate::launch;
+    use burn::backend::ndarray::NdArrayDevice;
 
     pub fn run() {
-        launch::<NdArray>(NdArrayDevice::Cpu);
+        crate::launch(NdArrayDevice::Cpu);
     }
 }
 
 #[cfg(feature = "tch-gpu")]
 mod tch_gpu {
-    use burn::backend::libtorch::{LibTorch, LibTorchDevice};
-
-    use crate::launch;
+    use burn::backend::libtorch::LibTorchDevice;
 
     pub fn run() {
         #[cfg(not(target_os = "macos"))]
@@ -32,48 +23,39 @@ mod tch_gpu {
         #[cfg(target_os = "macos")]
         let device = LibTorchDevice::Mps;
 
-        launch::<LibTorch>(device);
+        crate::launch(device);
     }
 }
 
 #[cfg(feature = "tch-cpu")]
 mod tch_cpu {
-    use burn::backend::libtorch::{LibTorch, LibTorchDevice};
-
-    use crate::launch;
+    use burn::backend::libtorch::LibTorchDevice;
 
     pub fn run() {
-        launch::<LibTorch>(LibTorchDevice::Cpu);
+        crate::launch(LibTorchDevice::Cpu);
     }
 }
 
 #[cfg(feature = "wgpu")]
 mod wgpu {
-    use crate::launch;
-    use burn::backend::wgpu::Wgpu;
+    use burn::backend::wgpu::WgpuDevice;
 
     pub fn run() {
-        launch::<Wgpu>(Default::default());
+        crate::launch(WgpuDevice::default());
     }
 }
 
 #[cfg(feature = "cuda")]
 mod cuda {
-    use crate::launch;
-    use burn::backend::Cuda;
+    use burn::backend::cuda::CudaDevice;
 
     pub fn run() {
-        launch::<Cuda>(Default::default());
+        launch(CudaDevice::default());
     }
 }
 
 fn main() {
-    #[cfg(any(
-        feature = "ndarray",
-        feature = "ndarray-blas-netlib",
-        feature = "ndarray-blas-openblas",
-        feature = "ndarray-blas-accelerate",
-    ))]
+    #[cfg(feature = "ndarray")]
     ndarray::run();
     #[cfg(feature = "tch-gpu")]
     tch_gpu::run();

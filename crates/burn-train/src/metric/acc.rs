@@ -1,41 +1,36 @@
-use core::marker::PhantomData;
-
 use super::MetricMetadata;
 use super::state::{FormatOptions, NumericMetricState};
 use crate::metric::{Metric, MetricAttributes, MetricName, Numeric, SerializedEntry};
-use burn_core::tensor::backend::Backend;
 use burn_core::tensor::{ElementConversion, Int, Tensor};
 
 /// The accuracy metric.
 #[derive(Clone)]
-pub struct AccuracyMetric<B: Backend> {
+pub struct AccuracyMetric {
     name: MetricName,
     state: NumericMetricState,
     pad_token: Option<usize>,
-    _b: PhantomData<B>,
 }
 
 /// The [accuracy metric](AccuracyMetric) input type.
 #[derive(new)]
-pub struct AccuracyInput<B: Backend> {
-    outputs: Tensor<B, 2>,
-    targets: Tensor<B, 1, Int>,
+pub struct AccuracyInput {
+    outputs: Tensor<2>,
+    targets: Tensor<1, Int>,
 }
 
-impl<B: Backend> Default for AccuracyMetric<B> {
+impl Default for AccuracyMetric {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<B: Backend> AccuracyMetric<B> {
+impl AccuracyMetric {
     /// Creates the metric.
     pub fn new() -> Self {
         Self {
             name: MetricName::new("Accuracy".to_string()),
             state: Default::default(),
             pad_token: Default::default(),
-            _b: PhantomData,
         }
     }
 
@@ -46,10 +41,10 @@ impl<B: Backend> AccuracyMetric<B> {
     }
 }
 
-impl<B: Backend> Metric for AccuracyMetric<B> {
-    type Input = AccuracyInput<B>;
+impl Metric for AccuracyMetric {
+    type Input = AccuracyInput;
 
-    fn update(&mut self, input: &AccuracyInput<B>, _metadata: &MetricMetadata) -> SerializedEntry {
+    fn update(&mut self, input: &AccuracyInput, _metadata: &MetricMetadata) -> SerializedEntry {
         let targets = input.targets.clone();
         let outputs = input.outputs.clone();
 
@@ -102,7 +97,7 @@ impl<B: Backend> Metric for AccuracyMetric<B> {
     }
 }
 
-impl<B: Backend> Numeric for AccuracyMetric<B> {
+impl Numeric for AccuracyMetric {
     fn value(&self) -> super::NumericEntry {
         self.state.current_value()
     }
@@ -115,12 +110,11 @@ impl<B: Backend> Numeric for AccuracyMetric<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::TestBackend;
 
     #[test]
     fn test_accuracy_without_padding() {
         let device = Default::default();
-        let mut metric = AccuracyMetric::<TestBackend>::new();
+        let mut metric = AccuracyMetric::new();
         let input = AccuracyInput::new(
             Tensor::from_data(
                 [
@@ -141,7 +135,7 @@ mod tests {
     #[test]
     fn test_accuracy_with_padding() {
         let device = Default::default();
-        let mut metric = AccuracyMetric::<TestBackend>::new().with_pad_token(3);
+        let mut metric = AccuracyMetric::new().with_pad_token(3);
         let input = AccuracyInput::new(
             Tensor::from_data(
                 [

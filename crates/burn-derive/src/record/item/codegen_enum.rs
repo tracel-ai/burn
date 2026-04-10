@@ -19,12 +19,7 @@ impl RecordItemCodegen for EnumRecordItemCodegen {
         })
     }
 
-    fn gen_item_type(
-        &self,
-        item_name: &Ident,
-        generics: &Generics,
-        has_backend: bool,
-    ) -> TokenStream {
+    fn gen_item_type(&self, item_name: &Ident, generics: &Generics) -> TokenStream {
         let mut variants = quote! {};
         let mut serde_bounds = quote! {};
         let mut clone_bounds = vec![];
@@ -38,15 +33,15 @@ impl RecordItemCodegen for EnumRecordItemCodegen {
 
             variants.extend(quote! {
                 /// Variant to be serialized.
-                #name(<#ty as burn::record::Record<B>>::Item<S>),
+                #name(<#ty as burn::record::Record>::Item<S>),
             });
 
             // Item types must implement serialization/deserialization
             serde_bounds.extend(quote! {
-                <#ty as burn::record::Record<B>>::Item<S>: burn::serde::Serialize + burn::serde::de::DeserializeOwned,
+                <#ty as burn::record::Record>::Item<S>: burn::serde::Serialize + burn::serde::de::DeserializeOwned,
             });
             clone_bounds.push(parse_quote! {
-                <#ty as burn::record::Record<B>>::Item<S>: Clone
+                <#ty as burn::record::Record>::Item<S>: Clone
             });
 
             clone_match_arms.extend(quote! {
@@ -56,11 +51,7 @@ impl RecordItemCodegen for EnumRecordItemCodegen {
         let serde_bound = serde_bounds.to_string();
 
         // Capture the type's generics and bounds in where clauses
-        let mut generics = generics.clone();
-        if !has_backend {
-            let param: syn::TypeParam = parse_quote! { B: burn::tensor::backend::Backend };
-            generics.params.push(syn::GenericParam::Type(param));
-        }
+        let generics = generics.clone();
         let (generics, type_generics, generics_where) = generics.split_for_impl();
 
         let clone_bounds = generics_where.cloned().map(|mut where_clause| {
@@ -102,7 +93,7 @@ impl RecordItemCodegen for EnumRecordItemCodegen {
             let name = &variant.ident;
 
             into_item_match_arms.extend(quote! {
-                Self::#name(record) => Self::Item::#name(burn::record::Record::<B>::into_item::<S>(record)),
+                Self::#name(record) => Self::Item::#name(burn::record::Record::into_item::<S>(record)),
             });
         }
 
@@ -122,12 +113,12 @@ impl RecordItemCodegen for EnumRecordItemCodegen {
             let name = &variant.ident;
 
             from_item_match_arms.extend(quote! {
-                Self::Item::#name(item) => Self::#name(burn::record::Record::<B>::from_item::<S>(item, device)),
+                Self::Item::#name(item) => Self::#name(burn::record::Record::from_item::<S>(item, device)),
             });
         }
 
         quote! {
-            fn from_item<S: burn::record::PrecisionSettings>(item: Self::Item<S>, device: &B::Device) -> Self {
+            fn from_item<S: burn::record::PrecisionSettings>(item: Self::Item<S>, device: &burn::tensor::Device) -> Self {
                 match item {
                     #from_item_match_arms
                 }

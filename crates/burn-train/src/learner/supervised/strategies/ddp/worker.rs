@@ -3,7 +3,7 @@ use crate::ddp::strategy::WorkerComponents;
 use crate::single::TrainingLoop;
 use crate::{
     Learner, LearningCheckpointer, LearningComponentsTypes, SupervisedTrainingEventProcessor,
-    TrainLoader, TrainingBackend, ValidLoader,
+    TrainLoader, ValidLoader,
 };
 use burn_core::tensor::Device;
 use std::sync::{Arc, Mutex};
@@ -15,7 +15,7 @@ pub(crate) struct DdpWorker<LC>
 where
     LC: LearningComponentsTypes + Send + 'static,
 {
-    device: Device<TrainingBackend<LC>>,
+    device: Device,
     learner: Learner<LC>,
     event_processor: Arc<Mutex<SupervisedTrainingEventProcessor<LC>>>,
     components: WorkerComponents,
@@ -34,7 +34,7 @@ where
     /// Starts a worker that runs the model in a data distributed parallel
     #[allow(clippy::too_many_arguments)]
     pub fn start(
-        device: Device<TrainingBackend<LC>>,
+        device: Device,
         learner: Learner<LC>,
         event_processor: Arc<Mutex<SupervisedTrainingEventProcessor<LC>>>,
         components: WorkerComponents,
@@ -44,7 +44,7 @@ where
         starting_epoch: usize,
         peer_count: usize,
         is_main: bool,
-    ) -> JoinHandle<<LC as LearningComponentsTypes>::TrainingModel> {
+    ) -> JoinHandle<<LC as LearningComponentsTypes>::Model> {
         let worker = Self {
             device,
             learner,
@@ -62,7 +62,7 @@ where
     }
 
     /// Fits the model,
-    pub fn fit(mut self) -> <LC as LearningComponentsTypes>::TrainingModel {
+    pub fn fit(mut self) -> <LC as LearningComponentsTypes>::Model {
         let num_epochs = self.components.num_epochs;
         let interrupter = self.components.interrupter;
 

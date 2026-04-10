@@ -35,23 +35,25 @@ macro_rules! backend_matrix {
     };
 }
 
+#[cfg(feature = "autodiff")]
 /// Helper to map the runtime strategy to the compile-time Autodiff generic.
 #[cfg(feature = "autodiff")]
 macro_rules! with_autodiff_backend {
     ($Backend:ident, $checkpointing:expr, |$B:ident| $body:expr) => {
         match $checkpointing {
-            $crate::CheckpointingStrategy::Balanced => {
+            Some($crate::CheckpointingStrategy::Balanced) => {
                 type $B = Autodiff<
                     $Backend<f32>,
                     burn_autodiff::checkpoint::strategy::BalancedCheckpointing,
                 >;
                 $body
             }
-            $crate::CheckpointingStrategy::None => {
+            Some($crate::CheckpointingStrategy::None) => {
                 type $B =
                     Autodiff<$Backend<f32>, burn_autodiff::checkpoint::strategy::NoCheckpointing>;
                 $body
             }
+            None => unreachable!("Should only be called with autodiff."),
         }
     };
 }
@@ -296,7 +298,7 @@ macro_rules! creation_op_arms {
                     @autodiff
                     $kind,
                     &**inner,
-                    inner.checkpointing,
+                    Some(inner.checkpointing),
                     |$inner| $body;
                     $([$Backend, $cfg]),*
                 )
@@ -309,9 +311,8 @@ macro_rules! creation_op_arms {
                         kind: $crate::DispatchTensorKind::$Backend(
                             $crate::BackendTensor::$kind($body)
                         ),
-                        // TODO: hmmm should devices also carry the checkpointing all the time?
                         #[cfg(feature = "autodiff")]
-                        checkpointing: $crate::CheckpointingStrategy::None,
+                        checkpointing: None,
                     }
                 }
             )*
@@ -376,6 +377,47 @@ macro_rules! wrap_float {
 ///
 /// When the return kind is provided, the result is wrapped in the corresponding `DispatchTensor` variant.
 macro_rules! unary_op_arms {
+    (
+        Float, // handle autodiff wrapped tensors for float return kind (e.g. int_into_float)
+        $inner_kind:ident,
+        $tensor:expr,
+        |$inner:ident| $body:expr;
+        $([$Backend:ident, $cfg:meta]),*
+    ) => {{
+        #[cfg(feature = "autodiff")]
+        let checkpointing = $tensor.checkpointing;
+
+        match $tensor.kind {
+            $(
+                #[cfg($cfg)]
+                $crate::DispatchTensorKind::$Backend($inner) => {
+                    type B = $Backend<f32>;
+                    let $inner = $inner.$inner_kind();
+
+                    #[cfg(feature = "autodiff")]
+                    if checkpointing.is_some() {
+                        with_autodiff_backend!($Backend, checkpointing, |B| {
+                            wrap_float!(@wrap_autodiff Float, $Backend, checkpointing, { $body })
+                        })
+                    } else {
+                        $crate::DispatchTensor {
+                            kind: $crate::DispatchTensorKind::$Backend($crate::BackendTensor::Float($body)),
+                            #[cfg(feature = "autodiff")]
+                            checkpointing,
+                        }
+                    }
+
+                    #[cfg(not(feature = "autodiff"))]
+                    $crate::DispatchTensor {
+                        kind: $crate::DispatchTensorKind::$Backend($crate::BackendTensor::Float($body)),
+                    }
+                }
+            )*
+            #[cfg(feature = "autodiff")]
+            $crate::DispatchTensorKind::Autodiff(..) => panic!("Operation not marked for autodiff.")
+        }
+    }};
+
     (
         $kind:ident,
         $inner_kind:ident,

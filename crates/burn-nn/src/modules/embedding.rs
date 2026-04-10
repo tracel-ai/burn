@@ -6,8 +6,7 @@ use burn::module::Module;
 use burn::module::Param;
 use burn::module::{Content, DisplaySettings, ModuleDisplay};
 use burn::tensor::Int;
-use burn::tensor::Tensor;
-use burn::tensor::backend::Backend;
+use burn::tensor::{Device, Tensor};
 
 use burn::tensor::module::embedding;
 
@@ -28,13 +27,13 @@ pub struct EmbeddingConfig {
 /// Should be created with [EmbeddingConfig].
 #[derive(Module, Debug)]
 #[module(custom_display)]
-pub struct Embedding<B: Backend> {
+pub struct Embedding {
     /// The learnable weights of the module of shape `[n_embedding, d_model]` initialized
     /// from a normal distribution `N(0, 1)`.
-    pub weight: Param<Tensor<B, 2>>,
+    pub weight: Param<Tensor<2>>,
 }
 
-impl<B: Backend> ModuleDisplay for Embedding<B> {
+impl ModuleDisplay for Embedding {
     fn custom_settings(&self) -> Option<DisplaySettings> {
         DisplaySettings::new()
             .with_new_line_after_attribute(false)
@@ -52,7 +51,7 @@ impl<B: Backend> ModuleDisplay for Embedding<B> {
 
 impl EmbeddingConfig {
     /// Initialize a new [embedding](Embedding) module.
-    pub fn init<B: Backend>(&self, device: &B::Device) -> Embedding<B> {
+    pub fn init(&self, device: &Device) -> Embedding {
         let weight = self
             .initializer
             .init([self.n_embedding, self.d_model], device);
@@ -61,7 +60,7 @@ impl EmbeddingConfig {
     }
 }
 
-impl<B: Backend> Embedding<B> {
+impl Embedding {
     /// Applies the forward pass on the input tensor.
     ///
     /// See also [embedding](burn::tensor::module::embedding).
@@ -70,7 +69,7 @@ impl<B: Backend> Embedding<B> {
     ///
     /// - input: `[batch_size, seq_length]`
     /// - output: `[batch_size, seq_length, d_model]`
-    pub fn forward(&self, input: Tensor<B, 2, Int>) -> Tensor<B, 3> {
+    pub fn forward(&self, input: Tensor<2, Int>) -> Tensor<3> {
         embedding(self.weight.val(), input)
     }
 }
@@ -78,18 +77,17 @@ impl<B: Backend> Embedding<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::TestBackend;
     use burn::tensor::TensorData;
-    use burn::tensor::{Tolerance, ops::FloatElem};
-    type FT = FloatElem<TestBackend>;
+    use burn::tensor::Tolerance;
+    type FT = f32;
 
     #[test]
     fn initializer_zeros() {
-        let device = Default::default();
-        TestBackend::seed(&device, 0);
+        let device = Device::default();
+        device.seed(0);
 
         let config = EmbeddingConfig::new(5, 5).with_initializer(Initializer::Zeros);
-        let embed = config.init::<TestBackend>(&Default::default());
+        let embed = config.init(&Default::default());
 
         assert_eq!(config.initializer, Initializer::Zeros);
         embed.weight.to_data().assert_approx_eq::<FT>(
@@ -101,7 +99,7 @@ mod tests {
     #[test]
     fn display() {
         let config = EmbeddingConfig::new(100, 10);
-        let embed = config.init::<TestBackend>(&Default::default());
+        let embed = config.init(&Default::default());
 
         assert_eq!(
             alloc::format!("{embed}"),

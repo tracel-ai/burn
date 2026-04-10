@@ -2,18 +2,19 @@ use burn::{
     data::{dataloader::batcher::Batcher, dataset::Dataset},
     module::Module,
     record::{NoStdTrainingRecorder, Recorder},
-    tensor::backend::Backend,
+    tensor::Device,
 };
 use rgb::RGB8;
 use textplots::{Chart, ColorPlot, Shape};
 
 use crate::{
     dataset::{HousingBatcher, HousingDataset, HousingDistrictItem},
-    model::{RegressionModelConfig, RegressionModelRecord},
+    model::RegressionModelConfig,
 };
 
-pub fn infer<B: Backend>(artifact_dir: &str, device: B::Device) {
-    let record: RegressionModelRecord<B> = NoStdTrainingRecorder::new()
+pub fn infer(artifact_dir: &str, device: impl Into<Device>) {
+    let device = device.into();
+    let record = NoStdTrainingRecorder::new()
         .load(format!("{artifact_dir}/model").into(), &device)
         .expect("Trained model should exist; run train first");
 
@@ -25,7 +26,7 @@ pub fn infer<B: Backend>(artifact_dir: &str, device: B::Device) {
     let dataset = HousingDataset::test();
     let items: Vec<HousingDistrictItem> = dataset.iter().take(1000).collect();
 
-    let batcher = HousingBatcher::new(device.clone());
+    let batcher = HousingBatcher::new(&device);
     let batch = batcher.batch(items.clone(), &device);
     let predicted = model.forward(batch.inputs);
     let targets = batch.targets;

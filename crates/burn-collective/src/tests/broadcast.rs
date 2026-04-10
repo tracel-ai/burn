@@ -1,8 +1,8 @@
 mod tests {
     use std::sync::mpsc::SyncSender;
 
+    use burn_backend::{Backend, TensorData, Tolerance};
     use burn_std::rand::get_seeded_rng;
-    use burn_tensor::{Tensor, TensorData, TensorPrimitive, Tolerance, backend::Backend};
 
     use serial_test::serial;
 
@@ -28,13 +28,14 @@ mod tests {
     #[cfg(feature = "test-vulkan")]
     pub type TestBackend = burn_wgpu::Wgpu<f32>;
 
+    use crate::tests::read_tensor;
     use crate::{BroadcastStrategy, CollectiveConfig, broadcast, register, reset_collective};
 
     pub fn run_peer<B: Backend>(
         id: PeerId,
         config: CollectiveConfig,
         input: Option<TensorData>,
-        output: SyncSender<Tensor<B, 1>>,
+        output: SyncSender<B::FloatTensorPrimitive>,
     ) {
         let device = B::Device::default();
 
@@ -42,7 +43,6 @@ mod tests {
 
         let tensor = input.map(|data| B::float_from_data(data, &device));
         let tensor = broadcast::<B>(id, tensor).unwrap();
-        let tensor = Tensor::<B, 1>::from_primitive(TensorPrimitive::Float(tensor));
 
         output.send(tensor).unwrap();
     }
@@ -50,7 +50,7 @@ mod tests {
     fn generate_random_input(shape: Vec<usize>) -> TensorData {
         TensorData::random::<f32, _, _>(
             shape.clone(),
-            burn_tensor::Distribution::Default,
+            burn_backend::Distribution::Default,
             &mut get_seeded_rng(),
         )
     }
@@ -86,7 +86,7 @@ mod tests {
         // Expect all peers to receive the input tensor
         let tol: Tolerance<f32> = Tolerance::balanced();
         for _ in 0..device_count {
-            let tensor = recv.recv().unwrap().to_data();
+            let tensor = read_tensor::<B>(recv.recv().unwrap());
             input.assert_approx_eq(&tensor, tol);
         }
     }

@@ -7,7 +7,6 @@ use burn_core as burn;
 use burn::config::Config;
 use burn::module::{Content, DisplaySettings, Module, ModuleDisplay};
 use burn::tensor::Tensor;
-use burn::tensor::backend::Backend;
 use burn::tensor::ops::InterpolateOptions;
 
 use super::InterpolateMode;
@@ -52,7 +51,7 @@ pub struct Interpolate2dConfig {
 ///
 /// The module can be created using the [Interpolate2dConfig] struct and the
 /// `init` method, which returns an instance of the [Interpolate2d] struct.
-#[derive(Module, Clone, Debug)]
+#[derive(Module, Debug)]
 #[module(custom_display)]
 pub struct Interpolate2d {
     /// Output size of the interpolated tensor
@@ -62,6 +61,7 @@ pub struct Interpolate2d {
     pub scale_factor: Option<[f32; 2]>,
 
     /// Interpolation mode used for resizing
+    #[module(skip)]
     pub mode: InterpolateMode,
 
     /// Whether to align corner pixels
@@ -101,7 +101,7 @@ impl Interpolate2d {
     /// let output = interpolate.forward(input);
     /// assert_eq!(output.dims(), [1, 3, 128, 128]);
     /// ```
-    pub fn forward<B: Backend>(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
+    pub fn forward(&self, input: Tensor<4>) -> Tensor<4> {
         let output_size = calculate_output_size(input.dims(), self.output_size, self.scale_factor);
         interpolate(
             input,
@@ -179,8 +179,6 @@ impl ModuleDisplay for Interpolate2d {
 mod tests {
     use burn::tensor::Distribution;
 
-    use crate::TestBackend;
-
     use super::*;
 
     #[test]
@@ -220,7 +218,7 @@ mod tests {
 
     #[test]
     fn test_module() {
-        let input = Tensor::<TestBackend, 4>::random(
+        let input = Tensor::<4>::random(
             [2, 3, 4, 4],
             Distribution::Uniform(0.0, 1.0),
             &Default::default(),

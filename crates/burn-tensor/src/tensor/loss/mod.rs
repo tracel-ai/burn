@@ -1,4 +1,3 @@
-use crate::backend::Backend;
 use crate::{Tensor, activation};
 
 /// Computes the log softmax cross entropy between logits and target probabilities.
@@ -11,10 +10,10 @@ use crate::{Tensor, activation};
 /// # Returns
 ///
 /// The log softmax cross entropy.
-pub fn cross_entropy_with_logits<B: Backend, const D: usize>(
-    logits: Tensor<B, D>,
-    target_probs: Tensor<B, D>,
-) -> Tensor<B, 1> {
+pub fn cross_entropy_with_logits<const D: usize>(
+    logits: Tensor<D>,
+    target_probs: Tensor<D>,
+) -> Tensor<1> {
     let tensor = activation::log_softmax(logits, D - 1);
     let tensor = tensor.mul(target_probs);
     let tensor = tensor.sum_dim(D - 1);

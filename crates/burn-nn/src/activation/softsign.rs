@@ -2,11 +2,10 @@ use burn_core as burn;
 
 use burn::module::Module;
 use burn::tensor::Tensor;
-use burn::tensor::backend::Backend;
 
 /// Applies the softsign function element-wise
 /// See also [softsign](burn::tensor::activation::softsign)
-#[derive(Module, Clone, Debug, Default)]
+#[derive(Module, Debug, Default)]
 pub struct Softsign;
 
 impl Softsign {
@@ -20,7 +19,7 @@ impl Softsign {
     ///
     /// - input: `[..., any]`
     /// - output: `[..., any]`
-    pub fn forward<B: Backend, const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
+    pub fn forward<const D: usize>(&self, input: Tensor<D>) -> Tensor<D> {
         burn::tensor::activation::softsign(input)
     }
 }

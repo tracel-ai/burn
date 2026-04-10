@@ -1,17 +1,14 @@
 use super::*;
-use burn_tensor::BasicOps;
 use burn_tensor::Tensor;
 use burn_tensor::TensorData;
-use burn_tensor::backend::Backend;
 use burn_tensor::grid::{
     GridIndexing, GridOptions, GridSparsity, IndexPos, meshgrid, meshgrid_stack,
 };
+use burn_tensor::kind::Basic;
 
-fn assert_tensors_equal<const N: usize, B: Backend, K>(
-    actual: &[Tensor<B, N, K>; N],
-    expected: &[Tensor<B, N, K>; N],
-) where
-    K: BasicOps<B>,
+fn assert_tensors_equal<const N: usize, K>(actual: &[Tensor<N, K>; N], expected: &[Tensor<N, K>; N])
+where
+    K: Basic,
 {
     for (a, e) in actual.iter().zip(expected.iter()) {
         a.clone()
@@ -132,7 +129,7 @@ fn test_meshgrid_stack() {
         TestTensor::from([0.5, 1.0]),
     ];
 
-    let result: Tensor<_, 3> = meshgrid_stack(&tensors, IndexPos::First);
+    let result: Tensor<3> = meshgrid_stack(&tensors, IndexPos::First);
     result.to_data().assert_eq(
         &TensorData::from([
             [[0.5, 0.5], [1.0, 1.0], [2.5, 2.5]],
@@ -141,7 +138,7 @@ fn test_meshgrid_stack() {
         false,
     );
 
-    let result: Tensor<_, 3> = meshgrid_stack(&tensors, IndexPos::Last);
+    let result: Tensor<3> = meshgrid_stack(&tensors, IndexPos::Last);
     result.to_data().assert_eq(
         &TensorData::from([
             [[0.5, 0.5], [0.5, 1.0]],

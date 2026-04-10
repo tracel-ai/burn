@@ -1,7 +1,6 @@
 use super::*;
 use burn_tensor::TensorData;
 use burn_tensor::Tolerance;
-use burn_tensor::backend::Backend;
 use burn_tensor::linalg;
 
 #[test]
@@ -121,11 +120,7 @@ fn test_lp_norm() {
     let x = TestTensor::<2>::from([[1., -2., 0.], [0., 3., 4.]]);
     let tolerance = Tolerance::relative(1e-5).set_half_precision_relative(2e-3);
 
-    fn lp_norm_naive<B: Backend, const D: usize>(
-        x: Tensor<B, D>,
-        p: f64,
-        dim: usize,
-    ) -> Tensor<B, D> {
+    fn lp_norm_naive<const D: usize>(x: Tensor<D>, p: f64, dim: usize) -> Tensor<D> {
         x.abs().powf_scalar(p).sum_dim(dim).powf_scalar(1. / p)
     }
 

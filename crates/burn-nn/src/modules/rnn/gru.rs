@@ -6,8 +6,8 @@ use burn::config::Config;
 use burn::module::Initializer;
 use burn::module::Module;
 use burn::module::{Content, DisplaySettings, ModuleDisplay};
+use burn::tensor::Device;
 use burn::tensor::Tensor;
-use burn::tensor::backend::Backend;
 
 /// Configuration to create a [gru](Gru) module using the [init function](GruConfig::init).
 #[derive(Config, Debug)]
@@ -57,26 +57,26 @@ pub struct GruConfig {
 /// Should be created with [GruConfig].
 #[derive(Module, Debug)]
 #[module(custom_display)]
-pub struct Gru<B: Backend> {
+pub struct Gru {
     /// The update gate controller.
-    pub update_gate: GateController<B>,
+    pub update_gate: GateController,
     /// The reset gate controller.
-    pub reset_gate: GateController<B>,
+    pub reset_gate: GateController,
     /// The new gate controller.
-    pub new_gate: GateController<B>,
+    pub new_gate: GateController,
     /// The size of the hidden state.
     pub d_hidden: usize,
     /// If reset gate should be applied after weight multiplication.
     pub reset_after: bool,
     /// Activation function for gates (update, reset).
-    pub gate_activation: Activation<B>,
+    pub gate_activation: Activation,
     /// Activation function for new/candidate gate.
-    pub hidden_activation: Activation<B>,
+    pub hidden_activation: Activation,
     /// Optional hidden state clip threshold.
     pub clip: Option<f64>,
 }
 
-impl<B: Backend> ModuleDisplay for Gru<B> {
+impl ModuleDisplay for Gru {
     fn custom_settings(&self) -> Option<DisplaySettings> {
         DisplaySettings::new()
             .with_new_line_after_attribute(false)
@@ -98,7 +98,7 @@ impl<B: Backend> ModuleDisplay for Gru<B> {
 
 impl GruConfig {
     /// Initialize a new [gru](Gru) module.
-    pub fn init<B: Backend>(&self, device: &B::Device) -> Gru<B> {
+    pub fn init(&self, device: &Device) -> Gru {
         let d_output = self.d_hidden;
 
         let update_gate = GateController::new(
@@ -136,7 +136,7 @@ impl GruConfig {
     }
 }
 
-impl<B: Backend> Gru<B> {
+impl Gru {
     /// Applies the forward pass on the input tensor. This GRU implementation
     /// returns a state tensor with dimensions `[batch_size, sequence_length, hidden_size]`.
     ///
@@ -147,11 +147,7 @@ impl<B: Backend> Gru<B> {
     ///
     /// # Returns
     /// - output: `[batch_size, sequence_length, hidden_size]`
-    pub fn forward(
-        &self,
-        batched_input: Tensor<B, 3>,
-        state: Option<Tensor<B, 2>>,
-    ) -> Tensor<B, 3> {
+    pub fn forward(&self, batched_input: Tensor<3>, state: Option<Tensor<2>>) -> Tensor<3> {
         let device = batched_input.device();
         let [batch_size, seq_length, _] = batched_input.shape().dims();
 
@@ -179,14 +175,14 @@ impl<B: Backend> Gru<B> {
     /// # Returns
     /// - output: `[batch_size, sequence_length, hidden_size]`
     /// - final_hidden: Final hidden state `[batch_size, hidden_size]`
-    pub(crate) fn forward_iter<I: Iterator<Item = (Tensor<B, 3>, usize)>>(
+    pub(crate) fn forward_iter<I: Iterator<Item = (Tensor<3>, usize)>>(
         &self,
         input_timestep_iter: I,
-        state: Option<Tensor<B, 2>>,
+        state: Option<Tensor<2>>,
         batch_size: usize,
         seq_length: usize,
-        device: &B::Device,
-    ) -> (Tensor<B, 3>, Tensor<B, 2>) {
+        device: &Device,
+    ) -> (Tensor<3>, Tensor<2>) {
         let mut batched_hidden_state =
             Tensor::empty([batch_size, seq_length, self.d_hidden], device);
 
@@ -250,11 +246,11 @@ impl<B: Backend> Gru<B> {
     ///     r = reset state
     fn gate_product(
         &self,
-        input: &Tensor<B, 2>,
-        hidden: &Tensor<B, 2>,
-        reset: Option<&Tensor<B, 2>>,
-        gate: &GateController<B>,
-    ) -> Tensor<B, 2> {
+        input: &Tensor<2>,
+        hidden: &Tensor<2>,
+        reset: Option<&Tensor<2>>,
+        gate: &GateController,
+    ) -> Tensor<2> {
         let input_product = input.clone().matmul(gate.input_transform.weight.val());
         let hidden_product = hidden.clone().matmul(gate.hidden_transform.weight.val());
 
@@ -311,11 +307,11 @@ pub struct BiGruConfig {
 /// Should be created with [BiGruConfig].
 #[derive(Module, Debug)]
 #[module(custom_display)]
-pub struct BiGru<B: Backend> {
+pub struct BiGru {
     /// GRU for the forward direction.
-    pub forward: Gru<B>,
+    pub forward: Gru,
     /// GRU for the reverse direction.
-    pub reverse: Gru<B>,
+    pub reverse: Gru,
     /// The size of the hidden state.
     pub d_hidden: usize,
     /// If true, input is `[batch_size, seq_length, input_size]`.
@@ -323,7 +319,7 @@ pub struct BiGru<B: Backend> {
     pub batch_first: bool,
 }
 
-impl<B: Backend> ModuleDisplay for BiGru<B> {
+impl ModuleDisplay for BiGru {
     fn custom_settings(&self) -> Option<DisplaySettings> {
         DisplaySettings::new()
             .with_new_line_after_attribute(false)
@@ -350,7 +346,7 @@ impl<B: Backend> ModuleDisplay for BiGru<B> {
 
 impl BiGruConfig {
     /// Initialize a new [Bidirectional GRU](BiGru) module.
-    pub fn init<B: Backend>(&self, device: &B::Device) -> BiGru<B> {
+    pub fn init(&self, device: &Device) -> BiGru {
         // Internal GRUs always use batch_first=true; BiGru handles layout conversion
         let base_config = GruConfig::new(self.d_input, self.d_hidden, self.bias)
             .with_initializer(self.initializer.clone())
@@ -368,7 +364,7 @@ impl BiGruConfig {
     }
 }
 
-impl<B: Backend> BiGru<B> {
+impl BiGru {
     /// Applies the forward pass on the input tensor. This Bidirectional GRU implementation
     /// returns the state for each element in a sequence (i.e., across seq_length) and a final state.
     ///
@@ -387,9 +383,9 @@ impl<B: Backend> BiGru<B> {
     ///   with shape `[2, batch_size, hidden_size]`.
     pub fn forward(
         &self,
-        batched_input: Tensor<B, 3>,
-        state: Option<Tensor<B, 3>>,
-    ) -> (Tensor<B, 3>, Tensor<B, 3>) {
+        batched_input: Tensor<3>,
+        state: Option<Tensor<3>>,
+    ) -> (Tensor<3>, Tensor<3>) {
         // Convert to batch-first layout internally if needed
         let batched_input = if self.batch_first {
             batched_input
@@ -454,23 +450,23 @@ impl<B: Backend> BiGru<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{LinearRecord, TestBackend};
+    use crate::LinearRecord;
     use burn::module::Param;
+    use burn::tensor::Tolerance;
     use burn::tensor::{Distribution, TensorData};
-    use burn::tensor::{Tolerance, ops::FloatElem};
 
-    type FT = FloatElem<TestBackend>;
+    type FT = f32;
 
-    fn init_gru<B: Backend>(reset_after: bool, device: &B::Device) -> Gru<B> {
-        fn create_gate_controller<B: Backend>(
+    fn init_gru(reset_after: bool, device: &Device) -> Gru {
+        fn create_gate_controller(
             weights: f32,
             biases: f32,
             d_input: usize,
             d_output: usize,
             bias: bool,
             initializer: Initializer,
-            device: &B::Device,
-        ) -> GateController<B> {
+            device: &Device,
+        ) -> GateController {
             let record_1 = LinearRecord {
                 weight: Param::from_data(TensorData::from([[weights]]), device),
                 bias: Some(Param::from_data(TensorData::from([biases]), device)),
@@ -490,7 +486,7 @@ mod tests {
         }
 
         let config = GruConfig::new(1, 1, false).with_reset_after(reset_after);
-        let mut gru = config.init::<B>(device);
+        let mut gru = config.init(device);
 
         gru.update_gate = create_gate_controller(
             0.5,
@@ -531,12 +527,12 @@ mod tests {
     /// h_t = z_t * h' + (1 - z_t) * g_t = 0.0341
     #[test]
     fn tests_forward_single_input_single_feature() {
-        let device = Default::default();
-        TestBackend::seed(&device, 0);
+        let device = Device::default();
+        device.seed(0);
 
-        let mut gru = init_gru::<TestBackend>(false, &device);
+        let mut gru = init_gru(false, &device);
 
-        let input = Tensor::<TestBackend, 3>::from_data(TensorData::from([[[0.1]]]), &device);
+        let input = Tensor::<3>::from_data(TensorData::from([[[0.1]]]), &device);
         let expected = TensorData::from([[0.034]]);
 
         // Reset gate applied to hidden state before the matrix multiplication
@@ -566,12 +562,11 @@ mod tests {
 
     #[test]
     fn tests_forward_seq_len_3() {
-        let device = Default::default();
-        TestBackend::seed(&device, 0);
-        let mut gru = init_gru::<TestBackend>(true, &device);
+        let device = Device::default();
+        device.seed(0);
+        let mut gru = init_gru(true, &device);
 
-        let input =
-            Tensor::<TestBackend, 3>::from_data(TensorData::from([[[0.1], [0.2], [0.3]]]), &device);
+        let input = Tensor::<3>::from_data(TensorData::from([[[0.1], [0.2], [0.3]]]), &device);
         let expected = TensorData::from([[0.0341], [0.0894], [0.1575]]);
 
         let result = gru.forward(input.clone(), None);
@@ -600,9 +595,8 @@ mod tests {
     #[test]
     fn test_batched_forward_pass() {
         let device = Default::default();
-        let gru = GruConfig::new(64, 1024, true).init::<TestBackend>(&device);
-        let batched_input =
-            Tensor::<TestBackend, 3>::random([8, 10, 64], Distribution::Default, &device);
+        let gru = GruConfig::new(64, 1024, true).init(&device);
+        let batched_input = Tensor::<3>::random([8, 10, 64], Distribution::Default, &device);
 
         let hidden_state = gru.forward(batched_input, None);
 
@@ -613,7 +607,7 @@ mod tests {
     fn display() {
         let config = GruConfig::new(2, 8, true);
 
-        let layer = config.init::<TestBackend>(&Default::default());
+        let layer = config.init(&Default::default());
 
         assert_eq!(
             alloc::format!("{layer}"),
@@ -624,9 +618,8 @@ mod tests {
     #[test]
     fn test_bigru_batched_forward_pass() {
         let device = Default::default();
-        let bigru = BiGruConfig::new(64, 1024, true).init::<TestBackend>(&device);
-        let batched_input =
-            Tensor::<TestBackend, 3>::random([8, 10, 64], Distribution::Default, &device);
+        let bigru = BiGruConfig::new(64, 1024, true).init(&device);
+        let batched_input = Tensor::<3>::random([8, 10, 64], Distribution::Default, &device);
 
         let (output, state) = bigru.forward(batched_input, None);
 
@@ -639,11 +632,9 @@ mod tests {
     #[test]
     fn test_bigru_with_initial_state() {
         let device = Default::default();
-        let bigru = BiGruConfig::new(32, 64, true).init::<TestBackend>(&device);
-        let batched_input =
-            Tensor::<TestBackend, 3>::random([4, 5, 32], Distribution::Default, &device);
-        let initial_state =
-            Tensor::<TestBackend, 3>::random([2, 4, 64], Distribution::Default, &device);
+        let bigru = BiGruConfig::new(32, 64, true).init(&device);
+        let batched_input = Tensor::<3>::random([4, 5, 32], Distribution::Default, &device);
+        let initial_state = Tensor::<3>::random([2, 4, 64], Distribution::Default, &device);
 
         let (output, state) = bigru.forward(batched_input, Some(initial_state));
 
@@ -656,10 +647,9 @@ mod tests {
         let device = Default::default();
         let bigru = BiGruConfig::new(32, 64, true)
             .with_batch_first(false)
-            .init::<TestBackend>(&device);
+            .init(&device);
         // Input shape: [seq_length, batch_size, input_size] when batch_first=false
-        let batched_input =
-            Tensor::<TestBackend, 3>::random([5, 4, 32], Distribution::Default, &device);
+        let batched_input = Tensor::<3>::random([5, 4, 32], Distribution::Default, &device);
 
         let (output, state) = bigru.forward(batched_input, None);
 
@@ -672,21 +662,19 @@ mod tests {
     /// Expected values computed with PyTorch nn.GRU(bidirectional=True).
     #[test]
     fn test_bigru_against_pytorch() {
-        use burn::tensor::Device;
-
-        let device = Default::default();
-        TestBackend::seed(&device, 0);
+        let device = Device::default();
+        device.seed(0);
 
         let config = BiGruConfig::new(2, 3, true);
-        let mut bigru = config.init::<TestBackend>(&device);
+        let mut bigru = config.init(&device);
 
         fn create_gate_controller<const D1: usize, const D2: usize>(
             input_weights: [[f32; D1]; D2],
             input_biases: [f32; D1],
             hidden_weights: [[f32; D1]; D1],
             hidden_biases: [f32; D1],
-            device: &Device<TestBackend>,
-        ) -> GateController<TestBackend> {
+            device: &Device,
+        ) -> GateController {
             let d_input = input_weights[0].len();
             let d_output = input_weights.len();
 
@@ -708,7 +696,7 @@ mod tests {
             )
         }
 
-        let input = Tensor::<TestBackend, 3>::from_data(
+        let input = Tensor::<3>::from_data(
             TensorData::from([[
                 [0.949, -0.861],
                 [0.892, 0.927],
@@ -717,7 +705,7 @@ mod tests {
             ]]),
             &device,
         );
-        let h0 = Tensor::<TestBackend, 3>::from_data(
+        let h0 = Tensor::<3>::from_data(
             TensorData::from([[[0.280, 0.360, -1.242]], [[-0.588, 0.729, -0.788]]]),
             &device,
         );
@@ -843,7 +831,7 @@ mod tests {
     fn bigru_display() {
         let config = BiGruConfig::new(2, 8, true);
 
-        let layer = config.init::<TestBackend>(&Default::default());
+        let layer = config.init(&Default::default());
 
         assert_eq!(
             alloc::format!("{layer}"),
@@ -859,9 +847,9 @@ mod tests {
         let config = GruConfig::new(4, 8, true)
             .with_gate_activation(ActivationConfig::Relu)
             .with_hidden_activation(ActivationConfig::Relu);
-        let gru = config.init::<TestBackend>(&device);
+        let gru = config.init(&device);
 
-        let input = Tensor::<TestBackend, 3>::random([2, 3, 4], Distribution::Default, &device);
+        let input = Tensor::<3>::random([2, 3, 4], Distribution::Default, &device);
 
         // Should run without panicking and produce valid output
         let output = gru.forward(input, None);
@@ -876,9 +864,9 @@ mod tests {
         let config = BiGruConfig::new(4, 8, true)
             .with_gate_activation(ActivationConfig::Relu)
             .with_hidden_activation(ActivationConfig::Relu);
-        let bigru = config.init::<TestBackend>(&device);
+        let bigru = config.init(&device);
 
-        let input = Tensor::<TestBackend, 3>::random([2, 3, 4], Distribution::Default, &device);
+        let input = Tensor::<3>::random([2, 3, 4], Distribution::Default, &device);
 
         let (output, state) = bigru.forward(input, None);
         assert_eq!(&*output.shape(), [2, 3, 16]); // hidden_size * 2
@@ -892,9 +880,9 @@ mod tests {
         // Create GRU with clipping enabled
         let clip_value = 0.5;
         let config = GruConfig::new(4, 8, true).with_clip(Some(clip_value));
-        let gru = config.init::<TestBackend>(&device);
+        let gru = config.init(&device);
 
-        let input = Tensor::<TestBackend, 3>::random([2, 5, 4], Distribution::Default, &device);
+        let input = Tensor::<3>::random([2, 5, 4], Distribution::Default, &device);
 
         let output = gru.forward(input, None);
 
@@ -918,9 +906,9 @@ mod tests {
         // Create BiGRU with clipping enabled
         let clip_value = 0.3;
         let config = BiGruConfig::new(4, 8, true).with_clip(Some(clip_value));
-        let bigru = config.init::<TestBackend>(&device);
+        let bigru = config.init(&device);
 
-        let input = Tensor::<TestBackend, 3>::random([2, 5, 4], Distribution::Default, &device);
+        let input = Tensor::<3>::random([2, 5, 4], Distribution::Default, &device);
 
         let (output, state) = bigru.forward(input, None);
 
@@ -953,21 +941,19 @@ mod tests {
     /// Expected values computed with PyTorch nn.GRU (seed=42 for weights, seed=123 for input).
     #[test]
     fn test_gru_against_pytorch() {
-        use burn::tensor::Device;
-
-        let device = Default::default();
-        TestBackend::seed(&device, 0);
+        let device = Device::default();
+        device.seed(0);
 
         let config = GruConfig::new(2, 3, true);
-        let mut gru = config.init::<TestBackend>(&device);
+        let mut gru = config.init(&device);
 
         fn create_gate_controller<const D1: usize, const D2: usize>(
             input_weights: [[f32; D1]; D2],
             input_biases: [f32; D1],
             hidden_weights: [[f32; D1]; D1],
             hidden_biases: [f32; D1],
-            device: &Device<TestBackend>,
-        ) -> GateController<TestBackend> {
+            device: &Device,
+        ) -> GateController {
             let d_input = input_weights[0].len();
             let d_output = input_weights.len();
 
@@ -990,7 +976,7 @@ mod tests {
         }
 
         // Input: [batch=1, seq=4, input=2]
-        let input = Tensor::<TestBackend, 3>::from_data(
+        let input = Tensor::<3>::from_data(
             TensorData::from([[
                 [-0.11147, 0.12036],
                 [-0.36963, -0.24042],
@@ -1001,10 +987,7 @@ mod tests {
         );
 
         // Initial hidden state: [batch=1, hidden=3]
-        let h0 = Tensor::<TestBackend, 2>::from_data(
-            TensorData::from([[0.3239, -0.10852, 0.21033]]),
-            &device,
-        );
+        let h0 = Tensor::<2>::from_data(TensorData::from([[0.3239, -0.10852, 0.21033]]), &device);
 
         // Update gate (z) - weights from PyTorch, transposed for Burn's Row layout
         gru.update_gate = create_gate_controller(

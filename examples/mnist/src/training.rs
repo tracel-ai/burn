@@ -20,7 +20,6 @@ use burn::{
     },
     prelude::*,
     record::{CompactRecorder, NoStdTrainingRecorder},
-    tensor::backend::AutodiffBackend,
     train::{
         EvaluatorBuilder, Learner, MetricEarlyStoppingStrategy, StoppingCondition,
         metric::{
@@ -57,7 +56,7 @@ fn create_artifact_dir(artifact_dir: &str) {
     std::fs::create_dir_all(artifact_dir).ok();
 }
 
-pub fn run<B: AutodiffBackend>(device: B::Device) {
+pub fn run(device: Device) {
     create_artifact_dir(ARTIFACT_DIR);
     // Config
     let config_optimizer = AdamWConfig::new()
@@ -65,9 +64,11 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         .with_weight_decay(5e-5);
 
     let config = MnistTrainingConfig::new(config_optimizer);
-    B::seed(&device, config.seed);
 
-    let model = Model::<B>::new(&device);
+    device.seed(config.seed);
+    let autodiff_device = device.clone().autodiff();
+
+    let model = Model::new(&autodiff_device);
 
     let dataset_train_original = Arc::new(MnistDataset::train());
     let dataset_train_plain = PartialDataset::new(dataset_train_original.clone(), 0, 55_000);
@@ -99,7 +100,7 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         .metric_train_numeric(LearningRateMetric::new())
         .with_file_checkpointer(CompactRecorder::new())
         .early_stopping(MetricEarlyStoppingStrategy::new(
-            &LossMetric::<B>::new(),
+            &LossMetric::new(),
             Aggregate::Mean,
             Direction::Lowest,
             Split::Valid,
@@ -108,6 +109,20 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         .num_epochs(config.num_epochs)
         .summary();
 
+    let now = std::time::Instant::now();
+    {
+        let _result = training.launch(Learner::new(
+            model,
+            config.optimizer.init(),
+            lr_scheduler.init().unwrap(),
+        ));
+    }
+
+    let elapsed = now.elapsed().as_secs();
+    println!("Training completed in {}m{}s", (elapsed / 60), elapsed % 60);
+    println!("Executed on device: {autodiff_device:?}");
+
+    /*
     let result = training.launch(Learner::new(
         model,
         config.optimizer.init(),
@@ -121,7 +136,7 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
 
     for (ident, _) in idents_tests {
         let name = ident.to_string();
-        renderer = evaluate::<B::InnerBackend>(
+        renderer = evaluate(
             name.as_str(),
             ident,
             result.model.clone(),
@@ -144,12 +159,13 @@ pub fn run<B: AutodiffBackend>(device: B::Device) {
         .unwrap();
 
     renderer.manual_close();
+    */
 }
 
-fn evaluate<B: Backend>(
+fn evaluate(
     name: &str,
     ident: DatasetIdent,
-    model: Model<B>,
+    model: Model,
     renderer: Box<dyn MetricsRenderer>,
     dataset: impl Dataset<MnistItem> + 'static,
     batch_size: usize,

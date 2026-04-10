@@ -7,7 +7,7 @@
 use crate::Message;
 use crate::base::Protocol;
 use crate::base::{Address, CommunicationChannel, ProtocolClient, ProtocolServer};
-use burn_tensor::{TensorData, backend::Backend};
+use burn_backend::{TensorData, backend::Backend};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, marker::PhantomData, sync::Arc};
 use tokio::sync::Mutex;

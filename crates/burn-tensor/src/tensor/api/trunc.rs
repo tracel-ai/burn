@@ -1,9 +1,9 @@
-use crate::{Float, Tensor, TensorPrimitive, backend::Backend};
+use burn_backend::ops::FloatTensorOps;
+use burn_dispatch::Dispatch;
 
-impl<B, const D: usize> Tensor<B, D, Float>
-where
-    B: Backend,
-{
+use crate::{Float, Tensor, TensorPrimitive};
+
+impl<const D: usize> Tensor<D, Float> {
     /// Truncates the tensor element-wise, rounding toward zero.
     ///
     /// This function returns a new tensor with the same shape as the input tensor,
@@ -35,7 +35,7 @@ where
     /// }
     /// ```
     pub fn trunc(self) -> Self {
-        Self::new(TensorPrimitive::Float(B::float_trunc(
+        Self::new(TensorPrimitive::Float(Dispatch::float_trunc(
             self.primitive.tensor(),
         )))
     }

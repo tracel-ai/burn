@@ -1,4 +1,4 @@
-use alloc::boxed::Box;
+use crate::backends::*;
 
 use burn_backend::{
     Backend, DType, QTensorPrimitive, Shape, TensorMetadata, quantization::QuantScheme,
@@ -6,8 +6,8 @@ use burn_backend::{
 
 #[cfg(feature = "autodiff")]
 use crate::CheckpointingStrategy;
-use crate::backends::*;
-
+#[cfg(feature = "autodiff")]
+use alloc::boxed::Box;
 #[cfg(feature = "autodiff")]
 use burn_backend::tensor::FloatTensor;
 
@@ -173,8 +173,11 @@ pub struct DispatchTensor {
     /// Tensor kind primitive.
     pub(crate) kind: DispatchTensorKind,
     // Technically more of a device property, but device is not a dispatch tensor field.
+    /// Holds the autodiff checkpointing strategy.
+    /// - `None`: tensor is not tracked by autodiff
+    /// - `Some(strategy)`: tensor is tracked by autodiff, and uses the checkpointing `strategy`
     #[cfg(feature = "autodiff")]
-    pub(crate) checkpointing: CheckpointingStrategy,
+    pub(crate) checkpointing: Option<CheckpointingStrategy>,
 }
 
 /// Internal representation of a [`DispatchTensor`].

@@ -2,7 +2,7 @@ use burn_core as burn;
 
 use crate::optim::SimpleOptimizer;
 use burn::record::{PrecisionSettings, Record};
-use burn::tensor::backend::Backend;
+use burn::tensor::Device;
 use core::any::Any;
 use serde::{Deserialize, Serialize};
 
@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use alloc::boxed::Box;
 
 /// [Optimizer adaptor](crate::optim::simple::adaptor::OptimizerAdaptor) record item.
-pub enum AdaptorRecordV1<O: SimpleOptimizer<B>, B: Backend> {
+pub enum AdaptorRecordV1<O: SimpleOptimizer> {
     /// Rank 0.
     Rank0(O::State<0>),
 
@@ -39,7 +39,7 @@ pub enum AdaptorRecordV1<O: SimpleOptimizer<B>, B: Backend> {
     Rank8(O::State<8>),
 }
 
-impl<O: SimpleOptimizer<B>, B: Backend> Clone for AdaptorRecordV1<O, B> {
+impl<O: SimpleOptimizer> Clone for AdaptorRecordV1<O> {
     fn clone(&self) -> Self {
         match self {
             AdaptorRecordV1::Rank0(record) => AdaptorRecordV1::Rank0(record.clone()),
@@ -58,39 +58,38 @@ impl<O: SimpleOptimizer<B>, B: Backend> Clone for AdaptorRecordV1<O, B> {
 /// [Optimizer adaptor](crate::optim::simple::adaptor::OptimizerAdaptor) record item.
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(bound = "")]
-pub enum AdaptorRecordItemV1<O: SimpleOptimizer<B>, B: Backend, S: PrecisionSettings> {
+pub enum AdaptorRecordItemV1<O: SimpleOptimizer, S: PrecisionSettings> {
     /// Rank 0.
-    Rank0(<O::State<0> as Record<B>>::Item<S>),
+    Rank0(<O::State<0> as Record>::Item<S>),
 
     /// Rank 1.
-    Rank1(<O::State<1> as Record<B>>::Item<S>),
+    Rank1(<O::State<1> as Record>::Item<S>),
 
     /// Rank 2.
-    Rank2(<O::State<2> as Record<B>>::Item<S>),
+    Rank2(<O::State<2> as Record>::Item<S>),
 
     /// Rank 3.
-    Rank3(<O::State<3> as Record<B>>::Item<S>),
+    Rank3(<O::State<3> as Record>::Item<S>),
 
     /// Rank 4.
-    Rank4(<O::State<4> as Record<B>>::Item<S>),
+    Rank4(<O::State<4> as Record>::Item<S>),
 
     /// Rank 5.
-    Rank5(<O::State<5> as Record<B>>::Item<S>),
+    Rank5(<O::State<5> as Record>::Item<S>),
 
     /// Rank 6.
-    Rank6(<O::State<6> as Record<B>>::Item<S>),
+    Rank6(<O::State<6> as Record>::Item<S>),
 
     /// Rank 7.
-    Rank7(<O::State<7> as Record<B>>::Item<S>),
+    Rank7(<O::State<7> as Record>::Item<S>),
 
     /// Rank 8.
-    Rank8(<O::State<8> as Record<B>>::Item<S>),
+    Rank8(<O::State<8> as Record>::Item<S>),
 }
 
-impl<O, B> AdaptorRecordV1<O, B>
+impl<O> AdaptorRecordV1<O>
 where
-    O: SimpleOptimizer<B>,
-    B: Backend,
+    O: SimpleOptimizer,
 {
     /// Convert the record into the state.
     ///
@@ -146,12 +145,11 @@ where
     }
 }
 
-impl<O, B> Record<B> for AdaptorRecordV1<O, B>
+impl<O> Record for AdaptorRecordV1<O>
 where
-    O: SimpleOptimizer<B>,
-    B: Backend,
+    O: SimpleOptimizer,
 {
-    type Item<S: PrecisionSettings> = AdaptorRecordItemV1<O, B, S>;
+    type Item<S: PrecisionSettings> = AdaptorRecordItemV1<O, S>;
 
     fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
         match self {
@@ -167,34 +165,34 @@ where
         }
     }
 
-    fn from_item<S: PrecisionSettings>(item: Self::Item<S>, device: &B::Device) -> Self {
+    fn from_item<S: PrecisionSettings>(item: Self::Item<S>, device: &Device) -> Self {
         match item {
             AdaptorRecordItemV1::Rank0(item) => {
-                AdaptorRecordV1::Rank0(<O::State<0> as Record<B>>::from_item(item, device))
+                AdaptorRecordV1::Rank0(<O::State<0> as Record>::from_item(item, device))
             }
             AdaptorRecordItemV1::Rank1(item) => {
-                AdaptorRecordV1::Rank1(<O::State<1> as Record<B>>::from_item(item, device))
+                AdaptorRecordV1::Rank1(<O::State<1> as Record>::from_item(item, device))
             }
             AdaptorRecordItemV1::Rank2(item) => {
-                AdaptorRecordV1::Rank2(<O::State<2> as Record<B>>::from_item(item, device))
+                AdaptorRecordV1::Rank2(<O::State<2> as Record>::from_item(item, device))
             }
             AdaptorRecordItemV1::Rank3(item) => {
-                AdaptorRecordV1::Rank3(<O::State<3> as Record<B>>::from_item(item, device))
+                AdaptorRecordV1::Rank3(<O::State<3> as Record>::from_item(item, device))
             }
             AdaptorRecordItemV1::Rank4(item) => {
-                AdaptorRecordV1::Rank4(<O::State<4> as Record<B>>::from_item(item, device))
+                AdaptorRecordV1::Rank4(<O::State<4> as Record>::from_item(item, device))
             }
             AdaptorRecordItemV1::Rank5(item) => {
-                AdaptorRecordV1::Rank5(<O::State<5> as Record<B>>::from_item(item, device))
+                AdaptorRecordV1::Rank5(<O::State<5> as Record>::from_item(item, device))
             }
             AdaptorRecordItemV1::Rank6(item) => {
-                AdaptorRecordV1::Rank6(<O::State<6> as Record<B>>::from_item(item, device))
+                AdaptorRecordV1::Rank6(<O::State<6> as Record>::from_item(item, device))
             }
             AdaptorRecordItemV1::Rank7(item) => {
-                AdaptorRecordV1::Rank7(<O::State<7> as Record<B>>::from_item(item, device))
+                AdaptorRecordV1::Rank7(<O::State<7> as Record>::from_item(item, device))
             }
             AdaptorRecordItemV1::Rank8(item) => {
-                AdaptorRecordV1::Rank8(<O::State<8> as Record<B>>::from_item(item, device))
+                AdaptorRecordV1::Rank8(<O::State<8> as Record>::from_item(item, device))
             }
         }
     }

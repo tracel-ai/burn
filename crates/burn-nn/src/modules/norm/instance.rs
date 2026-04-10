@@ -5,7 +5,7 @@ use burn::config::Config;
 use burn::module::Initializer;
 use burn::module::{Content, DisplaySettings, ModuleDisplay};
 use burn::module::{Module, Param};
-use burn::tensor::{Tensor, backend::Backend};
+use burn::tensor::{Device, Tensor};
 
 /// Configuration to create a [InstanceNorm](InstanceNorm) layer using the [init function](InstanceNormConfig::init).
 #[derive(Debug, Config)]
@@ -27,11 +27,11 @@ pub struct InstanceNormConfig {
 /// Should be created using [InstanceNormConfig](InstanceNormConfig).
 #[derive(Module, Debug)]
 #[module(custom_display)]
-pub struct InstanceNorm<B: Backend> {
+pub struct InstanceNorm {
     /// The learnable weight
-    pub gamma: Option<Param<Tensor<B, 1>>>,
+    pub gamma: Option<Param<Tensor<1>>>,
     /// The learnable bias
-    pub beta: Option<Param<Tensor<B, 1>>>,
+    pub beta: Option<Param<Tensor<1>>>,
     /// The number of channels expected in the input
     pub num_channels: usize,
     /// A value required for numerical stability
@@ -40,7 +40,7 @@ pub struct InstanceNorm<B: Backend> {
     pub affine: bool,
 }
 
-impl<B: Backend> ModuleDisplay for InstanceNorm<B> {
+impl ModuleDisplay for InstanceNorm {
     fn custom_settings(&self) -> Option<DisplaySettings> {
         DisplaySettings::new()
             .with_new_line_after_attribute(false)
@@ -58,7 +58,7 @@ impl<B: Backend> ModuleDisplay for InstanceNorm<B> {
 
 impl InstanceNormConfig {
     /// Initialize a new [instance norm](InstanceNorm) module.
-    pub fn init<B: Backend>(&self, device: &B::Device) -> InstanceNorm<B> {
+    pub fn init(&self, device: &Device) -> InstanceNorm {
         let (gamma, beta) = if self.affine {
             let gamma = Initializer::Ones.init([self.num_channels], device);
             let beta = Initializer::Zeros.init([self.num_channels], device);
@@ -78,7 +78,7 @@ impl InstanceNormConfig {
     }
 }
 
-impl<B: Backend> InstanceNorm<B> {
+impl InstanceNorm {
     /// Applies the forward pass on the input tensor.
     ///
     /// See also [InstanceNormConfig](InstanceNormConfig) for more information.
@@ -87,7 +87,7 @@ impl<B: Backend> InstanceNorm<B> {
     ///
     /// - input: `[batch_size, num_channels, *]`
     /// - output: `[batch_size, num_channels, *]`
-    pub fn forward<const D: usize>(&self, input: Tensor<B, D>) -> Tensor<B, D> {
+    pub fn forward<const D: usize>(&self, input: Tensor<D>) -> Tensor<D> {
         // Instance norm is equivalent to group norm when the number of groups is equal to the number of channels.
         let num_groups = self.num_channels;
 
@@ -101,20 +101,17 @@ impl<B: Backend> InstanceNorm<B> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::TestBackend;
     use alloc::format;
     use burn::tensor::TensorData;
-    use burn::tensor::{Tolerance, ops::FloatElem};
-    type FT = FloatElem<TestBackend>;
+    use burn::tensor::Tolerance;
+    type FT = f32;
 
     #[test]
     fn instance_norm_forward_affine_false() {
         let device = Default::default();
-        let module = InstanceNormConfig::new(6)
-            .with_affine(false)
-            .init::<TestBackend>(&device);
+        let module = InstanceNormConfig::new(6).with_affine(false).init(&device);
 
-        let input = Tensor::<TestBackend, 3>::from_data(
+        let input = Tensor::<3>::from_data(
             TensorData::from([
                 [
                     [-0.3034, 0.2726, -0.9659],
@@ -164,11 +161,9 @@ mod tests {
     #[test]
     fn instance_norm_forward_affine_true() {
         let device = Default::default();
-        let module = InstanceNormConfig::new(6)
-            .with_affine(true)
-            .init::<TestBackend>(&device);
+        let module = InstanceNormConfig::new(6).with_affine(true).init(&device);
 
-        let input = Tensor::<TestBackend, 3>::from_data(
+        let input = Tensor::<3>::from_data(
             TensorData::from([
                 [
                     [0.3345, 0.4429, 0.6639],
@@ -218,7 +213,7 @@ mod tests {
     #[test]
     fn display() {
         let config = InstanceNormConfig::new(6);
-        let instance_norm = config.init::<TestBackend>(&Default::default());
+        let instance_norm = config.init(&Default::default());
 
         assert_eq!(
             format!("{instance_norm}"),

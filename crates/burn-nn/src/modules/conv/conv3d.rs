@@ -6,8 +6,8 @@ use crate::PaddingConfig3d;
 use burn::config::Config;
 use burn::module::Initializer;
 use burn::module::{Content, DisplaySettings, Module, ModuleDisplay, Param};
+use burn::tensor::Device;
 use burn::tensor::Tensor;
-use burn::tensor::backend::Backend;
 use burn::tensor::module::conv3d;
 use burn::tensor::ops::ConvOptions;
 
@@ -47,11 +47,11 @@ pub struct Conv3dConfig {
 /// Should be created with [Conv3dConfig].
 #[derive(Module, Debug)]
 #[module(custom_display)]
-pub struct Conv3d<B: Backend> {
+pub struct Conv3d {
     /// Tensor of shape `[channels_out, channels_in / groups, kernel_size_1, kernel_size_2, kernel_size_3]`
-    pub weight: Param<Tensor<B, 5>>,
+    pub weight: Param<Tensor<5>>,
     /// Tensor of shape `[channels_out]`
-    pub bias: Option<Param<Tensor<B, 1>>>,
+    pub bias: Option<Param<Tensor<1>>>,
     /// Stride of the convolution.
     pub stride: [usize; 3],
     /// Size of the kernel.
@@ -61,12 +61,13 @@ pub struct Conv3d<B: Backend> {
     /// Controls the connections between input and output channels.
     pub groups: usize,
     /// The padding configuration.
+    #[module(skip)]
     pub padding: PaddingConfig3d,
 }
 
 impl Conv3dConfig {
     /// Initialize a new [conv3d](Conv3d) module.
-    pub fn init<B: Backend>(&self, device: &B::Device) -> Conv3d<B> {
+    pub fn init(&self, device: &Device) -> Conv3d {
         checks::checks_channels_div_groups(self.channels[0], self.channels[1], self.groups);
         if self.padding == PaddingConfig3d::Same {
             checks::check_same_padding_support(&self.kernel_size);
@@ -110,7 +111,7 @@ impl Conv3dConfig {
     }
 }
 
-impl<B: Backend> ModuleDisplay for Conv3d<B> {
+impl ModuleDisplay for Conv3d {
     fn custom_settings(&self) -> Option<DisplaySettings> {
         DisplaySettings::new()
             .with_new_line_after_attribute(false)
@@ -141,7 +142,7 @@ impl<B: Backend> ModuleDisplay for Conv3d<B> {
     }
 }
 
-impl<B: Backend> Conv3d<B> {
+impl Conv3d {
     /// Applies the forward pass on the input tensor.
     ///
     /// See [conv3d](burn::tensor::module::conv3d) for more information.
@@ -150,7 +151,7 @@ impl<B: Backend> Conv3d<B> {
     ///
     /// - input: `[batch_size, channels_in, depth_in, height_in, width_in]`
     /// - output: `[batch_size, channels_out, depth_out, height_out, width_out]`
-    pub fn forward(&self, input: Tensor<B, 5>) -> Tensor<B, 5> {
+    pub fn forward(&self, input: Tensor<5>) -> Tensor<5> {
         let [_batch_size, _channels_in, depth_in, height_in, width_in] = input.dims();
         let padding = self.padding.calculate_padding_3d(
             depth_in,
@@ -170,17 +171,16 @@ impl<B: Backend> Conv3d<B> {
 
 #[cfg(test)]
 mod tests {
-    use burn::tensor::{ElementConversion, Tolerance, ops::FloatElem};
-    type FT = FloatElem<TestBackend>;
+    use burn::tensor::{ElementConversion, Tolerance};
+    type FT = f32;
 
     use super::*;
-    use crate::TestBackend;
     use burn::tensor::TensorData;
 
     #[test]
     fn initializer_default() {
-        let device = Default::default();
-        TestBackend::seed(&device, 0);
+        let device = Device::default();
+        device.seed(0);
 
         let config = Conv3dConfig::new([5, 1], [5, 5, 5]);
         let k = (config.channels[0]
@@ -188,19 +188,18 @@ mod tests {
             * config.kernel_size[1]
             * config.kernel_size[2]) as f64;
         let k = (config.groups as f64 / k).sqrt().elem::<FT>();
-        let conv = config.init::<TestBackend>(&device);
+        let conv = config.init(&device);
 
         conv.weight.to_data().assert_within_range(-k..k);
     }
 
     #[test]
     fn initializer_zeros() {
-        let device = Default::default();
-        TestBackend::seed(&device, 0);
+        let device = Device::default();
+        device.seed(0);
 
         let config = Conv3dConfig::new([5, 2], [5, 5, 5]).with_initializer(Initializer::Zeros);
-        let device = Default::default();
-        let conv = config.init::<TestBackend>(&device);
+        let conv = config.init(&device);
 
         assert_eq!(config.initializer, Initializer::Zeros);
         conv.weight.to_data().assert_approx_eq::<FT>(
@@ -211,23 +210,23 @@ mod tests {
 
     #[test]
     fn initializer_fan_out() {
-        let device = Default::default();
-        TestBackend::seed(&device, 0);
+        let device = Device::default();
+        device.seed(0);
 
         let init = Initializer::KaimingUniform {
             gain: 1.0 / 3.0f64.sqrt(),
             fan_out_only: true, // test that fan_out is passed to `init_with()`
         };
         let config = Conv3dConfig::new([5, 1], [5, 5, 5]).with_initializer(init.clone());
-        let _ = config.init::<TestBackend>(&device);
+        let _ = config.init(&device);
 
         assert_eq!(config.initializer, init);
     }
 
     #[test]
     fn initializer_fan_with_groups_is_valid() {
-        let device = Default::default();
-        TestBackend::seed(&device, 0);
+        let device = Device::default();
+        device.seed(0);
 
         let init = Initializer::KaimingUniform {
             gain: 1.0 / 3.0f64.sqrt(),
@@ -237,7 +236,7 @@ mod tests {
         let config = Conv3dConfig::new([4, 4], [1, 1, 1])
             .with_initializer(init.clone())
             .with_groups(4);
-        let _ = config.init::<TestBackend>(&device);
+        let _ = config.init(&device);
 
         assert_eq!(config.initializer, init);
     }
@@ -247,13 +246,13 @@ mod tests {
     fn same_with_even_kernel_is_invalid() {
         let device = Default::default();
         let config = Conv3dConfig::new([4, 4], [2, 2, 2]).with_padding(PaddingConfig3d::Same);
-        let _ = config.init::<TestBackend>(&device);
+        let _ = config.init(&device);
     }
 
     #[test]
     fn display() {
         let config = Conv3dConfig::new([5, 1], [5, 5, 5]);
-        let conv = config.init::<TestBackend>(&Default::default());
+        let conv = config.init(&Default::default());
 
         assert_eq!(
             alloc::format!("{conv}"),
@@ -265,9 +264,9 @@ mod tests {
     #[should_panic = "Number of channels in input tensor and input channels of convolution must be equal. got: 4, expected: 5"]
     fn input_channels_mismatch() {
         let config = Conv3dConfig::new([5, 3], [3, 3, 3]);
-        let conv = config.init::<TestBackend>(&Default::default());
+        let conv = config.init(&Default::default());
 
-        let input = Tensor::<TestBackend, 5>::zeros([1, 4, 10, 10, 10], &Default::default());
+        let input = Tensor::<5>::zeros([1, 4, 10, 10, 10], &Default::default());
         let _ = conv.forward(input);
     }
 }

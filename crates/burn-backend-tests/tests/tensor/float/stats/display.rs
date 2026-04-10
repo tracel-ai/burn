@@ -1,6 +1,5 @@
 use super::*;
-use burn_tensor::backend::Backend;
-use burn_tensor::{DType, Element, Shape, TensorData, get_device_settings};
+use burn_tensor::{DType, Element, Shape, TensorData};
 
 // Floating point values might not match for other precisions
 fn skip_precision_not_f32() -> bool {
@@ -21,12 +20,10 @@ fn test_display_2d_int_tensor() {
  [7, 8, 9]],
   shape:  [3, 3],
   device:  {:?},
-  backend:  {:?},
   kind:  "Int",
   dtype:  "{dtype}",
 }}"#,
         tensor_int.device(),
-        TestBackend::name(&tensor_int.device()),
         dtype = core::any::type_name::<IntElem>(),
     );
     assert_eq!(output, expected);
@@ -50,12 +47,10 @@ fn test_display_2d_float_tensor() {
  [7.7, 8.8, 9.9]],
   shape:  [3, 3],
   device:  {:?},
-  backend:  {:?},
   kind:  "Float",
   dtype:  "f32",
 }}"#,
         tensor_float.device(),
-        TestBackend::name(&tensor_float.device()),
     );
     assert_eq!(output, expected);
 }
@@ -72,7 +67,7 @@ fn test_display_2d_bool_tensor() {
 
     let output = format!("{}", tensor_bool);
     // TODO: remove once backends no longer rely on generics for default elem types
-    let expected_name = match get_device_settings::<TestBackend>(&device).bool_dtype {
+    let expected_dtype_name = match device.settings().bool_dtype {
         burn_tensor::BoolDType::Native => DType::Bool(burn_tensor::BoolStore::Native).name(),
         burn_tensor::BoolDType::U8 => DType::Bool(burn_tensor::BoolStore::U8).name(),
         burn_tensor::BoolDType::U32 => DType::Bool(burn_tensor::BoolStore::U32).name(),
@@ -85,13 +80,11 @@ fn test_display_2d_bool_tensor() {
  [false, true, true]],
   shape:  [3, 3],
   device:  {:?},
-  backend:  {:?},
   kind:  "Bool",
   dtype:  {:?},
 }}"#,
         tensor_bool.device(),
-        TestBackend::name(&tensor_bool.device()),
-        expected_name,
+        expected_dtype_name,
     );
     assert_eq!(output, expected);
 }
@@ -116,12 +109,10 @@ fn test_display_3d_tensor() {
   [21, 22, 23, 24]]],
   shape:  [2, 3, 4],
   device:  {:?},
-  backend:  {:?},
   kind:  "Int",
   dtype:  "{dtype}",
 }}"#,
         tensor.device(),
-        TestBackend::name(&tensor.device()),
         dtype = core::any::type_name::<IntElem>(),
     );
     assert_eq!(output, expected);
@@ -150,12 +141,10 @@ fn test_display_4d_tensor() {
    [22, 23, 24]]]],
   shape:  [2, 2, 2, 3],
   device:  {:?},
-  backend:  {:?},
   kind:  "Int",
   dtype:  "{dtype}",
 }}"#,
         tensor.device(),
-        TestBackend::name(&tensor.device()),
         dtype = core::any::type_name::<IntElem>(),
     );
     assert_eq!(output, expected);
@@ -179,12 +168,10 @@ fn test_display_tensor_summarize_1() {
    [0.0, 0.0, 0.0, ..., 0.0, 0.0, 0.0]]]],
   shape:  [2, 2, 2, 1000],
   device:  {:?},
-  backend:  {:?},
   kind:  "Float",
   dtype:  "{dtype}",
 }}"#,
         tensor.device(),
-        TestBackend::name(&tensor.device()),
         dtype = FloatElem::dtype().name(),
     );
     assert_eq!(output, expected);
@@ -228,12 +215,10 @@ fn test_display_tensor_summarize_2() {
    [0.0, 0.0, 0.0, ..., 0.0, 0.0, 0.0]]]],
   shape:  [2, 2, 20, 100],
   device:  {:?},
-  backend:  {:?},
   kind:  "Float",
   dtype:  "{dtype}",
 }}"#,
         tensor.device(),
-        TestBackend::name(&tensor.device()),
         dtype = FloatElem::dtype().name(),
     );
     assert_eq!(output, expected);
@@ -277,12 +262,10 @@ fn test_display_tensor_summarize_3() {
    [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]]]],
   shape:  [2, 2, 200, 6],
   device:  {:?},
-  backend:  {:?},
   kind:  "Float",
   dtype:  "{dtype}",
 }}"#,
         tensor.device(),
-        TestBackend::name(&tensor.device()),
         dtype = FloatElem::dtype().name(),
     );
     assert_eq!(output, expected);
@@ -302,12 +285,10 @@ fn test_display_precision() {
 [[0.12345679]],
   shape:  [1, 1],
   device:  {:?},
-  backend:  {:?},
   kind:  "Float",
   dtype:  "f32",
 }}"#,
         tensor.device(),
-        TestBackend::name(&tensor.device()),
     );
     assert_eq!(output, expected);
 
@@ -331,12 +312,10 @@ fn test_display_precision() {
  [0.123, 0.123]],
   shape:  [3, 2],
   device:  {:?},
-  backend:  {:?},
   kind:  "Float",
   dtype:  "f32",
 }}"#,
         tensor.device(),
-        TestBackend::name(&tensor.device()),
     );
     assert_eq!(output, expected);
 }

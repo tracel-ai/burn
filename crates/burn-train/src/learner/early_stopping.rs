@@ -171,7 +171,7 @@ mod tests {
     use std::sync::Arc;
 
     use crate::{
-        EventProcessorTraining, TestBackend,
+        EventProcessorTraining,
         logger::InMemoryMetricLogger,
         metric::{
             LossMetric,
@@ -261,7 +261,7 @@ mod tests {
     }
 
     fn test_early_stopping(warmup: Option<usize>, n_epochs: usize, data: &[(&[f64], bool, &str)]) {
-        let loss = LossMetric::<TestBackend>::new();
+        let loss = LossMetric::new();
         let mut early_stopping = MetricEarlyStoppingStrategy::new(
             &loss,
             Aggregate::Mean,

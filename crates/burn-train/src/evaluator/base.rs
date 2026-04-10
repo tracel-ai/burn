@@ -8,11 +8,10 @@ use crate::{
 use burn_core::{data::dataloader::DataLoader, module::Module};
 use std::sync::Arc;
 
-pub(crate) type TestBackend<EC> = <EC as EvaluatorComponentTypes>::Backend;
 pub(crate) type TestInput<EC> = <<EC as EvaluatorComponentTypes>::Model as InferenceStep>::Input;
 pub(crate) type TestOutput<EC> = <<EC as EvaluatorComponentTypes>::Model as InferenceStep>::Output;
 
-pub(crate) type TestLoader<EC> = Arc<dyn DataLoader<TestBackend<EC>, TestInput<EC>>>;
+pub(crate) type TestLoader<EC> = Arc<dyn DataLoader<TestInput<EC>>>;
 
 /// Evaluates a model on a specific dataset.
 pub struct Evaluator<EC: EvaluatorComponentTypes> {

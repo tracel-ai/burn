@@ -2,33 +2,32 @@ use burn_core as burn;
 
 use super::GradientsParams;
 use burn::module::{AutodiffModule, ModuleVisitor, Param, ParamId};
-use burn::tensor::{Tensor, backend::AutodiffBackend};
+use burn::tensor::{Device, Gradients, Tensor};
 use core::marker::PhantomData;
 
 #[cfg(not(feature = "std"))]
 use alloc::vec::Vec;
 
 #[derive(new)]
-pub struct GradientsParamsConverter<'a, M: AutodiffModule<B>, B: AutodiffBackend> {
-    grads: &'a mut B::Gradients,
+pub struct GradientsParamsConverter<'a, M: AutodiffModule> {
+    grads: &'a mut Gradients,
     grads_params: &'a mut GradientsParams,
     phatom: PhantomData<M>,
     filter: Option<Vec<ParamId>>,
 }
 
 #[derive(new)]
-pub struct GradientsParamsChangeDevice<'a, M: AutodiffModule<B>, B: AutodiffBackend> {
-    device: &'a B::Device,
+pub struct GradientsParamsChangeDevice<'a, M: AutodiffModule> {
+    device: &'a Device,
     grads: &'a mut GradientsParams,
     phatom: PhantomData<M>,
 }
 
-impl<B, M> ModuleVisitor<B> for GradientsParamsConverter<'_, M, B>
+impl<M> ModuleVisitor for GradientsParamsConverter<'_, M>
 where
-    B: AutodiffBackend,
-    M: AutodiffModule<B>,
+    M: AutodiffModule,
 {
-    fn visit_float<const D: usize>(&mut self, param: &Param<Tensor<B, D>>) {
+    fn visit_float<const D: usize>(&mut self, param: &Param<Tensor<D>>) {
         if let Some(filter) = self.filter.as_ref()
             && !filter.contains(&param.id)
         {
@@ -39,22 +38,20 @@ where
             return;
         };
 
-        self.grads_params
-            .register::<B::InnerBackend, D>(param.id, grad);
+        self.grads_params.register(param.id, grad);
     }
 }
 
-impl<B, M> ModuleVisitor<B> for GradientsParamsChangeDevice<'_, M, B>
+impl<M> ModuleVisitor for GradientsParamsChangeDevice<'_, M>
 where
-    B: AutodiffBackend,
-    M: AutodiffModule<B>,
+    M: AutodiffModule,
 {
-    fn visit_float<const D: usize>(&mut self, param: &Param<Tensor<B, D>>) {
-        let Some(grad) = self.grads.remove::<B::InnerBackend, D>(param.id) else {
+    fn visit_float<const D: usize>(&mut self, param: &Param<Tensor<D>>) {
+        let Some(grad) = self.grads.remove::<D>(param.id) else {
             return;
         };
 
         self.grads
-            .register::<B::InnerBackend, D>(param.id, grad.to_device(self.device));
+            .register::<D>(param.id, grad.to_device(self.device));
     }
 }

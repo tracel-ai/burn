@@ -4,9 +4,8 @@ use crate::PaddingConfig2d;
 use crate::conv::{Conv2d, Conv2dConfig};
 use burn::module::Module;
 use burn::tensor::{
-    Tensor,
+    Device, Tensor,
     activation::relu,
-    backend::Backend,
     module::{avg_pool2d, max_pool2d},
 };
 
@@ -21,41 +20,41 @@ use burn::tensor::{
 /// - `conv4_1`
 /// - `conv5_1`
 #[derive(Module, Debug)]
-pub struct Vgg19<B: Backend> {
+pub struct Vgg19 {
     use_avg_pool: bool,
 
     // Block 1
     // Field is made public for testing whether the weights are frozen or not
-    pub conv1_1: Conv2d<B>,
-    conv1_2: Conv2d<B>,
+    pub conv1_1: Conv2d,
+    conv1_2: Conv2d,
 
     // Block 2
-    conv2_1: Conv2d<B>,
-    conv2_2: Conv2d<B>,
+    conv2_1: Conv2d,
+    conv2_2: Conv2d,
 
     // Block 3
-    conv3_1: Conv2d<B>,
-    conv3_2: Conv2d<B>,
-    conv3_3: Conv2d<B>,
-    conv3_4: Conv2d<B>,
+    conv3_1: Conv2d,
+    conv3_2: Conv2d,
+    conv3_3: Conv2d,
+    conv3_4: Conv2d,
 
     // Block 4
-    conv4_1: Conv2d<B>,
-    conv4_2: Conv2d<B>,
-    conv4_3: Conv2d<B>,
-    conv4_4: Conv2d<B>,
+    conv4_1: Conv2d,
+    conv4_2: Conv2d,
+    conv4_3: Conv2d,
+    conv4_4: Conv2d,
 
     // Block 5
-    conv5_1: Conv2d<B>,
+    conv5_1: Conv2d,
 }
 
-impl<B: Backend> Vgg19<B> {
+impl Vgg19 {
     /// Creates a new VGG19 feature extractor.
     ///
     /// The network is initialized with standard VGG19 configurations (3x3 kernels,
     /// stride 1, padding 1). Note that the weights are randomly initialized here so
     /// they should be overwritten by `load_vgg19_weights` before use.
-    pub fn new(use_avg_pool: bool, device: &B::Device) -> Self {
+    pub fn new(use_avg_pool: bool, device: &Device) -> Self {
         // All convolutions use a kernel size of 3 by 3, stride of 1, and
         // padding of 1.
         // This combination of kernel size and padding preserves input
@@ -103,7 +102,7 @@ impl<B: Backend> Vgg19<B> {
     ///    from one of the target layers. Shape of each tensor: `[batch_size, channels, height * width]`.
     /// - `normalization_factors`: A `Vec` of 5 `f32` values, representing the normalization
     ///    factor `4 * N^2 * M^2` for each layer, used to scale the Gram matrix loss.
-    pub fn forward(&self, x: Tensor<B, 4>) -> Vec<Tensor<B, 3>> {
+    pub fn forward(&self, x: Tensor<4>) -> Vec<Tensor<3>> {
         let pool_2d = |x| {
             if self.use_avg_pool {
                 avg_pool2d(x, [2, 2], [2, 2], [0, 0], false, false)

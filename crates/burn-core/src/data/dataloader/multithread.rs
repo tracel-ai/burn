@@ -1,6 +1,6 @@
 use burn_dataset::Dataset;
 use burn_dataset::transform::PartialDataset;
-use burn_tensor::backend::Backend;
+use burn_tensor::Device;
 use rand::distr::{Distribution, StandardUniform};
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng};
@@ -15,17 +15,17 @@ const MAX_QUEUED_ITEMS: usize = 100;
 type RngSeed = <StdRng as SeedableRng>::Seed;
 
 /// A multi-threaded data loader that can be used to iterate over a dataset.
-pub struct MultiThreadDataLoader<B: Backend, I, O> {
+pub struct MultiThreadDataLoader<I, O> {
     // Configuration parameters needed for initialization
     strategy: Box<dyn BatchStrategy<I>>,
     dataset: Arc<dyn Dataset<I>>,
-    batcher: Arc<dyn Batcher<B, I, O>>,
-    device: B::Device,
+    batcher: Arc<dyn Batcher<I, O>>,
+    device: Device,
     seed: Option<RngSeed>,
     num_threads: usize,
 
     // The lazily initialized data loaders
-    dataloaders: OnceLock<Vec<BatchDataLoader<B, I, O>>>,
+    dataloaders: OnceLock<Vec<BatchDataLoader<I, O>>>,
 }
 
 /// A message that can be sent between threads.
@@ -45,7 +45,7 @@ struct MultiThreadsDataloaderIterator<O> {
     progresses: Vec<Progress>,
 }
 
-impl<B: Backend, I, O> MultiThreadDataLoader<B, I, O>
+impl<I, O> MultiThreadDataLoader<I, O>
 where
     I: Send + Sync + Clone + 'static,
     O: Send + 'static,
@@ -68,9 +68,9 @@ where
     pub fn new(
         strategy: Box<dyn BatchStrategy<I>>,
         dataset: Arc<dyn Dataset<I>>,
-        batcher: Arc<dyn Batcher<B, I, O>>,
+        batcher: Arc<dyn Batcher<I, O>>,
         num_threads: usize,
-        device: B::Device,
+        device: Device,
         rng: Option<rand::rngs::StdRng>,
     ) -> Self {
         let mut seed = None;
@@ -88,9 +88,9 @@ where
     fn from_seed(
         strategy: Box<dyn BatchStrategy<I>>,
         dataset: Arc<dyn Dataset<I>>,
-        batcher: Arc<dyn Batcher<B, I, O>>,
+        batcher: Arc<dyn Batcher<I, O>>,
         num_threads: usize,
-        device: B::Device,
+        device: Device,
         seed: Option<RngSeed>,
     ) -> Self {
         Self {
@@ -105,7 +105,7 @@ where
     }
 
     /// Force initialization if needed.
-    fn initialize(&self) -> &[BatchDataLoader<B, I, O>] {
+    fn initialize(&self) -> &[BatchDataLoader<I, O>] {
         self.dataloaders
             .get_or_init(|| {
                 let mut dataset = self.dataset.clone();
@@ -152,7 +152,7 @@ where
     }
 }
 
-impl<B: Backend, I, O> DataLoader<B, O> for MultiThreadDataLoader<B, I, O>
+impl<I, O> DataLoader<O> for MultiThreadDataLoader<I, O>
 where
     I: Send + Sync + Clone + 'static,
     O: Send + 'static + std::fmt::Debug,
@@ -205,7 +205,7 @@ where
         self.dataset.len()
     }
 
-    fn to_device(&self, device: &B::Device) -> Arc<dyn DataLoader<B, O>> {
+    fn to_device(&self, device: &Device) -> Arc<dyn DataLoader<O>> {
         Arc::new(Self::from_seed(
             self.strategy.clone_dyn(),
             self.dataset.clone(),
@@ -216,7 +216,7 @@ where
         ))
     }
 
-    fn slice(&self, start: usize, end: usize) -> Arc<dyn DataLoader<B, O>> {
+    fn slice(&self, start: usize, end: usize) -> Arc<dyn DataLoader<O>> {
         let dataloader = Self::from_seed(
             self.strategy.clone_dyn(),
             Arc::new(PartialDataset::new(self.dataset.clone(), start, end)),

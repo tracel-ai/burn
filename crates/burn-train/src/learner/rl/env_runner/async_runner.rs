@@ -4,7 +4,7 @@ use std::{
     thread::spawn,
 };
 
-use burn_core::{Tensor, data::dataloader::Progress, prelude::Backend, tensor::Device};
+use burn_core::{Tensor, data::dataloader::Progress, tensor::Device};
 use burn_rl::EnvironmentInit;
 use burn_rl::Policy;
 use burn_rl::Transition;
@@ -32,15 +32,15 @@ pub struct AsyncAgentEnvLoopConfig {
 }
 
 /// An asynchronous agent/environement interface.
-pub struct AgentEnvAsyncLoop<BT: Backend, RLC: RLComponentsTypes> {
+pub struct AgentEnvAsyncLoop<RLC: RLComponentsTypes> {
     eval: bool,
-    agent: AsyncPolicy<RLC::Backend, RlPolicy<RLC>>,
-    transition_receiver: Receiver<RLTimeStep<BT, RLC>>,
-    trajectory_receiver: Receiver<RLTrajectory<BT, RLC>>,
+    agent: AsyncPolicy<RlPolicy<RLC>>,
+    transition_receiver: Receiver<RLTimeStep<RLC>>,
+    trajectory_receiver: Receiver<RLTrajectory<RLC>>,
     request_sender: Sender<RequestMessage>,
 }
 
-impl<BT: Backend, RLC: RLComponentsTypes> AgentEnvAsyncLoop<BT, RLC> {
+impl<RLC: RLComponentsTypes> AgentEnvAsyncLoop<RLC> {
     /// Create a new asynchronous runner.
     ///
     /// # Arguments
@@ -56,11 +56,11 @@ impl<BT: Backend, RLC: RLComponentsTypes> AgentEnvAsyncLoop<BT, RLC> {
     /// An async Agent/Environement loop.
     pub fn new(
         env_init: RLC::EnvInit,
-        agent: AsyncPolicy<RLC::Backend, RlPolicy<RLC>>,
+        agent: AsyncPolicy<RlPolicy<RLC>>,
         config: AsyncAgentEnvLoopConfig,
-        transition_device: &Device<BT>,
-        transition_sender: Option<Sender<RLTimeStep<BT, RLC>>>,
-        trajectory_sender: Option<Sender<RLTrajectory<BT, RLC>>>,
+        transition_device: &Device,
+        transition_sender: Option<Sender<RLTimeStep<RLC>>>,
+        trajectory_sender: Option<Sender<RLTrajectory<RLC>>>,
     ) -> Self {
         let (loop_transition_sender, transition_receiver) = std::sync::mpsc::channel();
         let (loop_trajectory_sender, trajectory_receiver) = std::sync::mpsc::channel();
@@ -162,9 +162,8 @@ impl<BT: Backend, RLC: RLComponentsTypes> AgentEnvAsyncLoop<BT, RLC> {
     }
 }
 
-impl<BT, RLC> AgentEnvLoop<BT, RLC> for AgentEnvAsyncLoop<BT, RLC>
+impl<RLC> AgentEnvLoop<RLC> for AgentEnvAsyncLoop<RLC>
 where
-    BT: Backend,
     RLC: RLComponentsTypes,
 {
     fn run_steps(
@@ -173,7 +172,7 @@ where
         processor: &mut RLEventProcessorType<RLC>,
         interrupter: &Interrupter,
         progress: &mut Progress,
-    ) -> Vec<RLTimeStep<BT, RLC>> {
+    ) -> Vec<RLTimeStep<RLC>> {
         let mut items = vec![];
         for _ in 0..num_steps {
             self.request_sender
@@ -218,7 +217,7 @@ where
         processor: &mut RLEventProcessorType<RLC>,
         interrupter: &Interrupter,
         _progress: &mut Progress,
-    ) -> Vec<RLTrajectory<BT, RLC>> {
+    ) -> Vec<RLTrajectory<RLC>> {
         let mut items = vec![];
         self.agent.increment_agents(1);
         for episode_num in 0..num_episodes {
@@ -290,24 +289,24 @@ where
 }
 
 /// An asynchronous runner for multiple agent/environement interfaces.
-pub struct MultiAgentEnvLoop<BT: Backend, RLC: RLComponentsTypes> {
+pub struct MultiAgentEnvLoop<RLC: RLComponentsTypes> {
     num_envs: usize,
     eval: bool,
-    agent: AsyncPolicy<RLC::Backend, RLC::Policy>,
-    transition_receiver: Receiver<RLTimeStep<BT, RLC>>,
-    trajectory_receiver: Receiver<RLTrajectory<BT, RLC>>,
+    agent: AsyncPolicy<RLC::Policy>,
+    transition_receiver: Receiver<RLTimeStep<RLC>>,
+    trajectory_receiver: Receiver<RLTrajectory<RLC>>,
     request_senders: Vec<Sender<RequestMessage>>,
 }
 
-impl<BT: Backend, RLC: RLComponentsTypes> MultiAgentEnvLoop<BT, RLC> {
+impl<RLC: RLComponentsTypes> MultiAgentEnvLoop<RLC> {
     /// Create a new asynchronous runner for multiple agent/environement interfaces.
     pub fn new(
         num_envs: usize,
         env_init: RLC::EnvInit,
-        agent: AsyncPolicy<RLC::Backend, RLC::Policy>,
+        agent: AsyncPolicy<RLC::Policy>,
         eval: bool,
         deterministic: bool,
-        device: &Device<BT>,
+        device: &Device,
     ) -> Self {
         let (transition_sender, transition_receiver) = std::sync::mpsc::channel();
         let (trajectory_sender, trajectory_receiver) = std::sync::mpsc::channel();
@@ -322,7 +321,7 @@ impl<BT: Backend, RLC: RLComponentsTypes> MultiAgentEnvLoop<BT, RLC> {
                 deterministic,
                 id: i,
             };
-            let runner = AgentEnvAsyncLoop::<BT, RLC>::new(
+            let runner = AgentEnvAsyncLoop::<RLC>::new(
                 env_init.clone(),
                 agent.clone(),
                 config,
@@ -350,9 +349,8 @@ impl<BT: Backend, RLC: RLComponentsTypes> MultiAgentEnvLoop<BT, RLC> {
     }
 }
 
-impl<BT, RLC> AgentEnvLoop<BT, RLC> for MultiAgentEnvLoop<BT, RLC>
+impl<RLC> AgentEnvLoop<RLC> for MultiAgentEnvLoop<RLC>
 where
-    BT: Backend,
     RLC: RLComponentsTypes,
 {
     fn run_steps(
@@ -361,7 +359,7 @@ where
         processor: &mut RLEventProcessorType<RLC>,
         interrupter: &Interrupter,
         progress: &mut Progress,
-    ) -> Vec<RLTimeStep<BT, RLC>> {
+    ) -> Vec<RLTimeStep<RLC>> {
         let mut items = vec![];
         for _ in 0..num_steps {
             let transition = self
@@ -411,7 +409,7 @@ where
         processor: &mut RLEventProcessorType<RLC>,
         interrupter: &Interrupter,
         _progress: &mut Progress,
-    ) -> Vec<RLTrajectory<BT, RLC>> {
+    ) -> Vec<RLTrajectory<RLC>> {
         // Send `num_episodes` initial requests.
         let mut idx = vec![];
         if num_episodes < self.num_envs {
@@ -504,7 +502,7 @@ mod tests {
     use crate::learner::rl::env_runner::base::AgentEnvLoop;
     use crate::learner::tests::{MockPolicyState, MockProcessor};
     use crate::{
-        AgentEnvAsyncLoop, TestBackend,
+        AgentEnvAsyncLoop,
         learner::tests::{MockEnvInit, MockPolicy, MockRLComponents},
     };
     use crate::{AsyncProcessorTraining, Interrupter, MultiAgentEnvLoop};
@@ -513,7 +511,7 @@ mod tests {
         state: usize,
         eval: bool,
         deterministic: bool,
-    ) -> AgentEnvAsyncLoop<TestBackend, MockRLComponents> {
+    ) -> AgentEnvAsyncLoop<MockRLComponents> {
         let env_init = MockEnvInit;
         let agent = MockPolicy(state);
         let config = AsyncAgentEnvLoopConfig {
@@ -521,7 +519,7 @@ mod tests {
             deterministic,
             id: 0,
         };
-        AgentEnvAsyncLoop::<TestBackend, MockRLComponents>::new(
+        AgentEnvAsyncLoop::<MockRLComponents>::new(
             env_init,
             AsyncPolicy::new(1, agent),
             config,
@@ -537,10 +535,10 @@ mod tests {
         state: usize,
         eval: bool,
         deterministic: bool,
-    ) -> MultiAgentEnvLoop<TestBackend, MockRLComponents> {
+    ) -> MultiAgentEnvLoop<MockRLComponents> {
         let env_init = MockEnvInit;
         let agent = MockPolicy(state);
-        MultiAgentEnvLoop::<TestBackend, MockRLComponents>::new(
+        MultiAgentEnvLoop::<MockRLComponents>::new(
             num_envs,
             env_init,
             AsyncPolicy::new(autobatch_size, agent),

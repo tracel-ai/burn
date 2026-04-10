@@ -40,7 +40,7 @@ fn same_as_reference_diff_shape<const D: usize>(
     let device = Default::default();
     let ref_device = ReferenceDevice::new();
 
-    TestBackend::seed(&device, 0);
+    device.seed(0);
 
     let tensor = TestTensor::<D>::random(shape1, Distribution::Default, &device);
     let value = TestTensor::<D>::random(shape2, Distribution::Default, &device);

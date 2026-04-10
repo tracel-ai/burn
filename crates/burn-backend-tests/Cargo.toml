@@ -17,34 +17,33 @@ workspace = true
 [features]
 default = [
     "burn-tensor/default",
-    "burn-dispatch/default",
     # Default
     # "ndarray",
     "std",
 ]
-std = ["burn-tensor/std", "burn-dispatch/std"]
+std = ["burn-tensor/std"]
 
 # Backends
-cuda = ["burn-dispatch/cuda", "quantization", "cube"]
-flex = ["burn-dispatch/flex", "quantization"]
-rocm = ["burn-dispatch/rocm", "quantization", "cube"]
-ndarray = ["burn-dispatch/ndarray", "quantization"]
-tch = ["burn-dispatch/tch"]
-vulkan = ["wgpu", "burn-dispatch/vulkan"]
-webgpu = ["wgpu", "burn-dispatch/webgpu"]
-metal = ["wgpu", "burn-dispatch/metal"]
-wgpu = ["burn-dispatch/wgpu", "quantization", "cube"]
-cpu = ["burn-dispatch/cpu", "cube"]
+cuda = ["burn-tensor/cuda", "quantization", "cube"]
+rocm = ["burn-tensor/rocm", "quantization", "cube"]
+flex = ["burn-tensor/flex", "quantization"]
+ndarray = ["burn-tensor/ndarray", "quantization"]
+tch = ["burn-tensor/tch"]
+vulkan = ["wgpu", "burn-tensor/vulkan"]
+webgpu = ["wgpu", "burn-tensor/webgpu"]
+metal = ["wgpu", "burn-tensor/metal"]
+wgpu = ["burn-tensor/wgpu", "quantization", "cube"]
+cpu = ["burn-tensor/cpu", "cube"]
 
-autotune = ["burn-dispatch/autotune"]
-autotune-checks = ["burn-dispatch/autotune-checks"]
-fusion = ["burn-dispatch/fusion"]
+autotune = ["burn-tensor/autotune"]
+autotune-checks = ["burn-tensor/autotune-checks"]
+fusion = ["burn-tensor/fusion"]
 
 # CubeCL backends
 cube = [
     "cubek",
     "autotune",
-    "burn-dispatch/ndarray",
+    "burn-tensor/ndarray",
     "burn-ndarray",
     # Not used directly, but included to avoid recompiling with and without fusion
     "burn-cubecl",
@@ -54,11 +53,10 @@ cube = [
 quantization = []
 
 [dependencies]
-burn-tensor = { path = "../burn-tensor", version = "=0.21.0-pre.3", default-features = false }
-burn-tensor-testgen = { path = "../burn-tensor-testgen", version = "=0.21.0-pre.3" }
-burn-dispatch = { path = "../burn-dispatch", version = "=0.21.0-pre.3", default-features = false, features = [
+burn-tensor = { path = "../burn-tensor", version = "=0.21.0-pre.3", default-features = false, features = [
     "autodiff",
 ] }
+burn-tensor-testgen = { path = "../burn-tensor-testgen", version = "=0.21.0-pre.3" }
 
 # For random tests
 cubek = { workspace = true, features = ["random"], optional = true }

@@ -1,8 +1,8 @@
-use burn_backend::tensor::Ordered;
-
-use crate::backend::Backend;
-use crate::tensor::{BasicOps, Tensor};
-use crate::{ElementConversion, Numeric};
+use crate::tensor::Tensor;
+use crate::{
+    ElementConversion,
+    kind::{Numeric, Ordered},
+};
 #[allow(unused_imports)]
 use num_traits::float::Float;
 /// Specifies the type of norm to compute.
@@ -114,11 +114,7 @@ impl From<f64> for Norm {
 /// # Returns
 ///
 /// The vector norm of the input tensor.
-pub fn vector_norm<B: Backend, const D: usize>(
-    x: Tensor<B, D>,
-    norm: impl Into<Norm>,
-    dim: usize,
-) -> Tensor<B, D> {
+pub fn vector_norm<const D: usize>(x: Tensor<D>, norm: impl Into<Norm>, dim: usize) -> Tensor<D> {
     lp_norm(x, norm.into().to_exponent(), dim)
 }
 
@@ -141,7 +137,7 @@ pub fn vector_norm<B: Backend, const D: usize>(
 /// # Returns
 ///
 /// The ``L(p)`` norm of the input tensor.
-pub fn lp_norm<B: Backend, const D: usize>(x: Tensor<B, D>, p: f64, dim: usize) -> Tensor<B, D> {
+pub fn lp_norm<const D: usize>(x: Tensor<D>, p: f64, dim: usize) -> Tensor<D> {
     match p {
         0.0 => l0_norm(x, dim),
         1.0 => l1_norm(x, dim),
@@ -167,12 +163,12 @@ pub fn lp_norm<B: Backend, const D: usize>(x: Tensor<B, D>, p: f64, dim: usize) 
 /// # Returns
 ///
 /// The normalized tensor.
-pub fn vector_normalize<B: Backend, const D: usize, E: ElementConversion>(
-    x: Tensor<B, D>,
+pub fn vector_normalize<const D: usize, E: ElementConversion>(
+    x: Tensor<D>,
     norm: impl Into<Norm>,
     dim: usize,
     eps: E,
-) -> Tensor<B, D> {
+) -> Tensor<D> {
     let norm = vector_norm(x.clone(), norm, dim).clamp_min(eps);
     x / norm
 }
@@ -187,9 +183,9 @@ pub fn vector_normalize<B: Backend, const D: usize, E: ElementConversion>(
 /// # Returns
 ///
 /// The L0 norm of the input tensor.
-pub fn l0_norm<B: Backend, const D: usize, K>(x: Tensor<B, D, K>, dim: usize) -> Tensor<B, D, K>
+pub fn l0_norm<const D: usize, K>(x: Tensor<D, K>, dim: usize) -> Tensor<D, K>
 where
-    K: BasicOps<B> + Numeric<B>,
+    K: Numeric,
 {
     x.zeros_like()
         .mask_fill(x.not_equal_elem(0), 1)
@@ -208,9 +204,9 @@ where
 /// # Returns
 ///
 /// The L1 norm of the input tensor.
-pub fn l1_norm<B: Backend, const D: usize, K>(x: Tensor<B, D, K>, dim: usize) -> Tensor<B, D, K>
+pub fn l1_norm<const D: usize, K>(x: Tensor<D, K>, dim: usize) -> Tensor<D, K>
 where
-    K: BasicOps<B> + Numeric<B>,
+    K: Numeric,
 {
     x.abs().sum_dim(dim)
 }
@@ -225,7 +221,7 @@ where
 /// # Returns
 ///
 /// The L2 norm of the input tensor.
-pub fn l2_norm<B: Backend, const D: usize>(x: Tensor<B, D>, dim: usize) -> Tensor<B, D> {
+pub fn l2_norm<const D: usize>(x: Tensor<D>, dim: usize) -> Tensor<D> {
     x.square().sum_dim(dim).sqrt()
 }
 
@@ -236,7 +232,7 @@ fn is_even_integer(x: f64) -> bool {
 /// Computes ``L(2*n)`` for even integer ``n``.
 ///
 /// This lets us skip the abs.
-fn lp_signed_norm<B: Backend, const D: usize>(x: Tensor<B, D>, p: u32, dim: usize) -> Tensor<B, D> {
+fn lp_signed_norm<const D: usize>(x: Tensor<D>, p: u32, dim: usize) -> Tensor<D> {
     x.powi_scalar(p).sum_dim(dim).powf_scalar(1. / (p as f64))
 }
 
@@ -246,7 +242,7 @@ fn lp_signed_norm<B: Backend, const D: usize>(x: Tensor<B, D>, p: u32, dim: usiz
 /// * 0.0
 /// * f64::INFINITY,
 /// * f64::NEG_INFINITY,
-fn lp_norm_base<B: Backend, const D: usize>(x: Tensor<B, D>, p: f64, dim: usize) -> Tensor<B, D> {
+fn lp_norm_base<const D: usize>(x: Tensor<D>, p: f64, dim: usize) -> Tensor<D> {
     x.abs().powf_scalar(p).sum_dim(dim).powf_scalar(1. / p)
 }
 
@@ -260,12 +256,9 @@ fn lp_norm_base<B: Backend, const D: usize>(x: Tensor<B, D>, p: f64, dim: usize)
 /// # Returns
 ///
 /// The L:INFINITY norm of the input tensor.
-pub fn max_abs_norm<B: Backend, const D: usize, K>(
-    x: Tensor<B, D, K>,
-    dim: usize,
-) -> Tensor<B, D, K>
+pub fn max_abs_norm<const D: usize, K>(x: Tensor<D, K>, dim: usize) -> Tensor<D, K>
 where
-    K: Ordered<B>,
+    K: Ordered,
 {
     x.max_abs_dim(dim)
 }
@@ -280,12 +273,9 @@ where
 /// # Returns
 ///
 /// The L:NEG_INFINITY norm of the input tensor.
-pub fn min_abs_norm<B: Backend, const D: usize, K>(
-    x: Tensor<B, D, K>,
-    dim: usize,
-) -> Tensor<B, D, K>
+pub fn min_abs_norm<const D: usize, K>(x: Tensor<D, K>, dim: usize) -> Tensor<D, K>
 where
-    K: Ordered<B>,
+    K: Ordered,
 {
     x.abs().min_dim(dim)
 }

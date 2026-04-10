@@ -8,7 +8,7 @@ use crate::loss::reduction::Reduction;
 use burn::config::Config;
 use burn::module::Module;
 use burn::module::{Content, DisplaySettings, ModuleDisplay};
-use burn::tensor::{Int, Tensor, activation::relu, backend::Backend};
+use burn::tensor::{Int, Tensor, activation::relu};
 
 /// Configuration for CosineEmbeddingLoss.
 #[derive(Config, Debug)]
@@ -36,13 +36,14 @@ impl CosineEmbeddingLossConfig {
 ///
 /// Measures cosine distance between tensors.
 /// Used for learning embeddings or similarity.
-#[derive(Module, Clone, Debug)]
+#[derive(Module, Debug)]
 #[module(custom_display)]
 pub struct CosineEmbeddingLoss {
     /// Margin value. Default: 0.0
     pub margin: f32,
 
     /// Reduction method
+    #[module(skip)]
     pub reduction: Reduction,
 }
 
@@ -84,12 +85,12 @@ impl CosineEmbeddingLoss {
     /// # Returns
     ///
     /// Loss tensor of shape ``[1]``
-    pub fn forward<B: Backend>(
+    pub fn forward(
         &self,
-        input1: Tensor<B, 2>,
-        input2: Tensor<B, 2>,
-        target: Tensor<B, 1, Int>,
-    ) -> Tensor<B, 1> {
+        input1: Tensor<2>,
+        input2: Tensor<2>,
+        target: Tensor<1, Int>,
+    ) -> Tensor<1> {
         let tensor = self.forward_no_reduction(input1, input2, target);
         match &self.reduction {
             Reduction::Mean | Reduction::Auto => tensor.mean(),
@@ -109,18 +110,18 @@ impl CosineEmbeddingLoss {
     /// # Returns
     ///
     /// Tensor of per-element losses with shape ``[batch_size]``
-    pub fn forward_no_reduction<B: Backend>(
+    pub fn forward_no_reduction(
         &self,
-        input1: Tensor<B, 2>,
-        input2: Tensor<B, 2>,
-        target: Tensor<B, 1, Int>,
-    ) -> Tensor<B, 1> {
+        input1: Tensor<2>,
+        input2: Tensor<2>,
+        target: Tensor<1, Int>,
+    ) -> Tensor<1> {
         self.assertions(&input1, &input2, &target);
 
         // cos_sim shape: [batch_size, 1]
         let cos_sim = cosine_similarity(input1, input2, 1, None);
         // cos_sim shape: [batch_size]
-        let cos_sim: Tensor<B, 1> = cos_sim.squeeze_dim(1);
+        let cos_sim: Tensor<1> = cos_sim.squeeze_dim(1);
 
         let mut loss = cos_sim.zeros_like();
 
@@ -138,12 +139,7 @@ impl CosineEmbeddingLoss {
         loss
     }
 
-    fn assertions<B: Backend>(
-        &self,
-        input1: &Tensor<B, 2>,
-        input2: &Tensor<B, 2>,
-        target: &Tensor<B, 1, Int>,
-    ) {
+    fn assertions(&self, input1: &Tensor<2>, input2: &Tensor<2>, target: &Tensor<1, Int>) {
         let [batch_size1, dim1] = input1.dims();
         let [batch_size2, dim2] = input2.dims();
         let [batch_size_target] = target.dims();
@@ -168,28 +164,21 @@ impl CosineEmbeddingLoss {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::TestBackend;
     use burn::tensor::TensorData;
-    use burn::tensor::{Tolerance, ops::FloatElem};
-    type FT = FloatElem<TestBackend>;
+    use burn::tensor::Tolerance;
+    type FT = f32;
 
     #[test]
     fn cosine_embedding_loss_positive_target() {
         let device = Default::default();
 
         // Two identical vectors should have cosine similarity of 1
-        let input1 = Tensor::<TestBackend, 2>::from_data(
-            TensorData::from([[1.0, 0.0], [0.0, 1.0]]),
-            &device,
-        );
+        let input1 = Tensor::<2>::from_data(TensorData::from([[1.0, 0.0], [0.0, 1.0]]), &device);
 
-        let input2 = Tensor::<TestBackend, 2>::from_data(
-            TensorData::from([[1.0, 0.0], [0.0, 1.0]]),
-            &device,
-        );
+        let input2 = Tensor::<2>::from_data(TensorData::from([[1.0, 0.0], [0.0, 1.0]]), &device);
 
         // Target 1 means that inputs should be similar
-        let target = Tensor::<TestBackend, 1, Int>::from_data(TensorData::from([1, 1]), &device);
+        let target = Tensor::<1, Int>::from_data(TensorData::from([1, 1]), &device);
 
         let loss = CosineEmbeddingLossConfig::new().init();
         let loss_no_reduction =
@@ -220,18 +209,12 @@ mod tests {
         let device = Default::default();
 
         // Two identical vectors should have cosine similarity of 1
-        let input1 = Tensor::<TestBackend, 2>::from_data(
-            TensorData::from([[1.0, 0.0], [0.0, 1.0]]),
-            &device,
-        );
+        let input1 = Tensor::<2>::from_data(TensorData::from([[1.0, 0.0], [0.0, 1.0]]), &device);
 
-        let input2 = Tensor::<TestBackend, 2>::from_data(
-            TensorData::from([[1.0, 0.0], [0.0, 1.0]]),
-            &device,
-        );
+        let input2 = Tensor::<2>::from_data(TensorData::from([[1.0, 0.0], [0.0, 1.0]]), &device);
 
         // Target -1 means that inputs should be dissimilar
-        let target = Tensor::<TestBackend, 1, Int>::from_data(TensorData::from([-1, -1]), &device);
+        let target = Tensor::<1, Int>::from_data(TensorData::from([-1, -1]), &device);
 
         // With margin 0.0, max(0, cos_sim - margin) = max(0, 1 - 0) = 1
         let loss = CosineEmbeddingLossConfig::new().init();
@@ -275,18 +258,12 @@ mod tests {
     fn cosine_embedding_loss_mixed_targets() {
         let device = Default::default();
 
-        let input1 = Tensor::<TestBackend, 2>::from_data(
-            TensorData::from([[1.0, 0.0], [0.0, 1.0]]),
-            &device,
-        );
+        let input1 = Tensor::<2>::from_data(TensorData::from([[1.0, 0.0], [0.0, 1.0]]), &device);
 
-        let input2 = Tensor::<TestBackend, 2>::from_data(
-            TensorData::from([[1.0, 0.0], [0.0, 1.0]]),
-            &device,
-        );
+        let input2 = Tensor::<2>::from_data(TensorData::from([[1.0, 0.0], [0.0, 1.0]]), &device);
 
         // Mixed targets
-        let target = Tensor::<TestBackend, 1, Int>::from_data(TensorData::from([1, -1]), &device);
+        let target = Tensor::<1, Int>::from_data(TensorData::from([1, -1]), &device);
 
         let loss = CosineEmbeddingLossConfig::new().init();
         let loss_no_reduction =
