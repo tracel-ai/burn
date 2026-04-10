@@ -44,16 +44,11 @@ fn should_support_bool_equal_broadcast() {
         ]),
         &device,
     );
-    let tensor_2 = TestTensorBool::<2>::from_data(
-        TensorData::from([[true, false], [false, true]]),
-        &device,
-    );
+    let tensor_2 =
+        TestTensorBool::<2>::from_data(TensorData::from([[true, false], [false, true]]), &device);
 
     let actual = tensor_1.equal(tensor_2.unsqueeze::<3>()).into_data();
-    let expected = TensorData::from([
-        [[true, true], [true, true]],
-        [[true, false], [true, false]],
-    ]);
+    let expected = TensorData::from([[[true, true], [true, true]], [[true, false], [true, false]]]);
     expected.assert_eq(&actual, false);
 }
 
@@ -68,10 +63,8 @@ fn should_support_bool_not_equal_broadcast() {
         ]),
         &device,
     );
-    let tensor_2 = TestTensorBool::<2>::from_data(
-        TensorData::from([[true, false], [false, true]]),
-        &device,
-    );
+    let tensor_2 =
+        TestTensorBool::<2>::from_data(TensorData::from([[true, false], [false, true]]), &device);
 
     let actual = tensor_1.not_equal(tensor_2.unsqueeze::<3>()).into_data();
     let expected = TensorData::from([

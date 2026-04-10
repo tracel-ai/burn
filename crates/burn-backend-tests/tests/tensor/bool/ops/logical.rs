@@ -177,10 +177,8 @@ fn test_bool_xor_broadcast_rank_mismatch() {
         ]),
         &device,
     );
-    let rhs = TestTensorBool::<2>::from_data(
-        TensorData::from([[true, false], [false, true]]),
-        &device,
-    );
+    let rhs =
+        TestTensorBool::<2>::from_data(TensorData::from([[true, false], [false, true]]), &device);
 
     let actual = lhs.bool_xor(rhs.unsqueeze::<3>()).into_data();
     let expected = TensorData::from([
