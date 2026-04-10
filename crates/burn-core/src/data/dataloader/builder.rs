@@ -166,9 +166,9 @@ mod tests {
     struct TestBatcherDevice;
 
     #[cfg(test)]
-    impl<I> Batcher<I> for TestBatcherDevice {
+    impl<I> Batcher<I, Device> for TestBatcherDevice {
         fn batch(&self, _items: Vec<I>, device: &Device) -> Device {
-            *device
+            device.clone()
         }
     }
 

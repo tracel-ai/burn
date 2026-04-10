@@ -34,7 +34,7 @@ where
             return;
         }
 
-        let Some(mut grad) = param.val().grad_remove(self.grads) else {
+        let Some(grad) = param.val().grad_remove(self.grads) else {
             return;
         };
 

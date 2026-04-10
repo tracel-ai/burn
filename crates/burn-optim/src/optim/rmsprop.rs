@@ -309,7 +309,7 @@ impl<const D: usize> RmsPropMomentumState<D> {
 
 #[cfg(test)]
 mod tests {
-    use burn::tensor::{Shape, Tolerance};
+    use burn::tensor::Tolerance;
 
     use super::*;
     use crate::optim::{GradientsParams, Optimizer};

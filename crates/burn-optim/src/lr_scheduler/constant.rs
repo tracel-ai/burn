@@ -1,5 +1,3 @@
-use burn_core as burn;
-
 use super::LrScheduler;
 use crate::LearningRate;
 
