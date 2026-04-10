@@ -481,17 +481,11 @@ pub fn linear<B: Backend, const D: usize>(
         return output.squeeze_dim(0);
     }
 
-    // Perform broadcasting
-    //
-    // Important to be done before doing operations to easily fuse.
-    let weight = weight.unsqueeze::<D>();
-    let bias = bias.map(|bias| bias.unsqueeze::<D>());
-
-    let output = input.matmul(weight);
-    match bias {
-        Some(bias) => output.add(bias),
-        None => output,
-    }
+    Tensor::new(TensorPrimitive::Float(B::linear(
+        input.primitive.tensor(),
+        weight.primitive.tensor(),
+        bias.map(|b| b.primitive.tensor()),
+    )))
 }
 
 /// Computes scaled dot-product attention: softmax(QKᵗ * scale) · V,

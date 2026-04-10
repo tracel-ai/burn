@@ -172,6 +172,14 @@ pub enum ModuleOperationIr {
     Embedding(EmbeddingOpIr),
     /// Operation corresponding to [embedding_backward](burn_backend::ops::ModuleOps::embedding_backward).
     EmbeddingBackward(EmbeddingBackwardOpIr),
+    /// Operation corresponding to [linear](burn_backend::ops::ModuleOps::linear).
+    Linear(LinearOpIr),
+    /// Operation corresponding to [linear_x_backward](burn_backend::ops::ModuleOps::linear_x_backward).
+    LinearXBackward(LinearXBackwardOpIr),
+    /// Operation corresponding to [linear_weight_backward](burn_backend::ops::ModuleOps::linear_weight_backward).
+    LinearWeightBackward(LinearWeightBackwardOpIr),
+    /// Operation corresponding to [linear_bias_backward](burn_backend::ops::ModuleOps::linear_bias_backward).
+    LinearBiasBackward(LinearBiasBackwardOpIr),
     /// Operation corresponding to [conv1d](burn_backend::ops::ModuleOps::conv1d).
     Conv1d(Conv1dOpIr),
     /// Operation corresponding to [conv1d_x_backward](burn_backend::ops::ModuleOps::conv1d_x_backward).
@@ -976,6 +984,38 @@ pub struct EmbeddingBackwardOpIr {
     pub weights: TensorIr,
     pub out_grad: TensorIr,
     pub indices: TensorIr,
+    pub out: TensorIr,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct LinearOpIr {
+    pub x: TensorIr,
+    pub weight: TensorIr,
+    pub bias: Option<TensorIr>,
+    pub out: TensorIr,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct LinearXBackwardOpIr {
+    pub weight: TensorIr,
+    pub output_grad: TensorIr,
+    pub out: TensorIr,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct LinearWeightBackwardOpIr {
+    pub x: TensorIr,
+    pub output_grad: TensorIr,
+    pub out: TensorIr,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct LinearBiasBackwardOpIr {
+    pub output_grad: TensorIr,
     pub out: TensorIr,
 }
 
@@ -2599,6 +2639,22 @@ impl ModuleOperationIr {
             ModuleOperationIr::EmbeddingBackward(repr) => {
                 Box::new([&repr.weights, &repr.out_grad, &repr.indices].into_iter())
             }
+            ModuleOperationIr::Linear(repr) => {
+                if let Some(bias) = &repr.bias {
+                    Box::new([&repr.x, &repr.weight, bias].into_iter())
+                } else {
+                    Box::new([&repr.x, &repr.weight].into_iter())
+                }
+            }
+            ModuleOperationIr::LinearXBackward(repr) => {
+                Box::new([&repr.weight, &repr.output_grad].into_iter())
+            }
+            ModuleOperationIr::LinearWeightBackward(repr) => {
+                Box::new([&repr.x, &repr.output_grad].into_iter())
+            }
+            ModuleOperationIr::LinearBiasBackward(repr) => {
+                Box::new([&repr.output_grad].into_iter())
+            }
             ModuleOperationIr::Conv1d(repr) => {
                 if let Some(bias) = &repr.bias {
                     Box::new([&repr.x, &repr.weight, bias].into_iter())
@@ -2755,6 +2811,10 @@ impl ModuleOperationIr {
         match self {
             ModuleOperationIr::Embedding(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::EmbeddingBackward(repr) => Box::new([&repr.out].into_iter()),
+            ModuleOperationIr::Linear(repr) => Box::new([&repr.out].into_iter()),
+            ModuleOperationIr::LinearXBackward(repr) => Box::new([&repr.out].into_iter()),
+            ModuleOperationIr::LinearWeightBackward(repr) => Box::new([&repr.out].into_iter()),
+            ModuleOperationIr::LinearBiasBackward(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::Conv1d(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::Conv1dXBackward(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::Conv1dWeightBackward(repr) => Box::new([&repr.out].into_iter()),
@@ -2848,6 +2908,25 @@ impl ModuleOperationIr {
                 repr.weights.mark_read_only(nodes, &mut output);
                 repr.out_grad.mark_read_only(nodes, &mut output);
                 repr.indices.mark_read_only(nodes, &mut output);
+            }
+            ModuleOperationIr::Linear(repr) => {
+                repr.x.mark_read_only(nodes, &mut output);
+                repr.weight.mark_read_only(nodes, &mut output);
+
+                if let Some(bias) = &mut repr.bias {
+                    bias.mark_read_only(nodes, &mut output);
+                }
+            }
+            ModuleOperationIr::LinearXBackward(repr) => {
+                repr.weight.mark_read_only(nodes, &mut output);
+                repr.output_grad.mark_read_only(nodes, &mut output);
+            }
+            ModuleOperationIr::LinearWeightBackward(repr) => {
+                repr.x.mark_read_only(nodes, &mut output);
+                repr.output_grad.mark_read_only(nodes, &mut output);
+            }
+            ModuleOperationIr::LinearBiasBackward(repr) => {
+                repr.output_grad.mark_read_only(nodes, &mut output);
             }
             ModuleOperationIr::Conv1d(repr) => {
                 repr.x.mark_read_only(nodes, &mut output);

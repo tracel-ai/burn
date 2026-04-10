@@ -182,6 +182,32 @@ impl RelativeOps for ModuleOperationIr {
                     out: desc.out.to_relative(converter),
                 })
             }
+            ModuleOperationIr::Linear(desc) => ModuleOperationIr::Linear(LinearOpIr {
+                x: desc.x.to_relative(converter),
+                weight: desc.weight.to_relative(converter),
+                bias: desc.bias.as_ref().map(|t| t.to_relative(converter)),
+                out: desc.out.to_relative(converter),
+            }),
+            ModuleOperationIr::LinearXBackward(desc) => {
+                ModuleOperationIr::LinearXBackward(LinearXBackwardOpIr {
+                    weight: desc.weight.to_relative(converter),
+                    output_grad: desc.output_grad.to_relative(converter),
+                    out: desc.out.to_relative(converter),
+                })
+            }
+            ModuleOperationIr::LinearWeightBackward(desc) => {
+                ModuleOperationIr::LinearWeightBackward(LinearWeightBackwardOpIr {
+                    x: desc.x.to_relative(converter),
+                    output_grad: desc.output_grad.to_relative(converter),
+                    out: desc.out.to_relative(converter),
+                })
+            }
+            ModuleOperationIr::LinearBiasBackward(desc) => {
+                ModuleOperationIr::LinearBiasBackward(LinearBiasBackwardOpIr {
+                    output_grad: desc.output_grad.to_relative(converter),
+                    out: desc.out.to_relative(converter),
+                })
+            }
             ModuleOperationIr::Conv1d(desc) => ModuleOperationIr::Conv1d(Conv1dOpIr {
                 x: desc.x.to_relative(converter),
                 weight: desc.weight.to_relative(converter),

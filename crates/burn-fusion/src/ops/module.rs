@@ -32,6 +32,137 @@ macro_rules! make_ops {
 }
 
 impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
+    fn linear(
+        x: FloatTensor<Self>,
+        weight: FloatTensor<Self>,
+        bias: Option<FloatTensor<Self>>,
+    ) -> FloatTensor<Self> {
+        make_ops!(LinearOps, LinearOpIr, |args: &LinearOpIr,
+                                          handles: &mut HandleContainer<
+            B::Handle,
+        >| {
+            let x = handles.get_float_tensor::<B>(&args.x);
+            let weight = handles.get_float_tensor::<B>(&args.weight);
+            let bias = args
+                .bias
+                .as_ref()
+                .map(|bias| handles.get_float_tensor::<B>(bias));
+
+            let output = B::linear(x, weight, bias);
+
+            handles.register_float_tensor::<B>(&args.out.id, output);
+        });
+
+        let mut streams = OperationStreams::with_inputs([&x, &weight]);
+        if let Some(bias) = bias.as_ref() {
+            streams.tensor(bias)
+        }
+
+        let client = x.client.clone();
+        let desc = LinearOpIr::create(
+            x.into_ir(),
+            weight.into_ir(),
+            bias.map(|bias| bias.into_ir()),
+            || client.create_empty_handle(),
+        );
+
+        client
+            .register(
+                streams,
+                OperationIr::Module(ModuleOperationIr::Linear(desc.clone())),
+                LinearOps::<B>::new(desc),
+            )
+            .output()
+    }
+
+    fn linear_x_backward(
+        weight: FloatTensor<Fusion<B>>,
+        output_grad: FloatTensor<Fusion<B>>,
+    ) -> FloatTensor<Fusion<B>> {
+        make_ops!(
+            LinearXBackwardOps,
+            LinearXBackwardOpIr,
+            |desc: &LinearXBackwardOpIr, handles: &mut HandleContainer<B::Handle>| {
+                let weight = handles.get_float_tensor::<B>(&desc.weight);
+                let output_grad = handles.get_float_tensor::<B>(&desc.output_grad);
+                let output = B::linear_x_backward(weight, output_grad);
+                handles.register_float_tensor::<B>(&desc.out.id, output);
+            }
+        );
+
+        let streams = OperationStreams::with_inputs([&weight, &output_grad]);
+
+        let client = weight.client.clone();
+        let desc = LinearXBackwardOpIr::create(weight.into_ir(), output_grad.into_ir(), || {
+            client.create_empty_handle()
+        });
+
+        client
+            .register(
+                streams,
+                OperationIr::Module(ModuleOperationIr::LinearXBackward(desc.clone())),
+                LinearXBackwardOps::<B>::new(desc),
+            )
+            .output()
+    }
+
+    fn linear_weight_backward(
+        x: FloatTensor<Fusion<B>>,
+        output_grad: FloatTensor<Fusion<B>>,
+    ) -> FloatTensor<Fusion<B>> {
+        make_ops!(
+            LinearWeightBackwardOps,
+            LinearWeightBackwardOpIr,
+            |desc: &LinearWeightBackwardOpIr, handles: &mut HandleContainer<B::Handle>| {
+                let x = handles.get_float_tensor::<B>(&desc.x);
+                let output_grad = handles.get_float_tensor::<B>(&desc.output_grad);
+                let output = B::linear_weight_backward(x, output_grad);
+                handles.register_float_tensor::<B>(&desc.out.id, output);
+            }
+        );
+
+        let streams = OperationStreams::with_inputs([&x, &output_grad]);
+
+        let client = x.client.clone();
+        let desc = LinearWeightBackwardOpIr::create(x.into_ir(), output_grad.into_ir(), || {
+            client.create_empty_handle()
+        });
+
+        client
+            .register(
+                streams,
+                OperationIr::Module(ModuleOperationIr::LinearWeightBackward(desc.clone())),
+                LinearWeightBackwardOps::<B>::new(desc),
+            )
+            .output()
+    }
+
+    fn linear_bias_backward(output_grad: FloatTensor<Fusion<B>>) -> FloatTensor<Fusion<B>> {
+        make_ops!(
+            LinearBiasBackwardOps,
+            LinearBiasBackwardOpIr,
+            |desc: &LinearBiasBackwardOpIr, handles: &mut HandleContainer<B::Handle>| {
+                let output_grad = handles.get_float_tensor::<B>(&desc.output_grad);
+                let output = B::linear_bias_backward(output_grad);
+                handles.register_float_tensor::<B>(&desc.out.id, output);
+            }
+        );
+
+        let streams = OperationStreams::with_inputs([&output_grad]);
+
+        let client = output_grad.client.clone();
+        let desc =
+            LinearBiasBackwardOpIr::create(output_grad.into_ir(), || client.create_empty_handle());
+
+        client
+            .register(
+                streams,
+                OperationIr::Module(ModuleOperationIr::LinearBiasBackward(desc.clone())),
+                LinearBiasBackwardOps::<B>::new(desc),
+            )
+            .output()
+    }
+
     fn conv1d(
         x: FloatTensor<Self>,
         weight: FloatTensor<Self>,
