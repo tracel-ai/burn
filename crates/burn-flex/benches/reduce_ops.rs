@@ -7,7 +7,7 @@
 
 use burn_flex::Flex;
 use burn_ndarray::NdArray;
-use burn_tensor::{Tensor, TensorData, backend::Backend};
+use burn_tensor::{FloatDType, Tensor, TensorData, backend::Backend};
 use divan::{AllocProfiler, Bencher};
 
 #[global_allocator]
@@ -200,3 +200,82 @@ macro_rules! bench_backend {
 
 bench_backend!(Flex, flex, "Flex");
 bench_backend!(NdArray<f32>, ndarray, "NdArray");
+
+// ============================================================================
+// f16 mean benches (Flex only)
+//
+// These exercise the half-precision mean / mean_dim fast path. Each tensor
+// is cast to f16 once during setup so the bench measures only the reduction,
+// not the cast. Sizes mirror the f32 sum_dim / mean_dim groups so before/after
+// numbers can be compared apples-to-apples.
+// ============================================================================
+
+#[divan::bench_group(name = "Flex_f16")]
+mod flex_f16 {
+    use super::*;
+
+    type B = Flex;
+
+    fn make_f16_2d(rows: usize, cols: usize) -> Tensor<B, 2> {
+        make_tensor_2d::<B>(rows, cols).cast(FloatDType::F16)
+    }
+
+    fn make_f16_3d(d0: usize, d1: usize, d2: usize) -> Tensor<B, 3> {
+        make_tensor_3d::<B>(d0, d1, d2).cast(FloatDType::F16)
+    }
+
+    #[divan::bench_group(name = "mean")]
+    mod mean {
+        use super::*;
+
+        #[divan::bench]
+        fn _64k(bencher: Bencher) {
+            let t = make_f16_2d(256, 256);
+            bencher.bench(|| t.clone().mean());
+        }
+
+        #[divan::bench]
+        fn _1m(bencher: Bencher) {
+            let t = make_f16_2d(1024, 1024);
+            bencher.bench(|| t.clone().mean());
+        }
+    }
+
+    #[divan::bench_group(name = "mean_dim")]
+    mod mean_dim {
+        use super::*;
+
+        // Last-dim path (sum_rows_f32)
+        #[divan::bench]
+        fn _256x256_dim1(bencher: Bencher) {
+            let t = make_f16_2d(256, 256);
+            bencher.bench(|| t.clone().mean_dim(1));
+        }
+
+        #[divan::bench]
+        fn _1024x1024_dim1(bencher: Bencher) {
+            let t = make_f16_2d(1024, 1024);
+            bencher.bench(|| t.clone().mean_dim(1));
+        }
+
+        // First-dim path (scatter_add_f32)
+        #[divan::bench]
+        fn _256x256_dim0(bencher: Bencher) {
+            let t = make_f16_2d(256, 256);
+            bencher.bench(|| t.clone().mean_dim(0));
+        }
+
+        #[divan::bench]
+        fn _1024x1024_dim0(bencher: Bencher) {
+            let t = make_f16_2d(1024, 1024);
+            bencher.bench(|| t.clone().mean_dim(0));
+        }
+
+        // Middle-dim path (scatter_add_batched)
+        #[divan::bench]
+        fn _batch32_256x256_dim1(bencher: Bencher) {
+            let t = make_f16_3d(32, 256, 256);
+            bencher.bench(|| t.clone().mean_dim(1));
+        }
+    }
+}
