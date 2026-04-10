@@ -110,11 +110,6 @@ impl IntTensorOps<Flex> for Flex {
         tensor: IntTensor<Flex>,
         indices: IntTensor<Flex>,
     ) -> IntTensor<Flex> {
-        debug_assert_eq!(
-            indices.dtype(),
-            DType::I64,
-            "int_gather: indices must be I64"
-        );
         match tensor.dtype() {
             DType::I64 => crate::ops::gather_scatter::gather::<i64>(tensor, dim, indices),
             DType::I32 => crate::ops::gather_scatter::gather::<i32>(tensor, dim, indices),
@@ -134,11 +129,6 @@ impl IntTensorOps<Flex> for Flex {
         indices: IntTensor<Flex>,
         value: IntTensor<Flex>,
     ) -> IntTensor<Flex> {
-        debug_assert_eq!(
-            indices.dtype(),
-            DType::I64,
-            "int_scatter_add: indices must be I64"
-        );
         debug_assert_eq!(
             tensor.dtype(),
             value.dtype(),
@@ -174,11 +164,6 @@ impl IntTensorOps<Flex> for Flex {
         dim: usize,
         indices: IntTensor<Flex>,
     ) -> IntTensor<Flex> {
-        debug_assert_eq!(
-            indices.dtype(),
-            DType::I64,
-            "int_select: indices must be I64"
-        );
         match tensor.dtype() {
             DType::I64 => crate::ops::gather_scatter::select::<i64>(tensor, dim, indices),
             DType::I32 => crate::ops::gather_scatter::select::<i32>(tensor, dim, indices),
@@ -198,11 +183,6 @@ impl IntTensorOps<Flex> for Flex {
         indices: IntTensor<Flex>,
         value: IntTensor<Flex>,
     ) -> IntTensor<Flex> {
-        debug_assert_eq!(
-            indices.dtype(),
-            DType::I64,
-            "int_select_add: indices must be I64"
-        );
         debug_assert_eq!(
             tensor.dtype(),
             value.dtype(),
