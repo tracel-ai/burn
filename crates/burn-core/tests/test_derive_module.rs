@@ -683,7 +683,7 @@ mod grad_distributed {
                     expected = expected.add(r.recv().unwrap().to_device(&device));
                 }
                 if op == ReduceOperation::Mean {
-                    expected = expected.div_scalar(original_recvs.len() + 1);
+                    expected = expected.div_scalar((original_recvs.len() + 1) as f32);
                 }
                 for r in synced_recvs.iter().by_ref() {
                     let data_other = r.recv().unwrap();
