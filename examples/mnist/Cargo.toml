@@ -32,7 +32,5 @@ burn = { path = "../../crates/burn", features = [
     "ndarray",
 ], default-features = false }
 
-# Serialization
 log = { workspace = true }
 rand.workspace = true
-serde = { workspace = true, features = ["std", "derive"] }

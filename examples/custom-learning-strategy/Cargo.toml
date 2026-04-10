@@ -9,7 +9,10 @@ publish = false
 workspace = true
 
 [dependencies]
-burn = {path = "../../crates/burn", default-features = false, features=["autodiff", "webgpu", "vision"]}
-guide = {path = "../guide"}
-derive-new = { workspace = true }
+burn = { path = "../../crates/burn", features = [
+    "autodiff",
+    "wgpu",
+    "vision",
+] }
+guide = { path = "../guide" }
 log = { workspace = true }

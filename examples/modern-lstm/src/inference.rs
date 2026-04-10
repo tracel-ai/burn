@@ -13,7 +13,8 @@ use burn::{
 };
 use polars::prelude::*;
 
-pub fn infer<B: Backend>(artifact_dir: &str, device: B::Device) {
+pub fn infer(artifact_dir: &str, device: impl Into<Device>) {
+    let device = device.into();
     // Loading model
     let config = TrainingConfig::load(format!("{artifact_dir}/config.json"))
         .expect("Config should exist for the model; run train first");
@@ -21,7 +22,7 @@ pub fn infer<B: Backend>(artifact_dir: &str, device: B::Device) {
         .load(format!("{artifact_dir}/model").into(), &device)
         .expect("Trained model should exist; run train first");
 
-    let model: LstmNetwork<B> = config.model.init(&device).load_record(record);
+    let model: LstmNetwork = config.model.init(&device).load_record(record);
 
     let dataset = SequenceDataset::new(NUM_SEQUENCES / 5, SEQ_LENGTH, NOISE_LEVEL);
     let items: Vec<SequenceDatasetItem> = dataset.iter().collect();

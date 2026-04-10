@@ -92,26 +92,26 @@ impl HousingDataset {
 
 /// Normalizer for the housing dataset.
 #[derive(Clone, Debug)]
-pub struct Normalizer<B: Backend> {
-    pub min: Tensor<B, 2>,
-    pub max: Tensor<B, 2>,
+pub struct Normalizer {
+    pub min: Tensor<2>,
+    pub max: Tensor<2>,
 }
 
-impl<B: Backend> Normalizer<B> {
+impl Normalizer {
     /// Creates a new normalizer.
-    pub fn new(device: &B::Device, min: &[f32], max: &[f32]) -> Self {
-        let min = Tensor::<B, 1>::from_floats(min, device).unsqueeze();
-        let max = Tensor::<B, 1>::from_floats(max, device).unsqueeze();
+    pub fn new(device: &Device, min: &[f32], max: &[f32]) -> Self {
+        let min = Tensor::<1>::from_floats(min, device).unsqueeze();
+        let max = Tensor::<1>::from_floats(max, device).unsqueeze();
         Self { min, max }
     }
 
     /// Normalizes the input image according to the housing dataset min/max.
-    pub fn normalize(&self, input: Tensor<B, 2>) -> Tensor<B, 2> {
+    pub fn normalize(&self, input: Tensor<2>) -> Tensor<2> {
         (input - self.min.clone()) / (self.max.clone() - self.min.clone())
     }
 
     /// Returns a new normalizer on the given device.
-    pub fn to_device(&self, device: &B::Device) -> Self {
+    pub fn to_device(&self, device: &Device) -> Self {
         Self {
             min: self.min.clone().to_device(device),
             max: self.max.clone().to_device(device),
@@ -120,30 +120,30 @@ impl<B: Backend> Normalizer<B> {
 }
 
 #[derive(Clone, Debug)]
-pub struct HousingBatcher<B: Backend> {
-    normalizer: Normalizer<B>,
+pub struct HousingBatcher {
+    normalizer: Normalizer,
 }
 
 #[derive(Clone, Debug)]
-pub struct HousingBatch<B: Backend> {
-    pub inputs: Tensor<B, 2>,
-    pub targets: Tensor<B, 1>,
+pub struct HousingBatch {
+    pub inputs: Tensor<2>,
+    pub targets: Tensor<1>,
 }
 
-impl<B: Backend> HousingBatcher<B> {
-    pub fn new(device: B::Device) -> Self {
+impl HousingBatcher {
+    pub fn new(device: &Device) -> Self {
         Self {
-            normalizer: Normalizer::new(&device, &FEATURES_MIN, &FEATURES_MAX),
+            normalizer: Normalizer::new(device, &FEATURES_MIN, &FEATURES_MAX),
         }
     }
 }
 
-impl<B: Backend> Batcher<B, HousingDistrictItem, HousingBatch<B>> for HousingBatcher<B> {
-    fn batch(&self, items: Vec<HousingDistrictItem>, device: &B::Device) -> HousingBatch<B> {
-        let mut inputs: Vec<Tensor<B, 2>> = Vec::new();
+impl Batcher<HousingDistrictItem, HousingBatch> for HousingBatcher {
+    fn batch(&self, items: Vec<HousingDistrictItem>, device: &Device) -> HousingBatch {
+        let mut inputs: Vec<Tensor<2>> = Vec::new();
 
         for item in items.iter() {
-            let input_tensor = Tensor::<B, 1>::from_floats(
+            let input_tensor = Tensor::<1>::from_floats(
                 [
                     item.median_income,
                     item.house_age,
@@ -165,7 +165,7 @@ impl<B: Backend> Batcher<B, HousingDistrictItem, HousingBatch<B>> for HousingBat
 
         let targets = items
             .iter()
-            .map(|item| Tensor::<B, 1>::from_floats([item.median_house_value], device))
+            .map(|item| Tensor::<1>::from_floats([item.median_house_value], device))
             .collect();
 
         let targets = Tensor::cat(targets, 0);

@@ -16,7 +16,7 @@ vulkan = ["burn/vulkan"]
 
 [dependencies]
 burn = { path = "../../crates/burn", features = [
-    "webgpu",
+    "wgpu",
     "train",
     "vision",
 ], default-features = false }
@@ -24,6 +24,4 @@ burn = { path = "../../crates/burn", features = [
 [target.'cfg(not(target_os = "macos"))'.dependencies]
 burn = { path = "../../crates/burn", features = ["vulkan"] }
 
-# Serialization
 log = { workspace = true }
-serde = { workspace = true, features = ["std", "derive"] }

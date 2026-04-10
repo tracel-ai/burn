@@ -109,6 +109,20 @@ pub fn run(device: Device) {
         .num_epochs(config.num_epochs)
         .summary();
 
+    let now = std::time::Instant::now();
+    {
+        let _result = training.launch(Learner::new(
+            model,
+            config.optimizer.init(),
+            lr_scheduler.init().unwrap(),
+        ));
+    }
+
+    let elapsed = now.elapsed().as_secs();
+    println!("Training completed in {}m{}s", (elapsed / 60), elapsed % 60);
+    println!("Executed on device: {autodiff_device:?}");
+
+    /*
     let result = training.launch(Learner::new(
         model,
         config.optimizer.init(),
@@ -145,6 +159,7 @@ pub fn run(device: Device) {
         .unwrap();
 
     renderer.manual_close();
+    */
 }
 
 fn evaluate(

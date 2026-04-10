@@ -1,9 +1,5 @@
 #![recursion_limit = "131"]
-use burn::{
-    backend::{Autodiff, WebGpu},
-    data::dataset::Dataset,
-    optim::AdamConfig,
-};
+use burn::{data::dataset::Dataset, optim::AdamConfig};
 use guide::{
     inference,
     model::ModelConfig,
@@ -11,9 +7,6 @@ use guide::{
 };
 
 fn main() {
-    type MyBackend = WebGpu<f32, i32>;
-    type MyAutodiffBackend = Autodiff<MyBackend>;
-
     // Create a default Wgpu device
     let device = burn::backend::wgpu::WgpuDevice::default();
 
@@ -21,14 +14,14 @@ fn main() {
     let artifact_dir = "target/guide";
 
     // Train the model
-    training::train::<MyAutodiffBackend>(
+    training::train(
         artifact_dir,
         TrainingConfig::new(ModelConfig::new(10, 512), AdamConfig::new()),
         device.clone(),
     );
 
     // Infer the model
-    inference::infer::<MyBackend>(
+    inference::infer(
         artifact_dir,
         device,
         burn::data::dataset::vision::MnistDataset::test()
