@@ -761,6 +761,17 @@ fn reduce_dim_f32(tensor: &FlexTensor, dim: usize, op: ReduceOp) -> FlexTensor {
     out_shape[dim] = 1;
     let out_size: usize = out_shape.iter().product();
 
+    // Empty output: any zero-sized non-reduced dim means the result has no
+    // elements. Return early so the SIMD kernels and fallback loops never
+    // see `outer_size == 0` or `inner_size == 0`.
+    if out_size == 0 {
+        return FlexTensor::new(
+            Bytes::from_elems(Vec::<f32>::new()),
+            Layout::contiguous(Shape::from(out_shape)),
+            DType::F32,
+        );
+    }
+
     let outer_size: usize = shape[..dim].iter().product();
     let inner_size: usize = shape[dim + 1..].iter().product();
 
@@ -843,10 +854,12 @@ fn reduce_dim_f32(tensor: &FlexTensor, dim: usize, op: ReduceOp) -> FlexTensor {
         }
         result
     } else if tensor.is_contiguous() {
-        // Contiguous: use flat index arithmetic (safe for any ndims)
+        // Contiguous: use flat index arithmetic (safe for any ndims).
+        // outer_size and inner_size are guaranteed positive by the out_size == 0
+        // early return above.
         let mut result = Vec::with_capacity(out_size);
-        for outer in 0..outer_size.max(1) {
-            for inner in 0..inner_size.max(1) {
+        for outer in 0..outer_size {
+            for inner in 0..inner_size {
                 let mut acc = init;
                 for d in 0..dim_size {
                     let idx = start_offset + outer * dim_size * inner_size + d * inner_size + inner;
@@ -862,8 +875,8 @@ fn reduce_dim_f32(tensor: &FlexTensor, dim: usize, op: ReduceOp) -> FlexTensor {
         let inner_stride: isize = if dim + 1 < ndims { strides[dim + 1] } else { 1 };
 
         let mut result = Vec::with_capacity(out_size);
-        for outer in 0..outer_size.max(1) {
-            for inner in 0..inner_size.max(1) {
+        for outer in 0..outer_size {
+            for inner in 0..inner_size {
                 let base = start_offset as isize
                     + outer as isize * outer_stride
                     + inner as isize * inner_stride;
@@ -994,7 +1007,9 @@ fn reduce_last_dim_f32(
         dim_size as isize
     };
 
-    let rows = outer_size.max(1);
+    // `outer_size > 0` is guaranteed by the out_size == 0 early return in
+    // `reduce_dim_f32`.
+    let rows = outer_size;
 
     // Contiguous Sum: batch all rows in one kernel call to avoid per-row overhead.
     #[cfg(feature = "simd")]
@@ -1060,6 +1075,17 @@ where
     out_shape[dim] = 1;
     let out_size: usize = out_shape.iter().product();
 
+    // Empty output: any zero-sized non-reduced dim means the result has no
+    // elements. Returning early keeps the loops below from producing phantom
+    // outputs when `outer_size == 0` or `inner_size == 0`.
+    if out_size == 0 {
+        return FlexTensor::new(
+            Bytes::from_elems(Vec::<E>::new()),
+            Layout::contiguous(Shape::from(out_shape)),
+            tensor.dtype(),
+        );
+    }
+
     let outer_size: usize = shape[..dim].iter().product();
     let inner_size: usize = shape[dim + 1..].iter().product();
 
@@ -1069,9 +1095,10 @@ where
     let mut result: Vec<E> = Vec::with_capacity(out_size);
 
     if tensor.is_contiguous() {
-        // Contiguous: use flat index arithmetic (safe for any ndims)
-        for outer in 0..outer_size.max(1) {
-            for inner in 0..inner_size.max(1) {
+        // Contiguous: use flat index arithmetic (safe for any ndims).
+        // outer_size and inner_size are positive by the early return above.
+        for outer in 0..outer_size {
+            for inner in 0..inner_size {
                 let mut acc = init;
                 for d in 0..dim_size {
                     let idx = start_offset + outer * dim_size * inner_size + d * inner_size + inner;
@@ -1086,8 +1113,8 @@ where
         let outer_stride: isize = if dim > 0 { strides[dim - 1] } else { 0 };
         let inner_stride: isize = if dim + 1 < ndims { strides[dim + 1] } else { 1 };
 
-        for outer in 0..outer_size.max(1) {
-            for inner in 0..inner_size.max(1) {
+        for outer in 0..outer_size {
+            for inner in 0..inner_size {
                 let base = start_offset as isize
                     + outer as isize * outer_stride
                     + inner as isize * inner_stride;
@@ -1132,6 +1159,15 @@ where
     out_shape[dim] = 1;
     let out_size: usize = out_shape.iter().product();
 
+    // Empty output: skip the loop entirely for zero-sized non-reduced dims.
+    if out_size == 0 {
+        return FlexTensor::new(
+            Bytes::from_elems(Vec::<E>::new()),
+            Layout::contiguous(Shape::from(out_shape)),
+            tensor.dtype(),
+        );
+    }
+
     let outer_size: usize = shape[..dim].iter().product();
     let inner_size: usize = shape[dim + 1..].iter().product();
 
@@ -1140,8 +1176,8 @@ where
 
     let mut result: Vec<E> = Vec::with_capacity(out_size);
 
-    for outer in 0..outer_size.max(1) {
-        for inner in 0..inner_size.max(1) {
+    for outer in 0..outer_size {
+        for inner in 0..inner_size {
             let mut acc = init;
             for d in 0..dim_size {
                 let idx = start_offset + outer * dim_size * inner_size + d * inner_size + inner;
@@ -1192,6 +1228,15 @@ where
     out_shape[dim] = 1;
     let out_size: usize = out_shape.iter().product();
 
+    // Empty output: skip the loop entirely for zero-sized non-reduced dims.
+    if out_size == 0 {
+        return FlexTensor::new(
+            Bytes::from_elems(Vec::<E>::new()),
+            Layout::contiguous(Shape::from(out_shape)),
+            E::dtype(),
+        );
+    }
+
     let outer_size: usize = shape[..dim].iter().product();
     let inner_size: usize = shape[dim + 1..].iter().product();
 
@@ -1200,8 +1245,8 @@ where
 
     let mut result: Vec<E> = Vec::with_capacity(out_size);
 
-    for outer in 0..outer_size.max(1) {
-        for inner in 0..inner_size.max(1) {
+    for outer in 0..outer_size {
+        for inner in 0..inner_size {
             let mut acc = init;
             for d in 0..dim_size {
                 let idx = start_offset + outer * dim_size * inner_size + d * inner_size + inner;
@@ -2334,6 +2379,73 @@ mod tests {
         let result_data = result.into_data();
         let values: &[f16] = bytemuck::cast_slice(&result_data.bytes);
         assert!(values.is_empty());
+    }
+
+    #[test]
+    fn test_sum_dim_f32_zero_outer_dim() {
+        // Regression: the f32 last-dim SIMD path (`reduce_last_dim_f32`) used
+        // `rows = outer_size.max(1)` which would index past the end of an
+        // empty data buffer for shape [0, K]. Guarded by the `out_size == 0`
+        // early return in `reduce_dim_f32`.
+        let data: Vec<f32> = Vec::new();
+        let tensor = FlexTensor::from_data(TensorData::new(data, [0, 4]));
+        let result = sum_dim(tensor, 1);
+
+        assert_eq!(result.layout().shape().to_vec(), vec![0, 1]);
+        assert!(result.into_data().bytes.is_empty());
+    }
+
+    #[test]
+    fn test_sum_dim_f32_zero_inner_dim() {
+        // Mirror of the outer-zero case: shape [3, 0] reducing dim=0 has
+        // inner_size=0. The middle/fallback paths previously would have
+        // allocated an empty result but still iterated `outer_size.max(1)`
+        // times with zero inner, producing correct (empty) output by
+        // accident. The early return makes the intent explicit.
+        let data: Vec<f32> = Vec::new();
+        let tensor = FlexTensor::from_data(TensorData::new(data, [3, 0]));
+        let result = sum_dim(tensor, 0);
+
+        assert_eq!(result.layout().shape().to_vec(), vec![1, 0]);
+        assert!(result.into_data().bytes.is_empty());
+    }
+
+    #[test]
+    fn test_sum_dim_f64_zero_outer_dim() {
+        // Covers `reduce_dim_impl` (generic contiguous/non-contiguous path)
+        // for the zero-sized non-reduced dim case.
+        let data: Vec<f64> = Vec::new();
+        let tensor = FlexTensor::from_data(TensorData::new(data, [0, 4]));
+        let result = sum_dim(tensor, 1);
+
+        assert_eq!(result.layout().shape().to_vec(), vec![0, 1]);
+        assert!(result.into_data().bytes.is_empty());
+    }
+
+    #[test]
+    fn test_sum_dim_i8_zero_outer_dim() {
+        // Covers `reduce_dim_widening` (i8/i16/u8/u16 path that accumulates
+        // in i64) for the zero-sized non-reduced dim case.
+        let data: Vec<i8> = Vec::new();
+        let tensor = FlexTensor::from_data(TensorData::new(data, [0, 4]));
+        let result = sum_dim(tensor, 1);
+
+        assert_eq!(result.layout().shape().to_vec(), vec![0, 1]);
+        assert!(result.into_data().bytes.is_empty());
+    }
+
+    #[test]
+    fn test_sum_dim_bf16_zero_outer_dim() {
+        // Covers `reduce_dim_half` (bf16/f16 sum_dim/prod_dim path) for the
+        // zero-sized non-reduced dim case. Note: f16 `mean_dim` goes through
+        // `mean_dim_half` which has its own test above; bf16 `sum_dim` goes
+        // through `reduce_dim_half`, which is why this test uses bf16+sum.
+        let data: Vec<bf16> = Vec::new();
+        let tensor = FlexTensor::from_data(TensorData::new(data, [0, 4]));
+        let result = sum_dim(tensor, 1);
+
+        assert_eq!(result.layout().shape().to_vec(), vec![0, 1]);
+        assert!(result.into_data().bytes.is_empty());
     }
 
     #[test]
