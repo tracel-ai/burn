@@ -120,6 +120,13 @@ where
         self.server.submit(move |server| server.drain_stream(id));
     }
 
+    /// Register all computation.
+    pub fn flush(&self) {
+        let id = StreamId::current();
+        self.server
+            .submit_blocking(move |server| server.drain_stream(id));
+    }
+
     /// Create a new (uninitialized) empty tensor handle and returns its corresponding [tensor id](TensorId).
     pub fn create_empty_handle(&self) -> TensorId {
         let value = COUNTER.fetch_add(1, Ordering::Relaxed);

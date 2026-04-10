@@ -52,7 +52,7 @@ impl<B: FusionBackend + DistributedBackend> DistributedBackend for Fusion<B> {
             .output()
             .into();
 
-        client.drain();
+        client.flush();
 
         out
     }
@@ -62,6 +62,5 @@ impl<B: FusionBackend + DistributedBackend> DistributedBackend for Fusion<B> {
         let client = get_client::<B>(device);
         println!("fusion sync_collective got client: {:?}", device.id());
         client.sync_collective::<B>(device.clone());
-        // B::sync_collective(device);
     }
 }
