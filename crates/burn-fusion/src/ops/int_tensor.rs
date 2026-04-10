@@ -1,7 +1,8 @@
 use super::NoOp;
 use crate::{
-    Fusion, FusionBackend, binary_int_cmp_ops, binary_int_ops, get_client, reduce_int_ops,
-    scalar_int_cmp_ops, scalar_int_ops,
+    Fusion, FusionBackend, binary_int_cmp_ops, binary_int_ops,
+    client::GlobalFusionClient,
+    get_client, reduce_int_ops, scalar_int_cmp_ops, scalar_int_ops,
     stream::{OperationStreams, execution::Operation},
     unary_int_ops,
 };
@@ -71,20 +72,18 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         tensor.client.device().clone()
     }
 
-    fn int_to_device(tensor: IntTensor<Self>, device: &Device<Self>) -> IntTensor<Self> {
-        let device_original: &B::Device = tensor.client.device();
+    fn int_to_device(tensor: IntTensor<Self>, device_dst: &Device<Self>) -> IntTensor<Self> {
+        let device_src: &B::Device = tensor.client.device();
 
-        if device_original == device {
+        if device_src == device_dst {
             return tensor;
         }
 
         let id = tensor.stream;
-        let client_target = get_client::<B>(device);
-        let client_original = tensor.client.clone();
+        let client_dst = get_client::<B>(device_dst);
+        let client_src = tensor.client.clone();
 
-        client_original
-            .clone()
-            .change_client_int::<B>(tensor.into_ir(), client_target, id)
+        GlobalFusionClient::change_client_int::<B>(tensor.into_ir(), client_src, client_dst, id)
     }
 
     fn int_reshape(tensor: IntTensor<Self>, shape: Shape) -> IntTensor<Self> {
