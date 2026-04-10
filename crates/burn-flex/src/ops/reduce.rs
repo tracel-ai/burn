@@ -1276,15 +1276,14 @@ where
 }
 
 /// Scalar mean for half-precision types, fusing sum and divide in f32.
-/// Avoids f16 overflow when the total sum exceeds `f16::MAX`.
+/// Avoids f16 overflow when the total sum exceeds `f16::MAX`. Empty input
+/// produces NaN to match the f32/f64 path in `mean()`.
 fn mean_scalar_half<E>(tensor: &FlexTensor, from_f32: fn(f32) -> E) -> FlexTensor
 where
     E: Element + bytemuck::Pod,
 {
-    let n = tensor.layout().num_elements();
-    assert!(n > 0, "mean: cannot take mean of empty tensor");
-
     let tensor = tensor.to_contiguous();
+    let n = tensor.layout().num_elements();
     let data = float_storage_as_f32(&tensor);
     let acc: f32 = data.iter().sum();
 

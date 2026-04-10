@@ -458,3 +458,19 @@ fn test_multiple_reduce_dims_permuted() {
         .into_data()
         .assert_approx_eq::<FloatElem>(&TensorData::from([255.5, 767.5]), Tolerance::default());
 }
+
+#[test]
+fn test_should_mean_overflow_intermediate_sum() {
+    // Companion to test_multiple_reduce_dims_permuted: scalar `.mean()` goes
+    // through a separate code path from `.mean_dim()`. The intermediate sum of
+    // arange(0..1024) is 523776, well above f16::MAX (65504), so a naive
+    // sum-then-divide implementation overflows to inf for f16/bf16 even though
+    // the final mean (511.5) fits comfortably.
+    let tensor = TestTensorInt::arange(0..1024, &Default::default()).float();
+
+    let output = tensor.mean();
+
+    output
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&TensorData::from([511.5]), Tolerance::default());
+}
