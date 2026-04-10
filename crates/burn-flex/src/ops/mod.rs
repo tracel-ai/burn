@@ -1,6 +1,10 @@
 //! Backend operations implementations.
 
+use alloc::borrow::Cow;
 use burn_backend::DType;
+use burn_std::{bf16, f16};
+
+use crate::FlexTensor;
 
 /// The `DType` that matches `isize` on the current platform.
 #[cfg(target_pointer_width = "64")]
@@ -50,6 +54,35 @@ impl<T> SendMutPtr<T> {
     /// Offset must be in bounds.
     pub(crate) unsafe fn ptr_add(&self, offset: usize) -> *mut T {
         unsafe { self.0.add(offset) }
+    }
+}
+
+/// Read a float tensor's storage as f32 values, regardless of source dtype.
+/// Returns a borrowed slice for F32 (zero-copy) and an owned Vec for other
+/// float dtypes (F64, F16, BF16).
+///
+/// The caller is responsible for making the tensor contiguous first when the
+/// returned slice needs to be in iteration order; otherwise the slice reflects
+/// the underlying buffer order.
+pub(crate) fn float_storage_as_f32(tensor: &FlexTensor) -> Cow<'_, [f32]> {
+    match tensor.dtype() {
+        DType::F32 => Cow::Borrowed(tensor.storage::<f32>()),
+        DType::F64 => Cow::Owned(tensor.storage::<f64>().iter().map(|&x| x as f32).collect()),
+        DType::F16 => Cow::Owned(
+            tensor
+                .storage::<f16>()
+                .iter()
+                .map(|x| f32::from(*x))
+                .collect(),
+        ),
+        DType::BF16 => Cow::Owned(
+            tensor
+                .storage::<bf16>()
+                .iter()
+                .map(|x| f32::from(*x))
+                .collect(),
+        ),
+        other => panic!("float_storage_as_f32: unsupported dtype {:?}", other),
     }
 }
 

@@ -13,7 +13,7 @@ use burn_std::{Bytes, Shape, bf16, f16};
 use crate::strided_index::StridedIter;
 use crate::{FlexTensor, Layout};
 
-use super::INDEX_DTYPE;
+use super::{INDEX_DTYPE, float_storage_as_f32};
 
 /// Assert that a dimension size fits in `isize`, which is required for index-producing
 /// operations (argmax, argmin, *_with_indices) that store dimension indices as `isize`.
@@ -286,8 +286,8 @@ pub fn mean_dim(tensor: FlexTensor, dim: usize) -> FlexTensor {
     // Half-precision types fuse sum+divide in f32 to avoid overflow when the
     // intermediate sum exceeds f16::MAX, so they don't go through sum_dim.
     match dtype {
-        DType::F16 => return mean_dim_half::<f16>(&tensor, dim, f16::to_f32, f16::from_f32),
-        DType::BF16 => return mean_dim_half::<bf16>(&tensor, dim, bf16::to_f32, bf16::from_f32),
+        DType::F16 => return mean_dim_half::<f16>(&tensor, dim, f16::from_f32),
+        DType::BF16 => return mean_dim_half::<bf16>(&tensor, dim, bf16::from_f32),
         _ => {}
     }
 
@@ -1225,12 +1225,7 @@ where
 /// intermediate sum exceeds `f16::MAX` (65504), even if the final mean fits. This
 /// function keeps the entire reduction and division in f32 and only narrows to
 /// f16/bf16 on store.
-fn mean_dim_half<E>(
-    tensor: &FlexTensor,
-    dim: usize,
-    to_f32: fn(E) -> f32,
-    from_f32: fn(f32) -> E,
-) -> FlexTensor
+fn mean_dim_half<E>(tensor: &FlexTensor, dim: usize, from_f32: fn(f32) -> E) -> FlexTensor
 where
     E: Element + bytemuck::Pod,
 {
@@ -1257,8 +1252,7 @@ where
     let outer_size: usize = shape[..dim].iter().product();
     let inner_size: usize = shape[dim + 1..].iter().product();
 
-    let data: &[E] = tensor.storage();
-    let start_offset = tensor.layout().start_offset();
+    let data = float_storage_as_f32(&tensor);
     let divisor = dim_size as f32;
 
     let mut result: Vec<E> = Vec::with_capacity(out_size);
@@ -1267,8 +1261,7 @@ where
         for inner in 0..inner_size.max(1) {
             let mut acc = 0.0f32;
             for d in 0..dim_size {
-                let idx = start_offset + outer * dim_size * inner_size + d * inner_size + inner;
-                acc += to_f32(data[idx]);
+                acc += data[outer * dim_size * inner_size + d * inner_size + inner];
             }
             result.push(from_f32(acc / divisor));
         }
@@ -1284,29 +1277,16 @@ where
 
 /// Scalar mean for half-precision types, fusing sum and divide in f32.
 /// Avoids f16 overflow when the total sum exceeds `f16::MAX`.
-fn mean_scalar_half<E>(
-    tensor: &FlexTensor,
-    to_f32: fn(E) -> f32,
-    from_f32: fn(f32) -> E,
-) -> FlexTensor
+fn mean_scalar_half<E>(tensor: &FlexTensor, from_f32: fn(f32) -> E) -> FlexTensor
 where
     E: Element + bytemuck::Pod,
 {
     let n = tensor.layout().num_elements();
     assert!(n > 0, "mean: cannot take mean of empty tensor");
 
-    let acc: f32 = match tensor.layout().contiguous_offsets() {
-        Some((start, end)) => {
-            let data: &[E] = tensor.storage();
-            data[start..end].iter().map(|x| to_f32(*x)).sum()
-        }
-        None => {
-            let data: &[E] = tensor.storage();
-            StridedIter::new(tensor.layout())
-                .map(|idx| to_f32(data[idx]))
-                .sum()
-        }
-    };
+    let tensor = tensor.to_contiguous();
+    let data = float_storage_as_f32(&tensor);
+    let acc: f32 = data.iter().sum();
 
     let mean = acc / (n as f32);
     let bytes = Bytes::from_elems(vec![from_f32(mean)]);
@@ -1324,8 +1304,8 @@ pub fn mean(tensor: FlexTensor) -> FlexTensor {
     // Half-precision types fuse sum+divide in f32 to avoid overflow when the
     // total sum exceeds f16::MAX.
     match dtype {
-        DType::F16 => return mean_scalar_half::<f16>(&tensor, f16::to_f32, f16::from_f32),
-        DType::BF16 => return mean_scalar_half::<bf16>(&tensor, bf16::to_f32, bf16::from_f32),
+        DType::F16 => return mean_scalar_half::<f16>(&tensor, f16::from_f32),
+        DType::BF16 => return mean_scalar_half::<bf16>(&tensor, bf16::from_f32),
         _ => {}
     }
 
