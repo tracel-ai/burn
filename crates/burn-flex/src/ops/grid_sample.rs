@@ -123,9 +123,7 @@ where
                     match pad_mode {
                         GridSamplePaddingMode::Zeros => {
                             if xi >= 0 && xi < w_in as i64 && yi >= 0 && yi < h_in as i64 {
-                                to_f64(
-                                    tensor_data[t_base + yi as usize * t_stride_h + xi as usize],
-                                )
+                                to_f64(tensor_data[t_base + yi as usize * t_stride_h + xi as usize])
                             } else {
                                 0.0
                             }
