@@ -346,6 +346,7 @@ pub(crate) fn handle_command(
                         test: args.test.clone(),
                         force: args.force,
                         no_capture: args.no_capture,
+                        miri: args.miri,
                     },
                     env.clone(),
                     ctx.clone(),
