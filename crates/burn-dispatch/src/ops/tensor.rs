@@ -150,6 +150,22 @@ impl FloatTensorOps<Self> for Dispatch {
         )
     }
 
+    fn float_scatter_nd(
+        data: FloatTensor<Self>,
+        indices: IntTensor<Self>,
+        values: FloatTensor<Self>,
+        reduction: burn_backend::tensor::IndexingUpdateOp,
+    ) -> FloatTensor<Self> {
+        multi_op!(
+            inputs[(data, float), (indices, int), (values, float)], => Float,
+            B::float_scatter_nd(data, indices, values, reduction)
+        )
+    }
+
+    fn float_gather_nd(data: FloatTensor<Self>, indices: IntTensor<Self>) -> FloatTensor<Self> {
+        binary_float!((data, float), (indices, int), |data, indices| B::float_gather_nd(data, indices) => Float)
+    }
+
     fn float_select(
         tensor: FloatTensor<Self>,
         dim: usize,

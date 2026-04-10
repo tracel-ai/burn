@@ -27,6 +27,9 @@ pub(crate) struct RemainderOp;
 pub(crate) struct AndOp;
 pub(crate) struct OrOp;
 pub(crate) struct PowOp;
+pub(crate) struct AssignOp;
+pub(crate) struct BinaryMinOp;
+pub(crate) struct BinaryMaxOp;
 
 impl BinaryOpFamily for AddOp {
     type BinaryOp<C: Numeric, N: Size> = Self;
@@ -57,6 +60,18 @@ impl BinaryOpFamily for AndOp {
 }
 
 impl BinaryOpFamily for OrOp {
+    type BinaryOp<C: Numeric, N: Size> = Self;
+}
+
+impl BinaryOpFamily for AssignOp {
+    type BinaryOp<C: Numeric, N: Size> = Self;
+}
+
+impl BinaryOpFamily for BinaryMinOp {
+    type BinaryOp<C: Numeric, N: Size> = Self;
+}
+
+impl BinaryOpFamily for BinaryMaxOp {
     type BinaryOp<C: Numeric, N: Size> = Self;
 }
 
@@ -145,6 +160,27 @@ impl<T: Numeric, N: Size> BinaryOp<T, N> for AndOp {
 impl<T: Numeric, N: Size> BinaryOp<T, N> for OrOp {
     fn execute(lhs: Vector<T, N>, rhs: Vector<T, N>) -> Vector<T, N> {
         Vector::cast_from(Vector::<bool, N>::cast_from(lhs).or(Vector::<bool, N>::cast_from(rhs)))
+    }
+}
+
+#[cube]
+impl<T: Numeric, N: Size> BinaryOp<T, N> for AssignOp {
+    fn execute(_lhs: Vector<T, N>, rhs: Vector<T, N>) -> Vector<T, N> {
+        rhs
+    }
+}
+
+#[cube]
+impl<T: Numeric, N: Size> BinaryOp<T, N> for BinaryMinOp {
+    fn execute(lhs: Vector<T, N>, rhs: Vector<T, N>) -> Vector<T, N> {
+        clamp_max(lhs, rhs)
+    }
+}
+
+#[cube]
+impl<T: Numeric, N: Size> BinaryOp<T, N> for BinaryMaxOp {
+    fn execute(lhs: Vector<T, N>, rhs: Vector<T, N>) -> Vector<T, N> {
+        clamp_min(lhs, rhs)
     }
 }
 

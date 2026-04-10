@@ -8,11 +8,11 @@ use burn_backend::tensor::{BoolTensor, Device, FloatTensor, IndexingUpdateOp, In
 use burn_backend::{Distribution, FloatDType, Shape, Slice, TensorData, ops::FloatTensorOps};
 use burn_ir::{
     BaseOperationIr, BinaryOpIr, CastOpIr, CatOpIr, ClampOpIr, CreationOpIr, CrossOpIr, DimOpIr,
-    FlipOpIr, FloatOperationIr, FullOpIr, GatherOpIr, InitOperationIr, MaskFillOpIr, MaskWhereOpIr,
-    MatmulOpIr, NumericOperationIr, OperationIr, OperationOutput, PermuteOpIr, RandomOpIr,
-    ReduceDimOpIr, ReduceDimWithIndicesOpIr, ReduceOpIr, RepeatDimOpIr, ScalarOpIr, ScatterOpIr,
-    SelectAssignOpIr, SelectOpIr, ShapeOpIr, SliceAssignOpIr, SliceOpIr, SwapDimsOpIr, UnaryOpIr,
-    UnfoldOpIr,
+    FlipOpIr, FloatOperationIr, FullOpIr, GatherNdOpIr, GatherOpIr, InitOperationIr, MaskFillOpIr,
+    MaskWhereOpIr, MatmulOpIr, NumericOperationIr, OperationIr, OperationOutput, PermuteOpIr,
+    RandomOpIr, ReduceDimOpIr, ReduceDimWithIndicesOpIr, ReduceOpIr, RepeatDimOpIr, ScalarOpIr,
+    ScatterNdOpIr, ScatterOpIr, SelectAssignOpIr, SelectOpIr, ShapeOpIr, SliceAssignOpIr,
+    SliceOpIr, SwapDimsOpIr, UnaryOpIr, UnfoldOpIr,
 };
 
 impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
@@ -357,6 +357,37 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
 
         client
             .register(OperationIr::BaseFloat(BaseOperationIr::Scatter(desc)))
+            .output()
+    }
+
+    fn float_scatter_nd(
+        data: FloatTensor<Self>,
+        indices: IntTensor<Self>,
+        values: FloatTensor<Self>,
+        reduction: IndexingUpdateOp,
+    ) -> FloatTensor<Self> {
+        let client = data.client.clone();
+        let desc = ScatterNdOpIr::create(
+            data.into_ir(),
+            indices.into_ir(),
+            values.into_ir(),
+            reduction,
+            || client.create_empty_handle(),
+        );
+
+        client
+            .register(OperationIr::BaseFloat(BaseOperationIr::ScatterNd(desc)))
+            .output()
+    }
+
+    fn float_gather_nd(data: FloatTensor<Self>, indices: IntTensor<Self>) -> FloatTensor<Self> {
+        let client = data.client.clone();
+        let desc = GatherNdOpIr::create(data.into_ir(), indices.into_ir(), || {
+            client.create_empty_handle()
+        });
+
+        client
+            .register(OperationIr::BaseFloat(BaseOperationIr::GatherNd(desc)))
             .output()
     }
 

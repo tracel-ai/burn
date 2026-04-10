@@ -1,3 +1,4 @@
+use burn_backend::tensor::IndexingUpdateOp;
 use burn_backend::{Shape, TensorMetadata};
 use tch::Scalar;
 
@@ -230,6 +231,95 @@ impl TchOps {
             .scatter_add(dim as i64, &indices.tensor, &value.tensor);
 
         TchTensor::from_existing(tensor, storage)
+    }
+
+    /// Flatten K-dimensional index tuples into 1D linear offsets, suitable for
+    /// use with PyTorch's scatter/gather along dim 0 of a flattened tensor.
+    ///
+    /// `indices` has shape `[num_updates, k]`.
+    /// Returns a 1D tensor of shape `[num_updates * slice_size]`.
+    fn flatten_nd_indices(
+        indices: &tch::Tensor,
+        data_shape: &[i64],
+        k: usize,
+        slice_size: i64,
+    ) -> tch::Tensor {
+        // Compute per-dimension strides for the first K dims
+        let mut strides = vec![0i64; k];
+        if k > 0 {
+            strides[k - 1] = slice_size;
+            for i in (0..k - 1).rev() {
+                strides[i] = strides[i + 1] * data_shape[i + 1];
+            }
+        }
+
+        // base_offsets: [num_updates] = sum(indices[:, j] * strides[j])
+        let strides_tensor = tch::Tensor::from_slice(&strides).to_device(indices.device());
+        let base_offsets = indices
+            .matmul(&strides_tensor.unsqueeze(-1))
+            .squeeze_dim(-1);
+
+        // Expand base_offsets to [num_updates, slice_size] and add intra-slice offsets
+        let slice_offsets = tch::Tensor::arange(slice_size, (tch::Kind::Int64, indices.device()));
+        let flat = base_offsets.unsqueeze(-1) + slice_offsets.unsqueeze(0);
+        flat.reshape([flat.size().iter().product::<i64>()])
+    }
+
+    pub fn scatter_nd(
+        tensor: TchTensor,
+        indices: TchTensor,
+        values: TchTensor,
+        reduction: IndexingUpdateOp,
+    ) -> TchTensor {
+        let data_shape: Vec<i64> = tensor.tensor.size();
+        let idx_shape: Vec<i64> = indices.tensor.size();
+        let m = idx_shape.len();
+        let k = *idx_shape.last().unwrap() as usize;
+        let num_updates: i64 = idx_shape[..m - 1].iter().product();
+        let total_elems: i64 = data_shape.iter().product();
+        let slice_size: i64 = data_shape[k..].iter().product();
+
+        // Flatten indices [I0,..,I_{M-2}, K] -> [num_updates, K]
+        let flat_indices = indices.tensor.reshape([num_updates, k as i64]);
+        let linear_idx = Self::flatten_nd_indices(&flat_indices, &data_shape, k, slice_size);
+
+        // Flatten data and values to 1D
+        let mut flat_data = tensor.tensor.reshape([total_elems]);
+        let flat_values = values.tensor.reshape([num_updates * slice_size]);
+
+        let result = match reduction {
+            IndexingUpdateOp::Assign => flat_data.scatter_(0, &linear_idx, &flat_values),
+            IndexingUpdateOp::Add => flat_data.scatter_add(0, &linear_idx, &flat_values),
+            IndexingUpdateOp::Mul => flat_data.scatter_reduce(0, &linear_idx, &flat_values, "prod"),
+            IndexingUpdateOp::Min => flat_data.scatter_reduce(0, &linear_idx, &flat_values, "amin"),
+            IndexingUpdateOp::Max => flat_data.scatter_reduce(0, &linear_idx, &flat_values, "amax"),
+        };
+
+        let storage = tensor.storage.clone();
+        TchTensor::from_existing(result.reshape(data_shape), storage)
+    }
+
+    pub fn gather_nd(tensor: TchTensor, indices: TchTensor) -> TchTensor {
+        let data_shape: Vec<i64> = tensor.tensor.size();
+        let idx_shape: Vec<i64> = indices.tensor.size();
+        let m = idx_shape.len();
+        let k = *idx_shape.last().unwrap() as usize;
+        let num_indices: i64 = idx_shape[..m - 1].iter().product();
+        let total_elems: i64 = data_shape.iter().product();
+        let slice_size: i64 = data_shape[k..].iter().product();
+
+        let flat_indices = indices.tensor.reshape([num_indices, k as i64]);
+        let linear_idx = Self::flatten_nd_indices(&flat_indices, &data_shape, k, slice_size);
+
+        let flat_data = tensor.tensor.reshape([total_elems]);
+        let gathered = flat_data.index_select(0, &linear_idx);
+
+        // Output shape: idx_shape[..m-1] ++ data_shape[k..]
+        let mut out_shape: Vec<i64> = idx_shape[..m - 1].to_vec();
+        out_shape.extend_from_slice(&data_shape[k..]);
+
+        let storage = tensor.storage.clone();
+        TchTensor::from_existing(gathered.reshape(out_shape), storage)
     }
 
     pub fn index_select_dim(tensor: TchTensor, dim: usize, indices: TchTensor) -> TchTensor {

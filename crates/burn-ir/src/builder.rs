@@ -297,6 +297,35 @@ impl_ir_create!(
 );
 
 impl_ir_create!(
+    ScatterNdOpIr {
+        data: TensorIr,
+        indices: TensorIr,
+        values: TensorIr,
+        reduction: IndexingUpdateOp
+    },
+    shape = data.shape.clone(),
+    dtype = output_dtype([&data.dtype, &values.dtype]).unwrap()
+);
+
+impl GatherNdOpIr {
+    /// Create a new GatherNd IR operation.
+    pub fn create(
+        data: TensorIr,
+        indices: TensorIr,
+        new_id: impl FnOnce() -> crate::TensorId,
+    ) -> Self {
+        let m = indices.shape.num_dims();
+        let k = indices.shape[m - 1];
+        let mut dims = indices.shape.as_slice()[..m - 1].to_vec();
+        dims.extend_from_slice(&data.shape.as_slice()[k..]);
+        let shape = Shape::from(dims);
+        let dtype = data.dtype;
+        let out = TensorIr::uninit(new_id(), shape, dtype);
+        GatherNdOpIr { data, indices, out }
+    }
+}
+
+impl_ir_create!(
     ReduceOpIr { input: TensorIr },
     shape = [1].into(),
     dtype = input.dtype

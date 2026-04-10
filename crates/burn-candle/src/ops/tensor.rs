@@ -197,6 +197,19 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         )
     }
 
+    fn float_scatter_nd(
+        data: FloatTensor<Self>,
+        indices: IntTensor<Self>,
+        values: FloatTensor<Self>,
+        reduction: burn_backend::tensor::IndexingUpdateOp,
+    ) -> FloatTensor<Self> {
+        super::base::scatter_nd(data, indices, values, reduction)
+    }
+
+    fn float_gather_nd(data: FloatTensor<Self>, indices: IntTensor<Self>) -> FloatTensor<Self> {
+        super::base::gather_nd(data, indices)
+    }
+
     fn float_select(
         tensor: FloatTensor<Self>,
         dim: usize,

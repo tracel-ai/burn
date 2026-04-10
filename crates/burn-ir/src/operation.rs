@@ -347,6 +347,10 @@ pub enum BaseOperationIr {
     /// Int => [scatter](burn_backend::ops::IntTensorOps::int_scatter_add).
     /// Bool => [scatter](burn_backend::ops::BoolTensorOps::bool_scatter_or).
     Scatter(ScatterOpIr),
+    /// Multi-dimensional scatter operation.
+    ScatterNd(ScatterNdOpIr),
+    /// Multi-dimensional gather operation.
+    GatherNd(GatherNdOpIr),
     /// Operation corresponding to:
     ///
     /// Float => [equal](burn_backend::ops::FloatTensorOps::float_equal).
@@ -869,6 +873,24 @@ pub struct ScatterOpIr {
     pub indices: TensorIr,
     pub value: TensorIr,
     pub update: IndexingUpdateOp,
+    pub out: TensorIr,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct ScatterNdOpIr {
+    pub data: TensorIr,
+    pub indices: TensorIr,
+    pub values: TensorIr,
+    pub reduction: IndexingUpdateOp,
+    pub out: TensorIr,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct GatherNdOpIr {
+    pub data: TensorIr,
+    pub indices: TensorIr,
     pub out: TensorIr,
 }
 
@@ -1890,6 +1912,10 @@ impl BaseOperationIr {
             BaseOperationIr::Scatter(repr) => {
                 Box::new([&repr.tensor, &repr.indices, &repr.value].into_iter())
             }
+            BaseOperationIr::ScatterNd(repr) => {
+                Box::new([&repr.data, &repr.indices, &repr.values].into_iter())
+            }
+            BaseOperationIr::GatherNd(repr) => Box::new([&repr.data, &repr.indices].into_iter()),
             BaseOperationIr::Select(repr) => Box::new([&repr.tensor, &repr.indices].into_iter()),
             BaseOperationIr::SelectAssign(repr) => {
                 Box::new([&repr.tensor, &repr.indices, &repr.value].into_iter())
@@ -1921,6 +1947,8 @@ impl BaseOperationIr {
             BaseOperationIr::SliceAssign(repr) => Box::new([&repr.out].into_iter()),
             BaseOperationIr::Gather(repr) => Box::new([&repr.out].into_iter()),
             BaseOperationIr::Scatter(repr) => Box::new([&repr.out].into_iter()),
+            BaseOperationIr::ScatterNd(repr) => Box::new([&repr.out].into_iter()),
+            BaseOperationIr::GatherNd(repr) => Box::new([&repr.out].into_iter()),
             BaseOperationIr::Select(repr) => Box::new([&repr.out].into_iter()),
             BaseOperationIr::SelectAssign(repr) => Box::new([&repr.out].into_iter()),
             BaseOperationIr::MaskWhere(repr) => Box::new([&repr.out].into_iter()),
@@ -1973,6 +2001,15 @@ impl BaseOperationIr {
                 repr.tensor.mark_read_only(nodes, &mut output);
                 repr.indices.mark_read_only(nodes, &mut output);
                 repr.value.mark_read_only(nodes, &mut output);
+            }
+            BaseOperationIr::ScatterNd(repr) => {
+                repr.data.mark_read_only(nodes, &mut output);
+                repr.indices.mark_read_only(nodes, &mut output);
+                repr.values.mark_read_only(nodes, &mut output);
+            }
+            BaseOperationIr::GatherNd(repr) => {
+                repr.data.mark_read_only(nodes, &mut output);
+                repr.indices.mark_read_only(nodes, &mut output);
             }
             BaseOperationIr::Select(repr) => {
                 repr.tensor.mark_read_only(nodes, &mut output);

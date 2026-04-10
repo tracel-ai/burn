@@ -420,6 +420,17 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
         update: IndexingUpdateOp,
     ) -> Self::Primitive;
 
+    /// Multi-dimensional scatter: update `data` at multi-index locations specified by `indices`.
+    fn scatter_nd(
+        data: Self::Primitive,
+        indices: IntTensor<B>,
+        values: Self::Primitive,
+        reduction: IndexingUpdateOp,
+    ) -> Self::Primitive;
+
+    /// Multi-dimensional gather: collect slices from `data` at multi-index locations.
+    fn gather_nd(data: Self::Primitive, indices: IntTensor<B>) -> Self::Primitive;
+
     /// Returns the device on which the tensor is allocated.
     ///
     /// # Arguments

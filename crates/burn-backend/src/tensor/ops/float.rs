@@ -126,6 +126,7 @@ impl<B: Backend> BasicOps<B> for Float {
                 indices,
                 values.tensor(),
             )),
+            _ => unimplemented!(),
         }
     }
 
@@ -170,7 +171,26 @@ impl<B: Backend> BasicOps<B> for Float {
                 indices,
                 values.tensor(),
             )),
+            _ => unimplemented!(),
         }
+    }
+
+    fn scatter_nd(
+        data: Self::Primitive,
+        indices: IntTensor<B>,
+        values: Self::Primitive,
+        reduction: IndexingUpdateOp,
+    ) -> Self::Primitive {
+        TensorPrimitive::Float(B::float_scatter_nd(
+            data.tensor(),
+            indices,
+            values.tensor(),
+            reduction,
+        ))
+    }
+
+    fn gather_nd(data: Self::Primitive, indices: IntTensor<B>) -> Self::Primitive {
+        TensorPrimitive::Float(B::float_gather_nd(data.tensor(), indices))
     }
 
     fn device(tensor: &Self::Primitive) -> Device<B> {
