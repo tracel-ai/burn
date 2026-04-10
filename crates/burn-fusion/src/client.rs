@@ -121,11 +121,8 @@ where
     }
 
     /// Register all computation.
-    pub fn flush(&self) {
-        let id = StreamId::current();
-        self.server
-            .submit_blocking(move |server| server.drain_stream(id))
-            .unwrap();
+    pub fn flush_queue(&self) {
+        self.server.flush_queue();
     }
 
     /// Create a new (uninitialized) empty tensor handle and returns its corresponding [tensor id](TensorId).
