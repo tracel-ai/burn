@@ -52,7 +52,7 @@ impl<B: FusionBackend + DistributedBackend> DistributedBackend for Fusion<B> {
             .output()
             .into();
 
-        client.drain();
+        // client.drain();
         client.flush_queue();
 
         out
