@@ -571,6 +571,7 @@ mod grad_distributed {
             original_receivers,
             transformation,
             NUM_ITERATIONS,
+            op,
         );
 
         for handle in join_handles {
@@ -603,6 +604,7 @@ mod grad_distributed {
         original_receivers: Vec<Receiver<Tensor<B::InnerBackend, 2>>>,
         transformation: fn(Tensor<B, 2>, Tensor<B, 2>) -> Tensor<B, 2>,
         num_iter: usize,
+        op: ReduceOperation,
     ) -> Vec<std::thread::JoinHandle<()>> {
         let mut handles = vec![];
 
@@ -620,6 +622,7 @@ mod grad_distributed {
                 true,
                 synced_receivers,
                 original_receivers,
+                op,
             )
         }));
 
@@ -640,6 +643,7 @@ mod grad_distributed {
                     false,
                     vec![],
                     vec![],
+                    op,
                 )
             }));
         }
@@ -657,6 +661,7 @@ mod grad_distributed {
         is_main: bool,
         synced_recvs: Vec<Receiver<TensorData>>,
         original_recvs: Vec<Receiver<Tensor<B::InnerBackend, 2>>>,
+        op: ReduceOperation,
     ) {
         let mut module = module.clone().fork(&device);
 
@@ -676,6 +681,9 @@ mod grad_distributed {
                 let device = expected.device();
                 for r in original_recvs.iter().by_ref() {
                     expected = expected.add(r.recv().unwrap().to_device(&device));
+                }
+                if op == ReduceOperation::Mean {
+                    expected = expected.div_scalar(original_recvs.len() + 1);
                 }
                 for r in synced_recvs.iter().by_ref() {
                     let data_other = r.recv().unwrap();
