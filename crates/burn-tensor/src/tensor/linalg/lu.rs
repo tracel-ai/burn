@@ -113,6 +113,7 @@ pub fn lu<B: Backend, const D: usize, const D1: usize>(
 /// This function will panic if the tensor checks fail:
 /// - The input tensor has less than 2 dimensions (`D < 2`).
 /// - The generic parameters do not satisfy `D - 1 == D1`.
+/// - If the input tensor is singular.
 ///
 /// # Performance Note
 /// The current implementation of LU decomposition is not fully optimized. It will not
@@ -149,7 +150,26 @@ pub fn lu_factor<B: Backend, const D: usize, const D1: usize>(
         &dims
     ));
 
+    let device = tensor.device();
     let (lu, p) = compute_lu_decomposition::<B, D, D1>(tensor);
+
+    // Check if any diagonal element is exactly 0
+    let diag_mask = Tensor::<B, D, Bool>::diag_mask(lu.shape(), 0, &device);
+    // Fill non-diagonal elements with 1.0 so they don't trigger the zero check below
+    let diag_only = lu.clone().mask_fill(diag_mask, 1.0);
+
+    let has_zero_diag = diag_only
+        .equal_elem(0.0)
+        .into_data()
+        .convert::<u8>()
+        .into_vec::<u8>()
+        .unwrap()
+        .into_iter()
+        .any(|x| x != 0);
+    if has_zero_diag {
+        panic!("Error: The input tensor passed to linalg::lu_factor cannot be singular");
+    }
+
     (p.squeeze_dim(D - 1), lu)
 }
 

@@ -81,6 +81,23 @@ fn test_lu_singular_zero_pivot() {
         .assert_approx_eq::<FloatElem>(&tensor.into_data(), tolerance);
 }
 
+#[test]
+#[should_panic(expected = "Error: The input tensor passed to linalg::lu_factor cannot be singular")]
+fn test_lu_factor_singular_zero_pivot() {
+    let device = Default::default();
+    let tensor = TestTensor::<2>::from_data(
+        [
+            [0.0, 4.0, 2.0, 6.0],
+            [0.0, 2.0, 2.0, 11.0],
+            [0.0, 3.0, 9.0, 6.0],
+            [0.0, 7.0, 10.0, 9.0],
+        ],
+        &device,
+    );
+    // This should panic because the matrix is singular
+    let _ = lu_factor::<TestBackend, 2, 1>(tensor);
+}
+
 // ---------------------------------------------------------------------
 // 2D Tensors (no batch dimension)
 // ---------------------------------------------------------------------
