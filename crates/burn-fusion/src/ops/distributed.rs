@@ -43,14 +43,18 @@ impl<B: FusionBackend + DistributedBackend> DistributedBackend for Fusion<B> {
         let client = tensor.client.clone();
         let desc = AllReduceOpIr::create(tensor.into_ir(), || client.create_empty_handle());
 
-        client
+        let out = client
             .register(
                 streams,
                 OperationIr::BaseFloat(BaseOperationIr::AllReduce(desc.clone())),
                 AllReduceOps::<B>::new(desc, op, device_ids),
             )
             .output()
-            .into()
+            .into();
+
+        client.drain();
+
+        out
     }
 
     fn sync_collective(device: &Device<Self>) {
