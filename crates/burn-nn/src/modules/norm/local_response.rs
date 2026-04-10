@@ -48,8 +48,11 @@ impl LocalResponseNormConfig {
 ///
 /// `Y = X / (k + (alpha / size) * sum(X^2))^beta`
 ///
-/// Where the sum is computed over a sliding window of `size` channels centered
-/// on each channel position.
+/// Where the sum is computed over a sliding window of `size` channels.
+///
+/// For odd `size`, the window is centered on each channel position.
+/// For even `size`, the window uses asymmetric padding and includes the current
+/// channel plus one extra channel on the positive side.
 ///
 /// Should be created using [LocalResponseNormConfig](LocalResponseNormConfig).
 #[derive(Module, Clone, Debug)]
@@ -116,12 +119,12 @@ impl LocalResponseNorm {
         // Restore shape: [N*D_flat, 1, C] -> [N, D_flat, C] -> [N, C, D_flat] -> original
         let unbatched: Tensor<B, 3> = square_sum.reshape(Shape::new([n, d_flat, c]));
         let untransposed = unbatched.swap_dims(1, 2);
-        let result: Tensor<B, D> = untransposed.reshape(Shape::new(shape));
+        let square_sum_restored: Tensor<B, D> = untransposed.reshape(Shape::new(shape));
 
         // Apply LRN formula: output = input / (k + alpha/size * square_sum)^beta
         let scale = self.alpha / self.size as f64;
         input
-            / result
+            / square_sum_restored
                 .mul_scalar(scale)
                 .add_scalar(self.k)
                 .powf_scalar(self.beta)
