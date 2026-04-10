@@ -420,10 +420,11 @@ fn update_kth_column<B: Backend, const D: usize>(tensor: Tensor<B, D>, k: usize)
     let a_kk = tensor.clone().slice_dim(D - 2, k).slice_dim(D - 1, k);
     let a_rho_k = tensor.clone().slice_dim(D - 2, k + 1..).slice_dim(D - 1, k);
 
-    // Replace near-zero pivots with epsilon to prevent division by zero.
-    let epsilon = 1e-4;
-    let is_zero_mask = a_kk.clone().abs().lower_elem(epsilon);
-    let safe_a_kk = a_kk.mask_fill(is_zero_mask, epsilon);
+    // A singular matrix will have a pivot of exactly 0.
+    // Due to partial pivoting, if the pivot is 0, all elements below it are also 0.
+    // We replace 0 with 1.0 to avoid NaN when dividing 0.0 / 0.0.
+    let is_zero_mask = a_kk.clone().equal_elem(0.0);
+    let safe_a_kk = a_kk.mask_fill(is_zero_mask, 1.0);
     let updated_column = a_rho_k / safe_a_kk;
 
     let mut slices = vec![Slice::full(); D];
