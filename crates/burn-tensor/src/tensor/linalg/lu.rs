@@ -316,7 +316,7 @@ fn standard_lu_with_partial_piv<B: Backend, const D: usize, const D1: usize>(
 
             // If there still exists columns to right of the k-th pivot
             if k < piv_nums - 1 {
-                tensor = update_trailing_submatirx::<B, D, D1>(tensor, k);
+                tensor = update_trailing_submatrix::<B, D, D1>(tensor, k);
             }
         }
     }
@@ -434,7 +434,7 @@ fn update_kth_column<B: Backend, const D: usize>(tensor: Tensor<B, D>, k: usize)
 }
 
 /// Updates the trailing submatrix: A_{k+1:, k+1:} -= A_{k+1:, k} * A_{k, k+1:}.
-fn update_trailing_submatirx<B: Backend, const D: usize, const D1: usize>(
+fn update_trailing_submatrix<B: Backend, const D: usize, const D1: usize>(
     tensor: Tensor<B, D>,
     k: usize,
 ) -> Tensor<B, D> {
