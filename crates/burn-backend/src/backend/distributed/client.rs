@@ -1,5 +1,6 @@
 use std::{sync::mpsc::Sender, thread::spawn};
 
+use crate::DeviceOps;
 use crate::tensor::Device;
 
 use crate::distributed::{
@@ -64,6 +65,11 @@ impl<B: DistributedBackend> DistributedSyncClient<B> {
             ))
             .unwrap();
 
+        println!(
+            "[{:?}] waiting for sync_collective: {:?}",
+            std::thread::current().id(),
+            device.id()
+        );
         let sync = rx.recv().expect("Can receive callback");
         sync();
     }
