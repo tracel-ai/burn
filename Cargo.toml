@@ -16,7 +16,6 @@ members = [
 exclude = [
     "examples/notebook",
     "examples/raspberry-pi-pico",
-    "examples/dqn-agent",         # gym-rs
 ]
 
 [workspace.package]

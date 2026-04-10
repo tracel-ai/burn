@@ -7,8 +7,8 @@ use burn::rl::{
     Batchable, LearnerTransitionBatch, Policy, PolicyLearner, PolicyState, RLTrainOutput,
     SliceAccess,
 };
-use burn::tensor::{Int, Transaction};
 use burn::tensor::activation::softmax;
+use burn::tensor::{Int, Transaction};
 use burn::train::ItemLazy;
 use burn::train::metric::{Adaptor, LossInput};
 use burn::{
