@@ -286,8 +286,8 @@ pub fn mean_dim(tensor: FlexTensor, dim: usize) -> FlexTensor {
     // Half-precision types fuse sum+divide in f32 to avoid overflow when the
     // intermediate sum exceeds f16::MAX, so they don't go through sum_dim.
     match dtype {
-        DType::F16 => return mean_dim_half::<f16>(&tensor, dim, f16::from_f32),
-        DType::BF16 => return mean_dim_half::<bf16>(&tensor, dim, bf16::from_f32),
+        DType::F16 => return mean_dim_half::<f16>(&tensor, dim),
+        DType::BF16 => return mean_dim_half::<bf16>(&tensor, dim),
         _ => {}
     }
 
@@ -1219,17 +1219,98 @@ where
     )
 }
 
+/// Sum along `dim` for an already-contiguous row-major f32 slice, producing
+/// one output per (outer, inner) position.
+///
+/// The caller owns the contiguity guarantee: `data.len()` must equal
+/// `outer_size * dim_size * inner_size` in logical row-major order. Dispatches
+/// to the same SIMD kernels `reduce_dim_f32` uses, but without the stride
+/// bookkeeping.
+fn sum_dim_contiguous_f32(
+    data: &[f32],
+    outer_size: usize,
+    dim_size: usize,
+    inner_size: usize,
+) -> Vec<f32> {
+    // Last-dim: each output is the sum of a contiguous run of dim_size elements.
+    if inner_size == 1 {
+        let rows = outer_size.max(1);
+        #[cfg(feature = "simd")]
+        {
+            let mut result = vec![0.0f32; rows];
+            kernels::sum_rows_f32(data, &mut result, rows, dim_size);
+            return result;
+        }
+        #[cfg(not(feature = "simd"))]
+        {
+            return (0..rows)
+                .map(|i| data[i * dim_size..(i + 1) * dim_size].iter().sum())
+                .collect();
+        }
+    }
+
+    // First-dim (or equivalent: any collapsed-outer case): scatter-add dim_size
+    // rows of inner_size cols into a single inner_size accumulator.
+    if outer_size <= 1 {
+        #[cfg(feature = "simd")]
+        {
+            let mut result = aligned::alloc_aligned_zeroed::<f32>(inner_size);
+            kernels::scatter_add_f32(data, &mut result, dim_size, inner_size, inner_size);
+            return aligned::to_vec(result);
+        }
+        #[cfg(not(feature = "simd"))]
+        {
+            let mut result = vec![0.0f32; inner_size];
+            for row in 0..dim_size {
+                let row_start = row * inner_size;
+                for c in 0..inner_size {
+                    result[c] += data[row_start + c];
+                }
+            }
+            return result;
+        }
+    }
+
+    // Middle-dim: batched scatter-add. For each outer batch, sum dim_size rows
+    // of inner_size cols into a per-batch accumulator.
+    let out_size = outer_size * inner_size;
+    #[cfg(feature = "simd")]
+    {
+        let mut result = aligned::alloc_aligned_zeroed::<f32>(out_size);
+        kernels::scatter_add_batched(
+            data,
+            &mut result,
+            outer_size,
+            dim_size,
+            inner_size,
+            dim_size * inner_size,
+            inner_size,
+        );
+        aligned::to_vec(result)
+    }
+    #[cfg(not(feature = "simd"))]
+    {
+        let mut result = vec![0.0f32; out_size];
+        for outer in 0..outer_size {
+            let out_base = outer * inner_size;
+            for d in 0..dim_size {
+                let in_base = outer * dim_size * inner_size + d * inner_size;
+                for c in 0..inner_size {
+                    result[out_base + c] += data[in_base + c];
+                }
+            }
+        }
+        result
+    }
+}
+
 /// Mean along a dimension for half-precision types, fusing sum and divide in f32.
 ///
 /// A naive `sum_dim` + `scalar_div` implementation can overflow to +inf when the
 /// intermediate sum exceeds `f16::MAX` (65504), even if the final mean fits. This
 /// function keeps the entire reduction and division in f32 and only narrows to
-/// f16/bf16 on store.
-///
-/// Dispatches into the same SIMD kernels as `reduce_dim_f32` after widening to
-/// f32: `sum_rows_f32` for last-dim, `scatter_add_f32` for first-dim, and
-/// `scatter_add_batched` for the middle case.
-fn mean_dim_half<E>(tensor: &FlexTensor, dim: usize, from_f32: fn(f32) -> E) -> FlexTensor
+/// f16/bf16 on store via `E::from_elem`.
+fn mean_dim_half<E>(tensor: &FlexTensor, dim: usize) -> FlexTensor
 where
     E: Element + bytemuck::Pod,
 {
@@ -1258,80 +1339,11 @@ where
     let data = float_storage_as_f32(&tensor);
     let divisor = dim_size as f32;
 
-    // After to_contiguous() the data is row-major contiguous, so the SIMD
-    // reduction kernels can be called with their natural stride assumptions
-    // (no negative strides, last-dim contiguous, etc.).
-    let sums: Vec<f32> = if dim == ndims - 1 {
-        // Last-dim: each output is the sum of a contiguous run of dim_size
-        // elements.
-        let rows = outer_size.max(1);
-        #[cfg(feature = "simd")]
-        {
-            let mut result = vec![0.0f32; rows];
-            kernels::sum_rows_f32(&data, &mut result, rows, dim_size);
-            result
-        }
-        #[cfg(not(feature = "simd"))]
-        {
-            (0..rows)
-                .map(|i| data[i * dim_size..(i + 1) * dim_size].iter().sum())
-                .collect()
-        }
-    } else if dim == 0 {
-        // First-dim: scatter-add dim_size rows of inner_size cols into a
-        // single inner_size accumulator.
-        #[cfg(feature = "simd")]
-        {
-            let mut result = aligned::alloc_aligned_zeroed::<f32>(inner_size);
-            kernels::scatter_add_f32(&data, &mut result, dim_size, inner_size, inner_size);
-            aligned::to_vec(result)
-        }
-        #[cfg(not(feature = "simd"))]
-        {
-            let mut result = vec![0.0f32; inner_size];
-            for row in 0..dim_size {
-                let row_start = row * inner_size;
-                for c in 0..inner_size {
-                    result[c] += data[row_start + c];
-                }
-            }
-            result
-        }
-    } else {
-        // Middle-dim: batched scatter-add. For each outer batch, sum
-        // dim_size rows of inner_size cols into a per-batch accumulator.
-        let out_size = outer_size * inner_size;
-        #[cfg(feature = "simd")]
-        {
-            let mut result = aligned::alloc_aligned_zeroed::<f32>(out_size);
-            kernels::scatter_add_batched(
-                &data,
-                &mut result,
-                outer_size,
-                dim_size,
-                inner_size,
-                dim_size * inner_size,
-                inner_size,
-            );
-            aligned::to_vec(result)
-        }
-        #[cfg(not(feature = "simd"))]
-        {
-            let mut result = vec![0.0f32; out_size];
-            for outer in 0..outer_size {
-                let out_base = outer * inner_size;
-                for d in 0..dim_size {
-                    let in_base = outer * dim_size * inner_size + d * inner_size;
-                    for c in 0..inner_size {
-                        result[out_base + c] += data[in_base + c];
-                    }
-                }
-            }
-            result
-        }
-    };
-
-    let result: Vec<E> = sums.into_iter().map(|s| from_f32(s / divisor)).collect();
+    let sums = sum_dim_contiguous_f32(&data, outer_size, dim_size, inner_size);
+    let result: Vec<E> = sums
+        .into_iter()
+        .map(|s| E::from_elem(s / divisor))
+        .collect();
 
     let bytes = Bytes::from_elems(result);
     FlexTensor::new(
@@ -1344,7 +1356,7 @@ where
 /// Scalar mean for half-precision types, fusing sum and divide in f32.
 /// Avoids f16 overflow when the total sum exceeds `f16::MAX`. Empty input
 /// produces NaN to match the f32/f64 path in `mean()`.
-fn mean_scalar_half<E>(tensor: &FlexTensor, from_f32: fn(f32) -> E) -> FlexTensor
+fn mean_scalar_half<E>(tensor: &FlexTensor) -> FlexTensor
 where
     E: Element + bytemuck::Pod,
 {
@@ -1356,7 +1368,7 @@ where
     let acc = sum_f32_contiguous(&data);
 
     let mean = acc / (n as f32);
-    let bytes = Bytes::from_elems(vec![from_f32(mean)]);
+    let bytes = Bytes::from_elems(vec![E::from_elem(mean)]);
     FlexTensor::new(bytes, Layout::contiguous(Shape::from(vec![1])), E::dtype())
 }
 
@@ -1371,8 +1383,8 @@ pub fn mean(tensor: FlexTensor) -> FlexTensor {
     // Half-precision types fuse sum+divide in f32 to avoid overflow when the
     // total sum exceeds f16::MAX.
     match dtype {
-        DType::F16 => return mean_scalar_half::<f16>(&tensor, f16::from_f32),
-        DType::BF16 => return mean_scalar_half::<bf16>(&tensor, bf16::from_f32),
+        DType::F16 => return mean_scalar_half::<f16>(&tensor),
+        DType::BF16 => return mean_scalar_half::<bf16>(&tensor),
         _ => {}
     }
 

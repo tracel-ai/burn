@@ -94,11 +94,20 @@ where
     // that coordinate math, weights, and accumulated samples keep full precision.
     //
     // The from_f64 unwrap is unreachable for any well-formed input: bilinear
-    // is a convex combination of finite samples so the result is bounded by
-    // the sample envelope, and `NumCast::from` for f16/bf16/f32/f64 saturates
-    // to inf/nan rather than returning None for non-finite inputs.
+    // is a convex combination of finite samples so the result stays bounded by
+    // the sample envelope. The `half` crate's `NumCast` impl for f16/bf16
+    // forwards through `to_f32` and maps non-finite inputs to `Some(inf/nan)`;
+    // `num_traits`'s f32/f64 impls do the same. The message-bearing panic is a
+    // diagnostic hatch for future dtypes where this invariant does not hold.
     let to_f64 = |x: T| -> f64 { ToElement::to_f64(&x) };
-    let from_f64 = |x: f64| -> T { <T as NumCast>::from(x).unwrap() };
+    let from_f64 = |x: f64| -> T {
+        <T as NumCast>::from(x).unwrap_or_else(|| {
+            panic!(
+                "grid_sample_2d: NumCast::from({x:?}) to {:?} returned None",
+                T::dtype()
+            )
+        })
+    };
 
     for b in 0..batch_size {
         for y in 0..h_out {
