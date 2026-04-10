@@ -1,15 +1,12 @@
 use burn_backend::{
-    Backend, DeviceId, DeviceOps, StreamId, TensorMetadata,
+    DeviceId, DeviceOps, StreamId, TensorMetadata,
     distributed::{DistributedBackend, ReduceOperation},
     tensor::{Device, FloatTensor},
 };
 
 use crate::{
     BoolElement, CubeBackend, CubeRuntime, FloatElement, IntElement,
-    ops::{
-        empty,
-        numeric::{self, zeros, zeros_client},
-    },
+    ops::numeric::{self, zeros_client},
 };
 
 impl<R, F, I, BT> DistributedBackend for CubeBackend<R, F, I, BT>
@@ -58,9 +55,8 @@ where
         op: ReduceOperation,
         device_ids: Vec<DeviceId>,
     ) -> FloatTensor<Self> {
-        let device = &tensor.device.clone();
         StreamId::executes(tensor.handle.stream, || {
-            // Ensure contiguous memory allocation.
+            let device = &tensor.device.clone();
             let out_tensor = if tensor.handle.can_mut() && tensor.is_contiguous() {
                 tensor
             } else {
