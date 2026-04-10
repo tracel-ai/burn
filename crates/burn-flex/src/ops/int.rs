@@ -105,16 +105,18 @@ impl IntTensorOps<Flex> for Flex {
         crate::ops::slice::slice_assign(tensor, slices, value)
     }
 
+    /// Gather ints along `dim` at the given indices.
+    ///
+    /// The `tensor` dispatches on its own int dtype (I8/I16/I32/I64 signed or
+    /// U8/U16/U32/U64 unsigned). The `indices` tensor may be any of those
+    /// widths too - it's normalised to `isize` by the shared `read_indices`
+    /// helper in `ops::gather_scatter` before the kernel runs, so callers are
+    /// not required to pre-convert to I64.
     fn int_gather(
         dim: usize,
         tensor: IntTensor<Flex>,
         indices: IntTensor<Flex>,
     ) -> IntTensor<Flex> {
-        debug_assert_eq!(
-            indices.dtype(),
-            DType::I64,
-            "int_gather: indices must be I64"
-        );
         match tensor.dtype() {
             DType::I64 => crate::ops::gather_scatter::gather::<i64>(tensor, dim, indices),
             DType::I32 => crate::ops::gather_scatter::gather::<i32>(tensor, dim, indices),
@@ -128,17 +130,17 @@ impl IntTensorOps<Flex> for Flex {
         }
     }
 
+    /// Scatter-add int values at the given indices along `dim`.
+    ///
+    /// `tensor` and `value` must share the same int dtype; `indices` may be
+    /// any supported int width. See [`int_gather`](Self::int_gather) for the
+    /// full index-width policy.
     fn int_scatter_add(
         dim: usize,
         tensor: IntTensor<Flex>,
         indices: IntTensor<Flex>,
         value: IntTensor<Flex>,
     ) -> IntTensor<Flex> {
-        debug_assert_eq!(
-            indices.dtype(),
-            DType::I64,
-            "int_scatter_add: indices must be I64"
-        );
         debug_assert_eq!(
             tensor.dtype(),
             value.dtype(),
@@ -169,16 +171,15 @@ impl IntTensorOps<Flex> for Flex {
         }
     }
 
+    /// Select ints along `dim` by a 1D index tensor.
+    ///
+    /// The `indices` tensor may be any supported int width. See
+    /// [`int_gather`](Self::int_gather) for the full index-width policy.
     fn int_select(
         tensor: IntTensor<Flex>,
         dim: usize,
         indices: IntTensor<Flex>,
     ) -> IntTensor<Flex> {
-        debug_assert_eq!(
-            indices.dtype(),
-            DType::I64,
-            "int_select: indices must be I64"
-        );
         match tensor.dtype() {
             DType::I64 => crate::ops::gather_scatter::select::<i64>(tensor, dim, indices),
             DType::I32 => crate::ops::gather_scatter::select::<i32>(tensor, dim, indices),
@@ -192,17 +193,17 @@ impl IntTensorOps<Flex> for Flex {
         }
     }
 
+    /// Select-add int values at a 1D index tensor along `dim`.
+    ///
+    /// `tensor` and `value` must share the same int dtype; `indices` may be
+    /// any supported int width. See [`int_gather`](Self::int_gather) for the
+    /// full index-width policy.
     fn int_select_add(
         tensor: IntTensor<Flex>,
         dim: usize,
         indices: IntTensor<Flex>,
         value: IntTensor<Flex>,
     ) -> IntTensor<Flex> {
-        debug_assert_eq!(
-            indices.dtype(),
-            DType::I64,
-            "int_select_add: indices must be I64"
-        );
         debug_assert_eq!(
             tensor.dtype(),
             value.dtype(),
