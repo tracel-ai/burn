@@ -112,6 +112,8 @@ impl Initializer {
         Param::uninitialized(
             ParamId::new(),
             move |device, require_grad| {
+                let config = config.clone();
+                let shape = shape.clone();
                 B::memory_persistent_allocations(device, (), move |_| {
                     let mut tensor = config.init_tensor(shape.clone(), fan_in, fan_out, device);
 
