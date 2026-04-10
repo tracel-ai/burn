@@ -1,7 +1,7 @@
 use cubecl::device::DeviceId;
 
 use crate::{
-    Backend,
+    Backend, DeviceOps,
     tensor::{Device, FloatTensor},
 };
 
@@ -63,6 +63,11 @@ pub trait DistributedBackend: Backend {
     ///
     /// * `device` - The device on which to sync.
     fn submit_sync_collective(device: &Self::Device) {
+        println!(
+            "[{:?}] submit sync_collective: {:?}",
+            std::thread::current().id(),
+            device.id()
+        );
         if let Some(sync_client) = get_distributed_sync_client::<Self>() {
             sync_client.submit_sync_collective(device.clone());
         };
@@ -78,6 +83,13 @@ pub trait DistributedBackend: Backend {
     /// * `tensor` - The tensor to synchronize.
     /// * `distributed_params` - The [`DistributedParams`] for the parameter.
     fn submit_gradient_sync(tensor: TensorRef<Self>, distributed_params: DistributedParams) {
+        unsafe {
+            println!(
+                "[{:?}] submit gradient_sync: {:?}",
+                std::thread::current().id(),
+                Self::comm_device(&tensor).id()
+            );
+        }
         if let Some(sync_client) = get_distributed_sync_client::<Self>() {
             sync_client.submit_gradient_sync(tensor, distributed_params);
         };
