@@ -378,18 +378,16 @@ where
         let id = device.id();
         let device_cloned = device.clone();
         println!("client sync_collective: {:?}", id);
-        self.server
-            .submit_blocking(move |server| {
-                println!("client sync_collective submit: {:?}", device.id(),);
-                println!(
-                    "client sync_collective drain_stream: {:?}, {:?}",
-                    device.id(),
-                    stream_id
-                );
-                server.drain_stream(stream_id);
-                println!("client sync_collective sync_collective: {:?}", device.id(),);
-            })
-            .unwrap();
+        self.server.submit(move |server| {
+            println!("client sync_collective submit: {:?}", device.id(),);
+            println!(
+                "client sync_collective drain_stream: {:?}, {:?}",
+                device.id(),
+                stream_id
+            );
+            server.drain_stream(stream_id);
+            println!("client sync_collective sync_collective: {:?}", device.id(),);
+        });
         println!("client sync_collective finished: {:?}", id,);
         B::sync_collective(&device_cloned)
     }
