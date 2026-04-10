@@ -1232,9 +1232,16 @@ fn sum_dim_contiguous_f32(
     dim_size: usize,
     inner_size: usize,
 ) -> Vec<f32> {
+    // Empty output: if any non-reduced dim has size 0, the result is empty.
+    // Returning early avoids indexing past an empty `data` slice in the SIMD
+    // kernels and keeps the output length in sync with the caller's out_shape.
+    if outer_size == 0 || inner_size == 0 {
+        return Vec::new();
+    }
+
     // Last-dim: each output is the sum of a contiguous run of dim_size elements.
     if inner_size == 1 {
-        let rows = outer_size.max(1);
+        let rows = outer_size;
         #[cfg(feature = "simd")]
         {
             let mut result = vec![0.0f32; rows];
@@ -1251,7 +1258,7 @@ fn sum_dim_contiguous_f32(
 
     // First-dim (or equivalent: any collapsed-outer case): scatter-add dim_size
     // rows of inner_size cols into a single inner_size accumulator.
-    if outer_size <= 1 {
+    if outer_size == 1 {
         #[cfg(feature = "simd")]
         {
             let mut result = aligned::alloc_aligned_zeroed::<f32>(inner_size);
@@ -2310,6 +2317,23 @@ mod tests {
         let mean = values[0].to_f32();
         assert!(mean.is_finite(), "mean overflowed to {mean}");
         assert!((mean - 511.5).abs() < 0.5, "expected ~511.5, got {mean}");
+    }
+
+    #[test]
+    fn test_mean_dim_f16_zero_outer_dim() {
+        // Regression test for mean_dim_half / sum_dim_contiguous_f32 clamping
+        // `outer_size.max(1)` in the last-dim branch: shape [0, 4] reducing
+        // dim=1 has outer_size=0, and the old clamp produced rows=1 which
+        // ran sum_rows_f32 past the end of an empty buffer. Result should be
+        // an empty tensor with shape [0, 1].
+        let data: Vec<f16> = Vec::new();
+        let tensor = FlexTensor::from_data(TensorData::new(data, [0, 4]));
+        let result = mean_dim(tensor, 1);
+
+        assert_eq!(result.layout().shape().to_vec(), vec![0, 1]);
+        let result_data = result.into_data();
+        let values: &[f16] = bytemuck::cast_slice(&result_data.bytes);
+        assert!(values.is_empty());
     }
 
     #[test]
