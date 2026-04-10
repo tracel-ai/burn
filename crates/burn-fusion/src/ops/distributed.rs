@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use burn_backend::{
-    DeviceId, DeviceOps, StreamId,
+    DeviceId, DeviceOps,
     distributed::{DistributedBackend, ReduceOperation},
     tensor::{Device, FloatTensor},
 };
