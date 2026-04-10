@@ -77,18 +77,24 @@ impl Environment for CartPoleWrapper {
         CartPoleState::new(self.state)
     }
 
-    fn step(&mut self, _action: Self::Action) -> StepResult<Self::State> {
+    fn step(&mut self, action: Self::Action) -> StepResult<Self::State> {
         self.step_index += 1;
 
-        self.state[0] += 0.01;
-        self.state[1] += 0.01;
-        self.state[2] += 0.01;
-        self.state[3] += 0.01;
+        let direction = if action.action == 0 { -1.0 } else { 1.0 };
+
+        self.state[0] += 0.01 * direction;
+        self.state[1] += 0.01 * direction;
+        self.state[2] += 0.01 * direction;
+        self.state[3] += 0.01 * direction;
+
+        let done = self.step_index >= Self::MAX_STEPS
+            || self.state[0].abs() > 2.4
+            || self.state[2].abs() > 0.2;
 
         StepResult {
             next_state: CartPoleState::new(self.state),
             reward: 1.0,
-            done: false,
+            done,
             truncated: self.step_index >= Self::MAX_STEPS,
         }
     }
