@@ -187,3 +187,73 @@ fn test_bool_xor_broadcast_rank_mismatch() {
     ]);
     expected.assert_eq(&actual, false);
 }
+
+#[test]
+fn test_bool_and_broadcast_row_lhs() {
+    // [1, 3] AND [2, 3] broadcasts lhs along dim 0 only. Distinct from
+    // the scalar_lhs pattern, which broadcasts along both dims.
+    let device = Default::default();
+    let lhs =
+        TestTensorBool::<2>::from_data(TensorData::from([[true, false, true]]), &device);
+    let rhs = TestTensorBool::<2>::from_data(
+        TensorData::from([[true, true, false], [false, true, true]]),
+        &device,
+    );
+
+    let actual = lhs.bool_and(rhs).into_data();
+    let expected = TensorData::from([[true, false, false], [false, false, true]]);
+    expected.assert_eq(&actual, false);
+}
+
+#[test]
+fn test_bool_and_broadcast_mutual() {
+    // [3, 1] AND [1, 3] - both operands need expansion along different
+    // axes, producing [3, 3]. Exercises the "neither operand matches the
+    // output shape" path through broadcast_binary.
+    let device = Default::default();
+    let lhs = TestTensorBool::<2>::from_data(
+        TensorData::from([[true], [false], [true]]),
+        &device,
+    );
+    let rhs =
+        TestTensorBool::<2>::from_data(TensorData::from([[true, false, true]]), &device);
+
+    let actual = lhs.bool_and(rhs).into_data();
+    let expected = TensorData::from([
+        [true, false, true],
+        [false, false, false],
+        [true, false, true],
+    ]);
+    expected.assert_eq(&actual, false);
+}
+
+#[test]
+fn test_bool_and_broadcast_4d() {
+    // 4D broadcast: [2, 1, 2, 1] AND [1, 2, 1, 2] -> [2, 2, 2, 2].
+    // Confirms the fix is rank-agnostic. Pre-fix, both operands had 4
+    // storage elements so the inplace helper ran without panicking, but
+    // the output silently kept lhs's [2, 1, 2, 1] shape - shape assert
+    // catches that.
+    let device = Default::default();
+    let lhs = TestTensorBool::<4>::from_data(
+        TensorData::from([[[[true], [false]]], [[[false], [true]]]]),
+        &device,
+    );
+    let rhs = TestTensorBool::<4>::from_data(
+        TensorData::from([[[[true, false]], [[false, true]]]]),
+        &device,
+    );
+
+    let actual = lhs.bool_and(rhs).into_data();
+    let expected = TensorData::from([
+        [
+            [[true, false], [false, false]],
+            [[false, true], [false, false]],
+        ],
+        [
+            [[false, false], [true, false]],
+            [[false, false], [false, true]],
+        ],
+    ]);
+    expected.assert_eq(&actual, false);
+}

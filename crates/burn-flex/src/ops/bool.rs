@@ -447,7 +447,7 @@ fn bool_binary_op_simd(lhs: FlexTensor, rhs: FlexTensor, op: BoolBinaryOp) -> Fl
     let (mut lhs, mut rhs) = crate::ops::expand::broadcast_binary(lhs, rhs);
 
     // Preserve the input bool dtype (taken from lhs; rhs is assumed to match
-    // since bool binary ops require shape and dtype consistency).
+    // in dtype, checked above).
     let out_dtype = burn_std::BoolDType::from(lhs.dtype());
     let shape = lhs.layout().shape().clone();
     let l_offsets = lhs.layout().contiguous_offsets();
