@@ -282,14 +282,21 @@ pub fn mean_dim(tensor: FlexTensor, dim: usize) -> FlexTensor {
         "mean_dim: cannot take mean of empty dimension"
     );
     let dtype = tensor.dtype();
+
+    // Half-precision types fuse sum+divide in f32 to avoid overflow when the
+    // intermediate sum exceeds f16::MAX, so they don't go through sum_dim.
+    match dtype {
+        DType::F16 => return mean_dim_half::<f16>(&tensor, dim, f16::to_f32, f16::from_f32),
+        DType::BF16 => return mean_dim_half::<bf16>(&tensor, dim, bf16::to_f32, bf16::from_f32),
+        _ => {}
+    }
+
     let sum_result = sum_dim(tensor, dim);
 
     // Divide by dimension size
     match dtype {
         DType::F32 => scalar_div::<f32>(sum_result, dim_size as f32),
         DType::F64 => scalar_div::<f64>(sum_result, dim_size as f64),
-        DType::F16 => scalar_div_f16(sum_result, dim_size as f32),
-        DType::BF16 => scalar_div_bf16(sum_result, dim_size as f32),
         DType::I8 => {
             let divisor = dim_size as i32;
             let mut tensor = sum_result;
@@ -1212,20 +1219,121 @@ where
     )
 }
 
+/// Mean along a dimension for half-precision types, fusing sum and divide in f32.
+///
+/// A naive `sum_dim` + `scalar_div` implementation can overflow to +inf when the
+/// intermediate sum exceeds `f16::MAX` (65504), even if the final mean fits. This
+/// function keeps the entire reduction and division in f32 and only narrows to
+/// f16/bf16 on store.
+fn mean_dim_half<E>(
+    tensor: &FlexTensor,
+    dim: usize,
+    to_f32: fn(E) -> f32,
+    from_f32: fn(f32) -> E,
+) -> FlexTensor
+where
+    E: Element + bytemuck::Pod,
+{
+    let tensor = tensor.to_contiguous();
+    let shape = tensor.layout().shape();
+    let ndims = shape.num_dims();
+
+    assert!(
+        dim < ndims,
+        "dim {} out of bounds for {} dimensions",
+        dim,
+        ndims
+    );
+
+    let dim_size = shape[dim];
+    assert!(
+        dim_size > 0,
+        "mean_dim: cannot take mean of empty dimension"
+    );
+    let mut out_shape: Vec<usize> = shape.to_vec();
+    out_shape[dim] = 1;
+    let out_size: usize = out_shape.iter().product();
+
+    let outer_size: usize = shape[..dim].iter().product();
+    let inner_size: usize = shape[dim + 1..].iter().product();
+
+    let data: &[E] = tensor.storage();
+    let start_offset = tensor.layout().start_offset();
+    let divisor = dim_size as f32;
+
+    let mut result: Vec<E> = Vec::with_capacity(out_size);
+
+    for outer in 0..outer_size.max(1) {
+        for inner in 0..inner_size.max(1) {
+            let mut acc = 0.0f32;
+            for d in 0..dim_size {
+                let idx = start_offset + outer * dim_size * inner_size + d * inner_size + inner;
+                acc += to_f32(data[idx]);
+            }
+            result.push(from_f32(acc / divisor));
+        }
+    }
+
+    let bytes = Bytes::from_elems(result);
+    FlexTensor::new(
+        bytes,
+        Layout::contiguous(Shape::from(out_shape)),
+        E::dtype(),
+    )
+}
+
+/// Scalar mean for half-precision types, fusing sum and divide in f32.
+/// Avoids f16 overflow when the total sum exceeds `f16::MAX`.
+fn mean_scalar_half<E>(
+    tensor: &FlexTensor,
+    to_f32: fn(E) -> f32,
+    from_f32: fn(f32) -> E,
+) -> FlexTensor
+where
+    E: Element + bytemuck::Pod,
+{
+    let n = tensor.layout().num_elements();
+    assert!(n > 0, "mean: cannot take mean of empty tensor");
+
+    let acc: f32 = match tensor.layout().contiguous_offsets() {
+        Some((start, end)) => {
+            let data: &[E] = tensor.storage();
+            data[start..end].iter().map(|x| to_f32(*x)).sum()
+        }
+        None => {
+            let data: &[E] = tensor.storage();
+            StridedIter::new(tensor.layout())
+                .map(|idx| to_f32(data[idx]))
+                .sum()
+        }
+    };
+
+    let mean = acc / (n as f32);
+    let bytes = Bytes::from_elems(vec![from_f32(mean)]);
+    FlexTensor::new(bytes, Layout::contiguous(Shape::from(vec![1])), E::dtype())
+}
+
 // ============================================================================
 // Mean (all elements)
 // ============================================================================
 
 /// Mean of all elements, returning a scalar tensor.
 pub fn mean(tensor: FlexTensor) -> FlexTensor {
+    let dtype = tensor.dtype();
+
+    // Half-precision types fuse sum+divide in f32 to avoid overflow when the
+    // total sum exceeds f16::MAX.
+    match dtype {
+        DType::F16 => return mean_scalar_half::<f16>(&tensor, f16::to_f32, f16::from_f32),
+        DType::BF16 => return mean_scalar_half::<bf16>(&tensor, bf16::to_f32, bf16::from_f32),
+        _ => {}
+    }
+
     let n = tensor.layout().num_elements();
     let sum_result = sum(tensor);
-    let dtype = sum_result.dtype();
     match dtype {
         DType::F32 => scalar_div::<f32>(sum_result, n as f32),
         DType::F64 => scalar_div::<f64>(sum_result, n as f64),
-        DType::F16 => scalar_div_f16(sum_result, n as f32),
-        DType::BF16 => scalar_div_bf16(sum_result, n as f32),
         _ => panic!("mean: unsupported dtype {:?}", dtype),
     }
 }
@@ -2019,22 +2127,6 @@ fn scalar_div<E: Element + bytemuck::Pod + core::ops::Div<Output = E> + Copy>(
     let data: &mut [E] = tensor.storage_mut();
     for x in data.iter_mut() {
         *x = *x / divisor;
-    }
-    tensor
-}
-
-fn scalar_div_f16(mut tensor: FlexTensor, divisor: f32) -> FlexTensor {
-    let data: &mut [f16] = tensor.storage_mut();
-    for x in data.iter_mut() {
-        *x = f16::from_f32(x.to_f32() / divisor);
-    }
-    tensor
-}
-
-fn scalar_div_bf16(mut tensor: FlexTensor, divisor: f32) -> FlexTensor {
-    let data: &mut [bf16] = tensor.storage_mut();
-    for x in data.iter_mut() {
-        *x = bf16::from_f32(x.to_f32() / divisor);
     }
     tensor
 }
