@@ -1,10 +1,13 @@
 use burn_backend::{
-    DeviceId, DeviceOps, StreamId, TensorMetadata,
+    DeviceId, StreamId, TensorMetadata,
     distributed::{DistributedBackend, ReduceOperation},
     tensor::{Device, FloatTensor},
 };
 
-use crate::{BoolElement, CubeBackend, CubeRuntime, FloatElement, IntElement, ops::empty};
+use crate::{
+    BoolElement, CubeBackend, CubeRuntime, FloatElement, IntElement,
+    ops::numeric::{self, zeros_client},
+};
 
 impl<R, F, I, BT> DistributedBackend for CubeBackend<R, F, I, BT>
 where
@@ -52,9 +55,19 @@ where
         op: ReduceOperation,
         device_ids: Vec<DeviceId>,
     ) -> FloatTensor<Self> {
-        let device = &tensor.device;
         StreamId::executes(tensor.handle.stream, || {
-            let out_tensor = empty(tensor.shape(), device, tensor.dtype());
+            let device = &tensor.device.clone();
+            let out_tensor = if tensor.handle.can_mut() && tensor.is_contiguous() {
+                tensor
+            } else {
+                let out_tensor = zeros_client::<R>(
+                    tensor.client.clone(),
+                    device.clone(),
+                    tensor.shape(),
+                    tensor.dtype(),
+                );
+                numeric::add(out_tensor, tensor)
+            };
 
             let op = match op {
                 ReduceOperation::Sum => cubecl::server::ReduceOperation::Sum,
@@ -63,9 +76,9 @@ where
 
             let client = R::client(device);
             client.all_reduce(
-                tensor.handle.clone(),
                 out_tensor.handle.clone(),
-                tensor.dtype.into(),
+                out_tensor.handle.clone(),
+                out_tensor.dtype.into(),
                 device_ids.clone(),
                 op,
             );
