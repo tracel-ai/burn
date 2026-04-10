@@ -4,7 +4,10 @@ use crate::{
     tensor::CubeTensor,
 };
 use burn_backend::DType;
-use cubecl::tune::{LocalTuner, Tunable, TunableSet, TuneGroup, local_tuner};
+use cubecl::{
+    std::tensor::MatrixBatchLayout,
+    tune::{LocalTuner, Tunable, TunableSet, TuneGroup, local_tuner},
+};
 use cubek::matmul::{
     definition::MatmulKind,
     launch::{MatmulAutotuneKey, MatmulGlobalScale, Strategy, should_tune_double_buffering},
@@ -46,27 +49,18 @@ pub fn matmul_autotune<R: CubeRuntime>(
         const PRIORITY_MIN: i8 = 0;
         const PRIORITY_NEVER: i8 = -1;
 
-        let cmma = TuneGroup::<MatmulAutotuneKey>::new("cmma", |key| {
-            if matches!(
-                key.analysis.kind,
-                MatmulKind::General
-                // Those variants are just because the unit alternatives aren't very good yet.
-                | MatmulKind::VecMat | MatmulKind::MatVec
-            ) {
-                PRIORITY_HIGH
-            } else {
-                PRIORITY_MEDIUM
-            }
-        });
+        let accelerated = TuneGroup::<MatmulAutotuneKey>::new("accelerated", |key| {
+            if matches!(key.analysis.kind, MatmulKind::General) {
+                match key.analysis.scale_global {
+                    MatmulGlobalScale::Large => PRIORITY_MAX,
+                    _ => PRIORITY_HIGH,
+                }
 
-        let mma = TuneGroup::<MatmulAutotuneKey>::new("mma", |key| {
-            if matches!(
-                key.analysis.kind,
-                // General is usually bad, but I think shapes like 16x8196 would be classed as
-                // general and are very good with MMA
-                // Should highly degenerated matrices that aren't VecMat have their own class?
-                MatmulKind::General | MatmulKind::VecMat | MatmulKind::MatVec
-            ) {
+            // In some case when a relayout can be fused (no call to into_contiguous) it's better
+            // to use accelerated matmul.
+            //
+            // TODO: Actually implement good gemv with fused relayout.
+            } else if matches!(key.analysis.kind, MatmulKind::MatVec | MatmulKind::VecMat) {
                 PRIORITY_HIGH
             } else {
                 PRIORITY_MEDIUM
@@ -79,7 +73,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
             {
                 PRIORITY_HIGH
             } else {
-                PRIORITY_MIN
+                PRIORITY_MEDIUM
             }
         });
 
@@ -113,9 +107,41 @@ pub fn matmul_autotune<R: CubeRuntime>(
         });
 
         let gemv = TuneGroup::<MatmulAutotuneKey>::new("gemv", |key| {
-            if matches!(key.analysis.kind, MatmulKind::VecMat | MatmulKind::MatVec) {
-                // Make sure to not surpass cmma
-                PRIORITY_HIGH
+            if matches!(key.analysis.kind, MatmulKind::MatVec) {
+                // LHS is the matrix
+                match key.definition.matrix_layout_lhs {
+                    MatrixBatchLayout::Contiguous => PRIORITY_MAX,
+                    MatrixBatchLayout::MildlyPermuted { transposed, .. } => {
+                        // We don't yet have algo which are good for col major matvec.
+                        if transposed {
+                            PRIORITY_MEDIUM
+                        } else {
+                            PRIORITY_MAX
+                        }
+                    }
+                    // Every algo will need to relayout, in this case, we should take the optimal
+                    // kernel with a gemv.
+                    MatrixBatchLayout::HighlyPermuted => PRIORITY_MAX,
+                }
+            } else if matches!(key.analysis.kind, MatmulKind::VecMat) {
+                // RHS is the matrix
+                match key.definition.matrix_layout_rhs {
+                    // We don't have good algos for row mahor vecmat.
+                    MatrixBatchLayout::Contiguous => PRIORITY_MEDIUM,
+                    MatrixBatchLayout::MildlyPermuted { transposed, .. } => {
+                        // Best algo is col major vec mat.
+                        if transposed {
+                            PRIORITY_MAX
+                        } else {
+                            PRIORITY_MEDIUM
+                        }
+                    }
+                    // TODO: Actually do the correct relayout here.
+                    //
+                    // Every algo will need to relayout, in this case, we should take the optimal
+                    // kernel with a gemv.
+                    MatrixBatchLayout::HighlyPermuted => PRIORITY_MEDIUM,
+                }
             } else {
                 PRIORITY_NEVER
             }
@@ -138,51 +164,41 @@ pub fn matmul_autotune<R: CubeRuntime>(
                     .map_err(|err| std::format!("{err:?}"))
             })
             .group(&unit, |key| {
-                if matches!(key.analysis.scale_global, MatmulGlobalScale::Small)
-                    || matches!(key.analysis.kind, MatmulKind::InnerProduct)
-                {
+                if matches!(key.analysis.kind, MatmulKind::InnerProduct) {
                     PRIORITY_MAX
-                } else {
-                    PRIORITY_MIN
-                }
-            }),
-        );
-
-        // GEMV
-        let target_num_planes = 4;
-        let strategy = Strategy::GemvUnitPerpendicular(BlueprintStrategy::Inferred(
-            GemvUnitPerpendicularStrategy { target_num_planes },
-        ));
-        set = set.with(
-            Tunable::new(strategy.to_string(), move |lhs, rhs, out| {
-                launch_matmul::<R>(&strategy, lhs, rhs, out).map_err(|err| std::format!("{err:?}"))
-            })
-            .group(&gemv, move |key| {
-                if key.definition.n >= 2 * key.definition.k {
+                } else if matches!(key.analysis.scale_global, MatmulGlobalScale::Small) {
                     PRIORITY_HIGH
                 } else {
                     PRIORITY_MIN
                 }
             }),
         );
-        let strategy =
-            Strategy::GemvPlaneParallel(BlueprintStrategy::Inferred(GemvPlaneParallelStrategy {
-                target_num_planes,
-            }));
-        set = set.with(
-            Tunable::new(strategy.to_string(), move |lhs, rhs, out| {
-                launch_matmul::<R>(&strategy, lhs, rhs, out).map_err(|err| std::format!("{err:?}"))
-            })
-            .group(&gemv, move |_key| PRIORITY_HIGH),
-        );
+
+        // Matrix Vector multiplication kernels.
         for (strategy, double_buf) in [
+            (
+                Strategy::DoubleVecMat(BlueprintStrategy::Inferred(().into())),
+                true,
+            ),
             (
                 Strategy::SimpleVecMat(BlueprintStrategy::Inferred(().into())),
                 false,
             ),
             (
-                Strategy::DoubleVecMat(BlueprintStrategy::Inferred(().into())),
-                true,
+                Strategy::GemvPlaneParallel(BlueprintStrategy::Inferred(
+                    GemvPlaneParallelStrategy {
+                        target_num_planes: 4,
+                    },
+                )),
+                false,
+            ),
+            (
+                Strategy::GemvUnitPerpendicular(BlueprintStrategy::Inferred(
+                    GemvUnitPerpendicularStrategy {
+                        target_num_planes: 4,
+                    },
+                )),
+                false,
             ),
         ] {
             set = set.with(
@@ -190,11 +206,10 @@ pub fn matmul_autotune<R: CubeRuntime>(
                     launch_matmul::<R>(&strategy, lhs, rhs, out)
                         .map_err(|err| std::format!("{err:?}"))
                 })
-                .group(&unit, move |key| match double_buf {
+                .group(&gemv, move |key| match double_buf {
                     false => PRIORITY_MAX,
                     true => double_buffering_priority(key, PRIORITY_MAX, PRIORITY_HIGH),
-                })
-                .group(&gemv, move |_key| PRIORITY_HIGH),
+                }),
             );
         }
 
@@ -238,7 +253,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
                 })),
                 false,
                 None,
-                &cmma,
+                &accelerated,
             ),
             (
                 Strategy::SimpleCyclicMma(BlueprintStrategy::Inferred(SimpleArgs {
@@ -246,7 +261,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
                 })),
                 false,
                 None,
-                &mma,
+                &accelerated,
             ),
             (
                 Strategy::SimpleCyclicCmma(BlueprintStrategy::Inferred(SimpleArgs {
@@ -254,7 +269,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
                 })),
                 false,
                 None,
-                &cmma,
+                &accelerated,
             ),
             (
                 Strategy::SimpleCyclicMma(BlueprintStrategy::Inferred(SimpleArgs {
@@ -262,7 +277,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
                 })),
                 false,
                 None,
-                &mma,
+                &accelerated,
             ),
             (
                 Strategy::OrderedDoubleCmma(BlueprintStrategy::Inferred(OrderedSelectionArgs {
@@ -272,7 +287,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
                 })),
                 true,
                 None,
-                &cmma,
+                &accelerated,
             ),
             (
                 Strategy::OrderedDoubleMma(BlueprintStrategy::Inferred(OrderedSelectionArgs {
@@ -282,7 +297,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
                 })),
                 true,
                 None,
-                &mma,
+                &accelerated,
             ),
             (
                 Strategy::OrderedDoubleCmma(BlueprintStrategy::Inferred(OrderedSelectionArgs {
@@ -292,7 +307,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
                 })),
                 true,
                 None,
-                &cmma,
+                &accelerated,
             ),
             (
                 Strategy::OrderedDoubleMma(BlueprintStrategy::Inferred(OrderedSelectionArgs {
@@ -302,7 +317,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
                 })),
                 true,
                 None,
-                &mma,
+                &accelerated,
             ),
             (
                 Strategy::DoubleCyclicCmma(BlueprintStrategy::Inferred(DoubleBufferingArgs {
@@ -310,7 +325,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
                 })),
                 true,
                 None,
-                &cmma,
+                &accelerated,
             ),
             (
                 Strategy::DoubleCyclicMma(BlueprintStrategy::Inferred(DoubleBufferingArgs {
@@ -318,7 +333,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
                 })),
                 true,
                 None,
-                &mma,
+                &accelerated,
             ),
             (
                 Strategy::DoubleCyclicCmma(BlueprintStrategy::Inferred(DoubleBufferingArgs {
@@ -326,7 +341,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
                 })),
                 true,
                 None,
-                &cmma,
+                &accelerated,
             ),
             (
                 Strategy::DoubleCyclicMma(BlueprintStrategy::Inferred(DoubleBufferingArgs {
@@ -334,19 +349,19 @@ pub fn matmul_autotune<R: CubeRuntime>(
                 })),
                 true,
                 None,
-                &mma,
+                &accelerated,
             ),
             (
                 Strategy::SpecializedCyclicCmma(BlueprintStrategy::Inferred(().into())),
                 true,
                 None,
-                &cmma,
+                &accelerated,
             ),
             (
                 Strategy::SpecializedCyclicMma(BlueprintStrategy::Inferred(().into())),
                 true,
                 None,
-                &mma,
+                &accelerated,
             ),
             (
                 Strategy::SimpleTmaCmma(BlueprintStrategy::Inferred(SimpleArgs {
@@ -354,7 +369,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
                 })),
                 false,
                 Some(&tma),
-                &cmma,
+                &accelerated,
             ),
             (
                 Strategy::SimpleTmaMma(BlueprintStrategy::Inferred(SimpleArgs {
@@ -362,7 +377,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
                 })),
                 false,
                 Some(&tma),
-                &mma,
+                &accelerated,
             ),
             (
                 Strategy::SimpleTmaCmma(BlueprintStrategy::Inferred(SimpleArgs {
@@ -370,7 +385,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
                 })),
                 false,
                 Some(&tma),
-                &cmma,
+                &accelerated,
             ),
             (
                 Strategy::SimpleTmaMma(BlueprintStrategy::Inferred(SimpleArgs {
@@ -378,19 +393,19 @@ pub fn matmul_autotune<R: CubeRuntime>(
                 })),
                 false,
                 Some(&tma),
-                &mma,
+                &accelerated,
             ),
             (
                 Strategy::SpecializedTmaCmma(BlueprintStrategy::Inferred(().into())),
                 true,
                 Some(&tma),
-                &cmma,
+                &accelerated,
             ),
             (
                 Strategy::SpecializedTmaMma(BlueprintStrategy::Inferred(().into())),
                 true,
                 Some(&tma),
-                &mma,
+                &accelerated,
             ),
         ] {
             let priority_within_group = |key: &MatmulAutotuneKey, double_buf: bool| match double_buf
