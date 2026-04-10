@@ -5,7 +5,8 @@
     feature = "vulkan",
     feature = "cuda",
     feature = "rocm",
-    feature = "metal"
+    feature = "metal",
+    feature = "flex"
 ))]
 
 extern crate alloc;
