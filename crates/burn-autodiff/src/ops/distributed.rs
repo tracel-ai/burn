@@ -31,26 +31,6 @@ impl<B: DistributedBackend, C: CheckpointStrategy> DistributedBackend for Autodi
         B::submit_gradient_sync(TensorRef(&mut tensor.primitive), distributed_params);
     }
 
-    // unsafe fn all_reduce(
-    //     tensors: Vec<FloatTensor<Self>>,
-    //     op: ReduceOperation,
-    // ) -> Vec<FloatTensor<Self>> {
-    //     // TODO: backward()
-    //     let tensors = unsafe {
-    //         B::all_reduce(
-    //             tensors
-    //                 .iter()
-    //                 .map(|tensor| tensor.primitive.clone())
-    //                 .collect(),
-    //             op,
-    //         )
-    //     };
-    //     tensors
-    //         .iter()
-    //         .map(|tensor| AutodiffTensor::new(tensor.clone()))
-    //         .collect()
-    // }
-
     unsafe fn all_reduce(
         tensor: FloatTensor<Self>,
         op: ReduceOperation,
