@@ -660,7 +660,7 @@ mod grad_distributed {
     ) {
         let mut module = module.clone().fork(&device);
 
-        for _ in 0..2 {
+        for _ in 0..20 {
             module = set_distributed(&module, &device);
             let (grads_synced, grads_original) = calculate_grads(&module, transformation);
             let data = grads_synced.unwrap().to_data();
