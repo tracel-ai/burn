@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use burn_tensor::backend::DeviceOps;
 use burn_tensor::backend::{Device, DeviceId};
 use burn_tensor::{Float, TensorPrimitive, Tolerance};
@@ -147,6 +149,7 @@ fn run_multithread<B: AutodiffBackend + DistributedBackend>(
         println!("expected : {:?}\n", expected);
         for _ in 0..num_devices {
             let data = actual_receiver.recv().unwrap();
+            std::thread::sleep(Duration::from_millis(5000));
             println!("data : {:?}\n", data.to_vec::<f32>().unwrap());
             data.assert_approx_eq::<FloatElem>(
                 &TensorData::from(expected.as_slice()),
