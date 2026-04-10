@@ -465,4 +465,3 @@ fn test_multiple_reduce_dims_permuted() {
         .into_data()
         .assert_approx_eq::<FloatElem>(&TensorData::from([255.5, 767.5]), Tolerance::default());
 }
-
