@@ -374,12 +374,12 @@ where
     {
         use burn_backend::DeviceOps;
 
+        let stream_id = StreamId::current();
         let id = device.id();
         println!("client sync_collective: {:?}", id);
         self.server
             .submit_blocking(move |server| {
                 println!("client sync_collective submit: {:?}", device.id(),);
-                let stream_id = StreamId::current();
                 println!(
                     "client sync_collective drain_stream: {:?}, {:?}",
                     device.id(),
