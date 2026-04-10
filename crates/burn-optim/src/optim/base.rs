@@ -3,7 +3,7 @@ use burn_core::{self as burn, Tensor};
 use burn_core::module::ParamId;
 use burn_core::prelude::DeviceOps;
 use burn_core::tensor::Device;
-use burn_core::tensor::backend::DeviceId;
+use burn_core::tensor::DeviceId;
 
 use super::GradientsParams;
 use crate::LearningRate;

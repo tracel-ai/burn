@@ -212,9 +212,8 @@ impl PartialEq for DispatchDevice {
     }
 }
 
-/// Base multiplier to avoid type_id clashes between backends.
-/// Limits the number of device types per backend, but this is a sensible limit.
-const TYPE_ID_BASE: u16 = 10;
+const INTERNAL_ID_MASK: u16 = 0x00FF;
+const BACKEND_SHIFT: u32 = 8;
 
 impl DispatchDevice {
     #[cfg(feature = "autodiff")]
@@ -268,17 +267,21 @@ impl DispatchDevice {
 
     /// Encode variant ID and backend type ID into a unique `type_id`.
     fn encode_type_id(&self, backend_type_id: u16) -> u16 {
-        u16::from(self.backend_id()) * TYPE_ID_BASE + backend_type_id
+        // Use the lower 8 bits for the backend's internal type ID
+        let internal_type_id = backend_type_id & INTERNAL_ID_MASK;
+        // Use the upper 8 bits for the DispatchDevice/BackendId
+        let backend = u16::from(self.backend_id()) << BACKEND_SHIFT;
+        backend | internal_type_id
     }
 
     /// Decode an encoded `type_id` into variant ID and backend type ID.
     pub(crate) fn decode_type_id(type_id: u16) -> (BackendId, u16) {
-        let variant = type_id / TYPE_ID_BASE;
-        let backend_type_id = type_id % TYPE_ID_BASE;
-        (
-            BackendId::try_from(variant).expect("Unknown DispatchDevice variant"),
-            backend_type_id,
-        )
+        let backend_raw = type_id >> BACKEND_SHIFT;
+        let internal_type_id = type_id & INTERNAL_ID_MASK;
+
+        let backend = BackendId::try_from(backend_raw).expect("Unknown DispatchDevice backend ID");
+
+        (backend, internal_type_id)
     }
 }
 
@@ -335,15 +338,7 @@ impl TryFrom<u16> for BackendId {
     }
 }
 
-impl DeviceOps for DispatchDevice {
-    fn inner(&self) -> &Self {
-        match self {
-            #[cfg(feature = "autodiff")]
-            DispatchDevice::Autodiff(device) => &device.inner,
-            device => device,
-        }
-    }
-}
+impl DeviceOps for DispatchDevice {}
 
 impl burn_backend::Device for DispatchDevice {
     fn from_id(mut device_id: DeviceId) -> Self {

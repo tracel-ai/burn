@@ -6,29 +6,24 @@ use super::{
     confusion_stats::{ConfusionStats, ConfusionStatsInput},
     state::{FormatOptions, NumericMetricState},
 };
-use burn_core::{
-    prelude::{Backend, Tensor},
-    tensor::cast::ToElement,
-};
-use core::marker::PhantomData;
+use burn_core::{prelude::Tensor, tensor::cast::ToElement};
 use std::{num::NonZeroUsize, sync::Arc};
 
 ///The Recall Metric
 #[derive(Clone)]
-pub struct RecallMetric<B: Backend> {
+pub struct RecallMetric {
     name: MetricName,
     state: NumericMetricState,
-    _b: PhantomData<B>,
     config: ClassificationMetricConfig,
 }
 
-impl<B: Backend> Default for RecallMetric<B> {
+impl Default for RecallMetric {
     fn default() -> Self {
         Self::new(Default::default())
     }
 }
 
-impl<B: Backend> RecallMetric<B> {
+impl RecallMetric {
     fn new(config: ClassificationMetricConfig) -> Self {
         let state = Default::default();
         let name = Arc::new(format!(
@@ -40,7 +35,6 @@ impl<B: Backend> RecallMetric<B> {
             state,
             config,
             name,
-            _b: Default::default(),
         }
     }
     /// Recall metric for binary classification.
@@ -87,7 +81,7 @@ impl<B: Backend> RecallMetric<B> {
         })
     }
 
-    fn class_average(&self, mut aggregated_metric: Tensor<B, 1>) -> f64 {
+    fn class_average(&self, mut aggregated_metric: Tensor<1>) -> f64 {
         use ClassReduction::{Macro, Micro};
         let avg_tensor = match self.config.class_reduction {
             Micro => aggregated_metric,
@@ -111,8 +105,8 @@ impl<B: Backend> RecallMetric<B> {
     }
 }
 
-impl<B: Backend> Metric for RecallMetric<B> {
-    type Input = ConfusionStatsInput<B>;
+impl Metric for RecallMetric {
+    type Input = ConfusionStatsInput;
 
     fn update(&mut self, input: &Self::Input, _metadata: &MetricMetadata) -> SerializedEntry {
         let [sample_size, _] = input.predictions.dims();
@@ -144,7 +138,7 @@ impl<B: Backend> Metric for RecallMetric<B> {
     }
 }
 
-impl<B: Backend> Numeric for RecallMetric<B> {
+impl Numeric for RecallMetric {
     fn value(&self) -> NumericEntry {
         self.state.current_value()
     }
@@ -161,10 +155,7 @@ mod tests {
         Metric, MetricMetadata, RecallMetric,
     };
     use crate::metric::Numeric;
-    use crate::{
-        TestBackend,
-        tests::{ClassificationType, THRESHOLD, dummy_classification_input},
-    };
+    use crate::tests::{ClassificationType, THRESHOLD, dummy_classification_input};
     use burn_core::tensor::{TensorData, Tolerance};
     use rstest::rstest;
 
@@ -212,15 +203,15 @@ mod tests {
 
     #[test]
     fn test_parameterized_unique_name() {
-        let metric_a = RecallMetric::<TestBackend>::multiclass(1, ClassReduction::Macro);
-        let metric_b = RecallMetric::<TestBackend>::multiclass(2, ClassReduction::Macro);
-        let metric_c = RecallMetric::<TestBackend>::multiclass(1, ClassReduction::Macro);
+        let metric_a = RecallMetric::multiclass(1, ClassReduction::Macro);
+        let metric_b = RecallMetric::multiclass(2, ClassReduction::Macro);
+        let metric_c = RecallMetric::multiclass(1, ClassReduction::Macro);
 
         assert_ne!(metric_a.name(), metric_b.name());
         assert_eq!(metric_a.name(), metric_c.name());
 
-        let metric_a = RecallMetric::<TestBackend>::binary(0.5);
-        let metric_b = RecallMetric::<TestBackend>::binary(0.75);
+        let metric_a = RecallMetric::binary(0.5);
+        let metric_b = RecallMetric::binary(0.75);
         assert_ne!(metric_a.name(), metric_b.name());
     }
 }

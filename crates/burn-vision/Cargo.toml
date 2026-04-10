@@ -27,7 +27,7 @@ tracing = [
     "burn-ir/tracing",
     "burn-ndarray?/tracing",
     "burn-tch?/tracing",
-    "burn-tensor/tracing",
+    "burn-backend/tracing",
     "cubecl/tracing",
 ]
 
@@ -51,7 +51,7 @@ burn-fusion = { path = "../burn-fusion", version = "=0.21.0-pre.2", optional = t
 burn-ir = { path = "../burn-ir", version = "=0.21.0-pre.2" }
 burn-ndarray = { path = "../burn-ndarray", version = "=0.21.0-pre.2", optional = true }
 burn-tch = { path = "../burn-tch", version = "=0.21.0-pre.2", optional = true }
-burn-tensor = { path = "../burn-tensor", version = "=0.21.0-pre.2" }
+burn-backend = { path = "../burn-backend", version = "=0.21.0-pre.2" }
 burn-tensor-testgen = { path = "../burn-tensor-testgen", version = "=0.21.0-pre.2", optional = true }
 bytemuck = { workspace = true }
 cubecl = { workspace = true, optional = true }

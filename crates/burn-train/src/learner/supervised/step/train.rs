@@ -1,11 +1,10 @@
 use crate::{LearningComponentsTypes, TrainingModel};
-use crate::{TrainOutput, TrainStep, TrainingBackend, TrainingModelInput, TrainingModelOutput};
+use crate::{TrainOutput, TrainStep, TrainingModelInput, TrainingModelOutput};
 use burn_core::data::dataloader::DataLoaderIterator;
 use burn_core::data::dataloader::Progress;
 use burn_core::module::Module;
-use burn_core::prelude::DeviceOps;
 use burn_core::tensor::Device;
-use burn_core::tensor::backend::DeviceId;
+use burn_core::tensor::DeviceId;
 use std::sync::mpsc::{Receiver, Sender};
 use std::thread::spawn;
 
@@ -22,9 +21,9 @@ struct Message<M, TI> {
 
 struct Worker<LC: LearningComponentsTypes> {
     // Not that complex. Extracting into another type would only make it more confusing.
-    #[allow(clippy::type_complexity)]
+    // #[allow(clippy::type_complexity)]
     sender_input: Sender<Message<TrainingModel<LC>, TrainingModelInput<LC>>>,
-    device: Device<TrainingBackend<LC>>,
+    device: Device,
 }
 
 impl<LC: LearningComponentsTypes> Worker<LC> {
@@ -37,7 +36,7 @@ impl<LC: LearningComponentsTypes> Worker<LC> {
     }
 
     // Not that complex. Extracting into another type would only make it more confusing.
-    #[allow(clippy::type_complexity)]
+    // #[allow(clippy::type_complexity)]
     fn start(
         &self,
         sender_output: Sender<MultiTrainOutput<TrainingModelOutput<LC>>>,
@@ -53,7 +52,7 @@ impl<LC: LearningComponentsTypes> Worker<LC> {
                         let output = model.step(item.item);
                         let item = MultiTrainOutput {
                             output,
-                            device: device.to_id(),
+                            device: device.id(),
                         };
 
                         sender_output.send(item).unwrap();
@@ -86,7 +85,7 @@ impl<LC: LearningComponentsTypes> MultiDevicesTrainStep<LC> {
     /// # Returns
     ///
     /// MultiDevicesTrainStep instance.
-    pub fn new(devices: &[Device<TrainingBackend<LC>>]) -> Self {
+    pub fn new(devices: &[Device]) -> Self {
         let (sender_output, receiver_output) = std::sync::mpsc::channel();
         let workers = devices
             .iter()

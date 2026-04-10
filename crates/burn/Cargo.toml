@@ -21,17 +21,6 @@ default = [
     "burn-core/default",
     "burn-train?/default",
     "burn-collective?/default",
-    # Backends
-    "burn-candle?/default",
-    "burn-cpu?/default",
-    "burn-ndarray?/default",
-    "burn-tch?/default",
-    "burn-wgpu?/default",
-    "burn-router?/default",
-    "burn-remote?/default",
-    "burn-cuda?/default",
-    "burn-autodiff?/default",
-    "burn-rocm?/default",
     "burn-nn/default",
     "burn-optim/default",
 ]
@@ -42,48 +31,18 @@ doc = [
     "burn-train/doc",
     "burn-collective/doc",
     "burn-store?/std",
-    # Backends
-    "burn-candle/doc",
-    "burn-cpu?/doc",
-    "burn-ndarray/doc",
-    "burn-tch/doc",
-    "burn-wgpu/doc",
-    "burn-router/doc",
-    "burn-cuda/doc",
-    "burn-autodiff?/std",
-    "burn-rocm/doc",
     "burn-nn/doc",
     "burn-optim/doc",
 ]
 std = [
     "burn-core/std",
-    # Backends
-    "burn-candle?/std",
-    "burn-cpu?/std",
-    "burn-ndarray?/std",
-    "burn-wgpu?/std",
-    "burn-router?/std",
-    "burn-cuda?/std",
-    "burn-autodiff?/std",
-    "burn-rocm?/std",
     "burn-store?/std",
-    "burn-tch?/std",
     "burn-nn/std",
     "burn-optim/std",
 ]
 tracing = [
     "cubecl?/tracing",
     "burn-core/tracing",
-    # Backends
-    "burn-candle?/tracing",
-    "burn-cpu?/tracing",
-    "burn-ndarray?/tracing",
-    "burn-wgpu?/tracing",
-    "burn-router?/tracing",
-    "burn-cuda?/tracing",
-    "burn-autodiff?/tracing",
-    "burn-rocm?/tracing",
-    "burn-tch?/tracing",
     "burn-store?/tracing",
     "burn-nn/tracing",
     "burn-optim/tracing",
@@ -122,35 +81,23 @@ rl = ["dep:burn-rl", "burn-train?/rl"]
 
 # Backend
 ir = ["burn-ir"]
-autodiff = ["burn-autodiff", "burn-dispatch?/autodiff"]
+autodiff = ["burn-core/autodiff"]
 fusion = [
     "ir",
-    "burn-wgpu?/fusion",
-    "burn-cuda?/fusion",
-    "burn-rocm?/fusion",
-    "burn-cpu?/fusion",
+    "burn-core/fusion",
 ]
 
 ## Backend features
 accelerate = ["burn-candle?/accelerate", "burn-ndarray?/blas-accelerate"]
 autotune = [
-    "burn-wgpu?/autotune",
-    "burn-cuda?/autotune",
-    "burn-rocm?/autotune",
-    "burn-cpu?/autotune",
+    "burn-core/autotune",
 ]
 autotune-checks = [
-    "burn-wgpu?/autotune-checks",
-    "burn-cuda?/autotune-checks",
-    "burn-rocm?/autotune-checks",
-    "burn-cpu?/autotune-checks",
+    "burn-core/autotune-checks",
 ]
 blas-netlib = ["burn-ndarray?/blas-netlib"]
 openblas = ["burn-ndarray?/blas-openblas"]
 openblas-system = ["burn-ndarray?/blas-openblas-system"]
-remote = ["burn-remote/client", "ir"]
-router = ["burn-router", "ir"]
-server = ["burn-remote/server"]
 simd = ["burn-ndarray?/simd"]
 template = ["burn-wgpu?/template"]
 collective = ["burn-collective", "burn-optim/collective"]
@@ -158,25 +105,24 @@ distributed = ["std",
     "burn-core/distributed",
     "burn-optim/distributed",
     "burn-train?/ddp",
-    "burn-cuda?/distributed",
-    "burn-autodiff?/distributed",
 ]
+# TODO: add to burn dispatch
+remote = ["burn-remote/client", "ir"]
+router = ["burn-router", "ir"]
+server = ["burn-remote/server"]
 
 candle = ["burn-candle"]
 candle-cuda = ["candle", "burn-candle/cuda"]
 candle-metal = ["burn-candle?/metal"]
-cuda = ["burn-cuda", "burn-dispatch/cuda"]
-rocm = ["burn-rocm", "burn-dispatch/rocm"]
-ndarray = ["burn-ndarray", "burn-dispatch/ndarray"]
+cuda = ["burn-cuda", "burn-core/cuda"]
+rocm = ["burn-rocm", "burn-core/rocm"]
+ndarray = ["burn-ndarray", "burn-core/ndarray"]
 tch = ["burn-tch"]
-vulkan = ["wgpu", "burn-wgpu/vulkan", "burn-dispatch?/vulkan"]
-webgpu = ["wgpu", "burn-wgpu/webgpu", "burn-dispatch?/webgpu"]
-metal = ["wgpu", "burn-wgpu/metal", "burn-dispatch?/metal"]
-wgpu = ["burn-wgpu", "burn-dispatch?/wgpu"]
-cpu = ["burn-cpu", "burn-dispatch?/cpu"]
-
-# Backend dispatch
-dispatch = ["burn-dispatch"]
+vulkan = ["wgpu", "burn-core/vulkan"]
+webgpu = ["wgpu", "burn-core/webgpu"]
+metal = ["wgpu", "burn-core/metal"]
+wgpu = ["burn-wgpu", "burn-core/wgpu"]
+cpu = ["burn-cpu", "burn-core/cpu"]
 
 [dependencies]
 
@@ -191,7 +137,6 @@ burn-optim = { path = "../burn-optim", version = "=0.21.0-pre.2", default-featur
 burn-rl = { path = "../burn-rl", version = "=0.21.0-pre.2", optional = true, default-features = false }
 
 # Backends
-burn-autodiff = { path = "../burn-autodiff", version = "=0.21.0-pre.2", optional = true, default-features = false }
 burn-candle = { path = "../burn-candle", version = "=0.21.0-pre.2", optional = true }
 burn-cuda = { path = "../burn-cuda", version = "=0.21.0-pre.2", optional = true, default-features = false }
 burn-cpu = { path = "../burn-cpu", version = "=0.21.0-pre.2", optional = true, default-features = false }

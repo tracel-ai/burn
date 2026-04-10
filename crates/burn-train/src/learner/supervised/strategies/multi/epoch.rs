@@ -3,12 +3,11 @@ use crate::metric::processor::{EventProcessorTraining, LearnerEvent, TrainingIte
 use crate::train::MultiDevicesTrainStep;
 use crate::{
     Learner, LearningComponentsTypes, MultiDeviceOptim, SupervisedTrainingEventProcessor,
-    TrainLoader, TrainingBackend,
+    TrainLoader,
 };
 use burn_core::data::dataloader::Progress;
-use burn_core::prelude::DeviceOps;
 use burn_core::tensor::Device;
-use burn_core::tensor::backend::DeviceId;
+use burn_core::tensor::DeviceId;
 use burn_optim::GradientsAccumulator;
 use burn_optim::MultiGradientsParams;
 use std::collections::HashMap;
@@ -41,7 +40,7 @@ impl<LC: LearningComponentsTypes> MultiDeviceTrainEpoch<LC> {
         global_progress: &Progress,
         event_processor: &mut SupervisedTrainingEventProcessor<LC>,
         interrupter: &Interrupter,
-        devices: Vec<Device<TrainingBackend<LC>>>,
+        devices: Vec<Device>,
         strategy: MultiDeviceOptim,
     ) {
         match strategy {
@@ -68,7 +67,7 @@ impl<LC: LearningComponentsTypes> MultiDeviceTrainEpoch<LC> {
         global_progress: &Progress,
         event_processor: &mut SupervisedTrainingEventProcessor<LC>,
         interrupter: &Interrupter,
-        devices: Vec<Device<TrainingBackend<LC>>>,
+        devices: Vec<Device>,
     ) {
         let epoch = global_progress.items_processed;
         log::info!(
@@ -142,7 +141,7 @@ impl<LC: LearningComponentsTypes> MultiDeviceTrainEpoch<LC> {
         global_progress: &Progress,
         event_processor: &mut SupervisedTrainingEventProcessor<LC>,
         interrupter: &Interrupter,
-        devices: Vec<Device<TrainingBackend<LC>>>,
+        devices: Vec<Device>,
     ) {
         let epoch = global_progress.items_processed;
         log::info!(
@@ -157,12 +156,11 @@ impl<LC: LearningComponentsTypes> MultiDeviceTrainEpoch<LC> {
             .map(|d| d.iter())
             .collect::<Vec<_>>();
         let mut iteration = 0;
-        let mut accumulators = HashMap::<
-            DeviceId,
-            GradientsAccumulator<<LC as LearningComponentsTypes>::TrainingModel>,
-        >::new();
+        let mut accumulators =
+            HashMap::<DeviceId, GradientsAccumulator<<LC as LearningComponentsTypes>::Model>>::new(
+            );
         for device in devices.iter() {
-            accumulators.insert(device.to_id(), GradientsAccumulator::new());
+            accumulators.insert(device.id(), GradientsAccumulator::new());
         }
         let mut accumulation_current = 0;
 

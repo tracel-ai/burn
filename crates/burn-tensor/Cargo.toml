@@ -49,6 +49,8 @@ metal = ["burn-dispatch/metal"]
 cpu = ["burn-dispatch/cpu"]
 autodiff = ["burn-dispatch/autodiff"]
 
+# TODO: re-export devices if we have feature flags to enable the backends
+
 # Backend features
 autotune = ["burn-dispatch/autotune"]
 autotune-checks = ["burn-dispatch/autotune-checks"]

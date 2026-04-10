@@ -3,9 +3,9 @@
 use burn_core as burn;
 
 use burn::module::Module;
+use burn::tensor::Device;
 use burn::tensor::Tensor;
 use burn::tensor::activation::relu;
-use burn::tensor::backend::Backend;
 use burn_nn::PaddingConfig2d;
 use burn_nn::conv::{Conv2d, Conv2dConfig};
 
@@ -18,22 +18,22 @@ use burn_nn::conv::{Conv2d, Conv2dConfig};
 /// - conv4: 256 channels (after ReLU)
 /// - conv5: 256 channels (after ReLU)
 #[derive(Module, Debug)]
-pub struct AlexFeatureExtractor<B: Backend> {
+pub struct AlexFeatureExtractor {
     /// Conv1: 3 -> 64, kernel 11x11, stride 4, padding 2
-    conv1: Conv2d<B>,
+    conv1: Conv2d,
     /// Conv2: 64 -> 192, kernel 5x5, stride 1, padding 2
-    conv2: Conv2d<B>,
+    conv2: Conv2d,
     /// Conv3: 192 -> 384, kernel 3x3, stride 1, padding 1
-    conv3: Conv2d<B>,
+    conv3: Conv2d,
     /// Conv4: 384 -> 256, kernel 3x3, stride 1, padding 1
-    conv4: Conv2d<B>,
+    conv4: Conv2d,
     /// Conv5: 256 -> 256, kernel 3x3, stride 1, padding 1
-    conv5: Conv2d<B>,
+    conv5: Conv2d,
 }
 
-impl<B: Backend> AlexFeatureExtractor<B> {
+impl AlexFeatureExtractor {
     /// Create a new AlexNet feature extractor.
-    pub fn new(device: &B::Device) -> Self {
+    pub fn new(device: &Device) -> Self {
         Self {
             // Conv1: 3 -> 64, 11x11, stride 4, padding 2
             conv1: Conv2dConfig::new([3, 64], [11, 11])
@@ -65,7 +65,7 @@ impl<B: Backend> AlexFeatureExtractor<B> {
     }
 
     /// Extract features from 5 AlexNet layers.
-    pub fn forward(&self, x: Tensor<B, 4>) -> Vec<Tensor<B, 4>> {
+    pub fn forward(&self, x: Tensor<4>) -> Vec<Tensor<4>> {
         let mut features = Vec::with_capacity(5);
 
         // Slice 1: Conv1 + ReLU
@@ -95,6 +95,6 @@ impl<B: Backend> AlexFeatureExtractor<B> {
 }
 
 /// 3x3 max pooling with stride 2 (for AlexNet).
-fn max_pool2d_alex<B: Backend>(x: Tensor<B, 4>) -> Tensor<B, 4> {
+fn max_pool2d_alex(x: Tensor<4>) -> Tensor<4> {
     burn_core::tensor::module::max_pool2d(x, [3, 3], [2, 2], [0, 0], [1, 1], false)
 }

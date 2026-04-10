@@ -5,9 +5,10 @@ use crate::{
     EventProcessorTraining, MultiAgentEnvLoop, RLComponents, RLComponentsTypes, RLEvent,
     RLEventProcessorType, RLStrategy,
 };
+use burn_core::tensor::Device;
 use burn_core::{self as burn};
 use burn_core::{config::Config, data::dataloader::Progress};
-use burn_ndarray::NdArray;
+use burn_ndarray::NdArrayDevice;
 use burn_rl::{AsyncPolicy, Policy, PolicyLearner, SliceAccess, TransitionBuffer};
 
 /// Parameters of an on policy training with multi environments and double-batching.
@@ -61,8 +62,8 @@ impl<RLC: RLComponentsTypes> OffPolicyStrategy<RLC> {
 impl<RLC> RLStrategy<RLC> for OffPolicyStrategy<RLC>
 where
     RLC: RLComponentsTypes,
-    RLC::PolicyObs: SliceAccess<RLC::Backend>,
-    RLC::PolicyAction: SliceAccess<RLC::Backend>,
+    RLC::PolicyObs: SliceAccess,
+    RLC::PolicyAction: SliceAccess,
 {
     fn train_loop(
         &self,
@@ -75,7 +76,8 @@ where
         let mut checkpointer = training_components.checkpointer;
         let num_steps_total = training_components.num_steps;
 
-        let mut env_runner = MultiAgentEnvLoop::<NdArray, RLC>::new(
+        let cpu_device = NdArrayDevice::default().into();
+        let mut env_runner = MultiAgentEnvLoop::<RLC>::new(
             self.config.num_envs,
             env_init.clone(),
             AsyncPolicy::new(
@@ -84,28 +86,28 @@ where
             ),
             false,
             false,
-            &Default::default(),
+            &cpu_device,
         );
         let runner_config = AsyncAgentEnvLoopConfig {
             eval: true,
             deterministic: true,
             id: 0,
         };
-        let mut env_runner_valid = AgentEnvAsyncLoop::<NdArray, RLC>::new(
+        let mut env_runner_valid = AgentEnvAsyncLoop::<RLC>::new(
             env_init,
             AsyncPolicy::new(1, learner_agent.policy()),
             runner_config,
-            &Default::default(),
+            &cpu_device,
             None,
             None,
         );
 
-        let device: <RLC::Backend as burn_core::prelude::Backend>::Device = Default::default();
-        let mut transition_buffer = TransitionBuffer::<
-            RLC::Backend,
-            RLC::PolicyObs,
-            RLC::PolicyAction,
-        >::new(self.config.replay_buffer_size, &device);
+        // TODO: device should probably be specified somewhere instead of using the default
+        let device: Device = Default::default();
+        let mut transition_buffer = TransitionBuffer::<RLC::PolicyObs, RLC::PolicyAction>::new(
+            self.config.replay_buffer_size,
+            &device,
+        );
 
         let mut valid_next = self.config.eval_interval + starting_epoch - 1;
         let mut progress = Progress {
@@ -113,8 +115,7 @@ where
             items_total: num_steps_total,
         };
 
-        let mut intermediary_update: Option<<RLC::Policy as Policy<RLC::Backend>>::PolicyState> =
-            None;
+        let mut intermediary_update: Option<<RLC::Policy as Policy>::PolicyState> = None;
         while progress.items_processed < num_steps_total {
             if training_components.interrupter.should_stop() {
                 let reason = training_components

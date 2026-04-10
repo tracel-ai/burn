@@ -1,5 +1,4 @@
-pub use burn_backend::DeviceError;
-pub use burn_backend::DeviceSettings;
+pub use burn_backend::{DeviceError, DeviceId, DeviceSettings};
 
 use burn_backend::Backend;
 use burn_dispatch::{Dispatch, DispatchDevice};
@@ -107,15 +106,6 @@ impl Device {
         self
     }
 
-    /// Returns the inner device, without autodiff (when enabled).
-    pub fn inner(mut self) -> Self {
-        if self.is_autodiff() {
-            self.dispatch = self.dispatch.inner();
-        }
-
-        self
-    }
-
     /// Enables autodiff with gradient checkpointing on this device.
     ///
     /// Gradient checkpointing recomputes activations during backpropagation for operations
@@ -149,6 +139,27 @@ impl Device {
 
         self
     }
+
+    /// Returns the underlying device, removing the autodiff capability if present.
+    ///
+    /// If autodiff is not enabled, this method returns the device as-is.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let device = Device::default().autodiff();
+    /// let inner_device = device.inner();
+    ///
+    /// assert!(!inner_device.is_autodiff());
+    /// ```
+    pub fn inner(mut self) -> Self {
+        if self.is_autodiff() {
+            self.dispatch = self.dispatch.inner();
+        }
+
+        self
+    }
+
     /// Synchronize the device, waiting for all pending operations to complete.
     ///
     /// # Errors
@@ -257,5 +268,23 @@ impl Device {
         int_dtype: impl Into<IntDType>,
     ) -> Result<(), DeviceError> {
         burn_backend::set_default_dtypes::<Dispatch>(&self.dispatch, float_dtype, int_dtype)
+    }
+
+    /// Returns a unique identifier for the underlying device.
+    ///
+    /// The [`DeviceId`] is an encoded representation that combines the backend type
+    /// (e.g., CUDA, Vulkan) and the specific device index on the system.
+    ///
+    /// Note that if autodiff is enabled, this will return the ID of the inner device,
+    /// meaning an autodiff-enabled device and its [inner](Device::inner) counterpart will share the same ID.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let device = Device::default();
+    /// let id = device.id();
+    /// ```
+    pub fn id(&self) -> DeviceId {
+        burn_backend::Device::to_id(&self.dispatch)
     }
 }

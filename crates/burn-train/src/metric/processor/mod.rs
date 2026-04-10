@@ -27,22 +27,19 @@ pub(crate) mod test_utils {
         Adaptor, LossInput,
         processor::{EventProcessorTraining, LearnerEvent, MinimalEventProcessor, TrainingItem},
     };
-    use burn_core::tensor::{ElementConversion, Tensor, backend::Backend};
+    use burn_core::tensor::Tensor;
 
     use super::ItemLazy;
 
     impl ItemLazy for f64 {
-        type ItemSync = f64;
-
-        fn sync(self) -> Self::ItemSync {
+        fn sync(self) -> Self {
             self
         }
     }
 
-    impl<B: Backend> Adaptor<LossInput<B>> for f64 {
-        fn adapt(&self) -> LossInput<B> {
-            let device = B::Device::default();
-            LossInput::new(Tensor::from_data([self.elem::<B::FloatElem>()], &device))
+    impl Adaptor<LossInput> for f64 {
+        fn adapt(&self) -> LossInput {
+            LossInput::new(Tensor::from_data([*self], &Default::default()))
         }
     }
 

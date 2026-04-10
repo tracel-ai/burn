@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use super::{Checkpointer, CheckpointerError};
 use burn_core::{
     record::{FileRecorder, Record},
-    tensor::backend::Backend,
+    tensor::Device,
 };
 
 /// The file checkpointer.
@@ -37,11 +37,10 @@ impl<FR> FileCheckpointer<FR> {
     }
 }
 
-impl<FR, R, B> Checkpointer<R, B> for FileCheckpointer<FR>
+impl<FR, R> Checkpointer<R> for FileCheckpointer<FR>
 where
-    R: Record<B>,
-    FR: FileRecorder<B>,
-    B: Backend,
+    R: Record,
+    FR: FileRecorder,
 {
     fn save(&self, epoch: usize, record: R) -> Result<(), CheckpointerError> {
         let file_path = self.path_for_epoch(epoch);
@@ -54,7 +53,7 @@ where
         Ok(())
     }
 
-    fn restore(&self, epoch: usize, device: &B::Device) -> Result<R, CheckpointerError> {
+    fn restore(&self, epoch: usize, device: &Device) -> Result<R, CheckpointerError> {
         let file_path = self.path_for_epoch(epoch);
         log::info!(
             "Restoring checkpoint {} from {}",

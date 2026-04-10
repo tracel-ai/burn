@@ -32,11 +32,8 @@ pub enum EvaluatorEvent<T> {
 ///
 /// We want to sync them on a different thread to avoid blocking training.
 pub trait ItemLazy: Send {
-    /// Item that is properly synced and ready to be processed by metrics.
-    type ItemSync: Send;
-
     /// Sync the item.
-    fn sync(self) -> Self::ItemSync;
+    fn sync(self) -> Self;
 }
 
 /// Process events happening during training and validation.
@@ -81,9 +78,7 @@ pub struct TrainingItem<T> {
 }
 
 impl<T: ItemLazy> ItemLazy for TrainingItem<T> {
-    type ItemSync = TrainingItem<T::ItemSync>;
-
-    fn sync(self) -> Self::ItemSync {
+    fn sync(self) -> Self {
         TrainingItem {
             item: self.item.sync(),
             progress: self.progress,
@@ -108,9 +103,7 @@ pub struct EvaluationItem<T> {
 }
 
 impl<T: ItemLazy> ItemLazy for EvaluationItem<T> {
-    type ItemSync = EvaluationItem<T::ItemSync>;
-
-    fn sync(self) -> Self::ItemSync {
+    fn sync(self) -> Self {
         EvaluationItem {
             item: self.item.sync(),
             progress: self.progress,
@@ -120,7 +113,5 @@ impl<T: ItemLazy> ItemLazy for EvaluationItem<T> {
 }
 
 impl ItemLazy for () {
-    type ItemSync = ();
-
-    fn sync(self) -> Self::ItemSync {}
+    fn sync(self) -> Self {}
 }

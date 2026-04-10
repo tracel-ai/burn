@@ -20,7 +20,9 @@ pub mod activation;
 
 /// The backend module.
 pub mod backend {
-    pub use burn_backend::backend::{DeviceError, DeviceId, DeviceOps, ExecutionError};
+    pub use burn_backend::backend::ExecutionError;
+    #[cfg(feature = "distributed")]
+    pub use burn_backend::distributed;
 }
 
 /// The container module.
