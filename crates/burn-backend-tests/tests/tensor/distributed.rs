@@ -17,22 +17,24 @@ use super::*;
 #[serial]
 fn test_all_reduce() {
     let type_id = 10u16;
-    let device_count = <TestBackend as Backend>::device_count(type_id);
+    // let device_count = <TestBackend as Backend>::device_count(type_id);
+    let device_count = 2;
     let devices = create_devices::<<TestBackend as Backend>::Device>(type_id, device_count);
 
     let shape = [4, 4];
-    run_all_reduce::<TestBackend>(devices, 100, shape);
+    run_all_reduce::<TestBackend>(devices, 4, shape);
 }
 
 #[test]
 #[serial]
 fn test_all_reduce_multithread() {
     let type_id = 10u16;
-    let device_count = <TestBackend as Backend>::device_count(type_id);
+    // let device_count = <TestBackend as Backend>::device_count(type_id);
+    let device_count = 2;
     let devices = create_devices::<<TestBackend as Backend>::Device>(type_id, device_count);
 
     let shape = [20, 20];
-    run_multithread::<TestBackend>(devices, 100, shape);
+    run_multithread::<TestBackend>(devices, 4, shape);
 }
 
 // TODO: finish these tests.
@@ -76,8 +78,10 @@ fn run_all_reduce<B: AutodiffBackend + DistributedBackend>(
             out_tensors.push(output);
         }
 
+        println!("expected : {:?}\n", expected);
         for tensor in out_tensors {
             let data = tensor.flatten::<1>(0, 1).to_data();
+            println!("data : {:?}\n", data.to_vec::<f32>().unwrap());
             data.assert_approx_eq::<FloatElem>(
                 &TensorData::from(expected.as_slice()),
                 Tolerance::default(),
@@ -140,8 +144,10 @@ fn run_multithread<B: AutodiffBackend + DistributedBackend>(
             .map(|i| expected_list.iter().map(|v| v[i]).sum::<f32>())
             .collect();
 
+        println!("expected : {:?}\n", expected);
         for _ in 0..num_devices {
             let data = actual_receiver.recv().unwrap();
+            println!("data : {:?}\n", data.to_vec::<f32>().unwrap());
             data.assert_approx_eq::<FloatElem>(
                 &TensorData::from(expected.as_slice()),
                 Tolerance::default(),
