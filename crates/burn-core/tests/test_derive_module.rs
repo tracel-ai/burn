@@ -633,6 +633,7 @@ mod grad_distributed {
                     false,
                     vec![],
                     vec![],
+                    op,
                 )
             }));
         }
