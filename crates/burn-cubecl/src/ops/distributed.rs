@@ -60,13 +60,18 @@ where
     ) -> FloatTensor<Self> {
         let device = &tensor.device.clone();
         StreamId::executes(tensor.handle.stream, || {
-            let out_tensor = zeros_client::<R>(
-                tensor.client.clone(),
-                device.clone(),
-                tensor.shape(),
-                tensor.dtype(),
-            );
-            let out_tensor = numeric::add(out_tensor, tensor);
+            // Ensure contiguous memory allocation.
+            let out_tensor = if tensor.handle.can_mut() && tensor.is_contiguous() {
+                tensor
+            } else {
+                let out_tensor = zeros_client::<R>(
+                    tensor.client.clone(),
+                    device.clone(),
+                    tensor.shape(),
+                    tensor.dtype(),
+                );
+                numeric::add(out_tensor, tensor)
+            };
 
             let op = match op {
                 ReduceOperation::Sum => cubecl::server::ReduceOperation::Sum,
