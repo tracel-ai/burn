@@ -2294,6 +2294,25 @@ mod tests {
     }
 
     #[test]
+    fn test_mean_f16_overflow_intermediate_sum() {
+        // Scalar `mean()` for f16 must fuse sum+divide on the f32 accumulator.
+        // Sum of 0..1024 is 523776, well above f16::MAX (65504), so a naive
+        // sum-then-divide that materialises the intermediate in f16 would clip
+        // to inf. The final mean (511.5) fits f16 comfortably.
+        let data: Vec<f16> = (0..1024).map(|i| f16::from_f32(i as f32)).collect();
+        let tensor = FlexTensor::from_data(TensorData::new(data, [1024]));
+
+        let result = mean(tensor);
+        let result_data = result.into_data();
+        let values: &[f16] = bytemuck::cast_slice(&result_data.bytes);
+
+        assert_eq!(values.len(), 1);
+        let mean = values[0].to_f32();
+        assert!(mean.is_finite(), "mean overflowed to {mean}");
+        assert!((mean - 511.5).abs() < 0.5, "expected ~511.5, got {mean}");
+    }
+
+    #[test]
     fn test_mean_dim_i8_large_dimension() {
         // dim_size=200 exceeds i8::MAX (127). Before the fix, 200 as i8 = -56,
         // causing wrong results (or 256 as i8 = 0 causing div-by-zero).
