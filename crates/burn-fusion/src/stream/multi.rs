@@ -16,7 +16,7 @@ use crate::{
 
 /// Keep track of multiple concurrent lazy streams of operations.
 pub struct MultiStream<R: FusionRuntime> {
-    streams: HashMap<StreamId, Stream<R>>,
+    pub streams: HashMap<StreamId, Stream<R>>,
     optimizations: ExecutionPlanStore<R::Optimization>,
     shared_tensors: SharedTensors,
     device: R::FusionDevice,
