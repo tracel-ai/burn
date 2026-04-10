@@ -147,9 +147,12 @@ impl QTensorOps<Flex> for Flex {
         let tensor = tensor.to_contiguous();
         let float_data = float_storage_as_f32(&tensor);
 
-        // Extract and validate scales from the qparams tensor
+        // Extract and validate scales from the qparams tensor. The scales tensor
+        // shares its dtype with the float element type, which can be any of
+        // f32/f64/f16/bf16, so we normalise via float_storage_as_f32 instead of
+        // assuming f32 storage.
         let scales_tensor = qparams.scales.to_contiguous();
-        let scales_data: &[f32] = scales_tensor.storage();
+        let scales_data = float_storage_as_f32(&scales_tensor);
         let scales: Vec<f32> = scales_data.iter().copied().map(validated_scale).collect();
 
         let (a, b) = scheme.value.range();
