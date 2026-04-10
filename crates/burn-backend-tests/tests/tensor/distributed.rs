@@ -65,6 +65,7 @@ fn run_all_reduce<B: AutodiffBackend + DistributedBackend>(
 
         let mut out_tensors = vec![];
         for tensor in tensors.clone() {
+            let device = tensor.device();
             let output = unsafe {
                 B::all_reduce(
                     tensor.into_primitive().tensor(),
@@ -73,13 +74,11 @@ fn run_all_reduce<B: AutodiffBackend + DistributedBackend>(
                 )
             };
             let output: Tensor<B, 2, Float> = Tensor::new(TensorPrimitive::Float(output));
+            B::sync_collective(&device);
             out_tensors.push(output);
         }
 
-        for tensor in tensors {
-            let device = tensor.device();
-            B::sync_collective(&device);
-        }
+        for tensor in tensors {}
 
         println!("expected : {:?}\n", expected);
         for tensor in out_tensors {
