@@ -78,6 +78,7 @@ impl<B: DistributedBackend> DistributedSyncServer<B> {
 
     fn try_launch_sync(&mut self) {
         if self.all_reduce_ops_queue.is_empty() && self.syncing_devices.len() == self.num_devices {
+            println!("[{:?}] in server synching", std::thread::current().id());
             for d in self.syncing_devices.clone() {
                 let callback = self.callbacks.remove(&d.id()).unwrap();
                 let closure = Box::new(move || B::sync_collective(&d));
@@ -85,6 +86,7 @@ impl<B: DistributedBackend> DistributedSyncServer<B> {
                 self.devices_synced += 1;
             }
             self.syncing_devices.clear();
+            println!("[{:?}] in server synced", std::thread::current().id());
         }
 
         if self.devices_synced == self.num_devices {
@@ -112,6 +114,7 @@ impl<B: DistributedBackend> DistributedSyncServer<B> {
                         .iter()
                         .map(|t| B::float_device(unsafe { &*t.0 }).id())
                         .collect::<Vec<_>>();
+                    println!("[{:?}] in server all_reduce", std::thread::current().id());
                     let results: Vec<B::FloatTensorPrimitive> = queued_tensors
                         .iter()
                         .map(|tensor| unsafe {
@@ -123,12 +126,20 @@ impl<B: DistributedBackend> DistributedSyncServer<B> {
                         })
                         .collect();
                     // Safety: `B::sync_collective` should be automatically called after the backward pass.
+                    println!(
+                        "[{:?}] in server all_reduce launched",
+                        std::thread::current().id()
+                    );
                     unsafe {
                         queued_tensors
                             .iter()
                             .zip(results)
                             .for_each(|(t, r)| *t.0 = r);
                     }
+                    println!(
+                        "[{:?}] in server in-place assigned",
+                        std::thread::current().id()
+                    );
                     self.all_reduce_ops_queue.remove(&param_id).unwrap();
                     self.param_required_map.remove(&param_id).unwrap();
                     self.try_launch_sync();
