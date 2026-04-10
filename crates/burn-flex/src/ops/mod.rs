@@ -61,9 +61,11 @@ impl<T> SendMutPtr<T> {
 /// Returns a borrowed slice for F32 (zero-copy) and an owned Vec for other
 /// float dtypes (F64, F16, BF16).
 ///
-/// The caller is responsible for making the tensor contiguous first when the
-/// returned slice needs to be in iteration order; otherwise the slice reflects
-/// the underlying buffer order.
+/// Returns elements in underlying buffer order. Callers needing logical
+/// iteration order must call `to_contiguous()` first.
+///
+/// # Panics
+/// Panics if the tensor's dtype is not one of F32, F64, F16, or BF16.
 pub(crate) fn float_storage_as_f32(tensor: &FlexTensor) -> Cow<'_, [f32]> {
     match tensor.dtype() {
         DType::F32 => Cow::Borrowed(tensor.storage::<f32>()),
