@@ -26,6 +26,7 @@ std = ["burn-tensor/std", "burn-dispatch/std"]
 
 # Backends
 cuda = ["burn-dispatch/cuda", "quantization", "cube"]
+flex = ["burn-dispatch/flex", "quantization"]
 rocm = ["burn-dispatch/rocm", "quantization", "cube"]
 ndarray = ["burn-dispatch/ndarray", "quantization"]
 tch = ["burn-dispatch/tch"]

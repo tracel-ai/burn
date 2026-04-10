@@ -1,3 +1,9 @@
+#[cfg(feature = "flex")]
+pub use burn_flex as flex;
+
+#[cfg(feature = "flex")]
+pub use flex::Flex;
+
 #[cfg(feature = "ndarray")]
 pub use burn_ndarray as ndarray;
 

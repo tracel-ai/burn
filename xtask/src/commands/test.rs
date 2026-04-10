@@ -41,6 +41,8 @@ enum TestBackend {
     #[allow(unused)]
     #[strum(to_string = "rocm")]
     Rocm,
+    #[strum(to_string = "flex")]
+    Flex,
     #[strum(to_string = "ndarray")]
     Ndarray,
 }
@@ -60,7 +62,7 @@ fn handle_backend_tests(
     }
     args.features = Some(features);
 
-    if !matches!(backend, TestBackend::Ndarray) {
+    if !matches!(backend, TestBackend::Ndarray | TestBackend::Flex) {
         // Fusion enabled tests first
         let mut fusion_args = args.clone();
         if let Some(features) = fusion_args.features.as_mut() {
@@ -113,13 +115,23 @@ pub(crate) fn handle_command(
 ) -> anyhow::Result<()> {
     match context {
         Context::NoStd => {
+            // burn-flex's unit tests use `std::f32::consts` and bare `vec!`
+            // macros directly in test modules, so they only compile under std.
+            // The build step (`xtask build --no-std`) still validates that
+            // the crate itself compiles as no_std via `cargo build`, which
+            // does not pull in test modules.
+            let no_std_test_crates: Vec<&str> = NO_STD_CRATES
+                .iter()
+                .copied()
+                .filter(|&c| c != "burn-flex")
+                .collect();
             ["Default"].iter().try_for_each(|test_target| {
                 let mut test_args = vec!["--no-default-features"];
                 if *test_target != "Default" {
                     test_args.extend(vec!["--target", *test_target]);
                 }
                 helpers::custom_crates_tests(
-                    NO_STD_CRATES.to_vec(),
+                    no_std_test_crates.clone(),
                     handle_test_args(&test_args, args.release),
                     None,
                     None,
@@ -171,6 +183,13 @@ pub(crate) fn handle_command(
                     handle_backend_tests(
                         args.clone().try_into().unwrap(),
                         TestBackend::Ndarray,
+                        env.clone(),
+                        context.clone(),
+                    )?;
+
+                    handle_backend_tests(
+                        args.clone().try_into().unwrap(),
+                        TestBackend::Flex,
                         env,
                         context,
                     )?;

@@ -18,3 +18,6 @@ extend-exclude = [
 arange = "arange"
 # Don't correct "convnet" (convolutional network)
 convnet = "convnet"
+# Don't correct "Nd" / "nd" in convNd / conv_nd (N-dimensional)
+Nd = "Nd"
+nd = "nd"

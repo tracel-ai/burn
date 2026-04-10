@@ -16,9 +16,13 @@ workspace = true
 [features]
 default = []
 
+# Enable burn-flex's `critical-section` fallback for no_std targets without
+# atomic CAS (e.g. thumbv6m-none-eabi). See burn-flex Cargo.toml for details.
+critical-section = ["burn-flex/critical-section"]
+
 tracing = [
     "burn/tracing",
-    "burn-ndarray/tracing",
+    "burn-flex/tracing",
     "burn-store/tracing",
 ]
 
@@ -27,6 +31,6 @@ tracing = [
 # ** Please make sure all dependencies support no_std **
 
 burn = { path = "../burn", version = "=0.21.0-pre.3", default-features = false }
-burn-ndarray = { path = "../burn-ndarray", version = "=0.21.0-pre.3", default-features = false }
+burn-flex = { path = "../burn-flex", version = "=0.21.0-pre.3", default-features = false }
 
 burn-store = { path = "../burn-store", version = "=0.21.0-pre.3", default-features = false, features = ["safetensors", "burnpack"]}
