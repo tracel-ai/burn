@@ -42,22 +42,23 @@ use burn_backend::{
 /// use burn::backend::NdArray;
 /// use burn::tensor::linalg;
 ///
-/// type B = NdArray<f32>;
-/// let device = Default::default();
-/// let tensor = Tensor::<B, 2>::from_data([[4.0, 3.0], [6.0, 3.0]], &device);
+/// fn example<B: Backend>() {
+///     let device = Default::default();
+///     let tensor = Tensor::<B, 2>::from_data([[4.0, 3.0], [6.0, 3.0]], &device);
 ///
-/// // Compute P, L, U
-/// let (p, l, u) = linalg::lu::<B, 2, 1>(tensor);
+///     // Compute P, L, U
+///     let (p, l, u) = linalg::lu::<B, 2, 1>(tensor);
 ///
-/// // Expected Output:
-/// // p: [[0.0, 1.0],
-/// //     [1.0, 0.0]]
-/// //
-/// // l: [[1.0,       0.0],
-/// //     [0.6666667, 1.0]]
-/// //
-/// // u: [[6.0, 3.0],
-/// //     [0.0, 1.0]]
+///     // Expected Output:
+///     // p: [[0.0, 1.0],
+///     //     [1.0, 0.0]]
+///     //
+///     // l: [[1.0,       0.0],
+///     //     [0.6666667, 1.0]]
+///     //
+///     // u: [[6.0, 3.0],
+///     //     [0.0, 1.0]]
+/// }
 /// ```
 pub fn lu<B: Backend, const D: usize, const D1: usize>(
     tensor: Tensor<B, D>,
@@ -124,19 +125,19 @@ pub fn lu<B: Backend, const D: usize, const D1: usize>(
 /// use burn::backend::NdArray;
 /// use burn::tensor::linalg;
 ///
-/// type B = NdArray<f32>;
-/// let device = Default::default();
+/// fn example<B: Backend>() {
+///     let device = Default::default();
+///     let tensor = Tensor::<B, 2>::from_data([[4.0, 3.0], [6.0, 3.0]], &device);
 ///
-/// let tensor = Tensor::<B, 2>::from_data([[4.0, 3.0], [6.0, 3.0]], &device);
+///     // Returns 1D pivots and a 2D LU tensor
+///     let (pivots, lu) = linalg::lu_factor::<B, 2, 1>(tensor);
 ///
-/// // Returns 1D pivots and a 2D LU tensor
-/// let (pivots, lu) = linalg::lu_factor::<B, 2, 1>(tensor);
-///
-/// // Expected Output:
-/// // pivots: [1.0, 1.0] // Row 0 swapped with Row 1, then Row 1 swapped with Row 1
-/// //
-/// // lu_packed: [[6.0,       3.0],
-/// //             [0.6666667, 1.0]]
+///     // Expected Output:
+///     // pivots: [1.0, 1.0] // Row 0 swapped with Row 1, then Row 1 swapped with Row 1
+///     //
+///     // lu_packed: [[6.0,       3.0],
+///     //             [0.6666667, 1.0]]
+/// }
 /// ```
 pub fn lu_factor<B: Backend, const D: usize, const D1: usize>(
     tensor: Tensor<B, D>,
@@ -289,11 +290,7 @@ fn standard_lu_with_partial_piv<B: Backend, const D: usize, const D1: usize>(
     let dims = tensor.dims();
     let n_rows = dims[D - 2];
     let n_cols = dims[D - 1];
-    let piv_nums = if n_rows == n_cols {
-        n_rows
-    } else {
-        n_rows.min(n_cols)
-    };
+    let piv_nums = n_rows.min(n_cols);
     let mut permutations = create_permutation_tensor::<B, D>(piv_nums, dims, device);
 
     for k in 0..piv_nums {
