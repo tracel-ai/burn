@@ -685,7 +685,7 @@ mod grad_distributed {
                     );
                     println!("data : {:?}\n", data.to_vec::<f32>().unwrap());
                     println!("data_other : {:?}\n", data_other.to_vec::<f32>().unwrap());
-                    data.assert_approx_eq::<f32>(&expected.to_data(), Tolerance::default());
+                    data_other.assert_approx_eq::<f32>(&expected.to_data(), Tolerance::default());
                 }
             }
         }
