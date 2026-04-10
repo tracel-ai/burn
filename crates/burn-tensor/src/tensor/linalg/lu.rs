@@ -110,10 +110,10 @@ pub fn lu<B: Backend, const D: usize, const D1: usize>(
 /// - `D1`: The number of dimensions of the 1D pivot tensor. Must be exactly `D - 1`.
 ///
 /// # Panics
-/// This function will panic if the tensor checks fail:
+/// This function will panic if:
 /// - The input tensor has less than 2 dimensions (`D < 2`).
 /// - The generic parameters do not satisfy `D - 1 == D1`.
-/// - If the input tensor is singular.
+/// - The input tensor is singular.
 ///
 /// # Performance Note
 /// The current implementation of LU decomposition is not fully optimized. It will not
