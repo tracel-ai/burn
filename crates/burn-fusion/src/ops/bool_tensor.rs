@@ -1,5 +1,7 @@
 use crate::{
-    Fusion, FusionBackend, get_client,
+    Fusion, FusionBackend,
+    client::GlobalFusionClient,
+    get_client,
     stream::{OperationStreams, execution::Operation},
 };
 use burn_backend::{
@@ -197,20 +199,18 @@ impl<B: FusionBackend> BoolTensorOps<Self> for Fusion<B> {
         tensor.client.device().clone()
     }
 
-    fn bool_to_device(tensor: BoolTensor<Self>, device: &Device<Self>) -> BoolTensor<Self> {
-        let device_original: &B::Device = tensor.client.device();
+    fn bool_to_device(tensor: BoolTensor<Self>, device_dst: &Device<Self>) -> BoolTensor<Self> {
+        let device_src: &B::Device = tensor.client.device();
 
-        if device_original == device {
+        if device_src == device_dst {
             return tensor;
         }
 
         let id = tensor.stream;
-        let client_target = get_client::<B>(device);
-        let client_original = tensor.client.clone();
+        let client_dst = get_client::<B>(device_dst);
+        let client_src = tensor.client.clone();
 
-        client_original
-            .clone()
-            .change_client_bool::<B>(tensor.into_ir(), client_target, id)
+        GlobalFusionClient::change_client_bool::<B>(tensor.into_ir(), client_src, client_dst, id)
     }
 
     fn bool_reshape(tensor: BoolTensor<Self>, shape: Shape) -> BoolTensor<Self> {

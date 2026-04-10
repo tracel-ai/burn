@@ -15,7 +15,9 @@ version.workspace = true
 workspace = true
 
 [features]
+# TODO: remove distributed
 default = [
+    "distributed",
     "autotune",
     "std",
     "fusion",

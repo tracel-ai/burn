@@ -15,10 +15,12 @@ version.workspace = true
 workspace = true
 
 [features]
-default = ["std", "tracing"]
+# TODO: remove from default and propagate distributed
+default = ["std", "tracing", "distributed"]
 std = ["serde/std", "tracing?/std"]
 doc = ["default"]
 memory-checks = ["std"]
+distributed = ["std", "burn-backend/distributed"]
 
 tracing = [
     "dep:tracing",

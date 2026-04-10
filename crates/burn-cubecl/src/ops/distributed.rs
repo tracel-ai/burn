@@ -1,10 +1,13 @@
 use burn_backend::{
-    DeviceOps,
-    distributed::{DistributedBackend, ReduceOperation, TensorRef},
-    tensor::Device,
+    DeviceId, StreamId, TensorMetadata,
+    distributed::{DistributedBackend, ReduceOperation},
+    tensor::{Device, FloatTensor},
 };
 
-use crate::{BoolElement, CubeBackend, CubeRuntime, FloatElement, IntElement};
+use crate::{
+    BoolElement, CubeBackend, CubeRuntime, FloatElement, IntElement,
+    ops::numeric::{self, zeros_client},
+};
 
 impl<R, F, I, BT> DistributedBackend for CubeBackend<R, F, I, BT>
 where
@@ -13,27 +16,40 @@ where
     I: IntElement,
     BT: BoolElement,
 {
-    unsafe fn all_reduce_in_place(tensors: Vec<TensorRef<Self>>, op: ReduceOperation) {
-        let tensors = tensors.iter().map(|t| unsafe { &*t.0 }).collect::<Vec<_>>();
-        let all_ids = tensors.iter().map(|t| t.device.id()).collect::<Vec<_>>();
-
-        for tensor in tensors {
-            let device = &tensor.device;
-            let client = R::client(device);
+    unsafe fn all_reduce(
+        tensor: FloatTensor<Self>,
+        op: ReduceOperation,
+        device_ids: Vec<DeviceId>,
+    ) -> FloatTensor<Self> {
+        StreamId::executes(tensor.handle.stream, || {
+            let device = &tensor.device.clone();
+            let out_tensor = if tensor.handle.can_mut() && tensor.is_contiguous() {
+                tensor
+            } else {
+                let out_tensor = zeros_client::<R>(
+                    tensor.client.clone(),
+                    device.clone(),
+                    tensor.shape(),
+                    tensor.dtype(),
+                );
+                numeric::add(out_tensor, tensor)
+            };
 
             let op = match op {
                 ReduceOperation::Sum => cubecl::server::ReduceOperation::Sum,
                 ReduceOperation::Mean => cubecl::server::ReduceOperation::Mean,
             };
 
+            let client = R::client(device);
             client.all_reduce(
-                tensor.handle.clone(),
-                tensor.handle.clone(),
-                tensor.dtype.into(),
-                all_ids.clone(),
+                out_tensor.handle.clone(),
+                out_tensor.handle.clone(),
+                out_tensor.dtype.into(),
+                device_ids.clone(),
                 op,
             );
-        }
+            out_tensor
+        })
     }
 
     fn sync_collective(device: &Device<Self>) {

@@ -1,7 +1,8 @@
 use super::NoOp;
 use crate::{
-    Fusion, FusionBackend, binary_float_cmp_ops, binary_float_ops, get_client, reduce_float_ops,
-    reduce_float2int_ops, scalar_float_cmp_ops, scalar_float_ops,
+    Fusion, FusionBackend, binary_float_cmp_ops, binary_float_ops,
+    client::GlobalFusionClient,
+    get_client, reduce_float_ops, reduce_float2int_ops, scalar_float_cmp_ops, scalar_float_ops,
     stream::{OperationStreams, execution::Operation},
     unary_float_ops,
 };
@@ -192,20 +193,18 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             dtype = ?tensor.dtype,
         )
     ))]
-    fn float_to_device(tensor: FloatTensor<Self>, device: &Device<Self>) -> FloatTensor<Self> {
-        let device_original: &B::Device = tensor.client.device();
+    fn float_to_device(tensor: FloatTensor<Self>, device_dst: &Device<Self>) -> FloatTensor<Self> {
+        let device_src: &B::Device = tensor.client.device();
 
-        if device_original == device {
+        if device_src == device_dst {
             return tensor;
         }
 
         let id = tensor.stream;
-        let client_target = get_client::<B>(device);
-        let client_original = tensor.client.clone();
+        let client_dst = get_client::<B>(device_dst);
+        let client_src = tensor.client.clone();
 
-        client_original
-            .clone()
-            .change_client_float::<B>(tensor.into_ir(), client_target, id)
+        GlobalFusionClient::change_client_float::<B>(tensor.into_ir(), client_src, client_dst, id)
     }
 
     fn float_into_int(tensor: FloatTensor<Self>, dtype: IntDType) -> IntTensor<Self> {

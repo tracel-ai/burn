@@ -6,7 +6,8 @@ use burn_backend::{TensorData, backend::ExecutionError};
 use burn_ir::{HandleContainer, OperationIr, TensorId, TensorIr};
 
 pub struct FusionServer<R: FusionRuntime> {
-    streams: MultiStream<R>,
+    // TODO: reset to private.
+    pub(crate) streams: MultiStream<R>,
     pub(crate) handles: HandleContainer<R::FusionHandle>,
 }
 

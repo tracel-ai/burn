@@ -1,17 +1,14 @@
-use crate::{
-    Backend,
-    distributed::{ReduceOperation, TensorRef},
-};
+use crate::{Backend, distributed::ReduceOperation, tensor::FloatTensor};
 
 pub(crate) fn reduce_sum_centralized<B: Backend>(
-    mut tensors: Vec<TensorRef<B>>,
+    mut tensors: Vec<FloatTensor<B>>,
     central_device: &B::Device,
 ) -> B::FloatTensorPrimitive {
     // Safe since tensors shouldn't be accessed other than here at this point.
-    let mut central_tensor = unsafe { (*tensors.remove(0).0).clone() };
+    let mut central_tensor = tensors.remove(0);
 
     for tensor in tensors {
-        let rhs = unsafe { B::float_to_device((*tensor.0).clone(), central_device) };
+        let rhs = B::float_to_device(tensor, central_device);
         central_tensor = B::float_add(central_tensor.clone(), rhs);
     }
 
@@ -19,14 +16,14 @@ pub(crate) fn reduce_sum_centralized<B: Backend>(
 }
 
 // TODO : Tests
-pub(crate) unsafe fn all_reduce_inplace_centralized<B: Backend>(
-    tensors: Vec<TensorRef<B>>,
+pub(crate) fn all_reduce_centralized<B: Backend>(
+    tensors: Vec<FloatTensor<B>>,
     op: ReduceOperation,
-) {
+) -> Vec<FloatTensor<B>> {
     // Get corresponding devices for each tensor
     let devices: Vec<B::Device> = tensors
         .iter()
-        .map(|tensor| unsafe { B::float_device(&(*tensor.0)) })
+        .map(|tensor| B::float_device(tensor))
         .collect();
     let central_device = devices.first().unwrap();
 
@@ -40,12 +37,8 @@ pub(crate) unsafe fn all_reduce_inplace_centralized<B: Backend>(
     }
 
     // Broadcast result to all
-    // This way of assigning in-place is very unsafe and inefficient. Native communication ops are always preferred.
-    unsafe {
-        for dest in tensors {
-            let device = B::float_device(&(*dest.0));
-            let tensor_float = B::float_to_device(central_tensor.clone(), &device);
-            (*dest.0) = tensor_float;
-        }
-    }
+    devices
+        .iter()
+        .map(|d| B::float_to_device(central_tensor.clone(), d))
+        .collect()
 }
