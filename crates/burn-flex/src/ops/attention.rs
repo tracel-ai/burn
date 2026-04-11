@@ -116,24 +116,68 @@ macro_rules! dispatch_attention_dtype {
     }};
 }
 
-/// Broadcast an attention mask or bias to the full `[batch, heads, seq_q, seq_kv]` shape.
+/// Contiguous mask/bias tensor plus the per-batch and per-head element offsets the
+/// inner loop should use to locate the `[seq_q, seq_kv]` tile for each `(batch, head)`
+/// pair. When a leading dim (batch or heads) is `1` in the source, its step is `0`, so
+/// the inner loop re-reads the same tile for every pair without allocating an expanded
+/// copy. The tile length itself is always `seq_q * seq_kv` and is computed at the call
+/// site, so it is not stored here.
+struct BroadcastMaskBias {
+    tensor: FlexTensor,
+    batch_step: usize,
+    head_step: usize,
+}
+
+/// Prepare an attention mask or bias for the inner loop, accepting ONNX Attention-23
+/// broadcast shapes.
 ///
-/// Matches ONNX Attention-23 semantics: any dim of the mask/bias may be `1` and is
-/// broadcast along that axis (e.g. a `[1, 1, seq_q, seq_kv]` mask is shared across all
-/// batches and heads). Materializing the result (rather than passing a stride-0 view
-/// downstream) keeps the inner loops' precomputed `[batch_stride, head_stride]` offset
-/// math valid without a broadcast-aware indexer.
+/// Stride-0 along the leading `[batch, heads]` dims is handled without materializing,
+/// so the common ONNX patterns (`[1, 1, seq_q, seq_kv]`, `[batch, 1, seq_q, seq_kv]`,
+/// `[1, heads, seq_q, seq_kv]`) stay zero-copy. That matters especially for the flash
+/// path, where materializing an expanded mask/bias would allocate a full
+/// `[batch, heads, seq_q, seq_kv]` buffer and negate flash attention's memory
+/// efficiency. If the trailing `[seq_q, seq_kv]` dims are themselves broadcast (rare in
+/// practice), we fall back to `expand` + `to_contiguous` so the tile stays contiguous
+/// in memory for the inner loop's slice-based access.
 fn broadcast_attn_mask_bias(
     tensor: FlexTensor,
     target: [usize; 4],
     name: &'static str,
-) -> FlexTensor {
+) -> BroadcastMaskBias {
     let ndim = tensor.layout().shape().num_dims();
     assert!(ndim == 4, "attention: {name} must be 4D, got {ndim}D");
-    // `expand` panics if any source dim is neither `target` nor `1`; `to_contiguous`
-    // then materializes the stride-0 broadcast into a dense buffer.
-    let expanded = crate::ops::expand::expand(tensor, burn_std::Shape::new(target));
-    expanded.to_contiguous()
+    let shape = tensor.layout().shape();
+    let src = [shape[0], shape[1], shape[2], shape[3]];
+    for i in 0..4 {
+        assert!(
+            src[i] == target[i] || src[i] == 1,
+            "attention: {name} dim {i} must be {} or 1, got {}",
+            target[i],
+            src[i]
+        );
+    }
+
+    let tile_len = target[2] * target[3];
+
+    // Broadcast on seq_q or seq_kv: the source's trailing tile has fewer elements
+    // than `tile_len`, so per-pair slice access would under-read. Materialize via
+    // expand + to_contiguous in that case.
+    if src[2] != target[2] || src[3] != target[3] {
+        let expanded = crate::ops::expand::expand(tensor, burn_std::Shape::new(target));
+        return BroadcastMaskBias {
+            tensor: expanded.to_contiguous(),
+            batch_step: target[1] * tile_len,
+            head_step: tile_len,
+        };
+    }
+
+    // Trailing dims match the target. Keep the source at its own shape (size
+    // `src[0] * src[1] * tile_len`) and zero-out the step for any leading dim of 1.
+    BroadcastMaskBias {
+        tensor: tensor.to_contiguous(),
+        batch_step: if src[0] == 1 { 0 } else { src[1] * tile_len },
+        head_step: if src[1] == 1 { 0 } else { tile_len },
+    }
 }
 
 /// Flash attention: tiled computation with online softmax. Use directly to bypass auto-selection.
@@ -239,8 +283,8 @@ where
     assert_eq!(v_shape[2], seq_kv, "attention: value seq_kv mismatch");
 
     let target = [batch, heads, seq_q, seq_kv];
-    let mask_tensor = mask.map(|m| broadcast_attn_mask_bias(m, target, "mask"));
-    let bias_tensor = attn_bias.map(|b| broadcast_attn_mask_bias(b, target, "bias"));
+    let mask_bcast = mask.map(|m| broadcast_attn_mask_bias(m, target, "mask"));
+    let bias_bcast = attn_bias.map(|b| broadcast_attn_mask_bias(b, target, "bias"));
 
     let scale = T::from(
         options
@@ -258,8 +302,16 @@ where
     let q_data: &[T] = query.storage();
     let k_data: &[T] = key.storage();
     let v_data: &[T] = value.storage();
-    let mask_data: Option<&[u8]> = mask_tensor.as_ref().map(|m| m.bytes());
-    let bias_data: Option<&[T]> = bias_tensor.as_ref().map(|b| b.storage());
+    let mask_data: Option<&[u8]> = mask_bcast.as_ref().map(|b| b.tensor.bytes());
+    let bias_data: Option<&[T]> = bias_bcast.as_ref().map(|b| b.tensor.storage());
+    let (mask_batch_step, mask_head_step) = mask_bcast
+        .as_ref()
+        .map(|b| (b.batch_step, b.head_step))
+        .unwrap_or((0, 0));
+    let (bias_batch_step, bias_head_step) = bias_bcast
+        .as_ref()
+        .map(|b| (b.batch_step, b.head_step))
+        .unwrap_or((0, 0));
 
     let mut output = vec![T::zero(); batch * heads * seq_q * val_dim];
 
@@ -272,8 +324,7 @@ where
     let v_batch_stride = heads * v_head_stride;
     let o_head_stride = seq_q * val_dim;
     let o_batch_stride = heads * o_head_stride;
-    let mask_head_stride = seq_q * seq_kv;
-    let mask_batch_stride = heads * mask_head_stride;
+    let mask_tile_len = seq_q * seq_kv;
 
     let params = AttentionParams {
         scale,
@@ -298,15 +349,16 @@ where
             let k_off = b * k_batch_stride + h * k_head_stride;
             let v_off = b * v_batch_stride + h * v_head_stride;
             let o_off = b * o_batch_stride + h * o_head_stride;
-            let m_off = b * mask_batch_stride + h * mask_head_stride;
+            let mask_off = b * mask_batch_step + h * mask_head_step;
+            let bias_off = b * bias_batch_step + h * bias_head_step;
 
             flash_attention_head(
                 &q_data[q_off..q_off + q_head_stride],
                 &k_data[k_off..k_off + k_head_stride],
                 &v_data[v_off..v_off + v_head_stride],
                 &mut output[o_off..o_off + o_head_stride],
-                mask_data.map(|m| &m[m_off..m_off + mask_head_stride]),
-                bias_data.map(|b| &b[m_off..m_off + mask_head_stride]),
+                mask_data.map(|m| &m[mask_off..mask_off + mask_tile_len]),
+                bias_data.map(|b| &b[bias_off..bias_off + mask_tile_len]),
                 &params,
                 &mut scratch,
             );
@@ -668,8 +720,8 @@ where
     assert_eq!(v_shape[2], seq_kv, "attention_naive: value seq_kv mismatch");
 
     let target = [batch, heads, seq_q, seq_kv];
-    let mask_tensor = mask.map(|m| broadcast_attn_mask_bias(m, target, "mask"));
-    let bias_tensor = attn_bias.map(|b| broadcast_attn_mask_bias(b, target, "bias"));
+    let mask_bcast = mask.map(|m| broadcast_attn_mask_bias(m, target, "mask"));
+    let bias_bcast = attn_bias.map(|b| broadcast_attn_mask_bias(b, target, "bias"));
 
     let scale = T::from(
         options
@@ -687,8 +739,16 @@ where
     let q_data: &[T] = query.storage();
     let k_data: &[T] = key.storage();
     let v_data: &[T] = value.storage();
-    let mask_data: Option<&[u8]> = mask_tensor.as_ref().map(|m| m.bytes());
-    let bias_data: Option<&[T]> = bias_tensor.as_ref().map(|b| b.storage());
+    let mask_data: Option<&[u8]> = mask_bcast.as_ref().map(|b| b.tensor.bytes());
+    let bias_data: Option<&[T]> = bias_bcast.as_ref().map(|b| b.tensor.storage());
+    let (mask_batch_step, mask_head_step) = mask_bcast
+        .as_ref()
+        .map(|b| (b.batch_step, b.head_step))
+        .unwrap_or((0, 0));
+    let (bias_batch_step, bias_head_step) = bias_bcast
+        .as_ref()
+        .map(|b| (b.batch_step, b.head_step))
+        .unwrap_or((0, 0));
 
     let mut output = vec![T::zero(); batch * heads * seq_q * val_dim];
     let mut scores = vec![T::zero(); seq_q * seq_kv];
@@ -701,8 +761,7 @@ where
     let v_batch_stride = heads * v_head_stride;
     let o_head_stride = seq_q * val_dim;
     let o_batch_stride = heads * o_head_stride;
-    let mask_head_stride = seq_q * seq_kv;
-    let mask_batch_stride = heads * mask_head_stride;
+    let mask_tile_len = seq_q * seq_kv;
 
     let params = AttentionParams {
         scale,
@@ -720,7 +779,8 @@ where
             let k_off = b * k_batch_stride + h * k_head_stride;
             let v_off = b * v_batch_stride + h * v_head_stride;
             let o_off = b * o_batch_stride + h * o_head_stride;
-            let m_off = b * mask_batch_stride + h * mask_head_stride;
+            let mask_off = b * mask_batch_step + h * mask_head_step;
+            let bias_off = b * bias_batch_step + h * bias_head_step;
 
             naive_attention_head(
                 &q_data[q_off..q_off + q_head_stride],
@@ -730,8 +790,8 @@ where
                 &mut scores,
                 &params,
                 (
-                    mask_data.map(|m| &m[m_off..m_off + mask_head_stride]),
-                    bias_data.map(|b| &b[m_off..m_off + mask_head_stride]),
+                    mask_data.map(|m| &m[mask_off..mask_off + mask_tile_len]),
+                    bias_data.map(|b| &b[bias_off..bias_off + mask_tile_len]),
                 ),
             );
         }
@@ -1062,6 +1122,81 @@ mod tests {
     }
 
     #[test]
+    fn test_flash_bool_mask_broadcast_across_batch_and_heads() {
+        // Flash-path counterpart to test_flash_bias_broadcast_across_batch_and_heads, but
+        // for a `[1, 1, seq_q, seq_kv]` bool mask. Exercises the mask (u8) slicing path
+        // with stride-0 batch/head steps, which is a different code path from the bias
+        // (f32) path above - same helper, different dtype and different inner-loop
+        // branch. The backend-tests suite doesn't reach flash (small shapes stay under
+        // NAIVE_SCORE_BUDGET), so this needs a direct attention_flash call.
+        use crate::{FlexTensor, Layout};
+        use burn_std::{Bytes, Shape};
+
+        let batch = 2;
+        let heads = 2;
+        let seq_q = 3;
+        let seq_kv = 5;
+        let head_dim = 4;
+
+        let f32_dt = burn_backend::DType::F32;
+        let bool_dt = burn_backend::DType::Bool(burn_std::BoolStore::Native);
+        let mk_f32 = |shape: &[usize], g: &dyn Fn(usize) -> f32| -> FlexTensor {
+            let len: usize = shape.iter().product();
+            let data: Vec<f32> = (0..len).map(g).collect();
+            FlexTensor::new(
+                Bytes::from_elems(data),
+                Layout::contiguous(Shape::from(shape.to_vec())),
+                f32_dt,
+            )
+        };
+
+        let q = mk_f32(&[batch, heads, seq_q, head_dim], &|i| {
+            (i as f32 * 0.1).sin()
+        });
+        let k = mk_f32(&[batch, heads, seq_kv, head_dim], &|i| {
+            (i as f32 * 0.1 + 1.0).sin()
+        });
+        let v = mk_f32(&[batch, heads, seq_kv, head_dim], &|i| {
+            (i as f32 * 0.1 + 2.0).sin()
+        });
+
+        // Mask out columns 3 and 4 (1 == masked out, matching test_bool_mask).
+        let mask_tile: Vec<u8> = (0..seq_q * seq_kv)
+            .map(|i| if (i % seq_kv) >= 3 { 1u8 } else { 0u8 })
+            .collect();
+        let mask_bcast = FlexTensor::new(
+            Bytes::from_elems(mask_tile.clone()),
+            Layout::contiguous(Shape::from(vec![1, 1, seq_q, seq_kv])),
+            bool_dt,
+        );
+        let mask_full_vec: Vec<u8> = mask_tile
+            .iter()
+            .copied()
+            .cycle()
+            .take(batch * heads * seq_q * seq_kv)
+            .collect();
+        let mask_full = FlexTensor::new(
+            Bytes::from_elems(mask_full_vec),
+            Layout::contiguous(Shape::from(vec![batch, heads, seq_q, seq_kv])),
+            bool_dt,
+        );
+
+        let out_bcast = super::attention_flash(
+            q.clone(),
+            k.clone(),
+            v.clone(),
+            Some(mask_bcast),
+            None,
+            Default::default(),
+        );
+        let out_full = super::attention_flash(q, k, v, Some(mask_full), None, Default::default());
+
+        let bcast: &[f32] = out_bcast.storage();
+        let full: &[f32] = out_full.storage();
+        assert_attention_outputs_close(bcast, full, "flash bool mask[1,1,sq,skv]");
+    }
+
+    #[test]
     #[should_panic(expected = "must be 4D")]
     fn test_mask_wrong_rank_panics() {
         // Contract: the broadcast helper rejects non-4D mask/bias up-front with a
@@ -1078,10 +1213,11 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "cannot expand dimension")]
+    #[should_panic(expected = "bias dim 1 must be 3 or 1, got 2")]
     fn test_bias_incompatible_dim_panics() {
         // Contract: a dim that is neither equal to target nor `1` is a hard error.
-        // Here heads=2 in the bias but target heads=3, so `expand` must panic.
+        // Here heads=2 in the bias but target heads=3, so the helper's per-dim
+        // validation must panic with the offending argument name, dim index, and values.
         use crate::{FlexTensor, Layout};
         use burn_std::{Bytes, Shape};
 
