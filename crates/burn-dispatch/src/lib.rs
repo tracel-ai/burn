@@ -17,6 +17,7 @@
 //! | `Rocm`     | `rocm`     | AMD ROCm backend |
 //! | `Vulkan`   | `vulkan`   | Vulkan backend via `wgpu` (SPIR-V) |
 //! | `Wgpu`     | `webgpu`   | WebGPU backend via `wgpu` (WGSL) |
+//! | `Flex`     | `flex`     | Pure Rust CPU backend using `burn-flex` |
 //! | `NdArray`  | `ndarray`  | Pure Rust CPU backend using `ndarray` |
 //! | `LibTorch` | `tch`      | Libtorch backend via `tch` |
 //! | `Autodiff` | `autodiff` | Autodiff-enabled backend (used in combination with any of the backends above) |
@@ -44,6 +45,7 @@
     feature = "rocm",
     wgpu_vulkan,
     wgpu_webgpu,
+    feature = "flex",
     feature = "ndarray",
     feature = "tch",
 )))]
@@ -83,6 +85,8 @@ pub(crate) mod backends {
     #[cfg(any(wgpu_metal, wgpu_vulkan, wgpu_webgpu))]
     pub use burn_wgpu::WgpuDevice;
 
+    #[cfg(feature = "flex")]
+    pub use burn_flex::{Flex, FlexDevice};
     #[cfg(feature = "ndarray")]
     pub use burn_ndarray::{NdArray, NdArrayDevice};
     #[cfg(feature = "tch")]

@@ -179,10 +179,66 @@ fn should_unsqueeze_dims_multiple_trailing_negatives() {
 }
 
 #[test]
+fn should_unsqueeze_dims_consecutive_first_then_gap() {
+    let input_tensor = TestTensor::<3>::ones(Shape::new([3, 4, 5]), &Default::default());
+    let output_tensor: TestTensor<6> = input_tensor.unsqueeze_dims(&[0, 1, 3]);
+    let expected_shape = Shape::new([1, 1, 3, 1, 4, 5]);
+    assert_eq!(output_tensor.shape(), expected_shape);
+}
+
+/// Regression test: `unsqueeze_dims` previously panicked with "index out of bounds"
+/// when the axes produced duplicate values after sorting. The documented semantic
+/// is that N duplicate axes insert N dims at that index; the fix normalizes sorted
+/// duplicates so the N insertions occupy N consecutive output positions.
+///
+/// This pattern comes up in ONNX matmul broadcasting when a 1D vector is unsqueezed
+/// to match a higher-rank matrix (e.g. `[4]` -> `[1, 1, 4, 1]` for `4D @ 1D` matmul).
+#[test]
+fn should_unsqueeze_dims_handle_duplicate_axes_after_sort() {
+    // Matches the codegen pattern from burn-onnx for 4D @ 1D matmul broadcasting:
+    // axes `[-1, 0, 0]` convert to `[3, 0, 0]`, sort to `[0, 0, 3]`, and should
+    // produce `[1, 1, 4, 1]` after normalization.
+    let input_tensor = TestTensor::<1>::ones(Shape::new([4]), &Default::default());
+    let output_tensor: TestTensor<4> = input_tensor.unsqueeze_dims(&[-1, 0, 0]);
+    let expected_shape = Shape::new([1, 1, 4, 1]);
+    assert_eq!(output_tensor.shape(), expected_shape);
+}
+
+#[test]
+fn should_unsqueeze_dims_handle_repeated_zero_axes() {
+    // Pure positive duplicates: `[0, 0]` should insert two leading 1s.
+    let input_tensor = TestTensor::<1>::ones(Shape::new([5]), &Default::default());
+    let output_tensor: TestTensor<3> = input_tensor.unsqueeze_dims(&[0, 0]);
+    let expected_shape = Shape::new([1, 1, 5]);
+    assert_eq!(output_tensor.shape(), expected_shape);
+}
+
+#[test]
+fn should_unsqueeze_dims_handle_repeated_middle_axes() {
+    // Duplicates at an interior position: `[1, 1, 1]` should place three 1s
+    // starting at index 1, keeping the original dim at index 0.
+    let input_tensor = TestTensor::<1>::ones(Shape::new([5]), &Default::default());
+    let output_tensor: TestTensor<4> = input_tensor.unsqueeze_dims(&[1, 1, 1]);
+    let expected_shape = Shape::new([5, 1, 1, 1]);
+    assert_eq!(output_tensor.shape(), expected_shape);
+}
+
+#[test]
 #[should_panic]
 fn should_unsqueeze_dims_panic() {
     let input_tensor = TestTensor::<3>::ones(Shape::new([3, 4, 5]), &Default::default());
     let _output_tensor: TestTensor<5> = input_tensor.unsqueeze_dims(&[0, -6]);
+}
+
+/// Duplicate-axis normalization can push the last index past the valid output
+/// range (e.g. `[2, 2]` targeting rank 3 normalizes to `[2, 3]`). This must be
+/// rejected with a clear error instead of triggering an out-of-bounds read in
+/// the copy loop.
+#[test]
+#[should_panic]
+fn should_unsqueeze_dims_panic_duplicate_pushed_out_of_range() {
+    let input_tensor = TestTensor::<1>::ones(Shape::new([4]), &Default::default());
+    let _: TestTensor<3> = input_tensor.unsqueeze_dims(&[2, 2]);
 }
 
 #[test]

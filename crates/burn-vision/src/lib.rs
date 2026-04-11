@@ -28,4 +28,9 @@ pub use transform::*;
 /// Module for vision/image utilities
 pub mod utils;
 
+#[cfg(feature = "loss")]
+#[cfg_attr(docsrs, doc(cfg(feature = "loss")))]
+/// Loss module
+pub mod loss;
+
 pub use backends::{KernelShape, create_structuring_element};

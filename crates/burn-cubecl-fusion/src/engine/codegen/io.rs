@@ -498,7 +498,12 @@ fn write_output_aligned<C: Scalar, N: Size>(
             #[unroll]
             for i in 0..config.width {
                 let idx = offset + i * stride;
-                output.tensor[idx] = Vector::cast_from(value[i]);
+                let val = if comptime![value.vector_size() == config.width] {
+                    Vector::cast_from(value[i])
+                } else {
+                    Vector::cast_from(value[i % value.vector_size()])
+                };
+                output.tensor[idx] = val;
             }
         }
         LayoutInfo::Unknown => {
@@ -521,7 +526,13 @@ fn write_output_aligned<C: Scalar, N: Size>(
                     None,
                 );
                 let output = outputs.tensors.index_mut(pos);
-                output.tensor[offset] = Vector::cast_from(value[i]);
+
+                let val = if comptime![value.vector_size() == config.width] {
+                    Vector::cast_from(value[i])
+                } else {
+                    Vector::cast_from(value[i % value.vector_size()])
+                };
+                output.tensor[offset] = val;
             }
         }
     }

@@ -153,8 +153,8 @@ fn tune_reduce<R: Runtime>(
 
     match input.context() {
         TuneContext::Original(context) => optimization.execute_fused(context, strategy.clone()),
-        TuneContext::Fork(mut context_owned) => {
-            optimization.execute_fused(&mut context_owned.as_context(), strategy.clone())
+        TuneContext::Fork(mut fork) => {
+            optimization.execute_fused(&mut fork.as_context(), strategy.clone())
         }
     }
     .map_err(|e| format!("{e:?}"))
@@ -168,9 +168,7 @@ fn tune_fallback<R: Runtime>(
 
     match input.context() {
         TuneContext::Original(context) => optimization.execute_fallback(context),
-        TuneContext::Fork(mut context_owned) => {
-            optimization.execute_fallback(&mut context_owned.as_context())
-        }
+        TuneContext::Fork(mut fork) => optimization.execute_fallback(&mut fork.as_context()),
     };
 
     // Fallback is often used as a baseline, returning unchecked output.
