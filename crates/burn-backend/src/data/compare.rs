@@ -254,6 +254,9 @@ impl TensorData {
                     panic!("Quantization schemes differ ({q:?} != {q_other:?})")
                 }
             }
+            //what to do here?
+            DType::Complex64 => todo!(),
+            DType::Complex32 => todo!(),
         }
     }
 

@@ -22,6 +22,8 @@ pub enum DType {
     U16,
     U8,
     Bool(BoolStore),
+    Complex64,
+    Complex32,
     QFloat(QuantScheme),
 }
 
@@ -84,6 +86,8 @@ impl DType {
                 BoolStore::U8 => core::mem::size_of::<u8>(),
                 BoolStore::U32 => core::mem::size_of::<u32>(),
             },
+            DType::Complex64 => core::mem::size_of::<f64>() * 2,
+            DType::Complex32 => core::mem::size_of::<f32>() * 2,
             DType::QFloat(scheme) => match scheme.store {
                 QuantStore::Native => match scheme.value {
                     QuantValue::Q8F | QuantValue::Q8S => core::mem::size_of::<i8>(),
@@ -126,6 +130,11 @@ impl DType {
         matches!(self, DType::Bool(_))
     }
 
+    /// Returns true if the data type is a complex type
+    pub fn is_complex(&self) -> bool {
+        matches!(self, DType::Complex64 | DType::Complex32)
+    }
+
     /// Returns the data type name.
     pub fn name(&self) -> &'static str {
         match self {
@@ -147,6 +156,8 @@ impl DType {
                 BoolStore::U8 => "bool(u8)",
                 BoolStore::U32 => "bool(u32)",
             },
+            DType::Complex64 => "complex64",
+            DType::Complex32 => "complex32",
             DType::QFloat(_) => "qfloat",
         }
     }

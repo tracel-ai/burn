@@ -110,6 +110,9 @@ pub fn morph<B: Backend, K: BasicOps<B>>(
             morph_bool::<B, K>(data, shape, kernel, op, iter, btype, bvalue, &device)
         }
         DType::QFloat(_) => unimplemented!(),
+        DType::Complex32 | DType::Complex64 => {
+            panic!("Morphological operations are not supported for complex tensors")
+        }
     }
 }
 
