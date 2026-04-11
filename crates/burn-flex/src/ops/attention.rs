@@ -116,6 +116,26 @@ macro_rules! dispatch_attention_dtype {
     }};
 }
 
+/// Broadcast an attention mask or bias to the full `[batch, heads, seq_q, seq_kv]` shape.
+///
+/// Matches ONNX Attention-23 semantics: any dim of the mask/bias may be `1` and is
+/// broadcast along that axis (e.g. a `[1, 1, seq_q, seq_kv]` mask is shared across all
+/// batches and heads). Materializing the result (rather than passing a stride-0 view
+/// downstream) keeps the inner loops' precomputed `[batch_stride, head_stride]` offset
+/// math valid without a broadcast-aware indexer.
+fn broadcast_attn_mask_bias(
+    tensor: FlexTensor,
+    target: [usize; 4],
+    name: &'static str,
+) -> FlexTensor {
+    let ndim = tensor.layout().shape().num_dims();
+    assert!(ndim == 4, "attention: {name} must be 4D, got {ndim}D");
+    // `expand` panics if any source dim is neither `target` nor `1`; `to_contiguous`
+    // then materializes the stride-0 broadcast into a dense buffer.
+    let expanded = crate::ops::expand::expand(tensor, burn_std::Shape::new(target));
+    expanded.to_contiguous()
+}
+
 /// Flash attention: tiled computation with online softmax. Use directly to bypass auto-selection.
 pub fn attention_flash(
     query: FlexTensor,
@@ -194,8 +214,6 @@ where
     let query = query.to_contiguous();
     let key = key.to_contiguous();
     let value = value.to_contiguous();
-    let mask_tensor = mask.map(|m| m.to_contiguous());
-    let bias_tensor = attn_bias.map(|b| b.to_contiguous());
 
     let q_shape = query.layout().shape();
     let k_shape = key.layout().shape();
@@ -220,22 +238,9 @@ where
     assert_eq!(v_shape[1], heads, "attention: value heads mismatch");
     assert_eq!(v_shape[2], seq_kv, "attention: value seq_kv mismatch");
 
-    if let Some(ref m) = mask_tensor {
-        let ms = m.layout().shape();
-        assert_eq!(
-            ms[..],
-            [batch, heads, seq_q, seq_kv],
-            "attention: mask shape mismatch"
-        );
-    }
-    if let Some(ref b) = bias_tensor {
-        let bs = b.layout().shape();
-        assert_eq!(
-            bs[..],
-            [batch, heads, seq_q, seq_kv],
-            "attention: bias shape mismatch"
-        );
-    }
+    let target = [batch, heads, seq_q, seq_kv];
+    let mask_tensor = mask.map(|m| broadcast_attn_mask_bias(m, target, "mask"));
+    let bias_tensor = attn_bias.map(|b| broadcast_attn_mask_bias(b, target, "bias"));
 
     let scale = T::from(
         options
@@ -635,8 +640,6 @@ where
     let query = query.to_contiguous();
     let key = key.to_contiguous();
     let value = value.to_contiguous();
-    let mask_tensor = mask.map(|m| m.to_contiguous());
-    let bias_tensor = attn_bias.map(|b| b.to_contiguous());
 
     let q_shape = query.layout().shape();
     let k_shape = key.layout().shape();
@@ -664,22 +667,9 @@ where
     assert_eq!(v_shape[1], heads, "attention_naive: value heads mismatch");
     assert_eq!(v_shape[2], seq_kv, "attention_naive: value seq_kv mismatch");
 
-    if let Some(ref m) = mask_tensor {
-        let ms = m.layout().shape();
-        assert_eq!(
-            ms[..],
-            [batch, heads, seq_q, seq_kv],
-            "attention_naive: mask shape mismatch"
-        );
-    }
-    if let Some(ref b) = bias_tensor {
-        let bs = b.layout().shape();
-        assert_eq!(
-            bs[..],
-            [batch, heads, seq_q, seq_kv],
-            "attention_naive: bias shape mismatch"
-        );
-    }
+    let target = [batch, heads, seq_q, seq_kv];
+    let mask_tensor = mask.map(|m| broadcast_attn_mask_bias(m, target, "mask"));
+    let bias_tensor = attn_bias.map(|b| broadcast_attn_mask_bias(b, target, "bias"));
 
     let scale = T::from(
         options
@@ -987,6 +977,120 @@ mod tests {
         // Output ~ V[1] = 20.0
         assert!((data[0] - 20.0).abs() < 0.1, "got {}", data[0]);
         assert!((data[1] - 20.0).abs() < 0.1, "got {}", data[1]);
+    }
+
+    /// Assert two attention-output slices are elementwise close. Used by the flash
+    /// broadcast test below.
+    fn assert_attention_outputs_close(bcast: &[f32], full: &[f32], label: &str) {
+        assert_eq!(bcast.len(), full.len(), "{label}: length mismatch");
+        for (i, (&a, &b)) in bcast.iter().zip(full).enumerate() {
+            assert!((a - b).abs() < 1e-5, "{label} mismatch at {i}: {a} vs {b}");
+        }
+    }
+
+    #[test]
+    fn test_flash_bias_broadcast_across_batch_and_heads() {
+        // Exercises the flash path for a `[1, 1, seq_q, seq_kv]` broadcast bias. The
+        // dispatcher in `attention()` routes to naive for `seq_q * seq_kv <=
+        // NAIVE_SCORE_BUDGET` (and the same is true of the backend-tests attention
+        // suite, which uses small shapes), so the flash entry needs a direct call to
+        // stay covered. General broadcast semantics for the main `attention()` path
+        // live in `crates/burn-backend-tests/tests/tensor/float/module/attention.rs`.
+        use crate::{FlexTensor, Layout};
+        use burn_std::{Bytes, Shape};
+
+        let batch = 2;
+        let heads = 2;
+        let seq_q = 3;
+        let seq_kv = 5;
+        let head_dim = 4;
+
+        let f32_dt = burn_backend::DType::F32;
+        let mk_f32 = |shape: &[usize], g: &dyn Fn(usize) -> f32| -> FlexTensor {
+            let len: usize = shape.iter().product();
+            let data: Vec<f32> = (0..len).map(g).collect();
+            FlexTensor::new(
+                Bytes::from_elems(data),
+                Layout::contiguous(Shape::from(shape.to_vec())),
+                f32_dt,
+            )
+        };
+
+        let q = mk_f32(&[batch, heads, seq_q, head_dim], &|i| {
+            (i as f32 * 0.1).sin()
+        });
+        let k = mk_f32(&[batch, heads, seq_kv, head_dim], &|i| {
+            (i as f32 * 0.1 + 1.0).sin()
+        });
+        let v = mk_f32(&[batch, heads, seq_kv, head_dim], &|i| {
+            (i as f32 * 0.1 + 2.0).sin()
+        });
+
+        let bias_tile: Vec<f32> = (0..seq_q * seq_kv)
+            .map(|i| (i as f32 * 0.4).sin())
+            .collect();
+        let bias_bcast = FlexTensor::new(
+            Bytes::from_elems(bias_tile.clone()),
+            Layout::contiguous(Shape::from(vec![1, 1, seq_q, seq_kv])),
+            f32_dt,
+        );
+        let bias_full_vec: Vec<f32> = bias_tile
+            .iter()
+            .cloned()
+            .cycle()
+            .take(batch * heads * seq_q * seq_kv)
+            .collect();
+        let bias_full = FlexTensor::new(
+            Bytes::from_elems(bias_full_vec),
+            Layout::contiguous(Shape::from(vec![batch, heads, seq_q, seq_kv])),
+            f32_dt,
+        );
+
+        let out_bcast = super::attention_flash(
+            q.clone(),
+            k.clone(),
+            v.clone(),
+            None,
+            Some(bias_bcast),
+            Default::default(),
+        );
+        let out_full = super::attention_flash(q, k, v, None, Some(bias_full), Default::default());
+
+        let bcast: &[f32] = out_bcast.storage();
+        let full: &[f32] = out_full.storage();
+        assert_attention_outputs_close(bcast, full, "flash bias[1,1,sq,skv]");
+    }
+
+    #[test]
+    #[should_panic(expected = "must be 4D")]
+    fn test_mask_wrong_rank_panics() {
+        // Contract: the broadcast helper rejects non-4D mask/bias up-front with a
+        // clearer message than `expand`'s rank prepending would produce.
+        use crate::{FlexTensor, Layout};
+        use burn_std::{Bytes, Shape};
+
+        let mask = FlexTensor::new(
+            Bytes::from_elems(vec![0u8; 6]),
+            Layout::contiguous(Shape::from(vec![2, 3])),
+            burn_backend::DType::Bool(burn_std::BoolStore::Native),
+        );
+        super::broadcast_attn_mask_bias(mask, [1, 1, 2, 3], "mask");
+    }
+
+    #[test]
+    #[should_panic(expected = "cannot expand dimension")]
+    fn test_bias_incompatible_dim_panics() {
+        // Contract: a dim that is neither equal to target nor `1` is a hard error.
+        // Here heads=2 in the bias but target heads=3, so `expand` must panic.
+        use crate::{FlexTensor, Layout};
+        use burn_std::{Bytes, Shape};
+
+        let bias = FlexTensor::new(
+            Bytes::from_elems(vec![0.0f32; 2 * 2 * 4 * 5]),
+            Layout::contiguous(Shape::from(vec![2, 2, 4, 5])),
+            burn_backend::DType::F32,
+        );
+        super::broadcast_attn_mask_bias(bias, [2, 3, 4, 5], "bias");
     }
 
     #[test]
