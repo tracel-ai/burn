@@ -11,24 +11,73 @@ impl<B> Tensor<B, 1, Int>
 where
     B: Backend,
 {
-    /// Returns a new integer tensor on the specified device.
+    /// Returns a new 1D integer tensor with values from `range.start` (inclusive)
+    /// to `range.end` (exclusive), i.e. `[start, start+1, ..., end)`.
     ///
     /// # Arguments
     ///
-    /// * `range` - The range of values to generate.
-    /// * `device` - The device to create the tensor on.
+    /// * `range` - The half-open range of values to generate.
+    /// * `options` - Accepts either `&device` (dtype resolved from backend policy) or
+    ///   `(&device, DType)` (dtype pinned explicitly). See [`TensorCreationOptions`].
+    ///
+    /// # Dtype resolution
+    ///
+    /// When `options` is just `&device`, the dtype is the backend's default `IntElem`
+    /// per the device's [default settings](crate::set_default_dtypes). That default
+    /// is backend-specific - for example, `burn-flex` defaults to I32. When
+    /// `options` is `(&device, DType)`, the given dtype is used verbatim.
+    ///
+    /// # Index tensors
+    ///
+    /// `arange` is the most common way to build an index tensor. When the result
+    /// will be passed to [`Tensor::select`](crate::Tensor::select),
+    /// [`gather`](crate::Tensor::gather), [`scatter`](crate::Tensor::scatter),
+    /// [`select_assign`](crate::Tensor::select_assign), or
+    /// [`take`](crate::Tensor::take), prefer pinning the dtype to `DType::I64`:
+    ///
+    /// ```ignore
+    /// use burn_tensor::{DType, Int, Tensor};
+    /// # fn example<B: burn_tensor::backend::Backend>(device: B::Device) {
+    /// let idx = Tensor::<B, 1, Int>::arange(0..k as i64, (&device, DType::I64));
+    /// # let _: Tensor<B, 1, Int> = idx;
+    /// # }
+    /// ```
+    ///
+    /// I64 is the cross-backend portable choice for indices: it matches the PyTorch
+    /// and ONNX conventions, is required by backends that wrap libtorch (e.g.
+    /// `burn-tch`), and avoids the ~2.1B range ceiling of I32. Relying on the
+    /// backend-default `IntElem` is risky because that default varies per backend.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::{DType, Int, Tensor};
+    /// use burn_tensor::backend::Backend;
+    ///
+    /// fn example<B: Backend>() {
+    ///     let device = B::Device::default();
+    ///     // Dtype from backend default:
+    ///     let a = Tensor::<B, 1, Int>::arange(0..5, &device);
+    ///     // Dtype pinned to I64 for portability (recommended for indices):
+    ///     let b = Tensor::<B, 1, Int>::arange(0..5, (&device, DType::I64));
+    /// }
+    /// ```
     pub fn arange(range: Range<i64>, options: impl Into<TensorCreationOptions<B>>) -> Self {
         let opt = options.into();
         let dtype = opt.resolve_dtype::<Int>();
         Tensor::new(B::int_arange(range, &opt.device, dtype.into()))
     }
 
-    /// Returns a new integer tensor on the specified device.
+    /// Returns a new 1D integer tensor with values `start`, `start + step`,
+    /// `start + 2 * step`, ..., up to but not including `range.end`.
     ///
     /// # Arguments
     ///
-    /// * `range` - The range of values to generate.
+    /// * `range` - The half-open range of values to generate.
     /// * `step` - The step between each value.
+    /// * `options` - Accepts either `&device` or `(&device, DType)`. See
+    ///   [`arange`](Self::arange) for full dtype resolution semantics and the
+    ///   recommended I64 pinning for index tensors.
     pub fn arange_step(
         range: Range<i64>,
         step: usize,

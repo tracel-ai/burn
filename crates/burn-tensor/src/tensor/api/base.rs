@@ -1623,16 +1623,26 @@ where
     /// * `dim` - The dimension to select from. Supports negative indexing.
     /// * `indices` - The indices of the elements to select.
     ///
+    /// # Index dtype
+    ///
+    /// For cross-backend portability, the `indices` tensor should be `DType::I64`.
+    /// Some backends (e.g. `burn-tch` via libtorch) require I64 at runtime and will
+    /// error on other widths; others (e.g. `burn-flex`, `burn-ndarray`, `burn-cubecl`)
+    /// accept any integer width but pay a small conversion cost for non-I64. I64 is
+    /// also the PyTorch and ONNX convention for indices. See
+    /// [`Tensor::from_data`](Self::from_data) for how to pin an index tensor to I64
+    /// with the `(&device, DType::I64)` form.
+    ///
     /// # Example
     ///
     /// ```rust
     /// use burn_tensor::backend::Backend;
-    /// use burn_tensor::{Tensor, Int};
+    /// use burn_tensor::{DType, Tensor, Int};
     ///
     /// fn example<B: Backend>() {
     ///   let device = B::Device::default();
     ///   let tensor = Tensor::<B, 2>::from_data([[1.0, -2.0, 3.0], [4.0, 5.0, 6.0]], &device);
-    ///   let indices = Tensor::<B, 1, Int>::from_data([0], &device);
+    ///   let indices = Tensor::<B, 1, Int>::from_data([0i64], (&device, DType::I64));
     ///   let tensor = tensor.select(0, indices);
     ///   println!("{tensor}");
     ///   //  [[1.0, -2.0, 3.0]]
@@ -1656,6 +1666,11 @@ where
     /// * `indices` - The indices to select from the tensor.
     /// * `values` - The values to assign to the selected indices.
     /// * `update` - The operation used to update the existing values at the indexed positions (e.g., add).
+    ///
+    /// # Index dtype
+    ///
+    /// Prefer `DType::I64` for the `indices` tensor for cross-backend portability.
+    /// See [`Tensor::select`](Self::select) for the full explanation.
     ///
     /// # Example
     ///
@@ -1760,6 +1775,11 @@ where
     /// The index tensor should have the same shape as the original tensor except for the dim
     /// specified.
     ///
+    /// # Index dtype
+    ///
+    /// Prefer `DType::I64` for the `indices` tensor for cross-backend portability.
+    /// See [`Tensor::select`](Self::select) for the full explanation.
+    ///
     /// # Warning
     /// Not all backends have runtime bound checks for the indices, so make sure the they are valid.
     /// Otherwise, out of bounds indices could lead to unexpected results instead of panicking.
@@ -1794,6 +1814,11 @@ where
     /// dimension. The value and index tensors should have the same shape.
     ///
     /// Other references to the input tensor will not be modified by this operation.
+    ///
+    /// # Index dtype
+    ///
+    /// Prefer `DType::I64` for the `indices` tensor for cross-backend portability.
+    /// See [`Tensor::select`](Self::select) for the full explanation.
     ///
     /// # Warning
     /// Not all backends have runtime bound checks for the indices, so make sure the they are valid.
@@ -1872,6 +1897,57 @@ where
     }
 
     /// Create a tensor from the given data on the given device.
+    ///
+    /// # Arguments
+    ///
+    /// * `data` - The source data. Any type that can be converted into [`TensorData`].
+    /// * `options` - Accepts either `&device` (dtype resolved from backend policy) or
+    ///   `(&device, DType)` (dtype pinned explicitly). See [`TensorCreationOptions`].
+    ///
+    /// # Dtype resolution
+    ///
+    /// When `options` is just `&device`, the dtype is looked up from the device's
+    /// [default settings](crate::set_default_dtypes) for the tensor kind (Float, Int,
+    /// or Bool). When `options` is `(&device, DType)`, the given dtype is used
+    /// verbatim and the input data is converted to match.
+    ///
+    /// # Index tensors
+    ///
+    /// When constructing an `Int` tensor that will be used as indices for
+    /// [`select`](Self::select), [`gather`](Self::gather), [`scatter`](Self::scatter),
+    /// [`select_assign`](Self::select_assign), or [`take`](crate::Tensor::take),
+    /// prefer pinning the dtype to `DType::I64` via the `(&device, DType::I64)` form:
+    ///
+    /// ```ignore
+    /// use burn_tensor::{DType, Int, Tensor, TensorData};
+    /// # fn example<B: burn_tensor::backend::Backend>(device: B::Device) {
+    /// let indices: Tensor<B, 1, Int> = Tensor::from_data(
+    ///     TensorData::from([0i64, 1, 2]),
+    ///     (&device, DType::I64),
+    /// );
+    /// # }
+    /// ```
+    ///
+    /// I64 is the cross-backend portable choice for indices: it matches the PyTorch
+    /// and ONNX conventions, is required by backends that wrap libtorch (e.g.
+    /// `burn-tch`), and avoids the ~2.1B range ceiling of I32. Relying on the
+    /// backend's default `IntElem` (the bare-`&device` form) is risky because that
+    /// default varies per backend - for instance, `burn-flex` defaults to I32.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::{DType, Tensor};
+    /// use burn_tensor::backend::Backend;
+    ///
+    /// fn example<B: Backend>() {
+    ///     let device = B::Device::default();
+    ///     // Dtype from device policy:
+    ///     let a = Tensor::<B, 1>::from_data([1.0, 2.0, 3.0], &device);
+    ///     // Dtype pinned explicitly:
+    ///     let b = Tensor::<B, 1>::from_data([1.0, 2.0, 3.0], (&device, DType::F32));
+    /// }
+    /// ```
     pub fn from_data<T>(data: T, options: impl Into<TensorCreationOptions<B>>) -> Self
     where
         T: Into<TensorData>,

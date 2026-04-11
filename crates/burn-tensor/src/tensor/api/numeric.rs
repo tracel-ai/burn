@@ -5,8 +5,8 @@ use crate::alloc::borrow::ToOwned;
 use alloc::vec::Vec;
 
 use crate::{
-    AsIndex, Bool, Distribution, Element, ElementConversion, Int, Shape, Tensor, backend::Backend,
-    check, check::TensorCheck,
+    AsIndex, Bool, DType, Distribution, Element, ElementConversion, Int, Shape, Tensor,
+    backend::Backend, check, check::TensorCheck,
 };
 use crate::{IndexingUpdateOp, TensorCreationOptions};
 
@@ -986,7 +986,12 @@ where
     ///
     /// * `size` - The size of the square matrix.
     pub fn eye(size: usize, device: &B::Device) -> Self {
-        let indices = Tensor::<B, 1, Int>::arange(0..size as i64, device).unsqueeze::<2>();
+        // Pin indices to I64: this impl is generic over K, so the scatter
+        // below dispatches to either int_scatter or float_scatter depending
+        // on instantiation - but I64 is the cross-backend convention for
+        // index tensors in either case. See #4776.
+        let indices =
+            Tensor::<B, 1, Int>::arange(0..size as i64, (device, DType::I64)).unsqueeze::<2>();
         let ones = Self::ones([1, size], device);
         let zeros = Self::zeros([size, size], device);
 
