@@ -5,8 +5,8 @@ use burn::module::{Content, DisplaySettings, Module, ModuleDisplay};
 use burn::tensor::Shape;
 use burn::tensor::Tensor;
 use burn::tensor::backend::Backend;
-use burn::tensor::module::conv1d;
-use burn::tensor::ops::PaddedConvOptions;
+use burn::tensor::module::avg_pool1d;
+use burn::tensor::ops::PadMode;
 
 /// Configuration to create a [LocalResponseNorm](LocalResponseNorm) layer
 /// using the [init function](LocalResponseNormConfig::init).
@@ -85,7 +85,6 @@ impl LocalResponseNorm {
             "LocalResponseNorm requires input rank >= 3, got {D}"
         );
 
-        let device = input.device();
         let shape = input.dims();
         let n = shape[0];
         let c = shape[1];
@@ -103,29 +102,24 @@ impl LocalResponseNorm {
         // Batch all spatial positions: [N*D_flat, 1, C]
         let batched: Tensor<B, 3> = transposed.reshape(Shape::new([n * d_flat, 1, c]));
 
-        // Conv1d with kernel of ones for sliding window sum
-        let kernel: Tensor<B, 3> = Tensor::ones(Shape::new([1, 1, self.size]), &device);
         let pad_left = (self.size - 1) / 2;
         let pad_right = self.size / 2;
-        let opts = PaddedConvOptions::asymmetric(
-            [1],         // stride
-            [pad_left],  // padding_start
-            [pad_right], // padding_end
-            [1],         // dilation
-            1,           // groups
-        );
-        let square_sum = conv1d(batched, kernel, None, opts);
+        let square_avg = if pad_left != pad_right {
+            let padded = batched.pad((pad_left, pad_right, 0, 0), PadMode::Constant(0.0));
+            avg_pool1d(padded, self.size, 1, 0, true, false)
+        } else {
+            avg_pool1d(batched, self.size, 1, pad_left, true, false)
+        };
 
         // Restore shape: [N*D_flat, 1, C] -> [N, D_flat, C] -> [N, C, D_flat] -> original
-        let unbatched: Tensor<B, 3> = square_sum.reshape(Shape::new([n, d_flat, c]));
+        let unbatched: Tensor<B, 3> = square_avg.reshape(Shape::new([n, d_flat, c]));
         let untransposed = unbatched.swap_dims(1, 2);
-        let square_sum_restored: Tensor<B, D> = untransposed.reshape(Shape::new(shape));
+        let square_avg_restored: Tensor<B, D> = untransposed.reshape(Shape::new(shape));
 
-        // Apply LRN formula: output = input / (k + alpha/size * square_sum)^beta
-        let scale = self.alpha / self.size as f64;
+        // Apply LRN formula: output = input / (k + alpha * avg(x^2))^beta
         input
-            / square_sum_restored
-                .mul_scalar(scale)
+            / square_avg_restored
+                .mul_scalar(self.alpha)
                 .add_scalar(self.k)
                 .powf_scalar(self.beta)
     }
@@ -310,6 +304,32 @@ mod tests {
         output
             .to_data()
             .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(5e-3, 1e-4));
+    }
+
+    #[test]
+    fn forward_even_size_uses_asymmetric_positive_side_window() {
+        type FT = FloatElem<TestBackend>;
+        let device = Default::default();
+        let module = LocalResponseNormConfig::new(2)
+            .with_alpha(1.0)
+            .with_beta(1.0)
+            .with_k(0.0)
+            .init();
+        let input = Tensor::<TestBackend, 3>::from_data(
+            TensorData::from([[[1.0], [2.0], [4.0]]]),
+            &device,
+        );
+
+        let output = module.forward(input);
+
+        // For size=2, the implementation pads asymmetrically and uses:
+        // c0 -> avg([1^2, 2^2]) = 2.5
+        // c1 -> avg([2^2, 4^2]) = 10.0
+        // c2 -> avg([4^2, 0]) = 8.0
+        let expected = TensorData::from([[[0.4], [0.2], [0.5]]]);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::rel_abs(1e-5, 1e-6));
     }
 
     #[test]
