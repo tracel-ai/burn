@@ -24,6 +24,7 @@ default = [
     "burn-autodiff?/default",
     "burn-cpu?/default",
     "burn-cuda?/default",
+    "burn-flex?/default",
     "burn-ndarray?/default",
     "burn-rocm?/default",
     "burn-tch?/default",
@@ -35,6 +36,7 @@ std = [
     "burn-autodiff?/std",
     "burn-cpu?/std",
     "burn-cuda?/std",
+    "burn-flex?/std",
     "burn-ndarray?/std",
     "burn-rocm?/std",
     "burn-tch?/std",
@@ -44,6 +46,7 @@ tracing = [
     "burn-autodiff?/tracing",
     "burn-cpu?/tracing",
     "burn-cuda?/tracing",
+    "burn-flex?/tracing",
     "burn-ndarray?/tracing",
     "burn-rocm?/tracing",
     "burn-tch?/tracing",
@@ -57,6 +60,7 @@ distributed = ["std",
 
 # Backends
 cuda = ["burn-cuda"]
+flex = ["burn-flex"]
 rocm = ["burn-rocm"]
 ndarray = ["burn-ndarray"]
 tch = ["burn-tch"]
@@ -94,6 +98,7 @@ burn-backend = { path = "../burn-backend", version = "=0.21.0-pre.3", default-fe
 burn-autodiff = { path = "../burn-autodiff", version = "=0.21.0-pre.3", optional = true, default-features = false }
 burn-cpu = { path = "../burn-cpu", version = "=0.21.0-pre.3", optional = true, default-features = false }
 burn-cuda = { path = "../burn-cuda", version = "=0.21.0-pre.3", optional = true, default-features = false }
+burn-flex = { path = "../burn-flex", version = "=0.21.0-pre.3", optional = true, default-features = false }
 burn-ndarray = { path = "../burn-ndarray", version = "=0.21.0-pre.3", optional = true, default-features = false }
 burn-tch = { path = "../burn-tch", version = "=0.21.0-pre.3", optional = true, default-features = false }
 burn-rocm = { path = "../burn-rocm", version = "=0.21.0-pre.3", optional = true, default-features = false }
