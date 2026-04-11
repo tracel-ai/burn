@@ -1,5 +1,5 @@
 use burn_backend::{
-    Backend, ElementConversion, Scalar,
+    Backend, DType, ElementConversion, Scalar,
     tensor::{Bool, IndexingUpdateOp, Int, Ordered},
 };
 use burn_std::AsIndex;
@@ -232,7 +232,9 @@ where
     /// }
     /// ```
     pub fn topk(self, k: usize, dim: usize) -> Self {
-        let k_indices = Tensor::arange(0..k as i64, &self.device());
+        // Pin indices to I64: backend-default IntElem varies by backend and
+        // the cross-backend convention for index tensors is I64. See #4776.
+        let k_indices = Tensor::arange(0..k as i64, (&self.device(), DType::I64));
         self.sort_descending(dim).select(dim, k_indices)
     }
 
@@ -266,7 +268,9 @@ where
     /// }
     /// ```
     pub fn topk_with_indices(self, k: usize, dim: usize) -> (Self, Tensor<B, D, Int>) {
-        let k_indices = Tensor::arange(0..k as i64, &self.device());
+        // Pin indices to I64: backend-default IntElem varies by backend and
+        // the cross-backend convention for index tensors is I64. See #4776.
+        let k_indices = Tensor::arange(0..k as i64, (&self.device(), DType::I64));
         let (values, indices) = self.sort_descending_with_indices(dim);
         (
             values.select(dim, k_indices.clone()),
@@ -348,9 +352,13 @@ where
         if axis < 0 || axis > rank as i64 {
             panic!("Axis out of range. Accepted range is [-r-1, r] where r = rank(indices).");
         }
-        // Convert the input tensor to integer indices
+        // Convert the input tensor to integer indices. Pin to I64: passing
+        // `&device` alone would silently truncate the freshly-converted I64
+        // data back to the backend's default int dtype (e.g. I32 on
+        // burn-flex). I64 is also the cross-backend convention for index
+        // tensors. See #4776.
         let indices: Tensor<B, D, Int> =
-            Tensor::from_data(self.to_data().convert::<i64>(), &device);
+            Tensor::from_data(self.to_data().convert::<i64>(), (&device, DType::I64));
         // Insert the new dimension for the one-hot representation
         shape.insert(axis as usize, num_classes);
         // Adjust indices to valid range and handle invalid indices

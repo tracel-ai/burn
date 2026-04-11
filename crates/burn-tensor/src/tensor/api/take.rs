@@ -17,6 +17,11 @@ where
     /// * `indices` - The indices of elements to select. Can be any dimensionality.
     ///   Must be valid indices in the range [0, dim_size).
     ///
+    /// # Index dtype
+    ///
+    /// Prefer `DType::I64` for the `indices` tensor for cross-backend portability.
+    /// See [`Tensor::select`](crate::Tensor::select) for the full explanation.
+    ///
     /// # Example
     ///
     /// ```rust
