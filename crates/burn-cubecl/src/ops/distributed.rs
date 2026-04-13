@@ -23,11 +23,11 @@ where
     ) -> FloatTensor<Self> {
         // TODO: Test if `StreamId::executes` is always needed.
         // Output tensor must be on the same stream as the original tensor.
-        StreamId::executes(tensor.handle.stream, || {
-            let device = &tensor.device.clone();
-            let out_tensor = if tensor.handle.can_mut() && tensor.is_contiguous() {
-                tensor
-            } else {
+        let device = &tensor.device.clone();
+        let out_tensor = if tensor.handle.can_mut() && tensor.is_contiguous() {
+            tensor
+        } else {
+            StreamId::executes(tensor.handle.stream, || {
                 let zeros_tensor = zeros_client::<R>(
                     tensor.client.clone(),
                     device.clone(),
@@ -35,26 +35,26 @@ where
                     tensor.dtype(),
                 );
                 numeric::add(zeros_tensor, tensor)
-            };
+            })
+        };
 
-            let op = match op {
-                ReduceOperation::Sum => cubecl::server::ReduceOperation::Sum,
-                ReduceOperation::Mean => cubecl::server::ReduceOperation::Mean,
-            };
+        let op = match op {
+            ReduceOperation::Sum => cubecl::server::ReduceOperation::Sum,
+            ReduceOperation::Mean => cubecl::server::ReduceOperation::Mean,
+        };
 
-            let client = R::client(device);
+        let client = R::client(device);
 
-            // println!("cube all_reduce: {:?}", device.id());
+        // println!("cube all_reduce: {:?}", device.id());
 
-            client.all_reduce(
-                out_tensor.handle.clone(),
-                out_tensor.handle.clone(),
-                out_tensor.dtype.into(),
-                device_ids.clone(),
-                op,
-            );
-            out_tensor
-        })
+        client.all_reduce(
+            out_tensor.handle.clone(),
+            out_tensor.handle.clone(),
+            out_tensor.dtype.into(),
+            device_ids.clone(),
+            op,
+        );
+        out_tensor
     }
 
     fn sync_collective(device: &Device<Self>) {
