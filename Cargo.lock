@@ -677,7 +677,7 @@ dependencies = [
  "burn-backend",
  "burn-std",
  "derive-new",
- "hashbrown 0.16.1",
+ "hashbrown 0.17.0",
  "log",
  "num-traits",
  "parking_lot",
@@ -695,7 +695,7 @@ dependencies = [
  "cubecl",
  "derive-new",
  "enumset",
- "hashbrown 0.16.1",
+ "hashbrown 0.17.0",
  "num-traits",
  "oneshot",
  "paste",
@@ -822,7 +822,7 @@ dependencies = [
  "derive-new",
  "flate2",
  "half",
- "hashbrown 0.16.1",
+ "hashbrown 0.17.0",
  "log",
  "num-traits",
  "portable-atomic",
@@ -986,7 +986,7 @@ dependencies = [
  "burn-ir",
  "burn-std",
  "derive-new",
- "hashbrown 0.16.1",
+ "hashbrown 0.17.0",
  "log",
  "serde",
  "smallvec",
@@ -999,7 +999,7 @@ name = "burn-ir"
 version = "0.21.0-pre.3"
 dependencies = [
  "burn-backend",
- "hashbrown 0.16.1",
+ "hashbrown 0.17.0",
  "serde",
 ]
 
@@ -1075,7 +1075,7 @@ dependencies = [
  "burn-tch",
  "burn-wgpu",
  "derive-new",
- "hashbrown 0.16.1",
+ "hashbrown 0.17.0",
  "log",
  "num-traits",
  "rstest",
@@ -1141,7 +1141,7 @@ dependencies = [
  "burn-std",
  "burn-tensor",
  "burn-wgpu",
- "hashbrown 0.16.1",
+ "hashbrown 0.17.0",
  "log",
  "spin",
 ]
@@ -1181,7 +1181,7 @@ dependencies = [
  "ciborium",
  "divan",
  "half",
- "hashbrown 0.16.1",
+ "hashbrown 0.17.0",
  "lzma-rust2 0.16.2",
  "memmap2",
  "regex",
@@ -4344,6 +4344,19 @@ dependencies = [
  "equivalent",
  "foldhash 0.2.0",
  "rayon",
+ "serde",
+ "serde_core",
+]
+
+[[package]]
+name = "hashbrown"
+version = "0.17.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4f467dd6dccf739c208452f8014c75c18bb8301b050ad1cfb27153803edb0f51"
+dependencies = [
+ "allocator-api2",
+ "equivalent",
+ "foldhash 0.2.0",
  "serde",
  "serde_core",
 ]
