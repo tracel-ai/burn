@@ -589,13 +589,8 @@ mod grad_distributed {
                 expected = expected.div_scalar(original_receivers.len() as f32);
             }
 
-            println!(
-                "expected: {:?}\n",
-                expected.to_data().to_vec::<f32>().unwrap()
-            );
             for r in synced_receivers.iter().by_ref() {
                 let data = r.recv().unwrap();
-                println!("data: {:?}\n", data.to_vec::<f32>().unwrap());
                 data.assert_approx_eq::<f32>(&expected.to_data(), Tolerance::default());
             }
         }

@@ -21,18 +21,20 @@ where
         op: ReduceOperation,
         device_ids: Vec<DeviceId>,
     ) -> FloatTensor<Self> {
+        // TODO: Test if `StreamId::executes` is always needed.
+        // Output tensor must be on the same stream as the original tensor.
         StreamId::executes(tensor.handle.stream, || {
             let device = &tensor.device.clone();
             let out_tensor = if tensor.handle.can_mut() && tensor.is_contiguous() {
                 tensor
             } else {
-                let out_tensor = zeros_client::<R>(
+                let zeros_tensor = zeros_client::<R>(
                     tensor.client.clone(),
                     device.clone(),
                     tensor.shape(),
                     tensor.dtype(),
                 );
-                numeric::add(out_tensor, tensor)
+                numeric::add(zeros_tensor, tensor)
             };
 
             let op = match op {
