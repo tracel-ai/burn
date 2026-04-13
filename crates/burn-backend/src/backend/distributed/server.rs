@@ -77,7 +77,7 @@ impl<B: DistributedBackend> DistributedSyncServer<B> {
     }
 
     fn try_launch_sync(&mut self) {
-        if self.all_reduce_ops_queue.is_empty() && self.syncing_devices.len() == self.num_devices {
+        if self.all_reduce_ops_queue.is_empty() {
             // println!("[{:?}] in server synching", std::thread::current().id());
 
             for d in self.syncing_devices.clone() {
