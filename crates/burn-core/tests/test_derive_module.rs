@@ -573,7 +573,6 @@ mod grad_distributed {
             original_senders,
             transformation,
             NUM_ITERATIONS,
-            op,
         );
 
         for _ in 0..NUM_ITERATIONS {
@@ -588,13 +587,8 @@ mod grad_distributed {
                 expected = expected.div_scalar(original_receivers.len() as f32);
             }
 
-            println!(
-                "expected: {:?}\n",
-                expected.to_data().to_vec::<f32>().unwrap()
-            );
             for r in synced_receivers.iter().by_ref() {
                 let data = r.recv().unwrap();
-                println!("data: {:?}\n", data.to_vec::<f32>().unwrap());
                 data.assert_approx_eq::<f32>(&expected.to_data(), Tolerance::default());
             }
         }
@@ -619,7 +613,6 @@ mod grad_distributed {
         original_senders: Vec<Sender<TensorData>>,
         transformation: fn(Tensor<B, 2>, Tensor<B, 2>) -> Tensor<B, 2>,
         num_iter: usize,
-        op: ReduceOperation,
     ) -> Vec<std::thread::JoinHandle<()>> {
         let mut handles = vec![];
 
@@ -636,7 +629,6 @@ mod grad_distributed {
                     transformation,
                     device,
                     num_iter,
-                    op,
                 )
             }));
         }
@@ -651,7 +643,6 @@ mod grad_distributed {
         transformation: fn(Tensor<B, 2>, Tensor<B, 2>) -> Tensor<B, 2>,
         device: B::Device,
         num_iter: usize,
-        op: ReduceOperation,
     ) {
         let mut module = module.clone().fork(&device);
 
