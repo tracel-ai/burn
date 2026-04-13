@@ -398,7 +398,9 @@ where
         // let stream_id = StreamId::current();
         let id = device.id();
         let device_cloned = device.clone();
-        println!("client sync_collective: {:?}", id);
+
+        // println!("client sync_collective: {:?}", id);
+
         // Ensure that all operations are resolved before calling sync_collective.
         self.drain();
         // self.server.submit(move |server| {
@@ -411,7 +413,8 @@ where
         //     server.drain_stream(stream_id);
         //     println!("client sync_collective sync_collective: {:?}", device.id(),);
         // });
-        println!("client sync_collective finished: {:?}", id,);
+        // println!("client sync_collective finished: {:?}", id,);
+
         B::sync_collective(&device_cloned)
     }
 }
