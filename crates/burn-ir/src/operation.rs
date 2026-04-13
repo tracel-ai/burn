@@ -371,6 +371,9 @@ pub enum BaseOperationIr {
     /// Int => [cat](burn_backend::ops::IntTensorOps::int_cat).
     /// Bool => [cat](burn_backend::ops::BoolTensorOps::bool_cat).
     Cat(CatOpIr),
+    /// Operation corresponding to:
+    ///
+    /// Float => [all_reduce](burn_backend::distributed::DistributedBackend::all_reduce).
     AllReduce(AllReduceOpIr),
     /// Cast operation, no direct operation and should be supported by fusion backend.
     Cast(CastOpIr),
@@ -953,13 +956,6 @@ pub struct CatOpIr {
     pub dim: usize,
     pub out: TensorIr,
 }
-
-// #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
-// #[allow(missing_docs)]
-// pub struct AllReduceOpIr {
-//     pub tensors: Vec<TensorIr>,
-//     pub out: Vec<TensorIr>,
-// }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
@@ -1922,7 +1918,6 @@ impl BaseOperationIr {
             BaseOperationIr::Empty(_repr) => Box::new([].into_iter()),
             BaseOperationIr::Ones(_repr) => Box::new([].into_iter()),
             BaseOperationIr::Zeros(_repr) => Box::new([].into_iter()),
-            // BaseOperationIr::AllReduce(repr) => Box::new(repr.tensors.iter()),
             BaseOperationIr::AllReduce(repr) => Box::new([&repr.tensor].into_iter()),
         }
     }
@@ -2034,11 +2029,6 @@ impl BaseOperationIr {
             BaseOperationIr::Empty(_) => {}
             BaseOperationIr::Zeros(_) => {}
             BaseOperationIr::Ones(_) => {}
-            // BaseOperationIr::AllReduce(repr) => {
-            //     for t in repr.tensors.iter_mut() {
-            //         t.mark_read_only(nodes, &mut output);
-            //     }
-            // }
             BaseOperationIr::AllReduce(repr) => {
                 repr.tensor.mark_read_only(nodes, &mut output);
             }

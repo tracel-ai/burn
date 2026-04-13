@@ -16,6 +16,7 @@ workspace = true
 
 [features]
 default = ["std"]
+# default = ["std", "burn-backend/distributed"]
 std = ["burn-backend/std"]
 doc = ["default"]
 tracing = [

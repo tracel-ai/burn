@@ -3,9 +3,10 @@ use crate::{
     UnfusedOp,
     stream::{OperationStreams, StreamId, execution::Operation},
 };
-use burn_backend::{
-    Device, DeviceHandle, DeviceId, DeviceService, distributed::DistributedBackend,
-};
+#[cfg(feature = "distributed")]
+use burn_backend::distributed::DistributedBackend;
+use burn_backend::{Device, DeviceHandle, DeviceId, DeviceService};
+
 use burn_backend::{TensorData, backend::ExecutionError};
 use burn_ir::{OperationIr, TensorId, TensorIr};
 use std::sync::Arc;
@@ -151,7 +152,7 @@ where
         B: FusionBackend<FusionRuntime = R>,
     {
         self.server
-            .submit_blocking(move |server| server.read_float::<B>(tensor, stream))
+            .submit_blocking(move |server| server.float_data::<B>(tensor, stream))
             .unwrap()
     }
 
@@ -165,7 +166,7 @@ where
         B: FusionBackend<FusionRuntime = R>,
     {
         self.server
-            .submit_blocking(move |server| server.read_int::<B>(tensor, stream))
+            .submit_blocking(move |server| server.int_data::<B>(tensor, stream))
             .unwrap()
     }
 
@@ -179,7 +180,7 @@ where
         B: FusionBackend<FusionRuntime = R>,
     {
         self.server
-            .submit_blocking(move |server| server.read_bool::<B>(tensor, stream))
+            .submit_blocking(move |server| server.bool_data::<B>(tensor, stream))
             .unwrap()
     }
 
@@ -193,7 +194,7 @@ where
         B: FusionBackend<FusionRuntime = R>,
     {
         self.server
-            .submit_blocking(move |server| server.read_quantized::<B>(tensor, stream))
+            .submit_blocking(move |server| server.quantized_data::<B>(tensor, stream))
             .unwrap()
     }
 
@@ -212,17 +213,9 @@ where
         let shape = tensor.shape.clone();
         let id = client_src.create_empty_handle();
 
-        // TODO: cleaner.
         let float_tensor = client_src
             .server
-            .submit_blocking(move |server_src| {
-                server_src.drain_stream(stream);
-                let float_tensor = server_src.handles.get_float_tensor::<B>(&tensor);
-                server_src
-                    .streams
-                    .mark_read(stream, &tensor, &server_src.handles);
-                float_tensor
-            })
+            .submit_blocking(move |server_src| server_src.read_float::<B>(tensor, stream))
             .unwrap();
         let float_tensor = B::float_to_device(float_tensor, client_dst.device());
         client_dst.server.submit(move |server_dst| {
@@ -234,7 +227,6 @@ where
         FusionTensor::new(id, shape, dtype, client_dst_cloned, StreamId::current())
     }
 
-    // TODO: Fix all the change_client.
     /// Change the client of the given int tensor.
     pub fn change_client_int<B>(
         tensor: TensorIr,
@@ -252,14 +244,7 @@ where
 
         let int_tensor = client_src
             .server
-            .submit_blocking(move |server_src| {
-                server_src.drain_stream(stream);
-                let int_tensor = server_src.handles.get_int_tensor::<B>(&tensor);
-                server_src
-                    .streams
-                    .mark_read(stream, &tensor, &server_src.handles);
-                int_tensor
-            })
+            .submit_blocking(move |server_src| server_src.read_int::<B>(tensor, stream))
             .unwrap();
         let int_tensor = B::int_to_device(int_tensor, client_dst.device());
         client_dst.server.submit(move |server_dst| {
@@ -288,14 +273,7 @@ where
 
         let bool_tensor = client_src
             .server
-            .submit_blocking(move |server_src| {
-                server_src.drain_stream(stream);
-                let bool_tensor = server_src.handles.get_bool_tensor::<B>(&tensor);
-                server_src
-                    .streams
-                    .mark_read(stream, &tensor, &server_src.handles);
-                bool_tensor
-            })
+            .submit_blocking(move |server_src| server_src.read_bool::<B>(tensor, stream))
             .unwrap();
         let bool_tensor = B::bool_to_device(bool_tensor, client_dst.device());
         client_dst.server.submit(move |server_dst| {
@@ -324,14 +302,7 @@ where
 
         let q_tensor = client_src
             .server
-            .submit_blocking(move |server_src| {
-                server_src.drain_stream(stream);
-                let q_tensor = server_src.handles.get_quantized_tensor::<B>(&tensor);
-                server_src
-                    .streams
-                    .mark_read(stream, &tensor, &server_src.handles);
-                q_tensor
-            })
+            .submit_blocking(move |server_src| server_src.read_quantized::<B>(tensor, stream))
             .unwrap();
         let q_tensor = B::q_to_device(q_tensor, client_dst.device());
         client_dst.server.submit(move |server_dst| {
