@@ -111,14 +111,8 @@ impl<LC: LearningComponentsTypes> DdpTrainEpoch<LC> {
             progress.items_processed *= peer_count;
             progress.items_total *= peer_count;
 
-            println!(
-                "[{:?}] train_step: {:?}",
-                std::thread::current().id(),
-                device
-            );
             let item = learner.train_step(item);
 
-            println!("[{:?}] optimize: {:?}", std::thread::current().id(), device);
             match self.grad_accumulation {
                 Some(accumulation) => {
                     accumulator.accumulate(&learner.model(), item.grads);
