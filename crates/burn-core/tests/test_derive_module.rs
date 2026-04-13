@@ -559,8 +559,8 @@ mod grad_distributed {
             .map(|_| std::sync::mpsc::channel())
             .unzip();
         let (original_senders, original_receivers): (
-            Vec<Sender<Tensor<B::InnerBackend, 2>>>,
-            Vec<Receiver<Tensor<B::InnerBackend, 2>>>,
+            Vec<Sender<TensorData>>,
+            Vec<Receiver<TensorData>>,
         ) = (0..device_count)
             .map(|_| std::sync::mpsc::channel())
             .unzip();
@@ -578,10 +578,12 @@ mod grad_distributed {
         );
 
         for _ in 0..NUM_ITERATIONS {
-            let mut expected = original_receivers.first().unwrap().recv().unwrap();
-            let device = expected.device();
+            let device = devices.first().unwrap();
+            let mut expected: Tensor<B::InnerBackend, 2> =
+                Tensor::from_data(original_receivers.first().unwrap().recv().unwrap(), device);
             for r in original_receivers[1..].iter().by_ref() {
-                expected = expected.add(r.recv().unwrap().to_device(&device));
+                let data = r.recv().unwrap();
+                expected = expected.add(Tensor::from_data(data, device));
             }
             if op == ReduceOperation::Mean {
                 expected = expected.div_scalar(original_receivers.len() as f32);
@@ -615,7 +617,7 @@ mod grad_distributed {
         module: &ModuleBasic<B>,
         devices: &[<B as Backend>::Device],
         synced_senders: Vec<Sender<TensorData>>,
-        original_senders: Vec<Sender<Tensor<B::InnerBackend, 2>>>,
+        original_senders: Vec<Sender<TensorData>>,
         transformation: fn(Tensor<B, 2>, Tensor<B, 2>) -> Tensor<B, 2>,
         num_iter: usize,
     ) -> Vec<std::thread::JoinHandle<()>> {
@@ -644,7 +646,7 @@ mod grad_distributed {
     pub fn run_peer_sharded<B: AutodiffBackend>(
         module: &ModuleBasic<B>,
         synced_sender: Sender<TensorData>,
-        original_sender: Sender<Tensor<B::InnerBackend, 2>>,
+        original_sender: Sender<TensorData>,
         transformation: fn(Tensor<B, 2>, Tensor<B, 2>) -> Tensor<B, 2>,
         device: B::Device,
         num_iter: usize,
@@ -655,10 +657,8 @@ mod grad_distributed {
             module = set_distributed(&module, &device);
             let (grads_synced, grads_original) = calculate_grads(&module, transformation);
 
-            original_sender
-                .clone()
-                .send(grads_original.unwrap())
-                .unwrap();
+            let data = grads_original.unwrap().to_data();
+            original_sender.clone().send(data).unwrap();
 
             let data = grads_synced.unwrap().to_data();
             synced_sender.clone().send(data).unwrap();
