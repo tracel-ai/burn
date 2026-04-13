@@ -199,6 +199,19 @@ mod rocm {
     }
 }
 
+#[cfg(feature = "flex")]
+mod flex {
+    use super::*;
+    use crate::{ElemType, launch};
+    use burn::backend::{Autodiff, Flex, autodiff::checkpoint::strategy::BalancedCheckpointing};
+
+    pub fn run() {
+        launch::<Autodiff<Flex<ElemType, i32>, BalancedCheckpointing>>(
+            ExecutionStrategy::SingleDevice(Default::default()),
+        );
+    }
+}
+
 fn main() {
     #[cfg(any(
         feature = "ndarray",
@@ -223,4 +236,6 @@ fn main() {
     vulkan::run();
     #[cfg(feature = "metal")]
     metal::run();
+    #[cfg(feature = "flex")]
+    flex::run();
 }

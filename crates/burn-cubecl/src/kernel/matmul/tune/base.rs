@@ -107,6 +107,10 @@ pub fn matmul_autotune<R: CubeRuntime>(
         });
 
         let gemv = TuneGroup::<MatmulAutotuneKey>::new("gemv", |key| {
+            if client.properties().hardware.num_cpu_cores.is_some() {
+                return PRIORITY_MAX;
+            }
+
             if matches!(key.analysis.kind, MatmulKind::MatVec) {
                 // LHS is the matrix
                 match key.definition.matrix_layout_lhs {
@@ -187,7 +191,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
             (
                 Strategy::GemvPlaneParallel(BlueprintStrategy::Inferred(
                     GemvPlaneParallelStrategy {
-                        target_num_planes: 4,
+                        target_num_planes: 32 * 2,
                     },
                 )),
                 false,
@@ -195,7 +199,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
             (
                 Strategy::GemvUnitPerpendicular(BlueprintStrategy::Inferred(
                     GemvUnitPerpendicularStrategy {
-                        target_num_planes: 4,
+                        target_num_planes: 32 * 2,
                     },
                 )),
                 false,
