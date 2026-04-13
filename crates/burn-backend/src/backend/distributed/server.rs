@@ -101,18 +101,12 @@ impl<B: DistributedBackend> DistributedSyncServer<B> {
                 let queued_tensors = self.all_reduce_ops_queue.entry(param_id).or_insert(vec![]);
 
                 if num_tensors == queued_tensors.len() {
-                    // // Safety: Tensors sent to the `DistributedSyncServer` should not be accessed or modified before calling `B::sync_collective`.
-                    // let results = unsafe {
-                    //     B::all_reduce(
-                    //         queued_tensors.iter().map(|t| (*t.0).clone()).collect(),
-                    //         self.config.all_reduce_op,
-                    //     )
-                    // };
+                    // Safety: Tensors sent to the `DistributedSyncServer` should not be accessed or modified before calling `B::sync_collective`.
                     let device_ids = queued_tensors
                         .iter()
                         .map(|t| B::float_device(unsafe { &*t.0 }).id())
                         .collect::<Vec<_>>();
-                    let results: Vec<B::FloatTensorPrimitive> = queued_tensors
+                    let reduced_tensors: Vec<B::FloatTensorPrimitive> = queued_tensors
                         .iter()
                         .map(|tensor| unsafe {
                             B::all_reduce(
@@ -122,13 +116,15 @@ impl<B: DistributedBackend> DistributedSyncServer<B> {
                             )
                         })
                         .collect();
+
+                    // Make the tensor reference point to the reduced tensor.
                     // Safety: `B::sync_collective` should be automatically called after the backward pass.
                     unsafe {
-                        queued_tensors
-                            .iter()
-                            .zip(results)
-                            .for_each(|(t, r)| *t.0 = r);
+                        queued_tensors.iter().zip(reduced_tensors).for_each(
+                            |(tensor_ref, reduced_tensor)| *tensor_ref.0 = reduced_tensor,
+                        );
                     }
+
                     self.all_reduce_ops_queue.remove(&param_id).unwrap();
                     self.param_required_map.remove(&param_id).unwrap();
                     self.try_launch_sync();

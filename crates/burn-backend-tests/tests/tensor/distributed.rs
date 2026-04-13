@@ -16,26 +16,27 @@ use super::*;
 #[test]
 #[serial]
 fn test_all_reduce() {
+    // Cuda
     let type_id = 10u16;
     let device_count = <TestBackend as Backend>::device_count(type_id);
     let devices = create_devices::<<TestBackend as Backend>::Device>(type_id, device_count);
 
-    let shape = [4, 4];
+    let shape = [20, 20];
     run_all_reduce::<TestBackend>(devices, 100, shape);
 }
 
 #[test]
 #[serial]
 fn test_all_reduce_multithread() {
+    // Cuda
     let type_id = 10u16;
     let device_count = <TestBackend as Backend>::device_count(type_id);
     let devices = create_devices::<<TestBackend as Backend>::Device>(type_id, device_count);
 
-    let shape = [4, 4];
+    let shape = [20, 20];
     run_multithread::<TestBackend>(devices, 100, shape);
 }
 
-// TODO: finish these tests.
 fn run_all_reduce<B: AutodiffBackend + DistributedBackend>(
     devices: Vec<B::Device>,
     num_iterations: usize,
