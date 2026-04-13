@@ -27,15 +27,13 @@ where
         let out_tensor = if tensor.handle.can_mut() && tensor.is_contiguous() {
             tensor
         } else {
-            StreamId::executes(tensor.handle.stream, || {
-                let zeros_tensor = zeros_client::<R>(
-                    tensor.client.clone(),
-                    device.clone(),
-                    tensor.shape(),
-                    tensor.dtype(),
-                );
-                numeric::add(zeros_tensor, tensor)
-            })
+            let zeros_tensor = zeros_client::<R>(
+                tensor.client.clone(),
+                device.clone(),
+                tensor.shape(),
+                tensor.dtype(),
+            );
+            numeric::add(zeros_tensor, tensor)
         };
 
         let op = match op {
