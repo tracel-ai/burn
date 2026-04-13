@@ -1,6 +1,5 @@
 //! Types and helpers for inter-device operations.
 
-pub(crate) mod all_reduce;
 pub(crate) mod api;
 pub(crate) mod client;
 mod ops;

@@ -16,8 +16,15 @@ pub struct TensorRef<B: Backend>(pub *mut FloatTensor<B>);
 unsafe impl<B> Sync for TensorRef<B> where B: Backend {}
 unsafe impl<B> Send for TensorRef<B> where B: Backend {}
 
-// TODO : Once the change from `TypeId` to `DeviceId` is made in `backend/communication/api.rs`,
-// we can move the client operations out of the trait (and crate), which eliminates the need for the `communication` feature flag.
+// TODO : The following functions should be moved in the `burn-autodiff` crate. The difficulty is in not discriminating between
+// the dispatch backend and its inner dispatched backend when calling the communication server API. This implementation makes
+// it easy by implementing `DisributedBackend` for `DispatchBackend`.
+// The functions in question :
+// * `start_communication_server`
+// * `close_communication_server`
+// * `register_sync_parameters`
+// * `submit_sync_collective`
+// * `submit_gradient_sync`
 
 /// Operations on communication tensors.
 pub trait DistributedBackend: Backend {
@@ -97,7 +104,8 @@ pub trait DistributedBackend: Backend {
         };
     }
 
-    // TODO: docs
+    // TODO: https://github.com/tracel-ai/burn/issues/4746
+
     /// all_reduce operation.
     ///
     /// # Arguments
@@ -113,13 +121,12 @@ pub trait DistributedBackend: Backend {
     ///
     /// Collective operations are asynchronous. You must call `sync_collective()` to ensure
     /// the operation completes before attempting to read the output tensors.
-    #[allow(unused)]
     unsafe fn all_reduce(
-        tensor: FloatTensor<Self>,
-        op: ReduceOperation,
-        device_ids: Vec<DeviceId>,
+        _tensor: FloatTensor<Self>,
+        _op: ReduceOperation,
+        _device_ids: Vec<DeviceId>,
     ) -> FloatTensor<Self> {
-        todo!()
+        unimplemented!()
     }
 
     /// Sync the collective operations.
@@ -127,16 +134,15 @@ pub trait DistributedBackend: Backend {
     /// # Arguments
     ///
     /// * `device` - The device to sync.
-    #[allow(unused)]
-    fn sync_collective(device: &Self::Device) {
-        // Default implementation executes collective operations synchronously, so nothing to do here.
+    fn sync_collective(_device: &Self::Device) {
+        unimplemented!()
     }
 
-    /// Gets the device of the tensor.
+    /// Get the device of the tensor reference.
     ///
     /// # Arguments
     ///
-    /// * `tensor` - The tensor.
+    /// * `tensor` - The tensor reference.
     ///
     /// # Returns
     ///

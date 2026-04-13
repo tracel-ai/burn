@@ -552,10 +552,10 @@ mod grad_distributed {
         let device_count = 2;
         let devices = create_devices::<B::Device>(type_id, device_count);
         let module = ModuleBasic::<B>::new(&devices[0]);
-        let (synced_senders, synced_receivers) = (1..device_count)
+        let (synced_senders, synced_receivers) = (0..device_count)
             .map(|_| std::sync::mpsc::channel())
             .unzip();
-        let (original_senders, original_receivers) = (1..device_count)
+        let (original_senders, original_receivers) = (0..device_count)
             .map(|_| std::sync::mpsc::channel())
             .unzip();
 
@@ -567,12 +567,26 @@ mod grad_distributed {
             &devices,
             synced_senders,
             original_senders,
-            synced_receivers,
-            original_receivers,
             transformation,
             NUM_ITERATIONS,
             op,
         );
+
+        for _ in 0..NUM_ITERATIONS {
+            let mut expected = original_receivers.first().unwrap().recv().unwrap();
+            let device = expected.device();
+            for r in original_recvs[1..].iter().by_ref() {
+                expected = expected.add(r.recv().unwrap().to_device(&device));
+            }
+            if op == ReduceOperation::Mean {
+                expected = expected.div_scalar(original_recvs.len() as f32);
+            }
+
+            for r in synced_recvs.iter().by_ref() {
+                let data = r.recv().unwrap();
+                data.assert_approx_eq::<f32>(&expected.to_data(), Tolerance::default());
+            }
+        }
 
         for handle in join_handles {
             handle.join().unwrap();
@@ -592,38 +606,17 @@ mod grad_distributed {
         devices: &[<B as Backend>::Device],
         synced_senders: Vec<Sender<TensorData>>,
         original_senders: Vec<Sender<Tensor<B::InnerBackend, 2>>>,
-        synced_receivers: Vec<Receiver<TensorData>>,
-        original_receivers: Vec<Receiver<Tensor<B::InnerBackend, 2>>>,
         transformation: fn(Tensor<B, 2>, Tensor<B, 2>) -> Tensor<B, 2>,
         num_iter: usize,
         op: ReduceOperation,
     ) -> Vec<std::thread::JoinHandle<()>> {
         let mut handles = vec![];
 
-        // Spawn main peer thread (id=0)
-        let module_clone = module.clone();
-        let device = devices[0].clone();
-        handles.push(std::thread::spawn(move || {
-            run_peer_sharded(
-                &module_clone,
-                None,
-                None,
-                transformation,
-                device,
-                num_iter,
-                true,
-                synced_receivers,
-                original_receivers,
-                op,
-            )
-        }));
-
-        // Spawn worker peer threads (id > 0)
-        for i in 1..devices.len() {
+        for i in 0..devices.len() {
             let module_clone = module.clone();
             let device = devices[i].clone();
-            let synced_sender = Some(synced_senders[i - 1].clone());
-            let original_sender = Some(original_senders[i - 1].clone());
+            let synced_sender = synced_senders[i].clone();
+            let original_sender = original_senders[i].clone();
             handles.push(std::thread::spawn(move || {
                 run_peer_sharded(
                     &module_clone,
@@ -632,9 +625,6 @@ mod grad_distributed {
                     transformation,
                     device,
                     num_iter,
-                    false,
-                    vec![],
-                    vec![],
                     op,
                 )
             }));
@@ -645,14 +635,11 @@ mod grad_distributed {
 
     pub fn run_peer_sharded<B: AutodiffBackend>(
         module: &ModuleBasic<B>,
-        synced_sender: Option<Sender<TensorData>>,
-        original_sender: Option<Sender<Tensor<B::InnerBackend, 2>>>,
+        synced_sender: Sender<TensorData>,
+        original_sender: Sender<Tensor<B::InnerBackend, 2>>,
         transformation: fn(Tensor<B, 2>, Tensor<B, 2>) -> Tensor<B, 2>,
         device: B::Device,
         num_iter: usize,
-        is_main: bool,
-        synced_recvs: Vec<Receiver<TensorData>>,
-        original_recvs: Vec<Receiver<Tensor<B::InnerBackend, 2>>>,
         op: ReduceOperation,
     ) {
         let mut module = module.clone().fork(&device);
@@ -660,34 +647,15 @@ mod grad_distributed {
         for _ in 0..20 {
             module = set_distributed(&module, &device);
             let (grads_synced, grads_original) = calculate_grads(&module, transformation);
+
+            original_sender
+                .clone()
+                .unwrap()
+                .send(grads_original.unwrap())
+                .unwrap();
+
             let data = grads_synced.unwrap().to_data();
-            if !is_main {
-                original_sender
-                    .clone()
-                    .unwrap()
-                    .send(grads_original.unwrap())
-                    .unwrap();
-                synced_sender.clone().unwrap().send(data).unwrap();
-            } else {
-                let mut expected = grads_original.clone().unwrap();
-                let device = expected.device();
-                for r in original_recvs.iter().by_ref() {
-                    expected = expected.add(r.recv().unwrap().to_device(&device));
-                }
-                if op == ReduceOperation::Mean {
-                    expected = expected.div_scalar((original_recvs.len() + 1) as f32);
-                }
-                for r in synced_recvs.iter().by_ref() {
-                    let data_other = r.recv().unwrap();
-                    println!(
-                        "expected : {:?}\n",
-                        expected.to_data().to_vec::<f32>().unwrap()
-                    );
-                    println!("data : {:?}\n", data.to_vec::<f32>().unwrap());
-                    println!("data_other : {:?}\n", data_other.to_vec::<f32>().unwrap());
-                    data_other.assert_approx_eq::<f32>(&expected.to_data(), Tolerance::default());
-                }
-            }
+            synced_sender.clone().unwrap().send(data).unwrap();
         }
     }
 
