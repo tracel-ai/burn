@@ -34,6 +34,47 @@ fn should_support_bool_not_equal() {
 }
 
 #[test]
+fn should_support_bool_equal_broadcast() {
+    // [2, 2, 2] equal [1, 2, 2] broadcasts along the leading dim.
+    let device = Default::default();
+    let tensor_1 = TestTensorBool::<3>::from_data(
+        TensorData::from([
+            [[true, false], [false, true]],
+            [[true, true], [false, false]],
+        ]),
+        &device,
+    );
+    let tensor_2 =
+        TestTensorBool::<2>::from_data(TensorData::from([[true, false], [false, true]]), &device);
+
+    let actual = tensor_1.equal(tensor_2.unsqueeze::<3>()).into_data();
+    let expected = TensorData::from([[[true, true], [true, true]], [[true, false], [true, false]]]);
+    expected.assert_eq(&actual, false);
+}
+
+#[test]
+fn should_support_bool_not_equal_broadcast() {
+    // [2, 2, 2] not_equal [1, 2, 2] broadcasts along the leading dim.
+    let device = Default::default();
+    let tensor_1 = TestTensorBool::<3>::from_data(
+        TensorData::from([
+            [[true, false], [false, true]],
+            [[true, true], [false, false]],
+        ]),
+        &device,
+    );
+    let tensor_2 =
+        TestTensorBool::<2>::from_data(TensorData::from([[true, false], [false, true]]), &device);
+
+    let actual = tensor_1.not_equal(tensor_2.unsqueeze::<3>()).into_data();
+    let expected = TensorData::from([
+        [[false, false], [false, false]],
+        [[false, true], [false, true]],
+    ]);
+    expected.assert_eq(&actual, false);
+}
+
+#[test]
 fn should_support_bool_not() {
     let data_1 = TensorData::from([[false, true, true], [true, true, false]]);
     let tensor_1 = TestTensorBool::<2>::from_data(data_1, &Default::default());

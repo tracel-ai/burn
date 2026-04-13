@@ -82,4 +82,4 @@ serial_test = { workspace = true }
 
 [dev-dependencies]
 # Used to initialize device settings (test dtypes)
-ctor = "0.8.0"
+ctor = "0.10.0"
