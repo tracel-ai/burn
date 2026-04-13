@@ -428,7 +428,7 @@ strategies.
 | `linalg::l1_norm(tensor, dim)`                     | _No direct equivalent_                              |
 | `linalg::l2_norm(tensor, dim)`                     | _No direct equivalent_                              |
 | `linalg::lp_norm(tensor, p, dim)`                  | _No direct equivalent_                              |
-| `linalg::lu_decomposition(tensor)`                 | `torch.linalg.lu(tensor)`                           |
+| `linalg::lu(tensor)`                               | `torch.linalg.lu(tensor)`                           |
 | `linalg::matvec(matrix, vector)`                   | `torch.matmul(matrix, vector)` / `@` operator       |
 | `linalg::max_abs_norm(tensor, dim)`                | _No direct equivalent_                              |
 | `linalg::min_abs_norm(tensor, dim)`                | _No direct equivalent_                              |

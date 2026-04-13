@@ -653,6 +653,7 @@ dependencies = [
  "burn-cpu",
  "burn-cuda",
  "burn-dispatch",
+ "burn-flex",
  "burn-ir",
  "burn-ndarray",
  "burn-nn",
@@ -699,7 +700,7 @@ dependencies = [
  "oneshot",
  "paste",
  "portable-atomic-util",
- "rand 0.10.0",
+ "rand 0.10.1",
  "rand_distr 0.6.0",
  "serde",
  "serde_json",
@@ -827,7 +828,7 @@ dependencies = [
  "num-traits",
  "portable-atomic",
  "portable-atomic-util",
- "rand 0.10.0",
+ "rand 0.10.1",
  "regex",
  "rmp-serde",
  "rstest",
@@ -912,7 +913,7 @@ dependencies = [
  "polars",
  "r2d2",
  "r2d2_sqlite",
- "rand 0.10.0",
+ "rand 0.10.1",
  "rayon",
  "rmp-serde",
  "rstest",
@@ -925,7 +926,7 @@ dependencies = [
  "tar",
  "tempfile",
  "thiserror 2.0.18",
- "zip 8.5.0",
+ "zip 8.5.1",
 ]
 
 [[package]]
@@ -946,11 +947,36 @@ dependencies = [
  "burn-backend",
  "burn-cpu",
  "burn-cuda",
+ "burn-flex",
  "burn-ndarray",
  "burn-rocm",
  "burn-tch",
  "burn-wgpu",
  "paste",
+]
+
+[[package]]
+name = "burn-flex"
+version = "0.21.0-pre.3"
+dependencies = [
+ "aligned-vec",
+ "burn-backend",
+ "burn-ir",
+ "burn-ndarray",
+ "burn-std",
+ "burn-tensor",
+ "bytemuck",
+ "divan",
+ "gemm 0.19.0",
+ "half",
+ "macerator",
+ "num-traits",
+ "once_cell",
+ "portable-atomic",
+ "portable-atomic-util",
+ "rayon",
+ "realfft",
+ "rustfft",
 ]
 
 [[package]]
@@ -1001,7 +1027,7 @@ dependencies = [
  "paste",
  "portable-atomic",
  "portable-atomic-util",
- "rand 0.10.0",
+ "rand 0.10.1",
  "rayon",
  "seq-macro",
 ]
@@ -1029,7 +1055,7 @@ name = "burn-no-std-tests"
 version = "0.21.0-pre.3"
 dependencies = [
  "burn",
- "burn-ndarray",
+ "burn-flex",
  "burn-store",
 ]
 
@@ -1093,7 +1119,7 @@ dependencies = [
  "burn-optim",
  "derive-new",
  "log",
- "rand 0.10.0",
+ "rand 0.10.1",
 ]
 
 [[package]]
@@ -1165,7 +1191,7 @@ dependencies = [
  "tar",
  "tempfile",
  "textdistance",
- "zip 8.5.0",
+ "zip 8.5.1",
 ]
 
 [[package]]
@@ -1218,7 +1244,7 @@ dependencies = [
  "dirs",
  "log",
  "nvml-wrapper",
- "rand 0.10.0",
+ "rand 0.10.1",
  "ratatui",
  "rstest",
  "serde",
@@ -2062,19 +2088,20 @@ dependencies = [
 
 [[package]]
 name = "ctor"
-version = "0.8.0"
+version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "352d39c2f7bef1d6ad73db6f5160efcaed66d94ef8c6c573a8410c00bf909a98"
+checksum = "95d0d11eb38e7642efca359c3cf6eb7b2e528182d09110165de70192b0352775"
 dependencies = [
  "ctor-proc-macro",
  "dtor",
+ "link-section",
 ]
 
 [[package]]
 name = "ctor-proc-macro"
-version = "0.0.7"
+version = "0.0.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "52560adf09603e58c9a7ee1fe1dcb95a16927b17c127f0ac02d6e768a0e25bc1"
+checksum = "a7ab264ea985f1bd27887d7b21ea2bb046728e05d11909ca138d700c494730db"
 
 [[package]]
 name = "ctrlc"
@@ -2132,7 +2159,7 @@ dependencies = [
  "parking_lot",
  "portable-atomic",
  "portable-atomic-util",
- "rand 0.10.0",
+ "rand 0.10.1",
  "sanitize-filename",
  "serde",
  "serde_bytes",
@@ -2529,7 +2556,7 @@ dependencies = [
  "cubecl-common",
  "half",
  "num-traits",
- "rand 0.10.0",
+ "rand 0.10.1",
  "serde",
 ]
 
@@ -3059,7 +3086,7 @@ dependencies = [
  "opentelemetry-otlp",
  "opentelemetry-stdout",
  "opentelemetry_sdk",
- "rand 0.10.0",
+ "rand 0.10.1",
  "tokio",
  "tracing",
  "tracing-opentelemetry",
@@ -3084,18 +3111,18 @@ dependencies = [
 
 [[package]]
 name = "dtor"
-version = "0.3.0"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f1057d6c64987086ff8ed0fd3fbf377a6b7d205cc7715868cd401705f715cbe4"
+checksum = "17f72721db8027a4e96dd6fb50d2a1d32259c9d3da1b63dee612ccd981e14293"
 dependencies = [
  "dtor-proc-macro",
 ]
 
 [[package]]
 name = "dtor-proc-macro"
-version = "0.0.6"
+version = "0.0.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f678cf4a922c215c63e0de95eb1ff08a958a81d47e485cf9da1e27bf6305cfa5"
+checksum = "8c98b077c7463d01d22dde8a24378ddf1ca7263dc687cffbed38819ea6c21131"
 
 [[package]]
 name = "dyn-clone"
@@ -3398,7 +3425,7 @@ checksum = "ea6be833b323a56361118a747470a45a1bcd5c52a2ec9b1e40c83dafe687e453"
 dependencies = [
  "deunicode",
  "either",
- "rand 0.10.0",
+ "rand 0.10.1",
 ]
 
 [[package]]
@@ -5116,6 +5143,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "link-section"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "468808413fa8bdf0edbe61c2bbc182dfc59885b94f496cf3fb42c9c96b1e0149"
+
+[[package]]
 name = "linux-raw-sys"
 version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5403,7 +5436,7 @@ version = "0.21.0-pre.3"
 dependencies = [
  "burn",
  "log",
- "rand 0.10.0",
+ "rand 0.10.1",
  "serde",
 ]
 
@@ -5432,7 +5465,7 @@ dependencies = [
  "burn",
  "planus",
  "polars",
- "rand 0.10.0",
+ "rand 0.10.1",
  "rand_distr 0.6.0",
  "serde",
 ]
@@ -5925,7 +5958,7 @@ dependencies = [
  "parking_lot",
  "percent-encoding",
  "quick-xml",
- "rand 0.10.0",
+ "rand 0.10.1",
  "reqwest",
  "ring",
  "serde",
@@ -5945,6 +5978,10 @@ name = "once_cell"
 version = "1.21.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
+dependencies = [
+ "critical-section",
+ "portable-atomic",
+]
 
 [[package]]
 name = "once_cell_polyfill"
@@ -7002,6 +7039,7 @@ version = "1.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c33a9471896f1c69cecef8d20cbe2f7accd12527ce60845ff44c153bb2a21b49"
 dependencies = [
+ "critical-section",
  "serde",
 ]
 
@@ -7058,6 +7096,15 @@ checksum = "479ca8adacdd7ce8f1fb39ce9ecccbfe93a3f1344b3d0d97f20bc0196208f62b"
 dependencies = [
  "proc-macro2",
  "syn 2.0.117",
+]
+
+[[package]]
+name = "primal-check"
+version = "0.3.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dc0d895b311e3af9902528fbb8f928688abbd95872819320517cc24ca6b2bd08"
+dependencies = [
+ "num-integer",
 ]
 
 [[package]]
@@ -7331,9 +7378,9 @@ dependencies = [
 
 [[package]]
 name = "rand"
-version = "0.10.0"
+version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bc266eb313df6c5c09c1c7b1fbe2510961e5bcd3add930c1e31f7ed9da0feff8"
+checksum = "d2e8e8bcc7961af1fdac401278c6a831614941f6164ee3bf4ce61b7edb162207"
 dependencies = [
  "chacha20",
  "getrandom 0.4.2",
@@ -7401,7 +7448,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4d431c2703ccf129de4d45253c03f49ebb22b97d6ad79ee3ecfc7e3f4862c1d8"
 dependencies = [
  "num-traits",
- "rand 0.10.0",
+ "rand 0.10.1",
 ]
 
 [[package]]
@@ -7607,6 +7654,15 @@ checksum = "22e18b0f0062d30d4230b2e85ff77fdfe4326feb054b9783a3460d8435c8ab91"
 dependencies = [
  "crossbeam-deque",
  "crossbeam-utils",
+]
+
+[[package]]
+name = "realfft"
+version = "3.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f821338fddb99d089116342c46e9f1fbf3828dba077674613e734e01d6ea8677"
+dependencies = [
+ "rustfft",
 ]
 
 [[package]]
@@ -7871,6 +7927,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cfcb3a22ef46e85b45de6ee7e79d063319ebb6594faafcf1c225ea92ab6e9b92"
 dependencies = [
  "semver",
+]
+
+[[package]]
+name = "rustfft"
+version = "6.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "21db5f9893e91f41798c88680037dba611ca6674703c1a18601b01a72c8adb89"
+dependencies = [
+ "num-complex",
+ "num-integer",
+ "num-traits",
+ "primal-check",
+ "strength_reduce",
+ "transpose",
 ]
 
 [[package]]
@@ -8984,9 +9054,9 @@ dependencies = [
 
 [[package]]
 name = "tokio"
-version = "1.51.0"
+version = "1.51.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2bd1c4c0fc4a7ab90fc15ef6daaa3ec3b893f004f915f2392557ed23237820cd"
+checksum = "f66bf9585cda4b724d3e78ab34b73fb2bbaba9011b9bfdf69dc836382ea13b8c"
 dependencies = [
  "bytes",
  "libc",
@@ -9504,6 +9574,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "transpose"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1ad61aed86bc3faea4300c7aee358b4c6d0c8d6ccc36524c96e4c92ccf26e77e"
+dependencies = [
+ "num-integer",
+ "strength_reduce",
+]
+
+[[package]]
 name = "try-lock"
 version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9823,7 +9903,7 @@ dependencies = [
  "atomic",
  "getrandom 0.4.2",
  "js-sys",
- "rand 0.10.0",
+ "rand 0.10.1",
  "serde_core",
  "wasm-bindgen",
 ]
@@ -11043,9 +11123,9 @@ dependencies = [
 
 [[package]]
 name = "zip"
-version = "8.5.0"
+version = "8.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2726508a48f38dceb22b35ecbbd2430efe34ff05c62bd3285f965d7911b33464"
+checksum = "dcab981e19633ebcf0b001ddd37dd802996098bc1864f90b7c5d970ce76c1d59"
 dependencies = [
  "aes",
  "bzip2 0.6.1",

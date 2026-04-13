@@ -58,8 +58,8 @@ impl<H: Clone> HandleContainer<H> {
         self.handles.insert(id, Handle::Existing(handle));
     }
 
-    /// Whether an handle exists.
-    pub fn has_handle(&mut self, id: &TensorId) -> bool {
+    /// Whether a handle exists.
+    pub fn has_handle(&self, id: &TensorId) -> bool {
         self.handles.contains_key(id)
     }
 
@@ -204,5 +204,100 @@ impl<H: Clone> HandleContainer<H> {
     /// Returns the number of handles.
     pub fn num_handles(&self) -> usize {
         self.handles.len()
+    }
+
+    /// Returns the IDs of all currently registered handles.
+    ///
+    /// Useful for snapshotting which handles exist at a point in time (e.g., before
+    /// executing on a forked context) so that newly registered output handles can
+    /// be detected afterwards.
+    pub fn handle_ids(&self) -> impl Iterator<Item = &'_ TensorId> {
+        self.handles.keys()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::TensorId;
+
+    /// Helper to create a TensorId for tests.
+    fn tid(value: u64) -> TensorId {
+        TensorId::new(value)
+    }
+
+    #[test]
+    fn fork_clones_existing_handles() {
+        let mut container = HandleContainer::<String>::new();
+        container.register_handle(tid(1), "input_a".to_string());
+        container.register_handle(tid(2), "input_b".to_string());
+
+        let fork = container.fork();
+
+        assert_eq!(fork.num_handles(), 2);
+        assert!(fork.get_handle_ref(&tid(1)).is_some());
+        assert!(fork.get_handle_ref(&tid(2)).is_some());
+    }
+
+    #[test]
+    fn fork_is_isolated_from_original() {
+        // This test documents the core of the autotune clone bug:
+        // output handles registered in a fork do NOT appear in the original.
+        let mut container = HandleContainer::<String>::new();
+        container.register_handle(tid(1), "input_a".to_string());
+
+        let mut fork = container.fork();
+
+        // Simulate an optimization registering output handles in the fork.
+        fork.register_handle(tid(100), "output_x".to_string());
+        fork.register_handle(tid(101), "output_y".to_string());
+
+        // The fork has the output handles.
+        assert_eq!(fork.num_handles(), 3);
+        assert!(fork.get_handle_ref(&tid(100)).is_some());
+        assert!(fork.get_handle_ref(&tid(101)).is_some());
+
+        // But the original does NOT — these output handles are lost.
+        assert_eq!(container.num_handles(), 1);
+        assert!(container.get_handle_ref(&tid(100)).is_none());
+        assert!(container.get_handle_ref(&tid(101)).is_none());
+    }
+
+    #[test]
+    fn fork_mutations_do_not_affect_original() {
+        let mut container = HandleContainer::<String>::new();
+        container.register_handle(tid(1), "original_value".to_string());
+
+        let mut fork = container.fork();
+
+        // Overwrite a handle in the fork (e.g., inplace output reuse).
+        fork.register_handle(tid(1), "modified_in_fork".to_string());
+
+        // Original is unchanged.
+        assert_eq!(
+            container.get_handle_ref(&tid(1)),
+            Some(&"original_value".to_string())
+        );
+        assert_eq!(
+            fork.get_handle_ref(&tid(1)),
+            Some(&"modified_in_fork".to_string())
+        );
+    }
+
+    #[test]
+    fn double_fork_is_fully_isolated() {
+        // Simulates what happens when UnsafeTuneContext::get() is called on a Fork:
+        // it forks again, creating a second level of isolation.
+        let mut container = HandleContainer::<String>::new();
+        container.register_handle(tid(1), "input".to_string());
+
+        let fork1 = container.fork();
+        let mut fork2 = fork1.fork();
+
+        fork2.register_handle(tid(200), "deep_output".to_string());
+
+        assert!(fork1.get_handle_ref(&tid(200)).is_none());
+        assert!(container.get_handle_ref(&tid(200)).is_none());
+        assert!(fork2.get_handle_ref(&tid(200)).is_some());
     }
 }

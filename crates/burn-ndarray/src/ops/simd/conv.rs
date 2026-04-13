@@ -187,9 +187,9 @@ unsafe fn conv2d_launch<
     let oc_b = channels_per_group.min(lanes);
     let ow_b = REGISTER_BLOCK;
 
-    let ow_start = pad_w;
+    let ow_start = pad_w.min(out_width);
     let ow_width = out_width.saturating_sub(2 * pad_w);
-    let oh_start = pad_h;
+    let oh_start = pad_h.min(out_height);
     let oh_end = out_height.saturating_sub(pad_h);
 
     let ow_blocks = ow_width / ow_b;
@@ -273,9 +273,9 @@ unsafe fn conv2d_remainder<S: Simd, E: VMulAdd>(
     let in_channels = weights.shape()[0];
     let (_, in_height, in_width) = x.dim();
     let (out_height, out_width, _) = out.dim();
-    let oh_start = pad_h;
+    let oh_start = pad_h.min(out_height);
     let oh_end = out_height.saturating_sub(pad_h);
-    let ow_start = pad_w;
+    let ow_start = pad_w.min(out_width);
 
     let height1 = in_height + pad_h;
     let width1 = in_width + pad_w;
@@ -308,7 +308,7 @@ unsafe fn conv2d_remainder<S: Simd, E: VMulAdd>(
                         // compiler can't prove this. We can't use `as_slice` with fixed bounds
                         // because we want to support arbitrary input layouts. So an unchecked load
                         // is used.
-                        let i0 = unsafe { x.uget([ic, ih, iw]) }.splat::<S>();
+                        let i0 = unsafe { x.uget([ic_off + ic, ih, iw]) }.splat::<S>();
                         acc = i0.mul_add(f0, acc);
                     }
                 }
