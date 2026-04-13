@@ -575,7 +575,6 @@ mod grad_distributed {
             original_senders,
             transformation,
             NUM_ITERATIONS,
-            op,
         );
 
         for _ in 0..NUM_ITERATIONS {
@@ -619,7 +618,6 @@ mod grad_distributed {
         original_senders: Vec<Sender<Tensor<B::InnerBackend, 2>>>,
         transformation: fn(Tensor<B, 2>, Tensor<B, 2>) -> Tensor<B, 2>,
         num_iter: usize,
-        op: ReduceOperation,
     ) -> Vec<std::thread::JoinHandle<()>> {
         let mut handles = vec![];
 
@@ -636,7 +634,6 @@ mod grad_distributed {
                     transformation,
                     device,
                     num_iter,
-                    op,
                 )
             }));
         }
@@ -651,11 +648,10 @@ mod grad_distributed {
         transformation: fn(Tensor<B, 2>, Tensor<B, 2>) -> Tensor<B, 2>,
         device: B::Device,
         num_iter: usize,
-        op: ReduceOperation,
     ) {
         let mut module = module.clone().fork(&device);
 
-        for _ in 0..20 {
+        for _ in 0..num_iter {
             module = set_distributed(&module, &device);
             let (grads_synced, grads_original) = calculate_grads(&module, transformation);
 
