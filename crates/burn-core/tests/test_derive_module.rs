@@ -550,10 +550,16 @@ mod grad_distributed {
         let device_count = <B as Backend>::device_count(type_id);
         let devices = create_devices::<B::Device>(type_id, device_count);
         let module = ModuleBasic::<B>::new(&devices[0]);
-        let (synced_senders, synced_receivers) = (0..device_count)
+        let (synced_senders, synced_receivers): (
+            Vec<Sender<TensorData>>,
+            Vec<Receiver<TensorData>>,
+        ) = (0..device_count)
             .map(|_| std::sync::mpsc::channel())
             .unzip();
-        let (original_senders, original_receivers) = (0..device_count)
+        let (original_senders, original_receivers): (
+            Vec<Sender<Tensor<B::InnerBackend, 2>>>,
+            Vec<Receiver<Tensor<B::InnerBackend, 2>>>,
+        ) = (0..device_count)
             .map(|_| std::sync::mpsc::channel())
             .unzip();
 
@@ -573,14 +579,14 @@ mod grad_distributed {
         for _ in 0..NUM_ITERATIONS {
             let mut expected = original_receivers.first().unwrap().recv().unwrap();
             let device = expected.device();
-            for r in original_recvs[1..].iter().by_ref() {
+            for r in original_receivers[1..].iter().by_ref() {
                 expected = expected.add(r.recv().unwrap().to_device(&device));
             }
             if op == ReduceOperation::Mean {
-                expected = expected.div_scalar(original_recvs.len() as f32);
+                expected = expected.div_scalar(original_receivers.len() as f32);
             }
 
-            for r in synced_recvs.iter().by_ref() {
+            for r in synced_receivers.iter().by_ref() {
                 let data = r.recv().unwrap();
                 data.assert_approx_eq::<f32>(&expected.to_data(), Tolerance::default());
             }
@@ -648,12 +654,11 @@ mod grad_distributed {
 
             original_sender
                 .clone()
-                .unwrap()
                 .send(grads_original.unwrap())
                 .unwrap();
 
             let data = grads_synced.unwrap().to_data();
-            synced_sender.clone().unwrap().send(data).unwrap();
+            synced_sender.clone().send(data).unwrap();
         }
     }
 
