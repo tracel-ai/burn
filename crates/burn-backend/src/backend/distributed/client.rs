@@ -65,17 +65,20 @@ impl<B: DistributedBackend> DistributedSyncClient<B> {
             ))
             .unwrap();
 
-        println!(
-            "[{:?}] waiting for sync_collective: {:?}",
-            std::thread::current().id(),
-            device.id()
-        );
+        // println!(
+        //     "[{:?}] waiting for sync_collective: {:?}",
+        //     std::thread::current().id(),
+        //     device.id()
+        // );
+
         let sync = rx.recv().expect("Can receive callback");
-        println!(
-            "[{:?}] received sync_collective: {:?}",
-            std::thread::current().id(),
-            device.id()
-        );
+
+        // println!(
+        //     "[{:?}] received sync_collective: {:?}",
+        //     std::thread::current().id(),
+        //     device.id()
+        // );
+
         sync();
     }
 
