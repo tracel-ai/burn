@@ -443,7 +443,14 @@ fn test_mean_dims_2d() {
 
 #[test]
 fn test_multiple_reduce_dims_permuted() {
-    // Regression test for https://github.com/tracel-ai/burn/issues/4461
+    // Regression test for https://github.com/tracel-ai/burn/issues/4461.
+    //
+    // Also pins the f16/bf16 `mean_dim` overflow fix: after the first reduction
+    // the second `mean_dim` sums 256 values that peak near 1021, so the f32
+    // intermediate reaches ~261k (well above f16::MAX = 65504). A naive
+    // sum-then-divide in f16 would overflow to +inf. See the sibling
+    // `test_should_mean_overflow_intermediate_sum` for the scalar `.mean()`
+    // code path.
     let tensor = TestTensorInt::arange(0..2 * 2 * 256, &Default::default())
         .float()
         .reshape([2, 2, 256]);
