@@ -15,8 +15,6 @@ use cubek::matmul::{
         BlueprintStrategy, TileSizeSelection, double_buffering::DoubleBufferingArgs,
         double_unit::DoubleUnitSelectionArgs, ordered_double_buffering::OrderedSelectionArgs,
         simple::SimpleArgs, simple_unit::SimpleUnitSelectionArgs,
-        vecmat_plane_parallel::GemvPlaneParallelStrategy,
-        vecmat_unit_perpendicular::GemvUnitPerpendicularStrategy,
     },
 };
 
@@ -39,10 +37,11 @@ pub fn matmul_autotune<R: CubeRuntime>(
     let output = out.unwrap_or_else(|| init_matmul_output(&lhs, &rhs, out_dtype));
 
     let client = lhs.client.clone();
+    let num_cpu_cores = client.properties().hardware.num_cpu_cores.clone();
 
     static TUNER: LocalTuner<MatmulAutotuneKey, CubeTuneId> = local_tuner!();
 
-    let tunables = TUNER.init(|| {
+    let tunables = TUNER.init(move || {
         const PRIORITY_MAX: i8 = 3;
         const PRIORITY_HIGH: i8 = 2;
         const PRIORITY_MEDIUM: i8 = 1;
@@ -106,8 +105,8 @@ pub fn matmul_autotune<R: CubeRuntime>(
             }
         });
 
-        let gemv = TuneGroup::<MatmulAutotuneKey>::new("gemv", |key| {
-            if client.properties().hardware.num_cpu_cores.is_some() {
+        let gemv = TuneGroup::<MatmulAutotuneKey>::new("gemv", move |key| {
+            if num_cpu_cores.is_some() {
                 return PRIORITY_MAX;
             }
 
@@ -118,7 +117,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
                     MatrixBatchLayout::MildlyPermuted { transposed, .. } => {
                         // We don't yet have algo which are good for col major matvec.
                         if transposed {
-                            PRIORITY_MEDIUM
+                            PRIORITY_HIGH
                         } else {
                             PRIORITY_MAX
                         }
@@ -131,20 +130,20 @@ pub fn matmul_autotune<R: CubeRuntime>(
                 // RHS is the matrix
                 match key.definition.matrix_layout_rhs {
                     // We don't have good algos for row mahor vecmat.
-                    MatrixBatchLayout::Contiguous => PRIORITY_MEDIUM,
+                    MatrixBatchLayout::Contiguous => PRIORITY_HIGH,
                     MatrixBatchLayout::MildlyPermuted { transposed, .. } => {
                         // Best algo is col major vec mat.
                         if transposed {
                             PRIORITY_MAX
                         } else {
-                            PRIORITY_MEDIUM
+                            PRIORITY_HIGH
                         }
                     }
                     // TODO: Actually do the correct relayout here.
                     //
                     // Every algo will need to relayout, in this case, we should take the optimal
                     // kernel with a gemv.
-                    MatrixBatchLayout::HighlyPermuted => PRIORITY_MEDIUM,
+                    MatrixBatchLayout::HighlyPermuted => PRIORITY_HIGH,
                 }
             } else {
                 PRIORITY_NEVER
@@ -189,19 +188,11 @@ pub fn matmul_autotune<R: CubeRuntime>(
                 false,
             ),
             (
-                Strategy::GemvPlaneParallel(BlueprintStrategy::Inferred(
-                    GemvPlaneParallelStrategy {
-                        target_num_planes: 32 * 2,
-                    },
-                )),
+                Strategy::GemvPlaneParallel(BlueprintStrategy::Inferred(Default::default())),
                 false,
             ),
             (
-                Strategy::GemvUnitPerpendicular(BlueprintStrategy::Inferred(
-                    GemvUnitPerpendicularStrategy {
-                        target_num_planes: 32 * 2,
-                    },
-                )),
+                Strategy::GemvUnitPerpendicular(BlueprintStrategy::Inferred(Default::default())),
                 false,
             ),
         ] {
