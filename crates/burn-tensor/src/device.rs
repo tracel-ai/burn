@@ -297,8 +297,6 @@ impl Device {
     pub fn enumerate(filter: impl Into<EnumSet<DeviceType>>) -> Vec<Device> {
         let mut devices = Vec::new();
 
-        // TODO: bitflags instead of enumset?
-
         for device_type in filter.into() {
             let type_id = match device_type {
                 #[cfg(feature = "cpu")]
@@ -307,7 +305,6 @@ impl Device {
                 DeviceType::Cuda => DispatchDeviceId::Cuda,
                 #[cfg(feature = "rocm")]
                 DeviceType::Rocm => DispatchDeviceId::Rocm,
-                // TODO: same build.rs check as burn-dispatch?
                 #[cfg(any(
                     feature = "wgpu",
                     feature = "metal",

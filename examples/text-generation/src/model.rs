@@ -7,7 +7,6 @@ use burn::{
         transformer::{TransformerEncoder, TransformerEncoderConfig, TransformerEncoderInput},
     },
     prelude::*,
-    tensor::backend::AutodiffBackend,
     train::{ClassificationOutput, InferenceStep, TrainOutput, TrainStep},
 };
 
@@ -20,18 +19,18 @@ pub struct TextGenerationModelConfig {
 }
 
 #[derive(Module, Debug)]
-pub struct TextGenerationModel<B: Backend> {
-    transformer: TransformerEncoder<B>,
-    embedding_token: Embedding<B>,
-    embedding_pos: Embedding<B>,
-    output: Linear<B>,
+pub struct TextGenerationModel {
+    transformer: TransformerEncoder,
+    embedding_token: Embedding,
+    embedding_pos: Embedding,
+    output: Linear,
     vocab_size: usize,
     pad_token: usize,
     max_seq_length: usize,
 }
 
 impl TextGenerationModelConfig {
-    pub fn init<B: Backend>(&self, device: &B::Device) -> TextGenerationModel<B> {
+    pub fn init(&self, device: &Device) -> TextGenerationModel {
         let output = LinearConfig::new(self.transformer.d_model, self.vocab_size).init(device);
         let transformer = self.transformer.init(device);
         let embedding_token =
@@ -50,11 +49,8 @@ impl TextGenerationModelConfig {
         }
     }
 }
-impl<B: Backend> TextGenerationModel<B> {
-    pub fn forward_training(
-        &self,
-        item: TrainingTextGenerationBatch<B>,
-    ) -> ClassificationOutput<B> {
+impl TextGenerationModel {
+    pub fn forward_training(&self, item: TrainingTextGenerationBatch) -> ClassificationOutput {
         let [batch_size, seq_length] = item.tokens_inputs.dims();
         let device = &self.devices()[0];
 
@@ -70,7 +66,7 @@ impl<B: Backend> TextGenerationModel<B> {
         let embedding_tokens = self.embedding_token.forward(inputs);
         let embedding = (embedding_positions + embedding_tokens) / 2;
 
-        let mask_attn = generate_autoregressive_mask::<B>(batch_size, seq_length, device);
+        let mask_attn = generate_autoregressive_mask(batch_size, seq_length, device);
         let encoded = self.transformer.forward(
             TransformerEncoderInput::new(embedding)
                 .mask_pad(mask_pad)
@@ -94,11 +90,11 @@ impl<B: Backend> TextGenerationModel<B> {
     }
 }
 
-impl<B: AutodiffBackend> TrainStep for TextGenerationModel<B> {
-    type Input = TrainingTextGenerationBatch<B>;
-    type Output = ClassificationOutput<B>;
+impl TrainStep for TextGenerationModel {
+    type Input = TrainingTextGenerationBatch;
+    type Output = ClassificationOutput;
 
-    fn step(&self, item: TrainingTextGenerationBatch<B>) -> TrainOutput<ClassificationOutput<B>> {
+    fn step(&self, item: TrainingTextGenerationBatch) -> TrainOutput<ClassificationOutput> {
         let item = self.forward_training(item);
         let grads = item.loss.backward();
 
@@ -106,11 +102,11 @@ impl<B: AutodiffBackend> TrainStep for TextGenerationModel<B> {
     }
 }
 
-impl<B: Backend> InferenceStep for TextGenerationModel<B> {
-    type Input = TrainingTextGenerationBatch<B>;
-    type Output = ClassificationOutput<B>;
+impl InferenceStep for TextGenerationModel {
+    type Input = TrainingTextGenerationBatch;
+    type Output = ClassificationOutput;
 
-    fn step(&self, item: TrainingTextGenerationBatch<B>) -> ClassificationOutput<B> {
+    fn step(&self, item: TrainingTextGenerationBatch) -> ClassificationOutput {
         self.forward_training(item)
     }
 }

@@ -168,8 +168,10 @@ impl<E: TchElement> Backend for LibTorch<E> {
         }
     }
 
-    fn device_count(_: u16) -> usize {
-        // tch only supports one device for each backend
-        1
+    fn device_count(type_id: u16) -> usize {
+        match type_id {
+            0 => tch::Cuda::device_count() as usize,
+            _ => 1,
+        }
     }
 }

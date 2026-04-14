@@ -1187,6 +1187,7 @@ dependencies = [
  "burn-std",
  "colored 3.1.1",
  "derive-new",
+ "enumset",
  "num-traits",
  "serde",
 ]
@@ -2628,9 +2629,7 @@ version = "0.21.0-pre.3"
 dependencies = [
  "burn",
  "burn-cubecl",
- "bytemuck",
  "cubecl",
- "derive-new",
  "log",
  "serde",
 ]
@@ -2649,7 +2648,6 @@ name = "custom-learning-strategy"
 version = "0.21.0-pre.3"
 dependencies = [
  "burn",
- "derive-new",
  "guide",
  "log",
 ]
@@ -2659,11 +2657,8 @@ name = "custom-renderer"
 version = "0.21.0-pre.3"
 dependencies = [
  "burn",
- "bytemuck",
- "derive-new",
  "guide",
  "log",
- "serde",
 ]
 
 [[package]]
@@ -2671,7 +2666,6 @@ name = "custom-training-loop"
 version = "0.21.0-pre.3"
 dependencies = [
  "burn",
- "bytemuck",
  "derive-new",
  "guide",
  "log",
@@ -4243,7 +4237,6 @@ version = "0.21.0-pre.3"
 dependencies = [
  "burn",
  "log",
- "serde",
 ]
 
 [[package]]
@@ -5402,7 +5395,6 @@ dependencies = [
  "burn",
  "log",
  "rand 0.10.0",
- "serde",
 ]
 
 [[package]]
