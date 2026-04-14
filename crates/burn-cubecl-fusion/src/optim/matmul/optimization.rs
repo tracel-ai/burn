@@ -38,6 +38,8 @@ use cubek::{
             simple::{SimpleAlgorithm, SimpleArgs},
             simple_unit::SimpleUnitAlgorithm,
             vecmat_innerproduct::{DoubleVecMatInnerProductAlgorithm, VecMatInnerProductAlgorithm},
+            vecmat_plane_parallel::GemvPlaneParallelRoutine,
+            vecmat_unit_perpendicular::GemvUnitPerpendicularRoutine,
         },
     },
     std::MatrixLayout,
@@ -226,6 +228,8 @@ pub enum FusedMatmulSelector {
     },
     SimpleVecMat,
     DoubleVecMat,
+    GemvPlaneParallel,
+    GemvUnitPerpendicular,
     SimpleUnit,
     DoubleUnit,
 }
@@ -253,6 +257,8 @@ impl FusedMatmulSelector {
             }
             FusedMatmulSelector::SimpleVecMat => "simple_vec_mat".into(),
             FusedMatmulSelector::DoubleVecMat => "double_buffering_vec_mat".into(),
+            FusedMatmulSelector::GemvPlaneParallel => "gemv_plane_parallel".into(),
+            FusedMatmulSelector::GemvUnitPerpendicular => "gemv_unit_perpendicular".into(),
             FusedMatmulSelector::SimpleUnit => "simple_unit".into(),
             FusedMatmulSelector::DoubleUnit => "double_buffering_unit".into(),
         };
@@ -609,6 +615,46 @@ impl FusedMatmulLaunch<'_> {
             }
             FusedMatmulSelector::DoubleVecMat => {
                 match launch_inner_fix_dtype::<R, DoubleVecMatInnerProductAlgorithm>(
+                    client,
+                    FusedMatmulInputLaunch::new(
+                        inputs,
+                        config.clone(),
+                        self.matmul.lhs.clone(),
+                        self.matmul.rhs.clone(),
+                        None,
+                        self.matmul.out.clone(),
+                    ),
+                    outputs,
+                    problem,
+                    vector_sizes,
+                    &Default::default(),
+                ) {
+                    Ok(_) => Ok(()),
+                    Err(err) => Err(FusedMatmulError::LaunchError(err)),
+                }
+            }
+            FusedMatmulSelector::GemvPlaneParallel => {
+                match launch_inner_fix_dtype::<R, GemvPlaneParallelRoutine>(
+                    client,
+                    FusedMatmulInputLaunch::new(
+                        inputs,
+                        config.clone(),
+                        self.matmul.lhs.clone(),
+                        self.matmul.rhs.clone(),
+                        None,
+                        self.matmul.out.clone(),
+                    ),
+                    outputs,
+                    problem,
+                    vector_sizes,
+                    &Default::default(),
+                ) {
+                    Ok(_) => Ok(()),
+                    Err(err) => Err(FusedMatmulError::LaunchError(err)),
+                }
+            }
+            FusedMatmulSelector::GemvUnitPerpendicular => {
+                match launch_inner_fix_dtype::<R, GemvUnitPerpendicularRoutine>(
                     client,
                     FusedMatmulInputLaunch::new(
                         inputs,
