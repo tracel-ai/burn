@@ -24,7 +24,9 @@ mod checkpointing {
     impl AutodiffDevice {
         #[allow(clippy::new_ret_no_self)]
         pub fn new() -> burn_tensor::Device {
-            burn_tensor::Device::default().autodiff_checkpointed()
+            burn_tensor::Device::default()
+                .autodiff()
+                .gradient_checkpointing()
         }
     }
 

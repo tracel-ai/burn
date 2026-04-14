@@ -1,10 +1,13 @@
 pub use burn_backend::{DeviceError, DeviceId, DeviceSettings};
 
 use burn_backend::Backend;
+use burn_dispatch::DispatchDeviceId;
 use burn_dispatch::{Dispatch, DispatchDevice};
 use burn_std::FloatDType;
 use burn_std::IntDType;
 use burn_std::QuantScheme;
+use enumset::EnumSet;
+use enumset::EnumSetType;
 
 // TODO: docs + book
 
@@ -13,9 +16,8 @@ use burn_std::QuantScheme;
 /// [`Device`] provides a unified interface to interact with the underlying compute backend
 ///
 /// Autodiff support is a property of the device rather than a separate type parameter.
-/// Wrap a device with [`.autodiff()`](Device::autodiff) or
-/// [`.autodiff_checkpointed()`](Device::autodiff_checkpointed) to enable gradient automatic
-/// differentiation with the device.
+/// Wrap a device with [`.autodiff()`](Device::autodiff) to enable automatic  differentiation
+/// with the device.
 ///
 /// # Backend selection
 ///
@@ -106,35 +108,34 @@ impl Device {
         self
     }
 
-    /// Enables autodiff with gradient checkpointing on this device.
+    /// Enables gradient checkpointing on the autodiff device.
     ///
     /// Gradient checkpointing recomputes activations during backpropagation for operations
     /// marked as memory-bound, while compute-bound operations still cache their
     /// output. This reduces peak memory usage at the cost of additional computation
     /// for memory-bound ops.
     ///
-    /// Like [`autodiff`](Device::autodiff), autodiff is a property of the device:
-    /// all tensors created on the returned device participate in the autodiff graph.
-    ///
-    /// Only first-order autodiff is supported. Calling this method on a device that
-    /// already has autodiff enabled will panic.
-    ///
     /// # Example
     ///
     /// ```rust,ignore
-    /// let device = Device::default().autodiff_checkpointed();
+    /// let device = Device::default().autodiff().gradient_checkpointing();
     /// ```
     ///
     /// # Panics
     ///
-    /// Panics if autodiff is already enabled on this device.
+    /// Panics if autodiff is not enabled on this device.
     #[cfg(feature = "autodiff")]
-    pub fn autodiff_checkpointed(mut self) -> Self {
+    pub fn gradient_checkpointing(mut self) -> Self {
         match self.dispatch {
-            DispatchDevice::Autodiff(_) => unimplemented!("Only first-order autodiff is supported"),
-            other => {
-                self.dispatch = DispatchDevice::autodiff_checkpointed(other, Default::default())
+            DispatchDevice::Autodiff(device) => {
+                use burn_dispatch::CheckpointingStrategy;
+
+                self.dispatch = DispatchDevice::autodiff_checkpointed(
+                    device.inner(),
+                    CheckpointingStrategy::Balanced,
+                )
             }
+            _ => panic!("Autodiff is not enabled on this device"),
         }
 
         self
@@ -287,4 +288,66 @@ impl Device {
     pub fn id(&self) -> DeviceId {
         burn_backend::Device::to_id(&self.dispatch)
     }
+
+    /// Retrieves all available [`Adapter`]s that match the given [`Backends`].
+    pub fn enumerate(filter: impl Into<EnumSet<DeviceType>>) -> Vec<Device> {
+        let mut devices = Vec::new();
+
+        // TODO: bitflags instead of enumset?
+
+        for device_type in filter.into() {
+            let type_id = match device_type {
+                #[cfg(feature = "cpu")]
+                DeviceType::Cpu => DispatchDeviceId::Cpu,
+                #[cfg(feature = "cuda")]
+                DeviceType::Cuda => DispatchDeviceId::Cuda,
+                #[cfg(feature = "rocm")]
+                DeviceType::Rocm => DispatchDeviceId::Rocm,
+                // TODO: same build.rs check as burn-dispatch?
+                #[cfg(any(
+                    feature = "wgpu",
+                    feature = "metal",
+                    feature = "vulkan",
+                    feature = "webgpu"
+                ))]
+                DeviceType::Wgpu => DispatchDeviceId::Wgpu,
+                #[cfg(feature = "flex")]
+                DeviceType::Flex => DispatchDeviceId::Flex,
+                #[cfg(feature = "ndarray")]
+                DeviceType::NdArray => DispatchDeviceId::NdArray,
+                #[cfg(feature = "tch")]
+                DeviceType::LibTorch => DispatchDeviceId::LibTorch,
+            };
+
+            for device in Dispatch::enumerate(type_id) {
+                devices.push(Device::new(device))
+            }
+        }
+
+        devices
+    }
+}
+
+// TODO: this is essentially per-backend filter, we could have higher level filters e.g. Cpu (CpuDevice, Ndarray, Flex, LibTorchDevice::Cpu)
+#[derive(Debug, EnumSetType)]
+pub enum DeviceType {
+    #[cfg(feature = "cpu")]
+    Cpu,
+    #[cfg(feature = "cuda")]
+    Cuda,
+    #[cfg(feature = "rocm")]
+    Rocm,
+    #[cfg(any(
+        feature = "wgpu",
+        feature = "metal",
+        feature = "vulkan",
+        feature = "webgpu"
+    ))]
+    Wgpu,
+    #[cfg(feature = "flex")]
+    Flex,
+    #[cfg(feature = "ndarray")]
+    NdArray,
+    #[cfg(feature = "tch")]
+    LibTorch,
 }

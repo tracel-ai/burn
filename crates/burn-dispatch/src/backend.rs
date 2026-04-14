@@ -1,5 +1,6 @@
 use alloc::format;
 use alloc::string::String;
+use alloc::vec;
 
 use burn_backend::quantization::QuantScheme;
 use burn_backend::{AutodiffBackend, Backend, DType, ExecutionError, QTensorPrimitive};
@@ -10,7 +11,7 @@ use alloc::boxed::Box;
 use burn_autodiff::grads::Gradients;
 
 #[allow(unused)]
-use crate::BackendId;
+use crate::DispatchDeviceId;
 use crate::DispatchTensorKind;
 use crate::backends::*;
 use crate::{DispatchDevice, DispatchTensor};
@@ -89,23 +90,24 @@ impl Backend for Dispatch {
         let (dispatch_id, backend_type_id) = DispatchDevice::decode_type_id(type_id);
         match dispatch_id {
             #[cfg(feature = "cpu")]
-            BackendId::Cpu => Cpu::<f32>::device_count(backend_type_id),
+            DispatchDeviceId::Cpu => Cpu::<f32>::device_count(backend_type_id),
             #[cfg(feature = "cuda")]
-            BackendId::Cuda => Cuda::<f32>::device_count(backend_type_id),
+            DispatchDeviceId::Cuda => Cuda::<f32>::device_count(backend_type_id),
             #[cfg(wgpu_metal)]
-            BackendId::Metal => Metal::<f32>::device_count(backend_type_id),
+            DispatchDeviceId::Wgpu => Metal::<f32>::device_count(backend_type_id),
             #[cfg(feature = "rocm")]
-            BackendId::Rocm => Rocm::<f32>::device_count(backend_type_id),
+            DispatchDeviceId::Rocm => Rocm::<f32>::device_count(backend_type_id),
             #[cfg(wgpu_vulkan)]
-            BackendId::Vulkan => Vulkan::<f32>::device_count(backend_type_id),
+            DispatchDeviceId::Wgpu => Vulkan::<f32>::device_count(backend_type_id),
             #[cfg(wgpu_webgpu)]
-            BackendId::Wgpu => Wgpu::<f32>::device_count(backend_type_id),
+            DispatchDeviceId::Wgpu => Wgpu::<f32>::device_count(backend_type_id),
             #[cfg(feature = "flex")]
-            BackendId::Flex => Flex::device_count(backend_type_id),
+            DispatchDeviceId::Flex => Flex::device_count(backend_type_id),
             #[cfg(feature = "ndarray")]
-            BackendId::NdArray => NdArray::<f32>::device_count(backend_type_id),
+            DispatchDeviceId::NdArray => NdArray::<f32>::device_count(backend_type_id),
             #[cfg(feature = "tch")]
-            BackendId::LibTorch => LibTorch::<f32>::device_count(backend_type_id),
+            DispatchDeviceId::LibTorch => LibTorch::<f32>::device_count(backend_type_id),
+            _ => unreachable!("No backend feature enabled."),
         }
     }
 }
@@ -634,6 +636,44 @@ impl Dispatch {
             }
             #[cfg(feature = "autodiff")]
             DispatchDevice::Autodiff(ad_device) => Self::default_quant_scheme(&ad_device.inner),
+        }
+    }
+
+    /// List all available devices of the specified [type id](DispatchDeviceId).
+    pub fn enumerate(type_id: DispatchDeviceId) -> Vec<DispatchDevice> {
+        // TODO: right now this assumes `type_id = 0`, but WgpuDevice and LibTorchDevice have other types.
+        match type_id {
+            #[cfg(feature = "cpu")]
+            DispatchDeviceId::Cpu => vec![CpuDevice.into()],
+            #[cfg(feature = "cuda")]
+            DispatchDeviceId::Cuda => (0..Cuda::<f32>::device_count(0))
+                .map(|i| CudaDevice::new(i).into())
+                .collect(),
+            #[cfg(wgpu_metal)]
+            DispatchDeviceId::Wgpu => (0..Metal::<f32>::device_count(0))
+                .map(|i| WgpuDevice::DiscreteGpu(i).into())
+                .collect(),
+            #[cfg(feature = "rocm")]
+            DispatchDeviceId::Rocm => (0..Rocm::<f32>::device_count(0))
+                .map(|i| RocmDevice::new(i).into())
+                .collect(),
+            #[cfg(wgpu_vulkan)]
+            DispatchDeviceId::Wgpu => (0..Vulkan::<f32>::device_count(0))
+                .map(|i| WgpuDevice::DiscreteGpu(i).into())
+                .collect(),
+            #[cfg(wgpu_webgpu)]
+            DispatchDeviceId::Wgpu => (0..Wgpu::<f32>::device_count(0))
+                .map(|i| WgpuDevice::DiscreteGpu(i).into())
+                .collect(),
+            #[cfg(feature = "flex")]
+            DispatchDeviceId::Flex => vec![FlexDevice.into()],
+            #[cfg(feature = "ndarray")]
+            DispatchDeviceId::NdArray => vec![NdArrayDevice::Cpu.into()],
+            #[cfg(feature = "tch")]
+            DispatchDeviceId::LibTorch => (0..LibTorch::<f32>::device_count(0))
+                .map(|i| LibTorchDevice::Cuda(i).into())
+                .collect(),
+            _ => unreachable!("No backend feature enabled."),
         }
     }
 }
