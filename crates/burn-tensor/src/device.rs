@@ -9,7 +9,12 @@ use burn_std::QuantScheme;
 use enumset::EnumSet;
 use enumset::EnumSetType;
 
-// TODO: docs + book
+// TODO:
+// - docs + book
+// - Device::default() priority for DispatchDevice should be detailed
+// - tensor.to_device() between autodiff / non-autodiff devices?
+// - DeviceType in prelude?
+// - Re-export backend devices (e.g. CudaDevice)?
 
 /// A high-level device handle for tensor operations.
 ///
@@ -50,8 +55,6 @@ use enumset::EnumSetType;
 pub struct Device {
     pub(crate) dispatch: DispatchDevice,
 }
-
-// TODO: Device::default() priority for DispatchDevice should be detailed
 
 impl core::fmt::Debug for Device {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
