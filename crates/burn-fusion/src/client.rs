@@ -121,7 +121,7 @@ where
         self.server.submit(move |server| server.drain_stream(id));
     }
 
-    /// Register all computation.
+    /// Flush the operations queue.
     pub fn flush_queue(&self) {
         self.server.flush_queue();
     }

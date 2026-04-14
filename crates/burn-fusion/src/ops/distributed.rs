@@ -45,7 +45,7 @@ impl<B: FusionBackend + DistributedBackend> DistributedBackend for Fusion<B> {
         let client = tensor.client.clone();
         let desc = AllReduceOpIr::create(tensor.into_ir(), || client.create_empty_handle());
 
-        let out = client
+        let output = client
             .register(
                 streams,
                 OperationIr::BaseFloat(BaseOperationIr::AllReduce(desc.clone())),
@@ -54,11 +54,11 @@ impl<B: FusionBackend + DistributedBackend> DistributedBackend for Fusion<B> {
             .output()
             .into();
 
-        // We need to flush the device's queue because `all_reduce` can be blocking for other devices (when creating
-        // a communicator object).
+        // We need to flush the device's queue because other devices could be waiting on this call (e.g. when initializing
+        // communication between devices).
         client.flush_queue();
 
-        out
+        output
     }
 
     fn sync_collective(device: &Device<Self>) {
