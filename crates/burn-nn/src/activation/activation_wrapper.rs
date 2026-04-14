@@ -453,19 +453,18 @@ mod tests {
         let config: ActivationConfig = inner_config.into();
         let layer = config.init(&device);
 
+        // Access tensors via forward pass to trigger lazy initialization, then clone weights.
+        let layer_output = layer.forward(input.clone());
+
         match &layer {
             Activation::SwiGlu(inner) => {
-                // Clone the initialized weights.
                 let state = inner.clone().into_record();
                 reference = reference.load_record(state);
             }
             _ => unreachable!(),
         };
 
-        expect_tensor(
-            layer.forward(input.clone()),
-            reference.forward(input.clone()),
-        )
+        expect_tensor(layer_output, reference.forward(input.clone()))
     }
 
     #[test]
