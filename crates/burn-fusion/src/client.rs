@@ -121,6 +121,11 @@ where
         self.server.submit(move |server| server.drain_stream(id));
     }
 
+    /// Flush the operations queue.
+    pub fn flush_queue(&self) {
+        self.server.flush_queue();
+    }
+
     /// Create a new (uninitialized) empty tensor handle and returns its corresponding [tensor id](TensorId).
     pub fn create_empty_handle(&self) -> TensorId {
         let value = COUNTER.fetch_add(1, Ordering::Relaxed);
