@@ -26,7 +26,8 @@ blas-openblas-system = [
     "ndarray/blas",
     "openblas-src/system",
 ]
-default = ["std", "simd", "multi-threads"]
+# TODO: remove distributed
+default = ["std", "simd", "multi-threads", "distributed"]
 doc = ["default"]
 multi-threads = [
     "rayon",
