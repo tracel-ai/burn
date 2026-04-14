@@ -39,7 +39,7 @@ where
             ReduceOperation::Mean => cubecl::server::ReduceOperation::Mean,
         };
 
-        let client = R::client(device);
+        let mut client = R::client(device);
         client.all_reduce(
             out_tensor.handle.clone(),
             out_tensor.handle.clone(),
