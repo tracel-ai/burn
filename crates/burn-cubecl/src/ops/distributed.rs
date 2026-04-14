@@ -1,5 +1,5 @@
 use burn_backend::{
-    DeviceId, StreamId, TensorMetadata,
+    DeviceId, TensorMetadata,
     distributed::{DistributedBackend, ReduceOperation},
     tensor::{Device, FloatTensor},
 };
