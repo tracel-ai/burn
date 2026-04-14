@@ -151,7 +151,9 @@ pub fn matmul_autotune<R: CubeRuntime>(
         // GEMV
         let target_num_planes = 4;
         let strategy = Strategy::GemvUnitPerpendicular(BlueprintStrategy::Inferred(
-            GemvUnitPerpendicularStrategy { target_num_planes },
+            GemvUnitPerpendicularStrategy {
+                target_num_planes: Some(target_num_planes),
+            },
         ));
         set = set.with(
             Tunable::new(strategy.to_string(), move |lhs, rhs, out| {
@@ -167,7 +169,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
         );
         let strategy =
             Strategy::GemvPlaneParallel(BlueprintStrategy::Inferred(GemvPlaneParallelStrategy {
-                target_num_planes,
+                target_num_planes: Some(target_num_planes),
             }));
         set = set.with(
             Tunable::new(strategy.to_string(), move |lhs, rhs, out| {
