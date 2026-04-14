@@ -371,6 +371,7 @@ pub enum BaseOperationIr {
     /// Int => [cat](burn_backend::ops::IntTensorOps::int_cat).
     /// Bool => [cat](burn_backend::ops::BoolTensorOps::bool_cat).
     Cat(CatOpIr),
+    #[cfg(feature = "distributed")]
     /// Operation corresponding to:
     ///
     /// Float => [all_reduce](burn_backend::distributed::DistributedBackend::all_reduce).
@@ -1918,6 +1919,7 @@ impl BaseOperationIr {
             BaseOperationIr::Empty(_repr) => Box::new([].into_iter()),
             BaseOperationIr::Ones(_repr) => Box::new([].into_iter()),
             BaseOperationIr::Zeros(_repr) => Box::new([].into_iter()),
+            #[cfg(feature = "distributed")]
             BaseOperationIr::AllReduce(repr) => Box::new([&repr.tensor].into_iter()),
         }
     }
@@ -1946,6 +1948,7 @@ impl BaseOperationIr {
             BaseOperationIr::Empty(repr) => Box::new([&repr.out].into_iter()),
             BaseOperationIr::Ones(repr) => Box::new([&repr.out].into_iter()),
             BaseOperationIr::Zeros(repr) => Box::new([&repr.out].into_iter()),
+            #[cfg(feature = "distributed")]
             BaseOperationIr::AllReduce(repr) => Box::new([&repr.out].into_iter()),
         }
     }
@@ -2029,6 +2032,7 @@ impl BaseOperationIr {
             BaseOperationIr::Empty(_) => {}
             BaseOperationIr::Zeros(_) => {}
             BaseOperationIr::Ones(_) => {}
+            #[cfg(feature = "distributed")]
             BaseOperationIr::AllReduce(repr) => {
                 repr.tensor.mark_read_only(nodes, &mut output);
             }

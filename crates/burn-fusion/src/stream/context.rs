@@ -1155,6 +1155,7 @@ impl RelativeOps for BaseOperationIr {
             BaseOperationIr::Empty(desc) => BaseOperationIr::Empty(desc.to_relative(converter)),
             BaseOperationIr::Ones(desc) => BaseOperationIr::Ones(desc.to_relative(converter)),
             BaseOperationIr::Zeros(desc) => BaseOperationIr::Zeros(desc.to_relative(converter)),
+            #[cfg(feature = "distributed")]
             BaseOperationIr::AllReduce(desc) => BaseOperationIr::AllReduce(AllReduceOpIr {
                 tensor: desc.tensor.to_relative(converter),
                 out: desc.out.to_relative(converter),
