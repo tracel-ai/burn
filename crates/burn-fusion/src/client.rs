@@ -366,6 +366,6 @@ where
     {
         // Ensure that all operations are resolved before calling sync_collective.
         self.drain();
-        B::sync_collective(&device_cloned)
+        B::sync_collective(&device)
     }
 }
