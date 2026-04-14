@@ -722,7 +722,7 @@ dependencies = [
  "ctor",
  "cubek",
  "num-traits",
- "rand 0.10.0",
+ "rand 0.10.1",
  "serial_test",
 ]
 
