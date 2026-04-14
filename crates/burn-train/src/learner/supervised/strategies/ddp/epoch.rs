@@ -1,6 +1,5 @@
 use burn_core::data::dataloader::Progress;
-use burn_core::module::{AutodiffModule, Module};
-use burn_core::tensor::backend::DeviceOps;
+use burn_core::module::AutodiffModule;
 use burn_optim::GradientsAccumulator;
 use std::sync::{Arc, Mutex};
 
@@ -97,8 +96,6 @@ impl<LC: LearningComponentsTypes> DdpTrainEpoch<LC> {
         let mut iteration = 0;
         let mut accumulator = GradientsAccumulator::new();
         let mut accumulation_current = 0;
-
-        let device = learner.model().devices().first().unwrap().id();
 
         while let Some(item) = iterator.next() {
             for _ in 0..peer_count {

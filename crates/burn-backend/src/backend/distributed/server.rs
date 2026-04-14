@@ -78,8 +78,6 @@ impl<B: DistributedBackend> DistributedSyncServer<B> {
 
     fn try_launch_sync(&mut self) {
         if self.all_reduce_ops_queue.is_empty() {
-            // println!("[{:?}] in server synching", std::thread::current().id());
-
             for d in self.syncing_devices.clone() {
                 let callback = self.callbacks.remove(&d.id()).unwrap();
                 let closure = Box::new(move || B::sync_collective(&d));
@@ -87,8 +85,6 @@ impl<B: DistributedBackend> DistributedSyncServer<B> {
                 self.devices_synced += 1;
             }
             self.syncing_devices.clear();
-
-            // println!("[{:?}] in server synced", std::thread::current().id());
         }
 
         if self.devices_synced == self.num_devices {
@@ -123,12 +119,6 @@ impl<B: DistributedBackend> DistributedSyncServer<B> {
 
                     // Make the tensor reference point to the reduced tensor to perform an in-place all_reduce.
                     // Safety: `B::sync_collective` should be automatically called after the backward pass.
-
-                    // println!(
-                    //     "[{:?}] in server all_reduce launched",
-                    //     std::thread::current().id()
-                    // );
-
                     unsafe {
                         queued_tensors.iter().zip(reduced_tensors).for_each(
                             |(tensor_ref, reduced_tensor)| *tensor_ref.0 = reduced_tensor,

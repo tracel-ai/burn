@@ -1,5 +1,5 @@
 use burn_backend::{
-    DeviceId, DeviceOps, StreamId, TensorMetadata,
+    DeviceId, StreamId, TensorMetadata,
     distributed::{DistributedBackend, ReduceOperation},
     tensor::{Device, FloatTensor},
 };
@@ -52,9 +52,6 @@ where
 
     fn sync_collective(device: &Device<Self>) {
         let client = R::client(device);
-
-        // println!("cube sync_collective: {:?}", device.id());
-
         client.sync_collective();
     }
 }

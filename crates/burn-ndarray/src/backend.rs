@@ -5,6 +5,7 @@ use crate::{
     element::{FloatNdArrayElement, IntNdArrayElement, QuantElement},
 };
 use alloc::string::String;
+#[cfg(feature = "distributed")]
 use burn_backend::distributed::DistributedBackend;
 use burn_backend::quantization::{QuantLevel, QuantMode, QuantScheme, QuantStore, QuantValue};
 use burn_backend::tensor::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};

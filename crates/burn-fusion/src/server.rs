@@ -33,10 +33,6 @@ where
 
     pub fn drain_stream(&mut self, id: StreamId) {
         self.streams.drain(&mut self.handles, id)
-        // let sids: Vec<_> = self.streams.streams.keys().copied().collect();
-        // for sid in sids {
-        //     self.streams.drain(&mut self.handles, sid);
-        // }
     }
 
     pub fn read_float<B>(&mut self, tensor: TensorIr, id: StreamId) -> B::FloatTensorPrimitive

@@ -31,14 +31,9 @@ impl<B: FusionBackend + DistributedBackend> DistributedBackend for Fusion<B> {
             fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let tensor = handles.get_float_tensor::<B>(&self.desc.tensor);
                 let output = unsafe { B::all_reduce(tensor, self.op, self.device_ids.clone()) };
-
-                // println!("fusion submitted all_reduce");
-
                 handles.register_float_tensor::<B>(&self.desc.out.id, output);
             }
         }
-
-        // println!("fusion all_reduce");
 
         let streams = OperationStreams::with_inputs([&tensor]);
 
@@ -62,12 +57,7 @@ impl<B: FusionBackend + DistributedBackend> DistributedBackend for Fusion<B> {
     }
 
     fn sync_collective(device: &Device<Self>) {
-        // println!("fusion sync_collective: {:?}", device.id());
-
         let client = get_client::<B>(device);
-
-        // println!("fusion sync_collective got client: {:?}", device.id());
-
         client.sync_collective::<B>(device.clone());
     }
 }
