@@ -12,7 +12,7 @@ use burn::{
         transformer::{TransformerEncoder, TransformerEncoderConfig, TransformerEncoderInput},
     },
     prelude::*,
-    tensor::{activation::softmax, backend::AutodiffBackend},
+    tensor::activation::softmax,
     train::{ClassificationOutput, InferenceStep, TrainOutput, TrainStep},
 };
 
@@ -27,18 +27,18 @@ pub struct TextClassificationModelConfig {
 
 // Define the model structure
 #[derive(Module, Debug)]
-pub struct TextClassificationModel<B: Backend> {
-    transformer: TransformerEncoder<B>,
-    embedding_token: Embedding<B>,
-    embedding_pos: Embedding<B>,
-    output: Linear<B>,
+pub struct TextClassificationModel {
+    transformer: TransformerEncoder,
+    embedding_token: Embedding,
+    embedding_pos: Embedding,
+    output: Linear,
     n_classes: usize,
 }
 
 // Define functions for model initialization
 impl TextClassificationModelConfig {
     /// Initializes a model with default weights
-    pub fn init<B: Backend>(&self, device: &B::Device) -> TextClassificationModel<B> {
+    pub fn init(&self, device: &Device) -> TextClassificationModel {
         let output = LinearConfig::new(self.transformer.d_model, self.n_classes).init(device);
         let transformer = self.transformer.init(device);
         let embedding_token =
@@ -63,9 +63,9 @@ impl TextClassificationModelConfig {
 }
 
 /// Define model behavior
-impl<B: Backend> TextClassificationModel<B> {
+impl TextClassificationModel {
     // Defines forward pass for training
-    pub fn forward(&self, item: TextClassificationTrainingBatch<B>) -> ClassificationOutput<B> {
+    pub fn forward(&self, item: TextClassificationTrainingBatch) -> ClassificationOutput {
         // Get batch and sequence length, and the device
         let [batch_size, seq_length] = item.tokens.dims();
         let device = &self.embedding_token.devices()[0];
@@ -106,7 +106,7 @@ impl<B: Backend> TextClassificationModel<B> {
     }
 
     /// Defines forward pass for inference
-    pub fn infer(&self, item: TextClassificationInferenceBatch<B>) -> Tensor<B, 2> {
+    pub fn infer(&self, item: TextClassificationInferenceBatch) -> Tensor<2> {
         // Get batch and sequence length, and the device
         let [batch_size, seq_length] = item.tokens.dims();
         let device = &self.embedding_token.devices()[0];
@@ -137,14 +137,11 @@ impl<B: Backend> TextClassificationModel<B> {
 }
 
 /// Define training step
-impl<B: AutodiffBackend> TrainStep for TextClassificationModel<B> {
-    type Input = TextClassificationTrainingBatch<B>;
-    type Output = ClassificationOutput<B>;
+impl TrainStep for TextClassificationModel {
+    type Input = TextClassificationTrainingBatch;
+    type Output = ClassificationOutput;
 
-    fn step(
-        &self,
-        item: TextClassificationTrainingBatch<B>,
-    ) -> TrainOutput<ClassificationOutput<B>> {
+    fn step(&self, item: TextClassificationTrainingBatch) -> TrainOutput<ClassificationOutput> {
         // Run forward pass, calculate gradients and return them along with the output
         let item = self.forward(item);
         let grads = item.loss.backward();
@@ -154,11 +151,11 @@ impl<B: AutodiffBackend> TrainStep for TextClassificationModel<B> {
 }
 
 /// Define validation step
-impl<B: Backend> InferenceStep for TextClassificationModel<B> {
-    type Input = TextClassificationTrainingBatch<B>;
-    type Output = ClassificationOutput<B>;
+impl InferenceStep for TextClassificationModel {
+    type Input = TextClassificationTrainingBatch;
+    type Output = ClassificationOutput;
 
-    fn step(&self, item: TextClassificationTrainingBatch<B>) -> ClassificationOutput<B> {
+    fn step(&self, item: TextClassificationTrainingBatch) -> ClassificationOutput {
         // Run forward pass and return the output
         self.forward(item)
     }
