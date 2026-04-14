@@ -1,9 +1,7 @@
 use burn_core::{self as burn, Tensor};
 
 use burn_core::module::ParamId;
-use burn_core::prelude::DeviceOps;
 use burn_core::tensor::Device;
-use burn_core::tensor::DeviceId;
 
 use super::GradientsParams;
 use crate::LearningRate;
@@ -15,7 +13,7 @@ use burn::record::Record;
 /// Exposes multiple gradients for each parameter.
 pub struct MultiGradientsParams {
     /// Each [GradientsParams] has its associated [DeviceId].
-    pub grads: Vec<(GradientsParams, DeviceId)>,
+    pub grads: Vec<(GradientsParams, Device)>,
 }
 
 impl MultiGradientsParams {
@@ -46,10 +44,8 @@ impl MultiGradientsParams {
             let selected_device_index = (id_val + i) % self.grads.len();
 
             if let Some(acc) = self.grads[selected_device_index].0.remove::<D>(id) {
-                let device_id = self.grads[selected_device_index].1;
-                // let device = <B::Device as DeviceOps>::from_id(device_id);
-                todo!();
-                // return Some((acc.to_device(&device), device, selected_device_index));
+                let device = &self.grads[selected_device_index].1;
+                return Some((acc.to_device(device), device.clone(), selected_device_index));
             }
         }
 

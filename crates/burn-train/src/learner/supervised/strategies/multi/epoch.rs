@@ -10,7 +10,6 @@ use burn_core::tensor::Device;
 use burn_core::tensor::DeviceId;
 use burn_optim::GradientsAccumulator;
 use burn_optim::MultiGradientsParams;
-use std::collections::HashMap;
 
 /// A training epoch.
 #[derive(new)]
@@ -156,12 +155,9 @@ impl<LC: LearningComponentsTypes> MultiDeviceTrainEpoch<LC> {
             .map(|d| d.iter())
             .collect::<Vec<_>>();
         let mut iteration = 0;
-        let mut accumulators =
-            HashMap::<DeviceId, GradientsAccumulator<<LC as LearningComponentsTypes>::Model>>::new(
-            );
-        for device in devices.iter() {
-            accumulators.insert(device.id(), GradientsAccumulator::new());
-        }
+        let mut accumulators: Vec<GradientsAccumulator<_>> = (0..devices.len())
+            .map(|_| GradientsAccumulator::new())
+            .collect();
         let mut accumulation_current = 0;
 
         let accumulation = self.grad_accumulation.unwrap_or(1);
@@ -177,7 +173,7 @@ impl<LC: LearningComponentsTypes> MultiDeviceTrainEpoch<LC> {
 
             let mut progress_items = Vec::with_capacity(items.len());
             for item in items.into_iter() {
-                let accumulator = accumulators.get_mut(&item.device).unwrap();
+                let accumulator = &mut accumulators[item.device_id];
                 accumulator.accumulate(&learner.model(), item.output.grads);
                 progress_items.push(item.output.item);
             }
@@ -186,9 +182,9 @@ impl<LC: LearningComponentsTypes> MultiDeviceTrainEpoch<LC> {
 
             if accumulation <= accumulation_current {
                 let mut grads = MultiGradientsParams::default();
-                for (device_id, accumulator) in accumulators.iter_mut() {
+                for (device_id, accumulator) in accumulators.iter_mut().enumerate() {
                     let grad = accumulator.grads();
-                    grads.grads.push((grad, *device_id));
+                    grads.grads.push((grad, devices[device_id].clone()));
                 }
                 learner.optimizer_step_multi(grads);
                 accumulation_current = 0;

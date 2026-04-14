@@ -45,21 +45,17 @@ pub struct OffPolicyConfig {
 }
 
 /// Off-policy reinforcement learning strategy with multi-env experience collection and double-batching.
-pub struct OffPolicyStrategy<RLC: RLComponentsTypes> {
+pub struct OffPolicyStrategy {
     config: OffPolicyConfig,
-    _components: PhantomData<RLC>,
 }
-impl<RLC: RLComponentsTypes> OffPolicyStrategy<RLC> {
+impl OffPolicyStrategy {
     /// Create a new off-policy base strategy.
     pub fn new(config: OffPolicyConfig) -> Self {
-        Self {
-            config,
-            _components: PhantomData,
-        }
+        Self { config }
     }
 }
 
-impl<RLC> RLStrategy<RLC> for OffPolicyStrategy<RLC>
+impl<RLC> RLStrategy<RLC> for OffPolicyStrategy
 where
     RLC: RLComponentsTypes,
     RLC::PolicyObs: SliceAccess,
@@ -103,7 +99,7 @@ where
         );
 
         // TODO: device should probably be specified somewhere instead of using the default
-        let device: Device = Default::default();
+        let device = Device::default().autodiff(); // was already a requirement via `B: AutodiffBackend`
         let mut transition_buffer = TransitionBuffer::<RLC::PolicyObs, RLC::PolicyAction>::new(
             self.config.replay_buffer_size,
             &device,

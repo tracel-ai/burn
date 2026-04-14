@@ -46,7 +46,7 @@ use enumset::EnumSetType;
 /// // Tensors created on this device will track gradients
 /// let x = Tensor::<1>::from_floats([1.0, 2.0, 3.0], &device);
 /// ```
-#[derive(Clone, Default, PartialEq)]
+#[derive(Clone, Default)]
 pub struct Device {
     pub(crate) dispatch: DispatchDevice,
 }
@@ -58,6 +58,28 @@ impl core::fmt::Debug for Device {
         write!(f, "Device<{:?}>", self.dispatch)
     }
 }
+
+// Manually implement both `eq` and `ne` to add documentation on equality.
+impl PartialEq for Device {
+    /// Compares devices based on hardware identity.
+    ///
+    /// Returns `true` if both devices represent the same compute resource.
+    /// Note that this comparison ignores autodiff and checkpointing settings.
+    /// To check if two devices have identical capabilities, check [`Device::is_autodiff`].
+    fn eq(&self, other: &Self) -> bool {
+        self.dispatch == other.dispatch
+    }
+
+    /// Compares devices based on hardware identity.
+    ///
+    /// Returns `false` if both devices represent the same compute resource,
+    /// even if one has autodiff enabled and the other does not.
+    fn ne(&self, other: &Self) -> bool {
+        !self.eq(other)
+    }
+}
+
+impl Eq for Device {}
 
 impl<D: Into<DispatchDevice>> From<D> for Device {
     fn from(device: D) -> Self {
@@ -269,24 +291,6 @@ impl Device {
         int_dtype: impl Into<IntDType>,
     ) -> Result<(), DeviceError> {
         burn_backend::set_default_dtypes::<Dispatch>(&self.dispatch, float_dtype, int_dtype)
-    }
-
-    /// Returns a unique identifier for the underlying device.
-    ///
-    /// The [`DeviceId`] is an encoded representation that combines the backend type
-    /// (e.g., CUDA, Vulkan) and the specific device index on the system.
-    ///
-    /// Note that if autodiff is enabled, this will return the ID of the inner device,
-    /// meaning an autodiff-enabled device and its [inner](Device::inner) counterpart will share the same ID.
-    ///
-    /// # Example
-    ///
-    /// ```rust,ignore
-    /// let device = Device::default();
-    /// let id = device.id();
-    /// ```
-    pub fn id(&self) -> DeviceId {
-        burn_backend::Device::to_id(&self.dispatch)
     }
 
     /// Retrieves all available [`Adapter`]s that match the given [`Backends`].

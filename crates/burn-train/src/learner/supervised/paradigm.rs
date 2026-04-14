@@ -25,6 +25,7 @@ use crate::{Learner, SupervisedLearningStrategy};
 use burn_core::data::dataloader::DataLoader;
 use burn_core::module::{AutodiffModule, Module};
 use burn_core::record::FileRecorder;
+use burn_core::tensor::Device;
 use burn_optim::Optimizer;
 use burn_optim::lr_scheduler::LrScheduler;
 use std::collections::BTreeSet;
@@ -57,6 +58,7 @@ where
     checkpoint: Option<usize>,
     directory: PathBuf,
     grad_accumulation: Option<usize>,
+    grad_checkpointing: bool,
     renderer: Option<Box<dyn MetricsRenderer + 'static>>,
     metrics: MetricsTraining<TrainingModelOutput<LC>, InferenceModelOutput<LC>>,
     event_store: LogEventStore,
@@ -98,6 +100,7 @@ where
             checkpointers: None,
             directory,
             grad_accumulation: None,
+            grad_checkpointing: false,
             metrics: MetricsTraining::default(),
             event_store: LogEventStore::default(),
             renderer: None,
@@ -212,6 +215,18 @@ impl<LC: LearningComponentsTypes> SupervisedTraining<LC> {
     /// amount.
     pub fn grads_accumulation(mut self, accumulation: usize) -> Self {
         self.grad_accumulation = Some(accumulation);
+        self
+    }
+
+    /// Enables autodiff checkpointing.
+    ///
+    /// # Notes
+    /// Gradient checkpointing recomputes activations during backpropagation for operations
+    /// marked as memory-bound, while compute-bound operations still cache their
+    /// output. This reduces peak memory usage at the cost of additional computation
+    /// for memory-bound ops.
+    pub fn gradient_checkpointing(mut self) -> Self {
+        self.grad_checkpointing = true;
         self
     }
 
@@ -371,10 +386,12 @@ where
 
         // Default to single device based on model
         let training_strategy = self.training_strategy.unwrap_or(TrainingStrategy::Default(
-            ExecutionStrategy::SingleDevice(learner.model.devices()[0].clone()),
+            ExecutionStrategy::SingleDevice(autodiff_device(
+                learner.model.devices()[0].clone(),
+                self.grad_checkpointing,
+            )),
         ));
 
-        // TODO: validate that all devices are autodiff?
         match training_strategy {
             TrainingStrategy::Custom(learning_paradigm) => learning_paradigm.train(
                 learner,
@@ -384,7 +401,10 @@ where
             ),
             TrainingStrategy::Default(strategy) => match strategy {
                 ExecutionStrategy::SingleDevice(device) => {
-                    let single_device = SingleDeviceTrainingStrategy::new(device);
+                    let single_device = SingleDeviceTrainingStrategy::new(autodiff_device(
+                        device,
+                        self.grad_checkpointing,
+                    ));
                     single_device.train(
                         learner,
                         self.dataloader_train,
@@ -395,9 +415,15 @@ where
                 ExecutionStrategy::MultiDevice(devices, multi_device_optim) => {
                     let strategy: Box<dyn SupervisedLearningStrategy<LC>> = match devices.len() == 1
                     {
-                        true => Box::new(SingleDeviceTrainingStrategy::new(devices[0].clone())),
+                        true => Box::new(SingleDeviceTrainingStrategy::new(autodiff_device(
+                            devices[0].clone(),
+                            self.grad_checkpointing,
+                        ))),
                         false => Box::new(MultiDeviceLearningStrategy::new(
-                            devices,
+                            devices
+                                .into_iter()
+                                .map(|d| autodiff_device(d, self.grad_checkpointing))
+                                .collect(),
                             multi_device_optim,
                         )),
                     };
@@ -412,7 +438,13 @@ where
                 ExecutionStrategy::DistributedDataParallel { devices, runtime } => {
                     use crate::ddp::DdpTrainingStrategy;
 
-                    let ddp = DdpTrainingStrategy::new(devices, runtime);
+                    let ddp = DdpTrainingStrategy::new(
+                        devices
+                            .into_iter()
+                            .map(|d| autodiff_device(d, self.grad_checkpointing))
+                            .collect(),
+                        runtime,
+                    );
                     ddp.train(
                         learner,
                         self.dataloader_train,
@@ -423,6 +455,19 @@ where
             },
         }
     }
+}
+
+// Validate the autodiff device property and enable grad checkpointing.
+fn autodiff_device(mut device: Device, grad_checkpointing: bool) -> Device {
+    if !device.is_autodiff() {
+        device = device.autodiff();
+    }
+
+    if grad_checkpointing {
+        device = device.gradient_checkpointing();
+    }
+
+    device
 }
 
 /// Trait to fake variadic generics.

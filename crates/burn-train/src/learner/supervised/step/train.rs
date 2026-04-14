@@ -4,7 +4,6 @@ use burn_core::data::dataloader::DataLoaderIterator;
 use burn_core::data::dataloader::Progress;
 use burn_core::module::Module;
 use burn_core::tensor::Device;
-use burn_core::tensor::DeviceId;
 use std::sync::mpsc::{Receiver, Sender};
 use std::thread::spawn;
 
@@ -24,6 +23,7 @@ struct Worker<LC: LearningComponentsTypes> {
     // #[allow(clippy::type_complexity)]
     sender_input: Sender<Message<TrainingModel<LC>, TrainingModelInput<LC>>>,
     device: Device,
+    device_id: usize,
 }
 
 impl<LC: LearningComponentsTypes> Worker<LC> {
@@ -43,6 +43,7 @@ impl<LC: LearningComponentsTypes> Worker<LC> {
         receiver_input: Receiver<Message<TrainingModel<LC>, TrainingModelInput<LC>>>,
     ) {
         let device = self.device.clone();
+        let device_id = self.device_id;
 
         spawn(move || {
             loop {
@@ -50,10 +51,7 @@ impl<LC: LearningComponentsTypes> Worker<LC> {
                     Ok(item) => {
                         let model = item.model.fork(&device);
                         let output = model.step(item.item);
-                        let item = MultiTrainOutput {
-                            output,
-                            device: device.id(),
-                        };
+                        let item = MultiTrainOutput { output, device_id };
 
                         sender_output.send(item).unwrap();
                     }
@@ -71,8 +69,8 @@ impl<LC: LearningComponentsTypes> Worker<LC> {
 pub struct MultiTrainOutput<TO> {
     /// The training output.
     pub output: TrainOutput<TO>,
-    /// The device on which the computing happened.
-    pub device: DeviceId,
+    /// The worker/device on which the computing happened.
+    pub(crate) device_id: usize,
 }
 
 impl<LC: LearningComponentsTypes> MultiDevicesTrainStep<LC> {
@@ -89,11 +87,13 @@ impl<LC: LearningComponentsTypes> MultiDevicesTrainStep<LC> {
         let (sender_output, receiver_output) = std::sync::mpsc::channel();
         let workers = devices
             .iter()
-            .map(|device| {
+            .enumerate()
+            .map(|(device_id, device)| {
                 let (sender_input, receiver_input) = std::sync::mpsc::channel();
                 let worker = Worker {
                     sender_input,
                     device: device.clone(),
+                    device_id,
                 };
 
                 worker.start(sender_output.clone(), receiver_input);

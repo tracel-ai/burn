@@ -33,7 +33,6 @@ pub fn launch_multi() {
     ))
 }
 
-// TODO: requires backend extension
 #[cfg(all(feature = "cuda", feature = "ddp"))]
 pub fn launch_multi<B: AutodiffBackend + DistributedBackend>() {
     let devices = Device::enumerate(burn::tensor::DeviceType::Cuda);
