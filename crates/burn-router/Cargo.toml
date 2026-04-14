@@ -26,6 +26,7 @@ tracing = [
     "burn-ir/tracing",
     "burn-std/tracing",
 ]
+distributed = ["burn-ir/distributed"]
 
 [dependencies]
 burn-ir = { path = "../burn-ir", version = "=0.21.0-pre.3", default-features = false }

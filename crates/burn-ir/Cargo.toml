@@ -21,12 +21,13 @@ doc = ["default"]
 tracing = [
     "burn-backend/tracing",
 ]
+distributed = ["burn-backend/distributed"]
 
 [dependencies]
 serde = { workspace = true }
 hashbrown = { workspace = true } # no_std compatible
 
-burn-backend = { path = "../burn-backend", version = "=0.21.0-pre.3", default-features = false, features = ["distributed"]}
+burn-backend = { path = "../burn-backend", version = "=0.21.0-pre.3", default-features = false }
 
 [package.metadata.docs.rs]
 features = ["doc"]

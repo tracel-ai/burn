@@ -18,6 +18,7 @@ workspace = true
 [features]
 default = [
     "std",
+    "distributed",
     "burn-core/default",
     "burn-train?/default",
     "burn-collective?/default",
