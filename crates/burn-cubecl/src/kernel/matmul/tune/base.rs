@@ -37,7 +37,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
     let output = out.unwrap_or_else(|| init_matmul_output(&lhs, &rhs, out_dtype));
 
     let client = lhs.client.clone();
-    let num_cpu_cores = client.properties().hardware.num_cpu_cores.clone();
+    let num_cpu_cores = client.properties().hardware.num_cpu_cores;
 
     static TUNER: LocalTuner<MatmulAutotuneKey, CubeTuneId> = local_tuner!();
 
