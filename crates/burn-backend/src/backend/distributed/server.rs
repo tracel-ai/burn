@@ -121,7 +121,7 @@ impl<B: DistributedBackend> DistributedSyncServer<B> {
                         })
                         .collect();
 
-                    // Make the tensor reference point to the reduced tensor.
+                    // Make the tensor reference point to the reduced tensor to perform an in-place all_reduce.
                     // Safety: `B::sync_collective` should be automatically called after the backward pass.
 
                     // println!(

@@ -53,12 +53,12 @@ Most backends support all operating systems, so we don't mention them in the tab
 
 **CPU Backends:**
 
-|        | Cpu (CubeCL) | NdArray | LibTorch |
-| ------ | ------------ | ------- | -------- |
-| X86    | ☑️           | ☑️      | ☑️       |
-| Arm    | ☑️           | ☑️      | ☑️       |
-| Wasm   | -            | ☑️      | -        |
-| no-std | -            | ☑️      | -        |
+|        | Cpu (CubeCL) | Flex | NdArray | LibTorch |
+| ------ | ------------ | ---- | ------- | -------- |
+| X86    | ☑️           | ☑️   | ☑️      | ☑️       |
+| Arm    | ☑️           | ☑️   | ☑️      | ☑️       |
+| Wasm   | -            | ☑️   | ☑️      | -        |
+| no-std | -            | ☑️   | ☑️      | -        |
 
 <br />
 

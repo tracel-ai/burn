@@ -21,8 +21,6 @@ where
         op: ReduceOperation,
         device_ids: Vec<DeviceId>,
     ) -> FloatTensor<Self> {
-        // TODO: Test if `StreamId::executes` is always needed.
-        // Output tensor must be on the same stream as the original tensor.
         let device = &tensor.device.clone();
         let out_tensor = if tensor.handle.can_mut() && tensor.is_contiguous() {
             tensor
@@ -42,9 +40,6 @@ where
         };
 
         let client = R::client(device);
-
-        // println!("cube all_reduce: {:?}", device.id());
-
         client.all_reduce(
             out_tensor.handle.clone(),
             out_tensor.handle.clone(),

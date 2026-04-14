@@ -2,9 +2,9 @@ extern crate alloc;
 
 #[test]
 fn test_burnpack_no_std() {
-    use burn_ndarray::NdArray;
+    use burn_flex::Flex;
     use burn_no_std_tests::burnpack;
-    type Backend = NdArray<f32>;
+    type Backend = Flex;
     let device = Default::default();
 
     // Run all Burnpack tests
