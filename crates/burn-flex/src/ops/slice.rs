@@ -608,27 +608,6 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_slice_assign_broadcast_scalar_matches_public_api() {
-        // End-to-end sanity check via the high-level burn Tensor API.
-        use crate::Flex;
-        use burn_tensor::Tensor;
-
-        let data: Vec<f32> = (0..25).map(|i| i as f32).collect();
-        let t: Tensor<Flex, 2> =
-            Tensor::from_data(TensorData::new(data.clone(), [5, 5]), &Default::default());
-        let filled = t.slice_fill([1..4, 1..4], 42.0);
-        let out: Vec<f32> = filled.into_data().into_vec().unwrap();
-
-        let mut expected = data.clone();
-        for r in 1..4 {
-            for c in 1..4 {
-                expected[r * 5 + c] = 42.0;
-            }
-        }
-        assert_eq!(out, expected);
-    }
-
     /// Broadcast-scalar fast path on a non-f32 dtype.
     #[test]
     fn test_slice_assign_broadcast_scalar_i64() {

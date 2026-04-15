@@ -949,11 +949,8 @@ dependencies = [
  "aligned-vec",
  "burn-backend",
  "burn-ir",
- "burn-ndarray",
  "burn-std",
- "burn-tensor",
  "bytemuck",
- "divan",
  "gemm 0.19.0",
  "half",
  "macerator",
@@ -2617,9 +2614,7 @@ version = "0.21.0-pre.3"
 dependencies = [
  "burn",
  "burn-cubecl",
- "bytemuck",
  "cubecl",
- "derive-new",
  "log",
  "serde",
 ]
