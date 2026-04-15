@@ -63,7 +63,6 @@ distributed = ["std",
     "burn-autodiff/distributed",
     "burn-cuda/distributed",
     "burn-cuda/fusion",
-    "burn-ndarray/distributed",
     "burn-router/distributed"
 ]
 
