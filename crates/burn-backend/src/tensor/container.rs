@@ -39,10 +39,7 @@ where
     pub fn get<T: Clone + Send + 'static>(&self, id: &ID) -> Option<T> {
         let grad = self.tensors.get(id)?;
 
-        let tensor = grad
-            .downcast_ref::<T>()
-            // .map(|primitive| Tensor::<B, D>::from_primitive(primitive.clone()))
-            .unwrap();
+        let tensor = grad.downcast_ref::<T>().unwrap();
 
         Some(tensor.clone())
     }
@@ -70,7 +67,6 @@ where
         self.tensors
             .remove(id)
             .map(|item| *item.downcast::<T>().unwrap())
-        // .map(|primitive| Tensor::from_primitive(*primitive))
     }
 
     /// The number of tensors registered.

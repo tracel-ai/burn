@@ -16,7 +16,6 @@ use enumset::EnumSetType;
 // - tensor.to_device() between autodiff / non-autodiff devices?
 // - DeviceType in prelude?
 // - backend extensions
-// - burn-flex + burn-store
 
 /// A high-level device handle for tensor operations.
 ///

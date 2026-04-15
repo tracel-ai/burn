@@ -208,34 +208,23 @@ mod tests {
             .num_workers(1)
             .build(FakeDataset::<String>::new(11));
 
-        #[cfg(all(
-            test,
-            not(feature = "tch"),
-            not(feature = "wgpu"),
-            not(feature = "cuda")
-        ))]
+        #[cfg(all(test, not(feature = "tch"), not(feature = "cuda")))]
         // Only one device exists...
         let (device1, device2) = (
-            Device::new(burn_ndarray::NdArrayDevice::Cpu),
-            Device::new(burn_ndarray::NdArrayDevice::Cpu),
+            Device::new(burn_tensor::NdArrayDevice::Cpu),
+            Device::new(burn_tensor::NdArrayDevice::Cpu),
         );
 
         #[cfg(all(test, feature = "tch"))]
         let (device1, device2) = (
-            Device::new(burn_tch::LibTorchDevice::Cuda(0)),
-            Device::new(burn_tch::LibTorchDevice::Cuda(1)),
-        );
-
-        #[cfg(all(test, feature = "wgpu"))]
-        let (device1, device2) = (
-            Device::new(burn_wgpu::WgpuDevice::DiscreteGpu(0)),
-            Device::new(burn_wgpu::WgpuDevice::DiscreteGpu(1)),
+            Device::new(burn_tensor::LibTorchDevice::Cuda(0)),
+            Device::new(burn_tensor::LibTorchDevice::Cuda(1)),
         );
 
         #[cfg(all(test, feature = "cuda"))]
         let (device1, device2) = (
-            Device::new(burn_cuda::CudaDevice::new(0)),
-            Device::new(burn_cuda::CudaDevice::new(1)),
+            Device::new(burn_tensor::CudaDevice::new(0)),
+            Device::new(burn_tensor::CudaDevice::new(1)),
         );
 
         assert_eq!(dataloader.num_items(), 11);
@@ -248,8 +237,8 @@ mod tests {
         let (mut iterator_1, mut iterator_2) = (dataloader_1.iter(), dataloader_2.iter());
 
         for _ in 0..5 {
-            assert_eq!(iterator_1.next(), Some(device1));
-            assert_eq!(iterator_2.next(), Some(device2));
+            assert_eq!(iterator_1.next().as_ref(), Some(&device1));
+            assert_eq!(iterator_2.next().as_ref(), Some(&device2));
         }
 
         assert_eq!(iterator_1.next(), None);

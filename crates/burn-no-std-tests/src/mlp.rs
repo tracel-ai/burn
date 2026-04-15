@@ -6,7 +6,7 @@ use burn::{
     config::Config,
     module::Module,
     nn,
-    tensor::{Tensor, backend::Backend},
+    tensor::{Device, Tensor},
 };
 
 /// Configuration to create a [Multilayer Perceptron](Mlp) layer.
@@ -25,15 +25,15 @@ pub struct MlpConfig {
 
 /// Multilayer Perceptron module.
 #[derive(Module, Debug)]
-pub struct Mlp<B: Backend> {
-    linears: Vec<nn::Linear<B>>,
+pub struct Mlp {
+    linears: Vec<nn::Linear>,
     dropout: nn::Dropout,
     activation: nn::Relu,
 }
 
-impl<B: Backend> Mlp<B> {
+impl Mlp {
     /// Create the module from the given configuration.
-    pub fn new(config: &MlpConfig, device: &B::Device) -> Self {
+    pub fn new(config: &MlpConfig, device: &Device) -> Self {
         let mut linears = Vec::with_capacity(config.num_layers);
 
         for _ in 0..config.num_layers {
@@ -53,7 +53,7 @@ impl<B: Backend> Mlp<B> {
     ///
     /// - input: `[batch_size, d_model]`
     /// - output: `[batch_size, d_model]`
-    pub fn forward(&self, input: Tensor<B, 2>) -> Tensor<B, 2> {
+    pub fn forward(&self, input: Tensor<2>) -> Tensor<2> {
         let mut x = input;
 
         for linear in self.linears.iter() {

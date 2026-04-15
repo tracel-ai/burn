@@ -65,37 +65,26 @@ mod tests {
             None,
         ));
 
-        #[cfg(all(
-            test,
-            not(feature = "tch"),
-            not(feature = "wgpu"),
-            not(feature = "cuda")
-        ))]
+        #[cfg(all(test, not(feature = "tch"), not(feature = "cuda")))]
         // Only one device exists...
         let (device1, device2) = (
-            Device::new(burn_ndarray::NdArrayDevice::Cpu),
-            Device::new(burn_ndarray::NdArrayDevice::Cpu),
+            Device::new(burn_tensor::NdArrayDevice::Cpu),
+            Device::new(burn_tensor::NdArrayDevice::Cpu),
         );
 
         #[cfg(all(test, feature = "tch"))]
         let (device1, device2) = (
-            Device::new(burn_tch::LibTorchDevice::Cuda(0)),
-            Device::new(burn_tch::LibTorchDevice::Cuda(1)),
-        );
-
-        #[cfg(all(test, feature = "wgpu"))]
-        let (device1, device2) = (
-            Device::new(burn_wgpu::WgpuDevice::DiscreteGpu(0)),
-            Device::new(burn_wgpu::WgpuDevice::DiscreteGpu(1)),
+            Device::new(burn_tensor::LibTorchDevice::Cuda(0)),
+            Device::new(burn_tensor::LibTorchDevice::Cuda(1)),
         );
 
         #[cfg(all(test, feature = "cuda"))]
         let (device1, device2) = (
-            Device::new(burn_cuda::CudaDevice::new(0)),
-            Device::new(burn_cuda::CudaDevice::new(1)),
+            Device::new(burn_tensor::CudaDevice::new(0)),
+            Device::new(burn_tensor::CudaDevice::new(1)),
         );
 
-        let dataloaders = split_dataloader(dataloader.clone(), &[device1, device2]);
+        let dataloaders = split_dataloader(dataloader.clone(), &[device1.clone(), device2.clone()]);
 
         assert_eq!(dataloaders.len(), 2);
 
@@ -116,14 +105,14 @@ mod tests {
         }
 
         for (items, device) in dataloader_1.iter() {
-            assert_eq!(device, device1);
+            assert_eq!(&device, &device1);
             for item in items {
                 items_dataloader_split.insert(item);
             }
         }
 
         for (items, device) in dataloader_2.iter() {
-            assert_eq!(device, device2);
+            assert_eq!(&device, &device2);
             for item in items {
                 items_dataloader_split.insert(item);
             }

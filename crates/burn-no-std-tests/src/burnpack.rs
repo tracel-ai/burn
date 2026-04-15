@@ -3,21 +3,21 @@
 use burn::{
     module::Module,
     nn,
-    tensor::{Tensor, backend::Backend},
+    tensor::{Device, Tensor},
 };
 
 use burn_store::{BurnpackStore, ModuleSnapshot, PathFilter};
 
 /// Simple model for testing Burnpack storage
 #[derive(Module, Debug)]
-pub struct TestModel<B: Backend> {
-    linear1: nn::Linear<B>,
-    linear2: nn::Linear<B>,
-    batch_norm: nn::BatchNorm<B>,
+pub struct TestModel {
+    linear1: nn::Linear,
+    linear2: nn::Linear,
+    batch_norm: nn::BatchNorm,
 }
 
-impl<B: Backend> TestModel<B> {
-    pub fn new(device: &B::Device) -> Self {
+impl TestModel {
+    pub fn new(device: &Device) -> Self {
         Self {
             linear1: nn::LinearConfig::new(10, 20).init(device),
             linear2: nn::LinearConfig::new(20, 10).init(device),
@@ -25,20 +25,20 @@ impl<B: Backend> TestModel<B> {
         }
     }
 
-    pub fn forward(&self, x: Tensor<B, 2>) -> Tensor<B, 2> {
+    pub fn forward(&self, x: Tensor<2>) -> Tensor<2> {
         let x = self.linear1.forward(x);
         let x = self.linear2.forward(x);
         // Apply batch norm (expand to 3D, apply, then squeeze back)
-        let x: Tensor<B, 3> = x.unsqueeze_dim(2);
+        let x: Tensor<3> = x.unsqueeze_dim(2);
         let x = self.batch_norm.forward(x);
         x.squeeze_dim(2)
     }
 }
 
 /// Test basic Burnpack save and load in no-std
-pub fn test_burnpack_basic<B: Backend>(device: &B::Device) {
+pub fn test_burnpack_basic(device: &Device) {
     // Create a model
-    let model = TestModel::<B>::new(device);
+    let model = TestModel::new(device);
 
     // Save to bytes (no file I/O in no-std)
     let mut save_store = BurnpackStore::from_bytes(None);
@@ -51,7 +51,7 @@ pub fn test_burnpack_basic<B: Backend>(device: &B::Device) {
 
     // Load from bytes
     let mut load_store = BurnpackStore::from_bytes(Some(bytes));
-    let mut loaded_model = TestModel::<B>::new(device);
+    let mut loaded_model = TestModel::new(device);
     let result = loaded_model
         .load_from(&mut load_store)
         .expect("Failed to load model");
@@ -61,13 +61,13 @@ pub fn test_burnpack_basic<B: Backend>(device: &B::Device) {
     assert!(!result.applied.is_empty(), "Should have loaded tensors");
 
     // Test that the model still works
-    let input = Tensor::<B, 2>::ones([2, 10], device);
+    let input = Tensor::<2>::ones([2, 10], device);
     let _output = loaded_model.forward(input);
 }
 
 /// Test Burnpack with filtering in no-std
-pub fn test_burnpack_filtering<B: Backend>(device: &B::Device) {
-    let model = TestModel::<B>::new(device);
+pub fn test_burnpack_filtering(device: &Device) {
+    let model = TestModel::new(device);
 
     // Save only linear1 weights
     let filter = PathFilter::new()
@@ -82,7 +82,7 @@ pub fn test_burnpack_filtering<B: Backend>(device: &B::Device) {
 
     // Load with partial loading allowed
     let mut load_store = BurnpackStore::from_bytes(Some(bytes)).allow_partial(true);
-    let mut partial_model = TestModel::<B>::new(device);
+    let mut partial_model = TestModel::new(device);
     let result = partial_model
         .load_from(&mut load_store)
         .expect("Failed to load partial model");
@@ -93,8 +93,8 @@ pub fn test_burnpack_filtering<B: Backend>(device: &B::Device) {
 }
 
 /// Test Burnpack with metadata in no-std
-pub fn test_burnpack_metadata<B: Backend>(device: &B::Device) {
-    let model = TestModel::<B>::new(device);
+pub fn test_burnpack_metadata(device: &Device) {
+    let model = TestModel::new(device);
 
     // Save with metadata
     let mut save_store = BurnpackStore::from_bytes(None)
@@ -109,7 +109,7 @@ pub fn test_burnpack_metadata<B: Backend>(device: &B::Device) {
 
     // Load and verify it works
     let mut load_store = BurnpackStore::from_bytes(Some(bytes));
-    let mut loaded_model = TestModel::<B>::new(device);
+    let mut loaded_model = TestModel::new(device);
     let result = loaded_model
         .load_from(&mut load_store)
         .expect("Failed to load model with metadata");
@@ -122,8 +122,8 @@ pub fn test_burnpack_metadata<B: Backend>(device: &B::Device) {
 // Note: Regex filtering test is omitted as with_regex requires std feature
 
 /// Test Burnpack with match_all in no-std
-pub fn test_burnpack_match_all<B: Backend>(device: &B::Device) {
-    let model = TestModel::<B>::new(device);
+pub fn test_burnpack_match_all(device: &Device) {
+    let model = TestModel::new(device);
 
     // Save with match_all (should save everything)
     let mut save_store = BurnpackStore::from_bytes(None).match_all();
@@ -135,7 +135,7 @@ pub fn test_burnpack_match_all<B: Backend>(device: &B::Device) {
 
     // Load everything
     let mut load_store = BurnpackStore::from_bytes(Some(bytes));
-    let mut loaded_model = TestModel::<B>::new(device);
+    let mut loaded_model = TestModel::new(device);
     let result = loaded_model
         .load_from(&mut load_store)
         .expect("Failed to load model");
@@ -148,11 +148,11 @@ pub fn test_burnpack_match_all<B: Backend>(device: &B::Device) {
 }
 
 /// Run all Burnpack no-std tests
-pub fn run_all_tests<B: Backend>(device: &B::Device) {
-    test_burnpack_basic::<B>(device);
-    test_burnpack_filtering::<B>(device);
-    test_burnpack_metadata::<B>(device);
+pub fn run_all_tests(device: &Device) {
+    test_burnpack_basic(device);
+    test_burnpack_filtering(device);
+    test_burnpack_metadata(device);
     // test_burnpack_remapping requires KeyRemapper which needs std
     // test_burnpack_regex_filter requires with_regex which needs std
-    test_burnpack_match_all::<B>(device);
+    test_burnpack_match_all(device);
 }
