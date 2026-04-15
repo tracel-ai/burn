@@ -7188,8 +7188,6 @@ name = "pytorch-tests"
 version = "0.21.0-pre.3"
 dependencies = [
  "burn",
- "burn-autodiff",
- "burn-ndarray",
  "burn-store",
  "float-cmp",
  "serde",

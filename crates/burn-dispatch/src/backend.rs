@@ -1,6 +1,6 @@
 use alloc::format;
 use alloc::string::String;
-use alloc::vec;
+use alloc::{vec, vec::Vec};
 
 use burn_backend::quantization::QuantScheme;
 use burn_backend::{AutodiffBackend, Backend, DType, ExecutionError, QTensorPrimitive};

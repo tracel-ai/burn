@@ -7,7 +7,6 @@ use crate::{
 };
 use burn_core::data::dataloader::Progress;
 use burn_core::tensor::Device;
-use burn_core::tensor::DeviceId;
 use burn_optim::GradientsAccumulator;
 use burn_optim::MultiGradientsParams;
 

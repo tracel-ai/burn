@@ -7,6 +7,8 @@ use burn_dispatch::{Dispatch, DispatchDevice};
 use burn_std::FloatDType;
 use burn_std::IntDType;
 use burn_std::QuantScheme;
+
+use alloc::vec::Vec;
 use enumset::EnumSet;
 use enumset::EnumSetType;
 
