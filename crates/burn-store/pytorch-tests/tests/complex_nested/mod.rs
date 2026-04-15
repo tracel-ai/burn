@@ -1,5 +1,4 @@
 use burn::tensor::Tolerance;
-use burn::tensor::ops::FloatElem;
 use burn::{
     module::Module,
     nn::{
@@ -7,12 +6,10 @@ use burn::{
         conv::{Conv2d, Conv2dConfig},
     },
     tensor::{
-        Tensor,
+        Device, Tensor,
         activation::{log_softmax, relu},
-        backend::Backend,
     },
 };
-use burn_autodiff::Autodiff;
 use burn_store::{ModuleSnapshot, PytorchStore};
 
 #[derive(Module, Debug)]
@@ -54,7 +51,7 @@ impl Net {
     }
 
     /// Forward pass of the model.
-    pub fn forward(&self, x: Tensor< 4>) -> Tensor< 2> {
+    pub fn forward(&self, x: Tensor<4>) -> Tensor<2> {
         let x = self.conv_blocks[0].forward(x);
         let x = self.conv_blocks[1].forward(x);
         let x = self.norm1.forward(x);
@@ -68,7 +65,7 @@ impl Net {
 }
 
 impl ConvBlock {
-    pub fn forward(&self, x: Tensor< 4>) -> Tensor< 4> {
+    pub fn forward(&self, x: Tensor<4>) -> Tensor<4> {
         let x = self.conv.forward(x);
 
         self.norm.forward(x)
@@ -92,7 +89,7 @@ impl PartialNet {
     }
 
     /// Forward pass of the model.
-    pub fn forward(&self, x: Tensor< 4>) -> Tensor< 4> {
+    pub fn forward(&self, x: Tensor<4>) -> Tensor<4> {
         self.conv1.forward(x)
     }
 }
@@ -119,21 +116,19 @@ impl PartialWithExtraNet {
     }
 
     /// Forward pass of the model.
-    pub fn forward(&self, x: Tensor< 4>) -> Tensor< 4> {
+    pub fn forward(&self, x: Tensor<4>) -> Tensor<4> {
         self.conv1.forward(x)
     }
 }
 
-type TestBackend = burn_ndarray::NdArray<f32>;
-
-fn model_test(model: Net<TestBackend>, precision: f32) {
+fn model_test(model: Net, precision: f32) {
     let device = Default::default();
 
-    let input = Tensor::<TestBackend, 4>::ones([1, 2, 9, 6], &device) - 0.5;
+    let input = Tensor::<4>::ones([1, 2, 9, 6], &device) - 0.5;
 
     let output = model.forward(input);
 
-    let expected = Tensor::<TestBackend, 2>::from_data(
+    let expected = Tensor::<2>::from_data(
         [[
             -2.306_613,
             -2.058_945_4,
@@ -149,16 +144,15 @@ fn model_test(model: Net<TestBackend>, precision: f32) {
         &device,
     );
 
-    output.to_data().assert_approx_eq::<FloatElem<TestBackend>>(
-        &expected.to_data(),
-        Tolerance::absolute(precision),
-    );
+    output
+        .to_data()
+        .assert_approx_eq::<f32>(&expected.to_data(), Tolerance::absolute(precision));
 }
 
 #[test]
 fn full_record() {
     let device = Default::default();
-    let mut model = Net::<TestBackend>::init(&device);
+    let mut model = Net::init(&device);
     let mut store = PytorchStore::from_file("tests/complex_nested/complex_nested.pt");
     model
         .load_from(&mut store)
@@ -169,8 +163,8 @@ fn full_record() {
 
 #[test]
 fn full_record_autodiff() {
-    let device = Default::default();
-    let mut model = Net::<Autodiff<TestBackend>>::init(&device);
+    let device = Device::default().autodiff();
+    let mut model = Net::init(&device);
     let mut store = PytorchStore::from_file("tests/complex_nested/complex_nested.pt");
     model
         .load_from(&mut store)
@@ -180,7 +174,7 @@ fn full_record_autodiff() {
 #[test]
 fn half_record() {
     let device = Default::default();
-    let mut model = Net::<TestBackend>::init(&device);
+    let mut model = Net::init(&device);
     let mut store = PytorchStore::from_file("tests/complex_nested/complex_nested.pt");
     model
         .load_from(&mut store)
@@ -192,7 +186,7 @@ fn half_record() {
 #[test]
 fn partial_model_loading() {
     let device = Default::default();
-    let mut model = PartialNet::<TestBackend>::init(&device);
+    let mut model = PartialNet::init(&device);
 
     // Load the full model but rename "conv_blocks.0.*" to "conv1.*"
     let mut store = PytorchStore::from_file("tests/complex_nested/complex_nested.pt")
@@ -203,7 +197,7 @@ fn partial_model_loading() {
         .load_from(&mut store)
         .expect("Should decode state successfully");
 
-    let input = Tensor::<TestBackend, 4>::ones([1, 2, 9, 6], &device) - 0.5;
+    let input = Tensor::<4>::ones([1, 2, 9, 6], &device) - 0.5;
 
     let output = model.forward(input);
 
@@ -216,7 +210,7 @@ fn partial_model_loading() {
 #[test]
 fn extra_field_model_loading() {
     let device = Default::default();
-    let mut model = PartialWithExtraNet::<TestBackend>::init(&device);
+    let mut model = PartialWithExtraNet::init(&device);
 
     // Load the full model but rename "conv_blocks.0.*" to "conv1.*"
     let mut store = PytorchStore::from_file("tests/complex_nested/complex_nested.pt")
@@ -227,7 +221,7 @@ fn extra_field_model_loading() {
         .load_from(&mut store)
         .expect("Should decode state successfully");
 
-    let input = Tensor::<TestBackend, 4>::ones([1, 2, 9, 6], &device) - 0.5;
+    let input = Tensor::<4>::ones([1, 2, 9, 6], &device) - 0.5;
 
     let output = model.forward(input);
 

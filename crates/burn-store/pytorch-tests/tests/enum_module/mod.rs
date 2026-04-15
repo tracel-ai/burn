@@ -1,7 +1,7 @@
 use burn::{
     module::Module,
     nn::conv::{Conv2d, Conv2dConfig},
-    tensor::{Tensor, backend::Backend},
+    tensor::{Device, Tensor},
 };
 
 #[derive(Module, Debug)]
@@ -45,7 +45,7 @@ impl Net {
     }
 
     /// Forward pass of the model.
-    pub fn forward(&self, x: Tensor< 4>) -> Tensor< 4> {
+    pub fn forward(&self, x: Tensor<4>) -> Tensor<4> {
         match &self.conv {
             Conv::DwsConv(dws_conv) => {
                 let x = dws_conv.dconv.forward(x);
@@ -58,24 +58,23 @@ impl Net {
 
 #[cfg(test)]
 mod tests {
-    use crate::backend::TestBackend;
 
-    use burn::tensor::{Tolerance, ops::FloatElem};
+    use burn::tensor::Tolerance;
     use burn_store::{ModuleSnapshot, PytorchStore};
-    type FT = FloatElem<TestBackend>;
+    type FT = f32;
 
     use super::*;
 
     #[test]
     fn depthwise_false() {
         let device = Default::default();
-        let mut model = Net::<TestBackend>::init_conv(&device);
+        let mut model = Net::init_conv(&device);
         let mut store = PytorchStore::from_file("tests/enum_module/enum_depthwise_false.pt");
 
         model
             .load_from(&mut store)
             .expect("Should decode state successfully");
-        let input = Tensor::<TestBackend, 4>::from_data(
+        let input = Tensor::<4>::from_data(
             [[
                 [
                     [0.713_979_7, 0.267_644_3, 0.990_609, 0.28845078, 0.874_962_4],
@@ -109,7 +108,7 @@ mod tests {
 
         let output = model.forward(input);
 
-        let expected = Tensor::<TestBackend, 4>::from_data(
+        let expected = Tensor::<4>::from_data(
             [[
                 [
                     [0.35449377, -0.02832414, 0.490_976_1],
@@ -133,14 +132,14 @@ mod tests {
     #[test]
     fn depthwise_true() {
         let device = Default::default();
-        let mut model = Net::<TestBackend>::init_dws_conv(&device);
+        let mut model = Net::init_dws_conv(&device);
         let mut store = PytorchStore::from_file("tests/enum_module/enum_depthwise_true.pt");
 
         model
             .load_from(&mut store)
             .expect("Should decode state successfully");
 
-        let input = Tensor::<TestBackend, 4>::from_data(
+        let input = Tensor::<4>::from_data(
             [[
                 [
                     [0.713_979_7, 0.267_644_3, 0.990_609, 0.28845078, 0.874_962_4],
@@ -174,7 +173,7 @@ mod tests {
 
         let output = model.forward(input);
 
-        let expected = Tensor::<TestBackend, 4>::from_data(
+        let expected = Tensor::<4>::from_data(
             [[
                 [
                     [0.77874625, 0.859_017_6, 0.834_283_5],

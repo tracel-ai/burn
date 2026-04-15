@@ -1,6 +1,6 @@
 use burn::{
     module::{Module, Param, ParamId},
-    tensor::{Int, Tensor, TensorData, backend::Backend},
+    tensor::{Int, Tensor, TensorData, Device},
 };
 
 #[derive(Module, Debug)]
@@ -27,21 +27,21 @@ impl Net {
 
 #[cfg(test)]
 mod tests {
-    use crate::backend::TestBackend;
+    
     use burn::tensor::TensorData;
     use burn_store::{ModuleSnapshot, PytorchStore};
 
     use super::*;
 
-    fn integer(model: Net<TestBackend>) {
+    fn integer(model: Net) {
         let device = Default::default();
 
-        let input = Tensor::<TestBackend, 2>::ones([3, 3], &device);
+        let input = Tensor::< 2>::ones([3, 3], &device);
 
         let output = model.forward(input);
 
         let expected =
-            Tensor::<TestBackend, 1, Int>::from_data(TensorData::from([1, 2, 3]), &device);
+            Tensor::< 1, Int>::from_data(TensorData::from([1, 2, 3]), &device);
 
         assert_eq!(output.to_data(), expected.to_data());
     }
@@ -49,7 +49,7 @@ mod tests {
     #[test]
     fn integer_full_precision() {
         let device = Default::default();
-        let mut model = Net::<TestBackend>::init(&device);
+        let mut model = Net::init(&device);
         let mut store = PytorchStore::from_file("tests/integer/integer.pt");
         model
             .load_from(&mut store)
@@ -61,7 +61,7 @@ mod tests {
     #[test]
     fn integer_half_precision() {
         let device = Default::default();
-        let mut model = Net::<TestBackend>::init(&device);
+        let mut model = Net::init(&device);
         let mut store = PytorchStore::from_file("tests/integer/integer.pt");
         model
             .load_from(&mut store)

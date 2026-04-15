@@ -4,7 +4,7 @@ use burn::{
         PaddingConfig2d,
         conv::{Conv2d, Conv2dConfig},
     },
-    tensor::{Tensor, activation::relu, backend::Backend},
+    tensor::{Device, Tensor, activation::relu},
 };
 
 #[derive(Module, Debug)]
@@ -29,25 +29,24 @@ impl Net {
     }
 
     /// Forward pass of the model.
-    pub fn forward(&self, x: Tensor< 4>) -> Tensor< 4> {
+    pub fn forward(&self, x: Tensor<4>) -> Tensor<4> {
         self.fc.iter().fold(x, |x_i, conv| relu(conv.forward(x_i)))
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::backend::TestBackend;
 
-    use burn::tensor::{Tolerance, ops::FloatElem};
+    use burn::tensor::Tolerance;
     use burn_store::{ModuleSnapshot, PytorchStore};
-    type FT = FloatElem<TestBackend>;
+    type FT = f32;
 
     use super::*;
 
     #[test]
     fn non_contiguous_indexes() {
         let device = Default::default();
-        let mut model = Net::<TestBackend>::init(&device);
+        let mut model = Net::init(&device);
         let mut store =
             PytorchStore::from_file("tests/non_contiguous_indexes/non_contiguous_indexes.pt");
 
@@ -55,7 +54,7 @@ mod tests {
             .load_from(&mut store)
             .expect("Should decode state successfully");
 
-        let input = Tensor::<TestBackend, 4>::from_data(
+        let input = Tensor::<4>::from_data(
             [[
                 [
                     [
@@ -83,7 +82,7 @@ mod tests {
 
         let output = model.forward(input);
 
-        let expected = Tensor::<TestBackend, 4>::from_data(
+        let expected = Tensor::<4>::from_data(
             [[
                 [
                     [0.00000000, 0.00000000, 0.00000000, 0.00000000, 0.00000000],

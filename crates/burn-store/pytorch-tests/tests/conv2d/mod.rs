@@ -1,7 +1,7 @@
 use burn::{
     module::Module,
     nn::conv::{Conv2d, Conv2dConfig},
-    tensor::{Tensor, backend::Backend},
+    tensor::{Tensor, Device},
 };
 
 #[derive(Module, Debug)]
@@ -31,17 +31,17 @@ impl Net {
 
 #[cfg(test)]
 mod tests {
-    use crate::backend::TestBackend;
+    
 
     use burn::tensor::Tolerance;
     use burn_store::{ModuleSnapshot, PytorchStore};
 
     use super::*;
 
-    fn conv2d(model: Net<TestBackend>, precision: f32) {
+    fn conv2d(model: Net, precision: f32) {
         let device = Default::default();
 
-        let input = Tensor::<TestBackend, 4>::from_data(
+        let input = Tensor::< 4>::from_data(
             [[
                 [
                     [
@@ -87,7 +87,7 @@ mod tests {
 
         let output = model.forward(input);
 
-        let expected = Tensor::<TestBackend, 4>::from_data(
+        let expected = Tensor::< 4>::from_data(
             [[
                 [
                     [-0.02502128, 0.00250649, 0.04841233],
@@ -111,7 +111,7 @@ mod tests {
     #[test]
     fn conv2d_full_precision() {
         let device = Default::default();
-        let mut model = Net::<TestBackend>::init(&device);
+        let mut model = Net::init(&device);
         let mut store = PytorchStore::from_file("tests/conv2d/conv2d.pt");
         model
             .load_from(&mut store)
@@ -123,7 +123,7 @@ mod tests {
     #[test]
     fn conv2d_half_precision() {
         let device = Default::default();
-        let mut model = Net::<TestBackend>::init(&device);
+        let mut model = Net::init(&device);
         let mut store = PytorchStore::from_file("tests/conv2d/conv2d.pt");
         model
             .load_from(&mut store)

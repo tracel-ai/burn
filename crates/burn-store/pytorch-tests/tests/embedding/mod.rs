@@ -1,7 +1,7 @@
 use burn::{
     module::Module,
     nn::{Embedding, EmbeddingConfig},
-    tensor::{Int, Tensor, backend::Backend},
+    tensor::{Int, Tensor, Device},
 };
 
 #[derive(Module, Debug)]
@@ -24,20 +24,20 @@ impl Net {
 
 #[cfg(test)]
 mod tests {
-    use crate::backend::TestBackend;
+    
     use burn::tensor::Tolerance;
     use burn_store::{ModuleSnapshot, PytorchStore};
 
     use super::*;
 
-    fn embedding(model: Net<TestBackend>, precision: f32) {
+    fn embedding(model: Net, precision: f32) {
         let device = Default::default();
 
-        let input = Tensor::<TestBackend, 2, Int>::from_data([[1, 2, 4, 5], [4, 3, 2, 9]], &device);
+        let input = Tensor::< 2, Int>::from_data([[1, 2, 4, 5], [4, 3, 2, 9]], &device);
 
         let output = model.forward(input);
 
-        let expected = Tensor::<TestBackend, 3>::from_data(
+        let expected = Tensor::< 3>::from_data(
             [
                 [
                     [-1.609_484_9, -0.10016718, -0.609_188_9],
@@ -63,7 +63,7 @@ mod tests {
     #[test]
     fn embedding_full_precision() {
         let device = Default::default();
-        let mut model = Net::<TestBackend>::init(&device);
+        let mut model = Net::init(&device);
         let mut store = PytorchStore::from_file("tests/embedding/embedding.pt");
         model
             .load_from(&mut store)
@@ -75,7 +75,7 @@ mod tests {
     #[test]
     fn embedding_half_precision() {
         let device = Default::default();
-        let mut model = Net::<TestBackend>::init(&device);
+        let mut model = Net::init(&device);
         let mut store = PytorchStore::from_file("tests/embedding/embedding.pt");
         model
             .load_from(&mut store)

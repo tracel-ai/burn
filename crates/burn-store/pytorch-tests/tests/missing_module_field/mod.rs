@@ -1,4 +1,4 @@
-use burn::{module::Module, nn::conv::Conv2d, tensor::backend::Backend};
+use burn::{module::Module, nn::conv::Conv2d, tensor::Device};
 
 #[derive(Module, Debug)]
 #[allow(unused)]
@@ -8,7 +8,6 @@ pub struct Net {
 
 #[cfg(test)]
 mod tests {
-    use crate::backend::TestBackend;
 
     use burn::nn::conv::Conv2dConfig;
     use burn_store::{ModuleSnapshot, PytorchStore};
@@ -27,7 +26,7 @@ mod tests {
     #[should_panic(expected = "do_not_exist_in_pt")]
     fn should_fail_if_struct_field_is_missing() {
         let device = Default::default();
-        let mut model = Net::<TestBackend>::init(&device);
+        let mut model = Net::init(&device);
         let mut store =
             PytorchStore::from_file("tests/missing_module_field/missing_module_field.pt");
         model

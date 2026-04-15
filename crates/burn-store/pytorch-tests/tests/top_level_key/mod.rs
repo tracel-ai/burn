@@ -1,4 +1,4 @@
-use burn::{module::Module, nn::conv::Conv2d, tensor::backend::Backend};
+use burn::{module::Module, nn::conv::Conv2d, tensor::Device};
 
 #[derive(Module, Debug)]
 #[allow(unused)]
@@ -8,7 +8,7 @@ pub struct Net {
 
 #[cfg(test)]
 mod tests {
-    use crate::backend::TestBackend;
+    
 
     use burn::nn::conv::Conv2dConfig;
     use burn_store::{ModuleSnapshot, PytorchStore};
@@ -27,7 +27,7 @@ mod tests {
     #[should_panic]
     fn should_fail_if_not_found() {
         let device = Default::default();
-        let mut model = Net::<TestBackend>::init(&device);
+        let mut model = Net::init(&device);
         let mut store = PytorchStore::from_file("tests/top_level_key/top_level_key.pt");
         model
             .load_from(&mut store)
@@ -37,7 +37,7 @@ mod tests {
     #[test]
     fn should_load() {
         let device = Default::default();
-        let mut model = Net::<TestBackend>::init(&device);
+        let mut model = Net::init(&device);
         let mut store = PytorchStore::from_file("tests/top_level_key/top_level_key.pt")
             .with_top_level_key("my_state_dict");
 
