@@ -23,7 +23,6 @@ critical-section = ["burn-flex/critical-section"]
 tracing = [
     "burn/tracing",
     "burn-flex/tracing",
-    "burn-store/tracing",
 ]
 
 [dependencies]

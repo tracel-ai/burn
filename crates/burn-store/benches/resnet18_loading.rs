@@ -127,11 +127,11 @@ fn load_resnet18_materialize_sequential(bencher: Bencher) {
 
             // Do minimal work with the data to prevent optimization
             let sum = match data.dtype {
-                burn_tensor::DType::F32 => data
+                burn_core::tensor::DType::F32 => data
                     .as_slice::<f32>()
                     .map(|s| s.iter().sum::<f32>())
                     .unwrap_or(0.0) as f64,
-                burn_tensor::DType::F64 => data
+                burn_core::tensor::DType::F64 => data
                     .as_slice::<f64>()
                     .map(|s| s.iter().sum::<f64>())
                     .unwrap_or(0.0),

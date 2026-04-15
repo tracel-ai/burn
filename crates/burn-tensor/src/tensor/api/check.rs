@@ -7,7 +7,6 @@ use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec;
 use alloc::vec::Vec;
-use burn_backend::Element;
 
 /// The struct should always be used with the [check](crate::check) macro.
 ///

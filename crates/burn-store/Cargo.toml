@@ -27,25 +27,15 @@ std = [
     "dep:memmap2",
     "safetensors/std",
     "burn-core/std",
-    "burn-tensor/std",
     "dep:regex",
     "byteorder/std",
 ]
-tracing = [
-    "burn-core/tracing",
-    "burn-cuda?/tracing",
-    "burn-nn/tracing",
-    "burn-tch?/tracing",
-    "burn-tensor/tracing",
-    "burn-wgpu?/tracing",
-]
-
 
 burnpack = ["serde", "ciborium"]
-cuda = ["burn-cuda"]
-metal = ["wgpu", "burn-wgpu/metal"]
-tch = ["burn-tch"]
-wgpu = ["burn-wgpu"]
+cuda = ["burn-core/cuda"]
+metal = ["wgpu", "burn-core/metal"]
+tch = ["burn-core/tch"]
+wgpu = ["burn-core/wgpu"]
 
 safetensors = ["dep:safetensors"]
 
@@ -53,7 +43,6 @@ pytorch = ["burn-core/record-item-custom-serde", "zip", "serde", "tar"]
 
 [dependencies]
 burn-core = { path = "../burn-core", version = "=0.21.0-pre.3", default-features = false }
-burn-tensor = { path = "../burn-tensor", version = "=0.21.0-pre.3", default-features = false }
 
 # External dependencies
 byteorder = { workspace = true, default-features = false }
@@ -73,15 +62,14 @@ lzma-rust2 = { workspace = true, optional = true }
 
 safetensors = { workspace = true, optional = true }
 
-# Optional backend dependencies for benchmarks
-burn-cuda = { path = "../burn-cuda", version = "=0.21.0-pre.3", optional = true }
-burn-tch = { path = "../burn-tch", version = "=0.21.0-pre.3", optional = true }
-burn-wgpu = { path = "../burn-wgpu", version = "=0.21.0-pre.3", optional = true }
-
 [dev-dependencies]
 # burn-import = { path = "../burn-import", version = "=0.21.0-pre.3" } # disabled (circular dep in publish, only for bench)
-burn-ndarray = { path = "../burn-ndarray", version = "=0.21.0-pre.3" }
+burn-core = { path = "../burn-core", version = "=0.21.0-pre.3", features = ["ndarray"] }
 burn-nn = { path = "../burn-nn", version = "=0.21.0-pre.3", default-features = false }
+
+# For zero-copy benchmark validation
+burn-dispatch = { path = "../burn-dispatch", version = "=0.21.0-pre.3", default-features = false }
+
 divan = "0.1"
 tempfile = { workspace = true }
 

@@ -5,19 +5,19 @@ use burn::{
 };
 
 #[derive(Module, Debug)]
-pub struct Net<B: Backend> {
-    norm1: LayerNorm<B>,
+pub struct Net {
+    norm1: LayerNorm,
 }
 
-impl<B: Backend> Net<B> {
+impl Net {
     /// Create a new model.
-    pub fn init(device: &B::Device) -> Self {
+    pub fn init(device: &Device) -> Self {
         let norm1 = LayerNormConfig::new(2).init(device);
         Self { norm1 }
     }
 
     /// Forward pass of the model.
-    pub fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 4> {
+    pub fn forward(&self, x: Tensor< 4>) -> Tensor< 4> {
         self.norm1.forward(x)
     }
 }

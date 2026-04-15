@@ -8,15 +8,15 @@ use burn::{
 };
 
 #[derive(Module, Debug)]
-pub struct Net<B: Backend> {
-    conv1: Conv2d<B>,
-    norm1: BatchNorm<B>,
-    fc1: Linear<B>,
+pub struct Net {
+    conv1: Conv2d,
+    norm1: BatchNorm,
+    fc1: Linear,
     relu: Relu,
 }
 
-impl<B: Backend> Net<B> {
-    pub fn new(device: &B::Device) -> Self {
+impl Net {
+    pub fn new(device: &Device) -> Self {
         Self {
             conv1: Conv2dConfig::new([3, 4], [3, 3])
                 .with_padding(PaddingConfig2d::Explicit(1, 1, 1, 1))
@@ -28,7 +28,7 @@ impl<B: Backend> Net<B> {
     }
 
     /// Forward pass of the model.
-    pub fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 2> {
+    pub fn forward(&self, x: Tensor< 4>) -> Tensor< 2> {
         let x = self.conv1.forward(x);
         let x = self.norm1.forward(x);
         let x = self.relu.forward(x);

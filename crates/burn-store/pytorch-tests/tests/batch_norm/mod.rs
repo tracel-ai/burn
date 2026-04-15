@@ -5,19 +5,19 @@ use burn::{
 };
 
 #[derive(Module, Debug)]
-pub struct Net<B: Backend> {
-    norm1: BatchNorm<B>,
+pub struct Net {
+    norm1: BatchNorm,
 }
 
-impl<B: Backend> Net<B> {
-    pub fn new(device: &B::Device) -> Self {
+impl Net {
+    pub fn new(device: &Device) -> Self {
         Self {
             norm1: BatchNormConfig::new(5).init(device), // Python model uses BatchNorm2d(5)
         }
     }
 
     /// Forward pass of the model.
-    pub fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 4> {
+    pub fn forward(&self, x: Tensor< 4>) -> Tensor< 4> {
         self.norm1.forward(x)
     }
 }

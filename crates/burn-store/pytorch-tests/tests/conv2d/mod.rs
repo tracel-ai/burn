@@ -5,14 +5,14 @@ use burn::{
 };
 
 #[derive(Module, Debug)]
-pub struct Net<B: Backend> {
-    conv1: Conv2d<B>,
-    conv2: Conv2d<B>,
+pub struct Net {
+    conv1: Conv2d,
+    conv2: Conv2d,
 }
 
-impl<B: Backend> Net<B> {
+impl Net {
     /// Create a new model from the given record.
-    pub fn init(device: &B::Device) -> Self {
+    pub fn init(device: &Device) -> Self {
         let conv1 = Conv2dConfig::new([2, 2], [2, 2]).init(device);
         let conv2 = Conv2dConfig::new([2, 2], [2, 2])
             .with_bias(false)
@@ -22,7 +22,7 @@ impl<B: Backend> Net<B> {
     }
 
     /// Forward pass of the model.
-    pub fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 4> {
+    pub fn forward(&self, x: Tensor< 4>) -> Tensor< 4> {
         let x = self.conv1.forward(x);
 
         self.conv2.forward(x)

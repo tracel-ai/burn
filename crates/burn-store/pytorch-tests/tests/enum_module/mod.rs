@@ -6,25 +6,25 @@ use burn::{
 
 #[derive(Module, Debug)]
 #[allow(clippy::large_enum_variant)]
-pub enum Conv<B: Backend> {
-    DwsConv(DwsConv<B>),
-    Conv(Conv2d<B>),
+pub enum Conv {
+    DwsConv(DwsConv),
+    Conv(Conv2d),
 }
 
 #[derive(Module, Debug)]
-pub struct DwsConv<B: Backend> {
-    dconv: Conv2d<B>,
-    pconv: Conv2d<B>,
+pub struct DwsConv {
+    dconv: Conv2d,
+    pconv: Conv2d,
 }
 
 #[derive(Module, Debug)]
-pub struct Net<B: Backend> {
-    conv: Conv<B>,
+pub struct Net {
+    conv: Conv,
 }
 
-impl<B: Backend> Net<B> {
+impl Net {
     /// Create a new model with DwsConv variant.
-    pub fn init_dws_conv(device: &B::Device) -> Self {
+    pub fn init_dws_conv(device: &Device) -> Self {
         let dconv = Conv2dConfig::new([2, 2], [3, 3])
             .with_groups(2)
             .init(device);
@@ -37,7 +37,7 @@ impl<B: Backend> Net<B> {
     }
 
     /// Create a new model with Conv variant.
-    pub fn init_conv(device: &B::Device) -> Self {
+    pub fn init_conv(device: &Device) -> Self {
         let conv2d_config = Conv2dConfig::new([2, 2], [3, 3]);
         Net {
             conv: Conv::Conv(conv2d_config.init(device)),
@@ -45,7 +45,7 @@ impl<B: Backend> Net<B> {
     }
 
     /// Forward pass of the model.
-    pub fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 4> {
+    pub fn forward(&self, x: Tensor< 4>) -> Tensor< 4> {
         match &self.conv {
             Conv::DwsConv(dws_conv) => {
                 let x = dws_conv.dconv.forward(x);

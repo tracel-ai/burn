@@ -14,8 +14,7 @@ use alloc::collections::BTreeMap;
 use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
-use burn_core::prelude::Backend;
-use burn_tensor::Bytes;
+use burn_core::tensor::Bytes;
 
 /// Store mode for BurnpackStore
 enum StoreMode {
@@ -153,7 +152,7 @@ impl BurnpackStore {
     /// let store = BurnpackStore::from_static(MODEL_DATA);
     /// ```
     pub fn from_static(data: &'static [u8]) -> Self {
-        use burn_tensor::AllocationProperty;
+        use burn_core::tensor::AllocationProperty;
 
         // Create bytes::Bytes from static data (zero-copy, stays in .rodata)
         let shared = bytes::Bytes::from_static(data);
@@ -395,10 +394,7 @@ impl BurnpackStore {
 impl ModuleStore for BurnpackStore {
     type Error = BurnpackError;
 
-    fn collect_from<B: Backend, M: ModuleSnapshot<B>>(
-        &mut self,
-        module: &M,
-    ) -> Result<(), Self::Error> {
+    fn collect_from<M: ModuleSnapshot>(&mut self, module: &M) -> Result<(), Self::Error> {
         // Invalidate cache since we're writing new data
         self.snapshots_cache = None;
         self.reader = None;
@@ -450,7 +446,7 @@ impl ModuleStore for BurnpackStore {
         Ok(())
     }
 
-    fn apply_to<B: Backend, M: ModuleSnapshot<B>>(
+    fn apply_to<M: ModuleSnapshot>(
         &mut self,
         module: &mut M,
     ) -> Result<crate::ApplyResult, Self::Error> {

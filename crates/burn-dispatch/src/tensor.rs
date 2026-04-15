@@ -180,6 +180,13 @@ pub struct DispatchTensor {
     pub(crate) checkpointing: Option<CheckpointingStrategy>,
 }
 
+impl DispatchTensor {
+    /// Returns the tensor kind primitive.
+    pub fn into_primitive(self) -> DispatchTensorKind {
+        self.kind
+    }
+}
+
 /// Internal representation of a [`DispatchTensor`].
 ///
 /// This enum contains the concrete backend tensor for each enabled backend.

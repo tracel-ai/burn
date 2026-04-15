@@ -16,21 +16,21 @@ use burn_autodiff::Autodiff;
 use burn_store::{ModuleSnapshot, PytorchStore};
 
 #[derive(Module, Debug)]
-pub struct ConvBlock<B: Backend> {
-    conv: Conv2d<B>,
-    norm: BatchNorm<B>,
+pub struct ConvBlock {
+    conv: Conv2d,
+    norm: BatchNorm,
 }
 
 #[derive(Module, Debug)]
-pub struct Net<B: Backend> {
-    conv_blocks: Vec<ConvBlock<B>>,
-    norm1: BatchNorm<B>,
-    fc1: Linear<B>,
-    fc2: Linear<B>,
+pub struct Net {
+    conv_blocks: Vec<ConvBlock>,
+    norm1: BatchNorm,
+    fc1: Linear,
+    fc2: Linear,
 }
 
-impl<B: Backend> Net<B> {
-    pub fn init(device: &B::Device) -> Self {
+impl Net {
+    pub fn init(device: &Device) -> Self {
         let conv_blocks = vec![
             ConvBlock {
                 conv: Conv2dConfig::new([2, 4], [3, 2]).init(device),
@@ -54,7 +54,7 @@ impl<B: Backend> Net<B> {
     }
 
     /// Forward pass of the model.
-    pub fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 2> {
+    pub fn forward(&self, x: Tensor< 4>) -> Tensor< 2> {
         let x = self.conv_blocks[0].forward(x);
         let x = self.conv_blocks[1].forward(x);
         let x = self.norm1.forward(x);
@@ -67,8 +67,8 @@ impl<B: Backend> Net<B> {
     }
 }
 
-impl<B: Backend> ConvBlock<B> {
-    pub fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 4> {
+impl ConvBlock {
+    pub fn forward(&self, x: Tensor< 4>) -> Tensor< 4> {
         let x = self.conv.forward(x);
 
         self.norm.forward(x)
@@ -77,13 +77,13 @@ impl<B: Backend> ConvBlock<B> {
 
 /// Partial model to test loading of partial records.
 #[derive(Module, Debug)]
-pub struct PartialNet<B: Backend> {
-    conv1: ConvBlock<B>,
+pub struct PartialNet {
+    conv1: ConvBlock,
 }
 
-impl<B: Backend> PartialNet<B> {
+impl PartialNet {
     /// Create a new model from the given record.
-    pub fn init(device: &B::Device) -> Self {
+    pub fn init(device: &Device) -> Self {
         let conv1 = ConvBlock {
             conv: Conv2dConfig::new([2, 4], [3, 2]).init(device),
             norm: BatchNormConfig::new(4).init(device), // matches conv output channels
@@ -92,21 +92,21 @@ impl<B: Backend> PartialNet<B> {
     }
 
     /// Forward pass of the model.
-    pub fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 4> {
+    pub fn forward(&self, x: Tensor< 4>) -> Tensor< 4> {
         self.conv1.forward(x)
     }
 }
 
 /// Model with extra fields to test loading of records (e.g. from a different model).
 #[derive(Module, Debug)]
-pub struct PartialWithExtraNet<B: Backend> {
-    conv1: ConvBlock<B>,
+pub struct PartialWithExtraNet {
+    conv1: ConvBlock,
     extra_field: bool, // This field is not present in the pytorch model
 }
 
-impl<B: Backend> PartialWithExtraNet<B> {
+impl PartialWithExtraNet {
     /// Create a new model from the given record.
-    pub fn init(device: &B::Device) -> Self {
+    pub fn init(device: &Device) -> Self {
         let conv1 = ConvBlock {
             conv: Conv2dConfig::new([2, 4], [3, 2]).init(device),
             norm: BatchNormConfig::new(4).init(device), // matches conv output channels
@@ -119,7 +119,7 @@ impl<B: Backend> PartialWithExtraNet<B> {
     }
 
     /// Forward pass of the model.
-    pub fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 4> {
+    pub fn forward(&self, x: Tensor< 4>) -> Tensor< 4> {
         self.conv1.forward(x)
     }
 }

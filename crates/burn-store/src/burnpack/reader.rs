@@ -12,7 +12,7 @@ use alloc::string::ToString;
 use alloc::vec;
 use alloc::vec::Vec;
 use burn_core::module::ParamId;
-use burn_tensor::{Bytes, Shape, TensorData};
+use burn_core::tensor::{Bytes, Shape, TensorData};
 
 #[cfg(feature = "std")]
 use std::cell::RefCell;
@@ -374,7 +374,7 @@ impl BurnpackReader {
         // Convert mmap to bytes::Bytes for zero-copy slicing support
         // bytes::Bytes::from_owner takes ownership and enables efficient slicing
         let shared_bytes = bytes::Bytes::from_owner(mmap);
-        let bytes = Bytes::from_shared(shared_bytes, burn_tensor::AllocationProperty::File);
+        let bytes = Bytes::from_shared(shared_bytes, burn_core::tensor::AllocationProperty::File);
 
         Ok(Self {
             metadata,

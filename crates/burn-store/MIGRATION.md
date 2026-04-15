@@ -24,7 +24,7 @@ use burn::record::{FullPrecisionSettings, Recorder};
 use burn_import::pytorch::{LoadArgs, PyTorchFileRecorder};
 
 // Load into a record, then create model from record
-let record: ModelRecord<B> = PyTorchFileRecorder::<FullPrecisionSettings>::default()
+let record: ModelRecord = PyTorchFileRecorder::<FullPrecisionSettings>::default()
     .load("model.pt".into(), &device)
     .expect("Failed to load");
 
@@ -50,7 +50,7 @@ model.load_from(&mut store).expect("Failed to load");
 use burn::record::{FullPrecisionSettings, Recorder};
 use burn_import::safetensors::{AdapterType, LoadArgs, SafetensorsFileRecorder};
 
-let record: ModelRecord<B> = SafetensorsFileRecorder::<FullPrecisionSettings>::default()
+let record: ModelRecord = SafetensorsFileRecorder::<FullPrecisionSettings>::default()
     .load("model.safetensors".into(), &device)
     .expect("Failed to load");
 
@@ -108,7 +108,7 @@ let args = LoadArgs::new("model.pt".into())
     .with_key_remap("conv\\.(.*)", "$1")
     .with_key_remap("^old_prefix\\.", "new_prefix.");
 
-let record: ModelRecord<B> = PyTorchFileRecorder::<FullPrecisionSettings>::default()
+let record: ModelRecord = PyTorchFileRecorder::<FullPrecisionSettings>::default()
     .load(args, &device)?;
 ```
 
@@ -130,7 +130,7 @@ model.load_from(&mut store)?;
 let args = LoadArgs::new("checkpoint.pt".into())
     .with_top_level_key("state_dict");
 
-let record: ModelRecord<B> = PyTorchFileRecorder::<FullPrecisionSettings>::default()
+let record: ModelRecord = PyTorchFileRecorder::<FullPrecisionSettings>::default()
     .load(args, &device)?;
 ```
 
@@ -153,7 +153,7 @@ use burn_import::safetensors::{AdapterType, LoadArgs};
 let args = LoadArgs::new("pytorch_model.safetensors".into())
     .with_adapter_type(AdapterType::PyTorch);
 
-let record: ModelRecord<B> = SafetensorsFileRecorder::<FullPrecisionSettings>::default()
+let record: ModelRecord = SafetensorsFileRecorder::<FullPrecisionSettings>::default()
     .load(args, &device)?;
 ```
 
@@ -273,13 +273,13 @@ If you had functions that took `ModelRecord`, update them to take `Model`:
 
 ```rust
 // Before
-fn infer(record: ModelRecord<B>) {
+fn infer(record: ModelRecord) {
     let model = Model::init(&device).load_record(record);
     // ...
 }
 
 // After
-fn infer(model: Model<B>) {
+fn infer(model: Model) {
     // Model already has weights loaded
     // ...
 }

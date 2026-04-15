@@ -8,13 +8,13 @@ use burn::{
 };
 
 #[derive(Module, Debug)]
-pub struct Net<B: Backend> {
-    fc: Vec<Conv2d<B>>,
+pub struct Net {
+    fc: Vec<Conv2d>,
 }
 
-impl<B: Backend> Net<B> {
+impl Net {
     /// Create a new model with placeholder values.
-    pub fn init(device: &B::Device) -> Self {
+    pub fn init(device: &Device) -> Self {
         let conv2d_config = Conv2dConfig::new([2, 2], [3, 3]).with_padding(PaddingConfig2d::Same);
         // The PyTorch file has 5 Conv2d layers at non-contiguous indices (0, 2, 4, 6, 8)
         // in the Sequential (alternating with ReLU layers)
@@ -29,7 +29,7 @@ impl<B: Backend> Net<B> {
     }
 
     /// Forward pass of the model.
-    pub fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 4> {
+    pub fn forward(&self, x: Tensor< 4>) -> Tensor< 4> {
         self.fc.iter().fold(x, |x_i, conv| relu(conv.forward(x_i)))
     }
 }

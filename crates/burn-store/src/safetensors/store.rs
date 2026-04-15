@@ -14,8 +14,7 @@ use alloc::string::{String, ToString};
 use alloc::vec;
 use alloc::vec::Vec;
 use burn_core::module::ParamId;
-use burn_tensor::backend::Backend;
-use burn_tensor::{BoolStore, DType, TensorData};
+use burn_core::tensor::{BoolStore, DType, TensorData};
 use core::fmt;
 use core::ops::Deref;
 use hashbrown::HashMap;
@@ -610,10 +609,7 @@ impl safetensors::View for TensorSnapshotAdapter {
 impl ModuleStore for SafetensorsStore {
     type Error = SafetensorsStoreError;
 
-    fn collect_from<B: Backend, M: ModuleSnapshot<B>>(
-        &mut self,
-        module: &M,
-    ) -> Result<(), Self::Error> {
+    fn collect_from<M: ModuleSnapshot>(&mut self, module: &M) -> Result<(), Self::Error> {
         // Invalidate cache since we're writing new data
         match self {
             #[cfg(feature = "std")]
@@ -683,10 +679,7 @@ impl ModuleStore for SafetensorsStore {
         }
     }
 
-    fn apply_to<B: Backend, M: ModuleSnapshot<B>>(
-        &mut self,
-        module: &mut M,
-    ) -> Result<ApplyResult, Self::Error> {
+    fn apply_to<M: ModuleSnapshot>(&mut self, module: &mut M) -> Result<ApplyResult, Self::Error> {
         // Get snapshots from cache
         let snapshots: Vec<TensorSnapshot> = self.get_all_snapshots()?.values().cloned().collect();
 
@@ -955,7 +948,7 @@ fn safetensors_to_snapshots_lazy(
             })?;
 
             // Now materialize just this tensor's data
-            let bytes = burn_tensor::Bytes::from_bytes_vec(tensor.data().to_vec());
+            let bytes = burn_core::tensor::Bytes::from_bytes_vec(tensor.data().to_vec());
             Ok(TensorData {
                 bytes,
                 shape: tensor.shape().into(),
@@ -1019,7 +1012,7 @@ fn safetensors_to_snapshots_lazy_file(
 
             // Only now do we actually copy the tensor data
             Ok(TensorData {
-                bytes: burn_tensor::Bytes::from_bytes_vec(tensor.data().to_vec()),
+                bytes: burn_core::tensor::Bytes::from_bytes_vec(tensor.data().to_vec()),
                 shape: tensor.shape().into(),
                 dtype: safetensor_dtype_to_burn(tensor.dtype())
                     .map_err(|_| crate::TensorSnapshotError::DataError("Invalid dtype".into()))?,

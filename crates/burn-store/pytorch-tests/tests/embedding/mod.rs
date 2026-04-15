@@ -5,19 +5,19 @@ use burn::{
 };
 
 #[derive(Module, Debug)]
-pub struct Net<B: Backend> {
-    embed: Embedding<B>,
+pub struct Net {
+    embed: Embedding,
 }
 
-impl<B: Backend> Net<B> {
+impl Net {
     /// Create a new model.
-    pub fn init(device: &B::Device) -> Self {
+    pub fn init(device: &Device) -> Self {
         let embed = EmbeddingConfig::new(10, 3).init(device);
         Self { embed }
     }
 
     /// Forward pass of the model.
-    pub fn forward(&self, x: Tensor<B, 2, Int>) -> Tensor<B, 3> {
+    pub fn forward(&self, x: Tensor< 2, Int>) -> Tensor< 3> {
         self.embed.forward(x)
     }
 }

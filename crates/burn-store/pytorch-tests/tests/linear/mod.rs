@@ -5,15 +5,15 @@ use burn::{
 };
 
 #[derive(Module, Debug)]
-pub struct Net<B: Backend> {
-    fc1: Linear<B>,
-    fc2: Linear<B>,
+pub struct Net {
+    fc1: Linear,
+    fc2: Linear,
     relu: Relu,
 }
 
-impl<B: Backend> Net<B> {
+impl Net {
     /// Create a new model.
-    pub fn init(device: &B::Device) -> Self {
+    pub fn init(device: &Device) -> Self {
         let fc1 = LinearConfig::new(2, 3).init(device);
         let fc2 = LinearConfig::new(3, 4).with_bias(false).init(device);
         let relu = Relu;
@@ -22,7 +22,7 @@ impl<B: Backend> Net<B> {
     }
 
     /// Forward pass of the model.
-    pub fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 4> {
+    pub fn forward(&self, x: Tensor< 4>) -> Tensor< 4> {
         let x = self.fc1.forward(x);
         let x = self.relu.forward(x);
 
@@ -31,20 +31,20 @@ impl<B: Backend> Net<B> {
 }
 
 #[derive(Module, Debug)]
-struct NetWithBias<B: Backend> {
-    fc1: Linear<B>,
+struct NetWithBias {
+    fc1: Linear,
 }
 
-impl<B: Backend> NetWithBias<B> {
+impl NetWithBias {
     /// Create a new model.
-    pub fn init(device: &B::Device) -> Self {
+    pub fn init(device: &Device) -> Self {
         let fc1 = LinearConfig::new(2, 3).init(device);
 
         Self { fc1 }
     }
 
     /// Forward pass of the model.
-    pub fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 4> {
+    pub fn forward(&self, x: Tensor< 4>) -> Tensor< 4> {
         self.fc1.forward(x)
     }
 }

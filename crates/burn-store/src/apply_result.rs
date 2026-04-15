@@ -4,7 +4,7 @@ use alloc::string::String;
 use alloc::vec;
 use alloc::vec::Vec;
 
-use burn_tensor::{DType, Shape};
+use burn_core::tensor::{DType, Shape};
 
 /// Error types that can occur during tensor application
 #[derive(Debug, Clone)]

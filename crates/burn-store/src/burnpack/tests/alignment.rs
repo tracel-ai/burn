@@ -11,7 +11,7 @@ use crate::burnpack::{
     writer::BurnpackWriter,
 };
 use burn_core::module::ParamId;
-use burn_tensor::{DType, TensorData};
+use burn_core::tensor::{DType, TensorData};
 
 /// Verify that aligned_data_section_start always returns 256-byte aligned values
 #[test]

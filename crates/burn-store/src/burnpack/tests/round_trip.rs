@@ -3,7 +3,7 @@ use crate::burnpack::{reader::BurnpackReader, writer::BurnpackWriter};
 use super::*;
 use alloc::collections::BTreeMap;
 use alloc::string::String;
-use burn_tensor::{BoolStore, DType, TensorData, shape};
+use burn_core::tensor::{BoolStore, DType, TensorData, shape};
 
 /// Helper function to perform round-trip test
 fn round_trip_test<F>(setup: F)
@@ -523,7 +523,7 @@ fn test_param_id_backward_compatibility() {
 
     // Read the old format burnpack
     let reader =
-        BurnpackReader::from_bytes(burn_tensor::Bytes::from_bytes_vec(full_bytes)).unwrap();
+        BurnpackReader::from_bytes(burn_core::tensor::Bytes::from_bytes_vec(full_bytes)).unwrap();
     let loaded_snapshot = reader.get_tensor_snapshot("old_tensor").unwrap();
 
     // Verify that a new ParamId was generated (backward compatibility)

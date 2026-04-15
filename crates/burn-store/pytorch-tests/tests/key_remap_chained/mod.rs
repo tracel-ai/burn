@@ -10,26 +10,26 @@ use burn::{
 };
 
 /// Some module that implements a specific method so it can be used in a sequential block.
-pub trait ForwardModule<B: Backend> {
-    fn forward(&self, input: Tensor<B, 4>) -> Tensor<B, 4>;
+pub trait ForwardModule {
+    fn forward(&self, input: Tensor< 4>) -> Tensor< 4>;
 }
 
 /// Conv2d + BatchNorm block.
 #[derive(Module, Debug)]
-pub struct ConvBlock<B: Backend> {
-    conv: Conv2d<B>,
-    bn: BatchNorm<B>,
+pub struct ConvBlock {
+    conv: Conv2d,
+    bn: BatchNorm,
 }
 
-impl<B: Backend> ForwardModule<B> for ConvBlock<B> {
-    fn forward(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
+impl ForwardModule for ConvBlock {
+    fn forward(&self, input: Tensor< 4>) -> Tensor< 4> {
         let out = self.conv.forward(input);
         self.bn.forward(out)
     }
 }
 
-impl<B: Backend> ConvBlock<B> {
-    pub fn new(in_channels: usize, out_channels: usize, device: &Device<B>) -> Self {
+impl ConvBlock {
+    pub fn new(in_channels: usize, out_channels: usize, device: &Device) -> Self {
         let conv = Conv2dConfig::new([in_channels, out_channels], [1, 1])
             .with_bias(false)
             .init(device);
@@ -43,11 +43,11 @@ impl<B: Backend> ConvBlock<B> {
 #[derive(Module, Debug)]
 pub struct ModuleBlock<B: Backend, M> {
     blocks: Vec<M>,
-    _backend: PhantomData<B>,
+    _backend: PhantomData,
 }
 
-impl<B: Backend, M: ForwardModule<B>> ModuleBlock<B, M> {
-    pub fn forward(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
+impl<B: Backend, M: ForwardModule> ModuleBlock< M> {
+    pub fn forward(&self, input: Tensor< 4>) -> Tensor< 4> {
         let mut out = input;
         for block in &self.blocks {
             out = block.forward(out);
@@ -56,8 +56,8 @@ impl<B: Backend, M: ForwardModule<B>> ModuleBlock<B, M> {
     }
 }
 
-impl<B: Backend> ModuleBlock<B, ConvBlock<B>> {
-    pub fn new(device: &Device<B>) -> Self {
+impl ModuleBlock< ConvBlock> {
+    pub fn new(device: &Device) -> Self {
         let blocks = vec![ConvBlock::new(6, 6, device), ConvBlock::new(6, 6, device)];
 
         Self {
@@ -69,13 +69,13 @@ impl<B: Backend> ModuleBlock<B, ConvBlock<B>> {
 
 #[derive(Module, Debug)]
 pub struct Model<B: Backend, M> {
-    conv: Conv2d<B>,
-    bn: BatchNorm<B>,
-    layer: ModuleBlock<B, M>,
+    conv: Conv2d,
+    bn: BatchNorm,
+    layer: ModuleBlock< M>,
 }
 
-impl<B: Backend> Model<B, ConvBlock<B>> {
-    pub fn new(device: &Device<B>) -> Self {
+impl Model< ConvBlock> {
+    pub fn new(device: &Device) -> Self {
         let conv = Conv2dConfig::new([3, 6], [3, 3])
             .with_bias(false)
             .init(device);
@@ -86,7 +86,7 @@ impl<B: Backend> Model<B, ConvBlock<B>> {
         Self { conv, bn, layer }
     }
 
-    pub fn forward(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
+    pub fn forward(&self, input: Tensor< 4>) -> Tensor< 4> {
         let out = self.conv.forward(input);
         let out = self.bn.forward(out);
         self.layer.forward(out)

@@ -4,23 +4,23 @@ use burn::{
 };
 
 #[derive(Module, Debug)]
-pub struct Net<B: Backend> {
-    buffer: Param<Tensor<B, 1, Int>>,
+pub struct Net {
+    buffer: Param<Tensor< 1, Int>>,
 }
 
-impl<B: Backend> Net<B> {
+impl Net {
     /// Create a new model with placeholder values.
-    pub fn init(device: &B::Device) -> Self {
+    pub fn init(device: &Device) -> Self {
         Self {
             buffer: Param::initialized(
                 ParamId::new(),
-                Tensor::<B, 1, Int>::from_data(TensorData::from([0, 0, 0]), device),
+                Tensor::< 1, Int>::from_data(TensorData::from([0, 0, 0]), device),
             ),
         }
     }
 
     /// Forward pass of the model.
-    pub fn forward(&self, _x: Tensor<B, 2>) -> Tensor<B, 1, Int> {
+    pub fn forward(&self, _x: Tensor< 2>) -> Tensor< 1, Int> {
         self.buffer.val()
     }
 }

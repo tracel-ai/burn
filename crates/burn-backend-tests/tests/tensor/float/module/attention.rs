@@ -532,8 +532,7 @@ fn test_attention_bias_broadcast_batch_and_heads() {
         Default::default(),
     );
 
-    let expected =
-        attention_fallback::<TestBackend>(query, key, value, None, Some(bias), Default::default());
+    let expected = attention_fallback(query, key, value, None, Some(bias), Default::default());
 
     output.into_data().assert_approx_eq::<FloatElem>(
         &expected.into_data(),
@@ -577,8 +576,7 @@ fn test_attention_bias_broadcast_heads_only() {
         Default::default(),
     );
 
-    let expected =
-        attention_fallback::<TestBackend>(query, key, value, None, Some(bias), Default::default());
+    let expected = attention_fallback(query, key, value, None, Some(bias), Default::default());
 
     output.into_data().assert_approx_eq::<FloatElem>(
         &expected.into_data(),
@@ -635,8 +633,7 @@ fn test_attention_bool_mask_broadcast_batch_and_heads() {
         Default::default(),
     );
 
-    let expected =
-        attention_fallback::<TestBackend>(query, key, value, Some(mask), None, Default::default());
+    let expected = attention_fallback(query, key, value, Some(mask), None, Default::default());
 
     output.into_data().assert_approx_eq::<FloatElem>(
         &expected.into_data(),

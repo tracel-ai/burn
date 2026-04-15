@@ -2,8 +2,8 @@ use burn::{module::Module, nn::conv::Conv2d, tensor::backend::Backend};
 
 #[derive(Module, Debug)]
 #[allow(unused)]
-pub struct Net<B: Backend> {
-    conv1: Conv2d<B>,
+pub struct Net {
+    conv1: Conv2d,
 }
 
 #[cfg(test)]
@@ -15,8 +15,8 @@ mod tests {
 
     use super::*;
 
-    impl<B: Backend> Net<B> {
-        pub fn init(device: &B::Device) -> Self {
+    impl Net {
+        pub fn init(device: &Device) -> Self {
             Self {
                 conv1: Conv2dConfig::new([2, 2], [2, 2]).init(device),
             }

@@ -8,14 +8,13 @@ use super::apply_result::ApplyResult;
 use crate::collector::Collector;
 use crate::{ModuleAdapter, PathFilter, TensorSnapshot};
 use burn_core::module::Module;
-use burn_tensor::backend::Backend;
 
 /// Extension trait for modules that provides tensor storage functionality.
 ///
 /// This trait provides convenient methods to collect and apply tensor snapshots from any Burn module.
 /// Collection operations create lightweight tensor snapshots without immediately copying data.
 /// Apply operations apply tensor data from snapshots to the corresponding tensors in the module.
-pub trait ModuleSnapshot<B: Backend>: Module<B> {
+pub trait ModuleSnapshot: Module {
     /// Collects tensor snapshots for inspection without copying data.
     ///
     /// Returns a vector of `TensorSnapshot` objects that can lazily materialize the tensor data.
@@ -171,10 +170,7 @@ pub trait ModuleStore {
     ///
     /// * `Ok(())` - If all tensors were successfully collected and stored
     /// * `Err(Self::Error)` - If an error occurred during collection or writing
-    fn collect_from<B: Backend, M: ModuleSnapshot<B>>(
-        &mut self,
-        module: &M,
-    ) -> Result<(), Self::Error>;
+    fn collect_from<M: ModuleSnapshot>(&mut self, module: &M) -> Result<(), Self::Error>;
 
     /// Load stored tensor data and apply it to a module.
     ///
@@ -195,10 +191,7 @@ pub trait ModuleStore {
     ///   - `skipped`: Tensors in storage that were not applied (filtered or not needed)
     ///   - `errors`: Non-critical errors that occurred during apply
     /// * `Err(Self::Error)` - If a critical error prevented the apply operation
-    fn apply_to<B: Backend, M: ModuleSnapshot<B>>(
-        &mut self,
-        module: &mut M,
-    ) -> Result<ApplyResult, Self::Error>;
+    fn apply_to<M: ModuleSnapshot>(&mut self, module: &mut M) -> Result<ApplyResult, Self::Error>;
 
     /// Get a single tensor snapshot by name.
     ///
@@ -285,4 +278,4 @@ pub trait ModuleStore {
 }
 
 // Blanket implementation for all modules
-impl<B: Backend, M: Module<B>> ModuleSnapshot<B> for M {}
+impl<M: Module> ModuleSnapshot for M {}

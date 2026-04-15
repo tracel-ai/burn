@@ -1,4 +1,5 @@
 pub use burn_backend::{DeviceError, DeviceId, DeviceSettings};
+pub use burn_dispatch::devices::*;
 
 use burn_backend::Backend;
 use burn_dispatch::DispatchDeviceId;
@@ -14,7 +15,8 @@ use enumset::EnumSetType;
 // - Device::default() priority for DispatchDevice should be detailed
 // - tensor.to_device() between autodiff / non-autodiff devices?
 // - DeviceType in prelude?
-// - Re-export backend devices (e.g. CudaDevice)?
+// - backend extensions
+// - burn-flex + burn-store
 
 /// A high-level device handle for tensor operations.
 ///

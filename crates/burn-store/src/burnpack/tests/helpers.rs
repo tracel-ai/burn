@@ -1,6 +1,6 @@
 use crate::TensorSnapshot;
 use burn_core::module::ParamId;
-use burn_tensor::{DType, TensorData};
+use burn_core::tensor::{DType, TensorData};
 
 /// Helper to create a test TensorSnapshot
 #[allow(dead_code)]

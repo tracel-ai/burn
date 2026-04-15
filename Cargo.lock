@@ -1143,12 +1143,8 @@ name = "burn-store"
 version = "0.21.0-pre.3"
 dependencies = [
  "burn-core",
- "burn-cuda",
- "burn-ndarray",
+ "burn-dispatch",
  "burn-nn",
- "burn-tch",
- "burn-tensor",
- "burn-wgpu",
  "byteorder",
  "bytes",
  "ciborium",
