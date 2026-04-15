@@ -171,6 +171,55 @@ impl IntTensorOps<Flex> for Flex {
         }
     }
 
+    fn int_scatter_nd(
+        data: IntTensor<Flex>,
+        indices: IntTensor<Flex>,
+        values: IntTensor<Flex>,
+        reduction: burn_backend::tensor::IndexingUpdateOp,
+    ) -> IntTensor<Flex> {
+        match data.dtype() {
+            DType::I64 => {
+                crate::ops::gather_scatter::scatter_nd::<i64>(data, indices, values, reduction)
+            }
+            DType::I32 => {
+                crate::ops::gather_scatter::scatter_nd::<i32>(data, indices, values, reduction)
+            }
+            DType::I16 => {
+                crate::ops::gather_scatter::scatter_nd::<i16>(data, indices, values, reduction)
+            }
+            DType::I8 => {
+                crate::ops::gather_scatter::scatter_nd::<i8>(data, indices, values, reduction)
+            }
+            DType::U64 => {
+                crate::ops::gather_scatter::scatter_nd::<u64>(data, indices, values, reduction)
+            }
+            DType::U32 => {
+                crate::ops::gather_scatter::scatter_nd::<u32>(data, indices, values, reduction)
+            }
+            DType::U16 => {
+                crate::ops::gather_scatter::scatter_nd::<u16>(data, indices, values, reduction)
+            }
+            DType::U8 => {
+                crate::ops::gather_scatter::scatter_nd::<u8>(data, indices, values, reduction)
+            }
+            dt => panic!("int_scatter_nd: unsupported dtype {:?}", dt),
+        }
+    }
+
+    fn int_gather_nd(data: IntTensor<Flex>, indices: IntTensor<Flex>) -> IntTensor<Flex> {
+        match data.dtype() {
+            DType::I64 => crate::ops::gather_scatter::gather_nd::<i64>(data, indices),
+            DType::I32 => crate::ops::gather_scatter::gather_nd::<i32>(data, indices),
+            DType::I16 => crate::ops::gather_scatter::gather_nd::<i16>(data, indices),
+            DType::I8 => crate::ops::gather_scatter::gather_nd::<i8>(data, indices),
+            DType::U64 => crate::ops::gather_scatter::gather_nd::<u64>(data, indices),
+            DType::U32 => crate::ops::gather_scatter::gather_nd::<u32>(data, indices),
+            DType::U16 => crate::ops::gather_scatter::gather_nd::<u16>(data, indices),
+            DType::U8 => crate::ops::gather_scatter::gather_nd::<u8>(data, indices),
+            dt => panic!("int_gather_nd: unsupported dtype {:?}", dt),
+        }
+    }
+
     /// Select ints along `dim` by a 1D index tensor.
     ///
     /// The `indices` tensor may be any supported int width. See

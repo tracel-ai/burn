@@ -310,6 +310,39 @@ impl FloatTensorOps<Flex> for Flex {
         }
     }
 
+    fn float_scatter_nd(
+        data: FloatTensor<Flex>,
+        indices: IntTensor<Flex>,
+        values: FloatTensor<Flex>,
+        reduction: burn_backend::tensor::IndexingUpdateOp,
+    ) -> FloatTensor<Flex> {
+        match data.dtype() {
+            DType::F32 => {
+                crate::ops::gather_scatter::scatter_nd::<f32>(data, indices, values, reduction)
+            }
+            DType::F64 => {
+                crate::ops::gather_scatter::scatter_nd::<f64>(data, indices, values, reduction)
+            }
+            DType::F16 => {
+                crate::ops::gather_scatter::scatter_nd::<f16>(data, indices, values, reduction)
+            }
+            DType::BF16 => {
+                crate::ops::gather_scatter::scatter_nd::<bf16>(data, indices, values, reduction)
+            }
+            _ => panic!("float_scatter_nd: unsupported dtype {:?}", data.dtype()),
+        }
+    }
+
+    fn float_gather_nd(data: FloatTensor<Flex>, indices: IntTensor<Flex>) -> FloatTensor<Flex> {
+        match data.dtype() {
+            DType::F32 => crate::ops::gather_scatter::gather_nd::<f32>(data, indices),
+            DType::F64 => crate::ops::gather_scatter::gather_nd::<f64>(data, indices),
+            DType::F16 => crate::ops::gather_scatter::gather_nd::<f16>(data, indices),
+            DType::BF16 => crate::ops::gather_scatter::gather_nd::<bf16>(data, indices),
+            _ => panic!("float_gather_nd: unsupported dtype {:?}", data.dtype()),
+        }
+    }
+
     fn float_select(
         tensor: FloatTensor<Flex>,
         dim: usize,
