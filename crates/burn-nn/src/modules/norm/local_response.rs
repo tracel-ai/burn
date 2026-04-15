@@ -315,10 +315,8 @@ mod tests {
             .with_beta(1.0)
             .with_k(0.0)
             .init();
-        let input = Tensor::<TestBackend, 3>::from_data(
-            TensorData::from([[[1.0], [2.0], [4.0]]]),
-            &device,
-        );
+        let input =
+            Tensor::<TestBackend, 3>::from_data(TensorData::from([[[1.0], [2.0], [4.0]]]), &device);
 
         let output = module.forward(input);
 
