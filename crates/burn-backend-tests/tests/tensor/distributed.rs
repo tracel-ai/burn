@@ -66,20 +66,14 @@ fn run_all_reduce<B: AutodiffBackend + DistributedBackend>(
 
         let mut out_tensors = vec![];
         for tensor in tensors.clone() {
-            let device = tensor.device();
-            let output = unsafe {
-                B::all_reduce(
-                    tensor.into_primitive().tensor(),
-                    ReduceOperation::Sum,
-                    devices.iter().map(|d| d.id()).collect(),
-                )
-            };
-            let output: Tensor<B, 2, Float> = Tensor::new(TensorPrimitive::Float(output));
-            B::sync_collective(&device);
+            let output = B::all_reduce(
+                tensor.into_primitive().tensor(),
+                ReduceOperation::Sum,
+                devices.iter().map(|d| d.id()).collect(),
+            );
+            let output: Tensor<B, 2, Float> = Tensor::new(TensorPrimitive::Float(output.resolve()));
             out_tensors.push(output);
         }
-
-        for tensor in tensors {}
 
         println!("expected : {:?}\n", expected);
         for tensor in out_tensors {
@@ -121,15 +115,13 @@ fn run_multithread<B: AutodiffBackend + DistributedBackend>(
                     let tensor_data = TensorData::from(vec_data.as_slice());
                     let tensor = Tensor::<B, 1>::from_data(tensor_data, &local_device)
                         .reshape(shape.clone());
-                    let output = unsafe {
-                        B::all_reduce(
-                            tensor.into_primitive().tensor(),
-                            ReduceOperation::Sum,
-                            local_device_ids.clone(),
-                        )
-                    };
-                    let output: Tensor<B, 2, Float> = Tensor::new(TensorPrimitive::Float(output));
-                    B::sync_collective(&local_device);
+                    let output = B::all_reduce(
+                        tensor.into_primitive().tensor(),
+                        ReduceOperation::Sum,
+                        local_device_ids.clone(),
+                    );
+                    let output: Tensor<B, 2, Float> =
+                        Tensor::new(TensorPrimitive::Float(output.resolve()));
 
                     let data = output.flatten::<1>(0, 1).to_data();
                     local_actual_sender.send(data).unwrap();
