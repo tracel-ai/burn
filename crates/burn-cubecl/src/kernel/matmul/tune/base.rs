@@ -129,7 +129,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
             } else if matches!(key.analysis.kind, MatmulKind::VecMat) {
                 // RHS is the matrix
                 match key.definition.matrix_layout_rhs {
-                    // We don't have good algos for row mahor vecmat.
+                    // We don't have good algos for row major vecmat.
                     MatrixBatchLayout::Contiguous => PRIORITY_HIGH,
                     MatrixBatchLayout::MildlyPermuted { transposed, .. } => {
                         // Best algo is col major vec mat.
