@@ -1391,6 +1391,50 @@ impl TensorCheck {
 
         check
     }
+
+    /// Check if input tensor and generic parameters of `linalg::det()` are valid.
+    pub fn det<const D: usize, const D1: usize, const D2: usize>(dims: [usize; D]) -> Self {
+        let mut check = TensorCheck::Ok;
+
+        if D1 != D - 1 {
+            check = check.register(
+                "det",
+                TensorError::new(
+                    "D - 1 = D1 must hold for the generic parameters of the linalg::det function.",
+                )
+                .details(format!("Got generic parameters D = {D} and D1 = {D1}")),
+            );
+        }
+
+        if D2 != D - 2 {
+            check = check.register(
+                "det",
+                TensorError::new("The output tensor rank must be less than input tensor rank by 2")
+                    .details(format!(
+                        "Got input tensor rank {D} and output tensor rank {D2}"
+                    )),
+            );
+        }
+
+        if D < 3 {
+            check = check.register(
+                "det",
+                TensorError::new(format!(
+                    "The input tensor must have at least 3 dimensions, got {D}"
+                )),
+            );
+        }
+
+        if dims[D - 1] != dims[D - 2] {
+            check = check.register(
+                "det",
+                TensorError::new("The last two dimensions of the input tensor must be equal")
+                    .details(format!("Got input tensor with shape {:?}", dims)),
+            );
+        }
+
+        check
+    }
 }
 
 pub(crate) struct FailedTensorCheck {

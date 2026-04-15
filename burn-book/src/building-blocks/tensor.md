@@ -423,6 +423,7 @@ strategies.
 | Burn API                                           | PyTorch Equivalent                                  |
 | -------------------------------------------------- | --------------------------------------------------- |
 | `linalg::cosine_similarity(x1, x2, dim, eps)`      | `nn.functional.cosine_similarity(x1, x2, dim, eps)` |
+| `linalg::det(tensor)`                              | `torch.linalg.det(tensor)`                          |
 | `linalg::diag(tensor)`                             | `torch.diag(tensor)`                                |
 | `linalg::l0_norm(tensor, dim)`                     | _No direct equivalent_                              |
 | `linalg::l1_norm(tensor, dim)`                     | _No direct equivalent_                              |
