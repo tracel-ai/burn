@@ -1,6 +1,5 @@
 //! Quantized tensor operations for the Flex backend.
 
-use alloc::borrow::Cow;
 use alloc::vec::Vec;
 #[cfg(not(feature = "std"))]
 #[allow(unused_imports)]
@@ -16,31 +15,8 @@ use burn_backend::{
 };
 use burn_std::{Bytes, Shape, Slice, bf16, f16};
 
+use super::float_storage_as_f32;
 use crate::{Flex, FlexQTensor, FlexTensor, Layout};
-
-/// Read a contiguous float tensor's storage as f32 values, regardless of source dtype.
-/// Returns a borrowed slice for F32 (zero-copy) and an owned Vec for other types.
-fn float_storage_as_f32(tensor: &FlexTensor) -> Cow<'_, [f32]> {
-    match tensor.dtype() {
-        DType::F32 => Cow::Borrowed(tensor.storage::<f32>()),
-        DType::F64 => Cow::Owned(tensor.storage::<f64>().iter().map(|&x| x as f32).collect()),
-        DType::F16 => Cow::Owned(
-            tensor
-                .storage::<f16>()
-                .iter()
-                .map(|x| f32::from(*x))
-                .collect(),
-        ),
-        DType::BF16 => Cow::Owned(
-            tensor
-                .storage::<bf16>()
-                .iter()
-                .map(|x| f32::from(*x))
-                .collect(),
-        ),
-        other => panic!("float_storage_as_f32: unsupported dtype {:?}", other),
-    }
-}
 
 impl QTensorOps<Flex> for Flex {
     fn q_from_data(data: TensorData, _device: &Device<Flex>) -> QuantizedTensor<Flex> {
@@ -147,9 +123,12 @@ impl QTensorOps<Flex> for Flex {
         let tensor = tensor.to_contiguous();
         let float_data = float_storage_as_f32(&tensor);
 
-        // Extract and validate scales from the qparams tensor
+        // Extract and validate scales from the qparams tensor. The scales tensor
+        // shares its dtype with the float element type, which can be any of
+        // f32/f64/f16/bf16, so we normalise via float_storage_as_f32 instead of
+        // assuming f32 storage.
         let scales_tensor = qparams.scales.to_contiguous();
-        let scales_data: &[f32] = scales_tensor.storage();
+        let scales_data = float_storage_as_f32(&scales_tensor);
         let scales: Vec<f32> = scales_data.iter().copied().map(validated_scale).collect();
 
         let (a, b) = scheme.value.range();

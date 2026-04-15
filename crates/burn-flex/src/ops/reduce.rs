@@ -13,7 +13,7 @@ use burn_std::{Bytes, Shape, bf16, f16};
 use crate::strided_index::StridedIter;
 use crate::{FlexTensor, Layout};
 
-use super::INDEX_DTYPE;
+use super::{INDEX_DTYPE, float_storage_as_f32};
 
 /// Assert that a dimension size fits in `isize`, which is required for index-producing
 /// operations (argmax, argmin, *_with_indices) that store dimension indices as `isize`.
@@ -282,14 +282,21 @@ pub fn mean_dim(tensor: FlexTensor, dim: usize) -> FlexTensor {
         "mean_dim: cannot take mean of empty dimension"
     );
     let dtype = tensor.dtype();
+
+    // Half-precision types fuse sum+divide in f32 to avoid overflow when the
+    // intermediate sum exceeds f16::MAX, so they don't go through sum_dim.
+    match dtype {
+        DType::F16 => return mean_dim_half::<f16>(&tensor, dim),
+        DType::BF16 => return mean_dim_half::<bf16>(&tensor, dim),
+        _ => {}
+    }
+
     let sum_result = sum_dim(tensor, dim);
 
     // Divide by dimension size
     match dtype {
         DType::F32 => scalar_div::<f32>(sum_result, dim_size as f32),
         DType::F64 => scalar_div::<f64>(sum_result, dim_size as f64),
-        DType::F16 => scalar_div_f16(sum_result, dim_size as f32),
-        DType::BF16 => scalar_div_bf16(sum_result, dim_size as f32),
         DType::I8 => {
             let divisor = dim_size as i32;
             let mut tensor = sum_result;
@@ -754,6 +761,17 @@ fn reduce_dim_f32(tensor: &FlexTensor, dim: usize, op: ReduceOp) -> FlexTensor {
     out_shape[dim] = 1;
     let out_size: usize = out_shape.iter().product();
 
+    // Empty output: any zero-sized non-reduced dim means the result has no
+    // elements. Return early so the SIMD kernels and fallback loops never
+    // see `outer_size == 0` or `inner_size == 0`.
+    if out_size == 0 {
+        return FlexTensor::new(
+            Bytes::from_elems(Vec::<f32>::new()),
+            Layout::contiguous(Shape::from(out_shape)),
+            DType::F32,
+        );
+    }
+
     let outer_size: usize = shape[..dim].iter().product();
     let inner_size: usize = shape[dim + 1..].iter().product();
 
@@ -836,10 +854,12 @@ fn reduce_dim_f32(tensor: &FlexTensor, dim: usize, op: ReduceOp) -> FlexTensor {
         }
         result
     } else if tensor.is_contiguous() {
-        // Contiguous: use flat index arithmetic (safe for any ndims)
+        // Contiguous: use flat index arithmetic (safe for any ndims).
+        // outer_size and inner_size are guaranteed positive by the out_size == 0
+        // early return above.
         let mut result = Vec::with_capacity(out_size);
-        for outer in 0..outer_size.max(1) {
-            for inner in 0..inner_size.max(1) {
+        for outer in 0..outer_size {
+            for inner in 0..inner_size {
                 let mut acc = init;
                 for d in 0..dim_size {
                     let idx = start_offset + outer * dim_size * inner_size + d * inner_size + inner;
@@ -855,8 +875,8 @@ fn reduce_dim_f32(tensor: &FlexTensor, dim: usize, op: ReduceOp) -> FlexTensor {
         let inner_stride: isize = if dim + 1 < ndims { strides[dim + 1] } else { 1 };
 
         let mut result = Vec::with_capacity(out_size);
-        for outer in 0..outer_size.max(1) {
-            for inner in 0..inner_size.max(1) {
+        for outer in 0..outer_size {
+            for inner in 0..inner_size {
                 let base = start_offset as isize
                     + outer as isize * outer_stride
                     + inner as isize * inner_stride;
@@ -987,7 +1007,9 @@ fn reduce_last_dim_f32(
         dim_size as isize
     };
 
-    let rows = outer_size.max(1);
+    // `outer_size > 0` is guaranteed by the out_size == 0 early return in
+    // `reduce_dim_f32`.
+    let rows = outer_size;
 
     // Contiguous Sum: batch all rows in one kernel call to avoid per-row overhead.
     #[cfg(feature = "simd")]
@@ -1053,6 +1075,17 @@ where
     out_shape[dim] = 1;
     let out_size: usize = out_shape.iter().product();
 
+    // Empty output: any zero-sized non-reduced dim means the result has no
+    // elements. Returning early keeps the loops below from producing phantom
+    // outputs when `outer_size == 0` or `inner_size == 0`.
+    if out_size == 0 {
+        return FlexTensor::new(
+            Bytes::from_elems(Vec::<E>::new()),
+            Layout::contiguous(Shape::from(out_shape)),
+            tensor.dtype(),
+        );
+    }
+
     let outer_size: usize = shape[..dim].iter().product();
     let inner_size: usize = shape[dim + 1..].iter().product();
 
@@ -1062,9 +1095,10 @@ where
     let mut result: Vec<E> = Vec::with_capacity(out_size);
 
     if tensor.is_contiguous() {
-        // Contiguous: use flat index arithmetic (safe for any ndims)
-        for outer in 0..outer_size.max(1) {
-            for inner in 0..inner_size.max(1) {
+        // Contiguous: use flat index arithmetic (safe for any ndims).
+        // outer_size and inner_size are positive by the early return above.
+        for outer in 0..outer_size {
+            for inner in 0..inner_size {
                 let mut acc = init;
                 for d in 0..dim_size {
                     let idx = start_offset + outer * dim_size * inner_size + d * inner_size + inner;
@@ -1079,8 +1113,8 @@ where
         let outer_stride: isize = if dim > 0 { strides[dim - 1] } else { 0 };
         let inner_stride: isize = if dim + 1 < ndims { strides[dim + 1] } else { 1 };
 
-        for outer in 0..outer_size.max(1) {
-            for inner in 0..inner_size.max(1) {
+        for outer in 0..outer_size {
+            for inner in 0..inner_size {
                 let base = start_offset as isize
                     + outer as isize * outer_stride
                     + inner as isize * inner_stride;
@@ -1125,6 +1159,15 @@ where
     out_shape[dim] = 1;
     let out_size: usize = out_shape.iter().product();
 
+    // Empty output: skip the loop entirely for zero-sized non-reduced dims.
+    if out_size == 0 {
+        return FlexTensor::new(
+            Bytes::from_elems(Vec::<E>::new()),
+            Layout::contiguous(Shape::from(out_shape)),
+            tensor.dtype(),
+        );
+    }
+
     let outer_size: usize = shape[..dim].iter().product();
     let inner_size: usize = shape[dim + 1..].iter().product();
 
@@ -1133,8 +1176,8 @@ where
 
     let mut result: Vec<E> = Vec::with_capacity(out_size);
 
-    for outer in 0..outer_size.max(1) {
-        for inner in 0..inner_size.max(1) {
+    for outer in 0..outer_size {
+        for inner in 0..inner_size {
             let mut acc = init;
             for d in 0..dim_size {
                 let idx = start_offset + outer * dim_size * inner_size + d * inner_size + inner;
@@ -1185,6 +1228,15 @@ where
     out_shape[dim] = 1;
     let out_size: usize = out_shape.iter().product();
 
+    // Empty output: skip the loop entirely for zero-sized non-reduced dims.
+    if out_size == 0 {
+        return FlexTensor::new(
+            Bytes::from_elems(Vec::<E>::new()),
+            Layout::contiguous(Shape::from(out_shape)),
+            E::dtype(),
+        );
+    }
+
     let outer_size: usize = shape[..dim].iter().product();
     let inner_size: usize = shape[dim + 1..].iter().product();
 
@@ -1193,8 +1245,8 @@ where
 
     let mut result: Vec<E> = Vec::with_capacity(out_size);
 
-    for outer in 0..outer_size.max(1) {
-        for inner in 0..inner_size.max(1) {
+    for outer in 0..outer_size {
+        for inner in 0..inner_size {
             let mut acc = init;
             for d in 0..dim_size {
                 let idx = start_offset + outer * dim_size * inner_size + d * inner_size + inner;
@@ -1212,20 +1264,187 @@ where
     )
 }
 
+/// Sum along `dim` for an already-contiguous row-major f32 slice, producing
+/// one output per (outer, inner) position.
+///
+/// The caller owns the contiguity guarantee: `data.len()` must equal
+/// `outer_size * dim_size * inner_size` in logical row-major order. Dispatches
+/// to the same SIMD kernels `reduce_dim_f32` uses, but without the stride
+/// bookkeeping.
+fn sum_dim_contiguous_f32(
+    data: &[f32],
+    outer_size: usize,
+    dim_size: usize,
+    inner_size: usize,
+) -> Vec<f32> {
+    // Empty output: if any non-reduced dim has size 0, the result is empty.
+    // Returning early avoids indexing past an empty `data` slice in the SIMD
+    // kernels and keeps the output length in sync with the caller's out_shape.
+    if outer_size == 0 || inner_size == 0 {
+        return Vec::new();
+    }
+
+    // Last-dim: each output is the sum of a contiguous run of dim_size elements.
+    if inner_size == 1 {
+        let rows = outer_size;
+        #[cfg(feature = "simd")]
+        {
+            let mut result = vec![0.0f32; rows];
+            kernels::sum_rows_f32(data, &mut result, rows, dim_size);
+            return result;
+        }
+        #[cfg(not(feature = "simd"))]
+        {
+            return (0..rows)
+                .map(|i| data[i * dim_size..(i + 1) * dim_size].iter().sum())
+                .collect();
+        }
+    }
+
+    // First-dim (or equivalent: any collapsed-outer case): scatter-add dim_size
+    // rows of inner_size cols into a single inner_size accumulator.
+    if outer_size == 1 {
+        #[cfg(feature = "simd")]
+        {
+            let mut result = aligned::alloc_aligned_zeroed::<f32>(inner_size);
+            kernels::scatter_add_f32(data, &mut result, dim_size, inner_size, inner_size);
+            return aligned::to_vec(result);
+        }
+        #[cfg(not(feature = "simd"))]
+        {
+            let mut result = vec![0.0f32; inner_size];
+            for row in 0..dim_size {
+                let row_start = row * inner_size;
+                for c in 0..inner_size {
+                    result[c] += data[row_start + c];
+                }
+            }
+            return result;
+        }
+    }
+
+    // Middle-dim: batched scatter-add. For each outer batch, sum dim_size rows
+    // of inner_size cols into a per-batch accumulator.
+    let out_size = outer_size * inner_size;
+    #[cfg(feature = "simd")]
+    {
+        let mut result = aligned::alloc_aligned_zeroed::<f32>(out_size);
+        kernels::scatter_add_batched(
+            data,
+            &mut result,
+            outer_size,
+            dim_size,
+            inner_size,
+            dim_size * inner_size,
+            inner_size,
+        );
+        aligned::to_vec(result)
+    }
+    #[cfg(not(feature = "simd"))]
+    {
+        let mut result = vec![0.0f32; out_size];
+        for outer in 0..outer_size {
+            let out_base = outer * inner_size;
+            for d in 0..dim_size {
+                let in_base = outer * dim_size * inner_size + d * inner_size;
+                for c in 0..inner_size {
+                    result[out_base + c] += data[in_base + c];
+                }
+            }
+        }
+        result
+    }
+}
+
+/// Mean along a dimension for half-precision types, fusing sum and divide in f32.
+///
+/// A naive `sum_dim` + `scalar_div` implementation can overflow to +inf when the
+/// intermediate sum exceeds `f16::MAX` (65504), even if the final mean fits. This
+/// function keeps the entire reduction and division in f32 and only narrows to
+/// f16/bf16 on store via `E::from_elem`.
+fn mean_dim_half<E>(tensor: &FlexTensor, dim: usize) -> FlexTensor
+where
+    E: Element + bytemuck::Pod,
+{
+    let tensor = tensor.to_contiguous();
+    let shape = tensor.layout().shape();
+    let ndims = shape.num_dims();
+
+    assert!(
+        dim < ndims,
+        "dim {} out of bounds for {} dimensions",
+        dim,
+        ndims
+    );
+
+    let dim_size = shape[dim];
+    assert!(
+        dim_size > 0,
+        "mean_dim: cannot take mean of empty dimension"
+    );
+    let mut out_shape: Vec<usize> = shape.to_vec();
+    out_shape[dim] = 1;
+
+    let outer_size: usize = shape[..dim].iter().product();
+    let inner_size: usize = shape[dim + 1..].iter().product();
+
+    let data = float_storage_as_f32(&tensor);
+    let divisor = dim_size as f32;
+
+    let sums = sum_dim_contiguous_f32(&data, outer_size, dim_size, inner_size);
+    let result: Vec<E> = sums
+        .into_iter()
+        .map(|s| E::from_elem(s / divisor))
+        .collect();
+
+    let bytes = Bytes::from_elems(result);
+    FlexTensor::new(
+        bytes,
+        Layout::contiguous(Shape::from(out_shape)),
+        E::dtype(),
+    )
+}
+
+/// Scalar mean for half-precision types, fusing sum and divide in f32.
+/// Avoids f16 overflow when the total sum exceeds `f16::MAX`. Empty input
+/// produces NaN to match the f32/f64 path in `mean()`.
+fn mean_scalar_half<E>(tensor: &FlexTensor) -> FlexTensor
+where
+    E: Element + bytemuck::Pod,
+{
+    let tensor = tensor.to_contiguous();
+    let n = tensor.layout().num_elements();
+    let data = float_storage_as_f32(&tensor);
+    // Route through `sum_f32_contiguous` to pick up SIMD + rayon for the
+    // f32 reduction. The half-precision narrowing happens after the divide.
+    let acc = sum_f32_contiguous(&data);
+
+    let mean = acc / (n as f32);
+    let bytes = Bytes::from_elems(vec![E::from_elem(mean)]);
+    FlexTensor::new(bytes, Layout::contiguous(Shape::from(vec![1])), E::dtype())
+}
+
 // ============================================================================
 // Mean (all elements)
 // ============================================================================
 
 /// Mean of all elements, returning a scalar tensor.
 pub fn mean(tensor: FlexTensor) -> FlexTensor {
+    let dtype = tensor.dtype();
+
+    // Half-precision types fuse sum+divide in f32 to avoid overflow when the
+    // total sum exceeds f16::MAX.
+    match dtype {
+        DType::F16 => return mean_scalar_half::<f16>(&tensor),
+        DType::BF16 => return mean_scalar_half::<bf16>(&tensor),
+        _ => {}
+    }
+
     let n = tensor.layout().num_elements();
     let sum_result = sum(tensor);
-    let dtype = sum_result.dtype();
     match dtype {
         DType::F32 => scalar_div::<f32>(sum_result, n as f32),
         DType::F64 => scalar_div::<f64>(sum_result, n as f64),
-        DType::F16 => scalar_div_f16(sum_result, n as f32),
-        DType::BF16 => scalar_div_bf16(sum_result, n as f32),
         _ => panic!("mean: unsupported dtype {:?}", dtype),
     }
 }
@@ -2023,22 +2242,6 @@ fn scalar_div<E: Element + bytemuck::Pod + core::ops::Div<Output = E> + Copy>(
     tensor
 }
 
-fn scalar_div_f16(mut tensor: FlexTensor, divisor: f32) -> FlexTensor {
-    let data: &mut [f16] = tensor.storage_mut();
-    for x in data.iter_mut() {
-        *x = f16::from_f32(x.to_f32() / divisor);
-    }
-    tensor
-}
-
-fn scalar_div_bf16(mut tensor: FlexTensor, divisor: f32) -> FlexTensor {
-    let data: &mut [bf16] = tensor.storage_mut();
-    for x in data.iter_mut() {
-        *x = bf16::from_f32(x.to_f32() / divisor);
-    }
-    tensor
-}
-
 // ============================================================================
 // Tests
 // ============================================================================
@@ -2140,6 +2343,109 @@ mod tests {
         let result_data = result.into_data();
         let values: Vec<f32> = bytemuck::cast_slice(&result_data.bytes).to_vec();
         assert_eq!(values, vec![2.0, 5.0]);
+    }
+
+    #[test]
+    fn test_mean_f16_overflow_intermediate_sum() {
+        // Scalar `mean()` for f16 must fuse sum+divide on the f32 accumulator.
+        // Sum of 0..1024 is 523776, well above f16::MAX (65504), so a naive
+        // sum-then-divide that materialises the intermediate in f16 would clip
+        // to inf. The final mean (511.5) fits f16 comfortably.
+        let data: Vec<f16> = (0..1024).map(|i| f16::from_f32(i as f32)).collect();
+        let tensor = FlexTensor::from_data(TensorData::new(data, [1024]));
+
+        let result = mean(tensor);
+        let result_data = result.into_data();
+        let values: &[f16] = bytemuck::cast_slice(&result_data.bytes);
+
+        assert_eq!(values.len(), 1);
+        let mean = values[0].to_f32();
+        assert!(mean.is_finite(), "mean overflowed to {mean}");
+        assert!((mean - 511.5).abs() < 0.5, "expected ~511.5, got {mean}");
+    }
+
+    #[test]
+    fn test_mean_dim_f16_zero_outer_dim() {
+        // Regression test for mean_dim_half / sum_dim_contiguous_f32 clamping
+        // `outer_size.max(1)` in the last-dim branch: shape [0, 4] reducing
+        // dim=1 has outer_size=0, and the old clamp produced rows=1 which
+        // ran sum_rows_f32 past the end of an empty buffer. Result should be
+        // an empty tensor with shape [0, 1].
+        let data: Vec<f16> = Vec::new();
+        let tensor = FlexTensor::from_data(TensorData::new(data, [0, 4]));
+        let result = mean_dim(tensor, 1);
+
+        assert_eq!(result.layout().shape().to_vec(), vec![0, 1]);
+        let result_data = result.into_data();
+        let values: &[f16] = bytemuck::cast_slice(&result_data.bytes);
+        assert!(values.is_empty());
+    }
+
+    #[test]
+    fn test_sum_dim_f32_zero_outer_dim() {
+        // Regression: the f32 last-dim SIMD path (`reduce_last_dim_f32`) used
+        // `rows = outer_size.max(1)` which would index past the end of an
+        // empty data buffer for shape [0, K]. Guarded by the `out_size == 0`
+        // early return in `reduce_dim_f32`.
+        let data: Vec<f32> = Vec::new();
+        let tensor = FlexTensor::from_data(TensorData::new(data, [0, 4]));
+        let result = sum_dim(tensor, 1);
+
+        assert_eq!(result.layout().shape().to_vec(), vec![0, 1]);
+        assert!(result.into_data().bytes.is_empty());
+    }
+
+    #[test]
+    fn test_sum_dim_f32_zero_inner_dim() {
+        // Mirror of the outer-zero case: shape [3, 0] reducing dim=0 has
+        // inner_size=0. The middle/fallback paths previously would have
+        // allocated an empty result but still iterated `outer_size.max(1)`
+        // times with zero inner, producing correct (empty) output by
+        // accident. The early return makes the intent explicit.
+        let data: Vec<f32> = Vec::new();
+        let tensor = FlexTensor::from_data(TensorData::new(data, [3, 0]));
+        let result = sum_dim(tensor, 0);
+
+        assert_eq!(result.layout().shape().to_vec(), vec![1, 0]);
+        assert!(result.into_data().bytes.is_empty());
+    }
+
+    #[test]
+    fn test_sum_dim_f64_zero_outer_dim() {
+        // Covers `reduce_dim_impl` (generic contiguous/non-contiguous path)
+        // for the zero-sized non-reduced dim case.
+        let data: Vec<f64> = Vec::new();
+        let tensor = FlexTensor::from_data(TensorData::new(data, [0, 4]));
+        let result = sum_dim(tensor, 1);
+
+        assert_eq!(result.layout().shape().to_vec(), vec![0, 1]);
+        assert!(result.into_data().bytes.is_empty());
+    }
+
+    #[test]
+    fn test_sum_dim_i8_zero_outer_dim() {
+        // Covers `reduce_dim_widening` (i8/i16/u8/u16 path that accumulates
+        // in i64) for the zero-sized non-reduced dim case.
+        let data: Vec<i8> = Vec::new();
+        let tensor = FlexTensor::from_data(TensorData::new(data, [0, 4]));
+        let result = sum_dim(tensor, 1);
+
+        assert_eq!(result.layout().shape().to_vec(), vec![0, 1]);
+        assert!(result.into_data().bytes.is_empty());
+    }
+
+    #[test]
+    fn test_sum_dim_bf16_zero_outer_dim() {
+        // Covers `reduce_dim_half` (bf16/f16 sum_dim/prod_dim path) for the
+        // zero-sized non-reduced dim case. Note: f16 `mean_dim` goes through
+        // `mean_dim_half` which has its own test above; bf16 `sum_dim` goes
+        // through `reduce_dim_half`, which is why this test uses bf16+sum.
+        let data: Vec<bf16> = Vec::new();
+        let tensor = FlexTensor::from_data(TensorData::new(data, [0, 4]));
+        let result = sum_dim(tensor, 1);
+
+        assert_eq!(result.layout().shape().to_vec(), vec![0, 1]);
+        assert!(result.into_data().bytes.is_empty());
     }
 
     #[test]

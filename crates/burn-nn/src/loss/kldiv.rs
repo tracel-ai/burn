@@ -90,7 +90,11 @@ impl KLDivLoss {
         match self.log_target {
             true => targets.clone().exp().mul(targets.sub(predictions)),
             false => {
-                let epsilon = 1e-8;
+                let epsilon = targets
+                    .dtype()
+                    .finfo()
+                    .unwrap_or(burn::tensor::FloatDType::F32.finfo())
+                    .min_positive;
                 let log_target = targets.clone().clamp(epsilon, 1.0).log();
                 targets.mul(log_target.sub(predictions))
             }

@@ -500,15 +500,26 @@ pub trait QTensorOps<B: Backend> {
     fn q_matmul(lhs: TensorPrimitive<B>, rhs: TensorPrimitive<B>) -> TensorPrimitive<B> {
         let mut propagation = QuantPropagation::Inhibit;
         let mut scheme = QuantScheme::default();
-        let mut dtype = None;
+
+        // Pick a target dtype for any dequantization. If either operand is already
+        // a Float tensor, take its dtype so a Float-QFloat (or QFloat-Float) pair
+        // ends up matching after dequantize and `float_matmul` doesn't see a
+        // dtype mismatch. Only when both operands are QFloat do we fall back to
+        // the device default.
+        let target_dtype: Option<FloatDType> = match (&lhs, &rhs) {
+            (TensorPrimitive::Float(t), _) | (_, TensorPrimitive::Float(t)) => {
+                Some(t.dtype().into())
+            }
+            _ => None,
+        };
 
         let lhs = match lhs {
             TensorPrimitive::Float(lhs) => lhs,
             TensorPrimitive::QFloat(lhs) => {
                 propagation = lhs.propagation();
                 scheme = *lhs.scheme();
-                let float_dtype = get_device_settings::<B>(&Self::q_device(&lhs)).float_dtype;
-                dtype = Some(float_dtype);
+                let float_dtype = target_dtype
+                    .unwrap_or_else(|| get_device_settings::<B>(&Self::q_device(&lhs)).float_dtype);
 
                 Self::dequantize(lhs, float_dtype)
             }
@@ -518,7 +529,7 @@ pub trait QTensorOps<B: Backend> {
             TensorPrimitive::QFloat(rhs) => {
                 propagation = rhs.propagation();
                 scheme = *rhs.scheme();
-                let float_dtype = dtype
+                let float_dtype = target_dtype
                     .unwrap_or_else(|| get_device_settings::<B>(&Self::q_device(&rhs)).float_dtype);
 
                 Self::dequantize(rhs, float_dtype)

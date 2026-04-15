@@ -734,6 +734,15 @@ impl ModuleOps<Flex> for Flex {
         )
     }
 
+    fn layer_norm(
+        tensor: FloatTensor<Flex>,
+        gamma: FloatTensor<Flex>,
+        beta: Option<FloatTensor<Flex>>,
+        epsilon: f64,
+    ) -> FloatTensor<Flex> {
+        crate::ops::activation::layer_norm(tensor, gamma, beta, epsilon)
+    }
+
     fn embedding_backward(
         weights: FloatTensor<Flex>,
         output_grad: FloatTensor<Flex>,

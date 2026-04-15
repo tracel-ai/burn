@@ -7,6 +7,7 @@ mod glu;
 mod hard_sigmoid;
 mod leaky_relu;
 mod log_sigmoid;
+mod log_softmax;
 mod mish;
 mod prelu;
 mod quiet_softmax;

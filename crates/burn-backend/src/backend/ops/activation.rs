@@ -233,6 +233,64 @@ pub trait ActivationOps<B: Backend> {
         B::float_sub(max_elem_neg, B::float_log(z))
     }
 
+    /// Applies the softmax function along the given dimension.
+    ///
+    /// Uses the max-shift trick for numerical stability: the per-row `max` is detached
+    /// so no gradient flows back through it (the shift is a numerical-stability
+    /// transformation, not part of the function).
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    /// * `dim` - The dimension along which softmax is computed.
+    ///
+    /// # Returns
+    ///
+    /// The output tensor.
+    fn softmax(tensor: FloatTensor<B>, dim: usize) -> FloatTensor<B> {
+        let max = B::float_max_dim(B::float_detach(tensor.clone()), dim);
+        let shifted = B::float_sub(tensor, max);
+        let exp = B::float_exp(shifted);
+        let sum = B::float_sum_dim(exp.clone(), dim);
+        B::float_div(exp, sum)
+    }
+
+    /// Applies the log-softmax function along the given dimension.
+    ///
+    /// Computed via the log-sum-exp trick with a detached max-shift for numerical
+    /// stability.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    /// * `dim` - The dimension along which log-softmax is computed.
+    ///
+    /// # Returns
+    ///
+    /// The output tensor.
+    fn log_softmax(tensor: FloatTensor<B>, dim: usize) -> FloatTensor<B> {
+        let max = B::float_max_dim(B::float_detach(tensor.clone()), dim);
+        let shifted = B::float_sub(tensor, max);
+        let log_sum_exp = B::float_log(B::float_sum_dim(B::float_exp(shifted.clone()), dim));
+        B::float_sub(shifted, log_sum_exp)
+    }
+
+    /// Applies the softmin function along the given dimension.
+    ///
+    /// Equivalent to `softmax(-tensor, dim)`.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor.
+    /// * `dim` - The dimension along which softmin is computed.
+    ///
+    /// # Returns
+    ///
+    /// The output tensor.
+    fn softmin(tensor: FloatTensor<B>, dim: usize) -> FloatTensor<B> {
+        Self::softmax(B::float_neg(tensor), dim)
+    }
+
     /// Applies the LogSigmoid activation function backward.
     ///
     /// # Arguments

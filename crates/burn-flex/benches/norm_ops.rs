@@ -13,8 +13,24 @@
 
 use burn_flex::Flex;
 use burn_ndarray::NdArray;
-use burn_tensor::{Tensor, TensorData, backend::Backend};
+use burn_tensor::{Tensor, TensorData, TensorPrimitive, backend::Backend};
 use divan::{AllocProfiler, Bencher};
+
+/// Route through the `B::layer_norm` backend hook. On Flex this hits the
+/// fused override; on NdArray this hits the `ModuleOps` default decomposition.
+fn trait_layer_norm<B: Backend, const D: usize>(
+    input: Tensor<B, D>,
+    gamma: Tensor<B, 1>,
+    beta: Tensor<B, 1>,
+    epsilon: f64,
+) -> Tensor<B, D> {
+    Tensor::from_primitive(TensorPrimitive::Float(B::layer_norm(
+        input.into_primitive().tensor(),
+        gamma.into_primitive().tensor(),
+        Some(beta.into_primitive().tensor()),
+        epsilon,
+    )))
+}
 
 #[global_allocator]
 static ALLOC: AllocProfiler = AllocProfiler::system();
@@ -115,6 +131,48 @@ macro_rules! bench_backend {
                     let x = make_tensor_3d::<B>(2, 512, 768);
                     let (g, b) = make_gamma_beta::<B>(768);
                     bencher.bench(|| decomposed_layer_norm(x.clone(), g.clone(), b.clone(), 1e-5));
+                }
+            }
+
+            // Routes through `B::layer_norm`; compare against the
+            // `convnext_layer_norm_decomposed` group above.
+            #[divan::bench_group(name = "convnext_layer_norm_fused_trait")]
+            mod convnext_layer_norm_fused_trait {
+                use super::*;
+
+                #[divan::bench]
+                fn c48_hw244x224(bencher: Bencher) {
+                    let x = make_tensor_3d::<B>(1, 244 * 224, 48);
+                    let (g, b) = make_gamma_beta::<B>(48);
+                    bencher.bench(|| trait_layer_norm(x.clone(), g.clone(), b.clone(), 1e-5));
+                }
+
+                #[divan::bench]
+                fn c96_hw122x112(bencher: Bencher) {
+                    let x = make_tensor_3d::<B>(1, 122 * 112, 96);
+                    let (g, b) = make_gamma_beta::<B>(96);
+                    bencher.bench(|| trait_layer_norm(x.clone(), g.clone(), b.clone(), 1e-5));
+                }
+
+                #[divan::bench]
+                fn c192_hw61x56(bencher: Bencher) {
+                    let x = make_tensor_3d::<B>(1, 61 * 56, 192);
+                    let (g, b) = make_gamma_beta::<B>(192);
+                    bencher.bench(|| trait_layer_norm(x.clone(), g.clone(), b.clone(), 1e-5));
+                }
+
+                #[divan::bench]
+                fn c384_hw30x28(bencher: Bencher) {
+                    let x = make_tensor_3d::<B>(1, 30 * 28, 384);
+                    let (g, b) = make_gamma_beta::<B>(384);
+                    bencher.bench(|| trait_layer_norm(x.clone(), g.clone(), b.clone(), 1e-5));
+                }
+
+                #[divan::bench]
+                fn d768_seq512_b2(bencher: Bencher) {
+                    let x = make_tensor_3d::<B>(2, 512, 768);
+                    let (g, b) = make_gamma_beta::<B>(768);
+                    bencher.bench(|| trait_layer_norm(x.clone(), g.clone(), b.clone(), 1e-5));
                 }
             }
 

@@ -167,6 +167,39 @@ fn test_matmul_lhs_float_rhs_quantized() {
 }
 
 #[test]
+fn test_matmul_lhs_quantized_rhs_float() {
+    // Mirror of test_matmul_lhs_float_rhs_quantized: pins the symmetric
+    // (QFloat, Float) arm of the q_matmul dispatch so a future split of the
+    // collapsed match arm cannot regress one direction silently. Uses the
+    // relative tolerance shared by the other quantized matmul tests in this
+    // file because the lhs dynamic range here is smaller than the rhs in the
+    // sibling test, so int8 noise dominates the result more.
+    let tensor_1 = QTensor::<2>::int8([
+        [1.0, 6.35, 2.0, 3.0],
+        [2.0, 3.0, 4.0, 5.0],
+        [1.0, 3.0, 5.0, 7.0],
+    ]);
+    let tensor_2 = TestTensor::<2>::from([
+        [4.0, 8.0, 12.7, 1.6],
+        [2.0, 3.0, 6.0, 4.0],
+        [1.0, 5.0, 9.0, 2.5],
+        [3.0, 7.0, 11.0, 0.5],
+    ]);
+    let tensor_3 = tensor_1.matmul(tensor_2);
+
+    let expected = TensorData::from([
+        [27.7, 58.05, 101.8, 33.5],
+        [33., 80., 134.4, 27.7],
+        [36., 91., 152.7, 29.6],
+    ]);
+    let output = tensor_3.into_data();
+    output.assert_approx_eq::<FloatElem>(&expected, Tolerance::relative(2e-2));
+
+    // Default quantization scheme does not propagate quantization with matmul
+    assert!(output.dtype.is_float());
+}
+
+#[test]
 fn test_matmul_mixed_block_scale() {
     let tensor_1 = TestTensor::<2>::from([
         [1.0, 6.35, 2.0, 3.0],
