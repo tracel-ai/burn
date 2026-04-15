@@ -243,6 +243,7 @@ Burn comes with built-in modules that you can use to build your own modules.
 | `HardSwish`       | `nn.Hardswish`                                |
 | `InstanceNorm`    | `nn.InstanceNorm1d`, `nn.InstanceNorm2d` etc. |
 | `LayerNorm`       | `nn.LayerNorm`                                |
+| `LocalResponseNorm` | `nn.LocalResponseNorm`                      |
 | `LeakyRelu`       | `nn.LeakyReLU`                                |
 | `Linear`          | `nn.Linear`                                   |
 | `Prelu`           | `nn.PReLu`                                    |
