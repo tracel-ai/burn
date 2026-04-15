@@ -306,7 +306,7 @@ impl core::fmt::Debug for TensorSnapshot {
 mod tests {
     use super::*;
     use alloc::string::ToString;
-    use burn_core::tensor::{BoolStore, shape};
+    use burn_core::tensor::{BoolStore, Device, shape};
 
     #[test]
     fn tensor_view_float() {
@@ -345,13 +345,13 @@ mod tests {
         );
 
         // Test metadata access without materialization
-        // TestBackend uses I64 for integers
-        assert_eq!(snapshot.dtype, DType::I64);
+        let dtype: DType = device.settings().int_dtype.into();
+        assert_eq!(snapshot.dtype, dtype);
         assert_eq!(snapshot.shape, shape![2, 2]);
 
         let data = snapshot.to_data().unwrap();
         assert_eq!(data.shape, shape![2, 2]);
-        assert_eq!(data.dtype, DType::I64);
+        assert_eq!(data.dtype, dtype);
     }
 
     #[test]
@@ -377,7 +377,8 @@ mod tests {
 
     #[test]
     fn data_len() {
-        let device = Default::default();
+        let device = Device::default();
+        let settings = device.settings();
 
         // Test F32 tensor (4 bytes per element)
         let tensor_f32 = Tensor::<2>::from_data([[1.0, 2.0], [3.0, 4.0]], &device);
@@ -387,9 +388,10 @@ mod tests {
             vec!["Module".to_string()],
             ParamId::new(),
         );
-        assert_eq!(view_f32.data_len(), 16); // 4 elements * 4 bytes
+        let dtype: DType = settings.float_dtype.into();
+        assert_eq!(view_f32.data_len(), 4 * dtype.size()); // 4 elements * 4 bytes
 
-        // Test I64 tensor (8 bytes per element) - TestBackend uses I64 for Int
+        // Test int tensor
         let tensor_i64 = Tensor::<3, Int>::from_data([[[1, 2], [3, 4]], [[5, 6], [7, 8]]], &device);
         let view_i64 = TensorSnapshot::from_int(
             &tensor_i64,
@@ -397,7 +399,8 @@ mod tests {
             vec!["Module".to_string()],
             ParamId::new(),
         );
-        assert_eq!(view_i64.data_len(), 64); // 8 elements * 8 bytes (I64)
+        let dtype: DType = settings.int_dtype.into();
+        assert_eq!(view_i64.data_len(), 8 * dtype.size()); // 8 elements * 8 bytes (I64)
 
         // Test Bool tensor (1 byte per element)
         let tensor_bool = Tensor::<2, Bool>::from_data([[true, false], [false, true]], &device);
@@ -407,7 +410,8 @@ mod tests {
             vec!["Module".to_string()],
             ParamId::new(),
         );
-        assert_eq!(view_bool.data_len(), 4); // 4 elements * 1 byte
+        let dtype: DType = settings.bool_dtype.into();
+        assert_eq!(view_bool.data_len(), 4 * dtype.size()); // 4 elements * 1 byte
     }
 
     #[test]
