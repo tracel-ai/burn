@@ -64,7 +64,7 @@ distributed = ["std",
     "burn-cuda/distributed",
     "burn-cuda/fusion",
     "burn-ndarray/distributed",
-    "burn-router?/distributed"
+    "burn-router/distributed"
 ]
 
 # Custom deserializer for Record that is helpful for importing data, such as PyTorch pt files.
