@@ -351,8 +351,8 @@ mod lazy_clone {
 
     #[test]
     fn clone_uninitialized_param_should_not_trigger_init() {
-        let device = <TestBackend as Backend>::Device::default();
-        let module = ModuleBasic::<TestBackend>::new(&device);
+        let device = Device::default();
+        let module = ModuleBasic::new(&device);
 
         // Module starts uninitialized (lazy).
         assert!(!module.weight_basic.is_initialized());
@@ -365,8 +365,8 @@ mod lazy_clone {
 
     #[test]
     fn clone_initialized_param_should_share_values() {
-        let device = <TestBackend as Backend>::Device::default();
-        let module = ModuleBasic::<TestBackend>::new(&device);
+        let device = Device::default();
+        let module = ModuleBasic::new(&device);
 
         // Force initialization by accessing the tensor.
         let _ = module.weight_basic.to_data();
@@ -379,8 +379,8 @@ mod lazy_clone {
 
     #[test]
     fn lazy_clone_should_produce_valid_tensor_on_access() {
-        let device = <TestBackend as Backend>::Device::default();
-        let module = ModuleBasic::<TestBackend>::new(&device);
+        let device = Device::default();
+        let module = ModuleBasic::new(&device);
         let cloned = module.clone();
 
         // Both are uninitialized.
@@ -397,8 +397,8 @@ mod lazy_clone {
 
     #[test]
     fn lazy_clone_and_original_produce_independent_values() {
-        let device = <TestBackend as Backend>::Device::default();
-        let module = ModuleBasic::<TestBackend>::new(&device);
+        let device = Device::default();
+        let module = ModuleBasic::new(&device);
         let cloned = module.clone();
 
         // Access clone first, then original. Both should produce valid but different
@@ -413,8 +413,8 @@ mod lazy_clone {
 
     #[test]
     fn lazy_clone_deref_should_trigger_init() {
-        let device = <TestBackend as Backend>::Device::default();
-        let module = ModuleBasic::<TestBackend>::new(&device);
+        let device = Device::default();
+        let module = ModuleBasic::new(&device);
         let cloned = module.clone();
 
         // Access via Deref (shape() uses Deref, not val()) on the clone.
@@ -429,10 +429,10 @@ mod lazy_clone {
         use burn::module::ParamId;
         use burn::tensor::Shape;
 
-        let device = <TestBackend as Backend>::Device::default();
+        let device = Device::default();
 
         // Create two uninitialized params from the same init function.
-        let param: Param<Tensor<TestBackend, 2>> = Param::uninitialized(
+        let param: Param<Tensor<2>> = Param::uninitialized(
             ParamId::new(),
             move |d, _| Tensor::ones([4, 4], d),
             device.clone(),
@@ -455,15 +455,15 @@ mod lazy_clone {
 
     #[test]
     fn load_record_into_uninitialized_module_should_work() {
-        let device = <TestBackend as Backend>::Device::default();
-        let module_1 = ModuleBasic::<TestBackend>::new(&device);
+        let device = Device::default();
+        let module_1 = ModuleBasic::new(&device);
 
         // Initialize module_1 so we have a record to load.
         let _ = module_1.weight_basic.to_data();
         let record = module_1.clone().into_record();
 
         // Create a fresh uninitialized module and load weights into it.
-        let module_2 = ModuleBasic::<TestBackend>::new(&device);
+        let module_2 = ModuleBasic::new(&device);
         assert!(!module_2.weight_basic.is_initialized());
 
         let module_2 = module_2.load_record(record);

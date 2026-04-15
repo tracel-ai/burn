@@ -34,13 +34,13 @@ fn new_mapper<T, F: Fn(T) -> T + Send + Sync + 'static>(func: F) -> Mapper<T> {
 /// On targets without atomics, `portable_atomic_util::Arc` needs `Box` indirection
 /// for unsized types, mirroring the `Mapper` pattern above.
 #[cfg(target_has_atomic = "ptr")]
-type InitFn<P> = Arc<dyn Fn(&<P as Parameter>::Device, bool) -> P + Send + Sync>;
+type InitFn<P> = Arc<dyn Fn(&Device, bool) -> P + Send + Sync>;
 
 #[cfg(not(target_has_atomic = "ptr"))]
-type InitFn<P> = Arc<Box<dyn Fn(&<P as Parameter>::Device, bool) -> P + Send + Sync>>;
+type InitFn<P> = Arc<Box<dyn Fn(&Device, bool) -> P + Send + Sync>>;
 
 #[cfg(target_has_atomic = "ptr")]
-fn new_init_fn<P: Parameter, F: Fn(&P::Device, bool) -> P + Send + Sync + 'static>(
+fn new_init_fn<P: Parameter, F: Fn(&Device, bool) -> P + Send + Sync + 'static>(
     func: F,
 ) -> InitFn<P> {
     Arc::new(func)

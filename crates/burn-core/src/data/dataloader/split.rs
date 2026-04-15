@@ -49,7 +49,7 @@ mod tests {
         #[cfg(test)]
         impl<I> Batcher<I, (Vec<I>, Device)> for TestBatcher {
             fn batch(&self, items: Vec<I>, device: &Device) -> (Vec<I>, Device) {
-                (items, *device)
+                (items, device.clone())
             }
         }
 
