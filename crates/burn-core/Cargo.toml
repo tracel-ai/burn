@@ -57,12 +57,10 @@ std = [
 ]
 vision = ["burn-dataset?/vision"]
 audio = ["burn-dataset?/audio"]
-# TODO : remove ndarray and fusion
 distributed = ["std",
     "burn-tensor/distributed",
     "burn-autodiff/distributed",
-    "burn-cuda/distributed",
-    "burn-cuda/fusion",
+    "burn-cuda?/distributed",
     "burn-router/distributed"
 ]
 
@@ -129,7 +127,7 @@ thiserror = { workspace = true, optional = true }
 regex = { workspace = true }
 
 # FOR TESTING
-burn-cuda = { path = "../burn-cuda", version = "=0.21.0-pre.3", default-features = false }
+burn-cuda = { path = "../burn-cuda", version = "=0.21.0-pre.3", optional = true, default-features = false }
 burn-rocm = { path = "../burn-rocm", version = "=0.21.0-pre.3", optional = true, default-features = false }
 burn-remote = { path = "../burn-remote", version = "=0.21.0-pre.3", default-features = false, optional = true }
 burn-router = { path = "../burn-router", version = "=0.21.0-pre.3", default-features = false, optional = true }

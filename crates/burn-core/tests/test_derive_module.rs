@@ -6,8 +6,7 @@ use burn::tensor::backend::Backend;
 use burn::tensor::{Int, Tensor};
 use burn_core as burn;
 
-// pub type TestBackend = burn_ndarray::NdArray<f32>;
-pub type TestBackend = burn_cuda::Cuda;
+pub type TestBackend = burn_ndarray::NdArray<f32>;
 #[cfg(feature = "std")]
 pub type TestAutodiffBackend = burn_autodiff::Autodiff<TestBackend>;
 
@@ -686,8 +685,7 @@ mod grad_distributed {
         const NUM_ITERATIONS: usize = 100;
         let type_id = 0u16;
 
-        // let device_count = <B as Backend>::device_count(type_id);
-        let device_count = 2;
+        let device_count = <B as Backend>::device_count(type_id);
         let devices = create_devices::<B::Device>(type_id, device_count);
         let module = ModuleBasic::<B>::new(&devices[0]);
         let (synced_senders, synced_receivers): (
