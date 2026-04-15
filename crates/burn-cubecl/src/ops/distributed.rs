@@ -1,6 +1,6 @@
 use burn_backend::{
     DeviceId, TensorMetadata,
-    distributed::{DistributedBackend, ReduceOperation},
+    distributed::{CollectiveTensor, DistributedBackend, ReduceOperation},
     tensor::{Device, FloatTensor},
 };
 
@@ -16,11 +16,11 @@ where
     I: IntElement,
     BT: BoolElement,
 {
-    unsafe fn all_reduce(
+    fn all_reduce(
         tensor: FloatTensor<Self>,
         op: ReduceOperation,
         device_ids: Vec<DeviceId>,
-    ) -> FloatTensor<Self> {
+    ) -> CollectiveTensor<Self> {
         let device = &tensor.device.clone();
         let out_tensor = if tensor.handle.can_mut() && tensor.is_contiguous() {
             tensor
@@ -47,7 +47,7 @@ where
             device_ids.clone(),
             op,
         );
-        out_tensor
+        CollectiveTensor::new(out_tensor)
     }
 
     fn sync_collective(device: &Device<Self>) {

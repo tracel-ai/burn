@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use burn_backend::{
     DeviceId,
-    distributed::{DistributedBackend, ReduceOperation},
+    distributed::{CollectiveTensor, DistributedBackend, ReduceOperation},
     tensor::{Device, FloatTensor},
 };
 use burn_ir::{AllReduceOpIr, BaseOperationIr, HandleContainer, OperationIr};
@@ -14,11 +14,11 @@ use crate::{
 use burn_ir::OperationOutput;
 
 impl<B: FusionBackend + DistributedBackend> DistributedBackend for Fusion<B> {
-    unsafe fn all_reduce(
+    fn all_reduce(
         tensor: FloatTensor<Self>,
         op: ReduceOperation,
         device_ids: Vec<DeviceId>,
-    ) -> FloatTensor<Self> {
+    ) -> CollectiveTensor<Self> {
         #[derive(new, Debug)]
         struct AllReduceOps<B: FusionBackend> {
             desc: AllReduceOpIr,
@@ -30,8 +30,11 @@ impl<B: FusionBackend + DistributedBackend> DistributedBackend for Fusion<B> {
         impl<B: FusionBackend + DistributedBackend> Operation<B::FusionRuntime> for AllReduceOps<B> {
             fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let tensor = handles.get_float_tensor::<B>(&self.desc.tensor);
-                let output = unsafe { B::all_reduce(tensor, self.op, self.device_ids.clone()) };
-                handles.register_float_tensor::<B>(&self.desc.out.id, output);
+                let output = B::all_reduce(tensor, self.op, self.device_ids.clone());
+                // Safety: TODO
+                handles.register_float_tensor::<B>(&self.desc.out.id, unsafe {
+                    output.assume_resolved()
+                });
             }
         }
 
@@ -53,7 +56,7 @@ impl<B: FusionBackend + DistributedBackend> DistributedBackend for Fusion<B> {
         // communication between devices).
         client.flush_queue();
 
-        output
+        CollectiveTensor::new(output)
     }
 
     fn sync_collective(device: &Device<Self>) {

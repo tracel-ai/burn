@@ -6,7 +6,8 @@ use crate::backends::*;
 use burn_backend::{
     DeviceId,
     distributed::{
-        DistributedBackend, DistributedConfig, DistributedParams, ReduceOperation, TensorRef,
+        CollectiveTensor, DistributedBackend, DistributedConfig, DistributedParams,
+        ReduceOperation, TensorRef,
     },
     tensor::FloatTensor,
 };
@@ -133,12 +134,14 @@ impl DistributedBackend for Dispatch {
         unimplemented!()
     }
 
-    unsafe fn all_reduce(
+    fn all_reduce(
         tensor: FloatTensor<Self>,
         op: ReduceOperation,
         device_ids: Vec<DeviceId>,
-    ) -> FloatTensor<Self> {
-        unary_float!(tensor, float, |tensor| unsafe { B::all_reduce(tensor, op, device_ids) } => Float)
+    ) -> CollectiveTensor<Self> {
+        // Safety: we call `assume_resolved` only to wrap it in a new `CollectiveTensor`.
+        let tensor = unary_float!(tensor, float, |tensor| unsafe { B::all_reduce(tensor, op, device_ids).assume_resolved() } => Float);
+        CollectiveTensor::new(tensor)
     }
 
     fn sync_collective(device: &DispatchDevice) {

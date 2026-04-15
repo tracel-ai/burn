@@ -16,8 +16,10 @@ version.workspace = true
 workspace = true
 
 [features]
+# TODO: remove distributed
 default = [
     "std",
+    "distributed",
     "burn-core/default",
     "burn-train?/default",
     "burn-collective?/default",

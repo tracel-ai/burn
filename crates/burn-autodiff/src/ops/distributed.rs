@@ -2,7 +2,8 @@ use alloc::vec::Vec;
 use burn_backend::{
     DeviceId,
     distributed::{
-        DistributedBackend, DistributedConfig, DistributedParams, ReduceOperation, TensorRef,
+        CollectiveTensor, DistributedBackend, DistributedConfig, DistributedParams,
+        ReduceOperation, TensorRef,
     },
     tensor::FloatTensor,
 };
@@ -31,14 +32,15 @@ impl<B: DistributedBackend, C: CheckpointStrategy> DistributedBackend for Autodi
         B::submit_gradient_sync(TensorRef(&mut tensor.primitive), distributed_params);
     }
 
-    unsafe fn all_reduce(
+    fn all_reduce(
         tensor: FloatTensor<Self>,
         op: ReduceOperation,
         device_ids: Vec<DeviceId>,
-    ) -> FloatTensor<Self> {
+    ) -> CollectiveTensor<Self> {
         // TODO: backward()
-        let tensor = unsafe { B::all_reduce(tensor.primitive, op, device_ids) };
-        AutodiffTensor::new(tensor)
+        let tensor = B::all_reduce(tensor.primitive, op, device_ids);
+        // Safety: we call `assume_resolved` only to wrap it in a new `CollectiveTensor`.
+        CollectiveTensor::new(AutodiffTensor::new(unsafe { tensor.assume_resolved() }))
     }
 
     fn sync_collective(device: &B::Device) {

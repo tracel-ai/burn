@@ -2,6 +2,7 @@ use cubecl::device::DeviceId;
 
 use crate::{
     Backend,
+    distributed::CollectiveTensor,
     tensor::{Device, FloatTensor},
 };
 
@@ -101,17 +102,12 @@ pub trait DistributedBackend: Backend {
     ///
     /// # Returns
     ///
-    /// The corresponding reduced tensors.
-    ///
-    /// # Safety
-    ///
-    /// Collective operations are asynchronous. You must call `sync_collective()` to ensure
-    /// the operation completes before attempting to read the output tensors.
-    unsafe fn all_reduce(
+    /// The corresponding [CollectiveTensor].
+    fn all_reduce(
         _tensor: FloatTensor<Self>,
         _op: ReduceOperation,
         _device_ids: Vec<DeviceId>,
-    ) -> FloatTensor<Self> {
+    ) -> CollectiveTensor<Self> {
         unimplemented!()
     }
 
