@@ -108,7 +108,7 @@ impl<B: DistributedBackend> DistributedSyncServer<B> {
                         .collect::<Vec<_>>();
                     let reduced_tensors: Vec<B::FloatTensorPrimitive> = queued_tensors
                         .iter()
-                        .map(|tensor| 
+                        .map(|tensor|
                             // Safety: we can call `assume_resolved` on these tensors since we know `B::sync_collective` is called
                             // at the end of the backward pass.
                             unsafe {
