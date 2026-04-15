@@ -107,7 +107,7 @@ tar = "0.4.45"
 tempfile = "3.24.0"
 textdistance = { version = "1.1.1", default-features = false }
 thiserror = { version = "2", default-features = false }
-tokio = { version = "1.51.0", features = ["rt", "macros"] }
+tokio = { version = "1.51.1", features = ["rt", "macros"] }
 tokio-tungstenite = "0.29"
 tokio-util = "0.7"
 tracing = { version = "0.1.44", default-features = false }
@@ -115,7 +115,7 @@ tracing-appender = "0.2.3"
 tracing-core = { version = "0.1.36", default-features = false }
 tracing-opentelemetry = "0.32.0"
 tracing-subscriber = "0.3.23"
-zip = "8.4.0"
+zip = "8.5.1"
 
 # Persist related
 memmap2 = { version = "0.9" }
@@ -156,7 +156,7 @@ num-traits = { version = "0.2.19", default-features = false, features = [
     "libm",
 ] } # libm is for no_std
 openblas-src = "0.10.15"
-rand = { version = "0.10.0", default-features = false, features = ["std_rng"] }
+rand = { version = "0.10.1", default-features = false, features = ["std_rng"] }
 rand_distr = { version = "0.6.0", default-features = false }
 serde = { version = "1.0.228", default-features = false, features = [
     "derive",

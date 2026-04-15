@@ -142,11 +142,12 @@ impl BoolTensorOps<Flex> for Flex {
     fn bool_equal(lhs: BoolTensor<Flex>, rhs: BoolTensor<Flex>) -> BoolTensor<Flex> {
         use crate::strided_index::StridedIter;
 
-        debug_assert_eq!(
-            lhs.layout().shape(),
-            rhs.layout().shape(),
-            "bool_equal: shape mismatch"
-        );
+        // Broadcast to a common shape before comparing. The contiguous fast
+        // path below uses `zip`, which silently truncates to the shorter
+        // operand; and the output shape is taken from lhs, so mismatched
+        // operands would otherwise produce a result vec shorter than the
+        // output layout claims.
+        let (lhs, rhs) = crate::ops::expand::broadcast_binary(lhs, rhs);
 
         let out_dtype = burn_std::BoolDType::from(lhs.dtype());
         let shape = lhs.layout().shape().clone();
@@ -435,18 +436,18 @@ enum BoolBinaryOp {
     Xor,
 }
 
-fn bool_binary_op_simd(mut lhs: FlexTensor, mut rhs: FlexTensor, op: BoolBinaryOp) -> FlexTensor {
+fn bool_binary_op_simd(lhs: FlexTensor, rhs: FlexTensor, op: BoolBinaryOp) -> FlexTensor {
     use crate::strided_index::StridedIter;
 
-    debug_assert_eq!(
-        lhs.layout().shape(),
-        rhs.layout().shape(),
-        "bool_binary_op: shape mismatch"
-    );
     debug_assert_eq!(lhs.dtype(), rhs.dtype(), "bool_binary_op: dtype mismatch");
 
+    // Broadcast to a common shape before dispatching. The scalar/SIMD helpers
+    // below assume equal-length operands; without this, mismatched shapes
+    // either silently keep the lhs shape or OOB-panic inside the helpers.
+    let (mut lhs, mut rhs) = crate::ops::expand::broadcast_binary(lhs, rhs);
+
     // Preserve the input bool dtype (taken from lhs; rhs is assumed to match
-    // since bool binary ops require shape and dtype consistency).
+    // in dtype, checked above).
     let out_dtype = burn_std::BoolDType::from(lhs.dtype());
     let shape = lhs.layout().shape().clone();
     let l_offsets = lhs.layout().contiguous_offsets();

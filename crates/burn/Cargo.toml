@@ -86,6 +86,7 @@ autodiff = ["burn-core/autodiff"]
 fusion = [
     "ir",
     "burn-core/fusion",
+    "burn-vision?/fusion",
 ]
 
 ## Backend features
@@ -115,16 +116,16 @@ server = ["burn-remote/server"]
 candle = ["burn-candle"]
 candle-cuda = ["candle", "burn-candle/cuda"]
 candle-metal = ["burn-candle?/metal"]
-cuda = ["burn-cuda", "burn-core/cuda"]
-rocm = ["burn-rocm", "burn-core/rocm"]
+cuda = ["burn-cuda", "burn-core/cuda", "burn-vision?/cubecl-backend"]
+rocm = ["burn-rocm", "burn-core/rocm", "burn-vision?/cubecl-backend"]
 flex = ["burn-flex", "burn-core/flex"]
-ndarray = ["burn-ndarray", "burn-core/ndarray"]
+ndarray = ["burn-ndarray", "burn-core/ndarray", "burn-vision?/cubecl-backend"]
 tch = ["burn-tch", "burn-core/tch"]
 vulkan = ["wgpu", "burn-core/vulkan"]
 webgpu = ["wgpu", "burn-core/webgpu"]
 metal = ["wgpu", "burn-core/metal"]
-wgpu = ["burn-wgpu", "burn-core/wgpu"]
-cpu = ["burn-cpu", "burn-core/cpu"]
+wgpu = ["burn-wgpu", "burn-core/wgpu", "burn-vision?/cubecl-backend"]
+cpu = ["burn-cpu", "burn-core/cpu", "burn-vision?/cubecl-backend"]
 
 [dependencies]
 

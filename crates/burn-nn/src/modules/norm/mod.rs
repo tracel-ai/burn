@@ -16,6 +16,7 @@ pub(crate) mod batch;
 pub(crate) mod group;
 pub(crate) mod instance;
 pub(crate) mod layer;
+pub(crate) mod local_response;
 pub(crate) mod rms;
 
 mod normalization_wrapper;
@@ -24,5 +25,6 @@ pub use batch::*;
 pub use group::*;
 pub use instance::*;
 pub use layer::*;
+pub use local_response::*;
 pub use normalization_wrapper::*;
 pub use rms::*;

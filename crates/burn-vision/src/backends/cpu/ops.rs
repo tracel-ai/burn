@@ -46,9 +46,9 @@ mod tch {
     use crate::{BoolVisionOps, FloatVisionOps, IntVisionOps, QVisionOps, VisionBackend};
     use burn_tch::{LibTorch, TchElement};
 
-    impl<E: TchElement, Q: burn_tch::QuantElement> BoolVisionOps for LibTorch<E, Q> {}
-    impl<E: TchElement, Q: burn_tch::QuantElement> IntVisionOps for LibTorch<E, Q> {}
-    impl<E: TchElement, Q: burn_tch::QuantElement> FloatVisionOps for LibTorch<E, Q> {}
-    impl<E: TchElement, Q: burn_tch::QuantElement> QVisionOps for LibTorch<E, Q> {}
-    impl<E: TchElement, Q: burn_tch::QuantElement> VisionBackend for LibTorch<E, Q> {}
+    impl<E: TchElement> BoolVisionOps for LibTorch<E> {}
+    impl<E: TchElement> IntVisionOps for LibTorch<E> {}
+    impl<E: TchElement> FloatVisionOps for LibTorch<E> {}
+    impl<E: TchElement> QVisionOps for LibTorch<E> {}
+    impl<E: TchElement> VisionBackend for LibTorch<E> {}
 }

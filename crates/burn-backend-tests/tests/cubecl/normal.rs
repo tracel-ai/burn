@@ -24,6 +24,7 @@ fn normal_respects_68_95_99_rule() {
     // https://en.wikipedia.org/wiki/68%E2%80%9395%E2%80%9399.7_rule
     let shape: Shape = [1000, 1000].into();
     let device = Default::default();
+    TestBackend::seed(&device, 0);
     let mu = 0.;
     let s = 1.;
     let tensor =
