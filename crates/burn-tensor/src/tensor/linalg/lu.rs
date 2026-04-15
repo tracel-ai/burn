@@ -1,4 +1,4 @@
-use crate::{ElementConversion, Tensor, check, check::TensorCheck};
+use crate::{Device, ElementConversion, Tensor, check, check::TensorCheck};
 use alloc::vec;
 use alloc::vec::Vec;
 use burn_backend::{

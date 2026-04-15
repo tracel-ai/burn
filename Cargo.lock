@@ -2669,7 +2669,6 @@ name = "custom-training-loop"
 version = "0.21.0-pre.3"
 dependencies = [
  "burn",
- "bytemuck",
  "derive-new",
  "guide",
  "log",
