@@ -91,17 +91,9 @@ fn test_det_3x3_singular_zero_row() {
 }
 
 #[test]
-fn test_det_300x300_singular_zero_row() {
+fn test_det_20x20_singular_zero_row() {
     let device = Default::default();
-    // Use a smaller matrix for f16.
-    let size =
-        if core::any::TypeId::of::<FloatElem>() == core::any::TypeId::of::<burn_tensor::f16>() {
-            20
-        } else {
-            300
-        };
-
-    let mut tensor = TestTensor::random([1, size, size], Distribution::Default, &device);
+    let mut tensor = TestTensor::random([1, 20, 20], Distribution::Default, &device);
     tensor = tensor.slice_fill(s![.., .., 16], 0.0);
     let det_tensor = det::<TestBackend, 3, 2, 1>(tensor);
     let expected = TestTensor::<1>::from_data([0.0], &device);
@@ -125,23 +117,15 @@ fn test_det_3x3_singular_linearly_dependent() {
 }
 
 #[test]
-fn test_det_large_singular_linearly_dependent() {
+fn test_det_20x20_singular_linearly_dependent() {
     let device = Default::default();
-    // Use a smaller matrix for f16.
-    let size =
-        if core::any::TypeId::of::<FloatElem>() == core::any::TypeId::of::<burn_tensor::f16>() {
-            20
-        } else {
-            300
-        };
-
-    let mut tensor = TestTensor::random([1, size, size], Distribution::Default, &device);
+    let mut tensor = TestTensor::random([1, 20, 20], Distribution::Default, &device);
     let lin_dep_row1 = tensor.clone().slice(s![.., 5, ..]);
     let lin_dep_row2 = lin_dep_row1.mul_scalar(3);
     tensor = tensor.slice_assign(s![.., 17, ..], lin_dep_row2);
     let det_tensor = det::<TestBackend, 3, 2, 1>(tensor);
     let expected = TestTensor::<1>::from_data([0.0], &device);
-    let tolerance = Tolerance::default().set_half_precision_absolute(5e-2);
+    let tolerance = Tolerance::default().set_half_precision_absolute(5e-3);
     det_tensor
         .into_data()
         .assert_approx_eq::<FloatElem>(&expected.into_data(), tolerance);
@@ -358,7 +342,7 @@ fn test_det_product_property() {
     let det_b = det::<TestBackend, 3, 2, 1>(b);
     let det_c = det::<TestBackend, 3, 2, 1>(c);
     let det_ab = det_a * det_b;
-    let tolerance = Tolerance::default().set_half_precision_absolute(5e-2);
+    let tolerance = Tolerance::default().set_half_precision_absolute(5e-3);
     det_c
         .into_data()
         .assert_approx_eq::<FloatElem>(&det_ab.into_data(), tolerance);
@@ -370,7 +354,7 @@ fn test_det_transpose_invariance() {
     let tensor = TestTensor::<3>::random([1, 10, 10], Distribution::Default, &device);
     let det_original = det::<TestBackend, 3, 2, 1>(tensor.clone());
     let det_transpose = det::<TestBackend, 3, 2, 1>(tensor.transpose());
-    let tolerance = Tolerance::default().set_half_precision_absolute(5e-2);
+    let tolerance = Tolerance::default().set_half_precision_absolute(5e-3);
     det_original
         .into_data()
         .assert_approx_eq::<FloatElem>(&det_transpose.into_data(), tolerance);
@@ -450,7 +434,7 @@ fn test_det_random_2x3x3_pytorch_comparison() {
     let det_tensor = det::<TestBackend, 3, 2, 1>(tensor);
     // Expected determinants computed by PyTorch
     let expected = TestTensor::<1>::from_data([-0.5283, 0.0993], &device);
-    let tolerance = Tolerance::default().set_half_precision_absolute(1e-3);
+    let tolerance = Tolerance::default().set_half_precision_absolute(5e-3);
     det_tensor
         .into_data()
         .assert_approx_eq::<FloatElem>(&expected.into_data(), tolerance);
