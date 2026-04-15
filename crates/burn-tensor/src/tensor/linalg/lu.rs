@@ -5,6 +5,7 @@ use burn_backend::{
     Backend, Slice,
     tensor::{Bool, IndexingUpdateOp, Int},
 };
+use burn_std::FloatDType;
 
 /// Computes the LU decomposition of a square or rectangular matrix with partial pivoting.
 ///
@@ -92,7 +93,7 @@ pub fn lu<B: Backend, const D: usize, const D1: usize>(
 
 /// Dispatches the LU decomposition to either the block or standard algorithm based on
 /// the size of the matrix.
-fn compute_lu_decomposition<B: Backend, const D: usize, const D1: usize>(
+pub(super) fn compute_lu_decomposition<B: Backend, const D: usize, const D1: usize>(
     tensor: Tensor<B, D>,
 ) -> (Tensor<B, D>, Tensor<B, D>) {
     let device = tensor.device();
@@ -119,7 +120,8 @@ fn block_lu_with_partial_piv<B: Backend, const D: usize, const D1: usize>(
     let n_rows = dims[D - 2];
     let n_cols = dims[D - 1];
     let piv_nums = n_rows.min(n_cols);
-    let mut global_piv = create_permutation_tensor::<B, D>(piv_nums, dims, &device);
+    let dtype = tensor.dtype().into();
+    let mut global_piv = create_permutation_tensor::<B, D>(piv_nums, dims, dtype, &device);
     let block_size = 128;
 
     // Computes the total number of blocks including incomplete blocks
@@ -228,7 +230,8 @@ fn standard_lu_with_partial_piv<B: Backend, const D: usize, const D1: usize>(
     let n_rows = dims[D - 2];
     let n_cols = dims[D - 1];
     let piv_nums = n_rows.min(n_cols);
-    let mut permutations = create_permutation_tensor::<B, D>(piv_nums, dims, device);
+    let dtype = tensor.dtype().into();
+    let mut permutations = create_permutation_tensor::<B, D>(piv_nums, dims, dtype, device);
 
     for k in 0..piv_nums {
         // Find the index of the maximum absolute value in the k-th column (from row k downwards)
@@ -244,7 +247,7 @@ fn standard_lu_with_partial_piv<B: Backend, const D: usize, const D1: usize>(
         // Swap current row (k-th row) with the row with maximum absolute value
         tensor = swap_tensor_rows(tensor, max_row_indices.clone(), k, device);
         // Store the max row index in the k-th entry of the permutations vector/tensor
-        permutations = update_permutations(permutations, max_row_indices, k);
+        permutations = update_permutations(permutations, max_row_indices, k, dtype);
 
         // If there are rows left under the k-th pivot
         if k < n_rows - 1 {
@@ -291,9 +294,10 @@ fn construct_full_permutation_tensor<B: Backend, const D: usize>(
 fn create_permutation_tensor<B: Backend, const D: usize>(
     piv_nums: usize,
     dims: [usize; D],
+    dtype: FloatDType,
     device: &B::Device,
 ) -> Tensor<B, D> {
-    let piv = Tensor::arange(0..piv_nums as i64, device).float();
+    let piv = Tensor::arange(0..piv_nums as i64, device).cast(dtype);
 
     // Reshape the piv tensor from 1 dim to D dims
     let mut reshape_dims = [1; D];
@@ -342,11 +346,12 @@ fn update_permutations<B: Backend, const D: usize>(
     mut permutations: Tensor<B, D>,
     max_row_index_tensor: Tensor<B, D, Int>,
     k: usize,
+    dtype: FloatDType,
 ) -> Tensor<B, D> {
     // Store the max row index in the k-th index of the permutations vector/tensor
     let mut slices = vec![Slice::full(); D];
     slices[D - 2] = Slice::from(k);
-    let float_max_row_indices = max_row_index_tensor.float();
+    let float_max_row_indices = max_row_index_tensor.cast(dtype);
     permutations = permutations.slice_assign(&slices, float_max_row_indices);
 
     permutations
@@ -360,7 +365,8 @@ fn update_kth_column<B: Backend, const D: usize>(tensor: Tensor<B, D>, k: usize)
     // A singular matrix will have a pivot of exactly 0.
     // Due to partial pivoting, if the pivot is 0, all elements below it are also 0.
     // We replace 0 with 1.0 to avoid NaN when dividing 0.0 / 0.0.
-    let is_zero_mask = a_kk.clone().equal_elem(0.0);
+    let epsilon = 1e-7;
+    let is_zero_mask = a_kk.clone().abs().lower_equal_elem(epsilon);
     let safe_a_kk = a_kk.mask_fill(is_zero_mask, 1.0);
     let updated_column = a_rho_k / safe_a_kk;
 
