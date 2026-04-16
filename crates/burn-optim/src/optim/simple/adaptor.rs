@@ -81,7 +81,7 @@ where
     }
 
     fn step_common(&mut self, lr: LearningRate, module: M, mut grads: GradAdaptor) -> M {
-        module.map(&mut SimpleOptimizerMapper::<M, B, O>::new(
+        module.map(&mut SimpleOptimizerMapper::<B, O>::new(
             &self.optim,
             &mut self.records,
             &mut grads,
@@ -158,9 +158,8 @@ impl GradAdaptor {
 }
 
 #[derive(new)]
-struct SimpleOptimizerMapper<'a, M, B, O>
+struct SimpleOptimizerMapper<'a, B, O>
 where
-    M: AutodiffModule<B>,
     B: AutodiffBackend,
     O: SimpleOptimizer<B::InnerBackend>,
 {
@@ -168,13 +167,11 @@ where
     records: &'a mut HashMap<ParamId, AdaptorRecord<O, B>>,
     grads: &'a mut GradAdaptor,
     lr: LearningRate,
-    phantom: PhantomData<M>,
     grad_clipping: Option<&'a GradientClipping>,
 }
 
-impl<M, B, O> ModuleMapper<B> for SimpleOptimizerMapper<'_, M, B, O>
+impl<B, O> ModuleMapper<B> for SimpleOptimizerMapper<'_, B, O>
 where
-    M: AutodiffModule<B>,
     B: AutodiffBackend,
     O: SimpleOptimizer<B::InnerBackend>,
 {
