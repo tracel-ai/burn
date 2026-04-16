@@ -56,6 +56,16 @@ where
         &self.optim
     }
 
+    /// Check if the optimizer has gradient clipping.
+    pub fn has_gradient_clipping(&self) -> bool {
+        self.grad_clipping.is_some()
+    }
+
+    /// Access the gradient clipping.
+    pub fn grad_clipping(&self) -> Option<&GradientClipping> {
+        self.grad_clipping.as_ref()
+    }
+
     /// Sets the gradient clipping.
     ///
     /// # Arguments
@@ -70,9 +80,14 @@ where
         self
     }
 
-    #[cfg(test)]
-    pub(crate) fn has_gradient_clipping(&self) -> bool {
-        self.grad_clipping.is_some()
+    fn step_common(&mut self, lr: LearningRate, module: M, mut grads: GradAdaptor) -> M {
+        module.map(&mut SimpleOptimizerMapper::<M, B, O>::new(
+            &self.optim,
+            &mut self.records,
+            &mut grads,
+            lr,
+            self.grad_clipping.as_ref(),
+        ))
     }
 }
 
@@ -85,29 +100,11 @@ where
     type Record = HashMap<ParamId, AdaptorRecord<O, B>>;
 
     fn step(&mut self, lr: LearningRate, module: M, grads: GradientsParams) -> M {
-        let mut grads = GradAdaptor::Single(grads);
-
-        let mut mapper = SimpleOptimizerMapper::<M, B, O>::new(
-            &self.optim,
-            &mut self.records,
-            &mut grads,
-            lr,
-            self.grad_clipping.as_ref(),
-        );
-        module.map(&mut mapper)
+        self.step_common(lr, module, grads.into())
     }
 
-    fn step_multi(&mut self, lr: LearningRate, module: M, grads: crate::MultiGradientsParams) -> M {
-        let mut grads = GradAdaptor::Multi(grads);
-
-        let mut mapper = SimpleOptimizerMapper::<M, B, O>::new(
-            &self.optim,
-            &mut self.records,
-            &mut grads,
-            lr,
-            self.grad_clipping.as_ref(),
-        );
-        module.map(&mut mapper)
+    fn step_multi(&mut self, lr: LearningRate, module: M, grads: MultiGradientsParams) -> M {
+        self.step_common(lr, module, grads.into())
     }
 
     fn to_record(&self) -> Self::Record {
@@ -120,13 +117,33 @@ where
     }
 }
 
-enum GradAdaptor {
+/// Wrapper to unify the `remove` method for [GradientsParams] and [MultiGradientsParams].
+pub enum GradAdaptor {
+    /// Wrapper for [`GradientsParams`].
     Single(GradientsParams),
+
+    /// Wrapper for [`MultiGradientsParams`].
     Multi(MultiGradientsParams),
 }
 
+impl From<GradientsParams> for GradAdaptor {
+    fn from(grads: GradientsParams) -> Self {
+        Self::Single(grads)
+    }
+}
+
+impl From<MultiGradientsParams> for GradAdaptor {
+    fn from(grads: MultiGradientsParams) -> Self {
+        Self::Multi(grads)
+    }
+}
+
 impl GradAdaptor {
-    fn remove<B: Backend, const D: usize>(
+    /// Remove a gradient parameter by ID.
+    ///
+    /// # Returns
+    /// Maybe the (tensor, device) pair.
+    pub fn remove<B: Backend, const D: usize>(
         &mut self,
         id: ParamId,
     ) -> Option<(Tensor<B, D>, Device<B>)> {
