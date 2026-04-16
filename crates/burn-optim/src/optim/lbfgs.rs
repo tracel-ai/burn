@@ -624,7 +624,7 @@ impl<B: Backend + AutodiffBackend> LBFGS<B> {
                         .history_s
                         .iter()
                         .zip(self.state.history_y.iter())
-                        .zip(alphas.into_iter())
+                        .zip(alphas)
                         .take(num_old)
                     {
                         let rho = y.clone().dot(s.clone()).powf_scalar(-1.0);
