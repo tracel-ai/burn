@@ -6,7 +6,10 @@ use burn::tensor::backend::Backend;
 use burn::tensor::{Int, Tensor};
 use burn_core as burn;
 
+#[cfg(not(feature = "test-cuda"))]
 pub type TestBackend = burn_ndarray::NdArray<f32>;
+#[cfg(feature = "test-cuda")]
+pub type TestBackend = burn_cuda::Cuda;
 #[cfg(feature = "std")]
 pub type TestAutodiffBackend = burn_autodiff::Autodiff<TestBackend>;
 

@@ -61,7 +61,8 @@ distributed = ["std",
     "burn-tensor/distributed",
     "burn-autodiff/distributed",
     "burn-cuda?/distributed",
-    "burn-router/distributed"
+    "burn-router/distributed",
+    "burn-ndarray/distributed"
 ]
 
 # Custom deserializer for Record that is helpful for importing data, such as PyTorch pt files.
