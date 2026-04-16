@@ -91,8 +91,6 @@ pub trait DistributedBackend: Backend {
         };
     }
 
-    // TODO: https://github.com/tracel-ai/burn/issues/4746
-
     /// all_reduce operation.
     ///
     /// # Arguments

@@ -5,7 +5,7 @@ use burn_backend::{
     distributed::{CollectiveTensor, DistributedBackend, ReduceOperation},
     tensor::{Device, FloatTensor},
 };
-use burn_ir::{AllReduceOpIr, BaseOperationIr, HandleContainer, OperationIr};
+use burn_ir::{AllReduceOpIr, DistributedOperationIr, HandleContainer, OperationIr};
 
 use crate::{
     Fusion, FusionBackend, get_client,
@@ -45,7 +45,7 @@ impl<B: FusionBackend + DistributedBackend> DistributedBackend for Fusion<B> {
         let output = client
             .register(
                 streams,
-                OperationIr::BaseFloat(BaseOperationIr::AllReduce(desc.clone())),
+                OperationIr::Distributed(DistributedOperationIr::AllReduce(desc.clone())),
                 AllReduceOps::<B>::new(desc, op, device_ids),
             )
             .output()

@@ -140,7 +140,10 @@ impl DistributedBackend for Dispatch {
         device_ids: Vec<DeviceId>,
     ) -> CollectiveTensor<Self> {
         // Safety: we call `assume_resolved` only to wrap it in a new `CollectiveTensor`.
-        let tensor = unary_float!(tensor, float, |tensor| unsafe { B::all_reduce(tensor, op, device_ids).assume_resolved() } => Float);
+        let tensor = unary_float!(tensor, float, |tensor| {
+            let collective_tensor = B::all_reduce(tensor, op, device_ids);
+            unsafe { collective_tensor.assume_resolved() }
+        } => Float);
         CollectiveTensor::new(tensor)
     }
 
