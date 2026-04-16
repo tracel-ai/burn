@@ -160,6 +160,24 @@ pub struct MuonConfig {
 }
 
 impl MuonConfig {
+    /// Build the [`Muon`] [`SimpleOptimizer`].
+    ///
+    /// # Returns
+    ///
+    /// The base [`SimpleOptimizer`] utility type.
+    pub fn init_simple<B: Backend>(&self) -> Muon<B> {
+        let momentum = Momentum::new(&self.momentum);
+        let weight_decay_penalty = self.weight_decay.as_ref().map(|wd| wd.penalty);
+
+        Muon {
+            momentum,
+            ns_params: NewtonSchulzParams::new(self.ns_coefficients, self.ns_steps),
+            weight_decay_penalty,
+            epsilon: self.epsilon,
+            adjust_lr_fn: self.adjust_lr_fn,
+        }
+    }
+
     /// Initialize Muon optimizer.
     ///
     /// # Returns
@@ -195,18 +213,7 @@ impl MuonConfig {
     pub fn init<B: AutodiffBackend, M: AutodiffModule<B>>(
         &self,
     ) -> OptimizerAdaptor<Muon<B::InnerBackend>, M, B> {
-        let momentum = Momentum::new(&self.momentum);
-        let weight_decay_penalty = self.weight_decay.as_ref().map(|wd| wd.penalty);
-
-        let optim = Muon {
-            momentum,
-            ns_params: NewtonSchulzParams::new(self.ns_coefficients, self.ns_steps),
-            weight_decay_penalty,
-            epsilon: self.epsilon,
-            adjust_lr_fn: self.adjust_lr_fn,
-        };
-
-        OptimizerAdaptor::from(optim)
+        OptimizerAdaptor::from(self.init_simple())
     }
 }
 

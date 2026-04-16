@@ -51,6 +51,11 @@ where
     M: AutodiffModule<B>,
     B: AutodiffBackend,
 {
+    /// Access the wrapped [`SimpleOptimizer`].
+    pub fn optim(&self) -> &O {
+        &self.optim
+    }
+
     /// Sets the gradient clipping.
     ///
     /// # Arguments

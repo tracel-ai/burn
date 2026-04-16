@@ -6,8 +6,9 @@ use burn::tensor::{backend::Backend, ops::Device};
 use burn::{module::AutodiffModule, record::Record};
 
 use super::{SimpleOptimizer, adaptor::OptimizerAdaptor};
-use crate::{LearningRate, grad_clipping::GradientClippingConfig};
+use crate::{AdaGrad, LearningRate, grad_clipping::GradientClippingConfig};
 
+use crate::decay::WeightDecay;
 #[cfg(not(feature = "std"))]
 #[allow(unused_imports)]
 use num_traits::Float as _;
@@ -100,13 +101,13 @@ impl<B: Backend> SimpleOptimizer<B> for Adan {
 }
 
 impl AdanConfig {
-    /// Initialize Adan optimizer.
+    /// Build the [`Adan`] [`SimpleOptimizer`].
     ///
     /// # Returns
     ///
-    /// Returns an optimizer that can be used to optimize a module.
-    pub fn init<B: AutodiffBackend, M: AutodiffModule<B>>(&self) -> OptimizerAdaptor<Adan, M, B> {
-        let optim = Adan {
+    /// The base [`SimpleOptimizer`] utility type.
+    pub fn init_simple(&self) -> Adan {
+        Adan {
             momentum: AdaptiveNesterovMomentum {
                 beta_1: self.beta_1,
                 beta_2: self.beta_2,
@@ -115,9 +116,16 @@ impl AdanConfig {
             },
             weight_decay: self.weight_decay,
             no_prox: self.no_prox,
-        };
+        }
+    }
 
-        let mut optim = OptimizerAdaptor::from(optim);
+    /// Initialize Adan optimizer.
+    ///
+    /// # Returns
+    ///
+    /// Returns an optimizer that can be used to optimize a module.
+    pub fn init<B: AutodiffBackend, M: AutodiffModule<B>>(&self) -> OptimizerAdaptor<Adan, M, B> {
+        let mut optim = OptimizerAdaptor::from(self.init_simple());
         if let Some(config) = &self.grad_clipping {
             optim = optim.with_grad_clipping(config.init());
         }

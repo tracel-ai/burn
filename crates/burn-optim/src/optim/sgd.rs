@@ -4,8 +4,8 @@ use super::SimpleOptimizer;
 use super::adaptor::OptimizerAdaptor;
 use super::decay::{WeightDecay, WeightDecayConfig};
 use super::momentum::{Momentum, MomentumConfig, MomentumState};
-use crate::LearningRate;
 use crate::grad_clipping::GradientClippingConfig;
+use crate::{AdaGrad, LearningRate};
 use burn::config::Config;
 use burn::module::AutodiffModule;
 use burn::record::Record;
@@ -40,17 +40,23 @@ pub struct SgdState<B: Backend, const D: usize> {
 }
 
 impl SgdConfig {
+    /// Build the [`Sgd`] [`SimpleOptimizer`].
+    ///
+    /// # Returns
+    ///
+    /// The base [`SimpleOptimizer`] utility type.
+    pub fn init_simple<B: Backend>(&self) -> Sgd<B> {
+        Sgd {
+            momentum: self.momentum.as_ref().map(Momentum::new),
+            weight_decay: self.weight_decay.as_ref().map(WeightDecay::new),
+        }
+    }
+
     /// Creates a new [SgdConfig](SgdConfig) with default values.
     pub fn init<B: AutodiffBackend, M: AutodiffModule<B>>(
         &self,
     ) -> OptimizerAdaptor<Sgd<B::InnerBackend>, M, B> {
-        let momentum = self.momentum.as_ref().map(Momentum::new);
-        let weight_decay = self.weight_decay.as_ref().map(WeightDecay::new);
-
-        let mut optim = OptimizerAdaptor::from(Sgd {
-            momentum,
-            weight_decay,
-        });
+        let mut optim = OptimizerAdaptor::from(self.init_simple());
         if let Some(config) = &self.gradient_clipping {
             optim = optim.with_grad_clipping(config.init());
         }

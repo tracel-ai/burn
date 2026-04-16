@@ -7,7 +7,7 @@ use super::{
     adaptor::OptimizerAdaptor,
     decay::{WeightDecay, WeightDecayConfig},
 };
-use crate::{LearningRate, grad_clipping::GradientClippingConfig};
+use crate::{AdaGrad, LearningRate, grad_clipping::GradientClippingConfig};
 
 use burn::config::Config;
 use burn::tensor::backend::Backend;
@@ -35,6 +35,24 @@ pub struct RmsPropConfig {
 }
 
 impl RmsPropConfig {
+    /// Build the [`RmsProp`] [`SimpleOptimizer`].
+    ///
+    /// # Returns
+    ///
+    /// The base [`SimpleOptimizer`] utility type.
+    pub fn init_simple(&self) -> RmsProp {
+        let weight_decay = self.weight_decay.as_ref().map(WeightDecay::new);
+        RmsProp {
+            alpha: self.alpha,
+            centered: self.centered,
+            weight_decay,
+            momentum: RmsPropMomentum {
+                momentum: self.momentum,
+                epsilon: self.epsilon,
+            },
+        }
+    }
+
     /// Initialize RmsProp optimizer.
     ///
     /// # Returns
@@ -43,18 +61,7 @@ impl RmsPropConfig {
     pub fn init<B: AutodiffBackend, M: AutodiffModule<B>>(
         &self,
     ) -> OptimizerAdaptor<RmsProp, M, B> {
-        let weight_decay = self.weight_decay.as_ref().map(WeightDecay::new);
-
-        let mut optim = OptimizerAdaptor::from(RmsProp {
-            alpha: self.alpha,
-            centered: self.centered,
-            weight_decay,
-            momentum: RmsPropMomentum {
-                momentum: self.momentum,
-                epsilon: self.epsilon,
-            },
-        });
-
+        let mut optim = OptimizerAdaptor::from(self.init_simple());
         if let Some(config) = &self.grad_clipping {
             optim = optim.with_grad_clipping(config.init());
         }
