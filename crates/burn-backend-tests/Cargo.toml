@@ -14,6 +14,9 @@ version.workspace = true
 [lints]
 workspace = true
 
+[lib]
+proc-macro = true
+
 [features]
 default = [
     "burn-tensor/default",
@@ -56,7 +59,6 @@ quantization = []
 burn-tensor = { path = "../burn-tensor", version = "=0.21.0-pre.3", default-features = false, features = [
     "autodiff",
 ] }
-burn-tensor-testgen = { path = "../burn-tensor-testgen", version = "=0.21.0-pre.3" }
 
 # For random tests
 cubek = { workspace = true, features = ["random"], optional = true }
@@ -76,6 +78,11 @@ burn-cubecl = { path = "../burn-cubecl", version = "=0.21.0-pre.3", optional = t
 
 num-traits = { workspace = true }
 serial_test = { workspace = true }
+
+# might-panic macro
+proc-macro2 = { workspace = true }
+quote = { workspace = true }
+syn = { workspace = true }
 
 
 [dev-dependencies]

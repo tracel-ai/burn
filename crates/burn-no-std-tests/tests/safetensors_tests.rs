@@ -2,7 +2,6 @@ extern crate alloc;
 
 #[test]
 fn test_safetensors_no_std() {
-    use burn_flex::Flex;
     use burn_no_std_tests::safetensors;
     let device = Default::default();
 

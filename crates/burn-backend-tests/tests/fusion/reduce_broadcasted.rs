@@ -1,5 +1,5 @@
 use super::*;
-use burn_tensor::{TensorData, Tolerance, backend::Backend};
+use burn_tensor::{TensorData, Tolerance};
 
 #[test]
 fn test_reduce_broadcasted_1() {

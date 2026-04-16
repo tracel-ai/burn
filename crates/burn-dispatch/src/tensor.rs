@@ -32,7 +32,7 @@ pub enum BackendTensor<B: Backend> {
 
 impl<B: Backend> BackendTensor<B> {
     /// Returns the inner float tensor primitive.
-    pub(crate) fn float(self) -> B::FloatTensorPrimitive {
+    pub fn float(self) -> B::FloatTensorPrimitive {
         match self {
             BackendTensor::Float(tensor) => tensor,
             BackendTensor::Int(_) => panic!("Should be float, got int"),
@@ -43,7 +43,7 @@ impl<B: Backend> BackendTensor<B> {
         }
     }
     /// Returns the inner float tensor primitive.
-    pub(crate) fn as_float(&self) -> &B::FloatTensorPrimitive {
+    pub fn as_float(&self) -> &B::FloatTensorPrimitive {
         match self {
             BackendTensor::Float(tensor) => tensor,
             BackendTensor::Int(_) => panic!("Should be float, got int"),
@@ -55,7 +55,7 @@ impl<B: Backend> BackendTensor<B> {
     }
 
     /// Returns the inner int tensor primitive.
-    pub(crate) fn int(self) -> B::IntTensorPrimitive {
+    pub fn int(self) -> B::IntTensorPrimitive {
         match self {
             BackendTensor::Int(tensor) => tensor,
             BackendTensor::Float(_) => panic!("Should be int, got float"),
@@ -67,7 +67,7 @@ impl<B: Backend> BackendTensor<B> {
     }
 
     /// Returns the inner bool tensor primitive.
-    pub(crate) fn bool(self) -> B::BoolTensorPrimitive {
+    pub fn bool(self) -> B::BoolTensorPrimitive {
         match self {
             BackendTensor::Bool(tensor) => tensor,
             BackendTensor::Float(_) => panic!("Should be bool, got float"),
@@ -79,7 +79,7 @@ impl<B: Backend> BackendTensor<B> {
     }
 
     /// Returns the inner quantized tensor primitive.
-    pub(crate) fn quantized(self) -> B::QuantizedTensorPrimitive {
+    pub fn quantized(self) -> B::QuantizedTensorPrimitive {
         match self {
             BackendTensor::Quantized(tensor) => tensor,
             _ => unreachable!(),
@@ -88,7 +88,7 @@ impl<B: Backend> BackendTensor<B> {
 
     #[cfg(feature = "autodiff")]
     /// Returns the inner autodiff tensor primitive.
-    pub(crate) fn autodiff(self) -> FloatTensor<Autodiff<B>> {
+    pub fn autodiff(self) -> FloatTensor<Autodiff<B>> {
         match self {
             BackendTensor::Autodiff(tensor) => tensor,
             // NOTE: this is the panicking code reached in tensor.rs:74:18:
@@ -98,7 +98,7 @@ impl<B: Backend> BackendTensor<B> {
 
     #[cfg(feature = "autodiff")]
     /// Returns the inner autodiff tensor primitive.
-    pub(crate) fn as_autodiff(&self) -> &FloatTensor<Autodiff<B>> {
+    pub fn as_autodiff(&self) -> &FloatTensor<Autodiff<B>> {
         match self {
             BackendTensor::Autodiff(tensor) => tensor,
             _ => unreachable!(),
@@ -107,7 +107,7 @@ impl<B: Backend> BackendTensor<B> {
 
     #[cfg(feature = "autodiff")]
     /// Returns the inner autodiff tensor primitive.
-    pub(crate) fn autodiff_inner(self) -> B::FloatTensorPrimitive {
+    pub fn autodiff_inner(self) -> B::FloatTensorPrimitive {
         match self {
             BackendTensor::Autodiff(tensor) => tensor.primitive,
             _ => unreachable!(),
@@ -171,13 +171,16 @@ impl<B: Backend> QTensorPrimitive for BackendTensor<B> {
 #[derive(Clone, Debug)]
 pub struct DispatchTensor {
     /// Tensor kind primitive.
-    pub(crate) kind: DispatchTensorKind,
+    pub kind: DispatchTensorKind,
     // Technically more of a device property, but device is not a dispatch tensor field.
+    // Right now this is the easiest way to preserve the checkpointing strategy because primitives are not consolidated.
+    // Once float/int/bool primitives are consolidated into a single associative type, we could hold that
+    // property for all autodiff tensors.
     /// Holds the autodiff checkpointing strategy.
     /// - `None`: tensor is not tracked by autodiff
     /// - `Some(strategy)`: tensor is tracked by autodiff, and uses the checkpointing `strategy`
     #[cfg(feature = "autodiff")]
-    pub(crate) checkpointing: Option<CheckpointingStrategy>,
+    pub checkpointing: Option<CheckpointingStrategy>,
 }
 
 impl DispatchTensor {

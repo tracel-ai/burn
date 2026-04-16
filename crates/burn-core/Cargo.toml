@@ -83,6 +83,9 @@ fusion = ["burn-tensor/fusion"]
 # Memory checks are disabled by default
 test-memory-checks = ["burn-tensor/memory-checks"]
 
+# Backend extensions
+extension = ["burn-tensor/extension"]
+
 [dependencies]
 
 # ** Please make sure all dependencies support no_std when std is disabled **

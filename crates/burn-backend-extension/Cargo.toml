@@ -1,11 +1,11 @@
 [package]
 authors = ["nathanielsimard <nathaniel.simard.42@gmail.com>"]
-description = "Test generation crate for burn-tensor"
+description = "Burn backend extension proc macro"
 edition.workspace = true
 license.workspace = true
-name = "burn-tensor-testgen"
+name = "burn-backend-extension"
 readme.workspace = true
-repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-tensor-testgen"
+repository = "https://github.com/tracel-ai/burn/tree/main/crates/burn-backend-extension"
 version.workspace = true
 
 [lints]

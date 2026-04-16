@@ -37,3 +37,6 @@ pub use burn_ir as ir;
 
 #[cfg(feature = "cpu")]
 pub use burn_cpu as cpu;
+
+#[cfg(feature = "autodiff")]
+pub use burn_autodiff as autodiff;

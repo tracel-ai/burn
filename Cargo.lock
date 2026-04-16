@@ -646,6 +646,7 @@ checksum = "5d20789868f4b01b2f2caec9f5c4e0213b41e3e5702a50157d699ae31ced2fcb"
 name = "burn"
 version = "0.21.0-pre.3"
 dependencies = [
+ "burn-autodiff",
  "burn-candle",
  "burn-collective",
  "burn-core",
@@ -709,6 +710,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "burn-backend-extension"
+version = "0.21.0-pre.3"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.117",
+]
+
+[[package]]
 name = "burn-backend-tests"
 version = "0.21.0-pre.3"
 dependencies = [
@@ -716,11 +726,13 @@ dependencies = [
  "burn-cubecl",
  "burn-ndarray",
  "burn-tensor",
- "burn-tensor-testgen",
  "ctor",
  "cubek",
  "num-traits",
+ "proc-macro2",
+ "quote",
  "serial_test",
+ "syn 2.0.117",
 ]
 
 [[package]]
@@ -1186,15 +1198,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "burn-tensor-testgen"
-version = "0.21.0-pre.3"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.117",
-]
-
-[[package]]
 name = "burn-train"
 version = "0.21.0-pre.3"
 dependencies = [
@@ -1237,7 +1240,6 @@ dependencies = [
  "burn-store",
  "burn-tch",
  "burn-tensor",
- "burn-tensor-testgen",
  "burn-wgpu",
  "bytemuck",
  "cubecl",
@@ -2613,6 +2615,7 @@ name = "custom-cubecl-kernel"
 version = "0.21.0-pre.3"
 dependencies = [
  "burn",
+ "burn-backend-extension",
  "burn-cubecl",
  "cubecl",
  "log",

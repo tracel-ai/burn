@@ -23,6 +23,13 @@ pub mod backend {
     pub use burn_backend::backend::ExecutionError;
     #[cfg(feature = "distributed")]
     pub use burn_backend::distributed;
+
+    #[cfg(feature = "extension")]
+    /// The backend extension module.
+    pub mod extension {
+        pub use burn_backend::backend::*;
+        pub use burn_dispatch::*;
+    }
 }
 
 /// The container module.
