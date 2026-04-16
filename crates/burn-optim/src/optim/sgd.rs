@@ -40,12 +40,8 @@ pub struct SgdState<B: Backend, const D: usize> {
 }
 
 impl SgdConfig {
-    /// Build the [`Sgd`] [`SimpleOptimizer`].
-    ///
-    /// # Returns
-    ///
-    /// The base [`SimpleOptimizer`] utility type.
-    pub fn init_simple<B: Backend>(&self) -> Sgd<B> {
+    /// Build a [`Sgd`] from the config.
+    pub fn build<B: Backend>(&self) -> Sgd<B> {
         Sgd {
             momentum: self.momentum.as_ref().map(Momentum::new),
             weight_decay: self.weight_decay.as_ref().map(WeightDecay::new),
@@ -56,7 +52,7 @@ impl SgdConfig {
     pub fn init<B: AutodiffBackend, M: AutodiffModule<B>>(
         &self,
     ) -> OptimizerAdaptor<Sgd<B::InnerBackend>, M, B> {
-        let mut optim = OptimizerAdaptor::from(self.init_simple());
+        let mut optim = OptimizerAdaptor::from(self.build());
         if let Some(config) = &self.gradient_clipping {
             optim = optim.with_grad_clipping(config.init());
         }

@@ -113,12 +113,8 @@ impl<B: Backend> SimpleOptimizer<B> for AdamW {
 }
 
 impl AdamWConfig {
-    /// Build the [`AdamW`] [`SimpleOptimizer`].
-    ///
-    /// # Returns
-    ///
-    /// The base [`SimpleOptimizer`] utility type.
-    pub fn init_simple(&self) -> AdamW {
+    /// Build an [`AdamW`] from the config.
+    pub fn build(&self) -> AdamW {
         AdamW {
             momentum: AdaptiveMomentumW {
                 beta_1: self.beta_1,
@@ -137,7 +133,7 @@ impl AdamWConfig {
     ///
     /// Returns an optimizer that can be used to optimize a module.
     pub fn init<B: AutodiffBackend, M: AutodiffModule<B>>(&self) -> OptimizerAdaptor<AdamW, M, B> {
-        let mut optim = OptimizerAdaptor::from(self.init_simple());
+        let mut optim = OptimizerAdaptor::from(self.build());
         if let Some(config) = &self.grad_clipping {
             optim = optim.with_grad_clipping(config.init());
         }

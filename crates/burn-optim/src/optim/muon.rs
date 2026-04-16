@@ -160,12 +160,8 @@ pub struct MuonConfig {
 }
 
 impl MuonConfig {
-    /// Build the [`Muon`] [`SimpleOptimizer`].
-    ///
-    /// # Returns
-    ///
-    /// The base [`SimpleOptimizer`] utility type.
-    pub fn init_simple<B: Backend>(&self) -> Muon<B> {
+    /// Build a [`Muon`] from the config.
+    pub fn build<B: Backend>(&self) -> Muon<B> {
         let momentum = Momentum::new(&self.momentum);
         let weight_decay_penalty = self.weight_decay.as_ref().map(|wd| wd.penalty);
 
@@ -213,7 +209,7 @@ impl MuonConfig {
     pub fn init<B: AutodiffBackend, M: AutodiffModule<B>>(
         &self,
     ) -> OptimizerAdaptor<Muon<B::InnerBackend>, M, B> {
-        OptimizerAdaptor::from(self.init_simple())
+        OptimizerAdaptor::from(self.build())
     }
 }
 

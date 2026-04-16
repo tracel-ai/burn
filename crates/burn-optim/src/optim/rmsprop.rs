@@ -35,12 +35,8 @@ pub struct RmsPropConfig {
 }
 
 impl RmsPropConfig {
-    /// Build the [`RmsProp`] [`SimpleOptimizer`].
-    ///
-    /// # Returns
-    ///
-    /// The base [`SimpleOptimizer`] utility type.
-    pub fn init_simple(&self) -> RmsProp {
+    /// Build a [`RmsProp`] from the config.
+    pub fn build(&self) -> RmsProp {
         let weight_decay = self.weight_decay.as_ref().map(WeightDecay::new);
         RmsProp {
             alpha: self.alpha,
@@ -61,7 +57,7 @@ impl RmsPropConfig {
     pub fn init<B: AutodiffBackend, M: AutodiffModule<B>>(
         &self,
     ) -> OptimizerAdaptor<RmsProp, M, B> {
-        let mut optim = OptimizerAdaptor::from(self.init_simple());
+        let mut optim = OptimizerAdaptor::from(self.build());
         if let Some(config) = &self.grad_clipping {
             optim = optim.with_grad_clipping(config.init());
         }

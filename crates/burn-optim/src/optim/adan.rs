@@ -100,12 +100,8 @@ impl<B: Backend> SimpleOptimizer<B> for Adan {
 }
 
 impl AdanConfig {
-    /// Build the [`Adan`] [`SimpleOptimizer`].
-    ///
-    /// # Returns
-    ///
-    /// The base [`SimpleOptimizer`] utility type.
-    pub fn init_simple(&self) -> Adan {
+    /// Build an [`Adan`] from the config.
+    pub fn build(&self) -> Adan {
         Adan {
             momentum: AdaptiveNesterovMomentum {
                 beta_1: self.beta_1,
@@ -124,7 +120,7 @@ impl AdanConfig {
     ///
     /// Returns an optimizer that can be used to optimize a module.
     pub fn init<B: AutodiffBackend, M: AutodiffModule<B>>(&self) -> OptimizerAdaptor<Adan, M, B> {
-        let mut optim = OptimizerAdaptor::from(self.init_simple());
+        let mut optim = OptimizerAdaptor::from(self.build());
         if let Some(config) = &self.grad_clipping {
             optim = optim.with_grad_clipping(config.init());
         }

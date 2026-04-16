@@ -73,12 +73,8 @@ impl<B: Backend> SimpleOptimizer<B> for AdaGrad {
 }
 
 impl AdaGradConfig {
-    /// Build the [`AdaGrad`] [`SimpleOptimizer`].
-    ///
-    /// # Returns
-    ///
-    /// The base [`SimpleOptimizer`] utility type.
-    pub fn init_simple(&self) -> AdaGrad {
+    /// Build an [`AdaGrad`] from the config.
+    pub fn build(&self) -> AdaGrad {
         AdaGrad {
             lr_decay: LrDecay {
                 lr_decay: self.lr_decay,
@@ -96,7 +92,7 @@ impl AdaGradConfig {
     pub fn init<B: AutodiffBackend, M: AutodiffModule<B>>(
         &self,
     ) -> OptimizerAdaptor<AdaGrad, M, B> {
-        let mut optim = OptimizerAdaptor::from(self.init_simple());
+        let mut optim = OptimizerAdaptor::from(self.build());
         if let Some(config) = &self.grad_clipping {
             optim = optim.with_grad_clipping(config.init());
         }
