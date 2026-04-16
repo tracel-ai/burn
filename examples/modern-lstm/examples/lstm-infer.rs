@@ -1,7 +1,7 @@
-use burn::tensor::backend::Backend;
+use burn::tensor::Device;
 
-pub fn launch<B: Backend>(device: B::Device) {
-    modern_lstm::inference::infer::<B>("/tmp/modern-lstm", device);
+pub fn launch(device: Device) {
+    modern_lstm::inference::infer("/tmp/modern-lstm", device);
 }
 
 #[cfg(feature = "ndarray")]

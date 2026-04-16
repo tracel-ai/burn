@@ -1,7 +1,7 @@
 use crate::dataset::{
     NOISE_LEVEL, NUM_SEQUENCES, RANDOM_SEED, SEQ_LENGTH, SequenceBatcher, SequenceDataset,
 };
-use crate::model::{LstmNetwork, LstmNetworkConfig};
+use crate::model::LstmNetworkConfig;
 use burn::{
     data::dataloader::DataLoaderBuilder,
     module::AutodiffModule,

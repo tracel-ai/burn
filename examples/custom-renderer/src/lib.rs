@@ -2,7 +2,7 @@ use burn::{
     config::Config,
     data::{dataloader::DataLoaderBuilder, dataset::vision::MnistDataset},
     optim::AdamConfig,
-    tensor::backend::AutodiffBackend,
+    tensor::Device,
     train::{
         Learner, SupervisedTraining,
         renderer::{

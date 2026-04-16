@@ -7,20 +7,20 @@ use burn::{
 };
 
 #[derive(Module, Debug)]
-pub struct Model<B: Backend> {
-    conv1: ConvBlock<B>,
-    conv2: ConvBlock<B>,
+pub struct Model {
+    conv1: ConvBlock,
+    conv2: ConvBlock,
     dropout: nn::Dropout,
-    fc1: nn::Linear<B>,
-    fc2: nn::Linear<B>,
-    fc3: nn::Linear<B>,
+    fc1: nn::Linear,
+    fc2: nn::Linear,
+    fc3: nn::Linear,
     activation: nn::Gelu,
 }
 
 const NUM_CLASSES: usize = 10;
 
-impl<B: Backend> Model<B> {
-    pub fn new(device: &B::Device) -> Self {
+impl Model {
+    pub fn new(device: &Device) -> Self {
         let conv1 = ConvBlock::new([1, 64], [3, 3], device, true); // out: max_pool -> [Batch,32,13,13]
         let conv2 = ConvBlock::new([64, 64], [3, 3], device, true); // out: max_pool -> [Batch,64,5,5]
         let hidden_size = 64 * 5 * 5;
@@ -41,7 +41,7 @@ impl<B: Backend> Model<B> {
         }
     }
 
-    pub fn forward(&self, input: Tensor<B, 3>) -> Tensor<B, 2> {
+    pub fn forward(&self, input: Tensor<3>) -> Tensor<2> {
         let [batch_size, height, width] = input.dims();
 
         let x = input.reshape([batch_size, 1, height, width]).detach();
@@ -63,20 +63,15 @@ impl<B: Backend> Model<B> {
 }
 
 #[derive(Module, Debug)]
-pub struct ConvBlock<B: Backend> {
-    conv: nn::conv::Conv2d<B>,
-    norm: BatchNorm<B>,
+pub struct ConvBlock {
+    conv: nn::conv::Conv2d,
+    norm: BatchNorm,
     pool: Option<MaxPool2d>,
     activation: nn::Relu,
 }
 
-impl<B: Backend> ConvBlock<B> {
-    pub fn new(
-        channels: [usize; 2],
-        kernel_size: [usize; 2],
-        device: &B::Device,
-        pool: bool,
-    ) -> Self {
+impl ConvBlock {
+    pub fn new(channels: [usize; 2], kernel_size: [usize; 2], device: &Device, pool: bool) -> Self {
         let conv = nn::conv::Conv2dConfig::new(channels, kernel_size)
             .with_padding(PaddingConfig2d::Valid)
             .init(device);
@@ -95,7 +90,7 @@ impl<B: Backend> ConvBlock<B> {
         }
     }
 
-    pub fn forward(&self, input: Tensor<B, 4>) -> Tensor<B, 4> {
+    pub fn forward(&self, input: Tensor<4>) -> Tensor<4> {
         let x = self.conv.forward(input);
         let x = self.norm.forward(x);
         let x = self.activation.forward(x);

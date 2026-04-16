@@ -2651,10 +2651,8 @@ name = "custom-training-loop"
 version = "0.21.0-pre.3"
 dependencies = [
  "burn",
- "derive-new",
  "guide",
  "log",
- "serde",
 ]
 
 [[package]]

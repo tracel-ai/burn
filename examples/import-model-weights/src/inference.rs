@@ -9,7 +9,7 @@ use crate::model::Model;
 
 const IMAGE_INX: usize = 42; // <- Change this to test a different image
 
-pub fn infer<B: Backend>(model: Model<B>) {
+pub fn infer(model: Model) {
     // Get image index argument (first) from command line
 
     let image_index = if let Some(image_index) = args().nth(1) {
@@ -34,7 +34,7 @@ pub fn infer<B: Backend>(model: Model<B>) {
     // Create a tensor from the image data
     let image_data = item.image.iter().copied().flatten().collect::<Vec<f32>>();
     let mut input =
-        Tensor::<B, 1>::from_floats(image_data.as_slice(), &device).reshape([1, 1, 28, 28]);
+        Tensor::<1>::from_floats(image_data.as_slice(), &device).reshape([1, 1, 28, 28]);
 
     // Normalize the input
     input = ((input / 255) - 0.1307) / 0.3081;

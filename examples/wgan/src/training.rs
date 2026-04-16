@@ -5,7 +5,7 @@ use burn::{
     data::{dataloader::DataLoaderBuilder, dataset::vision::MnistDataset},
     prelude::*,
     record::CompactRecorder,
-    tensor::{Distribution, backend::AutodiffBackend},
+    tensor::Distribution,
 };
 use image::{Rgb32FImage, RgbImage, buffer::ConvertBuffer, error::ImageResult};
 use std::path::Path;
@@ -46,11 +46,7 @@ fn create_artifact_dir(artifact_dir: &str) {
 
 /// Save the generated images
 // The images format is [B, H, W, C]
-pub fn save_image<B: Backend, Q: AsRef<Path>>(
-    images: Tensor<B, 4>,
-    nrow: u32,
-    path: Q,
-) -> ImageResult<()> {
+pub fn save_image<Q: AsRef<Path>>(images: Tensor<4>, nrow: u32, path: Q) -> ImageResult<()> {
     let ncol = (images.dims()[0] as f32 / nrow as f32).ceil() as u32;
 
     let width = images.dims()[2] as u32;
@@ -67,7 +63,7 @@ pub fn save_image<B: Backend, Q: AsRef<Path>>(
     // Write images into a nrow*ncol grid layout
     for row in 0..nrow {
         for col in 0..ncol {
-            let image: Tensor<B, 3> = images
+            let image: Tensor<3> = images
                 .clone()
                 .slice((row * nrow + col) as usize..(row * nrow + col + 1) as usize)
                 .squeeze_dim(0);
@@ -89,7 +85,7 @@ pub fn save_image<B: Backend, Q: AsRef<Path>>(
     imgbuf.save(path)
 }
 
-pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, device: B::Device) {
+pub fn train(artifact_dir: &str, config: TrainingConfig, device: Device) {
     create_artifact_dir(artifact_dir);
 
     // Create the Clip module mapper
@@ -102,10 +98,12 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
     config
         .save(format!("{artifact_dir}/config.json"))
         .expect("Config should be saved successfully");
-    B::seed(&device, config.seed);
+
+    device.seed(config.seed);
+    let device = device.autodiff();
 
     // Create the model and optimizer
-    let (mut generator, mut discriminator) = config.model.init::<B>(&device);
+    let (mut generator, mut discriminator) = config.model.init(&device);
     let mut optimizer_g = config.optimizer.init();
     let mut optimizer_d = config.optimizer.init();
 
@@ -124,7 +122,7 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
         // Implement our training loop
         for (iteration, batch) in dataloader_train.iter().enumerate() {
             // Generate a batch of fake images from noise (standarded normal distribution)
-            let noise = Tensor::<B, 2>::random(
+            let noise = Tensor::<2>::random(
                 [config.batch_size, config.model.latent_dim],
                 Distribution::Normal(0.0, 1.0),
                 &device,
@@ -193,7 +191,7 @@ pub fn train<B: AutodiffBackend>(artifact_dir: &str, config: TrainingConfig, dev
                 let fake_images = (fake_images + 0.5 / 255.0).clamp(0.0, 1.0);
                 // Save images in artifact directory
                 let path = format!("{artifact_dir}/image-{epoch}.png");
-                save_image::<B, _>(fake_images, 5, path).unwrap();
+                save_image(fake_images, 5, path).unwrap();
             }
         }
     }

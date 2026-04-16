@@ -5,18 +5,18 @@ use burn::{
     tensor::Distribution,
 };
 
-pub fn generate<B: Backend>(artifact_dir: &str, device: B::Device) {
+pub fn generate(artifact_dir: &str, device: Device) {
     // Loading model
     let config = TrainingConfig::load(format!("{artifact_dir}/config.json"))
         .expect("Config should exist for the model; run train first");
     let record = CompactRecorder::new()
         .load(format!("{artifact_dir}/generator").into(), &device)
         .expect("Trained model should exist; run train first");
-    let (mut generator, _) = config.model.init::<B>(&device);
+    let (mut generator, _) = config.model.init(&device);
     generator = generator.load_record(record);
 
     // Get a batch of noise
-    let noise = Tensor::<B, 2>::random(
+    let noise = Tensor::<2>::random(
         [config.batch_size, config.model.latent_dim],
         Distribution::Normal(0.0, 1.0),
         &device,
@@ -37,5 +37,5 @@ pub fn generate<B: Backend>(artifact_dir: &str, device: B::Device) {
     // Add 0.5 after unnormalizing to [0, 255] to round to the nearest integer, refer to pytorch save_image source
     let fake_images = (fake_images + 0.5 / 255.0).clamp(0.0, 1.0);
     // Save images in artifact directory
-    save_image::<B, _>(fake_images, 5, format!("{artifact_dir}/fake_image.png")).unwrap();
+    save_image(fake_images, 5, format!("{artifact_dir}/fake_image.png")).unwrap();
 }
