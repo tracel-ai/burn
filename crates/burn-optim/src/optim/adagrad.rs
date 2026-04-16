@@ -11,7 +11,7 @@ use super::{
     adaptor::OptimizerAdaptor,
     decay::{WeightDecay, WeightDecayConfig},
 };
-use crate::{AdamW, LearningRate, grad_clipping::GradientClippingConfig};
+use crate::{LearningRate, grad_clipping::GradientClippingConfig};
 
 /// AdaGrad configuration.
 #[derive(Config, Debug)]

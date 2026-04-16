@@ -7,7 +7,7 @@ use super::{
     adaptor::OptimizerAdaptor,
     decay::{WeightDecay, WeightDecayConfig},
 };
-use crate::{AdaGrad, LearningRate, grad_clipping::GradientClippingConfig};
+use crate::{LearningRate, grad_clipping::GradientClippingConfig};
 
 use burn::config::Config;
 use burn::tensor::backend::Backend;

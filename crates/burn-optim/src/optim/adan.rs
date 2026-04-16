@@ -6,9 +6,8 @@ use burn::tensor::{backend::Backend, ops::Device};
 use burn::{module::AutodiffModule, record::Record};
 
 use super::{SimpleOptimizer, adaptor::OptimizerAdaptor};
-use crate::{AdaGrad, LearningRate, grad_clipping::GradientClippingConfig};
+use crate::{LearningRate, grad_clipping::GradientClippingConfig};
 
-use crate::decay::WeightDecay;
 #[cfg(not(feature = "std"))]
 #[allow(unused_imports)]
 use num_traits::Float as _;

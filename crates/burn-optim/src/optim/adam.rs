@@ -11,7 +11,7 @@ use super::{
     adaptor::OptimizerAdaptor,
     decay::{WeightDecay, WeightDecayConfig},
 };
-use crate::{AdaGrad, LearningRate, grad_clipping::GradientClippingConfig};
+use crate::{LearningRate, grad_clipping::GradientClippingConfig};
 
 #[cfg(not(feature = "std"))]
 #[allow(unused_imports)]
