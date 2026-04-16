@@ -126,6 +126,20 @@ impl DType {
         matches!(self, DType::Bool(_))
     }
 
+    /// Returns float precision info if this is a float dtype, `None` otherwise.
+    ///
+    /// Analogous to `torch.finfo(dtype)` or `numpy.finfo(dtype)`.
+    pub const fn finfo(&self) -> Option<FloatInfo> {
+        match self {
+            DType::F64 => Some(FloatDType::F64.finfo()),
+            DType::F32 => Some(FloatDType::F32.finfo()),
+            DType::Flex32 => Some(FloatDType::Flex32.finfo()),
+            DType::F16 => Some(FloatDType::F16.finfo()),
+            DType::BF16 => Some(FloatDType::BF16.finfo()),
+            _ => None,
+        }
+    }
+
     /// Returns the data type name.
     pub fn name(&self) -> &'static str {
         match self {
@@ -160,6 +174,65 @@ pub enum FloatDType {
     Flex32,
     F16,
     BF16,
+}
+
+/// Numerical precision properties for a floating-point dtype.
+///
+/// Equivalent to NumPy's `finfo` / PyTorch's `torch.finfo`. All values are
+/// widened to `f64` so they can be inspected without knowing the concrete
+/// element type at compile time.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct FloatInfo {
+    /// Machine epsilon: smallest value such that `1.0 + epsilon != 1.0`.
+    pub epsilon: f64,
+    /// Largest representable finite value.
+    pub max: f64,
+    /// Most negative representable finite value.
+    pub min: f64,
+    /// Smallest positive normal value.
+    pub min_positive: f64,
+}
+
+impl FloatDType {
+    /// Returns numerical precision properties for this float dtype.
+    ///
+    /// Analogous to `torch.finfo(dtype)` or `numpy.finfo(dtype)`.
+    pub const fn finfo(self) -> FloatInfo {
+        match self {
+            FloatDType::F64 => FloatInfo {
+                epsilon: f64::EPSILON,
+                max: f64::MAX,
+                min: f64::MIN,
+                min_positive: f64::MIN_POSITIVE, // ~2.225e-308
+            },
+            FloatDType::F32 => FloatInfo {
+                epsilon: f32::EPSILON as f64,
+                max: f32::MAX as f64,
+                min: f32::MIN as f64,
+                min_positive: f32::MIN_POSITIVE as f64, // ~1.175e-38
+            },
+            // Flex32 stores as f32 but computes at reduced (f16-like) precision.
+            // Use f16 precision limits so stability code stays safe.
+            FloatDType::Flex32 => FloatInfo {
+                epsilon: f16::EPSILON.to_f64_const(),
+                max: f16::MAX.to_f64_const(),
+                min: f16::MIN.to_f64_const(),
+                min_positive: f16::MIN_POSITIVE.to_f64_const(), // ~6.104e-5
+            },
+            FloatDType::F16 => FloatInfo {
+                epsilon: f16::EPSILON.to_f64_const(),
+                max: f16::MAX.to_f64_const(),
+                min: f16::MIN.to_f64_const(),
+                min_positive: f16::MIN_POSITIVE.to_f64_const(), // ~6.104e-5
+            },
+            FloatDType::BF16 => FloatInfo {
+                epsilon: bf16::EPSILON.to_f64_const(),
+                max: bf16::MAX.to_f64_const(),
+                min: bf16::MIN.to_f64_const(),
+                min_positive: bf16::MIN_POSITIVE.to_f64_const(), // ~1.175e-38
+            },
+        }
+    }
 }
 
 impl From<DType> for FloatDType {
@@ -270,6 +343,97 @@ impl From<BoolDType> for DType {
             BoolDType::Native => DType::Bool(BoolStore::Native),
             BoolDType::U8 => DType::Bool(BoolStore::U8),
             BoolDType::U32 => DType::Bool(BoolStore::U32),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn finfo_f32() {
+        let info = FloatDType::F32.finfo();
+        assert_eq!(info.epsilon, f32::EPSILON as f64);
+        assert_eq!(info.max, f32::MAX as f64);
+        assert_eq!(info.min, f32::MIN as f64);
+        assert_eq!(info.min_positive, f32::MIN_POSITIVE as f64);
+    }
+
+    #[test]
+    fn finfo_f64() {
+        let info = FloatDType::F64.finfo();
+        assert_eq!(info.epsilon, f64::EPSILON);
+        assert_eq!(info.max, f64::MAX);
+        assert_eq!(info.min, f64::MIN);
+        assert_eq!(info.min_positive, f64::MIN_POSITIVE);
+    }
+
+    #[test]
+    fn finfo_f16() {
+        let info = FloatDType::F16.finfo();
+        assert_eq!(info.epsilon, f16::EPSILON.to_f64_const());
+        assert!(info.epsilon > 0.0);
+        assert!(info.min_positive > 0.0);
+        // f16 epsilon is much larger than f32
+        assert!(info.epsilon > FloatDType::F32.finfo().epsilon);
+    }
+
+    #[test]
+    fn finfo_bf16() {
+        let info = FloatDType::BF16.finfo();
+        assert_eq!(info.epsilon, bf16::EPSILON.to_f64_const());
+        assert!(info.epsilon > 0.0);
+        assert!(info.min_positive > 0.0);
+        // bf16 epsilon is larger than f32 (fewer mantissa bits)
+        assert!(info.epsilon > FloatDType::F32.finfo().epsilon);
+    }
+
+    #[test]
+    fn finfo_flex32_uses_f16_limits() {
+        let flex = FloatDType::Flex32.finfo();
+        let f16_info = FloatDType::F16.finfo();
+        assert_eq!(flex.epsilon, f16_info.epsilon);
+        assert_eq!(flex.min_positive, f16_info.min_positive);
+    }
+
+    #[test]
+    fn dtype_finfo_delegates_to_float_dtype() {
+        assert_eq!(DType::F32.finfo(), Some(FloatDType::F32.finfo()));
+        assert_eq!(DType::F64.finfo(), Some(FloatDType::F64.finfo()));
+        assert_eq!(DType::F16.finfo(), Some(FloatDType::F16.finfo()));
+        assert_eq!(DType::BF16.finfo(), Some(FloatDType::BF16.finfo()));
+        assert_eq!(DType::Flex32.finfo(), Some(FloatDType::Flex32.finfo()));
+    }
+
+    #[test]
+    fn dtype_finfo_returns_none_for_non_float() {
+        assert!(DType::I32.finfo().is_none());
+        assert!(DType::U8.finfo().is_none());
+        assert!(DType::Bool(BoolStore::Native).finfo().is_none());
+    }
+
+    #[test]
+    fn finfo_invariants() {
+        for dtype in [
+            FloatDType::F64,
+            FloatDType::F32,
+            FloatDType::F16,
+            FloatDType::BF16,
+            FloatDType::Flex32,
+        ] {
+            let info = dtype.finfo();
+            assert!(info.epsilon > 0.0, "{dtype:?}: epsilon must be positive");
+            assert!(
+                info.min_positive > 0.0,
+                "{dtype:?}: min_positive must be positive"
+            );
+            assert!(info.max > 0.0, "{dtype:?}: max must be positive");
+            assert!(info.min < 0.0, "{dtype:?}: min must be negative");
+            assert!(
+                info.max > info.min_positive,
+                "{dtype:?}: max > min_positive"
+            );
         }
     }
 }

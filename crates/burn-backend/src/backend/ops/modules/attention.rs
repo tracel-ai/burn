@@ -10,13 +10,6 @@ use crate::{
     tensor::{BoolTensor, FloatTensor},
 };
 
-/// Any finite floor prevents `-inf - (-inf) = NaN` in the softmax max-shift.
-/// Only activates when every position in a row is masked (`-inf`).
-const SOFTMAX_MAX_FLOOR: f64 = -1e4;
-
-/// Prevents `0 / 0 = NaN` when all numerators are zero (fully-masked row).
-const SOFTMAX_SUM_EPS: f64 = 1e-6;
-
 /// Computes softmax(QKᵗ * scale) · V using separate kernels.
 /// Serves as a fallback when FlashAttention is not used.
 pub fn attention_fallback<B: Backend>(
@@ -77,14 +70,15 @@ pub fn attention_fallback<B: Backend>(
     // When all positions in a row are masked (-inf), naive softmax has two NaN paths:
     //   (1) max is -inf, so the shift -inf - (-inf) = NaN;
     //   (2) after fixing (1), all exp values are 0, so sum is 0 and 0/0 = NaN.
-    // Clamping max and sum (see SOFTMAX_MAX_FLOOR / SOFTMAX_SUM_EPS) avoids both, yielding 0 for
-    // fully-masked rows (no position contributes to output).
+    // Clamping max to finfo.min (most negative finite value) and sum to finfo.min_positive
+    // (smallest positive normal) avoids both, yielding 0 for fully-masked rows.
+    let finfo = attention_scores.dtype().finfo().expect("float tensor");
     let max_per_dim = B::float_max_dim(attention_scores.clone(), 3);
-    let max_per_dim = B::float_clamp_min(max_per_dim, SOFTMAX_MAX_FLOOR.into());
+    let max_per_dim = B::float_clamp_min(max_per_dim, finfo.min.into());
     let minus_max = B::float_sub(attention_scores, max_per_dim);
     let numerator = B::float_exp(minus_max);
     let sum_exp = B::float_sum_dim(numerator.clone(), 3);
-    let sum_exp = B::float_clamp_min(sum_exp, SOFTMAX_SUM_EPS.into());
+    let sum_exp = B::float_clamp_min(sum_exp, finfo.min_positive.into());
     let softmax = B::float_div(numerator, sum_exp);
 
     // Context: S · V

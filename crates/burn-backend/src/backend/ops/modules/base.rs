@@ -1057,6 +1057,53 @@ pub trait ModuleOps<B: Backend> {
         options: AttentionModuleOptions,
     ) -> FloatTensor<B>;
 
+    /// Applies Layer Normalization over the last dimension of the input tensor.
+    ///
+    /// Computes `(x - mean) / sqrt(var + epsilon) * gamma + beta`, where `mean` and
+    /// (biased) `var` are reduced over the last axis.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - Input tensor of shape `[..., d_model]`.
+    /// * `gamma` - Scale tensor of shape `[d_model]`.
+    /// * `beta` - Optional bias tensor of shape `[d_model]`.
+    /// * `epsilon` - Numerical stability term added to the variance before the square root.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the same shape as `tensor`.
+    fn layer_norm(
+        tensor: FloatTensor<B>,
+        gamma: FloatTensor<B>,
+        beta: Option<FloatTensor<B>>,
+        epsilon: f64,
+    ) -> FloatTensor<B> {
+        let shape = tensor.shape();
+        let rank = shape.num_dims();
+        let last_dim = rank - 1;
+        let d_model = shape[last_dim];
+
+        let mean = B::float_mean_dim(tensor.clone(), last_dim);
+        let centered = B::float_sub(tensor, mean);
+        let var = B::float_mean_dim(B::float_mul(centered.clone(), centered.clone()), last_dim);
+        let denom = B::float_sqrt(B::float_add_scalar(var, epsilon.into()));
+        let normalized = B::float_div(centered, denom);
+
+        let broadcast_dims: alloc::vec::Vec<usize> = (0..rank)
+            .map(|i| if i == last_dim { d_model } else { 1 })
+            .collect();
+        let gamma_b = B::float_reshape(gamma, Shape::from(broadcast_dims.clone()));
+        let scaled = B::float_mul(normalized, gamma_b);
+
+        match beta {
+            Some(beta) => {
+                let beta_b = B::float_reshape(beta, Shape::from(broadcast_dims));
+                B::float_add(scaled, beta_b)
+            }
+            None => scaled,
+        }
+    }
+
     /// Real-valued fast Fourier transform.
     ///
     /// Computes the discrete Fourier transform of a real-valued input along the given dimension.
