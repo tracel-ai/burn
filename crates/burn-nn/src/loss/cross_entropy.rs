@@ -137,7 +137,11 @@ impl<B: Backend> CrossEntropyLoss<B> {
         alpha: f32,
     ) -> Tensor<B, 1> {
         let mask = self.padding_mask(&targets);
-        let tensor = self.log_probs(logits);
+        let tensor = if self.logits {
+            log_softmax(logits, 1)
+        } else {
+            logits.log()
+        };
         let [batch_size, nr_classes] = tensor.dims();
         let tensor = tensor
             * Self::compute_smoothed_targets([batch_size, nr_classes], targets.clone(), alpha);
@@ -164,8 +168,15 @@ impl<B: Backend> CrossEntropyLoss<B> {
         let [batch_size] = targets.dims();
 
         let mask = self.padding_mask(&targets);
-        let tensor = self.log_probs(logits);
-        let tensor = tensor.gather(1, targets.clone().reshape([batch_size, 1]));
+        let target_indices = targets.clone().reshape([batch_size, 1]);
+        let tensor = if self.logits {
+            log_softmax(logits, 1).gather(1, target_indices)
+        } else {
+            // TODO: finfo stable eps
+            let finfo = logits.dtype().finfo().unwrap();
+            let eps = finfo.min_positive.sqrt();
+            logits.clamp_min(eps).gather(1, target_indices).log()
+        };
 
         match &self.weights {
             Some(weights) => {
@@ -178,14 +189,6 @@ impl<B: Backend> CrossEntropyLoss<B> {
                 let tensor = Self::apply_mask_1d(tensor.reshape([batch_size]), mask);
                 tensor.mean().neg()
             }
-        }
-    }
-
-    fn log_probs(&self, logits: Tensor<B, 2>) -> Tensor<B, 2> {
-        if self.logits {
-            log_softmax(logits, 1)
-        } else {
-            logits.log()
         }
     }
 
@@ -507,4 +510,6 @@ mod tests {
             "CrossEntropyLoss {pad_tokens: None, weights: Tensor {rank: 1, shape: [3]}, smoothing: 0.5, logits: true}"
         );
     }
+
+    // TODO: backward tests
 }
