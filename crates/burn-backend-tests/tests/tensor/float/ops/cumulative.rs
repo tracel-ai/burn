@@ -1,5 +1,5 @@
 use super::*;
-use burn_tensor::TensorData;
+use burn_tensor::{ElementConversion, TensorData};
 
 #[test]
 fn test_cumsum_float_dim_0() {
@@ -149,4 +149,51 @@ fn test_cummax_float_3d() {
         &TensorData::from([[[1.0, 3.0], [2.0, 4.0]], [[5.0, 5.0], [6.0, 6.0]]]),
         false,
     );
+}
+
+// NaN-propagation tests below. Only run under the `flex` backend
+// feature; other burn backends follow IEEE 754 min/max and drop NaN.
+// Positive-gate form because the default CI build doesn't set
+// identifying feature flags on burn-backend-tests. See issue #4814.
+#[cfg(feature = "flex")]
+#[test]
+fn test_cummin_nan_propagation() {
+    // Once NaN appears, cummin propagates it forward.
+    let tensor = TestTensor::<1>::from([3.0, f32::NAN, 1.0, 2.0]);
+
+    let output = tensor.cummin(0);
+
+    let data: Vec<FloatElem> = output.into_data().to_vec().unwrap();
+    assert_eq!(data[0], 3.0.elem::<FloatElem>());
+    assert!(data[1].is_nan());
+    assert!(data[2].is_nan());
+    assert!(data[3].is_nan());
+}
+
+#[cfg(feature = "flex")]
+#[test]
+fn test_cummax_nan_propagation() {
+    let tensor = TestTensor::<1>::from([1.0, f32::NAN, 5.0, 2.0]);
+
+    let output = tensor.cummax(0);
+
+    let data: Vec<FloatElem> = output.into_data().to_vec().unwrap();
+    assert_eq!(data[0], 1.0.elem::<FloatElem>());
+    assert!(data[1].is_nan());
+    assert!(data[2].is_nan());
+    assert!(data[3].is_nan());
+}
+
+#[cfg(feature = "flex")]
+#[test]
+fn test_cummin_nan_at_start() {
+    // NaN on the first element should poison the entire output.
+    let tensor = TestTensor::<1>::from([f32::NAN, 1.0, 2.0]);
+
+    let output = tensor.cummin(0);
+
+    let data: Vec<FloatElem> = output.into_data().to_vec().unwrap();
+    assert!(data[0].is_nan());
+    assert!(data[1].is_nan());
+    assert!(data[2].is_nan());
 }

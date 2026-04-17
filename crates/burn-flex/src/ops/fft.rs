@@ -1471,6 +1471,14 @@ pub fn irfft_bf16(spectrum_re: FlexTensor, spectrum_im: FlexTensor, dim: usize) 
     super::module::cast_from_f32(result, bf16::from_f32)
 }
 
+// Tests kept here exercise flex-specific behavior: the internal radix-2
+// FFT kernels (`rfft_f32`/`_f64`/`_f16`, `irfft_*`, `complex_fft`,
+// `inverse_complex_fft`) across sizes that span the radix-4 and complex
+// packing paths (N=1, 2, 4, 8, 256, 1024, 4096), f16/f64 dtype handling,
+// twiddle accuracy, Parseval's theorem on synthetic inputs, and a
+// reference cross-check against realfft. FFT is only implemented by the
+// flex backend, so there is no cross-backend equivalent in
+// burn-backend-tests.
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -301,3 +301,93 @@ fn test_not_equal_broadcast() {
     ]);
     expected.assert_eq(&result.into_data(), false);
 }
+
+#[test]
+fn test_greater_transposed() {
+    // [[1,2],[3,4]] transposed -> [[1,3],[2,4]]; > [[2,2],[2,2]] = [[F,T],[F,T]]
+    let lhs = TestTensor::<2>::from([[1.0, 2.0], [3.0, 4.0]]).transpose();
+    let rhs = TestTensor::<2>::from([[2.0, 2.0], [2.0, 2.0]]);
+
+    let result = lhs.greater(rhs);
+
+    result
+        .into_data()
+        .assert_eq(&TensorData::from([[false, true], [false, true]]), false);
+}
+
+#[test]
+fn test_equal_flipped_1d() {
+    // [1,2,3,4] flipped -> [4,3,2,1]; == [4,2,2,1] = [T,F,T,T]
+    let lhs = TestTensor::<1>::from([1.0, 2.0, 3.0, 4.0]).flip([0]);
+    let rhs = TestTensor::<1>::from([4.0, 2.0, 2.0, 1.0]);
+
+    let result = lhs.equal(rhs);
+
+    result
+        .into_data()
+        .assert_eq(&TensorData::from([true, false, true, true]), false);
+}
+
+#[test]
+fn test_lower_flipped_2d() {
+    // [[1,2],[3,4]] axis-0 flipped -> [[3,4],[1,2]]; < [[2,5],[2,1]] = [[F,T],[T,F]]
+    let lhs = TestTensor::<2>::from([[1.0, 2.0], [3.0, 4.0]]).flip([0]);
+    let rhs = TestTensor::<2>::from([[2.0, 5.0], [2.0, 1.0]]);
+
+    let result = lhs.lower(rhs);
+
+    result
+        .into_data()
+        .assert_eq(&TensorData::from([[false, true], [true, false]]), false);
+}
+
+#[test]
+fn test_greater_elem_flipped() {
+    // [1,2,3,4] flipped -> [4,3,2,1]; > 2.5 = [T,T,F,F]
+    let lhs = TestTensor::<1>::from([1.0, 2.0, 3.0, 4.0]).flip([0]);
+
+    let result = lhs.greater_elem(2.5);
+
+    result
+        .into_data()
+        .assert_eq(&TensorData::from([true, true, false, false]), false);
+}
+
+#[test]
+fn test_equal_both_transposed() {
+    // Both transposed. [[1,2],[3,4]]^T == [[1,3],[2,4]]^T = ?
+    let lhs = TestTensor::<2>::from([[1.0, 2.0], [3.0, 4.0]]).transpose();
+    let rhs = TestTensor::<2>::from([[1.0, 3.0], [2.0, 4.0]]).transpose();
+
+    let result = lhs.equal(rhs);
+
+    result
+        .into_data()
+        .assert_eq(&TensorData::from([[true, false], [false, true]]), false);
+}
+
+#[test]
+fn test_not_equal_narrowed() {
+    // [1,2,3,4,5,6] narrowed to [2,3,4,5]; != [2,2,4,4] = [F,T,F,T]
+    let lhs = TestTensor::<1>::from([1.0, 2.0, 3.0, 4.0, 5.0, 6.0]).narrow(0, 1, 4);
+    let rhs = TestTensor::<1>::from([2.0, 2.0, 4.0, 4.0]);
+
+    let result = lhs.not_equal(rhs);
+
+    result
+        .into_data()
+        .assert_eq(&TensorData::from([false, true, false, true]), false);
+}
+
+#[test]
+fn test_lower_flipped_both_axes() {
+    // [[1,2],[3,4]] flipped on both axes -> [[4,3],[2,1]]; < [[3,3],[3,3]] = [[F,F],[T,T]]
+    let lhs = TestTensor::<2>::from([[1.0, 2.0], [3.0, 4.0]]).flip([0, 1]);
+    let rhs = TestTensor::<2>::from([[3.0, 3.0], [3.0, 3.0]]);
+
+    let result = lhs.lower(rhs);
+
+    result
+        .into_data()
+        .assert_eq(&TensorData::from([[false, false], [true, true]]), false);
+}

@@ -1040,872 +1040,425 @@ fn layer_norm_row_f32_simd<S: macerator::Simd>(
     }
 }
 
+// Tests kept here exercise flex-specific behavior: SIMD boundaries, rayon
+// chunk boundaries, non-contiguous input handling, the flex-internal
+// layer_norm op (no public API yet), and dtype-specific fused softmax
+// paths (f16/bf16/f64). Plain activation/softmax smoke tests have been
+// migrated to burn-backend-tests so they cover every backend. When adding
+// new tests, keep them here only if they probe flex internals; otherwise
+// add them to crates/burn-backend-tests/tests/tensor/float/activation/.
 #[cfg(test)]
 mod tests {
-    use burn_backend::Tolerance;
-    use burn_tensor::{Tensor, TensorData, activation};
+    use alloc::vec;
+    use burn_backend::{DType, TensorData, TensorMetadata, Tolerance};
+    use burn_std::{bf16, f16};
+    use num_traits::Float;
 
-    use crate::Flex;
+    use crate::FlexTensor;
 
-    #[test]
-    fn test_relu() {
-        let t: Tensor<Flex, 1> =
-            Tensor::from_data([-2.0f32, -1.0, 0.0, 1.0, 2.0], &Default::default());
-        activation::relu(t).into_data().assert_approx_eq::<f32>(
-            &TensorData::from([0.0, 0.0, 0.0, 1.0, 2.0]),
-            Tolerance::absolute(1e-6),
-        );
+    // ============================================================================
+    // Reference implementations (per-row, last-axis).
+    //
+    // These mirror the contract the fused kernel commits to: stable softmax via
+    // (x - max), layer_norm via (x - mean) * inv(sqrt(var + eps)) with optional
+    // affine. Written in plain Rust over f32/f64 slices so the tests avoid any
+    // tensor-library dependency.
+    // ============================================================================
+
+    fn softmax_row<T: Float>(row_in: &[T], row_out: &mut [T]) {
+        let max = row_in
+            .iter()
+            .copied()
+            .fold(T::neg_infinity(), |a, b| if a > b { a } else { b });
+        let mut sum = T::zero();
+        for (i, &x) in row_in.iter().enumerate() {
+            let e = (x - max).exp();
+            row_out[i] = e;
+            sum = sum + e;
+        }
+        for v in row_out.iter_mut() {
+            *v = *v / sum;
+        }
     }
 
-    #[test]
-    fn test_sigmoid() {
-        let t: Tensor<Flex, 1> = Tensor::from_data([-10.0f32, 0.0, 10.0], &Default::default());
-        // sigmoid(-10) ~ 0, sigmoid(0) = 0.5, sigmoid(10) ~ 1
-        activation::sigmoid(t).into_data().assert_approx_eq::<f32>(
-            &TensorData::from([0.0, 0.5, 1.0]),
-            Tolerance::absolute(1e-3),
-        );
+    fn softmax_last_ref<T: Float>(data: &[T], row_len: usize) -> Vec<T> {
+        let mut out = vec![T::zero(); data.len()];
+        for (i, o) in data.chunks(row_len).zip(out.chunks_mut(row_len)) {
+            softmax_row(i, o);
+        }
+        out
     }
 
-    #[test]
-    fn test_gelu() {
-        let t: Tensor<Flex, 1> = Tensor::from_data([-3.0f32, 0.0, 3.0], &Default::default());
-        // gelu(0) = 0, gelu(-3) ~ -0.004, gelu(3) ~ 2.996
-        activation::gelu(t).into_data().assert_approx_eq::<f32>(
-            &TensorData::from([0.0, 0.0, 3.0]),
-            Tolerance::absolute(0.01),
-        );
+    fn layer_norm_row<T: Float>(
+        row_in: &[T],
+        gamma: &[T],
+        beta: Option<&[T]>,
+        eps: T,
+        row_out: &mut [T],
+    ) {
+        let n = T::from(row_in.len()).unwrap();
+        let mean = row_in.iter().copied().fold(T::zero(), |a, b| a + b) / n;
+        let var = row_in
+            .iter()
+            .map(|&x| (x - mean) * (x - mean))
+            .fold(T::zero(), |a, b| a + b)
+            / n;
+        let inv_std = T::one() / (var + eps).sqrt();
+        for (i, &x) in row_in.iter().enumerate() {
+            let normed = (x - mean) * inv_std;
+            let scaled = normed * gamma[i];
+            row_out[i] = match beta {
+                Some(b) => scaled + b[i],
+                None => scaled,
+            };
+        }
     }
 
-    #[test]
-    fn test_leaky_relu() {
-        let t: Tensor<Flex, 1> =
-            Tensor::from_data([-2.0f32, -1.0, 0.0, 1.0, 2.0], &Default::default());
-        activation::leaky_relu(t, 0.01)
-            .into_data()
-            .assert_approx_eq::<f32>(
-                &TensorData::from([-0.02, -0.01, 0.0, 1.0, 2.0]),
-                Tolerance::absolute(1e-6),
-            );
+    fn layer_norm_last_ref<T: Float>(
+        data: &[T],
+        gamma: &[T],
+        beta: Option<&[T]>,
+        eps: T,
+        row_len: usize,
+    ) -> Vec<T> {
+        let mut out = vec![T::zero(); data.len()];
+        for (i, o) in data.chunks(row_len).zip(out.chunks_mut(row_len)) {
+            layer_norm_row(i, gamma, beta, eps, o);
+        }
+        out
     }
 
+    // ============================================================================
+    // Helpers: FlexTensor constructors for typed inputs.
+    // ============================================================================
+
+    fn flex_f32(data: Vec<f32>, shape: &[usize]) -> FlexTensor {
+        FlexTensor::from_data(TensorData::new(data, shape.to_vec()))
+    }
+
+    fn flex_f64(data: Vec<f64>, shape: &[usize]) -> FlexTensor {
+        FlexTensor::from_data(TensorData::new(data, shape.to_vec()))
+    }
+
+    fn flex_half<T: burn_backend::Element>(data: Vec<T>, shape: &[usize]) -> FlexTensor {
+        FlexTensor::from_data(TensorData::new(data, shape.to_vec()))
+    }
+
+    // ============================================================================
+    // layer_norm tests
+    // ============================================================================
+
     #[test]
-    fn test_softmax_1d() {
-        use burn_tensor::TensorPrimitive;
-        // softmax([1, 2, 3]) should equal the reference impl
-        let t: Tensor<Flex, 1> = Tensor::from_data([1.0f32, 2.0, 3.0], &Default::default());
-        let primitive = match t.into_primitive() {
-            TensorPrimitive::Float(x) => x,
-            _ => unreachable!(),
-        };
-        let result = crate::ops::activation::softmax(primitive, 0);
-        let result: Tensor<Flex, 1> = Tensor::from_primitive(TensorPrimitive::Float(result));
-        // e^1=2.7183, e^2=7.389, e^3=20.0855, sum=30.193
-        // normalized: 0.09003, 0.24473, 0.66524
-        result.into_data().assert_approx_eq::<f32>(
-            &TensorData::from([0.09003, 0.24473, 0.66524]),
+    fn test_layer_norm_2d_with_beta() {
+        let t = flex_f32(vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0], &[2, 4]);
+        let gamma = flex_f32(vec![1.0; 4], &[4]);
+        let beta = flex_f32(vec![0.0; 4], &[4]);
+        let out = crate::ops::activation::layer_norm(t, gamma, Some(beta), 1e-5);
+
+        let expected: Vec<f32> = vec![
+            -1.3416408, -0.4472136, 0.4472136, 1.3416408, -1.3416408, -0.4472136, 0.4472136,
+            1.3416408,
+        ];
+        out.into_data().assert_approx_eq::<f32>(
+            &TensorData::new(expected, vec![2, 4]),
             Tolerance::absolute(1e-4),
         );
     }
 
     #[test]
-    fn test_softmax_2d_last_axis() {
-        use burn_tensor::TensorPrimitive;
-        // Cross-check against burn_tensor::activation::softmax on the same input
-        let data = [[-1.0f32, 0.0, 1.0, 2.0], [0.5, 0.5, 0.5, 0.5]];
-        let t: Tensor<Flex, 2> = Tensor::from_data(data, &Default::default());
-        let reference = activation::softmax(t.clone(), 1);
-
-        let primitive = match t.into_primitive() {
-            TensorPrimitive::Float(x) => x,
-            _ => unreachable!(),
-        };
-        let fused = crate::ops::activation::softmax(primitive, 1);
-        let fused: Tensor<Flex, 2> = Tensor::from_primitive(TensorPrimitive::Float(fused));
-
-        fused
-            .into_data()
-            .assert_approx_eq::<f32>(&reference.into_data(), Tolerance::absolute(1e-5));
-    }
-
-    #[test]
-    fn test_layer_norm_2d_with_beta() {
-        use burn_tensor::TensorPrimitive;
-        // Reference: layer_norm([2, 4]) along last axis.
-        // Row 0: [1, 2, 3, 4], mean=2.5, var=1.25, inv_std=1/sqrt(1.25+1e-5)
-        // normalized row 0 ≈ [-1.3416, -0.4472, 0.4472, 1.3416]
-        // gamma = [1, 1, 1, 1], beta = [0, 0, 0, 0] → same as normalized.
-        // Row 1: [5, 6, 7, 8], mean=6.5, var=1.25 → same normalized values.
-        let t: Tensor<Flex, 2> = Tensor::from_data(
-            [[1.0f32, 2.0, 3.0, 4.0], [5.0, 6.0, 7.0, 8.0]],
-            &Default::default(),
-        );
-        let gamma: Tensor<Flex, 1> =
-            Tensor::from_data([1.0f32, 1.0, 1.0, 1.0], &Default::default());
-        let beta: Tensor<Flex, 1> = Tensor::from_data([0.0f32; 4], &Default::default());
-
-        let t_prim = match t.into_primitive() {
-            TensorPrimitive::Float(x) => x,
-            _ => unreachable!(),
-        };
-        let g_prim = match gamma.into_primitive() {
-            TensorPrimitive::Float(x) => x,
-            _ => unreachable!(),
-        };
-        let b_prim = match beta.into_primitive() {
-            TensorPrimitive::Float(x) => x,
-            _ => unreachable!(),
-        };
-        let out = crate::ops::activation::layer_norm(t_prim, g_prim, Some(b_prim), 1e-5);
-        let out: Tensor<Flex, 2> = Tensor::from_primitive(TensorPrimitive::Float(out));
-
-        let expected = [
-            [-1.3416408, -0.4472136, 0.4472136, 1.3416408],
-            [-1.3416408, -0.4472136, 0.4472136, 1.3416408],
-        ];
-        out.into_data()
-            .assert_approx_eq::<f32>(&TensorData::from(expected), Tolerance::absolute(1e-4));
-    }
-
-    #[test]
     fn test_layer_norm_with_affine() {
-        // gamma/beta should scale and shift the normalized output.
-        use burn_tensor::TensorPrimitive;
-        let t: Tensor<Flex, 2> = Tensor::from_data([[1.0f32, 2.0, 3.0, 4.0]], &Default::default());
-        let gamma: Tensor<Flex, 1> =
-            Tensor::from_data([2.0f32, 0.5, 1.0, 3.0], &Default::default());
-        let beta: Tensor<Flex, 1> =
-            Tensor::from_data([1.0f32, -1.0, 0.0, 2.0], &Default::default());
-
-        let t_prim = match t.into_primitive() {
-            TensorPrimitive::Float(x) => x,
-            _ => unreachable!(),
-        };
-        let g_prim = match gamma.into_primitive() {
-            TensorPrimitive::Float(x) => x,
-            _ => unreachable!(),
-        };
-        let b_prim = match beta.into_primitive() {
-            TensorPrimitive::Float(x) => x,
-            _ => unreachable!(),
-        };
-        let out = crate::ops::activation::layer_norm(t_prim, g_prim, Some(b_prim), 1e-5);
-        let out: Tensor<Flex, 2> = Tensor::from_primitive(TensorPrimitive::Float(out));
+        let t = flex_f32(vec![1.0, 2.0, 3.0, 4.0], &[1, 4]);
+        let gamma = flex_f32(vec![2.0, 0.5, 1.0, 3.0], &[4]);
+        let beta = flex_f32(vec![1.0, -1.0, 0.0, 2.0], &[4]);
+        let out = crate::ops::activation::layer_norm(t, gamma, Some(beta), 1e-5);
 
         // normalized = [-1.3416, -0.4472, 0.4472, 1.3416]
-        // affine:
-        //   [0] = -1.3416 * 2.0 + 1.0 = -1.6833
-        //   [1] = -0.4472 * 0.5 - 1.0 = -1.2236
-        //   [2] =  0.4472 * 1.0 + 0.0 =  0.4472
-        //   [3] =  1.3416 * 3.0 + 2.0 =  6.0249
+        // affine: [-1.6833, -1.2236, 0.4472, 6.0249]
         out.into_data().assert_approx_eq::<f32>(
-            &TensorData::from([[-1.6833, -1.2236, 0.4472, 6.0249]]),
+            &TensorData::new(vec![-1.6833, -1.2236, 0.4472, 6.0249], vec![1, 4]),
             Tolerance::absolute(1e-3),
         );
     }
 
     #[test]
     fn test_layer_norm_no_beta() {
-        use burn_tensor::TensorPrimitive;
-        let t: Tensor<Flex, 2> = Tensor::from_data([[1.0f32, 2.0, 3.0, 4.0]], &Default::default());
-        let gamma: Tensor<Flex, 1> =
-            Tensor::from_data([1.0f32, 1.0, 1.0, 1.0], &Default::default());
-
-        let t_prim = match t.into_primitive() {
-            TensorPrimitive::Float(x) => x,
-            _ => unreachable!(),
-        };
-        let g_prim = match gamma.into_primitive() {
-            TensorPrimitive::Float(x) => x,
-            _ => unreachable!(),
-        };
-        // no beta
-        let out = crate::ops::activation::layer_norm(t_prim, g_prim, None, 1e-5);
-        let out: Tensor<Flex, 2> = Tensor::from_primitive(TensorPrimitive::Float(out));
+        let t = flex_f32(vec![1.0, 2.0, 3.0, 4.0], &[1, 4]);
+        let gamma = flex_f32(vec![1.0; 4], &[4]);
+        let out = crate::ops::activation::layer_norm(t, gamma, None, 1e-5);
 
         out.into_data().assert_approx_eq::<f32>(
-            &TensorData::from([[-1.3416408, -0.4472136, 0.4472136, 1.3416408]]),
+            &TensorData::new(
+                vec![-1.3416408, -0.4472136, 0.4472136, 1.3416408],
+                vec![1, 4],
+            ),
             Tolerance::absolute(1e-4),
         );
     }
 
-    #[test]
-    fn test_softmax_3d_attention_shape() {
-        // wav2vec2-like attention scores [heads, seq_q, seq_k], softmax over seq_k.
-        use burn_tensor::TensorPrimitive;
-        let t: Tensor<Flex, 3> = Tensor::from_data(
-            [
-                [[1.0f32, 2.0, 3.0], [4.0, 5.0, 6.0]],
-                [[0.0, 0.0, 1.0], [1.0, 1.0, 1.0]],
-            ],
-            &Default::default(),
-        );
-        let reference = activation::softmax(t.clone(), 2);
-
-        let primitive = match t.into_primitive() {
-            TensorPrimitive::Float(x) => x,
-            _ => unreachable!(),
-        };
-        let fused = crate::ops::activation::softmax(primitive, 2);
-        let fused: Tensor<Flex, 3> = Tensor::from_primitive(TensorPrimitive::Float(fused));
-
-        fused
-            .into_data()
-            .assert_approx_eq::<f32>(&reference.into_data(), Tolerance::absolute(1e-5));
-    }
+    // ============================================================================
+    // softmax SIMD / rayon boundary tests
+    // ============================================================================
 
     #[test]
     fn test_softmax_simd_body_row() {
-        // Row length of 32 ensures the SIMD body of softmax_row_f32_simd runs
-        // on every supported target: NEON (lanes=4), AVX2 (lanes=8), AVX-512
-        // (lanes=16), SIMD128 (lanes=4). Earlier tests use rows of length 3-4
-        // which leaves the SIMD body at zero iterations on AVX2+.
-        use burn_tensor::{Tensor, TensorData, TensorPrimitive};
+        // Row length 32 ensures the SIMD body runs on every supported target:
+        // NEON (lanes=4), AVX2 (lanes=8), AVX-512 (lanes=16), SIMD128 (lanes=4).
         let data: Vec<f32> = (0..32).map(|i| i as f32 * 0.1).collect();
-        let t: Tensor<Flex, 2> =
-            Tensor::from_data(TensorData::new(data, [1, 32]), &Default::default());
-        let reference = activation::softmax(t.clone(), 1);
-
-        let primitive = match t.into_primitive() {
-            TensorPrimitive::Float(x) => x,
-            _ => unreachable!(),
-        };
-        let fused = crate::ops::activation::softmax(primitive, 1);
-        let fused: Tensor<Flex, 2> = Tensor::from_primitive(TensorPrimitive::Float(fused));
-
-        fused
-            .into_data()
-            .assert_approx_eq::<f32>(&reference.into_data(), Tolerance::absolute(1e-5));
+        let expected = softmax_last_ref(&data, 32);
+        let fused = crate::ops::activation::softmax(flex_f32(data, &[1, 32]), 1);
+        fused.into_data().assert_approx_eq::<f32>(
+            &TensorData::new(expected, vec![1, 32]),
+            Tolerance::absolute(1e-5),
+        );
     }
 
     #[test]
     fn test_softmax_multi_chunk_rayon() {
-        // 100 rows > ROWS_PER_TASK (64), so the rayon par_chunks path
-        // produces at least two tasks. Combined with d_model=16 this also
-        // exercises the SIMD body with a row length that doesn't divide
-        // evenly on AVX-512 (lanes=16 leaves simd_len=16 and a zero tail;
-        // NEON lanes=4 leaves simd_len=16 and a zero tail; on AVX2 lanes=8
-        // same story).
-        use burn_tensor::{Tensor, TensorData, TensorPrimitive};
+        // 100 rows > ROWS_PER_TASK (64) triggers the rayon par_chunks path.
         let data: Vec<f32> = (0..100 * 16).map(|i| ((i % 17) as f32) * 0.05).collect();
-        let t: Tensor<Flex, 2> =
-            Tensor::from_data(TensorData::new(data, [100, 16]), &Default::default());
-        let reference = activation::softmax(t.clone(), 1);
-
-        let primitive = match t.into_primitive() {
-            TensorPrimitive::Float(x) => x,
-            _ => unreachable!(),
-        };
-        let fused = crate::ops::activation::softmax(primitive, 1);
-        let fused: Tensor<Flex, 2> = Tensor::from_primitive(TensorPrimitive::Float(fused));
-
-        fused
-            .into_data()
-            .assert_approx_eq::<f32>(&reference.into_data(), Tolerance::absolute(1e-5));
+        let expected = softmax_last_ref(&data, 16);
+        let fused = crate::ops::activation::softmax(flex_f32(data, &[100, 16]), 1);
+        fused.into_data().assert_approx_eq::<f32>(
+            &TensorData::new(expected, vec![100, 16]),
+            Tolerance::absolute(1e-5),
+        );
     }
 
     #[test]
     fn test_softmax_f64() {
-        // Exercises the softmax_last_dtype! + softmax_row_native f64 path.
-        // Cross-check against burn_tensor::activation::softmax on f64.
-        use burn_tensor::{Tensor, TensorData, TensorPrimitive};
-        let data = [1.0f64, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0];
-        let t: Tensor<Flex, 2> = Tensor::from_data(
-            TensorData::new(data.to_vec(), [2, 4]),
-            (&Default::default(), burn_backend::DType::F64),
+        // Exercises softmax_last_dtype! + softmax_row_native f64 path.
+        let data: Vec<f64> = vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0];
+        let expected = softmax_last_ref(&data, 4);
+        let fused = crate::ops::activation::softmax(flex_f64(data, &[2, 4]), 1);
+        fused.into_data().assert_approx_eq::<f64>(
+            &TensorData::new(expected, vec![2, 4]),
+            Tolerance::absolute(1e-10),
         );
-        let reference = activation::softmax(t.clone(), 1);
-
-        let primitive = match t.into_primitive() {
-            TensorPrimitive::Float(x) => x,
-            _ => unreachable!(),
-        };
-        let fused = crate::ops::activation::softmax(primitive, 1);
-        let fused: Tensor<Flex, 2> = Tensor::from_primitive(TensorPrimitive::Float(fused));
-
-        fused
-            .into_data()
-            .assert_approx_eq::<f64>(&reference.into_data(), Tolerance::absolute(1e-10));
     }
 
     #[test]
     fn test_softmax_f16() {
-        // Exercises the softmax_last_dtype! + softmax_row_half f16 path.
-        // f16 has ~1e-3 precision (11-bit mantissa), so cross-check with a
-        // matching tolerance against burn_tensor::activation::softmax.
-        use burn_std::f16;
-        use burn_tensor::{Tensor, TensorData, TensorPrimitive};
-        let data: Vec<f16> = [1.0f32, 2.0, 3.0, 4.0, 0.5, 0.5, 0.5, 0.5]
-            .iter()
-            .map(|&x| f16::from_f32(x))
-            .collect();
-        let t: Tensor<Flex, 2> = Tensor::from_data(
-            TensorData::new(data, [2, 4]),
-            (&Default::default(), burn_backend::DType::F16),
+        // Exercises softmax_last_dtype! + softmax_row_half f16 path.
+        let source: Vec<f32> = vec![1.0, 2.0, 3.0, 4.0, 0.5, 0.5, 0.5, 0.5];
+        let data: Vec<f16> = source.iter().map(|&x| f16::from_f32(x)).collect();
+        let expected = softmax_last_ref(&data, 4);
+        let fused = crate::ops::activation::softmax(flex_half(data, &[2, 4]), 1);
+        fused.into_data().assert_approx_eq::<f16>(
+            &TensorData::new(expected, vec![2, 4]),
+            Tolerance::absolute(1e-2),
         );
-        let reference = activation::softmax(t.clone(), 1);
-
-        let primitive = match t.into_primitive() {
-            TensorPrimitive::Float(x) => x,
-            _ => unreachable!(),
-        };
-        let fused = crate::ops::activation::softmax(primitive, 1);
-        let fused: Tensor<Flex, 2> = Tensor::from_primitive(TensorPrimitive::Float(fused));
-
-        fused
-            .into_data()
-            .assert_approx_eq::<f16>(&reference.into_data(), Tolerance::absolute(1e-2));
     }
 
     #[test]
     fn test_softmax_bf16() {
-        // Exercises the softmax_last_dtype! + softmax_row_half bf16 path.
-        // bf16 has ~1e-2 precision (8-bit mantissa).
-        use burn_std::bf16;
-        use burn_tensor::{Tensor, TensorData, TensorPrimitive};
-        let data: Vec<bf16> = [1.0f32, 2.0, 3.0, 4.0, 0.5, 0.5, 0.5, 0.5]
-            .iter()
-            .map(|&x| bf16::from_f32(x))
-            .collect();
-        let t: Tensor<Flex, 2> = Tensor::from_data(
-            TensorData::new(data, [2, 4]),
-            (&Default::default(), burn_backend::DType::BF16),
+        // Exercises softmax_last_dtype! + softmax_row_half bf16 path.
+        let source: Vec<f32> = vec![1.0, 2.0, 3.0, 4.0, 0.5, 0.5, 0.5, 0.5];
+        let data: Vec<bf16> = source.iter().map(|&x| bf16::from_f32(x)).collect();
+        let expected = softmax_last_ref(&data, 4);
+        let fused = crate::ops::activation::softmax(flex_half(data, &[2, 4]), 1);
+        fused.into_data().assert_approx_eq::<bf16>(
+            &TensorData::new(expected, vec![2, 4]),
+            Tolerance::absolute(5e-2),
         );
-        let reference = activation::softmax(t.clone(), 1);
-
-        let primitive = match t.into_primitive() {
-            TensorPrimitive::Float(x) => x,
-            _ => unreachable!(),
-        };
-        let fused = crate::ops::activation::softmax(primitive, 1);
-        let fused: Tensor<Flex, 2> = Tensor::from_primitive(TensorPrimitive::Float(fused));
-
-        fused
-            .into_data()
-            .assert_approx_eq::<bf16>(&reference.into_data(), Tolerance::absolute(5e-2));
     }
 
     #[test]
     fn test_layer_norm_multi_chunk_rayon() {
-        // 128 rows > ROWS_PER_TASK (64) so rayon produces multiple tasks.
-        // d_model=16 also exercises the SIMD body across common lane widths
-        // (NEON 4, AVX2 8, AVX-512 16).
-        use burn_tensor::TensorPrimitive;
+        // 128 rows > ROWS_PER_TASK (64) triggers the rayon path.
         let data: Vec<f32> = (0..128 * 16).map(|i| ((i % 19) as f32) * 0.03).collect();
-        let t: Tensor<Flex, 2> =
-            Tensor::from_data(TensorData::new(data, [128, 16]), &Default::default());
-        let gamma: Tensor<Flex, 1> = Tensor::from_data([1.0f32; 16], &Default::default());
-        let beta: Tensor<Flex, 1> = Tensor::from_data([0.0f32; 16], &Default::default());
-
-        // Reference: manually compute per-row (x - mean) / sqrt(var + eps),
-        // same formula the fused path implements.
-        let rows_in = t.clone().into_data().to_vec::<f32>().unwrap();
-        let mut expected = vec![0.0f32; rows_in.len()];
-        let eps = 1e-5f32;
-        for (in_row, out_row) in rows_in.chunks(16).zip(expected.chunks_mut(16)) {
-            let mean: f32 = in_row.iter().sum::<f32>() / 16.0;
-            let var: f32 = in_row.iter().map(|&x| (x - mean).powi(2)).sum::<f32>() / 16.0;
-            let inv_std = 1.0 / (var + eps).sqrt();
-            for (i, &x) in in_row.iter().enumerate() {
-                out_row[i] = (x - mean) * inv_std;
-            }
-        }
-
-        let t_prim = match t.into_primitive() {
-            TensorPrimitive::Float(x) => x,
-            _ => unreachable!(),
-        };
-        let g_prim = match gamma.into_primitive() {
-            TensorPrimitive::Float(x) => x,
-            _ => unreachable!(),
-        };
-        let b_prim = match beta.into_primitive() {
-            TensorPrimitive::Float(x) => x,
-            _ => unreachable!(),
-        };
-        let fused = crate::ops::activation::layer_norm(t_prim, g_prim, Some(b_prim), 1e-5);
-        let fused: Tensor<Flex, 2> = Tensor::from_primitive(TensorPrimitive::Float(fused));
-
+        let gamma_data: Vec<f32> = vec![1.0; 16];
+        let beta_data: Vec<f32> = vec![0.0; 16];
+        let expected = layer_norm_last_ref(&data, &gamma_data, Some(&beta_data), 1e-5f32, 16);
+        let fused = crate::ops::activation::layer_norm(
+            flex_f32(data, &[128, 16]),
+            flex_f32(gamma_data, &[16]),
+            Some(flex_f32(beta_data, &[16])),
+            1e-5,
+        );
         fused.into_data().assert_approx_eq::<f32>(
-            &TensorData::new(expected, [128, 16]),
+            &TensorData::new(expected, vec![128, 16]),
             Tolerance::absolute(1e-4),
         );
     }
 
     #[test]
-    fn test_softmax_non_contiguous_input() {
-        // A transposed tensor has non-contiguous strides. softmax calls
-        // `to_contiguous()` internally, and the fused kernel reads via
-        // `.storage::<f32>()` which would read stale data if the
-        // to_contiguous call were ever dropped. This test pins the contract.
-        use burn_tensor::TensorPrimitive;
-        // [3, 4] tensor, then transpose to [4, 3] (non-contiguous), softmax last axis.
-        let t: Tensor<Flex, 2> = Tensor::from_data(
-            [
-                [1.0f32, 2.0, 3.0, 4.0],
-                [5.0, 6.0, 7.0, 8.0],
-                [9.0, 10.0, 11.0, 12.0],
-            ],
-            &Default::default(),
-        );
-        let t_transposed = t.transpose();
-        let reference = activation::softmax(t_transposed.clone(), 1);
-
-        let primitive = match t_transposed.into_primitive() {
-            TensorPrimitive::Float(x) => x,
-            _ => unreachable!(),
-        };
-        let fused = crate::ops::activation::softmax(primitive, 1);
-        let fused: Tensor<Flex, 2> = Tensor::from_primitive(TensorPrimitive::Float(fused));
-
-        fused
-            .into_data()
-            .assert_approx_eq::<f32>(&reference.into_data(), Tolerance::absolute(1e-5));
-    }
-
-    #[test]
     fn test_softmax_empty_last_dim_returns_input() {
-        // shape [2, 0] has zero elements; the early return in softmax_last_f32
-        // is supposed to hand the input back unchanged rather than produce
-        // NaN via 0/0. Locks that behavior so a future refactor that
-        // removes the early-return check gets caught.
-        use burn_tensor::TensorPrimitive;
-        let t: Tensor<Flex, 2> = Tensor::from_data(
-            TensorData::new(Vec::<f32>::new(), [2, 0]),
-            &Default::default(),
-        );
-        let shape_before = t.shape();
-        let primitive = match t.into_primitive() {
-            TensorPrimitive::Float(x) => x,
-            _ => unreachable!(),
-        };
-        let result = crate::ops::activation::softmax(primitive, 1);
-        let result: Tensor<Flex, 2> = Tensor::from_primitive(TensorPrimitive::Float(result));
-        assert_eq!(result.shape(), shape_before);
+        // shape [2, 0]: empty last dim should round-trip unchanged instead
+        // of producing NaN via 0/0.
+        let t = flex_f32(Vec::<f32>::new(), &[2, 0]);
+        let result = crate::ops::activation::softmax(t, 1);
+        assert_eq!(result.shape().as_slice(), &[2, 0]);
     }
 
     #[test]
     fn test_layer_norm_empty_last_dim_returns_input() {
-        use burn_tensor::TensorPrimitive;
-        let t: Tensor<Flex, 2> = Tensor::from_data(
-            TensorData::new(Vec::<f32>::new(), [3, 0]),
-            &Default::default(),
-        );
-        let gamma: Tensor<Flex, 1> =
-            Tensor::from_data(TensorData::new(Vec::<f32>::new(), [0]), &Default::default());
-        let beta: Tensor<Flex, 1> =
-            Tensor::from_data(TensorData::new(Vec::<f32>::new(), [0]), &Default::default());
-        let shape_before = t.shape();
-
-        let t_p = match t.into_primitive() {
-            TensorPrimitive::Float(x) => x,
-            _ => unreachable!(),
-        };
-        let g_p = match gamma.into_primitive() {
-            TensorPrimitive::Float(x) => x,
-            _ => unreachable!(),
-        };
-        let b_p = match beta.into_primitive() {
-            TensorPrimitive::Float(x) => x,
-            _ => unreachable!(),
-        };
-        let result = crate::ops::activation::layer_norm(t_p, g_p, Some(b_p), 1e-5);
-        let result: Tensor<Flex, 2> = Tensor::from_primitive(TensorPrimitive::Float(result));
-        assert_eq!(result.shape(), shape_before);
+        let t = flex_f32(Vec::<f32>::new(), &[3, 0]);
+        let gamma = flex_f32(Vec::<f32>::new(), &[0]);
+        let beta = flex_f32(Vec::<f32>::new(), &[0]);
+        let result = crate::ops::activation::layer_norm(t, gamma, Some(beta), 1e-5);
+        assert_eq!(result.shape().as_slice(), &[3, 0]);
     }
 
     #[test]
     #[should_panic(expected = "gamma must be a 1-D tensor")]
     fn test_layer_norm_gamma_length_mismatch_panics() {
-        use burn_tensor::TensorPrimitive;
-        // input last dim is 4, but gamma length is 3 — the assert_eq on
-        // gamma.last == d_model should fire.
-        let t: Tensor<Flex, 2> = Tensor::from_data([[1.0f32, 2.0, 3.0, 4.0]], &Default::default());
-        let gamma: Tensor<Flex, 1> = Tensor::from_data([1.0f32, 1.0, 1.0], &Default::default());
-
-        let t_p = match t.into_primitive() {
-            TensorPrimitive::Float(x) => x,
-            _ => unreachable!(),
-        };
-        let g_p = match gamma.into_primitive() {
-            TensorPrimitive::Float(x) => x,
-            _ => unreachable!(),
-        };
-        let _ = crate::ops::activation::layer_norm(t_p, g_p, None, 1e-5);
+        let t = flex_f32(vec![1.0, 2.0, 3.0, 4.0], &[1, 4]);
+        let gamma = flex_f32(vec![1.0, 1.0, 1.0], &[3]);
+        let _ = crate::ops::activation::layer_norm(t, gamma, None, 1e-5);
     }
 
     #[test]
     #[should_panic(expected = "beta must be a 1-D tensor")]
     fn test_layer_norm_beta_length_mismatch_panics() {
-        use burn_tensor::TensorPrimitive;
-        let t: Tensor<Flex, 2> = Tensor::from_data([[1.0f32, 2.0, 3.0, 4.0]], &Default::default());
-        let gamma: Tensor<Flex, 1> =
-            Tensor::from_data([1.0f32, 1.0, 1.0, 1.0], &Default::default());
-        let beta: Tensor<Flex, 1> = Tensor::from_data([0.0f32, 0.0, 0.0], &Default::default());
-
-        let t_p = match t.into_primitive() {
-            TensorPrimitive::Float(x) => x,
-            _ => unreachable!(),
-        };
-        let g_p = match gamma.into_primitive() {
-            TensorPrimitive::Float(x) => x,
-            _ => unreachable!(),
-        };
-        let b_p = match beta.into_primitive() {
-            TensorPrimitive::Float(x) => x,
-            _ => unreachable!(),
-        };
-        let _ = crate::ops::activation::layer_norm(t_p, g_p, Some(b_p), 1e-5);
+        let t = flex_f32(vec![1.0, 2.0, 3.0, 4.0], &[1, 4]);
+        let gamma = flex_f32(vec![1.0, 1.0, 1.0, 1.0], &[4]);
+        let beta = flex_f32(vec![0.0, 0.0, 0.0], &[3]);
+        let _ = crate::ops::activation::layer_norm(t, gamma, Some(beta), 1e-5);
     }
 
     #[test]
     #[should_panic(expected = "gamma must be a 1-D tensor")]
     fn test_layer_norm_gamma_rank_mismatch_panics() {
-        use burn_backend::DType;
-        use burn_tensor::TensorPrimitive;
-        // input last dim is 4, and gamma is [2, 4] — last dim matches d_model
-        // but rank is 2. The old check (only last-dim == d_model) would have
-        // accepted this and then indexed wrong data in the row kernel.
-        let t: Tensor<Flex, 2> =
-            Tensor::from_data([[1.0f32, 2.0, 3.0, 4.0]], (&Default::default(), DType::F32));
-        let gamma: Tensor<Flex, 2> = Tensor::from_data(
-            [[1.0f32, 1.0, 1.0, 1.0], [1.0, 1.0, 1.0, 1.0]],
-            (&Default::default(), DType::F32),
-        );
-
-        let t_p = match t.into_primitive() {
-            TensorPrimitive::Float(x) => x,
-            _ => unreachable!(),
-        };
-        let g_p = match gamma.into_primitive() {
-            TensorPrimitive::Float(x) => x,
-            _ => unreachable!(),
-        };
-        let _ = crate::ops::activation::layer_norm(t_p, g_p, None, 1e-5);
+        // gamma [2, 4] has matching last-dim but rank 2, so the old last-dim
+        // check alone would have accepted it and then indexed wrong storage.
+        let t = flex_f32(vec![1.0, 2.0, 3.0, 4.0], &[1, 4]);
+        let gamma = flex_f32(vec![1.0; 8], &[2, 4]);
+        let _ = crate::ops::activation::layer_norm(t, gamma, None, 1e-5);
     }
 
-    #[test]
-    fn test_softmax_non_last_axis_matches_decomposed() {
-        use burn_tensor::TensorPrimitive;
-        let t: Tensor<Flex, 3> = Tensor::from_data(
-            [
-                [[1.0f32, -2.0, 0.5], [3.0, 0.0, -1.0]],
-                [[0.1, 2.5, -0.3], [1.2, -0.7, 2.1]],
-            ],
-            &Default::default(),
-        );
-        // Softmax on dim=1 (middle axis): fused path exercises the permute branch.
-        let reference = burn_tensor::activation::softmax(t.clone(), 1);
-
-        let primitive = match t.into_primitive() {
-            TensorPrimitive::Float(x) => x,
-            _ => unreachable!(),
-        };
-        let fused = crate::ops::activation::softmax(primitive, 1);
-        let fused_tensor: Tensor<Flex, 3> = Tensor::from_primitive(TensorPrimitive::Float(fused));
-        fused_tensor
-            .into_data()
-            .assert_approx_eq::<f32>(&reference.into_data(), burn_tensor::Tolerance::default());
-    }
-
-    // Row length 17 is deliberately chosen: it exercises the "SIMD body ran N
-    // elements, then scalar tail processes M > 0" combination on every common
+    // Row length 17 leaves exactly one scalar-tail element after every common
     // SIMD width (NEON/SSE f32x4: body=16, tail=1; AVX2 f32x8: body=16, tail=1;
-    // AVX-512 f32x16: body=16, tail=1). Row lengths that are exact multiples
-    // of the SIMD width never hit the tail branch, so without a test like this
-    // a bug in the scalar tail kernel would pass CI silently.
+    // AVX-512 f32x16: body=16, tail=1). Row lengths that divide evenly by the
+    // SIMD width skip the tail branch entirely, so a bug in the scalar tail
+    // kernel would sail past CI without a test like this.
     #[test]
     fn test_softmax_simd_body_plus_scalar_tail() {
-        use burn_backend::DType;
-        use burn_tensor::TensorPrimitive;
-        // 2 rows of length 17 with varied values so the max/exp/sum path is
-        // meaningful per row.
         let data: Vec<f32> = (0..34).map(|i| (i as f32 * 0.137) - 2.3).collect();
-        let t: Tensor<Flex, 2> = Tensor::from_data(
-            TensorData::new(data, [2, 17]),
-            (&Default::default(), DType::F32),
+        let expected = softmax_last_ref(&data, 17);
+        let fused = crate::ops::activation::softmax(flex_f32(data, &[2, 17]), 1);
+        fused.into_data().assert_approx_eq::<f32>(
+            &TensorData::new(expected, vec![2, 17]),
+            Tolerance::absolute(1e-5),
         );
-        let reference = activation::softmax(t.clone(), 1);
-
-        let primitive = match t.into_primitive() {
-            TensorPrimitive::Float(x) => x,
-            _ => unreachable!(),
-        };
-        let fused = crate::ops::activation::softmax(primitive, 1);
-        let fused: Tensor<Flex, 2> = Tensor::from_primitive(TensorPrimitive::Float(fused));
-
-        fused
-            .into_data()
-            .assert_approx_eq::<f32>(&reference.into_data(), Tolerance::absolute(1e-5));
     }
 
     #[test]
     fn test_layer_norm_simd_body_plus_scalar_tail() {
-        use burn_backend::DType;
-        use burn_tensor::TensorPrimitive;
-        // Same rationale as test_softmax_simd_body_plus_scalar_tail: row length
-        // 17 leaves exactly one scalar-tail element after any common SIMD body.
         let data: Vec<f32> = (0..34).map(|i| (i as f32 * 0.137) - 2.3).collect();
-        let t: Tensor<Flex, 2> = Tensor::from_data(
-            TensorData::new(data, [2, 17]),
-            (&Default::default(), DType::F32),
-        );
         let gamma_data: Vec<f32> = (0..17).map(|i| 1.0 + i as f32 * 0.05).collect();
         let beta_data: Vec<f32> = (0..17).map(|i| i as f32 * 0.01).collect();
-        let gamma: Tensor<Flex, 1> = Tensor::from_data(
-            TensorData::new(gamma_data, [17]),
-            (&Default::default(), DType::F32),
+        let expected = layer_norm_last_ref(&data, &gamma_data, Some(&beta_data), 1e-5f32, 17);
+        let fused = crate::ops::activation::layer_norm(
+            flex_f32(data, &[2, 17]),
+            flex_f32(gamma_data, &[17]),
+            Some(flex_f32(beta_data, &[17])),
+            1e-5,
         );
-        let beta: Tensor<Flex, 1> = Tensor::from_data(
-            TensorData::new(beta_data, [17]),
-            (&Default::default(), DType::F32),
+        fused.into_data().assert_approx_eq::<f32>(
+            &TensorData::new(expected, vec![2, 17]),
+            Tolerance::absolute(1e-5),
         );
-
-        // Reference: manual layer_norm via primitive tensor ops.
-        let mean = t.clone().mean_dim(1);
-        let centered = t.clone() - mean;
-        let var = centered.clone().powi_scalar(2).mean_dim(1);
-        let eps = 1e-5f32;
-        let normed = centered / (var + eps).sqrt();
-        let reference = normed * gamma.clone().unsqueeze::<2>() + beta.clone().unsqueeze::<2>();
-
-        let t_prim = match t.into_primitive() {
-            TensorPrimitive::Float(x) => x,
-            _ => unreachable!(),
-        };
-        let g_prim = match gamma.into_primitive() {
-            TensorPrimitive::Float(x) => x,
-            _ => unreachable!(),
-        };
-        let b_prim = match beta.into_primitive() {
-            TensorPrimitive::Float(x) => x,
-            _ => unreachable!(),
-        };
-        let fused = crate::ops::activation::layer_norm(t_prim, g_prim, Some(b_prim), 1e-5);
-        let fused: Tensor<Flex, 2> = Tensor::from_primitive(TensorPrimitive::Float(fused));
-
-        fused
-            .into_data()
-            .assert_approx_eq::<f32>(&reference.into_data(), Tolerance::absolute(1e-5));
     }
 
     #[test]
     fn test_layer_norm_f64_with_beta_multi_chunk() {
-        // 80 rows > ROWS_PER_TASK (64) exercises the rayon multi-chunk
-        // f64 path and both pre- and post-welford arithmetic on f64.
-        use burn_tensor::TensorPrimitive;
+        // 80 rows > ROWS_PER_TASK (64) exercises the rayon multi-chunk f64 path.
         let d_model = 16;
         let n_rows = 80;
         let data: Vec<f64> = (0..n_rows * d_model)
             .map(|i| ((i % 13) as f64) * 0.07 - 0.3)
             .collect();
-        let dev_f64 = (&Default::default(), burn_backend::DType::F64);
-        let t: Tensor<Flex, 2> =
-            Tensor::from_data(TensorData::new(data, [n_rows, d_model]), dev_f64);
-        let gamma: Tensor<Flex, 1> =
-            Tensor::from_data(TensorData::new(vec![0.9f64; d_model], [d_model]), dev_f64);
-        let beta: Tensor<Flex, 1> =
-            Tensor::from_data(TensorData::new(vec![0.05f64; d_model], [d_model]), dev_f64);
-
-        let mean = t.clone().mean_dim(1);
-        let centered = t.clone() - mean;
-        let var = centered.clone().powi_scalar(2).mean_dim(1);
+        let gamma_data: Vec<f64> = vec![0.9; d_model];
+        let beta_data: Vec<f64> = vec![0.05; d_model];
         let eps = 1e-5f64;
-        let normed = centered / (var + eps).sqrt();
-        let reference = normed * gamma.clone().unsqueeze::<2>() + beta.clone().unsqueeze::<2>();
-
-        let t_prim = match t.into_primitive() {
-            TensorPrimitive::Float(x) => x,
-            _ => unreachable!(),
-        };
-        let g_prim = match gamma.into_primitive() {
-            TensorPrimitive::Float(x) => x,
-            _ => unreachable!(),
-        };
-        let b_prim = match beta.into_primitive() {
-            TensorPrimitive::Float(x) => x,
-            _ => unreachable!(),
-        };
-        let fused = crate::ops::activation::layer_norm(t_prim, g_prim, Some(b_prim), eps);
-        let fused: Tensor<Flex, 2> = Tensor::from_primitive(TensorPrimitive::Float(fused));
-
-        fused
-            .into_data()
-            .assert_approx_eq::<f64>(&reference.into_data(), Tolerance::absolute(1e-10));
+        let expected = layer_norm_last_ref(&data, &gamma_data, Some(&beta_data), eps, d_model);
+        let fused = crate::ops::activation::layer_norm(
+            flex_f64(data, &[n_rows, d_model]),
+            flex_f64(gamma_data, &[d_model]),
+            Some(flex_f64(beta_data, &[d_model])),
+            eps,
+        );
+        fused.into_data().assert_approx_eq::<f64>(
+            &TensorData::new(expected, vec![n_rows, d_model]),
+            Tolerance::absolute(1e-10),
+        );
     }
 
     #[test]
     fn test_layer_norm_f64_no_beta() {
-        use burn_tensor::TensorPrimitive;
-        let dev_f64 = (&Default::default(), burn_backend::DType::F64);
-        let t: Tensor<Flex, 2> = Tensor::from_data(
-            TensorData::new(vec![1.0f64, 2.0, 3.0, 4.0, -1.0, 0.5, 1.5, -0.5], [2, 4]),
-            dev_f64,
-        );
-        let gamma: Tensor<Flex, 1> =
-            Tensor::from_data(TensorData::new(vec![1.0f64; 4], [4]), dev_f64);
-
-        let mean = t.clone().mean_dim(1);
-        let centered = t.clone() - mean;
-        let var = centered.clone().powi_scalar(2).mean_dim(1);
+        let data: Vec<f64> = vec![1.0, 2.0, 3.0, 4.0, -1.0, 0.5, 1.5, -0.5];
+        let gamma_data: Vec<f64> = vec![1.0; 4];
         let eps = 1e-5f64;
-        let reference = centered / (var + eps).sqrt() * gamma.clone().unsqueeze::<2>();
-
-        let t_prim = match t.into_primitive() {
-            TensorPrimitive::Float(x) => x,
-            _ => unreachable!(),
-        };
-        let g_prim = match gamma.into_primitive() {
-            TensorPrimitive::Float(x) => x,
-            _ => unreachable!(),
-        };
-        let fused = crate::ops::activation::layer_norm(t_prim, g_prim, None, eps);
-        let fused: Tensor<Flex, 2> = Tensor::from_primitive(TensorPrimitive::Float(fused));
-
-        fused
-            .into_data()
-            .assert_approx_eq::<f64>(&reference.into_data(), Tolerance::absolute(1e-10));
+        let expected = layer_norm_last_ref(&data, &gamma_data, None, eps, 4);
+        let fused = crate::ops::activation::layer_norm(
+            flex_f64(data, &[2, 4]),
+            flex_f64(gamma_data, &[4]),
+            None,
+            eps,
+        );
+        fused.into_data().assert_approx_eq::<f64>(
+            &TensorData::new(expected, vec![2, 4]),
+            Tolerance::absolute(1e-10),
+        );
     }
 
-    // Shared body for f16/bf16 layer_norm tests. Parameterized on the
-    // half-precision element type to avoid duplicating the scaffolding.
-    fn check_layer_norm_half_precision<E>(from_f32: fn(f32) -> E, dtype: burn_backend::DType)
+    // Shared body for f16/bf16 layer_norm tests. The fused half-precision
+    // kernel casts to f32 internally, so the reference is computed in f32
+    // and compared back against the half output with an f32 tolerance.
+    fn check_layer_norm_half_precision<E>(from_f32: fn(f32) -> E, dtype: DType)
     where
-        E: burn_tensor::Element + burn_backend::Element + num_traits::Float,
+        E: burn_backend::Element + Float,
     {
-        use burn_tensor::TensorPrimitive;
-        let rows: [[f32; 4]; 3] = [
-            [1.0, 2.0, 3.0, 4.0],
-            [-1.0, 0.0, 1.0, 2.0],
-            [0.5, -0.5, 1.5, -1.5],
+        let rows_f32: [f32; 12] = [
+            1.0, 2.0, 3.0, 4.0, -1.0, 0.0, 1.0, 2.0, 0.5, -0.5, 1.5, -1.5,
         ];
-        let dev_h = (&Default::default(), dtype);
-        let data: Vec<E> = rows.iter().flatten().map(|&x| from_f32(x)).collect();
-        let t: Tensor<Flex, 2> = Tensor::from_data(TensorData::new(data, [3, 4]), dev_h);
-        let gamma_data: Vec<E> = [1.0f32, 0.5, 1.5, 1.0]
-            .iter()
-            .map(|&x| from_f32(x))
-            .collect();
-        let beta_data: Vec<E> = [0.1f32, -0.1, 0.0, 0.2]
-            .iter()
-            .map(|&x| from_f32(x))
-            .collect();
-        let gamma: Tensor<Flex, 1> = Tensor::from_data(TensorData::new(gamma_data, [4]), dev_h);
-        let beta: Tensor<Flex, 1> = Tensor::from_data(TensorData::new(beta_data, [4]), dev_h);
-
-        let mean = t.clone().mean_dim(1);
-        let centered = t.clone() - mean;
-        let var = centered.clone().powi_scalar(2).mean_dim(1);
+        let gamma_f32: [f32; 4] = [1.0, 0.5, 1.5, 1.0];
+        let beta_f32: [f32; 4] = [0.1, -0.1, 0.0, 0.2];
         let eps = 1e-5f32;
-        let normed = centered / (var + eps).sqrt();
-        let reference = normed * gamma.clone().unsqueeze::<2>() + beta.clone().unsqueeze::<2>();
 
-        let t_prim = match t.into_primitive() {
-            TensorPrimitive::Float(x) => x,
-            _ => unreachable!(),
-        };
-        let g_prim = match gamma.into_primitive() {
-            TensorPrimitive::Float(x) => x,
-            _ => unreachable!(),
-        };
-        let b_prim = match beta.into_primitive() {
-            TensorPrimitive::Float(x) => x,
-            _ => unreachable!(),
-        };
-        let fused = crate::ops::activation::layer_norm(t_prim, g_prim, Some(b_prim), eps as f64);
-        let fused: Tensor<Flex, 2> = Tensor::from_primitive(TensorPrimitive::Float(fused));
+        let expected_f32 = layer_norm_last_ref(&rows_f32, &gamma_f32, Some(&beta_f32), eps, 4);
 
-        // Tolerance reflects the half-precision round-trip through the
-        // f32 fused kernel. bf16 has ~1e-2 precision, f16 ~1e-3.
-        fused
-            .into_data()
-            .assert_approx_eq::<f32>(&reference.into_data(), Tolerance::absolute(3e-2));
+        let data: Vec<E> = rows_f32.iter().map(|&x| from_f32(x)).collect();
+        let gamma_data: Vec<E> = gamma_f32.iter().map(|&x| from_f32(x)).collect();
+        let beta_data: Vec<E> = beta_f32.iter().map(|&x| from_f32(x)).collect();
+        assert_eq!(E::dtype(), dtype);
+
+        let fused = crate::ops::activation::layer_norm(
+            flex_half(data, &[3, 4]),
+            flex_half(gamma_data, &[4]),
+            Some(flex_half(beta_data, &[4])),
+            eps as f64,
+        );
+        fused.into_data().assert_approx_eq::<f32>(
+            &TensorData::new(expected_f32, vec![3, 4]),
+            Tolerance::absolute(3e-2),
+        );
     }
 
     #[test]
     fn test_layer_norm_f16_via_f32_cast() {
-        check_layer_norm_half_precision::<burn_std::f16>(
-            burn_std::f16::from_f32,
-            burn_backend::DType::F16,
-        );
+        check_layer_norm_half_precision::<f16>(f16::from_f32, DType::F16);
     }
 
     #[test]
     fn test_layer_norm_bf16_via_f32_cast() {
-        check_layer_norm_half_precision::<burn_std::bf16>(
-            burn_std::bf16::from_f32,
-            burn_backend::DType::BF16,
-        );
-    }
-
-    #[test]
-    fn test_softmax_non_last_axis_rank4_dim0() {
-        use burn_tensor::TensorPrimitive;
-        let t: Tensor<Flex, 4> = Tensor::from_data(
-            [
-                [[[1.0f32, -0.5], [0.3, 2.1]], [[-1.2, 0.0], [0.8, 1.5]]],
-                [[[0.4, -1.1], [2.0, 0.2]], [[-0.3, 0.9], [1.1, -0.7]]],
-            ],
-            &Default::default(),
-        );
-        let reference = burn_tensor::activation::softmax(t.clone(), 0);
-
-        let prim = match t.into_primitive() {
-            TensorPrimitive::Float(x) => x,
-            _ => unreachable!(),
-        };
-        let fused = crate::ops::activation::softmax(prim, 0);
-        let fused_tensor: Tensor<Flex, 4> = Tensor::from_primitive(TensorPrimitive::Float(fused));
-        fused_tensor
-            .into_data()
-            .assert_approx_eq::<f32>(&reference.into_data(), Tolerance::default());
+        check_layer_norm_half_precision::<bf16>(bf16::from_f32, DType::BF16);
     }
 
     #[test]
     #[should_panic(expected = "softmax dim")]
     fn test_softmax_dim_out_of_range_panics() {
-        use burn_tensor::TensorPrimitive;
-        let t: Tensor<Flex, 2> =
-            Tensor::from_data([[1.0f32, 2.0], [3.0, 4.0]], &Default::default());
-        let prim = match t.into_primitive() {
-            TensorPrimitive::Float(x) => x,
-            _ => unreachable!(),
-        };
-        let _ = crate::ops::activation::softmax(prim, 2);
+        let t = flex_f32(vec![1.0, 2.0, 3.0, 4.0], &[2, 2]);
+        let _ = crate::ops::activation::softmax(t, 2);
     }
 
     #[test]
     #[should_panic(expected = "gamma dtype")]
     fn test_layer_norm_gamma_dtype_mismatch_panics() {
-        // Input is f32 (default), gamma is explicitly f64. Verifies that
-        // `layer_norm` rejects the mismatch up front rather than panicking
-        // later inside the storage-typed access.
-        use burn_tensor::TensorPrimitive;
-        let t: Tensor<Flex, 2> = Tensor::from_data([[1.0f32, 2.0, 3.0, 4.0]], &Default::default());
-        let gamma: Tensor<Flex, 1> = Tensor::from_data(
-            TensorData::new(vec![1.0f64; 4], [4]),
-            (&Default::default(), burn_backend::DType::F64),
-        );
-        let t_prim = match t.into_primitive() {
-            TensorPrimitive::Float(x) => x,
-            _ => unreachable!(),
-        };
-        let g_prim = match gamma.into_primitive() {
-            TensorPrimitive::Float(x) => x,
-            _ => unreachable!(),
-        };
-        let _ = crate::ops::activation::layer_norm(t_prim, g_prim, None, 1e-5);
-    }
-
-    #[test]
-    fn test_log_sigmoid() {
-        let t: Tensor<Flex, 1> = Tensor::from_data([-10.0f32, 0.0, 10.0], &Default::default());
-        // log_sigmoid(-10) ~ -10, log_sigmoid(0) = ln(0.5) = -0.6931..., log_sigmoid(10) ~ 0
-        activation::log_sigmoid(t)
-            .into_data()
-            .assert_approx_eq::<f32>(
-                &TensorData::from([-10.0, -0.6931472, 0.0]),
-                Tolerance::absolute(1e-3),
-            );
+        // Input f32, gamma f64: layer_norm rejects the mismatch up front
+        // rather than panicking later inside the storage-typed access.
+        let t = flex_f32(vec![1.0, 2.0, 3.0, 4.0], &[1, 4]);
+        let gamma = flex_f64(vec![1.0; 4], &[4]);
+        let _ = crate::ops::activation::layer_norm(t, gamma, None, 1e-5);
     }
 }

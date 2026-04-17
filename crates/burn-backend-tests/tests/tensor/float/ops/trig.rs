@@ -3,7 +3,57 @@
 use super::*;
 use burn_tensor::TensorData;
 use burn_tensor::Tolerance;
+use burn_tensor::s;
 use core::f32::consts::{FRAC_PI_2, FRAC_PI_3, FRAC_PI_4, FRAC_PI_6, FRAC_PI_8, PI};
+
+#[test]
+fn should_support_cos_flipped_axis1() {
+    // [[0, pi], [pi/2, 3pi/2]] flipped on axis 1 -> [[pi, 0], [3pi/2, pi/2]]
+    let tensor = TestTensor::<2>::from([[0.0, PI], [FRAC_PI_2, 3.0 * FRAC_PI_2]]);
+    let flipped = tensor.flip([1]);
+
+    let output = flipped.cos();
+    let expected = TensorData::from([[-1.0, 1.0], [0.0, 0.0]]);
+
+    output.into_data().assert_approx_eq::<FloatElem>(
+        &expected,
+        Tolerance::default().set_half_precision_absolute(2e-3),
+    );
+}
+
+#[test]
+fn should_support_sin_step_sliced() {
+    // Step-2 slice exercises stride=2 path in unary ops.
+    let tensor = TestTensor::<2>::from([[0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0]]);
+    let sliced = tensor.slice(s![.., 0..8;2]);
+
+    let output = sliced.sin();
+    let expected = TensorData::from([[0.0f32.sin(), 2.0f32.sin(), 4.0f32.sin(), 6.0f32.sin()]]);
+
+    output.into_data().assert_approx_eq::<FloatElem>(
+        &expected,
+        Tolerance::default().set_half_precision_absolute(2e-3),
+    );
+}
+
+#[test]
+fn should_support_cos_step_sliced_3d() {
+    // 3D tensor with step-2 slice on last dim (the RF-DETR pattern).
+    let data: Vec<f32> = (0..12).map(|i| i as f32 * 0.5).collect();
+    let tensor = TestTensor::<3>::from_data(TensorData::new(data, [1, 2, 6]), &Default::default());
+    let sliced = tensor.slice(s![.., .., 0..6;2]);
+
+    let output = sliced.cos();
+    let expected = TensorData::from([[
+        [0.0f32.cos(), 1.0f32.cos(), 2.0f32.cos()],
+        [3.0f32.cos(), 4.0f32.cos(), 5.0f32.cos()],
+    ]]);
+
+    output.into_data().assert_approx_eq::<FloatElem>(
+        &expected,
+        Tolerance::default().set_half_precision_absolute(2e-3),
+    );
+}
 
 #[test]
 fn should_support_cos_ops() {

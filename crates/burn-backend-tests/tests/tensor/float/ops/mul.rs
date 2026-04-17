@@ -42,6 +42,20 @@ fn test_mul_broadcast_2_dims() {
 }
 
 #[test]
+fn test_mul_both_transposed() {
+    // Non-contiguous on both sides: each operand is a transpose of a 2x2.
+    let a = TestTensor::<2>::from([[1.0, 2.0], [3.0, 4.0]]).transpose();
+    let b = TestTensor::<2>::from([[2.0, 3.0], [4.0, 5.0]]).transpose();
+
+    let output = a * b;
+
+    // a_t = [[1, 3], [2, 4]], b_t = [[2, 4], [3, 5]]
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([[2.0, 12.0], [6.0, 20.0]]), false);
+}
+
+#[test]
 fn should_support_mul_scalar_ops() {
     let data = TensorData::from([[0.0, 1.0, 2.0], [3.0, 4.0, 5.0]]);
     let scalar = 2.0;

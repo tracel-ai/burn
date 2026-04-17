@@ -64,3 +64,41 @@ fn scalar_add_not_contiguous_int() {
 
     before.into_data().assert_eq(&after.into_data(), true);
 }
+
+#[test]
+fn test_int_add_transposed() {
+    // Non-contig on both sides via transpose.
+    let a = TestTensorInt::<2>::from([[1, 2], [3, 4]]).transpose();
+    let b = TestTensorInt::<2>::from([[10, 20], [30, 40]]).transpose();
+
+    let output = a + b;
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([[11, 33], [22, 44]]), false);
+}
+
+#[test]
+fn test_int_add_flipped() {
+    // [1, 2, 3, 4] flipped + [10, 20, 30, 40] flipped = [44, 33, 22, 11]
+    let a = TestTensorInt::<1>::from([1, 2, 3, 4]).flip([0]);
+    let b = TestTensorInt::<1>::from([10, 20, 30, 40]).flip([0]);
+
+    let output = a + b;
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([44, 33, 22, 11]), false);
+}
+
+#[test]
+fn test_int_add_scalar_flipped() {
+    // Scalar add on a flipped input. [1,2,3,4] flipped + 10 = [14,13,12,11]
+    let a = TestTensorInt::<1>::from([1, 2, 3, 4]).flip([0]);
+
+    let output = a + 10;
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([14, 13, 12, 11]), false);
+}

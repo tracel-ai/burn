@@ -119,6 +119,13 @@ pub fn expand(tensor: FlexTensor, target_shape: Shape) -> FlexTensor {
     FlexTensor::from_arc(tensor.data_arc(), new_layout, dtype)
 }
 
+// Tests kept here probe flex-internal expand behavior: stride metadata
+// (stride 0 on broadcast dims, preservation of negative strides on
+// flipped inputs, preserved start-offset on narrowed inputs) and the
+// flex-only `broadcast_binary` helper. Public-API expand coverage for
+// transpose/flip/narrow variants lives in
+// crates/burn-backend-tests/tests/tensor/{float,int,bool}/ops/expand.rs
+// so it runs on every backend.
 #[cfg(test)]
 mod tests {
     use super::*;

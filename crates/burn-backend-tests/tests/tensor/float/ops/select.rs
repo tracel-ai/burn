@@ -233,3 +233,18 @@ fn should_panic_select_add_negative_dim_out_of_bounds() {
     // This should panic because -3 is out of bounds for a 2D tensor
     tensor.select_assign(-3, indices, values, IndexingUpdateOp::Add);
 }
+
+#[test]
+fn should_select_2d_dim0_empty_indices() {
+    // Zero-length index tensor: output should keep shape [0, cols] without
+    // triggering OOB reads.
+    let device = Default::default();
+    let tensor = TestTensor::<2>::from_data([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]], &device);
+    let indices = TestTensorInt::<1>::from_data(TensorData::new(Vec::<i32>::new(), [0]), &device);
+
+    let output = tensor.select(0, indices);
+
+    assert_eq!(output.dims(), [0, 2]);
+    let out: Vec<FloatElem> = output.into_data().to_vec().unwrap();
+    assert!(out.is_empty());
+}

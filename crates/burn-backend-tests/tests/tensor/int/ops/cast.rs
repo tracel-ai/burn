@@ -70,3 +70,15 @@ fn cast_int_with_float_dtype_panics() {
     let tensor = TestTensorInt::<1>::from([1, 2]);
     let _ = tensor.cast(DType::F32);
 }
+
+#[test]
+fn test_int_into_float_flipped() {
+    // [1, 2, 3, 4] flipped -> [4, 3, 2, 1] -> float [4.0, 3.0, 2.0, 1.0]
+    let t = TestTensorInt::<1>::from([1, 2, 3, 4]).flip([0]);
+
+    let output = t.float();
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([4.0f32, 3.0, 2.0, 1.0]), false);
+}

@@ -54,3 +54,16 @@ fn should_support_int_mask_fill_ops() {
 
     output.into_data().assert_eq(&expected, false);
 }
+
+#[test]
+fn should_support_int_mask_fill_flipped() {
+    // [10, 20, 30, 40] flipped -> [40, 30, 20, 10]; mask [T, F, T, F] -> [-1, 30, -1, 10]
+    let tensor = TestTensorInt::<1>::from([10, 20, 30, 40]).flip([0]);
+    let mask = TestTensorBool::<1>::from([true, false, true, false]);
+
+    let output = tensor.mask_fill(mask, -1);
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([-1, 30, -1, 10]), false);
+}
