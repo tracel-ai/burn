@@ -1,7 +1,7 @@
 use crate::CubeRuntime;
 use crate::kernel::{NumericUnaryOp, NumericUnaryOpFamily, launch_unary_numeric};
 use burn_backend::quantization::QuantScheme;
-use burn_backend::{DType, DeviceOps, QTensorPrimitive, Shape, TensorMetadata};
+use burn_backend::{DType, QTensorPrimitive, Shape, TensorMetadata};
 use burn_std::{Metadata, strides, tensor::is_contiguous};
 use cubecl::server::Handle;
 use cubecl::std::tensor::TensorHandle;
@@ -180,10 +180,9 @@ where
             self.meta.strides().clone(),
             self.elem_size(),
         );
-        let device_ids = vec![self.device.id(), device.id()];
         let handle = self
             .client
-            .to_client_tensor(desc, &client, self.dtype.into(), device_ids);
+            .to_client_tensor(desc, &client, self.dtype.into());
 
         Self {
             client,
