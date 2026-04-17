@@ -413,7 +413,7 @@ mod tests {
 
     #[derive(Clone, Debug, Default, PartialEq, new)]
     pub struct TestDeviceA {
-        index: u32,
+        index: u16,
     }
 
     impl Device for TestDeviceA {
@@ -424,10 +424,7 @@ mod tests {
         }
 
         fn to_id(&self) -> DeviceId {
-            DeviceId {
-                type_id: 0,
-                index_id: self.index,
-            }
+            DeviceId::new(DeviceRole::Runtime, DeviceKind::Cpu, self.index)
         }
     }
 
@@ -435,7 +432,7 @@ mod tests {
 
     #[derive(Clone, Debug, Default, PartialEq, new)]
     pub struct TestDeviceB {
-        index: u32,
+        index: u16,
     }
 
     impl Device for TestDeviceB {
@@ -446,10 +443,7 @@ mod tests {
         }
 
         fn to_id(&self) -> DeviceId {
-            DeviceId {
-                type_id: 0,
-                index_id: self.index,
-            }
+            DeviceId::new(DeviceRole::Runtime, DeviceKind::Cpu, self.index)
         }
     }
 

@@ -1,6 +1,6 @@
 use alloc::boxed::Box;
 
-use burn_backend::{DeviceId, DeviceOps};
+use burn_backend::{DeviceId, DeviceKind, DeviceOps, DeviceRole};
 
 use crate::backends::*;
 
@@ -215,9 +215,6 @@ impl PartialEq for DispatchDevice {
     }
 }
 
-/// Base multiplier to avoid type_id clashes between backends.
-/// Limits the number of device types per backend, but this is a sensible limit.
-const TYPE_ID_BASE: u16 = 10;
 
 impl DispatchDevice {
     #[cfg(feature = "autodiff")]
@@ -235,45 +232,55 @@ impl DispatchDevice {
         DispatchDevice::Autodiff(AutodiffDevice::new(device, checkpointing))
     }
 
-    /// Returns a unique number per variant to encode into type_id.
-    fn backend_id(&self) -> BackendId {
-        match self {
-            #[cfg(feature = "cpu")]
-            Self::Cpu(_) => BackendId::Cpu,
-            #[cfg(feature = "cuda")]
-            Self::Cuda(_) => BackendId::Cuda,
-            #[cfg(wgpu_metal)]
-            Self::Metal(_) => BackendId::Metal,
-            #[cfg(feature = "rocm")]
-            Self::Rocm(_) => BackendId::Rocm,
-            #[cfg(wgpu_vulkan)]
-            Self::Vulkan(_) => BackendId::Vulkan,
-            #[cfg(wgpu_webgpu)]
-            Self::Wgpu(_) => BackendId::Wgpu,
-            #[cfg(feature = "flex")]
-            Self::Flex(_) => BackendId::Flex,
-            #[cfg(feature = "ndarray")]
-            Self::NdArray(_) => BackendId::NdArray,
-            #[cfg(feature = "tch")]
-            Self::LibTorch(_) => BackendId::LibTorch,
-            #[cfg(feature = "autodiff")]
-            Self::Autodiff(device) => device.inner.backend_id(),
+    /// Determine the dispatch backend variant from a [`DeviceKind`].
+    ///
+    /// When multiple backends could handle the same kind, feature-flag
+    /// priority decides which one wins.
+    pub(crate) fn backend_from_kind(kind: DeviceKind) -> BackendId {
+        match kind {
+            DeviceKind::DiscreteGpu => {
+                #[cfg(feature = "cuda")]
+                { return BackendId::Cuda; }
+                #[cfg(feature = "rocm")]
+                { return BackendId::Rocm; }
+                #[cfg(wgpu_vulkan)]
+                { return BackendId::Vulkan; }
+                #[cfg(wgpu_webgpu)]
+                { return BackendId::Wgpu; }
+                #[allow(unreachable_code)]
+                { panic!("No dispatch backend available for DiscreteGpu"); }
+            }
+            DeviceKind::IntegratedGpu => {
+                #[cfg(wgpu_metal)]
+                { return BackendId::Metal; }
+                #[cfg(wgpu_vulkan)]
+                { return BackendId::Vulkan; }
+                #[cfg(wgpu_webgpu)]
+                { return BackendId::Wgpu; }
+                #[allow(unreachable_code)]
+                { panic!("No dispatch backend available for IntegratedGpu"); }
+            }
+            DeviceKind::VirtualGpu => {
+                #[cfg(wgpu_vulkan)]
+                { return BackendId::Vulkan; }
+                #[cfg(wgpu_webgpu)]
+                { return BackendId::Wgpu; }
+                #[allow(unreachable_code)]
+                { panic!("No dispatch backend available for VirtualGpu"); }
+            }
+            DeviceKind::Cpu => {
+                #[cfg(feature = "cpu")]
+                { return BackendId::Cpu; }
+                #[cfg(feature = "ndarray")]
+                { return BackendId::NdArray; }
+                #[cfg(feature = "flex")]
+                { return BackendId::Flex; }
+                #[cfg(feature = "tch")]
+                { return BackendId::LibTorch; }
+                #[allow(unreachable_code)]
+                { panic!("No dispatch backend available for Cpu"); }
+            }
         }
-    }
-
-    /// Encode variant ID and backend type ID into a unique `type_id`.
-    fn encode_type_id(&self, backend_type_id: u16) -> u16 {
-        u16::from(self.backend_id()) * TYPE_ID_BASE + backend_type_id
-    }
-
-    /// Decode an encoded `type_id` into variant ID and backend type ID.
-    pub(crate) fn decode_type_id(type_id: u16) -> (BackendId, u16) {
-        let variant = type_id / TYPE_ID_BASE;
-        let backend_type_id = type_id % TYPE_ID_BASE;
-        (
-            BackendId::try_from(variant).expect("Unknown DispatchDevice variant"),
-            backend_type_id,
-        )
     }
 }
 
@@ -345,34 +352,35 @@ impl DeviceOps for DispatchDevice {
 }
 
 impl burn_backend::Device for DispatchDevice {
-    fn from_id(mut device_id: DeviceId) -> Self {
-        let (dispatch_id, backend_type_id) = Self::decode_type_id(device_id.type_id);
-        device_id.type_id = backend_type_id;
+    fn from_id(device_id: DeviceId) -> Self {
+        // Override role to Runtime so inner backends get the role they expect.
+        let inner_id = DeviceId::new(DeviceRole::Runtime, device_id.kind, device_id.index_id);
+        let backend = Self::backend_from_kind(device_id.kind);
 
-        match dispatch_id {
+        match backend {
             #[cfg(feature = "cpu")]
-            BackendId::Cpu => Self::Cpu(CpuDevice::from_id(device_id)),
+            BackendId::Cpu => Self::Cpu(CpuDevice::from_id(inner_id)),
             #[cfg(feature = "cuda")]
-            BackendId::Cuda => Self::Cuda(CudaDevice::from_id(device_id)),
+            BackendId::Cuda => Self::Cuda(CudaDevice::from_id(inner_id)),
             #[cfg(wgpu_metal)]
-            BackendId::Metal => Self::Metal(WgpuDevice::from_id(device_id)),
+            BackendId::Metal => Self::Metal(WgpuDevice::from_id(inner_id)),
             #[cfg(feature = "rocm")]
-            BackendId::Rocm => Self::Rocm(RocmDevice::from_id(device_id)),
+            BackendId::Rocm => Self::Rocm(RocmDevice::from_id(inner_id)),
             #[cfg(wgpu_vulkan)]
-            BackendId::Vulkan => Self::Vulkan(WgpuDevice::from_id(device_id)),
+            BackendId::Vulkan => Self::Vulkan(WgpuDevice::from_id(inner_id)),
             #[cfg(wgpu_webgpu)]
-            BackendId::Wgpu => Self::Wgpu(WgpuDevice::from_id(device_id)),
+            BackendId::Wgpu => Self::Wgpu(WgpuDevice::from_id(inner_id)),
             #[cfg(feature = "flex")]
-            BackendId::Flex => Self::Flex(FlexDevice::from_id(device_id)),
+            BackendId::Flex => Self::Flex(FlexDevice::from_id(inner_id)),
             #[cfg(feature = "ndarray")]
-            BackendId::NdArray => Self::NdArray(NdArrayDevice::from_id(device_id)),
+            BackendId::NdArray => Self::NdArray(NdArrayDevice::from_id(inner_id)),
             #[cfg(feature = "tch")]
-            BackendId::LibTorch => Self::LibTorch(LibTorchDevice::from_id(device_id)),
+            BackendId::LibTorch => Self::LibTorch(LibTorchDevice::from_id(inner_id)),
         }
     }
 
     fn to_id(&self) -> DeviceId {
-        let mut device_id = match self {
+        let inner_id = match self {
             #[cfg(feature = "cpu")]
             Self::Cpu(device) => device.to_id(),
             #[cfg(feature = "cuda")]
@@ -394,8 +402,7 @@ impl burn_backend::Device for DispatchDevice {
             #[cfg(feature = "autodiff")]
             Self::Autodiff(device) => device.inner.to_id(),
         };
-        device_id.type_id = self.encode_type_id(device_id.type_id);
-        device_id
+        DeviceId::new(DeviceRole::Dispatch, inner_id.kind, inner_id.index_id)
     }
 }
 

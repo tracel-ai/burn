@@ -3,7 +3,7 @@ use alloc::format;
 use alloc::string::String;
 
 use burn_backend::quantization::QuantScheme;
-use burn_backend::{Backend, DType, ExecutionError, QTensorPrimitive};
+use burn_backend::{Backend, DType, DeviceKind, ExecutionError, QTensorPrimitive};
 
 #[cfg(feature = "autodiff")]
 use burn_autodiff::grads::Gradients;
@@ -87,26 +87,26 @@ impl Backend for Dispatch {
     }
 
     fn device_count(type_id: u16) -> usize {
-        let (dispatch_id, backend_type_id) = DispatchDevice::decode_type_id(type_id);
-        match dispatch_id {
+        let backend = DispatchDevice::backend_from_kind(DeviceKind::from(type_id));
+        match backend {
             #[cfg(feature = "cpu")]
-            BackendId::Cpu => Cpu::<f32>::device_count(backend_type_id),
+            BackendId::Cpu => Cpu::<f32>::device_count(type_id),
             #[cfg(feature = "cuda")]
-            BackendId::Cuda => Cuda::<f32>::device_count(backend_type_id),
+            BackendId::Cuda => Cuda::<f32>::device_count(type_id),
             #[cfg(wgpu_metal)]
-            BackendId::Metal => Metal::<f32>::device_count(backend_type_id),
+            BackendId::Metal => Metal::<f32>::device_count(type_id),
             #[cfg(feature = "rocm")]
-            BackendId::Rocm => Rocm::<f32>::device_count(backend_type_id),
+            BackendId::Rocm => Rocm::<f32>::device_count(type_id),
             #[cfg(wgpu_vulkan)]
-            BackendId::Vulkan => Vulkan::<f32>::device_count(backend_type_id),
+            BackendId::Vulkan => Vulkan::<f32>::device_count(type_id),
             #[cfg(wgpu_webgpu)]
-            BackendId::Wgpu => Wgpu::<f32>::device_count(backend_type_id),
+            BackendId::Wgpu => Wgpu::<f32>::device_count(type_id),
             #[cfg(feature = "flex")]
-            BackendId::Flex => Flex::device_count(backend_type_id),
+            BackendId::Flex => Flex::device_count(type_id),
             #[cfg(feature = "ndarray")]
-            BackendId::NdArray => NdArray::<f32>::device_count(backend_type_id),
+            BackendId::NdArray => NdArray::<f32>::device_count(type_id),
             #[cfg(feature = "tch")]
-            BackendId::LibTorch => LibTorch::<f32>::device_count(backend_type_id),
+            BackendId::LibTorch => LibTorch::<f32>::device_count(type_id),
         }
     }
 }

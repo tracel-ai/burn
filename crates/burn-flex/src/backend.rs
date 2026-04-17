@@ -1,7 +1,7 @@
 use alloc::string::String;
 use core::marker::PhantomData;
 
-use burn_backend::{Backend, DType, DTypeUsage, DTypeUsageSet, DeviceId, DeviceOps};
+use burn_backend::{Backend, DType, DTypeUsage, DTypeUsageSet, DeviceId, DeviceKind, DeviceOps, DeviceRole};
 use burn_ir::{BackendIr, HandleKind, TensorHandle};
 use burn_std::device::Device;
 use burn_std::rand::{SeedableRng, StdRng};
@@ -35,7 +35,7 @@ pub struct FlexDevice;
 
 impl Device for FlexDevice {
     fn to_id(&self) -> DeviceId {
-        DeviceId::new(0, 0)
+        DeviceId::new(DeviceRole::Runtime, DeviceKind::Cpu, 0)
     }
 
     fn from_id(_id: DeviceId) -> Self {

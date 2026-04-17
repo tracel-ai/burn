@@ -1,6 +1,6 @@
 use super::{RemoteChannel, RemoteClient};
 use crate::shared::{ComputeTask, TaskResponseContent, TensorRemote};
-use burn_backend::{DeviceId, DeviceOps, ExecutionError, TensorData};
+use burn_backend::{DeviceId, DeviceKind, DeviceOps, DeviceRole, ExecutionError, TensorData};
 use burn_communication::{Address, ProtocolClient, data_service::TensorTransferId};
 use burn_ir::TensorIr;
 use burn_router::{MultiBackendBridge, RouterTensor, RunnerClient, get_client};
@@ -160,19 +160,13 @@ impl Default for RemoteDevice {
 
 impl burn_std::device::Device for RemoteDevice {
     fn from_id(device_id: DeviceId) -> Self {
-        if device_id.type_id != 0 {
-            panic!("Invalid device id: {device_id} (expected type 0)");
-        }
-        let address = id_to_address(device_id.index_id)
+        let address = id_to_address(device_id.index_id as u32)
             .unwrap_or_else(|| panic!("Invalid device id: {device_id}"));
         Self::new(&address)
     }
 
     fn to_id(&self) -> DeviceId {
-        DeviceId {
-            type_id: 0,
-            index_id: self.id,
-        }
+        DeviceId::new(DeviceRole::Runtime, DeviceKind::Cpu, self.id as u16)
     }
 }
 

@@ -4,7 +4,7 @@ use crate::IntoKind;
 
 use super::TchTensor;
 use super::element::TchElement;
-use burn_backend::backend::{Backend, DeviceId, DeviceOps, ExecutionError};
+use burn_backend::backend::{Backend, DeviceId, DeviceKind, DeviceOps, DeviceRole, ExecutionError};
 use burn_backend::ops::IntTensorOps;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -71,21 +71,20 @@ impl From<tch::Device> for LibTorchDevice {
 
 impl burn_backend::Device for LibTorchDevice {
     fn from_id(device_id: DeviceId) -> Self {
-        match device_id.type_id {
-            0 => Self::Cuda(device_id.index_id as usize),
-            1 => Self::Mps,
-            2 => Self::Cpu,
-            3 => Self::Vulkan,
-            _ => LibTorchDevice::Cpu,
+        match device_id.kind {
+            DeviceKind::DiscreteGpu => Self::Cuda(device_id.index_id as usize),
+            DeviceKind::IntegratedGpu => Self::Mps,
+            DeviceKind::VirtualGpu => Self::Vulkan,
+            DeviceKind::Cpu => Self::Cpu,
         }
     }
 
     fn to_id(&self) -> DeviceId {
         match self {
-            LibTorchDevice::Cuda(index) => DeviceId::new(0, *index as u32),
-            LibTorchDevice::Mps => DeviceId::new(1, 0),
-            LibTorchDevice::Cpu => DeviceId::new(2, 0),
-            LibTorchDevice::Vulkan => DeviceId::new(3, 0),
+            LibTorchDevice::Cuda(index) => DeviceId::new(DeviceRole::Runtime, DeviceKind::DiscreteGpu, *index as u16),
+            LibTorchDevice::Mps => DeviceId::new(DeviceRole::Runtime, DeviceKind::IntegratedGpu, 0),
+            LibTorchDevice::Cpu => DeviceId::new(DeviceRole::Runtime, DeviceKind::Cpu, 0),
+            LibTorchDevice::Vulkan => DeviceId::new(DeviceRole::Runtime, DeviceKind::VirtualGpu, 0),
         }
     }
 }

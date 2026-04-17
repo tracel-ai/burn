@@ -7,7 +7,7 @@ use crate::{
 use alloc::string::String;
 use burn_backend::quantization::{QuantLevel, QuantMode, QuantScheme, QuantStore, QuantValue};
 use burn_backend::tensor::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor};
-use burn_backend::{Backend, DType, DeviceId, DeviceOps};
+use burn_backend::{Backend, DType, DeviceId, DeviceKind, DeviceOps, DeviceRole};
 use burn_ir::{BackendIr, HandleKind, TensorHandle};
 use burn_std::BoolStore;
 use burn_std::stub::Mutex;
@@ -32,10 +32,7 @@ impl burn_backend::Device for NdArrayDevice {
     }
 
     fn to_id(&self) -> DeviceId {
-        DeviceId {
-            type_id: 0,
-            index_id: 0,
-        }
+        DeviceId::new(DeviceRole::Runtime, DeviceKind::Cpu, 0)
     }
 }
 

@@ -1,8 +1,8 @@
 use std::marker::PhantomData;
 
 use burn_backend::{
-    BackTrace, Backend, DType, DTypeUsage, DeviceId, DeviceOps, ExecutionError, QTensorPrimitive,
-    tensor::Device,
+    BackTrace, Backend, DType, DTypeUsage, DeviceId, DeviceKind, DeviceOps, DeviceRole,
+    ExecutionError, QTensorPrimitive, tensor::Device,
 };
 use burn_std::{
     rand::{SeedableRng, StdRng},
@@ -176,16 +176,16 @@ impl From<candle_core::Device> for CandleDevice {
 impl burn_backend::Device for CandleDevice {
     fn to_id(&self) -> burn_backend::DeviceId {
         match self {
-            CandleDevice::Cuda(device) => DeviceId::new(0, device.index as u32),
-            CandleDevice::Metal(device) => DeviceId::new(1, device.index as u32),
-            CandleDevice::Cpu => DeviceId::new(2, 0),
+            CandleDevice::Cuda(device) => DeviceId::new(DeviceRole::Runtime, DeviceKind::DiscreteGpu, device.index as u16),
+            CandleDevice::Metal(device) => DeviceId::new(DeviceRole::Runtime, DeviceKind::IntegratedGpu, device.index as u16),
+            CandleDevice::Cpu => DeviceId::new(DeviceRole::Runtime, DeviceKind::Cpu, 0),
         }
     }
 
     fn from_id(device_id: DeviceId) -> Self {
-        match device_id.type_id {
-            0 => CandleDevice::cuda(device_id.index_id as usize),
-            1 => CandleDevice::metal(device_id.index_id as usize),
+        match device_id.kind {
+            DeviceKind::DiscreteGpu => CandleDevice::cuda(device_id.index_id as usize),
+            DeviceKind::IntegratedGpu => CandleDevice::metal(device_id.index_id as usize),
             _ => CandleDevice::Cpu,
         }
     }
