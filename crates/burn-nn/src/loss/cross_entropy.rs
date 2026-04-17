@@ -9,6 +9,10 @@ use burn::tensor::activation::log_softmax;
 use burn::tensor::{Bool, Int, Tensor, backend::Backend};
 use burn::{config::Config, module::Module};
 
+#[cfg(not(feature = "std"))]
+#[allow(unused_imports)]
+use num_traits::Float;
+
 /// Configuration to create a [Cross-entropy loss](CrossEntropyLoss) using the [init function](CrossEntropyLossConfig::init).
 #[derive(Config, Debug)]
 pub struct CrossEntropyLossConfig {
