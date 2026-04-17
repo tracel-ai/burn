@@ -137,11 +137,7 @@ impl<B: Backend> CrossEntropyLoss<B> {
         alpha: f32,
     ) -> Tensor<B, 1> {
         let mask = self.padding_mask(&targets);
-        let tensor = if self.logits {
-            log_softmax(logits, 1)
-        } else {
-            logits.log()
-        };
+        let tensor = self.log_probs(logits);
         let [batch_size, nr_classes] = tensor.dims();
         let tensor = tensor
             * Self::compute_smoothed_targets([batch_size, nr_classes], targets.clone(), alpha);
@@ -168,7 +164,7 @@ impl<B: Backend> CrossEntropyLoss<B> {
         let [batch_size] = targets.dims();
 
         let mask = self.padding_mask(&targets);
-        let tensor = log_softmax(logits, 1);
+        let tensor = self.log_probs(logits);
         let tensor = tensor.gather(1, targets.clone().reshape([batch_size, 1]));
 
         match &self.weights {
@@ -182,6 +178,14 @@ impl<B: Backend> CrossEntropyLoss<B> {
                 let tensor = Self::apply_mask_1d(tensor.reshape([batch_size]), mask);
                 tensor.mean().neg()
             }
+        }
+    }
+
+    fn log_probs(&self, logits: Tensor<B, 2>) -> Tensor<B, 2> {
+        if self.logits {
+            log_softmax(logits, 1)
+        } else {
+            logits.log()
         }
     }
 
@@ -449,6 +453,46 @@ mod tests {
         loss_1
             .into_data()
             .assert_approx_eq::<FT>(&loss_2.into_data(), Tolerance::default());
+    }
+
+    #[test]
+    fn test_logits_flag_affects_output() {
+        let device = Default::default();
+
+        let probs = Tensor::<TestBackend, 2>::from_data(
+            TensorData::from([
+                [0.1, 0.2, 0.7, 0.0, 0.0],
+                [0.7, 0.1, 0.1, 0.1, 0.0],
+                [0.2, 0.2, 0.2, 0.2, 0.2],
+                [0.0, 0.3, 0.3, 0.2, 0.2],
+            ]),
+            &device,
+        );
+
+        let targets =
+            Tensor::<TestBackend, 1, Int>::from_data(TensorData::from([2, 0, 4, 1]), &device);
+
+        let loss_logits = CrossEntropyLossConfig::new()
+            .init(&device)
+            .forward(probs.clone(), targets.clone());
+
+        let loss_probs = CrossEntropyLossConfig::new()
+            .with_logits(false)
+            .init(&device)
+            .forward(probs, targets);
+
+        // They must differ if logits flag is implemented correctly
+        let loss_logits = loss_logits.into_data();
+        let loss_probs = loss_probs.into_data();
+
+        loss_logits.assert_approx_eq::<f32>(&TensorData::from([1.354197]), Tolerance::default());
+        loss_probs.assert_approx_eq::<f32>(&TensorData::from([0.88169014]), Tolerance::default());
+
+        assert_ne!(
+            loss_logits.as_slice::<f32>().unwrap(),
+            loss_probs.as_slice::<f32>().unwrap(),
+            "logits flag should change computation (log_softmax vs log)"
+        );
     }
 
     #[test]
