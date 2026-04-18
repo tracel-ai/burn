@@ -1,7 +1,9 @@
 use alloc::string::String;
 use core::marker::PhantomData;
 
-use burn_backend::{Backend, DType, DTypeUsage, DTypeUsageSet, DeviceId, DeviceKind, DeviceOps, DeviceRole};
+use burn_backend::{
+    Backend, DType, DTypeUsage, DTypeUsageSet, DeviceId, DeviceKind, DeviceOps, DeviceRole,
+};
 use burn_ir::{BackendIr, HandleKind, TensorHandle};
 use burn_std::device::Device;
 use burn_std::rand::{SeedableRng, StdRng};

@@ -81,7 +81,9 @@ impl burn_backend::Device for LibTorchDevice {
 
     fn to_id(&self) -> DeviceId {
         match self {
-            LibTorchDevice::Cuda(index) => DeviceId::new(DeviceRole::Runtime, DeviceKind::DiscreteGpu, *index as u16),
+            LibTorchDevice::Cuda(index) => {
+                DeviceId::new(DeviceRole::Runtime, DeviceKind::DiscreteGpu, *index as u16)
+            }
             LibTorchDevice::Mps => DeviceId::new(DeviceRole::Runtime, DeviceKind::IntegratedGpu, 0),
             LibTorchDevice::Cpu => DeviceId::new(DeviceRole::Runtime, DeviceKind::Cpu, 0),
             LibTorchDevice::Vulkan => DeviceId::new(DeviceRole::Runtime, DeviceKind::VirtualGpu, 0),

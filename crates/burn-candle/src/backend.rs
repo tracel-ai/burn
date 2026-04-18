@@ -176,8 +176,16 @@ impl From<candle_core::Device> for CandleDevice {
 impl burn_backend::Device for CandleDevice {
     fn to_id(&self) -> burn_backend::DeviceId {
         match self {
-            CandleDevice::Cuda(device) => DeviceId::new(DeviceRole::Runtime, DeviceKind::DiscreteGpu, device.index as u16),
-            CandleDevice::Metal(device) => DeviceId::new(DeviceRole::Runtime, DeviceKind::IntegratedGpu, device.index as u16),
+            CandleDevice::Cuda(device) => DeviceId::new(
+                DeviceRole::Runtime,
+                DeviceKind::DiscreteGpu,
+                device.index as u16,
+            ),
+            CandleDevice::Metal(device) => DeviceId::new(
+                DeviceRole::Runtime,
+                DeviceKind::IntegratedGpu,
+                device.index as u16,
+            ),
             CandleDevice::Cpu => DeviceId::new(DeviceRole::Runtime, DeviceKind::Cpu, 0),
         }
     }

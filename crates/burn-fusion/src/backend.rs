@@ -45,13 +45,13 @@ impl<B: FusionBackend> Backend for Fusion<B> {
 
     fn seed(device: &B::Device, seed: u64) {
         let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
-        client.drain();
+        client.sync();
         B::seed(device, seed);
     }
 
     fn sync(device: &Self::Device) -> Result<(), ExecutionError> {
         let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
-        client.drain();
+        client.sync();
         B::sync(device)
     }
 

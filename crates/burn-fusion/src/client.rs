@@ -3,7 +3,7 @@ use crate::{
     UnfusedOp,
     stream::{OperationStreams, StreamId, execution::Operation},
 };
-use burn_backend::{Device, DeviceHandle, DeviceId, DeviceService};
+use burn_backend::{Device, DeviceHandle, DeviceId, DeviceRole, DeviceService};
 use burn_backend::{TensorData, backend::ExecutionError};
 use burn_ir::{OperationIr, TensorId, TensorIr};
 use std::sync::Arc;
@@ -43,9 +43,12 @@ where
 {
     /// Loads the client from the given device.
     pub fn load(device: &FusionDevice<R>) -> Self {
+        let mut device_id = device.to_id();
+        device_id.role = DeviceRole::Fusion;
+
         Self {
             device: device.clone(),
-            server: DeviceHandle::new(device.to_id()),
+            server: DeviceHandle::new(device_id),
         }
     }
 }
@@ -58,9 +61,12 @@ where
 {
     /// Create a new client for the given [device](FusionRuntime::FusionDevice).
     pub fn new(device: FusionDevice<R>) -> Self {
+        let mut device_id = device.to_id();
+        device_id.role = DeviceRole::Fusion;
+
         Self {
             device: device.clone(),
-            server: DeviceHandle::new(device.to_id()),
+            server: DeviceHandle::new(device_id),
         }
     }
 
@@ -113,9 +119,11 @@ where
     }
 
     /// Register all lazy computation.
-    pub fn drain(&self) {
+    pub fn sync(&self) {
         let id = StreamId::current();
-        self.server.submit(move |server| server.drain_stream(id));
+        self.server
+            .submit_blocking(move |server| server.drain_stream(id))
+            .unwrap();
     }
 
     /// Create a new (uninitialized) empty tensor handle and returns its corresponding [tensor id](TensorId).

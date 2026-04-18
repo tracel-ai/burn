@@ -215,7 +215,6 @@ impl PartialEq for DispatchDevice {
     }
 }
 
-
 impl DispatchDevice {
     #[cfg(feature = "autodiff")]
     /// Creates a new [`DispatchDevice`] with [automatic differentiation](Autodiff) enabled.
@@ -238,47 +237,103 @@ impl DispatchDevice {
     /// priority decides which one wins.
     pub(crate) fn backend_from_kind(kind: DeviceKind) -> BackendId {
         match kind {
+            DeviceKind::Default => {
+                #[cfg(feature = "cuda")]
+                {
+                    return BackendId::Cuda;
+                }
+                #[cfg(feature = "rocm")]
+                {
+                    return BackendId::Rocm;
+                }
+                #[cfg(wgpu_vulkan)]
+                {
+                    return BackendId::Vulkan;
+                }
+                #[cfg(wgpu_webgpu)]
+                {
+                    return BackendId::Wgpu;
+                }
+                #[allow(unreachable_code)]
+                {
+                    panic!("No dispatch backend available for DiscreteGpu");
+                }
+            }
             DeviceKind::DiscreteGpu => {
                 #[cfg(feature = "cuda")]
-                { return BackendId::Cuda; }
+                {
+                    return BackendId::Cuda;
+                }
                 #[cfg(feature = "rocm")]
-                { return BackendId::Rocm; }
+                {
+                    return BackendId::Rocm;
+                }
                 #[cfg(wgpu_vulkan)]
-                { return BackendId::Vulkan; }
+                {
+                    return BackendId::Vulkan;
+                }
                 #[cfg(wgpu_webgpu)]
-                { return BackendId::Wgpu; }
+                {
+                    return BackendId::Wgpu;
+                }
                 #[allow(unreachable_code)]
-                { panic!("No dispatch backend available for DiscreteGpu"); }
+                {
+                    panic!("No dispatch backend available for DiscreteGpu");
+                }
             }
             DeviceKind::IntegratedGpu => {
                 #[cfg(wgpu_metal)]
-                { return BackendId::Metal; }
+                {
+                    return BackendId::Metal;
+                }
                 #[cfg(wgpu_vulkan)]
-                { return BackendId::Vulkan; }
+                {
+                    return BackendId::Vulkan;
+                }
                 #[cfg(wgpu_webgpu)]
-                { return BackendId::Wgpu; }
+                {
+                    return BackendId::Wgpu;
+                }
                 #[allow(unreachable_code)]
-                { panic!("No dispatch backend available for IntegratedGpu"); }
+                {
+                    panic!("No dispatch backend available for IntegratedGpu");
+                }
             }
             DeviceKind::VirtualGpu => {
                 #[cfg(wgpu_vulkan)]
-                { return BackendId::Vulkan; }
+                {
+                    return BackendId::Vulkan;
+                }
                 #[cfg(wgpu_webgpu)]
-                { return BackendId::Wgpu; }
+                {
+                    return BackendId::Wgpu;
+                }
                 #[allow(unreachable_code)]
-                { panic!("No dispatch backend available for VirtualGpu"); }
+                {
+                    panic!("No dispatch backend available for VirtualGpu");
+                }
             }
             DeviceKind::Cpu => {
                 #[cfg(feature = "cpu")]
-                { return BackendId::Cpu; }
+                {
+                    return BackendId::Cpu;
+                }
                 #[cfg(feature = "ndarray")]
-                { return BackendId::NdArray; }
+                {
+                    return BackendId::NdArray;
+                }
                 #[cfg(feature = "flex")]
-                { return BackendId::Flex; }
+                {
+                    return BackendId::Flex;
+                }
                 #[cfg(feature = "tch")]
-                { return BackendId::LibTorch; }
+                {
+                    return BackendId::LibTorch;
+                }
                 #[allow(unreachable_code)]
-                { panic!("No dispatch backend available for Cpu"); }
+                {
+                    panic!("No dispatch backend available for Cpu");
+                }
             }
         }
     }
