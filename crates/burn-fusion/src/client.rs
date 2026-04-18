@@ -3,7 +3,7 @@ use crate::{
     UnfusedOp,
     stream::{OperationStreams, StreamId, execution::Operation},
 };
-use burn_backend::{Device, DeviceHandle, DeviceId, DeviceService};
+use burn_backend::{Device, DeviceHandle, DeviceId, DeviceService, DeviceServiceStage};
 use burn_backend::{TensorData, backend::ExecutionError};
 use burn_ir::{OperationIr, TensorId, TensorIr};
 use std::sync::Arc;
@@ -23,6 +23,9 @@ impl<R: FusionRuntime> DeviceService for FusionServer<R> {
 
     fn utilities(&self) -> burn_backend::ServerUtilitiesHandle {
         Arc::new(())
+    }
+    fn stage() -> DeviceServiceStage {
+        DeviceServiceStage::Upstream
     }
 }
 
