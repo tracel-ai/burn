@@ -116,9 +116,14 @@ where
     }
 
     /// Register all lazy computation.
-    pub fn drain(&self) {
+    pub fn sync<Re: Send + 'static>(&self, sync_fn: impl FnOnce() -> Re + Send + 'static) -> Re {
         let id = StreamId::current();
-        self.server.submit(move |server| server.drain_stream(id));
+        self.server
+            .submit_blocking(move |server| {
+                server.drain_stream(id);
+                sync_fn()
+            })
+            .unwrap()
     }
 
     /// Create a new (uninitialized) empty tensor handle and returns its corresponding [tensor id](TensorId).

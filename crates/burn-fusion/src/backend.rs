@@ -45,14 +45,14 @@ impl<B: FusionBackend> Backend for Fusion<B> {
 
     fn seed(device: &B::Device, seed: u64) {
         let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
-        client.drain();
-        B::seed(device, seed);
+        let device = device.clone();
+        client.sync(move || B::seed(&device, seed));
     }
 
     fn sync(device: &Self::Device) -> Result<(), ExecutionError> {
         let client = GlobalFusionClient::<B::FusionRuntime>::load(device);
-        client.drain();
-        B::sync(device)
+        let device = device.clone();
+        client.sync(move || B::sync(&device))
     }
 
     fn ad_enabled(_device: &Self::Device) -> bool {
