@@ -86,9 +86,9 @@ pub fn det<B: Backend, const D: usize, const D1: usize, const D2: usize>(
     if dims[D - 1] == 1 {
         let det_tensor = tensor.squeeze_dims::<D2>(&[rank - 2, rank - 1]);
         if needs_upcast {
-            return det_tensor.cast(original_dtype)
+            return det_tensor.cast(original_dtype);
         }
-        return det_tensor
+        return det_tensor;
     } else if dims[D - 1] == 2 {
         let a = tensor.clone().slice_dim(D - 2, 0).slice_dim(D - 1, 0);
         let b = tensor.clone().slice_dim(D - 2, 0).slice_dim(D - 1, 1);
@@ -96,9 +96,9 @@ pub fn det<B: Backend, const D: usize, const D1: usize, const D2: usize>(
         let d = tensor.clone().slice_dim(D - 2, 1).slice_dim(D - 1, 1);
         let det_tensor = (a * d - b * c).squeeze_dims::<D2>(&[rank - 2, rank - 1]);
         if needs_upcast {
-            return det_tensor.cast(original_dtype)
+            return det_tensor.cast(original_dtype);
         }
-        return det_tensor
+        return det_tensor;
     } else if dims[D - 1] == 3 {
         let a = tensor.clone().slice_dim(D - 2, 0).slice_dim(D - 1, 0);
         let b = tensor.clone().slice_dim(D - 2, 0).slice_dim(D - 1, 1);
@@ -111,11 +111,12 @@ pub fn det<B: Backend, const D: usize, const D1: usize, const D2: usize>(
         let i = tensor.clone().slice_dim(D - 2, 2).slice_dim(D - 1, 2);
         let det_tensor = (a * (e.clone() * i.clone() - f.clone() * h.clone())
             - b * (d.clone() * i - f * g.clone())
-            + c * (d * h - e * g)).squeeze_dims::<D2>(&[rank - 2, rank - 1]);
+            + c * (d * h - e * g))
+            .squeeze_dims::<D2>(&[rank - 2, rank - 1]);
         if needs_upcast {
-            return det_tensor.cast(original_dtype)
+            return det_tensor.cast(original_dtype);
         }
-        return det_tensor
+        return det_tensor;
     }
 
     // Compute determinant for general case

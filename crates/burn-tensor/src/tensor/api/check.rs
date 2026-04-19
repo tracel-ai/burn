@@ -1394,16 +1394,17 @@ impl TensorCheck {
     }
 
     /// Check if input tensor and generic parameters of `linalg::det()` are valid.
-    pub fn det<const D: usize, const D1: usize, const D2: usize>(dims: [usize; D], dtype: DType) -> Self {
+    pub fn det<const D: usize, const D1: usize, const D2: usize>(
+        dims: [usize; D],
+        dtype: DType,
+    ) -> Self {
         let mut check = TensorCheck::Ok;
-        
+
         if matches!(dtype, DType::QFloat(_)) {
             check = check.register(
                 "det",
-                TensorError::new(
-                    "The input tensor must have a real float dtype.",
-                )
-                .details(format!("Got an input tensor with a quantized float dtype")),
+                TensorError::new("The input tensor must have a real float dtype.")
+                    .details("Got an input tensor with a quantized float dtype".to_string()),
             );
         }
 

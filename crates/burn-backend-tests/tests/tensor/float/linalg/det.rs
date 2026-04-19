@@ -1,5 +1,10 @@
 use super::*;
-use burn_tensor::{Distribution, Tolerance, linalg::det, s, quantization::{QuantScheme, QuantValue, QuantStore}};
+use burn_tensor::{
+    Distribution, Tolerance,
+    linalg::det,
+    quantization::{QuantScheme, QuantStore, QuantValue},
+    s,
+};
 
 // ---------------------------------------------------------------------
 // Small Matrices (single batch)
@@ -373,14 +378,13 @@ fn test_det_negative_elements() {
         .assert_approx_eq::<FloatElem>(&expected.into_data(), tolerance);
 }
 
-
 #[test]
 #[should_panic(expected = "The input tensor must have a real float dtype.")]
 fn test_det_quantized_tensor() {
     let scheme = QuantScheme::default()
         .with_value(QuantValue::Q8S)
         .with_store(QuantStore::Native);
-    
+
     let device = Default::default();
     let tensor = TestTensor::<3>::from_data([[[5.0]]], &device);
     let qtensor = tensor.quantize_dynamic(&scheme);
