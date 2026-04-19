@@ -4,6 +4,7 @@ use alloc::string::{String, ToString};
 use alloc::vec;
 use alloc::vec::Vec;
 use burn_backend::tensor::Ordered;
+use burn_std::DType;
 
 /// The struct should always be used with the [check](crate::check) macro.
 ///
@@ -1393,8 +1394,18 @@ impl TensorCheck {
     }
 
     /// Check if input tensor and generic parameters of `linalg::det()` are valid.
-    pub fn det<const D: usize, const D1: usize, const D2: usize>(dims: [usize; D]) -> Self {
+    pub fn det<const D: usize, const D1: usize, const D2: usize>(dims: [usize; D], dtype: DType) -> Self {
         let mut check = TensorCheck::Ok;
+        
+        if matches!(dtype, DType::QFloat(_)) {
+            check = check.register(
+                "det",
+                TensorError::new(
+                    "The input tensor must have a real float dtype.",
+                )
+                .details(format!("Got an input tensor with a quantized float dtype")),
+            );
+        }
 
         if D1 != D - 1 {
             check = check.register(

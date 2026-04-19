@@ -68,10 +68,10 @@ pub fn det<B: Backend, const D: usize, const D1: usize, const D2: usize>(
 ) -> Tensor<B, D2> {
     // Check whether input tensor has valid shape to compute determinant
     let dims = tensor.dims();
-    check!(TensorCheck::det::<D, D1, D2>(dims));
-
-    // Update f16 to f32
     let original_dtype = tensor.dtype();
+    check!(TensorCheck::det::<D, D1, D2>(dims, original_dtype));
+
+    // Upcast f16 and bf16 to f32
     let needs_upcast = original_dtype == DType::F16 || original_dtype == DType::BF16;
     let working_float_dtype: FloatDType;
     if needs_upcast {
