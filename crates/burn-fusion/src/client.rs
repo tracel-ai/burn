@@ -1,15 +1,18 @@
 use crate::{
     FusionBackend, FusionDevice, FusionHandle, FusionRuntime, FusionServer, FusionTensor,
-    UnfusedOp,
+    FusionUtilities, UnfusedOp,
     stream::{OperationStreams, StreamId, execution::Operation},
 };
 #[cfg(feature = "distributed")]
 use burn_backend::distributed::DistributedBackend;
 use burn_backend::{Device, DeviceHandle, DeviceId, DeviceService};
+#[cfg(feature = "distributed")]
+use burn_std::CommunicationId;
 
 use burn_backend::{TensorData, backend::ExecutionError};
 use burn_ir::{OperationIr, TensorId, TensorIr};
-use std::sync::Arc;
+use burn_std::stub::RwLock;
+use hashbrown::HashSet;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 /// Use a mutex to communicate with the fusion server.
@@ -21,11 +24,14 @@ pub struct GlobalFusionClient<R: FusionRuntime> {
 impl<R: FusionRuntime> DeviceService for FusionServer<R> {
     fn init(device_id: DeviceId) -> Self {
         let device = FusionDevice::<R>::from_id(device_id);
-        FusionServer::new(device)
+        let utilities = FusionUtilities {
+            initialized_comms: RwLock::new(HashSet::default()),
+        };
+        FusionServer::new(device, utilities)
     }
 
     fn utilities(&self) -> burn_backend::ServerUtilitiesHandle {
-        Arc::new(())
+        self.utilities.clone()
     }
 }
 
@@ -367,5 +373,25 @@ where
         // Ensure that all operations are resolved before calling sync_collective.
         self.drain();
         B::sync_collective(&device)
+    }
+
+    /// Ensure that communication bewteen the given devices is initialized.
+    /// Initializing communication is generally blocking, so we make sure to flush those operations.
+    #[cfg(feature = "distributed")]
+    pub fn ensure_collective_init<B>(&self, device_ids: Vec<DeviceId>)
+    where
+        B: FusionBackend<FusionRuntime = R> + DistributedBackend,
+    {
+        let utilities = self
+            .server
+            .utilities()
+            .downcast::<FusionUtilities>()
+            .expect("Can downcast to `FusionUtilities`");
+        let id = CommunicationId::from(device_ids);
+        if utilities.initialized_comms.read().unwrap().contains(&id) {
+            self.flush_queue();
+            let mut initialized_comms = utilities.initialized_comms.write().unwrap();
+            initialized_comms.insert(id);
+        }
     }
 }

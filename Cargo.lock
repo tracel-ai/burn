@@ -2330,6 +2330,7 @@ dependencies = [
 name = "cubecl-runtime"
 version = "0.10.0-pre.3"
 dependencies = [
+ "ahash",
  "async-channel",
  "bytemuck",
  "cfg-if",
@@ -2511,7 +2512,6 @@ version = "0.2.0-pre.3"
 dependencies = [
  "cubecl",
  "cubek-std",
- "cubek-test-utils",
  "half",
  "num-traits",
  "serde",
@@ -2534,6 +2534,7 @@ dependencies = [
  "bytemuck",
  "cubecl",
  "cubecl-common",
+ "cubek-quant",
  "cubek-random",
  "half",
  "serde",

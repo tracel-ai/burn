@@ -1,23 +1,35 @@
+use std::sync::Arc;
+
 use crate::{
     FusionBackend, FusionRuntime, UnfusedOp,
     stream::{MultiStream, OperationStreams, StreamId},
 };
 use burn_backend::{TensorData, backend::ExecutionError};
 use burn_ir::{HandleContainer, OperationIr, TensorIr};
+use burn_std::{CommunicationId, stub::RwLock};
+use hashbrown::HashSet;
+
+pub(crate) struct FusionUtilities {
+    // Used in client using a downcast.
+    #[allow(dead_code)]
+    pub(crate) initialized_comms: RwLock<HashSet<CommunicationId>>,
+}
 
 pub struct FusionServer<R: FusionRuntime> {
     streams: MultiStream<R>,
     pub(crate) handles: HandleContainer<R::FusionHandle>,
+    pub(crate) utilities: Arc<FusionUtilities>,
 }
 
 impl<R> FusionServer<R>
 where
     R: FusionRuntime,
 {
-    pub fn new(device: R::FusionDevice) -> Self {
+    pub fn new(device: R::FusionDevice, utilities: FusionUtilities) -> Self {
         Self {
             streams: MultiStream::new(device.clone()),
             handles: HandleContainer::new(),
+            utilities: Arc::new(utilities),
         }
     }
 

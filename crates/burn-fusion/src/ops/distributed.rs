@@ -46,7 +46,7 @@ impl<B: FusionBackend + DistributedBackend> DistributedBackend for Fusion<B> {
             .register(
                 streams,
                 OperationIr::Distributed(DistributedOperationIr::AllReduce(desc.clone())),
-                AllReduceOps::<B>::new(desc, op, device_ids),
+                AllReduceOps::<B>::new(desc, op, device_ids.clone()),
             )
             .output()
             .into();
@@ -54,6 +54,7 @@ impl<B: FusionBackend + DistributedBackend> DistributedBackend for Fusion<B> {
         // We need to flush the device's queue because other devices could be waiting on this call (e.g. when initializing
         // communication between devices).
         client.flush_queue();
+        client.ensure_collective_init::<B>(device_ids);
 
         CollectiveTensor::new(output)
     }
