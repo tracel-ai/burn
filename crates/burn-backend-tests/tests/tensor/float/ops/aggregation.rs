@@ -580,3 +580,12 @@ fn test_sum_dim_4d_middle_dim() {
         .into_data()
         .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
 }
+
+#[test]
+fn test_should_mean_overflow_intermediate_sum() {
+    let tensor = TestTensorInt::arange(0..1024, &Default::default()).float();
+    let output = tensor.mean();
+    output
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&TensorData::from([511.5]), Tolerance::default());
+}
