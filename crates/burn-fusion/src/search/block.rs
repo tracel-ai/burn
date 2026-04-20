@@ -52,7 +52,7 @@ impl<O: NumOperations> Block<O> {
 
     /// Sort the [blocks](Block) based on the start position.
     pub fn sort(blocks: &mut [Self]) {
-        blocks.sort_by(|a, b| a.start_pos.cmp(&b.start_pos));
+        blocks.sort_by_key(|a| a.start_pos);
     }
 
     /// Optimize the block.

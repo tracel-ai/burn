@@ -39,6 +39,10 @@ cpu = ["burn-dispatch/cpu", "cube"]
 autotune = ["burn-dispatch/autotune"]
 autotune-checks = ["burn-dispatch/autotune-checks"]
 fusion = ["burn-dispatch/fusion"]
+distributed = [
+    "std",
+    "burn-dispatch/distributed"
+]
 
 # CubeCL backends
 cube = [
@@ -78,6 +82,7 @@ burn-cubecl = { path = "../burn-cubecl", version = "=0.21.0-pre.3", optional = t
 
 num-traits = { workspace = true }
 serial_test = { workspace = true }
+rand.workspace = true
 
 
 [dev-dependencies]

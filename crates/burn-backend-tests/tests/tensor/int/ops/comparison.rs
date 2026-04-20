@@ -265,3 +265,16 @@ fn test_int_lower_equal_broadcast() {
     let expected = TensorData::from([[false, true, true], [false, false, false]]);
     expected.assert_eq(&result.into_data(), false);
 }
+
+#[test]
+fn test_int_greater_flipped() {
+    // [1,2,3,4] flipped -> [4,3,2,1]; > [3,3,3,3] = [T,F,F,F]
+    let lhs = TestTensorInt::<1>::from([1, 2, 3, 4]).flip([0]);
+    let rhs = TestTensorInt::<1>::from([3, 3, 3, 3]);
+
+    let result = lhs.greater(rhs);
+
+    result
+        .into_data()
+        .assert_eq(&TensorData::from([true, false, false, false]), false);
+}

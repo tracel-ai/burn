@@ -16,6 +16,18 @@ fn test_log_sigmoid() {
 }
 
 #[test]
+fn test_log_sigmoid_d1() {
+    let tensor = TestTensor::<1>::from([-10.0, 0.0, 10.0]);
+
+    let output = activation::log_sigmoid(tensor);
+
+    output.into_data().assert_approx_eq::<FloatElem>(
+        &TensorData::from([-10.0, -0.6931472, 0.0]),
+        Tolerance::absolute(1e-3),
+    );
+}
+
+#[test]
 fn test_log_sigmoid_numerical_stability() {
     let tensor = TestTensor::<1>::from([300.0, -300.0]);
 

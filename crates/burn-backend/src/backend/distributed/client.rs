@@ -65,6 +65,7 @@ impl<B: DistributedBackend> DistributedSyncClient<B> {
             .unwrap();
 
         let sync = rx.recv().expect("Can receive callback");
+
         sync();
     }
 

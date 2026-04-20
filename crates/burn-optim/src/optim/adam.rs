@@ -91,13 +91,9 @@ impl<B: Backend> SimpleOptimizer<B> for Adam {
 }
 
 impl AdamConfig {
-    /// Initialize Adam optimizer.
-    ///
-    /// # Returns
-    ///
-    /// Returns an optimizer that can be used to optimize a module.
-    pub fn init<B: AutodiffBackend, M: AutodiffModule<B>>(&self) -> OptimizerAdaptor<Adam, M, B> {
-        let optim = Adam {
+    /// Build an [`Adam`] from the config.
+    pub fn build(&self) -> Adam {
+        Adam {
             momentum: AdaptiveMomentum {
                 beta_1: self.beta_1,
                 beta_2: self.beta_2,
@@ -105,9 +101,16 @@ impl AdamConfig {
                 amsgrad: self.amsgrad,
             },
             weight_decay: self.weight_decay.as_ref().map(WeightDecay::new),
-        };
+        }
+    }
 
-        let mut optim = OptimizerAdaptor::from(optim);
+    /// Initialize Adam optimizer.
+    ///
+    /// # Returns
+    ///
+    /// Returns an optimizer that can be used to optimize a module.
+    pub fn init<B: AutodiffBackend, M: AutodiffModule<B>>(&self) -> OptimizerAdaptor<Adam, M, B> {
+        let mut optim = OptimizerAdaptor::from(self.build());
         if let Some(config) = &self.grad_clipping {
             optim = optim.with_grad_clipping(config.init());
         }

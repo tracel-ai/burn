@@ -101,10 +101,34 @@ impl<B: DistributedBackend> DistributedSyncServer<B> {
                 let queued_tensors = self.all_reduce_ops_queue.entry(param_id).or_insert(vec![]);
 
                 if num_tensors == queued_tensors.len() {
-                    // This is safe since tensors shouldn't be accessed other than here at this point
+                    // Safety: Tensors sent to the `DistributedSyncServer` should not be accessed or modified until the end of the backward pass.
+                    let device_ids = queued_tensors
+                        .iter()
+                        .map(|t| B::float_device(unsafe { &*t.0 }).id())
+                        .collect::<Vec<_>>();
+                    let reduced_tensors: Vec<B::FloatTensorPrimitive> = queued_tensors
+                        .iter()
+                        .map(|tensor|
+                            // Safety: we can call `assume_resolved` on these tensors since we know `B::sync_collective` is called
+                            // at the end of the backward pass.
+                            unsafe {
+                            B::all_reduce(
+                                (*tensor.0).clone(),
+                                self.config.all_reduce_op,
+                                device_ids.clone(),
+                            )
+                            .assume_resolved()
+                        })
+                        .collect();
+
+                    // Make the tensor reference point to the reduced tensor to perform an in-place all_reduce.
+                    // Safety: `B::sync_collective` should be automatically called after the backward pass.
                     unsafe {
-                        B::all_reduce_in_place(queued_tensors.clone(), self.config.all_reduce_op)
-                    };
+                        queued_tensors.iter().zip(reduced_tensors).for_each(
+                            |(tensor_ref, reduced_tensor)| *tensor_ref.0 = reduced_tensor,
+                        );
+                    }
+
                     self.all_reduce_ops_queue.remove(&param_id).unwrap();
                     self.param_required_map.remove(&param_id).unwrap();
                     self.try_launch_sync();

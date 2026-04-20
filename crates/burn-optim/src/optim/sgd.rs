@@ -40,17 +40,19 @@ pub struct SgdState<B: Backend, const D: usize> {
 }
 
 impl SgdConfig {
+    /// Build a [`Sgd`] from the config.
+    pub fn build<B: Backend>(&self) -> Sgd<B> {
+        Sgd {
+            momentum: self.momentum.as_ref().map(Momentum::new),
+            weight_decay: self.weight_decay.as_ref().map(WeightDecay::new),
+        }
+    }
+
     /// Creates a new [SgdConfig](SgdConfig) with default values.
     pub fn init<B: AutodiffBackend, M: AutodiffModule<B>>(
         &self,
     ) -> OptimizerAdaptor<Sgd<B::InnerBackend>, M, B> {
-        let momentum = self.momentum.as_ref().map(Momentum::new);
-        let weight_decay = self.weight_decay.as_ref().map(WeightDecay::new);
-
-        let mut optim = OptimizerAdaptor::from(Sgd {
-            momentum,
-            weight_decay,
-        });
+        let mut optim = OptimizerAdaptor::from(self.build());
         if let Some(config) = &self.gradient_clipping {
             optim = optim.with_grad_clipping(config.init());
         }

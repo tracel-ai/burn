@@ -40,3 +40,31 @@ fn should_support_mul_scalar_ops_int() {
 
     output.into_data().assert_eq(&expected, false);
 }
+
+#[test]
+fn test_int_mul_flipped_2d() {
+    // [[1, 2], [3, 4]] axis 0 flipped -> [[3, 4], [1, 2]]
+    // * [[10, 20], [30, 40]] = [[30, 80], [30, 80]]
+    let a = TestTensorInt::<2>::from([[1, 2], [3, 4]]).flip([0]);
+    let b = TestTensorInt::<2>::from([[10, 20], [30, 40]]);
+
+    let output = a * b;
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([[30, 80], [30, 80]]), false);
+}
+
+#[test]
+fn test_int_mul_flipped_both_axes() {
+    // [[1, 2], [3, 4]] flipped on both axes -> [[4, 3], [2, 1]]
+    // * [[5, 5], [5, 5]] = [[20, 15], [10, 5]]
+    let a = TestTensorInt::<2>::from([[1, 2], [3, 4]]).flip([0, 1]);
+    let b = TestTensorInt::<2>::from([[5, 5], [5, 5]]);
+
+    let output = a * b;
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([[20, 15], [10, 5]]), false);
+}

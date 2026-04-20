@@ -562,6 +562,12 @@ fn make_index_tensor(indices: Vec<isize>, shape: Shape) -> FlexTensor {
     FlexTensor::new(bytes, Layout::contiguous(shape), INDEX_DTYPE)
 }
 
+// Tests kept here exercise flex-specific behavior: the internal
+// `sort_along_dim` / `sort_along_dim_with_indices` / `argsort_along_dim`
+// helpers at sizes that straddle `PARALLEL_THRESHOLD`, so both the serial
+// and rayon-parallel branches are covered. End-to-end sort/argsort
+// correctness across backends lives in
+// crates/burn-backend-tests/tests/tensor/float/ops/sort_argsort.rs.
 #[cfg(test)]
 mod tests {
     use super::*;

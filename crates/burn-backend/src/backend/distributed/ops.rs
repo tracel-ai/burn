@@ -1,11 +1,13 @@
+use cubecl::device::DeviceId;
+
 use crate::{
     Backend,
+    distributed::CollectiveTensor,
     tensor::{Device, FloatTensor},
 };
 
 use crate::distributed::{
-    DistributedConfig, DistributedParams, ReduceOperation,
-    all_reduce::all_reduce_inplace_centralized, close_distributed_sync_server,
+    DistributedConfig, DistributedParams, ReduceOperation, close_distributed_sync_server,
     get_distributed_sync_client, start_distributed_sync_server,
 };
 
@@ -15,8 +17,15 @@ pub struct TensorRef<B: Backend>(pub *mut FloatTensor<B>);
 unsafe impl<B> Sync for TensorRef<B> where B: Backend {}
 unsafe impl<B> Send for TensorRef<B> where B: Backend {}
 
-// TODO : Once the change from `TypeId` to `DeviceId` is made in `backend/communication/api.rs`,
-// we can move the client operations out of the trait (and crate), which eliminates the need for the `communication` feature flag.
+// TODO : The following functions should be moved in the `burn-autodiff` crate. The difficulty is in not discriminating between
+// the dispatch backend and its inner dispatched backend when calling the communication server API. This implementation makes
+// it easy by implementing `DisributedBackend` for `DispatchBackend`.
+// The functions in question :
+// * `start_communication_server`
+// * `close_communication_server`
+// * `register_sync_parameters`
+// * `submit_sync_collective`
+// * `submit_gradient_sync`
 
 /// Operations on communication tensors.
 pub trait DistributedBackend: Backend {
@@ -82,19 +91,22 @@ pub trait DistributedBackend: Backend {
         };
     }
 
-    /// In-place version of all_reduce.
+    /// all_reduce operation.
     ///
     /// # Arguments
     ///
     /// * `tensors` - The tensors on which to perform all_reduce.
     /// * `op` - The [`ReduceOperation`].
     ///
-    /// # Safety
+    /// # Returns
     ///
-    /// Ensure that the tensors are not accessed/modified when calling in-place operation.
-    #[allow(unused)]
-    unsafe fn all_reduce_in_place(tensors: Vec<TensorRef<Self>>, op: ReduceOperation) {
-        unsafe { all_reduce_inplace_centralized(tensors, op) };
+    /// The corresponding [CollectiveTensor].
+    fn all_reduce(
+        _tensor: FloatTensor<Self>,
+        _op: ReduceOperation,
+        _device_ids: Vec<DeviceId>,
+    ) -> CollectiveTensor<Self> {
+        unimplemented!()
     }
 
     /// Sync the collective operations.
@@ -102,16 +114,15 @@ pub trait DistributedBackend: Backend {
     /// # Arguments
     ///
     /// * `device` - The device to sync.
-    #[allow(unused)]
-    fn sync_collective(device: &Self::Device) {
-        // Default implementation executes collective operations synchronously, so nothing to do here.
+    fn sync_collective(_device: &Self::Device) {
+        unimplemented!()
     }
 
-    /// Gets the device of the tensor.
+    /// Get the device of the tensor reference.
     ///
     /// # Arguments
     ///
-    /// * `tensor` - The tensor.
+    /// * `tensor` - The tensor reference.
     ///
     /// # Returns
     ///

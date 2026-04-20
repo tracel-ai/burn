@@ -1562,6 +1562,8 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
             OperationIr::Drop(repr) => {
                 handles.remove_handle(repr.id);
             }
+            #[cfg(feature = "distributed")]
+            OperationIr::Distributed(_op) => todo!(),
         }
     }
 

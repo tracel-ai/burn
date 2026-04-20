@@ -162,6 +162,8 @@ impl RelativeOps for OperationIr {
             OperationIr::Custom(ops) => OperationIr::Custom(ops.to_relative(converter)),
             OperationIr::Init(ops) => OperationIr::Init(ops.to_relative(converter)),
             OperationIr::Drop(tensor) => OperationIr::Drop(tensor.to_relative(converter)),
+            #[cfg(feature = "distributed")]
+            OperationIr::Distributed(ops) => OperationIr::Distributed(ops.to_relative(converter)),
         }
     }
 }
@@ -1212,6 +1214,20 @@ impl RelativeOps for TensorIr {
             .insert(self.id, relative_tensor.clone());
 
         relative_tensor
+    }
+}
+
+#[cfg(feature = "distributed")]
+impl RelativeOps for DistributedOperationIr {
+    fn to_relative(&self, converter: &mut OperationConverter) -> Self {
+        match self {
+            DistributedOperationIr::AllReduce(desc) => {
+                DistributedOperationIr::AllReduce(AllReduceOpIr {
+                    tensor: desc.tensor.to_relative(converter),
+                    out: desc.out.to_relative(converter),
+                })
+            }
+        }
     }
 }
 
