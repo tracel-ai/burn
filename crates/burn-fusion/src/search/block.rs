@@ -58,7 +58,7 @@ impl<O: NumOperations> Block<O> {
     /// Optimize the block.
     pub fn optimize(mut self) -> BlockOptimization<O> {
         match find_best_optimization_index(&mut self.builders) {
-            Some(index) => {
+            BestOptimization::Found { index, score } => {
                 let opt = self.builders[index].finish();
                 let opt_len = opt.len();
                 if opt_len < self.operations.len() {
@@ -68,10 +68,11 @@ impl<O: NumOperations> Block<O> {
                 let strategy = ExecutionStrategy::Optimization {
                     ordering: Arc::new(self.ordering.clone()),
                     opt,
+                    score,
                 };
                 BlockOptimization::new(strategy, self.ordering)
             }
-            None => {
+            BestOptimization::NotFound => {
                 let strategy = ExecutionStrategy::Operations {
                     ordering: Arc::new(self.ordering.clone()),
                 };
@@ -215,10 +216,15 @@ impl<O> ExecutionStrategy<O> {
     }
 }
 
+enum BestOptimization {
+    NotFound,
+    Found { index: usize, score: u64 },
+}
+
 fn find_best_optimization_index<O>(
     optimizations: &mut [Box<dyn OperationFuser<O>>],
-) -> Option<usize> {
-    let mut best_index = None;
+) -> BestOptimization {
+    let mut best_index = BestOptimization::NotFound;
     let mut best_score = 0;
 
     for (i, optimization) in optimizations.iter().enumerate() {
@@ -226,7 +232,10 @@ fn find_best_optimization_index<O>(
 
         // A score of zero is worse than fusing.
         if properties.ready && properties.score > best_score {
-            best_index = Some(i);
+            best_index = BestOptimization::Found {
+                index: i,
+                score: properties.score,
+            };
             best_score = properties.score;
         }
     }

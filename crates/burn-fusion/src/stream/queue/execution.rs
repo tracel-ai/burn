@@ -127,7 +127,7 @@ impl<'a, R: FusionRuntime> QueueExecution<'a, R> {
                 converter,
                 execution,
             } => match strategy {
-                ExecutionStrategy::Optimization { ordering, opt } => {
+                ExecutionStrategy::Optimization { ordering, opt, .. } => {
                     let mut context = converter.context(handles);
                     execution.execute_optimization(opt, &mut context, ordering.clone())
                 }
@@ -137,7 +137,7 @@ impl<'a, R: FusionRuntime> QueueExecution<'a, R> {
                 ExecutionStrategy::Composed(_) => unreachable!(),
             },
             QueueExecution::Multiple { context, execution } => match strategy {
-                ExecutionStrategy::Optimization { opt, ordering } => {
+                ExecutionStrategy::Optimization { opt, ordering, .. } => {
                     execution.execute_optimization(opt, context, ordering.clone());
                 }
                 ExecutionStrategy::Operations { ordering } => {

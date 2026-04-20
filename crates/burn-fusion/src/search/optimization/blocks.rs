@@ -163,15 +163,27 @@ impl<O: NumOperations> BlocksOptimizer<O> {
         ordering_global: &mut Vec<usize>,
     ) -> BlockOptimizationStep<O> {
         match optimization.strategy {
-            ExecutionStrategy::Optimization { opt, ordering } => {
+            ExecutionStrategy::Optimization {
+                opt,
+                ordering,
+                score,
+            } => {
                 ordering_global.append(&mut optimization.ordering);
                 let holes = self.find_holes(last_index);
 
                 if holes.is_empty() {
-                    let strategy = ExecutionStrategy::Optimization { opt, ordering };
+                    let strategy = ExecutionStrategy::Optimization {
+                        opt,
+                        ordering,
+                        score,
+                    };
                     BlockOptimizationStep::Contiguous { strategy }
                 } else {
-                    let strategy = ExecutionStrategy::Optimization { opt, ordering };
+                    let strategy = ExecutionStrategy::Optimization {
+                        opt,
+                        ordering,
+                        score,
+                    };
                     BlockOptimizationStep::WithHoles { strategy, holes }
                 }
             }

@@ -45,12 +45,16 @@ fn collect_entries<O: NumOperations>(
     entries: &mut Vec<Entry>,
 ) {
     match strategy {
-        ExecutionStrategy::Optimization { opt, ordering } => {
+        ExecutionStrategy::Optimization {
+            opt,
+            ordering,
+            score,
+        } => {
             let opt_type = opt.name();
             for &idx in ordering.iter() {
                 entries.push(Entry {
                     kind: EntryKind::Fused {
-                        opt_type: opt_type.into(),
+                        opt_type: format!("{} score {}", opt_type, score),
                     },
                     operation: global[idx].clone(),
                 });
