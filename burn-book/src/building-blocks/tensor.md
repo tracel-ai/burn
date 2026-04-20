@@ -438,6 +438,16 @@ strategies.
 | `linalg::vector_norm(tensor, p, dim)`              | `torch.linalg.vector_norm(tensor, p, dim)`          |
 | `linalg::vector_normalize(tensor, norm, dim, eps)` | `nn.functional.normalize(tensor, p, dim, eps)`      |
 
+## Signal Processing Functions
+
+| Burn API                                           | PyTorch Equivalent                    |  
+| -------------------------------------------------- | ------------------------------------- |  
+| `signal::blackman_window(size, periodic, options)` | `torch.hamming_window(size, periodic)`|
+| `signal::hamming_window(size, periodic, options)`  | `torch.hamming_window(size, periodic)`|
+| `signal::hann_window(size, periodic, options)`     | `torch.hann_window(size, periodic)`   |
+| `signal::irfft(spectrum_re, spectrum_im, dim)`     | `torch.fft.irfft(input, dim=dim)`     |
+| `signal::rfft(signal, dim)`                        | `torch.fft.rfft(signal, dim=dim)`     |  
+
 ## Displaying Tensor Details
 
 Burn provides flexible options for displaying tensor information, allowing you to control the level
