@@ -100,7 +100,11 @@ fn format_table(sections: &[Section]) -> String {
         for (i, op) in section.ops.iter().enumerate() {
             let row = Row {
                 idx: global_idx.to_string(),
-                section: if i == 0 { header.clone() } else { String::new() },
+                section: if i == 0 {
+                    header.clone()
+                } else {
+                    String::new()
+                },
                 op: op_kind(op),
                 inputs: format_tensors(op.inputs()),
                 outputs: format_tensors(op.outputs()),

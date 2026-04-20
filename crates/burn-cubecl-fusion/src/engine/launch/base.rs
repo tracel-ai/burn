@@ -37,7 +37,7 @@ impl<'a, R: Runtime, Runner: TraceRunner<R>> FuseTraceLauncher<'a, R, Runner> {
         &self,
         client: &ComputeClient<R>,
         device: &R::Device,
-        context: &mut Context<'_, CubeFusionHandle<R>>,
+        context: &mut Context<CubeFusionHandle<R>>,
     ) -> Result<TuneOutput<R>, TraceError<Runner::Error>> {
         let mut plan = LaunchPlan::new(&self.trace.blocks);
 
@@ -69,7 +69,7 @@ impl<'a, R: Runtime, Runner: TraceRunner<R>> FuseTraceLauncher<'a, R, Runner> {
 
     fn rollback(
         &self,
-        context: &mut Context<'_, CubeFusionHandle<R>>,
+        context: &mut Context<CubeFusionHandle<R>>,
         handle_inputs: Vec<HandleInput<R>>,
         handle_outputs: Vec<HandleOutput<R>>,
     ) {

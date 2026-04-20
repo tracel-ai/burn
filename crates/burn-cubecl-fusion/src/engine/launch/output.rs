@@ -95,7 +95,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         mut self,
         client: &ComputeClient<R>,
         device: &R::Device,
-        context: &mut Context<'_, CubeFusionHandle<R>>,
+        context: &mut Context<CubeFusionHandle<R>>,
         plan: &mut LaunchPlan<'a, R>,
     ) {
         // So that we can borrow self during the iteration.
@@ -363,7 +363,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
     #[allow(clippy::too_many_arguments)]
     fn inplace_output(
         &mut self,
-        context: &mut Context<'_, CubeFusionHandle<R>>,
+        context: &mut Context<CubeFusionHandle<R>>,
         plan: &mut LaunchPlan<'a, R>,
         output: OutputSorted,
         tensor_global: TensorIr,
@@ -451,7 +451,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         &mut self,
         client: &ComputeClient<R>,
         device: &R::Device,
-        context: &mut Context<'_, CubeFusionHandle<R>>,
+        context: &mut Context<CubeFusionHandle<R>>,
         plan: &mut LaunchPlan<'a, R>,
         output: OutputSorted,
         tensor_global: TensorIr,
@@ -532,7 +532,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         &mut self,
         client: &ComputeClient<R>,
         device: &R::Device,
-        context: &mut Context<'_, CubeFusionHandle<R>>,
+        context: &mut Context<CubeFusionHandle<R>>,
         plan: &mut LaunchPlan<'a, R>,
         output: OutputSorted,
         tensor_global: TensorIr,
@@ -610,7 +610,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         &mut self,
         client: &ComputeClient<R>,
         device: &R::Device,
-        context: &mut Context<'_, CubeFusionHandle<R>>,
+        context: &mut Context<CubeFusionHandle<R>>,
         plan: &mut LaunchPlan<'a, R>,
         output: OutputSorted,
         tensor_global: TensorIr,

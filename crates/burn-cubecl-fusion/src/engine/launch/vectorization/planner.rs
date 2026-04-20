@@ -45,7 +45,7 @@ impl<'a, R: Runtime> VectorizationPlanner<'a, R> {
         self,
         client: &ComputeClient<R>,
         runner: &Runner,
-        context: &Context<'_, CubeFusionHandle<R>>,
+        context: &Context<CubeFusionHandle<R>>,
         plan: &mut LaunchPlan<'a, R>,
     ) {
         let has_multiple_read = |tensor: &TensorId| {

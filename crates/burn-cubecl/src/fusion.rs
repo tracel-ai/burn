@@ -31,7 +31,6 @@ where
     fn execute(
         &mut self,
         context: &mut burn_fusion::stream::Context<
-            '_,
             <FusionCubeRuntime<R> as FusionRuntime>::FusionHandle,
         >,
         execution: &OrderedExecution<FusionCubeRuntime<R>>,
@@ -88,16 +87,16 @@ impl<O: Clone> FallbackOperationWrapper<O> {
 impl<R: CubeRuntime> FallbackOperation<R>
     for FallbackOperationWrapper<Arc<dyn Operation<FusionCubeRuntime<R>>>>
 {
-    fn run(&self, context: &mut burn_fusion::stream::Context<'_, CubeFusionHandle<R>>) {
-        self.operation.as_ref().execute(context.handles);
+    fn run(&self, context: &mut burn_fusion::stream::Context<CubeFusionHandle<R>>) {
+        self.operation.as_ref().execute(&mut context.handles);
     }
 }
 
 impl<R: CubeRuntime> FallbackOperation<R>
     for FallbackOperationWrapper<UnfusedOp<FusionCubeRuntime<R>>>
 {
-    fn run(&self, context: &mut burn_fusion::stream::Context<'_, CubeFusionHandle<R>>) {
-        self.operation.execute(context.handles);
+    fn run(&self, context: &mut burn_fusion::stream::Context<CubeFusionHandle<R>>) {
+        self.operation.execute(&mut context.handles);
     }
 }
 

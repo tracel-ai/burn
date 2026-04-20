@@ -420,6 +420,16 @@ where
         .unwrap()
     }
 
+    fn float_mean(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
+        reduce::reduce(
+            tensor,
+            None,
+            Default::default(),
+            ReduceOperationConfig::Mean,
+        )
+        .unwrap()
+    }
+
     fn float_cumsum(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
         numeric::cumsum(tensor, dim)
     }

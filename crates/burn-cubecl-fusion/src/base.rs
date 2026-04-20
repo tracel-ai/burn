@@ -12,7 +12,7 @@ use std::marker::PhantomData;
 /// Defines a fallback operation when fusion isn't possible.
 pub trait FallbackOperation<R: Runtime>: Send + Sync {
     /// Executes the fallback procedure.
-    fn run(&self, context: &mut Context<'_, CubeFusionHandle<R>>);
+    fn run(&self, context: &mut Context<CubeFusionHandle<R>>);
 }
 
 /// Runtime parameters for quantization. Can be used to construct a scales handle from the base
