@@ -5,7 +5,6 @@
 use burn_ir::{OperationIr, TensorIr};
 use burn_std::config::{fusion::FusionLogLevel, log_fusion};
 use core::fmt::Write;
-use std::any::type_name_of_val;
 
 use crate::NumOperations;
 use crate::stream::store::ExecutionStrategy;
@@ -35,11 +34,7 @@ struct Entry {
 enum EntryKind {
     /// Part of a fused optimization. Carries the Rust type name of the optimization and
     /// the position of this op within the fused block.
-    Fused {
-        opt_type: &'static str,
-        index_in_block: usize,
-        block_size: usize,
-    },
+    Fused { opt_type: String },
     /// Executed as a plain operation, possibly out of registration order.
     OutOfOrder,
 }
@@ -51,14 +46,11 @@ fn collect_entries<O: NumOperations>(
 ) {
     match strategy {
         ExecutionStrategy::Optimization { opt, ordering } => {
-            let opt_type = short_type_name(type_name_of_val(opt));
-            let block_size = ordering.len();
-            for (i, &idx) in ordering.iter().enumerate() {
+            let opt_type = opt.name();
+            for &idx in ordering.iter() {
                 entries.push(Entry {
                     kind: EntryKind::Fused {
-                        opt_type,
-                        index_in_block: i,
-                        block_size,
+                        opt_type: opt_type.into(),
                     },
                     operation: global[idx].clone(),
                 });
@@ -99,12 +91,10 @@ fn format_table(entries: &[Entry]) -> String {
         .map(|(i, e)| Row {
             order: i.to_string(),
             kind: match &e.kind {
-                EntryKind::Fused {
-                    opt_type,
-                    index_in_block,
-                    block_size,
-                } => format!("fused [{index_in_block}/{block_size}] {opt_type}"),
-                EntryKind::OutOfOrder => "out-of-order".to_string(),
+                EntryKind::Fused { opt_type } => format!("fused {opt_type}"),
+                EntryKind::OutOfOrder => {
+                    format!("out-of-order")
+                }
             },
             op: op_kind(&e.operation),
             inputs: format_tensors(e.operation.inputs()),
@@ -112,7 +102,7 @@ fn format_table(entries: &[Entry]) -> String {
         })
         .collect();
 
-    let headers = ["idx", "kind", "op", "inputs", "outputs"];
+    let headers = ["order", "kind", "op", "inputs", "outputs"];
     let mut widths = [
         headers[0].len(),
         headers[1].len(),
@@ -177,15 +167,6 @@ fn format_table(entries: &[Entry]) -> String {
         out.pop();
     }
     out
-}
-
-/// Extract a short, single-segment type name: `"my::crate::path::Kernel<T>"` → `"Kernel"`.
-fn short_type_name(full: &'static str) -> &'static str {
-    let before_generics = match full.find('<') {
-        Some(i) => &full[..i],
-        None => full,
-    };
-    before_generics.rsplit("::").next().unwrap_or(full)
 }
 
 /// Take the top-level variant name from a Debug representation (`"Foo(..)"` → `"Foo"`).

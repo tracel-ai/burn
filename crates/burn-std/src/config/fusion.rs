@@ -38,7 +38,16 @@ fn default_max_blocks() -> usize {
 
 /// Log levels for fusion logging.
 #[derive(
-    Default, Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+    Default,
+    Clone,
+    Copy,
+    Debug,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    serde::Serialize,
+    serde::Deserialize,
 )]
 pub enum FusionLogLevel {
     /// Fusion logging is disabled.

@@ -54,6 +54,9 @@ impl NumOperations for TestOptimization {
     fn len(&self) -> usize {
         self.size
     }
+    fn name(&self) -> &'static str {
+        "TestOptimization"
+    }
 }
 
 /// A fake [stream segment](StreamSegment) for testing purpose.

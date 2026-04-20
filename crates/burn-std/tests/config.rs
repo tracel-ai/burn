@@ -5,9 +5,9 @@
 //! serde's default behaviour is to ignore unknown top-level fields, and these tests lock
 //! that in.
 
-use burn_std::config::{BurnConfig, RuntimeConfig};
 use burn_std::config::autodiff::AutodiffLogLevel;
 use burn_std::config::fusion::FusionLogLevel;
+use burn_std::config::{BurnConfig, RuntimeConfig};
 use std::io::Write;
 use tempfile::NamedTempFile;
 
