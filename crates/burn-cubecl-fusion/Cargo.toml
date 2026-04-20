@@ -47,7 +47,9 @@ half = { workspace = true, optional = true }
 burn-backend = { path = "../burn-backend", version = "=0.21.0-pre.3", default-features = false, optional = true }
 
 derive-new = { workspace = true }
+hashbrown = { workspace = true }
 serde = { workspace = true }
+spin = { workspace = true }
 
 [dev-dependencies]
 cubecl = { workspace = true, features = ["test-runtime"] }

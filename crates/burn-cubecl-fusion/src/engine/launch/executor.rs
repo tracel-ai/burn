@@ -47,7 +47,7 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
         self,
         client: &ComputeClient<R>,
         runner: &Runner,
-        context: &mut Context<'_, CubeFusionHandle<R>>,
+        context: &mut Context<CubeFusionHandle<R>>,
         plan: LaunchPlan<'a, R>,
     ) -> Result<TuneOutput<R>, ExecutionError<R, Runner>> {
         let mut num_writes = 0;
@@ -265,7 +265,7 @@ fn register_outputs<R: Runtime>(
 fn register_scalars<'h, R: Runtime>(
     scalars: impl Iterator<Item = &'h (FuseType, u64)>,
     views: impl DoubleEndedIterator<Item = &'h TensorView>,
-    context: &mut Context<'_, CubeFusionHandle<R>>,
+    context: &mut Context<CubeFusionHandle<R>>,
     inputs: &mut GlobalArgsLaunch<R>,
 ) {
     for (precision, id) in scalars {

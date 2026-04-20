@@ -42,7 +42,7 @@ impl<R: FusionRuntime> OrderedExecution<R> {
     pub(crate) fn execute_optimization(
         &mut self,
         optimization: &mut R::Optimization,
-        context: &mut Context<'_, R::FusionHandle>,
+        context: &mut Context<R::FusionHandle>,
         ordering: Arc<Vec<usize>>,
     ) {
         if ordering.len() > self.operations.len() {

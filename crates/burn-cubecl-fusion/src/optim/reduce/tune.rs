@@ -2,13 +2,19 @@ use super::optimization::ReduceOptimizationTuneArg;
 use crate::{
     CubeFusionHandle,
     engine::trace::TuneOutput,
-    tune::{TuneContext, TuneInput},
+    tune::{FusionTuneInputs, TuneInput},
 };
 use burn_fusion::stream::Context;
 use cubecl::{
     AutotuneKey, CubeTuneId, Runtime,
     tune::{LocalTuner, Tunable, TunableSet, TuneGroup, local_tuner},
 };
+
+type ReduceSet<R> = TunableSet<
+    FusedReduceAutotuneKey,
+    FusionTuneInputs<R, ReduceOptimizationTuneArg<R>>,
+    TuneOutput<R>,
+>;
 use cubek::reduce::{
     launch::{RoutineStrategy, tune_key::ReduceAutotuneKey},
     routines::{BlueprintStrategy, cube::CubeStrategy, plane::PlaneStrategy, unit::UnitStrategy},
@@ -44,7 +50,7 @@ pub fn fused_reduce_autotune<R: Runtime>(
         const PRIORITY_MAX: i8 = 2;
         const PRIORITY_MIN: i8 = 1;
 
-        let mut set = TunableSet::new(create_key::<R>, input_gen::<R>);
+        let mut set = ReduceSet::<R>::new_cloning_inputs(create_key::<R>);
         let group = TuneGroup::<FusedReduceAutotuneKey>::new("fused_reduce", |_key| PRIORITY_MAX);
 
         // Fallback implementation for robustness.
@@ -120,13 +126,10 @@ pub(crate) fn create_key<R: Runtime>(
     input: &TuneInput<R, ReduceOptimizationTuneArg<R>>,
 ) -> FusedReduceAutotuneKey {
     let opt = input.optimization();
-    let context = match input.context() {
-        TuneContext::Original(context) => context,
-        TuneContext::Fork(_) => panic!("Forked context not supported for key generation"),
-    };
+    let tensors = input.tensors();
 
-    let input_tensor = context.tensors.get(&opt.info.reduce.op.input.id).unwrap();
-    let out_tensor = context.tensors.get(&opt.info.reduce.op.out.id).unwrap();
+    let input_tensor = tensors.get(&opt.info.reduce.op.input.id).unwrap();
+    let out_tensor = tensors.get(&opt.info.reduce.op.out.id).unwrap();
     let acc = opt.info.reduce.acc.into_elem();
 
     let key = ReduceAutotuneKey::generate(
@@ -150,40 +153,20 @@ pub(crate) fn create_key<R: Runtime>(
     )
 }
 
-/// Identity generator for tuning inputs.
-fn input_gen<R: Runtime>(
-    _key: &FusedReduceAutotuneKey,
-    input: &TuneInput<R, ReduceOptimizationTuneArg<R>>,
-) -> TuneInput<R, ReduceOptimizationTuneArg<R>> {
-    input.clone()
-}
-
 /// Executes a fused reduction optimization.
 fn tune_reduce<R: Runtime>(
     input: TuneInput<R, ReduceOptimizationTuneArg<R>>,
     strategy: &RoutineStrategy,
 ) -> Result<TuneOutput<R>, String> {
-    let optimization = input.optimization();
-
-    match input.context() {
-        TuneContext::Original(context) => optimization.execute_fused(context, strategy.clone()),
-        TuneContext::Fork(mut fork) => {
-            optimization.execute_fused(&mut fork.as_context(), strategy.clone())
-        }
-    }
-    .map_err(|e| format!("{e:?}"))
+    input
+        .execute(|context, optimization| optimization.execute_fused(context, strategy.clone()))
+        .map_err(|e| format!("{e:?}"))
 }
 
 /// Executes the fallback path for a reduction optimization.
 fn tune_fallback<R: Runtime>(
     input: TuneInput<R, ReduceOptimizationTuneArg<R>>,
 ) -> Result<TuneOutput<R>, String> {
-    let optimization = input.optimization();
-
-    match input.context() {
-        TuneContext::Original(context) => optimization.execute_fallback(context),
-        TuneContext::Fork(mut fork) => optimization.execute_fallback(&mut fork.as_context()),
-    };
-
+    input.execute(|context, optimization| optimization.execute_fallback(context));
     Ok(TuneOutput::UnChecked(std::marker::PhantomData))
 }

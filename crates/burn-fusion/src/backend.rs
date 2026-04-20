@@ -159,11 +159,7 @@ pub trait NumOperations: core::fmt::Debug {
 /// The optimization created from a [fuser](OperationFuser).
 pub trait Optimization<R: FusionRuntime>: Send + NumOperations {
     /// Execute the optimization.
-    fn execute(
-        &mut self,
-        context: &mut Context<'_, R::FusionHandle>,
-        execution: &OrderedExecution<R>,
-    );
+    fn execute(&mut self, context: &mut Context<R::FusionHandle>, execution: &OrderedExecution<R>);
 
     /// Returns the state that can be serialized.
     fn to_state(&self) -> R::OptimizationState;

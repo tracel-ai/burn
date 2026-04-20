@@ -50,7 +50,7 @@ impl VectorSizeOverrides {
         self.default = Some(vector_sizes);
     }
 
-    pub fn mapping<R: Runtime>(&self, context: &Context<'_, CubeFusionHandle<R>>) -> Self {
+    pub fn mapping<R: Runtime>(&self, context: &Context<CubeFusionHandle<R>>) -> Self {
         match &self.state {
             Some(state) => {
                 let mut state_new = BTreeMap::new();

@@ -4,10 +4,20 @@ use crate::{BackendIr, TensorHandle, TensorId, TensorIr, TensorStatus};
 
 /// Keep all [tensor handles](BackendIr::Handle) in one place and ensure that all resources
 /// are used optimally.
-#[derive(Default)]
 pub struct HandleContainer<H> {
     handles: HashMap<TensorId, Handle<H>>,
     counter: u64,
+}
+
+// Hand-written so we don't require `H: Default`, the derived `#[derive(Default)]` would add
+// that bound conservatively.
+impl<H> Default for HandleContainer<H> {
+    fn default() -> Self {
+        Self {
+            handles: HashMap::new(),
+            counter: 0,
+        }
+    }
 }
 
 impl<H: Clone> HandleContainer<H> {

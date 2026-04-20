@@ -90,7 +90,7 @@ impl<R: Runtime> MatmulOptimizationInfo<R> {
 impl<R: Runtime> MatmulOptimizationTuneArg<R> {
     pub(crate) fn execute_fused(
         &self,
-        context: &mut Context<'_, CubeFusionHandle<R>>,
+        context: &mut Context<CubeFusionHandle<R>>,
         selector: FusedMatmulSelector,
     ) -> Result<TuneOutput<R>, TraceError<FusedMatmulError>> {
         let launch = FusedMatmulLaunch::new(&self.info.matmul, selector);
@@ -99,10 +99,7 @@ impl<R: Runtime> MatmulOptimizationTuneArg<R> {
         launcher.launch(&self.info.client, &self.info.device, context)
     }
 
-    pub fn execute_fallback(
-        &self,
-        context: &mut Context<'_, CubeFusionHandle<R>>,
-    ) -> TuneOutput<R> {
+    pub fn execute_fallback(&self, context: &mut Context<CubeFusionHandle<R>>) -> TuneOutput<R> {
         self.fallback.run(context);
 
         #[cfg(feature = "autotune-checks")]
@@ -159,7 +156,7 @@ impl<R: Runtime> MatmulOptimization<R> {
     /// Execute the optimization.
     pub fn execute(
         &mut self,
-        context: &mut Context<'_, CubeFusionHandle<R>>,
+        context: &mut Context<CubeFusionHandle<R>>,
         fallback: impl FnOnce(usize) -> Box<dyn FallbackOperation<R>>,
     ) {
         // The index of the fallback matmul is always 0.
