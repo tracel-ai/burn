@@ -24,17 +24,44 @@ std::thread_local! {
 /// Subsequent calls on the same thread only pay an `Arc` clone. On `no_std` builds this
 /// is equivalent to [`BurnConfig::get`].
 ///
+/// On the first call across the whole program, the `cubecl` sub-config (when the
+/// `cubecl` feature is enabled) is pushed into CubeCL's own global config so a single
+/// `burn.toml` can hold both Burn and CubeCL settings.
+///
 /// Safe because [`BurnConfig::set`] panics after the first read, so the cached snapshot
 /// matches the global singleton for the whole program lifetime.
 pub fn config() -> Arc<BurnConfig> {
     #[cfg(feature = "std")]
     {
-        LOCAL_CONFIG.with(|cell| cell.get_or_init(BurnConfig::get).clone())
+        LOCAL_CONFIG.with(|cell| {
+            cell.get_or_init(|| {
+                let config = BurnConfig::get();
+                #[cfg(feature = "cubecl")]
+                propagate_cubecl(&config);
+                config
+            })
+            .clone()
+        })
     }
     #[cfg(not(feature = "std"))]
     {
         BurnConfig::get()
     }
+}
+
+#[cfg(all(feature = "std", feature = "cubecl"))]
+fn propagate_cubecl(config: &BurnConfig) {
+    use cubecl::config::{CubeClRuntimeConfig, RuntimeConfig};
+
+    static PROPAGATED: std::sync::OnceLock<()> = std::sync::OnceLock::new();
+    PROPAGATED.get_or_init(|| {
+        // Only install if CubeCL hasn't been initialized yet (e.g. via its own TOML or
+        // an earlier explicit `CubeClRuntimeConfig::set`). First writer wins.
+        let mut state = CubeClRuntimeConfig::storage().lock();
+        if state.is_none() {
+            *state = Some(Arc::new(config.cubecl.clone()));
+        }
+    });
 }
 
 /// Central logging utility for Burn, managing one sink registry shared across subsystems.

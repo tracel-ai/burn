@@ -17,6 +17,15 @@ pub struct BurnConfig {
     /// Configuration for autodiff.
     #[serde(default)]
     pub autodiff: AutodiffConfig,
+
+    /// Configuration for the CubeCL runtime.
+    ///
+    /// Propagated to CubeCL's global config on the first call to
+    /// [`crate::config::config`], so a single `burn.toml` can hold both Burn and CubeCL
+    /// settings under `[cubecl.autotune]`, `[cubecl.compilation]`, etc.
+    #[cfg(feature = "cubecl")]
+    #[serde(default)]
+    pub cubecl: cubecl::config::CubeClRuntimeConfig,
 }
 
 impl RuntimeConfig for BurnConfig {
