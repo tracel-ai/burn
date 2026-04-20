@@ -188,23 +188,37 @@ fn short_type_name(full: &'static str) -> &'static str {
     before_generics.rsplit("::").next().unwrap_or(full)
 }
 
-/// Take only the top-level variant name from a Debug representation. For nested enums
-/// like `Float(F32, Exp(UnaryOpIr { .. }))`, we also peek at the inner variant.
-fn op_kind(op: &OperationIr) -> String {
-    let top = debug_head(&format!("{op:?}"));
-    match op {
-        OperationIr::NumericFloat(_, inner) => format!("NumericFloat::{}", debug_head(&format!("{inner:?}"))),
-        OperationIr::NumericInt(_, inner) => format!("NumericInt::{}", debug_head(&format!("{inner:?}"))),
-        OperationIr::Float(_, inner) => format!("Float::{}", debug_head(&format!("{inner:?}"))),
-        _ => top,
-    }
-}
-
-fn debug_head(s: &str) -> String {
+/// Take the top-level variant name from a Debug representation (`"Foo(..)"` → `"Foo"`).
+fn debug_head(s: &str) -> &str {
     let end = s
         .find(|c: char| matches!(c, '(' | '{' | ' '))
         .unwrap_or(s.len());
-    s[..end].to_string()
+    &s[..end]
+}
+
+/// Produce a "Outer::Inner" kind string for every variant that has an inner enum,
+/// so the table shows the concrete operation (e.g. `BaseFloat::Reshape`) rather than
+/// just the category.
+fn op_kind(op: &OperationIr) -> String {
+    fn inner(s: String) -> String {
+        debug_head(&s).to_string()
+    }
+    match op {
+        OperationIr::BaseFloat(x) => format!("BaseFloat::{}", inner(format!("{x:?}"))),
+        OperationIr::BaseInt(x) => format!("BaseInt::{}", inner(format!("{x:?}"))),
+        OperationIr::BaseBool(x) => format!("BaseBool::{}", inner(format!("{x:?}"))),
+        OperationIr::NumericFloat(_, x) => format!("NumericFloat::{}", inner(format!("{x:?}"))),
+        OperationIr::NumericInt(_, x) => format!("NumericInt::{}", inner(format!("{x:?}"))),
+        OperationIr::Bool(x) => format!("Bool::{}", inner(format!("{x:?}"))),
+        OperationIr::Int(x) => format!("Int::{}", inner(format!("{x:?}"))),
+        OperationIr::Float(_, x) => format!("Float::{}", inner(format!("{x:?}"))),
+        OperationIr::Module(x) => format!("Module::{}", inner(format!("{x:?}"))),
+        OperationIr::Init(x) => format!("Init::{}", inner(format!("{x:?}"))),
+        OperationIr::Custom(_) => "Custom".to_string(),
+        OperationIr::Drop(_) => "Drop".to_string(),
+        #[cfg(feature = "distributed")]
+        OperationIr::Distributed(x) => format!("Distributed::{}", inner(format!("{x:?}"))),
+    }
 }
 
 fn format_tensors<'a, I: Iterator<Item = &'a TensorIr>>(tensors: I) -> String {
@@ -215,7 +229,91 @@ fn format_tensors<'a, I: Iterator<Item = &'a TensorIr>>(tensors: I) -> String {
             out.push_str(", ");
         }
         first = false;
-        write!(out, "{:?}{}#{}", t.dtype, t.shape, t.id).unwrap();
+        write!(out, "t{}:", t.id.value()).unwrap();
+        write_dtype(&mut out, &t.dtype);
+        write_shape(&mut out, &t.shape);
     }
     out
+}
+
+fn write_dtype(out: &mut String, dtype: &burn_backend::DType) {
+    // Debug gives "F32", "Bool(Native)", etc. Lowercase the initial identifier so the
+    // output reads like a Rust type annotation; keep anything after the first paren/brace
+    // (e.g. Bool variants or QFloat scheme details) verbatim.
+    let dbg = format!("{dtype:?}");
+    let split = dbg
+        .find(|c: char| matches!(c, '(' | '{' | ' '))
+        .unwrap_or(dbg.len());
+    let (head, tail) = dbg.split_at(split);
+    for c in head.chars() {
+        out.push(c.to_ascii_lowercase());
+    }
+    out.push_str(tail);
+}
+
+fn write_shape(out: &mut String, shape: &burn_backend::Shape) {
+    out.push('[');
+    let mut first = true;
+    for d in shape.iter() {
+        if !first {
+            out.push(',');
+        }
+        first = false;
+        write!(out, "{d}").unwrap();
+    }
+    out.push(']');
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use burn_backend::{DType, Shape};
+    use burn_ir::{BaseOperationIr, TensorId, TensorIr, TensorStatus, UnaryOpIr};
+
+    fn tensor(id: u64, dims: &[usize]) -> TensorIr {
+        TensorIr {
+            id: TensorId::new(id),
+            shape: Shape::new_raw(dims.iter().copied().collect()),
+            status: TensorStatus::ReadOnly,
+            dtype: DType::F32,
+        }
+    }
+
+    #[test]
+    fn tensor_format_is_compact() {
+        let t = tensor(42, &[2, 3, 4]);
+        let out = format_tensors(core::iter::once(&t));
+        assert_eq!(out, "t42:f32[2,3,4]");
+    }
+
+    #[test]
+    fn tensor_format_multiple_tensors_comma_separated() {
+        let a = tensor(1, &[8]);
+        let b = tensor(2, &[]);
+        let out = format_tensors([&a, &b].into_iter());
+        assert_eq!(out, "t1:f32[8], t2:f32[]");
+    }
+
+    #[test]
+    fn op_kind_includes_inner_variant() {
+        let input = tensor(1, &[4, 2]);
+        let out = tensor(2, &[2, 4]);
+        let op = OperationIr::BaseFloat(BaseOperationIr::Permute(burn_ir::PermuteOpIr {
+            input,
+            out,
+            axes: vec![1, 0],
+        }));
+        assert_eq!(op_kind(&op), "BaseFloat::Permute");
+    }
+
+    #[test]
+    fn op_kind_handles_unary_inside_float() {
+        let input = tensor(1, &[4]);
+        let out = tensor(2, &[4]);
+        let op = OperationIr::Float(
+            DType::F32,
+            burn_ir::FloatOperationIr::Exp(UnaryOpIr { input, out }),
+        );
+        assert_eq!(op_kind(&op), "Float::Exp");
+    }
 }
