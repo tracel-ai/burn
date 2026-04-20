@@ -5,7 +5,7 @@ use crate::{
 };
 #[cfg(feature = "distributed")]
 use burn_backend::distributed::DistributedBackend;
-use burn_backend::{Device, DeviceHandle, DeviceId, DeviceService};
+use burn_backend::{Device, DeviceHandle, DeviceId, DeviceService, DeviceServiceStage};
 #[cfg(feature = "distributed")]
 use burn_std::CommunicationId;
 
@@ -133,11 +133,6 @@ where
                 sync_fn()
             })
             .unwrap()
-    }
-
-    /// Flush the operations queue.
-    pub fn flush_queue(&self) {
-        self.server.flush_queue();
     }
 
     /// Flush the operations queue.
