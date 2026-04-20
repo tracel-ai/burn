@@ -1164,6 +1164,7 @@ dependencies = [
  "serde",
  "smallvec",
  "spin",
+ "tempfile",
  "tokio",
 ]
 
