@@ -10,12 +10,6 @@ use cubecl::{
     AutotuneKey, CubeTuneId, Runtime,
     tune::{LocalTuner, Tunable, TunableSet, TuneGroup, local_tuner},
 };
-
-type BroadcastedReduceSet<R> = TunableSet<
-    FusedBroadcastedReduceAutotuneKey,
-    FusionTuneInputs<R, ReduceBroadcastedOptimizationTuneArg<R>>,
-    TuneOutput<R>,
->;
 use cubek::reduce::{
     launch::{RoutineStrategy, tune_key::ReduceAutotuneKey},
     routines::{BlueprintStrategy, unit::UnitStrategy},
@@ -50,7 +44,11 @@ pub fn fused_broadcasted_reduce_autotune<R: Runtime>(
 
     let tunables = TUNER.init(|| {
         const PRIORITY_MAX: i8 = 2;
-        let mut set = BroadcastedReduceSet::<R>::new(create_key::<R>, FusionInputGen);
+        let mut set = TunableSet::<
+            FusedBroadcastedReduceAutotuneKey,
+            FusionTuneInputs<R, ReduceBroadcastedOptimizationTuneArg<R>>,
+            TuneOutput<R>,
+        >::new(create_key::<R>, FusionInputGen);
 
         let group = TuneGroup::<FusedBroadcastedReduceAutotuneKey>::new(
             "fused_reduce_broadcasted",
@@ -90,7 +88,11 @@ pub(crate) fn create_key<R: Runtime>(
     input: &TuneInput<R, ReduceBroadcastedOptimizationTuneArg<R>>,
 ) -> FusedBroadcastedReduceAutotuneKey {
     let opt = input.optimization();
-    let tensors = input.tensors();
+    assert!(
+        input.is_original(),
+        "Forked context not supported for key generation"
+    );
+    let context = input.context();
 
     // The fusion must start with a reduction block to be valid here.
     let info = match &opt.fallbacks[0] {
@@ -100,7 +102,7 @@ pub(crate) fn create_key<R: Runtime>(
         }
     };
 
-    let key = generate_reduce_autotune_key(info, tensors);
+    let key = generate_reduce_autotune_key(info, context);
 
     // Sum up complexity metrics across all blocks in the fused trace.
     let (mut num_reads, mut num_writes, mut num_ops) = (0, 0, 0);
@@ -123,10 +125,10 @@ pub(crate) fn create_key<R: Runtime>(
 /// Helper to generate the base reduction key (shapes, types, axes).
 fn generate_reduce_autotune_key<R: Runtime>(
     info: &ReduceOptimizationInfo<R>,
-    tensors: &hashbrown::HashMap<burn_ir::TensorId, burn_ir::TensorIr>,
+    context: &Context<CubeFusionHandle<R>>,
 ) -> ReduceAutotuneKey {
-    let input = tensors.get(&info.reduce.op.input.id).unwrap();
-    let out = tensors.get(&info.reduce.op.out.id).unwrap();
+    let input = context.tensors.get(&info.reduce.op.input.id).unwrap();
+    let out = context.tensors.get(&info.reduce.op.out.id).unwrap();
     let acc = info.reduce.acc.into_elem();
 
     ReduceAutotuneKey::generate(
@@ -145,7 +147,7 @@ fn tune_reduce<R: Runtime>(
     strategy: &RoutineStrategy,
 ) -> Result<TuneOutput<R>, String> {
     input
-        .execute(|context, optimization| optimization.execute_fused(context, strategy.clone()))
+        .execute(|ctx, opt| opt.execute_fused(ctx, strategy.clone()))
         .map_err(|e| format!("{e:?}"))
 }
 
@@ -153,8 +155,9 @@ fn tune_reduce<R: Runtime>(
 fn tune_fallback<R: Runtime>(
     input: TuneInput<R, ReduceBroadcastedOptimizationTuneArg<R>>,
 ) -> Result<TuneOutput<R>, String> {
-    input.execute(|context, optimization| optimization.execute_fallback(context));
-
+    input.execute(|ctx, opt| {
+        opt.execute_fallback(ctx);
+    });
     // Fallback is often used as a baseline, returning unchecked output.
     Ok(TuneOutput::UnChecked(std::marker::PhantomData))
 }

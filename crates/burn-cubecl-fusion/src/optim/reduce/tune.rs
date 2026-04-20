@@ -9,12 +9,6 @@ use cubecl::{
     AutotuneKey, CubeTuneId, Runtime,
     tune::{LocalTuner, Tunable, TunableSet, TuneGroup, local_tuner},
 };
-
-type ReduceSet<R> = TunableSet<
-    FusedReduceAutotuneKey,
-    FusionTuneInputs<R, ReduceOptimizationTuneArg<R>>,
-    TuneOutput<R>,
->;
 use cubek::reduce::{
     launch::{RoutineStrategy, tune_key::ReduceAutotuneKey},
     routines::{BlueprintStrategy, cube::CubeStrategy, plane::PlaneStrategy, unit::UnitStrategy},
@@ -50,7 +44,11 @@ pub fn fused_reduce_autotune<R: Runtime>(
         const PRIORITY_MAX: i8 = 2;
         const PRIORITY_MIN: i8 = 1;
 
-        let mut set = ReduceSet::<R>::new(create_key::<R>, FusionInputGen);
+        let mut set = TunableSet::<
+            FusedReduceAutotuneKey,
+            FusionTuneInputs<R, ReduceOptimizationTuneArg<R>>,
+            TuneOutput<R>,
+        >::new(create_key::<R>, FusionInputGen);
         let group = TuneGroup::<FusedReduceAutotuneKey>::new("fused_reduce", |_key| PRIORITY_MAX);
 
         // Fallback implementation for robustness.
@@ -126,6 +124,10 @@ pub(crate) fn create_key<R: Runtime>(
     input: &TuneInput<R, ReduceOptimizationTuneArg<R>>,
 ) -> FusedReduceAutotuneKey {
     let opt = input.optimization();
+    assert!(
+        input.is_original(),
+        "Forked context not supported for key generation"
+    );
     let tensors = input.tensors();
 
     let input_tensor = tensors.get(&opt.info.reduce.op.input.id).unwrap();
@@ -159,7 +161,7 @@ fn tune_reduce<R: Runtime>(
     strategy: &RoutineStrategy,
 ) -> Result<TuneOutput<R>, String> {
     input
-        .execute(|context, optimization| optimization.execute_fused(context, strategy.clone()))
+        .execute(|ctx, opt| opt.execute_fused(ctx, strategy.clone()))
         .map_err(|e| format!("{e:?}"))
 }
 
@@ -167,6 +169,8 @@ fn tune_reduce<R: Runtime>(
 fn tune_fallback<R: Runtime>(
     input: TuneInput<R, ReduceOptimizationTuneArg<R>>,
 ) -> Result<TuneOutput<R>, String> {
-    input.execute(|context, optimization| optimization.execute_fallback(context));
+    input.execute(|ctx, opt| {
+        opt.execute_fallback(ctx);
+    });
     Ok(TuneOutput::UnChecked(std::marker::PhantomData))
 }

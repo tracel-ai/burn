@@ -130,7 +130,8 @@ impl<'a, R: Runtime, O> TuneInput<'a, R, O> {
         matches!(self.state, TuneState::Original { .. })
     }
 
-    fn context(&self) -> &Context<CubeFusionHandle<R>> {
+    /// Read-only access to the wrapped context.
+    pub(crate) fn context(&self) -> &Context<CubeFusionHandle<R>> {
         match &self.state {
             TuneState::Original { context, .. } => context,
             TuneState::Bench(c) => c,
