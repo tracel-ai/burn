@@ -5,6 +5,7 @@ use crate::{
     search::BlockOptimization,
     stream::{
         Context, OperationConverter, OrderedExecution, RelativeOps,
+        execution::log_execution_table,
         store::{ExecutionPlanId, ExecutionPlanStore, ExecutionStrategy},
     },
 };
@@ -28,6 +29,8 @@ impl<R: FusionRuntime> OperationQueue<R> {
         step: &mut BlockOptimization<R::Optimization>,
         handles: &mut HandleContainer<R::FusionHandle>,
     ) {
+        log_execution_table(&step.strategy, &self.global);
+
         let mut operations = Vec::new();
         core::mem::swap(&mut operations, &mut self.operations);
 
