@@ -45,7 +45,7 @@ where
 /// filters each entry against the real context's current handles — anything the real
 /// context doesn't already have is a genuinely new output and gets registered.
 ///
-/// The pipeline is strictly serial (wasm try-all runs on the caller's single thread), so
+/// The pipeline is strictly serial, so
 /// the lock is always uncontended; `spin::Mutex` is there purely to give
 /// `Arc<HandleCollector<R>>` `Send + Sync`.
 pub(crate) struct HandleCollector<R: Runtime>(spin::Mutex<HashMap<TensorId, CubeFusionHandle<R>>>);
@@ -111,14 +111,10 @@ impl<'a, R: Runtime, O> TuneInput<'a, R, O> {
     /// Fork the context into a non-tracking `Fork` for a benchmark trial. See
     /// [`FusionInputGen`].
     fn for_benchmark(&self) -> Self {
-        let context = match &self.state {
-            TuneState::Original { context, .. } => context.fork(),
-            TuneState::Fork { context, .. } => context.fork(),
-        };
         Self {
             optimization: self.optimization.clone(),
             state: TuneState::Fork {
-                context: Box::new(context),
+                context: Box::new(self.context().fork()),
                 new_handles: None,
             },
         }
@@ -169,29 +165,19 @@ impl<'a, R: Runtime, O> TuneInput<'a, R, O> {
 
 impl<'a, R: Runtime, O> Clone for TuneInput<'a, R, O> {
     fn clone(&self) -> Self {
-        // `Original` clones are used for the wasm fallback path (`operations.fastest(i)
+        // `Original` clones come from the wasm fallback path (`operations.fastest(i)
         // .execute(inputs.clone())`) and must track outputs. `Fork` clones inherit the
         // source's tracking (benchmark forks stay non-tracking).
-        let state = match &self.state {
-            TuneState::Original {
-                context,
-                new_handles,
-                ..
-            } => TuneState::Fork {
-                context: Box::new(context.fork()),
-                new_handles: Some(new_handles.clone()),
-            },
-            TuneState::Fork {
-                context,
-                new_handles,
-            } => TuneState::Fork {
-                context: Box::new(context.fork()),
-                new_handles: new_handles.clone(),
-            },
+        let new_handles = match &self.state {
+            TuneState::Original { new_handles, .. } => Some(new_handles.clone()),
+            TuneState::Fork { new_handles, .. } => new_handles.clone(),
         };
         Self {
             optimization: self.optimization.clone(),
-            state,
+            state: TuneState::Fork {
+                context: Box::new(self.context().fork()),
+                new_handles,
+            },
         }
     }
 }
@@ -218,13 +204,12 @@ impl<'a, R: Runtime, O> Drop for TuneInput<'a, R, O> {
             }
             TuneState::Fork {
                 context,
-                new_handles: Some(collector),
+                new_handles,
             } => {
-                collector.capture(&context.handles);
+                if let Some(collector) = new_handles {
+                    collector.capture(&context.handles);
+                }
             }
-            TuneState::Fork {
-                new_handles: None, ..
-            } => {}
         }
     }
 }
