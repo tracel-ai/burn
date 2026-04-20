@@ -41,18 +41,21 @@ pub fn attention_autotune<R: CubeRuntime>(
 
         // First entry should always work, since it is considered the fallback.
         set = set.with(
-            Tunable::new("fallback", |query, key, value, mask, attn_bias, options| {
-                attention::<R>(
-                    query,
-                    key,
-                    value,
-                    mask,
-                    attn_bias,
-                    options,
-                    AttentionStrategy::Fallback,
-                )
-                .map_err(|err| std::format!("{err:?}"))
-            })
+            Tunable::new(
+                "fallback",
+                |(query, key, value, mask, attn_bias, options)| {
+                    attention::<R>(
+                        query,
+                        key,
+                        value,
+                        mask,
+                        attn_bias,
+                        options,
+                        AttentionStrategy::Fallback,
+                    )
+                    .map_err(|err| std::format!("{err:?}"))
+                },
+            )
             .group(&fallback, |_key| PRIORITY_MAX),
         );
 
@@ -61,28 +64,33 @@ pub fn attention_autotune<R: CubeRuntime>(
         for num_planes in [2, 4, 8] {
             let name = format!("blackbox_accelerated_{num_planes}_planes_p_{seq_q}-{seq_kv}");
             set = set.with(
-                Tunable::new(&name, move |query, key, value, mask, attn_bias, options| {
-                    attention::<R>(
-                        query,
-                        key,
-                        value,
-                        mask,
-                        attn_bias,
-                        options,
-                        AttentionStrategy::FlashBlackboxAccelerated(BlackboxAcceleratedStrategy {
-                            num_planes,
-                            seq_q,
-                            seq_kv,
-                        }),
-                    )
-                    .map_err(|err| std::format!("{err:?}"))
-                })
+                Tunable::new(
+                    &name,
+                    move |(query, key, value, mask, attn_bias, options)| {
+                        attention::<R>(
+                            query,
+                            key,
+                            value,
+                            mask,
+                            attn_bias,
+                            options,
+                            AttentionStrategy::FlashBlackboxAccelerated(
+                                BlackboxAcceleratedStrategy {
+                                    num_planes,
+                                    seq_q,
+                                    seq_kv,
+                                },
+                            ),
+                        )
+                        .map_err(|err| std::format!("{err:?}"))
+                    },
+                )
                 .group(&flash_attention, |_key| PRIORITY_MAX),
             );
         }
 
         set = set.with(
-            Tunable::new("unit", |query, key, value, mask, attn_bias, options| {
+            Tunable::new("unit", |(query, key, value, mask, attn_bias, options)| {
                 attention::<R>(
                     query,
                     key,
@@ -108,13 +116,16 @@ pub fn attention_autotune<R: CubeRuntime>(
     )
 }
 
+#[allow(clippy::type_complexity)]
 fn create_key<R: CubeRuntime>(
-    query: &CubeTensor<R>,
-    key: &CubeTensor<R>,
-    value: &CubeTensor<R>,
-    mask: &Option<CubeTensor<R>>,
-    _attn_bias: &Option<CubeTensor<R>>,
-    _options: &AttentionModuleOptions,
+    (query, key, value, mask, _attn_bias, _options): &(
+        CubeTensor<R>,
+        CubeTensor<R>,
+        CubeTensor<R>,
+        Option<CubeTensor<R>>,
+        Option<CubeTensor<R>>,
+        AttentionModuleOptions,
+    ),
 ) -> AttentionAutotuneKey {
     let total_batches = query.meta.shape[0] * query.meta.shape[1];
     let seq_q = query.meta.shape[2];
@@ -137,15 +148,16 @@ fn create_key<R: CubeRuntime>(
 }
 
 #[allow(clippy::type_complexity)]
-#[allow(clippy::too_many_arguments)]
 fn input_gen<R: CubeRuntime>(
     _key: &AttentionAutotuneKey,
-    query: &CubeTensor<R>,
-    key: &CubeTensor<R>,
-    value: &CubeTensor<R>,
-    mask: &Option<CubeTensor<R>>,
-    attn_bias: &Option<CubeTensor<R>>,
-    options: &AttentionModuleOptions,
+    (query, key, value, mask, attn_bias, options): &(
+        CubeTensor<R>,
+        CubeTensor<R>,
+        CubeTensor<R>,
+        Option<CubeTensor<R>>,
+        Option<CubeTensor<R>>,
+        AttentionModuleOptions,
+    ),
 ) -> (
     CubeTensor<R>,
     CubeTensor<R>,

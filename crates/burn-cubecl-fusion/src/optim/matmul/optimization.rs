@@ -121,7 +121,7 @@ impl<R: Runtime> MatmulOptimizationTuneArg<R> {
 
             handles.insert(
                 self.info.matmul.op.out.id,
-                (out_desc.shape.dims.clone(), handle_out.clone()),
+                (out_desc.shape.clone(), handle_out.clone()),
             );
         }
 

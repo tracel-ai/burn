@@ -24,41 +24,49 @@ pub fn conv_autotune<R: CubeRuntime, const N: usize>(
 
     let tunables = TUNER.init(|| {
         TunableSet::new(create_key::<R, N>, create_conv_input::<R, N>)
-            .with(Tunable::new("conv_direct", conv_direct::<R, N>))
-            .with(Tunable::new("conv_im2col_1x1", conv_im2col_1x1::<R, N>))
+            .with(Tunable::new(
+                "conv_direct",
+                |(input, weight, bias, options)| conv_direct::<R, N>(input, weight, bias, options),
+            ))
+            .with(Tunable::new(
+                "conv_im2col_1x1",
+                |(input, weight, bias, options)| {
+                    conv_im2col_1x1::<R, N>(input, weight, bias, options)
+                },
+            ))
             .with(Tunable::new(
                 "simple_sync_cmma",
-                |input, weight, bias, options| {
+                |(input, weight, bias, options)| {
                     conv_gemm_simple_sync(input, weight, bias, options, AcceleratedTileKind::Cmma)
                 },
             ))
             .with(Tunable::new(
                 "simple_sync_mma",
-                |input, weight, bias, options| {
+                |(input, weight, bias, options)| {
                     conv_gemm_simple_sync(input, weight, bias, options, AcceleratedTileKind::Mma)
                 },
             ))
             .with(Tunable::new(
                 "simple_async_cmma",
-                |input, weight, bias, options| {
+                |(input, weight, bias, options)| {
                     conv_gemm_simple_async(input, weight, bias, options, AcceleratedTileKind::Cmma)
                 },
             ))
             .with(Tunable::new(
                 "simple_async_mma",
-                |input, weight, bias, options| {
+                |(input, weight, bias, options)| {
                     conv_gemm_simple_async(input, weight, bias, options, AcceleratedTileKind::Mma)
                 },
             ))
             .with(Tunable::new(
                 "simple_tma_cmma",
-                |input, weight, bias, options| {
+                |(input, weight, bias, options)| {
                     conv_gemm_simple_tma(input, weight, bias, options, AcceleratedTileKind::Cmma)
                 },
             ))
             .with(Tunable::new(
                 "simple_tma_mma",
-                |input, weight, bias, options| {
+                |(input, weight, bias, options)| {
                     conv_gemm_simple_tma(input, weight, bias, options, AcceleratedTileKind::Mma)
                 },
             ))
@@ -74,10 +82,12 @@ pub fn conv_autotune<R: CubeRuntime, const N: usize>(
 
 pub fn create_conv_input<R: CubeRuntime, const N: usize>(
     _key: &CubeAutotuneKey,
-    input: &CubeTensor<R>,
-    weights: &CubeTensor<R>,
-    bias: &Option<CubeTensor<R>>,
-    options: &ConvOptions<N>,
+    (input, weights, bias, options): &(
+        CubeTensor<R>,
+        CubeTensor<R>,
+        Option<CubeTensor<R>>,
+        ConvOptions<N>,
+    ),
 ) -> (
     CubeTensor<R>,
     CubeTensor<R>,
@@ -93,10 +103,12 @@ pub fn create_conv_input<R: CubeRuntime, const N: usize>(
 }
 
 fn create_key<R: CubeRuntime, const N: usize>(
-    input: &CubeTensor<R>,
-    weights: &CubeTensor<R>,
-    bias: &Option<CubeTensor<R>>,
-    options: &ConvOptions<N>,
+    (input, weights, bias, options): &(
+        CubeTensor<R>,
+        CubeTensor<R>,
+        Option<CubeTensor<R>>,
+        ConvOptions<N>,
+    ),
 ) -> CubeAutotuneKey {
     let dtype = input.dtype;
     let rank = input.meta.shape().num_dims();

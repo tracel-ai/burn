@@ -1,5 +1,8 @@
 use super::*;
-use burn_tensor::{ElementConversion, TensorData};
+use burn_tensor::TensorData;
+
+#[cfg(feature = "flex")]
+use burn_tensor::ElementConversion;
 
 #[test]
 fn test_cumsum_float_dim_0() {

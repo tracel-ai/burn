@@ -440,7 +440,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             debug_info: super::HandleOutputAliasDebugInfo {
                 relative_id: output.tensor_relative.id,
                 handle: handle_input.handle.clone(),
-                global_shape: tensor_global.shape.dims.clone(),
+                global_shape: tensor_global.shape.clone(),
             },
         });
         self.globals[output.pos_original] = Some(tensor_global);
@@ -585,7 +585,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                     debug_info: super::HandleOutputAliasDebugInfo {
                         relative_id: output.tensor_relative.id,
                         handle: handle.clone(),
-                        global_shape: tensor_global.shape.dims.clone(),
+                        global_shape: tensor_global.shape.clone(),
                     },
                 });
                 self.globals[output.pos_original] = Some(tensor_global);
@@ -654,7 +654,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             debug_info: super::HandleOutputAliasDebugInfo {
                 relative_id: output.tensor_relative.id,
                 handle: handle.clone(),
-                global_shape: tensor_global.shape.dims.clone(),
+                global_shape: tensor_global.shape.clone(),
             },
         });
         self.globals[output.pos_original] = Some(tensor_global);

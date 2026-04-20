@@ -33,6 +33,9 @@ impl<R: FusionRuntime> DeviceService for FusionServer<R> {
     fn utilities(&self) -> burn_backend::ServerUtilitiesHandle {
         self.utilities.clone()
     }
+    fn stage() -> DeviceServiceStage {
+        DeviceServiceStage::Upstream
+    }
 }
 
 impl<R> Clone for GlobalFusionClient<R>
@@ -122,9 +125,19 @@ where
     }
 
     /// Register all lazy computation.
-    pub fn drain(&self) {
+    pub fn sync<Re: Send + 'static>(&self, sync_fn: impl FnOnce() -> Re + Send + 'static) -> Re {
         let id = StreamId::current();
-        self.server.submit(move |server| server.drain_stream(id));
+        self.server
+            .submit_blocking(move |server| {
+                server.drain_stream(id);
+                sync_fn()
+            })
+            .unwrap()
+    }
+
+    /// Flush the operations queue.
+    pub fn flush_queue(&self) {
+        self.server.flush_queue();
     }
 
     /// Flush the operations queue.

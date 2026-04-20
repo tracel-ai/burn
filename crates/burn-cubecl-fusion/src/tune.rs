@@ -165,7 +165,9 @@ enum UnsafeTuneContext<R: Runtime> {
 }
 
 unsafe impl<R: Runtime> Send for UnsafeTuneContext<R> {}
+unsafe impl<R: Runtime> Sync for UnsafeTuneContext<R> {}
 unsafe impl<R: Runtime, O> Send for TuneInput<R, O> {}
+unsafe impl<R: Runtime, O> Sync for TuneInput<R, O> {}
 
 impl<R: Runtime, O> TuneInput<R, O> {
     /// Create a new autotune input from the [context](Context) and an optimization.

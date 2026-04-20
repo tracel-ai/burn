@@ -89,7 +89,7 @@ pub fn autotune_reduce<R: CubeRuntime>(
             ] {
                 let name = format!("{name}{vector_size_ident}");
                 let mut tunable = Tunable::new(
-                    name,
+                    &name,
                     move |(input, output, axis, config, dtypes): (
                         CubeTensor<R>,
                         CubeTensor<R>,
@@ -153,11 +153,13 @@ pub fn autotune_reduce<R: CubeRuntime>(
 }
 
 pub(crate) fn create_key<Run: CubeRuntime>(
-    input: &CubeTensor<Run>,
-    output: &CubeTensor<Run>,
-    axis: &usize,
-    _config: &ReduceOperationConfig,
-    dtypes: &ReduceDtypes,
+    (input, output, axis, _config, dtypes): &(
+        CubeTensor<Run>,
+        CubeTensor<Run>,
+        usize,
+        ReduceOperationConfig,
+        ReduceDtypes,
+    ),
 ) -> ReduceAutotuneKey {
     let elem_input = input.dtype.into();
     let elem_output = output.dtype.into();
@@ -182,11 +184,13 @@ mod reduce_ops {
 
     pub(crate) fn reduce_input_gen<Run: CubeRuntime>(
         _key: &ReduceAutotuneKey,
-        input: &CubeTensor<Run>,
-        output: &CubeTensor<Run>,
-        dim: &usize,
-        config: &ReduceOperationConfig,
-        dtypes: &ReduceDtypes,
+        (input, output, dim, config, dtypes): &(
+            CubeTensor<Run>,
+            CubeTensor<Run>,
+            usize,
+            ReduceOperationConfig,
+            ReduceDtypes,
+        ),
     ) -> (
         CubeTensor<Run>,
         CubeTensor<Run>,

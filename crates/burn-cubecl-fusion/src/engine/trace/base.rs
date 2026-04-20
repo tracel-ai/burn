@@ -54,7 +54,7 @@ pub enum TuneOutput<R: Runtime> {
     UnChecked(PhantomData<R>),
     #[cfg(feature = "autotune-checks")]
     Checked {
-        handles: HashMap<TensorId, (Vec<usize>, CubeFusionHandle<R>)>,
+        handles: HashMap<TensorId, (Shape, CubeFusionHandle<R>)>,
     },
 }
 
@@ -99,33 +99,31 @@ impl<R: Runtime> cubecl::tune::AutotuneOutput for TuneOutput<R> {
                 num_handles += 1;
                 if let Some((shape_other, other)) = handles.get(id) {
                     use burn_std::is_contiguous;
-                    use cubecl::std::tensor::into_contiguous_ref;
+                    use cubecl::std::tensor::into_contiguous;
 
-                    let current_handle = if !is_contiguous(&shape, &handle.strides) {
-                        into_contiguous_ref::<R>(
+                    let current_handle = if !is_contiguous(shape, &handle.strides) {
+                        into_contiguous::<R>(
                             &handle.client,
-                            &handle.as_handle_ref(&shape),
+                            handle.clone().binding(shape.clone()),
                             handle.dtype.into(),
                         )
-                        .unwrap()
                         .handle
                     } else {
                         handle.handle.clone()
                     };
-                    let other_handle = if !is_contiguous(&shape, &other.strides) {
-                        into_contiguous_ref::<R>(
+                    let other_handle = if !is_contiguous(shape, &other.strides) {
+                        into_contiguous::<R>(
                             &other.client,
-                            &other.as_handle_ref(&shape),
+                            other.clone().binding(shape.clone()),
                             other.dtype.into(),
                         )
-                        .unwrap()
                         .handle
                     } else {
                         other.handle.clone()
                     };
 
-                    let data_ref = handle.client.read_one(current_handle);
-                    let data_other = other.client.read_one(other_handle);
+                    let data_ref = handle.client.read_one(current_handle).unwrap();
+                    let data_other = other.client.read_one(other_handle).unwrap();
                     let data_ref = TensorData::from_bytes(data_ref, shape.clone(), handle.dtype);
                     let data_other =
                         TensorData::from_bytes(data_other, shape_other.clone(), handle.dtype);

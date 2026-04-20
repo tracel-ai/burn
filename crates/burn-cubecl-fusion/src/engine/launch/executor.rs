@@ -243,15 +243,16 @@ fn register_outputs<R: Runtime>(
                 ..
             } => {
                 let at = handle.required_address_type();
+
+                #[cfg(feature = "autotune-checks")]
+                if let TuneOutput::Checked { handles, .. } = tune_output {
+                    handles.insert(relative_id, (global_shape.clone(), handle.clone()));
+                }
+
                 let arg = handle.into_tensor_arg(global_shape.clone());
 
                 let elem = precision.into_elem();
                 let ty = Type::new(elem.into()).with_vector_size(vector_size);
-
-                #[cfg(feature = "autotune-checks")]
-                if let TuneOutput::Checked { handles, .. } = tune_output {
-                    handles.insert(*relative_id, (global_shape.clone(), handle.clone()));
-                }
 
                 outputs
                     .tensors

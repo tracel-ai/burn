@@ -25,7 +25,7 @@ pub fn run<B: Backend>() {
     let num_devices = B::device_count(type_id);
 
     let devices = (0..num_devices)
-        .map(|i| B::Device::from_id(DeviceId::new(type_id, i as u32)))
+        .map(|i| B::Device::from_id(DeviceId::new(type_id, i as u16)))
         .collect();
 
     run_with::<B>(devices);

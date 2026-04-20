@@ -30,41 +30,43 @@ pub fn wgrad_autotune<R: CubeRuntime, const N: usize>(
         TunableSet::new(create_key::<R, N>, create_wgrad_input::<R, N>)
             .with(Tunable::new(
                 "wgrad_fallback",
-                conv_weight_backward_fallback::<R, N>,
+                |(input, grad, shape, options)| {
+                    conv_weight_backward_fallback::<R, N>(input, grad, shape, options)
+                },
             ))
             .with(Tunable::new(
                 "simple_sync_cmma",
-                |input, grad, shape, options| {
+                |(input, grad, shape, options)| {
                     wgrad_gemm_simple_sync(input, grad, shape, options, AcceleratedTileKind::Cmma)
                 },
             ))
             .with(Tunable::new(
                 "simple_sync_mma",
-                |input, grad, shape, options| {
+                |(input, grad, shape, options)| {
                     wgrad_gemm_simple_sync(input, grad, shape, options, AcceleratedTileKind::Mma)
                 },
             ))
             .with(Tunable::new(
                 "simple_async_cmma",
-                |input, grad, shape, options| {
+                |(input, grad, shape, options)| {
                     wgrad_gemm_simple_async(input, grad, shape, options, AcceleratedTileKind::Cmma)
                 },
             ))
             .with(Tunable::new(
                 "simple_async_mma",
-                |input, grad, shape, options| {
+                |(input, grad, shape, options)| {
                     wgrad_gemm_simple_async(input, grad, shape, options, AcceleratedTileKind::Mma)
                 },
             ))
             .with(Tunable::new(
                 "simple_tma_cmma",
-                |input, grad, shape, options| {
+                |(input, grad, shape, options)| {
                     wgrad_gemm_simple_tma(input, grad, shape, options, AcceleratedTileKind::Cmma)
                 },
             ))
             .with(Tunable::new(
                 "simple_tma_mma",
-                |input, grad, shape, options| {
+                |(input, grad, shape, options)| {
                     wgrad_gemm_simple_tma(input, grad, shape, options, AcceleratedTileKind::Mma)
                 },
             ))
@@ -80,10 +82,12 @@ pub fn wgrad_autotune<R: CubeRuntime, const N: usize>(
 
 pub fn create_wgrad_input<R: CubeRuntime, const N: usize>(
     _key: &CubeAutotuneKey,
-    input: &CubeTensor<R>,
-    out_grad: &CubeTensor<R>,
-    weight_shape: &Shape,
-    options: &ConvOptions<N>,
+    (input, out_grad, weight_shape, options): &(
+        CubeTensor<R>,
+        CubeTensor<R>,
+        Shape,
+        ConvOptions<N>,
+    ),
 ) -> (CubeTensor<R>, CubeTensor<R>, Shape, ConvOptions<N>) {
     (
         input.clone(),
@@ -94,10 +98,12 @@ pub fn create_wgrad_input<R: CubeRuntime, const N: usize>(
 }
 
 fn create_key<R: CubeRuntime, const N: usize>(
-    input: &CubeTensor<R>,
-    out_grad: &CubeTensor<R>,
-    weight_shape: &Shape,
-    options: &ConvOptions<N>,
+    (input, out_grad, weight_shape, options): &(
+        CubeTensor<R>,
+        CubeTensor<R>,
+        Shape,
+        ConvOptions<N>,
+    ),
 ) -> CubeAutotuneKey {
     let dtype = input.dtype;
     let rank = input.meta.num_dims();
