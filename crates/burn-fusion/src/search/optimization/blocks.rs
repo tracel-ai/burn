@@ -1,5 +1,7 @@
 use std::sync::Arc;
 
+use burn_std::config::{fusion::FusionLogLevel, log_fusion};
+
 use crate::{
     NumOperations,
     search::{
@@ -101,7 +103,8 @@ impl<O: NumOperations> BlocksOptimizer<O> {
             }
         }
 
-        let optimization = match strategies.len() > 1 {
+        let num_strategies = strategies.len();
+        let optimization = match num_strategies > 1 {
             true => BlockOptimization {
                 strategy: ExecutionStrategy::Composed(strategies),
                 ordering,
@@ -111,6 +114,14 @@ impl<O: NumOperations> BlocksOptimizer<O> {
                 ordering,
             },
         };
+
+        log_fusion(FusionLogLevel::Basic, move || {
+            if num_strategies > 1 {
+                format!("selected composed strategy ({num_strategies} sub-strategies)")
+            } else {
+                format!("selected single strategy")
+            }
+        });
 
         BlocksOptimizerResult::Full(optimization)
     }

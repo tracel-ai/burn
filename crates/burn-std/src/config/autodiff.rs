@@ -9,7 +9,9 @@ pub struct AutodiffConfig {
 }
 
 /// Log levels for autodiff logging.
-#[derive(Default, Clone, Copy, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Default, Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
 pub enum AutodiffLogLevel {
     /// Autodiff logging is disabled.
     #[default]
