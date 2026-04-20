@@ -1,4 +1,7 @@
-use burn_backend::{Backend, tensor::Float};
+use burn_backend::{
+    Backend,
+    tensor::{Float, Int},
+};
 
 use crate::{Tensor, TensorCreationOptions, check, check::TensorCheck};
 
@@ -29,7 +32,7 @@ use crate::{Tensor, TensorCreationOptions, check, check::TensorCheck};
 /// Panics if `size` exceeds `i64::MAX`.
 ///
 /// # Example
-/// ```rust,ignore
+/// ```rust
 /// use burn_tensor::{backend::Backend, DType, signal::blackman_window};
 ///
 /// fn example<B: Backend>() {
@@ -52,10 +55,7 @@ pub fn blackman_window<B: Backend>(
     let opt = options.into();
     let dtype = opt.resolve_dtype::<Float>();
     let shape = [size];
-    check!(TensorCheck::creation_ops::<1>(
-        "signal::blackman_window",
-        &shape
-    ));
+    check!(TensorCheck::creation_ops::<1>("BlackmanWindow", &shape));
 
     if size == 0 {
         return Tensor::<B, 1>::empty(shape, opt).cast(dtype);
@@ -69,16 +69,16 @@ pub fn blackman_window<B: Backend>(
         .expect("The argument `size` should be less than or equal to `i64::MAX`.");
     let denominator = if periodic { size } else { size - 1 };
     let angular_increment = (2.0 * core::f64::consts::PI) / denominator as f64;
-    let cos_val = Tensor::arange(0..size_i64, &opt.device)
+    let cos_val = Tensor::<B, 1, Int>::arange(0..size_i64, &opt.device)
         .float()
         .mul_scalar(angular_increment)
         .cos();
 
     // Using the double angle property of cosine: cos(2θ) = 2cos^2(θ) - 1
-    // w[n] = 0.42 - 0.5cos(2πn / (N - 1)) + 0.08cos(4πn / (N - 1))
-    // w[n] = 0.42 - 0.5cos(2πn / (N - 1)) + 0.08cos(2 * (2πn / (N - 1)))
-    // w[n] = 0.42 - 0.5cos(2πn / (N - 1)) + 0.08(2cos^2(2πn / (N - 1)) - 1)
-    // w[n] = 0.34 - 0.5cos(2πn / (N - 1)) + 0.16cos^2(2πn / (N - 1))
+    // w[n] = 0.42 - 0.5cos(2πn / N) + 0.08cos(4πn / N)
+    // w[n] = 0.42 - 0.5cos(2πn / N) + 0.08cos(2 * (2πn / N))
+    // w[n] = 0.42 - 0.5cos(2πn / N) + 0.08(2cos^2(2πn / N) - 1)
+    // w[n] = 0.34 - 0.5cos(2πn / N) + 0.16cos^2(2πn / N)
     let first_cos_term = cos_val.clone().mul_scalar(-0.5);
     let second_cos_term = cos_val.powi_scalar(2).mul_scalar(0.16);
     first_cos_term
