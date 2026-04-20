@@ -116,6 +116,7 @@ pub fn attention_autotune<R: CubeRuntime>(
     )
 }
 
+#[allow(clippy::type_complexity)]
 fn create_key<R: CubeRuntime>(
     (query, key, value, mask, _attn_bias, _options): &(
         CubeTensor<R>,
