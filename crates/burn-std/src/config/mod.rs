@@ -4,8 +4,9 @@ pub mod autodiff;
 pub mod fusion;
 
 mod base;
-mod logger;
 
 pub use base::*;
 pub use cubecl_common::config::RuntimeConfig;
-pub use logger::*;
+pub use cubecl_common::config::logger::{
+    LogCrateLevel, LogLevel, LoggerConfig, LoggerSinks,
+};
