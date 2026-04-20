@@ -41,18 +41,21 @@ pub fn attention_autotune<R: CubeRuntime>(
 
         // First entry should always work, since it is considered the fallback.
         set = set.with(
-            Tunable::new("fallback", |(query, key, value, mask, attn_bias, options)| {
-                attention::<R>(
-                    query,
-                    key,
-                    value,
-                    mask,
-                    attn_bias,
-                    options,
-                    AttentionStrategy::Fallback,
-                )
-                .map_err(|err| std::format!("{err:?}"))
-            })
+            Tunable::new(
+                "fallback",
+                |(query, key, value, mask, attn_bias, options)| {
+                    attention::<R>(
+                        query,
+                        key,
+                        value,
+                        mask,
+                        attn_bias,
+                        options,
+                        AttentionStrategy::Fallback,
+                    )
+                    .map_err(|err| std::format!("{err:?}"))
+                },
+            )
             .group(&fallback, |_key| PRIORITY_MAX),
         );
 
@@ -61,22 +64,27 @@ pub fn attention_autotune<R: CubeRuntime>(
         for num_planes in [2, 4, 8] {
             let name = format!("blackbox_accelerated_{num_planes}_planes_p_{seq_q}-{seq_kv}");
             set = set.with(
-                Tunable::new(&name, move |(query, key, value, mask, attn_bias, options)| {
-                    attention::<R>(
-                        query,
-                        key,
-                        value,
-                        mask,
-                        attn_bias,
-                        options,
-                        AttentionStrategy::FlashBlackboxAccelerated(BlackboxAcceleratedStrategy {
-                            num_planes,
-                            seq_q,
-                            seq_kv,
-                        }),
-                    )
-                    .map_err(|err| std::format!("{err:?}"))
-                })
+                Tunable::new(
+                    &name,
+                    move |(query, key, value, mask, attn_bias, options)| {
+                        attention::<R>(
+                            query,
+                            key,
+                            value,
+                            mask,
+                            attn_bias,
+                            options,
+                            AttentionStrategy::FlashBlackboxAccelerated(
+                                BlackboxAcceleratedStrategy {
+                                    num_planes,
+                                    seq_q,
+                                    seq_kv,
+                                },
+                            ),
+                        )
+                        .map_err(|err| std::format!("{err:?}"))
+                    },
+                )
                 .group(&flash_attention, |_key| PRIORITY_MAX),
             );
         }
