@@ -2,7 +2,7 @@ use super::optimization::ReduceOptimizationTuneArg;
 use crate::{
     CubeFusionHandle,
     engine::trace::TuneOutput,
-    tune::{FusionInputGen, FusionTuneInputs, TuneInput},
+    tune::{FusionInputGen, TuneInput},
 };
 use burn_fusion::stream::Context;
 use cubecl::{
@@ -44,11 +44,7 @@ pub fn fused_reduce_autotune<R: Runtime>(
         const PRIORITY_MAX: i8 = 2;
         const PRIORITY_MIN: i8 = 1;
 
-        let mut set = TunableSet::<
-            FusedReduceAutotuneKey,
-            FusionTuneInputs<R, ReduceOptimizationTuneArg<R>>,
-            TuneOutput<R>,
-        >::new(create_key::<R>, FusionInputGen);
+        let mut set = TunableSet::new(create_key::<R>, FusionInputGen);
         let group = TuneGroup::<FusedReduceAutotuneKey>::new("fused_reduce", |_key| PRIORITY_MAX);
 
         // Fallback implementation for robustness.

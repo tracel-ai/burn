@@ -9,8 +9,7 @@ pub struct HandleContainer<H> {
     counter: u64,
 }
 
-// Hand-written so we don't require `H: Default`, the derived `#[derive(Default)]` would add
-// that bound conservatively.
+// Hand-written perfect derive as we don't require `H: Default`.
 impl<H> Default for HandleContainer<H> {
     fn default() -> Self {
         Self {

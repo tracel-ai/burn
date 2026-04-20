@@ -7,21 +7,20 @@ use hashbrown::HashMap;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-/// [`TuneInputs`] marker for [`TuneInput`]: a `'static` type whose GAT `At<'a>` resolves
-/// to `TuneInput<'a, R, O>`. This is the indirection that lets a
+/// [`TuneInputs`] marker for [`TuneInput`]. This is the indirection that lets a
 /// `TunableSet<_, FusionTuneInputs<R, O>, _>` live `'static` inside `LocalTuner::init`'s
 /// cache while still accepting a borrowing `TuneInput<'a, …>` at `execute` time, via HRTB
 /// over `'a`.
+#[allow(clippy::type_complexity)]
 pub(crate) struct FusionTuneInputs<R: Runtime, O>(PhantomData<(fn() -> R, fn() -> O)>);
 
 impl<R: Runtime, O: Send + Sync + 'static> TuneInputs for FusionTuneInputs<R, O> {
     type At<'a> = TuneInput<'a, R, O>;
 }
 
-/// [`InputGenerator`] for [`TuneInput`]: produces a [`TuneState::Bench`] fork that's
-/// used only for timing measurements. Benchmarks discard their outputs, so the returned
-/// input skips the handle-tracking machinery that [`TuneState::Fork`] carries for the
-/// wasm try-all fallback.
+/// [`InputGenerator`] for [`TuneInput`]: produces a benchmark-only [`TuneState::Fork`]
+/// (i.e. with `new_handles = None`). Benchmarks discard their outputs, so the returned
+/// input skips the handle-tracking machinery that a wasm-fallback fork carries.
 pub(crate) struct FusionInputGen;
 
 impl<K, R, O> InputGenerator<K, FusionTuneInputs<R, O>> for FusionInputGen
@@ -79,7 +78,6 @@ pub(crate) struct TuneInput<'a, R: Runtime, O> {
 }
 
 enum TuneState<'a, R: Runtime> {
-    /// The real context. The winning candidate executes here directly.
     Original {
         context: &'a mut Context<CubeFusionHandle<R>>,
         /// Shared with any `Fork` spawned from this `Original`. `Drop` drains from here
@@ -89,14 +87,12 @@ enum TuneState<'a, R: Runtime> {
         /// suppresses the drain above.
         executed: bool,
     },
-    /// Benchmark-only fork. Mutations and outputs are discarded after measurement.
-    Bench(Box<Context<CubeFusionHandle<R>>>),
-    /// Wasm try-all fallback fork. `Drop` captures this fork's full handle set into the
-    /// shared staging area so the paired `Original` can promote genuinely-new outputs
-    /// at drain time.
+    /// Owned fork. `new_handles = None` is a benchmark-only sandbox (outputs discarded);
+    /// `Some(…)` is the wasm try-all path that promotes outputs back into the paired
+    /// `Original` on drop.
     Fork {
         context: Box<Context<CubeFusionHandle<R>>>,
-        new_handles: Arc<HandleCollector<R>>,
+        new_handles: Option<Arc<HandleCollector<R>>>,
     },
 }
 
@@ -112,17 +108,19 @@ impl<'a, R: Runtime, O> TuneInput<'a, R, O> {
         }
     }
 
-    /// Fork the context into a `Bench` variant for a benchmark trial. See
+    /// Fork the context into a non-tracking `Fork` for a benchmark trial. See
     /// [`FusionInputGen`].
     fn for_benchmark(&self) -> Self {
         let context = match &self.state {
             TuneState::Original { context, .. } => context.fork(),
-            TuneState::Bench(c) => c.fork(),
             TuneState::Fork { context, .. } => context.fork(),
         };
         Self {
             optimization: self.optimization.clone(),
-            state: TuneState::Bench(Box::new(context)),
+            state: TuneState::Fork {
+                context: Box::new(context),
+                new_handles: None,
+            },
         }
     }
 
@@ -134,7 +132,6 @@ impl<'a, R: Runtime, O> TuneInput<'a, R, O> {
     pub(crate) fn context(&self) -> &Context<CubeFusionHandle<R>> {
         match &self.state {
             TuneState::Original { context, .. } => context,
-            TuneState::Bench(c) => c,
             TuneState::Fork { context, .. } => context,
         }
     }
@@ -152,7 +149,7 @@ impl<'a, R: Runtime, O> TuneInput<'a, R, O> {
     }
 
     /// Consume the input and run `f` with mutable access to the context and
-    /// optimization. Consuming `self` is what keeps the `&mut Context` sound.
+    /// optimization.
     pub(crate) fn execute<F, T>(mut self, f: F) -> T
     where
         F: FnOnce(&mut Context<CubeFusionHandle<R>>, &O) -> T,
@@ -165,7 +162,6 @@ impl<'a, R: Runtime, O> TuneInput<'a, R, O> {
                 *executed = true;
                 f(context, &self.optimization)
             }
-            TuneState::Bench(context) => f(context, &self.optimization),
             TuneState::Fork { context, .. } => f(context, &self.optimization),
         }
     }
@@ -173,9 +169,9 @@ impl<'a, R: Runtime, O> TuneInput<'a, R, O> {
 
 impl<'a, R: Runtime, O> Clone for TuneInput<'a, R, O> {
     fn clone(&self) -> Self {
-        // `Bench` clones are per-benchmark-trial sandboxes — no tracking. `Original`
-        // clones come from the wasm fallback path (`operations.fastest(i).execute(
-        // inputs.clone())`) and must track outputs for eventual promotion.
+        // `Original` clones are used for the wasm fallback path (`operations.fastest(i)
+        // .execute(inputs.clone())`) and must track outputs. `Fork` clones inherit the
+        // source's tracking (benchmark forks stay non-tracking).
         let state = match &self.state {
             TuneState::Original {
                 context,
@@ -183,9 +179,8 @@ impl<'a, R: Runtime, O> Clone for TuneInput<'a, R, O> {
                 ..
             } => TuneState::Fork {
                 context: Box::new(context.fork()),
-                new_handles: new_handles.clone(),
+                new_handles: Some(new_handles.clone()),
             },
-            TuneState::Bench(c) => TuneState::Bench(Box::new(c.fork())),
             TuneState::Fork {
                 context,
                 new_handles,
@@ -221,13 +216,15 @@ impl<'a, R: Runtime, O> Drop for TuneInput<'a, R, O> {
                     }
                 }
             }
-            TuneState::Bench(_) => {}
             TuneState::Fork {
                 context,
-                new_handles,
+                new_handles: Some(collector),
             } => {
-                new_handles.capture(&context.handles);
+                collector.capture(&context.handles);
             }
+            TuneState::Fork {
+                new_handles: None, ..
+            } => {}
         }
     }
 }

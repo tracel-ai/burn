@@ -197,21 +197,3 @@ cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, 
 
 [profile.dev]
 debug = 1 # Speed up compilation time and not necessary.
-
-[patch.crates-io]
-cubecl = { path = "../cubecl/crates/cubecl" }
-cubecl-common = { path = "../cubecl/crates/cubecl-common" }
-cubecl-core = { path = "../cubecl/crates/cubecl-core" }
-cubecl-cpp = { path = "../cubecl/crates/cubecl-cpp" }
-cubecl-cpu = { path = "../cubecl/crates/cubecl-cpu" }
-cubecl-cuda = { path = "../cubecl/crates/cubecl-cuda" }
-cubecl-hip = { path = "../cubecl/crates/cubecl-hip" }
-cubecl-ir = { path = "../cubecl/crates/cubecl-ir" }
-cubecl-macros = { path = "../cubecl/crates/cubecl-macros" }
-cubecl-macros-internal = { path = "../cubecl/crates/cubecl-macros-internal" }
-cubecl-opt = { path = "../cubecl/crates/cubecl-opt" }
-cubecl-runtime = { path = "../cubecl/crates/cubecl-runtime" }
-cubecl-spirv = { path = "../cubecl/crates/cubecl-spirv" }
-cubecl-std = { path = "../cubecl/crates/cubecl-std" }
-cubecl-wgpu = { path = "../cubecl/crates/cubecl-wgpu" }
-cubecl-zspace = { path = "../cubecl/crates/cubecl-zspace" }

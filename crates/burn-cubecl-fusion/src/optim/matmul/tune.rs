@@ -3,7 +3,7 @@ use crate::{
     CubeFusionHandle,
     engine::trace::TuneOutput,
     optim::matmul::{AcceleratedTileKind, FusedMatmulSelector},
-    tune::{FusionInputGen, FusionTuneInputs, TuneInput},
+    tune::{FusionInputGen, TuneInput},
 };
 use burn_fusion::stream::Context;
 use cubecl::{
@@ -120,12 +120,7 @@ pub fn fused_matmul_autotune<R: Runtime>(
         }
 
         // First entry should always work, since it is considered the fallback.
-        let mut set = TunableSet::<
-            FusedMatmulAutotuneKey,
-            FusionTuneInputs<R, MatmulOptimizationTuneArg<R>>,
-            TuneOutput<R>,
-        >::new(create_key::<R>, FusionInputGen)
-        .with(
+        let mut set = TunableSet::new(create_key::<R>, FusionInputGen).with(
             Tunable::new("fused_matmul_fallback", tune_fallback::<R>).group(&unit, |key| {
                 if matches!(key.matmul_key.analysis.kind, MatmulKind::InnerProduct) {
                     PRIORITY_MAX
@@ -250,10 +245,7 @@ pub(crate) fn create_key<R: Runtime>(
     input: &TuneInput<R, MatmulOptimizationTuneArg<R>>,
 ) -> FusedMatmulAutotuneKey {
     let opt = input.optimization();
-    assert!(
-        input.is_original(),
-        "Not supported when generating key"
-    );
+    assert!(input.is_original(), "Not supported when generating key");
     let tensors = input.tensors();
     let handles = input.handles();
 
