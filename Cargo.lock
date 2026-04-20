@@ -723,7 +723,6 @@ dependencies = [
  "cubek",
  "num-traits",
  "rand 0.10.1",
- "rand 0.10.1",
  "serial_test",
 ]
 
@@ -2344,7 +2343,6 @@ version = "0.10.0-pre.3"
 source = "git+https://github.com/tracel-ai/cubecl?rev=211220b87468142dae27bb65e87aefe571a42b4e#211220b87468142dae27bb65e87aefe571a42b4e"
 dependencies = [
  "ahash",
- "ahash",
  "async-channel",
  "bytemuck",
  "cfg-if",
@@ -2561,7 +2559,6 @@ dependencies = [
  "bytemuck",
  "cubecl",
  "cubecl-common",
- "cubek-quant",
  "cubek-quant",
  "cubek-random",
  "half",
