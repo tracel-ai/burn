@@ -139,10 +139,8 @@ pub fn fused_matmul_autotune<R: Runtime>(
         for (selector, double_buf) in [
             (FusedMatmulSelector::SimpleVecMat, false),
             (FusedMatmulSelector::DoubleVecMat, true),
-            // TODO: Doesn't work all the time.
-            //
-            // (FusedMatmulSelector::GemvPlaneParallel, false),
-            // (FusedMatmulSelector::GemvUnitPerpendicular, false),
+            (FusedMatmulSelector::GemvPlaneParallel, false),
+            (FusedMatmulSelector::GemvUnitPerpendicular, false),
         ] {
             set = set.with(
                 Tunable::new(&selector.name(), move |input| {
