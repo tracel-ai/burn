@@ -1719,6 +1719,13 @@ fn convert_f32_to_bf16(tensor: &FlexTensor) -> FlexTensor {
 // Tests
 // ============================================================================
 
+// Tests kept here probe flex internals: the `pool_output_size` helper
+// (including zero-kernel/stride panics), dtype storage paths for max_pool2d
+// (f16/bf16/f64), the backward kernels (max/avg/adaptive), and flex's
+// count_include_pad avg_pool2d semantics. Plain forward-pass pool tests
+// (max/avg/adaptive 2d, pool1d/3d delegation) live in
+// crates/burn-backend-tests/tests/tensor/float/module/{maxpool,avgpool,
+// adaptive_avgpool}*.rs and run on every backend.
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1747,109 +1754,6 @@ mod tests {
     }
 
     #[test]
-    fn test_max_pool2d_basic() {
-        // Input: 4x4, kernel 2x2, stride 2
-        // Input values: 1..16
-        let x_data: Vec<f32> = (1..=16).map(|x| x as f32).collect();
-        let x = FlexTensor::from_data(TensorData::new(x_data, vec![1, 1, 4, 4]));
-
-        let result = max_pool2d_f32(x, [2, 2], [2, 2], [0, 0], [1, 1], false);
-        assert_eq!(result.layout().shape().to_vec(), vec![1, 1, 2, 2]);
-
-        let out: Vec<f32> = result.into_data().to_vec().unwrap();
-        // Max in each 2x2 block:
-        // [1,2,3,4]   -> max(1,2,5,6)=6,  max(3,4,7,8)=8
-        // [5,6,7,8]
-        // [9,10,11,12] -> max(9,10,13,14)=14, max(11,12,15,16)=16
-        // [13,14,15,16]
-        assert_eq!(out, vec![6.0, 8.0, 14.0, 16.0]);
-    }
-
-    #[test]
-    fn test_max_pool2d_with_indices() {
-        let x_data: Vec<f32> = (1..=16).map(|x| x as f32).collect();
-        let x = FlexTensor::from_data(TensorData::new(x_data, vec![1, 1, 4, 4]));
-
-        let (output, indices) =
-            max_pool2d_with_indices_f32(x, [2, 2], [2, 2], [0, 0], [1, 1], false);
-
-        let out: Vec<f32> = output.into_data().to_vec().unwrap();
-        let idx: Vec<i64> = indices.into_data().to_vec().unwrap();
-
-        assert_eq!(out, vec![6.0, 8.0, 14.0, 16.0]);
-        // Indices into input spatial dims (flattened)
-        // 6 is at (1,1) = 1*4+1 = 5
-        // 8 is at (1,3) = 1*4+3 = 7
-        // 14 is at (3,1) = 3*4+1 = 13
-        // 16 is at (3,3) = 3*4+3 = 15
-        assert_eq!(idx, vec![5, 7, 13, 15]);
-    }
-
-    #[test]
-    fn test_max_pool2d_with_padding() {
-        let x_data: Vec<f32> = (1..=9).map(|x| x as f32).collect();
-        let x = FlexTensor::from_data(TensorData::new(x_data, vec![1, 1, 3, 3]));
-
-        let result = max_pool2d_f32(x, [2, 2], [1, 1], [1, 1], [1, 1], false);
-        assert_eq!(result.layout().shape().to_vec(), vec![1, 1, 4, 4]);
-    }
-
-    #[test]
-    fn test_max_pool2d_with_dilation() {
-        // 5x5 input, 2x2 kernel, dilation 2
-        let x_data: Vec<f32> = (1..=25).map(|x| x as f32).collect();
-        let x = FlexTensor::from_data(TensorData::new(x_data, vec![1, 1, 5, 5]));
-
-        let result = max_pool2d_f32(x, [2, 2], [1, 1], [0, 0], [2, 2], false);
-        // Effective kernel size = (2-1)*2 + 1 = 3
-        // Output size = (5 - 3) / 1 + 1 = 3
-        assert_eq!(result.layout().shape().to_vec(), vec![1, 1, 3, 3]);
-
-        let out: Vec<f32> = result.into_data().to_vec().unwrap();
-        // With dilation 2, kernel at (0,0) hits positions (0,0), (0,2), (2,0), (2,2)
-        // Input layout (1-indexed for readability):
-        // 1  2  3  4  5
-        // 6  7  8  9  10
-        // 11 12 13 14 15
-        // 16 17 18 19 20
-        // 21 22 23 24 25
-        // First output at (0,0): max(1, 3, 11, 13) = 13
-        assert_eq!(out[0], 13.0);
-    }
-
-    #[test]
-    fn test_max_pool2d_ceil_mode() {
-        let x_data: Vec<f32> = (1..=25).map(|x| x as f32).collect();
-        let x = FlexTensor::from_data(TensorData::new(x_data, vec![1, 1, 5, 5]));
-
-        // Without ceil mode: (5 - 2) / 2 + 1 = 2
-        let result_floor = max_pool2d_f32(x.clone(), [2, 2], [2, 2], [0, 0], [1, 1], false);
-        assert_eq!(result_floor.layout().shape().to_vec(), vec![1, 1, 2, 2]);
-
-        // With ceil mode: ceil((5 - 2) / 2) + 1 = 3
-        let result_ceil = max_pool2d_f32(x, [2, 2], [2, 2], [0, 0], [1, 1], true);
-        assert_eq!(result_ceil.layout().shape().to_vec(), vec![1, 1, 3, 3]);
-    }
-
-    #[test]
-    fn test_avg_pool2d_basic() {
-        let x_data: Vec<f32> = (1..=16).map(|x| x as f32).collect();
-        let x = FlexTensor::from_data(TensorData::new(x_data, vec![1, 1, 4, 4]));
-
-        let result = avg_pool2d_f32(x, [2, 2], [2, 2], [0, 0], false, false);
-        assert_eq!(result.layout().shape().to_vec(), vec![1, 1, 2, 2]);
-
-        let out: Vec<f32> = result.into_data().to_vec().unwrap();
-        // Avg in each 2x2 block:
-        // (1+2+5+6)/4 = 3.5, (3+4+7+8)/4 = 5.5
-        // (9+10+13+14)/4 = 11.5, (11+12+15+16)/4 = 13.5
-        assert!((out[0] - 3.5).abs() < 1e-5);
-        assert!((out[1] - 5.5).abs() < 1e-5);
-        assert!((out[2] - 11.5).abs() < 1e-5);
-        assert!((out[3] - 13.5).abs() < 1e-5);
-    }
-
-    #[test]
     fn test_avg_pool2d_count_include_pad() {
         // 3x3 input with padding 1, kernel 2x2, stride 2
         let x_data = vec![1.0f32, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0];
@@ -1868,58 +1772,6 @@ mod tests {
         // Without: 1.0 / 1 = 1.0
         assert!((out_include[0] - 0.25).abs() < 1e-5);
         assert!((out_exclude[0] - 1.0).abs() < 1e-5);
-    }
-
-    #[test]
-    fn test_adaptive_avg_pool2d() {
-        // 4x4 input -> 2x2 output
-        let x_data: Vec<f32> = (1..=16).map(|x| x as f32).collect();
-        let x = FlexTensor::from_data(TensorData::new(x_data, vec![1, 1, 4, 4]));
-
-        let result = adaptive_avg_pool2d_f32(x, [2, 2]);
-        assert_eq!(result.layout().shape().to_vec(), vec![1, 1, 2, 2]);
-
-        let out: Vec<f32> = result.into_data().to_vec().unwrap();
-        // Each output averages a 2x2 region
-        assert!((out[0] - 3.5).abs() < 1e-5); // (1+2+5+6)/4
-        assert!((out[1] - 5.5).abs() < 1e-5); // (3+4+7+8)/4
-    }
-
-    #[test]
-    fn test_adaptive_avg_pool2d_global() {
-        // Global pooling: any size -> 1x1
-        let x_data: Vec<f32> = (1..=9).map(|x| x as f32).collect();
-        let x = FlexTensor::from_data(TensorData::new(x_data, vec![1, 1, 3, 3]));
-
-        let result = adaptive_avg_pool2d_f32(x, [1, 1]);
-        assert_eq!(result.layout().shape().to_vec(), vec![1, 1, 1, 1]);
-
-        let out: Vec<f32> = result.into_data().to_vec().unwrap();
-        // Average of 1..9 = 5
-        assert!((out[0] - 5.0).abs() < 1e-5);
-    }
-
-    #[test]
-    fn test_pool1d_delegation() {
-        // 1D pooling should work via 3D delegation
-        let x_data: Vec<f32> = (1..=8).map(|x| x as f32).collect();
-        let x = FlexTensor::from_data(TensorData::new(x_data, vec![1, 1, 8]));
-
-        let result = max_pool1d_f32(x, 2, 2, 0, 1, false);
-        assert_eq!(result.layout().shape().to_vec(), vec![1, 1, 4]);
-
-        let out: Vec<f32> = result.into_data().to_vec().unwrap();
-        assert_eq!(out, vec![2.0, 4.0, 6.0, 8.0]);
-    }
-
-    #[test]
-    fn test_max_pool3d_basic() {
-        // Simple 3D pooling test: [1, 2, 4, 4, 4] = 1*2*4*4*4 = 128 elements
-        let x_data = vec![1.0f32; 1 * 2 * 4 * 4 * 4];
-        let x = FlexTensor::from_data(TensorData::new(x_data, vec![1, 2, 4, 4, 4]));
-
-        let result = max_pool3d_f32(x, [2, 2, 2], [2, 2, 2], [0, 0, 0], [1, 1, 1], false);
-        assert_eq!(result.layout().shape().to_vec(), vec![1, 2, 2, 2, 2]);
     }
 
     #[test]

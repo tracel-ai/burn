@@ -55,6 +55,7 @@ flate2 = "1.1.9"
 float-cmp = "0.10.0"
 futures = "0.3"
 futures-util = "0.3"
+gemm = { version = "0.19", default-features = false }
 gix-tempfile = { version = "21.0.2", features = ["signals"] }
 globwalk = "0.9.1"
 hashbrown = "0.16"

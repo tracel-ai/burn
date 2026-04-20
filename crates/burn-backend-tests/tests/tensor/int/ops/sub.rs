@@ -40,3 +40,16 @@ fn should_support_sub_scalar_ops_int() {
 
     output.into_data().assert_eq(&expected, false);
 }
+
+#[test]
+fn test_int_sub_flipped() {
+    // [10, 20, 30, 40] flipped - [1, 2, 3, 4] = [39, 28, 17, 6]
+    let a = TestTensorInt::<1>::from([10, 20, 30, 40]).flip([0]);
+    let b = TestTensorInt::<1>::from([1, 2, 3, 4]);
+
+    let output = a - b;
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([39, 28, 17, 6]), false);
+}

@@ -25,8 +25,13 @@ std = [
     "half/std",
     "num-traits/std",
 ]
-simd = ["dep:macerator", "dep:aligned-vec"]
+simd = ["dep:macerator", "dep:aligned-vec", "gemm/wasm-simd128-enable"]
 rayon = ["dep:rayon", "gemm/rayon"]
+# Opt-in gemm codegen paths. Not enabled by default.
+# AVX-512 kernels for x86_64 (Sapphire Rapids, Zen 4/5, etc.).
+x86-v4 = ["gemm/x86-v4"]
+# Apple AMX matrix coprocessor (M-series). Experimental upstream; requires std.
+apple-amx = ["std", "gemm/experimental-apple-amx"]
 tracing = ["burn-std/tracing", "burn-backend/tracing", "burn-ir/tracing"]
 critical-section = [
     "dep:once_cell",
@@ -49,7 +54,7 @@ half = { workspace = true }
 num-traits = { workspace = true }
 
 # Matmul
-gemm = { version = "0.19", default-features = false, features = ["f16"] }
+gemm = { workspace = true, features = ["f16"] }
 
 # SIMD
 aligned-vec = { version = "0.6", default-features = false, optional = true }

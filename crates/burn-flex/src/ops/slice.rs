@@ -395,6 +395,12 @@ fn compute_slice_info(slice: &Slice, dim_size: isize) -> (usize, usize, isize) {
     }
 }
 
+// Tests kept here exercise flex-specific behavior: the internal
+// `slice` / `slice_assign` helpers, the broadcast-scalar fast paths for
+// `slice_fill` (1D contiguous, 2D inner-contig, 3D inner-contig, ND
+// strided fallback, stepped-row 2D inner-contig), and non-f32 dtype
+// coverage. General slice correctness across backends is covered by
+// crates/burn-backend-tests/tests/tensor/float/ops/{slice,slice_assign}.rs.
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -606,27 +612,6 @@ mod tests {
             values,
             vec![0.0, 1.0, 0.0, 3.0, 0.0, 5.0, 0.0, 7.0, 0.0, 9.0]
         );
-    }
-
-    #[test]
-    fn test_slice_assign_broadcast_scalar_matches_public_api() {
-        // End-to-end sanity check via the high-level burn Tensor API.
-        use crate::Flex;
-        use burn_tensor::Tensor;
-
-        let data: Vec<f32> = (0..25).map(|i| i as f32).collect();
-        let t: Tensor<Flex, 2> =
-            Tensor::from_data(TensorData::new(data.clone(), [5, 5]), &Default::default());
-        let filled = t.slice_fill([1..4, 1..4], 42.0);
-        let out: Vec<f32> = filled.into_data().into_vec().unwrap();
-
-        let mut expected = data.clone();
-        for r in 1..4 {
-            for c in 1..4 {
-                expected[r * 5 + c] = 42.0;
-            }
-        }
-        assert_eq!(out, expected);
     }
 
     /// Broadcast-scalar fast path on a non-f32 dtype.

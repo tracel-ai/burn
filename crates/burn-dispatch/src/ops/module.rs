@@ -626,6 +626,20 @@ impl ModuleOps<Self> for Dispatch {
         )
     }
 
+    fn layer_norm(
+        tensor: FloatTensor<Self>,
+        gamma: FloatTensor<Self>,
+        beta: Option<FloatTensor<Self>>,
+        epsilon: f64,
+    ) -> FloatTensor<Self> {
+        multi_op!(
+            inputs[(tensor, float), (gamma, float)],
+            opt_inputs[(beta, float)],
+            => Float,
+            B::layer_norm(tensor, gamma, beta, epsilon)
+        )
+    }
+
     fn rfft(signal: FloatTensor<Self>, dim: usize) -> (FloatTensor<Self>, FloatTensor<Self>) {
         let (real, imag) = multi_op!(
             inputs[(signal, float)],

@@ -78,3 +78,61 @@ fn should_fail_expand_incompatible_shapes() {
     let tensor = TestTensor::<1>::from_data([1.0, 2.0, 3.0], &Default::default());
     let _expanded_tensor = tensor.expand([2, 2]);
 }
+
+#[test]
+fn expand_after_transpose() {
+    // [[1, 2], [3, 4]] transposed -> [[1, 3], [2, 4]] then expanded to [3, 2, 2].
+    let tensor = TestTensor::<2>::from([[1.0, 2.0], [3.0, 4.0]]).transpose();
+
+    let output = tensor.expand([3, 2, 2]);
+
+    output.into_data().assert_eq(
+        &TensorData::from([
+            [[1.0, 3.0], [2.0, 4.0]],
+            [[1.0, 3.0], [2.0, 4.0]],
+            [[1.0, 3.0], [2.0, 4.0]],
+        ]),
+        false,
+    );
+}
+
+#[test]
+fn expand_after_flip_1d() {
+    // [1,2,3] flipped -> [3,2,1] then expanded to [2, 3].
+    let tensor = TestTensor::<1>::from([1.0, 2.0, 3.0]).flip([0]);
+
+    let output = tensor.expand([2, 3]);
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([[3.0, 2.0, 1.0], [3.0, 2.0, 1.0]]), false);
+}
+
+#[test]
+fn expand_after_flip_2d() {
+    // [[1,2],[3,4]] axis-0 flipped -> [[3,4],[1,2]] then expanded to [3,2,2].
+    let tensor = TestTensor::<2>::from([[1.0, 2.0], [3.0, 4.0]]).flip([0]);
+
+    let output = tensor.expand([3, 2, 2]);
+
+    output.into_data().assert_eq(
+        &TensorData::from([
+            [[3.0, 4.0], [1.0, 2.0]],
+            [[3.0, 4.0], [1.0, 2.0]],
+            [[3.0, 4.0], [1.0, 2.0]],
+        ]),
+        false,
+    );
+}
+
+#[test]
+fn expand_after_narrow() {
+    // [0,1,2,3,4] narrowed to [1,2,3] then expanded to [2, 3].
+    let tensor = TestTensor::<1>::from([0.0, 1.0, 2.0, 3.0, 4.0]).narrow(0, 1, 3);
+
+    let output = tensor.expand([2, 3]);
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([[1.0, 2.0, 3.0], [1.0, 2.0, 3.0]]), false);
+}

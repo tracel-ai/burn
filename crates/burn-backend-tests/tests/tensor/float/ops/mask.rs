@@ -163,3 +163,84 @@ fn float_mask_fill_infinite() {
 
     output.into_data().assert_eq(&expected, false);
 }
+
+#[test]
+fn should_support_mask_fill_transposed_tensor() {
+    // [[1, 2], [3, 4]] transposed -> [[1, 3], [2, 4]]; mask [[T, F], [F, T]] -> [[0, 3], [2, 0]]
+    let tensor = TestTensor::<2>::from([[1.0, 2.0], [3.0, 4.0]]).transpose();
+    let mask = TestTensorBool::<2>::from([[true, false], [false, true]]);
+
+    let output = tensor.mask_fill(mask, 0.0);
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([[0.0, 3.0], [2.0, 0.0]]), false);
+}
+
+#[test]
+fn should_support_mask_fill_flipped_tensor() {
+    // [1,2,3,4] flipped -> [4,3,2,1]; mask [T,T,F,F] -> [0,0,2,1]
+    let tensor = TestTensor::<1>::from([1.0, 2.0, 3.0, 4.0]).flip([0]);
+    let mask = TestTensorBool::<1>::from([true, true, false, false]);
+
+    let output = tensor.mask_fill(mask, 0.0);
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([0.0, 0.0, 2.0, 1.0]), false);
+}
+
+#[test]
+fn should_support_mask_fill_flipped_mask() {
+    // tensor [1,2,3,4]; mask [F,F,T,T] flipped -> [T,T,F,F] -> [0,0,3,4]
+    let tensor = TestTensor::<1>::from([1.0, 2.0, 3.0, 4.0]);
+    let mask = TestTensorBool::<1>::from([false, false, true, true]).flip([0]);
+
+    let output = tensor.mask_fill(mask, 0.0);
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([0.0, 0.0, 3.0, 4.0]), false);
+}
+
+#[test]
+fn should_support_mask_where_flipped_2d() {
+    // [[1,2],[3,4]] axis-0 flipped -> [[3,4],[1,2]]; mask [[T,F],[F,T]];
+    // value [[10,20],[30,40]] -> [[10,4],[1,40]]
+    let tensor = TestTensor::<2>::from([[1.0, 2.0], [3.0, 4.0]]).flip([0]);
+    let mask = TestTensorBool::<2>::from([[true, false], [false, true]]);
+    let value = TestTensor::<2>::from([[10.0, 20.0], [30.0, 40.0]]);
+
+    let output = tensor.mask_where(mask, value);
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([[10.0, 4.0], [1.0, 40.0]]), false);
+}
+
+#[test]
+fn should_support_mask_fill_both_flipped() {
+    // tensor [1,2,3,4] flipped -> [4,3,2,1]; mask [T,F,T,F] flipped -> [F,T,F,T]
+    // result: [4, 0, 2, 0]
+    let tensor = TestTensor::<1>::from([1.0, 2.0, 3.0, 4.0]).flip([0]);
+    let mask = TestTensorBool::<1>::from([true, false, true, false]).flip([0]);
+
+    let output = tensor.mask_fill(mask, 0.0);
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([4.0, 0.0, 2.0, 0.0]), false);
+}
+
+#[test]
+fn should_support_mask_fill_narrowed_tensor() {
+    // [1,2,3,4,5,6] narrowed to [2,3,4,5]; mask [T,F,F,T] -> [0,3,4,0]
+    let tensor = TestTensor::<1>::from([1.0, 2.0, 3.0, 4.0, 5.0, 6.0]).narrow(0, 1, 4);
+    let mask = TestTensorBool::<1>::from([true, false, false, true]);
+
+    let output = tensor.mask_fill(mask, 0.0);
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([0.0, 3.0, 4.0, 0.0]), false);
+}

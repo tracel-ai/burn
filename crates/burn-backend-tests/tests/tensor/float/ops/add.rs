@@ -100,6 +100,39 @@ fn add_maybe_fused_not_contiguous() {
 }
 
 #[test]
+fn test_add_narrowed() {
+    // Non-contiguous via .narrow(): rows 1-2 of a [4, 4] tensor, then add
+    // to itself. Exercises stride handling on narrowed inputs.
+    let data: Vec<f32> = (0..16).map(|i| i as f32).collect();
+    let device = Default::default();
+    let a = TestTensor::<2>::from_data(TensorData::new(data.clone(), [4, 4]), &device);
+    let b = TestTensor::<2>::from_data(TensorData::new(data, [4, 4]), &device);
+
+    let a_narrow = a.narrow(0, 1, 2);
+    let b_narrow = b.narrow(0, 1, 2);
+
+    let output = a_narrow + b_narrow;
+
+    output.into_data().assert_eq(
+        &TensorData::from([[8.0, 10.0, 12.0, 14.0], [16.0, 18.0, 20.0, 22.0]]),
+        false,
+    );
+}
+
+#[test]
+fn test_add_scalar_transposed() {
+    // Scalar add on a non-contiguous (transposed) input.
+    let a = TestTensor::<2>::from([[1.0, 2.0], [3.0, 4.0]]).transpose();
+
+    let output = a + 10.0;
+
+    // a_t = [[1, 3], [2, 4]] + 10 = [[11, 13], [12, 14]]
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([[11.0, 13.0], [12.0, 14.0]]), false);
+}
+
+#[test]
 fn add_maybe_fused_not_contiguous_broadcasted() {
     let tensor1 = TestTensorInt::arange(0..8, &Default::default()).float();
     let tensor2 = TestTensorInt::arange(8..10, &Default::default()).float();

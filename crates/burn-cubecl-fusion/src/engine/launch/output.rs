@@ -164,7 +164,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             }
         }
 
-        for (handle, global) in self.handles.into_iter().zip(self.globals.into_iter()) {
+        for (handle, global) in self.handles.into_iter().zip(self.globals) {
             plan.handle_outputs.push(handle.unwrap());
             plan.global_outputs.push(global.unwrap());
         }

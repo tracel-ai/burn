@@ -161,7 +161,11 @@ openblas-system = ["burn-ndarray?/blas-openblas-system"]
 remote = ["burn-remote/client", "ir"]
 router = ["burn-router", "ir"]
 server = ["burn-remote/server"]
-simd = ["burn-ndarray?/simd"]
+simd = ["burn-ndarray?/simd", "burn-flex?/simd"]
+
+# burn-flex opt-in CPU codegen paths.
+x86-v4 = ["burn-flex?/x86-v4"]
+apple-amx = ["burn-flex?/apple-amx"]
 template = ["burn-wgpu?/template"]
 collective = ["burn-collective", "burn-optim/collective"]
 distributed = ["std",
