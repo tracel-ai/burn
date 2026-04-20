@@ -20,29 +20,30 @@ pub(crate) fn log_execution_table<O: NumOperations>(
     global: &[OperationIr],
 ) {
     log_fusion(FusionLogLevel::Full, || {
-        let mut entries = Vec::new();
-        collect_entries(strategy, global, &mut entries);
-        format_table(&entries)
+        let mut sections = Vec::new();
+        collect_sections(strategy, global, &mut sections);
+        format_table(&sections)
     });
 }
 
-struct Entry {
-    kind: EntryKind,
-    operation: OperationIr,
+/// One contiguous run of operations — the output of a single `ExecutionStrategy` leaf.
+/// A `Composed` strategy yields a sequence of these.
+struct Section {
+    kind: SectionKind,
+    ops: Vec<OperationIr>,
 }
 
-enum EntryKind {
-    /// Part of a fused optimization. Carries the Rust type name of the optimization and
-    /// the position of this op within the fused block.
-    Fused { opt_type: String },
-    /// Executed as a plain operation, possibly out of registration order.
+enum SectionKind {
+    /// Fused optimization: name + score are shared by every op in this section.
+    Fused { name: &'static str, score: u64 },
+    /// Plain operations that couldn't be fused (and may have been reordered).
     OutOfOrder,
 }
 
-fn collect_entries<O: NumOperations>(
+fn collect_sections<O: NumOperations>(
     strategy: &ExecutionStrategy<O>,
     global: &[OperationIr],
-    entries: &mut Vec<Entry>,
+    sections: &mut Vec<Section>,
 ) {
     match strategy {
         ExecutionStrategy::Optimization {
@@ -50,84 +51,81 @@ fn collect_entries<O: NumOperations>(
             ordering,
             score,
         } => {
-            let opt_type = opt.name();
-            for &idx in ordering.iter() {
-                entries.push(Entry {
-                    kind: EntryKind::Fused {
-                        opt_type: format!("{} score {}", opt_type, score),
-                    },
-                    operation: global[idx].clone(),
-                });
-            }
+            sections.push(Section {
+                kind: SectionKind::Fused {
+                    name: opt.name(),
+                    score: *score,
+                },
+                ops: ordering.iter().map(|&i| global[i].clone()).collect(),
+            });
         }
         ExecutionStrategy::Operations { ordering } => {
-            for &idx in ordering.iter() {
-                entries.push(Entry {
-                    kind: EntryKind::OutOfOrder,
-                    operation: global[idx].clone(),
-                });
-            }
+            sections.push(Section {
+                kind: SectionKind::OutOfOrder,
+                ops: ordering.iter().map(|&i| global[i].clone()).collect(),
+            });
         }
         ExecutionStrategy::Composed(items) => {
             for item in items {
-                collect_entries(item, global, entries);
+                collect_sections(item, global, sections);
             }
         }
     }
 }
 
-fn format_table(entries: &[Entry]) -> String {
-    if entries.is_empty() {
+fn format_table(sections: &[Section]) -> String {
+    let total: usize = sections.iter().map(|s| s.ops.len()).sum();
+    if total == 0 {
         return String::from("fusion execution: <empty>");
     }
 
+    // One row per op across all sections. The `section` column carries the section
+    // header on the first row of each section and is left blank for the rest, so each
+    // fused block is visually grouped but the name/score appear exactly once.
     struct Row {
-        order: String,
-        kind: String,
+        idx: String,
+        section: String,
         op: String,
         inputs: String,
         outputs: String,
     }
 
-    let rows: Vec<Row> = entries
-        .iter()
-        .enumerate()
-        .map(|(i, e)| Row {
-            order: i.to_string(),
-            kind: match &e.kind {
-                EntryKind::Fused { opt_type } => format!("fused {opt_type}"),
-                EntryKind::OutOfOrder => {
-                    format!("out-of-order")
-                }
-            },
-            op: op_kind(&e.operation),
-            inputs: format_tensors(e.operation.inputs()),
-            outputs: format_tensors(e.operation.outputs()),
-        })
-        .collect();
+    let headers = ["idx", "section", "op", "inputs", "outputs"];
+    let mut widths = headers.map(str::len);
 
-    let headers = ["order", "kind", "op", "inputs", "outputs"];
-    let mut widths = [
-        headers[0].len(),
-        headers[1].len(),
-        headers[2].len(),
-        headers[3].len(),
-        headers[4].len(),
-    ];
-    for row in &rows {
-        widths[0] = widths[0].max(row.order.len());
-        widths[1] = widths[1].max(row.kind.len());
-        widths[2] = widths[2].max(row.op.len());
-        widths[3] = widths[3].max(row.inputs.len());
-        widths[4] = widths[4].max(row.outputs.len());
+    let mut rows: Vec<Row> = Vec::with_capacity(total);
+    let mut global_idx: usize = 0;
+    for section in sections {
+        let header = section_header(&section.kind, section.ops.len());
+        for (i, op) in section.ops.iter().enumerate() {
+            let row = Row {
+                idx: global_idx.to_string(),
+                section: if i == 0 { header.clone() } else { String::new() },
+                op: op_kind(op),
+                inputs: format_tensors(op.inputs()),
+                outputs: format_tensors(op.outputs()),
+            };
+            widths[0] = widths[0].max(row.idx.len());
+            widths[1] = widths[1].max(row.section.len());
+            widths[2] = widths[2].max(row.op.len());
+            widths[3] = widths[3].max(row.inputs.len());
+            widths[4] = widths[4].max(row.outputs.len());
+            rows.push(row);
+            global_idx += 1;
+        }
     }
 
+    // Two-space separators between the 5 columns.
+    let table_width = widths.iter().sum::<usize>() + 2 * (widths.len() - 1);
+
     let mut out = String::new();
+    writeln!(out, "{}", "═".repeat(table_width)).unwrap();
     writeln!(
         out,
-        "fusion execution ({} op{})",
-        entries.len(),
-        if entries.len() == 1 { "" } else { "s" }
+        "fusion execution ({total} op{}, {} section{})",
+        if total == 1 { "" } else { "s" },
+        sections.len(),
+        if sections.len() == 1 { "" } else { "s" },
     )
     .unwrap();
 
@@ -142,13 +140,7 @@ fn format_table(entries: &[Entry]) -> String {
     };
 
     write_row(&mut out, headers);
-    let seps: [String; 5] = [
-        "-".repeat(widths[0]),
-        "-".repeat(widths[1]),
-        "-".repeat(widths[2]),
-        "-".repeat(widths[3]),
-        "-".repeat(widths[4]),
-    ];
+    let seps = widths.map(|w| "-".repeat(w));
     write_row(
         &mut out,
         [
@@ -159,18 +151,28 @@ fn format_table(entries: &[Entry]) -> String {
             seps[4].as_str(),
         ],
     );
-
     for row in &rows {
         write_row(
             &mut out,
-            [&row.order, &row.kind, &row.op, &row.inputs, &row.outputs],
+            [&row.idx, &row.section, &row.op, &row.inputs, &row.outputs],
         );
     }
+
     // Trim the trailing newline so `println!`/`writeln!` sinks don't double up.
     if out.ends_with('\n') {
         out.pop();
     }
     out
+}
+
+fn section_header(kind: &SectionKind, size: usize) -> String {
+    let ops_suffix = if size == 1 { "op" } else { "ops" };
+    match kind {
+        SectionKind::Fused { name, score } => {
+            format!("▸ fused {name} (score={score}, {size} {ops_suffix})")
+        }
+        SectionKind::OutOfOrder => format!("▸ out-of-order ({size} {ops_suffix})"),
+    }
 }
 
 /// Take the top-level variant name from a Debug representation (`"Foo(..)"` → `"Foo"`).
@@ -300,5 +302,50 @@ mod tests {
             burn_ir::FloatOperationIr::Exp(UnaryOpIr { input, out }),
         );
         assert_eq!(op_kind(&op), "Float::Exp");
+    }
+
+    #[test]
+    fn format_table_puts_name_and_score_in_section_header() {
+        let op = OperationIr::Float(
+            DType::F32,
+            burn_ir::FloatOperationIr::Exp(UnaryOpIr {
+                input: tensor(1, &[4]),
+                out: tensor(2, &[4]),
+            }),
+        );
+        let sections = vec![
+            Section {
+                kind: SectionKind::Fused {
+                    name: "FusedKernel",
+                    score: 42,
+                },
+                ops: vec![op.clone(), op.clone()],
+            },
+            Section {
+                kind: SectionKind::OutOfOrder,
+                ops: vec![op],
+            },
+        ];
+
+        let table = format_table(&sections);
+
+        // Top separator precedes the title line.
+        let first_line = table.lines().next().unwrap();
+        assert!(
+            first_line.chars().all(|c| c == '═'),
+            "expected top line of ═, got {first_line:?}"
+        );
+        assert!(table.contains("\nfusion execution (3 ops, 2 sections)\n"));
+        // Fused header names the optimization and its score exactly once.
+        assert!(table.contains("▸ fused FusedKernel (score=42, 2 ops)"));
+        // Out-of-order header is tagged and sized.
+        assert!(table.contains("▸ out-of-order (1 op)"));
+        // No per-row repetition of "FusedKernel" or "42": they appear exactly once.
+        assert_eq!(table.matches("FusedKernel").count(), 1);
+        assert_eq!(table.matches("score=42").count(), 1);
+        // Indices are global (0, 1, 2 across sections).
+        assert!(table.contains("\n0  "));
+        assert!(table.contains("\n1  "));
+        assert!(table.contains("\n2  "));
     }
 }
