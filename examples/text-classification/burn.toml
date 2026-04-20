@@ -1,5 +1,5 @@
 [fusion]
-logger = { log = "info", level = "full" }
+logger = { log = "info", level = "disabled" }
 
 [cubecl.profiling]
 logger = { log = "info", level = "disabled" }

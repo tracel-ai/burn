@@ -55,12 +55,7 @@ fn propagate_cubecl(config: &BurnConfig) {
 
     static PROPAGATED: std::sync::OnceLock<()> = std::sync::OnceLock::new();
     PROPAGATED.get_or_init(|| {
-        // Only install if CubeCL hasn't been initialized yet (e.g. via its own TOML or
-        // an earlier explicit `CubeClRuntimeConfig::set`). First writer wins.
-        let mut state = CubeClRuntimeConfig::storage().lock();
-        if state.is_none() {
-            *state = Some(Arc::new(config.cubecl.clone()));
-        }
+        CubeClRuntimeConfig::set(config.cubecl.clone());
     });
 }
 

@@ -53,6 +53,7 @@ pub fn launch_multi<B: AutodiffBackend + DistributedBackend>() {
 }
 
 pub fn launch<B: AutodiffBackend>(strategy: ExecutionStrategy<B>) {
+    let _ = burn::runtime_config();
     let config = ExperimentConfig::new(
         TransformerEncoderConfig::new(256, 1024, 8, 4)
             .with_norm_first(true)
