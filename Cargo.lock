@@ -2329,6 +2329,7 @@ dependencies = [
 name = "cubecl-runtime"
 version = "0.10.0-pre.3"
 dependencies = [
+ "ahash",
  "async-channel",
  "bytemuck",
  "cfg-if",
@@ -2349,7 +2350,6 @@ dependencies = [
  "thiserror 2.0.18",
  "toml 1.1.2+spec-1.1.0",
  "tracing",
- "variadics_please",
  "wasm-bindgen-futures",
  "web-time",
 ]

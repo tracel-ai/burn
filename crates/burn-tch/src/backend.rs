@@ -82,7 +82,7 @@ impl burn_backend::Device for LibTorchDevice {
 
     fn to_id(&self) -> DeviceId {
         match self {
-            LibTorchDevice::Cuda(index) => DeviceId::new(0, *index as u32),
+            LibTorchDevice::Cuda(index) => DeviceId::new(0, *index as u16),
             LibTorchDevice::Mps => DeviceId::new(1, 0),
             LibTorchDevice::Cpu => DeviceId::new(2, 0),
             LibTorchDevice::Vulkan => DeviceId::new(3, 0),

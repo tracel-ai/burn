@@ -26,7 +26,7 @@ pub fn launch_multi<B: AutodiffBackend>() {
     let num_devices = B::device_count(type_id);
 
     let devices = (0..num_devices)
-        .map(|i| B::Device::from_id(DeviceId::new(type_id, i as u32)))
+        .map(|i| B::Device::from_id(DeviceId::new(type_id, i as u16)))
         .collect();
 
     launch::<B>(ExecutionStrategy::MultiDevice(
@@ -41,7 +41,7 @@ pub fn launch_multi<B: AutodiffBackend + DistributedBackend>() {
     let num_devices = B::device_count(type_id);
 
     let devices = (0..num_devices)
-        .map(|i| B::Device::from_id(DeviceId::new(type_id, i as u32)))
+        .map(|i| B::Device::from_id(DeviceId::new(type_id, i as u16)))
         .collect();
 
     launch::<B>(ExecutionStrategy::ddp(

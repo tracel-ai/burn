@@ -20,9 +20,7 @@ use cubek::matmul::{
 
 fn matmul_input_gen<R: CubeRuntime>(
     _key: &MatmulAutotuneKey,
-    lhs: &CubeTensor<R>,
-    rhs: &CubeTensor<R>,
-    out: &CubeTensor<R>,
+    (lhs, rhs, out): &(CubeTensor<R>, CubeTensor<R>, CubeTensor<R>),
 ) -> (CubeTensor<R>, CubeTensor<R>, CubeTensor<R>) {
     (lhs.clone(), rhs.clone(), out.copy())
 }
@@ -162,7 +160,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
 
         // First entry should always work, since it is considered the fallback.
         set = set.with(
-            Tunable::new("matmul_naive", |lhs, rhs, out| {
+            Tunable::new("matmul_naive", |(lhs, rhs, out)| {
                 launch_matmul_naive::<R>(&Strategy::Naive, lhs, rhs, out)
                     .map_err(|err| std::format!("{err:?}"))
             })
@@ -197,7 +195,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
             ),
         ] {
             set = set.with(
-                Tunable::new(strategy.to_string(), move |lhs, rhs, out| {
+                Tunable::new(&strategy.to_string(), move |(lhs, rhs, out)| {
                     launch_matmul::<R>(&strategy, lhs, rhs, out)
                         .map_err(|err| std::format!("{err:?}"))
                 })
@@ -228,7 +226,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
                 ),
             ] {
                 set = set.with(
-                    Tunable::new(strategy.to_string(), move |lhs, rhs, out| {
+                    Tunable::new(&strategy.to_string(), move |(lhs, rhs, out)| {
                         launch_matmul::<R>(&strategy, lhs, rhs, out)
                             .map_err(|err| format!("{err:?}"))
                     })
@@ -408,7 +406,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
                 false => PRIORITY_MAX,
                 true => double_buffering_priority(key, PRIORITY_MAX, PRIORITY_HIGH),
             };
-            let mut tunable = Tunable::new(strategy.to_string(), move |lhs, rhs, out| {
+            let mut tunable = Tunable::new(&strategy.to_string(), move |(lhs, rhs, out)| {
                 launch_matmul::<R>(&strategy, lhs, rhs, out).map_err(|err| format!("{err:?}"))
             });
 
@@ -438,9 +436,7 @@ pub fn matmul_autotune<R: CubeRuntime>(
 }
 
 fn create_key<R: CubeRuntime>(
-    lhs: &CubeTensor<R>,
-    rhs: &CubeTensor<R>,
-    out: &CubeTensor<R>,
+    (lhs, rhs, out): &(CubeTensor<R>, CubeTensor<R>, CubeTensor<R>),
 ) -> MatmulAutotuneKey {
     MatmulAutotuneKey::generate(
         &lhs.client,

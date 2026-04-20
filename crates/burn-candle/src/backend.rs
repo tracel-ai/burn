@@ -176,8 +176,8 @@ impl From<candle_core::Device> for CandleDevice {
 impl burn_backend::Device for CandleDevice {
     fn to_id(&self) -> burn_backend::DeviceId {
         match self {
-            CandleDevice::Cuda(device) => DeviceId::new(0, device.index as u32),
-            CandleDevice::Metal(device) => DeviceId::new(1, device.index as u32),
+            CandleDevice::Cuda(device) => DeviceId::new(0, device.index as u16),
+            CandleDevice::Metal(device) => DeviceId::new(1, device.index as u16),
             CandleDevice::Cpu => DeviceId::new(2, 0),
         }
     }

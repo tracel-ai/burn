@@ -224,7 +224,7 @@ where
             client
                 .server
                 .clone()
-                .submit_blocking_scoped(move |server_other| {
+                .submit_blocking(move |server_other| {
                     server_other.change_server_float::<B>(
                         &tensor,
                         id,
@@ -233,6 +233,7 @@ where
                         server,
                     )
                 })
+                .unwrap();
         });
 
         FusionTensor::new(id, shape, dtype, client_cloned, StreamId::current())
@@ -259,9 +260,10 @@ where
             client
                 .server
                 .clone()
-                .submit_blocking_scoped(move |server_other| {
+                .submit_blocking(move |server_other| {
                     server_other.change_server_int::<B>(&tensor, id, stream, &client.device, server)
                 })
+                .unwrap();
         });
 
         FusionTensor::new(id, shape, dtype, client_cloned, StreamId::current())
@@ -288,7 +290,7 @@ where
             client
                 .server
                 .clone()
-                .submit_blocking_scoped(move |server_other| {
+                .submit_blocking(move |server_other| {
                     server_other.change_server_bool::<B>(
                         &tensor,
                         id,
@@ -297,6 +299,7 @@ where
                         server,
                     )
                 })
+                .unwrap();
         });
 
         FusionTensor::new(id, shape, dtype, client_cloned, StreamId::current())
@@ -323,9 +326,10 @@ where
             client
                 .server
                 .clone()
-                .submit_blocking_scoped(move |server_other| {
+                .submit_blocking(move |server_other| {
                     server_other.change_server_quantized::<B>(&tensor, id, &client.device, server)
                 })
+                .unwrap();
         });
 
         FusionTensor::new(id, shape, dtype, client_cloned, StreamId::current())

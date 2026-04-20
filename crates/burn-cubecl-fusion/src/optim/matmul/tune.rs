@@ -143,7 +143,7 @@ pub fn fused_matmul_autotune<R: Runtime>(
             (FusedMatmulSelector::GemvUnitPerpendicular, false),
         ] {
             set = set.with(
-                Tunable::new(selector.name(), move |input| {
+                Tunable::new(&selector.name(), move |input| {
                     tune_fused::<R>(input, selector)
                 })
                 .group(&gemv, move |key| match double_buf {
@@ -159,7 +159,7 @@ pub fn fused_matmul_autotune<R: Runtime>(
             (FusedMatmulSelector::DoubleUnit, true),
         ] {
             set = set.with(
-                Tunable::new(selector.name(), move |input| {
+                Tunable::new(&selector.name(), move |input| {
                     tune_fused::<R>(input, selector)
                 })
                 .group(&unit, move |key| match double_buf {
@@ -215,7 +215,7 @@ pub fn fused_matmul_autotune<R: Runtime>(
                         false => PRIORITY_MAX,
                         true => double_buffering_priority(key, PRIORITY_MAX, PRIORITY_HIGH),
                     };
-                let mut tunable = Tunable::new(selector.name(), move |input| {
+                let mut tunable = Tunable::new(&selector.name(), move |input| {
                     tune_fused::<R>(input, selector)
                 })
                 .group(&accelerated, move |key| {
