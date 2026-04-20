@@ -179,15 +179,15 @@ portable-atomic = { version = "1.13.1" }
 portable-atomic-util = { version = "0.2.6", features = ["alloc"] }
 
 ### For the main burn branch. ###
-# cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "34625c911c3e07b0438d91bea9af0f2233050589" }
-# cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "34625c911c3e07b0438d91bea9af0f2233050589" }
-# cubecl-zspace = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "34625c911c3e07b0438d91bea9af0f2233050589" }
-# cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "aaa8b1276650e688ac6f46701af1e79cf1c5d112" }
+cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "4c78c073239126a08c1945510a526ba74409c8bf" }
+cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "4c78c073239126a08c1945510a526ba74409c8bf" }
+cubecl-zspace = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "4c78c073239126a08c1945510a526ba74409c8bf" }
+cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "3de14cf8af97fdbd8a54da8702a5ce772fdd6b86" }
 ### For local development. ###
-cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
-cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }
-cubecl-zspace = { path = "../cubecl/crates/cubecl-zspace", default-features = false }
-cubek = { path = "../cubek/crates/cubek", default-features = false }
+# cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
+# cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }
+# cubecl-zspace = { path = "../cubecl/crates/cubecl-zspace", default-features = false }
+# cubek = { path = "../cubek/crates/cubek", default-features = false }
 ### For the release. ###
 # cubecl = { version = "=0.10.0-pre.3", default-features = false }
 # cubecl-common = { version = "=0.10.0-pre.3", default-features = false }
