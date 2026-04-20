@@ -3,9 +3,9 @@ use crate::{
     UnfusedOp,
     stream::{OperationStreams, StreamId, execution::Operation},
 };
-use burn_backend::{Device, DeviceHandle, DeviceId, DeviceService, DeviceServiceStage};
 #[cfg(feature = "distributed")]
 use burn_backend::distributed::DistributedBackend;
+use burn_backend::{Device, DeviceHandle, DeviceId, DeviceService, DeviceServiceStage};
 use burn_backend::{TensorData, backend::ExecutionError};
 use burn_ir::{OperationIr, TensorId, TensorIr};
 use std::sync::Arc;
