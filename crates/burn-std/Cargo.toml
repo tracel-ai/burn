@@ -29,6 +29,7 @@ half = { workspace = true, features = ["bytemuck"] }
 num-traits = { workspace = true }
 serde = { workspace = true }
 smallvec = { workspace = true, features = ["serde"] }
+spin = { workspace = true }
 
 cubecl = { workspace = true, optional = true, default-features = false }
 cubecl-common = { workspace = true, default-features = false, features = [

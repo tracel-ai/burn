@@ -16,6 +16,9 @@ pub mod id;
 pub mod tensor;
 pub use tensor::*;
 
+/// Burn runtime configurations.
+pub mod config;
+
 /// Common Errors.
 pub use cubecl_zspace::errors::{self, *};
 
