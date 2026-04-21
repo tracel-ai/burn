@@ -8,7 +8,7 @@ use burn_tensor::backend::Backend;
 
 use tempfile::tempdir;
 
-type TestBackend = burn_ndarray::NdArray;
+type TestBackend = burn_flex::Flex;
 
 // Define a test model with forward pass
 #[derive(Module, Debug)]

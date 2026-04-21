@@ -3,18 +3,13 @@ use simple_regression::{inference, training};
 
 static ARTIFACT_DIR: &str = "/tmp/burn-example-regression";
 
-#[cfg(any(
-    feature = "ndarray",
-    feature = "ndarray-blas-netlib",
-    feature = "ndarray-blas-openblas",
-    feature = "ndarray-blas-accelerate",
-))]
-mod ndarray {
-    use burn::backend::ndarray::{NdArray, NdArrayDevice};
+#[cfg(feature = "flex")]
+mod flex {
+    use burn::backend::flex::{Flex, FlexDevice};
 
     pub fn run() {
-        let device = NdArrayDevice::Cpu;
-        super::run::<NdArray>(device.clone());
+        let device = FlexDevice;
+        super::run::<Flex>(device);
     }
 }
 
@@ -69,13 +64,8 @@ pub fn run<B: Backend>(device: B::Device) {
 }
 
 fn main() {
-    #[cfg(any(
-        feature = "ndarray",
-        feature = "ndarray-blas-netlib",
-        feature = "ndarray-blas-openblas",
-        feature = "ndarray-blas-accelerate",
-    ))]
-    ndarray::run();
+    #[cfg(feature = "flex")]
+    flex::run();
     #[cfg(feature = "tch-gpu")]
     tch_gpu::run();
     #[cfg(feature = "tch-cpu")]

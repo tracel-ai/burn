@@ -145,7 +145,7 @@ There are two major things going on in this code sample.
    // Choose from any of the supported backends.
    // type Backend = Candle<f32, i64>;
    // type Backend = LibTorch<f32>;
-   // type Backend = NdArray<f32>;
+   // type Backend = Flex;
    type Backend = Wgpu;
 
    // Creation of two tensors.

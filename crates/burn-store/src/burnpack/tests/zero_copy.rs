@@ -7,7 +7,7 @@ use burn_core as burn;
 use burn_core::module::{Module, Param};
 use burn_tensor::{AllocationProperty, Bytes, Tensor, backend::Backend};
 
-type TestBackend = burn_ndarray::NdArray;
+type TestBackend = burn_flex::Flex;
 
 #[derive(Module, Debug)]
 struct SimpleModule<B: Backend> {

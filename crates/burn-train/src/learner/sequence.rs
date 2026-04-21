@@ -2,7 +2,7 @@ use crate::metric::{AccuracyInput, PerplexityInput, TopKAccuracyInput};
 use crate::metric::{Adaptor, CerInput, LossInput, WerInput, processor::ItemLazy};
 use burn_core::tensor::backend::Backend;
 use burn_core::tensor::{Int, Tensor, Transaction};
-use burn_ndarray::NdArray;
+use burn_flex::Flex;
 
 /// Sequence prediction output adapted for multiple metrics.
 ///
@@ -51,7 +51,8 @@ impl<B: Backend> SequenceOutput<B> {
 }
 
 impl<B: Backend> ItemLazy for SequenceOutput<B> {
-    type ItemSync = SequenceOutput<NdArray>;
+    // Flex's IntElem is i32; token IDs > i32::MAX would truncate on sync.
+    type ItemSync = SequenceOutput<Flex>;
 
     fn sync(self) -> Self::ItemSync {
         let device = &Default::default();

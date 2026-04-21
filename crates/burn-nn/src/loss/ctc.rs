@@ -508,9 +508,9 @@ impl CTCLoss {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use burn_ndarray::{NdArray, NdArrayDevice};
+    use burn_flex::{Flex, FlexDevice};
 
-    type TestBackend = NdArray<f32>;
+    type TestBackend = Flex;
 
     fn assert_approx_equal(actual: &[f32], expected: &[f32], tol: f32) {
         assert_eq!(
@@ -538,34 +538,34 @@ mod tests {
 
     #[test]
     fn test_insert_blanks_single_sample() {
-        let device = NdArrayDevice::Cpu;
+        let device = FlexDevice;
         let ctc = CTCLossConfig::new().init();
 
-        let targets = Tensor::<TestBackend, 2, Int>::from_data([[1_i64, 2, 3]], &device);
+        let targets = Tensor::<TestBackend, 2, Int>::from_data([[1, 2, 3]], &device);
         let result = ctc.insert_blanks::<TestBackend>(&targets, 1, 3, &device);
-        let result_data = result.into_data().to_vec::<i64>().unwrap();
+        let result_data = result.into_data().to_vec::<i32>().unwrap();
         assert_eq!(result_data, vec![0, 1, 0, 2, 0, 3, 0]);
     }
 
     #[test]
     fn test_insert_blanks_batch() {
-        let device = NdArrayDevice::Cpu;
+        let device = FlexDevice;
         let ctc = CTCLossConfig::new().init();
 
-        let targets = Tensor::<TestBackend, 2, Int>::from_data([[1_i64, 2], [3, 4]], &device);
+        let targets = Tensor::<TestBackend, 2, Int>::from_data([[1, 2], [3, 4]], &device);
         let result = ctc.insert_blanks::<TestBackend>(&targets, 2, 2, &device);
-        let result_data = result.into_data().to_vec::<i64>().unwrap();
+        let result_data = result.into_data().to_vec::<i32>().unwrap();
         assert_eq!(result_data, vec![0, 1, 0, 2, 0, 0, 3, 0, 4, 0]);
     }
 
     #[test]
     fn test_insert_blanks_custom_blank() {
-        let device = NdArrayDevice::Cpu;
+        let device = FlexDevice;
         let ctc = CTCLossConfig::new().with_blank(2).init();
 
-        let targets = Tensor::<TestBackend, 2, Int>::from_data([[0_i64, 1]], &device);
+        let targets = Tensor::<TestBackend, 2, Int>::from_data([[0, 1]], &device);
         let result = ctc.insert_blanks::<TestBackend>(&targets, 1, 2, &device);
-        let result_data = result.into_data().to_vec::<i64>().unwrap();
+        let result_data = result.into_data().to_vec::<i32>().unwrap();
         // l' = [blank=2, 0, blank=2, 1, blank=2]
         assert_eq!(result_data, vec![2, 0, 2, 1, 2]);
     }
@@ -577,7 +577,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "blank index")]
     fn test_ctc_loss_panics_invalid_blank_index() {
-        let device = NdArrayDevice::Cpu;
+        let device = FlexDevice;
         // blank=5 is out of bounds for num_classes=3
         let ctc = CTCLossConfig::new().with_blank(5).init();
 
@@ -592,7 +592,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "must equal batch_size")]
     fn test_ctc_loss_panics_mismatched_batch_size() {
-        let device = NdArrayDevice::Cpu;
+        let device = FlexDevice;
         let ctc = CTCLossConfig::new().init();
 
         // Logits batch size = 2
@@ -608,7 +608,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "input_lengths length")]
     fn test_ctc_loss_panics_input_lengths_mismatch() {
-        let device = NdArrayDevice::Cpu;
+        let device = FlexDevice;
         let ctc = CTCLossConfig::new().init();
 
         // Logits batch size = 2
@@ -625,7 +625,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "target_lengths length")]
     fn test_ctc_loss_panics_target_lengths_mismatch() {
-        let device = NdArrayDevice::Cpu;
+        let device = FlexDevice;
         let ctc = CTCLossConfig::new().init();
 
         // Logits batch size = 2
@@ -650,13 +650,13 @@ mod tests {
         // The minimum T for target [1, 1] is 3: the only valid path is (1, 0, 1).
         // prob = (1/2)^3 = 1/8
         // Loss = -ln(1/8) = 3 * ln(2)
-        let device = NdArrayDevice::Cpu;
+        let device = FlexDevice;
         let ctc = CTCLossConfig::new().init();
 
         let log_probs = Tensor::<TestBackend, 3>::full([3, 1, 2], 0.5_f32.ln(), &device);
-        let targets = Tensor::<TestBackend, 2, Int>::from_data([[1_i64, 1]], &device);
-        let input_lengths = Tensor::<TestBackend, 1, Int>::from_data([3_i64], &device);
-        let target_lengths = Tensor::<TestBackend, 1, Int>::from_data([2_i64], &device);
+        let targets = Tensor::<TestBackend, 2, Int>::from_data([[1_i32, 1]], &device);
+        let input_lengths = Tensor::<TestBackend, 1, Int>::from_data([3_i32], &device);
+        let target_lengths = Tensor::<TestBackend, 1, Int>::from_data([2_i32], &device);
 
         let loss = ctc.forward(log_probs, targets, input_lengths, target_lengths);
         let loss_data = loss.into_data().to_vec::<f32>().unwrap();
@@ -672,13 +672,13 @@ mod tests {
         // blank=2 instead of 0.
         // 5 valid paths → total = 5/27
         // Loss = -ln(5/27)
-        let device = NdArrayDevice::Cpu;
+        let device = FlexDevice;
         let ctc = CTCLossConfig::new().with_blank(2).init();
 
         let log_probs = Tensor::<TestBackend, 3>::full([3, 1, 3], (1.0_f32 / 3.0).ln(), &device);
-        let targets = Tensor::<TestBackend, 2, Int>::from_data([[0_i64, 1]], &device);
-        let input_lengths = Tensor::<TestBackend, 1, Int>::from_data([3_i64], &device);
-        let target_lengths = Tensor::<TestBackend, 1, Int>::from_data([2_i64], &device);
+        let targets = Tensor::<TestBackend, 2, Int>::from_data([[0_i32, 1]], &device);
+        let input_lengths = Tensor::<TestBackend, 1, Int>::from_data([3_i32], &device);
+        let target_lengths = Tensor::<TestBackend, 1, Int>::from_data([2_i32], &device);
 
         let loss = ctc.forward(log_probs, targets, input_lengths, target_lengths);
         let loss_data = loss.into_data().to_vec::<f32>().unwrap();
@@ -694,13 +694,13 @@ mod tests {
     fn test_ctc_loss_zero_infinity_produces_inf_when_disabled() {
         // T=2, N=1, C=3, blank=0, target=[1, 1], input_length=2
         // Target [1, 1] requires at least 3 time steps → no valid paths → loss = +inf
-        let device = NdArrayDevice::Cpu;
+        let device = FlexDevice;
         let ctc = CTCLossConfig::new().with_zero_infinity(false).init();
 
         let log_probs = Tensor::<TestBackend, 3>::full([2, 1, 3], (1.0_f32 / 3.0).ln(), &device);
-        let targets = Tensor::<TestBackend, 2, Int>::from_data([[1_i64, 1]], &device);
-        let input_lengths = Tensor::<TestBackend, 1, Int>::from_data([2_i64], &device);
-        let target_lengths = Tensor::<TestBackend, 1, Int>::from_data([2_i64], &device);
+        let targets = Tensor::<TestBackend, 2, Int>::from_data([[1_i32, 1]], &device);
+        let input_lengths = Tensor::<TestBackend, 1, Int>::from_data([2_i32], &device);
+        let target_lengths = Tensor::<TestBackend, 1, Int>::from_data([2_i32], &device);
 
         let loss = ctc.forward(log_probs, targets, input_lengths, target_lengths);
         let loss_data = loss.into_data().to_vec::<f32>().unwrap();
@@ -714,13 +714,13 @@ mod tests {
     #[test]
     fn test_ctc_loss_zero_infinity_masks_inf_when_enabled() {
         // Same inputs as above, but zero_infinity=true → loss should be 0.0
-        let device = NdArrayDevice::Cpu;
+        let device = FlexDevice;
         let ctc = CTCLossConfig::new().with_zero_infinity(true).init();
 
         let log_probs = Tensor::<TestBackend, 3>::full([2, 1, 3], (1.0_f32 / 3.0).ln(), &device);
-        let targets = Tensor::<TestBackend, 2, Int>::from_data([[1_i64, 1]], &device);
-        let input_lengths = Tensor::<TestBackend, 1, Int>::from_data([2_i64], &device);
-        let target_lengths = Tensor::<TestBackend, 1, Int>::from_data([2_i64], &device);
+        let targets = Tensor::<TestBackend, 2, Int>::from_data([[1_i32, 1]], &device);
+        let input_lengths = Tensor::<TestBackend, 1, Int>::from_data([2_i32], &device);
+        let target_lengths = Tensor::<TestBackend, 1, Int>::from_data([2_i32], &device);
 
         let loss = ctc.forward(log_probs, targets, input_lengths, target_lengths);
         let loss_data = loss.into_data().to_vec::<f32>().unwrap();
@@ -730,13 +730,13 @@ mod tests {
     #[test]
     fn test_ctc_loss_zero_infinity_does_not_affect_finite_loss() {
         // Verify that zero_infinity=true does not change a finite loss value.
-        let device = NdArrayDevice::Cpu;
+        let device = FlexDevice;
         let ctc = CTCLossConfig::new().with_zero_infinity(true).init();
 
         let log_probs = Tensor::<TestBackend, 3>::full([2, 1, 2], 0.5_f32.ln(), &device);
-        let targets = Tensor::<TestBackend, 2, Int>::from_data([[1_i64]], &device);
-        let input_lengths = Tensor::<TestBackend, 1, Int>::from_data([2_i64], &device);
-        let target_lengths = Tensor::<TestBackend, 1, Int>::from_data([1_i64], &device);
+        let targets = Tensor::<TestBackend, 2, Int>::from_data([[1_i32]], &device);
+        let input_lengths = Tensor::<TestBackend, 1, Int>::from_data([2_i32], &device);
+        let target_lengths = Tensor::<TestBackend, 1, Int>::from_data([1_i32], &device);
 
         let loss = ctc.forward(log_probs, targets, input_lengths, target_lengths);
         let loss_data = loss.into_data().to_vec::<f32>().unwrap();
@@ -751,9 +751,9 @@ mod pytorch_comparison_tests {
     use burn::tensor::activation::log_softmax;
     use burn_autodiff::Autodiff;
     use burn_core::tensor::TensorData;
-    use burn_ndarray::{NdArray, NdArrayDevice};
+    use burn_flex::{Flex, FlexDevice};
 
-    type InnerBackend = NdArray<f32>;
+    type InnerBackend = Flex;
     type TestBackend = Autodiff<InnerBackend>;
 
     fn assert_approx_equal(actual: &[f32], expected: &[f32], tol: f32) {
@@ -781,7 +781,7 @@ mod pytorch_comparison_tests {
         t_size: usize,
         n_size: usize,
         c_size: usize,
-        device: &NdArrayDevice,
+        device: &FlexDevice,
     ) -> Tensor<TestBackend, 3> {
         let mut data = Vec::with_capacity(t_size * n_size * c_size);
         for t in 0..t_size {
@@ -823,7 +823,7 @@ mod pytorch_comparison_tests {
         loss_tol: f32,
         grad_tol: f32,
     ) {
-        let device = NdArrayDevice::Cpu;
+        let device = FlexDevice;
         let ctc = CTCLossConfig::new().with_blank(blank).init();
 
         let logits = generate_logits(t_size, n_size, c_size, &device).require_grad();
@@ -1552,17 +1552,17 @@ mod pytorch_comparison_tests {
     #[test]
     fn test_ctc_loss_sum_reduction() {
         // Same inputs as comparison_uniform_input_lengths, sum reduction
-        let device = NdArrayDevice::Cpu;
+        let device = FlexDevice;
         let ctc = CTCLossConfig::new().init();
 
         let logits = generate_logits(5, 3, 4, &device).require_grad();
         let log_probs = log_softmax(logits.clone(), 2);
         let targets = Tensor::<TestBackend, 2, Int>::from_data(
-            TensorData::new(vec![1_i64, 2, 0, 1, 0, 0, 3, 2, 1], [3, 3]),
+            TensorData::new(vec![1_i32, 2, 0, 1, 0, 0, 3, 2, 1], [3, 3]),
             &device,
         );
-        let il = Tensor::<TestBackend, 1, Int>::from_data([5_i64, 5, 5], &device);
-        let tl = Tensor::<TestBackend, 1, Int>::from_data([2_i64, 1, 3], &device);
+        let il = Tensor::<TestBackend, 1, Int>::from_data([5_i32, 5, 5], &device);
+        let tl = Tensor::<TestBackend, 1, Int>::from_data([2_i32, 1, 3], &device);
 
         let loss = ctc.forward_with_reduction(log_probs, targets, il, tl, Reduction::Sum);
         let loss_data = loss.clone().into_data().to_vec::<f32>().unwrap();
@@ -1641,17 +1641,17 @@ mod pytorch_comparison_tests {
 
     #[test]
     fn test_ctc_loss_mean_reduction() {
-        let device = NdArrayDevice::Cpu;
+        let device = FlexDevice;
         let ctc = CTCLossConfig::new().init();
 
         let logits = generate_logits(5, 3, 4, &device).require_grad();
         let log_probs = log_softmax(logits.clone(), 2);
         let targets = Tensor::<TestBackend, 2, Int>::from_data(
-            TensorData::new(vec![1_i64, 2, 0, 1, 0, 0, 3, 2, 1], [3, 3]),
+            TensorData::new(vec![1_i32, 2, 0, 1, 0, 0, 3, 2, 1], [3, 3]),
             &device,
         );
-        let il = Tensor::<TestBackend, 1, Int>::from_data([5_i64, 5, 5], &device);
-        let tl = Tensor::<TestBackend, 1, Int>::from_data([2_i64, 1, 3], &device);
+        let il = Tensor::<TestBackend, 1, Int>::from_data([5_i32, 5, 5], &device);
+        let tl = Tensor::<TestBackend, 1, Int>::from_data([2_i32, 1, 3], &device);
 
         let loss = ctc.forward_with_reduction(log_probs, targets, il, tl, Reduction::Mean);
         let loss_data = loss.clone().into_data().to_vec::<f32>().unwrap();

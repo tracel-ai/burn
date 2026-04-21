@@ -2,7 +2,7 @@ use crate::metric::processor::ItemLazy;
 use crate::metric::{Adaptor, LossInput};
 use burn_core::tensor::backend::Backend;
 use burn_core::tensor::{Tensor, Transaction};
-use burn_ndarray::NdArray;
+use burn_flex::Flex;
 
 /// Regression output adapted for the loss metric.
 #[derive(new)]
@@ -24,7 +24,7 @@ impl<B: Backend> Adaptor<LossInput<B>> for RegressionOutput<B> {
 }
 
 impl<B: Backend> ItemLazy for RegressionOutput<B> {
-    type ItemSync = RegressionOutput<NdArray>;
+    type ItemSync = RegressionOutput<Flex>;
 
     fn sync(self) -> Self::ItemSync {
         let [output, loss, targets] = Transaction::default()

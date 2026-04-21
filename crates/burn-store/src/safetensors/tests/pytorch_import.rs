@@ -9,7 +9,7 @@ use burn_nn::{
 use burn_tensor::Tensor;
 use burn_tensor::backend::Backend;
 
-type TestBackend = burn_ndarray::NdArray;
+type TestBackend = burn_flex::Flex;
 
 #[derive(Module, Debug)]
 pub struct Net<B: Backend> {

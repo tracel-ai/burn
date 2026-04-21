@@ -8,7 +8,7 @@ use burn_core::module::{Module, Param};
 use burn_tensor::shape;
 use burn_tensor::{Tensor, backend::Backend};
 
-type TestBackend = burn_ndarray::NdArray;
+type TestBackend = burn_flex::Flex;
 
 #[derive(Module, Debug)]
 struct TestModule<B: Backend> {

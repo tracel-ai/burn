@@ -5,7 +5,7 @@ use burn_core::module::{Module, Param};
 use burn_tensor::Tensor;
 use burn_tensor::backend::Backend;
 
-type TestBackend = burn_ndarray::NdArray;
+type TestBackend = burn_flex::Flex;
 
 // Integration tests demonstrating the SafeTensors store API
 #[derive(Module, Debug)]

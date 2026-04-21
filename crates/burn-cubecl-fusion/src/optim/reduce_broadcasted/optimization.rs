@@ -77,7 +77,7 @@ pub(crate) enum ReduceBlockOptimArg<R: Runtime> {
 impl<R: Runtime> ReduceBlockOptimArg<R> {
     pub fn execute_fallback(
         &self,
-        context: &mut Context<'_, CubeFusionHandle<R>>,
+        context: &mut Context<CubeFusionHandle<R>>,
     ) -> Option<TuneOutput<R>> {
         match self {
             ReduceBlockOptimArg::Reduce(reduce) => {
@@ -114,7 +114,7 @@ pub enum ReduceBlockState {
 impl<R: Runtime> ReduceBroadcastedOptimizationTuneArg<R> {
     pub fn execute_fused(
         &self,
-        context: &mut Context<'_, CubeFusionHandle<R>>,
+        context: &mut Context<CubeFusionHandle<R>>,
         strategy: RoutineStrategy,
     ) -> Result<TuneOutput<R>, TraceError<String>> {
         let launch = FusedReduceBroadcastedLaunch::new(
@@ -129,7 +129,7 @@ impl<R: Runtime> ReduceBroadcastedOptimizationTuneArg<R> {
             .map_err(|err| TraceError::RunnerError(format!("{:?}", err)))
     }
 
-    pub fn execute_fallback(&self, context: &mut Context<'_, CubeFusionHandle<R>>) {
+    pub fn execute_fallback(&self, context: &mut Context<CubeFusionHandle<R>>) {
         for fallback in self.fallbacks.iter() {
             fallback.execute_fallback(context);
         }
@@ -141,7 +141,7 @@ impl<R: Runtime> ReduceBroadcastedOptimization<R> {
     /// Execute the optimization.
     pub fn execute(
         &mut self,
-        context: &mut Context<'_, CubeFusionHandle<R>>,
+        context: &mut Context<CubeFusionHandle<R>>,
         fallback: impl Fn(usize) -> Box<dyn FallbackOperation<R>>,
     ) {
         let mut current_index = 0;

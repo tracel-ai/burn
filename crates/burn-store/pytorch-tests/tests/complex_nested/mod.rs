@@ -124,7 +124,7 @@ impl<B: Backend> PartialWithExtraNet<B> {
     }
 }
 
-type TestBackend = burn_ndarray::NdArray<f32>;
+type TestBackend = burn_flex::Flex;
 
 fn model_test(model: Net<TestBackend>, precision: f32) {
     let device = Default::default();

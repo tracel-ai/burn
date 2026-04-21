@@ -3,7 +3,7 @@ use crate::{
     CubeFusionHandle,
     engine::trace::TuneOutput,
     optim::matmul::{AcceleratedTileKind, FusedMatmulSelector},
-    tune::{TuneContext, TuneInput},
+    tune::{FusionInputGen, TuneInput},
 };
 use burn_fusion::stream::Context;
 use cubecl::{
@@ -120,7 +120,7 @@ pub fn fused_matmul_autotune<R: Runtime>(
         }
 
         // First entry should always work, since it is considered the fallback.
-        let mut set = TunableSet::new(create_key::<R>, input_gen::<R>).with(
+        let mut set = TunableSet::new(create_key::<R>, FusionInputGen).with(
             Tunable::new("fused_matmul_fallback", tune_fallback::<R>).group(&unit, |key| {
                 if matches!(key.matmul_key.analysis.kind, MatmulKind::InnerProduct) {
                     PRIORITY_MAX
@@ -245,23 +245,22 @@ pub(crate) fn create_key<R: Runtime>(
     input: &TuneInput<R, MatmulOptimizationTuneArg<R>>,
 ) -> FusedMatmulAutotuneKey {
     let opt = input.optimization();
-    let context = match input.context() {
-        TuneContext::Original(context) => context,
-        TuneContext::Fork(_) => panic!("Not supported when generating key"),
-    };
+    assert!(input.is_original(), "Not supported when generating key");
+    let tensors = input.tensors();
+    let handles = input.handles();
 
-    let lhs = context.tensors.get(&opt.info.matmul.op.lhs.id).unwrap();
-    let rhs = context.tensors.get(&opt.info.matmul.op.rhs.id).unwrap();
-    let out = context.tensors.get(&opt.info.matmul.op.out.id).unwrap();
+    let lhs = tensors.get(&opt.info.matmul.op.lhs.id).unwrap();
+    let rhs = tensors.get(&opt.info.matmul.op.rhs.id).unwrap();
+    let out = tensors.get(&opt.info.matmul.op.out.id).unwrap();
 
-    let lhs_strides = context
-        .handles
-        .get_handle(&lhs.id, &burn_ir::TensorStatus::ReadOnly)
+    let lhs_strides = handles
+        .get_handle_ref(&lhs.id)
+        .expect("lhs handle")
         .strides
         .clone();
-    let rhs_strides = context
-        .handles
-        .get_handle(&rhs.id, &burn_ir::TensorStatus::ReadOnly)
+    let rhs_strides = handles
+        .get_handle_ref(&rhs.id)
+        .expect("rhs handle")
         .strides
         .clone();
 
@@ -280,40 +279,20 @@ pub(crate) fn create_key<R: Runtime>(
     FusedMatmulAutotuneKey::new(key, opt.info.num_output_buffers(), opt.info.num_ops_fused())
 }
 
-fn input_gen<R: Runtime>(
-    _key: &FusedMatmulAutotuneKey,
-    input: &TuneInput<R, MatmulOptimizationTuneArg<R>>,
-) -> TuneInput<R, MatmulOptimizationTuneArg<R>> {
-    input.clone()
-}
-
 fn tune_fused<R: Runtime>(
     input: TuneInput<R, MatmulOptimizationTuneArg<R>>,
     selector: FusedMatmulSelector,
 ) -> Result<TuneOutput<R>, String> {
-    let optimization = input.optimization();
-    let context = input.context();
-
-    match context {
-        TuneContext::Original(context) => match optimization.execute_fused(context, selector) {
-            Ok(out) => Ok(out),
-            Err(_) => {
-                return tune_fallback::<R>(input);
-            }
-        },
-        TuneContext::Fork(mut fork) => optimization.execute_fused(&mut fork.as_context(), selector),
-    }
-    .map_err(|e| format!("{e:?}"))
+    let is_original = input.is_original();
+    input.execute(|ctx, opt| match opt.execute_fused(ctx, selector) {
+        Ok(out) => Ok(out),
+        Err(_) if is_original => Ok(opt.execute_fallback(ctx)),
+        Err(e) => Err(format!("{e:?}")),
+    })
 }
 
 fn tune_fallback<R: Runtime>(
     input: TuneInput<R, MatmulOptimizationTuneArg<R>>,
 ) -> Result<TuneOutput<R>, String> {
-    let optimization = input.optimization();
-    let context = input.context();
-
-    Ok(match context {
-        TuneContext::Original(context) => optimization.execute_fallback(context),
-        TuneContext::Fork(mut fork) => optimization.execute_fallback(&mut fork.as_context()),
-    })
+    Ok(input.execute(|ctx, opt| opt.execute_fallback(ctx)))
 }

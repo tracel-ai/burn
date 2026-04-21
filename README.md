@@ -53,12 +53,12 @@ Most backends support all operating systems, so we don't mention them in the tab
 
 **CPU Backends:**
 
-|        | Cpu (CubeCL) | Flex | NdArray | LibTorch |
-| ------ | ------------ | ---- | ------- | -------- |
-| X86    | ☑️           | ☑️   | ☑️      | ☑️       |
-| Arm    | ☑️           | ☑️   | ☑️      | ☑️       |
-| Wasm   | -            | ☑️   | ☑️      | -        |
-| no-std | -            | ☑️   | ☑️      | -        |
+|        | Cpu (CubeCL) | Flex | LibTorch |
+| ------ | ------------ | ---- | -------- |
+| X86    | ☑️           | ☑️   | ☑️       |
+| Arm    | ☑️           | ☑️   | ☑️       |
+| Wasm   | -            | ☑️   | -        |
+| no-std | -            | ☑️   | -        |
 
 <br />
 
@@ -148,14 +148,14 @@ the CPU and other operations on the GPU.
 ```rust
 use burn::tensor::{Distribution, Tensor};
 use burn::backend::{
-    NdArray, Router, Wgpu, ndarray::NdArrayDevice, router::duo::MultiDevice, wgpu::WgpuDevice,
+    Flex, Router, Wgpu, flex::FlexDevice, router::duo::MultiDevice, wgpu::WgpuDevice,
 };
 
 fn main() {
-    type Backend = Router<(Wgpu, NdArray)>;
+    type Backend = Router<(Wgpu, Flex)>;
 
     let device_0 = MultiDevice::B1(WgpuDevice::DiscreteGpu(0));
-    let device_1 = MultiDevice::B2(NdArrayDevice::Cpu);
+    let device_1 = MultiDevice::B2(FlexDevice);
 
     let tensor_gpu =
         Tensor::<Backend, 2>::random([3, 3], burn::tensor::Distribution::Default, &device_0);
@@ -286,7 +286,7 @@ Inference in the Browser 🌐
 </summary>
 <br />
 
-Several of our backends can run in WebAssembly environments: NdArray for CPU execution, and WGPU for
+Several of our backends can run in WebAssembly environments: Flex for CPU execution, and WGPU for
 GPU acceleration via WebGPU. This means that you can run inference directly within a browser. We
 provide several examples of this:
 
@@ -306,7 +306,7 @@ Embedded: <i>no_std</i> support ⚙️
 Burn's core components support [no_std](https://docs.rust-embedded.org/book/intro/no-std.html). This
 means it can run in bare metal environment such as embedded devices without an operating system.
 
-> As of now, only the NdArray backend can be used in a _no_std_ environment.
+> As of now, only the Flex backend can be used in a _no_std_ environment.
 
 </details>
 

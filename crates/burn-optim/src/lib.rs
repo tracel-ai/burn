@@ -35,7 +35,7 @@ pub type LearningRate = f64; // We could potentially change the type.
     not(feature = "test-cuda"),
     not(feature = "test-rocm")
 ))]
-pub type TestBackend = burn_ndarray::NdArray<f32>;
+pub type TestBackend = burn_flex::Flex;
 
 #[cfg(all(test, feature = "test-tch"))]
 /// Backend for test cases

@@ -6,10 +6,10 @@ use image::{DynamicImage, ImageBuffer, Luma, Rgb};
 use burn_tensor::{Bool, Int};
 
 #[cfg(all(
-    any(feature = "test-cpu", feature = "ndarray"),
+    any(feature = "test-cpu", feature = "flex"),
     not(any(feature = "test-wgpu", feature = "test-cuda"))
 ))]
-pub type TestBackend = burn_ndarray::NdArray<f32, i32>;
+pub type TestBackend = burn_flex::Flex;
 
 #[cfg(all(test, feature = "test-wgpu"))]
 pub type TestBackend = burn_wgpu::Wgpu;

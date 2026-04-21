@@ -5,7 +5,7 @@ use burn_core::module::{Module, Param};
 use burn_tensor::backend::Backend;
 use burn_tensor::{Tensor, shape};
 
-type TestBackend = burn_ndarray::NdArray;
+type TestBackend = burn_flex::Flex;
 
 // Test module for direct access tests
 #[derive(Module, Debug)]

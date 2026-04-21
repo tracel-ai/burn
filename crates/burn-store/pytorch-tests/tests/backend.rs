@@ -1,1 +1,1 @@
-pub type TestBackend = burn_ndarray::NdArray<f32>;
+pub type TestBackend = burn_flex::Flex;

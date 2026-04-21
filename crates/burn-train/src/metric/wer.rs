@@ -62,16 +62,13 @@ impl<B: Backend> Metric for WordErrorRate<B> {
         let targets = input.targets.clone();
         let [batch_size, seq_len] = targets.dims();
 
-        let outputs_data = outputs
-            .to_data()
-            .to_vec::<i64>()
-            .expect("Failed to convert outputs to Vec");
-        let targets_data = targets
-            .to_data()
-            .to_vec::<i64>()
-            .expect("Failed to convert targets to Vec");
+        // `TensorData::iter::<i32>()` dispatches on the stored DType and
+        // narrows to i32 per element; token IDs in any reasonable vocabulary
+        // fit in i32 regardless of the backend's native IntElem.
+        let outputs_data = outputs.to_data().iter::<i32>().collect::<Vec<_>>();
+        let targets_data = targets.to_data().iter::<i32>().collect::<Vec<_>>();
 
-        let pad_token = self.pad_token;
+        let pad_token = self.pad_token.map(|p| p as i32);
 
         let mut total_edit_distance = 0.0;
         let mut total_target_length = 0.0;
@@ -83,27 +80,29 @@ impl<B: Backend> Metric for WordErrorRate<B> {
             let output_seq = &outputs_data[start..end];
             let target_seq = &targets_data[start..end];
 
-            // Handle padding and map elements to i32.
-            // These sequences now represent "words" (token IDs).
-            let output_seq_no_pad = match pad_token {
-                Some(pad) => output_seq
-                    .iter()
-                    .take_while(|&&x| x != pad as i64)
-                    .map(|&x| x as i32)
-                    .collect::<Vec<_>>(),
-                None => output_seq.iter().map(|&x| x as i32).collect(),
+            // Strip right-padding if a pad token is configured.
+            let target_seq_no_pad: &[i32] = match pad_token {
+                Some(pad) => {
+                    let len = target_seq
+                        .iter()
+                        .position(|&x| x == pad)
+                        .unwrap_or(target_seq.len());
+                    &target_seq[..len]
+                }
+                None => target_seq,
+            };
+            let output_seq_no_pad: &[i32] = match pad_token {
+                Some(pad) => {
+                    let len = output_seq
+                        .iter()
+                        .position(|&x| x == pad)
+                        .unwrap_or(output_seq.len());
+                    &output_seq[..len]
+                }
+                None => output_seq,
             };
 
-            let target_seq_no_pad = match pad_token {
-                Some(pad) => target_seq
-                    .iter()
-                    .take_while(|&&x| x != pad as i64)
-                    .map(|&x| x as i32)
-                    .collect::<Vec<_>>(),
-                None => target_seq.iter().map(|&x| x as i32).collect(),
-            };
-
-            let ed = edit_distance(&target_seq_no_pad, &output_seq_no_pad);
+            let ed = edit_distance(target_seq_no_pad, output_seq_no_pad);
             total_edit_distance += ed as f64;
             total_target_length += target_seq_no_pad.len() as f64;
         }

@@ -3,7 +3,7 @@ use crate::{
     CubeFusionHandle,
     engine::trace::TuneOutput,
     optim::{reduce::ReduceOptimizationInfo, reduce_broadcasted::ReduceBlockOptimArg},
-    tune::{TuneContext, TuneInput},
+    tune::{FusionInputGen, TuneInput},
 };
 use burn_fusion::stream::Context;
 use cubecl::{
@@ -44,7 +44,7 @@ pub fn fused_broadcasted_reduce_autotune<R: Runtime>(
 
     let tunables = TUNER.init(|| {
         const PRIORITY_MAX: i8 = 2;
-        let mut set = TunableSet::new(create_key::<R>, input_gen::<R>);
+        let mut set = TunableSet::new(create_key::<R>, FusionInputGen);
 
         let group = TuneGroup::<FusedBroadcastedReduceAutotuneKey>::new(
             "fused_reduce_broadcasted",
@@ -84,10 +84,11 @@ pub(crate) fn create_key<R: Runtime>(
     input: &TuneInput<R, ReduceBroadcastedOptimizationTuneArg<R>>,
 ) -> FusedBroadcastedReduceAutotuneKey {
     let opt = input.optimization();
-    let context = match input.context() {
-        TuneContext::Original(context) => context,
-        TuneContext::Fork(_) => unreachable!("Forked context not supported for key generation"),
-    };
+    assert!(
+        input.is_original(),
+        "Forked context not supported for key generation"
+    );
+    let context = input.context();
 
     // The fusion must start with a reduction block to be valid here.
     let info = match &opt.fallbacks[0] {
@@ -136,41 +137,23 @@ fn generate_reduce_autotune_key<R: Runtime>(
     )
 }
 
-/// Simple input generator that clones the input for the tuner.
-fn input_gen<R: Runtime>(
-    _key: &FusedBroadcastedReduceAutotuneKey,
-    input: &TuneInput<R, ReduceBroadcastedOptimizationTuneArg<R>>,
-) -> TuneInput<R, ReduceBroadcastedOptimizationTuneArg<R>> {
-    input.clone()
-}
-
 /// Executes a fused reduction using a specific routine strategy.
 fn tune_reduce<R: Runtime>(
     input: TuneInput<R, ReduceBroadcastedOptimizationTuneArg<R>>,
     strategy: &RoutineStrategy,
 ) -> Result<TuneOutput<R>, String> {
-    let optimization = input.optimization();
-
-    match input.context() {
-        TuneContext::Original(context) => optimization.execute_fused(context, strategy.clone()),
-        TuneContext::Fork(mut fork) => {
-            optimization.execute_fused(&mut fork.as_context(), strategy.clone())
-        }
-    }
-    .map_err(|e| format!("{e:?}"))
+    input
+        .execute(|ctx, opt| opt.execute_fused(ctx, strategy.clone()))
+        .map_err(|e| format!("{e:?}"))
 }
 
 /// Executes the fallback implementation for the reduction.
 fn tune_fallback<R: Runtime>(
     input: TuneInput<R, ReduceBroadcastedOptimizationTuneArg<R>>,
 ) -> Result<TuneOutput<R>, String> {
-    let optimization = input.optimization();
-
-    match input.context() {
-        TuneContext::Original(context) => optimization.execute_fallback(context),
-        TuneContext::Fork(mut fork) => optimization.execute_fallback(&mut fork.as_context()),
-    };
-
+    input.execute(|ctx, opt| {
+        opt.execute_fallback(ctx);
+    });
     // Fallback is often used as a baseline, returning unchecked output.
     Ok(TuneOutput::UnChecked(std::marker::PhantomData))
 }

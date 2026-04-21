@@ -32,19 +32,14 @@ pub fn launch<B: Backend>(device: B::Device) {
     );
 }
 
-#[cfg(any(
-    feature = "ndarray",
-    feature = "ndarray-blas-netlib",
-    feature = "ndarray-blas-openblas",
-    feature = "ndarray-blas-accelerate",
-))]
-mod ndarray {
-    use burn::backend::ndarray::{NdArray, NdArrayDevice};
+#[cfg(feature = "flex")]
+mod flex {
+    use burn::backend::Flex;
 
-    use crate::{ElemType, launch};
+    use crate::launch;
 
     pub fn run() {
-        launch::<NdArray<ElemType>>(NdArrayDevice::Cpu);
+        launch::<Flex>(Default::default());
     }
 }
 
@@ -104,13 +99,8 @@ mod cuda {
 }
 
 fn main() {
-    #[cfg(any(
-        feature = "ndarray",
-        feature = "ndarray-blas-netlib",
-        feature = "ndarray-blas-openblas",
-        feature = "ndarray-blas-accelerate",
-    ))]
-    ndarray::run();
+    #[cfg(feature = "flex")]
+    flex::run();
     #[cfg(feature = "tch-gpu")]
     tch_gpu::run();
     #[cfg(feature = "tch-cpu")]

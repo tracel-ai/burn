@@ -18,7 +18,7 @@
 //! | `Vulkan`   | `vulkan`   | Vulkan backend via `wgpu` (SPIR-V) |
 //! | `Wgpu`     | `webgpu`   | WebGPU backend via `wgpu` (WGSL) |
 //! | `Flex`     | `flex`     | Pure Rust CPU backend using `burn-flex` |
-//! | `NdArray`  | `ndarray`  | Pure Rust CPU backend using `ndarray` |
+//! | `NdArray`  | `ndarray`  | Pure Rust CPU backend using `ndarray` (legacy - prefer `flex`) |
 //! | `LibTorch` | `tch`      | Libtorch backend via `tch` |
 //! | `Autodiff` | `autodiff` | Autodiff-enabled backend (used in combination with any of the backends above) |
 //!

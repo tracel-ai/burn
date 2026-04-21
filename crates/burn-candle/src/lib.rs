@@ -3,7 +3,7 @@
 #![allow(unused)] // TODO remove when backend filled
 #![deprecated(
     since = "0.21.0",
-    note = "burn-candle is deprecated and will be removed in a future release. Use burn-cubecl (CUDA/ROCm/Vulkan/Metal/WebGPU), burn-ndarray, or burn-tch instead."
+    note = "burn-candle is deprecated and will be removed in a future release. Use burn-cubecl (CUDA/ROCm/Vulkan/Metal/WebGPU), burn-flex, or burn-tch instead."
 )]
 
 //! Burn Candle Backend
@@ -11,7 +11,7 @@
 //! **Deprecated:** This backend is deprecated and will be removed in a future release.
 //! Please migrate to one of the actively maintained backends:
 //! - CubeCL backends (CUDA, ROCm, Vulkan, Metal, WebGPU) for GPU acceleration
-//! - NdArray for portable CPU execution
+//! - Flex (`burn-flex`) for portable pure-Rust CPU execution (std, no_std, WASM)
 //! - LibTorch (`burn-tch`) for a mature CPU/GPU backend
 
 #[macro_use]

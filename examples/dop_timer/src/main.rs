@@ -170,9 +170,9 @@ fn run(args: &Args) -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
     run_backend::<burn::backend::Wgpu>(args)
 }
 
-#[cfg(feature = "ndarray")]
+#[cfg(feature = "flex")]
 fn run(args: &Args) -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
-    run_backend::<burn::backend::ndarray>(args)
+    run_backend::<burn::backend::Flex>(args)
 }
 
 #[tracing::instrument(level = "trace", skip(args))]

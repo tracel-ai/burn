@@ -5,8 +5,10 @@
 //! cargo bench --bench int_ops --features simd,rayon
 //! ```
 
-use burn_flex::Flex;
-use burn_ndarray::NdArray;
+#[path = "common/mod.rs"]
+mod common;
+use common::{BencherExt, TestBackend};
+
 use burn_tensor::{DType, Distribution, Int, Tensor, TensorData, backend::Backend};
 use divan::{AllocProfiler, Bencher};
 
@@ -14,17 +16,20 @@ use divan::{AllocProfiler, Bencher};
 static ALLOC: AllocProfiler = AllocProfiler::system();
 
 fn main() {
-    println!("Integer Operations Benchmarks: Flex vs NdArray");
+    println!("Integer Operations Benchmarks");
     println!("Memory allocation tracking enabled");
     println!();
     divan::main();
+    common::report_failures();
 }
 
-fn make_int_tensor<B: Backend>(shape: &[usize]) -> Tensor<B, 2, Int> {
-    let size: usize = shape.iter().product();
-    // Use values that fit in i8 (-128 to 127) so all casts work
-    let data: Vec<i64> = (0..size).map(|i| (i % 200) as i64 - 100).collect();
-    Tensor::from_data(TensorData::new(data, shape.to_vec()), &Default::default())
+fn make_int_tensor<B: Backend>(shape: &[usize]) -> Option<Tensor<B, 2, Int>> {
+    common::try_setup(|| {
+        let size: usize = shape.iter().product();
+        // Use values that fit in i8 (-128 to 127) so all casts work
+        let data: Vec<i32> = (0..size).map(|i| (i % 200) as i32 - 100).collect();
+        Tensor::from_data(TensorData::new(data, shape.to_vec()), &Default::default())
+    })
 }
 
 // =============================================================================
@@ -46,37 +51,48 @@ macro_rules! bench_cast_backend {
                 // Small tensor cast
                 #[divan::bench]
                 fn cast_i64_to_i32_64x64(bencher: Bencher) {
-                    let t = make_int_tensor::<B>(&[64, 64]);
-                    bencher.bench(|| t.clone().cast(DType::I32));
+                    let Some(t) = make_int_tensor::<B>(&[64, 64]) else {
+                        bencher.bench(|| ());
+                        return;
+                    };
+                    bencher.bench_synced(|| t.clone().cast(DType::I32));
                 }
 
                 // Medium tensor cast
                 #[divan::bench]
                 fn cast_i64_to_i32_256x256(bencher: Bencher) {
-                    let t = make_int_tensor::<B>(&[256, 256]);
-                    bencher.bench(|| t.clone().cast(DType::I32));
+                    let Some(t) = make_int_tensor::<B>(&[256, 256]) else {
+                        bencher.bench(|| ());
+                        return;
+                    };
+                    bencher.bench_synced(|| t.clone().cast(DType::I32));
                 }
 
                 // Large tensor cast
                 #[divan::bench]
                 fn cast_i64_to_i32_1024x1024(bencher: Bencher) {
-                    let t = make_int_tensor::<B>(&[1024, 1024]);
-                    bencher.bench(|| t.clone().cast(DType::I32));
+                    let Some(t) = make_int_tensor::<B>(&[1024, 1024]) else {
+                        bencher.bench(|| ());
+                        return;
+                    };
+                    bencher.bench_synced(|| t.clone().cast(DType::I32));
                 }
 
                 // Cast to smaller type (i8)
                 #[divan::bench]
                 fn cast_i64_to_i8_256x256(bencher: Bencher) {
-                    let t = make_int_tensor::<B>(&[256, 256]);
-                    bencher.bench(|| t.clone().cast(DType::I8));
+                    let Some(t) = make_int_tensor::<B>(&[256, 256]) else {
+                        bencher.bench(|| ());
+                        return;
+                    };
+                    bencher.bench_synced(|| t.clone().cast(DType::I8));
                 }
             }
         }
     };
 }
 
-bench_cast_backend!(Flex, flex_cast, "Flex_Cast");
-bench_cast_backend!(NdArray, ndarray_cast, "NdArray_Cast");
+bench_cast_backend!(TestBackend, backend_cast, "backend_cast");
 
 // =============================================================================
 // Int Random Benchmarks
@@ -97,7 +113,7 @@ macro_rules! bench_random_backend {
                 // Small random tensor
                 #[divan::bench]
                 fn random_uniform_64x64(bencher: Bencher) {
-                    bencher.bench(|| {
+                    bencher.bench_synced(|| {
                         Tensor::<B, 2, Int>::random(
                             [64, 64],
                             Distribution::Uniform(0.0, 100.0),
@@ -109,7 +125,7 @@ macro_rules! bench_random_backend {
                 // Medium random tensor
                 #[divan::bench]
                 fn random_uniform_256x256(bencher: Bencher) {
-                    bencher.bench(|| {
+                    bencher.bench_synced(|| {
                         Tensor::<B, 2, Int>::random(
                             [256, 256],
                             Distribution::Uniform(0.0, 100.0),
@@ -121,7 +137,7 @@ macro_rules! bench_random_backend {
                 // Large random tensor
                 #[divan::bench]
                 fn random_uniform_1024x1024(bencher: Bencher) {
-                    bencher.bench(|| {
+                    bencher.bench_synced(|| {
                         Tensor::<B, 2, Int>::random(
                             [1024, 1024],
                             Distribution::Uniform(0.0, 100.0),
@@ -133,7 +149,7 @@ macro_rules! bench_random_backend {
                 // 3D random tensor (batch)
                 #[divan::bench]
                 fn random_uniform_batch_16x128x128(bencher: Bencher) {
-                    bencher.bench(|| {
+                    bencher.bench_synced(|| {
                         Tensor::<B, 3, Int>::random(
                             [16, 128, 128],
                             Distribution::Uniform(-1000.0, 1000.0),
@@ -146,5 +162,4 @@ macro_rules! bench_random_backend {
     };
 }
 
-bench_random_backend!(Flex, flex_random, "Flex_Random");
-bench_random_backend!(NdArray, ndarray_random, "NdArray_Random");
+bench_random_backend!(TestBackend, backend_random, "backend_random");

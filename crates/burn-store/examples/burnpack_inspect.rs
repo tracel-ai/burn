@@ -16,7 +16,7 @@
 use burn_core as burn;
 
 use burn_core::module::Module;
-use burn_ndarray::NdArray;
+use burn_flex::Flex;
 use burn_nn::{Linear, LinearConfig};
 use burn_store::{BurnpackStore, ModuleSnapshot};
 use burn_tensor::backend::Backend;
@@ -41,7 +41,7 @@ impl<B: Backend> SampleModel<B> {
 }
 
 fn main() {
-    type Backend = NdArray<f32>;
+    type Backend = Flex;
 
     // Get output path from command line or use default
     let output_path = env::args()
