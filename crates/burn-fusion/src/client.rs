@@ -379,8 +379,9 @@ where
         B: FusionBackend<FusionRuntime = R> + DistributedBackend,
     {
         // Ensure that all operations are resolved before calling sync_collective.
-        self.drain();
-        B::sync_collective(&device)
+        let device_cloned = device.clone();
+        self.sync(move || B::sync(&device)).unwrap();
+        B::sync_collective(&device_cloned)
     }
 
     /// Ensure that communication bewteen the given devices is initialized.
