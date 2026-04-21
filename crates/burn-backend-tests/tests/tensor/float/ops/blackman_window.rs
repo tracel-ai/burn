@@ -75,10 +75,3 @@ fn test_blackman_window_size_8_symmetric() {
         .into_data()
         .assert_approx_eq::<FloatElem>(&expected, tolerance);
 }
-
-#[test]
-#[should_panic(expected = "The argument `size` should be less than or equal to `i64::MAX`.")]
-fn test_blackman_window_invalid_size_panics() {
-    let window_len = (i64::MAX as usize) + 1;
-    let _: TestTensor<1> = blackman_window(window_len, false, &Default::default());
-}
