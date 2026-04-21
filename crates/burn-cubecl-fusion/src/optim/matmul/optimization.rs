@@ -25,7 +25,7 @@ use cubecl::{
 };
 use cubek::{
     matmul::{
-        components::tile::{cmma::CmmaMatmul, mma::MmaMatmul},
+        components::tile_matmul::{cmma::CmmaMatmul, mma::MmaMatmul},
         definition::{
             MatmulElems, MatmulGlobalElems, MatmulProblem, MatmulSetupError, MatmulVectorSizes,
         },
