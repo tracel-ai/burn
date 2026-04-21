@@ -76,7 +76,7 @@ fn test_det_300x300_identity_matrix() {
 }
 
 #[test]
-fn test_det_3x3_singular_zero_row() {
+fn test_det_3x3_singular_zero_col() {
     let device = Default::default();
     let tensor = TestTensor::<3>::from_data(
         [[[0.0, 4.0, 2.0], [0.0, 2.0, 1.0], [0.0, 3.0, 9.0]]],
@@ -91,7 +91,7 @@ fn test_det_3x3_singular_zero_row() {
 }
 
 #[test]
-fn test_det_20x20_singular_zero_row() {
+fn test_det_20x20_singular_zero_col() {
     let device = Default::default();
     let mut tensor = TestTensor::random([1, 20, 20], Distribution::Default, &device);
     tensor = tensor.slice_fill(s![.., .., 16], 0.0);
