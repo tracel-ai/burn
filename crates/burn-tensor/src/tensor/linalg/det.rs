@@ -23,11 +23,24 @@ use burn_std::{DType, FloatDType};
 /// - The generic parameters do not satisfy `D - 2 == D2`.
 /// - The input tensor rank `D` is less than 3.
 /// - The last two dimensions of the input tensor are not equal.
+/// - The input is a quantized tensor with with dtype `DType::QFloat`.
 ///
 /// # Performance Note
-/// The determinant function relies on the LU decomposition function under the hood,
-/// which is not fully optimized. It will not be as fast as highly tuned specialized
-/// libraries, especially for very large matrices or large batch sizes.
+/// The determinant for 1 by 1, 2 by 2, and 3 by 3 matrices are computed using closed-form
+/// expressions. For larger matrices (4 by 4 or larger), the determinant function relies on
+/// the LU decomposition function under the hood,which is not fully optimized. It will not be
+/// as fast as highly tuned specialized libraries, especially for very large matrices or large
+/// batch sizes.
+///
+/// # Numerical Behavior
+/// - If the input tensors have types F16 or BF16, then they are internally upcast to
+///   F32 to perform the computations and cast back to the original data type (F16 or BF16)
+///   right before the function returns.
+/// - In this case, if the determinant values fall outside of the original data type's
+///   range, then the cast-back will underflow to zero.
+/// - Suppose that the LU decomposition of the input tensor is computed. If the absolute
+///   value of a diagonal entry of U is less than or equal to `1e-5` for F32 or `1e-10`
+///   for F64, then the determinant gets set to 0.
 ///
 /// # Example
 /// ```rust,ignore
