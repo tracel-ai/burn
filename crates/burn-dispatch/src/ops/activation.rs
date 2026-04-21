@@ -40,6 +40,18 @@ impl ActivationOps<Self> for Dispatch {
         unary_float!(tensor, float, |tensor| B::hard_sigmoid(tensor, alpha, beta) => Float)
     }
 
+    fn softmax(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
+        unary_float!(tensor, float, |tensor| B::softmax(tensor, dim) => Float)
+    }
+
+    fn log_softmax(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
+        unary_float!(tensor, float, |tensor| B::log_softmax(tensor, dim) => Float)
+    }
+
+    fn softmin(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
+        unary_float!(tensor, float, |tensor| B::softmin(tensor, dim) => Float)
+    }
+
     fn log_sigmoid(tensor: FloatTensor<Self>) -> FloatTensor<Self> {
         unary_float!(tensor, float, |tensor| B::log_sigmoid(tensor) => Float)
     }

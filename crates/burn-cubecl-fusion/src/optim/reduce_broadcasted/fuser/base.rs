@@ -200,12 +200,8 @@ impl<R: Runtime> OperationFuser<CubeOptimization<R>> for ReduceBroadcastedFuser<
     fn properties(&self) -> FuserProperties {
         let ready = match self.state {
             ReduceBroadcastedStatus::Starting | ReduceBroadcastedStatus::Abort => false,
-            ReduceBroadcastedStatus::Closed => {
-                if self.blocks.len() == 1 {
-                    !self.blocks[0].is_elemwise()
-                } else {
-                    true
-                }
+            ReduceBroadcastedStatus::Closed if self.blocks.len() == 1 => {
+                !self.blocks[0].is_elemwise()
             }
             _ => true,
         };

@@ -1,6 +1,6 @@
 use burn_backend::{
     TensorMetadata,
-    ops::{ConvOptions, ConvTransposeOptions},
+    ops::{ConvOptions, ConvTransposeOptions, conv::calculate_padding_out},
 };
 use burn_std::Shape;
 use cubek::convolution::components::ConvSetupError;
@@ -87,24 +87,6 @@ pub(crate) fn conv_data_backward_fallback<R: CubeRuntime, const N_DIM: usize>(
         _ => unimplemented!("Invalid dimensionality"),
     }?;
     Ok(permute_nchw_to_nhwc(in_grad))
-}
-
-fn calculate_padding_out(
-    kernel_size: usize,
-    stride: usize,
-    padding: usize,
-    dilation: usize,
-    size_in: usize,
-    size_out: usize,
-) -> usize {
-    if stride <= 1 {
-        return 0;
-    }
-
-    let out = 1
-        + ((size_in + 2 * padding - dilation * (kernel_size - 1) - 1) as f64 / stride as f64).ceil()
-            as usize;
-    i64::max(0, out as i64 - size_out as i64) as usize
 }
 
 fn conv_transpose1d_from_conv_transpose2d<R: CubeRuntime>(

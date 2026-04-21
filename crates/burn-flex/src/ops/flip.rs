@@ -17,53 +17,16 @@ pub fn flip(tensor: FlexTensor, axes: &[usize]) -> FlexTensor {
     tensor.with_layout(new_layout)
 }
 
+// Tests kept here exercise flex-specific behavior: flip is a zero-copy
+// stride-only operation in the flex backend, and the test below verifies
+// the underlying buffer pointer is shared across the flip. Correctness
+// tests for flip along various axes live in
+// crates/burn-backend-tests/tests/tensor/{float,int,bool}/ops/flip.rs and
+// run against every backend.
 #[cfg(test)]
 mod tests {
     use super::*;
     use burn_backend::TensorData;
-
-    #[test]
-    fn test_flip_1d() {
-        let tensor = FlexTensor::from_data(TensorData::new(vec![1.0f32, 2.0, 3.0, 4.0], [4]));
-        let flipped = flip(tensor, &[0]);
-        let data: Vec<f32> = flipped.into_data().to_vec().unwrap();
-        assert_eq!(data, vec![4.0, 3.0, 2.0, 1.0]);
-    }
-
-    #[test]
-    fn test_flip_2d_axis0() {
-        // [[1, 2], [3, 4]] -> [[3, 4], [1, 2]]
-        let tensor = FlexTensor::from_data(TensorData::new(vec![1.0f32, 2.0, 3.0, 4.0], [2, 2]));
-        let flipped = flip(tensor, &[0]);
-        let data: Vec<f32> = flipped.into_data().to_vec().unwrap();
-        assert_eq!(data, vec![3.0, 4.0, 1.0, 2.0]);
-    }
-
-    #[test]
-    fn test_flip_2d_axis1() {
-        // [[1, 2], [3, 4]] -> [[2, 1], [4, 3]]
-        let tensor = FlexTensor::from_data(TensorData::new(vec![1.0f32, 2.0, 3.0, 4.0], [2, 2]));
-        let flipped = flip(tensor, &[1]);
-        let data: Vec<f32> = flipped.into_data().to_vec().unwrap();
-        assert_eq!(data, vec![2.0, 1.0, 4.0, 3.0]);
-    }
-
-    #[test]
-    fn test_flip_2d_both_axes() {
-        // [[1, 2], [3, 4]] -> [[4, 3], [2, 1]]
-        let tensor = FlexTensor::from_data(TensorData::new(vec![1.0f32, 2.0, 3.0, 4.0], [2, 2]));
-        let flipped = flip(tensor, &[0, 1]);
-        let data: Vec<f32> = flipped.into_data().to_vec().unwrap();
-        assert_eq!(data, vec![4.0, 3.0, 2.0, 1.0]);
-    }
-
-    #[test]
-    fn test_flip_empty_axes() {
-        let tensor = FlexTensor::from_data(TensorData::new(vec![1.0f32, 2.0, 3.0], [3]));
-        let flipped = flip(tensor, &[]);
-        let data: Vec<f32> = flipped.into_data().to_vec().unwrap();
-        assert_eq!(data, vec![1.0, 2.0, 3.0]);
-    }
 
     #[test]
     fn test_flip_is_zero_copy() {

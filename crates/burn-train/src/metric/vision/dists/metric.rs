@@ -356,9 +356,9 @@ impl<B: Backend> Dists<B> {
 mod tests {
     use super::*;
     use burn_core::tensor::{TensorData, Tolerance, ops::FloatElem};
-    use burn_ndarray::NdArray;
+    use burn_flex::Flex;
 
-    type TestBackend = NdArray<f32>;
+    type TestBackend = Flex;
     type FT = FloatElem<TestBackend>;
     type TestTensor<const D: usize> = Tensor<TestBackend, D>;
 

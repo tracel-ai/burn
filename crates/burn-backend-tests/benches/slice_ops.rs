@@ -1,4 +1,4 @@
-//! Benchmarks comparing Flex vs NdArray backends for slice operations.
+//! Benchmarks for slice operations.
 //!
 //! Run with:
 //! ```bash
@@ -7,8 +7,10 @@
 //!
 //! Memory allocation tracking is enabled via divan's AllocProfiler.
 
-use burn_flex::Flex;
-use burn_ndarray::NdArray;
+#[path = "common/mod.rs"]
+mod common;
+use common::{BencherExt, TestBackend};
+
 use burn_tensor::{Tensor, TensorData, backend::Backend, s};
 use divan::{AllocProfiler, Bencher};
 
@@ -16,10 +18,11 @@ use divan::{AllocProfiler, Bencher};
 static ALLOC: AllocProfiler = AllocProfiler::system();
 
 fn main() {
-    println!("Slice Operations Benchmarks: Flex vs NdArray");
+    println!("Slice Operations Benchmarks");
     println!("Memory allocation tracking enabled");
     println!();
     divan::main();
+    common::report_failures();
 }
 
 fn make_tensor_1d<B: Backend>(size: usize) -> Tensor<B, 1> {
@@ -57,31 +60,31 @@ macro_rules! bench_backend {
                 #[divan::bench]
                 fn slice_1d_1k(bencher: Bencher) {
                     let t = make_tensor_1d::<B>(1024);
-                    bencher.bench(|| t.clone().slice([256..768]));
+                    bencher.bench_synced(|| t.clone().slice([256..768]));
                 }
 
                 #[divan::bench]
                 fn slice_1d_1m(bencher: Bencher) {
                     let t = make_tensor_1d::<B>(1024 * 1024);
-                    bencher.bench(|| t.clone().slice([256 * 1024..768 * 1024]));
+                    bencher.bench_synced(|| t.clone().slice([256 * 1024..768 * 1024]));
                 }
 
                 #[divan::bench]
                 fn slice_2d_256x256(bencher: Bencher) {
                     let t = make_tensor_2d::<B>(256, 256);
-                    bencher.bench(|| t.clone().slice([64..192, 64..192]));
+                    bencher.bench_synced(|| t.clone().slice([64..192, 64..192]));
                 }
 
                 #[divan::bench]
                 fn slice_2d_1024x1024(bencher: Bencher) {
                     let t = make_tensor_2d::<B>(1024, 1024);
-                    bencher.bench(|| t.clone().slice([256..768, 256..768]));
+                    bencher.bench_synced(|| t.clone().slice([256..768, 256..768]));
                 }
 
                 #[divan::bench]
                 fn slice_3d_64x64x64(bencher: Bencher) {
                     let t = make_tensor_3d::<B>(64, 64, 64);
-                    bencher.bench(|| t.clone().slice([16..48, 16..48, 16..48]));
+                    bencher.bench_synced(|| t.clone().slice([16..48, 16..48, 16..48]));
                 }
             }
 
@@ -93,25 +96,25 @@ macro_rules! bench_backend {
                 #[divan::bench]
                 fn step2_1d_1k(bencher: Bencher) {
                     let t = make_tensor_1d::<B>(1024);
-                    bencher.bench(|| t.clone().slice(s![0..1024;2]));
+                    bencher.bench_synced(|| t.clone().slice(s![0..1024;2]));
                 }
 
                 #[divan::bench]
                 fn step2_1d_1m(bencher: Bencher) {
                     let t = make_tensor_1d::<B>(1024 * 1024);
-                    bencher.bench(|| t.clone().slice(s![0..1024 * 1024;2]));
+                    bencher.bench_synced(|| t.clone().slice(s![0..1024 * 1024;2]));
                 }
 
                 #[divan::bench]
                 fn step4_2d_256x256(bencher: Bencher) {
                     let t = make_tensor_2d::<B>(256, 256);
-                    bencher.bench(|| t.clone().slice(s![0..256;4, 0..256;4]));
+                    bencher.bench_synced(|| t.clone().slice(s![0..256;4, 0..256;4]));
                 }
 
                 #[divan::bench]
                 fn step2_2d_1024x1024(bencher: Bencher) {
                     let t = make_tensor_2d::<B>(1024, 1024);
-                    bencher.bench(|| t.clone().slice(s![0..1024;2, 0..1024;2]));
+                    bencher.bench_synced(|| t.clone().slice(s![0..1024;2, 0..1024;2]));
                 }
             }
 
@@ -123,13 +126,13 @@ macro_rules! bench_backend {
                 #[divan::bench]
                 fn transposed_256x256(bencher: Bencher) {
                     let t = make_tensor_2d::<B>(256, 256).transpose();
-                    bencher.bench(|| t.clone().slice([64..192, 64..192]));
+                    bencher.bench_synced(|| t.clone().slice([64..192, 64..192]));
                 }
 
                 #[divan::bench]
                 fn transposed_1024x1024(bencher: Bencher) {
                     let t = make_tensor_2d::<B>(1024, 1024).transpose();
-                    bencher.bench(|| t.clone().slice([256..768, 256..768]));
+                    bencher.bench_synced(|| t.clone().slice([256..768, 256..768]));
                 }
             }
 
@@ -142,21 +145,21 @@ macro_rules! bench_backend {
                 fn assign_1d_1k(bencher: Bencher) {
                     let t = make_tensor_1d::<B>(1024);
                     let v = make_tensor_1d::<B>(512);
-                    bencher.bench(|| t.clone().slice_assign([256..768], v.clone()));
+                    bencher.bench_synced(|| t.clone().slice_assign([256..768], v.clone()));
                 }
 
                 #[divan::bench]
                 fn assign_2d_256x256(bencher: Bencher) {
                     let t = make_tensor_2d::<B>(256, 256);
                     let v = make_tensor_2d::<B>(128, 128);
-                    bencher.bench(|| t.clone().slice_assign([64..192, 64..192], v.clone()));
+                    bencher.bench_synced(|| t.clone().slice_assign([64..192, 64..192], v.clone()));
                 }
 
                 #[divan::bench]
                 fn assign_2d_1024x1024(bencher: Bencher) {
                     let t = make_tensor_2d::<B>(1024, 1024);
                     let v = make_tensor_2d::<B>(512, 512);
-                    bencher.bench(|| t.clone().slice_assign([256..768, 256..768], v.clone()));
+                    bencher.bench_synced(|| t.clone().slice_assign([256..768, 256..768], v.clone()));
                 }
             }
 
@@ -176,19 +179,19 @@ macro_rules! bench_backend {
                 #[divan::bench]
                 fn fill_1d_512_of_1k(bencher: Bencher) {
                     let t = make_tensor_1d::<B>(1024);
-                    bencher.bench(|| t.clone().slice_fill([256..768], 1.0f32));
+                    bencher.bench_synced(|| t.clone().slice_fill([256..768], 1.0f32));
                 }
 
                 #[divan::bench]
                 fn fill_2d_128x128_of_256x256(bencher: Bencher) {
                     let t = make_tensor_2d::<B>(256, 256);
-                    bencher.bench(|| t.clone().slice_fill([64..192, 64..192], 1.0f32));
+                    bencher.bench_synced(|| t.clone().slice_fill([64..192, 64..192], 1.0f32));
                 }
 
                 #[divan::bench]
                 fn fill_2d_512x512_of_1024x1024(bencher: Bencher) {
                     let t = make_tensor_2d::<B>(1024, 1024);
-                    bencher.bench(|| t.clone().slice_fill([256..768, 256..768], 1.0f32));
+                    bencher.bench_synced(|| t.clone().slice_fill([256..768, 256..768], 1.0f32));
                 }
 
                 // Segmentation-model-sized: 488x448 feature map, half the
@@ -196,14 +199,14 @@ macro_rules! bench_backend {
                 #[divan::bench]
                 fn fill_2d_244x224_of_488x448(bencher: Bencher) {
                     let t = make_tensor_2d::<B>(488, 448);
-                    bencher.bench(|| t.clone().slice_fill([122..366, 112..336], 0.0f32));
+                    bencher.bench_synced(|| t.clone().slice_fill([122..366, 112..336], 0.0f32));
                 }
 
                 // 3D feature map (B=1,C=64,H,W) half-spatial fill.
                 #[divan::bench]
                 fn fill_3d_64x64x64_of_64x128x128(bencher: Bencher) {
                     let t = make_tensor_3d::<B>(64, 128, 128);
-                    bencher.bench(|| t.clone().slice_fill([0..64, 32..96, 32..96], 0.0f32));
+                    bencher.bench_synced(|| t.clone().slice_fill([0..64, 32..96, 32..96], 0.0f32));
                 }
             }
 
@@ -215,24 +218,23 @@ macro_rules! bench_backend {
                 #[divan::bench]
                 fn narrow_dim0_256x256(bencher: Bencher) {
                     let t = make_tensor_2d::<B>(256, 256);
-                    bencher.bench(|| t.clone().narrow(0, 64, 128));
+                    bencher.bench_synced(|| t.clone().narrow(0, 64, 128));
                 }
 
                 #[divan::bench]
                 fn narrow_dim1_256x256(bencher: Bencher) {
                     let t = make_tensor_2d::<B>(256, 256);
-                    bencher.bench(|| t.clone().narrow(1, 64, 128));
+                    bencher.bench_synced(|| t.clone().narrow(1, 64, 128));
                 }
 
                 #[divan::bench]
                 fn narrow_dim0_1024x1024(bencher: Bencher) {
                     let t = make_tensor_2d::<B>(1024, 1024);
-                    bencher.bench(|| t.clone().narrow(0, 256, 512));
+                    bencher.bench_synced(|| t.clone().narrow(0, 256, 512));
                 }
             }
         }
     };
 }
 
-bench_backend!(Flex, flex, "Flex");
-bench_backend!(NdArray, ndarray, "NdArray");
+bench_backend!(TestBackend, backend, "backend");

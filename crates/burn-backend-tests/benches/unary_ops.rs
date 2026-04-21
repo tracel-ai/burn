@@ -1,12 +1,14 @@
-//! Benchmarks comparing Flex vs NdArray backends for unary operations.
+//! Benchmarks for unary operations.
 //!
 //! Run with:
 //! ```bash
 //! cargo bench --bench unary_ops --features simd
 //! ```
 
-use burn_flex::Flex;
-use burn_ndarray::NdArray;
+#[path = "common/mod.rs"]
+mod common;
+use common::{BencherExt, TestBackend};
+
 use burn_tensor::{Tensor, TensorData, backend::Backend};
 use divan::{AllocProfiler, Bencher};
 
@@ -14,9 +16,10 @@ use divan::{AllocProfiler, Bencher};
 static ALLOC: AllocProfiler = AllocProfiler::system();
 
 fn main() {
-    println!("Comparing Flex vs NdArray backends for unary ops");
+    println!("Unary ops Benchmarks");
     println!();
     divan::main();
+    common::report_failures();
 }
 
 const SMALL: usize = 64 * 64; // 4K elements
@@ -53,19 +56,19 @@ macro_rules! bench_backend {
                 #[divan::bench]
                 fn small(bencher: Bencher) {
                     let a = make_tensor::<B>(SMALL);
-                    bencher.bench(|| a.clone().exp());
+                    bencher.bench_synced(|| a.clone().exp());
                 }
 
                 #[divan::bench]
                 fn medium(bencher: Bencher) {
                     let a = make_tensor::<B>(MEDIUM);
-                    bencher.bench(|| a.clone().exp());
+                    bencher.bench_synced(|| a.clone().exp());
                 }
 
                 #[divan::bench]
                 fn large(bencher: Bencher) {
                     let a = make_tensor::<B>(LARGE);
-                    bencher.bench(|| a.clone().exp());
+                    bencher.bench_synced(|| a.clone().exp());
                 }
             }
 
@@ -76,19 +79,19 @@ macro_rules! bench_backend {
                 #[divan::bench]
                 fn small(bencher: Bencher) {
                     let a = make_tensor::<B>(SMALL);
-                    bencher.bench(|| a.clone().log());
+                    bencher.bench_synced(|| a.clone().log());
                 }
 
                 #[divan::bench]
                 fn medium(bencher: Bencher) {
                     let a = make_tensor::<B>(MEDIUM);
-                    bencher.bench(|| a.clone().log());
+                    bencher.bench_synced(|| a.clone().log());
                 }
 
                 #[divan::bench]
                 fn large(bencher: Bencher) {
                     let a = make_tensor::<B>(LARGE);
-                    bencher.bench(|| a.clone().log());
+                    bencher.bench_synced(|| a.clone().log());
                 }
             }
 
@@ -99,19 +102,19 @@ macro_rules! bench_backend {
                 #[divan::bench]
                 fn small(bencher: Bencher) {
                     let a = make_tensor::<B>(SMALL);
-                    bencher.bench(|| a.clone().sqrt());
+                    bencher.bench_synced(|| a.clone().sqrt());
                 }
 
                 #[divan::bench]
                 fn medium(bencher: Bencher) {
                     let a = make_tensor::<B>(MEDIUM);
-                    bencher.bench(|| a.clone().sqrt());
+                    bencher.bench_synced(|| a.clone().sqrt());
                 }
 
                 #[divan::bench]
                 fn large(bencher: Bencher) {
                     let a = make_tensor::<B>(LARGE);
-                    bencher.bench(|| a.clone().sqrt());
+                    bencher.bench_synced(|| a.clone().sqrt());
                 }
             }
 
@@ -122,19 +125,19 @@ macro_rules! bench_backend {
                 #[divan::bench]
                 fn small(bencher: Bencher) {
                     let a = make_tensor::<B>(SMALL);
-                    bencher.bench(|| a.clone().sin());
+                    bencher.bench_synced(|| a.clone().sin());
                 }
 
                 #[divan::bench]
                 fn medium(bencher: Bencher) {
                     let a = make_tensor::<B>(MEDIUM);
-                    bencher.bench(|| a.clone().sin());
+                    bencher.bench_synced(|| a.clone().sin());
                 }
 
                 #[divan::bench]
                 fn large(bencher: Bencher) {
                     let a = make_tensor::<B>(LARGE);
-                    bencher.bench(|| a.clone().sin());
+                    bencher.bench_synced(|| a.clone().sin());
                 }
             }
 
@@ -145,13 +148,13 @@ macro_rules! bench_backend {
                 #[divan::bench]
                 fn small(bencher: Bencher) {
                     let a = make_tensor::<B>(SMALL);
-                    bencher.bench(|| a.clone().cos());
+                    bencher.bench_synced(|| a.clone().cos());
                 }
 
                 #[divan::bench]
                 fn large(bencher: Bencher) {
                     let a = make_tensor::<B>(LARGE);
-                    bencher.bench(|| a.clone().cos());
+                    bencher.bench_synced(|| a.clone().cos());
                 }
             }
 
@@ -162,19 +165,19 @@ macro_rules! bench_backend {
                 #[divan::bench]
                 fn small(bencher: Bencher) {
                     let a = make_tensor::<B>(SMALL);
-                    bencher.bench(|| a.clone().tanh());
+                    bencher.bench_synced(|| a.clone().tanh());
                 }
 
                 #[divan::bench]
                 fn medium(bencher: Bencher) {
                     let a = make_tensor::<B>(MEDIUM);
-                    bencher.bench(|| a.clone().tanh());
+                    bencher.bench_synced(|| a.clone().tanh());
                 }
 
                 #[divan::bench]
                 fn large(bencher: Bencher) {
                     let a = make_tensor::<B>(LARGE);
-                    bencher.bench(|| a.clone().tanh());
+                    bencher.bench_synced(|| a.clone().tanh());
                 }
             }
 
@@ -185,7 +188,7 @@ macro_rules! bench_backend {
                 #[divan::bench]
                 fn large(bencher: Bencher) {
                     let a = make_tensor::<B>(LARGE);
-                    bencher.bench(|| a.clone().abs());
+                    bencher.bench_synced(|| a.clone().abs());
                 }
             }
 
@@ -196,7 +199,7 @@ macro_rules! bench_backend {
                 #[divan::bench]
                 fn large(bencher: Bencher) {
                     let a = make_tensor::<B>(LARGE);
-                    bencher.bench(|| a.clone().recip());
+                    bencher.bench_synced(|| a.clone().recip());
                 }
             }
 
@@ -208,18 +211,17 @@ macro_rules! bench_backend {
                 #[divan::bench]
                 fn medium_256x256(bencher: Bencher) {
                     let a = make_tensor_2d::<B>(256, 256).transpose();
-                    bencher.bench(|| a.clone().exp());
+                    bencher.bench_synced(|| a.clone().exp());
                 }
 
                 #[divan::bench]
                 fn large_1024x1024(bencher: Bencher) {
                     let a = make_tensor_2d::<B>(1024, 1024).transpose();
-                    bencher.bench(|| a.clone().exp());
+                    bencher.bench_synced(|| a.clone().exp());
                 }
             }
         }
     };
 }
 
-bench_backend!(Flex, flex, "Flex");
-bench_backend!(NdArray, ndarray, "NdArray");
+bench_backend!(TestBackend, backend, "backend");

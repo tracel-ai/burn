@@ -6,7 +6,7 @@ use burn_nn::{Linear, LinearConfig};
 use burn_tensor::backend::Backend;
 use burn_tensor::{Tensor, shape};
 
-type TestBackend = burn_ndarray::NdArray;
+type TestBackend = burn_flex::Flex;
 
 #[derive(Module, Debug)]
 pub(super) struct ComplexModule<B: Backend> {

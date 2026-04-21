@@ -465,3 +465,127 @@ fn test_multiple_reduce_dims_permuted() {
         .into_data()
         .assert_approx_eq::<FloatElem>(&TensorData::from([255.5, 767.5]), Tolerance::default());
 }
+
+#[test]
+fn test_sum_transposed() {
+    // Stress the sum kernel on a non-contiguous (transposed) input. Uses
+    // total reduction so the assertion doesn't depend on traversal order;
+    // a stronger per-axis variant would require flex issue #4816 to be
+    // resolved first.
+    let tensor = TestTensor::<2>::from([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]);
+    let output = tensor.transpose().sum();
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([21.0]), false);
+}
+
+#[test]
+fn test_sum_flipped() {
+    // Flip axis 0, sum along axis 1: per-row sums appear in the flipped
+    // row order, so a no-op flip would give the unflipped order.
+    let tensor = TestTensor::<2>::from([[1.0, 2.0, 3.0], [10.0, 20.0, 30.0]]);
+    let output = tensor.flip([0]).sum_dim(1);
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([[60.0], [6.0]]), false);
+}
+
+#[test]
+fn test_sum_dim_flipped() {
+    // Flip axis 0, reduce axis 1: rows are swapped so per-row sums appear
+    // reversed, which a flip-as-noop would not produce.
+    let tensor = TestTensor::<2>::from([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]);
+    let output = tensor.flip([0]).sum_dim(1);
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([[15.0], [6.0]]), false);
+}
+
+#[test]
+fn test_sum_dim_flipped_axis1() {
+    // Flip axis 1, reduce axis 0: columns are reversed, so column sums
+    // appear in reversed order.
+    let tensor = TestTensor::<2>::from([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]);
+    let output = tensor.flip([1]).sum_dim(0);
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([[9.0, 7.0, 5.0]]), false);
+}
+
+#[test]
+fn test_mean_dim_flipped() {
+    // Flip axis 0, mean axis 1: row means appear in reversed row order.
+    let tensor = TestTensor::<2>::from([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]);
+    let output = tensor.flip([0]).mean_dim(1);
+
+    output
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&TensorData::from([[5.0], [2.0]]), Tolerance::default());
+}
+
+#[test]
+fn test_prod_flipped() {
+    // Flip axis 0, prod along axis 1: per-row products appear in reversed
+    // row order.
+    let tensor = TestTensor::<2>::from([[1.0, 2.0], [3.0, 4.0]]);
+    let output = tensor.flip([0]).prod_dim(1);
+
+    output
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&TensorData::from([[12.0], [2.0]]), Tolerance::default());
+}
+
+#[test]
+fn test_sum_narrowed() {
+    // Narrow to indices 1..4 of [0, 1, 2, 3, 4] -> [1, 2, 3]. Without the
+    // narrow the sum would be 10, not 6.
+    let tensor = TestTensor::<1>::from([0.0, 1.0, 2.0, 3.0, 4.0]);
+    let output = tensor.narrow(0, 1, 3).sum();
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([6.0]), false);
+}
+
+#[test]
+fn test_sum_flipped_both_axes() {
+    // Flip both axes, sum along axis 0: column sums appear in reversed
+    // order because axis 1 was flipped; row pairing is also swapped so a
+    // missing axis-0 flip would give different pairings.
+    let tensor = TestTensor::<2>::from([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]);
+    let output = tensor.flip([0, 1]).sum_dim(0);
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([[9.0, 7.0, 5.0]]), false);
+}
+
+#[test]
+fn test_sum_dim_4d_middle_dim() {
+    // Regression: 4D tensor reducing a middle dim (shape [1, 84, 80, 80]).
+    // Fill with 1.0 so every output position should sum to 84.0.
+    let shape = [1, 84, 80, 80];
+    let n: usize = shape.iter().product();
+    let data: Vec<f32> = vec![1.0; n];
+    let tensor = TestTensor::<4>::from_data(TensorData::new(data, shape), &Default::default());
+
+    let output = tensor.sum_dim(1);
+
+    let expected = TensorData::new(vec![84.0f32; 1 * 1 * 80 * 80], [1, 1, 80, 80]);
+    output
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
+}
+
+#[test]
+fn test_should_mean_overflow_intermediate_sum() {
+    let tensor = TestTensorInt::arange(0..1024, &Default::default()).float();
+    let output = tensor.mean();
+    output
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&TensorData::from([511.5]), Tolerance::default());
+}

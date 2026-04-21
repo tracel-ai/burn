@@ -45,7 +45,7 @@ impl<B: Backend> Net<B> {
 use crate::{ModuleSnapshot, PyTorchToBurnAdapter, SafetensorsStore};
 use burn_tensor::Tolerance;
 
-type TestBackend = burn_ndarray::NdArray;
+type TestBackend = burn_flex::Flex;
 
 /// Path to the multi_layer.safetensors test file
 fn get_safetensors_path() -> &'static str {

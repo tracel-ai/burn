@@ -39,3 +39,37 @@ fn inplace_op_after_expand() {
         .into_data()
         .assert_eq(&TensorData::from([[2, 3, 4], [2, 3, 4]]), false);
 }
+
+#[test]
+fn expand_int_after_transpose() {
+    let tensor = TestTensorInt::<2>::from([[1, 2], [3, 4]]).transpose();
+
+    let output = tensor.expand([3, 2, 2]);
+
+    output.into_data().assert_eq(
+        &TensorData::from([[[1, 3], [2, 4]], [[1, 3], [2, 4]], [[1, 3], [2, 4]]]),
+        false,
+    );
+}
+
+#[test]
+fn expand_int_after_flip() {
+    let tensor = TestTensorInt::<1>::from([1, 2, 3]).flip([0]);
+
+    let output = tensor.expand([2, 3]);
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([[3, 2, 1], [3, 2, 1]]), false);
+}
+
+#[test]
+fn expand_int_after_narrow() {
+    let tensor = TestTensorInt::<1>::from([0, 1, 2, 3, 4]).narrow(0, 1, 3);
+
+    let output = tensor.expand([2, 3]);
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([[1, 2, 3], [1, 2, 3]]), false);
+}

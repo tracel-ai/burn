@@ -1,12 +1,12 @@
 use std::env;
 use std::path::Path;
 
-use burn::backend::NdArray;
+use burn::backend::Flex;
 
 use burn_store::{BurnpackStore, ModuleSnapshot};
 use import_model_weights::{Model, infer};
 
-type B = NdArray<f32>;
+type B = Flex;
 
 pub fn main() {
     let args: Vec<String> = env::args().collect();

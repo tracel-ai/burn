@@ -160,6 +160,20 @@ pub struct MuonConfig {
 }
 
 impl MuonConfig {
+    /// Build a [`Muon`] from the config.
+    pub fn build<B: Backend>(&self) -> Muon<B> {
+        let momentum = Momentum::new(&self.momentum);
+        let weight_decay_penalty = self.weight_decay.as_ref().map(|wd| wd.penalty);
+
+        Muon {
+            momentum,
+            ns_params: NewtonSchulzParams::new(self.ns_coefficients, self.ns_steps),
+            weight_decay_penalty,
+            epsilon: self.epsilon,
+            adjust_lr_fn: self.adjust_lr_fn,
+        }
+    }
+
     /// Initialize Muon optimizer.
     ///
     /// # Returns
@@ -195,18 +209,7 @@ impl MuonConfig {
     pub fn init<B: AutodiffBackend, M: AutodiffModule<B>>(
         &self,
     ) -> OptimizerAdaptor<Muon<B::InnerBackend>, M, B> {
-        let momentum = Momentum::new(&self.momentum);
-        let weight_decay_penalty = self.weight_decay.as_ref().map(|wd| wd.penalty);
-
-        let optim = Muon {
-            momentum,
-            ns_params: NewtonSchulzParams::new(self.ns_coefficients, self.ns_steps),
-            weight_decay_penalty,
-            epsilon: self.epsilon,
-            adjust_lr_fn: self.adjust_lr_fn,
-        };
-
-        OptimizerAdaptor::from(optim)
+        OptimizerAdaptor::from(self.build())
     }
 }
 
@@ -429,7 +432,7 @@ mod tests {
     use burn::tensor::{Distribution, Tensor, TensorData};
     use burn_nn::{Linear, LinearConfig, LinearRecord};
 
-    type TestBackend = burn_ndarray::NdArray<f32>;
+    type TestBackend = burn_flex::Flex;
 
     const TOLERANCE: f64 = 1e-8;
 

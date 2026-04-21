@@ -18,3 +18,15 @@ fn test_gelu() {
         Tolerance::default().set_half_precision_absolute(2e-3),
     );
 }
+
+#[test]
+fn test_gelu_d1() {
+    let tensor = TestTensor::<1>::from([-3.0, 0.0, 3.0]);
+
+    let output = activation::gelu(tensor);
+
+    output.into_data().assert_approx_eq::<FloatElem>(
+        &TensorData::from([0.0, 0.0, 3.0]),
+        Tolerance::absolute(0.01),
+    );
+}

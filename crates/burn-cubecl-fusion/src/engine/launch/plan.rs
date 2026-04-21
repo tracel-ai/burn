@@ -137,7 +137,7 @@ impl<R: Runtime> LaunchPlan<'_, R> {
 
 /// Debugging information for aliased handles when `autotune-checks` is enabled.
 #[cfg(feature = "autotune-checks")]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct HandleOutputAliasDebugInfo<R: Runtime> {
     pub handle: CubeFusionHandle<R>,
     pub relative_id: TensorId,

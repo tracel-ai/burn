@@ -121,7 +121,7 @@ pub enum ReduceInstruction {
 }
 
 pub trait ReduceFallbackFn<R: Runtime>: Send + Sync {
-    fn run(&self, context: &mut Context<'_, CubeFusionHandle<R>>);
+    fn run(&self, context: &mut Context<CubeFusionHandle<R>>);
 }
 
 #[derive(Serialize, Deserialize)]
@@ -178,7 +178,7 @@ impl From<ReduceError> for FusedReduceError {
 impl<R: Runtime> ReduceOptimizationTuneArg<R> {
     pub fn execute_fused(
         &self,
-        context: &mut Context<'_, CubeFusionHandle<R>>,
+        context: &mut Context<CubeFusionHandle<R>>,
         strategy: RoutineStrategy,
     ) -> Result<TuneOutput<R>, TraceError<FusedReduceError>> {
         let launch = FusedReduceLaunch::new(&self.info.reduce, strategy);
@@ -186,10 +186,7 @@ impl<R: Runtime> ReduceOptimizationTuneArg<R> {
         launcher.launch(&self.info.client, &self.info.device, context)
     }
 
-    pub fn execute_fallback(
-        &self,
-        context: &mut Context<'_, CubeFusionHandle<R>>,
-    ) -> TuneOutput<R> {
+    pub fn execute_fallback(&self, context: &mut Context<CubeFusionHandle<R>>) -> TuneOutput<R> {
         let launcher = FuseTraceLauncher::new(&self.info.trace_read_fallback, &ElemwiseRunner);
 
         #[allow(unused_mut)] // It is used when `autotune-checks` is activated.
@@ -208,7 +205,7 @@ impl<R: Runtime> ReduceOptimizationTuneArg<R> {
 
             handles.insert(
                 self.info.reduce.op.out.id,
-                (out_desc.shape.dims.clone(), handle_out.clone()),
+                (out_desc.shape.clone(), handle_out.clone()),
             );
         }
 
@@ -254,7 +251,7 @@ impl<R: Runtime> ReduceOptimization<R> {
     /// Execute the optimization.
     pub fn execute(
         &mut self,
-        context: &mut Context<'_, CubeFusionHandle<R>>,
+        context: &mut Context<CubeFusionHandle<R>>,
         fallback: impl FnOnce(usize) -> Box<dyn FallbackOperation<R>>,
     ) {
         // The index of the fallback reduce is the number of ops fused as read.

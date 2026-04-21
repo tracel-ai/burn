@@ -1,4 +1,4 @@
-//! Benchmarks comparing Flex vs NdArray backends for deformable convolution.
+//! Benchmarks for deformable convolution.
 //!
 //! Run with:
 //! ```bash
@@ -7,8 +7,10 @@
 //!
 //! Memory allocation tracking is enabled via divan's AllocProfiler.
 
-use burn_flex::Flex;
-use burn_ndarray::NdArray;
+#[path = "common/mod.rs"]
+mod common;
+use common::{BencherExt, TestBackend};
+
 use burn_tensor::{Tensor, TensorData, backend::Backend, module, ops::DeformConvOptions};
 use divan::{AllocProfiler, Bencher};
 
@@ -16,10 +18,11 @@ use divan::{AllocProfiler, Bencher};
 static ALLOC: AllocProfiler = AllocProfiler::system();
 
 fn main() {
-    println!("Deformable Convolution Benchmarks: Flex vs NdArray");
+    println!("Deformable Convolution Benchmarks");
     println!("Memory allocation tracking enabled");
     println!();
     divan::main();
+    common::report_failures();
 }
 
 /// Create input tensor [batch, channels, height, width]
@@ -145,7 +148,7 @@ macro_rules! bench_backend {
                         offset_groups,
                     );
 
-                    bencher.bench(|| {
+                    bencher.bench_synced(|| {
                         module::deform_conv2d::<B>(
                             x.clone(),
                             offset.clone(),
@@ -179,7 +182,7 @@ macro_rules! bench_backend {
                         offset_groups,
                     );
 
-                    bencher.bench(|| {
+                    bencher.bench_synced(|| {
                         module::deform_conv2d::<B>(
                             x.clone(),
                             offset.clone(),
@@ -220,7 +223,7 @@ macro_rules! bench_backend {
                         offset_groups,
                     );
 
-                    bencher.bench(|| {
+                    bencher.bench_synced(|| {
                         module::deform_conv2d::<B>(
                             x.clone(),
                             offset.clone(),
@@ -256,7 +259,7 @@ macro_rules! bench_backend {
                         offset_groups,
                     );
 
-                    bencher.bench(|| {
+                    bencher.bench_synced(|| {
                         module::deform_conv2d::<B>(
                             x.clone(),
                             offset.clone(),
@@ -292,7 +295,7 @@ macro_rules! bench_backend {
                         offset_groups,
                     );
 
-                    bencher.bench(|| {
+                    bencher.bench_synced(|| {
                         module::deform_conv2d::<B>(
                             x.clone(),
                             offset.clone(),
@@ -333,7 +336,7 @@ macro_rules! bench_backend {
                         offset_groups,
                     );
 
-                    bencher.bench(|| {
+                    bencher.bench_synced(|| {
                         module::deform_conv2d::<B>(
                             x.clone(),
                             offset.clone(),
@@ -369,7 +372,7 @@ macro_rules! bench_backend {
                         offset_groups,
                     );
 
-                    bencher.bench(|| {
+                    bencher.bench_synced(|| {
                         module::deform_conv2d::<B>(
                             x.clone(),
                             offset.clone(),
@@ -405,7 +408,7 @@ macro_rules! bench_backend {
                         offset_groups,
                     );
 
-                    bencher.bench(|| {
+                    bencher.bench_synced(|| {
                         module::deform_conv2d::<B>(
                             x.clone(),
                             offset.clone(),
@@ -421,5 +424,4 @@ macro_rules! bench_backend {
     };
 }
 
-bench_backend!(Flex, flex, "Flex");
-bench_backend!(NdArray, ndarray, "NdArray");
+bench_backend!(TestBackend, backend, "backend");

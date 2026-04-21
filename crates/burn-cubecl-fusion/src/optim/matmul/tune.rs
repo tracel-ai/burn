@@ -3,11 +3,12 @@ use crate::{
     CubeFusionHandle,
     engine::trace::TuneOutput,
     optim::matmul::{AcceleratedTileKind, FusedMatmulSelector},
-    tune::{TuneContext, TuneInput},
+    tune::{FusionInputGen, TuneInput},
 };
 use burn_fusion::stream::Context;
 use cubecl::{
     AutotuneKey, CubeTuneId, Runtime,
+    std::tensor::MatrixBatchLayout,
     tune::{LocalTuner, Tunable, TunableSet, TuneGroup, local_tuner},
 };
 use cubek::matmul::{
@@ -37,41 +38,21 @@ pub fn fused_matmul_autotune<R: Runtime>(
         const PRIORITY_HIGH: i8 = 2;
         const PRIORITY_MEDIUM: i8 = 1;
         const PRIORITY_MIN: i8 = 0;
+        const PRIORITY_NEVER: i8 = -1;
 
-        let cmma = TuneGroup::<FusedMatmulAutotuneKey>::new("cmma", |key| {
-            if matches!(
+        let accelerated = TuneGroup::<FusedMatmulAutotuneKey>::new("accelerated", |key| {
+            if matches!(key.matmul_key.analysis.kind, MatmulKind::General) {
+                match key.matmul_key.analysis.scale_global {
+                    MatmulGlobalScale::Large => PRIORITY_MAX,
+                    _ => PRIORITY_HIGH,
+                }
+            } else if matches!(
                 key.matmul_key.analysis.kind,
-                MatmulKind::General
-                // Those variants are just because the unit alternatives aren't very good yet.
-                | MatmulKind::VecMat | MatmulKind::MatVec
+                MatmulKind::MatVec | MatmulKind::VecMat
             ) {
-                PRIORITY_MAX
+                PRIORITY_HIGH
             } else {
                 PRIORITY_MEDIUM
-            }
-        });
-
-        let mma = TuneGroup::<FusedMatmulAutotuneKey>::new("mma", |key| {
-            if matches!(
-                key.matmul_key.analysis.kind,
-                // General is usually bad, but I think shapes like 16x8196 would be classed as
-                // general and are very good with MMA
-                // Should highly degenerated matrices that aren't VecMat have their own class?
-                MatmulKind::General | MatmulKind::VecMat | MatmulKind::MatVec
-            ) {
-                PRIORITY_MAX
-            } else {
-                PRIORITY_MEDIUM
-            }
-        });
-
-        let odd = TuneGroup::<FusedMatmulAutotuneKey>::new("odd", |key| {
-            if key.matmul_key.definition.lhs_pow2_factor == 0
-                || key.matmul_key.definition.rhs_pow2_factor == 0
-            {
-                PRIORITY_MAX
-            } else {
-                PRIORITY_MIN
             }
         });
 
@@ -81,6 +62,48 @@ pub fn fused_matmul_autotune<R: Runtime>(
                     key.matmul_key.analysis.scale_global,
                     MatmulGlobalScale::Small
                 )
+            {
+                PRIORITY_HIGH
+            } else {
+                PRIORITY_MEDIUM
+            }
+        });
+
+        let gemv = TuneGroup::<FusedMatmulAutotuneKey>::new("gemv", |key| {
+            if matches!(key.matmul_key.analysis.kind, MatmulKind::MatVec) {
+                // LHS is the matrix.
+                match key.matmul_key.definition.matrix_layout_lhs {
+                    MatrixBatchLayout::Contiguous => PRIORITY_MAX,
+                    MatrixBatchLayout::MildlyPermuted { transposed, .. } => {
+                        if transposed {
+                            PRIORITY_HIGH
+                        } else {
+                            PRIORITY_MAX
+                        }
+                    }
+                    MatrixBatchLayout::HighlyPermuted => PRIORITY_MAX,
+                }
+            } else if matches!(key.matmul_key.analysis.kind, MatmulKind::VecMat) {
+                // RHS is the matrix.
+                match key.matmul_key.definition.matrix_layout_rhs {
+                    MatrixBatchLayout::Contiguous => PRIORITY_HIGH,
+                    MatrixBatchLayout::MildlyPermuted { transposed, .. } => {
+                        if transposed {
+                            PRIORITY_MAX
+                        } else {
+                            PRIORITY_HIGH
+                        }
+                    }
+                    MatrixBatchLayout::HighlyPermuted => PRIORITY_HIGH,
+                }
+            } else {
+                PRIORITY_NEVER
+            }
+        });
+
+        let odd = TuneGroup::<FusedMatmulAutotuneKey>::new("odd", |key| {
+            if key.matmul_key.definition.lhs_pow2_factor == 0
+                || key.matmul_key.definition.rhs_pow2_factor == 0
             {
                 PRIORITY_MAX
             } else {
@@ -96,32 +119,58 @@ pub fn fused_matmul_autotune<R: Runtime>(
             }
         }
 
-        let mut set = TunableSet::new(create_key::<R>, input_gen::<R>)
-            .with(Tunable::new("fused_matmul_fallback", tune_fallback::<R>)); // First one should always work.
+        // First entry should always work, since it is considered the fallback.
+        let mut set = TunableSet::new(create_key::<R>, FusionInputGen).with(
+            Tunable::new("fused_matmul_fallback", tune_fallback::<R>).group(&unit, |key| {
+                if matches!(key.matmul_key.analysis.kind, MatmulKind::InnerProduct) {
+                    PRIORITY_MAX
+                } else if matches!(
+                    key.matmul_key.analysis.scale_global,
+                    MatmulGlobalScale::Small
+                ) {
+                    PRIORITY_HIGH
+                } else {
+                    PRIORITY_MIN
+                }
+            }),
+        );
+
+        // Vector-matrix kernels.
+        for (selector, double_buf) in [
+            (FusedMatmulSelector::SimpleVecMat, false),
+            (FusedMatmulSelector::DoubleVecMat, true),
+            (FusedMatmulSelector::GemvPlaneParallel, false),
+            (FusedMatmulSelector::GemvUnitPerpendicular, false),
+        ] {
+            set = set.with(
+                Tunable::new(&selector.name(), move |input| {
+                    tune_fused::<R>(input, selector)
+                })
+                .group(&gemv, move |key| match double_buf {
+                    false => PRIORITY_MAX,
+                    true => double_buffering_priority(key, PRIORITY_MAX, PRIORITY_HIGH),
+                }),
+            );
+        }
 
         // Unit matmuls
         for (selector, double_buf) in [
             (FusedMatmulSelector::SimpleUnit, false),
             (FusedMatmulSelector::DoubleUnit, true),
-            (FusedMatmulSelector::SimpleVecMat, false),
-            (FusedMatmulSelector::DoubleVecMat, true),
         ] {
             set = set.with(
-                Tunable::new(selector.name(), move |input| {
+                Tunable::new(&selector.name(), move |input| {
                     tune_fused::<R>(input, selector)
                 })
                 .group(&unit, move |key| match double_buf {
-                    true => double_buffering_priority(key, PRIORITY_MAX, PRIORITY_HIGH),
                     false => PRIORITY_MAX,
+                    true => double_buffering_priority(key, PRIORITY_MAX, PRIORITY_HIGH),
                 }),
             );
         }
 
         // Accelerated matmuls
-        for (tile_matmul, group) in [
-            (AcceleratedTileKind::Cmma, &cmma),
-            (AcceleratedTileKind::Mma, &mma),
-        ] {
+        for tile_matmul in [AcceleratedTileKind::Cmma, AcceleratedTileKind::Mma] {
             for (selector, double_buf, extra_group) in [
                 (
                     FusedMatmulSelector::Simple {
@@ -161,15 +210,21 @@ pub fn fused_matmul_autotune<R: Runtime>(
                     Some(&odd),
                 ),
             ] {
-                let mut tunable = Tunable::new(selector.name(), move |input| {
+                let priority_within_group =
+                    |key: &FusedMatmulAutotuneKey, double_buf: bool| match double_buf {
+                        false => PRIORITY_MAX,
+                        true => double_buffering_priority(key, PRIORITY_MAX, PRIORITY_HIGH),
+                    };
+                let mut tunable = Tunable::new(&selector.name(), move |input| {
                     tune_fused::<R>(input, selector)
                 })
-                .group(group, move |key| match double_buf {
-                    true => double_buffering_priority(key, PRIORITY_MAX, PRIORITY_HIGH),
-                    false => PRIORITY_MAX,
+                .group(&accelerated, move |key| {
+                    priority_within_group(key, double_buf)
                 });
+
                 if let Some(group) = extra_group {
-                    tunable = tunable.group(group, |_| PRIORITY_MAX);
+                    tunable =
+                        tunable.group(group, move |key| priority_within_group(key, double_buf));
                 }
                 set = set.with(tunable);
             }
@@ -190,23 +245,22 @@ pub(crate) fn create_key<R: Runtime>(
     input: &TuneInput<R, MatmulOptimizationTuneArg<R>>,
 ) -> FusedMatmulAutotuneKey {
     let opt = input.optimization();
-    let context = match input.context() {
-        TuneContext::Original(context) => context,
-        TuneContext::Fork(_) => panic!("Not supported when generating key"),
-    };
+    assert!(input.is_original(), "Not supported when generating key");
+    let tensors = input.tensors();
+    let handles = input.handles();
 
-    let lhs = context.tensors.get(&opt.info.matmul.op.lhs.id).unwrap();
-    let rhs = context.tensors.get(&opt.info.matmul.op.rhs.id).unwrap();
-    let out = context.tensors.get(&opt.info.matmul.op.out.id).unwrap();
+    let lhs = tensors.get(&opt.info.matmul.op.lhs.id).unwrap();
+    let rhs = tensors.get(&opt.info.matmul.op.rhs.id).unwrap();
+    let out = tensors.get(&opt.info.matmul.op.out.id).unwrap();
 
-    let lhs_strides = context
-        .handles
-        .get_handle(&lhs.id, &burn_ir::TensorStatus::ReadOnly)
+    let lhs_strides = handles
+        .get_handle_ref(&lhs.id)
+        .expect("lhs handle")
         .strides
         .clone();
-    let rhs_strides = context
-        .handles
-        .get_handle(&rhs.id, &burn_ir::TensorStatus::ReadOnly)
+    let rhs_strides = handles
+        .get_handle_ref(&rhs.id)
+        .expect("rhs handle")
         .strides
         .clone();
 
@@ -225,40 +279,20 @@ pub(crate) fn create_key<R: Runtime>(
     FusedMatmulAutotuneKey::new(key, opt.info.num_output_buffers(), opt.info.num_ops_fused())
 }
 
-fn input_gen<R: Runtime>(
-    _key: &FusedMatmulAutotuneKey,
-    input: &TuneInput<R, MatmulOptimizationTuneArg<R>>,
-) -> TuneInput<R, MatmulOptimizationTuneArg<R>> {
-    input.clone()
-}
-
 fn tune_fused<R: Runtime>(
     input: TuneInput<R, MatmulOptimizationTuneArg<R>>,
     selector: FusedMatmulSelector,
 ) -> Result<TuneOutput<R>, String> {
-    let optimization = input.optimization();
-    let context = input.context();
-
-    match context {
-        TuneContext::Original(context) => match optimization.execute_fused(context, selector) {
-            Ok(out) => Ok(out),
-            Err(_) => {
-                return tune_fallback::<R>(input);
-            }
-        },
-        TuneContext::Fork(mut fork) => optimization.execute_fused(&mut fork.as_context(), selector),
-    }
-    .map_err(|e| format!("{e:?}"))
+    let is_original = input.is_original();
+    input.execute(|ctx, opt| match opt.execute_fused(ctx, selector) {
+        Ok(out) => Ok(out),
+        Err(_) if is_original => Ok(opt.execute_fallback(ctx)),
+        Err(e) => Err(format!("{e:?}")),
+    })
 }
 
 fn tune_fallback<R: Runtime>(
     input: TuneInput<R, MatmulOptimizationTuneArg<R>>,
 ) -> Result<TuneOutput<R>, String> {
-    let optimization = input.optimization();
-    let context = input.context();
-
-    Ok(match context {
-        TuneContext::Original(context) => optimization.execute_fallback(context),
-        TuneContext::Fork(mut fork) => optimization.execute_fallback(&mut fork.as_context()),
-    })
+    Ok(input.execute(|ctx, opt| opt.execute_fallback(ctx)))
 }

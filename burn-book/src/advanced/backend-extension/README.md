@@ -40,7 +40,7 @@ impl<E: TchElement> Backend for burn_tch::LibTorch<E> {
    }
 }
 
-impl<E: NdArrayElement> Backend for burn_ndarray::NdArray<E> {
+impl Backend for burn_flex::Flex {
     // No specific implementation, but the backend can still be used.
 }
 ```

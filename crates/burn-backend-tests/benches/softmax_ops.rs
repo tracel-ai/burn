@@ -6,8 +6,10 @@
 //! cargo bench --bench softmax_ops --features simd,rayon
 //! ```
 
-use burn_flex::Flex;
-use burn_ndarray::NdArray;
+#[path = "common/mod.rs"]
+mod common;
+use common::{BencherExt, TestBackend};
+
 use burn_tensor::{Element, Tensor, TensorData, backend::Backend};
 use divan::{AllocProfiler, Bencher};
 
@@ -18,6 +20,7 @@ fn main() {
     println!("Softmax Benchmarks: fused (via B::softmax) vs decomposed");
     println!();
     divan::main();
+    common::report_failures();
 }
 
 fn make_tensor_3d<B: Backend, E: Element + From<f32>>(
@@ -56,25 +59,25 @@ macro_rules! bench_backend {
                 #[divan::bench]
                 fn trait_hook_bert_seq512_h12(bencher: Bencher) {
                     let x = make_tensor_3d::<B, f32>(12, 512, 512);
-                    bencher.bench(|| burn_tensor::activation::softmax(x.clone(), 2));
+                    bencher.bench_synced(|| burn_tensor::activation::softmax(x.clone(), 2));
                 }
 
                 #[divan::bench]
                 fn decomposed_bert_seq512_h12(bencher: Bencher) {
                     let x = make_tensor_3d::<B, f32>(12, 512, 512);
-                    bencher.bench(|| decomposed_softmax(x.clone(), 2));
+                    bencher.bench_synced(|| decomposed_softmax(x.clone(), 2));
                 }
 
                 #[divan::bench]
                 fn trait_hook_wide_d2048(bencher: Bencher) {
                     let x = make_tensor_3d::<B, f32>(2, 256, 2048);
-                    bencher.bench(|| burn_tensor::activation::softmax(x.clone(), 2));
+                    bencher.bench_synced(|| burn_tensor::activation::softmax(x.clone(), 2));
                 }
 
                 #[divan::bench]
                 fn decomposed_wide_d2048(bencher: Bencher) {
                     let x = make_tensor_3d::<B, f32>(2, 256, 2048);
-                    bencher.bench(|| decomposed_softmax(x.clone(), 2));
+                    bencher.bench_synced(|| decomposed_softmax(x.clone(), 2));
                 }
             }
 
@@ -85,18 +88,17 @@ macro_rules! bench_backend {
                 #[divan::bench]
                 fn trait_hook_dim1_of_3(bencher: Bencher) {
                     let x = make_tensor_3d::<B, f32>(4, 1024, 512);
-                    bencher.bench(|| burn_tensor::activation::softmax(x.clone(), 1));
+                    bencher.bench_synced(|| burn_tensor::activation::softmax(x.clone(), 1));
                 }
 
                 #[divan::bench]
                 fn decomposed_dim1_of_3(bencher: Bencher) {
                     let x = make_tensor_3d::<B, f32>(4, 1024, 512);
-                    bencher.bench(|| decomposed_softmax(x.clone(), 1));
+                    bencher.bench_synced(|| decomposed_softmax(x.clone(), 1));
                 }
             }
         }
     };
 }
 
-bench_backend!(Flex, flex, "Flex");
-bench_backend!(NdArray, ndarray, "NdArray");
+bench_backend!(TestBackend, backend, "backend");

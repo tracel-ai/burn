@@ -134,9 +134,9 @@ impl Transform2D {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use burn_ndarray::NdArray;
+    use burn_flex::Flex;
     use burn_tensor::Tolerance;
-    type B = NdArray;
+    type B = Flex;
 
     #[test]
     fn transform_identity_translation() {

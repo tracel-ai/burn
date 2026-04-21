@@ -1,6 +1,25 @@
 use super::*;
 use burn_tensor::TensorData;
 use burn_tensor::Tolerance;
+use core::f32::consts::E;
+
+#[test]
+fn should_support_log_3d_transposed() {
+    // 3D tensor with permuted dimensions; log should undo the e^k powers.
+    let data = TensorData::from([
+        [[1.0, E], [E * E, E * E * E]],
+        [[1.0, E], [E * E, E * E * E]],
+    ]);
+    let tensor = TestTensor::<3>::from_data(data, &Default::default());
+    let permuted = tensor.permute([2, 0, 1]);
+
+    let output = permuted.log();
+    let expected = TensorData::from([[[0.0, 2.0], [0.0, 2.0]], [[1.0, 3.0], [1.0, 3.0]]]);
+
+    output
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
+}
 
 #[test]
 fn should_support_log_ops() {

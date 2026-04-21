@@ -25,7 +25,7 @@ Some other dependencies have to be added
 ```toml
 [dependencies]
 embedded-alloc = "0.6.0" # Only if there is no default allocator for your chip
-burn = { version = "0.21", default-features = false, features = ["ndarray"] } # Backend must be ndarray
+burn = { version = "0.21", default-features = false, features = ["flex"] } # Flex supports no_std
 burn-store = { version = "0.21", default-features = false, features = ["burnpack"] }
 
 [build-dependencies]
@@ -67,11 +67,11 @@ async fn main(_spawner: Spawner) {
 ```
 
 ### Define Backend
-We are using ndarray, so we just need to define the NdArray backend as usual
+We are using Flex, so we just need to define the Flex backend as usual
 ```rs
-use burn::{backend::NdArray, tensor::Tensor};
+use burn::{backend::Flex, tensor::Tensor};
 
-type Backend = NdArray<f32>;
+type Backend = Flex;
 type BackendDevice = <Backend as burn::tensor::backend::Backend>::Device;
 ```
 

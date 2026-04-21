@@ -7,10 +7,7 @@ edition.workspace = true
 workspace = true
 
 [features]
-ndarray = ["burn/ndarray"]
-ndarray-blas-accelerate = ["burn/ndarray", "burn/accelerate"]
-ndarray-blas-netlib = ["burn/ndarray", "burn/blas-netlib"]
-ndarray-blas-openblas = ["burn/ndarray", "burn/openblas"]
+flex = ["burn/flex"]
 tch-cpu = ["burn/tch"]
 tch-gpu = ["burn/tch"]
 wgpu = ["burn/wgpu"]

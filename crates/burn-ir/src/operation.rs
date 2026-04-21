@@ -90,6 +90,9 @@ pub enum OperationIr {
     Custom(CustomOpIr),
     /// A tensor is dropped.
     Drop(TensorIr),
+    #[cfg(feature = "distributed")]
+    /// Operation specific to a distributed tensor.
+    Distributed(DistributedOperationIr),
 }
 
 /// Operation intermediate representation specific to a float tensor.
@@ -685,6 +688,15 @@ pub enum BoolOperationIr {
     Or(BinaryOpIr),
 }
 
+#[cfg(feature = "distributed")]
+/// Operations that can be done on distributed tensors.
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+pub enum DistributedOperationIr {
+    /// Operation corresponding to:
+    /// [all_reduce](burn_backend::distributed::DistributedBackend::all_reduce).
+    AllReduce(AllReduceOpIr),
+}
+
 /// Swap dim operation intermediate representation.
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 pub struct SwapDimsOpIr {
@@ -950,6 +962,14 @@ pub struct RepeatDimOpIr {
 pub struct CatOpIr {
     pub tensors: Vec<TensorIr>,
     pub dim: usize,
+    pub out: TensorIr,
+}
+
+#[cfg(feature = "distributed")]
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct AllReduceOpIr {
+    pub tensor: TensorIr,
     pub out: TensorIr,
 }
 
@@ -1816,6 +1836,8 @@ impl OperationIr {
             OperationIr::Init(repr) => repr.inputs(),
             OperationIr::Custom(repr) => repr.inputs(),
             OperationIr::Drop(repr) => Box::new([repr].into_iter()),
+            #[cfg(feature = "distributed")]
+            OperationIr::Distributed(repr) => repr.inputs(),
         }
     }
 
@@ -1834,6 +1856,8 @@ impl OperationIr {
             OperationIr::Init(repr) => repr.outputs(),
             OperationIr::Custom(repr) => repr.outputs(),
             OperationIr::Drop(_repr) => Box::new([].into_iter()),
+            #[cfg(feature = "distributed")]
+            OperationIr::Distributed(repr) => repr.outputs(),
         }
     }
 
@@ -1872,6 +1896,8 @@ impl OperationIr {
 
                 output
             }
+            #[cfg(feature = "distributed")]
+            OperationIr::Distributed(repr) => repr.mark_read_only(nodes),
         }
     }
 }
@@ -3048,6 +3074,33 @@ impl ModuleOperationIr {
                 }
             }
         };
+
+        output
+    }
+}
+
+#[cfg(feature = "distributed")]
+impl DistributedOperationIr {
+    fn inputs(&self) -> Box<dyn Iterator<Item = &TensorIr> + '_> {
+        match self {
+            DistributedOperationIr::AllReduce(repr) => Box::new([&repr.tensor].into_iter()),
+        }
+    }
+
+    fn outputs(&self) -> Box<dyn Iterator<Item = &TensorIr> + '_> {
+        match self {
+            DistributedOperationIr::AllReduce(repr) => Box::new([&repr.out].into_iter()),
+        }
+    }
+
+    fn mark_read_only(&mut self, nodes: &[TensorId]) -> Vec<TensorIr> {
+        let mut output = Vec::new();
+
+        match self {
+            DistributedOperationIr::AllReduce(repr) => {
+                repr.tensor.mark_read_only(nodes, &mut output);
+            }
+        }
 
         output
     }

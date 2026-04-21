@@ -8,17 +8,30 @@ use hashbrown::HashMap;
 ///
 /// It also contains all scalar values, which can change even for the same graph. They are sorted
 /// in the order in which they appear in the graph.
-#[allow(clippy::too_many_arguments)]
-#[derive(new)]
-pub struct Context<'a, H> {
+pub struct Context<H> {
     /// The tensor mapping where local tensor id points to the updated tensor representation.
-    pub tensors: &'a mut HashMap<TensorId, TensorIr>,
+    pub tensors: HashMap<TensorId, TensorIr>,
     /// Handle container to retrieve tensors based on their representation.
-    pub handles: &'a mut HandleContainer<H>,
+    pub handles: HandleContainer<H>,
     /// Scalars found in the graph in the order they appeared.
-    pub scalars: &'a mut HashMap<ScalarId, ScalarIr>,
+    pub scalars: HashMap<ScalarId, ScalarIr>,
     /// Shape mapping from relative shape ids to global (real) shape ids.
-    pub shapes_relative2global: &'a HashMap<usize, usize>,
+    pub shapes_relative2global: HashMap<usize, usize>,
+}
+
+impl<H: Clone> Context<H> {
+    /// Fork the context into an independent owned copy. Used by autotuning to give each
+    /// benchmark run a sandbox — mutations stay local until the caller merges new handles
+    /// back. `HandleContainer::fork` clones the id→handle map; actual GPU buffers are
+    /// refcounted so only the map itself is duplicated.
+    pub fn fork(&self) -> Self {
+        Self {
+            tensors: self.tensors.clone(),
+            handles: self.handles.fork(),
+            scalars: self.scalars.clone(),
+            shapes_relative2global: self.shapes_relative2global.clone(),
+        }
+    }
 }
 
 #[derive(Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord, Debug)]
@@ -54,49 +67,59 @@ impl Default for OperationConverter {
     }
 }
 
-/// Fork of a [context](Context) which owns its data.
-pub struct ContextOwned<H> {
-    tensors: HashMap<TensorId, TensorIr>,
-    handles: HandleContainer<H>,
-    scalars: HashMap<ScalarId, ScalarIr>,
-    shapes_relative2global: HashMap<usize, usize>,
+/// RAII guard that temporarily lends three [`OperationConverter`] fields plus a
+/// [`HandleContainer`] into a single owned [`Context`]. On drop, the guard moves every
+/// field back into its original location.
+pub(crate) struct ContextGuard<'a, H> {
+    context: Option<Context<H>>,
+    converter: &'a mut OperationConverter,
+    handles: &'a mut HandleContainer<H>,
 }
 
-impl<H: Clone> ContextOwned<H> {
-    /// Convert into [context](Context).
-    pub fn as_context(&mut self) -> Context<'_, H> {
-        Context {
-            tensors: &mut self.tensors,
-            handles: &mut self.handles,
-            scalars: &mut self.scalars,
-            shapes_relative2global: &self.shapes_relative2global,
-        }
-    }
+impl<'a, H> ContextGuard<'a, H> {
+    /// Move the converter's per-block exposed state and the server's handle container into a
+    /// fresh [`Context`]. The originals are left holding `Default` placeholders; the guard
+    /// will swap them back on drop.
+    pub(crate) fn new(
+        converter: &'a mut OperationConverter,
+        handles: &'a mut HandleContainer<H>,
+    ) -> Self {
+        let context = Context {
+            tensors: core::mem::take(&mut converter.tensors_relative2global),
+            scalars: core::mem::take(&mut converter.scalars),
+            shapes_relative2global: core::mem::take(&mut converter.shapes_relative2global),
+            handles: core::mem::take(handles),
+        };
 
-    /// Returns a reference to the underlying handle container.
-    pub fn handles(&self) -> &HandleContainer<H> {
-        &self.handles
-    }
-
-    /// Fork the context again.
-    pub fn fork(&self) -> ContextOwned<H> {
-        ContextOwned {
-            tensors: self.tensors.clone(),
-            handles: self.handles.fork(),
-            scalars: self.scalars.clone(),
-            shapes_relative2global: self.shapes_relative2global.clone(),
+        Self {
+            context: Some(context),
+            converter,
+            handles,
         }
     }
 }
 
-impl<H: Clone> Context<'_, H> {
-    /// Fork the context into an [owned context](ContextOwned).
-    pub fn fork(&self) -> ContextOwned<H> {
-        ContextOwned {
-            tensors: self.tensors.clone(),
-            handles: self.handles.fork(),
-            scalars: self.scalars.clone(),
-            shapes_relative2global: self.shapes_relative2global.clone(),
+impl<H> core::ops::Deref for ContextGuard<'_, H> {
+    type Target = Context<H>;
+
+    fn deref(&self) -> &Self::Target {
+        self.context.as_ref().expect("context guard is alive")
+    }
+}
+
+impl<H> core::ops::DerefMut for ContextGuard<'_, H> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.context.as_mut().expect("context guard is alive")
+    }
+}
+
+impl<H> Drop for ContextGuard<'_, H> {
+    fn drop(&mut self) {
+        if let Some(ctx) = self.context.take() {
+            self.converter.tensors_relative2global = ctx.tensors;
+            self.converter.scalars = ctx.scalars;
+            self.converter.shapes_relative2global = ctx.shapes_relative2global;
+            *self.handles = ctx.handles;
         }
     }
 }
@@ -114,18 +137,6 @@ pub(crate) trait RelativeOps {
 }
 
 impl OperationConverter {
-    pub(crate) fn context<'a, H>(
-        &'a mut self,
-        handles: &'a mut HandleContainer<H>,
-    ) -> Context<'a, H> {
-        Context {
-            handles,
-            tensors: &mut self.tensors_relative2global,
-            scalars: &mut self.scalars,
-            shapes_relative2global: &self.shapes_relative2global,
-        }
-    }
-
     pub(crate) fn clear(&mut self) {
         self.tensors_relative2global.clear();
         self.tensors_global2relative.clear();
@@ -162,6 +173,8 @@ impl RelativeOps for OperationIr {
             OperationIr::Custom(ops) => OperationIr::Custom(ops.to_relative(converter)),
             OperationIr::Init(ops) => OperationIr::Init(ops.to_relative(converter)),
             OperationIr::Drop(tensor) => OperationIr::Drop(tensor.to_relative(converter)),
+            #[cfg(feature = "distributed")]
+            OperationIr::Distributed(ops) => OperationIr::Distributed(ops.to_relative(converter)),
         }
     }
 }
@@ -1215,6 +1228,20 @@ impl RelativeOps for TensorIr {
     }
 }
 
+#[cfg(feature = "distributed")]
+impl RelativeOps for DistributedOperationIr {
+    fn to_relative(&self, converter: &mut OperationConverter) -> Self {
+        match self {
+            DistributedOperationIr::AllReduce(desc) => {
+                DistributedOperationIr::AllReduce(AllReduceOpIr {
+                    tensor: desc.tensor.to_relative(converter),
+                    out: desc.out.to_relative(converter),
+                })
+            }
+        }
+    }
+}
+
 impl RelativeOps for TensorId {
     fn to_relative(&self, converter: &mut OperationConverter) -> Self {
         if let Some(value) = converter.tensors_global2relative.get(self) {
@@ -1249,18 +1276,17 @@ mod tests {
     use burn_backend::DType;
     use burn_ir::{TensorId, TensorIr, TensorStatus};
 
-    /// Helper to build a minimal context with string handles for testing fork behavior.
-    fn make_test_context() -> (
-        HashMap<TensorId, TensorIr>,
-        HandleContainer<String>,
-        HashMap<ScalarId, ScalarIr>,
-        HashMap<usize, usize>,
-    ) {
-        let mut tensors = HashMap::new();
-        let mut handles = HandleContainer::new();
+    /// Helper to build a minimal [`Context`] with string handles for testing fork behavior.
+    fn make_test_context() -> Context<String> {
+        let mut ctx = Context {
+            tensors: HashMap::new(),
+            handles: HandleContainer::new(),
+            scalars: HashMap::new(),
+            shapes_relative2global: HashMap::new(),
+        };
 
         let id_input = TensorId::new(1);
-        tensors.insert(
+        ctx.tensors.insert(
             id_input,
             TensorIr {
                 id: id_input,
@@ -1269,93 +1295,69 @@ mod tests {
                 dtype: DType::F32,
             },
         );
-        handles.register_handle(id_input, "input_handle".to_string());
+        ctx.handles
+            .register_handle(id_input, "input_handle".to_string());
 
-        let scalars = HashMap::new();
-        let shapes = HashMap::new();
-
-        (tensors, handles, scalars, shapes)
+        ctx
     }
 
     #[test]
     fn context_fork_output_handles_are_isolated() {
-        // This test documents the core bug (#4751): output handles registered
-        // in a forked context are invisible to the original context.
-        let (mut tensors, mut handles, mut scalars, shapes) = make_test_context();
-
+        // Output handles registered in a forked context are NOT visible in the original —
+        // forks are independent sandboxes. `burn-cubecl-fusion`'s `TuneInput` layer is
+        // responsible for merging new handles back into the real context when appropriate.
+        let original = make_test_context();
         let output_id = TensorId::new(100);
 
         {
-            let context = Context::new(&mut tensors, &mut handles, &mut scalars, &shapes);
-
-            // Fork the context (simulates what TuneInput::clone does).
-            let mut fork = context.fork();
-            let fork_ctx = fork.as_context();
-
-            // Simulate optimization registering output handles in the fork.
-            fork_ctx
-                .handles
+            let mut fork = original.fork();
+            fork.handles
                 .register_handle(output_id, "output_handle".to_string());
 
             // The fork has the output handle.
-            assert!(fork_ctx.handles.get_handle_ref(&output_id).is_some());
+            assert!(fork.handles.get_handle_ref(&output_id).is_some());
         }
 
-        // But the original handle container does NOT.
-        // This is the bug: output handles are lost after the fork is dropped.
-        assert!(handles.get_handle_ref(&output_id).is_none());
+        // But the original does NOT — isolation is the point of `fork()`.
+        assert!(original.handles.get_handle_ref(&output_id).is_none());
     }
 
     #[test]
     fn context_fork_preserves_input_handles() {
-        let (mut tensors, mut handles, mut scalars, shapes) = make_test_context();
-
+        let original = make_test_context();
         let input_id = TensorId::new(1);
 
-        let context = Context::new(&mut tensors, &mut handles, &mut scalars, &shapes);
-
-        let mut fork = context.fork();
+        let fork = original.fork();
 
         // Fork should have a copy of the input handle.
         assert_eq!(
-            fork.as_context().handles.get_handle_ref(&input_id),
+            fork.handles.get_handle_ref(&input_id),
             Some(&"input_handle".to_string())
         );
         // Original is unchanged.
         assert_eq!(
-            handles.get_handle_ref(&input_id),
+            original.handles.get_handle_ref(&input_id),
             Some(&"input_handle".to_string())
         );
     }
 
     #[test]
     fn context_double_fork_fully_isolated() {
-        // Simulates what happens in UnsafeTuneContext::get() on a Fork variant:
-        // the fork is forked again, creating a second level of isolation.
-        let (mut tensors, mut handles, mut scalars, shapes) = make_test_context();
+        // Forking a fork creates a second level of isolation — a mutation in `fork2` is
+        // invisible to both `fork1` and the original.
+        let original = make_test_context();
 
-        let context = Context::new(&mut tensors, &mut handles, &mut scalars, &shapes);
-
-        let mut fork1 = context.fork();
+        let fork1 = original.fork();
         let mut fork2 = fork1.fork();
-        let _fork2_ctx = fork2.as_context();
 
         let deep_output_id = TensorId::new(200);
-        {
-            let ctx = fork2.as_context();
-            ctx.handles
-                .register_handle(deep_output_id, "deep_output".to_string());
-        }
+        fork2
+            .handles
+            .register_handle(deep_output_id, "deep_output".to_string());
 
         // Neither the first fork nor the original see the deeply-nested output.
-        assert!(
-            fork1
-                .as_context()
-                .handles
-                .get_handle_ref(&deep_output_id)
-                .is_none()
-        );
-        assert!(handles.get_handle_ref(&deep_output_id).is_none());
+        assert!(fork1.handles.get_handle_ref(&deep_output_id).is_none());
+        assert!(original.handles.get_handle_ref(&deep_output_id).is_none());
     }
 }
 

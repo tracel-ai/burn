@@ -13,7 +13,7 @@ use tokio::net::TcpListener;
 use tokio_serde::formats::MessagePack;
 use tokio_util::codec::LengthDelimitedCodec;
 
-use burn::{backend::NdArray, prelude::Backend, tensor::Tensor};
+use burn::{backend::Flex, prelude::Backend, tensor::Tensor};
 use burn_collective_multinode_tests::shared::{NodeTest, NodeTestResult, TENSOR_RANK};
 use burn_std::rand::{SeedableRng, StdRng};
 use tokio::process::{Child, Command};
@@ -102,8 +102,7 @@ async fn main() {
         for test in all_reduce_tests.clone() {
             let test_name = test.to_string();
 
-            let time =
-                test_all_reduce_centralized_no_collective::<NdArray>(&topology, test.clone());
+            let time = test_all_reduce_centralized_no_collective::<Flex>(&topology, test.clone());
             println!(
                 "{test_name}: Benchmark (no collective, centralized, single-threaded): {} secs",
                 time.as_secs_f32()
@@ -189,8 +188,8 @@ async fn launch_nodes(
                 "run",
                 "--release",
                 "--features",
-                #[cfg(feature = "ndarray")]
-                "ndarray",
+                #[cfg(feature = "flex")]
+                "flex",
                 "--bin",
                 "node",
                 "--",
@@ -336,10 +335,10 @@ fn generate_random_input(
         .collect();
 
     // Sum up the inputs
-    let device = <NdArray as Backend>::Device::default();
-    let mut expected_tensor = Tensor::<NdArray, TENSOR_RANK>::zeros(shape, &device);
+    let device = <Flex as Backend>::Device::default();
+    let mut expected_tensor = Tensor::<Flex, TENSOR_RANK>::zeros(shape, &device);
     for item in input.iter().take(input_count) {
-        let input_tensor = Tensor::<NdArray, TENSOR_RANK>::from_data(item.clone(), &device);
+        let input_tensor = Tensor::<Flex, TENSOR_RANK>::from_data(item.clone(), &device);
         expected_tensor = expected_tensor.add(input_tensor);
     }
 

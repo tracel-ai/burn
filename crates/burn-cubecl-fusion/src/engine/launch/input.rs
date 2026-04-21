@@ -27,7 +27,7 @@ impl<'a, R: Runtime> InputPlanner<'a, R> {
         }
     }
 
-    pub fn run(self, context: &mut Context<'_, CubeFusionHandle<R>>, plan: &mut LaunchPlan<'a, R>) {
+    pub fn run(self, context: &mut Context<CubeFusionHandle<R>>, plan: &mut LaunchPlan<'a, R>) {
         for (pos, input) in self.resources.inputs.iter().enumerate() {
             match input {
                 RegisterTensor::Normal(tensor_relative, precision) => {

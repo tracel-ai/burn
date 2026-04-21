@@ -25,8 +25,13 @@ std = [
     "half/std",
     "num-traits/std",
 ]
-simd = ["dep:macerator", "dep:aligned-vec"]
+simd = ["dep:macerator", "dep:aligned-vec", "gemm/wasm-simd128-enable"]
 rayon = ["dep:rayon", "gemm/rayon"]
+# Opt-in gemm codegen paths. Not enabled by default.
+# AVX-512 kernels for x86_64 (Sapphire Rapids, Zen 4/5, etc.).
+x86-v4 = ["gemm/x86-v4"]
+# Apple AMX matrix coprocessor (M-series). Experimental upstream; requires std.
+apple-amx = ["std", "gemm/experimental-apple-amx"]
 tracing = ["burn-std/tracing", "burn-backend/tracing", "burn-ir/tracing"]
 critical-section = [
     "dep:once_cell",
@@ -49,114 +54,22 @@ half = { workspace = true }
 num-traits = { workspace = true }
 
 # Matmul
-gemm = { version = "0.19", default-features = false, features = ["f16"] }
+gemm = { workspace = true, features = ["f16"] }
 
 # SIMD
-aligned-vec = { version = "0.6", default-features = false, optional = true }
+aligned-vec = { workspace = true, optional = true }
 macerator = { workspace = true, optional = true }
 
 # Parallel
 rayon = { workspace = true, optional = true }
 
 # no_std targets without atomic CAS (enabled via `critical-section` feature)
-once_cell = { version = "1", default-features = false, optional = true }
+once_cell = { workspace = true, optional = true }
 portable-atomic = { workspace = true, optional = true }
 portable-atomic-util = { workspace = true, optional = true }
 
 [dev-dependencies]
-burn-ndarray = { path = "../burn-ndarray", version = "=0.21.0-pre.3" }
-burn-tensor = { path = "../burn-tensor", version = "=0.21.0-pre.3" }
-divan = "0.1"
-realfft = "3"
-rustfft = "6"
-
-[[bench]]
-name = "attention"
-harness = false
-
-[[bench]]
-name = "binary_ops"
-harness = false
-
-[[bench]]
-name = "matmul"
-harness = false
-
-[[bench]]
-name = "slice_ops"
-harness = false
-
-[[bench]]
-name = "reduce_ops"
-harness = false
-
-[[bench]]
-name = "unary_ops"
-harness = false
-
-[[bench]]
-name = "comparison_ops"
-harness = false
-
-[[bench]]
-name = "conv_ops"
-harness = false
-
-[[bench]]
-name = "pool_ops"
-harness = false
-
-[[bench]]
-name = "conv_transpose_ops"
-harness = false
-
-[[bench]]
-name = "interpolate_ops"
-harness = false
-
-[[bench]]
-name = "gather_scatter_ops"
-harness = false
-
-[[bench]]
-name = "cumulative_ops"
-harness = false
-
-[[bench]]
-name = "cross_unfold_ops"
-harness = false
-
-[[bench]]
-name = "int_ops"
-harness = false
-
-[[bench]]
-name = "deform_conv_ops"
-harness = false
-
-[[bench]]
-name = "quantization_ops"
-harness = false
-
-[[bench]]
-name = "cat_max_min_ops"
-harness = false
-
-[[bench]]
-name = "default_ops"
-harness = false
-
-[[bench]]
-name = "fft_ops"
-harness = false
-
-[[bench]]
-name = "norm_ops"
-harness = false
-
-[[bench]]
-name = "softmax_ops"
-harness = false
+realfft = { workspace = true }
 
 [package.metadata.docs.rs]
 features = ["default"]

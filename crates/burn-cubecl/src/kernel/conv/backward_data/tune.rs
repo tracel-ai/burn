@@ -33,35 +33,37 @@ pub fn dgrad_autotune<R: CubeRuntime, const N: usize>(
         TunableSet::new(create_key::<R, N>, create_wgrad_input::<R, N>)
             .with(Tunable::new(
                 "wgrad_fallback",
-                conv_data_backward_fallback::<R, N>,
+                |(out_grad, weights, input_shape, options)| {
+                    conv_data_backward_fallback::<R, N>(out_grad, weights, input_shape, options)
+                },
             ))
             .with(Tunable::new(
                 "simple_sync_cmma",
-                |input, grad, shape, options| {
+                |(input, grad, shape, options)| {
                     dgrad_gemm_simple_sync(input, grad, shape, options, AcceleratedTileKind::Cmma)
                 },
             ))
             .with(Tunable::new(
                 "simple_sync_mma",
-                |input, grad, shape, options| {
+                |(input, grad, shape, options)| {
                     dgrad_gemm_simple_sync(input, grad, shape, options, AcceleratedTileKind::Mma)
                 },
             ))
             .with(Tunable::new(
                 "simple_async_cmma",
-                |input, grad, shape, options| {
+                |(input, grad, shape, options)| {
                     dgrad_gemm_simple_async(input, grad, shape, options, AcceleratedTileKind::Cmma)
                 },
             ))
             .with(Tunable::new(
                 "simple_async_mma",
-                |input, grad, shape, options| {
+                |(input, grad, shape, options)| {
                     dgrad_gemm_simple_async(input, grad, shape, options, AcceleratedTileKind::Mma)
                 },
             ))
             .with(Tunable::new(
                 "simple_tma_mma",
-                |input, grad, shape, options| {
+                |(input, grad, shape, options)| {
                     dgrad_gemm_simple_tma(input, grad, shape, options, AcceleratedTileKind::Mma)
                 },
             ))
@@ -77,10 +79,12 @@ pub fn dgrad_autotune<R: CubeRuntime, const N: usize>(
 
 pub fn create_wgrad_input<R: CubeRuntime, const N: usize>(
     _key: &CubeAutotuneKey,
-    out_grad: &CubeTensor<R>,
-    weights: &CubeTensor<R>,
-    input_shape: &Shape,
-    options: &ConvOptions<N>,
+    (out_grad, weights, input_shape, options): &(
+        CubeTensor<R>,
+        CubeTensor<R>,
+        Shape,
+        ConvOptions<N>,
+    ),
 ) -> (CubeTensor<R>, CubeTensor<R>, Shape, ConvOptions<N>) {
     (
         out_grad.clone(),
@@ -91,10 +95,12 @@ pub fn create_wgrad_input<R: CubeRuntime, const N: usize>(
 }
 
 fn create_key<R: CubeRuntime, const N: usize>(
-    out_grad: &CubeTensor<R>,
-    weights: &CubeTensor<R>,
-    input_shape: &Shape,
-    options: &ConvOptions<N>,
+    (out_grad, weights, input_shape, options): &(
+        CubeTensor<R>,
+        CubeTensor<R>,
+        Shape,
+        ConvOptions<N>,
+    ),
 ) -> CubeAutotuneKey {
     let dtype = out_grad.dtype;
     let rank = out_grad.meta.num_dims();

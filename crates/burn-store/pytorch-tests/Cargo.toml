@@ -6,7 +6,7 @@ license.workspace = true
 
 [dev-dependencies]
 burn = { path = "../../burn" }
-burn-ndarray = { path = "../../burn-ndarray" }
+burn-flex = { path = "../../burn-flex" }
 burn-autodiff = { path = "../../burn-autodiff" }
 burn-store = { path = "../", features = ["std", "pytorch"] }
 serde = { workspace = true }

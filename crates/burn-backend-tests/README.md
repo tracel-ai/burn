@@ -6,6 +6,7 @@ This crate provides a comprehensive suite of tests for Burn backends, covering:
 - Autodiff: [tests/autodiff/](./tests/autodiff/)
 - (Optional) CubeCL kernels correctness: [tests/cubecl/](./tests/cubecl/)
 - (Optional) Fusion correctness: [tests/fusion/](./tests/fusion/)
+- Benchmarks: [benches/](./benches/)
 
 ## Running Tests
 
@@ -94,6 +95,77 @@ mod f16;
 > [!WARNING]  
 > Tests for different data types (e.g., f32 vs f16) must be isolated, as each device's settings are
 > global and can only be initialized once per process.
+
+## Running Benchmarks
+
+Benchmarks use [divan](https://docs.rs/divan) and run against the feature-selected backend via
+`TestBackend = burn_dispatch::Dispatch`, the same way tests do. Shorthand aliases mirror the test
+ones:
+
+```sh
+# Cpu
+cargo bench-cpu
+# Cuda
+cargo bench-cuda
+# Rocm
+cargo bench-rocm
+# Wgpu / WebGpu
+cargo bench-wgpu
+# Vulkan
+cargo bench-vulkan
+# Metal
+cargo bench-metal
+
+# Flex
+cargo bench-flex
+# NdArray
+cargo bench-ndarray
+# LibTorch
+cargo bench-tch
+```
+
+Run a single bench file by passing `--bench <name>`:
+
+```sh
+cargo bench-flex --bench matmul
+cargo bench-cuda --bench attention
+```
+
+Filter benches within a file by passing an argument after `--`:
+
+```sh
+cargo bench-flex --bench matmul -- square
+```
+
+### Comparing backends
+
+Each run targets one backend. To compare (e.g. Flex vs NdArray), run twice and diff the output:
+
+```sh
+cargo bench-flex --bench matmul > flex.txt
+cargo bench-ndarray --bench matmul > ndarray.txt
+diff flex.txt ndarray.txt
+```
+
+### GPU sync
+
+GPU backends (cuda, wgpu, rocm, metal, vulkan) dispatch ops asynchronously. Each bench wraps its op
+with `bencher.bench_synced(...)` (defined in [benches/common/mod.rs](./benches/common/mod.rs)),
+which inserts a `Backend::sync` call before returning - so the timed region covers actual execution
+rather than dispatch latency. On CPU backends `sync` is a no-op via the `Backend::sync` default, so
+this costs nothing there.
+
+When adding a new bench, use `bench_synced` rather than divan's raw `bench`:
+
+```rust
+use common::{BencherExt, TestBackend};
+
+#[divan::bench]
+fn my_op(bencher: Bencher) {
+    let x = make_tensor::<TestBackend>(SIZE);
+    bencher.bench_synced(|| some_op(x.clone()));
+}
+```
 
 ## Adding New Tests
 

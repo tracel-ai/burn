@@ -95,7 +95,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         mut self,
         client: &ComputeClient<R>,
         device: &R::Device,
-        context: &mut Context<'_, CubeFusionHandle<R>>,
+        context: &mut Context<CubeFusionHandle<R>>,
         plan: &mut LaunchPlan<'a, R>,
     ) {
         // So that we can borrow self during the iteration.
@@ -164,7 +164,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             }
         }
 
-        for (handle, global) in self.handles.into_iter().zip(self.globals.into_iter()) {
+        for (handle, global) in self.handles.into_iter().zip(self.globals) {
             plan.handle_outputs.push(handle.unwrap());
             plan.global_outputs.push(global.unwrap());
         }
@@ -363,7 +363,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
     #[allow(clippy::too_many_arguments)]
     fn inplace_output(
         &mut self,
-        context: &mut Context<'_, CubeFusionHandle<R>>,
+        context: &mut Context<CubeFusionHandle<R>>,
         plan: &mut LaunchPlan<'a, R>,
         output: OutputSorted,
         tensor_global: TensorIr,
@@ -440,7 +440,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             debug_info: super::HandleOutputAliasDebugInfo {
                 relative_id: output.tensor_relative.id,
                 handle: handle_input.handle.clone(),
-                global_shape: tensor_global.shape.dims.clone(),
+                global_shape: tensor_global.shape.clone(),
             },
         });
         self.globals[output.pos_original] = Some(tensor_global);
@@ -451,7 +451,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         &mut self,
         client: &ComputeClient<R>,
         device: &R::Device,
-        context: &mut Context<'_, CubeFusionHandle<R>>,
+        context: &mut Context<CubeFusionHandle<R>>,
         plan: &mut LaunchPlan<'a, R>,
         output: OutputSorted,
         tensor_global: TensorIr,
@@ -532,7 +532,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         &mut self,
         client: &ComputeClient<R>,
         device: &R::Device,
-        context: &mut Context<'_, CubeFusionHandle<R>>,
+        context: &mut Context<CubeFusionHandle<R>>,
         plan: &mut LaunchPlan<'a, R>,
         output: OutputSorted,
         tensor_global: TensorIr,
@@ -585,7 +585,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
                     debug_info: super::HandleOutputAliasDebugInfo {
                         relative_id: output.tensor_relative.id,
                         handle: handle.clone(),
-                        global_shape: tensor_global.shape.dims.clone(),
+                        global_shape: tensor_global.shape.clone(),
                     },
                 });
                 self.globals[output.pos_original] = Some(tensor_global);
@@ -610,7 +610,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
         &mut self,
         client: &ComputeClient<R>,
         device: &R::Device,
-        context: &mut Context<'_, CubeFusionHandle<R>>,
+        context: &mut Context<CubeFusionHandle<R>>,
         plan: &mut LaunchPlan<'a, R>,
         output: OutputSorted,
         tensor_global: TensorIr,
@@ -654,7 +654,7 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             debug_info: super::HandleOutputAliasDebugInfo {
                 relative_id: output.tensor_relative.id,
                 handle: handle.clone(),
-                global_shape: tensor_global.shape.dims.clone(),
+                global_shape: tensor_global.shape.clone(),
             },
         });
         self.globals[output.pos_original] = Some(tensor_global);

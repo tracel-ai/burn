@@ -170,9 +170,9 @@ fn run(args: &Args) -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
     run_backend::<burn::backend::Wgpu>(args)
 }
 
-#[cfg(feature = "ndarray")]
+#[cfg(feature = "flex")]
 fn run(args: &Args) -> Result<(), Box<dyn Error + Send + Sync + 'static>> {
-    run_backend::<burn::backend::ndarray>(args)
+    run_backend::<burn::backend::Flex>(args)
 }
 
 #[tracing::instrument(level = "trace", skip(args))]
@@ -181,7 +181,7 @@ fn run_backend<B: Backend>(args: &Args) -> Result<(), Box<dyn Error + Send + Syn
     let device_count = B::device_count(type_id);
 
     let devices = (0..device_count)
-        .map(|idx| B::Device::from_id(DeviceId::new(type_id, idx as u32)))
+        .map(|idx| B::Device::from_id(DeviceId::new(type_id, idx as u16)))
         .collect::<Vec<_>>();
 
     // Duplicate the devices to force a heterogeneous setup.

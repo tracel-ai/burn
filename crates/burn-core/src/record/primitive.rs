@@ -107,6 +107,7 @@ macro_rules! impl_record_tuple {
     };
 }
 
+impl_record_tuple!([R0][0]);
 impl_record_tuple!([R0, R1][0, 1]);
 impl_record_tuple!([R0, R1, R2][0, 1, 2]);
 impl_record_tuple!([R0, R1, R2, R3][0, 1, 2, 3]);

@@ -80,7 +80,7 @@ burn-wgpu = { path = "../burn-wgpu", version = "=0.21.0-pre.3", optional = true 
 
 [dev-dependencies]
 # burn-import = { path = "../burn-import", version = "=0.21.0-pre.3" } # disabled (circular dep in publish, only for bench)
-burn-ndarray = { path = "../burn-ndarray", version = "=0.21.0-pre.3" }
+burn-flex = { path = "../burn-flex", version = "=0.21.0-pre.3" }
 burn-nn = { path = "../burn-nn", version = "=0.21.0-pre.3", default-features = false }
 divan = "0.1"
 tempfile = { workspace = true }

@@ -13,22 +13,14 @@ pub fn launch<B: AutodiffBackend>(device: B::Device) {
     modern_lstm::training::train::<B>("/tmp/modern-lstm", config, device);
 }
 
-#[cfg(any(
-    feature = "ndarray",
-    feature = "ndarray-blas-netlib",
-    feature = "ndarray-blas-openblas",
-    feature = "ndarray-blas-accelerate",
-))]
-mod ndarray {
-    use burn::backend::{
-        Autodiff,
-        ndarray::{NdArray, NdArrayDevice},
-    };
+#[cfg(feature = "flex")]
+mod flex {
+    use burn::backend::{Autodiff, Flex};
 
     use crate::launch;
 
     pub fn run() {
-        launch::<Autodiff<NdArray>>(NdArrayDevice::Cpu);
+        launch::<Autodiff<Flex>>(Default::default());
     }
 }
 
@@ -86,13 +78,8 @@ mod cuda {
 }
 
 fn main() {
-    #[cfg(any(
-        feature = "ndarray",
-        feature = "ndarray-blas-netlib",
-        feature = "ndarray-blas-openblas",
-        feature = "ndarray-blas-accelerate",
-    ))]
-    ndarray::run();
+    #[cfg(feature = "flex")]
+    flex::run();
     #[cfg(feature = "tch-gpu")]
     tch_gpu::run();
     #[cfg(feature = "tch-cpu")]

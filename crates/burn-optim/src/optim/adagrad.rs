@@ -73,6 +73,17 @@ impl<B: Backend> SimpleOptimizer<B> for AdaGrad {
 }
 
 impl AdaGradConfig {
+    /// Build an [`AdaGrad`] from the config.
+    pub fn build(&self) -> AdaGrad {
+        AdaGrad {
+            lr_decay: LrDecay {
+                lr_decay: self.lr_decay,
+                epsilon: self.epsilon,
+            },
+            weight_decay: self.weight_decay.as_ref().map(WeightDecay::new),
+        }
+    }
+
     /// Initialize AdaGrad optimizer.
     ///
     /// # Returns
@@ -81,15 +92,7 @@ impl AdaGradConfig {
     pub fn init<B: AutodiffBackend, M: AutodiffModule<B>>(
         &self,
     ) -> OptimizerAdaptor<AdaGrad, M, B> {
-        let optim = AdaGrad {
-            lr_decay: LrDecay {
-                lr_decay: self.lr_decay,
-                epsilon: self.epsilon,
-            },
-            weight_decay: self.weight_decay.as_ref().map(WeightDecay::new),
-        };
-
-        let mut optim = OptimizerAdaptor::from(optim);
+        let mut optim = OptimizerAdaptor::from(self.build());
         if let Some(config) = &self.grad_clipping {
             optim = optim.with_grad_clipping(config.init());
         }

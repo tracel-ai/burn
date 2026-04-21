@@ -995,156 +995,18 @@ fn reduce_bool_dim_raw(
     reduce_bool_dim_with(&tensor, dim, init, combine, out_dtype, |idx| data[idx] != 0)
 }
 
+// Tests kept here probe flex-internal `reduce_bool_dim_with` dispatch on
+// non-contiguous inputs (stale-pointer-read regression, see prior incident
+// in `any_float_dim`). Plain comparison ops and stride variants (flipped
+// / transposed / narrowed) have been migrated to burn-backend-tests at
+// tensor/{float,int}/ops/comparison.rs so every backend is exercised.
 #[cfg(test)]
 mod tests {
     use super::*;
     use burn_backend::TensorData;
 
-    #[test]
-    fn test_greater() {
-        let lhs = FlexTensor::from_data(TensorData::new(vec![1.0f32, 2.0, 3.0], [3]));
-        let rhs = FlexTensor::from_data(TensorData::new(vec![2.0f32, 2.0, 1.0], [3]));
-        let result = greater(lhs, rhs, BoolDType::Native);
-        let data: &[u8] = result.bytes();
-        assert_eq!(data, &[0, 0, 1]); // 1>2=F, 2>2=F, 3>1=T
-    }
-
-    #[test]
-    fn test_greater_elem() {
-        let lhs = FlexTensor::from_data(TensorData::new(vec![1.0f32, 2.0, 3.0], [3]));
-        let result = greater_elem(lhs, 2.0, BoolDType::Native);
-        let data: &[u8] = result.bytes();
-        assert_eq!(data, &[0, 0, 1]); // 1>2=F, 2>2=F, 3>2=T
-    }
-
-    #[test]
-    fn test_equal() {
-        let lhs = FlexTensor::from_data(TensorData::new(vec![1.0f32, 2.0, 3.0], [3]));
-        let rhs = FlexTensor::from_data(TensorData::new(vec![1.0f32, 3.0, 3.0], [3]));
-        let result = equal(lhs, rhs, BoolDType::Native);
-        let data: &[u8] = result.bytes();
-        assert_eq!(data, &[1, 0, 1]); // 1==1=T, 2==3=F, 3==3=T
-    }
-
-    // === Non-contiguous tensor tests ===
-
     fn tensor_2d(data: Vec<f32>, rows: usize, cols: usize) -> FlexTensor {
         FlexTensor::from_data(TensorData::new(data, vec![rows, cols]))
-    }
-
-    #[test]
-    fn test_greater_transposed() {
-        // [[1, 2], [3, 4]] transposed -> [[1, 3], [2, 4]]
-        // Compare with [[2, 2], [2, 2]]
-        // [[1, 3], [2, 4]] > [[2, 2], [2, 2]] = [[F, T], [F, T]]
-        let lhs = tensor_2d(vec![1.0, 2.0, 3.0, 4.0], 2, 2);
-        let lhs = lhs.transpose(0, 1);
-        assert!(!lhs.is_contiguous());
-
-        let rhs = tensor_2d(vec![2.0, 2.0, 2.0, 2.0], 2, 2);
-        let result = greater(lhs, rhs, BoolDType::Native);
-        let data: &[u8] = result.bytes();
-        assert_eq!(data, &[0, 1, 0, 1]);
-    }
-
-    #[test]
-    fn test_equal_flipped_1d() {
-        // [1, 2, 3, 4] flipped -> [4, 3, 2, 1]
-        // Compare [4, 3, 2, 1] == [4, 2, 2, 1] = [T, F, T, T]
-        let lhs = FlexTensor::from_data(TensorData::new(vec![1.0f32, 2.0, 3.0, 4.0], [4]));
-        let lhs = crate::ops::flip::flip(lhs, &[0]);
-        assert!(lhs.layout().strides()[0] < 0);
-
-        let rhs = FlexTensor::from_data(TensorData::new(vec![4.0f32, 2.0, 2.0, 1.0], [4]));
-        let result = equal(lhs, rhs, BoolDType::Native);
-        let data: &[u8] = result.bytes();
-        assert_eq!(data, &[1, 0, 1, 1]);
-    }
-
-    #[test]
-    fn test_lower_flipped_2d() {
-        // [[1, 2], [3, 4]] with axis 0 flipped -> [[3, 4], [1, 2]]
-        // [[3, 4], [1, 2]] < [[2, 5], [2, 1]] = [[F, T], [T, F]]
-        let lhs = tensor_2d(vec![1.0, 2.0, 3.0, 4.0], 2, 2);
-        let lhs = crate::ops::flip::flip(lhs, &[0]);
-        assert!(lhs.layout().strides()[0] < 0);
-
-        let rhs = tensor_2d(vec![2.0, 5.0, 2.0, 1.0], 2, 2);
-        let result = lower(lhs, rhs, BoolDType::Native);
-        let data: &[u8] = result.bytes();
-        assert_eq!(data, &[0, 1, 1, 0]);
-    }
-
-    #[test]
-    fn test_greater_elem_flipped() {
-        // [1, 2, 3, 4] flipped -> [4, 3, 2, 1]
-        // [4, 3, 2, 1] > 2.5 = [T, T, F, F]
-        let lhs = FlexTensor::from_data(TensorData::new(vec![1.0f32, 2.0, 3.0, 4.0], [4]));
-        let lhs = crate::ops::flip::flip(lhs, &[0]);
-        assert!(lhs.layout().strides()[0] < 0);
-
-        let result = greater_elem(lhs, 2.5, BoolDType::Native);
-        let data: &[u8] = result.bytes();
-        assert_eq!(data, &[1, 1, 0, 0]);
-    }
-
-    #[test]
-    fn test_equal_both_transposed() {
-        // Both tensors transposed
-        // [[1, 2], [3, 4]]^T -> [[1, 3], [2, 4]]
-        // [[1, 3], [2, 4]]^T -> [[1, 2], [3, 4]]
-        // [[1, 3], [2, 4]] == [[1, 2], [3, 4]] = [[T, F], [F, T]]
-        let lhs = tensor_2d(vec![1.0, 2.0, 3.0, 4.0], 2, 2).transpose(0, 1);
-        let rhs = tensor_2d(vec![1.0, 3.0, 2.0, 4.0], 2, 2).transpose(0, 1);
-        assert!(!lhs.is_contiguous());
-        assert!(!rhs.is_contiguous());
-
-        let result = equal(lhs, rhs, BoolDType::Native);
-        let data: &[u8] = result.bytes();
-        assert_eq!(data, &[1, 0, 0, 1]);
-    }
-
-    #[test]
-    fn test_not_equal_narrowed() {
-        // [1, 2, 3, 4, 5, 6] narrowed to [2, 3, 4, 5]
-        // [2, 3, 4, 5] != [2, 2, 4, 4] = [F, T, F, T]
-        let lhs =
-            FlexTensor::from_data(TensorData::new(vec![1.0f32, 2.0, 3.0, 4.0, 5.0, 6.0], [6]));
-        let lhs = lhs.narrow(0, 1, 4);
-
-        let rhs = FlexTensor::from_data(TensorData::new(vec![2.0f32, 2.0, 4.0, 4.0], [4]));
-        let result = not_equal(lhs, rhs, BoolDType::Native);
-        let data: &[u8] = result.bytes();
-        assert_eq!(data, &[0, 1, 0, 1]);
-    }
-
-    #[test]
-    fn test_int_greater_flipped() {
-        // Integer comparison with flipped tensor
-        let lhs = FlexTensor::from_data(TensorData::new(vec![1i64, 2, 3, 4], [4]));
-        let lhs = crate::ops::flip::flip(lhs, &[0]);
-        assert!(lhs.layout().strides()[0] < 0);
-
-        // [4, 3, 2, 1] > [3, 3, 3, 3] = [T, F, F, F]
-        let rhs = FlexTensor::from_data(TensorData::new(vec![3i64, 3, 3, 3], [4]));
-        let result = int_greater(lhs, rhs, BoolDType::Native);
-        let data: &[u8] = result.bytes();
-        assert_eq!(data, &[1, 0, 0, 0]);
-    }
-
-    #[test]
-    fn test_lower_flipped_both_axes() {
-        // [[1, 2], [3, 4]] flipped on both axes -> [[4, 3], [2, 1]]
-        // [[4, 3], [2, 1]] < [[3, 3], [3, 3]] = [[F, F], [T, T]]
-        let lhs = tensor_2d(vec![1.0, 2.0, 3.0, 4.0], 2, 2);
-        let lhs = crate::ops::flip::flip(lhs, &[0, 1]);
-        assert!(lhs.layout().strides()[0] < 0);
-        assert!(lhs.layout().strides()[1] < 0);
-
-        let rhs = tensor_2d(vec![3.0, 3.0, 3.0, 3.0], 2, 2);
-        let result = lower(lhs, rhs, BoolDType::Native);
-        let data: &[u8] = result.bytes();
-        assert_eq!(data, &[0, 0, 1, 1]);
     }
 
     #[test]

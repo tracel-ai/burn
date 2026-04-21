@@ -478,6 +478,26 @@ impl<E: TchElement> ModuleOps<Self> for LibTorch<E> {
         ))
     }
 
+    fn layer_norm(
+        tensor: TchTensor,
+        gamma: TchTensor,
+        beta: Option<TchTensor>,
+        epsilon: f64,
+    ) -> TchTensor {
+        let shape = tensor.shape();
+        let last_dim = shape[shape.num_dims() - 1] as i64;
+
+        let tensor = tensor.tensor.layer_norm(
+            [last_dim],
+            Some(&gamma.tensor),
+            beta.as_ref().map(|b| &b.tensor),
+            epsilon,
+            true,
+        );
+
+        TchTensor::new(tensor)
+    }
+
     fn rfft(_signal: FloatTensor<Self>, _dim: usize) -> (FloatTensor<Self>, FloatTensor<Self>) {
         todo!("rfft is not supported for now in LibTorch")
     }

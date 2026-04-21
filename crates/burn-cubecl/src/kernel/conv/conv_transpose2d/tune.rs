@@ -22,11 +22,15 @@ pub fn conv_transpose2d_autotune<R: CubeRuntime>(
         TunableSet::new(create_key::<R>, create_transpose2d_input::<R>)
             .with(Tunable::new(
                 "conv_transpose2d_direct",
-                conv_transpose2d_direct::<R>,
+                |(input, weights, bias, options)| {
+                    conv_transpose2d_direct::<R>(input, weights, bias, options)
+                },
             ))
             .with(Tunable::new(
                 "conv_transpose2d_col2im",
-                conv_transpose2d_col2im::<R>,
+                |(input, weights, bias, options)| {
+                    conv_transpose2d_col2im::<R>(input, weights, bias, options)
+                },
             ))
     });
 
@@ -40,10 +44,12 @@ pub fn conv_transpose2d_autotune<R: CubeRuntime>(
 
 pub fn create_transpose2d_input<R: CubeRuntime>(
     _key: &CubeAutotuneKey,
-    input: &CubeTensor<R>,
-    weights: &CubeTensor<R>,
-    bias: &Option<CubeTensor<R>>,
-    options: &ConvTransposeOptions<2>,
+    (input, weights, bias, options): &(
+        CubeTensor<R>,
+        CubeTensor<R>,
+        Option<CubeTensor<R>>,
+        ConvTransposeOptions<2>,
+    ),
 ) -> (
     CubeTensor<R>,
     CubeTensor<R>,
@@ -59,10 +65,12 @@ pub fn create_transpose2d_input<R: CubeRuntime>(
 }
 
 fn create_key<R: CubeRuntime>(
-    input: &CubeTensor<R>,
-    weights: &CubeTensor<R>,
-    bias: &Option<CubeTensor<R>>,
-    options: &ConvTransposeOptions<2>,
+    (input, weights, bias, options): &(
+        CubeTensor<R>,
+        CubeTensor<R>,
+        Option<CubeTensor<R>>,
+        ConvTransposeOptions<2>,
+    ),
 ) -> CubeAutotuneKey {
     let [batch_size, in_channels, height, width] = input.meta.shape().dims();
     let [out_channels, _, kernel_h, kernel_w] = weights.meta.shape().dims();

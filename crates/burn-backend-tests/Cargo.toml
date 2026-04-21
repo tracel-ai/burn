@@ -39,6 +39,10 @@ cpu = ["burn-dispatch/cpu", "cube"]
 autotune = ["burn-dispatch/autotune"]
 autotune-checks = ["burn-dispatch/autotune-checks"]
 fusion = ["burn-dispatch/fusion"]
+distributed = [
+    "std",
+    "burn-dispatch/distributed"
+]
 
 # CubeCL backends
 cube = [
@@ -78,8 +82,98 @@ burn-cubecl = { path = "../burn-cubecl", version = "=0.21.0-pre.3", optional = t
 
 num-traits = { workspace = true }
 serial_test = { workspace = true }
+rand.workspace = true
 
 
 [dev-dependencies]
 # Used to initialize device settings (test dtypes)
 ctor = "0.10.0"
+divan = "0.1"
+
+[[bench]]
+name = "attention"
+harness = false
+
+[[bench]]
+name = "binary_ops"
+harness = false
+
+[[bench]]
+name = "cat_max_min_ops"
+harness = false
+
+[[bench]]
+name = "comparison_ops"
+harness = false
+
+[[bench]]
+name = "conv_ops"
+harness = false
+
+[[bench]]
+name = "conv_transpose_ops"
+harness = false
+
+[[bench]]
+name = "cross_unfold_ops"
+harness = false
+
+[[bench]]
+name = "cumulative_ops"
+harness = false
+
+[[bench]]
+name = "default_ops"
+harness = false
+
+[[bench]]
+name = "deform_conv_ops"
+harness = false
+
+[[bench]]
+name = "fft_ops"
+harness = false
+
+[[bench]]
+name = "gather_scatter_ops"
+harness = false
+
+[[bench]]
+name = "int_ops"
+harness = false
+
+[[bench]]
+name = "interpolate_ops"
+harness = false
+
+[[bench]]
+name = "matmul"
+harness = false
+
+[[bench]]
+name = "norm_ops"
+harness = false
+
+[[bench]]
+name = "pool_ops"
+harness = false
+
+[[bench]]
+name = "quantization_ops"
+harness = false
+
+[[bench]]
+name = "reduce_ops"
+harness = false
+
+[[bench]]
+name = "slice_ops"
+harness = false
+
+[[bench]]
+name = "softmax_ops"
+harness = false
+
+[[bench]]
+name = "unary_ops"
+harness = false
