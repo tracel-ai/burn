@@ -236,6 +236,22 @@ fn test_det_large_diagonal() {
         .assert_approx_eq::<FloatElem>(&expected.into_data(), tolerance);
 }
 
+#[test]
+fn test_det_mixed_singular_non_singular_batch() {
+    let device = Default::default();
+    let mut singular_tensor =
+        Tensor::<TestBackend, 2>::random([10, 10], Distribution::Default, &device);
+    singular_tensor = singular_tensor.slice_fill(s![.., 8], 0.0);
+    let identity_tensor = Tensor::<TestBackend, 2>::eye(10, &device);
+    let input_tensor = Tensor::stack(vec![singular_tensor, identity_tensor], 0);
+    let det_tensor = det::<TestBackend, 3, 2, 1>(input_tensor);
+    let expected = TestTensor::<1>::from_data([0.0, 1.0], &device);
+    let tolerance = Tolerance::default();
+    det_tensor
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected.into_data(), tolerance);
+}
+
 // ---------------------------------------------------------------------
 // Batched Tensors (3D, multiple matrices)
 // ---------------------------------------------------------------------
@@ -371,6 +387,42 @@ fn test_det_negative_elements() {
     det_tensor
         .into_data()
         .assert_approx_eq::<FloatElem>(&expected.into_data(), tolerance);
+}
+
+#[test]
+fn test_det_f16_dtype_roundtrip_1x1() {
+    // Does not perform upcasting when the tests are run in normal mode (not f16)
+    let device = Default::default();
+    let tensor = TestTensor::<3>::random([1, 1, 1], Distribution::Default, &device);
+    let det_tensor = det::<TestBackend, 3, 2, 1>(tensor.clone());
+    assert_eq!(tensor.dtype(), det_tensor.dtype());
+}
+
+#[test]
+fn test_det_f16_dtype_roundtrip_2x2() {
+    // Does not perform upcasting when the tests are run in normal mode (not f16)
+    let device = Default::default();
+    let tensor = TestTensor::<3>::random([1, 2, 2], Distribution::Default, &device);
+    let det_tensor = det::<TestBackend, 3, 2, 1>(tensor.clone());
+    assert_eq!(tensor.dtype(), det_tensor.dtype());
+}
+
+#[test]
+fn test_det_f16_dtype_roundtrip_3x3() {
+    // Does not perform upcasting when the tests are run in normal mode (not f16)
+    let device = Default::default();
+    let tensor = TestTensor::<3>::random([1, 3, 3], Distribution::Default, &device);
+    let det_tensor = det::<TestBackend, 3, 2, 1>(tensor.clone());
+    assert_eq!(tensor.dtype(), det_tensor.dtype());
+}
+
+#[test]
+fn test_det_f16_dtype_roundtrip_10x10() {
+    // Does not perform upcasting when the tests are run in normal mode (not f16)
+    let device = Default::default();
+    let tensor = TestTensor::<3>::random([1, 10, 10], Distribution::Default, &device);
+    let det_tensor = det::<TestBackend, 3, 2, 1>(tensor.clone());
+    assert_eq!(tensor.dtype(), det_tensor.dtype());
 }
 
 // ---------------------------------------------------------------------
