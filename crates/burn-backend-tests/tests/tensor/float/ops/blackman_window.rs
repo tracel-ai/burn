@@ -3,25 +3,25 @@ use burn_tensor::signal::blackman_window;
 use burn_tensor::{DType, TensorData, Tolerance};
 
 #[test]
-fn test_blackman_window_options_dtype() {
+fn should_support_blackman_window_options_dtype() {
     let tensor: TestTensor<1> = blackman_window(4, true, (&Default::default(), DType::F32));
     assert_eq!(tensor.dtype(), DType::F32);
 }
 
 #[test]
-fn test_blackman_window_size_0_symmetric() {
+fn should_support_blackman_window_size_0_symmetric() {
     let tensor: TestTensor<1> = blackman_window(0, false, &Default::default());
     assert_eq!(tensor.dims(), [0]);
 }
 
 #[test]
-fn test_blackman_window_size_0_periodic() {
+fn should_support_blackman_window_size_0_periodic() {
     let tensor: TestTensor<1> = blackman_window(0, true, &Default::default());
     assert_eq!(tensor.dims(), [0]);
 }
 
 #[test]
-fn test_blackman_window_size_1_symmetric() {
+fn should_handle_blackman_window_size_1_symmetric() {
     let tensor: TestTensor<1> = blackman_window(1, false, &Default::default());
     let expected = TensorData::from([1.0]);
 
@@ -29,7 +29,7 @@ fn test_blackman_window_size_1_symmetric() {
 }
 
 #[test]
-fn test_blackman_window_size_1_periodic() {
+fn should_handle_blackman_window_size_1_periodic() {
     let tensor: TestTensor<1> = blackman_window(1, true, &Default::default());
     let expected = TensorData::from([1.0]);
 
@@ -37,7 +37,7 @@ fn test_blackman_window_size_1_periodic() {
 }
 
 #[test]
-fn test_blackman_window_size_8_periodic() {
+fn should_support_blackman_window_size_8_periodic() {
     let tensor: TestTensor<1> = blackman_window(8, true, &Default::default());
     let expected = TensorData::from([
         -2.9802e-08,
@@ -58,7 +58,7 @@ fn test_blackman_window_size_8_periodic() {
 }
 
 #[test]
-fn test_blackman_window_size_8_symmetric() {
+fn should_support_blackman_window_size_8_symmetric() {
     let tensor: TestTensor<1> = blackman_window(8, false, &Default::default());
     let expected = TensorData::from([
         -2.9802e-08,
