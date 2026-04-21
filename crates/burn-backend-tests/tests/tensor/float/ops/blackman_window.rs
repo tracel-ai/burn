@@ -40,14 +40,7 @@ fn should_handle_blackman_window_size_1_periodic() {
 fn should_support_blackman_window_size_8_periodic() {
     let tensor: TestTensor<1> = blackman_window(8, true, &Default::default());
     let expected = TensorData::from([
-        -2.9802e-08,
-        6.6447e-02,
-        3.4000e-01,
-        7.7355e-01,
-        1.0000e+00,
-        7.7355e-01,
-        3.4000e-01,
-        6.6447e-02,
+        0.0, 6.6447e-02, 3.4000e-01, 7.7355e-01, 1.0000e+00, 7.7355e-01, 3.4000e-01, 6.6447e-02,
     ]);
 
     // Positions 0 and 7 have values close to 0, hence setting absolute tolerance
@@ -61,14 +54,7 @@ fn should_support_blackman_window_size_8_periodic() {
 fn should_support_blackman_window_size_8_symmetric() {
     let tensor: TestTensor<1> = blackman_window(8, false, &Default::default());
     let expected = TensorData::from([
-        -2.9802e-08,
-        9.0453e-02,
-        4.5918e-01,
-        9.2036e-01,
-        9.2036e-01,
-        4.5918e-01,
-        9.0453e-02,
-        -2.9802e-08,
+        0.0, 9.0453e-02, 4.5918e-01, 9.2036e-01, 9.2036e-01, 4.5918e-01, 9.0453e-02, 0.0,
     ]);
 
     // Positions 0 and 7 have values close to 0, hence setting absolute tolerance
