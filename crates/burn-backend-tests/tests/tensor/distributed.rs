@@ -74,7 +74,7 @@ fn run_all_reduce<B: AutodiffBackend + DistributedBackend>(
 
         for tensor in out_tensors {
             let tensor_resolved: Tensor<B, 2, Float> =
-                Tensor::new(TensorPrimitive::Float(output.resolve()));
+                Tensor::new(TensorPrimitive::Float(tensor.resolve()));
             let data = tensor_resolved.flatten::<1>(0, 1).to_data();
             data.assert_approx_eq::<FloatElem>(
                 &TensorData::from(expected.as_slice()),
