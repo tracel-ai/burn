@@ -440,13 +440,13 @@ strategies.
 
 ## Signal Processing Functions
 
-| Burn API                                           | PyTorch Equivalent                     |  
-| -------------------------------------------------- | -------------------------------------- |  
-| `signal::blackman_window(size, periodic, options)` | `torch.blackman_window(size, periodic)`|
-| `signal::hamming_window(size, periodic, options)`  | `torch.hamming_window(size, periodic)` |
-| `signal::hann_window(size, periodic, options)`     | `torch.hann_window(size, periodic)`    |
-| `signal::irfft(spectrum_re, spectrum_im, dim)`     | `torch.fft.irfft(input, dim=dim)`      |
-| `signal::rfft(signal, dim)`                        | `torch.fft.rfft(signal, dim=dim)`      |  
+| Burn API                                           | PyTorch Equivalent                      |
+| -------------------------------------------------- | --------------------------------------- |
+| `signal::blackman_window(size, periodic, options)` | `torch.blackman_window(size, periodic)` |
+| `signal::hamming_window(size, periodic, options)`  | `torch.hamming_window(size, periodic)`  |
+| `signal::hann_window(size, periodic, options)`     | `torch.hann_window(size, periodic)`     |
+| `signal::irfft(spectrum_re, spectrum_im, dim)`     | `torch.fft.irfft(input, dim=dim)`       |
+| `signal::rfft(signal, dim)`                        | `torch.fft.rfft(signal, dim=dim)`       |
 
 ## Displaying Tensor Details
 
