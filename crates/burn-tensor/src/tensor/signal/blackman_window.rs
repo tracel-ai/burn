@@ -25,7 +25,7 @@ where $N$ = `size` when `periodic` is `true`, or $N$ = `size - 1` when `periodic
 /// - `periodic`: If `true`, the window is treated as periodic (i.e., `N = size`).
 ///   If `false`, the window is symmetric (i.e., `N = size - 1`).
 /// - `options`: Controls the output device and optional dtype. Accepts:
-///     - `&device` - uses the devices' default float dtype
+///     - `&device` - uses the device's default float dtype
 ///     - `(&device, DType::F32)` - uses an explicit dtype
 ///     - `TensorCreationOptions` directly for full control.
 ///
