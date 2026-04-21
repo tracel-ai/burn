@@ -40,6 +40,7 @@ critical-section = [
     "portable-atomic/critical-section",
     "dep:portable-atomic-util",
 ]
+distributed = ["burn-backend/distributed"]
 
 [dependencies]
 

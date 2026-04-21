@@ -7,7 +7,7 @@ use burn::tensor::{Int, Tensor};
 use burn_core as burn;
 
 #[cfg(not(feature = "test-cuda"))]
-pub type TestBackend = burn_ndarray::NdArray<f32>;
+pub type TestBackend = burn_flex::Flex;
 #[cfg(feature = "test-cuda")]
 pub type TestBackend = burn_cuda::Cuda;
 #[cfg(feature = "std")]
