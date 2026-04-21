@@ -69,11 +69,12 @@ fn run_all_reduce<B: AutodiffBackend + DistributedBackend>(
                 ReduceOperation::Sum,
                 devices.iter().map(|d| d.id()).collect(),
             );
-            let output: Tensor<B, 2, Float> = Tensor::new(TensorPrimitive::Float(output.resolve()));
             out_tensors.push(output);
         }
 
         for tensor in out_tensors {
+            let tensor_resolved: Tensor<B, 2, Float> =
+                Tensor::new(TensorPrimitive::Float(output.resolve()));
             let data = tensor.flatten::<1>(0, 1).to_data();
             data.assert_approx_eq::<FloatElem>(
                 &TensorData::from(expected.as_slice()),

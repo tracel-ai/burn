@@ -21,6 +21,7 @@ default = [
     # Default
     # "ndarray",
     "std",
+    "distributed"
 ]
 std = ["burn-tensor/std", "burn-dispatch/std"]
 
