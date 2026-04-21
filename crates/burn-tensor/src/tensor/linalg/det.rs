@@ -161,18 +161,20 @@ pub fn det<B: Backend, const D: usize, const D1: usize, const D2: usize>(
     // Compute the determinant of U
     let u_diag = linalg::diag::<B, D, D1, _>(lu);
     let mut u_det = u_diag.clone().prod_dim(D1 - 1).squeeze_dim(D1 - 1);
-    let epsilon = match tensor.dtype() {
-        DType::F32 => 1e-5,
-        DType::F64 => 1e-10,
-        _ => 1e-5,
-    };
-    let near_zero = u_diag.abs().lower_equal_elem(epsilon);
+    let eps = tensor
+        .dtype()
+        .finfo()
+        .expect("The input tensor to linalg::det should have float dtype.")
+        .epsilon;
+    let n = dims[D - 1]; // The input tensor contains n by n matrices
+    let threshold = u_diag.clone().abs().max_dim(D1 - 1) * (n as f64).sqrt() * eps;
+    let near_zero = u_diag.abs().lower_equal(threshold);
     let singular_mask = near_zero.any_dim(D1 - 1).squeeze_dim::<D2>(D1 - 1);
     u_det = u_det.mask_fill(singular_mask, 0.0);
 
     let final_det = p_det * u_det;
 
-    // Cast back to original dtype
+    // Cast back to original dtypes
     if needs_upcast {
         final_det.cast(original_dtype)
     } else {
