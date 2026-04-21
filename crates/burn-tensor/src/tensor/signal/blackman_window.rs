@@ -7,10 +7,18 @@ use crate::{Tensor, TensorCreationOptions, check, check::TensorCheck};
 
 /// Creates a 1D Blackman window tensor.
 ///
-/// # Equation
-/// The standard Blackman window is defined as:
-/// `w[n] = 0.42 - 0.5 * cos(2πn / N) + 0.08 * cos(4πn / N)`
-/// where `N` is `size` if periodic, or `size - 1` if symmetric.
+#[cfg_attr(
+    doc,
+    doc = r#"
+$$w_n = 0.42 - 0.5 \cos\left(\frac{2\pi n}{N}\right) + 0.08 \cos\left(\frac{4\pi n}{N}\right)$$
+
+where $N$ = `size` when `periodic` is `true`, or $N$ = `size - 1` when `periodic` is `false`.
+"#
+)]
+#[cfg_attr(
+    not(doc),
+    doc = "`w_n = 0.42 - 0.5 * cos(2πn / N) + 0.08 * cos(4πn / N)` where N = size (periodic) or N = size-1 (symmetric)"
+)]
 ///
 /// # Arguments
 /// - `size`: Size of the returned 1D window tensor.
