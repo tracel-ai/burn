@@ -65,14 +65,6 @@ fn test_softmax_d3_last_axis() {
     );
 }
 
-// Only run under the `flex` backend feature. The cubecl softmax kernel
-// reads underlying storage without materializing a transposed view, so
-// it softmaxes the pre-transpose rows instead of the logical transposed
-// rows. Flex calls `to_contiguous()` inside its fused softmax path and
-// handles this correctly. Positive-gate form because the default CI
-// build doesn't set identifying feature flags on burn-backend-tests.
-// See issue #4815.
-#[cfg(feature = "flex")]
 #[test]
 fn test_softmax_non_contiguous_input() {
     // Softmax on a transposed (non-contiguous) input. The [3, 4] tensor is

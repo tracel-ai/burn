@@ -379,6 +379,32 @@ fn test_sum_dim_7_maybe_fused_on_read_reshaped() {
 }
 
 #[test]
+fn test_reduce_dim_non_contiguous_input() {
+    let t = TestTensor::<2>::from([
+        [1.0, 2.0, 3.0, 4.0],
+        [5.0, 6.0, 7.0, 8.0],
+        [9.0, 10.0, 11.0, 12.0],
+    ]);
+    // let t_transposed = t.transpose();
+    let t_transposed = t.swap_dims(0, 1) /*+ 0.*/;
+
+    let dim = 1;
+    let max = t_transposed.clone().sum_dim(dim); // max_dim
+    // let max = Tensor::from_data(max.into_data(), &Default::default());
+    let shifted = t_transposed.sub(max);
+    let exp = shifted.exp();
+    let sum = exp.clone().sum_dim(dim);
+    let output = exp.div(sum);
+
+    let row = [3.2932044e-4, 1.7980287e-2, 0.98169035];
+    let expected = TensorData::from([row, row, row, row]);
+    output.into_data().assert_approx_eq::<FloatElem>(
+        &expected,
+        Tolerance::default().set_half_precision_absolute(2e-3),
+    );
+}
+
+#[test]
 fn test_mean_dim_fused_on_read_on_write() {
     // https://github.com/tracel-ai/burn/issues/3987
     let device = Default::default();
