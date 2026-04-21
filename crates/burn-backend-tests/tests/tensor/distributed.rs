@@ -63,24 +63,18 @@ fn run_all_reduce<B: AutodiffBackend + DistributedBackend>(
             .collect();
 
         let mut out_tensors = vec![];
-        let device_ids = devices.iter().map(|d| d.id()).collect::<Vec<_>>();
         for tensor in tensors.clone() {
-            println!("all_reduce ");
             let output = B::all_reduce(
                 tensor.into_primitive().tensor(),
                 ReduceOperation::Sum,
-                device_ids.clone(),
+                devices.iter().map(|d| d.id()).collect(),
             );
+            let output: Tensor<B, 2, Float> = Tensor::new(TensorPrimitive::Float(output.resolve()));
             out_tensors.push(output);
         }
 
         for tensor in out_tensors {
-            println!("resolve ");
-            let tensor_resolved: Tensor<B, 2, Float> =
-                Tensor::new(TensorPrimitive::Float(tensor.resolve()));
-            println!("to_data ");
-            let data = tensor_resolved.flatten::<1>(0, 1).to_data();
-            println!("got data ");
+            let data = tensor.flatten::<1>(0, 1).to_data();
             data.assert_approx_eq::<FloatElem>(
                 &TensorData::from(expected.as_slice()),
                 Tolerance::default(),
