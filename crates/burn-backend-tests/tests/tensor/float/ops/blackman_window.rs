@@ -50,6 +50,7 @@ fn test_blackman_window_size_8_periodic() {
         6.6447e-02,
     ]);
 
+    // Positions 0 and 7 have values close to 0, hence setting absolute tolerance
     let tolerance = Tolerance::default().set_half_precision_absolute(1e-3);
     tensor
         .into_data()
@@ -70,6 +71,7 @@ fn test_blackman_window_size_8_symmetric() {
         -2.9802e-08,
     ]);
 
+    // Positions 0 and 7 have values close to 0, hence setting absolute tolerance
     let tolerance = Tolerance::default().set_half_precision_absolute(1e-3);
     tensor
         .into_data()
