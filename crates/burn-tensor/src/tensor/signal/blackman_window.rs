@@ -49,7 +49,9 @@ where $N$ = `size` when `periodic` is `true`, or $N$ = `size - 1` when `periodic
 ///     let window_tensor = blackman_window::<B>(5, true, &device);
 ///     // Output: [0.0, 0.20077015, 0.84922993, 0.8492298, 0.2007701]
 ///
-///     // Creating a window with explicit dtype
+///     // Creating a window with explicit dtype.
+///     // Note that this does not perform the computation at higher precision but it
+///     // widens the storage of the returned tensor to F64.
 ///     let device = B::Device::default();
 ///     let window_tensor_f64 = blackman_window::<B>(5, true, (&device, DType::F64));
 ///     // Output: [0.0, 0.20077015, 0.84922993, 0.8492298, 0.2007701]
