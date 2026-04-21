@@ -63,13 +63,13 @@ fn run_all_reduce<B: AutodiffBackend + DistributedBackend>(
             .collect();
 
         let mut out_tensors = vec![];
-        let device_ids = devices.iter().map(|d| d.id()).collect();
+        let device_ids = devices.iter().map(|d| d.id()).collect::<Vec<_>>();
         for tensor in tensors.clone() {
             println!("all_reduce ");
             let output = B::all_reduce(
                 tensor.into_primitive().tensor(),
                 ReduceOperation::Sum,
-                device_ids,
+                device_ids.clone(),
             );
             out_tensors.push(output);
         }
