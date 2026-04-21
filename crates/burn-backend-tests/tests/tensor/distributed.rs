@@ -80,6 +80,7 @@ fn run_all_reduce<B: AutodiffBackend + DistributedBackend>(
                 Tensor::new(TensorPrimitive::Float(tensor.resolve()));
             println!("to_data ");
             let data = tensor_resolved.flatten::<1>(0, 1).to_data();
+            println!("got data ");
             data.assert_approx_eq::<FloatElem>(
                 &TensorData::from(expected.as_slice()),
                 Tolerance::default(),
