@@ -2,6 +2,8 @@ use crate::backend::Backend;
 use crate::check::TensorCheck;
 use crate::{Tensor, check, linalg};
 use burn_std::{DType, FloatDType};
+#[allow(unused_imports)]
+use num_traits::float::Float;
 
 /// Computes the determinant on the last two dimensions of the input tensor.
 ///
@@ -38,9 +40,6 @@ use burn_std::{DType, FloatDType};
 ///   right before the function returns.
 /// - In this case, if the determinant values fall outside of the original data type's
 ///   range, then the cast-back will underflow to zero.
-/// - Suppose that the LU decomposition of the input tensor is computed. If the absolute
-///   value of a diagonal entry of U is less than or equal to `1e-5` for F32 or `1e-10`
-///   for F64, then the determinant gets set to 0.
 ///
 /// # Example
 /// ```rust,ignore
