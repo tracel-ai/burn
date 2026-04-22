@@ -154,7 +154,7 @@ pub trait NumOperations: core::fmt::Debug {
     fn is_empty(&self) -> bool {
         self.len() == 0
     }
-    /// The name of the thing.
+    /// The name of the optimization.
     fn name(&self) -> &'static str;
 }
 

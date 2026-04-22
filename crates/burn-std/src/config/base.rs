@@ -1,5 +1,5 @@
-use alloc::sync::Arc;
 use cubecl_common::config::RuntimeConfig;
+use cubecl_common::stub::Arc;
 
 use super::autodiff::AutodiffConfig;
 use super::fusion::FusionConfig;
