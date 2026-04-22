@@ -25,7 +25,7 @@ use num_traits::float::Float;
 /// - The generic parameters do not satisfy `D - 2 == D2`.
 /// - The input tensor rank `D` is less than 3.
 /// - The last two dimensions of the input tensor are not equal.
-/// - The input is a quantized tensor with with dtype `DType::QFloat`.
+/// - The input is a quantized tensor with dtype `DType::QFloat`.
 ///
 /// # Performance Note
 /// The determinant for 1 by 1, 2 by 2, and 3 by 3 matrices are computed using closed-form
