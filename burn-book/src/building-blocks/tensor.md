@@ -423,6 +423,7 @@ strategies.
 | Burn API                                           | PyTorch Equivalent                                  |
 | -------------------------------------------------- | --------------------------------------------------- |
 | `linalg::cosine_similarity(x1, x2, dim, eps)`      | `nn.functional.cosine_similarity(x1, x2, dim, eps)` |
+| `linalg::det(tensor)`                              | `torch.linalg.det(tensor)`                          |
 | `linalg::diag(tensor)`                             | `torch.diag(tensor)`                                |
 | `linalg::l0_norm(tensor, dim)`                     | _No direct equivalent_                              |
 | `linalg::l1_norm(tensor, dim)`                     | _No direct equivalent_                              |
@@ -437,6 +438,16 @@ strategies.
 | `linalg::trace(tensor)`                            | `torch.trace(tensor)`                               |
 | `linalg::vector_norm(tensor, p, dim)`              | `torch.linalg.vector_norm(tensor, p, dim)`          |
 | `linalg::vector_normalize(tensor, norm, dim, eps)` | `nn.functional.normalize(tensor, p, dim, eps)`      |
+
+## Signal Processing Functions
+
+| Burn API                                           | PyTorch Equivalent                      |
+| -------------------------------------------------- | --------------------------------------- |
+| `signal::blackman_window(size, periodic, options)` | `torch.blackman_window(size, periodic)` |
+| `signal::hamming_window(size, periodic, options)`  | `torch.hamming_window(size, periodic)`  |
+| `signal::hann_window(size, periodic, options)`     | `torch.hann_window(size, periodic)`     |
+| `signal::irfft(spectrum_re, spectrum_im, dim)`     | `torch.fft.irfft(input, dim=dim)`       |
+| `signal::rfft(signal, dim)`                        | `torch.fft.rfft(signal, dim=dim)`       |
 
 ## Displaying Tensor Details
 
@@ -461,7 +472,7 @@ Tensor {
  [0.12345679, 0.12345679, 0.12345679]],
   shape:  [2, 3],
   device:  Cpu,
-  backend:  "ndarray",
+  backend:  "flex",
   kind:  "Float",
   dtype:  "f32",
 }
@@ -484,7 +495,7 @@ Tensor {
  [0.12, 0.12, 0.12]],
   shape:  [2, 3],
   device:  Cpu,
-  backend:  "ndarray",
+  backend:  "flex",
   kind:  "Float",
   dtype:  "f32",
 }
@@ -526,7 +537,7 @@ Options:
 
   ```rust, ignore
   use burn::tensor::{check_closeness, Tensor};
-  type B = burn::backend::NdArray;
+  type B = burn::backend::Flex;
 
   let device = Default::default();
   let tensor1 = Tensor::<B, 1>::from_floats(

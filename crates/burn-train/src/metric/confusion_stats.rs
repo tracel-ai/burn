@@ -200,7 +200,7 @@ mod tests {
     fn test_true_positive(
         #[case] classification_type: ClassificationType,
         #[case] config: ClassificationMetricConfig,
-        #[case] expected: Vec<i64>,
+        #[case] expected: Vec<i32>,
     ) {
         let input: ConfusionStatsInput<TestBackend> =
             dummy_classification_input(&classification_type).into();
@@ -223,7 +223,7 @@ mod tests {
     fn test_true_negative(
         #[case] classification_type: ClassificationType,
         #[case] config: ClassificationMetricConfig,
-        #[case] expected: Vec<i64>,
+        #[case] expected: Vec<i32>,
     ) {
         let input: ConfusionStatsInput<TestBackend> =
             dummy_classification_input(&classification_type).into();
@@ -246,7 +246,7 @@ mod tests {
     fn test_false_positive(
         #[case] classification_type: ClassificationType,
         #[case] config: ClassificationMetricConfig,
-        #[case] expected: Vec<i64>,
+        #[case] expected: Vec<i32>,
     ) {
         let input: ConfusionStatsInput<TestBackend> =
             dummy_classification_input(&classification_type).into();
@@ -269,7 +269,7 @@ mod tests {
     fn test_false_negatives(
         #[case] classification_type: ClassificationType,
         #[case] config: ClassificationMetricConfig,
-        #[case] expected: Vec<i64>,
+        #[case] expected: Vec<i32>,
     ) {
         let input: ConfusionStatsInput<TestBackend> =
             dummy_classification_input(&classification_type).into();
@@ -292,7 +292,7 @@ mod tests {
     fn test_positive(
         #[case] classification_type: ClassificationType,
         #[case] config: ClassificationMetricConfig,
-        #[case] expected: Vec<i64>,
+        #[case] expected: Vec<i32>,
     ) {
         let input: ConfusionStatsInput<TestBackend> =
             dummy_classification_input(&classification_type).into();
@@ -315,7 +315,7 @@ mod tests {
     fn test_negative(
         #[case] classification_type: ClassificationType,
         #[case] config: ClassificationMetricConfig,
-        #[case] expected: Vec<i64>,
+        #[case] expected: Vec<i32>,
     ) {
         let input: ConfusionStatsInput<TestBackend> =
             dummy_classification_input(&classification_type).into();
@@ -338,7 +338,7 @@ mod tests {
     fn test_predicted_positive(
         #[case] classification_type: ClassificationType,
         #[case] config: ClassificationMetricConfig,
-        #[case] expected: Vec<i64>,
+        #[case] expected: Vec<i32>,
     ) {
         let input: ConfusionStatsInput<TestBackend> =
             dummy_classification_input(&classification_type).into();

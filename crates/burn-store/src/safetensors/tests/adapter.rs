@@ -8,7 +8,7 @@ use burn_nn::{Linear, LinearConfig};
 use burn_tensor::Tensor;
 use burn_tensor::backend::Backend;
 
-type TestBackend = burn_ndarray::NdArray;
+type TestBackend = burn_flex::Flex;
 
 #[derive(Module, Debug)]
 struct TestModel<B: Backend> {

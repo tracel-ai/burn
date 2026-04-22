@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use burn::backend::NdArray;
+use burn::backend::Flex;
 use burn::module::Module;
 use burn::record::Record;
 use burn::rl::{
@@ -398,7 +398,7 @@ pub struct SimpleTrainOutput<B: Backend> {
 }
 
 impl<B: Backend> ItemLazy for SimpleTrainOutput<B> {
-    type ItemSync = SimpleTrainOutput<NdArray>;
+    type ItemSync = SimpleTrainOutput<Flex>;
 
     fn sync(self) -> Self::ItemSync {
         let [loss] = Transaction::default()

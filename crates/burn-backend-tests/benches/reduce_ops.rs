@@ -1,12 +1,14 @@
-//! Benchmarks comparing Flex vs NdArray backends for reduction operations.
+//! Benchmarks for reduction operations.
 //!
 //! Run with:
 //! ```bash
 //! cargo bench --bench reduce_ops --features simd
 //! ```
 
-use burn_flex::Flex;
-use burn_ndarray::NdArray;
+#[path = "common/mod.rs"]
+mod common;
+use common::{BencherExt, TestBackend};
+
 use burn_tensor::{FloatDType, Tensor, TensorData, backend::Backend};
 use divan::{AllocProfiler, Bencher};
 
@@ -14,9 +16,10 @@ use divan::{AllocProfiler, Bencher};
 static ALLOC: AllocProfiler = AllocProfiler::system();
 
 fn main() {
-    println!("Comparing Flex vs NdArray backends for reduction ops");
+    println!("Reduction ops Benchmarks");
     println!();
     divan::main();
+    common::report_failures();
 }
 
 fn make_tensor_1d<B: Backend>(size: usize) -> Tensor<B, 1> {
@@ -53,19 +56,19 @@ macro_rules! bench_backend {
                 #[divan::bench]
                 fn _1k(bencher: Bencher) {
                     let t = make_tensor_1d::<B>(1024);
-                    bencher.bench(|| t.clone().sum());
+                    bencher.bench_synced(|| t.clone().sum());
                 }
 
                 #[divan::bench]
                 fn _64k(bencher: Bencher) {
                     let t = make_tensor_1d::<B>(64 * 1024);
-                    bencher.bench(|| t.clone().sum());
+                    bencher.bench_synced(|| t.clone().sum());
                 }
 
                 #[divan::bench]
                 fn _1m(bencher: Bencher) {
                     let t = make_tensor_1d::<B>(1024 * 1024);
-                    bencher.bench(|| t.clone().sum());
+                    bencher.bench_synced(|| t.clone().sum());
                 }
             }
 
@@ -77,25 +80,25 @@ macro_rules! bench_backend {
                 #[divan::bench]
                 fn _256x256_dim0(bencher: Bencher) {
                     let t = make_tensor_2d::<B>(256, 256);
-                    bencher.bench(|| t.clone().sum_dim(0));
+                    bencher.bench_synced(|| t.clone().sum_dim(0));
                 }
 
                 #[divan::bench]
                 fn _256x256_dim1(bencher: Bencher) {
                     let t = make_tensor_2d::<B>(256, 256);
-                    bencher.bench(|| t.clone().sum_dim(1));
+                    bencher.bench_synced(|| t.clone().sum_dim(1));
                 }
 
                 #[divan::bench]
                 fn _1024x1024_dim0(bencher: Bencher) {
                     let t = make_tensor_2d::<B>(1024, 1024);
-                    bencher.bench(|| t.clone().sum_dim(0));
+                    bencher.bench_synced(|| t.clone().sum_dim(0));
                 }
 
                 #[divan::bench]
                 fn _1024x1024_dim1(bencher: Bencher) {
                     let t = make_tensor_2d::<B>(1024, 1024);
-                    bencher.bench(|| t.clone().sum_dim(1));
+                    bencher.bench_synced(|| t.clone().sum_dim(1));
                 }
             }
 
@@ -107,13 +110,13 @@ macro_rules! bench_backend {
                 #[divan::bench]
                 fn _256x256_dim1(bencher: Bencher) {
                     let t = make_tensor_2d::<B>(256, 256);
-                    bencher.bench(|| t.clone().mean_dim(1));
+                    bencher.bench_synced(|| t.clone().mean_dim(1));
                 }
 
                 #[divan::bench]
                 fn _1024x1024_dim1(bencher: Bencher) {
                     let t = make_tensor_2d::<B>(1024, 1024);
-                    bencher.bench(|| t.clone().mean_dim(1));
+                    bencher.bench_synced(|| t.clone().mean_dim(1));
                 }
             }
 
@@ -125,19 +128,19 @@ macro_rules! bench_backend {
                 #[divan::bench]
                 fn _1k(bencher: Bencher) {
                     let t = make_tensor_1d::<B>(1024);
-                    bencher.bench(|| t.clone().argmax(0));
+                    bencher.bench_synced(|| t.clone().argmax(0));
                 }
 
                 #[divan::bench]
                 fn _256x256_dim1(bencher: Bencher) {
                     let t = make_tensor_2d::<B>(256, 256);
-                    bencher.bench(|| t.clone().argmax(1));
+                    bencher.bench_synced(|| t.clone().argmax(1));
                 }
 
                 #[divan::bench]
                 fn _1024x1024_dim1(bencher: Bencher) {
                     let t = make_tensor_2d::<B>(1024, 1024);
-                    bencher.bench(|| t.clone().argmax(1));
+                    bencher.bench_synced(|| t.clone().argmax(1));
                 }
             }
 
@@ -149,13 +152,13 @@ macro_rules! bench_backend {
                 #[divan::bench]
                 fn _256x256(bencher: Bencher) {
                     let t = make_tensor_2d::<B>(256, 256).transpose();
-                    bencher.bench(|| t.clone().sum());
+                    bencher.bench_synced(|| t.clone().sum());
                 }
 
                 #[divan::bench]
                 fn _1024x1024(bencher: Bencher) {
                     let t = make_tensor_2d::<B>(1024, 1024).transpose();
-                    bencher.bench(|| t.clone().sum());
+                    bencher.bench_synced(|| t.clone().sum());
                 }
             }
 
@@ -167,13 +170,13 @@ macro_rules! bench_backend {
                 #[divan::bench]
                 fn _256x256_dim0(bencher: Bencher) {
                     let t = make_tensor_2d::<B>(256, 256).transpose();
-                    bencher.bench(|| t.clone().sum_dim(0));
+                    bencher.bench_synced(|| t.clone().sum_dim(0));
                 }
 
                 #[divan::bench]
                 fn _1024x1024_dim0(bencher: Bencher) {
                     let t = make_tensor_2d::<B>(1024, 1024).transpose();
-                    bencher.bench(|| t.clone().sum_dim(0));
+                    bencher.bench_synced(|| t.clone().sum_dim(0));
                 }
             }
 
@@ -185,24 +188,23 @@ macro_rules! bench_backend {
                 #[divan::bench]
                 fn _batch32_256x256_dim2(bencher: Bencher) {
                     let t = make_tensor_3d::<B>(32, 256, 256);
-                    bencher.bench(|| t.clone().sum_dim(2));
+                    bencher.bench_synced(|| t.clone().sum_dim(2));
                 }
 
                 #[divan::bench]
                 fn _batch32_256x256_dim1(bencher: Bencher) {
                     let t = make_tensor_3d::<B>(32, 256, 256);
-                    bencher.bench(|| t.clone().sum_dim(1));
+                    bencher.bench_synced(|| t.clone().sum_dim(1));
                 }
             }
         }
     };
 }
 
-bench_backend!(Flex, flex, "Flex");
-bench_backend!(NdArray<f32>, ndarray, "NdArray");
+bench_backend!(TestBackend, backend, "backend");
 
 // ============================================================================
-// f16 mean benches (Flex only)
+// f16 mean benches
 //
 // These exercise the half-precision mean / mean_dim fast path. Each tensor
 // is cast to f16 once during setup so the bench measures only the reduction,
@@ -210,11 +212,11 @@ bench_backend!(NdArray<f32>, ndarray, "NdArray");
 // numbers can be compared apples-to-apples.
 // ============================================================================
 
-#[divan::bench_group(name = "Flex_f16")]
-mod flex_f16 {
+#[divan::bench_group(name = "f16")]
+mod f16 {
     use super::*;
 
-    type B = Flex;
+    type B = TestBackend;
 
     fn make_f16_2d(rows: usize, cols: usize) -> Tensor<B, 2> {
         make_tensor_2d::<B>(rows, cols).cast(FloatDType::F16)
@@ -231,13 +233,13 @@ mod flex_f16 {
         #[divan::bench]
         fn _64k(bencher: Bencher) {
             let t = make_f16_2d(256, 256);
-            bencher.bench(|| t.clone().mean());
+            bencher.bench_synced(|| t.clone().mean());
         }
 
         #[divan::bench]
         fn _1m(bencher: Bencher) {
             let t = make_f16_2d(1024, 1024);
-            bencher.bench(|| t.clone().mean());
+            bencher.bench_synced(|| t.clone().mean());
         }
     }
 
@@ -249,33 +251,33 @@ mod flex_f16 {
         #[divan::bench]
         fn _256x256_dim1(bencher: Bencher) {
             let t = make_f16_2d(256, 256);
-            bencher.bench(|| t.clone().mean_dim(1));
+            bencher.bench_synced(|| t.clone().mean_dim(1));
         }
 
         #[divan::bench]
         fn _1024x1024_dim1(bencher: Bencher) {
             let t = make_f16_2d(1024, 1024);
-            bencher.bench(|| t.clone().mean_dim(1));
+            bencher.bench_synced(|| t.clone().mean_dim(1));
         }
 
         // First-dim path (scatter_add_f32)
         #[divan::bench]
         fn _256x256_dim0(bencher: Bencher) {
             let t = make_f16_2d(256, 256);
-            bencher.bench(|| t.clone().mean_dim(0));
+            bencher.bench_synced(|| t.clone().mean_dim(0));
         }
 
         #[divan::bench]
         fn _1024x1024_dim0(bencher: Bencher) {
             let t = make_f16_2d(1024, 1024);
-            bencher.bench(|| t.clone().mean_dim(0));
+            bencher.bench_synced(|| t.clone().mean_dim(0));
         }
 
         // Middle-dim path (scatter_add_batched)
         #[divan::bench]
         fn _batch32_256x256_dim1(bencher: Bencher) {
             let t = make_f16_3d(32, 256, 256);
-            bencher.bench(|| t.clone().mean_dim(1));
+            bencher.bench_synced(|| t.clone().mean_dim(1));
         }
     }
 }

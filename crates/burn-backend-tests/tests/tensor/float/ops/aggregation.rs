@@ -236,6 +236,10 @@ fn test_sum_dim_1_reshape_maybe_fused() {
 
 #[test]
 fn test_sum_dim_1_swap_dims_maybe_fused() {
+    // Note: the `+ 2` elementwise op materializes a contiguous intermediate,
+    // so the subsequent sum_dim sees contiguous strides - it does not
+    // exercise the transposed-reduce-last-dim path. That path is covered
+    // by `test_sum_transposed`.
     let tensor = TestTensorInt::arange(0..9, &Default::default()).float();
     let tensor = tensor.reshape([3, 3]);
     TestBackend::sync(&tensor.device()).unwrap();
@@ -494,16 +498,41 @@ fn test_multiple_reduce_dims_permuted() {
 
 #[test]
 fn test_sum_transposed() {
-    // Stress the sum kernel on a non-contiguous (transposed) input. Uses
-    // total reduction so the assertion doesn't depend on traversal order;
-    // a stronger per-axis variant would require flex issue #4816 to be
-    // resolved first.
+    // Stress the sum kernel on a non-contiguous (transposed) input. Reducing
+    // the (now last) dim with stride != 1 previously hit a fast path that
+    // read contiguous storage, producing sliding-pair sums instead of column
+    // sums.
     let tensor = TestTensor::<2>::from([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]);
-    let output = tensor.transpose().sum();
+    let output = tensor.transpose().sum_dim(1);
 
     output
         .into_data()
-        .assert_eq(&TensorData::from([21.0]), false);
+        .assert_eq(&TensorData::from([[5.0], [7.0], [9.0]]), false);
+}
+
+#[test]
+fn test_prod_dim_transposed() {
+    // Same fast-path gate as sum_dim: prod_dim on a transposed 2D input must
+    // honor the reduce-dim stride.
+    let tensor = TestTensor::<2>::from([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]);
+    let output = tensor.transpose().prod_dim(1);
+
+    output.into_data().assert_approx_eq::<FloatElem>(
+        &TensorData::from([[4.0], [10.0], [18.0]]),
+        Tolerance::default(),
+    );
+}
+
+#[test]
+fn test_mean_dim_transposed() {
+    // mean_dim routes through sum_dim, so it inherits the same gate.
+    let tensor = TestTensor::<2>::from([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]);
+    let output = tensor.transpose().mean_dim(1);
+
+    output.into_data().assert_approx_eq::<FloatElem>(
+        &TensorData::from([[2.5], [3.5], [4.5]]),
+        Tolerance::default(),
+    );
 }
 
 #[test]

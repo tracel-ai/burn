@@ -289,7 +289,15 @@ impl FlexTensor {
 
     /// Copy to contiguous layout if needed.
     pub fn to_contiguous(&self) -> Self {
-        if self.is_contiguous() && self.layout.start_offset() == 0 {
+        // Fast path requires the logical tensor to cover the whole buffer.
+        // A contiguous prefix view (e.g. [8, 5] sliced to [5, 5]) has
+        // canonical strides and offset 0 but an oversized buffer, and would
+        // otherwise mislead callers that read `storage()` / `bytes()` by
+        // length (e.g. the SIMD `mask_fill_*` kernels).
+        if self.is_contiguous()
+            && self.layout.start_offset() == 0
+            && self.data.len() == self.layout.num_elements() * dtype_size(self.dtype)
+        {
             return self.clone();
         }
 
@@ -693,6 +701,35 @@ mod tests {
         assert_eq!(contig.shape().to_vec(), vec![0]);
         assert_eq!(contig.layout().start_offset(), 0);
         assert_eq!(contig.into_data().bytes.len(), 0);
+    }
+
+    /// Regression for #4855: a prefix view (e.g. `narrow(dim, 0, n)`) has
+    /// canonical contiguous strides and start_offset 0, but its underlying
+    /// buffer is still the larger original. `to_contiguous` must materialize
+    /// a right-sized copy so callers keying off `storage().len()` (like the
+    /// SIMD `mask_fill_*` kernels reached from `triu`/`tril` in LU on tall
+    /// matrices) don't walk past the logical shape.
+    #[test]
+    fn test_to_contiguous_prefix_view_shrinks_buffer() {
+        let data: Vec<f32> = (0..40).map(|i| i as f32).collect();
+        let t = FlexTensor::from_data(TensorData::new(data, vec![8, 5]));
+
+        let prefix = t.narrow(0, 0, 5);
+        assert_eq!(prefix.shape().to_vec(), vec![5, 5]);
+        assert_eq!(prefix.layout().strides(), &[5, 1]);
+        assert_eq!(prefix.layout().start_offset(), 0);
+        assert!(prefix.is_contiguous());
+        assert_eq!(prefix.storage::<f32>().len(), 40);
+
+        let contig = prefix.to_contiguous();
+        assert_eq!(contig.storage::<f32>().len(), 25);
+        assert_eq!(contig.layout().num_elements(), 25);
+        assert_eq!(
+            contig.storage::<f32>(),
+            &(0..5)
+                .flat_map(|r| (0..5).map(move |c| (r * 5 + c) as f32))
+                .collect::<Vec<_>>()[..]
+        );
     }
 
     /// 4D permuted layout round-trips through the collapse + tiled

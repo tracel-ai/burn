@@ -10,8 +10,8 @@ use burn::backend::wgpu::{Wgpu, WgpuDevice, graphics::AutoGraphicsApi, init_setu
 #[cfg(feature = "wgpu")]
 pub type Backend = Wgpu<f32, i32>;
 
-#[cfg(all(feature = "ndarray", not(feature = "wgpu")))]
-pub type Backend = burn::backend::ndarray::NdArray<f32>;
+#[cfg(all(feature = "flex", not(feature = "wgpu")))]
+pub type Backend = burn::backend::Flex;
 
 static STATE_ENCODED: &[u8] = include_bytes!("../model.bin");
 

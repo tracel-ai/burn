@@ -432,7 +432,7 @@ mod tests {
     use burn::tensor::{Distribution, Tensor, TensorData};
     use burn_nn::{Linear, LinearConfig, LinearRecord};
 
-    type TestBackend = burn_ndarray::NdArray<f32>;
+    type TestBackend = burn_flex::Flex;
 
     const TOLERANCE: f64 = 1e-8;
 

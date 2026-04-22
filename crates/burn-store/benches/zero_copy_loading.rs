@@ -8,9 +8,9 @@
 //!
 //! ## Understanding the Results
 //!
-//! **IMPORTANT**: For NdArray backend, you'll see similar allocation numbers because:
-//! - NdArray uses `ndarray::ArrayD` which MUST own data as `Vec<T>`
-//! - Even with zero-copy, the backend eventually copies data into its own format
+//! **IMPORTANT**: For the Flex backend, you'll see similar allocation numbers
+//! because Flex currently copies incoming bytes into its own `Bytes` storage
+//! on load rather than borrowing from the underlying buffer.
 //!
 //! The zero-copy benefit is:
 //! - **Without zero-copy**: File → Copy to heap (Bytes) → Copy to Vec (backend)
@@ -55,7 +55,7 @@ static ALLOC: AllocProfiler = AllocProfiler::system();
 static STATIC_MODEL_BYTES: OnceLock<&'static [u8]> = OnceLock::new();
 
 // Backend type aliases
-type NdArrayBackend = burn_ndarray::NdArray<f32>;
+type FlexBackend = burn_flex::Flex;
 
 #[cfg(feature = "wgpu")]
 type WgpuBackend = burn_wgpu::Wgpu;
@@ -122,7 +122,7 @@ fn ensure_burnpack_file() {
 
     println!("⏳ Generating Burnpack file from SafeTensors...");
 
-    type TestBackend = NdArrayBackend;
+    type TestBackend = FlexBackend;
     let device = Default::default();
 
     // Load from SafeTensors
@@ -171,7 +171,7 @@ fn main() {
     println!("  4. static_zero_copy - from_static()                - zero-copy from static");
     println!();
     println!("Available backends:");
-    println!("  - NdArray (CPU)");
+    println!("  - Flex (CPU)");
     #[cfg(feature = "wgpu")]
     println!("  - WGPU (GPU)");
     #[cfg(feature = "cuda")]
@@ -301,71 +301,9 @@ macro_rules! bench_backend {
 #[divan::bench_group(name = "Zero-Copy Verification", sample_count = 1)]
 mod verification {
     use super::*;
-    use burn_ndarray::NdArray;
+    use burn_flex::Flex;
 
-    type B = NdArray<f32>;
-
-    /// Verify zero-copy: tensor storage is borrowed (not owned)
-    #[divan::bench]
-    fn verify_storage_is_borrowed() {
-        let static_bytes = get_static_model_bytes();
-
-        // Load model with zero-copy from static bytes
-        let device = Default::default();
-        let mut model = LargeModel::<B>::new(&device);
-        let mut store = BurnpackStore::from_static(static_bytes);
-        model.load_from(&mut store).expect("Failed to load");
-
-        // Get the first layer's weight tensor and verify it uses borrowed storage
-        let weight = model.layers[0].weight.val();
-        // .into_primitive() returns TensorPrimitive<B>, .tensor() extracts B::FloatTensorPrimitive
-        let ndarray_tensor = weight.into_primitive().tensor();
-
-        // Verify the storage is borrowed (zero-copy from static region)
-        assert!(
-            ndarray_tensor.is_borrowed(),
-            "ZERO-COPY FAILURE: Tensor storage is NOT borrowed. \
-             Data was copied instead of being zero-copy!"
-        );
-
-        println!("✅ Verified: Tensor storage is borrowed (zero-copy from static region)");
-    }
-
-    /// Verify ALL layers use borrowed (zero-copy) storage.
-    /// This is the key proof that loaded weights point to static memory.
-    #[divan::bench]
-    fn verify_all_layers_borrowed() {
-        let static_bytes = get_static_model_bytes();
-
-        // Load model with zero-copy
-        let device = Default::default();
-        let mut model = LargeModel::<B>::new(&device);
-        let mut store = BurnpackStore::from_static(static_bytes);
-        model.load_from(&mut store).expect("Failed to load");
-
-        // Check ALL layers have borrowed storage
-        let mut total_elements = 0usize;
-        for (i, layer) in model.layers.iter().enumerate() {
-            let weight = layer.weight.val();
-            total_elements += weight.shape().num_elements();
-
-            assert!(
-                weight.into_primitive().tensor().is_borrowed(),
-                "Layer {} weight should be borrowed (zero-copy)",
-                i
-            );
-        }
-
-        let total_mb = (total_elements * 4) as f64 / 1_048_576.0;
-        println!(
-            "✅ Verified: All {} layers use borrowed storage",
-            model.layers.len()
-        );
-        println!(
-            "   - Model size: {:.2} MB - all pointing to static region",
-            total_mb
-        );
-    }
+    type B = Flex;
 
     /// Verify data is readable and correct using sum().into_scalar().
     /// Note: sum() triggers COW copy, so this shows ops work correctly on zero-copy data.
@@ -581,7 +519,7 @@ mod store_only {
 // =============================================================================
 
 // Generate benchmarks for each backend
-bench_backend!(NdArrayBackend, ndarray_backend, "NdArray Backend (CPU)");
+bench_backend!(FlexBackend, flex_backend, "Flex Backend (CPU)");
 
 #[cfg(feature = "wgpu")]
 bench_backend!(WgpuBackend, wgpu_backend, "WGPU Backend (GPU)");

@@ -30,7 +30,7 @@ pub(crate) fn get_seeded_rng() -> FlexRng {
 /// CPU device for the Flex backend.
 ///
 /// Unit struct since there's only one CPU device.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Default, PartialEq, Eq, Hash)]
 pub struct FlexDevice;
 
 impl Device for FlexDevice {
@@ -47,7 +47,13 @@ impl DeviceOps for FlexDevice {}
 
 impl core::fmt::Display for FlexDevice {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "Flex")
+        write!(f, "Cpu")
+    }
+}
+
+impl core::fmt::Debug for FlexDevice {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        core::fmt::Display::fmt(self, f)
     }
 }
 
@@ -251,6 +257,13 @@ mod tests {
         let shape = burn_std::Shape::from(alloc::vec![3]);
         let t = Flex::bool_empty(shape, &FlexDevice, burn_std::BoolDType::U8);
         assert_eq!(t.dtype(), DType::Bool(BoolStore::U8));
+    }
+
+    #[test]
+    fn device_prints_as_cpu() {
+        use alloc::format;
+        assert_eq!(format!("{:?}", FlexDevice), "Cpu");
+        assert_eq!(format!("{}", FlexDevice), "Cpu");
     }
 
     #[test]

@@ -33,7 +33,7 @@ pub use evaluator::*;
 pub use components::*;
 
 #[cfg(test)]
-pub(crate) type TestBackend = burn_ndarray::NdArray<f32>;
+pub(crate) type TestBackend = burn_flex::Flex;
 
 #[cfg(test)]
 pub(crate) mod tests {

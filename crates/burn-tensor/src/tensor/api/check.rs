@@ -4,6 +4,7 @@ use alloc::string::{String, ToString};
 use alloc::vec;
 use alloc::vec::Vec;
 use burn_backend::tensor::Ordered;
+use burn_std::DType;
 
 /// The struct should always be used with the [check](crate::check) macro.
 ///
@@ -1386,6 +1387,61 @@ impl TensorCheck {
                     "The input tensor for LU decomposition must have at least two dimensions.",
                 )
                 .details(format!("Got input tensor with {} dimensions", n_dims)),
+            );
+        }
+
+        check
+    }
+
+    /// Check if input tensor and generic parameters of `linalg::det()` are valid.
+    pub fn det<const D: usize, const D1: usize, const D2: usize>(
+        dims: [usize; D],
+        dtype: DType,
+    ) -> Self {
+        let mut check = TensorCheck::Ok;
+
+        if matches!(dtype, DType::QFloat(_)) {
+            check = check.register(
+                "det",
+                TensorError::new("The input tensor must have a real float dtype.")
+                    .details("Got an input tensor with a quantized float dtype".to_string()),
+            );
+        }
+
+        if D1 != D - 1 {
+            check = check.register(
+                "det",
+                TensorError::new(
+                    "D - 1 = D1 must hold for the generic parameters of the linalg::det function.",
+                )
+                .details(format!("Got generic parameters D = {D} and D1 = {D1}")),
+            );
+        }
+
+        if D2 != D - 2 {
+            check = check.register(
+                "det",
+                TensorError::new("The output tensor rank must be less than input tensor rank by 2")
+                    .details(format!(
+                        "Got input tensor rank {D} and output tensor rank {D2}"
+                    )),
+            );
+        }
+
+        if D < 3 {
+            check = check.register(
+                "det",
+                TensorError::new(format!(
+                    "The input tensor must have at least 3 dimensions, got {D}"
+                )),
+            );
+        }
+
+        if dims[D - 1] != dims[D - 2] {
+            check = check.register(
+                "det",
+                TensorError::new("The last two dimensions of the input tensor must be equal")
+                    .details(format!("Got input tensor with shape {:?}", dims)),
             );
         }
 

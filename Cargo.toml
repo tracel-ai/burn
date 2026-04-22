@@ -176,14 +176,17 @@ tch = "0.22.0"
 torch-sys = "0.22.0"                                        # matches what tch is using, required for lib detection
 
 ahash = { version = "0.8.12", default-features = false }
+aligned-vec = { version = "0.6", default-features = false }
+once_cell = { version = "1", default-features = false }
 portable-atomic = { version = "1.13.1" }
 portable-atomic-util = { version = "0.2.6", features = ["alloc"] }
+realfft = "3"
 
 ### For the main burn branch. ###
-cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "96d5f7224a56979baca6dae0afbc0bc4d83a7c2f" }
-cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "96d5f7224a56979baca6dae0afbc0bc4d83a7c2f" }
-cubecl-zspace = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "96d5f7224a56979baca6dae0afbc0bc4d83a7c2f" }
-cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "ac4b2e485175c18449b851cbc51883fb967f0f81" }
+cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "586601e66be38261e1cb99eaeff9df46df149756" }
+cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "586601e66be38261e1cb99eaeff9df46df149756" }
+cubecl-zspace = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "586601e66be38261e1cb99eaeff9df46df149756" }
+cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "98a357a8414d3ebb57a5d64c202649a5f48b2d7e" }
 ### For local development. ###
 # cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
 # cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }

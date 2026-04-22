@@ -1,7 +1,7 @@
 use std::{f32::consts::FRAC_PI_4, fmt::Display};
 
 use burn::{
-    backend::NdArray,
+    backend::Flex,
     data::{
         dataloader::batcher::Batcher,
         dataset::{transform::Mapper, vision::MnistItem},
@@ -27,8 +27,8 @@ impl<B: Backend> Batcher<B, MnistItemPrepared, MnistBatch<B>> for MnistBatcher {
         let targets = items
             .iter()
             .map(|item| {
-                Tensor::<NdArray, 1, Int>::from_data(
-                    TensorData::from([(item.label as i64).elem::<<NdArray as Backend>::IntElem>()]),
+                Tensor::<Flex, 1, Int>::from_data(
+                    TensorData::from([(item.label as i64).elem::<<Flex as Backend>::IntElem>()]),
                     &Default::default(),
                 )
             })
@@ -101,13 +101,13 @@ impl Mapper<MnistItem, MnistItemPrepared> for MnistMapper {
 
 #[derive(Clone, Debug)]
 pub struct MnistItemPrepared {
-    image: Tensor<NdArray, 3>,
+    image: Tensor<Flex, 3>,
     label: u8,
 }
 
 fn prepare_image(transforms: &[Transform], item: MnistItem) -> MnistItemPrepared {
     let data = TensorData::from(item.image);
-    let tensor = Tensor::<NdArray, 2>::from_data(data.convert::<f32>(), &Default::default());
+    let tensor = Tensor::<Flex, 2>::from_data(data.convert::<f32>(), &Default::default());
     let tensor = tensor.reshape([1, 28, 28]);
 
     // normalize: make between [0,1] and make the mean =  0 and std = 1

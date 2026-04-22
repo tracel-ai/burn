@@ -12,7 +12,7 @@ workspace = true
 [dependencies]
 
 burn = { path = "../../crates/burn", features = [
-    "ndarray",
+    "flex",
     "dataset",
     "vision",
 ] }

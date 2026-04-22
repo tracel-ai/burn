@@ -1,6 +1,6 @@
 use std::{env, path::Path, process};
 
-use burn::backend::NdArray;
+use burn::backend::Flex;
 use burn_store::{
     BurnpackStore, ModuleSnapshot, PyTorchToBurnAdapter, PytorchStore, SafetensorsStore,
 };
@@ -12,7 +12,7 @@ const SAFETENSORS_WEIGHTS_PATH: &str = "weights/mnist.safetensors";
 const MODEL_OUTPUT_NAME: &str = "mnist";
 
 // Basic backend type (not used for computation).
-type B = NdArray<f32>;
+type B = Flex;
 
 pub fn main() {
     let args: Vec<String> = env::args().collect();

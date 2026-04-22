@@ -119,7 +119,7 @@ mod basic_tests {
 #[cfg(test)]
 mod linear_model_tests {
     use super::*;
-    type TestBackend = burn_ndarray::NdArray;
+    type TestBackend = burn_flex::Flex;
 
     #[derive(Module, Debug)]
     pub struct SimpleLinearModel<B: Backend> {
@@ -253,7 +253,7 @@ mod linear_model_tests {
 mod conv_model_tests {
     use super::*;
 
-    type TestBackend = burn_ndarray::NdArray;
+    type TestBackend = burn_flex::Flex;
 
     #[derive(Module, Debug)]
     struct SimpleConvModel<B: Backend> {
@@ -314,7 +314,7 @@ mod conv_model_tests {
 #[cfg(test)]
 mod complex_model_tests {
     use super::*;
-    type TestBackend = burn_ndarray::NdArray;
+    type TestBackend = burn_flex::Flex;
 
     #[test]
     fn test_load_with_top_level_key() {
@@ -400,7 +400,7 @@ mod complex_model_tests {
 mod adapter_tests {
     use super::*;
 
-    type TestBackend = burn_ndarray::NdArray;
+    type TestBackend = burn_flex::Flex;
 
     #[derive(Module, Debug)]
     pub struct SimpleLinearModel<B: Backend> {
@@ -477,7 +477,7 @@ mod adapter_tests {
 #[cfg(test)]
 mod error_handling_tests {
     use super::*;
-    use burn_ndarray::NdArray;
+    use burn_flex::Flex;
 
     #[derive(Module, Debug)]
     pub struct SimpleLinearModel<B: Backend> {
@@ -497,10 +497,10 @@ mod error_handling_tests {
     #[test]
     fn test_missing_file() {
         let device = Default::default();
-        let mut model = SimpleLinearModel::<NdArray>::new(&device);
+        let mut model = SimpleLinearModel::<Flex>::new(&device);
         let mut store = PytorchStore::from_file("nonexistent.pth");
 
-        let result = store.apply_to::<NdArray, _>(&mut model);
+        let result = store.apply_to::<Flex, _>(&mut model);
 
         assert!(result.is_err());
         match result {
@@ -522,11 +522,11 @@ mod error_handling_tests {
         }
 
         let device = Default::default();
-        let mut model = SimpleLinearModel::<NdArray>::new(&device);
+        let mut model = SimpleLinearModel::<Flex>::new(&device);
 
         let mut store = PytorchStore::from_file(path).with_top_level_key("nonexistent_key");
 
-        let result = store.apply_to::<NdArray, _>(&mut model);
+        let result = store.apply_to::<Flex, _>(&mut model);
 
         assert!(result.is_err(), "Should fail with invalid top level key");
     }
@@ -544,7 +544,7 @@ mod error_handling_tests {
         }
 
         let device = Default::default();
-        let mut model = SimpleLinearModel::<NdArray>::new(&device);
+        let mut model = SimpleLinearModel::<Flex>::new(&device);
 
         // Apply very restrictive filter that matches nothing
         let mut store = PytorchStore::from_file(path)
@@ -552,7 +552,7 @@ mod error_handling_tests {
             .validate(true)
             .allow_partial(false);
 
-        let result = store.apply_to::<NdArray, _>(&mut model);
+        let result = store.apply_to::<Flex, _>(&mut model);
 
         // Should fail because no tensors match and allow_partial is false
         assert!(
@@ -566,7 +566,7 @@ mod error_handling_tests {
 mod enum_variant_tests {
     use super::*;
     use crate::ModuleSnapshot;
-    use burn_ndarray::NdArray;
+    use burn_flex::Flex;
 
     /// Enum representing different convolution block types (similar to YOLOX architecture)
     #[derive(Module, Debug)]
@@ -598,7 +598,7 @@ mod enum_variant_tests {
     #[test]
     fn test_enum_variant_path_mismatch() {
         let device = Default::default();
-        let mut model = ModelWithEnum::<NdArray>::new(&device);
+        let mut model = ModelWithEnum::<Flex>::new(&device);
 
         // Load PyTorch model that was generated without enum variant names
         // PyTorch paths: "feature.weight", "feature.bias", "classifier.weight", "classifier.bias"
@@ -614,7 +614,7 @@ mod enum_variant_tests {
             .allow_partial(true) // Allow partial to see what's missing
             .validate(false); // Disable validation to get detailed missing info
 
-        let result = store.apply_to::<NdArray, _>(&mut model);
+        let result = store.apply_to::<Flex, _>(&mut model);
 
         // The load should succeed (allow_partial=true) but report missing tensors
         match result {
@@ -675,7 +675,7 @@ mod enum_variant_tests {
         let device = Default::default();
 
         // Create model with enum
-        let model = ModelWithEnum::<NdArray>::new(&device);
+        let model = ModelWithEnum::<Flex>::new(&device);
 
         // Collect snapshots to inspect container stacks
         let snapshots = model.collect(None, None, false);
@@ -702,7 +702,7 @@ mod enum_variant_tests {
     #[test]
     fn test_skip_enum_variants_feature() {
         let device = Default::default();
-        let mut model = ModelWithEnum::<NdArray>::new(&device);
+        let mut model = ModelWithEnum::<Flex>::new(&device);
 
         // Load PyTorch model that was generated without enum variant names
         // PyTorch paths: "feature.weight", "feature.bias", "classifier.weight", "classifier.bias"
@@ -716,7 +716,7 @@ mod enum_variant_tests {
             .allow_partial(true)
             .validate(false);
 
-        let result = store.apply_to::<NdArray, _>(&mut model);
+        let result = store.apply_to::<Flex, _>(&mut model);
 
         // The load should succeed and all tensors should be loaded
         match result {
@@ -982,7 +982,7 @@ mod direct_access_tests {
 #[cfg(test)]
 mod map_indices_contiguous_tests {
     use super::*;
-    type TestBackend = burn_ndarray::NdArray;
+    type TestBackend = burn_flex::Flex;
 
     /// Model with a Vec of Conv2d layers that expects contiguous indices
     #[derive(Module, Debug)]

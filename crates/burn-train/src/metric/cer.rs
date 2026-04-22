@@ -94,8 +94,14 @@ impl<B: Backend> Metric for CharErrorRate<B> {
             let target_lengths_tensor = target_mask.int().sum_dim(1);
 
             (
-                output_lengths_tensor.to_data().to_vec::<i64>().unwrap(),
-                target_lengths_tensor.to_data().to_vec::<i64>().unwrap(),
+                output_lengths_tensor
+                    .to_data()
+                    .iter::<i64>()
+                    .collect::<Vec<_>>(),
+                target_lengths_tensor
+                    .to_data()
+                    .iter::<i64>()
+                    .collect::<Vec<_>>(),
             )
         } else {
             // If there's no padding, all sequences have the full length.
@@ -105,8 +111,11 @@ impl<B: Backend> Metric for CharErrorRate<B> {
             )
         };
 
-        let outputs_data = outputs.to_data().to_vec::<i64>().unwrap();
-        let targets_data = targets.to_data().to_vec::<i64>().unwrap();
+        // `TensorData::iter::<i32>()` dispatches on the stored DType and
+        // narrows to i32 per element; token IDs in any reasonable vocabulary
+        // fit in i32 regardless of the backend's native IntElem.
+        let outputs_data = outputs.to_data().iter::<i32>().collect::<Vec<_>>();
+        let targets_data = targets.to_data().iter::<i32>().collect::<Vec<_>>();
 
         let total_edit_distance: usize = (0..batch_size)
             .map(|i| {
@@ -116,12 +125,10 @@ impl<B: Backend> Metric for CharErrorRate<B> {
                 let output_len = output_lengths[i] as usize;
                 let target_len = target_lengths[i] as usize;
 
-                let output_seq_slice = &outputs_data[start..(start + output_len)];
-                let target_seq_slice = &targets_data[start..(start + target_len)];
-                let output_seq: Vec<i32> = output_seq_slice.iter().map(|&x| x as i32).collect();
-                let target_seq: Vec<i32> = target_seq_slice.iter().map(|&x| x as i32).collect();
+                let output_seq = &outputs_data[start..(start + output_len)];
+                let target_seq = &targets_data[start..(start + target_len)];
 
-                edit_distance(&target_seq, &output_seq)
+                edit_distance(target_seq, output_seq)
             })
             .sum();
 

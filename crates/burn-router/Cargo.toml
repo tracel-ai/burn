@@ -38,7 +38,7 @@ log = { workspace = true }
 
 [dev-dependencies]
 burn-tensor = { path = "../burn-tensor", version = "=0.21.0-pre.3", default-features = false }
-burn-ndarray = { path = "../burn-ndarray", version = "=0.21.0-pre.3" }
+burn-flex = { path = "../burn-flex", version = "=0.21.0-pre.3" }
 burn-wgpu = { path = "../burn-wgpu", version = "=0.21.0-pre.3", default-features = false, features = [
     "std",
 ] }

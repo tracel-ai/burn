@@ -1,10 +1,10 @@
-use burn::backend::NdArray;
+use burn::backend::Flex;
 
 use burn_store::{ModuleSnapshot, PytorchStore};
 
 use import_model_weights::{Model, infer};
 
-type B = NdArray<f32>;
+type B = Flex;
 
 const WEIGHTS_FILE: &str = "weights/mnist.pt";
 

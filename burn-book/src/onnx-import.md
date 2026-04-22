@@ -92,7 +92,7 @@ First, add the required dependencies to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-burn = { version = "~0.21", features = ["ndarray"] }
+burn = { version = "~0.21", features = ["flex"] }
 
 [build-dependencies]
 burn-onnx = "~0.21"
@@ -131,17 +131,17 @@ Now you can use the imported model in your code:
 
 ```rust, ignore
 use burn::tensor;
-use burn_ndarray::{NdArray, NdArrayDevice};
+use burn::backend::{Flex, flex::FlexDevice};
 use model::my_model::Model;
 
 fn main() {
-    let device = NdArrayDevice::default();
+    let device = FlexDevice;
 
     // Create model instance and load weights from target dir default device
-    let model: Model<NdArray<f32>> = Model::default();
+    let model: Model<Flex> = Model::default();
 
     // Create input tensor (replace with your actual input)
-    let input = tensor::Tensor::<NdArray<f32>, 4>::zeros([1, 3, 224, 224], &device);
+    let input = tensor::Tensor::<Flex, 4>::zeros([1, 3, 224, 224], &device);
 
     // Perform inference
     let output = model.forward(input);

@@ -5,8 +5,8 @@ edition.workspace = true
 license.workspace = true
 
 [features]
-default = ["ndarray"]
-ndarray = ["burn/ndarray"]
+default = ["flex"]
+flex = ["burn/flex"]
 
 [dependencies]
 burn = { path = "../../burn", default-features = false, features = ["std"] }

@@ -29,7 +29,7 @@ use std::path::PathBuf;
 static ALLOC: AllocProfiler = AllocProfiler::system();
 
 // Backend type aliases
-type NdArrayBackend = burn_ndarray::NdArray<f32>;
+type FlexBackend = burn_flex::Flex;
 
 #[cfg(feature = "wgpu")]
 type WgpuBackend = burn_wgpu::Wgpu;
@@ -89,7 +89,7 @@ fn main() {
             println!("  3. SafetensorsStore (new)");
             println!();
             println!("Available backends:");
-            println!("  - NdArray (CPU)");
+            println!("  - Flex (CPU)");
             #[cfg(feature = "wgpu")]
             println!("  - WGPU (GPU)");
             #[cfg(feature = "cuda")]
@@ -168,7 +168,7 @@ macro_rules! bench_backend {
 }
 
 // Generate benchmarks for each backend
-bench_backend!(NdArrayBackend, ndarray_backend, "NdArray Backend (CPU)");
+bench_backend!(FlexBackend, flex_backend, "Flex Backend (CPU)");
 
 #[cfg(feature = "wgpu")]
 bench_backend!(WgpuBackend, wgpu_backend, "WGPU Backend (GPU)");
