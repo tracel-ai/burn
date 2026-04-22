@@ -9,11 +9,7 @@ use std::sync::Arc;
 
 use super::StreamOptimizer;
 use crate::stream::execution::tests::{TestOptimization, TestOptimizationBuilder};
-use crate::{
-    OperationFuser,
-    search::BlockOptimization,
-    stream::store::ExecutionStrategy,
-};
+use crate::{OperationFuser, search::BlockOptimization, stream::store::ExecutionStrategy};
 use burn_backend::{DType, Shape};
 use burn_ir::{BinaryOpIr, NumericOperationIr, OperationIr, TensorId, TensorIr, TensorStatus};
 
@@ -120,10 +116,7 @@ fn contiguous_independent_blocks_fuse_both() {
 
     let res = run(
         &ops,
-        vec![
-            vec![a1.clone(), a2.clone()],
-            vec![b1.clone(), b2.clone()],
-        ],
+        vec![vec![a1.clone(), a2.clone()], vec![b1.clone(), b2.clone()]],
     );
 
     assert_eq!(res.ordering, vec![0, 1, 2, 3]);
@@ -155,10 +148,7 @@ fn interleaved_independent_blocks_fuse_both() {
 
     let res = run(
         &ops,
-        vec![
-            vec![a1.clone(), a2.clone()],
-            vec![b1.clone(), b2.clone()],
-        ],
+        vec![vec![a1.clone(), a2.clone()], vec![b1.clone(), b2.clone()]],
     );
 
     assert_eq!(res.ordering, vec![0, 2, 1, 3]);
@@ -361,12 +351,7 @@ fn pattern_straddles_incomplete_merged_blocks() {
     let b2 = add(202, 203, 204);
 
     // Stream is [a1, b1, a2] — builder needs b2 too.
-    let mut opt = optimizer(vec![vec![
-        a1.clone(),
-        a2.clone(),
-        b1.clone(),
-        b2.clone(),
-    ]]);
+    let mut opt = optimizer(vec![vec![a1.clone(), a2.clone(), b1.clone(), b2.clone()]]);
     opt.register(&a1);
     opt.register(&b1);
     opt.register(&a2);
