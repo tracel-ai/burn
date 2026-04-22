@@ -383,7 +383,7 @@ where
         B::sync_collective(device)
     }
 
-    /// Ensure that communication bewteen the given devices is initialized.
+    /// Ensure that communication between the given devices is initialized.
     /// Initializing communication is generally blocking, so we make sure to flush those operations.
     #[cfg(feature = "distributed")]
     pub fn ensure_collective_init<B>(&self, device_ids: Vec<DeviceId>)

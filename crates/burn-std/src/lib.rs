@@ -24,6 +24,7 @@ pub use cubecl_zspace::errors::{self, *};
 pub mod network;
 
 // Re-exported types
+#[cfg(feature = "cubecl")]
 pub use cubecl::server::CommunicationId;
 pub use cubecl_common::bytes::*;
 pub use cubecl_common::device_handle::DeviceHandle;
