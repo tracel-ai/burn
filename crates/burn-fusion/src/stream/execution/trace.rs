@@ -76,7 +76,7 @@ fn collect_sections<O: NumOperations>(
 fn format_table(sections: &[Section]) -> String {
     let total: usize = sections.iter().map(|s| s.ops.len()).sum();
     if total == 0 {
-        return String::from("fusion execution: <empty>");
+        return String::from("fusion block: <empty>");
     }
 
     // One row per op across all sections. The `section` column carries the section
@@ -126,7 +126,7 @@ fn format_table(sections: &[Section]) -> String {
     writeln!(out, "{}", "═".repeat(table_width)).unwrap();
     writeln!(
         out,
-        "fusion execution ({total} op{}, {} section{})",
+        "fusion block ({total} op{}, {} section{})",
         if total == 1 { "" } else { "s" },
         sections.len(),
         if sections.len() == 1 { "" } else { "s" },
@@ -175,7 +175,7 @@ fn section_header(kind: &SectionKind, size: usize) -> String {
         SectionKind::Fused { name, score } => {
             format!("▸ fused {name} (score={score}, {size} {ops_suffix})")
         }
-        SectionKind::Operation => format!("▸ operation ({size} {ops_suffix})"),
+        SectionKind::Operation => format!("▸ un-fused ({size} {ops_suffix})"),
     }
 }
 
@@ -335,11 +335,11 @@ mod tests {
             first_line.chars().all(|c| c == '═'),
             "expected top line of ═, got {first_line:?}"
         );
-        assert!(table.contains("\nfusion execution (3 ops, 2 sections)\n"));
+        assert!(table.contains("\nfusion block (3 ops, 2 sections)\n"));
         // Fused header names the optimization and its score exactly once.
         assert!(table.contains("▸ fused FusedKernel (score=42, 2 ops)"));
         // Out-of-order header is tagged and sized.
-        assert!(table.contains("▸ operation (1 op)"));
+        assert!(table.contains("▸ un-fused (1 op)"));
         // No per-row repetition of "FusedKernel" or "42": they appear exactly once.
         assert_eq!(table.matches("FusedKernel").count(), 1);
         assert_eq!(table.matches("score=42").count(), 1);
