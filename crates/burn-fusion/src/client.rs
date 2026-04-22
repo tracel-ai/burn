@@ -374,29 +374,13 @@ where
 
     /// Synchronize the collective operations.
     #[cfg(feature = "distributed")]
-    pub fn sync_collective<B>(&self, device: B::Device)
+    pub fn sync_collective<B>(&self, device: &B::Device)
     where
         B: FusionBackend<FusionRuntime = R> + DistributedBackend,
     {
-        use burn_backend::DeviceOps;
-        let device_id = device.id();
-        println!(
-            "[{:?}] Fusion sync: {:?}",
-            std::thread::current().id(),
-            device_id
-        );
-
         // Ensure that all operations are resolved before calling sync_collective.
-        let device_cloned = device.clone();
         self.sync(|| ());
-
-        println!(
-            "[{:?}] B::sync_collective: {:?}",
-            std::thread::current().id(),
-            device_id
-        );
-
-        B::sync_collective(&device_cloned)
+        B::sync_collective(device)
     }
 
     /// Ensure that communication bewteen the given devices is initialized.
@@ -413,12 +397,9 @@ where
             .expect("Can downcast to `FusionUtilities`");
         let id = CommunicationId::from(device_ids);
         if utilities.initialized_comms.read().unwrap().contains(&id) {
-            println!("[{:?}] yep, flush queue", std::thread::current().id(),);
-
             self.flush_queue();
             let mut initialized_comms = utilities.initialized_comms.write().unwrap();
             initialized_comms.insert(id);
         }
-        println!("[{:?}] init coll finished", std::thread::current().id(),);
     }
 }

@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use burn_backend::{
-    DeviceId, DeviceOps,
+    DeviceId,
     distributed::{CollectiveTensor, DistributedBackend, ReduceOperation},
     tensor::{Device, FloatTensor},
 };
@@ -37,23 +37,10 @@ impl<B: FusionBackend + DistributedBackend> DistributedBackend for Fusion<B> {
             }
         }
 
-        let device_id = tensor.client.device().id();
-        println!(
-            "[{:?}] Fusion all_reduce: {:?}",
-            std::thread::current().id(),
-            device_id
-        );
-
         let streams = OperationStreams::with_inputs([&tensor]);
 
         let client = tensor.client.clone();
         let desc = AllReduceOpIr::create(tensor.into_ir(), || client.create_empty_handle());
-
-        println!(
-            "[{:?}] Fusion all_reduce register: {:?}",
-            std::thread::current().id(),
-            device_id
-        );
 
         let output = client
             .register(
@@ -64,33 +51,13 @@ impl<B: FusionBackend + DistributedBackend> DistributedBackend for Fusion<B> {
             .output()
             .into();
 
-        println!(
-            "[{:?}] ensure init coll: {:?}",
-            std::thread::current().id(),
-            device_id
-        );
-
-        // We need to flush the device's queue because other devices could be waiting on this call (e.g. when initializing
-        // communication between devices).
         client.ensure_collective_init::<B>(device_ids);
 
         CollectiveTensor::new(output)
     }
 
     fn sync_collective(device: &Device<Self>) {
-        println!(
-            "[{:?}] Fusion sync_collective: {:?}",
-            std::thread::current().id(),
-            device.id()
-        );
-
         let client = get_client::<B>(device);
-        client.sync_collective::<B>(device.clone());
-
-        println!(
-            "[{:?}] Fusion sync_collective finished: {:?}",
-            std::thread::current().id(),
-            device.id()
-        );
+        client.sync_collective::<B>(device);
     }
 }
