@@ -1,4 +1,5 @@
 mod cosine_similarity;
+mod det;
 mod diag;
 mod lu;
 mod matvec;
@@ -7,6 +8,7 @@ mod trace;
 mod vector_norm;
 
 pub use cosine_similarity::*;
+pub use det::*;
 pub use diag::*;
 pub use lu::*;
 pub use matvec::*;

@@ -6,6 +6,7 @@ mod aggregation;
 mod all;
 mod any;
 mod arg;
+mod blackman_window;
 mod cast;
 mod cat;
 mod categorical;
