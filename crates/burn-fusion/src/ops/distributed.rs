@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use burn_backend::{
-    DeviceId,
+    DeviceId, DeviceOps,
     distributed::{CollectiveTensor, DistributedBackend, ReduceOperation},
     tensor::{Device, FloatTensor},
 };
@@ -37,23 +37,35 @@ impl<B: FusionBackend + DistributedBackend> DistributedBackend for Fusion<B> {
             }
         }
 
+        // println!(
+        //     "[{:?}] Fusion all_reduce: {:?}",
+        //     std::thread::current().id(),
+        //     tensor.client.device().id()
+        // );
+
         let streams = OperationStreams::with_inputs([&tensor]);
 
         let client = tensor.client.clone();
         let desc = AllReduceOpIr::create(tensor.into_ir(), || client.create_empty_handle());
 
+        // println!(
+        //     "[{:?}] Fusion all_reduce register: {:?}",
+        //     std::thread::current().id(),
+        //     tensor.client.device().id()
+        // );
+
         let output = client
             .register(
                 streams,
                 OperationIr::Distributed(DistributedOperationIr::AllReduce(desc.clone())),
-                AllReduceOps::<B>::new(desc, op, device_ids),
+                AllReduceOps::<B>::new(desc, op, device_ids.clone()),
             )
             .output()
             .into();
 
         // We need to flush the device's queue because other devices could be waiting on this call (e.g. when initializing
         // communication between devices).
-        client.flush_queue();
+        client.ensure_collective_init::<B>(device_ids);
 
         CollectiveTensor::new(output)
     }
