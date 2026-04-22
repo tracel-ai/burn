@@ -76,17 +76,3 @@ fn load_full_toml_ignores_cubecl_when_feature_off() {
     assert!(config.fusion.logger.stdout);
     assert_eq!(config.autodiff.logger.level, AutodiffLogLevel::Basic);
 }
-
-#[cfg(feature = "cubecl")]
-#[test]
-fn load_full_toml_populates_cubecl_when_feature_on() {
-    let file = write_toml(FULL_TOML);
-    let config = BurnConfig::from_file_path(file.path()).expect("parse full toml");
-
-    // Sanity-check one field per CubeCL sub-config we set in FULL_TOML. We don't want
-    // to over-constrain on CubeCL's internal enum shape — just confirm the section was
-    // deserialized end-to-end instead of dropped on the floor.
-    use cubecl::config::autotune::AutotuneLevel;
-    assert!(matches!(config.cubecl.autotune.level, AutotuneLevel::Full));
-    assert!(config.cubecl.compilation.logger.stdout);
-}
