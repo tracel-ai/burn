@@ -95,20 +95,11 @@ impl TraceFuser {
         estimation
     }
 
-    pub(crate) fn num_block_local_output(&self) -> usize {
-        let mut buffers = Vec::new();
-        let tensors = self
-            .block_current
-            .tensor_writes(&self.resources, &mut buffers);
-        println!("num outputs {tensors:?}");
-        tensors.len()
-    }
-
-    pub(crate) fn num_block_local_input(&self) -> usize {
+    pub(crate) fn num_multi_block_local_inputs(&self) -> usize {
         self.block_current
             .local_inputs
             .iter()
-            .filter(|(_, x)| matches!(x, FuseArg::Input(..)))
+            .filter(|(_, x)| matches!(x, FuseArg::MultiBlockLocal(..)))
             .count()
     }
 

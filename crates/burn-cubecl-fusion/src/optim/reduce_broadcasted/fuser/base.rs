@@ -107,22 +107,6 @@ impl<R: Runtime> ReduceBroadcastedFuser<R> {
                 return;
             }
             ReduceBlockFusionAnalysis::NewBlockRequired => {
-                // Make sure the reference layout of this block is not a tensor view.
-                // This assumes that at least one input or one output of this block is
-                // concrete.
-                // If a block is only composed of a view, it's not accepted.
-                // let num_views = block.fuser.fuser.num_views;
-                // let reference_can_be_input =
-                //     block.fuser.fuser.fuser.fuser.num_block_local_input() > 0;
-                // let reference_can_be_output =
-                //     block.fuser.fuser.fuser.fuser.num_block_local_output() > num_views;
-                // let reference_is_concrete = reference_can_be_input || reference_can_be_output;
-
-                // if num_views > 0 && !reference_is_concrete {
-                //     self.state = ReduceBroadcastedStatus::Abort;
-                //     return;
-                // }
-
                 let info = block.fuser.reduce_info();
                 let mut block = ReduceBlockFuser::new(self.fuser_default.clone());
                 block.fuse(operation);

@@ -173,8 +173,6 @@ impl<'a, R: Runtime> OutputPlanner<'a, R> {
             if !plan.blocks[i].reference.is_found() {
                 match self.blocks[i].settings.ref_layout {
                     RefLayoutSetting::SameAsBlock { block_pos } => {
-                        // TODO: maybe force contiguous?
-                        println!("ref layout setting same as block");
                         plan.blocks[i].reference =
                             plan.blocks[block_pos as usize].reference.clone();
                     }
