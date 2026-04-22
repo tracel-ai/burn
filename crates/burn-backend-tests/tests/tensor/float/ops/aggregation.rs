@@ -389,12 +389,10 @@ fn test_reduce_dim_non_contiguous_input() {
         [5.0, 6.0, 7.0, 8.0],
         [9.0, 10.0, 11.0, 12.0],
     ]);
-    // let t_transposed = t.transpose();
     let t_transposed = t.swap_dims(0, 1) /*+ 0.*/;
 
     let dim = 1;
-    let max = t_transposed.clone().sum_dim(dim); // max_dim
-    // let max = Tensor::from_data(max.into_data(), &Default::default());
+    let max = t_transposed.clone().max_dim(dim);
     let shifted = t_transposed.sub(max);
     let exp = shifted.exp();
     let sum = exp.clone().sum_dim(dim);
