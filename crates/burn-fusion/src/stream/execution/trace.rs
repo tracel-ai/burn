@@ -1,5 +1,5 @@
 //! Full-level fusion logging: builds a table of every operation that was executed as
-//! part of a block optimization, tagging each row as fused, out-of-order, or part of a
+//! part of a block optimization, tagging each row as fused, operation, or part of a
 //! composed strategy.
 
 use burn_ir::{OperationIr, TensorIr};
@@ -339,7 +339,7 @@ mod tests {
         // Fused header names the optimization and its score exactly once.
         assert!(table.contains("▸ fused FusedKernel (score=42, 2 ops)"));
         // Out-of-order header is tagged and sized.
-        assert!(table.contains("▸ out-of-order (1 op)"));
+        assert!(table.contains("▸ operation (1 op)"));
         // No per-row repetition of "FusedKernel" or "42": they appear exactly once.
         assert_eq!(table.matches("FusedKernel").count(), 1);
         assert_eq!(table.matches("score=42").count(), 1);
