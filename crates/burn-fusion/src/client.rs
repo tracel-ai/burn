@@ -388,7 +388,7 @@ where
 
         // Ensure that all operations are resolved before calling sync_collective.
         let device_cloned = device.clone();
-        self.sync(move || B::sync(&device)).unwrap();
+        self.sync(|| ());
 
         println!(
             "[{:?}] B::sync_collective: {:?}",
