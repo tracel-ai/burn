@@ -29,7 +29,7 @@ std::thread_local! {
 pub fn config() -> Arc<BurnConfig> {
     #[cfg(feature = "std")]
     {
-        LOCAL_CONFIG.with(|cell| cell.get_or_init(|| BurnConfig::get()).clone())
+        LOCAL_CONFIG.with(|cell| cell.get_or_init(BurnConfig::get).clone())
     }
     #[cfg(not(feature = "std"))]
     {

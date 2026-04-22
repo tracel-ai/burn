@@ -181,9 +181,7 @@ fn section_header(kind: &SectionKind, size: usize) -> String {
 
 /// Take the top-level variant name from a Debug representation (`"Foo(..)"` → `"Foo"`).
 fn debug_head(s: &str) -> &str {
-    let end = s
-        .find(|c: char| matches!(c, '(' | '{' | ' '))
-        .unwrap_or(s.len());
+    let end = s.find(['(', '{', ' ']).unwrap_or(s.len());
     &s[..end]
 }
 
@@ -232,9 +230,7 @@ fn write_dtype(out: &mut String, dtype: &burn_backend::DType) {
     // output reads like a Rust type annotation; keep anything after the first paren/brace
     // (e.g. Bool variants or QFloat scheme details) verbatim.
     let dbg = format!("{dtype:?}");
-    let split = dbg
-        .find(|c: char| matches!(c, '(' | '{' | ' '))
-        .unwrap_or(dbg.len());
+    let split = dbg.find(['(', '{', ' ']).unwrap_or(dbg.len());
     let (head, tail) = dbg.split_at(split);
     for c in head.chars() {
         out.push(c.to_ascii_lowercase());

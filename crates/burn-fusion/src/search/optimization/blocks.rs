@@ -119,7 +119,7 @@ impl<O: NumOperations> BlocksOptimizer<O> {
             if num_strategies > 1 {
                 format!("selected composed strategy ({num_strategies} sub-strategies)")
             } else {
-                format!("selected single strategy")
+                "selected single strategy".to_string()
             }
         });
 
