@@ -98,12 +98,28 @@ impl<O: NumOperations> Block<O> {
     ///
     /// This will modify the current block even if the other block isn't correctly merged.
     pub fn merge(&mut self, other: &Block<O>) -> bool {
+        let self_ready = self.has_ready_optimization();
+        let other_ready = other.has_ready_optimization();
+
         for (op, pos) in other.operations.iter().zip(&other.ordering) {
             self.register(op, *pos, true);
         }
 
-        // The operation is successful if the current block can still be optimized.
-        self.still_optimizing()
+        // If the merged block can still be improved, keep it — that's the
+        // usual lazy-optimization signal.
+        if self.still_optimizing() {
+            return true;
+        }
+
+        // Otherwise, only accept the merge when it *creates* a ready fusion
+        // that didn't exist separately. If either side already had a ready
+        // fusion before the merge, merging would collapse them and hide one
+        // of the fusions — keep the blocks separate instead.
+        !self_ready && !other_ready && self.has_ready_optimization()
+    }
+
+    fn has_ready_optimization(&self) -> bool {
+        self.builders.iter().any(|b| b.properties().ready)
     }
 
     /// Register an [operation](OperationIr) in the current block.

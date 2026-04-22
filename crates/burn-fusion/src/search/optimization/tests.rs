@@ -140,16 +140,12 @@ fn contiguous_independent_blocks_fuse_both() {
 // Two independent blocks *interleaved* in the stream.
 //
 // Block A has no shared tensors with block B, so the two blocks have no data
-// dependency — reordering them is safe. The "right" behavior would be to
-// fuse both blocks (`[0, 2, 1, 3]` with a two-optimization Composed).
-//
-// Currently: the optimizer short-circuits on the first block's `WithHoles`
-// result and never processes block B. Stream index 3 (B2) is silently
-// dropped, only B1 is emitted as a lone unfused op.
+// dependency — reordering them is safe. Both blocks fuse, each block's ops
+// grouped contiguously.
 // ---------------------------------------------------------------------------
 
 #[test]
-fn interleaved_independent_blocks_drops_second_block_tail() {
+fn interleaved_independent_blocks_fuse_both() {
     let a1 = add(100, 101, 102);
     let a2 = add(102, 103, 104);
     let b1 = add(200, 201, 202);
@@ -165,31 +161,25 @@ fn interleaved_independent_blocks_drops_second_block_tail() {
         ],
     );
 
-    // Block A fuses. B1 appears as an un-fused op. B2 (stream index 3) is gone.
-    assert_eq!(res.ordering, vec![0, 2, 1]);
+    assert_eq!(res.ordering, vec![0, 2, 1, 3]);
     assert_eq!(
         res.strategy,
         composed(vec![
             optimization(0, 2, vec![0, 2], 2),
-            operations(vec![1]),
+            optimization(1, 2, vec![1, 3], 2),
         ]),
     );
 }
 
 // ---------------------------------------------------------------------------
 // Interleaved independent blocks with only ONE builder that matches the
-// *combined*, reordered stream [A1, A2, B1, B2]. With proper reordering,
-// all four ops should fuse into one optimization.
-//
-// Currently: `merging_pass` rejects the successful merged fusion because
-// `Block::merge` conflates "still optimizing" with "merge is useful". With no
-// merge, block A's builder sits at `ready = false` (needs four ops, saw
-// two). The optimizer falls back to `Operations` and picks only the min
-// index → ordering ends up `[0]`, losing B1, A2, and B2 entirely.
+// *combined*, reordered stream [A1, A2, B1, B2]. The merging pass combines
+// the two blocks so the builder sees its full pattern and fuses everything
+// into one optimization.
 // ---------------------------------------------------------------------------
 
 #[test]
-fn interleaved_blocks_with_merged_pattern_drops_most_ops() {
+fn interleaved_blocks_with_merged_pattern_fuses_full() {
     let a1 = add(100, 101, 102);
     let a2 = add(102, 103, 104);
     let b1 = add(200, 201, 202);
@@ -202,33 +192,33 @@ fn interleaved_blocks_with_merged_pattern_drops_most_ops() {
         vec![vec![a1.clone(), a2.clone(), b1.clone(), b2.clone()]],
     );
 
-    assert_eq!(res.ordering, vec![0]);
-    assert_eq!(res.strategy, operations(vec![0]));
+    assert_eq!(res.ordering, vec![0, 2, 1, 3]);
+    assert_eq!(res.strategy, optimization(0, 4, vec![0, 2, 1, 3], 4));
 }
 
 // ---------------------------------------------------------------------------
 // Interleaved independent blocks, only one has a matching builder. Block A
-// fuses; B1 survives as a lone un-fused op; B2 is silently dropped, same
-// shape of bug as `interleaved_independent_blocks_drops_second_block_tail`.
+// fuses; block B's ops survive as un-fused Operations in the composed
+// strategy.
 // ---------------------------------------------------------------------------
 
 #[test]
-fn interleaved_blocks_single_builder_drops_second_block_tail() {
+fn interleaved_blocks_single_builder_preserves_other_ops() {
     let a1 = add(100, 101, 102);
     let a2 = add(102, 103, 104);
     let b1 = add(200, 201, 202);
     let b2 = add(202, 203, 204);
     let ops = vec![a1.clone(), b1.clone(), a2.clone(), b2.clone()];
 
-    // Only a builder for block A — B's ops should survive, but B2 is dropped.
+    // Only a builder for block A — B's ops survive as Operations.
     let res = run(&ops, vec![vec![a1.clone(), a2.clone()]]);
 
-    assert_eq!(res.ordering, vec![0, 2, 1]);
+    assert_eq!(res.ordering, vec![0, 2, 1, 3]);
     assert_eq!(
         res.strategy,
         composed(vec![
             optimization(0, 2, vec![0, 2], 2),
-            operations(vec![1]),
+            operations(vec![1, 3]),
         ]),
     );
 }
