@@ -37,7 +37,7 @@ enum SectionKind {
     /// Fused optimization: name + score are shared by every op in this section.
     Fused { name: &'static str, score: u64 },
     /// Plain operations that couldn't be fused (and may have been reordered).
-    OutOfOrder,
+    Operation,
 }
 
 fn collect_sections<O: NumOperations>(
@@ -61,7 +61,7 @@ fn collect_sections<O: NumOperations>(
         }
         ExecutionStrategy::Operations { ordering } => {
             sections.push(Section {
-                kind: SectionKind::OutOfOrder,
+                kind: SectionKind::Operation,
                 ops: ordering.iter().map(|&i| global[i].clone()).collect(),
             });
         }
@@ -175,7 +175,7 @@ fn section_header(kind: &SectionKind, size: usize) -> String {
         SectionKind::Fused { name, score } => {
             format!("▸ fused {name} (score={score}, {size} {ops_suffix})")
         }
-        SectionKind::OutOfOrder => format!("▸ out-of-order ({size} {ops_suffix})"),
+        SectionKind::Operation => format!("▸ operation ({size} {ops_suffix})"),
     }
 }
 
@@ -326,7 +326,7 @@ mod tests {
                 ops: vec![op.clone(), op.clone()],
             },
             Section {
-                kind: SectionKind::OutOfOrder,
+                kind: SectionKind::Operation,
                 ops: vec![op],
             },
         ];
