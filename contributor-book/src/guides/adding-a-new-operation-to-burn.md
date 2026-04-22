@@ -36,7 +36,7 @@ one of `Bool`, `Float`, or `Int` (those linked in 3). These call the ops for tha
 in the
 [`Backend`](https://github.com/tracel-ai/burn/blob/9f31281/crates/burn-backend/src/backend/base.rs#L64)
 supertrait[^supertrait]. This is the trait that is then implemented by the different `burn-`
-backends (such as `burn-ndarray` and `burn-wgpu`) which must implement the functions if no default
+backends (such as `burn-flex` and `burn-wgpu`) which must implement the functions if no default
 is provided.
 
 In this case, we don't need to worry about `Bool` Tensors. `Float` ops are implemented under
@@ -153,14 +153,14 @@ For testing the `autodiff` operations, please refer to
 ## Adding the Op to other backends
 
 Most of these are fairly straightforward implementations. For reference here's pow's float
-implementation for torch and ndarray backends:
+implementation for torch and flex backends:
 
 1. Torch implementation in
    [crates/burn-tch/src/ops/tensor.rs](https://github.com/tracel-ai/burn/blob/0ee2021567b3725907df5fd1a905ce60b1aca096/crates/burn-tch/src/ops/tensor.rs#L467)
    and the Op used in
    [crates/burn-tch/src/ops/base.rs](https://github.com/tracel-ai/burn/blob/0ee2021567b3725907df5fd1a905ce60b1aca096/crates/burn-tch/src/ops/base.rs#L481)
-2. NdArray in
-   [crates/burn-ndarray/src/ops/tensor.rs](https://github.com/tracel-ai/burn/blob/0ee2021567b3725907df5fd1a905ce60b1aca096/crates/burn-ndarray/src/ops/tensor.rs#L472)
+2. Flex in
+   [crates/burn-flex/src/ops/float.rs](https://github.com/tracel-ai/burn/blob/main/crates/burn-flex/src/ops/float.rs)
 
 This is where any calculation happens currently. Playing a guessing game with method names and
 seeing what completions are suggested will take you far. If you are having trouble figuring out how

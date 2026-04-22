@@ -9,7 +9,7 @@
 
 use burn_core as burn;
 use burn_core::module::Module;
-use burn_ndarray::NdArray;
+use burn_flex::Flex;
 use burn_nn::{LayerNorm, LayerNormConfig, Linear, LinearConfig};
 use burn_store::{BurnpackStore, HalfPrecisionAdapter, ModuleSnapshot};
 use burn_tensor::backend::Backend;
@@ -33,7 +33,7 @@ impl<B: Backend> DemoModel<B> {
 }
 
 fn main() {
-    type B = NdArray<f32>;
+    type B = Flex;
     let device = Default::default();
     let model = DemoModel::<B>::new(&device);
 

@@ -27,21 +27,13 @@ pub fn launch<B: AutodiffBackend>(device: B::Device) {
     );
 }
 
-#[cfg(any(
-    feature = "ndarray",
-    feature = "ndarray-blas-netlib",
-    feature = "ndarray-blas-openblas",
-    feature = "ndarray-blas-accelerate",
-))]
-mod ndarray {
-    use crate::{ElemType, launch};
-    use burn::backend::{
-        Autodiff,
-        ndarray::{NdArray, NdArrayDevice},
-    };
+#[cfg(feature = "flex")]
+mod flex {
+    use crate::launch;
+    use burn::backend::{Autodiff, Flex};
 
     pub fn run() {
-        launch::<Autodiff<NdArray<ElemType>>>(NdArrayDevice::Cpu);
+        launch::<Autodiff<Flex>>(Default::default());
     }
 }
 
@@ -93,13 +85,8 @@ mod wgpu {
 }
 
 fn main() {
-    #[cfg(any(
-        feature = "ndarray",
-        feature = "ndarray-blas-netlib",
-        feature = "ndarray-blas-openblas",
-        feature = "ndarray-blas-accelerate",
-    ))]
-    ndarray::run();
+    #[cfg(feature = "flex")]
+    flex::run();
     #[cfg(feature = "tch-gpu")]
     tch_gpu::run();
     #[cfg(feature = "tch-cpu")]

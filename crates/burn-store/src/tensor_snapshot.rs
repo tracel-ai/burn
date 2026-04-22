@@ -305,7 +305,7 @@ impl core::fmt::Debug for TensorSnapshot {
 #[cfg(all(test, feature = "std"))]
 mod tests {
     use super::*;
-    type TestBackend = burn_ndarray::NdArray;
+    type TestBackend = burn_flex::Flex;
     use alloc::string::ToString;
     use burn_tensor::{BoolStore, DType, shape};
 
@@ -346,13 +346,13 @@ mod tests {
         );
 
         // Test metadata access without materialization
-        // TestBackend uses I64 for integers
-        assert_eq!(snapshot.dtype, DType::I64);
+        // TestBackend (Flex) uses I32 for integers
+        assert_eq!(snapshot.dtype, DType::I32);
         assert_eq!(snapshot.shape, shape![2, 2]);
 
         let data = snapshot.to_data().unwrap();
         assert_eq!(data.shape, shape![2, 2]);
-        assert_eq!(data.dtype, DType::I64);
+        assert_eq!(data.dtype, DType::I32);
     }
 
     #[test]
@@ -391,16 +391,16 @@ mod tests {
         );
         assert_eq!(view_f32.data_len(), 16); // 4 elements * 4 bytes
 
-        // Test I64 tensor (8 bytes per element) - TestBackend uses I64 for Int
-        let tensor_i64 =
+        // Test I32 tensor (4 bytes per element) - TestBackend (Flex) uses I32 for Int
+        let tensor_int =
             Tensor::<TestBackend, 3, Int>::from_data([[[1, 2], [3, 4]], [[5, 6], [7, 8]]], &device);
-        let view_i64 = TensorSnapshot::from_int(
-            &tensor_i64,
+        let view_int = TensorSnapshot::from_int(
+            &tensor_int,
             vec!["test".to_string()],
             vec!["Module".to_string()],
             ParamId::new(),
         );
-        assert_eq!(view_i64.data_len(), 64); // 8 elements * 8 bytes (I64)
+        assert_eq!(view_int.data_len(), 32); // 8 elements * 4 bytes (I32)
 
         // Test Bool tensor (1 byte per element)
         let tensor_bool =

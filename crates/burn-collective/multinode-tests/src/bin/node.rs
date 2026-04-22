@@ -1,5 +1,5 @@
 use burn::{
-    backend::NdArray,
+    backend::Flex,
     prelude::Backend,
     tensor::{Tensor, TensorPrimitive, Tolerance},
 };
@@ -20,7 +20,7 @@ use std::thread::JoinHandle;
 use tokio_serde::formats::MessagePack;
 use tokio_util::codec::LengthDelimitedCodec;
 
-type TestBackend = NdArray;
+type TestBackend = Flex;
 
 /// Framed TCP connection channel
 type TestChannel = tokio_serde::Framed<
@@ -50,7 +50,7 @@ pub async fn main() {
     while let Some(Ok(test)) = socket.next().await {
         println!("Received test: {test:?}");
 
-        let result = run_test::<NdArray>(&test);
+        let result = run_test::<Flex>(&test);
 
         // send the result back
         socket.send(result).await.expect("failed to send Result");

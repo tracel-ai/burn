@@ -7,10 +7,7 @@ version.workspace = true
 
 [features]
 default = ["burn/tui"]
-ndarray = ["burn/ndarray"]
-ndarray-blas-accelerate = ["burn/ndarray", "burn/accelerate"]
-ndarray-blas-netlib = ["burn/ndarray", "burn/blas-netlib"]
-ndarray-blas-openblas = ["burn/ndarray", "burn/openblas"]
+flex = ["burn/flex"]
 tch-cpu = ["burn/tch"]
 tch-gpu = ["burn/tch"]
 remote = ["burn/remote"]
@@ -28,7 +25,7 @@ burn = { path = "../../crates/burn", features = [
     "std",
     "rl",
     # "fusion",
-    "ndarray",
+    "flex",
     # "autotune",
 ], default-features = false }
 # Just for this example.

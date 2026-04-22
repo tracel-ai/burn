@@ -13,9 +13,9 @@ workspace = true
 crate-type = ["cdylib"]
 
 [features]
-default = ["ndarray"]
+default = ["flex"]
 
-ndarray = ["burn/ndarray"]
+flex = ["burn/flex"]
 wgpu = ["burn/wgpu"]
 
 [dependencies]

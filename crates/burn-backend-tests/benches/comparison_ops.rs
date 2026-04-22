@@ -5,8 +5,10 @@
 //! cargo bench --bench comparison_ops
 //! ```
 
-use burn_flex::Flex;
-use burn_ndarray::NdArray;
+#[path = "common/mod.rs"]
+mod common;
+use common::{BencherExt, TestBackend};
+
 use burn_tensor::{Tensor, TensorData, backend::Backend};
 use divan::{AllocProfiler, Bencher};
 
@@ -17,6 +19,7 @@ fn main() {
     println!("Benchmarking comparison and broadcast operations");
     println!();
     divan::main();
+    common::report_failures();
 }
 
 const SMALL: usize = 64 * 64; // 4K elements
@@ -52,21 +55,21 @@ macro_rules! bench_backend {
                 fn small(bencher: Bencher) {
                     let a = make_tensor::<B>(SMALL);
                     let b = make_tensor::<B>(SMALL);
-                    bencher.bench(|| a.clone().greater(b.clone()));
+                    bencher.bench_synced(|| a.clone().greater(b.clone()));
                 }
 
                 #[divan::bench]
                 fn medium(bencher: Bencher) {
                     let a = make_tensor::<B>(MEDIUM);
                     let b = make_tensor::<B>(MEDIUM);
-                    bencher.bench(|| a.clone().greater(b.clone()));
+                    bencher.bench_synced(|| a.clone().greater(b.clone()));
                 }
 
                 #[divan::bench]
                 fn large(bencher: Bencher) {
                     let a = make_tensor::<B>(LARGE);
                     let b = make_tensor::<B>(LARGE);
-                    bencher.bench(|| a.clone().greater(b.clone()));
+                    bencher.bench_synced(|| a.clone().greater(b.clone()));
                 }
             }
 
@@ -78,7 +81,7 @@ macro_rules! bench_backend {
                 #[divan::bench]
                 fn large(bencher: Bencher) {
                     let a = make_tensor::<B>(LARGE);
-                    bencher.bench(|| a.clone().greater_elem(0.5));
+                    bencher.bench_synced(|| a.clone().greater_elem(0.5));
                 }
             }
 
@@ -91,14 +94,14 @@ macro_rules! bench_backend {
                 fn small(bencher: Bencher) {
                     let a = make_tensor::<B>(SMALL);
                     let b = make_tensor::<B>(SMALL);
-                    bencher.bench(|| a.clone().equal(b.clone()));
+                    bencher.bench_synced(|| a.clone().equal(b.clone()));
                 }
 
                 #[divan::bench]
                 fn large(bencher: Bencher) {
                     let a = make_tensor::<B>(LARGE);
                     let b = make_tensor::<B>(LARGE);
-                    bencher.bench(|| a.clone().equal(b.clone()));
+                    bencher.bench_synced(|| a.clone().equal(b.clone()));
                 }
             }
 
@@ -111,7 +114,7 @@ macro_rules! bench_backend {
                 fn large(bencher: Bencher) {
                     let a = make_tensor::<B>(LARGE);
                     let b = make_tensor::<B>(LARGE);
-                    bencher.bench(|| a.clone().lower(b.clone()));
+                    bencher.bench_synced(|| a.clone().lower(b.clone()));
                 }
             }
 
@@ -124,14 +127,14 @@ macro_rules! bench_backend {
                 fn medium_256x256(bencher: Bencher) {
                     let a = make_tensor_2d::<B>(256, 256).transpose();
                     let b = make_tensor_2d::<B>(256, 256);
-                    bencher.bench(|| a.clone().greater(b.clone()));
+                    bencher.bench_synced(|| a.clone().greater(b.clone()));
                 }
 
                 #[divan::bench]
                 fn large_1024x1024(bencher: Bencher) {
                     let a = make_tensor_2d::<B>(1024, 1024).transpose();
                     let b = make_tensor_2d::<B>(1024, 1024);
-                    bencher.bench(|| a.clone().greater(b.clone()));
+                    bencher.bench_synced(|| a.clone().greater(b.clone()));
                 }
             }
 
@@ -144,14 +147,14 @@ macro_rules! bench_backend {
                 fn broadcast_256x256(bencher: Bencher) {
                     let a = make_tensor_2d::<B>(256, 1);
                     let b = make_tensor_2d::<B>(1, 256);
-                    bencher.bench(|| a.clone().greater(b.clone()));
+                    bencher.bench_synced(|| a.clone().greater(b.clone()));
                 }
 
                 #[divan::bench]
                 fn broadcast_1024x1024(bencher: Bencher) {
                     let a = make_tensor_2d::<B>(1024, 1);
                     let b = make_tensor_2d::<B>(1, 1024);
-                    bencher.bench(|| a.clone().greater(b.clone()));
+                    bencher.bench_synced(|| a.clone().greater(b.clone()));
                 }
             }
 
@@ -163,19 +166,19 @@ macro_rules! bench_backend {
                 #[divan::bench]
                 fn expand_1_to_1m(bencher: Bencher) {
                     let a = make_tensor_2d::<B>(1, 1);
-                    bencher.bench(|| a.clone().expand([1000, 1000]));
+                    bencher.bench_synced(|| a.clone().expand([1000, 1000]));
                 }
 
                 #[divan::bench]
                 fn expand_row_1024x1_to_1024x1024(bencher: Bencher) {
                     let a = make_tensor_2d::<B>(1024, 1);
-                    bencher.bench(|| a.clone().expand([1024, 1024]));
+                    bencher.bench_synced(|| a.clone().expand([1024, 1024]));
                 }
 
                 #[divan::bench]
                 fn expand_col_1x1024_to_1024x1024(bencher: Bencher) {
                     let a = make_tensor_2d::<B>(1, 1024);
-                    bencher.bench(|| a.clone().expand([1024, 1024]));
+                    bencher.bench_synced(|| a.clone().expand([1024, 1024]));
                 }
             }
 
@@ -189,7 +192,7 @@ macro_rules! bench_backend {
                     let a = make_tensor::<B>(LARGE);
                     let b = make_tensor::<B>(LARGE);
                     let mask = a.greater(b);
-                    bencher.bench(|| mask.clone().bool_not());
+                    bencher.bench_synced(|| mask.clone().bool_not());
                 }
             }
 
@@ -203,12 +206,11 @@ macro_rules! bench_backend {
                     let b = make_tensor::<B>(LARGE);
                     let mask1 = a.clone().greater(b.clone());
                     let mask2 = a.lower(b);
-                    bencher.bench(|| mask1.clone().bool_and(mask2.clone()));
+                    bencher.bench_synced(|| mask1.clone().bool_and(mask2.clone()));
                 }
             }
         }
     };
 }
 
-bench_backend!(Flex, flex, "Flex");
-bench_backend!(NdArray, ndarray, "NdArray");
+bench_backend!(TestBackend, backend, "backend");

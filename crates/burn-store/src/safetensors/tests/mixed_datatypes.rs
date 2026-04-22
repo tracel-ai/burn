@@ -61,7 +61,7 @@ mod tests {
 
     #[test]
     fn test_mixed_dtypes_round_trip() {
-        type TestBackend = burn_ndarray::NdArray<f32>;
+        type TestBackend = burn_flex::Flex;
         let device = Default::default();
 
         // Create model with mixed data types
@@ -97,7 +97,7 @@ mod tests {
 
     #[test]
     fn test_dtype_detection() {
-        type TestBackend = burn_ndarray::NdArray<f32>;
+        type TestBackend = burn_flex::Flex;
         let device = Default::default();
 
         let model = MixedDtypeModel::<TestBackend>::new(&device);
@@ -140,7 +140,7 @@ mod tests {
 
     #[test]
     fn test_extreme_values() {
-        type TestBackend = burn_ndarray::NdArray<f32>;
+        type TestBackend = burn_flex::Flex;
         let device = <TestBackend as Backend>::Device::default();
 
         #[derive(Module, Debug)]
@@ -212,7 +212,7 @@ mod tests {
 
         // Test with f32 backend
         {
-            type TestBackend = burn_ndarray::NdArray<f32>;
+            type TestBackend = burn_flex::Flex;
             let device = Default::default();
 
             let model = MixedDtypeModel::<TestBackend>::new(&device);
@@ -238,7 +238,7 @@ mod tests {
 
         // Test with f64 weights
         {
-            type TestBackend = burn_ndarray::NdArray<f32>;
+            type TestBackend = burn_flex::Flex;
             let device = Default::default();
 
             #[derive(Module, Debug)]
@@ -281,7 +281,7 @@ mod tests {
 
     #[test]
     fn test_mixed_precision_integers() {
-        type TestBackend = burn_ndarray::NdArray<f32>;
+        type TestBackend = burn_flex::Flex;
         let device = Default::default();
 
         #[derive(Module, Debug)]
@@ -344,7 +344,7 @@ mod tests {
 
     #[test]
     fn test_comprehensive_mixed_types() {
-        type TestBackend = burn_ndarray::NdArray<f32>;
+        type TestBackend = burn_flex::Flex;
         let device = Default::default();
 
         #[derive(Module, Debug)]

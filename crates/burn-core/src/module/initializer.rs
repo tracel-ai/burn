@@ -296,7 +296,7 @@ mod tests {
     use burn_tensor::{ElementConversion, TensorData};
     use num_traits::Pow;
 
-    pub type TB = burn_ndarray::NdArray<f32>;
+    pub type TB = burn_flex::Flex;
     use burn_tensor::{Tolerance, ops::FloatElem};
     type FT = FloatElem<TB>;
 

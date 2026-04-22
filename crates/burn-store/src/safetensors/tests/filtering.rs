@@ -2,7 +2,7 @@ use crate::{ModuleSnapshot, SafetensorsStore};
 
 use super::round_trip::ComplexModule;
 
-type TestBackend = burn_ndarray::NdArray;
+type TestBackend = burn_flex::Flex;
 
 #[test]
 #[cfg(target_has_atomic = "ptr")]

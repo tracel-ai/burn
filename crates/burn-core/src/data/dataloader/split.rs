@@ -75,10 +75,7 @@ mod tests {
             not(feature = "test-cuda")
         ))]
         // Only one device exists...
-        let (device1, device2) = (
-            burn_ndarray::NdArrayDevice::Cpu,
-            burn_ndarray::NdArrayDevice::Cpu,
-        );
+        let (device1, device2) = (burn_flex::FlexDevice, burn_flex::FlexDevice);
 
         #[cfg(all(test, feature = "test-tch"))]
         let (device1, device2) = (

@@ -39,7 +39,7 @@ use burn_backend::{
 /// # Example
 /// ```rust,ignore
 /// use burn::tensor::Tensor;
-/// use burn::backend::NdArray;
+/// use burn::backend::Flex;
 /// use burn::tensor::linalg;
 ///
 /// fn example<B: Backend>() {

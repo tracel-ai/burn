@@ -19,13 +19,12 @@ workspace = true
 
 
 [features]
-default = ["ndarray", "cubecl-backend", "fusion", "std"]
+default = ["flex", "cubecl-backend", "fusion", "std"]
 std = ["aligned-vec/std", "burn-store?/std", "burn-std?/std"]
 tracing = [
     "burn-cubecl?/tracing",
     "burn-fusion?/tracing",
     "burn-ir/tracing",
-    "burn-ndarray?/tracing",
     "burn-tch?/tracing",
     "burn-tensor/tracing",
     "cubecl/tracing",
@@ -33,7 +32,7 @@ tracing = [
 
 cubecl-backend = ["cubecl", "burn-cubecl"]
 fusion = ["burn-fusion", "burn-cuda/fusion", "burn-wgpu/fusion"]
-ndarray = ["burn-ndarray"]
+flex = ["burn-flex"]
 tch = ["burn-tch"]
 
 # TODO: move somewhere else
@@ -47,12 +46,12 @@ test-vulkan = ["burn-wgpu/vulkan", "test-wgpu"]
 test-metal = ["burn-wgpu/metal", "test-wgpu"]
 
 [dependencies]
-aligned-vec = { version = "0.6", default-features = false }
+aligned-vec = { workspace = true }
 bon = { workspace = true }
 burn-cubecl = { path = "../burn-cubecl", version = "=0.21.0-pre.3", optional = true }
 burn-fusion = { path = "../burn-fusion", version = "=0.21.0-pre.3", optional = true }
+burn-flex = { path = "../burn-flex", version = "=0.21.0-pre.3", optional = true }
 burn-ir = { path = "../burn-ir", version = "=0.21.0-pre.3" }
-burn-ndarray = { path = "../burn-ndarray", version = "=0.21.0-pre.3", optional = true }
 burn-tch = { path = "../burn-tch", version = "=0.21.0-pre.3", optional = true }
 burn-tensor = { path = "../burn-tensor", version = "=0.21.0-pre.3" }
 burn-tensor-testgen = { path = "../burn-tensor-testgen", version = "=0.21.0-pre.3", optional = true }
@@ -75,6 +74,6 @@ serde = { workspace = true }
 
 [dev-dependencies]
 burn-cuda = { path = "../burn-cuda", version = "=0.21.0-pre.3", default-features = false }
-burn-ndarray = { path = "../burn-ndarray", version = "=0.21.0-pre.3" }
+burn-flex = { path = "../burn-flex", version = "=0.21.0-pre.3" }
 burn-wgpu = { path = "../burn-wgpu", version = "=0.21.0-pre.3", default-features = false }
 cubecl = { workspace = true }

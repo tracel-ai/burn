@@ -19,7 +19,7 @@ use burn_nn::{
     not(feature = "test-cuda"),
     not(feature = "test-rocm")
 ))]
-pub type B = burn_ndarray::NdArray<f32>;
+pub type B = burn_flex::Flex;
 
 #[cfg(all(test, feature = "test-wgpu"))]
 /// Backend for test cases

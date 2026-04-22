@@ -173,7 +173,7 @@ impl Default for DispatchDevice {
         // Prefer Flex over NdArray when both are enabled: Flex is the long-term
         // CPU backend replacement and should win the default tie.
         #[cfg(feature = "flex")]
-        return Self::Flex(FlexDevice::default());
+        return Self::Flex(FlexDevice);
 
         #[cfg(feature = "ndarray")]
         return Self::NdArray(NdArrayDevice::default());

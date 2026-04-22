@@ -176,19 +176,22 @@ tch = "0.22.0"
 torch-sys = "0.22.0"                                        # matches what tch is using, required for lib detection
 
 ahash = { version = "0.8.12", default-features = false }
+aligned-vec = { version = "0.6", default-features = false }
+once_cell = { version = "1", default-features = false }
 portable-atomic = { version = "1.13.1" }
 portable-atomic-util = { version = "0.2.6", features = ["alloc"] }
+realfft = "3"
 
 ### For the main burn branch. ###
-# cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "96d5f7224a56979baca6dae0afbc0bc4d83a7c2f" }
-# cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "96d5f7224a56979baca6dae0afbc0bc4d83a7c2f" }
-# cubecl-zspace = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "96d5f7224a56979baca6dae0afbc0bc4d83a7c2f" }
-# cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "ac4b2e485175c18449b851cbc51883fb967f0f81" }
+cubecl = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "8a72cb20e2d205ad312fb62de872e7fac00c9fdc" }
+cubecl-common = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "8a72cb20e2d205ad312fb62de872e7fac00c9fdc" }
+cubecl-zspace = { git = "https://github.com/tracel-ai/cubecl", default-features = false, rev = "8a72cb20e2d205ad312fb62de872e7fac00c9fdc" }
+cubek = { git = "https://github.com/tracel-ai/cubek", default-features = false, rev = "65d61e2f9cc52babbd4d25a908d6bdc6ce13f5cd" }
 ### For local development. ###
-cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
-cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }
-cubecl-zspace = { path = "../cubecl/crates/cubecl-zspace", default-features = false }
-cubek = { path = "../cubek/crates/cubek", default-features = false }
+# cubecl = { path = "../cubecl/crates/cubecl", default-features = false }
+# cubecl-common = { path = "../cubecl/crates/cubecl-common", default-features = false }
+# cubecl-zspace = { path = "../cubecl/crates/cubecl-zspace", default-features = false }
+# cubek = { path = "../cubek/crates/cubek", default-features = false }
 ### For the release. ###
 # cubecl = { version = "=0.10.0-pre.3", default-features = false }
 # cubecl-common = { version = "=0.10.0-pre.3", default-features = false }

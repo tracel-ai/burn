@@ -1,7 +1,7 @@
 use crate::{ModuleSnapshot, SafetensorsStore};
 use burn_nn::LinearConfig;
 
-type TestBackend = burn_ndarray::NdArray;
+type TestBackend = burn_flex::Flex;
 
 #[test]
 fn shape_mismatch_errors() {

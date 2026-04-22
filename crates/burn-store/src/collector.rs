@@ -235,7 +235,7 @@ mod tests {
 
     use burn_core as burn;
 
-    type TestBackend = burn_ndarray::NdArray;
+    type TestBackend = burn_flex::Flex;
     use alloc::collections::BTreeMap;
     use alloc::string::String;
     use burn_core::module::{Module, Param};
