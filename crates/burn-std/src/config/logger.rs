@@ -1,13 +1,14 @@
-use alloc::string::String;
-use alloc::sync::Arc;
-use alloc::vec::Vec;
+use alloc::{string::String, vec::Vec};
 use core::fmt::Display;
-use cubecl_common::config::RuntimeConfig;
-use cubecl_common::config::logger::{LogLevel, LoggerConfig, LoggerSinks};
+use cubecl_common::{
+    config::{
+        RuntimeConfig,
+        logger::{LogLevel, LoggerConfig, LoggerSinks},
+    },
+    stub::Arc,
+};
 
-use super::autodiff::AutodiffLogLevel;
-use super::base::BurnConfig;
-use super::fusion::FusionLogLevel;
+use super::{autodiff::AutodiffLogLevel, base::BurnConfig, fusion::FusionLogLevel};
 
 static BURN_LOGGER: spin::Mutex<Option<Logger>> = spin::Mutex::new(None);
 
