@@ -6,10 +6,7 @@ use burn::tensor::backend::Backend;
 use burn::tensor::{Int, Tensor};
 use burn_core as burn;
 
-#[cfg(not(feature = "test-cuda"))]
 pub type TestBackend = burn_flex::Flex;
-#[cfg(feature = "test-cuda")]
-pub type TestBackend = burn_cuda::Cuda;
 #[cfg(feature = "std")]
 pub type TestAutodiffBackend = burn_autodiff::Autodiff<TestBackend>;
 
@@ -743,7 +740,7 @@ mod grad_distributed {
 
     fn create_devices<D: Device>(type_id: u16, count: usize) -> Vec<D> {
         (0..count)
-            .map(|i| D::from_id(DeviceId::new(type_id, i as u32)))
+            .map(|i| D::from_id(DeviceId::new(type_id, i as u16)))
             .collect()
     }
 

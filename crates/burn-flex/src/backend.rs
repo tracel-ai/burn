@@ -1,6 +1,4 @@
 use alloc::string::String;
-#[cfg(feature = "distributed")]
-use burn_backend::distributed::DistributedBackend;
 use core::marker::PhantomData;
 
 use burn_backend::{Backend, DType, DTypeUsage, DTypeUsageSet, DeviceId, DeviceOps};
@@ -163,9 +161,6 @@ impl Backend for Flex {
         }
     }
 }
-
-#[cfg(feature = "distributed")]
-impl DistributedBackend for Flex {}
 
 impl BackendIr for Flex {
     type Handle = HandleKind<Self>;
