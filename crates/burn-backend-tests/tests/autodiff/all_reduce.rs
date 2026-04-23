@@ -41,8 +41,14 @@ fn test_all_reduce() {
     );
     let tensor_3: Tensor<B, 1, Float> = Tensor::new(TensorPrimitive::Float(tensor_3.resolve()));
 
-    println!("tensor_2: {:?}", tensor_2.to_data().to_vec().unwrap());
-    println!("tensor_3: {:?}", tensor_3.to_data().to_vec().unwrap());
+    println!(
+        "tensor_2: {:?}",
+        tensor_2.to_data().to_vec::<f32>().unwrap()
+    );
+    println!(
+        "tensor_3: {:?}",
+        tensor_3.to_data().to_vec::<f32>().unwrap()
+    );
 }
 
 fn create_devices<D: Device>(type_id: u16, count: usize) -> (D, D) {
