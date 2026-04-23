@@ -10,44 +10,49 @@
 
 use super::*;
 use burn_fusion::inspect::{BlockKind, FusionInspector, matchers};
-use burn_tensor::{DType, backend::Backend};
+use burn_tensor::{DType, StreamId, backend::Backend};
 use serial_test::serial;
+
+/// Stream id used to play the role of a peer stream without spawning a real thread.
+const TEST_STREAM: StreamId = StreamId { value: 566 };
 
 /// `a + b` followed by `exp` should collapse into a single element-wise fused kernel.
 #[test]
 #[serial]
 fn elementwise_add_then_exp_fuses_into_single_kernel() {
-    let device = Default::default();
+    TEST_STREAM.executes(|| {
+        let device = Default::default();
 
-    // Materialize the inputs first so that the `Ones` init ops aren't rolled into the
-    // fused block we're trying to observe.
-    let a = TestTensor::<2>::ones([4, 4], &device);
-    let b = TestTensor::<2>::ones([4, 4], &device);
-    TestBackend::sync(&device).unwrap();
+        // Materialize the inputs first so that the `Ones` init ops aren't rolled into the
+        // fused block we're trying to observe.
+        let a = TestTensor::<2>::ones([4, 4], &device);
+        let b = TestTensor::<2>::ones([4, 4], &device);
+        TestBackend::sync(&device).unwrap();
 
-    let inspector = FusionInspector::install();
-    let out = (a + b).exp();
-    let _ = out.into_data();
-    TestBackend::sync(&device).unwrap();
+        let inspector = FusionInspector::install();
+        let out = (a + b).exp();
+        let _ = out.into_data();
+        TestBackend::sync(&device).unwrap();
 
-    let reports = inspector.drain();
-    assert!(!reports.is_empty(), "expected at least one fusion report");
+        let reports = inspector.drain();
+        assert!(!reports.is_empty(), "expected at least one fusion report");
 
-    let target = reports
-        .iter()
-        .find(|r| r.total_operations() == 2)
-        .unwrap_or_else(|| panic!("no report with 2 ops; got {reports:#?}"));
+        let target = reports
+            .iter()
+            .find(|r| r.total_operations() == 2)
+            .unwrap_or_else(|| panic!("no report with 2 ops; got {reports:#?}"));
 
-    let block = target.assert_single_fused_block();
-    assert_eq!(block.fuser_name(), Some("ElementWise"));
-    assert!(
-        block.ops_match(&[
-            matchers::is_add_float(DType::F32),
-            matchers::is_exp(DType::F32),
-        ]),
-        "block ops did not match add + exp: {:#?}",
-        block.operations,
-    );
+        let block = target.assert_single_fused_block();
+        assert_eq!(block.fuser_name(), Some("ElementWise"));
+        assert!(
+            block.ops_match(&[
+                matchers::is_add_float(DType::F32),
+                matchers::is_exp(DType::F32),
+            ]),
+            "block ops did not match add + exp: {:#?}",
+            block.operations,
+        );
+    });
 }
 
 /// Forcing a sync between two sub-expressions should materialize the intermediate and
@@ -55,91 +60,95 @@ fn elementwise_add_then_exp_fuses_into_single_kernel() {
 #[test]
 #[serial]
 fn sync_between_ops_splits_into_separate_kernels() {
-    let device = Default::default();
-    let inspector = FusionInspector::install();
+    TEST_STREAM.executes(|| {
+        let device = Default::default();
+        let inspector = FusionInspector::install();
 
-    let a = TestTensor::<2>::ones([4, 4], &device);
-    let b = TestTensor::<2>::ones([4, 4], &device);
-    let intermediate = a + b;
+        let a = TestTensor::<2>::ones([4, 4], &device);
+        let b = TestTensor::<2>::ones([4, 4], &device);
+        let intermediate = a + b;
 
-    // Force materialization of the intermediate.
-    TestBackend::sync(&device).unwrap();
+        // Force materialization of the intermediate.
+        TestBackend::sync(&device).unwrap();
 
-    let out = intermediate.exp();
-    let _ = out.into_data();
-    TestBackend::sync(&device).unwrap();
+        let out = intermediate.exp();
+        let _ = out.into_data();
+        TestBackend::sync(&device).unwrap();
 
-    let reports = inspector.drain();
+        let reports = inspector.drain();
 
-    // Across all reports, we should have at least one fused add and one fused exp, and
-    // they should never appear together in the same block.
-    let add = matchers::is_add_float(DType::F32);
-    let exp = matchers::is_exp(DType::F32);
-    for report in &reports {
-        for block in &report.blocks {
-            let has_add = block.operations.iter().any(|op| add(op));
-            let has_exp = block.operations.iter().any(|op| exp(op));
-            assert!(
-                !(has_add && has_exp),
-                "add and exp should not share a fused block after sync: {:#?}",
-                block,
-            );
+        // Across all reports, we should have at least one fused add and one fused exp, and
+        // they should never appear together in the same block.
+        let add = matchers::is_add_float(DType::F32);
+        let exp = matchers::is_exp(DType::F32);
+        for report in &reports {
+            for block in &report.blocks {
+                let has_add = block.operations.iter().any(|op| add(op));
+                let has_exp = block.operations.iter().any(|op| exp(op));
+                assert!(
+                    !(has_add && has_exp),
+                    "add and exp should not share a fused block after sync: {:#?}",
+                    block,
+                );
+            }
         }
-    }
 
-    let saw_add = reports.iter().any(|r| {
-        r.blocks
-            .iter()
-            .any(|b| b.operations.iter().any(|op| add(op)))
+        let saw_add = reports.iter().any(|r| {
+            r.blocks
+                .iter()
+                .any(|b| b.operations.iter().any(|op| add(op)))
+        });
+        let saw_exp = reports.iter().any(|r| {
+            r.blocks
+                .iter()
+                .any(|b| b.operations.iter().any(|op| exp(op)))
+        });
+        assert!(
+            saw_add && saw_exp,
+            "expected both ops to appear; got {reports:#?}"
+        );
     });
-    let saw_exp = reports.iter().any(|r| {
-        r.blocks
-            .iter()
-            .any(|b| b.operations.iter().any(|op| exp(op)))
-    });
-    assert!(
-        saw_add && saw_exp,
-        "expected both ops to appear; got {reports:#?}"
-    );
 }
 
 /// Multiple chained element-wise ops should still fuse into a single kernel.
 #[test]
 #[serial]
 fn chained_elementwise_ops_fuse_together() {
-    let device = Default::default();
+    TEST_STREAM.executes(|| {
+        let device = Default::default();
 
-    let a = TestTensor::<2>::ones([8, 8], &device);
-    let b = TestTensor::<2>::ones([8, 8], &device);
-    let c = TestTensor::<2>::ones([8, 8], &device);
-    TestBackend::sync(&device).unwrap();
+        let a = TestTensor::<2>::ones([8, 8], &device);
+        let b = TestTensor::<2>::ones([8, 8], &device);
+        let c = TestTensor::<2>::ones([8, 8], &device);
+        TestBackend::sync(&device).unwrap();
 
-    let inspector = FusionInspector::install();
-    // add → mul → exp, all element-wise on the same shape.
-    let out = ((a + b) * c).exp();
-    let _ = out.into_data();
-    TestBackend::sync(&device).unwrap();
+        let inspector = FusionInspector::install();
+        // add → mul → exp, all element-wise on the same shape.
+        let out = ((a + b) * c).exp();
+        let _ = out.into_data();
+        TestBackend::sync(&device).unwrap();
 
-    let reports = inspector.drain();
+        let reports = inspector.drain();
 
-    let target = reports
-        .iter()
-        .find(|r| r.total_operations() == 3)
-        .unwrap_or_else(|| panic!("no report with 3 ops; got {reports:#?}"));
+        let target = reports
+            .iter()
+            .find(|r| r.total_operations() == 3)
+            .unwrap_or_else(|| panic!("no report with 3 ops; got {reports:#?}"));
 
-    let block = target.assert_single_fused_block();
-    assert!(
-        matches!(
+        let block = target.assert_single_fused_block();
+        assert!(
+            matches!(
+                block.kind,
+                BlockKind::Fused {
+                    name: "ElementWise",
+                    ..
+                }
+            ),
+            "expected a single ElementWise fused block, got {:?}",
             block.kind,
-            BlockKind::Fused {
-                name: "ElementWise",
-                ..
-            }
-        ),
-        "expected a single ElementWise fused block, got {:?}",
-        block.kind,
-    );
-    assert_eq!(block.operations.len(), 3);
+        );
+        assert_eq!(block.operations.len(), 3);
+    });
 }
 
 /// A loop that materializes new tensors with `ones` and folds them into an ongoing
@@ -151,6 +160,7 @@ fn chained_elementwise_ops_fuse_together() {
 #[test]
 #[serial]
 fn elementwise_and_creation_into_single_kernel() {
+    TEST_STREAM.executes(|| {
     const REPETITIONS: usize = 4;
     let device = Default::default();
 
@@ -214,4 +224,5 @@ fn elementwise_and_creation_into_single_kernel() {
         non_drop_ops, expected_ops,
         "expected {expected_ops} non-Drop ops in the fused block, got {non_drop_ops}\n\n{tables}",
     );
+    });
 }

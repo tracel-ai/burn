@@ -31,7 +31,8 @@
 //! racing. Marking inspector-based tests `#[serial]` is still recommended as
 //! documentation, but the mutex is what actually prevents interference.
 
-use burn_ir::OperationIr;
+use burn_ir::{OperationIr, TensorId};
+use std::collections::HashSet;
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 
 use crate::stream::execution::trace::format_table;
@@ -129,7 +130,16 @@ pub type OpMatcher = Box<dyn Fn(&OperationIr) -> bool + Send + Sync>;
 #[must_use = "the inspector is uninstalled as soon as this guard is dropped"]
 pub struct FusionInspector {
     buffer: Arc<Mutex<Vec<FusionReport>>>,
-    handle_count: Arc<Mutex<Option<usize>>>,
+    /// The full set of [`TensorId`]s alive in the
+    /// [`HandleContainer`](burn_ir::HandleContainer) at the most recent quiescent
+    /// point. Used to assert stream-isolated leak detection: a TensorId that appears
+    /// here but wasn't in the baseline (see [`FusionInspector::set_baseline`]) was
+    /// born during this test and still hasn't been freed.
+    live_handles: Arc<Mutex<Option<HashSet<TensorId>>>>,
+    /// Snapshot of `live_handles` captured by [`FusionInspector::set_baseline`]. Any
+    /// handle here is assumed to belong to unrelated work (other running tests,
+    /// pre-existing state) and excluded from the leak set.
+    baseline_handles: Arc<Mutex<Option<HashSet<TensorId>>>>,
     // Held for the lifetime of the inspector. Dropped *after* the buffers, releasing
     // the process-wide install lock so the next inspector can proceed.
     _install_guard: MutexGuard<'static, ()>,
@@ -137,7 +147,7 @@ pub struct FusionInspector {
 
 struct Sink {
     buffer: Arc<Mutex<Vec<FusionReport>>>,
-    handle_count: Arc<Mutex<Option<usize>>>,
+    live_handles: Arc<Mutex<Option<HashSet<TensorId>>>>,
 }
 
 fn global() -> &'static Mutex<Option<Sink>> {
@@ -165,18 +175,20 @@ impl FusionInspector {
             .unwrap_or_else(|poisoned| poisoned.into_inner());
 
         let buffer = Arc::new(Mutex::new(Vec::new()));
-        let handle_count = Arc::new(Mutex::new(None));
+        let live_handles = Arc::new(Mutex::new(None));
+        let baseline_handles = Arc::new(Mutex::new(None));
         {
             let mut slot = global().lock().unwrap_or_else(|p| p.into_inner());
             *slot = Some(Sink {
                 buffer: buffer.clone(),
-                handle_count: handle_count.clone(),
+                live_handles: live_handles.clone(),
             });
         }
 
         Self {
             buffer,
-            handle_count,
+            live_handles,
+            baseline_handles,
             _install_guard: install_guard,
         }
     }
@@ -202,7 +214,65 @@ impl FusionInspector {
     /// `memory-checks` (after every registered op and after every drain), so calling
     /// this immediately after a `Backend::sync` reflects the post-drain state.
     pub fn last_handle_count(&self) -> Option<usize> {
-        *self.handle_count.lock().unwrap_or_else(|p| p.into_inner())
+        self.live_handles
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .as_ref()
+            .map(|s| s.len())
+    }
+
+    /// Snapshot of the [`TensorId`]s currently in the
+    /// [`HandleContainer`](burn_ir::HandleContainer), or `None` if nothing has been
+    /// observed yet. Mirrors [`Self::last_handle_count`] but returns the full ID set
+    /// so callers can compute stream-isolated deltas.
+    pub fn last_live_handles(&self) -> Option<HashSet<TensorId>> {
+        self.live_handles
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .clone()
+    }
+
+    /// Capture the most recent live-handle snapshot as a baseline. Handles present
+    /// here are excluded from [`Self::new_handles_since_baseline`].
+    ///
+    /// Call this *after* `Backend::sync` on every stream the test will touch, so
+    /// the fusion server has had a chance to emit a snapshot reflecting the
+    /// pre-test quiescent state. The inspector's install-mutex keeps concurrent
+    /// inspector-based tests from adding or removing handles during the baseline
+    /// window.
+    pub fn set_baseline(&self) {
+        let current = self
+            .live_handles
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .clone()
+            .unwrap_or_default();
+        *self
+            .baseline_handles
+            .lock()
+            .unwrap_or_else(|p| p.into_inner()) = Some(current);
+    }
+
+    /// The set of [`TensorId`]s present in the most recent snapshot that were *not*
+    /// in the baseline captured by [`Self::set_baseline`] — i.e., handles born
+    /// during this test's window that are still alive.
+    ///
+    /// If no baseline was set, every live handle is considered "new". An empty set
+    /// after the test syncs means no handles leaked.
+    pub fn new_handles_since_baseline(&self) -> HashSet<TensorId> {
+        let live = self
+            .live_handles
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .clone()
+            .unwrap_or_default();
+        let baseline = self
+            .baseline_handles
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .clone()
+            .unwrap_or_default();
+        live.difference(&baseline).copied().collect()
     }
 }
 
@@ -237,9 +307,10 @@ pub(crate) fn emit(blocks: &[FusionBlock]) {
     }
 }
 
-/// Record the current [`HandleContainer`](burn_ir::HandleContainer) size. Called
-/// from the fusion server thread at quiescent points (post-register, post-drain).
-pub(crate) fn emit_handle_snapshot(num_handles: usize) {
+/// Record the [`TensorId`]s currently in the
+/// [`HandleContainer`](burn_ir::HandleContainer). Called from the fusion server
+/// thread at quiescent points (post-register, post-drain).
+pub(crate) fn emit_handle_snapshot(ids: impl IntoIterator<Item = TensorId>) {
     let slot = match global().lock() {
         Ok(s) => s,
         Err(_) => return,
@@ -247,8 +318,9 @@ pub(crate) fn emit_handle_snapshot(num_handles: usize) {
     let Some(sink) = slot.as_ref() else {
         return;
     };
-    if let Ok(mut slot) = sink.handle_count.lock() {
-        *slot = Some(num_handles);
+    let set: HashSet<TensorId> = ids.into_iter().collect();
+    if let Ok(mut slot) = sink.live_handles.lock() {
+        *slot = Some(set);
     }
 }
 

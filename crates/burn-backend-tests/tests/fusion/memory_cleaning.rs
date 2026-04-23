@@ -2,10 +2,14 @@
 //! [`FusionTensor`](burn_fusion::FusionTensor) wrappers are dropped — both for tensors
 //! that live on a single stream and for tensors that are shared across streams.
 //!
-//! The assertion target is [`FusionInspector::last_handle_count`], which exposes the
-//! size of the underlying [`HandleContainer`](burn_ir::HandleContainer) snapshotted on
-//! the fusion server thread. After a `Backend::sync` on every stream that was used,
-//! the count must be `Some(0)`; anything else is a memory leak.
+//! The assertion target is [`FusionInspector::new_handles_since_baseline`], which
+//! returns every [`TensorId`](burn_ir::TensorId) that appeared in the
+//! [`HandleContainer`](burn_ir::HandleContainer) *after* the baseline was set. The
+//! [`HandleContainer`](burn_ir::HandleContainer) is shared per-device across the whole
+//! process, so other tests running in parallel can add unrelated handles. Baselining
+//! lets us diff against that noise and assert only on handles born during our test.
+//! The inspector's install-mutex serializes inspector-based tests so their IDs do not
+//! leak into the baseline window.
 //!
 //! Cross-stream cases are simulated with [`StreamId::executes`], which swaps the
 //! per-thread stream id for the duration of a closure. This is fast and deterministic;
@@ -29,13 +33,35 @@ fn sync_all(device: &<TestBackend as Backend>::Device) {
     TestBackend::sync(device).unwrap();
 }
 
+/// Drive the inspector into a known state, then freeze that state as the baseline.
+/// After this returns, [`FusionInspector::new_handles_since_baseline`] only reports
+/// handles born during the test body — handles from other parallel tests that were
+/// already live are excluded.
+fn install_and_baseline(device: &<TestBackend as Backend>::Device) -> FusionInspector {
+    let inspector = FusionInspector::install();
+    sync_all(device);
+    inspector.set_baseline();
+    inspector
+}
+
+/// Assert that no handles registered during the test's window are still alive.
+#[track_caller]
+fn assert_no_leaked_handles(inspector: &FusionInspector, context: &str) {
+    let leaked = inspector.new_handles_since_baseline();
+    assert!(
+        leaked.is_empty(),
+        "{context}: {count} handle(s) registered during the test are still live: {leaked:?}",
+        count = leaked.len(),
+    );
+}
+
 /// Baseline: a tensor created and consumed on a single stream must not leave any
 /// handles behind.
 #[test]
 #[serial]
 fn single_stream_drop_frees_all_handles() {
     let device = Default::default();
-    let inspector = FusionInspector::install();
+    let inspector = install_and_baseline(&device);
 
     {
         let a = TestTensor::<2>::ones([4, 4], &device);
@@ -44,11 +70,7 @@ fn single_stream_drop_frees_all_handles() {
     }
     TestBackend::sync(&device).unwrap();
 
-    assert_eq!(
-        inspector.last_handle_count(),
-        Some(0),
-        "expected handle container to be empty after single-stream drop + sync",
-    );
+    assert_no_leaked_handles(&inspector, "single-stream drop + sync");
 }
 
 /// `into_data` consumes its source — the source handle must be released when the
@@ -57,13 +79,13 @@ fn single_stream_drop_frees_all_handles() {
 #[serial]
 fn into_data_releases_source_handle() {
     let device = Default::default();
-    let inspector = FusionInspector::install();
+    let inspector = install_and_baseline(&device);
 
     let a = TestTensor::<2>::ones([4, 4], &device);
     let _ = a.into_data();
     TestBackend::sync(&device).unwrap();
 
-    assert_eq!(inspector.last_handle_count(), Some(0));
+    assert_no_leaked_handles(&inspector, "into_data + sync");
 }
 
 /// Cloning a tensor does not allocate a new handle; dropping the last `Arc`-style
@@ -72,7 +94,7 @@ fn into_data_releases_source_handle() {
 #[serial]
 fn clone_then_drop_frees_handle_once() {
     let device = Default::default();
-    let inspector = FusionInspector::install();
+    let inspector = install_and_baseline(&device);
 
     let a = TestTensor::<2>::ones([4, 4], &device);
     let b = a.clone();
@@ -82,7 +104,7 @@ fn clone_then_drop_frees_handle_once() {
     drop(b);
     TestBackend::sync(&device).unwrap();
 
-    assert_eq!(inspector.last_handle_count(), Some(0));
+    assert_no_leaked_handles(&inspector, "clone + drop + sync");
 }
 
 /// Cross-stream sharing happy path: tensor created on the main stream, used and
@@ -92,7 +114,7 @@ fn clone_then_drop_frees_handle_once() {
 #[serial]
 fn cross_stream_shared_tensor_released() {
     let device = Default::default();
-    let inspector = FusionInspector::install();
+    let inspector = install_and_baseline(&device);
 
     // Materialize `a` so its `Ones` init op doesn't get rolled into the cross-stream
     // analysis we're trying to observe.
@@ -109,9 +131,8 @@ fn cross_stream_shared_tensor_released() {
     drop(a);
     sync_all(&device);
 
-    assert_eq!(
-        inspector.last_handle_count(),
-        Some(0),
+    assert_no_leaked_handles(
+        &inspector,
         "shared tensor handle should be released once every sharing stream is drained",
     );
 }
@@ -123,7 +144,7 @@ fn cross_stream_shared_tensor_released() {
 #[serial]
 fn owner_drops_before_peer_finishes() {
     let device = Default::default();
-    let inspector = FusionInspector::install();
+    let inspector = install_and_baseline(&device);
 
     let a = TestTensor::<2>::ones([4, 4], &device);
     TestBackend::sync(&device).unwrap();
@@ -143,9 +164,8 @@ fn owner_drops_before_peer_finishes() {
 
     sync_all(&device);
 
-    assert_eq!(
-        inspector.last_handle_count(),
-        Some(0),
+    assert_no_leaked_handles(
+        &inspector,
         "deferred shared-tensor drop should fire once the peer stream catches up",
     );
 }
@@ -157,7 +177,7 @@ fn owner_drops_before_peer_finishes() {
 #[serial]
 fn peer_closes_before_owner_drops() {
     let device = Default::default();
-    let inspector = FusionInspector::install();
+    let inspector = install_and_baseline(&device);
 
     let a = TestTensor::<2>::ones([4, 4], &device);
     TestBackend::sync(&device).unwrap();
@@ -171,23 +191,22 @@ fn peer_closes_before_owner_drops() {
     drop(a);
     sync_all(&device);
 
-    assert_eq!(
-        inspector.last_handle_count(),
-        Some(0),
+    assert_no_leaked_handles(
+        &inspector,
         "owner-side drop after peer closure should still free the handle",
     );
 }
 
 /// Stress: many iterations of cross-stream sharing back-to-back. The handle count
-/// must return to zero at the end — catches regressions where each iteration leaks
-/// one or more handles (the failure mode the `drop-triggered drain` warning at
+/// must return to baseline at the end — catches regressions where each iteration
+/// leaks one or more handles (the failure mode the `drop-triggered drain` warning at
 /// `MultiStream::register` is meant to prevent).
 #[test]
 #[serial]
 fn cross_stream_loop_no_leak() {
     const REPS: usize = 8;
     let device = Default::default();
-    let inspector = FusionInspector::install();
+    let inspector = install_and_baseline(&device);
 
     for i in 0..REPS {
         let a = TestTensor::<2>::ones([4, 4], &device) * (i as f32);
@@ -203,9 +222,8 @@ fn cross_stream_loop_no_leak() {
 
     sync_all(&device);
 
-    assert_eq!(
-        inspector.last_handle_count(),
-        Some(0),
-        "handle count must return to zero after repeated cross-stream cleanup",
+    assert_no_leaked_handles(
+        &inspector,
+        "handle set must return to baseline after repeated cross-stream cleanup",
     );
 }
