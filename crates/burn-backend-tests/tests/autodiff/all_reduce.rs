@@ -42,7 +42,7 @@ fn test_all_reduce() {
         device_ids,
     );
     let resolved = tensor_3.resolve();
-    let DispatchTensor { kind, .. } = tensor;
+    let DispatchTensor { kind, .. } = resolved.clone();
     println!("kind : {kind:?}");
     let tensor_3: TestTensor<1> = TestTensor::new(TensorPrimitive::Float(resolved)).require_grad();
     let grads_1 = tensor_3.backward();
