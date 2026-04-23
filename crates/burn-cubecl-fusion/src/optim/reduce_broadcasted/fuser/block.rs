@@ -100,8 +100,6 @@ impl<R: Runtime> ReduceBlockFuser<R> {
         let input_ref_not_concrete =
             self.fuser.fuser.fuser.fuser.num_multi_block_local_inputs() > 0;
 
-        // println!("Analyze: {num_views} && {input_ref_not_concrete})");
-
         if num_views > 0 && input_ref_not_concrete {
             return ReduceBlockFusionAnalysis::Refuse;
         }
