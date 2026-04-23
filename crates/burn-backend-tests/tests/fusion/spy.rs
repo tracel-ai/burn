@@ -142,12 +142,14 @@ fn chained_elementwise_ops_fuse_together() {
 }
 
 /// A loop that materializes new tensors with `ones` and folds them into an ongoing
-/// elementwise computation. Every op (Ones, MulScalar, Mul, Add) should flow through
-/// the ElementWise fuser — not necessarily in one giant kernel, but with nothing
-/// falling back to an unfused path.
+/// elementwise computation. Every op — Ones, MulScalar, Mul, Add across every
+/// iteration — should collapse into a single fused ElementWise kernel.
+///
+/// If this test fails, the panic message includes the fusion table so the split
+/// points are visible directly in the test output.
 #[test]
 #[serial]
-fn elementwise_and_creation_all_fuse() {
+fn elementwise_and_creation_into_single_kernel() {
     const REPETITIONS: usize = 4;
     let device = Default::default();
 
@@ -170,28 +172,45 @@ fn elementwise_and_creation_all_fuse() {
     assert!(!reports.is_empty(), "expected at least one fusion report");
 
     // Per iteration: ones, mul-by-scalar, mul, add  => 4 ops. `Drop` ops (memory
-    // bookkeeping) also land in the reports but are not counted here.
-    let expected_total = REPETITIONS * 4;
+    // bookkeeping) also land in the reports but aren't counted here.
+    let expected_ops = REPETITIONS * 4;
     let is_drop = matchers::is_drop();
-    let total_ops: usize = reports
+
+    let tables: String = reports
         .iter()
-        .flat_map(|r| r.blocks.iter())
-        .flat_map(|b| b.operations.iter())
-        .filter(|op| !is_drop(op))
-        .count();
+        .map(|r| r.format_table())
+        .collect::<Vec<_>>()
+        .join("\n\n");
+
+    // Everything should land in a single report...
     assert_eq!(
-        total_ops, expected_total,
-        "expected {expected_total} non-Drop ops across reports; got {total_ops}: {reports:#?}"
+        reports.len(),
+        1,
+        "expected 1 report, got {}\n\n{tables}",
+        reports.len(),
+    );
+    let report = &reports[0];
+
+    // ...as a single fused block...
+    assert_eq!(
+        report.blocks.len(),
+        1,
+        "expected 1 block, got {}\n\n{tables}",
+        report.blocks.len(),
+    );
+    let block = &report.blocks[0];
+
+    // ...produced by the ElementWise fuser...
+    assert_eq!(
+        block.fuser_name(),
+        Some("ElementWise"),
+        "block was not ElementWise\n\n{tables}",
     );
 
-    // Every block must be fused by ElementWise — no unfused fallback anywhere.
-    for report in &reports {
-        for block in &report.blocks {
-            assert_eq!(
-                block.fuser_name(),
-                Some("ElementWise"),
-                "non-ElementWise block encountered: {block:#?}",
-            );
-        }
-    }
+    // ...containing exactly the expected non-Drop ops.
+    let non_drop_ops = block.operations.iter().filter(|op| !is_drop(op)).count();
+    assert_eq!(
+        non_drop_ops, expected_ops,
+        "expected {expected_ops} non-Drop ops in the fused block, got {non_drop_ops}\n\n{tables}",
+    );
 }

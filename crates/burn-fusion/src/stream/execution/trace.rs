@@ -89,7 +89,7 @@ pub(crate) fn collect_sections<O: NumOperations>(
     }
 }
 
-fn format_table(sections: &[Section]) -> String {
+pub(crate) fn format_table(sections: &[Section]) -> String {
     let total: usize = sections.iter().map(|s| s.ops.len()).sum();
     if total == 0 {
         return String::from("fusion block: <empty>");
@@ -204,7 +204,7 @@ fn debug_head(s: &str) -> &str {
 /// Produce a "Outer::Inner" kind string for every variant that has an inner enum,
 /// so the table shows the concrete operation (e.g. `BaseFloat::Reshape`) rather than
 /// just the category.
-fn op_kind(op: &OperationIr) -> String {
+pub(crate) fn op_kind(op: &OperationIr) -> String {
     fn inner(s: String) -> String {
         debug_head(&s).to_string()
     }

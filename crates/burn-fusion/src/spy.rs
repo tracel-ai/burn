@@ -28,7 +28,7 @@
 use burn_ir::OperationIr;
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 
-use crate::stream::execution::trace::{Section, SectionKind};
+use crate::stream::execution::trace::{Section, SectionKind, format_table};
 
 /// The list of fusion decisions captured for one execution plan.
 #[derive(Debug, Clone)]
@@ -62,6 +62,24 @@ pub enum BlockKind {
 }
 
 impl FusionReport {
+    /// Render the report as the same human-readable table that fusion logging emits at
+    /// [`FusionLogLevel::Full`](burn_std::config::fusion::FusionLogLevel). Useful for
+    /// rich panic messages from spy-based tests.
+    pub fn format_table(&self) -> String {
+        let sections: Vec<Section> = self
+            .blocks
+            .iter()
+            .map(|b| Section {
+                kind: match b.kind {
+                    BlockKind::Fused { name, score } => SectionKind::Fused { name, score },
+                    BlockKind::Unfused => SectionKind::Operation,
+                },
+                ops: b.operations.clone(),
+            })
+            .collect();
+        format_table(&sections)
+    }
+
     /// Iterate over the fused blocks only.
     pub fn fused_blocks(&self) -> impl Iterator<Item = &FusionBlock> {
         self.blocks

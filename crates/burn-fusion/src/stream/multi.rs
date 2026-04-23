@@ -1,4 +1,5 @@
 use burn_ir::{HandleContainer, OperationIr, TensorId, TensorIr, TensorStatus};
+use burn_std::config::{fusion::FusionLogLevel, log_fusion};
 use hashbrown::{HashMap, HashSet};
 use smallvec::SmallVec;
 
@@ -97,6 +98,12 @@ impl<R: FusionRuntime> MultiStream<R> {
 
         if !stream.queue.variables.is_empty() && sync {
             // Not draining the queue can cause a memory leak when a stream is closing.
+            let pending = stream.queue.global.len();
+            log_fusion(FusionLogLevel::Full, move || {
+                format!(
+                    "[multi] drop-triggered drain: flushing {pending} pending op(s) (prevents leak on stream close)"
+                )
+            });
             self.drain(handles, id);
         }
 
