@@ -155,6 +155,7 @@ pub type OpMatcher = Box<dyn Fn(&OperationIr) -> bool + Send + Sync>;
 #[must_use = "the spy is uninstalled as soon as this guard is dropped"]
 pub struct FusionSpy {
     buffer: Arc<Mutex<Vec<FusionReport>>>,
+    handle_count: Arc<Mutex<Option<usize>>>,
     // Held for the lifetime of the spy. Dropped *after* `buffer`, releasing the
     // process-wide install lock so the next spy can proceed.
     _install_guard: MutexGuard<'static, ()>,
@@ -162,6 +163,7 @@ pub struct FusionSpy {
 
 struct Sink {
     buffer: Arc<Mutex<Vec<FusionReport>>>,
+    handle_count: Arc<Mutex<Option<usize>>>,
 }
 
 fn global() -> &'static Mutex<Option<Sink>> {
@@ -187,15 +189,18 @@ impl FusionSpy {
             .unwrap_or_else(|poisoned| poisoned.into_inner());
 
         let buffer = Arc::new(Mutex::new(Vec::new()));
+        let handle_count = Arc::new(Mutex::new(None));
         {
             let mut slot = global().lock().unwrap_or_else(|p| p.into_inner());
             *slot = Some(Sink {
                 buffer: buffer.clone(),
+                handle_count: handle_count.clone(),
             });
         }
 
         Self {
             buffer,
+            handle_count,
             _install_guard: install_guard,
         }
     }
@@ -212,6 +217,19 @@ impl FusionSpy {
             .lock()
             .unwrap_or_else(|p| p.into_inner())
             .clone()
+    }
+
+    /// The most recent [`HandleContainer`](burn_ir::HandleContainer) size observed by
+    /// the spy, or `None` if no snapshot has been taken yet.
+    ///
+    /// Snapshots are emitted by the fusion runtime at the same quiescent points as
+    /// `memory-checks` (after every registered op and after every drain), so calling
+    /// this immediately after a `Backend::sync` reflects the post-drain state.
+    pub fn last_handle_count(&self) -> Option<usize> {
+        *self
+            .handle_count
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
     }
 }
 
@@ -243,6 +261,21 @@ pub(crate) fn emit(sections: &[Section]) {
     };
     if let Ok(mut buf) = sink.buffer.lock() {
         buf.push(report);
+    }
+}
+
+/// Record the current [`HandleContainer`](burn_ir::HandleContainer) size. Called
+/// from the fusion server thread at quiescent points (post-register, post-drain).
+pub(crate) fn emit_handle_snapshot(num_handles: usize) {
+    let slot = match global().lock() {
+        Ok(s) => s,
+        Err(_) => return,
+    };
+    let Some(sink) = slot.as_ref() else {
+        return;
+    };
+    if let Ok(mut slot) = sink.handle_count.lock() {
+        *slot = Some(num_handles);
     }
 }
 
