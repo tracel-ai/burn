@@ -40,10 +40,12 @@ impl<O: NumOperations> StreamOptimizer<O> {
     /// being registered.
     pub fn register(&mut self, operation: &OperationIr) {
         if self.stopped {
-            let op_name = op_kind(operation);
             let length = self.length;
-            log_fusion(FusionLogLevel::Full, move || {
-                format!("[stream] {op_name} dropped (optimizer stopped at op {length})")
+            log_fusion(FusionLogLevel::Full, || {
+                format!(
+                    "[stream] {} dropped (optimizer stopped at op {length})",
+                    op_kind(operation)
+                )
             });
             return;
         }
@@ -65,10 +67,10 @@ impl<O: NumOperations> StreamOptimizer<O> {
                 };
                 let num_blocks = self.blocks.len();
                 let length = self.length;
-                let op_name = op_kind(operation);
-                log_fusion(FusionLogLevel::Medium, move || {
+                log_fusion(FusionLogLevel::Medium, || {
                     format!(
-                        "[stream] stopped ({reason}) at op {length} ({op_name}); {num_blocks} blocks"
+                        "[stream] stopped ({reason}) at op {length} ({}); {num_blocks} blocks",
+                        op_kind(operation)
                     )
                 });
                 self.stopped = true;
@@ -80,11 +82,11 @@ impl<O: NumOperations> StreamOptimizer<O> {
             if self.register_max_block(operation, max_blocks) {
                 self.length += 1;
             } else {
-                let op_name = op_kind(operation);
                 let length = self.length;
-                log_fusion(FusionLogLevel::Medium, move || {
+                log_fusion(FusionLogLevel::Medium, || {
                     format!(
-                        "[stream] stopped (max_blocks={max_blocks} reached) at op {length} ({op_name})"
+                        "[stream] stopped (max_blocks={max_blocks} reached) at op {length} ({})",
+                        op_kind(operation)
                     )
                 });
                 self.stopped = true;
@@ -213,12 +215,12 @@ impl<O: NumOperations> StreamOptimizer<O> {
     }
 
     fn log_accepted(&self, operation: &OperationIr, added_count: usize) {
-        let op_name = op_kind(operation);
         let length = self.length;
         let num_blocks = self.blocks.len();
-        log_fusion(FusionLogLevel::Full, move || {
+        log_fusion(FusionLogLevel::Full, || {
             format!(
-                "[stream] op {length} {op_name} → accepted in {added_count}/{num_blocks} block(s)"
+                "[stream] op {length} {} → accepted in {added_count}/{num_blocks} block(s)",
+                op_kind(operation)
             )
         });
     }
@@ -310,11 +312,13 @@ impl<O: NumOperations> StreamOptimizer<O> {
         block.register(operation, self.length, true);
         self.blocks.push(block);
 
-        let op_name = op_kind(operation);
         let length = self.length;
         let num_blocks = self.blocks.len();
-        log_fusion(FusionLogLevel::Full, move || {
-            format!("[stream] op {length} {op_name} → new block (total: {num_blocks})")
+        log_fusion(FusionLogLevel::Full, || {
+            format!(
+                "[stream] op {length} {} → new block (total: {num_blocks})",
+                op_kind(operation)
+            )
         });
     }
 }

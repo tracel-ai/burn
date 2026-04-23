@@ -44,15 +44,16 @@ impl TraceOperationFuser {
     /// Emits a `Full`-level fusion log explaining why the fuser transitioned to `Closed`.
     /// `prev_num_ops` is the number of ops already fused before the rejected op.
     fn log_closed(&self, op: &OperationIr, prev_num_ops: usize, reason: &'static str) {
-        let op_dbg = format!("{op:?}");
-        let est = self.fuser.fuser.clone().estimate_bindings();
         let max = self.max_bindings;
-        log_fusion(FusionLogLevel::Full, move || {
-            // Keep the op description short: just the outer variant + inner head.
+        log_fusion(FusionLogLevel::Full, || {
+            // Debug-format the op and estimate bindings lazily: both are expensive
+            // enough to skip when logging is off.
+            let op_dbg = format!("{op:?}");
             let op_short = op_dbg
                 .split_once('(')
                 .map(|(head, _)| head)
                 .unwrap_or(&op_dbg);
+            let est = self.fuser.fuser.estimate_bindings();
             format!(
                 "[fuser] closed on {op_short} ({reason}); had {prev_num_ops} ops, est_bindings={est}/{max}"
             )

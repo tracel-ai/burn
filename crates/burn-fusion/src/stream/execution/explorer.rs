@@ -107,11 +107,11 @@ impl<O: NumOperations> Explorer<O> {
             let before = self.is_still_optimizing;
             self.is_still_optimizing = self.optimizer.still_optimizing();
             if before && !self.is_still_optimizing {
-                let op_name = op_kind(relative);
                 let explored = self.num_explored;
-                log_fusion(FusionLogLevel::Full, move || {
+                log_fusion(FusionLogLevel::Full, || {
                     format!(
-                        "[explorer] still_optimizing → false after op {op_name} (explored {explored} ops)"
+                        "[explorer] still_optimizing → false after op {} (explored {explored} ops)",
+                        op_kind(relative)
                     )
                 });
             }
