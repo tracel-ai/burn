@@ -23,6 +23,10 @@ mod ops;
 mod server;
 mod tensor;
 
+/// Test-only spy for capturing fusion decisions — see [`spy::FusionSpy`].
+#[cfg(feature = "test-util")]
+pub mod spy;
+
 pub use op::UnfusedOp;
 pub(crate) use server::*;
 

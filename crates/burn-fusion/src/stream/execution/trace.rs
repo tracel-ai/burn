@@ -19,7 +19,23 @@ pub(crate) fn log_execution_table<O: NumOperations>(
     strategy: &ExecutionStrategy<O>,
     global: &[OperationIr],
 ) {
+    // When the spy is active, build the sections eagerly so we can emit a structured
+    // report even when fusion logging is disabled. Otherwise stay lazy.
+    #[cfg(feature = "test-util")]
+    let sections_for_spy: Option<Vec<Section>> = if crate::spy::is_installed() {
+        let mut sections = Vec::new();
+        collect_sections(strategy, global, &mut sections);
+        crate::spy::emit(&sections);
+        Some(sections)
+    } else {
+        None
+    };
+
     log_fusion(FusionLogLevel::Full, || {
+        #[cfg(feature = "test-util")]
+        if let Some(sections) = &sections_for_spy {
+            return format_table(sections);
+        }
         let mut sections = Vec::new();
         collect_sections(strategy, global, &mut sections);
         format_table(&sections)
@@ -28,19 +44,19 @@ pub(crate) fn log_execution_table<O: NumOperations>(
 
 /// One contiguous run of operations — the output of a single `ExecutionStrategy` leaf.
 /// A `Composed` strategy yields a sequence of these.
-struct Section {
-    kind: SectionKind,
-    ops: Vec<OperationIr>,
+pub(crate) struct Section {
+    pub(crate) kind: SectionKind,
+    pub(crate) ops: Vec<OperationIr>,
 }
 
-enum SectionKind {
+pub(crate) enum SectionKind {
     /// Fused optimization: name + score are shared by every op in this section.
     Fused { name: &'static str, score: u64 },
     /// Plain operations that couldn't be fused (and may have been reordered).
     Operation,
 }
 
-fn collect_sections<O: NumOperations>(
+pub(crate) fn collect_sections<O: NumOperations>(
     strategy: &ExecutionStrategy<O>,
     global: &[OperationIr],
     sections: &mut Vec<Section>,

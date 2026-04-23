@@ -38,7 +38,7 @@ cpu = ["burn-dispatch/cpu", "cube"]
 
 autotune = ["burn-dispatch/autotune"]
 autotune-checks = ["burn-dispatch/autotune-checks"]
-fusion = ["burn-dispatch/fusion"]
+fusion = ["burn-dispatch/fusion", "burn-fusion/test-util"]
 distributed = [
     "std",
     "burn-dispatch/distributed"
@@ -79,6 +79,9 @@ burn-ndarray = { path = "../burn-ndarray", version = "=0.21.0-pre.3", optional =
 burn-cubecl = { path = "../burn-cubecl", version = "=0.21.0-pre.3", optional = true, features = [
     "fusion",
 ] }
+
+# Enabled alongside the `fusion` feature so spy-based tests can import the spy API.
+burn-fusion = { path = "../burn-fusion", version = "=0.21.0-pre.3", default-features = false, optional = true }
 
 num-traits = { workspace = true }
 serial_test = { workspace = true }

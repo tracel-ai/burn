@@ -5,9 +5,9 @@ mod explorer;
 mod ordering;
 mod policy;
 mod processor;
-mod trace;
+pub(crate) mod trace;
 
-pub(crate) use trace::*;
+pub(crate) use trace::log_execution_table;
 
 pub use base::*;
 pub use ordering::*;

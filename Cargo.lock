@@ -717,6 +717,7 @@ dependencies = [
  "burn-autodiff",
  "burn-cubecl",
  "burn-dispatch",
+ "burn-fusion",
  "burn-ndarray",
  "burn-tensor",
  "burn-tensor-testgen",
