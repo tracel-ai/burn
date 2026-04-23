@@ -441,7 +441,7 @@ impl TensorCheck {
         } else if num_classes <= 1 {
             check = check.register(
                 "One Hot",
-                TensorError::new("Can't create a one hot tensor with less then 2 classes"),
+                TensorError::new("Can't create a one hot tensor with less than 2 classes"),
             )
         }
         check
