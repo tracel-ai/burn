@@ -1,4 +1,5 @@
 use super::*;
+use burn_dispatch::{DispatchDevice, DispatchTensor};
 use burn_tensor::{
     TensorPrimitive,
     backend::{
@@ -32,8 +33,8 @@ fn test_all_reduce() {
         ReduceOperation::Sum,
         device_ids.clone(),
     );
-    let tensor_2: TestTensor<1> =
-        TestTensor::new(TensorPrimitive::Float(tensor_2.resolve())).require_grad();
+    let resolved = tensor_2.resolve();
+    let tensor_2: TestTensor<1> = TestTensor::new(TensorPrimitive::Float(resolved)).require_grad();
     let grads_0 = tensor_2.backward();
 
     let tensor_3 = B::all_reduce(
@@ -42,8 +43,6 @@ fn test_all_reduce() {
         device_ids,
     );
     let resolved = tensor_3.resolve();
-    let DispatchTensor { kind, .. } = resolved.clone();
-    println!("kind : {kind:?}");
     let tensor_3: TestTensor<1> = TestTensor::new(TensorPrimitive::Float(resolved)).require_grad();
     let grads_1 = tensor_3.backward();
 
@@ -63,9 +62,15 @@ fn test_all_reduce() {
     println!("tensor_3: {:?}", grad_1.to_data().to_vec::<f32>().unwrap());
 }
 
-fn create_devices<D: Device>(type_id: u16, count: usize) -> (D, D) {
+fn create_devices<D: Device>(type_id: u16, count: usize) -> (DispatchDevice, DispatchDevice)
+where
+    DispatchDevice: From<D>,
+{
     let devices = (0..count)
         .map(|i| D::from_id(DeviceId::new(type_id, i as u16)))
         .collect::<Vec<_>>();
-    (devices[0].clone(), devices[1].clone())
+    (
+        burn_dispatch::DispatchDevice::autodiff(devices[0].clone()),
+        burn_dispatch::DispatchDevice::autodiff(devices[1].clone()),
+    )
 }
