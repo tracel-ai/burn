@@ -790,8 +790,12 @@ fn reduce_dim_f32(tensor: &FlexTensor, dim: usize, op: ReduceOp) -> FlexTensor {
     // Check if inner dimension is contiguous (stride = 1) and no negative strides
     let inner_contiguous = !has_negative_strides && (dim + 1 >= ndims || strides[ndims - 1] == 1);
 
-    let result: Vec<f32> = if inner_contiguous && dim == ndims - 1 {
-        // Reducing last dimension with contiguous data: use SIMD
+    let result: Vec<f32> = if inner_contiguous && dim == ndims - 1 && dim_stride == 1 {
+        // Reducing last dimension with contiguous data: use SIMD.
+        // `reduce_last_dim_f32` reads each row as `&data[start..start + dim_size]`,
+        // which only matches the logical row when the reduce dim itself has
+        // stride 1. Transposed views (e.g. shape [3,2] strides [1,3]) would
+        // otherwise read contiguous storage and return wrong sums.
         reduce_last_dim_f32(data, start_offset, outer_size, dim_size, strides, dim, op)
     } else if dim == 0 && inner_contiguous && matches!(op, ReduceOp::Sum) {
         // First-dim reduction with contiguous inner: use cache-friendly accumulation
@@ -1682,18 +1686,17 @@ where
     let reduce_row = |outer: usize| -> f32 {
         let row_start = start + outer * dim_size;
         let row = &data[row_start..row_start + dim_size];
+        // Single left-to-right scan: first NaN wins, otherwise track the
+        // extremum. Starting `best = row[0]` means the i=0 `is_better`
+        // branch is a no-op for strict comparisons.
         let mut best = row[0];
-        for &v in &row[1..] {
+        for &v in row {
             if v.is_nan() {
                 return f32::NAN;
             }
             if is_better(v, best) {
                 best = v;
             }
-        }
-        // Check first element for NaN (skipped in loop)
-        if best.is_nan() {
-            return f32::NAN;
         }
         best
     };
@@ -1734,20 +1737,20 @@ where
     let find_row = |outer: usize| -> isize {
         let row_start = start + outer * dim_size;
         let row = &data[row_start..row_start + dim_size];
+        // Single left-to-right scan: first NaN wins, otherwise track the
+        // extremum. Starting `best = row[0]` means the i=0 `is_better`
+        // branch is a no-op (strict comparisons are false on equal
+        // operands), so we don't need a separate row[0] check.
         let mut best = row[0];
         let mut best_idx: isize = 0;
-        for (i, &v) in row[1..].iter().enumerate() {
+        for (i, &v) in row.iter().enumerate() {
             if v.is_nan() {
-                return (i + 1) as isize;
+                return i as isize;
             }
             if is_better(v, best) {
                 best = v;
-                best_idx = (i + 1) as isize;
+                best_idx = i as isize;
             }
-        }
-        // Check first element for NaN (skipped in loop)
-        if row[0].is_nan() {
-            return 0;
         }
         best_idx
     };
@@ -1793,17 +1796,14 @@ where
         let row = &data[row_start..row_start + dim_size];
         let mut best = row[0];
         let mut best_idx: isize = 0;
-        for (i, &v) in row[1..].iter().enumerate() {
+        for (i, &v) in row.iter().enumerate() {
             if v.is_nan() {
-                return (f32::NAN, (i + 1) as isize);
+                return (f32::NAN, i as isize);
             }
             if is_better(v, best) {
                 best = v;
-                best_idx = (i + 1) as isize;
+                best_idx = i as isize;
             }
-        }
-        if row[0].is_nan() {
-            return (f32::NAN, 0);
         }
         (best, best_idx)
     };
@@ -2530,5 +2530,30 @@ mod tests {
         let idxs: Vec<isize> = bytemuck::cast_slice(&indices.into_data().bytes).to_vec();
         assert_eq!(vals, vec![10, 8]);
         assert_eq!(idxs, vec![1, 1]);
+    }
+
+    // Cross-path consistency: `argmax`/`argmin` route short rows to the
+    // scalar kernel and rows of length >= EXTREMUM_SIMD_ROW_THRESHOLD to
+    // the SIMD kernel. Both kernels must agree on "first NaN wins".
+    // This is a flex-internal dispatch concern; the behavioral NaN
+    // propagation contract itself is exercised in burn-backend-tests
+    // under the `flex` feature gate (see issue #4814).
+    #[test]
+    fn test_argmax_scalar_and_simd_paths_agree_on_leading_nan() {
+        let short =
+            FlexTensor::from_data(TensorData::new(vec![f32::NAN, f32::NAN, f32::NAN], [1, 3]));
+        let short_idxs: Vec<isize> =
+            bytemuck::cast_slice(&super::argmax(short, 1).into_data().bytes).to_vec();
+
+        let mut long_data = alloc::vec![1.0f32; 600];
+        long_data[0] = f32::NAN;
+        long_data[1] = f32::NAN;
+        long_data[300] = 5.0;
+        let long = FlexTensor::from_data(TensorData::new(long_data, [1, 600]));
+        let long_idxs: Vec<isize> =
+            bytemuck::cast_slice(&super::argmax(long, 1).into_data().bytes).to_vec();
+
+        assert_eq!(short_idxs, vec![0], "scalar path");
+        assert_eq!(long_idxs, vec![0], "SIMD path");
     }
 }

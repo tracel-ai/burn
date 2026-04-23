@@ -1,6 +1,9 @@
 /// Module with convolution operations.
 pub mod conv;
 
+/// Module with linear operations.
+pub mod linear;
+
 /// Module with attention operations.
 pub mod attention;
 

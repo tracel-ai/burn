@@ -17,7 +17,11 @@ pub(crate) struct ExecutionPlanStore<O> {
 #[derive(PartialEq, Debug, Clone)]
 pub(crate) enum ExecutionStrategy<O> {
     /// An optimization was found, and therefore should be executed.
-    Optimization { opt: O, ordering: Arc<Vec<usize>> },
+    Optimization {
+        opt: O,
+        ordering: Arc<Vec<usize>>,
+        score: u64,
+    },
     /// No optimization was found, each operation should be executed individually.
     Operations { ordering: Arc<Vec<usize>> },
     /// A composition of multiple execution strategies.

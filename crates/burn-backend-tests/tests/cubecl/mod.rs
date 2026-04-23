@@ -27,5 +27,6 @@ mod select;
 mod select_assign;
 mod slice;
 mod slice_assign;
+mod stft;
 mod unary;
 mod uniform;

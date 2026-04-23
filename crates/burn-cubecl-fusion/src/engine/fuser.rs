@@ -27,7 +27,7 @@ use cubecl::ir::ElemType;
 /// to actually fuse the [FuseOp] when possible.
 #[derive(Debug, Clone)]
 pub(crate) struct TraceOperationFuser {
-    fuser: TryTraceFuser,
+    pub(crate) fuser: TryTraceFuser,
     scoring: Scoring,
     pub(crate) settings: FuseSettings,
     pub(crate) current_output_shape: Shape,
@@ -716,8 +716,8 @@ impl TraceOperationFuser {
 
 #[derive(Debug, Clone)]
 /// Builder wrapper to limit the number of bindings in generated kernels.
-struct TryTraceFuser {
-    fuser: TraceFuser,
+pub(crate) struct TryTraceFuser {
+    pub(crate) fuser: TraceFuser,
     max_bindings: u32,
     max_ops: u32,
     added_ops: bool,

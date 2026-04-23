@@ -1114,6 +1114,37 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     let output = B::embedding_backward(weights, output_grad, indices);
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
+                ModuleOperationIr::Linear(desc) => {
+                    let x = handles.get_float_tensor::<B>(&desc.x);
+                    let weight = handles.get_float_tensor::<B>(&desc.weight);
+                    let bias = desc
+                        .bias
+                        .as_ref()
+                        .map(|bias| handles.get_float_tensor::<B>(bias));
+
+                    let output = B::linear(x, weight, bias);
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+                ModuleOperationIr::LinearXBackward(desc) => {
+                    let weight = handles.get_float_tensor::<B>(&desc.weight);
+                    let output_grad = handles.get_float_tensor::<B>(&desc.output_grad);
+
+                    let output = B::linear_x_backward(weight, output_grad);
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+                ModuleOperationIr::LinearWeightBackward(desc) => {
+                    let x = handles.get_float_tensor::<B>(&desc.x);
+                    let output_grad = handles.get_float_tensor::<B>(&desc.output_grad);
+
+                    let output = B::linear_weight_backward(x, output_grad);
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+                ModuleOperationIr::LinearBiasBackward(desc) => {
+                    let output_grad = handles.get_float_tensor::<B>(&desc.output_grad);
+
+                    let output = B::linear_bias_backward(output_grad);
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
                 ModuleOperationIr::Conv1d(desc) => {
                     let x = handles.get_float_tensor::<B>(&desc.x);
                     let weight = handles.get_float_tensor::<B>(&desc.weight);
@@ -1519,7 +1550,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                 }
                 ModuleOperationIr::Rfft(desc) => {
                     let signal = handles.get_float_tensor::<B>(&desc.signal);
-                    let (out_re, out_im) = B::rfft(signal, desc.dim);
+                    let (out_re, out_im) = B::rfft(signal, desc.dim, desc.n);
 
                     handles.register_float_tensor::<B>(&desc.out_re.id, out_re);
                     handles.register_float_tensor::<B>(&desc.out_im.id, out_im);
@@ -1527,7 +1558,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                 ModuleOperationIr::IRfft(desc) => {
                     let spectrum_re = handles.get_float_tensor::<B>(&desc.input_re);
                     let spectrum_im = handles.get_float_tensor::<B>(&desc.input_im);
-                    let signal = B::irfft(spectrum_re, spectrum_im, desc.dim);
+                    let signal = B::irfft(spectrum_re, spectrum_im, desc.dim, desc.n);
 
                     handles.register_float_tensor::<B>(&desc.out_signal.id, signal);
                 }

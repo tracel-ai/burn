@@ -54,6 +54,9 @@ impl NumOperations for TestOptimization {
     fn len(&self) -> usize {
         self.size
     }
+    fn name(&self) -> &'static str {
+        "TestOptimization"
+    }
 }
 
 /// A fake [stream segment](StreamSegment) for testing purpose.
@@ -76,7 +79,11 @@ impl ExecutionStrategy<TestOptimization> {
     /// Only use it for testing, to easily create ordered strategies.
     pub fn optimization(opt: TestOptimization) -> Self {
         let ordering = Arc::new((0..opt.size).collect());
-        Self::Optimization { opt, ordering }
+        Self::Optimization {
+            opt,
+            ordering,
+            score: 1,
+        }
     }
 }
 

@@ -58,7 +58,7 @@ impl<O: NumOperations> Block<O> {
     /// Optimize the block.
     pub fn optimize(mut self) -> BlockOptimization<O> {
         match find_best_optimization_index(&mut self.builders) {
-            Some(index) => {
+            BestOptimization::Found { index, score } => {
                 let opt = self.builders[index].finish();
                 let opt_len = opt.len();
                 if opt_len < self.operations.len() {
@@ -68,10 +68,11 @@ impl<O: NumOperations> Block<O> {
                 let strategy = ExecutionStrategy::Optimization {
                     ordering: Arc::new(self.ordering.clone()),
                     opt,
+                    score,
                 };
                 BlockOptimization::new(strategy, self.ordering)
             }
-            None => {
+            BestOptimization::NotFound => {
                 let strategy = ExecutionStrategy::Operations {
                     ordering: Arc::new(self.ordering.clone()),
                 };
@@ -97,12 +98,28 @@ impl<O: NumOperations> Block<O> {
     ///
     /// This will modify the current block even if the other block isn't correctly merged.
     pub fn merge(&mut self, other: &Block<O>) -> bool {
+        let self_ready = self.has_ready_optimization();
+        let other_ready = other.has_ready_optimization();
+
         for (op, pos) in other.operations.iter().zip(&other.ordering) {
             self.register(op, *pos, true);
         }
 
-        // The operation is successful if the current block can still be optimized.
-        self.still_optimizing()
+        // If the merged block can still be improved, keep it — that's the
+        // usual lazy-optimization signal.
+        if self.still_optimizing() {
+            return true;
+        }
+
+        // Otherwise, only accept the merge when it *creates* a ready fusion
+        // that didn't exist separately. If either side already had a ready
+        // fusion before the merge, merging would collapse them and hide one
+        // of the fusions — keep the blocks separate instead.
+        !self_ready && !other_ready && self.has_ready_optimization()
+    }
+
+    fn has_ready_optimization(&self) -> bool {
+        self.builders.iter().any(|b| b.properties().ready)
     }
 
     /// Register an [operation](OperationIr) in the current block.
@@ -215,10 +232,15 @@ impl<O> ExecutionStrategy<O> {
     }
 }
 
+enum BestOptimization {
+    NotFound,
+    Found { index: usize, score: u64 },
+}
+
 fn find_best_optimization_index<O>(
     optimizations: &mut [Box<dyn OperationFuser<O>>],
-) -> Option<usize> {
-    let mut best_index = None;
+) -> BestOptimization {
+    let mut best_index = BestOptimization::NotFound;
     let mut best_score = 0;
 
     for (i, optimization) in optimizations.iter().enumerate() {
@@ -226,7 +248,10 @@ fn find_best_optimization_index<O>(
 
         // A score of zero is worse than fusing.
         if properties.ready && properties.score > best_score {
-            best_index = Some(i);
+            best_index = BestOptimization::Found {
+                index: i,
+                score: properties.score,
+            };
             best_score = properties.score;
         }
     }

@@ -207,6 +207,7 @@ burn-nn = { path = "../burn-nn", version = "=0.21.0-pre.3", default-features = f
 burn-optim = { path = "../burn-optim", version = "=0.21.0-pre.3", default-features = false }
 burn-rl = { path = "../burn-rl", version = "=0.21.0-pre.3", optional = true, default-features = false }
 burn-vision = { path = "../burn-vision", version = "=0.21.0-pre.3", optional = true, default-features = false }
+burn-std = { path = "../burn-std", version = "=0.21.0-pre.3", default-features = false }
 
 # Backends
 burn-autodiff = { path = "../burn-autodiff", version = "=0.21.0-pre.3", optional = true, default-features = false }

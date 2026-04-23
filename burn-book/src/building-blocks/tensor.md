@@ -441,13 +441,27 @@ strategies.
 
 ## Signal Processing Functions
 
-| Burn API                                           | PyTorch Equivalent                      |
-| -------------------------------------------------- | --------------------------------------- |
-| `signal::blackman_window(size, periodic, options)` | `torch.blackman_window(size, periodic)` |
-| `signal::hamming_window(size, periodic, options)`  | `torch.hamming_window(size, periodic)`  |
-| `signal::hann_window(size, periodic, options)`     | `torch.hann_window(size, periodic)`     |
-| `signal::irfft(spectrum_re, spectrum_im, dim)`     | `torch.fft.irfft(input, dim=dim)`       |
-| `signal::rfft(signal, dim)`                        | `torch.fft.rfft(signal, dim=dim)`       |
+Signal-processing helpers live in `burn::tensor::signal` and operate on real-valued float
+tensors. FFT length `n` (and `n_fft` in STFT) must currently be a power of two: when `n` is
+`Some(size)`, the input is truncated or zero-padded to `size` and the output has
+`size / 2 + 1` frequency bins. Non-power-of-two sizes panic at the public API boundary;
+general arbitrary-size DFT support (Bluestein's algorithm) is a tracked follow-up.
+
+| Burn API                                              | PyTorch Equivalent                                                                |
+| ----------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `signal::rfft(tensor, dim, n)`                        | `torch.fft.rfft(tensor, n, dim)`                                                  |
+| `signal::irfft(re, im, dim, n)`                       | `torch.fft.irfft(complex, n, dim)`                                                |
+| `signal::stft(signal, window, options)`               | `torch.stft(signal, n_fft, hop_length, win_length, window, center)`               |
+| `signal::istft(stft_matrix, window, length, options)` | `torch.istft(stft_matrix, n_fft, hop_length, win_length, window, center, length)` |
+| `signal::blackman_window(size, periodic, options)`    | `torch.blackman_window(size, periodic)`                                           |
+| `signal::hamming_window(size, periodic, options)`     | `torch.hamming_window(size, periodic)`                                            |
+| `signal::hann_window(size, periodic, options)`        | `torch.hann_window(size, periodic)`                                               |
+
+`stft` and `istft` share a `StftOptions` struct with fields `n_fft`, `hop_length`,
+`win_length`, `center`, and `onesided`. Use `StftOptions::new(n_fft)` for PyTorch-style
+defaults (`hop_length = n_fft / 4`, `win_length = None`, `center = true`, `onesided = true`).
+The option set is validated on entry to both `stft` and `istft`; `n_fft` must be a power of
+two and `hop_length <= effective_win_length` (the COLA prerequisite for invertibility).
 
 ## Displaying Tensor Details
 

@@ -95,6 +95,14 @@ impl TraceFuser {
         estimation
     }
 
+    pub(crate) fn num_multi_block_local_inputs(&self) -> usize {
+        self.block_current
+            .local_inputs
+            .iter()
+            .filter(|(_, x)| matches!(x, FuseArg::MultiBlockLocal(..)))
+            .count()
+    }
+
     /// Tag the [tensor](TensorIr) as received from a previous block.
     ///
     /// This will avoid reading the input again and instead use le local version when possible.
