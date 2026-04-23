@@ -72,7 +72,9 @@ impl<O: NumOperations> Processor<O> {
                     };
                     let num_ops = segment.operations().len();
                     log_fusion(FusionLogLevel::Full, move || {
-                        format!("[plan] cache hit: execute plan #{id} ({mode_dbg}, segment has {num_ops} ops)")
+                        format!(
+                            "[plan] cache hit: execute plan #{id} ({mode_dbg}, segment has {num_ops} ops)"
+                        )
                     });
 
                     if let ExecutionMode::Sync = mode {

@@ -7,6 +7,9 @@
 //! points. This lets tests assert on the *shape* of fusion and on memory cleanup —
 //! not just on numeric output.
 //!
+//! [`FusionBlock`] and [`BlockKind`] are the same types the logger renders into its
+//! Full-level execution table — see [`crate::stream::execution::trace`].
+//!
 //! # Usage
 //!
 //! ```ignore
@@ -31,7 +34,8 @@
 use burn_ir::OperationIr;
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 
-use crate::stream::execution::trace::{Section, SectionKind, format_table};
+use crate::stream::execution::trace::format_table;
+pub use crate::stream::execution::trace::{BlockKind, FusionBlock};
 
 /// The list of fusion decisions captured for one execution plan.
 #[derive(Debug, Clone)]
@@ -40,47 +44,12 @@ pub struct FusionReport {
     pub blocks: Vec<FusionBlock>,
 }
 
-/// A single contiguous run of operations executed together.
-#[derive(Debug, Clone)]
-pub struct FusionBlock {
-    /// Whether this block ran fused or unfused.
-    pub kind: BlockKind,
-    /// The operations contained in the block, in execution order.
-    pub operations: Vec<OperationIr>,
-}
-
-/// Whether a [`FusionBlock`] was fused into a single kernel or not.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum BlockKind {
-    /// The operations were fused. `name` is the fuser that produced the kernel,
-    /// `score` is its reported score.
-    Fused {
-        /// The name of the fuser / optimization (e.g. `"ElementWise"`).
-        name: &'static str,
-        /// The score the fuser reported for this kernel.
-        score: u64,
-    },
-    /// The operations ran individually; no fusion happened for this block.
-    Unfused,
-}
-
 impl FusionReport {
     /// Render the report as the same human-readable table that fusion logging emits at
     /// [`FusionLogLevel::Full`](burn_std::config::fusion::FusionLogLevel). Useful for
     /// rich panic messages from inspector-based tests.
     pub fn format_table(&self) -> String {
-        let sections: Vec<Section> = self
-            .blocks
-            .iter()
-            .map(|b| Section {
-                kind: match b.kind {
-                    BlockKind::Fused { name, score } => SectionKind::Fused { name, score },
-                    BlockKind::Unfused => SectionKind::Operation,
-                },
-                ops: b.operations.clone(),
-            })
-            .collect();
-        format_table(&sections)
+        format_table(&self.blocks)
     }
 
     /// Iterate over the fused blocks only.
@@ -124,6 +93,8 @@ impl FusionReport {
     }
 }
 
+/// Test-facing helpers on [`FusionBlock`]. Defined here so they aren't part of the
+/// always-compiled logging data model.
 impl FusionBlock {
     /// The fuser name if this block was fused, `None` otherwise.
     pub fn fuser_name(&self) -> Option<&'static str> {
@@ -231,10 +202,7 @@ impl FusionInspector {
     /// `memory-checks` (after every registered op and after every drain), so calling
     /// this immediately after a `Backend::sync` reflects the post-drain state.
     pub fn last_handle_count(&self) -> Option<usize> {
-        *self
-            .handle_count
-            .lock()
-            .unwrap_or_else(|p| p.into_inner())
+        *self.handle_count.lock().unwrap_or_else(|p| p.into_inner())
     }
 }
 
@@ -253,7 +221,7 @@ pub(crate) fn is_installed() -> bool {
 }
 
 /// Push a report into the installed sink, if any. Called from the fusion server thread.
-pub(crate) fn emit(sections: &[Section]) {
+pub(crate) fn emit(blocks: &[FusionBlock]) {
     let slot = match global().lock() {
         Ok(s) => s,
         Err(_) => return,
@@ -262,7 +230,7 @@ pub(crate) fn emit(sections: &[Section]) {
         return;
     };
     let report = FusionReport {
-        blocks: sections.iter().map(section_to_block).collect(),
+        blocks: blocks.to_vec(),
     };
     if let Ok(mut buf) = sink.buffer.lock() {
         buf.push(report);
@@ -281,17 +249,6 @@ pub(crate) fn emit_handle_snapshot(num_handles: usize) {
     };
     if let Ok(mut slot) = sink.handle_count.lock() {
         *slot = Some(num_handles);
-    }
-}
-
-fn section_to_block(section: &Section) -> FusionBlock {
-    let kind = match section.kind {
-        SectionKind::Fused { name, score } => BlockKind::Fused { name, score },
-        SectionKind::Operation => BlockKind::Unfused,
-    };
-    FusionBlock {
-        kind,
-        operations: section.ops.clone(),
     }
 }
 
