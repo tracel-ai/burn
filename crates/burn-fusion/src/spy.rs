@@ -19,12 +19,14 @@
 //! # Threading
 //!
 //! The fusion server runs on a background thread per device. Reports are captured on
-//! that thread and deposited into a process-global sink, so tests that use the spy
-//! must be serialized (e.g. with the `serial_test` crate) — otherwise parallel tests
-//! would overwrite each other's spies.
+//! that thread and deposited into a process-global sink, so only one spy can be
+//! active at a time. [`FusionSpy::install`] enforces this by blocking on a
+//! process-wide mutex — concurrent calls from different tests wait rather than
+//! racing. Marking spy tests `#[serial]` is still recommended as documentation, but
+//! the mutex is what actually prevents interference.
 
 use burn_ir::OperationIr;
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 
 use crate::stream::execution::trace::{Section, SectionKind};
 
@@ -129,8 +131,15 @@ pub type OpMatcher = Box<dyn Fn(&OperationIr) -> bool + Send + Sync>;
 
 /// A guard installed via [`FusionSpy::install`]. Holds the shared buffer and clears
 /// the global sink on drop.
+///
+/// Only one spy can be active at a time; [`FusionSpy::install`] blocks on a
+/// process-wide mutex to enforce this.
+#[must_use = "the spy is uninstalled as soon as this guard is dropped"]
 pub struct FusionSpy {
     buffer: Arc<Mutex<Vec<FusionReport>>>,
+    // Held for the lifetime of the spy. Dropped *after* `buffer`, releasing the
+    // process-wide install lock so the next spy can proceed.
+    _install_guard: MutexGuard<'static, ()>,
 }
 
 struct Sink {
@@ -142,34 +151,49 @@ fn global() -> &'static Mutex<Option<Sink>> {
     GLOBAL.get_or_init(|| Mutex::new(None))
 }
 
+/// Serializes `FusionSpy::install` across threads: only one spy can be active at a time.
+fn install_mutex() -> &'static Mutex<()> {
+    static INSTALL: OnceLock<Mutex<()>> = OnceLock::new();
+    INSTALL.get_or_init(|| Mutex::new(()))
+}
+
 impl FusionSpy {
     /// Install a spy. Returns a guard that clears the global sink when dropped.
     ///
-    /// # Panics
-    /// Panics if another spy is already installed — tests using the spy must be
-    /// serialized.
+    /// Blocks if another [`FusionSpy`] is currently installed (whether in this
+    /// thread or another) — the guard is released when that prior spy is dropped.
+    /// Poisoned locks (e.g. from a previous test panic) are recovered silently.
     pub fn install() -> Self {
+        let install_guard = install_mutex()
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+
         let buffer = Arc::new(Mutex::new(Vec::new()));
-        let mut slot = global().lock().unwrap();
-        assert!(
-            slot.is_none(),
-            "a FusionSpy is already installed; tests using it must run serially",
-        );
-        *slot = Some(Sink {
-            buffer: buffer.clone(),
-        });
-        Self { buffer }
+        {
+            let mut slot = global().lock().unwrap_or_else(|p| p.into_inner());
+            *slot = Some(Sink {
+                buffer: buffer.clone(),
+            });
+        }
+
+        Self {
+            buffer,
+            _install_guard: install_guard,
+        }
     }
 
     /// Take all captured reports, clearing the buffer.
     pub fn drain(&self) -> Vec<FusionReport> {
-        let mut buf = self.buffer.lock().unwrap();
+        let mut buf = self.buffer.lock().unwrap_or_else(|p| p.into_inner());
         core::mem::take(&mut *buf)
     }
 
     /// Peek at currently captured reports without clearing.
     pub fn reports(&self) -> Vec<FusionReport> {
-        self.buffer.lock().unwrap().clone()
+        self.buffer
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .clone()
     }
 }
 
@@ -178,6 +202,7 @@ impl Drop for FusionSpy {
         if let Ok(mut slot) = global().lock() {
             *slot = None;
         }
+        // `_install_guard` is released after this, allowing the next install() to proceed.
     }
 }
 
@@ -278,5 +303,12 @@ pub mod matchers {
                 OperationIr::Float(d, FloatOperationIr::Log(_)) if *d == dtype
             )
         })
+    }
+
+    /// Matches the memory-bookkeeping `Drop` op emitted when a tensor is deallocated.
+    /// These aren't really operations — useful to filter out when counting ops in
+    /// fusion-shape tests.
+    pub fn is_drop() -> OpMatcher {
+        Box::new(|op| matches!(op, OperationIr::Drop(_)))
     }
 }

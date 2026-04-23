@@ -4,8 +4,8 @@
 //! the captured [`FusionReport`]s to check that the expected operations ended up in the
 //! same (or separate) fused kernels.
 //!
-//! Each test is `#[serial]` because the spy is a process-global sink — two tests running
-//! in parallel would contaminate each other's reports.
+//! `FusionSpy::install` blocks on a process-wide mutex, so two spy tests running in
+//! parallel will serialize rather than interfere. `#[serial]` is kept as documentation.
 
 use super::*;
 use burn_fusion::spy::{BlockKind, FusionSpy, matchers};
@@ -96,7 +96,10 @@ fn sync_between_ops_splits_into_separate_kernels() {
             .iter()
             .any(|b| b.operations.iter().any(|op| exp(op)))
     });
-    assert!(saw_add && saw_exp, "expected both ops to appear; got {reports:#?}");
+    assert!(
+        saw_add && saw_exp,
+        "expected both ops to appear; got {reports:#?}"
+    );
 }
 
 /// Multiple chained element-wise ops should still fuse into a single kernel.
@@ -125,9 +128,70 @@ fn chained_elementwise_ops_fuse_together() {
 
     let block = target.assert_single_fused_block();
     assert!(
-        matches!(block.kind, BlockKind::Fused { name: "ElementWise", .. }),
+        matches!(
+            block.kind,
+            BlockKind::Fused {
+                name: "ElementWise",
+                ..
+            }
+        ),
         "expected a single ElementWise fused block, got {:?}",
         block.kind,
     );
     assert_eq!(block.operations.len(), 3);
+}
+
+/// A loop that materializes new tensors with `ones` and folds them into an ongoing
+/// elementwise computation. Every op (Ones, MulScalar, Mul, Add) should flow through
+/// the ElementWise fuser — not necessarily in one giant kernel, but with nothing
+/// falling back to an unfused path.
+#[test]
+#[serial]
+fn elementwise_and_creation_all_fuse() {
+    const REPETITIONS: usize = 4;
+    let device = Default::default();
+
+    // Materialize the base tensor so it doesn't land in the spy's first report.
+    let original = TestTensor::<2>::ones([8, 8], &device);
+    TestBackend::sync(&device).unwrap();
+
+    let spy = FusionSpy::install();
+
+    let mut tmp = original.clone();
+    for i in 0..REPETITIONS {
+        let new = TestTensor::<2>::ones([8, 8], &device) * (i as f32);
+        tmp = tmp.clone().mul(original.clone()) + new;
+    }
+
+    let _ = tmp.into_data();
+    TestBackend::sync(&device).unwrap();
+
+    let reports = spy.drain();
+    assert!(!reports.is_empty(), "expected at least one fusion report");
+
+    // Per iteration: ones, mul-by-scalar, mul, add  => 4 ops. `Drop` ops (memory
+    // bookkeeping) also land in the reports but are not counted here.
+    let expected_total = REPETITIONS * 4;
+    let is_drop = matchers::is_drop();
+    let total_ops: usize = reports
+        .iter()
+        .flat_map(|r| r.blocks.iter())
+        .flat_map(|b| b.operations.iter())
+        .filter(|op| !is_drop(op))
+        .count();
+    assert_eq!(
+        total_ops, expected_total,
+        "expected {expected_total} non-Drop ops across reports; got {total_ops}: {reports:#?}"
+    );
+
+    // Every block must be fused by ElementWise — no unfused fallback anywhere.
+    for report in &reports {
+        for block in &report.blocks {
+            assert_eq!(
+                block.fuser_name(),
+                Some("ElementWise"),
+                "non-ElementWise block encountered: {block:#?}",
+            );
+        }
+    }
 }
