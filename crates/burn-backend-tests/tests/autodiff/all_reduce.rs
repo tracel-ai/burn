@@ -41,8 +41,10 @@ fn test_all_reduce() {
         ReduceOperation::Sum,
         device_ids,
     );
-    let tensor_3: TestTensor<1> =
-        TestTensor::new(TensorPrimitive::Float(tensor_3.resolve())).require_grad();
+    let resolved = tensor_3.resolve();
+    let DispatchTensor { kind, .. } = tensor;
+    println!("kind : {kind:?}");
+    let tensor_3: TestTensor<1> = TestTensor::new(TensorPrimitive::Float(resolved)).require_grad();
     let grads_1 = tensor_3.backward();
 
     println!(
