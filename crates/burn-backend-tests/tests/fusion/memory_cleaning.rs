@@ -2,17 +2,17 @@
 //! [`FusionTensor`](burn_fusion::FusionTensor) wrappers are dropped — both for tensors
 //! that live on a single stream and for tensors that are shared across streams.
 //!
-//! The assertion target is [`FusionSpy::last_handle_count`], which exposes the size of
-//! the underlying [`HandleContainer`](burn_ir::HandleContainer) snapshotted on the
-//! fusion server thread. After a `Backend::sync` on every stream that was used, the
-//! count must be `Some(0)`; anything else is a memory leak.
+//! The assertion target is [`FusionInspector::last_handle_count`], which exposes the
+//! size of the underlying [`HandleContainer`](burn_ir::HandleContainer) snapshotted on
+//! the fusion server thread. After a `Backend::sync` on every stream that was used,
+//! the count must be `Some(0)`; anything else is a memory leak.
 //!
 //! Cross-stream cases are simulated with [`StreamId::executes`], which swaps the
 //! per-thread stream id for the duration of a closure. This is fast and deterministic;
 //! the real OS-thread path is exercised by `tensor/multi_threads.rs`.
 
 use super::*;
-use burn_fusion::spy::FusionSpy;
+use burn_fusion::inspect::FusionInspector;
 use burn_tensor::{StreamId, backend::Backend};
 use serial_test::serial;
 
@@ -35,7 +35,7 @@ fn sync_all(device: &<TestBackend as Backend>::Device) {
 #[serial]
 fn single_stream_drop_frees_all_handles() {
     let device = Default::default();
-    let spy = FusionSpy::install();
+    let inspector = FusionInspector::install();
 
     {
         let a = TestTensor::<2>::ones([4, 4], &device);
@@ -45,7 +45,7 @@ fn single_stream_drop_frees_all_handles() {
     TestBackend::sync(&device).unwrap();
 
     assert_eq!(
-        spy.last_handle_count(),
+        inspector.last_handle_count(),
         Some(0),
         "expected handle container to be empty after single-stream drop + sync",
     );
@@ -57,13 +57,13 @@ fn single_stream_drop_frees_all_handles() {
 #[serial]
 fn into_data_releases_source_handle() {
     let device = Default::default();
-    let spy = FusionSpy::install();
+    let inspector = FusionInspector::install();
 
     let a = TestTensor::<2>::ones([4, 4], &device);
     let _ = a.into_data();
     TestBackend::sync(&device).unwrap();
 
-    assert_eq!(spy.last_handle_count(), Some(0));
+    assert_eq!(inspector.last_handle_count(), Some(0));
 }
 
 /// Cloning a tensor does not allocate a new handle; dropping the last `Arc`-style
@@ -72,7 +72,7 @@ fn into_data_releases_source_handle() {
 #[serial]
 fn clone_then_drop_frees_handle_once() {
     let device = Default::default();
-    let spy = FusionSpy::install();
+    let inspector = FusionInspector::install();
 
     let a = TestTensor::<2>::ones([4, 4], &device);
     let b = a.clone();
@@ -82,7 +82,7 @@ fn clone_then_drop_frees_handle_once() {
     drop(b);
     TestBackend::sync(&device).unwrap();
 
-    assert_eq!(spy.last_handle_count(), Some(0));
+    assert_eq!(inspector.last_handle_count(), Some(0));
 }
 
 /// Cross-stream sharing happy path: tensor created on the main stream, used and
@@ -92,7 +92,7 @@ fn clone_then_drop_frees_handle_once() {
 #[serial]
 fn cross_stream_shared_tensor_released() {
     let device = Default::default();
-    let spy = FusionSpy::install();
+    let inspector = FusionInspector::install();
 
     // Materialize `a` so its `Ones` init op doesn't get rolled into the cross-stream
     // analysis we're trying to observe.
@@ -110,7 +110,7 @@ fn cross_stream_shared_tensor_released() {
     sync_all(&device);
 
     assert_eq!(
-        spy.last_handle_count(),
+        inspector.last_handle_count(),
         Some(0),
         "shared tensor handle should be released once every sharing stream is drained",
     );
@@ -123,7 +123,7 @@ fn cross_stream_shared_tensor_released() {
 #[serial]
 fn owner_drops_before_peer_finishes() {
     let device = Default::default();
-    let spy = FusionSpy::install();
+    let inspector = FusionInspector::install();
 
     let a = TestTensor::<2>::ones([4, 4], &device);
     TestBackend::sync(&device).unwrap();
@@ -144,7 +144,7 @@ fn owner_drops_before_peer_finishes() {
     sync_all(&device);
 
     assert_eq!(
-        spy.last_handle_count(),
+        inspector.last_handle_count(),
         Some(0),
         "deferred shared-tensor drop should fire once the peer stream catches up",
     );
@@ -157,7 +157,7 @@ fn owner_drops_before_peer_finishes() {
 #[serial]
 fn peer_closes_before_owner_drops() {
     let device = Default::default();
-    let spy = FusionSpy::install();
+    let inspector = FusionInspector::install();
 
     let a = TestTensor::<2>::ones([4, 4], &device);
     TestBackend::sync(&device).unwrap();
@@ -172,7 +172,7 @@ fn peer_closes_before_owner_drops() {
     sync_all(&device);
 
     assert_eq!(
-        spy.last_handle_count(),
+        inspector.last_handle_count(),
         Some(0),
         "owner-side drop after peer closure should still free the handle",
     );
@@ -187,7 +187,7 @@ fn peer_closes_before_owner_drops() {
 fn cross_stream_loop_no_leak() {
     const REPS: usize = 8;
     let device = Default::default();
-    let spy = FusionSpy::install();
+    let inspector = FusionInspector::install();
 
     for i in 0..REPS {
         let a = TestTensor::<2>::ones([4, 4], &device) * (i as f32);
@@ -204,7 +204,7 @@ fn cross_stream_loop_no_leak() {
     sync_all(&device);
 
     assert_eq!(
-        spy.last_handle_count(),
+        inspector.last_handle_count(),
         Some(0),
         "handle count must return to zero after repeated cross-stream cleanup",
     );

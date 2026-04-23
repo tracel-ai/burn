@@ -1,29 +1,32 @@
-//! Test-only observer for fusion decisions.
+//! Test-only introspection into fusion runtime behavior.
 //!
-//! When a [`FusionSpy`] is installed, every execution plan that runs through the fusion
-//! server is captured as a [`FusionReport`] describing which [`OperationIr`]s ended up
-//! fused into a single kernel and which ran unfused. This lets tests assert on the
-//! *shape* of fusion — not just on numeric output.
+//! When a [`FusionInspector`] is installed, every execution plan that runs through the
+//! fusion server is captured as a [`FusionReport`] describing which [`OperationIr`]s
+//! ended up fused into a single kernel and which ran unfused, and the size of the
+//! backing [`HandleContainer`](burn_ir::HandleContainer) is snapshotted at quiescent
+//! points. This lets tests assert on the *shape* of fusion and on memory cleanup —
+//! not just on numeric output.
 //!
 //! # Usage
 //!
 //! ```ignore
-//! # use burn_fusion::spy::FusionSpy;
-//! let spy = FusionSpy::install();
+//! # use burn_fusion::inspect::FusionInspector;
+//! let inspector = FusionInspector::install();
 //! // ... run tensor ops with a fusion-wrapped backend, then sync ...
-//! let reports = spy.drain();
+//! let reports = inspector.drain();
 //! let block = reports[0].assert_single_fused_block();
 //! assert_eq!(block.fuser_name(), Some("ElementWise"));
+//! assert_eq!(inspector.last_handle_count(), Some(0));
 //! ```
 //!
 //! # Threading
 //!
-//! The fusion server runs on a background thread per device. Reports are captured on
-//! that thread and deposited into a process-global sink, so only one spy can be
-//! active at a time. [`FusionSpy::install`] enforces this by blocking on a
+//! The fusion server runs on a background thread per device. Snapshots are captured
+//! on that thread and deposited into a process-global sink, so only one inspector can
+//! be active at a time. [`FusionInspector::install`] enforces this by blocking on a
 //! process-wide mutex — concurrent calls from different tests wait rather than
-//! racing. Marking spy tests `#[serial]` is still recommended as documentation, but
-//! the mutex is what actually prevents interference.
+//! racing. Marking inspector-based tests `#[serial]` is still recommended as
+//! documentation, but the mutex is what actually prevents interference.
 
 use burn_ir::OperationIr;
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
@@ -64,7 +67,7 @@ pub enum BlockKind {
 impl FusionReport {
     /// Render the report as the same human-readable table that fusion logging emits at
     /// [`FusionLogLevel::Full`](burn_std::config::fusion::FusionLogLevel). Useful for
-    /// rich panic messages from spy-based tests.
+    /// rich panic messages from inspector-based tests.
     pub fn format_table(&self) -> String {
         let sections: Vec<Section> = self
             .blocks
@@ -147,17 +150,17 @@ impl FusionBlock {
 /// [`matchers`] have this type.
 pub type OpMatcher = Box<dyn Fn(&OperationIr) -> bool + Send + Sync>;
 
-/// A guard installed via [`FusionSpy::install`]. Holds the shared buffer and clears
-/// the global sink on drop.
+/// A guard installed via [`FusionInspector::install`]. Holds the shared buffers and
+/// clears the global sink on drop.
 ///
-/// Only one spy can be active at a time; [`FusionSpy::install`] blocks on a
-/// process-wide mutex to enforce this.
-#[must_use = "the spy is uninstalled as soon as this guard is dropped"]
-pub struct FusionSpy {
+/// Only one inspector can be active at a time; [`FusionInspector::install`] blocks on
+/// a process-wide mutex to enforce this.
+#[must_use = "the inspector is uninstalled as soon as this guard is dropped"]
+pub struct FusionInspector {
     buffer: Arc<Mutex<Vec<FusionReport>>>,
     handle_count: Arc<Mutex<Option<usize>>>,
-    // Held for the lifetime of the spy. Dropped *after* `buffer`, releasing the
-    // process-wide install lock so the next spy can proceed.
+    // Held for the lifetime of the inspector. Dropped *after* the buffers, releasing
+    // the process-wide install lock so the next inspector can proceed.
     _install_guard: MutexGuard<'static, ()>,
 }
 
@@ -171,18 +174,20 @@ fn global() -> &'static Mutex<Option<Sink>> {
     GLOBAL.get_or_init(|| Mutex::new(None))
 }
 
-/// Serializes `FusionSpy::install` across threads: only one spy can be active at a time.
+/// Serializes `FusionInspector::install` across threads: only one inspector can be
+/// active at a time.
 fn install_mutex() -> &'static Mutex<()> {
     static INSTALL: OnceLock<Mutex<()>> = OnceLock::new();
     INSTALL.get_or_init(|| Mutex::new(()))
 }
 
-impl FusionSpy {
-    /// Install a spy. Returns a guard that clears the global sink when dropped.
+impl FusionInspector {
+    /// Install an inspector. Returns a guard that clears the global sink when dropped.
     ///
-    /// Blocks if another [`FusionSpy`] is currently installed (whether in this
-    /// thread or another) — the guard is released when that prior spy is dropped.
-    /// Poisoned locks (e.g. from a previous test panic) are recovered silently.
+    /// Blocks if another [`FusionInspector`] is currently installed (whether in this
+    /// thread or another) — the guard is released when that prior inspector is
+    /// dropped. Poisoned locks (e.g. from a previous test panic) are recovered
+    /// silently.
     pub fn install() -> Self {
         let install_guard = install_mutex()
             .lock()
@@ -220,7 +225,7 @@ impl FusionSpy {
     }
 
     /// The most recent [`HandleContainer`](burn_ir::HandleContainer) size observed by
-    /// the spy, or `None` if no snapshot has been taken yet.
+    /// the inspector, or `None` if no snapshot has been taken yet.
     ///
     /// Snapshots are emitted by the fusion runtime at the same quiescent points as
     /// `memory-checks` (after every registered op and after every drain), so calling
@@ -233,7 +238,7 @@ impl FusionSpy {
     }
 }
 
-impl Drop for FusionSpy {
+impl Drop for FusionInspector {
     fn drop(&mut self) {
         if let Ok(mut slot) = global().lock() {
             *slot = None;
@@ -242,7 +247,7 @@ impl Drop for FusionSpy {
     }
 }
 
-/// Whether a spy is currently installed. Called from the fusion server thread.
+/// Whether an inspector is currently installed. Called from the fusion server thread.
 pub(crate) fn is_installed() -> bool {
     global().lock().map(|g| g.is_some()).unwrap_or(false)
 }

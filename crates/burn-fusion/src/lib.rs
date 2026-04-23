@@ -23,9 +23,10 @@ mod ops;
 mod server;
 mod tensor;
 
-/// Test-only spy for capturing fusion decisions — see [`spy::FusionSpy`].
+/// Test-only introspection into fusion runtime behavior — see
+/// [`inspect::FusionInspector`].
 #[cfg(feature = "test-util")]
-pub mod spy;
+pub mod inspect;
 
 pub use op::UnfusedOp;
 pub(crate) use server::*;

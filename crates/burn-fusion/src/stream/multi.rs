@@ -133,7 +133,7 @@ impl<R: FusionRuntime> MultiStream<R> {
                 #[cfg(feature = "memory-checks")]
                 self.memory_checks.check(&self.streams, handles);
                 #[cfg(feature = "test-util")]
-                crate::spy::emit_handle_snapshot(handles.num_handles());
+                crate::inspect::emit_handle_snapshot(handles.num_handles());
                 return;
             }
         };
@@ -152,7 +152,7 @@ impl<R: FusionRuntime> MultiStream<R> {
         #[cfg(feature = "memory-checks")]
         self.memory_checks.check(&self.streams, handles);
         #[cfg(feature = "test-util")]
-        crate::spy::emit_handle_snapshot(handles.num_handles());
+        crate::inspect::emit_handle_snapshot(handles.num_handles());
     }
 
     /// Decide what to do with a drop operation on the given stream.
@@ -264,7 +264,7 @@ impl<R: FusionRuntime> MultiStream<R> {
         #[cfg(feature = "memory-checks")]
         self.memory_checks.check(&self.streams, handles);
         #[cfg(feature = "test-util")]
-        crate::spy::emit_handle_snapshot(handles.num_handles());
+        crate::inspect::emit_handle_snapshot(handles.num_handles());
     }
 
     /// Drain a stream
@@ -287,7 +287,7 @@ impl<R: FusionRuntime> MultiStream<R> {
             }
         });
         #[cfg(feature = "test-util")]
-        crate::spy::emit_handle_snapshot(handles.num_handles());
+        crate::inspect::emit_handle_snapshot(handles.num_handles());
     }
 
     /// When one of the provided streams is different from the current stream, we drain them.

@@ -19,13 +19,13 @@ pub(crate) fn log_execution_table<O: NumOperations>(
     strategy: &ExecutionStrategy<O>,
     global: &[OperationIr],
 ) {
-    // When the spy is active, build the sections eagerly so we can emit a structured
-    // report even when fusion logging is disabled. Otherwise stay lazy.
+    // When the inspector is active, build the sections eagerly so we can emit a
+    // structured report even when fusion logging is disabled. Otherwise stay lazy.
     #[cfg(feature = "test-util")]
-    let sections_for_spy: Option<Vec<Section>> = if crate::spy::is_installed() {
+    let sections_for_inspector: Option<Vec<Section>> = if crate::inspect::is_installed() {
         let mut sections = Vec::new();
         collect_sections(strategy, global, &mut sections);
-        crate::spy::emit(&sections);
+        crate::inspect::emit(&sections);
         Some(sections)
     } else {
         None
@@ -33,7 +33,7 @@ pub(crate) fn log_execution_table<O: NumOperations>(
 
     log_fusion(FusionLogLevel::Full, || {
         #[cfg(feature = "test-util")]
-        if let Some(sections) = &sections_for_spy {
+        if let Some(sections) = &sections_for_inspector {
             return format_table(sections);
         }
         let mut sections = Vec::new();

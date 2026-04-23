@@ -1,14 +1,15 @@
 //! Tests that assert on *which* operations were fused together, not just output values.
 //!
-//! These tests install a [`FusionSpy`], run a sequence of tensor ops, and then inspect
-//! the captured [`FusionReport`]s to check that the expected operations ended up in the
-//! same (or separate) fused kernels.
+//! These tests install a [`FusionInspector`], run a sequence of tensor ops, and then
+//! inspect the captured [`FusionReport`]s to check that the expected operations ended
+//! up in the same (or separate) fused kernels.
 //!
-//! `FusionSpy::install` blocks on a process-wide mutex, so two spy tests running in
-//! parallel will serialize rather than interfere. `#[serial]` is kept as documentation.
+//! `FusionInspector::install` blocks on a process-wide mutex, so two tests running
+//! in parallel will serialize rather than interfere. `#[serial]` is kept as
+//! documentation.
 
 use super::*;
-use burn_fusion::spy::{BlockKind, FusionSpy, matchers};
+use burn_fusion::inspect::{BlockKind, FusionInspector, matchers};
 use burn_tensor::{DType, backend::Backend};
 use serial_test::serial;
 
@@ -24,12 +25,12 @@ fn elementwise_add_then_exp_fuses_into_single_kernel() {
     let b = TestTensor::<2>::ones([4, 4], &device);
     TestBackend::sync(&device).unwrap();
 
-    let spy = FusionSpy::install();
+    let inspector = FusionInspector::install();
     let out = (a + b).exp();
     let _ = out.into_data();
     TestBackend::sync(&device).unwrap();
 
-    let reports = spy.drain();
+    let reports = inspector.drain();
     assert!(!reports.is_empty(), "expected at least one fusion report");
 
     let target = reports
@@ -55,7 +56,7 @@ fn elementwise_add_then_exp_fuses_into_single_kernel() {
 #[serial]
 fn sync_between_ops_splits_into_separate_kernels() {
     let device = Default::default();
-    let spy = FusionSpy::install();
+    let inspector = FusionInspector::install();
 
     let a = TestTensor::<2>::ones([4, 4], &device);
     let b = TestTensor::<2>::ones([4, 4], &device);
@@ -68,7 +69,7 @@ fn sync_between_ops_splits_into_separate_kernels() {
     let _ = out.into_data();
     TestBackend::sync(&device).unwrap();
 
-    let reports = spy.drain();
+    let reports = inspector.drain();
 
     // Across all reports, we should have at least one fused add and one fused exp, and
     // they should never appear together in the same block.
@@ -113,13 +114,13 @@ fn chained_elementwise_ops_fuse_together() {
     let c = TestTensor::<2>::ones([8, 8], &device);
     TestBackend::sync(&device).unwrap();
 
-    let spy = FusionSpy::install();
+    let inspector = FusionInspector::install();
     // add → mul → exp, all element-wise on the same shape.
     let out = ((a + b) * c).exp();
     let _ = out.into_data();
     TestBackend::sync(&device).unwrap();
 
-    let reports = spy.drain();
+    let reports = inspector.drain();
 
     let target = reports
         .iter()
@@ -153,11 +154,11 @@ fn elementwise_and_creation_into_single_kernel() {
     const REPETITIONS: usize = 4;
     let device = Default::default();
 
-    // Materialize the base tensor so it doesn't land in the spy's first report.
+    // Materialize the base tensor so it doesn't land in the inspector's first report.
     let original = TestTensor::<2>::ones([8, 8], &device);
     TestBackend::sync(&device).unwrap();
 
-    let spy = FusionSpy::install();
+    let inspector = FusionInspector::install();
 
     let mut tmp = original.clone();
     for i in 0..REPETITIONS {
@@ -168,7 +169,7 @@ fn elementwise_and_creation_into_single_kernel() {
     let _ = tmp.into_data();
     TestBackend::sync(&device).unwrap();
 
-    let reports = spy.drain();
+    let reports = inspector.drain();
     assert!(!reports.is_empty(), "expected at least one fusion report");
 
     // Per iteration: ones, mul-by-scalar, mul, add  => 4 ops. `Drop` ops (memory
