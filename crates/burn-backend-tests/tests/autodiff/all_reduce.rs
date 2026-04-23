@@ -35,6 +35,7 @@ fn test_all_reduce() {
     );
     let resolved = tensor_2.resolve();
     let tensor_2: TestTensor<1> = TestTensor::new(TensorPrimitive::Float(resolved));
+    let tensor_2 = tensor_2.clone().mul_scalar(4.0);
 
     let tensor_3 = B::all_reduce(
         tensor_1.clone().into_primitive().tensor(),
@@ -44,9 +45,6 @@ fn test_all_reduce() {
     let resolved = tensor_3.resolve();
     let tensor_3: TestTensor<1> = TestTensor::new(TensorPrimitive::Float(resolved));
 
-    let grads_0 = tensor_2.backward();
-    let grads_1 = tensor_3.backward();
-
     println!(
         "tensor_2: {:?}",
         tensor_2.to_data().to_vec::<f32>().unwrap()
@@ -55,6 +53,9 @@ fn test_all_reduce() {
         "tensor_3: {:?}",
         tensor_3.to_data().to_vec::<f32>().unwrap()
     );
+
+    let grads_0 = tensor_2.backward();
+    let grads_1 = tensor_3.backward();
 
     let grad_0 = tensor_0.grad(&grads_0).unwrap();
     let grad_1 = tensor_1.grad(&grads_1).unwrap();
