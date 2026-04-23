@@ -33,6 +33,7 @@ fn test_all_reduce() {
         device_ids.clone(),
     );
     let tensor_2: Tensor<B, 1, Float> = Tensor::new(TensorPrimitive::Float(tensor_2.resolve()));
+    let grads_0 = tensor_2.backward();
 
     let tensor_3 = B::all_reduce(
         tensor_1.into_primitive().tensor(),
@@ -40,6 +41,7 @@ fn test_all_reduce() {
         device_ids,
     );
     let tensor_3: Tensor<B, 1, Float> = Tensor::new(TensorPrimitive::Float(tensor_3.resolve()));
+    let grads_1 = tensor_3.backward();
 
     println!(
         "tensor_2: {:?}",
@@ -49,6 +51,12 @@ fn test_all_reduce() {
         "tensor_3: {:?}",
         tensor_3.to_data().to_vec::<f32>().unwrap()
     );
+
+    let grad_0 = tensor_0.grad(&grads_0).unwrap();
+    let grad_1 = tensor_1.grad(&grads_1).unwrap();
+
+    println!("tensor_2: {:?}", grad_0.to_data().to_vec::<f32>().unwrap());
+    println!("tensor_3: {:?}", grad_1.to_data().to_vec::<f32>().unwrap());
 }
 
 fn create_devices<D: Device>(type_id: u16, count: usize) -> (D, D) {
