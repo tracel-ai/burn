@@ -32,7 +32,8 @@ fn test_all_reduce() {
         ReduceOperation::Sum,
         device_ids.clone(),
     );
-    let tensor_2: TestTensor<1> = TestTensor::new(TensorPrimitive::Float(tensor_2.resolve()));
+    let tensor_2: TestTensor<1> =
+        TestTensor::new(TensorPrimitive::Float(tensor_2.resolve())).require_grad();
     let grads_0 = tensor_2.backward();
 
     let tensor_3 = B::all_reduce(
@@ -40,7 +41,8 @@ fn test_all_reduce() {
         ReduceOperation::Sum,
         device_ids,
     );
-    let tensor_3: TestTensor<1> = TestTensor::new(TensorPrimitive::Float(tensor_3.resolve()));
+    let tensor_3: TestTensor<1> =
+        TestTensor::new(TensorPrimitive::Float(tensor_3.resolve())).require_grad();
     let grads_1 = tensor_3.backward();
 
     println!(
