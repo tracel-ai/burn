@@ -57,6 +57,8 @@ distributed = [
     "burn-backend/distributed",
     "burn-autodiff?/distributed",
     "burn-cuda?/distributed",
+    "burn-flex?/distributed",
+    "burn-ndarray?/distributed"
 ]
 
 # Backends

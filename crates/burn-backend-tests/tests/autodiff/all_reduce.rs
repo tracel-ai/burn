@@ -1,0 +1,53 @@
+use super::*;
+use burn_tensor::{
+    Float, TensorPrimitive,
+    backend::{
+        Backend, Device, DeviceId, DeviceOps,
+        distributed::{DistributedBackend, ReduceOperation},
+    },
+};
+use serial_test::serial;
+
+#[test]
+#[serial]
+fn test_all_reduce() {
+    type B = TestBackend;
+    // Cuda
+    let type_id = 10u16;
+    let device_count = <TestBackend as Backend>::device_count(type_id);
+    if device_count < 2 {
+        return;
+    }
+    let (device_0, device_1) = create_devices::<<TestBackend as Backend>::Device>(type_id, 2);
+
+    let tensor_0 = TestTensor::<1>::from_data([2.0, 5.0], &device_0).require_grad();
+    let tensor_1 = TestTensor::<1>::from_data([4.0, 1.0], &device_1).require_grad();
+
+    let device_ids = vec![device_0, device_1]
+        .iter()
+        .map(|d| d.id())
+        .collect::<Vec<_>>();
+    let tensor_2 = B::all_reduce(
+        tensor_0.into_primitive().tensor(),
+        ReduceOperation::Sum,
+        device_ids.clone(),
+    );
+    let tensor_2: Tensor<B, 1, Float> = Tensor::new(TensorPrimitive::Float(tensor_2.resolve()));
+
+    let tensor_3 = B::all_reduce(
+        tensor_1.into_primitive().tensor(),
+        ReduceOperation::Sum,
+        device_ids,
+    );
+    let tensor_3: Tensor<B, 1, Float> = Tensor::new(TensorPrimitive::Float(tensor_3.resolve()));
+
+    println!("tensor_2: {:?}", tensor_2.to_data());
+    println!("tensor_3: {:?}", tensor_3.to_data());
+}
+
+fn create_devices<D: Device>(type_id: u16, count: usize) -> (D, D) {
+    let devices = (0..count)
+        .map(|i| D::from_id(DeviceId::new(type_id, i as u16)))
+        .collect::<Vec<_>>();
+    (devices[0].clone(), devices[1].clone())
+}
