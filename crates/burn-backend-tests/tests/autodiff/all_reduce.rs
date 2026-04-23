@@ -1,7 +1,7 @@
 use super::*;
 use burn_dispatch::{DispatchDevice, DispatchTensor};
 use burn_tensor::{
-    TensorPrimitive,
+    TensorData, TensorPrimitive,
     backend::{
         Backend, Device, DeviceId, DeviceOps,
         distributed::{DistributedBackend, ReduceOperation},
