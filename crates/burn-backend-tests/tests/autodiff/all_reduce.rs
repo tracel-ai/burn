@@ -28,7 +28,7 @@ fn test_all_reduce() {
         .map(|d| d.id())
         .collect::<Vec<_>>();
     let tensor_2 = B::all_reduce(
-        tensor_0.into_primitive().tensor(),
+        tensor_0.clone().into_primitive().tensor(),
         ReduceOperation::Sum,
         device_ids.clone(),
     );
@@ -36,7 +36,7 @@ fn test_all_reduce() {
     let grads_0 = tensor_2.backward();
 
     let tensor_3 = B::all_reduce(
-        tensor_1.into_primitive().tensor(),
+        tensor_1.clone().into_primitive().tensor(),
         ReduceOperation::Sum,
         device_ids,
     );
