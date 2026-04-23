@@ -119,6 +119,7 @@ impl AutodiffBackend for Dispatch {
 
     fn backward(tensor: DispatchTensor) -> Self::Gradients {
         let DispatchTensor { kind, .. } = tensor;
+        println!("kind : {kind:?}");
         match kind {
             #[cfg(feature = "autodiff")]
             DispatchTensorKind::Autodiff(tensor) => match *tensor {
