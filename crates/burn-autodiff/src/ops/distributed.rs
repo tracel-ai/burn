@@ -53,7 +53,9 @@ impl<B: DistributedBackend, C: CheckpointStrategy> DistributedBackend for Autodi
                 grads: &mut crate::grads::Gradients,
                 _checkpointer: &mut crate::checkpoint::base::Checkpointer,
             ) {
-                // Backward uses the same reduce op: local gradients are synchronized via the backend, which handles scaling (e.g., ncclAvg for mean).
+                // Backward uses the same reduce op: local gradients are synchronized via the backend, which handles
+                // scaling (e.g., ncclAvg for mean). This works for the reduce ops that are currently supported, but we
+                // might need to rework it if we add other ops such as ncclMax.
                 unary::<B, _>(ops.parents, ops.node, grads, |grad| {
                     B::all_reduce(grad, ops.state.0, ops.state.1).resolve()
                 });
