@@ -16,10 +16,8 @@ version.workspace = true
 workspace = true
 
 [features]
-# TODO: remove distributed
 default = [
     "std",
-    "distributed",
     "burn-core/default",
     "burn-train?/default",
     "burn-collective?/default",
@@ -178,7 +176,6 @@ distributed = ["std",
     "burn-autodiff?/distributed",
     "burn-dispatch?/distributed",
     "burn-router?/distributed",
-    "burn-flex?/distributed"
 ]
 
 candle = ["burn-candle"]
