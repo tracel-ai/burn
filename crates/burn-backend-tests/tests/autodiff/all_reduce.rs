@@ -77,11 +77,6 @@ fn should_diff_all_reduce_complex_1() {
     let grad_0 = in_tensor_0.grad(&grads_0).unwrap();
     let grad_1 = in_tensor_1.grad(&grads_1).unwrap();
 
-    println!("out_0 {:?}", out_tensor_0.to_data().to_vec::<f32>());
-    println!("out_1 {:?}", out_tensor_1.to_data().to_vec::<f32>());
-    println!("grad_0 {:?}", grad_0.to_data().to_vec::<f32>());
-    println!("grad_1 {:?}", grad_1.to_data().to_vec::<f32>());
-
     out_tensor_0
         .to_data()
         .assert_eq(&TensorData::from([6.0, 6.0]), false);
