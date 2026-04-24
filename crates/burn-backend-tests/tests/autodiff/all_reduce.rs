@@ -15,17 +15,29 @@ fn should_diff_all_reduce_sum() {
     type B = TestBackend;
     let type_id = 10u16;
     let device_count = <B as Backend>::device_count(type_id);
-    if device_count < 2 {
-        return;
-    }
+    let devices = (0..device_count)
+        .map(|i| {
+            burn_dispatch::DispatchDevice::autodiff(<B as Backend>::Device::from_id(DeviceId::new(
+                type_id, i as u16,
+            )))
+        })
+        .collect::<Vec<_>>();
 
-    let (device_0, device_1) = create_devices::<<B as Backend>::Device>(type_id, 2);
+    let input = devices
+        .iter()
+        .map(|device| {
+            let elem = device.id().index_id as f32;
+            TestTensor::<1>::from_data([elem, elem], device).require_grad()
+        })
+        .collect();
 
-    let in_tensor_0 = TestTensor::<1>::from_data([2.0, 5.0], &device_0).require_grad();
-    let in_tensor_1 = TestTensor::<1>::from_data([4.0, 1.0], &device_1).require_grad();
-
-    let (output, grads) = compute_gradients(vec![in_tensor_0, in_tensor_1], ReduceOperation::Sum);
-    compare_gradients(output, grads, &[6.0, 6.0], &[2.0, 2.0]);
+    let value: f32 = devices
+        .iter()
+        .map(|device| device.id().index_id as f32)
+        .sum();
+    let grad_value = devices.len() as f32;
+    let (output, grads) = compute_gradients(input, ReduceOperation::Sum);
+    compare_gradients(output, grads, &[value, value], &[grad_value, grad_value]);
 }
 
 #[test]
@@ -45,6 +57,25 @@ fn should_diff_all_reduce_mean() {
 
     let (output, grads) = compute_gradients(vec![in_tensor_0, in_tensor_1], ReduceOperation::Mean);
     compare_gradients(output, grads, &[3.0, 3.0], &[1.0, 1.0]);
+}
+
+#[test]
+#[serial]
+fn should_diff_all_reduce_all_devices() {
+    type B = TestBackend;
+    let type_id = 10u16;
+    let device_count = <B as Backend>::device_count(type_id);
+    if device_count < 2 {
+        return;
+    }
+
+    let (device_0, device_1) = create_devices::<<B as Backend>::Device>(type_id, device_count);
+
+    let in_tensor_0 = TestTensor::<1>::from_data([2.0, 5.0], &device_0).require_grad();
+    let in_tensor_1 = TestTensor::<1>::from_data([4.0, 1.0], &device_1).require_grad();
+
+    let (output, grads) = compute_gradients(vec![in_tensor_0, in_tensor_1], ReduceOperation::Sum);
+    compare_gradients(output, grads, &[6.0, 6.0], &[2.0, 2.0]);
 }
 
 fn compare_gradients<B: AutodiffBackend>(
