@@ -1,9 +1,9 @@
 use super::*;
-use burn_dispatch::{DispatchDevice, DispatchTensor};
+use burn_dispatch::{Dispatch, DispatchDevice, DispatchTensor};
 use burn_tensor::{
     TensorData, TensorPrimitive,
     backend::{
-        Backend, Device, DeviceId, DeviceOps,
+        AutodiffBackend, Backend, Device, DeviceId, DeviceOps,
         distributed::{DistributedBackend, ReduceOperation},
     },
 };
@@ -14,56 +14,79 @@ use serial_test::serial;
 fn should_diff_all_reduce_sum() {
     type B = TestBackend;
     let type_id = 10u16;
-    let device_count = <TestBackend as Backend>::device_count(type_id);
+    let device_count = <B as Backend>::device_count(type_id);
     if device_count < 2 {
         return;
     }
 
-    let (device_0, device_1) = create_devices::<<TestBackend as Backend>::Device>(type_id, 2);
+    let (device_0, device_1) = create_devices::<<B as Backend>::Device>(type_id, 2);
 
     let in_tensor_0 = TestTensor::<1>::from_data([2.0, 5.0], &device_0).require_grad();
     let in_tensor_1 = TestTensor::<1>::from_data([4.0, 1.0], &device_1).require_grad();
 
-    let device_ids = vec![device_0, device_1]
+    let (output, grads) = compute_gradients(vec![in_tensor_0, in_tensor_1], ReduceOperation::Sum);
+    compare_gradients(output, grads, &[6.0, 6.0], &[2.0, 2.0]);
+}
+
+#[test]
+#[serial]
+fn should_diff_all_reduce_mean() {
+    type B = TestBackend;
+    let type_id = 10u16;
+    let device_count = <B as Backend>::device_count(type_id);
+    if device_count < 2 {
+        return;
+    }
+
+    let (device_0, device_1) = create_devices::<<B as Backend>::Device>(type_id, 2);
+
+    let in_tensor_0 = TestTensor::<1>::from_data([2.0, 5.0], &device_0).require_grad();
+    let in_tensor_1 = TestTensor::<1>::from_data([4.0, 1.0], &device_1).require_grad();
+
+    let (output, grads) = compute_gradients(vec![in_tensor_0, in_tensor_1], ReduceOperation::Mean);
+    compare_gradients(output, grads, &[3.0, 3.0], &[1.0, 1.0]);
+}
+
+fn compare_gradients<B: AutodiffBackend>(
+    outputs: Vec<Tensor<B, 1>>,
+    grads: Vec<Tensor<B::InnerBackend, 1>>,
+    expected_output: &[f32],
+    expected_grads: &[f32],
+) {
+    for out in outputs {
+        out.to_data()
+            .assert_eq(&TensorData::from(expected_output), false);
+    }
+    for grad in grads {
+        grad.to_data()
+            .assert_eq(&TensorData::from(expected_grads), false);
+    }
+}
+
+fn compute_gradients<B: AutodiffBackend + DistributedBackend>(
+    tensors: Vec<Tensor<B, 1>>,
+    op: ReduceOperation,
+) -> (Vec<Tensor<B, 1>>, Vec<Tensor<B::InnerBackend, 1>>) {
+    let device_ids = tensors
         .iter()
-        .map(|d| d.id())
+        .map(|tensor| tensor.device().id())
         .collect::<Vec<_>>();
-    let out_tensor_0 = B::all_reduce(
-        in_tensor_0.clone().into_primitive().tensor(),
-        ReduceOperation::Sum,
-        device_ids.clone(),
-    );
-    let resolved = out_tensor_0.resolve();
-    let out_tensor_0: TestTensor<1> = TestTensor::new(TensorPrimitive::Float(resolved));
 
-    let out_tensor_1 = B::all_reduce(
-        in_tensor_1.clone().into_primitive().tensor(),
-        ReduceOperation::Sum,
-        device_ids,
-    );
-    let resolved = out_tensor_1.resolve();
-    let out_tensor_1: TestTensor<1> = TestTensor::new(TensorPrimitive::Float(resolved));
+    let mut all_grads = vec![];
+    let mut out = vec![];
+    for tensor in tensors.clone() {
+        let out_tensor = B::all_reduce(tensor.into_primitive().tensor(), op, device_ids.clone());
+        let resolved = out_tensor.resolve();
+        let out_tensor = Tensor::<B, 1>::new(TensorPrimitive::Float(resolved));
+        out.push(out_tensor);
+    }
 
-    // let tensor_2 = out_tensor_0.clone().mul_scalar(4.0);
+    for (in_tensor, out_tensor) in tensors.iter().zip(out.clone()) {
+        let grads = out_tensor.backward();
+        all_grads.push(in_tensor.grad(&grads).unwrap());
+    }
 
-    let grads_0 = out_tensor_0.backward();
-    let grads_1 = out_tensor_1.backward();
-
-    let grad_0 = in_tensor_0.grad(&grads_0).unwrap();
-    let grad_1 = in_tensor_1.grad(&grads_1).unwrap();
-
-    grad_0
-        .to_data()
-        .assert_eq(&TensorData::from([2.0, 2.0]), false);
-    grad_1
-        .to_data()
-        .assert_eq(&TensorData::from([2.0, 2.0]), false);
-    out_tensor_0
-        .to_data()
-        .assert_eq(&TensorData::from([6.0, 6.0]), false);
-    out_tensor_1
-        .to_data()
-        .assert_eq(&TensorData::from([6.0, 6.0]), false);
+    (out, all_grads)
 }
 
 fn create_devices<D: Device>(type_id: u16, count: usize) -> (DispatchDevice, DispatchDevice)

@@ -9,10 +9,8 @@ use burn_backend::{
 };
 
 use crate::{
-    Autodiff, NodeId,
-    checkpoint::{
-        retro_forward::RetroForward, state::BackwardStates, strategy::CheckpointStrategy,
-    },
+    Autodiff,
+    checkpoint::strategy::CheckpointStrategy,
     ops::{Backward, Ops, OpsKind, unary},
 };
 
@@ -80,60 +78,6 @@ impl<B: DistributedBackend, C: CheckpointStrategy> DistributedBackend for Autodi
             }
         }
     }
-
-    // fn all_reduce(
-    //     tensor: FloatTensor<Self>,
-    //     op: ReduceOperation,
-    //     device_ids: Vec<DeviceId>,
-    // ) -> CollectiveTensor<Self> {
-    //     #[derive(new, Debug)]
-    //     struct RetroAllReduce<B: DistributedBackend> {
-    //         input_id: NodeId,
-    //         op: ReduceOperation,
-    //         device_ids: Vec<DeviceId>,
-    //         _b: core::marker::PhantomData<B>,
-    //     }
-
-    //     impl<B: DistributedBackend> RetroForward for RetroAllReduce<B> {
-    //         fn forward(&self, states: &mut BackwardStates, out_node: NodeId) {
-    //             let input = states.get_state::<B::FloatTensorPrimitive>(&self.input_id);
-    //             let out = B::all_reduce(input, self.op, self.device_ids.clone()).resolve();
-    //             states.save(out_node, out)
-    //         }
-    //     }
-
-    //     #[derive(Debug)]
-    //     struct AllReduce;
-
-    //     impl<B: DistributedBackend> Backward<B, 1> for AllReduce {
-    //         type State = ();
-
-    //         fn backward(
-    //             self,
-    //             ops: Ops<Self::State, 1>,
-    //             grads: &mut crate::grads::Gradients,
-    //             _checkpointer: &mut crate::checkpoint::base::Checkpointer,
-    //         ) {
-    //             unary::<B, _>(ops.parents, ops.node, grads, |grad| grad);
-    //         }
-    //     }
-
-    //     let autodiff_tensor = AllReduce
-    //         .prepare::<C>([tensor.node.clone()])
-    //         .memory_bound()
-    //         .retro_forward(RetroAllReduce::<B>::new(
-    //             tensor.node.id,
-    //             op.clone(),
-    //             device_ids.clone(),
-    //         ))
-    //         .parents([&tensor])
-    //         .stateless({
-    //             let collective = B::all_reduce(tensor.primitive, op, device_ids);
-    //             unsafe { collective.assume_resolved() }
-    //         });
-
-    //     CollectiveTensor::new(autodiff_tensor)
-    // }
 
     fn sync_collective(device: &B::Device) {
         B::sync_collective(device);
