@@ -84,8 +84,19 @@ pub fn expand(tensor: FlexTensor, target_shape: Shape) -> FlexTensor {
     let src_ndims = src_dims.len();
     let target_ndims = target_shape.num_dims();
 
+    // Broadcasting only prepends new dims; it never drops existing ones.
+    // A target with fewer dims than the source would silently discard the
+    // trailing source strides and produce an invalid layout.
+    assert!(
+        target_ndims >= src_ndims,
+        "expand: target rank ({}) must be >= source rank ({}); \
+         broadcasting cannot drop dimensions",
+        target_ndims,
+        src_ndims
+    );
+
     // Prepend 1s to source shape if needed (for broadcasting like [3] -> [2, 3])
-    let dim_diff = target_ndims.saturating_sub(src_ndims);
+    let dim_diff = target_ndims - src_ndims;
 
     let mut new_strides = Vec::with_capacity(target_ndims);
 
@@ -253,6 +264,25 @@ mod tests {
         // Verify content: [1, 2, 3] repeated twice
         let data: Vec<f32> = expanded.into_data().to_vec().unwrap();
         assert_eq!(data, vec![1.0, 2.0, 3.0, 1.0, 2.0, 3.0]);
+    }
+
+    #[test]
+    #[should_panic(expected = "broadcasting cannot drop dimensions")]
+    fn test_expand_to_fewer_dims_panics() {
+        // Shape [2, 3, 4] expanded to target [2, 3] would silently drop
+        // the trailing dim and produce an invalid layout; must panic.
+        let tensor = FlexTensor::from_data(TensorData::new(alloc::vec![0.0f32; 24], [2, 3, 4]));
+        let _ = expand(tensor, Shape::new([2, 3]));
+    }
+
+    #[test]
+    #[should_panic(expected = "broadcasting cannot drop dimensions")]
+    fn test_expand_1d_to_scalar_panics() {
+        // 1D -> 0D exercises the saturating_sub edge we removed: dim_diff
+        // used to come out as 0 and the loop would iterate zero times,
+        // silently producing a 0-dim layout over 1D data.
+        let tensor = FlexTensor::from_data(TensorData::new(alloc::vec![1.0f32, 2.0, 3.0], [3]));
+        let _ = expand(tensor, Shape::from(alloc::vec::Vec::<usize>::new()));
     }
 
     #[test]

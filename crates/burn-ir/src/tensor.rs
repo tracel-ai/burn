@@ -52,6 +52,11 @@ impl TensorId {
     pub fn new(value: u64) -> Self {
         Self { value }
     }
+
+    /// Return the underlying numeric value of this id.
+    pub fn value(&self) -> u64 {
+        self.value
+    }
 }
 
 impl TensorIr {

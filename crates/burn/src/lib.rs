@@ -151,6 +151,8 @@ pub mod nn {
     pub use burn_nn::*;
 }
 
+pub use burn_std::config::config as runtime_config;
+
 /// Optimizers module.
 pub mod optim {
     pub use burn_optim::*;

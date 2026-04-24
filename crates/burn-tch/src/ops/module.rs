@@ -498,15 +498,26 @@ impl<E: TchElement> ModuleOps<Self> for LibTorch<E> {
         TchTensor::new(tensor)
     }
 
-    fn rfft(_signal: FloatTensor<Self>, _dim: usize) -> (FloatTensor<Self>, FloatTensor<Self>) {
-        todo!("rfft is not supported for now in LibTorch")
+    fn rfft(
+        signal: FloatTensor<Self>,
+        dim: usize,
+        n: Option<usize>,
+    ) -> (FloatTensor<Self>, FloatTensor<Self>) {
+        let complex = signal
+            .tensor
+            .fft_rfft(n.map(|v| v as i64), dim as i64, "backward");
+        let re = TchTensor::new(complex.real().contiguous());
+        let im = TchTensor::new(complex.imag().contiguous());
+        (re, im)
     }
 
     fn irfft(
-        _spectrum_re: FloatTensor<Self>,
-        _spectrum_im: FloatTensor<Self>,
-        _dim: usize,
+        spectrum_re: FloatTensor<Self>,
+        spectrum_im: FloatTensor<Self>,
+        dim: usize,
+        n: Option<usize>,
     ) -> FloatTensor<Self> {
-        todo!("irfft is not supported for now in LibTorch")
+        let complex = tch::Tensor::complex(&spectrum_re.tensor, &spectrum_im.tensor);
+        TchTensor::new(complex.fft_irfft(n.map(|v| v as i64), dim as i64, "backward"))
     }
 }

@@ -12,6 +12,68 @@ use burn_ir::*;
 use crate::{BackendRouter, RunnerChannel, RunnerClient};
 
 impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
+    fn linear(
+        x: FloatTensor<Self>,
+        weight: FloatTensor<Self>,
+        bias: Option<FloatTensor<Self>>,
+    ) -> FloatTensor<Self> {
+        let client = x.client.clone();
+        let desc = LinearOpIr::create(
+            x.into_ir(),
+            weight.into_ir(),
+            bias.map(|bias| bias.into_ir()),
+            || client.create_empty_handle(),
+        );
+
+        client
+            .register(OperationIr::Module(ModuleOperationIr::Linear(desc)))
+            .output()
+    }
+
+    fn linear_x_backward(
+        weight: FloatTensor<Self>,
+        output_grad: FloatTensor<Self>,
+    ) -> FloatTensor<Self> {
+        let client = weight.client.clone();
+        let desc = LinearXBackwardOpIr::create(weight.into_ir(), output_grad.into_ir(), || {
+            client.create_empty_handle()
+        });
+
+        client
+            .register(OperationIr::Module(ModuleOperationIr::LinearXBackward(
+                desc,
+            )))
+            .output()
+    }
+
+    fn linear_weight_backward(
+        x: FloatTensor<Self>,
+        output_grad: FloatTensor<Self>,
+    ) -> FloatTensor<Self> {
+        let client = x.client.clone();
+        let desc = LinearWeightBackwardOpIr::create(x.into_ir(), output_grad.into_ir(), || {
+            client.create_empty_handle()
+        });
+
+        client
+            .register(OperationIr::Module(
+                ModuleOperationIr::LinearWeightBackward(desc),
+            ))
+            .output()
+    }
+
+    fn linear_bias_backward(output_grad: FloatTensor<Self>) -> FloatTensor<Self> {
+        let client = output_grad.client.clone();
+        let desc =
+            LinearBiasBackwardOpIr::create(output_grad.into_ir(), || client.create_empty_handle());
+
+        client
+            .register(OperationIr::Module(ModuleOperationIr::LinearBiasBackward(
+                desc,
+            )))
+            .output()
+    }
+
     fn conv1d(
         x: FloatTensor<Self>,
         weight: FloatTensor<Self>,
@@ -794,7 +856,11 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
             .output()
     }
 
-    fn rfft(_signal: FloatTensor<Self>, _dim: usize) -> (FloatTensor<Self>, FloatTensor<Self>) {
+    fn rfft(
+        _signal: FloatTensor<Self>,
+        _dim: usize,
+        _n: Option<usize>,
+    ) -> (FloatTensor<Self>, FloatTensor<Self>) {
         todo!("rfft is not supported for backend-router")
     }
 
@@ -802,6 +868,7 @@ impl<R: RunnerChannel> ModuleOps<Self> for BackendRouter<R> {
         _spectrum_re: FloatTensor<Self>,
         _spectrum_im: FloatTensor<Self>,
         _dim: usize,
+        _n: Option<usize>,
     ) -> FloatTensor<Self> {
         todo!("irfft is not supported for backend-router")
     }

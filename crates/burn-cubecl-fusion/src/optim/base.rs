@@ -48,6 +48,15 @@ impl<R: Runtime> burn_fusion::NumOperations for CubeOptimization<R> {
             Self::ReduceBroadcasted(op) => op.num_ops_fused(),
         }
     }
+
+    fn name(&self) -> &'static str {
+        match self {
+            CubeOptimization::ElementWise(..) => "ElementWise",
+            CubeOptimization::Matmul(..) => "Matmul",
+            CubeOptimization::Reduce(..) => "Reduce",
+            CubeOptimization::ReduceBroadcasted(..) => "ReduceBroadcasted",
+        }
+    }
 }
 
 /// Fusion optimization state type for cubecl.

@@ -625,6 +625,74 @@ impl_ir_create!(
 );
 
 impl_ir_create!(
+    LinearOpIr {
+        x: TensorIr,
+        weight: TensorIr,
+        bias: Option<TensorIr>
+    },
+    shape = {
+        // output: [..., d_output] where x is [..., d_input] and weight is [d_input, d_output]
+        let n = x.shape.num_dims();
+        let mut dims: Vec<usize> = (0..n).map(|i| x.shape[i]).collect();
+        dims[n - 1] = weight.shape[1];
+        Shape::from(dims)
+    },
+    dtype = output_dtype(
+            [
+                Some(&x.dtype),
+                Some(&weight.dtype),
+                bias.as_ref().map(|b| &b.dtype),
+            ]
+            .iter()
+            .filter_map(|&d| d),
+        )
+        .unwrap()
+);
+
+impl_ir_create!(
+    LinearXBackwardOpIr {
+        weight: TensorIr,
+        output_grad: TensorIr,
+    },
+    shape = {
+        // dx = output_grad @ weight^T
+        // output_grad: [..., d_output], weight: [d_input, d_output]
+        // result: [..., d_input]
+        let n = output_grad.shape.num_dims();
+        let mut dims: Vec<usize> = (0..n).map(|i| output_grad.shape[i]).collect();
+        dims[n - 1] = weight.shape[0];
+        Shape::from(dims)
+    },
+    dtype = output_grad.dtype
+);
+
+impl_ir_create!(
+    LinearWeightBackwardOpIr {
+        x: TensorIr,
+        output_grad: TensorIr,
+    },
+    shape = {
+        // dW: [d_input, d_output]
+        let d_input = x.shape[x.shape.num_dims() - 1];
+        let d_output = output_grad.shape[output_grad.shape.num_dims() - 1];
+        Shape::from(alloc::vec![d_input, d_output])
+    },
+    dtype = output_grad.dtype
+);
+
+impl_ir_create!(
+    LinearBiasBackwardOpIr {
+        output_grad: TensorIr,
+    },
+    shape = {
+        // db: [d_output]
+        let d_output = output_grad.shape[output_grad.shape.num_dims() - 1];
+        Shape::from(alloc::vec![d_output])
+    },
+    dtype = output_grad.dtype
+);
+
+impl_ir_create!(
     Conv1dOpIr {
         x: TensorIr,
         weight: TensorIr,

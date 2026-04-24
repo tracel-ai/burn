@@ -175,6 +175,14 @@ pub enum ModuleOperationIr {
     Embedding(EmbeddingOpIr),
     /// Operation corresponding to [embedding_backward](burn_backend::ops::ModuleOps::embedding_backward).
     EmbeddingBackward(EmbeddingBackwardOpIr),
+    /// Operation corresponding to [linear](burn_backend::ops::ModuleOps::linear).
+    Linear(LinearOpIr),
+    /// Operation corresponding to [linear_x_backward](burn_backend::ops::ModuleOps::linear_x_backward).
+    LinearXBackward(LinearXBackwardOpIr),
+    /// Operation corresponding to [linear_weight_backward](burn_backend::ops::ModuleOps::linear_weight_backward).
+    LinearWeightBackward(LinearWeightBackwardOpIr),
+    /// Operation corresponding to [linear_bias_backward](burn_backend::ops::ModuleOps::linear_bias_backward).
+    LinearBiasBackward(LinearBiasBackwardOpIr),
     /// Operation corresponding to [conv1d](burn_backend::ops::ModuleOps::conv1d).
     Conv1d(Conv1dOpIr),
     /// Operation corresponding to [conv1d_x_backward](burn_backend::ops::ModuleOps::conv1d_x_backward).
@@ -253,9 +261,9 @@ pub enum ModuleOperationIr {
     Interpolate(InterpolateOpIr),
     /// Operation corresponding to [interpolate backward](burn_backend::ops::ModuleOps::interpolate_backward).
     InterpolateBackward(InterpolateBackwardOpIr),
-    /// Operation corresponding to [Rfft](burn_backend::ops::ModuleOps::rfft)
+    /// Operation corresponding to [rfft](burn_backend::ops::ModuleOps::rfft)
     Rfft(RfftOpIr),
-    /// Operation corresponding to [IRfft](burn_backend::ops::ModuleOps::irfft)
+    /// Operation corresponding to [irfft](burn_backend::ops::ModuleOps::irfft)
     IRfft(IRfftOpIr),
     /// Operation corresponding to [attention](burn_backend::ops::ModuleOps::attention).
     Attention(AttentionOpIr),
@@ -1001,6 +1009,38 @@ pub struct EmbeddingBackwardOpIr {
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
 #[allow(missing_docs)]
+pub struct LinearOpIr {
+    pub x: TensorIr,
+    pub weight: TensorIr,
+    pub bias: Option<TensorIr>,
+    pub out: TensorIr,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct LinearXBackwardOpIr {
+    pub weight: TensorIr,
+    pub output_grad: TensorIr,
+    pub out: TensorIr,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct LinearWeightBackwardOpIr {
+    pub x: TensorIr,
+    pub output_grad: TensorIr,
+    pub out: TensorIr,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct LinearBiasBackwardOpIr {
+    pub output_grad: TensorIr,
+    pub out: TensorIr,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
 pub struct Conv1dOpIr {
     pub x: TensorIr,
     pub weight: TensorIr,
@@ -1617,6 +1657,7 @@ pub struct InterpolateOpIr {
 pub struct RfftOpIr {
     pub signal: TensorIr,
     pub dim: usize,
+    pub n: Option<usize>,
     pub out_re: TensorIr,
     pub out_im: TensorIr,
 }
@@ -1627,22 +1668,27 @@ pub struct IRfftOpIr {
     pub input_re: TensorIr,
     pub input_im: TensorIr,
     pub dim: usize,
+    pub n: Option<usize>,
     pub out_signal: TensorIr,
 }
 
 #[allow(missing_docs)]
 impl RfftOpIr {
-    pub fn create<F>(signal: TensorIr, dim: usize, mut new_id: F) -> Self
+    pub fn create<F>(signal: TensorIr, dim: usize, n: Option<usize>, mut new_id: F) -> Self
     where
         F: FnMut() -> crate::TensorId,
     {
+        // `n` is required to be a power of two at the public API boundary, so
+        // the output has `n / 2 + 1` bins (matching scipy/torch for pow2 n).
         let mut shape = signal.shape.clone();
-        shape[dim] = shape[dim] / 2 + 1;
+        let fft_len = n.unwrap_or(shape[dim]);
+        shape[dim] = fft_len / 2 + 1;
         let dtype = signal.dtype;
 
         Self {
             signal,
             dim,
+            n,
             out_re: TensorIr::uninit(new_id(), shape.clone(), dtype),
             out_im: TensorIr::uninit(new_id(), shape, dtype),
         }
@@ -1651,18 +1697,33 @@ impl RfftOpIr {
 
 #[allow(missing_docs)]
 impl IRfftOpIr {
-    pub fn create<F>(input_re: TensorIr, input_im: TensorIr, dim: usize, mut new_id: F) -> Self
+    pub fn create<F>(
+        input_re: TensorIr,
+        input_im: TensorIr,
+        dim: usize,
+        n: Option<usize>,
+        mut new_id: F,
+    ) -> Self
     where
         F: FnMut() -> crate::TensorId,
     {
+        debug_assert!(
+            input_re.shape[dim] >= 1,
+            "IRfftOpIr: input spectrum dimension must be >= 1"
+        );
+        debug_assert!(
+            !matches!(n, Some(0)),
+            "IRfftOpIr: n must be >= 1 when specified"
+        );
         let mut shape = input_re.shape.clone();
-        shape[dim] = (shape[dim] - 1) * 2;
+        shape[dim] = n.unwrap_or((shape[dim] - 1) * 2);
         let dtype = input_re.dtype;
 
         Self {
             input_re,
             input_im,
             dim,
+            n,
             out_signal: TensorIr::uninit(new_id(), shape, dtype),
         }
     }
@@ -2625,6 +2686,22 @@ impl ModuleOperationIr {
             ModuleOperationIr::EmbeddingBackward(repr) => {
                 Box::new([&repr.weights, &repr.out_grad, &repr.indices].into_iter())
             }
+            ModuleOperationIr::Linear(repr) => {
+                if let Some(bias) = &repr.bias {
+                    Box::new([&repr.x, &repr.weight, bias].into_iter())
+                } else {
+                    Box::new([&repr.x, &repr.weight].into_iter())
+                }
+            }
+            ModuleOperationIr::LinearXBackward(repr) => {
+                Box::new([&repr.weight, &repr.output_grad].into_iter())
+            }
+            ModuleOperationIr::LinearWeightBackward(repr) => {
+                Box::new([&repr.x, &repr.output_grad].into_iter())
+            }
+            ModuleOperationIr::LinearBiasBackward(repr) => {
+                Box::new([&repr.output_grad].into_iter())
+            }
             ModuleOperationIr::Conv1d(repr) => {
                 if let Some(bias) = &repr.bias {
                     Box::new([&repr.x, &repr.weight, bias].into_iter())
@@ -2781,6 +2858,10 @@ impl ModuleOperationIr {
         match self {
             ModuleOperationIr::Embedding(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::EmbeddingBackward(repr) => Box::new([&repr.out].into_iter()),
+            ModuleOperationIr::Linear(repr) => Box::new([&repr.out].into_iter()),
+            ModuleOperationIr::LinearXBackward(repr) => Box::new([&repr.out].into_iter()),
+            ModuleOperationIr::LinearWeightBackward(repr) => Box::new([&repr.out].into_iter()),
+            ModuleOperationIr::LinearBiasBackward(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::Conv1d(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::Conv1dXBackward(repr) => Box::new([&repr.out].into_iter()),
             ModuleOperationIr::Conv1dWeightBackward(repr) => Box::new([&repr.out].into_iter()),
@@ -2874,6 +2955,25 @@ impl ModuleOperationIr {
                 repr.weights.mark_read_only(nodes, &mut output);
                 repr.out_grad.mark_read_only(nodes, &mut output);
                 repr.indices.mark_read_only(nodes, &mut output);
+            }
+            ModuleOperationIr::Linear(repr) => {
+                repr.x.mark_read_only(nodes, &mut output);
+                repr.weight.mark_read_only(nodes, &mut output);
+
+                if let Some(bias) = &mut repr.bias {
+                    bias.mark_read_only(nodes, &mut output);
+                }
+            }
+            ModuleOperationIr::LinearXBackward(repr) => {
+                repr.weight.mark_read_only(nodes, &mut output);
+                repr.output_grad.mark_read_only(nodes, &mut output);
+            }
+            ModuleOperationIr::LinearWeightBackward(repr) => {
+                repr.x.mark_read_only(nodes, &mut output);
+                repr.output_grad.mark_read_only(nodes, &mut output);
+            }
+            ModuleOperationIr::LinearBiasBackward(repr) => {
+                repr.output_grad.mark_read_only(nodes, &mut output);
             }
             ModuleOperationIr::Conv1d(repr) => {
                 repr.x.mark_read_only(nodes, &mut output);

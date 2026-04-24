@@ -698,12 +698,16 @@ impl ModuleOps<Flex> for Flex {
         crate::ops::attention::attention(query, key, value, mask, attn_bias, options)
     }
 
-    fn rfft(signal: FloatTensor<Flex>, dim: usize) -> (FloatTensor<Flex>, FloatTensor<Flex>) {
+    fn rfft(
+        signal: FloatTensor<Flex>,
+        dim: usize,
+        n: Option<usize>,
+    ) -> (FloatTensor<Flex>, FloatTensor<Flex>) {
         match signal.dtype() {
-            DType::F32 => crate::ops::fft::rfft_f32(signal, dim),
-            DType::F64 => crate::ops::fft::rfft_f64(signal, dim),
-            DType::F16 => crate::ops::fft::rfft_f16(signal, dim),
-            DType::BF16 => crate::ops::fft::rfft_bf16(signal, dim),
+            DType::F32 => crate::ops::fft::rfft_f32(signal, dim, n),
+            DType::F64 => crate::ops::fft::rfft_f64(signal, dim, n),
+            DType::F16 => crate::ops::fft::rfft_f16(signal, dim, n),
+            DType::BF16 => crate::ops::fft::rfft_bf16(signal, dim, n),
             dtype => panic!("rfft: unsupported dtype {:?}", dtype),
         }
     }
@@ -712,12 +716,13 @@ impl ModuleOps<Flex> for Flex {
         spectrum_re: FloatTensor<Flex>,
         spectrum_im: FloatTensor<Flex>,
         dim: usize,
+        n: Option<usize>,
     ) -> FloatTensor<Flex> {
         match spectrum_re.dtype() {
-            DType::F32 => crate::ops::fft::irfft_f32(spectrum_re, spectrum_im, dim),
-            DType::F64 => crate::ops::fft::irfft_f64(spectrum_re, spectrum_im, dim),
-            DType::F16 => crate::ops::fft::irfft_f16(spectrum_re, spectrum_im, dim),
-            DType::BF16 => crate::ops::fft::irfft_bf16(spectrum_re, spectrum_im, dim),
+            DType::F32 => crate::ops::fft::irfft_f32(spectrum_re, spectrum_im, dim, n),
+            DType::F64 => crate::ops::fft::irfft_f64(spectrum_re, spectrum_im, dim, n),
+            DType::F16 => crate::ops::fft::irfft_f16(spectrum_re, spectrum_im, dim, n),
+            DType::BF16 => crate::ops::fft::irfft_bf16(spectrum_re, spectrum_im, dim, n),
             dtype => panic!("irfft: unsupported dtype {:?}", dtype),
         }
     }
