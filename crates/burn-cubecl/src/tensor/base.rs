@@ -345,6 +345,10 @@ where
         let shape = self.meta.shape();
         let strides = self.meta.strides();
 
+        // An empty tensor has no elements to overlap.
+        if shape.iter().any(|&s| s == 0) {
+            return true;
+        }
         if strides.contains(&0) {
             return false;
         }
