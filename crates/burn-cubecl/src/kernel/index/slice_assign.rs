@@ -100,6 +100,11 @@ pub(crate) fn slice_assign<R: CubeRuntime>(
     indices: &[burn_backend::Slice],
     value: CubeTensor<R>,
 ) -> CubeTensor<R> {
+    // Empty assignments have no work — launching a kernel here divides by
+    // zero in `FastDivmod` registration when a shape dim is 0.
+    if value.meta.num_elements() == 0 {
+        return tensor;
+    }
     // Check if any slice has non-unit step
     let has_non_unit_step = indices.iter().any(|s| s.step != 1 && s.step != 0);
 
@@ -195,6 +200,9 @@ pub(crate) fn slice_assign_with_steps<R: CubeRuntime>(
     slices: &[burn_backend::Slice],
     value: CubeTensor<R>,
 ) -> CubeTensor<R> {
+    if value.meta.num_elements() == 0 {
+        return tensor;
+    }
     let tensor = match tensor.can_mut() && tensor.is_nonoverlapping() {
         true => tensor,
         false => tensor.copy(),
