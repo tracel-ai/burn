@@ -933,6 +933,13 @@ impl TensorCheck {
         let ops = "ScatterNd";
         let mut check = Self::Ok;
 
+        if M == 0 {
+            return check.register(
+                ops,
+                TensorError::new("Indices tensor must have rank >= 1".to_string()),
+            );
+        }
+
         if indices_shape.num_elements() == 0 {
             return check.register(
                 ops,
@@ -997,6 +1004,13 @@ impl TensorCheck {
     ) -> Self {
         let ops = "GatherNd";
         let mut check = Self::Ok;
+
+        if M == 0 {
+            return check.register(
+                ops,
+                TensorError::new("Indices tensor must have rank >= 1".to_string()),
+            );
+        }
 
         if indices_shape.num_elements() == 0 {
             return check.register(

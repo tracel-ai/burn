@@ -1823,15 +1823,15 @@ where
 
     /// Multi-dimensional scatter: update `self` at locations given by `indices` using assignment.
     ///
-    /// `indices` is an M-dimensional integer tensor whose last dimension (K) indexes into the
-    /// first K dimensions of `self`. The `values` tensor has shape
-    /// `[indices.shape[0..M-1]..., self.shape[K..D]...]`.
+    /// The size of `indices`'s last axis (call it `K`) indexes the leading `K` dims of `self`;
+    /// the batch shape `indices.shape[0..M-1]` is preserved. `values` has shape
+    /// `indices.shape[0..M-1] ++ self.shape[K..D]`. Constraints: `K <= D` and `M >= 1`.
     ///
     /// # Note
     ///
     /// When `indices` contains duplicate entries, the result is non-deterministic on GPU
-    /// backends (matching ONNX ScatterND semantics). For deterministic accumulation with
-    /// duplicates, use [`scatter_nd_add`](Self::scatter_nd_add) on CPU backends.
+    /// backends (matching ONNX ScatterND semantics). CPU backends are deterministic regardless
+    /// of reduction. For deterministic accumulation with duplicates, run on a CPU backend.
     ///
     /// # Warning
     ///
@@ -1962,9 +1962,9 @@ where
     /// Multi-dimensional gather: collect slices from `self` at multi-index locations
     /// specified by `indices`.
     ///
-    /// `indices` is an M-dimensional integer tensor whose last dimension (K) indexes into the
-    /// first K dimensions of `self`. The output has shape
-    /// `[indices.shape[0..M-1]..., self.shape[K..D]...]`.
+    /// The size of `indices`'s last axis (call it `K`) indexes the leading `K` dims of `self`;
+    /// the batch shape `indices.shape[0..M-1]` is preserved. The output has shape
+    /// `indices.shape[0..M-1] ++ self.shape[K..D]`. Constraints: `K <= D` and `M >= 1`.
     ///
     /// # Warning
     ///

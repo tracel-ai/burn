@@ -1185,12 +1185,45 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
                     )),
                 }
             }
-            _ => panic!(
-                "scatter_nd backward is not supported for {:?} reduction. \
-                 Only Assign and Add support autograd. Use these reductions in \
-                 inference-only contexts or detach the tensor first.",
-                reduction,
-            ),
+            // The early check above ensures no input requires grad for Mul/Min/Max,
+            // so we can safely forward to the inner backend without registering a
+            // backward op.
+            IndexingUpdateOp::Mul | IndexingUpdateOp::Min | IndexingUpdateOp::Max => {
+                #[derive(Debug)]
+                struct ScatterNdNoBackward;
+
+                impl<B: Backend> Backward<B, 2> for ScatterNdNoBackward {
+                    type State = ();
+
+                    fn backward(
+                        self,
+                        _ops: Ops<Self::State, 2>,
+                        _grads: &mut Gradients,
+                        _checkpointer: &mut Checkpointer,
+                    ) {
+                        unreachable!(
+                            "scatter_nd Mul/Min/Max backward must not run; \
+                             the forward path rejects grad-tracked inputs."
+                        )
+                    }
+                }
+
+                match ScatterNdNoBackward
+                    .prepare::<C>([data.node, values.node])
+                    .compute_bound()
+                    .stateful()
+                {
+                    OpsKind::Tracked(_) => unreachable!(
+                        "scatter_nd Mul/Min/Max forward path rejects grad-tracked inputs."
+                    ),
+                    OpsKind::UnTracked(prep) => prep.finish(B::float_scatter_nd(
+                        data.primitive,
+                        indices,
+                        values.primitive,
+                        reduction,
+                    )),
+                }
+            }
         }
     }
 
