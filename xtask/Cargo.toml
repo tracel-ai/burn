@@ -13,7 +13,7 @@ workspace = true
 log = { workspace = true }
 strum = { workspace = true }
 
-tracel-xtask = "=4.15.1"
+tracel-xtask = "=4.17.2"
 # ### For local development. ###
 # tracel-xtask = { path = "../xtask/crates/tracel-xtask", default-features = false }
 

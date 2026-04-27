@@ -9410,9 +9410,9 @@ dependencies = [
 
 [[package]]
 name = "tracel-xtask"
-version = "4.15.1"
+version = "4.17.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "58031a2e8da33f2807d97effead6bf38b73abccec082eb09bf0adab357dd6032"
+checksum = "7f3cedee78fe12cc0ebb1a0d2162035900d2dbfd9d6443e08ce28eab44705c8e"
 dependencies = [
  "anyhow",
  "clap",
@@ -9433,20 +9433,47 @@ dependencies = [
  "time",
  "toml 0.9.12+spec-1.1.0",
  "tracel-xtask-macros",
+ "tracel-xtask-utils",
  "ureq 3.3.0",
  "zip 6.0.0",
 ]
 
 [[package]]
 name = "tracel-xtask-macros"
-version = "4.15.1"
+version = "4.17.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c6e019e77107aac569cead075b5710996898ec8b4633a4a4be52a59eac5b0960"
+checksum = "deb00fe1f051cad8a59d92e7c6f6d2dbd893d1221754ca4f21675fbc699e5e69"
 dependencies = [
  "heck",
  "proc-macro2",
  "quote",
  "syn 2.0.117",
+]
+
+[[package]]
+name = "tracel-xtask-utils"
+version = "4.17.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ef46feabb6e3e260366ba57e44e49f370c7a85ceaedcccb0f048e40b159c559b"
+dependencies = [
+ "anyhow",
+ "clap",
+ "ctrlc",
+ "dotenvy",
+ "env_logger",
+ "home",
+ "inquire",
+ "log",
+ "owo-colors",
+ "rand 0.9.4",
+ "regex",
+ "serde",
+ "serde_json",
+ "strum 0.27.2",
+ "time",
+ "toml 0.9.12+spec-1.1.0",
+ "ureq 3.3.0",
+ "zip 6.0.0",
 ]
 
 [[package]]
