@@ -36,3 +36,5 @@
   - [Custom Optimizer]()
   - [WebAssembly](./advanced/web-assembly.md)
   - [No-Std](./advanced/no-std.md)
+- [Miscellaneous](./miscellaneous/README.md)
+  - [LibTorch Setup](./miscellaneous/libtorch-setup.md)

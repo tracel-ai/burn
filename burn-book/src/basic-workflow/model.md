@@ -156,6 +156,9 @@ There are two major things going on in this code sample.
    println!("{}", tensor_1 + tensor_2);
    ```
 
+   If you pick `LibTorch`, enable `download-libtorch` feature for automatic LibTorch download, or configure
+   `LIBTORCH`/`LIBTORCH_USE_PYTORCH=1` manually. See [LibTorch Setup](../miscellaneous/libtorch-setup.md).
+
    For more details on trait bounds, check out the Rust
    [trait bound section](https://doc.rust-lang.org/book/ch10-02-traits.html#trait-bound-syntax) or
    [reference](https://doc.rust-lang.org/reference/items/traits.html#trait-bounds).
