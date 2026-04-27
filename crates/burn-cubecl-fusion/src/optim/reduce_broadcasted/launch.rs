@@ -17,6 +17,7 @@ use cubek::reduce::{
     ReduceDtypes, VectorizationMode,
     components::instructions::ReduceOperationConfig,
     launch::RoutineStrategy,
+    output_vectorization_axis,
     routines::{
         BlueprintStrategy, GlobalReduceBlueprint, ReduceProblem, ReduceVectorSettings, Routine,
         unit::{UnitRoutine, UnitStrategy},
@@ -61,8 +62,8 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceBroadcastedLaunch<'_> {
             _ => inputs.shape_ref(&first_config.ref_layout, first_config.rank),
         };
 
-        let vector_size = shape[self.reduce_axis];
-        let vector_count = shape.iter().product::<usize>() / vector_size;
+        let reduce_len = shape[self.reduce_axis];
+        let reduce_count = shape.iter().product::<usize>() / reduce_len;
         let address_type = inputs
             .required_address_type()
             .max(outputs.required_address_type());
@@ -71,8 +72,8 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceBroadcastedLaunch<'_> {
             .prepare::<R>(
                 client,
                 ReduceProblem {
-                    vector_size,
-                    vector_count,
+                    reduce_len,
+                    reduce_count,
                     axis: self.reduce_axis,
                     dtypes: ReduceDtypes {
                         input: StorageType::Scalar(ElemType::Float(FloatKind::F32)),
@@ -118,6 +119,12 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceBroadcastedLaunch<'_> {
             false => ComptimeOptionArgs::None,
         };
 
+        let out_vec_axis = output_vectorization_axis(
+            &inputs.strides_ref(&first_config.ref_layout, first_config.rank),
+            self.reduce_axis,
+            VectorizationMode::Parallel,
+        );
+
         // TODO: Ensure parallel is selected.
 
         unsafe {
@@ -129,6 +136,7 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceBroadcastedLaunch<'_> {
                 inputs,
                 outputs,
                 self.reduce_axis,
+                out_vec_axis,
                 blocks,
                 block_end,
             );
