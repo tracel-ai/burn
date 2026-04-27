@@ -122,6 +122,8 @@ record-item-custom-serde = ["burn-core/record-item-custom-serde"]
 # Model storage and serialization (SafeTensors, PyTorch interop)
 store = ["burn-store"]
 
+download-libtorch = ["burn-tch?/download-libtorch"]
+
 # CubeCL re-export
 cubecl = ["dep:cubecl"]
 
