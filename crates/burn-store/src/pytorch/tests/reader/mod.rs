@@ -588,8 +588,6 @@ fn test_legacy_format() {
 
     // Verify bias values are all ones
     let bias_data = bias.to_data().unwrap();
-    // let bias_values = bias_data.as_slice::<f32>().unwrap();
-    // assert_eq!(bias_values.len(), 2);
     let expected_bias_data = TensorData::new(vec![1.0_f32, 1.0], vec![2]);
     bias_data.assert_approx_eq::<f32>(&expected_bias_data, Tolerance::default());
 
@@ -600,8 +598,6 @@ fn test_legacy_format() {
 
     // Verify running_mean values are accessible
     let mean_data = running_mean.to_data().unwrap();
-    // let mean_values = mean_data.as_slice::<f32>().unwrap();
-    // assert_eq!(mean_values.len(), 2);
     let expected_mean_data = TensorData::new(vec![0.0_f32, 0.0], vec![2]);
     mean_data.assert_approx_eq::<f32>(&expected_mean_data, Tolerance::default());
 }
