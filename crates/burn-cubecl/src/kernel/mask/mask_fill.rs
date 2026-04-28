@@ -20,11 +20,11 @@ fn mask_fill_kernel<T: Numeric, B: Int, N: Size>(
         terminate!();
     }
 
-    let mask = Vector::cast_from(mask[ABSOLUTE_POS]);
-    let input = input[ABSOLUTE_POS];
+    let mask = Vector::cast_from(mask.read(ABSOLUTE_POS));
+    let input = input.read(ABSOLUTE_POS);
     let value = Vector::new(value.get::<T>());
 
-    output[ABSOLUTE_POS] = select_many(mask, value, input);
+    output.write(ABSOLUTE_POS, select_many(mask, value, input));
 }
 
 #[derive(Clone, Copy, Debug)]

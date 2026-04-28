@@ -98,14 +98,40 @@ impl CubeType for FuseArg {
     type ExpandType = Self;
 }
 
+impl IntoExpand for FuseArg {
+    type Expand = Self;
+
+    fn into_expand(self, _: &Scope) -> Self::Expand {
+        self
+    }
+}
+
+impl ExpandTypeClone for FuseArg {
+    fn clone_unchecked(&self) -> Self {
+        self.clone()
+    }
+}
+
+impl AsRefExpand for FuseArg {
+    fn __expand_as_ref_method(&self, _: &Scope) -> &Self {
+        self
+    }
+}
+
+impl AsMutExpand for FuseArg {
+    fn __expand_as_mut_method(&mut self, _: &Scope) -> &mut Self {
+        self
+    }
+}
+
 impl IntoMut for FuseArg {
-    fn into_mut(self, _context: &mut Scope) -> Self {
+    fn into_mut(self, _context: &Scope) -> Self {
         self
     }
 }
 
 impl IntoRuntime for FuseArg {
-    fn __expand_runtime_method(self, _context: &mut Scope) -> Self::ExpandType {
+    fn __expand_runtime_method(self, _context: &Scope) -> Self::ExpandType {
         self
     }
 }
@@ -293,6 +319,7 @@ impl FuseOp {
 }
 
 #[derive(CubeType, CubeLaunch, Default, Clone)]
+#[expand(derive(Clone))]
 /// Global arguments that are used for fusing [element wise operations](ElemTypewiseOp).
 pub struct GlobalArgs {
     /// Tensors that are stored in global memory.
@@ -321,6 +348,7 @@ impl<R: Runtime> GlobalArgsLaunch<R> {
 
 /// Variables shared between blocks.
 #[derive(CubeType, Default, Clone)]
+#[expand(derive(Clone))]
 pub struct MultiBlockVariables {
     variables: Registry<usize, Registry<usize, RuntimeCell<Vector<DynElem, DynSize>>>>,
 }
@@ -504,6 +532,7 @@ impl<R: Runtime> GlobalArgsLaunch<R> {
 }
 
 #[derive(CubeType, Clone)]
+#[expand(derive(Clone))]
 /// Keep track of all local variables that are used as argument in fused
 /// [element wise operations](ElemwiseOp).
 pub struct LocalArgs {
@@ -598,6 +627,12 @@ pub struct FuseBlockConfig {
     pub ref_layout: RefLayout,
     pub ops: Vec<FuseOp>,
     pub width: VectorSize,
+}
+
+impl AsRefExpand for FuseBlockConfig {
+    fn __expand_as_ref_method(&self, _: &Scope) -> &Self {
+        self
+    }
 }
 
 impl FuseBlockConfig {

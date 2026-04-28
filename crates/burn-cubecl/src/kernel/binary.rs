@@ -1,3 +1,5 @@
+use core::ops::Rem;
+
 use crate::{
     CubeRuntime,
     kernel::utils::{address_type, broadcast_shape},
@@ -152,7 +154,9 @@ impl<T: Numeric, N: Size> BinaryOp<T, N> for PowOp {
 #[cube]
 impl<T: Numeric, N: Size> BinaryOp<T, N> for AndOp {
     fn execute(lhs: Vector<T, N>, rhs: Vector<T, N>) -> Vector<T, N> {
-        Vector::cast_from(Vector::<bool, N>::cast_from(lhs).and(Vector::<bool, N>::cast_from(rhs)))
+        Vector::cast_from(
+            Vector::<bool, N>::cast_from(lhs).vec_and(Vector::<bool, N>::cast_from(rhs)),
+        )
     }
 }
 
@@ -195,8 +199,10 @@ pub(crate) fn kernel_scalar_binop<C: Numeric, N: Size, O: BinaryOpFamily>(
         terminate!();
     }
 
-    output[ABSOLUTE_POS] =
-        O::BinaryOp::<C, N>::execute(input[ABSOLUTE_POS], Vector::new(scalar.get::<C>()));
+    output.write(
+        ABSOLUTE_POS,
+        O::BinaryOp::<C, N>::execute(input.read(ABSOLUTE_POS), Vector::new(scalar.get::<C>())),
+    );
 }
 
 #[cube(launch_unchecked, address_type = "dynamic")]
@@ -210,7 +216,10 @@ pub(crate) fn kernel_binop<C: Numeric, N: Size, O: BinaryOpFamily>(
         terminate!();
     }
 
-    out[ABSOLUTE_POS] = O::BinaryOp::<C, N>::execute(lhs[ABSOLUTE_POS], rhs[ABSOLUTE_POS]);
+    out.write(
+        ABSOLUTE_POS,
+        O::BinaryOp::<C, N>::execute(lhs.read(ABSOLUTE_POS), rhs.read(ABSOLUTE_POS)),
+    );
 }
 
 pub(crate) fn launch_binop<R: CubeRuntime, O: BinaryOpFamily>(

@@ -63,19 +63,6 @@ impl LaunchArg for GlobalTensor {
     }
 
     fn expand(arg: &Self::CompilationArg, builder: &mut KernelBuilder) -> GlobalTensorExpand {
-        let tensor = builder.input_tensor(arg.ty);
-
-        GlobalTensorExpand {
-            tensor: tensor.into(),
-            ty: arg.ty,
-            broadcasted: arg.broadcasted,
-        }
-    }
-
-    fn expand_output(
-        arg: &Self::CompilationArg,
-        builder: &mut KernelBuilder,
-    ) -> GlobalTensorExpand {
         let tensor = match arg.tensor.inplace {
             Some(id) => builder.inplace_output(id),
             None => builder.output_tensor(arg.ty),

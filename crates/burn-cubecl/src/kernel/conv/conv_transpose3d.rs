@@ -146,7 +146,7 @@ fn conv_transpose3d_kernel<E: Numeric>(
         }
     }
 
-    output[ABSOLUTE_POS] = sum;
+    output.write(ABSOLUTE_POS, sum);
 }
 
 pub(crate) fn conv_transpose3d<R: CubeRuntime>(

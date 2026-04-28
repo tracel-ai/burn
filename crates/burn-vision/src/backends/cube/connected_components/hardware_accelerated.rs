@@ -60,7 +60,7 @@ fn end_distance(pixels: u32, tx: u32) -> u32 {
 #[allow(unconditional_panic, reason = "clippy thinks PLANE_DIM is always 2")]
 fn ballot_dyn(y: u32, pred: bool) -> u32 {
     let index = y % (PLANE_DIM / 32);
-    plane_ballot(pred)[index as usize]
+    plane_ballot(pred).extract(index as usize)
 }
 
 #[cube(launch_unchecked)]

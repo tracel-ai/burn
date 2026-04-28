@@ -105,7 +105,7 @@ fn direct_conv2d_kernel<E: Numeric, NIn: Size, NOut: Size>(
         has_padding,
     );
 
-    output[ABSOLUTE_POS] = sum;
+    output.write(ABSOLUTE_POS, sum);
 }
 
 #[derive(CubeType, Clone)]
@@ -204,7 +204,7 @@ fn kernel_loop_inner<E: Numeric, NIn: Size, NOut: Size>(
 
                 #[unroll]
                 for i in 0..vector_size_in {
-                    sum[v] += val[i];
+                    sum.insert(v, sum.extract(v) + val.extract(i));
                 }
                 weight_pos += stride_oc;
             }

@@ -5,7 +5,8 @@ logger = { file = "target/profiling.log", level = "disabled" }
 logger = { file = "target/autotune.log", level = "disabled" }
 
 [compilation]
-logger = { file = "target/compilation.log", level = "disabled" }
+check_mode = "validate"
+logger = { file = "target/compilation.log", level = "full" }
 
 [memory]
 logger = { file = "target/memory.log", level = "disabled" }

@@ -300,7 +300,7 @@ fn col2im_kernel<E: Numeric>(
 
     #[comptime]
     match bias {
-        ComptimeOption::Some(bias) => image[ABSOLUTE_POS] = val + bias[ch_im],
-        ComptimeOption::None => image[ABSOLUTE_POS] = val,
+        ComptimeOption::Some(bias) => image.write(ABSOLUTE_POS, val + bias[ch_im]),
+        ComptimeOption::None => image.write(ABSOLUTE_POS, val),
     }
 }

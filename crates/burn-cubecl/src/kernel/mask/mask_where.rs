@@ -21,7 +21,14 @@ fn mask_where_kernel<T: Numeric, B: Int, N: Size>(
         terminate!();
     }
 
-    output[pos] = select_many(Vector::cast_from(mask[pos]), value[pos], input[pos]);
+    output.write(
+        pos,
+        select_many(
+            Vector::cast_from(mask.read(pos)),
+            value.read(pos),
+            input.read(pos),
+        ),
+    );
 }
 
 #[derive(Clone, Copy, Debug)]

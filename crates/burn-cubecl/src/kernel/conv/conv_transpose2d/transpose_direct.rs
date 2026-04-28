@@ -116,7 +116,7 @@ fn conv_transpose2d_direct_kernel<E: Numeric>(
         }
     }
 
-    output[ABSOLUTE_POS] = sum;
+    output.write(ABSOLUTE_POS, sum);
 }
 
 /// Perform a 2D convolution transposition using the direct algorithm.
