@@ -2301,7 +2301,11 @@ dependencies = [
  "fnv",
  "foldhash 0.2.0",
  "half",
+<<<<<<< HEAD
  "hashbrown 0.17.1",
+=======
+ "hashbrown 0.16.1",
+>>>>>>> 912b81a64 (refactor: Migrate to changes to references)
  "internment",
  "itertools 0.14.0",
  "num-traits",
@@ -2373,7 +2377,11 @@ dependencies = [
  "derive_more",
  "dirs",
  "enumset",
+<<<<<<< HEAD
  "hashbrown 0.17.1",
+=======
+ "hashbrown 0.16.1",
+>>>>>>> 912b81a64 (refactor: Migrate to changes to references)
  "itertools 0.14.0",
  "log",
  "md5",
@@ -2438,9 +2446,14 @@ dependencies = [
  "derive-new",
  "derive_more",
  "half",
+<<<<<<< HEAD
  "hashbrown 0.17.1",
+=======
+ "hashbrown 0.16.1",
+>>>>>>> 912b81a64 (refactor: Migrate to changes to references)
  "itertools 0.14.0",
  "log",
+ "renderdoc",
  "sanitize-filename",
  "tracel-ash",
  "tracing",
@@ -3507,6 +3520,15 @@ dependencies = [
  "crc32fast",
  "miniz_oxide",
  "zlib-rs",
+]
+
+[[package]]
+name = "float-cmp"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "98de4bbd547a563b716d8dfa9aad1cb19bfab00f4fa09a6a4ed21dbcf44ce9c4"
+dependencies = [
+ "num-traits",
 ]
 
 [[package]]
@@ -5457,12 +5479,15 @@ dependencies = [
 ]
 
 [[package]]
+<<<<<<< HEAD
 name = "mutants"
 version = "0.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bc0287524726960e07b119cebd01678f852f147742ae0d925e6a520dca956126"
 
 [[package]]
+=======
+>>>>>>> 912b81a64 (refactor: Migrate to changes to references)
 name = "naga"
 version = "29.0.0"
 source = "git+https://github.com/gfx-rs/wgpu.git?rev=bde709122f8320571ab1733ab055dcb54415a483#bde709122f8320571ab1733ab055dcb54415a483"
@@ -6002,15 +6027,6 @@ name = "ordered-float"
 version = "4.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7bb71e1b3fa6ca1c61f383464aaf2bb0e2f8e772a1f01d486832464de363b951"
-dependencies = [
- "num-traits",
-]
-
-[[package]]
-name = "ordered-float"
-version = "5.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b7d950ca161dc355eaf28f82b11345ed76c6e1f6eb1f4f4479e0323b9e2fbd0e"
 dependencies = [
  "num-traits",
 ]
@@ -6986,7 +7002,7 @@ version = "0.22.0-pre.1"
 dependencies = [
  "burn",
  "burn-store",
- "float-cmp",
+ "float-cmp 0.10.0",
  "serde",
 ]
 
@@ -7511,6 +7527,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ba39f3699c378cd8970968dcbff9c43159ea4cfbd88d43c00b22f2ef10a435d2"
 
 [[package]]
+name = "renderdoc"
+version = "0.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ac633a08f39bf3268714799bd8c4a1a19c19c203d817d3448bb8b91c97817cf0"
+dependencies = [
+ "bitflags 2.11.1",
+ "float-cmp 0.9.0",
+ "libloading 0.8.9",
+ "once_cell",
+ "renderdoc-sys",
+ "winapi",
+ "wio",
+]
+
+[[package]]
 name = "renderdoc-sys"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7798,7 +7829,7 @@ dependencies = [
  "burn-autodiff",
  "burn-flex",
  "burn-store",
- "float-cmp",
+ "float-cmp 0.10.0",
  "serde",
 ]
 
@@ -8577,7 +8608,7 @@ dependencies = [
  "nix 0.29.0",
  "num-derive",
  "num-traits",
- "ordered-float 4.6.0",
+ "ordered-float",
  "pest",
  "pest_derive",
  "phf 0.11.3",
@@ -9031,9 +9062,13 @@ dependencies = [
 
 [[package]]
 name = "tracel-llvm"
+<<<<<<< HEAD
 version = "22.1.4-3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e705efb48326ecbeda4435c133c5218b589be5d59d677ca778cb11e110d4c0a0"
+=======
+version = "22.1.4-8"
+>>>>>>> 912b81a64 (refactor: Migrate to changes to references)
 dependencies = [
  "tracel-mlir-rs",
  "tracel-mlir-sys",
@@ -9041,9 +9076,13 @@ dependencies = [
 
 [[package]]
 name = "tracel-llvm-bundler"
+<<<<<<< HEAD
 version = "22.1.4-3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "313aebfb1f84e3383ee00ef237a6f72620bb5ee38199bc601aab782316790dc7"
+=======
+version = "22.1.4-8"
+>>>>>>> 912b81a64 (refactor: Migrate to changes to references)
 dependencies = [
  "anyhow",
  "bytes",
@@ -9061,9 +9100,13 @@ dependencies = [
 
 [[package]]
 name = "tracel-mlir-rs"
+<<<<<<< HEAD
 version = "22.1.4-3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8f3fc9807e8fc9880a68637048a6f1effdde26a61998f64d53577f2e60d3749d"
+=======
+version = "22.1.4-8"
+>>>>>>> 912b81a64 (refactor: Migrate to changes to references)
 dependencies = [
  "tracel-mlir-rs-macros",
  "tracel-mlir-sys",
@@ -9071,9 +9114,13 @@ dependencies = [
 
 [[package]]
 name = "tracel-mlir-rs-macros"
+<<<<<<< HEAD
 version = "22.1.4-3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "65c7dbf4aa0ddbbe6658d1d8fdcdd97a2ebfd26f14b7d06f57dc5c7bca83f879"
+=======
+version = "22.1.4-8"
+>>>>>>> 912b81a64 (refactor: Migrate to changes to references)
 dependencies = [
  "comrak",
  "convert_case 0.8.0",
@@ -9088,9 +9135,13 @@ dependencies = [
 
 [[package]]
 name = "tracel-mlir-sys"
+<<<<<<< HEAD
 version = "22.1.4-3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "59ac1a8360f2b71c665e3f412bc8268c2d31ed09ec1f2abd67fc3721083892cc"
+=======
+version = "22.1.4-8"
+>>>>>>> 912b81a64 (refactor: Migrate to changes to references)
 dependencies = [
  "reqwest",
  "tracel-llvm-bundler",
@@ -9109,9 +9160,13 @@ dependencies = [
 
 [[package]]
 name = "tracel-tblgen-rs"
+<<<<<<< HEAD
 version = "22.1.4-3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "82e4c745740c264a7b6270827e9e4f8f3fd41e34c687d9b274780e2a5ab24b8f"
+=======
+version = "22.1.4-8"
+>>>>>>> 912b81a64 (refactor: Migrate to changes to references)
 dependencies = [
  "bindgen",
  "cc",
@@ -9860,7 +9915,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5f2ab60e120fd6eaa68d9567f3226e876684639d22a4219b313ff69ec0ccd5ac"
 dependencies = [
  "log",
- "ordered-float 4.6.0",
+ "ordered-float",
  "strsim",
  "thiserror 1.0.69",
  "wezterm-dynamic-derive",
@@ -10016,7 +10071,7 @@ dependencies = [
  "objc2-metal",
  "objc2-quartz-core",
  "once_cell",
- "ordered-float 5.3.0",
+ "ordered-float",
  "parking_lot",
  "portable-atomic",
  "portable-atomic-util",
@@ -10403,6 +10458,15 @@ name = "winsafe"
 version = "0.0.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d135d17ab770252ad95e9a872d365cf3090e3be864a34ab46f48555993efc904"
+
+[[package]]
+name = "wio"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5d129932f4644ac2396cb456385cbf9e63b5b30c6e8dc4820bdca4eb082037a5"
+dependencies = [
+ "winapi",
+]
 
 [[package]]
 name = "wit-bindgen"
