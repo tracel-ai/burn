@@ -252,14 +252,14 @@ fn test_scatter_nd_single_element() {
 fn test_scatter_nd_k1_high_rank() {
     // K=1 on a 3D tensor: each index selects a full 2D slice
     let device = Default::default();
-    let data = TestTensor::<3>::zeros([2, 2, 2], &device);
+    let data = TestTensor::<3>::ones([2, 2, 2], &device);
     let indices = TestTensorInt::<2>::from_ints([[1]], &device);
     let values = TestTensor::<3>::from_floats([[[10.0, 20.0], [30.0, 40.0]]], &device);
 
     let output = data.scatter_nd(indices, values);
 
     output.into_data().assert_eq(
-        &TensorData::from([[[0.0, 0.0], [0.0, 0.0]], [[10.0, 20.0], [30.0, 40.0]]]),
+        &TensorData::from([[[1.0, 1.0], [1.0, 1.0]], [[10.0, 20.0], [30.0, 40.0]]]),
         false,
     );
 }

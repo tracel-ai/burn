@@ -1,8 +1,9 @@
+use crate::kernel::utils::{shape_divmod, shape_divmod_range};
 use crate::{
     CubeRuntime, kernel::utils::address_type, ops::numeric::empty_device_dtype, tensor::CubeTensor,
 };
-use burn_backend::TensorMetadata;
 use cubecl::prelude::*;
+use cubecl::std::FastDivmod;
 use cubecl::std::tensor::layout::linear::LinearView;
 use cubecl::{CubeDim, calculate_cube_count_elemwise};
 
@@ -14,16 +15,18 @@ use cubecl::{CubeDim, calculate_cube_count_elemwise};
 fn gather_nd_kernel<T: Numeric, I: Int>(
     data: &Tensor<T>,
     indices: &LinearView<I>,
-    output: &mut LinearView<T, ReadWrite>,
+    output: &mut Tensor<T>,
+    output_shape: Sequence<FastDivmod<usize>>,
+    data_slice_shape: Sequence<FastDivmod<usize>>,
     slice_size: usize,
     k: usize,
+    working_units: usize,
     #[define(T, I)] _dtypes: [StorageType; 2],
 ) {
-    if !output.is_in_bounds(ABSOLUTE_POS) {
+    if ABSOLUTE_POS >= working_units {
         terminate!();
     }
 
-    // Decompose ABSOLUTE_POS into (index_tuple_idx, slice_offset)
     let slice_offset = ABSOLUTE_POS % slice_size;
     let index_idx = ABSOLUTE_POS / slice_size;
 
@@ -35,15 +38,37 @@ fn gather_nd_kernel<T: Numeric, I: Int>(
         base_offset += idx_val * data.stride(j);
     }
 
-    output[ABSOLUTE_POS] = data[base_offset + slice_offset];
+    let slice_rank = data_slice_shape.len().comptime();
+    let mut data_slice_offset = 0usize;
+    let mut remainder = slice_offset;
+    #[unroll]
+    for i in 0..slice_rank {
+        let dim = slice_rank - i - 1;
+        let (rem, coord) = data_slice_shape[dim].div_mod(remainder);
+        remainder = rem;
+        data_slice_offset += coord * data.stride(k + dim);
+    }
+
+    let out_rank = output_shape.len().comptime();
+    let mut out_offset = 0usize;
+    let mut remainder_o = ABSOLUTE_POS;
+    #[unroll]
+    for i in 0..out_rank {
+        let dim = out_rank - i - 1;
+        let (rem, coord) = output_shape[dim].div_mod(remainder_o);
+        remainder_o = rem;
+        out_offset += coord * output.stride(dim);
+    }
+
+    output[out_offset] = data[base_offset + data_slice_offset];
 }
 
 pub(crate) fn gather_nd<R: CubeRuntime>(
     tensor: CubeTensor<R>,
     indices: CubeTensor<R>,
 ) -> CubeTensor<R> {
-    let data_shape = tensor.shape();
-    let idx_shape = indices.shape();
+    let data_shape = &tensor.meta.shape;
+    let idx_shape = &indices.meta.shape;
     let m = idx_shape.num_dims();
     let k = idx_shape[m - 1];
 
@@ -70,6 +95,9 @@ pub(crate) fn gather_nd<R: CubeRuntime>(
 
     let (dtype, indices_dtype) = (tensor.dtype, indices.dtype);
 
+    let data_slice_shape = shape_divmod_range(&tensor, k..data_shape.num_dims());
+    let output_shape_divmod = shape_divmod(&output);
+
     unsafe {
         gather_nd_kernel::launch_unchecked(
             &output.client,
@@ -78,9 +106,12 @@ pub(crate) fn gather_nd<R: CubeRuntime>(
             address_type!(tensor, indices, output),
             tensor.into_tensor_arg(),
             indices.into_linear_view(),
-            output.clone().into_linear_view(),
+            output.clone().into_tensor_arg(),
+            output_shape_divmod,
+            data_slice_shape,
             slice_size,
             k,
+            total_elem,
             [dtype.into(), indices_dtype.into()],
         )
     }
