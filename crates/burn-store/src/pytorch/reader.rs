@@ -765,15 +765,7 @@ fn load_legacy_pytorch_file_with_metadata(
         _ => vec![],
     };
 
-    // 6. Skip 8-byte header before raw binary data
-    // PyTorch legacy format has an 8-byte header (possibly protocol version or alignment)
-    // between the storage keys list and the actual tensor data
-    let mut header = [0u8; 8];
-    if reader.read(&mut header).is_ok() {
-        // Header read successfully, data starts after this
-    }
-
-    // 7. Raw binary data starts here
+    // 6. Raw binary data starts here
     let data_start_pos = reader.stream_position()?;
     let file_size = reader.seek(SeekFrom::End(0))?;
     let data_size = file_size - data_start_pos;
