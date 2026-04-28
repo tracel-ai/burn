@@ -644,15 +644,6 @@ fn test_legacy_with_offsets() {
     let reader = PytorchReader::new(&path).expect("Should read legacy file with offsets");
     assert_eq!(reader.keys().len(), 3, "Should have 3 tensors");
 
-    // // Check that tensors exist
-    // for key in &keys {
-    //     assert!(reader.get(key).is_some(), "Should have tensor: {}", key);
-    //     let tensor = reader.get(key).unwrap();
-    //     let data = tensor.to_data().unwrap();
-    //     let values = data.as_slice::<f32>().unwrap();
-    //     assert!(!values.is_empty(), "Tensor {} should have data", key);
-    // }
-
     let tensor1 = reader
         .get("tensor1")
         .expect("Legacy file should contain tensor1");
