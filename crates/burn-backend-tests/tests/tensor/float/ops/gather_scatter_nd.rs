@@ -1,5 +1,5 @@
 use super::*;
-use burn_tensor::TensorData;
+use burn_tensor::{IndexingUpdateOp, TensorData};
 
 #[test]
 fn test_gather_nd_2d_k_equals_d() {
@@ -106,7 +106,7 @@ fn test_scatter_nd_assign_2d() {
     // values shape: [2] (scalar per index tuple)
     let values = TestTensor::<1>::from_floats([10.0, 20.0], &device);
 
-    let output = data.scatter_nd(indices, values);
+    let output = data.scatter_nd(indices, values, IndexingUpdateOp::Assign);
 
     output.into_data().assert_eq(
         &TensorData::from([[0.0, 10.0, 0.0], [0.0, 0.0, 0.0], [20.0, 0.0, 0.0]]),
@@ -122,7 +122,7 @@ fn test_scatter_nd_add_2d() {
     let indices = TestTensorInt::<2>::from_ints([[0, 1], [2, 0]], &device);
     let values = TestTensor::<1>::from_floats([10.0, 20.0], &device);
 
-    let output = data.scatter_nd_add(indices, values);
+    let output = data.scatter_nd(indices, values, IndexingUpdateOp::Add);
 
     output.into_data().assert_eq(
         &TensorData::from([[1.0, 11.0, 1.0], [1.0, 1.0, 1.0], [21.0, 1.0, 1.0]]),
@@ -140,7 +140,7 @@ fn test_scatter_nd_add_duplicate_indices() {
     let indices = TestTensorInt::<2>::from_ints([[0, 1], [0, 1]], &device);
     let values = TestTensor::<1>::from_floats([5.0, 3.0], &device);
 
-    let output = data.scatter_nd_add(indices, values);
+    let output = data.scatter_nd(indices, values, IndexingUpdateOp::Add);
 
     // Values should accumulate: 5.0 + 3.0 = 8.0
     output
@@ -160,7 +160,7 @@ fn test_scatter_nd_3d_slices() {
     // values shape: [2, 3]
     let values = TestTensor::<2>::from_floats([[10.0, 20.0, 30.0], [40.0, 50.0, 60.0]], &device);
 
-    let output = data.scatter_nd(indices, values);
+    let output = data.scatter_nd(indices, values, IndexingUpdateOp::Assign);
 
     output.into_data().assert_eq(
         &TensorData::from([[10.0, 20.0, 30.0], [40.0, 50.0, 60.0]]),
@@ -175,7 +175,7 @@ fn test_scatter_nd_mul() {
     let indices = TestTensorInt::<2>::from_ints([[0, 1], [1, 2]], &device);
     let values = TestTensor::<1>::from_floats([10.0, 2.0], &device);
 
-    let output = data.scatter_nd_mul(indices, values);
+    let output = data.scatter_nd(indices, values, IndexingUpdateOp::Mul);
 
     output.into_data().assert_eq(
         &TensorData::from([[2.0, 30.0, 4.0], [5.0, 6.0, 14.0]]),
@@ -190,7 +190,7 @@ fn test_scatter_nd_min() {
     let indices = TestTensorInt::<2>::from_ints([[0, 0], [1, 1]], &device);
     let values = TestTensor::<1>::from_floats([3.0, 25.0], &device);
 
-    let output = data.scatter_nd_min(indices, values);
+    let output = data.scatter_nd(indices, values, IndexingUpdateOp::Min);
 
     // min(5.0, 3.0) = 3.0; min(20.0, 25.0) = 20.0
     output
@@ -205,7 +205,7 @@ fn test_scatter_nd_max() {
     let indices = TestTensorInt::<2>::from_ints([[0, 0], [1, 1]], &device);
     let values = TestTensor::<1>::from_floats([3.0, 25.0], &device);
 
-    let output = data.scatter_nd_max(indices, values);
+    let output = data.scatter_nd(indices, values, IndexingUpdateOp::Max);
 
     // max(5.0, 3.0) = 5.0; max(20.0, 25.0) = 25.0
     output
@@ -225,7 +225,7 @@ fn test_scatter_nd_batch() {
     let values =
         TestTensor::<2>::from_floats([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]], &device);
 
-    let output = data.scatter_nd(indices, values);
+    let output = data.scatter_nd(indices, values, IndexingUpdateOp::Assign);
 
     output.into_data().assert_eq(
         &TensorData::from([[1.0, 2.0, 3.0], [7.0, 8.0, 9.0], [4.0, 5.0, 6.0]]),
@@ -241,7 +241,7 @@ fn test_scatter_nd_single_element() {
     let indices = TestTensorInt::<2>::from_ints([[2]], &device);
     let values = TestTensor::<1>::from_floats([99.0], &device);
 
-    let output = data.scatter_nd(indices, values);
+    let output = data.scatter_nd(indices, values, IndexingUpdateOp::Assign);
 
     output
         .into_data()
@@ -256,7 +256,7 @@ fn test_scatter_nd_k1_high_rank() {
     let indices = TestTensorInt::<2>::from_ints([[1]], &device);
     let values = TestTensor::<3>::from_floats([[[10.0, 20.0], [30.0, 40.0]]], &device);
 
-    let output = data.scatter_nd(indices, values);
+    let output = data.scatter_nd(indices, values, IndexingUpdateOp::Assign);
 
     output.into_data().assert_eq(
         &TensorData::from([[[1.0, 1.0], [1.0, 1.0]], [[10.0, 20.0], [30.0, 40.0]]]),
@@ -288,7 +288,7 @@ fn test_gather_scatter_nd_roundtrip() {
 
     let gathered: TestTensor<2> = data.clone().gather_nd(indices.clone());
     let zeros = TestTensor::<2>::zeros([3, 3], &device);
-    let reconstructed: TestTensor<2> = zeros.scatter_nd_add(indices, gathered);
+    let reconstructed: TestTensor<2> = zeros.scatter_nd(indices, gathered, IndexingUpdateOp::Add);
 
     reconstructed.into_data().assert_eq(
         &TensorData::from([[1.0, 2.0, 3.0], [0.0, 0.0, 0.0], [7.0, 8.0, 9.0]]),
@@ -311,7 +311,7 @@ fn test_scatter_nd_3d_k2_partial_slices() {
         &device,
     );
 
-    let output = data.scatter_nd(indices, values);
+    let output = data.scatter_nd(indices, values, IndexingUpdateOp::Add);
 
     // Only data[0,1,:] and data[1,2,:] should be set
     let output_data = output.into_data();

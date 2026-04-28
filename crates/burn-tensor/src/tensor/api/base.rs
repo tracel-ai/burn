@@ -1798,6 +1798,9 @@ where
     /// # Warning
     /// Not all backends have runtime bound checks for the indices, so make sure the they are valid.
     /// Otherwise, out of bounds indices could lead to unexpected results instead of panicking.
+    ///
+    /// # Panics
+    /// If the `update` is not `IndexingUpdateOp::Add`. Other operations are currently not implemented.
     pub fn scatter(
         self,
         dim: usize,
@@ -1821,11 +1824,16 @@ where
         ))
     }
 
-    /// Multi-dimensional scatter: update `self` at locations given by `indices` using assignment.
+    /// Multi-dimensional scatter: update `self` at locations given by `indices` using the specified `update` operation.
     ///
     /// The size of `indices`'s last axis (call it `K`) indexes the leading `K` dims of `self`;
     /// the batch shape `indices.shape[0..M-1]` is preserved. `values` has shape
     /// `indices.shape[0..M-1] ++ self.shape[K..D]`. Constraints: `K <= D` and `M >= 1`.
+    ///
+    /// # Arguments
+    /// * `indices` - The indices of the elements to scatter.
+    /// * `values` - The values to scatter into the tensor.
+    /// * `update` - The operation used to update the existing values at the indexed positions (e.g., add).
     ///
     /// # Note
     ///
@@ -1841,6 +1849,7 @@ where
         self,
         indices: Tensor<B, M, Int>,
         values: Tensor<B, DV, K>,
+        update: IndexingUpdateOp,
     ) -> Self {
         check!(TensorCheck::scatter_nd::<D, M, DV>(
             &self.shape(),
@@ -1851,111 +1860,7 @@ where
             self.primitive,
             indices.primitive,
             values.primitive,
-            IndexingUpdateOp::Assign,
-        ))
-    }
-
-    /// Multi-dimensional scatter with additive reduction.
-    ///
-    /// With duplicate indices, results are non-deterministic on GPU backends.
-    ///
-    /// # Warning
-    ///
-    /// Not all backends have runtime bound checks for the indices, so make sure they are valid.
-    /// Otherwise, out of bounds indices could lead to unexpected results instead of panicking.
-    pub fn scatter_nd_add<const M: usize, const DV: usize>(
-        self,
-        indices: Tensor<B, M, Int>,
-        values: Tensor<B, DV, K>,
-    ) -> Self {
-        check!(TensorCheck::scatter_nd::<D, M, DV>(
-            &self.shape(),
-            &indices.shape(),
-            &values.shape()
-        ));
-        Self::new(K::scatter_nd(
-            self.primitive,
-            indices.primitive,
-            values.primitive,
-            IndexingUpdateOp::Add,
-        ))
-    }
-
-    /// Multi-dimensional scatter with multiplicative reduction.
-    ///
-    /// With duplicate indices, results are non-deterministic on GPU backends.
-    ///
-    /// # Warning
-    ///
-    /// Not all backends have runtime bound checks for the indices, so make sure they are valid.
-    /// Otherwise, out of bounds indices could lead to unexpected results instead of panicking.
-    pub fn scatter_nd_mul<const M: usize, const DV: usize>(
-        self,
-        indices: Tensor<B, M, Int>,
-        values: Tensor<B, DV, K>,
-    ) -> Self {
-        check!(TensorCheck::scatter_nd::<D, M, DV>(
-            &self.shape(),
-            &indices.shape(),
-            &values.shape()
-        ));
-        Self::new(K::scatter_nd(
-            self.primitive,
-            indices.primitive,
-            values.primitive,
-            IndexingUpdateOp::Mul,
-        ))
-    }
-
-    /// Multi-dimensional scatter with minimum reduction.
-    ///
-    /// With duplicate indices, results are non-deterministic on GPU backends.
-    ///
-    /// # Warning
-    ///
-    /// Not all backends have runtime bound checks for the indices, so make sure they are valid.
-    /// Otherwise, out of bounds indices could lead to unexpected results instead of panicking.
-    pub fn scatter_nd_min<const M: usize, const DV: usize>(
-        self,
-        indices: Tensor<B, M, Int>,
-        values: Tensor<B, DV, K>,
-    ) -> Self {
-        check!(TensorCheck::scatter_nd::<D, M, DV>(
-            &self.shape(),
-            &indices.shape(),
-            &values.shape()
-        ));
-        Self::new(K::scatter_nd(
-            self.primitive,
-            indices.primitive,
-            values.primitive,
-            IndexingUpdateOp::Min,
-        ))
-    }
-
-    /// Multi-dimensional scatter with maximum reduction.
-    ///
-    /// With duplicate indices, results are non-deterministic on GPU backends.
-    ///
-    /// # Warning
-    ///
-    /// Not all backends have runtime bound checks for the indices, so make sure they are valid.
-    /// Otherwise, out of bounds indices could lead to unexpected results instead of panicking.
-    pub fn scatter_nd_max<const M: usize, const DV: usize>(
-        self,
-        indices: Tensor<B, M, Int>,
-        values: Tensor<B, DV, K>,
-    ) -> Self {
-        check!(TensorCheck::scatter_nd::<D, M, DV>(
-            &self.shape(),
-            &indices.shape(),
-            &values.shape()
-        ));
-        Self::new(K::scatter_nd(
-            self.primitive,
-            indices.primitive,
-            values.primitive,
-            IndexingUpdateOp::Max,
+            update,
         ))
     }
 
