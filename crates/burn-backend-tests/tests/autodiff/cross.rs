@@ -1,9 +1,6 @@
 use super::*;
 use burn_tensor::{TensorData, Tolerance};
 
-#[cfg(feature = "std")]
-use burn_backend_tests::might_panic;
-
 #[test]
 fn backward_basic() {
     let device = AutodiffDevice::new();
@@ -62,21 +59,15 @@ fn backward_after_sum() {
     b_grad.assert_approx_eq::<FloatElem>(&expected_b, Tolerance::default());
 }
 
-#[cfg(feature = "std")]
-#[might_panic(reason = "not implemented: Cross product on non-last dimension")]
 #[test]
 fn different_dim() {
-    // Also check when the cross is along a different dimension (e.g. dim 0).
+    // Cross along a non-last dimension (dim 0) treats columns as 3-vectors.
     let device = AutodiffDevice::new();
     let a_raw = [[1.0, 4.0, 7.0], [2.0, 5.0, 8.0], [3.0, 6.0, 9.0]];
     let b_raw = [[9.0, 6.0, 3.0], [8.0, 5.0, 2.0], [7.0, 4.0, 1.0]];
 
     let a = TestTensor::<2>::from_data(TensorData::from(a_raw), &device);
     let b = TestTensor::<2>::from_data(TensorData::from(b_raw), &device);
-    // Cross along dim 0. Some backends (for example CubeCL) may not support
-    // cross on non-last dimensions and will intentionally panic with a
-    // message like "Cross product on non-last dimension not yet implemented".
-    // In that case we treat the panic as a skipped test for that backend.
     let out = a.cross(b.clone(), 0);
 
     // Manually compute cross of each column vector using raw arrays
@@ -100,4 +91,40 @@ fn different_dim() {
 
     out.to_data()
         .assert_approx_eq::<FloatElem>(&TensorData::from(expected), Tolerance::default());
+}
+
+#[test]
+fn backward_non_last_dim() {
+    // Backward through a cross on dim 0. The autodiff rule recurses through
+    // float_cross with the same dim, so this also exercises the non-last-dim
+    // forward path on the gradient pass.
+    let device = AutodiffDevice::new();
+    let a = TestTensor::<2>::from_data(
+        TensorData::from([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]]),
+        &device,
+    )
+    .require_grad();
+    let b = TestTensor::<2>::from_data(
+        TensorData::from([[9.0, 8.0, 7.0], [6.0, 5.0, 4.0], [3.0, 2.0, 1.0]]),
+        &device,
+    )
+    .require_grad();
+
+    // Cross on the column dimension, then permute and cross on the last dim.
+    // Both paths share the same expected gradient magnitudes; we compare the
+    // dim-0 output against the reference last-dim output to keep the check
+    // backend-agnostic.
+    let c0 = a.clone().cross(b.clone(), 0);
+    let c_ref = a
+        .clone()
+        .permute([1, 0])
+        .cross(b.clone().permute([1, 0]), 1)
+        .permute([1, 0]);
+
+    c0.to_data()
+        .assert_approx_eq::<FloatElem>(&c_ref.to_data(), Tolerance::default());
+
+    let grads = c0.sum().backward();
+    assert!(a.grad(&grads).is_some());
+    assert!(b.grad(&grads).is_some());
 }

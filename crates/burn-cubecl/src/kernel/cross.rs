@@ -1,7 +1,10 @@
 use crate::{
     CubeRuntime,
-    kernel::utils::{address_type, broadcast_shape},
-    ops::numeric::empty_device_dtype,
+    kernel::{
+        into_contiguous,
+        utils::{address_type, broadcast_shape},
+    },
+    ops::{numeric::empty_device_dtype, swap_dims},
     tensor::CubeTensor,
 };
 use cubecl::std::tensor::layout::linear::LinearView;
@@ -58,11 +61,17 @@ pub(crate) fn cross<R: CubeRuntime>(
         );
     }
 
-    // For now, only support cross on the last dimension
+    // The kernel reads each 3-vector from contiguous memory, so it expects the
+    // cross dimension to be the last (innermost) and physically contiguous.
+    // For non-last dims we permute the cross dim to the last position, run the
+    // kernel, then permute the result back. swap_dims only updates strides, so
+    // make the permuted operands contiguous before launch.
     if dim != ndims - 1 {
-        unimplemented!(
-            "Cross product on non-last dimension not yet implemented for CubeCL backend"
-        );
+        let last = ndims - 1;
+        let lhs = into_contiguous(swap_dims(lhs, dim, last));
+        let rhs = into_contiguous(swap_dims(rhs, dim, last));
+        let result = cross(lhs, rhs, last);
+        return swap_dims(result, dim, last);
     }
 
     let output_shape = broadcast_shape(&[&lhs, &rhs]);
