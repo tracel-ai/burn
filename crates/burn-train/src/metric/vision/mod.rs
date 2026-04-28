@@ -1,3 +1,4 @@
+mod afine;
 mod dice;
 mod dists;
 mod fid;
@@ -6,6 +7,7 @@ mod ms_ssim;
 mod psnr;
 mod ssim;
 
+pub use afine::*;
 pub use dice::*;
 pub use dists::*;
 pub use fid::*;
