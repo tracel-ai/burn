@@ -93,17 +93,17 @@ fusion = [
 ]
 
 [dependencies]
-burn-backend = { path = "../burn-backend", version = "=0.21.0-pre.3", default-features = false }
+burn-backend = { workspace = true }
 
 # Backends
-burn-autodiff = { path = "../burn-autodiff", version = "=0.21.0-pre.3", optional = true, default-features = false }
-burn-cpu = { path = "../burn-cpu", version = "=0.21.0-pre.3", optional = true, default-features = false }
-burn-cuda = { path = "../burn-cuda", version = "=0.21.0-pre.3", optional = true, default-features = false }
-burn-flex = { path = "../burn-flex", version = "=0.21.0-pre.3", optional = true, default-features = false }
-burn-ndarray = { path = "../burn-ndarray", version = "=0.21.0-pre.3", optional = true, default-features = false }
-burn-tch = { path = "../burn-tch", version = "=0.21.0-pre.3", optional = true, default-features = false }
-burn-rocm = { path = "../burn-rocm", version = "=0.21.0-pre.3", optional = true, default-features = false }
-burn-wgpu = { path = "../burn-wgpu", version = "=0.21.0-pre.3", optional = true, default-features = false }
+burn-autodiff = { workspace = true, optional = true }
+burn-cpu = { workspace = true, optional = true }
+burn-cuda = { workspace = true, optional = true }
+burn-flex = { workspace = true, optional = true }
+burn-ndarray = { workspace = true, optional = true }
+burn-tch = { workspace = true, optional = true }
+burn-rocm = { workspace = true, optional = true }
+burn-wgpu = { workspace = true, optional = true }
 
 # Op macros with `.as_$inner_kind()`
 paste = { workspace = true }

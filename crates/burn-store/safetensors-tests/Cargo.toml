@@ -5,9 +5,9 @@ edition.workspace = true
 license.workspace = true
 
 [dev-dependencies]
-burn = { path = "../../burn" }
-burn-flex = { path = "../../burn-flex" }
-burn-autodiff = { path = "../../burn-autodiff" }
-burn-store = { path = "../", features = ["std", "safetensors"] }
+burn = { workspace = true, features = ["default"] }
+burn-flex = { workspace = true, features = ["default"] }
+burn-autodiff = { workspace = true, features = ["default"] }
+burn-store = { workspace = true, features = ["default", "std", "safetensors"] }
 serde = { workspace = true }
 float-cmp = { workspace = true }

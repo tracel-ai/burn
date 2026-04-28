@@ -18,7 +18,7 @@ jobs:
       - publish-burn-core
       - publish-burn-optim
       # dev dependencies
-      - publish-burn-ndarray
+      - publish-burn-flex
     uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v9
     with:
       crate: burn-rl
@@ -33,7 +33,7 @@ jobs:
       - publish-burn-fusion
       - publish-burn-cubecl-fusion
       - publish-burn-cubecl
-      - publish-burn-ndarray
+      - publish-burn-flex
       - publish-burn-tch
       - publish-burn-tensor
       - publish-burn-ir
@@ -56,7 +56,7 @@ jobs:
       - publish-burn-tensor
       # dev dependencies
       - publish-burn-autodiff
-      - publish-burn-ndarray
+      - publish-burn-flex
       - publish-burn-wgpu
     uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v9
     with:
@@ -176,7 +176,6 @@ jobs:
       - publish-burn-fusion
       - publish-burn-cubecl-fusion
       - publish-burn-tensor
-      - publish-burn-ndarray
     uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v9
     with:
       crate: burn-cubecl
@@ -236,7 +235,6 @@ jobs:
     needs:
       - publish-burn-tensor
       - publish-burn-autodiff
-      - publish-burn-ndarray
       - publish-burn-std
       - publish-burn-cubecl
     uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v9
@@ -262,7 +260,6 @@ jobs:
     needs:
       - publish-burn-tensor
       - publish-burn-autodiff
-      - publish-burn-ndarray
       - publish-burn-std
       - publish-burn-cubecl
     uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v9
@@ -276,7 +273,6 @@ jobs:
     needs:
       - publish-burn-tensor
       - publish-burn-autodiff
-      - publish-burn-ndarray
       - publish-burn-std
       - publish-burn-cubecl
     uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v9
@@ -305,7 +301,7 @@ jobs:
       - publish-burn-communication
       # dev dependencies
       - publish-burn-wgpu
-      - publish-burn-ndarray
+      - publish-burn-flex
       - publish-burn-cuda
     uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v9
     with:
@@ -336,7 +332,7 @@ jobs:
       - publish-burn-wgpu
       - publish-burn-tch
       - publish-burn-cuda
-      - publish-burn-ndarray
+      - publish-burn-flex
       - publish-burn-candle
       - publish-burn-remote
     uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v9
@@ -353,7 +349,7 @@ jobs:
       - publish-burn-autodiff
       - publish-burn-wgpu
       - publish-burn-tch
-      - publish-burn-ndarray
+      - publish-burn-flex
       - publish-burn-candle
       - publish-burn-remote
     uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v9
@@ -371,7 +367,7 @@ jobs:
       - publish-burn-autodiff
       - publish-burn-wgpu
       - publish-burn-tch
-      - publish-burn-ndarray
+      - publish-burn-flex
       - publish-burn-candle
       - publish-burn-remote
       - publish-burn-nn
@@ -388,7 +384,7 @@ jobs:
       - publish-burn-optim
       - publish-burn-collective
       - publish-burn-rl
-      - publish-burn-ndarray
+      - publish-burn-flex
     uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v9
     with:
       crate: burn-train

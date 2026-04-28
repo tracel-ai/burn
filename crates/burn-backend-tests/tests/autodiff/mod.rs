@@ -26,6 +26,7 @@ mod conv_transpose2d;
 mod conv_transpose3d;
 mod cross;
 mod cross_entropy;
+mod ctc;
 mod cummax;
 mod cummin;
 mod cumprod;

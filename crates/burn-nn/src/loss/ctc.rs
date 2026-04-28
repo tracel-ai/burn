@@ -1,13 +1,10 @@
 #![allow(clippy::excessive_precision)]
 
 use super::Reduction;
-use alloc::vec;
 use burn::config::Config;
 use burn::module::Module;
-use burn::tensor::{Bool, Element, Int, Tensor, backend::Backend, s};
+use burn::tensor::{Int, Tensor, backend::Backend};
 use burn_core as burn;
-use burn_core::tensor::Numeric;
-use core::f32;
 
 /// Configuration for the [CTC Loss](CTCLoss) module.
 #[derive(Config, Debug)]
@@ -114,8 +111,7 @@ impl CTCLoss {
         input_lengths: Tensor<B, 1, Int>,
         target_lengths: Tensor<B, 1, Int>,
     ) -> Tensor<B, 1> {
-        let device = log_probs.device();
-        let [max_input_length, batch_size, num_classes] = log_probs.dims(); // [T, N, C]
+        let [max_input_length, batch_size, num_classes] = log_probs.dims();
         let max_target_len = targets.dims()[1];
         let input_lengths_len = input_lengths.dims()[0];
         let target_lengths_len = target_lengths.dims()[0];
@@ -126,70 +122,27 @@ impl CTCLoss {
             input_lengths_len,
             target_lengths_len,
         );
-
-        // Build the modified label sequence l' by inserting blanks around every label
-        let blank_inserted_targets =
-            self.insert_blanks::<B>(&targets, batch_size, max_target_len, &device);
-
-        // Initialize the forward variable alpha
-        let max_l_prime_len = 2 * max_target_len + 1;
-        let mut log_alpha_t_s =
-            Tensor::<B, 2>::full([batch_size, max_l_prime_len], f32::NEG_INFINITY, &device);
-        log_alpha_t_s = self.initialize_log_alpha(
-            log_probs.clone(),
-            blank_inserted_targets.clone(),
-            log_alpha_t_s,
+        self.length_assertions(
+            input_lengths.clone(),
+            target_lengths.clone(),
+            max_target_len,
+            max_input_length,
         );
 
-        let l_prime_combined_mask = self.create_l_prime_mask(
-            blank_inserted_targets.clone(),
-            batch_size,
-            max_l_prime_len,
-            &device,
+        let mut loss = burn::tensor::module::ctc_loss(
+            log_probs,
+            targets,
+            input_lengths,
+            target_lengths,
+            self.blank,
         );
-        let s_mask =
-            self.create_s_mask(max_l_prime_len, batch_size, target_lengths.clone(), &device);
-
-        // Loop over time steps since an arbitrary time step t depends on t - 1
-        for t in 1..max_input_length {
-            let combined_s_t_mask = self.create_combined_s_t_mask(
-                input_lengths.clone(),
-                t,
-                batch_size,
-                max_l_prime_len,
-                s_mask.clone(),
-            );
-            log_alpha_t_s = self.compute_log_alpha_t_s(
-                t,
-                combined_s_t_mask,
-                log_alpha_t_s,
-                l_prime_combined_mask.clone(),
-                log_probs.clone(),
-                blank_inserted_targets.clone(),
-            );
-        }
-
-        let last_blank_indices = target_lengths.mul_scalar(2).reshape([batch_size, 1]);
-        let last_label_indices = last_blank_indices.clone().sub_scalar(1);
-        let log_alpha_last_blank = log_alpha_t_s
-            .clone()
-            .gather(1, last_blank_indices)
-            .squeeze_dim::<1>(1);
-        let log_alpha_last_label = log_alpha_t_s
-            .clone()
-            .gather(1, last_label_indices)
-            .squeeze_dim::<1>(1);
-        let log_likelihood = self.log_sum_exp(log_alpha_last_blank, log_alpha_last_label, &device);
-        let mut ctc_loss_tensor = log_likelihood.neg();
 
         if self.zero_infinity {
-            let inf_mask = ctc_loss_tensor.clone().is_inf();
-            ctc_loss_tensor = ctc_loss_tensor
-                .clone()
-                .mask_where(inf_mask, ctc_loss_tensor.clone().zeros_like());
+            let inf_mask = loss.clone().is_inf();
+            loss = loss.clone().mask_where(inf_mask, loss.clone().zeros_like());
         }
 
-        ctc_loss_tensor
+        loss
     }
 
     /// Computes the CTC loss for the input log-probabilities and targets with reduction.
@@ -246,6 +199,50 @@ impl CTCLoss {
         }
     }
 
+    /// Checks the per-element length invariants required by the alpha
+    /// recursion. These require reading the length tensors from the device,
+    /// so the checks are gated behind `cfg(debug_assertions)` to avoid the
+    /// device-to-host sync in release builds.
+    ///
+    /// Validated:
+    /// - `target_lengths[i] >= 0`
+    /// - `target_lengths[i] <= max_target_len`
+    /// - `input_lengths[i] >= target_lengths[i]`
+    /// - `input_lengths[i] <= max_input_length`
+    #[allow(unused_variables)]
+    fn length_assertions<B: Backend>(
+        &self,
+        input_lengths: Tensor<B, 1, Int>,
+        target_lengths: Tensor<B, 1, Int>,
+        max_target_len: usize,
+        max_input_length: usize,
+    ) {
+        #[cfg(debug_assertions)]
+        {
+            let target_lengths_data = target_lengths.into_data();
+            let input_lengths_data = input_lengths.into_data();
+            let target_iter = target_lengths_data.iter::<i64>();
+            let input_iter = input_lengths_data.iter::<i64>();
+            for (i, (tl, il)) in target_iter.zip(input_iter).enumerate() {
+                assert!(tl >= 0, "target_lengths[{i}] = {tl} must be non-negative");
+                assert!(
+                    tl as usize <= max_target_len,
+                    "target_lengths[{i}] = {tl} exceeds the targets tensor width {max_target_len}"
+                );
+                assert!(
+                    il >= tl,
+                    "input_lengths[{i}] = {il} must be >= target_lengths[{i}] = {tl} \
+                     (no valid CTC alignment otherwise)"
+                );
+                assert!(
+                    il as usize <= max_input_length,
+                    "input_lengths[{i}] = {il} exceeds the log_probs time dimension \
+                     {max_input_length}"
+                );
+            }
+        }
+    }
+
     fn assertions<B: Backend>(
         &self,
         batch_size: usize,
@@ -278,231 +275,6 @@ impl CTCLoss {
             target_lengths_len, batch_size
         );
     }
-
-    fn insert_blanks<B: Backend>(
-        &self,
-        targets: &Tensor<B, 2, Int>,
-        batch_size: usize,
-        max_target_len: usize,
-        device: &B::Device,
-    ) -> Tensor<B, 2, Int> {
-        // The modified label sequences have (max_target_len + 1) blank labels
-        let blank_tensor = Tensor::<B, 2, Int>::full(
-            [batch_size, 2 * max_target_len + 1],
-            self.blank as i64,
-            device,
-        );
-
-        blank_tensor.slice_assign(s![.., 1..;2], targets.clone())
-    }
-
-    fn initialize_log_alpha<B: Backend>(
-        &self,
-        log_probs: Tensor<B, 3>,
-        blank_inserted_targets: Tensor<B, 2, Int>,
-        log_alpha_t_s: Tensor<B, 2>,
-    ) -> Tensor<B, 2> {
-        // Given alpha_t(s), we have:
-        // alpha_1(1) = (y_blank)^1  => log_alpha_1(1) = ln(y_blank)^1
-        // alpha_1(2) = (y_l1)^1  => log_alpha_1(2) = ln(y_l1)^1
-        // alpha_1(s) = 0 (for every s > 2)  => log_alpha_1(s) = -neg_inf
-        let log_probs_t0 = log_probs
-            .clone()
-            .slice(s![0..1, .., ..])
-            .squeeze_dim::<2>(0); // shape: [N, C]
-
-        // log_alpha shape: [N, 2*S+1]
-        // log_probs shape: [T, N, C]
-        // log_alpha[:, 0] = log_probs[0, :, blank]
-        let first_blank = blank_inserted_targets.clone().slice(s![.., 0..1]); // [N, 1]
-        // log_probs_t0 have C columns where each represents a unique class (includes blank)
-        let log_prob_blank = log_probs_t0.clone().gather(1, first_blank); // [N, 1]
-        let temp_log_alpha_t_s = log_alpha_t_s.slice_assign(s![.., 0..1], log_prob_blank);
-
-        // log_alpha[:, 1] = log_probs[0, :, targets[:, 0]]
-        let first_label = blank_inserted_targets.clone().slice(s![.., 1..2]); // [N, 1]
-        let log_prob_first_label = log_probs_t0.gather(1, first_label); // [N, 1]
-        temp_log_alpha_t_s.slice_assign(s![.., 1..2], log_prob_first_label)
-    }
-
-    fn right_shift_2d_tensor<B: Backend, K>(
-        &self,
-        org_2d_tensor: Tensor<B, 2, K>,
-        shift_by: usize,
-        device: &B::Device,
-    ) -> Tensor<B, 2, K>
-    where
-        K: Numeric<B>,
-        K::Elem: Element,
-    {
-        assert!(
-            shift_by == 1 || shift_by == 2,
-            "The parameter shift_by must 1 or 2"
-        );
-
-        let [rows, cols] = org_2d_tensor.dims();
-        let padding_shape = [rows, shift_by];
-        let padding_tensor = if org_2d_tensor.dtype().is_float() {
-            Tensor::<B, 2, K>::full(padding_shape, f32::NEG_INFINITY, device)
-        } else {
-            Tensor::<B, 2, K>::full(padding_shape, 0, device)
-        };
-        let org_tensor_shortened = org_2d_tensor.slice(s![.., ..cols - shift_by]);
-
-        Tensor::cat(vec![padding_tensor, org_tensor_shortened], 1)
-    }
-
-    fn create_l_prime_mask<B: Backend>(
-        &self,
-        blank_inserted_targets: Tensor<B, 2, Int>,
-        batch_size: usize,
-        max_l_prime_len: usize,
-        device: &B::Device,
-    ) -> Tensor<B, 2, Bool> {
-        let l_prime_s = blank_inserted_targets.clone();
-        let l_prime_s_minus_2 = self.right_shift_2d_tensor(blank_inserted_targets, 2, device);
-
-        // Create a single mask that is true for entries where alpha_{t-1}(s - 2) should also
-        // be added to compute alpha_{t}(s)
-        let s_is_not_blank_mask = l_prime_s.clone().not_equal_elem(self.blank as i64);
-        let s_not_equal_s_minus_2_mask = l_prime_s.not_equal(l_prime_s_minus_2);
-
-        // The 2 leftmost columns of the returned mask should only contain false.
-        // These are invalid positions since s - 2 is a valid index only when s >= 2.
-        let col_indices = Tensor::<B, 1, Int>::arange(0..(max_l_prime_len as i64), device)
-            .reshape([1, max_l_prime_len])
-            .expand([batch_size, max_l_prime_len]);
-        let s_greater_than_1_mask = col_indices.greater_equal_elem(2);
-
-        s_is_not_blank_mask
-            .bool_and(s_not_equal_s_minus_2_mask)
-            .bool_and(s_greater_than_1_mask)
-    }
-
-    fn create_s_mask<B: Backend>(
-        &self,
-        max_l_prime_len: usize,
-        batch_size: usize,
-        target_lengths: Tensor<B, 1, Int>,
-        device: &B::Device,
-    ) -> Tensor<B, 2, Bool> {
-        let col_indices = Tensor::<B, 1, Int>::arange(0..max_l_prime_len as i64, device)
-            .reshape([1, max_l_prime_len]);
-        let col_indices_expanded = col_indices.expand([batch_size, max_l_prime_len]);
-        let blank_inserted_target_lengths = target_lengths
-            .mul_scalar(2)
-            .add_scalar(1)
-            .reshape([batch_size, 1]);
-        let target_lengths_expanded =
-            blank_inserted_target_lengths.expand([batch_size, max_l_prime_len]);
-
-        col_indices_expanded.lower(target_lengths_expanded)
-    }
-
-    fn log_sum_exp<const D: usize, B: Backend>(
-        &self,
-        log_tensor1: Tensor<B, D>,
-        log_tensor2: Tensor<B, D>,
-        device: &B::Device,
-    ) -> Tensor<B, D> {
-        let shape = log_tensor1.dims();
-        let ones_tensor = Tensor::<B, D>::ones(shape, device);
-
-        // Let A and B represent parameters tensor1 and tensor2 respectively.
-        // Let C be the tensor this method returns.
-        // If an entry in both A and B are neg_inf, then the same entry
-        // in C should also contain neg_inf.
-        // If an entry in only one of A or B is neg_inf, then the same entry in
-        // C should contain the value of the other tensor entry which is not neg_inf.
-        let tensor1_is_neg_inf = log_tensor1.clone().equal_elem(f32::NEG_INFINITY);
-        let tensor2_is_neg_inf = log_tensor2.clone().equal_elem(f32::NEG_INFINITY);
-        let temp_tensor1 = ones_tensor
-            .clone()
-            .mask_where(tensor1_is_neg_inf.clone(), log_tensor2.clone());
-        let neg_inf_lse_tensor =
-            temp_tensor1.mask_where(tensor2_is_neg_inf.clone(), log_tensor1.clone());
-
-        // Create sanitized tensors for math operations to prevent NaN. Replace neg_inf
-        // with 0.0. The tensor neg_inf_lse_tensor contains correct values for entries
-        // where at least one of the corresponding entries in log_tensor1 or log_tensor2
-        // is neg_inf. Hence, the math operations below is computing the values for entries
-        // that are not already filled with their actual/correct values. Thus, result for
-        // these positions (where we sanitize) are not used anyway since the
-        // unfilled_entries_mask is applied at the end.
-        let tensor1_safe = log_tensor1
-            .clone()
-            .mask_fill(tensor1_is_neg_inf.clone(), 0.0);
-        let tensor2_safe = log_tensor2
-            .clone()
-            .mask_fill(tensor2_is_neg_inf.clone(), 0.0);
-
-        // Create a mask which contains true for entries whose values were not
-        // set by operations above
-        let filled_entries_mask = tensor1_is_neg_inf.bool_or(tensor2_is_neg_inf);
-        let unfilled_entries_mask = filled_entries_mask.bool_not();
-
-        let max_tensor = tensor1_safe.clone().max_pair(tensor2_safe.clone());
-        let diff_tensor = tensor1_safe.sub(tensor2_safe);
-        let exp_tensor = diff_tensor.abs().neg().exp();
-        let ln_tensor = ones_tensor.add(exp_tensor).log();
-        let lse_tensor = max_tensor.add(ln_tensor);
-        neg_inf_lse_tensor.mask_where(unfilled_entries_mask, lse_tensor)
-    }
-
-    fn create_combined_s_t_mask<B: Backend>(
-        &self,
-        input_lengths: Tensor<B, 1, Int>,
-        t: usize,
-        batch_size: usize,
-        max_l_prime_len: usize,
-        s_mask: Tensor<B, 2, Bool>,
-    ) -> Tensor<B, 2, Bool> {
-        // Create masks for valid t and s
-        let t_mask_1d = input_lengths
-            .clone()
-            .greater_elem(t as i64)
-            .reshape([batch_size, 1]);
-        let t_mask = t_mask_1d.expand([batch_size, max_l_prime_len]);
-
-        t_mask.bool_and(s_mask.clone())
-    }
-
-    fn compute_log_alpha_t_s<B: Backend>(
-        &self,
-        t: usize,
-        combined_s_t_mask: Tensor<B, 2, Bool>,
-        log_alpha_t_s: Tensor<B, 2>,
-        l_prime_combined_mask: Tensor<B, 2, Bool>,
-        log_probs: Tensor<B, 3>,
-        blank_inserted_targets: Tensor<B, 2, Int>,
-    ) -> Tensor<B, 2> {
-        let device = log_probs.device();
-        let log_alpha_t_minus_1 = log_alpha_t_s.clone();
-
-        // No move from last time step: alpha_{t-1}(s)
-        let log_alpha_s = log_alpha_t_minus_1.clone();
-
-        // Single move from last time step: alpha_{t-1}(s - 1)
-        let log_alpha_s_minus_1 =
-            self.right_shift_2d_tensor(log_alpha_t_minus_1.clone(), 1, &device);
-
-        // A skip move (moving 2 positions) from last time step: alpha_{t-1}(s - 2)
-        let log_alpha_s_minus_2 =
-            self.right_shift_2d_tensor(log_alpha_t_minus_1.clone(), 2, &device);
-
-        // Compute alpha_{t}(s) using recursion, corresponding to equation 6 of the paper.
-        let log_alpha_bar = self.log_sum_exp(log_alpha_s, log_alpha_s_minus_1, &device);
-        let log_alpha_bar_plus_log_alpha_s_minus_2 =
-            self.log_sum_exp(log_alpha_bar.clone(), log_alpha_s_minus_2, &device);
-        let log_alpha_s_to_s_minus_2 = log_alpha_bar.mask_where(
-            l_prime_combined_mask.clone(),
-            log_alpha_bar_plus_log_alpha_s_minus_2,
-        ); // [N, 2 * U + 1]
-        let log_probs_t = log_probs.clone().slice(s![t, .., ..]).squeeze_dim::<2>(0); // [N, C]
-        let log_probs_l_prime_s = log_probs_t.gather(1, blank_inserted_targets.clone());
-        let temp_log_alpha_t_s = log_alpha_s_to_s_minus_2.add(log_probs_l_prime_s);
-        log_alpha_t_s.mask_where(combined_s_t_mask, temp_log_alpha_t_s)
-    }
 }
 
 #[cfg(test)]
@@ -530,44 +302,6 @@ mod tests {
                 (a - e).abs()
             );
         }
-    }
-
-    // ---------------------------------------------------------------
-    // insert_blanks tests
-    // ---------------------------------------------------------------
-
-    #[test]
-    fn test_insert_blanks_single_sample() {
-        let device = FlexDevice;
-        let ctc = CTCLossConfig::new().init();
-
-        let targets = Tensor::<TestBackend, 2, Int>::from_data([[1, 2, 3]], &device);
-        let result = ctc.insert_blanks::<TestBackend>(&targets, 1, 3, &device);
-        let result_data = result.into_data().to_vec::<i32>().unwrap();
-        assert_eq!(result_data, vec![0, 1, 0, 2, 0, 3, 0]);
-    }
-
-    #[test]
-    fn test_insert_blanks_batch() {
-        let device = FlexDevice;
-        let ctc = CTCLossConfig::new().init();
-
-        let targets = Tensor::<TestBackend, 2, Int>::from_data([[1, 2], [3, 4]], &device);
-        let result = ctc.insert_blanks::<TestBackend>(&targets, 2, 2, &device);
-        let result_data = result.into_data().to_vec::<i32>().unwrap();
-        assert_eq!(result_data, vec![0, 1, 0, 2, 0, 0, 3, 0, 4, 0]);
-    }
-
-    #[test]
-    fn test_insert_blanks_custom_blank() {
-        let device = FlexDevice;
-        let ctc = CTCLossConfig::new().with_blank(2).init();
-
-        let targets = Tensor::<TestBackend, 2, Int>::from_data([[0, 1]], &device);
-        let result = ctc.insert_blanks::<TestBackend>(&targets, 1, 2, &device);
-        let result_data = result.into_data().to_vec::<i32>().unwrap();
-        // l' = [blank=2, 0, blank=2, 1, blank=2]
-        assert_eq!(result_data, vec![2, 0, 2, 1, 2]);
     }
 
     // ---------------------------------------------------------------

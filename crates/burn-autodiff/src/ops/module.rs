@@ -1884,6 +1884,94 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         attention_fallback::<Self>(query, key, value, mask, attn_bias, options)
     }
 
+    fn ctc_loss(
+        log_probs: FloatTensor<Autodiff<B, C>>,
+        targets: IntTensor<Autodiff<B, C>>,
+        input_lengths: IntTensor<Autodiff<B, C>>,
+        target_lengths: IntTensor<Autodiff<B, C>>,
+        blank: usize,
+    ) -> FloatTensor<Autodiff<B, C>> {
+        // Backends without a native ctc_loss_backward fall back to the default
+        // implementation, which is built from differentiable tensor ops so the
+        // autodiff layer derives the gradient automatically.
+        if !B::has_ctc_loss_backward() {
+            return burn_backend::ops::ctc::ctc_loss_default::<Self>(
+                log_probs,
+                targets,
+                input_lengths,
+                target_lengths,
+                blank,
+            );
+        }
+
+        #[derive(Debug)]
+        struct CtcLoss;
+
+        impl<B: Backend> Backward<B, 1> for CtcLoss {
+            type State = (NodeId, IntTensor<B>, IntTensor<B>, IntTensor<B>, usize);
+
+            fn backward(
+                self,
+                ops: Ops<Self::State, 1>,
+                grads: &mut Gradients,
+                checkpointer: &mut Checkpointer,
+            ) {
+                let [node_parent] = ops.parents;
+                let grad_loss = grads.consume::<B>(&ops.node);
+
+                let (log_probs_state, targets, input_lengths, target_lengths, blank) = ops.state;
+                let log_probs: B::FloatTensorPrimitive =
+                    checkpointer.retrieve_node_output(log_probs_state);
+
+                if let Some(node) = node_parent {
+                    let grad = B::ctc_loss_backward(
+                        log_probs,
+                        targets,
+                        input_lengths,
+                        target_lengths,
+                        grad_loss,
+                        blank,
+                    );
+                    grads.register::<B>(node.id, grad);
+                }
+            }
+        }
+
+        match CtcLoss
+            .prepare::<C>([log_probs.node.clone()])
+            .compute_bound()
+            .stateful()
+        {
+            OpsKind::Tracked(mut prep) => {
+                let log_probs_state = prep.checkpoint(&log_probs);
+                let output = B::ctc_loss(
+                    log_probs.primitive.clone(),
+                    targets.clone(),
+                    input_lengths.clone(),
+                    target_lengths.clone(),
+                    blank,
+                );
+                prep.finish(
+                    (
+                        log_probs_state,
+                        targets,
+                        input_lengths,
+                        target_lengths,
+                        blank,
+                    ),
+                    output,
+                )
+            }
+            OpsKind::UnTracked(prep) => prep.finish(B::ctc_loss(
+                log_probs.primitive,
+                targets,
+                input_lengths,
+                target_lengths,
+                blank,
+            )),
+        }
+    }
+
     fn rfft(
         _signal: FloatTensor<Autodiff<B, C>>,
         _dim: usize,

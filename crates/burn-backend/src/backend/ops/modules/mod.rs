@@ -7,6 +7,9 @@ pub mod linear;
 /// Module with attention operations.
 pub mod attention;
 
+/// Module with CTC loss operations.
+pub mod ctc;
+
 /// Module with unfold operations.
 pub mod unfold;
 

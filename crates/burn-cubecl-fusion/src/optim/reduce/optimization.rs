@@ -27,6 +27,7 @@ use cubek::reduce::{
     components::instructions::ReduceOperationConfig,
     init_tensors,
     launch::{RoutineStrategy, reduce_kernel_virtual},
+    output_vectorization_axis,
     routines::{
         ReduceBlueprint, ReduceLaunchSettings, ReduceProblem, ReduceVectorSettings, Routine,
         cube::CubeRoutine, plane::PlaneRoutine, unit::UnitRoutine,
@@ -358,8 +359,8 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceLaunch<'_> {
             vector_size_output: config_write.width,
         };
         let problem = ReduceProblem {
-            vector_size: shape[self.reduce.axis],
-            vector_count: reduce_count,
+            reduce_len: shape[self.reduce.axis],
+            reduce_count,
             axis: self.reduce.axis,
             dtypes: ReduceDtypes {
                 input: self.reduce.op.input.dtype.into(),
@@ -384,11 +385,18 @@ impl<R: Runtime> TraceRunner<R> for FusedReduceLaunch<'_> {
             }
         };
 
+        let out_vec_axis = output_vectorization_axis(
+            &inputs.strides_ref(&config_read.ref_layout, config_read.rank),
+            self.reduce.axis,
+            vectorization_mode,
+        );
+
         let kwargs = ReduceKwArgs {
             client,
             inputs,
             outputs,
-            axis: self.reduce.axis,
+            reduce_axis: self.reduce.axis,
+            out_vec_axis,
             config_fuse_read: config_read.clone(),
             config_fuse_write: config_write.clone(),
             input: self.reduce.input.clone(),
@@ -415,7 +423,8 @@ struct ReduceKwArgs<'b, Run: Runtime> {
     client: &'b ComputeClient<Run>,
     inputs: GlobalArgsLaunch<Run>,
     outputs: GlobalArgsLaunch<Run>,
-    axis: usize,
+    reduce_axis: usize,
+    out_vec_axis: usize,
     blueprint: ReduceBlueprint,
     settings: ReduceLaunchSettings,
     config_fuse_read: FuseBlockConfig,
@@ -461,7 +470,8 @@ fn launch_reduce<Run: Runtime>(
             kwargs.config_fuse_write.width,
             FusedReduceInputLaunch::new(kwargs.inputs, kwargs.config_fuse_read, kwargs.input),
             FusedReduceOutputLaunch::new(kwargs.outputs, kwargs.config_fuse_write, kwargs.output),
-            kwargs.axis,
+            kwargs.reduce_axis,
+            kwargs.out_vec_axis,
             kwargs.blueprint,
             inst,
             dtype_input.into(),
@@ -477,7 +487,8 @@ fn launch_reduce<Run: Runtime>(
 pub fn reduce_kernel_fused<In: Numeric, SizeIn: Size, Out: Numeric, SizeOut: Size, Acc: Numeric>(
     input: &FusedReduceInput,
     output: &mut FusedReduceOutput,
-    axis_reduce: usize,
+    reduce_axis: usize,
+    out_vec_axis: usize,
     #[comptime] blueprint: ReduceBlueprint,
     #[comptime] config: ReduceOperationConfig,
     #[define(In)] _input_dtype: StorageType,
@@ -493,7 +504,8 @@ pub fn reduce_kernel_fused<In: Numeric, SizeIn: Size, Out: Numeric, SizeOut: Siz
     reduce_kernel_virtual::<In, SizeIn, Out, SizeOut, Acc>(
         &input,
         &mut output,
-        axis_reduce,
+        reduce_axis,
+        out_vec_axis,
         blueprint,
         config,
     );

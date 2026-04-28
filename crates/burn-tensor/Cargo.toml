@@ -36,8 +36,8 @@ cubecl-wgpu = ["burn-backend/cubecl-wgpu"]
 cubecl-cpu = ["burn-backend/cubecl-cpu"]
 
 [dependencies]
-burn-std = { path = "../burn-std", version = "=0.21.0-pre.3", default-features = false }
-burn-backend = { path = "../burn-backend", version = "=0.21.0-pre.3", default-features = false }
+burn-std = { workspace = true }
+burn-backend = { workspace = true }
 
 colored = { workspace = true, optional = true }
 derive-new = { workspace = true }

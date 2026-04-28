@@ -1,7 +1,7 @@
 [package]
 edition.workspace = true
 name = "modern-lstm"
-version = "0.21.0-pre.3"
+version = "0.21.0-pre.4"
 
 [lints]
 workspace = true
@@ -14,7 +14,7 @@ tch-gpu = ["burn/tch"]
 wgpu = ["burn/wgpu"]
 
 [dependencies]
-burn = { path = "../../crates/burn", features = ["train"] }
+burn = { workspace = true, features = ["default", "train"] }
 
 # Random number generator
 rand = { workspace = true, features = ["thread_rng"] }

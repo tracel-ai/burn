@@ -21,14 +21,14 @@ vulkan = ["burn/vulkan"]
 rocm = ["burn/rocm"]
 
 [dependencies]
-burn = { path = "../../crates/burn", features = [
+burn = { workspace = true, features = [
     "train",
     "vision",
     "metrics",
     "fusion",
     "dispatch",
     "flex",
-], default-features = false }
+] }
 
 # Serialization
 log = { workspace = true }

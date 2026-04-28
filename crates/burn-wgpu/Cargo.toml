@@ -44,9 +44,9 @@ cubecl-wgsl = []
 [dependencies]
 cubecl = { workspace = true, features = ["wgpu"] }
 
-burn-cubecl = { path = "../burn-cubecl", version = "=0.21.0-pre.3", default-features = false }
-burn-fusion = { path = "../burn-fusion", version = "=0.21.0-pre.3", optional = true }
-burn-backend = { path = "../burn-backend", version = "=0.21.0-pre.3", default-features = false, features = [
+burn-cubecl = { workspace = true }
+burn-fusion = { workspace = true, optional = true, features = ["default"] }
+burn-backend = { workspace = true, features = [
     "cubecl-wgpu",
 ] }
 

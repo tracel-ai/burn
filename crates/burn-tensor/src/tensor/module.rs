@@ -11,6 +11,38 @@ use crate::{
 
 use super::ops::DeformConvOptions;
 
+/// Computes the [CTC loss](crate::ops::ModuleOps::ctc_loss).
+///
+/// # Arguments
+///
+/// * `log_probs` - Log-probabilities of shape `[T, N, C]`
+/// * `targets` - Target label indices of shape `[N, S]`
+/// * `input_lengths` - Actual input sequence lengths per batch element `[N]`
+/// * `target_lengths` - Actual target lengths per batch element `[N]`
+/// * `blank` - Index of the blank label
+///
+/// # Returns
+///
+/// Per-sample loss of shape `[N]`
+pub fn ctc_loss<B>(
+    log_probs: Tensor<B, 3>,
+    targets: Tensor<B, 2, Int>,
+    input_lengths: Tensor<B, 1, Int>,
+    target_lengths: Tensor<B, 1, Int>,
+    blank: usize,
+) -> Tensor<B, 1>
+where
+    B: Backend,
+{
+    Tensor::new(TensorPrimitive::Float(B::ctc_loss(
+        log_probs.primitive.tensor(),
+        targets.primitive,
+        input_lengths.primitive,
+        target_lengths.primitive,
+        blank,
+    )))
+}
+
 /// Applies the [embedding module](crate::ops::ModuleOps::embedding).
 pub fn embedding<B>(weights: Tensor<B, 2>, indices: Tensor<B, 2, Int>) -> Tensor<B, 3>
 where

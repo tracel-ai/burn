@@ -29,6 +29,8 @@ pub use crate::cubecl::prelude::KernelMetadata;
 pub mod attention;
 /// Convolution kernels
 pub mod conv;
+/// CTC loss kernel
+pub mod ctc;
 /// FFT algorithms
 pub mod fft;
 /// Grid sampling kernels

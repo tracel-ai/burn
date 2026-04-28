@@ -267,6 +267,11 @@ pub enum ModuleOperationIr {
     IRfft(IRfftOpIr),
     /// Operation corresponding to [attention](burn_backend::ops::ModuleOps::attention).
     Attention(AttentionOpIr),
+    /// Operation corresponding to [ctc_loss](burn_backend::ops::ModuleOps::ctc_loss).
+    CtcLoss(CtcLossOpIr),
+    /// Operation corresponding to
+    /// [ctc_loss_backward](burn_backend::ops::ModuleOps::ctc_loss_backward).
+    CtcLossBackward(CtcLossBackwardOpIr),
 }
 
 /// Basic operations that can be done on any tensor type.
@@ -1791,6 +1796,29 @@ pub struct AttentionOpIr {
     pub out: TensorIr,
 }
 
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct CtcLossOpIr {
+    pub log_probs: TensorIr,
+    pub targets: TensorIr,
+    pub input_lengths: TensorIr,
+    pub target_lengths: TensorIr,
+    pub blank: usize,
+    pub out: TensorIr,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]
+#[allow(missing_docs)]
+pub struct CtcLossBackwardOpIr {
+    pub log_probs: TensorIr,
+    pub targets: TensorIr,
+    pub input_lengths: TensorIr,
+    pub target_lengths: TensorIr,
+    pub grad_loss: TensorIr,
+    pub blank: usize,
+    pub out: TensorIr,
+}
+
 impl From<InterpolateModeIr> for InterpolateMode {
     fn from(val: InterpolateModeIr) -> Self {
         match val {
@@ -2889,6 +2917,25 @@ impl ModuleOperationIr {
                     Box::new([&repr.query, &repr.key, &repr.value].into_iter())
                 }
             }
+            ModuleOperationIr::CtcLoss(repr) => Box::new(
+                [
+                    &repr.log_probs,
+                    &repr.targets,
+                    &repr.input_lengths,
+                    &repr.target_lengths,
+                ]
+                .into_iter(),
+            ),
+            ModuleOperationIr::CtcLossBackward(repr) => Box::new(
+                [
+                    &repr.log_probs,
+                    &repr.targets,
+                    &repr.input_lengths,
+                    &repr.target_lengths,
+                    &repr.grad_loss,
+                ]
+                .into_iter(),
+            ),
         }
     }
     fn outputs(&self) -> Box<dyn Iterator<Item = &TensorIr> + '_> {
@@ -2977,6 +3024,8 @@ impl ModuleOperationIr {
             ModuleOperationIr::Rfft(repr) => Box::new([&repr.out_re, &repr.out_im].into_iter()),
             ModuleOperationIr::IRfft(repr) => Box::new([&repr.out_signal].into_iter()),
             ModuleOperationIr::Attention(repr) => Box::new([&repr.out].into_iter()),
+            ModuleOperationIr::CtcLoss(repr) => Box::new([&repr.out].into_iter()),
+            ModuleOperationIr::CtcLossBackward(repr) => Box::new([&repr.out].into_iter()),
         }
     }
 
@@ -3209,6 +3258,19 @@ impl ModuleOperationIr {
                 if let Some(attn_bias) = &mut repr.attn_bias {
                     attn_bias.mark_read_only(nodes, &mut output);
                 }
+            }
+            ModuleOperationIr::CtcLoss(repr) => {
+                repr.log_probs.mark_read_only(nodes, &mut output);
+                repr.targets.mark_read_only(nodes, &mut output);
+                repr.input_lengths.mark_read_only(nodes, &mut output);
+                repr.target_lengths.mark_read_only(nodes, &mut output);
+            }
+            ModuleOperationIr::CtcLossBackward(repr) => {
+                repr.log_probs.mark_read_only(nodes, &mut output);
+                repr.targets.mark_read_only(nodes, &mut output);
+                repr.input_lengths.mark_read_only(nodes, &mut output);
+                repr.target_lengths.mark_read_only(nodes, &mut output);
+                repr.grad_loss.mark_read_only(nodes, &mut output);
             }
         };
 

@@ -29,9 +29,10 @@ tracing = [
 ]
 
 [dependencies]
-burn-fusion = { path = "../burn-fusion", version = "=0.21.0-pre.3", default-features = false }
-burn-ir = { path = "../burn-ir", version = "=0.21.0-pre.3", default-features = false }
-burn-std = { path = "../burn-std", version = "=0.21.0-pre.3", features = [
+burn-fusion = { workspace = true }
+burn-ir = { workspace = true }
+burn-std = { workspace = true, features = [
+    "default",
     "cubecl",
 ] }
 cubecl = { workspace = true }
@@ -44,7 +45,7 @@ cubek = { workspace = true, features = [
 half = { workspace = true, optional = true }
 
 # Only for `TensorData` with autotune-checks
-burn-backend = { path = "../burn-backend", version = "=0.21.0-pre.3", default-features = false, optional = true }
+burn-backend = { workspace = true, optional = true }
 
 derive-new = { workspace = true }
 hashbrown = { workspace = true }

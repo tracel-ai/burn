@@ -1,4 +1,4 @@
-use super::{conv, linear, pool};
+use super::{conv, ctc, linear, pool};
 use crate::ops::unfold::unfold4d_using_conv2d;
 use crate::tensor::{BoolTensor, FloatTensor, IntTensor};
 use crate::{Backend, ElementConversion, TensorMetadata};
@@ -1130,6 +1130,79 @@ pub trait ModuleOps<B: Backend> {
             }
             None => scaled,
         }
+    }
+
+    /// Computes the Connectionist Temporal Classification (CTC) loss.
+    ///
+    /// Sums over all valid alignments between the input and target sequences
+    /// using the forward (alpha) algorithm.
+    ///
+    /// # Arguments
+    ///
+    /// * `log_probs` - Log-probabilities of shape `[T, N, C]`
+    /// * `targets` - Target label indices of shape `[N, S]`
+    /// * `input_lengths` - Actual input sequence lengths per batch element `[N]`
+    /// * `target_lengths` - Actual target lengths per batch element `[N]`
+    /// * `blank` - Index of the blank label
+    ///
+    /// # Returns
+    ///
+    /// Per-sample loss of shape `[N]`
+    fn ctc_loss(
+        log_probs: FloatTensor<B>,
+        targets: IntTensor<B>,
+        input_lengths: IntTensor<B>,
+        target_lengths: IntTensor<B>,
+        blank: usize,
+    ) -> FloatTensor<B> {
+        ctc::ctc_loss_default::<B>(log_probs, targets, input_lengths, target_lengths, blank)
+    }
+
+    /// Returns `true` if this backend implements [ctc_loss_backward](ModuleOps::ctc_loss_backward)
+    /// natively.
+    ///
+    /// Autodiff queries this flag to decide between two paths:
+    /// - `true`: use the backend's [ctc_loss](ModuleOps::ctc_loss) and
+    ///   [ctc_loss_backward](ModuleOps::ctc_loss_backward) directly.
+    /// - `false`: call [ctc::ctc_loss_default] for the forward pass; autodiff
+    ///   then differentiates through the decomposed tensor ops.
+    ///
+    /// Backends that override `ctc_loss_backward` must also override this to
+    /// return `true`.
+    fn has_ctc_loss_backward() -> bool {
+        false
+    }
+
+    /// Backward pass for [ctc_loss](ModuleOps::ctc_loss): gradient w.r.t. `log_probs`.
+    ///
+    /// Only called when [has_ctc_loss_backward](ModuleOps::has_ctc_loss_backward)
+    /// returns `true`. Backends without a native implementation should leave
+    /// both methods at their defaults; the gradient is computed automatically by
+    /// autodiff against the decomposed [ctc::ctc_loss_default] forward.
+    ///
+    /// # Arguments
+    ///
+    /// * `log_probs` - Log-probabilities of shape `[T, N, C]`
+    /// * `targets` - Target label indices of shape `[N, S]`
+    /// * `input_lengths` - Actual input sequence lengths per batch element `[N]`
+    /// * `target_lengths` - Actual target lengths per batch element `[N]`
+    /// * `grad_loss` - Upstream gradient w.r.t. the per-sample loss `[N]`
+    /// * `blank` - Index of the blank label
+    ///
+    /// # Returns
+    ///
+    /// Gradient w.r.t. `log_probs` of shape `[T, N, C]`
+    fn ctc_loss_backward(
+        _log_probs: FloatTensor<B>,
+        _targets: IntTensor<B>,
+        _input_lengths: IntTensor<B>,
+        _target_lengths: IntTensor<B>,
+        _grad_loss: FloatTensor<B>,
+        _blank: usize,
+    ) -> FloatTensor<B> {
+        unreachable!(
+            "ctc_loss_backward called on a backend whose has_ctc_loss_backward() returns false"
+        )
     }
 
     /// Real-valued FFT with optional size parameter.

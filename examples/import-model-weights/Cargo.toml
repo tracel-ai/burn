@@ -11,15 +11,16 @@ workspace = true
 
 [dependencies]
 
-burn = { path = "../../crates/burn", features = [
+burn = { workspace = true, features = [
+    "default",
     "flex",
     "dataset",
     "vision",
 ] }
 
-burn-store = { path = "../../crates/burn-store", features = [
+burn-store = { workspace = true, features = [
     "std",
     "pytorch",
     "safetensors",
     "burnpack",
-], default-features = false }
+] }

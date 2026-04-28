@@ -15,7 +15,11 @@ impl<E: TchElement> IntTensorOps<Self> for LibTorch<E> {
     fn int_from_data(data: TensorData, device: &LibTorchDevice) -> TchTensor {
         match data.dtype {
             burn_backend::DType::I64 => TchTensor::from_data::<i64>(data, (*device).into()),
-            _ => unimplemented!("Unsupported dtype for `int_from_data`"),
+            burn_backend::DType::I32 => TchTensor::from_data::<i32>(data, (*device).into()),
+            burn_backend::DType::I16 => TchTensor::from_data::<i16>(data, (*device).into()),
+            burn_backend::DType::I8 => TchTensor::from_data::<i8>(data, (*device).into()),
+            burn_backend::DType::U8 => TchTensor::from_data::<u8>(data, (*device).into()),
+            _ => unimplemented!("Unsupported dtype for `int_from_data`: {:?}", data.dtype),
         }
     }
 

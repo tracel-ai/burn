@@ -1060,6 +1060,31 @@ impl_ir_create!(
     dtype = query.dtype
 );
 
+impl_ir_create!(
+    CtcLossOpIr {
+        log_probs: TensorIr,
+        targets: TensorIr,
+        input_lengths: TensorIr,
+        target_lengths: TensorIr,
+        blank: usize,
+    },
+    shape = Shape::new([log_probs.shape[1]]),
+    dtype = log_probs.dtype
+);
+
+impl_ir_create!(
+    CtcLossBackwardOpIr {
+        log_probs: TensorIr,
+        targets: TensorIr,
+        input_lengths: TensorIr,
+        target_lengths: TensorIr,
+        grad_loss: TensorIr,
+        blank: usize,
+    },
+    shape = log_probs.shape.clone(),
+    dtype = log_probs.dtype
+);
+
 impl DequantizeOpIr {
     pub fn create(input: TensorIr, dtype: DType, new_id: impl FnOnce() -> TensorId) -> Self {
         let out = TensorIr::uninit(new_id(), input.shape.clone(), dtype);
