@@ -1,5 +1,5 @@
 use super::*;
-use burn_tensor::TensorData;
+use burn_tensor::{IndexingUpdateOp, TensorData};
 
 #[test]
 fn test_scatter_nd_add_grad() {
@@ -14,7 +14,9 @@ fn test_scatter_nd_add_grad() {
     let indices = TestTensorInt::<2>::from_data(TensorData::from([[1]]), &device);
 
     // scatter_nd_add: data[1, :] += values[0, :]
-    let result: TestTensor<2> = data.clone().scatter_nd_add(indices, values.clone());
+    let result: TestTensor<2> =
+        data.clone()
+            .scatter_nd(indices, values.clone(), IndexingUpdateOp::Add);
     let grads = result.sum().backward();
 
     let grad_data = data.grad(&grads).unwrap();
@@ -44,7 +46,9 @@ fn test_scatter_nd_assign_grad() {
     let indices = TestTensorInt::<2>::from_data(TensorData::from([[1]]), &device);
 
     // scatter_nd (assign): data[1, :] = values[0, :]
-    let result: TestTensor<2> = data.clone().scatter_nd(indices, values.clone());
+    let result: TestTensor<2> =
+        data.clone()
+            .scatter_nd(indices, values.clone(), IndexingUpdateOp::Assign);
     let grads = result.sum().backward();
 
     let grad_data = data.grad(&grads).unwrap();
@@ -95,7 +99,9 @@ fn test_scatter_nd_add_grad_k_equals_d() {
     // indices shape: [2, 2] => K=2=D, M=2, DV = 1+2-2 = 1
     let indices = TestTensorInt::<2>::from_data(TensorData::from([[0, 1], [1, 0]]), &device);
 
-    let result: TestTensor<2> = data.clone().scatter_nd_add(indices, values.clone());
+    let result: TestTensor<2> =
+        data.clone()
+            .scatter_nd(indices, values.clone(), IndexingUpdateOp::Add);
     let grads = result.sum().backward();
 
     let grad_data = data.grad(&grads).unwrap();
@@ -144,7 +150,9 @@ fn test_scatter_nd_assign_grad_k_equals_d() {
     // Overwrite data[0,1] and data[1,0]
     let indices = TestTensorInt::<2>::from_data(TensorData::from([[0, 1], [1, 0]]), &device);
 
-    let result: TestTensor<2> = data.clone().scatter_nd(indices, values.clone());
+    let result: TestTensor<2> =
+        data.clone()
+            .scatter_nd(indices, values.clone(), IndexingUpdateOp::Assign);
     let grads = result.sum().backward();
 
     let grad_data = data.grad(&grads).unwrap();

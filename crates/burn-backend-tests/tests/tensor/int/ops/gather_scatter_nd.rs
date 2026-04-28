@@ -1,5 +1,5 @@
 use super::*;
-use burn_tensor::TensorData;
+use burn_tensor::{IndexingUpdateOp, TensorData};
 
 #[test]
 fn test_int_gather_nd_2d() {
@@ -22,7 +22,7 @@ fn test_int_scatter_nd_add() {
     let indices = TestTensorInt::<2>::from_ints([[0, 0], [1, 2]], &device);
     let values = TestTensorInt::<1>::from_ints([10, 20], &device);
 
-    let output = data.scatter_nd_add(indices, values);
+    let output = data.scatter_nd(indices, values, IndexingUpdateOp::Add);
 
     output
         .into_data()
@@ -36,7 +36,7 @@ fn test_int_scatter_nd_mul() {
     let indices = TestTensorInt::<2>::from_ints([[0, 1], [1, 0]], &device);
     let values = TestTensorInt::<1>::from_ints([10, 3], &device);
 
-    let output = data.scatter_nd_mul(indices, values);
+    let output = data.scatter_nd(indices, values, IndexingUpdateOp::Mul);
 
     output
         .into_data()
@@ -50,7 +50,7 @@ fn test_int_scatter_nd_assign() {
     let indices = TestTensorInt::<2>::from_ints([[0, 1], [1, 2]], &device);
     let values = TestTensorInt::<1>::from_ints([99, 88], &device);
 
-    let output = data.scatter_nd(indices, values);
+    let output = data.scatter_nd(indices, values, IndexingUpdateOp::Assign);
 
     output
         .into_data()
@@ -64,7 +64,7 @@ fn test_int_scatter_nd_min() {
     let indices = TestTensorInt::<2>::from_ints([[0, 0], [1, 1]], &device);
     let values = TestTensorInt::<1>::from_ints([3, 25], &device);
 
-    let output = data.scatter_nd_min(indices, values);
+    let output = data.scatter_nd(indices, values, IndexingUpdateOp::Min);
 
     // min(5, 3) = 3; min(20, 25) = 20
     output
@@ -79,7 +79,7 @@ fn test_int_scatter_nd_max() {
     let indices = TestTensorInt::<2>::from_ints([[0, 0], [1, 1]], &device);
     let values = TestTensorInt::<1>::from_ints([3, 25], &device);
 
-    let output = data.scatter_nd_max(indices, values);
+    let output = data.scatter_nd(indices, values, IndexingUpdateOp::Max);
 
     // max(5, 3) = 5; max(20, 25) = 25
     output
@@ -95,7 +95,7 @@ fn test_int_scatter_nd_slices() {
     let indices = TestTensorInt::<2>::from_ints([[0], [1]], &device);
     let values = TestTensorInt::<2>::from_ints([[10, 20, 30], [40, 50, 60]], &device);
 
-    let output = data.scatter_nd(indices, values);
+    let output = data.scatter_nd(indices, values, IndexingUpdateOp::Assign);
 
     output
         .into_data()
@@ -123,7 +123,7 @@ fn test_int_scatter_nd_single_element() {
     let indices = TestTensorInt::<2>::from_ints([[0]], &device);
     let values = TestTensorInt::<1>::from_ints([99], &device);
 
-    let output = data.scatter_nd(indices, values);
+    let output = data.scatter_nd(indices, values, IndexingUpdateOp::Assign);
 
     output
         .into_data()
