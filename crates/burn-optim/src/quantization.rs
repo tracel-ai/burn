@@ -1,5 +1,4 @@
-mod blockwise;
-pub(crate) mod linear;
+pub(crate) mod blockwise;
 pub(crate) mod signed_dynamic;
 pub(crate) mod unsigned_dynamic;
 

@@ -69,6 +69,10 @@ test-metal = [
 test-memory-checks = ["burn-fusion/memory-checks"]
 
 [dependencies]
+# Mine, remove before pr
+cubecl.workspace = true
+
+
 # ** Please make sure all dependencies support no_std when std is disabled **
 burn-core = { path = "../burn-core", version = "=0.21.0-pre.2", default-features = false }
 burn-collective = { path = "../burn-collective", version = "=0.21.0-pre.2", optional = true, default-features = false }

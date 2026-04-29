@@ -21,6 +21,7 @@ pub mod grad_clipping;
 #[cfg(feature = "std")]
 pub mod lr_scheduler;
 
+mod kernel;
 mod quantization;
 
 /// Type alias for the learning rate.
