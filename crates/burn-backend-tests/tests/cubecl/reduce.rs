@@ -1,5 +1,6 @@
 use super::*;
 use burn_tensor::Distribution;
+use burn_tensor::Shape;
 use burn_tensor::Tolerance;
 
 const RANK: usize = 4;
@@ -25,9 +26,13 @@ fn reduction_argmax_should_match_reference_backend() {
 fn reduction_argtopk_simple() {
     let device = Default::default();
 
-    let tensor = TestTensor::<2>::from_data([[1, 7, 3], [5, 2, 8]], &device);
+    let tensor = TestTensor::<2>::from_data([[1, 7, 3], [8, 2, 8]], &device);
+    let actual = tensor.argtopk(1, 2);
+    let expected = TestTensor::<2>::from_data([[1, 2], [0, 2]], &device);
 
-    panic!("tensor: {}", tensor.argtopk(1, 2));
+    let output_shape = Shape::new([2, 2]);
+    assert_eq!(actual.shape(), output_shape);
+    actual.into_data().assert_eq(&expected.into_data(), false);
 }
 
 #[test]
