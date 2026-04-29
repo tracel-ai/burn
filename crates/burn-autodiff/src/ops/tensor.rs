@@ -2133,12 +2133,12 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
     }
 
     fn float_argtopk(
-        _tensor: FloatTensor<Self>,
-        _dim: usize,
-        _k: usize,
-        _out_dtype: IntDType,
+        tensor: FloatTensor<Self>,
+        dim: usize,
+        k: usize,
+        out_dtype: IntDType,
     ) -> IntTensor<B> {
-        todo!();
+        B::float_argtopk(tensor.primitive, dim, k, out_dtype)
     }
 
     fn float_argmin(tensor: FloatTensor<Self>, dim: usize, out_dtype: IntDType) -> IntTensor<B> {

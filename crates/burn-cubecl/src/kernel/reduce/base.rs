@@ -167,8 +167,8 @@ pub fn reduce_dim<Run: CubeRuntime>(
     );
 
     let reduce_len = match config {
-        ReduceOperationConfig::ArgTopK(k) => Some(k),
-        _ => Some(1),
+        ReduceOperationConfig::ArgTopK(k) => k,
+        _ => 1,
     };
     let dtypes = config.precision(input.dtype.into(), output_dtype.map(Into::into));
     let client = input.client.clone();
@@ -218,9 +218,8 @@ pub fn init_reduce_output<Run: CubeRuntime>(
     input: &CubeTensor<Run>,
     dim: usize,
     dtypes: &ReduceDtypes,
-    reduce_len: Option<usize>,
+    reduce_len: usize,
 ) -> Option<CubeTensor<Run>> {
-    let reduce_len = reduce_len.unwrap_or(1);
     (dim < input.meta.num_dims()).then(|| {
         let mut shape_out = input.shape();
         shape_out[dim] = reduce_len;
