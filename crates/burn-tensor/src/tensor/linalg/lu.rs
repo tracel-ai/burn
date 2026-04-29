@@ -3,9 +3,9 @@ use alloc::vec;
 use alloc::vec::Vec;
 use burn_backend::{
     Backend, Slice,
-    tensor::{Bool, IndexingUpdateOp, Int},
+    tensor::{Bool, Float, IndexingUpdateOp, Int},
 };
-use burn_std::FloatDType;
+use burn_std::{DType, FloatDType};
 
 /// Computes the LU decomposition of a square or rectangular matrix with partial pivoting.
 ///
@@ -31,11 +31,18 @@ use burn_std::FloatDType;
 /// This function will panic if the tensor checks fail:
 /// - The input tensor has less than 2 dimensions (`D < 2`).
 /// - The generic parameters do not satisfy `D - 1 == D1`.
+/// - The input is a quantized tensor with dtype `DType::QFloat`.
 ///
 /// # Performance Note
 /// The current implementation of LU decomposition is not fully optimized. It will not
 /// be as fast as highly tuned specialized libraries, especially for very large
 /// matrices or large batch sizes.
+///
+/// # Numerical Behavior  
+/// - If the input tensor has dtype F16 or BF16, it is internally upcast to F32  
+///   for the computation and cast back to the original dtype before returning.  
+/// - In this case, values in L and U that fall outside the original dtype's  
+///   representable range will saturate or underflow on cast-back.
 ///
 /// # Example
 /// ```rust,ignore
@@ -62,16 +69,26 @@ use burn_std::FloatDType;
 /// }
 /// ```
 pub fn lu<B: Backend, const D: usize, const D1: usize>(
-    tensor: Tensor<B, D>,
+    mut tensor: Tensor<B, D>,
 ) -> (Tensor<B, D>, Tensor<B, D>, Tensor<B, D>) {
     let dims = tensor.dims();
-
+    let original_dtype = tensor.dtype();
     check!(TensorCheck::lu_generic_param::<D, D1>("linalg::lu"));
-    check!(TensorCheck::lu_input_tensor::<D>("linalg::lu", &dims));
+    check!(TensorCheck::lu_input_tensor::<D>(
+        "linalg::lu",
+        &dims,
+        original_dtype
+    ));
 
     let device = tensor.device();
     let n_rows = dims[D - 2];
     let n_cols = dims[D - 1];
+
+    // Upcast f16 and bf16 to f32
+    let needs_upcast = original_dtype == DType::F16 || original_dtype == DType::BF16;
+    if needs_upcast {
+        tensor = tensor.cast(FloatDType::F32)
+    }
 
     let (lu_tensor, p_compact) = compute_lu_decomposition::<B, D, D1>(tensor);
 
@@ -88,7 +105,15 @@ pub fn lu<B: Backend, const D: usize, const D1: usize>(
     let l = temp_l.mask_fill(mask, 1.0);
     let p = construct_full_permutation_tensor(p_compact, n_rows, &device).transpose();
 
-    (p, l, u)
+    if needs_upcast {
+        (
+            p.cast(original_dtype),
+            l.cast(original_dtype),
+            u.cast(original_dtype),
+        )
+    } else {
+        (p, l, u)
+    }
 }
 
 /// Dispatches the LU decomposition to either the block or standard algorithm based on
@@ -271,7 +296,8 @@ fn construct_full_permutation_tensor<B: Backend, const D: usize>(
     device: &B::Device,
 ) -> Tensor<B, D> {
     let dims = piv.dims();
-    let identity_2d = Tensor::eye(n_rows, device);
+    let identity_2d_uncasted: Tensor<B, 2, Float> = Tensor::eye(n_rows, device);
+    let identity_2d = identity_2d_uncasted.cast(piv.dtype());
 
     // Reshape the `identity` tensor from 2 dims to D dims
     let mut reshape_dims = [1; D];

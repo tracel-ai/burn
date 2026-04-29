@@ -1073,7 +1073,7 @@ impl TensorCheck {
             check = check.register(
                 "Diag",
                 TensorError::new(
-                    "Diagonal operations require 
+                    "Diagonal operations require
                 tensors with at least 2 dimensions.",
                 )
                 .details(format!(
@@ -1495,8 +1495,17 @@ impl TensorCheck {
     }
 
     /// Check the input tensor for lu decomposition is valid.
-    pub fn lu_input_tensor<const D: usize>(ops: &str, dims: &[usize]) -> Self {
+    pub fn lu_input_tensor<const D: usize>(ops: &str, dims: &[usize], dtype: DType) -> Self {
         let mut check = TensorCheck::Ok;
+
+        if matches!(dtype, DType::QFloat(_)) {
+            check = check.register(
+                ops,
+                TensorError::new("The input tensor must have a real float dtype")
+                    .details("Got an input tensor with a quantized float dtype".to_string()),
+            );
+        }
+
         let n_dims = dims.len();
         if n_dims < 2 {
             check = check.register(
