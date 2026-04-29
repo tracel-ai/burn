@@ -270,7 +270,7 @@ fn standard_lu_with_partial_piv<B: Backend, const D: usize, const D1: usize>(
             + (k as i64);
 
         // Swap current row (k-th row) with the row with maximum absolute value
-        tensor = swap_tensor_rows(tensor, max_row_indices.clone(), k, device);
+        tensor = swap_tensor_rows(tensor, max_row_indices.clone(), k);
         // Store the max row index in the k-th entry of the permutations vector/tensor
         permutations = update_permutations(permutations, max_row_indices, k, dtype);
 
@@ -343,22 +343,19 @@ fn swap_tensor_rows<B: Backend, const D: usize>(
     tensor: Tensor<B, D>,
     mut swap_target_row_tensor: Tensor<B, D, Int>,
     k: usize,
-    device: &B::Device,
 ) -> Tensor<B, D> {
     let mut expand_dims = tensor.dims();
     expand_dims[D - 2] = 1;
     swap_target_row_tensor = swap_target_row_tensor.expand(expand_dims);
 
-    let k_index_tensor =
-        Tensor::<B, D, Int>::full(swap_target_row_tensor.shape(), k as i32, device);
-
-    let val_k = tensor.clone().gather(D - 2, k_index_tensor.clone());
+    let val_k = tensor.clone().slice_dim(D - 2, k);
     let val_r = tensor.clone().gather(D - 2, swap_target_row_tensor.clone());
-    let val_k_minus_r = val_k.clone() - val_r.clone();
-    let val_r_minus_k = val_r - val_k;
 
-    let tensor = tensor.scatter(D - 2, k_index_tensor, val_r_minus_k, IndexingUpdateOp::Add);
+    let mut slices = vec![Slice::full(); D];
+    slices[D - 2] = Slice::from(k);
+    let tensor = tensor.slice_assign(&slices, val_r.clone());
 
+    let val_k_minus_r = val_k - val_r;
     tensor.scatter(
         D - 2,
         swap_target_row_tensor,
