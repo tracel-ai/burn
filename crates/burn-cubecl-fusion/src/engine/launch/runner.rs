@@ -71,7 +71,7 @@ pub trait Vectorization<R: Runtime> {
     #[allow(clippy::too_many_arguments)]
     fn vectorization<'a>(
         &self,
-        _context: &Context<'_, CubeFusionHandle<R>>,
+        _context: &Context<CubeFusionHandle<R>>,
         vectorizations: &mut BTreeMap<TensorId, Vect>,
         inputs: impl Iterator<Item = VectorizationHandle<'a, R>>,
         outputs: impl Iterator<Item = &'a TensorIr>,

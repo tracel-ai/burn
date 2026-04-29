@@ -9,6 +9,7 @@ use burn::module::ModuleDisplay;
 use burn::module::Param;
 use burn::tensor::Device;
 use burn::tensor::Tensor;
+use burn::tensor::module::layer_norm;
 
 /// Configuration to create a [LayerNorm](LayerNorm) layer using the [init function](LayerNormConfig::init).
 #[derive(Debug, Config)]
@@ -72,17 +73,8 @@ impl LayerNorm {
     ///
     /// - input: `[..., any, d_model]`
     /// - output: `[..., any, d_model]`
-    pub fn forward<const D: usize>(&self, input: Tensor<D>) -> Tensor<D> {
-        let (var, mean) = input.clone().var_mean_bias(D - 1);
-
-        let input_normalized = input.sub(mean).div(var.add_scalar(self.epsilon).sqrt());
-
-        let output = input_normalized.mul(self.gamma.val().unsqueeze());
-
-        match &self.beta {
-            Some(beta) => output.add(beta.val().unsqueeze()),
-            None => output,
-        }
+    pub fn forward<const D: usize>(&self, input: Tensor<D>) -> Tensor<B, D> {
+        layer_norm(input, self.gamma.val(), self.beta.val(), self.epsilon)
     }
 }
 
@@ -147,6 +139,30 @@ mod tests {
 
         let expected = TensorData::from([[
             -0.4863, -1.9180, 1.5766, -0.7295, -0.6305, 0.8358, 0.0449, 1.0828, -0.2548, 0.4790,
+        ]]);
+        output
+            .to_data()
+            .assert_approx_eq::<FT>(&expected, Tolerance::default());
+    }
+
+    #[test]
+    fn layer_norm_forward_no_bias() {
+        let device = Default::default();
+        let module = LayerNormConfig::new(10).with_bias(false).init(&device);
+        let input = Tensor::<2>::from_data(
+            TensorData::from([[
+                -0.6897, -2.7106, 2.2222, -1.0330, -0.8933, 1.1765, 0.0601, 1.5252, -0.3630, 0.6728,
+            ]]),
+            &device,
+        );
+
+        let output = module.forward(input);
+
+        // With bias=false, output matches the bias=true case (beta is zero-initialized
+        // by default), confirming the `None` branch in the backend hook produces the
+        // pre-beta result.
+        let expected = TensorData::from([[
+            -0.4990, -1.9680, 1.6178, -0.7486, -0.6470, 0.8576, 0.0461, 1.1111, -0.2614, 0.4915,
         ]]);
         output
             .to_data()

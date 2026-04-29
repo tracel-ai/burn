@@ -75,12 +75,12 @@ pub fn launch(strategy: ExecutionStrategy) {
     );
 }
 
-#[cfg(feature = "ndarray")]
-mod ndarray {
-    use burn::backend::ndarray::NdArrayDevice;
+#[cfg(feature = "flex")]
+mod flex {
+    use burn::backend::flex::FlexDevice;
 
     pub fn run() {
-        crate::launch_single(NdArrayDevice::Cpu);
+        crate::launch_single(FlexDevice);
     }
 }
 
@@ -144,9 +144,20 @@ mod rocm {
     }
 }
 
+#[cfg(feature = "flex")]
+mod flex {
+    use super::*;
+    use crate::launch;
+    use burn::backend::{Autodiff, Flex, autodiff::checkpoint::strategy::BalancedCheckpointing};
+
+    pub fn run() {
+        launch::<Autodiff<Flex, BalancedCheckpointing>>(ExecutionStrategy::SingleDevice(
+            Default::default(),
+        ));
+    }
+}
+
 fn main() {
-    #[cfg(feature = "ndarray")]
-    ndarray::run();
     #[cfg(feature = "tch-gpu")]
     tch_gpu::run();
     #[cfg(feature = "tch-cpu")]
@@ -163,4 +174,6 @@ fn main() {
     vulkan::run();
     #[cfg(feature = "metal")]
     metal::run();
+    #[cfg(feature = "flex")]
+    flex::run();
 }

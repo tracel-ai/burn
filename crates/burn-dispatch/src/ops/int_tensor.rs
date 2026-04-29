@@ -91,6 +91,22 @@ impl IntTensorOps<Self> for Dispatch {
         )
     }
 
+    fn int_scatter_nd(
+        data: IntTensor<Self>,
+        indices: IntTensor<Self>,
+        values: IntTensor<Self>,
+        reduction: burn_backend::tensor::IndexingUpdateOp,
+    ) -> IntTensor<Self> {
+        multi_op!(
+            inputs[(data, int), (indices, int), (values, int)], => Int,
+            B::int_scatter_nd(data, indices, values, reduction)
+        )
+    }
+
+    fn int_gather_nd(data: IntTensor<Self>, indices: IntTensor<Self>) -> IntTensor<Self> {
+        binary_op!((data, int), (indices, int), |data, indices| B::int_gather_nd(data, indices) => Int)
+    }
+
     fn int_select(
         tensor: IntTensor<Self>,
         dim: usize,

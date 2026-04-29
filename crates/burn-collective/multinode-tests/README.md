@@ -6,7 +6,7 @@ There are 3 binaries:
 
 ## node.rs
 
-Launches `n` threads each simulating a different device. Currently the backend is NdArray,
+Launches `n` threads each simulating a different device. Currently the backend is Flex,
 so everything is CPU. The program takes a file with configurations and input data.
 
 ## global.rs

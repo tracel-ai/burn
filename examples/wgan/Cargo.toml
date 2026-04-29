@@ -1,21 +1,18 @@
 [package]
 name = "wgan"
-version = "0.21.0-pre.3"
+version = "0.21.0-pre.4"
 edition.workspace = true
 
 [lints]
 workspace = true
 
 [features]
-ndarray = ["burn/ndarray"]
-ndarray-blas-accelerate = ["ndarray", "burn/accelerate"]
-ndarray-blas-netlib = ["ndarray", "burn/blas-netlib"]
-ndarray-blas-openblas = ["ndarray", "burn/openblas"]
+flex = ["burn/flex"]
 tch-cpu = ["burn/tch"]
 tch-gpu = ["burn/tch"]
 wgpu = ["burn/wgpu"]
 cuda = ["burn/cuda"]
 
 [dependencies]
-burn = { path = "../../crates/burn", features=["train", "vision"] }
+burn = { workspace = true, features=["default", "train", "vision"] }
 image = { workspace = true }

@@ -18,7 +18,7 @@ metal = ["burn/metal"]
 vulkan = ["burn/vulkan"]
 
 [dependencies]
-burn = { path = "../../crates/burn", features = ["train", "vision", "network"] }
+burn = { workspace = true, features = ["train", "vision", "network"] }
 
 # File download
 flate2 = { workspace = true }

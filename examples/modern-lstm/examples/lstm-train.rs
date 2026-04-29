@@ -12,11 +12,11 @@ pub fn launch(device: impl Into<Device>) {
 }
 
 #[cfg(feature = "ndarray")]
-mod ndarray {
-    use burn::backend::ndarray::NdArrayDevice;
+mod flex {
+    use burn::backend::flex::FlexDevice;
 
     pub fn run() {
-        crate::launch(NdArrayDevice::Cpu);
+        crate::launch(FlexDevice);
     }
 }
 
@@ -62,8 +62,8 @@ mod cuda {
 }
 
 fn main() {
-    #[cfg(feature = "ndarray")]
-    ndarray::run();
+    #[cfg(feature = "flex")]
+    flex::run();
     #[cfg(feature = "tch-gpu")]
     tch_gpu::run();
     #[cfg(feature = "tch-cpu")]

@@ -23,7 +23,7 @@ tracing = [
 ]
 
 [dependencies]
-burn-backend = { path = "../burn-backend", version = "=0.21.0-pre.3", default-features = false }
+burn-backend = { workspace = true }
 
 libc = { workspace = true }
 log = { workspace = true }
@@ -31,7 +31,7 @@ tch = { workspace = true, features = ["download-libtorch"] }
 torch-sys = { workspace = true }                             # for build script lib dir detection
 
 [build-dependencies]
-cc = "1.2.59"
+cc = "1.2.61"
 
 [package.metadata.docs.rs]
 features = ["doc"]

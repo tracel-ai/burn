@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use burn_std::config::{fusion::FusionLogLevel, log_fusion};
 
 use crate::{
     NumOperations,
@@ -21,8 +21,7 @@ use crate::{
 /// [BlocksOptimizerResult::WithHoles].
 pub struct BlocksOptimizer<O> {
     blocks: Vec<Block<O>>,
-    resolved: Vec<bool>,
-    last_checked: usize,
+    num_ops: usize,
 }
 
 /// When we can't find a proper optimization for the provided list of [blocks](Block).
@@ -37,170 +36,80 @@ pub enum BlocksOptimizerResult<O> {
     },
 }
 
-enum BlockOptimizationStep<O> {
-    Contiguous {
-        strategy: ExecutionStrategy<O>,
-    },
-    /// Only happen when we fallback on executing a single operation.
-    Operation {
-        strategy: ExecutionStrategy<O>,
-    },
-    WithHoles {
-        strategy: ExecutionStrategy<O>,
-        holes: Vec<usize>,
-    },
-    Stop,
-}
-
 impl<O: NumOperations> BlocksOptimizer<O> {
     /// Create a new optimizer with the given blocks.
     pub fn new(blocks: Vec<Block<O>>) -> Self {
         let num_ops: usize = blocks.iter().map(|g| g.end_pos).max().unwrap();
 
-        Self {
-            blocks,
-            resolved: vec![false; num_ops],
-            last_checked: 0,
-        }
+        Self { blocks, num_ops }
     }
 
     /// Optimizes the blocks.
     ///
-    /// The strategy is quite simple. We try to merge as much [blocks](Block) together as we can,
-    /// then we iterate over them in order composing optimizations with the remaining blocks, all
-    /// while minimizing fallbacks operations to avoid having holes in the optimization stream.
+    /// Strategy:
+    /// 1. Try to merge blocks together — independent blocks have no data
+    ///    dependency, so reordering across a merge is safe.
+    /// 2. Ask every resulting block for its best optimization (or the
+    ///    fallback [Operations](ExecutionStrategy::Operations) if no builder
+    ///    matched) and concatenate the strategies.
+    /// 3. An *interior* unresolved position — an op that no block's final
+    ///    ordering covered, but which sits before some other resolved
+    ///    position — is a hole that must be filled by a second optimization
+    ///    pass. Trailing unresolved positions, on the other hand, are the
+    ///    natural tail of a drained block and are left in the queue for the
+    ///    processor to handle in the next round.
     pub fn optimize(mut self) -> BlocksOptimizerResult<O> {
         self = self.merging_pass();
 
-        let mut strategies = Vec::with_capacity(self.blocks.len());
+        let num_ops = self.num_ops;
+        let blocks = core::mem::take(&mut self.blocks);
+
+        let mut strategies: Vec<Box<ExecutionStrategy<O>>> = Vec::with_capacity(blocks.len());
         let mut ordering = Vec::new();
-        let mut blocks = Vec::new();
-        core::mem::swap(&mut blocks, &mut self.blocks);
+        let mut resolved = vec![false; num_ops];
 
         for block in blocks {
-            match self.optimize_block(block, &mut ordering) {
-                BlockOptimizationStep::Contiguous { strategy } => {
-                    strategies.push(Box::new(strategy));
-                }
-                BlockOptimizationStep::Operation { strategy } => {
-                    strategies.push(Box::new(strategy));
-                    break;
-                }
-                BlockOptimizationStep::WithHoles { strategy, holes } => {
-                    strategies.push(Box::new(strategy));
-
-                    return BlocksOptimizerResult::WithHoles {
-                        strategies,
-                        ordering,
-                        holes,
-                    };
-                }
-                BlockOptimizationStep::Stop => {
-                    break;
-                }
+            let mut block_opt = block.optimize();
+            for pos in block_opt.ordering.iter() {
+                resolved[*pos] = true;
             }
+            ordering.append(&mut block_opt.ordering);
+            strategies.push(Box::new(block_opt.strategy));
         }
 
-        let optimization = match strategies.len() > 1 {
-            true => BlockOptimization {
-                strategy: ExecutionStrategy::Composed(strategies),
-                ordering,
-            },
-            false => BlockOptimization {
-                strategy: *strategies.remove(0),
-                ordering,
-            },
-        };
+        // An unresolved position is a hole only if some position *after* it
+        // is resolved (it's interleaved, not trailing). A trailing run of
+        // unresolved positions is a drained tail — left for the processor.
+        let last_resolved_end = resolved
+            .iter()
+            .rposition(|&r| r)
+            .map(|i| i + 1)
+            .unwrap_or(0);
+        let holes: Vec<usize> = (0..last_resolved_end).filter(|i| !resolved[*i]).collect();
 
-        BlocksOptimizerResult::Full(optimization)
-    }
-
-    /// Optimize a single block.
-    fn optimize_block(
-        &mut self,
-        block: Block<O>,
-        ordering: &mut Vec<usize>,
-    ) -> BlockOptimizationStep<O> {
-        let last_index = block.end_pos;
-        let mut block_optimization = block.optimize();
-        let opt_size = block_optimization.ordering.len();
-
-        for pos in block_optimization.ordering.iter() {
-            self.update_check(*pos);
-        }
-
-        if self.last_checked != ordering.len() + opt_size {
-            if !ordering.is_empty() {
-                // Don't include that block and need further exploring.
-                return BlockOptimizationStep::Stop;
-            }
-
-            return self.optimize_holes(block_optimization, last_index, ordering);
-        }
-
-        ordering.append(&mut block_optimization.ordering);
-        BlockOptimizationStep::Contiguous {
-            strategy: block_optimization.strategy,
-        }
-    }
-
-    /// The provided optimization has holes.
-    fn optimize_holes(
-        &mut self,
-        mut optimization: BlockOptimization<O>,
-        last_index: usize,
-        ordering_global: &mut Vec<usize>,
-    ) -> BlockOptimizationStep<O> {
-        match optimization.strategy {
-            ExecutionStrategy::Optimization { opt, ordering } => {
-                ordering_global.append(&mut optimization.ordering);
-                let holes = self.find_holes(last_index);
-
-                if holes.is_empty() {
-                    let strategy = ExecutionStrategy::Optimization { opt, ordering };
-                    BlockOptimizationStep::Contiguous { strategy }
-                } else {
-                    let strategy = ExecutionStrategy::Optimization { opt, ordering };
-                    BlockOptimizationStep::WithHoles { strategy, holes }
-                }
-            }
-            ExecutionStrategy::Operations { ordering } => {
-                let min = ordering.iter().min().unwrap();
-                ordering_global.push(*min);
-
-                let strategy = ExecutionStrategy::Operations {
-                    ordering: Arc::new(vec![*min]),
-                };
-                BlockOptimizationStep::Operation { strategy }
-            }
-            _ => unreachable!(),
-        }
-    }
-
-    fn update_check(&mut self, pos: usize) {
-        self.resolved[pos] = true;
-
-        for i in self.last_checked..self.resolved.len() {
-            if self.resolved[i] {
-                self.last_checked += 1;
+        let num_strategies = strategies.len();
+        log_fusion(FusionLogLevel::Basic, move || {
+            if num_strategies > 1 {
+                format!("selected composed strategy ({num_strategies} sub-strategies)")
             } else {
-                break;
+                "selected single strategy".to_string()
+            }
+        });
+
+        if holes.is_empty() {
+            let strategy = if strategies.len() > 1 {
+                ExecutionStrategy::Composed(strategies)
+            } else {
+                *strategies.remove(0)
+            };
+            BlocksOptimizerResult::Full(BlockOptimization::new(strategy, ordering))
+        } else {
+            BlocksOptimizerResult::WithHoles {
+                strategies,
+                ordering,
+                holes,
             }
         }
-    }
-
-    fn find_holes(&mut self, last: usize) -> Vec<usize> {
-        let mut fallbacks = Vec::new();
-
-        for i in self.last_checked..last {
-            if !self.resolved[i] {
-                fallbacks.push(i);
-                self.resolved[i] = true;
-            }
-            self.last_checked += 1;
-        }
-
-        fallbacks
     }
 
     /// Try to merge blocks together.

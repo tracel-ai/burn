@@ -24,12 +24,8 @@ std = [
     "burn-dispatch/std",
     "colored",
 ]
-tracing = [
-    "burn-std/tracing",
-    "burn-backend/tracing",
-    "burn-dispatch/tracing",
-]
-distributed = ["std", "burn-backend/distributed"]
+tracing = ["burn-std/tracing", "burn-backend/tracing", "burn-dispatch/tracing"]
+distributed = ["std", "burn-backend/distributed", "burn-dispatch/distributed"]
 
 cubecl = ["burn-std/cubecl", "burn-backend/cubecl"]
 cubecl-cuda = ["burn-backend/cubecl-cuda"]
@@ -62,10 +58,10 @@ memory-checks = ["burn-dispatch/memory-checks"]
 fusion = ["burn-dispatch/fusion"]
 
 [dependencies]
-burn-std = { path = "../burn-std", version = "=0.21.0-pre.3", default-features = false }
-burn-backend = { path = "../burn-backend", version = "=0.21.0-pre.3", default-features = false }
-burn-dispatch = { path = "../burn-dispatch", version = "=0.21.0-pre.3", default-features = false }
-burn-backend-extension = { path = "../../crates/burn-backend-extension", version = "=0.21.0-pre.3", optional = true }
+burn-std = { workspace = true }
+burn-backend = { workspace = true }
+burn-dispatch = { workspace = true }
+burn-backend-extension = { workspace = true, optional = true }
 
 colored = { workspace = true, optional = true }
 derive-new = { workspace = true }
@@ -78,4 +74,3 @@ enumset = { workspace = true, features = ["serde"] }
 [package.metadata.docs.rs]
 features = ["doc"]
 rustdoc-args = ["--cfg", "docsrs", "--html-in-header", "katex-header.html"]
-

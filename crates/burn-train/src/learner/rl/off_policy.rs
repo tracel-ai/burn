@@ -6,7 +6,7 @@ use crate::{
 use burn_core::tensor::Device;
 use burn_core::{self as burn};
 use burn_core::{config::Config, data::dataloader::Progress};
-use burn_ndarray::NdArrayDevice;
+use burn_flex::FlexDevice;
 use burn_rl::{AsyncPolicy, Policy, PolicyLearner, SliceAccess, TransitionBuffer};
 
 /// Parameters of an on policy training with multi environments and double-batching.
@@ -70,7 +70,7 @@ where
         let mut checkpointer = training_components.checkpointer;
         let num_steps_total = training_components.num_steps;
 
-        let cpu_device = NdArrayDevice::default().into();
+        let cpu_device = FlexDevice.into();
         let mut env_runner = MultiAgentEnvLoop::<RLC>::new(
             self.config.num_envs,
             env_init.clone(),

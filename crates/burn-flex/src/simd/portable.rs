@@ -1306,4 +1306,82 @@ mod tests {
         mask_fill_f32(&[], &[], 1.0, &mut out);
         assert!(out.is_empty());
     }
+
+    // bool_not_u8 writes into a `*mut bool` via macerator's store_as_bool.
+    // Rust's bool is only valid as 0x00 or 0x01 (any other byte is UB when
+    // read back as bool). A previous audit flagged that SIMD mask stores
+    // might emit 0xFF. Verify every output byte is normalized to 0/1.
+    #[test]
+    fn bool_not_u8_output_is_normalized_0_or_1() {
+        // Spans SIMD body + scalar tail on any realistic lane width:
+        //   17 elements -> NEON 16-byte SIMD + 1 tail; AVX2 32 spills to tail.
+        //   127 elements -> SIMD body + 15 tail for 16-byte lanes.
+        for &len in &[1usize, 8, 15, 16, 17, 31, 32, 63, 127, 256] {
+            let a: Vec<u8> = (0..len).map(|i| (i % 2) as u8).collect();
+            let mut out = vec![0xAAu8; len];
+            super::bool_not_u8(&a, &mut out);
+            for (i, &b) in out.iter().enumerate() {
+                assert!(
+                    b == 0 || b == 1,
+                    "len={}: out[{}] = 0x{:02x}, expected 0x00 or 0x01",
+                    len,
+                    i,
+                    b
+                );
+                let expected = if a[i] == 0 { 1 } else { 0 };
+                assert_eq!(
+                    b, expected,
+                    "len={}: out[{}] = {}, expected {}",
+                    len, i, b, expected
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn bool_not_inplace_u8_output_is_normalized_0_or_1() {
+        for &len in &[1usize, 8, 15, 16, 17, 31, 32, 63, 127, 256] {
+            let mut a: Vec<u8> = (0..len).map(|i| (i % 2) as u8).collect();
+            let original = a.clone();
+            super::bool_not_inplace_u8(&mut a);
+            for (i, &b) in a.iter().enumerate() {
+                assert!(
+                    b == 0 || b == 1,
+                    "len={}: a[{}] = 0x{:02x}, expected 0x00 or 0x01",
+                    len,
+                    i,
+                    b
+                );
+                let expected = if original[i] == 0 { 1 } else { 0 };
+                assert_eq!(
+                    b, expected,
+                    "len={}: a[{}] = {}, expected {}",
+                    len, i, b, expected
+                );
+            }
+        }
+    }
+
+    // Edge cases: empty input, homogeneous all-zero, homogeneous all-one.
+    // Homogeneous inputs exercise the SIMD mask-to-byte conversion for
+    // all-true and all-false cases, which alternating inputs do not.
+    #[test]
+    fn bool_not_u8_edge_cases() {
+        // Empty input.
+        let mut out: Vec<u8> = Vec::new();
+        super::bool_not_u8(&[], &mut out);
+        assert!(out.is_empty());
+
+        // All zeros -> all ones.
+        let a = alloc::vec![0u8; 32];
+        let mut out = alloc::vec![0xAAu8; 32];
+        super::bool_not_u8(&a, &mut out);
+        assert!(out.iter().all(|&b| b == 1));
+
+        // All ones -> all zeros.
+        let a = alloc::vec![1u8; 32];
+        let mut out = alloc::vec![0xAAu8; 32];
+        super::bool_not_u8(&a, &mut out);
+        assert!(out.iter().all(|&b| b == 0));
+    }
 }

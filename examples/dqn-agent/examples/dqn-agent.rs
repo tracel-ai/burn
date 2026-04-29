@@ -1,19 +1,10 @@
-#[cfg(any(
-    feature = "ndarray",
-    feature = "ndarray-blas-netlib",
-    feature = "ndarray-blas-openblas",
-    feature = "ndarray-blas-accelerate",
-))]
-mod ndarray {
-    use burn::backend::{
-        Autodiff,
-        ndarray::{NdArray, NdArrayDevice},
-    };
+#[cfg(feature = "flex")]
+mod flex {
+    use burn::backend::{Autodiff, Flex};
     use dqn_agent::training;
 
     pub fn run() {
-        let device = NdArrayDevice::Cpu;
-        training::run::<Autodiff<NdArray>>(device);
+        training::run::<Autodiff<Flex>>(Default::default());
     }
 }
 
@@ -96,13 +87,8 @@ mod remote {
 }
 
 fn main() {
-    #[cfg(any(
-        feature = "ndarray",
-        feature = "ndarray-blas-netlib",
-        feature = "ndarray-blas-openblas",
-        feature = "ndarray-blas-accelerate",
-    ))]
-    ndarray::run();
+    #[cfg(feature = "flex")]
+    flex::run();
     #[cfg(feature = "tch-gpu")]
     tch_gpu::run();
     #[cfg(feature = "tch-cpu")]

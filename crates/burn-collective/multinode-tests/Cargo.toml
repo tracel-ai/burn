@@ -5,14 +5,14 @@ edition.workspace = true
 license.workspace = true
 
 [features]
-default = ["ndarray"]
-ndarray = ["burn/ndarray"]
+default = ["flex"]
+flex = ["burn/flex"]
 
 [dependencies]
-burn = { path = "../../burn", default-features = false, features = ["std"] }
-burn-std = { path = "../../burn-std", default-features = false }
-burn-collective = { path = "..", features = ["orchestrator"] }
-burn-communication = { path = "../../burn-communication" }
+burn = { workspace = true, features = ["std"] }
+burn-std = { workspace = true }
+burn-collective = { workspace = true, features = ["default", "orchestrator"] }
+burn-communication = { workspace = true }
 
 tokio = { workspace = true, features = ["rt-multi-thread", "process"] }
 

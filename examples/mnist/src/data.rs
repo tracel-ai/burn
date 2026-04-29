@@ -1,12 +1,13 @@
 use std::{f32::consts::FRAC_PI_4, fmt::Display};
 
 use burn::{
-    backend::ndarray::NdArrayDevice,
+    backend::flex::FlexDevice,
     data::{
         dataloader::batcher::Batcher,
         dataset::{transform::Mapper, vision::MnistItem},
     },
     prelude::*,
+    tensor::ops::IntElem,
     vision::Transform2D,
 };
 use rand::RngExt;
@@ -29,7 +30,7 @@ impl Batcher<MnistItemPrepared, MnistBatch> for MnistBatcher {
             .map(|item| {
                 Tensor::<1, Int>::from_data(
                     TensorData::from([item.label as i64]),
-                    &NdArrayDevice::Cpu.into(),
+                    &FlexDevice.into(),
                 )
             })
             .collect();
@@ -107,7 +108,7 @@ pub struct MnistItemPrepared {
 
 fn prepare_image(transforms: &[Transform], item: MnistItem) -> MnistItemPrepared {
     let data = TensorData::from(item.image);
-    let tensor = Tensor::<2>::from_data(data.convert::<f32>(), &NdArrayDevice::Cpu.into());
+    let tensor = Tensor::<2>::from_data(data.convert::<f32>(), &FlexDevice.into());
     let tensor = tensor.reshape([1, 28, 28]);
 
     // normalize: make between [0,1] and make the mean =  0 and std = 1

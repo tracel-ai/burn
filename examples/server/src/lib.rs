@@ -9,8 +9,8 @@ pub fn start() {
         .unwrap_or(3000);
 
     cfg_if::cfg_if! {
-        if #[cfg(feature = "ndarray")]{
-            burn::server::start_websocket::<burn::backend::NdArray>(Default::default(), port);
+        if #[cfg(feature = "flex")]{
+            burn::server::start_websocket::<burn::backend::Flex>(Default::default(), port);
         } else if #[cfg(feature = "cuda")]{
             burn::server::start_websocket::<burn::backend::Cuda>(Default::default(), port);
         } else if #[cfg(feature = "webgpu")] {

@@ -42,7 +42,7 @@ safetensors = ["dep:safetensors"]
 pytorch = ["burn-core/record-item-custom-serde", "zip", "serde", "tar"]
 
 [dependencies]
-burn-core = { path = "../burn-core", version = "=0.21.0-pre.3", default-features = false }
+burn-core = { workspace = true }
 
 # External dependencies
 byteorder = { workspace = true, default-features = false }
@@ -64,11 +64,8 @@ safetensors = { workspace = true, optional = true }
 
 [dev-dependencies]
 # burn-import = { path = "../burn-import", version = "=0.21.0-pre.3" } # disabled (circular dep in publish, only for bench)
-burn-core = { path = "../burn-core", version = "=0.21.0-pre.3", features = ["ndarray"] }
-burn-nn = { path = "../burn-nn", version = "=0.21.0-pre.3", default-features = false }
-
-# For zero-copy benchmark validation
-burn-dispatch = { path = "../burn-dispatch", version = "=0.21.0-pre.3", default-features = false }
+burn-core = { workspace = true, features = ["flex"] }
+burn-nn = { workspace = true }
 
 divan = "0.1"
 tempfile = { workspace = true }

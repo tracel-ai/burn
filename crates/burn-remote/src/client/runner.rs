@@ -163,7 +163,7 @@ impl burn_std::device::Device for RemoteDevice {
         if device_id.type_id != 0 {
             panic!("Invalid device id: {device_id} (expected type 0)");
         }
-        let address = id_to_address(device_id.index_id)
+        let address = id_to_address(device_id.index_id as u32)
             .unwrap_or_else(|| panic!("Invalid device id: {device_id}"));
         Self::new(&address)
     }
@@ -171,7 +171,7 @@ impl burn_std::device::Device for RemoteDevice {
     fn to_id(&self) -> DeviceId {
         DeviceId {
             type_id: 0,
-            index_id: self.id,
+            index_id: self.id as u16,
         }
     }
 }

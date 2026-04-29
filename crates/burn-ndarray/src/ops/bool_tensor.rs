@@ -19,7 +19,7 @@ use crate::{
 };
 
 // Workspace crates
-use burn_backend::{Shape, TensorData, backend::Backend};
+use burn_backend::{Shape, TensorData};
 
 use super::{NdArrayBoolOps, NdArrayOps};
 
@@ -61,32 +61,20 @@ where
         )
     }
 
-    fn bool_device(_tensor: &NdArrayTensor) -> <NdArray<E> as Backend>::Device {
+    fn bool_device(_tensor: &NdArrayTensor) -> NdArrayDevice {
         NdArrayDevice::Cpu
     }
 
-    fn bool_empty(
-        shape: Shape,
-        _device: &<NdArray<E> as Backend>::Device,
-        dtype: BoolDType,
-    ) -> NdArrayTensor {
+    fn bool_empty(shape: Shape, _device: &NdArrayDevice, dtype: BoolDType) -> NdArrayTensor {
         Self::bool_zeros(shape, _device, dtype)
     }
 
-    fn bool_zeros(
-        shape: Shape,
-        _device: &<NdArray<E> as Backend>::Device,
-        _dtype: BoolDType,
-    ) -> NdArrayTensor {
+    fn bool_zeros(shape: Shape, _device: &NdArrayDevice, _dtype: BoolDType) -> NdArrayTensor {
         let values = vec![false; shape.num_elements()];
         NdArrayTensor::from_data(TensorData::new(values, shape))
     }
 
-    fn bool_ones(
-        shape: Shape,
-        _device: &<NdArray<E> as Backend>::Device,
-        _dtype: BoolDType,
-    ) -> NdArrayTensor {
+    fn bool_ones(shape: Shape, _device: &NdArrayDevice, _dtype: BoolDType) -> NdArrayTensor {
         let values = vec![true; shape.num_elements()];
         NdArrayTensor::from_data(TensorData::new(values, shape))
     }

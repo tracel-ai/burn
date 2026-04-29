@@ -341,15 +341,61 @@ where
         .expect("Kernel to never fail")
     }
 
-    fn rfft(signal: FloatTensor<Self>, dim: usize) -> (FloatTensor<Self>, FloatTensor<Self>) {
-        kernel::fft::rfft(signal, dim)
+    fn has_ctc_loss_backward() -> bool {
+        true
+    }
+
+    fn ctc_loss(
+        log_probs: FloatTensor<Self>,
+        targets: IntTensor<Self>,
+        input_lengths: IntTensor<Self>,
+        target_lengths: IntTensor<Self>,
+        blank: usize,
+    ) -> FloatTensor<Self> {
+        kernel::ctc::ctc_loss(log_probs, targets, input_lengths, target_lengths, blank)
+    }
+
+    fn ctc_loss_backward(
+        log_probs: FloatTensor<Self>,
+        targets: IntTensor<Self>,
+        input_lengths: IntTensor<Self>,
+        target_lengths: IntTensor<Self>,
+        grad_loss: FloatTensor<Self>,
+        blank: usize,
+    ) -> FloatTensor<Self> {
+        let (log_alpha_full, log_beta_full, nll) = kernel::ctc::ctc_alpha_beta(
+            log_probs.clone(),
+            targets.clone(),
+            input_lengths.clone(),
+            target_lengths,
+            blank,
+        );
+        burn_backend::ops::ctc::ctc_grad_from_alpha_beta_default::<Self>(
+            log_probs,
+            targets,
+            input_lengths,
+            grad_loss,
+            log_alpha_full,
+            log_beta_full,
+            nll,
+            blank,
+        )
+    }
+
+    fn rfft(
+        signal: FloatTensor<Self>,
+        dim: usize,
+        n: Option<usize>,
+    ) -> (FloatTensor<Self>, FloatTensor<Self>) {
+        kernel::fft::rfft(signal, dim, n)
     }
 
     fn irfft(
         spectrum_re: FloatTensor<Self>,
         spectrum_im: FloatTensor<Self>,
         dim: usize,
+        n: Option<usize>,
     ) -> FloatTensor<Self> {
-        kernel::fft::irfft(spectrum_re, spectrum_im, dim)
+        kernel::fft::irfft(spectrum_re, spectrum_im, dim, n)
     }
 }

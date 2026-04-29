@@ -1,4 +1,4 @@
-use crate::{Backend, TensorMetadata, TensorPrimitive};
+use crate::{Backend, BackendTypes, TensorMetadata, TensorPrimitive};
 
 /// A type-level representation of the kind of a float tensor
 #[derive(Clone, Debug)]
@@ -14,7 +14,7 @@ pub struct Bool;
 
 /// A type-level representation of the kind of a tensor.
 /// Metadata access is lazy.
-pub trait TensorKind<B: Backend>: Clone + core::fmt::Debug {
+pub trait TensorKind<B: BackendTypes>: Clone + core::fmt::Debug {
     /// The primitive type of the tensor.
     type Primitive: TensorMetadata;
 

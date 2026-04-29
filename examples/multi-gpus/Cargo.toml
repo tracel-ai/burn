@@ -19,11 +19,11 @@ rocm = ["burn/rocm"]
 
 [dependencies]
 # Burn
-burn = { path = "../../crates/burn", features = [
+burn = { workspace = true, features = [
     "autotune",
     "fusion",
     "collective",
     "train",
     "std",
-], default-features = false }
+] }
 text-classification = { path = "../text-classification" }

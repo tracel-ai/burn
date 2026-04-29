@@ -1054,6 +1054,223 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
     }
 
+    fn float_scatter_nd(
+        data: FloatTensor<Self>,
+        indices: IntTensor<B>,
+        values: FloatTensor<Self>,
+        reduction: burn_backend::tensor::IndexingUpdateOp,
+    ) -> FloatTensor<Self> {
+        use burn_backend::tensor::IndexingUpdateOp;
+
+        if matches!(
+            reduction,
+            IndexingUpdateOp::Mul | IndexingUpdateOp::Min | IndexingUpdateOp::Max
+        ) && (!data.node.requirement.is_none() || !values.node.requirement.is_none())
+        {
+            panic!(
+                "scatter_nd with {:?} reduction does not support autograd. \
+                 Detach the input tensors or use Assign/Add reduction instead.",
+                reduction,
+            );
+        }
+
+        match reduction {
+            IndexingUpdateOp::Add => {
+                #[derive(Debug)]
+                struct ScatterNdAdd;
+
+                impl<B: Backend> Backward<B, 2> for ScatterNdAdd {
+                    type State = IntTensor<B>;
+
+                    fn backward(
+                        self,
+                        ops: Ops<Self::State, 2>,
+                        grads: &mut Gradients,
+                        _checkpointer: &mut Checkpointer,
+                    ) {
+                        let indices = ops.state;
+                        let [_, indices_4rhs] = duplicate(&ops.parents, Some(indices));
+
+                        binary::<B, _, _>(
+                            ops.parents,
+                            ops.node,
+                            grads,
+                            |grad| grad,
+                            |grad| B::float_gather_nd(grad, indices_4rhs.unwrap()),
+                        );
+                    }
+                }
+
+                match ScatterNdAdd
+                    .prepare::<C>([data.node, values.node])
+                    .compute_bound()
+                    .stateful()
+                {
+                    OpsKind::Tracked(prep) => prep.finish(
+                        indices.clone(),
+                        B::float_scatter_nd(
+                            data.primitive,
+                            indices,
+                            values.primitive,
+                            IndexingUpdateOp::Add,
+                        ),
+                    ),
+                    OpsKind::UnTracked(prep) => prep.finish(B::float_scatter_nd(
+                        data.primitive,
+                        indices,
+                        values.primitive,
+                        IndexingUpdateOp::Add,
+                    )),
+                }
+            }
+            IndexingUpdateOp::Assign => {
+                #[derive(Debug)]
+                struct ScatterNdAssign;
+
+                impl<B: Backend> Backward<B, 2> for ScatterNdAssign {
+                    type State = (IntTensor<B>, Shape, B::Device);
+
+                    fn backward(
+                        self,
+                        ops: Ops<Self::State, 2>,
+                        grads: &mut Gradients,
+                        _checkpointer: &mut Checkpointer,
+                    ) {
+                        let (indices, values_shape, device) = ops.state;
+                        let [indices_4lhs, indices_4rhs] = duplicate(&ops.parents, Some(indices));
+
+                        binary::<B, _, _>(
+                            ops.parents,
+                            ops.node,
+                            grads,
+                            |grad| {
+                                // Zero out the scattered positions in grad
+                                let zeros =
+                                    B::float_zeros(values_shape, &device, grad.dtype().into());
+                                B::float_scatter_nd(
+                                    grad,
+                                    indices_4lhs.unwrap(),
+                                    zeros,
+                                    IndexingUpdateOp::Assign,
+                                )
+                            },
+                            |grad| B::float_gather_nd(grad, indices_4rhs.unwrap()),
+                        );
+                    }
+                }
+
+                match ScatterNdAssign
+                    .prepare::<C>([data.node, values.node])
+                    .compute_bound()
+                    .stateful()
+                {
+                    OpsKind::Tracked(prep) => prep.finish(
+                        (
+                            indices.clone(),
+                            values.primitive.shape(),
+                            B::float_device(&data.primitive),
+                        ),
+                        B::float_scatter_nd(
+                            data.primitive,
+                            indices,
+                            values.primitive,
+                            IndexingUpdateOp::Assign,
+                        ),
+                    ),
+                    OpsKind::UnTracked(prep) => prep.finish(B::float_scatter_nd(
+                        data.primitive,
+                        indices,
+                        values.primitive,
+                        IndexingUpdateOp::Assign,
+                    )),
+                }
+            }
+            // The early check above ensures no input requires grad for Mul/Min/Max,
+            // so we can safely forward to the inner backend without registering a
+            // backward op.
+            IndexingUpdateOp::Mul | IndexingUpdateOp::Min | IndexingUpdateOp::Max => {
+                #[derive(Debug)]
+                struct ScatterNdNoBackward;
+
+                impl<B: Backend> Backward<B, 2> for ScatterNdNoBackward {
+                    type State = ();
+
+                    fn backward(
+                        self,
+                        _ops: Ops<Self::State, 2>,
+                        _grads: &mut Gradients,
+                        _checkpointer: &mut Checkpointer,
+                    ) {
+                        unreachable!(
+                            "scatter_nd Mul/Min/Max backward must not run; \
+                             the forward path rejects grad-tracked inputs."
+                        )
+                    }
+                }
+
+                match ScatterNdNoBackward
+                    .prepare::<C>([data.node, values.node])
+                    .compute_bound()
+                    .stateful()
+                {
+                    OpsKind::Tracked(_) => unreachable!(
+                        "scatter_nd Mul/Min/Max forward path rejects grad-tracked inputs."
+                    ),
+                    OpsKind::UnTracked(prep) => prep.finish(B::float_scatter_nd(
+                        data.primitive,
+                        indices,
+                        values.primitive,
+                        reduction,
+                    )),
+                }
+            }
+        }
+    }
+
+    fn float_gather_nd(data: FloatTensor<Self>, indices: IntTensor<B>) -> FloatTensor<Self> {
+        #[derive(Debug)]
+        struct GatherNd;
+
+        impl<B: Backend> Backward<B, 1> for GatherNd {
+            type State = (IntTensor<B>, Shape, B::Device);
+
+            fn backward(
+                self,
+                ops: Ops<Self::State, 1>,
+                grads: &mut Gradients,
+                _checkpointer: &mut Checkpointer,
+            ) {
+                let (indices, data_shape, device) = ops.state;
+
+                unary::<B, _>(ops.parents, ops.node, grads, |grad| {
+                    let zeros = B::float_zeros(data_shape, &device, grad.dtype().into());
+                    B::float_scatter_nd(
+                        zeros,
+                        indices,
+                        grad,
+                        burn_backend::tensor::IndexingUpdateOp::Add,
+                    )
+                });
+            }
+        }
+
+        match GatherNd
+            .prepare::<C>([data.node])
+            .compute_bound()
+            .stateful()
+        {
+            OpsKind::Tracked(prep) => prep.finish(
+                (
+                    indices.clone(),
+                    data.primitive.shape(),
+                    B::float_device(&data.primitive),
+                ),
+                B::float_gather_nd(data.primitive, indices),
+            ),
+            OpsKind::UnTracked(prep) => prep.finish(B::float_gather_nd(data.primitive, indices)),
+        }
+    }
+
     fn float_select(
         tensor: FloatTensor<Self>,
         dim: usize,
@@ -3098,10 +3315,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         }
     }
 
-    fn float_into_int(
-        tensor: FloatTensor<Self>,
-        out_dtype: IntDType,
-    ) -> <Autodiff<B> as Backend>::IntTensorPrimitive {
+    fn float_into_int(tensor: FloatTensor<Self>, out_dtype: IntDType) -> IntTensor<B> {
         B::float_into_int(tensor.primitive, out_dtype)
     }
 

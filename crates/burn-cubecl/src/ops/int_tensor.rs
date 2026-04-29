@@ -136,6 +136,19 @@ where
         kernel::scatter(dim, tensor, indices, value, false)
     }
 
+    fn int_scatter_nd(
+        data: IntTensor<Self>,
+        indices: IntTensor<Self>,
+        values: IntTensor<Self>,
+        reduction: burn_backend::tensor::IndexingUpdateOp,
+    ) -> IntTensor<Self> {
+        kernel::scatter_nd(data, indices, values, reduction)
+    }
+
+    fn int_gather_nd(data: IntTensor<Self>, indices: IntTensor<Self>) -> IntTensor<Self> {
+        kernel::gather_nd(data, indices)
+    }
+
     fn int_select(
         tensor: IntTensor<Self>,
         dim: usize,

@@ -310,7 +310,6 @@ impl RNNTLoss {
 mod tests {
     use super::*;
     use burn::tensor::{TensorData, Tolerance};
-
     const NUM_LABELS: usize = 2; // vocab size for simple unit tests
 
     #[test]
@@ -327,7 +326,7 @@ mod tests {
         let rnnt = RNNTLossConfig::new().with_blank(5).init();
         rnnt.forward(
             Tensor::<4>::zeros([1, 2, 2, 3], &dev),
-            Tensor::<2, Int>::from_data([[1_i64]], &dev),
+            Tensor::<2, Int>::from_data([[1_i32]], &dev),
             Tensor::<1, Int>::from_data([2], &dev),
             Tensor::<1, Int>::from_data([1], &dev),
         );
@@ -340,7 +339,7 @@ mod tests {
         let rnnt = RNNTLossConfig::new().init();
         rnnt.forward(
             Tensor::<4>::zeros([2, 3, 2, 3], &dev),
-            Tensor::<2, Int>::from_data([[1_i64]], &dev),
+            Tensor::<2, Int>::from_data([[1_i32]], &dev),
             Tensor::<1, Int>::from_data([3, 3], &dev),
             Tensor::<1, Int>::from_data([1, 1], &dev),
         );
@@ -353,7 +352,7 @@ mod tests {
         let rnnt = RNNTLossConfig::new().init();
         rnnt.forward(
             Tensor::<4>::zeros([2, 3, 2, 3], &dev),
-            Tensor::<2, Int>::from_data([[1_i64], [2]], &dev),
+            Tensor::<2, Int>::from_data([[1_i32], [2]], &dev),
             Tensor::<1, Int>::from_data([3], &dev),
             Tensor::<1, Int>::from_data([1, 1], &dev),
         );
@@ -366,7 +365,7 @@ mod tests {
         let rnnt = RNNTLossConfig::new().init();
         rnnt.forward(
             Tensor::<4>::zeros([2, 3, 2, 3], &dev),
-            Tensor::<2, Int>::from_data([[1_i64], [2]], &dev),
+            Tensor::<2, Int>::from_data([[1_i32], [2]], &dev),
             Tensor::<1, Int>::from_data([3, 3], &dev),
             Tensor::<1, Int>::from_data([1], &dev),
         );
@@ -392,7 +391,7 @@ mod tests {
                 log_uniform,
                 &dev,
             ),
-            Tensor::<2, Int>::from_data([[1_i64]], &dev),
+            Tensor::<2, Int>::from_data([[1_i32]], &dev),
             Tensor::<1, Int>::from_data([time_steps as i64], &dev),
             Tensor::<1, Int>::from_data([target_len as i64], &dev),
         );
@@ -423,7 +422,7 @@ mod tests {
 
         let loss = rnnt.forward(
             Tensor::<4>::full([1, time_steps, 2, NUM_LABELS], log_uniform, &dev),
-            Tensor::<2, Int>::from_data([[1_i64]], &dev),
+            Tensor::<2, Int>::from_data([[1_i32]], &dev),
             Tensor::<1, Int>::from_data([time_steps as i64], &dev),
             Tensor::<1, Int>::from_data([target_len as i64], &dev),
         );
@@ -449,7 +448,7 @@ mod tests {
             burn_core::tensor::TensorData::new(data, [bs, time_steps, up1, vocab]),
             &dev,
         );
-        let targets = Tensor::<2, Int>::from_data([[1_i64, 2]], &dev);
+        let targets = Tensor::<2, Int>::from_data([[1_i32, 2]], &dev);
         let logit_lengths = Tensor::<1, Int>::from_data([time_steps as i64], &dev);
         let target_lengths = Tensor::<1, Int>::from_data([target_len as i64], &dev);
 
@@ -484,7 +483,6 @@ mod tests {
 mod pytorch_comparison_tests {
     use super::*;
     use burn::tensor::{TensorData, Tolerance};
-
     fn tol() -> Tolerance<f32> {
         Tolerance::absolute(1e-3)
     }
@@ -560,9 +558,9 @@ mod pytorch_comparison_tests {
 
         let loss = rnnt.forward(
             logits.clone(),
-            Tensor::<2, Int>::from_data([[1_i64, 2]], &dev),
-            Tensor::<1, Int>::from_data([4_i64], &dev),
-            Tensor::<1, Int>::from_data([2_i64], &dev),
+            Tensor::<2, Int>::from_data([[1_i32, 2]], &dev),
+            Tensor::<1, Int>::from_data([4_i32], &dev),
+            Tensor::<1, Int>::from_data([2_i32], &dev),
         );
         loss.clone()
             .into_data()
@@ -592,9 +590,9 @@ mod pytorch_comparison_tests {
 
         let loss = rnnt.forward(
             logits.clone(),
-            Tensor::<2, Int>::from_data(TensorData::new(vec![1_i64, 2, 3, 2, 1, 3], [2, 3]), &dev),
-            Tensor::<1, Int>::from_data([5_i64, 5], &dev),
-            Tensor::<1, Int>::from_data([3_i64, 3], &dev),
+            Tensor::<2, Int>::from_data(TensorData::new(vec![1_i32, 2, 3, 2, 1, 3], [2, 3]), &dev),
+            Tensor::<1, Int>::from_data([5_i32, 5], &dev),
+            Tensor::<1, Int>::from_data([3_i32, 3], &dev),
         );
         loss.clone()
             .into_data()
@@ -628,11 +626,11 @@ mod pytorch_comparison_tests {
         let loss = rnnt.forward(
             logits.clone(),
             Tensor::<2, Int>::from_data(
-                TensorData::new(vec![1_i64, 2, 3, 4, 1, 0, 2, 0, 0], [3, 3]),
+                TensorData::new(vec![1_i32, 2, 3, 4, 1, 0, 2, 0, 0], [3, 3]),
                 &dev,
             ),
-            Tensor::<1, Int>::from_data([6_i64, 4, 5], &dev),
-            Tensor::<1, Int>::from_data([3_i64, 2, 1], &dev),
+            Tensor::<1, Int>::from_data([6_i32, 4, 5], &dev),
+            Tensor::<1, Int>::from_data([3_i32, 2, 1], &dev),
         );
         loss.clone()
             .into_data()
@@ -717,9 +715,9 @@ mod pytorch_comparison_tests {
         let rnnt = RNNTLossConfig::new().init();
         let logits = make_logits(2, 5, 4, 4, &dev).require_grad();
         let tgt =
-            Tensor::<2, Int>::from_data(TensorData::new(vec![1_i64, 2, 3, 2, 1, 3], [2, 3]), &dev);
-        let il = Tensor::<1, Int>::from_data([5_i64, 5], &dev);
-        let tl = Tensor::<1, Int>::from_data([3_i64, 3], &dev);
+            Tensor::<2, Int>::from_data(TensorData::new(vec![1_i32, 2, 3, 2, 1, 3], [2, 3]), &dev);
+        let il = Tensor::<1, Int>::from_data([5_i32, 5], &dev);
+        let tl = Tensor::<1, Int>::from_data([3_i32, 3], &dev);
 
         let loss = rnnt.forward_with_reduction(logits.clone(), tgt, il, tl, Reduction::Sum);
         // 7.9356 + 7.2033 = 15.1389
@@ -746,9 +744,9 @@ mod pytorch_comparison_tests {
         let rnnt = RNNTLossConfig::new().init();
         let logits = make_logits(2, 5, 4, 4, &dev).require_grad();
         let tgt =
-            Tensor::<2, Int>::from_data(TensorData::new(vec![1_i64, 2, 3, 2, 1, 3], [2, 3]), &dev);
-        let il = Tensor::<1, Int>::from_data([5_i64, 5], &dev);
-        let tl = Tensor::<1, Int>::from_data([3_i64, 3], &dev);
+            Tensor::<2, Int>::from_data(TensorData::new(vec![1_i32, 2, 3, 2, 1, 3], [2, 3]), &dev);
+        let il = Tensor::<1, Int>::from_data([5_i32, 5], &dev);
+        let tl = Tensor::<1, Int>::from_data([3_i32, 3], &dev);
 
         let loss = rnnt.forward_with_reduction(logits.clone(), tgt, il, tl, Reduction::Mean);
         // 15.1389 / 2 = 7.5694

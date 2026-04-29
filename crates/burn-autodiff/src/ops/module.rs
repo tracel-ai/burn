@@ -56,6 +56,140 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         panic!("Can't differentiate embedding backward.");
     }
 
+    fn linear(
+        x: AutodiffTensor<B>,
+        weight: AutodiffTensor<B>,
+        bias: Option<AutodiffTensor<B>>,
+    ) -> AutodiffTensor<B> {
+        #[derive(Debug)]
+        struct LinearWithBias;
+        #[derive(Debug)]
+        struct LinearNoBias;
+
+        impl<B: Backend> Backward<B, 3> for LinearWithBias {
+            type State = (Option<NodeId>, Option<NodeId>);
+
+            fn backward(
+                self,
+                ops: Ops<Self::State, 3>,
+                grads: &mut Gradients,
+                checkpointer: &mut Checkpointer,
+            ) {
+                let [node_x, node_weight, node_bias] = ops.parents;
+                let grad = grads.consume::<B>(&ops.node);
+
+                let (x_state, weight_state) = ops.state;
+                let x = x_state
+                    .map(|id| checkpointer.retrieve_node_output::<B::FloatTensorPrimitive>(id));
+                let weight = weight_state
+                    .map(|id| checkpointer.retrieve_node_output::<B::FloatTensorPrimitive>(id));
+
+                if let Some(node) = node_x {
+                    let grad = B::linear_x_backward(weight.unwrap(), grad.clone());
+                    grads.register::<B>(node.id, grad)
+                }
+                if let Some(node) = node_weight {
+                    let grad = B::linear_weight_backward(x.unwrap(), grad.clone());
+                    grads.register::<B>(node.id, grad)
+                }
+                if let Some(node) = node_bias {
+                    let grad = B::linear_bias_backward(grad);
+                    grads.register::<B>(node.id, grad)
+                }
+            }
+        }
+
+        impl<B: Backend> Backward<B, 2> for LinearNoBias {
+            type State = (Option<NodeId>, Option<NodeId>);
+
+            fn backward(
+                self,
+                ops: Ops<Self::State, 2>,
+                grads: &mut Gradients,
+                checkpointer: &mut Checkpointer,
+            ) {
+                let [node_x, node_weight] = ops.parents;
+                let grad = grads.consume::<B>(&ops.node);
+
+                let (x_state, weight_state) = ops.state;
+                let x = x_state
+                    .map(|id| checkpointer.retrieve_node_output::<B::FloatTensorPrimitive>(id));
+                let weight = weight_state
+                    .map(|id| checkpointer.retrieve_node_output::<B::FloatTensorPrimitive>(id));
+
+                if let Some(node) = node_x {
+                    let grad = B::linear_x_backward(weight.unwrap(), grad.clone());
+                    grads.register::<B>(node.id, grad)
+                }
+                if let Some(node) = node_weight {
+                    let grad = B::linear_weight_backward(x.unwrap(), grad);
+                    grads.register::<B>(node.id, grad)
+                }
+            }
+        }
+
+        let x_tracked = x.is_tracked();
+        let weight_tracked = weight.is_tracked();
+
+        match bias {
+            Some(bias) => match LinearWithBias
+                .prepare::<C>([x.node.clone(), weight.node.clone(), bias.node.clone()])
+                .compute_bound()
+                .stateful()
+            {
+                OpsKind::Tracked(mut prep) => {
+                    // x is only needed to compute the weight gradient, and vice versa.
+                    let x_state = weight_tracked.then(|| prep.checkpoint(&x));
+                    let weight_state = x_tracked.then(|| prep.checkpoint(&weight));
+                    prep.finish(
+                        (x_state, weight_state),
+                        B::linear(x.primitive, weight.primitive, Some(bias.primitive)),
+                    )
+                }
+                OpsKind::UnTracked(prep) => prep.finish(B::linear(
+                    x.primitive,
+                    weight.primitive,
+                    Some(bias.primitive),
+                )),
+            },
+            None => match LinearNoBias
+                .prepare::<C>([x.node.clone(), weight.node.clone()])
+                .compute_bound()
+                .stateful()
+            {
+                OpsKind::Tracked(mut prep) => {
+                    let x_state = weight_tracked.then(|| prep.checkpoint(&x));
+                    let weight_state = x_tracked.then(|| prep.checkpoint(&weight));
+                    prep.finish(
+                        (x_state, weight_state),
+                        B::linear(x.primitive, weight.primitive, None),
+                    )
+                }
+                OpsKind::UnTracked(prep) => {
+                    prep.finish(B::linear(x.primitive, weight.primitive, None))
+                }
+            },
+        }
+    }
+
+    fn linear_x_backward(
+        _weight: AutodiffTensor<B>,
+        _output_grad: AutodiffTensor<B>,
+    ) -> AutodiffTensor<B> {
+        panic!("Can't differentiate linear_x_backward.");
+    }
+
+    fn linear_weight_backward(
+        _x: AutodiffTensor<B>,
+        _output_grad: AutodiffTensor<B>,
+    ) -> AutodiffTensor<B> {
+        panic!("Can't differentiate linear_weight_backward.");
+    }
+
+    fn linear_bias_backward(_output_grad: AutodiffTensor<B>) -> AutodiffTensor<B> {
+        panic!("Can't differentiate linear_bias_backward.");
+    }
+
     fn conv1d(
         x: AutodiffTensor<B>,
         weight: AutodiffTensor<B>,
@@ -1681,7 +1815,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
     fn adaptive_avg_pool2d_backward(
         _x: AutodiffTensor<B>,
         _grad: AutodiffTensor<B>,
-    ) -> <Autodiff<B> as Backend>::FloatTensorPrimitive {
+    ) -> AutodiffTensor<B> {
         panic!("Can't differentiate adaptive avg pool2d backward.");
     }
 
@@ -1735,7 +1869,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         _grad: FloatTensor<Autodiff<B, C>>,
         _output_size: [usize; 2],
         _options: InterpolateOptions,
-    ) -> <Autodiff<B> as Backend>::FloatTensorPrimitive {
+    ) -> AutodiffTensor<B> {
         panic!("Can't differentiate interpolate backward.");
     }
 
@@ -1750,9 +1884,98 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         attention_fallback::<Self>(query, key, value, mask, attn_bias, options)
     }
 
+    fn ctc_loss(
+        log_probs: FloatTensor<Autodiff<B, C>>,
+        targets: IntTensor<Autodiff<B, C>>,
+        input_lengths: IntTensor<Autodiff<B, C>>,
+        target_lengths: IntTensor<Autodiff<B, C>>,
+        blank: usize,
+    ) -> FloatTensor<Autodiff<B, C>> {
+        // Backends without a native ctc_loss_backward fall back to the default
+        // implementation, which is built from differentiable tensor ops so the
+        // autodiff layer derives the gradient automatically.
+        if !B::has_ctc_loss_backward() {
+            return burn_backend::ops::ctc::ctc_loss_default::<Self>(
+                log_probs,
+                targets,
+                input_lengths,
+                target_lengths,
+                blank,
+            );
+        }
+
+        #[derive(Debug)]
+        struct CtcLoss;
+
+        impl<B: Backend> Backward<B, 1> for CtcLoss {
+            type State = (NodeId, IntTensor<B>, IntTensor<B>, IntTensor<B>, usize);
+
+            fn backward(
+                self,
+                ops: Ops<Self::State, 1>,
+                grads: &mut Gradients,
+                checkpointer: &mut Checkpointer,
+            ) {
+                let [node_parent] = ops.parents;
+                let grad_loss = grads.consume::<B>(&ops.node);
+
+                let (log_probs_state, targets, input_lengths, target_lengths, blank) = ops.state;
+                let log_probs: B::FloatTensorPrimitive =
+                    checkpointer.retrieve_node_output(log_probs_state);
+
+                if let Some(node) = node_parent {
+                    let grad = B::ctc_loss_backward(
+                        log_probs,
+                        targets,
+                        input_lengths,
+                        target_lengths,
+                        grad_loss,
+                        blank,
+                    );
+                    grads.register::<B>(node.id, grad);
+                }
+            }
+        }
+
+        match CtcLoss
+            .prepare::<C>([log_probs.node.clone()])
+            .compute_bound()
+            .stateful()
+        {
+            OpsKind::Tracked(mut prep) => {
+                let log_probs_state = prep.checkpoint(&log_probs);
+                let output = B::ctc_loss(
+                    log_probs.primitive.clone(),
+                    targets.clone(),
+                    input_lengths.clone(),
+                    target_lengths.clone(),
+                    blank,
+                );
+                prep.finish(
+                    (
+                        log_probs_state,
+                        targets,
+                        input_lengths,
+                        target_lengths,
+                        blank,
+                    ),
+                    output,
+                )
+            }
+            OpsKind::UnTracked(prep) => prep.finish(B::ctc_loss(
+                log_probs.primitive,
+                targets,
+                input_lengths,
+                target_lengths,
+                blank,
+            )),
+        }
+    }
+
     fn rfft(
         _signal: FloatTensor<Autodiff<B, C>>,
         _dim: usize,
+        _n: Option<usize>,
     ) -> (FloatTensor<Autodiff<B, C>>, FloatTensor<Autodiff<B, C>>) {
         todo!("rfft not yet supported for autodiff")
     }
@@ -1761,6 +1984,7 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         _spectrum_re: FloatTensor<Autodiff<B, C>>,
         _spectrum_im: FloatTensor<Autodiff<B, C>>,
         _dim: usize,
+        _n: Option<usize>,
     ) -> FloatTensor<Autodiff<B, C>> {
         todo!("irfft not yet supported for autodiff")
     }

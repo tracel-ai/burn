@@ -4,7 +4,7 @@ use crate::IntoKind;
 
 use super::TchTensor;
 use super::element::TchElement;
-use burn_backend::backend::{Backend, DeviceId, DeviceOps, ExecutionError};
+use burn_backend::backend::{Backend, BackendTypes, DeviceId, DeviceOps, ExecutionError};
 use burn_backend::ops::IntTensorOps;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -82,7 +82,7 @@ impl burn_backend::Device for LibTorchDevice {
 
     fn to_id(&self) -> DeviceId {
         match self {
-            LibTorchDevice::Cuda(index) => DeviceId::new(0, *index as u32),
+            LibTorchDevice::Cuda(index) => DeviceId::new(0, *index as u16),
             LibTorchDevice::Mps => DeviceId::new(1, 0),
             LibTorchDevice::Cpu => DeviceId::new(2, 0),
             LibTorchDevice::Vulkan => DeviceId::new(3, 0),
@@ -106,7 +106,7 @@ pub struct LibTorch<E = f32> {
     _e: PhantomData<E>,
 }
 
-impl<E: TchElement> Backend for LibTorch<E> {
+impl<E: TchElement> BackendTypes for LibTorch<E> {
     type Device = LibTorchDevice;
 
     type FloatTensorPrimitive = TchTensor;
@@ -114,11 +114,14 @@ impl<E: TchElement> Backend for LibTorch<E> {
 
     type IntTensorPrimitive = TchTensor;
     type IntElem = i64;
+
     type BoolTensorPrimitive = TchTensor;
     type BoolElem = bool;
 
     type QuantizedTensorPrimitive = TchTensor;
+}
 
+impl<E: TchElement> Backend for LibTorch<E> {
     fn seed(_device: &Self::Device, seed: u64) {
         tch::manual_seed(seed as i64);
     }

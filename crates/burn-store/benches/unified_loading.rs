@@ -38,7 +38,7 @@ use std::path::{Path, PathBuf};
 static ALLOC: AllocProfiler = AllocProfiler::system();
 
 // Backend type aliases
-use burn_core::tensor::NdArrayDevice;
+use burn_core::tensor::FlexDevice;
 
 #[cfg(any(feature = "wgpu", feature = "metal"))]
 use burn_core::tensor::WgpuDevice;
@@ -74,7 +74,7 @@ fn get_model_dir() -> PathBuf {
 
 /// Generate Burnpack and NamedMpk files from existing SafeTensors file
 fn generate_burn_formats(st_path: &Path, bp_path: &Path, mpk_path: &Path) {
-    let device = NdArrayDevice::Cpu.into();
+    let device = FlexDevice.into();
 
     // Load the model from SafeTensors
     let mut model = LargeModel::new(&device);
@@ -180,7 +180,7 @@ fn main() {
             println!("  6. PyTorchFileRecorder (old)");
             println!();
             println!("Available backends:");
-            println!("  - NdArray (CPU)");
+            println!("  - Flex (CPU)");
             #[cfg(feature = "wgpu")]
             println!("  - WGPU (GPU)");
             #[cfg(feature = "cuda")]
@@ -310,7 +310,7 @@ macro_rules! bench_backend {
 }
 
 // Generate benchmarks for each backend
-bench_backend!(NdArrayDevice::Cpu, ndarray_backend, "NdArray Backend (CPU)");
+bench_backend!(FlexDevice, ndarray_backend, "NdArray Backend (CPU)");
 
 #[cfg(feature = "wgpu")]
 bench_backend!(WgpuDevice::default(), wgpu_backend, "WGPU Backend (GPU)");

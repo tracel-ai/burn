@@ -7,10 +7,7 @@ version.workspace = true
 
 [features]
 default = ["burn/tui"]
-ndarray = ["burn/ndarray"]
-ndarray-blas-accelerate = ["burn/ndarray", "burn/accelerate"]
-ndarray-blas-netlib = ["burn/ndarray", "burn/blas-netlib"]
-ndarray-blas-openblas = ["burn/ndarray", "burn/openblas"]
+flex = ["burn/flex"]
 tch-cpu = ["burn/tch"]
 tch-gpu = ["burn/tch"]
 remote = ["burn/remote"]
@@ -22,15 +19,15 @@ rocm = ["burn/rocm", "burn/default"]
 
 [dependencies]
 # Disable autotune default for now.
-burn = { path = "../../crates/burn", features = [
+burn = { workspace = true, features = [
     "train",
     "metrics",
     "std",
     "rl",
     # "fusion",
-    "ndarray",
+    "flex",
     # "autotune",
-], default-features = false }
+] }
 # Just for this example.
 gym-rs = { version = "0.3.1", branch = "main", git = "https://github.com/MathisWellmann/gym-rs" }
 rand.workspace = true

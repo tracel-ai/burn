@@ -15,7 +15,7 @@ f16 = []
 
 [dependencies]
 # Burn
-burn = { path = "../../crates/burn", features = ["train", "tch"] }
+burn = { workspace = true, features = ["default", "train", "tch"] }
 
 # Tokenizer
 tokenizers = { version = "0.22.2", default-features = false, features = [

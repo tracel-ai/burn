@@ -354,6 +354,13 @@ fn validated_scale(scale: f32) -> f32 {
     }
 }
 
+// Tests kept here exercise flex-specific behavior: quantization scheme
+// roundtrips, per-block / dynamic quantization, block-quantized layout
+// ops (transpose / select / flip dequantize), and f16/f64 dequantize
+// dtype paths. Plain layout-preservation / select / slice / argmax /
+// argmin / gather tests are covered generically in
+// crates/burn-backend-tests/tests/tensor/float/quantization/ops/extended/
+// so they run on every backend.
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -469,75 +476,6 @@ mod tests {
         let qtensor = Flex::quantize(tensor, &scheme, qparams);
         let q_vals: &[i8] = qtensor.tensor.storage();
         assert_eq!(q_vals, &[0, 0, 0, 0]);
-    }
-
-    #[test]
-    fn test_q_layout_ops_preserve_scheme() {
-        let values = vec![0i8, 25, 51, 76, 102, 127];
-        let scale = 0.03937008f32;
-        let scheme = QuantScheme::default()
-            .with_value(QuantValue::Q8S)
-            .with_store(QuantStore::Native);
-        let data = TensorData::quantized(values, [2, 3], scheme, &[scale]);
-        let qtensor = Flex::q_from_data(data, &Default::default());
-
-        // Reshape
-        let reshaped = Flex::q_reshape(qtensor.clone(), Shape::from(vec![3, 2]));
-        assert_eq!(reshaped.tensor.shape().to_vec(), vec![3, 2]);
-        assert_eq!(reshaped.scales, vec![scale]);
-
-        // Transpose
-        let transposed = Flex::q_swap_dims(qtensor.clone(), 0, 1);
-        assert_eq!(transposed.tensor.shape().to_vec(), vec![3, 2]);
-
-        // Permute
-        let permuted = Flex::q_permute(qtensor.clone(), &[1, 0]);
-        assert_eq!(permuted.tensor.shape().to_vec(), vec![3, 2]);
-
-        // Flip
-        let flipped = Flex::q_flip(qtensor.clone(), &[0]);
-        assert_eq!(flipped.tensor.shape().to_vec(), vec![2, 3]);
-
-        // Expand
-        let to_expand = Flex::q_reshape(qtensor.clone(), Shape::from(vec![1, 2, 3]));
-        let expanded = Flex::q_expand(to_expand, Shape::from(vec![4, 2, 3]));
-        assert_eq!(expanded.tensor.shape().to_vec(), vec![4, 2, 3]);
-    }
-
-    #[test]
-    fn test_q_select() {
-        let values = vec![10i8, 20, 30, 40, 50, 60];
-        let scale = 0.1f32;
-        let scheme = QuantScheme::default()
-            .with_value(QuantValue::Q8S)
-            .with_store(QuantStore::Native);
-        let data = TensorData::quantized(values, [2, 3], scheme, &[scale]);
-        let qtensor = Flex::q_from_data(data, &Default::default());
-
-        // Select row 1
-        let indices = FlexTensor::from_data(TensorData::new(vec![1i64], [1]));
-        let selected = Flex::q_select(qtensor, 0, indices);
-        assert_eq!(selected.tensor.shape().to_vec(), vec![1, 3]);
-
-        let selected_contiguous = selected.tensor.to_contiguous();
-        let selected_vals: &[i8] = selected_contiguous.storage();
-        assert_eq!(selected_vals, &[40, 50, 60]);
-    }
-
-    #[test]
-    fn test_q_slice() {
-        let values = vec![10i8, 20, 30, 40, 50, 60];
-        let scale = 0.1f32;
-        let scheme = QuantScheme::default()
-            .with_value(QuantValue::Q8S)
-            .with_store(QuantStore::Native);
-        let data = TensorData::quantized(values, [2, 3], scheme, &[scale]);
-        let qtensor = Flex::q_from_data(data, &Default::default());
-
-        // Slice [0:1, 1:3] -> [[20, 30]]
-        let slices = vec![Slice::new(0, Some(1), 1), Slice::new(1, Some(3), 1)];
-        let sliced = Flex::q_slice(qtensor, &slices);
-        assert_eq!(sliced.tensor.shape().to_vec(), vec![1, 2]);
     }
 
     #[test]
@@ -722,71 +660,6 @@ mod tests {
         for (exp, deq) in expected.iter().zip(result_vals.iter()) {
             assert!((exp - deq).abs() < 0.5, "expected={exp}, dequantized={deq}");
         }
-    }
-
-    #[test]
-    fn test_q_argmax() {
-        let values = vec![-1.0f32, 3.0, 0.5, 2.0, -0.5, 5.0];
-        let tensor = FlexTensor::from_data(TensorData::new(values, [2, 3]));
-
-        let scheme = QuantScheme::default()
-            .with_value(QuantValue::Q8S)
-            .with_store(QuantStore::Native);
-
-        let qtensor = Flex::quantize_dynamic(tensor, &scheme);
-
-        // argmax along dim 1: row0 max at idx 1 (3.0), row1 max at idx 2 (5.0)
-        let result = Flex::q_argmax(qtensor.clone(), 1, burn_std::IntDType::I64);
-        let result_vals: &[i64] = result.storage();
-        assert_eq!(result_vals, &[1, 2]);
-
-        // argmax along dim 0: col0 max at row1 (2.0), col1 max at row0 (3.0), col2 max at row1 (5.0)
-        let result = Flex::q_argmax(qtensor, 0, burn_std::IntDType::I64);
-        let result_vals: &[i64] = result.storage();
-        assert_eq!(result_vals, &[1, 0, 1]);
-    }
-
-    #[test]
-    fn test_q_argmin() {
-        let values = vec![-1.0f32, 3.0, 0.5, 2.0, -0.5, 5.0];
-        let tensor = FlexTensor::from_data(TensorData::new(values, [2, 3]));
-
-        let scheme = QuantScheme::default()
-            .with_value(QuantValue::Q8S)
-            .with_store(QuantStore::Native);
-
-        let qtensor = Flex::quantize_dynamic(tensor, &scheme);
-
-        // argmin along dim 1: row0 min at idx 0 (-1.0), row1 min at idx 1 (-0.5)
-        let result = Flex::q_argmin(qtensor.clone(), 1, burn_std::IntDType::I64);
-        let result_vals: &[i64] = result.storage();
-        assert_eq!(result_vals, &[0, 1]);
-
-        // argmin along dim 0: col0 min at row0 (-1.0), col1 min at row1 (-0.5), col2 min at row0 (0.5)
-        let result = Flex::q_argmin(qtensor, 0, burn_std::IntDType::I64);
-        let result_vals: &[i64] = result.storage();
-        assert_eq!(result_vals, &[0, 1, 0]);
-    }
-
-    #[test]
-    fn test_q_gather() {
-        let values = vec![10i8, 20, 30, 40, 50, 60];
-        let scale = 0.1f32;
-        let scheme = QuantScheme::default()
-            .with_value(QuantValue::Q8S)
-            .with_store(QuantStore::Native);
-        let data = TensorData::quantized(values, [2, 3], scheme, &[scale]);
-        let qtensor = Flex::q_from_data(data, &Default::default());
-
-        // Gather along dim 1 with indices [[2, 0], [1, 2]]
-        let indices = FlexTensor::from_data(TensorData::new(vec![2i64, 0, 1, 2], [2, 2]));
-        let gathered = Flex::q_gather(1, qtensor, indices);
-        assert_eq!(gathered.tensor.shape().to_vec(), vec![2, 2]);
-
-        let gathered_contiguous = gathered.tensor.to_contiguous();
-        let gathered_vals: &[i8] = gathered_contiguous.storage();
-        // Row 0: indices [2,0] -> [30, 10], Row 1: indices [1,2] -> [50, 60]
-        assert_eq!(gathered_vals, &[30, 10, 50, 60]);
     }
 
     #[test]

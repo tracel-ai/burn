@@ -1,7 +1,8 @@
 use super::NoOp;
 use crate::{
-    Fusion, FusionBackend, binary_float_cmp_ops, binary_float_ops, get_client, reduce_float_ops,
-    reduce_float2int_ops, scalar_float_cmp_ops, scalar_float_ops,
+    Fusion, FusionBackend, binary_float_cmp_ops, binary_float_ops,
+    client::GlobalFusionClient,
+    get_client, reduce_float_ops, reduce_float2int_ops, scalar_float_cmp_ops, scalar_float_ops,
     stream::{OperationStreams, execution::Operation},
     unary_float_ops,
 };
@@ -192,20 +193,18 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             dtype = ?tensor.dtype,
         )
     ))]
-    fn float_to_device(tensor: FloatTensor<Self>, device: &Device<Self>) -> FloatTensor<Self> {
-        let device_original: &B::Device = tensor.client.device();
+    fn float_to_device(tensor: FloatTensor<Self>, device_dst: &Device<Self>) -> FloatTensor<Self> {
+        let device_src: &B::Device = tensor.client.device();
 
-        if device_original == device {
+        if device_src == device_dst {
             return tensor;
         }
 
         let id = tensor.stream;
-        let client_target = get_client::<B>(device);
-        let client_original = tensor.client.clone();
+        let client_dst = get_client::<B>(device_dst);
+        let client_src = tensor.client.clone();
 
-        client_original
-            .clone()
-            .change_client_float::<B>(tensor.into_ir(), client_target, id)
+        GlobalFusionClient::change_client_float::<B>(tensor.into_ir(), client_src, client_dst, id)
     }
 
     fn float_into_int(tensor: FloatTensor<Self>, dtype: IntDType) -> IntTensor<Self> {
@@ -702,6 +701,83 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
                 streams,
                 OperationIr::BaseFloat(BaseOperationIr::Scatter(desc.clone())),
                 ScatterOps::<B>::new(desc),
+            )
+            .output()
+    }
+
+    fn float_scatter_nd(
+        data: FloatTensor<Self>,
+        indices: IntTensor<Self>,
+        values: FloatTensor<Self>,
+        reduction: IndexingUpdateOp,
+    ) -> FloatTensor<Self> {
+        #[derive(new, Debug)]
+        struct ScatterNdOps<B: FusionBackend> {
+            desc: ScatterNdOpIr,
+            _b: PhantomData<B>,
+        }
+
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for ScatterNdOps<B> {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+                let data = handles.get_float_tensor::<B>(&self.desc.data);
+                let indices = handles.get_int_tensor::<B>(&self.desc.indices);
+                let values = handles.get_float_tensor::<B>(&self.desc.values);
+
+                let output = B::float_scatter_nd(data, indices, values, self.desc.reduction);
+
+                handles.register_float_tensor::<B>(&self.desc.out.id, output);
+            }
+        }
+
+        let streams = OperationStreams::with_inputs([&data, &indices, &values]);
+
+        let client = data.client.clone();
+        let desc = ScatterNdOpIr::create(
+            data.into_ir(),
+            indices.into_ir(),
+            values.into_ir(),
+            reduction,
+            || client.create_empty_handle(),
+        );
+
+        client
+            .register(
+                streams,
+                OperationIr::BaseFloat(BaseOperationIr::ScatterNd(desc.clone())),
+                ScatterNdOps::<B>::new(desc),
+            )
+            .output()
+    }
+
+    fn float_gather_nd(data: FloatTensor<Self>, indices: IntTensor<Self>) -> FloatTensor<Self> {
+        #[derive(new, Debug)]
+        struct GatherNdOps<B: FusionBackend> {
+            desc: GatherNdOpIr,
+            _b: PhantomData<B>,
+        }
+
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for GatherNdOps<B> {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+                let data = handles.get_float_tensor::<B>(&self.desc.data);
+                let indices = handles.get_int_tensor::<B>(&self.desc.indices);
+
+                let output = B::float_gather_nd(data, indices);
+                handles.register_float_tensor::<B>(&self.desc.out.id, output);
+            }
+        }
+
+        let streams = OperationStreams::with_inputs([&data, &indices]);
+
+        let client = data.client.clone();
+        let desc = GatherNdOpIr::create(data.into_ir(), indices.into_ir(), || {
+            client.create_empty_handle()
+        });
+
+        client
+            .register(
+                streams,
+                OperationIr::BaseFloat(BaseOperationIr::GatherNd(desc.clone())),
+                GatherNdOps::<B>::new(desc),
             )
             .output()
     }

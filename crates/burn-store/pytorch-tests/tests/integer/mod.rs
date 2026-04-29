@@ -1,6 +1,10 @@
 use burn::{
     module::{Module, Param, ParamId},
+<<<<<<< HEAD
     tensor::{Int, Tensor, TensorData, Device},
+=======
+    tensor::{DType, Int, Tensor, TensorData, backend::Backend},
+>>>>>>> main
 };
 
 #[derive(Module, Debug)]
@@ -27,8 +31,12 @@ impl Net {
 
 #[cfg(test)]
 mod tests {
+<<<<<<< HEAD
     
     use burn::tensor::TensorData;
+=======
+    use crate::backend::TestBackend;
+>>>>>>> main
     use burn_store::{ModuleSnapshot, PytorchStore};
 
     use super::*;
@@ -39,11 +47,20 @@ mod tests {
         let input = Tensor::< 2>::ones([3, 3], &device);
 
         let output = model.forward(input);
+        let data = output.to_data();
 
+<<<<<<< HEAD
         let expected =
             Tensor::< 1, Int>::from_data(TensorData::from([1, 2, 3]), &device);
+=======
+        // The .pt file stores int64 (PyTorch's default int dtype); we pin
+        // that here to catch a regression where the loader silently casts
+        // to the backend's native IntElem (i32 for Flex).
+        assert_eq!(data.dtype, DType::I64);
+>>>>>>> main
 
-        assert_eq!(output.to_data(), expected.to_data());
+        let values = data.iter::<i64>().collect::<Vec<_>>();
+        assert_eq!(values, vec![1i64, 2, 3]);
     }
 
     #[test]

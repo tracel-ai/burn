@@ -15,6 +15,18 @@ fn test_sigmoid() {
 }
 
 #[test]
+fn test_sigmoid_d1() {
+    let tensor = TestTensor::<1>::from([-10.0, 0.0, 10.0]);
+
+    let output = activation::sigmoid(tensor);
+
+    output.into_data().assert_approx_eq::<FloatElem>(
+        &TensorData::from([0.0, 0.5, 1.0]),
+        Tolerance::absolute(1e-3),
+    );
+}
+
+#[test]
 fn test_sigmoid_overflow() {
     let tensor = TestTensor::<1>::from([FloatElem::MAX, FloatElem::MIN]);
 

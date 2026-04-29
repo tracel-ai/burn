@@ -111,61 +111,8 @@ pub fn unfold_int(tensor: FlexTensor, dim: usize, size: usize, step: usize) -> F
     unfold(tensor, dim, size, step)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use burn_backend::TensorData;
-
-    #[test]
-    fn test_unfold_1d() {
-        // Input: [1, 2, 3, 4, 5] shape [5]
-        // Unfold dim=0, size=3, step=1
-        // Windows: (5 - 3 + 1) / 1 = 3
-        // Output shape: [3, 3]
-        // Window 0: [1, 2, 3]
-        // Window 1: [2, 3, 4]
-        // Window 2: [3, 4, 5]
-        let tensor = FlexTensor::from_data(TensorData::new(vec![1.0f32, 2.0, 3.0, 4.0, 5.0], [5]));
-        let result = unfold_f32(tensor, 0, 3, 1);
-        assert_eq!(result.layout().shape().to_vec(), vec![3, 3]);
-        let data: Vec<f32> = result.into_data().to_vec().unwrap();
-        assert_eq!(data, vec![1.0, 2.0, 3.0, 2.0, 3.0, 4.0, 3.0, 4.0, 5.0]);
-    }
-
-    #[test]
-    fn test_unfold_1d_step2() {
-        // Input: [1, 2, 3, 4, 5, 6] shape [6]
-        // Unfold dim=0, size=3, step=2
-        // Windows: (6 - 3 + 2) / 2 = 2
-        // Output shape: [2, 3]
-        // Window 0: [1, 2, 3]
-        // Window 1: [3, 4, 5]
-        let tensor =
-            FlexTensor::from_data(TensorData::new(vec![1.0f32, 2.0, 3.0, 4.0, 5.0, 6.0], [6]));
-        let result = unfold_f32(tensor, 0, 3, 2);
-        assert_eq!(result.layout().shape().to_vec(), vec![2, 3]);
-        let data: Vec<f32> = result.into_data().to_vec().unwrap();
-        assert_eq!(data, vec![1.0, 2.0, 3.0, 3.0, 4.0, 5.0]);
-    }
-
-    #[test]
-    fn test_unfold_2d_dim1() {
-        // Input: [[1, 2, 3, 4], [5, 6, 7, 8]] shape [2, 4]
-        // Unfold dim=1, size=2, step=1
-        // Windows: (4 - 2 + 1) / 1 = 3
-        // Output shape: [2, 3, 2]
-        let tensor = FlexTensor::from_data(TensorData::new(
-            vec![1.0f32, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0],
-            [2, 4],
-        ));
-        let result = unfold_f32(tensor, 1, 2, 1);
-        assert_eq!(result.layout().shape().to_vec(), vec![2, 3, 2]);
-        let data: Vec<f32> = result.into_data().to_vec().unwrap();
-        // Row 0: windows [1,2], [2,3], [3,4]
-        // Row 1: windows [5,6], [6,7], [7,8]
-        assert_eq!(
-            data,
-            vec![1.0, 2.0, 2.0, 3.0, 3.0, 4.0, 5.0, 6.0, 6.0, 7.0, 7.0, 8.0]
-        );
-    }
-}
+// Correctness of unfold across dtypes and shapes is covered by the
+// cross-backend suite in
+// crates/burn-backend-tests/tests/tensor/{float,int,bool}/ops/unfold.rs,
+// which exercises the flex backend through the public `unfold` op. No
+// flex-specific tests remain here.

@@ -252,3 +252,85 @@ fn test_bool_and_broadcast_4d() {
     ]);
     expected.assert_eq(&actual, false);
 }
+
+// Non-contiguous (negative-stride / flipped) bool inputs. Exercises stride
+// handling through the logical ops on every backend.
+
+#[test]
+fn test_bool_not_flipped() {
+    // [T, F, T, F] flipped -> [F, T, F, T], not -> [T, F, T, F]
+    let t = TestTensorBool::<1>::from([true, false, true, false]).flip([0]);
+
+    let output = t.bool_not();
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([true, false, true, false]), false);
+}
+
+#[test]
+fn test_bool_and_flipped() {
+    // a: [T, F, T, F] flipped -> [F, T, F, T]; b: [T, T, F, F]
+    // and: [F, T, F, F]
+    let a = TestTensorBool::<1>::from([true, false, true, false]).flip([0]);
+    let b = TestTensorBool::<1>::from([true, true, false, false]);
+
+    let output = a.bool_and(b);
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([false, true, false, false]), false);
+}
+
+#[test]
+fn test_bool_or_flipped() {
+    // a: [T, F, T, F] flipped -> [F, T, F, T]; b: [T, F, F, F]
+    // or: [T, T, F, T]
+    let a = TestTensorBool::<1>::from([true, false, true, false]).flip([0]);
+    let b = TestTensorBool::<1>::from([true, false, false, false]);
+
+    let output = a.bool_or(b);
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([true, true, false, true]), false);
+}
+
+#[test]
+fn test_bool_and_both_flipped() {
+    // a, b both flipped -> [F, T, F, T] & [F, F, T, T] = [F, F, F, T]
+    let a = TestTensorBool::<1>::from([true, false, true, false]).flip([0]);
+    let b = TestTensorBool::<1>::from([true, true, false, false]).flip([0]);
+
+    let output = a.bool_and(b);
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([false, false, false, true]), false);
+}
+
+#[test]
+fn test_bool_xor_flipped() {
+    // a flipped -> [F, T, F, T]; b: [T, T, F, F]; xor: [T, F, F, T]
+    let a = TestTensorBool::<1>::from([true, false, true, false]).flip([0]);
+    let b = TestTensorBool::<1>::from([true, true, false, false]);
+
+    let output = a.bool_xor(b);
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([true, false, false, true]), false);
+}
+
+#[test]
+fn test_bool_equal_flipped() {
+    // a flipped -> [F, T, F, T]; b: [F, T, F, T]; equal: [T, T, T, T]
+    let a = TestTensorBool::<1>::from([true, false, true, false]).flip([0]);
+    let b = TestTensorBool::<1>::from([false, true, false, true]);
+
+    let output = a.equal(b);
+
+    output
+        .into_data()
+        .assert_eq(&TensorData::from([true, true, true, true]), false);
+}

@@ -10,7 +10,7 @@ use burn_core::tensor::{Bool, Int};
     feature = "ndarray",
     not(any(feature = "wgpu", feature = "cuda"))
 ))]
-pub type TestDevice = burn_ndarray::NdArrayDevice;
+pub type TestDevice = burn_flex::FlexDevice;
 
 #[cfg(all(test, feature = "wgpu"))]
 pub type TestDevice = burn_wgpu::WgpuDevice;

@@ -32,6 +32,10 @@ macro_rules! make_ops {
 }
 
 impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
+    // linear and its backward ops fall back to the default ModuleOps impl,
+    // which decomposes into matmul + add / matmul + sum. This preserves
+    // downstream fusion in burn-cubecl-fusion, which matches on those
+    // primitive IR nodes.
     fn conv1d(
         x: FloatTensor<Self>,
         weight: FloatTensor<Self>,
@@ -1564,13 +1568,14 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
     fn rfft(
         signal: FloatTensor<Fusion<B>>,
         dim: usize,
+        n: Option<usize>,
     ) -> (FloatTensor<Fusion<B>>, FloatTensor<Fusion<B>>) {
         make_ops!(RfftOps, RfftOpIr, |desc: &RfftOpIr,
                                       handles: &mut HandleContainer<
             B::Handle,
         >| {
             let signal = handles.get_float_tensor::<B>(&desc.signal);
-            let (re, im) = B::rfft(signal, desc.dim);
+            let (re, im) = B::rfft(signal, desc.dim, desc.n);
 
             handles.register_float_tensor::<B>(&desc.out_re.id, re);
             handles.register_float_tensor::<B>(&desc.out_im.id, im);
@@ -1579,7 +1584,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         let streams = OperationStreams::with_inputs([&signal]);
         let client = signal.client.clone();
 
-        let desc = RfftOpIr::create(signal.into_ir(), dim, || client.create_empty_handle());
+        let desc = RfftOpIr::create(signal.into_ir(), dim, n, || client.create_empty_handle());
 
         let mut outputs = client
             .register(
@@ -1596,6 +1601,7 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
         spectrum_re: FloatTensor<Fusion<B>>,
         spectrum_im: FloatTensor<Fusion<B>>,
         dim: usize,
+        n: Option<usize>,
     ) -> FloatTensor<Fusion<B>> {
         make_ops!(IRfftOps, IRfftOpIr, |desc: &IRfftOpIr,
                                         handles: &mut HandleContainer<
@@ -1604,14 +1610,14 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             let input_re = handles.get_float_tensor::<B>(&desc.input_re);
             let input_im = handles.get_float_tensor::<B>(&desc.input_im);
 
-            let signal = B::irfft(input_re, input_im, desc.dim);
+            let signal = B::irfft(input_re, input_im, desc.dim, desc.n);
             handles.register_float_tensor::<B>(&desc.out_signal.id, signal);
         });
 
         let streams = OperationStreams::with_inputs([&spectrum_re, &spectrum_im]);
         let client = spectrum_re.client.clone();
 
-        let desc = IRfftOpIr::create(spectrum_re.into_ir(), spectrum_im.into_ir(), dim, || {
+        let desc = IRfftOpIr::create(spectrum_re.into_ir(), spectrum_im.into_ir(), dim, n, || {
             client.create_empty_handle()
         });
 
@@ -1624,5 +1630,119 @@ impl<B: FusionBackend> ModuleOps<Fusion<B>> for Fusion<B> {
             .into_iter();
 
         outputs.next().unwrap()
+    }
+
+    fn has_ctc_loss_backward() -> bool {
+        B::has_ctc_loss_backward()
+    }
+
+    fn ctc_loss(
+        log_probs: FloatTensor<Fusion<B>>,
+        targets: IntTensor<Fusion<B>>,
+        input_lengths: IntTensor<Fusion<B>>,
+        target_lengths: IntTensor<Fusion<B>>,
+        blank: usize,
+    ) -> FloatTensor<Fusion<B>> {
+        // CTC is treated as its own non-fuseable IR node, the same way
+        // `attention` and `conv2d` are. The execute callback drains the input
+        // handles and dispatches to `B::ctc_loss` on the inner backend, which
+        // either runs a native kernel (cubecl, libtorch) or the decomposed
+        // default - either way it executes on raw inner-backend tensors,
+        // never re-entering the fusion stream.
+        make_ops!(CtcLossOps, CtcLossOpIr, |args: &CtcLossOpIr,
+                                            handles: &mut HandleContainer<
+            B::Handle,
+        >| {
+            let log_probs = handles.get_float_tensor::<B>(&args.log_probs);
+            let targets = handles.get_int_tensor::<B>(&args.targets);
+            let input_lengths = handles.get_int_tensor::<B>(&args.input_lengths);
+            let target_lengths = handles.get_int_tensor::<B>(&args.target_lengths);
+            let output = B::ctc_loss(
+                log_probs,
+                targets,
+                input_lengths,
+                target_lengths,
+                args.blank,
+            );
+            handles.register_float_tensor::<B>(&args.out.id, output);
+        });
+
+        let streams =
+            OperationStreams::with_inputs([&log_probs, &targets, &input_lengths, &target_lengths]);
+        let client = log_probs.client.clone();
+        let desc = CtcLossOpIr::create(
+            log_probs.into_ir(),
+            targets.into_ir(),
+            input_lengths.into_ir(),
+            target_lengths.into_ir(),
+            blank,
+            || client.create_empty_handle(),
+        );
+
+        client
+            .register(
+                streams,
+                OperationIr::Module(ModuleOperationIr::CtcLoss(desc.clone())),
+                CtcLossOps::<B>::new(desc),
+            )
+            .output()
+    }
+
+    fn ctc_loss_backward(
+        log_probs: FloatTensor<Fusion<B>>,
+        targets: IntTensor<Fusion<B>>,
+        input_lengths: IntTensor<Fusion<B>>,
+        target_lengths: IntTensor<Fusion<B>>,
+        grad_loss: FloatTensor<Fusion<B>>,
+        blank: usize,
+    ) -> FloatTensor<Fusion<B>> {
+        // Mirrors `ctc_loss`: a typed IR node that dispatches to the inner
+        // backend's native backward kernel.
+        make_ops!(
+            CtcLossBackwardOps,
+            CtcLossBackwardOpIr,
+            |args: &CtcLossBackwardOpIr, handles: &mut HandleContainer<B::Handle>| {
+                let log_probs = handles.get_float_tensor::<B>(&args.log_probs);
+                let targets = handles.get_int_tensor::<B>(&args.targets);
+                let input_lengths = handles.get_int_tensor::<B>(&args.input_lengths);
+                let target_lengths = handles.get_int_tensor::<B>(&args.target_lengths);
+                let grad_loss = handles.get_float_tensor::<B>(&args.grad_loss);
+                let output = B::ctc_loss_backward(
+                    log_probs,
+                    targets,
+                    input_lengths,
+                    target_lengths,
+                    grad_loss,
+                    args.blank,
+                );
+                handles.register_float_tensor::<B>(&args.out.id, output);
+            }
+        );
+
+        let streams = OperationStreams::with_inputs([
+            &log_probs,
+            &targets,
+            &input_lengths,
+            &target_lengths,
+            &grad_loss,
+        ]);
+        let client = log_probs.client.clone();
+        let desc = CtcLossBackwardOpIr::create(
+            log_probs.into_ir(),
+            targets.into_ir(),
+            input_lengths.into_ir(),
+            target_lengths.into_ir(),
+            grad_loss.into_ir(),
+            blank,
+            || client.create_empty_handle(),
+        );
+
+        client
+            .register(
+                streams,
+                OperationIr::Module(ModuleOperationIr::CtcLossBackward(desc.clone())),
+                CtcLossBackwardOps::<B>::new(desc),
+            )
+            .output()
     }
 }

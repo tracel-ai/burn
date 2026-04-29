@@ -9,12 +9,15 @@ impl<K: backend::BasicOps<Dispatch>> Basic for K {}
 
 /// Kinds that support numeric operations.
 pub trait Numeric: Basic + backend::Numeric<Dispatch> {}
-
 impl<K: Basic + backend::Numeric<Dispatch>> Numeric for K {}
 
 /// Kinds that support ordered operations.
 pub trait Ordered: Numeric + backend::Ordered<Dispatch> {}
 impl<K: Numeric + backend::Ordered<Dispatch>> Ordered for K {}
+
+/// Kinds that support transaction operations.
+pub trait Transaction: backend::TransactionOp<Dispatch> {}
+impl<K: backend::TransactionOp<Dispatch>> Transaction for K {}
 
 /// Kinds that support autodiff operations.
 // #[cfg(feature = "autodiff")]

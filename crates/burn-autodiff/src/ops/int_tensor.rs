@@ -4,7 +4,7 @@ use alloc::vec::Vec;
 use burn_backend::{
     Backend, Distribution, ExecutionError, Scalar, TensorData,
     ops::IntTensorOps,
-    tensor::{BoolTensor, Device, IntTensor},
+    tensor::{BoolTensor, Device, FloatTensor, IntTensor},
 };
 use burn_std::{BoolDType, FloatDType, IntDType, Shape};
 
@@ -33,11 +33,7 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
         B::int_slice(tensor, slices)
     }
 
-    fn int_empty(
-        shape: Shape,
-        device: &<Autodiff<B> as Backend>::Device,
-        dtype: IntDType,
-    ) -> IntTensor<B> {
+    fn int_empty(shape: Shape, device: &Device<Self>, dtype: IntDType) -> IntTensor<B> {
         B::int_empty(shape, device, dtype)
     }
 
@@ -248,15 +244,11 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
         tensor: IntTensor<B>,
         mask: BoolTensor<B>,
         value: IntTensor<B>,
-    ) -> <Autodiff<B> as Backend>::IntTensorPrimitive {
+    ) -> IntTensor<B> {
         B::int_mask_where(tensor, mask, value)
     }
 
-    fn int_mask_fill(
-        tensor: IntTensor<B>,
-        mask: BoolTensor<B>,
-        value: Scalar,
-    ) -> <Autodiff<B> as Backend>::IntTensorPrimitive {
+    fn int_mask_fill(tensor: IntTensor<B>, mask: BoolTensor<B>, value: Scalar) -> IntTensor<B> {
         B::int_mask_fill(tensor, mask, value)
     }
 
@@ -266,45 +258,32 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
     fn int_argmin(tensor: IntTensor<B>, dim: usize) -> IntTensor<B> {
         B::int_argmin(tensor, dim)
     }
-    fn int_max(tensor: B::IntTensorPrimitive) -> B::IntTensorPrimitive {
+    fn int_max(tensor: IntTensor<B>) -> IntTensor<B> {
         B::int_max(tensor)
     }
-    fn int_max_dim(tensor: B::IntTensorPrimitive, dim: usize) -> B::IntTensorPrimitive {
+    fn int_max_dim(tensor: IntTensor<B>, dim: usize) -> IntTensor<B> {
         B::int_max_dim(tensor, dim)
     }
-    fn int_max_dim_with_indices(
-        tensor: B::IntTensorPrimitive,
-        dim: usize,
-    ) -> (B::IntTensorPrimitive, B::IntTensorPrimitive) {
+    fn int_max_dim_with_indices(tensor: IntTensor<B>, dim: usize) -> (IntTensor<B>, IntTensor<B>) {
         B::int_max_dim_with_indices(tensor, dim)
     }
-    fn int_min(tensor: B::IntTensorPrimitive) -> B::IntTensorPrimitive {
+    fn int_min(tensor: IntTensor<B>) -> IntTensor<B> {
         B::int_min(tensor)
     }
-    fn int_min_dim(tensor: B::IntTensorPrimitive, dim: usize) -> B::IntTensorPrimitive {
+    fn int_min_dim(tensor: IntTensor<B>, dim: usize) -> IntTensor<B> {
         B::int_min_dim(tensor, dim)
     }
-    fn int_min_dim_with_indices(
-        tensor: B::IntTensorPrimitive,
-        dim: usize,
-    ) -> (B::IntTensorPrimitive, B::IntTensorPrimitive) {
+    fn int_min_dim_with_indices(tensor: IntTensor<B>, dim: usize) -> (IntTensor<B>, IntTensor<B>) {
         B::int_min_dim_with_indices(tensor, dim)
     }
-    fn int_abs(tensor: B::IntTensorPrimitive) -> B::IntTensorPrimitive {
+    fn int_abs(tensor: IntTensor<B>) -> IntTensor<B> {
         B::int_abs(tensor)
     }
-    fn int_into_float(
-        tensor: <Autodiff<B> as Backend>::IntTensorPrimitive,
-        out_dtype: FloatDType,
-    ) -> <Autodiff<B> as Backend>::FloatTensorPrimitive {
+    fn int_into_float(tensor: IntTensor<B>, out_dtype: FloatDType) -> FloatTensor<Self> {
         AutodiffTensor::new(B::int_into_float(tensor, out_dtype))
     }
 
-    fn int_swap_dims(
-        tensor: <Autodiff<B> as Backend>::IntTensorPrimitive,
-        dim1: usize,
-        dim2: usize,
-    ) -> <Autodiff<B> as Backend>::IntTensorPrimitive {
+    fn int_swap_dims(tensor: IntTensor<B>, dim1: usize, dim2: usize) -> IntTensor<B> {
         B::int_swap_dims(tensor, dim1, dim2)
     }
 

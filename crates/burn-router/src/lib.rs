@@ -31,7 +31,7 @@ pub type DirectByteChannel<Backends> = DirectChannel<Backends, ByteBridge<Backen
 /// # Example
 ///
 /// ```ignore
-/// type MyBackend = Router<(NdArray, Wgpu)>;
+/// type MyBackend = Router<(Flex, Wgpu)>;
 /// ```
 pub type Router<Backends> = BackendRouter<DirectByteChannel<Backends>>;
 
@@ -43,7 +43,7 @@ mod tests {
     use crate::BackendRouter;
     use crate::DirectByteChannel;
 
-    pub type TestBackend1 = burn_ndarray::NdArray<f32, i32>;
+    pub type TestBackend1 = burn_flex::Flex;
     pub type TestBackend2 = burn_wgpu::Wgpu<f32, i32>;
     pub type TestBackend = BackendRouter<DirectByteChannel<(TestBackend1, TestBackend2)>>;
 }

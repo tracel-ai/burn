@@ -19,7 +19,7 @@ use crate::{element::IntNdArrayElement, execute_with_int_dtype};
 
 // Workspace crates
 use super::{NdArrayBitOps, NdArrayMathOps, NdArrayOps};
-use burn_backend::{DType, Shape, TensorData, backend::Backend};
+use burn_backend::{DType, Shape, TensorData};
 
 impl<E: FloatNdArrayElement, I: IntNdArrayElement, Q: QuantElement> IntTensorOps<Self>
     for NdArray<E, I, Q>
@@ -51,15 +51,11 @@ where
         slice!(tensor, slices)
     }
 
-    fn int_device(_tensor: &NdArrayTensor) -> <NdArray<E> as Backend>::Device {
+    fn int_device(_tensor: &NdArrayTensor) -> NdArrayDevice {
         NdArrayDevice::Cpu
     }
 
-    fn int_empty(
-        shape: Shape,
-        device: &<NdArray<E> as Backend>::Device,
-        dtype: IntDType,
-    ) -> NdArrayTensor {
+    fn int_empty(shape: Shape, device: &NdArrayDevice, dtype: IntDType) -> NdArrayTensor {
         Self::int_zeros(shape, device, dtype)
     }
 
@@ -289,6 +285,25 @@ where
             execute_with_int_dtype!(indices, |idx_array| NdArrayOps::<I>::scatter(
                 dim, tensor, idx_array, value
             ))
+        })
+    }
+
+    fn int_scatter_nd(
+        data: NdArrayTensor,
+        indices: NdArrayTensor,
+        values: NdArrayTensor,
+        reduction: burn_backend::tensor::IndexingUpdateOp,
+    ) -> NdArrayTensor {
+        execute_with_int_dtype!((data, values), I, |data, values| -> NdArrayTensor {
+            execute_with_int_dtype!(indices, |idx_array| NdArrayOps::<I>::scatter_nd(
+                data, idx_array, values, reduction
+            ))
+        })
+    }
+
+    fn int_gather_nd(data: NdArrayTensor, indices: NdArrayTensor) -> NdArrayTensor {
+        execute_with_int_dtype!(data, E, |array| -> NdArrayTensor {
+            execute_with_int_dtype!(indices, |idx_array| NdArrayOps::gather_nd(array, idx_array))
         })
     }
 

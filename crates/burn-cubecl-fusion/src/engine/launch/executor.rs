@@ -47,7 +47,7 @@ impl<'a, R: Runtime> LaunchPlanExecutor<'a, R> {
         self,
         client: &ComputeClient<R>,
         runner: &Runner,
-        context: &mut Context<'_, CubeFusionHandle<R>>,
+        context: &mut Context<CubeFusionHandle<R>>,
         plan: LaunchPlan<'a, R>,
     ) -> Result<TuneOutput<R>, ExecutionError<R, Runner>> {
         let mut num_writes = 0;
@@ -243,15 +243,16 @@ fn register_outputs<R: Runtime>(
                 ..
             } => {
                 let at = handle.required_address_type();
+
+                #[cfg(feature = "autotune-checks")]
+                if let TuneOutput::Checked { handles, .. } = tune_output {
+                    handles.insert(relative_id, (global_shape.clone(), handle.clone()));
+                }
+
                 let arg = handle.into_tensor_arg(global_shape.clone());
 
                 let elem = precision.into_elem();
                 let ty = Type::new(elem.into()).with_vector_size(vector_size);
-
-                #[cfg(feature = "autotune-checks")]
-                if let TuneOutput::Checked { handles, .. } = tune_output {
-                    handles.insert(*relative_id, (global_shape.clone(), handle.clone()));
-                }
 
                 outputs
                     .tensors
@@ -264,7 +265,7 @@ fn register_outputs<R: Runtime>(
 fn register_scalars<'h, R: Runtime>(
     scalars: impl Iterator<Item = &'h (FuseType, u64)>,
     views: impl DoubleEndedIterator<Item = &'h TensorView>,
-    context: &mut Context<'_, CubeFusionHandle<R>>,
+    context: &mut Context<CubeFusionHandle<R>>,
     inputs: &mut GlobalArgsLaunch<R>,
 ) {
     for (precision, id) in scalars {

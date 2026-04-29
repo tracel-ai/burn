@@ -174,13 +174,15 @@ where
     }
 
     /// Change the context of the current tensor and return the newly transferred tensor.
-    pub fn to_client(&self, client: ComputeClient<R>, device: R::Device) -> Self {
+    pub fn to_client(&mut self, client: ComputeClient<R>, device: R::Device) -> Self {
         let desc = self.handle.clone().copy_descriptor(
             self.meta.shape().clone(),
             self.meta.strides().clone(),
             self.elem_size(),
         );
-        let handle = self.client.to_client_tensor(desc, &client);
+        let handle = self
+            .client
+            .to_client_tensor(desc, &client, self.dtype.into());
 
         Self {
             client,

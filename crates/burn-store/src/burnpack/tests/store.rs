@@ -5,8 +5,15 @@ use crate::{ModuleAdapter, ModuleSnapshot, ModuleStore, PathFilter};
 
 use burn_core as burn;
 use burn_core::module::{Module, Param};
+<<<<<<< HEAD
 use burn_core::tensor::shape;
 use burn_core::tensor::{Device, Tensor};
+=======
+use burn_tensor::shape;
+use burn_tensor::{Tensor, backend::Backend};
+
+type TestBackend = burn_flex::Flex;
+>>>>>>> main
 
 #[derive(Module, Debug)]
 struct TestModule {
@@ -1071,8 +1078,12 @@ fn test_store_quantized_module_round_trip() {
     let linear = LinearConfig::new(512, 512).with_bias(false).init(&device);
 
     // Define quantization scheme (Q8S with tensor-level quantization)
+<<<<<<< HEAD
     let scheme = device
         .default_quant_scheme()
+=======
+    let scheme = <<TestBackend as burn_tensor::backend::BackendTypes>::QuantizedTensorPrimitive as QTensorPrimitive>::default_scheme()
+>>>>>>> main
         .with_value(QuantValue::Q8S)
         .with_level(QuantLevel::Tensor)
         .with_param(QuantParam::F32);
@@ -1321,8 +1332,12 @@ fn test_store_quantized_module_block_level() {
     let linear = LinearConfig::new(128, 128).with_bias(false).init(&device);
 
     // Define quantization scheme with block-level quantization
+<<<<<<< HEAD
     let scheme = device
         .default_quant_scheme()
+=======
+    let scheme = <<TestBackend as burn_tensor::backend::BackendTypes>::QuantizedTensorPrimitive as QTensorPrimitive>::default_scheme()
+>>>>>>> main
         .with_value(QuantValue::Q8S)
         .with_level(QuantLevel::block([32])) // Block size of 32
         .with_param(QuantParam::F32);

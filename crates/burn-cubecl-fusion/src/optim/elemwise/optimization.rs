@@ -39,7 +39,7 @@ pub struct ElemwiseOptimizationState {
 
 impl<R: Runtime> ElemwiseOptimization<R> {
     /// Execute the optimization.
-    pub fn execute(&self, context: &mut Context<'_, CubeFusionHandle<R>>) {
+    pub fn execute(&self, context: &mut Context<CubeFusionHandle<R>>) {
         let launcher = FuseTraceLauncher::new(&self.trace, &ElemwiseRunner);
 
         match launcher.launch(&self.client, &self.device, context) {

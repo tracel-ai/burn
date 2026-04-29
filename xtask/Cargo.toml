@@ -12,7 +12,10 @@ workspace = true
 [dependencies]
 log = { workspace = true }
 strum = { workspace = true }
-tracel-xtask = { workspace = true }
+
+tracel-xtask = "=4.15.1"
+# ### For local development. ###
+# tracel-xtask = { path = "../xtask/crates/tracel-xtask", default-features = false }
 
 [dev-dependencies]
 rstest = { workspace = true }

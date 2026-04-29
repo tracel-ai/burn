@@ -1,5 +1,9 @@
 use super::*;
-use burn_tensor::{Shape, Tolerance, module::conv1d, ops::ConvOptions};
+use burn_tensor::{
+    Shape, Tolerance,
+    module::conv1d,
+    ops::{ConvOptions, PaddedConvOptions},
+};
 
 #[test]
 fn test_conv1d_basic() {
@@ -198,6 +202,70 @@ fn test_conv1d_groups() {
         bias: TestTensor::from_data([8., 8.], &device),
     };
     test.assert_grads(grads);
+}
+
+/// Regression test for https://github.com/tracel-ai/burn/issues/4799.
+///
+/// When a conv drops more than one tail input (here length=11, kernel=4,
+/// stride=4 → three dropped inputs), the transpose-conv used in the backward
+/// pass must inject enough `padding_out` to reproduce the original input shape.
+/// An earlier formula capped this at 1, which caused downstream ops (pad,
+/// slice_assign) to panic on shape mismatch.
+#[test]
+fn test_conv1d_backward_shape_with_remainder() {
+    let device = AutodiffDevice::new();
+    let length = 11;
+    let x = TestTensor::<3>::from_data(
+        TestTensorInt::arange(0..(1 * 1 * length) as i64, &device)
+            .reshape::<3, _>(Shape::new([1, 1, length]))
+            .into_data(),
+        &device,
+    )
+    .require_grad();
+    let weight = TestTensor::<3>::from_data(
+        TestTensorInt::arange(0..4, &device)
+            .reshape::<3, _>(Shape::new([1, 1, 4]))
+            .into_data(),
+        &device,
+    )
+    .require_grad();
+
+    let output = conv1d(
+        x.clone(),
+        weight.clone(),
+        None,
+        ConvOptions::new([4], [0], [1], 1),
+    );
+    let grads = output.sum().backward();
+
+    let x_grad = x.grad(&grads).unwrap();
+    let weight_grad = weight.grad(&grads).unwrap();
+    assert_eq!(x_grad.dims(), [1, 1, length]);
+    assert_eq!(weight_grad.dims(), [1, 1, 4]);
+}
+
+/// Regression test for the asymmetric-padding backward-shape path referenced
+/// in https://github.com/tracel-ai/burn/issues/4799. Reduced to a single
+/// `conv1d`: the asymmetric path routes through `x.pad(...) -> B::conv1d(padding=0)`,
+/// and the backward must restore the original input shape without triggering
+/// shape-mismatch failures when the forward drops multiple tail inputs.
+#[test]
+fn test_conv1d_asymmetric_padding_backward_shape() {
+    let device = AutodiffDevice::new();
+    let length = 1600;
+    let x = TestTensor::<3>::zeros([1, 32, length], &device).require_grad();
+    let weight = TestTensor::<3>::zeros([64, 32, 4], &device).require_grad();
+
+    let output = conv1d(
+        x.clone(),
+        weight.clone(),
+        None,
+        PaddedConvOptions::asymmetric([4], [3], [0], [1], 1),
+    );
+    let grads = output.sum().backward();
+
+    assert_eq!(x.grad(&grads).unwrap().dims(), [1, 32, length]);
+    assert_eq!(weight.grad(&grads).unwrap().dims(), [64, 32, 4]);
 }
 
 struct Conv1dTestCase {

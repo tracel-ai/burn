@@ -40,16 +40,14 @@ test-memory-checks = ["burn-core/test-memory-checks"]
 [dependencies]
 
 # ** Please make sure all dependencies support no_std when std is disabled **
-burn-core = { path = "../burn-core", version = "=0.21.0-pre.3", default-features = false }
+burn-core = { workspace = true }
 
 num-traits = { workspace = true }
 
 [dev-dependencies]
-burn-ndarray = { path = "../burn-ndarray", version = "=0.21.0-pre.3" }
-burn-autodiff = { path = "../burn-autodiff", version = "=0.21.0-pre.3" }
-burn-core = { path = "../burn-core", version = "=0.21.0-pre.3", default-features = false, features = [
-    "autodiff",
-] }
+burn-flex = { workspace = true, features = ["default"] }
+burn-autodiff = { workspace = true, features = ["default"] }
+burn-core = { workspace = true, features = ["autodiff"] }
 rstest = { workspace = true }
 
 [package.metadata.docs.rs]

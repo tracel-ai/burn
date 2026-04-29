@@ -347,7 +347,7 @@ impl Dists {
 mod tests {
     use super::*;
     use burn_core::tensor::{TensorData, Tolerance, ops::FloatElem};
-    use burn_ndarray::NdArray;
+    use burn_flex::Flex;
 
     type FT = f32;
 

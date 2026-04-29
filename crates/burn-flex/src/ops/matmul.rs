@@ -826,163 +826,30 @@ fn matmul_batched_i64(lhs: FlexTensor, rhs: FlexTensor) -> FlexTensor {
 // Tests
 // ============================================================================
 
+// Tests kept here exercise flex-specific behavior of the matmul kernel:
+// dtype-specific storage paths (F64, F16, BF16) that the generic
+// FloatElem-parameterized backend-tests cannot reach. Plain contiguous
+// F32/I32/I64 matmul, stride-through-matmul variants (transposed /
+// swap_dims / broadcast-transposed), and other generic coverage have
+// been migrated to burn-backend-tests so they run against every backend.
+// When adding new tests, keep them here only if they probe a flex
+// dtype-storage path; otherwise add them to
+// crates/burn-backend-tests/tests/tensor/float/ops/matmul.rs.
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use alloc::vec;
     use burn_backend::TensorData;
+    use burn_backend::ops::FloatTensorOps;
+    use burn_std::{bf16, f16};
 
-    #[test]
-    fn test_matmul_2d_simple() {
-        // [2, 3] x [3, 2] -> [2, 2]
-        let lhs_data = TensorData::new(vec![1.0f32, 2.0, 3.0, 4.0, 5.0, 6.0], vec![2, 3]);
-        let rhs_data = TensorData::new(vec![1.0f32, 2.0, 3.0, 4.0, 5.0, 6.0], vec![3, 2]);
-
-        let lhs = FlexTensor::from_data(lhs_data);
-        let rhs = FlexTensor::from_data(rhs_data);
-
-        let result = matmul(lhs, rhs);
-
-        assert_eq!(result.layout().shape().to_vec(), vec![2, 2]);
-
-        let result_data = result.into_data();
-        let values: Vec<f32> = result_data.to_vec().unwrap();
-
-        // [1 2 3] * [1 2]   = [1*1+2*3+3*5  1*2+2*4+3*6] = [22 28]
-        // [4 5 6]   [3 4]     [4*1+5*3+6*5  4*2+5*4+6*6]   [49 64]
-        //           [5 6]
-        assert_eq!(values, vec![22.0, 28.0, 49.0, 64.0]);
-    }
-
-    #[test]
-    fn test_matmul_square() {
-        let lhs_data = TensorData::new(vec![1.0f32, 2.0, 3.0, 4.0], vec![2, 2]);
-        let rhs_data = TensorData::new(vec![5.0f32, 6.0, 7.0, 8.0], vec![2, 2]);
-
-        let lhs = FlexTensor::from_data(lhs_data);
-        let rhs = FlexTensor::from_data(rhs_data);
-
-        let result = matmul(lhs, rhs);
-        let values: Vec<f32> = result.into_data().to_vec().unwrap();
-
-        assert_eq!(values, vec![19.0, 22.0, 43.0, 50.0]);
-    }
-
-    #[test]
-    fn test_matmul_identity() {
-        let lhs_data = TensorData::new(vec![1.0f32, 2.0, 3.0, 4.0], vec![2, 2]);
-        let identity = TensorData::new(vec![1.0f32, 0.0, 0.0, 1.0], vec![2, 2]);
-
-        let lhs = FlexTensor::from_data(lhs_data);
-        let rhs = FlexTensor::from_data(identity);
-
-        let result = matmul(lhs, rhs);
-        let values: Vec<f32> = result.into_data().to_vec().unwrap();
-
-        assert_eq!(values, vec![1.0, 2.0, 3.0, 4.0]);
-    }
-
-    #[test]
-    fn test_matmul_transposed_lhs() {
-        // Original: [2, 3] with data [[1,2,3], [4,5,6]]
-        // Transposed: [3, 2] with logical [[1,4], [2,5], [3,6]]
-        let data = TensorData::new(vec![1.0f32, 2.0, 3.0, 4.0, 5.0, 6.0], vec![2, 3]);
-        let tensor = FlexTensor::from_data(data);
-        let transposed = tensor.transpose(0, 1); // [3, 2]
-        assert!(!transposed.is_contiguous());
-
-        // rhs: [2, 2] identity
-        let rhs_data = TensorData::new(vec![1.0f32, 0.0, 0.0, 1.0], vec![2, 2]);
-        let rhs = FlexTensor::from_data(rhs_data);
-
-        // [3, 2] x [2, 2] -> [3, 2]
-        let result = matmul(transposed, rhs);
-        assert_eq!(result.layout().shape().to_vec(), vec![3, 2]);
-
-        let values: Vec<f32> = result.into_data().to_vec().unwrap();
-        // Result should be [[1,4], [2,5], [3,6]] * I = [[1,4], [2,5], [3,6]]
-        assert_eq!(values, vec![1.0, 4.0, 2.0, 5.0, 3.0, 6.0]);
-    }
-
-    #[test]
-    fn test_matmul_transposed_rhs() {
-        // lhs: [2, 2] identity
-        let lhs_data = TensorData::new(vec![1.0f32, 0.0, 0.0, 1.0], vec![2, 2]);
-        let lhs = FlexTensor::from_data(lhs_data);
-
-        // Original: [3, 2] -> Transposed: [2, 3]
-        let data = TensorData::new(vec![1.0f32, 2.0, 3.0, 4.0, 5.0, 6.0], vec![3, 2]);
-        let tensor = FlexTensor::from_data(data);
-        let transposed = tensor.transpose(0, 1); // [2, 3]
-        assert!(!transposed.is_contiguous());
-
-        // [2, 2] x [2, 3] -> [2, 3]
-        let result = matmul(lhs, transposed);
-        assert_eq!(result.layout().shape().to_vec(), vec![2, 3]);
-
-        let values: Vec<f32> = result.into_data().to_vec().unwrap();
-        // I * [[1,3,5], [2,4,6]] = [[1,3,5], [2,4,6]]
-        assert_eq!(values, vec![1.0, 3.0, 5.0, 2.0, 4.0, 6.0]);
-    }
-
-    #[test]
-    fn test_matmul_both_transposed() {
-        // lhs: [2, 3] transposed to [3, 2]
-        let lhs_data = TensorData::new(vec![1.0f32, 2.0, 3.0, 4.0, 5.0, 6.0], vec![2, 3]);
-        let lhs = FlexTensor::from_data(lhs_data).transpose(0, 1);
-
-        // rhs: [2, 3] transposed to [3, 2] then we need [2, 3] for matmul
-        // Actually let's do: [3, 2] transposed to [2, 3]
-        let rhs_data = TensorData::new(vec![1.0f32, 2.0, 3.0, 4.0, 5.0, 6.0], vec![3, 2]);
-        let rhs = FlexTensor::from_data(rhs_data).transpose(0, 1);
-
-        // [3, 2] x [2, 3] -> [3, 3]
-        let result = matmul(lhs, rhs);
-        assert_eq!(result.layout().shape().to_vec(), vec![3, 3]);
-    }
-
-    #[test]
-    fn test_matmul_batched_simple() {
-        let lhs_data = TensorData::new(
-            vec![
-                1.0f32, 2.0, 3.0, 4.0, // batch 0
-                5.0, 6.0, 7.0, 8.0, // batch 1
-            ],
-            vec![2, 2, 2],
-        );
-        let rhs_data = TensorData::new(
-            vec![
-                1.0f32, 0.0, 0.0, 1.0, // identity batch 0
-                2.0, 0.0, 0.0, 2.0, // scaled identity batch 1
-            ],
-            vec![2, 2, 2],
-        );
-
-        let lhs = FlexTensor::from_data(lhs_data);
-        let rhs = FlexTensor::from_data(rhs_data);
-
-        let result = matmul(lhs, rhs);
-        assert_eq!(result.layout().shape().to_vec(), vec![2, 2, 2]);
-
-        let values: Vec<f32> = result.into_data().to_vec().unwrap();
-
-        assert_eq!(
-            values,
-            vec![
-                1.0, 2.0, 3.0, 4.0, // batch 0: identity
-                10.0, 12.0, 14.0, 16.0, // batch 1: scaled by 2
-            ]
-        );
-    }
+    use crate::{Flex, FlexTensor};
 
     #[test]
     fn test_matmul_f64() {
-        let lhs_data = TensorData::new(vec![1.0f64, 2.0, 3.0, 4.0], vec![2, 2]);
-        let rhs_data = TensorData::new(vec![5.0f64, 6.0, 7.0, 8.0], vec![2, 2]);
+        let lhs = FlexTensor::from_data(TensorData::new(vec![1.0f64, 2.0, 3.0, 4.0], [2, 2]));
+        let rhs = FlexTensor::from_data(TensorData::new(vec![5.0f64, 6.0, 7.0, 8.0], [2, 2]));
 
-        let lhs = FlexTensor::from_data(lhs_data);
-        let rhs = FlexTensor::from_data(rhs_data);
-
-        let result = matmul(lhs, rhs);
+        let result = Flex::float_matmul(lhs, rhs);
         let values: Vec<f64> = result.into_data().to_vec().unwrap();
 
         assert_eq!(values, vec![19.0, 22.0, 43.0, 50.0]);
@@ -990,318 +857,80 @@ mod tests {
 
     #[test]
     fn test_matmul_f16() {
-        let lhs_data = TensorData::new(
-            vec![
-                f16::from_f32(1.0),
-                f16::from_f32(2.0),
-                f16::from_f32(3.0),
-                f16::from_f32(4.0),
-            ],
-            vec![2, 2],
-        );
-        let rhs_data = TensorData::new(
-            vec![
-                f16::from_f32(5.0),
-                f16::from_f32(6.0),
-                f16::from_f32(7.0),
-                f16::from_f32(8.0),
-            ],
-            vec![2, 2],
-        );
+        let lhs_vals: Vec<f16> = [1.0f32, 2.0, 3.0, 4.0]
+            .iter()
+            .copied()
+            .map(f16::from_f32)
+            .collect();
+        let rhs_vals: Vec<f16> = [5.0f32, 6.0, 7.0, 8.0]
+            .iter()
+            .copied()
+            .map(f16::from_f32)
+            .collect();
 
-        let lhs = FlexTensor::from_data(lhs_data);
-        let rhs = FlexTensor::from_data(rhs_data);
+        let lhs = FlexTensor::from_data(TensorData::new(lhs_vals, [2, 2]));
+        let rhs = FlexTensor::from_data(TensorData::new(rhs_vals, [2, 2]));
 
-        let result = matmul(lhs, rhs);
+        let result = Flex::float_matmul(lhs, rhs);
         let values: Vec<f16> = result.into_data().to_vec().unwrap();
 
-        let expected = vec![
-            f16::from_f32(19.0),
-            f16::from_f32(22.0),
-            f16::from_f32(43.0),
-            f16::from_f32(50.0),
-        ];
-
-        for (a, b) in values.iter().zip(expected.iter()) {
-            assert!((a.to_f32() - b.to_f32()).abs() < 0.1, "f16 matmul mismatch");
+        let expected = [19.0f32, 22.0, 43.0, 50.0];
+        for (a, e) in values.iter().zip(expected.iter()) {
+            assert!((a.to_f32() - e).abs() < 0.1, "f16 matmul mismatch");
         }
     }
 
     #[test]
     fn test_matmul_bf16() {
-        let lhs_data = TensorData::new(
-            vec![
-                bf16::from_f32(1.0),
-                bf16::from_f32(2.0),
-                bf16::from_f32(3.0),
-                bf16::from_f32(4.0),
-            ],
-            vec![2, 2],
-        );
-        let rhs_data = TensorData::new(
-            vec![
-                bf16::from_f32(5.0),
-                bf16::from_f32(6.0),
-                bf16::from_f32(7.0),
-                bf16::from_f32(8.0),
-            ],
-            vec![2, 2],
-        );
+        let lhs_vals: Vec<bf16> = [1.0f32, 2.0, 3.0, 4.0]
+            .iter()
+            .copied()
+            .map(bf16::from_f32)
+            .collect();
+        let rhs_vals: Vec<bf16> = [5.0f32, 6.0, 7.0, 8.0]
+            .iter()
+            .copied()
+            .map(bf16::from_f32)
+            .collect();
 
-        let lhs = FlexTensor::from_data(lhs_data);
-        let rhs = FlexTensor::from_data(rhs_data);
+        let lhs = FlexTensor::from_data(TensorData::new(lhs_vals, [2, 2]));
+        let rhs = FlexTensor::from_data(TensorData::new(rhs_vals, [2, 2]));
 
-        let result = matmul(lhs, rhs);
+        let result = Flex::float_matmul(lhs, rhs);
         let values: Vec<bf16> = result.into_data().to_vec().unwrap();
 
-        let expected = vec![
-            bf16::from_f32(19.0),
-            bf16::from_f32(22.0),
-            bf16::from_f32(43.0),
-            bf16::from_f32(50.0),
-        ];
-
-        for (a, b) in values.iter().zip(expected.iter()) {
-            assert!(
-                (a.to_f32() - b.to_f32()).abs() < 0.5,
-                "bf16 matmul mismatch"
-            );
-        }
-    }
-
-    #[test]
-    fn test_matmul_rectangular() {
-        // [1, 4] x [4, 1] -> [1, 1] (dot product)
-        let lhs_data = TensorData::new(vec![1.0f32, 2.0, 3.0, 4.0], vec![1, 4]);
-        let rhs_data = TensorData::new(vec![1.0f32, 2.0, 3.0, 4.0], vec![4, 1]);
-
-        let lhs = FlexTensor::from_data(lhs_data);
-        let rhs = FlexTensor::from_data(rhs_data);
-
-        let result = matmul(lhs, rhs);
-        assert_eq!(result.layout().shape().to_vec(), vec![1, 1]);
-
-        let values: Vec<f32> = result.into_data().to_vec().unwrap();
-        assert_eq!(values, vec![30.0]);
-    }
-
-    // ========================================================================
-    // Integer matmul tests
-    // ========================================================================
-
-    #[test]
-    fn test_int_matmul_i32_simple() {
-        // [2, 3] x [3, 2] -> [2, 2]
-        let lhs_data = TensorData::new(vec![1i32, 2, 3, 4, 5, 6], vec![2, 3]);
-        let rhs_data = TensorData::new(vec![1i32, 2, 3, 4, 5, 6], vec![3, 2]);
-
-        let lhs = FlexTensor::from_data(lhs_data);
-        let rhs = FlexTensor::from_data(rhs_data);
-
-        let result = int_matmul(lhs, rhs);
-        assert_eq!(result.layout().shape().to_vec(), vec![2, 2]);
-
-        let values: Vec<i32> = result.into_data().to_vec().unwrap();
-        // [1 2 3] * [1 2]   = [1*1+2*3+3*5  1*2+2*4+3*6] = [22 28]
-        // [4 5 6]   [3 4]     [4*1+5*3+6*5  4*2+5*4+6*6]   [49 64]
-        //           [5 6]
-        assert_eq!(values, vec![22, 28, 49, 64]);
-    }
-
-    #[test]
-    fn test_int_matmul_i32_square() {
-        let lhs_data = TensorData::new(vec![1i32, 2, 3, 4], vec![2, 2]);
-        let rhs_data = TensorData::new(vec![5i32, 6, 7, 8], vec![2, 2]);
-
-        let lhs = FlexTensor::from_data(lhs_data);
-        let rhs = FlexTensor::from_data(rhs_data);
-
-        let result = int_matmul(lhs, rhs);
-        let values: Vec<i32> = result.into_data().to_vec().unwrap();
-
-        // [1 2] * [5 6] = [1*5+2*7  1*6+2*8] = [19 22]
-        // [3 4]   [7 8]   [3*5+4*7  3*6+4*8]   [43 50]
-        assert_eq!(values, vec![19, 22, 43, 50]);
-    }
-
-    #[test]
-    fn test_int_matmul_i64() {
-        let lhs_data = TensorData::new(vec![1i64, 2, 3, 4], vec![2, 2]);
-        let rhs_data = TensorData::new(vec![5i64, 6, 7, 8], vec![2, 2]);
-
-        let lhs = FlexTensor::from_data(lhs_data);
-        let rhs = FlexTensor::from_data(rhs_data);
-
-        let result = int_matmul(lhs, rhs);
-        let values: Vec<i64> = result.into_data().to_vec().unwrap();
-
-        assert_eq!(values, vec![19, 22, 43, 50]);
-    }
-
-    #[test]
-    fn test_matmul_batched_transposed_rhs() {
-        // q.matmul(k.swap_dims(1, 2)) -- the attention QK^T pattern
-        // q: [B, M, K], k: [B, K, N] but presented as swap_dims(1,2) of [B, N, K]
-        let q_data = TensorData::new(
-            vec![
-                1.0f32, 2.0, 3.0, 4.0, 5.0, 6.0, // batch 0: [2, 3]
-                7.0, 8.0, 9.0, 10.0, 11.0, 12.0, // batch 1: [2, 3]
-            ],
-            vec![2, 2, 3],
-        );
-        // k in [B, N, K] layout, will be transposed to [B, K, N]
-        let k_data = TensorData::new(
-            vec![
-                1.0f32, 0.0, 0.0, 0.0, 1.0, 0.0, // batch 0: [2, 3]
-                1.0, 1.0, 1.0, 2.0, 2.0, 2.0, // batch 1: [2, 3]
-            ],
-            vec![2, 2, 3],
-        );
-
-        let q = FlexTensor::from_data(q_data.clone());
-        let k = FlexTensor::from_data(k_data.clone());
-        let k_t = k.transpose(1, 2); // [B, 3, 2] -- strided view, not contiguous
-
-        // Verify k_t is non-contiguous
-        assert!(
-            k_t.layout().contiguous_offsets().is_none(),
-            "k_t should be a non-contiguous view"
-        );
-
-        let result = matmul(q, k_t);
-        assert_eq!(result.layout().shape().to_vec(), vec![2, 2, 2]);
-
-        // Compute same thing with contiguous k already transposed
-        let q2 = FlexTensor::from_data(q_data);
-        let k_contig = FlexTensor::from_data(k_data)
-            .transpose(1, 2)
-            .to_contiguous();
-        let result_contig = matmul(q2, k_contig);
-
-        let values: Vec<f32> = result.into_data().to_vec().unwrap();
-        let expected: Vec<f32> = result_contig.into_data().to_vec().unwrap();
-        assert_eq!(values, expected);
-    }
-
-    #[test]
-    fn test_matmul_batched_transposed_lhs() {
-        // Transposed lhs in batched matmul
-        // a: [2, 2, 3] transposed to [2, 3, 2], so M=3, K=2
-        // b: [2, 2, 2], K=2, N=2
-        // result: [2, 3, 2]
-        let a_data = TensorData::new(
-            vec![
-                1.0f32, 2.0, 3.0, 4.0, 5.0, 6.0, // batch 0: [2, 3]
-                7.0, 8.0, 9.0, 10.0, 11.0, 12.0, // batch 1: [2, 3]
-            ],
-            vec![2, 2, 3],
-        );
-        let b_data = TensorData::new(
-            vec![
-                1.0f32, 0.0, 0.0, 1.0, // batch 0: [2, 2]
-                2.0, 0.0, 0.0, 2.0, // batch 1: [2, 2]
-            ],
-            vec![2, 2, 2],
-        );
-
-        let a = FlexTensor::from_data(a_data.clone());
-        let a_t = a.transpose(1, 2); // [2, 3, 2]
-        let b = FlexTensor::from_data(b_data.clone());
-
-        let result = matmul(a_t, b);
-        assert_eq!(result.layout().shape().to_vec(), vec![2, 3, 2]);
-
-        // Compare with contiguous version
-        let a2 = FlexTensor::from_data(a_data)
-            .transpose(1, 2)
-            .to_contiguous();
-        let b2 = FlexTensor::from_data(b_data);
-        let expected_result = matmul(a2, b2);
-
-        let values: Vec<f32> = result.into_data().to_vec().unwrap();
-        let expected: Vec<f32> = expected_result.into_data().to_vec().unwrap();
-        for (v, e) in values.iter().zip(expected.iter()) {
-            assert!((v - e).abs() < 1e-5, "mismatch: {v} vs {e}");
-        }
-    }
-
-    #[test]
-    fn test_matmul_batched_both_transposed() {
-        // Both inputs transposed in batched matmul
-        // a: [2,3,2] transposed to [2,2,3], b: [2,2,3] transposed to [2,3,2]
-        // matmul [2,2,3] x [2,3,2] -> [2,2,2]
-        let a_data = TensorData::new(
-            vec![
-                1.0f32, 2.0, 3.0, 4.0, 5.0, 6.0, // batch 0: [3, 2]
-                7.0, 8.0, 9.0, 10.0, 11.0, 12.0, // batch 1: [3, 2]
-            ],
-            vec![2, 3, 2],
-        );
-
-        let b_data2 = TensorData::new(
-            vec![
-                1.0f32, 2.0, 3.0, 4.0, 5.0, 6.0, // batch 0: [2, 3]
-                7.0, 8.0, 9.0, 10.0, 11.0, 12.0, // batch 1: [2, 3]
-            ],
-            vec![2, 2, 3],
-        );
-
-        let a = FlexTensor::from_data(a_data.clone());
-        let a_t = a.transpose(1, 2); // [2, 2, 3]
-        let b = FlexTensor::from_data(b_data2.clone());
-        let b_t = b.transpose(1, 2); // [2, 3, 2]
-
-        let result = matmul(a_t, b_t);
-        assert_eq!(result.layout().shape().to_vec(), vec![2, 2, 2]);
-
-        // Compare with contiguous versions
-        let a2 = FlexTensor::from_data(a_data)
-            .transpose(1, 2)
-            .to_contiguous();
-        let b2 = FlexTensor::from_data(b_data2)
-            .transpose(1, 2)
-            .to_contiguous();
-        let expected_result = matmul(a2, b2);
-
-        let values: Vec<f32> = result.into_data().to_vec().unwrap();
-        let expected: Vec<f32> = expected_result.into_data().to_vec().unwrap();
-        for (v, e) in values.iter().zip(expected.iter()) {
-            assert!((v - e).abs() < 1e-5, "mismatch: {v} vs {e}");
+        let expected = [19.0f32, 22.0, 43.0, 50.0];
+        for (a, e) in values.iter().zip(expected.iter()) {
+            assert!((a.to_f32() - e).abs() < 0.5, "bf16 matmul mismatch");
         }
     }
 
     #[test]
     fn test_matmul_batched_transposed_f64() {
-        // Same pattern as f32 but for f64 to verify that path too
-        let q_data = TensorData::new(
-            vec![1.0f64, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0],
-            vec![2, 2, 2],
-        );
-        let k_data = TensorData::new(
-            vec![1.0f64, 0.0, 0.0, 1.0, 2.0, 0.0, 0.0, 2.0],
-            vec![2, 2, 2],
-        );
+        // Non-contiguous (swap_dims) batched matmul on the F64 dtype path.
+        let q_data = TensorData::new(vec![1.0f64, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0], [2, 2, 2]);
+        let k_data = TensorData::new(vec![1.0f64, 0.0, 0.0, 1.0, 2.0, 0.0, 0.0, 2.0], [2, 2, 2]);
 
         let q = FlexTensor::from_data(q_data.clone());
         let k = FlexTensor::from_data(k_data.clone());
         let k_t = k.transpose(1, 2);
-
-        let result = matmul(q, k_t);
+        let result = Flex::float_matmul(q, k_t);
 
         let q2 = FlexTensor::from_data(q_data);
         let k2 = FlexTensor::from_data(k_data)
             .transpose(1, 2)
             .to_contiguous();
-        let expected_result = matmul(q2, k2);
+        let expected = Flex::float_matmul(q2, k2);
 
         let values: Vec<f64> = result.into_data().to_vec().unwrap();
-        let expected: Vec<f64> = expected_result.into_data().to_vec().unwrap();
+        let expected: Vec<f64> = expected.into_data().to_vec().unwrap();
         assert_eq!(values, expected);
     }
 
     #[test]
     fn test_matmul_batched_transposed_f16() {
-        let f = |v: f32| f16::from_f32(v);
+        // Non-contiguous (swap_dims) batched matmul on the F16 dtype path.
+        let f = f16::from_f32;
         let q_data = TensorData::new(
             vec![
                 f(1.0),
@@ -1313,7 +942,7 @@ mod tests {
                 f(7.0),
                 f(8.0),
             ],
-            vec![2, 2, 2],
+            [2, 2, 2],
         );
         let k_data = TensorData::new(
             vec![
@@ -1326,105 +955,22 @@ mod tests {
                 f(0.0),
                 f(2.0),
             ],
-            vec![2, 2, 2],
+            [2, 2, 2],
         );
 
         let q = FlexTensor::from_data(q_data.clone());
         let k = FlexTensor::from_data(k_data.clone());
         let k_t = k.transpose(1, 2);
-
-        let result = matmul(q, k_t);
+        let result = Flex::float_matmul(q, k_t);
 
         let q2 = FlexTensor::from_data(q_data);
         let k2 = FlexTensor::from_data(k_data)
             .transpose(1, 2)
             .to_contiguous();
-        let expected_result = matmul(q2, k2);
+        let expected = Flex::float_matmul(q2, k2);
 
         let values: Vec<f16> = result.into_data().to_vec().unwrap();
-        let expected: Vec<f16> = expected_result.into_data().to_vec().unwrap();
+        let expected: Vec<f16> = expected.into_data().to_vec().unwrap();
         assert_eq!(values, expected);
-    }
-
-    #[test]
-    fn test_matmul_batched_broadcast_transposed() {
-        // Broadcast + non-contiguous: lhs [1, 2, 3] transposed to [1, 3, 2] broadcasts
-        // against rhs [4, 2, 2]. Tests the interplay between broadcast stride 0 and
-        // non-trivial inner strides.
-        let lhs_data = TensorData::new(
-            vec![1.0f32, 2.0, 3.0, 4.0, 5.0, 6.0], // [1, 2, 3]
-            vec![1, 2, 3],
-        );
-        let rhs_data = TensorData::new(
-            vec![
-                1.0f32, 0.0, 0.0, 1.0, // batch 0: identity [2, 2]
-                2.0, 0.0, 0.0, 2.0, // batch 1: scaled [2, 2]
-                1.0, 1.0, 1.0, 1.0, // batch 2: ones [2, 2]
-                0.0, 1.0, 1.0, 0.0, // batch 3: swap [2, 2]
-            ],
-            vec![4, 2, 2],
-        );
-
-        let lhs = FlexTensor::from_data(lhs_data.clone());
-        let lhs_t = lhs.transpose(1, 2); // [1, 3, 2], non-contiguous, broadcasts on batch
-        let rhs = FlexTensor::from_data(rhs_data.clone());
-
-        let result = matmul(lhs_t, rhs);
-        assert_eq!(result.layout().shape().to_vec(), vec![4, 3, 2]);
-
-        // Compare with contiguous broadcast version
-        let lhs2 = FlexTensor::from_data(lhs_data)
-            .transpose(1, 2)
-            .to_contiguous();
-        // Manually broadcast: repeat lhs 4 times
-        let lhs2_data: Vec<f32> = lhs2.into_data().to_vec().unwrap();
-        let broadcast_lhs: Vec<f32> = lhs2_data
-            .iter()
-            .copied()
-            .cycle()
-            .take(lhs2_data.len() * 4)
-            .collect();
-        let lhs_broadcast = FlexTensor::from_data(TensorData::new(broadcast_lhs, vec![4, 3, 2]));
-        let rhs2 = FlexTensor::from_data(rhs_data);
-        let expected_result = matmul(lhs_broadcast, rhs2);
-
-        let values: Vec<f32> = result.into_data().to_vec().unwrap();
-        let expected: Vec<f32> = expected_result.into_data().to_vec().unwrap();
-        for (v, e) in values.iter().zip(expected.iter()) {
-            assert!((v - e).abs() < 1e-5, "mismatch: {v} vs {e}");
-        }
-    }
-
-    #[test]
-    fn test_int_matmul_i32_batched() {
-        let lhs_data = TensorData::new(
-            vec![
-                1i32, 2, 3, 4, // batch 0
-                5, 6, 7, 8, // batch 1
-            ],
-            vec![2, 2, 2],
-        );
-        let rhs_data = TensorData::new(
-            vec![
-                1i32, 0, 0, 1, // identity batch 0
-                2, 0, 0, 2, // scaled identity batch 1
-            ],
-            vec![2, 2, 2],
-        );
-
-        let lhs = FlexTensor::from_data(lhs_data);
-        let rhs = FlexTensor::from_data(rhs_data);
-
-        let result = int_matmul(lhs, rhs);
-        assert_eq!(result.layout().shape().to_vec(), vec![2, 2, 2]);
-
-        let values: Vec<i32> = result.into_data().to_vec().unwrap();
-        assert_eq!(
-            values,
-            vec![
-                1, 2, 3, 4, // batch 0: identity
-                10, 12, 14, 16, // batch 1: scaled by 2
-            ]
-        );
     }
 }

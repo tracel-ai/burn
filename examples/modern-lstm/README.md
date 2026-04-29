@@ -33,10 +33,8 @@ cargo run --example lstm-train --release --features tch-gpu
 # Tch CPU backend
 cargo run --example lstm-train --release --features tch-cpu
 
-# NdArray backend (CPU)
-cargo run --example lstm-train --release --features ndarray
-cargo run --example lstm-train --release --features ndarray-blas-openblas
-cargo run --example lstm-train --release --features ndarray-blas-netlib
+# Flex backend (CPU)
+cargo run --example lstm-train --release --features flex
 ```
 
 ### Inference

@@ -282,6 +282,169 @@ fn test_float_matmul_simple_3() {
 }
 
 #[test]
+fn test_matmul_transposed_lhs() {
+    // [2, 3] -> transpose -> [3, 2], matmul with identity [2, 2] -> [3, 2].
+    let device = Default::default();
+    let lhs = TestTensor::<2>::from_data([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], &device);
+    let rhs = TestTensor::<2>::from_data([[1.0, 0.0], [0.0, 1.0]], &device);
+
+    let output = lhs.transpose().matmul(rhs);
+    let expected = TensorData::from([[1.0, 4.0], [2.0, 5.0], [3.0, 6.0]]);
+
+    output.into_data().assert_eq(&expected, false);
+}
+
+#[test]
+fn test_matmul_transposed_rhs() {
+    // identity [2, 2] matmul [3, 2].transpose() -> [2, 3].
+    let device = Default::default();
+    let lhs = TestTensor::<2>::from_data([[1.0, 0.0], [0.0, 1.0]], &device);
+    let rhs = TestTensor::<2>::from_data([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]], &device);
+
+    let output = lhs.matmul(rhs.transpose());
+    let expected = TensorData::from([[1.0, 3.0, 5.0], [2.0, 4.0, 6.0]]);
+
+    output.into_data().assert_eq(&expected, false);
+}
+
+#[test]
+fn test_matmul_both_transposed() {
+    // [2, 3].T [3, 2] matmul [3, 2].T [2, 3] -> [3, 3].
+    let device = Default::default();
+    let lhs = TestTensor::<2>::from_data([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], &device);
+    let rhs = TestTensor::<2>::from_data([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]], &device);
+
+    let output = lhs.transpose().matmul(rhs.transpose());
+    // lhs.T = [[1,4],[2,5],[3,6]]; rhs.T = [[1,3,5],[2,4,6]]
+    // row0: 1+8,3+16,5+24 = 9,19,29
+    // row1: 2+10,6+20,10+30 = 12,26,40
+    // row2: 3+12,9+24,15+36 = 15,33,51
+    let expected = TensorData::from([[9.0, 19.0, 29.0], [12.0, 26.0, 40.0], [15.0, 33.0, 51.0]]);
+
+    output.into_data().assert_eq(&expected, false);
+}
+
+#[test]
+fn test_matmul_batched_transposed_rhs() {
+    // QK^T attention pattern: q.matmul(k.swap_dims(1, 2)).
+    let device = Default::default();
+    let q = TestTensor::<3>::from_data(
+        [
+            [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]],
+            [[7.0, 8.0, 9.0], [10.0, 11.0, 12.0]],
+        ],
+        &device,
+    );
+    let k = TestTensor::<3>::from_data(
+        [
+            [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]],
+            [[1.0, 1.0, 1.0], [2.0, 2.0, 2.0]],
+        ],
+        &device,
+    );
+
+    let output = q.matmul(k.swap_dims(1, 2));
+    // batch 0: [[1,2,3],[4,5,6]] @ [[1,0],[0,1],[0,0]] = [[1,2],[4,5]]
+    // batch 1: [[7,8,9],[10,11,12]] @ [[1,2],[1,2],[1,2]] = [[24,48],[33,66]]
+    let expected = TensorData::from([[[1.0, 2.0], [4.0, 5.0]], [[24.0, 48.0], [33.0, 66.0]]]);
+
+    output.into_data().assert_eq(&expected, false);
+}
+
+#[test]
+fn test_matmul_batched_transposed_lhs() {
+    // [2, 2, 3].swap_dims(1, 2) -> [2, 3, 2]; rhs [2, 2, 2] -> [2, 3, 2].
+    let device = Default::default();
+    let a = TestTensor::<3>::from_data(
+        [
+            [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]],
+            [[7.0, 8.0, 9.0], [10.0, 11.0, 12.0]],
+        ],
+        &device,
+    );
+    let b = TestTensor::<3>::from_data(
+        [[[1.0, 0.0], [0.0, 1.0]], [[2.0, 0.0], [0.0, 2.0]]],
+        &device,
+    );
+
+    let output = a.swap_dims(1, 2).matmul(b);
+    // batch 0: a.T = [[1,4],[2,5],[3,6]] @ I = [[1,4],[2,5],[3,6]]
+    // batch 1: a.T = [[7,10],[8,11],[9,12]] @ 2I = [[14,20],[16,22],[18,24]]
+    let expected = TensorData::from([
+        [[1.0, 4.0], [2.0, 5.0], [3.0, 6.0]],
+        [[14.0, 20.0], [16.0, 22.0], [18.0, 24.0]],
+    ]);
+
+    output.into_data().assert_eq(&expected, false);
+}
+
+#[test]
+fn test_matmul_batched_both_transposed() {
+    // a: [2, 3, 2].swap_dims -> [2, 2, 3]; b: [2, 2, 3].swap_dims -> [2, 3, 2];
+    // result: [2, 2, 2].
+    let device = Default::default();
+    let a = TestTensor::<3>::from_data(
+        [
+            [[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]],
+            [[7.0, 8.0], [9.0, 10.0], [11.0, 12.0]],
+        ],
+        &device,
+    );
+    let b = TestTensor::<3>::from_data(
+        [
+            [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]],
+            [[7.0, 8.0, 9.0], [10.0, 11.0, 12.0]],
+        ],
+        &device,
+    );
+
+    let output = a.swap_dims(1, 2).matmul(b.swap_dims(1, 2));
+    // batch 0: a.T = [[1,3,5],[2,4,6]]; b.T = [[1,4],[2,5],[3,6]]
+    //   row0: 1+6+15=22, 4+15+30=49
+    //   row1: 2+8+18=28, 8+20+36=64
+    // batch 1: a.T = [[7,9,11],[8,10,12]]; b.T = [[7,10],[8,11],[9,12]]
+    //   row0: 49+72+99=220, 70+99+132=301
+    //   row1: 56+80+108=244, 80+110+144=334
+    let expected = TensorData::from([
+        [[22.0, 49.0], [28.0, 64.0]],
+        [[220.0, 301.0], [244.0, 334.0]],
+    ]);
+
+    output.into_data().assert_eq(&expected, false);
+}
+
+#[test]
+fn test_matmul_batched_broadcast_transposed() {
+    // lhs [1, 2, 3].swap_dims(1, 2) -> [1, 3, 2] broadcasts against rhs [4, 2, 2].
+    let device = Default::default();
+    let lhs = TestTensor::<3>::from_data([[[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]], &device);
+    let rhs = TestTensor::<3>::from_data(
+        [
+            [[1.0, 0.0], [0.0, 1.0]],
+            [[2.0, 0.0], [0.0, 2.0]],
+            [[1.0, 1.0], [1.0, 1.0]],
+            [[0.0, 1.0], [1.0, 0.0]],
+        ],
+        &device,
+    );
+
+    let output = lhs.swap_dims(1, 2).matmul(rhs);
+    // lhs.T = [[1,4],[2,5],[3,6]] (shape [1, 3, 2]) broadcast to [4, 3, 2]
+    // batch 0 (I): [[1,4],[2,5],[3,6]]
+    // batch 1 (2I): [[2,8],[4,10],[6,12]]
+    // batch 2 (ones): each output row is [sum, sum] where sum is the row of lhs.T
+    // batch 3 (swap): [[4,1],[5,2],[6,3]]
+    let expected = TensorData::from([
+        [[1.0, 4.0], [2.0, 5.0], [3.0, 6.0]],
+        [[2.0, 8.0], [4.0, 10.0], [6.0, 12.0]],
+        [[5.0, 5.0], [7.0, 7.0], [9.0, 9.0]],
+        [[4.0, 1.0], [5.0, 2.0], [6.0, 3.0]],
+    ]);
+
+    output.into_data().assert_eq(&expected, false);
+}
+
+#[test]
 #[should_panic]
 fn float_should_panic_when_inner_dimensions_are_not_equal() {
     let device = Default::default();

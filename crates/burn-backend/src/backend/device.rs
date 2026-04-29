@@ -405,7 +405,7 @@ mod tests {
 
     #[derive(Clone, Debug, Default, PartialEq, new)]
     pub struct TestDeviceA {
-        index: u32,
+        index: u16,
     }
 
     impl Device for TestDeviceA {
@@ -427,7 +427,7 @@ mod tests {
 
     #[derive(Clone, Debug, Default, PartialEq, new)]
     pub struct TestDeviceB {
-        index: u32,
+        index: u16,
     }
 
     impl Device for TestDeviceB {

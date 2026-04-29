@@ -133,7 +133,7 @@ fn morph_bool<B: Backend>(
     input
 }
 
-fn border_value<T: Element>(
+fn border_value<T: Element + ElementLimits>(
     btype: BorderType,
     bvalue: Option<Vec<Scalar>>,
     op: MorphOp,

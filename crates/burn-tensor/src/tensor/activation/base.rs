@@ -169,11 +169,10 @@ $$
 pub fn softmax<const D: usize>(tensor: Tensor<D>, dim: usize) -> Tensor<D> {
     check!(TensorCheck::dim_ops::<D>("softmax", dim));
 
-    let tensor = tensor.clone() - tensor.detach().max_dim(dim);
-    let tensor = tensor.exp();
-    let tensor_tmp = tensor.clone().sum_dim(dim);
-
-    tensor.div(tensor_tmp)
+    Tensor::from_primitive(TensorPrimitive::Float(B::softmax(
+        tensor.primitive.tensor(),
+        dim,
+    )))
 }
 
 /// Applies the softmin function on the input tensor along the given dimension.
@@ -195,7 +194,11 @@ $$
 /// - If `dim` is outside [0, D)
 pub fn softmin<const D: usize>(tensor: Tensor<D>, dim: usize) -> Tensor<D> {
     check!(TensorCheck::dim_ops::<D>("softmin", dim));
-    softmax(tensor.neg(), dim)
+
+    Tensor::from_primitive(TensorPrimitive::Float(B::softmin(
+        tensor.primitive.tensor(),
+        dim,
+    )))
 }
 
 /// Applies the SoftPlus function element-wise.
@@ -276,10 +279,10 @@ $$
 pub fn log_softmax<const D: usize>(tensor: Tensor<D>, dim: usize) -> Tensor<D> {
     check!(TensorCheck::dim_ops::<D>("log softmax", dim));
 
-    let tensor = tensor.clone() - tensor.detach().max_dim(dim);
-    let tensor_tmp = tensor.clone().exp().sum_dim(dim).log();
-
-    tensor.sub(tensor_tmp)
+    Tensor::from_primitive(TensorPrimitive::Float(B::log_softmax(
+        tensor.primitive.tensor(),
+        dim,
+    )))
 }
 
 /// Applies the sigmoid function element-wise.

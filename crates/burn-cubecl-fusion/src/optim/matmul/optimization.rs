@@ -25,7 +25,7 @@ use cubecl::{
 };
 use cubek::{
     matmul::{
-        components::tile::{cmma::CmmaMatmul, mma::MmaMatmul},
+        components::tile_matmul::DispatchTileMatmul,
         definition::{
             MatmulElems, MatmulGlobalElems, MatmulProblem, MatmulSetupError, MatmulVectorSizes,
         },
@@ -38,6 +38,8 @@ use cubek::{
             simple::{SimpleAlgorithm, SimpleArgs},
             simple_unit::SimpleUnitAlgorithm,
             vecmat_innerproduct::{DoubleVecMatInnerProductAlgorithm, VecMatInnerProductAlgorithm},
+            vecmat_plane_parallel::GemvPlaneParallelRoutine,
+            vecmat_unit_perpendicular::GemvUnitPerpendicularRoutine,
         },
     },
     std::MatrixLayout,
@@ -88,7 +90,7 @@ impl<R: Runtime> MatmulOptimizationInfo<R> {
 impl<R: Runtime> MatmulOptimizationTuneArg<R> {
     pub(crate) fn execute_fused(
         &self,
-        context: &mut Context<'_, CubeFusionHandle<R>>,
+        context: &mut Context<CubeFusionHandle<R>>,
         selector: FusedMatmulSelector,
     ) -> Result<TuneOutput<R>, TraceError<FusedMatmulError>> {
         let launch = FusedMatmulLaunch::new(&self.info.matmul, selector);
@@ -97,10 +99,7 @@ impl<R: Runtime> MatmulOptimizationTuneArg<R> {
         launcher.launch(&self.info.client, &self.info.device, context)
     }
 
-    pub fn execute_fallback(
-        &self,
-        context: &mut Context<'_, CubeFusionHandle<R>>,
-    ) -> TuneOutput<R> {
+    pub fn execute_fallback(&self, context: &mut Context<CubeFusionHandle<R>>) -> TuneOutput<R> {
         self.fallback.run(context);
 
         #[cfg(feature = "autotune-checks")]
@@ -119,7 +118,7 @@ impl<R: Runtime> MatmulOptimizationTuneArg<R> {
 
             handles.insert(
                 self.info.matmul.op.out.id,
-                (out_desc.shape.dims.clone(), handle_out.clone()),
+                (out_desc.shape.clone(), handle_out.clone()),
             );
         }
 
@@ -157,7 +156,7 @@ impl<R: Runtime> MatmulOptimization<R> {
     /// Execute the optimization.
     pub fn execute(
         &mut self,
-        context: &mut Context<'_, CubeFusionHandle<R>>,
+        context: &mut Context<CubeFusionHandle<R>>,
         fallback: impl FnOnce(usize) -> Box<dyn FallbackOperation<R>>,
     ) {
         // The index of the fallback matmul is always 0.
@@ -226,6 +225,8 @@ pub enum FusedMatmulSelector {
     },
     SimpleVecMat,
     DoubleVecMat,
+    GemvPlaneParallel,
+    GemvUnitPerpendicular,
     SimpleUnit,
     DoubleUnit,
 }
@@ -253,6 +254,8 @@ impl FusedMatmulSelector {
             }
             FusedMatmulSelector::SimpleVecMat => "simple_vec_mat".into(),
             FusedMatmulSelector::DoubleVecMat => "double_buffering_vec_mat".into(),
+            FusedMatmulSelector::GemvPlaneParallel => "gemv_plane_parallel".into(),
+            FusedMatmulSelector::GemvUnitPerpendicular => "gemv_unit_perpendicular".into(),
             FusedMatmulSelector::SimpleUnit => "simple_unit".into(),
             FusedMatmulSelector::DoubleUnit => "double_buffering_unit".into(),
         };
@@ -378,21 +381,6 @@ pub enum AcceleratedTileKind {
     Mma,
 }
 
-macro_rules! with_tile_kind {
-    ($kind: expr, $T: ident, $launch: expr) => {
-        match $kind {
-            AcceleratedTileKind::Cmma => {
-                type $T = CmmaMatmul;
-                ($launch)()
-            }
-            AcceleratedTileKind::Mma => {
-                type $T = MmaMatmul;
-                ($launch)()
-            }
-        }
-    };
-}
-
 impl FusedMatmulLaunch<'_> {
     fn matmul_fused<'a, R: Runtime>(
         &'a self,
@@ -470,61 +458,16 @@ impl FusedMatmulLaunch<'_> {
             FusedMatmulSelector::Simple {
                 multi_rows,
                 tile_matmul,
-            } => with_tile_kind!(tile_matmul, Accelerated, || match launch_inner_fix_dtype::<
-                R,
-                SimpleAlgorithm<Accelerated>,
-            >(
-                client,
-                FusedMatmulInputLaunch::new(
-                    inputs,
-                    config.clone(),
-                    self.matmul.lhs.clone(),
-                    self.matmul.rhs.clone(),
-                    None,
-                    self.matmul.out.clone(),
-                ),
-                outputs,
-                problem,
-                vector_sizes,
-                &BlueprintStrategy::Inferred(SimpleArgs { multi_rows }),
-            ) {
-                Ok(_) => Ok(()),
-                Err(err) => Err(FusedMatmulError::LaunchError(err)),
-            }),
-            FusedMatmulSelector::DoubleBuffering {
-                specialized,
-                tile_matmul,
-            } => with_tile_kind!(tile_matmul, Accelerated, || match launch_inner_fix_dtype::<
-                R,
-                CyclicDoubleBufferingAlgorithm<Accelerated>,
-            >(
-                client,
-                FusedMatmulInputLaunch::new(
-                    inputs,
-                    config.clone(),
-                    self.matmul.lhs.clone(),
-                    self.matmul.rhs.clone(),
-                    None,
-                    self.matmul.out.clone(),
-                ),
-                outputs,
-                problem,
-                vector_sizes,
-                &BlueprintStrategy::Inferred(DoubleBufferingArgs { specialized }),
-            ) {
-                Ok(_) => Ok(()),
-                Err(err) => Err(FusedMatmulError::LaunchError(err)),
-            }),
-            FusedMatmulSelector::OrderedDoubleBuffering { tile_matmul } => {
-                let row_count = match self.matmul.lhs.precision() {
-                    FuseType::F16 | FuseType::BF16 => 8,
-                    _ => 4,
+            } => {
+                let args = SimpleArgs {
+                    multi_rows,
+                    tile_matmul: match tile_matmul {
+                        AcceleratedTileKind::Cmma => DispatchTileMatmul::Cmma,
+                        AcceleratedTileKind::Mma => DispatchTileMatmul::Mma,
+                    },
                 };
 
-                with_tile_kind!(tile_matmul, Accelerated, || match launch_inner_fix_dtype::<
-                    R,
-                    OrderedDoubleBufferingAlgorithm<Accelerated>,
-                >(
+                match launch_inner_fix_dtype::<R, SimpleAlgorithm>(
                     client,
                     FusedMatmulInputLaunch::new(
                         inputs,
@@ -537,16 +480,81 @@ impl FusedMatmulLaunch<'_> {
                     outputs,
                     problem,
                     vector_sizes,
-                    &BlueprintStrategy::Inferred(OrderedSelectionArgs {
-                        row_count: Some(row_count),
-                        rows_per_plane: Some(2),
-                        partition_k: Some(2),
-                    }),
+                    &BlueprintStrategy::Inferred(args),
                 ) {
                     Ok(_) => Ok(()),
                     Err(err) => Err(FusedMatmulError::LaunchError(err)),
-                })
+                }
             }
+
+            FusedMatmulSelector::DoubleBuffering {
+                specialized,
+                tile_matmul,
+            } => {
+                let args = DoubleBufferingArgs {
+                    specialized,
+                    tile_matmul: match tile_matmul {
+                        AcceleratedTileKind::Cmma => DispatchTileMatmul::Cmma,
+                        AcceleratedTileKind::Mma => DispatchTileMatmul::Mma,
+                    },
+                };
+
+                match launch_inner_fix_dtype::<R, CyclicDoubleBufferingAlgorithm>(
+                    client,
+                    FusedMatmulInputLaunch::new(
+                        inputs,
+                        config.clone(),
+                        self.matmul.lhs.clone(),
+                        self.matmul.rhs.clone(),
+                        None,
+                        self.matmul.out.clone(),
+                    ),
+                    outputs,
+                    problem,
+                    vector_sizes,
+                    &BlueprintStrategy::Inferred(args),
+                ) {
+                    Ok(_) => Ok(()),
+                    Err(err) => Err(FusedMatmulError::LaunchError(err)),
+                }
+            }
+
+            FusedMatmulSelector::OrderedDoubleBuffering { tile_matmul } => {
+                let row_count = match self.matmul.lhs.precision() {
+                    FuseType::F16 | FuseType::BF16 => 8,
+                    _ => 4,
+                };
+
+                let args = OrderedSelectionArgs {
+                    row_count: Some(row_count),
+                    rows_per_plane: Some(2),
+                    partition_k: Some(2),
+                    tile_matmul: match tile_matmul {
+                        AcceleratedTileKind::Cmma => DispatchTileMatmul::Cmma,
+                        AcceleratedTileKind::Mma => DispatchTileMatmul::Mma,
+                    },
+                };
+
+                match launch_inner_fix_dtype::<R, OrderedDoubleBufferingAlgorithm>(
+                    client,
+                    FusedMatmulInputLaunch::new(
+                        inputs,
+                        config.clone(),
+                        self.matmul.lhs.clone(),
+                        self.matmul.rhs.clone(),
+                        None,
+                        self.matmul.out.clone(),
+                    ),
+                    outputs,
+                    problem,
+                    vector_sizes,
+                    &BlueprintStrategy::Inferred(args),
+                ) {
+                    Ok(_) => Ok(()),
+                    Err(err) => Err(FusedMatmulError::LaunchError(err)),
+                }
+            }
+
             FusedMatmulSelector::SimpleUnit => {
                 match launch_inner_fix_dtype::<R, SimpleUnitAlgorithm>(
                     client,
@@ -567,6 +575,7 @@ impl FusedMatmulLaunch<'_> {
                     Err(err) => Err(FusedMatmulError::LaunchError(err)),
                 }
             }
+
             FusedMatmulSelector::DoubleUnit => {
                 match launch_inner_fix_dtype::<R, DoubleUnitAlgorithm>(
                     client,
@@ -587,6 +596,7 @@ impl FusedMatmulLaunch<'_> {
                     Err(err) => Err(FusedMatmulError::LaunchError(err)),
                 }
             }
+
             FusedMatmulSelector::SimpleVecMat => {
                 match launch_inner_fix_dtype::<R, VecMatInnerProductAlgorithm>(
                     client,
@@ -607,8 +617,51 @@ impl FusedMatmulLaunch<'_> {
                     Err(err) => Err(FusedMatmulError::LaunchError(err)),
                 }
             }
+
             FusedMatmulSelector::DoubleVecMat => {
                 match launch_inner_fix_dtype::<R, DoubleVecMatInnerProductAlgorithm>(
+                    client,
+                    FusedMatmulInputLaunch::new(
+                        inputs,
+                        config.clone(),
+                        self.matmul.lhs.clone(),
+                        self.matmul.rhs.clone(),
+                        None,
+                        self.matmul.out.clone(),
+                    ),
+                    outputs,
+                    problem,
+                    vector_sizes,
+                    &Default::default(),
+                ) {
+                    Ok(_) => Ok(()),
+                    Err(err) => Err(FusedMatmulError::LaunchError(err)),
+                }
+            }
+
+            FusedMatmulSelector::GemvPlaneParallel => {
+                match launch_inner_fix_dtype::<R, GemvPlaneParallelRoutine>(
+                    client,
+                    FusedMatmulInputLaunch::new(
+                        inputs,
+                        config.clone(),
+                        self.matmul.lhs.clone(),
+                        self.matmul.rhs.clone(),
+                        None,
+                        self.matmul.out.clone(),
+                    ),
+                    outputs,
+                    problem,
+                    vector_sizes,
+                    &Default::default(),
+                ) {
+                    Ok(_) => Ok(()),
+                    Err(err) => Err(FusedMatmulError::LaunchError(err)),
+                }
+            }
+
+            FusedMatmulSelector::GemvUnitPerpendicular => {
+                match launch_inner_fix_dtype::<R, GemvUnitPerpendicularRoutine>(
                     client,
                     FusedMatmulInputLaunch::new(
                         inputs,

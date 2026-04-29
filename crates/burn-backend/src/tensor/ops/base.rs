@@ -2,12 +2,29 @@ use alloc::vec::Vec;
 use burn_std::{DType, Shape, Slice};
 
 use crate::{
-    Backend, ExecutionError, Scalar, TensorData, TensorMetadata,
+    Backend, BackendTypes, ExecutionError, Scalar, TensorData, TensorMetadata,
     element::Element,
     ops::TransactionPrimitive,
     tensor::{IndexingUpdateOp, IntTensor, TensorKind},
 };
 
+/// Trait for the one basic op that still requires Backend
+///
+/// # Warnings
+///
+/// This is an internal trait, use the public API provided by the
+#[cfg_attr(doc, doc = crate::doc_tensor!())]
+#[cfg_attr(not(doc), doc = "`Tensor`")]
+pub trait TransactionOp<B: Backend>: TensorKind<B> {
+    /// Read the data from the tensor using a transaction.
+    ///
+    /// # Remarks
+    ///
+    /// This is a low-level function used internally by the library to call different backend functions
+    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
+    /// or use this function directly.
+    fn register_transaction(tr: &mut TransactionPrimitive<B>, tensor: Self::Primitive);
+}
 /// Trait that list all operations that can be applied on all tensors.
 ///
 /// # Warnings
@@ -16,7 +33,7 @@ use crate::{
 #[cfg_attr(doc, doc = crate::doc_tensor!())]
 #[cfg_attr(not(doc), doc = "`Tensor`")]
 /// struct.
-pub trait BasicOps<B: Backend>: TensorKind<B> {
+pub trait BasicOps<B: BackendTypes>: TensorKind<B> {
     /// The type of the tensor elements.
     type Elem: Element;
 
@@ -420,6 +437,17 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
         update: IndexingUpdateOp,
     ) -> Self::Primitive;
 
+    /// Multi-dimensional scatter: update `data` at multi-index locations specified by `indices`.
+    fn scatter_nd(
+        data: Self::Primitive,
+        indices: IntTensor<B>,
+        values: Self::Primitive,
+        reduction: IndexingUpdateOp,
+    ) -> Self::Primitive;
+
+    /// Multi-dimensional gather: collect slices from `data` at multi-index locations.
+    fn gather_nd(data: Self::Primitive, indices: IntTensor<B>) -> Self::Primitive;
+
     /// Returns the device on which the tensor is allocated.
     ///
     /// # Arguments
@@ -490,15 +518,6 @@ pub trait BasicOps<B: Backend>: TensorKind<B> {
     fn into_data_async(
         tensor: Self::Primitive,
     ) -> impl Future<Output = Result<TensorData, ExecutionError>> + Send;
-
-    /// Read the data from the tensor using a transaction.
-    ///
-    /// # Remarks
-    ///
-    /// This is a low-level function used internally by the library to call different backend functions
-    /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
-    /// or use this function directly.
-    fn register_transaction(tr: &mut TransactionPrimitive<B>, tensor: Self::Primitive);
 
     /// Creates a tensor from the given data enforcing the provided data type.
     ///

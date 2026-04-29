@@ -10,6 +10,38 @@ use crate::{
     },
 };
 
+/// Computes the [CTC loss](crate::ops::ModuleOps::ctc_loss).
+///
+/// # Arguments
+///
+/// * `log_probs` - Log-probabilities of shape `[T, N, C]`
+/// * `targets` - Target label indices of shape `[N, S]`
+/// * `input_lengths` - Actual input sequence lengths per batch element `[N]`
+/// * `target_lengths` - Actual target lengths per batch element `[N]`
+/// * `blank` - Index of the blank label
+///
+/// # Returns
+///
+/// Per-sample loss of shape `[N]`
+pub fn ctc_loss(
+    log_probs: Tensor<3>,
+    targets: Tensor<2, Int>,
+    input_lengths: Tensor<1, Int>,
+    target_lengths: Tensor<1, Int>,
+    blank: usize,
+) -> Tensor<1>
+where
+    B: Backend,
+{
+    Tensor::new(TensorPrimitive::Float(Dispatch::ctc_loss(
+        log_probs.primitive.tensor(),
+        targets.primitive,
+        input_lengths.primitive,
+        target_lengths.primitive,
+        blank,
+    )))
+}
+
 /// Applies the [embedding module](crate::ops::ModuleOps::embedding).
 pub fn embedding(weights: Tensor<2>, indices: Tensor<2, Int>) -> Tensor<3> {
     Tensor::new(TensorPrimitive::Float(Dispatch::embedding(
@@ -426,17 +458,11 @@ pub fn linear<const D: usize>(
         return output.squeeze_dim(0);
     }
 
-    // Perform broadcasting
-    //
-    // Important to be done before doing operations to easily fuse.
-    let weight = weight.unsqueeze::<D>();
-    let bias = bias.map(|bias| bias.unsqueeze::<D>());
-
-    let output = input.matmul(weight);
-    match bias {
-        Some(bias) => output.add(bias),
-        None => output,
-    }
+    Tensor::new(TensorPrimitive::Float(B::linear(
+        input.primitive.tensor(),
+        weight.primitive.tensor(),
+        bias.map(|b| b.primitive.tensor()),
+    )))
 }
 
 /// Computes scaled dot-product attention: softmax(QKᵗ * scale) · V,
@@ -560,4 +586,27 @@ pub fn max_pool2d_with_indices_backward(
         )
         .x_grad,
     ))
+}
+
+/// Applies Layer Normalization over the last dimension of the input tensor.
+///
+/// Computes `(x - mean) / sqrt(var + epsilon) * gamma + beta`, where `mean` and
+/// (biased) `var` are reduced over the last axis.
+///
+/// # Shapes
+///
+/// - input: `[..., any, d_model]`
+/// - output: `[..., any, d_model]`
+pub fn layer_norm<const D: usize>(
+    input: Tensor<D>,
+    gamma: Tensor<1>,
+    beta: Option<Tensor<1>>,
+    epsilon: f64,
+) -> Tensor<B, D> {
+    Tensor::from_primitive(TensorPrimitive::Float(Dispatch::layer_norm(
+        input.primitive.tensor(),
+        gamma.primitive.tensor(),
+        beta.map(|b| b.primitive.tensor()),
+        epsilon,
+    )))
 }

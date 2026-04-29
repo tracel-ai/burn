@@ -526,3 +526,38 @@ fn bool_binary_op_simd(lhs: FlexTensor, rhs: FlexTensor, op: BoolBinaryOp) -> Fl
 
     crate::ops::comparison::make_bool_tensor(result, shape, out_dtype)
 }
+
+// Tests kept here exercise flex-specific dtype storage selection via
+// explicit IntDType/FloatDType. Plain bool ops, bool-to-int/float
+// casts, and negative-stride (flipped) bool coverage have been migrated
+// to crates/burn-backend-tests/tests/tensor/bool/ops/{logical,cast}.rs
+// so they run against every backend. When adding new tests, keep them
+// here only if they probe flex dtype dispatch; otherwise add them
+// there.
+#[cfg(test)]
+mod tests {
+    use alloc::vec;
+    use burn_backend::TensorData;
+    use burn_backend::ops::BoolTensorOps;
+    use burn_std::{FloatDType, IntDType};
+
+    use crate::{Flex, FlexTensor};
+
+    #[test]
+    fn test_bool_into_int_u8() {
+        let t = FlexTensor::from_data(TensorData::from([true, false, true]));
+        let result = Flex::bool_into_int(t, IntDType::U8);
+        assert_eq!(result.dtype(), burn_backend::DType::U8);
+        let data: Vec<u8> = result.into_data().to_vec().unwrap();
+        assert_eq!(data, vec![1u8, 0, 1]);
+    }
+
+    #[test]
+    fn test_bool_into_float_f64() {
+        let t = FlexTensor::from_data(TensorData::from([true, false, true]));
+        let result = Flex::bool_into_float(t, FloatDType::F64);
+        assert_eq!(result.dtype(), burn_backend::DType::F64);
+        let data: Vec<f64> = result.into_data().to_vec().unwrap();
+        assert_eq!(data, vec![1.0f64, 0.0, 1.0]);
+    }
+}

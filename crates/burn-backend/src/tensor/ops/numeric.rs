@@ -1,6 +1,6 @@
 use burn_std::{DType, Shape};
 
-use crate::{Backend, Distribution, Scalar, element::Element, tensor::BasicOps};
+use crate::{BackendTypes, Distribution, Scalar, element::Element, tensor::BasicOps};
 
 /// Trait that list all operations that can be applied on all numerical tensors.
 ///
@@ -10,7 +10,7 @@ use crate::{Backend, Distribution, Scalar, element::Element, tensor::BasicOps};
 #[cfg_attr(doc, doc = crate::doc_tensor!())]
 #[cfg_attr(not(doc), doc = "`Tensor`")]
 /// struct.
-pub trait Numeric<B: Backend>: BasicOps<B>
+pub trait Numeric<B: BackendTypes>: BasicOps<B>
 where
     Self::Elem: Element,
 {

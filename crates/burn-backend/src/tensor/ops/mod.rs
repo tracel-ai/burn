@@ -14,8 +14,14 @@ pub use ordered::*;
 /// Computation to be used to update the existing values in indexed assignment operations (scatter/select).
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum IndexingUpdateOp {
-    // Assign,
+    /// Overwrite existing values.
+    Assign,
     /// Performs an addition.
     Add,
-    // Mul
+    /// Multiply existing values.
+    Mul,
+    /// Take element-wise minimum.
+    Min,
+    /// Take element-wise maximum.
+    Max,
 }

@@ -310,6 +310,39 @@ impl FloatTensorOps<Flex> for Flex {
         }
     }
 
+    fn float_scatter_nd(
+        data: FloatTensor<Flex>,
+        indices: IntTensor<Flex>,
+        values: FloatTensor<Flex>,
+        reduction: burn_backend::tensor::IndexingUpdateOp,
+    ) -> FloatTensor<Flex> {
+        match data.dtype() {
+            DType::F32 => {
+                crate::ops::gather_scatter::scatter_nd::<f32>(data, indices, values, reduction)
+            }
+            DType::F64 => {
+                crate::ops::gather_scatter::scatter_nd::<f64>(data, indices, values, reduction)
+            }
+            DType::F16 => {
+                crate::ops::gather_scatter::scatter_nd::<f16>(data, indices, values, reduction)
+            }
+            DType::BF16 => {
+                crate::ops::gather_scatter::scatter_nd::<bf16>(data, indices, values, reduction)
+            }
+            _ => panic!("float_scatter_nd: unsupported dtype {:?}", data.dtype()),
+        }
+    }
+
+    fn float_gather_nd(data: FloatTensor<Flex>, indices: IntTensor<Flex>) -> FloatTensor<Flex> {
+        match data.dtype() {
+            DType::F32 => crate::ops::gather_scatter::gather_nd::<f32>(data, indices),
+            DType::F64 => crate::ops::gather_scatter::gather_nd::<f64>(data, indices),
+            DType::F16 => crate::ops::gather_scatter::gather_nd::<f16>(data, indices),
+            DType::BF16 => crate::ops::gather_scatter::gather_nd::<bf16>(data, indices),
+            _ => panic!("float_gather_nd: unsupported dtype {:?}", data.dtype()),
+        }
+    }
+
     fn float_select(
         tensor: FloatTensor<Flex>,
         dim: usize,
@@ -1042,5 +1075,132 @@ impl FloatTensorOps<Flex> for Flex {
             |x: f32| x.is_infinite(),
             |x: f64| x.is_infinite(),
         )
+    }
+}
+
+// Tests kept here exercise flex-specific behavior: direct `Flex::`
+// backend-op calls with explicit IntDType/FloatDType to pin dtype storage
+// selection (U8/I32/I64, F16/F64). Plain arithmetic, math, cast, cross,
+// unfold, and random smoke tests have been dropped in favor of the
+// equivalent coverage in burn-backend-tests, which exercises every backend.
+// When adding new tests, keep them here only if they probe flex dtype
+// storage or flex internals; otherwise add them to
+// crates/burn-backend-tests/tests/tensor/float/ops/.
+#[cfg(test)]
+mod tests {
+    use burn_backend::TensorData;
+
+    use crate::Flex;
+
+    #[test]
+    fn test_float_into_int_i32() {
+        use burn_backend::ops::FloatTensorOps;
+        use burn_std::IntDType;
+
+        let t = crate::FlexTensor::from_data(TensorData::from([1.5f32, -2.7, 0.0, 255.9]));
+        let result = Flex::float_into_int(t, IntDType::I32);
+        assert_eq!(result.dtype(), burn_backend::DType::I32);
+        let data: Vec<i32> = result.into_data().to_vec().unwrap();
+        assert_eq!(data, vec![1, -2, 0, 255]);
+    }
+
+    #[test]
+    fn test_float_into_int_u8() {
+        use burn_backend::ops::FloatTensorOps;
+        use burn_std::IntDType;
+
+        let t = crate::FlexTensor::from_data(TensorData::from([0.0f32, 1.9, 127.5, 255.0]));
+        let result = Flex::float_into_int(t, IntDType::U8);
+        assert_eq!(result.dtype(), burn_backend::DType::U8);
+        let data: Vec<u8> = result.into_data().to_vec().unwrap();
+        assert_eq!(data, vec![0, 1, 127, 255]);
+    }
+
+    #[test]
+    fn test_float_argmax_i32_out_dtype() {
+        use burn_backend::ops::FloatTensorOps;
+        use burn_std::IntDType;
+
+        let t = crate::FlexTensor::from_data(TensorData::from([[1.0f32, 3.0, 2.0]]));
+        let result = Flex::float_argmax(t, 1, IntDType::I32);
+        assert_eq!(result.dtype(), burn_backend::DType::I32);
+        let data: Vec<i32> = result.into_data().to_vec().unwrap();
+        assert_eq!(data, vec![1]);
+    }
+
+    #[test]
+    fn test_float_argmin_i32_out_dtype() {
+        use burn_backend::ops::FloatTensorOps;
+        use burn_std::IntDType;
+
+        let t = crate::FlexTensor::from_data(TensorData::from([[3.0f32, 1.0, 2.0]]));
+        let result = Flex::float_argmin(t, 1, IntDType::I32);
+        assert_eq!(result.dtype(), burn_backend::DType::I32);
+        let data: Vec<i32> = result.into_data().to_vec().unwrap();
+        assert_eq!(data, vec![1]);
+    }
+
+    #[test]
+    fn test_float_argmax_i64_out_dtype() {
+        use burn_backend::ops::FloatTensorOps;
+        use burn_std::IntDType;
+
+        let t = crate::FlexTensor::from_data(TensorData::from([[1.0f32, 3.0, 2.0]]));
+        let result = Flex::float_argmax(t, 1, IntDType::I64);
+        assert_eq!(result.dtype(), burn_backend::DType::I64);
+        let data: Vec<i64> = result.into_data().to_vec().unwrap();
+        assert_eq!(data, vec![1]);
+    }
+
+    #[test]
+    fn test_float_max_dim_with_indices_i32() {
+        use burn_backend::ops::FloatTensorOps;
+        use burn_std::IntDType;
+
+        let t = crate::FlexTensor::from_data(TensorData::from([[1.0f32, 5.0], [3.0, 2.0]]));
+        let (values, indices) = Flex::float_max_dim_with_indices(t, 1, IntDType::I32);
+        assert_eq!(indices.dtype(), burn_backend::DType::I32);
+        let idx: Vec<i32> = indices.into_data().to_vec().unwrap();
+        assert_eq!(idx, vec![1, 0]);
+        let vals: Vec<f32> = values.into_data().to_vec().unwrap();
+        assert_eq!(vals, vec![5.0, 3.0]);
+    }
+
+    #[test]
+    fn test_float_min_dim_with_indices_i32() {
+        use burn_backend::ops::FloatTensorOps;
+        use burn_std::IntDType;
+
+        let t = crate::FlexTensor::from_data(TensorData::from([[1.0f32, 5.0], [3.0, 2.0]]));
+        let (values, indices) = Flex::float_min_dim_with_indices(t, 1, IntDType::I32);
+        assert_eq!(indices.dtype(), burn_backend::DType::I32);
+        let idx: Vec<i32> = indices.into_data().to_vec().unwrap();
+        assert_eq!(idx, vec![0, 1]);
+        let vals: Vec<f32> = values.into_data().to_vec().unwrap();
+        assert_eq!(vals, vec![1.0, 2.0]);
+    }
+
+    #[test]
+    fn test_float_random_f64() {
+        use burn_backend::{DType, FloatDType, ops::FloatTensorOps};
+
+        let shape = burn_std::Shape::from(vec![100]);
+        let dist = burn_backend::Distribution::Uniform(0.0, 1.0);
+        let device = crate::FlexDevice;
+        let t = Flex::float_random(shape, dist, &device, FloatDType::F64);
+        assert_eq!(t.dtype(), DType::F64);
+        let data: Vec<f64> = t.into_data().to_vec().unwrap();
+        assert!(data.iter().all(|&v| (0.0..=1.0).contains(&v)));
+    }
+
+    #[test]
+    fn test_float_random_f16() {
+        use burn_backend::{DType, FloatDType, ops::FloatTensorOps};
+
+        let shape = burn_std::Shape::from(vec![100]);
+        let dist = burn_backend::Distribution::Uniform(0.0, 1.0);
+        let device = crate::FlexDevice;
+        let t = Flex::float_random(shape, dist, &device, FloatDType::F16);
+        assert_eq!(t.dtype(), DType::F16);
     }
 }

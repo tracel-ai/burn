@@ -171,6 +171,8 @@ Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 | `tensor.roll(shifts, dims)`                          | `tensor.roll(shifts, dims)`                                               |
 | `tensor.roll_dim(shift, dim)`                        | `tensor.roll([shift], [dim])`                                             |
 | `tensor.scatter(dim, indices, values, update)`       | `tensor.scatter_add(dim, indices, values)`                                |
+| `tensor.scatter_nd(indices, values, update)`[^1]     | N/A                                                                       |
+| `tensor.gather_nd(indices)`                          | N/A                                                                       |
 | `tensor.select(dim, indices)`                        | `tensor.index_select(dim, indices)`                                       |
 | `tensor.select_assign(dim, indices, values, update)` | `tensor.index_add(dim, indices, values)`                                  |
 | `tensor.shape()`                                     | `tensor.shape`                                                            |
@@ -194,6 +196,9 @@ Those operations are available for all tensor kinds: `Int`, `Float`, and `Bool`.
 | `Tensor::full(shape, fill_value, options)`           | `torch.full(shape, fill_value, device=device, dtype=dtype)`               |
 | `Tensor::ones(shape, options)`                       | `torch.ones(shape, device=device, dtype=dtype)`                           |
 | `Tensor::zeros(shape, options)`                      | `torch.zeros(shape, device=device, dtype=dtype)`                          |
+
+[^1]: Forward pass only. Autodiff is supported for `scatter_nd` assign and add;
+mul/min/max reductions do not support backward.
 
 ### Numeric Operations
 
@@ -423,6 +428,7 @@ strategies.
 | Burn API                                           | PyTorch Equivalent                                  |
 | -------------------------------------------------- | --------------------------------------------------- |
 | `linalg::cosine_similarity(x1, x2, dim, eps)`      | `nn.functional.cosine_similarity(x1, x2, dim, eps)` |
+| `linalg::det(tensor)`                              | `torch.linalg.det(tensor)`                          |
 | `linalg::diag(tensor)`                             | `torch.diag(tensor)`                                |
 | `linalg::l0_norm(tensor, dim)`                     | _No direct equivalent_                              |
 | `linalg::l1_norm(tensor, dim)`                     | _No direct equivalent_                              |
@@ -437,6 +443,30 @@ strategies.
 | `linalg::trace(tensor)`                            | `torch.trace(tensor)`                               |
 | `linalg::vector_norm(tensor, p, dim)`              | `torch.linalg.vector_norm(tensor, p, dim)`          |
 | `linalg::vector_normalize(tensor, norm, dim, eps)` | `nn.functional.normalize(tensor, p, dim, eps)`      |
+
+## Signal Processing Functions
+
+Signal-processing helpers live in `burn::tensor::signal` and operate on real-valued float
+tensors. FFT length `n` (and `n_fft` in STFT) must currently be a power of two: when `n` is
+`Some(size)`, the input is truncated or zero-padded to `size` and the output has
+`size / 2 + 1` frequency bins. Non-power-of-two sizes panic at the public API boundary;
+general arbitrary-size DFT support (Bluestein's algorithm) is a tracked follow-up.
+
+| Burn API                                              | PyTorch Equivalent                                                                |
+| ----------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `signal::rfft(tensor, dim, n)`                        | `torch.fft.rfft(tensor, n, dim)`                                                  |
+| `signal::irfft(re, im, dim, n)`                       | `torch.fft.irfft(complex, n, dim)`                                                |
+| `signal::stft(signal, window, options)`               | `torch.stft(signal, n_fft, hop_length, win_length, window, center)`               |
+| `signal::istft(stft_matrix, window, length, options)` | `torch.istft(stft_matrix, n_fft, hop_length, win_length, window, center, length)` |
+| `signal::blackman_window(size, periodic, options)`    | `torch.blackman_window(size, periodic)`                                           |
+| `signal::hamming_window(size, periodic, options)`     | `torch.hamming_window(size, periodic)`                                            |
+| `signal::hann_window(size, periodic, options)`        | `torch.hann_window(size, periodic)`                                               |
+
+`stft` and `istft` share a `StftOptions` struct with fields `n_fft`, `hop_length`,
+`win_length`, `center`, and `onesided`. Use `StftOptions::new(n_fft)` for PyTorch-style
+defaults (`hop_length = n_fft / 4`, `win_length = None`, `center = true`, `onesided = true`).
+The option set is validated on entry to both `stft` and `istft`; `n_fft` must be a power of
+two and `hop_length <= effective_win_length` (the COLA prerequisite for invertibility).
 
 ## Displaying Tensor Details
 
@@ -461,7 +491,7 @@ Tensor {
  [0.12345679, 0.12345679, 0.12345679]],
   shape:  [2, 3],
   device:  Cpu,
-  backend:  "ndarray",
+  backend:  "flex",
   kind:  "Float",
   dtype:  "f32",
 }
@@ -484,7 +514,7 @@ Tensor {
  [0.12, 0.12, 0.12]],
   shape:  [2, 3],
   device:  Cpu,
-  backend:  "ndarray",
+  backend:  "flex",
   kind:  "Float",
   dtype:  "f32",
 }
@@ -526,7 +556,7 @@ Options:
 
   ```rust, ignore
   use burn::tensor::{check_closeness, Tensor};
-  type B = burn::backend::NdArray;
+  type B = burn::backend::Flex;
 
   let device = Default::default();
   let tensor1 = Tensor::<B, 1>::from_floats(

@@ -6,7 +6,7 @@ use crate::{
         client::LocalCollectiveClient,
     },
 };
-use burn_backend::{Backend, TensorMetadata};
+use burn_backend::{Backend, TensorMetadata, tensor::FloatTensor};
 use burn_communication::websocket::{WebSocket, WsServer};
 use std::sync::{MutexGuard, OnceLock};
 use std::{
@@ -324,9 +324,9 @@ impl<B: Backend> LocalCollectiveServer<B> {
     async fn process_all_reduce_message(
         &mut self,
         peer_id: PeerId,
-        tensor: <B as Backend>::FloatTensorPrimitive,
+        tensor: FloatTensor<B>,
         op: ReduceOperation,
-        callback: SyncSender<AllReduceResult<B::FloatTensorPrimitive>>,
+        callback: SyncSender<AllReduceResult<FloatTensor<B>>>,
     ) {
         if !self.peers.contains(&peer_id) {
             callback
@@ -366,7 +366,7 @@ impl<B: Backend> LocalCollectiveServer<B> {
     async fn process_reduce_message(
         &mut self,
         peer_id: PeerId,
-        tensor: <B as Backend>::FloatTensorPrimitive,
+        tensor: FloatTensor<B>,
         op: ReduceOperation,
         root: PeerId,
         callback: SyncSender<ReduceResult<B::FloatTensorPrimitive>>,
@@ -414,7 +414,7 @@ impl<B: Backend> LocalCollectiveServer<B> {
     async fn process_broadcast_message(
         &mut self,
         caller: PeerId,
-        tensor: Option<<B as Backend>::FloatTensorPrimitive>,
+        tensor: Option<FloatTensor<B>>,
         callback: SyncSender<BroadcastResult<B::FloatTensorPrimitive>>,
     ) {
         if self.config.is_none() {

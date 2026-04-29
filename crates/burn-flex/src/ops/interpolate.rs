@@ -1097,6 +1097,13 @@ fn convert_f32_to_bf16(x: &FlexTensor) -> FlexTensor {
     )
 }
 
+// Tests kept here exercise flex-specific behavior: the f32-typed
+// internal helpers (`interpolate_nearest_f32`, `interpolate_bilinear_f32`,
+// `interpolate_bicubic_f32`, `interpolate_nearest_backward_f32`) that
+// back the dtype-dispatching public ops. End-to-end interpolate
+// correctness across backends lives in the shared module tests under
+// crates/burn-backend-tests/tests/tensor/float/module/{bicubic,bilinear,
+// lanczos3,nearest}_interpolate.rs.
 #[cfg(test)]
 mod tests {
     use super::*;

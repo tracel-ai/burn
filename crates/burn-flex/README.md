@@ -44,6 +44,33 @@ is thread-safe by design.
 - **Built on Burn**: Leverages Burn's native infrastructure (`Bytes`, `Shape`, `TensorData`,
   `Element` trait) from burn-backend and burn-std
 
+### Feature Flags
+
+Default: `std`, `simd`, `rayon`.
+
+| Flag                | Default | Description                                                         |
+| ------------------- | ------- | ------------------------------------------------------------------- |
+| `std`               | Yes     | Standard library support                                            |
+| `simd`              | Yes     | Portable SIMD via macerator; also enables `gemm/wasm-simd128-enable`|
+| `rayon`             | Yes     | Parallel execution for large tensors (forwards `gemm/rayon`)        |
+| `x86-v4`            | No      | AVX-512 kernels in gemm for x86_64 (Sapphire Rapids, Zen 4/5)       |
+| `apple-amx`         | No      | Apple Silicon AMX matrix coprocessor in gemm (experimental)         |
+| `tracing`           | No      | Propagate `tracing` instrumentation                                 |
+| `critical-section`  | No      | Support for no_std targets without atomic CAS                       |
+
+Enable opt-in paths by passing them to Cargo, either directly on `burn-flex` or through the
+top-level `burn` crate:
+
+```toml
+# Direct
+burn-flex = { version = "0.21", features = ["apple-amx"] }
+
+# Via burn
+burn = { version = "0.21", features = ["flex", "apple-amx"] }
+```
+
+See [ARCHITECTURE.md#feature-flags](./ARCHITECTURE.md#feature-flags) for per-case benchmark impact.
+
 ### Why replace burn-ndarray?
 
 burn-ndarray depends on the [ndarray](https://crates.io/crates/ndarray) crate, which has been slow

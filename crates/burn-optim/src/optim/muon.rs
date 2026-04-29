@@ -160,6 +160,20 @@ pub struct MuonConfig {
 }
 
 impl MuonConfig {
+    /// Build a [`Muon`] from the config.
+    pub fn build<B: Backend>(&self) -> Muon<B> {
+        let momentum = Momentum::new(&self.momentum);
+        let weight_decay_penalty = self.weight_decay.as_ref().map(|wd| wd.penalty);
+
+        Muon {
+            momentum,
+            ns_params: NewtonSchulzParams::new(self.ns_coefficients, self.ns_steps),
+            weight_decay_penalty,
+            epsilon: self.epsilon,
+            adjust_lr_fn: self.adjust_lr_fn,
+        }
+    }
+
     /// Initialize Muon optimizer.
     ///
     /// # Returns
@@ -192,19 +206,8 @@ impl MuonConfig {
     ///     .with_ns_steps(7)
     ///     .init();
     /// ```
-    pub fn init<M: AutodiffModule>(&self) -> OptimizerAdaptor<Muon, M> {
-        let momentum = Momentum::new(&self.momentum);
-        let weight_decay_penalty = self.weight_decay.as_ref().map(|wd| wd.penalty);
-
-        let optim = Muon {
-            momentum,
-            ns_params: NewtonSchulzParams::new(self.ns_coefficients, self.ns_steps),
-            weight_decay_penalty,
-            epsilon: self.epsilon,
-            adjust_lr_fn: self.adjust_lr_fn,
-        };
-
-        OptimizerAdaptor::from(optim)
+    pub fn init<M: AutodiffModule>(&self) -> OptimizerAdaptor<Muon<B::InnerBackend>, M, B> {
+        OptimizerAdaptor::from(self.build())
     }
 }
 

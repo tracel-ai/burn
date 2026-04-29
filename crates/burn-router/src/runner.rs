@@ -212,7 +212,23 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                         IndexingUpdateOp::Add => {
                             B::float_scatter_add(desc.dim, tensor, indices, value)
                         }
+                        _ => unimplemented!(),
                     };
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationIr::ScatterNd(desc) => {
+                    let data = handles.get_float_tensor::<B>(&desc.data);
+                    let indices = handles.get_int_tensor::<B>(&desc.indices);
+                    let values = handles.get_float_tensor::<B>(&desc.values);
+
+                    let output = B::float_scatter_nd(data, indices, values, desc.reduction);
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationIr::GatherNd(desc) => {
+                    let data = handles.get_float_tensor::<B>(&desc.data);
+                    let indices = handles.get_int_tensor::<B>(&desc.indices);
+
+                    let output = B::float_gather_nd(data, indices);
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
                 BaseOperationIr::Select(desc) => {
@@ -231,6 +247,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                         IndexingUpdateOp::Add => {
                             B::float_select_add(tensor, desc.dim, indices, value)
                         }
+                        _ => unimplemented!(),
                     };
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
@@ -358,7 +375,23 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                         IndexingUpdateOp::Add => {
                             B::int_scatter_add(desc.dim, tensor, indices, value)
                         }
+                        _ => unimplemented!(),
                     };
+                    handles.register_int_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationIr::ScatterNd(desc) => {
+                    let data = handles.get_int_tensor::<B>(&desc.data);
+                    let indices = handles.get_int_tensor::<B>(&desc.indices);
+                    let values = handles.get_int_tensor::<B>(&desc.values);
+
+                    let output = B::int_scatter_nd(data, indices, values, desc.reduction);
+                    handles.register_int_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationIr::GatherNd(desc) => {
+                    let data = handles.get_int_tensor::<B>(&desc.data);
+                    let indices = handles.get_int_tensor::<B>(&desc.indices);
+
+                    let output = B::int_gather_nd(data, indices);
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
                 BaseOperationIr::Select(desc) => {
@@ -377,6 +410,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                         IndexingUpdateOp::Add => {
                             B::int_select_add(tensor, desc.dim, indices, value)
                         }
+                        _ => unimplemented!(),
                     };
                     handles.register_int_tensor::<B>(&desc.out.id, output);
                 }
@@ -500,8 +534,15 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                         IndexingUpdateOp::Add => {
                             B::bool_scatter_or(desc.dim, tensor, indices, value)
                         }
+                        _ => unimplemented!(),
                     };
                     handles.register_bool_tensor::<B>(&desc.out.id, output);
+                }
+                BaseOperationIr::ScatterNd(_) => {
+                    unreachable!("scatter_nd not supported for bool tensors")
+                }
+                BaseOperationIr::GatherNd(_) => {
+                    unreachable!("gather_nd not supported for bool tensors")
                 }
                 BaseOperationIr::Select(desc) => {
                     let tensor = handles.get_bool_tensor::<B>(&desc.tensor);
@@ -519,6 +560,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                         IndexingUpdateOp::Add => {
                             B::bool_select_or(tensor, desc.dim, indices, value)
                         }
+                        _ => unimplemented!(),
                     };
                     handles.register_bool_tensor::<B>(&desc.out.id, output);
                 }
@@ -1114,6 +1156,37 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     let output = B::embedding_backward(weights, output_grad, indices);
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
+                ModuleOperationIr::Linear(desc) => {
+                    let x = handles.get_float_tensor::<B>(&desc.x);
+                    let weight = handles.get_float_tensor::<B>(&desc.weight);
+                    let bias = desc
+                        .bias
+                        .as_ref()
+                        .map(|bias| handles.get_float_tensor::<B>(bias));
+
+                    let output = B::linear(x, weight, bias);
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+                ModuleOperationIr::LinearXBackward(desc) => {
+                    let weight = handles.get_float_tensor::<B>(&desc.weight);
+                    let output_grad = handles.get_float_tensor::<B>(&desc.output_grad);
+
+                    let output = B::linear_x_backward(weight, output_grad);
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+                ModuleOperationIr::LinearWeightBackward(desc) => {
+                    let x = handles.get_float_tensor::<B>(&desc.x);
+                    let output_grad = handles.get_float_tensor::<B>(&desc.output_grad);
+
+                    let output = B::linear_weight_backward(x, output_grad);
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+                ModuleOperationIr::LinearBiasBackward(desc) => {
+                    let output_grad = handles.get_float_tensor::<B>(&desc.output_grad);
+
+                    let output = B::linear_bias_backward(output_grad);
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
                 ModuleOperationIr::Conv1d(desc) => {
                     let x = handles.get_float_tensor::<B>(&desc.x);
                     let weight = handles.get_float_tensor::<B>(&desc.weight);
@@ -1519,7 +1592,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                 }
                 ModuleOperationIr::Rfft(desc) => {
                     let signal = handles.get_float_tensor::<B>(&desc.signal);
-                    let (out_re, out_im) = B::rfft(signal, desc.dim);
+                    let (out_re, out_im) = B::rfft(signal, desc.dim, desc.n);
 
                     handles.register_float_tensor::<B>(&desc.out_re.id, out_re);
                     handles.register_float_tensor::<B>(&desc.out_im.id, out_im);
@@ -1527,7 +1600,7 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                 ModuleOperationIr::IRfft(desc) => {
                     let spectrum_re = handles.get_float_tensor::<B>(&desc.input_re);
                     let spectrum_im = handles.get_float_tensor::<B>(&desc.input_im);
-                    let signal = B::irfft(spectrum_re, spectrum_im, desc.dim);
+                    let signal = B::irfft(spectrum_re, spectrum_im, desc.dim, desc.n);
 
                     handles.register_float_tensor::<B>(&desc.out_signal.id, signal);
                 }
@@ -1552,6 +1625,40 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
 
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
+                ModuleOperationIr::CtcLoss(desc) => {
+                    let log_probs = handles.get_float_tensor::<B>(&desc.log_probs);
+                    let targets = handles.get_int_tensor::<B>(&desc.targets);
+                    let input_lengths = handles.get_int_tensor::<B>(&desc.input_lengths);
+                    let target_lengths = handles.get_int_tensor::<B>(&desc.target_lengths);
+
+                    let output = B::ctc_loss(
+                        log_probs,
+                        targets,
+                        input_lengths,
+                        target_lengths,
+                        desc.blank,
+                    );
+
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
+                ModuleOperationIr::CtcLossBackward(desc) => {
+                    let log_probs = handles.get_float_tensor::<B>(&desc.log_probs);
+                    let targets = handles.get_int_tensor::<B>(&desc.targets);
+                    let input_lengths = handles.get_int_tensor::<B>(&desc.input_lengths);
+                    let target_lengths = handles.get_int_tensor::<B>(&desc.target_lengths);
+                    let grad_loss = handles.get_float_tensor::<B>(&desc.grad_loss);
+
+                    let output = B::ctc_loss_backward(
+                        log_probs,
+                        targets,
+                        input_lengths,
+                        target_lengths,
+                        grad_loss,
+                        desc.blank,
+                    );
+
+                    handles.register_float_tensor::<B>(&desc.out.id, output);
+                }
             },
             OperationIr::Custom(_) => {
                 panic!("Can't execute custom operation here")
@@ -1562,6 +1669,8 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
             OperationIr::Drop(repr) => {
                 handles.remove_handle(repr.id);
             }
+            #[cfg(feature = "distributed")]
+            OperationIr::Distributed(_op) => todo!(),
         }
     }
 

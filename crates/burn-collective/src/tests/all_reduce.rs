@@ -16,7 +16,7 @@ mod tests {
         feature = "test-metal",
         feature = "test-vulkan"
     )))]
-    pub type TestBackend = burn_ndarray::NdArray;
+    pub type TestBackend = burn_flex::Flex;
 
     #[cfg(feature = "test-cuda")]
     pub type TestBackend = burn_cuda::CudaDevice;
@@ -59,7 +59,7 @@ mod tests {
             })
             .collect();
 
-        let device = <TestBackend as Backend>::Device::default();
+        let device = Default::default();
 
         let mut expected_tensor =
             TestBackend::float_zeros(shape.into(), &device, burn_backend::FloatDType::F32);

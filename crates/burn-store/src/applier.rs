@@ -472,10 +472,8 @@ mod tests {
 
     /// Test that F16 dtype is correctly preserved in TensorSnapshot.
     ///
-    /// Note: Full F16 tensor loading requires a backend that supports F16
-    /// (e.g., CUDA, WebGPU). The NdArray backend does not support F16.
-    /// This test verifies that the snapshot correctly preserves F16 dtype,
-    /// which is the key part of the dtype preservation fix.
+    /// Verifies the snapshot layer preserves the F16 dtype tag through a
+    /// round-trip; does not materialize the data through a backend.
     #[test]
     fn dtype_preservation_f16_snapshot() {
         use half::f16;

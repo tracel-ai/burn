@@ -3,12 +3,12 @@ use simple_regression::{inference, training};
 
 static ARTIFACT_DIR: &str = "/tmp/burn-example-regression";
 
-#[cfg(feature = "ndarray")]
+#[cfg(feature = "flex")]
 mod ndarray {
-    use burn::backend::ndarray::NdArrayDevice;
+    use burn::backend::flex::FlexDevice;
 
     pub fn run() {
-        super::run::<NdArray>(NdArrayDevice::Cpu);
+        super::run(FlexDevice);
     }
 }
 
@@ -61,8 +61,8 @@ pub fn run(device: impl Into<Device>) {
 }
 
 fn main() {
-    #[cfg(feature = "ndarray")]
-    ndarray::run();
+    #[cfg(feature = "flex")]
+    flex::run();
     #[cfg(feature = "tch-gpu")]
     tch_gpu::run();
     #[cfg(feature = "tch-cpu")]

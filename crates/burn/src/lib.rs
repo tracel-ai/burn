@@ -43,7 +43,7 @@
 //! - WGPU (WebGPU): Cross-Platform GPU Backend
 //! - Candle: Backend using the Candle bindings
 //! - LibTorch: Backend using the LibTorch bindings
-//! - NdArray: Backend using the NdArray primitive as data structure
+//! - Flex: Pure-Rust CPU backend (std, no_std, WebAssembly)
 //! - Autodiff: Backend decorator that brings backpropagation to any backend
 //! - Fusion: Backend decorator that brings kernel fusion to backends that support it
 //!
@@ -96,7 +96,8 @@
 //!   - `rocm`: Makes available the ROCm backend
 //!   - `candle`: Makes available the Candle backend
 //!   - `tch`: Makes available the LibTorch backend
-//!   - `ndarray`: Makes available the NdArray backend
+//!   - `flex`: Makes available the Flex backend (pure-Rust CPU, std/no_std/WASM)
+//!   - `ndarray`: Makes available the NdArray backend (legacy - prefer `flex` for new projects)
 //! - Backend specifications
 //!   - `accelerate`: If supported, Accelerate will be used
 //!   - `blas-netlib`: If supported, Blas Netlib will be use
@@ -149,6 +150,8 @@ pub mod store {
 pub mod nn {
     pub use burn_nn::*;
 }
+
+pub use burn_std::config::config as runtime_config;
 
 /// Optimizers module.
 pub mod optim {

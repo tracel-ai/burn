@@ -379,7 +379,11 @@ where
         attention_fallback::<Self>(query, key, value, mask, attn_bias, options)
     }
 
-    fn rfft(_signal: FloatTensor<Self>, _dim: usize) -> (FloatTensor<Self>, FloatTensor<Self>) {
+    fn rfft(
+        _signal: FloatTensor<Self>,
+        _dim: usize,
+        _n: Option<usize>,
+    ) -> (FloatTensor<Self>, FloatTensor<Self>) {
         todo!("rfft is not supported for ndarray")
     }
 
@@ -387,6 +391,7 @@ where
         _spectrum_re: FloatTensor<Self>,
         _spectrum_im: FloatTensor<Self>,
         _dim: usize,
+        _n: Option<usize>,
     ) -> FloatTensor<Self> {
         todo!("irfft is not supported for ndarray")
     }

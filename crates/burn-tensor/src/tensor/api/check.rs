@@ -1,5 +1,5 @@
 use crate::{
-    Shape, Slice, Tensor,
+    DType, Shape, Slice, Tensor,
     cast::ToElement,
     kind::{Basic, Ordered},
 };
@@ -443,7 +443,7 @@ impl TensorCheck {
         } else if num_classes <= 1 {
             check = check.register(
                 "One Hot",
-                TensorError::new("Can't create a one hot tensor with less then 2 classes"),
+                TensorError::new("Can't create a one hot tensor with less than 2 classes"),
             )
         }
         check
@@ -921,6 +921,124 @@ impl TensorCheck {
         check
     }
 
+    pub(crate) fn scatter_nd<const D: usize, const M: usize, const DV: usize>(
+        data_shape: &Shape,
+        indices_shape: &Shape,
+        values_shape: &Shape,
+    ) -> Self {
+        let ops = "ScatterNd";
+        let mut check = Self::Ok;
+
+        if M == 0 {
+            return check.register(
+                ops,
+                TensorError::new("Indices tensor must have rank >= 1".to_string()),
+            );
+        }
+
+        if indices_shape.num_elements() == 0 {
+            return check.register(
+                ops,
+                TensorError::new("Indices tensor must not be empty".to_string()),
+            );
+        }
+
+        let k = indices_shape[M - 1];
+
+        if k > D {
+            return check.register(
+                ops,
+                TensorError::new(format!(
+                    "Last dimension of indices (K={k}) must be <= data rank (D={D})"
+                )),
+            );
+        }
+
+        let expected_dv = M - 1 + D - k;
+        if DV != expected_dv {
+            check = check.register(
+                ops,
+                TensorError::new(format!(
+                    "Values rank DV={DV} does not match expected M-1+D-K = {expected_dv}"
+                )),
+            );
+        }
+
+        // Batch dims: first M-1 dims of values must equal first M-1 dims of indices
+        for i in 0..(M - 1) {
+            if values_shape[i] != indices_shape[i] {
+                check = check.register(
+                    ops,
+                    TensorError::new(format!(
+                        "Batch dimension {i} mismatch: values={} vs indices={}",
+                        values_shape[i], indices_shape[i]
+                    )),
+                );
+            }
+        }
+
+        // Slice dims: last D-K dims of values must equal last D-K dims of data
+        for i in 0..(D - k) {
+            let val_idx = M - 1 + i;
+            let data_idx = k + i;
+            if val_idx < DV && data_idx < D && values_shape[val_idx] != data_shape[data_idx] {
+                check = check.register(
+                    ops,
+                    TensorError::new(format!(
+                        "Slice dimension mismatch at values[{val_idx}]={} vs data[{data_idx}]={}",
+                        values_shape[val_idx], data_shape[data_idx]
+                    )),
+                );
+            }
+        }
+
+        check
+    }
+
+    pub(crate) fn gather_nd<const D: usize, const M: usize, const DV: usize>(
+        indices_shape: &Shape,
+    ) -> Self {
+        let ops = "GatherNd";
+        let mut check = Self::Ok;
+
+        if M == 0 {
+            return check.register(
+                ops,
+                TensorError::new("Indices tensor must have rank >= 1".to_string()),
+            );
+        }
+
+        if indices_shape.num_elements() == 0 {
+            return check.register(
+                ops,
+                TensorError::new("Indices tensor must not be empty".to_string()),
+            );
+        }
+
+        let k = indices_shape[M - 1];
+
+        if k > D {
+            return check.register(
+                ops,
+                TensorError::new(format!(
+                    "Last dimension of indices (K={k}) must be <= data rank (D={D})"
+                )),
+            );
+        }
+
+        let expected_dv = M - 1 + D - k;
+        if DV != expected_dv {
+            check = check.register(
+                ops,
+                TensorError::new(format!(
+                    "Output rank DV={DV} does not match expected M-1+D-K = {expected_dv}"
+                )),
+            );
+        }
+
+        check
+    }
+
     pub(crate) fn select<const D: usize>(dim: usize) -> Self {
         Self::check_select_basic::<D>(Self::Ok, "select", dim)
     }
@@ -1383,6 +1501,61 @@ impl TensorCheck {
                     "The input tensor for LU decomposition must have at least two dimensions.",
                 )
                 .details(format!("Got input tensor with {} dimensions", n_dims)),
+            );
+        }
+
+        check
+    }
+
+    /// Check if input tensor and generic parameters of `linalg::det()` are valid.
+    pub fn det<const D: usize, const D1: usize, const D2: usize>(
+        dims: [usize; D],
+        dtype: DType,
+    ) -> Self {
+        let mut check = TensorCheck::Ok;
+
+        if matches!(dtype, DType::QFloat(_)) {
+            check = check.register(
+                "det",
+                TensorError::new("The input tensor must have a real float dtype.")
+                    .details("Got an input tensor with a quantized float dtype".to_string()),
+            );
+        }
+
+        if D1 != D - 1 {
+            check = check.register(
+                "det",
+                TensorError::new(
+                    "D - 1 = D1 must hold for the generic parameters of the linalg::det function.",
+                )
+                .details(format!("Got generic parameters D = {D} and D1 = {D1}")),
+            );
+        }
+
+        if D2 != D - 2 {
+            check = check.register(
+                "det",
+                TensorError::new("The output tensor rank must be less than input tensor rank by 2")
+                    .details(format!(
+                        "Got input tensor rank {D} and output tensor rank {D2}"
+                    )),
+            );
+        }
+
+        if D < 3 {
+            check = check.register(
+                "det",
+                TensorError::new(format!(
+                    "The input tensor must have at least 3 dimensions, got {D}"
+                )),
+            );
+        }
+
+        if dims[D - 1] != dims[D - 2] {
+            check = check.register(
+                "det",
+                TensorError::new("The last two dimensions of the input tensor must be equal")
+                    .details(format!("Got input tensor with shape {:?}", dims)),
             );
         }
 

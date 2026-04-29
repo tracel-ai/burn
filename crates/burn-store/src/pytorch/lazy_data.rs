@@ -218,8 +218,11 @@ impl LegacyMultiStorageSource {
 
                 for key in keys {
                     if let Some(&size) = usage.get(key) {
-                        map.insert(key.clone(), (current_offset, size as u64));
-                        current_offset += size as u64;
+                        // Each storage in the binary section is preceded by an 8 byte
+                        // element count (u64 little-endian). Skip it by adding 8 to the
+                        // data offset, and include it in the stride to the next storage.
+                        map.insert(key.clone(), (current_offset + 8, size as u64));
+                        current_offset += 8 + size as u64;
                     }
                 }
 

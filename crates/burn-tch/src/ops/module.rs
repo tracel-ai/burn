@@ -6,7 +6,7 @@ use burn_backend::{
         DeformConvOptions, InterpolateMode, InterpolateOptions, MaxPool1dWithIndices,
         MaxPool2dBackward, MaxPool2dWithIndices, ModuleOps, attention::attention_fallback,
     },
-    tensor::FloatTensor,
+    tensor::{FloatTensor, IntTensor},
 };
 
 impl<E: TchElement> ModuleOps<Self> for LibTorch<E> {
@@ -478,15 +478,149 @@ impl<E: TchElement> ModuleOps<Self> for LibTorch<E> {
         ))
     }
 
-    fn rfft(_signal: FloatTensor<Self>, _dim: usize) -> (FloatTensor<Self>, FloatTensor<Self>) {
-        todo!("rfft is not supported for now in LibTorch")
+    fn layer_norm(
+        tensor: TchTensor,
+        gamma: TchTensor,
+        beta: Option<TchTensor>,
+        epsilon: f64,
+    ) -> TchTensor {
+        let shape = tensor.shape();
+        let last_dim = shape[shape.num_dims() - 1] as i64;
+
+        let tensor = tensor.tensor.layer_norm(
+            [last_dim],
+            Some(&gamma.tensor),
+            beta.as_ref().map(|b| &b.tensor),
+            epsilon,
+            true,
+        );
+
+        TchTensor::new(tensor)
+    }
+
+    fn has_ctc_loss_backward() -> bool {
+        true
+    }
+
+    fn ctc_loss(
+        log_probs: FloatTensor<Self>,
+        targets: IntTensor<Self>,
+        input_lengths: IntTensor<Self>,
+        target_lengths: IntTensor<Self>,
+        blank: usize,
+    ) -> FloatTensor<Self> {
+        // PyTorch's CTC requires int64 for targets and length tensors.
+        let targets_i64 = targets.tensor.to_kind(tch::Kind::Int64);
+        let input_lengths_i64 = input_lengths.tensor.to_kind(tch::Kind::Int64);
+        let target_lengths_i64 = target_lengths.tensor.to_kind(tch::Kind::Int64);
+
+        // Reduction::None returns per-sample losses [N], matching the trait contract.
+        let tensor = tch::Tensor::ctc_loss_tensor(
+            &log_probs.tensor,
+            &targets_i64,
+            &input_lengths_i64,
+            &target_lengths_i64,
+            blank as i64,
+            tch::Reduction::None,
+            false,
+        );
+
+        TchTensor::new(tensor)
+    }
+
+    fn ctc_loss_backward(
+        log_probs: FloatTensor<Self>,
+        targets: IntTensor<Self>,
+        input_lengths: IntTensor<Self>,
+        target_lengths: IntTensor<Self>,
+        grad_loss: FloatTensor<Self>,
+        blank: usize,
+    ) -> FloatTensor<Self> {
+        let targets_i64 = targets.tensor.to_kind(tch::Kind::Int64);
+        let input_lengths_i64 = input_lengths.tensor.to_kind(tch::Kind::Int64);
+        let target_lengths_i64 = target_lengths.tensor.to_kind(tch::Kind::Int64);
+
+        // Recompute forward to get neg_log_likelihood and log_alpha (LibTorch's
+        // backward needs both). PyTorch caches log_alpha during the autograd
+        // forward; our trait has no caching slot for it, so we redo the alpha
+        // recursion here. This is still a single-call into LibTorch's fused
+        // kernel and avoids the ~40T host-side dispatches.
+        let (neg_log_likelihood, log_alpha) = tch::Tensor::internal_ctc_loss_tensor(
+            &log_probs.tensor,
+            &targets_i64,
+            &input_lengths_i64,
+            &target_lengths_i64,
+            blank as i64,
+            false,
+        );
+
+        let grad = tch::Tensor::internal_ctc_loss_backward_tensor(
+            &grad_loss.tensor,
+            &log_probs.tensor,
+            &targets_i64,
+            &input_lengths_i64,
+            &target_lengths_i64,
+            &neg_log_likelihood,
+            &log_alpha,
+            blank as i64,
+            false,
+        );
+
+        TchTensor::new(grad)
+    }
+
+    fn rfft(
+        signal: FloatTensor<Self>,
+        dim: usize,
+        n: Option<usize>,
+    ) -> (FloatTensor<Self>, FloatTensor<Self>) {
+        let complex = signal
+            .tensor
+            .fft_rfft(n.map(|v| v as i64), dim as i64, "backward");
+        let re = TchTensor::new(complex.real().contiguous());
+        let im = TchTensor::new(complex.imag().contiguous());
+        (re, im)
     }
 
     fn irfft(
-        _spectrum_re: FloatTensor<Self>,
-        _spectrum_im: FloatTensor<Self>,
-        _dim: usize,
+        spectrum_re: FloatTensor<Self>,
+        spectrum_im: FloatTensor<Self>,
+        dim: usize,
+        n: Option<usize>,
     ) -> FloatTensor<Self> {
-        todo!("irfft is not supported for now in LibTorch")
+        let complex = tch::Tensor::complex(&spectrum_re.tensor, &spectrum_im.tensor);
+        TchTensor::new(complex.fft_irfft(n.map(|v| v as i64), dim as i64, "backward"))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use burn_backend::{
+        TensorData, Tolerance,
+        ops::{FloatTensorOps, IntTensorOps},
+        read_sync,
+    };
+
+    type B = crate::LibTorch<f32>;
+
+    #[test]
+    fn ctc_loss_uniform() {
+        // T=3, N=1, C=2, blank=0, target=[1, 1].
+        // Only valid alignment is (1, 0, 1) with prob (1/2)^3.
+        // Loss = -ln(1/8) = 3 * ln(2)
+        let device = Default::default();
+        let log_probs_data = vec![(0.5f32).ln(); 3 * 2];
+        let log_probs = B::float_from_data(TensorData::new(log_probs_data, [3, 1, 2]), &device);
+        let targets = B::int_from_data(TensorData::from([[1i64, 1]]), &device);
+        let input_lengths = B::int_from_data(TensorData::from([3i64]), &device);
+        let target_lengths = B::int_from_data(TensorData::from([2i64]), &device);
+
+        let loss =
+            <B as ModuleOps<B>>::ctc_loss(log_probs, targets, input_lengths, target_lengths, 0);
+
+        let out = read_sync(B::float_into_data(loss)).unwrap();
+        let expected = TensorData::from([3.0f32 * 2.0f32.ln()]);
+        out.assert_approx_eq::<f32>(&expected, Tolerance::rel_abs(1e-3, 1e-3));
     }
 }

@@ -161,6 +161,7 @@ mod tests {
 
     use super::*;
     use crate::data::dataset::FakeDataset;
+    use burn_tensor::Device;
 
     #[derive(new, Clone)]
     struct TestBatcherDevice;
@@ -211,8 +212,8 @@ mod tests {
         #[cfg(all(test, not(feature = "tch"), not(feature = "cuda")))]
         // Only one device exists...
         let (device1, device2) = (
-            Device::new(burn_tensor::NdArrayDevice::Cpu),
-            Device::new(burn_tensor::NdArrayDevice::Cpu),
+            Device::new(burn_tensor::FlexDevice),
+            Device::new(burn_tensor::FlexDevice),
         );
 
         #[cfg(all(test, feature = "tch"))]

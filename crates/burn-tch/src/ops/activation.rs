@@ -34,4 +34,28 @@ impl<E: TchElement> ActivationOps<Self> for LibTorch<E> {
 
         TchTensor::from_existing(tensor, storage)
     }
+
+    fn softmax(tensor: TchTensor, dim: usize) -> TchTensor {
+        let storage = tensor.storage.clone();
+        let tensor = tensor.tensor.softmax(dim as i64, None);
+        TchTensor::from_existing(tensor, storage)
+    }
+
+    fn log_softmax(tensor: TchTensor, dim: usize) -> TchTensor {
+        let storage = tensor.storage.clone();
+        let tensor = tensor.tensor.log_softmax(dim as i64, None);
+        TchTensor::from_existing(tensor, storage)
+    }
+
+    fn softmin(tensor: TchTensor, dim: usize) -> TchTensor {
+        let storage = tensor.storage.clone();
+        let tensor = tensor.tensor.neg().softmax(dim as i64, None);
+        TchTensor::from_existing(tensor, storage)
+    }
+
+    fn prelu(tensor: TchTensor, alpha: TchTensor) -> TchTensor {
+        let storage = tensor.storage.clone();
+        let tensor = tensor.tensor.prelu(&alpha.tensor);
+        TchTensor::from_existing(tensor, storage)
+    }
 }

@@ -4,8 +4,6 @@ use crate::tensor::Tensor;
 
 use super::l2_norm;
 
-/// Default epsilon value to avoid division by zero
-pub const DEFAULT_EPSILON: f64 = 1e-8;
 /// Computes the cosine similarity between two tensors along a specified dimension.
 ///
 /// Calculates the cosine of the angle between inputs as their dot product divided
@@ -17,7 +15,7 @@ pub const DEFAULT_EPSILON: f64 = 1e-8;
 /// * `x2` - Second input tensor
 /// * `dim` - Dimension along which to compute the similarity
 ///   (negative indices allowed: -1 for last dimension)
-/// * `eps` - Small value to avoid division by zero (default: 1e-8)
+/// * `eps` - Small value to avoid division by zero (default: dtype's smallest positive normal)
 ///
 /// # Returns
 ///
@@ -26,9 +24,14 @@ pub fn cosine_similarity<const D: usize>(
     x1: Tensor<D>,
     x2: Tensor<D>,
     dim: i32,
-    eps: Option<f64>,
+    eps: f64,
 ) -> Tensor<D> {
-    let eps = eps.unwrap_or_else(|| DEFAULT_EPSILON.elem());
+    let eps = eps.unwrap_or_else(|| {
+        x1.dtype()
+            .finfo()
+            .unwrap_or(FloatDType::F32.finfo())
+            .min_positive
+    });
 
     // Convert negative dimension to positive
     let dim_idx = if dim < 0 { D as i32 + dim } else { dim } as usize;

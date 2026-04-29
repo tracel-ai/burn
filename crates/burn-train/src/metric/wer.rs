@@ -69,7 +69,7 @@ impl Metric for WordErrorRate {
             .to_vec()
             .expect("Failed to convert targets to Vec");
 
-        let pad_token = self.pad_token;
+        let pad_token = self.pad_token.map(|p| p as i32);
 
         let mut total_edit_distance = 0.0;
         let mut total_target_length = 0.0;

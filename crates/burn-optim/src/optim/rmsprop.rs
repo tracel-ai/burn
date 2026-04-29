@@ -34,15 +34,10 @@ pub struct RmsPropConfig {
 }
 
 impl RmsPropConfig {
-    /// Initialize RmsProp optimizer.
-    ///
-    /// # Returns
-    ///
-    /// Returns an optimizer that can be used to optimize a module.
-    pub fn init<M: AutodiffModule>(&self) -> OptimizerAdaptor<RmsProp, M> {
+    /// Build a [`RmsProp`] from the config.
+    pub fn build(&self) -> RmsProp {
         let weight_decay = self.weight_decay.as_ref().map(WeightDecay::new);
-
-        let mut optim = OptimizerAdaptor::from(RmsProp {
+        RmsProp {
             alpha: self.alpha,
             centered: self.centered,
             weight_decay,
@@ -50,8 +45,16 @@ impl RmsPropConfig {
                 momentum: self.momentum,
                 epsilon: self.epsilon,
             },
-        });
+        }
+    }
 
+    /// Initialize RmsProp optimizer.
+    ///
+    /// # Returns
+    ///
+    /// Returns an optimizer that can be used to optimize a module.
+    pub fn init<M: AutodiffModule>(&self) -> OptimizerAdaptor<RmsProp, M> {
+        let mut optim = OptimizerAdaptor::from(self.build());
         if let Some(config) = &self.grad_clipping {
             optim = optim.with_grad_clipping(config.init());
         }

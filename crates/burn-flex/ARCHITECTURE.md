@@ -58,13 +58,41 @@ production. This includes:
 default = ["std", "simd", "rayon"]
 ```
 
-| Feature | Default | Description                                                      |
-| ------- | ------- | ---------------------------------------------------------------- |
-| `std`   | Yes     | Standard library support                                         |
-| `simd`  | Yes     | Portable SIMD via macerator (enables `macerator`, `aligned-vec`) |
-| `rayon` | Yes     | Parallel execution for large tensors                             |
+| Feature     | Default | Description                                                                 |
+| ----------- | ------- | --------------------------------------------------------------------------- |
+| `std`       | Yes     | Standard library support                                                    |
+| `simd`      | Yes     | Portable SIMD via macerator (enables `macerator`, `aligned-vec`)            |
+| `rayon`     | Yes     | Parallel execution for large tensors (forwards `gemm/rayon`)                |
+| `x86-v4`    | No      | AVX-512 kernels in gemm for x86_64 (Sapphire Rapids, Zen 4/5, etc.)         |
+| `apple-amx` | No      | Apple Silicon AMX matrix coprocessor in gemm (experimental upstream)        |
+
+The `simd` feature also forwards `gemm/wasm-simd128-enable`, a no-op outside WASM.
 
 `gemm` is an always-on required dependency (not behind a feature flag).
+
+### Performance impact on Apple M3 Max (median speedup vs serial baseline)
+
+Measured via `cargo bench -p burn-flex --bench {matmul,attention,conv_ops}` with features
+`std,simd` (serial), `std,simd,rayon` (default), and `std,simd,rayon,apple-amx`.
+
+| Workload                                | rayon vs serial | +apple-amx vs rayon | combined |
+| --------------------------------------- | --------------- | ------------------- | -------- |
+| matmul 1024×1024 f32                    | 7.0x            | 1.7x                | **12.2x** |
+| matmul 512×512 f32                      | 3.8x            | 1.5x                | 5.8x     |
+| attention self b1·h32·s256·d128         | 1.0x            | 2.0x                | 2.0x     |
+| attention self b1·h12·s512·d64          | 1.0x            | 1.6x                | 1.6x     |
+| conv2d first_layer 4×3×224×224 k7×7 s2  | 9.8x            | 1.2x                | **11.6x** |
+| conv2d large 16×128×64×64 k3×3          | 7.7x            | 1.5x                | 11.1x    |
+| conv2d k7×7                             | 6.5x            | 1.4x                | 9.2x     |
+
+Notes:
+- Attention ops currently see no rayon uplift; the per-head matmul pipeline does not
+  propagate `Parallelism::Rayon` to gemm. AMX still delivers a standalone speedup.
+- Small shapes (e.g. `batch8_64x64` matmul, `depthwise_k3_8x32x512` conv1d) can regress
+  under rayon due to thread-spawn overhead; a size-based gating in the matmul/conv
+  paths would recover those without losing the large-shape wins.
+- AMX regresses on transposed operands (`both/rhs_transposed_256x256` matmul drop to
+  ~0.55x vs rayon). Avoid `apple-amx` for workloads dominated by transposed GEMM.
 
 ---
 

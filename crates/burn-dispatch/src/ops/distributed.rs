@@ -4,8 +4,10 @@ use core::mem::discriminant;
 use crate::backends::*;
 
 use burn_backend::{
+    DeviceId,
     distributed::{
-        DistributedBackend, DistributedConfig, DistributedParams, ReduceOperation, TensorRef,
+        CollectiveTensor, DistributedBackend, DistributedConfig, DistributedParams,
+        ReduceOperation, TensorRef,
     },
     tensor::FloatTensor,
 };
@@ -50,7 +52,7 @@ macro_rules! dispatch_devices_arms {
                             };
                             dev.clone()
                         })
-                        .collect();
+                        .collect::<Vec<_>>();
                     $body
                 }
             )*
@@ -82,7 +84,7 @@ macro_rules! dispatch_devices_arms {
                             };
                             dev.clone()
                         })
-                        .collect();
+                        .collect::<Vec<_>>();
                     $body
                 }
             )*
@@ -105,7 +107,7 @@ impl DistributedBackend for Dispatch {
         if !devices.is_empty() {
             let first = &devices[0];
             dispatch_devices!(first, devices, |inner_devices| {
-                B::start_communication_server(inner_devices, config)
+                B::start_communication_server(&inner_devices, config)
             });
         }
     }
@@ -132,12 +134,21 @@ impl DistributedBackend for Dispatch {
         unimplemented!()
     }
 
-    unsafe fn all_reduce_in_place(_tensors: Vec<TensorRef<Self>>, _op: ReduceOperation) {
-        unimplemented!()
+    fn all_reduce(
+        tensor: FloatTensor<Self>,
+        op: ReduceOperation,
+        device_ids: Vec<DeviceId>,
+    ) -> CollectiveTensor<Self> {
+        // Safety: we call `assume_resolved` only to wrap it in a new `CollectiveTensor`.
+        let tensor = unary_float!(tensor, float, |tensor| {
+            let collective_tensor = B::all_reduce(tensor, op, device_ids);
+            unsafe { collective_tensor.assume_resolved() }
+        } => Float);
+        CollectiveTensor::new(tensor)
     }
 
-    fn sync_collective(_device: &DispatchDevice) {
-        unimplemented!()
+    fn sync_collective(device: &DispatchDevice) {
+        dispatch_device!(device, |device| B::sync_collective(device))
     }
 
     unsafe fn comm_device(_tensor: &TensorRef<Self>) -> DispatchDevice {

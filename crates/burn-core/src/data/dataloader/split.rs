@@ -34,6 +34,7 @@ pub fn split_dataloader<O>(
 
 #[cfg(test)]
 mod tests {
+    use burn_tensor::Device;
     use std::collections::HashSet;
 
     use super::*;
@@ -68,8 +69,8 @@ mod tests {
         #[cfg(all(test, not(feature = "tch"), not(feature = "cuda")))]
         // Only one device exists...
         let (device1, device2) = (
-            Device::new(burn_tensor::NdArrayDevice::Cpu),
-            Device::new(burn_tensor::NdArrayDevice::Cpu),
+            Device::new(burn_tensor::FlexDevice),
+            Device::new(burn_tensor::FlexDevice),
         );
 
         #[cfg(all(test, feature = "tch"))]

@@ -91,6 +91,19 @@ impl<R: Runtime> ReduceBlockFuser<R> {
             return ReduceBlockFusionAnalysis::Refuse;
         }
 
+        // TODO: `RefLayoutSetting::SameAsBlock` might point to a `SwapDims` layout even though reduce
+        // requires `OnlyContiguous`. For now we just refuse / close the block.
+
+        // Make sure the reference layout of this block is not a tensor view.
+        // If a block is only composed of a view, it's not accepted.
+        let num_views = self.fuser.fuser.num_views;
+        let input_ref_not_concrete =
+            self.fuser.fuser.fuser.fuser.num_multi_block_local_inputs() > 0;
+
+        if num_views > 0 && input_ref_not_concrete {
+            return ReduceBlockFusionAnalysis::Refuse;
+        }
+
         let mut fuser_try = default_node.clone();
         let before = fuser_try.len();
         fuser_try.fuse(op);

@@ -5,7 +5,8 @@ use super::{
 use crate::collections::HashMap;
 use crate::graph::NodeId;
 
-use alloc::{vec, vec::Vec};
+use alloc::{format, vec, vec::Vec};
+use burn_std::config::{autodiff::AutodiffLogLevel, log_autodiff};
 
 #[derive(new, Debug)]
 /// Links a [NodeId] to its autodiff graph [NodeRef]
@@ -35,7 +36,16 @@ impl Checkpointer {
     where
         T: Clone + Send + 'static,
     {
-        self.topological_sort(node_id).into_iter().for_each(|node| {
+        let sorted = self.topological_sort(node_id);
+        let num_nodes = sorted.len();
+        log_autodiff(AutodiffLogLevel::Basic, move || {
+            format!("retrieve_node_output {node_id:?}: {num_nodes} node(s) to compute")
+        });
+
+        sorted.into_iter().for_each(|node| {
+            log_autodiff(AutodiffLogLevel::Full, move || {
+                format!("execute_retro_forward {node:?}")
+            });
             self.retro_forwards
                 .execute_retro_forward(node, &mut self.backward_states)
         });

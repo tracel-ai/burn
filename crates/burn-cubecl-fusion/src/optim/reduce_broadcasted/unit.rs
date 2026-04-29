@@ -9,7 +9,7 @@ use cubecl::{Runtime, define_size, prelude::*, std::tensor::r#virtual::VirtualTe
 use cubek::reduce::{
     ReduceInstruction, ReducePrecision, VectorizationMode,
     components::{
-        args::NumericLine,
+        args::NumericVector,
         global::unit::GlobalFullUnitReduce,
         instructions::{ReduceOperation, ReduceOperationConfig},
     },
@@ -62,6 +62,7 @@ pub fn reduce_kernel_broadcasted(
     inputs: &GlobalArgs,
     outputs: &mut GlobalArgs,
     reduce_axis: usize,
+    out_vec_axis: usize,
     blocks: Sequence<ReduceFuseBlock>,
     block_end: ComptimeOption<ElemwiseFuseBlock>,
 ) {
@@ -72,7 +73,14 @@ pub fn reduce_kernel_broadcasted(
         multi_block_variables_init(&block.config_output, &mut outputs.variables);
     }
 
-    reduce_many(inputs, outputs, reduce_axis, blocks, block_end);
+    reduce_many(
+        inputs,
+        outputs,
+        reduce_axis,
+        out_vec_axis,
+        blocks,
+        block_end,
+    );
 }
 
 define_scalar!(In);
@@ -120,6 +128,7 @@ fn reduce_many(
     inputs: &GlobalArgs,
     outputs: &mut GlobalArgs,
     reduce_axis: usize,
+    out_vec_axis: usize,
     blocks: Sequence<ReduceFuseBlock>,
     block_end: ComptimeOption<ElemwiseFuseBlock>,
 ) {
@@ -150,6 +159,7 @@ fn reduce_many(
             &input,
             &mut output,
             reduce_axis,
+            out_vec_axis,
             block.op,
             comptime!(block.blueprint.clone()),
         );
@@ -186,10 +196,11 @@ fn reduce_many(
 /// Executes a single reduction step using a specified instruction and blueprint.
 ///
 /// Returns the size of the axis that was reduced.
-fn reduce_step<P: ReducePrecision, Out: NumericLine, I: ReduceInstruction<P>>(
+fn reduce_step<P: ReducePrecision, Out: NumericVector, I: ReduceInstruction<P>>(
     input: &VirtualTensor<P::EI, P::SI>,
     output: &mut VirtualTensor<Out::T, Out::N, ReadWrite>,
     reduce_axis: usize,
+    out_vec_axis: usize,
     #[comptime] config: I::Config,
     #[comptime] blueprint: UnitReduceBlueprint,
 ) -> usize {
@@ -200,6 +211,7 @@ fn reduce_step<P: ReducePrecision, Out: NumericLine, I: ReduceInstruction<P>>(
         input,
         output,
         reduce_axis,
+        out_vec_axis,
         &inst,
         VectorizationMode::Parallel,
         comptime!(blueprint),

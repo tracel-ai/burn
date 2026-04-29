@@ -15,18 +15,18 @@ default = ["burn/dataset"]
 dataframe = ["dep:burn-dataset", "polars"]
 
 [dependencies]
-burn = {path = "../../crates/burn"}
-burn-dataset = { path = "../../crates/burn-dataset", features = ["dataframe"], optional = true }
+burn = {workspace = true, features = ["default"] }
+burn-dataset = { workspace = true, features = ["default", "dataframe"], optional = true }
 
 # File download
-reqwest = {workspace = true, features = ["blocking"]}
+reqwest = {workspace = true, features = ["blocking"] }
 
 # CSV parsing
 csv = {workspace = true}
-serde = {workspace = true, features = ["std", "derive"]}
+serde = {workspace = true, features = ["std", "derive"] }
 
 # Dataframe support (optional)
-polars = {workspace = true, optional = true, features = ["csv", "temporal"]}
+polars = {workspace = true, optional = true, features = ["csv", "temporal"] }
 
 [[example]]
 name = "dataframe-dataset"

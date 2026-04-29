@@ -187,6 +187,21 @@ pub trait IntTensorOps<B: Backend> {
         value: IntTensor<B>,
     ) -> IntTensor<B>;
 
+    /// Multi-dimensional scatter for int tensors.
+    fn int_scatter_nd(
+        _data: IntTensor<B>,
+        _indices: IntTensor<B>,
+        _values: IntTensor<B>,
+        _reduction: crate::tensor::IndexingUpdateOp,
+    ) -> IntTensor<B> {
+        unimplemented!("int_scatter_nd is not implemented for this backend")
+    }
+
+    /// Multi-dimensional gather for int tensors.
+    fn int_gather_nd(_data: IntTensor<B>, _indices: IntTensor<B>) -> IntTensor<B> {
+        unimplemented!("int_gather_nd is not implemented for this backend")
+    }
+
     /// Select tensor elements along the given dimension corresponding to the given indices.
     ///
     /// # Arguments

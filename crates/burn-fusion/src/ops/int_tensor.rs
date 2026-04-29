@@ -1,7 +1,8 @@
 use super::NoOp;
 use crate::{
-    Fusion, FusionBackend, binary_int_cmp_ops, binary_int_ops, get_client, reduce_int_ops,
-    scalar_int_cmp_ops, scalar_int_ops,
+    Fusion, FusionBackend, binary_int_cmp_ops, binary_int_ops,
+    client::GlobalFusionClient,
+    get_client, reduce_int_ops, scalar_int_cmp_ops, scalar_int_ops,
     stream::{OperationStreams, execution::Operation},
     unary_int_ops,
 };
@@ -71,20 +72,18 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
         tensor.client.device().clone()
     }
 
-    fn int_to_device(tensor: IntTensor<Self>, device: &Device<Self>) -> IntTensor<Self> {
-        let device_original: &B::Device = tensor.client.device();
+    fn int_to_device(tensor: IntTensor<Self>, device_dst: &Device<Self>) -> IntTensor<Self> {
+        let device_src: &B::Device = tensor.client.device();
 
-        if device_original == device {
+        if device_src == device_dst {
             return tensor;
         }
 
         let id = tensor.stream;
-        let client_target = get_client::<B>(device);
-        let client_original = tensor.client.clone();
+        let client_dst = get_client::<B>(device_dst);
+        let client_src = tensor.client.clone();
 
-        client_original
-            .clone()
-            .change_client_int::<B>(tensor.into_ir(), client_target, id)
+        GlobalFusionClient::change_client_int::<B>(tensor.into_ir(), client_src, client_dst, id)
     }
 
     fn int_reshape(tensor: IntTensor<Self>, shape: Shape) -> IntTensor<Self> {
@@ -367,6 +366,83 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
                 streams,
                 OperationIr::BaseInt(BaseOperationIr::Scatter(desc.clone())),
                 ScatterOps::<B>::new(desc),
+            )
+            .output()
+    }
+
+    fn int_scatter_nd(
+        data: IntTensor<Self>,
+        indices: IntTensor<Self>,
+        values: IntTensor<Self>,
+        reduction: IndexingUpdateOp,
+    ) -> IntTensor<Self> {
+        #[derive(new, Debug)]
+        struct ScatterNdOps<B: FusionBackend> {
+            desc: ScatterNdOpIr,
+            _b: PhantomData<B>,
+        }
+
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for ScatterNdOps<B> {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+                let data = handles.get_int_tensor::<B>(&self.desc.data);
+                let indices = handles.get_int_tensor::<B>(&self.desc.indices);
+                let values = handles.get_int_tensor::<B>(&self.desc.values);
+
+                let output = B::int_scatter_nd(data, indices, values, self.desc.reduction);
+
+                handles.register_int_tensor::<B>(&self.desc.out.id, output);
+            }
+        }
+
+        let streams = OperationStreams::with_inputs([&data, &indices, &values]);
+
+        let client = data.client.clone();
+        let desc = ScatterNdOpIr::create(
+            data.into_ir(),
+            indices.into_ir(),
+            values.into_ir(),
+            reduction,
+            || client.create_empty_handle(),
+        );
+
+        client
+            .register(
+                streams,
+                OperationIr::BaseInt(BaseOperationIr::ScatterNd(desc.clone())),
+                ScatterNdOps::<B>::new(desc),
+            )
+            .output()
+    }
+
+    fn int_gather_nd(data: IntTensor<Self>, indices: IntTensor<Self>) -> IntTensor<Self> {
+        #[derive(new, Debug)]
+        struct GatherNdOps<B: FusionBackend> {
+            desc: GatherNdOpIr,
+            _b: PhantomData<B>,
+        }
+
+        impl<B: FusionBackend> Operation<B::FusionRuntime> for GatherNdOps<B> {
+            fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
+                let data = handles.get_int_tensor::<B>(&self.desc.data);
+                let indices = handles.get_int_tensor::<B>(&self.desc.indices);
+
+                let output = B::int_gather_nd(data, indices);
+                handles.register_int_tensor::<B>(&self.desc.out.id, output);
+            }
+        }
+
+        let streams = OperationStreams::with_inputs([&data, &indices]);
+
+        let client = data.client.clone();
+        let desc = GatherNdOpIr::create(data.into_ir(), indices.into_ir(), || {
+            client.create_empty_handle()
+        });
+
+        client
+            .register(
+                streams,
+                OperationIr::BaseInt(BaseOperationIr::GatherNd(desc.clone())),
+                GatherNdOps::<B>::new(desc),
             )
             .output()
     }

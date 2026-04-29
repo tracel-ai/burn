@@ -395,6 +395,12 @@ fn compute_slice_info(slice: &Slice, dim_size: isize) -> (usize, usize, isize) {
     }
 }
 
+// Tests kept here exercise flex-specific behavior: the internal
+// `slice` / `slice_assign` helpers, the broadcast-scalar fast paths for
+// `slice_fill` (1D contiguous, 2D inner-contig, 3D inner-contig, ND
+// strided fallback, stepped-row 2D inner-contig), and non-f32 dtype
+// coverage. General slice correctness across backends is covered by
+// crates/burn-backend-tests/tests/tensor/float/ops/{slice,slice_assign}.rs.
 #[cfg(test)]
 mod tests {
     use super::*;
