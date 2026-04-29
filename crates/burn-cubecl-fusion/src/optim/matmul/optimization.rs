@@ -25,7 +25,7 @@ use cubecl::{
 };
 use cubek::{
     matmul::{
-        components::tile_matmul::DispatchTileMatmul,
+        components::tile::TileMatmulKind,
         definition::{
             MatmulElems, MatmulGlobalElems, MatmulProblem, MatmulSetupError, MatmulVectorSizes,
         },
@@ -462,8 +462,8 @@ impl FusedMatmulLaunch<'_> {
                 let args = SimpleArgs {
                     multi_rows,
                     tile_matmul: match tile_matmul {
-                        AcceleratedTileKind::Cmma => DispatchTileMatmul::Cmma,
-                        AcceleratedTileKind::Mma => DispatchTileMatmul::Mma,
+                        AcceleratedTileKind::Cmma => TileMatmulKind::Cmma,
+                        AcceleratedTileKind::Mma => TileMatmulKind::Mma,
                     },
                 };
 
@@ -494,8 +494,8 @@ impl FusedMatmulLaunch<'_> {
                 let args = DoubleBufferingArgs {
                     specialized,
                     tile_matmul: match tile_matmul {
-                        AcceleratedTileKind::Cmma => DispatchTileMatmul::Cmma,
-                        AcceleratedTileKind::Mma => DispatchTileMatmul::Mma,
+                        AcceleratedTileKind::Cmma => TileMatmulKind::Cmma,
+                        AcceleratedTileKind::Mma => TileMatmulKind::Mma,
                     },
                 };
 
@@ -530,8 +530,8 @@ impl FusedMatmulLaunch<'_> {
                     rows_per_plane: Some(2),
                     partition_k: Some(2),
                     tile_matmul: match tile_matmul {
-                        AcceleratedTileKind::Cmma => DispatchTileMatmul::Cmma,
-                        AcceleratedTileKind::Mma => DispatchTileMatmul::Mma,
+                        AcceleratedTileKind::Cmma => TileMatmulKind::Cmma,
+                        AcceleratedTileKind::Mma => TileMatmulKind::Mma,
                     },
                 };
 
