@@ -711,7 +711,7 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
     }
 
     fn int_argtopk(_tensor: IntTensor<Self>, _dim: usize, _k: usize) -> IntTensor<Self> {
-        panic!("argtopk not implemented for burn router")
+        todo!("argtopk not implemented for burn router")
     }
 
     fn int_argmin(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {

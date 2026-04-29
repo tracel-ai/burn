@@ -354,8 +354,9 @@ pub trait Ordered<B: Backend>: Numeric<B> {
     ///
     /// # Returns
     ///
-    /// A tensor with the same shape as the input tensor, where each element is the index of the
-    /// maximum element of the input tensor at the corresponding index along the specified axis.
+    /// A tensor where the dimension `dim` has size 1 and all other dimensions
+    /// are the same as the input tensor. Each element is the index of the maximum
+    /// value.
     ///
     /// # Remarks
     ///
@@ -379,8 +380,9 @@ pub trait Ordered<B: Backend>: Numeric<B> {
     ///
     /// # Returns
     ///
-    /// A tensor with the same shape as the input tensor, where each element is the index of the
-    /// k maximums elements of the input tensor at the corresponding index along the specified axis.
+    /// A tensor where the dimension `dim` has size `k` and all other dimensions
+    /// are the same as the input tensor. Each element is the index of one of the
+    /// `k` largest values along the specified axis.
     ///
     /// # Remarks
     ///
@@ -403,8 +405,9 @@ pub trait Ordered<B: Backend>: Numeric<B> {
     ///
     /// # Returns
     ///
-    /// A tensor with the same shape as the input tensor, where each element is the index of the
-    /// minimum element of the input tensor at the corresponding index along the specified axis.
+    /// A tensor where the dimension `dim` has size 1 and all other dimensions
+    /// are the same as the input tensor. Each element is the index of the minimum
+    /// value.
     ///
     /// # Remarks
     ///

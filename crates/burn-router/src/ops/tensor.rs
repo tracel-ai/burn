@@ -1122,7 +1122,7 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
         _k: usize,
         _out_dtype: IntDType,
     ) -> IntTensor<Self> {
-        panic!("argtopk not yet implemented for burn-router")
+        todo!("argtopk not yet implemented for burn-router")
     }
 
     fn float_repeat_dim(tensor: FloatTensor<Self>, dim: usize, times: usize) -> FloatTensor<Self> {

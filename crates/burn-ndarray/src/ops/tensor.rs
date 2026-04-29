@@ -467,7 +467,7 @@ where
         _k: usize,
         _out_dtype: IntDType,
     ) -> NdArrayTensor {
-        todo!();
+        unimplemented!("float_argtopk not implemented for ndarray")
     }
 
     fn float_argmin(tensor: FloatTensor<Self>, dim: usize, out_dtype: IntDType) -> NdArrayTensor {
