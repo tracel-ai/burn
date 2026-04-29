@@ -394,6 +394,29 @@ impl ModuleOps<Flex> for Flex {
         }
     }
 
+    fn avg_pool3d(
+        x: FloatTensor<Flex>,
+        kernel_size: [usize; 3],
+        stride: [usize; 3],
+        padding: [usize; 3],
+        count_include_pad: bool,
+        ceil_mode: bool,
+    ) -> FloatTensor<Flex> {
+        todo!()
+    }
+
+    fn avg_pool3d_backward(
+        x: FloatTensor<Flex>,
+        grad: FloatTensor<Flex>,
+        kernel_size: [usize; 3],
+        stride: [usize; 3],
+        padding: [usize; 3],
+        count_include_pad: bool,
+        ceil_mode: bool,
+    ) -> FloatTensor<Flex> {
+        todo!()
+    }
+
     fn adaptive_avg_pool2d(x: FloatTensor<Flex>, output_size: [usize; 2]) -> FloatTensor<Flex> {
         match x.dtype() {
             DType::F32 => pool::adaptive_avg_pool2d_f32(x, output_size),

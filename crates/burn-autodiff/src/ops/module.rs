@@ -1494,6 +1494,29 @@ impl<B: Backend, C: CheckpointStrategy> ModuleOps<Autodiff<B, C>> for Autodiff<B
         panic!("Can't differentiate avg pool 2d backward.");
     }
 
+    fn avg_pool3d(
+        x: AutodiffTensor<B>,
+        kernel_size: [usize; 3],
+        stride: [usize; 3],
+        padding: [usize; 3],
+        count_include_pad: bool,
+        ceil_mode: bool,
+    ) -> AutodiffTensor<B> {
+        todo!()
+    }
+
+    fn avg_pool3d_backward(
+        _x: AutodiffTensor<B>,
+        _grad: AutodiffTensor<B>,
+        _kernel_size: [usize; 3],
+        _stride: [usize; 3],
+        _padding: [usize; 3],
+        _count_include_pad: bool,
+        _ceil_mode: bool,
+    ) -> AutodiffTensor<B> {
+        panic!("Can't differentiate avg pool 3d backward.");
+    }
+
     fn max_pool1d(
         x: AutodiffTensor<B>,
         kernel_size: usize,
