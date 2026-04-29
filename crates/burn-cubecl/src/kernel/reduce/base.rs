@@ -162,7 +162,7 @@ pub fn reduce_dim<Run: CubeRuntime>(
                 | ReduceOperationConfig::ArgMin
                 | ReduceOperationConfig::ArgTopK(_)
         ) || output_dtype.is_some(),
-        "The `output_dtype` has to be `Some` only when the `config` is `ArgMax` or `ArgMin`.
+        "The `output_dtype` has to be `Some` only when the `config` is `ArgMax`, `ArgMin` or `ArgTopK`.
         "
     );
 
