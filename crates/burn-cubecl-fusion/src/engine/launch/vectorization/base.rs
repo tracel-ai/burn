@@ -235,9 +235,19 @@ fn vectorization_input<R: Runtime>(
         return Vect::Aligned(1);
     }
 
+    // Reflect changes from https://github.com/tracel-ai/cubecl/pull/1312
+    // Calculate the smallest non-zero stride among other dimensions
+    let next_stride = handle
+        .strides
+        .iter()
+        .enumerate()
+        .filter_map(|(i, &s)| (i != axis && s != 0).then_some(s))
+        .min()
+        .unwrap_or(0);
+
     let inner = |s: VectorSize| {
-        // The last dimension should be a multiple of the vector size or broadcated.
-        if shape_axis.is_multiple_of(s) {
+        // Updated condition: axis shape AND next_stride must be divisible by s
+        if shape_axis.is_multiple_of(s) && next_stride % s == 0 {
             return Some(Vect::Aligned(s));
         }
         None
@@ -412,13 +422,26 @@ fn vectorization_swapped<R: Runtime>(
         return Vect::Broadcasted;
     }
 
+    // Reflect changes from https://github.com/tracel-ai/cubecl/pull/1312
+    let next_stride = handle
+        .strides
+        .iter()
+        .enumerate()
+        .filter_map(|(i, &s)| (i != axis_index && s != 0).then_some(s))
+        .min()
+        .unwrap_or(0);
+
     let inner = |s: VectorSize| {
         // The last dimension should be a multiple of the vector size or broadcated.
         if multi_reads {
-            if swapped_axis.is_multiple_of(s) && s <= max {
+            if swapped_axis.is_multiple_of(s) && next_stride % s == 0 && s <= max {
                 return Some(Vect::Aligned(s));
             }
-        } else if swapped_axis.is_multiple_of(s) && shape_axis.is_multiple_of(s) && s <= max {
+        } else if swapped_axis.is_multiple_of(s)
+            && shape_axis.is_multiple_of(s)
+            && next_stride % s == 0
+            && s <= max
+        {
             return Some(Vect::Aligned(s));
         }
         None
