@@ -601,6 +601,11 @@ where
         Tensor::new(K::argmax(self.primitive, dim))
     }
 
+    pub fn argtopk(self, dim: usize, k: usize) -> Tensor<B, D, Int> {
+        assert!(self.shape()[dim] > k);
+        Tensor::new(K::argtopk(self.primitive, dim, k))
+    }
+
     /// Find the maximum value.
     ///
     /// # Example

@@ -1924,6 +1924,15 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             .output()
     }
 
+    fn float_argtopk(
+        _tensor: FloatTensor<Self>,
+        _dim: usize,
+        _k: usize,
+        _out_dtype: IntDType,
+    ) -> IntTensor<Self> {
+        todo!();
+    }
+
     fn float_repeat_dim(tensor: FloatTensor<Self>, dim: usize, times: usize) -> FloatTensor<Self> {
         #[derive(new, Debug)]
         struct RepeatDimOps<B: FusionBackend> {

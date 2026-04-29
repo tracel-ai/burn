@@ -376,6 +376,10 @@ impl<B: Backend> Ordered<B> for Int {
         B::int_argmax(tensor, dim)
     }
 
+    fn argtopk(tensor: Self::Primitive, dim: usize, k: usize) -> IntTensor<B> {
+        B::int_argtopk(tensor, dim, k)
+    }
+
     fn argmin(tensor: Self::Primitive, dim: usize) -> IntTensor<B> {
         B::int_argmin(tensor, dim)
     }

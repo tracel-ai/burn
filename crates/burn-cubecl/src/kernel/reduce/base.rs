@@ -158,15 +158,21 @@ pub fn reduce_dim<Run: CubeRuntime>(
     debug_assert!(
         !matches!(
             config,
-            ReduceOperationConfig::ArgMax | ReduceOperationConfig::ArgMin
+            ReduceOperationConfig::ArgMax
+                | ReduceOperationConfig::ArgMin
+                | ReduceOperationConfig::ArgTopK(_)
         ) || output_dtype.is_some(),
         "The `output_dtype` has to be `Some` only when the `config` is `ArgMax` or `ArgMin`.
         "
     );
 
+    let reduce_len = match config {
+        ReduceOperationConfig::ArgTopK(k) => Some(k),
+        _ => Some(1),
+    };
     let dtypes = config.precision(input.dtype.into(), output_dtype.map(Into::into));
     let client = input.client.clone();
-    let output = init_reduce_output::<Run>(&input, dim, &dtypes).ok_or(
+    let output = init_reduce_output::<Run>(&input, dim, &dtypes, reduce_len).ok_or(
         cubek::reduce::ReduceError::InvalidAxis {
             axis: dim,
             rank: input.meta.num_dims(),
@@ -212,10 +218,12 @@ pub fn init_reduce_output<Run: CubeRuntime>(
     input: &CubeTensor<Run>,
     dim: usize,
     dtypes: &ReduceDtypes,
+    reduce_len: Option<usize>,
 ) -> Option<CubeTensor<Run>> {
+    let reduce_len = reduce_len.unwrap_or(1);
     (dim < input.meta.num_dims()).then(|| {
         let mut shape_out = input.shape();
-        shape_out[dim] = 1;
+        shape_out[dim] = reduce_len;
         empty_device_contiguous_dtype(
             input.client.clone(),
             input.device.clone(),

@@ -283,6 +283,10 @@ impl IntTensorOps<Self> for Dispatch {
         unary_op!(tensor, int, |tensor| B::int_argmax(tensor, dim) => Int)
     }
 
+    fn int_argtopk(tensor: IntTensor<Self>, dim: usize, k: usize) -> IntTensor<Self> {
+        unary_op!(tensor, int, |tensor| B::int_argtopk(tensor, dim, k) => Int)
+    }
+
     fn int_argmin(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
         unary_op!(tensor, int, |tensor| B::int_argmin(tensor, dim) => Int)
     }

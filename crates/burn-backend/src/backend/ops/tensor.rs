@@ -1369,6 +1369,14 @@ pub trait FloatTensorOps<B: Backend> {
     /// A tensor with the indices of the maximum elements of `tensor` along `dim`.
     fn float_argmax(tensor: FloatTensor<B>, dim: usize, out_dtype: IntDType) -> IntTensor<B>;
 
+    /// todo!()
+    fn float_argtopk(
+        tensor: FloatTensor<B>,
+        dim: usize,
+        k: usize,
+        out_dtype: IntDType,
+    ) -> IntTensor<B>;
+
     /// Gets the indices of the minimum elements of a tensor along an axis.
     ///
     /// # Arguments

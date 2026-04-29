@@ -441,6 +441,18 @@ where
         .unwrap()
     }
 
+    fn int_argtopk(tensor: IntTensor<Self>, dim: usize, k: usize) -> IntTensor<Self> {
+        let dtype = tensor.dtype;
+        reduce::reduce_dim(
+            tensor,
+            Some(dtype),
+            dim,
+            Default::default(),
+            ReduceOperationConfig::ArgTopK(k),
+        )
+        .unwrap()
+    }
+
     fn int_argmin(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
         let dtype = tensor.dtype;
         reduce::reduce_dim(

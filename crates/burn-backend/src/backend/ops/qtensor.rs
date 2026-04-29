@@ -953,6 +953,17 @@ pub trait QTensorOps<B: Backend> {
         B::float_argmax(tensor_f, dim, out_dtype)
     }
 
+    fn q_argtopk(
+        tensor: QuantizedTensor<B>,
+        dim: usize,
+        k: usize,
+        out_dtype: IntDType,
+    ) -> IntTensor<B> {
+        let dtype = get_device_settings::<B>(&Self::q_device(&tensor)).float_dtype;
+        let tensor_f = Self::dequantize(tensor, dtype);
+        B::float_argtopk(tensor_f, dim, k, out_dtype)
+    }
+
     /// Gets the indices of the minimum elements of a tensor along an axis.
     ///
     /// # Arguments

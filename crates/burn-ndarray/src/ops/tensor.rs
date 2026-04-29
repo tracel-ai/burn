@@ -461,6 +461,15 @@ where
         })
     }
 
+    fn float_argtopk(
+        _tensor: FloatTensor<Self>,
+        _dim: usize,
+        _k: usize,
+        _out_dtype: IntDType,
+    ) -> NdArrayTensor {
+        todo!();
+    }
+
     fn float_argmin(tensor: FloatTensor<Self>, dim: usize, out_dtype: IntDType) -> NdArrayTensor {
         // Use view() for zero-copy on borrowed storage
         execute_with_int_out_dtype!(out_dtype, I, {

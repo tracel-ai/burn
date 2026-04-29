@@ -22,6 +22,15 @@ fn reduction_argmax_should_match_reference_backend() {
 }
 
 #[test]
+fn reduction_argtopk_simple() {
+    let device = Default::default();
+
+    let tensor = TestTensor::<2>::from_data([[1, 7, 3], [5, 2, 8]], &device);
+
+    panic!("tensor: {}", tensor.argtopk(1, 0));
+}
+
+#[test]
 fn reduction_argmin_should_match_reference_backend() {
     let device = Default::default();
     let ref_device = ReferenceDevice::new();

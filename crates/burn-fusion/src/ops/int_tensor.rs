@@ -1341,6 +1341,10 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
             .output()
     }
 
+    fn int_argtopk(_tensor: IntTensor<Self>, _dim: usize, _k: usize) -> IntTensor<Self> {
+        todo!()
+    }
+
     fn int_argmin(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
         reduce_int_ops!(ArgMinOps, B::int_argmin);
 

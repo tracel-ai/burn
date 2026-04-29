@@ -620,6 +620,19 @@ impl<B: Backend> Ordered<B> for Float {
         }
     }
 
+    fn argtopk(tensor: Self::Primitive, dim: usize, k: usize) -> IntTensor<B> {
+        match tensor {
+            TensorPrimitive::Float(tensor) => {
+                let out_dtype = get_device_settings::<B>(&B::float_device(&tensor)).int_dtype;
+                B::float_argtopk(tensor, dim, k, out_dtype)
+            }
+            TensorPrimitive::QFloat(tensor) => {
+                let out_dtype = get_device_settings::<B>(&B::q_device(&tensor)).int_dtype;
+                B::q_argtopk(tensor, dim, k, out_dtype)
+            }
+        }
+    }
+
     fn argmin(tensor: Self::Primitive, dim: usize) -> IntTensor<B> {
         match tensor {
             TensorPrimitive::Float(tensor) => {
