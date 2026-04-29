@@ -601,6 +601,21 @@ where
         Tensor::new(K::argmax(self.primitive, dim))
     }
 
+    /// Applies the argtopk function along the given dimension and returns an integer tensor.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use burn_tensor::backend::Backend;
+    /// use burn_tensor::{Tensor, Shape};
+    ///
+    /// fn example<B: Backend>() {
+    ///     let device = B::Device::default();
+    ///     let tensor = Tensor::<B, 3>::ones(Shape::new([2, 3, 3]), &device);
+    ///     let tensor = tensor.argtopk(1, 2);
+    ///     println!("{:?}", tensor.shape());
+    /// }
+    /// ```
     pub fn argtopk(self, dim: usize, k: usize) -> Tensor<B, D, Int> {
         assert!(self.shape()[dim] > k);
         Tensor::new(K::argtopk(self.primitive, dim, k))
