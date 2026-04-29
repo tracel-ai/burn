@@ -4,7 +4,7 @@ use simple_regression::{inference, training};
 static ARTIFACT_DIR: &str = "/tmp/burn-example-regression";
 
 #[cfg(feature = "flex")]
-mod ndarray {
+mod flex {
     use burn::backend::flex::FlexDevice;
 
     pub fn run() {

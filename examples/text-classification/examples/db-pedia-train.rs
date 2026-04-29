@@ -32,22 +32,12 @@ pub fn launch(device: impl Into<Device>) {
     );
 }
 
-<<<<<<< HEAD
-#[cfg(feature = "ndarray")]
-mod ndarray {
-    use burn::backend::ndarray::NdArrayDevice;
-
-    pub fn run() {
-        crate::launch(NdArrayDevice::Cpu);
-=======
 #[cfg(feature = "flex")]
 mod flex {
-    use crate::launch;
-    use burn::backend::{Autodiff, Flex};
+    use burn::backend::flex::FlexDevice;
 
     pub fn run() {
-        launch::<Autodiff<Flex>>(Default::default());
->>>>>>> main
+        crate::launch(FlexDevice);
     }
 }
 
@@ -84,13 +74,8 @@ mod wgpu {
 }
 
 fn main() {
-<<<<<<< HEAD
-    #[cfg(feature = "ndarray")]
-    ndarray::run();
-=======
     #[cfg(feature = "flex")]
     flex::run();
->>>>>>> main
     #[cfg(feature = "tch-gpu")]
     tch_gpu::run();
     #[cfg(feature = "tch-cpu")]
