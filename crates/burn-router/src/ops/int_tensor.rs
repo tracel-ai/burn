@@ -710,6 +710,10 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
             .output()
     }
 
+    fn int_argtopk(_tensor: IntTensor<Self>, _dim: usize, _k: usize) -> IntTensor<Self> {
+        panic!("argtopk not implemented for burn router")
+    }
+
     fn int_argmin(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
         let client = tensor.client.clone();
         let desc = ReduceDimOpIr::create(tensor.into_ir(), dim, || client.create_empty_handle());

@@ -953,7 +953,6 @@ pub trait QTensorOps<B: Backend> {
         B::float_argmax(tensor_f, dim, out_dtype)
     }
 
-
     /// Gets the indices of the k maximum elements of a tensor along an axis.
     /// If two elements are equals, order them by the lowest indices
     ///

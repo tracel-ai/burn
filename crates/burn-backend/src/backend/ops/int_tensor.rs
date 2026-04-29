@@ -904,7 +904,6 @@ pub trait IntTensorOps<B: Backend> {
     /// The indices of the maximum elements along the dimension.
     fn int_argmax(tensor: IntTensor<B>, dim: usize) -> IntTensor<B>;
 
-
     /// Gets the indices of the k maximum elements along a dimension.
     /// If two elements share the same value, it will be ordered by the lowest
     /// coordinate

@@ -344,6 +344,15 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
         TchOps::argmax(tensor, dim)
     }
 
+    fn float_argtopk(
+        _tensor: TchTensor,
+        _dim: usize,
+        _k: usize,
+        _indices_dtype: IntDType,
+    ) -> TchTensor {
+        panic!("argtopk not implemented for Torch")
+    }
+
     fn float_argmin(tensor: TchTensor, dim: usize, _out_dtype: IntDType) -> TchTensor {
         TchOps::argmin(tensor, dim)
     }

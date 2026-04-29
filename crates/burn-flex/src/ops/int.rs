@@ -611,6 +611,10 @@ impl IntTensorOps<Flex> for Flex {
         crate::ops::reduce::argmax(tensor, dim)
     }
 
+    fn int_argtopk(_tensor: IntTensor<Flex>, _dim: usize, _k: usize) -> IntTensor<Flex> {
+        panic!("argtopk not implemented for flex")
+    }
+
     fn int_argmin(tensor: IntTensor<Flex>, dim: usize) -> IntTensor<Flex> {
         crate::ops::reduce::argmin(tensor, dim)
     }
