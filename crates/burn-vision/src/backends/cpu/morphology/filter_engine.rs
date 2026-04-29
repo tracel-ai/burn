@@ -1,6 +1,6 @@
 use std::{fmt::Debug, ptr::null_mut};
 
-use burn_tensor::Shape;
+use burn_core::tensor::Shape;
 use bytemuck::{Zeroable, cast_slice, cast_slice_mut};
 use macerator::{Simd, VOrd, Vector};
 

@@ -1,12 +1,12 @@
 use crate::{
-    BoolVisionOps, ConnectedStatsOptions, ConnectedStatsPrimitive, Connectivity, FloatVisionOps,
-    IntVisionOps, QVisionOps, VisionBackend, backends::cpu,
+    BoolVisionOps, ConnectedStatsOptions, Connectivity, FloatVisionOps, IntVisionOps,
+    VisionBackend, backends::cpu, dispatch_int_dtype,
 };
 use burn_cubecl::{BoolElement, CubeBackend, CubeRuntime, FloatElement, IntElement};
 
-use burn_tensor::{
-    Element,
-    ops::{BoolTensor, IntTensor},
+use burn_core::tensor::{
+    Element, IntDType,
+    ops::{BoolTensor, BoolTensorOps, IntTensor, IntTensorOps},
 };
 
 use super::connected_components::hardware_accelerated;
@@ -18,24 +18,59 @@ where
     I: IntElement,
     BT: BoolElement,
 {
-    fn connected_components(img: BoolTensor<Self>, connectivity: Connectivity) -> IntTensor<Self> {
-        hardware_accelerated::<R, F, I, BT>(
+    fn connected_components(
+        img: BoolTensor<Self>,
+        connectivity: Connectivity,
+        out_dtype: IntDType,
+    ) -> IntTensor<Self> {
+        dispatch_int_dtype!(out_dtype, |I| hardware_accelerated::<R, F, I, BT>(
             img.clone(),
             ConnectedStatsOptions::none(),
             connectivity,
         )
         .map(|it| it.0)
-        .unwrap_or_else(|_| cpu::connected_components::<Self>(img, connectivity))
+        .unwrap_or_else(|_| {
+            let device = Self::bool_device(&img);
+            Self::int_from_data(
+                cpu::connected_components::<Self>(img, connectivity, out_dtype),
+                &device,
+            )
+        }))
     }
 
     fn connected_components_with_stats(
         img: BoolTensor<Self>,
         connectivity: Connectivity,
         opts: ConnectedStatsOptions,
-    ) -> (IntTensor<Self>, ConnectedStatsPrimitive<Self>) {
-        hardware_accelerated::<R, F, I, BT>(img.clone(), opts, connectivity).unwrap_or_else(|_| {
-            cpu::connected_components_with_stats::<Self>(img, connectivity, opts)
-        })
+        out_dtype: IntDType,
+    ) -> (
+        IntTensor<Self>,
+        IntTensor<Self>,
+        IntTensor<Self>,
+        IntTensor<Self>,
+        IntTensor<Self>,
+        IntTensor<Self>,
+        IntTensor<Self>,
+    ) {
+        let device = Self::bool_device(&img);
+        dispatch_int_dtype!(out_dtype, |I| hardware_accelerated::<R, F, I, BT>(
+            img.clone(),
+            opts,
+            connectivity
+        )
+        .unwrap_or_else(|_| {
+            let (labels, (area, top, left, right, bottom, max_label)) =
+                cpu::connected_components_with_stats::<Self>(img, connectivity, opts, out_dtype);
+            (
+                Self::int_from_data(labels, &device),
+                area,
+                top,
+                left,
+                right,
+                bottom,
+                max_label,
+            )
+        }))
     }
 }
 
@@ -55,14 +90,6 @@ where
     BT: BoolElement,
 {
 }
-impl<R, F, I, BT> QVisionOps for CubeBackend<R, F, I, BT>
-where
-    R: CubeRuntime,
-    F: FloatElement,
-    I: IntElement,
-    BT: BoolElement,
-{
-}
 impl<R, F, I, BT> VisionBackend for CubeBackend<R, F, I, BT>
 where
     R: CubeRuntime,
@@ -75,15 +102,19 @@ where
 #[cfg(feature = "fusion")]
 mod fusion {
     use super::*;
+    use burn_core::tensor::Shape;
     use burn_fusion::{
         Fusion, FusionBackend, FusionRuntime,
         stream::{Operation, OperationStreams},
     };
     use burn_ir::{CustomOpIr, HandleContainer, OperationIr, OperationOutput, TensorIr};
-    use burn_tensor::Shape;
 
     impl<B: FusionBackend + BoolVisionOps> BoolVisionOps for Fusion<B> {
-        fn connected_components(img: BoolTensor<Self>, conn: Connectivity) -> IntTensor<Self> {
+        fn connected_components(
+            img: BoolTensor<Self>,
+            conn: Connectivity,
+            out_dtype: IntDType,
+        ) -> IntTensor<Self> {
             let height = img.shape[0];
             let width = img.shape[1];
             let client = img.client.clone();
@@ -92,6 +123,7 @@ mod fusion {
             struct ConnComp<B> {
                 desc: CustomOpIr,
                 conn: Connectivity,
+                dtype: IntDType,
                 _b: core::marker::PhantomData<B>,
             }
 
@@ -104,7 +136,7 @@ mod fusion {
                 ) {
                     let ([img], [labels]) = self.desc.as_fixed();
                     let input = handles.get_bool_tensor::<B1>(img);
-                    let output = B1::connected_components(input, self.conn);
+                    let output = B1::connected_components(input, self.conn, self.dtype);
 
                     handles.register_int_tensor::<B1>(&labels.id, output);
                 }
@@ -122,7 +154,7 @@ mod fusion {
                 .register(
                     streams,
                     OperationIr::Custom(desc.clone()),
-                    ConnComp::<B>::new(desc, conn),
+                    ConnComp::<B>::new(desc, conn, out_dtype),
                 )
                 .output()
         }
@@ -131,7 +163,16 @@ mod fusion {
             img: BoolTensor<Self>,
             conn: Connectivity,
             opts: ConnectedStatsOptions,
-        ) -> (IntTensor<Self>, ConnectedStatsPrimitive<Self>) {
+            out_dtype: IntDType,
+        ) -> (
+            IntTensor<Self>,
+            IntTensor<Self>,
+            IntTensor<Self>,
+            IntTensor<Self>,
+            IntTensor<Self>,
+            IntTensor<Self>,
+            IntTensor<Self>,
+        ) {
             let height = img.shape[0];
             let width = img.shape[1];
             let client = img.client.clone();
@@ -141,6 +182,7 @@ mod fusion {
                 desc: CustomOpIr,
                 conn: Connectivity,
                 opts: ConnectedStatsOptions,
+                dtype: IntDType,
                 _b: core::marker::PhantomData<B>,
             }
 
@@ -151,19 +193,31 @@ mod fusion {
                         <B1::FusionRuntime as FusionRuntime>::FusionHandle,
                     >,
                 ) {
-                    let ([img], [labels, area, left, top, right, bottom, max_label]) =
-                        self.desc.as_fixed();
+                    let (
+                        [img],
+                        [
+                            labels_ir,
+                            area_ir,
+                            left_ir,
+                            top_ir,
+                            right_ir,
+                            bottom_ir,
+                            max_label_ir,
+                        ],
+                    ) = self.desc.as_fixed();
                     let input = handles.get_bool_tensor::<B1>(img);
-                    let (output, stats) =
-                        B1::connected_components_with_stats(input, self.conn, self.opts);
+                    let (output, area, left, top, right, bottom, max_label) =
+                        B1::connected_components_with_stats(
+                            input, self.conn, self.opts, self.dtype,
+                        );
 
-                    handles.register_int_tensor::<B1>(&labels.id, output);
-                    handles.register_int_tensor::<B1>(&area.id, stats.area);
-                    handles.register_int_tensor::<B1>(&left.id, stats.left);
-                    handles.register_int_tensor::<B1>(&top.id, stats.top);
-                    handles.register_int_tensor::<B1>(&right.id, stats.right);
-                    handles.register_int_tensor::<B1>(&bottom.id, stats.bottom);
-                    handles.register_int_tensor::<B1>(&max_label.id, stats.max_label);
+                    handles.register_int_tensor::<B1>(&labels_ir.id, output);
+                    handles.register_int_tensor::<B1>(&area_ir.id, area);
+                    handles.register_int_tensor::<B1>(&left_ir.id, left);
+                    handles.register_int_tensor::<B1>(&top_ir.id, top);
+                    handles.register_int_tensor::<B1>(&right_ir.id, right);
+                    handles.register_int_tensor::<B1>(&bottom_ir.id, bottom);
+                    handles.register_int_tensor::<B1>(&max_label_ir.id, max_label);
                 }
             }
 
@@ -188,24 +242,15 @@ mod fusion {
                 .register(
                     streams,
                     OperationIr::Custom(desc.clone()),
-                    ConnCompStats::<B>::new(desc, conn, opts),
+                    ConnCompStats::<B>::new(desc, conn, opts, out_dtype),
                 )
                 .try_into()
                 .unwrap();
 
-            let stats = ConnectedStatsPrimitive {
-                area,
-                left,
-                top,
-                right,
-                bottom,
-                max_label,
-            };
-            (out, stats)
+            (out, area, left, top, right, bottom, max_label)
         }
     }
     impl<B: FusionBackend + IntVisionOps> IntVisionOps for Fusion<B> {}
     impl<B: FusionBackend + FloatVisionOps> FloatVisionOps for Fusion<B> {}
-    impl<B: FusionBackend + QVisionOps> QVisionOps for Fusion<B> {}
     impl<B: FusionBackend + VisionBackend> VisionBackend for Fusion<B> {}
 }

@@ -1,5 +1,3 @@
-use std::marker::PhantomData;
-
 use crate::{
     AgentEnvAsyncLoop, AgentEnvLoop, AsyncAgentEnvLoopConfig, EvaluationItem,
     EventProcessorTraining, MultiAgentEnvLoop, RLComponents, RLComponentsTypes, RLEvent,

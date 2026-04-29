@@ -51,7 +51,7 @@ cpu = ["burn-dispatch/cpu"]
 autodiff = ["burn-dispatch/autodiff"]
 
 # For backend extensions
-extension = []
+extension = ["burn-backend-extension"]
 
 # TODO: re-export devices if we have feature flags to enable the backends
 
@@ -65,6 +65,7 @@ fusion = ["burn-dispatch/fusion"]
 burn-std = { path = "../burn-std", version = "=0.21.0-pre.3", default-features = false }
 burn-backend = { path = "../burn-backend", version = "=0.21.0-pre.3", default-features = false }
 burn-dispatch = { path = "../burn-dispatch", version = "=0.21.0-pre.3", default-features = false }
+burn-backend-extension = { path = "../../crates/burn-backend-extension", version = "=0.21.0-pre.3", optional = true }
 
 colored = { workspace = true, optional = true }
 derive-new = { workspace = true }

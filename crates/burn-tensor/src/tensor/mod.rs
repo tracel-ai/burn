@@ -20,14 +20,21 @@ pub mod activation;
 
 /// The backend module.
 pub mod backend {
+    #[cfg(not(feature = "extension"))]
     pub use burn_backend::backend::ExecutionError;
     #[cfg(feature = "distributed")]
     pub use burn_backend::distributed;
 
     #[cfg(feature = "extension")]
+    pub use burn_backend::backend::*;
+
+    #[cfg(feature = "extension")]
+    pub use burn_backend::tensor::{BasicOps, Numeric, Ordered};
+
+    #[cfg(feature = "extension")]
     /// The backend extension module.
     pub mod extension {
-        pub use burn_backend::backend::*;
+        pub use burn_backend_extension::backend_extension;
         pub use burn_dispatch::*;
     }
 }

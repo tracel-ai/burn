@@ -1188,6 +1188,7 @@ name = "burn-tensor"
 version = "0.21.0-pre.3"
 dependencies = [
  "burn-backend",
+ "burn-backend-extension",
  "burn-dispatch",
  "burn-std",
  "colored 3.1.1",
@@ -1231,15 +1232,14 @@ version = "0.21.0-pre.3"
 dependencies = [
  "aligned-vec",
  "bon",
+ "burn-core",
  "burn-cubecl",
  "burn-cuda",
  "burn-fusion",
  "burn-ir",
  "burn-ndarray",
- "burn-std",
  "burn-store",
  "burn-tch",
- "burn-tensor",
  "burn-wgpu",
  "bytemuck",
  "cubecl",
@@ -2615,7 +2615,6 @@ name = "custom-cubecl-kernel"
 version = "0.21.0-pre.3"
 dependencies = [
  "burn",
- "burn-backend-extension",
  "burn-cubecl",
  "cubecl",
  "log",

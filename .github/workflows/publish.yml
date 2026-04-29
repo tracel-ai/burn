@@ -35,12 +35,13 @@ jobs:
       - publish-burn-cubecl
       - publish-burn-ndarray
       - publish-burn-tch
-      - publish-burn-tensor
+      - publish-burn-core
       - publish-burn-ir
       - publish-burn-store
       # dev dependencies
       - publish-burn-wgpu
       - publish-burn-cuda
+      - publish-burn-backend-extension
     uses: tracel-ai/github-actions/.github/workflows/publish-crate.yml@v9
     with:
       crate: burn-vision

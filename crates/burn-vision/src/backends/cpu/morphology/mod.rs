@@ -1,8 +1,11 @@
 use std::fmt::Debug;
 
-use burn_tensor::{
-    BasicOps, Bool, BoolStore, DType, Element, Shape, Tensor, TensorData, backend::Backend,
-    cast::ToElement, ops::BoolTensor,
+use burn_core::tensor::{
+    Bool, BoolStore, DType, Device, Element, Scalar, Shape, Tensor, TensorData,
+    backend::{Backend, BasicOps},
+    cast::ToElement,
+    ops::BoolTensor,
+    read_sync,
 };
 use filter::{MaxOp, MinOp, MorphOperator, VecMorphOperator};
 use filter_engine::{ColFilter, Filter, Filter2D, FilterEngine, RowFilter};
@@ -35,24 +38,20 @@ pub enum MorphKernel<B: Element> {
     },
 }
 
-pub fn morph<B: Backend, K: BasicOps<B>>(
-    input: Tensor<B, 3, K>,
-    kernel: BoolTensor<B>,
+pub fn morph<B: Backend>(
+    input: TensorData,
+    kernel: TensorData,
     op: MorphOp,
-    opts: MorphOptions<B, K>,
-) -> Tensor<B, 3, K> {
-    let device = input.device();
+    opts: MorphOptions,
+) -> TensorData {
+    let [kh, kw] = kernel.shape.dims();
 
-    let kernel = Tensor::<B, 2, Bool>::new(kernel);
-    let kshape = kernel.shape().dims();
-    let [kh, kw] = kshape;
-
-    let kernel = kernel.into_data().into_vec::<B::BoolElem>().unwrap();
+    let kernel = kernel.into_vec::<B::BoolElem>().unwrap();
     let is_rect = kernel.iter().all(|it| it.to_bool());
     let anchor = opts.anchor.unwrap_or(Point::new(kw / 2, kh / 2));
     let iter = opts.iterations;
     let btype = opts.border_type;
-    let bvalue = opts.border_value.map(|it| it.into_data());
+    let bvalue = opts.border_value;
 
     let size = Size::new(kw, kh);
     let kernel = if is_rect {
@@ -65,16 +64,14 @@ pub fn morph<B: Backend, K: BasicOps<B>>(
         }
     };
 
-    let shape = input.shape();
-    let data = input.into_data();
+    let shape = input.shape.clone();
+    let data = input;
     match data.dtype {
-        DType::F64 => {
-            morph_typed::<B, K, f64>(data, shape, kernel, op, iter, btype, bvalue, &device)
-        }
+        DType::F64 => morph_typed::<B, f64>(data, shape, kernel, op, iter, btype, bvalue),
         DType::F32 | DType::Flex32 => {
-            morph_typed::<B, K, f32>(data, shape, kernel, op, iter, btype, bvalue, &device)
+            morph_typed::<B, f32>(data, shape, kernel, op, iter, btype, bvalue)
         }
-        DType::F16 | DType::BF16 => morph_typed::<B, K, f32>(
+        DType::F16 | DType::BF16 => morph_typed::<B, f32>(
             data.convert::<f32>(),
             shape,
             kernel,
@@ -82,82 +79,69 @@ pub fn morph<B: Backend, K: BasicOps<B>>(
             iter,
             btype,
             bvalue,
-            &device,
         ),
-        DType::I64 => {
-            morph_typed::<B, K, i64>(data, shape, kernel, op, iter, btype, bvalue, &device)
-        }
-        DType::I32 => {
-            morph_typed::<B, K, i32>(data, shape, kernel, op, iter, btype, bvalue, &device)
-        }
-        DType::I16 => {
-            morph_typed::<B, K, i16>(data, shape, kernel, op, iter, btype, bvalue, &device)
-        }
-        DType::I8 => morph_typed::<B, K, i8>(data, shape, kernel, op, iter, btype, bvalue, &device),
-        DType::U64 => {
-            morph_typed::<B, K, u64>(data, shape, kernel, op, iter, btype, bvalue, &device)
-        }
+        DType::I64 => morph_typed::<B, i64>(data, shape, kernel, op, iter, btype, bvalue),
+        DType::I32 => morph_typed::<B, i32>(data, shape, kernel, op, iter, btype, bvalue),
+        DType::I16 => morph_typed::<B, i16>(data, shape, kernel, op, iter, btype, bvalue),
+        DType::I8 => morph_typed::<B, i8>(data, shape, kernel, op, iter, btype, bvalue),
+        DType::U64 => morph_typed::<B, u64>(data, shape, kernel, op, iter, btype, bvalue),
         DType::U32 | DType::Bool(BoolStore::U32) => {
-            morph_typed::<B, K, u32>(data, shape, kernel, op, iter, btype, bvalue, &device)
+            morph_typed::<B, u32>(data, shape, kernel, op, iter, btype, bvalue)
         }
-        DType::U16 => {
-            morph_typed::<B, K, u16>(data, shape, kernel, op, iter, btype, bvalue, &device)
-        }
+        DType::U16 => morph_typed::<B, u16>(data, shape, kernel, op, iter, btype, bvalue),
         DType::U8 | DType::Bool(BoolStore::U8) => {
-            morph_typed::<B, K, u8>(data, shape, kernel, op, iter, btype, bvalue, &device)
+            morph_typed::<B, u8>(data, shape, kernel, op, iter, btype, bvalue)
         }
         DType::Bool(BoolStore::Native) => {
-            morph_bool::<B, K>(data, shape, kernel, op, iter, btype, bvalue, &device)
+            morph_bool::<B>(data, shape, kernel, op, iter, btype, bvalue)
         }
         DType::QFloat(_) => unimplemented!(),
     }
 }
 
 #[allow(clippy::too_many_arguments)]
-fn morph_typed<B: Backend, K: BasicOps<B>, T: VOrd + MinMax + Element>(
+fn morph_typed<B: Backend, T: VOrd + MinMax + Element>(
     mut input: TensorData,
     shape: Shape,
     kernel: MorphKernel<B::BoolElem>,
     op: MorphOp,
     iter: usize,
     btype: BorderType,
-    bvalue: Option<TensorData>,
-    device: &B::Device,
-) -> Tensor<B, 3, K> {
+    bvalue: Option<Vec<Scalar>>,
+) -> TensorData {
     let data = input.as_mut_slice::<T>().unwrap();
     let bvalue = border_value(btype, bvalue, op, &shape);
     run_morph(data, shape, kernel, op, iter, btype, &bvalue);
-    Tensor::from_data(input, device)
+    input
 }
 
 #[allow(clippy::too_many_arguments)]
-fn morph_bool<B: Backend, K: BasicOps<B>>(
+fn morph_bool<B: Backend>(
     mut input: TensorData,
     shape: Shape,
     kernel: MorphKernel<B::BoolElem>,
     op: MorphOp,
     iter: usize,
     btype: BorderType,
-    bvalue: Option<TensorData>,
-    device: &B::Device,
-) -> Tensor<B, 3, K> {
+    bvalue: Option<Vec<Scalar>>,
+) -> TensorData {
     let data = input.as_mut_slice::<bool>().unwrap();
     // SAFETY: Morph can't produce invalid boolean values
     let data = unsafe { core::mem::transmute::<&mut [bool], &mut [u8]>(data) };
     let bvalue = border_value(btype, bvalue, op, &shape);
     run_morph(data, shape.clone(), kernel, op, iter, btype, &bvalue);
-    Tensor::from_data(input, device)
+    input
 }
 
 fn border_value<T: Element>(
     btype: BorderType,
-    bvalue: Option<TensorData>,
+    bvalue: Option<Vec<Scalar>>,
     op: MorphOp,
     shape: &Shape,
 ) -> Vec<T> {
     let [_, _, ch] = shape.dims();
     match (btype, bvalue) {
-        (BorderType::Constant, Some(value)) => value.convert::<T>().into_vec().unwrap(),
+        (BorderType::Constant, Some(value)) => value.into_iter().map(|v| v.elem::<T>()).collect(),
         (BorderType::Constant, None) => match op {
             MorphOp::Erode => vec![T::MAX; ch],
             MorphOp::Dilate => vec![T::MIN; ch],
@@ -248,12 +232,12 @@ pub enum KernelShape {
 }
 
 /// Create a structuring element tensor for use with morphology ops
-pub fn create_structuring_element<B: Backend>(
+pub fn create_structuring_element(
     shape: KernelShape,
     ksize: Size,
     anchor: Option<Point>,
-    device: &B::Device,
-) -> Tensor<B, 2, Bool> {
+    device: &Device,
+) -> Tensor<2, Bool> {
     fn create_kernel(shape: KernelShape, ksize: Size, anchor: Option<Point>) -> Vec<bool> {
         let anchor = anchor.unwrap_or(Point::new(ksize.width / 2, ksize.height / 2));
         let mut r = 0;

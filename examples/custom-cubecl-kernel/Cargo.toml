@@ -20,12 +20,6 @@ burn = { path = "../../crates/burn", default-features = false, features = [
 burn-cubecl = { path = "../../crates/burn-cubecl" }
 cubecl = { workspace = true, features = ["wgpu"] }
 
-# TODO: burn/backend-extension or burn/extension feature flag (via burn-tensor/extension)
-# which re-exports the burn-backend types
-
 # Serialization
 log = { workspace = true }
 serde = { workspace = true, features = ["std", "derive"] }
-
-
-burn-backend-extension = { path = "../../crates/burn-backend-extension" }

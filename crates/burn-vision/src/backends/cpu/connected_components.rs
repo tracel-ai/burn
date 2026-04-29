@@ -1,92 +1,56 @@
 use std::{cmp::Ordering, marker::PhantomData};
 
 use alloc::vec::Vec;
-use burn_tensor::{
-    Bool, DType, Element, ElementConversion, ElementOrdered, Int, Shape, Tensor, TensorData,
-    backend::Backend,
-    ops::{BoolTensor, IntTensor},
+use burn_core::tensor::{
+    Bool, DType, Element, ElementConversion, ElementOrdered, Int, IntDType, Shape, Tensor,
+    TensorData,
+    backend::{Backend, get_device_settings},
+    ops::{BoolTensor, Device, IntTensor},
+    read_sync,
 };
 use ndarray::Array2;
 
-use crate::{ConnectedStatsOptions, ConnectedStatsPrimitive, Connectivity};
+use crate::{ConnectedStatsOptions, ConnectedStatsPrimitive, Connectivity, dispatch_int_dtype};
 
 mod spaghetti;
 mod spaghetti_4c;
 
-/// Dispatches connected components based on `B::IntElem::dtype()`, binding a concrete
-/// integer type to enable generic instantiations without extra trait bounds (after removing
-/// `ElementComparison` from `Element`).
-macro_rules! dispatch_int_dtype {
-    (|$ty:ident| $body:expr) => {
-        match B::IntElem::dtype() {
-            DType::I64 => {
-                type $ty = i64;
-                $body
-            }
-            DType::I32 => {
-                type $ty = i32;
-                $body
-            }
-            DType::I16 => {
-                type $ty = i16;
-                $body
-            }
-            DType::I8 => {
-                type $ty = i8;
-                $body
-            }
-            DType::U64 => {
-                type $ty = u64;
-                $body
-            }
-            DType::U32 => {
-                type $ty = u32;
-                $body
-            }
-            DType::U16 => {
-                type $ty = u16;
-                $body
-            }
-            DType::U8 => {
-                type $ty = u8;
-                $body
-            }
-            _ => unreachable!("Unsupported dtype"),
-        }
-    };
-}
-
 pub fn connected_components<B: Backend>(
     img: BoolTensor<B>,
     connectivity: Connectivity,
-) -> IntTensor<B> {
-    dispatch_int_dtype!(|I| run::<B, I, NoOp<_>>(img, connectivity, NoOp::default).0)
+    out_dtype: IntDType,
+) -> TensorData {
+    let img = read_sync(B::bool_into_data(img)).expect("Should read data.");
+    dispatch_int_dtype!(out_dtype, |I| run::<B, I, NoOp<_>>(
+        img,
+        connectivity,
+        NoOp::default
+    )
+    .0)
 }
 
 pub fn connected_components_with_stats<B: Backend>(
     img: BoolTensor<B>,
     connectivity: Connectivity,
     _options: ConnectedStatsOptions,
-) -> (IntTensor<B>, ConnectedStatsPrimitive<B>) {
+    out_dtype: IntDType,
+) -> (TensorData, ConnectedStatsPrimitive<B>) {
     let device = B::bool_device(&img);
-
-    dispatch_int_dtype!(|I| {
+    let img = read_sync(B::bool_into_data(img)).expect("Should read data.");
+    dispatch_int_dtype!(out_dtype, |I| {
         let (labels, stats) =
             run::<B, I, ConnectedStatsOp<I>>(img, connectivity, ConnectedStatsOp::default);
-        let stats = finalize_stats(&device, stats);
+        let stats = finalize_stats::<B, I>(&device, stats);
         (labels, stats)
     })
 }
 
 fn run<B: Backend, I: ElementOrdered, Stats: StatsOp<Label = I>>(
-    img: BoolTensor<B>,
+    img: TensorData,
     connectivity: Connectivity,
     stats: impl Fn() -> Stats,
-) -> (IntTensor<B>, Stats) {
-    let device = B::bool_device(&img);
-    let img = Tensor::<B, 2, Bool>::from_primitive(img);
-    let [height, width] = img.shape().dims();
-    let img = img.into_data();
+) -> (TensorData, Stats) {
+    let [height, width] = img.shape.dims();
     let img = img.into_vec::<B::BoolElem>().unwrap();
 
     let mut stats = stats();
@@ -103,8 +67,7 @@ fn run<B: Backend, I: ElementOrdered, Stats: StatsOp<Label = I>>(
     };
 
     let (data, _) = out.into_raw_vec_and_offset();
-    let data = TensorData::new(data, Shape::new([height, width]));
-    let labels = Tensor::<B, 2, Int>::from_data(data, &device).into_primitive();
+    let labels = TensorData::new(data, Shape::new([height, width]));
     (labels, stats)
 }
 
@@ -246,29 +209,29 @@ impl<I: Element> StatsOp for ConnectedStatsOp<I> {
 }
 
 fn finalize_stats<B: Backend, I: Element>(
-    device: &B::Device,
+    device: &Device<B>,
     stats: ConnectedStatsOp<I>,
 ) -> ConnectedStatsPrimitive<B> {
     let labels = stats.area.len();
 
     let into_prim = |data: Vec<I>| {
         let data = TensorData::new(data, Shape::new([labels]));
-        Tensor::<B, 1, Int>::from_data(data, device).into_primitive()
+        B::int_from_data(data, device)
     };
 
     let max_label = {
         let data = TensorData::new(vec![I::from_elem(labels - 1)], Shape::new([1]));
-        Tensor::<B, 1, Int>::from_data(data, device).into_primitive()
+        B::int_from_data(data, device)
     };
 
-    ConnectedStatsPrimitive {
-        area: into_prim(stats.area),
-        left: into_prim(stats.left),
-        top: into_prim(stats.top),
-        right: into_prim(stats.right),
-        bottom: into_prim(stats.bottom),
+    (
+        into_prim(stats.area),
+        into_prim(stats.left),
+        into_prim(stats.top),
+        into_prim(stats.right),
+        into_prim(stats.bottom),
         max_label,
-    }
+    )
 }
 
 pub fn max_labels(h: usize, w: usize, conn: Connectivity) -> usize {

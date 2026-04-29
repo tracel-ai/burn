@@ -4,15 +4,14 @@
 //! DASIP, 2018
 
 use crate::{
-    ConnectedStatsOptions, ConnectedStatsPrimitive, Connectivity,
-    backends::cube::connected_components::stats_from_opts,
+    ConnectedStatsOptions, Connectivity, backends::cube::connected_components::stats_from_opts,
 };
+use burn_core::tensor::{Shape, TensorMetadata, cast::ToElement, ops::IntTensorOps};
 use burn_cubecl::{
     BoolElement, CubeBackend, CubeRuntime, FloatElement, IntElement, kernel,
     ops::{into_data_sync, numeric::zeros_client},
     tensor::CubeTensor,
 };
-use burn_tensor::{Shape, TensorMetadata, cast::ToElement, ops::IntTensorOps};
 use cubecl::{features::Plane, prelude::*};
 
 use super::prefix_sum::prefix_sum;
@@ -463,7 +462,12 @@ pub fn hardware_accelerated<R: CubeRuntime, F: FloatElement, I: IntElement, BT: 
 ) -> Result<
     (
         CubeTensor<R>,
-        ConnectedStatsPrimitive<CubeBackend<R, F, I, BT>>,
+        CubeTensor<R>,
+        CubeTensor<R>,
+        CubeTensor<R>,
+        CubeTensor<R>,
+        CubeTensor<R>,
+        CubeTensor<R>,
     ),
     String,
 > {
@@ -533,7 +537,7 @@ pub fn hardware_accelerated<R: CubeRuntime, F: FloatElement, I: IntElement, BT: 
         (rows as u32).div_ceil(cube_dim.y),
     );
 
-    let mut stats = stats_from_opts(labels.clone(), stats_opt);
+    let mut stats = stats_from_opts::<R, F, I, BT>(labels.clone(), stats_opt);
 
     if stats_opt == ConnectedStatsOptions::none() {
         unsafe {
@@ -553,21 +557,21 @@ pub fn hardware_accelerated<R: CubeRuntime, F: FloatElement, I: IntElement, BT: 
                 cube_dim,
                 img.clone().into_tensor_arg(),
                 labels.clone().into_tensor_arg(),
-                stats.area.clone().into_tensor_arg(),
-                stats.top.clone().into_tensor_arg(),
-                stats.left.clone().into_tensor_arg(),
-                stats.right.clone().into_tensor_arg(),
-                stats.bottom.clone().into_tensor_arg(),
-                stats.max_label.clone().into_tensor_arg(),
+                stats.0.clone().into_tensor_arg(),
+                stats.1.clone().into_tensor_arg(),
+                stats.2.clone().into_tensor_arg(),
+                stats.3.clone().into_tensor_arg(),
+                stats.4.clone().into_tensor_arg(),
+                stats.5.clone().into_tensor_arg(),
                 stats_opt,
             )
         };
         if stats_opt.compact_labels {
-            let max_label = CubeBackend::<R, F, I, BT>::int_max(stats.max_label);
+            let max_label = CubeBackend::<R, F, I, BT>::int_max(stats.5);
             let max_label = into_data_sync::<R>(max_label);
             let max_label = ToElement::to_usize(&max_label.as_slice::<I>().unwrap()[0]);
             let sliced = kernel::slice::<R>(
-                stats.area.clone(),
+                stats.0.clone(),
                 #[allow(clippy::single_range_in_vec_init)]
                 &[0..(max_label + 1).next_multiple_of(4)],
             );
@@ -578,7 +582,7 @@ pub fn hardware_accelerated<R: CubeRuntime, F: FloatElement, I: IntElement, BT: 
                 (cols as u32).div_ceil(cube_dim.x),
                 (rows as u32).div_ceil(cube_dim.y),
             );
-            stats.max_label =
+            stats.5 =
                 zeros_client::<R>(client.clone(), device.clone(), Shape::new([1]), I::dtype());
             unsafe {
                 compact_labels::launch_unchecked::<I, R>(
@@ -587,7 +591,7 @@ pub fn hardware_accelerated<R: CubeRuntime, F: FloatElement, I: IntElement, BT: 
                     cube_dim,
                     labels.clone().into_tensor_arg(),
                     relabel.clone().into_tensor_arg(),
-                    stats.max_label.clone().into_tensor_arg(),
+                    stats.5.clone().into_tensor_arg(),
                 )
             };
 
@@ -598,21 +602,21 @@ pub fn hardware_accelerated<R: CubeRuntime, F: FloatElement, I: IntElement, BT: 
                     &client,
                     cube_count,
                     cube_dim,
-                    stats.area.copy().into_tensor_arg(),
-                    stats.area.clone().into_tensor_arg(),
-                    stats.top.copy().into_tensor_arg(),
-                    stats.top.clone().into_tensor_arg(),
-                    stats.left.copy().into_tensor_arg(),
-                    stats.left.clone().into_tensor_arg(),
-                    stats.right.copy().into_tensor_arg(),
-                    stats.right.clone().into_tensor_arg(),
-                    stats.bottom.copy().into_tensor_arg(),
-                    stats.bottom.clone().into_tensor_arg(),
+                    stats.0.copy().into_tensor_arg(),
+                    stats.0.clone().into_tensor_arg(),
+                    stats.1.copy().into_tensor_arg(),
+                    stats.1.clone().into_tensor_arg(),
+                    stats.2.copy().into_tensor_arg(),
+                    stats.2.clone().into_tensor_arg(),
+                    stats.3.copy().into_tensor_arg(),
+                    stats.3.clone().into_tensor_arg(),
+                    stats.4.copy().into_tensor_arg(),
+                    stats.4.clone().into_tensor_arg(),
                     relabel.into_tensor_arg(),
                 )
             };
         }
     }
 
-    Ok((labels, stats))
+    Ok((labels, stats.0, stats.1, stats.2, stats.3, stats.4, stats.5))
 }

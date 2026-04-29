@@ -1,4 +1,4 @@
-use burn_tensor::{
+use burn_core::tensor::{
     Tensor,
     grid::affine_grid_2d,
     ops::{GridSampleOptions, GridSamplePaddingMode, InterpolateMode},
@@ -134,7 +134,7 @@ impl Transform2D {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use burn_tensor::Tolerance;
+    use burn_core::tensor::Tolerance;
 
     #[test]
     fn transform_identity_translation() {

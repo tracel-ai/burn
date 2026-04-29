@@ -2,15 +2,12 @@ mod backward;
 mod forward;
 mod kernel;
 
-use burn::tensor::backend::extension::Dispatch;
+use burn::backend::{autodiff::Autodiff, wgpu::Wgpu};
+use burn::tensor::backend::extension::{Dispatch, backend_extension};
 use burn::tensor::ops::FloatTensor; // TODO: should be moved to backend::extension
 use burn::tensor::{Tensor, TensorPrimitive, activation};
 
 /// We create our own Backend trait that extends the Burn backend trait.
-use burn_backend_extension::backend_extension;
-
-use burn::backend::{autodiff::Autodiff, wgpu::Wgpu};
-
 #[backend_extension(Autodiff, Wgpu)]
 pub trait Backend: burn::tensor::backend::extension::Backend {
     fn fused_matmul_add_relu(

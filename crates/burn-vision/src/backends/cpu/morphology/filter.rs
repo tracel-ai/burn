@@ -1,7 +1,7 @@
 use core::slice;
 use std::{marker::PhantomData, ptr::null};
 
-use burn_tensor::Element;
+use burn_core::tensor::Element;
 use macerator::{
     Scalar, Simd, VOrd, Vector, vload, vload_low, vload_unaligned, vstore, vstore_low,
     vstore_unaligned,

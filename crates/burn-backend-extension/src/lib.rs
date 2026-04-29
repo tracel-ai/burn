@@ -4,7 +4,9 @@ use quote::{format_ident, quote};
 use proc_macro2::TokenStream as TokenStream2;
 use syn::parse::{Parse, ParseStream};
 use syn::punctuated::Punctuated;
-use syn::{FnArg, Ident, ItemTrait, Pat, ReturnType, Token, TraitItem, Type, parse_macro_input};
+use syn::{
+    FnArg, Ident, ItemTrait, Meta, Pat, ReturnType, Token, TraitItem, Type, parse_macro_input,
+};
 
 /// # `backend_extension`
 ///
@@ -43,8 +45,14 @@ pub fn backend_extension(attr: TokenStream, item: TokenStream) -> TokenStream {
     TokenStream::from(expanded)
 }
 
+#[derive(Debug, Clone)]
+struct Backend {
+    pub kind: BackendKind,
+    pub cfg: Option<Meta>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Backend {
+enum BackendKind {
     Cpu,
     Cuda,
     Rocm,
@@ -58,18 +66,18 @@ enum Backend {
     LibTorch,
 }
 
-impl Backend {
+impl BackendKind {
     fn try_from(ident: &Ident) -> syn::Result<Self> {
         match ident.to_string().as_str() {
-            "Cpu" => Ok(Backend::Cpu),
-            "Cuda" => Ok(Backend::Cuda),
-            "Wgpu" => Ok(Backend::Wgpu),
-            "Metal" => Ok(Backend::Metal),
-            "Rocm" => Ok(Backend::Rocm),
-            "Vulkan" => Ok(Backend::Vulkan),
-            "Flex" => Ok(Backend::Flex),
-            "NdArray" => Ok(Backend::NdArray),
-            "LibTorch" => Ok(Backend::LibTorch),
+            "Cpu" => Ok(BackendKind::Cpu),
+            "Cuda" => Ok(BackendKind::Cuda),
+            "Wgpu" => Ok(BackendKind::Wgpu),
+            "Metal" => Ok(BackendKind::Metal),
+            "Rocm" => Ok(BackendKind::Rocm),
+            "Vulkan" => Ok(BackendKind::Vulkan),
+            "Flex" => Ok(BackendKind::Flex),
+            "NdArray" => Ok(BackendKind::NdArray),
+            "LibTorch" => Ok(BackendKind::LibTorch),
             other => Err(syn::Error::new_spanned(
                 ident,
                 format!("Unsupported backend `{}`", other),
@@ -80,23 +88,49 @@ impl Backend {
 
 struct Backends {
     concrete: Vec<Backend>,
-    autodiff: bool,
+    autodiff: (bool, Option<Meta>),
+}
+
+// Helper to parse backend idents w/ optional cfg
+struct BackendArg {
+    id: Ident,
+    cfg: Option<Meta>,
+}
+
+impl Parse for BackendArg {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let id: Ident = input.parse()?;
+        let cfg = if input.peek(Token![:]) {
+            input.parse::<Token![:]>()?;
+
+            // This parses cfg(feature = "...") or any other meta item
+            let meta: syn::Meta = input.parse()?;
+            Some(meta)
+        } else {
+            None
+        };
+
+        Ok(Self { id, cfg })
+    }
 }
 
 impl Parse for Backends {
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        let ids = Punctuated::<Ident, Token![,]>::parse_terminated(input)?;
+        let args = Punctuated::<BackendArg, Token![,]>::parse_terminated(input)?;
 
         let mut concrete = vec![];
-        let mut autodiff = false;
+        let mut autodiff = (false, None);
 
-        for id in ids {
-            if id == "Autodiff" {
-                autodiff = true;
+        for arg in args {
+            if arg.id == "Autodiff" {
+                autodiff = (true, arg.cfg);
                 continue;
             }
 
-            concrete.push(Backend::try_from(&id)?);
+            concrete.push(Backend {
+                kind: BackendKind::try_from(&arg.id)?,
+                cfg: arg.cfg,
+            });
         }
 
         Ok(Backends { concrete, autodiff })
@@ -112,6 +146,7 @@ enum TensorKind {
 
 enum ArgKind {
     Tensor(TensorKind),
+    // Passthrough - unhandled by the macro
     Other(Type),
 }
 
@@ -183,9 +218,9 @@ impl TensorKind {
 
     fn to_primitive_ty(self) -> TokenStream2 {
         match self {
-            Self::Float => quote! { ::burn::tensor::ops::FloatTensor<Self> },
-            Self::Int => quote! { ::burn::tensor::ops::IntTensor<Self> },
-            Self::Bool => quote! { ::burn::tensor::ops::BoolTensor<Self> },
+            Self::Float => quote! { burn::tensor::ops::FloatTensor<Self> },
+            Self::Int => quote! { burn::tensor::ops::IntTensor<Self> },
+            Self::Bool => quote! { burn::tensor::ops::BoolTensor<Self> },
         }
     }
 
@@ -205,7 +240,7 @@ impl TensorKind {
 
 fn backend_to_ident(b: &Backend) -> Ident {
     // Convert the enum variant to a string first, then to an Ident
-    format_ident!("{}", format!("{:?}", b))
+    format_ident!("{}", format!("{:?}", b.kind))
 }
 
 fn lower_extension(attr: Backends, item: &ItemTrait) -> syn::Result<Extension> {
@@ -235,6 +270,8 @@ fn lower_extension(attr: Backends, item: &ItemTrait) -> syn::Result<Extension> {
         match &f.sig.output {
             ReturnType::Default => {}
             ReturnType::Type(_, ty) => {
+                // TODO: expand support for vec, nested containers, and possibly custom structs
+                // (requires though since we have no type information)
                 if let syn::Type::Tuple(tup) = ty.as_ref() {
                     for elem in &tup.elems {
                         outputs.push(TensorKind::from_type(elem).ok_or_else(|| {
@@ -298,7 +335,7 @@ fn expand_extension(ir: Extension, mut original_trait: ItemTrait) -> TokenStream
     quote! {
         #original_trait
 
-        impl #trait_name for ::burn::tensor::backend::extension::Dispatch {
+        impl #trait_name for burn::tensor::backend::extension::Dispatch {
             #( #dispatch_methods )*
         }
     }
@@ -306,7 +343,13 @@ fn expand_extension(ir: Extension, mut original_trait: ItemTrait) -> TokenStream
 
 fn gen_dispatch_method(ir: &Extension, op: &Operation) -> TokenStream2 {
     let name = &op.name;
-    let has_ad = ir.backends.autodiff;
+    let has_ad = ir.backends.autodiff.0;
+    let ad_cfg_attr = ir
+        .backends
+        .autodiff
+        .1
+        .as_ref()
+        .map(|meta| quote! { #[#meta] });
 
     // Signature generation
     let sig_args = op.inputs.iter().map(|arg| {
@@ -357,7 +400,10 @@ fn gen_dispatch_method(ir: &Extension, op: &Operation) -> TokenStream2 {
     });
     let ckp_logic = if has_ad && first_tensor.is_some() {
         let name = first_tensor.unwrap();
-        quote! { let checkpointing = #name.checkpointing.clone(); }
+        quote! {
+            #ad_cfg_attr
+            let checkpointing = #name.checkpointing.clone();
+        }
     } else {
         quote! {}
     };
@@ -379,14 +425,14 @@ fn gen_dispatch_method(ir: &Extension, op: &Operation) -> TokenStream2 {
     let wrap_output = |kinds_access: TokenStream2| {
         if has_ad {
             quote! {
-                ::burn::tensor::backend::extension::DispatchTensor {
+                burn::tensor::backend::extension::DispatchTensor {
                     kind: #kinds_access,
                     checkpointing: checkpointing.clone(), // Field exists because user asked for AD
                 }
             }
         } else {
             quote! {
-                ::burn::tensor::backend::extension::DispatchTensor {
+                burn::tensor::backend::extension::DispatchTensor {
                     kind: #kinds_access,
                 }
             }
@@ -409,6 +455,7 @@ fn gen_dispatch_method(ir: &Extension, op: &Operation) -> TokenStream2 {
 
             let _kinds = match #match_inputs {
                 #( #concrete_arms )*
+                #ad_cfg_attr
                 #ad_arm
                 _ => unimplemented!("Backend not supported for custom op `{}`", stringify!(#name)),
             };
@@ -422,6 +469,9 @@ fn gen_backend_arm(ir: &Extension, op: &Operation, backend: &Backend) -> TokenSt
     let b_ident = backend_to_ident(backend);
     let trait_name = &ir.trait_name;
     let fn_name = &op.name;
+
+    // If any cfg(..) was specified to gate the backend
+    let cfg_attr = backend.cfg.as_ref().map(|meta| quote! { #[#meta] });
 
     // Filter for tensor arguments only
     let tensor_args: Vec<_> = op
@@ -437,10 +487,10 @@ fn gen_backend_arm(ir: &Extension, op: &Operation, backend: &Backend) -> TokenSt
     // e.g., (DispatchTensorKind::Wgpu(lhs), DispatchTensorKind::Wgpu(rhs))
     let pattern = if tensor_args.len() == 1 {
         let (name, _) = tensor_args[0];
-        quote! { ::burn::tensor::backend::extension::DispatchTensorKind::#b_ident(#name) }
+        quote! { burn::tensor::backend::extension::DispatchTensorKind::#b_ident(#name) }
     } else {
         let pats = tensor_args.iter().map(|(name, _)| {
-            quote! { ::burn::tensor::backend::extension::DispatchTensorKind::#b_ident(#name) }
+            quote! { burn::tensor::backend::extension::DispatchTensorKind::#b_ident(#name) }
         });
         quote! { (#(#pats),*) }
     };
@@ -456,6 +506,7 @@ fn gen_backend_arm(ir: &Extension, op: &Operation, backend: &Backend) -> TokenSt
     let wrap_out = gen_result_wrap(op, &b_ident, false);
 
     quote! {
+        #cfg_attr
         #pattern => {
             #(#unwraps)*
             let _out = <#b_ident as #trait_name>::#fn_name(#(#call_args),*);
@@ -480,6 +531,7 @@ fn gen_autodiff_arm(ir: &Extension, op: &Operation) -> TokenStream2 {
 
     // Build the match pattern for the same backend wrapped by autodiff
     let inner_arms = ir.backends.concrete.iter().map(|backend| {
+        let cfg_attr = backend.cfg.as_ref().map(|meta| quote! { #[#meta] });
         let b_ident = backend_to_ident(backend);
 
         let pattern = if tensor_args.len() == 1 {
@@ -487,22 +539,22 @@ fn gen_autodiff_arm(ir: &Extension, op: &Operation) -> TokenStream2 {
 
             if *kind == TensorKind::Float {
                 quote! {
-                    ::burn::tensor::backend::extension::DispatchTensorKind::Autodiff(#name)
+                    burn::tensor::backend::extension::DispatchTensorKind::Autodiff(#name)
                 }
             } else {
                 quote! {
-                    ::burn::tensor::backend::extension::DispatchTensorKind::#b_ident(#name)
+                    burn::tensor::backend::extension::DispatchTensorKind::#b_ident(#name)
                 }
             }
         } else {
             let pats = tensor_args.iter().map(|(name, kind)| {
                 if **kind == TensorKind::Float {
                     quote! {
-                        ::burn::tensor::backend::extension::DispatchTensorKind::Autodiff(#name)
+                        burn::tensor::backend::extension::DispatchTensorKind::Autodiff(#name)
                     }
                 } else {
                     quote! {
-                        ::burn::tensor::backend::extension::DispatchTensorKind::#b_ident(#name)
+                        burn::tensor::backend::extension::DispatchTensorKind::#b_ident(#name)
                     }
                 }
             });
@@ -514,7 +566,7 @@ fn gen_autodiff_arm(ir: &Extension, op: &Operation) -> TokenStream2 {
             if **kind == TensorKind::Float {
                 quote! {
                     let #name = match *#name {
-                        ::burn::tensor::backend::extension::DispatchTensorKind::#b_ident(t) => t.autodiff(),
+                        burn::tensor::backend::extension::DispatchTensorKind::#b_ident(t) => t.autodiff(),
                         _ => unreachable!("Autodiff backend mismatch"),
                     };
                 }
@@ -530,6 +582,7 @@ fn gen_autodiff_arm(ir: &Extension, op: &Operation) -> TokenStream2 {
         let wrap_out = gen_result_wrap(op, &b_ident, true);
 
         quote! {
+            #cfg_attr
             #pattern => {
                 #(#unwraps)*
                 type _ADBackend = Autodiff<#b_ident>;
@@ -550,16 +603,16 @@ fn gen_result_wrap(op: &Operation, b_ident: &Ident, is_ad: bool) -> TokenStream2
         if is_ad && kind == TensorKind::Float {
             // Wrap as Autodiff(Backend(Autodiff(tensor)))
             quote! {
-                ::burn::tensor::backend::extension::DispatchTensorKind::Autodiff(
-                    Box::new(::burn::tensor::backend::extension::DispatchTensorKind::#b_ident(
-                        ::burn::tensor::backend::extension::BackendTensor::Autodiff(#val)
+                burn::tensor::backend::extension::DispatchTensorKind::Autodiff(
+                    Box::new(burn::tensor::backend::extension::DispatchTensorKind::#b_ident(
+                        burn::tensor::backend::extension::BackendTensor::Autodiff(#val)
                     ))
                 )
             }
         } else {
             quote! {
-                ::burn::tensor::backend::extension::DispatchTensorKind::#b_ident(
-                    ::burn::tensor::backend::extension::BackendTensor::#variant(#val)
+                burn::tensor::backend::extension::DispatchTensorKind::#b_ident(
+                    burn::tensor::backend::extension::BackendTensor::#variant(#val)
                 )
             }
         }
