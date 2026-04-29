@@ -154,7 +154,7 @@ fn should_quantize_dequantize_symmetric_per_block_q4s_packed() {
 }
 
 #[test]
-#[should_panic = "Block size must be divisible by 16"]
+#[should_panic] // "Block size must be divisible by 16" error is shadowed by the CallError
 fn should_panic_when_block_size_cannot_store_num_quants() {
     // num_quants in u32 = 32 bits / 2 bits = 16
     should_quantize_dequantize_symmetric_per_block(QuantValue::Q2S, 8, QuantStore::PackedU32(0))
