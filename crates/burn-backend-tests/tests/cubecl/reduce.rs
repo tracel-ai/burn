@@ -27,7 +27,7 @@ fn reduction_argtopk_simple() {
 
     let tensor = TestTensor::<2>::from_data([[1, 7, 3], [5, 2, 8]], &device);
 
-    panic!("tensor: {}", tensor.argtopk(1, 0));
+    panic!("tensor: {}", tensor.argtopk(1, 2));
 }
 
 #[test]
