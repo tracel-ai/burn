@@ -113,13 +113,13 @@ impl ExpandTypeClone for FuseArg {
 }
 
 impl AsRefExpand for FuseArg {
-    fn __expand_as_ref_method(&self, _: &Scope) -> &Self {
+    fn __expand_ref_method(&self, _: &Scope) -> &Self {
         self
     }
 }
 
 impl AsMutExpand for FuseArg {
-    fn __expand_as_mut_method(&mut self, _: &Scope) -> &mut Self {
+    fn __expand_ref_mut_method(&mut self, _: &Scope) -> &mut Self {
         self
     }
 }
@@ -548,8 +548,8 @@ pub struct LocalArgs {
     pub l_u32: Registry<usize, Vector<u32, DynSize>>,
     pub l_u16: Registry<usize, Vector<u16, DynSize>>,
     pub l_u8: Registry<usize, Vector<u8, DynSize>>,
-    pub ref_shape: Slice<usize>,
-    pub ref_strides: Slice<usize>,
+    pub ref_shape: Box<[usize]>,
+    pub ref_strides: Box<[usize]>,
     #[cube(comptime)]
     pub ref_vector_size: VectorSize,
 }
@@ -558,8 +558,8 @@ pub struct LocalArgs {
 impl LocalArgs {
     /// Creates a new [LocalArgs] container.
     pub fn new(
-        ref_shape: Slice<usize>,
-        ref_strides: Slice<usize>,
+        ref_shape: &[usize],
+        ref_strides: &[usize],
         #[comptime] ref_vector_size: VectorSize,
     ) -> LocalArgs {
         LocalArgs {
@@ -575,8 +575,8 @@ impl LocalArgs {
             l_u32: Registry::<usize, Vector<u32, DynSize>>::new(),
             l_u16: Registry::<usize, Vector<u16, DynSize>>::new(),
             l_u8: Registry::<usize, Vector<u8, DynSize>>::new(),
-            ref_shape,
-            ref_strides,
+            ref_shape: unsafe { ref_shape.as_boxed_unchecked() },
+            ref_strides: unsafe { ref_strides.as_boxed_unchecked() },
             ref_vector_size,
         }
     }
@@ -630,7 +630,7 @@ pub struct FuseBlockConfig {
 }
 
 impl AsRefExpand for FuseBlockConfig {
-    fn __expand_as_ref_method(&self, _: &Scope) -> &Self {
+    fn __expand_ref_method(&self, _: &Scope) -> &Self {
         self
     }
 }

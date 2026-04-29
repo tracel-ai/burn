@@ -375,6 +375,7 @@ pub fn erf_f64(x: f64) -> f64 {
 // (erf_f32/f64, round_ties_even); otherwise add them to
 // crates/burn-backend-tests/tests/tensor/float/ops/.
 #[cfg(test)]
+#[allow(clippy::excessive_precision)]
 mod tests {
     use alloc::vec;
     use burn_backend::TensorData;

@@ -100,8 +100,8 @@ pub fn init_locals(
     #[comptime] config: &FuseBlockConfig,
 ) -> LocalArgs {
     comment!("Init locals begin");
-    let mut ref_shape = Array::new(config.rank);
-    let mut ref_strides = Array::new(config.rank);
+    let mut ref_shape = Array::<usize>::new(config.rank);
+    let mut ref_strides = Array::<usize>::new(config.rank);
 
     let locals = match config.ref_layout.clone() {
         RefLayout::Concrete(arg) => match comptime![arg] {
@@ -115,8 +115,8 @@ pub fn init_locals(
                 }
 
                 LocalArgs::new(
-                    *ref_shape.to_slice(),
-                    *ref_strides.to_slice(),
+                    ref_shape.as_slice(),
+                    ref_strides.as_slice(),
                     layout.tensor.vector_size(),
                 )
             }
@@ -130,8 +130,8 @@ pub fn init_locals(
                 }
 
                 LocalArgs::new(
-                    *ref_shape.to_slice(),
-                    *ref_strides.to_slice(),
+                    ref_shape.as_slice(),
+                    ref_strides.as_slice(),
                     layout.tensor.vector_size(),
                 )
             }
@@ -161,8 +161,8 @@ pub fn init_locals(
                 }
 
                 LocalArgs::new(
-                    *ref_shape.to_slice(),
-                    *ref_strides.to_slice(),
+                    ref_shape.as_slice(),
+                    ref_strides.as_slice(),
                     layout.tensor.vector_size(),
                 )
             }
@@ -186,7 +186,7 @@ pub fn init_locals(
                     stride_curr *= ref_shape[comptime![reverse]];
                 }
 
-                LocalArgs::new(*ref_shape.to_slice(), *ref_strides.to_slice(), vector_size)
+                LocalArgs::new(ref_shape.as_slice(), ref_strides.as_slice(), vector_size)
             }
             VirtualLayout::Runtime { pos } => {
                 let start_shape = (pos * 2) * config.rank;
@@ -201,7 +201,7 @@ pub fn init_locals(
                     ref_strides[i] = *inputs.runtime_layouts.index(strides_index);
                 }
 
-                LocalArgs::new(*ref_shape.to_slice(), *ref_strides.to_slice(), config.width)
+                LocalArgs::new(ref_shape.as_slice(), ref_strides.as_slice(), config.width)
             }
             VirtualLayout::Shape(original, vector_size) => {
                 let layout = match original.clone() {
@@ -223,7 +223,7 @@ pub fn init_locals(
                     stride_curr *= ref_shape[comptime![reverse]];
                 }
 
-                LocalArgs::new(*ref_shape.to_slice(), *ref_strides.to_slice(), vector_size)
+                LocalArgs::new(ref_shape.as_slice(), ref_strides.as_slice(), vector_size)
             }
         },
     };
@@ -332,8 +332,8 @@ macro_rules! binary_op {
             #[comptime] op: BinaryFuseArgs,
             #[comptime] config: &FuseBlockConfig,
         ) {
-            let lhs = read::<C, N>(inputs, &*outputs, &locals, write_pos, op.lhs, config);
-            let rhs = read::<C, N>(inputs, &*outputs, &locals, write_pos, op.rhs, config);
+            let lhs = read::<C, N>(inputs, &*outputs, &*locals, write_pos, op.lhs, config);
+            let rhs = read::<C, N>(inputs, &*outputs, &*locals, write_pos, op.rhs, config);
             let result = lhs $op rhs;
 
             write::<C, N>(inputs, outputs, locals, write_pos, result, op.out, config);
@@ -352,8 +352,8 @@ macro_rules! binary_func {
             #[comptime] op: BinaryFuseArgs,
             #[comptime] config: &FuseBlockConfig,
         ) {
-            let lhs = read::<C, N>(inputs, &*outputs, &locals, write_pos, op.lhs, config);
-            let rhs = read::<C, N>(inputs, &*outputs, &locals, write_pos, op.rhs, config);
+            let lhs = read::<C, N>(inputs, &*outputs, &*locals, write_pos, op.lhs, config);
+            let rhs = read::<C, N>(inputs, &*outputs, &*locals, write_pos, op.rhs, config);
             let result = $func(lhs, rhs);
 
             write::<C, N>(inputs, outputs, locals, write_pos, result, op.out, config);
@@ -372,8 +372,8 @@ macro_rules! comparison_op {
             #[comptime] op: BinaryFuseArgs,
             #[comptime] config: &FuseBlockConfig,
         ) {
-            let lhs = read::<C, N>(inputs, &*outputs, &locals, write_pos, op.lhs, config);
-            let rhs = read::<C, N>(inputs, &*outputs, &locals, write_pos, op.rhs, config);
+            let lhs = read::<C, N>(inputs, &*outputs, &*locals, write_pos, op.lhs, config);
+            let rhs = read::<C, N>(inputs, &*outputs, &*locals, write_pos, op.rhs, config);
             let result = Vector::new(lhs $op rhs);
 
             write::<bool, N>(inputs, outputs, locals, write_pos, result, op.out, config);
@@ -392,7 +392,7 @@ macro_rules! unary_func {
             #[comptime] op: UnaryFuseArgs,
             #[comptime] config: &FuseBlockConfig,
         ) {
-            let input = read::<C, N>(inputs, &*outputs, &locals, write_pos, op.input, config);
+            let input = read::<C, N>(inputs, &*outputs, &*locals, write_pos, op.input, config);
             let result = $func(input);
 
             write::<C, N>(inputs, outputs, locals, write_pos, result, op.out, config);
@@ -808,8 +808,9 @@ fn dequantize<C: Float, N: Size>(
     let num_quants = scheme.num_quants();
 
     set_polyfill_typed::<Vector<C, N>, DynElem, DynSize>();
-    let input =
-        read_quantized::<QStoreType, QStoreSize>(inputs, locals, write_pos, input, config, scheme);
+    let input = read_quantized::<QStoreType, QStoreSize>(
+        inputs, &*locals, write_pos, input, config, scheme,
+    );
 
     let scales =
         input_as_scales_view::<QParamType, Const<1>>(inputs, pos, tensor_pos, scheme.level, config);
@@ -850,7 +851,7 @@ comparison_op!(lower, <);
 comparison_op!(lower_equal, <=);
 
 binary_func!(powf, Vector::<C, N>::powf, Float);
-binary_func!(rem, Vector::<C, N>::rem, Float);
+binary_func!(rem, Vector::<C, N>::mod_floor, Float);
 
 unary_func!(exp, Vector::<C, N>::exp, Float);
 unary_func!(log, Vector::<C, N>::ln, Float);

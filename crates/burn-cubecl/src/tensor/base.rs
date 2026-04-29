@@ -215,8 +215,8 @@ where
     }
 
     /// Return the reference to an array argument.
-    pub fn into_array_arg(self) -> ArrayArg<R> {
-        self.into_tensor_arg().into_array_arg()
+    pub fn into_buffer_arg(self) -> BufferArg<R> {
+        self.into_tensor_arg().into_buffer_arg()
     }
 
     /// Returns a reference to the aliased tensor argument.

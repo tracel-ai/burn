@@ -1,5 +1,3 @@
-use core::ops::Rem;
-
 use crate::{
     CubeRuntime,
     kernel::utils::{address_type, broadcast_shape},
@@ -108,7 +106,7 @@ impl<T: Numeric, N: Size> BinaryOp<T, N> for DivOp {
 #[cube]
 impl<T: Numeric, N: Size> BinaryOp<T, N> for RemainderOp {
     fn execute(lhs: Vector<T, N>, rhs: Vector<T, N>) -> Vector<T, N> {
-        Vector::rem(lhs, rhs)
+        Vector::mod_floor(lhs, rhs)
     }
 }
 
@@ -117,7 +115,7 @@ impl<T: Numeric, N: Size> BinaryOp<T, N> for PowOp {
     #[allow(unused)]
     fn execute(lhs: Vector<T, N>, rhs: Vector<T, N>) -> Vector<T, N> {
         intrinsic!(|scope| {
-            let elem = T::as_type(scope).elem_type();
+            let elem = T::__expand_as_type(scope).elem_type();
 
             if let cubecl::ir::ElemType::Float(kind) = elem {
                 match kind {

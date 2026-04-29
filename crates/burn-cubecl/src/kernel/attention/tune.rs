@@ -5,7 +5,7 @@ use crate::{
 };
 use burn_backend::ops::AttentionModuleOptions;
 use cubecl::tune::{LocalTuner, Tunable, TunableSet, TuneGroup, local_tuner};
-use cubek::attention::{
+use cubek::attention::forward::{
     launch::AttentionAutotuneKey, routines::blackbox_accelerated::BlackboxAcceleratedStrategy,
 };
 

@@ -94,7 +94,7 @@ impl<E: CubePrimitive> ViewOperationsExpand<E, Coords1d> for GlobalInputExpand {
             ViewOperationsExpand::<E, Coords1d>::__expand_is_in_bounds_method(self, scope, pos);
         set_polyfill_typed::expand::<E, DynElem, DynSize>(scope);
         let slice = input_as_slice::expand(scope, &self.inputs, self.pos);
-        read_masked::expand::<E>(scope, in_bounds, &slice, pos, value)
+        read_masked::expand::<E>(scope, in_bounds, slice, pos, value)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -118,16 +118,15 @@ impl<E: CubePrimitive> ViewOperationsExpand<E, Coords1d> for GlobalInputExpand {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn __expand_to_linear_slice_method(
+    fn __expand_as_linear_slice_method(
         &self,
         scope: &Scope,
         pos: NativeExpand<usize>,
         end: NativeExpand<usize>,
-    ) -> &SliceExpand<E, ReadOnly> {
+    ) -> &SliceExpand<E> {
         set_polyfill_typed::expand::<E, DynElem, DynSize>(scope);
         let end = end.__expand_add_method(scope, 1usize.into_expand(scope));
-        let slice = read_input_window::expand(scope, &self.inputs, self.pos, pos, end);
-        scope.create_kernel_ref(slice)
+        read_input_window::expand(scope, &self.inputs, self.pos, pos, end)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -135,7 +134,7 @@ impl<E: CubePrimitive> ViewOperationsExpand<E, Coords1d> for GlobalInputExpand {
         &self,
         _scope: &Scope,
         _barrier: &BarrierExpand,
-        _shared_memory: &mut SliceExpand<E, ReadWrite>,
+        _shared_memory: &mut SliceExpand<E>,
         _pos: NativeExpand<usize>,
     ) {
         panic!("Not a tensor map")
@@ -235,12 +234,12 @@ impl<E: CubePrimitive> ViewOperationsExpand<E, Coords1d> for FusedOutputExpand {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn __expand_to_linear_slice_method(
+    fn __expand_as_linear_slice_method(
         &self,
         _scope: &Scope,
         _pos: NativeExpand<usize>,
         _size: NativeExpand<usize>,
-    ) -> &SliceExpand<E, ReadOnly> {
+    ) -> &SliceExpand<E> {
         todo!()
     }
 
@@ -249,7 +248,7 @@ impl<E: CubePrimitive> ViewOperationsExpand<E, Coords1d> for FusedOutputExpand {
         &self,
         _scope: &Scope,
         _barrier: &BarrierExpand,
-        _shared_memory: &mut SliceExpand<E, ReadWrite>,
+        _shared_memory: &mut SliceExpand<E>,
         _pos: NativeExpand<usize>,
     ) {
         panic!("Not a tensor map")
@@ -331,12 +330,12 @@ impl<E: CubePrimitive> ViewOperationsMutExpand<E, Coords1d> for FusedOutputExpan
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn __expand_to_linear_slice_mut_method(
+    fn __expand_as_linear_slice_mut_method(
         &self,
         _scope: &Scope,
         _pos: NativeExpand<usize>,
         _size: NativeExpand<usize>,
-    ) -> &mut SliceExpand<E, ReadWrite> {
+    ) -> &mut SliceExpand<E> {
         todo!("Not yet supported")
     }
 
@@ -344,7 +343,7 @@ impl<E: CubePrimitive> ViewOperationsMutExpand<E, Coords1d> for FusedOutputExpan
     fn __expand_tensor_map_store_method(
         &self,
         _scope: &Scope,
-        _shared_memory: &SliceExpand<E, ReadOnly>,
+        _shared_memory: &SliceExpand<E>,
         _pos: NativeExpand<usize>,
     ) {
         panic!("Not a tensor map")

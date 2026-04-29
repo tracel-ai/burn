@@ -301,10 +301,10 @@ struct DeformConv2dCol2ImgCoordArgs {
 fn deform_col2img_coord_kernel<F: Float>(
     image: &Tensor<F>,
     offset: &Tensor<F>,
-    mask: &ComptimeOption<Tensor<F>>,
+    mask: ComptimeOption<&Tensor<F>>,
     columns: &Tensor<F>,
     grad_offset: &mut LinearView<F, ReadWrite>,
-    grad_mask: &mut ComptimeOption<Tensor<F>>,
+    grad_mask: ComptimeOption<&mut Tensor<F>>,
     pos_shape: Sequence<FastDivmod<usize>>,
     args: &DeformConv2dCol2ImgCoordArgs,
     #[define(F)] _dtype: StorageType,
@@ -565,7 +565,7 @@ struct DeformConv2dCol2ImgArgs {
 #[cube(launch_unchecked, address_type = "dynamic")]
 fn deform_col2img_kernel<F: Float, FP: Float, FAdd: FloatAtomicAddFamily>(
     offset: &Tensor<F>,
-    mask: &ComptimeOption<Tensor<F>>,
+    mask: ComptimeOption<&Tensor<F>>,
     columns: &LinearView<F>,
     grad_input: &mut Tensor<Atomic<ProxyType<FAdd, FP>>>,
     pos_shape: Sequence<FastDivmod<usize>>,

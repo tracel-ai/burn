@@ -226,13 +226,13 @@ impl ExpandTypeClone for FusedReduceStateExpand {
 }
 
 impl AsRefExpand for FusedReduceStateExpand {
-    fn __expand_as_ref_method(&self, _: &Scope) -> &Self {
+    fn __expand_ref_method(&self, _: &Scope) -> &Self {
         self
     }
 }
 
 impl AsMutExpand for FusedReduceStateExpand {
-    fn __expand_as_mut_method(&mut self, _: &Scope) -> &mut Self {
+    fn __expand_ref_mut_method(&mut self, _: &Scope) -> &mut Self {
         self
     }
 }

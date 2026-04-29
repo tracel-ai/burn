@@ -264,19 +264,19 @@ pub fn read_input_window<C: CubePrimitive>(
     #[comptime] pos: usize,
     start: usize,
     end: usize,
-) -> Slice<C> {
+) -> &[C] {
     set_polyfill_typed::<C, DynElem, DynSize>();
     let tensor = inputs.tensors.index(pos);
-    let slice = tensor.tensor.slice(start, end);
+    let slice = &tensor.tensor[start..end];
     slice.downcast()
 }
 
 /// Returns the input as a slice.
 #[cube]
-pub fn input_as_slice<C: CubePrimitive>(inputs: &GlobalArgs, #[comptime] pos: usize) -> Slice<C> {
+pub fn input_as_slice<C: CubePrimitive>(inputs: &GlobalArgs, #[comptime] pos: usize) -> &[C] {
     set_polyfill_typed::<C, DynElem, DynSize>();
     let tensor = inputs.tensors.index(pos);
-    let slice = tensor.tensor.to_slice();
+    let slice = tensor.tensor.as_slice();
     slice.downcast()
 }
 
@@ -316,7 +316,8 @@ pub fn input_as_scales_view<C: Scalar, N: Size>(
             ScalesLayout::new_BlockScaled(layout)
         }
     };
-    View::new::<Slice<C>, usize>(scales.tensor.to_slice().downcast(), layout)
+    let slice = scales.tensor.as_slice().downcast();
+    View::new::<Box<[C]>, usize>(unsafe { slice.as_boxed_unchecked() }, layout)
 }
 
 /// Reads the input tensor aligned.
@@ -500,9 +501,9 @@ fn write_output_aligned<C: Scalar, N: Size>(
             for i in 0..config.width {
                 let idx = offset + i * stride;
                 let val = if comptime![value.vector_size() == config.width] {
-                    Vector::cast_from(value[i])
+                    Vector::cast_from(value.extract(i))
                 } else {
-                    Vector::cast_from(value[i % value.vector_size()])
+                    Vector::cast_from(value.extract(i % value.vector_size()))
                 };
                 output.tensor[idx] = val;
             }
@@ -529,9 +530,9 @@ fn write_output_aligned<C: Scalar, N: Size>(
                 let output = outputs.tensors.index_mut(pos);
 
                 let val = if comptime![value.vector_size() == config.width] {
-                    Vector::cast_from(value[i])
+                    Vector::cast_from(value.extract(i))
                 } else {
-                    Vector::cast_from(value[i % value.vector_size()])
+                    Vector::cast_from(value.extract(i % value.vector_size()))
                 };
                 output.tensor[offset] = val;
             }
@@ -861,14 +862,14 @@ pub(crate) fn reverse_index(
 #[allow(unused_variables)]
 #[cube]
 fn from_const_int<C: CubePrimitive>(#[comptime] value: usize) -> C {
-    intrinsic!(|scope| { Variable::constant(value.into(), C::as_type(scope)).into() })
+    intrinsic!(|scope| { Variable::constant(value.into(), C::__expand_as_type(scope)).into() })
 }
 
 #[cube]
 #[allow(clippy::extra_unused_type_parameters)]
 pub(crate) fn set_polyfill_typed<C: CubePrimitive, Dyn: Scalar, DynSize: Size>() {
     intrinsic!(|scope| {
-        let elem_type = C::as_type(scope);
+        let elem_type = C::__expand_as_type(scope);
         set_polyfill::expand::<Dyn, DynSize>(scope, elem_type);
     })
 }

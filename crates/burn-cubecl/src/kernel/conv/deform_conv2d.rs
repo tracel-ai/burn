@@ -37,7 +37,7 @@ struct DeformConv2dArgs {
 fn deform_im2col_kernel<F: Float>(
     input: &Tensor<F>,
     offset: &Tensor<F>,
-    mask: &ComptimeOption<Tensor<F>>,
+    mask: ComptimeOption<&Tensor<F>>,
     columns: &mut Tensor<F>,
     pos_shape: Sequence<FastDivmod<usize>>,
     args: &DeformConv2dArgs,
