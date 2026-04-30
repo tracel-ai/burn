@@ -661,4 +661,3 @@ fn cfft_rejects_mismatched_shapes() {
     let im = TestTensor::<1>::from([1.0, 2.0]);
     let _ = cfft(re, im, 0, None);
 }
-

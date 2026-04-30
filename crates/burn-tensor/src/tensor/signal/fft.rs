@@ -234,8 +234,15 @@ fn hermitian_extend<B: Backend, const D: usize>(
     // Mirror bins: reverse of bins 1..N/2, with conjugated imaginary part
     // This produces X[N/2+1], X[N/2+2], ..., X[N-1]
     let mirror_len = full_len - half_len; // N/2 - 1
-    let mirror_re = half_re.clone().narrow(dim, 1, mirror_len).flip([dim as isize]);
-    let mirror_im = half_im.clone().narrow(dim, 1, mirror_len).flip([dim as isize]).neg();
+    let mirror_re = half_re
+        .clone()
+        .narrow(dim, 1, mirror_len)
+        .flip([dim as isize]);
+    let mirror_im = half_im
+        .clone()
+        .narrow(dim, 1, mirror_len)
+        .flip([dim as isize])
+        .neg();
 
     // Full spectrum = [half_spectrum, conjugate_mirror]
     let full_re = Tensor::cat(vec![half_re, mirror_re], dim);
