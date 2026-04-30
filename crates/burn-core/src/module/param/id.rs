@@ -62,17 +62,26 @@ impl ParamId {
     /// # Returns
     /// An Option<ParamId>
     pub fn try_deserialize(encoded: &str) -> Option<ParamId> {
-        match BASE32_DNSSEC.decode(encoded.as_bytes()) {
+        let u64_id: Option<u64> = match BASE32_DNSSEC.decode(encoded.as_bytes()) {
             Ok(bytes) => {
                 let mut buffer = [0u8; 8];
                 buffer[..bytes.len()].copy_from_slice(&bytes);
-                Some(ParamId::from(u64::from_le_bytes(buffer)))
+                Some(u64::from_le_bytes(buffer))
             }
             Err(_) => match uuid::Uuid::try_parse(encoded) {
-                Ok(id) => Some(ParamId::deserialize(&id.to_string())),
+                // Backward compatibility with uuid parameter identifiers
+                Ok(id) => {
+                    // Hash the 128-bit uuid to 64-bit
+                    // Though not *theoretically* unique, the probability of a collision should be extremely low
+                    let mut hasher = DefaultHashBuilder::default().build_hasher();
+                    // let mut hasher = DefaultHasher::new();
+                    hasher.write(id.as_bytes());
+                    Some(hasher.finish())
+                }
                 Err(_) => None,
             },
-        }
+        };
+        u64_id.map(Self::from)
     }
 }
 
