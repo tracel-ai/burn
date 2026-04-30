@@ -85,7 +85,7 @@ macro_rules! reduce_float2int_ops {
                 let output = $ops(
                     input,
                     self.desc.axis,
-                    self.desc.reduce_len,
+                    self.desc.accumulator_len,
                     self.desc.out.dtype.into(),
                 );
 

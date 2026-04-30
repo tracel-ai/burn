@@ -867,7 +867,7 @@ pub struct ReduceDimOpIr {
     pub input: TensorIr,
     pub out: TensorIr,
     pub axis: usize,
-    pub reduce_len: usize,
+    pub accumulator_len: usize,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Serialize, Deserialize)]

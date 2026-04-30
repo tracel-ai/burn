@@ -166,13 +166,13 @@ pub fn reduce_dim<Run: CubeRuntime>(
         "
     );
 
-    let reduce_len = match config {
+    let accumulator_len = match config {
         ReduceOperationConfig::ArgTopK(k) => k,
         _ => 1,
     };
     let dtypes = config.precision(input.dtype.into(), output_dtype.map(Into::into));
     let client = input.client.clone();
-    let output = init_reduce_output::<Run>(&input, dim, &dtypes, reduce_len).ok_or(
+    let output = init_reduce_output::<Run>(&input, dim, &dtypes, accumulator_len).ok_or(
         cubek::reduce::ReduceError::InvalidAxis {
             axis: dim,
             rank: input.meta.num_dims(),
@@ -218,11 +218,11 @@ pub fn init_reduce_output<Run: CubeRuntime>(
     input: &CubeTensor<Run>,
     dim: usize,
     dtypes: &ReduceDtypes,
-    reduce_len: usize,
+    accumulator_len: usize,
 ) -> Option<CubeTensor<Run>> {
     (dim < input.meta.num_dims()).then(|| {
         let mut shape_out = input.shape();
-        shape_out[dim] = reduce_len;
+        shape_out[dim] = accumulator_len;
         empty_device_contiguous_dtype(
             input.client.clone(),
             input.device.clone(),
