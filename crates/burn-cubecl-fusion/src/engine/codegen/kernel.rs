@@ -1,3 +1,5 @@
+use crate::engine::codegen::{DynElem, DynSize};
+
 use super::{io::*, ir::*};
 use burn_std::quantization::{QuantScheme, QuantStore, QuantValue};
 use cubecl::{
@@ -800,6 +802,8 @@ fn dequantize<C: Float, N: Size>(
         FuseArg::Input(pos, ..) => pos,
         _ => unreachable!(""),
     });
+
+    set_polyfill_typed::<Vector<C, N>, DynElem, DynSize>();
     let input =
         read_quantized::<QStoreType, QStoreSize>(inputs, locals, write_pos, input, config, scheme);
 
