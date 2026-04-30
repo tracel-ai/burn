@@ -74,6 +74,13 @@ where
         grad: Tensor<CubeBackend<R, F, I, BT>, D>,
         state: Option<Self::State<D>>,
     ) -> (Tensor<CubeBackend<R, F, I, BT>, D>, Option<Self::State<D>>) {
+        eprintln!(
+            "[step] D={} state_present={} time={:?}",
+            D,
+            state.is_some(),
+            state.as_ref().map(|s| s.time),
+        );
+
         let original_shape = tensor.shape().dims::<D>();
         let total_elements: usize = original_shape.iter().product();
         let padding = (BLOCK_SIZE - (total_elements % BLOCK_SIZE)) % BLOCK_SIZE;
