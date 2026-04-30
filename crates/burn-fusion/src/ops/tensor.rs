@@ -1908,9 +1908,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
 
         let streams = OperationStreams::with_inputs([&tensor]);
 
-        // TODO: output dtype should be defined by the device policy
         let client = tensor.client.clone();
-        // TODO: rename `create_with_dtype` specifically for ARG / indices
         let desc = ReduceDimOpIr::create_arg(tensor.into_ir(), dim, 1, out_dtype.into(), || {
             client.create_empty_handle()
         });
@@ -1937,9 +1935,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
 
         let streams = OperationStreams::with_inputs([&tensor]);
 
-        // TODO: output dtype should be defined by the device policy
         let client = tensor.client.clone();
-        // TODO: rename `create_with_dtype` specifically for ARG / indices
         let desc = ReduceDimOpIr::create_arg(tensor.into_ir(), dim, k, out_dtype.into(), || {
             client.create_empty_handle()
         });
