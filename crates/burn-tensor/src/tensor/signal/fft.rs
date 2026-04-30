@@ -200,9 +200,10 @@ pub fn cfft<B: Backend, const D: usize>(
         signal_im.shape(),
     );
 
+    check!(TensorCheck::check_dim::<D>(dim));
     let fft_size = n.unwrap_or(signal_re.dims()[dim]);
 
-    // rfft validates dim, power-of-two, and n constraints internally
+    // rfft validates power-of-two and n constraints internally
     let (xr, xi) = rfft(signal_re, dim, n);
     let (yr, yi) = rfft(signal_im, dim, n);
 
