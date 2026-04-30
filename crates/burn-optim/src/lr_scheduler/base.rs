@@ -9,7 +9,7 @@ use crate::LearningRate;
 /// Learning rate scheduler defines how the learning rate will evolve during training.
 pub trait LrScheduler: Clone + Send + Sync {
     /// Scheduler associative type to be used when saving and loading the state.
-    type Record<B: Backend>: Record<B>;
+    type Record<B: Backend>: Record<B> + Clone + 'static;
 
     /// Perform the scheduler step, potentially updating its state, and returning the effective
     /// learning rate.
