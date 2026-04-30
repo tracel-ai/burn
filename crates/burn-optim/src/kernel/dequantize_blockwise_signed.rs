@@ -31,7 +31,7 @@ pub fn dequantize_blockwise_signed_kernel(
     // for slot 0 we shift by 0, slot 1 shifts by 8, slot 2 by 16, slot 3 by 24.
     let packed = codes_in[pack_idx];
     let shift = (slot as u32) * 8u32;
-    let code = (packed >> shift) & 0xffu32;
+    let code = (packed >> shift) & 0xffu32; // 255 as u32
 
     let scale = scales_in[block_idx];
     let normalized = decode_signed_one(code);
