@@ -52,7 +52,7 @@ impl ParamId {
     /// # Panics
     /// On invalid id format
     pub fn deserialize(encoded: &str) -> ParamId {
-        Self::try_deserialize(&encoded).expect("Invalid id.")
+        Self::try_deserialize(encoded).expect("Invalid id.")
     }
 
     /// Deserialize a param id.
@@ -60,7 +60,7 @@ impl ParamId {
     /// Preserves compatibility with previous formats (6 bytes, 16-byte uuid).
     ///
     /// # Returns
-    /// An Option<ParamId>
+    /// An `Option<ParamId>`
     pub fn try_deserialize(encoded: &str) -> Option<ParamId> {
         let u64_id: Option<u64> = match BASE32_DNSSEC.decode(encoded.as_bytes()) {
             Ok(bytes) => {
