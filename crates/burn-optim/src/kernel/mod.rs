@@ -7,3 +7,5 @@ pub mod dequantize_blockwise_signed;
 pub mod dequantize_blockwise_unsigned;
 pub mod quantize_blockwise_signed;
 pub mod quantize_blockwise_unsigned;
+
+pub mod fused_adamw8bit_step;
