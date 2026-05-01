@@ -4,7 +4,6 @@ use burn_backend::{
     Backend, DType, QTensorPrimitive, Shape, TensorMetadata, quantization::QuantScheme,
 };
 
-#[cfg(feature = "autodiff")]
 use crate::CheckpointingStrategy;
 #[cfg(feature = "autodiff")]
 use alloc::boxed::Box;
