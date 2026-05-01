@@ -5,11 +5,7 @@ use image::{DynamicImage, ImageBuffer, Luma, Rgb};
 
 use burn_core::tensor::{Bool, Int};
 
-#[cfg(all(
-    test,
-    feature = "ndarray",
-    not(any(feature = "wgpu", feature = "cuda"))
-))]
+#[cfg(all(test, feature = "flex", not(any(feature = "wgpu", feature = "cuda"))))]
 pub type TestDevice = burn_flex::FlexDevice;
 
 #[cfg(all(test, feature = "wgpu"))]

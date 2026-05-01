@@ -440,7 +440,6 @@ macro_rules! unary_op_arms {
                     } else {
                         $crate::DispatchTensor {
                             kind: $crate::DispatchTensorKind::$Backend($crate::BackendTensor::Float($body)),
-                            #[cfg(feature = "autodiff")]
                             checkpointing,
                         }
                     }
@@ -448,6 +447,7 @@ macro_rules! unary_op_arms {
                     #[cfg(not(feature = "autodiff"))]
                     $crate::DispatchTensor {
                         kind: $crate::DispatchTensorKind::$Backend($crate::BackendTensor::Float($body)),
+                        checkpointing,
                     }
                 }
             )*
