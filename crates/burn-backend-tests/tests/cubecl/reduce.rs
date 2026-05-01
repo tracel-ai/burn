@@ -1,6 +1,7 @@
 use super::*;
 use burn_tensor::Distribution;
 use burn_tensor::Shape;
+use burn_tensor::TensorData;
 use burn_tensor::Tolerance;
 
 const RANK: usize = 4;
@@ -227,6 +228,49 @@ fn reduction_topk_3d_random_complex() {
         "Output shape should be [2, 3, 2]"
     );
     actual.into_data().assert_eq(&expected.into_data(), false);
+}
+
+#[test]
+fn test_topk_1d() {
+    // Int
+    let tensor = TestTensorInt::<1>::from([1, 2, 3, 4, 5]);
+
+    let values = tensor.topk(3, /*dim*/ 0);
+    let expected = TensorData::from([5, 4, 3]);
+
+    values.into_data().assert_eq(&expected, false);
+
+    // Float
+    let tensor = TestTensor::<1>::from([1., 2., 3., 4., 5.]);
+
+    let values = tensor.topk(3, /*dim*/ 0);
+    let expected = TensorData::from([5., 4., 3.]);
+
+    values
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
+}
+
+#[test]
+fn test_topk() {
+    // 3D Int
+    let tensor = TestTensorInt::<3>::from([[[1, 4, 7], [2, 5, 6]], [[3, 0, 9], [8, 2, 8]]]);
+
+    let values = tensor.topk(2, /*dim*/ 2);
+    let expected = TensorData::from([[[7, 4], [6, 5]], [[9, 3], [8, 8]]]);
+
+    values.into_data().assert_eq(&expected, false);
+
+    // 3D Float
+    let tensor =
+        TestTensor::<3>::from([[[1., 4., 7.], [2., 5., 6.]], [[3., 0., 9.], [8., 2., 8.]]]);
+
+    let values = tensor.topk(2, /*dim*/ 2);
+    let expected = TensorData::from([[[7., 4.], [6., 5.]], [[9., 3.], [8., 8.]]]);
+
+    values
+        .into_data()
+        .assert_approx_eq::<FloatElem>(&expected, Tolerance::default());
 }
 
 #[test]
