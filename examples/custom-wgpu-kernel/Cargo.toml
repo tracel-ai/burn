@@ -15,6 +15,7 @@ burn = { workspace = true, features = [
     "wgpu",
     "autotune",
     "template",
+    "extension"
 ] }
 cubecl = { workspace = true, features = ["wgpu"] }
 

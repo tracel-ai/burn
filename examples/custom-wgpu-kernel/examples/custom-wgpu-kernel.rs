@@ -1,13 +1,11 @@
 use burn::{
-    backend::wgpu::WgpuRuntime,
-    tensor::{Distribution, Tensor, Tolerance},
+    backend::wgpu::WgpuDevice,
+    tensor::{Device, Distribution, Tensor, Tolerance},
 };
-use custom_wgpu_kernel::{
-    AutodiffBackend, Backend, matmul_add_relu_custom, matmul_add_relu_reference,
-};
+use custom_wgpu_kernel::{matmul_add_relu_custom, matmul_add_relu_reference};
 
-fn inference<B: Backend>(device: &B::Device) {
-    let lhs = Tensor::<B, 3>::random([1, 32, 32], Distribution::Default, device);
+fn inference(device: &Device) {
+    let lhs = Tensor::<3>::random([1, 32, 32], Distribution::Default, device);
     let rhs = Tensor::random([32, 32, 32], Distribution::Default, device);
     let bias = Tensor::random([32, 32, 32], Distribution::Default, device);
 
@@ -23,8 +21,8 @@ fn inference<B: Backend>(device: &B::Device) {
     println!("Both reference and the custom fused kernel have the same output");
 }
 
-fn autodiff<B: AutodiffBackend>(device: &B::Device) {
-    let lhs = Tensor::<B, 3>::random([1, 32, 32], Distribution::Default, device).require_grad();
+fn autodiff(device: &Device) {
+    let lhs = Tensor::<3>::random([1, 32, 32], Distribution::Default, device).require_grad();
     let rhs = Tensor::random([32, 32, 32], Distribution::Default, device).require_grad();
     let bias = Tensor::random([32, 32, 32], Distribution::Default, device).require_grad();
 
@@ -50,39 +48,26 @@ fn autodiff<B: AutodiffBackend>(device: &B::Device) {
 
     lhs_grad_ref
         .into_data()
-        .convert::<B::FloatElem>()
-        .assert_approx_eq::<f32>(
-            &lhs_grad_custom.into_data().convert::<B::FloatElem>(),
-            Tolerance::default(),
-        );
+        .assert_approx_eq::<f32>(&lhs_grad_custom.into_data(), Tolerance::default());
 
     println!("Both reference and the custom fused kernel have the same lhs gradient");
 
     rhs_grad_ref
         .into_data()
         .convert::<f32>()
-        .assert_approx_eq::<f32>(
-            &rhs_grad_custom.into_data().convert::<B::FloatElem>(),
-            Tolerance::default(),
-        );
+        .assert_approx_eq::<f32>(&rhs_grad_custom.into_data(), Tolerance::default());
 
     println!("Both reference and the custom fused kernel have the same rhs gradient");
 
     bias_grad_ref
         .into_data()
-        .convert::<f32>()
-        .assert_approx_eq::<f32>(
-            &bias_grad_custom.into_data().convert::<B::FloatElem>(),
-            Tolerance::default(),
-        );
+        .assert_approx_eq::<f32>(&bias_grad_custom.into_data(), Tolerance::default());
 
     println!("Both reference and the custom fused kernel have the same bias gradient");
 }
 
 fn main() {
-    type MyBackend = burn::backend::wgpu::CubeBackend<WgpuRuntime, f32, i32, u32>;
-    type MyAutodiffBackend = burn::backend::Autodiff<MyBackend>;
-    let device = Default::default();
-    inference::<MyBackend>(&device);
-    autodiff::<MyAutodiffBackend>(&device);
+    let device = WgpuDevice::default().into();
+    inference(&device);
+    autodiff(&device.autodiff());
 }
