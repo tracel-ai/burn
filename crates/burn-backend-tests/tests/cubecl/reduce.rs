@@ -27,7 +27,7 @@ fn reduction_argtopk_simple() {
     let device = Default::default();
 
     let tensor = TestTensor::<2>::from_data([[1, 7, 3], [8, 2, 8]], &device);
-    let actual = tensor.argtopk(1, 2);
+    let actual = tensor.argtopk(2, 1);
     let expected = TestTensor::<2>::from_data([[1, 2], [0, 2]], &device);
 
     let output_shape = Shape::new([2, 2]);
@@ -41,7 +41,7 @@ fn reduction_argtopk_1d() {
 
     let tensor = TestTensor::<1>::from_data([10.0, 50.0, 20.0, 40.0, 30.0], &device);
     let k = 3;
-    let actual = tensor.argtopk(0, k);
+    let actual = tensor.argtopk(k, 0);
 
     let expected = TestTensor::<1>::from_data([1, 3, 4], &device);
 
@@ -59,7 +59,7 @@ fn reduction_argtopk_3d_dim0() {
         &device,
     );
     let k = 1;
-    let actual = tensor.argtopk(0, k);
+    let actual = tensor.argtopk(k, 0);
 
     let expected = TestTensor::<3>::from_data([[[0, 1], [1, 0]]], &device);
 
@@ -73,7 +73,7 @@ fn reduction_argtopk_ties() {
 
     let tensor = TestTensor::<1>::from_data([5.0, 2.0, 5.0, 5.0], &device);
     let k = 2;
-    let actual = tensor.argtopk(0, k);
+    let actual = tensor.argtopk(k, 0);
 
     let expected = TestTensor::<1>::from_data([0, 2], &device);
 
@@ -104,7 +104,7 @@ fn reduction_argtopk_3d_random_complex() {
 
     let k = 2;
     let dim = 2;
-    let actual = tensor.argtopk(dim, k);
+    let actual = tensor.argtopk(k, dim);
 
     #[rustfmt::skip]
     let expected = TestTensor::<3>::from_data(
@@ -137,7 +137,7 @@ fn reduction_topk_simple() {
     let device = Default::default();
 
     let tensor = TestTensor::<2>::from_data([[1, 7, 3], [8, 2, 8]], &device);
-    let actual = tensor.topk(1, 2);
+    let actual = tensor.topk(2, 1);
     let expected = TestTensor::<2>::from_data([[7, 3], [8, 8]], &device);
 
     let output_shape = Shape::new([2, 2]);
@@ -155,7 +155,7 @@ fn reduction_topk_3d_dim0() {
         &device,
     );
     let k = 1;
-    let actual = tensor.topk(0, k);
+    let actual = tensor.topk(k, 0);
 
     // Max values across dim 0
     let expected = TestTensor::<3>::from_data([[[10.0, 10.0], [20.0, 20.0]]], &device);
@@ -170,7 +170,7 @@ fn reduction_topk_ties() {
 
     let tensor = TestTensor::<1>::from_data([5.0, 2.0, 5.0, 5.0], &device);
     let k = 2;
-    let actual = tensor.topk(0, k);
+    let actual = tensor.topk(k, 0);
 
     let expected = TestTensor::<1>::from_data([5.0, 5.0], &device);
 
@@ -201,7 +201,7 @@ fn reduction_topk_3d_random_complex() {
 
     let k = 2;
     let dim = 2;
-    let actual = tensor.topk(dim, k);
+    let actual = tensor.topk(k, dim);
 
     #[rustfmt::skip]
     let expected = TestTensor::<3>::from_data(

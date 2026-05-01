@@ -231,7 +231,7 @@ where
     ///   // [[12.0], [6.0]]
     /// }
     /// ```
-    pub fn topk(self, dim: usize, k: usize) -> Self {
+    pub fn topk(self, k: usize, dim: usize) -> Self {
         assert!(self.shape()[dim] > k);
         Tensor::new(K::topk(self.primitive, dim, k))
     }
@@ -616,7 +616,7 @@ where
     ///     println!("{:?}", tensor.shape());
     /// }
     /// ```
-    pub fn argtopk(self, dim: usize, k: usize) -> Tensor<B, D, Int> {
+    pub fn argtopk(self, k: usize, dim: usize) -> Tensor<B, D, Int> {
         assert!(self.shape()[dim] > k);
         Tensor::new(K::argtopk(self.primitive, dim, k))
     }
