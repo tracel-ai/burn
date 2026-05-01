@@ -269,6 +269,9 @@ impl<B: Backend, C: CheckpointStrategy> IntTensorOps<Self> for Autodiff<B, C> {
     fn int_max_dim(tensor: IntTensor<B>, dim: usize) -> IntTensor<B> {
         B::int_max_dim(tensor, dim)
     }
+    fn int_topk(tensor: IntTensor<B>, dim: usize, k: usize) -> IntTensor<B> {
+        B::int_topk(tensor, dim, k)
+    }
     fn int_max_dim_with_indices(tensor: IntTensor<B>, dim: usize) -> (IntTensor<B>, IntTensor<B>) {
         B::int_max_dim_with_indices(tensor, dim)
     }

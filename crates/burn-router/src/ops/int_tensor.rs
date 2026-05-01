@@ -723,6 +723,18 @@ impl<R: RunnerChannel> IntTensorOps<Self> for BackendRouter<R> {
             .output()
     }
 
+    fn int_topk(tensor: IntTensor<Self>, dim: usize, k: usize) -> IntTensor<Self> {
+        let client = tensor.client.clone();
+        let desc = ReduceDimOpIr::create(tensor.into_ir(), dim, k, || client.create_empty_handle());
+
+        client
+            .register(OperationIr::NumericInt(
+                desc.out.dtype,
+                NumericOperationIr::TopK(desc),
+            ))
+            .output()
+    }
+
     fn int_argmin(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
         let client = tensor.client.clone();
         let desc = ReduceDimOpIr::create(tensor.into_ir(), dim, 1, || client.create_empty_handle());

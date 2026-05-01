@@ -977,6 +977,13 @@ pub trait QTensorOps<B: Backend> {
         B::float_argtopk(tensor_f, dim, k, out_dtype)
     }
 
+    fn q_topk(tensor: QuantizedTensor<B>, dim: usize, k: usize) -> QuantizedTensor<B> {
+        dequant_op_quant!(
+            float_op | tensor | B::float_topk(tensor, dim, k),
+            tensor
+        )
+    }
+
     /// Gets the indices of the minimum elements of a tensor along an axis.
     ///
     /// # Arguments

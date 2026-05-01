@@ -396,6 +396,8 @@ pub trait Ordered<B: Backend>: Numeric<B> {
     /// function, which is more high-level and designed for public use.
     fn argtopk(tensor: Self::Primitive, dim: usize, k: usize) -> IntTensor<B>;
 
+    fn topk(tensor: Self::Primitive, dim: usize, k: usize) -> Self::Primitive;
+
     /// Gets the indices of the minimum elements of a tensor along an axis.
     ///
     /// # Arguments

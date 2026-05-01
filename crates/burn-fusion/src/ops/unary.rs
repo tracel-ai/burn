@@ -58,7 +58,7 @@ macro_rules! reduce_float_ops {
         impl<B: FusionBackend> Operation<B::FusionRuntime> for $name<B> {
             fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let input = handles.get_float_tensor::<B>(&self.desc.input);
-                let output = $ops(input, self.desc.axis);
+                let output = $ops(input, self.desc.axis, self.desc.accumulator_len);
 
                 handles.register_float_tensor::<B>(&self.desc.out.id, output);
             }
@@ -111,7 +111,7 @@ macro_rules! reduce_int_ops {
         impl<B: FusionBackend> Operation<B::FusionRuntime> for $name<B> {
             fn execute(&self, handles: &mut HandleContainer<B::Handle>) {
                 let input = handles.get_int_tensor::<B>(&self.desc.input);
-                let output = $ops(input, self.desc.axis);
+                let output = $ops(input, self.desc.axis, self.desc.accumulator_len);
 
                 handles.register_int_tensor::<B>(&self.desc.out.id, output);
             }

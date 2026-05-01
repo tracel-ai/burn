@@ -7,7 +7,7 @@ use burn_tensor::Tolerance;
 fn test_topk_1d() {
     let tensor = QTensor::<1>::int8([1.0, 2.0, 3.0, 4.0, 5.0]);
 
-    let values = tensor.topk(3, /*dim*/ 0);
+    let values = tensor.topk(0, /*k */ 3);
     let expected = TensorData::from([5., 4., 3.]);
 
     values

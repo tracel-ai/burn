@@ -1014,6 +1014,12 @@ impl RelativeOps for NumericOperationIr {
                 axis: desc.axis, // Axis should stay the same.
                 accumulator_len: desc.accumulator_len,
             }),
+            NumericOperationIr::TopK(desc) => NumericOperationIr::TopK(ReduceDimOpIr {
+                input: desc.input.to_relative(converter),
+                out: desc.out.to_relative(converter),
+                axis: desc.axis, // Axis should stay the same.
+                accumulator_len: desc.accumulator_len,
+            }),
             NumericOperationIr::ArgMin(desc) => NumericOperationIr::ArgMin(ReduceDimOpIr {
                 input: desc.input.to_relative(converter),
                 out: desc.out.to_relative(converter),

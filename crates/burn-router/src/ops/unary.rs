@@ -31,7 +31,7 @@ macro_rules! reduce_float_dim_ops {
         $handles:expr, $desc:expr, $ops:expr
     ) => {{
         let input = $handles.get_float_tensor::<B>(&$desc.input);
-        let output = $ops(input, $desc.axis);
+        let output = $ops(input, $desc.axis, $desc.accumulator_len);
 
         $handles.register_float_tensor::<B>(&$desc.out.id, output);
     }};

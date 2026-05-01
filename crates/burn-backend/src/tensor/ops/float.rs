@@ -660,6 +660,14 @@ impl<B: Backend> Ordered<B> for Float {
         }
     }
 
+
+    fn topk(tensor: Self::Primitive, dim: usize, k: usize) -> Self::Primitive {
+        match tensor {
+            TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_topk(tensor, dim, k)),
+            TensorPrimitive::QFloat(tensor) => TensorPrimitive::QFloat(B::q_topk(tensor, dim, k)),
+        }
+    }
+
     fn max_dim_with_indices(
         tensor: Self::Primitive,
         dim: usize,

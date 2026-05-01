@@ -1389,6 +1389,12 @@ pub trait FloatTensorOps<B: Backend> {
         out_dtype: IntDType,
     ) -> IntTensor<B>;
 
+    fn float_topk(
+        tensor: FloatTensor<B>,
+        dim: usize,
+        k: usize,
+    ) -> FloatTensor<B>;
+
     /// Gets the indices of the minimum elements of a tensor along an axis.
     ///
     /// # Arguments

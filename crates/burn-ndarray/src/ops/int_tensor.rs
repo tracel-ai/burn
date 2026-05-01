@@ -335,7 +335,11 @@ where
     }
 
     fn int_argtopk(_tensor: NdArrayTensor, _dim: usize, _k: usize) -> NdArrayTensor {
-        todo!();
+        unimplemented!("argtopk not implemented for ndarray");
+    }
+
+    fn int_topk(_tensor: NdArrayTensor, _dim: usize, _k: usize) -> NdArrayTensor {
+        unimplemented!("topk not implemented for ndarray");
     }
 
     fn int_argmin(tensor: NdArrayTensor, dim: usize) -> NdArrayTensor {

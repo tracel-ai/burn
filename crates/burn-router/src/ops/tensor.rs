@@ -1136,6 +1136,25 @@ impl<R: RunnerChannel> FloatTensorOps<Self> for BackendRouter<R> {
             .output()
     }
 
+
+    fn float_topk(
+        tensor: FloatTensor<Self>,
+        dim: usize,
+        k: usize,
+    ) -> FloatTensor<Self> {
+        let client = tensor.client.clone();
+        let desc = ReduceDimOpIr::create(tensor.into_ir(), dim, k, || {
+            client.create_empty_handle()
+        });
+
+        client
+            .register(OperationIr::NumericFloat(
+                desc.input.dtype,
+                NumericOperationIr::TopK(desc),
+            ))
+            .output()
+    }
+
     fn float_repeat_dim(tensor: FloatTensor<Self>, dim: usize, times: usize) -> FloatTensor<Self> {
         let client = tensor.client.clone();
         let desc = RepeatDimOpIr::create(tensor.into_ir(), dim, times, || {

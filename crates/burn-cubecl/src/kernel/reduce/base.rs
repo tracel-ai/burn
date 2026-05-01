@@ -168,6 +168,7 @@ pub fn reduce_dim<Run: CubeRuntime>(
 
     let accumulator_len = match config {
         ReduceOperationConfig::ArgTopK(k) => k,
+        ReduceOperationConfig::TopK(k) => k,
         _ => 1,
     };
     let dtypes = config.precision(input.dtype.into(), output_dtype.map(Into::into));

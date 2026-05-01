@@ -2,7 +2,7 @@
 
 #![recursion_limit = "256"]
 // TODO: some tests are failing WITH fusion. Should validate the existing failures.
-#[cfg(all(feature = "cube", not(feature = "fusion")))]
+//#[cfg(all(feature = "cube", not(feature = "fusion")))]
 #[path = "."]
 mod cube {
     type FloatElem = f32;

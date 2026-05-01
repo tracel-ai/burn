@@ -624,6 +624,21 @@ where
         .unwrap()
     }
 
+    fn float_topk(
+        tensor: FloatTensor<Self>,
+        dim: usize,
+        k: usize,
+    ) -> FloatTensor<Self> {
+        reduce::reduce_dim(
+            tensor,
+            None,
+            dim,
+            Default::default(),
+            ReduceOperationConfig::TopK(k),
+        )
+        .unwrap()
+    }
+
     fn float_argmin(tensor: FloatTensor<Self>, dim: usize, out_dtype: IntDType) -> IntTensor<Self> {
         reduce::reduce_dim(
             tensor,
