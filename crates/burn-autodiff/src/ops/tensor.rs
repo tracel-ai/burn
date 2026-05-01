@@ -2141,11 +2141,7 @@ impl<B: Backend, C: CheckpointStrategy> FloatTensorOps<Self> for Autodiff<B, C> 
         B::float_argtopk(tensor.primitive, dim, k, out_dtype)
     }
 
-    fn float_topk(
-        _tensor: FloatTensor<Self>,
-        _dim: usize,
-        _k: usize,
-    ) -> FloatTensor<Self> {
+    fn float_topk(_tensor: FloatTensor<Self>, _dim: usize, _k: usize) -> FloatTensor<Self> {
         unimplemented!("topk is not implemented for autodiff");
     }
 

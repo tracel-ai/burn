@@ -1389,11 +1389,19 @@ pub trait FloatTensorOps<B: Backend> {
         out_dtype: IntDType,
     ) -> IntTensor<B>;
 
-    fn float_topk(
-        tensor: FloatTensor<B>,
-        dim: usize,
-        k: usize,
-    ) -> FloatTensor<B>;
+    /// Gets the values of the k maximum elements of a tensor along an axis.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to get the maximum elements of.
+    /// * `dim` - The dimension along which to get the maximum elements.
+    /// * `k` - number of maximum elements
+    /// * `out_dtype` - The output tensor dtype.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the values of the maximum elements of `tensor` along `dim`.
+    fn float_topk(tensor: FloatTensor<B>, dim: usize, k: usize) -> FloatTensor<B>;
 
     /// Gets the indices of the minimum elements of a tensor along an axis.
     ///

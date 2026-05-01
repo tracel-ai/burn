@@ -1329,7 +1329,9 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
     }
 
     fn float_prod_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
-        reduce_float_ops!(ProdDimOps, |tensor, axis, _| B::float_prod_dim(tensor, axis));
+        reduce_float_ops!(ProdDimOps, |tensor, axis, _| B::float_prod_dim(
+            tensor, axis
+        ));
 
         let streams = OperationStreams::with_inputs([&tensor]);
 
@@ -1366,7 +1368,9 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
     }
 
     fn float_mean_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
-        reduce_float_ops!(MeanDimOps, |tensor, axis, _| B::float_mean_dim(tensor, axis));
+        reduce_float_ops!(MeanDimOps, |tensor, axis, _| B::float_mean_dim(
+            tensor, axis
+        ));
 
         let streams = OperationStreams::with_inputs([&tensor]);
 
@@ -1952,11 +1956,7 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
             .output()
     }
 
-    fn float_topk(
-        tensor: FloatTensor<Self>,
-        dim: usize,
-        k: usize,
-    ) -> FloatTensor<Self> {
+    fn float_topk(tensor: FloatTensor<Self>, dim: usize, k: usize) -> FloatTensor<Self> {
         reduce_float_ops!(TopKOps, B::float_topk);
 
         let streams = OperationStreams::with_inputs([&tensor]);
@@ -2207,7 +2207,9 @@ impl<B: FusionBackend> FloatTensorOps<Self> for Fusion<B> {
     }
 
     fn float_max_abs_dim(tensor: FloatTensor<Self>, dim: usize) -> FloatTensor<Self> {
-        reduce_float_ops!(MaxAbsDimOps, |tensor, axis, _| B::float_max_abs_dim(tensor, axis));
+        reduce_float_ops!(MaxAbsDimOps, |tensor, axis, _| B::float_max_abs_dim(
+            tensor, axis
+        ));
 
         let streams = OperationStreams::with_inputs([&tensor]);
 

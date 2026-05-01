@@ -353,11 +353,7 @@ impl<E: TchElement> FloatTensorOps<Self> for LibTorch<E> {
         unimplemented!("argtopk not implemented for Torch")
     }
 
-    fn float_topk(
-        _tensor: TchTensor,
-        _dim: usize,
-        _k: usize,
-    ) -> TchTensor {
+    fn float_topk(_tensor: TchTensor, _dim: usize, _k: usize) -> TchTensor {
         unimplemented!("topk not implemented for Torch")
     }
 

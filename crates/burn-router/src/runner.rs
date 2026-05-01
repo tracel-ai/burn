@@ -670,7 +670,9 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     handles.register_float_tensor::<B>(&desc.out.id, output);
                 }
                 NumericOperationIr::MeanDim(desc) => {
-                    reduce_float_dim_ops!(handles, desc, |tensor, axis, _| B::float_mean_dim(tensor, axis))
+                    reduce_float_dim_ops!(handles, desc, |tensor, axis, _| B::float_mean_dim(
+                        tensor, axis
+                    ))
                 }
                 NumericOperationIr::Mean(desc) => {
                     unary_float_ops!(handles, desc, B::float_mean)
@@ -679,13 +681,17 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     unary_float_ops!(handles, desc, B::float_sum)
                 }
                 NumericOperationIr::SumDim(desc) => {
-                    reduce_float_dim_ops!(handles, desc, |tensor, axis, _| B::float_sum_dim(tensor, axis))
+                    reduce_float_dim_ops!(handles, desc, |tensor, axis, _| B::float_sum_dim(
+                        tensor, axis
+                    ))
                 }
                 NumericOperationIr::Prod(desc) => {
                     unary_float_ops!(handles, desc, B::float_prod)
                 }
                 NumericOperationIr::ProdDim(desc) => {
-                    reduce_float_dim_ops!(handles, desc, |tensor, axis, _| B::float_prod_dim(tensor, axis))
+                    reduce_float_dim_ops!(handles, desc, |tensor, axis, _| B::float_prod_dim(
+                        tensor, axis
+                    ))
                 }
                 NumericOperationIr::Greater(desc) => {
                     binary_float_cmp_ops!(handles, desc, B::float_greater)
@@ -753,19 +759,25 @@ impl<B: BackendIr> RunnerClient for Runner<B> {
                     unary_float_ops!(handles, desc, B::float_min)
                 }
                 NumericOperationIr::MaxDim(desc) => {
-                    reduce_float_dim_ops!(handles, desc, |tensor, axis, _| B::float_max_dim(tensor, axis))
+                    reduce_float_dim_ops!(handles, desc, |tensor, axis, _| B::float_max_dim(
+                        tensor, axis
+                    ))
                 }
                 NumericOperationIr::TopK(desc) => {
                     reduce_float_dim_ops!(handles, desc, B::float_topk)
                 }
                 NumericOperationIr::MinDim(desc) => {
-                    reduce_float_dim_ops!(handles, desc, |tensor, axis, _| B::float_min_dim(tensor, axis))
+                    reduce_float_dim_ops!(handles, desc, |tensor, axis, _| B::float_min_dim(
+                        tensor, axis
+                    ))
                 }
                 NumericOperationIr::MaxAbs(desc) => {
                     unary_float_ops!(handles, desc, B::float_max_abs)
                 }
                 NumericOperationIr::MaxAbsDim(desc) => {
-                    reduce_float_dim_ops!(handles, desc, |tensor, axis, _| B::float_max_abs_dim(tensor, axis))
+                    reduce_float_dim_ops!(handles, desc, |tensor, axis, _| B::float_max_abs_dim(
+                        tensor, axis
+                    ))
                 }
                 NumericOperationIr::Clamp(desc) => {
                     let tensor = handles.get_float_tensor::<B>(&desc.tensor);

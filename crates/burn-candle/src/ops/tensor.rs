@@ -593,11 +593,7 @@ impl<F: FloatCandleElement, I: IntCandleElement> FloatTensorOps<Self> for Candle
         panic!("argtopk not implemented for candle backend")
     }
 
-    fn float_topk(
-        tensor: FloatTensor<Self>,
-        dim: usize,
-        k: usize,
-    ) -> IntTensor<Self> {
+    fn float_topk(tensor: FloatTensor<Self>, dim: usize, k: usize) -> IntTensor<Self> {
         panic!("topk not implemented for candle backend")
     }
 

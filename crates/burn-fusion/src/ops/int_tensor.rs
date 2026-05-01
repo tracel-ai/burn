@@ -1610,7 +1610,9 @@ impl<B: FusionBackend> IntTensorOps<Self> for Fusion<B> {
     }
 
     fn int_max_abs_dim(tensor: IntTensor<Self>, dim: usize) -> IntTensor<Self> {
-        reduce_int_ops!(MaxAbsDimOps, |tensor, axis, _| B::int_max_abs_dim(tensor, axis));
+        reduce_int_ops!(MaxAbsDimOps, |tensor, axis, _| B::int_max_abs_dim(
+            tensor, axis
+        ));
 
         let streams = OperationStreams::with_inputs([&tensor]);
 

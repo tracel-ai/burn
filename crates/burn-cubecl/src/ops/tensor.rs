@@ -624,11 +624,7 @@ where
         .unwrap()
     }
 
-    fn float_topk(
-        tensor: FloatTensor<Self>,
-        dim: usize,
-        k: usize,
-    ) -> FloatTensor<Self> {
+    fn float_topk(tensor: FloatTensor<Self>, dim: usize, k: usize) -> FloatTensor<Self> {
         reduce::reduce_dim(
             tensor,
             None,

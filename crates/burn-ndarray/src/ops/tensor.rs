@@ -470,11 +470,7 @@ where
         unimplemented!("float_argtopk not implemented for ndarray")
     }
 
-    fn float_topk(
-        _tensor: FloatTensor<Self>,
-        _dim: usize,
-        _k: usize,
-    ) -> NdArrayTensor {
+    fn float_topk(_tensor: FloatTensor<Self>, _dim: usize, _k: usize) -> NdArrayTensor {
         unimplemented!("float_topk not implemented for ndarray")
     }
 

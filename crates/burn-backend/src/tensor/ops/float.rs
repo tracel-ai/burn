@@ -660,7 +660,6 @@ impl<B: Backend> Ordered<B> for Float {
         }
     }
 
-
     fn topk(tensor: Self::Primitive, dim: usize, k: usize) -> Self::Primitive {
         match tensor {
             TensorPrimitive::Float(tensor) => TensorPrimitive::Float(B::float_topk(tensor, dim, k)),

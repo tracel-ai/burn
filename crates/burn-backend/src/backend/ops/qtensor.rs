@@ -977,11 +977,21 @@ pub trait QTensorOps<B: Backend> {
         B::float_argtopk(tensor_f, dim, k, out_dtype)
     }
 
+
+    /// Gets the values of the k maximum elements of a tensor along an axis.
+    ///
+    /// # Arguments
+    ///
+    /// * `tensor` - The tensor to get the k maximum elements of.
+    /// * `dim` - The dimension along which to get the maximum elements.
+    /// * `k` - number of k maximums to keep
+    /// * `out_dtype` - The output tensor dtype.
+    ///
+    /// # Returns
+    ///
+    /// A tensor with the values of the `k` maximum elements of `tensor` along `dim`.
     fn q_topk(tensor: QuantizedTensor<B>, dim: usize, k: usize) -> QuantizedTensor<B> {
-        dequant_op_quant!(
-            float_op | tensor | B::float_topk(tensor, dim, k),
-            tensor
-        )
+        dequant_op_quant!(float_op | tensor | B::float_topk(tensor, dim, k), tensor)
     }
 
     /// Gets the indices of the minimum elements of a tensor along an axis.

@@ -556,6 +556,10 @@ pub enum NumericOperationIr {
     /// Float => [argtopk](burn_backend::ops::FloatTensorOps::float_argtopk).
     /// Int => [argtopk](burn_backend::ops::IntTensorOps::int_argtopk).
     ArgTopK(ReduceDimOpIr),
+    /// Operation corresponding to:
+    ///
+    /// Float => [topk](burn_backend::ops::FloatTensorOps::float_topk).
+    /// Int => [topk](burn_backend::ops::IntTensorOps::int_topk).
     TopK(ReduceDimOpIr),
     /// Operation corresponding to:
     ///

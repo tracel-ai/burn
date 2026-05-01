@@ -442,11 +442,7 @@ impl FloatTensorOps<Self> for Dispatch {
         unary_float!(tensor, float, |tensor| B::float_argtopk(tensor, dim, k, out_dtype) => Int)
     }
 
-    fn float_topk(
-        tensor: FloatTensor<Self>,
-        dim: usize,
-        k: usize,
-    ) -> FloatTensor<Self> {
+    fn float_topk(tensor: FloatTensor<Self>, dim: usize, k: usize) -> FloatTensor<Self> {
         unary_float!(tensor, float, |tensor| B::float_topk(tensor, dim, k) => Float)
     }
 
