@@ -179,7 +179,6 @@ pub struct DispatchTensor {
     /// Holds the autodiff checkpointing strategy.
     /// - `None`: tensor is not tracked by autodiff
     /// - `Some(strategy)`: tensor is tracked by autodiff, and uses the checkpointing `strategy`
-    #[cfg(feature = "autodiff")]
     pub checkpointing: Option<CheckpointingStrategy>,
 }
 

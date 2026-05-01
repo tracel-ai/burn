@@ -398,10 +398,9 @@ fn gen_dispatch_method(ir: &Extension, op: &Operation) -> TokenStream2 {
         ArgKind::Tensor(_) => Some(&a.name),
         _ => None,
     });
-    let ckp_logic = if has_ad && first_tensor.is_some() {
+    let ckp_logic = if first_tensor.is_some() {
         let name = first_tensor.unwrap();
         quote! {
-            #ad_cfg_attr
             let checkpointing = #name.checkpointing.clone();
         }
     } else {
@@ -423,18 +422,10 @@ fn gen_dispatch_method(ir: &Extension, op: &Operation) -> TokenStream2 {
     // Wrap the resulting tensor(s)
     // If the macro is in AD-mode, we include the field. If not, we don't.
     let wrap_output = |kinds_access: TokenStream2| {
-        if has_ad {
-            quote! {
-                burn::tensor::backend::extension::DispatchTensor {
-                    kind: #kinds_access,
-                    checkpointing: checkpointing.clone(), // Field exists because user asked for AD
-                }
-            }
-        } else {
-            quote! {
-                burn::tensor::backend::extension::DispatchTensor {
-                    kind: #kinds_access,
-                }
+        quote! {
+            burn::tensor::backend::extension::DispatchTensor {
+                kind: #kinds_access,
+                checkpointing: checkpointing.clone(), // Field always present, but None when not autodiff
             }
         }
     };

@@ -6,9 +6,9 @@ use bon::Builder;
 
 use burn_core as burn; // for backend_extension
 use burn_core::tensor::{
-    Bool, Float, Int, IntDType, Scalar, Tensor, TensorKind, TensorPrimitive,
+    Int, IntDType, Scalar, Tensor,
     backend::{Backend, extension::backend_extension},
-    ops::{BoolTensor, FloatTensor, IntTensor, QuantizedTensor},
+    ops::IntTensor,
     read_sync,
 };
 
