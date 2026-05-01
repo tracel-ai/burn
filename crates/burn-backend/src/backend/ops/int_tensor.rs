@@ -920,7 +920,6 @@ pub trait IntTensorOps<B: Backend> {
     fn int_argtopk(tensor: IntTensor<B>, dim: usize, k: usize) -> IntTensor<B>;
 
     /// Gets the values of the k maximum elements along a dimension.
-    /// If two elements share the same value
     /// # Arguments
     ///
     /// * `tensor` - The tensor to get the maximum values of.

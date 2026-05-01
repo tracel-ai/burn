@@ -416,7 +416,7 @@ pub trait Ordered<B: Backend>: Numeric<B> {
     /// with static dispatch. It is not designed for direct usage by users, and not recommended to import
     /// or use this function directly.
     ///
-    /// For getting the indices of the k maximum elements of a tensor along an axis, users should prefer the
+    /// For getting the values of the k maximum elements of a tensor along an axis, users should prefer the
     #[cfg_attr(doc, doc = crate::doc_tensor!("topk"))]
     #[cfg_attr(not(doc), doc = "`Tensor::topk`")]
     /// function, which is more high-level and designed for public use.
