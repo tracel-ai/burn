@@ -977,7 +977,6 @@ pub trait QTensorOps<B: Backend> {
         B::float_argtopk(tensor_f, dim, k, out_dtype)
     }
 
-
     /// Gets the values of the k maximum elements of a tensor along an axis.
     ///
     /// # Arguments
