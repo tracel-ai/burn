@@ -150,19 +150,19 @@ macro_rules! bench_cat {
                 use super::*;
 
                 #[divan::bench]
-                fn _1k(bencher: Bencher) {
+                fn s_1k(bencher: Bencher) {
                     let t = make_f32_1d(1024);
                     bencher.bench_synced(|| t.clone().max());
                 }
 
                 #[divan::bench]
-                fn _64k(bencher: Bencher) {
+                fn s_64k(bencher: Bencher) {
                     let t = make_f32_1d(64 * 1024);
                     bencher.bench_synced(|| t.clone().max());
                 }
 
                 #[divan::bench]
-                fn _1m(bencher: Bencher) {
+                fn s_1m(bencher: Bencher) {
                     let t = make_f32_1d(1024 * 1024);
                     bencher.bench_synced(|| t.clone().max());
                 }
@@ -173,19 +173,19 @@ macro_rules! bench_cat {
                 use super::*;
 
                 #[divan::bench]
-                fn _1k(bencher: Bencher) {
+                fn s_1k(bencher: Bencher) {
                     let t = make_f32_1d(1024);
                     bencher.bench_synced(|| t.clone().min());
                 }
 
                 #[divan::bench]
-                fn _64k(bencher: Bencher) {
+                fn s_64k(bencher: Bencher) {
                     let t = make_f32_1d(64 * 1024);
                     bencher.bench_synced(|| t.clone().min());
                 }
 
                 #[divan::bench]
-                fn _1m(bencher: Bencher) {
+                fn s_1m(bencher: Bencher) {
                     let t = make_f32_1d(1024 * 1024);
                     bencher.bench_synced(|| t.clone().min());
                 }
@@ -196,7 +196,7 @@ macro_rules! bench_cat {
                 use super::*;
 
                 #[divan::bench]
-                fn _256x256(bencher: Bencher) {
+                fn s_256x256(bencher: Bencher) {
                     let Some(t) = make_int_2d(256, 256) else {
                         bencher.bench(|| ());
                         return;
@@ -205,7 +205,7 @@ macro_rules! bench_cat {
                 }
 
                 #[divan::bench]
-                fn _1024x1024(bencher: Bencher) {
+                fn s_1024x1024(bencher: Bencher) {
                     let Some(t) = make_int_2d(1024, 1024) else {
                         bencher.bench(|| ());
                         return;
@@ -219,7 +219,7 @@ macro_rules! bench_cat {
                 use super::*;
 
                 #[divan::bench]
-                fn _256x256(bencher: Bencher) {
+                fn s_256x256(bencher: Bencher) {
                     let Some(base) = make_int_2d(256, 256) else {
                         bencher.bench(|| ());
                         return;
@@ -232,7 +232,7 @@ macro_rules! bench_cat {
                 }
 
                 #[divan::bench]
-                fn _1024x256(bencher: Bencher) {
+                fn s_1024x256(bencher: Bencher) {
                     let Some(base) = make_int_2d(1024, 256) else {
                         bencher.bench(|| ());
                         return;
@@ -250,7 +250,7 @@ macro_rules! bench_cat {
                 use super::*;
 
                 #[divan::bench]
-                fn _256x256_128idx(bencher: Bencher) {
+                fn s_256x256_128idx(bencher: Bencher) {
                     let t = make_bool_2d(256, 256);
                     let Some(idx) = make_indices_1d(128, 256) else {
                         bencher.bench(|| ());
@@ -260,7 +260,7 @@ macro_rules! bench_cat {
                 }
 
                 #[divan::bench]
-                fn _1024x256_512idx(bencher: Bencher) {
+                fn s_1024x256_512idx(bencher: Bencher) {
                     let t = make_bool_2d(1024, 256);
                     let Some(idx) = make_indices_1d(512, 1024) else {
                         bencher.bench(|| ());
@@ -275,7 +275,7 @@ macro_rules! bench_cat {
                 use super::*;
 
                 #[divan::bench]
-                fn _b1_c3_32x32(bencher: Bencher) {
+                fn s_b1_c3_32x32(bencher: Bencher) {
                     let img = make_image_4d(1, 3, 32, 32);
                     let grid = make_grid_4d(1, 32, 32);
                     bencher.bench_synced(|| {
@@ -285,7 +285,7 @@ macro_rules! bench_cat {
                 }
 
                 #[divan::bench]
-                fn _b1_c3_64x64(bencher: Bencher) {
+                fn s_b1_c3_64x64(bencher: Bencher) {
                     let img = make_image_4d(1, 3, 64, 64);
                     let grid = make_grid_4d(1, 64, 64);
                     bencher.bench_synced(|| {
@@ -295,7 +295,7 @@ macro_rules! bench_cat {
                 }
 
                 #[divan::bench]
-                fn _b4_c3_32x32(bencher: Bencher) {
+                fn s_b4_c3_32x32(bencher: Bencher) {
                     let img = make_image_4d(4, 3, 32, 32);
                     let grid = make_grid_4d(4, 32, 32);
                     bencher.bench_synced(|| {
@@ -305,7 +305,7 @@ macro_rules! bench_cat {
                 }
 
                 #[divan::bench]
-                fn _b1_c16_64x64(bencher: Bencher) {
+                fn s_b1_c16_64x64(bencher: Bencher) {
                     let img = make_image_4d(1, 16, 64, 64);
                     let grid = make_grid_4d(1, 64, 64);
                     bencher.bench_synced(|| {

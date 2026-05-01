@@ -2,6 +2,7 @@ pub use burn_backend::{DeviceError, DeviceId, DeviceSettings};
 pub use burn_dispatch::devices::*;
 
 use burn_backend::Backend;
+#[allow(unused)]
 use burn_dispatch::DispatchDeviceId;
 use burn_dispatch::{Dispatch, DispatchDevice};
 use burn_std::FloatDType;
@@ -301,9 +302,11 @@ impl Device {
 
     /// Retrieves all available [`Adapter`]s that match the given [`Backends`].
     pub fn enumerate(filter: impl Into<EnumSet<DeviceType>>) -> Vec<Device> {
+        #[allow(unused)]
         let mut devices = Vec::new();
 
         for device_type in filter.into() {
+            #[allow(unused)]
             let type_id = match device_type {
                 #[cfg(feature = "cpu")]
                 DeviceType::Cpu => DispatchDeviceId::Cpu,
@@ -326,6 +329,7 @@ impl Device {
                 DeviceType::LibTorch => DispatchDeviceId::LibTorch,
             };
 
+            #[allow(unreachable_code)] // need to have one backend enabled, so it is reachable
             for device in Dispatch::enumerate(type_id) {
                 devices.push(Device::new(device))
             }

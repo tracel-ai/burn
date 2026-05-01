@@ -1,4 +1,4 @@
-use burn_core::tensor::{Tolerance, ops::FloatElem};
+use burn_core::tensor::Tolerance;
 use burn_vision::{
     BorderType, KernelShape, MorphOptions, Morphology, Point, Size, create_structuring_element,
 };

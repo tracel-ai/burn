@@ -64,28 +64,28 @@ macro_rules! bench_backend {
                 use super::*;
 
                 #[divan::bench]
-                fn _1k_vectors(bencher: Bencher) {
+                fn s_1k_vectors(bencher: Bencher) {
                     let a = make_cross_tensor_1d(1024);
                     let b = make_cross_tensor_1d(1024);
                     bencher.bench_synced(|| a.clone().cross(b.clone(), 1));
                 }
 
                 #[divan::bench]
-                fn _64k_vectors(bencher: Bencher) {
+                fn s_64k_vectors(bencher: Bencher) {
                     let a = make_cross_tensor_1d(64 * 1024);
                     let b = make_cross_tensor_1d(64 * 1024);
                     bencher.bench_synced(|| a.clone().cross(b.clone(), 1));
                 }
 
                 #[divan::bench]
-                fn _256k_vectors(bencher: Bencher) {
+                fn s_256k_vectors(bencher: Bencher) {
                     let a = make_cross_tensor_1d(256 * 1024);
                     let b = make_cross_tensor_1d(256 * 1024);
                     bencher.bench_synced(|| a.clone().cross(b.clone(), 1));
                 }
 
                 #[divan::bench]
-                fn _3d_64x64(bencher: Bencher) {
+                fn s_3d_64x64(bencher: Bencher) {
                     let a = make_cross_tensor_2d(64, 64);
                     let b = make_cross_tensor_2d(64, 64);
                     bencher.bench_synced(|| a.clone().cross(b.clone(), 1));
@@ -98,51 +98,51 @@ macro_rules! bench_backend {
 
                 // 1D unfold: sliding window extraction
                 #[divan::bench]
-                fn _1d_1k_win8_step1(bencher: Bencher) {
+                fn s_1d_1k_win8_step1(bencher: Bencher) {
                     let t: Tensor<1> = make_tensor_1d(1024);
                     bencher.bench_synced(|| -> Tensor<2> { t.clone().unfold(0, 8, 1) });
                 }
 
                 #[divan::bench]
-                fn _1d_64k_win8_step1(bencher: Bencher) {
+                fn s_1d_64k_win8_step1(bencher: Bencher) {
                     let t: Tensor<1> = make_tensor_1d(64 * 1024);
                     bencher.bench_synced(|| -> Tensor<2> { t.clone().unfold(0, 8, 1) });
                 }
 
                 #[divan::bench]
-                fn _1d_64k_win64_step1(bencher: Bencher) {
+                fn s_1d_64k_win64_step1(bencher: Bencher) {
                     let t: Tensor<1> = make_tensor_1d(64 * 1024);
                     bencher.bench_synced(|| -> Tensor<2> { t.clone().unfold(0, 64, 1) });
                 }
 
                 #[divan::bench]
-                fn _1d_64k_win64_step32(bencher: Bencher) {
+                fn s_1d_64k_win64_step32(bencher: Bencher) {
                     let t: Tensor<1> = make_tensor_1d(64 * 1024);
                     bencher.bench_synced(|| -> Tensor<2> { t.clone().unfold(0, 64, 32) });
                 }
 
                 // 2D unfold along dim 1
                 #[divan::bench]
-                fn _2d_256x256_dim1_win8_step1(bencher: Bencher) {
+                fn s_2d_256x256_dim1_win8_step1(bencher: Bencher) {
                     let t: Tensor<2> = make_tensor_2d(256, 256);
                     bencher.bench_synced(|| -> Tensor<3> { t.clone().unfold(1, 8, 1) });
                 }
 
                 #[divan::bench]
-                fn _2d_256x256_dim1_win32_step16(bencher: Bencher) {
+                fn s_2d_256x256_dim1_win32_step16(bencher: Bencher) {
                     let t: Tensor<2> = make_tensor_2d(256, 256);
                     bencher.bench_synced(|| -> Tensor<3> { t.clone().unfold(1, 32, 16) });
                 }
 
                 #[divan::bench]
-                fn _2d_1024x256_dim1_win8_step1(bencher: Bencher) {
+                fn s_2d_1024x256_dim1_win8_step1(bencher: Bencher) {
                     let t: Tensor<2> = make_tensor_2d(1024, 256);
                     bencher.bench_synced(|| -> Tensor<3> { t.clone().unfold(1, 8, 1) });
                 }
 
                 // 3D unfold (batch scenarios)
                 #[divan::bench]
-                fn _3d_32x64x64_dim2_win8_step4(bencher: Bencher) {
+                fn s_3d_32x64x64_dim2_win8_step4(bencher: Bencher) {
                     let t: Tensor<3> = make_tensor_3d(32, 64, 64);
                     bencher.bench_synced(|| -> Tensor<4> { t.clone().unfold(2, 8, 4) });
                 }

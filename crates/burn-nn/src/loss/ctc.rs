@@ -283,26 +283,6 @@ mod tests {
 
     use super::*;
 
-    fn assert_approx_equal(actual: &[f32], expected: &[f32], tol: f32) {
-        assert_eq!(
-            actual.len(),
-            expected.len(),
-            "Length mismatch: actual {} vs expected {}",
-            actual.len(),
-            expected.len()
-        );
-        for (i, (a, e)) in actual.iter().zip(expected.iter()).enumerate() {
-            assert!(
-                (a - e).abs() < tol,
-                "Mismatch at index {}: expected {:.6}, got {:.6} (diff: {:.6})",
-                i,
-                e,
-                a,
-                (a - e).abs()
-            );
-        }
-    }
-
     // ---------------------------------------------------------------
     // Assertions
     // ---------------------------------------------------------------
@@ -487,26 +467,6 @@ mod pytorch_comparison_tests {
     use super::*;
     use burn::tensor::activation::log_softmax;
     use burn_core::tensor::{Device, TensorData, Tolerance};
-
-    fn assert_approx_equal(actual: &[f32], expected: &[f32], tol: f32) {
-        assert_eq!(
-            actual.len(),
-            expected.len(),
-            "Length mismatch: actual {} vs expected {}",
-            actual.len(),
-            expected.len()
-        );
-        for (i, (a, e)) in actual.iter().zip(expected.iter()).enumerate() {
-            assert!(
-                (a - e).abs() < tol,
-                "Mismatch at index {}: expected {:.6}, got {:.6} (diff: {:.6})",
-                i,
-                e,
-                a,
-                (a - e).abs()
-            );
-        }
-    }
 
     /// Deterministic logits: sin((t*7 + n*13 + c*3) * 0.1).
     fn generate_logits(t_size: usize, n_size: usize, c_size: usize, device: &Device) -> Tensor<3> {

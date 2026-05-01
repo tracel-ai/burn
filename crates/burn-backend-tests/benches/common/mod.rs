@@ -79,6 +79,7 @@ fn panic_message(payload: Box<dyn std::any::Any + Send>) -> String {
 /// an op used during setup), returns `None` and records the failure location. Lets benches that
 /// rely on op-heavy setup (e.g. `make_qtensor` calls `quantize_dynamic`, fft inverse benches call
 /// `rfft` to produce the input) fall through to a no-op without taking down the whole binary.
+#[allow(unused)] // it's used in benches
 #[track_caller]
 pub fn try_setup<T>(f: impl FnOnce() -> T) -> Option<T> {
     let loc = Location::caller();

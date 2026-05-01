@@ -54,7 +54,7 @@ macro_rules! bench_backend {
                 use super::*;
 
                 #[divan::bench]
-                fn _256x256_dim1(bencher: Bencher) {
+                fn s_256x256_dim1(bencher: Bencher) {
                     let tensor = make_tensor_2d(256, 256);
                     let Some(indices) = make_indices_2d(256, 128, 256) else {
                         bencher.bench(|| ());
@@ -64,7 +64,7 @@ macro_rules! bench_backend {
                 }
 
                 #[divan::bench]
-                fn _1024x1024_dim1(bencher: Bencher) {
+                fn s_1024x1024_dim1(bencher: Bencher) {
                     let tensor = make_tensor_2d(1024, 1024);
                     let Some(indices) = make_indices_2d(1024, 512, 1024) else {
                         bencher.bench(|| ());
@@ -74,7 +74,7 @@ macro_rules! bench_backend {
                 }
 
                 #[divan::bench]
-                fn _256x256_dim0(bencher: Bencher) {
+                fn s_256x256_dim0(bencher: Bencher) {
                     let tensor = make_tensor_2d(256, 256);
                     let Some(indices) = make_indices_2d(128, 256, 256) else {
                         bencher.bench(|| ());
@@ -89,7 +89,7 @@ macro_rules! bench_backend {
                 use super::*;
 
                 #[divan::bench]
-                fn _256x256_dim1(bencher: Bencher) {
+                fn s_256x256_dim1(bencher: Bencher) {
                     let tensor = make_tensor_2d(256, 256);
                     let Some(indices) = make_indices_2d(256, 128, 256) else {
                         bencher.bench(|| ());
@@ -107,7 +107,7 @@ macro_rules! bench_backend {
                 }
 
                 #[divan::bench]
-                fn _1024x1024_dim1(bencher: Bencher) {
+                fn s_1024x1024_dim1(bencher: Bencher) {
                     let tensor = make_tensor_2d(1024, 1024);
                     let Some(indices) = make_indices_2d(1024, 512, 1024) else {
                         bencher.bench(|| ());
@@ -130,7 +130,7 @@ macro_rules! bench_backend {
                 use super::*;
 
                 #[divan::bench]
-                fn _256x256_dim0(bencher: Bencher) {
+                fn s_256x256_dim0(bencher: Bencher) {
                     let tensor = make_tensor_2d(256, 256);
                     let Some(indices) = make_indices_1d(128, 256) else {
                         bencher.bench(|| ());
@@ -140,7 +140,7 @@ macro_rules! bench_backend {
                 }
 
                 #[divan::bench]
-                fn _1024x1024_dim0(bencher: Bencher) {
+                fn s_1024x1024_dim0(bencher: Bencher) {
                     let tensor = make_tensor_2d(1024, 1024);
                     let Some(indices) = make_indices_1d(512, 1024) else {
                         bencher.bench(|| ());
@@ -150,7 +150,7 @@ macro_rules! bench_backend {
                 }
 
                 #[divan::bench]
-                fn _256x256_dim1(bencher: Bencher) {
+                fn s_256x256_dim1(bencher: Bencher) {
                     let tensor = make_tensor_2d(256, 256);
                     let Some(indices) = make_indices_1d(128, 256) else {
                         bencher.bench(|| ());
@@ -165,7 +165,7 @@ macro_rules! bench_backend {
                 use super::*;
 
                 #[divan::bench]
-                fn _256x256_dim0(bencher: Bencher) {
+                fn s_256x256_dim0(bencher: Bencher) {
                     let tensor = make_tensor_2d(256, 256);
                     let Some(indices) = make_indices_1d(128, 256) else {
                         bencher.bench(|| ());
@@ -183,7 +183,7 @@ macro_rules! bench_backend {
                 }
 
                 #[divan::bench]
-                fn _1024x1024_dim0(bencher: Bencher) {
+                fn s_1024x1024_dim0(bencher: Bencher) {
                     let tensor = make_tensor_2d(1024, 1024);
                     let Some(indices) = make_indices_1d(512, 1024) else {
                         bencher.bench(|| ());

@@ -5,6 +5,7 @@ use image::{DynamicImage, ImageBuffer, Luma, Rgb};
 
 use burn_core::tensor::{Bool, Int};
 
+#[allow(unused)]
 #[cfg(all(test, feature = "flex", not(any(feature = "wgpu", feature = "cuda"))))]
 pub type TestDevice = burn_flex::FlexDevice;
 
