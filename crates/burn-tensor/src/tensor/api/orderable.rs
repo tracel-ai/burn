@@ -234,8 +234,6 @@ where
     pub fn topk(self, dim: usize, k: usize) -> Self {
         assert!(self.shape()[dim] > k);
         Tensor::new(K::topk(self.primitive, dim, k))
-        //let k_indices = Tensor::arange(0..k as i64, &self.device());
-        //self.sort_descending(dim).select(dim, k_indices)
     }
 
     /// Returns the `k` largest elements of the given input tensor along a given dimension.
